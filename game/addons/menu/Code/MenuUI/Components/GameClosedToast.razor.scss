@@ -1,17 +1,17 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // The menu's card - the slab, hairline, rounding - in the bottom right corner. Everything's scoped
 // under it: stylesheets are global, and a bare .head or .close would restyle half the menu.
 GameClosedToast
 {
-	@include front-card;
+	@include platform-surface;
+	flex-shrink: 0;
+	overflow: hidden;
 
 	position: relative;
 	width: 360px;
 	top: 0px;
-	color: $front-body;
 	pointer-events: all;
-	box-shadow: 0 12px 40px rgba( 0, 0, 0, 0.5 );
 	transition: all 0.2s ease-out;
 	sound-in: "ui.popup.message.open";
 
@@ -81,7 +81,7 @@ GameClosedToast
 
 	.eyebrow
 	{
-		@include front-section-label;
+		@include platform-section-label;
 		margin-bottom: 2px;
 	}
 
@@ -106,29 +106,14 @@ GameClosedToast
 	// Top right, level with the eyebrow
 	.close
 	{
-		@include front-icon-button;
+		@include platform-tool( 28px, 16px );
 
 		align-self: flex-start;
-		width: 28px;
-		height: 28px;
 		margin-top: -6px;
-
-		i
-		{
-			width: 100%;
-			text-align: center;
-			font-size: 16px;
-			color: $front-secondary;
-		}
-
-		&:hover i
-		{
-			color: $front-heading;
-		}
 	}
 
 	//
-	// What you thought - pills along a hairlined band
+	// What you thought - buttons along a hairlined band
 	//
 
 	.actions
@@ -145,37 +130,14 @@ GameClosedToast
 		}
 	}
 
-	.action
+	.actions > .action
 	{
-		@include front-pill;
-
-		height: 30px;
+		@include platform-text-button( 34px, 12.5px, 15px );
 		padding: 0 12px 0 10px;
-		cursor: pointer;
-
-		i
-		{
-			font-size: 15px;
-			color: $front-secondary;
-		}
-
-		label
-		{
-			font-size: 11px;
-			font-weight: 700;
-			letter-spacing: 0.04em;
-			text-transform: none;
-			color: $front-body;
-		}
 
 		&:hover
 		{
 			sound-in: "ui.button.over";
-
-			i
-			{
-				color: $front-heading;
-			}
 		}
 
 		&:active
@@ -183,169 +145,34 @@ GameClosedToast
 			sound-in: "ui.button.press";
 		}
 
-		// Yours - lit in the colour of what it means
+		// Yours - lit, as a toggle that's on
 		&.favourite.active
 		{
-			border-color: rgba( #e93b6d, 0.55 );
-			background-color: rgba( #e93b6d, 0.14 );
-
-			i { color: #ff5b8a; }
-			label { color: $front-heading; }
-		}
-
-		&.up.active
-		{
-			background-color: rgba( $front-reward, 0.16 );
-
-			i { color: $front-reward; }
-			label { color: $front-heading; }
-		}
-
-		&.down.active
-		{
-			background-color: rgba( $front-danger, 0.16 );
-
-			i { color: $front-danger; }
-			label { color: $front-heading; }
+			@include platform-button-selected;
 		}
 	}
 
-	// Up and down as one pill, split down the middle - the halves lose their own edges and
-	// rounding, the pair takes them
+	// Up and down as one pair of choices
 	.votes
 	{
-		flex-direction: row;
-		flex-shrink: 0;
-		align-items: center;
-		height: 30px;
-		border-radius: 999px;
-		border: $front-border-width solid $front-hairline;
-		overflow: hidden;
+		@include platform-choices;
 
 		.action
 		{
-			height: 100%;
-			border-width: 0;
-			border-radius: 0;
-			background-color: rgba( 255, 255, 255, 0.05 );
-
-			&:hover
-			{
-				background-color: rgba( 255, 255, 255, 0.11 );
-			}
-		}
-
-		.split
-		{
-			width: 1px;
-			height: 100%;
-			background-color: $front-hairline;
-		}
-	}
-
-	//
-	// A jam entry - nominate it while you're still thinking about it
-	//
-
-	.jam
-	{
-		flex-direction: row;
-		flex-shrink: 0;
-		align-items: center;
-		gap: 10px;
-		margin: -4px $front-inset 16px $front-inset;
-		padding: 8px 8px 8px 12px;
-		border-radius: 8px;
-		background: linear-gradient( 90deg, rgba( $front-trophy, 0.2 ), rgba( $front-trophy, 0.06 ) );
-		border: 1px solid rgba( $front-trophy, 0.4 );
-
-		.trophy
-		{
-			flex-shrink: 0;
-			font-size: 22px;
-			color: $front-trophy * 1.8;
-		}
-
-		.text
-		{
-			flex-grow: 1;
-			flex-shrink: 1;
-			flex-direction: column;
-			min-width: 0;
-			gap: 1px;
-
-			.title
-			{
-				font-size: 12px;
-				font-weight: 700;
-				color: $front-heading;
-				white-space: nowrap;
-				overflow: hidden;
-				text-overflow: ellipsis;
-			}
-
-			.hint
-			{
-				font-size: 10.5px;
-				font-weight: 500;
-				color: $front-trophy * 1.6;
-				white-space: nowrap;
-				overflow: hidden;
-				text-overflow: ellipsis;
-			}
-		}
-
-		.nominate
-		{
-			flex-direction: row;
-			flex-shrink: 0;
-			align-items: center;
-			gap: 6px;
-			height: 30px;
-			padding: 0 12px 0 10px;
-			border-radius: 999px;
-			background-color: $front-trophy;
-			color: #1a1204;
-			cursor: pointer;
-			transition: all 0.1s ease;
-
-			i
-			{
-				font-size: 15px;
-			}
-
-			label
-			{
-				font-size: 11px;
-				font-weight: 700;
-			}
+			@include platform-choice;
+			// As wide as what's on them - the strip has no width of its own to share out
+			flex-grow: 0;
+			flex-basis: auto;
+			padding: 0 10px;
 
 			&:hover
 			{
 				sound-in: "ui.button.over";
-				filter: brightness( 1.15 );
 			}
 
-			&.on
+			&:active
 			{
-				background-color: rgba( $front-trophy, 0.15 );
-				border: 1px solid rgba( $front-trophy, 0.6 );
-				color: $front-trophy;
-			}
-
-			&.busy, &.locked
-			{
-				opacity: 0.5;
-			}
-
-			&.busy
-			{
-				pointer-events: none;
-			}
-
-			&.locked
-			{
-				cursor: default;
+				sound-in: "ui.button.press";
 			}
 		}
 	}

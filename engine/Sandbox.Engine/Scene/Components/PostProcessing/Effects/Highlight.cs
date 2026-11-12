@@ -16,8 +16,9 @@ public sealed class Highlight : BasePostProcess<Highlight>
 
 	public override void Render()
 	{
-		var outlines = Scene.GetAll<HighlightOutline>();
-		if ( !outlines.Any() ) return;
+		if ( Scene.Get<HighlightOutline>() is null ) return;
+
+		var outlines = Scene.Query<HighlightOutline>();
 
 		commands.Reset();
 

@@ -18,6 +18,7 @@ public partial class Terrain
 	}
 
 	private PhysicsShape _shape;
+	private int _shapeResolution;
 
 	internal override Transform GetTargetTransform()
 	{
@@ -76,6 +77,7 @@ public partial class Terrain
 			}
 
 			_shape = targetBody.AddHeightFieldShape( Storage.HeightMap, surfaceMap, Storage.Resolution, Storage.Resolution, sizeScale, heightScale, 4, surfaceIndices );
+			_shapeResolution = Storage.Resolution;
 		}
 		finally
 		{
@@ -93,6 +95,9 @@ public partial class Terrain
 		if ( _shape?._shape is not PhysicsShape3d shape3d )
 			return;
 
+		if ( !CanUpdateCollider() )
+			return;
+
 		fixed ( ushort* heights = &Storage.HeightMap[0] )
 		{
 			var sizeScale = Storage.TerrainSize / Storage.Resolution;
@@ -100,6 +105,11 @@ public partial class Terrain
 
 			shape3d.native.UpdateHeightShape( (IntPtr)heights, IntPtr.Zero, x, y, w, h, sizeScale, heightScale );
 		}
+	}
+
+	internal bool CanUpdateCollider()
+	{
+		return Storage?.HeightMap is { } heights && Storage.Resolution == _shapeResolution && heights.Length >= (long)_shapeResolution * _shapeResolution;
 	}
 
 	private unsafe void UpdateColliderMaterials( int x, int y, int w, int h )

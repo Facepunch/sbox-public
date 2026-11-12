@@ -54,6 +54,8 @@ sealed class SceneCompileToolbar : Widget
 		base.OnDestroyed();
 	}
 
+	int _shownState;
+
 	[EditorEvent.Frame]
 	void UpdateScene()
 	{
@@ -61,13 +63,22 @@ sealed class SceneCompileToolbar : Widget
 			return;
 
 		var active = SceneEditorSession.Active;
-		Visible = !Game.IsPlaying && GetAncestor<SceneViewWidget>().IsValid() && active is { IsPrefabSession: false };
-		if ( !Visible )
+		var visible = !Game.IsPlaying && GetAncestor<SceneViewWidget>().IsValid() && active is { IsPrefabSession: false };
+		if ( Visible != visible ) Visible = visible;
+		if ( !visible )
 		{
 			_menu?.Close();
 			return;
 		}
 
+		// Setting the controls repaints the toolbar, so only do it when something they show has changed. The progress
+		// bar animates while compiling, so that keeps updating every frame.
+		var state = HashCode.Combine( Status(), EditorShortcuts.GetDisplayKeys( "scene.compile" ), _session.CanCompile, _session.Cancelling,
+			_session.Name, _session.Lines.Count, _session.Error, HashCode.Combine( _session.Running, _session.HasSources, _menu.IsValid(), _session.Scene.IsValid() ) );
+		if ( !_session.Running && state == _shownState )
+			return;
+
+		_shownState = state;
 		UpdateControls();
 	}
 

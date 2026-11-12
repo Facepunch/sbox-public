@@ -57,9 +57,9 @@
   "SteamItemDefinitionId": null,
   "Icon": {
     "Path": "models/citizen_clothes/hair/hair_looseblonde/hair.loose.grey.clothing.png",
-    "Mode": "Eyes",
-    "UsePositionOffset": false,
-    "PositionOffset": "0,0,0"
+    "Mode": "Head",
+    "UsePositionOffset": true,
+    "PositionOffset": "7.9899931,0.289999962,0.380000412"
   },
   "__references": [],
   "__version": 0

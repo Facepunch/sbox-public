@@ -259,7 +259,12 @@ internal sealed class Workspace : Widget
 			try
 			{
 				using ( _secondaryView.SuppressSelectionForwarding() )
-					_secondaryView.Graph = secondary.Graph;
+				{
+					if ( ReferenceEquals( _secondaryView.Graph, secondary.Graph ) )
+						_secondaryView.RebuildFromGraph();
+					else
+						_secondaryView.Graph = secondary.Graph;
+				}
 			}
 			finally
 			{
@@ -279,6 +284,19 @@ internal sealed class Workspace : Widget
 
 		UpdateVisibility();
 		TryFrameSecondaryView();
+	}
+
+	internal void FocusSecondaryNode( Node node )
+	{
+		if ( _collapsed )
+			ToggleSecondaryView();
+
+		_pendingFrameGraph = null;
+		_preserveCenter = false;
+		_finishResize = false;
+		_secondaryView.SelectNode( node );
+		_secondaryView.CenterOnSelection();
+		_secondaryView.Focus();
 	}
 
 	private void OpenSecondaryGraph()

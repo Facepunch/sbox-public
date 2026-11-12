@@ -83,6 +83,11 @@ public static class LoadingView
 	/// </summary>
 	public static double? StepFraction => IsMocking ? null : LoadingScreen.StepFraction;
 
+	/// <summary>
+	/// How far the whole load is across its stages, 0 to 1. Null when no game is loading.
+	/// </summary>
+	public static double? LoadFraction => IsMocking ? null : LoadingScreen.LoadFraction;
+
 	public static string FirstTask => IsMocking ? null : LoadingScreen.Tasks.FirstOrDefault()?.Title;
 
 	/// <summary>
@@ -103,6 +108,10 @@ public static class LoadingView
 		get
 		{
 			if ( IsMocking ) return MockDownloads;
+
+			// Polled every frame by the overlay, nothing to build while nothing is loading
+			if ( LoadingScreen.Downloads.Count == 0 && LoadingScreen.Progress is not { Fraction: > 0 and < 1 } )
+				return [];
 
 			var downloads = LoadingScreen.Downloads
 				.Where( x => x.TotalSize > 0 )

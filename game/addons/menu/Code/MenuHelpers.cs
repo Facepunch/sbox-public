@@ -9,31 +9,96 @@ using MenuPanel = MenuProject.UI.MenuPanel;
 public static class MenuHelpers
 {
 	/// <summary>
-	/// <c>menu_mock_new_account 1</c> - treat this account as under a week old, to see the menu without
-	/// anything for sale.
+	/// One hash for everything in <paramref name="items"/>, in order - for a BuildHash, instead of joining them into a
+	/// string every frame
 	/// </summary>
-	[MenuConVar( "menu_mock_new_account", Help = "Treat this account as under a week old - no item store, no unowned store items: 0 or 1" )]
-	public static bool MockNewAccount { get; set; }
-
-	/// <summary>
-	/// How old an account has to be before anything's offered for sale.
-	/// </summary>
-	public static readonly TimeSpan MicrotransactionsMinimumAccountAge = TimeSpan.FromDays( 7 );
-
-	/// <summary>
-	/// The item store and everything else that sells - not until the account's a week old. The s&amp;box
-	/// account, from when the backend first saw it, not the Steam account. Not known yet (not logged in)
-	/// counts as new.
-	/// </summary>
-	public static bool ShowMicrotransactions
+	public static int HashOf<T>( IEnumerable<T> items )
 	{
-		get
-		{
-			if ( MockNewAccount ) return false;
+		var hash = new HashCode();
 
-			var firstSeen = Sandbox.MenuEngine.Account.FirstSeen;
-			return firstSeen != default && DateTimeOffset.UtcNow - firstSeen >= MicrotransactionsMinimumAccountAge;
+		if ( items is not null )
+			foreach ( var item in items ) hash.Add( item );
+
+		return hash.ToHashCode();
+	}
+
+	/// <summary>
+	/// One hash for what <paramref name="pick"/> takes from each of <paramref name="items"/>, in order. Pass a static
+	/// lambda, so it isn't made again every frame.
+	/// </summary>
+	public static int HashOf<T, TValue>( IEnumerable<T> items, Func<T, TValue> pick )
+	{
+		var hash = new HashCode();
+
+		if ( items is not null )
+			foreach ( var item in items ) hash.Add( pick( item ) );
+
+		return hash.ToHashCode();
+	}
+
+	/// <summary>
+	/// Off to the avatar editor - its own scene, in place of the menu's. Not from inside a game.
+	/// </summary>
+	public static bool CanEditAvatar => !Game.InGame;
+
+	const string AvatarScene = "/scenes/avatar.scene";
+
+	public static void OpenAvatarEditor()
+	{
+		// The platform menu's is a page up out of its dock - no scene of its own, so from a game too
+		if ( MenuProject.Platform.PlatformMenu.Enabled )
+		{
+			MenuProject.Platform.PlatformRoot.Instance?.OpenShelf( MenuProject.Platform.PlatformShelf.Avatar );
+			return;
 		}
+
+		if ( !CanEditAvatar ) return;
+
+		var options = new SceneLoadOptions();
+		options.ShowLoadingScreen = false;
+		options.SetScene( AvatarScene );
+
+		MenuScene.Scene.Load( options );
+	}
+
+	/// <summary>
+	/// The avatar editor's up as the platform menu's scene - the platform's hidden under it
+	/// </summary>
+	public static bool InAvatarEditor => MenuScene.Scene?.Get<AvatarEditManager>() is not null;
+
+	static bool closingAvatarEditor;
+
+	/// <summary>
+	/// Back out of the avatar editor - onto the menu's own scene, or on the platform, back to no scene at all. That's
+	/// done next tick (TickAvatarEditor), from outside the scene - not from its own update, which this is called from.
+	/// </summary>
+	public static void CloseAvatarEditor()
+	{
+		if ( MenuProject.Platform.PlatformMenu.Enabled )
+		{
+			closingAvatarEditor = true;
+			return;
+		}
+
+		var options = new SceneLoadOptions();
+		options.ShowLoadingScreen = true;
+		options.SetScene( "/scenes/menu-main.scene" );
+
+		Game.ActiveScene.Load( options );
+	}
+
+	/// <summary>
+	/// The platform menu's avatar editor scene put away, once it's asked to be - from the platform's own tick
+	/// </summary>
+	internal static void TickAvatarEditor()
+	{
+		if ( !closingAvatarEditor ) return;
+
+		closingAvatarEditor = false;
+
+		var scene = MenuScene.Scene;
+		MenuScene.Scene = null;
+		scene?.Destroy();
 	}
 
 	/// <summary>
@@ -56,16 +121,6 @@ public static class MenuHelpers
 	}
 
 	/// <summary>
-	/// True when a discovery query lists a jam's entries, e.g. "jam:three type:game".
-	/// </summary>
-	public static bool IsJamQuery( string query )
-	{
-		if ( string.IsNullOrEmpty( query ) ) return false;
-
-		return query.Split( ' ', StringSplitOptions.RemoveEmptyEntries ).Any( x => x.StartsWith( "jam:", StringComparison.OrdinalIgnoreCase ) );
-	}
-
-	/// <summary>
 	/// General-purpose method to play a game package. Handles quickplay, dedicated servers,
 	/// create-game modal, VR-only checks, default map fetching, and direct launch.
 	/// <para>
@@ -74,8 +129,12 @@ public static class MenuHelpers
 	/// game with something to set up first, once that's started (see GameModal.StartSetup). Not when
 	/// the button's pressed and the setup's only opened: backed out of, it was never played.
 	/// </para>
+	/// <para>
+	/// A game with something to set up first is set up in the game setup modal - or by
+	/// <paramref name="openSetup"/>, where that's somewhere else (the platform menu's own page).
+	/// </para>
 	/// </summary>
-	public static async void PlayGame( Package package, Package mapPackage = null, string via = null, Panel source = null, bool fitChecked = false )
+	public static async void PlayGame( Package package, Package mapPackage = null, string via = null, Panel source = null, bool fitChecked = false, Action<Package> openSetup = null )
 	{
 		Assert.True( HasAuthority, "You do not have authority to start a game, only the party owner can do that." );
 
@@ -89,7 +148,7 @@ public static class MenuHelpers
 		if ( !fitChecked && MenuProject.PlayerModes.PartySize > 1 )
 		{
 			var workshop = await MenuUtility.FetchWorkshopItemAsync( MenuUtility.KnownWorkshopId( package ) );
-			if ( !ConfirmPartyFit( package, () => PlayGame( package, mapPackage, via, source, fitChecked: true ), workshop ) )
+			if ( !ConfirmPartyFit( package, () => PlayGame( package, mapPackage, via, source, fitChecked: true, openSetup ), workshop ) )
 				return;
 		}
 
@@ -100,12 +159,13 @@ public static class MenuHelpers
 		var party = PartyRoom.Current;
 		if ( !package.Info.IsDedicatedServerOnly && party?.IsGameSelected( package ) == true && party.SelectedGameSettings is not null )
 		{
-			ModalSystem.Instance?.OpenGameSetup( package, via, source );
+			if ( openSetup is not null ) openSetup( package );
+			else ModalSystem.Instance?.OpenGameSetup( package, via, source );
 			return;
 		}
 
-		// QuickPlay: try to join an existing lobby first
-		if ( package.Info.IsQuickPlay )
+		// QuickPlay: try to join an existing lobby first - not for a game played on your own, whatever its launch mode
+		if ( package.Info.IsQuickPlay && !IsSingleplayer( package ) )
 		{
 			// A lobby search is a go at playing it, whether it finds one or makes its own after
 			ReportPlay( package, via, source );
@@ -129,9 +189,14 @@ public static class MenuHelpers
 		// Something to set up first - on its game page, then started from there, the play reported then
 		if ( NeedsSetup( package ) )
 		{
-			ModalSystem.Instance?.OpenGameSetup( package, via, source, initialMap: mapPackage?.FullIdent );
+			if ( openSetup is not null ) openSetup( package );
+			else ModalSystem.Instance?.OpenGameSetup( package, via, source, initialMap: mapPackage?.FullIdent );
 			return;
 		}
+
+		// Already on its own menu, with no map to load it with - it's started from there, by the game
+		if ( mapPackage is null && string.IsNullOrWhiteSpace( package.Info.DefaultMap ) && Game.IsOnMenu && MenuUtility.GamePackage?.FullIdent == package.FullIdent )
+			return;
 
 		// Direct launch
 		ReportPlay( package, via, source );
@@ -266,9 +331,22 @@ public static class MenuHelpers
 		await Task.Delay( LoadWarmUpMilliseconds );
 	}
 
+	/// <summary>
+	/// Played on your own - one player at most, or made for one (its RecommendedMaxPlayers, coop and versus, or failing
+	/// those its tags - PlayerModes). Never a lobby search or a server's settings, whatever its launch mode or player
+	/// count says.
+	/// </summary>
+	public static bool IsSingleplayer( Package package )
+	{
+		if ( package.Info.MaxPlayers <= 1 ) return true;
+
+		var modes = MenuProject.PlayerModes.For( package );
+		return modes.Solo && !modes.Multiplayer;
+	}
+
 	static bool NeedsSetup( Package package )
 	{
-		if ( package.Tags.Contains( "multiplayer" ) || package.Info.MaxPlayers > 1 )
+		if ( !IsSingleplayer( package ) && (package.Tags.Contains( "multiplayer" ) || package.Info.MaxPlayers > 1) )
 			return true;
 
 		if ( package.Info.UsesCreateGameModal )
@@ -281,6 +359,151 @@ public static class MenuHelpers
 	}
 
 	public static string SANDBOX_IDENT => "facepunch.sandbox";
+
+	/// <summary>
+	/// A package by ident, if it's been fetched - <see cref="FetchPackages"/> fetches them
+	/// </summary>
+	public static Package CachedPackage( string ident ) => !string.IsNullOrEmpty( ident ) && Package.TryGetCached( ident, out var package ) ? package : null;
+
+	/// <summary>
+	/// A package's title, or its ident if it hasn't been fetched
+	/// </summary>
+	public static string CachedTitle( string ident ) => CachedPackage( ident )?.Title ?? ident;
+
+	/// <summary>
+	/// Fetches these packages for <see cref="CachedPackage"/> - published ones only: not a local project, nor a map
+	/// that's a game's own file rather than on the Workshop
+	/// </summary>
+	public static async Task FetchPackages( IEnumerable<string> idents )
+	{
+		var fetches = idents
+			.Where( x => x is not null && x.Contains( '.' ) && !x.Contains( "local." ) && !x.EndsWith( ".vmap" ) )
+			.Distinct()
+			.Select( x => Package.FetchAsync( x, true ) )
+			.ToArray();
+
+		try
+		{
+			await Task.WhenAll( fetches );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Couldn't fetch packages: {e.Message}" );
+		}
+	}
+
+	/// <summary>
+	/// A style setting an image as the background - empty without one
+	/// </summary>
+	public static string BackgroundImage( string url ) => url is { Length: > 0 } ? $"background-image: url( {url} );" : "";
+
+	static (string Key, Dictionary<string, List<Friend>> ByGame, Dictionary<ulong, List<Friend>> ByLobby) friendsPlaying = ("", new(), new());
+	static RealTimeSince friendsPlayingChecked = 10;
+
+	/// <summary>
+	/// Your friends playing a game - not in the editor - by game and by server, from their presence, and a key that
+	/// changes when any of them move. Looked at again at most once a second.
+	/// </summary>
+	public static (string Key, Dictionary<string, List<Friend>> ByGame, Dictionary<ulong, List<Friend>> ByLobby) FriendsPlaying
+	{
+		get
+		{
+			if ( friendsPlayingChecked < 1 ) return friendsPlaying;
+			friendsPlayingChecked = 0;
+
+			var playing = MenuUtility.Friends
+				.Where( x => !x.IsMe && x.IsOnline && x.IsPlayingThisGame && x.GetRichPresence( "in_editor" ) != "1" )
+				.Select( x => (Friend: x, Game: x.GetRichPresence( "gamename" ), Lobby: x.GetRichPresence( "steam_player_group" )) )
+				.Where( x => !string.IsNullOrEmpty( x.Game ) )
+				.OrderBy( x => x.Friend.Id )
+				.ToList();
+
+			var key = string.Join( ",", playing.Select( x => $"{x.Friend.Id}:{x.Game}:{x.Lobby}" ) );
+			if ( key == friendsPlaying.Key ) return friendsPlaying;
+
+			friendsPlaying = (key,
+				playing.GroupBy( x => x.Game ).ToDictionary( x => x.Key, x => x.Select( y => y.Friend ).ToList() ),
+				playing.Where( x => ulong.TryParse( x.Lobby, out var id ) && id != 0 )
+					.GroupBy( x => ulong.Parse( x.Lobby ) )
+					.ToDictionary( x => x.Key, x => x.Select( y => y.Friend ).ToList() ));
+			return friendsPlaying;
+		}
+	}
+
+	/// <summary>
+	/// The servers of a game you've joined from the menu, the latest first
+	/// </summary>
+	public static List<ulong> ServerHistory( string game ) => Game.Cookies.Get<List<ulong>>( $"platform.history.{game}", null ) ?? new();
+
+	/// <summary>
+	/// Into a server - remembered in its game's history first
+	/// </summary>
+	public static void JoinServer( Sandbox.Network.LobbyInformation server )
+	{
+		if ( !string.IsNullOrEmpty( server.Game ) )
+		{
+			var history = ServerHistory( server.Game );
+			history.Remove( server.LobbyId );
+			history.Insert( 0, server.LobbyId );
+			Game.Cookies.Set( $"platform.history.{server.Game}", history.Take( 50 ).ToList() );
+		}
+
+		MenuUtility.Connect( server.LobbyId );
+	}
+
+	public static void ConfirmQuit() => ModalSystem.Instance?.Open( new MenuProject.Modals.QuestionModal
+	{
+		Color = Color.Parse( "#ff5d6a" ) ?? Color.Red,
+		Title = "#menu.home.quit_to_desktop",
+		Message = "#menu.home.are_you_sure_you_want_to_close_s_box",
+		ConfirmText = "#menu.home.quit_to_desktop_sentence",
+		ConfirmIcon = "power_settings_new",
+		OnConfirm = () => MenuUtility.RunCommand( "quit" )
+	} );
+
+	/// <summary>
+	/// Facepunch's Steam account - what it publishes is ours
+	/// </summary>
+	const long VerifiedOwner = 76561198611402165;
+
+	/// <summary>
+	/// One of ours - published by Facepunch's account, so marked verified wherever its maker's shown
+	/// </summary>
+	public static bool IsVerified( WorkshopItemDetails item ) => item?.OwnerId == VerifiedOwner;
+
+	/// <summary>
+	/// A drop's waiting in <paramref name="state"/> - one to open, or this week's earned and not over yet. The rail's
+	/// and the dock's pip.
+	/// </summary>
+	public static bool RewardReady( RewardState state )
+	{
+		var window = state?.Windows.FirstOrDefault();
+		return state?.Pending is not null || (window?.IsEligible == true && (window.EndsAt == default || window.EndsAt > DateTimeOffset.UtcNow));
+	}
+
+	/// <summary>
+	/// How a ping's holding up, for its colour (the platform-ping mixin) - good, okay or bad, or unknown when there isn't
+	/// one (under 0). The server list's and the players'.
+	/// </summary>
+	public static string PingClass( float ms ) => ms < 0 ? "unknown" : ms < 50 ? "good" : ms < 100 ? "okay" : "bad";
+
+	/// <summary>
+	/// Asks before leaving the game - it's the game's unsaved progress - then <paramref name="leave"/>s
+	/// </summary>
+	public static void ConfirmLeave( Action leave ) => ModalSystem.Instance?.Open( new MenuProject.Modals.QuestionModal
+	{
+		Color = Color.Parse( "#ff5d6a" ) ?? Color.Red,
+		Title = "#menu.pause.leave_game_label",
+		Message = "#menu.pause.any_unsaved_progress_will_be_lost",
+		ConfirmText = "#menu.pause.leave",
+		ConfirmIcon = "logout",
+		OnConfirm = leave
+	} );
+
+	/// <summary>
+	/// How much of its votes are up, as a whole percent - null if nobody's voted
+	/// </summary>
+	public static int? Rating( int up, int down ) => up + down > 0 ? up * 100 / (up + down) : null;
 
 	/// <summary>
 	/// Whole days since <paramref name="time"/>, formatted compactly - e.g. "1d", "7d", "764d".

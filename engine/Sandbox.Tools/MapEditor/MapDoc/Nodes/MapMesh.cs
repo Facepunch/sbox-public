@@ -87,6 +87,12 @@ public class MapMesh : MapNode
 
 		foreach ( var face in mesh.Faces )
 		{
+			foreach ( var index in face.Indices )
+			{
+				if ( index < 0 || index >= mesh.Vertices.Count )
+					throw new ArgumentOutOfRangeException( nameof( mesh ), $"Face index {index} is out of range, mesh has {mesh.Vertices.Count} vertices" );
+			}
+
 			faceIndices.AddRange( face.Indices );
 			faceVertexCounts.Add( face.Indices.Count );
 

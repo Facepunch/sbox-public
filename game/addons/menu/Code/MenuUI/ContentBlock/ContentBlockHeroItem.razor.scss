@@ -1,4 +1,5 @@
 @import "/styles/_Theme.scss";
+@import "/Platform/_platform.scss";
 
 ContentBlockHeroItem {
     Card {
@@ -17,26 +18,11 @@ ContentBlockHeroItem {
     }
 
     .play-button {
-        background-color: $primary-blue;
-        color: $default-text;
+        @include platform-text-button( 40px );
+        @include platform-button-primary;
         justify-content: center;
-        align-items: center;
-        border-radius: $rounding-small;
         width: 100%;
-        padding: 8px;
-
-        label {
-            color: $default-text;
-            font-size: $text-regular;
-        }
-
-        iconpanel {
-            font-size: $text-regular;
-        }
-
-        &:hover {
-            background-color: $primary-blue-dark;
-        }
+        padding: 0 12px;
     }
 
     // Non-focused items: show only full-card static thumbnail

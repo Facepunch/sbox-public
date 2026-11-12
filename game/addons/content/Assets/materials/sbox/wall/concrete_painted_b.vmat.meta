@@ -1,0 +1,26 @@
+{
+  "guid": "8f86a155-fe92-4931-9289-50bdc8578135",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Concrete Painted B",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "concrete_painted_b",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/wall/concrete_painted_b.vmat"
+      }
+    }
+  }
+}

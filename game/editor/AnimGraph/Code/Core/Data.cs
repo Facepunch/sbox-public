@@ -42,7 +42,7 @@ public enum GraphKind
 public class PreviewAttachment
 {
 	private Model _model;
-	private string _modelPath;
+	internal ResourceId ModelReference { get; set; }
 	private ulong _bodyGroups = ulong.MaxValue;
 
 	[KeyProperty]
@@ -50,29 +50,29 @@ public class PreviewAttachment
 	{
 		get
 		{
-			if ( _model is null && !string.IsNullOrWhiteSpace( _modelPath ) )
-				_model = Sandbox.Model.Load( _modelPath );
+			if ( _model is null && !ModelReference.IsEmpty )
+				_model = Sandbox.Model.Load( ModelReference.ResolvePath() );
 
 			return _model;
 		}
 		set
 		{
-			if ( _model == value )
+			if ( _model == value && (value is not null || ModelReference.IsEmpty) )
 				return;
 
 			_model = value;
-			_modelPath = value?.Name;
+			ModelReference = ResourceId.Get( value );
 			_bodyGroups = ulong.MaxValue;
 		}
 	}
 
 	internal string ModelPath
 	{
-		get => _model?.Name ?? _modelPath;
+		get => _model?.Name ?? ModelReference.ResolvePath();
 		set
 		{
 			_model = null;
-			_modelPath = value;
+			ModelReference = ResourceId.FromPath( value );
 			_bodyGroups = ulong.MaxValue;
 		}
 	}
@@ -97,7 +97,7 @@ public class PreviewAttachment
 	/// </summary>
 	internal PreviewAttachment Clone() => new()
 	{
-		ModelPath = ModelPath,
+		ModelReference = ModelReference,
 		BodyGroups = _bodyGroups,
 		MaterialGroup = MaterialGroup,
 	};
@@ -599,7 +599,7 @@ public class Data : IGraph
 			NumberHandling = JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.AllowNamedFloatingPointLiterals,
 			ReadCommentHandling = JsonCommentHandling.Skip,
 			TypeInfoResolver = resolver,
-			Converters = { new JsonStringEnumConverter( null, true ) }
+			Converters = { new JsonStringEnumConverter( null, true ), new ResourceReference() }
 		};
 	}
 
@@ -609,7 +609,7 @@ public class Data : IGraph
 	/// <summary> How node data is written, so anything copying it round trips the same way. </summary>
 	internal static JsonSerializerOptions SerializerOptions => _options;
 
-	public string Serialize()
+	public string Serialize( bool indented = true )
 	{
 		var doc = new JsonObject
 		{
@@ -622,10 +622,11 @@ public class Data : IGraph
 
 		if ( !IsSubGraph )
 		{
-			doc["Model"] = _variations.GetVariation( Variation.DefaultVariationID ).TargetModelPath;
-			doc["Skeleton"] = _variations.GetVariation( Variation.DefaultVariationID ).ResolveTargetSkeletonPath();
-			doc["parameters"] = JsonSerializer.SerializeToNode( Parameters, _indentedOptions );
-			doc["virtualParameters"] = JsonSerializer.SerializeToNode( VirtualParameters, _indentedOptions );
+			doc["Model"] = JsonSerializer.SerializeToNode( DefaultVariation.TargetModelReference, _options );
+			doc["Skeleton"] = JsonSerializer.SerializeToNode( DefaultVariation.TargetSkeletonReference.IsEmpty
+				? ResourceId.FromPath( DefaultVariation.ResolveTargetSkeletonPath() ) : DefaultVariation.TargetSkeletonReference, _options );
+			doc["parameters"] = JsonSerializer.SerializeToNode( Parameters, _options );
+			doc["virtualParameters"] = JsonSerializer.SerializeToNode( VirtualParameters, _options );
 
 			// The default variation lives in "Model" above, the rest carry their own model
 			var variations = new JsonArray();
@@ -636,8 +637,9 @@ public class Data : IGraph
 				{
 					["ID"] = variation.ID,
 					["ParentID"] = variation.ParentID,
-					["Model"] = variation.TargetModelPath,
-					["Skeleton"] = variation.ResolveTargetSkeletonPath(),
+					["Model"] = JsonSerializer.SerializeToNode( variation.TargetModelReference, _options ),
+					["Skeleton"] = JsonSerializer.SerializeToNode( variation.TargetSkeletonReference.IsEmpty
+						? ResourceId.FromPath( variation.ResolveTargetSkeletonPath() ) : variation.TargetSkeletonReference, _options ),
 				};
 
 				WritePreviewState( obj, variation );
@@ -651,7 +653,7 @@ public class Data : IGraph
 			WritePreviewState( doc, DefaultVariation );
 		}
 
-		return doc.ToJsonString( _indentedOptions );
+		return doc.ToJsonString( indented ? _indentedOptions : _options );
 	}
 
 	/// <summary>
@@ -673,9 +675,9 @@ public class Data : IGraph
 
 		var attachments = new JsonArray();
 
-		foreach ( var a in variation.PreviewAttachments.Where( x => !string.IsNullOrWhiteSpace( x.ModelPath ) ) )
+		foreach ( var a in variation.PreviewAttachments.Where( x => x.ModelReference.Guid is not null || !string.IsNullOrWhiteSpace( x.ModelPath ) ) )
 		{
-			var attachment = new JsonObject { ["Model"] = a.ModelPath };
+			var attachment = new JsonObject { ["Model"] = JsonSerializer.SerializeToNode( a.ModelReference, _options ) };
 
 			if ( a.RawBodyGroups != ulong.MaxValue )
 				attachment["BodyGroups"] = a.RawBodyGroups;
@@ -707,12 +709,12 @@ public class Data : IGraph
 
 		foreach ( var a in attachments.EnumerateArray() )
 		{
-			if ( !a.TryGetProperty( "Model", out var attachModel ) || attachModel.ValueKind != JsonValueKind.String )
+			if ( !a.TryGetProperty( "Model", out var attachModel ) )
 				continue;
 
 			variation.PreviewAttachments.Add( new PreviewAttachment
 			{
-				ModelPath = attachModel.GetString(),
+				ModelReference = attachModel.Deserialize<ResourceId>( _options ),
 				BodyGroups = a.TryGetProperty( "BodyGroups", out var bg ) ? bg.GetUInt64() : ulong.MaxValue,
 				MaterialGroup = a.TryGetProperty( "MaterialGroup", out var mg ) ? mg.GetString() : null,
 			} );
@@ -732,12 +734,15 @@ public class Data : IGraph
 
 	public void Deserialize( string json )
 	{
+		using var doc = JsonDocument.Parse( json, new() { CommentHandling = JsonCommentHandling.Skip } );
+		Deserialize( doc.RootElement );
+	}
+
+	internal void Deserialize( JsonElement root )
+	{
 		_nodes.Clear();
 		Parameters.Clear();
 		VirtualParameters.Clear();
-
-		using var doc = JsonDocument.Parse( json, new() { CommentHandling = JsonCommentHandling.Skip } );
-		var root = doc.RootElement;
 
 		if ( root.TryGetProperty( "Version", out var ver ) )
 			Version = ver.GetInt32();
@@ -749,13 +754,12 @@ public class Data : IGraph
 
 		var defaultVariation = _variations.GetVariation( Variation.DefaultVariationID );
 
-		defaultVariation.TargetModelPath = root.TryGetProperty( "Model", out var model ) && model.ValueKind == JsonValueKind.String
-			? model.GetString()
-			: DefaultTargetModel;
+		defaultVariation.TargetModelReference = root.TryGetProperty( "Model", out var model ) && model.ValueKind is JsonValueKind.String or JsonValueKind.Object
+			? model.Deserialize<ResourceId>( _options )
+			: ResourceId.FromPath( DefaultTargetModel );
 
-		defaultVariation.TargetSkeletonPath = root.TryGetProperty( "Skeleton", out var skeleton ) && skeleton.ValueKind == JsonValueKind.String
-			? skeleton.GetString()
-			: null;
+		defaultVariation.TargetSkeletonReference = root.TryGetProperty( "Skeleton", out var skeleton )
+			? skeleton.Deserialize<ResourceId>( _options ) : default;
 
 		if ( root.TryGetProperty( "variations", out var variations ) && variations.ValueKind == JsonValueKind.Array )
 		{
@@ -768,8 +772,8 @@ public class Data : IGraph
 				{
 					ID = id.GetString(),
 					ParentID = variation.TryGetProperty( "ParentID", out var parentID ) ? parentID.GetString() : Variation.DefaultVariationID,
-					TargetModelPath = variation.TryGetProperty( "Model", out var variationModel ) ? variationModel.GetString() : null,
-					TargetSkeletonPath = variation.TryGetProperty( "Skeleton", out var variationSkeleton ) ? variationSkeleton.GetString() : null,
+					TargetModelReference = variation.TryGetProperty( "Model", out var variationModel ) ? variationModel.Deserialize<ResourceId>( _options ) : default,
+					TargetSkeletonReference = variation.TryGetProperty( "Skeleton", out var variationSkeleton ) ? variationSkeleton.Deserialize<ResourceId>( _options ) : default,
 				};
 
 				ReadPreviewState( variation, added );
@@ -1003,12 +1007,12 @@ public sealed class DataConverter : JsonConverter<Data>
 	{
 		using var doc = JsonDocument.ParseValue( ref reader );
 		var graph = new Data { IsSubGraph = true };
-		graph.Deserialize( doc.RootElement.GetRawText() );
+		graph.Deserialize( doc.RootElement );
 		return graph;
 	}
 
 	public override void Write( Utf8JsonWriter writer, Data value, JsonSerializerOptions options )
 	{
-		writer.WriteRawValue( value.Serialize() );
+		writer.WriteRawValue( value.Serialize( indented: options.WriteIndented ) );
 	}
 }

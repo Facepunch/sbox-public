@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 ItemStore
 {
@@ -35,47 +35,22 @@ ItemStore
 
 		.section-label
 		{
-			@include front-section-label;
+			@include platform-section-label;
 		}
 
 		.chips
 		{
-			flex-direction: row;
+			@include platform-choices;
 			flex-wrap: wrap;
-			gap: 6px;
 		}
 
 		.chip
 		{
-			@include front-pill;
-
-			cursor: pointer;
-			padding: 5px 10px 5px 12px;
-
-			.n
-			{
-				padding: 0 6px;
-				border-radius: 999px;
-				background-color: rgba( 255, 255, 255, 0.08 );
-				color: $front-tertiary;
-				letter-spacing: 0;
-			}
+			@include platform-choice;
+			flex-grow: 0;
+			flex-basis: auto;
 
 			&:hover { sound-in: "ui.button.over"; }
-
-			&.active
-			{
-				background-color: $front-primary;
-				border-color: $front-primary;
-
-				label { color: #fff; }
-
-				.n
-				{
-					background-color: rgba( 255, 255, 255, 0.2 );
-					color: #fff;
-				}
-			}
 		}
 	}
 
@@ -94,34 +69,18 @@ ItemStore
 
 	.section-head
 	{
+		@include platform-shelf-header;
 		flex-shrink: 0;
 		flex-direction: row;
-		align-items: center;
 		gap: 10px;
 		margin-top: 16px;
 		padding: 0 4px;
-
-		.title
-		{
-			font-family: $front-font;
-			font-size: 20px;
-			font-weight: 700;
-			color: $front-heading;
-		}
-
-		.count
-		{
-			font-size: 12px;
-			font-weight: 500;
-			color: $front-secondary;
-			margin-top: 3px;
-		}
 
 		&.owned
 		{
 			margin-top: 32px;
 
-			.title { color: $front-secondary; }
+			.title { color: $platform-muted; }
 		}
 	}
 
@@ -136,33 +95,11 @@ ItemStore
 
 	.store-empty
 	{
-		@include front-card;
+		@include platform-surface;
+		@include platform-empty;
 		flex-shrink: 0;
-
-		align-items: center;
+		overflow: hidden;
 		justify-content: center;
 		padding: 64px;
-		gap: 6px;
-
-		icon
-		{
-			font-size: 40px;
-			color: $front-tertiary;
-			margin-bottom: 8px;
-		}
-
-		.title
-		{
-			font-family: $front-font;
-			font-size: 18px;
-			font-weight: 700;
-			color: $front-heading;
-		}
-
-		.hint
-		{
-			font-size: 13px;
-			color: $front-secondary;
-		}
 	}
 }

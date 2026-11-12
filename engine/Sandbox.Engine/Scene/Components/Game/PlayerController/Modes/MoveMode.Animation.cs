@@ -9,18 +9,14 @@ partial class MoveMode
 	/// </summary>
 	public virtual void UpdateAnimator( SkinnedModelRenderer renderer )
 	{
-		// Animation parameters
+		var oldRotation = renderer.WorldRotation;
+		OnRotateRenderBody( renderer );
+		UpdateRotationSpeed( renderer, oldRotation );
 
 		OnUpdateAnimatorVelocity( renderer );
 		OnUpdateAnimatorState( renderer );
 
 		OnUpdateAnimatorLookDirection( renderer );
-
-		UpdateRotationSpeed( renderer );
-
-		// Renderer transform
-
-		OnRotateRenderBody( renderer );
 	}
 
 	Vector3.SmoothDamped smoothedMove = new Vector3.SmoothDamped( 0, 0, 0.5f );
@@ -170,6 +166,7 @@ partial class MoveMode
 
 	/// <summary>
 	/// Updates the <see cref="Component.WorldRotation"/> of <paramref name="renderer"/>.
+	/// Called before movement and aim parameters are derived.
 	/// </summary>
 	protected virtual void OnRotateRenderBody( SkinnedModelRenderer renderer )
 	{
@@ -181,16 +178,14 @@ partial class MoveMode
 		var targetAngle = Rotation.FromYaw( eyeAngles.yaw );
 		var velocity = Controller.WishVelocity.WithZ( 0 );
 
-		var rotateDifference = renderer.WorldRotation.Distance( targetAngle );
-		var oldRotation = renderer.WorldRotation;
+		var yawOffset = MathX.DeltaDegrees( eyeAngles.yaw, renderer.WorldRotation.Angles().yaw );
+		var angleLimit = Controller.RotationAngleLimit.Clamp( 0f, 180f );
 
 		// We're over the limit - snap it 
-		if ( rotateDifference > Controller.RotationAngleLimit )
+		if ( MathF.Abs( yawOffset ) > angleLimit )
 		{
-			var delta = 0.999f - Controller.RotationAngleLimit / rotateDifference;
-			var newRotation = Rotation.Lerp( renderer.WorldRotation, targetAngle, delta );
-
-			renderer.WorldRotation = newRotation;
+			// Clamp yaw directly. Quaternion lerp doesn't preserve an angular limit
+			renderer.WorldRotation = Rotation.FromYaw( eyeAngles.yaw + yawOffset.Clamp( -angleLimit, angleLimit ) );
 		}
 
 		// Otherwise only rotate while moving
@@ -201,39 +196,31 @@ partial class MoveMode
 			renderer.WorldRotation = Rotation.Slerp( renderer.WorldRotation, targetAngle,
 				Time.Delta * 2.0f * Controller.RotationSpeed * velocity.Length.Remap( 0, 100 ) );
 		}
-
-		AddRotationSpeed( oldRotation, renderer.WorldRotation );
 	}
 
-	private const float RotationSpeedUpdatePeriod = 0.1f;
+	private const float RotationAnimationDecayTime = 0.12f;
 
 	private float _animRotationSpeed;
-	private TimeSince _timeSinceRotationSpeedUpdate;
+	private SkinnedModelRenderer _rotationSpeedRenderer;
 
-	private void AddRotationSpeed( Rotation oldRotation, Rotation newRotation )
+	private void UpdateRotationSpeed( SkinnedModelRenderer renderer, Rotation oldRotation )
 	{
-		// TODO: this assumes we're always working with exactly one Renderer
+		if ( _rotationSpeedRenderer != renderer || Time.Delta <= 0 )
+			_animRotationSpeed = 0;
+		_rotationSpeedRenderer = renderer;
 
-		var oldYaw = oldRotation.Angles().yaw;
-		var newYaw = newRotation.Angles().yaw;
+		if ( Time.Delta > 0 )
+		{
+			var deltaYaw = MathX.DeltaDegrees( renderer.WorldRotation.Angles().yaw, oldRotation.Angles().yaw );
+			var speed = (deltaYaw / Time.Delta).Clamp( -450f, 450f );
 
-		// TODO: why is this backwards?
+			_animRotationSpeed *= MathF.Exp( -Time.Delta / RotationAnimationDecayTime );
+			if ( MathF.Abs( speed ) > MathF.Abs( _animRotationSpeed ) || speed * _animRotationSpeed < 0 )
+				_animRotationSpeed = speed;
+			if ( MathF.Abs( _animRotationSpeed ) < 0.1f ) _animRotationSpeed = 0;
+		}
 
-		var deltaYaw = MathX.DeltaDegrees( newYaw, oldYaw );
-
-		_animRotationSpeed = (_animRotationSpeed + deltaYaw).Clamp( -90f, 90f );
-	}
-
-	private void UpdateRotationSpeed( SkinnedModelRenderer renderer )
-	{
-		if ( _timeSinceRotationSpeedUpdate < RotationSpeedUpdatePeriod ) return;
-
-		// TODO: why 5?
-
-		SetAnimatorParameter( renderer, "move_rotationspeed", _animRotationSpeed * 5f );
-
-		_timeSinceRotationSpeedUpdate = 0f;
-		_animRotationSpeed = 0f;
+		SetAnimatorParameter( renderer, "move_rotationspeed", _animRotationSpeed );
 	}
 
 	protected static void SetAnimatorParameter( SkinnedModelRenderer renderer, string name, float value )

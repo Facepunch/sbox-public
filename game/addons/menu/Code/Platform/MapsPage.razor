@@ -1,0 +1,287 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox.Mounting;
+@using MenuProject.Modals;
+@using MenuProject.Modals.MapSelect;
+@using MountDirectory = Sandbox.Mounting.Directory;
+@namespace MenuProject.Platform
+@page "/platform/maps"
+@inherits Panel
+@implements INavigatorPage
+
+@*
+    Picking a map, on the front - a grid of them in a panel (the platform-panel mixin) with a search over it, and where
+    they're from down a rail out on the art (the platform-side mixin): the Workshop, the ones you're subscribed to there,
+    and each mounted game with maps of its own. The Workshop's order is picked from the bar's tools. One of the front's pages (FrontPages.PickMap), or with OnPicked on
+    the pause menu, to change the map.
+*@
+<root>
+
+    <div class="side">
+        <label class="heading">Maps</label>
+
+        <div class="rail">
+            @foreach ( var item in Sources )
+            {
+                <div class="tab @(item.Key == source ? "on" : "")" onclick=@( () => Show( item.Key ) )>
+                    <i>@item.Icon</i>
+                    <label>@item.Title</label>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="panel">
+        <PanelHead Title="Choose a Map" Icon="map" Back=@GoBack Search="Search maps" OnSearch=@Typed>
+            <Tools>
+                @* What order the Workshop's come in - the one picked lit, its name its tooltip *@
+                @if ( source == Workshop )
+                {
+                    @foreach ( var order in Orders )
+                    {
+                        <div class="tool @(sort == order.Sort ? "open" : "")" tooltip=@order.Title onclick=@( () => SetSort( order.Sort ) )><i>@order.Icon</i></div>
+                    }
+                }
+            </Tools>
+        </PanelHead>
+
+        <div class="body">
+            @* The maps, in a well of their own inside the panel *@
+            <div class="maps">
+            @if ( Mount is not null ? Mounted.Length == 0 : found.Count == 0 && !loading )
+            {
+                <div class="empty"><i>search_off</i><label>No maps found</label></div>
+            }
+            else if ( Mount is null && found.Count == 0 )
+            {
+                <div class="empty"><Spinner /></div>
+            }
+            else if ( Mount is not null )
+            {
+                <VirtualGrid @ref="Grid" @key=@source class="grid" Items=@Mounted ItemSize=@CellSize>
+                    <Item Context="item">
+                        @if ( item is ResourceLoader scene )
+                        {
+                            <MapTile class="@(scene.Path == Selected ? "selected" : "")" Title=@MapName( scene ) Thumbnail=@((scene as IThumbnailProvider)?.Thumbnail)
+                                     OnSelect=@( () => Pick( scene.Path ) ) />
+                        }
+                    </Item>
+                </VirtualGrid>
+            }
+            else
+            {
+                @* Only the tiles in view are made - the next page's asked for as the end comes into view *@
+                <VirtualGrid @ref="Grid" @key=@source class="grid" Items=@found ItemSize=@CellSize OnLastCell=@( () => { _ = More(); } )>
+                    <Item Context="item">
+                        @if ( item is WorkshopItemDetails map )
+                        {
+                            <MapTile class="@(IsSelected( map ) ? "selected" : "")" Title=@map.Title Thumb=@map.Thumb
+                                     Tooltip=@(map.OwnerName is { } owner ? $"By {owner}" : null) OnSelect=@( () => Pick( MenuUtility.LaunchMapOf( map ) ) ) />
+                        }
+                    </Item>
+                </VirtualGrid>
+            }
+            </div>
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// The map it's picking in place of - picked out in the grid, and its mounted game the one it opens on
+    /// </summary>
+    [Parameter] public string Selected { get; set; }
+
+    /// <summary>
+    /// Given the map picked - one the game's loaded with (LaunchArguments.Map). Without it, it's one of the front's
+    /// pages, and goes back to the one that asked (FrontPages.PickMap).
+    /// </summary>
+    [Parameter] public Action<string> OnPicked { get; set; }
+
+    /// <summary>
+    /// The way back, off the front's pages
+    /// </summary>
+    [Parameter] public Action Back { get; set; }
+
+    const string Workshop = "workshop";
+    const string Subscribed = "subscribed";
+
+    record Source( string Key, string Title, string Icon );
+
+    /// <summary>
+    /// The Workshop, then each mounted game that has maps
+    /// </summary>
+    static IEnumerable<Source> Sources => MountDirectory.GetAll()
+        .Where( x => x.Mounted && PackageSelectionModal.GetMountMaps( x.Ident ).Any() )
+        .OrderBy( x => x.Title )
+        .Select( x => new Source( x.Ident, x.Title, "sports_esports" ) )
+        .Prepend( new( Subscribed, "Subscribed", "check_circle" ) )
+        .Prepend( new( Workshop, "Workshop", "public" ) );
+
+    record Order( string Title, string Icon, Storage.SortOrder Sort );
+
+    static readonly Order[] Orders =
+    [
+        new( "Popular", "local_fire_department", Storage.SortOrder.RankedByVote ),
+        new( "Trending", "trending_up", Storage.SortOrder.RankedByTrend ),
+        new( "Most subscribed", "favorite", Storage.SortOrder.RankedByTotalUniqueSubscriptions ),
+        new( "Newest", "new_releases", Storage.SortOrder.RankedByPublicationDate ),
+        new( "Recently updated", "update", Storage.SortOrder.RankedByLastUpdatedDate ),
+    ];
+
+    /// <summary>
+    /// A tile's size at the least - the grid stretches as many columns as fit to fill its width, keeping this shape
+    /// </summary>
+    static readonly Vector2 CellSize = new( 240, 135 );
+
+    string source = Workshop;
+    Storage.SortOrder sort = Storage.SortOrder.RankedByVote;
+    string search = "";
+
+    /// <summary>
+    /// The mounted game whose maps are shown - null on the Workshop
+    /// </summary>
+    string Mount => source is Workshop or Subscribed ? null : source;
+
+    ResourceLoader[] Mounted => PackageSelectionModal.GetMountMaps( Mount )
+        .Where( x => string.IsNullOrEmpty( search ) || MapName( x ).Contains( search, StringComparison.OrdinalIgnoreCase ) )
+        .OrderBy( x => MapName( x ) )
+        .ToArray();
+
+    /// <summary>
+    /// A mounted map's name, without its file's extension (gm_construct, not gm_construct.bsp)
+    /// </summary>
+    static string MapName( ResourceLoader scene ) => System.IO.Path.GetFileNameWithoutExtension( scene.Name );
+
+    List<WorkshopItemDetails> found = new();
+    WorkshopGameSearch pages;
+    bool loading;
+
+    VirtualGrid Grid;
+
+    string typed;
+    RealTimeSince sinceTyped;
+
+    bool IsSelected( WorkshopItemDetails map ) => !string.IsNullOrEmpty( Selected ) && string.Equals( MenuUtility.LaunchMapOf( map ), Selected.Split( '#' )[0], StringComparison.OrdinalIgnoreCase );
+
+    /// <summary>
+    /// One of the front's pages - picking in place of the map its setup has
+    /// </summary>
+    public void OnNavigationOpen()
+    {
+        Selected = FrontPages.Of( this )?.PickingMap;
+        ShowSelected();
+    }
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        if ( pages is null ) ShowSelected();
+    }
+
+    /// <summary>
+    /// On the mounted game the map picked is from, if it's from one
+    /// </summary>
+    void ShowSelected()
+    {
+        if ( MountUtility.TryParse( Selected, out string ident ) && MountDirectory.Get( ident ) is { IsMounted: true } )
+            source = ident;
+
+        if ( pages is null ) Find();
+    }
+
+    void Show( string key )
+    {
+        if ( source == key ) return;
+
+        source = key;
+        Find();
+    }
+
+    void SetSort( Storage.SortOrder order )
+    {
+        if ( sort == order ) return;
+
+        sort = order;
+        Find();
+    }
+
+    /// <summary>
+    /// The Workshop asked again, from its first page - a mounted game's maps are just there
+    /// </summary>
+    void Find()
+    {
+        pages = MenuUtility.SearchWorkshopMaps( search, sort, source == Subscribed );
+        found = new();
+        loading = false;
+
+        if ( Grid.IsValid() ) Grid.ScrollOffset = Vector2.Zero;
+
+        if ( Mount is null ) _ = More();
+    }
+
+    async Task More()
+    {
+        if ( loading || pages is not { HasMore: true } asking ) return;
+        loading = true;
+
+        var maps = await asking.NextAsync();
+
+        // Asked again in the meantime
+        if ( asking != pages ) return;
+
+        // Just the ones a game can be loaded with
+        var shown = found.Select( x => x.Id ).ToHashSet();
+        found.AddRange( maps.Where( x => MenuUtility.LaunchMapOf( x ) is not null && shown.Add( x.Id ) ) );
+        loading = false;
+
+        StateHasChanged();
+    }
+
+    void Typed( string text )
+    {
+        typed = text?.Trim() ?? "";
+        sinceTyped = 0;
+    }
+
+    void Pick( string map )
+    {
+        if ( string.IsNullOrEmpty( map ) ) return;
+
+        if ( OnPicked is not null ) OnPicked( map );
+        else FrontPages.Of( this )?.MapPicked( map );
+    }
+
+    void GoBack()
+    {
+        if ( Back is not null ) Back();
+        else FrontPages.Of( this )?.GoBack();
+    }
+
+    readonly ScrollFade gridFade = new( 32 );
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Searched for once the typing stops for a moment - a mounted game's straight away
+        if ( typed is not null && (Mount is not null || sinceTyped > 0.4f) )
+        {
+            var changed = typed != search;
+            search = typed;
+            typed = null;
+
+            if ( changed ) Find();
+        }
+
+        gridFade.Apply( Grid );
+    }
+
+    protected override int BuildHash() => HashCode.Combine( source, sort, search, found, found.Count, loading, Selected, MountDirectory.GetAll().Count( x => x.Mounted ) );
+}

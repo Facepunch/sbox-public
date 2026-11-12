@@ -2,6 +2,27 @@ namespace Sandbox.Animation;
 
 public sealed partial class GraphBuilder
 {
+	private readonly Dictionary<(Node Input, string Id, bool MustMatch), Node> parameterIdComparisons = new();
+	private readonly Dictionary<(string Operation, string Inputs), Node> parameterBooleanExpressions = new();
+	private readonly HashSet<Node> parameterExpressions = new();
+	private readonly Dictionary<bool, Node> constantBools = new();
+
+	private Node AddBooleanExpression( string operation, Node[] inputs, Func<NativeEngine.AnimationGraphBuilder, NativeEngine.AnimationGraphNodeDefinition> create )
+	{
+		// Only share expressions whose leaves are parameters or constants, never stateful value nodes.
+		if ( !inputs.All( node => node.Index < parameters.Count || parameterExpressions.Contains( node ) ) )
+			return AddNode( NodeKind.Bool, create );
+
+		var key = (operation, string.Join( ",", inputs.Select( node => node.Index ) ));
+		if ( parameterBooleanExpressions.TryGetValue( key, out var existing ) )
+			return existing;
+
+		var result = AddNode( NodeKind.Bool, create );
+		parameterBooleanExpressions.Add( key, result );
+		parameterExpressions.Add( result );
+		return result;
+	}
+
 	/// <summary>
 	/// Add a constant float value.
 	/// </summary>
@@ -20,12 +41,18 @@ public sealed partial class GraphBuilder
 	/// </summary>
 	public Node Constant( bool value )
 	{
-		return AddNode( NodeKind.Bool, native =>
+		if ( constantBools.TryGetValue( value, out var existing ) )
+			return existing;
+
+		var node = AddNode( NodeKind.Bool, native =>
 		{
 			var definition = NativeEngine.GraphConstBoolNode.Add( native );
 			definition.m_value = value;
 			return definition;
 		} );
+		constantBools.Add( value, node );
+		parameterExpressions.Add( node );
+		return node;
 	}
 
 	/// <summary>
@@ -116,7 +143,7 @@ public sealed partial class GraphBuilder
 	public Node Not( Node value )
 	{
 		Require( value, NodeKind.Bool );
-		return AddNode( NodeKind.Bool, native =>
+		return AddBooleanExpression( nameof( Not ), [value], native =>
 		{
 			var definition = NativeEngine.GraphNotNode.Add( native );
 			definition.m_inputValueNodeIdx = (short)Resolve( value );
@@ -131,9 +158,10 @@ public sealed partial class GraphBuilder
 	{
 		if ( conditions is null || conditions.Length == 0 )
 			throw new ArgumentException( "And needs at least one condition.", nameof( conditions ) );
+		conditions = conditions.ToArray();
 		foreach ( var c in conditions )
 			Require( c, NodeKind.Bool, nameof( conditions ) );
-		return AddNode( NodeKind.Bool, native =>
+		return AddBooleanExpression( nameof( And ), conditions, native =>
 		{
 			var definition = NativeEngine.GraphAndNode.Add( native );
 			var nativeConditionNodeIndices = definition.GetConditionNodeIndices();
@@ -153,9 +181,10 @@ public sealed partial class GraphBuilder
 	{
 		if ( conditions is null || conditions.Length == 0 )
 			throw new ArgumentException( "Or needs at least one condition.", nameof( conditions ) );
+		conditions = conditions.ToArray();
 		foreach ( var c in conditions )
 			Require( c, NodeKind.Bool, nameof( conditions ) );
-		return AddNode( NodeKind.Bool, native =>
+		return AddBooleanExpression( nameof( Or ), conditions, native =>
 		{
 			var definition = NativeEngine.GraphOrNode.Add( native );
 			var nativeConditionNodeIndices = definition.GetConditionNodeIndices();
@@ -648,7 +677,12 @@ public sealed partial class GraphBuilder
 	{
 		Require( id, NodeKind.Id );
 		var ids = matchIds?.ToArray() ?? [];
-		return AddNode( NodeKind.Bool, native =>
+		bool canShare = id.Index < parameters.Count && ids.Length == 1;
+		var key = (id, ids.Length == 1 ? IdString( ids[0] ) : "", mustMatch);
+		if ( canShare && parameterIdComparisons.TryGetValue( key, out var existing ) )
+			return existing;
+
+		var node = AddNode( NodeKind.Bool, native =>
 		{
 			var definition = NativeEngine.GraphIDComparisonNode.Add( native );
 			definition.m_inputValueNodeIdx = (short)Resolve( id );
@@ -661,6 +695,12 @@ public sealed partial class GraphBuilder
 
 			return definition;
 		} );
+		if ( canShare )
+		{
+			parameterIdComparisons.Add( key, node );
+			parameterExpressions.Add( node );
+		}
+		return node;
 	}
 
 	/// <inheritdoc cref="IdCompare(Node, IEnumerable{string}, bool)"/>

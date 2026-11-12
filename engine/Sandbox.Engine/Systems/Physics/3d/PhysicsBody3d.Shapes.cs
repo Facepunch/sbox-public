@@ -202,9 +202,10 @@ partial class PhysicsBody3d
 		if ( heights == null )
 			throw new ArgumentException( "Height data is null" );
 
-		var cellCount = sizeX * sizeY;
-		if ( cellCount <= 0 )
+		if ( sizeX <= 0 || sizeY <= 0 )
 			throw new ArgumentOutOfRangeException( "Size needs to be non zero" );
+
+		var cellCount = (long)sizeX * sizeY;
 
 		if ( heights.Length != cellCount )
 			throw new ArgumentOutOfRangeException( $"Height data length is {heights.Length}, should be {cellCount}" );

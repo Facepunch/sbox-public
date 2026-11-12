@@ -8,23 +8,32 @@ internal static class ClipEventTypes
 {
 	public const string ID = "CIDEvent";
 	public const string Generic = "CGenericEvent";
+	public const string ManagedName = "AE_MANAGED_EVENT";
 	public const string Foot = "CFootEvent";
+
+	public static Color TrackColor( string eventClass ) => eventClass switch
+	{
+		Generic => Theme.Blue,
+		ID => Theme.Pink,
+		Foot => Theme.Green,
+		_ => Theme.TextControl
+	};
+
+	public static string Icon( string eventClass ) => eventClass switch
+	{
+		Generic => "bolt",
+		ID => "label_important",
+		Foot => "directions_walk",
+		_ => "label"
+	};
 
 	public static string Title( string eventClass ) => eventClass switch
 	{
 		ID => "ID",
-		Generic => "Generic",
+		Generic => "Animation",
 		Foot => "Foot",
 		// Types this doesn't author still have to read back as something
 		_ => eventClass?.TrimStart( 'C' ).Replace( "Event", "" ) ?? "Unknown"
-	};
-
-	public static Color Color( string eventClass ) => eventClass switch
-	{
-		ID => Theme.Primary,
-		Generic => Theme.Green,
-		Foot => Theme.Pink,
-		_ => Theme.TextControl
 	};
 
 	/// <summary>
@@ -45,17 +54,11 @@ internal static class ClipEventTypes
 	public static string Summary( ClipDocument.Event item, string eventClass ) => eventClass switch
 	{
 		ID => item.ID,
+		Generic when item.IsTypedEvent => item.DataType?.Title ?? item.DataTypeName,
 		Generic => item.Name,
-		Foot => item.Phase.ToString(),
+		Foot => item.Phase.ToString().ToTitleCase(),
 		_ => null
 	};
-
-	/// <summary>
-	/// An ID event with no ID is dropped by the compiler, and a generic one with no name compiles
-	/// to something nothing can listen for.
-	/// </summary>
-	public static bool IsIncomplete( ClipDocument.Event item, string eventClass )
-		=> eventClass is ID or Generic && string.IsNullOrWhiteSpace( Summary( item, eventClass ) );
 
 	/// <summary>
 	/// Two sync events too close together don't compile at all - the clip fails outright. The

@@ -83,7 +83,7 @@ namespace Sandbox.Upgraders
 			int LambdaMethodOrdinal,
 			int DisplayClassOrdinal );
 
-		private static bool GetLambdaMethodInfo( MethodInfo lambda, out Type declaringType,
+		internal static bool GetLambdaMethodInfo( MethodInfo lambda, out Type declaringType,
 			out LambdaCaptureMode captureMode, out LambdaMethodName nameInfo )
 		{
 			declaringType = null;

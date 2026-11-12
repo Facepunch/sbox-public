@@ -1,0 +1,32 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace MenuProject
+
+@*
+    Someone asked into the party who isn't here yet - their seat's held, greyed out, until they turn up or it lapses.
+    Clicking it lets it go (the invite itself is already with them). Beside the party's faces (PartyMember), in the
+    party window and on the platform menu's dock.
+*@
+<root tooltip="@WaitingTooltip" onmouseup=@( () => PartyInvites.Dismiss( Friend.Id ) )>
+	<Avatar UserId="@((long)Friend.Id)" ShowStatus="@false" />
+	<div class="pending-badge"><icon class="waiting">hourglass_top</icon><icon class="dismiss">close</icon></div>
+</root>
+
+@code
+{
+	public Friend Friend { get; set; }
+
+	string WaitingTooltip
+	{
+		get
+		{
+			var seconds = (int)PartyInvites.SecondsSince( Friend.Id );
+			var ago = seconds < 60 ? $"{seconds}s ago" : $"{seconds / 60}m ago";
+			return $"{Friend.Name} - invite sent {ago}. Click to stop waiting";
+		}
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Friend.Id, (int)PartyInvites.SecondsSince( Friend.Id ) / 60 );
+}

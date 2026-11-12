@@ -1,0 +1,19 @@
+@import "/Platform/_platform.scss";
+
+RewardsPanel
+{
+	@include platform-side-panel;
+
+	// Up off the dock as tall as what's on it, not the whole way up as your friends are
+	top: auto;
+
+	> .panel
+	{
+		flex-grow: 0;
+	}
+
+	RewardsView .rewards-list
+	{
+		flex-grow: 1;
+	}
+}

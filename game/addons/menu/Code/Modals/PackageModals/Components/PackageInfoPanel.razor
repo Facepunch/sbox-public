@@ -34,7 +34,7 @@
         <label class="title">@(Workshop?.Title ?? Package.Title)</label>
 
         <div class="facts">
-            @{ var (up, down) = Votes; var total = up + down; var score = total > 0 ? up * 100f / total : 0; var rating = RatingClass( total, score ); }
+            @{ var (up, down) = Votes; var total = up + down; var score = MenuHelpers.Rating( up, down ) ?? 0; var rating = RatingClass( total, score ); }
             <div class="fact">
                 <label class="key">#menu.workshop.rating</label>
                 <div class="value rating @rating">

@@ -58,6 +58,8 @@ internal class ToolsDll : IToolsDll
 		EditorTypeLibrary = new Sandbox.Internal.TypeLibrary();
 		EditorTypeLibrary.AddIntrinsicTypes();
 		EditorTypeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
+		EditorTypeLibrary.AddAssembly( typeof( BaseFileSystem ).Assembly, false );
+		EditorTypeLibrary.AddAssembly( typeof( Sandbox.Internal.TypeLibrary ).Assembly, false );
 		EditorTypeLibrary.AddAssembly( typeof( ToolsDll ).Assembly, true ); // editor can access everything anyway
 		EditorTypeLibrary.AddAssembly( typeof( EngineLoop ).Assembly, false );
 		EditorTypeLibrary.AddAssembly( typeof( Facepunch.ActionGraphs.ActionGraph ).Assembly, false );

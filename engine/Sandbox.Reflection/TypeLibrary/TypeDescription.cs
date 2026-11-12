@@ -31,6 +31,12 @@ public sealed class TypeDescription : ISourceLineProvider
 	public bool IsValid { get; private set; }
 
 	/// <summary>
+	/// Changes whenever this description's members or attributes are refreshed, including
+	/// updates that preserve the underlying CLR type.
+	/// </summary>
+	public int Revision { get; private set; }
+
+	/// <summary>
 	/// Is from an assembly that was whitelist tested, so it can't have any bad stuff in it.
 	/// We can feel happy to expose all members in these assemblies.
 	/// </summary>
@@ -180,6 +186,21 @@ public sealed class TypeDescription : ISourceLineProvider
 	// Assembly.GetName() allocates and takes a global culture lock, which is far too slow to call per member.
 	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Assembly, string> AssemblyNames = new();
 
+	/// <summary>
+	/// Allows registered primitives to format using the current culture and an optional format string.
+	/// </summary>
+	static bool IsPrimitiveToString( MethodInfo method )
+	{
+		if ( method.DeclaringType is not { IsPrimitive: true } type || !TypeLibrary.IsIntrinsicType( type ) )
+		{
+			return false;
+		}
+
+		var parameters = method.GetParameters();
+		return parameters.Length == 0
+			|| (parameters.Length == 1 && parameters[0].ParameterType == typeof( string ));
+	}
+
 	static bool ShouldExposeMember( MemberInfo member, Internal.TypeLibrary lib, TypeDescription source )
 	{
 		// |               |  public  | protected | private |
@@ -212,8 +233,14 @@ public sealed class TypeDescription : ISourceLineProvider
 
 			// Operators are callable members. Other special methods (such as accessors) are represented separately.
 			if ( methodInfo.IsSpecialName && MethodDescription.ClassifyOperator( methodInfo ) == OperatorKind.None ) return false;
-			if ( methodInfo.Name == "GetType" ) return false;
-			if ( methodInfo.Name == "ToString" ) return false;
+			if ( methodInfo.Name == "GetType" && methodInfo.DeclaringType == typeof( object ) ) return false;
+
+			// The safe builder's string conversions are part of its API, including the substring overload.
+			if ( methodInfo.Name == "ToString" && methodInfo.DeclaringType != typeof( SafeStringBuilder ) && !IsPrimitiveToString( methodInfo ) )
+			{
+				return false;
+			}
+
 			if ( methodInfo.Name == "Equals" ) return false;
 			if ( methodInfo.Name == "GetHashCode" ) return false;
 		}
@@ -327,6 +354,7 @@ public sealed class TypeDescription : ISourceLineProvider
 
 	private void Init( Type type, bool dynamicAssembly )
 	{
+		IsValid = true;
 		TargetType = type;
 		IsDynamicAssembly = dynamicAssembly;
 		Identity = GetTypeIdentity( type );
@@ -355,7 +383,7 @@ public sealed class TypeDescription : ISourceLineProvider
 		ConcurrentBag<MemberDescription> md = new();
 		System.Threading.Tasks.Parallel.ForEach( members, x =>
 		{
-			var ident = GetMemberIdentity( x );
+			var ident = StringPool.Get( GetMemberIdentity( x ) );
 
 			MemberDescription previous = null;
 			previousPool?.TryGetValue( ident, out previous );
@@ -386,6 +414,7 @@ public sealed class TypeDescription : ISourceLineProvider
 
 		CaptureAttributes();
 		displayInfo = DisplayInfo.ForMember( type, true, Attributes );
+		Revision++;
 
 		if ( !string.IsNullOrWhiteSpace( displayInfo.ClassName ) )
 		{
@@ -494,8 +523,14 @@ public sealed class TypeDescription : ISourceLineProvider
 		if ( string.Equals( name, displayInfo.Fullname, StringComparison.OrdinalIgnoreCase ) )
 			return true;
 
-		if ( Aliases.Length > 0 && Aliases.Any( x => string.Equals( name, x, StringComparison.OrdinalIgnoreCase ) ) )
-			return true;
+		// Avoid allocating a capturing predicate for every catalog candidate, including types without aliases.
+		foreach ( var alias in Aliases )
+		{
+			if ( string.Equals( name, alias, StringComparison.OrdinalIgnoreCase ) )
+			{
+				return true;
+			}
+		}
 
 		if ( exactFullName ) return false;
 

@@ -1,0 +1,98 @@
+@import "/Platform/_platform.scss";
+@import "/styles/_settingsrows.scss";
+
+// The setup's sections down a rail out on the art (the platform-side mixin) and the one picked's rows in the panel
+// beside it. The panel is GameFront's (the platform-panel mixin); how it sits on the front and its buttons are
+// GameFront's.
+CreateGamePage
+{
+	@include settings-rows;
+
+	@include platform-side;
+
+	.setup
+	{
+		flex-grow: 1;
+		min-height: 0;
+	}
+
+	.rows
+	{
+		flex-grow: 1;
+		min-width: 0;
+		flex-direction: column;
+		gap: 2px;
+		padding-right: 12px;
+		overflow-y: scroll;
+		scrollbar-width: thin;
+		scrollbar-color: $platform-faint transparent;
+		transition: opacity 0.17s ease-out, transform 0.2s ease-out;
+
+		&:intro
+		{
+			opacity: 0;
+			transform: translateY( 10px );
+		}
+	}
+
+	.notice
+	{
+		@include platform-notice( $platform-danger, $platform-danger );
+		margin-bottom: 8px;
+	}
+
+	// Where it starts - a picture of it that picks another, a little taller than the other rows so it reads, short
+	// enough that the server's rows fit under it
+	.map-row .line
+	{
+		padding: 4px 0;
+	}
+
+	.map-tile
+	{
+		position: relative;
+		width: 256px;
+		height: 144px;
+		border-radius: $platform-radius;
+		background-color: $platform-button;
+		background-size: cover;
+		background-position: center;
+		overflow: hidden;
+		cursor: pointer;
+		@include platform-sounds;
+		transition: all 0.15s ease;
+
+		&:hover
+		{
+			transform: translateY( -3px );
+			box-shadow: 0 12px 26px rgba( 0, 0, 0, 0.6 );
+		}
+
+		> .bottom
+		{
+			position: absolute;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			padding: 32px 14px 10px 14px;
+			gap: 6px;
+			background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.65 ) 30%, rgba( 0, 0, 0, 0 ) );
+
+			i
+			{
+				font-family: "Material Icons";
+				font-size: 15px;
+				color: #ffffff;
+				text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
+			}
+
+			label
+			{
+				font-size: 15px;
+				font-weight: 600;
+				color: #ffffff;
+				text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
+			}
+		}
+	}
+}

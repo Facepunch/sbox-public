@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 OpenParties
 {
@@ -10,20 +10,19 @@ OpenParties
 	min-height: 0;
 	padding: 14px;
 	gap: 10px;
-	font-family: $front-font;
-	color: $front-body;
+	font-family: $platform-font;
+	color: $platform-text;
 
 	> .create-party, > .party-empty > button
 	{
-		@include front-button;
+		@include platform-text-button( 40px, 13.5px, 17px );
+		@include platform-button-primary;
+		justify-content: center;
+		padding: 0 18px;
 		flex-shrink: 0;
-		padding: 9px 12px;
-		gap: 6px;
-		font-size: 12px;
 
 		&.disabled
 		{
-			opacity: 0.3;
 			pointer-events: none;
 		}
 	}
@@ -31,7 +30,6 @@ OpenParties
 	> .create-party
 	{
 		width: 100%;
-		cursor: pointer;
 	}
 
 	.party-list
@@ -40,39 +38,29 @@ OpenParties
 		min-height: 0;
 		gap: 4px;
 		scrollbar-width: thin;
-		scrollbar-color: $front-secondary transparent;
+		scrollbar-color: $platform-muted transparent;
 	}
 
 	.party-error
 	{
 		flex-shrink: 0;
-		color: $front-danger;
+		color: $platform-danger;
 		font-size: 12px;
 	}
 
 	.party-empty
 	{
+		@include platform-empty;
 		flex-grow: 1;
-		flex-direction: column;
 		justify-content: center;
-		align-items: center;
-		gap: 12px;
-		color: $front-secondary;
-		font-size: 12px;
 		text-align: center;
 		padding: 12px 0;
-
-		icon
-		{
-			font-size: 32px;
-			color: $front-link;
-		}
 
 		> label
 		{
 			font-size: 16px;
-			font-weight: 600;
-			color: $front-heading;
+			font-weight: 700;
+			color: $platform-text;
 		}
 	}
 }

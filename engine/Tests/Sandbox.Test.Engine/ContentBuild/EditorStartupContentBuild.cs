@@ -150,9 +150,9 @@ public class EditorStartupContentBuild
 		edited.Assert( compiles: 3, failed: 1 );
 		edited.AssertCopiedPixels();
 
-		// The library material's shader changes its signature: the project model follows in the same startup
+		// The library material's shader changes: the project model reads its materials order-only, so only the material builds
 		project.Write( "materials/libm.vmat", Sources.Material( "shaders/unlit.shader", ["TextureColor", "materials/libm_color.tga"] ), EditorProject.Library );
-		project.Open().Assert( compiles: 1, failed: 1, library: 1 );
+		project.Open().Assert( compiles: 0, failed: 1, library: 1 );
 
 		// The missing image turns up
 		project.Copy( $"core/{BloodColor}", "decals/later.png" );
@@ -248,10 +248,10 @@ public class EditorStartupContentBuild
 			return $"built with 1 {before}, kept {kept}, new source with 2 {Marked( @"{{b}}", "compiler 2" )}";
 			""" );
 
-		StringAssert.Contains( live.Summary, $"Content local.{EditorProject.Ident}: 2 compiles, 1 failed", live.ToString() );
+		StringAssert.Contains( live.Summary, $"Content local.{EditorProject.Ident}: 1 compiles, 1 failed", live.ToString() );
 		StringAssert.Contains( live.Live, "built with 1 True, kept True, new source with 2 True", live.ToString() );
 		Assert.AreEqual( 1, Regex.Matches( live.Live, @"Content build: \d+ compiles" ).Count, live.ToString() );
-		Assert.AreEqual( 1, Regex.Matches( live.Live, @"Content build: 2 compiles, 0 adopted, 1 failed" ).Count, live.ToString() );
+		Assert.AreEqual( 1, Regex.Matches( live.Live, @"Content build: 1 compiles, 0 adopted, 1 failed" ).Count, live.ToString() );
 	}
 
 	/// <summary>

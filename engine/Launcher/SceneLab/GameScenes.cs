@@ -1093,6 +1093,27 @@ internal static partial class GameScenes
 	}
 
 	/// <summary>
+	/// Volumetric fog lit by an 8x8 grid of point lights inside the volume, every eighth one shadowed, for the fog's light loop.
+	/// </summary>
+	public static Scene VolumetricFogLights()
+	{
+		var scene = VolumetricFog();
+		using var _ = scene.Push();
+
+		for ( int i = 0; i < 64; i++ )
+		{
+			var light = new GameObject( true, $"Fog Light {i}" );
+			light.WorldPosition = new Vector3( (i % 8 - 3.5f) * 45, (i / 8 - 3.5f) * 45, 30 + (i % 3) * 30 );
+			var point = light.Components.Create<PointLight>();
+			point.LightColor = new ColorHsv( i * 47 % 360, 0.7f, 1 ).ToColor() * 0.5f;
+			point.Radius = 90;
+			point.Shadows = i % 8 == 0;
+		}
+
+		return scene;
+	}
+
+	/// <summary>
 	/// Dense smoke: 1500 big lit smoke sprites overlapping in the fog scene with an 8x8 grid of point lights, every eighth one
 	/// shadowed, for sprite lighting under heavy overdraw. Placed from a fixed seed, so captures repeat.
 	/// </summary>

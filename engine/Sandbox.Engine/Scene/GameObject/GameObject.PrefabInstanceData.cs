@@ -439,7 +439,7 @@ internal class PrefabInstanceData
 
 		var prefabComponentJson = prefabComponent.Serialize();
 
-		var updatedInstanceData = Json.ApplyPatch( prefabComponentJson.AsObject(), Patch, DiffObjectDefinitions );
+		var updatedInstanceData = Json.ApplyPatch( prefabComponentJson.AsObject(), Patch, TrackedDiffDefinitions );
 
 		RemapPrefabIdsToInstanceIds( ref updatedInstanceData );
 
@@ -471,7 +471,7 @@ internal class PrefabInstanceData
 		UpdateLookups( validatedLookup );
 
 		// Reapply our patch
-		var updatedInstanceData = revertChanges ? prefabGameObjectJson : Json.ApplyPatch( prefabGameObjectJson, Patch, DiffObjectDefinitions );
+		var updatedInstanceData = revertChanges ? prefabGameObjectJson : Json.ApplyPatch( prefabGameObjectJson, Patch, TrackedDiffDefinitions );
 		RemapPrefabIdsToInstanceIds( ref updatedInstanceData );
 		if ( go.IsOutermostPrefabInstanceRoot )
 		{
@@ -523,7 +523,7 @@ internal class PrefabInstanceData
 
 		var prefabGameObjectJson = prefabGameObject.Serialize( new SerializeOptions { SerializePrefabForDiff = true } );
 
-		var updatedPrefabGameObjectJson = Json.ApplyPatch( prefabGameObjectJson, applyChangesPatch, DiffObjectDefinitions );
+		var updatedPrefabGameObjectJson = Json.ApplyPatch( prefabGameObjectJson, applyChangesPatch, TrackedDiffDefinitions );
 
 		prefabGameObject.Deserialize( updatedPrefabGameObjectJson, new GameObject.DeserializeOptions { IsRefreshing = true } );
 

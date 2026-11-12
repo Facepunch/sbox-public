@@ -1,0 +1,206 @@
+@import "/Platform/_platform.scss";
+
+// Laid out by the ShelfPanel it's on, the panel's full height - the sidebar and the results each scroll on their own
+BrowseShelf
+{
+	@include platform-16x9;
+	flex-direction: row;
+	flex-shrink: 0;
+	height: 100%;
+	gap: 24px;
+
+	> .side
+	{
+		@include platform-panel;
+		flex-shrink: 0;
+		width: 260px;
+		padding: 14px 6px 14px 14px;
+
+		.search
+		{
+			width: auto;
+			flex-shrink: 0;
+			margin-right: 8px;
+		}
+
+		// The search stays put; this scrolls under it
+		> .options
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			min-height: 0;
+			gap: 2px;
+			padding-right: 8px;
+			overflow-y: scroll;
+			scrollbar-width: thin;
+			scrollbar-color: $platform-faint transparent;
+			scrollbar-gutter: stable;
+
+			> *
+			{
+				flex-shrink: 0;
+			}
+		}
+	}
+
+	// The grid scrolls, not the column - its header stays put
+	> .results
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		gap: 18px;
+		pointer-events: all;
+
+		> .header
+		{
+			@include platform-shelf-header;
+			flex-shrink: 0;
+
+			.spacer
+			{
+				flex-grow: 1;
+			}
+
+			.refresh
+			{
+				@include platform-tool;
+			}
+		}
+
+		> .empty
+		{
+			@include platform-shelf-empty;
+		}
+
+		// Laid out as the grid's cells are - the cards inset in them, the same gaps
+		> .skeleton
+		{
+			flex-grow: 1;
+			min-height: 0;
+			flex-wrap: wrap;
+			align-content: flex-start;
+			gap: 4px;
+			margin: 0 -6px;
+			overflow: hidden;
+
+			.cell
+			{
+				flex-shrink: 0;
+				padding: 6px;
+			}
+
+			.card
+			{
+				flex-grow: 1;
+				@include platform-card-skeleton( browse-breathe );
+			}
+		}
+
+		> .grid
+		{
+			flex-grow: 1;
+			min-height: 0;
+			// The cards are inset in their cells - this and the inset make the 16px between them
+			gap: 4px;
+			scrollbar-width: 0px;
+			// Back out by the inset, so the cards line up with the header
+			margin: 0 -6px;
+		}
+	}
+
+	.search
+	{
+		height: 38px;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 8px;
+		padding: 0 12px;
+		border-radius: $platform-radius;
+		border: 1px solid $platform-hairline;
+		background-color: $platform-panel;
+
+		i
+		{
+			font-size: 18px;
+			color: $platform-muted;
+		}
+
+		.clear
+		{
+			cursor: pointer;
+			@include platform-sounds;
+
+			&:hover
+			{
+				color: $platform-text;
+			}
+		}
+
+		TextEntry
+		{
+			flex-grow: 1;
+			font-size: 14px;
+			color: $platform-text;
+
+			.placeholder
+			{
+				color: $platform-faint;
+			}
+		}
+	}
+
+	.what
+	{
+		@include platform-caps;
+		margin: 14px 0 6px 6px;
+		color: $platform-faint;
+	}
+
+	.option
+	{
+		@include platform-nav-item( 13px );
+		height: 30px;
+		padding: 0 8px;
+	}
+
+	// A tick box rather than a place - ticked, not lit blue
+	.option.check.on
+	{
+		background-color: transparent;
+
+		&:hover
+		{
+			background-color: $platform-hover-wash;
+		}
+
+		i
+		{
+			color: $platform-primary;
+		}
+
+		label
+		{
+			color: $platform-text;
+		}
+	}
+
+	.reset
+	{
+		@include platform-text-button( 32px, 12.5px, 16px );
+		justify-content: center;
+		margin-top: 6px;
+	}
+}
+
+@keyframes browse-breathe
+{
+	from
+	{
+		opacity: 0.6;
+	}
+
+	to
+	{
+		opacity: 1;
+	}
+}

@@ -140,6 +140,7 @@ public readonly ref partial struct Painter
 		protected virtual void OnEnd()
 		{
 			Batcher.Flush();
+			Batcher.UploadTables();
 		}
 
 		internal void Reset()

@@ -13,7 +13,8 @@ internal static class ScriptConversions
 		=> new( diagnostic.Code, (Script.DiagnosticSeverity)diagnostic.Severity, diagnostic.Message, diagnostic.Span.ToEngineSpan() );
 
 	internal static Script.ScriptError ToEngineError( this Breen.Diagnostic diagnostic )
-		=> new( diagnostic.Code, diagnostic.Message, diagnostic.Span.Start, diagnostic.Span.Length );
+		=> new( diagnostic.Code, diagnostic.Message, diagnostic.Span.Start, diagnostic.Span.Length,
+			diagnostic.FilePath, diagnostic.Line, diagnostic.Column );
 
 	internal static Script.Input ToEngineInput( this Breen.EditorInput input )
 		=> new( input.Name, input.Type, input.Description );
@@ -29,7 +30,9 @@ internal static class ScriptConversions
 			symbol.Detail, symbol.Description, symbol.Declaration?.ToEngineSpan() );
 
 	internal static Script.Completion ToEngineCompletion( this Breen.CompletionItem item )
-		=> new( item.Label, item.InsertText, (Script.SymbolKind)item.Kind, item.Type, item.Detail, item.Description );
+		=> new( item.Label, item.InsertText, (Script.SymbolKind)item.Kind, item.Type,
+			item.Kind == Breen.EditorSymbolKind.Type && item.Type is { IsNested: true, IsGenericType: false }
+				? item.Type.FullName.Replace( '+', '.' ) : item.Detail, item.Description );
 
 	internal static Script.CompletionList ToEngineCompletionList( this Breen.CompletionList list )
 		=> new( list.ReplacementSpan.ToEngineSpan(), Array.AsReadOnly( list.Items.Select( item => item.ToEngineCompletion() ).ToArray() ) );

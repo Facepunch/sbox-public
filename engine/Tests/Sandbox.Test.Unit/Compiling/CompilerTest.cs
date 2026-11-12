@@ -218,7 +218,7 @@ public partial class CompilerTest
 			var editorFolders = System.IO.Directory.EnumerateDirectories( codePath, "editor", SearchOption.AllDirectories ).ToArray();
 			if ( editorFolders.Count() > 0 )
 			{
-				var compilerSettings = new Compiler.Configuration();
+				var compilerSettings = new Compiler.Configuration { Whitelist = false };
 				var compiler = group.CreateCompiler( $"test.editor{++editorFolderId}", editorFolders[0], compilerSettings );
 				compiler.AddReference( "Sandbox.Tools" );
 				compiler.AddReference( "package.test" );
@@ -249,54 +249,4 @@ public partial class CompilerTest
 		// 1 editor, 1 game
 		Assert.AreEqual( 2, group.BuildResult.Output.Count() );
 	}
-
-	/*
-	/// <summary>
-	/// We rely on a package dll
-	/// </summary>
-	[TestMethod]
-	public async Task PackageDependant()
-	{
-		var ac = new AccessControl( "game" );
-		AssemblyLoadContext alc = new AssemblyLoadContext( "testSandbox", true );
-
-		var info = await Api.Packages.Get.RunAsync( "facepunch.sandbox" );
-		Assert.IsNotNull( info.Package.Revision.Manifest );
-
-		var gameDllInfo = info.Package.Revision.Manifest.Files.Single( x => x.Path == ".assembly" );
-		var gameDll = await Sandbox.Utility.Web.GrabFile( $"https://files.facepunch.com/sbox/asset{gameDllInfo.Url}", default );
-
-		var gamePassed = ac.VerifyAssembly( new MemoryStream( gameDll ), out var trustedDll );
-		Assert.IsTrue( gamePassed, string.Join( ",", ac.Errors ) );
-
-		// try to load the game.dll
-		var gameAssembly = alc.LoadFromStreamWithEmbeds( trustedDll );
-
-		bool compileSuccessCallback = false;
-
-		var codePath = System.IO.Path.GetFullPath( "compiler/code/" );
-		var group = new CompileGroup();
-		group.AddAssembly( "facepunch.sandbox", gameDll );
-
-		group.OnCompileSuccess = ( g ) => compileSuccessCallback = true;
-
-		var compilerSettings = new CompilerSettings();
-		compilerSettings.Clean();
-
-		var extensionCompiler = group.CreateCompiler( $"extension", codePath + "/extension", compilerSettings );
-		extensionCompiler.GeneratedCode.AppendLine( "global using static Sandbox.Internal.GlobalGameNamespace;" );
-		extensionCompiler.AddReference( "facepunch.sandbox" );
-		extensionCompiler.AddReference( "Sandbox.Game" );
-
-		Assert.IsFalse( compileSuccessCallback );
-		await group.BuildAsync();
-
-		Assert.IsTrue( group.BuildResult.Success, group.BuildResult.BuildDiagnosticsString() );
-		Assert.IsTrue( compileSuccessCallback );
-
-		Assert.IsNotNull( group.BuildResult );
-		Assert.AreEqual( group.BuildResult.Output.Count(), 1 );
-
-	}
-	*/
 }

@@ -165,7 +165,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 	internal bool IsRootRenderer => _skinnedParent == null;
 
-	internal IEnumerable<SkinnedModelRenderer> SkinnedChildren => _skinnedChildren;
+	internal HashSet<SkinnedModelRenderer> SkinnedChildren => _skinnedChildren;
 
 	private void UpdateSkinnedRendererParent()
 	{
@@ -304,7 +304,8 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 			// Updated bones, transform is no longer dirty.
 			_transformDirty = false;
 
-			UpdateGameObjectsFromBones();
+			if ( UpdateGameObjectsFromBones() && ThreadSafe.IsMainThread )
+				Transform.TransformChanged( true );
 		}
 	}
 

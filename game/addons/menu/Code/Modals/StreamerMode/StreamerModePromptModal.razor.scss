@@ -1,5 +1,6 @@
 @import '../../styles/_theme.scss';
 @import '../../styles/mainmenu.scss';
+@import "/Platform/_platform.scss";
 
 StreamerModePromptModal
 {
@@ -11,8 +12,8 @@ StreamerModePromptModal
 	justify-content: center;
 	align-items: center;
 	pointer-events: all;
-	background-color: #1114;
-	backdrop-filter: blur( 4px ) contrast( 0.7 ) brightness( 0.1 );
+	background-color: rgba( 8, 10, 16, 0.55 );
+	backdrop-filter: blur( 24px );
 	transition: all 250ms ease-out;
 	opacity: 1;
 
@@ -30,19 +31,14 @@ StreamerModePromptModal
 
 	.window
 	{
+		@include platform-surface;
 		z-index: 1000;
 		width: 600px;
 		min-height: 200px;
-		font-family: $font-default;
-		border-radius: $rounding-default;
-		flex-direction: column;
 		flex-shrink: 0;
 		gap: 16px;
 		padding: 16px;
 		pointer-events: all;
-		background-color: $default-900;
-		border: 1px solid $default-border;
-		box-shadow: 0 16px 48px rgba( black, 0.5 );
 	}
 
 	.content
@@ -56,8 +52,7 @@ StreamerModePromptModal
 	{
 		padding: 8px;
 		font-size: $text-regular;
-		border-radius: $rounding-default;
-		background-color: $default-950;
+		color: $platform-muted;
 		flex-grow: 1;
 		text-align: center;
 		justify-content: center;
@@ -80,5 +75,16 @@ StreamerModePromptModal
 	{
 		justify-content: center;
 		gap: 8px;
+
+		.button
+		{
+			@include platform-text-button( 38px );
+			padding: 0 16px;
+
+			&.primary
+			{
+				@include platform-button-primary;
+			}
+		}
 	}
 }

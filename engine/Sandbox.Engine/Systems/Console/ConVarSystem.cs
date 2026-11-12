@@ -204,7 +204,7 @@ internal static partial class ConVarSystem
 	/// </summary>
 	public static int GetInt( string name, int defaultValue, bool allowEngineVariable )
 	{
-		var value = GetValue( name, defaultValue.ToString(), allowEngineVariable );
+		var value = GetValue( name, null, allowEngineVariable );
 
 		if ( bool.TryParse( value, out var boolean ) )
 			return boolean ? 1 : 0;
@@ -217,7 +217,7 @@ internal static partial class ConVarSystem
 	/// </summary>
 	public static float GetFloat( string name, float defaultValue, bool allowEngineVariable )
 	{
-		return float.TryParse( GetValue( name, defaultValue.ToString(), allowEngineVariable ), out var value ) ? value : defaultValue;
+		return float.TryParse( GetValue( name, null, allowEngineVariable ), out var value ) ? value : defaultValue;
 	}
 
 	/// <summary>

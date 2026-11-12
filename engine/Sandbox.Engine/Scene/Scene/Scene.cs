@@ -236,6 +236,8 @@ public partial class Scene : GameObject
 		NavMesh?.Dispose();
 		NavMesh = default;
 
+		RenderAttributes.Clear();
+
 		DisposeListeners();
 	}
 

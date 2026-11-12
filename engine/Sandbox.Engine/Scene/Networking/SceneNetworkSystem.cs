@@ -535,7 +535,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	{
 		if ( Game.ActiveScene is null ) return "<empty>";
 
-		foreach ( var map in Game.ActiveScene.GetAllComponents<MapInstance>() )
+		foreach ( var map in Game.ActiveScene.Query<MapInstance>() )
 		{
 			if ( !map.Active ) continue;
 			if ( !map.IsLoaded ) continue;
@@ -1075,14 +1075,16 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		var parentObject = scene.Directory.FindByGuid( message.ParentId );
 		if ( !parentObject.IsValid() )
-			return;
-
-		var root = parentObject.Network.RootGameObject;
-		if ( !root.IsValid() ) return;
-
-		if ( root._net is null )
 		{
-			Log.Warning( $"ObjectRefreshDescendant: Object {root} is not networked" );
+			UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
+			return;
+		}
+
+		// The parent might not be under the root the refresh was sent for, like an object only we put somewhere else.
+		var root = parentObject.Network.RootGameObject;
+		if ( !root.IsValid() || root._net is null || root.Id != DeltaSnapshotSystem.ReadObjectId( message.Snapshot ) )
+		{
+			UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
 			return;
 		}
 
@@ -1138,14 +1140,16 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		var gameObject = scene.Directory.FindByGuid( message.GameObjectId );
 
 		if ( !gameObject.IsValid() )
-			return;
-
-		var root = gameObject.Network.RootGameObject;
-		if ( !root.IsValid() ) return;
-
-		if ( root._net is null )
 		{
-			Log.Warning( $"ObjectRefreshComponent: Object {root} is not networked" );
+			UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
+			return;
+		}
+
+		// The object might not be under the root the refresh was sent for, like an object only we put somewhere else.
+		var root = gameObject.Network.RootGameObject;
+		if ( !root.IsValid() || root._net is null || root.Id != DeltaSnapshotSystem.ReadObjectId( message.Snapshot ) )
+		{
+			UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
 			return;
 		}
 
@@ -1168,6 +1172,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			if ( componentType is null || componentType.TargetType.IsAbstract )
 			{
 				Log.Warning( $"TypeLibrary couldn't find {nameof( Component )} type {componentTypeName}" );
+				UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
 				return;
 			}
 
@@ -1178,10 +1183,13 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			catch ( Exception e )
 			{
 				Log.Error( e );
+				UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
+				return;
 			}
 		}
 		else if ( component.GameObject != gameObject )
 		{
+			UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
 			return;
 		}
 
@@ -1198,6 +1206,22 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		root._net.UpdateFromRefresh( source, message.TableData, message.Snapshot );
+	}
+
+	/// <summary>
+	/// A refresh we can't apply, like one naming an object only its sender has, still has to move its root object
+	/// to the version it was sent at. Every snapshot sent after it would be turned away for good otherwise. Its
+	/// snapshot is the root's, so that's applied too.
+	/// </summary>
+	private static void UpdateFromUnappliedRefresh( Scene scene, Connection source, byte[] tableData, byte[] snapshotData )
+	{
+		var root = scene.Directory.FindByGuid( DeltaSnapshotSystem.ReadObjectId( snapshotData ) );
+		if ( root?._net is null ) return;
+
+		if ( !root._net.HasControl( source ) && !source.IsHost )
+			return;
+
+		root._net.UpdateFromRefresh( source, tableData, snapshotData );
 	}
 
 

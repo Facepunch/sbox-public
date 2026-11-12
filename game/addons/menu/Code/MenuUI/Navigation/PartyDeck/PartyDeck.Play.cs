@@ -11,8 +11,6 @@ public partial class PartyDeck
 	bool StartingGame;
 	bool ShowPlayControls => Draft is null && PartyView.Exists && PartyView.LeaderState == PartyRoom.OwnerJoinState.None;
 	bool IsReady => PartyView.IsMemberReady( Me );
-	int ReadyCount => Members.Count( x => x.Id != PartyView.Owner.Id && PartyView.IsMemberReady( x ) );
-	int FollowersCount => Members.Count( x => x.Id != PartyView.Owner.Id );
 
 	string SetupProblem
 	{
@@ -31,23 +29,11 @@ public partial class PartyDeck
 
 	bool CanStartGame => ShowPlayControls && PartyView.OwnerIsMe && !StartingGame && !LoadingScreen.IsVisible && SetupProblem is null;
 
-	string PlayHint => StartingGame ? "#menu.party.starting_game" : SetupProblem ?? (FollowersCount == 0 ? "#menu.party.your_game_is_ready_to_start" : $"{ReadyCount} / {FollowersCount} ready");
 
 	void ToggleReady()
 	{
 		if ( !ShowPlayControls || PartyView.OwnerIsMe || (!IsReady && SetupProblem is not null) ) return;
 		PartyView.SetReady( !IsReady );
-	}
-
-	void ConfigureGame()
-	{
-		if ( !PartyView.IsGameSelected( DisplayGamePackage ) || DisplayGamePackage.Info.IsDedicatedServerOnly )
-		{
-			OpenSettings();
-			return;
-		}
-
-		ModalSystem.Instance.OpenGameSetup( DisplayGamePackage );
 	}
 
 	async Task StartGame()

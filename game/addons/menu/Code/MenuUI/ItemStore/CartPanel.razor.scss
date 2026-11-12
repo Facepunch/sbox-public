@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // The cart lives in the sidebar - a labelled band of rows, a total, one filled button.
 CartPanel
@@ -18,7 +18,7 @@ CartPanel
 
 	.section-label
 	{
-		@include front-section-label;
+		@include platform-section-label;
 	}
 
 	.count
@@ -29,11 +29,11 @@ CartPanel
 		align-items: center;
 		justify-content: center;
 		border-radius: 999px;
-		background-color: $front-primary;
-		font-family: $front-font;
+		background-color: $platform-primary;
+		font-family: $platform-font;
 		font-size: 10px;
 		font-weight: 700;
-		color: #fff;
+		color: $platform-primary-text;
 	}
 
 	.hint
@@ -86,21 +86,12 @@ CartPanel
 
 	.remove
 	{
-		@include front-icon-button;
-
-		width: 28px;
-		height: 28px;
-		cursor: pointer;
-
-		icon
-		{
-			font-size: 15px;
-		}
+		@include platform-tool( 28px, 15px );
 
 		&:hover
 		{
 			sound-in: "ui.button.over";
-			icon { color: $front-danger; }
+			icon { color: $platform-danger; }
 		}
 	}
 
@@ -115,7 +106,7 @@ CartPanel
 
 	.total-label
 	{
-		@include front-section-label;
+		@include platform-section-label;
 	}
 
 	.total-value
@@ -128,9 +119,10 @@ CartPanel
 
 	.checkout
 	{
-		@include front-button;
-
-		cursor: pointer;
+		@include platform-text-button( 40px, 13.5px, 17px );
+		@include platform-button-primary;
+		justify-content: center;
+		padding: 0 18px;
 
 		&:hover { sound-in: "ui.button.over"; }
 		&:active { sound-in: "ui.button.press"; }

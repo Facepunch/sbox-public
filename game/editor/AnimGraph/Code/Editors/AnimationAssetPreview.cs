@@ -80,12 +80,15 @@ internal sealed class ClipAssetPreview : ClipEditor, AssetSystem.IEventListener
 
 	void AssetSystem.IEventListener.OnAssetChanged( Asset asset )
 	{
-		if ( !_asset.GetReferences( false ).Contains( asset ) )
+		if ( asset != _asset && !_asset.GetReferences( false ).Contains( asset ) )
 			return;
 
+		var position = PlaybackPosition;
+		var playing = IsPlaying;
 		UpdateSource();
-		if ( PreviewSkeleton is null )
-			QueueRebuild();
+		QueueRebuild();
+		ScrubTo( position );
+		IsPlaying = playing;
 	}
 }
 

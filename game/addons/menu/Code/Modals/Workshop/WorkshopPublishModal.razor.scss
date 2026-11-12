@@ -1,8 +1,10 @@
+@import "/Platform/_platform.scss";
+
 WorkshopPublishModal
 {
 	flex-shrink: 0;
 	z-index: 1100;
-	font-family: Poppins;
+	font-family: $platform-font;
 	font-size: 1.2rem;
 
 	h1
@@ -24,14 +26,14 @@ WorkshopPublishModal
 	{
 		margin: 1rem;
 		height: 64px;
-		background-color: #000a;
-		border-radius: 10px;
+		background-color: rgba( 6, 9, 16, 0.5 );
+		border-radius: $platform-radius;
 		overflow: hidden;
 
 		.fill
 		{
 			height: 100%;
-			background-color: #08f;
+			background-color: $platform-primary;
 			min-width: 3px;
 		}
 	}
@@ -41,17 +43,27 @@ WorkshopPublishModal
 		margin-top: 2rem;
 		justify-content: flex-end;
 		gap: 1rem;
+
+		.button
+		{
+			@include platform-text-button( 38px );
+			padding: 0 16px;
+
+			&.primary
+			{
+				@include platform-button-primary;
+			}
+		}
 	}
 
 
 	.inner
 	{
+		@include platform-surface;
+		flex-direction: row;
 		width: 1100px;
 		pointer-events: all;
-		border-radius: 10px;
 		z-index: 100;
-		box-shadow: 10px 10px 150px #0005;
-		background-color: #1c202d;
 
 		&.progress
 		{
@@ -68,8 +80,8 @@ WorkshopPublishModal
 			{
 				width: 350px;
 				height: 350px;
-				background-color: #fff1;
-				border-radius: 10px;
+				background-color: $platform-hover-wash;
+				border-radius: $platform-radius;
 				background-size: cover;
 				background-position: center;
 			}
@@ -94,14 +106,19 @@ WorkshopPublishModal
 					{
 						width: 130px;
 						padding: 6px;
-						color: #fffa;
+						color: $platform-muted;
 					}
 
-					textentry, dropdown
+					textentry
 					{
-						background-color: #0006;
+						@include platform-field;
 						flex-grow: 1;
-						border-radius: 8px;
+					}
+
+					dropdown
+					{
+						@include platform-dropdown;
+						flex-grow: 1;
 					}
 				}
 			}
@@ -111,27 +128,11 @@ WorkshopPublishModal
 
 ButtonGroup
 {
-    border-radius: 10px;
-    overflow: hidden;
-    gap: 1px;
+	@include platform-choices;
 
-    button
-    {
-        white-space: nowrap;
-        overflow: hidden;
-        background-color: #0006;
-        color: #fffa;
-
-        &:hover
-        {
-            background-color: #08f3;
-            color: #fff;
-        }
-
-        &.active
-        {
-            background-color: #08f;
-            color: #fff;
-        }
-    }
+	.button
+	{
+		@include platform-choice;
+		overflow: hidden;
+	}
 }

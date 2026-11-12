@@ -93,11 +93,8 @@
 
 		if (returnToMainMenu)
 		{
-			var options = new SceneLoadOptions();
-			options.ShowLoadingScreen = true;
-			options.SetScene("/scenes/menu-main.scene");
-
-			Game.ActiveScene.Load(options);
+			returnToMainMenu = false;
+			MenuHelpers.CloseAvatarEditor();
 		}
 	}
 

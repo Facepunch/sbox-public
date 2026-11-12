@@ -1,0 +1,369 @@
+@import "/Platform/_platform.scss";
+
+GameFront
+{
+	position: absolute;
+	left: $platform-edge;
+	right: $platform-edge;
+	top: 80px;
+	bottom: 136px;
+	flex-direction: column;
+	justify-content: flex-start;
+	pointer-events: none;
+
+	> .inner
+	{
+		@include platform-16x9;
+		position: relative;
+		width: 100%;
+		height: 100%;
+	}
+
+	// Faded out of the way on a page off its menu (&.paging). Over the top of its pages rather than above them, so
+	// nothing moves as you go between them - its menu is down under it (FrontHome), the others up in its room.
+	.header
+	{
+		position: absolute;
+		left: 48px;
+		top: 56px;
+		flex-direction: column;
+		align-items: flex-start;
+		flex-shrink: 0;
+		transition: opacity 0.12s ease-out;
+
+		.title
+		{
+			font-size: 96px;
+			font-weight: 800;
+			line-height: 1;
+			letter-spacing: -2px;
+			color: white;
+		}
+	}
+
+	.nav, .nav > .tier
+	{
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 14px;
+	}
+
+	// Just words on the art - the first the one to press, white and a size up, the rest a step back. Under the pointer
+	// one comes forward: white and nudged right, the others dimmed.
+	// It gives a little when pressed.
+	.nav
+	{
+		pointer-events: all;
+
+		.item
+		{
+			position: relative;
+			flex-direction: row;
+			align-items: center;
+			font-size: 26px;
+			font-weight: 700;
+			letter-spacing: -0.3px;
+			color: rgba( 255, 255, 255, 0.72 );
+			text-shadow: 0 2px 12px rgba( 0, 0, 0, 0.5 );
+			cursor: pointer;
+			@include platform-sounds;
+			transition: color 0.12s ease, opacity 0.12s ease, transform 0.15s ease-out;
+
+			&:hover
+			{
+				color: white;
+				opacity: 1;
+				transform: translateX( 8px );
+			}
+
+			&:active
+			{
+				transform: translateX( 8px ) scale( 0.97 );
+			}
+
+			&.disabled
+			{
+				opacity: 0.4;
+			}
+
+			&.leave:hover
+			{
+				color: $platform-danger;
+			}
+		}
+
+		// The one to press
+		.tier > .item:first-child
+		{
+			font-size: 30px;
+			color: white;
+		}
+
+		// One under the pointer - the rest step back
+		&:hover .item
+		{
+			opacity: 0.6;
+		}
+
+		&:hover .item:hover
+		{
+			opacity: 1;
+		}
+	}
+
+	// Its pages, each over the whole of it - the one you're on, the others faded out. Where each is never changes, so
+	// going between them is only ever one fading out as the next fades in.
+	.pages
+	{
+		flex-grow: 1;
+		position: relative;
+		pointer-events: none;
+
+		> .navigator-body
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			flex-direction: column;
+			transition: opacity 0.12s ease-out;
+
+			// Kept laid out to fade, rather than gone - over the navigator's own display: none
+			&.hidden
+			{
+				display: flex;
+				opacity: 0;
+				pointer-events: none;
+				transition: opacity 0.08s ease-in;
+			}
+		}
+	}
+
+	// Home and pause actions share the same position below the title, regardless of the number of items.
+	// Include the page class so these offsets override the shared navigator-body rule above.
+	> .inner > .nav, .pages > FrontHome.navigator-body
+	{
+		position: absolute;
+		left: 48px;
+		top: 240px;
+		justify-content: flex-start;
+	}
+
+	.pages > FrontHome.navigator-body
+	{
+		// Come back to, the actions come in again as they first did - put back once it's faded out,
+		// not moved while it's seen
+		&.hidden
+		{
+			.nav
+			{
+				opacity: 0;
+				transform: translateX( -30px );
+				transition: opacity 0s linear 0.08s, transform 0s linear 0.08s;
+			}
+		}
+	}
+
+	// The pages it goes on to - faded in the first time. Each is a panel of its own (the platform-panel mixin) over the
+	// art: a bar with the way back, what it is and its tools, then what's on it.
+	.pages > CreateGamePage, .pages > ServersPage, .pages > MapsPage
+	{
+		pointer-events: all;
+
+		&:intro
+		{
+			opacity: 0;
+		}
+
+		// The panel in the middle, its sections out on the art at the left (the platform-side mixin) - as the settings
+		// have their card and categories
+		&.navigator-body
+		{
+			flex-direction: row;
+			justify-content: center;
+		}
+
+		> .panel
+		{
+			@include platform-panel;
+			flex-shrink: 1;
+			margin-right: $platform-side-balance;
+			width: 46%;
+			min-width: 640px;
+			max-width: 900px;
+			min-height: 0;
+			box-shadow: 0 24px 60px rgba( 0, 0, 0, 0.45 );
+		}
+
+		.status
+		{
+			flex-grow: 1;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 14px;
+			padding: 48px;
+			color: $platform-muted;
+
+			i
+			{
+				font-size: 32px;
+			}
+
+			&.error
+			{
+				color: $platform-danger;
+			}
+		}
+	}
+
+	// Its sections and their rows are its own stylesheet's - here, how wide it is, while it loads, and its buttons
+	.pages > CreateGamePage
+	{
+		> .panel > .body
+		{
+			gap: 18px;
+			padding: 8px 16px 16px 16px;
+		}
+
+		.status
+		{
+			.track
+			{
+				width: 320px;
+				height: 4px;
+				border-radius: 2px;
+				background-color: rgba( 255, 255, 255, 0.12 );
+			}
+
+			.fill
+			{
+				height: 100%;
+				border-radius: 2px;
+				background-color: $platform-primary;
+			}
+		}
+
+		.actions
+		{
+			flex-shrink: 0;
+			justify-content: flex-end;
+			gap: 12px;
+			padding-top: 6px;
+
+			.button
+			{
+				@include platform-button;
+				padding: 0 22px;
+				font-size: 16px;
+				font-weight: 600;
+
+				i
+				{
+					font-size: 20px;
+				}
+
+				&.start
+				{
+					@include platform-button-primary;
+				}
+			}
+		}
+	}
+
+	// Down past the front's bottom to where the shelves' panels stop, clear of the dock - the front's 136px off the bottom
+	// of the screen, they're 80px ($platform-above-dock)
+	.pages > CreateGamePage > .panel, .pages > ServersPage > .panel, .pages > MapsPage > .panel
+	{
+		margin-bottom: -56px;
+	}
+
+	// A grid of maps wants more room across than a page of rows - and room round the well they're in
+	.pages > MapsPage > .panel
+	{
+		width: 62%;
+		max-width: 1280px;
+
+		> .body
+		{
+			padding: 4px 16px 16px 16px;
+		}
+	}
+
+	// The pause menu's Players page - the player list in the middle, as tall as the front, down to where the shelves'
+	// panels stop above the dock as the Servers page does. Back to the pause menu from its bar.
+	.pages > .players-page
+	{
+		flex-direction: row;
+		justify-content: center;
+		pointer-events: all;
+
+		&:intro
+		{
+			opacity: 0;
+		}
+
+		> PlayerList
+		{
+			align-self: stretch;
+			width: 900px;
+			max-width: 64%;
+			// Its own cap lifted - "none" isn't a value the engine takes
+			max-height: 100%;
+			margin-bottom: -56px;
+		}
+	}
+
+	&.paging .header
+	{
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.08s ease-in;
+	}
+
+	// The pause menu, over the game - no art behind, so a scrim of its own. It just fades up.
+	&.paused
+	{
+		transition: opacity 0.15s ease-out;
+
+		&:intro
+		{
+			opacity: 0;
+		}
+	}
+
+	// The front comes in as a switch's veil lifts - the title first, then on down to what you can do. Its own title, not
+	// every .title in its pages (a panel's heading, a setting's name)
+	&:not(.paused)
+	{
+		.inner > .header > .title
+		{
+			transition: opacity 0.375s ease-out 0.075s, transform 0.45s ease-out 0.075s;
+
+			&:intro
+			{
+				opacity: 0;
+				transform: translateX( -40px );
+			}
+		}
+
+		.nav
+		{
+			transition: opacity 0.375s ease-out 0.3s, transform 0.45s ease-out 0.3s;
+
+			&:intro
+			{
+				opacity: 0;
+				transform: translateX( -30px );
+			}
+		}
+	}
+
+	// And goes out as the veil comes down
+	&:outro
+	{
+		opacity: 0;
+		transition: opacity 0.2s ease-in;
+	}
+}

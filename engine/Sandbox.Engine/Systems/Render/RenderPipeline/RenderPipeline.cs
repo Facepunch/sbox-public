@@ -60,7 +60,7 @@ internal static class RenderPipeline
 	internal static bool OverlapReflections { get; set; }
 
 	[ConVar( "r_occlusion_culling", Help = "Skip opaque objects hidden by the depth prepass in the native renderer" )]
-	internal static bool OcclusionCulling { get; set; } = true;
+	internal static bool OcclusionCulling { get; set; }
 
 	/// <summary>
 	/// How occlusion culling handles aggregate fragments, in both renderers. Must match <c>CSceneViewOcclusionCull::AggregateMode_t</c>.
@@ -150,7 +150,7 @@ internal static class RenderPipeline
 			callback = occlusionFrame.OnRead;
 		}
 
-		context.ReadBufferAsync( stats, callback, 0, Marshal.SizeOf<OcclusionStats>() );
+		context.ReadBufferAsync( stats, callback, 0, Marshal.SizeOf<OcclusionStats>(), inline: true );
 	}
 
 	internal static int GetOcclusionCulled() => GetOcclusionCounts().HiddenInstances;
@@ -243,8 +243,13 @@ internal static class RenderPipeline
 
 	internal static void OnSceneViewSubmitted( ISceneView view ) => Current?.OnSceneViewSubmitted( view );
 
-	internal static ISceneLayer AddUIHook( string name, Stage stage, ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle color )
-		=> Get()?.AddUIHook( name, stage, view, viewport, color ) ?? default;
+	internal static ISceneLayer AddUIHook( Stage stage, ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle color )
+	{
+		// Named here rather than passed from native, a native string would allocate every frame
+		var name = stage == Stage.UI ? "Managed: PanelUI" : "Managed: PlatformOverlay";
+
+		return Get()?.AddUIHook( name, stage, view, viewport, color ) ?? default;
+	}
 
 	internal static void WarmUp() => Current?.WarmUp();
 

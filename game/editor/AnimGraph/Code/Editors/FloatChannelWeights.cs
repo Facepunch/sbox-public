@@ -25,6 +25,8 @@ internal sealed class FloatChannelWeights : Widget
 		_mask = mask;
 		Layout = Layout.Column();
 		Layout.Spacing = 4;
+		Layout.Alignment = TextFlag.Top;
+		VerticalSizeMode = SizeMode.CanGrow;
 		_serialized = mask.GetSerialized();
 		_serialized.OnPropertyStartEdit += _ => _editing = true;
 		_serialized.OnPropertyFinishEdit += _ =>

@@ -20,24 +20,28 @@ public sealed class Skeleton : Resource
 	/// <summary>
 	/// Skeleton resource name.
 	/// </summary>
-	public string Name { get; }
+	public string Name => ResourcePath;
 
 	private Skeleton( HAnimSkeleton native, string name )
 	{
 		this.native = native;
-		Name = name;
-
-		RegisterWeakResourceId( Name );
+		RegisterWeakResourceId( name, native.GetGuid() );
 	}
 
 	/// <summary>
 	/// Load a skeleton from the given file.
 	/// </summary>
-	public static Skeleton Load( string filename )
+	public static Skeleton Load( string filename ) => Load( (ResourceId)filename );
+
+	internal static Skeleton Load( ResourceId id )
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		return FromNative( NativeGlue.Resources.GetAnimSkeleton( filename ), filename );
+		if ( id.Guid is Guid guid && Game.Resources.TryGet<Skeleton>( guid, out var resource ) )
+			return resource;
+
+		var path = id.ResolvePath();
+		return FromNative( NativeGlue.Resources.GetAnimSkeleton( path, id.Guid ?? Guid.Empty ), path );
 	}
 
 	/// <summary>
@@ -59,6 +63,7 @@ public sealed class Skeleton : Resource
 		{
 			// If we're using a cached one we don't need this handle, we'll leak
 			native.DestroyStrongHandle();
+			Game.Resources.RegisterWeak( skeleton );
 			return skeleton;
 		}
 

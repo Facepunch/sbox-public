@@ -5,6 +5,7 @@ namespace Sandbox;
 /// <summary>
 /// Essentially wraps a couple of textures that we're going to render to. The color texture and the depth texture.
 /// </summary>
+[Expose]
 public sealed partial class RenderTarget : IDisposable
 {
 	/// <summary>

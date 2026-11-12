@@ -1,31 +1,21 @@
-@import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
+// A tab's words - its look is its PortalButton's, a choice in PackageTabs' strip
 SearchlightTab
 {
-    color: $front-secondary;
-    font-size: 13px;
-    font-weight: 700;
-    font-family: $front-font;
     align-items: center;
-    padding: 0px 14px 12px 14px;
-    border-bottom: 2px solid transparent;
     pointer-events: all;
     cursor: pointer;
-    transition: color 0.15s ease;
 
     i { display: none; }
 }
 
 SearchlightTab:hover
 {
-    color: $front-heading;
     sound-in: "ui.button.over";
 }
 
 .active SearchlightTab
 {
-    color: $front-heading;
-    border-bottom: 2px solid $front-primary;
     cursor: auto;
 }

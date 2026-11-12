@@ -1,13 +1,11 @@
-@import '/styles/_front.scss';
+@import "/Platform/_platform.scss";
 
 PartySettings
 {
 	flex-direction: column;
 	gap: 10px;
-	padding-top: 12px;
-	border-top: 1px solid $front-hairline;
-	color: $front-body;
-	font-family: $front-font;
+	color: $platform-text;
+	font-family: $platform-font;
 	font-size: 12px;
 	min-height: 0;
 	max-height: 65vh;
@@ -17,12 +15,64 @@ PartySettings
 	> * { flex-shrink: 0; }
 	&.creating { pointer-events: none; }
 
+	// Fades up in as the window grows to fit it
+	transition: opacity 0.18s ease-out, transform 0.22s ease-out;
+
+	&:intro
+	{
+		opacity: 0;
+		transform: translateY( 8px );
+	}
+
+	// A new party's two kinds, side by side - the one picked lit up
+	.privacy-choice
+	{
+		@include platform-choices;
+
+		.option
+		{
+			@include platform-choice;
+			min-width: 0;
+			height: auto;
+			justify-content: flex-start;
+			gap: 10px;
+			padding: 8px 12px;
+
+			icon
+			{
+				font-size: 20px;
+				flex-shrink: 0;
+			}
+
+			.about
+			{
+				flex-direction: column;
+				min-width: 0;
+			}
+
+			// The choice's .active, under the name the markup gives it
+			&.picked
+			{
+				background-color: $platform-primary;
+				background-image: $platform-sheen-on;
+				color: $platform-selected-text;
+
+				label
+				{
+					color: $platform-selected-text;
+				}
+			}
+		}
+	}
+
 	button.create-party
 	{
-		@include front-button;
+		@include platform-text-button( 40px, 13.5px, 17px );
+		@include platform-button-primary;
+		justify-content: center;
+		padding: 0 18px;
 
 		margin-top: 2px;
-		padding: 8px 12px;
 	}
 
 	.settings-row, .game-row
@@ -38,12 +88,13 @@ PartySettings
 		flex-shrink: 0;
 		white-space: nowrap;
 		font-weight: 600;
-		color: $front-heading;
+		color: $platform-text;
 	}
 
 	.settings-row > textentry
 	{
-		@include front-text-entry;
+		@include platform-field;
+		flex-grow: 1;
 	}
 
 	SliderControl
@@ -55,21 +106,18 @@ PartySettings
 
 	.game-choice
 	{
-		@include front-pill;
+		@include platform-text-button( 40px, 12.5px, 20px );
 
 		flex-grow: 1;
 		flex-shrink: 1;
 		min-width: 0;
 		justify-content: flex-start;
-		height: 40px;
 		padding: 5px 8px;
 		gap: 8px;
 
 		.icon
 		{
-			font-size: 20px;
 			flex-shrink: 0;
-			color: $front-secondary;
 		}
 
 		.button-right-column
@@ -81,13 +129,10 @@ PartySettings
 
 	.game-action
 	{
-		@include front-icon-button;
+		@include platform-tool( 32px );
 
 		width: 32px;
-		height: 32px;
 		padding: 0;
-
-		.icon { font-size: 20px; }
 	}
 
 	.game-choice > .icon-texture
@@ -108,28 +153,24 @@ PartySettings
 		text-overflow: ellipsis;
 	}
 
-	.game-choice .button-text { font-weight: 600; }
-
 	.game-setup-summary
 	{
-		flex-direction: column;
+		@include platform-surface;
 		gap: 8px;
 		padding: 12px;
-		border-radius: $front-radius;
-		background-color: rgba( white, 0.03 );
 
 		> div { align-items: center; gap: 8px; }
-		icon { font-family: "Material Icons"; color: $front-secondary; font-size: 16px; flex-shrink: 0; }
+		icon { font-family: "Material Icons"; color: $platform-muted; font-size: 16px; flex-shrink: 0; }
 		label { flex-shrink: 1; }
 	}
 
 	.configure-game
 	{
-		@include front-pill;
+		@include platform-text-button( 30px, 12.5px, 15px );
+		padding: 0 12px;
 		justify-content: center;
-		padding: 8px 12px;
 		margin-top: 4px;
 	}
 
-	.settings-error { color: $front-danger; }
+	.settings-error { color: $platform-danger; }
 }

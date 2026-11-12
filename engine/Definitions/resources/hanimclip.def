@@ -11,7 +11,31 @@ native class CAnimClipResource as NativeEngine.HAnimClip
 	int GetNumTracks();
 	int GetNumSyncEvents();
 
+	inline int GetNumEvents()
+	{
+		return self->GetData().m_authoredEvents.Count();
+	}
+
+	inline string GetEventName( int index )
+	{
+		const CAnimEvent* pEvent = self->GetData().m_authoredEvents[index];
+		if ( pEvent->GetEventType() == EventType_t::Generic )
+			return static_cast<const CGenericEvent*>( pEvent )->GetName();
+		return pEvent->GetTypeName();
+	}
+
+	inline KeyValues3 GetEventData( int index, out float startTime, out float duration )
+	{
+		const CAnimEvent* pEvent = self->GetData().m_authoredEvents[index];
+		*startTime = pEvent->GetStartTime() * self->GetDuration();
+		*duration = pEvent->GetDuration() * self->GetDuration();
+		if ( pEvent->GetEventType() == EventType_t::Generic )
+			return static_cast<const CGenericEvent*>( pEvent )->GetEventData();
+		return nullptr;
+	}
+
 	string GetSkeletonName();
+	HAnimSkeleton GetSkeleton();
 
 	bool IsBound();
 	Transform GetBoneParentSpaceTransformS2( float percentageThrough, int boneIdx );

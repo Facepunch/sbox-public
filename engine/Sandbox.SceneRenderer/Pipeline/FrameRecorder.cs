@@ -177,7 +177,6 @@ internal sealed partial class FrameRecorder : IDisposable
 	/// <summary>
 	/// Segments recorded on the thread pool: <see cref="workerSegments"/>, claimed heaviest first.
 	/// </summary>
-	JobBatch recordJobs;
 	int[] workerSegments = new int[16];
 
 	/// <summary>
@@ -588,8 +587,8 @@ internal sealed partial class FrameRecorder : IDisposable
 			workerSegments[j + 1] = slot;
 		}
 
-		recordJobs ??= new JobBatch( claim => RecordSegment( workerSegments[claim] ) );
-		recordJobs.Start( workers, MaxRecordThreads );
+		// Heaviest first, one at a time, on up to MaxRecordThreads workers beside this thread
+		var recording = JobDispatcher.Begin( workers, this, static ( recorder, claim ) => recorder.RecordSegment( recorder.workerSegments[claim] ), itemsPerBatch: 1, maxDegreeOfParallelism: MaxRecordThreads + 1 );
 
 		// Record main-thread work, then help workers. Always join before accessing their output.
 		foreach ( var frame in frames )
@@ -604,11 +603,11 @@ internal sealed partial class FrameRecorder : IDisposable
 			}
 
 			mainDone = Stopwatch.GetTimestamp();
-			recordJobs.Help();
 		}
 		finally
 		{
-			using ( Zones.RecordWait.Start() ) recordJobs.Wait();
+			// Joining records whatever workers haven't claimed yet on this thread
+			using ( Zones.RecordWait.Start() ) recording.Join();
 		}
 
 		stats.RecordMs = Stopwatch.GetElapsedTime( start ).TotalMilliseconds;

@@ -502,6 +502,17 @@ namespace Sandbox.UI
 			_textBlock?.Draw( painter, CachedOverrideBlendMode, ComputedStyle, TextLayoutRect, CachedRenderOpacity );
 		}
 
+		internal override bool TryGetContentBounds( out Rect bounds )
+		{
+			bounds = Box.Rect;
+			if ( !IsDrawnBy( typeof( Label ) ) ) return false;
+			if ( LayoutTree?.IsInlineParticipant == true || string.IsNullOrEmpty( _textBlock?.Text ) ) return true;
+
+			if ( _textBlock.GetInkRect( ComputedStyle, TextLayoutRect ) is not { } ink ) return false;
+			bounds.Add( ink );
+			return true;
+		}
+
 		public int GetLetterAt( Vector2 pos )
 		{
 			if ( _textBlock == null ) return -1;

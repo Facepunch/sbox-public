@@ -384,8 +384,12 @@ internal sealed class StandardPipeline
 			color = setup.m_hUpscaleColor;
 			depth = setup.m_hUpscaleDepth;
 			viewport = setup.m_upscaleViewport;
+		}
 
-			// Everything after uses the non-MSAA full resolution output as its final colour; it's copied to the real one last
+		// When upscaled, or multisampled differently from the output, everything after draws into our own colour target as its
+		// final colour; it's copied to the real one last
+		if ( upscaling || setup.m_nMSAA != setup.m_nOutputMSAA )
+		{
 			presentColor = finalColor;
 			finalColor = color;
 			resolveToFinal = false;
@@ -445,10 +449,10 @@ internal sealed class StandardPipeline
 			attributes.SetComboValue( "D_OPAQUE_FADE", 1 );
 		}
 
-		// Upscaled: copy the full resolution output into the real one
-		if ( upscaling && presentColor != NativeRenderPipeline.NoTarget )
+		// Copy our own final colour into the real output
+		if ( presentColor != NativeRenderPipeline.NoTarget )
 		{
-			view.AddBlitTextureToTargetLayer( "Upscaler Present", finalColor, viewport, viewport, presentColor, RenderColorSpace.RENDER_SRGB );
+			view.AddBlitTextureToTargetLayer( "Present", finalColor, viewport, viewport, presentColor, RenderColorSpace.RENDER_SRGB );
 			finalColor = presentColor;
 		}
 

@@ -77,12 +77,14 @@ public static class Backend
 
 class CustomJsonContentSerializer : IHttpContentSerializer
 {
+	static readonly System.Text.Json.JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
+
 	public async Task<T> FromHttpContentAsync<T>( HttpContent content, CancellationToken cancellationToken = default )
 	{
 		var str = await content.ReadAsStringAsync();
 		if ( string.IsNullOrWhiteSpace( str ) ) return default;
 
-		return System.Text.Json.JsonSerializer.Deserialize<T>( str, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true } );
+		return System.Text.Json.JsonSerializer.Deserialize<T>( str, ReadOptions );
 	}
 
 	public string GetFieldNameForProperty( PropertyInfo propertyInfo )
@@ -97,11 +99,7 @@ class CustomJsonContentSerializer : IHttpContentSerializer
 
 	public HttpContent ToHttpContent<T>( T values )
 	{
-		var json = System.Text.Json.JsonSerializer.Serialize( values );
-		var jsonBytes = Encoding.UTF8.GetBytes( json );
-		var jsonStream = new MemoryStream( jsonBytes );
-
-		var content = new ByteArrayContent( jsonBytes );
+		var content = new ByteArrayContent( System.Text.Json.JsonSerializer.SerializeToUtf8Bytes( values ) );
 		content.Headers.ContentType = new MediaTypeHeaderValue( "application/json" );
 		return content;
 

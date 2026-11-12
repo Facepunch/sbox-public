@@ -1,0 +1,27 @@
+{
+  "guid": "513c2595-1ff0-473e-bba0-08ec564d451d",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Bathtub 01",
+      "Type": "model",
+      "Org": "local",
+      "Ident": "bathtub_01",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/bathroom/bathtub/bathtub_01.vmdl"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

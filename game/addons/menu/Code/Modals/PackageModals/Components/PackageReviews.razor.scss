@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // The Reviews tab - the verdict, what players liked and didn't, then the reviews, a card each. All of it
 // scoped under here, the review cards' look included (UserComment is used elsewhere too)
@@ -23,11 +23,11 @@ PackageReviews
 	// A page's small blue label, like the Overview's
 	.eyebrow
 	{
-		@include front-eyebrow;
+		@include platform-section-label;
 
 		&.bad icon
 		{
-			color: $front-danger;
+			color: $platform-danger;
 		}
 	}
 
@@ -37,13 +37,10 @@ PackageReviews
 
 	.tags
 	{
-		flex-direction: column;
+		@include platform-surface;
 		flex-shrink: 0;
 		gap: 16px;
 		padding: 16px 20px 18px 20px;
-		border-radius: $front-radius;
-		border: $front-border-width solid $front-hairline;
-		background-color: $front-card-deep;
 	}
 
 	.tag-group
@@ -59,132 +56,63 @@ PackageReviews
 		gap: 6px;
 	}
 
-	// A tag - a pill in its side's colour: its glyph, its name, how many said so
+	// A tag - its glyph in its side's colour, its name, how many said so
 	.chip
 	{
-		flex-direction: row;
-		flex-shrink: 0;
-		align-items: center;
-		gap: 6px;
-		height: 28px;
-		padding: 0 11px;
-		border-radius: 999px;
-		border: 1px solid rgba( 255, 255, 255, 0.1 );
-		background-color: rgba( 255, 255, 255, 0.05 );
-
-		icon
-		{
-			font-size: 14px;
-		}
-
-		label
-		{
-			font-size: 12px;
-			font-weight: 600;
-			color: $front-body;
-		}
+		@include platform-chip;
 
 		.n
 		{
 			font-family: Inter;
-			font-weight: 700;
 			font-variant-numeric: tabular-nums;
-			color: $front-heading;
-			opacity: 0.8;
 		}
 
-		&.good
-		{
-			border-color: rgba( $front-reward, 0.28 );
-			background-color: rgba( $front-reward, 0.08 );
-
-			icon { color: $front-reward; }
-		}
-
-		&.bad
-		{
-			border-color: rgba( $front-danger, 0.28 );
-			background-color: rgba( $front-danger, 0.08 );
-
-			icon { color: $front-danger; }
-		}
-
-		// On a review - a size down, quieter
-		&.small
-		{
-			height: 24px;
-			padding: 0 9px;
-			gap: 5px;
-
-			icon
-			{
-				font-size: 12px;
-			}
-
-			label
-			{
-				font-size: 11px;
-				color: $front-secondary;
-			}
-		}
+		&.good icon { color: $platform-good; }
+		&.bad icon { color: $platform-danger; }
 	}
 
 	//
-	// Which of them - a row of pills like the reaction pills, the one showing lit in its colour
+	// Which of them - a strip of choices, the one showing picked
 	//
 
 	.filters
 	{
-		flex-direction: row;
-		flex-wrap: wrap;
-		flex-shrink: 0;
-		gap: 8px;
+		@include platform-choices;
+		align-self: flex-start;
 	}
 
 	.filter
 	{
-		flex-direction: row;
-		flex-shrink: 0;
-		align-items: center;
-		gap: 6px;
-		height: 34px;
-		padding: 0 14px;
-		border-radius: 999px;
-		border: 1px solid rgba( 255, 255, 255, 0.1 );
-		background-color: rgba( 255, 255, 255, 0.05 );
-		cursor: pointer;
-		transition: all 0.1s ease;
+		@include platform-choice;
+		flex-grow: 0;
+		flex-basis: auto;
 
+		// platform-choice dresses i and iconpanel - these are <icon>, so the same colours by hand
 		icon
 		{
-			font-size: 15px;
-			color: #c8cedb;
+			font-size: 16px;
+			color: $platform-muted;
 		}
 
-		label
+		&:hover icon
 		{
-			font-size: 12.5px;
-			font-weight: 600;
-			color: #c8cedb;
+			color: $platform-text;
+		}
+
+		&.active icon
+		{
+			color: white;
 		}
 
 		.n
 		{
 			font-family: Inter;
-			font-weight: 700;
 			font-variant-numeric: tabular-nums;
-			opacity: 0.7;
 		}
 
 		&:hover
 		{
 			sound-in: "ui.button.over";
-			background-color: rgba( 255, 255, 255, 0.11 );
-
-			icon, label
-			{
-				color: $front-heading;
-			}
 		}
 
 		&:active
@@ -192,41 +120,9 @@ PackageReviews
 			sound-in: "ui.button.press";
 		}
 
-		// The one showing - the menu's blue for all of them, a verdict's colour for its own
 		&.active
 		{
 			cursor: default;
-			border-color: rgba( $front-primary, 0.55 );
-			background-color: rgba( $front-primary, 0.25 );
-
-			icon, label
-			{
-				color: #ffffff;
-			}
-		}
-
-		&.good.active
-		{
-			border-color: rgba( $front-reward, 0.55 );
-			background-color: rgba( $front-reward, 0.18 );
-
-			icon, label { color: $front-reward; }
-		}
-
-		&.meh.active
-		{
-			border-color: rgba( $front-trophy, 0.55 );
-			background-color: rgba( $front-trophy, 0.18 );
-
-			icon, label { color: $front-trophy; }
-		}
-
-		&.bad.active
-		{
-			border-color: rgba( $front-danger, 0.55 );
-			background-color: rgba( $front-danger, 0.18 );
-
-			icon, label { color: $front-danger; }
 		}
 	}
 
@@ -252,22 +148,18 @@ PackageReviews
 	// A review that's off screen - just its card's room, so the list and its scrollbar stay put
 	.review-placeholder
 	{
+		@include platform-surface;
 		flex-shrink: 0;
-		border-radius: $front-radius;
-		border: $front-border-width solid $front-hairline;
-		background-color: $front-card-deep;
 	}
 
 	// Still coming - a review card's shape: a round avatar, a line for who, a few for what they said
 	.review-skeleton
 	{
+		@include platform-surface;
 		flex-direction: row;
 		flex-shrink: 0;
 		gap: 14px;
 		padding: 16px 20px 18px 16px;
-		border-radius: $front-radius;
-		border: $front-border-width solid $front-hairline;
-		background-color: $front-card-deep;
 
 		.bone
 		{
@@ -315,18 +207,16 @@ PackageReviews
 		padding: 48px 32px;
 		justify-content: center;
 		font-size: 13px;
-		color: $front-secondary;
+		color: $platform-muted;
 	}
 
 	UserComment
 	{
+		@include platform-surface;
 		flex-direction: row;
 		flex-shrink: 0;
 		gap: 14px;
 		padding: 16px 20px 18px 16px;
-		border-radius: $front-radius;
-		border: $front-border-width solid $front-hairline;
-		background-color: $front-card-deep;
 
 		> .left
 		{
@@ -351,7 +241,7 @@ PackageReviews
 			border-radius: 0;
 			background-color: transparent;
 			font-size: 12.5px;
-			color: $front-secondary;
+			color: $platform-muted;
 		}
 
 		> .right > .header
@@ -363,7 +253,7 @@ PackageReviews
 			{
 				font-size: 14px;
 				font-weight: 700;
-				color: $front-heading;
+				color: $platform-text;
 
 				&:hover
 				{
@@ -374,7 +264,7 @@ PackageReviews
 			label
 			{
 				font-size: 12px;
-				color: $front-secondary;
+				color: $platform-muted;
 			}
 		}
 
@@ -397,53 +287,22 @@ PackageReviews
 	{
 		font-size: 13.5px;
 		line-height: 20px;
-		color: $front-body;
+		color: $platform-text;
 		white-space: normal;
 	}
 
-	// Their verdict, on the end of the top line - a pill in its colour
+	// Their verdict, on the end of the top line - a chip, its glyph in its colour
 	.verdict-pill
 	{
-		flex-direction: row;
-		flex-shrink: 0;
-		align-items: center;
-		gap: 5px;
-		height: 24px;
-		padding: 0 10px;
-		border-radius: 999px;
+		@include platform-chip;
 
-		icon
-		{
-			font-size: 13px;
-		}
-
-		label
-		{
-			font-size: 11px;
-			font-weight: 700;
-		}
-
-		&.good
-		{
-			background-color: rgba( $front-reward, 0.12 );
-			icon, label { color: $front-reward; }
-		}
-
-		&.meh
-		{
-			background-color: rgba( $front-trophy, 0.12 );
-			icon, label { color: $front-trophy; }
-		}
-
-		&.bad
-		{
-			background-color: rgba( $front-danger, 0.12 );
-			icon, label { color: $front-danger; }
-		}
+		&.good icon { color: $platform-good; }
+		&.meh icon { color: $front-trophy; }
+		&.bad icon { color: $platform-danger; }
 	}
 
 	//
-	// Which page of them - at the foot, round pills like the reaction pills
+	// Which page of them - at the foot, the one you're on blue
 	//
 
 	.pagination
@@ -458,58 +317,30 @@ PackageReviews
 
 	.page-button
 	{
+		@include platform-text-button( 34px, 12.5px, 18px );
 		min-width: 34px;
-		height: 34px;
 		padding: 0 10px;
-		align-items: center;
 		justify-content: center;
-		border-radius: 999px;
-		border: 1px solid rgba( 255, 255, 255, 0.1 );
-		background-color: rgba( 255, 255, 255, 0.05 );
-		cursor: pointer;
-		transition: all 0.1s ease;
 
 		label
 		{
 			font-family: Inter;
-			font-size: 12px;
-			font-weight: 700;
 			font-variant-numeric: tabular-nums;
-			color: #c8cedb;
-		}
-
-		icon
-		{
-			font-size: 18px;
-			color: #c8cedb;
 		}
 
 		&:hover
 		{
 			sound-in: "ui.button.over";
-			background-color: rgba( 255, 255, 255, 0.11 );
-
-			label, icon
-			{
-				color: $front-heading;
-			}
 		}
 
 		&.current
 		{
-			border-color: rgba( $front-primary, 0.55 );
-			background-color: rgba( $front-primary, 0.3 );
+			@include platform-button-primary;
 			cursor: default;
-
-			label
-			{
-				color: #ffffff;
-			}
 		}
 
 		&.disabled
 		{
-			opacity: 0.3;
 			pointer-events: none;
 		}
 	}

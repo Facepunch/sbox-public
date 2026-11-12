@@ -20,12 +20,19 @@ internal static partial class NativeResourceCache
 	const int ExpirationSeconds = 5;
 
 	/// <summary>
-	/// Recently touched resources, and the batch before. Each swap drops the older batch, so
-	/// retention is one to two ExpirationSeconds - enough that something fetched every frame
-	/// isn't collected and rebuilt in between.
+	/// Recently touched resources, stamped with the generation they were last touched in. Each tick drops
+	/// those untouched for a whole generation, so retention is one to two ExpirationSeconds - enough that
+	/// something fetched every frame isn't collected and rebuilt in between. Entries are updated in place,
+	/// so only a newly touched resource allocates.
 	/// </summary>
-	static ConcurrentDictionary<long, object> retained = new();
-	static ConcurrentDictionary<long, object> retainedPrevious = new();
+	static readonly ConcurrentDictionary<long, Retained> retained = new();
+	static int generation;
+
+	sealed class Retained
+	{
+		public object Value;
+		public int Generation;
+	}
 
 	/// <summary>
 	/// We still want a WeakReference cache because we might have a strong reference somewhere to a resource
@@ -71,7 +78,22 @@ internal static partial class NativeResourceCache
 	}
 
 	/// <summary>Hold a strong reference until at least the next swap.</summary>
-	static void KeepAlive( long key, object value ) => retained[key] = value;
+	static void KeepAlive( long key, object value )
+	{
+		var current = Volatile.Read( ref generation );
+
+		if ( retained.TryGetValue( key, out var entry ) )
+		{
+			entry.Value = value;
+			Volatile.Write( ref entry.Generation, current );
+
+			// Tick may have removed it in between, put it back (no-op when still there)
+			retained.TryAdd( key, entry );
+			return;
+		}
+
+		retained[key] = new Retained { Value = value, Generation = current };
+	}
 
 	/// <summary>
 	/// Remove a key. Used when a resource is explicitly disposed so that a new instance can be
@@ -81,7 +103,6 @@ internal static partial class NativeResourceCache
 	{
 		// Explicitly disposed, so drop the strong reference now rather than at the next swap.
 		retained.TryRemove( key, out _ );
-		retainedPrevious.TryRemove( key, out _ );
 
 		WeakTable.TryRemove( key, out _ );
 		CallstackTable.TryRemove( key, out _ );
@@ -139,8 +160,17 @@ internal static partial class NativeResourceCache
 
 		expiryClock = 0;
 
-		// Anything not touched since the last swap loses its strong reference here.
-		retainedPrevious = Interlocked.Exchange( ref retained, new ConcurrentDictionary<long, object>() );
+		// Anything not touched since the last tick loses its strong reference here.
+		var current = Interlocked.Increment( ref generation );
+		foreach ( var kvp in retained )
+		{
+			if ( Volatile.Read( ref kvp.Value.Generation ) < current - 1 && retained.TryRemove( kvp ) )
+			{
+				// Touched again while we removed it, keep it
+				if ( Volatile.Read( ref kvp.Value.Generation ) >= current - 1 )
+					retained.TryAdd( kvp.Key, kvp.Value );
+			}
+		}
 
 		// Prune dead WeakTable entries to prevent unbounded growth from procedural resources.
 		// Skipped when leak tracking is enabled so every allocation stays visible until shutdown.
@@ -174,9 +204,7 @@ internal static partial class NativeResourceCache
 		}
 
 		stats.WeakTableTotal = WeakTable.Count;
-		// Can over-count: a key touched again after a swap is in both batches. Only a debug
-		// readout, not worth walking the whole set to deduplicate.
-		stats.MemoryCacheCount = retained.Count + retainedPrevious.Count;
+		stats.MemoryCacheCount = retained.Count;
 
 		return stats;
 	}
@@ -194,21 +222,12 @@ internal static partial class NativeResourceCache
 	}
 
 	/// <summary>
-	/// Clear the cache when games are closed etc. ready for a <see cref="GC.Collect()"/>
+	/// Drop the strong references, ready for a <see cref="GC.Collect()"/>. The WeakTable stays so a resource still
+	/// referenced keeps its one wrapper and stays visible to <see cref="HandleShutdownLeaks"/>.
 	/// </summary>
-	internal static void Clear()
-	{
-		ClearCache();
-
-		// When leak tracking is enabled, preserve the WeakTable and CallstackTable across
-		// game resets so that resources allocated before the reset remain visible to HandleShutdownLeaks() at shutdown.
-		if ( !LeakTracking ) ClearWeakTable();
-	}
-
 	internal static void ClearCache()
 	{
-		retained = new ConcurrentDictionary<long, object>();
-		retainedPrevious = new ConcurrentDictionary<long, object>();
+		retained.Clear();
 	}
 
 	private static void ClearWeakTable()

@@ -5,6 +5,7 @@ using Sandbox.Modals;
 using Sandbox.Tasks;
 using Sentry;
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 
 namespace Sandbox;
@@ -79,8 +80,8 @@ internal class GameInstance : IGameInstance
 			}
 		}
 
-		// Show review modal
-		if ( Application.GamePackage is not null )
+		// Show review modal - not from its menu, there's been nothing to review
+		if ( Application.GamePackage is not null && !IsOnMenu )
 		{
 			using ( IMenuDll.Current?.PushScope() )
 			{
@@ -230,17 +231,13 @@ internal class GameInstance : IGameInstance
 		if ( Package.Revision is not null )
 			identWithVersion = $"{identWithVersion}#{Package.Revision.VersionId}";
 
-		// The game and its map, and everything they pull in (libraries, the cloud assets they use), sized
-		// up before any of it starts - so the loading screen's bar has room for the whole load from the
-		// start, rather than the game and then a pile of extras after it
-		await LoadingScreen.ReserveDownloads( new[] { identWithVersion, LaunchArguments.Map }, token, withReferences: true );
-
 		using var loadingScreen = new MenuLoadingScreen();
 
 		// The game itself first, on its own - then everything else together: its references (the install
 		// below prefetches them, finding the game already cached) and the map alongside them. One thing,
-		// then a batch, rather than the game sharing its bandwidth with a pile of small packages
-		if ( _package.IsRemote )
+		// then a batch, rather than the game sharing its bandwidth with a pile of small packages. A workshop
+		// game is one item Steam installs, and the install below does exactly that - so there's nothing to get ahead of.
+		if ( _package.IsRemote && !_package.InstallsFromWorkshop )
 		{
 			await _package.Prefetch( token, new PackageLoadOptions { Loading = loadingScreen } );
 			token.ThrowIfCancellationRequested();
@@ -252,6 +249,7 @@ internal class GameInstance : IGameInstance
 		var downloadOptions = new PackageLoadOptions()
 		{
 			PackageIdent = identWithVersion,
+			Package = _package,
 			ContextTag = "gamemenu",
 			CancellationToken = token,
 			AllowLocalPackages = !_package.IsRemote,
@@ -259,6 +257,7 @@ internal class GameInstance : IGameInstance
 		};
 
 		activePackage = await PackageManager.InstallAsync( downloadOptions );
+		LoadingScreen.CompleteDownloads();
 
 		if ( activePackage is null )
 		{
@@ -312,7 +311,7 @@ internal class GameInstance : IGameInstance
 		{
 			foreach ( var cvar in LaunchArguments.GameSettings )
 			{
-				ConVarSystem.SetValue( cvar.Key, cvar.Value, true );
+				ConVarSystem.SetValue( cvar.Key, cvar.Value, LaunchArguments.CanSetProtected( cvar.Key, cvar.Value ) );
 			}
 		}
 
@@ -331,11 +330,12 @@ internal class GameInstance : IGameInstance
 
 		LoadProjectSettings();
 
-		// If the host is a developer session, we don't want to load all game resources yet. This will be
-		// done via the network tables.
-		if ( !IsDeveloperHost )
+		// Clients wait for the host's scripts before deserializing resources that may use their types.
+		// Developer sessions also receive their resources through the network tables.
+		if ( !IsDeveloperHost && !Networking.IsClient )
 		{
 			Log.Trace( $"Loading GameResources" );
+
 			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
 		}
 
@@ -526,6 +526,82 @@ internal class GameInstance : IGameInstance
 
 	public Scene Scene => Game.ActiveScene;
 
+	/// <summary>
+	/// The game's own menu scene - null for a game without one
+	/// </summary>
+	string MenuScene => Package?.GetMeta<string>( "MenuScene", null ) is { Length: > 0 } scene ? scene : null;
+
+	bool IsMenuScene( GameResource scene ) => scene is SceneFile && MenuScene is { } menuScene
+		&& string.Equals( Resource.FixPath( menuScene ), Resource.FixPath( scene.ResourcePath ), StringComparison.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// The scene it's on is its menu scene. The game's own scene, whoever's asking - the s&amp;box menu has one of its own.
+	/// </summary>
+	public bool IsOnMenu => !Application.IsDedicatedServer && IsMenuScene( GlobalContext.Game.ActiveScene?.Source );
+
+	public bool ReturnToMenu()
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		// Joined someone else's game - the code loaded is theirs. Or it has no menu to go back to.
+		if ( flags.Contains( GameLoadingFlags.Remote ) || Application.IsDedicatedServer || MenuScene is null )
+			return false;
+
+		using var scope = GlobalContext.GameScope();
+
+		// Out of the session - handed to someone else if there's anyone to take it
+		if ( Networking.IsActive )
+			Networking.Disconnect();
+
+		return Game.ChangeScene( MenuScene );
+	}
+
+	public bool OnSceneChange( SceneFile scene )
+	{
+		// A game joined is its server's to move between scenes
+		if ( Application.IsDedicatedServer || IsDeveloperHost ) return false;
+		if ( flags.Contains( GameLoadingFlags.Remote ) ) return false;
+		if ( Networking.IsActive && !Networking.IsHost ) return false;
+
+		if ( IsMenuScene( scene ) )
+		{
+			// Back on its menu - nobody comes along
+			if ( Networking.IsActive )
+				Networking.Disconnect();
+
+			return false;
+		}
+
+		return IsOnMenu;
+	}
+
+	/// <summary>
+	/// Its menu scene, opened as any scene the game starts on is. The <see cref="ISceneStartup"/> events fire here, and
+	/// again when the game leaves it - what starts the game (hosting, spawning) checks <see cref="Game.IsOnMenu"/>.
+	/// </summary>
+	bool OpenMenuScene()
+	{
+		var options = new SceneLoadOptions();
+		options.IsAdditive = true;
+
+		if ( !options.SetScene( MenuScene ) )
+			return false;
+
+		// An additive load doesn't say where the scene's from - it's what says the game's on its menu
+		Game.ActiveScene.Source = options.GetSceneFile();
+
+		Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostPreInitialize( options.GetSceneFile() ) );
+
+		if ( !Game.ActiveScene.Load( options ) )
+			return false;
+
+		Game.ActiveScene.AddSystemScene();
+
+		Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostInitialize() );
+		Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
+		return true;
+	}
+
 	public bool OpenStartupScene()
 	{
 		if ( Game.ActiveScene is not null )
@@ -541,6 +617,9 @@ internal class GameInstance : IGameInstance
 
 		if ( Application.IsEditor && !Game.IsPlaying )
 			return true;
+
+		if ( flags.Contains( GameLoadingFlags.Menu ) && MenuScene is not null && !Application.IsDedicatedServer )
+			return OpenMenuScene();
 
 		var startup_dedicated = Package.GetMeta<string>( "DedicatedServerStartupScene", "" );
 		var startup_game = Package.GetMeta<string>( "StartupScene", "start.scene" );

@@ -392,12 +392,9 @@ public partial class TreeNode
 			removeList.Remove( child );
 		}
 
-		foreach ( var missing in removeList )
+		if ( removeList.Count > 0 && children.RemoveAll( x => x.Value is not null && removeList.Contains( x.Value ) ) > 0 )
 		{
-			if ( children.RemoveAll( x => x.Value == missing ) > 0 )
-			{
-				changed = true;
-			}
+			changed = true;
 		}
 
 		children.Sort( SortByIndex );

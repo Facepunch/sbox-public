@@ -24,5 +24,10 @@ internal interface IMenuDll
 
 	IDisposable PushScope();
 
+	/// <summary>
+	/// The platform menu's the one running, rather than the main menu
+	/// </summary>
+	bool IsPlatformMenu => false;
+
 	public Scene Scene { get; }
 }

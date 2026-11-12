@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // The game, up top down the left over its buttons - its name, what it is and the pills to like it,
 // one under another
@@ -10,8 +10,8 @@ GameSummary
 	flex-shrink: 0;
 	gap: 14px;
 	padding: 20px 20px 18px 20px;
-	border-bottom: $front-border-width solid $front-hairline;
-	font-family: $front-font;
+	border-bottom: 1px solid $platform-hairline;
+	font-family: $platform-font;
 
 	// The game's art behind it all, faded out down its height - white shows, black hides. The column
 	// clips it to its corners
@@ -57,7 +57,7 @@ GameSummary
 		{
 			font-size: 28px;
 			font-weight: 700;
-			color: $front-heading;
+			color: $platform-text;
 			margin-bottom: -6px;
 
 			// Opens the game's page
@@ -81,7 +81,7 @@ GameSummary
 		.summary
 		{
 			font-size: 13.5px;
-			color: $front-body;
+			color: $platform-muted;
 			white-space: normal;
 		}
 	}

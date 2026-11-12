@@ -36,6 +36,13 @@ public record DiskLocation : LocalAssetBrowser.Location
 				Icon = "face";
 				Type = LocalAssetBrowser.LocationType.Assets;
 			}
+			else if ( v.Contains( "/addons/content/assets" ) )
+			{
+				RootPath = FileSystem.Root.GetFullPath( "/addons/content/assets/" );
+				RootTitle = "Default Content";
+				Icon = "perm_media";
+				Type = LocalAssetBrowser.LocationType.Assets;
+			}
 		}
 
 		if ( string.Equals( RootPath, Path, StringComparison.OrdinalIgnoreCase ) )

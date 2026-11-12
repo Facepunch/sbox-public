@@ -121,6 +121,68 @@ public class PipelineTests
 	}
 
 	/// <summary>
+	/// A big view culls and classifies across threads, in chunks merged back in order: what it draws, and in what order,
+	/// is the same as doing it all on one thread.
+	/// </summary>
+	[TestMethod]
+	public void ParallelCullAndPrepareMatchSerial()
+	{
+		RenderMesh[] meshes = [TestMesh( false ), TestMesh( true ), TestMesh( false, true ), TestSkinnedMesh( 4 )];
+		var world = new RenderWorld();
+		for ( int i = 0; i < 20_000; i++ )
+		{
+			world.Add( new MeshObject( meshes[i % 4], new Transform( new Vector3( 100 + i % 200, (i / 200) - 50, i % 13 ) ) )
+			{
+				Tint = i % 7 == 0 ? Color.White.WithAlpha( 0.5f ) : Color.White,
+				RenderOrder = i % 3,
+			} );
+		}
+
+		for ( int i = 0; i < 16; i++ )
+			world.Add( new EffectsTests.TestCustom( new Vector3( 100 + i * 5, -10, 0 ) ) { IsOpaque = i % 2 == 0 } );
+
+		var view = LookingDownX();
+
+		(List<int>[] Visible, List<MeshRenderFeature.Run>[] Runs) Frame( bool parallel )
+		{
+			using var system = new RenderSystem { ParallelRecording = parallel };
+			var stats = new RenderStats();
+			system.Collect( world, view, ref stats );
+			system.Prepare( world, view );
+
+			var pass = system.MainPass;
+			var meshFeature = system.GetFeature<MeshRenderFeature>();
+			var visible = pass.VisibleByFeature.Select( x => x.ToList() ).ToArray();
+			var runs = pass.State<MeshRenderFeature.RunLists>( meshFeature ).ByBit.Select( x => x.ToList() ).ToArray();
+			return (visible, runs);
+		}
+
+		// Split however small the view, so this one is
+		var cullThreshold = RenderSystem.MinParallelCullCandidates;
+		var classifyThreshold = MeshRenderFeature.MinParallelClassify;
+		RenderSystem.MinParallelCullCandidates = 0;
+		MeshRenderFeature.MinParallelClassify = 0;
+		(List<int>[] Visible, List<MeshRenderFeature.Run>[] Runs) serial, parallel;
+		try
+		{
+			serial = Frame( false );
+			parallel = Frame( true );
+		}
+		finally
+		{
+			RenderSystem.MinParallelCullCandidates = cullThreshold;
+			MeshRenderFeature.MinParallelClassify = classifyThreshold;
+		}
+
+		Assert.IsTrue( serial.Visible.Sum( x => x.Count ) > 10_000, "most of it is in view" );
+		for ( int f = 0; f < serial.Visible.Length; f++ )
+			CollectionAssert.AreEqual( serial.Visible[f], parallel.Visible[f], $"feature {f}'s visible objects" );
+
+		for ( int bit = 0; bit < serial.Runs.Length; bit++ )
+			CollectionAssert.AreEqual( serial.Runs[bit], parallel.Runs[bit], $"list {bit}'s runs" );
+	}
+
+	/// <summary>
 	/// An object the main view and the sun's cascades all draw has one transform entry a frame, which every view's instance
 	/// reads.
 	/// </summary>

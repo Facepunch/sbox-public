@@ -8,6 +8,7 @@ public static class Messaging
 	internal static Action<Message> OnMessage { get; set; }
 
 	static WebPubSubClient client;
+	static readonly System.Threading.SemaphoreSlim clientLock = new( 1, 1 );
 
 	/// <summary>
 	/// Store the messages from the other thread so we can process them 
@@ -39,25 +40,68 @@ public static class Messaging
 		options.AutoReconnect = true;
 		options.AutoRejoinGroups = true;
 
-		client = new WebPubSubClient( cred, options );
-		client.Connected += args =>
+		await Initialize( new WebPubSubClient( cred, options ) );
+	}
+
+	/// <summary>
+	/// Replace the messaging connection without leaving the previous login subscribed.
+	/// </summary>
+	internal static async Task Initialize( WebPubSubClient replacement )
+	{
+		await clientLock.WaitAsync();
+		try
 		{
-			incoming.Writer.TryWrite( new Message { Data = new ConnectionEstablished() } );
-			return Task.CompletedTask;
-		};
-		client.GroupMessageReceived += MessageClient_GroupMessageReceived;
-		client.ServerMessageReceived += MessageClient_ServerMessageReceived;
-		await client.StartAsync();
+			await StopClient();
+
+			replacement.Connected += args =>
+			{
+				incoming.Writer.TryWrite( new Message { Data = new ConnectionEstablished() } );
+				return Task.CompletedTask;
+			};
+			replacement.GroupMessageReceived += MessageClient_GroupMessageReceived;
+			replacement.ServerMessageReceived += MessageClient_ServerMessageReceived;
+			await replacement.StartAsync();
+			client = replacement;
+		}
+		catch
+		{
+			await replacement.DisposeAsync();
+			throw;
+		}
+		finally
+		{
+			clientLock.Release();
+		}
 	}
 
 	internal static async Task Shutdown()
 	{
-		if ( client is null )
+		await clientLock.WaitAsync();
+		try
+		{
+			await StopClient();
+		}
+		finally
+		{
+			clientLock.Release();
+		}
+	}
+
+	private static async Task StopClient()
+	{
+		var previous = client;
+		client = null;
+		if ( previous is null )
 			return;
 
-		await client.StopAsync();
-		await client.DisposeAsync();
-		client = null;
+		try
+		{
+			await previous.StopAsync();
+		}
+		finally
+		{
+			await previous.DisposeAsync();
+		}
 	}
 
 	internal static void ProcessMessages()

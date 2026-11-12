@@ -127,6 +127,12 @@ internal class HotloadManager : IDisposable
 		skipUpgrader.AddSkippedType<NodeLibrary>();
 		skipUpgrader.AddSkippedType<NodeDefinition>();
 
+		// Compiler plans are rebuilt on binding invalidation. Runtime stores still migrate normally.
+		foreach ( var type in Breen.ScriptSystem.CompilationCacheTypes )
+		{
+			skipUpgrader.AddSkippedType( type );
+		}
+
 		//
 		// These are safe to skip for speed.
 		//
@@ -164,9 +170,12 @@ internal class HotloadManager : IDisposable
 	}
 
 	/// <summary>
-	/// Does the actual hotload
+	/// Runs pending hotload, invoking an optional callback after migration and before success notifications.
+	/// When a callback is supplied, failures prevent success notifications and exceptions propagate to the caller.
 	/// </summary>
-	public void DoSwap()
+	/// <param name="beforeSuccess">Called after reference migration and before normal hotload callbacks.</param>
+	/// <returns>False if hotload throws without a callback, or migration reports errors with a callback.</returns>
+	public bool DoSwap( Action beforeSuccess = null )
 	{
 		log.Trace( "DoSwap Start" );
 		MainThread.RunQueues(); // dispose of any threaded IDisposables waiting
@@ -225,7 +234,6 @@ internal class HotloadManager : IDisposable
 			{
 				HotloadResult info = null;
 
-				using ( var gr = new HeavyGarbageRegion() )
 				using ( var t = eventRecord.ScopeTimer( "UpdateReferences" ) )
 				{
 					Json.WarmUpCts?.Cancel();
@@ -235,7 +243,8 @@ internal class HotloadManager : IDisposable
 				if ( info.NoAction )
 				{
 					eventRecord = null; // don't bother with the event
-					return;
+					beforeSuccess?.Invoke();
+					return true;
 				}
 
 				// stats
@@ -279,6 +288,8 @@ internal class HotloadManager : IDisposable
 
 				{
 					using var timerSuccess = eventRecord.ScopeTimer( "OnSuccess" );
+					if ( beforeSuccess is not null && !info.Success ) return false;
+					beforeSuccess?.Invoke();
 					OnSuccess?.Invoke();
 				}
 			}
@@ -288,6 +299,11 @@ internal class HotloadManager : IDisposable
 				Sentry.SentrySdk.CaptureException( e );
 
 				OnFail?.Invoke();
+				if ( beforeSuccess is not null )
+				{
+					throw;
+				}
+				return false;
 			}
 			finally
 			{
@@ -309,6 +325,8 @@ internal class HotloadManager : IDisposable
 				}
 			}
 		}
+
+		return true;
 	}
 
 	private static string FormatMessageGroup( string message, IEnumerable<HotloadResultEntry> entries )

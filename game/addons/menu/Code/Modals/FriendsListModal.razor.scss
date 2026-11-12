@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 FriendsListModal
 {
@@ -7,12 +7,13 @@ FriendsListModal
 	// A set height, as the rail's list only draws what fits in what it's given
 	.inner
 	{
-		@include front-card;
+		@include platform-surface;
+		flex-shrink: 0;
+		overflow: hidden;
 
 		width: 384px;
 		height: 560px;
 		max-height: 70%;
-		box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.55 );
 		pointer-events: all;
 
 		> FriendsRail
@@ -40,6 +41,17 @@ FriendsListModal
 		.inner
 		{
 			position: absolute;
+		}
+	}
+
+	// Off the platform's dock, like a shelf - everything round it still pressable, nothing closing it but the dock
+	&.anchored.on-platform
+	{
+		pointer-events: none;
+
+		.modal-background
+		{
+			pointer-events: none;
 		}
 	}
 }

@@ -4,285 +4,281 @@ using System.Text.Json.Nodes;
 
 namespace Editor.AnimGraph;
 
-/// <summary>
-/// The event tracks laid over an animation clip - what fires when, and which track the clip is
-/// divided into phases by. Lanes are measured in the clip's own frames, so an event sits where it
-/// was seen to happen.
-/// </summary>
 internal sealed class ClipEventTimeline : Widget
 {
+	public Action<string> Edited { get; set; }
+	public Action<float> Scrubbed { get; set; }
+	public Action<ClipDocument.Track, ClipDocument.Event> Selected { get; set; }
+	public Action EditRequested { get; set; }
+	public Action FinishEdit { get; set; }
+
 	private readonly ClipEventLanes _lanes;
+	private readonly Widget _sidebar;
+	private readonly Widget _transportGroup;
 	private readonly ClipEventRuler _ruler;
-	private readonly ClipEventProperties _properties;
-	private readonly ScrollArea _scroll;
-	private Label _status;
-	private IconButton _addTrack;
-	private IconButton _addEvent;
-	private IconButton _trackOptions;
-
+	private readonly ClipEventRuler _frameRuler;
+	private readonly Label _status;
+	private readonly Label _frameRate;
+	private readonly IconButton _addTrack;
+	private readonly IconButton _addEvent;
+	public float Duration { get; private set; }
 	private ClipDocument _document;
-	private int _frameCount;
-
 	private ClipDocument.Track _track;
 	private ClipDocument.Event _event;
-
-	/// <summary>
-	/// Called once an edit is finished, never part way through one, naming the change so it can
-	/// be undone. The document isn't written here - whoever owns it decides when to save.
-	/// </summary>
-	public Action<string> Edited { get; set; }
-
-	/// <summary>
-	/// Dragging the ruler scrubs the preview, so events can be placed against what's on screen.
-	/// </summary>
-	public Action<float> Scrubbed { get; set; }
+	private int _frameCount;
+	private string _emptyHint;
+	private float LastFrame => MathF.Max( _frameCount - 1, 1 );
+	private int _trackIndex = -1;
+	private int _eventIndex = -1;
 
 	public ClipEventTimeline( Widget parent ) : base( parent )
 	{
 		Name = "ClipEvents";
-		WindowTitle = "Events";
-		SetWindowIcon( "bolt" );
-
 		Layout = Layout.Column();
+		Layout.Spacing = 0;
+		Layout.Margin = 0;
+		VerticalSizeMode = SizeMode.Flexible;
+		MinimumHeight = 220;
 
+		var header = Layout.Add( new Widget( this ) { Layout = Layout.Row() } );
+		header.Layout.Spacing = 2;
+		header.Layout.Margin = new Sandbox.UI.Margin( 0, 2 );
+		header.OnPaintOverride = () =>
+		{
+			Paint.SetBrushAndPen( Theme.TabBackground );
+			Paint.DrawRect( header.LocalRect );
+			return true;
+		};
+		_sidebar = header.Layout.Add( new Widget( header ) { Layout = Layout.Row() } );
+		_sidebar.Layout.Spacing = 2;
+		_sidebar.FixedWidth = ClipEventLayout.HeaderWidth - 2;
+		var trackGroup = AddGroup( _sidebar );
+		trackGroup.HorizontalSizeMode = SizeMode.CanShrink;
+		_addTrack = AddButton( trackGroup, "playlist_add", "Add a track", OpenAddTrackMenu );
+		var titleGroup = AddGroup( _sidebar );
+		titleGroup.HorizontalSizeMode = SizeMode.Flexible;
+		titleGroup.Layout.Add( new Label( "Animation Events" ) { Margin = 2, Color = Theme.TextControl, Alignment = TextFlag.Center }, 1 );
+		_addEvent = AddButton( titleGroup, "add", "Add an event at the playhead", AddEventAtPlayhead );
+		_transportGroup = AddGroup( header );
+		_transportGroup.HorizontalSizeMode = SizeMode.CanShrink;
+		_transportGroup.Visible = false;
+		header.Layout.AddStretchCell();
 		_lanes = new ClipEventLanes( this )
 		{
 			Selected = Select,
-			AddEvent = AddEvent,
+			AddEvent = ( track, frame ) => AddEvent( track, frame ),
+			EditEvent = () => EditRequested?.Invoke(),
 			DeleteEvent = DeleteEvent,
 			ContextMenu = OpenContextMenu,
-			Copy = CopySelection,
+			Copy = () => CopyEvents( _track, _event ),
 			Paste = () => PasteEvents( Playhead * LastFrame ),
 			Scrubbed = Seek,
-			Edited = () =>
-			{
-				Commit( "Move Event" );
-				ShowProperties();
-			}
+			Edited = () => Commit( "Move Event" ),
+			HeightChanged = UpdateRulers
 		};
-
-		Layout.Add( BuildToolbar() );
-
-		_ruler = new ClipEventRuler( this, _lanes ) { Scrubbed = Seek };
-		Layout.Add( _ruler );
-
-		_scroll = Layout.Add( new ScrollArea( this ) );
-		_scroll.VerticalScrollbarMode = ScrollbarMode.Auto;
-		_scroll.HorizontalScrollbarMode = ScrollbarMode.Off;
-		_scroll.Canvas = _lanes;
-		VerticalSizeMode = SizeMode.CanGrow;
-
-		_properties = Layout.Add( new ClipEventProperties( this )
+		var options = AddGroup( header );
+		var snap = AddButton( options, "straighten", "Snap to frames. Hold Ctrl while dragging to bypass.", null );
+		snap.IsToggle = true;
+		snap.IsActive = true;
+		snap.OnToggled = value => _lanes.SnapToFrames = value;
+		_frameRate = options.Layout.Add( new Label { Margin = 2, Color = Theme.TextControl.WithAlpha( 0.5f ) } );
+		AddButton( AddGroup( header ), "fit_screen", "Fit the clip in the timeline (F)", _lanes.Fit );
+		_ruler = Layout.Add( new ClipEventRuler( this, _lanes, true ) );
+		var scroll = Layout.Add( new ScrollArea( this )
 		{
-			Edited = () =>
-			{
-				Commit( "Edit Event" );
-				_lanes.Update();
-				if ( _event is not null )
-					Seek( _event.StartFrame / LastFrame );
-			},
-			Deleted = DeleteEvent
-		} );
-
-		Rebuild();
+			VerticalScrollbarMode = ScrollbarMode.Auto,
+			HorizontalScrollbarMode = ScrollbarMode.Off,
+			NoSystemBackground = true,
+			TranslucentBackground = true,
+			MinimumHeight = 80,
+			Canvas = _lanes
+		}, 1 );
+		scroll.SetStyles( "QScrollArea { border: 0px; }" );
+		_lanes.Scrolled = delta => scroll.VerticalScrollbar.Value += (int)delta;
+		_frameRuler = Layout.Add( new ClipEventRuler( this, _lanes, false ) );
+		_status = Layout.Add( new Label( this ) { Color = Theme.TextControl, WordWrap = true, Margin = 2 } );
+		UpdateView();
 	}
 
-	/// <summary>
-	/// What the tracks as a whole are up to, and the one thing you can do to them - the dock's own
-	/// title says what this is, so the bar doesn't repeat it.
-	/// </summary>
-	private Widget BuildToolbar()
+	private static Widget AddGroup( Widget toolbar )
 	{
-		var bar = new Widget( this ) { VerticalSizeMode = SizeMode.CanGrow };
-
-		bar.OnPaintOverride = () =>
+		var group = toolbar.Layout.Add( new Widget( toolbar ) { Layout = Layout.Row(), HorizontalSizeMode = SizeMode.CanGrow } );
+		group.Layout.Spacing = 2;
+		group.Layout.Margin = 2;
+		group.OnPaintOverride = () =>
 		{
 			Paint.ClearPen();
-			Paint.SetBrush( Theme.SurfaceBackground );
-			Paint.DrawRect( bar.LocalRect );
+			Paint.SetBrush( Theme.SidebarBackground );
+			Paint.DrawRect( group.LocalRect, 3 );
 			return true;
 		};
-
-		var row = bar.Layout = Layout.Row();
-		row.Margin = new Sandbox.UI.Margin( 8, 0, 4, 2 );
-		row.Spacing = 4;
-		row.Alignment = TextFlag.LeftCenter;
-
-		_status = row.Add( new Label( this ) { Color = Theme.TextControl.WithAlpha( 0.6f ), WordWrap = true, HorizontalSizeMode = SizeMode.Flexible | SizeMode.Ignore }, 1 );
-		_status.ToolTip = TracksHint;
-
-		_addTrack = row.Add( SectionHeader.CreateButton( this, "add", Theme.Green, "Add an event track", OpenAddTrackMenu ) );
-		_addEvent = row.Add( SectionHeader.CreateButton( this, "add_circle_outline", Theme.Green, "Add an event at the playhead", () => AddEvent( _track, Playhead * LastFrame ) ) );
-		_trackOptions = row.Add( SectionHeader.CreateButton( this, "more_horiz", Theme.TextControl, "Event options", () => OpenContextMenu( _track, Playhead * LastFrame ) ) );
-
-		return bar;
+		return group;
 	}
 
-	private const string TracksHint = "<b>Events</b><p>Markup laid over the clip - one track per event type, in the clip's own frames.</p><p>Drag an event to move it, drag its right edge to give it a length.</p>";
+	private static IconButton AddButton( Widget group, string icon, string tooltip, Action action ) =>
+		group.Layout.Add( new IconButton( icon, action )
+		{
+			ToolTip = tooltip,
+			IconSize = 16,
+			Background = Color.Transparent,
+			BackgroundActive = Color.Transparent,
+			ForegroundActive = Theme.Primary
+		} );
 
-	/// <summary>
-	/// Point the timeline at a clip. The hint is shown in place of the tracks when there's nothing
-	/// to author, so it can say why.
-	/// </summary>
-	public void SetClip( ClipDocument document, int frameCount, string emptyHint )
+	private void UpdateRulers()
 	{
-		_document = document;
-		_frameCount = frameCount;
-
-		_lanes.Document = document;
-		_lanes.FrameCount = frameCount;
-		_lanes.EmptyHint = emptyHint;
-		_ruler.FrameCount = frameCount;
-		_properties.FrameCount = frameCount;
-
-		Select( null, null );
-		Playhead = 0f;
-
-		Rebuild();
+		_sidebar.FixedWidth = MathF.Max( _lanes.HeaderWidth - 2, 120 );
+		_ruler?.Update();
+		_frameRuler?.Update();
 	}
 
-	/// <summary>
-	/// Where the preview is - a handle on the ruler and a line down the lanes, so events line up
-	/// with the pose on screen.
-	/// </summary>
 	public float Playhead
 	{
 		get => _lanes.Playhead;
 		set
 		{
-			if ( _lanes.Playhead == value )
-				return;
-
-			_lanes.Playhead = value;
-			_ruler.Playhead = value;
-
-			_lanes.Update();
-			_ruler.Update();
+			_lanes.Playhead = value.Clamp( 0, 1 );
+			_lanes.UpdateTracks( false );
+			UpdateRulers();
 		}
 	}
 
-	public bool HasDocument => _document is not null;
-
-	private float LastFrame => MathF.Max( _frameCount - 1, 1f );
-
-	private void Rebuild()
+	public void SetClip( ClipDocument document, int frameCount, float duration, string emptyHint )
 	{
-		_addTrack.Enabled = HasDocument && !ReadOnly;
-		_ruler.Visible = HasDocument;
-		_lanes.MinimumHeight = ClipEventLayout.HeightFor( _document?.Tracks.Count ?? 0 );
-		_scroll.FixedHeight = Math.Clamp( _lanes.MinimumHeight, 72, 168 );
-
-		_lanes.Update();
-		_ruler.Update();
-
-		UpdateStatus();
-		ShowProperties();
+		FinishEditing();
+		if ( _document != document )
+			_trackIndex = _eventIndex = -1;
+		_document = document;
+		_frameCount = frameCount;
+		_emptyHint = emptyHint;
+		Duration = duration;
+		_lanes.FrameRate = duration > 0 ? LastFrame / duration : 30;
+		_frameRate.Text = $"{_lanes.FrameRate:0.##} fps";
+		Refresh();
 	}
 
-	private void UpdateStatus()
+	public void Refresh()
 	{
-		var tracks = _document?.Tracks.Count ?? 0;
-		var problem = ClipEventTypes.Problem( _document, LastFrame );
-
-		_status.Color = (problem is null ? Theme.TextControl : Theme.Yellow).WithAlpha( problem is null ? 0.6f : 0.9f );
-		_status.Text = problem
-			?? (tracks > 0 ? $"{tracks} track{(tracks == 1 ? "" : "s")}, {_frameCount} frames" : "Add a track to start placing events.");
+		_lanes.SetClip( _document, _frameCount, _emptyHint );
+		var track = _document?.Tracks.ElementAtOrDefault( _trackIndex );
+		SetSelection( track, track?.Events.ElementAtOrDefault( _eventIndex ), false );
+		UpdateView();
 	}
 
-	private void ShowProperties()
+	public void RefreshEvent() => UpdateView();
+
+	public void SetTransport( Widget transport )
 	{
-		_addEvent.Enabled = !ReadOnly && IsLive( _track );
-		_trackOptions.Enabled = HasDocument;
-		_properties.Enabled = !ReadOnly;
-		_properties.Show( _event, _track?.EventClass, HasDocument ? "Select an event to edit it" : "" );
+		transport.FixedHeight = Theme.RowHeight;
+		transport.Layout.Margin = 0;
+		transport.Layout.Spacing = 2;
+		transport.HorizontalSizeMode = SizeMode.CanShrink;
+		_transportGroup.Layout.Add( transport );
+		_transportGroup.Visible = true;
 	}
 
-	private void Select( ClipDocument.Track track, ClipDocument.Event item )
+	public void FinishEditing()
 	{
+		FinishEdit?.Invoke();
+		_lanes.FinishDrag();
+	}
+
+	private bool IsLive( ClipDocument.Track track ) => track is not null && _document?.Tracks.Contains( track ) == true;
+
+	internal void Select( ClipDocument.Track track, ClipDocument.Event item ) => SetSelection( track, item, true );
+
+	private void SetSelection( ClipDocument.Track track, ClipDocument.Event item, bool reveal )
+	{
+		FinishEdit?.Invoke();
 		_track = track;
 		_event = item;
-
 		_lanes.SelectedTrack = track;
 		_lanes.SelectedEvent = item;
-
-		ShowProperties();
-		_lanes.Update();
-		if ( item is not null )
-			Seek( item.StartFrame / LastFrame );
+		_trackIndex = _document?.Tracks.IndexOf( track ) ?? -1;
+		_eventIndex = track?.Events.IndexOf( item ) ?? -1;
+		Selected?.Invoke( track, item );
+		_addEvent.Enabled = _document is not null && !ReadOnly;
+		_lanes.UpdateTracks();
+		if ( reveal && item is not null )
+		{
+			if ( item.DurationFrames <= 0 )
+				Seek( item.StartFrame / LastFrame );
+			EditRequested?.Invoke();
+		}
 	}
 
 	private void Seek( float position )
 	{
-		Playhead = position.Clamp( 0f, 1f );
+		Playhead = position;
 		Scrubbed?.Invoke( Playhead );
 	}
 
-	/// <summary>
-	/// Show the document again after something else changed it, like an undo. Everything holding
-	/// a track or an event is rebuilt from the document, since restoring one replaces them all.
-	/// </summary>
-	public void Refresh()
+	private void UpdateView()
 	{
-		Select( null, null );
-		Rebuild();
+		_addTrack.Enabled = _document is not null && !ReadOnly;
+		_addEvent.Enabled = _document is not null && !ReadOnly;
+		_ruler.Visible = _document is not null;
+		_frameRuler.Visible = _document is not null;
+		var problem = ClipEventTypes.Problem( _document, LastFrame );
+		_status.Text = problem ?? string.Empty;
+		_status.Color = Theme.Yellow;
+		_status.Visible = problem is not null;
+		_lanes.UpdateTracks();
+		UpdateRulers();
 	}
 
 	private void Commit( string name )
 	{
-		UpdateStatus();
 		Edited?.Invoke( name );
+		if ( IsValid )
+			UpdateView();
 	}
-
-	/// <summary>
-	/// Whether a track is still part of the clip we're showing. A menu or a popup can come back
-	/// after the editor has moved on to another clip, or to none.
-	/// </summary>
-	private bool IsLive( ClipDocument.Track track ) => track is not null && _document is not null && _document.Tracks.Contains( track );
 
 	private void OpenAddTrackMenu()
 	{
-		if ( ReadOnly )
+		if ( _document is null || ReadOnly )
+			return;
+		var menu = new Menu( this );
+		menu.AddOption( "Animation Events", "bolt", () => AddTrack( ClipEventTypes.Generic ) );
+		menu.AddOption( "ID Events", "label_important", () => AddTrack( ClipEventTypes.ID ) );
+		menu.AddOption( "Foot Events", "directions_walk", () => AddTrack( ClipEventTypes.Foot ) );
+		menu.OpenAtCursor( false );
+	}
+
+	private void AddEventAtPlayhead()
+	{
+		if ( _document is null || ReadOnly )
 			return;
 
-		var menu = new Menu( this );
-
-		menu.AddOption( "ID Events", "label_important", () => AddTrack( ClipEventTypes.ID ) );
-		menu.AddOption( "Generic Events", "bolt", () => AddTrack( ClipEventTypes.Generic ) );
-		menu.AddOption( "Foot Events", "directions_walk", () => AddTrack( ClipEventTypes.Foot ) );
-
-		menu.OpenAtCursor();
+		var track = IsLive( _track ) ? _track : _document.Tracks.FirstOrDefault( track => track.EventClass == ClipEventTypes.Generic );
+		if ( track is null )
+		{
+			track = _document.AddTrack( ClipEventTypes.Generic );
+			_lanes.SetClip( _document, _frameCount, _emptyHint );
+		}
+		AddEvent( track, Playhead * LastFrame );
 	}
 
 	private void AddTrack( string eventClass )
 	{
-		// Menus and popups outlive the clip they were opened on
 		if ( _document is null || ReadOnly )
 			return;
-
 		var track = _document.AddTrack( eventClass );
+		_lanes.SetClip( _document, _frameCount, _emptyHint );
 		Select( track, null );
-
 		Commit( "Add Track" );
-		Rebuild();
 	}
 
 	private void RemoveTrack( ClipDocument.Track track )
 	{
 		if ( !IsLive( track ) || ReadOnly )
 			return;
-
+		FinishEditing();
 		_document.RemoveTrack( track );
-
-		if ( _track == track )
-			Select( null, null );
-
+		Refresh();
 		Commit( "Delete Track" );
-		Rebuild();
 	}
 
-	/// <summary>
-	/// Nothing here goes through the graph's undo, so a track with work in it asks first.
-	/// </summary>
 	private void DeleteTrack( ClipDocument.Track track )
 	{
 		if ( track.Events.Count == 0 )
@@ -290,197 +286,166 @@ internal sealed class ClipEventTimeline : Widget
 			RemoveTrack( track );
 			return;
 		}
-
 		var confirm = new PopupWindow( "Delete Track",
-			$"Delete this {ClipEventTypes.Title( track.EventClass )} track?\n\nThis also deletes {track.Events.Count} event{(track.Events.Count == 1 ? "" : "s")}.",
+			$"Delete this {ClipEventTypes.Title( track.EventClass )} track and its {track.Events.Count} event{(track.Events.Count == 1 ? "" : "s")}?",
 			"Cancel", new Dictionary<string, Action> { { "Delete", () => RemoveTrack( track ) } } );
-
 		confirm.Show();
-		confirm.Window.Position = ScreenRect.Center - confirm.Window.Size * 0.5f;
 	}
 
-	private void AddEvent( ClipDocument.Track track, float frame )
+	private void AddEvent( ClipDocument.Track track, float frame, string name = ClipEventTypes.ManagedName )
 	{
 		if ( !IsLive( track ) || ReadOnly )
 			return;
-
-		Select( track, track.AddEvent( MathF.Round( frame ) ) );
-
+		FinishEdit?.Invoke();
+		var item = track.AddEvent( (_lanes.SnapToFrames ? MathF.Round( frame ) : frame).Clamp( 0, LastFrame ) );
+		if ( track.EventClass == ClipEventTypes.Generic )
+			item.Name = name;
+		Select( track, item );
 		Commit( "Add Event" );
-		Rebuild();
 	}
 
 	private void DeleteEvent()
 	{
-		if ( _event is null || !IsLive( _track ) || ReadOnly )
+		if ( !IsLive( _track ) || _event is null || ReadOnly )
 			return;
-
+		FinishEdit?.Invoke();
 		_track.RemoveEvent( _event );
 		Select( _track, null );
-
 		Commit( "Delete Event" );
-		Rebuild();
 	}
 
-	/// <summary>
-	/// Only one track can be the sync track - the compiler takes the first and warns about the rest.
-	/// </summary>
 	private void ToggleSyncTrack( ClipDocument.Track track )
 	{
 		if ( !IsLive( track ) || ReadOnly )
 			return;
-
 		_document.SetSyncTrack( track, !track.IsSyncTrack );
-
 		Commit( "Set Sync Track" );
-		_lanes.Update();
 	}
 
 	private void ToggleDisabled( ClipDocument.Track track )
 	{
 		if ( !IsLive( track ) || ReadOnly )
 			return;
-
 		track.IsDisabled = !track.IsDisabled;
-
 		Commit( "Toggle Track" );
-		_lanes.Update();
 	}
 
 	private void OpenContextMenu( ClipDocument.Track track, float frame )
 	{
-		if ( !HasDocument )
+		if ( _document is null )
 			return;
-
 		var menu = new Menu( this );
+		if ( IsLive( track ) )
+		{
+			if ( _event is not null )
+			{
+				menu.AddOption( "Edit Event", "edit", () => EditRequested?.Invoke(), "Enter" );
+				menu.AddOption( "Copy Event", "content_copy", () => CopyEvents( track, _event ), "Ctrl+C" );
+				menu.AddOption( "Delete Event", "delete", DeleteEvent, "Del" ).Enabled = !ReadOnly;
+				menu.AddSeparator();
+			}
+			menu.AddOption( "Add Event Here", "add", () => AddEvent( track, frame ) ).Enabled = !ReadOnly;
+			if ( track.EventClass == ClipEventTypes.Generic )
+				menu.AddOption( "Add Native Event Here", "settings", () => AddEvent( track, frame, "" ) ).Enabled = !ReadOnly;
+			menu.AddOption( "Copy Track", "content_copy", () => CopyEvents( track ) );
+		}
+		menu.AddOption( "Copy All Tracks", "content_copy", () => CopyEvents() ).Enabled = _document.Tracks.Count > 0;
+		menu.AddOption( "Paste", "content_paste", () => PasteEvents( frame ), "Ctrl+V" ).Enabled = !ReadOnly
+			&& (GraphClipboard.CanPaste( TracksClipboardIdent ) || GraphClipboard.CanPaste( EventClipboardIdent ));
 
 		if ( IsLive( track ) )
 		{
-			if ( _event is not null && track.Events.Contains( _event ) )
-				menu.AddOption( "Copy Event", "content_copy", () => CopyEvents( track, _event ), "Ctrl+C" );
-			menu.AddOption( "Copy Track", "content_copy", () => CopyEvents( track ) );
+			menu.AddSeparator();
+			var sync = menu.AddOption( "Sync Track", "sync", () => ToggleSyncTrack( track ) );
+			sync.Checkable = true;
+			sync.Checked = track.IsSyncTrack;
+			sync.Enabled = !ReadOnly;
+			sync.ToolTip = "Divide the clip into phases at this track's events";
+			var disabled = menu.AddOption( "Disabled", "block", () => ToggleDisabled( track ) );
+			disabled.Checkable = true;
+			disabled.Checked = track.IsDisabled;
+			disabled.Enabled = !ReadOnly;
+			menu.AddSeparator();
+			menu.AddOption( "Delete Track", "delete_sweep", () => DeleteTrack( track ) ).Enabled = !ReadOnly;
 		}
-		menu.AddOption( "Copy All Events", "content_copy", () => CopyEvents() ).Enabled = _document.Tracks.Count > 0;
-		menu.AddOption( "Paste Events", "content_paste", () => PasteEvents( frame ), "Ctrl+V" ).Enabled = !ReadOnly
-			&& (GraphClipboard.CanPaste( TracksClipboardIdent ) || GraphClipboard.CanPaste( EventClipboardIdent ));
-		if ( ReadOnly )
-		{
-			menu.OpenAtCursor();
-			return;
-		}
-		menu.AddSeparator();
-
-		if ( track is null )
-		{
-			menu.AddOption( "Add Track", "add", OpenAddTrackMenu );
-			menu.OpenAtCursor();
-			return;
-		}
-
-		if ( _event is not null )
-		{
-			menu.AddOption( "Delete Event", "delete", DeleteEvent, "Del" );
-		}
-		else
-		{
-			menu.AddOption( "Add Event", "add", () => AddEvent( track, frame ) );
-		}
-
-		menu.AddSeparator();
-
-		var sync = menu.AddOption( "Sync Track", "sync", () => ToggleSyncTrack( track ) );
-		sync.Checkable = true;
-		sync.Checked = track.IsSyncTrack;
-		sync.ToolTip = "Divide the clip into phases at this track's events, so clips of different lengths can be blended by phase";
-
-		var disabled = menu.AddOption( "Disabled", "block", () => ToggleDisabled( track ) );
-		disabled.Checkable = true;
-		disabled.Checked = track.IsDisabled;
-		disabled.ToolTip = "Keep the track's events but compile none of them";
-
-		menu.AddSeparator();
-		menu.AddOption( "Delete Track", "delete_sweep", () => DeleteTrack( track ) );
-
-		menu.OpenAtCursor();
+		menu.OpenAtCursor( false );
 	}
 
 	private const string TracksClipboardIdent = "animgraph-clip-tracks";
 	private const string EventClipboardIdent = "animgraph-clip-event";
 
-	private void CopySelection() => CopyEvents( _track, _event );
-
 	private void CopyEvents( ClipDocument.Track track = null, ClipDocument.Event item = null )
 	{
-		if ( !HasDocument || (track is not null && !IsLive( track )) || (item is not null && (track is null || !track.Events.Contains( item ))) )
+		if ( _document is null || (track is not null && !IsLive( track )) || (item is not null && (track is null || !track.Events.Contains( item ))) )
 			return;
-
 		var copy = ClipDocument.Create();
 		if ( item is not null )
 			copy.AddTrack( track.EventClass ).AddEvent( item );
 		else
 			foreach ( var source in track is null ? _document.Tracks : [track] )
 				copy.AddTrack( source );
-
 		GraphClipboard.Copy( item is null ? TracksClipboardIdent : EventClipboardIdent, copy.SerializeEvents() );
 	}
 
 	private void PasteEvents( float frame )
 	{
-		if ( !HasDocument || ReadOnly )
+		if ( _document is null || ReadOnly )
 			return;
-
 		var singleEvent = GraphClipboard.CanPaste( EventClipboardIdent );
 		if ( !GraphClipboard.TryPaste( singleEvent ? EventClipboardIdent : TracksClipboardIdent, out var json ) )
 			return;
-
 		try
 		{
 			if ( JsonNode.Parse( json ) is not JsonArray tracks )
 				throw new JsonException( "Expected event tracks." );
-
 			var copy = ClipDocument.Create();
 			copy.Restore( json );
 			if ( copy.Tracks.Count == 0 || copy.Tracks.Count != tracks.Count
 				|| (singleEvent && (copy.Tracks.Count != 1 || copy.Tracks[0].Events.Count != 1)) )
 				throw new JsonException( "Clipboard contains no valid events." );
-
 			foreach ( var track in copy.Tracks )
-			{
 				foreach ( var item in track.Events )
 				{
-					item.StartFrame = (singleEvent ? MathF.Round( frame ) : item.StartFrame).Clamp( 0, LastFrame );
+					item.StartFrame = (singleEvent ? (_lanes.SnapToFrames ? MathF.Round( frame ) : frame) : item.StartFrame).Clamp( 0, LastFrame );
 					item.DurationFrames = item.DurationFrames.Clamp( 0, LastFrame - item.StartFrame );
 				}
-			}
-
+			FinishEdit?.Invoke();
+			ClipDocument.Track selectedTrack;
+			ClipDocument.Event selectedEvent = null;
 			if ( singleEvent )
 			{
 				var source = copy.Tracks[0];
-				var target = IsLive( _track ) && _track.EventClass == source.EventClass ? _track
+				selectedTrack = IsLive( _track ) && _track.EventClass == source.EventClass ? _track
 					: _document.Tracks.FirstOrDefault( track => track.EventClass == source.EventClass ) ?? _document.AddTrack( source.EventClass );
-				var item = target.AddEvent( source.Events[0] );
-				Select( target, item );
+				selectedEvent = selectedTrack.AddEvent( source.Events[0] );
 			}
 			else
 			{
-				ClipDocument.Track first = null;
+				selectedTrack = null;
 				foreach ( var source in copy.Tracks )
 				{
 					var added = _document.AddTrack( source );
 					if ( added.IsSyncTrack )
 						_document.SetSyncTrack( added, true );
-					first ??= added;
+					selectedTrack ??= added;
 				}
-				Select( first, null );
 			}
+			_lanes.SetClip( _document, _frameCount, _emptyHint );
+			Select( selectedTrack, selectedEvent );
 			Commit( "Paste Events" );
-			Rebuild();
 		}
 		catch ( JsonException exception )
 		{
 			Log.Warning( $"Couldn't paste animation events: {exception.Message}" );
 			_status.Text = "Couldn't paste animation events: invalid clipboard data.";
 			_status.Color = Theme.Red;
+			_status.Visible = true;
 		}
+	}
+
+	public override void OnDestroyed()
+	{
+		FinishEditing();
+		base.OnDestroyed();
 	}
 }

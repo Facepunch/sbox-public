@@ -92,5 +92,5 @@ managed static class Sandbox.Rendering.RenderPipeline
 	void OnSceneViewSubmitted( ISceneView view );
 
 	// The screen-space UI layers for a stage over hColor; returns the layer that writes it
-	ISceneLayer AddUIHook( string name, ManagedRenderHookStage stage, ISceneView view, RenderViewport viewport, HSceneViewRenderTarget hColor );
+	ISceneLayer AddUIHook( ManagedRenderHookStage stage, ISceneView view, RenderViewport viewport, HSceneViewRenderTarget hColor );
 }

@@ -1,0 +1,214 @@
+@import "/Platform/_platform.scss";
+@import "/styles/_popup.scss";
+
+// The engine puts a tooltip on the root - the platform's
+.tooltip
+{
+	@include platform-tooltip;
+}
+
+PlatformRoot
+{
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	font-family: $platform-font;
+	color: $platform-text;
+	pointer-events: none;
+
+	// Everything on it's under here, so its icons are set once
+	i
+	{
+		font-family: "Material Icons";
+	}
+
+	&.hidden
+	{
+		display: none;
+	}
+
+	.backdrops
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+	}
+
+	.backdrop
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		transition: opacity 0.6s ease-out;
+
+		&:intro
+		{
+			opacity: 0;
+		}
+
+		// Kept under the one that's replaced it - going out, it's moved after it, so it'd come back over it and fade again
+		&:outro
+		{
+			opacity: 0;
+			z-index: -100;
+			transition: opacity 0.4s ease-in;
+		}
+
+		// Overscan keeps the image edges off screen while it pans.
+		.art
+		{
+			position: absolute;
+			left: -10%;
+			top: -10%;
+			right: -10%;
+			bottom: -10%;
+			background-size: cover;
+			background-position: center;
+
+			// Pan and zoom at a steady speed from the first frame, reversing without snapping back.
+			animation: backdrop-drift 60s linear infinite alternate;
+		}
+
+		.shade
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			background-image: linear-gradient( to right, rgba( 0, 0, 0, 0.92 ) 0%, rgba( 0, 0, 0, 0.6 ) 35%, rgba( 0, 0, 0, 0 ) 60% );
+		}
+
+		// Down behind a page off the front's menu, so it reads over the art
+		.dim
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			background-color: rgb( 8, 12, 22 );
+			opacity: 0;
+			transition: opacity 0.35s ease-out;
+		}
+	}
+
+	&.paging .backdrop .dim
+	{
+		opacity: 0.6;
+	}
+
+	// Over the front, under the dock and what's in from the right - nothing to see, only there to be clicked off
+	.catcher
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		pointer-events: none;
+
+		&.on
+		{
+			pointer-events: all;
+		}
+	}
+
+	.side-area
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+
+		> .inner
+		{
+			@include platform-16x9;
+			position: relative;
+		}
+	}
+
+	.blur
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		// Always as blurred and dimmed as it gets, faded in and out whole - the blur itself doesn't ease between strengths,
+		// it snaps
+		backdrop-filter: blur( 24px );
+		background-color: rgba( 8, 12, 22, 0.55 );
+		opacity: 0;
+		transition: opacity 0.3s ease-out;
+
+		&.on
+		{
+			opacity: 1;
+			pointer-events: all;
+		}
+	}
+
+	// Over everything but the dock while a switch is going. A quick one's just the front going out and the next game's
+	// coming in - only one that's taking a while dims, and only one that's downloading gets a spinner.
+	.veil
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 28px;
+		background-color: rgba( 8, 12, 22, 0 );
+		pointer-events: none;
+		transition: background-color 0.4s ease-out;
+
+		Spinner
+		{
+			opacity: 0;
+			transition: opacity 0.15s ease-out;
+		}
+
+		&.on
+		{
+			background-color: rgba( 8, 12, 22, 0.7 );
+			pointer-events: all;
+			transition: background-color 0.4s ease-out 0.6s;
+
+			Spinner.on
+			{
+				opacity: 1;
+				transition: opacity 0.3s ease-out;
+			}
+		}
+
+		// Over a game's own scene - all the way, straight away, in the time the switch waits before it's torn down
+		// (PlatformMenu.Run), then out over the next one once it's in
+		&.on.cover
+		{
+			background-color: rgba( 8, 12, 22, 1 );
+			transition: background-color 0.2s ease-out;
+		}
+	}
+}
+
+@keyframes backdrop-drift
+{
+	from
+	{
+		transform: translate( -2%, -1% ) scale( 1 );
+	}
+
+	to
+	{
+		transform: translate( 2%, 1% ) scale( 1.15 );
+	}
+}

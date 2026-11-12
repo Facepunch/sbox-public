@@ -10,15 +10,15 @@ namespace Editor;
 [ResourceIdentity( "scene" )]
 internal class SceneResourceCompiler : ResourceCompiler
 {
-	protected override Task<bool> Compile()
+	protected override async Task<bool> Compile()
 	{
 		if ( Context is not ResourceCompileContextImp context )
 			throw new InvalidOperationException( "Scene compilation requires an editor resource context." );
 
 		if ( !context.TryReadOverrideInput( out var input ) )
 		{
-			AssetSystem.CompileGameResource( context );
-			return Task.FromResult( true );
+			await AssetSystem.CompileGameResource( context );
+			return true;
 		}
 
 		using var reader = new StreamReader( new MemoryStream( input ) );
@@ -26,14 +26,14 @@ internal class SceneResourceCompiler : ResourceCompiler
 			?? throw new JsonException( "Scene compile input must be a JSON object." );
 		if ( !json.Remove( "__blobdata", out var inlineBlob ) )
 		{
-			AssetSystem.CompileGameResource( context );
-			return Task.FromResult( true );
+			await AssetSystem.CompileGameResource( context );
+			return true;
 		}
 
 		var blobData = Convert.FromBase64String( inlineBlob?.GetValue<string>() ?? throw new JsonException( "Scene compile input is missing its binary data." ) );
 		context.AddCompileReference( context.AbsolutePath );
 		context.AddCompileReference( context.AbsolutePath + "_d", optional: true );
-		context.Data.Write( context.ScanJson( json.ToJsonString( new JsonSerializerOptions( JsonSerializerOptions.Default ) { MaxDepth = 512 } ) ) );
+		context.Data.Write( await context.ScanJsonAsync( json.ToJsonString( new JsonSerializerOptions( JsonSerializerOptions.Default ) { MaxDepth = 512 } ) ) );
 
 		if ( blobData.Length > 0 )
 		{
@@ -46,6 +46,6 @@ internal class SceneResourceCompiler : ResourceCompiler
 			}
 		}
 
-		return Task.FromResult( true );
+		return true;
 	}
 }

@@ -15,6 +15,12 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 	internal DisplayInfo displayInfo;
 
 	/// <summary>
+	/// Whether this member has a real CLR reflection handle that can be embedded in
+	/// compiled expressions. Logical members must use their virtual reflection accessors.
+	/// </summary>
+	internal bool IsRuntimeMember => MemberInfo?.GetType().Assembly == typeof( Type ).Assembly;
+
+	/// <summary>
 	/// The type that we're a member of
 	/// </summary>
 	public TypeDescription TypeDescription { get; protected set; }
@@ -105,6 +111,9 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 	/// <inheritdoc cref="MethodBase.IsFamily"/>
 	public bool IsFamily { get; protected set; }
 
+	// Inherited members keep the rules of the type that declared them, not of the derived description.
+	internal bool IsDeclaredInDynamicAssembly => DeclaringType?.IsDynamicAssembly == true;
+
 	/// <summary>
 	/// True if we're a method
 	/// </summary>
@@ -145,7 +154,7 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 	protected void Init( MemberInfo x )
 	{
 		MemberInfo = x;
-		Name = MemberInfo.Name;
+		Name = StringPool.Get( MemberInfo.Name );
 
 		CaptureAttributes( MemberInfo );
 

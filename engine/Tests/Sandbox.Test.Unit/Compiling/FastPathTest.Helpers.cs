@@ -57,7 +57,7 @@ internal class FastPathTestCompiler : IDisposable
 		Hotload = new ILHotload( "Test" );
 		Group = new CompileGroup( "Test" ) { AllowFastHotload = true };
 		Compiler = new Compiler( Group, SourceNames[0] );
-		Config = new Compiler.Configuration();
+		Config = new Compiler.Configuration { Whitelist = false };
 		FileSystem = new MemoryFileSystem();
 
 		Compiler.AddSourceLocation( FileSystem );

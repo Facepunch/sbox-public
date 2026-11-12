@@ -68,7 +68,7 @@ public class StandaloneAppSystem : AppSystem
 					if ( Utility.CommandLine.HasSwitch( "-test-standalone" ) )
 					{
 						Environment.ExitCode = 1;
-						Game.Close();
+						Game.CloseGame();
 					}
 				}
 			}
@@ -76,7 +76,7 @@ public class StandaloneAppSystem : AppSystem
 		// Quit next loop after load, if we are testing
 		else if ( Utility.CommandLine.HasSwitch( "-test-standalone" ) )
 		{
-			Game.Close();
+			Game.CloseGame();
 		}
 
 		return !wantsToQuit;

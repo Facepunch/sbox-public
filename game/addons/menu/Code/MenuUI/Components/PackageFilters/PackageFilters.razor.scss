@@ -1,5 +1,6 @@
 
 @import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 
 .packagefilter
 {
@@ -23,8 +24,9 @@
 
 .packagefilter textentry
 {
+	@include platform-field( 34px );
 	flex-grow: 1;
-	padding: 8px 12px;
+	flex-shrink: 0;
 	pointer-events: all;
 
 	Label
@@ -36,49 +38,38 @@
 	{
 		position: absolute;
 		left: 12px;
-		opacity: 0.3;
-		font-size: $text-large;
+		font-size: 18px;
+		color: $platform-faint;
 	}
 }
 
-	.packagefilterfacet, .packagefilter textentry
+// A facet to filter by - a grey button that drops its choices down, lit once one's picked. Its words are
+// bare text, not a label, so they take the label's size and colour here
+.packagefilterfacet
+{
+	@include platform-text-button( 34px );
+	padding: 0 12px;
+	gap: 16px;
+	flex-shrink: 0;
+	font-size: 13.5px;
+	font-weight: 600;
+	color: $platform-text;
+
+	.clear-button
 	{
-		background-color: rgba($default-950, 0.3);
-		color: $default-text;
-		outline: 1px solid $default-border;
-		transition: all 150ms $easing;
-		border-radius: $rounding-default;
-		padding: 4px 12px;
-		gap: 16px;
-		flex-shrink: 0;
-		font-size: 14px;
-		cursor: pointer;
+		height: 100%;
+		margin-right: -8px;
 		align-items: center;
+		padding: 0px 4px;
 
-		.clear-button
+		&:hover
 		{
-			height: 100%;
-			margin-right: -8px;
-			align-items: center;
-			padding: 0px 4px;
-
-			&:hover
-			{
-				color: red;
-				border-radius: 100%;
-			}
-		}
-
-		&.is-active
-		{
-			background-color: $default-700;
-		}
-
-		&:not(.is-active)
-		{
-			&:hover
-			{
-				outline: 1px solid $default-50;
-			}
+			color: $platform-danger;
 		}
 	}
+
+	&.is-active
+	{
+		@include platform-button-selected;
+	}
+}

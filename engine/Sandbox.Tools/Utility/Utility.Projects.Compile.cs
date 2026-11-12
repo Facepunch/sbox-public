@@ -23,7 +23,6 @@ public static partial class EditorUtility
 				return default;
 
 			using CompileGroup compileGroup = new CompileGroup( "Publish" );
-			compileGroup.AccessControl = PackageManager.AccessControl;
 
 			compilerSettings.IgnoreFolders.Add( "editor" );
 			compilerSettings.IgnoreFolders.Add( "unittest" );

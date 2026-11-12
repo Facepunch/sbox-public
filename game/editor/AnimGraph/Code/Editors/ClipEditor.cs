@@ -130,6 +130,18 @@ internal class ClipEditor : PreviewSceneWidget
 
 	protected void QueueRebuild() => _rebuild = true;
 
+	internal Widget MoveTransportTo( Widget parent )
+	{
+		_scrubber.Visible = false;
+		_timeLabel.Visible = false;
+		_durationLabel.Visible = false;
+		_transport.OnPaintOverride = null;
+		_transport.FixedHeight = Theme.RowHeight + 4;
+		_transport.Layout.Margin = 2;
+		_transport.Parent = parent;
+		return _transport;
+	}
+
 	/// <summary>
 	/// Jump playback to a point in the clip, as a fraction of it. Pauses, since something else is
 	/// driving the time now.

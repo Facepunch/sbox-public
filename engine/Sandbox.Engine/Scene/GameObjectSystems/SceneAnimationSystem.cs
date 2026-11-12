@@ -31,19 +31,16 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 
 	private ConcurrentQueue<GameTransform> ChangedTransforms { get; } = new();
 
-	// Reusable lists to avoid per-frame allocations from Parallel.ForEach with IEnumerable<T>.
-	// Parallel.ForEach on IEnumerable uses a dynamic partitioner that allocates KeyValuePair<long, T>[]
-	// chunks internally; passing an IList<T> uses the static range partitioner instead.
+	// Reusable lists, so the parallel passes don't allocate every frame.
 	private readonly List<SkinnedModelRenderer> _rootRenderers = new();
 	private readonly List<SkinnedModelRenderer> _boneMergeRoots = new();
 	private readonly List<SkinnedModelRenderer> _physRenderers = new();
 
-	private static int _animThreadCount = Math.Max( 1, Environment.ProcessorCount - 1 );
+	// The passes use one thread fewer than there are cores.
+	private static readonly int AnimationThreads = Math.Max( 1, Environment.ProcessorCount - 1 );
 
-	private static ParallelOptions _animParallelOptions = new()
-	{
-		MaxDegreeOfParallelism = _animThreadCount
-	};
+	// Decode cache upkeep runs in the background until the next update, which joins it before decoding again
+	private JobHandle _maintainDecodeCaches;
 
 	public SceneAnimationSystem( Scene scene ) : base( scene )
 	{
@@ -59,6 +56,8 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 
 		using ( PerformanceStats.Timings.Animation.Scope() )
 		{
+			JoinDecodeCacheUpkeep();
+
 			_rootRenderers.Clear();
 			_boneMergeRoots.Clear();
 
@@ -83,19 +82,20 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 
 			// Skip out if we have a parent that is a skinned model, because we need to move relative to that
 			// and their bones haven't been worked out yet. They will get worked out after our parent is.
-			// Use a load-balanced partitioner: work per root is highly uneven (clothed characters have many
+			// Roots are claimed one at a time: work per root is highly uneven (clothed characters have many
 			// bone-merged children), so static range partitioning would cause severe thread idle time.
-			System.Threading.Tasks.Parallel.ForEach( Partitioner.Create( _rootRenderers, loadBalance: true ), _animParallelOptions, ProcessRenderer );
+			JobDispatcher.For( _rootRenderers.Count, this, static ( system, i ) => system.ProcessRenderer( system._rootRenderers[i] ), itemsPerBatch: 1, maxDegreeOfParallelism: AnimationThreads );
 
 			_editorForceBindPose.Clear();
 
 			// This is a good time to maintain decode caches
 			// Will copy local caches to the global cache and handle LRU eviction
-			// Can do this in a background task as nothing is touching these caches until next frame
-			Task.Run( g_pAnimationSystemUtils.MaintainDecodeCaches );
+			// Runs in the background, joined before this scene's next animation pass. Native locking serializes it with
+			// any other animation evaluation meanwhile.
+			_maintainDecodeCaches = JobDispatcher.Begin( 1, 0, static ( _, _ ) => g_pAnimationSystemUtils.MaintainDecodeCaches() );
 
 			// Now merge any descendants without allocating per-merge delegates
-			System.Threading.Tasks.Parallel.ForEach( Partitioner.Create( _boneMergeRoots, loadBalance: true ), _animParallelOptions, renderer => renderer.MergeDescendants( ChangedTransforms ) );
+			JobDispatcher.For( _boneMergeRoots.Count, this, static ( system, i ) => system._boneMergeRoots[i].MergeDescendants( system.ChangedTransforms ), itemsPerBatch: 1, maxDegreeOfParallelism: AnimationThreads );
 
 			while ( ChangedTransforms.TryDequeue( out var tx ) )
 			{
@@ -109,6 +109,26 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 			{
 				x.DispatchEvents();
 			}
+		}
+	}
+
+	void JoinDecodeCacheUpkeep()
+	{
+		// Cleared first, a handle can only be joined once even if the upkeep threw
+		var pending = _maintainDecodeCaches;
+		_maintainDecodeCaches = default;
+		pending.Join();
+	}
+
+	public override void Dispose()
+	{
+		try
+		{
+			JoinDecodeCacheUpkeep();
+		}
+		finally
+		{
+			base.Dispose();
 		}
 	}
 
@@ -204,6 +224,6 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 				_physRenderers.Add( renderer );
 		}
 
-		System.Threading.Tasks.Parallel.ForEach( Partitioner.Create( _physRenderers, loadBalance: true ), _animParallelOptions, renderer => renderer.Physics.Step() );
+		JobDispatcher.For( _physRenderers.Count, _physRenderers, static ( renderers, i ) => renderers[i].Physics.Step(), itemsPerBatch: 1, maxDegreeOfParallelism: AnimationThreads );
 	}
 }

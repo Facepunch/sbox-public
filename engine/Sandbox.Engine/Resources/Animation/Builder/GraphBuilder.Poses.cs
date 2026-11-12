@@ -70,7 +70,9 @@ public sealed partial class GraphBuilder
 	/// </summary>
 	/// <param name="animation">Resource path of the clip to play.</param>
 	/// <param name="settings">Playback and event options.</param>
-	public Node Clip( string animation, ClipSettings settings = null )
+	public Node Clip( string animation, ClipSettings settings = null ) => Clip( (ResourceId)animation, settings );
+
+	internal Node Clip( ResourceId animation, ClipSettings settings = null )
 	{
 		settings ??= new();
 		var slot = GetAnimationSlot( animation );
@@ -101,7 +103,7 @@ public sealed partial class GraphBuilder
 	public Node Clip( Clip animation, ClipSettings settings = null )
 	{
 		ArgumentNullException.ThrowIfNull( animation );
-		return Clip( animation.Name, settings );
+		return Clip( ResourceId.Get( animation ), settings );
 	}
 
 	/// <summary>
@@ -109,7 +111,9 @@ public sealed partial class GraphBuilder
 	/// (normalized 0-1 across the clip) instead of advancing with the graph - e.g. scrubbing
 	/// a full clip from a gameplay value. Ignores synchronization.
 	/// </summary>
-	public Node TimeControlledClip( string animation, Node time, TimeControlledClipSettings settings = null )
+	public Node TimeControlledClip( string animation, Node time, TimeControlledClipSettings settings = null ) => TimeControlledClip( (ResourceId)animation, time, settings );
+
+	internal Node TimeControlledClip( ResourceId animation, Node time, TimeControlledClipSettings settings = null )
 	{
 		settings ??= new();
 		var slot = GetAnimationSlot( animation );
@@ -137,7 +141,7 @@ public sealed partial class GraphBuilder
 	public Node TimeControlledClip( Clip animation, Node time, TimeControlledClipSettings settings = null )
 	{
 		ArgumentNullException.ThrowIfNull( animation );
-		return TimeControlledClip( animation.Name, time, settings );
+		return TimeControlledClip( ResourceId.Get( animation ), time, settings );
 	}
 
 	/// <summary>
@@ -146,7 +150,9 @@ public sealed partial class GraphBuilder
 	/// a pose-sheet animation where every frame is a distinct pose, like the
 	/// citizen's hand poses.
 	/// </summary>
-	public Node Pose( string animation, Node time )
+	public Node Pose( string animation, Node time ) => Pose( (ResourceId)animation, time );
+
+	internal Node Pose( ResourceId animation, Node time )
 	{
 		var slot = GetAnimationSlot( animation );
 		Require( time, NodeKind.Float );
@@ -165,7 +171,9 @@ public sealed partial class GraphBuilder
 	/// Sample a single pose from an animation, with full control over how the input
 	/// time maps onto the clip.
 	/// </summary>
-	public Node Pose( string animation, PoseSettings settings )
+	public Node Pose( string animation, PoseSettings settings ) => Pose( (ResourceId)animation, settings );
+
+	internal Node Pose( ResourceId animation, PoseSettings settings )
 	{
 		ArgumentNullException.ThrowIfNull( settings );
 		var slot = GetAnimationSlot( animation );
@@ -188,14 +196,14 @@ public sealed partial class GraphBuilder
 	public Node Pose( Clip animation, Node time )
 	{
 		ArgumentNullException.ThrowIfNull( animation );
-		return Pose( animation.Name, time );
+		return Pose( ResourceId.Get( animation ), time );
 	}
 
 	/// <inheritdoc cref="Pose(string, PoseSettings)"/>
 	public Node Pose( Clip animation, PoseSettings settings )
 	{
 		ArgumentNullException.ThrowIfNull( animation );
-		return Pose( animation.Name, settings );
+		return Pose( ResourceId.Get( animation ), settings );
 	}
 
 	/// <summary>
@@ -297,6 +305,7 @@ public sealed partial class GraphBuilder
 	{
 		if ( cases is null || cases.Length == 0 )
 			throw new ArgumentException( "ClipSelector needs at least one case.", nameof( cases ) );
+		cases = cases.ToArray();
 		foreach ( var c in cases )
 		{
 			RequireClip( c.Clip, nameof( cases ) );
@@ -396,6 +405,7 @@ public sealed partial class GraphBuilder
 		Require( seed, NodeKind.Float );
 		if ( options is null || options.Length == 0 )
 			throw new ArgumentException( "ClipVariation needs at least one option.", nameof( options ) );
+		options = options.ToArray();
 		foreach ( var o in options )
 		{
 			RequireClip( o.Clip, nameof( options ) );
@@ -429,8 +439,17 @@ public sealed partial class GraphBuilder
 	{
 		ArgumentNullException.ThrowIfNull( settings );
 		Require( parameter, NodeKind.Float );
+		options = options.ToArray();
+		var weights = settings.Weights?.ToArray() ?? [];
+		if ( settings.HasWeights && weights.Length != options.Count )
+			throw new ArgumentException( "ParameterizedSelector needs one weight per option.", nameof( settings ) );
 		foreach ( var option in options )
-			RequirePose( option, nameof( options ) );
+		{
+			if ( settings.ClipsOnly )
+				RequireClip( option, nameof( options ) );
+			else
+				RequirePose( option, nameof( options ) );
+		}
 		return AddNode( NodeKind.Pose, native =>
 		{
 			if ( settings.ClipsOnly )
@@ -443,7 +462,7 @@ public sealed partial class GraphBuilder
 				}
 
 				var nativeOptionWeights = definition.GetOptionWeights();
-				foreach ( var weight in settings.Weights )
+				foreach ( var weight in weights )
 				{
 					nativeOptionWeights.Add( weight );
 				}
@@ -463,7 +482,7 @@ public sealed partial class GraphBuilder
 				}
 
 				var nativeOptionWeights = definition.GetOptionWeights();
-				foreach ( var weight in settings.Weights )
+				foreach ( var weight in weights )
 				{
 					nativeOptionWeights.Add( weight );
 				}
@@ -560,8 +579,16 @@ public sealed partial class GraphBuilder
 		settings ??= new();
 		Require( id, NodeKind.Id );
 		Optional( settings.Fallback, NodeKind.Pose );
+		if ( settings.Fallback is not null && settings.ClipsOnly )
+			RequireClip( settings.Fallback );
+		options = options.ToArray();
 		foreach ( var option in options )
-			RequirePose( option.Option, nameof( options ) );
+		{
+			if ( settings.ClipsOnly )
+				RequireClip( option.Option, nameof( options ) );
+			else
+				RequirePose( option.Option, nameof( options ) );
+		}
 		return AddNode( NodeKind.Pose, native =>
 		{
 			if ( settings.ClipsOnly )
@@ -681,8 +708,15 @@ public sealed partial class GraphBuilder
 	public Node BlendSpace( Node parameter, IReadOnlyList<Node> sources, IReadOnlyList<(int Input0, int Input1, float Start, float End)> ranges, bool looping )
 	{
 		Require( parameter, NodeKind.Float );
+		sources = sources.ToArray();
+		ranges = ranges.ToArray();
 		foreach ( var source in sources )
 			RequirePose( source, nameof( sources ) );
+		foreach ( var range in ranges )
+		{
+			if ( range.Input0 < 0 || range.Input0 >= sources.Count || range.Input1 < 0 || range.Input1 >= sources.Count )
+				throw new ArgumentOutOfRangeException( nameof( ranges ), "Blend range inputs must index into sources." );
+		}
 		return AddNode( NodeKind.Pose, native =>
 		{
 			var definition = NativeEngine.GraphBlend1DNode.Add( native );
@@ -745,6 +779,7 @@ public sealed partial class GraphBuilder
 		Require( speed, NodeKind.Float );
 		if ( clips is null || clips.Length == 0 )
 			throw new ArgumentException( "VelocityBlend needs at least one clip.", nameof( clips ) );
+		clips = clips.ToArray();
 		foreach ( var c in clips )
 			RequireClip( c, nameof( clips ) );
 		return AddNode( NodeKind.Pose, native =>
@@ -905,13 +940,24 @@ public sealed partial class GraphBuilder
 		ArgumentNullException.ThrowIfNull( settings );
 		Require( parameterX, NodeKind.Float );
 		Require( parameterY, NodeKind.Float );
-		foreach ( var source in settings.Sources )
+		var sources = settings.Sources.ToArray();
+		var positions = settings.Positions.ToArray();
+		var indices = settings.Indices.ToArray();
+		var hullIndices = settings.HullIndices.ToArray();
+		foreach ( var source in sources )
 			RequirePose( source, nameof( settings ) );
+		if ( positions.Length != sources.Length || indices.Length % 3 != 0 )
+			throw new ArgumentException( "BlendSpace2D needs one position per source and whole triangles.", nameof( settings ) );
+		foreach ( var index in indices.Concat( hullIndices ) )
+		{
+			if ( index < 0 || index >= sources.Length )
+				throw new ArgumentOutOfRangeException( nameof( settings ), "BlendSpace2D indices must index into sources." );
+		}
 		return AddNode( NodeKind.Pose, native =>
 		{
 			var definition = NativeEngine.GraphBlend2DNode.Add( native );
 			var nativeSourceNodeIndices = definition.GetSourceNodeIndices();
-			foreach ( var source in settings.Sources )
+			foreach ( var source in sources )
 			{
 				nativeSourceNodeIndices.Add( Resolve( source ) );
 			}
@@ -919,19 +965,19 @@ public sealed partial class GraphBuilder
 			definition.m_inputParameterNodeIdx0 = (short)Resolve( parameterX );
 			definition.m_inputParameterNodeIdx1 = (short)Resolve( parameterY );
 			var nativeValues = definition.GetValues();
-			foreach ( var position in settings.Positions )
+			foreach ( var position in positions )
 			{
 				nativeValues.Add( new Vector2( position.x, position.y ) );
 			}
 
 			var nativeIndices = definition.GetIndices();
-			foreach ( var index in settings.Indices )
+			foreach ( var index in indices )
 			{
 				nativeIndices.Add( index );
 			}
 
 			var nativeHullIndices = definition.GetHullIndices();
-			foreach ( var index in settings.HullIndices )
+			foreach ( var index in hullIndices )
 			{
 				nativeHullIndices.Add( index );
 			}

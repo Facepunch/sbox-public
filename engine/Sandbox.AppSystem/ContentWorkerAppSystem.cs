@@ -11,7 +11,7 @@ namespace Sandbox;
 
 /// <summary>
 /// A content build worker: the resource compiler with the asset system and the editor's managed compilers, taking
-/// one job at a time from standard input.
+/// jobs from standard input and running them on threads of their own.
 /// </summary>
 public sealed class ContentWorkerAppSystem : ToolAppSystem
 {
@@ -24,8 +24,10 @@ public sealed class ContentWorkerAppSystem : ToolAppSystem
 		Graphics.Initialize();
 		SyncContext.Init();
 
-		// Compilers write numbers into outputs
+		// Compilers write numbers into outputs, on the threads jobs run on too
 		var culture = CultureInfo.CreateSpecificCulture( "en-US" );
+		CultureInfo.DefaultThreadCurrentCulture = culture;
+		CultureInfo.DefaultThreadCurrentUICulture = culture;
 		Thread.CurrentThread.CurrentCulture = culture;
 		Thread.CurrentThread.CurrentUICulture = culture;
 

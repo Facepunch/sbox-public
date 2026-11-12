@@ -12,6 +12,7 @@ public abstract class BaseTreeView : Panel
 	/// <summary>
 	/// Layout of one visible row, in layout units relative to the content's top left.
 	/// </summary>
+	[Expose]
 	protected struct RowLayout
 	{
 		public float Top;

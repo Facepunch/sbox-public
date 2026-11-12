@@ -337,6 +337,7 @@ public partial class GameObject
 /// <summary>
 /// The low level input of a GameObject.Clone
 /// </summary>
+[Expose]
 public struct CloneConfig
 {
 	public bool StartEnabled;

@@ -31,7 +31,6 @@
   </Folder>
   <Folder Name="/Engine/Tier0/">
     <Project Path="Microsoft.AspNetCore.Components/Microsoft.AspNetCore.Components.csproj" />
-    <Project Path="Sandbox.Access/Sandbox.Access.csproj" />
     <Project Path="Sandbox.Bind/Sandbox.Bind.csproj" />
     <Project Path="Sandbox.Event/Sandbox.Event.csproj" />
     <Project Path="Sandbox.Filesystem/Sandbox.Filesystem.csproj" />

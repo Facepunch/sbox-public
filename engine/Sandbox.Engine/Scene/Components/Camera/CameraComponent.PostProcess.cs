@@ -9,7 +9,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// <summary>
 	/// Whether this camera's command lists may read the depth-normals prepass's G-buffer, for both renderers.
 	/// </summary>
-	bool WantsDepthNormals() => Scene.RenderAttributes.GetBool( "NeedsDepthNormals" ) || PostProcess.Layers.Count != 0 || HasCustomCommandLists();
+	bool WantsDepthNormals() => Scene.RenderAttributes.GetBool( "NeedsDepthNormals" ) || PostProcess.HasLayers || HasCustomCommandLists();
 
 	/// <summary>
 	/// Whether independent post processing can run ahead of <paramref name="stage"/> on <paramref name="queue"/>.

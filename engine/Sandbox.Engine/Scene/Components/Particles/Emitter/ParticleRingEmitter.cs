@@ -30,7 +30,7 @@ public sealed class ParticleRingEmitter : ParticleEmitter
 
 	public override bool Emit( ParticleEffect target )
 	{
-		var angle = Random.Shared.Float( 0, Angle.Evaluate( Delta, EmitRandom ).DegreeToRadian() );
+		var angle = ParticleRandom.Shared.Float( 0, Angle.Evaluate( Delta, EmitRandom ).DegreeToRadian() );
 		angle += AngleStart.Evaluate( Delta, EmitRandom ).DegreeToRadian();
 
 		var x = MathF.Sin( angle );
@@ -43,7 +43,7 @@ public sealed class ParticleRingEmitter : ParticleEmitter
 
 		if ( thickness > 0 )
 		{
-			ringOffset = Vector3.Random * thickness;
+			ringOffset = ParticleRandom.Shared.VectorInSphere() * thickness;
 			ringOffset.z *= (1 - Flatness.Evaluate( Delta, EmitRandom ));
 
 			size += ringOffset;

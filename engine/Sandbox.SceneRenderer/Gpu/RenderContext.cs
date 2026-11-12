@@ -631,7 +631,7 @@ internal sealed class RenderContext : IDisposable
 		if ( frame is not null )
 		{
 			// Clear old pass state and inherit this frame's attributes.
-			nativeAttributes.Clear( false, true );
+			Attributes.Clear( false );
 			nativeAttributes.SetParent( frame.nativeAttributes );
 			InstanceIds = frame.InstanceIds;
 			Occlusion = frame.Occlusion;
@@ -1191,11 +1191,12 @@ internal sealed class RenderContext : IDisposable
 	}
 
 	/// <summary>
-	/// Draw a model draw call. Its buffers are bound at its own offsets, so there's no base vertex.
+	/// Draw a model draw call. Its buffers are bound at its own offsets, but not at its base vertex: pass it when the draw
+	/// call has one (the vertex-cache draws' have none).
 	/// </summary>
-	public void DrawIndexedInstanced( in RenderMesh.Draw draw, int instanceCount )
+	public void DrawIndexedInstanced( in RenderMesh.Draw draw, int instanceCount, int baseVertex = 0 )
 	{
-		context.DrawIndexedInstanced( (RenderPrimitiveType)draw.PrimitiveType, draw.StartIndex, draw.IndexCount, instanceCount, draw.VertexCount, 0 );
+		context.DrawIndexedInstanced( (RenderPrimitiveType)draw.PrimitiveType, draw.StartIndex, draw.IndexCount, instanceCount, draw.VertexCount, baseVertex );
 	}
 }
 

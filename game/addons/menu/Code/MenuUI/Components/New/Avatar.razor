@@ -66,7 +66,12 @@
         }
 
         Popup.CloseAll();
-        popup = FriendCard.Show(this, new Friend(UserId), Popup.PositionMode.AboveCenter, 20);
+
+        // In a window (the party's) it's over the window, lined up with it - not over the face, covering the window
+        if (Ancestors.OfType<FloatingWindow>().FirstOrDefault() is { } window)
+            popup = FriendCard.Show(window, new Friend(UserId), Popup.PositionMode.AboveLeft, 12);
+        else
+            popup = FriendCard.Show(this, new Friend(UserId), Popup.PositionMode.AboveCenter, 20);
     }
 
     protected override int BuildHash() => HashCode.Combine( CssClasses() );

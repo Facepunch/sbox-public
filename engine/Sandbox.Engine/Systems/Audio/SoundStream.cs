@@ -5,6 +5,9 @@ public sealed partial class SoundStream : IHandle, IDisposable
 {
 	internal CAudioStreamManaged native;
 
+	// Game code can write from worker threads, so writes can't overlap Dispose freeing the stream or decoder
+	readonly System.Threading.Lock streamLock = new();
+
 	#region IHandle
 	void IHandle.HandleInit( IntPtr ptr )
 	{
@@ -30,9 +33,9 @@ public sealed partial class SoundStream : IHandle, IDisposable
 	/// </summary>
 	public int Channels { get; internal set; }
 
-	public int QueuedSampleCount => native.IsValid ? (int)native.QueuedSampleCount() : 0;
-	public int MaxWriteSampleCount => native.IsValid ? (int)native.MaxWriteSampleCount() : 0;
-	public int LatencySamplesCount => native.IsValid ? (int)native.LatencySamplesCount() : 0;
+	public int QueuedSampleCount { get { lock ( streamLock ) return native.IsValid ? (int)native.QueuedSampleCount() : 0; } }
+	public int MaxWriteSampleCount { get { lock ( streamLock ) return native.IsValid ? (int)native.MaxWriteSampleCount() : 0; } }
+	public int LatencySamplesCount { get { lock ( streamLock ) return native.IsValid ? (int)native.LatencySamplesCount() : 0; } }
 
 	internal SoundStream() { }
 	internal SoundStream( HandleCreationData _ ) { }
@@ -69,15 +72,18 @@ public sealed partial class SoundStream : IHandle, IDisposable
 
 	public unsafe void WriteData( ReadOnlySpan<short> data )
 	{
-		if ( !native.IsValid )
-			throw new ArgumentException( "Invalid sound stream" );
-
-		if ( data.Length <= 0 )
-			return;
-
-		fixed ( short* data_ptr = data )
+		lock ( streamLock )
 		{
-			native.WriteAudioData( (IntPtr)data_ptr, (uint)(data.Length / Channels), (uint)Channels );
+			if ( !native.IsValid )
+				throw new ArgumentException( "Invalid sound stream" );
+
+			if ( data.Length <= 0 )
+				return;
+
+			fixed ( short* data_ptr = data )
+			{
+				native.WriteAudioData( (IntPtr)data_ptr, (uint)(data.Length / Channels), (uint)Channels );
+			}
 		}
 	}
 
@@ -89,20 +95,23 @@ public sealed partial class SoundStream : IHandle, IDisposable
 	/// </summary>
 	public int WriteVoiceData( ReadOnlySpan<byte> data )
 	{
-		if ( !native.IsValid || data.Length < 2 )
-			return 0;
+		lock ( streamLock )
+		{
+			if ( !native.IsValid || data.Length < 2 )
+				return 0;
 
-		if ( voiceDecoder == IntPtr.Zero )
-			voiceDecoder = VoiceManager.CreateDecoder();
+			if ( voiceDecoder == IntPtr.Zero )
+				voiceDecoder = VoiceManager.CreateDecoder();
 
-		var output = System.Buffers.ArrayPool<short>.Shared.Rent( VoiceManager.MaxPacketSamples );
+			var output = System.Buffers.ArrayPool<short>.Shared.Rent( VoiceManager.MaxPacketSamples );
 
-		var samples = VoiceManager.Decode( voiceDecoder, data, output );
-		if ( samples > 0 )
-			WriteData( output.AsSpan( 0, samples ) );
+			var samples = VoiceManager.Decode( voiceDecoder, data, output );
+			if ( samples > 0 )
+				WriteData( output.AsSpan( 0, samples ) );
 
-		System.Buffers.ArrayPool<short>.Shared.Return( output );
-		return samples;
+			System.Buffers.ArrayPool<short>.Shared.Return( output );
+			return samples;
+		}
 	}
 
 	/// <summary>
@@ -111,26 +120,32 @@ public sealed partial class SoundStream : IHandle, IDisposable
 	/// </summary>
 	public void Close()
 	{
-		if ( native.IsValid ) native.Close();
+		lock ( streamLock )
+		{
+			if ( native.IsValid ) native.Close();
+		}
 	}
 
 	public void Dispose()
 	{
-		if ( voiceDecoder != IntPtr.Zero )
+		lock ( streamLock )
 		{
-			VoiceManager.DestroyDecoder( voiceDecoder );
-			voiceDecoder = IntPtr.Zero;
+			if ( voiceDecoder != IntPtr.Zero )
+			{
+				VoiceManager.DestroyDecoder( voiceDecoder );
+				voiceDecoder = IntPtr.Zero;
+			}
+
+			if ( !native.IsValid ) return;
+
+			GC.SuppressFinalize( this );
+
+			// Destroy() drops our reference; the native stream is reference counted and frees only once its
+			// last mixer is gone, so it's never freed mid-mix. Runs on the main thread (the finalizer routes
+			// here via QueueDispose), where Destroy frees the managed handle.
+			native.Destroy();
+			native = IntPtr.Zero;
 		}
-
-		if ( !native.IsValid ) return;
-
-		GC.SuppressFinalize( this );
-
-		// Destroy() drops our reference; the native stream is reference counted and frees only once its
-		// last mixer is gone, so it's never freed mid-mix. Runs on the main thread (the finalizer routes
-		// here via QueueDispose), where Destroy frees the managed handle.
-		native.Destroy();
-		native = IntPtr.Zero;
 	}
 
 	/// <summary>
@@ -138,14 +153,18 @@ public sealed partial class SoundStream : IHandle, IDisposable
 	/// </summary>
 	public SoundHandle Play( float volume = 1.0f, float pitch = 1.0f )
 	{
-		if ( !native.IsValid )
-			return default;
+		// Held until the mixer exists, Dispose on a worker would free the stream under it
+		lock ( streamLock )
+		{
+			if ( !native.IsValid )
+				return default;
 
-		CSfxTable table = native.GetSfxTable();
-		if ( table.IsNull )
-			return default;
+			var table = native.GetSfxTable();
+			if ( table.IsNull )
+				return default;
 
-		return Sound.PlayFile( table, volume, pitch, 0, 0.0f, "Sound Stream" );
+			return Sound.PlayFile( table, volume, pitch, 0, 0.0f, "Sound Stream" );
+		}
 	}
 
 	/// <summary>

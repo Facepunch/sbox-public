@@ -489,7 +489,8 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 
 		if ( component is null ) return;
 
-		if ( !component.IsValid() )
+		// Destroying a component takes it out of the directory straight away, but it stays valid until its callback batch ends.
+		if ( !component.IsValid() || component.Scene.Directory.FindComponentByGuid( component.Id ) != component )
 		{
 			// We want to tell clients that this component has been destroyed...
 			var msg = new ObjectDestroyComponentMsg
@@ -1004,8 +1005,14 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		LocalSnapshotState.Version = msg.SnapshotVersion;
 
 		var parent = GameObject.Scene.Directory.FindByGuid( msg.Parent );
-		GameObject.Transform.SetLocalTransformFast( msg.Transform );
+		var oldParent = GameObject.Parent;
+		var moved = GameObject.Transform.SetLocalTransformFast( msg.Transform );
 		GameObject.SetParentFromNetwork( parent );
+
+		// Reparenting already notified
+		if ( moved && GameObject.Parent == oldParent )
+			GameObject.Transform.TransformChanged();
+
 		GameObject.Enabled = msg.Enabled;
 		ReadDataTable( msg.TableData );
 	}

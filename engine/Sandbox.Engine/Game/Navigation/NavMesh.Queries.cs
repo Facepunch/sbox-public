@@ -284,6 +284,7 @@ public struct CalculatePathRequest
 /// <summary>
 /// Contains the result of a pathfinding operation.
 /// </summary>
+[Expose]
 public struct NavMeshPath : IValid
 {
 	/// <summary>
@@ -311,6 +312,10 @@ public struct NavMeshPath : IValid
 	public IReadOnlyList<NavMeshPathPoint> Points { get; internal set; }
 }
 
+/// <summary>
+/// Describes the outcome of a navigation path query.
+/// </summary>
+[Expose]
 public enum NavMeshPathStatus
 {
 	/// <summary>
@@ -340,7 +345,11 @@ public enum NavMeshPathStatus
 /// Represents a point in a navmesh path, including its position in 3D space.
 /// May be extended in the future to hold more information about the point.
 /// </summary>
+[Expose]
 public struct NavMeshPathPoint
 {
+	/// <summary>
+	/// The world position of this point along the path.
+	/// </summary>
 	public Vector3 Position;
 }

@@ -4,10 +4,10 @@ using System.Globalization;
 namespace Sandbox.ContentBuild;
 
 /// <summary>
-/// The engine's compilers for a build: a few long-lived contentworker processes, each taking one job at a time. A
-/// worker is the resource compiler with the asset system and the editor's managed compilers, so a source compiles the
-/// same however its compilers are written. A job's build report makes the compiler skip associate compiles and report
-/// what it read.
+/// The engine's compilers for a build: a long-lived contentworker process, running every job at once on threads of its
+/// own. A worker is the resource compiler with the asset system and the editor's managed compilers, so a source compiles
+/// the same however its compilers are written. A job's build report makes the compiler skip associate compiles and
+/// report what it read.
 /// </summary>
 /// <param name="executable">contentworker.</param>
 /// <param name="types">The engine's native compilers (assettypes.txt).</param>
@@ -18,15 +18,9 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes( 15 );
 
 	/// <summary>
-	/// Worker processes at most, over all roots; at least as many as the build runs jobs at once. A worker holds ~1.3 GB
-	/// before it compiles anything, so by default one per core and 4 GB of memory.
+	/// Jobs a build runs at once by default: one per core and 2 GB of memory.
 	/// </summary>
-	public int MaxWorkers { get; init; } = DefaultMaxWorkers;
-
-	/// <summary>
-	/// Shared default for the worker pool and the command-line build's job limit.
-	/// </summary>
-	public static int DefaultMaxWorkers => (int)Math.Clamp( GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (4L << 30), 1, Environment.ProcessorCount );
+	public static int DefaultMaxJobs => (int)Math.Clamp( GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (2L << 30), 1, Environment.ProcessorCount );
 
 	/// <summary>
 	/// Workers get a render device. Without one, as on a build machine with no GPU, they have the empty render system:
@@ -37,10 +31,10 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	public bool RenderDevice { get; init; }
 
 	/// <summary>
-	/// Answers the questions about the compilers a worker would (see Ask) in this process, which has the same compilers
-	/// loaded (the editor), so asking needs no worker. Null asks a worker.
+	/// Runs each job in this process, which has the same compilers loaded (the editor), rather than in a worker: mode,
+	/// source, staging, report and compiler arguments to whether it succeeded, as a worker answers. Null starts workers.
 	/// </summary>
-	public Func<string, IEnumerable<string>, IReadOnlyList<string>> Answer { get; init; }
+	public Func<string, string, string, string, IReadOnlyList<string>, bool> InProcess { get; init; }
 
 	/// <summary>
 	/// Worker processes started.
@@ -54,21 +48,21 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	public IReadOnlyCollection<string> Ended => ended;
 
 	/// <summary>
-	/// Idle workers stopped to make room for a worker with other mounts or arguments.
+	/// Idle workers stopped for a worker with other mounts.
 	/// </summary>
 	public int Evicted => evicted;
 
 	readonly object gate = new();
-	readonly List<CompilerWorker> idle = [];
+	readonly List<CompilerWorker> workers = [];
 	readonly ConcurrentQueue<string> ended = new();
-	SemaphoreSlim slots;
+	readonly SemaphoreSlim isolated = new( 1 );
 	int launches, evicted;
 	Dictionary<string, string> managed;
 
 	/// <summary>
-	/// The processes of the workers waiting for a job (for tests).
+	/// The processes of the workers running no job (for tests).
 	/// </summary>
-	internal IReadOnlyList<int> IdleProcessIds { get { lock ( gate ) return idle.Select( x => x.ProcessId ).ToList(); } }
+	internal IReadOnlyList<int> IdleProcessIds { get { lock ( gate ) return workers.Where( x => x.Busy == 0 ).Select( x => x.ProcessId ).ToList(); } }
 
 	/// <summary>
 	/// A native compiler's type is classified by what that compiler reads. Managed code that takes part in compiling a
@@ -114,13 +108,27 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	}
 
 	/// <summary>
-	/// A question about the compilers rather than a compile, answered by a worker that then takes compiles: what it
-	/// writes to a file.
+	/// Each worker's next job checks it has no older one of these loaded first: one that has refuses it and takes no
+	/// more, as a job would load that (see ContentCompilerHost.Admit). The jobs it runs started before they were
+	/// published, so the build reruns any that read them.
+	/// </summary>
+	public void Published( IReadOnlyList<string> paths )
+	{
+		// The editor reloads what it has loaded as it's published
+		if ( InProcess is not null ) return;
+
+		lock ( gate )
+		{
+			foreach ( var worker in workers ) worker.Published( paths );
+		}
+	}
+
+	/// <summary>
+	/// A question about the compilers rather than a compile, answered as a job (by a worker that then takes compiles):
+	/// what it writes to a file.
 	/// </summary>
 	string[] Ask( string mode, IEnumerable<string> input )
 	{
-		if ( Answer is not null ) return Answer( mode, input ?? [] ).ToArray();
-
 		var dir = Directory.CreateTempSubdirectory( "sbox-compilers" ).FullName;
 		try
 		{
@@ -129,7 +137,7 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 			File.WriteAllLines( source, input ?? [] );
 
 			var reply = Run( mounts, [], mode, source, Directory.CreateDirectory( Path.Combine( dir, "staging" ) ).FullName, answer, default );
-			if ( reply?.Answered != true || !reply.Result ) throw new InvalidOperationException( $"contentworker couldn't answer {mode}: {reply?.Reason}\n{reply?.Log}" );
+			if ( reply?.Outcome != CompilerWorker.Outcome.Succeeded ) throw new InvalidOperationException( $"contentworker couldn't answer {mode}: {reply?.Reason}\n{reply?.Log}" );
 			return File.ReadAllLines( answer );
 		}
 		finally
@@ -145,39 +153,74 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 
 		var answer = Run( job.Mounts, job.CompilerArgs, mode, job.Source, job.Staging, report, token );
 		if ( answer is null || token.IsCancellationRequested ) return Failed( "cancelled" );
-		if ( !answer.Answered ) return Failed( $"contentworker {answer.Reason}\n{answer.Log}" );
+		if ( answer.Outcome is not (CompilerWorker.Outcome.Succeeded or CompilerWorker.Outcome.Failed) ) return Failed( $"contentworker {answer.Reason}\n{answer.Log}" );
+
+		// What the job logged on its thread
+		var log = $"{report}.log";
+		var text = File.Exists( log ) ? File.ReadAllText( log ).Trim() : "";
+		File.Delete( log );
 
 		var lines = File.Exists( report ) ? File.ReadAllLines( report ) : [];
 		File.Delete( report );
-		return BuildReportParser.Parse( lines, answer.Result, answer.Log );
+		return BuildReportParser.Parse( lines, answer.Outcome == CompilerWorker.Outcome.Succeeded, text );
 	}
 
 	/// <summary>
-	/// Runs a job on a worker for these mounts and arguments, or null if cancelled first. A worker that dies before
-	/// answering is replaced and the job runs once more on the new one, from empty staging; a second loss, a timeout or
-	/// a worker that never got ready (it says why: a render device it couldn't create, compilers that didn't load) is the answer.
+	/// Runs a job on the worker for these mounts, or null if cancelled first. A worker that dies before answering is
+	/// replaced and the job runs again from empty staging, up to twice. Its jobs died with it, so any of them may have
+	/// been the cause: a job lost twice runs its last time on a worker of its own, one such job at a time, so a job that
+	/// crashes every worker fails alone. A third loss, a timeout or a worker that never got ready (it says why: a render
+	/// device it couldn't create, compilers that didn't load) is the answer. A job a worker refuses (it has an older
+	/// output loaded) runs on a new one, as does one interrupted by another job's timeout or cancellation; neither counts
+	/// as a loss.
 	/// </summary>
 	CompilerWorker.Answer Run( IReadOnlyList<(string Mod, string Path)> mounted, IReadOnlyList<string> compilerArgs, string mode, string source, string staging, string report, CancellationToken token )
 	{
+		if ( InProcess is not null )
+			return token.IsCancellationRequested ? null : new( InProcess( mode, source, staging, report, compilerArgs ) ? CompilerWorker.Outcome.Succeeded : CompilerWorker.Outcome.Failed, null, "" );
+
 		for ( var attempt = 0; ; attempt++ )
 		{
+			var alone = attempt == 2;
+			if ( alone )
+			{
+				try { isolated.Wait( token ); }
+				catch ( OperationCanceledException ) { return null; }
+			}
+
+			CompilerWorker worker;
 			CompilerWorker.Answer answer;
-			var worker = Take( mounted, compilerArgs, token );
-			if ( worker is null ) return null;
 			try
 			{
-				answer = worker.Run( mode, source, staging, report, Timeout, token );
+				worker = Take( mounted, alone, token );
+				if ( worker is null ) return null;
+				try
+				{
+					answer = worker.Run( mode, source, staging, report, compilerArgs, Timeout, token );
+				}
+				catch
+				{
+					Release( worker, true, "failed" );
+					throw;
+				}
+
+				Release( worker, answer.Outcome is not (CompilerWorker.Outcome.Succeeded or CompilerWorker.Outcome.Failed), answer.Reason );
 			}
-			catch
+			finally
 			{
-				End( worker, "failed" );
-				throw;
+				if ( alone ) isolated.Release();
 			}
 
-			if ( answer.Answered && answer.TakesAnother ) Return( worker );
-			else End( worker, answer.Reason );
+			// A refused job never ran, and an interrupted one isn't to blame: neither counts as an attempt. A worker that
+			// never got ready is the answer, as it would be again.
+			if ( answer.Outcome == CompilerWorker.Outcome.Refused || (answer.Outcome == CompilerWorker.Outcome.Interrupted && worker.Started && !token.IsCancellationRequested) )
+			{
+				if ( answer.Outcome == CompilerWorker.Outcome.Interrupted ) Clear( staging );
+				attempt--;
+				continue;
+			}
 
-			if ( answer.Answered || token.IsCancellationRequested || attempt > 0 || !worker.Started || answer.Reason.StartsWith( "timed out" ) ) return answer;
+			if ( answer.Outcome != CompilerWorker.Outcome.Lost || token.IsCancellationRequested || alone || !worker.Started ) return answer;
 
 			Clear( staging );
 		}
@@ -192,96 +235,84 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	static CompileResult Failed( string log ) => new( false, log, [], [], [], [], [] );
 
 	/// <summary>
-	/// An idle worker for these mounts and arguments, or a new one. When the cap is reached by idle workers of
-	/// other mounts, one of them goes; the cap holds because a slot is taken for every worker in use.
+	/// The worker for these mounts, which runs all their jobs, or a new one; or the one for a job run <paramref name="alone"/>.
+	/// Idle workers of other mounts go: each holds ~1.3 GB before it compiles anything.
 	/// </summary>
-	CompilerWorker Take( IReadOnlyList<(string Mod, string Path)> mounted, IReadOnlyList<string> compilerArgs, CancellationToken token )
+	CompilerWorker Take( IReadOnlyList<(string Mod, string Path)> mounted, bool alone, CancellationToken token )
 	{
-		lock ( gate ) slots ??= new SemaphoreSlim( MaxWorkers );
-		try { slots.Wait( token ); }
-		catch ( OperationCanceledException ) { return null; }
+		if ( token.IsCancellationRequested ) return null;
 
 		// Any root's job: a compile takes its mod from the source's path. Each mount is added in front of the last,
 		// as BuildRequest.Mounts orders them.
-		var searchPaths = string.Join( ";", mounted.Select( x => $"{x.Mod}|{x.Path}" ) );
-		var key = string.Join( '\n', [searchPaths, .. compilerArgs] );
-		CompilerWorker evict = null;
-		lock ( gate )
-		{
-			var found = idle.FirstOrDefault( x => x.Key == key );
-			if ( found is not null )
-			{
-				idle.Remove( found );
-				return found;
-			}
-
-			// Workers in use (this one included) plus idle ones stay within the cap
-			if ( idle.Count > slots.CurrentCount )
-			{
-				evict = idle[0];
-				idle.RemoveAt( 0 );
-			}
-		}
-		Interlocked.Increment( ref launches );
+		var key = string.Join( ";", mounted.Select( x => $"{x.Mod}|{x.Path}" ) );
 		var args = new List<string>
 		{
-			// A few threads each: a lone heavy compile (a skybox prefilter) finishes ~2.5x sooner, and a machine
-			// already full of compiles loses nothing to the extra threads
-			"-testmode", "-ignorecontentasserts", "-unbufferedio", "-threads", "4",
-			"-searchpaths", searchPaths,
+			// Pool threads for jobs' own parallel work (texture compression), which a lone heavy compile (a skybox
+			// prefilter) has all of. Half the logical processors: the jobs' own threads fill the rest, and more only
+			// switches between them (~4% slower with as many as there are processors)
+			"-testmode", "-ignorecontentasserts", "-unbufferedio", "-threads", $"{Math.Max( 1, Environment.ProcessorCount / 2 )}",
+			"-searchpaths", key,
 		};
 
 		// A GPU, or a CPU device when that's all there is. The pipeline cache would be one file every worker writes.
 		if ( RenderDevice ) args.AddRange( ["-vulkan", "-vulkan_allow_cpu", "-vulkan_disable_pipeline_cache"] );
 		if ( compilers is not null ) args.AddRange( ["-compilers", compilers] );
-		args.AddRange( compilerArgs );
 
-		try
+		CompilerWorker worker;
+		List<CompilerWorker> idle;
+		lock ( gate )
 		{
-			// An output root nothing was written to yet is mounted all the same
-			foreach ( var (_, path) in mounted ) Directory.CreateDirectory( path );
-
-			if ( evict is not null )
+			var pool = alone ? $"alone {key}" : key;
+			worker = workers.FirstOrDefault( x => x.Key == pool );
+			if ( worker is not null )
 			{
-				Interlocked.Increment( ref evicted );
-				evict.Stop();
+				worker.Busy++;
+				return worker;
 			}
-			return new CompilerWorker( executable, key, args, Path.GetDirectoryName( executable ) );
-		}
-		catch
-		{
-			slots.Release();
-			throw;
-		}
-	}
 
-	void Return( CompilerWorker worker )
-	{
-		lock ( gate ) idle.Add( worker );
-		slots.Release();
+			// Started here, so the jobs asking at the same time find it. An output root nothing was written to yet is
+			// mounted all the same.
+			foreach ( var (_, path) in mounted ) Directory.CreateDirectory( path );
+			worker = new CompilerWorker( executable, pool, args, Path.GetDirectoryName( executable ) ) { Busy = 1 };
+			Interlocked.Increment( ref launches );
+
+			idle = workers.Where( x => x.Busy == 0 ).ToList();
+			workers.RemoveAll( idle.Contains );
+			workers.Add( worker );
+		}
+
+		Interlocked.Add( ref evicted, idle.Count );
+		foreach ( var old in idle ) old.Stop();
+		return worker;
 	}
 
 	/// <summary>
-	/// A worker leaves early; its slot is free again however stopping it goes.
+	/// A job is done with its worker. One that <paramref name="leaves"/> takes no more jobs: it crashed, timed out, was
+	/// cancelled, or couldn't guarantee its next job starts clean. The jobs it ran besides come back, answered or not,
+	/// and the last one stops it.
 	/// </summary>
-	void End( CompilerWorker worker, string reason )
+	void Release( CompilerWorker worker, bool leaves, string reason )
 	{
-		ended.Enqueue( reason ?? "ended" );
-		try { worker.Stop(); }
-		finally { slots.Release(); }
+		bool stop;
+		lock ( gate )
+		{
+			if ( leaves && workers.Remove( worker ) ) ended.Enqueue( reason ?? "ended" );
+			stop = --worker.Busy == 0 && !workers.Contains( worker );
+		}
+		if ( stop ) worker.Stop();
 	}
 
 	/// <summary>
-	/// Every idle worker goes (a build has none busy once it returns), all at once: each takes seconds to shut its
-	/// engine down. The compiler can be used again afterwards and starts new ones.
+	/// Every worker goes (a build has none busy once it returns), all at once: each takes seconds to shut its engine
+	/// down. The compiler can be used again afterwards and starts new ones.
 	/// </summary>
 	public void Finished()
 	{
 		List<CompilerWorker> all;
 		lock ( gate )
 		{
-			all = [.. idle];
-			idle.Clear();
+			all = [.. workers];
+			workers.Clear();
 		}
 		Parallel.ForEach( all, worker => worker.Stop() );
 	}

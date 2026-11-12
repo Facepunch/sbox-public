@@ -5,7 +5,7 @@ Layer0
 	shader "shaders/complex.shader"
 
 	//---- PBR ----
-	F_SPECULAR 1
+	F_ANISOTROPIC_GLOSS 1
 
 	//---- Translucent ----
 	F_TRANSLUCENT 1
@@ -18,7 +18,7 @@ Layer0
 	//---- Color ----
 	g_flModelTintAmount "1.000"
 	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
-	TextureColor "[0.345098 0.325490 0.298039 0.000000]"
+	TextureColor "models/citizen_clothes/hair/hair_shortscruffy/Textures/short_scuffy_cap_color.png"
 
 	//---- Fade ----
 	g_flFadeExponent "1.000"
@@ -30,20 +30,20 @@ Layer0
 	g_flMetalness "0.000"
 
 	//---- Normal ----
-	TextureNormal "materials/default/default_normal.tga"
+	g_flLightRangeForSelfShadowNormals "0.386"
+	g_flNormalMapScaleFactor "1.000"
+	TextureNormal "models/citizen_clothes/hair/hair_shortscruffy/Textures/short_scuffy_cap_normal.png"
 
 	//---- Roughness ----
 	g_flRoughnessScaleFactor "1.000"
-	TextureRoughness "[1.000000 1.000000 1.000000 0.000000]"
+	TextureRoughness "models/citizen_clothes/hair/hair_shortscruffy/Textures/short_scuffy_cap_rough.png"
 
 	//---- Texture Coordinates ----
-	g_nScaleTexCoordUByModelScaleAxis "0"
-	g_nScaleTexCoordVByModelScaleAxis "0"
 	g_vTexCoordOffset "[0.000 0.000]"
 	g_vTexCoordScale "[1.000 1.000]"
 	g_vTexCoordScrollSpeed "[0.000 0.000]"
 
 	//---- Translucent ----
 	g_flOpacityScale "1.000"
-	TextureTranslucency "models/citizen_clothes/hair/hair_shortscruffy/Textures/scruffyshort_CAP_opacity.png"
+	TextureTranslucency "models/citizen_clothes/hair/hair_shortscruffy/textures/short_scuffy_cap_opacity.png"
 }

@@ -36,7 +36,21 @@ public partial class GameTransform
 		return true;
 	}
 
-	public TransformProxy Proxy { get; set; }
+	public TransformProxy Proxy
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			OnProxyChangedInternal?.Invoke();
+		}
+	}
+
+	/// <summary>
+	/// Called when the proxy is set or cleared. Not a transform change, but the world transform now comes from somewhere else.
+	/// </summary>
+	internal Action OnProxyChangedInternal;
 
 	/// <summary>
 	/// Returns true if we're inside the transform changed callback.

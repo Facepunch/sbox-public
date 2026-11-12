@@ -134,7 +134,7 @@ public class ManagedCompilerTests
 			MaxJobs = 1,
 		};
 
-		var compiler = new ResourceCompiler( ManagedBuilder.Worker, ManagedBuilder.Types, Request().Mounts, compilers.Folder ) { MaxWorkers = 1 };
+		var compiler = new ResourceCompiler( ManagedBuilder.Worker, ManagedBuilder.Types, Request().Mounts, compilers.Folder );
 		using var cancel = new System.Threading.CancellationTokenSource();
 		Task<BuildReport> build = null;
 		try
@@ -438,8 +438,10 @@ public class ManagedCompilerTests
 		{
 			CompilerWorkerTests.Run( reused, root, [root], "graphs/a.fxg" );
 
+			// Published as a build publishes it, which tells the worker
 			Sources.WriteTga( fx, "textures/brick.tga", 8, 8 );
 			Built( fx, compilers );
+			reused.Published( [Path.Combine( root.Path, "textures/brick.vtex_c" )] );
 
 			var fresh = CompilerWorkerTests.Fresh( root, [root], "graphs/a.fxg", compilers: compilers.Folder );
 			CompilerWorkerTests.AssertSame( fresh, CompilerWorkerTests.Run( reused, root, [root], "graphs/a.fxg" ), "after the texture it reads was rebuilt" );

@@ -69,11 +69,7 @@ internal static class ScreenCaptureUtility
 	/// </summary>
 	public static string GenerateScreenshotFilename( string extension, string filePath = "screenshots" )
 	{
-		var fileName = ConsoleSystem.GetValue( "screenshot_prefix", "sbox_" );
-		if ( string.IsNullOrEmpty( fileName ) )
-		{
-			fileName = "sbox_";
-		}
+		var fileName = SafePath.ToFileName( ScreenshotService.ScreenshotPrefix, "sbox_" );
 
 		// Format extension with dot if needed
 		string extensionSeparator = "";
@@ -90,6 +86,9 @@ internal static class ScreenCaptureUtility
 		if ( !string.IsNullOrEmpty( filePath ) )
 		{
 			screenshotFilename = Path.Combine( filePath, $"{fileName}.{timestamp}{extensionSeparator}{extension}" );
+
+			if ( !SafePath.IsWithin( filePath, screenshotFilename ) )
+				throw new ArgumentException( $"Screenshot path escapes '{filePath}'", nameof( extension ) );
 		}
 		else
 		{

@@ -83,10 +83,10 @@ internal sealed partial class PhysicsWorld3d : PhysicsWorldInternal, IHandle
 		TriggerEnd,
 	}
 
-	internal Action<PhysicsIntersection> OnIntersectionStart { get; set; }
-	internal Action<PhysicsIntersection> OnIntersectionHit { get; set; }
-	internal Action<PhysicsIntersectionEnd> OnIntersectionEnd { get; set; }
-	internal Action<PhysicsIntersection> OnIntersectionUpdate { get; set; }
+	internal Action<Collision> OnIntersectionStart { get; set; }
+	internal Action<Collision> OnIntersectionHit { get; set; }
+	internal Action<CollisionStop> OnIntersectionEnd { get; set; }
+	internal Action<Collision> OnIntersectionUpdate { get; set; }
 	internal Action<PhysicsBody> OnBodyOutOfBounds { get; set; }
 	internal Action<PhysicsBody> OnBodyFellAsleep { get; set; }
 
@@ -189,37 +189,44 @@ internal sealed partial class PhysicsWorld3d : PhysicsWorldInternal, IHandle
 
 				var c = new PhysicsContact( ptr );
 
+				// Resolve each side once, the scene and both bodies get the same sources
+				var sa = new CollisionSource( a );
+				var sb = new CollisionSource( b );
+
 				if ( ptr->Reason == IntersectionEventType_t.TouchBegin )
 				{
-					OnIntersectionStart?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-					a.Body.DispatchIntersectionStart( new PhysicsIntersection( a, b, c ) );
-					b.Body.DispatchIntersectionStart( new PhysicsIntersection( b, a, c ) );
+					var ab = new Collision( sa, sb, c );
+					OnIntersectionStart?.InvokeWithWarning( ab );
+					a.Body.DispatchIntersectionStart( ab );
+					b.Body.DispatchIntersectionStart( new Collision( sb, sa, c ) );
 				}
 				else if ( ptr->Reason == IntersectionEventType_t.Hit )
 				{
-					OnIntersectionHit?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
+					OnIntersectionHit?.InvokeWithWarning( new Collision( sa, sb, c ) );
 				}
 				else if ( ptr->Reason == IntersectionEventType_t.TouchEnd )
 				{
-					OnIntersectionEnd?.InvokeWithWarning( new PhysicsIntersectionEnd( a, b ) );
-					a.Body.DispatchIntersectionEnd( new PhysicsIntersectionEnd( a, b ) );
-					b.Body.DispatchIntersectionEnd( new PhysicsIntersectionEnd( b, a ) );
+					var ab = new CollisionStop( sa, sb );
+					OnIntersectionEnd?.InvokeWithWarning( ab );
+					a.Body.DispatchIntersectionEnd( ab );
+					b.Body.DispatchIntersectionEnd( new CollisionStop( sb, sa ) );
 				}
 				else if ( ptr->Reason == IntersectionEventType_t.TouchPersists )
 				{
-					OnIntersectionUpdate?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-					a.Body.DispatchIntersectionUpdate( new PhysicsIntersection( a, b, c ) );
-					b.Body.DispatchIntersectionUpdate( new PhysicsIntersection( b, a, c ) );
+					var ab = new Collision( sa, sb, c );
+					OnIntersectionUpdate?.InvokeWithWarning( ab );
+					a.Body.DispatchIntersectionUpdate( ab );
+					b.Body.DispatchIntersectionUpdate( new Collision( sb, sa, c ) );
 				}
 				else if ( ptr->Reason == IntersectionEventType_t.TriggerBegin )
 				{
-					a.Body.DispatchTriggerBegin( new PhysicsIntersection( a, b, c ) );
-					b.Body.DispatchTriggerBegin( new PhysicsIntersection( b, a, c ) );
+					a.Body.DispatchTriggerBegin( sa, sb );
+					b.Body.DispatchTriggerBegin( sb, sa );
 				}
 				else if ( ptr->Reason == IntersectionEventType_t.TriggerEnd )
 				{
-					a.Body.DispatchTriggerEnd( new PhysicsIntersectionEnd( a, b ) );
-					b.Body.DispatchTriggerEnd( new PhysicsIntersectionEnd( b, a ) );
+					a.Body.DispatchTriggerEnd( sa, sb );
+					b.Body.DispatchTriggerEnd( sb, sa );
 				}
 			}
 			catch ( System.Exception e )

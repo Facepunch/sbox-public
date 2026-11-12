@@ -39,6 +39,8 @@ public static partial class Graphics
 	public static void ResourceBarrierTransition<T>( GpuBuffer<T> buffer, ResourceState state ) where T : unmanaged
 	{
 		ArgumentNullException.ThrowIfNull( buffer );
+		var native = buffer.native;
+		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, buffer );
 
 		RenderBarrierPipelineStageFlags_t srcStage, dstStage;
 		RenderBarrierAccessFlags_t barrierAccessFlags;
@@ -50,7 +52,7 @@ public static partial class Graphics
 
 		ResourceStateToVulkanFlags( state, out dstStage, out barrierAccessFlags, out imageLayout, buffer.Usage );
 
-		Context.BufferBarrierTransition( buffer.native, srcStage, dstStage, 0, barrierAccessFlags );
+		Context.BufferBarrierTransition( native, srcStage, dstStage, 0, barrierAccessFlags );
 	}
 
 	/// <summary>
@@ -62,6 +64,8 @@ public static partial class Graphics
 	public static void ResourceBarrierTransition( GpuBuffer buffer, ResourceState state )
 	{
 		ArgumentNullException.ThrowIfNull( buffer );
+		var native = buffer.native;
+		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, buffer );
 
 		RenderBarrierPipelineStageFlags_t srcStage, dstStage;
 		RenderBarrierAccessFlags_t barrierAccessFlags;
@@ -73,7 +77,7 @@ public static partial class Graphics
 
 		ResourceStateToVulkanFlags( state, out dstStage, out barrierAccessFlags, out imageLayout, buffer.Usage );
 
-		Context.BufferBarrierTransition( buffer.native, srcStage, dstStage, 0, barrierAccessFlags );
+		Context.BufferBarrierTransition( native, srcStage, dstStage, 0, barrierAccessFlags );
 	}
 
 	/// <summary>
@@ -87,11 +91,13 @@ public static partial class Graphics
 	public static void ResourceBarrierTransition<T>( GpuBuffer<T> buffer, ResourceState before, ResourceState after ) where T : unmanaged
 	{
 		ArgumentNullException.ThrowIfNull( buffer );
+		var native = buffer.native;
+		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, buffer );
 
 		ResourceStateToVulkanFlags( before, out var srcStage, out var srcFlags, out _, buffer.Usage );
 		ResourceStateToVulkanFlags( after, out var dstStage, out var dstFlags, out _, buffer.Usage );
 
-		Context.BufferBarrierTransition( buffer.native, srcStage, dstStage, srcFlags, dstFlags );
+		Context.BufferBarrierTransition( native, srcStage, dstStage, srcFlags, dstFlags );
 	}
 
 	/// <summary>
@@ -104,11 +110,13 @@ public static partial class Graphics
 	public static void ResourceBarrierTransition( GpuBuffer buffer, ResourceState before, ResourceState after )
 	{
 		ArgumentNullException.ThrowIfNull( buffer );
+		var native = buffer.native;
+		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, buffer );
 
 		ResourceStateToVulkanFlags( before, out var srcStage, out var srcFlags, out _, buffer.Usage );
 		ResourceStateToVulkanFlags( after, out var dstStage, out var dstFlags, out _, buffer.Usage );
 
-		Context.BufferBarrierTransition( buffer.native, srcStage, dstStage, srcFlags, dstFlags );
+		Context.BufferBarrierTransition( native, srcStage, dstStage, srcFlags, dstFlags );
 	}
 
 	/// <summary>
@@ -145,11 +153,13 @@ public static partial class Graphics
 	public static void UavBarrier( GpuBuffer buffer )
 	{
 		ArgumentNullException.ThrowIfNull( buffer );
+		var native = buffer.native;
+		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, buffer );
 
 		var stage = RenderBarrierPipelineStageFlags_t.FragmentShaderBit | RenderBarrierPipelineStageFlags_t.ComputeShaderBit;
 		var access = RenderBarrierAccessFlags_t.ShaderReadBit | RenderBarrierAccessFlags_t.ShaderWriteBit;
 
-		Context.BufferBarrierTransition( buffer.native, stage, stage, access, access );
+		Context.BufferBarrierTransition( native, stage, stage, access, access );
 	}
 
 	/// <summary>

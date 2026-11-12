@@ -19,6 +19,9 @@ public class ModalSystem : IModalSystem
 		if ( IsPauseMenuOpen )
 			return true;
 
+		if ( MenuProject.Platform.PlatformRoot.Instance?.WantsMouse ?? false )
+			return true;
+
 		return OpenModals.Any( x => x.WantsMouseInput() );
 	}
 
@@ -87,6 +90,11 @@ public class ModalSystem : IModalSystem
 	}
 
 	/// <summary>
+	/// Put the friends list away if it's up - true if it was
+	/// </summary>
+	public bool CloseFriendsList() => CloseExisting<FriendsListModal>();
+
+	/// <summary>
 	/// Is a modal of the given type currently open?
 	/// </summary>
 	public bool IsOpen<T>() where T : BaseModal
@@ -108,6 +116,13 @@ public class ModalSystem : IModalSystem
 	public void Game( string packageIdent )
 	{
 		if ( string.IsNullOrEmpty( packageIdent ) ) return;
+
+		// The platform menu has its own, up out of the dock with the dock still under it
+		if ( MenuProject.Platform.PlatformMenu.Enabled )
+		{
+			MenuProject.Platform.PlatformRoot.Instance?.ShowGame( packageIdent );
+			return;
+		}
 
 		CloseExisting<GameModal>();
 		Push( new GameModal { PackageIdent = packageIdent } );
@@ -156,8 +171,20 @@ public class ModalSystem : IModalSystem
 		Push( new ReviewModal { Package = package } );
 	}
 
+	/// <summary>
+	/// The friends list - only ever one. Asked for again off what brought it up, it's put away instead.
+	/// </summary>
 	public void FriendsList( in FriendsListModalOptions config )
 	{
+		OpenModals.RemoveAll( x => !x.IsValid() );
+
+		if ( OpenModals.OfType<FriendsListModal>().FirstOrDefault() is { } open )
+		{
+			var again = open.AnchorPanel is not null && open.AnchorPanel == config.Anchor?.Panel;
+			CloseExisting<FriendsListModal>();
+			if ( again ) return;
+		}
+
 		Push( new FriendsListModal( config ) );
 	}
 
@@ -173,12 +200,19 @@ public class ModalSystem : IModalSystem
 
 	public void PlayerList()
 	{
-		Push( new PlayerListModal() );
+		Push( new MenuProject.Platform.PlayersModal() );
 	}
 
 	public void Settings( string page = "" )
 	{
 		var category = MenuProject.Settings.SettingsCatalog.ResolveCategory( page );
+
+		// The platform menu has its own, over the front with the dock still under it
+		if ( MenuProject.Platform.PlatformMenu.Enabled )
+		{
+			MenuProject.Platform.PlatformRoot.Instance?.ToggleSettings( category );
+			return;
+		}
 
 		// In a game there's no menu to navigate, so the same view goes up full bleed instead.
 		if ( !Sandbox.Game.InGame && MenuProject.MainMenu.Instance?.Navigator is not null )
@@ -256,6 +290,13 @@ public class ModalSystem : IModalSystem
 
 			top.Delete();
 			OpenModals.Remove( top );
+			return;
+		}
+
+		// The platform menu pauses with its dock and the game's front, rather than the pause menu
+		if ( MenuProject.Platform.PlatformMenu.Enabled )
+		{
+			MenuProject.Platform.PlatformRoot.Instance?.Escape();
 			return;
 		}
 
@@ -393,5 +434,5 @@ public class ModalSystem : IModalSystem
 	}
 
 	public bool IsModalOpen => HasModalsOpen();
-	public bool IsPauseMenuOpen => PauseModal.Open is not null;
+	public bool IsPauseMenuOpen => PauseModal.Open is not null || (MenuProject.Platform.PlatformRoot.Instance?.Paused ?? false);
 }

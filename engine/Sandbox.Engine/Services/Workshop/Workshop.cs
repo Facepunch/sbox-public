@@ -12,6 +12,16 @@ namespace Sandbox;
 internal static partial class Workshop
 {
 	/// <summary>
+	/// The tags a game's publisher can pick for it - what it is
+	/// </summary>
+	internal static readonly string[] GameTags = ["Action", "Adventure", "Arcade", "Building", "Casual", "Competitive", "Cozy", "Exploration", "Horror", "Idle", "Party", "Physics", "Platformer", "Puzzle", "Racing", "Roguelike", "Roleplay", "Sandbox", "Shooter", "Simulation", "Social", "Sports", "Strategy", "Survival", "Tycoon"];
+
+	/// <summary>
+	/// The tags a game gets from its player settings - how it's played
+	/// </summary>
+	internal static readonly string[] PlayerTags = ["Singleplayer", "Multiplayer", "Co-op", "Versus"];
+
+	/// <summary>
 	/// An item on the Steam Workshop - a map, a game, someone's saved dupe - as the Workshop describes it. Read straight
 	/// from Steam's answer to a query.
 	/// </summary>

@@ -1,17 +1,14 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 MountCard
 {
-	@include front-slab;
+	@include platform-surface;
 	flex-direction: column;
 	flex-shrink: 0;
 	// 4 to a row at 1920 with room to spare. Art is 460x215 Steam capsule, so the art box
 	// keeps that ratio - anything else letterboxes or squashes it.
 	width: 312px;
-	// Reserved so hover and the mounted state cost no layout shift.
-	border: 2px solid transparent;
-	border-radius: $front-radius;
 	overflow: hidden;
 	pointer-events: all;
 	cursor: pointer;
@@ -38,7 +35,7 @@ MountCard
 			width: 100%;
 			text-align: center;
 			font-size: 34px;
-			color: $front-tertiary;
+			color: $platform-faint;
 		}
 	}
 	// Pin both edges and right-align, same as PackageFlairBar. `right` alone leaves a
@@ -57,13 +54,10 @@ MountCard
 	// rather than inheriting the tile's.
 	.action
 	{
-		@include front-pill;
+		@include platform-text-button( 30px, 12.5px, 15px );
+		padding: 0 12px;
 		flex-shrink: 0;
-		// The art behind it is busy, so it needs its own ground to stay legible.
-		background-color: rgba( 8, 10, 16, 0.82 );
-		border-color: rgba( 255, 255, 255, 0.22 );
 		pointer-events: all;
-		cursor: pointer;
 
 		label
 		{
@@ -80,8 +74,8 @@ MountCard
 			sound-in: "ui.button.press";
 		}
 	}
-	// A band below the art, on its own fill - the art stays unobstructed. min-height so a tile
-	// without the second line still matches the others in its row.
+	// A band below the art - the art stays unobstructed. min-height so a tile without the second line still
+	// matches the others in its row.
 	.bar
 	{
 		flex-direction: row;
@@ -90,7 +84,6 @@ MountCard
 		min-height: 54px;
 		gap: 10px;
 		padding: 9px 12px 11px 12px;
-		background-color: $front-tile-bar;
 	}
 	// width 0 + grow so a long title ellipsises instead of pushing the switch off the tile.
 	.body
@@ -112,48 +105,21 @@ MountCard
 	{
 		font-size: 11px;
 		font-weight: 500;
-		color: $front-tertiary;
+		color: $platform-faint;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	// The knob is absolute and slides on `left` - the track's own layout stays put.
 	.switch
 	{
-		position: relative;
-		flex-shrink: 0;
-		width: 42px;
-		height: 22px;
-		border-radius: 999px;
-		background-color: $front-track;
-		border: $front-border-width solid $front-hairline;
-		transition: all 0.15s ease;
-
-		.knob
-		{
-			position: absolute;
-			top: 3px;
-			left: 3px;
-			width: 14px;
-			height: 14px;
-			border-radius: 50%;
-			background-color: $front-secondary;
-			transition: all 0.15s ease;
-		}
+		@include platform-switch;
 	}
 	// Only a tile with something to toggle, and not already working, reacts to the pointer.
 	&.installed:not( .busy ), &.mounted:not( .busy )
 	{
 		&:hover
 		{
-			// HDR - blooms, same as the front page's cards.
-			border-color: $front-primary * 10;
 			sound-in: "ui.button.over";
-
-			.title
-			{
-				color: #ffffff;
-			}
 		}
 
 		&:active
@@ -164,49 +130,28 @@ MountCard
 
 	&.mounted
 	{
-		border-color: rgba( $front-primary, 0.55 );
 		opacity: 1;
 
 		.meta
 		{
-			color: $front-body;
-		}
-
-		.switch
-		{
-			background-color: $front-primary;
-			border-color: $front-primary;
-
-			.knob
-			{
-				left: 23px;
-				background-color: #ffffff;
-			}
+			color: $platform-muted;
 		}
 	}
 	// Mid-operation. The knob parks half way so the switch reads as in transit rather than as
-	// either state, and there's nothing to click until it lands. After .mounted deliberately -
-	// same specificity, so this has to be the later rule to win while a mount is turning off.
+	// either state, and there's nothing to click until it lands. The switch isn't .on while it's busy.
 	&.busy
 	{
 		cursor: default;
-		// Reset the track as well as the knob. Turning a mounted game off keeps .mounted's blue
-		// fill otherwise, and a blue knob on a blue track is an unreadable lozenge.
-		.switch
-		{
-			background-color: $front-track;
-			border-color: $front-hairline;
 
-			.knob
-			{
-				left: 13px;
-				background-color: $front-primary;
-			}
+		.switch .knob
+		{
+			transform: translateX( 7px );
+			background-color: $platform-primary;
 		}
 
 		.meta
 		{
-			color: $front-primary;
+			color: $platform-primary;
 		}
 	}
 	// Nothing to toggle until the game is on disk, so neither tile behaves like a button. The art
@@ -217,7 +162,7 @@ MountCard
 
 		.title
 		{
-			color: $front-secondary;
+			color: $platform-muted;
 		}
 	}
 	// Already yours, one free click from usable - stays close to full colour.

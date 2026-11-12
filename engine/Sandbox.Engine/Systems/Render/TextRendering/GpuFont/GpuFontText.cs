@@ -20,7 +20,7 @@ internal static class GpuFontText
 	const int FlagGradient = 2;
 	const int TileSize = 16; // TEXT_TILE_SIZE in ui/text.hlsl
 
-	internal struct Options
+	internal record struct Options
 	{
 		public bool Aliased;
 		public int SelectionStart;

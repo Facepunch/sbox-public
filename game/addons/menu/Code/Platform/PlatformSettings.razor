@@ -1,0 +1,55 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.Settings;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    Settings on the platform menu - the menu's own settings view, laid out as the platform's: its categories down the
+    left of it under a big heading, the page in a card in the middle running down into the dock and fading off into it,
+    what the setting being read about does on the right.
+*@
+<root>
+    <SettingsView @ref="View" Heading="#menu.settings" StartCategory=@Category OnCancel=@OnClose SearchInBar=@true />
+</root>
+
+@code
+{
+    /// <summary>
+    /// Which category to open on - empty for the first
+    /// </summary>
+    [Parameter] public string Category { get; set; }
+
+    [Parameter] public Action OnClose { get; set; }
+
+    SettingsView View;
+
+    /// <summary>
+    /// Edited and not saved yet - lost when it goes
+    /// </summary>
+    public bool IsDirty => View?.Catalog.IsDirty ?? false;
+
+    readonly ScrollFade rowsFade = new( 32 );
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Its rows fading off under the bar and over the buttons when there's more of them than fits, as the platform's
+        // lists do
+        rowsFade.Apply( ChildWithClass( ChildWithClass( View, "body" ), "scroll" ) );
+    }
+
+    // By index - it's every frame, and walking Children allocates
+    static Panel ChildWithClass( Panel panel, string name )
+    {
+        for ( var i = 0; i < (panel?.ChildrenCount ?? 0); i++ )
+        {
+            if ( panel.GetChild( i ) is { } child && child.HasClass( name ) ) return child;
+        }
+
+        return null;
+    }
+}

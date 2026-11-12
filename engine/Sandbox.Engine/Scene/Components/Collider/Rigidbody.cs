@@ -692,7 +692,7 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	{
 		if ( !_body.IsValid() ) return;
 
-		// Impulses, velocity writes and a new transform proxy don't mark us, so check again
+		// Impulses and a new transform proxy don't mark us, so check again
 		if ( !IsPhysicsActive && _body.Sleeping && Transform.Proxy is null ) return;
 
 		// Owned and asleep with the synced velocities already zeroed: nothing below would change until something marks us
