@@ -11,6 +11,138 @@ namespace SceneTests.Components;
 public class WaterBodyTests
 {
 	/// <summary>
+	/// Neutral caustics match the tuned baseline, and doubling either control survives GPU data packing.
+	/// </summary>
+	[TestMethod]
+	public void CausticsControlsAreMultipliers()
+	{
+		if ( !Graphics.IsAvailable )
+			Assert.Inconclusive( "Requires SBOX_TEST_GRAPHICS=1." );
+
+		var scene = Scene.CreateEditorScene();
+		using var scope = scene.Push();
+		try
+		{
+			var water = scene.CreateObject().Components.Create<WaterBody>();
+			var material = water.MaterialCopy();
+			material.Set( "CausticsIntensity", 1f );
+			material.Set( "CausticsBrightness", 1f );
+			scene.EditorTick( 1, 1f / 60 );
+
+			var projector = water.GetComponentsInChildren<LightModulator>().Single();
+			Assert.IsTrue( projector.BuildData( out var baseline ) );
+			Assert.AreEqual( 0.78f, baseline.Strength );
+			Assert.AreEqual( 5f, baseline.Brightness );
+
+			material.Set( "CausticsIntensity", 2f );
+			scene.EditorTick( 2, 1f / 60 );
+			Assert.IsTrue( projector.BuildData( out var doubledIntensity ) );
+			Assert.AreEqual( baseline.Strength * 2, doubledIntensity.Strength );
+			Assert.AreEqual( baseline.Brightness, doubledIntensity.Brightness );
+
+			material.Set( "CausticsBrightness", 2f );
+			scene.EditorTick( 3, 1f / 60 );
+			Assert.IsTrue( projector.BuildData( out var doubledBrightness ) );
+			Assert.AreEqual( baseline.Brightness * 2, doubledBrightness.Brightness );
+			Assert.AreEqual( doubledIntensity.Strength, doubledBrightness.Strength );
+
+			material.Set( "CausticsIntensity", 0f );
+			scene.EditorTick( 4, 1f / 60 );
+			Assert.IsFalse( scene.GetAll<LightModulator>().Any( x => x.Active ) );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
+
+	/// <summary>
+	/// Caustics scale independently and remain below the full wave envelope as the water is edited.
+	/// </summary>
+	[TestMethod]
+	public void CausticsFollowScaleAndLowestWaveHeight()
+	{
+		if ( !Graphics.IsAvailable )
+			Assert.Inconclusive( "Requires SBOX_TEST_GRAPHICS=1." );
+
+		var scene = Scene.CreateEditorScene();
+		using var scope = scene.Push();
+		try
+		{
+			var water = scene.CreateObject().Components.Create<WaterBody>();
+			water.WorldPosition = new Vector3( 10, 20, 80 );
+			water.WorldRotation = Rotation.From( new Angles( 20, 30, 0 ) );
+			water.Waves = true;
+			water.WaveHeight = 32;
+			var material = water.MaterialCopy();
+			material.Set( "CausticsScale", 1f );
+			scene.EditorTick( 1, 1f / 60 );
+
+			var projector = water.GetComponentsInChildren<LightModulator>().Single();
+			var tiling = projector.Tiling;
+			var detailScale = material.GetVector4( "DetailScale" );
+			Assert.IsTrue( projector.WorldPosition.Distance( water.FromSurface( Vector3.Down * 32 ) ) < 0.001f );
+
+			material.Set( "CausticsScale", 2f );
+			water.WaveHeight = 64;
+			scene.EditorTick( 2, 1f / 60 );
+			Assert.AreEqual( tiling * 0.5f, projector.Tiling );
+			Assert.AreEqual( detailScale, material.GetVector4( "DetailScale" ) );
+			Assert.IsTrue( projector.WorldPosition.Distance( water.FromSurface( Vector3.Down * 64 ) ) < 0.001f );
+
+			water.Waves = false;
+			scene.EditorTick( 3, 1f / 60 );
+			Assert.IsTrue( projector.WorldPosition.Distance( water.FromSurface( Vector3.Zero ) ) < 0.001f );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
+
+	/// <summary>
+	/// Shipped presets load their textures and are accepted by WaterBody without falling back to another material.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "blue" )]
+	[DataRow( "green" )]
+	[DataRow( "clear" )]
+	[DataRow( "dark" )]
+	public void DefaultPresetsAreUsable( string name )
+	{
+		if ( !Graphics.IsAvailable )
+			Assert.Inconclusive( "Requires SBOX_TEST_GRAPHICS=1." );
+
+		var material = Material.Load( $"materials/water/{name}.water.vmat" );
+		Assert.IsTrue( material.IsValid && !material.IsError );
+		Assert.IsNotNull( material.CreateCopy(), "Preset names must support procedural material copies." );
+		Assert.AreEqual( 0f, material.GetVector4( "g_fRoughness" ).x );
+		Assert.IsTrue( material.GetVector4( "WaterFogDepthRange" ).y > 0, "Compiled depth fog settings were lost." );
+		Assert.IsTrue( material.GetVector4( "CausticsIntensity" ).x > 0, "Compiled caustics settings were lost." );
+		Assert.IsTrue( material.GetVector4( "DetailSpeed" ).x > 0, "Compiled animation settings were lost." );
+		Assert.IsTrue( material.GetVector4( "CausticsScale" ).x > 0, "Compiled caustics scale was lost." );
+
+		foreach ( var textureName in new[] { "g_tDetailNormal", "g_tCaustics" } )
+		{
+			var texture = material.GetTexture( textureName );
+			Assert.IsTrue( texture is { IsValid: true, IsError: false }, $"{name} is missing {textureName}." );
+		}
+
+		var scene = Scene.CreateEditorScene();
+		using var scope = scene.Push();
+		try
+		{
+			var water = scene.CreateObject( false ).Components.Create<WaterBody>();
+			water.Material = material;
+			Assert.AreSame( material, water.ActiveMaterial );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
+
+	/// <summary>
 	/// Swapping between materials, to a material of another shader and back changes the drawn colour, the
 	/// refraction capture, fog and caustics together.
 	/// </summary>
@@ -93,7 +225,7 @@ public class WaterBodyTests
 			Assert.IsNull( water.RefractionFog );
 
 			var fallback = Render( Material.Load( "materials/dev/primary_white.vmat" ) );
-			Assert.AreSame( Material.Load( "materials/water/water.vmat" ), Drawn() );
+			Assert.AreSame( Material.Load( "materials/water/blue.water.vmat" ), Drawn() );
 			Assert.IsTrue( fallback.z > fallback.x, $"The fallback did not draw the default water: {fallback}" );
 			Assert.AreEqual( 1, Modulators() );
 

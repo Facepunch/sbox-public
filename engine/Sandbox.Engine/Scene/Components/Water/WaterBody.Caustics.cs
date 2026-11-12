@@ -3,18 +3,23 @@ namespace Sandbox;
 public sealed partial class WaterBody
 {
 	/// <summary>
-	/// How strongly caustics modulate light at an intensity of one.
+	/// How strongly caustics modulate light at the material's neutral intensity of one.
 	/// </summary>
-	const float CausticsStrength = 0.156f;
+	const float CausticsStrength = 0.78f;
+
+	/// <summary>
+	/// Texture brightness at the material's neutral multiplier of one.
+	/// </summary>
+	const float CausticsBrightness = 5f;
 
 	LightModulator _caustics;
 	Transform? _causticsSourceTransform;
 
 	/// <summary>
-	/// Project the material's caustics (its Caustics feature, texture, intensity, brightness and contrast) onto
-	/// surfaces lit through the mean water plane, with one generated modulator aligned with the water's physical
-	/// footprint. Zero intensity removes them. Scale, speed and wobble follow the material's detail normals; the
-	/// two-layer animation recipe is fixed.
+	/// Project the material's caustics (its Caustics feature, texture, intensity, brightness, contrast and scale) onto
+	/// surfaces below the lowest wave height, with one generated modulator aligned with the water's physical
+	/// footprint. Zero intensity removes them. The caustics scale multiplies the detail scale; speed and wobble
+	/// follow the material's detail normals. The two-layer animation recipe is fixed.
 	/// The shader animates the texture using the detail clock at ten times its rate.
 	/// </summary>
 	void UpdateCaustics()
@@ -37,8 +42,10 @@ public sealed partial class WaterBody
 			_causticsSourceTransform = null;
 		}
 
+		// Keep the projection below every trough so it cannot modulate objects above the waves.
 		// Modulators use their local Y/Z plane; positive X points down through the water.
-		var source = new Transform( SurfaceOrigin, WorldRotation, WorldScale );
+		var origin = SurfaceOrigin - WorldRotation.Up * CaptureDisplacement;
+		var source = new Transform( origin, WorldRotation, WorldScale );
 		if ( _causticsSourceTransform != source )
 		{
 			_caustics.GameObject.WorldTransform = new Transform( source.Position,
@@ -52,11 +59,12 @@ public sealed partial class WaterBody
 		_caustics.EdgeFeather = 0.015f;
 		_caustics.Effect = LightModulator.ModulationEffect.Caustics;
 		_caustics.Texture = texture;
-		_caustics.Strength = Math.Clamp( CausticsStrength * intensity, 0, 1 );
+		_caustics.Strength = CausticsStrength * intensity;
 		_caustics.BlendMode = LightModulator.ModulationBlendMode.Multiply;
-		_caustics.Brightness = Math.Clamp( WaterFloat( material, "CausticsBrightness" ), 0, 16 );
+		_caustics.Brightness = CausticsBrightness * Math.Clamp( WaterFloat( material, "CausticsBrightness" ), 0, 16 );
 		_caustics.Contrast = Math.Clamp( WaterFloat( material, "CausticsContrast" ), 0, 8 );
-		_caustics.Tiling = Vector2.One * (4 * 128 / DetailScale);
+		float scale = Math.Clamp( WaterFloat( material, "CausticsScale", 1 ), 0.01f, 16 );
+		_caustics.Tiling = Vector2.One * (4 * 128 / (DetailScale * scale));
 		_caustics.AnimationTime = DetailTime * 10;
 		_caustics.CausticsWobble = Math.Clamp( DetailStrength, 0, 4 ) * 0.025f;
 		_caustics.CausticsLayerScale = 1.13f;

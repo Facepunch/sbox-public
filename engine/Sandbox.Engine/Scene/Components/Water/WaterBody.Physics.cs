@@ -4,6 +4,8 @@ public sealed partial class WaterBody
 {
 	readonly HashSet<Rigidbody> _touchingBodies = [];
 	readonly List<WaterBody> _buoyancyWaters = [];
+	readonly List<Collider> _buoyancyContacts = [];
+	readonly List<Collider> _peerContacts = [];
 	bool CanApplyBuoyancy => Active
 		&& WorldScale.x != 0 && WorldScale.y != 0 && WorldScale.z != 0;
 
@@ -15,12 +17,8 @@ public sealed partial class WaterBody
 		if ( Scene.IsEditor || !CanApplyBuoyancy || !_volume.IsValid() || !_volume.Active || Time.Delta <= 0 )
 			return;
 
-		// Contacts are a HashSet, or an empty array before initialization. Enumerating
-		// the concrete set avoids an enumerator allocation for every empty water volume.
-		if ( _volume.Touching is not HashSet<Collider> touching || touching.Count == 0 )
-			return;
-
-		foreach ( var collider in touching )
+		_volume.GetTouching( _buoyancyContacts );
+		foreach ( var collider in _buoyancyContacts )
 			ApplyBuoyancy( collider );
 
 		ClearBuoyancy();
@@ -93,18 +91,25 @@ public sealed partial class WaterBody
 	/// </summary>
 	bool TouchesBody( Rigidbody body, Collider contact )
 	{
-		if ( !_volume.IsValid() || !_volume.Active || _volume.Touching is not HashSet<Collider> touching )
+		if ( !_volume.IsValid() || !_volume.Active )
 			return false;
 
+		var touching = _volume.Touching;
 		if ( touching.Contains( contact ) )
 			return true;
 
-		foreach ( var collider in touching )
+		_volume.GetTouching( _peerContacts );
+		bool found = false;
+		foreach ( var collider in _peerContacts )
 		{
 			if ( collider.IsValid() && collider.Rigidbody == body )
-				return true;
+			{
+				found = true;
+				break;
+			}
 		}
-		return false;
+		_peerContacts.Clear();
+		return found;
 	}
 
 	/// <summary>
@@ -114,5 +119,6 @@ public sealed partial class WaterBody
 	{
 		_touchingBodies.Clear();
 		_buoyancyWaters.Clear();
+		_buoyancyContacts.Clear();
 	}
 }

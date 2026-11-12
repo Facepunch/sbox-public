@@ -342,6 +342,21 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		}
 	}
 
+	/// <summary>
+	/// Append touching colliders to a reusable list without allocating an enumerator.
+	/// </summary>
+	public void GetTouching( List<Collider> result )
+	{
+		if ( _collisionEvents is not null )
+		{
+			_collisionEvents.GetTouching( result );
+		}
+		else
+		{
+			Rigidbody?.GetTouching( result );
+		}
+	}
+
 	protected virtual void RebuildImmediately()
 	{
 		if ( !Active ) return;

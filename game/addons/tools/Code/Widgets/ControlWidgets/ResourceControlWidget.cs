@@ -193,6 +193,11 @@ public class ResourceControlWidget : ControlWidget
 		picker.Show();
 
 		picker.SetSelection( asset );
+
+		if ( SerializedProperty.TryGetAttribute<AssetHintAttribute>( out var hint ) )
+		{
+			picker.SetSearchText( hint.Pattern );
+		}
 	}
 
 	private void UpdateFromAsset( Asset asset )

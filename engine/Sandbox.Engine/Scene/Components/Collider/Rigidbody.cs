@@ -976,6 +976,11 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	}
 
 	/// <summary>
+	/// Append touching triggers to a reusable list without allocating an enumerator.
+	/// </summary>
+	public void GetTouching( List<Collider> result ) => _collisionEvents?.GetTouching( result );
+
+	/// <summary>
 	/// A list of joints that we're connected to, if any.
 	/// </summary>
 	public IReadOnlySet<Joint> Joints => _body?.Joints ?? ((IReadOnlySet<Joint>)ImmutableHashSet<Joint>.Empty);

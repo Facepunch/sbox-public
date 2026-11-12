@@ -7,9 +7,9 @@ Layer0
 	//---- Caustics ----
 	F_CAUSTICS 1
 	Caustics "textures/water/caustics1.png"
-	CausticsBrightness "4.000"
+	CausticsBrightness "0.800"
 	CausticsContrast "1.000"
-	CausticsIntensity "1.000"
+	CausticsIntensity "0.200"
 
 	//---- Detail ----
 	DetailNormal "textures/water/waternormals01.png"
@@ -21,7 +21,7 @@ Layer0
 	RefractionStrength "1.000"
 
 	//---- Surface ----
-	g_fRoughness "0.020"
+	g_fRoughness "0.000"
 	Opacity "0.500"
 	SurfaceColor "[0.010000 0.171000 0.262000 0.000000]"
 
