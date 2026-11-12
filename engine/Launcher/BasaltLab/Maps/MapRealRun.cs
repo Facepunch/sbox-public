@@ -77,6 +77,13 @@ internal static class MapRealRun
 		using var map = new MapWorld( gpu, folder, core, castShadows: false, aggregatesAsMeshes: Args.Has( "-aggregates-as-meshes" ), bakedLighting: !Args.Has( "-nobaked" ), entities: !Args.Has( "-noentities" ), gpuDriven: gpuDriven );
 		map.SetTarget( options.Width, options.Height, options.Samples );
 		map.System.DepthPrepass = !Args.Has( "-noprepass" );
+
+		// -capture-visibility <dir>: the visibility pass's figure instead of timing (debug: needs -msaa 1)
+		var figureFolder = Args.String( "-capture-visibility" );
+		using var figure = figureFolder is not null && options.Samples == 1 ? new VisibilityFigure( gpu, options.Width, options.Height ) : null;
+		if ( figureFolder is not null && figure is null ) Console.Error.WriteLine( "-capture-visibility needs -msaa 1: the ids are read back as they are" );
+		map.Backend.Figure = figure;
+
 		if ( Args.Has( "-occlusion" ) && RenderHost.Current is BackendRenderHost host ) host.Occlusion = true;
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		Console.WriteLine( $"Loaded in {load.Elapsed.TotalSeconds:0.0} s; {map.Problems.Count} problems" );
@@ -137,6 +144,12 @@ internal static class MapRealRun
 			f.Copy = Ms( t2, t3 );
 			(f.Collect, f.Prepare, f.Setup, f.Record, f.WorkerRecord, f.Prepass, f.Stages, f.Submit) = (s.CollectMs, s.PrepareMs, s.SetupMs, s.RecordMs, s.WorkerRecordMs, s.PrepassRecordMs, s.StagesMs, s.SubmitMs);
 			return f;
+		}
+
+		if ( figure is not null )
+		{
+			VisibilityFigureCapture.Save( gpu, map, figure, options.Views[0], view => RenderFrame( view ), figureFolder );
+			return 0;
 		}
 
 		var lines = new List<string>();

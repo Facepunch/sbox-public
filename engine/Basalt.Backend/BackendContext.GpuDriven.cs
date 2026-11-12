@@ -582,8 +582,97 @@ internal sealed partial class BackendContext
 			DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, run.Page, run.Format, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count, compact ? frameOffset + runsOffset + i * 8 + 4 : -1 );
 		}
 
+		// Debug only: the forward pass's multi-draws again, into the figure's targets
+		if ( device.Figure is { } figure && r.Color is not null && !cull.Shadow && compact && device.FigureMaterial is { } figureMaterial )
+			DrawFigure( figure, figureMaterial, visibility, frameBuffer, frameOffset, commandOffset, runsOffset, lists ? listedOffset : -1, lists ? cursorOffset : -1, depth, resolver );
+
 		SetObjectAttributes( null );
 		r.Binder = null;
+	}
+
+	static readonly StringToken FigureConstantsName = new( "BasaltGpuDrivenFigure_t" );
+	static readonly ConditionalWeakTable<ShaderVariant, object[]> FigureLayouts = new();
+	ShaderVariant figureVariant;
+
+	/// <summary>
+	/// <c>basaltlab -capture-visibility</c>'s figure (<see cref="BackendDevice.Figure"/>): this forward pass's multi-draws
+	/// again with <c>basalt_gpu_driven_figure</c>, a count per fragment into its count target, then its triangles into its
+	/// colour target, flat over the view's depth with dark edges or as faint edges with no depth test. Only for a view of the
+	/// figure's size and one sample.
+	/// </summary>
+	void DrawFigure( VisibilityFigure figure, BackendMaterial figureMaterial, BackendDevice.VisibilityView visibility, BufferHandle frameBuffer, long frameOffset, int commandOffset, int runsOffset, int listedOffset, int cursorOffset, Format depth, PassResolver resolver )
+	{
+		var r = recording;
+		var cache = device.MaterialCache;
+		var target = Gpu.InfoOf( figure.Count );
+		var depthInfo = Gpu.InfoOf( r.Depth.Handle );
+		if ( depthInfo.Width != target.Width || depthInfo.Height != target.Height || depthInfo.Samples != 1 ) return;
+		if ( (figureVariant ??= Variant( figureMaterial, "Default" )) is null ) return;
+
+		// Where its commands and counts are, for the figure's counts once the frame is done
+		var runs = new List<(int First, long CountOffset, int Max)>();
+		for ( int i = 0; i < cullRuns.Count; i++ ) runs.Add( (cullRuns[i].First, frameOffset + runsOffset + i * 8 + 4, cullRuns[i].Count) );
+		figure.Passes.Add( (frameBuffer, frameOffset + commandOffset, runs, listedOffset >= 0 ? frameOffset + listedOffset : -1, cursorOffset >= 0 ? frameOffset + cursorOffset : -1) );
+		// The ids of the view with the most fragments (the main view's, not the 3D skybox's)
+		var fragments = 0;
+		foreach ( var run in cullRuns ) fragments += run.Count;
+		if ( visibility is not null && fragments > figure.VisibilityFragments )
+		{
+			figure.VisibilityFragments = fragments;
+			device.FigureVisibility = (visibility.Ids, visibility.Mask, device.GpuDrivenTables.VisibilityBits, device.GpuDrivenTables.FrameVisibilityBits);
+		}
+
+		CloseScope( flushClears: false );
+		var first = !figure.Cleared;
+		figure.Cleared = true;
+
+		Span<int> modes = figure.DepthTestedTriangles ? [0, 1, 2] : [0, 3];
+		foreach ( var mode in modes )
+		{
+			// The count target for the count, the colour target for the rest (cleared before its first mode)
+			var texture = mode == 0 ? figure.Count : figure.Colour;
+			var clear = first && mode <= 1 || first && mode == 3;
+			if ( clear ) r.List.Barrier( Basalt.Gpu.TextureBarrier.Transition( texture, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+			else r.List.Barrier( Basalt.Gpu.TextureBarrier.Transition( texture, ImageLayout.ColorTarget, ImageLayout.ColorTarget, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite | MemoryAccess.ColorTargetRead ) );
+			r.List.BeginRendering(
+				[new ColorTarget { Texture = texture, Load = clear ? LoadOp.Clear : LoadOp.Load, Store = StoreOp.Store, ClearColor = mode == 0 ? default : new System.Numerics.Vector4( 0.02f, 0.025f, 0.035f, 1 ) }],
+				new DepthTarget { Texture = r.Depth.Handle, Layer = bound.DepthSlice, Load = LoadOp.Load, Store = StoreOp.Store } );
+			var rect = bound.Viewport;
+			var (width, height) = r.List.RenderSize;
+			if ( rect.Width <= 0 || rect.Height <= 0 ) rect = new Rect( 0, 0, width, height );
+			r.List.SetViewport( rect.Left, rect.Top, rect.Width, rect.Height, bound.MinZ, bound.MaxZ );
+			r.List.SetScissor( (int)rect.Left, (int)rect.Top, (int)MathF.Ceiling( rect.Width ), (int)MathF.Ceiling( rect.Height ) );
+			r.Pipeline = default;
+
+			SetConstants( FigureConstantsName, new System.Numerics.Vector4( BitConverter.UInt32BitsToSingle( (uint)mode ), 0, 0, 0 ) );
+			var lastBucket = -1;
+			for ( int i = 0; i < cullRuns.Count; i++ )
+			{
+				var run = cullRuns[i];
+				var bucket = gpuDrivenBuckets[run.Bucket];
+				if ( run.Bucket != lastBucket )
+				{
+					lastBucket = run.Bucket;
+					SetObjectAttributes( null, bucket.Attributes );
+					NextPassState( cache );
+					resolver.Begin( passEpoch );
+					var layout = FigureLayouts.GetValue( bucket.Variant, static _ => [new object(), new object(), new object(), new object()] )[mode];
+					var key = new MaterialObjectCache.Key( figureMaterial, figureVariant, layout, mode == 0 ? Format.R16Float : Format.RGBA8Unorm, depth, 1, false, true );
+					var materialObject = cache.Get( key, immediate: false, (device, key, stateFrom: bucket.Variant, mode), static ( s, l ) => s.device.FigurePipeline( s.key.Variant, s.stateFrom, s.mode, s.key.Depth, l.Sets ) );
+					resolver.LayerEpoch = layerEpoch;
+					materialObject.Bind( r.List, ref r.Pipeline, passEpoch, resolver );
+				}
+
+				r.List.SetIndexBuffer( run.Page, run.Format, 0 );
+				r.List.DrawIndexedIndirectCount( frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, frameBuffer, frameOffset + runsOffset + i * 8 + 4, run.Count, GpuDrivenTables.CommandStride );
+			}
+
+			r.List.EndRendering();
+			r.Pipeline = default;
+			r.Binder = null;
+		}
+
+		SetObjectAttributes( null );
 	}
 
 	byte[] markConstants;
