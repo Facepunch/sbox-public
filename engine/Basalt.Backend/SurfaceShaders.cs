@@ -53,6 +53,29 @@ public sealed class SurfaceShaders : IDisposable
 		lock ( programs ) return conversions.TryGetValue( ShaderKey( shader ), out var file ) ? file : null;
 	}
 
+	/// <summary>
+	/// A material of the surface in <paramref name="file"/> filled the way a converted <c>.vmat</c> is (see
+	/// <see cref="Convert"/>): <paramref name="textures"/> (compiled texture paths) and <paramref name="values"/> by the
+	/// <c>.shader</c>'s variable names. Null when the surface doesn't compile.
+	/// </summary>
+	public GpuMaterial CreateMaterial( string file, IReadOnlyDictionary<string, string> textures, IReadOnlyDictionary<string, float[]> values, string name = null )
+	{
+		if ( Compile( file ) is not { } compiled ) return null;
+		var material = new Basalt.Source2.Materials.MaterialFile
+		{
+			Name = name ?? file,
+			Shader = file,
+			Ints = new Dictionary<string, int>(),
+			Floats = new Dictionary<string, float>(),
+			Vectors = values?.ToDictionary( v => v.Key, v => v.Value ) ?? new Dictionary<string, float[]>(),
+			Textures = textures?.ToDictionary( t => t.Key, t => t.Value ) ?? new Dictionary<string, string>(),
+			IntAttributes = new Dictionary<string, int>(),
+			ShaderVersion = 1,
+		};
+
+		return ConvertedMaterial.Create( compiled, material, name ?? file, texture => device.LoadTexture( texture ) );
+	}
+
 	/// <summary>Whether any shader has a surface standing in for it.</summary>
 	internal bool HasConversions
 	{

@@ -38,6 +38,48 @@ public struct Material
 		o.Transmission = lerp( a.Transmission, b.Transmission, amount );
 		return o;
 	}
+
+	/// What common/material.hlsl's Material::Init( i ) starts from: the defaults, and the geometric normal.
+	public static Material Init( SurfaceInput i )
+	{
+		Material m = {};
+		m.Normal = i.Normal;
+		return m;
+	}
+
+	/// What Material::From( i ) reads when Material.CommonInputs.hlsl's textures are the material's: albedo and opacity,
+	/// tinted by the tint colour and the vertex colour; the normal map with its tint mask; roughness, metalness, occlusion
+	/// and transmission.
+	public static Material FromCommonInputs( SurfaceInput i, MaterialTexture2D color, MaterialTexture2D normal, MaterialTexture2D rma, float3 tint )
+	{
+		float4 c = i.Sample( color, i.Uv );
+		float4 n = i.Sample( normal, i.Uv );
+		float4 r = i.Sample( rma, i.Uv );
+
+		Material m = {};
+		m.Albedo = c.rgb * tint * i.Color.rgb;
+		m.Opacity = c.a;
+		m.Metalness = r.g;
+		m.Roughness = r.r;
+		m.AmbientOcclusion = r.b;
+		m.Transmission = r.a;
+		m.TintMask = n.a;
+		m.Normal = i.NormalFromMap( n.rgb );
+		return m;
+	}
+}
+
+/// common/utils/normal.hlsl's DecodeNormal, for converted shaders.
+public float3 DecodeNormal( float3 encoded )
+{
+	return normalize( 2.0 * encoded - 1.0 );
+}
+
+/// common/utils/normal.hlsl's TransformNormal (the tools' y flip, normalized tangents), for converted shaders.
+public float3 TransformNormal( float3 tangentNormal, float3 normal, float3 tangentU, float3 tangentV )
+{
+	tangentNormal.y = -tangentNormal.y;
+	return normalize( tangentNormal.x * normalize( tangentU ) + tangentNormal.y * normalize( tangentV ) + tangentNormal.z * normal );
 }
 
 // Set by the pass's pipeline: off in raster passes (hardware derivatives), on in a visibility-buffer resolve, which
@@ -54,7 +96,10 @@ public struct SurfaceInput
 	public float3 TangentU;          // world
 	public float3 TangentV;          // world
 	public float2 Uv;
+	public float2 Uv2;               // the second uv set, where the mesh has one
 	public float4 Color;             // vertex colour
+	public float3 Camera;            // the camera's world position
+	public float Time;               // the view's time, in seconds
 	public float4 ScreenPosition;    // SV_Position
 	public float3 View;              // world, towards the camera
 	public float ViewDistance;       // to the main view's camera, in its shadow views too, so distance fades agree

@@ -223,6 +223,43 @@ public class SurfaceTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// The converter turns pixel.hlsl-style .shaders into surfaces that compile: the template (Material::Init) and bark
+	/// (Material.CommonInputs, a helper, a feature global), and says what it leaves out (bark's vertex animation).
+	/// </summary>
+	[TestMethod]
+	public void ConverterTurnsPixelShadersIntoSurfaces()
+	{
+		Compiler();
+		var game = Path.GetDirectoryName( Core );
+		var folder = Path.Combine( Path.GetTempPath(), "basalt-surface-convert-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var bin = Path.Combine( game, "bin", "win64" );
+			var compiler = new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] );
+			foreach ( var (relative, name) in new[] { ("templates/material.shader", "material"), ("core/shaders/bark.shader", "bark") } )
+			{
+				var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( game, relative ) ), name );
+				Assert.IsNotNull( result.Source, name );
+				var path = Path.Combine( folder, name + ".slang" );
+				File.WriteAllText( path, result.Source );
+				var compiled = compiler.CompileSurface( path );
+				Assert.IsNotNull( compiled.Pass( ShaderPasses.Forward ), name );
+				if ( name == "bark" )
+				{
+					Assert.IsTrue( result.Notes.Any( n => n.Contains( "moves vertices", StringComparison.Ordinal ) ) );
+					Assert.IsNotNull( compiled.Material.Field( "SpecularOcclusion" ) );
+					Assert.IsNotNull( compiled.Material.Field( "Color" ) );
+				}
+			}
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
 	/// <summary>Hotload: changing a surface's module drops its program, and the next compile is a fresh one.</summary>
 	[TestMethod]
 	public void ChangedSurfacesHotload()

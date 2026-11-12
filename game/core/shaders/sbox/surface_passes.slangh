@@ -142,7 +142,10 @@ SurfaceInput MakeSurfaceInput( PixelInput i )
 	s.TangentU = i.vTangentUWs;
 	s.TangentV = i.vTangentVWs;
 	s.Uv = i.vTextureCoords.xy;
+	s.Uv2 = i.vTextureCoords.zw;
 	s.Color = i.vVertexColor;
+	s.Camera = g_vCameraPositionWs;
+	s.Time = g_flTime;
 	s.ScreenPosition = i.vPositionSs;
 	s.View = normalize( g_vCameraPositionWs - s.Position );
 	// From the lighting origin (the main view's camera, also in its shadow views), so distance fades agree across passes
