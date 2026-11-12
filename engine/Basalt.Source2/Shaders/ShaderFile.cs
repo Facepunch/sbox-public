@@ -4,6 +4,12 @@ using System.IO;
 namespace Basalt.Source2.Shaders;
 
 /// <summary>
+/// A compiled shader an older engine wrote, for another resource version or ABI epoch: readable, but it needs recompiling
+/// from its embedded source before this engine can bind it (<see cref="ShaderLibrary.Upgrader"/>).
+/// </summary>
+public sealed class ShaderOutdatedException( string message ) : IOException( message );
+
+/// <summary>
 /// A compiled s&amp;box shader (<c>.shader_c</c>): its modes, features and programs, read the way
 /// <c>CVfx::CreateFromResourceFile</c> reads them. Static combos are decompressed on demand
 /// (<see cref="ShaderProgram.LoadCombo"/>). See docs/managed/basalt-gpu.md.
@@ -47,7 +53,7 @@ public sealed class ShaderFile
 	{
 		Name = name;
 		var resource = ResourceFile.Read( data );
-		if ( resource.ResourceVersion < ResourceVersion ) throw new InvalidDataException( $"{name}: shader resource version {resource.ResourceVersion}, the engine needs {ResourceVersion}" );
+		if ( resource.ResourceVersion < ResourceVersion ) throw new ShaderOutdatedException( $"{name}: shader resource version {resource.ResourceVersion}, the engine needs {ResourceVersion}" );
 
 		// The header and programs are in SPRV; resourcecompiler's files had them in DATA
 		var (block, size) = resource.Has( "SPRV" ) && resource.Find( "SPRV" ).Size > 0 ? resource.Find( "SPRV" ) : resource.Find( "DATA" );
@@ -68,7 +74,7 @@ public sealed class ShaderFile
 			var vcs = reader.Int();
 			if ( vcs < MinVcsVersion || vcs > MaxVcsVersion ) throw new InvalidDataException( $"{name}: VCS version {vcs}, can read {MinVcsVersion}..{MaxVcsVersion}" );
 			var abi = reader.Int();
-			if ( abi != AbiVersion ) throw new InvalidDataException( $"{name}: shader ABI epoch {abi}, expected {AbiVersion}; it needs recompiling" );
+			if ( abi != AbiVersion ) throw new ShaderOutdatedException( $"{name}: shader ABI epoch {abi}, expected {AbiVersion}; it needs recompiling" );
 			VcsVersion = vcs;
 
 			var serialized = reader.UInt();

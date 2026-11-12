@@ -211,14 +211,15 @@ public static class ShaderCompile
 		// Re-embed the source so the output stays recompilable next time it goes out of date.
 		var bytes = shaderSource.Serialize( vfx, result, serializeSource: true );
 
-		// GenerateResourceBytes picks the resource compiler by file extension and only knows ".shader" (the source),
-		// not ".shader_c" (the compiled output) - so hand it the source-equivalent name. The bytes are what matter;
+		// The source-equivalent name, whose "_c" is the file being replaced (its GUID is kept). The bytes are what matter;
 		// the caller writes them to the .shader_c path.
 		var sourceName = compiledFilePath.EndsWith( "_c", StringComparison.OrdinalIgnoreCase )
 			? compiledFilePath[..^2]
 			: compiledFilePath;
 
-		result.CompiledShader = CompileResourceFile( sourceName, bytes );
+		// Written without the resource compiler, even in tools mode: an upgraded package shader is a cache file nothing
+		// edits, and the resource compiler isn't loaded in every tools-mode app (SceneLab crashed in it)
+		result.CompiledShader = ShaderSource.WriteResourceFile( sourceName, bytes, ShaderTools.GetResourceVersion() );
 		result.Success = true;
 
 		return result;
