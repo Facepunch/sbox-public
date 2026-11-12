@@ -467,7 +467,10 @@ internal sealed partial class BackendContext
 
 		// Another pass of the view this frame may still be drawing from the compacted indices this one writes over
 		if ( lists ) r.List.Barrier( PipelineStage.VertexInput, MemoryAccess.IndexRead, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite );
+		var timer = device.PassTimer;
+		var cullScope = timer?.Begin( r.List, ids ? "GPU-driven cull (ids)" : lists ? "GPU-driven cull (lists)" : "GPU-driven cull", PassTimer.ScopeKind.Own, count: false ) ?? -1;
 		cullDrawer.Dispatch( r.List, CullShader, cullAttributes, batchCount * 64, 1, 1 );
+		timer?.End( r.List, cullScope );
 
 		// Only the culling's writes before the draws' reads of them: the draws before it needn't drain
 		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.VertexInput | PipelineStage.VertexShader, MemoryAccess.IndirectRead | MemoryAccess.IndexRead | MemoryAccess.ShaderRead );
@@ -518,6 +521,8 @@ internal sealed partial class BackendContext
 		var cache = device.MaterialCache;
 		var depthTexture = r.Depth;
 
+		var timer = device.PassTimer;
+		var idsScope = timer?.Begin( r.List, "GPU-driven ids", PassTimer.ScopeKind.Own, count: false ) ?? -1;
 		r.List.Barrier( Basalt.Gpu.TextureBarrier.Transition( visibility.Ids, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
 		r.List.BeginRendering( [new ColorTarget { Texture = visibility.Ids, Load = LoadOp.Clear, Store = StoreOp.Store, ClearColor = default }], new DepthTarget { Texture = depthTexture.Handle, Layer = bound.DepthSlice, Load = LoadOp.Load, Store = StoreOp.Store } );
 		var rect = bound.Viewport;
@@ -548,6 +553,7 @@ internal sealed partial class BackendContext
 		}
 
 		r.List.EndRendering();
+		timer?.End( r.List, idsScope );
 		r.Pipeline = default;
 		r.Binder = null;
 		SetObjectAttributes( null );
@@ -567,7 +573,9 @@ internal sealed partial class BackendContext
 		cullAttributes.Set( "BasaltCullMask", visibility.Mask );
 		cullAttributes.SetCombo( "D_MSAA", visibility.Samples > 1 ? 1 : 0 );
 		cullAttributes.SetData( "BasaltGpuDrivenMark_t", markConstants );
+		var markScope = timer?.Begin( r.List, "GPU-driven mark", PassTimer.ScopeKind.Own, count: false ) ?? -1;
 		cullDrawer.Dispatch( r.List, shaders.Mark, cullAttributes, visibility.Width, visibility.Height, 1 );
+		timer?.End( r.List, markScope );
 
 		// The mask and stamps for the forward pass's culling, in a later list
 		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
