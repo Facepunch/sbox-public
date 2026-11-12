@@ -17,15 +17,78 @@ public struct Material
 	public float Opacity = 1;
 	public float3 Transmission = 0;
 	public float TintMask = 1;
+
+	// A factor on the final coverage, after the alpha test's sharpened cutoff, for fading whole triangles (foliage's
+	// grazing-angle fade): spent as sub-pixel coverage with multisampling, else cut at a half. Not on Opacity, which the
+	// cutoff's derivatives would cancel.
+	public float Coverage = 1;
+
+	/// Blend two surfaces' properties, as common/material.hlsl's Material::lerp does (the normal renormalized).
+	public static Material Lerp( Material a, Material b, float amount )
+	{
+		Material o = a;
+		o.Albedo = lerp( a.Albedo, b.Albedo, amount );
+		o.Emission = lerp( a.Emission, b.Emission, amount );
+		o.Opacity = lerp( a.Opacity, b.Opacity, amount );
+		o.TintMask = lerp( a.TintMask, b.TintMask, amount );
+		o.Normal = normalize( lerp( a.Normal, b.Normal, amount ) );
+		o.Roughness = lerp( a.Roughness, b.Roughness, amount );
+		o.Metalness = lerp( a.Metalness, b.Metalness, amount );
+		o.AmbientOcclusion = lerp( a.AmbientOcclusion, b.AmbientOcclusion, amount );
+		o.Transmission = lerp( a.Transmission, b.Transmission, amount );
+		return o;
+	}
+
+	/// What common/material.hlsl's Material::Init( i ) starts from: the defaults, and the geometric normal.
+	public static Material Init( SurfaceInput i )
+	{
+		Material m = {};
+		m.Normal = i.Normal;
+		return m;
+	}
+
+	/// What Material::From( i ) reads when Material.CommonInputs.hlsl's textures are the material's: albedo and opacity,
+	/// tinted by the tint colour and the vertex colour; the normal map with its tint mask; roughness, metalness, occlusion
+	/// and transmission.
+	public static Material FromCommonInputs( SurfaceInput i, MaterialTexture2D color, MaterialTexture2D normal, MaterialTexture2D rma, float3 tint )
+	{
+		float4 c = i.Sample( color, i.Uv );
+		float4 n = i.Sample( normal, i.Uv );
+		float4 r = i.Sample( rma, i.Uv );
+
+		Material m = {};
+		m.Albedo = c.rgb * tint * i.Color.rgb;
+		m.Opacity = c.a;
+		m.Metalness = r.g;
+		m.Roughness = r.r;
+		m.AmbientOcclusion = r.b;
+		m.Transmission = r.a;
+		m.TintMask = n.a;
+		m.Normal = i.NormalFromMap( n.rgb );
+		return m;
+	}
+}
+
+/// common/utils/normal.hlsl's DecodeNormal, for converted shaders.
+public float3 DecodeNormal( float3 encoded )
+{
+	return normalize( 2.0 * encoded - 1.0 );
+}
+
+/// common/utils/normal.hlsl's TransformNormal (the tools' y flip, normalized tangents), for converted shaders.
+public float3 TransformNormal( float3 tangentNormal, float3 normal, float3 tangentU, float3 tangentV )
+{
+	tangentNormal.y = -tangentNormal.y;
+	return normalize( tangentNormal.x * normalize( tangentU ) + tangentNormal.y * normalize( tangentV ) + tangentNormal.z * normal );
 }
 
 // Set by the pass's pipeline: off in raster passes (hardware derivatives), on in a visibility-buffer resolve, which
 // supplies the uv gradients
 [vk::constant_id( 1 )] public const bool kSampleWithGradients = false;
 
-/// What the engine hands Evaluate. Built by the pass: from interpolants in raster passes, from the triangle and
+/// What the engine hands Evaluate and Light. Built by the pass: from interpolants in raster passes, from the triangle and
 /// barycentrics in a visibility-buffer resolve. Surfaces read textures through Sample(), never ddx/ddy, so the resolve
-/// can supply gradients.
+/// can supply gradients, and so can the light loop, where lanes diverge and hardware derivatives are undefined.
 public struct SurfaceInput
 {
 	public float3 Position;          // world
@@ -33,18 +96,30 @@ public struct SurfaceInput
 	public float3 TangentU;          // world
 	public float3 TangentV;          // world
 	public float2 Uv;
+	public float2 Uv2;               // the second uv set, where the mesh has one
 	public float4 Color;             // vertex colour
+	public float3 Camera;            // the camera's world position
+	public float Time;               // the view's time, in seconds
 	public float4 ScreenPosition;    // SV_Position
 	public float3 View;              // world, towards the camera
-	public float ViewDistance;       // to the camera
-	public float2 UvDdx;             // zero in raster passes: hardware derivatives are used there
+	public float ViewDistance;       // to the main view's camera, in its shadow views too, so distance fades agree
+	public float3 FaceNormal;        // world, the triangle's own (flat): from derivatives in raster passes, from the triangle in a resolve
+	public float AlphaReference;     // the alpha test's cutoff (the material's), for surfaces that move it
+	public float2 UvDdx;             // the uv's screen gradients, used when Gradients is set
 	public float2 UvDdy;
-	public SamplerState Filtering;   // the material's texture filtering
+	public bool Gradients;           // sample with UvDdx/UvDdy: in Light, which runs inside the light loop
 
 	public float4 Sample( MaterialTexture2D texture, float2 uv )
 	{
-		if ( kSampleWithGradients ) return texture.SampleGrad( Filtering, uv, UvDdx, UvDdy );
-		return texture.Sample( Filtering, uv );
+		if ( kSampleWithGradients || Gradients ) return texture.SampleGrad( g_MaterialFiltering, uv, UvDdx, UvDdy );
+		return texture.Sample( g_MaterialFiltering, uv );
+	}
+
+	/// The same with a sampler of the surface's own (a module global, its state from its annotations).
+	public float4 Sample( MaterialTexture2D texture, float2 uv, SamplerState filtering )
+	{
+		if ( kSampleWithGradients || Gradients ) return texture.SampleGrad( filtering, uv, UvDdx, UvDdy );
+		return texture.Sample( filtering, uv );
 	}
 
 	/// A tangent-space normal to world space.
@@ -61,12 +136,32 @@ public struct SurfaceInput
 		t.y = -t.y;
 		return normalize( t.x * normalize( TangentU ) + t.y * normalize( TangentV ) + t.z * Normal );
 	}
+
+	/// A hemi-octahedral normal map's rg (today's packed normal-roughness maps) in world space, as DecodeHemiOctahedronNormal
+	/// then TransformNormal read it.
+	public float3 NormalFromHemiOctahedron( float2 texel )
+	{
+		float2 d = float2( texel.x + texel.y - 1.00392163, texel.x - texel.y );
+		float3 t = normalize( float3( d, 1.0 - abs( d.x ) - abs( d.y ) ) );
+		t.y = -t.y;
+		return normalize( t.x * normalize( TangentU ) + t.y * normalize( TangentV ) + t.z * Normal );
+	}
 }
 
 /// A material shader.
 public interface ISurface
 {
 	Material Evaluate( SurfaceInput i );
+}
+
+/// Instead of ISurface: a surface with per-vertex values of its own. Varyings is a struct of extra vertex inputs, each
+/// field with the mesh semantic it reads (`float4 Blend : TEXCOORD4;`; zeros where a mesh has none); Vertex adjusts them
+/// per vertex, and Evaluate gets them interpolated.
+public interface IInterpolatedSurface
+{
+	associatedtype Varyings;
+	Varyings Vertex( Varyings v );
+	Material Evaluate( SurfaceInput i, Varyings v );
 }
 
 /// What the engine hands IVertexSurface.Displace.
@@ -97,9 +192,20 @@ public struct LightSample
 	public bool Sun;                 // the directional light
 }
 
-/// Optional: light a surface's own way. The engine's light loop calls Light per light and adds what it returns to the
-/// surface's emission before standard shading; the loop stays the engine's.
+/// Optional: light a surface's own way. The engine's light loop calls Light for every light it shades the pixel with (the
+/// sun, clustered lights, baked indexed lights), shadowed ones included, after its standard terms; what it returns is added
+/// to the diffuse light as emission. The loop stays the engine's. Sample() in Light uses the pixel's gradients.
+/// Everything Light reads stays live across the loop and costs registers there: read textures in Evaluate, and implement
+/// ISunLitSurface instead when the term only needs the sun.
 public interface ILitSurface : ISurface
 {
 	float3 Light( Material m, SurfaceInput i, LightSample light );
+}
+
+/// Optional, instead of ILitSurface: a term of the surface's own from the sun alone (foliage's translucency), called once
+/// before shading with the sun's direction, colour (with its modulators) and shadow, and added to the emission. It runs
+/// outside the light loop, so it costs about what the same code in a .shader does.
+public interface ISunLitSurface : ISurface
+{
+	float3 Light( Material m, SurfaceInput i, LightSample sun );
 }

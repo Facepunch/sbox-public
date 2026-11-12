@@ -30,8 +30,78 @@ public sealed class SurfaceShaders : IDisposable
 	/// <summary>Search <paramref name="folder"/> for shaders too.</summary>
 	public void AddFolder( string folder )
 	{
-		lock ( programs ) folders.Add( Path.GetFullPath( folder ) );
+		folder = Path.GetFullPath( folder );
+		lock ( programs ) folders.Add( folder );
+		Watch( folder );
 	}
+
+	/// <summary>
+	/// Draw <c>.vmat</c> materials of the <c>.shader</c> <paramref name="shader"/> (<c>shaders/blendable.shader</c>) with the
+	/// surface in <paramref name="file"/> (<c>blendable.slang</c>) instead, from materials loaded after this. Each field
+	/// takes the material's value of its <c>[Source]</c>, or of its name with a vfx prefix (<c>g_tColorA</c> for
+	/// <c>ColorA</c>); the shader's defaults where the material sets none.
+	/// </summary>
+	public void Convert( string shader, string file )
+	{
+		lock ( programs ) conversions[ShaderKey( shader )] = file;
+	}
+
+	/// <summary>The surface standing in for <paramref name="shader"/>, or null.</summary>
+	internal string ConversionFor( string shader )
+	{
+		if ( shader is null ) return null;
+		lock ( programs ) return conversions.TryGetValue( ShaderKey( shader ), out var file ) ? file : null;
+	}
+
+	/// <summary>
+	/// A material of the surface in <paramref name="file"/> filled the way a converted <c>.vmat</c> is (see
+	/// <see cref="Convert"/>): <paramref name="textures"/> (compiled texture paths) and <paramref name="values"/> by the
+	/// <c>.shader</c>'s variable names. Null when the surface doesn't compile.
+	/// </summary>
+	public GpuMaterial CreateMaterial( string file, IReadOnlyDictionary<string, string> textures, IReadOnlyDictionary<string, float[]> values, string name = null )
+	{
+		if ( Compile( file ) is not { } compiled ) return null;
+		var material = new Basalt.Source2.Materials.MaterialFile
+		{
+			Name = name ?? file,
+			Shader = file,
+			Ints = new Dictionary<string, int>(),
+			Floats = new Dictionary<string, float>(),
+			Vectors = values?.ToDictionary( v => v.Key, v => v.Value ) ?? new Dictionary<string, float[]>(),
+			Textures = textures?.ToDictionary( t => t.Key, t => t.Value ) ?? new Dictionary<string, string>(),
+			IntAttributes = new Dictionary<string, int>(),
+			ShaderVersion = 1,
+		};
+
+		return ConvertedMaterial.Create( compiled, material, name ?? file, texture => device.LoadTexture( texture ) );
+	}
+
+	/// <summary>Whether any shader has a surface standing in for it.</summary>
+	internal bool HasConversions
+	{
+		get
+		{
+			lock ( programs ) return conversions.Count > 0;
+		}
+	}
+
+	/// <summary>Materials loaded as the surface standing in for their shader.</summary>
+	public int ConvertedMaterials => convertedMaterials;
+
+	int convertedMaterials;
+
+	internal void CountConverted() => System.Threading.Interlocked.Increment( ref convertedMaterials );
+
+	/// <summary>Surface batches the GPU-driven path has taken, added up over every frame, for reports.</summary>
+	public long GpuDrivenBatches => System.Threading.Interlocked.Read( ref gpuDrivenBatches );
+
+	long gpuDrivenBatches;
+
+	internal void CountGpuDriven() => System.Threading.Interlocked.Increment( ref gpuDrivenBatches );
+
+	static string ShaderKey( string shader ) => Path.GetFileNameWithoutExtension( shader.Replace( '\\', '/' ) ).ToLowerInvariant();
+
+	readonly Dictionary<string, string> conversions = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>Called with a shader's compile errors; the material then draws nothing.</summary>
 	public Action<string> Error { get; set; } = message => Console.Error.WriteLine( message );
@@ -50,9 +120,88 @@ public sealed class SurfaceShaders : IDisposable
 	SlangCompiler Compiler()
 	{
 		if ( compiler is not null ) return compiler;
-		var core = device.Content.Roots.FirstOrDefault() ?? throw new InvalidOperationException( "No content folder to find the engine's shaders in" );
+		// The engine's core content: the root with the surface library (a map's own package comes first in its content)
+		var core = device.Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "sbox", "surface.slang" ) ) ) ?? device.Content.Roots.FirstOrDefault()
+			?? throw new InvalidOperationException( "No content folder to find the engine's shaders in" );
 		var game = Path.GetDirectoryName( core );
-		return compiler = new SlangCompiler( Path.Combine( game, "bin", "win64" ), [Path.Combine( core, "shaders" )] );
+		Watch( Path.Combine( core, "shaders" ) );
+		return compiler = new SlangCompiler( Path.Combine( game, "bin", "win64" ), [Path.Combine( core, "shaders" )] )
+		{
+			CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "basaltsurfaces" ),
+		};
+	}
+
+	/// <summary>
+	/// Where compiled surfaces are kept between runs; <c>game/.source2/basaltsurfaces</c> beside the engine's own caches
+	/// unless set before the first compile.
+	/// </summary>
+	public string CacheFolder { get; set; }
+
+	readonly List<FileSystemWatcher> watchers = new();
+	readonly List<SurfaceProgram> retired = new();
+
+	/// <summary>
+	/// Hotload: a change to any file a program was compiled from (its module, a module it imports, a core include) drops
+	/// the program, so the next draw of its materials compiles it again (from the cache when nothing it read changed).
+	/// The dropped program stays alive until the device is disposed: frames in flight may still draw with it.
+	/// </summary>
+	void Watch( string folder )
+	{
+		if ( !Directory.Exists( folder ) ) return;
+		lock ( watchers )
+		{
+			if ( watchers.Exists( w => string.Equals( w.Path, folder, StringComparison.OrdinalIgnoreCase ) ) ) return;
+			var watcher = new FileSystemWatcher( folder ) { IncludeSubdirectories = true, NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size };
+			watcher.Changed += ( _, e ) => Changed( e.FullPath );
+			watcher.Created += ( _, e ) => Changed( e.FullPath );
+			watcher.Renamed += ( _, e ) => Changed( e.FullPath );
+			watcher.EnableRaisingEvents = true;
+			watchers.Add( watcher );
+		}
+	}
+
+	/// <summary>Programs compiled again after a source change, for reports and tests.</summary>
+	public int Hotloads => hotloads;
+
+	int hotloads;
+
+	void Changed( string path )
+	{
+		path = Path.GetFullPath( path );
+		lock ( programs )
+		{
+			foreach ( var (file, program) in programs.ToArray() )
+			{
+				if ( program is null )
+				{
+					// One that failed: try again after any change
+					programs.Remove( file );
+					continue;
+				}
+
+				if ( !program.Compiled.Dependencies.Contains( path, StringComparer.OrdinalIgnoreCase ) ) continue;
+				programs.Remove( file );
+				program.Stale = true;
+				retired.Add( program );
+				hotloads++;
+			}
+		}
+	}
+
+	/// <summary>
+	/// A package's shader folder: searched like <see cref="AddFolder"/>, watched for changes, and every surface and raw
+	/// module in it compiled now on a worker, so its materials' first draws find them ready. Errors go to <see cref="Error"/>.
+	/// </summary>
+	public System.Threading.Tasks.Task Mount( string folder )
+	{
+		folder = Path.GetFullPath( folder );
+		AddFolder( folder );
+		Watch( folder );
+		var files = Directory.Exists( folder ) ? Directory.GetFiles( folder, "*.slang" ) : [];
+		return System.Threading.Tasks.Task.Run( () =>
+		{
+			foreach ( var file in files ) Program( Path.GetFileName( file ) );
+		} );
 	}
 
 	/// <summary>Compile a shader by file name (or path) and keep it; null, after reporting, when it doesn't compile.</summary>
@@ -61,6 +210,9 @@ public sealed class SurfaceShaders : IDisposable
 	/// <summary>A material's program, compiled on first use; null when it can't draw.</summary>
 	internal SurfaceProgram For( SurfaceMaterial material )
 	{
+		// Kept on the material once found: draws ask for it every frame
+		if ( material.Program is { Stale: false } known && ReferenceEquals( known.Device, device ) ) return known;
+
 		var program = Program( material.Shader );
 		if ( program is null ) return null;
 		if ( program.LayoutHash != material.LayoutHash || program.Compiled.Material.Size != material.RecordSize )
@@ -69,6 +221,7 @@ public sealed class SurfaceShaders : IDisposable
 			return null;
 		}
 
+		material.Program = program;
 		return program;
 	}
 
@@ -91,6 +244,7 @@ public sealed class SurfaceShaders : IDisposable
 					var raw = System.Text.RegularExpressions.Regex.IsMatch( File.ReadAllText( path ), @"\[\s*shader\s*\(" );
 					var compiled = raw ? Compiler().CompileRaw( path ) : Compiler().CompileSurface( path );
 					program = new SurfaceProgram( device, compiled );
+					if ( compiled.GpuDrivenError is { } gpuDrivenError ) Error?.Invoke( $"{file}: no GPU-driven passes, its draws go the classic way: {gpuDrivenError}" );
 				}
 				catch ( ShaderCompileException e )
 				{
@@ -106,10 +260,18 @@ public sealed class SurfaceShaders : IDisposable
 	/// <summary>Destroy what was made.</summary>
 	public void Dispose()
 	{
+		lock ( watchers )
+		{
+			foreach ( var watcher in watchers ) watcher.Dispose();
+			watchers.Clear();
+		}
+
 		lock ( programs )
 		{
 			foreach ( var program in programs.Values ) program?.Dispose();
+			foreach ( var program in retired ) program.Dispose();
 			programs.Clear();
+			retired.Clear();
 		}
 
 		Records.Dispose();
@@ -121,7 +283,7 @@ internal sealed class SurfaceProgram : IDisposable
 {
 	readonly BackendDevice device;
 	readonly Dictionary<string, PassObjects> passes = new();
-	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants), PipelineHandle> pipelines = new();
+	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids), PipelineHandle> pipelines = new();
 
 	/// <summary>Material classes already reported as generated for another layout.</summary>
 	public readonly HashSet<Type> Mismatched = new();
@@ -135,6 +297,18 @@ internal sealed class SurfaceProgram : IDisposable
 		public ShaderHandle Vertex, Pixel;
 		public BindingLayoutHandle[] Sets;
 	}
+
+	/// <summary>The device it's made on.</summary>
+	public BackendDevice Device => device;
+
+	/// <summary>Dropped by a hotload: its materials look their program up again.</summary>
+	public bool Stale
+	{
+		get => System.Threading.Volatile.Read( ref stale );
+		set => System.Threading.Volatile.Write( ref stale, value );
+	}
+
+	bool stale;
 
 	public SurfaceProgram( BackendDevice device, CompiledShader compiled )
 	{
@@ -180,17 +354,39 @@ internal sealed class SurfaceProgram : IDisposable
 	/// <summary>A pass by name, or null.</summary>
 	public PassObjects Pass( string name ) => passes.TryGetValue( name, out var pass ) ? pass : null;
 
+	readonly PassObjects[] gpuDrivenPasses = new PassObjects[8];
+	readonly bool[] gpuDrivenLooked = new bool[8];
+
+	/// <summary>A GPU-driven pass (<c>[Depth|Forward][AlphaTest]GpuDriven[Lightmapped]</c>), found once; null when there's none.</summary>
+	public PassObjects GpuDrivenPass( bool noColor, bool alphaTest, bool lightmapped )
+	{
+		var index = (noColor ? 4 : 0) | (alphaTest ? 2 : 0) | (lightmapped ? 1 : 0);
+		if ( System.Threading.Volatile.Read( ref gpuDrivenLooked[index] ) ) return gpuDrivenPasses[index];
+
+		var name = (noColor ? (alphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth) : (alphaTest ? ShaderPasses.Forward + "AlphaTest" : ShaderPasses.Forward)) + ShaderPasses.GpuDriven;
+		var found = (lightmapped ? Pass( name + ShaderPasses.Lightmapped ) : null) ?? Pass( name );
+		gpuDrivenPasses[index] = found;
+		System.Threading.Volatile.Write( ref gpuDrivenLooked[index], true );
+		return found;
+	}
+
+	/// <summary>Whether its vertex stage moves vertices (<c>IVertexSurface</c>): when not, its positions alone place them.</summary>
+	public bool Displaces => Compiled.Generated?.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) == true;
+
 	/// <summary>
 	/// A pipeline for a pass drawing vertices laid out as <paramref name="layout"/> into these formats: the default render
-	/// state of today's shaders (back faces culled, depth tested and written greater-or-equal, reverse Z, no blending).
+	/// state of today's shaders (back faces culled, depth tested and written greater-or-equal, reverse Z, no blending,
+	/// alpha to coverage for alpha-tested passes).
 	/// Mesh vertices are stream 0, instance ids stream 1, the default stream 2, as for classic draws. Specialization
 	/// constants (<c>SpecializedConstant()</c> globals) are per pipeline, <paramref name="constantsKey"/> their values.
+	/// With <paramref name="ids"/>, the visibility-driven forward pass's id prepass: target 0 an R8 scratch (its alpha drives
+	/// alpha to coverage), target 1 the ids, as BackendDevice.Pipeline makes them.
 	/// </summary>
-	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey )
+	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, bool ids = false )
 	{
 		lock ( pipelines )
 		{
-			var key = (pass, layout, color, depth, samples, constantsKey);
+			var key = (pass, layout, color, depth, samples, constantsKey, ids);
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
 			var inputs = pass.Pass.Vertex.Inputs.Select( i => new VertexInput( i.Location, Semantic( i.Semantic ), i.SemanticIndex, i.Kind == ScalarKind.Float ? SpirvScalar.Float : i.Kind == ScalarKind.Int ? SpirvScalar.Int : SpirvScalar.UInt, i.Components ) ).ToList();
@@ -203,7 +399,7 @@ internal sealed class SurfaceProgram : IDisposable
 				return new VertexAttribute( 0, 0, field.Format, field.Offset );
 			}, defaultBuffer: 2 );
 
-			var depthOnly = color == Format.Unknown;
+			var depthOnly = color == Format.Unknown && !ids;
 			var pixel = pass.Pixel.IsValid;
 			pipeline = device.Gpu.CreateGraphicsPipeline( new GraphicsPipelineInfo
 			{
@@ -219,12 +415,16 @@ internal sealed class SurfaceProgram : IDisposable
 				Topology = PrimitiveTopology.TriangleList,
 				CullMode = CullMode.Back,
 				FrontFace = FrontFace.CounterClockwise,
-				DepthBias = depthOnly,
+				DepthBias = depthOnly || ids,
 				DepthTest = depth != Format.Unknown,
 				DepthWrite = depth != Format.Unknown,
 				DepthCompare = CompareFunction.GreaterEqual,
-				Blend = [BlendState.Opaque],
-				ColorFormats = depthOnly ? [] : [color],
+				Blend = ids ? [BlendState.Opaque, BlendState.Opaque] : [BlendState.Opaque],
+
+				// Alpha-tested passes write today's alpha-to-coverage alpha (S_ALPHA_TEST), with multisampling only, as the
+				// .shaders' AlphaToCoverageEnable render state does
+				AlphaToCoverage = samples > 1 && pass.Pass.Name.Contains( "AlphaTest", StringComparison.Ordinal ),
+				ColorFormats = ids ? [Format.R8Unorm, Format.R32Uint] : depthOnly ? [] : [color],
 				DepthFormat = depth,
 				Samples = samples,
 				Name = $"{Compiled.Name} {pass.Pass.Name}",

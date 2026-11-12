@@ -69,8 +69,9 @@ public class SurfaceTests : GpuTest
 		Assert.AreEqual( 1, materials.Count );
 		Assert.AreEqual( "Leaf", materials[0].Name );
 		CollectionAssert.AreEqual( new[] { "ISurface" }, materials[0].Interfaces );
-		StringAssert.Contains( text, "[Group( \"Color\" ), Srgb] MaterialTexture2D Color;" );
-		StringAssert.Contains( text, "\tMaterialTexture2D Mask;" );
+		StringAssert.Contains( text, "[Group( \"Color\" ), Srgb] public MaterialTexture2D Color;" );
+		StringAssert.Contains( text, "\tpublic MaterialTexture2D Mask;" );
+		StringAssert.Contains( text, "\tpublic float3 Tint;" );
 		StringAssert.Contains( text, "Texture2D Outside;" );
 		StringAssert.Contains( text, "{ Texture2D t; return {}; }" );
 		Assert.AreEqual( source.Count( c => c == '\n' ), text.Count( c => c == '\n' ) );
@@ -104,12 +105,210 @@ public class SurfaceTests : GpuTest
 		Assert.IsFalse( forward.Globals.Members.Any( m => m.Name == "UserShadowFilterQuality" ) );
 		Assert.IsTrue( rock.Pass( ShaderPasses.Forward ).Vertex.Bindings.All( b => b.Set is 0 or ShaderAbi.BindlessSet or ShaderAbi.ViewSet ) );
 
-		// Dead-code elimination does the depth pass's work: the record, one texture and its sampler
+		// Alpha-tested passes compile with today's alpha test (S_ALPHA_TEST: its cutoff and edge strength are globals), the
+		// depth one in Depth mode as well (S_MODE_DEPTH), where Shade returns the coverage before lighting
+		var alphaTested = rock.Pass( ShaderPasses.Forward + "AlphaTest" ).Pixel;
+		Assert.IsTrue( alphaTested.Globals.Members.Any( m => m.Name == "g_flAlphaTestReference" ) );
+		Assert.IsFalse( forward.Globals.Members.Any( m => m.Name == "g_flAlphaTestReference" ) );
 		var depth = rock.Pass( ShaderPasses.DepthAlphaTest ).Pixel;
-		Assert.IsFalse( depth.Bindings.Any( b => b.Kind == BindingKind.ConstantBuffer ) );
-		Assert.IsTrue( depth.Spirv.Length * 20 < forward.Spirv.Length, $"depth {depth.Spirv.Length} bytes, forward {forward.Spirv.Length}" );
+		Assert.IsTrue( depth.Globals.Members.Any( m => m.Name == "g_flAlphaTestReference" ) );
+		StringAssert.Contains( rock.Generated, "SurfaceForward<Rock, true>( i.Pixel, m, m.Color.Slot )" );
+
+		// Material textures are read with the module's sampler, its state from its annotations
+		var sampler = forward.Bindings.Single( b => b.Kind == BindingKind.Sampler && b.Variable == "g_MaterialFiltering" );
+		Assert.AreEqual( "ANISOTROPIC", sampler.Annotations?.Filter );
+		Assert.IsFalse( rock.Generated.Contains( "SURFACE_LIGHT_HOOK", StringComparison.Ordinal ) );
 	}
 
+	/// <summary>
+	/// An interpolated surface (blendable.slang) reads its Varyings from the mesh by semantic and passes them to the pixel
+	/// stage; its fields say which .vmat value they take.
+	/// </summary>
+	[TestMethod]
+	public void InterpolatedSurfaceReadsItsVaryings()
+	{
+		var blendable = Compiler().CompileSurface( Path.Combine( Core, "shaders", "blendable.slang" ) );
+		var inputs = blendable.Pass( ShaderPasses.Forward ).Vertex.Inputs;
+		Assert.IsTrue( inputs.Any( i => i.Semantic == "TEXCOORD" && i.SemanticIndex == 4 && i.Components == 4 ) );
+		Assert.IsTrue( inputs.Any( i => i.Semantic == "TEXCOORD" && i.SemanticIndex == 5 && i.Components == 4 ) );
+		StringAssert.Contains( blendable.Generated, "SurfaceWithVaryings<Blendable>" );
+		Assert.AreEqual( "F_MULTIBLEND", blendable.Material.Field( "ExtraLayers" ).Source );
+		Assert.AreEqual( "ShaderVersion", blendable.Material.Field( "Version" ).Source );
+		Assert.IsNull( blendable.Material.Field( "ColorA" ).Source );
+		Assert.IsTrue( blendable.Pass( ShaderPasses.Forward ).Pixel.Bindings.Any( b => b.Kind == BindingKind.Sampler && b.Variable == "g_BlendableFiltering" ) );
+	}
+
+	/// <summary>
+	/// Every pass comes again for lightmapped draws, with the vertex stage that reads the mesh's lightmap uv (TEXCOORD3);
+	/// the plain one doesn't read it.
+	/// </summary>
+	[TestMethod]
+	public void LightmappedPassesReadTheLightmapUv()
+	{
+		var rock = Compiler().CompileSurface( Path.Combine( Surfaces, "rock.slang" ) );
+		static bool ReadsLightmapUv( CompiledStage vertex ) => vertex.Inputs.Any( i => i.Semantic == "TEXCOORD" && i.SemanticIndex == 3 );
+		foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
+		{
+			var plain = rock.Pass( name );
+			var lightmapped = rock.Pass( name + ShaderPasses.Lightmapped );
+			Assert.IsFalse( ReadsLightmapUv( plain.Vertex ), name );
+			Assert.IsTrue( ReadsLightmapUv( lightmapped.Vertex ), name + ShaderPasses.Lightmapped );
+			Assert.AreSame( plain.Pixel, lightmapped.Pixel, "the pixel stage is shared" );
+		}
+	}
+
+	/// <summary>
+	/// Every pass also comes GPU-driven: its vertex stage pulls its vertices (no vertex inputs), and neither stage reads
+	/// the classic records' buffer.
+	/// </summary>
+	[TestMethod]
+	public void SurfacesHaveGpuDrivenPasses()
+	{
+		foreach ( var path in new[] { Path.Combine( Surfaces, "rock.slang" ), Path.Combine( Surfaces, "foliage.slang" ), Path.Combine( Core, "shaders", "blendable.slang" ) } )
+		{
+			var surface = Compiler().CompileSurface( path );
+			Assert.IsNull( surface.GpuDrivenError, surface.GpuDrivenError );
+			foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
+			{
+				foreach ( var suffix in new[] { ShaderPasses.GpuDriven, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped } )
+				{
+					var pass = surface.Pass( name + suffix );
+					Assert.IsNotNull( pass, $"{Path.GetFileName( path )} {name}{suffix}" );
+					Assert.AreEqual( 0, pass.Vertex.Inputs.Count, $"{name}{suffix} reads vertex inputs" );
+					foreach ( var stage in new[] { pass.Vertex, pass.Pixel } )
+						Assert.IsFalse( stage is not null && stage.Bindings.Any( b => b.Kind == BindingKind.MaterialRecords ), $"{name}{suffix} reads the classic records" );
+				}
+			}
+		}
+	}
+
+	/// <summary>
+	/// The disk cache: a second compile of an unchanged module comes from it with the same SPIR-V; a change to the module
+	/// (or anything it read) compiles again.
+	/// </summary>
+	[TestMethod]
+	public void CompileCacheKeepsUnchangedModules()
+	{
+		Compiler();
+		var folder = Path.Combine( Path.GetTempPath(), "basalt-surface-cache-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var module = Path.Combine( folder, "cached_rock.slang" );
+			File.WriteAllText( module, File.ReadAllText( Path.Combine( Surfaces, "rock.slang" ) ).Replace( "public struct Rock", "public struct CachedRock", StringComparison.Ordinal ) );
+			var bin = Path.Combine( Path.GetDirectoryName( Core ), "bin", "win64" );
+			var compiler = new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] ) { CacheFolder = Path.Combine( folder, "cache" ) };
+
+			var first = compiler.CompileSurface( module );
+			var second = compiler.CompileSurface( module );
+			Assert.IsFalse( first.FromCache );
+			Assert.IsTrue( second.FromCache );
+			Assert.IsTrue( first.Dependencies.Any( d => d.EndsWith( "vr_lighting.fxc", StringComparison.OrdinalIgnoreCase ) ), "the core includes are dependencies" );
+			CollectionAssert.AreEquivalent( first.Passes.Keys.ToArray(), second.Passes.Keys.ToArray() );
+			foreach ( var (name, pass) in first.Passes )
+			{
+				CollectionAssert.AreEqual( pass.Vertex.Spirv, second.Pass( name ).Vertex.Spirv, name );
+				if ( pass.Pixel is not null ) CollectionAssert.AreEqual( pass.Pixel.Spirv, second.Pass( name ).Pixel.Spirv, name );
+			}
+
+			Assert.AreSame( second.Pass( ShaderPasses.Forward ).Pixel, second.Pass( ShaderPasses.Forward + ShaderPasses.Lightmapped ).Pixel, "shared stages stay shared" );
+			Assert.AreEqual( first.Material.Size, second.Material.Size );
+
+			File.AppendAllText( module, "\n// changed\n" );
+			Assert.IsFalse( compiler.CompileSurface( module ).FromCache, "a changed module compiles again" );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
+	/// The converter turns pixel.hlsl-style .shaders into surfaces that compile: the template (Material::Init) and bark
+	/// (Material.CommonInputs, a helper, a feature global), and says what it leaves out (bark's vertex animation).
+	/// </summary>
+	[TestMethod]
+	public void ConverterTurnsPixelShadersIntoSurfaces()
+	{
+		Compiler();
+		var game = Path.GetDirectoryName( Core );
+		var folder = Path.Combine( Path.GetTempPath(), "basalt-surface-convert-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var bin = Path.Combine( game, "bin", "win64" );
+			var compiler = new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] );
+			foreach ( var (relative, name) in new[] { ("templates/material.shader", "material"), ("core/shaders/bark.shader", "bark") } )
+			{
+				var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( game, relative ) ), name );
+				Assert.IsNotNull( result.Source, name );
+				var path = Path.Combine( folder, name + ".slang" );
+				File.WriteAllText( path, result.Source );
+				var compiled = compiler.CompileSurface( path );
+				Assert.IsNotNull( compiled.Pass( ShaderPasses.Forward ), name );
+				if ( name == "bark" )
+				{
+					Assert.IsTrue( result.Notes.Any( n => n.Contains( "moves vertices", StringComparison.Ordinal ) ) );
+					Assert.IsNotNull( compiled.Material.Field( "SpecularOcclusion" ) );
+					Assert.IsNotNull( compiled.Material.Field( "Color" ) );
+				}
+			}
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>Hotload: changing a surface's module drops its program, and the next compile is a fresh one.</summary>
+	[TestMethod]
+	public void ChangedSurfacesHotload()
+	{
+		Compiler();
+		var folder = Path.Combine( Path.GetTempPath(), "basalt-surface-hotload-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var module = Path.Combine( folder, "hot_rock.slang" );
+			File.WriteAllText( module, File.ReadAllText( Path.Combine( Surfaces, "rock.slang" ) ).Replace( "public struct Rock", "public struct HotRock", StringComparison.Ordinal ) );
+			using var backend = new BackendDevice( Device );
+			backend.Surfaces.CacheFolder = Path.Combine( folder, "cache" );
+			backend.Surfaces.AddFolder( folder );
+
+			var before = backend.Surfaces.Compile( "hot_rock.slang" );
+			Assert.IsNotNull( before );
+			Assert.AreSame( before, backend.Surfaces.Compile( "hot_rock.slang" ) );
+
+			File.AppendAllText( module, "\n// changed\n" );
+			var clock = System.Diagnostics.Stopwatch.StartNew();
+			while ( backend.Surfaces.Hotloads == 0 && clock.Elapsed.TotalSeconds < 10 ) System.Threading.Thread.Sleep( 50 );
+			Assert.IsTrue( backend.Surfaces.Hotloads >= 1, "the change wasn't seen" );
+
+			var after = backend.Surfaces.Compile( "hot_rock.slang" );
+			Assert.AreNotSame( before, after );
+			Assert.IsFalse( after.FromCache );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>A lit surface turns on the light loop's hook and hands it the material; an unlit one leaves the loop alone.</summary>
+	[TestMethod]
+	public void LitSurfaceHooksTheLightLoop()
+	{
+		var lit = Compiler().CompileSurface( Path.Combine( Surfaces, "rock_lit.slang" ) );
+		StringAssert.Contains( lit.Generated, "#define SURFACE_LIGHT_HOOK 1" );
+		StringAssert.Contains( lit.Generated, "s_LitSurface = m;" );
+		StringAssert.Contains( lit.Generated, "s_LitSurface.Light( SurfaceLitMaterial(), SurfaceLitInput(), light )" );
+		Assert.IsNotNull( lit.Pass( ShaderPasses.Forward ).Pixel.Spirv );
+
+		// A sun-lit surface (foliage) lights once, outside the loop, and leaves the loop alone
+		var sunLit = Compiler().CompileSurface( Path.Combine( Surfaces, "foliage.slang" ) );
+		StringAssert.Contains( sunLit.Generated, "SurfaceForwardSunLit<Foliage, true>" );
+		Assert.IsFalse( sunLit.Generated.Contains( "SURFACE_LIGHT_HOOK", StringComparison.Ordinal ) );
+	}
 	/// <summary>The generated classes in BasaltLab are what the compiler writes now, and a raw module has the same record.</summary>
 	[TestMethod]
 	public void GeneratedClassesAreCurrent()
@@ -120,12 +319,31 @@ public class SurfaceTests : GpuTest
 
 		Assert.AreEqual( ShaderTier.Raw, raw.Tier );
 		CollectionAssert.AreEqual( rock.Material.Fields.Select( f => (f.Kind, f.Offset) ).ToArray(), raw.Material.Fields.Select( f => (f.Kind, f.Offset) ).ToArray() );
-		foreach ( var (shader, file) in new[] { (rock, "rock.g.cs"), (raw, "rock_raw.g.cs") } )
+		var lit = compiler.CompileSurface( Path.Combine( Surfaces, "rock_lit.slang" ) );
+		foreach ( var (shader, file) in new[] { (rock, "rock.g.cs"), (raw, "rock_raw.g.cs"), (lit, "rock_lit.g.cs") } )
 		{
 			var expected = MaterialClassWriter.Write( shader, "Sandbox.BasaltLab.Surfaces" ).Replace( "\r\n", "\n" );
 			var actual = File.ReadAllText( Path.Combine( Surfaces, file ) ).Replace( "\r\n", "\n" );
 			Assert.AreEqual( expected, actual, $"{file} is stale: run basaltlab -surface-parity <folder> -surface-classes" );
 		}
+	}
+
+	/// <summary>
+	/// Material.CommonInputs.hlsl's TextureFiltering takes its filter from an expression on F_TEXTURE_FILTERING: a classic
+	/// draw samples anisotropically, that feature's default, not point as the expression's unevaluated literal says.
+	/// </summary>
+	[TestMethod]
+	public void ExpressionFilteredSamplersAreAnisotropic()
+	{
+		using var backend = new BackendDevice( Device );
+		var foliage = (BackendMaterial)((GpuDevice)backend).CreateMaterial( "Foliage (.shader)", "shaders/foliage.shader" );
+		if ( foliage.Shader is null ) Assert.Inconclusive( "foliage.shader isn't compiled" );
+		var variant = foliage.Variant( backend.Shaders, "Forward", "Forward", _ => null, _ => null );
+		var samplers = variant.Resources.Where( r => r.Kind == Basalt.Source2.Shaders.ShaderResourceKind.Sampler && r.Set == ShaderAbi.FragmentSet ).Select( r => r.Sampler ).ToList();
+
+		// TextureFiltering: MaxAniso( 8 ) beside the expression; it read as point filtering with anisotropy 8
+		Assert.IsTrue( samplers.Any( s => s.MaxAnisotropy == 8 && s.MinFilter == Filter.Linear && s.MipFilter == Filter.Linear ), "TextureFiltering isn't anisotropic" );
+		Assert.IsFalse( samplers.Any( s => s.MaxAnisotropy > 1 && s.MinFilter == Filter.Nearest ), "a point sampler with anisotropy" );
 	}
 
 	/// <summary>

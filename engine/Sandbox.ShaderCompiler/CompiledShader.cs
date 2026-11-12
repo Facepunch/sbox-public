@@ -24,8 +24,17 @@ public sealed class CompiledShader
 	/// <summary>The instance file the compiler wrote for a surface (null for a raw module), for diagnostics.</summary>
 	public string Generated { get; init; }
 
-	/// <summary>Compile time, all passes.</summary>
+	/// <summary>Why a surface has no GPU-driven passes (its GPU-driven compile's errors); null when it has them.</summary>
+	public string GpuDrivenError { get; init; }
+
+	/// <summary>Compile time, all passes; the cache lookup's when <see cref="FromCache"/>.</summary>
 	public double Milliseconds { get; init; }
+
+	/// <summary>Every file the compile read (the module, the modules it imports, the core includes), full paths.</summary>
+	public IReadOnlyList<string> Dependencies { get; init; } = [];
+
+	/// <summary>Whether it came from the compiler's disk cache (<see cref="SlangCompiler.CacheFolder"/>).</summary>
+	public bool FromCache { get; init; }
 
 	/// <summary>A pass, or null when the shader doesn't have it.</summary>
 	public CompiledPass Pass( string name ) => Passes.TryGetValue( name, out var pass ) ? pass : null;
@@ -51,6 +60,18 @@ public static class ShaderPasses
 
 	/// <summary>Depth with the material's opacity clipped: alpha-tested materials' prepass and shadows.</summary>
 	public const string DepthAlphaTest = "DepthAlphaTest";
+
+	/// <summary>
+	/// A surface's passes with this suffix (<c>ForwardLightmapped</c>) have the vertex stage of lightmapped draws, which
+	/// passes on the mesh's lightmap uv.
+	/// </summary>
+	public const string Lightmapped = "Lightmapped";
+
+	/// <summary>
+	/// A surface's passes with this suffix (<c>ForwardGpuDriven</c>, <c>ForwardGpuDrivenLightmapped</c>) draw GPU-driven:
+	/// vertices pulled, the material record and lighting from the GPU-driven tables (docs/managed/basalt-gpu-driven.md).
+	/// </summary>
+	public const string GpuDriven = "GpuDriven";
 }
 
 /// <summary>One pass: a vertex shader and, unless it draws depth alone, a pixel shader.</summary>
@@ -180,4 +201,8 @@ public enum ScalarKind
 }
 
 /// <summary>A vertex input: its location, the HLSL semantic it reads (<c>TEXCOORD</c>, 13) and its type.</summary>
-public sealed record VertexInputSlot( int Location, string Semantic, int SemanticIndex, ScalarKind Kind, int Components );
+public sealed record VertexInputSlot( int Location, string Semantic, int SemanticIndex, ScalarKind Kind, int Components )
+{
+	/// <summary>The entry point's parameter field it fills (<c>i.vPositionOs</c>), for code that builds the input itself.</summary>
+	public string Field { get; init; }
+}

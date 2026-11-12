@@ -1,14 +1,14 @@
 // game/core/shaders/foliage.shader written as a surface, converted by hand: its PS body is Evaluate, its wind is Displace
-// and its per-light wrap and translucency are Light. Alpha test is the material's (AlphaTest) rather than a feature; the
-// features it had are fields (a zero strength turns a term off). Not carried over: the grazing-angle fade (it takes
-// ddx/ddy of the position, which surfaces don't use) and the distance-relaxed alpha cutoff.
+// and its wrap and translucency from the sun are Light (ISunLitSurface: once, outside the light loop, as foliage.shader
+// does). Alpha test is the material's (AlphaTest), with today's alpha to coverage; the features it had are fields:
+// Transmissive and GrazingFade switch terms, the wind's are off at zero strength.
 import sbox.surface;
 
 [Material]
-public struct Foliage : IVertexSurface, ILitSurface
+public struct Foliage : IVertexSurface, ISunLitSurface
 {
 	// Material.CommonInputs.hlsl's textures and tint
-	[Group( "Material" ), Srgb] Texture2D Color;           // rgb albedo, a opacity
+	[Group( "Material" ), Srgb, Opacity] Texture2D Color;  // rgb albedo, a opacity
 	[Group( "Material" )] Texture2D Normal;                // rgb tangent normal, a tint mask
 	[Group( "Material" )] Texture2D Rma;                   // roughness, metalness, occlusion, transmission
 	[Group( "Material" ), Default3( 1, 1, 1 )] float3 TintColor;
@@ -24,9 +24,19 @@ public struct Foliage : IVertexSurface, ILitSurface
 	[Group( "Foliage" ), Range( 0, 0.5 ), Default( 0.1 )] float NormalVariation;
 	[Group( "Foliage" ), Range( 0, 1 ), Default( 0 )] float GrassNormalUp;
 
-	// Translucency (F_TRANSMISSIVE): a zero scale turns it off
+	// Wrap lighting and translucency (F_TRANSMISSIVE)
+	[Group( "Transmissive" )] bool Transmissive;
 	[Group( "Transmissive" ), Srgb] Texture2D TransmissiveColor;
-	[Group( "Transmissive" ), Range( 0, 10 ), Default( 0 )] float TransmissionScale;
+	[Group( "Transmissive" ), Range( 0, 10 ), Default( 1 )] float TransmissionScale;
+
+	// The alpha test's cutoff relaxes with distance, so foliage doesn't pop as its LODs change
+	[Group( "Alpha Test" ), Range( 0, 5000 ), Default( 500 )] float AlphaDistanceStart;
+	[Group( "Alpha Test" ), Range( 0, 10000 ), Default( 2000 )] float AlphaDistanceEnd;
+
+	// Leaf cards fade out as they turn edge-on (F_GRAZING_FADE)
+	[Group( "Grazing Fade" )] bool GrazingFade;
+	[Group( "Grazing Fade" ), Range( 0, 1 ), Default( 0.5 )] float GrazingFadeStart;
+	[Group( "Grazing Fade" ), Range( 0, 1 ), Default( 0.1 )] float GrazingFadeEnd;
 
 	// Wind (F_FOLIAGE_ANIMATION): vertex colour red and green attenuate edge and branch bending, blue is the phase
 	[Group( "Foliage Animation" ), Range( 0.1, 5 ), Default( 1 )] float EdgeFrequency;
@@ -61,6 +71,14 @@ public struct Foliage : IVertexSurface, ILitSurface
 			m.Normal = normalize( m.Normal + i.TangentU * cos( angle ) * NormalVariation + i.TangentV * sin( angle ) * NormalVariation );
 		}
 
+		// The cutoff relaxed with distance: opacity scaled, so the sharpening's derivatives are unchanged
+		float distance = saturate( ( i.ViewDistance - AlphaDistanceStart ) / max( AlphaDistanceEnd - AlphaDistanceStart, 0.001 ) );
+		m.Opacity *= i.AlphaReference / max( lerp( i.AlphaReference, 0.1, distance ), 0.001 );
+
+		// Edge-on cards fade as whole triangles: on the coverage, after the cutoff
+		if ( GrazingFade )
+			m.Coverage = saturate( ( abs( dot( i.FaceNormal, i.View ) ) - GrazingFadeEnd ) / max( GrazingFadeStart - GrazingFadeEnd, 0.001 ) );
+
 		// Rim light close up, and an ambient boost, as emission
 		if ( RimStrength > 0.0 && i.ViewDistance < DetailFadeDistance * 10.0 )
 			m.Emission += m.Albedo * pow( 1.0 - saturate( dot( m.Normal, i.View ) ), RimPower ) * RimStrength;
@@ -71,11 +89,14 @@ public struct Foliage : IVertexSurface, ILitSurface
 		return m;
 	}
 
-	// Wrap diffuse past the terminator, and back-scatter translucency through the leaf
+	// Wrap diffuse past the terminator, and back-scatter translucency through the leaf, from the sun: foliage.shader's cluster
+	// light loop is commented out. Lighting every light would make it an ILitSurface, at a register cost in the light loop
 	public float3 Light( Material m, SurfaceInput i, LightSample light )
 	{
-		float boost = light.Sun ? 1.5 : 1.0;
-		float scatterShadow = light.Sun ? lerp( 0.2, 1.0, light.Visibility ) : light.Visibility;
+		if ( !Transmissive ) return 0;
+
+		const float boost = 1.5;
+		float scatterShadow = lerp( 0.2, 1.0, light.Visibility );
 		float3 result = 0;
 
 		if ( WrapStrength > 0.0 )
@@ -85,7 +106,6 @@ public struct Foliage : IVertexSurface, ILitSurface
 			result += m.Albedo * light.Color * max( wrapped - saturate( ndl ), 0.0 ) * WrapStrength * light.Attenuation * boost;
 		}
 
-		if ( TransmissionScale > 0.0 )
 		{
 			float3 tint = i.Sample( TransmissiveColor, i.Uv ).rgb;
 			float3 scatter = normalize( light.Direction + m.Normal * 0.2 );

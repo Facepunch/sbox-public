@@ -54,7 +54,7 @@ CS
 		uint g_nCullRuns;			// byte offset of the multi-draws: first command slot and visible count each, or 0 to keep every slot
 		uint g_nCullFrame;			// this frame's stamp
 		uint g_nCullVisibility;		// bindless slot of each visibility fragment's first triangle bit
-		uint g_nCullCursor;			// byte offset in g_Frame of the compacted indices' cursor
+		uint g_nCullPad0;			// the compacted indices' cursor is g_Compacted's first word (basalt_gpu_driven_compact_cs)
 		uint g_nCullCapacity;		// indices g_Compacted holds
 		uint g_nCullFragmentWords;	// g_Frame byte offset of instance 0's fragment word, for the id prepass (wraps)
 		uint g_nCullListed;			// byte offset of the fragments forward compacts: dispatch arguments, then 32 bytes each

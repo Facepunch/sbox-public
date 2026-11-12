@@ -153,6 +153,11 @@ struct ShadingModelStandard
             
             float3 vDiffuse = ( ( lightingTerms.vDiffuse.rgb + lightingTerms.vIndirectDiffuse.rgb ) * combinerInput.vDiffuseColor.rgb ) + combinerInput.vEmissive.rgb;
             float3 vSpecular = lightingTerms.vSpecular.rgb + lightingTerms.vIndirectSpecular.rgb;
+
+            // A surface's own per-light terms, summed by the light loop (sbox/surface_passes.slangh), as emission
+            #ifdef SURFACE_LIGHT_HOOK
+                vDiffuse += SurfaceLightTotal();
+            #endif
             
             color = float4( vDiffuse + vSpecular, m.Opacity );
         }

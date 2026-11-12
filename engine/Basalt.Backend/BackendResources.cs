@@ -87,40 +87,48 @@ internal sealed class BackendBuffer( BackendDevice device, BufferHandle handle, 
 /// </summary>
 internal sealed class BackendParameters : ShaderParameters
 {
-	readonly Dictionary<uint, object> values = new();
-	readonly Dictionary<uint, int> combos = new();
+	// Read without a lock by every recording thread (a frame's parameters are every segment's parent); written under gate
+	readonly object gate = new();
+	readonly AttributeMap values;
+	readonly AttributeMap combos;
 	int version;
+
+	public BackendParameters()
+	{
+		values = new AttributeMap( gate );
+		combos = new AttributeMap( gate );
+	}
 
 	public BackendParameters Parent { get; set; }
 
 	/// <summary>Changes when this or a parent changes.</summary>
-	public int Version => version + (Parent?.Version ?? 0) * 31;
+	public int Version => Volatile.Read( ref version ) + (Parent?.Version ?? 0) * 31;
 
 	public object Get( StringToken name )
 	{
-		lock ( values )
+		for ( var p = this; p is not null; p = p.Parent )
 		{
-			if ( values.TryGetValue( name.Value, out var value ) ) return value;
+			if ( p.values.TryGet( name.Value, out var value ) ) return value;
 		}
 
-		return Parent?.Get( name );
+		return null;
 	}
 
 	public int? GetCombo( StringToken name )
 	{
-		lock ( values )
+		for ( var p = this; p is not null; p = p.Parent )
 		{
-			if ( combos.TryGetValue( name.Value, out var value ) ) return value;
+			if ( p.combos.TryGet( name.Value, out var value ) ) return (int)value;
 		}
 
-		return Parent?.GetCombo( name );
+		return null;
 	}
 
 	void Store( StringToken name, object value )
 	{
-		lock ( values )
+		lock ( gate )
 		{
-			values[name.Value] = value;
+			values.Set( name.Value, value );
 			version++;
 		}
 	}
@@ -144,61 +152,84 @@ internal sealed class BackendParameters : ShaderParameters
 		Store( name, bytes );
 	}
 
+	/// <summary>Combo values boxed once: combos are small numbers.</summary>
+	static readonly object[] BoxedCombos = [.. Enumerable.Range( 0, 64 ).Select( v => (object)v )];
+
 	public override void SetCombo( StringToken name, int value )
 	{
-		lock ( values )
+		var boxed = value >= 0 && value < BoxedCombos.Length ? BoxedCombos[value] : value;
+		lock ( gate )
 		{
-			combos[name.Value] = value;
+			combos.Set( name.Value, boxed );
 			version++;
 		}
 	}
 
 	public override bool GetBool( StringToken name, bool fallback = false ) => Get( name ) is bool value ? value : fallback;
 
+	static readonly uint BakedLightingName = new StringToken( "BakedLightingConstantBuffer_t" ).Value;
 	static readonly uint ProbeVolumeName = new StringToken( "PerBatchLightProbeVolumeConstantBuffer_t" ).Value;
-	int lightingFreeVersion = -1;
-	long lightingFreeKey;
+	int lightingFreeVersion = -1, probeFreeVersion = -1;
+	long lightingFreeKey, probeFreeKey;
 
 	/// <summary>
-	/// The same for parameters that hold the same values but for their light probe volume constants, which GPU-driven variants
+	/// The same for parameters that hold the same values but for their lightmap and light probe volume constants, which GPU-driven variants
 	/// read from a record per draw: draws whose attributes differ only in those share a
 	/// bucket. A hash of the rest, its count in the top half.
 	/// </summary>
-	internal long LightingFreeKey
+	internal long LightingFreeKey => KeyWithout( true, ref lightingFreeVersion, ref lightingFreeKey );
+
+	/// <summary>
+	/// As <see cref="LightingFreeKey"/> but keeping the lightmap constants: for passes that read only the light probe volume's
+	/// per draw (GPU-driven surfaces).
+	/// </summary>
+	internal long ProbeFreeKey => KeyWithout( false, ref probeFreeVersion, ref probeFreeKey );
+
+	long KeyWithout( bool baked, ref int keyVersion, ref long key )
 	{
-		get
+		// The parent's first, so this lock is never held while taking another
+		var current = Version;
+		var parentKey = baked ? Parent?.LightingFreeKey : Parent?.ProbeFreeKey;
+		lock ( gate )
 		{
-			// The parent's first, so this lock is never held while taking another
-			var current = Version;
-			var parentKey = Parent?.LightingFreeKey;
-			lock ( values )
+			if ( keyVersion == current ) return key;
+
+			var hash = new HashCode();
+			var count = 0;
+			foreach ( var (name, value) in Sorted( values ) )
 			{
-				if ( lightingFreeVersion == current ) return lightingFreeKey;
-
-				var hash = new HashCode();
-				var count = 0;
-				foreach ( var key in values.Keys.Order() )
-				{
-					if ( key == ProbeVolumeName ) continue;
-					hash.Add( key );
-					if ( values[key] is byte[] bytes ) hash.AddBytes( bytes );
-					else hash.Add( values[key] );
-					count++;
-				}
-
-				foreach ( var key in combos.Keys.Order() )
-				{
-					hash.Add( key ^ 0x9E3779B9u );
-					hash.Add( combos[key] );
-					count++;
-				}
-
-				if ( parentKey is { } inherited ) hash.Add( inherited );
-				lightingFreeKey = (long)count << 32 | (uint)hash.ToHashCode();
-				lightingFreeVersion = current;
-				return lightingFreeKey;
+				if ( name == ProbeVolumeName || baked && name == BakedLightingName ) continue;
+				hash.Add( name );
+				if ( value is byte[] bytes ) hash.AddBytes( bytes );
+				else hash.Add( value );
+				count++;
 			}
+
+			foreach ( var (name, value) in Sorted( combos ) )
+			{
+				hash.Add( name ^ 0x9E3779B9u );
+				hash.Add( (int)value );
+				count++;
+			}
+
+			if ( parentKey is { } inherited ) hash.Add( inherited );
+			key = (long)count << 32 | (uint)hash.ToHashCode();
+			keyVersion = current;
+			return key;
 		}
+	}
+
+	/// <summary>A map's entries by key, so the same values hash the same whatever order they were set in. Hold the gate.</summary>
+	static List<(uint Key, object Value)> Sorted( AttributeMap map )
+	{
+		var entries = new List<(uint, object)>( map.Count );
+		for ( int i = 0; i < map.Slots; i++ )
+		{
+			if ( map.At( i, out var key, out var value ) ) entries.Add( (key, value) );
+		}
+
+		entries.Sort( static ( a, b ) => a.Item1.CompareTo( b.Item1 ) );
+		return entries;
 	}
 
 	/// <summary>What material objects keep of these as an object's attributes (<see cref="ObjectLayer"/>), made when first set.</summary>
@@ -207,10 +238,17 @@ internal sealed class BackendParameters : ShaderParameters
 	/// <summary>The names of the values set here and above, and the combos with their values (the nearest wins).</summary>
 	internal void Names( HashSet<uint> values, Dictionary<uint, int> combosSet )
 	{
-		lock ( this.values )
+		lock ( gate )
 		{
-			foreach ( var key in this.values.Keys ) values.Add( key );
-			foreach ( var (key, value) in combos ) combosSet.TryAdd( key, value );
+			for ( int i = 0; i < this.values.Slots; i++ )
+			{
+				if ( this.values.At( i, out var key, out _ ) ) values.Add( key );
+			}
+
+			for ( int i = 0; i < combos.Slots; i++ )
+			{
+				if ( combos.At( i, out var key, out var value ) ) combosSet.TryAdd( key, (int)value );
+			}
 		}
 
 		Parent?.Names( values, combosSet );
@@ -221,25 +259,25 @@ internal sealed class BackendParameters : ShaderParameters
 		var into = (BackendParameters)target;
 		if ( ReferenceEquals( into, this ) ) return;
 
-		KeyValuePair<uint, object>[] copiedValues;
-		KeyValuePair<uint, int>[] copiedCombos;
-		lock ( values )
+		List<(uint Key, object Value)> copiedValues;
+		List<(uint Key, object Value)> copiedCombos;
+		lock ( gate )
 		{
-			copiedValues = [.. values];
-			copiedCombos = [.. combos];
+			copiedValues = Sorted( values );
+			copiedCombos = Sorted( combos );
 		}
 
-		lock ( into.values )
+		lock ( into.gate )
 		{
-			foreach ( var (key, value) in copiedValues ) into.values[key] = value;
-			foreach ( var (key, value) in copiedCombos ) into.combos[key] = value;
+			foreach ( var (key, value) in copiedValues ) into.values.Set( key, value );
+			foreach ( var (key, value) in copiedCombos ) into.combos.Set( key, value );
 			into.version++;
 		}
 	}
 
 	public override void Clear()
 	{
-		lock ( values )
+		lock ( gate )
 		{
 			values.Clear();
 			combos.Clear();
@@ -256,7 +294,9 @@ internal sealed class BackendParameters : ShaderParameters
 /// </summary>
 internal sealed class BackendMaterial : GpuMaterial
 {
-	readonly Dictionary<string, ShaderVariant> variants = new();
+	// Variants by key, read without a lock by every recording thread: replaced whole under variantsGate when one is added
+	Dictionary<string, ShaderVariant> variants = new();
+	readonly object variantsGate = new();
 	readonly Dictionary<string, float[]> values;
 	int version;
 
@@ -337,10 +377,10 @@ internal sealed class BackendMaterial : GpuMaterial
 	/// </summary>
 	public void Reload( ShaderFile shader, MaterialFile file, Dictionary<string, BackendTexture> textures )
 	{
-		lock ( variants )
+		lock ( variantsGate )
 		{
-			variants.Clear();
-			gpuDrivenVariants.Clear();
+			Volatile.Write( ref variants, new() );
+			Volatile.Write( ref gpuDrivenVariants, new() );
 			Load( shader, file, textures );
 			needsLightProbe = 0;
 			loads++;
@@ -355,27 +395,31 @@ internal sealed class BackendMaterial : GpuMaterial
 	/// <summary>A variant for a mode and dynamic combo values, made once.</summary>
 	public ShaderVariant Variant( ShaderLibrary library, string mode, string key, Func<string, int?> combos, Func<string, int?> attributes )
 	{
+		if ( Volatile.Read( ref variants ).TryGetValue( key, out var known ) ) return known;
+
 		ShaderFile shader;
 		int[] features;
 		int loaded;
-		lock ( variants )
-		{
-			if ( variants.TryGetValue( key, out var known ) ) return known;
-			(shader, features, loaded) = (Shader, Features, loads);
-		}
+		lock ( variantsGate ) (shader, features, loaded) = (Shader, Features, loads);
 
 		// Made outside the lock: making one loads the shader's combos and reads the attributes, which take locks of their own
 		var variant = library.Variant( shader, mode, features, combos, attributes );
-		lock ( variants )
+		return Keep( ref variants, key, variant, loaded );
+	}
+
+	Dictionary<string, ShaderVariant> gpuDrivenVariants = new();
+
+	/// <summary>Add a variant made from load <paramref name="loaded"/> to a map, unless another got there first: the one kept.</summary>
+	ShaderVariant Keep( ref Dictionary<string, ShaderVariant> map, string key, ShaderVariant variant, int loaded )
+	{
+		lock ( variantsGate )
 		{
 			if ( loaded != loads ) return variant;
-			if ( variants.TryGetValue( key, out var known ) ) return known;
-			variants[key] = variant;
+			if ( map.TryGetValue( key, out var known ) ) return known;
+			Volatile.Write( ref map, new Dictionary<string, ShaderVariant>( map ) { [key] = variant } );
 			return variant;
 		}
 	}
-
-	readonly Dictionary<string, ShaderVariant> gpuDrivenVariants = new();
 
 	/// <summary>
 	/// The same variant from the shader's GPU-driven file (<see cref="ShaderLibrary.GpuDriven"/>), made once; null when
@@ -383,14 +427,12 @@ internal sealed class BackendMaterial : GpuMaterial
 	/// </summary>
 	public ShaderVariant GpuDrivenVariant( ShaderLibrary library, string mode, string key, Func<string, int?> combos, Func<string, int?> attributes )
 	{
+		if ( Volatile.Read( ref gpuDrivenVariants ).TryGetValue( key, out var known ) ) return known;
+
 		ShaderFile shader;
 		int[] features;
 		int loaded;
-		lock ( variants )
-		{
-			if ( gpuDrivenVariants.TryGetValue( key, out var known ) ) return known;
-			(shader, features, loaded) = (Shader, Features, loads);
-		}
+		lock ( variantsGate ) (shader, features, loaded) = (Shader, Features, loads);
 
 		// Made outside the lock, as Variant's are
 		ShaderVariant variant;
@@ -404,14 +446,8 @@ internal sealed class BackendMaterial : GpuMaterial
 		}
 
 		// Not while its variant is compiling: the batch draws classic until then
-		var final = variant is not null || !library.GpuDrivenPending( shader );
-		lock ( variants )
-		{
-			if ( loaded != loads || !final ) return variant;
-			if ( gpuDrivenVariants.TryGetValue( key, out var known ) ) return known;
-			gpuDrivenVariants[key] = variant;
-			return variant;
-		}
+		if ( variant is null && library.GpuDrivenPending( shader ) ) return null;
+		return Keep( ref gpuDrivenVariants, key, variant, loaded );
 	}
 
 	bool Feature( string name ) => Shader?.FeatureIndex( name ) is int index && index >= 0 && Features[index] != 0;

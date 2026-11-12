@@ -4,6 +4,7 @@ using Basalt.Gpu;
 using Sandbox.BasaltLab.Surfaces;
 using Sandbox.ShaderCompiler;
 using System.IO;
+using System.Text.RegularExpressions;
 using GpuDevice = Basalt.Gpu.Device;
 
 namespace Sandbox.BasaltLab;
@@ -46,14 +47,14 @@ internal static class SurfaceParity
 			},
 		} );
 
-		using var device = new BackendDevice( gpu );
+		using var device = new BackendDevice( gpu ) { TimeDraws = true };
 		var surfaces = Folder( device );
 		device.Surfaces.AddFolder( surfaces );
 		device.Surfaces.Error = m => Console.WriteLine( $"Shader: {m}" );
 
 		// Compiled up front, so the times are the compiler's and a failure is reported once
 		var lines = new List<string>();
-		foreach ( var file in new[] { "rock.slang", "rock_raw.slang", "foliage.slang" } )
+		foreach ( var file in new[] { "rock.slang", "rock_raw.slang", "rock_lit.slang", "foliage.slang" } )
 		{
 			if ( device.Surfaces.Compile( file ) is not { } compiled ) return Fail( $"{file} didn't compile" );
 			lines.Add( $"{file}: {compiled.Tier} {compiled.Material.Type}, {compiled.Passes.Count} passes, record {compiled.Material.Size} bytes, compiled in {compiled.Milliseconds:F0} ms" );
@@ -103,38 +104,128 @@ internal static class SurfaceParity
 
 			device.Surfaces.MaterialOffsetPerPixel = true;
 
-			// The three forward pixel shaders, for register counts (amdllpc)
+			// The light loop's hook (ILitSurface.Light): with no light term of its own a lit surface draws as Rock does, so
+			// standard lighting is untouched; with one, every light adds to it, the point light alone too
+			using var lit = new RockLit { Color = color, Normal = normal, Rma = rma, Tint = tint, RoughnessScale = roughnessScale, WrapStrength = 0, DisplayName = "Rock (lit surface)" };
+			{
+				var pixels = Render( device, lit );
+				Save( pixels, Path.Combine( folder, "lit.png" ) );
+				var (mean, max, over, diff) = Compare( reference, pixels );
+				Save( diff, Path.Combine( folder, "lit-diff.png" ) );
+				var ok = mean <= tolerance;
+				if ( !ok ) failed++;
+				lines.Add( $"lit surface, no light term, against .shader: mean difference {mean:F3}, max {max}, {over} pixels over 8{(ok ? "" : " FAIL")}" );
+
+				lit.WrapStrength = 1;
+				foreach ( var sun in new[] { true, false } )
+				{
+					var name = sun ? "lit-wrap" : "lit-wrap-pointonly";
+					var before = sun ? reference : Render( device, shader, sun: false );
+					var after = Render( device, lit, sun: sun );
+					Save( after, Path.Combine( folder, $"{name}.png" ) );
+					var (wmean, wmax, wover, wdiff) = Compare( before, after );
+					Save( wdiff, Path.Combine( folder, $"{name}-diff.png" ) );
+					var changed = Changed( before, after );
+					lines.Add( $"lit surface, wrap term, {(sun ? "sun and point light" : "point light alone")}, against .shader: mean difference {wmean:F3}, max {wmax}, {changed} pixels changed (reported: the term it adds)" );
+				}
+			}
+
+			// The forward pixel shaders, for register counts (amdllpc)
 			var variant = shader.Variant( device.Shaders, "Forward", "Forward", _ => null, _ => null );
 			if ( variant?.Pixel?.Bytecode is { } bytecode && (bytecode.Spirv ?? bytecode.Shared?.Spirv) is { } classic ) File.WriteAllBytes( Path.Combine( folder, "shader_ps.spv" ), classic );
 			File.WriteAllBytes( Path.Combine( folder, "surface_ps.spv" ), device.Surfaces.Compile( "rock.slang" ).Pass( ShaderPasses.Forward ).Pixel.Spirv );
 			File.WriteAllBytes( Path.Combine( folder, "surface_depth_alphatest_ps.spv" ), device.Surfaces.Compile( "rock.slang" ).Pass( ShaderPasses.DepthAlphaTest ).Pixel.Spirv );
 			File.WriteAllBytes( Path.Combine( folder, "raw_ps.spv" ), device.Surfaces.Compile( "rock_raw.slang" ).Pass( ShaderPasses.Forward ).Pixel.Spirv );
+			File.WriteAllBytes( Path.Combine( folder, "lit_ps.spv" ), device.Surfaces.Compile( "rock_lit.slang" ).Pass( ShaderPasses.Forward ).Pixel.Spirv );
 
-			// foliage.shader (alpha test, translucency and wind animation on; sway off, so the picture doesn't depend on
+			// foliage.shader (alpha test, translucency, grazing fade and wind animation on; sway off, so the picture doesn't depend on
 			// the time) against the same material converted by hand to a surface
 			var cutOut = (BackendMaterial)device.LoadMaterial( "materials/dev/simple/simple_rail_32.vmat" );
 			cutOut.Textures.TryGetValue( "g_tColor", out var leaf );
-			var foliageShader = (BackendMaterial)((Basalt.GpuDevice)device).CreateMaterial( "Foliage (.shader)", "shaders/foliage.shader" );
-			if ( leaf is null || foliageShader.Shader?.Name.Contains( "foliage", StringComparison.OrdinalIgnoreCase ) != true ) return Fail( "foliage.shader or simple_rail_32.vmat isn't compiled" );
-			foreach ( var feature in new[] { "F_ALPHA_TEST", "F_TRANSMISSIVE", "F_FOLIAGE_ANIMATION" } ) foliageShader.Features[foliageShader.Shader.FeatureIndex( feature )] = 1;
-			foliageShader.SetTexture( "g_tColor", leaf );
-			foliageShader.SetTexture( "g_tNormal", (BackendTexture)normal );
-			foliageShader.SetTexture( "g_tRma", (BackendTexture)rma );
-			foliageShader.SetTexture( "g_tTransmissiveColor", leaf );
-			foliageShader.Set( "g_flSwayStrength", [0] );
-			foliageShader.Set( "g_flTransmissionScale", [1] );
+			// A material's features and values are read when it first draws, so each setup gets a material of its own
+			BackendMaterial FoliageShader( bool alphaTest = true, bool transmissive = true, bool grazing = true, float variation = 0.1f, float bending = 0.1f )
+			{
+				var m = (BackendMaterial)((Basalt.GpuDevice)device).CreateMaterial( "Foliage (.shader)", "shaders/foliage.shader" );
+				if ( m.Shader is null ) return m;
+				foreach ( var (feature, on) in new[] { ("F_ALPHA_TEST", alphaTest), ("F_TRANSMISSIVE", transmissive), ("F_FOLIAGE_ANIMATION", true), ("F_GRAZING_FADE", grazing) } ) m.Features[m.Shader.FeatureIndex( feature )] = on ? 1 : 0;
+				m.SetTexture( "g_tColor", leaf );
+				m.SetTexture( "g_tNormal", (BackendTexture)normal );
+				m.SetTexture( "g_tRma", (BackendTexture)rma );
+				m.SetTexture( "g_tTransmissiveColor", leaf );
+				m.Set( "g_flSwayStrength", [0] );
+				m.Set( "g_flTransmissionScale", [1] );
+				m.Set( "g_flNormalVariation", [variation] );
+				return m;
+			}
 
-			using var foliage = new Foliage { Color = leaf, Normal = normal, Rma = rma, TransmissiveColor = leaf, TransmissionScale = 1, SwayStrength = 0, AlphaTest = true, DisplayName = "Foliage (surface)" };
-			var foliageReference = Render( device, foliageShader, alphaTest: true );
-			Save( foliageReference, Path.Combine( folder, "foliage-shader.png" ) );
-			var foliagePixels = Render( device, foliage, alphaTest: true );
-			Save( foliagePixels, Path.Combine( folder, "foliage-surface.png" ) );
-			var (fmean, fmax, fover, fdiff) = Compare( foliageReference, foliagePixels );
-			Save( fdiff, Path.Combine( folder, "foliage-surface-diff.png" ) );
-			lines.Add( $"foliage surface against foliage.shader: mean difference {fmean:F3}, max {fmax}, {fover} pixels over 8 (reported, not gated: alpha-test edges differ by design)" );
+			var foliageShader = FoliageShader();
+			if ( leaf is null || foliageShader.Shader?.Name.Contains( "foliage", StringComparison.OrdinalIgnoreCase ) != true ) return Fail( "foliage.shader or simple_rail_32.vmat isn't compiled" );
+
+			using var foliage = new Foliage { Color = leaf, Normal = normal, Rma = rma, Transmissive = true, TransmissiveColor = leaf, TransmissionScale = 1, SwayStrength = 0, GrazingFade = true, AlphaTest = true, DisplayName = "Foliage (surface)" };
+			// Without multisampling the alpha test is a hard cut; with 4x it is alpha to coverage, which is what Construct draws
+			foreach ( var samples in new[] { 1, 4 } )
+			{
+				var suffix = samples > 1 ? $"-{samples}x" : "";
+				var foliageReference = Render( device, foliageShader, alphaTest: true, samples );
+				Save( foliageReference, Path.Combine( folder, $"foliage-shader{suffix}.png" ) );
+				var foliagePixels = Render( device, foliage, alphaTest: true, samples );
+				Save( foliagePixels, Path.Combine( folder, $"foliage-surface{suffix}.png" ) );
+				var (fmean, fmax, fover, fdiff) = Compare( foliageReference, foliagePixels );
+				Save( fdiff, Path.Combine( folder, $"foliage-surface{suffix}-diff.png" ) );
+				var fok = fmean <= tolerance;
+				if ( !fok ) failed++;
+				lines.Add( $"foliage surface against foliage.shader, {samples}x: mean difference {fmean:F3}, max {fmax}, {fover} pixels over 8{(fok ? "" : " FAIL")}" );
+			}
+
+			// -foliage-terms: the same at 4x with one feature off on both sides at a time, to say where a difference comes from
+			if ( Args.Has( "-foliage-terms" ) )
+			{
+				foreach ( var (name, transmissive, grazing, alphaTest, variation, bending) in new[] { ("as before", true, true, true, true, true), ("no normal variation", true, true, true, false, true), ("no translucency", false, true, true, true, true), ("no grazing fade", true, false, true, true, true), ("no alpha test", true, true, false, true, true), ("no wind bending", true, true, true, true, false), ("none of them", false, false, false, false, false) } )
+				{
+					var termShader = FoliageShader( alphaTest, transmissive, grazing, variation ? 0.1f : 0, bending ? 0.1f : 0 );
+					// A surface's fields are read at every draw, so the one material does
+					foliage.Transmissive = transmissive;
+					foliage.GrazingFade = grazing;
+					foliage.AlphaTest = alphaTest;
+					foliage.NormalVariation = variation ? 0.1f : 0;
+					var a = Render( device, termShader, alphaTest, 4 );
+					var b = Render( device, foliage, alphaTest, 4 );
+					var (tmean, tmax, tover, tdiff) = Compare( a, b );
+					Save( tdiff, Path.Combine( folder, $"foliage-{name.Replace( ' ', '-' )}-4x-diff.png" ) );
+					Save( a, Path.Combine( folder, $"foliage-{name.Replace( ' ', '-' )}-4x-shader.png" ) );
+					Save( b, Path.Combine( folder, $"foliage-{name.Replace( ' ', '-' )}-4x-surface.png" ) );
+					lines.Add( $"foliage surface against foliage.shader, 4x, {name}: mean difference {tmean:F3}, max {tmax}, {tover} pixels over 8 (reported, not gated)" );
+				}
+
+				// The .shader against itself, as a second material: what the same setup varies by between two draws
+				{
+					var a = Render( device, FoliageShader( false, false, false, 0, 0 ), false, 4 );
+					var b = Render( device, FoliageShader( false, false, false, 0, 0 ), false, 4 );
+					var (smean, smax, sover, _) = Compare( a, b );
+					lines.Add( $"foliage.shader against itself, 4x, none of them: mean difference {smean:F3}, max {smax}, {sover} pixels over 8" );
+				}
+			}
 			File.WriteAllBytes( Path.Combine( folder, "foliage_surface_ps.spv" ), device.Surfaces.Compile( "foliage.slang" ).Pass( ShaderPasses.Forward + "AlphaTest" ).Pixel.Spirv );
 			var foliageVariant = foliageShader.Variant( device.Shaders, "Forward", "Forward;F", _ => null, _ => null );
 			if ( foliageVariant?.Pixel?.Bytecode is { } fb && (fb.Spirv ?? fb.Shared?.Spirv) is { } fs ) File.WriteAllBytes( Path.Combine( folder, "foliage_shader_ps.spv" ), fs );
+
+			// blendable.slang against blendable.shader with four layers (F_MULTIBLEND 3), for register counts; their pictures
+			// are compared on Construct (-construct -real -surface-convert blendable)
+			if ( device.Surfaces.Compile( Path.Combine( device.Content.Roots[0], "shaders", "blendable.slang" ) ) is { } blendable )
+			{
+				File.WriteAllBytes( Path.Combine( folder, "blendable_surface_ps.spv" ), blendable.Pass( ShaderPasses.Forward ).Pixel.Spirv );
+				var blendableShader = (BackendMaterial)((Basalt.GpuDevice)device).CreateMaterial( "Blendable (.shader)", "shaders/blendable.shader" );
+				if ( blendableShader.Shader is { } shaderFile )
+				{
+					blendableShader.Features[shaderFile.FeatureIndex( "F_MULTIBLEND" )] = 3;
+					var forwardMode = shaderFile.Modes.FirstOrDefault( m => m.Name.Contains( "Forward", StringComparison.OrdinalIgnoreCase ) )?.Name ?? "Forward";
+					var blendableVariant = blendableShader.Variant( device.Shaders, forwardMode, "Forward;B3", _ => null, _ => null );
+					if ( blendableVariant?.Pixel?.Bytecode is { } bb && (bb.Spirv ?? bb.Shared?.Spirv) is { } bs ) File.WriteAllBytes( Path.Combine( folder, "blendable_shader_ps.spv" ), bs );
+					else lines.Add( $"blendable.shader: no forward pixel shader to count ({(blendableVariant is null ? "no variant" : blendableVariant.Pixel is null ? "no pixel stage" : "no SPIR-V")} in mode {forwardMode} of {string.Join( ", ", shaderFile.Modes.Select( m => m.Name ) )})" );
+				}
+			}
+
+			if ( Args.Has( "-convert-shaders" ) ) ConvertShaders( device, folder, lines );
 		}
 		finally
 		{
@@ -142,10 +233,104 @@ internal static class SurfaceParity
 			RenderHost.Current = previous;
 		}
 
+		// Surfaces aren't in GPU-driven buckets yet: with it on (the default; -no-gpudriven turns it off) they draw the classic way
+		lines.Add( $"GPU-driven {(device.GpuDriven ? "on" : "off")}: {device.GpuDrivenReport}" );
 		lines.Add( $"Surface parity: {(failed == 0 ? "pass" : $"{failed} failed")} ({folder}); Basalt.Gpu validation errors {gpu.ValidationErrors}" );
 		foreach ( var line in lines ) Console.WriteLine( line );
 		File.WriteAllLines( Path.Combine( folder, "results.txt" ), lines );
 		return failed == 0 && gpu.ValidationErrors == 0 ? 0 : 1;
+	}
+
+	/// <summary>The shaders written the common/pixel.hlsl way that convert as they are, by their path under the game folder.</summary>
+	static readonly string[] Convertible =
+	[
+		"templates/material.shader", "core/shaders/water_simple.shader", "core/shaders/terrain_preview.shader", "core/shaders/bark.shader", "core/shaders/foliage.shader",
+		"mount/quake/Assets/shaders/simple_color.shader", "mount/quake/Assets/shaders/quake_sky.shader", "mount/quake/Assets/shaders/quake_water.shader",
+		"mount/goldsrc/Assets/shaders/goldsrc.shader", "mount/se3/Assets/shaders/se3.shader",
+	];
+
+	/// <summary>
+	/// <c>-convert-shaders</c>: each convertible <c>.shader</c> through <see cref="ShaderConverter"/> into
+	/// <c>converted/</c> in the results folder, compiled, and drawn beside the <c>.shader</c> (where the device can load it)
+	/// with the rope's textures in every texture and both sides' defaults. A converted surface that compiles is also
+	/// written beside its <c>.shader</c> with <c>-convert-shaders-write</c>.
+	/// </summary>
+	static void ConvertShaders( BackendDevice device, string folder, List<string> lines )
+	{
+		var game = Path.GetDirectoryName( device.Content.Roots[0] );
+		var output = Path.Combine( folder, "converted" );
+		Directory.CreateDirectory( output );
+
+		const string color = "materials/default/rope_color_png_95bee33c.generated.vtex";
+		const string normal = "materials/default/rope_normal_png_b8960e44.generated.vtex";
+		const string rma = "materials/default/rope01_vmat_g_trma_bbf6a2a.generated.vtex";
+
+		foreach ( var relative in Convertible )
+		{
+			var source = Path.Combine( game, relative );
+			var name = Path.GetFileNameWithoutExtension( relative );
+			if ( !File.Exists( source ) )
+			{
+				lines.Add( $"convert {name}: no {relative}" );
+				continue;
+			}
+
+			var result = ShaderConverter.Convert( File.ReadAllText( source ), name );
+			if ( result.Source is null )
+			{
+				lines.Add( $"convert {name}: not converted ({string.Join( "; ", result.Notes )})" );
+				continue;
+			}
+
+			var converted = Path.Combine( output, name + ".slang" );
+			File.WriteAllText( converted, result.Source.Replace( "\n", "\r\n" ) );
+			var compiled = device.Surfaces.Compile( converted );
+			if ( compiled is null )
+			{
+				lines.Add( $"convert {name}: doesn't compile (see the log); notes: {string.Join( "; ", result.Notes )}" );
+				continue;
+			}
+
+			if ( Args.Has( "-convert-shaders-write" ) ) File.WriteAllText( Path.ChangeExtension( source, ".slang" ), result.Source.Replace( "\n", "\r\n" ) );
+			File.WriteAllBytes( Path.Combine( output, name + "_surface_ps.spv" ), compiled.Pass( ShaderPasses.Forward ).Pixel.Spirv );
+
+			// Every texture the rope's, both sides' values their defaults
+			var textures = new Dictionary<string, string>();
+			foreach ( Match texture in Regex.Matches( File.ReadAllText( source ), @"Texture2D\s+(g_t\w+)" ) ) textures[texture.Groups[1].Value] = color;
+			textures["g_tColor"] = color;
+			textures["g_tNormal"] = normal;
+			textures["g_tRma"] = rma;
+
+			// A mount's shaders load from its Assets folder, added to the content for them
+			var shaderPath = relative.StartsWith( "core/", StringComparison.Ordinal ) ? relative["core/".Length..] : relative;
+			if ( relative.IndexOf( "/Assets/", StringComparison.Ordinal ) is var assets and > 0 )
+			{
+				var root = Path.Combine( game, relative[..assets] + "/Assets" );
+				if ( !device.Content.Roots.Contains( Path.GetFullPath( root ), StringComparer.OrdinalIgnoreCase ) ) device.Content.Add( Path.GetFullPath( root ) );
+				shaderPath = relative[(assets + "/Assets/".Length)..];
+			}
+			var classic = (BackendMaterial)((Basalt.GpuDevice)device).CreateMaterial( $"{name} (.shader)", shaderPath );
+			if ( classic.Shader is null )
+			{
+				lines.Add( $"convert {name}: compiles ({compiled.Passes.Count} passes); its .shader isn't loadable here, not compared; notes: {string.Join( "; ", result.Notes )}" );
+				continue;
+			}
+
+			foreach ( var (variable, path) in textures ) classic.SetTexture( variable, (BackendTexture)device.LoadTexture( path ) );
+			using var surface = device.Surfaces.CreateMaterial( converted, textures, null, $"{name} (surface)" ) as SurfaceMaterial;
+			if ( surface is null ) continue;
+
+			var a = Render( device, classic );
+			var b = Render( device, surface );
+			var (mean, max, over, diff) = Compare( a, b );
+			Save( a, Path.Combine( output, name + "-shader.png" ) );
+			Save( b, Path.Combine( output, name + "-surface.png" ) );
+			Save( diff, Path.Combine( output, name + "-diff.png" ) );
+			var forwardMode = classic.Shader.Modes.FirstOrDefault( m => m.Name.Contains( "Forward", StringComparison.OrdinalIgnoreCase ) )?.Name ?? "Forward";
+			if ( classic.Variant( device.Shaders, forwardMode, "Forward;convert", _ => null, _ => null )?.Pixel?.Bytecode is { } bytecode && (bytecode.Spirv ?? bytecode.Shared?.Spirv) is { } spirv )
+				File.WriteAllBytes( Path.Combine( output, name + "_shader_ps.spv" ), spirv );
+			lines.Add( $"convert {name}: surface against .shader: mean difference {mean:F3}, max {max}, {over} pixels over 8 (reported, not gated){(result.Notes.Count > 0 ? "; notes: " + string.Join( "; ", result.Notes ) : "")}" );
+		}
 	}
 
 	static int Fail( string message )
@@ -159,15 +344,16 @@ internal static class SurfaceParity
 
 	/// <summary>
 	/// A ground, a sphere and a box with <paramref name="material"/>, under a sun and a point light; their draws flagged
-	/// alpha-tested when asked, as a compiled model's are, so depth passes keep the pixel shader that clips.
+	/// alpha-tested when asked, as a compiled model's are, so depth passes keep the pixel shader that clips. Without
+	/// <paramref name="sun"/> the sun is black, so the point light alone lights the scene.
 	/// </summary>
-	static Color32[] Render( BackendDevice device, GpuMaterial material, bool alphaTest = false )
+	static Color32[] Render( BackendDevice device, GpuMaterial material, bool alphaTest = false, int samples = 1, bool sun = true )
 	{
 		RenderMesh Flag( RenderMesh mesh ) => alphaTest ? new RenderMesh( mesh.Geometry, mesh.Bounds, [[mesh.DrawsForLod( 0 )[0] with { AlphaTest = true }]] ) : mesh;
 
 		var world = new RenderWorld();
 		world.Lighting.SunDirection = new Vector3( -0.45f, 0.55f, -0.7f ).Normal;
-		world.Lighting.SunColor = new Color( 1.3f, 1.2f, 1.05f );
+		world.Lighting.SunColor = sun ? new Color( 1.3f, 1.2f, 1.05f ) : new Color( 0, 0, 0 );
 		world.Lighting.AmbientColor = new Color( 0.15f, 0.17f, 0.2f, 1 );
 		world.Lighting.SunShadowCascades = 2;
 
@@ -181,7 +367,7 @@ internal static class SurfaceParity
 		view.Rotation = Rotation.LookAt( new Vector3( 0, 0, 30 ) - view.Position );
 
 		using var system = new RenderSystem { ParallelRecording = false };
-		using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface parity" );
+		using var target = ViewTarget.Create( new Vector2Int( Width, Height ), samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface parity" );
 		for ( int frame = 0; frame < Frames; frame++ )
 		{
 			device.BeginFrame();
@@ -211,6 +397,14 @@ internal static class SurfaceParity
 		}
 
 		return (total / (3.0 * a.Length), max, over, diff);
+	}
+
+	static int Changed( Color32[] a, Color32[] b )
+	{
+		var changed = 0;
+		for ( int i = 0; i < a.Length; i++ )
+			if ( Math.Abs( a[i].r - b[i].r ) + Math.Abs( a[i].g - b[i].g ) + Math.Abs( a[i].b - b[i].b ) > 3 ) changed++;
+		return changed;
 	}
 
 	static void Save( Color32[] pixels, string path )

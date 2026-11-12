@@ -68,6 +68,15 @@ public enum MaterialFieldKind
 /// </summary>
 public sealed record MaterialField( string Name, MaterialFieldKind Kind, int Components, int Offset, float[] Default, string Group, float? Min, float? Max, bool Srgb )
 {
+	/// <summary>The texture <c>Opacity</c> comes from (<c>[Opacity]</c>), whose size alpha to coverage compensates mips by.</summary>
+	public bool Opacity { get; init; }
+
+	/// <summary>
+	/// The <c>.shader</c> value a material converted from a <c>.vmat</c> takes this field from (<c>[Source( "F_MULTIBLEND" )]</c>:
+	/// a feature, variable or <c>ShaderVersion</c>); null to look it up by name.
+	/// </summary>
+	public string Source { get; init; }
+
 	/// <summary>Bytes it takes.</summary>
 	public int Size => Kind == MaterialFieldKind.Texture2D ? 4 : 4 * Components;
 

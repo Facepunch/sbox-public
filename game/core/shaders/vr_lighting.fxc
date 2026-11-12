@@ -342,7 +342,8 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 	// Cone and facing tests share one branch so their light data loads in one round trip; bitwise |, && would split it
 	bool bReject = !bBaked && ( flConeToDirection <= 0.0 );
 
-	#if ( !S_TRANSMISSIVE && !S_SUBSURFACE_SCATTERING && !S_DIFFUSE_TWO_SIDED )
+	// A surface with its own light term (SURFACE_LIGHT_HOOK) decides its own facing: back-lit translucency needs lights behind
+	#if ( !S_TRANSMISSIVE && !S_SUBSURFACE_SCATTERING && !S_DIFFUSE_TWO_SIDED && !defined( SURFACE_LIGHT_HOOK ) )
 		// Facing away: diffuse is pow( N.L ) and every specular lobe is scaled by N.L, so the light adds nothing.
 		// S_TRANSMISSIVE_BACKFACE_NDOTL is a spec constant, so #if would always read it as 0
 		if ( S_TRANSMISSIVE_BACKFACE_NDOTL == 0 )
@@ -398,7 +399,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 		flShadowScalar = DirectionalLightShadow::GetVisibilityWithOffset( f.vPositionWithOffsetWs.xyz, vReceiverNormalWs, f.vPositionSs );
 	}
 
-	#if ( !S_TRANSMISSIVE )
+	#if ( !S_TRANSMISSIVE && !defined( SURFACE_LIGHT_HOOK ) )
 		// If we are shadowed and not transmissive, we can skip the rest of the lighting calculations
 		if ( flShadowScalar <= 0.0 )
 			return;
@@ -438,6 +439,11 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 	vDiffuse.rgb 	+= vDiffuseTerm.rgb  * flShadowScalar * flLightMask * vLightColor.rgb;
     vSpecular.rgb 	+= vSpecularTerm.rgb * flShadowScalar * flLightMask * vLightColor.rgb;
     vTransmissive.rgb += vTransmissiveTerm.rgb * f.vTransmissiveMask.rgb * vTransmissiveThickness.rgb * flLightMask * vLightColor.rgb;
+
+	#ifdef SURFACE_LIGHT_HOOK
+		// A surface's own per-light term (ILitSurface.Light, sbox/surface_passes.slangh), shadowed lights included
+		SurfaceLightHook( vPositionToLightDirWs.xyz, vLightColor.rgb, flLightMask, flShadowScalar, lightData.Type == LightType::LightTypeDirectional );
+	#endif
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -467,10 +473,10 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, float3 vReceiverNorm
 
 	float3 vTransmissiveThickness = 1.0f;
 
-	#if ( !S_TRANSMISSIVE )
+	#if ( !S_TRANSMISSIVE && !defined( SURFACE_LIGHT_HOOK ) )
 		if ( flShadowScalar <= 0.0 )
 			return;
-	#else
+	#elif ( S_TRANSMISSIVE )
 		//blergh
 		float3 vHitPosition = DirectionalLightShadow::GetOccludedPosition( f.vPositionWs.xyz );
 		vTransmissiveThickness = GetTransmissiveThicknessFromHit( f, vHitPosition );
@@ -493,6 +499,10 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, float3 vReceiverNorm
 	vDiffuse.rgb 		+= vDiffuseTerm.rgb  * flShadowScalar * vLightColor.rgb;
 	vSpecular.rgb 		+= vSpecularTerm.rgb * flShadowScalar * vLightColor.rgb;
 	vTransmissive.rgb 	+= vTransmissiveTerm.rgb * f.vTransmissiveMask.rgb * vTransmissiveThickness.rgb * vLightColor.rgb;
+
+	#ifdef SURFACE_LIGHT_HOOK
+		SurfaceLightHook( vPositionToLightDirWs.xyz, vLightColor.rgb, 1.0, flShadowScalar, true );
+	#endif
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -559,7 +569,13 @@ void CalcBakedLightingForLight( const FinalCombinerInput_t finalCombinerInput, f
 		float3 vSpecular = 0;
 		float3 vTransmissive = 0;
 
+		#ifdef SURFACE_LIGHT_HOOK
+			SurfaceLightScale( flStrength );
+		#endif
 		ComputeDirectLightingForLight( finalCombinerInput, vReceiverNormalWs, lightData, vDiffuse, vSpecular, vTransmissive, true, LightModulators::Active() );
+		#ifdef SURFACE_LIGHT_HOOK
+			SurfaceLightScale( 1.0 );
+		#endif
 
 		io_vDiffuse += vDiffuse.xyz * flStrength;
 		io_vSpecular += vSpecular.xyz * flStrength;

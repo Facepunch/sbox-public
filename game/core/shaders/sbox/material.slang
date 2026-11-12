@@ -17,6 +17,9 @@ struct SurfaceDraw_t { uint MaterialOffset; };
 
 [vk::constant_id( 2 )] public const bool kMaterialOffsetPerPixel = true;
 
+// The filtering SurfaceInput.Sample reads material textures with: common_samplers.fxc's g_sAniso
+public SamplerState g_MaterialFiltering < Filter( ANISOTROPIC ); MaxAniso( 8 ); >;
+
 /// The draw's material record offset, for the vertex stage to read records with and pass on.
 public uint DrawMaterialOffset()
 {
@@ -82,6 +85,15 @@ public struct Default3Attribute { float X; float Y; float Z; };
 [__AttributeUsage( _AttributeTargets.Var )]
 public struct Default4Attribute { float X; float Y; float Z; float W; };
 
+// The texture Opacity comes from: alpha to coverage compensates its mips by its size, as today's shaders do
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct OpacityAttribute {};
+
 // A texture read in sRGB (colour); without it a texture is read linear (normals, masks)
 [__AttributeUsage( _AttributeTargets.Var )]
 public struct SrgbAttribute {};
+
+// Where a material converted from a .vmat takes this field from: a .shader feature (F_MULTIBLEND), variable or
+// ShaderVersion. Without it the field is found by name (g_tName, g_flName, g_vName, g_nName, g_bName, Name)
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct SourceAttribute { string Name; };

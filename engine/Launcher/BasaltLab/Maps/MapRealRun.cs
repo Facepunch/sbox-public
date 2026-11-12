@@ -18,7 +18,8 @@ namespace Sandbox.BasaltLab.Maps;
 /// record and submit, the copy into the window, and GPU time from timestamps; then, on warm frames, the draws, binds,
 /// object changes (the same material with another object's lightmap, probe or attributes), multi-draws and descriptor
 /// sets written. Prints and saves a table, and what the materials' draws bind. <c>-nobaked</c> leaves the map's
-/// lightmaps and probes out; <c>-occlusion</c> turns on the GPU occlusion cull.
+/// lightmaps and probes out; <c>-occlusion</c> turns on the GPU occlusion cull; <c>-surface-convert blendable,...</c>
+/// draws those shaders' materials with the Slang surfaces beside them (<c>shaders/blendable.slang</c>).
 /// </summary>
 internal static class MapRealRun
 {
@@ -87,6 +88,7 @@ internal static class MapRealRun
 		if ( Args.Has( "-occlusion" ) && RenderHost.Current is BackendRenderHost host ) host.Occlusion = true;
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		Console.WriteLine( $"Loaded in {load.Elapsed.TotalSeconds:0.0} s; {map.Problems.Count} problems" );
+		if ( Args.String( "-surface-convert" ) is not null ) Console.WriteLine( $"  {map.Backend.Surfaces.ConvertedMaterials} materials drawn as surfaces (-surface-convert)" );
 		foreach ( var problem in map.Problems.Take( 10 ) ) Console.WriteLine( $"  {problem}" );
 
 		using var timestamps = gpu.CreateTimestamps( 2 * 4 );
@@ -311,6 +313,7 @@ internal static class MapRealRun
 		md.AppendLine( bindingReport );
 		File.WriteAllText( Path.Combine( options.Output, "map-real.md" ), md.ToString() );
 		File.WriteAllText( Path.Combine( options.Output, "map-real.csv" ), csv.ToString() );
+		if ( Args.String( "-surface-convert" ) is not null ) Console.WriteLine( $"Surface batches drawn GPU-driven: {map.Backend.Surfaces.GpuDrivenBatches} over the run" );
 		Console.WriteLine( $"Results in {options.Output}; validation errors {gpu.ValidationErrors}" );
 		return 0;
 	}
