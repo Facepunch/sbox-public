@@ -479,6 +479,41 @@ public class EditorStartupContentBuild
 	}
 
 	/// <summary>
+	/// A project's compiler that ends the process it runs in: startup fails that source alone, in a worker, and the editor
+	/// opens. Edited while open, the source compiles in a worker again, so the editor goes on and builds the rest.
+	/// </summary>
+	[TestMethod, TestCategory( "Slow" )]
+	public void CompilerThatEndsItsProcessFailsItsSourceNotTheEditor()
+	{
+		if ( Environment.GetEnvironmentVariable( "SBOX_EDITOR_TESTS" ) is null )
+			Assert.Inconclusive( "Opens an editor: set SBOX_EDITOR_TESTS=1 to run" );
+
+		using var project = new EditorProject();
+		Directory.CreateDirectory( Path.Combine( project.Dir, "Editor" ) );
+		File.WriteAllText( Path.Combine( project.Dir, "Editor", "LiveGraph.cs" ), LiveGraphSource.Replace( "return Task.FromResult( true );", """
+			if ( !Context.Describing && json["Crash"] is not null ) System.Environment.Exit( 3 );
+			return Task.FromResult( true );
+			""" ) );
+		project.Write( "graphs/a.lvg", """{ "Name": "a" }""" );
+		project.Write( "graphs/crash.lvg", """{ "Name": "crash", "Crash": true }""" );
+		var b = Path.Combine( project.Assets, "graphs", "b.lvg_c" );
+
+		var live = project.Open( $$"""
+			System.IO.File.WriteAllText( @"{{project.Assets}}\graphs\crash.lvg", "{ \"Name\": \"crash again\", \"Crash\": true }" );
+			System.IO.File.WriteAllText( @"{{project.Assets}}\graphs\b.lvg", "{ \"Name\": \"b\" }" );
+			var timer = System.Diagnostics.Stopwatch.StartNew();
+			while ( !System.IO.File.Exists( @"{{b}}" ) && timer.ElapsedMilliseconds < 60000 ) await Task.Delay( 250 );
+			await Task.Delay( 5000 );
+			return $"editor alive, b built {System.IO.File.Exists( @"{{b}}" )}";
+			""" );
+
+		StringAssert.Contains( live.Summary, $"Content local.{EditorProject.Ident}: 2 compiles, 1 failed", live.ToString() );
+		Assert.IsTrue( File.Exists( Path.Combine( project.Assets, "graphs", "a.lvg_c" ) ), live.ToString() );
+		Assert.IsFalse( File.Exists( Path.Combine( project.Assets, "graphs", "crash.lvg_c" ) ), live.ToString() );
+		StringAssert.Contains( live.Live, "editor alive, b built True", live.ToString() );
+	}
+
+	/// <summary>
 	/// A game resource whose source stops compiling still opens as it last compiled, so its editor can fix it, as on
 	/// master; building it still fails and publishes nothing.
 	/// </summary>
