@@ -703,6 +703,8 @@
             return;
         }
 
+        if ( !MenuProject.Platform.PlatformMenu.CanChangeGame ) return;
+
         MenuUtility.JoinFriendGame( row.Friend );
     }
 

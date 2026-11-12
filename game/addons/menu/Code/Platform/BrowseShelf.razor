@@ -5,7 +5,6 @@
 @namespace MenuProject.Platform
 @page "/shelf/browse"
 @inherits ShelfPage
-@implements IShelfPage
 
 @*
     Browse the Workshop's games - search, put them in an order, narrow them down by tag (how it's played, what it is),
@@ -32,12 +31,6 @@
             <div class="reset" onclick=@ClearAll><i>filter_alt_off</i><label>Clear filters</label></div>
         }
 
-        <label class="what">Show</label>
-        <div class="option check @(Mine ? "on" : "")" onclick=@ToggleMine>
-            <i>@(Mine ? "check_box" : "check_box_outline_blank")</i>
-            <label>My games</label>
-        </div>
-
         <label class="what">Order</label>
         @foreach ( var order in Orders )
         {
@@ -48,6 +41,12 @@
                 <label>@order.Title</label>
             </div>
         }
+
+        <label class="what">Show</label>
+        <div class="option check @(Mine ? "on" : "")" onclick=@ToggleMine>
+            <i>@(Mine ? "check_box" : "check_box_outline_blank")</i>
+            <label>My games</label>
+        </div>
 
         <label class="what">Players</label>
         @foreach ( var tag in MenuUtility.WorkshopPlayerTags )
@@ -170,7 +169,7 @@
     Panel Side;
 
     // Down to the dock's top, the sidebar fading off into it as the other shelves' panels do
-    bool IShelfPage.ToDock => true;
+    public override bool ToDock => true;
 
     /// <summary>
     /// A card's size at the least - the grid stretches as many columns as fit to fill its width, keeping this shape
@@ -184,7 +183,7 @@
     /// Shown - it starts again, from what its url asked for. Taken off it as it's used: a url without a query leaves
     /// what the last one set.
     /// </summary>
-    void IShelfPage.OnShelfShown()
+    public override void OnShelfShown()
     {
         Query = string.IsNullOrWhiteSpace( SearchFor ) ? null : SearchFor;
         Sort = Enum.TryParse<Storage.SortOrder>( SortBy, out var sort ) ? sort : string.IsNullOrEmpty( Query ) ? Storage.SortOrder.RankedByVote : (Storage.SortOrder?)null;

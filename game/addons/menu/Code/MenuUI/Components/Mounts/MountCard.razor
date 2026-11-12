@@ -6,7 +6,7 @@
 @namespace Sandbox.UI.Mounts
 @inherits Panel
 
-@* Art on top, a band under it - the menu's tile shape, same as PackageCard. The whole tile is
+@* Art on top, a band under it - the menu's tile shape. The whole tile is
    the toggle when the game is installed, so there's no small target to hit. The tooltip carries
    the full name, since a long one ellipsises in the band. *@
 <root class="@StateClass @(IsBusy ? "busy" : "")" onclick=@Toggle>

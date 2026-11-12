@@ -1,45 +1,50 @@
 @import "/styles/_front.scss";
 
-// The platform menu's look - the dock's midnight (Dock): solid navy, round-ended buttons, light blue for what's on or
-// picked with dark words on it, Poppins
+// The menu's look - s&box's dark cards (the front's, _front.scss) with its blue for what's on, picked or to press, round
+// ended buttons, Poppins. The dock keeps its own navy (Dock).
 
 $platform-font: Poppins;
 
-$platform-text: #e4edff;
-$platform-muted: #9fb0cf;
-$platform-faint: #6a7a99;
+$platform-text: $front-heading;
+$platform-muted: $front-secondary;
+$platform-faint: $front-tertiary;
 
-// The bar's own navy, a glyph's blue, and what's toggled on or picked - the light blue, the dock's dark navy words and
-// glyphs on it. A button to press (platform-button-primary) and a badge are the same blue, white on it.
-$platform-midnight: #111f38;
-$platform-icon: #80afff;
-$platform-selected: #639dff;
-$platform-selected-hover: #79acff;
-$platform-selected-text: #071b3b;
+// A glyph's grey-blue, and what's toggled on or picked - s&box's blue, white on it. A button to press
+// (platform-button-primary) and a badge are the same blue.
+$platform-icon: #aeb9cf;
+$platform-selected: $front-primary;
+$platform-selected-hover: #4a85f0;
+$platform-selected-text: white;
 $platform-primary-text: white;
 
 // Round ends, as the dock's buttons have - as round as the corners can be at any of their heights
 $platform-pill: 20px;
 
-// One blue - the dock's light one, what's on or picked as well as the buttons to press
-$platform-primary: #639dff;
-$platform-primary-hover: #79acff;
+// One blue - what's on or picked as well as the buttons to press
+$platform-primary: $front-primary;
+$platform-primary-hover: #4a85f0;
 $platform-good: #3fd17a;
 $platform-danger: #ff5d6a;
 $platform-reward: #3fc76a;
 $platform-warning: #f5a623;
 
 // An open dropdown and its list, as one
-$platform-dropdown-open: #172943;
+$platform-dropdown-open: #1b1f2b;
 
 // Steam's own blue - links and tags, as its store has them
 $platform-steam-blue: #66c0f4;
 
-$platform-panel: rgba( 17, 31, 56, 0.97 );
-// The platform-panel mixin's fill - the same navy as everything else up over the dock
-$platform-glass: rgba( 17, 31, 56, 0.97 );
-$platform-button: #172943;
-$platform-button-hover: #2b466d;
+// s&box's darkest blue-greys (_theme.scss's default-900 and default-950)
+$platform-panel: rgba( 17, 20, 29, 0.98 );
+// The platform-panel mixin's fill - lit a little from the top, down to near black
+$platform-glass: rgba( 17, 20, 29, 0.98 );
+$platform-glass-fill: linear-gradient( 180deg, rgba( 25, 29, 42, 0.98 ), rgba( 13, 15, 22, 0.98 ) );
+$platform-button: #222736;
+$platform-button-hover: #2d3346;
+
+// A card or tile's face - lit from the top, down to the panel's dark (shop cards, the avatar's slots and items)
+$platform-card-fill: linear-gradient( to bottom, #2b3142, #161a24 );
+$platform-card-fill-hover: linear-gradient( to bottom, #363d52, #1c212d );
 $platform-hairline: rgba( 255, 255, 255, 0.1 );
 $platform-hover-wash: rgba( 255, 255, 255, 0.06 );
 
@@ -50,14 +55,14 @@ $platform-glyph: linear-gradient( 180deg, #a7b0c0, #4c5464 );
 $platform-glyph-lit: linear-gradient( 180deg, #ffffff, #9aa3b5 );
 
 $platform-edge: 64px;
-$platform-dock-height: 64px;
+$platform-dock-height: 48px;
 
 // Where what's up over the dock stops - the bar's height and a gap, so panels float clear of it rather than sit on it
-$platform-above-dock: 80px;
+$platform-above-dock: 64px;
 $platform-radius: 4px;
 
 // How strong the paper grain over a surface is - 0 turns it off
-$platform-grain-opacity: 0;
+$platform-grain-opacity: $front-grain-opacity;
 
 // A page's sections beside its panel (platform-side) - how wide, how far from it, and the two together, which the
 // panel keeps clear on its other side so it stays in the middle (no arithmetic in the stylesheets)
@@ -514,7 +519,7 @@ $screen-w-16x9: 1920px;
 	padding: 6px 10px;
 	border: 0px solid transparent;
 	border-radius: 8px;
-	background-color: rgba( 6, 12, 24, 0.9 );
+	background-color: rgba( 8, 9, 12, 0.92 );
 	backdrop-filter: blur( 8px );
 	box-shadow: 0 4px 14px rgba( 0, 0, 0, 0.45 );
 	font-family: $platform-font;
@@ -837,6 +842,7 @@ $screen-w-16x9: 1920px;
 	flex-direction: column;
 	border-radius: 6px;
 	background-color: $platform-glass;
+	background-image: $platform-glass-fill;
 	backdrop-filter: blur( 8px );
 	font-family: $platform-font;
 	color: $platform-text;
@@ -1035,7 +1041,7 @@ $screen-w-16x9: 1920px;
 	gap: 2px;
 	padding: 2px;
 	border-radius: $platform-pill;
-	background-color: rgba( 6, 12, 24, 0.6 );
+	background-color: rgba( 8, 9, 12, 0.6 );
 }
 
 // As wide as what's on it, sharing out any room the strip's given - a strip of a set width that wants its choices all the
@@ -1164,8 +1170,8 @@ $screen-w-16x9: 1920px;
 	align-items: center;
 	padding: 0 14px;
 	border-radius: $platform-pill;
-	border: 1px solid rgba( 128, 175, 255, 0.12 );
-	background-color: rgba( 6, 12, 24, 0.6 );
+	border: 1px solid rgba( 255, 255, 255, 0.08 );
+	background-color: rgba( 8, 9, 12, 0.6 );
 	font-size: 14px;
 	color: $platform-text;
 	cursor: text;
@@ -1196,11 +1202,11 @@ $screen-w-16x9: 1920px;
 	padding: 0 30px 0 14px;
 	border: 0px solid transparent;
 	// Recessed, as the choices and fields beside it are - not a button's navy, the same as the rows they're on
-	background-color: rgba( 6, 12, 24, 0.6 );
+	background-color: rgba( 8, 9, 12, 0.6 );
 
 	&:hover
 	{
-		background-color: rgba( 6, 12, 24, 0.85 );
+		background-color: rgba( 8, 9, 12, 0.85 );
 	}
 	font-size: 13.5px;
 	font-weight: 600;
@@ -1255,7 +1261,7 @@ $screen-w-16x9: 1920px;
 		min-height: 24px;
 		padding: 0 12px;
 		border-radius: 12px;
-		background-color: rgba( 6, 12, 24, 0.6 );
+		background-color: rgba( 8, 9, 12, 0.6 );
 	}
 
 	> .inner > .track
@@ -1394,5 +1400,155 @@ $screen-w-16x9: 1920px;
 		text-transform: none;
 		letter-spacing: 0;
 		color: linear-gradient( 180deg, #7fb4ff, $platform-primary );
+	}
+}
+
+// The front's pages (FrontPages) - each over the whole of it, the one you're on and the others faded out, and the
+// pages it goes on to (setting up a game, its servers, its maps) each a panel of their own. On the front, and up on
+// their own in a SetupModal.
+@mixin platform-front-pages
+{
+
+		flex-grow: 1;
+		position: relative;
+		pointer-events: none;
+
+		> .navigator-body
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			flex-direction: column;
+			transition: opacity 0.12s ease-out;
+
+			// Kept laid out to fade, rather than gone - over the navigator's own display: none
+			&.hidden
+			{
+				display: flex;
+				opacity: 0;
+				pointer-events: none;
+				transition: opacity 0.08s ease-in;
+			}
+		}
+
+	// The pages it goes on to - faded in the first time. Each is a panel of its own (the platform-panel mixin) over the
+	// art: a bar with the way back, what it is and its tools, then what's on it.
+	& > CreateGamePage, & > ServersPage, & > MapsPage
+	{
+		pointer-events: all;
+
+		&:intro
+		{
+			opacity: 0;
+		}
+
+		// The panel in the middle, its sections out on the art at the left (the platform-side mixin) - as the settings
+		// have their card and categories
+		&.navigator-body
+		{
+			flex-direction: row;
+			justify-content: center;
+		}
+
+		> .panel
+		{
+			@include platform-panel;
+			flex-shrink: 1;
+			margin-right: $platform-side-balance;
+			width: 46%;
+			min-width: 640px;
+			max-width: 900px;
+			min-height: 0;
+			box-shadow: 0 24px 60px rgba( 0, 0, 0, 0.45 );
+		}
+
+		.status
+		{
+			flex-grow: 1;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 14px;
+			padding: 48px;
+			color: $platform-muted;
+
+			i
+			{
+				font-size: 32px;
+			}
+
+			&.error
+			{
+				color: $platform-danger;
+			}
+		}
+	}
+
+	// Its sections and their rows are its own stylesheet's - here, how wide it is, while it loads, and its buttons
+	& > CreateGamePage
+	{
+		> .panel > .body
+		{
+			gap: 18px;
+			padding: 8px 16px 16px 16px;
+		}
+
+		.status
+		{
+			.track
+			{
+				width: 320px;
+				height: 4px;
+				border-radius: 2px;
+				background-color: rgba( 255, 255, 255, 0.12 );
+			}
+
+			.fill
+			{
+				height: 100%;
+				border-radius: 2px;
+				background-color: $platform-primary;
+			}
+		}
+
+		.actions
+		{
+			flex-shrink: 0;
+			justify-content: flex-end;
+			gap: 12px;
+			padding-top: 6px;
+
+			.button
+			{
+				@include platform-button;
+				padding: 0 22px;
+				font-size: 16px;
+				font-weight: 600;
+
+				i
+				{
+					font-size: 20px;
+				}
+
+				&.start
+				{
+					@include platform-button-primary;
+				}
+			}
+		}
+	}
+
+	// A grid of maps wants more room across than a page of rows - and room round the well they're in
+	& > MapsPage > .panel
+	{
+		width: 62%;
+		max-width: 1280px;
+
+		> .body
+		{
+			padding: 4px 16px 16px 16px;
+		}
 	}
 }

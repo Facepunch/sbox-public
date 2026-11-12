@@ -83,10 +83,10 @@
 
 		<div class="right">
 			@* Your weekly drop, in from the right as your friends are - not in a started game: opening one loads its own
-			   scene, which would pull you out of it. A pip when there's one waiting. *@
+			   scene, which would pull you out of it. A pip when there's one waiting. Not while it's being opened. *@
 			@if ( PlatformRoot.CanDressUp )
 			{
-				<div class="square rewards @(Root?.RewardsOpen == true ? "open" : "")" onclick=@( () => Root?.ToggleSide( PlatformRoot.SidePanel.Rewards ) ) tooltip="Weekly rewards">
+				<div class="square rewards @(Root?.RewardsOpen == true ? "open" : "") @(Shelf == PlatformShelf.Unbox ? "disabled" : "")" onclick=@( () => Root?.ToggleSide( PlatformRoot.SidePanel.Rewards ) ) tooltip="Weekly rewards">
 					<i>redeem</i>
 					@if ( MenuHelpers.RewardReady( rewards ) )
 					{
@@ -111,7 +111,7 @@
 				<i>settings</i>
 			</div>
 
-			<div class="square quit" onclick=@Quit tooltip="Quit to desktop">
+			<div class="square quit" onclick=@Quit tooltip="@(Application.IsEditor ? "Stop playing" : "Quit to desktop")">
 				<i>power_settings_new</i>
 			</div>
 		</div>
@@ -281,7 +281,7 @@
     /// How far over one of its buttons a popup goes, to clear the dock - its buttons are 40 tall in the middle of its
     /// 64, so 12 to its top, then a gap
     /// </summary>
-    internal const float PopupOffset = 24;
+    internal const float PopupOffset = 18;
 
     static MenuProject.MenuUI.Popups.FriendCard ShowCard( PanelEvent e, Friend friend )
     {
@@ -325,7 +325,23 @@
         else open();
     }
 
-    static void Quit() => MenuHelpers.ConfirmQuit();
+    /// <summary>
+    /// Out of the game - in the editor, out of play mode rather than the editor itself
+    /// </summary>
+    void Quit()
+    {
+        if ( !Application.IsEditor )
+        {
+            MenuHelpers.ConfirmQuit();
+            return;
+        }
+
+        MenuHelpers.ConfirmLeave( () =>
+        {
+            Root?.Resume();
+            Game.Close();
+        } );
+    }
 
     protected override int BuildHash() => HashCode.Combine( InstalledGames, Shelf, PlatformMenu.CanSwitch, Root?.SettingsPage is not null, HashCode.Combine( PartyView.Exists, PartyDeck.Drafting, PlayingFriends, Root?.FriendsOpen == true, FriendsUpFrom( InviteButton ), card.IsValid() && !card.IsDeleting ), PartyDeck.ShownOnPlatform,
         MenuHelpers.HashOf( ShownMembers, static x => (x.Id, PartyView.StatusOf( x ), PartyView.IsMemberReady( x )) ), HashCode.Combine( MenuHelpers.HashOf( ShownInvites, static x => x.Id ),

@@ -13,7 +13,7 @@
 <root>
 	@if ( InParty )
 	{
-		<FloatingWindow @ref="Window" Title="@(Draft is not null ? "#menu.party.create_party" : PartyView.Name)" Icon="🎉" KeepOnScreen="@(true)" Draggable="@(!OnPlatform)" ShowMinimizeButton="@(!OnPlatform)" class="@(Activity() ?? "")">
+		<FloatingWindow @ref="Window" Title="@(Draft is not null ? "#menu.party.create_party" : PartyView.Name)" Icon="🎉" KeepOnScreen="@(true)" Draggable="@(false)" ShowMinimizeButton="@(false)" class="@(Activity() ?? "")">
 			<ChildContent>
 				@* Eased to the height of what's in it, so opening settings grows it rather than jumping - see EaseHeight *@
 				<div class="party-deck-sizer" @ref="Sizer">
@@ -22,56 +22,21 @@
 						@if ( Draft is not null )
 						{
 							<PanelHead Icon="sports_esports" Title="Create a party">
-								<Tools>
-									@* Not on the platform menu: clicking off it, or its + again, gives it up *@
-									@if ( !OnPlatform )
-									{
-										<Button class="icon-button leave" Icon="logout" onclick="@Leave" tooltip="Cancel the party" />
-									}
-								</Tools>
+								@* Clicking off it, or its + again, gives it up *@
+								<Tools />
 							</PanelHead>
 						}
 						else
 						{
-							@* On the platform menu the game's plain to see - it's the one the menu's on - so just what this is, as the
-							   platform's panels have it, and the party's buttons *@
-							@if ( OnPlatform )
-							{
-								<PanelHead Icon="groups" Title="Party">
-									<Tools>
-										<Button class="icon-button privacy" Icon="@(IsPublic ? "lock_open" : "lock")" disabled="@(!CanChangeSettings)" onclick="@TogglePrivacy" tooltip="@PrivacyTooltip" />
-										<Button class="icon-button settings" Active=@SettingsOpen Icon="settings" onclick="@ToggleSettings" tooltip="@(SettingsOpen ? "#menu.party.back_to_party" : "#menu.party.party_settings")" />
-										@* Leaving's its own button - not closing the window *@
-										<Button class="icon-button leave" Icon="logout" onclick="@Leave" tooltip="Leave the party" />
-									</Tools>
-								</PanelHead>
-							}
-							else
-							{
-								<div class="head toolbar">
-									<div class="current-game @(HasDisplayGame || CanChangeSettings ? "editable" : "") @(HasDisplayGame ? "" : "empty")" onclick=@OpenGameInfo tooltip="@(HasDisplayGame ? "#menu.party.view_game_details" : CanChangeSettings ? "#menu.party.party_settings" : "")">
-										@if ( !string.IsNullOrWhiteSpace( GameThumb ) )
-										{
-											<div class="game-thumb" style="background-image: url( @GameThumb );" />
-										}
-										else
-										{
-											<icon>sports_esports</icon>
-										}
-										<div class="game-summary">
-											<label>@(HasDisplayGame ? DisplayGameTitle : "#menu.party.no_game_selected")</label>
-											@if ( GameSummaryText is { } summary )
-											{
-												<label class="game-capacity" tooltip=@summary>@summary</label>
-											}
-										</div>
-									</div>
+							@* The game's plain to see - it's the one the menu's on - so just what this is, and the party's buttons *@
+							<PanelHead Icon="groups" Title="Party">
+								<Tools>
 									<Button class="icon-button privacy" Icon="@(IsPublic ? "lock_open" : "lock")" disabled="@(!CanChangeSettings)" onclick="@TogglePrivacy" tooltip="@PrivacyTooltip" />
 									<Button class="icon-button settings" Active=@SettingsOpen Icon="settings" onclick="@ToggleSettings" tooltip="@(SettingsOpen ? "#menu.party.back_to_party" : "#menu.party.party_settings")" />
 									@* Leaving's its own button - not closing the window *@
 									<Button class="icon-button leave" Icon="logout" onclick="@Leave" tooltip="Leave the party" />
-								</div>
-							}
+								</Tools>
+							</PanelHead>
 						}
 
 						@if ( !string.IsNullOrEmpty( SettingsError ) )
@@ -155,20 +120,6 @@
 							}
 						</div>
 
-						@* Not on the platform menu - getting into a game's up to the game's own menu there, the party following *@
-						@if ( ShowPlayControls && !OnPlatform )
-						{
-							<div class="party-play">
-								@if ( PartyView.OwnerIsMe )
-								{
-									<Button class="play-button" Icon="play_arrow" Text="Play" disabled="@(!CanStartGame)" onclick="@StartGame" />
-								}
-								else
-								{
-									<Button class="@(IsReady ? "ready-button" : "play-button")" Icon="@(IsReady ? "check" : "check_circle")" Text="@(IsReady ? "#menu.party.not_ready" : "#menu.party.ready")" disabled="@(!IsReady && SetupProblem is not null)" onclick="@ToggleReady" />
-								}
-							</div>
-						}
 					</div>
 				</div>
 			</ChildContent>
@@ -304,63 +255,9 @@
 	/// </summary>
 	internal string GameArt;
 	Package DisplayGamePackage;
-	string mapIdent;
-	string MapTitle;
 
 	// Show what the leader is playing, or the game chosen in party settings while idle.
-	string DisplayGameIdent => Draft is not null ? Draft.Game?.FullIdent : string.IsNullOrWhiteSpace( PartyView.PackageIdent ) ? PartyView.SelectedGameIdent : PartyView.PackageIdent;
-	string DisplayGameTitle => Draft is not null ? Draft.Game?.Title : string.IsNullOrWhiteSpace( PartyView.PackageIdent ) ? PartyView.SelectedGameTitle : PartyView.PackageTitle;
-	bool HasDisplayGame => !string.IsNullOrWhiteSpace( DisplayGameIdent );
-
-	Sandbox.Modals.CreateGameResults? DisplayGameSettings
-	{
-		get
-		{
-			if ( _artIdent != DisplayGameIdent || DisplayGamePackage is not { } package || package.Info.IsDedicatedServerOnly ) return null;
-			if ( Draft is not null ) return Draft.GameSettings;
-			if ( !PartyView.IsGameSelected( package ) || !string.IsNullOrWhiteSpace( PartyView.PackageIdent ) ) return null;
-			return PartyView.SelectedGameSettings;
-		}
-	}
-
-	string GameSummaryText
-	{
-		get
-		{
-			var capacity = GameCapacityText;
-			var map = mapIdent == DisplayGameSettings?.Map ? MapTitle : null;
-			if ( string.IsNullOrWhiteSpace( map ) ) return capacity;
-			return string.IsNullOrWhiteSpace( capacity ) ? map : $"{capacity} · {map}";
-		}
-	}
-
-	string GameCapacityText
-	{
-		get
-		{
-			if ( !HasDisplayGame || _artIdent != DisplayGameIdent || DisplayGamePackage is not { } package || package.Info.MaxPlayers <= 0 ) return null;
-
-			if ( DisplayGameSettings is { } configured )
-			{
-				var players = MenuProject.Modals.GameModalComponents.GameSetup.ClampServerSlots( package, configured.MaxPlayers );
-				return $"{players} server {(players == 1 ? "slot" : "slots")}";
-			}
-
-			return $"Up to {package.Info.MaxPlayers} {(package.Info.MaxPlayers == 1 ? "player" : "players")}";
-		}
-	}
-
-	void OpenGameInfo()
-	{
-		if ( !HasDisplayGame )
-		{
-			OpenSettings();
-			return;
-		}
-
-		Game.Overlay.ShowGameModal( DisplayGameIdent );
-	}
-
+	string DisplayGameIdent => Draft is not null ? null : string.IsNullOrWhiteSpace( PartyView.PackageIdent ) ? PartyView.SelectedGameIdent : PartyView.PackageIdent;
 	void UpdateGameArt()
 	{
 		var ident = DisplayGameIdent;
@@ -394,37 +291,7 @@
 		}
 	}
 
-	void UpdateMapTitle()
-	{
-		var map = DisplayGameSettings?.Map;
-		if ( mapIdent == map ) return;
-
-		mapIdent = map;
-		MapTitle = null;
-		if ( !string.IsNullOrWhiteSpace( map ) ) _ = LoadMapTitle( map );
-	}
-
-	async Task LoadMapTitle( string map )
-	{
-		try
-		{
-			// Mounted maps have local metadata; workshop maps use their package title.
-			var title = Sandbox.Mounting.Directory.GetMetadata( map )?.Name;
-			if ( string.IsNullOrWhiteSpace( title ) ) title = (await Package.FetchAsync( map, true ))?.Title;
-			if ( !IsValid || mapIdent != map || DisplayGameSettings?.Map != map ) return;
-
-			MapTitle = title;
-			StateHasChanged();
-		}
-		catch ( Exception e )
-		{
-			Log.Warning( $"Couldn't load the party's map name: {e.Message}" );
-		}
-	}
-
 	static string Percent( double fraction ) => (Math.Clamp( fraction, 0, 1 ) * 100).ToString( "0.0", System.Globalization.CultureInfo.InvariantCulture );
-
-	bool Talking => Application.IsMicrophoneListening;
 
 	protected override int BuildHash()
 	{
@@ -434,9 +301,8 @@
 			members.Add( StatusOf( member ) );
 			members.Add( PartyView.IsMemberReady( member ) );
 		}
-		members.Add( HashCode.Combine( ShowPlayControls, CanStartGame, IsReady ) );
 
-		return System.HashCode.Combine( PartyView.Exists, MemberCount, PartyView.Owner, Status, members.ToHashCode(), HashCode.Combine( GameThumb, GameArt, PartyInvites.Hash, InParty, DisplayGameIdent, DisplayGameTitle, GameSummaryText ), HashCode.Combine( PartyView.Name, IsPublic, SettingsOpen, SettingsError, MaxMembers, Draft, Draft?.Creating ) );
+		return System.HashCode.Combine( PartyView.Exists, MemberCount, PartyView.Owner, Status, members.ToHashCode(), HashCode.Combine( GameThumb, GameArt, PartyInvites.Hash, InParty, DisplayGameIdent ), HashCode.Combine( PartyView.Name, IsPublic, SettingsOpen, SettingsError, MaxMembers, Draft, Draft?.Creating ) );
 	}
 
 	/// <summary>
@@ -470,7 +336,6 @@
 
 	void Leave()
 	{
-		SaveWindowPosition();
 		if ( Draft is not null )
 		{
 			Draft.Cancel();
@@ -490,13 +355,10 @@
 		UpdateSettings();
 		UpdateWindow();
 
-		if ( InParty )
-		{
-			if ( Draft is null ) PartyView.SetBroadcastVoice();
-			UpdateMapTitle();
-		}
+		if ( InParty && Draft is null )
+			PartyView.SetBroadcastVoice();
 
-		// The platform menu's dock shows the party's game too, so it's kept current while there's a party, shown or not
+		// The dock shows the party's game too, so it's kept current while there's a party, shown or not
 		if ( Draft is not null || PartyView.Exists )
 			UpdateGameArt();
 	}

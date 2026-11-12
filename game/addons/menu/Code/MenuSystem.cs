@@ -5,7 +5,9 @@ global using System.Collections.Generic;
 global using System.Linq;
 global using System.Threading.Tasks;
 using MenuProject;
+using MenuProject.Modals;
 using MenuProject.Overlay.Overlays;
+using MenuProject.Platform;
 using Sandbox;
 using Sandbox.Audio;
 using Sandbox.Internal;
@@ -25,8 +27,8 @@ public partial class MenuSystem : IMenuSystem
 	{
 		Instance = this;
 
-		// On the platform or not, before anything that asks is made
-		MenuProject.Platform.PlatformMenu.Reset();
+		// Whatever the last run was on goes, before anything that asks is made
+		PlatformMenu.Reset();
 
 		// Creation order is important
 		// Panel created first will be on top
@@ -36,26 +38,40 @@ public partial class MenuSystem : IMenuSystem
 		MenuUtility.SetModalSystem( new ModalSystem() );
 		MenuOverlay.Init();
 
-		// What's hidden, so a hidden game's page can offer to show it again
-		_ = MenuUtility.Hidden.Refresh();
+		// Made after the overlay, so its modals, toasts and the loading screen draw over it. Straight onto a game's
+		// menu - the one given on the command line, or the one picked last time. Not in the editor, where it's only
+		// up over the game being worked on - paused, or for what it opens (PlatformRoot.Visible).
+		PlatformRoot.Instance = new PlatformRoot();
 
-		// The platform menu - made after the overlay, so its modals, toasts and the loading screen draw over it. Its
-		// toasts move up clear of the dock. Straight onto a game's menu - the one given on the command line, or the one
-		// picked last time.
-		if ( MenuProject.Platform.PlatformMenu.Enabled )
-		{
-			MenuProject.Platform.PlatformRoot.Instance = new MenuProject.Platform.PlatformRoot();
-			MenuOverlay.Instance.AddClass( "platform" );
-			MenuProject.Platform.PlatformMenu.Start();
-			return;
-		}
+		if ( Application.IsEditor ) return;
 
-		var startupGameIdent = MenuUtility.StartupGameIdent;
-		if ( !string.IsNullOrEmpty( startupGameIdent ) )
-		{
-			Discovery.Clicked( new DiscoveryContext { Surface = "web", Referrer = MenuUtility.StartupWebReferrer }, startupGameIdent );
-			Game.Overlay.ShowGameModal( startupGameIdent );
-		}
+		PlatformMenu.Start();
+
+		_ = ShowStreamerModePromptIfNeeded();
+		_ = FetchResolutionsWhenIdle();
+	}
+
+	static async Task FetchResolutionsWhenIdle()
+	{
+		// Fetch resolutions early so opening the settings doesn't stutter later, but not while the menu is first appearing.
+		await GameTask.DelayRealtime( 3000 );
+		MenuProject.Settings.SettingsCatalog.FetchResolutions();
+	}
+
+	static async Task ShowStreamerModePromptIfNeeded()
+	{
+		await GameTask.DelayRealtime( 1500 );
+
+		if ( Preferences.StreamerMode ) return;
+
+		// Only inform the user about Streamer Mode once, then remember it across startups.
+		if ( Game.Cookies.Get<bool>( StreamerModePromptModal.CookieKey, false ) ) return;
+
+		// Enumerating every process can take tens of ms, so keep it off the main thread.
+		if ( !await RecordingSoftware.IsRunningAsync() ) return;
+
+		Game.Cookies.Set( StreamerModePromptModal.CookieKey, true );
+		ModalSystem.Instance?.Open( new StreamerModePromptModal() );
 	}
 
 	public void Shutdown()
@@ -66,8 +82,8 @@ public partial class MenuSystem : IMenuSystem
 
 		MenuOverlay.Shutdown();
 
-		MenuProject.Platform.PlatformRoot.Instance?.Delete();
-		MenuProject.Platform.PlatformRoot.Instance = null;
+		PlatformRoot.Instance?.Delete();
+		PlatformRoot.Instance = null;
 
 		Dev?.Delete();
 		Dev = null;
@@ -76,27 +92,12 @@ public partial class MenuSystem : IMenuSystem
 		Instance = null;
 	}
 
-	Package oldGamePackage;
-
 	GameClosing gameClosingPanel;
-	GameClosedToast gameClosedToast;
 
 	public void Tick()
 	{
 		MenuProject.Multiplayer.GlobalChatService.Tick();
 		if ( Application.IsEditor ) return;
-
-		if ( oldGamePackage != MenuUtility.GamePackage )
-		{
-			oldGamePackage = MenuUtility.GamePackage;
-
-			// Anything left over from the previous game goes away when a new one starts
-			if ( MenuUtility.GamePackage is not null )
-			{
-				gameClosedToast?.Delete( true );
-				gameClosedToast = null;
-			}
-		}
 
 		TickEscapeToClose();
 		UpdateMusic();
@@ -104,10 +105,8 @@ public partial class MenuSystem : IMenuSystem
 
 	void TickEscapeToClose()
 	{
-		// The platform menu leaves a game for Sandbox's front - on a game's menu, there's nowhere to go
-		var platform = MenuProject.Platform.PlatformMenu.Enabled;
-
-		if ( Game.InGame && !(platform && Game.IsOnMenu) )
+		// Held, a game's left for Sandbox's front - on a game's menu, there's nowhere to go
+		if ( Game.InGame && !Game.IsOnMenu )
 		{
 			var startDelay = 0.2f;
 			var holdDelay = 1.5f;
@@ -130,8 +129,7 @@ public partial class MenuSystem : IMenuSystem
 					gameClosingPanel?.Delete();
 					gameClosingPanel = null;
 
-					if ( platform ) MenuProject.Platform.PlatformMenu.LeaveToDefault();
-					else Game.Close();
+					PlatformMenu.LeaveToDefault();
 				}
 			}
 			else
@@ -173,21 +171,14 @@ public partial class MenuSystem : IMenuSystem
 		PartyInviteToast.Show( from, accept, decline );
 	}
 
-	public string Url
-	{
-		get => MainMenu.Instance.Navigator.CurrentUrl;
-		set => MainMenu.Instance.Navigator.Navigate( value );
-	}
-
 	public bool ForceCursorVisible => DeveloperMode.Open || ChatOverlay.IsOpen;
 
 
 	SoundFile menuTrack;
 	SoundFile loadingTrack;
-	SoundFile avatarTrack;
 
 	/// <summary>
-	/// Volume multiplier for menu, loading screen and avatar editor music.
+	/// Volume multiplier for menu and loading screen music.
 	/// </summary>
 	[MenuConVar( "music_volume_menu", Help = "Menu music volume", Saved = true, Min = 0, Max = 1 )]
 	public static float MenuMusicVolume { get; set; } = 1.0f;
@@ -200,16 +191,14 @@ public partial class MenuSystem : IMenuSystem
 	{
 		menuTrack ??= SoundFile.Load( "music/menu.mp3" );
 		loadingTrack ??= SoundFile.Load( "music/menu-loading.wav" );
-		avatarTrack ??= SoundFile.Load( "music/furniture_shop_loop.ogg" );
 
 		var current = Game.Music.Track;
-		bool isOurs = current is null || current == menuTrack || current == loadingTrack || current == avatarTrack;
+		bool isOurs = current is null || current == menuTrack || current == loadingTrack;
 		if ( !isOurs )
 			return;
 
 		bool isLoading = LoadingScreen.IsVisible && (IGameInstance.Current is null || IGameInstance.Current.IsLoading);
 		bool isInGame = IGameInstance.Current is not null;
-		bool isAvatarMenu = Game.ActiveScene?.Get<AvatarEditManager>() != null;
 
 		if ( isLoading )
 		{
@@ -219,46 +208,18 @@ public partial class MenuSystem : IMenuSystem
 		{
 			Game.Music.Stop( 0.5f );
 		}
-		else if ( isAvatarMenu )
-		{
-			Game.Music.Play( avatarTrack, fade: 0.5f, volume: 0.1f * MenuMusicVolume );
-		}
 		else
 		{
 			Game.Music.Play( menuTrack, fade: 0.5f, volume: 0.1f * MenuMusicVolume );
 		}
 	}
 
-	async void IMenuSystem.OnPackageClosed( Package package )
+	void IMenuSystem.OnPackageClosed( Package package )
 	{
-		// The platform menu goes back onto its game's menu - unless it's switching, which is going somewhere else
-		if ( MenuProject.Platform.PlatformMenu.Enabled )
-		{
-			if ( !MenuProject.Platform.PlatformMenu.IsSwitching )
-				MenuProject.Platform.PlatformMenu.ReturnAfterClose( package );
+		// Back onto its game's menu - unless it's switching, which is going somewhere else
+		if ( Application.IsEditor || PlatformMenu.IsSwitching ) return;
 
-			return;
-		}
-
-		gameClosedToast?.Delete( true );
-		gameClosedToast = null;
-
-		// A moment after, once you're back in the menu - not on top of the way out
-		await GameTask.DelayRealtime( 2000 );
-
-		// Off into another game in the meantime - it's not the time
-		if ( MenuUtility.GamePackage is not null ) return;
-
-		gameClosedToast?.Delete( true );
-		gameClosedToast = new GameClosedToast() { Package = package };
-		MenuOverlay.Instance.BottomCenter.Queue( gameClosedToast, duration: 0, clickToDismiss: false );
-	}
-
-	/// <summary>Go to a menu url from the console, for driving the menu from a test or tool.</summary>
-	[MenuConCmd( "menu_goto" )]
-	public static void GoTo( string url )
-	{
-		MainMenu.Instance?.Navigator?.Navigate( url );
+		PlatformMenu.ReturnAfterClose( package );
 	}
 
 	/// <summary>

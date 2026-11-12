@@ -20,9 +20,6 @@ public static class StoreItem
 		/// <summary>A soft radial wash of the rarity colour, for use as a background-image behind big art.</summary>
 		public string RarityGlow( float alpha ) => $"radial-gradient( circle at 50% 55%, {item.RarityColorAlpha( alpha )} 0%, {item.RarityColorAlpha( alpha * 0.35f )} 40%, {item.RarityColorAlpha( 0 )} 72% )";
 
-		/// <summary>A top-down tint of the rarity colour, fading to nothing - a full-bleed wash for a tile's art area.</summary>
-		public string RarityWash( float alpha ) => $"linear-gradient( to bottom, {item.RarityColorAlpha( alpha )} 0%, {item.RarityColorAlpha( alpha * 0.4f )} 55%, {item.RarityColorAlpha( 0 )} 100% )";
-
 		/// <summary>Whether the current price is lower than the regular price.</summary>
 		public bool IsOnSale => item.BasePrice.Value > item.Price.Value;
 

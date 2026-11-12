@@ -13,7 +13,7 @@ $dock-selected-text: #071b3b;
 // Controls brighten on hover and turn blue when their panel is open.
 @mixin dock-button
 {
-	border-radius: 20px;
+	border-radius: 15px;
 	border: 0px solid transparent;
 	background-color: $dock-button;
 	background-image: none;
@@ -85,13 +85,13 @@ Dock
 		flex-direction: row;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0 64px;
+		padding: 0 48px;
 	}
 
 	.left, .middle, .right
 	{
 		align-items: center;
-		gap: 10px;
+		gap: 8px;
 	}
 
 	// Equal side columns keep party and friends centred as the party grows or utility buttons appear.
@@ -106,7 +106,7 @@ Dock
 	{
 		flex-shrink: 0;
 		justify-content: center;
-		margin: 0 24px;
+		margin: 0 18px;
 	}
 
 	.right
@@ -116,21 +116,21 @@ Dock
 
 	.pill
 	{
-		@include platform-text-button( 40px, 14px, 18px );
+		@include platform-text-button( 30px, 12px, 15px );
 		@include dock-button;
-		padding: 0 16px;
-		gap: 10px;
+		padding: 0 12px;
+		gap: 8px;
 	}
 
 	.library
 	{
 		.count
 		{
-			min-width: 22px;
-			padding: 2px 6px;
-			border-radius: 20px;
+			min-width: 18px;
+			padding: 1px 5px;
+			border-radius: 15px;
 			background-color: #102039;
-			font-size: 12px;
+			font-size: 10px;
 			font-weight: 700;
 			font-variant-numeric: tabular-nums;
 			text-align: center;
@@ -146,9 +146,14 @@ Dock
 
 	.square
 	{
-		@include platform-tool( 40px, 20px );
+		@include platform-tool( 30px, 16px );
 		@include dock-button;
-		width: 40px;
+		width: 30px;
+
+		&.disabled
+		{
+			pointer-events: none;
+		}
 	}
 
 	// You and your party at a glance - the party window's own faces, not pressed one by one: anywhere on it brings the
@@ -160,10 +165,10 @@ Dock
 		flex-shrink: 0;
 		// The dock's buttons' height, its faces as far in from its sides as from its top and bottom - not clipped, so
 		// the leader's crown can sit up over its edge
-		height: 40px;
+		height: 30px;
 		align-items: center;
-		gap: 4px;
-		padding: 0 6px;
+		gap: 3px;
+		padding: 0 4px;
 		cursor: pointer;
 		@include platform-sounds;
 
@@ -172,15 +177,15 @@ Dock
 		{
 			align-self: stretch;
 			align-items: center;
-			gap: 6px;
+			gap: 4px;
 			cursor: pointer;
 			@include platform-sounds;
 		}
 
 		.me
 		{
-			width: 28px;
-			height: 28px;
+			width: 22px;
+			height: 22px;
 			flex-shrink: 0;
 			border-radius: 50%;
 			background-size: cover;
@@ -191,8 +196,8 @@ Dock
 		.add
 		{
 			// A full-height hit target without a second button box inside the capsule.
-			width: 32px;
-			height: 40px;
+			width: 24px;
+			height: 30px;
 			flex-shrink: 0;
 			align-items: center;
 			justify-content: center;
@@ -201,7 +206,7 @@ Dock
 
 			i
 			{
-				font-size: 20px;
+				font-size: 16px;
 				color: $dock-icon;
 			}
 
@@ -245,7 +250,7 @@ Dock
 
 		PartyMember, PartyPendingSeat
 		{
-			width: 28px;
+			width: 22px;
 		}
 
 		// Nothing on it's pressable or hoverable by itself - not the faces, nor anything on them
@@ -262,25 +267,25 @@ Dock
 
 		PartyMember Avatar .avatar, PartyPendingSeat Avatar .avatar
 		{
-			width: 28px;
-			height: 28px;
+			width: 22px;
+			height: 22px;
 			border-radius: 50%;
 		}
 
 		.status-icon
 		{
 			flex-shrink: 0;
-			width: 28px;
-			height: 28px;
+			width: 22px;
+			height: 22px;
 			align-items: center;
 			justify-content: center;
-			border-radius: 14px;
+			border-radius: 11px;
 			background-color: rgba( 255, 255, 255, 0.08 );
 			pointer-events: none;
 
 			i
 			{
-				font-size: 16px;
+				font-size: 13px;
 				color: $front-secondary;
 			}
 
@@ -307,13 +312,13 @@ Dock
 
 		.more
 		{
-			width: 28px;
-			height: 28px;
+			width: 22px;
+			height: 22px;
 			justify-content: center;
 			align-items: center;
 			border-radius: $platform-radius;
 			background-color: $dock-button;
-			font-size: 11px;
+			font-size: 9px;
 			font-weight: 700;
 			color: $platform-text;
 		}
@@ -322,13 +327,13 @@ Dock
 	.square.friends
 	{
 		width: auto;
-		min-width: 40px;
-		gap: 6px;
-		padding: 0 14px;
+		min-width: 30px;
+		gap: 5px;
+		padding: 0 10px;
 
 		.count
 		{
-			font-size: 13px;
+			font-size: 11px;
 			font-weight: 700;
 		}
 	}
@@ -340,11 +345,11 @@ Dock
 		.pip
 		{
 			position: absolute;
-			top: 6px;
-			right: 6px;
-			width: 8px;
-			height: 8px;
-			border-radius: 4px;
+			top: 4px;
+			right: 4px;
+			width: 6px;
+			height: 6px;
+			border-radius: 3px;
 			background-color: $front-trophy;
 			box-shadow: 0 0 6px rgba( $front-trophy, 0.8 );
 		}

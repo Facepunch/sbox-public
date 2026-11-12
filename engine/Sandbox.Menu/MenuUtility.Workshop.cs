@@ -158,6 +158,56 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
+	/// Add this workshop item to our favourites on Steam, or take it off. False if Steam didn't take it.
+	/// </summary>
+	public static async Task<bool> FavouriteOnWorkshopAsync( ulong id, bool favourite )
+	{
+		return id != 0 && await Workshop.FavouriteAsync( id, favourite );
+	}
+
+	/// <summary>
+	/// What's downloaded from the Workshop on this machine - each item, what it is, how much room it takes, and whether
+	/// it's subscribed to or just downloaded to play. Biggest first.
+	/// </summary>
+	public static async Task<WorkshopStorageItem[]> GetWorkshopStorageAsync()
+	{
+		var installed = await new Workshop.Query().WithInstalled().RunAsync();
+
+		return (installed?.Items ?? [])
+			.Select( item => new WorkshopStorageItem( WorkshopItemDetails.From( item ), KindOf( item ),
+				(long)(Sandbox.Services.Ugc.GetItem( item.Id )?.SizeOnDisk ?? 0), Workshop.IsSubscribed( item.Id ) ) )
+			.Where( x => x.Size > 0 )
+			.OrderByDescending( x => x.Size )
+			.ToArray();
+	}
+
+	static string KindOf( Workshop.Item item )
+	{
+		if ( item.Tags.Contains( "game", StringComparer.OrdinalIgnoreCase ) ) return "Game";
+		if ( item.Tags.Contains( "map", StringComparer.OrdinalIgnoreCase ) ) return "Map";
+		return "Addon";
+	}
+
+	/// <summary>
+	/// Free up the room <paramref name="item"/> takes - unsubscribed, or a download that was only to play let go. Steam
+	/// deletes it once the game's closed.
+	/// </summary>
+	public static void RemoveWorkshopDownload( WorkshopStorageItem item )
+	{
+		if ( item.Subscribed ) Workshop.Unsubscribe( item.Item.Id );
+		else Workshop.RemoveDownloaded( item.Item.Id );
+	}
+
+	/// <summary>
+	/// Everything we've favourited on the Workshop - games, maps, anything - by its id
+	/// </summary>
+	public static async Task<HashSet<ulong>> FindWorkshopFavouriteIdsAsync()
+	{
+		var favourites = await new Workshop.Query().WithFavourited().RunAsync();
+		return (favourites?.Items ?? []).Select( x => x.Id ).ToHashSet();
+	}
+
+	/// <summary>
 	/// Play a YouTube video in this web panel, in YouTube's embedded player filling it with its own controls off - the
 	/// <see cref="YouTubePlayer"/> is how to drive it. Null if that's not a YouTube video id.
 	/// </summary>
@@ -273,3 +323,12 @@ public static partial class MenuUtility
 		return new Sandbox.Utility.DisposeAction( () => Workshop.DownloadEnded -= ended );
 	}
 }
+
+/// <summary>
+/// Something downloaded from the Workshop, and the room it takes - from <see cref="MenuUtility.GetWorkshopStorageAsync"/>
+/// </summary>
+/// <param name="Item">What the Workshop says about it</param>
+/// <param name="Kind">Game, Map or Addon</param>
+/// <param name="Size">How much room it takes on disk, in bytes</param>
+/// <param name="Subscribed">Subscribed to, rather than downloaded just to play</param>
+public sealed record WorkshopStorageItem( WorkshopItemDetails Item, string Kind, long Size, bool Subscribed );

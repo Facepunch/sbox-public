@@ -1,3 +1,5 @@
+using Sandbox;
+using Sandbox.Modals;
 using Sandbox.UI;
 using Sandbox.UI.Navigation;
 
@@ -6,7 +8,8 @@ namespace MenuProject.Platform;
 /// <summary>
 /// The default front's pages under the game's name - its menu (<see cref="FrontHome"/>), setting up a new game
 /// (<see cref="CreateGamePage"/>), picking its map (<see cref="MapsPage"/>) and its servers (<see cref="ServersPage"/>).
-/// One fades out and the next fades in (GameFront's stylesheet).
+/// One fades out and the next fades in (GameFront's stylesheet). Also up on its own, in a modal on the shelf
+/// (<see cref="SetupModal"/>), to set up a game a game asked for or to pick a map.
 /// </summary>
 public class FrontPages : NavigationHost
 {
@@ -16,6 +19,40 @@ public class FrontPages : NavigationHost
 	public const string Maps = "/platform/maps";
 
 	public bool OffHome => CurrentUrl is not null && CurrentUrl != Home;
+
+	/// <summary>
+	/// The game being set up - the front's game (<see cref="PlatformMenu.Current"/>) when it's not given
+	/// </summary>
+	public Package SetupPackage { get; set; }
+
+	/// <summary>
+	/// What it's set up with to start - the party's, or its own defaults, when it's not given
+	/// </summary>
+	public CreateGameResults? SetupSettings { get; set; }
+
+	/// <summary>
+	/// The map it starts on, when one's been picked already
+	/// </summary>
+	public string SetupMap { get; set; }
+
+	/// <summary>
+	/// Given what's been set up instead of starting it - a game asked for its setup (Game.Overlay.CreateGame)
+	/// </summary>
+	public Action<CreateGameResults> OnSetUp { get; set; }
+
+	/// <summary>
+	/// Off its first page, when it's up on its own - the modal it's in closes
+	/// </summary>
+	public Action OnLeave { get; set; }
+
+	/// <summary>
+	/// Back a page - or out of it, from its first, when it's up on its own
+	/// </summary>
+	public void Leave()
+	{
+		if ( OnLeave is not null && (CurrentUrl == DefaultUrl || CurrentUrl is null) ) OnLeave();
+		else GoBack();
+	}
 
 	public FrontPages()
 	{

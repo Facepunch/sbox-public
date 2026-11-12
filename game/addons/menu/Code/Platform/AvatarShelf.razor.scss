@@ -38,11 +38,11 @@ $gap: 8px;
 	background-repeat: no-repeat;
 }
 
-// An item's backdrop - flat, the dock's button fill
+// An item's backdrop - lit from the top, down to the panel's dark
 @mixin slate
 {
 	background-color: $platform-button;
-	background-image: none;
+	background-image: $platform-card-fill;
 }
 
 @mixin raised
@@ -169,7 +169,7 @@ AvatarShelf
 		border-radius: $platform-radius;
 		// Unseen - coloured when a pick would take it off or put it on (.replaced, .incoming)
 		border: 2px solid transparent;
-		background-color: $platform-button;
+		@include slate;
 		cursor: pointer;
 		@include platform-sounds;
 		transition: transform 0.12s ease-out, background-color 0.1s ease;
@@ -219,7 +219,7 @@ AvatarShelf
 		&:hover
 		{
 			transform: translateY( -2px );
-			background-color: $platform-button-hover;
+			background-image: $platform-card-fill-hover;
 
 			.glyph
 			{
@@ -230,6 +230,7 @@ AvatarShelf
 		&.on
 		{
 			background-color: $platform-selected;
+			background-image: none;
 
 			.what
 			{
@@ -449,6 +450,7 @@ AvatarShelf
 		{
 			transform: translateY( -2px );
 			border-color: rgba( 255, 255, 255, 0.25 );
+			background-image: $platform-card-fill-hover;
 		}
 
 		&.worn

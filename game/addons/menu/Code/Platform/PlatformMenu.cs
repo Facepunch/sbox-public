@@ -3,7 +3,7 @@ using Sandbox;
 namespace MenuProject.Platform;
 
 /// <summary>
-/// The platform menu (<c>menu_platform 1</c>): s&amp;box opens on a game's own menu, with a dock along the bottom to
+/// The menu: s&amp;box opens on a game's own menu, with a dock along the bottom to
 /// switch games. A game with a <c>MenuScene</c> is loaded onto it (<see cref="MenuUtility.OpenGameMenu"/>); one
 /// without isn't loaded until it's played, and gets the default front made from its Workshop item
 /// (<see cref="GameFront"/>). Games are remembered by their Workshop id.
@@ -11,20 +11,11 @@ namespace MenuProject.Platform;
 public static class PlatformMenu
 {
 	/// <summary>
-	/// On - the platform menu runs instead of the main menu. Not in the editor, which has no menu. The menu_platform
-	/// ConVar as it was when the menu last started (MenuSystem.Init) - changing it restarts the menu, so everything's
-	/// built for one or the other, never half of each. The one check for being on the platform.
-	/// </summary>
-	public static bool Enabled { get; private set; }
-
-	/// <summary>
-	/// The menu's starting - on the platform or not, from scratch. Whatever the last run left goes: what game it was on,
-	/// and a switch it was part way through.
+	/// The menu's starting from scratch. Whatever the last run left goes: what game it was on, and a switch it was part
+	/// way through.
 	/// </summary>
 	public static void Reset()
 	{
-		Enabled = MenuUtility.PlatformMenu && !Application.IsEditor;
-
 		CurrentId = 0;
 		Current = null;
 		Details = null;
@@ -35,9 +26,15 @@ public static class PlatformMenu
 
 	/// <summary>
 	/// Not playing - on a game's menu or no game at all. Games are only switched from here, never out of one that's
-	/// being played.
+	/// being played. In the editor, not in play mode.
 	/// </summary>
-	public static bool CanSwitch => !Game.InGame || Game.IsOnMenu;
+	public static bool CanSwitch => Application.IsEditor ? !Game.IsPlaying : !Game.InGame || Game.IsOnMenu;
+
+	/// <summary>
+	/// Another game can be gone to - switched to, or a server joined. Not in the editor, where it's the game being worked
+	/// on that's played; its menu is up just for what it has, a game's page instead of the way into it.
+	/// </summary>
+	public static bool CanChangeGame => !Application.IsEditor;
 
 	/// <summary>
 	/// Why the game the platform's on can't be started - a Workshop game's item says, a local project's package does
@@ -257,6 +254,48 @@ public static class PlatformMenu
 	{
 		foreach ( var row in Discover.Prepend( Favourites ).Prepend( YourGames ) )
 			_ = row.RefreshAsync();
+
+		_ = RefreshFavouriteIdsAsync();
+	}
+
+	//
+	// Favourites - on the Workshop, anything you can favourite there, games and maps alike
+	//
+
+	/// <summary>
+	/// What you've favourited on the Workshop, by id - fetched with the shelves, and changed straight away when you
+	/// favourite something here (<see cref="SetFavourite"/>)
+	/// </summary>
+	public static HashSet<ulong> FavouriteIds { get; private set; } = new();
+
+	static async Task RefreshFavouriteIdsAsync()
+	{
+		FavouriteIds = await MenuUtility.FindWorkshopFavouriteIdsAsync();
+	}
+
+	public static bool IsFavourite( ulong id ) => id != 0 && FavouriteIds.Contains( id );
+
+	/// <summary>
+	/// Favourite Workshop item <paramref name="id"/>, or take it off - shown as done straight away, and put back if
+	/// Steam doesn't take it. The Favourites row's fetched again, to have it.
+	/// </summary>
+	public static async void SetFavourite( ulong id, bool favourite )
+	{
+		if ( id == 0 ) return;
+
+		if ( favourite ) FavouriteIds.Add( id );
+		else FavouriteIds.Remove( id );
+
+		if ( !await MenuUtility.FavouriteOnWorkshopAsync( id, favourite ) )
+		{
+			if ( favourite ) FavouriteIds.Remove( id );
+			else FavouriteIds.Add( id );
+
+			MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast { Title = "Couldn't change your favourites", Icon = "star" } );
+			return;
+		}
+
+		_ = Favourites.RefreshAsync();
 	}
 
 	/// <summary>

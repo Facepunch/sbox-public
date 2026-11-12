@@ -69,7 +69,7 @@
     [Parameter] public WorkshopItemDetails Item { get; set; }
 
     /// <summary>
-    /// A local project instead - not on the Workshop
+    /// A package instead - a local project, or one picked from sbox.game (PackagePicker)
     /// </summary>
     [Parameter] public Package Local { get; set; }
 
@@ -90,18 +90,7 @@
     const char StarGlyph = '\uE838';
     const char StarBorderGlyph = '\uE83A';
 
-    bool Favourited
-    {
-        get
-        {
-            if ( Item is null || PlatformMenu.Favourites.Games is not { } favourites ) return false;
-
-            foreach ( var game in favourites )
-                if ( game.Id == Item.Id ) return true;
-
-            return false;
-        }
-    }
+    bool Favourited => Item is not null && PlatformMenu.IsFavourite( Item.Id );
 
     /// <summary>
     /// Out of five, from how it's been voted - null until there's enough votes to say, as the Workshop does
@@ -132,7 +121,7 @@
 
     string ArtStyle => (Item?.Thumb ?? Local?.Thumb) is { } thumb ? $"background-image: url( {thumb} );" : "";
 
-    string By => Local is not null ? "Local project" : Item?.OwnerName is { } owner ? $"By {owner}" : "";
+    string By => Local is not null ? (Local.IsRemote ? $"By {Local.Org?.Title}" : "Local project") : Item?.OwnerName is { } owner ? $"By {owner}" : "";
 
     async void Pick()
     {
@@ -170,16 +159,27 @@
 
         var menu = MenuProject.UI.MenuPanel.Open( this );
         menu.AddOption( "play_arrow", "Open", Pick );
+        menu.AddOption( "info", "View", View );
 
         if ( Item is null ) return;
 
         menu.AddSpacer();
+        menu.AddOption( Favourited ? "star" : "star_border", Favourited ? "Unfavourite" : "Favourite", () => PlatformMenu.SetFavourite( Item.Id, !Favourited ) );
         menu.AddOption( Subscribed ? "remove_circle_outline" : "add_circle_outline", Subscribed ? "Unsubscribe" : "Subscribe", ToggleSubscribed );
         menu.AddOption( "thumb_up", "Like", () => _ = Vote( true ) );
         menu.AddOption( "thumb_down", "Dislike", () => _ = Vote( false ) );
 
         menu.AddSpacer();
         menu.AddOption( "open_in_new", "View on Workshop", () => MenuUtility.OpenUrl( $"steam://url/CommunityFilePage/{Item.Id}" ) );
+    }
+
+    /// <summary>
+    /// Its page, up out of the dock
+    /// </summary>
+    void View()
+    {
+        if ( Local is not null ) PlatformRoot.Instance?.ShowGame( Local );
+        else if ( Item?.KeyValues.GetValueOrDefault( "package" ) is { } ident ) PlatformRoot.Instance?.ShowGame( ident );
     }
 
     async System.Threading.Tasks.Task Vote( bool up )

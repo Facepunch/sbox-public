@@ -7,7 +7,7 @@
 
 @*
     What you think of a game, one tap each, as split pills - like and dislike, favourite, then
-    reviewing it on its own, and hide. The game page's footer, and the pause menu's.
+    reviewing it on its own. The game page's footer, and the pause menu's.
 *@
 <root>
 
@@ -58,26 +58,6 @@
             </div>
         </div>
     }
-
-    @if ( OnHidden is not null )
-    {
-        <div class="group">
-            @* Hidden already - opened anyway, from a link or a friend - so it's the way to show it again *@
-            @if ( MenuUtility.Hidden.Contains( Package ) )
-            {
-                <div class="pill active" onclick=@( () => _ = Unhide() ) tooltip="@UnhideTooltip">
-                    <icon>visibility</icon>
-                    <label>#menu.common.unhide</label>
-                </div>
-            }
-            else
-            {
-                <div class="pill" onclick=@( () => _ = Hide() ) tooltip="@( Package.TypeName == "map" ? "#menu.games.hide_this_map" : "#menu.games.hide_this_game" )">
-                    <icon>block</icon>
-                </div>
-            }
-        </div>
-    }
     }
 
 </root>
@@ -85,12 +65,6 @@
 @code
 {
     [Parameter] public Package Package { get; set; }
-
-    /// <summary>
-    /// Once it's been hidden - the game page closes. No hide pill without it: hiding the game you're
-    /// in makes no sense.
-    /// </summary>
-    [Parameter] public Action OnHidden { get; set; }
 
     /// <summary>
     /// The review pill.
@@ -108,7 +82,7 @@
     /// </summary>
     [Parameter] public WorkshopItemDetails Workshop { get; set; }
 
-    protected override int BuildHash() => HashCode.Combine( Package, Package?.Interaction.Rating, Package?.Interaction.Favourite, Package?.VotesUp, Package?.VotesDown, Package?.Favourited, Package?.Reviews.Total, HashCode.Combine( OnHidden is null, ShowReviews, ShowReviewScore, MenuUtility.Hidden.Revision, HashCode.Combine( Workshop, WorkshopVote, _workshopVoted, OnWorkshop ) ) );
+    protected override int BuildHash() => HashCode.Combine( Package, Package?.Interaction.Rating, Package?.Interaction.Favourite, Package?.VotesUp, Package?.VotesDown, Package?.Favourited, Package?.Reviews.Total, HashCode.Combine( ShowReviews, ShowReviewScore, HashCode.Combine( Workshop, WorkshopVote, _workshopVoted, OnWorkshop ) ) );
 
     /// <summary>
     /// Say what the Steam Workshop says, not the backend - the game page, for a package on the workshop. The backend's
@@ -199,40 +173,6 @@
     async Task ToggleFavourite()
     {
         await Package.SetFavouriteAsync( !Package.Interaction.Favourite );
-        if ( this.IsValid() ) StateHasChanged();
-    }
-
-    async Task Hide()
-    {
-        if ( await MenuHelpers.HidePackage( this, Package ) )
-            OnHidden?.Invoke();
-    }
-
-    /// <summary>
-    /// Hidden as part of its creator rather than on its own - showing it again means showing all of theirs.
-    /// </summary>
-    bool HiddenByOrganization => !MenuUtility.Hidden.Packages.Contains( Package.FullIdent ) && MenuUtility.Hidden.IsOrganizationHidden( Package.Org?.Ident );
-
-    string UnhideTooltip => HiddenByOrganization
-        ? $"Everything by {Package.Org?.Title} is hidden - show it all again"
-        : "#menu.games.you_ve_hidden_this_show_it_again";
-
-    async Task Unhide()
-    {
-        if ( !HiddenByOrganization )
-        {
-            await MenuHelpers.UnhidePackage( Package );
-        }
-        else
-        {
-            var shown = await MenuUtility.Hidden.SetOrganizationHidden( Package.Org?.Ident, false );
-            MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast
-            {
-                Title = shown ? $"Everything by {Package.Org?.Title} is back" : $"Couldn't unhide {Package.Org?.Title} right now",
-                Icon = "visibility"
-            } );
-        }
-
         if ( this.IsValid() ) StateHasChanged();
     }
 

@@ -5,13 +5,6 @@ namespace Sandbox;
 public static partial class MenuUtility
 {
 	/// <summary>
-	/// The platform menu - s&amp;box opens on a game's own menu, with a dock to switch games - instead of the main menu.
-	/// Changed, the menu restarts onto the other one (MenuDll).
-	/// </summary>
-	[MenuConVar( "menu_platform", Help = "Use the platform menu - games open on their own menu, with a dock to switch games. Switches straight away.", Saved = true )]
-	public static bool PlatformMenu { get; set; }
-
-	/// <summary>
 	/// The part of the screen that's the game's (<see cref="Screen.SafeArea"/>) - what the platform menu leaves clear,
 	/// its dock over a game's own menu. Null gives it the whole screen again.
 	/// </summary>

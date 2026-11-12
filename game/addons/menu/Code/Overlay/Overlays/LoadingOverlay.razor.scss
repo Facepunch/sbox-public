@@ -446,7 +446,7 @@ LoadingOverlay
 		flex-direction: row;
 		gap: 2px;
 		height: 8px;
-		background-color: rgba( 6, 12, 24, 0.6 );
+		background-color: rgba( 8, 9, 12, 0.6 );
 
 		// The segments are the track now, each its own - the gaps between them show through
 		&.busy
@@ -465,7 +465,7 @@ LoadingOverlay
 			min-width: 0;
 			height: 100%;
 			border-radius: 1px;
-			background-color: rgba( 6, 12, 24, 0.6 );
+			background-color: rgba( 8, 9, 12, 0.6 );
 			overflow: hidden;
 
 			&:first-child

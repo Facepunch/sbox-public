@@ -4,7 +4,6 @@
 @using Sandbox.UI;
 @namespace MenuProject.Platform
 @inherits ShelfPage
-@implements IShelfPage
 
 @* Rows of games on the shelf - Your games (YourGamesShelf) or Discover (DiscoverShelf). *@
 <root class="game-rows">
@@ -73,7 +72,7 @@
         return ShelfAt( 0 )?.ShownIds.ToHashSet();
     }
 
-    void IShelfPage.OnShelfShown()
+    public override void OnShelfShown()
     {
         grown = 0;
 
@@ -83,16 +82,16 @@
             _ = row.RefreshAsync();
     }
 
-    bool IShelfPage.Fills => false;
+    public override bool Fills => false;
 
     /// <summary>
     /// Your games with your favourites peeking out under them scroll - faded off over the favourites' art. Just their
     /// first row, they don't - all of it shown, not faded off over its names.
     /// </summary>
-    bool IShelfPage.Scrolls => IsDiscover || grown > 0 || ShelfAt( 1 ) is not null;
+    public override bool Scrolls => IsDiscover || grown > 0 || ShelfAt( 1 ) is not null;
 
 
-    float IShelfPage.Height( float room, float tall )
+    public override float Height( float room, float tall )
     {
         if ( ShelfAt( 0 ) is not { } first ) return 0;
         var second = ShelfAt( 1 );

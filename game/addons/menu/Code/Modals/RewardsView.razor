@@ -250,7 +250,6 @@
 			if ( !this.IsValid() ) return;
 
 			State = state;
-			Sidebar.InvalidateBadges();
 		}
 		catch ( Exception e )
 		{
@@ -284,7 +283,7 @@
 			return;
 
 		OnLeave?.Invoke();
-		SceneTransition.Load( "/scenes/reward-unbox.scene" );
+		MenuProject.Platform.PlatformRoot.Instance?.OpenShelf( MenuProject.Platform.PlatformShelf.Unbox );
 	}
 
 	protected override int BuildHash() => HashCode.Combine( State, IsLoading, LoadFailed, MetCount, CanOpen, WeekEnded, EndsIn );

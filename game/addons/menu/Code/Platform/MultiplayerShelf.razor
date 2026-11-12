@@ -10,7 +10,6 @@
 @namespace MenuProject.Platform
 @page "/shelf/multiplayer"
 @inherits ShelfPage
-@implements IShelfPage
 
 @*
     Finding people to play with, all at once rather than in tabs.
@@ -249,10 +248,10 @@
     /// </summary>
     static readonly int[] SkeletonWidths = [60, 46, 72, 54, 66, 40];
 
-    bool IShelfPage.ToDock => true;
+    public override bool ToDock => true;
 
     // Pulled in to the middle - a click either side of its columns goes through to put it away
-    bool IShelfPage.ClicksThrough => true;
+    public override bool ClicksThrough => true;
 
     /// <summary>
     /// A game being played - how many on how many servers, and how many of those are on another version (outdated)

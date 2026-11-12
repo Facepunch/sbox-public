@@ -105,6 +105,11 @@ public sealed class RewardUnboxCrate : Component
 	private Vector2 _angularVelocity;     // degrees/sec
 
 	private Rotation _initialRotation;
+
+	/// <summary>
+	/// The pointer's presses seen so far - one more is a click (<see cref="MenuProject.Platform.UnboxView.Presses"/>)
+	/// </summary>
+	private int _presses = MenuProject.Platform.UnboxView.Presses;
 	private Vector3 _initialPosition;
 
 	// Flap state
@@ -186,13 +191,9 @@ public sealed class RewardUnboxCrate : Component
 
 	protected override void OnUpdate()
 	{
-		// Handle click detection via raycasting from camera
-		if ( Input.Pressed( "attack1" ) )
+		// A click on it - the pointer's ray into the scene
+		if ( MenuProject.Platform.UnboxView.Presses != _presses && MenuProject.Platform.UnboxView.PointerRay is { } ray )
 		{
-			var camera = Scene.Camera;
-			if ( camera == null ) return;
-
-			var ray = camera.ScreenPixelToRay( Mouse.Position );
 			var tr = Scene.Trace.Ray( ray, 5000f )
 				.WithTag( "crate" )
 				.Run();
@@ -202,6 +203,8 @@ public sealed class RewardUnboxCrate : Component
 				OnBumped( tr.HitPosition, tr.Normal );
 			}
 		}
+
+		_presses = MenuProject.Platform.UnboxView.Presses;
 
 		// Simulate spring physics for the tilt
 		SimulateSpring();

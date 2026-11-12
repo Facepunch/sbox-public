@@ -36,7 +36,7 @@
 		<CitizenPreview AvatarJson="@AvatarJson" PlayIntro="@false" Studio="@true" FieldOfView="@(14f)" CameraDistance="@(158f)" CameraHeight="@(57f)" HeadOffset="@(-7f)" Yaw="@(-30f)" />
 
 		@* Yours, with a way to the avatar editor in the corner by your citizen - not from inside a game *@
-		@if ( IsMe && MenuHelpers.CanEditAvatar )
+		@if ( IsMe && MenuProject.Platform.PlatformRoot.CanDressUp )
 		{
 			<div class="edit-avatar" tooltip="#menu.home.edit_your_avatar" onclick=@EditAvatar><i>edit</i></div>
 		}
@@ -431,7 +431,7 @@
 
 	bool Joinable => !string.IsNullOrWhiteSpace( Friend.GetRichPresence( "connect" ) );
 
-	bool CanJoin => !IsMe && PlayingNow && Joinable && MenuHelpers.HasAuthority;
+	bool CanJoin => !IsMe && PlayingNow && Joinable && MenuHelpers.HasAuthority && MenuProject.Platform.PlatformMenu.CanChangeGame;
 
 	// Through PartyView, so the party mocks look the same here as on the deck and the friends list
 	bool InMyParty => PartyView.Exists && PartyView.Members.Any( x => x.Id == Friend.Id );

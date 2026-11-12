@@ -7,7 +7,6 @@
 @namespace MenuProject.Platform
 @page "/shelf/mounts"
 @inherits ShelfPage
-@implements IShelfPage
 
 @*
     The games s&box can mount, up out of the dock - those installed, each a press to turn on or off, then the others,
@@ -60,7 +59,7 @@
 @code
 {
     // The whole shelf, down to the dock - its rows scrolling on their own
-    bool IShelfPage.ToDock => true;
+    public override bool ToDock => true;
 
     Panel Rows;
 

@@ -7,12 +7,12 @@
 @namespace MenuProject.Platform
 @page "/shelf/game/{Ident}"
 @inherits ShelfPage
-@implements IShelfPage
 
 @*
-    A game's page, up out of the dock in place of the game modal - a panel the shelf's full height, running down into
-    the dock, laid out as Steam's store page is: the gallery beside its capsule and facts, a strip with how it's played
-    and the way in, then what it says about itself beside you and it.
+    A package's page, up out of the dock - a panel the shelf's full height, running down into the dock, laid out as
+    Steam's store page is: the gallery beside its capsule and facts, a strip with how it's played and the way in, then
+    what it says about itself beside you and it. A game's has all of that; anything else (a map) just what applies to
+    it - no players, no way in, no time played.
 *@
 <root>
 
@@ -23,10 +23,14 @@
                     <div class="tile" style="@MenuHelpers.BackgroundImage( Thumb )">
                         @if ( string.IsNullOrEmpty( Thumb ) )
                         {
-                            <i>sports_esports</i>
+                            <i>@(IsGame ? "sports_esports" : Package?.TypeName == "map" ? "map" : "inventory_2")</i>
                         }
                     </div>
                     <label class="title @(Page is null ? "" : "parent")" onclick=@( () => ShowPage( null ) )>@Title</label>
+                    @if ( WorkshopId != 0 )
+                    {
+                        <i class="favourite @(Favourited ? "on" : "")" onclick=@( () => PlatformMenu.SetFavourite( WorkshopId, !Favourited ) ) tooltip="@(Favourited ? "Remove from your favourites" : "Add to your favourites")">@(Favourited ? "star" : "star_border")</i>
+                    }
                     @if ( Page is not null )
                     {
                         <label class="sep">/</label>
@@ -37,7 +41,7 @@
             <Tools>
                 @if ( !PageLoading && Package is not null )
                 {
-                    <PackageReactions Package=@Package ShowReviews=@false OnWorkshop=@OnWorkshop Workshop=@WorkshopItem OnHidden=@Back />
+                    <PackageReactions Package=@Package ShowReviews=@false OnWorkshop=@OnWorkshop Workshop=@WorkshopItem />
                 }
 
                 @if ( OnWorkshop && WorkshopId != 0 )
@@ -99,13 +103,16 @@
                             }
 
                             <div class="kv">
-                                <div class="kv-row">
-                                    <label class="k">Players</label>
-                                    <label class="v">@Package.Usage.Total.Users.ToMetric()</label>
-                                </div>
+                                @if ( IsGame )
+                                {
+                                    <div class="kv-row">
+                                        <label class="k">Players</label>
+                                        <label class="v">@Package.Usage.Total.Users.ToMetric()</label>
+                                    </div>
+                                }
                                 @if ( Released is { } released )
                                 {
-                                    <div class="kv-row gap">
+                                    <div class="kv-row">
                                         <label class="k">Release date</label>
                                         <label class="v">@released.ToLocalTime().ToString( "d MMM, yyyy" )</label>
                                     </div>
@@ -116,7 +123,7 @@
                                 </div>
                                 @if ( Creator is { Length: > 0 } creator )
                                 {
-                                    <div class="kv-row gap">
+                                    <div class="kv-row">
                                         <label class="k">Creator</label>
                                         <label class="v link creator">@creator</label>
                                         @if ( MenuHelpers.IsVerified( WorkshopItem ) )
@@ -125,16 +132,35 @@
                                         }
                                     </div>
                                 }
+                                @if ( WorkshopItem is { Size: > 0 } sized )
+                                {
+                                    <div class="kv-row">
+                                        <label class="k">Size</label>
+                                        <label class="v">@MenuHelpers.FormatSize( sized.Size )</label>
+                                    </div>
+                                }
                             </div>
 
                             <div class="grow"></div>
 
-                            @if ( Tags.Any() )
+                            @* One row, as many as fit and how many more - unfolded to all of them from that, and folded back again *@
+                            @if ( TagList.Length > 0 )
                             {
-                                <div class="tags">
-                                    @foreach ( var tag in Tags )
+                                <div class="tags @(tagsOpen ? "open" : "")" @ref="TagsBox">
+                                    @for ( var i = 0; i < TagList.Length; i++ )
                                     {
-                                        <div class="tag"><label>@tag</label></div>
+                                        @if ( tagsOpen || measuringTags || i < tagsShown )
+                                        {
+                                            <div class="tag"><label>@TagList[i]</label></div>
+                                        }
+                                    }
+                                    @if ( !tagsOpen && !measuringTags && tagsShown < TagList.Length )
+                                    {
+                                        <div class="tag more" onclick=@( () => tagsOpen = true ) tooltip="Show all its tags"><label>@($"+{TagList.Length - tagsShown} more")</label></div>
+                                    }
+                                    else if ( tagsOpen )
+                                    {
+                                        <div class="tag more" onclick=@( () => tagsOpen = false ) tooltip="Back to one row"><label>Show less</label></div>
                                     }
                                 </div>
                             }
@@ -142,7 +168,7 @@
                     </div>
 
                     <div class="play-strip @(ModeMismatch ? "mismatch" : "")">
-                        @if ( Modes is { IsUnknown: false } modes )
+                        @if ( IsGame && Modes is { IsUnknown: false } modes )
                         {
                             var fit = modes.FitFor( MenuProject.PlayerModes.PartySize );
 
@@ -179,14 +205,15 @@
                                 </div>
                             }
 
-                            @if ( !IsCurrent )
+                            @* Only a game's switched to *@
+                            @if ( IsGame && !IsCurrent && PlatformMenu.CanChangeGame )
                             {
                                 <div class="action primary" onclick=@Switch>
                                     <i>@(Downloaded ? "check" : "download")</i>
                                     <label>@(Downloaded ? "Select" : "Download")</label>
                                 </div>
                             }
-                            else
+                            else if ( IsGame )
                             {
                                 <div class="action selected">
                                     <i>check</i>
@@ -204,6 +231,8 @@
                             </div>
 
                             <div class="side">
+                                @if ( IsGame )
+                                {
                                 <div class="block">
                                     <label class="block-title">Your time</label>
                                     <div class="record">
@@ -221,6 +250,7 @@
                                         </div>
                                     </div>
                                 </div>
+                                }
 
                                 @if ( HasAchievements )
                                 {
@@ -246,10 +276,6 @@
                                     }
                                 </div>
 
-                                @if ( WorkshopItem is { Size: > 0 } sized )
-                                {
-                                    <label class="meta">@MenuHelpers.FormatSize( sized.Size )</label>
-                                }
                             </div>
                         </div>
                     }
@@ -270,14 +296,14 @@
     /// </summary>
     public string Show { get; set; }
 
-    bool IShelfPage.ToDock => true;
-    bool IShelfPage.ClicksThrough => true;
+    public override bool ToDock => true;
+    public override bool ClicksThrough => true;
 
-    void IShelfPage.OnShelfShown() => Open();
+    public override void OnShelfShown() => Open();
 
     Package Package;
 
-    MenuProject.Modals.GamePageLoad load;
+    GamePageLoad load;
 
     bool HasFullPackage => load?.HasFullPackage ?? false;
     bool FetchFailed => load?.FetchFailed ?? false;
@@ -344,8 +370,78 @@
             : Package?.Tags ?? [])
         .Where( x => !string.IsNullOrWhiteSpace( x ) )
         .Select( x => char.ToUpperInvariant( x[0] ) + x[1..] )
-        .Distinct( StringComparer.OrdinalIgnoreCase )
-        .Take( 5 );
+        .Distinct( StringComparer.OrdinalIgnoreCase );
+
+    string[] tagList = [];
+    string tagListOf;
+
+    string[] TagList
+    {
+        get
+        {
+            var key = $"{WorkshopItem?.Id}|{Package?.FullIdent}|{OnWorkshop}";
+            if ( key != tagListOf )
+            {
+                tagListOf = key;
+                tagList = Tags.ToArray();
+                tagsOpen = false;
+                tagsMeasured = null;
+            }
+
+            return tagList;
+        }
+    }
+
+    Panel TagsBox;
+    bool tagsOpen;
+    bool measuringTags;
+    int tagsShown = int.MaxValue;
+    string tagsMeasured;
+
+    /// <summary>
+    /// How many tags fit on the row with room for "+N more" - measured with them all laid out in a row, once for each set
+    /// of tags and width it's at
+    /// </summary>
+    void FoldTags()
+    {
+        if ( tagsOpen || !TagsBox.IsValid() || TagList.Length == 0 ) return;
+
+        var room = TagsBox.Box.Rect.Width;
+        if ( room <= 0 ) return;
+
+        var key = $"{tagListOf}|{room:0}";
+        if ( key == tagsMeasured ) return;
+
+        if ( !measuringTags )
+        {
+            measuringTags = true;
+            StateHasChanged();
+            return;
+        }
+
+        var tags = TagsBox.Children.Where( x => x.HasClass( "tag" ) ).ToList();
+        if ( tags.Count != TagList.Length || tags.Any( x => x.Box.Rect.Width <= 0 ) ) return;
+
+        var gap = 4 * TagsBox.ScaleToScreen;
+        var more = 64 * TagsBox.ScaleToScreen;
+        var used = 0f;
+        var shown = 0;
+
+        for ( var i = 0; i < tags.Count; i++ )
+        {
+            var need = used + (shown > 0 ? gap : 0) + tags[i].Box.Rect.Width;
+            var last = i == tags.Count - 1;
+            if ( need + (last ? 0 : gap + more) > room ) break;
+
+            used = need;
+            shown++;
+        }
+
+        tagsShown = shown;
+        tagsMeasured = key;
+        measuringTags = false;
+        StateHasChanged();
+    }
 
     DateTimeOffset? Released => (WorkshopItem?.Created ?? Package?.Created) is { } released && released != default ? released : null;
 
@@ -353,7 +449,12 @@
 
     static string ModeTitle( MenuProject.PlayerModes modes ) => modes is { Solo: true, Coop: true, Versus: true } ? "#menu.home.multiplayer" : modes.Label;
 
-    bool ModeMismatch => Modes is { IsUnknown: false } modes && modes.FitFor( MenuProject.PlayerModes.PartySize ).Fit == MenuProject.PlayerModes.FitKind.Poor;
+    /// <summary>
+    /// A game - played, switched to. Anything else only shows what applies to it.
+    /// </summary>
+    bool IsGame => Package is null || Package.TypeName == "game";
+
+    bool ModeMismatch => IsGame && Modes is { IsUnknown: false } modes && modes.FitFor( MenuProject.PlayerModes.PartySize ).Fit == MenuProject.PlayerModes.FitKind.Poor;
 
     /// <summary>
     /// Nothing for a singleplayer game, which its title says all of.
@@ -384,6 +485,8 @@
     bool Downloaded => !OnWorkshop || MenuUtility.IsInstalled( WorkshopId != 0 ? WorkshopId : MenuUtility.KnownWorkshopId( Package ) );
 
     bool HasAchievements;
+
+    bool Favourited => PlatformMenu.IsFavourite( WorkshopId );
 
     void ToggleSubscribed()
     {
@@ -426,7 +529,7 @@
     {
         // Its package, when it's known already - shown from while the rest is asked for
         var start = PlatformRoot.Instance?.ShownPackage;
-        var current = load = new MenuProject.Modals.GamePageLoad( ident, start?.FullIdent == ident ? start : null );
+        var current = load = new GamePageLoad( ident, start?.FullIdent == ident ? start : null );
 
         bool Changed()
         {
@@ -479,6 +582,7 @@
     protected override void TickShown()
     {
         bodyFade.Apply( Body );
+        FoldTags();
     }
 
     public override void OnDeleted()
@@ -487,5 +591,5 @@
         if ( loadedIdent is not null ) Discovery.PreviewClosed( "page", loadedIdent );
     }
 
-    protected override int ShownHash() => HashCode.Combine( Package, HasFullPackage, FetchFailed, WorkshopItem, PageLoading, WorkshopId, IsCurrent, HashCode.Combine( PlatformMenu.CanSwitch, Subscribed, Page, LatestChange, Downloaded, HasAchievements ) );
+    protected override int ShownHash() => HashCode.Combine( Package, HasFullPackage, FetchFailed, WorkshopItem, PageLoading, WorkshopId, IsCurrent, HashCode.Combine( PlatformMenu.CanSwitch, Subscribed, Favourited, Page, LatestChange, Downloaded, HasAchievements, HashCode.Combine( tagsOpen, measuringTags, tagsShown ) ) );
 }

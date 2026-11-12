@@ -108,6 +108,25 @@ GameDetailShelf
 			}
 		}
 
+		// Beside its name - gold when it's one of yours
+		.favourite
+		{
+			font-size: 20px;
+			color: $platform-faint;
+			cursor: pointer;
+			@include platform-sounds;
+
+			&:hover
+			{
+				color: white;
+			}
+
+			&.on
+			{
+				color: $front-trophy;
+			}
+		}
+
 		.sep
 		{
 			font-size: 15px;
@@ -201,34 +220,32 @@ GameDetailShelf
 			background-color: rgba( 0, 0, 0, 0.35 );
 		}
 
+		// Room round them to grow into under the pointer, without being cut off by the strip's scrolling
 		Media > .strip > .list
 		{
 			justify-content: flex-start;
-			padding: 0;
-			height: 64px;
+			padding: 3px;
+			height: 70px;
 		}
 
+		// The one up bright, the rest dimmed - a touch bigger under the pointer
 		Media > .strip > .list > .screenshot
 		{
 			border-radius: $platform-radius;
 			border: 0px solid transparent;
 			opacity: 0.45;
+			transform: scale( 1 );
+			transition: opacity 0.12s ease, filter 0.12s ease, transform 0.12s ease-out;
+
+			&:hover
+			{
+				transform: scale( 1.04 );
+			}
 
 			&.selected
 			{
 				opacity: 1;
 				outline: 0px solid transparent;
-
-				&::after
-				{
-					content: "";
-					position: absolute;
-					left: 0;
-					right: 0;
-					bottom: 0;
-					height: 3px;
-					background-color: $platform-primary;
-				}
 			}
 		}
 	}
@@ -356,10 +373,12 @@ GameDetailShelf
 		color: $platform-text;
 	}
 
+	// Its facts, a row each, evenly apart
 	.kv
 	{
 		flex-direction: column;
 		flex-shrink: 0;
+		gap: 4px;
 		margin-top: 6px;
 
 		.kv-row
@@ -367,11 +386,6 @@ GameDetailShelf
 			height: 20px;
 			flex-shrink: 0;
 			align-items: center;
-
-			&.gap
-			{
-				margin-top: 8px;
-			}
 
 			&.link
 			{
@@ -411,15 +425,15 @@ GameDetailShelf
 		}
 	}
 
+	// Each as wide as what it says - not a third each, which cut "18 minutes ago" short
 	.record
 	{
-		gap: 6px;
+		gap: 16px;
 
 		.stat
 		{
 			flex-grow: 1;
-			flex-basis: 0;
-			min-width: 0;
+			flex-shrink: 0;
 			flex-direction: column;
 			gap: 2px;
 		}
@@ -447,21 +461,44 @@ GameDetailShelf
 		}
 	}
 
+	// One row - as many as fit, then how many more (GameDetailShelf.FoldTags). All of them, wrapping, once that's pressed.
 	.tags
 	{
 		flex-shrink: 0;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
 		gap: 4px;
+		overflow: hidden;
+
+		&.open
+		{
+			flex-wrap: wrap;
+		}
 
 		.tag
 		{
 			height: 22px;
+			flex-shrink: 0;
 			align-items: center;
 			padding: 0 8px;
 			border-radius: 2px;
 			background-color: rgba( $platform-steam-blue, 0.16 );
 			font-size: 11px;
 			color: $platform-steam-blue;
+			white-space: nowrap;
+		}
+
+		.tag.more
+		{
+			background-color: rgba( 255, 255, 255, 0.06 );
+			color: $platform-muted;
+			cursor: pointer;
+			@include platform-sounds;
+
+			&:hover
+			{
+				color: white;
+				background-color: rgba( 255, 255, 255, 0.12 );
+			}
 		}
 	}
 
@@ -733,11 +770,6 @@ GameDetailShelf
 		}
 	}
 
-	.meta
-	{
-		font-size: 12px;
-		color: $platform-faint;
-	}
 }
 
 GameDetailShelf

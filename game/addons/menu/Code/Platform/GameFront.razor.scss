@@ -6,7 +6,7 @@ GameFront
 	left: $platform-edge;
 	right: $platform-edge;
 	top: 80px;
-	bottom: 136px;
+	bottom: 120px;
 	flex-direction: column;
 	justify-content: flex-start;
 	pointer-events: none;
@@ -111,33 +111,10 @@ GameFront
 		}
 	}
 
-	// Its pages, each over the whole of it - the one you're on, the others faded out. Where each is never changes, so
-	// going between them is only ever one fading out as the next fades in.
+	// Its pages, each over the whole of it (the platform-front-pages mixin)
 	.pages
 	{
-		flex-grow: 1;
-		position: relative;
-		pointer-events: none;
-
-		> .navigator-body
-		{
-			position: absolute;
-			left: 0;
-			top: 0;
-			right: 0;
-			bottom: 0;
-			flex-direction: column;
-			transition: opacity 0.12s ease-out;
-
-			// Kept laid out to fade, rather than gone - over the navigator's own display: none
-			&.hidden
-			{
-				display: flex;
-				opacity: 0;
-				pointer-events: none;
-				transition: opacity 0.08s ease-in;
-			}
-		}
+		@include platform-front-pages;
 	}
 
 	// Home and pause actions share the same position below the title, regardless of the number of items.
@@ -165,130 +142,11 @@ GameFront
 		}
 	}
 
-	// The pages it goes on to - faded in the first time. Each is a panel of its own (the platform-panel mixin) over the
-	// art: a bar with the way back, what it is and its tools, then what's on it.
-	.pages > CreateGamePage, .pages > ServersPage, .pages > MapsPage
-	{
-		pointer-events: all;
-
-		&:intro
-		{
-			opacity: 0;
-		}
-
-		// The panel in the middle, its sections out on the art at the left (the platform-side mixin) - as the settings
-		// have their card and categories
-		&.navigator-body
-		{
-			flex-direction: row;
-			justify-content: center;
-		}
-
-		> .panel
-		{
-			@include platform-panel;
-			flex-shrink: 1;
-			margin-right: $platform-side-balance;
-			width: 46%;
-			min-width: 640px;
-			max-width: 900px;
-			min-height: 0;
-			box-shadow: 0 24px 60px rgba( 0, 0, 0, 0.45 );
-		}
-
-		.status
-		{
-			flex-grow: 1;
-			flex-direction: column;
-			align-items: center;
-			justify-content: center;
-			gap: 14px;
-			padding: 48px;
-			color: $platform-muted;
-
-			i
-			{
-				font-size: 32px;
-			}
-
-			&.error
-			{
-				color: $platform-danger;
-			}
-		}
-	}
-
-	// Its sections and their rows are its own stylesheet's - here, how wide it is, while it loads, and its buttons
-	.pages > CreateGamePage
-	{
-		> .panel > .body
-		{
-			gap: 18px;
-			padding: 8px 16px 16px 16px;
-		}
-
-		.status
-		{
-			.track
-			{
-				width: 320px;
-				height: 4px;
-				border-radius: 2px;
-				background-color: rgba( 255, 255, 255, 0.12 );
-			}
-
-			.fill
-			{
-				height: 100%;
-				border-radius: 2px;
-				background-color: $platform-primary;
-			}
-		}
-
-		.actions
-		{
-			flex-shrink: 0;
-			justify-content: flex-end;
-			gap: 12px;
-			padding-top: 6px;
-
-			.button
-			{
-				@include platform-button;
-				padding: 0 22px;
-				font-size: 16px;
-				font-weight: 600;
-
-				i
-				{
-					font-size: 20px;
-				}
-
-				&.start
-				{
-					@include platform-button-primary;
-				}
-			}
-		}
-	}
-
-	// Down past the front's bottom to where the shelves' panels stop, clear of the dock - the front's 136px off the bottom
-	// of the screen, they're 80px ($platform-above-dock)
+	// Down past the front's bottom to where the shelves' panels stop, clear of the dock - the front's 120px off the bottom
+	// of the screen, they're 64px ($platform-above-dock)
 	.pages > CreateGamePage > .panel, .pages > ServersPage > .panel, .pages > MapsPage > .panel
 	{
 		margin-bottom: -56px;
-	}
-
-	// A grid of maps wants more room across than a page of rows - and room round the well they're in
-	.pages > MapsPage > .panel
-	{
-		width: 62%;
-		max-width: 1280px;
-
-		> .body
-		{
-			padding: 4px 16px 16px 16px;
-		}
 	}
 
 	// The pause menu's Players page - the player list in the middle, as tall as the front, down to where the shelves'

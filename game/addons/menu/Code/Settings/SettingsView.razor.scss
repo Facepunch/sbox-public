@@ -381,31 +381,6 @@ SettingsView
 			color: #d5dbe6;
 		}
 
-		KeyBind
-		{
-			@include platform-button( 34px );
-			justify-content: center;
-			min-width: 128px;
-			gap: 4px;
-			font-size: 13.5px;
-			font-weight: 600;
-			color: $platform-text;
-			pointer-events: all;
-
-			Image
-			{
-				width: 28px;
-				transition: opacity 0.25s ease;
-			}
-
-			&.rebinding
-			{
-				background-color: $platform-primary;
-
-				Image { opacity: 0.25; }
-			}
-		}
-
 		.button
 		{
 			@include platform-text-button( 38px, 14px, 18px );

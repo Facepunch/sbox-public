@@ -14,22 +14,26 @@
             var groups = inputs.GroupBy(x => x.GroupName);
         }
 
-        @foreach ( var group in groups )
-        {
-            <h2>@group.Key</h2>
+        @* One table - each group a heading row, then its actions with their two binds *@
+        <table class="binds-table" columns="1fr 180px 180px" align="left center center">
+            <tbody>
+                @foreach ( var group in groups )
+                {
+                    <tr class="group">
+                        <td colspan="3">@group.Key</td>
+                    </tr>
 
-            @foreach ( InputAction button in group )
-            {
-                <row>
-					<div class="is-label">@(string.IsNullOrEmpty(button.Title) ? button.Name : button.Title)</div>
-
-                    <div>
-                        <KeyBind BindGroup=@BindGroup Action=@button Slot=@(0) />
-                        <KeyBind BindGroup=@BindGroup Action=@button Slot=@(1) />
-                    </div>
-                </row>
-            }
-        }
+                    @foreach ( InputAction button in group )
+                    {
+                        <tr>
+                            <td class="bind-name">@(string.IsNullOrEmpty( button.Title ) ? button.Name : button.Title)</td>
+                            <td><KeyBind BindGroup=@BindGroup Action=@button Slot=@(0) /></td>
+                            <td><KeyBind BindGroup=@BindGroup Action=@button Slot=@(1) /></td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
 
 	</div>
 

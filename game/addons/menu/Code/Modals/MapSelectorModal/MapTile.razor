@@ -38,6 +38,12 @@
 	[Parameter]
 	public Action OnSelect { get; set; }
 
+	/// <summary>
+	/// Its page - on right-click, beside picking it. A mounted map has none.
+	/// </summary>
+	[Parameter]
+	public Action OnView { get; set; }
+
 	Panel ThumbnailPanel = null;
 
 	protected override void OnAfterTreeRender(bool firstTime)
@@ -54,5 +60,15 @@
 	{
 		base.OnClick(e);
 		OnSelect?.Invoke();
+	}
+
+	protected override void OnRightClick( MousePanelEvent e )
+	{
+		base.OnRightClick( e );
+		if ( OnView is null ) return;
+
+		var menu = MenuProject.UI.MenuPanel.Open( this );
+		menu.AddOption( "check", "Select map", () => OnSelect?.Invoke() );
+		menu.AddOption( "info", "View map", OnView );
 	}
 }

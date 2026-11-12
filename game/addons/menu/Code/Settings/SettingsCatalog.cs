@@ -1094,19 +1094,6 @@ public class SettingsCatalog
 
 	void AddGame()
 	{
-		// Which menu - saved, the menu restarts onto the other one (MenuDll)
-		Items.Add( new SettingItem
-		{
-			Id = "game.menu",
-			Category = "game",
-			Section = "#menu.settings.menu",
-			Title = "#menu.settings.menu_style",
-			Description = "#menu.settings.game.menu.description",
-			Options = [new( "#menu.settings.menu_classic", false ), new( "#menu.settings.menu_new", true )],
-			Read = () => MenuUtility.PlatformMenu,
-			Write = value => MenuUtility.SetConsoleVariable( "menu_platform", ToBool( value ) )
-		} );
-
 		Items.Add( new SettingItem
 		{
 			Id = "game.language",

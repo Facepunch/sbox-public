@@ -203,6 +203,11 @@ internal static partial class Workshop
 	internal static Task<bool> VoteAsync( ulong id, bool up, CancellationToken token = default ) => Ugc.SetVoteAsync( id, up, token );
 
 	/// <summary>
+	/// Add this item to the user's favourites, or take it off. False if Steam didn't take it.
+	/// </summary>
+	internal static Task<bool> FavouriteAsync( ulong id, bool favourite, CancellationToken token = default ) => Ugc.SetFavouriteAsync( id, favourite, token );
+
+	/// <summary>
 	/// Are we subscribed to this item? Cheap - it's kept up to date as subscriptions change.
 	/// </summary>
 	internal static bool IsSubscribed( ulong id ) => Ugc.IsSubscribed( id );

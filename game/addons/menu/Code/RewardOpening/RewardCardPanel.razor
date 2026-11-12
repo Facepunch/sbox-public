@@ -3,27 +3,31 @@
 @namespace Sandbox
 @inherits PanelComponent
 
-<root class="reward-card-panel @( IsSelected ? "selected" : "" ) @RarityClass" style="@BorderStyle">
+@*
+    A card held up out of the crate - the item on a glow of its rarity's colour, its name, and its rarity on a pill of
+    that colour. Picked, it lights up in white with a tick.
+*@
+<root class="reward-card-panel @( IsSelected ? "selected" : "" ) @RarityClass" style="border-color: @(IsSelected ? "white" : Tint( 0.55f ));">
 
-	<div class="card-art" style="background-image: url( @Item?.Icon )">
-		@if ( Item?.IsOwned ?? false )
-		{
-			<div class="owned-pill">@Item.OwnedCount OWNED</div>
-		}
+	<div class="glow" style="background-image: radial-gradient( circle at 50% 42%, @Tint( 0.3f ) 0%, @Tint( 0.08f ) 45%, rgba( 0, 0, 0, 0 ) 72% );"></div>
 
-		@if ( IsSelected )
-		{
-			<div class="check-circle">
-				<icon>check</icon>
-			</div>
-		}
-	</div>
+	<div class="card-art" style="background-image: url( @Item?.Icon )"></div>
 
-	<div class="card-footer">
+	@if ( Item?.IsOwned ?? false )
+	{
+		<div class="owned-pill">@Item.OwnedCount owned</div>
+	}
+
+	@if ( IsSelected )
+	{
+		<div class="check-circle"><icon>check</icon></div>
+	}
+
+	<div class="card-footer" style="background-image: linear-gradient( to top, @Tint( 0.28f ) 0%, rgba( 0, 0, 0, 0 ) 100% );">
 		<label class="card-name">@Item?.Name</label>
 		@if ( Item?.Rarity is not null and not ItemRarity.None )
 		{
-			<label class="card-rarity" style="color: @Item.RarityColor">@Item.Rarity</label>
+			<label class="card-rarity" style="color: @Item.RarityColor; background-color: @Tint( 0.16f );">@Item.Rarity</label>
 		}
 	</div>
 
@@ -43,9 +47,14 @@
 		_ => $"rarity-{Item.Rarity.ToString().ToLowerInvariant()}"
 	};
 
-	string BorderStyle => Item?.RarityColor is not null
-		? $"border-color: {Item.RarityColor}"
-		: "";
+	/// <summary>
+	/// Its rarity's colour at <paramref name="alpha"/> - a grey one without a rarity
+	/// </summary>
+	string Tint( float alpha )
+	{
+		var c = Color.Parse( Item?.RarityColor ?? "" ) ?? new Color( 0.7f, 0.74f, 0.82f );
+		return $"rgba( {(int)(c.r * 255)}, {(int)(c.g * 255)}, {(int)(c.b * 255)}, {alpha.ToString( System.Globalization.CultureInfo.InvariantCulture )} )";
+	}
 
 	protected override int BuildHash() => HashCode.Combine( Item?.ItemDefId, IsSelected, Item?.Rarity, Item?.OwnedCount );
 }

@@ -31,6 +31,11 @@
     /// </summary>
     public bool IsDirty => View?.Catalog.IsDirty ?? false;
 
+    /// <summary>
+    /// The category it's on now - not just the one it opened on
+    /// </summary>
+    public string CurrentCategory => View?.Category ?? Category;
+
     readonly ScrollFade rowsFade = new( 32 );
 
     public override void Tick()
@@ -38,8 +43,12 @@
         base.Tick();
 
         // Its rows fading off under the bar and over the buttons when there's more of them than fits, as the platform's
-        // lists do
-        rowsFade.Apply( ChildWithClass( ChildWithClass( View, "body" ), "scroll" ) );
+        // lists do. A page with its own markup (Key Binds, Storage) scrolls its own content, not the box it's in.
+        var scroll = ChildWithClass( ChildWithClass( View, "body" ), "scroll" );
+        if ( scroll is not null && scroll.HasClass( "custom" ) && scroll.ChildrenCount > 0 )
+            scroll = ChildWithClass( scroll.GetChild( 0 ), "page-content" ) ?? scroll;
+
+        rowsFade.Apply( scroll );
     }
 
     // By index - it's every frame, and walking Children allocates

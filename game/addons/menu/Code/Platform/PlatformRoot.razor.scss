@@ -91,7 +91,7 @@ PlatformRoot
 			top: 0;
 			right: 0;
 			bottom: 0;
-			background-color: rgb( 8, 12, 22 );
+			background-color: rgb( 10, 11, 15 );
 			opacity: 0;
 			transition: opacity 0.35s ease-out;
 		}
@@ -143,7 +143,7 @@ PlatformRoot
 		// Always as blurred and dimmed as it gets, faded in and out whole - the blur itself doesn't ease between strengths,
 		// it snaps
 		backdrop-filter: blur( 24px );
-		background-color: rgba( 8, 12, 22, 0.55 );
+		background-color: rgba( 10, 11, 15, 0.55 );
 		opacity: 0;
 		transition: opacity 0.3s ease-out;
 
@@ -167,7 +167,7 @@ PlatformRoot
 		align-items: center;
 		justify-content: center;
 		gap: 28px;
-		background-color: rgba( 8, 12, 22, 0 );
+		background-color: rgba( 10, 11, 15, 0 );
 		pointer-events: none;
 		transition: background-color 0.4s ease-out;
 
@@ -179,7 +179,7 @@ PlatformRoot
 
 		&.on
 		{
-			background-color: rgba( 8, 12, 22, 0.7 );
+			background-color: rgba( 10, 11, 15, 0.7 );
 			pointer-events: all;
 			transition: background-color 0.4s ease-out 0.6s;
 
@@ -194,7 +194,7 @@ PlatformRoot
 		// (PlatformMenu.Run), then out over the next one once it's in
 		&.on.cover
 		{
-			background-color: rgba( 8, 12, 22, 1 );
+			background-color: rgba( 10, 11, 15, 1 );
 			transition: background-color 0.2s ease-out;
 		}
 	}

@@ -156,10 +156,15 @@
             Resume();
     }
 
+    /// <summary>
+    /// Back to its menu - in the editor, out of play mode
+    /// </summary>
     void Leave() => MenuHelpers.ConfirmLeave( () =>
     {
         Resume();
-        Game.ReturnToMenu();
+
+        if ( Application.IsEditor ) Game.Close();
+        else Game.ReturnToMenu();
     } );
 
     public override void Tick()

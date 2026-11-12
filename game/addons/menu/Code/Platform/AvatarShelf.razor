@@ -7,7 +7,6 @@
 @namespace MenuProject.Platform
 @page "/shelf/avatar"
 @inherits ShelfPage
-@implements IShelfPage
 
 @*
     Your avatar, up out of the dock - in place of the avatar editor's scene.
@@ -684,9 +683,9 @@
         }
     }
 
-    bool IShelfPage.ToDock => true;
+    public override bool ToDock => true;
 
-    void IShelfPage.OnShelfShown()
+    public override void OnShelfShown()
     {
         if ( !Draft.HasChanges )
             Draft.Load();
