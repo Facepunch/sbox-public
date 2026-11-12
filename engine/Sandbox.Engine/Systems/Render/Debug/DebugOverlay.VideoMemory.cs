@@ -8,15 +8,20 @@ internal static partial class DebugOverlay
 {
 	internal static class VideoMemoryWarning
 	{
+		// Video Memory Warning suppression or persistence convar
+		[ConVar( "r_video_memory_warning", Help = "How long (in seconds) the video memory warning stays visible (0 for persistent, negative to disable)." )]
+		public static float DisplayDuration { get; set; } = 10.0f;
+
 		static VideoMemoryPressure _pressure;
 		static double _nextSample;
+		static double _activatedTime;
 		static readonly Logger log = new( "VideoMemory" );
 		const string Title = "Video memory budget exceeded";
 		const string Message = "GPU memory may be paging to system RAM, causing stuttering. Lower Texture Detail or close other GPU-heavy applications.";
 
 		internal static void Draw( Painter painter )
 		{
-			if ( Application.IsHeadless || !Graphics.IsAvailable )
+			if ( Application.IsHeadless || !Graphics.IsAvailable || DisplayDuration < 0 )
 			{
 				_pressure = default;
 				_nextSample = 0;
@@ -39,12 +44,17 @@ internal static partial class DebugOverlay
 				var wasActive = _pressure.IsActive;
 				_pressure.Update( now, budget, usage );
 				if ( _pressure.IsActive && !wasActive )
+				{
+					_activatedTime = now;
 					log.Warning( $"{Title}: {usage / (1024 * 1024)} MiB used / {budget / (1024 * 1024)} MiB budget. {Message}" );
+				}
 			}
 
 			if ( !_pressure.IsActive || Screen.Width <= 64 || Screen.Height <= 64 )
 				return;
 
+			if ( DisplayDuration > 0 && now - _activatedTime > DisplayDuration )
+				return;
 			var width = MathF.Min( 460, Screen.Width - 32 );
 			var x = Screen.Width - width - 16;
 			var warningColor = new Color( 1f, 0.7f, 0.2f );
