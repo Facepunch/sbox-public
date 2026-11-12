@@ -100,7 +100,7 @@ public partial class Panel
 
 		if ( name == "style" )
 		{
-			Style.Set( value );
+			Style.SetAttribute( value );
 			return;
 		}
 
