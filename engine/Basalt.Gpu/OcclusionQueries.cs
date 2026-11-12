@@ -4,8 +4,9 @@ namespace Basalt.Gpu;
 
 /// <summary>
 /// A pool of occlusion queries (<see cref="Device.CreateOcclusionQueries"/>): reset one in a command list
-/// (<see cref="CommandList.ResetQueries"/>), count the samples that pass while drawing (<see cref="CommandList.BeginQuery"/>
-/// and <see cref="CommandList.EndQuery"/>, inside one rendering scope) and read the count back once that work has finished.
+/// (<see cref="CommandList.ResetQueries(OcclusionQueries, int, int)"/>), count the samples that pass while drawing
+/// (<see cref="CommandList.BeginQuery(OcclusionQueries, int)"/> and <see cref="CommandList.EndQuery(OcclusionQueries, int)"/>,
+/// inside one rendering scope) and read the count back once that work has finished.
 /// Counts are exact where <see cref="DeviceCapabilities.PreciseOcclusion"/>.
 /// </summary>
 public sealed unsafe class OcclusionQueries : IDisposable

@@ -406,6 +406,7 @@ public sealed partial class RenderSystem : IDisposable
 			skyFrame?.End();
 			Transients.EndRender();
 			skybox?.Transients.EndRender();
+			RenderHost.Current.Device.EndSubmitting();
 		}
 		stats.SubmitMs = Lap();
 

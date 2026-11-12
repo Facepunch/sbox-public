@@ -44,6 +44,12 @@ internal sealed partial class BackendContext : GpuContext
 		/// </summary>
 		public Dictionary<BackendTexture, (ImageLayout First, ImageLayout Current)> Layouts;
 		public readonly List<(BufferHandle Buffer, int Bytes, GpuReadback Callback)> Readbacks = new();
+
+		/// <summary>The list's own scope in <see cref="BackendDevice.PassTimer"/>, -1 if it's not timed.</summary>
+		public int TimerScope = -1;
+
+		/// <summary>The timed scope counting statistics in this list, -1 if none: they don't nest.</summary>
+		public int Counting = -1;
 	}
 
 	static readonly StringToken ViewConstantsName = new( "PerViewConstantBuffer_t" );
@@ -138,6 +144,12 @@ internal sealed partial class BackendContext : GpuContext
 				recording.List.WriteTimestamp( stamp.Queries, stamp.Index, PipelineStage.TopOfPipe );
 			}
 
+			if ( device.PassTimer is { } timer )
+			{
+				if ( frame is null ) timer.ResetIn( recording.List );
+				recording.TimerScope = timer.Begin( recording.List, recording.List.Name, PassTimer.ScopeKind.List );
+			}
+
 			// A segment with a list of its own may record while others do: its layouts are its own until it's submitted
 			if ( frame is not null ) recording.Layouts = new();
 		}
@@ -172,12 +184,13 @@ internal sealed partial class BackendContext : GpuContext
 
 			if ( recording.Active is { } last && last != this && last.recording == recording ) last.FlushClears();
 			CloseScope();
+			device.PassTimer?.End( recording.List, recording.TimerScope );
 			if ( recording.Layouts is { Count: > 0 } ) SubmitLayoutFixUps( recording );
 			Span<SyncPoint> waits = stackalloc SyncPoint[1];
 			var waitCount = 0;
 			if ( wait.Handle != IntPtr.Zero ) waits[waitCount++] = device.PointOf( wait );
 
-			var point = Gpu.Submit( recording.List, waits[..waitCount] );
+			var point = waitCount == 0 && device.BatchSubmits ? Gpu.SubmitLater( recording.List ) : Gpu.Submit( recording.List, waits[..waitCount] );
 			if ( signal.Handle != IntPtr.Zero ) device.Signalled( signal, point );
 			foreach ( var (buffer, bytes, callback) in recording.Readbacks ) device.AddReadback( point, buffer, bytes, callback );
 		}
@@ -194,11 +207,17 @@ internal sealed partial class BackendContext : GpuContext
 	void SubmitLayoutFixUps( Session session )
 	{
 		CommandList fixUps = null;
+		var timed = -1;
 		foreach ( var (texture, (first, current)) in session.Layouts )
 		{
 			if ( texture.Layout != first )
 			{
-				fixUps ??= Gpu.BeginCommandList( session.List.Queue, "Basalt layouts" );
+				if ( fixUps is null )
+				{
+					fixUps = Gpu.BeginCommandList( session.List.Queue, "Basalt layouts" );
+					timed = device.PassTimer?.Begin( fixUps, fixUps.Name, PassTimer.ScopeKind.List ) ?? -1;
+				}
+
 				fixUps.Barrier( Basalt.Gpu.TextureBarrier.Transition( texture.Handle, texture.Layout, first,
 					PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite ) );
 			}
@@ -206,7 +225,13 @@ internal sealed partial class BackendContext : GpuContext
 			texture.Layout = current;
 		}
 
-		if ( fixUps is not null ) Gpu.Submit( fixUps );
+		if ( fixUps is not null )
+		{
+			device.PassTimer?.End( fixUps, timed );
+			if ( device.BatchSubmits ) Gpu.SubmitLater( fixUps );
+			else Gpu.Submit( fixUps );
+		}
+
 		LayoutFixUps += fixUps is null ? 0 : 1;
 	}
 
@@ -587,12 +612,31 @@ internal sealed partial class BackendContext : GpuContext
 	{
 		if ( recording is null ) return default;
 		List.BeginLabel( name );
-		return new GpuScope( 1, false );
+		if ( device.PassTimer is not { } timer ) return new GpuScope( 1, false );
+
+		// Statistics queries begin and end outside rendering here, so the scope can't straddle one; an outer scope counts for the ones inside
+		var count = timer.Statistics && recording.Counting < 0;
+		if ( count ) CloseScope();
+		var timed = timer.Begin( List, name, PassTimer.ScopeKind.Pass, count );
+		if ( count && timer.Counts( timed ) ) recording.Counting = timed;
+		return new GpuScope( timed + 2, false );
 	}
 
 	public override void EndGpuScope( GpuScope scope )
 	{
 		if ( recording is null || scope.Marker == IntPtr.Zero ) return;
+		if ( scope.Marker > 1 && device.PassTimer is { } timer )
+		{
+			var timed = (int)scope.Marker - 2;
+			if ( recording.Counting == timed )
+			{
+				CloseScope();
+				recording.Counting = -1;
+			}
+
+			timer.End( List, timed );
+		}
+
 		List.EndLabel();
 	}
 

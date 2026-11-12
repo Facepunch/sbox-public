@@ -36,6 +36,7 @@
 		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" Private="false" />
 		<ProjectReference Include="..\..\Basalt\Basalt.csproj" Private="false" />
 		<ProjectReference Include="..\..\Basalt.Gpu\Basalt.Gpu.csproj" Private="false" />
+		<ProjectReference Include="..\..\Basalt.Sdl\Basalt.Sdl.csproj" Private="false" />
 		<ProjectReference Include="..\..\Basalt.Source2\Basalt.Source2.csproj" Private="false" />
 		<ProjectReference Include="..\..\Basalt.Backend\Basalt.Backend.csproj" Private="false" />
 		<ProjectReference Include="..\..\Sandbox.ShaderCompiler\Sandbox.ShaderCompiler.csproj" Private="false" />
@@ -44,8 +45,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- -map: the sample's bare Win32 window and PNG writer, and the map shader (compiled by Shaders/compile.bat) -->
-		<Compile Include="..\BasaltGpuSample\Win32Window.cs" Link="Maps\Win32Window.cs" />
+		<!-- -map: the sample's PNG writer, and the map shader (compiled by Shaders/compile.bat) -->
 		<Compile Include="..\BasaltGpuSample\Capture.cs" Link="Maps\Capture.cs" />
 		<EmbeddedResource Include="Shaders\*.spv" LogicalName="%(Filename)%(Extension)" WithCulture="false" />
 	</ItemGroup>

@@ -219,7 +219,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		{
 			var drawn = gpuDriven.AsSpan( 0, batches.Length );
 			drawn.Clear();
-			DrawGpuDriven( context, batches, mode, depth, layer.ForceDepthFastPath, depthBias, slopeBias, drawn );
+			DrawGpuDriven( context, view, batches, mode, depth, layer.ForceDepthFastPath, depthBias, slopeBias, drawn );
 
 			for ( int i = 0; i < batches.Length; i++ )
 			{
@@ -283,7 +283,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	/// Hand the device every batch at once for its GPU-driven path (<see cref="GpuContext.DrawGpuDriven"/>), with the
 	/// material each would bind here.
 	/// </summary>
-	void DrawGpuDriven( GpuContext context, ReadOnlySpan<Batch> batches, StringToken mode, bool depth, bool forceDepthOnly, int depthBias, float slopeBias, Span<bool> drawn )
+	void DrawGpuDriven( GpuContext context, ViewPass view, ReadOnlySpan<Batch> batches, StringToken mode, bool depth, bool forceDepthOnly, int depthBias, float slopeBias, Span<bool> drawn )
 	{
 		var list = System.Buffers.ArrayPool<GpuContext.GpuDrivenBatch>.Shared.Rent( batches.Length );
 		var count = 0;
@@ -303,7 +303,21 @@ internal sealed class AggregateRenderFeature : RenderFeature
 			list[count++] = new GpuContext.GpuDrivenBatch( material, batch.Aggregate.Mesh, draws[0], attributes, strip, batch.FirstArg, batch.Count, batch.Aggregate.FirstInstance, batch.Triangles, batch.Aggregate );
 		}
 
-		context.DrawGpuDriven( mode, list.AsSpan( 0, count ), args.AsSpan( 0, argCount ), transforms, depthBias, slopeBias, drawn );
+		// The tests Prepare made per fragment, for the device to make on the GPU over every fragment instead
+		var frustum = view.View.Frustum;
+		var cull = new GpuContext.GpuDrivenCull
+		{
+			Left = frustum.Plane( 0 ),
+			Right = frustum.Plane( 1 ),
+			Bottom = frustum.Plane( 2 ),
+			Top = frustum.Plane( 3 ),
+			Near = frustum.Plane( 4 ),
+			Far = frustum.Plane( 5 ),
+			CameraAndThreshold = new SizeCull( view.Root ).CameraAndThreshold,
+			Shadow = view.IsShadow,
+		};
+
+		context.DrawGpuDriven( mode, list.AsSpan( 0, count ), args.AsSpan( 0, argCount ), transforms, depthBias, slopeBias, drawn, cull );
 		System.Buffers.ArrayPool<GpuContext.GpuDrivenBatch>.Shared.Return( list, clearArray: true );
 	}
 

@@ -1,4 +1,5 @@
 using Basalt.Gpu;
+using Basalt.Sdl;
 using System.Diagnostics;
 using System.Threading;
 
@@ -9,11 +10,12 @@ namespace BasaltGpuSample;
 /// Exits with 1 if the validation layer reported an error.
 /// </summary>
 /// <remarks>
-/// <c>-frames N</c> and <c>-seconds S</c> stop it; <c>-resize</c> resizes the window every 20 frames;
-/// <c>-novalidation</c> turns the validation layer off, <c>-syncvalidation</c> adds its synchronisation checks;
-/// <c>-immediate</c> presents without vsync. <c>-basalt</c> draws Basalt's own renderer instead
-/// (<see cref="BasaltScene"/>); <c>-capture path.png</c> saves its last frame. <c>-materialbench</c> runs
-/// <see cref="MaterialBench"/> offscreen instead (<c>-frames</c>, <c>-runs</c>, <c>-models</c> limit it).
+/// <c>-frames N</c> and <c>-seconds S</c> stop it; <c>-resize</c> resizes the window every 20 frames; <c>-windowstates</c>
+/// goes fullscreen, back, minimises and restores in turn every 20 frames; <c>-novalidation</c> turns the validation layer
+/// off, <c>-syncvalidation</c> adds its synchronisation checks; <c>-immediate</c> presents without vsync.
+/// <c>-basalt</c> draws Basalt's own renderer instead (<see cref="BasaltScene"/>); <c>-capture path.png</c> saves its last
+/// frame. <c>-materialbench</c> runs <see cref="MaterialBench"/> offscreen instead (<c>-frames</c>, <c>-runs</c>,
+/// <c>-models</c> limit it). In the window: Escape closes, F11 or Alt+Enter toggles fullscreen, V toggles vsync.
 /// </remarks>
 internal static class Program
 {
@@ -22,17 +24,12 @@ internal static class Program
 		var frameLimit = IntArg( args, "-frames", int.MaxValue );
 		var secondsLimit = IntArg( args, "-seconds", int.MaxValue );
 		var resize = args.Contains( "-resize" );
+		var windowStates = args.Contains( "-windowstates" );
 		var validation = !args.Contains( "-novalidation" );
 		var immediate = args.Contains( "-immediate" );
 		var syncValidation = args.Contains( "-syncvalidation" );
 		var basalt = args.Contains( "-basalt" );
 		var capture = StringArg( args, "-capture" );
-
-		if ( !OperatingSystem.IsWindows() )
-		{
-			Console.Error.WriteLine( "The sample's window is Win32; Basalt.Gpu itself also takes Xlib and Wayland surfaces." );
-			return 2;
-		}
 
 		if ( args.Contains( "-materialbench" ) )
 		{
@@ -41,12 +38,13 @@ internal static class Program
 		}
 
 		var errors = 0;
-		using var window = new Win32Window( "Basalt.Gpu", 1280, 800 );
+		using var window = new SdlWindow( new SdlWindowOptions { Title = "Basalt.Gpu", Width = 1280, Height = 800 } );
 		using var device = Device.Create( new DeviceOptions
 		{
 			ApplicationName = "Basalt.Gpu sample",
 			Validation = validation,
 			SynchronizationValidation = syncValidation,
+			InstanceExtensions = Sdl.VulkanInstanceExtensions,
 			Message = m =>
 			{
 				if ( m.Severity < MessageSeverity.Warning ) return;
@@ -56,16 +54,21 @@ internal static class Program
 		} );
 
 		Console.WriteLine( $"{device.Adapter}, validation {(device.ValidationEnabled ? "on" : "off (not installed?)")}, async compute {device.Capabilities.AsyncCompute}" );
+		Console.WriteLine( $"SDL {Sdl.Version} ({Sdl.VideoDriver}), window {window.PixelSize.Width}x{window.PixelSize.Height} pixels, density {window.PixelDensity}, display scale {window.DisplayScale}" );
 
-		var (width, height) = window.ClientSize;
-		using var swapChain = device.CreateSwapChain( new SwapChainInfo
+		SwapChain CreateSwapChain()
 		{
-			Surface = SurfaceSource.Win32( window.Instance, window.Handle ),
-			Width = width,
-			Height = height,
-			PresentMode = immediate ? PresentMode.Immediate : PresentMode.Fifo,
-		} );
+			var (width, height) = window.PixelSize;
+			return device.CreateSwapChain( new SwapChainInfo
+			{
+				Surface = SurfaceSource.Custom( window.CreateVulkanSurface ),
+				Width = width,
+				Height = height,
+				PresentMode = immediate ? PresentMode.Immediate : PresentMode.Fifo,
+			} );
+		}
 
+		var swapChain = CreateSwapChain();
 		Console.WriteLine( $"Swap chain {swapChain.Width}x{swapChain.Height} {swapChain.Format}, {swapChain.ImageCount} images, {swapChain.PresentMode}" );
 
 		using var scene = basalt ? null : new SampleScene( device, swapChain.Format );
@@ -73,28 +76,59 @@ internal static class Program
 		var clock = Stopwatch.StartNew();
 		var frames = 0;
 		var resizes = 0;
+		var ticks = 0;
+		var stateChanges = 0;
 		var lastTitle = 0.0;
 		var frameTimes = new List<double>();
 		var renderTimes = new List<double>();
 		var last = clock.Elapsed.TotalMilliseconds;
 
-		while ( !window.Closed && frames < frameLimit && clock.Elapsed.TotalSeconds < secondsLimit )
+		while ( !window.CloseRequested && frames < frameLimit && clock.Elapsed.TotalSeconds < secondsLimit )
 		{
-			window.Pump();
+			ticks++;
+			while ( Sdl.PollEvent( out var e ) )
+			{
+				if ( e.Kind != SdlEventKind.KeyDown || e.Repeat ) continue;
+
+				if ( e.Key == SdlKey.Escape ) window.RequestClose();
+				else if ( e.Key == SdlKey.F11 || (e.Key == SdlKey.Return && (e.Modifiers & SdlKeyModifiers.Alt) != 0) ) window.Fullscreen = !window.Fullscreen;
+				else if ( e.Key == SdlKey.V )
+				{
+					immediate = !immediate;
+					swapChain.Dispose();
+					swapChain = CreateSwapChain();
+					Console.WriteLine( $"Swap chain {swapChain.PresentMode}" );
+				}
+			}
 
 			if ( resize && frames > 0 && frames % 20 == 0 && resizes < frames / 20 )
 			{
 				resizes++;
 				int[][] sizes = [[960, 540], [1280, 800], [640, 720], [1600, 600]];
 				var size = sizes[resizes % sizes.Length];
-				window.SetClientSize( size[0], size[1] );
-				window.Pump();
+				window.SetPixelSize( size[0], size[1] );
+				Sdl.PumpEvents();
+			}
+
+			// Counted in loop turns, not frames: a minimised window presents none
+			if ( windowStates && ticks % 20 == 0 )
+			{
+				stateChanges++;
+				switch ( stateChanges % 4 )
+				{
+					case 1: window.Fullscreen = true; break;
+					case 2: window.Fullscreen = false; break;
+					case 3: window.Minimize(); break;
+					case 0: window.Restore(); break;
+				}
+
+				Sdl.PumpEvents();
 			}
 
 			if ( window.Resized )
 			{
 				window.Resized = false;
-				var (w, h) = window.ClientSize;
+				var (w, h) = window.PixelSize;
 				swapChain.Resize( w, h );
 			}
 
@@ -156,7 +190,7 @@ internal static class Program
 
 		frameTimes.Sort();
 		var median = frameTimes.Count > 0 ? frameTimes[frameTimes.Count / 2] : 0;
-		Console.WriteLine( $"{frames} frames in {clock.Elapsed.TotalSeconds:0.0}s, median {median:0.00} ms, {resizes} resizes, {device.ValidationErrors} validation errors" );
+		Console.WriteLine( $"{frames} frames in {clock.Elapsed.TotalSeconds:0.0}s, median {median:0.00} ms, {resizes} resizes, {stateChanges} window state changes, {device.ValidationErrors} validation errors" );
 		if ( renderTimes.Count > 0 )
 		{
 			renderTimes.Sort();
@@ -164,6 +198,7 @@ internal static class Program
 		}
 
 		Console.WriteLine( device.DescribeResources() );
+		swapChain.Dispose();
 		return device.ValidationErrors > 0 || errors > 0 ? 1 : 0;
 	}
 
