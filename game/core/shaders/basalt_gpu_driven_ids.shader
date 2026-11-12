@@ -2,7 +2,7 @@
 HEADER
 {
 	DevShader = true;
-	Description = "Basalt GPU-driven depth prepass that also writes ids: depth_only's depth, and each sample's triangle by its first vertex, for the visibility-driven forward pass.";
+	Description = "Basalt GPU-driven depth prepass that also writes ids, for depth draws without a pixel shader: depth_only's depth, and each sample's triangle by its first vertex at target 1, for the visibility-driven forward pass. The pipeline takes culling, depth and stencil from the variant it stands in for.";
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -14,7 +14,6 @@ MODES
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 FEATURES
 {
-	Feature( F_RENDER_BACKFACES, 0..1, "Rendering" );
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -42,13 +41,6 @@ VS
 	#include "instancing.fxc"
 	#include "basalt_gpu_driven.fxc"
 
-	// Each instance record's aggregate's first vertex bit: a word per instance, g_nBasaltVertexBases + instance * 4 in
-	// the instance table
-	cbuffer BasaltGpuDrivenIds_t
-	{
-		uint g_nBasaltVertexBases;
-	};
-
 	// depth_only's position, pulled as its GPU-driven variant pulls it, so the depth is the same
 	PS_INPUT MainVs( uint nVertex : SV_VulkanVertexID, uint nInstance : SV_VulkanInstanceID )
 	{
@@ -61,8 +53,7 @@ VS
 		float3 vPositionWs = mul( matObjectToWorld, float4( vPositionOs.xyz, 1.0 ) );
 		o.vPositionPs.xyzw = Position3WsToPs( vPositionWs.xyz );
 
-		uint nBase = g_bindless_VertexBuffers[ g_nBasaltInstances ].Load( g_nBasaltVertexBases + nInstance * 4 );
-		o.nVertexBit = nBase == 0xffffffffu ? 0xffffffffu : nBase + nVertex;
+		o.nVertexBit = BasaltGpuDrivenVertexBit( nInstance, nVertex );
 		return o;
 	}
 }
@@ -73,16 +64,21 @@ PS
 	RenderState( DepthEnable, true );
 	RenderState( DepthWriteEnable, true );
 	RenderState( DepthFunc, GREATER_EQUAL );
+	RenderState( CullMode, DEFAULT );
 
-	#if ( F_RENDER_BACKFACES )
-		RenderState( CullMode, NONE );
-	#else
-		RenderState( CullMode, DEFAULT );
-	#endif
-
-	// The first vertex's bit + 1; 0 is nothing
-	uint MainPs( PS_INPUT i ) : SV_Target0
+	// The first vertex's bit + 1 at target 1, where the ids are (target 0 is the variants' own output, and written here
+	// only so the ids stay at location 1); 0 is nothing
+	struct PS_OUTPUT
 	{
-		return i.nVertexBit + 1;
+		float4 vUnused : SV_Target0;
+		uint nId : SV_Target1;
+	};
+
+	PS_OUTPUT MainPs( PS_INPUT i )
+	{
+		PS_OUTPUT o;
+		o.vUnused = 1.0;
+		o.nId = i.nVertexBit + 1;
+		return o;
 	}
 }
