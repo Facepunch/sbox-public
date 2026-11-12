@@ -282,6 +282,7 @@ internal enum VkFeature
 	FullDrawIndexUint32 = 1,
 	ImageCubeArray = 2,
 	IndependentBlend = 3,
+	GeometryShader = 4,
 	SampleRateShading = 6,
 	MultiDrawIndirect = 9,
 	DrawIndirectFirstInstance = 10,

@@ -379,7 +379,7 @@ public sealed unsafe partial class Device : IDisposable
 
 		ReadOnlySpan<VkFeature> core =
 		[
-			VkFeature.FullDrawIndexUint32, VkFeature.ImageCubeArray, VkFeature.IndependentBlend, VkFeature.SampleRateShading,
+			VkFeature.FullDrawIndexUint32, VkFeature.ImageCubeArray, VkFeature.IndependentBlend, VkFeature.GeometryShader, VkFeature.SampleRateShading,
 			VkFeature.MultiDrawIndirect, VkFeature.DrawIndirectFirstInstance, VkFeature.DepthClamp, VkFeature.DepthBiasClamp,
 			VkFeature.FillModeNonSolid, VkFeature.SamplerAnisotropy, VkFeature.TextureCompressionBc, VkFeature.OcclusionQueryPrecise, VkFeature.PipelineStatisticsQuery, VkFeature.FragmentStoresAndAtomics,
 			VkFeature.ShaderImageGatherExtended, VkFeature.ShaderStorageImageExtendedFormats, VkFeature.ShaderStorageImageReadWithoutFormat,
