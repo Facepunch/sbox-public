@@ -154,6 +154,9 @@ internal sealed class BasaltGpuFrame : IDisposable
 	/// </summary>
 	public Graphics.Scope Begin() => Begin( null );
 
+	// The frame's targets as the block binds them; the textures are the frame's, so nothing to dispose
+	RenderTarget frameTarget;
+
 	/// <summary>
 	/// A render block on the frame as <see cref="Begin()"/>'s, which a camera's stages draw in: <paramref name="view"/> is
 	/// what they ask about the frame, and drawing into a render target of their own goes back to the frame's targets after.
@@ -162,7 +165,7 @@ internal sealed class BasaltGpuFrame : IDisposable
 	{
 		// A multisampled frame hands over its resolved colour: its depth keeps its samples, so it isn't bound with it, and
 		// what reads depth reads the chain built from it
-		var frameTarget = Multisampled ? RenderTarget.From( Color ) : RenderTarget.From( Color, Depth );
+		frameTarget = Multisampled ? RenderTarget.From( Color ) : RenderTarget.From( Color, Depth );
 		if ( view is not null ) view.Target = frameTarget;
 		var scope = Graphics.Scope.CreateOnView( backend, view );
 		try
@@ -214,6 +217,19 @@ internal sealed class BasaltGpuFrame : IDisposable
 		if ( target is null ) return;
 		BackendDevice.SetLayout( target.Resolved ?? target.Color, backend.LayoutOf( Color ) );
 		if ( target.Depth is not null ) BackendDevice.SetLayout( target.Depth, backend.LayoutOf( Depth ) );
+	}
+
+	/// <summary>
+	/// The engine's drawing is done with the frame (its output is drawn): its targets go back to Basalt where that left them,
+	/// and the engine no longer tracks them, so no later block moves them behind Basalt's back. The next frame borrows them
+	/// again (<see cref="Adopt"/>).
+	/// </summary>
+	public void Release()
+	{
+		End();
+		if ( Color is not null ) backend.Release( Color );
+		if ( Depth is not null ) backend.Release( Depth );
+		target = null;
 	}
 
 	public void Dispose()

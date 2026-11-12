@@ -668,6 +668,14 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 			CCameraRenderer.RenderDefaultGameUI( swapChain );
 	}
 
+	/// <summary>
+	/// Whether the process draws on Basalt.Gpu (<c>-basaltgpu</c>): what renders into an engine texture there that isn't a
+	/// window's camera or a texture render between blocks (<see cref="RenderIntoTexture"/>) - cube captures, a render inside
+	/// a block or with a depth target of the caller's - isn't there yet, and does nothing; drawn on Source 2's device it
+	/// would never reach the texture's copy on Basalt.Gpu.
+	/// </summary>
+	static bool OnBasaltGpu => RenderBackend.Default is BasaltGpuRenderBackend;
+
 	public void RenderToTexture( SceneCamera camera, Texture target, Vector2? size, in ViewSetup setup )
 	{
 		if ( target is null || target.native.IsNull ) return;
@@ -678,6 +686,9 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 			RenderIntoTexture( gpu, camera, target, size ?? target.Size, setup );
 			return;
 		}
+
+		// The rest of Basalt.Gpu's texture renders aren't there yet: drawn natively they'd never reach its copy (OnBasaltGpu)
+		if ( OnBasaltGpu ) return;
 
 		// Inside a frame (a command list's DrawView, a stage) the view is the frame's child: ours renders it in its own frame,
 		// before what samples it; native's, or a standalone render block, render it natively
@@ -709,6 +720,12 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 			viewData = default;
 			RenderIntoTexture( gpu, camera, target, target.Size, setup );
 			return true;
+		}
+
+		if ( OnBasaltGpu )
+		{
+			viewData = default;
+			return false;
 		}
 
 		// A native parent's child view (see above), and a caller's depth target that Basalt can't draw into with the colour
@@ -821,7 +838,8 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		if ( bitmap.Width <= 1 || bitmap.Height <= 1 ) return;
 
 		// Native only ever writes 8-bit pixels, whatever the bitmap holds; a float bitmap keeps what it gets now
-		if ( bitmap.BytesPerPixel != 4 || NotYetInBasalt( camera, setup ) is not null )
+		// On Basalt.Gpu too: the pixels come back to the CPU, so Source 2's device can draw them
+		if ( bitmap.BytesPerPixel != 4 || NotYetInBasalt( camera, setup ) is not null || OnBasaltGpu )
 		{
 			SceneRenderer.Native.RenderToBitmap( camera, bitmap, setup );
 			return;
@@ -856,7 +874,7 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	/// </summary>
 	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null )
 	{
-		if ( cube is null || cube.native.IsNull ) return;
+		if ( cube is null || cube.native.IsNull || OnBasaltGpu ) return;
 
 		if ( Graphics.IsActive || NotYetInBasalt( camera, setup ) is not null )
 		{

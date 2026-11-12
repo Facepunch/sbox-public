@@ -329,6 +329,18 @@ public sealed class GraphicsContext
 		MemoryBarrier();
 	}
 
+	/// <summary>
+	/// Write timestamp <paramref name="index"/> of <paramref name="queries"/> once the work recorded so far reaches
+	/// <paramref name="stage"/>, resetting <paramref name="reset"/> timestamps from it first (each is reset before it's
+	/// written again).
+	/// </summary>
+	public void WriteTimestamp( TimestampQueries queries, int index, PipelineStage stage, int reset = 0 )
+	{
+		EndScope();
+		if ( reset > 0 ) List.ResetTimestamps( queries, index, reset );
+		List.WriteTimestamp( queries, index, stage );
+	}
+
 	/// <summary>Make every write so far visible to everything after it, keeping layouts (a UAV barrier).</summary>
 	public void MemoryBarrier()
 	{

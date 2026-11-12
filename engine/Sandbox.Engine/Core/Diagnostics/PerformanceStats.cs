@@ -96,7 +96,13 @@ public static partial class PerformanceStats
 		PerformanceStats.FrameTime = frameTimer.Elapsed.TotalSeconds;
 		frameTimer.Restart();
 
-		if ( g_pRenderDevice.GetGPUFrameTimeMS( IntPtr.Zero, out float gpuFrametime, out uint gpuFrameNo ) )
+		// On Basalt.Gpu (-basaltgpu) Source 2's device draws nothing: the game window times its frames itself
+		if ( Engine.GameWindow.Current?.BasaltGpuFrameMs is { } basaltGpu )
+		{
+			GpuFrametime = (float)basaltGpu.Ms;
+			GpuFrameNumber = (uint)basaltGpu.Frame;
+		}
+		else if ( g_pRenderDevice.GetGPUFrameTimeMS( IntPtr.Zero, out float gpuFrametime, out uint gpuFrameNo ) )
 		{
 			GpuFrametime = gpuFrametime;
 			GpuFrameNumber = gpuFrameNo;
