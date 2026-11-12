@@ -300,6 +300,7 @@ public static class ContentBuilder
 		readonly List<(string Source, string Visible)> hidden = [];
 		long clock;
 		int jobs;
+		readonly ConcurrentBag<int> freeStaging = [];
 
 		public async Task<BuildReport> Execute()
 		{
@@ -816,7 +817,7 @@ public static class ContentBuilder
 				running.Remove( done );
 
 				try { Finish( finished, done.Result, finishedJob.Staging ); }
-				finally { DeleteStaging( finishedJob.Staging ); }
+				finally { ReleaseStaging( finishedJob.Staging ); }
 
 				request.JobFinished?.Invoke( finished.Name );
 			}
@@ -863,7 +864,9 @@ public static class ContentBuilder
 		CompileJob Job( Node node, JobMode mode )
 		{
 			// Short: compiled paths under it have to fit the native MAX_PATH. Unique while the root is locked.
-			var staging = Path.Combine( node.Root.Def.StateDirectory, "staging", $"{Interlocked.Increment( ref jobs ):x}" );
+			// Reused once free: native keeps every staging path a job mounts for good, in a table of 65535.
+			var slot = freeStaging.TryTake( out var free ) ? free : Interlocked.Increment( ref jobs );
+			var staging = Path.Combine( node.Root.Def.StateDirectory, "staging", $"{slot:x}" );
 			Directory.CreateDirectory( staging );
 			return new CompileJob( node.Root.Def, mounts, Path.Combine( node.Root.Def.Path, node.Source ), staging, request.CompilerArgs, mode );
 		}
@@ -879,7 +882,7 @@ public static class ContentBuilder
 			catch ( Exception e ) { return new CompileResult( false, e.ToString(), [], [], [], [], [] ); }
 			finally
 			{
-				if ( !keep ) DeleteStaging( job.Staging );
+				if ( !keep ) ReleaseStaging( job.Staging );
 
 				var key = $"{Path.GetExtension( job.Source ).ToLowerInvariant()} {job.Mode.ToString().ToLowerInvariant()}";
 				lock ( report.JobTime )
@@ -1217,6 +1220,12 @@ public static class ContentBuilder
 			try { if ( Directory.Exists( dir ) ) Directory.Delete( dir, true ); }
 			catch ( IOException ) { }
 			catch ( UnauthorizedAccessException ) { }
+		}
+
+		void ReleaseStaging( string dir )
+		{
+			DeleteStaging( dir );
+			if ( !Directory.Exists( dir ) ) freeStaging.Add( Convert.ToInt32( Path.GetFileName( dir ), 16 ) );
 		}
 
 		sealed class NodeKey : IEqualityComparer<(RootState Root, string Source)>
