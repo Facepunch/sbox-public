@@ -29,6 +29,29 @@ public sealed partial class SlangCompiler
 		this.searchPaths = searchPaths.Select( p => Path.GetFullPath( p ) ).ToList();
 	}
 
+	/// <summary>
+	/// Where compiled shaders are kept between runs (null: nowhere). An entry is used only while the compiler (this
+	/// assembly's build and its Slang), the search paths, the source and every file the compile read are as they were.
+	/// </summary>
+	public string CacheFolder { get; init; }
+
+	/// <summary>Every file the current compile has read, for its <see cref="CompiledShader.Dependencies"/>.</summary>
+	HashSet<string> readFiles;
+
+	CompiledShader Cached( string path, ShaderTier tier, Func<string, CompiledShader> compile )
+	{
+		path = Path.GetFullPath( path );
+		if ( CacheFolder is null ) return compile( path );
+
+		var text = File.ReadAllText( path );
+		var context = $"{slangDirectory}|{string.Join( ';', searchPaths )}";
+		if ( CompileCache.Load( CacheFolder, context, slangDirectory, tier, path, text ) is { } cached ) return cached;
+
+		var compiled = compile( path );
+		CompileCache.Save( CacheFolder, context, slangDirectory, path, text, compiled );
+		return compiled;
+	}
+
 	/// <summary>Defines vfx gives every program, which the core includes test.</summary>
 	static Dictionary<string, string> Defines( StageKind stage ) => new()
 	{
@@ -57,7 +80,11 @@ public sealed partial class SlangCompiler
 		Dictionary<string, Annotations> annotations = null;
 		var defines = Defines( stage );
 		foreach ( var (name, value) in extraDefines ?? new Dictionary<string, string>() ) defines[name] = value;
-		var request = new SlangRequest( session, [.. extraSearchPaths, .. searchPaths], defines, stage == StageKind.Vertex, ( path, text ) => Rewrite( path, text, annotations ) );
+		var request = new SlangRequest( session, [.. extraSearchPaths, .. searchPaths], defines, stage == StageKind.Vertex, ( path, text ) =>
+		{
+			readFiles?.Add( Path.GetFullPath( path ) );
+			return Rewrite( path, text, annotations );
+		} );
 		annotations = request.Annotations;
 		return request;
 	}
@@ -66,9 +93,10 @@ public sealed partial class SlangCompiler
 	/// Compile a surface: the module at <paramref name="path"/> with one <c>[Material]</c> struct implementing
 	/// <c>ISurface</c>. Throws <see cref="ShaderCompileException"/> with Slang's messages on errors.
 	/// </summary>
-	public CompiledShader CompileSurface( string path )
+	public CompiledShader CompileSurface( string path ) => Cached( path, ShaderTier.Surface, CompileSurfaceNow );
+
+	CompiledShader CompileSurfaceNow( string path )
 	{
-		path = Path.GetFullPath( path );
 		var clock = Stopwatch.StartNew();
 		var source = MaterialSource.Rewrite( File.ReadAllText( path ), out var declared );
 		if ( declared.Count != 1 ) throw new ShaderCompileException( path, $"A surface module declares one [Material] struct; this one declares {declared.Count}" );
@@ -80,6 +108,7 @@ public sealed partial class SlangCompiler
 
 		lock ( compileLock )
 		{
+			readFiles = new( StringComparer.OrdinalIgnoreCase ) { path };
 			var layout = ReflectMaterial( path, source, material.Name, directory );
 			var displaces = material.Interfaces.Contains( "IVertexSurface" );
 			var lit = material.Interfaces.Contains( "ILitSurface" );
@@ -140,6 +169,7 @@ public sealed partial class SlangCompiler
 				GpuDrivenError = gpuDrivenError,
 				Generated = instance,
 				Milliseconds = clock.Elapsed.TotalMilliseconds,
+				Dependencies = readFiles.Order( StringComparer.OrdinalIgnoreCase ).ToList(),
 			};
 		}
 	}
@@ -149,9 +179,10 @@ public sealed partial class SlangCompiler
 	/// <c>MainVs</c> alone the depth pass, and <c>DepthPs</c>, when there is one, the alpha-tested depth pass. Its
 	/// parameters are a <c>[Material]</c> struct read with <c>LoadMaterial&lt;T&gt;()</c>, as surfaces' are.
 	/// </summary>
-	public CompiledShader CompileRaw( string path )
+	public CompiledShader CompileRaw( string path ) => Cached( path, ShaderTier.Raw, CompileRawNow );
+
+	CompiledShader CompileRawNow( string path )
 	{
-		path = Path.GetFullPath( path );
 		var clock = Stopwatch.StartNew();
 		var original = File.ReadAllText( path );
 		var source = MaterialSource.Rewrite( original, out var declared );
@@ -164,6 +195,7 @@ public sealed partial class SlangCompiler
 		var directory = Path.GetDirectoryName( path );
 		lock ( compileLock )
 		{
+			readFiles = new( StringComparer.OrdinalIgnoreCase ) { path };
 			var layout = declared.Count == 1 ? ReflectMaterial( path, source, declared[0].Name, directory ) : MaterialLayout.Create( "", [] );
 			var vertex = CompileEntry( path, source, "MainVs", StageKind.Vertex, directory );
 			var forward = CompileEntry( path, source, "MainPs", StageKind.Pixel, directory );
@@ -184,6 +216,7 @@ public sealed partial class SlangCompiler
 				Material = layout,
 				Passes = passes,
 				Milliseconds = clock.Elapsed.TotalMilliseconds,
+				Dependencies = readFiles.Order( StringComparer.OrdinalIgnoreCase ).ToList(),
 			};
 		}
 	}

@@ -30,7 +30,9 @@ public sealed class SurfaceShaders : IDisposable
 	/// <summary>Search <paramref name="folder"/> for shaders too.</summary>
 	public void AddFolder( string folder )
 	{
-		lock ( programs ) folders.Add( Path.GetFullPath( folder ) );
+		folder = Path.GetFullPath( folder );
+		lock ( programs ) folders.Add( folder );
+		Watch( folder );
 	}
 
 	/// <summary>
@@ -99,7 +101,84 @@ public sealed class SurfaceShaders : IDisposable
 		var core = device.Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "sbox", "surface.slang" ) ) ) ?? device.Content.Roots.FirstOrDefault()
 			?? throw new InvalidOperationException( "No content folder to find the engine's shaders in" );
 		var game = Path.GetDirectoryName( core );
-		return compiler = new SlangCompiler( Path.Combine( game, "bin", "win64" ), [Path.Combine( core, "shaders" )] );
+		Watch( Path.Combine( core, "shaders" ) );
+		return compiler = new SlangCompiler( Path.Combine( game, "bin", "win64" ), [Path.Combine( core, "shaders" )] )
+		{
+			CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "basaltsurfaces" ),
+		};
+	}
+
+	/// <summary>
+	/// Where compiled surfaces are kept between runs; <c>game/.source2/basaltsurfaces</c> beside the engine's own caches
+	/// unless set before the first compile.
+	/// </summary>
+	public string CacheFolder { get; set; }
+
+	readonly List<FileSystemWatcher> watchers = new();
+	readonly List<SurfaceProgram> retired = new();
+
+	/// <summary>
+	/// Hotload: a change to any file a program was compiled from (its module, a module it imports, a core include) drops
+	/// the program, so the next draw of its materials compiles it again (from the cache when nothing it read changed).
+	/// The dropped program stays alive until the device is disposed: frames in flight may still draw with it.
+	/// </summary>
+	void Watch( string folder )
+	{
+		if ( !Directory.Exists( folder ) ) return;
+		lock ( watchers )
+		{
+			if ( watchers.Exists( w => string.Equals( w.Path, folder, StringComparison.OrdinalIgnoreCase ) ) ) return;
+			var watcher = new FileSystemWatcher( folder ) { IncludeSubdirectories = true, NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size };
+			watcher.Changed += ( _, e ) => Changed( e.FullPath );
+			watcher.Created += ( _, e ) => Changed( e.FullPath );
+			watcher.Renamed += ( _, e ) => Changed( e.FullPath );
+			watcher.EnableRaisingEvents = true;
+			watchers.Add( watcher );
+		}
+	}
+
+	/// <summary>Programs compiled again after a source change, for reports and tests.</summary>
+	public int Hotloads => hotloads;
+
+	int hotloads;
+
+	void Changed( string path )
+	{
+		path = Path.GetFullPath( path );
+		lock ( programs )
+		{
+			foreach ( var (file, program) in programs.ToArray() )
+			{
+				if ( program is null )
+				{
+					// One that failed: try again after any change
+					programs.Remove( file );
+					continue;
+				}
+
+				if ( !program.Compiled.Dependencies.Contains( path, StringComparer.OrdinalIgnoreCase ) ) continue;
+				programs.Remove( file );
+				program.Stale = true;
+				retired.Add( program );
+				hotloads++;
+			}
+		}
+	}
+
+	/// <summary>
+	/// A package's shader folder: searched like <see cref="AddFolder"/>, watched for changes, and every surface and raw
+	/// module in it compiled now on a worker, so its materials' first draws find them ready. Errors go to <see cref="Error"/>.
+	/// </summary>
+	public System.Threading.Tasks.Task Mount( string folder )
+	{
+		folder = Path.GetFullPath( folder );
+		AddFolder( folder );
+		Watch( folder );
+		var files = Directory.Exists( folder ) ? Directory.GetFiles( folder, "*.slang" ) : [];
+		return System.Threading.Tasks.Task.Run( () =>
+		{
+			foreach ( var file in files ) Program( Path.GetFileName( file ) );
+		} );
 	}
 
 	/// <summary>Compile a shader by file name (or path) and keep it; null, after reporting, when it doesn't compile.</summary>
@@ -109,7 +188,7 @@ public sealed class SurfaceShaders : IDisposable
 	internal SurfaceProgram For( SurfaceMaterial material )
 	{
 		// Kept on the material once found: draws ask for it every frame
-		if ( material.Program is { } known && ReferenceEquals( known.Device, device ) ) return known;
+		if ( material.Program is { Stale: false } known && ReferenceEquals( known.Device, device ) ) return known;
 
 		var program = Program( material.Shader );
 		if ( program is null ) return null;
@@ -158,10 +237,18 @@ public sealed class SurfaceShaders : IDisposable
 	/// <summary>Destroy what was made.</summary>
 	public void Dispose()
 	{
+		lock ( watchers )
+		{
+			foreach ( var watcher in watchers ) watcher.Dispose();
+			watchers.Clear();
+		}
+
 		lock ( programs )
 		{
 			foreach ( var program in programs.Values ) program?.Dispose();
+			foreach ( var program in retired ) program.Dispose();
 			programs.Clear();
+			retired.Clear();
 		}
 
 		Records.Dispose();
@@ -190,6 +277,15 @@ internal sealed class SurfaceProgram : IDisposable
 
 	/// <summary>The device it's made on.</summary>
 	public BackendDevice Device => device;
+
+	/// <summary>Dropped by a hotload: its materials look their program up again.</summary>
+	public bool Stale
+	{
+		get => System.Threading.Volatile.Read( ref stale );
+		set => System.Threading.Volatile.Write( ref stale, value );
+	}
+
+	bool stale;
 
 	public SurfaceProgram( BackendDevice device, CompiledShader compiled )
 	{
