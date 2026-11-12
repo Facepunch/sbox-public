@@ -178,6 +178,13 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	/// </summary>
 	internal void LendNextBlock( GpuCommandList list ) => lendNext = list;
 
+	/// <summary>Write a GPU timestamp in this block's list (<see cref="GraphicsContext.WriteTimestamp"/>).</summary>
+	internal void WriteTimestamp( TimestampQueries queries, int index, PipelineStage stage, int reset = 0 )
+	{
+		_ = Recording;
+		context.WriteTimestamp( queries, index, stage, reset );
+	}
+
 
 	/// <summary>
 	/// Name <paramref name="texture"/> as the frame's pipeline texture in <paramref name="slot"/> (<c>PipelineTextureSlot</c>)
