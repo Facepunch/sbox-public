@@ -102,7 +102,12 @@ public partial class Scene : GameObject
 				RunPendingStarts();
 
 				if ( WantsSystemScene && this is not PrefabScene && !Application.IsUnitTest )
+				{
 					g_pRenderDevice.FlushPipelineCache();
+
+					// The previous scene's GPU memory was just freed, hand the empty blocks back
+					g_pRenderDevice.RequestGPUMemoryCompaction();
+				}
 
 				// Tell networking we've finished loading, lets players join
 				var sceneInformation = Components.Get<SceneInformation>();
