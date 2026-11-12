@@ -13,12 +13,14 @@ internal sealed class SceneModelMorphs( SceneModel source ) : IMorphSource
 }
 
 /// <summary>
-/// A scene model's morphs on a Basalt.Gpu device: its flex controllers' values, as the model's morphs have them, read once a
-/// frame into <see cref="Basalt.Backend.BackendMorphs"/>, which runs the model's flex rules itself.
+/// A scene model's morphs on a Basalt.Gpu device: its flex controllers' weights as native morphs it with them (its
+/// animation, then the overrides), read once a frame into <see cref="Basalt.Backend.BackendMorphs"/>, which runs the
+/// model's flex rules itself.
 /// </summary>
 internal sealed class GpuSceneModelMorphs( SceneModel source, Basalt.Backend.BackendDevice device ) : IMorphSource
 {
 	readonly Basalt.Backend.BackendMorphs morphs = new( device );
+	float[] weights = [];
 	ulong frame = ulong.MaxValue;
 
 	public SceneModel Source { get; } = source;
@@ -31,11 +33,19 @@ internal sealed class GpuSceneModelMorphs( SceneModel source, Basalt.Backend.Bac
 		{
 			frame = Application.FrameCount;
 			morphs.Clear();
-			var values = Source.Morphs;
-			for ( int i = 0; i < values.Count; i++ )
+
+			var count = Source.GetFlexControllerWeights( weights );
+			if ( count > weights.Length )
 			{
-				var value = values.Get( i );
-				if ( value != 0 ) morphs.Set( values.GetName( i ), value );
+				weights = new float[count];
+				count = Source.GetFlexControllerWeights( weights );
+			}
+
+			var names = Source.Model.Morphs;
+			count = Math.Min( Math.Min( count, weights.Length ), names.Count );
+			for ( int i = 0; i < count; i++ )
+			{
+				if ( weights[i] != 0 && names.GetName( i ) is { } name ) morphs.Set( name, weights[i] );
 			}
 		}
 
