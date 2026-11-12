@@ -57,7 +57,7 @@ public struct SurfaceInput
 	public float4 Color;             // vertex colour
 	public float4 ScreenPosition;    // SV_Position
 	public float3 View;              // world, towards the camera
-	public float ViewDistance;       // to the camera
+	public float ViewDistance;       // to the main view's camera, in its shadow views too, so distance fades agree
 	public float3 FaceNormal;        // world, the triangle's own (flat): from derivatives in raster passes, from the triangle in a resolve
 	public float AlphaReference;     // the alpha test's cutoff (the material's), for surfaces that move it
 	public float2 UvDdx;             // the uv's screen gradients, used when Gradients is set

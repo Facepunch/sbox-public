@@ -187,6 +187,24 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// Material.CommonInputs.hlsl's TextureFiltering takes its filter from an expression on F_TEXTURE_FILTERING: a classic
+	/// draw samples anisotropically, that feature's default, not point as the expression's unevaluated literal says.
+	/// </summary>
+	[TestMethod]
+	public void ExpressionFilteredSamplersAreAnisotropic()
+	{
+		using var backend = new BackendDevice( Device );
+		var foliage = (BackendMaterial)((GpuDevice)backend).CreateMaterial( "Foliage (.shader)", "shaders/foliage.shader" );
+		if ( foliage.Shader is null ) Assert.Inconclusive( "foliage.shader isn't compiled" );
+		var variant = foliage.Variant( backend.Shaders, "Forward", "Forward", _ => null, _ => null );
+		var samplers = variant.Resources.Where( r => r.Kind == Basalt.Source2.Shaders.ShaderResourceKind.Sampler && r.Set == ShaderAbi.FragmentSet ).Select( r => r.Sampler ).ToList();
+
+		// TextureFiltering: MaxAniso( 8 ) beside the expression; it read as point filtering with anisotropy 8
+		Assert.IsTrue( samplers.Any( s => s.MaxAnisotropy == 8 && s.MinFilter == Filter.Linear && s.MipFilter == Filter.Linear ), "TextureFiltering isn't anisotropic" );
+		Assert.IsFalse( samplers.Any( s => s.MaxAnisotropy > 1 && s.MinFilter == Filter.Nearest ), "a point sampler with anisotropy" );
+	}
+
+	/// <summary>
 	/// The surface and the raw module draw what the same material written as a .shader draws, set from C# through
 	/// their generated classes; changing a field from C# changes the picture.
 	/// </summary>
