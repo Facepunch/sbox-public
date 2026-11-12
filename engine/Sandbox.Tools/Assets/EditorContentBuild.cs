@@ -96,6 +96,43 @@ internal static class EditorContentBuild
 	/// </summary>
 	public static bool IsOwned( string path ) => sharedOutputs.Contains( Path.GetFullPath( path ) );
 
+	/// <summary>
+	/// A single asset the user compiles needs the roots this build holds: the build stops once its running compiles are
+	/// published, doing what they need of the main thread meanwhile, and starts again by itself afterwards. False if no
+	/// build of this editor's holds them, or it can't end from here (called from inside the build's own work, or from an
+	/// async continuation, where the build's own can't run).
+	/// </summary>
+	internal static bool Yield()
+	{
+		if ( !ThreadSafe.IsMainThread || publishing || ContentCompilerHost.IsPumping || Sandbox.Tasks.ExpirableSynchronizationContext.IsProcessing ) return false;
+		if ( !building || incrementalBuild is not { IsCompleted: false } ) return false;
+
+		cancellation?.Cancel();
+		RealTimeSince waited = 0;
+		while ( building && waited < YieldTimeout )
+		{
+			ContentCompilerHost.Pump( 5 );
+			Sandbox.Tasks.SyncContext.MainThread?.ProcessQueue();
+		}
+
+		if ( building ) Log.Warning( $"The content build's running compiles didn't finish within {YieldTimeout}s, so the requested compile can't run yet" );
+		return !building;
+	}
+
+	const float YieldTimeout = 10.0f;
+
+	/// <summary>
+	/// Inside the running build's publication, which goes no further until it returns.
+	/// </summary>
+	static bool publishing;
+
+	static void Published( IReadOnlyList<string> paths )
+	{
+		publishing = true;
+		try { IAssetSystem.RegisterBuildOutputs( string.Join( "\n", paths ) ); }
+		finally { publishing = false; }
+	}
+
 	[EditorEvent.Frame]
 	static void Frame()
 	{
@@ -165,7 +202,7 @@ internal static class EditorContentBuild
 				OutputFallbacks = project.Config.Ident == "menu" ? new Dictionary<string, string>() : new Dictionary<string, string> { ["transient"] = EngineFileSystem.Root.GetFullPath( "addons/menu/Transients" ) },
 
 				// What each job publishes is known before the next frame runs, so its file events aren't changes
-				Published = paths => IAssetSystem.RegisterBuildOutputs( string.Join( "\n", paths ) ),
+				Published = Published,
 				MaxJobs = JobLimit( startup ? ResourceCompiler.DefaultMaxJobs : Jobs ),
 				CanStartJob = () => AvailableMemory().Commit > MemoryReserve,
 

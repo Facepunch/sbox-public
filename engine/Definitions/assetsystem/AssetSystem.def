@@ -20,6 +20,7 @@ managed static class Editor.AssetSystem
 	void RegisterAssetType( int, IAssetType assetType );
 	void InitializeCompilerForFilename( IResourceCompilerContext context, string filename );
 	bool TryManagedCompile( IResourceCompilerContext context );
+	bool YieldContentBuild();
 	void OnSoundReload( string filename );
 	void OnSoundReloaded( string filename );
 

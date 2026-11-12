@@ -218,6 +218,11 @@ internal static class ContentCompilerHost
 	static bool pumping;
 
 	/// <summary>
+	/// On the main thread, inside work <see cref="Pump"/> runs: jobs get nothing more from it until that returns.
+	/// </summary>
+	internal static bool IsPumping => pumping;
+
+	/// <summary>
 	/// On the main thread, before a job starts: whether this worker may run it. One that has loaded an older one of the
 	/// outputs published since (or is loading it) never runs another, as a job would get that, and the job runs on a new
 	/// worker. A job asked for after an output was published finds it here (<see cref="Serve"/>); one already running
