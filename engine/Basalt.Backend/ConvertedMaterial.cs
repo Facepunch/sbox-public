@@ -20,7 +20,7 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 
 	public static ConvertedMaterial Create( CompiledShader compiled, MaterialFile file, string name, Func<string, GpuTexture> loadTexture )
 	{
-		var material = new ConvertedMaterial( Path.GetFileName( compiled.Path ), compiled.Material ) { DisplayName = name };
+		var material = new ConvertedMaterial( compiled.Path, compiled.Material ) { DisplayName = name };
 		foreach ( var field in compiled.Material.Fields )
 		{
 			if ( field.Kind == MaterialFieldKind.Texture2D )

@@ -182,6 +182,118 @@ public class SurfaceTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// The disk cache: a second compile of an unchanged module comes from it with the same SPIR-V; a change to the module
+	/// (or anything it read) compiles again.
+	/// </summary>
+	[TestMethod]
+	public void CompileCacheKeepsUnchangedModules()
+	{
+		Compiler();
+		var folder = Path.Combine( Path.GetTempPath(), "basalt-surface-cache-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var module = Path.Combine( folder, "cached_rock.slang" );
+			File.WriteAllText( module, File.ReadAllText( Path.Combine( Surfaces, "rock.slang" ) ).Replace( "public struct Rock", "public struct CachedRock", StringComparison.Ordinal ) );
+			var bin = Path.Combine( Path.GetDirectoryName( Core ), "bin", "win64" );
+			var compiler = new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] ) { CacheFolder = Path.Combine( folder, "cache" ) };
+
+			var first = compiler.CompileSurface( module );
+			var second = compiler.CompileSurface( module );
+			Assert.IsFalse( first.FromCache );
+			Assert.IsTrue( second.FromCache );
+			Assert.IsTrue( first.Dependencies.Any( d => d.EndsWith( "vr_lighting.fxc", StringComparison.OrdinalIgnoreCase ) ), "the core includes are dependencies" );
+			CollectionAssert.AreEquivalent( first.Passes.Keys.ToArray(), second.Passes.Keys.ToArray() );
+			foreach ( var (name, pass) in first.Passes )
+			{
+				CollectionAssert.AreEqual( pass.Vertex.Spirv, second.Pass( name ).Vertex.Spirv, name );
+				if ( pass.Pixel is not null ) CollectionAssert.AreEqual( pass.Pixel.Spirv, second.Pass( name ).Pixel.Spirv, name );
+			}
+
+			Assert.AreSame( second.Pass( ShaderPasses.Forward ).Pixel, second.Pass( ShaderPasses.Forward + ShaderPasses.Lightmapped ).Pixel, "shared stages stay shared" );
+			Assert.AreEqual( first.Material.Size, second.Material.Size );
+
+			File.AppendAllText( module, "\n// changed\n" );
+			Assert.IsFalse( compiler.CompileSurface( module ).FromCache, "a changed module compiles again" );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
+	/// The converter turns pixel.hlsl-style .shaders into surfaces that compile: the template (Material::Init) and bark
+	/// (Material.CommonInputs, a helper, a feature global), and says what it leaves out (bark's vertex animation).
+	/// </summary>
+	[TestMethod]
+	public void ConverterTurnsPixelShadersIntoSurfaces()
+	{
+		Compiler();
+		var game = Path.GetDirectoryName( Core );
+		var folder = Path.Combine( Path.GetTempPath(), "basalt-surface-convert-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var bin = Path.Combine( game, "bin", "win64" );
+			var compiler = new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] );
+			foreach ( var (relative, name) in new[] { ("templates/material.shader", "material"), ("core/shaders/bark.shader", "bark") } )
+			{
+				var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( game, relative ) ), name );
+				Assert.IsNotNull( result.Source, name );
+				var path = Path.Combine( folder, name + ".slang" );
+				File.WriteAllText( path, result.Source );
+				var compiled = compiler.CompileSurface( path );
+				Assert.IsNotNull( compiled.Pass( ShaderPasses.Forward ), name );
+				if ( name == "bark" )
+				{
+					Assert.IsTrue( result.Notes.Any( n => n.Contains( "moves vertices", StringComparison.Ordinal ) ) );
+					Assert.IsNotNull( compiled.Material.Field( "SpecularOcclusion" ) );
+					Assert.IsNotNull( compiled.Material.Field( "Color" ) );
+				}
+			}
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>Hotload: changing a surface's module drops its program, and the next compile is a fresh one.</summary>
+	[TestMethod]
+	public void ChangedSurfacesHotload()
+	{
+		Compiler();
+		var folder = Path.Combine( Path.GetTempPath(), "basalt-surface-hotload-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var module = Path.Combine( folder, "hot_rock.slang" );
+			File.WriteAllText( module, File.ReadAllText( Path.Combine( Surfaces, "rock.slang" ) ).Replace( "public struct Rock", "public struct HotRock", StringComparison.Ordinal ) );
+			using var backend = new BackendDevice( Device );
+			backend.Surfaces.CacheFolder = Path.Combine( folder, "cache" );
+			backend.Surfaces.AddFolder( folder );
+
+			var before = backend.Surfaces.Compile( "hot_rock.slang" );
+			Assert.IsNotNull( before );
+			Assert.AreSame( before, backend.Surfaces.Compile( "hot_rock.slang" ) );
+
+			File.AppendAllText( module, "\n// changed\n" );
+			var clock = System.Diagnostics.Stopwatch.StartNew();
+			while ( backend.Surfaces.Hotloads == 0 && clock.Elapsed.TotalSeconds < 10 ) System.Threading.Thread.Sleep( 50 );
+			Assert.IsTrue( backend.Surfaces.Hotloads >= 1, "the change wasn't seen" );
+
+			var after = backend.Surfaces.Compile( "hot_rock.slang" );
+			Assert.AreNotSame( before, after );
+			Assert.IsFalse( after.FromCache );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
 	/// <summary>A lit surface turns on the light loop's hook and hands it the material; an unlit one leaves the loop alone.</summary>
 	[TestMethod]
 	public void LitSurfaceHooksTheLightLoop()
@@ -191,6 +303,11 @@ public class SurfaceTests : GpuTest
 		StringAssert.Contains( lit.Generated, "s_LitSurface = m;" );
 		StringAssert.Contains( lit.Generated, "s_LitSurface.Light( SurfaceLitMaterial(), SurfaceLitInput(), light )" );
 		Assert.IsNotNull( lit.Pass( ShaderPasses.Forward ).Pixel.Spirv );
+
+		// A sun-lit surface (foliage) lights once, outside the loop, and leaves the loop alone
+		var sunLit = Compiler().CompileSurface( Path.Combine( Surfaces, "foliage.slang" ) );
+		StringAssert.Contains( sunLit.Generated, "SurfaceForwardSunLit<Foliage, true>" );
+		Assert.IsFalse( sunLit.Generated.Contains( "SURFACE_LIGHT_HOOK", StringComparison.Ordinal ) );
 	}
 	/// <summary>The generated classes in BasaltLab are what the compiler writes now, and a raw module has the same record.</summary>
 	[TestMethod]

@@ -27,8 +27,14 @@ public sealed class CompiledShader
 	/// <summary>Why a surface has no GPU-driven passes (its GPU-driven compile's errors); null when it has them.</summary>
 	public string GpuDrivenError { get; init; }
 
-	/// <summary>Compile time, all passes.</summary>
+	/// <summary>Compile time, all passes; the cache lookup's when <see cref="FromCache"/>.</summary>
 	public double Milliseconds { get; init; }
+
+	/// <summary>Every file the compile read (the module, the modules it imports, the core includes), full paths.</summary>
+	public IReadOnlyList<string> Dependencies { get; init; } = [];
+
+	/// <summary>Whether it came from the compiler's disk cache (<see cref="SlangCompiler.CacheFolder"/>).</summary>
+	public bool FromCache { get; init; }
 
 	/// <summary>A pass, or null when the shader doesn't have it.</summary>
 	public CompiledPass Pass( string name ) => Passes.TryGetValue( name, out var pass ) ? pass : null;

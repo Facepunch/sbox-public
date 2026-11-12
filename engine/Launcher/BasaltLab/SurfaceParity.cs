@@ -4,6 +4,7 @@ using Basalt.Gpu;
 using Sandbox.BasaltLab.Surfaces;
 using Sandbox.ShaderCompiler;
 using System.IO;
+using System.Text.RegularExpressions;
 using GpuDevice = Basalt.Gpu.Device;
 
 namespace Sandbox.BasaltLab;
@@ -223,6 +224,8 @@ internal static class SurfaceParity
 					else lines.Add( $"blendable.shader: no forward pixel shader to count ({(blendableVariant is null ? "no variant" : blendableVariant.Pixel is null ? "no pixel stage" : "no SPIR-V")} in mode {forwardMode} of {string.Join( ", ", shaderFile.Modes.Select( m => m.Name ) )})" );
 				}
 			}
+
+			if ( Args.Has( "-convert-shaders" ) ) ConvertShaders( device, folder, lines );
 		}
 		finally
 		{
@@ -236,6 +239,98 @@ internal static class SurfaceParity
 		foreach ( var line in lines ) Console.WriteLine( line );
 		File.WriteAllLines( Path.Combine( folder, "results.txt" ), lines );
 		return failed == 0 && gpu.ValidationErrors == 0 ? 0 : 1;
+	}
+
+	/// <summary>The shaders written the common/pixel.hlsl way that convert as they are, by their path under the game folder.</summary>
+	static readonly string[] Convertible =
+	[
+		"templates/material.shader", "core/shaders/water_simple.shader", "core/shaders/terrain_preview.shader", "core/shaders/bark.shader", "core/shaders/foliage.shader",
+		"mount/quake/Assets/shaders/simple_color.shader", "mount/quake/Assets/shaders/quake_sky.shader", "mount/quake/Assets/shaders/quake_water.shader",
+		"mount/goldsrc/Assets/shaders/goldsrc.shader", "mount/se3/Assets/shaders/se3.shader",
+	];
+
+	/// <summary>
+	/// <c>-convert-shaders</c>: each convertible <c>.shader</c> through <see cref="ShaderConverter"/> into
+	/// <c>converted/</c> in the results folder, compiled, and drawn beside the <c>.shader</c> (where the device can load it)
+	/// with the rope's textures in every texture and both sides' defaults. A converted surface that compiles is also
+	/// written beside its <c>.shader</c> with <c>-convert-shaders-write</c>.
+	/// </summary>
+	static void ConvertShaders( BackendDevice device, string folder, List<string> lines )
+	{
+		var game = Path.GetDirectoryName( device.Content.Roots[0] );
+		var output = Path.Combine( folder, "converted" );
+		Directory.CreateDirectory( output );
+
+		const string color = "materials/default/rope_color_png_95bee33c.generated.vtex";
+		const string normal = "materials/default/rope_normal_png_b8960e44.generated.vtex";
+		const string rma = "materials/default/rope01_vmat_g_trma_bbf6a2a.generated.vtex";
+
+		foreach ( var relative in Convertible )
+		{
+			var source = Path.Combine( game, relative );
+			var name = Path.GetFileNameWithoutExtension( relative );
+			if ( !File.Exists( source ) )
+			{
+				lines.Add( $"convert {name}: no {relative}" );
+				continue;
+			}
+
+			var result = ShaderConverter.Convert( File.ReadAllText( source ), name );
+			if ( result.Source is null )
+			{
+				lines.Add( $"convert {name}: not converted ({string.Join( "; ", result.Notes )})" );
+				continue;
+			}
+
+			var converted = Path.Combine( output, name + ".slang" );
+			File.WriteAllText( converted, result.Source.Replace( "\n", "\r\n" ) );
+			var compiled = device.Surfaces.Compile( converted );
+			if ( compiled is null )
+			{
+				lines.Add( $"convert {name}: doesn't compile (see the log); notes: {string.Join( "; ", result.Notes )}" );
+				continue;
+			}
+
+			if ( Args.Has( "-convert-shaders-write" ) ) File.WriteAllText( Path.ChangeExtension( source, ".slang" ), result.Source.Replace( "\n", "\r\n" ) );
+			File.WriteAllBytes( Path.Combine( output, name + "_surface_ps.spv" ), compiled.Pass( ShaderPasses.Forward ).Pixel.Spirv );
+
+			// Every texture the rope's, both sides' values their defaults
+			var textures = new Dictionary<string, string>();
+			foreach ( Match texture in Regex.Matches( File.ReadAllText( source ), @"Texture2D\s+(g_t\w+)" ) ) textures[texture.Groups[1].Value] = color;
+			textures["g_tColor"] = color;
+			textures["g_tNormal"] = normal;
+			textures["g_tRma"] = rma;
+
+			// A mount's shaders load from its Assets folder, added to the content for them
+			var shaderPath = relative.StartsWith( "core/", StringComparison.Ordinal ) ? relative["core/".Length..] : relative;
+			if ( relative.IndexOf( "/Assets/", StringComparison.Ordinal ) is var assets and > 0 )
+			{
+				var root = Path.Combine( game, relative[..assets] + "/Assets" );
+				if ( !device.Content.Roots.Contains( Path.GetFullPath( root ), StringComparer.OrdinalIgnoreCase ) ) device.Content.Add( Path.GetFullPath( root ) );
+				shaderPath = relative[(assets + "/Assets/".Length)..];
+			}
+			var classic = (BackendMaterial)((Basalt.GpuDevice)device).CreateMaterial( $"{name} (.shader)", shaderPath );
+			if ( classic.Shader is null )
+			{
+				lines.Add( $"convert {name}: compiles ({compiled.Passes.Count} passes); its .shader isn't loadable here, not compared; notes: {string.Join( "; ", result.Notes )}" );
+				continue;
+			}
+
+			foreach ( var (variable, path) in textures ) classic.SetTexture( variable, (BackendTexture)device.LoadTexture( path ) );
+			using var surface = device.Surfaces.CreateMaterial( converted, textures, null, $"{name} (surface)" ) as SurfaceMaterial;
+			if ( surface is null ) continue;
+
+			var a = Render( device, classic );
+			var b = Render( device, surface );
+			var (mean, max, over, diff) = Compare( a, b );
+			Save( a, Path.Combine( output, name + "-shader.png" ) );
+			Save( b, Path.Combine( output, name + "-surface.png" ) );
+			Save( diff, Path.Combine( output, name + "-diff.png" ) );
+			var forwardMode = classic.Shader.Modes.FirstOrDefault( m => m.Name.Contains( "Forward", StringComparison.OrdinalIgnoreCase ) )?.Name ?? "Forward";
+			if ( classic.Variant( device.Shaders, forwardMode, "Forward;convert", _ => null, _ => null )?.Pixel?.Bytecode is { } bytecode && (bytecode.Spirv ?? bytecode.Shared?.Spirv) is { } spirv )
+				File.WriteAllBytes( Path.Combine( output, name + "_shader_ps.spv" ), spirv );
+			lines.Add( $"convert {name}: surface against .shader: mean difference {mean:F3}, max {max}, {over} pixels over 8 (reported, not gated){(result.Notes.Count > 0 ? "; notes: " + string.Join( "; ", result.Notes ) : "")}" );
+		}
 	}
 
 	static int Fail( string message )

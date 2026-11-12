@@ -87,6 +87,10 @@ internal sealed partial class MapWorld : IDisposable
 			Backend.Surfaces.Convert( $"shaders/{shader}.shader", $"{shader}.slang" );
 		}
 
+		// A package's own Slang shaders, compiled as it mounts
+		var packageShaders = Path.Combine( folder, "shaders" );
+		if ( Directory.Exists( packageShaders ) && Directory.GetFiles( packageShaders, "*.slang" ).Length > 0 ) _ = Backend.Surfaces.Mount( packageShaders );
+
 		previousHost = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( Backend );
 		System = new RenderSystem { ParallelRecording = false };

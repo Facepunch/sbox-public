@@ -29,6 +29,29 @@ public sealed partial class SlangCompiler
 		this.searchPaths = searchPaths.Select( p => Path.GetFullPath( p ) ).ToList();
 	}
 
+	/// <summary>
+	/// Where compiled shaders are kept between runs (null: nowhere). An entry is used only while the compiler (this
+	/// assembly's build and its Slang), the search paths, the source and every file the compile read are as they were.
+	/// </summary>
+	public string CacheFolder { get; init; }
+
+	/// <summary>Every file the current compile has read, for its <see cref="CompiledShader.Dependencies"/>.</summary>
+	HashSet<string> readFiles;
+
+	CompiledShader Cached( string path, ShaderTier tier, Func<string, CompiledShader> compile )
+	{
+		path = Path.GetFullPath( path );
+		if ( CacheFolder is null ) return compile( path );
+
+		var text = File.ReadAllText( path );
+		var context = $"{slangDirectory}|{string.Join( ';', searchPaths )}";
+		if ( CompileCache.Load( CacheFolder, context, slangDirectory, tier, path, text ) is { } cached ) return cached;
+
+		var compiled = compile( path );
+		CompileCache.Save( CacheFolder, context, slangDirectory, path, text, compiled );
+		return compiled;
+	}
+
 	/// <summary>Defines vfx gives every program, which the core includes test.</summary>
 	static Dictionary<string, string> Defines( StageKind stage ) => new()
 	{
@@ -57,7 +80,11 @@ public sealed partial class SlangCompiler
 		Dictionary<string, Annotations> annotations = null;
 		var defines = Defines( stage );
 		foreach ( var (name, value) in extraDefines ?? new Dictionary<string, string>() ) defines[name] = value;
-		var request = new SlangRequest( session, [.. extraSearchPaths, .. searchPaths], defines, stage == StageKind.Vertex, ( path, text ) => Rewrite( path, text, annotations ) );
+		var request = new SlangRequest( session, [.. extraSearchPaths, .. searchPaths], defines, stage == StageKind.Vertex, ( path, text ) =>
+		{
+			readFiles?.Add( Path.GetFullPath( path ) );
+			return Rewrite( path, text, annotations );
+		} );
 		annotations = request.Annotations;
 		return request;
 	}
@@ -66,9 +93,10 @@ public sealed partial class SlangCompiler
 	/// Compile a surface: the module at <paramref name="path"/> with one <c>[Material]</c> struct implementing
 	/// <c>ISurface</c>. Throws <see cref="ShaderCompileException"/> with Slang's messages on errors.
 	/// </summary>
-	public CompiledShader CompileSurface( string path )
+	public CompiledShader CompileSurface( string path ) => Cached( path, ShaderTier.Surface, CompileSurfaceNow );
+
+	CompiledShader CompileSurfaceNow( string path )
 	{
-		path = Path.GetFullPath( path );
 		var clock = Stopwatch.StartNew();
 		var source = MaterialSource.Rewrite( File.ReadAllText( path ), out var declared );
 		if ( declared.Count != 1 ) throw new ShaderCompileException( path, $"A surface module declares one [Material] struct; this one declares {declared.Count}" );
@@ -80,16 +108,20 @@ public sealed partial class SlangCompiler
 
 		lock ( compileLock )
 		{
+			readFiles = new( StringComparer.OrdinalIgnoreCase ) { path };
 			var layout = ReflectMaterial( path, source, material.Name, directory );
 			var displaces = material.Interfaces.Contains( "IVertexSurface" );
 			var lit = material.Interfaces.Contains( "ILitSurface" );
 			var interpolated = material.Interfaces.Contains( "IInterpolatedSurface" );
-			if ( !displaces && !lit && !interpolated && !material.Interfaces.Contains( "ISurface" ) )
-				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface or ILitSurface" );
-			if ( interpolated && (displaces || lit) )
-				throw new ShaderCompileException( path, $"{material.Name}: an IInterpolatedSurface can't also be an IVertexSurface or ILitSurface yet" );
+			var sunLit = material.Interfaces.Contains( "ISunLitSurface" );
+			if ( !displaces && !lit && !interpolated && !sunLit && !material.Interfaces.Contains( "ISurface" ) )
+				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface or ISunLitSurface" );
+			if ( interpolated && (displaces || lit || sunLit) )
+				throw new ShaderCompileException( path, $"{material.Name}: an IInterpolatedSurface can't also be an IVertexSurface, ILitSurface or ISunLitSurface yet" );
+			if ( lit && sunLit )
+				throw new ShaderCompileException( path, $"{material.Name}: a surface is an ILitSurface (every light) or an ISunLitSurface (the sun alone), not both" );
 
-			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated );
+			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit );
 			var instancePath = Path.Combine( directory, $"{module}.instance.slang" );
 
 			var vertex = CompileEntry( instancePath, instance, "MainVs", StageKind.Vertex, directory );
@@ -137,6 +169,7 @@ public sealed partial class SlangCompiler
 				GpuDrivenError = gpuDrivenError,
 				Generated = instance,
 				Milliseconds = clock.Elapsed.TotalMilliseconds,
+				Dependencies = readFiles.Order( StringComparer.OrdinalIgnoreCase ).ToList(),
 			};
 		}
 	}
@@ -146,9 +179,10 @@ public sealed partial class SlangCompiler
 	/// <c>MainVs</c> alone the depth pass, and <c>DepthPs</c>, when there is one, the alpha-tested depth pass. Its
 	/// parameters are a <c>[Material]</c> struct read with <c>LoadMaterial&lt;T&gt;()</c>, as surfaces' are.
 	/// </summary>
-	public CompiledShader CompileRaw( string path )
+	public CompiledShader CompileRaw( string path ) => Cached( path, ShaderTier.Raw, CompileRawNow );
+
+	CompiledShader CompileRawNow( string path )
 	{
-		path = Path.GetFullPath( path );
 		var clock = Stopwatch.StartNew();
 		var original = File.ReadAllText( path );
 		var source = MaterialSource.Rewrite( original, out var declared );
@@ -161,6 +195,7 @@ public sealed partial class SlangCompiler
 		var directory = Path.GetDirectoryName( path );
 		lock ( compileLock )
 		{
+			readFiles = new( StringComparer.OrdinalIgnoreCase ) { path };
 			var layout = declared.Count == 1 ? ReflectMaterial( path, source, declared[0].Name, directory ) : MaterialLayout.Create( "", [] );
 			var vertex = CompileEntry( path, source, "MainVs", StageKind.Vertex, directory );
 			var forward = CompileEntry( path, source, "MainPs", StageKind.Pixel, directory );
@@ -181,6 +216,7 @@ public sealed partial class SlangCompiler
 				Material = layout,
 				Passes = passes,
 				Milliseconds = clock.Elapsed.TotalMilliseconds,
+				Dependencies = readFiles.Order( StringComparer.OrdinalIgnoreCase ).ToList(),
 			};
 		}
 	}
@@ -245,7 +281,7 @@ public sealed partial class SlangCompiler
 	/// engine light loop's hook (<c>SURFACE_LIGHT_HOOK</c>) and hands it the material, so <c>Light</c> runs per light. An
 	/// interpolated surface's (<c>IInterpolatedSurface</c>) vertex stage also reads its <c>Varyings</c> and passes them on.
 	/// </summary>
-	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false )
+	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false, bool sunLit = false )
 	{
 		var vertex = displaces ? $"SurfaceVertexDisplaced<{type}>( i )" : "SurfaceVertex( i )";
 		var opacity = opacityField is null ? "0" : $"m.{opacityField}.Slot";
@@ -254,7 +290,7 @@ public sealed partial class SlangCompiler
 		var surface = interpolated ? $"SurfaceWithVaryings<{type}>" : type;
 		var wrap = interpolated ? $" SurfaceWithVaryings<{type}> s; s.Surface = m; s.Values = i.Varyings;" : "";
 		var argument = interpolated ? "s" : "m";
-		string Shade( bool alphaTest ) => $"{type} m = SurfaceRecord<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{keep}{wrap} return SurfaceForward<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} );";
+		string Shade( bool alphaTest ) => $"{type} m = SurfaceRecord<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{keep}{wrap} return {(sunLit ? "SurfaceForwardSunLit" : "SurfaceForward")}<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} );";
 		string Pixel( string entry, bool alphaTest ) =>
 			$"[shader( \"pixel\" )] float4 {entry}( {output} i ) : SV_Target0 {{ {Shade( alphaTest )} }}\n";
 
@@ -320,6 +356,7 @@ public sealed partial class SlangCompiler
 		text.Append( "\tuint4 draw = BasaltGpuDrivenDraw( record.y );\n" );
 		text.Append( "\ts_SurfaceDrawRecord = draw.y;\n" );
 		text.Append( "\tg_bUncompressedTangentFrame = ( draw.w & 1 ) != 0;\n" );
+		text.Append( "\tSurfaceFetchBakedLighting( record.y );\n" );
 		text.Append( "\tVertexInput i = {};\n" );
 		if ( interpolated ) text.Append( $"\t{type}.Varyings varyings = {{}};\n" );
 		foreach ( var input in inputs )

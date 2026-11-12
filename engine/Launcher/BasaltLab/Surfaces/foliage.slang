@@ -1,10 +1,11 @@
 // game/core/shaders/foliage.shader written as a surface, converted by hand: its PS body is Evaluate, its wind is Displace
-// and its per-light wrap and translucency are Light. Alpha test is the material's (AlphaTest), with today's alpha to
-// coverage; the features it had are fields: Transmissive and GrazingFade switch terms, the wind's are off at zero strength.
+// and its wrap and translucency from the sun are Light (ISunLitSurface: once, outside the light loop, as foliage.shader
+// does). Alpha test is the material's (AlphaTest), with today's alpha to coverage; the features it had are fields:
+// Transmissive and GrazingFade switch terms, the wind's are off at zero strength.
 import sbox.surface;
 
 [Material]
-public struct Foliage : IVertexSurface, ILitSurface
+public struct Foliage : IVertexSurface, ISunLitSurface
 {
 	// Material.CommonInputs.hlsl's textures and tint
 	[Group( "Material" ), Srgb, Opacity] Texture2D Color;  // rgb albedo, a opacity
@@ -88,14 +89,14 @@ public struct Foliage : IVertexSurface, ILitSurface
 		return m;
 	}
 
-	// Wrap diffuse past the terminator, and back-scatter translucency through the leaf. The sun's alone, as foliage.shader
-	// has it (its cluster light loop is commented out); dropping `!light.Sun` lights it from every light
+	// Wrap diffuse past the terminator, and back-scatter translucency through the leaf, from the sun: foliage.shader's cluster
+	// light loop is commented out. Lighting every light would make it an ILitSurface, at a register cost in the light loop
 	public float3 Light( Material m, SurfaceInput i, LightSample light )
 	{
-		if ( !Transmissive || !light.Sun ) return 0;
+		if ( !Transmissive ) return 0;
 
-		float boost = light.Sun ? 1.5 : 1.0;
-		float scatterShadow = light.Sun ? lerp( 0.2, 1.0, light.Visibility ) : light.Visibility;
+		const float boost = 1.5;
+		float scatterShadow = lerp( 0.2, 1.0, light.Visibility );
 		float3 result = 0;
 
 		if ( WrapStrength > 0.0 )
