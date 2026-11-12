@@ -141,15 +141,24 @@ internal static class SurfaceParity
 			// the time) against the same material converted by hand to a surface
 			var cutOut = (BackendMaterial)device.LoadMaterial( "materials/dev/simple/simple_rail_32.vmat" );
 			cutOut.Textures.TryGetValue( "g_tColor", out var leaf );
-			var foliageShader = (BackendMaterial)((Basalt.GpuDevice)device).CreateMaterial( "Foliage (.shader)", "shaders/foliage.shader" );
+			// A material's features and values are read when it first draws, so each setup gets a material of its own
+			BackendMaterial FoliageShader( bool alphaTest = true, bool transmissive = true, bool grazing = true, float variation = 0.1f, float bending = 0.1f )
+			{
+				var m = (BackendMaterial)((Basalt.GpuDevice)device).CreateMaterial( "Foliage (.shader)", "shaders/foliage.shader" );
+				if ( m.Shader is null ) return m;
+				foreach ( var (feature, on) in new[] { ("F_ALPHA_TEST", alphaTest), ("F_TRANSMISSIVE", transmissive), ("F_FOLIAGE_ANIMATION", true), ("F_GRAZING_FADE", grazing) } ) m.Features[m.Shader.FeatureIndex( feature )] = on ? 1 : 0;
+				m.SetTexture( "g_tColor", leaf );
+				m.SetTexture( "g_tNormal", (BackendTexture)normal );
+				m.SetTexture( "g_tRma", (BackendTexture)rma );
+				m.SetTexture( "g_tTransmissiveColor", leaf );
+				m.Set( "g_flSwayStrength", [0] );
+				m.Set( "g_flTransmissionScale", [1] );
+				m.Set( "g_flNormalVariation", [variation] );
+				return m;
+			}
+
+			var foliageShader = FoliageShader();
 			if ( leaf is null || foliageShader.Shader?.Name.Contains( "foliage", StringComparison.OrdinalIgnoreCase ) != true ) return Fail( "foliage.shader or simple_rail_32.vmat isn't compiled" );
-			foreach ( var feature in new[] { "F_ALPHA_TEST", "F_TRANSMISSIVE", "F_FOLIAGE_ANIMATION", "F_GRAZING_FADE" } ) foliageShader.Features[foliageShader.Shader.FeatureIndex( feature )] = 1;
-			foliageShader.SetTexture( "g_tColor", leaf );
-			foliageShader.SetTexture( "g_tNormal", (BackendTexture)normal );
-			foliageShader.SetTexture( "g_tRma", (BackendTexture)rma );
-			foliageShader.SetTexture( "g_tTransmissiveColor", leaf );
-			foliageShader.Set( "g_flSwayStrength", [0] );
-			foliageShader.Set( "g_flTransmissionScale", [1] );
 
 			using var foliage = new Foliage { Color = leaf, Normal = normal, Rma = rma, Transmissive = true, TransmissiveColor = leaf, TransmissionScale = 1, SwayStrength = 0, GrazingFade = true, AlphaTest = true, DisplayName = "Foliage (surface)" };
 			// Without multisampling the alpha test is a hard cut; with 4x it is alpha to coverage, which is what Construct draws
@@ -162,18 +171,38 @@ internal static class SurfaceParity
 				Save( foliagePixels, Path.Combine( folder, $"foliage-surface{suffix}.png" ) );
 				var (fmean, fmax, fover, fdiff) = Compare( foliageReference, foliagePixels );
 				Save( fdiff, Path.Combine( folder, $"foliage-surface{suffix}-diff.png" ) );
-				lines.Add( $"foliage surface against foliage.shader, {samples}x: mean difference {fmean:F3}, max {fmax}, {fover} pixels over 8 (reported, not gated)" );
+				var fok = fmean <= tolerance;
+				if ( !fok ) failed++;
+				lines.Add( $"foliage surface against foliage.shader, {samples}x: mean difference {fmean:F3}, max {fmax}, {fover} pixels over 8{(fok ? "" : " FAIL")}" );
 			}
 
-			// The same without normal variation: its sin hash of the uv cell is where the two compilers' code differs most
+			// -foliage-terms: the same at 4x with one feature off on both sides at a time, to say where a difference comes from
+			if ( Args.Has( "-foliage-terms" ) )
 			{
-				foliageShader.Set( "g_flNormalVariation", [0] );
-				foliage.NormalVariation = 0;
-				var still = Render( device, foliageShader, alphaTest: true, 4 );
-				var stillSurface = Render( device, foliage, alphaTest: true, 4 );
-				var (smean, smax, sover, sdiff) = Compare( still, stillSurface );
-				Save( sdiff, Path.Combine( folder, "foliage-novariation-4x-diff.png" ) );
-				lines.Add( $"foliage surface against foliage.shader, 4x, no normal variation: mean difference {smean:F3}, max {smax}, {sover} pixels over 8 (reported, not gated)" );
+				foreach ( var (name, transmissive, grazing, alphaTest, variation, bending) in new[] { ("as before", true, true, true, true, true), ("no normal variation", true, true, true, false, true), ("no translucency", false, true, true, true, true), ("no grazing fade", true, false, true, true, true), ("no alpha test", true, true, false, true, true), ("no wind bending", true, true, true, true, false), ("none of them", false, false, false, false, false) } )
+				{
+					var termShader = FoliageShader( alphaTest, transmissive, grazing, variation ? 0.1f : 0, bending ? 0.1f : 0 );
+					// A surface's fields are read at every draw, so the one material does
+					foliage.Transmissive = transmissive;
+					foliage.GrazingFade = grazing;
+					foliage.AlphaTest = alphaTest;
+					foliage.NormalVariation = variation ? 0.1f : 0;
+					var a = Render( device, termShader, alphaTest, 4 );
+					var b = Render( device, foliage, alphaTest, 4 );
+					var (tmean, tmax, tover, tdiff) = Compare( a, b );
+					Save( tdiff, Path.Combine( folder, $"foliage-{name.Replace( ' ', '-' )}-4x-diff.png" ) );
+					Save( a, Path.Combine( folder, $"foliage-{name.Replace( ' ', '-' )}-4x-shader.png" ) );
+					Save( b, Path.Combine( folder, $"foliage-{name.Replace( ' ', '-' )}-4x-surface.png" ) );
+					lines.Add( $"foliage surface against foliage.shader, 4x, {name}: mean difference {tmean:F3}, max {tmax}, {tover} pixels over 8 (reported, not gated)" );
+				}
+
+				// The .shader against itself, as a second material: what the same setup varies by between two draws
+				{
+					var a = Render( device, FoliageShader( false, false, false, 0, 0 ), false, 4 );
+					var b = Render( device, FoliageShader( false, false, false, 0, 0 ), false, 4 );
+					var (smean, smax, sover, _) = Compare( a, b );
+					lines.Add( $"foliage.shader against itself, 4x, none of them: mean difference {smean:F3}, max {smax}, {sover} pixels over 8" );
+				}
 			}
 			File.WriteAllBytes( Path.Combine( folder, "foliage_surface_ps.spv" ), device.Surfaces.Compile( "foliage.slang" ).Pass( ShaderPasses.Forward + "AlphaTest" ).Pixel.Spirv );
 			var foliageVariant = foliageShader.Variant( device.Shaders, "Forward", "Forward;F", _ => null, _ => null );
@@ -188,8 +217,10 @@ internal static class SurfaceParity
 				if ( blendableShader.Shader is { } shaderFile )
 				{
 					blendableShader.Features[shaderFile.FeatureIndex( "F_MULTIBLEND" )] = 3;
-					var blendableVariant = blendableShader.Variant( device.Shaders, "Forward", "Forward;B3", _ => null, _ => null );
+					var forwardMode = shaderFile.Modes.FirstOrDefault( m => m.Name.Contains( "Forward", StringComparison.OrdinalIgnoreCase ) )?.Name ?? "Forward";
+					var blendableVariant = blendableShader.Variant( device.Shaders, forwardMode, "Forward;B3", _ => null, _ => null );
 					if ( blendableVariant?.Pixel?.Bytecode is { } bb && (bb.Spirv ?? bb.Shared?.Spirv) is { } bs ) File.WriteAllBytes( Path.Combine( folder, "blendable_shader_ps.spv" ), bs );
+					else lines.Add( $"blendable.shader: no forward pixel shader to count ({(blendableVariant is null ? "no variant" : blendableVariant.Pixel is null ? "no pixel stage" : "no SPIR-V")} in mode {forwardMode} of {string.Join( ", ", shaderFile.Modes.Select( m => m.Name ) )})" );
 				}
 			}
 		}

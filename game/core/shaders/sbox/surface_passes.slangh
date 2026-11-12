@@ -115,9 +115,9 @@ SurfaceInput MakeSurfaceInput( PixelInput i )
 	s.Uv = i.vTextureCoords.xy;
 	s.Color = i.vVertexColor;
 	s.ScreenPosition = i.vPositionSs;
-	s.View = g_vCameraPositionWs - s.Position;
-	s.ViewDistance = length( s.View );
-	s.View /= max( s.ViewDistance, 1e-6 );
+	s.View = normalize( g_vCameraPositionWs - s.Position );
+	// From the lighting origin (the main view's camera, also in its shadow views), so distance fades agree across passes
+	s.ViewDistance = length( i.vPositionWithOffsetWs.xyz );
 	// The triangle's normal from screen-space derivatives of the position: a resolve gets it from the triangle instead
 	s.FaceNormal = normalize( cross( ddx( i.vPositionWithOffsetWs.xyz ), ddy( i.vPositionWithOffsetWs.xyz ) ) );
 #if ( S_ALPHA_TEST )
