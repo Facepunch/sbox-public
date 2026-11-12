@@ -48,6 +48,8 @@ internal static class MapRealRun
 		new( "real-serial-gpudriven-fullvertices", false, true, false, true, FullVertices: true ),
 		new( "real-serial-gpudriven-visibility", false, true, false, true, Visibility: true ),
 		new( "real-parallel-gpudriven-visibility", true, true, false, true, Visibility: true ),
+		new( "real-serial-gpudriven-shadows", false, true, true, true, Visibility: true ),
+		new( "real-parallel-gpudriven-shadows", true, true, true, true, Visibility: true ),
 		new( "real-parallel-gpudriven-fullvertices", true, true, false, true, FullVertices: true ),
 		new( "real-serial-fullvertices", false, true, false, FullVertices: true ),
 		new( "real-parallel-fullvertices", true, true, false, FullVertices: true ),
@@ -228,7 +230,8 @@ internal static class MapRealRun
 			{
 				map.System.ParallelRecording = false;
 				map.Backend.MaterialObjects = true;
-				map.SetCastShadows( false );
+				// -capture-shadows: with static geometry casting sun shadows, so GPU-driven shadow views are compared too
+				map.SetCastShadows( Args.Has( "-capture-shadows" ) );
 				var path = Path.Combine( Path.GetFullPath( options.Captures ), $"{options.Ident.Split( '.' ).Last()}-{view.Name}-real.png" );
 
 				// The GPU-driven frames between two classic ones, to compare (wind and water move between captures)
