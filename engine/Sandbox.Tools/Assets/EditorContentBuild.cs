@@ -3,6 +3,7 @@ using Sandbox.ContentBuild;
 using Sandbox.Engine;
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Editor;
@@ -49,9 +50,14 @@ internal static class EditorContentBuild
 	const float RetryDelay = 2.0f;
 
 	/// <summary>
-	/// Compiles at once while the editor is open. Startup, which waits for its build, runs as many as SboxBuild does.
+	/// Compiles at once while the editor is open. Startup, which waits for its build, runs up to as many as SboxBuild does.
 	/// </summary>
 	const int Jobs = 4;
+
+	/// <summary>
+	/// Memory left free beside the compiles: one that runs in the editor's process and fails to allocate ends the editor.
+	/// </summary>
+	const long MemoryReserve = 3L << 30;
 
 	public static bool IsBuilding => building;
 
@@ -160,7 +166,8 @@ internal static class EditorContentBuild
 
 				// What each job publishes is known before the next frame runs, so its file events aren't changes
 				Published = paths => IAssetSystem.RegisterBuildOutputs( string.Join( "\n", paths ) ),
-				MaxJobs = startup ? ResourceCompiler.DefaultMaxJobs : Jobs,
+				MaxJobs = JobLimit( startup ? ResourceCompiler.DefaultMaxJobs : Jobs ),
+				CanStartJob = () => AvailableMemory().Commit > MemoryReserve,
 
 				// Only startup waits for another build, with the splash screen up; the editor never freezes on one
 				LockTimeout = startup ? TimeSpan.FromMinutes( 30 ) : TimeSpan.Zero,
@@ -222,6 +229,35 @@ internal static class EditorContentBuild
 			building = false;
 		}
 	}
+
+	/// <summary>
+	/// Compiles at once, up to a limit: one per 2 GB beyond the reserve of what is free now, after the editor's own use.
+	/// </summary>
+	static int JobLimit( int limit )
+	{
+		var (physical, commit) = AvailableMemory();
+		return (int)Math.Clamp( (Math.Min( physical, commit ) - MemoryReserve) / (2L << 30), 1, limit );
+	}
+
+	/// <summary>
+	/// Physical memory free system wide and commit this process can still make. Unknown, so unlimited, off Windows.
+	/// </summary>
+	static (long Physical, long Commit) AvailableMemory()
+	{
+		var status = new MemoryStatusEx { Length = (uint)Marshal.SizeOf<MemoryStatusEx>() };
+		if ( !OperatingSystem.IsWindows() || !GlobalMemoryStatusEx( ref status ) ) return (long.MaxValue, long.MaxValue);
+		return ((long)status.AvailPhys, (long)status.AvailPageFile);
+	}
+
+	[StructLayout( LayoutKind.Sequential )]
+	struct MemoryStatusEx
+	{
+		public uint Length, MemoryLoad;
+		public ulong TotalPhys, AvailPhys, TotalPageFile, AvailPageFile, TotalVirtual, AvailVirtual, AvailExtendedVirtual;
+	}
+
+	[DllImport( "kernel32.dll" )]
+	static extern bool GlobalMemoryStatusEx( ref MemoryStatusEx status );
 
 	static void Publish( BuildReport report, int epoch )
 	{

@@ -1097,6 +1097,22 @@ public class ContentBuilderTests
 	}
 
 	[TestMethod]
+	public void RefusedJobsStillRunOneAtATime()
+	{
+		using var fx = new Fixture();
+		for ( var i = 0; i < 4; i++ ) fx.Write( $"t{i}.vtex", "sleep 50" );
+
+		var asked = 0;
+		var request = new BuildRequest { Roots = [new ContentRoot( "unit", fx.Root, fx.State )], MaxJobs = 4, CanStartJob = () => { asked++; return false; } };
+		var report = ContentBuilder.Build( request, fx.Compiler );
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		Assert.AreEqual( 4, report.Jobs.Count );
+		Assert.AreEqual( 1, fx.Compiler.MaxConcurrent );
+		Assert.IsTrue( asked > 0 );
+	}
+
+	[TestMethod]
 	public void SelectionBuildsWhatItReadsAndNothingElse()
 	{
 		using var fx = new Fixture();

@@ -64,6 +64,11 @@ public sealed class BuildRequest
 	/// Compiles at once. 1 hands them out one at a time, from the calling thread.
 	/// </summary>
 	public int MaxJobs { get; init; } = Environment.ProcessorCount;
+
+	/// <summary>
+	/// Whether another compile may start beside the ones running, asked again as each finishes; one always runs.
+	/// </summary>
+	public Func<bool> CanStartJob { get; init; }
 	public Action<string> JobFinished { get; init; }
 
 	/// <summary>
@@ -785,6 +790,8 @@ public static class ContentBuilder
 
 				while ( running.Count < Math.Max( 1, request.MaxJobs ) && queue.Count > 0 && !token.IsCancellationRequested )
 				{
+					if ( running.Count > 0 && request.CanStartJob?.Invoke() == false ) break;
+
 					var node = queue[0];
 					queue.RemoveAt( 0 );
 					node.State = State.Running;
