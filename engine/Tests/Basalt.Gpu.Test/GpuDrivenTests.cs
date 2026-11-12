@@ -59,9 +59,10 @@ public class GpuDrivenTests : GpuTest
 			view.Position = new Vector3( -500, -300, 300 );
 			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
 
-			byte[] Frame( bool gpuDriven, out int binds, bool materialBuckets, bool gpuCulling = true, bool compaction = true, bool positions = true )
+			byte[] Frame( bool gpuDriven, out int binds, bool materialBuckets, bool gpuCulling = true, bool compaction = true, bool positions = true, bool visibility = false )
 			{
 				backend.GpuDriven = gpuDriven;
+				backend.GpuDrivenVisibility = visibility;
 				backend.GpuDrivenCulling = gpuCulling;
 				backend.GpuDrivenCompaction = compaction;
 				backend.PositionStreams = positions;
@@ -89,6 +90,8 @@ public class GpuDrivenTests : GpuTest
 			var cpuCulled = Frame( true, out _, false, gpuCulling: false );
 			var uncompacted = Frame( true, out _, false, compaction: false );
 			var fullVertices = Frame( true, out _, false, positions: false );
+			var visible = Frame( true, out _, false, visibility: true );
+			var visibleAgain = Frame( true, out _, false, visibility: true );
 
 			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
 			Assert.AreEqual( 0, Different( classic, perMaterial ), "a bucket per material draws the classic pixels" );
@@ -100,6 +103,9 @@ public class GpuDrivenTests : GpuTest
 			Assert.AreEqual( 0, Different( classic, cpuCulled ), "culled on the CPU, the classic pixels too" );
 			Assert.AreEqual( 0, Different( classic, uncompacted ), "culled on the GPU without compacting, the classic pixels too" );
 			Assert.AreEqual( 0, Different( classic, fullVertices ), "the prepass from full vertices rather than positions alone, the classic pixels too" );
+			Assert.IsNotNull( backend.GpuDrivenVisibilityShaders.Ids, "the id prepass shader is built" );
+			Assert.AreEqual( 0, Different( classic, visible ), "forward over only the triangles that own a sample, the classic pixels too" );
+			Assert.AreEqual( 0, Different( classic, visibleAgain ), "and the next frame" );
 			Assert.IsNotNull( backend.GpuDrivenCullShader, "the culling shader is built, so the GPU-driven frames culled on the GPU" );
 		}
 		finally

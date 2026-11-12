@@ -98,7 +98,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
-	readonly Table geometry, draws, materials, fragments;
+	readonly Table geometry, draws, materials, fragments, visibility;
 	readonly Dictionary<(int Page, long Offset, VertexLayout Layout, int Count), uint> geometryRecords = new();
 	readonly Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage), uint> drawRecords = new();
 	readonly Dictionary<MaterialRecordKey, uint> materialRecords = new();
@@ -113,12 +113,14 @@ internal sealed class GpuDrivenTables : IDisposable
 		draws = new Table( gpu, "Basalt GPU-driven draws", 1 << 20 );
 		materials = new Table( gpu, "Basalt GPU-driven materials", 1 << 20 );
 		fragments = new Table( gpu, "Basalt GPU-driven fragments", 1 << 20 );
+		visibility = new Table( gpu, "Basalt GPU-driven visibility", 1 << 16 );
 
 		// Made now, so their slots exist before any frame reads them
 		geometry.Append( new byte[16] );
 		draws.Append( new byte[DrawStride] );
 		materials.Append( new byte[16] );
 		fragments.Append( new byte[FragmentStride] );
+		visibility.Append( new byte[16] );
 	}
 
 	/// <summary>The tables' slots in the raw buffer array, as <c>BasaltGpuDriven_t</c> wants them after the instances'.</summary>
@@ -328,6 +330,65 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
+	/// <summary>No visibility fragment, or no triangle bits for one.</summary>
+	public const uint NoVisibility = uint.MaxValue;
+
+	/// <summary>Visibility fragments an id holds (16 bits, 0 for nothing).</summary>
+	public const int MaxVisibilityFragments = 65535;
+
+	/// <summary>Triangle bits the mask holds, a bit for every triangle of every visibility fragment.</summary>
+	public const long MaxVisibilityBits = 1L << 26;
+
+	readonly ConditionalWeakTable<object, StrongBox<uint>> visibilityFirsts = new();
+	long visibilityBits;
+	int visibilityFragments;
+
+	/// <summary>
+	/// An aggregate's first visibility fragment: ids name its fragments by it, and its visibility record holds each one's
+	/// first triangle bit in the mask (word aligned; <see cref="NoVisibility"/> for a fragment of more than 65,536
+	/// triangles, or past the mask). Made once; <see cref="NoVisibility"/> when the ids can't name its fragments.
+	/// </summary>
+	public uint VisibilityFirst<T>( object owner, int count, T state, Func<T, int, uint> triangles )
+	{
+		if ( visibilityFirsts.TryGetValue( owner, out var known ) ) return known.Value;
+
+		lock ( visibilityFirsts )
+		{
+			if ( visibilityFirsts.TryGetValue( owner, out known ) ) return known.Value;
+
+			var first = NoVisibility;
+			var records = new uint[count];
+			for ( int i = 0; i < count; i++ )
+			{
+				var fragmentTriangles = triangles( state, i );
+				var bits = (fragmentTriangles + 31) & ~31u;
+				if ( fragmentTriangles > 65536 || visibilityBits + bits > MaxVisibilityBits )
+				{
+					records[i] = NoVisibility;
+					continue;
+				}
+
+				records[i] = (uint)visibilityBits;
+				visibilityBits += bits;
+			}
+
+			var offset = visibility.Append( MemoryMarshal.AsBytes( records.AsSpan() ) ) / 4;
+			if ( offset + count <= MaxVisibilityFragments ) first = offset;
+			visibilityFragments = (int)Math.Max( visibilityFragments, offset + count );
+			visibilityFirsts.Add( owner, new StrongBox<uint>( first ) );
+			return first;
+		}
+	}
+
+	/// <summary>The visibility table's slot, the triangle bits in use and the visibility fragments there are.</summary>
+	public (int Slot, long Bits, int Fragments) Visibility
+	{
+		get
+		{
+			lock ( visibilityFirsts ) return (visibility.Slot, visibilityBits, Math.Min( visibilityFragments, MaxVisibilityFragments ));
+		}
+	}
+
 	/// <summary>The fragment table's slot in the raw buffer array.</summary>
 	public int FragmentSlot => fragments.Slot;
 
@@ -419,6 +480,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		draws.Dispose();
 		materials.Dispose();
 		fragments.Dispose();
+		visibility.Dispose();
 		lock ( pagesLock )
 		{
 			foreach ( var buffer in owned ) gpu.Destroy( buffer );

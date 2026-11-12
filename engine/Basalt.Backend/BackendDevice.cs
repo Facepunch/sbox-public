@@ -5,6 +5,7 @@ using Basalt.Source2.Shaders;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Basalt.Backend;
@@ -686,6 +687,105 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	ShaderFile gpuDrivenCullShader;
 	bool gpuDrivenCullShaderLoaded;
 
+	/// <summary>
+	/// The visibility-driven forward pass (docs/managed/basalt-gpu-driven.md): with <see cref="GpuDrivenCulling"/> and
+	/// compaction, a view's GPU-driven depth prepass also writes ids, a pass marks the triangles that own a sample, and its
+	/// forward pass draws only those. Off by default.
+	/// </summary>
+	public bool GpuDrivenVisibility { get; set; }
+
+	/// <summary>The frame's stamp for <see cref="GpuDrivenVisibility"/>: fragments the prepass drew ids for this frame carry it.</summary>
+	internal uint GpuDrivenFrame { get; private set; } = 1;
+
+	/// <summary>The id prepass material and mark shader, or null when they aren't built.</summary>
+	internal (BackendMaterial Ids, ShaderFile Mark) GpuDrivenVisibilityShaders
+	{
+		get
+		{
+			lock ( visibilityViews )
+			{
+				if ( !visibilityShadersLoaded )
+				{
+					visibilityShadersLoaded = true;
+					if ( Shaders.Load( "shaders/basalt_gpu_driven_ids.shader" ) is not null ) visibilityIds = MaterialFromShader( "shaders/basalt_gpu_driven_ids.shader" ) as BackendMaterial;
+					visibilityMark = Shaders.Load( "shaders/basalt_gpu_driven_mark_cs.shader" );
+				}
+
+				return (visibilityIds, visibilityMark);
+			}
+		}
+	}
+
+	BackendMaterial visibilityIds;
+	ShaderFile visibilityMark;
+	bool visibilityShadersLoaded;
+
+	/// <summary>A view's visibility resources: its ids target, triangle mask, fragment stamps and compacted indices.</summary>
+	internal sealed class VisibilityView
+	{
+		public TextureHandle Ids;
+		public int Width, Height, Samples;
+		public BufferHandle Mask, Stamps;
+		public readonly BufferHandle[] Compacted = new BufferHandle[3];
+		public bool StampsCleared;
+	}
+
+	/// <summary>Indices each compacted index buffer holds; a fragment that doesn't fit draws whole.</summary>
+	internal const int VisibilityCompactedIndices = 4 << 20;
+
+	readonly ConditionalWeakTable<object, VisibilityView> visibilityViews = new();
+	readonly List<BufferHandle> visibilityBuffers = new();
+	readonly List<TextureHandle> visibilityTextures = new();
+
+	/// <summary>A view's visibility resources, made the first time and remade when its depth target changes size.</summary>
+	internal VisibilityView VisibilityFor( object view, TextureInfo depth )
+	{
+		lock ( visibilityViews )
+		{
+			var state = visibilityViews.GetValue( view, static _ => new VisibilityView() );
+			if ( !state.Mask.IsValid )
+			{
+				state.Mask = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityBits / 8, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Basalt visibility mask" } );
+				state.Stamps = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 4L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Basalt visibility stamps" } );
+				for ( int i = 0; i < state.Compacted.Length; i++ )
+				{
+					state.Compacted[i] = Gpu.CreateBuffer( new BufferInfo { Size = VisibilityCompactedIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage, Name = "Basalt visibility triangles" } );
+					visibilityBuffers.Add( state.Compacted[i] );
+				}
+
+				visibilityBuffers.Add( state.Mask );
+				visibilityBuffers.Add( state.Stamps );
+			}
+
+			if ( depth.Width != 0 && (state.Width != depth.Width || state.Height != depth.Height || state.Samples != depth.Samples) )
+			{
+				if ( state.Ids.IsValid )
+				{
+					visibilityTextures.Remove( state.Ids );
+					Gpu.Destroy( state.Ids );
+				}
+
+				state.Ids = Gpu.CreateTexture( new TextureInfo
+				{
+					Width = depth.Width,
+					Height = depth.Height,
+					Depth = 1,
+					Layers = 1,
+					Mips = 1,
+					Samples = depth.Samples,
+					Dimension = TextureDimension.Texture2D,
+					Format = Format.R32Uint,
+					Usage = TextureUsage.ColorTarget | TextureUsage.Sampled,
+					Name = "Basalt visibility ids",
+				} );
+				visibilityTextures.Add( state.Ids );
+				(state.Width, state.Height, state.Samples) = (depth.Width, depth.Height, depth.Samples);
+			}
+
+			return state;
+		}
+	}
+
 	/// <summary>Async compute isn't wired yet: contexts all record on the graphics queue.</summary>
 	public override bool SupportsAsyncCompute => false;
 
@@ -872,6 +972,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	{
 		Gpu.BeginFrame();
 		gpuDrivenTables?.BeginFrame();
+		GpuDrivenFrame++;
 		Poll();
 	}
 
@@ -898,6 +999,14 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		materialCache?.Dispose();
 		surfaces?.Dispose();
 		gpuDrivenTables?.Dispose();
+		lock ( visibilityViews )
+		{
+			foreach ( var buffer in visibilityBuffers ) Gpu.Destroy( buffer );
+			foreach ( var texture in visibilityTextures ) Gpu.Destroy( texture );
+			visibilityBuffers.Clear();
+			visibilityTextures.Clear();
+		}
+
 		lock ( pipelines )
 		{
 			foreach ( var pipeline in pipelines.Values ) Gpu.Destroy( pipeline );

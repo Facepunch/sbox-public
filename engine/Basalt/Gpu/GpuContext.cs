@@ -269,6 +269,13 @@ internal abstract class GpuContext : IDisposable
 		public Vector4 Left, Right, Bottom, Top, Near, Far;
 		public Vector4 CameraAndThreshold;
 		public bool Shadow;
+
+		/// <summary>
+		/// The view, which the visibility-driven forward pass keeps its ids and lists for; and whether this is its depth
+		/// prepass (it may write ids) or a pass that may draw only what owns a sample of them.
+		/// </summary>
+		public object View;
+		public bool Ids, Visibility;
 	}
 
 	/// <summary>
