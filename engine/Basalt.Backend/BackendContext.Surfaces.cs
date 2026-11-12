@@ -75,6 +75,90 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
+	/// The GPU-driven bucket a surface batch draws in (BackendContext.GpuDriven.cs), made when none fits: its GPU-driven
+	/// pass for the mode, alpha test and lightmap combo, under the batch's object attributes. Null, so it draws the classic
+	/// way, when the surface has no GPU-driven passes or the mode isn't one a surface draws.
+	/// </summary>
+	GpuDrivenBucket SurfaceBucket( SurfaceMaterial material, StringToken shaderMode, bool noColor, ShaderParameters attributes, long key )
+	{
+		if ( !noColor && shaderMode.Value != ForwardMode.Value ) return null;
+		if ( device.Surfaces.For( material ) is not { } program ) return null;
+		if ( program.GpuDrivenPass( noColor, material.AlphaTest, LookupCombo( LightmapCombo ) is > 0 ) is not { } pass ) return null;
+
+		var depthOnly = pass.Pass.Pixel is null;
+		for ( int i = 0; i < gpuDrivenBucketCount; i++ )
+		{
+			var bucket = gpuDrivenBuckets[i];
+			if ( ReferenceEquals( bucket.Surface, pass ) && bucket.AttributesKey == key && bucket.NoColor == noColor ) return bucket;
+		}
+
+		if ( gpuDrivenBucketCount == gpuDrivenBuckets.Count ) gpuDrivenBuckets.Add( new GpuDrivenBucket() );
+		var made = gpuDrivenBuckets[gpuDrivenBucketCount++];
+		made.Variant = null;
+		made.Material = null;
+		made.Classic = null;
+		made.Surface = pass;
+		made.SurfaceProgram = program;
+		made.SurfacePositionsOnly = !program.Displaces;
+		made.Attributes = attributes;
+		made.AttributesKey = key;
+		made.DepthOnly = depthOnly;
+		made.NoColor = noColor;
+		made.PixelMaterial = 0;
+		made.Batches.Clear();
+		made.Commands = 0;
+		made.Ids = false;
+		made.Fragments = 0;
+		return made;
+	}
+
+	/// <summary>
+	/// A draw's vertex and pixel material records: a surface's one record (its <c>[Material]</c> struct) for both stages,
+	/// or a variant's per stage.
+	/// </summary>
+	(uint Vertex, uint Pixel) Records( GpuDrivenTables tables, GpuDrivenBucket bucket, GpuMaterial material, bool uncompressedTangentFrame )
+	{
+		if ( bucket.Surface is not null )
+		{
+			var surface = (SurfaceMaterial)material;
+			var key = new GpuDrivenTables.MaterialRecordKey( surface, surface.Version, null, false, 0 );
+			var size = (Math.Max( surface.RecordSize, 4 ) + 15) & ~15;
+			var record = tables.Material( key, size, surface, static ( s, bytes ) =>
+			{
+				bytes.Clear();
+				s.WriteRecord( bytes, static ( texture, srgb ) => texture.ViewIndex( srgb, TextureViewDimension.Default ) );
+			} );
+			return (record, record);
+		}
+
+		var classic = (BackendMaterial)material;
+		return (MaterialRecord( tables, classic, bucket.Variant.Vertex, uncompressedTangentFrame ), bucket.DepthOnly ? 0 : MaterialRecord( tables, classic, bucket.Variant.Pixel, uncompressedTangentFrame ));
+	}
+
+	/// <summary>
+	/// A surface bucket's pipeline (vertices pulled, so no vertex layout) and sets 0 and 1, bound by name from this
+	/// context's attributes as for its classic draws; with <paramref name="ids"/>, for the visibility prepass's targets.
+	/// </summary>
+	void BindSurfaceGpuDriven( GpuDrivenBucket bucket, Format color, Format depth, int samples, bool ids )
+	{
+		var r = recording;
+		var pass = bucket.Surface;
+		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
+		ulong pixelKey = 0;
+		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
+		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, ids );
+		if ( r.Pipeline != pipeline )
+		{
+			r.List.SetPipeline( pipeline );
+			r.Pipeline = pipeline;
+		}
+
+		BindSurface( pass, pass.Pass.Vertex, ShaderAbi.VertexSet );
+		if ( pass.Pass.Pixel is not null ) BindSurface( pass, pass.Pass.Pixel, ShaderAbi.FragmentSet );
+		r.Binder = null;
+	}
+
+	/// <summary>
 	/// A stage's specialization constants (<c>SpecializedConstant()</c> globals: <c>ShadowFilterQuality</c>,
 	/// <c>DDGI_Enabled</c>, <c>ToolsVisMode</c>), each from its attribute or its default, as classic variants take them;
 	/// <paramref name="key"/> tells their values apart for the pipeline cache.
