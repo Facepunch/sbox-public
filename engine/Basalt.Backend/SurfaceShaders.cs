@@ -67,6 +67,13 @@ public sealed class SurfaceShaders : IDisposable
 
 	internal void CountConverted() => System.Threading.Interlocked.Increment( ref convertedMaterials );
 
+	/// <summary>Surface batches the GPU-driven path has taken, added up over every frame, for reports.</summary>
+	public long GpuDrivenBatches => System.Threading.Interlocked.Read( ref gpuDrivenBatches );
+
+	long gpuDrivenBatches;
+
+	internal void CountGpuDriven() => System.Threading.Interlocked.Increment( ref gpuDrivenBatches );
+
 	static string ShaderKey( string shader ) => Path.GetFileNameWithoutExtension( shader.Replace( '\\', '/' ) ).ToLowerInvariant();
 
 	readonly Dictionary<string, string> conversions = new( StringComparer.OrdinalIgnoreCase );
@@ -101,6 +108,9 @@ public sealed class SurfaceShaders : IDisposable
 	/// <summary>A material's program, compiled on first use; null when it can't draw.</summary>
 	internal SurfaceProgram For( SurfaceMaterial material )
 	{
+		// Kept on the material once found: draws ask for it every frame
+		if ( material.Program is { } known && ReferenceEquals( known.Device, device ) ) return known;
+
 		var program = Program( material.Shader );
 		if ( program is null ) return null;
 		if ( program.LayoutHash != material.LayoutHash || program.Compiled.Material.Size != material.RecordSize )
@@ -109,6 +119,7 @@ public sealed class SurfaceShaders : IDisposable
 			return null;
 		}
 
+		material.Program = program;
 		return program;
 	}
 
@@ -131,6 +142,7 @@ public sealed class SurfaceShaders : IDisposable
 					var raw = System.Text.RegularExpressions.Regex.IsMatch( File.ReadAllText( path ), @"\[\s*shader\s*\(" );
 					var compiled = raw ? Compiler().CompileRaw( path ) : Compiler().CompileSurface( path );
 					program = new SurfaceProgram( device, compiled );
+					if ( compiled.GpuDrivenError is { } gpuDrivenError ) Error?.Invoke( $"{file}: no GPU-driven passes, its draws go the classic way: {gpuDrivenError}" );
 				}
 				catch ( ShaderCompileException e )
 				{
@@ -161,7 +173,7 @@ internal sealed class SurfaceProgram : IDisposable
 {
 	readonly BackendDevice device;
 	readonly Dictionary<string, PassObjects> passes = new();
-	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants), PipelineHandle> pipelines = new();
+	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids), PipelineHandle> pipelines = new();
 
 	/// <summary>Material classes already reported as generated for another layout.</summary>
 	public readonly HashSet<Type> Mismatched = new();
@@ -175,6 +187,9 @@ internal sealed class SurfaceProgram : IDisposable
 		public ShaderHandle Vertex, Pixel;
 		public BindingLayoutHandle[] Sets;
 	}
+
+	/// <summary>The device it's made on.</summary>
+	public BackendDevice Device => device;
 
 	public SurfaceProgram( BackendDevice device, CompiledShader compiled )
 	{
@@ -220,18 +235,39 @@ internal sealed class SurfaceProgram : IDisposable
 	/// <summary>A pass by name, or null.</summary>
 	public PassObjects Pass( string name ) => passes.TryGetValue( name, out var pass ) ? pass : null;
 
+	readonly PassObjects[] gpuDrivenPasses = new PassObjects[8];
+	readonly bool[] gpuDrivenLooked = new bool[8];
+
+	/// <summary>A GPU-driven pass (<c>[Depth|Forward][AlphaTest]GpuDriven[Lightmapped]</c>), found once; null when there's none.</summary>
+	public PassObjects GpuDrivenPass( bool noColor, bool alphaTest, bool lightmapped )
+	{
+		var index = (noColor ? 4 : 0) | (alphaTest ? 2 : 0) | (lightmapped ? 1 : 0);
+		if ( System.Threading.Volatile.Read( ref gpuDrivenLooked[index] ) ) return gpuDrivenPasses[index];
+
+		var name = (noColor ? (alphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth) : (alphaTest ? ShaderPasses.Forward + "AlphaTest" : ShaderPasses.Forward)) + ShaderPasses.GpuDriven;
+		var found = (lightmapped ? Pass( name + ShaderPasses.Lightmapped ) : null) ?? Pass( name );
+		gpuDrivenPasses[index] = found;
+		System.Threading.Volatile.Write( ref gpuDrivenLooked[index], true );
+		return found;
+	}
+
+	/// <summary>Whether its vertex stage moves vertices (<c>IVertexSurface</c>): when not, its positions alone place them.</summary>
+	public bool Displaces => Compiled.Generated?.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) == true;
+
 	/// <summary>
 	/// A pipeline for a pass drawing vertices laid out as <paramref name="layout"/> into these formats: the default render
 	/// state of today's shaders (back faces culled, depth tested and written greater-or-equal, reverse Z, no blending,
 	/// alpha to coverage for alpha-tested passes).
 	/// Mesh vertices are stream 0, instance ids stream 1, the default stream 2, as for classic draws. Specialization
 	/// constants (<c>SpecializedConstant()</c> globals) are per pipeline, <paramref name="constantsKey"/> their values.
+	/// With <paramref name="ids"/>, the visibility-driven forward pass's id prepass: target 0 an R8 scratch (its alpha drives
+	/// alpha to coverage), target 1 the ids, as BackendDevice.Pipeline makes them.
 	/// </summary>
-	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey )
+	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, bool ids = false )
 	{
 		lock ( pipelines )
 		{
-			var key = (pass, layout, color, depth, samples, constantsKey);
+			var key = (pass, layout, color, depth, samples, constantsKey, ids);
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
 			var inputs = pass.Pass.Vertex.Inputs.Select( i => new VertexInput( i.Location, Semantic( i.Semantic ), i.SemanticIndex, i.Kind == ScalarKind.Float ? SpirvScalar.Float : i.Kind == ScalarKind.Int ? SpirvScalar.Int : SpirvScalar.UInt, i.Components ) ).ToList();
@@ -244,7 +280,7 @@ internal sealed class SurfaceProgram : IDisposable
 				return new VertexAttribute( 0, 0, field.Format, field.Offset );
 			}, defaultBuffer: 2 );
 
-			var depthOnly = color == Format.Unknown;
+			var depthOnly = color == Format.Unknown && !ids;
 			var pixel = pass.Pixel.IsValid;
 			pipeline = device.Gpu.CreateGraphicsPipeline( new GraphicsPipelineInfo
 			{
@@ -260,16 +296,16 @@ internal sealed class SurfaceProgram : IDisposable
 				Topology = PrimitiveTopology.TriangleList,
 				CullMode = CullMode.Back,
 				FrontFace = FrontFace.CounterClockwise,
-				DepthBias = depthOnly,
+				DepthBias = depthOnly || ids,
 				DepthTest = depth != Format.Unknown,
 				DepthWrite = depth != Format.Unknown,
 				DepthCompare = CompareFunction.GreaterEqual,
-				Blend = [BlendState.Opaque],
+				Blend = ids ? [BlendState.Opaque, BlendState.Opaque] : [BlendState.Opaque],
 
 				// Alpha-tested passes write today's alpha-to-coverage alpha (S_ALPHA_TEST), with multisampling only, as the
 				// .shaders' AlphaToCoverageEnable render state does
-				AlphaToCoverage = samples > 1 && pass.Pass.Name is ShaderPasses.DepthAlphaTest or ShaderPasses.Forward + "AlphaTest",
-				ColorFormats = depthOnly ? [] : [color],
+				AlphaToCoverage = samples > 1 && pass.Pass.Name.Contains( "AlphaTest", StringComparison.Ordinal ),
+				ColorFormats = ids ? [Format.R8Unorm, Format.R32Uint] : depthOnly ? [] : [color],
 				DepthFormat = depth,
 				Samples = samples,
 				Name = $"{Compiled.Name} {pass.Pass.Name}",

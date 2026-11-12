@@ -157,6 +157,31 @@ public class SurfaceTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// Every pass also comes GPU-driven: its vertex stage pulls its vertices (no vertex inputs), and neither stage reads
+	/// the classic records' buffer.
+	/// </summary>
+	[TestMethod]
+	public void SurfacesHaveGpuDrivenPasses()
+	{
+		foreach ( var path in new[] { Path.Combine( Surfaces, "rock.slang" ), Path.Combine( Surfaces, "foliage.slang" ), Path.Combine( Core, "shaders", "blendable.slang" ) } )
+		{
+			var surface = Compiler().CompileSurface( path );
+			Assert.IsNull( surface.GpuDrivenError, surface.GpuDrivenError );
+			foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
+			{
+				foreach ( var suffix in new[] { ShaderPasses.GpuDriven, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped } )
+				{
+					var pass = surface.Pass( name + suffix );
+					Assert.IsNotNull( pass, $"{Path.GetFileName( path )} {name}{suffix}" );
+					Assert.AreEqual( 0, pass.Vertex.Inputs.Count, $"{name}{suffix} reads vertex inputs" );
+					foreach ( var stage in new[] { pass.Vertex, pass.Pixel } )
+						Assert.IsFalse( stage is not null && stage.Bindings.Any( b => b.Kind == BindingKind.MaterialRecords ), $"{name}{suffix} reads the classic records" );
+				}
+			}
+		}
+	}
+
 	/// <summary>A lit surface turns on the light loop's hook and hands it the material; an unlit one leaves the loop alone.</summary>
 	[TestMethod]
 	public void LitSurfaceHooksTheLightLoop()

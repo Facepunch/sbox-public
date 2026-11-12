@@ -104,7 +104,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	readonly Dictionary<MaterialRecordKey, uint> materialRecords = new();
 
 	/// <summary>A material record: per material and its version, stage, and the attribute values its constants read.</summary>
-	internal readonly record struct MaterialRecordKey( BackendMaterial Material, int Version, ShaderStage Stage, bool UncompressedTangentFrame, int Attributes );
+	internal readonly record struct MaterialRecordKey( GpuMaterial Material, int Version, ShaderStage Stage, bool UncompressedTangentFrame, int Attributes );
 
 	public GpuDrivenTables( Device gpu )
 	{

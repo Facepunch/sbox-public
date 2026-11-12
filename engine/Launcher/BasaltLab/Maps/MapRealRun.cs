@@ -313,6 +313,7 @@ internal static class MapRealRun
 		md.AppendLine( bindingReport );
 		File.WriteAllText( Path.Combine( options.Output, "map-real.md" ), md.ToString() );
 		File.WriteAllText( Path.Combine( options.Output, "map-real.csv" ), csv.ToString() );
+		if ( Args.String( "-surface-convert" ) is not null ) Console.WriteLine( $"Surface batches drawn GPU-driven: {map.Backend.Surfaces.GpuDrivenBatches} over the run" );
 		Console.WriteLine( $"Results in {options.Output}; validation errors {gpu.ValidationErrors}" );
 		return 0;
 	}
