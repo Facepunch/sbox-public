@@ -280,7 +280,10 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	void CompileGpuDrivenWithShaderCompiler()
 	{
-		var compiler = Path.Combine( AppContext.BaseDirectory, "ShaderCompiler.exe" );
+		// Beside the application (BasaltLab, SceneLab), or beside this assembly when the application is elsewhere: the game's
+		// sbox.exe is in game/, its managed assemblies and the ShaderCompiler in game/bin/managed
+		var compiler = new[] { AppContext.BaseDirectory, Path.GetDirectoryName( typeof( BackendDevice ).Assembly.Location ) }
+			.Where( x => !string.IsNullOrEmpty( x ) ).Select( x => Path.Combine( x, "ShaderCompiler.exe" ) ).FirstOrDefault( File.Exists ) ?? "";
 		var core = Content.Roots.FirstOrDefault( x => File.Exists( Path.Combine( x, "shaders", "basalt_gpu_driven.fxc" ) ) );
 		if ( !File.Exists( compiler ) || core is null ) return;
 

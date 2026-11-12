@@ -67,15 +67,31 @@ public sealed class ShaderLibrary : IDisposable
 	/// <summary>What the cached shaders were recompiled by: a different version recompiles them.</summary>
 	public string UpgraderVersion { get; set; } = "";
 
+	/// <summary>
+	/// Told once for each shader that won't load (one an older engine compiled that nothing recompiles, or whose recompile
+	/// failed), with why: its materials draw nothing.
+	/// </summary>
+	public Action<string> Unloaded { get; set; }
+
+	readonly HashSet<string> unloaded = new( StringComparer.OrdinalIgnoreCase );
+
+	ShaderFile NotLoaded( string path, string why )
+	{
+		bool first;
+		lock ( unloaded ) first = unloaded.Add( path );
+		if ( first ) Unloaded?.Invoke( $"{path} won't load, so its materials draw nothing: {why}" );
+		return null;
+	}
+
 	ShaderFile LoadOrUpgrade( string path )
 	{
 		try
 		{
 			return ShaderFile.Load( path );
 		}
-		catch ( ShaderOutdatedException )
+		catch ( ShaderOutdatedException outdated )
 		{
-			if ( Upgrader is null || string.IsNullOrEmpty( UpgradeCache ) ) return null;
+			if ( Upgrader is null || string.IsNullOrEmpty( UpgradeCache ) ) return NotLoaded( path, $"{outdated.Message}, and nothing here recompiles shaders (no ShaderCompiler)" );
 		}
 
 		// By name and contents, so a changed package shader recompiles
@@ -112,11 +128,11 @@ public sealed class ShaderLibrary : IDisposable
 
 		try
 		{
-			return File.Exists( upgraded ) ? ShaderFile.Load( upgraded ) : null;
+			return File.Exists( upgraded ) ? ShaderFile.Load( upgraded ) : NotLoaded( path, $"recompiling it from its embedded source failed (see {upgraded}.failed)" );
 		}
-		catch ( InvalidDataException )
+		catch ( InvalidDataException invalid )
 		{
-			return null;
+			return NotLoaded( path, $"its recompiled copy {upgraded} doesn't load: {invalid.Message}" );
 		}
 	}
 
