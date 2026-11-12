@@ -57,6 +57,19 @@ public class PerObjectStateTests
 	}
 
 	[TestMethod]
+	public void VariantKeepsTheDrawsMaterialWhenTheStateHasNone()
+	{
+		// On a Basalt.Gpu device a material made in code has no file to load: the draw keeps the model's
+		using var model = new HeadlessMaterial( "model", "shaders/complex.shader" );
+		var mesh = new RenderMesh( new HeadlessMesh( "box" ), UnitBox, [[new RenderMesh.Draw( 0, 0, 0, 36, 24, 0, model )]] );
+
+		var variant = mesh.WithDraws( [new RenderMesh.DrawState( 0, 0, null, true, true, false )] );
+
+		Assert.AreNotSame( mesh, variant, "the state still changes the draw's blending" );
+		Assert.AreSame( model, variant.DrawsForLod( 0 ).ToArray()[0].Material );
+	}
+
+	[TestMethod]
 	public void VariantKeepsSkinning()
 	{
 		var mesh = TestSkinnedMesh( 2 );

@@ -18,7 +18,24 @@ internal sealed partial class GameWindow
 		renderingInitialized = true;
 	}
 
-	internal static bool Present() => Current is not { } game || game.window.Present();
+	/// <summary>
+	/// The frame gate: native's loop calls it after the frame's rendering has finished, and renders the next frame only if
+	/// it returns true. On Basalt.Gpu it presents the frame <see cref="Render"/> drew, then lets native end a frame with
+	/// nothing to present, so its frame count, per-frame cleanup and resource loading go on as they do after a present.
+	/// </summary>
+	internal static bool Present()
+	{
+		if ( Current is not { } game ) return true;
+		if ( game.basalt is null ) return game.window.Present();
+
+		using ( WindowPresentTiming.Scope() )
+		{
+			game.basalt.PresentFrame();
+			g_pRenderDevice.Present( default );
+		}
+
+		return true;
+	}
 
 	internal void Render()
 	{
@@ -26,6 +43,12 @@ internal sealed partial class GameWindow
 		CSceneSystem.BeginRenderingViews( true );
 		try
 		{
+			if ( basalt is not null )
+			{
+				RenderOnBasaltGpu();
+				return;
+			}
+
 			Sandbox.UI.ScenePanel.RenderPending();
 
 			using ( gameRender.Start() )
@@ -39,4 +62,41 @@ internal sealed partial class GameWindow
 			CSceneSystem.WaitForRenderingToComplete();
 		}
 	}
+
+	/// <summary>
+	/// A frame on Basalt.Gpu: the game's and the menu's cameras draw into the window's target (<see cref="BasaltGpuWindow.Drawing"/>),
+	/// then the overlay, in the block that copies it into the acquired image. Scene panels render into their textures first,
+	/// in blocks of their own. A minimised window draws nothing.
+	/// </summary>
+	void RenderOnBasaltGpu()
+	{
+		using var _ = WindowFrameTiming.Scope();
+		if ( !basalt.Update( window.PixelSize ) ) return;
+
+		Sandbox.UI.ScenePanel.RenderPending();
+
+		using ( WindowBeginTiming.Scope() )
+		{
+			if ( !basalt.BeginFrame( Color.Black ) ) return;
+		}
+
+		try
+		{
+			using ( gameRender.Start() )
+				IGameInstanceDll.Current?.OnRender( default );
+			using ( menuRender.Start() )
+				IMenuDll.Current?.OnRender( default );
+		}
+		finally
+		{
+			using ( WindowOverlayTiming.Scope() )
+				basalt.EndFrame( Graphics.RenderOverlay );
+		}
+	}
+
+	// Where a Basalt.Gpu window's frame goes, in the dev tools' timings
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowFrameTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowBeginTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window begin" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowOverlayTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window overlay" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowPresentTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window present" );
 }

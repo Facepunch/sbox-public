@@ -712,10 +712,16 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 
 	public override void SetViewport( Rect rect ) => context.Viewport = new Num.Vector4( rect.Left, rect.Top, rect.Width, rect.Height );
 
-	public override void BindRenderTarget( RenderTarget target )
+	public override void BindRenderTarget( RenderTarget target ) => BindRenderTarget( target, false );
+
+	/// <summary>
+	/// Bind <paramref name="target"/>, its colour written through its sRGB view when <paramref name="srgbWrite"/> (and its
+	/// format has one), as Source 2 writes an 8-bit texture a camera renders into.
+	/// </summary>
+	internal void BindRenderTarget( RenderTarget target, bool srgbWrite )
 	{
 		_ = Recording;
-		context.SetTarget( TextureOf( target.ColorTarget ), target.DepthTarget is { } depth ? TextureOf( depth ) : default );
+		context.SetTarget( TextureOf( target.ColorTarget ), target.DepthTarget is { } depth ? TextureOf( depth ) : default, srgbWrite );
 	}
 
 	public override void Clear( Color color, bool clearColor, bool clearDepth, bool clearStencil )

@@ -9,7 +9,7 @@ namespace Sandbox;
 /// and depth targets as engine <see cref="Texture"/>s whose backings are the frame's own, and what a camera's view gives
 /// the drawing after the scene - the frame's view constants, the blue noise texture and bloom's quarter-size input.
 /// What a camera frame on Basalt.Gpu is after the scene: post processing and the camera's later stages draw in a block
-/// from <see cref="Begin"/>, which also builds the view's depth chain from the frame's depth, then the frame is presented.
+/// from <see cref="Begin()"/>, which also builds the view's depth chain from the frame's depth, then the frame is presented.
 /// </summary>
 /// <remarks>
 /// The textures keep their engine-side identity from frame to frame; <see cref="Adopt"/> points them at the targets the
@@ -34,7 +34,7 @@ internal sealed class BasaltGpuFrame : IDisposable
 
 	/// <summary>
 	/// The view's depth chain (<c>DepthChainDownsample</c>, which <c>Depth::Get</c> reads): the min and max of the frame's
-	/// depth, mipped, built by <see cref="Begin"/>. Null for a frame with no depth.
+	/// depth, mipped, built by <see cref="Begin()"/>. Null for a frame with no depth.
 	/// </summary>
 	public Texture DepthChain { get; private set; }
 
@@ -42,6 +42,9 @@ internal sealed class BasaltGpuFrame : IDisposable
 	public byte[] Constants => constants;
 
 	public BasaltGpuFrame( BasaltGpuRenderBackend backend ) => this.backend = backend;
+
+	/// <summary>Whether the frame was drawn multisampled: <see cref="Color"/> is its resolved colour, <see cref="Depth"/> keeps its samples.</summary>
+	public bool Multisampled => target is { Samples: > 1 };
 
 	/// <summary>
 	/// Take a frame Basalt rendered into <paramref name="target"/> on the backend's device, with the view constants it drew
@@ -78,12 +81,24 @@ internal sealed class BasaltGpuFrame : IDisposable
 	/// A render block on the frame: its targets bound, its depth chain built, and what the camera's view gives its drawing
 	/// set on the block. Dispose it to submit; then call <see cref="End"/>.
 	/// </summary>
-	public Graphics.Scope Begin()
+	public Graphics.Scope Begin() => Begin( null );
+
+	/// <summary>
+	/// A render block on the frame as <see cref="Begin()"/>'s, which a camera's stages draw in: <paramref name="view"/> is
+	/// what they ask about the frame, and drawing into a render target of their own goes back to the frame's targets after.
+	/// </summary>
+	public Graphics.Scope Begin( BasaltGpuView view )
 	{
-		var scope = Graphics.Scope.CreateOn( backend );
+		// A multisampled frame hands over its resolved colour: its depth keeps its samples, so it isn't bound with it, and
+		// what reads depth reads the chain built from it
+		var frameTarget = Multisampled ? RenderTarget.From( Color ) : RenderTarget.From( Color, Depth );
+		if ( view is not null ) view.Target = frameTarget;
+		var scope = Graphics.Scope.CreateOnView( backend, view );
 		try
 		{
-			Graphics.RenderTarget = RenderTarget.From( Color, Depth );
+			if ( view is null ) Graphics.RenderTarget = frameTarget;
+			else view.Bind();
+
 			var attributes = Graphics.Attributes;
 			attributes.SetData( ViewConstantsName, constants.AsSpan() );
 
@@ -108,7 +123,7 @@ internal sealed class BasaltGpuFrame : IDisposable
 
 	/// <summary>
 	/// Count <paramref name="exposure"/>'s luminance bucket for this frame over its colour, in the block from
-	/// <see cref="Begin"/> before tonemapping, as a camera's stages do on Source 2. The exposure it moves to
+	/// <see cref="Begin()"/> before tonemapping, as a camera's stages do on Source 2. The exposure it moves to
 	/// (<see cref="AutoExposure.FrameUpdate"/>, before the scene) is the next frames' <c>ToneMapScalar</c>.
 	/// </summary>
 	public void CountExposure( AutoExposure exposure ) => backend.CountExposure( exposure, Color, new Rect( 0, 0, Color.Width, Color.Height ) );

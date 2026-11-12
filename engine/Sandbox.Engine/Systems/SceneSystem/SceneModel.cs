@@ -122,6 +122,19 @@ public sealed partial class SceneModel : SceneObject
 	}
 
 	/// <summary>
+	/// The flex controllers' weights as native morphs the model with them - from its animation, then the overrides set
+	/// through <see cref="Morphs"/> - by the model's flex controller index (<see cref="Model.GetMorphName"/>), into
+	/// <paramref name="dest"/>. Returns how many the model has.
+	/// </summary>
+	internal unsafe int GetFlexControllerWeights( Span<float> dest )
+	{
+		if ( animNative.IsNull ) return 0;
+
+		fixed ( float* p = dest )
+			return animNative.GetFlexControllerWeights( (IntPtr)p, dest.Length );
+	}
+
+	/// <summary>
 	/// The index of the bone closest to a world position, or -1 without bones. Resolved natively in a
 	/// single interop call - no bone transforms are copied out.
 	/// </summary>

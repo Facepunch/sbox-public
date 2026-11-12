@@ -48,42 +48,69 @@ internal static class ScreenshotService
 	{
 		try
 		{
-			Bitmap bitmap = null;
-
-			context.ReadTextureAsync( nativeTexture, ( pData, format, mipLevel, width, height, _ ) =>
-			{
-				try
-				{
-					bitmap = new Bitmap( width, height );
-
-					if ( !CopyReadbackToBitmap( pData, format, width, height, bitmap ) )
-					{
-						Log.Warning( $"Can't save screenshot, unsupported render target format {format}" );
-						return;
-					}
-
-					var rgbData = bitmap.ToFormat( ImageFormat.RGB888 );
-					Services.Screenshots.AddScreenshotToLibrary( rgbData, width, height );
-
-					var dir = Path.GetDirectoryName( filePath );
-					if ( dir != null )
-					{
-						Directory.CreateDirectory( dir );
-					}
-					var encodedBytes = bitmap.ToPng();
-					File.WriteAllBytes( filePath, encodedBytes );
-				}
-				catch ( Exception ex )
-				{
-					Log.Error( $"Error creating bitmap from texture: {ex.Message}" );
-				}
-			} );
+			context.ReadTextureAsync( nativeTexture, ( pData, format, mipLevel, width, height, _ ) => Save( pData, format, width, height, filePath ) );
 
 			Log.Info( $"Screenshot saved to: {filePath}" );
 		}
 		catch ( Exception ex )
 		{
 			Log.Error( $"Error capturing screenshot: {ex.Message}" );
+		}
+	}
+
+	/// <summary>
+	/// Take the screenshots asked for from a Basalt.Gpu window's finished frame, <paramref name="frame"/> (RGBA8, as the window
+	/// presents it), read back once its last block has been submitted.
+	/// </summary>
+	internal static void ProcessFrame( BasaltGpuRenderBackend backend, Texture frame )
+	{
+		if ( _pendingRequests.IsEmpty ) return;
+
+		byte[] pixels;
+		try
+		{
+			pixels = System.Runtime.InteropServices.MemoryMarshal.AsBytes( backend.ReadPixels( frame ).AsSpan() ).ToArray();
+		}
+		catch ( Exception ex )
+		{
+			_pendingRequests.Clear();
+			Log.Error( $"Error capturing screenshot: {ex.Message}" );
+			return;
+		}
+
+		while ( _pendingRequests.TryDequeue( out var request ) )
+		{
+			Save( pixels, ImageFormat.RGBA8888, frame.Width, frame.Height, request.FilePath );
+			Log.Info( $"Screenshot saved to: {request.FilePath}" );
+		}
+	}
+
+	static void Save( ReadOnlySpan<byte> data, ImageFormat format, int width, int height, string filePath )
+	{
+		try
+		{
+			var bitmap = new Bitmap( width, height );
+
+			if ( !CopyReadbackToBitmap( data, format, width, height, bitmap ) )
+			{
+				Log.Warning( $"Can't save screenshot, unsupported render target format {format}" );
+				return;
+			}
+
+			var rgbData = bitmap.ToFormat( ImageFormat.RGB888 );
+			Services.Screenshots.AddScreenshotToLibrary( rgbData, width, height );
+
+			var dir = Path.GetDirectoryName( filePath );
+			if ( dir != null )
+			{
+				Directory.CreateDirectory( dir );
+			}
+			var encodedBytes = bitmap.ToPng();
+			File.WriteAllBytes( filePath, encodedBytes );
+		}
+		catch ( Exception ex )
+		{
+			Log.Error( $"Error creating bitmap from texture: {ex.Message}" );
 		}
 	}
 
