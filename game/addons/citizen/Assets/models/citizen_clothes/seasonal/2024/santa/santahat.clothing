@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 328701,
   "Icon": {
-    "Path": "models/citizen_clothes/seasonal/2024/santa/santahat.clothing.png",
+    "Path": "models/citizen_clothes/seasonal/2024/santa/santahat.clothing.vtex",
     "Mode": "Head",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

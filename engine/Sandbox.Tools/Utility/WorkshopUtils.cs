@@ -60,7 +60,11 @@ static class WorkshopUtils
 
 				if ( !string.IsNullOrEmpty( clothing.Icon.Path ) )
 				{
-					item.SetPreviewImage( FileSystem.Mounted.GetFullPath( clothing.Icon.Path ) );
+					// Workshop previews use the PNG source, while the game uses its compiled texture.
+					var previewPath = clothing.Icon.Path.EndsWith( ".vtex", StringComparison.OrdinalIgnoreCase )
+						? System.IO.Path.ChangeExtension( clothing.Icon.Path, ".png" )
+						: clothing.Icon.Path;
+					item.SetPreviewImage( FileSystem.Mounted.GetFullPath( previewPath ) );
 				}
 			} );
 

@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/vest/tactical_vest/models/tactical_vest_army.clothing.png",
+    "Path": "models/citizen_clothes/vest/tactical_vest/models/tactical_vest_army.clothing.vtex",
     "Mode": "Generic",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

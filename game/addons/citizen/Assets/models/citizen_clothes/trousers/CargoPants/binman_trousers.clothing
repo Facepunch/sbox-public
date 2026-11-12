@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/trousers/cargopants/binman_trousers.clothing.png",
+    "Path": "models/citizen_clothes/trousers/cargopants/binman_trousers.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "-104.5,0,-28.3999996"

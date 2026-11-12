@@ -1,0 +1,538 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "ModelModifierList"
+				children =
+				[
+					{
+						_class = "ModelModifier_ScaleAndMirror"
+						note = "Convert the source meshes and shared Human animations from centimeters to inches together."
+						scale = 0.3937
+						mirror_x = false
+						mirror_y = false
+						mirror_z = false
+						flip_bone_forward = false
+						swap_left_and_right_bones = false
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "lambert4.vmat"
+								to = "models/player/sbzombie/zombie_hair.vmat"
+							},
+							{
+								from = "saliva.vmat"
+								to = "models/player/sbzombie/saliva.vmat"
+							},
+							{
+								from = "shirt.vmat"
+								to = "models/player/sbzombie/shirt.vmat"
+							},
+							{
+								from = "arms.vmat"
+								to = "models/player/sbzombie/zombie_arms.vmat"
+							},
+							{
+								from = "jeans.vmat"
+								to = "models/player/sbzombie/jeans.vmat"
+							},
+							{
+								from = "shoes.vmat"
+								to = "models/player/sbzombie/shoes.vmat"
+							},
+							{
+								from = "zombie_head.vmat"
+								to = "models/player/sbzombie/zombie_head.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "materials/default.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						filename = "models/player/sbzombie/zombie_01.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"jeans_LOD0",
+								"hair_LOD0",
+								"face_LOD0",
+								"eyes_LOD0",
+								"shirt_LOD0",
+								"zombie_arms_LOD0",
+								"legs_LOD0",
+								"shoe_LOD0",
+								"goo_LOD0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD1"
+						filename = "models/player/sbzombie/zombie_01.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"jeans_LOD1",
+								"hair_LOD1",
+								"face_LOD1",
+								"eyes_LOD1",
+								"shirt_LOD1",
+								"zombie_arms_LOD1",
+								"legs_LOD1",
+								"shoe_LOD1",
+								"goo_LOD0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD2"
+						filename = "models/player/sbzombie/zombie_01.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"jeans_LOD2",
+								"hair_LOD2",
+								"face_LOD2",
+								"eyes_LOD2",
+								"shirt_LOD2",
+								"zombie_arms_LOD2",
+								"legs_LOD2",
+								"shoe_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD3"
+						filename = "models/player/sbzombie/zombie_01.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"jeans_LOD3",
+								"hair_LOD3",
+								"face_LOD3",
+								"eyes_LOD2",
+								"shirt_LOD3",
+								"zombie_arms_LOD3",
+								"legs_LOD3",
+								"shoe_LOD3",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsJointList"
+				children =
+				[
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "head"
+						child_body = "jaw_top"
+						anchor_origin = [ 0.0, 0.0, 0.0 ]
+						anchor_angles = [ 0.0, 0.0, 0.0 ]
+						collision_enabled = true
+						linear_strength = 0.0
+						angular_strength = 0.0
+						linear_freqeuncy = 0.0
+						linear_damping_ratio = 1.147
+						max_force = 0.0
+						angular_frequency = 27.209999
+						angular_damping_ratio = 1.814
+						max_torque = 0.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "jaw_top"
+						child_body = "jaw_bottom"
+						anchor_origin = [ -3.221826, 0.0, -0.000003 ]
+						anchor_angles = [ 0.0, 0.0, 0.0 ]
+						collision_enabled = true
+						linear_strength = 0.0
+						angular_strength = 0.0
+						linear_freqeuncy = 0.0
+						linear_damping_ratio = 0.0
+						max_force = 0.0
+						angular_frequency = 0.0
+						angular_damping_ratio = 0.0
+						max_torque = 0.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsShapeSphere"
+						parent_bone = "jaw_top"
+						surface_prop = "default"
+						collision_tags = "solid"
+						radius = 5.08001
+						center = [ 0.0, 0.0, 0.0 ]
+					},
+					{
+						_class = "PhysicsShapeSphere"
+						parent_bone = "jaw_bottom"
+						surface_prop = "default"
+						collision_tags = "solid"
+						radius = 1.016002
+						center = [ -0.0, 0.391031, 0.333002 ]
+					},
+					{
+						_class = "PhysicsShapeCapsule"
+						parent_bone = "head"
+						surface_prop = "default"
+						collision_tags = "solid"
+						radius = 7.620015
+						point0 = [ 0.0, 0.0, 0.0 ]
+						point1 = [ 16.007864, 0.0, 0.0 ]
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD0",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 10.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD1",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 20.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD2",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 40.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD3",
+						]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "AnimationList"
+				children =
+				[
+					{
+						_class = "Prefab"
+						target_file = "models/citizen_human/prefabs/human_animationlist.vmdl_prefab"
+					},
+					{
+						_class = "Prefab"
+						target_file = "models/citizen_human/prefabs/human_animationlist_menu.vmdl_prefab"
+					},
+					{
+						_class = "Prefab"
+						target_file = "models/citizen_human/prefabs/human_animationlist_visemes.vmdl_prefab"
+					},
+					{
+						_class = "AnimFrame"
+						name = "SkeletonDelta_delta"
+						note = "Neutral skeleton correction for the shared Human graph"
+						children =
+						[
+							{
+								_class = "AnimSubtract"
+								anim_name = "bindPose"
+								frame = 0
+							},
+						]
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = true
+						disable_interpolation = false
+						enable_scale = false
+						src_anim_name = "bindPose"
+						frame_type = "FirstFrame"
+						frame = 0
+					},
+				]
+				default_root_bone_name = "pelvis"
+			},
+			{
+				_class = "BoneMarkupList"
+				children =
+				[
+					{
+						_class = "Prefab"
+						target_file = "models/citizen_human/prefabs/human_bonemarkuplist.vmdl_prefab"
+					},
+				]
+				bone_cull_type = "None"
+			},
+			{
+				_class = "AttachmentList"
+				children =
+				[
+					{
+						_class = "Attachment"
+						name = "hold_R"
+						parent_bone = "hold_R"
+						relative_origin = [ 0.0, 0.0, 0.0 ]
+						relative_angles = [ 0.0, 0.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "hold_L"
+						parent_bone = "hold_L"
+						relative_origin = [ 0.0, 0.0, 0.0 ]
+						relative_angles = [ 0.0, 0.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "IK_right_hand"
+						parent_bone = "hand_R_IK_target"
+						relative_origin = [ 0.0, 0.0, 0.0 ]
+						relative_angles = [ 0.0, 0.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "IK_left_hand"
+						parent_bone = "hand_L_IK_target"
+						relative_origin = [ 0.0, 0.0, 0.0 ]
+						relative_angles = [ 0.0, 0.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "forward_reference_modelspace"
+						children =
+						[
+							{
+								_class = "AttachmentInfluence"
+								parent_bone = "head"
+								relative_origin = [ 0.0, -3.0, 0.0 ]
+								relative_angles = [ 0.0, 90.0, 90.0 ]
+								weight = 1.0
+							},
+						]
+						parent_bone = "pelvis"
+						relative_origin = [ 0.0, -3.0, 0.0 ]
+						relative_angles = [ 0.0, 90.0, 90.0 ]
+						weight = 1.0
+						ignore_rotation = true
+					},
+					{
+						_class = "Attachment"
+						name = "eyes"
+						parent_bone = "head"
+						relative_origin = [ 10.25, 7.6, 0.0 ]
+						relative_angles = [ -0.0, 90.0, 90.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "forward_reference"
+						parent_bone = "head"
+						relative_origin = [ 0.0, 0.0, 0.0 ]
+						relative_angles = [ 0.0, 90.0, 90.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "foot_R"
+						note = "Used by the GameData category"
+						parent_bone = "ball_R"
+						relative_origin = [ -3.65, -1.1, 0.65 ]
+						relative_angles = [ 0.0, 0.0, -90.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "foot_L"
+						note = "Used by the GameData category"
+						parent_bone = "ball_L"
+						relative_origin = [ -3.65, 1.1, -0.65 ]
+						relative_angles = [ -0.0, 180.0, -89.999992 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "hat"
+						parent_bone = "head"
+						relative_origin = [ 21.5, 1.0, 0.0 ]
+						relative_angles = [ 0.0, 90.0, 90.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+				]
+			},
+			{
+				_class = "PoseParamList"
+				children =
+				[
+					{
+						_class = "Prefab"
+						target_file = "models/citizen/prefabs/citizen_poseparamlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "WeightListList"
+				children =
+				[
+					{
+						_class = "Prefab"
+						target_file = "models/citizen/prefabs/citizen_weightlistlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "IKData"
+				children =
+				[
+					{
+						_class = "Prefab"
+						target_file = "models/citizen_human/prefabs/human_ikdata.vmdl_prefab"
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = "models/citizen_human/animgraphs/human.vanmgrph"
+		animation_graph_name = ""
+		skeleton_name = ""
+		base_model_name = ""
+	}
+}

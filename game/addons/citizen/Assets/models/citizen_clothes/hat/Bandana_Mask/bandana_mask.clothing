@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 562324,
   "Icon": {
-    "Path": "models/citizen_clothes/hat/bandana_mask/bandana_mask.clothing.png",
+    "Path": "models/citizen_clothes/hat/bandana_mask/bandana_mask.clothing.vtex",
     "Mode": "Mouth",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

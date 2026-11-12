@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 349443,
   "Icon": {
-    "Path": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_gown/wizard_gown.clothing.png",
+    "Path": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_gown/wizard_gown.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "4.59996891,0,-5.49999905"

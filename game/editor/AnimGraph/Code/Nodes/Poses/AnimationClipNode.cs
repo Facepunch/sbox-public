@@ -99,7 +99,7 @@ public class AnimationClipNode : VariationDataNode<AnimationClipNode.Data>
 
 	public override Color PrimaryColor => Theme.Green;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{

@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-[Hide]
+[Hide, StripOnSceneCompile]
 public sealed class CableNodeComponent : Component, Component.ExecuteInEditor
 {
 	float _radiusScale = 1.0f;

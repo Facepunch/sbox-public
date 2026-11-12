@@ -536,14 +536,20 @@ public partial class Window
 		if ( _crumbs is null )
 			return;
 
-		var shown = string.Join( "|", _nav );
+		var titles = _nav.Select( page => ResolvePage( page ) switch
+		{
+			Node node => node.DisplayInfo.Name,
+			Data { Owner: { } owner } graph => SubGraphInfo( owner, graph ).Title,
+			_ => page.Title
+		} ).ToArray();
+		var shown = string.Join( "|", _nav.Select( ( page, index ) => $"{page}:{titles[index]}" ) );
 		if ( shown == _breadcrumbShown )
 			return;
 
 		_breadcrumbShown = shown;
 		using var _ = SuspendUpdates.For( _breadcrumb );
-		_crumbs.SetItems( _nav.Select( (page, index) => new BreadcrumbBar.Item(
-			page.Title, page.Icon, PageColor( page ), index < _nav.Count - 1 ? () => NavigateBackTo( index ) : null ) ) );
+		_crumbs.SetItems( _nav.Select( ( page, index ) => new BreadcrumbBar.Item(
+			titles[index], page.Icon, PageColor( page ), index < _nav.Count - 1 ? () => NavigateBackTo( index ) : null ) ) );
 	}
 
 	/// <summary>

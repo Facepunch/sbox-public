@@ -26,9 +26,9 @@ public class ClothingScene
 	public SkinnedModelRenderer Body;
 
 	/// <summary>
-	/// Whether the selected item has a Human skin or a clothing mesh to export.
+	/// Whether the selected item has a player model or a clothing mesh to export.
 	/// </summary>
-	public bool HasRenderableClothing => clothing?.HasHumanSkin == true || itemRenderers.Any( x => x.IsValid() && !x.GameObject.IsDestroyed );
+	public bool HasRenderableClothing => clothing?.ReplacesBody == true || itemRenderers.Any( x => x.IsValid() && !x.GameObject.IsDestroyed );
 
 	Clothing.IconSetup iconSetup;
 	Clothing clothing;
@@ -64,7 +64,7 @@ public class ClothingScene
 
 		// Camera presets control framing, not skin appearance. Only actual skin items
 		// show their skin; clothing and accessories use the same neutral mannequin.
-		bool wantsGreySkin = !clothing.HasHumanSkin;
+		bool wantsGreySkin = !clothing.ReplacesBody;
 
 		using var x = Scene.Push();
 
@@ -94,6 +94,7 @@ public class ClothingScene
 
 		// Removing the Dresser's default underwear must also restore the limbs it hid.
 		// Skin portraits still preserve their selected skin's bodygroup choices.
+		Body.BodyGroups = (clothing.ReplacesBody ? clothing.BodyGroupMask : null) ?? Body.Model.Parts.DefaultMask;
 		foreach ( var (name, value) in container.GetBodyGroups( new[] { clothing }, Body.Model ) )
 		{
 			if ( value == 0 && !wantsGreySkin ) continue;
@@ -214,12 +215,27 @@ public class ClothingScene
 		if ( !Body.IsValid() )
 			return;
 
+		if ( clothing?.ReplacesBody == true )
+		{
+			// Every player model uses the same three-quarter portrait, regardless of saved icon settings.
+			var eyes = Body.GetAttachment( "eyes" )?.Position;
+			if ( eyes is null && Body.TryGetBoneTransform( "head", out var head ) )
+				eyes = head.Position;
+
+			var portraitCenter = (eyes ?? Body.Bounds.Center) + Vector3.Down;
+			var portraitRotation = Rotation.From( -3, 155, 0 );
+			Scene.Camera.FieldOfView = 4;
+			Scene.Camera.ZNear = 0.1f;
+			Scene.Camera.ZFar = 5000;
+			Scene.Camera.WorldPosition = portraitCenter - portraitRotation.Forward * 190;
+			Scene.Camera.WorldRotation = portraitRotation;
+			return;
+		}
+
 		var mode = GetFramingMode();
 		var fullOutfit = IsFullOutfit( mode );
 		var angles = mode switch
 		{
-			// Skin thumbnails show the face straight on so facial features are easy to compare.
-			Clothing.IconSetup.IconModes.HumanSkin => new Angles( 0, 180, 0 ),
 			Clothing.IconSetup.IconModes.Hand => new Angles( 15, 130, 0 ),
 			Clothing.IconSetup.IconModes.Foot => new Angles( 15, 150, 0 ),
 			Clothing.IconSetup.IconModes.Wrist => new Angles( 15, itemRenderers.Any( FrameLeftHand ) ? 220 : 130, 45 ),
@@ -240,9 +256,8 @@ public class ClothingScene
 		var bounds = BBox.FromPoints( points.Select( p => rotation.Inverse * p ) );
 		var center = rotation * bounds.Center;
 
-		// A long lens keeps full outfits readable and skin portraits free of wide-angle
-		// facial distortion. The mannequin's head is outside the full outfit fit.
-		Scene.Camera.FieldOfView = fullOutfit ? 5 : mode == Clothing.IconSetup.IconModes.HumanSkin ? 2.5f : 20;
+		// A long lens keeps full outfits readable. The mannequin's head is outside the full outfit fit.
+		Scene.Camera.FieldOfView = fullOutfit ? 5 : 20;
 		Scene.Camera.ZFar = 5000;
 		Scene.Camera.ZNear = 0.1f;
 
@@ -269,9 +284,6 @@ public class ClothingScene
 	/// </summary>
 	Clothing.IconSetup.IconModes GetFramingMode()
 	{
-		if ( clothing?.HasHumanSkin == true )
-			return Clothing.IconSetup.IconModes.HumanSkin;
-
 		// Older workshop earrings used Mouth or CitizenSkin with large Citizen offsets.
 		// Fit one earring directly instead of framing the space between the pair.
 		if ( clothing?.Category is Clothing.ClothingCategory.EarringStud or Clothing.ClothingCategory.EarringDangle or Clothing.ClothingCategory.EarringSpecial )
@@ -384,10 +396,6 @@ public class ClothingScene
 
 			return points;
 		}
-
-		// Skin definitions have no separate clothing mesh. Frame the Human head and neck.
-		if ( mode == Clothing.IconSetup.IconModes.HumanSkin && Body.GetAttachment( "eyes" ) is Transform eyes )
-			return BBox.FromPositionAndSize( eyes.Position + Vector3.Down, new Vector3( 8, 8, 12 ) ).Corners;
 
 		return Body.Bounds.Corners;
 	}

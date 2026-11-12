@@ -35,7 +35,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 696280,
   "Icon": {
-    "Path": "models/citizen_clothes/makeup/neck_tattoo/neck_tattoo.clothing.png",
+    "Path": "models/citizen_clothes/makeup/neck_tattoo/neck_tattoo.clothing.vtex",
     "Mode": "Head",
     "PositionOffset": "10,0,-4.2",
     "UsePositionOffset": false

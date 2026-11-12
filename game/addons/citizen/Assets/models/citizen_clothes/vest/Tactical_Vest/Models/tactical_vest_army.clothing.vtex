@@ -1,0 +1,9 @@
+{
+  "$compiler": "texture",
+  "$source": "imagefile",
+  "data": {
+    "FilePath": "models/citizen_clothes/vest/tactical_vest/models/tactical_vest_army.clothing.png",
+    "Lossless": true
+  },
+  "compiled": null
+}

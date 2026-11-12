@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 3686,
   "Icon": {
-    "Path": "models/citizen_clothes/shirt/jumpsuit/prison_jumpsuit.clothing.png",
+    "Path": "models/citizen_clothes/shirt/jumpsuit/prison_jumpsuit.clothing.vtex",
     "Mode": "Generic",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

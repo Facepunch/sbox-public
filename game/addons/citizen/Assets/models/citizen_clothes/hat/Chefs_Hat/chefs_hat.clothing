@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 65001,
   "Icon": {
-    "Path": "models/citizen_clothes/hat/chefs_hat/chefs_hat.clothing.png",
+    "Path": "models/citizen_clothes/hat/chefs_hat/chefs_hat.clothing.vtex",
     "Mode": "Eyes",
     "UsePositionOffset": false,
     "PositionOffset": "-12.8999996,0.499999911,2.400002"

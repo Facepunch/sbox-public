@@ -1,0 +1,55 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/skin.shader"
+
+	//---- Skin ----
+	F_SSS_MASK 1
+	F_USE_BENT_NORMALS 1
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "0.842"
+	g_flAmbientOcclusionDirectSpecular "1.000"
+	TextureAmbientOcclusion "models/player/sbzombie/zombie_head_ao.png"
+
+	//---- Color ----
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "models/player/sbzombie/zombie_head_color.png"
+	TextureSssMask "materials/default/default_mask.tga"
+
+	//---- Curvature ----
+	g_flCurvatureScale "1.000"
+
+	//---- Face Occlusion ----
+	g_flMouthInteriorBrightnessScale "1.000"
+	TextureInsideMouth "models/player/sbzombie/zombie_head_ao.png"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Lookup Textures ----
+	g_vAmbientNormalSoftness "[0.635294 0.513726 0.462745 0.000000]"
+	TextureDiffuseFalloff "materials/default/default_skin_diffusewarp.tga"
+
+	//---- Normal ----
+	g_flDiffuseNormalBlur "0.500"
+	TextureBentNormal "models/player/sbzombie/zombie_head_bentnormal.png"
+	TextureNormal "models/player/sbzombie/zombie_head_normal.png"
+
+	//---- Roughness ----
+	g_flRoughnessScale "1.436"
+	TextureRoughness "models/player/sbzombie/zombie_head_rough.png"
+
+	//---- Specular ----
+	g_flSecondSpecularLobeRatio "0.076"
+
+	//---- Tinting ----
+	TextureTintLookup "[1.000000 1.000000 1.000000 0.000000]"
+
+	//---- Transmission ----
+	g_flTransmissionFalloff "3.894"
+	g_vTransmissionColor "[0.121569 0.082353 0.066667 0.000000]"
+	TextureTransmissiveMask "models/player/sbzombie/zombie_head_rough.png"
+}

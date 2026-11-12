@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/jacket/bomber_jacket/bomber_jacket.clothing.png",
+    "Path": "models/citizen_clothes/jacket/bomber_jacket/bomber_jacket.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "64.8000031,0,-1.299999"
