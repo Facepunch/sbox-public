@@ -51,4 +51,20 @@ public class BasaltGpuTexturesTest
 		Assert.AreEqual( 0, basalt.CopiedFromSource2, "nothing was read back from Source 2" );
 		Assert.AreEqual( 0, basalt.ValidationErrors );
 	}
+
+	/// <summary>
+	/// Starting the device's next frame starts the renderer services' too, so GPU-driven drawing's per-frame memory comes
+	/// back rather than growing until the bindless table runs out of slots.
+	/// </summary>
+	[TestMethod]
+	public void NextFrameStartsTheServicesFrame()
+	{
+		// A device of its own: no Source 2 renderer needed
+		using var basalt = BasaltGpuRenderBackend.Create();
+
+		var before = basalt.ServicesFrame;
+		basalt.NextFrame();
+		basalt.NextFrame();
+		Assert.AreEqual( before + 2, basalt.ServicesFrame );
+	}
 }
