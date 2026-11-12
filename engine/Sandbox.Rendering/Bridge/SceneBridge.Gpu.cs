@@ -145,11 +145,19 @@ internal sealed partial class SceneBridge
 			state.GpuTarget = ViewTarget.Create( targetSize, samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Basalt.Gpu camera" );
 		}
 
+		// The stages before the scene is finished draw inside its frame; ambient occlusion runs in its stage, not early
+		var frame = state.GpuFrame ??= new BasaltGpuFrame( backend );
+		var stages = state.GpuStages ??= new GpuCameraStages { Run = RunStage };
+		stages.Camera = camera;
+		stages.System = state.System;
+		stages.Frame = frame;
+		stages.View = gpuView;
+		camera.ScheduleEarlyPostProcess( Stage.AfterDepthPrepass, false );
+
 		using ( SceneTiming.Scope() )
 		using ( new Drawing( this, state ) )
-			state.System.Render( mirror.World, state.View, state.GpuTarget );
+			state.System.Render( mirror.World, state.View, state.GpuTarget, stages );
 
-		var frame = state.GpuFrame ??= new BasaltGpuFrame( backend );
 		frame.Adopt( state.GpuTarget, state.System.Frame.Constants );
 
 		gpuView.LayerType = SceneLayerType.Translucent;

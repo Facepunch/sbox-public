@@ -249,6 +249,49 @@ internal sealed partial class BackendContext : GpuContext
 	}
 
 	/// <summary>
+	/// Hand the list this context records into to another recorder on the device (the engine's drawing, in a camera's
+	/// stage) to record into next, in order: what's open is closed and pending clears are done. Textures are where
+	/// <see cref="LendLayout"/> says; tell this context where the other left them with <see cref="SetLayout"/>, then
+	/// <see cref="Reclaim"/> it.
+	/// </summary>
+	internal CommandList Lend()
+	{
+		CloseScope();
+		return List;
+	}
+
+	/// <summary>
+	/// The layout <paramref name="texture"/> is in for another recorder in the lent list (<see cref="Lend"/>): as
+	/// <see cref="LayoutOf"/>, except in a list recorded beside others that hasn't used it yet, where the lists before it may
+	/// still move it: there it's <paramref name="start"/>, which the list then needs at its start, as a draw that samples
+	/// one does (<see cref="SampledLayoutOf"/>).
+	/// </summary>
+	internal ImageLayout LendLayout( BackendTexture texture, ImageLayout start )
+	{
+		if ( recording?.Layouts is not { } local ) return texture.Layout;
+		if ( local.TryGetValue( texture, out var known ) ) return known.Current;
+		local[texture] = (start, start);
+		return start;
+	}
+
+	/// <summary>Where another recorder left <paramref name="texture"/> in the list it was lent (<see cref="Lend"/>).</summary>
+	internal void SetLayout( BackendTexture texture, ImageLayout layout )
+	{
+		if ( recording?.Layouts is { } local ) local[texture] = (local.TryGetValue( texture, out var known ) ? known.First : texture.Layout, layout);
+		else texture.Layout = layout;
+	}
+
+	/// <summary>Carry on recording after a lend: the list's pipeline and sets are another's now, so they're bound again.</summary>
+	internal void Reclaim()
+	{
+		if ( recording is not { } r ) return;
+		r.Pipeline = default;
+		r.Binder = null;
+		r.BindVersion = -1;
+		boundValid = false;
+	}
+
+	/// <summary>
 	/// The layout of a texture a draw samples: as <see cref="LayoutOf"/>, and when a list recorded beside others reads one
 	/// it hasn't used yet, it notes that it needs it readable at its start.
 	/// </summary>
@@ -1056,8 +1099,6 @@ internal sealed partial class BackendContext : GpuContext
 		var (gx, gy, gz) = variant.Compute.Bytecode.ThreadGroupSize;
 		r.List.Dispatch( (x + Math.Max( gx, 1 ) - 1) / Math.Max( gx, 1 ), (y + Math.Max( gy, 1 ) - 1) / Math.Max( gy, 1 ), (z + Math.Max( gz, 1 ) - 1) / Math.Max( gz, 1 ) );
 	}
-
-	public override void Dispatch( GpuMaterial computeShader, ShaderParameters parameters, int x, int y, int z ) { }
 
 	public override void DrawFullscreen( GpuMaterial material, ShaderParameters parameters, StringToken shaderMode ) { }
 

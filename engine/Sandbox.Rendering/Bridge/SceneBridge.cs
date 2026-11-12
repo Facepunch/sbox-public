@@ -87,6 +87,7 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		/// </summary>
 		public ViewTarget GpuTarget;
 		public BasaltGpuFrame GpuFrame;
+		public GpuCameraStages GpuStages;
 
 		/// <summary>
 		/// Release owned resources; colour targets and caller depth remain the caller's.
