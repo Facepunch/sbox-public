@@ -210,6 +210,54 @@ public class AnimationResourceGuidTests
 	}
 
 	[TestMethod]
+	public void GraphOverTaskLimitFallsBackToReferencePoseAndRecovers()
+	{
+		var skeletonPath = AssetPath( "tasklimit.skel" );
+		WriteResource( skeletonPath, Guid.NewGuid(), CompileData( SkeletonData() ) );
+		var clipPath = AssetPath( "tasklimit.anim" );
+		WriteResource( clipPath, Guid.NewGuid(), CompileData( ClipData( JsonValue.Create( skeletonPath ) ) ) );
+		var builder = Graph.Builder;
+		builder.Skeleton = skeletonPath;
+		var depth = builder.FloatParameter( "depth" );
+		var depth14 = builder.Clip( clipPath );
+		for ( var i = 0; i < 14; i++ )
+			depth14 = builder.Blend( depth14, depth14, .5f );
+		var depth15 = builder.Blend( depth14, depth14, .5f );
+		var root = builder.BlendSpace( depth, looping: false )
+			.Add( 0f, builder.Clip( clipPath ) )
+			.Add( 1f, depth14 )
+			.Add( 2f, depth15 );
+		using var graph = builder.Create( root );
+		var mesh = new Mesh( Material.Load( "materials/default/white.vmat" ) );
+		mesh.CreateVertexBuffer( 3, new Vertex[3].AsSpan() );
+		mesh.CreateIndexBuffer( 3, new[] { 0, 1, 2 } );
+		mesh.Bounds = new BBox( new Vector3( -16 ), new Vector3( 16 ) );
+		var model = Keep( Model.Builder.AddBone( "root", Vector3.Zero, Rotation.Identity ).AddMesh( mesh ).Create() );
+		var world = new SceneWorld();
+		try
+		{
+			var actor = new SceneModel( world, model, Transform.Zero ) { UseAnimGraph = true };
+			actor.Animation.Graph = graph;
+
+			float Evaluate( float value )
+			{
+				Assert.IsTrue( actor.Animation.Parameters.TrySet( "depth", value ) );
+				actor.Update( .016f );
+				return actor.GetParentSpaceBone( 0 ).Position.x;
+			}
+
+			Assert.AreEqual( 7f, Evaluate( 0f ), .001f );
+			Assert.AreEqual( 7f, Evaluate( 1f ), .001f, "Exactly MaxTasks still evaluates" );
+			Assert.AreEqual( 0f, Evaluate( 2f ), .001f, "Over MaxTasks falls back to the reference pose" );
+			Assert.AreEqual( 7f, Evaluate( 0f ), .001f, "Recovers once under the limit" );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	[TestMethod]
 	public void SlotIdentityDoesNotMergeReusedPathsOrMixedLegacyReferences()
 	{
 		var skeletonPath = AssetPath( "slots.skel" );
