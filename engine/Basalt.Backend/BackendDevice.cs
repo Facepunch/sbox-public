@@ -477,8 +477,20 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		lock ( sharedMaterials )
 		{
 			if ( sharedMaterials.TryGetValue( path, out var material ) ) return material;
-			return sharedMaterials[path] = Material( path, null );
+			return sharedMaterials[path] = Converted( path ) ?? Material( path, null );
 		}
+	}
+
+	/// <summary>
+	/// A material whose <c>.shader</c> has a surface standing in for it (<see cref="SurfaceShaders.Convert"/>), as that
+	/// surface with the material's values; null when it has none or doesn't compile.
+	/// </summary>
+	GpuMaterial Converted( string path )
+	{
+		if ( surfaces is not { HasConversions: true } || Content.TryRead( path ) is not { } data || ReadMaterial( data ) is not { } file ) return null;
+		if ( surfaces.ConversionFor( file.Shader ) is not { } surface || surfaces.Compile( surface ) is not { } compiled ) return null;
+		surfaces.CountConverted();
+		return ConvertedMaterial.Create( compiled, file, path, texture => LoadTexture( texture ) );
 	}
 
 	/// <summary>A material that's a shader with its defaults.</summary>

@@ -15,6 +15,8 @@ internal sealed partial class BackendContext
 {
 	const string ForwardAlphaTestPass = ShaderPasses.Forward + "AlphaTest";
 
+	static readonly StringToken LightmapCombo = new( "D_BAKED_LIGHTING_FROM_LIGHTMAP" );
+
 	/// <summary><c>kMaterialOffsetPerPixel</c> in sbox/material.slang.</summary>
 	const uint MaterialOffsetPerPixelId = 2;
 
@@ -28,19 +30,22 @@ internal sealed partial class BackendContext
 		// The targets are this scope's only once it's open
 		var r = recording;
 		var noColor = stripPixelShader || r.Color is null;
-		SurfaceProgram.PassObjects pass;
+		string name;
 		if ( noColor )
 		{
-			pass = material.AlphaTest ? program.Pass( ShaderPasses.DepthAlphaTest ) : program.Pass( ShaderPasses.Depth );
+			name = material.AlphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth;
 		}
 		else if ( shaderMode.Value == ForwardMode.Value )
 		{
-			pass = material.AlphaTest ? program.Pass( ForwardAlphaTestPass ) ?? program.Pass( ShaderPasses.Forward ) : program.Pass( ShaderPasses.Forward );
+			name = material.AlphaTest && program.Pass( ForwardAlphaTestPass ) is not null ? ForwardAlphaTestPass : ShaderPasses.Forward;
 		}
 		else
 		{
 			return false;
 		}
+
+		// A lightmapped object's draws (today's D_BAKED_LIGHTING_FROM_LIGHTMAP combo) pass the mesh's lightmap uv on
+		var pass = (LookupCombo( LightmapCombo ) is > 0 ? program.Pass( name + ShaderPasses.Lightmapped ) : null) ?? program.Pass( name );
 
 		if ( pass is null ) return false;
 

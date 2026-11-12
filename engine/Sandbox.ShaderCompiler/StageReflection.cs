@@ -148,22 +148,23 @@ internal static class StageReflection
 		return result;
 	}
 
-	static void Collect( JsonElement variable, Dictionary<int, VertexInputSlot> into )
+	// A struct's fields' locations are relative to the struct's own, so a second struct parameter's start at its offset
+	static void Collect( JsonElement variable, Dictionary<int, VertexInputSlot> into, int baseLocation = 0 )
 	{
 		var type = variable.GetProperty( "type" );
+		var location = -1;
+		foreach ( var binding in Bindings( variable ) )
+		{
+			if ( binding.GetProperty( "kind" ).GetString() == "varyingInput" ) location = baseLocation + binding.GetProperty( "index" ).GetInt32();
+		}
+
 		if ( type.GetProperty( "kind" ).GetString() == "struct" && type.TryGetProperty( "fields", out var fields ) )
 		{
-			foreach ( var field in fields.EnumerateArray() ) Collect( field, into );
+			foreach ( var field in fields.EnumerateArray() ) Collect( field, into, Math.Max( location, baseLocation ) );
 			return;
 		}
 
 		if ( !variable.TryGetProperty( "semanticName", out var semantic ) ) return;
-		var location = -1;
-		foreach ( var binding in Bindings( variable ) )
-		{
-			if ( binding.GetProperty( "kind" ).GetString() == "varyingInput" ) location = binding.GetProperty( "index" ).GetInt32();
-		}
-
 		if ( location < 0 || Numeric( type ) is not { } numeric ) return;
 		var index = variable.TryGetProperty( "semanticIndex", out var i ) ? i.GetInt32() : 0;
 		into[location] = new VertexInputSlot( location, semantic.GetString().ToUpperInvariant(), index, numeric.Kind, numeric.Components );

@@ -120,6 +120,43 @@ public class SurfaceTests : GpuTest
 		Assert.IsFalse( rock.Generated.Contains( "SURFACE_LIGHT_HOOK", StringComparison.Ordinal ) );
 	}
 
+	/// <summary>
+	/// An interpolated surface (blendable.slang) reads its Varyings from the mesh by semantic and passes them to the pixel
+	/// stage; its fields say which .vmat value they take.
+	/// </summary>
+	[TestMethod]
+	public void InterpolatedSurfaceReadsItsVaryings()
+	{
+		var blendable = Compiler().CompileSurface( Path.Combine( Core, "shaders", "blendable.slang" ) );
+		var inputs = blendable.Pass( ShaderPasses.Forward ).Vertex.Inputs;
+		Assert.IsTrue( inputs.Any( i => i.Semantic == "TEXCOORD" && i.SemanticIndex == 4 && i.Components == 4 ) );
+		Assert.IsTrue( inputs.Any( i => i.Semantic == "TEXCOORD" && i.SemanticIndex == 5 && i.Components == 4 ) );
+		StringAssert.Contains( blendable.Generated, "SurfaceWithVaryings<Blendable>" );
+		Assert.AreEqual( "F_MULTIBLEND", blendable.Material.Field( "ExtraLayers" ).Source );
+		Assert.AreEqual( "ShaderVersion", blendable.Material.Field( "Version" ).Source );
+		Assert.IsNull( blendable.Material.Field( "ColorA" ).Source );
+		Assert.IsTrue( blendable.Pass( ShaderPasses.Forward ).Pixel.Bindings.Any( b => b.Kind == BindingKind.Sampler && b.Variable == "g_BlendableFiltering" ) );
+	}
+
+	/// <summary>
+	/// Every pass comes again for lightmapped draws, with the vertex stage that reads the mesh's lightmap uv (TEXCOORD3);
+	/// the plain one doesn't read it.
+	/// </summary>
+	[TestMethod]
+	public void LightmappedPassesReadTheLightmapUv()
+	{
+		var rock = Compiler().CompileSurface( Path.Combine( Surfaces, "rock.slang" ) );
+		static bool ReadsLightmapUv( CompiledStage vertex ) => vertex.Inputs.Any( i => i.Semantic == "TEXCOORD" && i.SemanticIndex == 3 );
+		foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
+		{
+			var plain = rock.Pass( name );
+			var lightmapped = rock.Pass( name + ShaderPasses.Lightmapped );
+			Assert.IsFalse( ReadsLightmapUv( plain.Vertex ), name );
+			Assert.IsTrue( ReadsLightmapUv( lightmapped.Vertex ), name + ShaderPasses.Lightmapped );
+			Assert.AreSame( plain.Pixel, lightmapped.Pixel, "the pixel stage is shared" );
+		}
+	}
+
 	/// <summary>A lit surface turns on the light loop's hook and hands it the material; an unlit one leaves the loop alone.</summary>
 	[TestMethod]
 	public void LitSurfaceHooksTheLightLoop()

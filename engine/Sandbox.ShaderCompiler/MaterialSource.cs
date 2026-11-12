@@ -46,7 +46,7 @@ internal static partial class MaterialSource
 	}
 
 	// A field declaration at the start of a line: optional attributes, a type, a name, an optional initializer
-	[GeneratedRegex( @"^(?<lead>[ \t]*(?:\[[^\]\r\n]*\][ \t]*)*)(?<decl>(?!public\b|private\b|internal\b|static\b|return\b|typedef\b)[A-Za-z_][\w:]*(?:[ \t]*<[^>\r\n]*>)?[ \t]+\w+[ \t]*(?:=[^;\r\n]*)?;)" )]
+	[GeneratedRegex( @"^(?<lead>[ \t]*(?:\[[^\]\r\n]*\][ \t]*)*)(?<decl>(?!public\b|private\b|internal\b|static\b|return\b|typedef\b|typealias\b)[A-Za-z_][\w:]*(?:[ \t]*<[^>\r\n]*>)?[ \t]+\w+[ \t]*(?:=[^;\r\n]*)?;)" )]
 	private static partial Regex Field();
 
 	/// <summary>
@@ -132,6 +132,7 @@ internal static unsafe class MaterialReflection
 			float[] value = null;
 			var srgb = false;
 			var opacity = false;
+			string source = null;
 			var attributes = SlangApi.VariableGetUserAttributeCount( field );
 			for ( uint a = 0; a < attributes; a++ )
 			{
@@ -157,6 +158,9 @@ internal static unsafe class MaterialReflection
 					case "Opacity":
 						opacity = true;
 						break;
+					case "Source":
+						source = Text( attribute, 0 );
+						break;
 				}
 			}
 
@@ -168,7 +172,7 @@ internal static unsafe class MaterialReflection
 				else if ( kind != MaterialFieldKind.Float && SlangApi.VariableGetDefaultValueInt( field, &l ) >= 0 ) value = [l];
 			}
 
-			fields.Add( new MaterialField( fieldName, kind, components, 0, value, group, min, max, srgb ) { Opacity = opacity } );
+			fields.Add( new MaterialField( fieldName, kind, components, 0, value, group, min, max, srgb ) { Opacity = opacity, Source = source } );
 		}
 
 		return MaterialLayout.Create( type, fields );
