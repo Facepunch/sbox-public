@@ -10,9 +10,9 @@ namespace Basalt.Backend;
 /// <summary>
 /// Where a draw's geometry is for GPU-driven drawing: its geometry record (byte offset in the geometry table), the index
 /// page its indices are in, the page's slot in the raw buffer array, and its first index there; and the geometry record of
-/// its positions-only copy (0 when there's none), which depth-only draws read.
+/// its positions-only copy (0 when there's none), which depth-only draws read; and the vertices its records hold.
 /// </summary>
-internal readonly record struct PooledGeometry( uint GeometryRecord, BufferHandle IndexPage, int IndexPageSlot, uint FirstIndex, IndexFormat IndexFormat, uint PositionsRecord = 0 );
+internal readonly record struct PooledGeometry( uint GeometryRecord, BufferHandle IndexPage, int IndexPageSlot, uint FirstIndex, IndexFormat IndexFormat, uint PositionsRecord = 0, int VertexCount = 0 );
 
 /// <summary>
 /// The buffers GPU-driven drawing reads (<c>basalt_gpu_driven.fxc</c>, docs/managed/basalt-gpu-driven.md): meshes'
@@ -98,7 +98,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
-	readonly Table geometry, draws, materials, fragments, visibility;
+	readonly Table geometry, draws, materials, fragments;
 	readonly Dictionary<(int Page, long Offset, VertexLayout Layout, int Count), uint> geometryRecords = new();
 	readonly Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage), uint> drawRecords = new();
 	readonly Dictionary<MaterialRecordKey, uint> materialRecords = new();
@@ -113,14 +113,12 @@ internal sealed class GpuDrivenTables : IDisposable
 		draws = new Table( gpu, "Basalt GPU-driven draws", 1 << 20 );
 		materials = new Table( gpu, "Basalt GPU-driven materials", 1 << 20 );
 		fragments = new Table( gpu, "Basalt GPU-driven fragments", 1 << 20 );
-		visibility = new Table( gpu, "Basalt GPU-driven visibility", 1 << 16 );
 
 		// Made now, so their slots exist before any frame reads them
 		geometry.Append( new byte[16] );
 		draws.Append( new byte[DrawStride] );
 		materials.Append( new byte[16] );
 		fragments.Append( new byte[FragmentStride] );
-		visibility.Append( new byte[16] );
 	}
 
 	/// <summary>The tables' slots in the raw buffer array, as <c>BasaltGpuDriven_t</c> wants them after the instances'.</summary>
@@ -330,65 +328,61 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
-	/// <summary>No visibility fragment, or no triangle bits for one.</summary>
+	/// <summary>No visibility fragment, or no vertex bits for an aggregate.</summary>
 	public const uint NoVisibility = uint.MaxValue;
 
-	/// <summary>Visibility fragments an id holds (16 bits, 0 for nothing).</summary>
-	public const int MaxVisibilityFragments = 65535;
+	/// <summary>Visibility fragments there can be: a stamp each.</summary>
+	public const int MaxVisibilityFragments = 1 << 20;
 
-	/// <summary>Triangle bits the mask holds, a bit for every triangle of every visibility fragment.</summary>
+	/// <summary>Vertex bits the mask holds, a bit for every vertex of every aggregate drawn.</summary>
 	public const long MaxVisibilityBits = 1L << 26;
 
-	readonly ConditionalWeakTable<object, StrongBox<uint>> visibilityFirsts = new();
+	readonly ConditionalWeakTable<object, StrongBox<(uint First, uint VertexBase)>> visibilityOwners = new();
 	long visibilityBits;
 	int visibilityFragments;
 
 	/// <summary>
-	/// An aggregate's first visibility fragment: ids name its fragments by it, and its visibility record holds each one's
-	/// first triangle bit in the mask (word aligned; <see cref="NoVisibility"/> for a fragment of more than 65,536
-	/// triangles, or past the mask). Made once; <see cref="NoVisibility"/> when the ids can't name its fragments.
+	/// An aggregate's visibility: the index of its first fragment's stamp (so the prepass's and forward's different
+	/// buckets name the same fragments) and the first of its vertices' bits in the mask, which the ids name. Made once;
+	/// <see cref="NoVisibility"/> when there's no room.
 	/// </summary>
-	public uint VisibilityFirst<T>( object owner, int count, T state, Func<T, int, uint> triangles )
+	public (uint First, uint VertexBase) Visibility( object owner, int fragments, int vertices )
 	{
-		if ( visibilityFirsts.TryGetValue( owner, out var known ) ) return known.Value;
+		if ( visibilityOwners.TryGetValue( owner, out var known ) ) return known.Value;
 
-		lock ( visibilityFirsts )
+		lock ( visibilityOwners )
 		{
-			if ( visibilityFirsts.TryGetValue( owner, out known ) ) return known.Value;
+			if ( visibilityOwners.TryGetValue( owner, out known ) ) return known.Value;
 
 			var first = NoVisibility;
-			var records = new uint[count];
-			for ( int i = 0; i < count; i++ )
+			if ( visibilityFragments + fragments <= MaxVisibilityFragments )
 			{
-				var fragmentTriangles = triangles( state, i );
-				var bits = (fragmentTriangles + 31) & ~31u;
-				if ( fragmentTriangles > 65536 || visibilityBits + bits > MaxVisibilityBits )
-				{
-					records[i] = NoVisibility;
-					continue;
-				}
+				first = (uint)visibilityFragments;
+				visibilityFragments += fragments;
+			}
 
-				records[i] = (uint)visibilityBits;
+			var vertexBase = NoVisibility;
+			var bits = (vertices + 31L) & ~31L;
+			if ( vertices > 0 && visibilityBits + bits <= MaxVisibilityBits )
+			{
+				vertexBase = (uint)visibilityBits;
 				visibilityBits += bits;
 			}
 
-			var offset = visibility.Append( MemoryMarshal.AsBytes( records.AsSpan() ) ) / 4;
-			if ( offset + count <= MaxVisibilityFragments ) first = offset;
-			visibilityFragments = (int)Math.Max( visibilityFragments, offset + count );
-			visibilityFirsts.Add( owner, new StrongBox<uint>( first ) );
-			return first;
+			var made = (first, vertexBase);
+			visibilityOwners.Add( owner, new StrongBox<(uint, uint)>( made ) );
+			return made;
 		}
 	}
 
-	/// <summary>The visibility table's slot, the triangle bits in use and the visibility fragments there are.</summary>
-	public (int Slot, long Bits, int Fragments) Visibility
+	/// <summary>The vertex bits in use.</summary>
+	public long VisibilityBits
 	{
 		get
 		{
-			lock ( visibilityFirsts ) return (visibility.Slot, visibilityBits, Math.Min( visibilityFragments, MaxVisibilityFragments ));
+			lock ( visibilityOwners ) return visibilityBits;
 		}
 	}
-
 	/// <summary>The fragment table's slot in the raw buffer array.</summary>
 	public int FragmentSlot => fragments.Slot;
 
@@ -480,7 +474,6 @@ internal sealed class GpuDrivenTables : IDisposable
 		draws.Dispose();
 		materials.Dispose();
 		fragments.Dispose();
-		visibility.Dispose();
 		lock ( pagesLock )
 		{
 			foreach ( var buffer in owned ) gpu.Destroy( buffer );

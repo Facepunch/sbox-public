@@ -241,7 +241,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 					var record = tables.Geometry( vertices.PageSlot, vertices.PageOffset + vertexOffset, vertices.Layout, vertexCount );
 					var positionsRecord = position.Slot >= 0 ? tables.Geometry( position.Slot, positionOffset, device.Layout( PositionLayout ), vertexCount ) : 0u;
 					var indexSize = indices.Format == IndexFormat.UInt32 ? 4 : 2;
-					pooled = new PooledGeometry( record, indices.Page, indices.PageSlot, indices.PageFirst + (uint)(indexOffset / indexSize), indices.Format, positionsRecord );
+					pooled = new PooledGeometry( record, indices.Page, indices.PageSlot, indices.PageFirst + (uint)(indexOffset / indexSize), indices.Format, positionsRecord, vertexCount );
 				}
 
 				draws[m][d] = new DrawGeometry( vertices.Buffer, vertexOffset, indices.Buffer, indexOffset, indices.Format, call.BaseVertex, vertices.Layout, !vertices.Compressed, pooled );

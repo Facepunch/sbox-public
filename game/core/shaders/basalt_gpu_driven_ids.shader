@@ -2,7 +2,7 @@
 HEADER
 {
 	DevShader = true;
-	Description = "Basalt GPU-driven depth prepass that also writes ids: depth_only's depth, and each sample's fragment and triangle for the visibility-driven forward pass.";
+	Description = "Basalt GPU-driven depth prepass that also writes ids: depth_only's depth, and each sample's triangle by its first vertex, for the visibility-driven forward pass.";
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -28,7 +28,8 @@ COMMON
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct PS_INPUT
 {
-	nointerpolation uint nFragment : TEXCOORD0;
+	// The vertex's bit in the view's mask; flat, so a pixel gets its triangle's first (provoking) vertex's
+	nointerpolation uint nVertexBit : TEXCOORD0;
 
 	#if ( PROGRAM != VFX_PROGRAM_PS )
 		noperspective float4 vPositionPs : SV_Position;
@@ -41,10 +42,11 @@ VS
 	#include "instancing.fxc"
 	#include "basalt_gpu_driven.fxc"
 
-	// Each instance record's fragment: a word per instance, g_nBasaltFragments + instance * 4 in the instance table
+	// Each instance record's aggregate's first vertex bit: a word per instance, g_nBasaltVertexBases + instance * 4 in
+	// the instance table
 	cbuffer BasaltGpuDrivenIds_t
 	{
-		uint g_nBasaltFragments;
+		uint g_nBasaltVertexBases;
 	};
 
 	// depth_only's position, pulled as its GPU-driven variant pulls it, so the depth is the same
@@ -58,7 +60,9 @@ VS
 		float3x4 matObjectToWorld = GetTransformMatrix( vInstance.x, 0 );
 		float3 vPositionWs = mul( matObjectToWorld, float4( vPositionOs.xyz, 1.0 ) );
 		o.vPositionPs.xyzw = Position3WsToPs( vPositionWs.xyz );
-		o.nFragment = g_bindless_VertexBuffers[ g_nBasaltInstances ].Load( g_nBasaltFragments + nInstance * 4 );
+
+		uint nBase = g_bindless_VertexBuffers[ g_nBasaltInstances ].Load( g_nBasaltVertexBases + nInstance * 4 );
+		o.nVertexBit = nBase == 0xffffffffu ? 0xffffffffu : nBase + nVertex;
 		return o;
 	}
 }
@@ -76,9 +80,9 @@ PS
 		RenderState( CullMode, DEFAULT );
 	#endif
 
-	// (fragment + 1) << 16 | triangle; 0 is nothing
-	uint MainPs( PS_INPUT i, uint nPrimitive : SV_PrimitiveID ) : SV_Target0
+	// The first vertex's bit + 1; 0 is nothing
+	uint MainPs( PS_INPUT i ) : SV_Target0
 	{
-		return ( ( i.nFragment + 1 ) << 16 ) | ( nPrimitive & 0xffff );
+		return i.nVertexBit + 1;
 	}
 }
