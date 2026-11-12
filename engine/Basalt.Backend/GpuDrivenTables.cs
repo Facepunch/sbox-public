@@ -355,7 +355,7 @@ internal sealed class GpuDrivenTables : IDisposable
 			if ( visibilityOwners.TryGetValue( owner, out known ) ) return known.Value;
 
 			var first = NoVisibility;
-			if ( visibilityFragments + fragments <= MaxVisibilityFragments )
+			if ( visibilityFragments + fragments <= FrameVisibilityFragmentBase )
 			{
 				first = (uint)visibilityFragments;
 				visibilityFragments += fragments;
@@ -363,7 +363,7 @@ internal sealed class GpuDrivenTables : IDisposable
 
 			var vertexBase = NoVisibility;
 			var bits = (vertices + 31L) & ~31L;
-			if ( vertices > 0 && visibilityBits + bits <= MaxVisibilityBits )
+			if ( vertices > 0 && visibilityBits + bits <= FrameVisibilityBitBase )
 			{
 				vertexBase = (uint)visibilityBits;
 				visibilityBits += bits;
@@ -381,6 +381,49 @@ internal sealed class GpuDrivenTables : IDisposable
 		get
 		{
 			lock ( visibilityOwners ) return visibilityBits;
+		}
+	}
+
+	/// <summary>Where this frame's visibility starts: aggregates' runs, which last, are below it, mesh draws' above.</summary>
+	public const int FrameVisibilityFragmentBase = MaxVisibilityFragments / 2;
+	public const long FrameVisibilityBitBase = MaxVisibilityBits / 2;
+
+	readonly Dictionary<(int FirstInstance, object Mesh, int ModelMesh, int DrawCall), (uint First, uint VertexBase)> frameVisibility = new();
+	int frameVisibilityFragments;
+	long frameVisibilityBits;
+
+	/// <summary>
+	/// This frame's visibility for a mesh draw's <paramref name="instances"/> from an instance (the same key in its view's
+	/// prepass and forward pass): the first of their stamps, and the first of their vertex bits, each instance's
+	/// <paramref name="vertices"/> after the last's. Made again each frame (<see cref="BeginFrame"/>);
+	/// <see cref="NoVisibility"/> when there's no room.
+	/// </summary>
+	public (uint First, uint VertexBase) FrameVisibility( (int FirstInstance, object Mesh, int ModelMesh, int DrawCall) key, int instances, int vertices )
+	{
+		lock ( frameVisibility )
+		{
+			if ( frameVisibility.TryGetValue( key, out var known ) ) return known;
+
+			var made = (NoVisibility, NoVisibility);
+			var bits = (long)instances * vertices;
+			if ( vertices > 0 && frameVisibilityFragments + instances <= MaxVisibilityFragments - FrameVisibilityFragmentBase && frameVisibilityBits + bits <= MaxVisibilityBits - FrameVisibilityBitBase )
+			{
+				made = ((uint)(FrameVisibilityFragmentBase + frameVisibilityFragments), (uint)(FrameVisibilityBitBase + frameVisibilityBits));
+				frameVisibilityFragments += instances;
+				frameVisibilityBits += (bits + 31) & ~31L;
+			}
+
+			frameVisibility[key] = made;
+			return made;
+		}
+	}
+
+	/// <summary>The vertex bits this frame's mesh draws use, from <see cref="FrameVisibilityBitBase"/>.</summary>
+	public long FrameVisibilityBits
+	{
+		get
+		{
+			lock ( frameVisibility ) return frameVisibilityBits;
 		}
 	}
 	/// <summary>The fragment table's slot in the raw buffer array.</summary>
@@ -431,6 +474,13 @@ internal sealed class GpuDrivenTables : IDisposable
 		{
 			frame = (frame + 1) % FrameSlots;
 			foreach ( var chunk in frames[frame] ) chunk.Used = 0;
+		}
+
+		lock ( frameVisibility )
+		{
+			frameVisibility.Clear();
+			frameVisibilityFragments = 0;
+			frameVisibilityBits = 0;
 		}
 	}
 

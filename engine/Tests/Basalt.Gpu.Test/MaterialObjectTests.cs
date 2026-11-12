@@ -19,7 +19,7 @@ public class MaterialObjectTests : GpuTest
 	public void DrawTheSamePixelsAsBindingByReflection()
 	{
 		const int width = 640, height = 400;
-		using var scene = new BasaltScene( Device );
+		using var scene = new BasaltScene( Device ) { GpuDriven = false };
 
 		byte[] Frame( bool materialObjects )
 		{
@@ -55,7 +55,7 @@ public class MaterialObjectTests : GpuTest
 	public void InvalidatedMaterialsAreMadeAgain()
 	{
 		const int width = 320, height = 200;
-		using var scene = new BasaltScene( Device );
+		using var scene = new BasaltScene( Device ) { GpuDriven = false };
 		scene.Backend.MaterialObjects = true;
 
 		Device.BeginFrame();
@@ -116,7 +116,7 @@ public class MaterialObjectTests : GpuTest
 	public void ParallelRecordingDrawsTheSamePixels()
 	{
 		const int width = 640, height = 400;
-		using var scene = new BasaltScene( Device );
+		using var scene = new BasaltScene( Device ) { GpuDriven = false };
 		scene.Backend.MaterialObjects = true;
 
 		(byte[] Pixels, double WorkerMs) Frame( bool parallel )
