@@ -25,6 +25,12 @@ internal sealed class BasaltGpuView : Graphics.IFrameView, IDisposable
 	/// <summary>What <c>ISceneView.GetPostProcessEnabled</c> says for a native view.</summary>
 	public bool PostProcessEnabled = true;
 
+	/// <summary>
+	/// Whether <see cref="Target"/>'s colour is written through its sRGB view, so what's drawn is encoded by the hardware, as
+	/// Source 2 writes an 8-bit texture a camera renders into.
+	/// </summary>
+	public bool SrgbWrite;
+
 	/// <summary>The kind of layer the stage is, which drawing code may check.</summary>
 	public SceneLayerType LayerType = SceneLayerType.Translucent;
 
@@ -42,8 +48,14 @@ internal sealed class BasaltGpuView : Graphics.IFrameView, IDisposable
 	/// <summary>Bind the frame's targets and its viewport, as a stage starts.</summary>
 	public void Bind()
 	{
-		backend.BindRenderTarget( Target );
+		BindOwn();
 		Graphics.Viewport = Viewport;
+	}
+
+	void BindOwn()
+	{
+		if ( backend is BasaltGpuRenderBackend gpu ) gpu.BindRenderTarget( Target, SrgbWrite );
+		else backend.BindRenderTarget( Target );
 	}
 
 	bool Graphics.IFrameView.PostProcessEnabled => PostProcessEnabled;
@@ -74,11 +86,16 @@ internal sealed class BasaltGpuView : Graphics.IFrameView, IDisposable
 	void Graphics.IFrameView.RenderSceneObject( IRenderContext context, SceneObject obj, Transform transform, Color color, Material material, RenderAttributes attributes ) { }
 
 	// A target of only depth draws into the frame's colour, as native's layer binding assumes
-	void Graphics.IFrameView.BindTarget( IRenderContext context, RenderTarget target ) => backend.BindRenderTarget( target.ColorTarget is null ? RenderTarget.From( Target.ColorTarget, target.DepthTarget ) : target );
+	void Graphics.IFrameView.BindTarget( IRenderContext context, RenderTarget target )
+	{
+		var bound = target.ColorTarget is null ? RenderTarget.From( Target.ColorTarget, target.DepthTarget ) : target;
+		if ( backend is BasaltGpuRenderBackend gpu ) gpu.BindRenderTarget( bound, SrgbWrite && bound.ColorTarget == Target.ColorTarget );
+		else backend.BindRenderTarget( bound );
+	}
 
 	void Graphics.IFrameView.RestoreTargets( IRenderContext context, float minZ, float maxZ )
 	{
-		backend.BindRenderTarget( Target );
+		BindOwn();
 		backend.SetViewport( Viewport );
 	}
 
