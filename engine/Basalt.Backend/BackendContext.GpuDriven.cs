@@ -31,6 +31,9 @@ internal sealed partial class BackendContext
 		public ShaderParameters Attributes;
 		public bool DepthOnly, NoColor;
 
+		/// <summary>The classic variant of its first material, when it's depth-only: what decides whether positions alone will do.</summary>
+		public ShaderVariant Classic;
+
 		/// <summary>With <see cref="BackendDevice.GpuDrivenMaterialBuckets"/>, the one pixel material record its draws share; else 0.</summary>
 		public uint PixelMaterial;
 		/// <summary>Its batches, with the index page each draws from: sorted by page, a bucket is one multi-draw per page.</summary>
@@ -113,7 +116,7 @@ internal sealed partial class BackendContext
 				pixelMaterial = MaterialRecord( tables, m, variant.Pixel, uncompressed );
 			}
 
-			var bucket = FindBucket( variant, batch.ObjectAttributes, depthOnly, noColor, pixelMaterial, m );
+			var bucket = FindBucket( variant, batch.ObjectAttributes, depthOnly, noColor, pixelMaterial, m, mode );
 			bucket.Batches.Add( (source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled.Value.IndexPageSlot, i) );
 			bucket.Commands += batch.Count;
 			totalCommands += batch.Count;
@@ -171,6 +174,9 @@ internal sealed partial class BackendContext
 				var material = (BackendMaterial)batch.Material;
 				var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
 				var pooled = geometry.Pooled.Value;
+
+				// Depth only, from the positions-only copy when the vertex shader reads nothing else these vertices have
+				if ( bucket.Classic is not null && device.PositionStreams && pooled.PositionsRecord != 0 && ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) pooled = pooled with { GeometryRecord = pooled.PositionsRecord };
 
 				var vertexMaterial = MaterialRecord( tables, material, bucket.Variant.Vertex, geometry.UncompressedTangentFrame );
 				var pixelMaterial = bucket.DepthOnly ? 0 : MaterialRecord( tables, material, bucket.Variant.Pixel, geometry.UncompressedTangentFrame );
@@ -333,6 +339,9 @@ internal sealed partial class BackendContext
 				var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
 				var pooled = geometry.Pooled.Value;
 
+				// Depth only, from the positions-only copy when the vertex shader reads nothing else these vertices have
+				if ( bucket.Classic is not null && device.PositionStreams && pooled.PositionsRecord != 0 && ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) pooled = pooled with { GeometryRecord = pooled.PositionsRecord };
+
 				var vertexMaterial = MaterialRecord( tables, material, bucket.Variant.Vertex, geometry.UncompressedTangentFrame );
 				var pixelMaterial = bucket.DepthOnly ? 0 : MaterialRecord( tables, material, bucket.Variant.Pixel, geometry.UncompressedTangentFrame );
 				var flags = geometry.UncompressedTangentFrame ? 1u : 0u;
@@ -450,7 +459,7 @@ internal sealed partial class BackendContext
 	/// <summary>Multi-draws recorded by the current <see cref="DrawGpuDriven"/>, for the timings.</summary>
 	int gpuDrivenRuns;
 
-	GpuDrivenBucket FindBucket( ShaderVariant variant, ShaderParameters attributes, bool depthOnly, bool noColor, uint pixelMaterial, BackendMaterial material )
+	GpuDrivenBucket FindBucket( ShaderVariant variant, ShaderParameters attributes, bool depthOnly, bool noColor, uint pixelMaterial, BackendMaterial material, string mode )
 	{
 		for ( int i = 0; i < gpuDrivenBucketCount; i++ )
 		{
@@ -463,6 +472,7 @@ internal sealed partial class BackendContext
 		made.Variant = variant;
 		made.Attributes = attributes;
 		made.DepthOnly = depthOnly;
+		made.Classic = depthOnly ? Variant( material, mode ) : null;
 		made.NoColor = noColor;
 		made.PixelMaterial = pixelMaterial;
 		made.Material = material;

@@ -47,6 +47,16 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public bool MaterialObjects { get; set; } = true;
 
+	/// <summary>
+	/// Depth-only draws whose vertex shader reads nothing but positions fetch them from a positions-only copy of the mesh's
+	/// vertices (12 bytes a vertex) rather than the full vertices: on Construct the prepass reads 72 MB instead of 158 MB and
+	/// is 0.15 ms faster. Models loaded while it's on get the copy (<see cref="PositionStreamBytes"/>).
+	/// </summary>
+	public bool PositionStreams { get; set; } = true;
+
+	/// <summary>Bytes of positions-only vertex copies made (<see cref="PositionStreams"/>).</summary>
+	public long PositionStreamBytes;
+
 	/// <summary>The material objects drawn so far: the one material binding service of this device.</summary>
 	internal MaterialObjectCache MaterialCache
 	{
@@ -500,6 +510,15 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// when it isn't built. See <see cref="BackendModel.Load"/>.
 	/// </summary>
 	public RenderMesh LoadModel( string path, ulong? meshGroups = null, int materialGroup = 0 ) => BackendModel.Load( this, path, meshGroups, materialGroup );
+
+	/// <summary>The vertex layouts pipelines have been made for, for tests.</summary>
+	internal VertexLayout[] PipelineLayouts
+	{
+		get
+		{
+			lock ( pipelines ) return [.. pipelines.Keys.Select( k => k.Layout ).Distinct()];
+		}
+	}
 
 	/// <summary>One instance of each distinct vertex layout, which pipelines are keyed by.</summary>
 	internal VertexLayout Layout( VertexLayout layout )

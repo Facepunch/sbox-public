@@ -9,9 +9,10 @@ namespace Basalt.Backend;
 
 /// <summary>
 /// Where a draw's geometry is for GPU-driven drawing: its geometry record (byte offset in the geometry table), the index
-/// page its indices are in, the page's slot in the raw buffer array, and its first index there.
+/// page its indices are in, the page's slot in the raw buffer array, and its first index there; and the geometry record of
+/// its positions-only copy (0 when there's none), which depth-only draws read.
 /// </summary>
-internal readonly record struct PooledGeometry( uint GeometryRecord, BufferHandle IndexPage, int IndexPageSlot, uint FirstIndex, IndexFormat IndexFormat );
+internal readonly record struct PooledGeometry( uint GeometryRecord, BufferHandle IndexPage, int IndexPageSlot, uint FirstIndex, IndexFormat IndexFormat, uint PositionsRecord = 0 );
 
 /// <summary>
 /// The buffers GPU-driven drawing reads (<c>basalt_gpu_driven.fxc</c>, docs/managed/basalt-gpu-driven.md): meshes'
@@ -141,11 +142,27 @@ internal sealed class GpuDrivenTables : IDisposable
 	{
 		lock ( pagesLock )
 		{
-			var page = Place( ref vertexPage, data.Length, VertexPageSize, BufferUsage.Storage, "Basalt vertex page" );
+			var page = Place( ref vertexPage, data.Length, VertexPageSize, BufferUsage.Storage | BufferUsage.Vertex, "Basalt vertex page" );
 			var offset = page.Used;
 			if ( data.Length > 0 ) gpu.WriteBuffer( page.Buffer, data, offset );
 			page.Used = (offset + data.Length + 15) & ~15;
 			return (page.Slot, offset);
+		}
+	}
+
+	/// <summary>
+	/// Vertices in a page that's also bindable as a vertex buffer (the positions-only copies, which the classic path binds
+	/// and GPU-driven draws pull): the page, where they start in it, and its slot.
+	/// </summary>
+	public (BufferHandle Buffer, long Offset, int Slot) AddVertexStream( ReadOnlySpan<byte> data )
+	{
+		lock ( pagesLock )
+		{
+			var page = Place( ref vertexPage, data.Length, VertexPageSize, BufferUsage.Storage | BufferUsage.Vertex, "Basalt vertex page" );
+			var offset = page.Used;
+			if ( data.Length > 0 ) gpu.WriteBuffer( page.Buffer, data, offset );
+			page.Used = (offset + data.Length + 15) & ~15;
+			return (page.Buffer, offset, page.Slot);
 		}
 	}
 
