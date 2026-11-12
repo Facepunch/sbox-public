@@ -57,7 +57,7 @@ CS
 		uint g_nCullCursor;			// byte offset in g_Frame of the compacted indices' cursor
 		uint g_nCullCapacity;		// indices g_Compacted holds
 		uint g_nCullFragmentWords;	// g_Frame byte offset of instance 0's fragment word, for the id prepass (wraps)
-		uint g_nCullPad0;
+		uint g_nCullListed;			// byte offset of the fragments forward compacts: dispatch arguments, then 32 bytes each
 		uint g_nCullPad1;
 		uint g_nCullPad2;
 	};
@@ -100,23 +100,6 @@ CS
 		return g_Frame.Load( g_nCullRuns + nRun * 8 ) + nIndex;
 	}
 
-	// Fragments of this batch's 64 whose triangles the whole group compacts, and the group's sums
-	groupshared uint gs_Listed[64];
-	groupshared uint gs_ListCount;
-	groupshared uint gs_Sums[64];
-	groupshared uint gs_Start;
-
-	uint GroupSum( uint nThread, uint nValue )
-	{
-		gs_Sums[nThread] = nValue;
-		GroupMemoryBarrierWithGroupSync();
-		uint nSum = 0;
-		for ( uint k = 0; k < 64; k++ )
-			nSum += gs_Sums[k];
-		GroupMemoryBarrierWithGroupSync();
-		return nSum;
-	}
-
 	[numthreads( 64, 1, 1 )]
 	void MainCs( uint3 vGroupId : SV_GroupID, uint nThread : SV_GroupIndex )
 	{
@@ -143,9 +126,6 @@ CS
 
 		for ( uint nBase = 0; nBase < vBatch.y; nBase += 64 )
 		{
-			if ( nThread == 0 )
-				gs_ListCount = 0;
-			GroupMemoryBarrierWithGroupSync();
 
 			uint i = nBase + nThread;
 			if ( i < vBatch.y )
@@ -181,13 +161,18 @@ CS
 				}
 				else if ( bVisible )
 				{
-					// Forward over a fragment the prepass drew ids for this frame: the group compacts its triangles below
+					// Forward over a fragment the prepass drew ids for this frame: listed for the compaction pass
 					bool bListed = false;
-					if ( ( vVisibility.z & 2 ) != 0 && nFragment != None && g_Stamps.Load( nFragment * 4 ) == g_nCullFrame && g_bindless_VertexBuffers[ g_nCullVisibility ].Load( nFragment * 4 ) != None )
+					if ( ( vVisibility.z & 2 ) != 0 && nFragment != None && vVisibility.w != None && g_Stamps.Load( nFragment * 4 ) == g_nCullFrame )
 					{
 						uint nAt;
-						InterlockedAdd( gs_ListCount, 1, nAt );
-						gs_Listed[nAt] = i;
+						g_Frame.InterlockedAdd( g_nCullListed, 1, nAt );
+						uint nEntry = g_nCullListed + 16 + nAt * 32;
+						g_Frame.Store( nEntry, nTransform );
+						g_Frame.Store( nEntry + 4, a.w );
+						g_Frame.Store( nEntry + 8, vVisibility.w + vDraw.z );
+						g_Frame.Store( nEntry + 12, vBatch.w );
+						g_Frame.Store( nEntry + 16, vVisibility.y );
 						bListed = true;
 					}
 
@@ -199,95 +184,13 @@ CS
 						// The prepass's ids: this instance's fragment, and its stamp for forward this frame
 						if ( ( vVisibility.z & 1 ) != 0 && nFragment != None )
 						{
-							g_Frame.Store( g_nCullFragmentWords + ( g_nCullFirstInstance + nSlot ) * 4, nFragment );
+							g_Frame.Store( g_nCullFragmentWords + ( g_nCullFirstInstance + nSlot ) * 4, vVisibility.w );
 							g_Stamps.Store( nFragment * 4, g_nCullFrame );
 						}
 					}
 				}
 			}
 
-			GroupMemoryBarrierWithGroupSync();
-			uint nListed = gs_ListCount;
-
-			// Each listed fragment by the whole group: its triangles that own a sample, copied where they're few
-			for ( uint k = 0; k < nListed; k++ )
-			{
-				uint f = gs_Listed[k];
-				uint4 a = fragments.Load4( ( vBatch.x + f ) * 32 );
-				uint4 b = fragments.Load4( ( vBatch.x + f ) * 32 + 16 );
-				uint nTransform = vBatch.z + ( b.w & 0x7fffffffu );
-				uint4 vDrawHead = draws.Load4( a.w * 32 );
-				uint4 vDraw = draws.Load4( a.w * 32 + 16 );
-				uint nFragment = vVisibility.x + f;
-				uint nWord0 = g_bindless_VertexBuffers[ g_nCullVisibility ].Load( nFragment * 4 ) / 32;
-				uint nTriangles = vDraw.y / 3;
-				uint nWords = ( nTriangles + 31 ) / 32;
-
-				uint nMine = 0;
-				for ( uint w = nThread; w < nWords; w += 64 )
-					nMine += countbits( g_Mask.Load( ( nWord0 + w ) * 4 ) );
-				uint nOwned = GroupSum( nThread, nMine );
-
-				if ( nOwned == 0 )
-					continue;
-
-				// Copied where few own a sample and there's room; else the whole draw
-				if ( nThread == 0 )
-				{
-					uint nStart = None;
-					if ( nOwned * 2 < nTriangles )
-					{
-						g_Frame.InterlockedAdd( g_nCullCursor, nOwned * 3, nStart );
-						if ( nStart + nOwned * 3 > g_nCullCapacity )
-							nStart = None;
-					}
-
-					gs_Start = nStart;
-					if ( nStart == None )
-						WriteDraw( TakeSlot( vBatch.w ), nTransform, a.w, vDraw.y, 1, vDraw.x, vDraw.z );
-					else
-						WriteDraw( TakeSlot( vVisibility.y ), nTransform, a.w, nOwned * 3, 1, nStart, vDraw.z );
-				}
-
-				GroupMemoryBarrierWithGroupSync();
-				uint nCursor = gs_Start;
-				GroupMemoryBarrierWithGroupSync();
-				if ( nCursor == None )
-					continue;
-
-				// 64 words (2,048 triangles) at a time: a word a thread, an exclusive prefix over the group, then its triangles
-				ByteAddressBuffer page = g_bindless_VertexBuffers[ NonUniformResourceIndex( vDraw.w ) ];
-				bool b32 = ( vDrawHead.w & 2 ) != 0;
-				for ( uint nWordBase = 0; nWordBase < nWords; nWordBase += 64 )
-				{
-					uint w = nWordBase + nThread;
-					uint nBits = w < nWords ? g_Mask.Load( ( nWord0 + w ) * 4 ) : 0;
-					gs_Sums[nThread] = countbits( nBits );
-					GroupMemoryBarrierWithGroupSync();
-					uint nBefore = 0, nSum = 0;
-					for ( uint q = 0; q < 64; q++ )
-					{
-						uint c = gs_Sums[q];
-						nBefore += q < nThread ? c : 0;
-						nSum += c;
-					}
-
-					uint nAt = nCursor + nBefore * 3;
-					while ( nBits != 0 )
-					{
-						uint t = w * 32 + firstbitlow( nBits );
-						nBits &= nBits - 1;
-						uint nSource = vDraw.x + t * 3;
-						g_Compacted.Store( ( nAt + 0 ) * 4, LoadIndex( page, nSource + 0, b32 ) );
-						g_Compacted.Store( ( nAt + 1 ) * 4, LoadIndex( page, nSource + 1, b32 ) );
-						g_Compacted.Store( ( nAt + 2 ) * 4, LoadIndex( page, nSource + 2, b32 ) );
-						nAt += 3;
-					}
-
-					nCursor += nSum * 3;
-					GroupMemoryBarrierWithGroupSync();
-				}
-			}
 		}
 	}
 }

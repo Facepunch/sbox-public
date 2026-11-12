@@ -501,7 +501,7 @@ public sealed class BackendMesh : GpuMesh, IBackendGeometry
 
 			var (_, positionOffset, positionSlot) = tables.AddVertexStream( MemoryMarshal.AsBytes( positions.AsSpan() ) );
 			var positionsRecord = tables.Geometry( positionSlot, positionOffset, device.Layout( BackendModel.PositionLayout ), data.Length );
-			pooled = new PooledGeometry( tables.Geometry( slot, offset, device.Layout( Layout ), data.Length ), page, pageSlot, first, IndexFormat.UInt32, positionsRecord );
+			pooled = new PooledGeometry( tables.Geometry( slot, offset, device.Layout( Layout ), data.Length ), page, pageSlot, first, IndexFormat.UInt32, positionsRecord, data.Length );
 		}
 
 		var geometry = new BackendMesh( vertexBuffer, indexBuffer, IndexFormat.UInt32, name, pooled );

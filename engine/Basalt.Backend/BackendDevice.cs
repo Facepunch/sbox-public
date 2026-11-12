@@ -697,8 +697,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>The frame's stamp for <see cref="GpuDrivenVisibility"/>: fragments the prepass drew ids for this frame carry it.</summary>
 	internal uint GpuDrivenFrame { get; private set; } = 1;
 
-	/// <summary>The id prepass material and mark shader, or null when they aren't built.</summary>
-	internal (BackendMaterial Ids, ShaderFile Mark) GpuDrivenVisibilityShaders
+	/// <summary>The id prepass material, the mark and compaction shaders, or null when they aren't built.</summary>
+	internal (BackendMaterial Ids, ShaderFile Mark, ShaderFile Compact) GpuDrivenVisibilityShaders
 	{
 		get
 		{
@@ -709,15 +709,16 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 					visibilityShadersLoaded = true;
 					if ( Shaders.Load( "shaders/basalt_gpu_driven_ids.shader" ) is not null ) visibilityIds = MaterialFromShader( "shaders/basalt_gpu_driven_ids.shader" ) as BackendMaterial;
 					visibilityMark = Shaders.Load( "shaders/basalt_gpu_driven_mark_cs.shader" );
+					visibilityCompact = Shaders.Load( "shaders/basalt_gpu_driven_compact_cs.shader" );
 				}
 
-				return (visibilityIds, visibilityMark);
+				return (visibilityIds, visibilityMark, visibilityCompact);
 			}
 		}
 	}
 
 	BackendMaterial visibilityIds;
-	ShaderFile visibilityMark;
+	ShaderFile visibilityMark, visibilityCompact;
 	bool visibilityShadersLoaded;
 
 	/// <summary>A view's visibility resources: its ids target, triangle mask, fragment stamps and compacted indices.</summary>
