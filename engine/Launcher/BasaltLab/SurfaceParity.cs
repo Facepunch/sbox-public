@@ -46,7 +46,7 @@ internal static class SurfaceParity
 			},
 		} );
 
-		using var device = new BackendDevice( gpu );
+		using var device = new BackendDevice( gpu ) { TimeDraws = true };
 		var surfaces = Folder( device );
 		device.Surfaces.AddFolder( surfaces );
 		device.Surfaces.Error = m => Console.WriteLine( $"Shader: {m}" );
@@ -185,6 +185,8 @@ internal static class SurfaceParity
 			RenderHost.Current = previous;
 		}
 
+		// Surfaces aren't in GPU-driven buckets yet: with it on (the default; -no-gpudriven turns it off) they draw the classic way
+		lines.Add( $"GPU-driven {(device.GpuDriven ? "on" : "off")}: {device.GpuDrivenReport}" );
 		lines.Add( $"Surface parity: {(failed == 0 ? "pass" : $"{failed} failed")} ({folder}); Basalt.Gpu validation errors {gpu.ValidationErrors}" );
 		foreach ( var line in lines ) Console.WriteLine( line );
 		File.WriteAllLines( Path.Combine( folder, "results.txt" ), lines );
