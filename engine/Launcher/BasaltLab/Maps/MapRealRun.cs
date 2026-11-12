@@ -94,6 +94,9 @@ internal static class MapRealRun
 		var passes = new PassTotals();
 		var timings = new List<PassTimer.Timing>();
 
+		// -orbit: the timed frames circle the view once around the point it looks at, so the camera moves every frame
+		var orbit = Args.Has( "-orbit" );
+
 		Frame RenderFrame( MapView view )
 		{
 			var f = default( Frame );
@@ -170,7 +173,7 @@ internal static class MapRealRun
 				for ( int i = 0; i < options.Frames && !window.CloseRequested; i++ )
 				{
 					MapRun.Pump( window );
-					frames.Add( RenderFrame( view ) );
+					frames.Add( RenderFrame( orbit ? Orbit( view, i / (float)options.Frames ) : view ) );
 					var now = Stopwatch.GetTimestamp();
 					frameTimes.Add( Stopwatch.GetElapsedTime( last, now ).TotalMilliseconds );
 					last = now;
@@ -345,6 +348,15 @@ internal static class MapRealRun
 	}
 
 	static double Ms( long from, long to ) => Stopwatch.GetElapsedTime( from, to ).TotalMilliseconds;
+
+	/// <summary>The view turned <paramref name="turns"/> of a full circle around the point it looks at, at the same height.</summary>
+	static MapView Orbit( MapView view, float turns )
+	{
+		var (sin, cos) = MathF.SinCos( turns * MathF.Tau );
+		var offset = view.Position - view.LookAt;
+		var turned = new System.Numerics.Vector3( offset.X * cos - offset.Y * sin, offset.X * sin + offset.Y * cos, offset.Z );
+		return view with { Position = view.LookAt + turned };
+	}
 
 	static double Percentile( IEnumerable<double> values, double p )
 	{

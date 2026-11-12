@@ -533,6 +533,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		}
 	}
 
+	/// <summary>The colour an ids pipeline is keyed by (<see cref="Pipeline"/>'s ids), which no other pipeline draws into.</summary>
+	internal const Format IdsColorKey = Format.R32Uint;
+
 	/// <summary>
 	/// A pipeline for a variant drawing vertices laid out as <paramref name="layout"/> into targets of these formats,
 	/// made once. Mesh vertices are stream 0, instance ids stream 1 (<c>TEXCOORD13</c>), and inputs the mesh lacks, or
@@ -540,9 +543,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// input layouts do for streams a mesh doesn't have. A vertex-cache layout reads vertex ids from streams 2 and 3 and
 	/// the default stream from 4.
 	/// </summary>
-	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false )
+	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false, bool ids = false, ShaderVariant stateFrom = null )
 	{
-		var key = new PipelineKey( variant, layout, color, depth, samples, depthOnly, sets, materialPerDraw );
+		var key = new PipelineKey( variant, layout, ids ? IdsColorKey : color, depth, samples, depthOnly, sets, materialPerDraw, stateFrom );
 		lock ( pipelines )
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
@@ -562,8 +565,27 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 			VertexBufferLayout[] streams = vertexCache
 				? [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 4 ), new( 4 ), new( 0 )]
 				: [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )];
-			var info = variant.PipelineInfo( streams, attributes, color == Format.Unknown ? [] : [color], depth, samples, depthBias: depthOnly || color == Format.Unknown, $"{variant}{(depthOnly ? " depth" : "")}" );
+			// The visibility-driven forward pass's id prepass: target 0 takes the authored output (its alpha drives alpha to
+			// coverage) and goes nowhere, target 1 the ids (a GPU-driven pixel shader's id output)
+			Format[] colors = ids ? [Format.R8Unorm, Format.R32Uint] : color == Format.Unknown ? [] : [color];
+			var info = variant.PipelineInfo( streams, attributes, colors, depth, samples, depthBias: depthOnly || color == Format.Unknown || ids, $"{variant}{(depthOnly ? " depth" : ids ? " ids" : "")}" );
+			if ( ids ) info.Blend = [BlendState.Opaque, BlendState.Opaque];
 			if ( sets is not null ) info.Sets = sets;
+
+			// basalt_gpu_driven_ids drawing another variant's depth: that variant's culling, depth and stencil
+			if ( stateFrom?.State is { } state )
+			{
+				info.CullMode = state.Cull;
+				info.DepthClamp = !state.DepthClip;
+				info.DepthTest = depth != Format.Unknown && state.DepthTest;
+				info.DepthWrite = depth != Format.Unknown && state.DepthWrite;
+				info.DepthCompare = state.DepthCompare;
+				info.StencilTest = depth.HasStencil() && state.StencilTest;
+				info.StencilFront = state.StencilFront;
+				info.StencilBack = state.StencilBack;
+				info.StencilReadMask = state.StencilReadMask;
+				info.StencilWriteMask = state.StencilWriteMask;
+			}
 
 			// A GPU-driven pixel shader reading its bucket's one material (basalt_gpu_driven.h's specialization constant)
 			if ( materialPerDraw && info.FragmentShader.IsValid ) info.FragmentConstants = [.. info.FragmentConstants ?? [], new SpecializationConstant( GpuDrivenMaterialPerDrawConstant, 1 )];
@@ -627,7 +649,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		System.IO.File.WriteAllBytes( path, spirv );
 	}
 
-	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false );
+	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false, ShaderVariant StateFrom = null );
 
 	/// <summary><c>BASALT_GPU_DRIVEN_MATERIAL_PER_DRAW_ID</c>: set, a GPU-driven pixel shader reads <c>g_nBasaltPixelMaterial</c>.</summary>
 	const uint GpuDrivenMaterialPerDrawConstant = 120;
@@ -698,7 +720,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>The frame's stamp for <see cref="GpuDrivenVisibility"/>: fragments the prepass drew ids for this frame carry it.</summary>
 	internal uint GpuDrivenFrame { get; private set; } = 1;
 
-	/// <summary>The id prepass material, the mark and compaction shaders, or null when they aren't built.</summary>
+	/// <summary>The id prepass material for depth buckets without a pixel shader, the mark and compaction shaders, or null when they aren't built.</summary>
 	internal (BackendMaterial Ids, ShaderFile Mark, ShaderFile Compact) GpuDrivenVisibilityShaders
 	{
 		get
@@ -725,7 +747,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>A view's visibility resources: its ids target, triangle mask, fragment stamps and compacted indices.</summary>
 	internal sealed class VisibilityView
 	{
-		public TextureHandle Ids;
+		public TextureHandle Ids, Scratch;
 		public int Width, Height, Samples;
 		public BufferHandle Mask, Stamps;
 		public readonly BufferHandle[] Compacted = new BufferHandle[3];
@@ -761,11 +783,16 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 			if ( depth.Width != 0 && (state.Width != depth.Width || state.Height != depth.Height || state.Samples != depth.Samples) )
 			{
-				if ( state.Ids.IsValid )
+				foreach ( var old in (TextureHandle[])[state.Ids, state.Scratch] )
 				{
-					visibilityTextures.Remove( state.Ids );
-					Gpu.Destroy( state.Ids );
+					if ( !old.IsValid ) continue;
+					visibilityTextures.Remove( old );
+					Gpu.Destroy( old );
 				}
+
+				// Target 0 of the id prepass: the authored output, which only its alpha (to coverage) is wanted from
+				state.Scratch = Gpu.CreateTexture( new TextureInfo { Width = depth.Width, Height = depth.Height, Depth = 1, Layers = 1, Mips = 1, Samples = depth.Samples, Dimension = TextureDimension.Texture2D, Format = Format.R8Unorm, Usage = TextureUsage.ColorTarget, Name = "Basalt visibility scratch" } );
+				visibilityTextures.Add( state.Scratch );
 
 				state.Ids = Gpu.CreateTexture( new TextureInfo
 				{

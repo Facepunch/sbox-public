@@ -25,6 +25,7 @@ cbuffer BasaltGpuDriven_t
 	uint g_nBasaltDraws;		// draw records, 32 bytes: geometry, vertex material, pixel material, flags, first index, index count, base vertex, index page
 	uint g_nBasaltGeometry;		// geometry records: 32-byte semantic mask, then 16 bytes per present semantic
 	uint g_nBasaltMaterials;	// material records: $Globals as compiled, then a bindless slot per material texture
+	uint g_nBasaltVertexBases;	// with the visibility-driven forward pass's ids: each instance's first vertex bit, a word per instance from here
 };
 
 // With one material per multi-draw (specialization constant 120): its pixel record's offset. Set per bucket as an
@@ -38,6 +39,14 @@ cbuffer BasaltGpuDrivenMaterial_t
 uint2 BasaltGpuDrivenInstance( uint nInstance )
 {
 	return g_bindless_VertexBuffers[ g_nBasaltInstances ].Load2( nInstance * 8 );
+}
+
+// The vertex's bit in the visibility mask: its aggregate's first vertex bit (written beside the instance records, where
+// the prepass draws ids) plus the vertex. Meaningless elsewhere, and unused there
+uint BasaltGpuDrivenVertexBit( uint nInstance, uint nVertex )
+{
+	uint nBase = g_bindless_VertexBuffers[ g_nBasaltInstances ].Load( g_nBasaltVertexBases + nInstance * 4 );
+	return nBase == 0xffffffffu ? 0xffffffffu : nBase + nVertex;
 }
 
 // The draw's geometry record, vertex material record and pixel material record offsets, and its flags
