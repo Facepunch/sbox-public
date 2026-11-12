@@ -819,23 +819,29 @@ public static class ResourceLibrary
 			return uncompiled as T;
 		}
 
-		// try to load cached version first
+		path = Resource.FixPath( path );
 		if ( TryGet<T>( path, out var cached ) )
 			return cached;
+
+		if ( type == typeof( Model ) )
+			return (T)(object)(await Sandbox.Model.LoadAsync( path ));
+
+		if ( type == typeof( Material ) )
+			return (T)(object)(await Sandbox.Material.LoadAsync( path ));
+
+		if ( Mounting.MountUtility.IsMountPath( path ) )
+		{
+			var mounted = await Mounting.Directory.TryLoadAsync( path );
+			if ( mounted is null || mounted is T )
+				return mounted as T;
+
+			Log.Warning( $"Mounted resource '{path}' is not a '{type.FullName}'." );
+			return null;
+		}
 
 		// Check if the type is a GameResource, and handle it accordingly
 		if ( type.IsAssignableTo( typeof( GameResource ) ) )
 		{
-			if ( Mounting.MountUtility.IsMountPath( path ) )
-			{
-				var mounted = await Mounting.Directory.TryLoadAsync( path );
-				if ( mounted is null || mounted is T )
-					return mounted as T;
-
-				Log.Warning( $"Mounted resource '{path}' is not a '{type.FullName}'." );
-				return null;
-			}
-
 			if ( type == typeof( PrefabFile ) )
 			{
 				return (T)(object)PrefabFile.Load( path );
@@ -845,22 +851,16 @@ public static class ResourceLibrary
 			return Get<T>( path );
 		}
 
-		if ( type == typeof( Model ) )
-		{
-			return (T)(object)(await Sandbox.Model.LoadAsync( path ));
-		}
-
-		if ( type == typeof( Material ) )
-		{
-			return (T)(object)(await Sandbox.Material.LoadAsync( path ));
-		}
-
 		if ( type == typeof( Shader ) )
 		{
 			return (T)(object)(Sandbox.Shader.Load( path ));
 		}
 
-		return default;
+		using var manifest = AsyncResourceLoader.Load( path );
+		if ( manifest is not null )
+			await manifest.WaitForLoad();
+
+		return Resource.LoadNative( type, path ) as T;
 	}
 
 	/// <summary>

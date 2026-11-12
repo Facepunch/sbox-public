@@ -9,6 +9,7 @@ namespace Sandbox.Animation;
 /// <example>
 /// <code>
 /// var builder = Graph.Builder;
+/// builder.Skeleton = "models/character/character.skel";
 ///
 /// var speed = builder.FloatParameter( "speed" );
 /// var blend = builder.Blend( builder.Clip( "idle" ), builder.Clip( "run" ), speed );
@@ -89,9 +90,9 @@ public sealed partial class GraphBuilder
 
 	/// <summary>
 	/// Resource path of the skeleton the graph's clips are authored against. A graph without
-	/// one can't bind its clips, so nothing it plays will pose the model. This is a path rather
-	/// than a <see cref="Sandbox.Animation.Skeleton"/> because graphs are often built off the main thread, where
-	/// resources can't be loaded.
+	/// one can't bind its clips, so nothing it plays will pose the model.
+	/// Assigning this path does not load resources, so graph definitions can be prepared off the main thread.
+	/// Use <see cref="WithSkeleton"/> to supply a runtime skeleton directly.
 	/// </summary>
 	public string Skeleton
 	{
@@ -99,20 +100,39 @@ public sealed partial class GraphBuilder
 		set => SkeletonReference = value;
 	}
 
-	internal ResourceId SkeletonReference { get; set; }
+	internal ResourceId SkeletonReference
+	{
+		get;
+		set
+		{
+			field = value;
+			runtimeSkeleton = null;
+		}
+	}
+
+	private Skeleton runtimeSkeleton;
+
+	public GraphBuilder WithSkeleton( Skeleton skeleton )
+	{
+		if ( !skeleton.IsValid() )
+			throw new ArgumentException( "A valid skeleton is required.", nameof( skeleton ) );
+		SkeletonReference = ResourceId.Get( skeleton );
+		runtimeSkeleton = skeleton;
+		return this;
+	}
 
 	private readonly List<ParameterInfo> parameterInfos = new();
 	private readonly List<Func<NativeEngine.AnimationGraphBuilder, NativeEngine.AnimationGraphNodeDefinition>> parameters = new();
 	private readonly List<Func<NativeEngine.AnimationGraphBuilder, NativeEngine.AnimationGraphNodeDefinition>> nodes = new();
-	private readonly List<ResourceId> animationSlots = new();
-	internal IEnumerable<string> ResourceReferences => animationSlots.Concat( referencedGraphs.Select( reference => reference.Graph ) ).Append( SkeletonReference ).Select( id => id.ResolvePath() ).Distinct();
+	private readonly List<(ResourceId Reference, Clip Resource)> animationSlots = new();
+	internal IEnumerable<string> ResourceReferences => animationSlots.Select( slot => slot.Reference ).Concat( referencedGraphs.Select( reference => reference.Graph ) ).Append( SkeletonReference ).Select( id => id.ResolvePath() ).Distinct();
 
 	// Parameter names are shared between control and virtual parameters and matched case-insensitively
 	private readonly HashSet<string> parameterNames = new( StringComparer.OrdinalIgnoreCase );
 
 	private readonly List<string> virtualParameterNames = new();
 	private readonly List<Node> virtualParameterNodes = new();
-	private readonly List<(ResourceId Graph, string Variation)> referencedGraphs = new();
+	private readonly List<(ResourceId Graph, string Variation, Graph Resource)> referencedGraphs = new();
 	private readonly List<(string Slot, Node Node)> externalGraphSlots = new();
 	private readonly List<(string Slot, Node Node)> externalPoseSlots = new();
 	private readonly HashSet<Node> persistentNodes = new();
@@ -268,13 +288,25 @@ public sealed partial class GraphBuilder
 		if ( animation.Guid is null && string.IsNullOrWhiteSpace( animation.Path ) )
 			throw new ArgumentException( "Animation name must not be null or blank.", nameof( animation ) );
 
-		var slot = animationSlots.FindIndex( existing => animation.Guid is Guid guid
-			? existing.Guid == guid
-			: existing.Guid is null && existing.Path == animation.Path );
+		var slot = animationSlots.FindIndex( existing => existing.Resource is null && (animation.Guid is Guid guid
+			? existing.Reference.Guid == guid
+			: existing.Reference.Guid is null && existing.Reference.Path == animation.Path) );
 		if ( slot >= 0 )
 			return slot;
 
-		animationSlots.Add( animation );
+		animationSlots.Add( (animation, null) );
+		return animationSlots.Count - 1;
+	}
+
+	private int GetAnimationSlot( Clip animation )
+	{
+		if ( !animation.IsValid() )
+			throw new ArgumentException( "A valid animation clip is required.", nameof( animation ) );
+
+		var slot = animationSlots.FindIndex( x => ReferenceEquals( x.Resource, animation ) );
+		if ( slot >= 0 ) return slot;
+
+		animationSlots.Add( (ResourceId.Get( animation ), animation) );
 		return animationSlots.Count - 1;
 	}
 
@@ -340,7 +372,7 @@ public sealed partial class GraphBuilder
 		}
 	}
 
-	private NativeEngine.AnimationGraphBuilder BuildNative( Node root )
+	private NativeEngine.AnimationGraphBuilder BuildNative( Node root, bool bindResources = false )
 	{
 		RequirePose( root );
 		if ( parameters.Count + nodes.Count > short.MaxValue )
@@ -348,7 +380,18 @@ public sealed partial class GraphBuilder
 		var native = NativeEngine.AnimationGraphBuilder.Create();
 		try
 		{
-			native.SetSkeleton( SkeletonReference.ResolvePath() ?? "", SkeletonReference.Guid ?? Guid.Empty );
+			var skeletonPath = SkeletonReference.ResolvePath() ?? "";
+			native.SetSkeleton( skeletonPath, SkeletonReference.Guid ?? Guid.Empty );
+			if ( bindResources )
+			{
+				var skeleton = runtimeSkeleton;
+				if ( skeleton is null && Mounting.MountUtility.IsMountPath( skeletonPath ) )
+					skeleton = Animation.Skeleton.Load( SkeletonReference );
+				if ( runtimeSkeleton is not null && !skeleton.IsValid() )
+					throw new InvalidOperationException( "The runtime skeleton has been disposed." );
+				if ( skeleton.IsValid() )
+					native.SetSkeletonResource( skeleton.native );
+			}
 			foreach ( var parameter in parameters )
 				Check( parameter( native ) );
 			foreach ( var node in nodes )
@@ -385,12 +428,39 @@ public sealed partial class GraphBuilder
 				native.AddExternalGraphSlot( slot.Slot, slot.Node.Index );
 			foreach ( var slot in externalPoseSlots )
 				native.AddExternalPoseSlot( slot.Slot, slot.Node.Index );
-			foreach ( var path in animationSlots )
-				if ( native.AddAnimation( path.ResolvePath() ?? "", path.Guid ?? Guid.Empty ) < 0 )
+			foreach ( var slot in animationSlots )
+			{
+				var index = native.AddAnimation( slot.Reference.ResolvePath() ?? "", slot.Reference.Guid ?? Guid.Empty );
+				if ( index < 0 )
 					throw new InvalidOperationException( native.GetErrorString() );
-			foreach ( var reference in referencedGraphs )
-				if ( native.AddReferencedGraph( reference.Graph.ResolvePath() ?? "", reference.Graph.Guid ?? Guid.Empty, reference.Variation ) < 0 )
+				if ( bindResources )
+				{
+					var clip = slot.Resource;
+					if ( clip is null && Mounting.MountUtility.IsMountPath( slot.Reference.ResolvePath() ) )
+						clip = Animation.Clip.Load( slot.Reference );
+					if ( slot.Resource is not null && !clip.IsValid() )
+						throw new InvalidOperationException( "The runtime clip has been disposed." );
+					if ( clip.IsValid() )
+						native.SetAnimationResource( index, clip.native );
+				}
+			}
+			foreach ( var slot in referencedGraphs )
+			{
+				var index = native.AddReferencedGraph( slot.Graph.ResolvePath() ?? "", slot.Graph.Guid ?? Guid.Empty, slot.Variation );
+				if ( index < 0 )
 					throw new InvalidOperationException( native.GetErrorString() );
+				if ( bindResources )
+				{
+					var graph = slot.Resource;
+					if ( graph is null && Mounting.MountUtility.IsMountPath( slot.Graph.ResolvePath() ) )
+						graph = string.IsNullOrEmpty( slot.Variation ) ? Graph.Load( slot.Graph )
+							: Graph.Load( $"{slot.Graph.ResolvePath()}+{slot.Variation}.ag" );
+					if ( slot.Resource is not null && !graph.IsValid() )
+						throw new InvalidOperationException( $"Referenced graph '{slot.Graph}' has been disposed." );
+					if ( graph.IsValid() )
+						native.SetReferencedGraphResource( index, graph.native );
+				}
+			}
 			return native;
 
 			void Check( NativeEngine.AnimationGraphNodeDefinition definition )
@@ -425,10 +495,11 @@ public sealed partial class GraphBuilder
 	{
 		ThreadSafe.AssertIsMainThread();
 		name = string.IsNullOrWhiteSpace( name ) ? "runtime_animgraph" : name.Trim();
-		var native = BuildNative( root );
+		var native = BuildNative( root, bindResources: true );
 		try
 		{
-			return Graph.FromNative( NativeGlue.Resources.CreateBuiltAnimGraph2( name, native, root.Index ), name, procedural: true );
+			var graph = Graph.FromNative( NativeGlue.Resources.CreateBuiltAnimGraph2( name.Replace( ':', '_' ), native, root.Index ), name, procedural: true );
+			return graph ?? throw new InvalidOperationException( $"Failed to create animation graph '{name}'." );
 		}
 		finally
 		{

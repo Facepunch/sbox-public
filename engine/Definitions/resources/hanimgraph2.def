@@ -22,6 +22,25 @@ native class CGraphBuilder as NativeEngine.AnimationGraphBuilder
 		self->Resource().m_skeleton.SetGuid( guid );
 	}
 
+	inline void SetSkeletonResource( HAnimSkeleton skeleton )
+	{
+		self->Resource().m_hSkeletonExtRef = skeleton;
+	}
+
+	inline void SetAnimationResource( int index, HAnimClip clip )
+	{
+		auto& resource = self->Resource();
+		resource.m_animationSlotExtRefs.EnsureCount( resource.m_animationSlots.Count() );
+		resource.m_animationSlotExtRefs[index] = clip;
+	}
+
+	inline void SetReferencedGraphResource( int index, HAnimGraph2 graph )
+	{
+		auto& resource = self->Resource();
+		resource.m_referencedGraphExtRefs.EnsureCount( resource.m_referencedGraphs.Count() );
+		resource.m_referencedGraphExtRefs[index] = graph;
+	}
+
 	inline void AddPersistentNode( int index )
 	{
 		self->Definition().m_persistentNodeIndices.AddToTail( (int16)index );

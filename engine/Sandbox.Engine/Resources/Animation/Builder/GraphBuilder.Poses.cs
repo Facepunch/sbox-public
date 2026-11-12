@@ -73,9 +73,11 @@ public sealed partial class GraphBuilder
 	public Node Clip( string animation, ClipSettings settings = null ) => Clip( (ResourceId)animation, settings );
 
 	internal Node Clip( ResourceId animation, ClipSettings settings = null )
+		=> Clip( GetAnimationSlot( animation ), settings );
+
+	private Node Clip( int slot, ClipSettings settings )
 	{
 		settings ??= new();
-		var slot = GetAnimationSlot( animation );
 		Optional( settings.PlayInReverse, NodeKind.Bool );
 		Optional( settings.ResetTime, NodeKind.Bool );
 		var events = settings.GraphEvents?.ToArray() ?? [];
@@ -103,7 +105,7 @@ public sealed partial class GraphBuilder
 	public Node Clip( Clip animation, ClipSettings settings = null )
 	{
 		ArgumentNullException.ThrowIfNull( animation );
-		return Clip( ResourceId.Get( animation ), settings );
+		return Clip( GetAnimationSlot( animation ), settings );
 	}
 
 	/// <summary>
@@ -114,9 +116,11 @@ public sealed partial class GraphBuilder
 	public Node TimeControlledClip( string animation, Node time, TimeControlledClipSettings settings = null ) => TimeControlledClip( (ResourceId)animation, time, settings );
 
 	internal Node TimeControlledClip( ResourceId animation, Node time, TimeControlledClipSettings settings = null )
+		=> TimeControlledClip( GetAnimationSlot( animation ), time, settings );
+
+	private Node TimeControlledClip( int slot, Node time, TimeControlledClipSettings settings )
 	{
 		settings ??= new();
-		var slot = GetAnimationSlot( animation );
 		Require( time, NodeKind.Float );
 		Optional( settings.PlayInReverse, NodeKind.Bool );
 		var events = settings.GraphEvents?.ToArray() ?? [];
@@ -141,7 +145,7 @@ public sealed partial class GraphBuilder
 	public Node TimeControlledClip( Clip animation, Node time, TimeControlledClipSettings settings = null )
 	{
 		ArgumentNullException.ThrowIfNull( animation );
-		return TimeControlledClip( ResourceId.Get( animation ), time, settings );
+		return TimeControlledClip( GetAnimationSlot( animation ), time, settings );
 	}
 
 	/// <summary>
@@ -153,8 +157,10 @@ public sealed partial class GraphBuilder
 	public Node Pose( string animation, Node time ) => Pose( (ResourceId)animation, time );
 
 	internal Node Pose( ResourceId animation, Node time )
+		=> Pose( GetAnimationSlot( animation ), time );
+
+	private Node Pose( int slot, Node time )
 	{
-		var slot = GetAnimationSlot( animation );
 		Require( time, NodeKind.Float );
 		// Omitting m_inputTimeRemapRange keeps the runtime default FloatRange(0,1),
 		// an identity clamp for normalized time input
@@ -174,9 +180,11 @@ public sealed partial class GraphBuilder
 	public Node Pose( string animation, PoseSettings settings ) => Pose( (ResourceId)animation, settings );
 
 	internal Node Pose( ResourceId animation, PoseSettings settings )
+		=> Pose( GetAnimationSlot( animation ), settings );
+
+	private Node Pose( int slot, PoseSettings settings )
 	{
 		ArgumentNullException.ThrowIfNull( settings );
-		var slot = GetAnimationSlot( animation );
 		Optional( settings.Time, NodeKind.Float );
 		return AddNode( NodeKind.Pose, native =>
 		{
@@ -196,14 +204,14 @@ public sealed partial class GraphBuilder
 	public Node Pose( Clip animation, Node time )
 	{
 		ArgumentNullException.ThrowIfNull( animation );
-		return Pose( ResourceId.Get( animation ), time );
+		return Pose( GetAnimationSlot( animation ), time );
 	}
 
 	/// <inheritdoc cref="Pose(string, PoseSettings)"/>
 	public Node Pose( Clip animation, PoseSettings settings )
 	{
 		ArgumentNullException.ThrowIfNull( animation );
-		return Pose( ResourceId.Get( animation ), settings );
+		return Pose( GetAnimationSlot( animation ), settings );
 	}
 
 	/// <summary>

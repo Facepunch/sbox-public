@@ -30,6 +30,9 @@ public abstract class ResourceLoader
 		{ ResourceType.Sound, ".vsnd" },
 		{ ResourceType.Material, ".vmat" },
 		{ ResourceType.PrefabFile, ".prefab" },
+		{ ResourceType.AnimationGraph, ".ag" },
+		{ ResourceType.AnimationSkeleton, ".skel" },
+		{ ResourceType.AnimationClip, ".anim" },
 	};
 
 	/// <summary>
@@ -89,6 +92,15 @@ public abstract class ResourceLoader
 	object _cachedResult;
 	Lock _lock = new();
 	Task<object> _loadTask;
+
+	internal void InvalidateCachedResult( object result )
+	{
+		lock ( _lock )
+		{
+			if ( ReferenceEquals( _cachedResult, result ) )
+				_cachedResult = null;
+		}
+	}
 
 	/// <summary>
 	/// Should be implemented to load a specific type

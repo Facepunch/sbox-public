@@ -11,11 +11,10 @@ public sealed class Graph : Resource, IDisposable
 	internal HAnimGraph2 native;
 
 	/// <summary>
-	/// True for graphs built at runtime. Those are anonymous - they can never be found by name,
-	/// so whoever created it owns it outright. Graphs loaded from disk are shared through the
-	/// resource system, so we don't get to release those.
+	/// Graphs loaded from disk or provided by mounts are shared. Only graphs owned by
+	/// their creator can be released through Dispose.
 	/// </summary>
-	private readonly bool procedural;
+	private bool shared;
 
 	/// <summary>
 	/// Build an animation graph at runtime, node by node.
@@ -37,8 +36,10 @@ public sealed class Graph : Resource, IDisposable
 	private Graph( HAnimGraph2 native, string name, bool procedural )
 	{
 		this.native = native;
-		this.procedural = procedural;
-		RegisterWeakResourceId( name, procedural ? null : native.GetGuid() );
+		shared = !procedural;
+		SetResourceIdentity( name, procedural ? null : native.GetGuid() );
+		if ( !NativeGlue.Resources.IsAnonymousResource( native.GetBindingPtr() ) )
+			Game.Resources.RegisterWeak( this );
 	}
 
 	/// <summary>
@@ -53,8 +54,36 @@ public sealed class Graph : Resource, IDisposable
 		if ( id.Guid is Guid guid && Game.Resources.TryGet<Graph>( guid, out var resource ) )
 			return resource;
 
-		var path = id.ResolvePath();
+		var path = FixPath( id.ResolvePath() );
+		if ( string.IsNullOrWhiteSpace( path ) && id.Guid is null )
+			return null;
+
+		if ( Mounting.MountUtility.IsMountPath( path ) )
+			return Mounting.Directory.TryLoad( path, out var mounted ) ? mounted as Graph : null;
+
 		return FromNative( NativeGlue.Resources.GetAnimGraph2( path, id.Guid ?? Guid.Empty ), path );
+	}
+
+	public static Task<Graph> LoadAsync( string filename )
+	{
+		ThreadSafe.AssertIsMainThread();
+		return ResourceLibrary.LoadAsync<Graph>( FixPath( filename ) );
+	}
+
+	internal override void OnMounted( string path )
+	{
+		ThreadSafe.AssertIsMainThread();
+		if ( shared )
+		{
+			if ( ResourcePath != FixPath( path ) )
+				throw new InvalidOperationException( $"Mounted animation graph '{path}' must be created by its loader, not shared from '{ResourcePath}'." );
+			if ( Game.Resources.Get<Graph>( ResourcePath ) != this )
+				Game.Resources.RegisterWeak( this );
+			return;
+		}
+
+		RegisterWeakResourceId( path );
+		shared = true;
 	}
 
 	/// <summary>
@@ -87,7 +116,8 @@ public sealed class Graph : Resource, IDisposable
 		if ( NativeResourceCache.TryGetValue<Graph>( instanceId, out var graph ) )
 		{
 			native.DestroyStrongHandle();
-			Game.Resources.RegisterWeak( graph );
+			if ( !NativeGlue.Resources.IsAnonymousResource( graph.native.GetBindingPtr() ) )
+				Game.Resources.RegisterWeak( graph );
 			return graph;
 		}
 
@@ -118,11 +148,11 @@ public sealed class Graph : Resource, IDisposable
 	/// Releases the caller's handle to a graph built at runtime. A renderer's main graph assignment
 	/// only keeps a weak handle, so keep that graph alive while it is playing. External graph slots
 	/// retain their own strong handles until disconnected (or until a recording using them is cleared).
-	/// Graphs loaded from disk are shared, so this does nothing for those.
+	/// Graphs loaded from disk or mounts are shared, so this does nothing for those.
 	/// </summary>
 	public void Dispose()
 	{
-		if ( !procedural )
+		if ( shared )
 			return;
 
 		Destroy();
