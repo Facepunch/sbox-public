@@ -45,7 +45,7 @@ CS
 		uint g_nCullFirstInstance;	// the first instance record's index in g_Frame
 		uint g_nCullFragments;		// bindless slot of the fragment table
 		uint g_nCullDraws;			// bindless slot of the draw table
-		uint g_nCullPad;
+		uint g_nCullRuns;			// byte offset of the multi-draws: first command slot and visible count each, or 0 to keep every slot
 	};
 
 	bool Inside( float4 vPlane, float3 vCenter, float3 vExtents )
@@ -68,7 +68,8 @@ CS
 		float4 vCamera = asfloat( g_Frame.Load4( g_nCullInput + 96 ) );
 		bool bShadow = g_Frame.Load( g_nCullInput + 112 ) != 0;
 
-		// Batch record: first fragment record, fragments, the first fragment's transform slot, its first command
+		// Batch record: first fragment record, fragments, the first fragment's transform slot, its first command slot (or,
+		// compacting, its multi-draw)
 		uint4 vBatch = g_Frame.Load4( g_nCullInput + 128 + nBatch * 16 );
 
 		ByteAddressBuffer fragments = g_bindless_VertexBuffers[ g_nCullFragments ];
@@ -94,10 +95,21 @@ CS
 			if ( vCamera.w > 0 && flDistanceSquared > flRadiusSquared && flRadiusSquared < vCamera.w * flDistanceSquared )
 				bVisible = false;
 
+			// Compacting, a culled fragment has no command; a kept one takes the multi-draw's next slot
+			uint nSlot = vBatch.w + i;
+			if ( g_nCullRuns != 0 )
+			{
+				if ( !bVisible )
+					continue;
+
+				uint nIndex;
+				g_Frame.InterlockedAdd( g_nCullRuns + vBatch.w * 8 + 4, 1, nIndex );
+				nSlot = g_Frame.Load( g_nCullRuns + vBatch.w * 8 ) + nIndex;
+			}
+
 			// Draw record's second half: first index, index count, base vertex, index page
 			uint4 vDraw = draws.Load4( a.w * 32 + 16 );
 
-			uint nSlot = vBatch.w + i;
 			g_Frame.Store( g_nCullInstances + nSlot * 8, vBatch.z + ( b.w & 0x7fffffffu ) );
 			g_Frame.Store( g_nCullInstances + nSlot * 8 + 4, a.w );
 

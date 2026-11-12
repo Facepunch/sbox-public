@@ -285,8 +285,11 @@ internal sealed partial class BackendContext
 		var batchCount = 0;
 		for ( int b = 0; b < gpuDrivenBucketCount; b++ ) batchCount += gpuDrivenBuckets[b].Batches.Count;
 
-		// One region: the view, the batches, then every fragment's instance record (8 bytes) and command (20 bytes)
-		var inputBytes = CullViewBytes + batchCount * CullBatchBytes;
+		// One region: the view, the batches, the multi-draws (first slot and visible count, when compacting), then a slot
+		// per fragment for its instance record (8 bytes) and command (20 bytes)
+		var compact = device.GpuDrivenCompaction && device.SupportsDrawIndirectCount;
+		var runsOffset = CullViewBytes + batchCount * CullBatchBytes;
+		var inputBytes = runsOffset + (compact ? batchCount * 8 : 0);
 		var instanceOffset = inputBytes;
 		var commandOffset = (instanceOffset + totalFragments * GpuDrivenTables.InstanceStride + 15) & ~15;
 		var frameBytes = commandOffset + totalFragments * GpuDrivenTables.CommandStride;
@@ -350,7 +353,7 @@ internal sealed partial class BackendContext
 				batchRecords[record * 4] = first;
 				batchRecords[record * 4 + 1] = (uint)fragments.Length;
 				batchRecords[record * 4 + 2] = (uint)transforms.InstanceSlot( batch.FirstInstance );
-				batchRecords[record * 4 + 3] = (uint)written;
+				batchRecords[record * 4 + 3] = compact ? (uint)cullRuns.Count : (uint)written;
 				record++;
 				written += fragments.Length;
 				drawn[index] = true;
@@ -360,6 +363,14 @@ internal sealed partial class BackendContext
 		}
 
 		SetObjectAttributes( null );
+
+		// Each multi-draw's first slot, and its count from 0, which the culling counts up
+		var runs = MemoryMarshal.Cast<byte, uint>( data.Slice( runsOffset, compact ? cullRuns.Count * 8 : 0 ) );
+		for ( int i = 0; i < runs.Length / 2; i++ )
+		{
+			runs[i * 2] = (uint)cullRuns[i].First;
+			runs[i * 2 + 1] = 0;
+		}
 
 		// Cull and write the commands, outside the rendering scope, then draw them
 		var slots = tables.Slots;
@@ -375,11 +386,13 @@ internal sealed partial class BackendContext
 		constants[4] = firstInstance;
 		constants[5] = (uint)tables.FragmentSlot;
 		constants[6] = (uint)slots.Draws;
+		constants[7] = compact ? (uint)(frameOffset + runsOffset) : 0;
 		cullAttributes.Clear();
 		cullAttributes.Set( "BasaltCullFrame", frameBuffer );
 		cullAttributes.SetData( "BasaltGpuDrivenCull_t", cullConstants );
 		cullDrawer.Dispatch( r.List, CullShader, cullAttributes, batchCount * 64, 1, 1 );
-		r.List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead );
+		// Only the culling's writes before the draws' reads of them: the draws before it needn't drain
+		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.VertexShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead );
 		r.Pipeline = default;
 		r.Binder = null;
 		if ( !EnsureScope() ) return;
@@ -388,8 +401,9 @@ internal sealed partial class BackendContext
 
 		var bound = false;
 		var lastBucket = -1;
-		foreach ( var run in cullRuns )
+		for ( int i = 0; i < cullRuns.Count; i++ )
 		{
+			var run = cullRuns[i];
 			var bucket = gpuDrivenBuckets[run.Bucket];
 			if ( run.Bucket != lastBucket )
 			{
@@ -400,7 +414,7 @@ internal sealed partial class BackendContext
 				bound = false;
 			}
 
-			DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, run.Page, run.Format, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count );
+			DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, run.Page, run.Format, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count, compact ? frameOffset + runsOffset + i * 8 + 4 : -1 );
 		}
 
 		SetObjectAttributes( null );
@@ -460,10 +474,11 @@ internal sealed partial class BackendContext
 
 	/// <summary>
 	/// One multi-draw: the bucket's pipeline and sets (bound once, through any of its materials' material object: a
-	/// GPU-driven variant binds no material resources), the page's indices, and its run of commands.
+	/// GPU-driven variant binds no material resources), the page's indices, and its run of commands: all of them, or as
+	/// many as the count at <paramref name="countOffset"/> in the same buffer when it's 0 or more.
 	/// </summary>
 	void DrawRun( ref bool bound, GpuDrivenBucket bucket, Format color, Format depth, int samples, int depthBias, float slopeScaledDepthBias, PassResolver resolver,
-		BufferHandle page, IndexFormat format, BufferHandle commands, long offset, int count )
+		BufferHandle page, IndexFormat format, BufferHandle commands, long offset, int count, long countOffset = -1 )
 	{
 		var r = recording;
 		if ( !bound )
@@ -481,7 +496,8 @@ internal sealed partial class BackendContext
 		}
 
 		r.List.SetIndexBuffer( page, format, 0 );
-		r.List.DrawIndexedIndirect( commands, offset, count, GpuDrivenTables.CommandStride );
+		if ( countOffset >= 0 ) r.List.DrawIndexedIndirectCount( commands, offset, commands, countOffset, count, GpuDrivenTables.CommandStride );
+		else r.List.DrawIndexedIndirect( commands, offset, count, GpuDrivenTables.CommandStride );
 		gpuDrivenRuns++;
 	}
 
