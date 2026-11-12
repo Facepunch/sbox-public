@@ -29,7 +29,7 @@ public class GpuDrivenTests : GpuTest
 	[TestMethod]
 	public void AggregatesDrawTheSamePixelsGpuDriven()
 	{
-		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDrivenMeshes = true };
 		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
 		{
 			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );

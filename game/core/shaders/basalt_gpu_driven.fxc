@@ -26,6 +26,7 @@ cbuffer BasaltGpuDriven_t
 	uint g_nBasaltGeometry;		// geometry records: 32-byte semantic mask, then 16 bytes per present semantic
 	uint g_nBasaltMaterials;	// material records: $Globals as compiled, then a bindless slot per material texture
 	uint g_nBasaltVertexBases;	// with the visibility-driven forward pass's ids: each instance's first vertex bit, a word per instance from here
+	uint g_nBasaltLighting;		// lighting records, 160 bytes: BakedLightingConstantBuffer_t, then PerBatchLightProbeVolumeConstantBuffer_t; a draw's is its flags' top 24 bits, in 16 bytes
 };
 
 // With one material per multi-draw (specialization constant 120): its pixel record's offset. Set per bucket as an

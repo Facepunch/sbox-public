@@ -25,7 +25,9 @@ internal sealed partial class BackendContext
 
 		/// <summary>Where each instance's first vertex bit is, a word per instance (wraps); the instance records where there are no ids.</summary>
 		public uint VertexBases;
-		public uint Pad0, Pad1, Pad2;
+		/// <summary>The lighting table's slot: a draw's lighting record is its flags' top 24 bits, in 16 bytes.</summary>
+		public uint Lighting;
+		public uint Pad1, Pad2;
 	}
 
 	/// <summary>A bucket: what one multi-draw shares, and the batches in it.</summary>
@@ -35,6 +37,9 @@ internal sealed partial class BackendContext
 		public BackendMaterial Material;
 		public ShaderParameters Attributes;
 		public bool DepthOnly, NoColor;
+
+		/// <summary>Its attributes but for their per-draw lighting (<see cref="BackendParameters.LightingFreeKey"/>): what it's found by.</summary>
+		public long AttributesKey;
 
 		/// <summary>The classic variant of its first material, when it's depth-only: what decides whether positions alone will do.</summary>
 		public ShaderVariant Classic;
@@ -56,6 +61,10 @@ internal sealed partial class BackendContext
 	}
 
 	readonly List<GpuDrivenBucket> gpuDrivenBuckets = new();
+
+	/// <summary>Each batch's lighting record (<see cref="GpuDrivenTables.Lighting"/>), by its index in the call.</summary>
+	uint[] batchLighting = [];
+	static readonly StringToken ProbeVolumeToken = new( "PerBatchLightProbeVolumeConstantBuffer_t" );
 	int gpuDrivenBucketCount;
 
 	internal override bool GpuDriven => device.DrawsAggregatesGpuDriven;
@@ -101,6 +110,10 @@ internal sealed partial class BackendContext
 			NextPassState( cache );
 			var mode = CachedModeName( shader, shaderMode );
 			if ( mode is null ) continue;
+
+			// Its lighting constants as the draw would read them (the object's, else the pass's), as a lighting record
+			if ( batchLighting.Length < batches.Length ) Array.Resize( ref batchLighting, Math.Max( batches.Length, batchLighting.Length * 2 ) );
+			batchLighting[i] = tables.Lighting( Lookup( ProbeVolumeToken ) as byte[] );
 
 			comboLookup ??= name => LookupCombo( Token( name ) );
 			specializationLookup ??= name => Integer( Lookup( Token( name ) ) );
@@ -160,7 +173,7 @@ internal sealed partial class BackendContext
 		var commands = MemoryMarshal.Cast<byte, GpuBuffer.IndirectDrawIndexedArguments>( data.Slice( commandBase, totalCommands * GpuDrivenTables.CommandStride ) );
 
 		var slots = tables.Slots;
-		SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, VertexBases = (uint)frameOffset - firstInstance * 4 } );
+		SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, VertexBases = (uint)frameOffset - firstInstance * 4, Lighting = (uint)slots.Lighting } );
 
 		var written = 0;
 		for ( int b = 0; b < gpuDrivenBucketCount; b++ )
@@ -192,7 +205,7 @@ internal sealed partial class BackendContext
 
 				var vertexMaterial = MaterialRecord( tables, material, bucket.Variant.Vertex, geometry.UncompressedTangentFrame );
 				var pixelMaterial = bucket.DepthOnly ? 0 : MaterialRecord( tables, material, bucket.Variant.Pixel, geometry.UncompressedTangentFrame );
-				var flags = geometry.UncompressedTangentFrame ? 1u : 0u;
+				var flags = (geometry.UncompressedTangentFrame ? 1u : 0u) | batchLighting[index] << 8;
 
 				if ( pooled.IndexPage != currentPage )
 				{
@@ -203,7 +216,7 @@ internal sealed partial class BackendContext
 				}
 
 				// An owner's fragments keep their draw records by instance; anything else looks them up by key
-				var owned = batch.Owner is null ? null : tables.DrawsOf( batch.Owner, pooled.GeometryRecord, vertexMaterial, pixelMaterial );
+				var owned = batch.Owner is null ? null : tables.DrawsOf( batch.Owner, pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags );
 				if ( owned is not null ) System.Threading.Monitor.Enter( owned );
 
 				for ( int f = 0; f < batch.Count; f++ )
@@ -415,7 +428,7 @@ internal sealed partial class BackendContext
 
 				var vertexMaterial = MaterialRecord( tables, material, bucket.Variant.Vertex, geometry.UncompressedTangentFrame );
 				var pixelMaterial = bucket.DepthOnly ? 0 : MaterialRecord( tables, material, bucket.Variant.Pixel, geometry.UncompressedTangentFrame );
-				var flags = (geometry.UncompressedTangentFrame ? 1u : 0u) | (pooled.IndexFormat == IndexFormat.UInt32 ? 2u : 0u);
+				var flags = (geometry.UncompressedTangentFrame ? 1u : 0u) | (pooled.IndexFormat == IndexFormat.UInt32 ? 2u : 0u) | batchLighting[index] << 8;
 
 				if ( pooled.IndexPage != currentPage )
 				{
@@ -448,7 +461,7 @@ internal sealed partial class BackendContext
 					var aggregate = (AggregateObject)batch.Owner;
 					var fragments = aggregate.Fragments;
 					fragmentCount = fragments.Length;
-					batchRecords[at] = tables.FragmentsOf( aggregate, pooled.GeometryRecord, vertexMaterial, pixelMaterial, fragments.Length,
+					batchRecords[at] = tables.FragmentsOf( aggregate, pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, fragments.Length,
 						(Tables: tables, Aggregate: aggregate, Pooled: pooled, Vertex: vertexMaterial, Pixel: pixelMaterial, Flags: flags),
 						static ( s, bytes ) => WriteFragments( s.Tables, s.Aggregate, s.Pooled, s.Vertex, s.Pixel, s.Flags, bytes ) );
 					batchRecords[at + 2] = (uint)transforms.InstanceSlot( batch.FirstInstance );
@@ -556,7 +569,7 @@ internal sealed partial class BackendContext
 		r.Binder = null;
 
 		var vertexBases = ids ? (uint)(frameOffset + fragmentOffset) - firstInstance * 4 : (uint)(frameOffset + instanceOffset) - firstInstance * 4;
-		SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, VertexBases = vertexBases } );
+		SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, VertexBases = vertexBases, Lighting = (uint)slots.Lighting } );
 
 		// The prepass's id buckets first, into the ids and depth, then the triangles they show are marked
 		if ( ids ) DrawIds( visibility, shaders, frameBuffer, frameOffset, commandOffset, runsOffset, depth, samples, depthBias, slopeScaledDepthBias, resolver );
@@ -806,16 +819,19 @@ internal sealed partial class BackendContext
 
 	GpuDrivenBucket FindBucket( ShaderVariant variant, ShaderParameters attributes, bool depthOnly, bool noColor, uint pixelMaterial, BackendMaterial material, string mode )
 	{
+		// Attributes that differ only in their lighting share a bucket: the variants read it from each draw's lighting record
+		var key = attributes switch { null => 0L, BackendParameters parameters => parameters.LightingFreeKey, _ => (uint)RuntimeHelpers.GetHashCode( attributes ) | 1L << 62 };
 		for ( int i = 0; i < gpuDrivenBucketCount; i++ )
 		{
 			var bucket = gpuDrivenBuckets[i];
-			if ( ReferenceEquals( bucket.Variant, variant ) && ReferenceEquals( bucket.Attributes, attributes ) && bucket.DepthOnly == depthOnly && bucket.NoColor == noColor && bucket.PixelMaterial == pixelMaterial ) return bucket;
+			if ( ReferenceEquals( bucket.Variant, variant ) && bucket.AttributesKey == key && bucket.DepthOnly == depthOnly && bucket.NoColor == noColor && bucket.PixelMaterial == pixelMaterial ) return bucket;
 		}
 
 		if ( gpuDrivenBucketCount == gpuDrivenBuckets.Count ) gpuDrivenBuckets.Add( new GpuDrivenBucket() );
 		var made = gpuDrivenBuckets[gpuDrivenBucketCount++];
 		made.Variant = variant;
 		made.Attributes = attributes;
+		made.AttributesKey = key;
 		made.DepthOnly = depthOnly;
 		made.Classic = depthOnly ? Variant( material, mode ) : null;
 		made.NoColor = noColor;

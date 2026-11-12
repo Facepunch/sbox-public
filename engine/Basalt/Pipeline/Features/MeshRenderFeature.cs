@@ -492,7 +492,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		// Static opaque draws go with the aggregates when the device draws them GPU-driven, as one run (so not while
 		// occlusion culls, which the aggregates' feature then draws batch by batch)
-		if ( Occlusion is null && RenderHost.Current?.Device is { DrawsAggregatesGpuDriven: true } ) TakeGpuDriven( layers );
+		if ( Occlusion is null && RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } ) TakeGpuDriven( layers );
 	}
 
 	/// <summary>

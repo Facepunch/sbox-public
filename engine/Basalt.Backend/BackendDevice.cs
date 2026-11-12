@@ -693,6 +693,15 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	internal override bool DrawsAggregatesGpuDriven => GpuDriven && MaterialObjects && GpuDrivenTables is not null;
 
+	internal override bool DrawsMeshesGpuDriven => GpuDrivenMeshes && DrawsAggregatesGpuDriven;
+
+	/// <summary>
+	/// Static meshes' opaque draws join the aggregates' GPU-driven call (docs/managed/basalt-gpu-driven.md). Off by default:
+	/// on Construct it saves GPU time but costs CPU time, mostly on worker threads, where the one GPU-driven run now records
+	/// what workers drew between them; <c>-gpudriven-meshes</c> turns it on.
+	/// </summary>
+	public bool GpuDrivenMeshes { get; set; } = HasSwitch( "-gpudriven-meshes" );
+
 	/// <summary>
 	/// Cull GPU-driven aggregates' fragments on the GPU (<c>basalt_gpu_driven_cull_cs</c>), by the same frustum and size
 	/// tests the CPU makes, from records written once: the CPU writes 16 bytes per aggregate a frame instead of an instance

@@ -98,7 +98,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
-	readonly Table geometry, draws, materials, fragments;
+	readonly Table geometry, draws, materials, fragments, lighting;
 	readonly Dictionary<(int Page, long Offset, VertexLayout Layout, int Count), uint> geometryRecords = new();
 	readonly Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage), uint> drawRecords = new();
 	readonly Dictionary<MaterialRecordKey, uint> materialRecords = new();
@@ -113,17 +113,62 @@ internal sealed class GpuDrivenTables : IDisposable
 		draws = new Table( gpu, "Basalt GPU-driven draws", 1 << 20 );
 		materials = new Table( gpu, "Basalt GPU-driven materials", 1 << 20 );
 		fragments = new Table( gpu, "Basalt GPU-driven fragments", 1 << 20 );
+		lighting = new Table( gpu, "Basalt GPU-driven lighting", 1 << 16 );
 
-		// Made now, so their slots exist before any frame reads them
+		// Made now, so their slots exist before any frame reads them; lighting record 0 is no lighting
 		geometry.Append( new byte[16] );
 		draws.Append( new byte[DrawStride] );
 		materials.Append( new byte[16] );
 		fragments.Append( new byte[FragmentStride] );
+		lighting.Append( new byte[LightingStride] );
 	}
 
 	/// <summary>The tables' slots in the raw buffer array, as <c>BasaltGpuDriven_t</c> wants them after the instances'.</summary>
-	public (int Geometry, int Draws, int Materials) Slots => (geometry.Slot, draws.Slot, materials.Slot);
+	public (int Geometry, int Draws, int Materials, int Lighting) Slots => (geometry.Slot, draws.Slot, materials.Slot, lighting.Slot);
 
+	/// <summary>
+	/// A lighting record: <c>BakedLightingConstantBuffer_t</c> (48 bytes), then <c>PerBatchLightProbeVolumeConstantBuffer_t</c>
+	/// (112), as the object attributes hold them, which GPU-driven variants read per draw instead of binding.
+	/// </summary>
+	public const int LightingStride = 160;
+
+	readonly Dictionary<byte[], uint> lightingRecords = new( LightingComparer.Instance );
+
+	sealed class LightingComparer : IEqualityComparer<byte[]>
+	{
+		public static readonly LightingComparer Instance = new();
+		public bool Equals( byte[] a, byte[] b ) => a.AsSpan().SequenceEqual( b );
+		public int GetHashCode( byte[] bytes )
+		{
+			var hash = new HashCode();
+			hash.AddBytes( bytes );
+			return hash.ToHashCode();
+		}
+	}
+
+	readonly ConditionalWeakTable<byte[], StrongBox<uint>> lightingBySource = new();
+
+	/// <summary>
+	/// The lighting record holding this light probe volume's constant buffer bytes as a draw reads them, in 16-byte units (a
+	/// draw record's flags hold it from bit 8): found by the bytes' array first, made once per distinct contents; 0, all
+	/// zeros, for none.
+	/// </summary>
+	public uint Lighting( byte[] probe )
+	{
+		if ( probe is null ) return 0;
+		if ( lightingBySource.TryGetValue( probe, out var known ) ) return known.Value;
+
+		var record = new byte[LightingStride];
+		probe.AsSpan( 0, Math.Min( probe.Length, 112 ) ).CopyTo( record.AsSpan( 48 ) );
+		uint index;
+		lock ( lightingRecords )
+		{
+			if ( !lightingRecords.TryGetValue( record, out index ) ) lightingRecords[record] = index = lighting.Append( record ) / 16;
+		}
+
+		lightingBySource.AddOrUpdate( probe, new StrongBox<uint>( index ) );
+		return index;
+	}
 	/// <summary>Bytes of the tables, for reports.</summary>
 	public (long Geometry, long Draws, long Materials, long Pages) Bytes
 	{
@@ -290,41 +335,41 @@ internal sealed class GpuDrivenTables : IDisposable
 		public OwnerDraw[] Draws = [];
 	}
 
-	readonly ConditionalWeakTable<object, Dictionary<(uint Geometry, uint Vertex, uint Pixel), OwnerDraws>> ownerDraws = new();
+	readonly ConditionalWeakTable<object, Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags), OwnerDraws>> ownerDraws = new();
 
 	/// <summary>
 	/// Where an owner (an aggregate, whose fragments don't change) remembers its fragments' draw records, so a frame finds
 	/// them by index rather than by record key. Lock it while reading or writing.
 	/// </summary>
-	public OwnerDraws DrawsOf( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial )
+	public OwnerDraws DrawsOf( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial, uint flags )
 	{
 		var byKey = ownerDraws.GetValue( owner, static _ => new() );
 		lock ( byKey )
 		{
-			if ( !byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial), out var draws ) ) byKey[(geometry, vertexMaterial, pixelMaterial)] = draws = new();
+			if ( !byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var draws ) ) byKey[(geometry, vertexMaterial, pixelMaterial, flags)] = draws = new();
 			return draws;
 		}
 	}
 
 	public const int FragmentStride = 32;
 
-	readonly ConditionalWeakTable<object, Dictionary<(uint Geometry, uint Vertex, uint Pixel), uint>> ownerFragments = new();
+	readonly ConditionalWeakTable<object, Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags), uint>> ownerFragments = new();
 
 	/// <summary>
 	/// The first of an owner's fragment records for one geometry and pair of material records, made once by
 	/// <paramref name="write"/> (which fills <paramref name="count"/> records of <see cref="FragmentStride"/> bytes): the
 	/// fragments' bounds, draw records and indices, which culling on the GPU reads every frame.
 	/// </summary>
-	public uint FragmentsOf<T>( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial, int count, T state, Action<T, Span<byte>> write )
+	public uint FragmentsOf<T>( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial, uint flags, int count, T state, Action<T, Span<byte>> write )
 	{
 		var byKey = ownerFragments.GetValue( owner, static _ => new() );
 		lock ( byKey )
 		{
-			if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial), out var first ) ) return first;
+			if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var first ) ) return first;
 
 			var records = new byte[count * FragmentStride];
 			write( state, records );
-			return byKey[(geometry, vertexMaterial, pixelMaterial)] = fragments.Append( records ) / FragmentStride;
+			return byKey[(geometry, vertexMaterial, pixelMaterial, flags)] = fragments.Append( records ) / FragmentStride;
 		}
 	}
 
@@ -524,6 +569,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		draws.Dispose();
 		materials.Dispose();
 		fragments.Dispose();
+		lighting.Dispose();
 		lock ( pagesLock )
 		{
 			foreach ( var buffer in owned ) gpu.Destroy( buffer );
