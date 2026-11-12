@@ -263,6 +263,36 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		presentTo = swapChain;
 	}
 
+	/// <summary>
+	/// Read a map's compiled content on this device, after the game's: the loose files of the package it's in and its VPK,
+	/// with its 3D skybox's beside it, as the engine's search path has them once the map is mounted. Its world geometry,
+	/// materials and textures then load here by path.
+	/// </summary>
+	internal void AddMapContent( string vpk )
+	{
+		vpk = System.IO.Path.GetFullPath( vpk );
+		if ( !mapPackages.Add( vpk ) ) return;
+
+		// <package>/maps/<map>.vpk
+		if ( System.IO.Path.GetDirectoryName( System.IO.Path.GetDirectoryName( vpk ) ) is { } root && mapRoots.Add( root ) ) files.Add( root );
+		AddPackage( vpk );
+
+		var sky = System.IO.Path.Combine( System.IO.Path.GetDirectoryName( vpk ), System.IO.Path.GetFileNameWithoutExtension( vpk ) + "_sky.vpk" );
+		if ( System.IO.File.Exists( sky ) && mapPackages.Add( sky ) ) AddPackage( sky );
+	}
+
+	void AddPackage( string vpk )
+	{
+		var package = Basalt.Source2.Resources.VpkFile.Open( vpk );
+		mapVpks.Add( package );
+		files.AddPackage( package );
+	}
+
+	readonly List<Basalt.Source2.Resources.VpkFile> mapVpks = new();
+
+	readonly HashSet<string> mapPackages = new( StringComparer.OrdinalIgnoreCase );
+	readonly HashSet<string> mapRoots = new( StringComparer.OrdinalIgnoreCase );
+
 	/// <summary>Wait until everything submitted has finished.</summary>
 	public void WaitIdle() => gpu.WaitIdle();
 
@@ -1096,6 +1126,8 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		}
 		foreach ( var handle in ownedBuffers ) gpu.Destroy( handle );
 		gpu.Destroy( pipelineTextures );
+		foreach ( var package in mapVpks ) package.Dispose();
+		mapVpks.Clear();
 		foreach ( var (sampler, _) in samplers.Values ) gpu.Destroy( sampler );
 		textureOwners.Clear();
 		ownedBuffers.Clear();

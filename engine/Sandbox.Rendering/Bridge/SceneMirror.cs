@@ -350,9 +350,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	{
 		// Probe volumes belong to the world's lighting list, not its draw list. An extra world's aren't drawn: the list is the
 		// main world's, for every view of it
-		// On a Basalt.Gpu device: what draws through native (custom and dynamic objects, aggregates) or reads attributes
-		// only native makes (probe volumes' baked lighting), and decals, aren't mirrored yet (docs/managed/basalt-gpu-path.md)
-		if ( MirrorContent.Gpu is not null && sceneObject is SceneLightProbe or SceneCustomObject or SceneDynamicObject or SceneAggregateObject or DecalSceneObject )
+		// On a Basalt.Gpu device: what draws through native (custom and dynamic objects) or reads attributes only native makes
+		// (probe volumes' baked lighting), and decals, aren't mirrored yet (docs/managed/basalt-gpu-path.md)
+		if ( MirrorContent.Gpu is not null && sceneObject is SceneLightProbe or SceneCustomObject or SceneDynamicObject or DecalSceneObject )
 		{
 			objects[sceneObject] = null;
 			Count( sceneObject, 1 );
@@ -382,7 +382,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			SceneAggregateObject => AggregateFor( sceneObject ),
 
 			// A map's world geometry is native aggregates, which have no managed type of their own
-			_ when sceneObject.GetType() == typeof( SceneObject ) && MirrorContent.Gpu is not null => SceneNative.AggregateModel( sceneObject, out _ ) is null ? new MeshObject( null, sceneObject.Transform ) : null,
 			_ when sceneObject.GetType() == typeof( SceneObject ) => AggregateFor( sceneObject ) ?? (RenderObject)new MeshObject( null, sceneObject.Transform ),
 			_ => null,
 		};
@@ -885,7 +884,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		// Sky selection is per view: cameras can exclude different skies without changing the world.
 		// Native's child skybox view does not inherit the parent camera's object-tag filters.
 		var sky = skyboxView ? source.GetSky() : source.GetSky( camera.RenderTags, camera.ExcludeTags );
-		lighting.SkyMaterial = MirrorContent.Gpu is null ? Source2Material.From( sky?.Material ) : null;
+		lighting.SkyMaterial = MirrorContent.Material( sky?.Material );
 		if ( sky is not null )
 		{
 			lighting.SkyTint = sky.SkyTint;
