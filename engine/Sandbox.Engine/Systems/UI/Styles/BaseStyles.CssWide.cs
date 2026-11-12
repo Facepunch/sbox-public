@@ -235,6 +235,7 @@ public abstract partial class BaseStyles
 			return false;
 
 		// Drop any value already parsed for this declaration - the keyword wins and is resolved later.
+		OnPropertySet( property );
 		field.SetValue( this, null );
 
 		CssWide ??= new Dictionary<string, CssWideKeyword>();

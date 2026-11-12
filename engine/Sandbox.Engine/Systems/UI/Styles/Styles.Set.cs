@@ -391,6 +391,7 @@ namespace Sandbox.UI
 
 		bool SetBorderTexture( Lazy<Texture> t )
 		{
+			OnPropertySet( "border-image-source" );
 			_borderImageSource = t;
 			return true;
 		}
@@ -1165,6 +1166,7 @@ namespace Sandbox.UI
 
 		bool SetShadow( string value, ref ShadowList shadowList )
 		{
+			OnPropertySet( ReferenceEquals( shadowList, BoxShadow ) ? "box-shadow" : ReferenceEquals( shadowList, TextShadow ) ? "text-shadow" : "filter-drop-shadow" );
 			var p = new Parse( value );
 
 			shadowList.Clear();
@@ -2039,6 +2041,8 @@ namespace Sandbox.UI
 			// The shorthand resets the background layer to its initial value first, then applies whatever
 			// is specified - so "background: #fff" or "background: none" clears an image (and colour) set
 			// by a less specific rule, instead of leaving them showing through.
+			OnPropertySet( "background-image" );
+			OnPropertySet( "background-gradient" );
 			_backgroundImage = NoImage;
 			BackgroundColor = Color.Transparent;
 			BackgroundGradient = default;
@@ -2547,6 +2551,7 @@ namespace Sandbox.UI
 			if ( texture == null )
 				return true;
 
+			OnPropertySet( "mask-image" );
 			_maskImage = texture;
 
 			return true;
@@ -2573,6 +2578,7 @@ namespace Sandbox.UI
 
 		bool SetBackgroundGradient( GradientInfo gradient )
 		{
+			OnPropertySet( "background-gradient" );
 			BackgroundGradient = gradient;
 			return true;
 		}
@@ -2582,6 +2588,7 @@ namespace Sandbox.UI
 			if ( texture == null )
 				return true;
 
+			OnPropertySet( "background-image" );
 			_backgroundImage = texture;
 			Dirty();
 
@@ -2781,6 +2788,7 @@ namespace Sandbox.UI
 
 		bool SetTextGradientLinear( string gradient )
 		{
+			OnPropertySet( "text-gradient" );
 			TextGradient = new();
 			TextGradient.GradientType = GradientInfo.GradientTypes.Linear;
 
@@ -2824,6 +2832,7 @@ namespace Sandbox.UI
 
 		bool SetTextGradientRadial( string gradient )
 		{
+			OnPropertySet( "text-gradient" );
 			TextGradient = new();
 			TextGradient.OffsetX = Length.Percent( 50 ).Value;
 			TextGradient.OffsetY = Length.Percent( 50 ).Value;
@@ -2881,6 +2890,7 @@ namespace Sandbox.UI
 
 			if ( p.TryReadLength( out var lenx ) )
 			{
+				OnPropertySet( "text-gradient" );
 				TextGradient.OffsetX = lenx;
 				TextGradient.OffsetY = lenx;
 
@@ -2899,18 +2909,23 @@ namespace Sandbox.UI
 			switch ( value )
 			{
 				case "circle":
+					OnPropertySet( "text-gradient" );
 					TextGradient.SizeMode = GradientInfo.RadialSizeMode.Circle;
 					return true;
 				case "closest-corner":
+					OnPropertySet( "text-gradient" );
 					TextGradient.SizeMode = GradientInfo.RadialSizeMode.ClosestCorner;
 					return true;
 				case "closest-side":
+					OnPropertySet( "text-gradient" );
 					TextGradient.SizeMode = GradientInfo.RadialSizeMode.ClosestSide;
 					return true;
 				case "farthest-corner":
+					OnPropertySet( "text-gradient" );
 					TextGradient.SizeMode = GradientInfo.RadialSizeMode.FarthestCorner;
 					return true;
 				case "farthest-side":
+					OnPropertySet( "text-gradient" );
 					TextGradient.SizeMode = GradientInfo.RadialSizeMode.FarthestSide;
 					return true;
 			}
@@ -2925,6 +2940,7 @@ namespace Sandbox.UI
 			if ( !angle.HasValue ) return false;
 
 			var angler = angle.Value;
+			OnPropertySet( "text-gradient" );
 			TextGradient.Angle = angler.Value;
 
 			return true;
