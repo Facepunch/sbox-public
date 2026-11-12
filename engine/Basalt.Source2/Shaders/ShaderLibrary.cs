@@ -146,7 +146,7 @@ public sealed class ShaderLibrary : IDisposable
 	/// The GPU-driven variant's form: what vfx_vulkan's rewrite (<c>src/vfx/vfx_vulkan/basalt_gpu_driven.cpp</c>) makes
 	/// of a shader. Raise it with any change there, so variants compiled at load and cached are compiled again.
 	/// </summary>
-	public const int GpuDrivenVersion = 3;
+	public const int GpuDrivenVersion = 4;
 
 	readonly Dictionary<ShaderFile, ShaderFile> gpuDriven = new( ReferenceEqualityComparer.Instance );
 

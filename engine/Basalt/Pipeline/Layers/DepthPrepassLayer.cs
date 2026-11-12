@@ -35,6 +35,12 @@ internal class DepthPrepassLayer : MeshLayer
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.DepthPrepass;
 	public override FrameResources Writes => FrameResources.Depth;
+
+	/// <summary>
+	/// Before any segment records: the view's visibility state for the GPU-driven draws, cleared once for every call that
+	/// writes ids into it, whichever worker records them.
+	/// </summary>
+	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext ) => frameContext.BeginGpuDrivenView( frame.MainPass );
 	public override bool HasSideEffects => true;
 
 	/// <summary>

@@ -49,7 +49,7 @@ CS
 		uint g_nCullRuns;			// byte offset of the multi-draws: first command slot and count each
 		uint g_nCullFrame;
 		uint g_nCullVisibility;
-		uint g_nCullCursor;			// byte offset in g_Frame of the compacted indices' cursor
+		uint g_nCullPad0;			// the compacted indices' cursor is g_Compacted's first word, shared by the view's calls
 		uint g_nCullCapacity;		// indices g_Compacted holds
 		uint g_nCullFragmentWords;
 		uint g_nCullListed;			// byte offset of the listed fragments: dispatch arguments, then 32 bytes each
@@ -145,7 +145,7 @@ CS
 			uint nStart = None;
 			if ( nOwned * 2 < nTriangles )
 			{
-				g_Frame.InterlockedAdd( g_nCullCursor, nOwned * 3, nStart );
+				g_Compacted.InterlockedAdd( 0, nOwned * 3, nStart );
 				if ( nStart + nOwned * 3 > g_nCullCapacity )
 					nStart = None;
 			}
