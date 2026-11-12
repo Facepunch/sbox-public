@@ -356,6 +356,7 @@ public sealed partial class SlangCompiler
 		text.Append( "\tuint4 draw = BasaltGpuDrivenDraw( record.y );\n" );
 		text.Append( "\ts_SurfaceDrawRecord = draw.y;\n" );
 		text.Append( "\tg_bUncompressedTangentFrame = ( draw.w & 1 ) != 0;\n" );
+		text.Append( "\tSurfaceFetchBakedLighting( record.y );\n" );
 		text.Append( "\tVertexInput i = {};\n" );
 		if ( interpolated ) text.Append( $"\t{type}.Varyings varyings = {{}};\n" );
 		foreach ( var input in inputs )
