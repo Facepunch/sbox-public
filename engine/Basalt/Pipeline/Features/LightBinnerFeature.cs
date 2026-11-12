@@ -47,8 +47,8 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 	float[] packedScreenSize = new float[64];
 	GpuMaterial cullingShader;
 
-	GpuBuffer<uint> lightCounts, envMapCounts, decalCounts;
-	GpuBuffer<uint> lightIndices, envMapIndices;
+	// The cluster lists: a section per item type, lights, envmaps then decals (ClusterCulling.hlsl)
+	GpuBuffer<uint> clusterCounts, clusterIndices;
 
 	/// <summary>
 	/// Lights - and <see cref="EnvMapObject"/>s too, through <see cref="Accepts"/>.
@@ -222,12 +222,8 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 		attributes.Set( EnvMapBufferName, envMapBuffer );
 		attributes.Set( DecalBufferName, decalBuffer );
 		attributes.Set( DecalExtraBufferName, decalExtraBuffer );
-		attributes.Set( "ClusterLightCounts", lightCounts );
-		attributes.Set( "ClusterEnvMapCounts", envMapCounts );
-		attributes.Set( "ClusterDecalCounts", decalCounts );
-		attributes.Set( "ClusterLightIndices", lightIndices );
-		attributes.Set( "ClusterEnvMapIndices", envMapIndices );
-		attributes.Set( "ClusterDecalIndices", decalIndices );
+		attributes.Set( "ClusterItemCounts", clusterCounts );
+		attributes.Set( "ClusterItemIndices", clusterIndices );
 
 		// Z slices are logarithmic between the view's near and far planes, as ClusteredCullingLayer does
 		var near = MathF.Max( view.ZNear, 0.0001f );
@@ -274,19 +270,14 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 	/// <summary>
 	/// Culling output buffers; an array avoids iterator allocations.
 	/// </summary>
-	GpuBuffer[] ClusterBuffers() => clusterBuffers ??= [lightCounts, envMapCounts, decalCounts, lightIndices, envMapIndices, decalIndices];
+	GpuBuffer[] ClusterBuffers() => clusterBuffers ??= [clusterCounts, clusterIndices];
 
 	void EnsureResources()
 	{
 		cullingShader ??= RenderHost.Current.Device.MaterialFromShader( "shaders/clustered_light_culling_cs.shader" );
 
-		lightCounts ??= new GpuBuffer<uint>( ClusterCount, GpuBuffer.UsageFlags.Structured, "Basalt ClusterLightCounts" );
-		envMapCounts ??= new GpuBuffer<uint>( ClusterCount, GpuBuffer.UsageFlags.Structured, "Basalt ClusterEnvMapCounts" );
-		decalCounts ??= new GpuBuffer<uint>( ClusterCount, GpuBuffer.UsageFlags.Structured, "Basalt ClusterDecalCounts" );
-		lightIndices ??= new GpuBuffer<uint>( ClusterCount * MaxLightsPerCluster, GpuBuffer.UsageFlags.Structured, "Basalt ClusterLightIndices" );
-		envMapIndices ??= new GpuBuffer<uint>( ClusterCount * MaxEnvMapsPerCluster, GpuBuffer.UsageFlags.Structured, "Basalt ClusterEnvMapIndices" );
-		decalIndices ??= new GpuBuffer<uint>( ClusterCount * MaxDecalsPerCluster, GpuBuffer.UsageFlags.Structured, "Basalt ClusterDecalIndices" );
-
+		clusterCounts ??= new GpuBuffer<uint>( ClusterCount * 3, GpuBuffer.UsageFlags.Structured, "Basalt ClusterItemCounts" );
+		clusterIndices ??= new GpuBuffer<uint>( ClusterCount * (MaxLightsPerCluster + MaxEnvMapsPerCluster + MaxDecalsPerCluster), GpuBuffer.UsageFlags.Structured, "Basalt ClusterItemIndices" );
 	}
 
 	internal override void Dispose()
@@ -297,15 +288,9 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 		envMapRing.Dispose();
 		decalRing.Dispose();
 		decalExtraRing.Dispose();
-		decalIndices?.Dispose();
-		decalIndices = null;
-		envMapIndices?.Dispose();
-		envMapIndices = null;
-		lightCounts?.Dispose();
-		envMapCounts?.Dispose();
-		decalCounts?.Dispose();
-		lightIndices?.Dispose();
-		lightCounts = envMapCounts = decalCounts = lightIndices = null;
+		clusterCounts?.Dispose();
+		clusterIndices?.Dispose();
+		clusterCounts = clusterIndices = null;
 		clusterBuffers = null;
 	}
 }

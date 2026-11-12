@@ -270,7 +270,7 @@ CS
         {
             const uint itemCount = NumDynamicLights;
             const uint capacity = Cluster::Capacity( ClusterItemType_Light );
-            const uint baseOffset = flatIndex * capacity;
+            const uint baseOffset = Cluster::IndexBase( ClusterItemType_Light, flatIndex );
             uint count = 0;
             uint features = 0;
 
@@ -298,7 +298,7 @@ CS
                     const uint slot = PopLowest( mask );
                     if ( active && count < capacity && clusterBox.TouchesLight( SharedSphere[slot], SharedApex[slot], SharedAxis[slot] ) )
                     {
-                        ClusterLightIndices[baseOffset + count] = first + slot;
+                        ClusterItemIndices[baseOffset + count] = first + slot;
                         features |= SharedFeatures[slot];
                         count++;
                     }
@@ -308,7 +308,7 @@ CS
             }
 
             if ( active )
-                ClusterLightCounts[flatIndex] = count | ( features << ClusterFeatureShift );
+                ClusterItemCounts[Cluster::CountSlot( ClusterItemType_Light, flatIndex )] = count | ( features << ClusterFeatureShift );
         }
 
         //
@@ -317,7 +317,7 @@ CS
         {
             const uint itemCount = NumDecals;
             const uint capacity = Cluster::Capacity( ClusterItemType_Decal );
-            const uint baseOffset = flatIndex * capacity;
+            const uint baseOffset = Cluster::IndexBase( ClusterItemType_Decal, flatIndex );
             uint count = 0;
 
             for ( uint first = 0; first < itemCount; first += GROUP_SIZE, batch++ )
@@ -340,7 +340,7 @@ CS
                     const uint slot = PopLowest( mask );
                     if ( active && count < capacity && clusterBox.TouchesSphere( SharedSphere[slot] ) )
                     {
-                        ClusterDecalIndices[baseOffset + count] = first + slot;
+                        ClusterItemIndices[baseOffset + count] = first + slot;
                         count++;
                     }
                 }
@@ -349,7 +349,7 @@ CS
             }
 
             if ( active )
-                ClusterDecalCounts[flatIndex] = count;
+                ClusterItemCounts[Cluster::CountSlot( ClusterItemType_Decal, flatIndex )] = count;
         }
 
         //
@@ -359,19 +359,19 @@ CS
         {
             const uint itemCount = NumEnvironmentMaps;
             const uint capacity = Cluster::Capacity( ClusterItemType_EnvMap );
-            const uint baseOffset = flatIndex * capacity;
+            const uint baseOffset = Cluster::IndexBase( ClusterItemType_EnvMap, flatIndex );
             uint count = 0;
 
             for ( uint i = 0; i < itemCount && count < capacity; i++ )
             {
                 if ( groupBox.TouchesEnvMap( space, i ) && clusterBox.TouchesEnvMap( space, i ) )
                 {
-                    ClusterEnvMapIndices[baseOffset + count] = i;
+                    ClusterItemIndices[baseOffset + count] = i;
                     count++;
                 }
             }
 
-            ClusterEnvMapCounts[flatIndex] = count;
+            ClusterItemCounts[Cluster::CountSlot( ClusterItemType_EnvMap, flatIndex )] = count;
         }
     }
 }

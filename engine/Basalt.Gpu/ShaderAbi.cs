@@ -52,15 +52,11 @@ public static class ShaderAbi
 		(Texture( 3 ), BindingType.StorageBuffer, "DecalsExtraDataBuffer"),
 		(Texture( 4 ), BindingType.StorageBuffer, "ProjectedShadows"),
 		(Texture( 5 ), BindingType.StorageBuffer, "ProjectedCubeShadows"),
-		(Texture( 6 ), BindingType.StorageBuffer, "ClusterLightCounts"),
-		(Texture( 7 ), BindingType.StorageBuffer, "ClusterEnvMapCounts"),
-		(Texture( 8 ), BindingType.StorageBuffer, "ClusterDecalCounts"),
-		(Texture( 9 ), BindingType.StorageBuffer, "ClusterLightIndices"),
-		(Texture( 10 ), BindingType.StorageBuffer, "ClusterEnvMapIndices"),
-		(Texture( 11 ), BindingType.StorageBuffer, "ClusterDecalIndices"),
-		(Texture( 12 ), BindingType.StorageBuffer, "DDGI_Volumes"),
-		(Texture( 13 ), BindingType.StorageBuffer, "LightModulatorRectangles"),
-		(Texture( 14 ), BindingType.StorageBuffer, "LightModulatorCandidates"),
+		(Texture( 6 ), BindingType.StorageBuffer, "ClusterItemCounts"),
+		(Texture( 7 ), BindingType.StorageBuffer, "ClusterItemIndices"),
+		(Texture( 8 ), BindingType.StorageBuffer, "DDGI_Volumes"),
+		(Texture( 9 ), BindingType.StorageBuffer, "LightModulatorRectangles"),
+		(Texture( 10 ), BindingType.StorageBuffer, "LightModulatorCandidates"),
 	];
 
 	/// <summary>Where <c>b#</c> registers start.</summary>

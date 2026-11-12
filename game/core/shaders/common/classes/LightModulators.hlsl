@@ -36,8 +36,8 @@ struct LightModulatorRectangle
 };
 
 // The scene's rectangles and candidate lists, in the view's descriptor set (common.fxc)
-StructuredBuffer<LightModulatorRectangle> LightModulatorRectangles EXTERNAL_DESC_SET( t, g_viewSet, 13 );
-StructuredBuffer<uint> LightModulatorCandidates EXTERNAL_DESC_SET( t, g_viewSet, 14 );
+StructuredBuffer<LightModulatorRectangle> LightModulatorRectangles EXTERNAL_DESC_SET( t, g_viewSet, 9 );
+StructuredBuffer<uint> LightModulatorCandidates EXTERNAL_DESC_SET( t, g_viewSet, 10 );
 uint LightModulatorRectangleCount < Attribute( "LightModulatorRectangleCount" ); Default( 0 ); >;
 uint LightModulatorCandidateCount < Attribute( "LightModulatorCandidateCount" ); Default( 0 ); >;
 bool LightModulatorsDisabled < Attribute( "LightModulatorsDisabled" ); Default( 0 ); >;
