@@ -84,12 +84,15 @@ public sealed partial class SlangCompiler
 			var displaces = material.Interfaces.Contains( "IVertexSurface" );
 			var lit = material.Interfaces.Contains( "ILitSurface" );
 			var interpolated = material.Interfaces.Contains( "IInterpolatedSurface" );
-			if ( !displaces && !lit && !interpolated && !material.Interfaces.Contains( "ISurface" ) )
-				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface or ILitSurface" );
-			if ( interpolated && (displaces || lit) )
-				throw new ShaderCompileException( path, $"{material.Name}: an IInterpolatedSurface can't also be an IVertexSurface or ILitSurface yet" );
+			var sunLit = material.Interfaces.Contains( "ISunLitSurface" );
+			if ( !displaces && !lit && !interpolated && !sunLit && !material.Interfaces.Contains( "ISurface" ) )
+				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface or ISunLitSurface" );
+			if ( interpolated && (displaces || lit || sunLit) )
+				throw new ShaderCompileException( path, $"{material.Name}: an IInterpolatedSurface can't also be an IVertexSurface, ILitSurface or ISunLitSurface yet" );
+			if ( lit && sunLit )
+				throw new ShaderCompileException( path, $"{material.Name}: a surface is an ILitSurface (every light) or an ISunLitSurface (the sun alone), not both" );
 
-			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated );
+			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit );
 			var instancePath = Path.Combine( directory, $"{module}.instance.slang" );
 
 			var vertex = CompileEntry( instancePath, instance, "MainVs", StageKind.Vertex, directory );
@@ -245,7 +248,7 @@ public sealed partial class SlangCompiler
 	/// engine light loop's hook (<c>SURFACE_LIGHT_HOOK</c>) and hands it the material, so <c>Light</c> runs per light. An
 	/// interpolated surface's (<c>IInterpolatedSurface</c>) vertex stage also reads its <c>Varyings</c> and passes them on.
 	/// </summary>
-	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false )
+	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false, bool sunLit = false )
 	{
 		var vertex = displaces ? $"SurfaceVertexDisplaced<{type}>( i )" : "SurfaceVertex( i )";
 		var opacity = opacityField is null ? "0" : $"m.{opacityField}.Slot";
@@ -254,7 +257,7 @@ public sealed partial class SlangCompiler
 		var surface = interpolated ? $"SurfaceWithVaryings<{type}>" : type;
 		var wrap = interpolated ? $" SurfaceWithVaryings<{type}> s; s.Surface = m; s.Values = i.Varyings;" : "";
 		var argument = interpolated ? "s" : "m";
-		string Shade( bool alphaTest ) => $"{type} m = SurfaceRecord<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{keep}{wrap} return SurfaceForward<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} );";
+		string Shade( bool alphaTest ) => $"{type} m = SurfaceRecord<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{keep}{wrap} return {(sunLit ? "SurfaceForwardSunLit" : "SurfaceForward")}<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} );";
 		string Pixel( string entry, bool alphaTest ) =>
 			$"[shader( \"pixel\" )] float4 {entry}( {output} i ) : SV_Target0 {{ {Shade( alphaTest )} }}\n";
 

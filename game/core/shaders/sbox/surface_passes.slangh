@@ -231,6 +231,30 @@ float4 SurfaceForward<S : ISurface, let AlphaTest : bool>( PixelInput i, S surfa
 #endif
 	return SurfaceShade( i, s, opacityTexture, AlphaTest );
 }
+
+/// Forward for a sun-lit surface (ISunLitSurface): its Light once, for the sun, outside the light loop, added to the
+/// emission before shading; as foliage.shader lights its translucency. Depth passes skip it.
+float4 SurfaceForwardSunLit<S : ISunLitSurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
+{
+	SurfaceInput input = MakeSurfaceInput( i );
+	Material s = surface.Evaluate( input );
+#if ( !S_MODE_DEPTH )
+	if ( g_DirectionalLightEnabled )
+	{
+		LightSample sun;
+		sun.Direction = -normalize( g_DirectionalLightDirection.xyz );
+		sun.Color = g_DirectionalLightColor.rgb;
+		[branch]
+		if ( LightModulators::Active() )
+			sun.Color *= LightModulators::EvaluateSun( input.Position, sun.Direction );
+		sun.Attenuation = 1;
+		sun.Visibility = DirectionalLightShadow::GetVisibilityWithOffset( i.vPositionWithOffsetWs.xyz, i.vPositionSs );
+		sun.Sun = true;
+		s.Emission += surface.Light( s, input, sun );
+	}
+#endif
+	return SurfaceShade( i, s, opacityTexture, AlphaTest );
+}
 #endif
 
 #endif

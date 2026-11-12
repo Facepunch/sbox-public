@@ -150,7 +150,17 @@ public struct LightSample
 /// Optional: light a surface's own way. The engine's light loop calls Light for every light it shades the pixel with (the
 /// sun, clustered lights, baked indexed lights), shadowed ones included, after its standard terms; what it returns is added
 /// to the diffuse light as emission. The loop stays the engine's. Sample() in Light uses the pixel's gradients.
+/// Everything Light reads stays live across the loop and costs registers there: read textures in Evaluate, and implement
+/// ISunLitSurface instead when the term only needs the sun.
 public interface ILitSurface : ISurface
 {
 	float3 Light( Material m, SurfaceInput i, LightSample light );
+}
+
+/// Optional, instead of ILitSurface: a term of the surface's own from the sun alone (foliage's translucency), called once
+/// before shading with the sun's direction, colour (with its modulators) and shadow, and added to the emission. It runs
+/// outside the light loop, so it costs about what the same code in a .shader does.
+public interface ISunLitSurface : ISurface
+{
+	float3 Light( Material m, SurfaceInput i, LightSample sun );
 }

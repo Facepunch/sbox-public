@@ -191,6 +191,11 @@ public class SurfaceTests : GpuTest
 		StringAssert.Contains( lit.Generated, "s_LitSurface = m;" );
 		StringAssert.Contains( lit.Generated, "s_LitSurface.Light( SurfaceLitMaterial(), SurfaceLitInput(), light )" );
 		Assert.IsNotNull( lit.Pass( ShaderPasses.Forward ).Pixel.Spirv );
+
+		// A sun-lit surface (foliage) lights once, outside the loop, and leaves the loop alone
+		var sunLit = Compiler().CompileSurface( Path.Combine( Surfaces, "foliage.slang" ) );
+		StringAssert.Contains( sunLit.Generated, "SurfaceForwardSunLit<Foliage, true>" );
+		Assert.IsFalse( sunLit.Generated.Contains( "SURFACE_LIGHT_HOOK", StringComparison.Ordinal ) );
 	}
 	/// <summary>The generated classes in BasaltLab are what the compiler writes now, and a raw module has the same record.</summary>
 	[TestMethod]
