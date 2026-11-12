@@ -228,44 +228,53 @@ internal sealed partial class BackendContext
 					runStart = written;
 				}
 
-				// An owner's fragments keep their draw records by instance; anything else looks them up by key
+				// An owner's fragments keep their draw records by instance; anything else looks them up by key. The owner's
+				// lock is held only around its records and the draw table, which takes no other lock, and is let go whatever
+				// throws, so a worker drawing the same owner in another segment can't wait on it forever
 				var owned = batch.Owner is null ? null : tables.DrawsOf( batch.Owner, pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags );
-				if ( owned is not null ) System.Threading.Monitor.Enter( owned );
-
-				for ( int f = 0; f < batch.Count; f++ )
+				var ownedTaken = false;
+				try
 				{
-					var arg = batch.Instances ? InstanceArguments( batch, geometry, f ) : args[batch.FirstArg + f];
-					var firstIndex = pooled.FirstIndex + arg.FirstIndex;
-					uint draw;
-					if ( owned is null )
-					{
-						draw = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot );
-					}
-					else
-					{
-						var slot = (int)arg.FirstInstance;
-						if ( slot >= owned.Draws.Length ) Array.Resize( ref owned.Draws, Math.Max( slot + 1, owned.Draws.Length * 2 ) );
+					if ( owned is not null ) System.Threading.Monitor.Enter( owned, ref ownedTaken );
 
-						ref var entry = ref owned.Draws[slot];
-						if ( entry.IndexCount != arg.IndexCount || entry.FirstIndex != firstIndex || entry.BaseVertex != arg.BaseVertex )
-							entry = new GpuDrivenTables.OwnerDraw( firstIndex, arg.IndexCount, arg.BaseVertex, tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot ) );
-						draw = entry.Draw;
-					}
-
-					instances[written * 2] = (uint)transforms.InstanceSlot( batch.FirstInstance + (int)arg.FirstInstance );
-					instances[written * 2 + 1] = draw;
-					commands[written] = new GpuBuffer.IndirectDrawIndexedArguments
+					for ( int f = 0; f < batch.Count; f++ )
 					{
-						IndexCount = arg.IndexCount,
-						InstanceCount = 1,
-						FirstIndex = firstIndex,
-						BaseVertex = arg.BaseVertex,
-						FirstInstance = firstInstance + (uint)written,
-					};
-					written++;
+						var arg = batch.Instances ? InstanceArguments( batch, geometry, f ) : args[batch.FirstArg + f];
+						var firstIndex = pooled.FirstIndex + arg.FirstIndex;
+						uint draw;
+						if ( owned is null )
+						{
+							draw = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot );
+						}
+						else
+						{
+							var slot = (int)arg.FirstInstance;
+							if ( slot >= owned.Draws.Length ) Array.Resize( ref owned.Draws, Math.Max( slot + 1, owned.Draws.Length * 2 ) );
+
+							ref var entry = ref owned.Draws[slot];
+							if ( entry.IndexCount != arg.IndexCount || entry.FirstIndex != firstIndex || entry.BaseVertex != arg.BaseVertex )
+								entry = new GpuDrivenTables.OwnerDraw( firstIndex, arg.IndexCount, arg.BaseVertex, tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot ) );
+							draw = entry.Draw;
+						}
+
+						instances[written * 2] = (uint)transforms.InstanceSlot( batch.FirstInstance + (int)arg.FirstInstance );
+						instances[written * 2 + 1] = draw;
+						commands[written] = new GpuBuffer.IndirectDrawIndexedArguments
+						{
+							IndexCount = arg.IndexCount,
+							InstanceCount = 1,
+							FirstIndex = firstIndex,
+							BaseVertex = arg.BaseVertex,
+							FirstInstance = firstInstance + (uint)written,
+						};
+						written++;
+					}
+				}
+				finally
+				{
+					if ( ownedTaken ) System.Threading.Monitor.Exit( owned );
 				}
 
-				if ( owned is not null ) System.Threading.Monitor.Exit( owned );
 				drawn[index] = true;
 			}
 

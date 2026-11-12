@@ -79,6 +79,14 @@ internal sealed partial class MapWorld : IDisposable
 		}
 
 		Backend = new BackendDevice( gpu, content ) { GpuDrivenGeometry = gpuDriven };
+
+		// -surface-convert blendable,...: those .shaders' materials drawn with the surfaces beside them (blendable.slang)
+		foreach ( var shader in (Args.String( "-surface-convert" ) ?? "").Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ) )
+		{
+			if ( Backend.Surfaces.Folders.Count == 0 ) Backend.Surfaces.AddFolder( Path.Combine( core.Roots[0], "shaders" ) );
+			Backend.Surfaces.Convert( $"shaders/{shader}.shader", $"{shader}.slang" );
+		}
+
 		previousHost = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( Backend );
 		System = new RenderSystem { ParallelRecording = false };

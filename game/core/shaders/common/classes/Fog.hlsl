@@ -30,39 +30,8 @@ float3 g_fogCubemapTint < Attribute( "CubemapFogColor" ); Default3( 1.0f, 1.0f, 
 float3 FogSunColor < Attribute( "FogSunColor" ); Default3( 0, 0, 0 ); >;
 float3 FogSunDirection < Attribute( "FogSunDirection" ); Default3( 0, 0, 0 ); >;
 
-// One immutable buffer per view, shared by every material, in the view's descriptor set (common.fxc). Layout matches
-// Sandbox.Rendering.FogConstants.
-cbuffer FogConstants EXTERNAL_DESC_SET( b, g_viewSet, 4 )
-{
-	// Weight, maximum opacity, distance mode (0 = ramp, 1 = exponential), height contribution.
-	float4 FogControl;
-	// Start distance, end distance, ramp exponent, exponential attenuation distance.
-	float4 FogDistance;
-	// Base height, signed gradient length, sky ray length, sky opacity scale.
-	float4 FogHeight;
-	float3 FogColor;
-	float FogOpacityScale;
-	float4 FogHeightColor;
-	// Distance enable contribution, independent height exponent; sky contribution and mip level.
-	float2 FogLayerParams;
-	float2 FogSky;
-	// Blur start distance, inverse distance range, far mip and maximum valid mip.
-	float4 FogSkyBlurRamp;
-	// Sun intensity and peak-normalized HG shape; height sky contribution and mip level.
-	float2 FogSun;
-	float2 FogHeightSky;
-	// Sun start distance, saturation, fade distance, padding.
-	float4 FogSunSettings;
-	// Encoding (0 = RGB, 1 = YCoCg, 2 = RGBM) and cube-array flag, per layer.
-	float2 FogSkyFormat;
-	float2 FogHeightSkyFormat;
-	int FogSkyTextureIndex;
-	int FogHeightSkyTextureIndex;
-	float FogHeightSkyShared;
-	float FogDistanceMetric;
-	float4x4 FogSkyTransform;
-	float4x4 FogHeightSkyTransform;
-};
+// Camera fog: FogConstants' block of the view's environment, laid out as Sandbox.Rendering.FogConstants
+#include "common/ViewEnvironment.hlsl"
 
 /// <summary>
 /// Evaluate and apply camera fog in material shaders.

@@ -69,8 +69,9 @@ public class SurfaceTests : GpuTest
 		Assert.AreEqual( 1, materials.Count );
 		Assert.AreEqual( "Leaf", materials[0].Name );
 		CollectionAssert.AreEqual( new[] { "ISurface" }, materials[0].Interfaces );
-		StringAssert.Contains( text, "[Group( \"Color\" ), Srgb] MaterialTexture2D Color;" );
-		StringAssert.Contains( text, "\tMaterialTexture2D Mask;" );
+		StringAssert.Contains( text, "[Group( \"Color\" ), Srgb] public MaterialTexture2D Color;" );
+		StringAssert.Contains( text, "\tpublic MaterialTexture2D Mask;" );
+		StringAssert.Contains( text, "\tpublic float3 Tint;" );
 		StringAssert.Contains( text, "Texture2D Outside;" );
 		StringAssert.Contains( text, "{ Texture2D t; return {}; }" );
 		Assert.AreEqual( source.Count( c => c == '\n' ), text.Count( c => c == '\n' ) );
@@ -99,17 +100,73 @@ public class SurfaceTests : GpuTest
 		Assert.IsTrue( forward.Bindings.All( b => b.Set is 1 or ShaderAbi.BindlessSet or ShaderAbi.ViewSet ) );
 
 		// Per-view lighting and fog come from the view set, as the core shaders read them
-		Assert.IsTrue( forward.Bindings.Any( b => b.Set == ShaderAbi.ViewSet && b.Name == "DirectionalLightCB" ) );
+		Assert.IsTrue( forward.Bindings.Any( b => b.Set == ShaderAbi.ViewSet && b.Name == ShaderAbi.ViewEnvironment ) );
 		Assert.IsTrue( forward.Specializations.Any( s => s.Attribute == "ShadowFilterQuality" ) );
 		Assert.IsFalse( forward.Globals.Members.Any( m => m.Name == "UserShadowFilterQuality" ) );
 		Assert.IsTrue( rock.Pass( ShaderPasses.Forward ).Vertex.Bindings.All( b => b.Set is 0 or ShaderAbi.BindlessSet or ShaderAbi.ViewSet ) );
 
-		// Dead-code elimination does the depth pass's work: the record, one texture and its sampler
+		// Alpha-tested passes compile with today's alpha test (S_ALPHA_TEST: its cutoff and edge strength are globals), the
+		// depth one in Depth mode as well (S_MODE_DEPTH), where Shade returns the coverage before lighting
+		var alphaTested = rock.Pass( ShaderPasses.Forward + "AlphaTest" ).Pixel;
+		Assert.IsTrue( alphaTested.Globals.Members.Any( m => m.Name == "g_flAlphaTestReference" ) );
+		Assert.IsFalse( forward.Globals.Members.Any( m => m.Name == "g_flAlphaTestReference" ) );
 		var depth = rock.Pass( ShaderPasses.DepthAlphaTest ).Pixel;
-		Assert.IsFalse( depth.Bindings.Any( b => b.Kind == BindingKind.ConstantBuffer ) );
-		Assert.IsTrue( depth.Spirv.Length * 20 < forward.Spirv.Length, $"depth {depth.Spirv.Length} bytes, forward {forward.Spirv.Length}" );
+		Assert.IsTrue( depth.Globals.Members.Any( m => m.Name == "g_flAlphaTestReference" ) );
+		StringAssert.Contains( rock.Generated, "SurfaceForward<Rock, true>( i.Pixel, m, m.Color.Slot )" );
+
+		// Material textures are read with the module's sampler, its state from its annotations
+		var sampler = forward.Bindings.Single( b => b.Kind == BindingKind.Sampler && b.Variable == "g_MaterialFiltering" );
+		Assert.AreEqual( "ANISOTROPIC", sampler.Annotations?.Filter );
+		Assert.IsFalse( rock.Generated.Contains( "SURFACE_LIGHT_HOOK", StringComparison.Ordinal ) );
 	}
 
+	/// <summary>
+	/// An interpolated surface (blendable.slang) reads its Varyings from the mesh by semantic and passes them to the pixel
+	/// stage; its fields say which .vmat value they take.
+	/// </summary>
+	[TestMethod]
+	public void InterpolatedSurfaceReadsItsVaryings()
+	{
+		var blendable = Compiler().CompileSurface( Path.Combine( Core, "shaders", "blendable.slang" ) );
+		var inputs = blendable.Pass( ShaderPasses.Forward ).Vertex.Inputs;
+		Assert.IsTrue( inputs.Any( i => i.Semantic == "TEXCOORD" && i.SemanticIndex == 4 && i.Components == 4 ) );
+		Assert.IsTrue( inputs.Any( i => i.Semantic == "TEXCOORD" && i.SemanticIndex == 5 && i.Components == 4 ) );
+		StringAssert.Contains( blendable.Generated, "SurfaceWithVaryings<Blendable>" );
+		Assert.AreEqual( "F_MULTIBLEND", blendable.Material.Field( "ExtraLayers" ).Source );
+		Assert.AreEqual( "ShaderVersion", blendable.Material.Field( "Version" ).Source );
+		Assert.IsNull( blendable.Material.Field( "ColorA" ).Source );
+		Assert.IsTrue( blendable.Pass( ShaderPasses.Forward ).Pixel.Bindings.Any( b => b.Kind == BindingKind.Sampler && b.Variable == "g_BlendableFiltering" ) );
+	}
+
+	/// <summary>
+	/// Every pass comes again for lightmapped draws, with the vertex stage that reads the mesh's lightmap uv (TEXCOORD3);
+	/// the plain one doesn't read it.
+	/// </summary>
+	[TestMethod]
+	public void LightmappedPassesReadTheLightmapUv()
+	{
+		var rock = Compiler().CompileSurface( Path.Combine( Surfaces, "rock.slang" ) );
+		static bool ReadsLightmapUv( CompiledStage vertex ) => vertex.Inputs.Any( i => i.Semantic == "TEXCOORD" && i.SemanticIndex == 3 );
+		foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
+		{
+			var plain = rock.Pass( name );
+			var lightmapped = rock.Pass( name + ShaderPasses.Lightmapped );
+			Assert.IsFalse( ReadsLightmapUv( plain.Vertex ), name );
+			Assert.IsTrue( ReadsLightmapUv( lightmapped.Vertex ), name + ShaderPasses.Lightmapped );
+			Assert.AreSame( plain.Pixel, lightmapped.Pixel, "the pixel stage is shared" );
+		}
+	}
+
+	/// <summary>A lit surface turns on the light loop's hook and hands it the material; an unlit one leaves the loop alone.</summary>
+	[TestMethod]
+	public void LitSurfaceHooksTheLightLoop()
+	{
+		var lit = Compiler().CompileSurface( Path.Combine( Surfaces, "rock_lit.slang" ) );
+		StringAssert.Contains( lit.Generated, "#define SURFACE_LIGHT_HOOK 1" );
+		StringAssert.Contains( lit.Generated, "s_LitSurface = m;" );
+		StringAssert.Contains( lit.Generated, "s_LitSurface.Light( SurfaceLitMaterial(), SurfaceLitInput(), light )" );
+		Assert.IsNotNull( lit.Pass( ShaderPasses.Forward ).Pixel.Spirv );
+	}
 	/// <summary>The generated classes in BasaltLab are what the compiler writes now, and a raw module has the same record.</summary>
 	[TestMethod]
 	public void GeneratedClassesAreCurrent()
@@ -120,7 +177,8 @@ public class SurfaceTests : GpuTest
 
 		Assert.AreEqual( ShaderTier.Raw, raw.Tier );
 		CollectionAssert.AreEqual( rock.Material.Fields.Select( f => (f.Kind, f.Offset) ).ToArray(), raw.Material.Fields.Select( f => (f.Kind, f.Offset) ).ToArray() );
-		foreach ( var (shader, file) in new[] { (rock, "rock.g.cs"), (raw, "rock_raw.g.cs") } )
+		var lit = compiler.CompileSurface( Path.Combine( Surfaces, "rock_lit.slang" ) );
+		foreach ( var (shader, file) in new[] { (rock, "rock.g.cs"), (raw, "rock_raw.g.cs"), (lit, "rock_lit.g.cs") } )
 		{
 			var expected = MaterialClassWriter.Write( shader, "Sandbox.BasaltLab.Surfaces" ).Replace( "\r\n", "\n" );
 			var actual = File.ReadAllText( Path.Combine( Surfaces, file ) ).Replace( "\r\n", "\n" );

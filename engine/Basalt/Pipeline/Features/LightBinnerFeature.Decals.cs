@@ -65,7 +65,6 @@ internal sealed partial class LightBinnerFeature
 	uint[] decalExtras = new uint[8 * ExtraWords];
 	DecalObject[] decalObjects = new DecalObject[8];
 	int decalExtraWords;
-	GpuBuffer<uint> decalIndices;
 
 	/// <summary>
 	/// Decals binned for the current view.

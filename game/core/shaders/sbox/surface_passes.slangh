@@ -7,6 +7,14 @@
 
 // The includes' Material (common/material.hlsl) is ClassicMaterial here: Material is the surface's
 #define Material ClassicMaterial
+// A material with an [Opacity] texture (the instance file defines SURFACE_OPACITY_TEXTURE) compensates its mips
+#ifdef SURFACE_OPACITY_TEXTURE
+#define MATERIAL_ALPHA_TEXTURE SurfaceOpacityTexture()
+#endif
+// The light hook is the pixel stage's (PROGRAM 1 is the vertex stage: system.fxc isn't included yet)
+#if defined( SURFACE_LIGHT_HOOK ) && ( PROGRAM == 1 )
+#undef SURFACE_LIGHT_HOOK
+#endif
 #include "sbox/engine.slangh"
 #undef Material
 
@@ -19,7 +27,34 @@ struct SurfaceVertexOutput
 	nointerpolation uint MaterialOffset : TEXCOORD15;
 };
 
+/// The same with an IInterpolatedSurface's Varyings. Varyings are matched by location (declaration order), as both
+/// stages compile this struct.
+struct SurfaceVertexOutputWith<V>
+{
+	PixelInput Pixel;
+	nointerpolation uint MaterialOffset : TEXCOORD15;
+	V Varyings;
+};
+
+/// An IInterpolatedSurface with its interpolated Varyings, as an ISurface for the passes.
+struct SurfaceWithVaryings<S : IInterpolatedSurface> : ISurface
+{
+	S Surface;
+	S.Varyings Values;
+	Material Evaluate( SurfaceInput i ) { return Surface.Evaluate( i, Values ); }
+};
+
 #if ( PROGRAM == VFX_PROGRAM_VS )
+
+/// The vertex stage's output with the record offset passed on, and the surface's Varyings.
+SurfaceVertexOutputWith<S.Varyings> SurfaceOutputWith<S : IInterpolatedSurface>( PixelInput pixel, S.Varyings varyings )
+{
+	SurfaceVertexOutputWith<S.Varyings> o;
+	o.Pixel = pixel;
+	o.MaterialOffset = DrawMaterialOffset();
+	o.Varyings = LoadMaterial<S>( DrawMaterialOffset() ).Vertex( varyings );
+	return o;
+}
 
 /// The vertex stage's output with the record offset passed on.
 SurfaceVertexOutput SurfaceOutput( PixelInput pixel )
@@ -60,6 +95,15 @@ PixelInput SurfaceVertexDisplaced<S : IVertexSurface>( VertexInput i )
 
 #else
 
+/// The bindless slot of the texture Opacity comes from, for alpha to coverage's mip compensation (Shade reads it through
+/// MATERIAL_ALPHA_TEXTURE, as Material.CommonInputs.hlsl's shaders use g_tColor). Set by the pass before shading.
+static uint s_SurfaceOpacityTexture = 0;
+
+Texture2D SurfaceOpacityTexture()
+{
+	return g_bindless_Texture2D[NonUniformResourceIndex( s_SurfaceOpacityTexture )];
+}
+
 /// What a raster pass hands Evaluate.
 SurfaceInput MakeSurfaceInput( PixelInput i )
 {
@@ -74,9 +118,17 @@ SurfaceInput MakeSurfaceInput( PixelInput i )
 	s.View = g_vCameraPositionWs - s.Position;
 	s.ViewDistance = length( s.View );
 	s.View /= max( s.ViewDistance, 1e-6 );
-	s.UvDdx = 0;
-	s.UvDdy = 0;
-	s.Filtering = g_sAniso;
+	// The triangle's normal from screen-space derivatives of the position: a resolve gets it from the triangle instead
+	s.FaceNormal = normalize( cross( ddx( i.vPositionWithOffsetWs.xyz ), ddy( i.vPositionWithOffsetWs.xyz ) ) );
+#if ( S_ALPHA_TEST )
+	s.AlphaReference = g_flAlphaTestReference;
+#else
+	s.AlphaReference = 0.5;
+#endif
+	// Taken here, in uniform control flow, for Light, which samples inside the light loop
+	s.UvDdx = ddx( s.Uv );
+	s.UvDdy = ddy( s.Uv );
+	s.Gradients = false;
 	return s;
 }
 
@@ -96,47 +148,60 @@ ClassicMaterial ToClassicMaterial( PixelInput i, Material s )
 	return m;
 }
 
-/// Forward: evaluate, clip when alpha tested, shade with the engine's standard shading model.
-float4 SurfaceForward<S : ISurface, let AlphaTest : bool>( PixelInput i, uint material )
+/// Shade a surface's properties with the engine's standard shading model, as common/pixel.hlsl's shaders do. Alpha-tested
+/// passes are compiled with S_ALPHA_TEST, so Shade runs today's alpha to coverage: the sharpened cutoff, mip-compensated by
+/// the opacity texture's size, a hard cut without multisampling. Coverage fades whole triangles on top of it. In the
+/// alpha-tested depth pass (S_MODE_DEPTH) Shade returns that coverage before lighting, so prepass and colour agree exactly.
+float4 SurfaceShade( PixelInput i, Material s, uint opacityTexture, bool alphaTest )
 {
-	Material s = LoadMaterial<S>( material ).Evaluate( MakeSurfaceInput( i ) );
-	if ( AlphaTest ) clip( s.Opacity - 0.5 );
-	return ShadingModelStandard::Shade( i, ToClassicMaterial( i, s ) );
+	s_SurfaceOpacityTexture = opacityTexture;
+	bool spread = alphaTest && g_nMSAASampleCount > 1;
+	if ( s.Coverage < 1.0 ) clip( s.Coverage - ( spread ? 1.0 / 255.0 : 0.5 ) );
+	float4 color = ShadingModelStandard::Shade( i, ToClassicMaterial( i, s ) );
+	if ( spread ) color.a *= s.Coverage;
+	return color;
 }
 
-/// Forward for a surface with its own per-light term, added to its emission before standard shading. Stub: Light is
-/// called for the sun only (with its shadow and modulators); point and spot lights get standard shading alone. The real
-/// hook goes in the engine's light loop (vr_lighting.fxc), so the loop stays the engine's.
-float4 SurfaceForwardLit<S : ILitSurface, let AlphaTest : bool>( PixelInput i, uint material )
+#ifdef SURFACE_LIGHT_HOOK
+// A lit surface (ILitSurface): the engine's light loop (vr_lighting.fxc) calls SurfaceLightHook for every light it shades
+// the pixel with, and the shading model adds the sum to the diffuse light. The instance file defines SurfaceLight, which
+// calls the material's Light with what the pass kept here.
+static SurfaceInput s_SurfaceLitInput;
+static Material s_SurfaceLitMaterial;
+static float3 s_SurfaceLight = 0;
+static float s_SurfaceLightStrength = 1;   // a baked light's per-texel strength, set around it by the baked loop
+
+SurfaceInput SurfaceLitInput() { return s_SurfaceLitInput; }
+Material SurfaceLitMaterial() { return s_SurfaceLitMaterial; }
+float3 SurfaceLightTotal() { return s_SurfaceLight; }
+void SurfaceLightScale( float strength ) { s_SurfaceLightStrength = strength; }
+
+void SurfaceLightHook( float3 direction, float3 color, float attenuation, float visibility, bool sun )
 {
-	S surface = LoadMaterial<S>( material );
+	LightSample light;
+	light.Direction = direction;
+	light.Color = color;
+	light.Attenuation = attenuation * s_SurfaceLightStrength;
+	light.Visibility = visibility;
+	light.Sun = sun;
+	s_SurfaceLight += SurfaceLight( light );
+}
+#endif
+
+/// Forward, and the alpha-tested depth pass: evaluate, then shade. A lit surface's Light runs inside Shade's light loop,
+/// on the input with the gradients taken here, since lanes diverge in the loop.
+float4 SurfaceForward<S : ISurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
+{
 	SurfaceInput input = MakeSurfaceInput( i );
 	Material s = surface.Evaluate( input );
-	if ( AlphaTest ) clip( s.Opacity - 0.5 );
-
-	if ( g_DirectionalLightEnabled )
-	{
-		LightSample sun;
-		sun.Direction = -normalize( g_DirectionalLightDirection.xyz );
-		sun.Color = g_DirectionalLightColor.rgb;
-		[branch]
-		if ( LightModulators::Active() )
-			sun.Color *= LightModulators::EvaluateSun( input.Position, sun.Direction );
-		sun.Attenuation = 1;
-		sun.Visibility = DirectionalLightShadow::GetVisibilityWithOffset( i.vPositionWithOffsetWs.xyz, i.vPositionSs );
-		sun.Sun = true;
-		s.Emission += surface.Light( s, input, sun );
-	}
-
-	return ShadingModelStandard::Shade( i, ToClassicMaterial( i, s ) );
+#ifdef SURFACE_LIGHT_HOOK
+	input.Gradients = true;
+	s_SurfaceLitInput = input;
+	s_SurfaceLitMaterial = s;
+	s_SurfaceLight = 0;
+#endif
+	return SurfaceShade( i, s, opacityTexture, AlphaTest );
 }
-
-/// Depth for alpha-tested surfaces: the same Evaluate; everything but Opacity is dead and removed.
-void SurfaceDepth<S : ISurface>( PixelInput i, uint material )
-{
-	clip( LoadMaterial<S>( material ).Evaluate( MakeSurfaceInput( i ) ).Opacity - 0.5 );
-}
-
 #endif
 
 #endif

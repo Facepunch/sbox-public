@@ -755,8 +755,9 @@ internal sealed class Source2Context : GpuContext
 	bool viewSetWritten;
 
 	/// <summary>
-	/// Fill the view set from this frame context's attributes (<c>CSceneSystem::FillViewDescriptorSet</c>) and bind it on
-	/// them, so the frame's segments inherit it. The attributes stay set: shaders built before the set read them.
+	/// Build the view's environment from the blocks set on this frame context (<c>CSceneSystem::SetViewEnvironment</c>),
+	/// fill the view set from its attributes (<c>CSceneSystem::FillViewDescriptorSet</c>) and bind it on them, so the
+	/// frame's segments inherit it.
 	/// </summary>
 	public override void WriteViewSet()
 	{
@@ -765,6 +766,7 @@ internal sealed class Source2Context : GpuContext
 		viewSetWritten = true;
 
 		if ( (IntPtr)viewSet == IntPtr.Zero ) viewSet = CSceneSystem.AcquireViewDescriptorSet();
+		CSceneSystem.SetViewEnvironment( context, nativeAttributes );
 		CSceneSystem.FillViewDescriptorSet( viewSet, nativeAttributes, default );
 		nativeAttributes.SetViewDescriptorSet( viewSet );
 		ResetMaterialBind();

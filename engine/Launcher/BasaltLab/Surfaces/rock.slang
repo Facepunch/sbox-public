@@ -6,7 +6,7 @@ import sbox.surface;
 [Material]
 public struct Rock : ISurface
 {
-	[Group( "Color" ), Srgb] Texture2D Color;
+	[Group( "Color" ), Srgb, Opacity] Texture2D Color;
 	[Group( "Normal" )] Texture2D Normal;
 	[Group( "Roughness" )] Texture2D Rma;
 	[Group( "Color" ), Default3( 1, 1, 1 )] float3 Tint;

@@ -10,26 +10,8 @@
 
 #include "common/utils/MSAAUtils.hlsl"
 
-// don't have more than this for fucks sake
-#define MAX_CASCADE_COUNT 4
-
-// The view's sun and its cascades, in its descriptor set (common.fxc)
-cbuffer DirectionalLightCB EXTERNAL_DESC_SET( b, g_viewSet, 2 )
-{
-    float4 g_DirectionalLightColor; // w fogstrength
-    float4 g_DirectionalLightDirection; // w blank
-
-    float4x4 g_DirectionalLightWorldToShadowViewMatrices[MAX_CASCADE_COUNT];
-	uint4 g_DirectionalLightShadowMapTextureIndex;
-	uint g_DirectionalLightCascadeCount;
-    float g_DirectionalLightInverseShadowMapSize;
-	// Bindless index of the screen-space (contact) shadow mask, 0 if none.
-	uint g_DirectionalLightScreenSpaceShadowIndex;
-	bool g_DirectionalLightEnabled;
-    float4 g_DirectionalLightCascadeHardness;
-    float4 g_DirectionalLightCascadeSpheres[MAX_CASCADE_COUNT]; // xyz = world center, w = radius squared
-    float4 g_DirectionalLightShadowBias; // per-cascade depth bias, scaled by cascade size
-};
+// The view's sun and its cascades (MAX_CASCADE_COUNT of them): DirectionalLightCB's block of its environment
+#include "common/ViewEnvironment.hlsl"
 
 int DirectionalLightDebug < Attribute("DirectionalLightDebug"); >;
 bool DisableScreenSpaceShadows < Attribute("DisableScreenSpaceShadows" ); Default( 0 ); > ;

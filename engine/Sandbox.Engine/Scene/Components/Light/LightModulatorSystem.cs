@@ -105,6 +105,7 @@ internal sealed class LightModulatorSystem : GameObjectSystem<LightModulatorSyst
 				RectangleUploadCount++;
 
 			Scene.RenderAttributes.Set( "LightModulatorRectangleCount", rectangles.Count );
+			Scene.RenderAttributes.Set( "LightModulators_Enabled", rectangles.Count > 0 ? 1 : 0 ); // Specialization constant: lit shaders leave modulators out when 0
 			previousRectangles.Clear();
 			previousRectangles.AddRange( rectangles );
 		}
@@ -214,6 +215,7 @@ internal sealed class LightModulatorSystem : GameObjectSystem<LightModulatorSyst
 		}
 
 		Scene.RenderAttributes.Set( "LightModulatorRectangleCount", 0 );
+		Scene.RenderAttributes.Set( "LightModulators_Enabled", 0 );
 		Scene.RenderAttributes.Set( "LightModulatorCandidateCount", 0 );
 		Scene.RenderAttributes.Set( "LightModulatorRectangles", (GpuBuffer)null );
 		Scene.RenderAttributes.Set( "LightModulatorCandidates", (GpuBuffer)null );

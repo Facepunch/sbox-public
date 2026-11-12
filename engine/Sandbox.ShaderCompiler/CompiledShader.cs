@@ -51,6 +51,12 @@ public static class ShaderPasses
 
 	/// <summary>Depth with the material's opacity clipped: alpha-tested materials' prepass and shadows.</summary>
 	public const string DepthAlphaTest = "DepthAlphaTest";
+
+	/// <summary>
+	/// A surface's passes with this suffix (<c>ForwardLightmapped</c>) have the vertex stage of lightmapped draws, which
+	/// passes on the mesh's lightmap uv.
+	/// </summary>
+	public const string Lightmapped = "Lightmapped";
 }
 
 /// <summary>One pass: a vertex shader and, unless it draws depth alone, a pixel shader.</summary>

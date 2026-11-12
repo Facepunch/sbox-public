@@ -169,7 +169,9 @@ internal sealed class BackendParameters : ShaderParameters
 	{
 		get
 		{
+			// The parent's first, so this lock is never held while taking another
 			var current = Version;
+			var parentKey = Parent?.LightingFreeKey;
 			lock ( values )
 			{
 				if ( lightingFreeVersion == current ) return lightingFreeKey;
@@ -192,7 +194,7 @@ internal sealed class BackendParameters : ShaderParameters
 					count++;
 				}
 
-				if ( Parent is { } parent ) hash.Add( parent.LightingFreeKey );
+				if ( parentKey is { } inherited ) hash.Add( inherited );
 				lightingFreeKey = (long)count << 32 | (uint)hash.ToHashCode();
 				lightingFreeVersion = current;
 				return lightingFreeKey;
@@ -342,18 +344,33 @@ internal sealed class BackendMaterial : GpuMaterial
 			gpuDrivenVariants.Clear();
 			Load( shader, file, textures );
 			needsLightProbe = 0;
+			loads++;
 		}
 
 		Interlocked.Increment( ref version );
 	}
 
+	/// <summary>Moves on with every <see cref="Reload"/>, so a variant made from what was loaded before isn't kept.</summary>
+	int loads;
+
 	/// <summary>A variant for a mode and dynamic combo values, made once.</summary>
 	public ShaderVariant Variant( ShaderLibrary library, string mode, string key, Func<string, int?> combos, Func<string, int?> attributes )
 	{
+		ShaderFile shader;
+		int[] features;
+		int loaded;
 		lock ( variants )
 		{
-			if ( variants.TryGetValue( key, out var variant ) ) return variant;
-			variant = library.Variant( Shader, mode, Features, combos, attributes );
+			if ( variants.TryGetValue( key, out var known ) ) return known;
+			(shader, features, loaded) = (Shader, Features, loads);
+		}
+
+		// Made outside the lock: making one loads the shader's combos and reads the attributes, which take locks of their own
+		var variant = library.Variant( shader, mode, features, combos, attributes );
+		lock ( variants )
+		{
+			if ( loaded != loads ) return variant;
+			if ( variants.TryGetValue( key, out var known ) ) return known;
 			variants[key] = variant;
 			return variant;
 		}
@@ -367,20 +384,33 @@ internal sealed class BackendMaterial : GpuMaterial
 	/// </summary>
 	public ShaderVariant GpuDrivenVariant( ShaderLibrary library, string mode, string key, Func<string, int?> combos, Func<string, int?> attributes )
 	{
+		ShaderFile shader;
+		int[] features;
+		int loaded;
 		lock ( variants )
 		{
-			if ( gpuDrivenVariants.TryGetValue( key, out var variant ) ) return variant;
-			try
-			{
-				variant = library.Variant( Shader, mode, Features, combos, attributes, gpuDriven: true );
-			}
-			catch ( System.IO.InvalidDataException )
-			{
-				variant = null;
-			}
+			if ( gpuDrivenVariants.TryGetValue( key, out var known ) ) return known;
+			(shader, features, loaded) = (Shader, Features, loads);
+		}
 
-			// Not while its variant is compiling: the batch draws classic until then
-			if ( variant is not null || !library.GpuDrivenPending( Shader ) ) gpuDrivenVariants[key] = variant;
+		// Made outside the lock, as Variant's are
+		ShaderVariant variant;
+		try
+		{
+			variant = library.Variant( shader, mode, features, combos, attributes, gpuDriven: true );
+		}
+		catch ( System.IO.InvalidDataException )
+		{
+			variant = null;
+		}
+
+		// Not while its variant is compiling: the batch draws classic until then
+		var final = variant is not null || !library.GpuDrivenPending( shader );
+		lock ( variants )
+		{
+			if ( loaded != loads || !final ) return variant;
+			if ( gpuDrivenVariants.TryGetValue( key, out var known ) ) return known;
+			gpuDrivenVariants[key] = variant;
 			return variant;
 		}
 	}

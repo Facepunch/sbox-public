@@ -40,19 +40,24 @@ public sealed partial class SlangCompiler
 		["SLANG"] = "1",
 	};
 
-	/// <summary>What Slang compiles for each file: vfx's include rewrite for HLSL, the material rewrite for modules.</summary>
+	/// <summary>
+	/// What Slang compiles for each file: vfx's include rewrite for HLSL, the material rewrite for modules, whose globals'
+	/// annotations (a sampler's <c>Filter</c>) are recorded as the includes' are.
+	/// </summary>
 	static string Rewrite( string path, string text, Dictionary<string, Annotations> annotations )
 	{
-		if ( path.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) ) return MaterialSource.Rewrite( text, out _ );
+		if ( path.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) ) return VfxIncludes.Rewrite( MaterialSource.Rewrite( text, out _ ), annotations );
 		if ( path.EndsWith( ".slangh", StringComparison.OrdinalIgnoreCase ) ) return text;
 		return VfxIncludes.Rewrite( text, annotations );
 	}
 
-	SlangRequest Request( StageKind stage, IReadOnlyList<string> extraSearchPaths )
+	SlangRequest Request( StageKind stage, IReadOnlyList<string> extraSearchPaths, IReadOnlyDictionary<string, string> extraDefines = null )
 	{
 		var session = SlangApi.Session( slangDirectory );
 		Dictionary<string, Annotations> annotations = null;
-		var request = new SlangRequest( session, [.. extraSearchPaths, .. searchPaths], Defines( stage ), stage == StageKind.Vertex, ( path, text ) => Rewrite( path, text, annotations ) );
+		var defines = Defines( stage );
+		foreach ( var (name, value) in extraDefines ?? new Dictionary<string, string>() ) defines[name] = value;
+		var request = new SlangRequest( session, [.. extraSearchPaths, .. searchPaths], defines, stage == StageKind.Vertex, ( path, text ) => Rewrite( path, text, annotations ) );
 		annotations = request.Annotations;
 		return request;
 	}
@@ -78,16 +83,28 @@ public sealed partial class SlangCompiler
 			var layout = ReflectMaterial( path, source, material.Name, directory );
 			var displaces = material.Interfaces.Contains( "IVertexSurface" );
 			var lit = material.Interfaces.Contains( "ILitSurface" );
-			if ( !displaces && !lit && !material.Interfaces.Contains( "ISurface" ) )
-				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IVertexSurface or ILitSurface" );
+			var interpolated = material.Interfaces.Contains( "IInterpolatedSurface" );
+			if ( !displaces && !lit && !interpolated && !material.Interfaces.Contains( "ISurface" ) )
+				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface or ILitSurface" );
+			if ( interpolated && (displaces || lit) )
+				throw new ShaderCompileException( path, $"{material.Name}: an IInterpolatedSurface can't also be an IVertexSurface or ILitSurface yet" );
 
-			var instance = InstanceFile( module, material.Name, displaces, lit );
+			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated );
 			var instancePath = Path.Combine( directory, $"{module}.instance.slang" );
 
 			var vertex = CompileEntry( instancePath, instance, "MainVs", StageKind.Vertex, directory );
+			var vertexLightmapped = CompileEntry( instancePath, instance, "MainVs", StageKind.Vertex, directory, Lightmapped );
 			var forward = CompileEntry( instancePath, instance, "ForwardPs", StageKind.Pixel, directory );
-			var forwardAlphaTest = CompileEntry( instancePath, instance, "ForwardAlphaTestPs", StageKind.Pixel, directory );
-			var depthAlphaTest = CompileEntry( instancePath, instance, "DepthAlphaTestPs", StageKind.Pixel, directory );
+			var forwardAlphaTest = CompileEntry( instancePath, instance, "ForwardAlphaTestPs", StageKind.Pixel, directory, AlphaTested );
+			var depthAlphaTest = CompileEntry( instancePath, instance, "DepthAlphaTestPs", StageKind.Pixel, directory, AlphaTestedDepth );
+
+			// Each pass twice: as compiled, and with the vertex stage that passes on the mesh's lightmap uv
+			var passes = new Dictionary<string, CompiledPass>();
+			foreach ( var (v, suffix) in new[] { (vertex, ""), (vertexLightmapped, ShaderPasses.Lightmapped) } )
+			{
+				foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, forward), (ShaderPasses.Forward + "AlphaTest", forwardAlphaTest), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, depthAlphaTest) } )
+					passes[name + suffix] = new() { Name = name + suffix, Vertex = v, Pixel = pixel };
+			}
 
 			return new CompiledShader
 			{
@@ -95,13 +112,7 @@ public sealed partial class SlangCompiler
 				Tier = ShaderTier.Surface,
 				Path = path,
 				Material = layout,
-				Passes = new Dictionary<string, CompiledPass>
-				{
-					[ShaderPasses.Forward] = new() { Name = ShaderPasses.Forward, Vertex = vertex, Pixel = forward },
-					[ShaderPasses.Forward + "AlphaTest"] = new() { Name = ShaderPasses.Forward + "AlphaTest", Vertex = vertex, Pixel = forwardAlphaTest },
-					[ShaderPasses.Depth] = new() { Name = ShaderPasses.Depth, Vertex = vertex },
-					[ShaderPasses.DepthAlphaTest] = new() { Name = ShaderPasses.DepthAlphaTest, Vertex = vertex, Pixel = depthAlphaTest },
-				},
+				Passes = passes,
 				Generated = instance,
 				Milliseconds = clock.Elapsed.TotalMilliseconds,
 			};
@@ -168,9 +179,21 @@ public sealed partial class SlangCompiler
 		return MaterialReflection.Read( request.Reflection, type, path );
 	}
 
-	CompiledStage CompileEntry( string path, string source, string entry, StageKind stage, string directory )
+	/// <summary>Alpha-tested passes compile with today's alpha test (S_ALPHA_TEST): Shade runs alpha to coverage.</summary>
+	static readonly Dictionary<string, string> AlphaTested = new() { ["S_ALPHA_TEST"] = "1" };
+
+	/// <summary>
+	/// The vertex stage of lightmapped draws: today's dynamic combo that reads the mesh's lightmap uv (TEXCOORD3) and passes
+	/// it on. The pixel stage is the same; it samples the lightmap when the object has one.
+	/// </summary>
+	static readonly Dictionary<string, string> Lightmapped = new() { ["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = "1" };
+
+	/// <summary>The alpha-tested depth pass also in Depth mode: Shade returns the coverage before lighting.</summary>
+	static readonly Dictionary<string, string> AlphaTestedDepth = new() { ["S_ALPHA_TEST"] = "1", ["S_MODE_DEPTH"] = "1" };
+
+	CompiledStage CompileEntry( string path, string source, string entry, StageKind stage, string directory, IReadOnlyDictionary<string, string> defines = null )
 	{
-		using var request = Request( stage, [directory] );
+		using var request = Request( stage, [directory], defines );
 		request.AddSource( path, source );
 		request.AddEntryPoint( entry, stage );
 		request.Compile( path );
@@ -183,21 +206,48 @@ public sealed partial class SlangCompiler
 		return StageReflection.Describe( stage, entry, spirv, request.ReflectionJson(), request.Annotations );
 	}
 
-	/// <summary>The instance file for a <c>[Material]</c> struct: the engine's passes, named as entry points.</summary>
-	internal static string InstanceFile( string module, string type, bool displaces, bool lit )
+	/// <summary>
+	/// The instance file for a <c>[Material]</c> struct: the engine's passes, named as entry points. Each pixel entry loads
+	/// the record at the offset the vertex stage passed on (or the draw's, per pipeline) and hands the passes the slot of
+	/// the material's <c>[Opacity]</c> texture, when it has one. A lit surface's (<c>ILitSurface</c>) also turns on the
+	/// engine light loop's hook (<c>SURFACE_LIGHT_HOOK</c>) and hands it the material, so <c>Light</c> runs per light. An
+	/// interpolated surface's (<c>IInterpolatedSurface</c>) vertex stage also reads its <c>Varyings</c> and passes them on.
+	/// </summary>
+	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false )
 	{
-		var forward = lit ? "SurfaceForwardLit" : "SurfaceForward";
 		var vertex = displaces ? $"SurfaceVertexDisplaced<{type}>( i )" : "SurfaceVertex( i )";
+		var opacity = opacityField is null ? "0" : $"m.{opacityField}.Slot";
+		var keep = lit ? " s_LitSurface = m;" : "";
+		var output = interpolated ? $"SurfaceVertexOutputWith<{type}.Varyings>" : "SurfaceVertexOutput";
+		var surface = interpolated ? $"SurfaceWithVaryings<{type}>" : type;
+		var wrap = interpolated ? $" SurfaceWithVaryings<{type}> s; s.Surface = m; s.Values = i.Varyings;" : "";
+		var argument = interpolated ? "s" : "m";
+		string Pixel( string entry, bool alphaTest ) =>
+			$"[shader( \"pixel\" )] float4 {entry}( {output} i ) : SV_Target0 {{ {type} m = LoadMaterial<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{keep}{wrap} return SurfaceForward<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} ); }}\n";
+
 		var text = new StringBuilder();
 		text.Append( "// Generated by Sandbox.ShaderCompiler for the [Material] struct " ).Append( type ).Append( " in " ).Append( module ).Append( ".slang.\n" );
+		if ( opacityField is not null ) text.Append( "#define SURFACE_OPACITY_TEXTURE 1\n" );
+		if ( lit ) text.Append( "#define SURFACE_LIGHT_HOOK 1\n" );
 		text.Append( "#include \"sbox/surface_passes.slangh\"\n" );
 		text.Append( "import " ).Append( module ).Append( ";\n\n" );
 		text.Append( "#if ( PROGRAM == VFX_PROGRAM_VS )\n" );
-		text.Append( "[shader( \"vertex\" )] SurfaceVertexOutput MainVs( VertexInput i ) { return SurfaceOutput( " ).Append( vertex ).Append( " ); }\n" );
+		if ( interpolated )
+			text.Append( $"[shader( \"vertex\" )] {output} MainVs( VertexInput i, {type}.Varyings varyings ) {{ return SurfaceOutputWith<{type}>( {vertex}, varyings ); }}\n" );
+		else
+			text.Append( "[shader( \"vertex\" )] SurfaceVertexOutput MainVs( VertexInput i ) { return SurfaceOutput( " ).Append( vertex ).Append( " ); }\n" );
 		text.Append( "#else\n" );
-		text.Append( "[shader( \"pixel\" )] float4 ForwardPs( SurfaceVertexOutput i ) : SV_Target0 { return " ).Append( forward ).Append( '<' ).Append( type ).Append( ", false>( i.Pixel, PixelMaterialOffset( i.MaterialOffset ) ); }\n" );
-		text.Append( "[shader( \"pixel\" )] float4 ForwardAlphaTestPs( SurfaceVertexOutput i ) : SV_Target0 { return " ).Append( forward ).Append( '<' ).Append( type ).Append( ", true>( i.Pixel, PixelMaterialOffset( i.MaterialOffset ) ); }\n" );
-		text.Append( "[shader( \"pixel\" )] void DepthAlphaTestPs( SurfaceVertexOutput i ) { SurfaceDepth<" ).Append( type ).Append( ">( i.Pixel, PixelMaterialOffset( i.MaterialOffset ) ); }\n" );
+		if ( lit )
+		{
+			text.Append( "// The engine's light loop calls SurfaceLight for every light it shades the pixel with\n" );
+			text.Append( "static " ).Append( type ).Append( " s_LitSurface;\n" );
+			text.Append( "float3 SurfaceLight( LightSample light ) { return s_LitSurface.Light( SurfaceLitMaterial(), SurfaceLitInput(), light ); }\n" );
+		}
+
+		text.Append( Pixel( "ForwardPs", false ) );
+		text.Append( Pixel( "ForwardAlphaTestPs", true ) );
+		text.Append( "// Compiled in Depth mode: Shade returns the alpha-tested coverage before lighting\n" );
+		text.Append( Pixel( "DepthAlphaTestPs", true ) );
 		text.Append( "#endif\n" );
 		return text.ToString();
 	}
