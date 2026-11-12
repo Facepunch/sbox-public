@@ -31,7 +31,8 @@ COMMON
 		FlipH = 0x4,
 		SnapToFrame = 0x8,
 		Text = 0x10,		// glyph instances instead of a texture, see GpuFontText
-		FaceCameraPosition = 0x20
+		FaceCameraPosition = 0x20,
+		VelocityStretch = 0x40
 	};
 
 	struct SpriteData
@@ -199,7 +200,18 @@ VS
 		float4x4 transform;
 		uint billboardMode = sprite.BillboardMode;
 		
-		if (billboardMode == 0) // Always billboard
+		if ( (sprite.RenderFlags & VelocityStretch) != 0 )
+		{
+			float3 up = NormalizeSafe( sprite.Velocity );
+			float3 right = cross( sprite.Position - g_vCameraPositionWs.xyz, up );
+			if ( dot( right, right ) < 0.000001 ) right = cross( g_vCameraUpDirWs, up );
+			right = NormalizeSafe( right );
+			transform[0] = float4( right * scale.x, 0 );
+			transform[1] = float4( up * scale.y, 0 );
+			transform[2] = float4( NormalizeSafe( cross( right, up ) ) * scale.z, 0 );
+			transform[3] = float4( position, 1 );
+		}
+		else if (billboardMode == 0) // Always billboard
 		{
 			transform = BuildBillboardMatrix(position, sprite.Rotation, scale, sprite.Offset, false, (sprite.RenderFlags & FaceCameraPosition) != 0);
 		}
