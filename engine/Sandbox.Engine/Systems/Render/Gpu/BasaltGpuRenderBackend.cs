@@ -99,7 +99,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		if ( !followsFrames || frame == Application.FrameCount ) return;
 		frame = Application.FrameCount;
 		SubmitUploads();
-		gpu.BeginFrame();
+		services.BeginFrame();
 	}
 
 	BasaltGpuRenderBackend( GpuDevice gpu, bool ownsDevice )
@@ -231,7 +231,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		if ( acquiredIn.TryGetValue( swapChain, out var last ) && last == gpu.FrameNumber )
 		{
 			SubmitUploads();
-			gpu.BeginFrame();
+			services.BeginFrame();
 		}
 
 		acquiredIn[swapChain] = gpu.FrameNumber;
@@ -1080,8 +1080,11 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	public void NextFrame()
 	{
 		SubmitUploads();
-		gpu.BeginFrame();
+		services.BeginFrame();
 	}
+
+	/// <summary>The renderer services' frame, which every device frame moves on: GPU-driven drawing recycles its per-frame memory by it.</summary>
+	internal uint ServicesFrame => services.GpuDrivenFrame;
 
 	public void Dispose()
 	{
