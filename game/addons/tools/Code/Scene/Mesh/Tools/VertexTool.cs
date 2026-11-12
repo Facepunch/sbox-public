@@ -50,14 +50,7 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 				SelectAllVertices();
 		}
 
-		using ( Gizmo.Scope( "Vertex Selection" ) )
-		{
-			Gizmo.Draw.IgnoreDepth = true;
-			Gizmo.Draw.Color = Color.White;
-
-			foreach ( var vertex in Selection.OfType<MeshVertex>() )
-				Gizmo.Draw.Sprite( vertex.PositionWorld, 8, null, false );
-		}
+		DrawSelectedElements();
 
 		if ( ShowSelectionBounds )
 			DrawBounds();
