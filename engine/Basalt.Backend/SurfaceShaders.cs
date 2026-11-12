@@ -33,6 +33,44 @@ public sealed class SurfaceShaders : IDisposable
 		lock ( programs ) folders.Add( Path.GetFullPath( folder ) );
 	}
 
+	/// <summary>
+	/// Draw <c>.vmat</c> materials of the <c>.shader</c> <paramref name="shader"/> (<c>shaders/blendable.shader</c>) with the
+	/// surface in <paramref name="file"/> (<c>blendable.slang</c>) instead, from materials loaded after this. Each field
+	/// takes the material's value of its <c>[Source]</c>, or of its name with a vfx prefix (<c>g_tColorA</c> for
+	/// <c>ColorA</c>); the shader's defaults where the material sets none.
+	/// </summary>
+	public void Convert( string shader, string file )
+	{
+		lock ( programs ) conversions[ShaderKey( shader )] = file;
+	}
+
+	/// <summary>The surface standing in for <paramref name="shader"/>, or null.</summary>
+	internal string ConversionFor( string shader )
+	{
+		if ( shader is null ) return null;
+		lock ( programs ) return conversions.TryGetValue( ShaderKey( shader ), out var file ) ? file : null;
+	}
+
+	/// <summary>Whether any shader has a surface standing in for it.</summary>
+	internal bool HasConversions
+	{
+		get
+		{
+			lock ( programs ) return conversions.Count > 0;
+		}
+	}
+
+	/// <summary>Materials loaded as the surface standing in for their shader.</summary>
+	public int ConvertedMaterials => convertedMaterials;
+
+	int convertedMaterials;
+
+	internal void CountConverted() => System.Threading.Interlocked.Increment( ref convertedMaterials );
+
+	static string ShaderKey( string shader ) => Path.GetFileNameWithoutExtension( shader.Replace( '\\', '/' ) ).ToLowerInvariant();
+
+	readonly Dictionary<string, string> conversions = new( StringComparer.OrdinalIgnoreCase );
+
 	/// <summary>Called with a shader's compile errors; the material then draws nothing.</summary>
 	public Action<string> Error { get; set; } = message => Console.Error.WriteLine( message );
 
@@ -50,7 +88,9 @@ public sealed class SurfaceShaders : IDisposable
 	SlangCompiler Compiler()
 	{
 		if ( compiler is not null ) return compiler;
-		var core = device.Content.Roots.FirstOrDefault() ?? throw new InvalidOperationException( "No content folder to find the engine's shaders in" );
+		// The engine's core content: the root with the surface library (a map's own package comes first in its content)
+		var core = device.Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "sbox", "surface.slang" ) ) ) ?? device.Content.Roots.FirstOrDefault()
+			?? throw new InvalidOperationException( "No content folder to find the engine's shaders in" );
 		var game = Path.GetDirectoryName( core );
 		return compiler = new SlangCompiler( Path.Combine( game, "bin", "win64" ), [Path.Combine( core, "shaders" )] );
 	}

@@ -92,3 +92,8 @@ public struct OpacityAttribute {};
 // A texture read in sRGB (colour); without it a texture is read linear (normals, masks)
 [__AttributeUsage( _AttributeTargets.Var )]
 public struct SrgbAttribute {};
+
+// Where a material converted from a .vmat takes this field from: a .shader feature (F_MULTIBLEND), variable or
+// ShaderVersion. Without it the field is found by name (g_tName, g_flName, g_vName, g_nName, g_bName, Name)
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct SourceAttribute { string Name; };

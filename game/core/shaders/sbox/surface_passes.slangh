@@ -27,7 +27,34 @@ struct SurfaceVertexOutput
 	nointerpolation uint MaterialOffset : TEXCOORD15;
 };
 
+/// The same with an IInterpolatedSurface's Varyings. Varyings are matched by location (declaration order), as both
+/// stages compile this struct.
+struct SurfaceVertexOutputWith<V>
+{
+	PixelInput Pixel;
+	nointerpolation uint MaterialOffset : TEXCOORD15;
+	V Varyings;
+};
+
+/// An IInterpolatedSurface with its interpolated Varyings, as an ISurface for the passes.
+struct SurfaceWithVaryings<S : IInterpolatedSurface> : ISurface
+{
+	S Surface;
+	S.Varyings Values;
+	Material Evaluate( SurfaceInput i ) { return Surface.Evaluate( i, Values ); }
+};
+
 #if ( PROGRAM == VFX_PROGRAM_VS )
+
+/// The vertex stage's output with the record offset passed on, and the surface's Varyings.
+SurfaceVertexOutputWith<S.Varyings> SurfaceOutputWith<S : IInterpolatedSurface>( PixelInput pixel, S.Varyings varyings )
+{
+	SurfaceVertexOutputWith<S.Varyings> o;
+	o.Pixel = pixel;
+	o.MaterialOffset = DrawMaterialOffset();
+	o.Varyings = LoadMaterial<S>( DrawMaterialOffset() ).Vertex( varyings );
+	return o;
+}
 
 /// The vertex stage's output with the record offset passed on.
 SurfaceVertexOutput SurfaceOutput( PixelInput pixel )

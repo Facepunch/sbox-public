@@ -178,6 +178,20 @@ internal static class SurfaceParity
 			File.WriteAllBytes( Path.Combine( folder, "foliage_surface_ps.spv" ), device.Surfaces.Compile( "foliage.slang" ).Pass( ShaderPasses.Forward + "AlphaTest" ).Pixel.Spirv );
 			var foliageVariant = foliageShader.Variant( device.Shaders, "Forward", "Forward;F", _ => null, _ => null );
 			if ( foliageVariant?.Pixel?.Bytecode is { } fb && (fb.Spirv ?? fb.Shared?.Spirv) is { } fs ) File.WriteAllBytes( Path.Combine( folder, "foliage_shader_ps.spv" ), fs );
+
+			// blendable.slang against blendable.shader with four layers (F_MULTIBLEND 3), for register counts; their pictures
+			// are compared on Construct (-construct -real -surface-convert blendable)
+			if ( device.Surfaces.Compile( Path.Combine( device.Content.Roots[0], "shaders", "blendable.slang" ) ) is { } blendable )
+			{
+				File.WriteAllBytes( Path.Combine( folder, "blendable_surface_ps.spv" ), blendable.Pass( ShaderPasses.Forward ).Pixel.Spirv );
+				var blendableShader = (BackendMaterial)((Basalt.GpuDevice)device).CreateMaterial( "Blendable (.shader)", "shaders/blendable.shader" );
+				if ( blendableShader.Shader is { } shaderFile )
+				{
+					blendableShader.Features[shaderFile.FeatureIndex( "F_MULTIBLEND" )] = 3;
+					var blendableVariant = blendableShader.Variant( device.Shaders, "Forward", "Forward;B3", _ => null, _ => null );
+					if ( blendableVariant?.Pixel?.Bytecode is { } bb && (bb.Spirv ?? bb.Shared?.Spirv) is { } bs ) File.WriteAllBytes( Path.Combine( folder, "blendable_shader_ps.spv" ), bs );
+				}
+			}
 		}
 		finally
 		{

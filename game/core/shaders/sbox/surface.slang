@@ -22,6 +22,22 @@ public struct Material
 	// grazing-angle fade): spent as sub-pixel coverage with multisampling, else cut at a half. Not on Opacity, which the
 	// cutoff's derivatives would cancel.
 	public float Coverage = 1;
+
+	/// Blend two surfaces' properties, as common/material.hlsl's Material::lerp does (the normal renormalized).
+	public static Material Lerp( Material a, Material b, float amount )
+	{
+		Material o = a;
+		o.Albedo = lerp( a.Albedo, b.Albedo, amount );
+		o.Emission = lerp( a.Emission, b.Emission, amount );
+		o.Opacity = lerp( a.Opacity, b.Opacity, amount );
+		o.TintMask = lerp( a.TintMask, b.TintMask, amount );
+		o.Normal = normalize( lerp( a.Normal, b.Normal, amount ) );
+		o.Roughness = lerp( a.Roughness, b.Roughness, amount );
+		o.Metalness = lerp( a.Metalness, b.Metalness, amount );
+		o.AmbientOcclusion = lerp( a.AmbientOcclusion, b.AmbientOcclusion, amount );
+		o.Transmission = lerp( a.Transmission, b.Transmission, amount );
+		return o;
+	}
 }
 
 // Set by the pass's pipeline: off in raster passes (hardware derivatives), on in a visibility-buffer resolve, which
@@ -54,6 +70,13 @@ public struct SurfaceInput
 		return texture.Sample( g_MaterialFiltering, uv );
 	}
 
+	/// The same with a sampler of the surface's own (a module global, its state from its annotations).
+	public float4 Sample( MaterialTexture2D texture, float2 uv, SamplerState filtering )
+	{
+		if ( kSampleWithGradients || Gradients ) return texture.SampleGrad( filtering, uv, UvDdx, UvDdy );
+		return texture.Sample( filtering, uv );
+	}
+
 	/// A tangent-space normal to world space.
 	public float3 ToWorld( float3 tangentNormal )
 	{
@@ -68,12 +91,32 @@ public struct SurfaceInput
 		t.y = -t.y;
 		return normalize( t.x * normalize( TangentU ) + t.y * normalize( TangentV ) + t.z * Normal );
 	}
+
+	/// A hemi-octahedral normal map's rg (today's packed normal-roughness maps) in world space, as DecodeHemiOctahedronNormal
+	/// then TransformNormal read it.
+	public float3 NormalFromHemiOctahedron( float2 texel )
+	{
+		float2 d = float2( texel.x + texel.y - 1.00392163, texel.x - texel.y );
+		float3 t = normalize( float3( d, 1.0 - abs( d.x ) - abs( d.y ) ) );
+		t.y = -t.y;
+		return normalize( t.x * normalize( TangentU ) + t.y * normalize( TangentV ) + t.z * Normal );
+	}
 }
 
 /// A material shader.
 public interface ISurface
 {
 	Material Evaluate( SurfaceInput i );
+}
+
+/// Instead of ISurface: a surface with per-vertex values of its own. Varyings is a struct of extra vertex inputs, each
+/// field with the mesh semantic it reads (`float4 Blend : TEXCOORD4;`; zeros where a mesh has none); Vertex adjusts them
+/// per vertex, and Evaluate gets them interpolated.
+public interface IInterpolatedSurface
+{
+	associatedtype Varyings;
+	Varyings Vertex( Varyings v );
+	Material Evaluate( SurfaceInput i, Varyings v );
 }
 
 /// What the engine hands IVertexSurface.Displace.
