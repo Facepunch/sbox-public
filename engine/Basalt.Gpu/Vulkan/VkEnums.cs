@@ -96,6 +96,9 @@ internal enum VkStructureType
 	SubmitInfo2 = 1000314004,
 	SemaphoreSubmitInfo = 1000314005,
 	CommandBufferSubmitInfo = 1000314006,
+	PhysicalDeviceFaultFeaturesExt = 1000341000,
+	DeviceFaultCountsExt = 1000341001,
+	DeviceFaultInfoExt = 1000341002,
 	MutableDescriptorTypeCreateInfoExt = 1000351002,
 }
 

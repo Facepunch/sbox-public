@@ -427,6 +427,21 @@ public sealed unsafe partial class Device : IDisposable
 		var extensions = new List<string>();
 		if ( options.Presentation && deviceExtensions.Contains( "VK_KHR_swapchain" ) ) extensions.Add( "VK_KHR_swapchain" );
 
+		// Device fault reports, for what the GPU was doing when the device is lost
+		var fault = new VkPhysicalDeviceFaultFeaturesEXT { sType = VkStructureType.PhysicalDeviceFaultFeaturesExt };
+		if ( deviceExtensions.Contains( "VK_EXT_device_fault" ) )
+		{
+			var supportedFault = new VkPhysicalDeviceFaultFeaturesEXT { sType = VkStructureType.PhysicalDeviceFaultFeaturesExt };
+			var query = new VkPhysicalDeviceFeatures2 { sType = VkStructureType.PhysicalDeviceFeatures2, pNext = &supportedFault };
+			Instance.vkGetPhysicalDeviceFeatures2( PhysicalDevice, &query );
+			if ( supportedFault.deviceFault != 0 )
+			{
+				extensions.Add( "VK_EXT_device_fault" );
+				fault.deviceFault = 1;
+				e13.pNext = &fault;
+			}
+		}
+
 		using var strings = new NativeStrings();
 		var info = new VkDeviceCreateInfo
 		{
@@ -453,13 +468,17 @@ public sealed unsafe partial class Device : IDisposable
 			throw;
 		}
 
-		Presentation = extensions.Count > 0;
+		Presentation = extensions.Contains( "VK_KHR_swapchain" );
+		faultReports = extensions.Contains( "VK_EXT_device_fault" );
 		queueFamilies = asyncCompute ? [(uint)graphics, (uint)compute] : [(uint)graphics];
 		return vk;
 	}
 
 	/// <summary>Whether swap chains can be made.</summary>
 	internal bool Presentation { get; private set; }
+
+	/// <summary>Whether the device was made with VK_EXT_device_fault.</summary>
+	bool faultReports;
 
 	/// <summary>The families resources are shared between: one, or graphics and compute.</summary>
 	internal uint[] queueFamilies;
