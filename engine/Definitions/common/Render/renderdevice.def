@@ -66,6 +66,20 @@ native accessor g_pRenderDevice
 		return str.String();
 	}
 
+	// Pack the GPU allocator's blocks now and release the ones that empty, over the next frames
+	inline void DefragmentGpuMemory()
+	{
+		g_pRenderDevice->DefragmentGPUMemory( RENDER_DEFRAG_ALGORITHM_BALANCED, true );
+	}
+
+	inline string GetGpuMemoryMap()
+	{
+		static thread_local CBufferString str;
+		str.RemoveAll();
+		g_pRenderDevice->AppendGPUMemoryMap( &str );
+		return str.String();
+	}
+
 	inline void GetTexturePoolStats( out ulong pPoolUsedBytesOut, out ulong pPoolLimitBytesOut, out ulong pNonEvictableBytesOut )
 	{
 		uint64 used = 0, limit = 0, pinned = 0;
