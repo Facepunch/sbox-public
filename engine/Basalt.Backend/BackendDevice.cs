@@ -275,7 +275,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// Shaders without a GPU-driven variant beside them (a package's) get one compiled at load by the ShaderCompiler
 	/// beside the application, from the source embedded in their compiled file, into <c>game/.source2/basaltgpudriven</c>;
-	/// their draws stay classic until it's ready. Nothing when there's no ShaderCompiler or game folder.
+	/// their draws stay classic until it's ready. One compiled by an older engine is recompiled the same way first, into
+	/// <c>game/.source2/basaltshaderupgrade</c>. Nothing when there's no ShaderCompiler or game folder.
 	/// </summary>
 	void CompileGpuDrivenWithShaderCompiler()
 	{
@@ -293,21 +294,31 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		{
 			// Core shaders embed no source: build-shaders makes theirs, and one without stays classic
 			if ( Path.GetFullPath( source ).StartsWith( core, StringComparison.OrdinalIgnoreCase ) ) return false;
-
-			var info = new ProcessStartInfo( compiler ) { WorkingDirectory = game, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-			foreach ( var argument in (string[])["--recompile", source, "-gpudriven", "-q", "--out", output] ) info.ArgumentList.Add( argument );
-
-			using var process = Process.Start( info );
-			if ( process is null ) return false;
-			process.OutputDataReceived += static ( _, _ ) => { };
-			process.ErrorDataReceived += static ( _, _ ) => { };
-			process.BeginOutputReadLine();
-			process.BeginErrorReadLine();
-			if ( process.WaitForExit( TimeSpan.FromMinutes( 10 ) ) ) return process.ExitCode == 0;
-
-			process.Kill( true );
-			return false;
+			return RunShaderCompiler( compiler, game, ["--recompile", source, "-gpudriven", "-q", "--out", output] );
 		};
+
+		// A package shader an older engine compiled is recompiled from its embedded source as it loads, as the engine's
+		// ShaderUpgrade does when a package installs
+		Shaders.UpgradeCache = Path.Combine( game, ".source2", "basaltshaderupgrade" );
+		Shaders.UpgraderVersion = $"{File.GetLastWriteTimeUtc( compiler ).Ticks}";
+		Shaders.Upgrader = ( source, output ) => RunShaderCompiler( compiler, game, ["--recompile", source, "-q", "--out", output] );
+	}
+
+	static bool RunShaderCompiler( string compiler, string workingDirectory, string[] arguments )
+	{
+		var info = new ProcessStartInfo( compiler ) { WorkingDirectory = workingDirectory, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+		foreach ( var argument in arguments ) info.ArgumentList.Add( argument );
+
+		using var process = Process.Start( info );
+		if ( process is null ) return false;
+		process.OutputDataReceived += static ( _, _ ) => { };
+		process.ErrorDataReceived += static ( _, _ ) => { };
+		process.BeginOutputReadLine();
+		process.BeginErrorReadLine();
+		if ( process.WaitForExit( TimeSpan.FromMinutes( 10 ) ) ) return process.ExitCode == 0;
+
+		process.Kill( true );
+		return false;
 	}
 
 	BackendTexture Placeholder( string name, bool cube )

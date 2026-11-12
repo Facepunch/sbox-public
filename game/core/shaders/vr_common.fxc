@@ -21,63 +21,18 @@
 //
 //-----------------------------------------------------------------------------------------------------------------
 
-// In the view's descriptor set (common.fxc), filled from the attribute of the same name
-cbuffer PerViewConstantBufferVR_t EXTERNAL_DESC_SET( b, g_viewSet, 0 )
-{
-	bool4		g_bFogTypeEnabled;
-	bool4		g_bOtherFxEnabled;
+// Fog, wind and volumetric fog: PerViewConstantBufferVR_t's block of the view's environment
+#include "common/ViewEnvironment.hlsl"
 
-	float4		g_vAoProxyDownres; // Unused
+#define g_flCubeFogOffset g_vCubeFog_Offset_Scale_Bias_Exponent.x
+#define g_flCubeFogScale g_vCubeFog_Offset_Scale_Bias_Exponent.y
+#define g_flCubeFogBias	g_vCubeFog_Offset_Scale_Bias_Exponent.z
+#define g_flCubeFogExponent g_vCubeFog_Offset_Scale_Bias_Exponent.w
 
-	float4		g_vXenAnimation; // Unused
-
-	// wind
-	float4		g_vWindDirection;
-	float4		g_vWindStrengthFreqMulHighStrength;
-
-	// environmental interaction
-	float4		g_vInteractionProjectionOrigin;
-	float4		g_vInteractionVolumeInvExtents;
-	float4		g_vInteractionTriggerVolumeInvMins;
-	float4		g_vInteractionTriggerVolumeWorldToVolumeScale;
-
-	// gradient fog
-	float4 g_vGradientFogBiasAndScale;
-	float4 m_vGradientFogExponents;
-	float4 g_vGradientFogColor_Opacity;
-	float4 g_vGradientFogCullingParams;		// [dist^2, min z, _, _]
-
-	// cubemap fog
-	float4 g_vCubeFog_Offset_Scale_Bias_Exponent;
-	#define g_flCubeFogOffset g_vCubeFog_Offset_Scale_Bias_Exponent.x
-	#define g_flCubeFogScale g_vCubeFog_Offset_Scale_Bias_Exponent.y
-	#define g_flCubeFogBias	g_vCubeFog_Offset_Scale_Bias_Exponent.z
-	#define g_flCubeFogExponent g_vCubeFog_Offset_Scale_Bias_Exponent.w
-
-	float4 g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip;
-	#define g_flCubeFogHeightOffset g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip.x
-	#define g_flCubeFogHeightScale g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip.y
-	#define g_flCubeFogHeightExponent g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip.z
-	#define g_flCubeMapSizeLog2 g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip.w
-
-	float4x4 g_matvCubeFogSkyWsToOs;
-	float4 g_vCubeFogCullingParams;		// [dist^2, min z, _, _]
-
-	// spherical vignete
-	float4 g_vSphericalVignetteBiasAndScale;
-	float4 g_vSphericalVignetteOrigin_Exponent;
-	float4 g_vSphericalVignetteColor_Opacity;
-
-	// volumetric fog
-	float4 g_vVolFog_VolumeScale_Shift_Near_Range;
-	float4 g_vVolFogDitherScaleBias;
-	float4 g_vVolFogPostWorldToFrustumScale;
-	float4 g_vVolFogPostWorldToFrustumBias;
-	float4x4 g_mVolFogFromWorld[ 2 ];
-
-	// high precision lighting
-	float4 g_vHighPrecisionLightingOffsetWs;
-};
+#define g_flCubeFogHeightOffset g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip.x
+#define g_flCubeFogHeightScale g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip.y
+#define g_flCubeFogHeightExponent g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip.z
+#define g_flCubeMapSizeLog2 g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip.w
 
 #define g_bVolumetricFogEnabled				g_bFogTypeEnabled.x
 #define g_bGradientFogEnabled				g_bFogTypeEnabled.y

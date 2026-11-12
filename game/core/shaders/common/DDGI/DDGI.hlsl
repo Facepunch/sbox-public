@@ -58,7 +58,7 @@ struct DDGIVolume
 };
 
 // The view's volumes, in its descriptor set (common.fxc)
-StructuredBuffer<DDGIVolume> DDGIVolumes EXTERNAL_DESC_SET( t, g_viewSet, 12 );
+StructuredBuffer<DDGIVolume> DDGIVolumes EXTERNAL_DESC_SET( t, g_viewSet, 8 );
 uint DDGIVolumeCount < Attribute( "DDGI_VolumeCount" ); >;
 
 // Whether the scene has any volumes, as a specialization constant: pixel pipelines for scenes without DDGI leave its code

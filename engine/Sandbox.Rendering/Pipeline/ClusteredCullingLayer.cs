@@ -20,13 +20,9 @@ internal sealed class ClusteredCullingLayer : NativeProceduralLayer
 
 	static readonly ComputeShader Compute = new( "shaders/clustered_light_culling_cs.shader" );
 
-	readonly GpuBuffer clusterLightCounts = CreateStructuredBuffer( ClusterCount, "ClusterLightCounts" );
-	readonly GpuBuffer clusterEnvCounts = CreateStructuredBuffer( ClusterCount, "ClusterEnvMapCounts" );
-	readonly GpuBuffer clusterDecalCounts = CreateStructuredBuffer( ClusterCount, "ClusterDecalCounts" );
-
-	readonly GpuBuffer clusterLightIndices = CreateStructuredBuffer( ClusterCount * MaxLightsPerCluster, "ClusterLightIndices" );
-	readonly GpuBuffer clusterEnvIndices = CreateStructuredBuffer( ClusterCount * MaxEnvMapsPerCluster, "ClusterEnvMapIndices" );
-	readonly GpuBuffer clusterDecalIndices = CreateStructuredBuffer( ClusterCount * MaxDecalsPerCluster, "ClusterDecalIndices" );
+	// A section per item type, lights, envmaps then decals (ClusterCulling.hlsl)
+	readonly GpuBuffer clusterCounts = CreateStructuredBuffer( ClusterCount * 3, "ClusterItemCounts" );
+	readonly GpuBuffer clusterIndices = CreateStructuredBuffer( ClusterCount * (MaxLightsPerCluster + MaxEnvMapsPerCluster + MaxDecalsPerCluster), "ClusterItemIndices" );
 
 	ClusteredLightingConstants constants;
 
@@ -54,13 +50,8 @@ internal sealed class ClusteredCullingLayer : NativeProceduralLayer
 
 		var nativeAttributes = view.GetRenderAttributesPtr();
 
-		nativeAttributes.SetBufferValue( "ClusterLightCounts", clusterLightCounts.native );
-		nativeAttributes.SetBufferValue( "ClusterEnvMapCounts", clusterEnvCounts.native );
-		nativeAttributes.SetBufferValue( "ClusterDecalCounts", clusterDecalCounts.native );
-
-		nativeAttributes.SetBufferValue( "ClusterLightIndices", clusterLightIndices.native );
-		nativeAttributes.SetBufferValue( "ClusterEnvMapIndices", clusterEnvIndices.native );
-		nativeAttributes.SetBufferValue( "ClusterDecalIndices", clusterDecalIndices.native );
+		nativeAttributes.SetBufferValue( "ClusterItemCounts", clusterCounts.native );
+		nativeAttributes.SetBufferValue( "ClusterItemIndices", clusterIndices.native );
 
 		var viewAttributes = new RenderAttributes( nativeAttributes );
 		viewAttributes.SetData( "ClusteredLightingConstants", constants );
@@ -69,12 +60,8 @@ internal sealed class ClusteredCullingLayer : NativeProceduralLayer
 	protected override void OnRender()
 	{
 		var attributes = RenderAttributes.Pool.Get();
-		attributes.Set( "ClusterLightCounts", clusterLightCounts );
-		attributes.Set( "ClusterEnvMapCounts", clusterEnvCounts );
-		attributes.Set( "ClusterDecalCounts", clusterDecalCounts );
-		attributes.Set( "ClusterLightIndices", clusterLightIndices );
-		attributes.Set( "ClusterEnvMapIndices", clusterEnvIndices );
-		attributes.Set( "ClusterDecalIndices", clusterDecalIndices );
+		attributes.Set( "ClusterItemCounts", clusterCounts );
+		attributes.Set( "ClusterItemIndices", clusterIndices );
 		attributes.SetData( "ClusteredLightingConstants", constants );
 
 		TransitionBuffers( ResourceState.UnorderedAccess );
@@ -116,11 +103,7 @@ internal sealed class ClusteredCullingLayer : NativeProceduralLayer
 
 	void TransitionBuffers( ResourceState targetState )
 	{
-		Graphics.ResourceBarrierTransition( clusterLightCounts, targetState );
-		Graphics.ResourceBarrierTransition( clusterEnvCounts, targetState );
-		Graphics.ResourceBarrierTransition( clusterDecalCounts, targetState );
-		Graphics.ResourceBarrierTransition( clusterLightIndices, targetState );
-		Graphics.ResourceBarrierTransition( clusterEnvIndices, targetState );
-		Graphics.ResourceBarrierTransition( clusterDecalIndices, targetState );
+		Graphics.ResourceBarrierTransition( clusterCounts, targetState );
+		Graphics.ResourceBarrierTransition( clusterIndices, targetState );
 	}
 }
