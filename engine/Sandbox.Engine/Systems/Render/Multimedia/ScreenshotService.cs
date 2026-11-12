@@ -89,7 +89,7 @@ internal static class ScreenshotService
 	{
 		try
 		{
-			var bitmap = new Bitmap( width, height );
+			using var bitmap = new Bitmap( width, height );
 
 			if ( !CopyReadbackToBitmap( data, format, width, height, bitmap ) )
 			{

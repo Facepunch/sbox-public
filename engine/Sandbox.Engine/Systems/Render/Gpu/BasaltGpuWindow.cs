@@ -31,7 +31,31 @@ internal sealed class BasaltGpuWindow : IDisposable
 		var (width, height) = sdl.PixelSize;
 		swapChain = backend.CreateSwapChain( SurfaceOf( sdl.NativeWindow ), Math.Max( width, 1 ), Math.Max( height, 1 ), vsync );
 		Size = new Vector2( width, height );
+
+		if ( backend.Device.Capabilities.Timestamps )
+		{
+			timestamps = backend.Device.CreateTimestamps( 2 * TimedFrames );
+			timestampMs = backend.Device.Capabilities.TimestampPeriod / 1e6;
+		}
 	}
+
+	// A frame's GPU time: timestamps at the start of its first block and after the copy into the image, a pair for each of
+	// the frames in flight, read back once the GPU is past them
+	const int TimedFrames = 4;
+	readonly TimestampQueries timestamps;
+	readonly double timestampMs;
+	ulong timedFrame;
+
+	/// <summary>
+	/// The GPU time of the latest frame read back (a few frames old), in milliseconds: from the start of its first block to
+	/// the end of the copy into the presented image, every block and Basalt frame between included. Null without timestamps.
+	/// </summary>
+	public double? GpuFrameMs { get; private set; }
+
+	/// <summary>Which frame <see cref="GpuFrameMs"/> was, counting from this window's first.</summary>
+	public ulong GpuFrameNumber { get; private set; }
+
+	int TimestampSlot => (int)(timedFrame % TimedFrames) * 2;
 
 	readonly Basalt.Sdl.SdlWindow sdl;
 
@@ -110,6 +134,7 @@ internal sealed class BasaltGpuWindow : IDisposable
 		using var scope = Graphics.Scope.CreateOn( backend );
 		Graphics.RenderTarget = RenderTarget.From( target );
 		Graphics.Clear( background, true, false, false );
+		if ( timestamps is not null ) backend.WriteTimestamp( timestamps, TimestampSlot, PipelineStage.TopOfPipe, reset: 2 );
 		return true;
 	}
 
@@ -128,7 +153,11 @@ internal sealed class BasaltGpuWindow : IDisposable
 		finally
 		{
 			// The acquired image has to be presented whatever the drawing did, or the next frame can't acquire
-			if ( present ) backend.CopyToSwapChain( target, swapChain );
+			if ( present )
+			{
+				backend.CopyToSwapChain( target, swapChain );
+				if ( timestamps is not null ) backend.WriteTimestamp( timestamps, TimestampSlot + 1, PipelineStage.AllCommands );
+			}
 		}
 	}
 
@@ -168,6 +197,20 @@ internal sealed class BasaltGpuWindow : IDisposable
 	{
 		if ( !swapChain.Current.IsValid ) return false;
 		swapChain.Present();
+
+		// The oldest pair in flight, the frame TimedFrames - 1 back
+		if ( timestamps is not null )
+		{
+			Span<ulong> ticks = stackalloc ulong[2];
+			var oldest = timedFrame - (TimedFrames - 1);
+			if ( timedFrame >= TimedFrames - 1 && timestamps.TryRead( (int)(oldest % TimedFrames) * 2, ticks ) && ticks[1] >= ticks[0] )
+			{
+				GpuFrameMs = (ticks[1] - ticks[0]) * timestampMs;
+				GpuFrameNumber = oldest;
+			}
+			timedFrame++;
+		}
+
 		return true;
 	}
 
@@ -207,6 +250,7 @@ internal sealed class BasaltGpuWindow : IDisposable
 		backend.Forget( swapChain );
 		swapChain.Dispose();
 		sdl.Dispose();
+		timestamps?.Dispose();
 		ReleaseTarget();
 		overlay?.Dispose();
 		overlay = null;

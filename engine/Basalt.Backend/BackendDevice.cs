@@ -280,15 +280,21 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	void CompileGpuDrivenWithShaderCompiler()
 	{
-		var compiler = Path.Combine( AppContext.BaseDirectory, "ShaderCompiler.exe" );
+		// Beside the application (BasaltLab, SceneLab), or beside this assembly when the application is elsewhere: the game's
+		// sbox.exe is in game/, its managed assemblies and the ShaderCompiler in game/bin/managed
+		var compiler = new[] { AppContext.BaseDirectory, Path.GetDirectoryName( typeof( BackendDevice ).Assembly.Location ) }
+			.Where( x => !string.IsNullOrEmpty( x ) ).Select( x => Path.Combine( x, "ShaderCompiler.exe" ) ).FirstOrDefault( File.Exists ) ?? "";
 		var core = Content.Roots.FirstOrDefault( x => File.Exists( Path.Combine( x, "shaders", "basalt_gpu_driven.fxc" ) ) );
 		if ( !File.Exists( compiler ) || core is null ) return;
 
 		var game = Path.GetDirectoryName( core );
 		Shaders.GpuDrivenCache = Path.Combine( game, ".source2", "basaltgpudriven" );
-		// The variant's form and the wrapper it appends, not the build: a rebuild that changes neither compiles nothing
+		// The variant's form, the wrapper it appends and the vfx_vulkan that rewrites it: a stale variant from an older
+		// rewriter, whose record offsets may not be the ones the backend writes, can read a bindless index out of range
 		var wrapper = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( Path.Combine( core, "shaders", "basalt_gpu_driven.fxc" ) ) ), 0, 8 );
-		Shaders.GpuDrivenCompilerVersion = $"{ShaderLibrary.GpuDrivenVersion}.{wrapper}";
+		var vfx = new FileInfo( Path.Combine( AppContext.BaseDirectory, "..", "win64", "vfx_vulkan.dll" ) );
+		var rewriter = vfx.Exists ? $".{vfx.Length:x}.{vfx.LastWriteTimeUtc.Ticks:x}" : "";
+		Shaders.GpuDrivenCompilerVersion = $"{ShaderLibrary.GpuDrivenVersion}.{wrapper}{rewriter}";
 		System.Threading.Tasks.Task.Run( Shaders.PruneGpuDrivenCache );
 		Shaders.GpuDrivenCompiler = ( source, output ) =>
 		{
@@ -845,6 +851,21 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		public BufferHandle Mask, Stamps;
 		public readonly BufferHandle[] Compacted = new BufferHandle[3];
 		public bool StampsCleared;
+
+		/// <summary>The frame (<see cref="GpuDrivenFrame"/>) its mask was last cleared in, before any call drew ids into it.</summary>
+		public uint ClearedFrame;
+
+		/// <summary>
+		/// Indices at the start of each compacted buffer that hold its cursor instead: every call compacting into the view
+		/// this frame takes its triangles' range from it on the GPU, so calls recorded on different workers reserve nothing.
+		/// </summary>
+		public const uint CompactedCursorIndices = 4;
+	}
+
+	/// <summary>A view's visibility resources if it has any yet.</summary>
+	internal VisibilityView ExistingVisibility( object view )
+	{
+		lock ( visibilityViews ) return visibilityViews.TryGetValue( view, out var state ) && state.Mask.IsValid ? state : null;
 	}
 
 	/// <summary>Indices each compacted index buffer holds; a fragment that doesn't fit draws whole.</summary>
@@ -868,7 +889,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 				state.Stamps = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 4L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Basalt visibility stamps" } );
 				for ( int i = 0; i < state.Compacted.Length; i++ )
 				{
-					state.Compacted[i] = Gpu.CreateBuffer( new BufferInfo { Size = VisibilityCompactedIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage, Name = "Basalt visibility triangles" } );
+					state.Compacted[i] = Gpu.CreateBuffer( new BufferInfo { Size = VisibilityCompactedIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Basalt visibility triangles" } );
 					visibilityBuffers.Add( state.Compacted[i] );
 				}
 

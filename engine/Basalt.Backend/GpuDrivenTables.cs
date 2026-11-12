@@ -19,6 +19,11 @@ internal readonly record struct PooledGeometry( uint GeometryRecord, BufferHandl
 /// vertices and indices in shared pages, and the geometry, draw and material tables, all reached through the bindless raw
 /// buffer array (<c>g_bindless_VertexBuffers</c>, binding 63). Tables only grow: a record, once written, is read by every
 /// later frame, so nothing is uploaded per frame but each frame's instance records and indirect commands.
+/// <para>
+/// Segments record on several threads at once. Locks are taken in one order: an owner's draws, then the draw records,
+/// then a table, then the device's own. Callbacks that write records (<see cref="Material"/>, <see cref="FragmentsOf"/>)
+/// run outside every lock here, since they read materials and attributes and make draw records.
+/// </para>
 /// </summary>
 internal sealed class GpuDrivenTables : IDisposable
 {
@@ -128,7 +133,7 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	/// <summary>
 	/// A lighting record: <c>BakedLightingConstantBuffer_t</c> (48 bytes), then <c>PerBatchLightProbeVolumeConstantBuffer_t</c>
-	/// (112), as the object attributes hold them, which GPU-driven variants read per draw instead of binding.
+	/// (112), as the attributes a draw reads hold them, which GPU-driven variants read per draw instead of binding.
 	/// </summary>
 	public const int LightingStride = 160;
 
@@ -146,28 +151,22 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
-	readonly ConditionalWeakTable<byte[], StrongBox<uint>> lightingBySource = new();
-
 	/// <summary>
-	/// The lighting record holding this light probe volume's constant buffer bytes as a draw reads them, in 16-byte units (a
-	/// draw record's flags hold it from bit 8): found by the bytes' array first, made once per distinct contents; 0, all
-	/// zeros, for none.
+	/// The lighting record holding these constant buffers' bytes as a draw reads them (a missing one zero), in 16-byte units
+	/// (a draw record's flags hold it from bit 8): made once per distinct contents; 0, all zeros, for none. Callers look it
+	/// up once per run of draws with the same attributes.
 	/// </summary>
-	public uint Lighting( byte[] probe )
+	public uint Lighting( byte[] baked, byte[] probe )
 	{
-		if ( probe is null ) return 0;
-		if ( lightingBySource.TryGetValue( probe, out var known ) ) return known.Value;
-
+		if ( baked is null && probe is null ) return 0;
 		var record = new byte[LightingStride];
-		probe.AsSpan( 0, Math.Min( probe.Length, 112 ) ).CopyTo( record.AsSpan( 48 ) );
-		uint index;
+		baked?.AsSpan( 0, Math.Min( baked.Length, 48 ) ).CopyTo( record );
+		probe?.AsSpan( 0, Math.Min( probe.Length, 112 ) ).CopyTo( record.AsSpan( 48 ) );
 		lock ( lightingRecords )
 		{
-			if ( !lightingRecords.TryGetValue( record, out index ) ) lightingRecords[record] = index = lighting.Append( record ) / 16;
+			if ( !lightingRecords.TryGetValue( record, out var index ) ) lightingRecords[record] = index = lighting.Append( record ) / 16;
+			return index;
 		}
-
-		lightingBySource.AddOrUpdate( probe, new StrongBox<uint>( index ) );
-		return index;
 	}
 	/// <summary>Bytes of the tables, for reports.</summary>
 	public (long Geometry, long Draws, long Materials, long Pages) Bytes
@@ -366,9 +365,14 @@ internal sealed class GpuDrivenTables : IDisposable
 		lock ( byKey )
 		{
 			if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var first ) ) return first;
+		}
 
-			var records = new byte[count * FragmentStride];
-			write( state, records );
+		// Written outside the lock: writing makes draw records, under the draw table's lock
+		var records = new byte[count * FragmentStride];
+		write( state, records );
+		lock ( byKey )
+		{
+			if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var first ) ) return first;
 			return byKey[(geometry, vertexMaterial, pixelMaterial, flags)] = fragments.Append( records ) / FragmentStride;
 		}
 	}
@@ -463,6 +467,9 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
+	/// <summary>The vertex bits the last frame's mesh draws used: what a view's mask clears of them before this frame's.</summary>
+	public long LastFrameVisibilityBits { get; private set; }
+
 	/// <summary>The vertex bits this frame's mesh draws use, from <see cref="FrameVisibilityBitBase"/>.</summary>
 	public long FrameVisibilityBits
 	{
@@ -480,9 +487,14 @@ internal sealed class GpuDrivenTables : IDisposable
 		lock ( materialRecords )
 		{
 			if ( materialRecords.TryGetValue( key, out var found ) ) return found;
+		}
 
-			var record = new byte[Math.Max( size, 16 )];
-			write( state, record );
+		// Written outside the lock: writing reads the material's and attributes' values, which take their own locks
+		var record = new byte[Math.Max( size, 16 )];
+		write( state, record );
+		lock ( materialRecords )
+		{
+			if ( materialRecords.TryGetValue( key, out var found ) ) return found;
 			return materialRecords[key] = materials.Append( record );
 		}
 	}
@@ -525,6 +537,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		{
 			frameVisibility.Clear();
 			frameVisibilityFragments = 0;
+			LastFrameVisibilityBits = frameVisibilityBits;
 			frameVisibilityBits = 0;
 		}
 	}

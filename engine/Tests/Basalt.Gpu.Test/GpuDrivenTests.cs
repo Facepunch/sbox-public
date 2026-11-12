@@ -127,6 +127,89 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// Aggregates of one material drawn GPU-driven by segments recording on several threads at once (the prepass, the
+	/// sun's cascades and forward, each reading the same material and frame attributes) finish every frame and draw what
+	/// serial recording does.
+	/// </summary>
+	[TestMethod]
+	public void AggregatesRecordFromParallelSegments()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem();
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven parallel test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 3;
+
+			var material = backend.CreateMaterial( "Shared boxes", new Color( 0.8f, 0.6f, 0.4f ) );
+			for ( int row = 0; row < Rows; row++ )
+			{
+				var (mesh, fragments) = Boxes( backend, material, row * 120 - 120 );
+				world.Add( new AggregateObject( mesh, fragments ) );
+			}
+
+			// Enough classic draws besides, each its own mesh and material, for the frame to record in parallel
+			for ( int i = 0; i < 80; i++ )
+			{
+				var (small, _) = Boxes( backend, backend.CreateMaterial( $"Mesh boxes {i}", new Color( 0.3f, 0.5f + i / 200.0f, 0.4f ) ), 360 + i / 10 * 20 );
+				world.Add( new MeshObject( small, new Transform( new Vector3( 0, 0, i % 10 * 15 ), Rotation.Identity, 0.2f ) ) );
+			}
+
+			var view = new RenderView { Name = "GPU-driven parallel test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			(byte[] Pixels, double WorkerMs) Frame( bool parallel )
+			{
+				system.ParallelRecording = parallel;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+
+				// A frame that never finishes recording fails here instead of hanging the run
+				var render = System.Threading.Tasks.Task.Run( () => system.Render( world, view, target ) );
+				Assert.IsTrue( render.Wait( TimeSpan.FromSeconds( 60 ) ), "the frame finished recording" );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return (pixels, system.Stats.WorkerRecordMs);
+			}
+
+			var serial = Frame( false );
+			var workerMs = 0.0;
+			byte[] parallel = null;
+			for ( int i = 0; i < 20; i++ )
+			{
+				var frame = Frame( true );
+				workerMs += frame.WorkerMs;
+				parallel ??= frame.Pixels;
+				CollectionAssert.AreEqual( parallel, frame.Pixels, $"parallel frame {i} draws what the first did" );
+			}
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.IsTrue( workerMs > 0, "segments recorded on workers" );
+			Assert.AreEqual( 0, Different( serial.Pixels, parallel ), "parallel recording draws what serial recording does" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A shader with no variant beside it (a package's) gets one from the library's compiler: none while it compiles,
 	/// then the compiled one, cached, so another library loads it without compiling.
 	/// </summary>

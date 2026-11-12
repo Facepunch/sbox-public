@@ -71,6 +71,7 @@ internal sealed partial class BackendContext
 
 	/// <summary>Each batch's lighting record (<see cref="GpuDrivenTables.Lighting"/>), by its index in the call.</summary>
 	uint[] batchLighting = [];
+	static readonly StringToken BakedLightingToken = new( "BakedLightingConstantBuffer_t" );
 	static readonly StringToken ProbeVolumeToken = new( "PerBatchLightProbeVolumeConstantBuffer_t" );
 	int gpuDrivenBucketCount;
 
@@ -122,12 +123,15 @@ internal sealed partial class BackendContext
 					if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) )
 					{
 						(lastAttributes, lastAttributesSet) = (batch.ObjectAttributes, true);
-						lastLighting = tables.Lighting( Lookup( ProbeVolumeToken ) as byte[] );
+						lastLighting = tables.Lighting( Lookup( BakedLightingToken ) as byte[], Lookup( ProbeVolumeToken ) as byte[] );
 						lastKey = AttributesKey( batch.ObjectAttributes );
 					}
 
+					// A surface's GPU-driven passes read only the probe volume per draw: its lightmap constants stay bound, so
+					// they key its bucket
 					batchLighting[i] = lastLighting;
-					if ( SurfaceBucket( surface, shaderMode, batch.StripPixelShader || r.Color is null, batch.ObjectAttributes, lastKey ) is { } surfaceBucket )
+					var surfaceKey = batch.ObjectAttributes is BackendParameters surfaceAttributes ? surfaceAttributes.ProbeFreeKey : lastKey;
+					if ( SurfaceBucket( surface, shaderMode, batch.StripPixelShader || r.Color is null, batch.ObjectAttributes, surfaceKey ) is { } surfaceBucket )
 					{
 						surfaceBucket.Batches.Add( (surfaceSource.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled.Value.IndexPageSlot, i) );
 						device.Surfaces.CountGpuDriven();
@@ -161,7 +165,7 @@ internal sealed partial class BackendContext
 			if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) )
 			{
 				(lastAttributes, lastAttributesSet) = (batch.ObjectAttributes, true);
-				lastLighting = tables.Lighting( Lookup( ProbeVolumeToken ) as byte[] );
+				lastLighting = tables.Lighting( Lookup( BakedLightingToken ) as byte[], Lookup( ProbeVolumeToken ) as byte[] );
 				lastKey = AttributesKey( batch.ObjectAttributes );
 			}
 
@@ -266,44 +270,53 @@ internal sealed partial class BackendContext
 					runStart = written;
 				}
 
-				// An owner's fragments keep their draw records by instance; anything else looks them up by key
+				// An owner's fragments keep their draw records by instance; anything else looks them up by key. The owner's
+				// lock is held only around its records and the draw table, which takes no other lock, and is let go whatever
+				// throws, so a worker drawing the same owner in another segment can't wait on it forever
 				var owned = batch.Owner is null ? null : tables.DrawsOf( batch.Owner, pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags );
-				if ( owned is not null ) System.Threading.Monitor.Enter( owned );
-
-				for ( int f = 0; f < batch.Count; f++ )
+				var ownedTaken = false;
+				try
 				{
-					var arg = batch.Instances ? InstanceArguments( batch, geometry, f ) : args[batch.FirstArg + f];
-					var firstIndex = pooled.FirstIndex + arg.FirstIndex;
-					uint draw;
-					if ( owned is null )
-					{
-						draw = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot );
-					}
-					else
-					{
-						var slot = (int)arg.FirstInstance;
-						if ( slot >= owned.Draws.Length ) Array.Resize( ref owned.Draws, Math.Max( slot + 1, owned.Draws.Length * 2 ) );
+					if ( owned is not null ) System.Threading.Monitor.Enter( owned, ref ownedTaken );
 
-						ref var entry = ref owned.Draws[slot];
-						if ( entry.IndexCount != arg.IndexCount || entry.FirstIndex != firstIndex || entry.BaseVertex != arg.BaseVertex )
-							entry = new GpuDrivenTables.OwnerDraw( firstIndex, arg.IndexCount, arg.BaseVertex, tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot ) );
-						draw = entry.Draw;
-					}
-
-					instances[written * 2] = (uint)transforms.InstanceSlot( batch.FirstInstance + (int)arg.FirstInstance );
-					instances[written * 2 + 1] = draw;
-					commands[written] = new GpuBuffer.IndirectDrawIndexedArguments
+					for ( int f = 0; f < batch.Count; f++ )
 					{
-						IndexCount = arg.IndexCount,
-						InstanceCount = 1,
-						FirstIndex = firstIndex,
-						BaseVertex = arg.BaseVertex,
-						FirstInstance = firstInstance + (uint)written,
-					};
-					written++;
+						var arg = batch.Instances ? InstanceArguments( batch, geometry, f ) : args[batch.FirstArg + f];
+						var firstIndex = pooled.FirstIndex + arg.FirstIndex;
+						uint draw;
+						if ( owned is null )
+						{
+							draw = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot );
+						}
+						else
+						{
+							var slot = (int)arg.FirstInstance;
+							if ( slot >= owned.Draws.Length ) Array.Resize( ref owned.Draws, Math.Max( slot + 1, owned.Draws.Length * 2 ) );
+
+							ref var entry = ref owned.Draws[slot];
+							if ( entry.IndexCount != arg.IndexCount || entry.FirstIndex != firstIndex || entry.BaseVertex != arg.BaseVertex )
+								entry = new GpuDrivenTables.OwnerDraw( firstIndex, arg.IndexCount, arg.BaseVertex, tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot ) );
+							draw = entry.Draw;
+						}
+
+						instances[written * 2] = (uint)transforms.InstanceSlot( batch.FirstInstance + (int)arg.FirstInstance );
+						instances[written * 2 + 1] = draw;
+						commands[written] = new GpuBuffer.IndirectDrawIndexedArguments
+						{
+							IndexCount = arg.IndexCount,
+							InstanceCount = 1,
+							FirstIndex = firstIndex,
+							BaseVertex = arg.BaseVertex,
+							FirstInstance = firstInstance + (uint)written,
+						};
+						written++;
+					}
+				}
+				finally
+				{
+					if ( ownedTaken ) System.Threading.Monitor.Exit( owned );
 				}
 
-				if ( owned is not null ) System.Threading.Monitor.Exit( owned );
 				drawn[index] = true;
 			}
 
@@ -390,17 +403,18 @@ internal sealed partial class BackendContext
 		var compact = device.GpuDrivenCompaction && device.SupportsDrawIndirectCount;
 		var shaders = compact && device.GpuDrivenVisibility && cull.View is not null && (cull.Ids || cull.Visibility) ? device.GpuDrivenVisibilityShaders : default;
 		var visibility = shaders.Mark is not null && shaders.Compact is not null && r.Depth is not null ? device.VisibilityFor( cull.View, Gpu.InfoOf( r.Depth.Handle ) ) : null;
-		var ids = visibility is not null && cull.Ids && r.Color is null;
-		var lists = visibility is not null && cull.Visibility && visibility.StampsCleared;
+		// Only once its state was cleared this frame, before any call that writes into it; the first frame draws plainly
+		var ready = visibility is not null && visibility.ClearedFrame == device.GpuDrivenFrame;
+		var ids = ready && cull.Ids && r.Color is null;
+		var lists = ready && cull.Visibility;
 
 		// One region: the view, the batches, the multi-draws (first slot and visible count, when compacting; a run of
-		// compacted triangles per bucket after its own), the compacted indices' cursor, the listed fragments, mesh draws'
+		// compacted triangles per bucket after its own), the listed fragments, mesh draws'
 		// instances' transform slots, then a slot per fragment (twice, with lists) for its instance record (8 bytes), its
 		// fragment (4, for ids) and command (20)
 		var slotCount = totalFragments * (lists ? 2 : 1);
 		var runsOffset = CullViewBytes + batchCount * CullBatchBytes;
-		var cursorOffset = runsOffset + (compact ? (batchCount + gpuDrivenBucketCount) * 8 : 0);
-		var listedOffset = cursorOffset + 16;
+		var listedOffset = (runsOffset + (compact ? (batchCount + gpuDrivenBucketCount) * 8 : 0) + 15) & ~15;
 		var transformSlotsOffset = listedOffset + (lists ? 16 + totalFragments * 32 : 0);
 		var instanceOffset = transformSlotsOffset + ((instanceFragments * 4 + 15) & ~15);
 		var fragmentOffset = instanceOffset + slotCount * GpuDrivenTables.InstanceStride;
@@ -422,7 +436,6 @@ internal sealed partial class BackendContext
 		}
 
 		MemoryMarshal.Cast<byte, uint>( data[..CullViewBytes] )[28] = cull.Shadow ? 1u : 0u;
-		MemoryMarshal.Cast<byte, uint>( data.Slice( cursorOffset, 16 ) ).Clear();
 		if ( lists )
 		{
 			// The compaction's dispatch: a group per listed fragment, counted up by the culling
@@ -552,19 +565,9 @@ internal sealed partial class BackendContext
 			runs[i * 2 + 1] = 0;
 		}
 
-		// Outside the rendering scope: the prepass clears the view's triangle mask (and, the first time, its stamps)
+		// The view's mask and stamps were cleared before the frame's segments (BeginGpuDrivenView)
 		var slots = tables.Slots;
 		CloseScope( flushClears: false );
-		if ( ids )
-		{
-			r.List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite );
-			r.List.FillBuffer( visibility.Mask, 0, 0, Math.Max( (tables.VisibilityBits / 8 + 3) & ~3L, 4 ) );
-			// And this frame's mesh draws' bits, above them
-			if ( tables.FrameVisibilityBits > 0 ) r.List.FillBuffer( visibility.Mask, 0, GpuDrivenTables.FrameVisibilityBitBase / 8, Math.Min( (tables.FrameVisibilityBits / 8 + 4) & ~3L, (GpuDrivenTables.MaxVisibilityBits - GpuDrivenTables.FrameVisibilityBitBase) / 8 ) );
-			if ( !visibility.StampsCleared ) r.List.FillBuffer( visibility.Stamps, 0 );
-			visibility.StampsCleared = true;
-			r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
-		}
 
 		// Cull and write the commands, then draw them
 		cullDrawer ??= new ShaderDrawer( device );
@@ -582,7 +585,7 @@ internal sealed partial class BackendContext
 		constants[7] = compact ? (uint)(frameOffset + runsOffset) : 0;
 		constants[8] = device.GpuDrivenFrame;
 		constants[9] = 0;
-		constants[10] = (uint)(frameOffset + cursorOffset);
+		constants[10] = 0;
 		constants[11] = BackendDevice.VisibilityCompactedIndices;
 		constants[12] = (uint)(frameOffset + fragmentOffset) - firstInstance * 4;
 		constants[13] = lists ? (uint)(frameOffset + listedOffset) : 0;
@@ -647,10 +650,37 @@ internal sealed partial class BackendContext
 
 		// Debug only: the forward pass's multi-draws again, into the figure's targets
 		if ( device.Figure is { } figure && r.Color is not null && !cull.Shadow && compact && device.FigureMaterial is { } figureMaterial )
-			DrawFigure( figure, figureMaterial, visibility, frameBuffer, frameOffset, commandOffset, runsOffset, lists ? listedOffset : -1, lists ? cursorOffset : -1, depth, resolver );
+			DrawFigure( figure, figureMaterial, visibility, frameBuffer, frameOffset, commandOffset, runsOffset, lists ? listedOffset : -1, depth, resolver );
 
 		SetObjectAttributes( null );
 		r.Binder = null;
+	}
+
+	/// <summary>
+	/// Before the frame's segments: clear <paramref name="view"/>'s triangle mask (the bits aggregates keep, and those the
+	/// last frame's mesh draws took; stale bits beyond only draw a triangle more) and, the first time, its stamps, so every
+	/// GPU-driven call of its passes, whichever worker records it, marks into the same cleared mask.
+	/// </summary>
+	internal override void BeginGpuDrivenView( object view )
+	{
+		if ( !GpuDriven || !device.GpuDrivenVisibility || recording is null || device.ExistingVisibility( view ) is not { } visibility ) return;
+		var frame = device.GpuDrivenFrame;
+		if ( visibility.ClearedFrame == frame ) return;
+		visibility.ClearedFrame = frame;
+
+		var tables = device.GpuDrivenTables;
+		var r = recording;
+		CloseScope( flushClears: false );
+		r.List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite );
+		r.List.FillBuffer( visibility.Mask, 0, 0, Math.Max( (tables.VisibilityBits / 8 + 3) & ~3L, 4 ) );
+		var meshBits = Math.Max( tables.LastFrameVisibilityBits, 1L << 16 );
+		r.List.FillBuffer( visibility.Mask, 0, GpuDrivenTables.FrameVisibilityBitBase / 8, Math.Min( (meshBits / 8 + 4) & ~3L, (GpuDrivenTables.MaxVisibilityBits - GpuDrivenTables.FrameVisibilityBitBase) / 8 ) );
+		if ( !visibility.StampsCleared ) r.List.FillBuffer( visibility.Stamps, 0 );
+		visibility.StampsCleared = true;
+
+		// This frame's compacted buffer's cursor, past itself: the forward pass's calls take their triangles' ranges from it
+		r.List.FillBuffer( visibility.Compacted[frame % visibility.Compacted.Length], BackendDevice.VisibilityView.CompactedCursorIndices, 0, 4 );
+		r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 	}
 
 	static readonly StringToken FigureConstantsName = new( "BasaltGpuDrivenFigure_t" );
@@ -663,7 +693,7 @@ internal sealed partial class BackendContext
 	/// colour target, flat over the view's depth with dark edges or as faint edges with no depth test. Only for a view of the
 	/// figure's size and one sample.
 	/// </summary>
-	void DrawFigure( VisibilityFigure figure, BackendMaterial figureMaterial, BackendDevice.VisibilityView visibility, BufferHandle frameBuffer, long frameOffset, int commandOffset, int runsOffset, int listedOffset, int cursorOffset, Format depth, PassResolver resolver )
+	void DrawFigure( VisibilityFigure figure, BackendMaterial figureMaterial, BackendDevice.VisibilityView visibility, BufferHandle frameBuffer, long frameOffset, int commandOffset, int runsOffset, int listedOffset, Format depth, PassResolver resolver )
 	{
 		var r = recording;
 		var cache = device.MaterialCache;
@@ -675,7 +705,7 @@ internal sealed partial class BackendContext
 		// Where its commands and counts are, for the figure's counts once the frame is done
 		var runs = new List<(int First, long CountOffset, int Max)>();
 		for ( int i = 0; i < cullRuns.Count; i++ ) runs.Add( (cullRuns[i].First, frameOffset + runsOffset + i * 8 + 4, cullRuns[i].Count) );
-		figure.Passes.Add( (frameBuffer, frameOffset + commandOffset, runs, listedOffset >= 0 ? frameOffset + listedOffset : -1, cursorOffset >= 0 ? frameOffset + cursorOffset : -1) );
+		figure.Passes.Add( (frameBuffer, frameOffset + commandOffset, runs, listedOffset >= 0 ? frameOffset + listedOffset : -1, -1) );
 		// The ids of the view with the most fragments (the main view's, not the 3D skybox's)
 		var fragments = 0;
 		foreach ( var run in cullRuns ) fragments += run.Count;
