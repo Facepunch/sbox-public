@@ -128,8 +128,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// Keep static models' geometry in GPU-driven pages as they load (<see cref="GpuDrivenTables"/>), so
-	/// <see cref="GpuDriven"/> can draw them. Set before loading models; it costs a second copy of their buffers while the
-	/// classic path still draws from its own.
+	/// <see cref="GpuDriven"/> can draw them; the classic path draws from the same pages. Set before loading models; on
+	/// from the start with <see cref="GpuDrivenByDefault"/>.
 	/// </summary>
 	public bool GpuDrivenGeometry
 	{
@@ -148,7 +148,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// Draw aggregates GPU-driven: shaders' <c>.gpudriven.shader_c</c> variants, per-draw data in tables, one multi-draw
 	/// per pipeline and pass state (docs/managed/basalt-gpu-driven.md). Needs <see cref="GpuDrivenGeometry"/> and material
-	/// objects; anything it can't draw goes the classic way.
+	/// objects; anything it can't draw goes the classic way. On by default (<see cref="GpuDrivenByDefault"/>).
 	/// </summary>
 	public bool GpuDriven { get; set; }
 
@@ -255,7 +255,22 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 		black = Placeholder( "Black", cube: false );
 		sheetMetadata = Placeholder( "Sheet metadata", cube: false );
+
+		// GPU-driven by default: the pages before any model loads, which the classic path draws from too
+		if ( GpuDrivenByDefault )
+		{
+			GpuDrivenGeometry = true;
+			GpuDriven = true;
+		}
 	}
+
+	/// <summary>
+	/// Whether a new device draws GPU-driven (<see cref="GpuDriven"/> and <see cref="GpuDrivenGeometry"/>): on unless the
+	/// process was started with <c>-no-gpudriven</c>, for comparisons.
+	/// </summary>
+	public static bool GpuDrivenByDefault { get; set; } = !HasSwitch( "-no-gpudriven" );
+
+	static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>
 	/// Shaders without a GPU-driven variant beside them (a package's) get one compiled at load by the ShaderCompiler
@@ -713,9 +728,10 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// The visibility-driven forward pass (docs/managed/basalt-gpu-driven.md): with <see cref="GpuDrivenCulling"/> and
 	/// compaction, a view's GPU-driven depth prepass also writes ids, a pass marks the triangles that own a sample, and its
-	/// forward pass draws only those. Off by default.
+	/// forward pass draws only those. On by default (it only acts where <see cref="GpuDriven"/> does); off with
+	/// <c>-no-gpudriven-visibility</c>, for comparisons.
 	/// </summary>
-	public bool GpuDrivenVisibility { get; set; }
+	public bool GpuDrivenVisibility { get; set; } = !HasSwitch( "-no-gpudriven-visibility" );
 
 	/// <summary>The frame's stamp for <see cref="GpuDrivenVisibility"/>: fragments the prepass drew ids for this frame carry it.</summary>
 	internal uint GpuDrivenFrame { get; private set; } = 1;
