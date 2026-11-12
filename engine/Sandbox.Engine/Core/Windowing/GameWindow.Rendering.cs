@@ -28,8 +28,12 @@ internal sealed partial class GameWindow
 		if ( Current is not { } game ) return true;
 		if ( game.basalt is null ) return game.window.Present();
 
-		game.basalt.PresentFrame();
-		g_pRenderDevice.Present( default );
+		using ( WindowPresentTiming.Scope() )
+		{
+			game.basalt.PresentFrame();
+			g_pRenderDevice.Present( default );
+		}
+
 		return true;
 	}
 
@@ -61,13 +65,20 @@ internal sealed partial class GameWindow
 
 	/// <summary>
 	/// A frame on Basalt.Gpu: the game's and the menu's cameras draw into the window's target (<see cref="BasaltGpuWindow.Drawing"/>),
-	/// then the overlay, in the block that copies it into the acquired image. Scene panels draw on Source 2's device and
-	/// don't run, as in a Basalt.Gpu UI window. A minimised window draws nothing.
+	/// then the overlay, in the block that copies it into the acquired image. Scene panels render into their textures first,
+	/// in blocks of their own. A minimised window draws nothing.
 	/// </summary>
 	void RenderOnBasaltGpu()
 	{
+		using var _ = WindowFrameTiming.Scope();
 		if ( !basalt.Update( window.PixelSize ) ) return;
-		if ( !basalt.BeginFrame( Color.Black ) ) return;
+
+		Sandbox.UI.ScenePanel.RenderPending();
+
+		using ( WindowBeginTiming.Scope() )
+		{
+			if ( !basalt.BeginFrame( Color.Black ) ) return;
+		}
 
 		try
 		{
@@ -78,7 +89,14 @@ internal sealed partial class GameWindow
 		}
 		finally
 		{
-			basalt.EndFrame( Graphics.RenderOverlay );
+			using ( WindowOverlayTiming.Scope() )
+				basalt.EndFrame( Graphics.RenderOverlay );
 		}
 	}
+
+	// Where a Basalt.Gpu window's frame goes, in the dev tools' timings
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowFrameTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowBeginTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window begin" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowOverlayTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window overlay" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowPresentTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window present" );
 }

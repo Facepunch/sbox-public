@@ -671,6 +671,13 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	{
 		if ( target is null || target.native.IsNull ) return;
 
+		// On Basalt.Gpu, between blocks, on its device
+		if ( RenderBackend.Default is BasaltGpuRenderBackend gpu && !Graphics.IsActive )
+		{
+			RenderIntoTexture( gpu, camera, target, size ?? target.Size, setup );
+			return;
+		}
+
 		// Inside a frame (a command list's DrawView, a stage) the view is the frame's child: ours renders it in its own frame,
 		// before what samples it; native's, or a standalone render block, render it natively
 		if ( (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null || NativeReflection( setup ) )
@@ -695,6 +702,14 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 	public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, ISceneView parent, in ViewSetup setup, string name, out ViewData viewData )
 	{
+		// On Basalt.Gpu, between blocks, a texture with no depth of the caller's renders on its device
+		if ( RenderBackend.Default is BasaltGpuRenderBackend gpu && !Graphics.IsActive && parent == default && depthTarget is null && target is { native.IsNull: false } )
+		{
+			viewData = default;
+			RenderIntoTexture( gpu, camera, target, target.Size, setup );
+			return true;
+		}
+
 		// A native parent's child view (see above), and a caller's depth target that Basalt can't draw into with the colour
 		// target directly, render natively
 		if ( parent != default || (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null || NativeReflection( setup ) || !CanDrawInto( target, depthTarget ) )

@@ -10,6 +10,14 @@ internal sealed partial class SceneBridge
 	static readonly StringToken UIGammaOutput = new( "UIGammaOutput" );
 	static readonly StringToken CopySource = new( "CustomTexture1" );
 	static readonly StringToken SrgbTransfer = new( "D_SRGB_TRANSFER" );
+	static readonly StringToken FlipXName = new( "FlipX" );
+	static readonly StringToken FlipYName = new( "FlipY" );
+
+	// Where a camera's frame in a Basalt.Gpu window goes, in the dev tools' timings
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings PrepareTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu camera prepare" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings SceneTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu camera scene" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings PostTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu camera post" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings OutputTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu camera output" );
 
 	// What a camera's stages on Basalt.Gpu ask of their frame; stages run one camera at a time, so one does
 	BasaltGpuView gpuView;
@@ -39,6 +47,7 @@ internal sealed partial class SceneBridge
 		var backend = (BasaltGpuRenderBackend)RenderBackend.Default;
 		gpuView ??= new BasaltGpuView( backend );
 		gpuView.Viewport = viewport;
+		gpuView.SrgbWrite = false;
 		gpuView.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
 		gpuView.SetCamera( camera, viewport.Size );
 
@@ -50,24 +59,65 @@ internal sealed partial class SceneBridge
 		var ui = setup.EnableUI ?? camera.RenderUI;
 		gpuView.Target = RenderTarget.From( window.Target );
 		gpuView.Viewport = viewport;
-		window.Draw( gpuView, () =>
-		{
-			if ( frame is not null ) CopyFrame( frame );
-			else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( camera.BackgroundColor, true, false, false );
+		using var _ = OutputTiming.Scope();
+		window.Draw( gpuView, () => DrawOutput( camera, frame, ui, encode: true, false, false ) );
+	}
 
-			// The window's target is 8-bit, bound through a linear view: UI writes gamma-encoded output into it, as native's UI
-			// hook layers do over an sRGB swap chain (ui_gamma_blend). Early UI draws here too, over the finished frame, not
-			// before post processing
-			Graphics.Attributes.Set( UIGammaOutput, true );
-			if ( ui && camera.Attributes.GetBool( "enableEarlyUI" ) ) RunStage( camera, Stage.EarlyUI );
+	/// <summary>
+	/// Render a camera into an engine texture on Basalt.Gpu (a scene panel's), as native's texture render: its scene and stages
+	/// as into a window, without multisampling, then the frame copied into the texture (mirrored as the setup asks) and the
+	/// stages that draw into the output. An 8-bit texture is written through its sRGB view, as Source 2 writes one: encoded,
+	/// with the frame's alpha kept (a scene panel's transparent background).
+	/// </summary>
+	void RenderIntoTexture( BasaltGpuRenderBackend backend, SceneCamera camera, Texture target, Vector2 size, in ViewSetup setup )
+	{
+		if ( size.x < 1 || size.y < 1 || NotYetInBasalt( camera, setup ) is not null ) return;
 
-			Graphics.Attributes.Set( UIGammaOutput, false );
-			RunStage( camera, Stage.AfterPostProcess );
+		camera.ConfigureView( setup );
+		var viewport = new Rect( 0, 0, size.x, size.y );
+		gpuView ??= new BasaltGpuView( backend );
+		gpuView.Viewport = viewport;
+		gpuView.SrgbWrite = false;
+		gpuView.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
+		gpuView.SetCamera( camera, size );
 
-			Graphics.Attributes.Set( UIGammaOutput, true );
-			if ( ui ) RunStage( camera, Stage.UI );
-			RunStage( camera, Stage.AfterUI );
-		} );
+		var frame = RenderScene( backend, camera, size, 1, setup );
+		copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
+
+		var ui = setup.EnableUI ?? camera.RenderUI;
+		var flipX = setup.FlipX == true;
+		var flipY = setup.FlipY == true;
+		gpuView.Target = RenderTarget.From( target );
+		gpuView.Viewport = viewport;
+		gpuView.SrgbWrite = !Source2Formats.From( target.ImageFormat ).IsFloat();
+		using var _ = OutputTiming.Scope();
+		using var scope = Graphics.Scope.CreateOnView( backend, gpuView );
+		gpuView.Bind();
+		DrawOutput( camera, frame, ui, encode: false, flipX, flipY );
+		gpuView.SrgbWrite = false;
+	}
+
+	/// <summary>
+	/// A camera's output in the block being recorded, its target bound: the frame copied in (or the background, without one),
+	/// then the stages that draw over the finished frame. <paramref name="encode"/> is for an 8-bit target, bound through a
+	/// linear view: the copy and the UI write gamma-encoded output into it, as native's UI hook layers do over an sRGB swap
+	/// chain (ui_gamma_blend).
+	/// </summary>
+	void DrawOutput( SceneCamera camera, BasaltGpuFrame frame, bool ui, bool encode, bool flipX, bool flipY )
+	{
+		if ( frame is not null ) CopyFrame( frame, encode, flipX, flipY );
+		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( camera.BackgroundColor, true, false, false );
+
+		// Early UI draws here too, over the finished frame, not before post processing
+		Graphics.Attributes.Set( UIGammaOutput, encode );
+		if ( ui && camera.Attributes.GetBool( "enableEarlyUI" ) ) RunStage( camera, Stage.EarlyUI );
+
+		Graphics.Attributes.Set( UIGammaOutput, false );
+		RunStage( camera, Stage.AfterPostProcess );
+
+		Graphics.Attributes.Set( UIGammaOutput, encode );
+		if ( ui ) RunStage( camera, Stage.UI );
+		RunStage( camera, Stage.AfterUI );
 	}
 
 	/// <summary>
@@ -77,7 +127,10 @@ internal sealed partial class SceneBridge
 	/// </summary>
 	BasaltGpuFrame RenderScene( BasaltGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup )
 	{
-		var (mirror, state) = Prepare( camera, setup, size );
+		SceneMirror mirror;
+		CameraState state;
+		using ( PrepareTiming.Scope() )
+			(mirror, state) = Prepare( camera, setup, size );
 
 		// Auto exposure is the port on this device: its frame update here, where native's runs, its scale this frame's
 		var exposure = camera.Tonemap?.GpuExposure( backend );
@@ -92,6 +145,7 @@ internal sealed partial class SceneBridge
 			state.GpuTarget = ViewTarget.Create( targetSize, samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Basalt.Gpu camera" );
 		}
 
+		using ( SceneTiming.Scope() )
 		using ( new Drawing( this, state ) )
 			state.System.Render( mirror.World, state.View, state.GpuTarget );
 
@@ -99,6 +153,7 @@ internal sealed partial class SceneBridge
 		frame.Adopt( state.GpuTarget, state.System.Frame.Constants );
 
 		gpuView.LayerType = SceneLayerType.Translucent;
+		using var _ = PostTiming.Scope();
 		using ( frame.Begin( gpuView ) )
 		{
 			RunStage( camera, Stage.AfterTransparent );
@@ -112,12 +167,17 @@ internal sealed partial class SceneBridge
 		return frame;
 	}
 
-	/// <summary>The frame's colour into the bound target's viewport, encoded to sRGB (<c>copytexture.shader</c>).</summary>
-	void CopyFrame( BasaltGpuFrame frame )
+	/// <summary>
+	/// The frame's colour into the bound target's viewport (<c>copytexture.shader</c>), encoded to sRGB when
+	/// <paramref name="encode"/>, mirrored as asked.
+	/// </summary>
+	void CopyFrame( BasaltGpuFrame frame, bool encode, bool flipX, bool flipY )
 	{
 		copyAttributes ??= RenderAttributes.CreateManaged();
 		copyAttributes.Set( CopySource, frame.Color );
-		copyAttributes.SetCombo( SrgbTransfer, 1 );
+		copyAttributes.Set( FlipXName, flipX );
+		copyAttributes.Set( FlipYName, flipY );
+		copyAttributes.SetCombo( SrgbTransfer, encode ? 1 : 0 );
 		Graphics.Blit( copyMaterial, copyAttributes );
 	}
 

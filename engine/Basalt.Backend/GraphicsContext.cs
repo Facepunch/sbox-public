@@ -71,6 +71,7 @@ public sealed class GraphicsContext
 		rendering = false;
 		Target = default;
 		Depth = default;
+		SrgbWrite = false;
 		Viewport = default;
 	}
 
@@ -116,15 +117,30 @@ public sealed class GraphicsContext
 	/// Bind <paramref name="texture"/> as the colour target and <paramref name="depth"/> (default for none) as its depth, with
 	/// the viewport covering the colour, as setting <c>Graphics.RenderTarget</c> to a target with both does.
 	/// </summary>
-	public void SetTarget( TextureHandle texture, TextureHandle depth )
+	public void SetTarget( TextureHandle texture, TextureHandle depth ) => SetTarget( texture, depth, false );
+
+	/// <summary>
+	/// <see cref="SetTarget(TextureHandle, TextureHandle)"/>, writing the colour through its sRGB view when
+	/// <paramref name="srgb"/> and its format has one: the hardware encodes what's drawn, as a Source 2 target with sRGB
+	/// writes does.
+	/// </summary>
+	public void SetTarget( TextureHandle texture, TextureHandle depth, bool srgb )
 	{
-		if ( Target == texture && Depth == depth ) return;
+		srgb = srgb && gpu.InfoOf( texture ).Format.HasSrgb();
+		if ( Target == texture && Depth == depth && SrgbWrite == srgb ) return;
 		EndScope();
 		Target = texture;
 		Depth = depth;
+		SrgbWrite = srgb;
 		var info = gpu.InfoOf( texture );
 		Viewport = new Num.Vector4( 0, 0, info.Width, info.Height );
 	}
+
+	/// <summary>Whether the colour target is written through its sRGB view (<see cref="SetTarget(TextureHandle, TextureHandle, bool)"/>).</summary>
+	public bool SrgbWrite { get; private set; }
+
+	/// <summary>The colour target's format as drawing sees it: its sRGB twin while <see cref="SrgbWrite"/>.</summary>
+	Format TargetFormat => SrgbWrite ? gpu.InfoOf( Target ).Format.Srgb() : gpu.InfoOf( Target ).Format;
 
 	/// <summary>Fill the whole target with <paramref name="color"/>.</summary>
 	public void Clear( Num.Vector4 color )
@@ -154,7 +170,7 @@ public sealed class GraphicsContext
 	{
 		var depth = BeginScope( shader, attributes );
 		Draws++;
-		return drawer.DrawIndexedInstanced( List, shader, attributes, gpu.InfoOf( Target ).Format, depth, 1, indices, indexCount, instances, Viewport );
+		return drawer.DrawIndexedInstanced( List, shader, attributes, TargetFormat, depth, 1, indices, indexCount, instances, Viewport );
 	}
 
 	/// <summary>
@@ -186,7 +202,7 @@ public sealed class GraphicsContext
 		var upload = List.AllocateUpload( vertices.Length, 16 );
 		vertices.CopyTo( upload.Data );
 		Draws++;
-		return drawer.Draw( List, shader, attributes, gpu.InfoOf( Target ).Format, depth, 1, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
+		return drawer.Draw( List, shader, attributes, TargetFormat, depth, 1, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
 	}
 
 	/// <summary>
@@ -606,7 +622,7 @@ public sealed class GraphicsContext
 			depthTarget = new DepthTarget { Texture = Depth, Load = LoadOp.Load, Store = StoreOp.Store, ReadOnly = depth == DepthUse.ReadOnly };
 		}
 
-		List.BeginRendering( [new ColorTarget { Texture = Target, Load = LoadOp.Load, Store = StoreOp.Store }], depthTarget );
+		List.BeginRendering( [new ColorTarget { Texture = Target, Load = LoadOp.Load, Store = StoreOp.Store, Srgb = SrgbWrite }], depthTarget );
 		rendering = true;
 		scopeDepth = depth;
 		return depth == DepthUse.None ? Format.Unknown : gpu.InfoOf( Depth ).Format;
