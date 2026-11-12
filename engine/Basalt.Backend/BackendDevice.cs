@@ -693,6 +693,15 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	internal override bool DrawsAggregatesGpuDriven => GpuDriven && MaterialObjects && GpuDrivenTables is not null;
 
+	internal override bool DrawsMeshesGpuDriven => GpuDrivenMeshes && DrawsAggregatesGpuDriven;
+
+	/// <summary>
+	/// Static meshes' opaque draws join the aggregates' GPU-driven call (docs/managed/basalt-gpu-driven.md). Off by default:
+	/// on Construct it saves GPU time but costs CPU time, mostly on worker threads, where the one GPU-driven run now records
+	/// what workers drew between them; <c>-gpudriven-meshes</c> turns it on.
+	/// </summary>
+	public bool GpuDrivenMeshes { get; set; } = HasSwitch( "-gpudriven-meshes" );
+
 	/// <summary>
 	/// Cull GPU-driven aggregates' fragments on the GPU (<c>basalt_gpu_driven_cull_cs</c>), by the same frustum and size
 	/// tests the CPU makes, from records written once: the CPU writes 16 bytes per aggregate a frame instead of an instance
@@ -760,6 +769,51 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	ShaderFile visibilityMark, visibilityCompact;
 	bool visibilityShadersLoaded;
 
+	/// <summary>
+	/// Debug only (<c>basaltlab -capture-visibility</c>): GPU-driven forward passes also replay their multi-draws into this
+	/// figure's targets. Set it before the first frame, so the view's ids and mask can be copied out too.
+	/// </summary>
+	public VisibilityFigure Figure { get; set; }
+
+	/// <summary>
+	/// The figure's ids target and mask (the last GPU-driven forward pass's view's, for <see cref="Figure"/>), the bits
+	/// aggregates use from 0 and those the frame's mesh draws use from <see cref="FigureFrameBitBase"/>.
+	/// </summary>
+	public (TextureHandle Ids, BufferHandle Mask, long AggregateBits, long MeshBits) FigureVisibility { get; internal set; }
+
+	/// <summary>Where the frame's mesh draws' vertex bits start in the mask.</summary>
+	public const long FigureFrameBitBase = GpuDrivenTables.FrameVisibilityBitBase;
+
+	internal BackendMaterial FigureMaterial => figureMaterial ??= Shaders.Load( "shaders/basalt_gpu_driven_figure.shader" ) is not null ? MaterialFromShader( "shaders/basalt_gpu_driven_figure.shader" ) as BackendMaterial : null;
+	BackendMaterial figureMaterial;
+
+	readonly Dictionary<(ShaderVariant StateFrom, int Mode, Format Depth), PipelineHandle> figurePipelines = new();
+
+	/// <summary>
+	/// The figure's pipeline for <paramref name="mode"/> (0 count, 1 flat triangles, 2 dark edges, 3 faint edges), culling
+	/// as <paramref name="stateFrom"/> does: counts and faint edges add up with no depth test, flat triangles and dark edges
+	/// test the view's depth without writing it.
+	/// </summary>
+	internal PipelineHandle FigurePipeline( ShaderVariant variant, ShaderVariant stateFrom, int mode, Format depth, BindingLayoutHandle[] sets )
+	{
+		lock ( figurePipelines )
+		{
+			if ( figurePipelines.TryGetValue( (stateFrom, mode, depth), out var made ) ) return made;
+
+			Format[] colors = [mode == 0 ? Format.R16Float : Format.RGBA8Unorm];
+			var info = variant.PipelineInfo( [], [], colors, depth, 1, depthBias: false, $"{variant} figure {mode}" );
+			info.Sets = sets;
+			info.CullMode = stateFrom.State.Cull;
+			info.Wireframe = mode >= 2;
+			info.DepthTest = mode is 1 or 2;
+			info.DepthWrite = false;
+			info.DepthCompare = CompareFunction.GreaterEqual;
+			info.StencilTest = false;
+			info.Blend = [mode is 0 or 3 ? BlendState.Additive : BlendState.Opaque];
+			return figurePipelines[(stateFrom, mode, depth)] = Gpu.CreateGraphicsPipeline( info );
+		}
+	}
+
 	/// <summary>A view's visibility resources: its ids target, triangle mask, fragment stamps and compacted indices.</summary>
 	internal sealed class VisibilityView
 	{
@@ -785,7 +839,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 			var state = visibilityViews.GetValue( view, static _ => new VisibilityView() );
 			if ( !state.Mask.IsValid )
 			{
-				state.Mask = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityBits / 8, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Basalt visibility mask" } );
+				// Copied out only for the debug figure
+				var figure = Figure is not null;
+				state.Mask = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityBits / 8, Usage = BufferUsage.Storage | BufferUsage.CopyDestination | (figure ? BufferUsage.CopySource : 0), Name = "Basalt visibility mask" } );
 				state.Stamps = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 4L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Basalt visibility stamps" } );
 				for ( int i = 0; i < state.Compacted.Length; i++ )
 				{
@@ -820,7 +876,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 					Samples = depth.Samples,
 					Dimension = TextureDimension.Texture2D,
 					Format = Format.R32Uint,
-					Usage = TextureUsage.ColorTarget | TextureUsage.Sampled,
+					Usage = TextureUsage.ColorTarget | TextureUsage.Sampled | (Figure is not null ? TextureUsage.CopySource : 0),
 					Name = "Basalt visibility ids",
 				} );
 				visibilityTextures.Add( state.Ids );

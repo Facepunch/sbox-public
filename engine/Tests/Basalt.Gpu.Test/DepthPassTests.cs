@@ -85,7 +85,7 @@ public class DepthPassTests : GpuTest
 	{
 		byte[] Frame( bool positions, out bool positionLayout, out long copied )
 		{
-			using var backend = new BackendDevice( Device ) { PositionStreams = positions };
+			using var backend = new BackendDevice( Device ) { PositionStreams = positions, GpuDriven = false };
 			var previousHost = RenderHost.Current;
 			RenderHost.Current = new BackendRenderHost( backend );
 			try

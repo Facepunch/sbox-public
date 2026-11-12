@@ -155,6 +155,50 @@ internal sealed class BackendParameters : ShaderParameters
 
 	public override bool GetBool( StringToken name, bool fallback = false ) => Get( name ) is bool value ? value : fallback;
 
+	static readonly uint ProbeVolumeName = new StringToken( "PerBatchLightProbeVolumeConstantBuffer_t" ).Value;
+	int lightingFreeVersion = -1;
+	long lightingFreeKey;
+
+	/// <summary>
+	/// The same for parameters that hold the same values but for their light probe volume constants, which GPU-driven variants
+	/// read from a record per draw: draws whose attributes differ only in those share a
+	/// bucket. A hash of the rest, its count in the top half.
+	/// </summary>
+	internal long LightingFreeKey
+	{
+		get
+		{
+			var current = Version;
+			lock ( values )
+			{
+				if ( lightingFreeVersion == current ) return lightingFreeKey;
+
+				var hash = new HashCode();
+				var count = 0;
+				foreach ( var key in values.Keys.Order() )
+				{
+					if ( key == ProbeVolumeName ) continue;
+					hash.Add( key );
+					if ( values[key] is byte[] bytes ) hash.AddBytes( bytes );
+					else hash.Add( values[key] );
+					count++;
+				}
+
+				foreach ( var key in combos.Keys.Order() )
+				{
+					hash.Add( key ^ 0x9E3779B9u );
+					hash.Add( combos[key] );
+					count++;
+				}
+
+				if ( Parent is { } parent ) hash.Add( parent.LightingFreeKey );
+				lightingFreeKey = (long)count << 32 | (uint)hash.ToHashCode();
+				lightingFreeVersion = current;
+				return lightingFreeKey;
+			}
+		}
+	}
+
 	/// <summary>What material objects keep of these as an object's attributes (<see cref="ObjectLayer"/>), made when first set.</summary>
 	internal ObjectLayer Layer;
 

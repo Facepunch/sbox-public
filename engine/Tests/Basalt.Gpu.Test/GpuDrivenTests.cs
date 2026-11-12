@@ -29,7 +29,7 @@ public class GpuDrivenTests : GpuTest
 	[TestMethod]
 	public void AggregatesDrawTheSamePixelsGpuDriven()
 	{
-		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDrivenMeshes = true };
 		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
 		{
 			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
@@ -55,10 +55,18 @@ public class GpuDrivenTests : GpuTest
 				world.Add( new AggregateObject( mesh, fragments ) );
 			}
 
+			// Static meshes too: one drawn twice (an instanced run), and one of a material the aggregates also have
+			var (shared, _) = Boxes( backend, backend.CreateMaterial( "Mesh boxes", new Color( 0.9f, 0.3f, 0.3f ) ), 240 );
+			world.Add( new MeshObject( shared, Transform.Zero ) );
+			world.Add( new MeshObject( shared, new Transform( new Vector3( 0, 0, 90 ) ) ) );
+			var (own, _) = Boxes( backend, backend.CreateMaterial( "Mesh boxes 2", colours[0] ), -240 );
+			world.Add( new MeshObject( own, Transform.Zero ) );
+
 			var view = new RenderView { Name = "GPU-driven test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
 			view.Position = new Vector3( -500, -300, 300 );
 			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
 
+			long gpuDrivenBatches = 0;
 			byte[] Frame( bool gpuDriven, out int binds, bool materialBuckets, bool gpuCulling = true, bool compaction = true, bool positions = true, bool visibility = false )
 			{
 				backend.GpuDriven = gpuDriven;
@@ -74,6 +82,7 @@ public class GpuDrivenTests : GpuTest
 				system.Render( world, view, target );
 				Device.WaitIdle();
 				binds = (int)backend.DrawTimes.Binds;
+				gpuDrivenBatches = backend.DrawTimes.GpuDrivenBatches;
 				backend.TimeDraws = false;
 				var (texture, layout) = BackendDevice.Unwrap( target.Color );
 				var pixels = ReadBack( texture, layout );
@@ -83,6 +92,7 @@ public class GpuDrivenTests : GpuTest
 
 			var classic = Frame( false, out var classicBinds, false );
 			var driven = Frame( true, out var drivenBinds, false );
+			var drivenBatches = gpuDrivenBatches;
 			var drawRecords = backend.GpuDrivenTables.Records.Draws;
 			var again = Frame( true, out _, false );
 			Assert.AreEqual( drawRecords, backend.GpuDrivenTables.Records.Draws, "the second frame reuses the aggregates' draw records" );
@@ -94,6 +104,7 @@ public class GpuDrivenTests : GpuTest
 			var visibleAgain = Frame( true, out _, false, visibility: true );
 
 			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.IsTrue( drivenBatches > Rows * 2, $"the static meshes drew GPU-driven with the aggregates ({drivenBatches} batches)" );
 			Assert.AreEqual( 0, Different( classic, perMaterial ), "a bucket per material draws the classic pixels" );
 			Assert.IsTrue( perMaterialBinds > drivenBinds, $"a bucket per material binds more ({perMaterialBinds}) than one bucket ({drivenBinds})" );
 			Assert.IsTrue( backend.GpuDrivenTables.Records.Draws > 1, $"the fragments have draw records ({backend.GpuDrivenTables.Records.Draws})" );
