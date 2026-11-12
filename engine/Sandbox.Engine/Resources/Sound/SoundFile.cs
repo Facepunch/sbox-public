@@ -60,6 +60,11 @@ public partial class SoundFile : Resource, IValid
 	public struct LoadOptions()
 	{
 		/// <summary>
+		/// Extract a zero-based source channel as mono; null preserves the file's channels.
+		/// Sounds are cached by filename, so give each channel its own filename.
+		/// </summary>
+		public int? Channel { get; set; }
+		/// <summary>
 		/// Loop the whole sound. Overridden by <see cref="LoopStart"/>/<see cref="LoopEnd"/> if set.
 		/// </summary>
 		public bool Loop { get; set; } = false;
@@ -329,6 +334,7 @@ public partial class SoundFile : Resource, IValid
 			throw new ArgumentException( "Invalid data" );
 
 		var soundData = SoundData.FromWav( data );
+		if ( options.Channel is { } channel ) soundData.SelectChannel( channel );
 		var pcmData = soundData.PCMData ?? throw new ArgumentException( "Invalid WAV" );
 
 		var format = 0;
@@ -372,6 +378,7 @@ public partial class SoundFile : Resource, IValid
 			throw new ArgumentException( "Invalid data" );
 
 		var soundData = SoundData.FromMP3( data );
+		if ( options.Channel is { } channel ) soundData.SelectChannel( channel );
 		var pcmData = soundData.PCMData ?? throw new ArgumentException( "Invalid MP3" );
 
 		var format = 0;
@@ -413,6 +420,7 @@ public partial class SoundFile : Resource, IValid
 			throw new ArgumentException( "Invalid data" );
 
 		var soundData = SoundData.FromOGG( data );
+		if ( options.Channel is { } channel ) soundData.SelectChannel( channel );
 		var pcmData = soundData.PCMData ?? throw new ArgumentException( "Invalid OGG file" );
 
 		var format = 0;
