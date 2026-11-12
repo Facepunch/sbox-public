@@ -331,7 +331,8 @@ internal static partial class SceneCompiler
 		if ( collision.Count > 0 ) summary.Add( $"{collision.Count:n0} collision {(collision.Count == 1 ? "group" : "groups")}" );
 
 		var result = summary.ToArray();
-		WriteScene( sourceAsset, sourcePath, editor, sourceRevision, file, settings );
+		var generation = plans.Length + collision.Count + converted > 0 ? Path.GetFileName( outputFolder ) : "-";
+		WriteScene( sourceAsset, sourcePath, editor, sourceRevision, file, settings, generation );
 		session.Statistics = statistics;
 
 		return result;
