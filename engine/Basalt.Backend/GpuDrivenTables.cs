@@ -19,6 +19,11 @@ internal readonly record struct PooledGeometry( uint GeometryRecord, BufferHandl
 /// vertices and indices in shared pages, and the geometry, draw and material tables, all reached through the bindless raw
 /// buffer array (<c>g_bindless_VertexBuffers</c>, binding 63). Tables only grow: a record, once written, is read by every
 /// later frame, so nothing is uploaded per frame but each frame's instance records and indirect commands.
+/// <para>
+/// Segments record on several threads at once. Locks are taken in one order: an owner's draws, then the draw records,
+/// then a table, then the device's own. Callbacks that write records (<see cref="Material"/>, <see cref="FragmentsOf"/>)
+/// run outside every lock here, since they read materials and attributes and make draw records.
+/// </para>
 /// </summary>
 internal sealed class GpuDrivenTables : IDisposable
 {
@@ -366,9 +371,14 @@ internal sealed class GpuDrivenTables : IDisposable
 		lock ( byKey )
 		{
 			if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var first ) ) return first;
+		}
 
-			var records = new byte[count * FragmentStride];
-			write( state, records );
+		// Written outside the lock: writing makes draw records, under the draw table's lock
+		var records = new byte[count * FragmentStride];
+		write( state, records );
+		lock ( byKey )
+		{
+			if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var first ) ) return first;
 			return byKey[(geometry, vertexMaterial, pixelMaterial, flags)] = fragments.Append( records ) / FragmentStride;
 		}
 	}
@@ -480,9 +490,14 @@ internal sealed class GpuDrivenTables : IDisposable
 		lock ( materialRecords )
 		{
 			if ( materialRecords.TryGetValue( key, out var found ) ) return found;
+		}
 
-			var record = new byte[Math.Max( size, 16 )];
-			write( state, record );
+		// Written outside the lock: writing reads the material's and attributes' values, which take their own locks
+		var record = new byte[Math.Max( size, 16 )];
+		write( state, record );
+		lock ( materialRecords )
+		{
+			if ( materialRecords.TryGetValue( key, out var found ) ) return found;
 			return materialRecords[key] = materials.Append( record );
 		}
 	}
