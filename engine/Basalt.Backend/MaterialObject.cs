@@ -748,7 +748,8 @@ internal sealed class MaterialObjectCache : IDisposable
 	public readonly ShaderDefaults Defaults;
 	readonly Dictionary<string, BindingLayoutHandle> layouts = new();
 	readonly Dictionary<(ShaderVariant Variant, bool Immediate), MaterialLayout> variantLayouts = new();
-	readonly Dictionary<Key, MaterialObject> objects = new( new KeyComparer() );
+	// Found without a lock by every recording thread; changed under its own lock
+	readonly System.Collections.Concurrent.ConcurrentDictionary<Key, MaterialObject> objects = new( new KeyComparer() );
 	readonly Dictionary<string, int> signatures = new();
 	int signatureCount, slotCount;
 
@@ -980,10 +981,7 @@ internal sealed class MaterialObjectCache : IDisposable
 	/// </summary>
 	public MaterialObject Get<TState>( in Key key, bool immediate, TState state, Func<TState, MaterialLayout, PipelineHandle> pipeline )
 	{
-		lock ( objects )
-		{
-			if ( objects.TryGetValue( key, out var found ) && !found.Stale ) return found;
-		}
+		if ( objects.TryGetValue( key, out var found ) && !found.Stale ) return found;
 
 		var layout = LayoutOf( key.Variant, immediate );
 		var made = new MaterialObject( this, key.Material, layout, pipeline( state, layout ), key.DepthOnly, key.UncompressedTangentFrame );
@@ -1012,7 +1010,7 @@ internal sealed class MaterialObjectCache : IDisposable
 				(stale ??= new()).Add( key );
 			}
 
-			foreach ( var key in stale ?? [] ) objects.Remove( key );
+			foreach ( var key in stale ?? [] ) objects.TryRemove( key, out _ );
 		}
 
 		foreach ( var value in dropped ?? [] ) Retire( value );
