@@ -67,4 +67,31 @@ public class ParameterTests
 		Assert.AreEqual( 0, wrong, "values read were set for the name read" );
 		Assert.IsTrue( found > 0, "readers found values" );
 	}
+
+	/// <summary>
+	/// Attributes that differ only in their lightmap constants share a key without lighting (GPU-driven variants read those
+	/// per draw) but not a key without the probe volume alone (GPU-driven surfaces keep their lightmap constants bound);
+	/// differing only in the probe volume, they share both.
+	/// </summary>
+	[TestMethod]
+	public void BucketKeysLeaveOutWhatIsReadPerDraw()
+	{
+		BackendParameters Make( byte baked, byte probe )
+		{
+			var parameters = new BackendParameters();
+			parameters.Set( new StringToken( "g_vColorTint" ), 1.0f );
+			parameters.SetData( new StringToken( "BakedLightingConstantBuffer_t" ), new System.Numerics.Vector4( baked, 0, 0, 0 ) );
+			parameters.SetData( new StringToken( "PerBatchLightProbeVolumeConstantBuffer_t" ), new System.Numerics.Vector4( probe, 0, 0, 0 ) );
+			return parameters;
+		}
+
+		var a = Make( 1, 1 );
+		var otherLightmap = Make( 2, 1 );
+		var otherProbe = Make( 1, 2 );
+
+		Assert.AreEqual( a.LightingFreeKey, otherLightmap.LightingFreeKey );
+		Assert.AreNotEqual( a.ProbeFreeKey, otherLightmap.ProbeFreeKey );
+		Assert.AreEqual( a.LightingFreeKey, otherProbe.LightingFreeKey );
+		Assert.AreEqual( a.ProbeFreeKey, otherProbe.ProbeFreeKey );
+	}
 }

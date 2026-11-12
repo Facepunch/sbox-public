@@ -123,12 +123,15 @@ internal sealed partial class BackendContext
 					if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) )
 					{
 						(lastAttributes, lastAttributesSet) = (batch.ObjectAttributes, true);
-						lastLighting = tables.Lighting( Lookup( ProbeVolumeToken ) as byte[] );
+						lastLighting = tables.Lighting( Lookup( BakedLightingToken ) as byte[], Lookup( ProbeVolumeToken ) as byte[] );
 						lastKey = AttributesKey( batch.ObjectAttributes );
 					}
 
+					// A surface's GPU-driven passes read only the probe volume per draw: its lightmap constants stay bound, so
+					// they key its bucket
 					batchLighting[i] = lastLighting;
-					if ( SurfaceBucket( surface, shaderMode, batch.StripPixelShader || r.Color is null, batch.ObjectAttributes, lastKey ) is { } surfaceBucket )
+					var surfaceKey = batch.ObjectAttributes is BackendParameters surfaceAttributes ? surfaceAttributes.ProbeFreeKey : lastKey;
+					if ( SurfaceBucket( surface, shaderMode, batch.StripPixelShader || r.Color is null, batch.ObjectAttributes, surfaceKey ) is { } surfaceBucket )
 					{
 						surfaceBucket.Batches.Add( (surfaceSource.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled.Value.IndexPageSlot, i) );
 						device.Surfaces.CountGpuDriven();
