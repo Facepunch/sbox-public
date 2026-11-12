@@ -81,11 +81,13 @@ internal static class SceneRenderer
 	public static ISceneRenderer Current { get; private set; } = Native;
 
 	/// <summary>
-	/// Read the switch, at the top of the frame's output. Moving off Basalt frees what it holds.
+	/// Read the switch, at the top of the frame's output. Moving off Basalt frees what it holds. A process drawing on
+	/// Basalt.Gpu (<c>-basaltgpu</c>) always renders through Basalt: Source 2's renderer has no device to draw on there.
 	/// </summary>
 	internal static void BeginFrame()
 	{
-		var next = ManagedSceneRendering.Enabled && Basalt is not null ? Basalt : Native;
+		var managed = ManagedSceneRendering.Enabled || RenderBackend.Default is BasaltGpuRenderBackend;
+		var next = managed && Basalt is not null ? Basalt : Native;
 		if ( Current != next && Current != Native ) Current.Shutdown();
 
 		Current = next;

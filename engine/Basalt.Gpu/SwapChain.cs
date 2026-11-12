@@ -36,7 +36,7 @@ public sealed unsafe class SwapChain : IDisposable
 {
 	readonly Device device;
 	readonly VkDeviceApi vk;
-	readonly SwapChainInfo info;
+	SwapChainInfo info;
 	readonly ulong surface;
 
 	ulong swapchain;
@@ -248,6 +248,18 @@ public sealed unsafe class SwapChain : IDisposable
 		device.WaitIdle();
 		Release();
 		Create( width, height );
+	}
+
+	/// <summary>
+	/// Pace presentation differently from now on (vsync switched): makes the images again with the new mode. Waits for the
+	/// GPU. Not while an image is acquired.
+	/// </summary>
+	public void SetPresentMode( PresentMode mode )
+	{
+		if ( Current.IsValid ) throw new InvalidOperationException( "An image is acquired" );
+		if ( info.PresentMode == mode ) return;
+		info.PresentMode = mode;
+		Resize( Width, Height );
 	}
 
 	/// <summary>

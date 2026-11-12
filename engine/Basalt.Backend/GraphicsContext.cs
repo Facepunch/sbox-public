@@ -449,7 +449,8 @@ public sealed class GraphicsContext
 
 		var attributes = new ShaderAttributes();
 		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", 5 );
-		attributes.SetCombo( "D_MSAA", 0 );
+		// A multisampled depth gives its first sample, as native's depth resolve does
+		attributes.SetCombo( "D_MSAA", gpu.InfoOf( depth ).Samples > 1 ? 1 : 0 );
 		attributes.Set( "SourceDepth", depth );
 		var fused = true;
 		var lastMip = Math.Min( info.Mips - 1, System.Numerics.BitOperations.Log2( (uint)Math.Min( info.Width, info.Height ) ) );

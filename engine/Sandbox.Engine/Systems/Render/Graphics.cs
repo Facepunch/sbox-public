@@ -280,7 +280,14 @@ public static partial class Graphics
 		/// Begins rendering with no scene view on <paramref name="backend"/>'s device. Source 2's is as
 		/// <see cref="Create()"/>; another's block records into its own list, with managed attributes, and disposal submits it.
 		/// </summary>
-		internal static Scope CreateOn( RenderBackend backend )
+		internal static Scope CreateOn( RenderBackend backend ) => CreateOnView( backend, null );
+
+		/// <summary>
+		/// A block on <paramref name="backend"/>'s device (not Source 2's) drawing into a camera's frame: what the code drawing
+		/// in it asks a view (post processing on, the frustum, binding a render target and going back to the frame's) is
+		/// <paramref name="view"/>'s.
+		/// </summary>
+		internal static Scope CreateOnView( RenderBackend backend, BasaltGpuView view )
 		{
 			ThreadSafe.AssertIsMainThread();
 
@@ -293,8 +300,20 @@ public static partial class Graphics
 				var block = new Scope { _previous = _state, standalone = true, _attributes = managed, _backend = backend };
 				// Its targets are single-sampled (a Basalt.Gpu frame hands over its resolved colour)
 				_state = new RenderState { active = true, attributes = managed, backend = backend, msaaLevel = MultisampleAmount.MultisampleNone };
+				if ( view is not null )
+				{
+					_state.view = view;
+					_state.layerType = view.LayerType;
+
+					// What a frame grab or a temporary target of the default format is made with
+					if ( view.Target?.ColorTarget is { } color ) _state.colorFormat = color.ImageFormat;
+					_state.cameraTransform = new Transform( view.Frustum.GetCameraPosition(), view.Frustum.GetCameraAngles() );
+				}
+
 				return block;
 			}
+
+			if ( view is not null ) throw new ArgumentException( "Source 2's blocks take native views", nameof( view ) );
 
 			if ( !IsAvailable )
 				throw new InvalidOperationException( "Graphics is unavailable." );

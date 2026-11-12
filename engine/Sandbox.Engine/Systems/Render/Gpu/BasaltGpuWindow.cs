@@ -25,15 +25,23 @@ internal sealed class BasaltGpuWindow : IDisposable
 	{
 		this.backend = backend;
 
-		var properties = Sdl.GetWindowProperties( window );
-		var hwnd = Sdl.GetPointerProperty( properties, "SDL.window.win32.hwnd", IntPtr.Zero );
-		var instance = Sdl.GetPointerProperty( properties, "SDL.window.win32.instance", IntPtr.Zero );
-		if ( hwnd == IntPtr.Zero ) throw new PlatformNotSupportedException( "Basalt.Gpu windows need a Win32 window for now" );
-
-		Sdl.GetWindowSizeInPixels( window, out var width, out var height );
-		swapChain = backend.CreateSwapChain( SurfaceSource.Win32( instance, hwnd ), Math.Max( width, 1 ), Math.Max( height, 1 ), vsync );
+		// The engine's SDL window, wrapped by Basalt.Sdl (the same SDL3); the engine keeps owning it. Its surface is made from
+		// the window system's handles: the splash's window isn't made for Vulkan, which SDL's own surface call requires
+		sdl = Basalt.Sdl.SdlWindow.Wrap( window );
+		var (width, height) = sdl.PixelSize;
+		swapChain = backend.CreateSwapChain( SurfaceOf( sdl.NativeWindow ), Math.Max( width, 1 ), Math.Max( height, 1 ), vsync );
 		Size = new Vector2( width, height );
 	}
+
+	readonly Basalt.Sdl.SdlWindow sdl;
+
+	static SurfaceSource SurfaceOf( Basalt.Sdl.SdlNativeWindow native ) => native.Kind switch
+	{
+		Basalt.Sdl.SdlNativeWindow.Kinds.Win32 => SurfaceSource.Win32( native.Display, native.Window ),
+		Basalt.Sdl.SdlNativeWindow.Kinds.X11 => SurfaceSource.Xlib( native.Display, native.Window ),
+		Basalt.Sdl.SdlNativeWindow.Kinds.Wayland => SurfaceSource.Wayland( native.Display, native.Window ),
+		_ => throw new PlatformNotSupportedException( $"Basalt.Gpu windows can't present on {native.Kind} windows" ),
+	};
 
 	/// <summary>
 	/// Match the window's size in pixels. False while it's zero-sized, with nothing to draw.
@@ -66,6 +74,104 @@ internal sealed class BasaltGpuWindow : IDisposable
 	}
 
 	/// <summary>
+	/// Samples per pixel the cameras drawing into this window render their scenes with (the game's anti-aliasing setting).
+	/// Their frames are resolved before post processing; the window's own target has one.
+	/// </summary>
+	public int Samples { get; set; } = 1;
+
+	/// <summary>Whether the swap chain presents with vsync.</summary>
+	public bool VSync => swapChain.PresentMode == PresentMode.Fifo;
+
+	/// <summary>Present with vsync or as soon as possible from now on. Recreates the swap chain's images when it changes.</summary>
+	public void SetVSync( bool vsync )
+	{
+		if ( VSync == vsync ) return;
+		swapChain.SetPresentMode( vsync ? PresentMode.Fifo : PresentMode.Immediate );
+	}
+
+	/// <summary>
+	/// The window whose frame is being drawn now, between <see cref="BeginFrame"/> and <see cref="EndFrame"/>: what a camera
+	/// rendering into the game window draws into on Basalt.Gpu.
+	/// </summary>
+	public static BasaltGpuWindow Drawing { get; private set; }
+
+	/// <summary>
+	/// Start a frame drawn in several blocks (a game window: each camera, then the overlay): acquire the next image and clear
+	/// the target to <paramref name="background"/>. False when there's no image to draw into, minimised. Draw with
+	/// <see cref="Draw(BasaltGpuView, Action, bool)"/> and blocks of the caller's own into <see cref="Target"/>, then <see cref="EndFrame"/>.
+	/// </summary>
+	public bool BeginFrame( Color background )
+	{
+		if ( target is null ) return false;
+		backend.BeforeAcquire( swapChain );
+		if ( !swapChain.Acquire( out _ ) ) return false;
+
+		Drawing = this;
+		using var scope = Graphics.Scope.CreateOn( backend );
+		Graphics.RenderTarget = RenderTarget.From( target );
+		Graphics.Clear( background, true, false, false );
+		return true;
+	}
+
+	/// <summary>
+	/// A block drawing into the window's target through <paramref name="view"/> (a camera's frame, or the overlay's), with its
+	/// targets bound. <paramref name="present"/> copies the target into the acquired image last.
+	/// </summary>
+	public void Draw( BasaltGpuView view, Action draw, bool present = false )
+	{
+		using var scope = Graphics.Scope.CreateOnView( backend, view );
+		view.Bind();
+		try
+		{
+			draw();
+		}
+		finally
+		{
+			// The acquired image has to be presented whatever the drawing did, or the next frame can't acquire
+			if ( present ) backend.CopyToSwapChain( target, swapChain );
+		}
+	}
+
+	BasaltGpuView overlay;
+
+	/// <summary>
+	/// Finish the frame <see cref="BeginFrame"/> started: <paramref name="draw"/> (the overlay) last, over the whole window
+	/// and writing gamma-encoded output as UI does, in the block that copies the target into the acquired image. Present it
+	/// with <see cref="PresentFrame"/>.
+	/// </summary>
+	public void EndFrame( Action draw )
+	{
+		try
+		{
+			overlay ??= new BasaltGpuView( backend );
+			overlay.Target = RenderTarget.From( target );
+			overlay.Viewport = new Rect( 0, 0, Size.x, Size.y );
+			Draw( overlay, () =>
+			{
+				Graphics.Attributes.Set( "UIGammaOutput", true );
+				draw();
+			}, present: true );
+
+			// The frame as it's presented, for screenshots asked for during it
+			ScreenshotService.ProcessFrame( backend, target );
+		}
+		finally
+		{
+			Drawing = null;
+		}
+	}
+
+	/// <summary>
+	/// Present the image <see cref="EndFrame"/> drew. False when no frame was drawn since the last.
+	/// </summary>
+	public bool PresentFrame()
+	{
+		if ( !swapChain.Current.IsValid ) return false;
+		swapChain.Present();
+		return true;
+	}
+
+	/// <summary>
 	/// Draw a window's frame into <paramref name="target"/> on <paramref name="device"/>, as a UI-only camera draws it on
 	/// Source 2: the background cleared (when <paramref name="clear"/>), then <paramref name="draw"/>, with the UI's
 	/// shaders writing gamma-encoded output (<c>ui_gamma_blend</c> on an 8-bit target, bound through a linear view).
@@ -78,9 +184,15 @@ internal sealed class BasaltGpuWindow : IDisposable
 		Graphics.RenderTarget = RenderTarget.From( target );
 		if ( clear ) Graphics.Clear( background, true, false, false );
 		scope.Attributes.Set( "UIGammaOutput", true );
-		draw();
-
-		if ( present is not null ) ((BasaltGpuRenderBackend)device).CopyToSwapChain( target, present );
+		try
+		{
+			draw();
+		}
+		finally
+		{
+			// The acquired image has to be presented whatever the drawing did, or the next frame can't acquire
+			if ( present is not null ) ((BasaltGpuRenderBackend)device).CopyToSwapChain( target, present );
+		}
 	}
 
 	/// <summary>Let go of the frame's target now: the window is closing, and its swap chain goes later.</summary>
@@ -94,6 +206,9 @@ internal sealed class BasaltGpuWindow : IDisposable
 	{
 		backend.Forget( swapChain );
 		swapChain.Dispose();
+		sdl.Dispose();
 		ReleaseTarget();
+		overlay?.Dispose();
+		overlay = null;
 	}
 }

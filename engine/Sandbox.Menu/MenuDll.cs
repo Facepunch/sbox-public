@@ -452,7 +452,9 @@ internal sealed class MenuDll : IMenuDll
 		using var _ = EnterScope();
 
 		MenuScene.Render( swapChain );
-		CCameraRenderer.RenderOverlay( swapChain );
+
+		// A Basalt.Gpu game window draws the overlay itself, last in its frame
+		if ( BasaltGpuWindow.Drawing is null ) CCameraRenderer.RenderOverlay( swapChain );
 	}
 
 	void SetupFileWatch()
