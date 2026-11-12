@@ -321,7 +321,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		var format = Map( desc.Format );
 		var samples = Math.Max( desc.Samples, 1 );
 		var usage = TextureUsage.CopySource | TextureUsage.CopyDestination;
-		if ( samples == 1 ) usage |= TextureUsage.Sampled;
+		// Multisampled targets aren't sampled, except depth: a frame's depth chain reads it (D_MSAA), as Source 2's targets allow
+		if ( samples == 1 || format.IsDepth() ) usage |= TextureUsage.Sampled;
 		if ( desc.RenderTarget ) usage |= format.IsDepth() ? TextureUsage.DepthTarget : TextureUsage.ColorTarget;
 		if ( desc.Storage ) usage |= TextureUsage.Storage;
 
