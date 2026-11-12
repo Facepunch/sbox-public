@@ -232,6 +232,20 @@ internal static partial class SceneCompiler
 
 		using ( compiled.Push() )
 		{
+			var stripByType = new Dictionary<Type, bool>();
+			foreach ( var component in compiled.Components.GetAll( FindMode.EverythingInSelfAndDescendants ) )
+			{
+				var type = component.GetType();
+				if ( !stripByType.TryGetValue( type, out var strip ) )
+				{
+					strip = Game.TypeLibrary.HasAttribute<StripOnSceneCompileAttribute>( type );
+					stripByType.Add( type, strip );
+				}
+
+				if ( strip )
+					processed.Add( component.Id );
+			}
+
 			// Unlink affected prefabs before stripping their source
 			// components so those components cannot return when the prefab expands again.
 			foreach ( var go in compiled.Children.ToArray() )
