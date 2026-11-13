@@ -20,6 +20,7 @@ public partial class MenuBar : Widget
 	static void RegisterAll()
 	{
 		Unregister?.Invoke();
+		Unregister = null;
 
 		foreach ( var target in Targets )
 		{
