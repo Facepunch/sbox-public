@@ -20,6 +20,11 @@ internal sealed partial class BackendContext
 	/// <summary><c>kMaterialOffsetPerPixel</c> in sbox/material.slang.</summary>
 	const uint MaterialOffsetPerPixelId = 2;
 
+	/// <summary><c>kSurfaceOpaqueFade</c> in sbox/surface_passes.slangh: the draw is of a fading object (<c>D_OPAQUE_FADE</c>).</summary>
+	const uint OpaqueFadeId = 3;
+
+	static readonly StringToken OpaqueFadeCombo = new( "D_OPAQUE_FADE" );
+
 	bool DrawSurface( SurfaceMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect )
 	{
 		if ( mesh.Geometry is not IBackendGeometry source || skinned ) return false;
@@ -55,7 +60,7 @@ internal sealed partial class BackendContext
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
-		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, twoSided: material.TwoSided );
+		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, twoSided: material.TwoSided, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0 );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
@@ -147,7 +152,7 @@ internal sealed partial class BackendContext
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
-		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, ids, bucket.TwoSided );
+		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, ids, bucket.TwoSided, LookupCombo( OpaqueFadeCombo ) is > 0 );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
@@ -168,8 +173,9 @@ internal sealed partial class BackendContext
 	{
 		// Where the pixel stage reads the material record's offset (sbox/material.slang): passed on per pixel, or the draw's
 		var perPixel = device.Surfaces.MaterialOffsetPerPixel;
+		var fade = LookupCombo( OpaqueFadeCombo ) is > 0;
 		var info = StageBindings( stage );
-		key = perPixel ? 1u : 2u;
+		key = (perPixel ? 1u : 2u) + (fade ? 4u : 0u);
 		Span<int> values = stackalloc int[stage.Specializations.Count];
 		for ( int i = 0; i < values.Length; i++ )
 		{
@@ -181,8 +187,9 @@ internal sealed partial class BackendContext
 		// The same values as the last bind (nearly always): the same array, so a bind doesn't allocate
 		if ( info.LastConstants is not null && info.LastConstantsKey == key ) return info.LastConstants;
 
-		var constants = new SpecializationConstant[values.Length + 1];
-		constants[^1] = new SpecializationConstant( MaterialOffsetPerPixelId, perPixel ? 1u : 0u );
+		var constants = new SpecializationConstant[values.Length + 2];
+		constants[^2] = new SpecializationConstant( MaterialOffsetPerPixelId, perPixel ? 1u : 0u );
+		constants[^1] = new SpecializationConstant( OpaqueFadeId, fade ? 1u : 0u );
 		for ( int i = 0; i < values.Length; i++ ) constants[i] = new SpecializationConstant( (uint)stage.Specializations[i].Id, (uint)values[i] );
 		(info.LastConstants, info.LastConstantsKey) = (constants, key);
 		return constants;

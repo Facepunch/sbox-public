@@ -284,6 +284,9 @@ float4 SurfaceForwardSunLit<S : ISunLitSurface, let AlphaTest : bool>( PixelInpu
 }
 
 #ifdef SURFACE_FINAL_COMBINER
+/// The draw is of a fading object (today's D_OPAQUE_FADE combo: an opaque object whose tint alpha is under 1), per pipeline.
+[vk::constant_id( 3 )] const bool kSurfaceOpaqueFade = false;
+
 /// Shade as complex.shader does (vr_shared_standard_ps_code.fxc, then the final combiner): decals, the alpha test with
 /// the material's cutoff, the lighting through PS_FinalCombinerDoLighting (emission and transmission after the light
 /// loops, the material's direct-light occlusion), then fog and tools visualisation.
@@ -308,6 +311,9 @@ float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool
 		// After the derivatives above, as the shading model does
 		clip( min( raw - 1.0 / 255.0, m.Opacity - 0.000001 ) );
 	}
+#else
+	// A fading object (D_OPAQUE_FADE): dithered by its opacity without multisampling, alpha to coverage with it
+	if ( kSurfaceOpaqueFade && g_nMSAASampleCount == 1 ) OpaqueFadeDepth( ( m.Opacity + 0.5 + 1.0 / 255.0 ) * 0.5, i.vPositionSs.xy );
 #endif
 
 	s_SurfaceBackfaceTransmission = s.BackfaceTransmission;
