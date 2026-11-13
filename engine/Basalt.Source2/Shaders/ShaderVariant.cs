@@ -200,8 +200,10 @@ public sealed class ShaderStage
 	/// <summary>Whether it's from a shader's GPU-driven file (<see cref="ShaderLibrary.GpuDriven"/>).</summary>
 	public bool GpuDriven => Program.Shader.Name.EndsWith( ".gpudriven.shader_c", StringComparison.OrdinalIgnoreCase );
 
-	internal ShaderStage( ShaderLibrary library, ShaderProgramType type, ShaderProgram program, StaticCombo combo, DynamicCombo dynamic, Func<string, int?> attributes )
+	internal ShaderStage( ShaderLibrary library, ShaderProgramType type, ShaderProgram program, StaticCombo combo, DynamicCombo dynamic, Func<string, int?> attributes, ReadOnlySpan<int> features )
 	{
+		ShaderExpressionContext expressions = null;
+		var filters = new Dictionary<(int Set, int Register), int>();
 		Type = type;
 		Program = program;
 		Static = combo;
@@ -242,7 +244,16 @@ public sealed class ShaderStage
 
 				case RegisterType.SamplerState:
 					var key = (binding.Set, binding.Offset);
-					samplers[key] = ApplySampler( samplers.TryGetValue( key, out var sampler ) ? sampler : DefaultSampler, variable );
+					var state = variable.IntDefault[0];
+					if ( variable.Source is VariableSource.Expression or VariableSource.MaterialAndExpression )
+					{
+						expressions ??= ExpressionContext( combo, dynamic, features );
+						state = Evaluate( variable, expressions );
+						ExpressionStates += $"{binding.Set}.{binding.Offset}.{variable.RenderStateId}={state};";
+					}
+
+					samplers[key] = ApplySampler( samplers.TryGetValue( key, out var sampler ) ? sampler : DefaultSampler, variable, state );
+					if ( variable.RenderStateId == 0 ) filters[key] = state;
 					break;
 
 				case RegisterType.RenderState:
@@ -261,6 +272,16 @@ public sealed class ShaderStage
 					named[(binding.Set, ShaderAbi.ConstantBuffer( binding.Offset & 0xFF ))] = binding.Variable;
 					break;
 			}
+		}
+
+		// MaxAniso only counts with an anisotropic filter, as in D3D: a point or bilinear filter given beside MaxAniso( 8 )
+		// (TextureFiltering with F_TEXTURE_FILTERING set) samples without anisotropy, whichever state came first
+		foreach ( var key in new List<(int Set, int Register)>( samplers.Keys ) )
+		{
+			if ( !filters.TryGetValue( key, out var filter ) || (filter & 0x40) != 0 ) continue;
+			var sampler = samplers[key];
+			sampler.MaxAnisotropy = 1;
+			samplers[key] = sampler;
 		}
 
 		Constants = [.. constants];
@@ -328,16 +349,54 @@ public sealed class ShaderStage
 	const int AnisotropicFilter = 0x55;
 
 	/// <summary>
-	/// Set one sampler-state field (<c>VfxSamplerState_t</c>) from a literal; D3D11-style values.
+	/// Sampler states set by expressions, with their values (<c>Material.CommonInputs.hlsl</c>'s <c>TextureFiltering</c> picks
+	/// its filter by <c>F_TEXTURE_FILTERING</c>); empty when none are. Materials that share combos but evaluate these
+	/// differently don't share a variant.
 	/// </summary>
-	static SamplerInfo ApplySampler( SamplerInfo sampler, ShaderVariable variable )
+	internal string ExpressionStates { get; } = "";
+
+	/// <summary>
+	/// What a render-state expression reads: the material's feature values, and this stage's static and dynamic combo
+	/// values decoded from their ids.
+	/// </summary>
+	static ShaderExpressionContext ExpressionContext( StaticCombo combo, DynamicCombo dynamic, ReadOnlySpan<int> features )
 	{
-		var value = variable.IntDefault[0];
+		static int[] Decode( ShaderCombo[] combos, ulong id )
+		{
+			var values = new int[combos.Length];
+			for ( int i = 0; i < combos.Length; i++ )
+			{
+				var stride = Math.Max( combos[i].Stride, 1 );
+				values[i] = combos[i].Min + (int)(id / stride % (ulong)Math.Max( combos[i].Count, 1 ));
+			}
 
-		// A filter given by an expression (Material.CommonInputs.hlsl's TextureFiltering picks it by F_TEXTURE_FILTERING)
-		// isn't evaluated: anisotropic, that feature's default, rather than the literal 0 (point) it leaves
-		if ( variable.RenderStateId == 0 && variable.Source is VariableSource.Expression or VariableSource.MaterialAndExpression ) value = AnisotropicFilter;
+			return values;
+		}
 
+		return new ShaderExpressionContext
+		{
+			Features = features.ToArray(),
+			StaticCombos = Decode( combo.Program.StaticCombos, combo.Id ),
+			DynamicCombos = Decode( combo.Program.DynamicCombos, dynamic.Id ),
+		};
+	}
+
+	/// <summary>
+	/// A render-state expression's value, truncated to an int as native's material layer does when the expression is
+	/// constant for the material. One that reads draw-time values (render attributes, time) can't be burnt in: an
+	/// expression filter falls back to anisotropic (<c>F_TEXTURE_FILTERING</c>'s default) and anything else to its literal.
+	/// </summary>
+	static int Evaluate( ShaderVariable variable, ShaderExpressionContext context )
+	{
+		if ( variable.Expression is { } code && ShaderExpression.TryEvaluate( code, context, out var value ) ) return (int)value.X;
+		return variable.RenderStateId == 0 ? AnisotropicFilter : variable.IntDefault[0];
+	}
+
+	/// <summary>
+	/// Set one sampler-state field (<c>VfxSamplerState_t</c>) to <paramref name="value"/>; D3D11-style values.
+	/// </summary>
+	static SamplerInfo ApplySampler( SamplerInfo sampler, ShaderVariable variable, int value )
+	{
 		switch ( variable.RenderStateId )
 		{
 			case 0:

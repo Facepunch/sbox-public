@@ -342,7 +342,7 @@ public sealed class ShaderLibrary : IDisposable
 
 			var dynamicId = ShaderFile.DynamicComboId( program, dynamicCombos, features );
 			var dynamic = combo.Dynamic( dynamicId ) ?? combo.Dynamic( 0 ) ?? throw new InvalidDataException( $"{shader.Name}: {type} has no dynamic combo {dynamicId}" );
-			return new ShaderStage( this, type, program, combo, dynamic, attributes );
+			return new ShaderStage( this, type, program, combo, dynamic, attributes, features );
 		}
 
 		var vertex = Stage( ShaderProgramType.Vertex, features );
@@ -387,6 +387,7 @@ public sealed class ShaderLibrary : IDisposable
 			key.Append( '|' );
 			if ( stage is null ) continue;
 			foreach ( var constant in stage.Constants ) key.Append( constant.Id ).Append( '=' ).Append( constant.Value ).Append( ',' );
+			key.Append( stage.ExpressionStates );
 		}
 
 		return key.ToString();

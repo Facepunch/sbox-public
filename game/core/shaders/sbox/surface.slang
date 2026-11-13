@@ -82,6 +82,28 @@ public float3 TransformNormal( float3 tangentNormal, float3 normal, float3 tange
 	return normalize( tangentNormal.x * normalize( tangentU ) + tangentNormal.y * normalize( tangentV ) + tangentNormal.z * normal );
 }
 
+/// math_general.fxc's ComputeNormalFromRGTexture: a two-channel normal map's texel as a tangent-space normal.
+public float3 ComputeNormalFromRGTexture( float2 texel )
+{
+	float2 xy = texel * 2.0 - 1.0;
+	return float3( xy, sqrt( saturate( 1.0 - dot( xy, xy ) ) ) );
+}
+
+/// math_general.fxc's sRGB conversions, for converted shaders.
+public float3 SrgbGammaToLinear( float3 c )
+{
+	float3 linearSegment = c / 12.92;
+	float3 expSegment = pow( ( c / 1.055 ) + ( 0.055 / 1.055 ), float3( 2.4, 2.4, 2.4 ) );
+	return float3( c.r <= 0.04045 ? linearSegment.r : expSegment.r, c.g <= 0.04045 ? linearSegment.g : expSegment.g, c.b <= 0.04045 ? linearSegment.b : expSegment.b );
+}
+
+public float3 SrgbLinearToGamma( float3 c )
+{
+	float3 linearSegment = c * 12.92;
+	float3 expSegment = 1.055 * pow( c, float3( 1.0 / 2.4, 1.0 / 2.4, 1.0 / 2.4 ) ) - 0.055;
+	return float3( c.r <= 0.0031308 ? linearSegment.r : expSegment.r, c.g <= 0.0031308 ? linearSegment.g : expSegment.g, c.b <= 0.0031308 ? linearSegment.b : expSegment.b );
+}
+
 // Set by the pass's pipeline: off in raster passes (hardware derivatives), on in a visibility-buffer resolve, which
 // supplies the uv gradients
 [vk::constant_id( 1 )] public const bool kSampleWithGradients = false;
@@ -101,7 +123,8 @@ public struct SurfaceInput
 	public float3 Camera;            // the camera's world position
 	public float Time;               // the view's time, in seconds
 	public float4 ScreenPosition;    // SV_Position
-	public float3 View;              // world, towards the camera
+	public float2 ScreenUv;          // ScreenPosition.xy over the viewport: 0..1 across the view, for screen-space textures
+	public float3 View;             // world, towards the camera
 	public float ViewDistance;       // to the main view's camera, in its shadow views too, so distance fades agree
 	public float3 FaceNormal;        // world, the triangle's own (flat): from derivatives in raster passes, from the triangle in a resolve
 	public float AlphaReference;     // the alpha test's cutoff (the material's), for surfaces that move it
@@ -208,4 +231,12 @@ public interface ILitSurface : ISurface
 public interface ISunLitSurface : ISurface
 {
 	float3 Light( Material m, SurfaceInput i, LightSample sun );
+}
+
+/// Optional: work on the lit colour, after shading, in forward passes (depth passes skip it): mix in a screen-space
+/// texture the engine binds to a module global (water's refraction, through `Texture2D X < Attribute( "RefractionTexture" ) >`).
+/// Gets the material Evaluate returned. Returns the pixel's colour.
+public interface ICompositeSurface : ISurface
+{
+	float4 Composite( float4 shaded, Material m, SurfaceInput i );
 }

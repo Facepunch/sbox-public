@@ -160,6 +160,7 @@ SurfaceInput MakeSurfaceInput( PixelInput i )
 	s.Camera = g_vCameraPositionWs;
 	s.Time = g_flTime;
 	s.ScreenPosition = i.vPositionSs;
+	s.ScreenUv = i.vPositionSs.xy * g_vInvViewportSize;
 	s.View = normalize( g_vCameraPositionWs - s.Position );
 	// From the lighting origin (the main view's camera, also in its shadow views), so distance fades agree across passes
 	s.ViewDistance = length( i.vPositionWithOffsetWs.xyz );
@@ -270,6 +271,19 @@ float4 SurfaceForwardSunLit<S : ISunLitSurface, let AlphaTest : bool>( PixelInpu
 	}
 #endif
 	return SurfaceShade( i, s, opacityTexture, AlphaTest );
+}
+
+/// Forward for a surface that works on its lit colour (ICompositeSurface): evaluate, shade, then Composite. Depth passes
+/// return the shaded coverage as it is.
+float4 SurfaceForwardComposite<S : ICompositeSurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
+{
+	SurfaceInput input = MakeSurfaceInput( i );
+	Material s = surface.Evaluate( input );
+	float4 color = SurfaceShade( i, s, opacityTexture, AlphaTest );
+#if ( !S_MODE_DEPTH )
+	color = surface.Composite( color, s, input );
+#endif
+	return color;
 }
 #endif
 
