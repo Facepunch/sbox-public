@@ -38,7 +38,16 @@ public partial class Material
 	/// <summary>
 	/// Get texture parameter, by name
 	/// </summary>
-	public Texture GetTexture( string name ) => Texture.FromNative( native.GetTexture( name ) );
+	public Texture GetTexture( string name )
+	{
+		var texture = Texture.FromNative( native.GetTexture( name ) );
+
+		// A material's own texture has no path: remember where it came from, for devices that read it from the material's file
+		if ( texture is not null && string.IsNullOrEmpty( texture.ResourcePath ) && !string.IsNullOrEmpty( ResourcePath ) )
+			Texture.MaterialOrigins.AddOrUpdate( texture, new Texture.MaterialOrigin( ResourcePath, name ) );
+
+		return texture;
+	}
 
 	/// <summary>
 	/// Get Vector4 parameter, by name

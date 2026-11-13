@@ -532,6 +532,10 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <inheritdoc/>
 	public override GpuTexture SheetMetadata => sheetMetadata;
 
+	/// <summary>A compiled material's texture for a shader variable (<c>g_tSkyTexture</c>), or null.</summary>
+	public GpuTexture MaterialTexture( string material, string variable )
+		=> LoadMaterial( material ) is BackendMaterial m && m.Textures.TryGetValue( variable, out var texture ) ? texture : null;
+
 	/// <summary>
 	/// A compiled material (<c>.vmat_c</c>) with its shader and textures; one that isn't there, or whose shader isn't,
 	/// draws nothing.

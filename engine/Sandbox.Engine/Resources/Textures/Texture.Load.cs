@@ -6,6 +6,12 @@ namespace Sandbox;
 
 public partial class Texture
 {
+	/// <summary>The material and parameter a texture with no path of its own came from (<see cref="Material.GetTexture"/>).</summary>
+	internal readonly record struct MaterialOrigin( string Material, string Parameter );
+
+	/// <summary>Where textures read from materials came from, for the Basalt.Gpu device, which reads them by path.</summary>
+	internal static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Texture, object> MaterialOrigins = new();
+
 	internal static Texture FromNative( ITexture native )
 	{
 		if ( !native.IsStrongHandleValid() )
