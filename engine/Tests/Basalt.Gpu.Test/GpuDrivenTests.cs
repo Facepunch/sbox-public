@@ -92,6 +92,9 @@ public class GpuDrivenTests : GpuTest
 
 			var classic = Frame( false, out var classicBinds, false );
 			var driven = Frame( true, out var drivenBinds, false );
+			// The GPU culls them, so preparing the view tests none: each aggregate's batch has all five fragments, the one
+			// beyond the far plane too
+			var preparedFragments = system.GetFeature<Basalt.Features.AggregateRenderFeature>().BatchesFor( system.MainPass ).Select( b => b.Count ).ToArray();
 			var drivenBatches = gpuDrivenBatches;
 			var drawRecords = backend.GpuDrivenTables.Records.Draws;
 			var again = Frame( true, out _, false );
@@ -104,6 +107,7 @@ public class GpuDrivenTests : GpuTest
 			var visibleAgain = Frame( true, out _, false, visibility: true );
 
 			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			CollectionAssert.AreEqual( Enumerable.Repeat( 5, Rows ).ToArray(), preparedFragments, "every fragment prepared, for the GPU to cull" );
 			Assert.IsTrue( drivenBatches > Rows * 2, $"the static meshes drew GPU-driven with the aggregates ({drivenBatches} batches)" );
 			Assert.AreEqual( 0, Different( classic, perMaterial ), "a bucket per material draws the classic pixels" );
 			Assert.IsTrue( perMaterialBinds > drivenBinds, $"a bucket per material binds more ({perMaterialBinds}) than one bucket ({drivenBinds})" );

@@ -780,6 +780,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	internal override bool DrawsAggregatesGpuDriven => GpuDriven && MaterialObjects && GpuDrivenTables is not null;
 
+	internal override bool CullsAggregatesGpuDriven => DrawsAggregatesGpuDriven && GpuDrivenCulling;
+
 	internal override bool DrawsMeshesGpuDriven => GpuDrivenMeshes && DrawsAggregatesGpuDriven;
 
 	/// <summary>

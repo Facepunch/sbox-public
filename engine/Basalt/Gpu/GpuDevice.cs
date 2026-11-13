@@ -77,6 +77,12 @@ public abstract class GpuDevice
 	/// </summary>
 	internal virtual bool DrawsAggregatesGpuDriven => false;
 
+	/// <summary>
+	/// Whether, drawing aggregates GPU-driven, it also culls their fragments on the GPU and reads no texture sizes, so
+	/// preparing a view needn't cull or size them fragment by fragment.
+	/// </summary>
+	internal virtual bool CullsAggregatesGpuDriven => false;
+
 	/// <summary>Whether static meshes' opaque draws join the aggregates' GPU-driven call (<see cref="DrawsAggregatesGpuDriven"/> too).</summary>
 	internal virtual bool DrawsMeshesGpuDriven => false;
 

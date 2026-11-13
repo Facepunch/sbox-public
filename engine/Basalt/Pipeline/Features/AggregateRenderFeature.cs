@@ -91,6 +91,10 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		var objectExtents = world.BoundsExtents;
 		var occlusion = !shadow && Occlusion is { CullsFragments: true } culler ? culler : null;
 
+		// The GPU culls each fragment of what it draws GPU-driven, and this device reads no texture sizes: every fragment's
+		// args, for a batch it leaves to the classic path, without testing or sizing them one by one
+		var gpuCulls = state.OneRun && RenderHost.Current.Device.CullsAggregatesGpuDriven;
+
 		foreach ( var index in CollectionsMarshal.AsSpan( visible ) )
 		{
 			var aggregate = (AggregateObject)objects[index];
@@ -103,6 +107,20 @@ internal sealed class AggregateRenderFeature : RenderFeature
 
 			var first = argCount;
 			long indices = 0;
+			if ( gpuCulls )
+			{
+				for ( int i = 0; i < fragments.Length; i++ )
+				{
+					if ( shadow && (fragments[i].Flags & FragmentFlags.DoNotCastShadows) != 0 ) continue;
+					args[argCount++] = fragments[i].Args;
+					indices += fragments[i].Args.IndexCount;
+				}
+
+				if ( argCount == first ) continue;
+				WriteTransforms( aggregate, transforms );
+				batches.Add( new Batch( aggregate, first, argCount - first, -1, indices / 3, SortKey( aggregate ), TextureSizes.All ) );
+				continue;
+			}
 
 			// One texture size for all of it, the largest any fragment left needs
 			var objectFallback = textureSizes.ForObject( objectCenters[index], objectExtents[index] ).Fallback;
