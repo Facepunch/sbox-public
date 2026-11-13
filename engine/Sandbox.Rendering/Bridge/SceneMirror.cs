@@ -340,7 +340,10 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		if ( volume.Attributes is not null ) return;
 
 		SceneNative.ReadLightProbeVolume( probe, volume );
-		volume.Attributes = MirrorContent.Parameters( SceneNative.CreateLightProbeAttributes( probe ) );
+		volume.Attributes = MirrorContent.Gpu is { } gpu
+			// On Basalt.Gpu: its constants made here, over its textures read by path
+			? gpu.LightProbeVolumeParameters( MirrorContent.Texture( probe.ProbeTexture ), MirrorContent.Texture( probe.IndicesTexture ), MirrorContent.Texture( probe.ScalarsTexture ), probe.Transform, volume.BoxMins, volume.BoxMaxs )
+			: MirrorContent.Parameters( SceneNative.CreateLightProbeAttributes( probe ) );
 	}
 
 	/// <summary>
@@ -350,9 +353,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	{
 		// Probe volumes belong to the world's lighting list, not its draw list. An extra world's aren't drawn: the list is the
 		// main world's, for every view of it
-		// On a Basalt.Gpu device: what draws through native (custom and dynamic objects) or reads attributes only native makes
-		// (probe volumes' baked lighting), and decals, aren't mirrored yet (docs/managed/basalt-gpu-path.md)
-		if ( MirrorContent.Gpu is not null && sceneObject is SceneLightProbe or SceneCustomObject or SceneDynamicObject or DecalSceneObject )
+		// On a Basalt.Gpu device: what draws through native (custom and dynamic objects) isn't mirrored yet
+		// (docs/managed/basalt-gpu-path.md)
+		if ( MirrorContent.Gpu is not null && sceneObject is SceneCustomObject or SceneDynamicObject )
 		{
 			objects[sceneObject] = null;
 			Count( sceneObject, 1 );
