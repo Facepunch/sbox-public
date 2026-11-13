@@ -218,14 +218,19 @@ internal class PrefabInstanceData
 		// reference that can only be resolved while that context is still active.
 		using var suppressBlobs = BlobDataSerializer.Suppress();
 
+		var prefabScene = (PrefabCacheScene)GetPrefab( PrefabSource );
+		Assert.IsValid( prefabScene );
+
+		// Meshes are diffed by hash; only those the patch keeps get their data written
+		using var meshes = new PolygonMesh.DiffScope();
+
 		var instanceData = _instanceRoot.SerializeStandard( _serializeOptions );
 
 		RemapInstanceIdsToPrefabIds( ref instanceData );
 
-		var prefabScene = (PrefabCacheScene)GetPrefab( PrefabSource );
-		Assert.IsValid( prefabScene );
-
-		_patch = prefabScene.CalculateDifferences( instanceData );
+		var patch = prefabScene.CalculateDifferences( instanceData );
+		meshes.Restore( patch );
+		_patch = patch;
 	}
 
 	/// <summary>
