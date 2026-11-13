@@ -15,6 +15,12 @@
 #if defined( SURFACE_LIGHT_HOOK ) && ( PROGRAM == 1 )
 #undef SURFACE_LIGHT_HOOK
 #endif
+// A combiner surface's back-face transmission is the material's (vfx makes it a specialization constant per material;
+// here it's the material's flag, uniform per draw, read by the light loops)
+#ifdef SURFACE_FINAL_COMBINER
+static bool s_SurfaceBackfaceTransmission = false;
+#define S_TRANSMISSIVE_BACKFACE_NDOTL s_SurfaceBackfaceTransmission
+#endif
 #include "sbox/engine.slangh"
 #undef Material
 
@@ -146,12 +152,16 @@ Texture2D SurfaceOpacityTexture()
 	return g_bindless_Texture2D[NonUniformResourceIndex( s_SurfaceOpacityTexture )];
 }
 
-/// What a raster pass hands Evaluate.
+/// Whether the pixel is on a front face, set by the pixel entry: only a two-sided material's draws rasterize back faces.
+static bool s_SurfaceFrontFace = true;
+
+/// What a raster pass hands Evaluate. A back face's normal is turned to the viewer, as complex.shader does for materials
+/// that render back faces; the tangents stay as they are.
 SurfaceInput MakeSurfaceInput( PixelInput i )
 {
 	SurfaceInput s;
 	s.Position = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
-	s.Normal = normalize( i.vNormalWs.xyz );
+	s.Normal = normalize( s_SurfaceFrontFace ? i.vNormalWs.xyz : -i.vNormalWs.xyz );
 	s.TangentU = i.vTangentUWs;
 	s.TangentV = i.vTangentVWs;
 	s.Uv = i.vTextureCoords.xy;
@@ -272,6 +282,56 @@ float4 SurfaceForwardSunLit<S : ISunLitSurface, let AlphaTest : bool>( PixelInpu
 #endif
 	return SurfaceShade( i, s, opacityTexture, AlphaTest );
 }
+
+#ifdef SURFACE_FINAL_COMBINER
+/// Shade as complex.shader does (vr_shared_standard_ps_code.fxc, then the final combiner): decals, the alpha test with
+/// the material's cutoff, the lighting through PS_FinalCombinerDoLighting (emission and transmission after the light
+/// loops, the material's direct-light occlusion), then fog and tools visualisation.
+float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool alphaTest )
+{
+	s_SurfaceOpacityTexture = opacityTexture;
+	bool spread = alphaTest && g_nMSAASampleCount > 1;
+	if ( s.Coverage < 1.0 ) clip( s.Coverage - ( spread ? 1.0 / 255.0 : 0.5 ) );
+
+	ClassicMaterial m = ToClassicMaterial( i, s );
+	Decals::Apply( m.WorldPosition, m );
+
+#if ( S_ALPHA_TEST )
+	{
+		float raw = m.Opacity;
+	#ifdef MATERIAL_ALPHA_TEXTURE
+		float2 size = float2( TextureDimensions2DS( MATERIAL_ALPHA_TEXTURE, 0 ) );
+	#else
+		float2 size = float2( 1.0, 1.0 );
+	#endif
+		m.Opacity = AdjustOpacityForAlphaToCoverage( m.Opacity, s.AlphaTestReference, s.AntiAliasedEdgeStrength, m.TextureCoords.xy * s.OpacityUvScale, size );
+		// After the derivatives above, as the shading model does
+		clip( min( raw - 1.0 / 255.0, m.Opacity - 0.000001 ) );
+	}
+#endif
+
+	s_SurfaceBackfaceTransmission = s.BackfaceTransmission;
+	CombinerInput f = ShadingModelStandard::MaterialToCombinerInput( m );
+	f.vRoughness = m.Roughness.xx;   // the final combiner adjusts it by the geometric normal itself
+	f.flAmbientOcclusionDirectDiffuse = s.AmbientOcclusionDirectDiffuse;
+	f.flAmbientOcclusionDirectSpecular = s.AmbientOcclusionDirectSpecular;
+
+	LightingTerms_t terms = InitLightingTerms();
+	PS_OUTPUT o = PS_FinalCombinerDoLighting( f, terms );
+	o = PS_FinalCombinerDoPostProcessing( f, terms, o );
+	float4 color = o.vColor;
+	if ( spread ) color.a *= s.Coverage;
+	return color;
+}
+
+/// Forward, and the alpha-tested depth pass, for a combiner surface (ICombinerSurface).
+float4 SurfaceForwardCombiner<S : ICombinerSurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
+{
+	SurfaceInput input = MakeSurfaceInput( i );
+	Material s = surface.Evaluate( input );
+	return SurfaceShadeCombiner( i, s, opacityTexture, AlphaTest );
+}
+#endif
 
 /// Forward for a surface that works on its lit colour (ICompositeSurface): evaluate, shade, then Composite. Depth passes
 /// return the shaded coverage as it is.

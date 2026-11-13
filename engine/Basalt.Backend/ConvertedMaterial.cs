@@ -18,9 +18,33 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 	{
 	}
 
+	/// <summary>
+	/// Whether the surface takes this material: every feature it reads (a field whose <c>[Source]</c> is an <c>F_</c>
+	/// feature) is in the field's range. A surface declares the features it doesn't do as fields with <c>Range( 0, 0 )</c>,
+	/// so materials that set them stay on their <c>.shader</c>.
+	/// </summary>
+	public static bool Accepts( CompiledShader compiled, MaterialFile file )
+	{
+		foreach ( var field in compiled.Material.Fields )
+		{
+			if ( field.Source is not { } source || !source.StartsWith( "F_", StringComparison.Ordinal ) ) continue;
+			var value = file.Value( source ) is { Length: > 0 } v ? v[0] : 0;
+			if ( (field.Min is { } min && value < min) || (field.Max is { } max && value > max) ) return false;
+		}
+
+		return true;
+	}
+
 	public static ConvertedMaterial Create( CompiledShader compiled, MaterialFile file, string name, Func<string, GpuTexture> loadTexture )
 	{
-		var material = new ConvertedMaterial( compiled.Path, compiled.Material ) { DisplayName = name };
+		// Alpha test and two-sidedness are the material's, as for converted shaders: F_ALPHA_TEST picks the alpha-tested
+		// passes, F_RENDER_BACKFACES draws back faces
+		var material = new ConvertedMaterial( compiled.Path, compiled.Material )
+		{
+			DisplayName = name,
+			AlphaTest = file.Value( "F_ALPHA_TEST" ) is [> 0, ..],
+			TwoSided = file.Value( "F_RENDER_BACKFACES" ) is [> 0, ..],
+		};
 		foreach ( var field in compiled.Material.Fields )
 		{
 			if ( field.Kind == MaterialFieldKind.Texture2D )

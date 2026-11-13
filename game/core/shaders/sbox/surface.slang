@@ -23,6 +23,16 @@ public struct Material
 	// cutoff's derivatives would cancel.
 	public float Coverage = 1;
 
+	// Read by an ICombinerSurface's shading only (complex.shader's terms): how much the occlusion darkens direct diffuse and
+	// specular light, the alpha test's cutoff and edge strength, the scale of the uv the opacity texture is sampled at
+	// (for alpha to coverage's mip compensation), and whether lights behind the surface light its Transmission
+	public float AmbientOcclusionDirectDiffuse = 0;
+	public float AmbientOcclusionDirectSpecular = 1;
+	public float AlphaTestReference = 0.5;
+	public float AntiAliasedEdgeStrength = 1;
+	public float2 OpacityUvScale = 1;
+	public bool BackfaceTransmission = false;
+
 	/// Blend two surfaces' properties, as common/material.hlsl's Material::lerp does (the normal renormalized).
 	public static Material Lerp( Material a, Material b, float amount )
 	{
@@ -239,4 +249,12 @@ public interface ISunLitSurface : ISurface
 public interface ICompositeSurface : ISurface
 {
 	float4 Composite( float4 shaded, Material m, SurfaceInput i );
+}
+
+/// Optional: light the surface as complex.shader's final combiner does, rather than common/pixel.hlsl's shading model:
+/// emission and transmission added after the light loops, back-face transmission (Material.BackfaceTransmission), the
+/// material's direct-light occlusion factors and its own alpha-test cutoff. For surfaces standing in for complex-style
+/// materials, so they draw as those do.
+public interface ICombinerSurface : ISurface
+{
 }

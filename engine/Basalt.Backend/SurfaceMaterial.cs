@@ -46,6 +46,19 @@ public abstract class SurfaceMaterial : GpuMaterial
 
 	bool alphaTest;
 
+	/// <summary>Draw back faces too, their normal turned to the viewer (complex.shader's <c>F_RENDER_BACKFACES</c>).</summary>
+	public bool TwoSided
+	{
+		get => twoSided;
+		set
+		{
+			twoSided = value;
+			Interlocked.Increment( ref version );
+		}
+	}
+
+	bool twoSided;
+
 	/// <summary>Its compiled program, once a device found it (<see cref="SurfaceShaders"/>).</summary>
 	internal SurfaceProgram Program { get; set; }
 

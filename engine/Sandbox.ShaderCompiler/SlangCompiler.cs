@@ -115,8 +115,11 @@ public sealed partial class SlangCompiler
 			var interpolated = material.Interfaces.Contains( "IInterpolatedSurface" );
 			var sunLit = material.Interfaces.Contains( "ISunLitSurface" );
 			var composite = material.Interfaces.Contains( "ICompositeSurface" );
-			if ( !displaces && !lit && !interpolated && !sunLit && !composite && !material.Interfaces.Contains( "ISurface" ) )
-				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface, ISunLitSurface or ICompositeSurface" );
+			var combiner = material.Interfaces.Contains( "ICombinerSurface" );
+			if ( !displaces && !lit && !interpolated && !sunLit && !composite && !combiner && !material.Interfaces.Contains( "ISurface" ) )
+				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface, ISunLitSurface, ICompositeSurface or ICombinerSurface" );
+			if ( combiner && (lit || sunLit || composite || interpolated) )
+				throw new ShaderCompileException( path, $"{material.Name}: an ICombinerSurface can't also be an ILitSurface, ISunLitSurface, ICompositeSurface or IInterpolatedSurface yet" );
 			if ( interpolated && (displaces || lit || sunLit || composite) )
 				throw new ShaderCompileException( path, $"{material.Name}: an IInterpolatedSurface can't also be an IVertexSurface, ILitSurface, ISunLitSurface or ICompositeSurface yet" );
 			if ( lit && sunLit )
@@ -124,7 +127,7 @@ public sealed partial class SlangCompiler
 			if ( composite && (lit || sunLit) )
 				throw new ShaderCompileException( path, $"{material.Name}: an ICompositeSurface can't also be an ILitSurface or ISunLitSurface yet" );
 
-			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit, composite );
+			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit, composite, combiner );
 			var instancePath = Path.Combine( directory, $"{module}.instance.slang" );
 
 			var vertex = CompileEntry( instancePath, instance, "MainVs", StageKind.Vertex, directory );
@@ -283,11 +286,12 @@ public sealed partial class SlangCompiler
 	/// the material's <c>[Opacity]</c> texture, when it has one. A lit surface's (<c>ILitSurface</c>) also turns on the
 	/// engine light loop's hook (<c>SURFACE_LIGHT_HOOK</c>) and hands it the material, so <c>Light</c> runs per light. An
 	/// interpolated surface's (<c>IInterpolatedSurface</c>) vertex stage also reads its <c>Varyings</c> and passes them on. A
-	/// composite surface's (<c>ICompositeSurface</c>) forward passes call its <c>Composite</c> on the lit colour.
+	/// composite surface's (<c>ICompositeSurface</c>) forward passes call its <c>Composite</c> on the lit colour, and a
+	/// combiner surface's (<c>ICombinerSurface</c>) shade through complex.shader's final combiner (<c>SURFACE_FINAL_COMBINER</c>).
 	/// </summary>
-	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false, bool sunLit = false, bool composite = false )
+	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false, bool sunLit = false, bool composite = false, bool combiner = false )
 	{
-		var forward = sunLit ? "SurfaceForwardSunLit" : composite ? "SurfaceForwardComposite" : "SurfaceForward";
+		var forward = sunLit ? "SurfaceForwardSunLit" : composite ? "SurfaceForwardComposite" : combiner ? "SurfaceForwardCombiner" : "SurfaceForward";
 		var vertex = displaces ? $"SurfaceVertexDisplaced<{type}>( i )" : "SurfaceVertex( i )";
 		var opacity = opacityField is null ? "0" : $"m.{opacityField}.Slot";
 		var keep = lit ? " s_LitSurface = m;" : "";
@@ -296,19 +300,21 @@ public sealed partial class SlangCompiler
 		var wrap = interpolated ? $" SurfaceWithVaryings<{type}> s; s.Surface = m; s.Values = i.Varyings;" : "";
 		var argument = interpolated ? "s" : "m";
 		string Shade( bool alphaTest ) => $"{type} m = SurfaceRecord<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{keep}{wrap} return {forward}<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} );";
+		// Every pixel entry takes the facing, so a two-sided material's back faces shade with the normal turned to the viewer
 		string Pixel( string entry, bool alphaTest ) =>
-			$"[shader( \"pixel\" )] float4 {entry}( {output} i ) : SV_Target0 {{ {Shade( alphaTest )} }}\n";
+			$"[shader( \"pixel\" )] float4 {entry}( {output} i, bool front : SV_IsFrontFace ) : SV_Target0 {{ s_SurfaceFrontFace = front; {Shade( alphaTest )} }}\n";
 
 		// GPU-driven: the draw's lighting record first; the alpha-tested depth pass also writes the visibility id (the vertex
 		// bit + 1) at target 1, which the visibility pass's prepass reads and other passes have no target for
 		string GpuDrivenPixel( string entry, bool alphaTest, bool ids ) => ids
-			? $"float4 Shaded{entry}( {output} i ) {{ {Shade( alphaTest )} }}\n[shader( \"pixel\" )] SurfaceIdsOutput {entry}( SurfaceGpuDrivenVertexOutput v ) {{ SurfaceFetchLighting( v.Draw ); SurfaceIdsOutput o; o.Color = Shaded{entry}( v.o ); o.Id = v.VertexBit + 1; return o; }}\n"
-			: $"[shader( \"pixel\" )] float4 {entry}( SurfaceGpuDrivenVertexOutput v ) : SV_Target0 {{ SurfaceFetchLighting( v.Draw ); {output} i = v.o; {Shade( alphaTest )} }}\n";
+			? $"float4 Shaded{entry}( {output} i ) {{ {Shade( alphaTest )} }}\n[shader( \"pixel\" )] SurfaceIdsOutput {entry}( SurfaceGpuDrivenVertexOutput v, bool front : SV_IsFrontFace ) {{ s_SurfaceFrontFace = front; SurfaceFetchLighting( v.Draw ); SurfaceIdsOutput o; o.Color = Shaded{entry}( v.o ); o.Id = v.VertexBit + 1; return o; }}\n"
+			: $"[shader( \"pixel\" )] float4 {entry}( SurfaceGpuDrivenVertexOutput v, bool front : SV_IsFrontFace ) : SV_Target0 {{ s_SurfaceFrontFace = front; SurfaceFetchLighting( v.Draw ); {output} i = v.o; {Shade( alphaTest )} }}\n";
 
 		var text = new StringBuilder();
 		text.Append( "// Generated by Sandbox.ShaderCompiler for the [Material] struct " ).Append( type ).Append( " in " ).Append( module ).Append( ".slang.\n" );
 		if ( opacityField is not null ) text.Append( "#define SURFACE_OPACITY_TEXTURE 1\n" );
 		if ( lit ) text.Append( "#define SURFACE_LIGHT_HOOK 1\n" );
+		if ( combiner ) text.Append( "#define SURFACE_FINAL_COMBINER 1\n" );
 		text.Append( "#include \"sbox/surface_passes.slangh\"\n" );
 		text.Append( "import " ).Append( module ).Append( ";\n\n" );
 		text.Append( "#ifdef SURFACE_GPU_DRIVEN\n" );
