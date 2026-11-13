@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Sandbox.Mounting;
@@ -43,7 +43,12 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 		if ( isCube && width != height )
 			throw new InvalidDataException( $"VTF cubemap faces must be square: {filename}" );
 
-		var (format, data, mipCount) = ReadTextureData( vtf, frame );
+		var (format, data, mipCount, skippedTopMips) = ReadTextureData( vtf, frame );
+		if ( skippedTopMips > 0 )
+		{
+			width = (ushort)Math.Max( 1, width >> skippedTopMips );
+			height = (ushort)Math.Max( 1, height >> skippedTopMips );
+		}
 		if ( format == ImageFormat.None )
 		{
 			Log.Trace( $"Unsupported texture format {srcFormat} for {filename}" );
