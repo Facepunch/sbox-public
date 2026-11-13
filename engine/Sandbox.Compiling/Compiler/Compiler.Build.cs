@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
 using System.Collections.Immutable;
@@ -149,7 +149,7 @@ partial class Compiler
 		//
 		// Syntax trees
 		//
-		GetSyntaxTree( archive, parseOptions );
+		GetSyntaxTree( archive, parseOptions, output );
 
 		if ( GetGeneratedCode( output.Version, parseOptions ) is SyntaxTree generated )
 		{
@@ -186,6 +186,11 @@ partial class Compiler
 			.. archive.SyntaxTrees, // from source files
 			.. ProcessRazorFiles(archive, output) // processed razor files
 		];
+
+		if ( output.Diagnostics.Any( x => x.Severity == DiagnosticSeverity.Error ) )
+		{
+			return;
+		}
 
 		CSharpCompilation compiler = null;
 		var sourceUpgraded = false;
