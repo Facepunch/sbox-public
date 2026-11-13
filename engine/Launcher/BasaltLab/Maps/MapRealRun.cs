@@ -20,6 +20,7 @@ namespace Sandbox.BasaltLab.Maps;
 /// sets written. Prints and saves a table, and what the materials' draws bind. <c>-nobaked</c> leaves the map's
 /// lightmaps and probes out; <c>-occlusion</c> turns on the GPU occlusion cull; <c>-surface-convert blendable,...</c>
 /// draws those shaders' materials with the Slang surfaces beside them (<c>shaders/blendable.slang</c>).
+/// <c>-drawcensus &lt;dir&gt;</c> also counts one warm frame of each run's every draw (<see cref="DrawCensus"/>) into that folder.
 /// </summary>
 internal static class MapRealRun
 {
@@ -111,6 +112,10 @@ internal static class MapRealRun
 
 		// -orbit: the timed frames circle the view once around the point it looks at, so the camera moves every frame
 		var orbit = Args.Has( "-orbit" );
+
+		// -drawcensus <dir>: one warm frame of each run with every draw counted
+		var censusFolder = Args.String( "-drawcensus" );
+		var censusReport = new StringBuilder();
 
 		Frame RenderFrame( MapView view )
 		{
@@ -208,6 +213,8 @@ internal static class MapRealRun
 					passes.AppendCsv( passCsv, view.Name, variant.Name );
 				}
 
+				if ( censusFolder is not null ) censusReport.AppendLine( Census( gpu, map, $"{options.Ident.Split( '.' ).Last()}-{view.Name}-{variant.Name}", censusFolder, () => RenderFrame( view ) ) );
+
 				gcs = GC.CollectionCount( 0 ) - gcs;
 				var setsPerFrame = (map.Backend.MaterialObjectStats.SetsWritten - sets) / (double)Math.Max( frames.Count, 1 );
 				var stats = map.System.Stats;
@@ -293,6 +300,7 @@ internal static class MapRealRun
 
 		Console.WriteLine( bindingReport );
 		gpu.WaitIdle();
+		if ( censusFolder is not null ) File.WriteAllText( Path.Combine( censusFolder, "census.md" ), censusReport.ToString() );
 		Directory.CreateDirectory( options.Output );
 		var md = new StringBuilder();
 		md.AppendLine( $"Basalt Lab -map {options.Ident} -real, {DateTime.Now:yyyy-MM-dd HH:mm}, {gpu.Adapter.Name}, {options.Width}x{options.Height} {options.Samples}x MSAA, vsync off, {options.Frames} measured frames per run (medians, ms)" );
@@ -320,6 +328,34 @@ internal static class MapRealRun
 		if ( Args.String( "-surface-convert" ) is not null ) Console.WriteLine( $"Surface batches drawn GPU-driven: {map.Backend.Surfaces.GpuDrivenBatches} over the run" );
 		Console.WriteLine( $"Results in {options.Output}; validation errors {gpu.ValidationErrors}" );
 		return 0;
+	}
+
+	/// <summary>
+	/// One frame with every draw counted (<see cref="BackendDevice.Census"/>), after the GPU finished it: each draw into
+	/// <c>&lt;name&gt;-draws.csv</c>, each pass's totals into <c>&lt;name&gt;-passes.csv</c>, and the report, which it returns.
+	/// </summary>
+	static string Census( GpuDevice gpu, MapWorld map, string name, string folder, Action renderFrame )
+	{
+		Directory.CreateDirectory( folder );
+		gpu.WaitIdle();
+		var census = new DrawCensus();
+		map.Backend.Census = census;
+		try
+		{
+			renderFrame();
+		}
+		finally
+		{
+			map.Backend.Census = null;
+		}
+
+		gpu.WaitIdle();
+		census.Resolve( gpu );
+		File.WriteAllText( Path.Combine( folder, $"{name}-draws.csv" ), census.Csv() );
+		File.WriteAllText( Path.Combine( folder, $"{name}-passes.csv" ), census.PassCsv() );
+		var report = census.Report( name );
+		Console.WriteLine( report );
+		return report;
 	}
 
 	/// <summary>

@@ -781,7 +781,7 @@ internal sealed partial class FrameRecorder : IDisposable
 
 						var mark = layerCosts is null ? default : CostMark.Of( rc, stats );
 						var started = item.Layer is DepthPrepassLayer ? Stopwatch.GetTimestamp() : 0;
-						var scope = rc.BeginGpuScope( item.Layer.Name );
+						var scope = rc.BeginGpuScope( rc.Census ? CensusScope( item.View.View?.Name, item.View.IsShadow, item.Layer.Name ) : item.Layer.Name );
 						item.Layer.Begin( frame, rc, item.View, start: from == 0 );
 						frame.System.DrawRange( rc, item.View, item.Layer, from, to - from, ref stats );
 						rc.EndPass();
@@ -799,7 +799,7 @@ internal sealed partial class FrameRecorder : IDisposable
 					for ( int l = segment.Index; l < segment.Index + segment.Count; l++ )
 					{
 						var mark = layerCosts is null ? default : CostMark.Of( rc, stats );
-						var scope = rc.BeginGpuScope( layers[l].Layer.Name );
+						var scope = rc.BeginGpuScope( rc.Census ? CensusScope( layers[l].Frame?.View?.Name, false, layers[l].Layer.Name ) : layers[l].Layer.Name );
 						frame.UseFrameConstants( rc );
 						layers[l].Layer.Record( frame, rc, ref stats );
 						rc.EndPass();
@@ -810,6 +810,9 @@ internal sealed partial class FrameRecorder : IDisposable
 				}
 		}
 	}
+
+	/// <summary>A layer's scope named by its view too, for a draw census (<see cref="GpuContext.Census"/>).</summary>
+	static string CensusScope( string view, bool shadow, string layer ) => $"{view ?? "(view)"}{(shadow ? " shadow" : "")}: {layer}";
 
 	/// <summary>
 	/// Submit setup and segments in order. Each compute batch waits for its graphics preparation. Graphics acquires

@@ -68,6 +68,11 @@ internal sealed partial class BackendContext
 
 		/// <summary>With <see cref="Ids"/>: its variant has no pixel shader, so <c>basalt_gpu_driven_ids</c> draws it.</summary>
 		public bool IdsShader;
+
+		/// <summary>While a census runs: its number in the frame (-1 until it draws), shader name and distinct materials.</summary>
+		public int CensusId;
+		public string CensusShader;
+		public int CensusMaterials;
 	}
 
 	readonly List<GpuDrivenBucket> gpuDrivenBuckets = new();
@@ -83,6 +88,7 @@ internal sealed partial class BackendContext
 	/// <summary>Count a batch left to the classic path, for the report (<see cref="BackendDevice.GpuDrivenLeftClassic"/>).</summary>
 	void LeftClassic( ShaderFile shader, object mode, string why )
 	{
+		if ( Census ) device.Census?.Left( $"{DrawCensus.ShaderName( shader.Name )} {mode} ({why})" );
 		if ( !device.TimeDraws ) return;
 		device.GpuDrivenLeftClassic.AddOrUpdate( $"{shader.Name} {mode} ({why})", 1, static ( _, n ) => n + 1 );
 	}
@@ -210,6 +216,7 @@ internal sealed partial class BackendContext
 
 		SetObjectAttributes( null );
 		if ( gpuDrivenBucketCount == 0 ) return;
+		if ( Census ) CensusBuckets( batches );
 
 		if ( gpuCull )
 		{
@@ -649,7 +656,9 @@ internal sealed partial class BackendContext
 				bound = false;
 			}
 
+			if ( Census ) censusCompacted = run.First >= totalFragments;
 			DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, run.Page, run.Format, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count, compact ? frameOffset + runsOffset + i * 8 + 4 : -1 );
+			censusCompacted = false;
 		}
 
 		// Debug only: the forward pass's multi-draws again, into the figure's targets
@@ -813,6 +822,7 @@ internal sealed partial class BackendContext
 			var run = cullRuns[i];
 			var bucket = gpuDrivenBuckets[run.Bucket];
 			if ( !bucket.Ids ) continue;
+			var censusBefore = Census ? PassTimer.Recorded.Of( r.List ) : default;
 
 			if ( run.Bucket != lastBucket )
 			{
@@ -851,6 +861,7 @@ internal sealed partial class BackendContext
 			r.List.SetIndexBuffer( run.Page, run.Format, 0 );
 			r.List.DrawIndexedIndirectCount( frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, frameBuffer, frameOffset + runsOffset + i * 8 + 4, run.Count, GpuDrivenTables.CommandStride );
 			gpuDrivenRuns++;
+			if ( Census ) CensusMultiDraw( bucket, DrawCensus.Path.BucketIds, censusBefore, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count, frameOffset + runsOffset + i * 8 + 4 );
 		}
 
 		r.List.EndRendering();
@@ -953,6 +964,7 @@ internal sealed partial class BackendContext
 		BufferHandle page, IndexFormat format, BufferHandle commands, long offset, int count, long countOffset = -1 )
 	{
 		var r = recording;
+		var censusBefore = Census ? PassTimer.Recorded.Of( r.List ) : default;
 		if ( !bound && bucket.Surface is not null )
 		{
 			BindSurfaceGpuDriven( bucket, bucket.NoColor ? Format.Unknown : color, depth, samples, ids: false );
@@ -978,6 +990,7 @@ internal sealed partial class BackendContext
 		if ( countOffset >= 0 ) r.List.DrawIndexedIndirectCount( commands, offset, commands, countOffset, count, GpuDrivenTables.CommandStride );
 		else r.List.DrawIndexedIndirect( commands, offset, count, GpuDrivenTables.CommandStride );
 		gpuDrivenRuns++;
+		if ( Census ) CensusMultiDraw( bucket, DrawCensus.Path.Bucket, censusBefore, commands, offset, count, countOffset );
 	}
 
 	/// <summary>

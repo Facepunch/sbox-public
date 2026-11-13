@@ -214,6 +214,103 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// A draw census (<see cref="BackendDevice.Census"/>) of a GPU-driven frame puts every draw call each pass recorded on a
+	/// draw it counted: the aggregates' three materials as one forward bucket, with the commands and triangles the GPU drew
+	/// read back, and the static mesh as a classic draw that says why it isn't GPU-driven. Counting doesn't change the frame.
+	/// </summary>
+	[TestMethod]
+	public void CensusCountsEveryDraw()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, GpuDrivenMeshes = false };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven census test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 0;
+
+			Color[] colours = [new( 0.8f, 0.6f, 0.4f ), new( 0.3f, 0.7f, 0.4f ), new( 0.4f, 0.5f, 0.9f )];
+			for ( int row = 0; row < Rows; row++ )
+			{
+				var (mesh, fragments) = Boxes( backend, backend.CreateMaterial( $"Census boxes {row}", colours[row] ), row * 120 - 120 );
+				world.Add( new AggregateObject( mesh, fragments ) );
+			}
+
+			var (own, _) = Boxes( backend, backend.CreateMaterial( "Census mesh boxes", new Color( 0.9f, 0.3f, 0.3f ) ), 240 );
+			world.Add( new MeshObject( own, Transform.Zero ) );
+
+			var view = new RenderView { Name = "Census", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			byte[] Frame( DrawCensus census )
+			{
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				backend.Census = census;
+				try
+				{
+					system.Render( world, view, target );
+				}
+				finally
+				{
+					backend.Census = null;
+				}
+
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			// The view's first frame draws without ids; the second is the one counted
+			Frame( null );
+			var plain = Frame( null );
+			var census = new DrawCensus();
+			var counted = Frame( census );
+			census.Resolve( Device );
+			var after = Frame( null );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.AreEqual( 0, Different( plain, counted ), "counting draws the same frame" );
+			Assert.AreEqual( 0, Different( plain, after ), "and the frame after it too" );
+
+			var calls = census.Passes.Values.Sum( p => p.Draws );
+			Assert.IsTrue( calls > 0, "the passes recorded draws" );
+			Assert.AreEqual( calls, census.Draws.Sum( d => d.Calls ), "every draw call a pass recorded is a draw the census counted" );
+
+			var forward = census.Draws.Where( d => d.Path == DrawCensus.Path.Bucket && d.Pass.EndsWith( "Opaque Forward", StringComparison.Ordinal ) ).ToArray();
+			Assert.IsTrue( forward.Length > 0, "forward drew buckets" );
+			Assert.AreEqual( 1, forward.Select( d => d.Bucket ).Distinct().Count(), "the three materials share one forward bucket" );
+			Assert.AreEqual( Rows, forward[0].BucketMaterials, "of three materials" );
+			Assert.IsTrue( forward.All( d => d.Commands >= 0 && d.Shader == "complex" ), "its multi-draws' commands were read back" );
+			Assert.IsTrue( census.Draws.Where( d => d.Path == DrawCensus.Path.BucketIds ).Sum( d => d.Triangles ) >= Rows * 4 * 12, "the prepass drew every box in view as ids" );
+
+			var meshDraws = census.Draws.Where( d => d.Path == DrawCensus.Path.Classic && d.Material == "Census mesh boxes" ).ToArray();
+			Assert.IsTrue( meshDraws.Length > 0, "the static mesh drew classic" );
+			Assert.IsTrue( meshDraws.All( d => d.Kind == "static mesh: GPU-driven meshes off" ), $"and says why ({string.Join( ", ", meshDraws.Select( d => d.Kind ).Distinct() )})" );
+			Assert.IsTrue( meshDraws.All( d => d.Triangles == 5 * 12 ), "all five of its boxes" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A shader with no variant beside it (a package's) gets one from the library's compiler: none while it compiles,
 	/// then the compiled one, cached, so another library loads it without compiling.
 	/// </summary>
