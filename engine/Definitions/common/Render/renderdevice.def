@@ -24,6 +24,7 @@ native accessor g_pRenderDevice
 	RenderDeviceInfo_t GetSwapChainInfo( SwapChainHandle_t swapChain );
 	ITexture FindOrCreateFileTexture( string pFileName, RenderSystemAssetFileLoadMode nLoadMode );
 	ITexture FindOrCreateTexture2( string pResourceName, bool bIsAnonymous, TextureCreationConfig_t pDescriptor, void* data, int dataSize );
+	ITexture FindOrCreateTextureWithSheet( string pResourceName, TextureCreationConfig_t pDescriptor, void* data, int dataSize, void* sheetData, int sheetDataSize );
 	void ClearTexture( ITexture hTexture, Color color );
 	void AsyncSetTextureData2( ITexture hTexture, void* pData, int nDataSize, Rect3D rect );
 
