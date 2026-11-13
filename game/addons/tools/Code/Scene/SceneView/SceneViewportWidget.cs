@@ -711,7 +711,11 @@ public partial class SceneViewportWidget : Widget
 		DrawCameraSpeedOverlay();
 		DrawOrientationGizmo();
 
-		Overlay?.Update();
+		// The overlay is a translucent top-level window the size of the viewport: every repaint clears it and copies all
+		// of it to the compositor (~2.7 ms a frame). Only Game view paints on it each frame (the UI panel highlights);
+		// its child widgets repaint themselves, and SceneOverlayWidget.Frame still refreshes it ten times a second.
+		if ( SceneView.CurrentView == SceneViewWidget.ViewMode.Game )
+			Overlay?.Update();
 	}
 
 	/// <summary>
