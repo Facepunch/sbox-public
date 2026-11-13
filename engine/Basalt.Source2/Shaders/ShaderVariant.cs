@@ -204,6 +204,8 @@ public sealed class ShaderStage
 	{
 		ShaderExpressionContext expressions = null;
 		var filters = new Dictionary<(int Set, int Register), int>();
+		var evaluatedRenderStates = new Dictionary<ShaderVariable, float>( ReferenceEqualityComparer.Instance );
+		EvaluatedRenderStates = evaluatedRenderStates;
 		Type = type;
 		Program = program;
 		Static = combo;
@@ -258,6 +260,19 @@ public sealed class ShaderStage
 
 				case RegisterType.RenderState:
 					renderStates.Add( (variable.RenderStateId, variable) );
+
+					// A render state given by an expression of the material's features (complex.shader's CullMode from
+					// F_RENDER_BACKFACES), evaluated as native's material layer does when it's constant for the material
+					if ( variable.Source is VariableSource.Expression or VariableSource.MaterialAndExpression && variable.Expression is { } code )
+					{
+						expressions ??= ExpressionContext( combo, dynamic, features );
+						if ( ShaderExpression.TryEvaluate( code, expressions, out var evaluated ) )
+						{
+							evaluatedRenderStates[variable] = evaluated.X;
+							ExpressionStates += $"r{variable.RenderStateId}={evaluated.X};";
+						}
+					}
+
 					break;
 
 				case RegisterType.Texture:
@@ -354,6 +369,9 @@ public sealed class ShaderStage
 	/// differently don't share a variant.
 	/// </summary>
 	internal string ExpressionStates { get; } = "";
+
+	/// <summary>Render-state variables given by expressions that evaluated for this material, with their values.</summary>
+	internal IReadOnlyDictionary<ShaderVariable, float> EvaluatedRenderStates { get; }
 
 	/// <summary>
 	/// What a render-state expression reads: the material's feature values, and this stage's static and dynamic combo
@@ -574,8 +592,23 @@ public sealed class ShaderPipelineState
 
 		foreach ( var (state, variable) in pixel?.RenderStates ?? [] )
 		{
-			if ( variable.Source != VariableSource.RenderStateLiteral ) continue;
-			var value = variable.IntDefault[0];
+			// Literals, and expressions of the material's features that evaluated (truncated, as native's are)
+			int value;
+			float floatValue;
+			if ( variable.Source == VariableSource.RenderStateLiteral )
+			{
+				value = variable.IntDefault[0];
+				floatValue = variable.FloatDefault[0];
+			}
+			else if ( pixel.EvaluatedRenderStates.TryGetValue( variable, out var evaluated ) )
+			{
+				value = (int)evaluated;
+				floatValue = evaluated;
+			}
+			else
+			{
+				continue;
+			}
 
 			// Only the parts the shader left dynamic take variables, as CVfxStaticComboData's state blocks do
 			switch ( state )
@@ -583,7 +616,7 @@ public sealed class ShaderPipelineState
 				case 0 when fixedState?.Rasterizer is null: rasterizer.FillMode = (byte)value; break;
 				case 1 when fixedState?.Rasterizer is null: rasterizer.CullMode = (byte)value; break;
 				case 2 when fixedState?.Rasterizer is null: rasterizer.DepthBias = value; break;
-				case 3 when fixedState?.Rasterizer is null: rasterizer.SlopeScaledDepthBias = variable.FloatDefault[0]; break;
+				case 3 when fixedState?.Rasterizer is null: rasterizer.SlopeScaledDepthBias = floatValue; break;
 				case 5 when fixedState?.Rasterizer is null: rasterizer.DepthClip = value != 0; break;
 				case 16 when fixedState?.DepthStencil is null: depthStencil.DepthTest = value != 0; break;
 				case 17 when fixedState?.DepthStencil is null: depthStencil.DepthWrite = value != 0; break;

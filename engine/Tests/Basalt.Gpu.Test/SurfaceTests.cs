@@ -386,6 +386,28 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// Render states given by expressions are evaluated per material too: complex.shader's CullMode follows
+	/// F_RENDER_BACKFACES, and materials that differ in it don't share a variant.
+	/// </summary>
+	[TestMethod]
+	public void ExpressionRenderStatesFollowTheirFeature()
+	{
+		using var backend = new BackendDevice( Device );
+		CullMode Cull( int backfaces )
+		{
+			var complex = (BackendMaterial)((GpuDevice)backend).CreateMaterial( $"Complex {backfaces}", "shaders/complex.shader" );
+			if ( complex.Shader is null ) Assert.Inconclusive( "complex.shader isn't compiled" );
+			var feature = complex.Shader.FeatureIndex( "F_RENDER_BACKFACES" );
+			Assert.IsTrue( feature >= 0, "complex.shader has no F_RENDER_BACKFACES" );
+			complex.Features[feature] = backfaces;
+			return complex.Variant( backend.Shaders, "Forward", "Forward", _ => null, _ => null ).State.Cull;
+		}
+
+		Assert.AreEqual( CullMode.Back, Cull( 0 ) );
+		Assert.AreEqual( CullMode.None, Cull( 1 ) );
+	}
+
+	/// <summary>
 	/// The expression evaluator runs the stack machine as native's VfxEval does: literals, feature loads, comparisons and
 	/// conditional jumps, swizzles and builtins; reads it can't answer fail rather than guess.
 	/// </summary>
