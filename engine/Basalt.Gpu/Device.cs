@@ -488,8 +488,9 @@ public sealed unsafe partial class Device : IDisposable
 	bool memoryBudget;
 
 	/// <summary>
-	/// Each memory heap's size and, with VK_EXT_memory_budget, how much of it the process uses (every device it has, Source 2's
-	/// too) against the budget the OS gives it: "device local 8236 of 23746 MiB (heap 24560 MiB)".
+	/// Each memory heap's size and, with VK_EXT_memory_budget, how much of it this process uses (every device it has,
+	/// Source 2's too) and the budget the OS gives it, which shrinks as other processes use the heap: "device local: process
+	/// 8236 MiB, budget 23746 of 24560 MiB (814 MiB elsewhere)".
 	/// </summary>
 	public string DescribeMemory()
 	{
@@ -503,8 +504,8 @@ public sealed unsafe partial class Device : IDisposable
 			var heap = properties.memoryProperties.Heap( i );
 			var kind = (heap.flags & Vulkan.Vk.HeapDeviceLocal) != 0 ? "device local" : "host";
 			heaps.Add( memoryBudget
-				? $"{kind} {budget.heapUsage[i] >> 20} of {budget.heapBudget[i] >> 20} MiB (heap {heap.size >> 20} MiB)"
-				: $"{kind} heap {heap.size >> 20} MiB" );
+				? $"{kind}: process {budget.heapUsage[i] >> 20} MiB, budget {budget.heapBudget[i] >> 20} of {heap.size >> 20} MiB ({(long)(heap.size - Math.Min( budget.heapBudget[i], heap.size )) >> 20} MiB elsewhere)"
+				: $"{kind}: heap {heap.size >> 20} MiB" );
 		}
 
 		return string.Join( ", ", heaps );
