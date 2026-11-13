@@ -31,6 +31,7 @@ internal sealed partial class GameWindow
 		using ( WindowPresentTiming.Scope() )
 		{
 			game.basalt.PresentFrame();
+			game.UpdateBasaltGpuTitle();
 			g_pRenderDevice.Present( default );
 		}
 
@@ -93,6 +94,18 @@ internal sealed partial class GameWindow
 				basalt.EndFrame( Graphics.RenderOverlay );
 		}
 	}
+
+	BasaltGpuTitle basaltTitle;
+
+	// Live stats in the title on Basalt.Gpu: the game's name, else the map's, else the window's own
+	void UpdateBasaltGpuTitle()
+	{
+		if ( RenderBackend.Default is not BasaltGpuRenderBackend backend ) return;
+		basaltTitle ??= new BasaltGpuTitle();
+		basaltTitle.Frame( basalt, backend, Application.GamePackage?.Title ?? backend.LastMap ?? title, setTitle ??= value => window.Title = value );
+	}
+
+	Action<string> setTitle;
 
 	// Where a Basalt.Gpu window's frame goes, in the dev tools' timings
 	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowFrameTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window" );

@@ -52,6 +52,9 @@ internal sealed class BasaltGpuWindow : IDisposable
 	/// </summary>
 	public double? GpuFrameMs { get; private set; }
 
+	/// <summary>Where the last camera that drew into the window was, for the title's stats (<see cref="BasaltGpuTitle"/>).</summary>
+	public Vector3? CameraPosition { get; set; }
+
 	/// <summary>Which frame <see cref="GpuFrameMs"/> was, counting from this window's first.</summary>
 	public ulong GpuFrameNumber { get; private set; }
 
