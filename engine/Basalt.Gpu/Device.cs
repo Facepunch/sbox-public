@@ -205,6 +205,7 @@ public sealed unsafe partial class Device : IDisposable
 			Bindless = new BindlessTable( this, bindlessTextures, bindlessSamplers, bindlessStorage, features.storageBufferUpdateAfterBind );
 			CreatePipelineCache( options.PipelineCacheData );
 			CreateFrames();
+			CreateMarkers();
 			CreateDefaultViewSet();
 		}
 		catch
@@ -442,6 +443,9 @@ public sealed unsafe partial class Device : IDisposable
 			}
 		}
 
+		// Progress markers, for how far the GPU got when the device is lost
+		if ( options.ProgressMarkers && deviceExtensions.Contains( "VK_AMD_buffer_marker" ) ) extensions.Add( "VK_AMD_buffer_marker" );
+
 		// Memory budgets, for how much of each heap the process is using
 		if ( deviceExtensions.Contains( "VK_EXT_memory_budget" ) ) extensions.Add( "VK_EXT_memory_budget" );
 
@@ -474,6 +478,7 @@ public sealed unsafe partial class Device : IDisposable
 		Presentation = extensions.Contains( "VK_KHR_swapchain" );
 		faultReports = extensions.Contains( "VK_EXT_device_fault" );
 		memoryBudget = extensions.Contains( "VK_EXT_memory_budget" );
+		bufferMarkers = extensions.Contains( "VK_AMD_buffer_marker" );
 		queueFamilies = asyncCompute ? [(uint)graphics, (uint)compute] : [(uint)graphics];
 		return vk;
 	}

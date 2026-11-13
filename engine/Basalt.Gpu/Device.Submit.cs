@@ -291,35 +291,38 @@ public sealed unsafe partial class Device
 	}
 
 	// The last lists submitted, for what was in flight when the device is lost (DescribeRecentSubmissions)
-	readonly (QueueType Queue, ulong Value, string Name, int HeldBefore, long Ticks)[] recentSubmissions = new (QueueType, ulong, string, int, long)[48];
+	readonly (QueueType Queue, ulong Value, string Name, int HeldBefore, long Ticks, int Markers)[] recentSubmissions = new (QueueType, ulong, string, int, long, int)[48];
 	int recentNext;
 
 	void Remember( DeviceQueue queue, ulong value, CommandList list, int heldBefore )
 	{
 		lock ( recentSubmissions )
 		{
-			recentSubmissions[recentNext] = (queue.Type, value, list.Name, heldBefore, Stopwatch.GetTimestamp());
+			recentSubmissions[recentNext] = (queue.Type, value, list.Name, heldBefore, Stopwatch.GetTimestamp(), list.MarkerSlot);
 			recentNext = (recentNext + 1) % recentSubmissions.Length;
 		}
 	}
 
 	/// <summary>
-	/// The last lists submitted, oldest first, each with its queue, its timeline value and whether the GPU had finished it
-	/// when last asked: what was in flight when the device was lost (a list held for one submission is "held"; one
-	/// submitted directly says how many held lists went with it), after the driver's fault report and the process's memory
-	/// use (<see cref="DescribeMemory"/>). For after the device
-	/// is lost: the fault report is only valid then.
+	/// For after the device is lost: the driver's fault report (only valid then), the process's memory use
+	/// (<see cref="DescribeMemory"/>), each queue's timeline, then the last lists submitted, oldest first, each with its
+	/// queue, timeline value, when it was submitted (a list held for one submission is "held"; one submitted directly says
+	/// how many held lists went with it), whether the timeline had passed it when last read before the loss, and with
+	/// <see cref="DeviceOptions.ProgressMarkers"/> how far the GPU got in it. A timeline read after the loss can't be
+	/// trusted: drivers may signal everything pending.
 	/// </summary>
 	public string DescribeRecentSubmissions()
 	{
 		var text = new System.Text.StringBuilder();
 		DescribeFault( text );
 		text.Append( $"memory: {DescribeMemory()}; " );
+		var seen = new Dictionary<QueueType, ulong>();
 		foreach ( var queue in (DeviceQueue[])[graphicsQueue, computeQueue] )
 		{
-			string completed;
-			try { completed = queue.Completed.ToString(); } catch ( GpuException ) { completed = "unknown (device lost)"; }
-			text.Append( $"{queue.Type} queue: submitted {queue.Submitted}, flushed {Volatile.Read( ref queue.Flushed )}, completed {completed}; " );
+			seen[queue.Type] = queue.CompletedSeen;
+			string now;
+			try { now = queue.Completed.ToString(); } catch ( GpuException ) { now = "unknown"; }
+			text.Append( $"{queue.Type} queue: submitted {queue.Submitted}, flushed {Volatile.Read( ref queue.Flushed )}, completed {seen[queue.Type]} when last read, {now} read now; " );
 			if ( computeQueue == graphicsQueue ) break;
 		}
 
@@ -328,10 +331,10 @@ public sealed unsafe partial class Device
 			var now = Stopwatch.GetTimestamp();
 			for ( int i = 0; i < recentSubmissions.Length; i++ )
 			{
-				var (queue, value, name, held, ticks) = recentSubmissions[(recentNext + i) % recentSubmissions.Length];
+				var (queue, value, name, held, ticks, markers) = recentSubmissions[(recentNext + i) % recentSubmissions.Length];
 				if ( name is null && value == 0 ) continue;
-				var done = QueueFor( queue ).CompletedSeen >= value ? "done" : "NOT DONE";
-				text.Append( $"\n  {queue} {value} {name} ({(held < 0 ? "held" : $"with {held} held")}, {Stopwatch.GetElapsedTime( ticks, now ).TotalMilliseconds:F0} ms ago) {done}" );
+				var done = seen.GetValueOrDefault( queue ) >= value ? "done" : "not seen done";
+				text.Append( $"\n  {queue} {value} {name} ({(held < 0 ? "held" : $"with {held} held")}, {Stopwatch.GetElapsedTime( ticks, now ).TotalMilliseconds:F0} ms ago) {done}{DescribeMarkers( markers )}" );
 			}
 		}
 
