@@ -194,6 +194,40 @@ public class ShadowTests
 	}
 
 	/// <summary>
+	/// A sun's max distance pulls its cascades in when it's below <c>r.shadows.csm.distance</c>, and is
+	/// ignored above it - the quality setting stays the ceiling.
+	/// </summary>
+	[TestMethod]
+	public void SunMaxDistanceCapsCascades()
+	{
+		var cascadeDistance = Sandbox.Rendering.ShadowMapper.CascadeDistance;
+		Sandbox.Rendering.ShadowMapper.CascadeDistance = 15000;
+
+		try
+		{
+			var world = new RenderWorld();
+			var view = LookingDownX();
+			using var system = new RenderSystem();
+
+			float OuterCascadeSize( float maxDistance )
+			{
+				world.Lighting.SunShadowMaxDistance = maxDistance;
+				Sandbox.Rendering.ShadowMapper.ResetCache();
+				CollectAndPrepare( system, world, view );
+				return system.ShadowMaps.Passes[^1].View.OrthoSize.x;
+			}
+
+			var uncapped = OuterCascadeSize( 0 );
+			Assert.IsTrue( OuterCascadeSize( 1000 ) < uncapped, "a 1000 unit cap pulls the cascades in" );
+			Assert.AreEqual( uncapped, OuterCascadeSize( 30000 ), 0.01f, "a cap past the quality setting does nothing" );
+		}
+		finally
+		{
+			Sandbox.Rendering.ShadowMapper.CascadeDistance = cascadeDistance;
+		}
+	}
+
+	/// <summary>
 	/// A point light casts into six cube faces and a spot into one view, each pointing its binned
 	/// light at its shadow. Lights and casters that opt out are left out, and a spot too small on
 	/// screen gets none, as native's <c>r.shadows.size_cull_threshold</c> has it.
