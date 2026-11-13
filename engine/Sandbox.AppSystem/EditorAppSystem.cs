@@ -5,8 +5,12 @@
 /// </summary>
 public class EditorAppSystem : AppSystem
 {
+	const ulong EditorAppId = 2129370;
+
 	public override void Init()
 	{
+		Application.AppId = EditorAppId;
+
 		LoadSteamDll();
 
 		base.Init();
