@@ -169,53 +169,48 @@ internal sealed class BackendParameters : ShaderParameters
 
 	static readonly uint BakedLightingName = new StringToken( "BakedLightingConstantBuffer_t" ).Value;
 	static readonly uint ProbeVolumeName = new StringToken( "PerBatchLightProbeVolumeConstantBuffer_t" ).Value;
-	int lightingFreeVersion = -1, probeFreeVersion = -1;
-	long lightingFreeKey, probeFreeKey;
+	int lightingFreeVersion = -1;
+	long lightingFreeKey;
 
 	/// <summary>
 	/// The same for parameters that hold the same values but for their lightmap and light probe volume constants, which GPU-driven variants
 	/// read from a record per draw: draws whose attributes differ only in those share a
 	/// bucket. A hash of the rest, its count in the top half.
 	/// </summary>
-	internal long LightingFreeKey => KeyWithout( true, ref lightingFreeVersion, ref lightingFreeKey );
-
-	/// <summary>
-	/// As <see cref="LightingFreeKey"/> but keeping the lightmap constants: for passes that read only the light probe volume's
-	/// per draw (GPU-driven surfaces).
-	/// </summary>
-	internal long ProbeFreeKey => KeyWithout( false, ref probeFreeVersion, ref probeFreeKey );
-
-	long KeyWithout( bool baked, ref int keyVersion, ref long key )
+	internal long LightingFreeKey
 	{
-		// The parent's first, so this lock is never held while taking another
-		var current = Version;
-		var parentKey = baked ? Parent?.LightingFreeKey : Parent?.ProbeFreeKey;
-		lock ( gate )
+		get
 		{
-			if ( keyVersion == current ) return key;
-
-			var hash = new HashCode();
-			var count = 0;
-			foreach ( var (name, value) in Sorted( values ) )
+			// The parent's first, so this lock is never held while taking another
+			var current = Version;
+			var parentKey = Parent?.LightingFreeKey;
+			lock ( gate )
 			{
-				if ( name == ProbeVolumeName || baked && name == BakedLightingName ) continue;
-				hash.Add( name );
-				if ( value is byte[] bytes ) hash.AddBytes( bytes );
-				else hash.Add( value );
-				count++;
-			}
+				if ( lightingFreeVersion == current ) return lightingFreeKey;
 
-			foreach ( var (name, value) in Sorted( combos ) )
-			{
-				hash.Add( name ^ 0x9E3779B9u );
-				hash.Add( (int)value );
-				count++;
-			}
+				var hash = new HashCode();
+				var count = 0;
+				foreach ( var (name, value) in Sorted( values ) )
+				{
+					if ( name == ProbeVolumeName || name == BakedLightingName ) continue;
+					hash.Add( name );
+					if ( value is byte[] bytes ) hash.AddBytes( bytes );
+					else hash.Add( value );
+					count++;
+				}
 
-			if ( parentKey is { } inherited ) hash.Add( inherited );
-			key = (long)count << 32 | (uint)hash.ToHashCode();
-			keyVersion = current;
-			return key;
+				foreach ( var (name, value) in Sorted( combos ) )
+				{
+					hash.Add( name ^ 0x9E3779B9u );
+					hash.Add( (int)value );
+					count++;
+				}
+
+				if ( parentKey is { } inherited ) hash.Add( inherited );
+				lightingFreeKey = (long)count << 32 | (uint)hash.ToHashCode();
+				lightingFreeVersion = current;
+				return lightingFreeKey;
+			}
 		}
 	}
 
