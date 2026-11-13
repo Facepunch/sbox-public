@@ -239,6 +239,9 @@ public static partial class Input
 			foreach ( var e in Contexts )
 			{
 				e.AccumKeysPressed.Add( code );
+
+				// cancel a release from earlier this frame, otherwise the next flip drops a key that is held again
+				e.AccumKeysReleased.Remove( code );
 			}
 		}
 		else
@@ -284,6 +287,7 @@ public static partial class Input
 						continue;
 
 					e.AccumActionsPressed |= 1UL << i;
+					e.AccumActionsReleased &= ~(1UL << i);
 				}
 			}
 			else
