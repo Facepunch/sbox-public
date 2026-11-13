@@ -1112,6 +1112,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	public Task LoadPackageAssembliesAsync( Package package )
 	{
 		AssemblyEnroller.LoadPackage( package.FullIdent, true );
+		Engine.IToolsDll.Current?.LoadPackageAssemblies( package );
 		return Task.CompletedTask;
 	}
 }
