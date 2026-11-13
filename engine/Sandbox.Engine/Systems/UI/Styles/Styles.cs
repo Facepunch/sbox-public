@@ -183,6 +183,7 @@ public partial class Styles : BaseStyles
 			};
 
 			RawValues[property] = prop;
+			OnRawPropertySet( property );
 			success = wasSuccessful || success;
 
 			p = p.SkipWhitespaceAndNewlines();

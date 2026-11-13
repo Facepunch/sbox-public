@@ -226,6 +226,7 @@ foreach ( var member in Members)
 		get => _<#=member.Key.ToLowerInvariant()#>;
 		set
 		{
+			OnPropertySet( "<#=CSSName#>" );
 			if ( _<#=member.Key.ToLowerInvariant()#> == value ) return;
 			_<#=member.Key.ToLowerInvariant()#> = value;
 			Dirty();
@@ -259,6 +260,35 @@ foreach ( var member in Members)
 	foreach ( var member in Members)
 	{
 #>		_<#=member.Key.ToLowerInvariant()#> = a._<#=member.Key.ToLowerInvariant()#>;
+<#
+	}
+#>
+	}
+
+	/// <summary>
+	/// Remove an attribute's values unless a later style write replaced them.
+	/// </summary>
+	private void RestoreMatchingValuesGenerated( BaseStyles before, BaseStyles after, System.Collections.Generic.HashSet<string> written )
+	{
+<#
+	foreach ( var member in Members )
+	{
+		var field = member.Key.ToLowerInvariant();
+		var property = string.Join( "-", Regex.Split( member.Key, @"(?<!^)(?=[A-Z])" ).Select( x => x.ToLowerInvariant() ) );
+#>		RestoreMatchingProperty( ref _<#=field#>, before._<#=field#>, after._<#=field#>, "<#=property#>", before, after, written );
+<#
+	}
+#>
+	}
+
+	private void TrackAddedPropertiesGenerated( BaseStyles source )
+	{
+<#
+	foreach ( var member in Members )
+	{
+		var field = member.Key.ToLowerInvariant();
+		var property = string.Join( "-", Regex.Split( member.Key, @"(?<!^)(?=[A-Z])" ).Select( x => x.ToLowerInvariant() ) );
+#>		if ( source._<#=field#> != null ) OnPropertySet( "<#=property#>" );
 <#
 	}
 #>
@@ -382,6 +412,31 @@ foreach ( var member in Members )
 		<#}}#>}
 	}
 	
+	internal void TrackLerpedPropertyGenerated( string name, BaseStyles from, BaseStyles to )
+	{
+		switch ( name )
+		{
+<#
+	foreach ( var member in Members )
+	{
+		if ( !IsTransitionable( member.Value.TypeName ) ) continue;
+		var property = string.Join( "-", Regex.Split( member.Key, @"(?<!^)(?=[A-Z])" ).Select( x => x.ToLowerInvariant() ) );
+		var field = member.Key.ToLowerInvariant();
+		var fromValue = $"from._{field}";
+		var toValue = $"to._{field}";
+		if ( LerpFallbacks.TryGetValue( member.Key, out var fallback ) )
+		{
+			fromValue += $" ?? from._{fallback.ToLowerInvariant()}";
+			toValue += $" ?? to._{fallback.ToLowerInvariant()}";
+		}
+#>			case "<#=property#>":
+				if ( (<#=fromValue#>).HasValue || (<#=toValue#>).HasValue ) OnPropertySet( name );
+				break;
+<#
+	}
+#>		}
+	}
+
 	/// <summary>
 	/// Perform a deep copy of this stylesheet
 	/// </summary>
@@ -392,6 +447,7 @@ foreach ( var member in Members )
 		var (key, value) = (member.Key.ToLowerInvariant(), member.Value);
 			#>copy._<#=key#> = _<#=key#>;
 		<#}#>copy.CssWide = CssWide == null ? null : new System.Collections.Generic.Dictionary<string, CssWideKeyword>( CssWide );
+		copy.OnStyleCloned( this );
 		return copy;
 	}
 
