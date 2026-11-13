@@ -29,6 +29,10 @@ internal class SceneLightProbe : SceneObject
 			CSceneSystem.CreateLightProbeVolume( sceneWorld );
 		}
 
+		ProbeTexture = texture;
+		IndicesTexture = indicesTexture;
+		ScalarsTexture = scalarsTexture;
+
 		lightProbeVolume.m_vBoxMins = bounds.Mins;
 		lightProbeVolume.m_vBoxMaxs = bounds.Maxs;
 		lightProbeVolume.m_nHandshake = handshake;
@@ -52,6 +56,11 @@ internal class SceneLightProbe : SceneObject
 
 		CSceneSystem.MarkLightProbeVolumeObjectUpdated( this );
 	}
+
+	/// <summary>The volume's probe texture and its direct light indices and scalars, as it was made with them.</summary>
+	internal Texture ProbeTexture { get; }
+	internal Texture IndicesTexture { get; }
+	internal Texture ScalarsTexture { get; }
 
 	internal override void OnNativeInit( CSceneObject ptr )
 	{

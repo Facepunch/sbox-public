@@ -1,5 +1,6 @@
 using Basalt.Gpu.Vulkan;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 
@@ -60,6 +61,9 @@ internal sealed unsafe class DeviceQueue : IDisposable
 			return value;
 		}
 	}
+
+	/// <summary>The value the GPU had reached when last asked, without asking it.</summary>
+	public ulong CompletedSeen => Volatile.Read( ref completed );
 
 	/// <summary>Take the next value for a submission. Call with <see cref="SubmitLock"/> held.</summary>
 	public ulong Next() => ++submitted;
@@ -200,6 +204,7 @@ public sealed unsafe partial class Device
 			if ( waitCount > 0 || swapChain is not null ) FlushLocked( queue );
 
 			var value = queue.Next();
+			Remember( queue, value, list, queue.Pending.Count );
 			signals[0] = new VkSemaphoreSubmitInfo { sType = VkStructureType.SemaphoreSubmitInfo, semaphore = queue.Timeline, value = value, stageMask = Vulkan.Vk.Stage2AllCommands };
 
 			var count = queue.Pending.Count + 1;
@@ -241,6 +246,7 @@ public sealed unsafe partial class Device
 		lock ( queue.SubmitLock )
 		{
 			var value = queue.Next();
+			Remember( queue, value, list, -1 );
 			queue.Pending.Add( list.Handle );
 			return list.Submitted = new SyncPoint( list.Queue, value );
 		}
@@ -282,6 +288,107 @@ public sealed unsafe partial class Device
 		Interlocked.Increment( ref submissions );
 		queue.Pending.Clear();
 		Volatile.Write( ref queue.Flushed, value );
+	}
+
+	// The last lists submitted, for what was in flight when the device is lost (DescribeRecentSubmissions)
+	readonly (QueueType Queue, ulong Value, string Name, int HeldBefore, long Ticks)[] recentSubmissions = new (QueueType, ulong, string, int, long)[48];
+	int recentNext;
+
+	void Remember( DeviceQueue queue, ulong value, CommandList list, int heldBefore )
+	{
+		lock ( recentSubmissions )
+		{
+			recentSubmissions[recentNext] = (queue.Type, value, list.Name, heldBefore, Stopwatch.GetTimestamp());
+			recentNext = (recentNext + 1) % recentSubmissions.Length;
+		}
+	}
+
+	/// <summary>
+	/// The last lists submitted, oldest first, each with its queue, its timeline value and whether the GPU had finished it
+	/// when last asked: what was in flight when the device was lost (a list held for one submission is "held"; one
+	/// submitted directly says how many held lists went with it), after the driver's fault report and the process's memory
+	/// use (<see cref="DescribeMemory"/>). For after the device
+	/// is lost: the fault report is only valid then.
+	/// </summary>
+	public string DescribeRecentSubmissions()
+	{
+		var text = new System.Text.StringBuilder();
+		DescribeFault( text );
+		text.Append( $"memory: {DescribeMemory()}; " );
+		foreach ( var queue in (DeviceQueue[])[graphicsQueue, computeQueue] )
+		{
+			string completed;
+			try { completed = queue.Completed.ToString(); } catch ( GpuException ) { completed = "unknown (device lost)"; }
+			text.Append( $"{queue.Type} queue: submitted {queue.Submitted}, flushed {Volatile.Read( ref queue.Flushed )}, completed {completed}; " );
+			if ( computeQueue == graphicsQueue ) break;
+		}
+
+		lock ( recentSubmissions )
+		{
+			var now = Stopwatch.GetTimestamp();
+			for ( int i = 0; i < recentSubmissions.Length; i++ )
+			{
+				var (queue, value, name, held, ticks) = recentSubmissions[(recentNext + i) % recentSubmissions.Length];
+				if ( name is null && value == 0 ) continue;
+				var done = QueueFor( queue ).CompletedSeen >= value ? "done" : "NOT DONE";
+				text.Append( $"\n  {queue} {value} {name} ({(held < 0 ? "held" : $"with {held} held")}, {Stopwatch.GetElapsedTime( ticks, now ).TotalMilliseconds:F0} ms ago) {done}" );
+			}
+		}
+
+		return text.ToString();
+	}
+
+	/// <summary>The driver's VK_EXT_device_fault report after the device is lost: its description and the faulting addresses.</summary>
+	void DescribeFault( System.Text.StringBuilder text )
+	{
+		if ( !faultReports || Vk.vkGetDeviceFaultInfoEXT == null )
+		{
+			text.Append( "no device fault report; " );
+			return;
+		}
+
+		var counts = new VkDeviceFaultCountsEXT { sType = VkStructureType.DeviceFaultCountsExt };
+		var result = Vk.vkGetDeviceFaultInfoEXT( Vk.Device, &counts, null );
+		if ( result < 0 )
+		{
+			text.Append( $"device fault counts failed ({result}); " );
+			return;
+		}
+
+		var addresses = new VkDeviceFaultAddressInfoEXT[Math.Max( counts.addressInfoCount, 1u )];
+		var vendors = new VkDeviceFaultVendorInfoEXT[Math.Max( counts.vendorInfoCount, 1u )];
+		counts.vendorBinarySize = 0;
+		var info = new VkDeviceFaultInfoEXT { sType = VkStructureType.DeviceFaultInfoExt };
+		fixed ( VkDeviceFaultAddressInfoEXT* a = addresses )
+		fixed ( VkDeviceFaultVendorInfoEXT* v = vendors )
+		{
+			info.pAddressInfos = a;
+			info.pVendorInfos = v;
+			result = Vk.vkGetDeviceFaultInfoEXT( Vk.Device, &counts, &info );
+		}
+
+		if ( result < 0 )
+		{
+			text.Append( $"device fault info failed ({result}); " );
+			return;
+		}
+
+		ReadOnlySpan<string> kinds = ["none", "read invalid", "write invalid", "execute invalid", "ip unknown frame", "ip invalid frame", "ip fault frame"];
+		text.Append( $"device fault: \"{Marshal.PtrToStringUTF8( (nint)info.description )}\", {counts.addressInfoCount} addresses, {counts.vendorInfoCount} vendor records" );
+		for ( int i = 0; i < counts.addressInfoCount; i++ )
+		{
+			var address = addresses[i];
+			var kind = address.addressType >= 0 && address.addressType < kinds.Length ? kinds[address.addressType] : address.addressType.ToString();
+			text.Append( $"\n  fault address {kind} 0x{address.reportedAddress:X} (precision 0x{address.addressPrecision:X})" );
+		}
+
+		for ( int i = 0; i < counts.vendorInfoCount; i++ )
+		{
+			fixed ( VkDeviceFaultVendorInfoEXT* v = &vendors[i] )
+				text.Append( $"\n  vendor \"{Marshal.PtrToStringUTF8( (nint)v->description )}\" code 0x{v->vendorFaultCode:X} data 0x{v->vendorFaultData:X}" );
+		}
+
+		text.Append( "\n" );
 	}
 
 	/// <summary>Submissions made to the GPU (<c>vkQueueSubmit2</c> calls) so far, on every queue. For profiling and tests.</summary>
