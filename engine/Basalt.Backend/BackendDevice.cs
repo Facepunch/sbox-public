@@ -529,6 +529,82 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		public int Probe, Indices, Scalars;
 	}
 
+	/// <summary>
+	/// Lightmap attributes over <paramref name="lightmaps"/> (texture paths), as native's <c>SetSceneObjectLightmapAttributes</c>
+	/// binds a world's: the textures by their base names, their bindless indices and <paramref name="uvScale"/> in
+	/// <c>BakedLightingConstantBuffer_t</c>, and the lightmap combo. Null when none is readable; those that aren't go in
+	/// <paramref name="problems"/>.
+	/// </summary>
+	public ShaderParameters LightmapParameters( IEnumerable<string> lightmaps, System.Numerics.Vector2 uvScale, List<string> problems = null )
+	{
+		var textures = new List<(string Name, GpuTexture Texture)>();
+		foreach ( var path in lightmaps )
+		{
+			var name = Path.GetFileNameWithoutExtension( path );
+			if ( name == "debug_chart_color" ) continue;
+			if ( LoadTexture( path ) is BackendTexture { Dimension: TextureDimension.Texture2DArray } texture ) textures.Add( (name, texture) );
+			else problems?.Add( $"lightmap {path} isn't readable" );
+		}
+
+		if ( textures.Count == 0 ) return null;
+
+		var constants = new LightmapConstants { UvScale = new Vector4( uvScale.X > 0 ? uvScale.X : 1, uvScale.Y > 0 ? uvScale.Y : 1, 0, 0 ) };
+		var attributes = CreateParameters();
+		for ( int i = 0; i < textures.Count && i < 8; i++ )
+		{
+			attributes.Set( textures[i].Name, textures[i].Texture );
+			constants.Indices[i] = textures[i].Texture.BindlessIndex;
+		}
+
+		attributes.SetData( "BakedLightingConstantBuffer_t", constants );
+		attributes.Set( "UsesBakedLightmaps", true );
+		attributes.Set( "UsesBakedLightingFromProbe", false );
+		attributes.SetCombo( "D_BAKED_LIGHTING_FROM_PROBE", 0 );
+		attributes.SetCombo( "D_BAKED_LIGHTING_FROM_LIGHTMAP", 1 );
+		return attributes;
+	}
+
+	readonly Dictionary<string, ShaderParameters> mapLightmaps = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// The lightmaps of the map in <paramref name="folder"/> (<c>maps/construct_25</c>), from its world file
+	/// (<see cref="LightmapParameters"/>), read once; null without lightmaps or a readable world.
+	/// </summary>
+	public ShaderParameters MapLightmapParameters( string folder )
+	{
+		if ( string.IsNullOrEmpty( folder ) ) return null;
+		lock ( mapLightmaps )
+		{
+			if ( mapLightmaps.TryGetValue( folder, out var cached ) ) return cached;
+			ShaderParameters made = null;
+			try
+			{
+				var world = Basalt.Source2.World.WorldFile.Load( Content, $"{folder}/world.vwrld" );
+				made = LightmapParameters( world.Lightmaps, world.LightmapUvScale );
+			}
+			catch ( Exception e ) when ( e is IOException or InvalidDataException or KeyNotFoundException )
+			{
+				made = null;
+			}
+
+			return mapLightmaps[folder] = made;
+		}
+	}
+
+	/// <summary>Eight lightmap bindless indices (six used), as two int4s.</summary>
+	[InlineArray( 8 )]
+	struct LightmapIndices
+	{
+		int element;
+	}
+
+	/// <summary><c>BakedLightingConstantBuffer_t</c>: the uv scale and the lightmaps' bindless indices.</summary>
+	struct LightmapConstants
+	{
+		public Vector4 UvScale;
+		public LightmapIndices Indices;
+	}
+
 	/// <inheritdoc/>
 	public override GpuTexture SheetMetadata => sheetMetadata;
 
