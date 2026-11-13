@@ -164,7 +164,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 			if ( !(networkObject.GameObject?.IsDestroyed ?? true) )
 			{
-				Broadcast( networkObject.GetCreateMessage() );
+				var create = networkObject.GetCreateMessage();
+				Broadcast( create );
+				NetworkDebugSystem.Current?.Track( "OnObjectCreate", create, outbound: true );
 
 				foreach ( var recipient in GetFilteredConnections() )
 				{
@@ -190,6 +192,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		msg.CreateMsgs = list.ToArray();
 
 		Broadcast( msg );
+		NetworkDebugSystem.Current?.Track( "OnObjectCreateBatch", msg, outbound: true );
 
 		var recipients = GetFilteredConnections().ToList();
 
@@ -225,7 +228,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			return;
 		}
 
-		Broadcast( networkObject.GetCreateMessage() );
+		var msg = networkObject.GetCreateMessage();
+		Broadcast( msg );
+		NetworkDebugSystem.Current?.Track( "OnObjectCreate", msg, outbound: true );
 
 		foreach ( var recipient in GetFilteredConnections() )
 		{
@@ -246,6 +251,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		};
 
 		Broadcast( msg );
+		NetworkDebugSystem.Current?.Track( "OnObjectDetach", msg, outbound: true );
 	}
 
 	/// <summary>
@@ -260,6 +266,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		var msg = new ObjectDestroyMsg { Guid = networkObject.GameObject.Id };
 		Broadcast( msg );
+		NetworkDebugSystem.Current?.Track( "OnObjectDestroy", msg, outbound: true );
 	}
 
 	/// <summary>
@@ -267,8 +274,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	private async Task OnLoadSceneSnapshotMsg( LoadSceneSnapshotMsg msg, Connection connection, Guid msgId )
 	{
-		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
-		Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, connection );
+		NetworkDebugSystem.TrackSnapshot( msg, connection );
 
 		// The maps sent with LoadSceneBeginMsg can be out of date, because the host's maps were still
 		// loading. Mount the final list before the snapshot creates objects that use files in them.
@@ -1229,8 +1235,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	private void OnObjectRefresh( ObjectRefreshMsg message, Connection source )
 	{
-		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Refresh, message );
-		NetworkDebugSystem.Current?.Track( "OnObjectRefresh", message );
+		NetworkDebugSystem.Current?.Track( NetworkDebugSystem.MessageType.Refresh, "OnObjectRefresh", message, peer: source );
 
 		// Is this a request from someone?
 		if ( source is not null && !source.CanRefreshObjects )
@@ -1266,8 +1271,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	private void OnObjectCreateBatch( ObjectCreateBatchMsg message, Connection source, Guid msgId )
 	{
-		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Spawn, message );
-		NetworkDebugSystem.Current?.Track( "OnObjectCreateBatch", message );
+		NetworkDebugSystem.Current?.Track( NetworkDebugSystem.MessageType.Spawn, "OnObjectCreateBatch", message, peer: source );
 
 		// If we haven't even loaded a scene yet, this message was not sent in order (we don't even have the snapshot yet.)
 		var scene = Game.ActiveScene;
@@ -1314,8 +1318,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	private void OnObjectCreate( ObjectCreateMsg message, Connection source, Guid msgId )
 	{
-		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Spawn, message );
-		NetworkDebugSystem.Current?.Track( "OnObjectCreate", message );
+		NetworkDebugSystem.Current?.Track( NetworkDebugSystem.MessageType.Spawn, "OnObjectCreate", message, peer: source );
 
 		// If we haven't even loaded a scene yet, this message was not sent in order (we don't even have the snapshot yet.)
 		var scene = Game.ActiveScene;
@@ -1396,7 +1399,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	private void OnObjectDetach( ObjectDetachMsg message, Connection source, Guid msgId )
 	{
-		NetworkDebugSystem.Current?.Track( "OnObjectDetach", message );
+		NetworkDebugSystem.Current?.Track( "OnObjectDetach", message, peer: source );
 
 		var scene = Game.ActiveScene;
 		if ( !scene.IsValid() )
@@ -1425,7 +1428,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	private void OnObjectDestroy( ObjectDestroyMsg message, Connection source, Guid msgId )
 	{
-		NetworkDebugSystem.Current?.Track( "OnObjectDestroy", message );
+		NetworkDebugSystem.Current?.Track( "OnObjectDestroy", message, peer: source );
 
 		var scene = Game.ActiveScene;
 		if ( !scene.IsValid() )

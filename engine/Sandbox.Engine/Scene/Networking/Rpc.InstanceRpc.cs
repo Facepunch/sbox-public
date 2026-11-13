@@ -135,7 +135,7 @@ public static partial class Rpc
 			FinishMessage( ref bs, m, args );
 
 			// Owner and host are both the host for a system
-			SendMessage( ref bs, m, attribute, Connection.Host?.Id ?? Guid.Empty );
+			SendMessage( ref bs, m, attribute, Connection.Host?.Id ?? Guid.Empty, system, args );
 		}
 		finally
 		{
@@ -163,7 +163,7 @@ public static partial class Rpc
 			bs.Write( go.Id );
 			bs.Write( component?.Id ?? Guid.Empty );
 			FinishMessage( ref bs, m, args );
-			SendMessage( ref bs, m, attribute, targetId );
+			SendMessage( ref bs, m, attribute, targetId, (object)component ?? go, args );
 		}
 		finally
 		{

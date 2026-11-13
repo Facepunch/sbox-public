@@ -11,7 +11,10 @@ namespace Sandbox;
 /// </summary>
 internal abstract class RpcInvoker
 {
-	public abstract void Invoke( object target, TypeLibrary library, ref ByteStream bs );
+	/// <summary>
+	/// Reads the arguments and calls the method. <paramref name="observe"/> gets the boxed arguments first, for diagnostics.
+	/// </summary>
+	public abstract void Invoke( object target, TypeLibrary library, ref ByteStream bs, Action<object[]> observe = null );
 
 	public int ParameterCount { get; private set; }
 
@@ -91,68 +94,81 @@ internal abstract class RpcInvoker
 
 	sealed class UnsupportedInvoker : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary library, ref ByteStream bs ) => throw new NotSupportedException();
+		public override void Invoke( object target, TypeLibrary library, ref ByteStream bs, Action<object[]> observe = null ) => throw new NotSupportedException();
 	}
 
 	sealed class StaticInvoker( Action f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs ) => f();
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
+		{
+			observe?.Invoke( [] );
+			f();
+		}
 	}
 
 	sealed class StaticInvoker<T1>( Action<T1> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs ) => f( l.FromBytes<T1>( ref bs ) );
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
+		{
+			var a1 = l.FromBytes<T1>( ref bs );
+			observe?.Invoke( [a1] );
+			f( a1 );
+		}
 	}
 
 	sealed class StaticInvoker<T1, T2>( Action<T1, T2> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs )
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
 		{
 			var a1 = l.FromBytes<T1>( ref bs );
 			var a2 = l.FromBytes<T2>( ref bs );
+			observe?.Invoke( [a1, a2] );
 			f( a1, a2 );
 		}
 	}
 
 	sealed class StaticInvoker<T1, T2, T3>( Action<T1, T2, T3> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs )
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
 		{
 			var a1 = l.FromBytes<T1>( ref bs );
 			var a2 = l.FromBytes<T2>( ref bs );
 			var a3 = l.FromBytes<T3>( ref bs );
+			observe?.Invoke( [a1, a2, a3] );
 			f( a1, a2, a3 );
 		}
 	}
 
 	sealed class StaticInvoker<T1, T2, T3, T4>( Action<T1, T2, T3, T4> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs )
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
 		{
 			var a1 = l.FromBytes<T1>( ref bs );
 			var a2 = l.FromBytes<T2>( ref bs );
 			var a3 = l.FromBytes<T3>( ref bs );
 			var a4 = l.FromBytes<T4>( ref bs );
+			observe?.Invoke( [a1, a2, a3, a4] );
 			f( a1, a2, a3, a4 );
 		}
 	}
 
 	sealed class StaticInvoker<T1, T2, T3, T4, T5>( Action<T1, T2, T3, T4, T5> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs )
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
 		{
 			var a1 = l.FromBytes<T1>( ref bs );
 			var a2 = l.FromBytes<T2>( ref bs );
 			var a3 = l.FromBytes<T3>( ref bs );
 			var a4 = l.FromBytes<T4>( ref bs );
 			var a5 = l.FromBytes<T5>( ref bs );
+			observe?.Invoke( [a1, a2, a3, a4, a5] );
 			f( a1, a2, a3, a4, a5 );
 		}
 	}
 
 	sealed class StaticInvoker<T1, T2, T3, T4, T5, T6>( Action<T1, T2, T3, T4, T5, T6> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs )
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
 		{
 			var a1 = l.FromBytes<T1>( ref bs );
 			var a2 = l.FromBytes<T2>( ref bs );
@@ -160,69 +176,83 @@ internal abstract class RpcInvoker
 			var a4 = l.FromBytes<T4>( ref bs );
 			var a5 = l.FromBytes<T5>( ref bs );
 			var a6 = l.FromBytes<T6>( ref bs );
+			observe?.Invoke( [a1, a2, a3, a4, a5, a6] );
 			f( a1, a2, a3, a4, a5, a6 );
 		}
 	}
 
 	sealed class InstanceInvoker<TTarget>( Action<TTarget> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs ) => f( (TTarget)target );
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
+		{
+			observe?.Invoke( [] );
+			f( (TTarget)target );
+		}
 	}
 
 	sealed class InstanceInvoker<TTarget, T1>( Action<TTarget, T1> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs ) => f( (TTarget)target, l.FromBytes<T1>( ref bs ) );
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
+		{
+			var a1 = l.FromBytes<T1>( ref bs );
+			observe?.Invoke( [a1] );
+			f( (TTarget)target, a1 );
+		}
 	}
 
 	sealed class InstanceInvoker<TTarget, T1, T2>( Action<TTarget, T1, T2> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs )
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
 		{
 			var a1 = l.FromBytes<T1>( ref bs );
 			var a2 = l.FromBytes<T2>( ref bs );
+			observe?.Invoke( [a1, a2] );
 			f( (TTarget)target, a1, a2 );
 		}
 	}
 
 	sealed class InstanceInvoker<TTarget, T1, T2, T3>( Action<TTarget, T1, T2, T3> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs )
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
 		{
 			var a1 = l.FromBytes<T1>( ref bs );
 			var a2 = l.FromBytes<T2>( ref bs );
 			var a3 = l.FromBytes<T3>( ref bs );
+			observe?.Invoke( [a1, a2, a3] );
 			f( (TTarget)target, a1, a2, a3 );
 		}
 	}
 
 	sealed class InstanceInvoker<TTarget, T1, T2, T3, T4>( Action<TTarget, T1, T2, T3, T4> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs )
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
 		{
 			var a1 = l.FromBytes<T1>( ref bs );
 			var a2 = l.FromBytes<T2>( ref bs );
 			var a3 = l.FromBytes<T3>( ref bs );
 			var a4 = l.FromBytes<T4>( ref bs );
+			observe?.Invoke( [a1, a2, a3, a4] );
 			f( (TTarget)target, a1, a2, a3, a4 );
 		}
 	}
 
 	sealed class InstanceInvoker<TTarget, T1, T2, T3, T4, T5>( Action<TTarget, T1, T2, T3, T4, T5> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs )
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
 		{
 			var a1 = l.FromBytes<T1>( ref bs );
 			var a2 = l.FromBytes<T2>( ref bs );
 			var a3 = l.FromBytes<T3>( ref bs );
 			var a4 = l.FromBytes<T4>( ref bs );
 			var a5 = l.FromBytes<T5>( ref bs );
+			observe?.Invoke( [a1, a2, a3, a4, a5] );
 			f( (TTarget)target, a1, a2, a3, a4, a5 );
 		}
 	}
 
 	sealed class InstanceInvoker<TTarget, T1, T2, T3, T4, T5, T6>( Action<TTarget, T1, T2, T3, T4, T5, T6> f ) : RpcInvoker
 	{
-		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs )
+		public override void Invoke( object target, TypeLibrary l, ref ByteStream bs, Action<object[]> observe = null )
 		{
 			var a1 = l.FromBytes<T1>( ref bs );
 			var a2 = l.FromBytes<T2>( ref bs );
@@ -230,6 +260,7 @@ internal abstract class RpcInvoker
 			var a4 = l.FromBytes<T4>( ref bs );
 			var a5 = l.FromBytes<T5>( ref bs );
 			var a6 = l.FromBytes<T6>( ref bs );
+			observe?.Invoke( [a1, a2, a3, a4, a5, a6] );
 			f( (TTarget)target, a1, a2, a3, a4, a5, a6 );
 		}
 	}

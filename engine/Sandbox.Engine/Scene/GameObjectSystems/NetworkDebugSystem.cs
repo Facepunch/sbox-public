@@ -1,6 +1,7 @@
 ﻿using Sandbox.Engine;
 using Sandbox.Utility;
 using System.Diagnostics;
+using NetworkLog = Sandbox.Diagnostics.DevTools.NetworkLog;
 
 namespace Sandbox;
 
@@ -115,27 +116,65 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 		_trackingTimer.Start();
 	}
 
-	/// <summary>
-	/// Track a network message for diagnostic purposes.
-	/// </summary>
-	internal void Track<T>( string name, T message, bool outbound = false, Connection source = default )
+	internal static int SerializedSize<T>( T message )
 	{
-		if ( !TracksCalls )
-			return;
-
 		var bs = ByteStream.Create( 256 );
-		int msgSize;
 		try
 		{
 			GlobalContext.Current.TypeLibrary.ToBytes( message, ref bs );
-			msgSize = bs.Length;
+			return bs.Length;
 		}
 		finally
 		{
 			bs.Dispose();
 		}
+	}
 
-		Track( name, msgSize, outbound, source, Diagnostics.DevTools.NetworkLog.Kind.Object );
+	/// <summary>
+	/// Track a network message for diagnostic purposes.
+	/// </summary>
+	internal void Track<T>( string name, T message, bool outbound = false, Connection peer = default )
+	{
+		if ( !TracksCalls )
+			return;
+
+		Track( name, SerializedSize( message ), outbound, peer );
+	}
+
+	/// <summary>
+	/// Track a message and add its size to the graph.
+	/// </summary>
+	internal void Track<T>( MessageType type, string name, T message, bool outbound = false, Connection peer = default )
+	{
+		if ( !TracksCalls )
+		{
+			return;
+		}
+
+		var size = SerializedSize( message );
+		Record( type, size );
+		Track( name, size, outbound, peer );
+	}
+
+	void Track( string name, int size, bool outbound, Connection peer )
+	{
+		NetworkLog.Message( NetworkLog.Kind.Object, name, size, outbound, peer );
+		CountCall( name, size, outbound, peer );
+	}
+
+	/// <summary>
+	/// Track a received scene snapshot. Static since it can arrive before there's a scene with this system.
+	/// </summary>
+	internal static void TrackSnapshot<T>( T message, Connection source )
+	{
+		if ( !Diagnostics.DevTools.IsCollecting( "network" ) )
+		{
+			return;
+		}
+
+		var size = SerializedSize( message );
+		Current?.Record( MessageType.Snapshot, size );
+		NetworkLog.Message( NetworkLog.Kind.Snapshot, "SceneSnapshot", size, false, source );
 	}
 
 	/// <summary>
@@ -144,19 +183,39 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	internal bool TracksCalls => NetworkRecord || Diagnostics.DevTools.IsCollecting( "network" );
 
 	/// <summary>
-	/// Track a network message of a known size for diagnostic purposes.
+	/// Track an RPC and its arguments. A null peer is a broadcast.
 	/// </summary>
-	internal void Track( string name, int msgSize, bool outbound = false, Connection source = default ) => Track( name, msgSize, outbound, source, Diagnostics.DevTools.NetworkLog.Kind.Rpc );
-
-	void Track( string name, int msgSize, bool outbound, Connection source, Diagnostics.DevTools.NetworkLog.Kind kind )
+	internal void TrackRpc( string name, int msgSize, bool outbound, Connection peer, object owner, string args )
 	{
 		if ( !TracksCalls )
+		{
 			return;
+		}
 
+		NetworkLog.Rpc( name, msgSize, outbound, peer, owner, args );
+		CountCall( name, msgSize, outbound, peer );
+	}
+
+	/// <summary>
+	/// Track a broadcast RPC narrowed by <see cref="Rpc.Filter"/>.
+	/// </summary>
+	internal void TrackFilteredRpc( string name, int msgSize, IReadOnlyList<Connection> recipients, object owner, string args )
+	{
+		if ( !TracksCalls )
+		{
+			return;
+		}
+
+		NetworkLog.FilteredRpc( name, msgSize, recipients, owner, args );
+		CountCall( name, msgSize, outbound: true, null );
+	}
+
+	void CountCall( string name, int msgSize, bool outbound, Connection source, bool sync = false )
+	{
 		EnsureInitialized();
-		Diagnostics.DevTools.NetworkLog.Message( kind, name, msgSize, outbound, outbound ? null : source );
-
-		var stats = outbound ? OutboundStats : InboundStats;
+		var stats = sync
+			? outbound ? SyncVarOutboundStats : SyncVarInboundStats
+			: outbound ? OutboundStats : InboundStats;
 
 		if ( !stats.TryGetValue( name, out var stat ) )
 			stat = stats[name] = new();
@@ -166,8 +225,9 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 		// Per-connection breakdown for inbound messages
 		if ( !outbound && source is not null )
 		{
-			if ( !ConnectionStats.TryGetValue( source.Id, out var connStats ) )
-				connStats = ConnectionStats[source.Id] = new();
+			var connections = sync ? SyncVarConnectionStats : ConnectionStats;
+			if ( !connections.TryGetValue( source.Id, out var connStats ) )
+				connStats = connections[source.Id] = new();
 
 			if ( !connStats.TryGetValue( name, out var connStat ) )
 				connStat = connStats[name] = new();
@@ -179,31 +239,13 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// <summary>
 	/// Track a sync var property update for diagnostic purposes.
 	/// </summary>
-	internal void TrackSync( string name, int bytes, bool outbound = false, Connection source = default )
+	internal void TrackSync( Network.NetworkTable.Entry entry, ReadOnlySpan<byte> wire, bool outbound = false, Connection source = default )
 	{
 		if ( !TracksCalls )
 			return;
 
-		EnsureInitialized();
-		Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.SyncVar, name, bytes, outbound, outbound ? null : source );
-
-		var stats = outbound ? SyncVarOutboundStats : SyncVarInboundStats;
-
-		if ( !stats.TryGetValue( name, out var stat ) )
-			stat = stats[name] = new();
-
-		stat.Add( bytes );
-
-		if ( !outbound && source is not null )
-		{
-			if ( !SyncVarConnectionStats.TryGetValue( source.Id, out var connStats ) )
-				connStats = SyncVarConnectionStats[source.Id] = new();
-
-			if ( !connStats.TryGetValue( name, out var connStat ) )
-				connStat = connStats[name] = new();
-
-			connStat.Add( bytes );
-		}
+		NetworkLog.SyncVar( entry, wire, outbound, outbound ? null : source );
+		CountCall( entry.DebugName, wire.Length, outbound, source, sync: true );
 	}
 
 	/// <summary>
@@ -215,20 +257,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 		if ( !Diagnostics.DevTools.IsCollecting( "network" ) )
 			return;
 
-		var bs = ByteStream.Create( 256 );
-		int msgSize;
-		try
-		{
-			GlobalContext.Current.TypeLibrary.ToBytes( message, ref bs );
-			msgSize = bs.Length;
-		}
-		finally
-		{
-			bs.Dispose();
-		}
-
-		if ( !_currentTick.BytesPerType.TryAdd( type, msgSize ) )
-			_currentTick.BytesPerType[type] += msgSize;
+		Record( type, SerializedSize( message ) );
 	}
 
 	/// <summary>

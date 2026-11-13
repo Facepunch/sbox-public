@@ -10,11 +10,18 @@ internal interface IRpcArguments
 {
 	int Count { get; }
 	void Write( TypeLibrary library, ref ByteStream bs );
+
+	/// <summary>
+	/// The boxed argument values, for diagnostics.
+	/// </summary>
+	object[] Values();
 }
 
 internal readonly struct ObjectRpcArgs( object[] args ) : IRpcArguments
 {
 	public int Count => args?.Length ?? 0;
+
+	public object[] Values() => args ?? [];
 
 	public void Write( TypeLibrary library, ref ByteStream bs )
 	{
@@ -29,6 +36,7 @@ internal readonly struct RpcArgs : IRpcArguments
 {
 	public int Count => 0;
 	public void Write( TypeLibrary library, ref ByteStream bs ) { }
+	public object[] Values() => [];
 }
 
 internal readonly struct RpcArgs<T1>( T1 a1 ) : IRpcArguments
@@ -39,6 +47,8 @@ internal readonly struct RpcArgs<T1>( T1 a1 ) : IRpcArguments
 	{
 		library.ToBytes( a1, ref bs );
 	}
+
+	public object[] Values() => [a1];
 }
 
 internal readonly struct RpcArgs<T1, T2>( T1 a1, T2 a2 ) : IRpcArguments
@@ -50,6 +60,8 @@ internal readonly struct RpcArgs<T1, T2>( T1 a1, T2 a2 ) : IRpcArguments
 		library.ToBytes( a1, ref bs );
 		library.ToBytes( a2, ref bs );
 	}
+
+	public object[] Values() => [a1, a2];
 }
 
 internal readonly struct RpcArgs<T1, T2, T3>( T1 a1, T2 a2, T3 a3 ) : IRpcArguments
@@ -62,6 +74,8 @@ internal readonly struct RpcArgs<T1, T2, T3>( T1 a1, T2 a2, T3 a3 ) : IRpcArgume
 		library.ToBytes( a2, ref bs );
 		library.ToBytes( a3, ref bs );
 	}
+
+	public object[] Values() => [a1, a2, a3];
 }
 
 internal readonly struct RpcArgs<T1, T2, T3, T4>( T1 a1, T2 a2, T3 a3, T4 a4 ) : IRpcArguments
@@ -75,6 +89,8 @@ internal readonly struct RpcArgs<T1, T2, T3, T4>( T1 a1, T2 a2, T3 a3, T4 a4 ) :
 		library.ToBytes( a3, ref bs );
 		library.ToBytes( a4, ref bs );
 	}
+
+	public object[] Values() => [a1, a2, a3, a4];
 }
 
 internal readonly struct RpcArgs<T1, T2, T3, T4, T5>( T1 a1, T2 a2, T3 a3, T4 a4, T5 a5 ) : IRpcArguments
@@ -89,6 +105,8 @@ internal readonly struct RpcArgs<T1, T2, T3, T4, T5>( T1 a1, T2 a2, T3 a3, T4 a4
 		library.ToBytes( a4, ref bs );
 		library.ToBytes( a5, ref bs );
 	}
+
+	public object[] Values() => [a1, a2, a3, a4, a5];
 }
 
 internal readonly struct RpcArgs<T1, T2, T3, T4, T5, T6>( T1 a1, T2 a2, T3 a3, T4 a4, T5 a5, T6 a6 ) : IRpcArguments
@@ -104,4 +122,6 @@ internal readonly struct RpcArgs<T1, T2, T3, T4, T5, T6>( T1 a1, T2 a2, T3 a3, T
 		library.ToBytes( a5, ref bs );
 		library.ToBytes( a6, ref bs );
 	}
+
+	public object[] Values() => [a1, a2, a3, a4, a5, a6];
 }
