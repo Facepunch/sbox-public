@@ -143,6 +143,7 @@ namespace Sandbox
 				ScopeMethodOrdinals.Clear();
 				AnonymousTypes.Clear();
 				RootUpgraderGroup.ClearCache();
+				ReferencePath.Clear();
 
 				// update the watched assemblies if we swapped those
 
