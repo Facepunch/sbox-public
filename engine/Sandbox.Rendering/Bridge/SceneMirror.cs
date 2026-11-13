@@ -317,6 +317,19 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		return shared.Attributes;
 	}
 
+	/// <summary>
+	/// The world lightmaps a lightmapped object draws with: native's, shared per lightmap set (<see cref="AcquireLightmap"/>);
+	/// on Basalt.Gpu, those of the map its model is in (<c>maps/construct_25/worldnodes/...</c>), read from the map's world
+	/// file. Null for an object without lightmaps.
+	/// </summary>
+	ShaderParameters LightmapFor( SceneObject sceneObject, Model model )
+	{
+		if ( MirrorContent.Gpu is not { } gpu ) return MirrorContent.Parameters( AcquireLightmap( sceneObject ) );
+		if ( SceneNative.LightmapKey( sceneObject ) == 0 || model?.ResourcePath is not { } path || !path.StartsWith( "maps/", StringComparison.OrdinalIgnoreCase ) ) return null;
+		var end = path.IndexOf( '/', 5 );
+		return end > 5 ? gpu.MapLightmapParameters( path[..end] ) : null;
+	}
+
 	void ReleaseLightmap( RenderAttributes attributes )
 	{
 		if ( attributes is null || !lightmapKeys.TryGetValue( attributes, out var key ) || !lightmaps.TryGetValue( key, out var shared ) ) return;
@@ -340,6 +353,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		if ( volume.Attributes is not null ) return;
 
 		SceneNative.ReadLightProbeVolume( probe, volume );
+		volume.Handshake = probe.Handshake;
 		volume.Attributes = MirrorContent.Gpu is { } gpu
 			// On Basalt.Gpu: its constants made here, over its textures read by path
 			? gpu.LightProbeVolumeParameters( MirrorContent.Texture( probe.ProbeTexture ), MirrorContent.Texture( probe.IndicesTexture ), MirrorContent.Texture( probe.ScalarsTexture ), probe.Transform, volume.BoxMins, volume.BoxMaxs )
@@ -455,7 +469,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 				// Shared world lightmap attributes.
 				ReleaseLightmap( mesh.LightmapAttributes.Engine() );
-				mesh.LightmapAttributes = drawn is { HasLightmappedDraws: true } ? MirrorContent.Parameters( AcquireLightmap( sceneObject ) ) : null;
+				mesh.LightmapAttributes = drawn is { HasLightmappedDraws: true } ? LightmapFor( sceneObject, sceneObject.Model ) : null;
 			}
 		}
 
@@ -571,7 +585,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		if ( (change & SceneObjectChange.Added) != 0 && aggregate.Lightmapped )
 		{
 			ReleaseLightmap( aggregate.LightmapAttributes.Engine() );
-			aggregate.LightmapAttributes = MirrorContent.Parameters( AcquireLightmap( sceneObject ) );
+			aggregate.LightmapAttributes = LightmapFor( sceneObject, SceneNative.AggregateModel( sceneObject, out _ ) );
 		}
 	}
 
@@ -665,6 +679,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		mesh.Decal = flags.HasFlag( SceneObjectFlags.IsDecal );
 		mesh.NeedsLightProbe = flags.HasFlag( SceneObjectFlags.NeedsLightProbe );
 		mesh.LightGroup = (uint)sceneObject.native.GetIntValue( LightGroupName, 0 );
+		mesh.LightProbeHandshake = SceneNative.LightProbeHandshake( sceneObject );
 
 		mesh.LayerMatch = LayerMatchFor( sceneObject.native.GetLayerMatchIDValue() );
 		mesh.RenderOrder = mesh.LayerMatch == LayerMatch.StaticOverlay ? sceneObject.native.GetIntValue( RenderOrderName, 0 ) : 0;

@@ -62,6 +62,9 @@ internal class SceneLightProbe : SceneObject
 	internal Texture IndicesTexture { get; }
 	internal Texture ScalarsTexture { get; }
 
+	/// <summary>The handshake objects the map compiler bound to this volume carry (<c>m_nHandshake</c>).</summary>
+	internal int Handshake => lightProbeVolume.IsValid ? lightProbeVolume.m_nHandshake : 0;
+
 	internal override void OnNativeInit( CSceneObject ptr )
 	{
 		base.OnNativeInit( ptr );

@@ -270,32 +270,10 @@ internal sealed partial class MapWorld : IDisposable
 	/// </summary>
 	void LoadLightmaps( WorldFile world, Level level )
 	{
-		var textures = new List<(string Name, GpuTexture Texture)>();
-		foreach ( var path in world.Lightmaps )
-		{
-			var name = Path.GetFileNameWithoutExtension( path );
-			if ( name == "debug_chart_color" ) continue;
-			if ( Backend.LoadTexture( path ) is BackendTexture { Dimension: TextureDimension.Texture2DArray } texture ) textures.Add( (name, texture) );
-			else Problems.Add( $"lightmap {path} isn't readable" );
-		}
-
-		if ( textures.Count == 0 ) return;
-		LightmapTextures += textures.Count;
-
-		var scale = world.LightmapUvScale;
-		var constants = new LightmapConstants { UvScale = new Vector4( scale.X > 0 ? scale.X : 1, scale.Y > 0 ? scale.Y : 1, 0, 0 ) };
-		var attributes = Backend.CreateParameters();
-		for ( int i = 0; i < textures.Count && i < 8; i++ )
-		{
-			attributes.Set( textures[i].Name, textures[i].Texture );
-			constants.Indices[i] = textures[i].Texture.BindlessIndex;
-		}
-
-		attributes.SetData( "BakedLightingConstantBuffer_t", constants );
-		attributes.Set( "UsesBakedLightmaps", true );
-		attributes.Set( "UsesBakedLightingFromProbe", false );
-		attributes.SetCombo( "D_BAKED_LIGHTING_FROM_PROBE", 0 );
-		attributes.SetCombo( "D_BAKED_LIGHTING_FROM_LIGHTMAP", 1 );
+		var problems = Problems.Count;
+		var attributes = Backend.LightmapParameters( world.Lightmaps, world.LightmapUvScale, Problems );
+		if ( attributes is null ) return;
+		LightmapTextures += world.Lightmaps.Count( x => Path.GetFileNameWithoutExtension( x ) != "debug_chart_color" ) - (Problems.Count - problems);
 
 		foreach ( var aggregate in level.Aggregates )
 		{
@@ -351,21 +329,6 @@ internal sealed partial class MapWorld : IDisposable
 			}
 		}
 	}
-
-	/// <summary>Eight lightmap bindless indices (six used), as two int4s.</summary>
-	[System.Runtime.CompilerServices.InlineArray( 8 )]
-	struct LightmapIndices
-	{
-		int element;
-	}
-
-	/// <summary><c>BakedLightingConstantBuffer_t</c>: the uv scale and the lightmaps' bindless indices.</summary>
-	struct LightmapConstants
-	{
-		public Vector4 UvScale;
-		public LightmapIndices Indices;
-	}
-
 
 	/// <summary>A model's bounds placed by a row-vector object-to-world matrix, in world space.</summary>
 	static (NumericsVector3 Mins, NumericsVector3 Maxs) WorldBounds( ModelFile file, NumericsMatrix transform )

@@ -818,14 +818,15 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	{
 		// From its lighting origin, where it has one (CBaseSceneObjectDesc::GeneratePrimitives, GetLightingOrigin)
 		var origin = obj.LightingOrigin ?? center;
-		if ( obj.ProbeVolumesKey == volumesKey && obj.ProbeCenter.Equals( center ) && obj.ProbeExtents.Equals( extents ) && obj.ProbeOrigin.Equals( origin ) && obj.ProbeLightGroup == obj.LightGroup )
+		if ( obj.ProbeVolumesKey == volumesKey && obj.ProbeCenter.Equals( center ) && obj.ProbeExtents.Equals( extents ) && obj.ProbeOrigin.Equals( origin ) && obj.ProbeLightGroup == obj.LightGroup && obj.ProbeHandshake == obj.LightProbeHandshake )
 			return obj.ProbeChoice;
 
-		obj.ProbeChoice = LightProbeVolume.Choose( volumes, origin, center, extents, obj.LightGroup );
+		obj.ProbeChoice = LightProbeVolume.Choose( volumes, origin, center, extents, obj.LightGroup, obj.LightProbeHandshake );
 		obj.ProbeOrigin = origin;
 		obj.ProbeCenter = center;
 		obj.ProbeExtents = extents;
 		obj.ProbeLightGroup = obj.LightGroup;
+		obj.ProbeHandshake = obj.LightProbeHandshake;
 		obj.ProbeVolumesKey = volumesKey;
 		return obj.ProbeChoice;
 	}
