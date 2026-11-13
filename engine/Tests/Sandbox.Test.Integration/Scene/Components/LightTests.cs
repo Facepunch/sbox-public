@@ -806,6 +806,51 @@ public partial class LightComponentTest
 	}
 
 	/// <summary>
+	/// Baked and custom cubemaps are only sampled bindlessly, so the probe marks them used
+	/// before rendering. Otherwise texture streaming treats them as unused and evicts them.
+	/// </summary>
+	[TestMethod]
+	[DataRow( EnvmapProbe.EnvmapProbeMode.Baked )]
+	[DataRow( EnvmapProbe.EnvmapProbeMode.CustomTexture )]
+	public void EnvmapProbeMarksCubemapUsed( EnvmapProbe.EnvmapProbeMode mode )
+	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics to track texture usage." );
+
+		using var cubemap = Texture.CreateCube( 4, 4 ).Finish();
+
+		// A nonzero mip size bypasses MarkUsed's initial frame-zero deduplication.
+		cubemap.MarkUsed( 1 );
+		if ( cubemap.LastUsed != 0 )
+			Assert.Inconclusive( "Requires native texture usage tracking; the empty renderer always reports LastUsed = 1000." );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		var probe = go.Components.Create<EnvmapProbe>( false );
+		probe.Mode = mode;
+
+		if ( mode == EnvmapProbe.EnvmapProbeMode.Baked )
+			probe.BakedTexture = cubemap;
+		else
+			probe.Texture = cubemap;
+
+		probe.Enabled = true;
+
+		for ( var i = 0; i < 3; i++ )
+			NativeEngine.g_pResourceSystem.UpdateSimple();
+
+		Assert.IsTrue( cubemap.LastUsed > 2, "Nothing else should be using the cubemap" );
+
+		scene.PreRender();
+
+		Assert.AreEqual( 0, cubemap.LastUsed, "PreRender should mark the cubemap as used" );
+
+		go.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
 	/// IndirectLightVolume's probe grid math is pure component state: counts derive from
 	/// bounds size and density (ceil(size * density / 1024) + 1), clamped to 4..128 per axis,
 	/// and spacing splits the bounds evenly between probes.
