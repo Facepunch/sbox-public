@@ -507,7 +507,7 @@ public class SurfaceTests : GpuTest
 		var previousHost = RenderHost.Current;
 		try
 		{
-			byte[] DrawMaterial( string path, bool convert, out GpuMaterial loaded )
+			byte[] DrawMaterial( string path, bool convert, out GpuMaterial loaded, Color? tint = null )
 			{
 				using var backend = new BackendDevice( Device );
 				var errors = new List<string>();
@@ -520,10 +520,21 @@ public class SurfaceTests : GpuTest
 				}
 
 				loaded = ((GpuDevice)backend).LoadMaterial( path );
-				var picture = Draw( backend, loaded );
+				var picture = Draw( backend, loaded, tint );
 				Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
 				return picture;
 			}
+
+			// A fading object (tint alpha under 1) dithers by its opacity, as complex.shader's D_OPAQUE_FADE does
+			var faded = new Color( 1, 1, 1, 0.5f );
+			var solid = DrawMaterial( "materials/default.vmat", true, out _ );
+			var fadedShader = DrawMaterial( "materials/default.vmat", false, out var fadedClassic, faded );
+			if ( fadedClassic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( "materials/default.vmat isn't compiled" );
+			var fadedSurface = DrawMaterial( "materials/default.vmat", true, out _, faded );
+			SaveRgb( fadedShader, "complex-faded-shader" );
+			SaveRgb( fadedSurface, "complex-faded-surface" );
+			Assert.IsTrue( Mean( solid, fadedSurface ) > 2, "a fading surface drew solid" );
+			Assert.IsTrue( Mean( fadedShader, fadedSurface ) < 0.5, $"a fading surface differs by {Mean( fadedShader, fadedSurface ):F3}" );
 
 			foreach ( var path in new[] { "materials/default.vmat", "dev/helper/testgrid.vmat" } )
 			{
@@ -531,6 +542,9 @@ public class SurfaceTests : GpuTest
 				if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( $"{path} isn't compiled" );
 				var converted = DrawMaterial( path, true, out var surface );
 				Assert.IsInstanceOfType<SurfaceMaterial>( surface, $"{path} wasn't converted" );
+
+				// Lit as complex.shader is: from a probe volume's baked light when its object isn't lightmapped
+				Assert.IsTrue( surface.NeedsLightProbe, "a surface doesn't ask for its object's light probe" );
 				SaveRgb( reference, $"complex-{Path.GetFileNameWithoutExtension( path )}-shader" );
 				SaveRgb( converted, $"complex-{Path.GetFileNameWithoutExtension( path )}-surface" );
 				Assert.IsTrue( Mean( reference, converted ) < 0.5, $"{path}: the surface differs by {Mean( reference, converted ):F3}" );
@@ -595,14 +609,14 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>A box lit by the sun, filling most of the frame, as 8-bit sRGB-ish bytes (red channel of RGBA16F).</summary>
-	byte[] Draw( BackendDevice backend, GpuMaterial material )
+	byte[] Draw( BackendDevice backend, GpuMaterial material, Color? tint = null )
 	{
 		using var system = new RenderSystem { ParallelRecording = false };
 		using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface test" );
 		var world = new RenderWorld();
 		world.Lighting.SunDirection = new Vector3( -0.4f, 0.5f, -0.75f ).Normal;
 		world.Lighting.SunShadowCascades = 1;
-		world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), new Transform( Vector3.Zero, Rotation.FromYaw( 35 ), 2 ) ) );
+		world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), new Transform( Vector3.Zero, Rotation.FromYaw( 35 ), 2 ) ) { Tint = tint ?? Color.White } );
 
 		var view = new RenderView { Name = "Surface test", FieldOfView = 60, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.2f, 0.2f, 0.2f ), Viewport = new Rect( 0, 0, Width, Height ) };
 		view.Position = new Vector3( -220, 60, 90 );

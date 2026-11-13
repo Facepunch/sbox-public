@@ -4,6 +4,7 @@ using Basalt.Gpu;
 using Basalt.Source2;
 using Basalt.Source2.Shaders;
 using Sandbox;
+using Sandbox.BasaltLab.Surfaces;
 using System.IO;
 using System.Threading;
 
@@ -205,6 +206,165 @@ public class GpuDrivenTests : GpuTest
 			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
 			Assert.IsTrue( workerMs > 0, "segments recorded on workers" );
 			Assert.AreEqual( 0, Different( serial.Pixels, parallel ), "parallel recording draws what serial recording does" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// The record memo (<see cref="BackendDevice.GpuDrivenRecordMemo"/>) gives every GPU-culled call the batch records
+	/// looking them up gives: on a frame like the last, which it serves, and after each change it has to notice - the
+	/// batches drawn, a material's values, object attributes and the lighting record they make, a surface's fields, and the
+	/// GPU-driven switches.
+	/// </summary>
+	[TestMethod]
+	public void RecordMemoGivesTheRecordsLookingUpDoes()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven memo test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 1;
+
+			var materials = new BackendMaterial[Rows];
+			var aggregates = new AggregateObject[Rows];
+			for ( int row = 0; row < Rows; row++ )
+			{
+				materials[row] = (BackendMaterial)backend.CreateMaterial( $"Memo boxes {row}", new Color( 0.3f + row * 0.2f, 0.6f, 0.4f ) );
+				var (mesh, fragments) = Boxes( backend, materials[row], row * 120 - 120 );
+				world.Add( aggregates[row] = new AggregateObject( mesh, fragments ) );
+			}
+
+			// Two aggregates of one mesh, the second's fragments raised: the same batch but for its fragments' bounds
+			var (twinMesh, twinFragments) = Boxes( backend, materials[0], -240 );
+			var raised = twinFragments.Select( f => f with { Transform = Matrix3x4.Identity with { Row2 = new Vector4( 0, 0, 1, 90 ) }, BoundsMin = f.BoundsMin + new Vector3( 0, 0, 90 ), BoundsMax = f.BoundsMax + new Vector3( 0, 0, 90 ) } ).ToArray();
+			AggregateObject[] twins = [new( twinMesh, twinFragments ), new( twinMesh, raised )];
+			world.Add( twins[0] );
+			world.Add( twins[1] );
+
+			// A surface's aggregate too, where the engine's Slang and the rock's textures are built
+			var core = ContentFiles.FindGame().Roots.FirstOrDefault();
+			var slang = core is not null && File.Exists( Path.Combine( Path.GetDirectoryName( core ), "bin", "win64", OperatingSystem.IsWindows() ? "slang.dll" : "libslang.so" ) );
+			if ( slang ) backend.Surfaces.AddFolder( Path.GetFullPath( Path.Combine( core, "..", "..", "engine", "Launcher", "BasaltLab", "Surfaces" ) ) );
+			var color = slang ? backend.LoadTexture( "materials/default/rope_color_png_95bee33c.generated.vtex" ) : null;
+			var normal = slang ? backend.LoadTexture( "materials/default/rope_normal_png_b8960e44.generated.vtex" ) : null;
+			var rma = slang ? backend.LoadTexture( "materials/default/rope01_vmat_g_trma_bbf6a2a.generated.vtex" ) : null;
+			using var rock = color is not null && normal is not null && rma is not null ? new Rock { Color = color, Normal = normal, Rma = rma, Tint = new Vector3( 1, 0.8f, 0.6f ) } : null;
+			if ( rock is not null )
+			{
+				var (mesh, fragments) = Boxes( backend, rock, 240 );
+				world.Add( new AggregateObject( mesh, fragments ) );
+			}
+
+			var view = new RenderView { Name = "GPU-driven memo test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			// Each GPU-culled call's batch records but their transform slot (word 2), which is the frame's
+			uint[][] Records( bool memo )
+			{
+				backend.GpuDrivenRecordMemo = memo;
+				backend.GpuDrivenRecordLog = new();
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var log = backend.GpuDrivenRecordLog;
+				backend.GpuDrivenRecordLog = null;
+				foreach ( var call in log )
+				{
+					for ( int i = 2; i < call.Length; i += 8 ) call[i] = 0;
+				}
+
+				return log.ToArray();
+			}
+
+			// The frame after a change, from the memo, then the next looking everything up; a change moves some record
+			uint[][] last = null;
+			void Same( string change, bool moves = true )
+			{
+				var memo = Records( true );
+				var lookedUp = Records( false );
+				Assert.IsTrue( lookedUp.Length > 0, $"{change}: the frame drew GPU-culled" );
+				Assert.AreEqual( lookedUp.Length, memo.Length, $"{change}: calls" );
+				for ( int c = 0; c < memo.Length; c++ ) CollectionAssert.AreEqual( lookedUp[c], memo[c], $"{change}: call {c}'s records" );
+
+				var moved = last is null || last.Length != lookedUp.Length;
+				for ( int c = 0; !moved && c < lookedUp.Length; c++ ) moved = !lookedUp[c].AsSpan().SequenceEqual( last[c] );
+				Assert.IsTrue( moved || !moves, $"{change}: no record moved, so the change tests nothing" );
+				last = lookedUp;
+			}
+
+			Records( true );
+			var hits = backend.GpuDrivenRecordMemoHits;
+			last = Records( false );
+			hits = backend.GpuDrivenRecordMemoHits;
+			var memoAgain = Records( true );
+			Assert.IsTrue( backend.GpuDrivenRecordMemoHits > hits, "a frame like the last takes its records from the memo" );
+			for ( int c = 0; c < memoAgain.Length; c++ ) CollectionAssert.AreEqual( last[c], memoAgain[c], $"nothing changed: call {c}'s records" );
+
+			world.Remove( aggregates[1] );
+			Same( "an aggregate gone" );
+			world.Add( aggregates[1] );
+			Same( "and back, last" );
+			foreach ( var twin in twins )
+			{
+				world.Remove( twin );
+				Same( "one of two aggregates of a mesh gone" );
+				world.Add( twin );
+				Same( "and back" );
+			}
+
+			materials[0].Set( "g_vColorTint", [0.9f, 0.2f, 0.2f, 0] );
+			Same( "a material's value" );
+
+			// Lit by object attributes: their own bucket, and the lighting record their constants make
+			var attributes = backend.CreateParameters();
+			attributes.SetData( "PerBatchLightProbeVolumeConstantBuffer_t", new Vector4( 1, 2, 3, 4 ) );
+			aggregates[2].LightmapAttributes = attributes;
+			aggregates[2].Lightmapped = true;
+			Same( "object attributes" );
+			attributes.SetData( "PerBatchLightProbeVolumeConstantBuffer_t", new Vector4( 5, 6, 7, 8 ) );
+			Same( "their lighting constants" );
+
+			// A combo they set: another variant, with the same material, attributes hash and lighting
+			attributes.SetCombo( "D_OPAQUE_FADE", 1 );
+			Same( "a combo, so another variant" );
+
+			if ( rock is not null )
+			{
+				rock.Tint = new Vector3( 0.2f, 0.3f, 1 );
+				Same( "a surface's field" );
+			}
+
+			// These boxes have no positions-only copy: full vertices draw them either way
+			backend.PositionStreams = false;
+			Same( "full vertices for depth", moves: false );
+			backend.PositionStreams = true;
+			backend.GpuDrivenVisibility = false;
+			Same( "no visibility" );
+			backend.GpuDrivenVisibility = true;
+			Same( "visibility again" );
+			backend.GpuDrivenMaterialBuckets = true;
+			Same( "a bucket per material" );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
 		}
 		finally
 		{

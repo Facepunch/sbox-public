@@ -278,8 +278,14 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	/// with its 3D skybox's beside it, as the engine's search path has them once the map is mounted. Its world geometry,
 	/// materials and textures then load here by path.
 	/// </summary>
+	/// <summary>The last map whose content was added (<see cref="AddMapContent"/>), not counting 3D skyboxes: <c>construct_25</c>.</summary>
+	internal string LastMap { get; private set; }
+
 	internal void AddMapContent( string vpk )
 	{
+		// A map's 3D skybox is a map of its own (<map>_sky), loaded after it: it isn't the map being played
+		var mapName = System.IO.Path.GetFileNameWithoutExtension( vpk );
+		if ( LastMap is null || !mapName.EndsWith( "_sky", StringComparison.OrdinalIgnoreCase ) ) LastMap = mapName;
 		vpk = System.IO.Path.GetFullPath( vpk );
 		if ( !mapPackages.Add( vpk ) ) return;
 

@@ -220,7 +220,7 @@ internal sealed partial class BackendContext
 
 		if ( gpuCull )
 		{
-			DrawGpuCulled( batches, transforms, cull.Value, totalFragments, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, drawn );
+			DrawGpuCulled( shaderMode, batches, transforms, cull.Value, totalFragments, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, drawn );
 			TimeGpuDriven( start, drawn, totalFragments );
 			return;
 		}
@@ -389,7 +389,7 @@ internal sealed partial class BackendContext
 	/// a view's depth prepass also draws ids and marks the triangles that own a sample, and its forward pass draws only
 	/// those (<see cref="DrawIds"/>).
 	/// </summary>
-	void DrawGpuCulled( ReadOnlySpan<GpuDrivenBatch> batches, TransformBuffer transforms, in GpuDrivenCull cull, int totalFragments, Format color, Format depth, int samples, int depthBias, float slopeScaledDepthBias, PassResolver resolver, Span<bool> drawn )
+	void DrawGpuCulled( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, TransformBuffer transforms, in GpuDrivenCull cull, int totalFragments, Format color, Format depth, int samples, int depthBias, float slopeScaledDepthBias, PassResolver resolver, Span<bool> drawn )
 	{
 		var tables = device.GpuDrivenTables;
 		var cache = device.MaterialCache;
@@ -455,111 +455,175 @@ internal sealed partial class BackendContext
 		var transformSlots = MemoryMarshal.Cast<byte, uint>( data.Slice( transformSlotsOffset, instanceFragments * 4 ) );
 		var slotsWritten = 0;
 
-		// Each batch's record and its fragments' slots, bucket by bucket and page by page, and the multi-draws they make
-		cullRuns.Clear();
+		// Each batch's record and its fragments' slots, bucket by bucket and page by page, and the multi-draws they make; a
+		// batch drawn as it was last frame takes its records from the view's memo
+		var memo = device.GpuDrivenRecordMemo && cull.View is not null ? device.RecordMemosFor( cull.View ).For( shaderMode.Value, r.Color is null, ids, lists ) : null;
+		var memoTaken = false;
+		var memoHits = 0;
+		GpuDrivenRecordMemo.Slot unkept = default;
 		var written = 0;
 		var compactWritten = totalFragments;
 		var record = 0;
-		for ( int b = 0; b < gpuDrivenBucketCount; b++ )
+		try
 		{
-			var bucket = gpuDrivenBuckets[b];
-			SetObjectAttributes( null, bucket.Attributes );
-			NextPassState( cache );
-
-			// The prepass draws ids with each bucket's own variant, whose pixel shader writes them where it covers; a depth
-			// bucket without one (opaque depth_only) with basalt_gpu_driven_ids, when its vertices need only their positions
-			var ownPixel = bucket.Surface is not null ? bucket.Surface.Pass.Pixel is not null : bucket.Variant.Pixel?.Bytecode is not null && bucket.Variant.Pixel.GpuDriven;
-			if ( ids && !ownPixel && shaders.Ids is not null ) idsShaderVariant ??= Variant( shaders.Ids, "Default" );
-			bucket.IdsShader = ids && !ownPixel && (bucket.Classic is not null || bucket.SurfacePositionsOnly) && shaders.Ids is not null && idsShaderVariant is not null;
-			bucket.Ids = ids && (ownPixel || bucket.IdsShader);
-			var bucketLists = lists && !bucket.DepthOnly;
-
-			var currentPage = default( BufferHandle );
-			var currentFormat = IndexFormat.UInt16;
-			var runStart = written;
-
-			bucket.Batches.Sort( static ( a, b ) => a.Page != b.Page ? a.Page.CompareTo( b.Page ) : a.Batch.CompareTo( b.Batch ) );
-			foreach ( var (_, index) in bucket.Batches )
+			if ( memo is not null ) System.Threading.Monitor.TryEnter( memo, ref memoTaken );
+			cullRuns.Clear();
+			for ( int b = 0; b < gpuDrivenBucketCount; b++ )
 			{
-				if ( !bucket.IdsShader ) break;
-				ref readonly var batch = ref batches[index];
-				var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
-				if ( bucket.Classic is not null && !ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) bucket.Ids = bucket.IdsShader = false;
-			}
+				var bucket = gpuDrivenBuckets[b];
+				SetObjectAttributes( null, bucket.Attributes );
+				NextPassState( cache );
 
-			foreach ( var (_, index) in bucket.Batches )
-			{
-				ref readonly var batch = ref batches[index];
-				var material = batch.Material;
-				var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
-				var pooled = geometry.Pooled.Value;
+				// What its stages' material records read of the attributes: the same for each of its batches
+				var vertexAttributes = bucket.Surface is null && bucket.Variant.Vertex is { } vertexStage ? AttributeHash( vertexStage ) : 0;
+				var pixelAttributes = bucket.Surface is null && !bucket.DepthOnly && bucket.Variant.Pixel is { } pixelStage ? AttributeHash( pixelStage ) : 0;
+				var stages = (object)bucket.Surface ?? bucket.Variant;
 
-				// Depth only, from the positions-only copy when the vertex shader reads nothing else these vertices have
-				if ( bucket.Classic is not null && (device.PositionStreams || bucket.IdsShader) && pooled.PositionsRecord != 0 && ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) pooled = pooled with { GeometryRecord = pooled.PositionsRecord };
+				// The prepass draws ids with each bucket's own variant, whose pixel shader writes them where it covers; a depth
+				// bucket without one (opaque depth_only) with basalt_gpu_driven_ids, when its vertices need only their positions
+				var ownPixel = bucket.Surface is not null ? bucket.Surface.Pass.Pixel is not null : bucket.Variant.Pixel?.Bytecode is not null && bucket.Variant.Pixel.GpuDriven;
+				if ( ids && !ownPixel && shaders.Ids is not null ) idsShaderVariant ??= Variant( shaders.Ids, "Default" );
+				bucket.IdsShader = ids && !ownPixel && (bucket.Classic is not null || bucket.SurfacePositionsOnly) && shaders.Ids is not null && idsShaderVariant is not null;
+				bucket.Ids = ids && (ownPixel || bucket.IdsShader);
+				var bucketLists = lists && !bucket.DepthOnly;
 
-				var (vertexMaterial, pixelMaterial) = Records( tables, bucket, material, geometry.UncompressedTangentFrame );
-				var flags = (geometry.UncompressedTangentFrame ? 1u : 0u) | (pooled.IndexFormat == IndexFormat.UInt32 ? 2u : 0u) | batchLighting[index] << 8;
+				var currentPage = default( BufferHandle );
+				var currentFormat = IndexFormat.UInt16;
+				var runStart = written;
 
-				if ( pooled.IndexPage != currentPage )
+				bucket.Batches.Sort( static ( a, b ) => a.Page != b.Page ? a.Page.CompareTo( b.Page ) : a.Batch.CompareTo( b.Batch ) );
+				foreach ( var (_, index) in bucket.Batches )
 				{
-					if ( written > runStart ) cullRuns.Add( (b, currentPage, currentFormat, runStart, written - runStart) );
-					currentPage = pooled.IndexPage;
-					currentFormat = pooled.IndexFormat;
-					runStart = written;
+					if ( !bucket.IdsShader ) break;
+					ref readonly var batch = ref batches[index];
+					var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
+					if ( bucket.Classic is not null && !ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) bucket.Ids = bucket.IdsShader = false;
 				}
 
-				var at = record * (CullBatchBytes / 4);
-				uint visibilityFirst, vertexBase, kind;
-				int fragmentCount;
-				if ( batch.Instances )
+				foreach ( var (_, index) in bucket.Batches )
 				{
-					// A mesh draw's instances: its draw record, and each instance's transform slot in the frame's region; the
-					// caller culled them, and each has a run of vertex bits of its own, a stride apart, made for this frame
-					fragmentCount = batch.Count;
-					batchRecords[at] = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex, pooled.IndexPageSlot );
-					batchRecords[at + 2] = (uint)(frameOffset + transformSlotsOffset + slotsWritten * 4);
-					for ( int k = 0; k < fragmentCount; k++ ) transformSlots[slotsWritten++] = (uint)transforms.InstanceSlot( batch.FirstInstance + k );
+					ref readonly var batch = ref batches[index];
+					var material = batch.Material;
+					var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
+					var pooled = geometry.Pooled.Value;
+					var flags = (geometry.UncompressedTangentFrame ? 1u : 0u) | (pooled.IndexFormat == IndexFormat.UInt32 ? 2u : 0u) | batchLighting[index] << 8;
 
-					var stride = (uint)pooled.VertexCount;
-					(visibilityFirst, vertexBase) = visibility is not null && stride < 1u << 24
-						? tables.FrameVisibility( (batch.FirstInstance, batch.Mesh, batch.Draw.Mesh, batch.Draw.DrawCall), fragmentCount, pooled.VertexCount )
-						: (GpuDrivenTables.NoVisibility, GpuDrivenTables.NoVisibility);
-					kind = 4u | stride << 8;
+					// Depth only, from the positions-only copy when the vertex shader reads nothing else these vertices have
+					var positions = bucket.Classic is not null && (device.PositionStreams || bucket.IdsShader) && pooled.PositionsRecord != 0;
+
+					if ( pooled.IndexPage != currentPage )
+					{
+						if ( written > runStart ) cullRuns.Add( (b, currentPage, currentFormat, runStart, written - runStart) );
+						currentPage = pooled.IndexPage;
+						currentFormat = pooled.IndexFormat;
+						runStart = written;
+					}
+
+					var at = record * (CullBatchBytes / 4);
+					uint visibilityFirst, vertexBase, kind;
+					int fragmentCount;
+					if ( batch.Instances )
+					{
+						// A mesh draw's instances: its draw record, and each instance's transform slot in the frame's region; the
+						// caller culled them, and each has a run of vertex bits of its own, a stride apart, made for this frame
+						if ( positions && ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) pooled = pooled with { GeometryRecord = pooled.PositionsRecord };
+						var (vertexMaterial, pixelMaterial) = Records( tables, bucket, material, geometry.UncompressedTangentFrame, vertexAttributes, pixelAttributes );
+						fragmentCount = batch.Count;
+						batchRecords[at] = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex, pooled.IndexPageSlot );
+						batchRecords[at + 2] = (uint)(frameOffset + transformSlotsOffset + slotsWritten * 4);
+						for ( int k = 0; k < fragmentCount; k++ ) transformSlots[slotsWritten++] = (uint)transforms.InstanceSlot( batch.FirstInstance + k );
+
+						var stride = (uint)pooled.VertexCount;
+						(visibilityFirst, vertexBase) = visibility is not null && stride < 1u << 24
+							? tables.FrameVisibility( (batch.FirstInstance, batch.Mesh, batch.Draw.Mesh, batch.Draw.DrawCall), fragmentCount, pooled.VertexCount )
+							: (GpuDrivenTables.NoVisibility, GpuDrivenTables.NoVisibility);
+						kind = 4u | stride << 8;
+					}
+					else
+					{
+						var aggregate = (AggregateObject)batch.Owner;
+						fragmentCount = aggregate.Fragments.Length;
+
+						// Its records as last frame's, when everything they were looked up by is the same
+						ref var kept = ref memoTaken ? ref memo.At( record ) : ref unkept;
+						var version = MaterialVersion( material );
+						var visible = visibility is not null;
+						if ( memoTaken && ReferenceEquals( kept.Material, material ) && kept.Version == version && ReferenceEquals( kept.Stages, stages ) && kept.DepthOnly == bucket.DepthOnly
+							&& kept.VertexAttributes == vertexAttributes && kept.PixelAttributes == pixelAttributes && ReferenceEquals( kept.Owner, aggregate ) && kept.Fragments == fragmentCount
+							&& kept.Flags == flags && kept.Pooled == pooled && ReferenceEquals( kept.Layout, geometry.Layout ) && ReferenceEquals( kept.Classic, bucket.Classic ) && kept.Positions == positions && kept.Visibility == visible )
+						{
+							memoHits++;
+						}
+						else
+						{
+							var used = positions && ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ? pooled with { GeometryRecord = pooled.PositionsRecord } : pooled;
+							var (vertexMaterial, pixelMaterial) = Records( tables, bucket, material, geometry.UncompressedTangentFrame, vertexAttributes, pixelAttributes );
+							var fragmentRecords = tables.FragmentsOf( aggregate, used.GeometryRecord, vertexMaterial, pixelMaterial, flags, fragmentCount,
+								(Tables: tables, Aggregate: aggregate, Pooled: used, Vertex: vertexMaterial, Pixel: pixelMaterial, Flags: flags),
+								static ( s, bytes ) => WriteFragments( s.Tables, s.Aggregate, s.Pooled, s.Vertex, s.Pixel, s.Flags, bytes ) );
+							var (first, firstVertex) = visible ? tables.Visibility( aggregate, fragmentCount, pooled.VertexCount ) : (GpuDrivenTables.NoVisibility, GpuDrivenTables.NoVisibility);
+							kept = new GpuDrivenRecordMemo.Slot
+							{
+								Material = material,
+								Version = version,
+								Stages = stages,
+								DepthOnly = bucket.DepthOnly,
+								VertexAttributes = vertexAttributes,
+								PixelAttributes = pixelAttributes,
+								Owner = aggregate,
+								Fragments = fragmentCount,
+								Flags = flags,
+								Pooled = pooled,
+								Layout = geometry.Layout,
+								Classic = bucket.Classic,
+								Positions = positions,
+								Visibility = visible,
+								Vertex = vertexMaterial,
+								Pixel = pixelMaterial,
+								FragmentRecords = fragmentRecords,
+								VisibilityFirst = first,
+								VertexBase = firstVertex,
+							};
+						}
+
+						batchRecords[at] = kept.FragmentRecords;
+						batchRecords[at + 2] = (uint)transforms.InstanceSlot( batch.FirstInstance );
+						(visibilityFirst, vertexBase) = (kept.VisibilityFirst, kept.VertexBase);
+						kind = 0;
+					}
+
+					batchRecords[at + 1] = (uint)fragmentCount;
+					batchRecords[at + 3] = compact ? (uint)cullRuns.Count : (uint)written;
+					batchRecords[at + 4] = vertexBase != GpuDrivenTables.NoVisibility ? visibilityFirst : GpuDrivenTables.NoVisibility;
+					batchRecords[at + 5] = 0;
+					batchRecords[at + 6] = (bucket.Ids ? 1u : 0u) | (bucketLists ? 2u : 0u) | kind;
+					batchRecords[at + 7] = vertexBase;
+					record++;
+					written += fragmentCount;
+					drawn[index] = true;
 				}
-				else
+
+				if ( written > runStart ) cullRuns.Add( (b, currentPage, currentFormat, runStart, written - runStart) );
+
+				// Forward's compacted triangles: one more multi-draw for the bucket, from the compacted index buffer
+				if ( bucketLists )
 				{
-					var aggregate = (AggregateObject)batch.Owner;
-					var fragments = aggregate.Fragments;
-					fragmentCount = fragments.Length;
-					batchRecords[at] = tables.FragmentsOf( aggregate, pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, fragments.Length,
-						(Tables: tables, Aggregate: aggregate, Pooled: pooled, Vertex: vertexMaterial, Pixel: pixelMaterial, Flags: flags),
-						static ( s, bytes ) => WriteFragments( s.Tables, s.Aggregate, s.Pooled, s.Vertex, s.Pixel, s.Flags, bytes ) );
-					batchRecords[at + 2] = (uint)transforms.InstanceSlot( batch.FirstInstance );
-					(visibilityFirst, vertexBase) = visibility is not null ? tables.Visibility( aggregate, fragments.Length, pooled.VertexCount ) : (GpuDrivenTables.NoVisibility, GpuDrivenTables.NoVisibility);
-					kind = 0;
+					var compactRun = cullRuns.Count;
+					cullRuns.Add( (b, compacted, IndexFormat.UInt32, compactWritten, bucket.Fragments) );
+					compactWritten += bucket.Fragments;
+					for ( int i = record - bucket.Batches.Count; i < record; i++ ) batchRecords[i * (CullBatchBytes / 4) + 5] = (uint)compactRun;
 				}
-
-				batchRecords[at + 1] = (uint)fragmentCount;
-				batchRecords[at + 3] = compact ? (uint)cullRuns.Count : (uint)written;
-				batchRecords[at + 4] = vertexBase != GpuDrivenTables.NoVisibility ? visibilityFirst : GpuDrivenTables.NoVisibility;
-				batchRecords[at + 5] = 0;
-				batchRecords[at + 6] = (bucket.Ids ? 1u : 0u) | (bucketLists ? 2u : 0u) | kind;
-				batchRecords[at + 7] = vertexBase;
-				record++;
-				written += fragmentCount;
-				drawn[index] = true;
 			}
+		}
+		finally
+		{
+			if ( memoTaken ) System.Threading.Monitor.Exit( memo );
+		}
 
-			if ( written > runStart ) cullRuns.Add( (b, currentPage, currentFormat, runStart, written - runStart) );
-
-			// Forward's compacted triangles: one more multi-draw for the bucket, from the compacted index buffer
-			if ( bucketLists )
-			{
-				var compactRun = cullRuns.Count;
-				cullRuns.Add( (b, compacted, IndexFormat.UInt32, compactWritten, bucket.Fragments) );
-				compactWritten += bucket.Fragments;
-				for ( int i = record - bucket.Batches.Count; i < record; i++ ) batchRecords[i * (CullBatchBytes / 4) + 5] = (uint)compactRun;
-			}
+		if ( memoHits > 0 ) System.Threading.Interlocked.Add( ref device.GpuDrivenRecordMemoHits, memoHits );
+		if ( device.GpuDrivenRecordLog is { } log )
+		{
+			lock ( log ) log.Add( batchRecords.ToArray() );
 		}
 
 		SetObjectAttributes( null );
@@ -922,6 +986,9 @@ internal sealed partial class BackendContext
 	/// <summary>Multi-draws recorded by the current <see cref="DrawGpuDriven"/>, for the timings.</summary>
 	int gpuDrivenRuns;
 
+	/// <summary>A material's version, which moves on whenever its values, textures or itself change.</summary>
+	static int MaterialVersion( GpuMaterial material ) => material switch { BackendMaterial m => m.Version, SurfaceMaterial s => s.Version, _ => 0 };
+
 	/// <summary>A bucket's key for attributes: the same for attributes that differ only in what each draw's lighting record holds.</summary>
 	static long AttributesKey( ShaderParameters attributes ) => attributes switch { null => 0L, BackendParameters parameters => parameters.LightingFreeKey, _ => (uint)RuntimeHelpers.GetHashCode( attributes ) | 1L << 62 };
 
@@ -998,11 +1065,16 @@ internal sealed partial class BackendContext
 	/// this context's attributes, the draw's tangent format, the shader's defaults), then each material texture's bindless
 	/// slot. Made once per material, stage and attribute values.
 	/// </summary>
-	uint MaterialRecord( GpuDrivenTables tables, BackendMaterial material, ShaderStage stage, bool uncompressedTangentFrame )
+	uint MaterialRecord( GpuDrivenTables tables, BackendMaterial material, ShaderStage stage, bool uncompressedTangentFrame ) => stage is null ? 0 : MaterialRecord( tables, material, stage, uncompressedTangentFrame, AttributeHash( stage ) );
+
+	/// <summary><see cref="MaterialRecord(GpuDrivenTables, BackendMaterial, ShaderStage, bool)"/> with the stage's <see cref="AttributeHash"/> already worked out.</summary>
+	uint MaterialRecord( GpuDrivenTables tables, BackendMaterial material, ShaderStage stage, bool uncompressedTangentFrame, int attributeHash )
 	{
 		if ( stage is null ) return 0;
 
-		var key = new GpuDrivenTables.MaterialRecordKey( material, material.Version, stage, uncompressedTangentFrame, AttributeHash( stage ) );
+		var key = new GpuDrivenTables.MaterialRecordKey( material, material.Version, stage, uncompressedTangentFrame, attributeHash );
+		if ( tables.TryMaterial( key, out var known ) ) return known;
+
 		var size = Math.Max( stage.MaterialBuffer.Size, 4 );
 		foreach ( var (_, offset) in stage.RecordTextures ) size = Math.Max( size, offset + 4 );
 

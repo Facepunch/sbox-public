@@ -20,6 +20,11 @@ internal sealed partial class BackendContext
 	/// <summary><c>kMaterialOffsetPerPixel</c> in sbox/material.slang.</summary>
 	const uint MaterialOffsetPerPixelId = 2;
 
+	/// <summary><c>kSurfaceOpaqueFade</c> in sbox/surface_passes.slangh: the draw is of a fading object (<c>D_OPAQUE_FADE</c>).</summary>
+	const uint OpaqueFadeId = 3;
+
+	static readonly StringToken OpaqueFadeCombo = new( "D_OPAQUE_FADE" );
+
 	bool DrawSurface( SurfaceMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect )
 	{
 		if ( mesh.Geometry is not IBackendGeometry source || skinned ) return false;
@@ -55,7 +60,7 @@ internal sealed partial class BackendContext
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
-		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, twoSided: material.TwoSided );
+		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, twoSided: material.TwoSided, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0 );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
@@ -117,7 +122,12 @@ internal sealed partial class BackendContext
 	/// A draw's vertex and pixel material records: a surface's one record (its <c>[Material]</c> struct) for both stages,
 	/// or a variant's per stage.
 	/// </summary>
-	(uint Vertex, uint Pixel) Records( GpuDrivenTables tables, GpuDrivenBucket bucket, GpuMaterial material, bool uncompressedTangentFrame )
+	(uint Vertex, uint Pixel) Records( GpuDrivenTables tables, GpuDrivenBucket bucket, GpuMaterial material, bool uncompressedTangentFrame ) =>
+		bucket.Surface is not null ? Records( tables, bucket, material, uncompressedTangentFrame, 0, 0 )
+		: Records( tables, bucket, material, uncompressedTangentFrame, bucket.Variant.Vertex is { } vertex ? AttributeHash( vertex ) : 0, !bucket.DepthOnly && bucket.Variant.Pixel is { } pixel ? AttributeHash( pixel ) : 0 );
+
+	/// <summary>The same with the bucket's stages' attribute hashes (<see cref="AttributeHash"/>) already worked out.</summary>
+	(uint Vertex, uint Pixel) Records( GpuDrivenTables tables, GpuDrivenBucket bucket, GpuMaterial material, bool uncompressedTangentFrame, int vertexAttributes, int pixelAttributes )
 	{
 		if ( bucket.Surface is not null )
 		{
@@ -133,7 +143,7 @@ internal sealed partial class BackendContext
 		}
 
 		var classic = (BackendMaterial)material;
-		return (MaterialRecord( tables, classic, bucket.Variant.Vertex, uncompressedTangentFrame ), bucket.DepthOnly ? 0 : MaterialRecord( tables, classic, bucket.Variant.Pixel, uncompressedTangentFrame ));
+		return (MaterialRecord( tables, classic, bucket.Variant.Vertex, uncompressedTangentFrame, vertexAttributes ), bucket.DepthOnly ? 0 : MaterialRecord( tables, classic, bucket.Variant.Pixel, uncompressedTangentFrame, pixelAttributes ));
 	}
 
 	/// <summary>
@@ -147,7 +157,7 @@ internal sealed partial class BackendContext
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
-		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, ids, bucket.TwoSided );
+		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, ids, bucket.TwoSided, LookupCombo( OpaqueFadeCombo ) is > 0 );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
@@ -168,37 +178,85 @@ internal sealed partial class BackendContext
 	{
 		// Where the pixel stage reads the material record's offset (sbox/material.slang): passed on per pixel, or the draw's
 		var perPixel = device.Surfaces.MaterialOffsetPerPixel;
-		key = perPixel ? 1u : 2u;
-		var constants = new SpecializationConstant[stage.Specializations.Count + 1];
-		constants[^1] = new SpecializationConstant( MaterialOffsetPerPixelId, perPixel ? 1u : 0u );
-		for ( int i = 0; i < stage.Specializations.Count; i++ )
+		var fade = LookupCombo( OpaqueFadeCombo ) is > 0;
+		var info = StageBindings( stage );
+		key = (perPixel ? 1u : 2u) + (fade ? 4u : 0u);
+		Span<int> values = stackalloc int[stage.Specializations.Count];
+		for ( int i = 0; i < values.Length; i++ )
 		{
 			var slot = stage.Specializations[i];
-			var value = Integer( Lookup( Token( slot.Attribute ) ) ) ?? (int)(slot.Annotations?.Default is { Length: > 0 } d ? d[0] : 0);
-			constants[i] = new SpecializationConstant( (uint)slot.Id, (uint)value );
-			key = key * 1000003 + (uint)value + 1;
+			values[i] = Integer( Lookup( info.SpecializationTokens[i] ) ) ?? (int)(slot.Annotations?.Default is { Length: > 0 } d ? d[0] : 0);
+			key = key * 1000003 + (uint)values[i] + 1;
 		}
 
+		// The same values as the last bind (nearly always): the same array, so a bind doesn't allocate
+		if ( info.LastConstants is not null && info.LastConstantsKey == key ) return info.LastConstants;
+
+		var constants = new SpecializationConstant[values.Length + 2];
+		constants[^2] = new SpecializationConstant( MaterialOffsetPerPixelId, perPixel ? 1u : 0u );
+		constants[^1] = new SpecializationConstant( OpaqueFadeId, fade ? 1u : 0u );
+		for ( int i = 0; i < values.Length; i++ ) constants[i] = new SpecializationConstant( (uint)stage.Specializations[i].Id, (uint)values[i] );
+		(info.LastConstants, info.LastConstantsKey) = (constants, key);
 		return constants;
+	}
+
+	/// <summary>
+	/// What a stage's binds look up, made once per stage for this context: each binding's attribute token and sampler,
+	/// each specialization slot's token, and the last specialization constants. A surface pass binds per bucket or draw.
+	/// </summary>
+	sealed class SurfaceStageBindings
+	{
+		public readonly StringToken[] Tokens;
+		public readonly SamplerHandle[] Samplers;
+		public readonly StringToken[] SpecializationTokens;
+		public SpecializationConstant[] LastConstants;
+		public ulong LastConstantsKey;
+
+		public SurfaceStageBindings( CompiledStage stage, ShaderDefaults defaults )
+		{
+			Tokens = new StringToken[stage.Bindings.Count];
+			Samplers = new SamplerHandle[stage.Bindings.Count];
+			for ( int i = 0; i < Tokens.Length; i++ )
+			{
+				var b = stage.Bindings[i];
+				Tokens[i] = Token( b.Name );
+				if ( b.Kind == BindingKind.Sampler ) Samplers[i] = defaults.Sampler( SurfaceSampler( b.Annotations ) );
+			}
+
+			SpecializationTokens = new StringToken[stage.Specializations.Count];
+			for ( int i = 0; i < SpecializationTokens.Length; i++ ) SpecializationTokens[i] = Token( stage.Specializations[i].Attribute );
+		}
+	}
+
+	readonly System.Runtime.CompilerServices.ConditionalWeakTable<CompiledStage, SurfaceStageBindings> surfaceStageBindings = new();
+
+	SurfaceStageBindings StageBindings( CompiledStage stage )
+	{
+		if ( surfaceStageBindings.TryGetValue( stage, out var info ) ) return info;
+		info = new SurfaceStageBindings( stage, device.Defaults );
+		surfaceStageBindings.AddOrUpdate( stage, info );
+		return info;
 	}
 
 	/// <summary>One stage's set: every binding its SPIR-V uses, by the name the engine binds it by.</summary>
 	void BindSurface( SurfaceProgram.PassObjects pass, CompiledStage stage, int set )
 	{
 		if ( !pass.Sets[set].IsValid ) return;
+		var info = StageBindings( stage );
 		Span<Binding> bindings = stackalloc Binding[64];
 		var count = 0;
-		foreach ( var b in stage.Bindings )
+		for ( int i = 0; i < stage.Bindings.Count; i++ )
 		{
+			var b = stage.Bindings[i];
 			if ( b.Set != set ) continue;
 			if ( count == bindings.Length ) throw new InvalidOperationException( $"{stage.Entry} binds more than {bindings.Length} resources in set {set}" );
-			bindings[count++] = SurfaceBinding( stage, b );
+			bindings[count++] = SurfaceBinding( stage, b, info.Tokens[i], info.Samplers[i] );
 		}
 
 		recording.List.SetBindings( set, pass.Sets[set], bindings[..count] );
 	}
 
-	Binding SurfaceBinding( CompiledStage stage, ShaderBinding b )
+	Binding SurfaceBinding( CompiledStage stage, ShaderBinding b, StringToken token, SamplerHandle sampler )
 	{
 		var defaults = device.Defaults;
 		switch ( b.Kind )
@@ -211,7 +269,7 @@ internal sealed partial class BackendContext
 
 			case BindingKind.ConstantBuffer:
 				{
-					var data = Lookup( Token( b.Name ) ) as byte[];
+					var data = Lookup( token ) as byte[];
 					var size = (Math.Max( data?.Length ?? 0, b.Size ) + 15) & ~15;
 					if ( size == 0 ) return Binding.Uniform( b.Binding, defaults.Uniform, 0, ShaderDefaults.UniformSize );
 					var allocation = List.AllocateUpload( size, Gpu.Capabilities.UniformAlignment );
@@ -221,10 +279,10 @@ internal sealed partial class BackendContext
 				}
 
 			case BindingKind.Buffer:
-				return Lookup( Token( b.Name ) ) is GpuBuffer { Resource: BackendBuffer buffer } ? Binding.Storage( b.Binding, buffer.Handle ) : Binding.Storage( b.Binding, defaults.Storage );
+				return Lookup( token ) is GpuBuffer { Resource: BackendBuffer buffer } ? Binding.Storage( b.Binding, buffer.Handle ) : Binding.Storage( b.Binding, defaults.Storage );
 
 			case BindingKind.Sampler:
-				return Binding.SamplerState( b.Binding, defaults.Sampler( SurfaceSampler( b.Annotations ) ) );
+				return Binding.SamplerState( b.Binding, sampler );
 
 			case BindingKind.StorageTexture:
 				return Binding.StorageTexture( b.Binding, defaults.Texture( Dimension( b.Shape ) ) );
@@ -240,7 +298,7 @@ internal sealed partial class BackendContext
 						_ => TextureDimension.Texture2D,
 					};
 
-					if ( Lookup( Token( b.Name ) ) is not BackendTexture texture || texture.Dimension != expected || texture.Samples > 1 || SampledLayoutOf( texture ) != ImageLayout.ShaderRead )
+					if ( Lookup( token ) is not BackendTexture texture || texture.Dimension != expected || texture.Samples > 1 || SampledLayoutOf( texture ) != ImageLayout.ShaderRead )
 						return Binding.Sampled( b.Binding, defaults.Texture( Dimension( b.Shape ) ) );
 
 					var srgb = (b.Annotations?.SrgbRead ?? false) && Gpu.InfoOf( texture.Handle ).Format.HasSrgb();
@@ -259,7 +317,7 @@ internal sealed partial class BackendContext
 	};
 
 	/// <summary>
-	/// The stage's <c>$Globals</c>: each member from the attribute of its name (its annotation's), else its annotated
+	/// The stage's <c>$Globals</c>: each member with an <c>Attribute</c> annotation from that attribute, else its annotated
 	/// default, in upload memory. <c>UncompressedTangentFrame</c> comes from the draw's vertex layout, as for classic draws.
 	/// </summary>
 	Binding SurfaceGlobals( GlobalConstants globals, int binding )
@@ -267,12 +325,70 @@ internal sealed partial class BackendContext
 		var size = Math.Max( globals?.Size ?? 16, 16 );
 		var allocation = List.AllocateUpload( size, Gpu.Capabilities.UniformAlignment );
 		var data = allocation.Data[..size];
-		data.Clear();
-		foreach ( var member in globals?.Members ?? [] )
+		if ( globals is null )
 		{
-			var value = member.Attribute == "UncompressedTangentFrame" ? [uncompressedTangentFrame ? 1 : 0] : Floats( Lookup( Token( member.Attribute ) ) ) ?? member.Annotations?.Default;
-			if ( value is null ) continue;
-			for ( int i = 0; i < member.Components && i < value.Length && member.Offset + i * 4 + 4 <= size; i++ )
+			data.Clear();
+			return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
+		}
+
+		// Per bind, and the core includes declare hundreds of members: the defaults are laid out once per stage, and only
+		// the members bound by an attribute are looked up, without allocating
+		var layout = GlobalLayouts.GetValue( globals, static g => new SurfaceGlobalsLayout( g ) );
+		layout.Defaults.AsSpan( 0, Math.Min( layout.Defaults.Length, size ) ).CopyTo( data );
+		if ( layout.Defaults.Length < size ) data[layout.Defaults.Length..].Clear();
+
+		Span<float> value = stackalloc float[4];
+		for ( int a = 0; a < layout.Bound.Length; a++ )
+		{
+			var member = globals.Members[layout.Bound[a]];
+			int count;
+			if ( member.Attribute == "UncompressedTangentFrame" )
+			{
+				value[0] = uncompressedTangentFrame ? 1 : 0;
+				count = 1;
+			}
+			else
+			{
+				count = Components( Lookup( layout.Tokens[a] ), value );
+			}
+
+			if ( count > 0 ) SurfaceGlobalsLayout.Write( data, member, value[..count] );
+		}
+
+		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
+	}
+
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<GlobalConstants, SurfaceGlobalsLayout> GlobalLayouts = new();
+
+	/// <summary>
+	/// A stage's <c>$Globals</c> laid out once: every member's annotated default, and the members an attribute sets (an
+	/// <c>Attribute</c> annotation, as vfx binds them; the rest are a material's values, which a surface's record holds).
+	/// </summary>
+	sealed class SurfaceGlobalsLayout
+	{
+		public readonly byte[] Defaults;
+		public readonly int[] Bound;
+		public readonly StringToken[] Tokens;
+
+		public SurfaceGlobalsLayout( GlobalConstants globals )
+		{
+			Defaults = new byte[Math.Max( globals.Size, 16 )];
+			var bound = new List<int>();
+			for ( int m = 0; m < globals.Members.Count; m++ )
+			{
+				var member = globals.Members[m];
+				if ( member.Annotations?.Default is { } defaults ) Write( Defaults, member, defaults.AsSpan( 0, Math.Min( defaults.Length, 4 ) ) );
+				if ( member.Annotations?.Attribute is not null || member.Attribute == "UncompressedTangentFrame" ) bound.Add( m );
+			}
+
+			Bound = [.. bound];
+			Tokens = new StringToken[Bound.Length];
+			for ( int i = 0; i < Bound.Length; i++ ) Tokens[i] = Token( globals.Members[Bound[i]].Attribute );
+		}
+
+		public static void Write( Span<byte> data, GlobalMember member, ReadOnlySpan<float> value )
+		{
+			for ( int i = 0; i < member.Components && i < value.Length && member.Offset + i * 4 + 4 <= data.Length; i++ )
 			{
 				var target = data[(member.Offset + i * 4)..];
 				switch ( member.Kind )
@@ -289,8 +405,24 @@ internal sealed partial class BackendContext
 				}
 			}
 		}
+	}
 
-		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
+	/// <summary>An attribute's value as up to four floats, as <see cref="Floats"/> reads it, without allocating; 0 for none.</summary>
+	static int Components( object attribute, Span<float> into )
+	{
+		switch ( attribute )
+		{
+			case int i: into[0] = i; return 1;
+			case uint u: into[0] = u; return 1;
+			case float f: into[0] = f; return 1;
+			case bool b: into[0] = b ? 1 : 0; return 1;
+			case Vector2 v: into[0] = v.x; into[1] = v.y; return 2;
+			case Vector3 v: into[0] = v.x; into[1] = v.y; into[2] = v.z; return 3;
+			case Vector4 v: into[0] = v.x; into[1] = v.y; into[2] = v.z; into[3] = v.w; return 4;
+			case Color c: into[0] = c.r; into[1] = c.g; into[2] = c.b; into[3] = c.a; return 4;
+			case Vector2Int v: into[0] = v.x; into[1] = v.y; return 2;
+			default: return 0;
+		}
 	}
 
 	/// <summary>

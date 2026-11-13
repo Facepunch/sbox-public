@@ -41,6 +41,7 @@ internal sealed partial class SceneBridge
 		if ( renderSize.x < 1 || renderSize.y < 1 ) return;
 
 		camera.OnPreRender( renderSize );
+		window.CameraPosition = camera.Position;
 		var rect = camera.Rect;
 		var viewport = new Rect( rect.Left * renderSize.x, rect.Top * renderSize.y, rect.Width * renderSize.x, rect.Height * renderSize.y );
 

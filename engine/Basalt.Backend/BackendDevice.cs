@@ -176,6 +176,24 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public bool GpuDrivenMaterialBuckets { get; set; }
 
+	/// <summary>
+	/// Keep each view's GPU-culled batch records between frames (<see cref="Backend.GpuDrivenRecordMemo"/>), so a batch drawn
+	/// again with the same material, geometry, attributes and lighting finds its records without the tables' lookups. On by
+	/// default; tests turn it off to compare against the records looked up.
+	/// </summary>
+	internal bool GpuDrivenRecordMemo { get; set; } = true;
+
+	/// <summary>Batches whose records came from the memo, for tests.</summary>
+	internal long GpuDrivenRecordMemoHits;
+
+	/// <summary>When set, a copy of each GPU-culled call's batch records, for tests.</summary>
+	internal List<uint[]> GpuDrivenRecordLog { get; set; }
+
+	readonly ConditionalWeakTable<object, GpuDrivenRecordMemos> gpuDrivenRecordMemos = new();
+
+	/// <summary>A view's record memos, made the first time.</summary>
+	internal GpuDrivenRecordMemos RecordMemosFor( object view ) => gpuDrivenRecordMemos.GetValue( view, static _ => new() );
+
 	readonly System.Collections.Concurrent.ConcurrentDictionary<uint, BackendParameters> gpuDrivenMaterialParameters = new();
 	static readonly StringToken GpuDrivenMaterialName = new( "BasaltGpuDrivenMaterial_t" );
 
