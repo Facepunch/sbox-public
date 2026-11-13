@@ -7,7 +7,7 @@ namespace Sandbox.Internal;
 /// <summary>
 /// A readonly filesystem that has a list of files, and a list of redirects. When accessing a file, it'll access the redirect file invisibly.
 /// </summary>
-class RedirectFileSystem : Zio.FileSystems.PhysicalFileSystem
+class RedirectFileSystem : FSEventsPhysicalFileSystem
 {
 	public Dictionary<UPath, UPath> Files { get; } = new Dictionary<UPath, UPath>( UPathComparer.OrdinalIgnoreCase );
 
