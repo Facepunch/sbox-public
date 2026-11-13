@@ -27,6 +27,30 @@ class PreviewTerrainMaterial : AssetPreview
 		set => EditorCookie.Set( "terrain.material.preview.paused", value );
 	}
 
+	internal enum PreviewShape { Sphere, Cube, Plane }
+
+	/// <summary>
+	/// What the live preview shows the material on, picked with the buttons in its top-left corner and kept
+	/// for every material. Thumbnails always use the sphere, so the palette stays consistent.
+	/// </summary>
+	static PreviewShape Shape
+	{
+		get => EditorCookie.Get( "terrain.material.preview.shape", PreviewShape.Sphere );
+		set => EditorCookie.Set( "terrain.material.preview.shape", value );
+	}
+
+	// Each shape's button draws the shape itself, as a rounded rect: the icon font in the 3D view lacks some
+	// Material Icons glyphs and shows a blank box for them instead. A full radius makes the circle, the plane
+	// is a flat slab so it can't be mistaken for the cube's square.
+	static readonly (PreviewShape Shape, Vector2 Glyph, float Radius)[] Shapes =
+	[
+		(PreviewShape.Sphere, new Vector2( 16, 16 ), 8),
+		(PreviewShape.Cube, new Vector2( 14, 14 ), 2),
+		(PreviewShape.Plane, new Vector2( 20, 6 ), 1),
+	];
+
+	PreviewShape _shape;
+
 	float _yaw;
 	bool _dragging, _wasDown;
 	float _lastCursorX;
@@ -45,16 +69,44 @@ class PreviewTerrainMaterial : AssetPreview
 				PrimaryObject = new GameObject();
 
 				_renderer = PrimaryObject.AddComponent<ModelRenderer>();
-				_renderer.Model = Model.Sphere;
 				_renderer.MaterialOverride = Sandbox.Material.FromShader( "shaders/terrain_preview.shader" );
-				ApplyMaterial();
 			}
 
-			SceneSize = PrimaryObject.GetBounds().Size * 0.6f;
-			SceneCenter = PrimaryObject.GetBounds().Center;
+			// Thumbnails and videos have no live widget and always show the sphere
+			SetShape( LiveWidget.IsValid() ? Shape : PreviewShape.Sphere );
 		}
 
 		await Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// Puts the material on <paramref name="shape"/> and frames it. The plane is a flat patch seen from above,
+	/// closer to how the material reads on a terrain.
+	/// </summary>
+	void SetShape( PreviewShape shape )
+	{
+		_shape = shape;
+		if ( !_renderer.IsValid() ) return;
+
+		using ( Scene.Push() )
+		{
+			_renderer.Model = shape switch
+			{
+				PreviewShape.Cube => Model.Cube,
+				PreviewShape.Plane => Model.Plane,
+				_ => Model.Sphere,
+			};
+			ApplyMaterial();
+
+			// Framing below 1 crops into the bounds: a sphere fills them, a turning cube's corners swing past
+			// them, and the plane is meant to fill the view
+			var bounds = _renderer.Model.Bounds;
+			SceneSize = bounds.Size * (shape == PreviewShape.Cube ? 0.9f : 0.6f);
+			SceneCenter = bounds.Center;
+
+			if ( Camera.IsValid() )
+				Camera.WorldRotation = new Angles( shape == PreviewShape.Plane ? 45 : 20, 180 + 45, 0 );
+		}
 	}
 
 	public override void UpdateScene( float cycle, float timeStep )
@@ -76,19 +128,28 @@ class PreviewTerrainMaterial : AssetPreview
 		var pressed = down && !_wasDown;
 		_wasDown = down;
 
-		// The play / pause button, in the widget's own coordinates
+		// The corner buttons, in the widget's own coordinates: play / pause top right, shapes top left
 		var local = view.FromScreen( cursor );
-		var button = new Rect( view.Width - 36, 8, 28, 28 );
-		var overButton = button.IsInside( local );
+		var pauseButton = new Rect( view.Width - 36, 8, 28, 28 );
+		var overPause = pauseButton.IsInside( local );
+		var overShape = -1;
+		for ( int i = 0; i < Shapes.Length; i++ )
+			if ( ShapeButton( i ).IsInside( local ) ) overShape = i;
+		var overButton = overPause || overShape >= 0;
 		var overView = view.ScreenRect.IsInside( cursor );
 
-		// Grab cursor over the sphere, a pointer over the button
+		// Grab cursor over the material, a pointer over the buttons
 		var cursorShape = overButton ? CursorShape.Finger : _dragging ? CursorShape.ClosedHand : CursorShape.OpenHand;
 		if ( view.Cursor != cursorShape ) view.Cursor = cursorShape;
 
-		if ( pressed && overButton )
+		if ( pressed && overPause )
 		{
 			Paused = !Paused;
+		}
+		else if ( pressed && overShape >= 0 )
+		{
+			Shape = Shapes[overShape].Shape;
+			SetShape( Shape );
 		}
 		// Only a press that starts on the preview: a drag from elsewhere passing over it isn't a turn
 		else if ( pressed && overView )
@@ -111,28 +172,46 @@ class PreviewTerrainMaterial : AssetPreview
 			_yaw += timeStep * PreviewWidgetCycleSpeed * 360.0f;
 		}
 
-		// The base turns the sphere by the cycle and frames it: feed it the yaw as a cycle
+		// The base turns the object by the cycle and frames it: feed it the yaw as a cycle
 		base.UpdateScene( _yaw / 360.0f, timeStep );
 
-		DrawPauseButton( view, button, overButton );
+		DrawButton( view, pauseButton, "pause", overPause, false, ( rect, scale ) =>
+			Gizmo.Draw.ScreenText( Paused ? "play_arrow" : "pause", rect.Center, "Material Icons", 18 * scale, TextFlag.Center ) );
+
+		for ( int i = 0; i < Shapes.Length; i++ )
+		{
+			var (shape, glyph, radius) = Shapes[i];
+			DrawButton( view, ShapeButton( i ), $"shape.{shape}", overShape == i, shape == _shape, ( rect, scale ) =>
+				Gizmo.Draw.ScreenRect( new Rect( rect.Center - glyph * scale / 2, glyph * scale ), Gizmo.Draw.Color, new Vector4( radius * scale ) ) );
+		}
 	}
 
+	static Rect ShapeButton( int index ) => new( 8 + index * 32, 8, 28, 28 );
+
 	/// <summary>
-	/// Drawn into the preview itself as a screen-space gizmo: the render surface is native, so a Qt widget
-	/// placed over it would be hidden underneath.
+	/// A corner button, drawn into the preview itself as a screen-space gizmo: the render surface is native, so
+	/// a Qt widget placed over it would be hidden underneath.
 	/// </summary>
-	void DrawPauseButton( Widget view, Rect button, bool hovered )
+	static void DrawButton( Widget view, Rect button, string id, bool hovered, bool active, Action<Rect, float> drawContent )
 	{
 		if ( Gizmo.Settings is null )
 			return;
+
+		// One scope per button: the gizmo reuses a scene object per call site within a scope, so without it
+		// every button would draw into the same one and only the last would show
+		using var scope = Gizmo.Scope( $"button.{id}" );
 
 		// Gizmo screen space is in device pixels
 		var scale = view.DpiScale;
 		var rect = new Rect( button.Position * scale, button.Size * scale );
 
-		Gizmo.Draw.ScreenRect( rect, Color.Black.WithAlpha( hovered ? 0.7f : 0.45f ), new Vector4( 4 * scale ) );
-		Gizmo.Draw.Color = hovered ? Color.White : Color.White.WithAlpha( 0.8f );
-		Gizmo.Draw.ScreenText( Paused ? "play_arrow" : "pause", rect.Center, "Material Icons", 18 * scale, TextFlag.Center );
+		var background = active ? Theme.Blue.WithAlpha( 0.85f ) : Color.Black.WithAlpha( hovered ? 0.7f : 0.45f );
+		Gizmo.Draw.ScreenRect( rect, background, new Vector4( 4 * scale ) );
+		Gizmo.Draw.Color = hovered || active ? Color.White : Color.White.WithAlpha( 0.8f );
+
+		// Its own scope too: the content may also be a screen rect, which would replace the background
+		using ( Gizmo.Scope( "content" ) )
+			drawContent( rect, scale );
 	}
 
 	void ApplyMaterial()
