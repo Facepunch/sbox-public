@@ -89,6 +89,10 @@ internal static class MapRealRun
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		Console.WriteLine( $"Loaded in {load.Elapsed.TotalSeconds:0.0} s; {map.Problems.Count} problems" );
 		if ( Args.String( "-surface-convert" ) is not null ) Console.WriteLine( $"  {map.Backend.Surfaces.ConvertedMaterials} materials drawn as surfaces (-surface-convert)" );
+		if ( Args.Has( "-surface-convert-list" ) )
+		{
+			foreach ( var path in map.Backend.Surfaces.ConvertedPaths ) Console.WriteLine( $"  as a surface: {path}" );
+		}
 		foreach ( var problem in map.Problems.Take( 10 ) ) Console.WriteLine( $"  {problem}" );
 
 		using var timestamps = gpu.CreateTimestamps( 2 * 4 );

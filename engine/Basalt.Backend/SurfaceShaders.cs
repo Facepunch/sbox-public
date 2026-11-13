@@ -89,8 +89,25 @@ public sealed class SurfaceShaders : IDisposable
 	public int ConvertedMaterials => convertedMaterials;
 
 	int convertedMaterials;
+	readonly List<string> convertedPaths = new();
 
-	internal void CountConverted() => System.Threading.Interlocked.Increment( ref convertedMaterials );
+	/// <summary>Which materials of a converted shader load as the surface, by path; null for all. For comparisons.</summary>
+	public Func<string, bool> ConvertMaterial { get; set; }
+
+	/// <summary>The paths of the materials loaded as surfaces, in load order, for reports.</summary>
+	public IReadOnlyList<string> ConvertedPaths
+	{
+		get
+		{
+			lock ( convertedPaths ) return convertedPaths.ToArray();
+		}
+	}
+
+	internal void CountConverted( string path )
+	{
+		System.Threading.Interlocked.Increment( ref convertedMaterials );
+		lock ( convertedPaths ) convertedPaths.Add( path );
+	}
 
 	/// <summary>Surface batches the GPU-driven path has taken, added up over every frame, for reports.</summary>
 	public long GpuDrivenBatches => System.Threading.Interlocked.Read( ref gpuDrivenBatches );
@@ -283,7 +300,7 @@ internal sealed class SurfaceProgram : IDisposable
 {
 	readonly BackendDevice device;
 	readonly Dictionary<string, PassObjects> passes = new();
-	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids), PipelineHandle> pipelines = new();
+	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool TwoSided), PipelineHandle> pipelines = new();
 
 	/// <summary>Material classes already reported as generated for another layout.</summary>
 	public readonly HashSet<Type> Mismatched = new();
@@ -382,11 +399,11 @@ internal sealed class SurfaceProgram : IDisposable
 	/// With <paramref name="ids"/>, the visibility-driven forward pass's id prepass: target 0 an R8 scratch (its alpha drives
 	/// alpha to coverage), target 1 the ids, as BackendDevice.Pipeline makes them.
 	/// </summary>
-	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, bool ids = false )
+	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, bool ids = false, bool twoSided = false )
 	{
 		lock ( pipelines )
 		{
-			var key = (pass, layout, color, depth, samples, constantsKey, ids);
+			var key = (pass, layout, color, depth, samples, constantsKey, ids, twoSided);
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
 			var inputs = pass.Pass.Vertex.Inputs.Select( i => new VertexInput( i.Location, Semantic( i.Semantic ), i.SemanticIndex, i.Kind == ScalarKind.Float ? SpirvScalar.Float : i.Kind == ScalarKind.Int ? SpirvScalar.Int : SpirvScalar.UInt, i.Components ) ).ToList();
@@ -413,7 +430,7 @@ internal sealed class SurfaceProgram : IDisposable
 				VertexBuffers = [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )],
 				Attributes = attributes,
 				Topology = PrimitiveTopology.TriangleList,
-				CullMode = CullMode.Back,
+				CullMode = twoSided ? CullMode.None : CullMode.Back,
 				FrontFace = FrontFace.CounterClockwise,
 				DepthBias = depthOnly || ids,
 				DepthTest = depth != Format.Unknown,
@@ -466,6 +483,7 @@ internal sealed class SurfaceProgram : IDisposable
 internal sealed class SurfaceRecords( Device gpu ) : IDisposable
 {
 	readonly Dictionary<SurfaceMaterial, (int Version, uint Offset)> written = new( ReferenceEqualityComparer.Instance );
+	readonly List<BufferHandle> retired = new();
 	BufferHandle buffer;
 	long size, used;
 
@@ -507,8 +525,10 @@ internal sealed class SurfaceRecords( Device gpu ) : IDisposable
 		var grown = gpu.CreateBuffer( new BufferInfo { Size = next, Usage = BufferUsage.Storage, Memory = MemoryLocation.Upload, Name = "Basalt surface material records" } );
 		if ( buffer.IsValid )
 		{
+			// The old buffer is kept until the records are disposed: draws recorded earlier this frame bound it, and a
+			// destroy is only deferred past what's been submitted. It only doubles a few times, so this is at most its size.
 			gpu.Map( buffer )[..(int)used].CopyTo( gpu.Map( grown ) );
-			gpu.Destroy( buffer );
+			retired.Add( buffer );
 		}
 
 		buffer = grown;
@@ -520,6 +540,8 @@ internal sealed class SurfaceRecords( Device gpu ) : IDisposable
 		lock ( written )
 		{
 			if ( buffer.IsValid ) gpu.Destroy( buffer );
+			foreach ( var old in retired ) gpu.Destroy( old );
+			retired.Clear();
 			buffer = default;
 		}
 	}

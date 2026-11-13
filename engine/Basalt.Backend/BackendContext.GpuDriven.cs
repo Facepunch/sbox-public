@@ -42,6 +42,9 @@ internal sealed partial class BackendContext
 
 		/// <summary>A surface bucket whose vertices need only their positions (it doesn't displace them): the ids prepass may pull those alone.</summary>
 		public bool SurfacePositionsOnly;
+
+		/// <summary>A surface bucket whose materials draw back faces too (<see cref="SurfaceMaterial.TwoSided"/>).</summary>
+		public bool TwoSided;
 		public ShaderParameters Attributes;
 		public bool DepthOnly, NoColor;
 
@@ -919,6 +922,7 @@ internal sealed partial class BackendContext
 		var made = gpuDrivenBuckets[gpuDrivenBucketCount++];
 		made.Variant = variant;
 		made.Surface = null;
+		made.TwoSided = false;
 		made.SurfaceProgram = null;
 		made.SurfacePositionsOnly = false;
 		made.Attributes = attributes;

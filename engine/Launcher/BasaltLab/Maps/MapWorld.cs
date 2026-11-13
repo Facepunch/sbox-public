@@ -87,6 +87,13 @@ internal sealed partial class MapWorld : IDisposable
 			Backend.Surfaces.Convert( $"shaders/{shader}.shader", $"{shader}.slang" );
 		}
 
+		// -surface-convert-match a,b: only materials whose path contains one of these convert (for finding a difference)
+		if ( Args.String( "-surface-convert-match" ) is { } match )
+		{
+			var parts = match.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
+			Backend.Surfaces.ConvertMaterial = path => parts.Any( p => path.Contains( p, StringComparison.OrdinalIgnoreCase ) );
+		}
+
 		// A package's own Slang shaders, compiled as it mounts
 		var packageShaders = Path.Combine( folder, "shaders" );
 		if ( Directory.Exists( packageShaders ) && Directory.GetFiles( packageShaders, "*.slang" ).Length > 0 ) _ = Backend.Surfaces.Mount( packageShaders );

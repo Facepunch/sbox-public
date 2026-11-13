@@ -496,6 +496,104 @@ public class SurfaceTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// complex.slang stands in for complex.shader's materials and draws them as complex.shader does, through the final
+	/// combiner; a material using a feature it doesn't do (translucency) stays on complex.shader.
+	/// </summary>
+	[TestMethod]
+	public void ComplexSurfaceDrawsComplexMaterials()
+	{
+		Compiler();
+		var previousHost = RenderHost.Current;
+		try
+		{
+			byte[] DrawMaterial( string path, bool convert, out GpuMaterial loaded )
+			{
+				using var backend = new BackendDevice( Device );
+				var errors = new List<string>();
+				backend.Surfaces.Error = errors.Add;
+				RenderHost.Current = new BackendRenderHost( backend );
+				if ( convert )
+				{
+					backend.Surfaces.AddFolder( Path.Combine( Core, "shaders" ) );
+					backend.Surfaces.Convert( "shaders/complex.shader", "complex.slang" );
+				}
+
+				loaded = ((GpuDevice)backend).LoadMaterial( path );
+				var picture = Draw( backend, loaded );
+				Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+				return picture;
+			}
+
+			foreach ( var path in new[] { "materials/default.vmat", "dev/helper/testgrid.vmat" } )
+			{
+				var reference = DrawMaterial( path, false, out var classic );
+				if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( $"{path} isn't compiled" );
+				var converted = DrawMaterial( path, true, out var surface );
+				Assert.IsInstanceOfType<SurfaceMaterial>( surface, $"{path} wasn't converted" );
+				SaveRgb( reference, $"complex-{Path.GetFileNameWithoutExtension( path )}-shader" );
+				SaveRgb( converted, $"complex-{Path.GetFileNameWithoutExtension( path )}-surface" );
+				Assert.IsTrue( Mean( reference, converted ) < 0.5, $"{path}: the surface differs by {Mean( reference, converted ):F3}" );
+			}
+
+			// Translucency isn't the surface's: the material stays on complex.shader
+			DrawMaterial( "materials/dev/primary_white_trans.vmat", true, out var translucent );
+			Assert.IsNotInstanceOfType<SurfaceMaterial>( translucent, "a translucent complex material was converted" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// The surface material records grow while a frame records (more materials than the first buffer holds, drawn at
+	/// once): draws recorded before the growth keep the buffer they bound until the GPU is done with it, so validation
+	/// stays clean.
+	/// </summary>
+	[TestMethod]
+	public void SurfaceRecordsGrowWhileDrawing()
+	{
+		Compiler();
+		using var backend = new BackendDevice( Device );
+		backend.Surfaces.AddFolder( Surfaces );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		var materials = new List<Rock>();
+		try
+		{
+			// 64 KiB holds 2048 of Rock's 32-byte records
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( -0.4f, 0.5f, -0.75f ).Normal;
+			for ( int i = 0; i < 2304; i++ )
+			{
+				var rock = new Rock { Tint = new Vector3( (i % 48) / 48f, (i / 48) / 48f, 0.5f ) };
+				materials.Add( rock );
+				world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, rock ), new Transform( new Vector3( (i % 48) * 12 - 288, (i / 48) * 12 - 288, 0 ), Rotation.Identity, 0.1f ) ) );
+			}
+
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface records test" );
+			var view = new RenderView { Name = "Surface records test", FieldOfView = 60, ZNear = 4, ZFar = 4000, Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -150, 0, 700 );
+			view.Rotation = Rotation.LookAt( -view.Position );
+			for ( int frame = 0; frame < 3; frame++ )
+			{
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+			}
+
+			Device.WaitIdle();
+		}
+		finally
+		{
+			foreach ( var material in materials ) material.Dispose();
+			RenderHost.Current = previousHost;
+		}
+	}
+
 	/// <summary>A box lit by the sun, filling most of the frame, as 8-bit sRGB-ish bytes (red channel of RGBA16F).</summary>
 	byte[] Draw( BackendDevice backend, GpuMaterial material )
 	{

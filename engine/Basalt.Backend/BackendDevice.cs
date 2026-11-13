@@ -495,7 +495,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	{
 		if ( surfaces is not { HasConversions: true } || Content.TryRead( path ) is not { } data || ReadMaterial( data ) is not { } file ) return null;
 		if ( surfaces.ConversionFor( file.Shader ) is not { } surface || surfaces.Compile( surface ) is not { } compiled ) return null;
-		surfaces.CountConverted();
+		if ( !ConvertedMaterial.Accepts( compiled, file ) || surfaces.ConvertMaterial?.Invoke( path ) == false ) return null;
+		surfaces.CountConverted( path );
 		return ConvertedMaterial.Create( compiled, file, path, texture => LoadTexture( texture ) );
 	}
 

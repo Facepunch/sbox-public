@@ -226,6 +226,7 @@ internal static class SurfaceParity
 			}
 
 			if ( Args.Has( "-convert-shaders" ) ) ConvertShaders( device, folder, lines );
+			if ( Args.String( "-convert-materials" ) is { } materials ) ConvertMaterials( gpu, materials, folder, lines );
 		}
 		finally
 		{
@@ -282,6 +283,56 @@ internal static class SurfaceParity
 			{
 				lines.Add( $"convert {Path.GetFileNameWithoutExtension( relative )}: failed: {e.GetType().Name}: {e.Message.Split( '\n' )[0]}" );
 			}
+		}
+	}
+
+	/// <summary>
+	/// <c>-convert-materials complex:materials/a.vmat,materials/b.vmat</c>: each <c>.vmat</c> drawn as its <c>.shader</c> and
+	/// through the surface standing in for that shader (<c>shaders/complex.slang</c>), each on a device of its own, into
+	/// <c>materials/</c> in the results folder. <c>-convert-content</c> adds a package folder the materials are in.
+	/// </summary>
+	static void ConvertMaterials( Basalt.Gpu.Device gpu, string spec, string folder, List<string> lines )
+	{
+		var shader = spec.Split( ':', 2 )[0];
+		var output = Path.Combine( folder, "materials" );
+		Directory.CreateDirectory( output );
+		var content = Args.String( "-convert-content" );
+
+		Color32[] Draw( string path, bool convert, out bool converted )
+		{
+			using var device = new BackendDevice( gpu );
+			if ( content is not null ) device.Content.Add( Path.GetFullPath( content ) );
+			device.Surfaces.Error = m => Console.WriteLine( $"Shader: {m}" );
+			if ( convert )
+			{
+				device.Surfaces.AddFolder( Path.Combine( device.Content.Roots[0], "shaders" ) );
+				device.Surfaces.Convert( $"shaders/{shader}.shader", $"{shader}.slang" );
+			}
+
+			RenderHost.Current = new BackendRenderHost( device );
+			var material = ((Basalt.GpuDevice)device).LoadMaterial( path );
+			converted = material is SurfaceMaterial;
+
+			// Alpha-tested materials' draws flagged as a compiled model's are, so depth passes keep the pixel shader that clips
+			return Render( device, material, alphaTest: material.IsAlphaTest );
+		}
+
+		foreach ( var path in spec.Split( ':', 2 )[1].Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ) )
+		{
+			var name = Path.GetFileNameWithoutExtension( path );
+			var a = Draw( path, false, out _ );
+			var b = Draw( path, true, out var converted );
+			if ( !converted )
+			{
+				lines.Add( $"material {path}: not converted (a feature {shader}.slang doesn't do)" );
+				continue;
+			}
+
+			var (mean, max, over, diff) = Compare( a, b );
+			Save( a, Path.Combine( output, name + "-shader.png" ) );
+			Save( b, Path.Combine( output, name + "-surface.png" ) );
+			Save( diff, Path.Combine( output, name + "-diff.png" ) );
+			lines.Add( $"material {path}: surface against .shader: mean difference {mean:F3}, max {max}, {over} pixels over 8" );
 		}
 	}
 
