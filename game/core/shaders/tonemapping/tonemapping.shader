@@ -25,10 +25,7 @@ struct PixelInput
 { 
     float2 vTexCoord : TEXCOORD0;
 
-    // VS only
-    #if ( PROGRAM == VFX_PROGRAM_VS )
-        float4 vPositionPs		: SV_Position;
-    #endif
+    float4 vPositionPs		: SV_Position;
 };
  
 VS
@@ -209,6 +206,15 @@ PS
         vColor = max( vColor, 0.0.xxx );
     }
 
+    // +-half an 8-bit step of noise in gamma space, so smooth gradients don't band on the 8-bit output.
+    float3 DitherForOutput( float3 rgb, float2 pixel )
+    {
+        // Interleaved gradient noise (Jimenez 2014)
+        float noise = frac( 52.9829189 * frac( dot( pixel, float2( 0.06711056, 0.00583715 ) ) ) );
+        float3 encoded = pow( max( rgb, 0.0 ), 1.0 / 2.2 ) + ( noise - 0.5 ) / 255.0;
+        return pow( max( encoded, 0.0 ), 2.2 );
+    }
+
     float4 MainPs( PixelInput i ) : SV_Target0
     {   
         float4 color = g_tColorBuffer.Sample( g_sPointClamp, i.vTexCoord );
@@ -227,6 +233,6 @@ PS
               ToneMapping_Agx( rgb );
         #endif
 
-        return float4( rgb, color.a ); 
+        return float4( DitherForOutput( rgb, i.vPositionPs.xy ), color.a ); 
     }
 }
