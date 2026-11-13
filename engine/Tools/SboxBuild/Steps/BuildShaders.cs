@@ -59,6 +59,8 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 		"core/shaders/complex.shader",
 		"core/shaders/blendable.shader",
 		"core/shaders/foliage.shader",
+		"core/shaders/bark.shader",
+		"core/shaders/glass.shader",
 		"core/shaders/static_overlay.shader",
 		"core/shaders/generic.shader",
 		"core/shaders/simple.shader",
