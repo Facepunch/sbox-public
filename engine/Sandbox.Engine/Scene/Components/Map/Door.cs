@@ -117,7 +117,7 @@ public sealed class Door : Component, Component.IPressable
 
 	/// <summary>
 	/// Builds the rotation applied to the door when opened by <paramref name="angle"/> degrees,
-	/// hinging around the pivot's up axis (defaults to world up when no pivot is set).
+	/// hinging around the pivot's up axis (defaults to parent up when no pivot is set).
 	/// </summary>
 	Rotation GetOpenRotation( float angle ) => Rotation.FromAxis( _pivotRotation.Up, angle );
 
@@ -171,11 +171,21 @@ public sealed class Door : Component, Component.IPressable
 		}
 	}
 
+	Transform GetParentTransform()
+	{
+		var parent = GameObject.Parent;
+		if ( GameObject.Flags.Contains( GameObjectFlags.Absolute ) || parent is null || (parent is Scene && parent is not PrefabScene) )
+			return global::Transform.Zero;
+
+		return parent.WorldTransform;
+	}
+
 	protected override void OnStart()
 	{
 		_startTransform = Transform.Local;
-		_pivotPosition = Pivot is not null ? Pivot.WorldPosition : _startTransform.Position;
-		_pivotRotation = Pivot is not null ? Pivot.WorldRotation : Rotation.Identity;
+		var parentTransform = GetParentTransform();
+		_pivotPosition = Pivot is not null ? parentTransform.PointToLocal( Pivot.WorldPosition ) : _startTransform.Position;
+		_pivotRotation = Pivot is not null ? parentTransform.RotationToLocal( Pivot.WorldRotation ) : Rotation.Identity;
 
 		if ( StartOpen )
 		{
@@ -316,8 +326,9 @@ public sealed class Door : Component, Component.IPressable
 
 		if ( Mode == DoorMode.Rotating && OpenAwayFromPlayer && presser.IsValid() )
 		{
-			var doorToPlayer = (presser.WorldPosition - _pivotPosition).Normal;
-			var doorForward = Transform.Local.Rotation.Forward;
+			var presserPosition = GetParentTransform().PointToLocal( presser.WorldPosition );
+			var doorToPlayer = (presserPosition - _pivotPosition).Normal;
+			var doorForward = _startTransform.Rotation.Forward;
 
 			_reverseDirection = Vector3.Dot( doorToPlayer, doorForward ) > 0;
 		}
