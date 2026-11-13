@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!--
+		Tests of the navigation library (engine/Sandbox.Navigation) on its own: no engine assemblies,
+		no native engine, no FACEPUNCH_ENGINE. Compiled the way the library is, with nullable
+		annotations, so the shared test helpers, which have none, stay out.
+	-->
+	<PropertyGroup>
+		<RootNamespace>Nav.Lib.Tests</RootNamespace>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+	<ItemGroup>
+		<Compile Remove="..\Shared\**\*.cs" />
+		<ProjectReference Include="..\..\Sandbox.Navigation\Sandbox.Navigation.csproj" />
+	</ItemGroup>
+</Project>

@@ -43,7 +43,7 @@ internal partial class Test( bool noBuild = true, string filter = null )
 
 	/// <summary>
 	/// The test projects. They run at the same time, so the whole run takes as long as the slowest one
-	/// (Sandbox.Test.Integration, which is split in two, plus its allocation tests). Sandbox.Test.Unit and Sandbox.Test.Text run with FACEPUNCH_ENGINE
+	/// (Sandbox.Test.Integration, which is split in two, plus its allocation tests). Sandbox.Test.Unit, Sandbox.Test.Text and Sandbox.Test.Navigation run with FACEPUNCH_ENGINE
 	/// removed from their environment: those tiers must work without a built native engine, so a test
 	/// that sneaks in a native dependency fails here rather than on someone's bare checkout.
 	/// New test projects under engine/Tests/ need to be added to this list.
@@ -58,6 +58,7 @@ internal partial class Test( bool noBuild = true, string filter = null )
 		new( "Sandbox.Test.Engine", NeedsEngine: true, ShardFilter: NotAllocationTests ),
 		new( "Sandbox.Test.Engine", NeedsEngine: true, Shard: "allocations", ShardFilter: AllocationTests, Isolated: true ),
 		new( "Sandbox.Test.Text", NeedsEngine: false ),
+		new( "Sandbox.Test.Navigation", NeedsEngine: false ),
 		new( "Sandbox.Test.NetSim", NeedsEngine: true ),
 	];
 
