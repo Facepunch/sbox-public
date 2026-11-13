@@ -31,6 +31,7 @@ internal static partial class StyleParser
 		AbsolutePaths?.Clear();
 
 		StyleSheet sheet = new();
+		sheet.FileName = filename;
 		sheet.AddVariables( variables );
 
 		ParseToSheet( content, filename, sheet, recover );
