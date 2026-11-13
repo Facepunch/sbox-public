@@ -601,7 +601,9 @@ internal sealed partial class BackendContext
 		if ( lists ) r.List.Barrier( PipelineStage.VertexInput, MemoryAccess.IndexRead, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite );
 		var timer = device.PassTimer;
 		var cullScope = timer?.Begin( r.List, ids ? "GPU-driven cull (ids)" : lists ? "GPU-driven cull (lists)" : "GPU-driven cull", PassTimer.ScopeKind.Own, count: false ) ?? -1;
+		r.List.Marker( "GPU-driven cull" );
 		cullDrawer.Dispatch( r.List, CullShader, cullAttributes, batchCount * 64, 1, 1 );
+		r.List.Marker( "end GPU-driven cull" );
 		timer?.End( r.List, cullScope );
 
 		// Forward's listed fragments: a group each, which counts its triangles that own a sample and draws them or the whole
@@ -609,7 +611,9 @@ internal sealed partial class BackendContext
 		{
 			r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.ComputeShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 			var compactScope = timer?.Begin( r.List, "GPU-driven compact", PassTimer.ScopeKind.Own, count: false ) ?? -1;
+			r.List.Marker( "GPU-driven compact" );
 			cullDrawer.DispatchIndirect( r.List, shaders.Compact, cullAttributes, frameBuffer, frameOffset + listedOffset );
+			r.List.Marker( "end GPU-driven compact" );
 			timer?.End( r.List, compactScope );
 		}
 
@@ -787,6 +791,7 @@ internal sealed partial class BackendContext
 
 		var timer = device.PassTimer;
 		var idsScope = timer?.Begin( r.List, "GPU-driven ids", PassTimer.ScopeKind.Own ) ?? -1;
+		r.List.Marker( "GPU-driven ids" );
 		r.List.Barrier( Basalt.Gpu.TextureBarrier.Transition( visibility.Ids, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
 		r.List.Barrier( Basalt.Gpu.TextureBarrier.Transition( visibility.Scratch, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
 		r.List.BeginRendering(
@@ -846,6 +851,7 @@ internal sealed partial class BackendContext
 		}
 
 		r.List.EndRendering();
+		r.List.Marker( "end GPU-driven ids" );
 		timer?.End( r.List, idsScope );
 		r.Pipeline = default;
 		r.Binder = null;
@@ -865,7 +871,9 @@ internal sealed partial class BackendContext
 		cullAttributes.SetCombo( "D_MSAA", visibility.Samples > 1 ? 1 : 0 );
 		cullAttributes.SetData( "BasaltGpuDrivenMark_t", markConstants );
 		var markScope = timer?.Begin( r.List, "GPU-driven mark", PassTimer.ScopeKind.Own, count: false ) ?? -1;
+		r.List.Marker( "GPU-driven mark" );
 		cullDrawer.Dispatch( r.List, shaders.Mark, cullAttributes, visibility.Width, visibility.Height, 1 );
+		r.List.Marker( "end GPU-driven mark" );
 		timer?.End( r.List, markScope );
 
 		// The mask and stamps for the forward pass's culling, in a later list

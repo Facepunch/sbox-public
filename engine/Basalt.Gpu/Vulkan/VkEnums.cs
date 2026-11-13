@@ -79,6 +79,7 @@ internal enum VkStructureType
 	PipelineRenderingCreateInfo = 1000044002,
 	PhysicalDeviceFeatures2 = 1000059000,
 	PhysicalDeviceProperties2 = 1000059001,
+	PhysicalDeviceMemoryProperties2 = 1000059006,
 	DebugUtilsObjectNameInfoExt = 1000128000,
 	DebugUtilsLabelExt = 1000128002,
 	DebugUtilsMessengerCallbackDataExt = 1000128003,
@@ -88,6 +89,7 @@ internal enum VkStructureType
 	PhysicalDeviceDescriptorIndexingProperties = 1000161002,
 	SemaphoreTypeCreateInfo = 1000207002,
 	SemaphoreWaitInfo = 1000207004,
+	PhysicalDeviceMemoryBudgetPropertiesExt = 1000237000,
 	ValidationFeaturesExt = 1000247000,
 	MemoryBarrier2 = 1000314000,
 	BufferMemoryBarrier2 = 1000314001,
@@ -96,6 +98,9 @@ internal enum VkStructureType
 	SubmitInfo2 = 1000314004,
 	SemaphoreSubmitInfo = 1000314005,
 	CommandBufferSubmitInfo = 1000314006,
+	PhysicalDeviceFaultFeaturesExt = 1000341000,
+	DeviceFaultCountsExt = 1000341001,
+	DeviceFaultInfoExt = 1000341002,
 	MutableDescriptorTypeCreateInfoExt = 1000351002,
 }
 

@@ -190,13 +190,30 @@ internal sealed class BasaltGpuWindow : IDisposable
 		}
 	}
 
+	// Whether a lost device's recent submissions were logged: once per process
+	static bool deviceLostReported;
+
 	/// <summary>
 	/// Present the image <see cref="EndFrame"/> drew. False when no frame was drawn since the last.
 	/// </summary>
 	public bool PresentFrame()
 	{
 		if ( !swapChain.Current.IsValid ) return false;
-		swapChain.Present();
+		try
+		{
+			swapChain.Present();
+		}
+		catch ( GpuException e ) when ( e.Message.Contains( "DeviceLost" ) )
+		{
+			// Once: what was in flight, to find the submission the GPU stopped on
+			if ( !deviceLostReported )
+			{
+				deviceLostReported = true;
+				Log.Error( $"Basalt.Gpu device lost. Recent submissions: {backend.Device.DescribeRecentSubmissions()}" );
+			}
+
+			throw;
+		}
 
 		// The oldest pair in flight, the frame TimedFrames - 1 back
 		if ( timestamps is not null )

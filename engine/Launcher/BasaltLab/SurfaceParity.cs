@@ -261,76 +261,109 @@ internal static class SurfaceParity
 		var output = Path.Combine( folder, "converted" );
 		Directory.CreateDirectory( output );
 
+		// -convert-shaders-all: every .shader in core/shaders as well
+		var candidates = Convertible.ToList();
+		if ( Args.Has( "-convert-shaders-all" ) )
+		{
+			foreach ( var file in Directory.GetFiles( Path.Combine( game, "core", "shaders" ), "*.shader", SearchOption.AllDirectories ).Order( StringComparer.OrdinalIgnoreCase ) )
+			{
+				var relative = Path.GetRelativePath( game, file ).Replace( '\\', '/' );
+				if ( !candidates.Contains( relative, StringComparer.OrdinalIgnoreCase ) ) candidates.Add( relative );
+			}
+		}
+
+		foreach ( var relative in candidates )
+		{
+			try
+			{
+				ConvertShader( device, game, output, relative, lines );
+			}
+			catch ( Exception e )
+			{
+				lines.Add( $"convert {Path.GetFileNameWithoutExtension( relative )}: failed: {e.GetType().Name}: {e.Message.Split( '\n' )[0]}" );
+			}
+		}
+	}
+
+	static void ConvertShader( BackendDevice device, string game, string output, string relative, List<string> lines )
+	{
 		const string color = "materials/default/rope_color_png_95bee33c.generated.vtex";
 		const string normal = "materials/default/rope_normal_png_b8960e44.generated.vtex";
 		const string rma = "materials/default/rope01_vmat_g_trma_bbf6a2a.generated.vtex";
-
-		foreach ( var relative in Convertible )
+		var source = Path.Combine( game, relative );
+		var name = Path.GetFileNameWithoutExtension( relative );
+		if ( !File.Exists( source ) )
 		{
-			var source = Path.Combine( game, relative );
-			var name = Path.GetFileNameWithoutExtension( relative );
-			if ( !File.Exists( source ) )
-			{
-				lines.Add( $"convert {name}: no {relative}" );
-				continue;
-			}
-
-			var result = ShaderConverter.Convert( File.ReadAllText( source ), name );
-			if ( result.Source is null )
-			{
-				lines.Add( $"convert {name}: not converted ({string.Join( "; ", result.Notes )})" );
-				continue;
-			}
-
-			var converted = Path.Combine( output, name + ".slang" );
-			File.WriteAllText( converted, result.Source.Replace( "\n", "\r\n" ) );
-			var compiled = device.Surfaces.Compile( converted );
-			if ( compiled is null )
-			{
-				lines.Add( $"convert {name}: doesn't compile (see the log); notes: {string.Join( "; ", result.Notes )}" );
-				continue;
-			}
-
-			if ( Args.Has( "-convert-shaders-write" ) ) File.WriteAllText( Path.ChangeExtension( source, ".slang" ), result.Source.Replace( "\n", "\r\n" ) );
-			File.WriteAllBytes( Path.Combine( output, name + "_surface_ps.spv" ), compiled.Pass( ShaderPasses.Forward ).Pixel.Spirv );
-
-			// Every texture the rope's, both sides' values their defaults
-			var textures = new Dictionary<string, string>();
-			foreach ( Match texture in Regex.Matches( File.ReadAllText( source ), @"Texture2D\s+(g_t\w+)" ) ) textures[texture.Groups[1].Value] = color;
-			textures["g_tColor"] = color;
-			textures["g_tNormal"] = normal;
-			textures["g_tRma"] = rma;
-
-			// A mount's shaders load from its Assets folder, added to the content for them
-			var shaderPath = relative.StartsWith( "core/", StringComparison.Ordinal ) ? relative["core/".Length..] : relative;
-			if ( relative.IndexOf( "/Assets/", StringComparison.Ordinal ) is var assets and > 0 )
-			{
-				var root = Path.Combine( game, relative[..assets] + "/Assets" );
-				if ( !device.Content.Roots.Contains( Path.GetFullPath( root ), StringComparer.OrdinalIgnoreCase ) ) device.Content.Add( Path.GetFullPath( root ) );
-				shaderPath = relative[(assets + "/Assets/".Length)..];
-			}
-			var classic = (BackendMaterial)((Basalt.GpuDevice)device).CreateMaterial( $"{name} (.shader)", shaderPath );
-			if ( classic.Shader is null )
-			{
-				lines.Add( $"convert {name}: compiles ({compiled.Passes.Count} passes); its .shader isn't loadable here, not compared; notes: {string.Join( "; ", result.Notes )}" );
-				continue;
-			}
-
-			foreach ( var (variable, path) in textures ) classic.SetTexture( variable, (BackendTexture)device.LoadTexture( path ) );
-			using var surface = device.Surfaces.CreateMaterial( converted, textures, null, $"{name} (surface)" ) as SurfaceMaterial;
-			if ( surface is null ) continue;
-
-			var a = Render( device, classic );
-			var b = Render( device, surface );
-			var (mean, max, over, diff) = Compare( a, b );
-			Save( a, Path.Combine( output, name + "-shader.png" ) );
-			Save( b, Path.Combine( output, name + "-surface.png" ) );
-			Save( diff, Path.Combine( output, name + "-diff.png" ) );
-			var forwardMode = classic.Shader.Modes.FirstOrDefault( m => m.Name.Contains( "Forward", StringComparison.OrdinalIgnoreCase ) )?.Name ?? "Forward";
-			if ( classic.Variant( device.Shaders, forwardMode, "Forward;convert", _ => null, _ => null )?.Pixel?.Bytecode is { } bytecode && (bytecode.Spirv ?? bytecode.Shared?.Spirv) is { } spirv )
-				File.WriteAllBytes( Path.Combine( output, name + "_shader_ps.spv" ), spirv );
-			lines.Add( $"convert {name}: surface against .shader: mean difference {mean:F3}, max {max}, {over} pixels over 8 (reported, not gated){(result.Notes.Count > 0 ? "; notes: " + string.Join( "; ", result.Notes ) : "")}" );
+			lines.Add( $"convert {name}: no {relative}" );
+			return;
 		}
+
+		var includes = Path.Combine( device.Content.Roots[0], "shaders" );
+		var result = ShaderConverter.Convert( File.ReadAllText( source ), name, include => File.Exists( Path.Combine( includes, include ) ) ? File.ReadAllText( Path.Combine( includes, include ) ) : null );
+		if ( result.Source is null )
+		{
+			lines.Add( $"convert {name}: not converted ({string.Join( "; ", result.Notes )})" );
+			return;
+		}
+
+		var converted = Path.Combine( output, name + ".slang" );
+		File.WriteAllText( converted, result.Source.Replace( "\n", "\r\n" ) );
+		var compiled = device.Surfaces.Compile( converted );
+		if ( compiled is null )
+		{
+			lines.Add( $"convert {name}: doesn't compile (see the log); notes: {string.Join( "; ", result.Notes )}" );
+			return;
+		}
+
+		if ( Args.Has( "-convert-shaders-write" ) ) File.WriteAllText( Path.ChangeExtension( source, ".slang" ), result.Source.Replace( "\n", "\r\n" ) );
+		File.WriteAllBytes( Path.Combine( output, name + "_surface_ps.spv" ), compiled.Pass( ShaderPasses.Forward ).Pixel.Spirv );
+
+		// Every texture the rope's, both sides' values their defaults
+		var textures = new Dictionary<string, string>();
+		foreach ( Match texture in Regex.Matches( File.ReadAllText( source ), @"Texture2D\s+(g_t\w+)" ) ) textures[texture.Groups[1].Value] = color;
+		textures["g_tColor"] = color;
+		textures["g_tNormal"] = normal;
+		textures["g_tRma"] = rma;
+
+		// A mount's shaders load from its Assets folder, added to the content for them
+		var shaderPath = relative.StartsWith( "core/", StringComparison.Ordinal ) ? relative["core/".Length..] : relative;
+		if ( relative.IndexOf( "/Assets/", StringComparison.Ordinal ) is var assets and > 0 )
+		{
+			var root = Path.Combine( game, relative[..assets] + "/Assets" );
+			if ( !device.Content.Roots.Contains( Path.GetFullPath( root ), StringComparer.OrdinalIgnoreCase ) ) device.Content.Add( Path.GetFullPath( root ) );
+			shaderPath = relative[(assets + "/Assets/".Length)..];
+		}
+		var classic = (BackendMaterial)((Basalt.GpuDevice)device).CreateMaterial( $"{name} (.shader)", shaderPath );
+		if ( classic.Shader is null )
+		{
+			lines.Add( $"convert {name}: compiles ({compiled.Passes.Count} passes); its .shader isn't loadable here, not compared; notes: {string.Join( "; ", result.Notes )}" );
+			return;
+		}
+
+		foreach ( var (variable, path) in textures ) classic.SetTexture( variable, (BackendTexture)device.LoadTexture( path ) );
+
+		// The features the surface reads as fields on, on both sides (bark's sway)
+		var features = new Dictionary<string, float[]>();
+		foreach ( var field in compiled.Material.Fields )
+		{
+			if ( field.Source is not { } feature || !feature.StartsWith( "F_", StringComparison.Ordinal ) || classic.Shader.FeatureIndex( feature ) is not (>= 0 and var index) ) continue;
+			classic.Features[index] = 1;
+			features[feature] = [1];
+		}
+
+		using var surface = device.Surfaces.CreateMaterial( converted, textures, features, $"{name} (surface)" ) as SurfaceMaterial;
+		if ( surface is null ) return;
+
+		var a = Render( device, classic );
+		var b = Render( device, surface );
+		var (mean, max, over, diff) = Compare( a, b );
+		Save( a, Path.Combine( output, name + "-shader.png" ) );
+		Save( b, Path.Combine( output, name + "-surface.png" ) );
+		Save( diff, Path.Combine( output, name + "-diff.png" ) );
+		var forwardMode = classic.Shader.Modes.FirstOrDefault( m => m.Name.Contains( "Forward", StringComparison.OrdinalIgnoreCase ) )?.Name ?? "Forward";
+		if ( classic.Variant( device.Shaders, forwardMode, "Forward;convert", _ => null, _ => null )?.Pixel?.Bytecode is { } bytecode && (bytecode.Spirv ?? bytecode.Shared?.Spirv) is { } spirv )
+			File.WriteAllBytes( Path.Combine( output, name + "_shader_ps.spv" ), spirv );
+		lines.Add( $"convert {name}: surface against .shader: mean difference {mean:F3}, max {max}, {over} pixels over 8 (reported, not gated){(result.Notes.Count > 0 ? "; notes: " + string.Join( "; ", result.Notes ) : "")}" );
 	}
 
 	static int Fail( string message )
@@ -362,7 +395,8 @@ internal static class SurfaceParity
 		world.Add( new MeshObject( Flag( Box( device, new Vector3( 70, 70, 70 ), material, "Box" ) ), new Transform( new Vector3( 20, 90, 35 ), Rotation.FromYaw( 30 ) ) ) );
 		world.Add( new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( 120, 0, 90 ) ) ) { Color = new Color( 3, 1.5f, 0.8f ), Radius = 260, CastShadows = false } );
 
-		var view = new RenderView { Name = "Surface parity", FieldOfView = 60, ZNear = 4, ZFar = 3000, ClearColor = new Color( 0.1f, 0.12f, 0.16f ), Viewport = new Rect( 0, 0, Width, Height ) };
+		// A fixed shader time, so time-animated shaders (water, sky) draw the same frame on both sides
+		var view = new RenderView { Name = "Surface parity", Time = 12.5f, FieldOfView = 60, ZNear = 4, ZFar = 3000, ClearColor = new Color( 0.1f, 0.12f, 0.16f ), Viewport = new Rect( 0, 0, Width, Height ) };
 		view.Position = new Vector3( -330, 80, 200 );
 		view.Rotation = Rotation.LookAt( new Vector3( 0, 0, 30 ) - view.Position );
 

@@ -100,6 +100,7 @@ internal sealed unsafe class VkInstanceApi
 	public readonly delegate* unmanaged< nint, VkPhysicalDeviceFeatures2*, void > vkGetPhysicalDeviceFeatures2;
 	public readonly delegate* unmanaged< nint, uint*, VkQueueFamilyProperties*, void > vkGetPhysicalDeviceQueueFamilyProperties;
 	public readonly delegate* unmanaged< nint, VkPhysicalDeviceMemoryProperties*, void > vkGetPhysicalDeviceMemoryProperties;
+	public readonly delegate* unmanaged< nint, VkPhysicalDeviceMemoryProperties2*, void > vkGetPhysicalDeviceMemoryProperties2;
 	public readonly delegate* unmanaged< nint, VkFormat, VkFormatProperties*, void > vkGetPhysicalDeviceFormatProperties;
 	public readonly delegate* unmanaged< nint, byte*, uint*, VkExtensionProperties*, VkResult > vkEnumerateDeviceExtensionProperties;
 	public readonly delegate* unmanaged< nint, VkDeviceCreateInfo*, void*, nint*, VkResult > vkCreateDevice;
@@ -138,6 +139,7 @@ internal sealed unsafe class VkInstanceApi
 		vkGetPhysicalDeviceFeatures2 = (delegate* unmanaged< nint, VkPhysicalDeviceFeatures2*, void >)Need( "vkGetPhysicalDeviceFeatures2" );
 		vkGetPhysicalDeviceQueueFamilyProperties = (delegate* unmanaged< nint, uint*, VkQueueFamilyProperties*, void >)Need( "vkGetPhysicalDeviceQueueFamilyProperties" );
 		vkGetPhysicalDeviceMemoryProperties = (delegate* unmanaged< nint, VkPhysicalDeviceMemoryProperties*, void >)Need( "vkGetPhysicalDeviceMemoryProperties" );
+		vkGetPhysicalDeviceMemoryProperties2 = (delegate* unmanaged< nint, VkPhysicalDeviceMemoryProperties2*, void >)Need( "vkGetPhysicalDeviceMemoryProperties2" );
 		vkGetPhysicalDeviceFormatProperties = (delegate* unmanaged< nint, VkFormat, VkFormatProperties*, void >)Need( "vkGetPhysicalDeviceFormatProperties" );
 		vkEnumerateDeviceExtensionProperties = (delegate* unmanaged< nint, byte*, uint*, VkExtensionProperties*, VkResult >)Need( "vkEnumerateDeviceExtensionProperties" );
 		vkCreateDevice = (delegate* unmanaged< nint, VkDeviceCreateInfo*, void*, nint*, VkResult >)Need( "vkCreateDevice" );
@@ -281,6 +283,12 @@ internal sealed unsafe class VkDeviceApi
 	public readonly delegate* unmanaged< nint, ulong, uint, uint, void > vkCmdBeginQuery;
 	public readonly delegate* unmanaged< nint, ulong, uint, void > vkCmdEndQuery;
 
+	/// <summary>VK_AMD_buffer_marker, when the device was made with it; null otherwise.</summary>
+	public delegate* unmanaged< nint, uint, ulong, ulong, uint, void > vkCmdWriteBufferMarkerAMD;
+
+	/// <summary>VK_EXT_device_fault, when the device was made with it; null otherwise.</summary>
+	public delegate* unmanaged< nint, VkDeviceFaultCountsEXT*, VkDeviceFaultInfoEXT*, VkResult > vkGetDeviceFaultInfoEXT;
+
 	public VkDeviceApi( VkInstanceApi instance, nint device )
 	{
 		Device = device;
@@ -399,5 +407,7 @@ internal sealed unsafe class VkDeviceApi
 		vkCmdWriteTimestamp2 = (delegate* unmanaged< nint, ulong, ulong, uint, void >)Need( "vkCmdWriteTimestamp2" );
 		vkCmdBeginQuery = (delegate* unmanaged< nint, ulong, uint, uint, void >)Need( "vkCmdBeginQuery" );
 		vkCmdEndQuery = (delegate* unmanaged< nint, ulong, uint, void >)Need( "vkCmdEndQuery" );
+		vkCmdWriteBufferMarkerAMD = (delegate* unmanaged< nint, uint, ulong, ulong, uint, void >)Get( "vkCmdWriteBufferMarkerAMD" );
+		vkGetDeviceFaultInfoEXT = (delegate* unmanaged< nint, VkDeviceFaultCountsEXT*, VkDeviceFaultInfoEXT*, VkResult >)Get( "vkGetDeviceFaultInfoEXT" );
 	}
 }

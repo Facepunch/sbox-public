@@ -471,6 +471,23 @@ internal unsafe struct VkPhysicalDeviceMemoryProperties
 }
 
 [StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDeviceMemoryProperties2
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public VkPhysicalDeviceMemoryProperties memoryProperties;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDeviceMemoryBudgetPropertiesEXT
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public fixed ulong heapBudget[16];
+	public fixed ulong heapUsage[16];
+}
+
+[StructLayout( LayoutKind.Sequential )]
 internal struct VkFormatProperties
 {
 	public uint linearTilingFeatures;
@@ -1322,6 +1339,52 @@ internal unsafe struct VkWaylandSurfaceCreateInfoKHR
 	public uint flags;
 	public nint display;
 	public nint surface;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDeviceFaultFeaturesEXT
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint deviceFault;
+	public uint deviceFaultVendorBinary;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkDeviceFaultCountsEXT
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint addressInfoCount;
+	public uint vendorInfoCount;
+	public ulong vendorBinarySize;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal struct VkDeviceFaultAddressInfoEXT
+{
+	public int addressType;
+	public ulong reportedAddress;
+	public ulong addressPrecision;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkDeviceFaultVendorInfoEXT
+{
+	public fixed byte description[256];
+	public ulong vendorFaultCode;
+	public ulong vendorFaultData;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkDeviceFaultInfoEXT
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public fixed byte description[256];
+	public VkDeviceFaultAddressInfoEXT* pAddressInfos;
+	public VkDeviceFaultVendorInfoEXT* pVendorInfos;
+	public void* pVendorBinaryData;
 }
 
 #pragma warning restore CS0649
