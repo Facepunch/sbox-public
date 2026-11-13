@@ -130,10 +130,10 @@ public sealed class PivotMode : MoveMode
 			return distance < SnapScreenDistance ? vertex.Value : SnapToGrid( position );
 		}
 
-		var plane = new Plane( new Vector3( 0, 0, tool.Pivot.Position.z ), Vector3.Up );
+		var plane = new Plane( tool.Pivot.Position, Gizmo.Camera.Ortho ? -Gizmo.Camera.Rotation.Forward : Vector3.Up );
 
 		return plane.TryTrace( Gizmo.CurrentRay, out var hit )
-			? SnapToGrid( Gizmo.CurrentRay.Project( hit.Length ) )
+			? SnapToGrid( hit )
 			: null;
 	}
 
@@ -180,7 +180,7 @@ public sealed class PivotMode : MoveMode
 	/// </summary>
 	private static float ScreenSize( Vector3 position, float scale )
 	{
-		return scale * Gizmo.Camera.Position.Distance( position ) / 1000.0f;
+		return SceneEditorExtensions.GetGizmoSize( position, scale );
 	}
 
 	private static void DrawPivotMarker( Vector3 origin )

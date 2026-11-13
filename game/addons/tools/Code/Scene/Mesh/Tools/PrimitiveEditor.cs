@@ -1,6 +1,6 @@
 namespace Editor.MeshEditor;
 
-public abstract class PrimitiveEditor
+public abstract class PrimitiveEditor : IDisposable
 {
 	private readonly TypeDescription _type;
 
@@ -29,6 +29,10 @@ public abstract class PrimitiveEditor
 	}
 
 	public virtual Widget CreateWidget() => null;
+
+	public virtual void Dispose()
+	{
+	}
 
 	readonly ToolUndoStack _undo = new();
 

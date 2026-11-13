@@ -32,6 +32,8 @@ public partial class SceneViewportWidget : Widget
 
 	private Action<EditorEvent.ISceneView> _drawGizmosInterface;
 
+	internal bool Use2DWireframe => State.Is2D && State.Shading == Shading2D.Wireframe && SourceCamera is null;
+
 	/// <summary>
 	/// If assigned, copy FoV / ZNear / ZFar etc from this camera.
 	/// </summary>
@@ -345,6 +347,8 @@ public partial class SceneViewportWidget : Widget
 		_activeCamera.DebugMode = State.RenderMode;
 		_activeCamera.WireframeMode = State.WireframeMode;
 		_activeCamera.CustomSize = Renderer.Size * DpiScale;
+		_activeCamera.RenderExcludeTags.Set( "editor_mesh", Use2DWireframe );
+		_activeCamera.RenderExcludeTags.Set( "editor_wireframe", !Use2DWireframe );
 
 		if ( cameraTargetPosition is not null )
 		{
@@ -684,6 +688,8 @@ public partial class SceneViewportWidget : Widget
 		doubleClick = false;
 
 		Renderer.UpdateGizmoInputs( GizmoInstance.Input.IsHovered && hasMouseFocus );
+		Gizmo.Camera.Attributes.Set( "ToolsWireframe", Use2DWireframe );
+		Gizmo.Camera.Attributes.Set( "EditorGizmoDpiScale", Renderer.DpiScale );
 
 		if ( State.ShowGrid )
 		{

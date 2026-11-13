@@ -1,5 +1,6 @@
 using HalfEdgeMesh;
 using Sandbox.Helpers;
+using System.Runtime.InteropServices;
 
 namespace Editor.MeshEditor;
 
@@ -89,6 +90,12 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 	public virtual Vector3 CalculateSelectionOrigin()
 	{
 		return default;
+	}
+
+	public override bool TryGetSelectionOrigin( out Vector3 origin )
+	{
+		origin = CalculateSelectionOrigin();
+		return Selection.OfType<IMeshElement>().Any( x => x.IsValid() );
 	}
 
 	public virtual Rotation CalculateSelectionBasis()
@@ -329,11 +336,20 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	private bool _invertSelection;
 
 	private MeshComponent _hoverMesh;
-	private readonly MeshOverlayRenderer _meshOverlays = new();
 	private readonly List<T> _overlaySelection = [];
 	private readonly HashSet<MeshComponent> _overlayComponents = [];
 	private bool _overlaySelectionDirty = true;
 	private SelectionSystem _overlaySelectionSource;
+	private ToolRenderable _selectedRenderable;
+	private ToolRenderable _hashRenderable;
+	private readonly List<Vector3> _selectedPoints = [];
+	private readonly List<Vector3> _selectedEdges = [];
+	private readonly List<Vector3> _selectedOpenEdges = [];
+	private readonly List<MeshEdgeHashMarks> _selectedHashMarks = [];
+	private readonly List<Vector2> _hashPositions = [];
+	private bool _selectionGeometryDirty = true;
+	private HashSet<MeshComponent> _activeMeshes = [];
+	private HashSet<MeshComponent> _nextActiveMeshes = [];
 	public virtual bool DrawVertices => false;
 
 	protected IReadOnlyList<T> SelectedMeshElements
@@ -353,6 +369,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		_overlaySelectionSource = selection;
 		_overlaySelection.Clear();
+		foreach ( var component in _overlayComponents )
+			component.EditorRenderDataChanged -= OnSelectionGeometryChanged;
 		_overlayComponents.Clear();
 		foreach ( var element in selection.OfType<IMeshElement>() )
 		{
@@ -362,15 +380,83 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 			if ( element is T selected )
 				_overlaySelection.Add( selected );
 		}
-		_meshOverlays.SetSelection( _overlaySelection.Cast<IMeshElement>() );
+		foreach ( var component in _overlayComponents )
+			component.EditorRenderDataChanged += OnSelectionGeometryChanged;
+		OnSelectionGeometryChanged();
 		_overlaySelectionDirty = false;
 	}
 
 	protected void DrawSelectedElements()
 	{
 		UpdateOverlaySelection();
-		foreach ( var component in _overlayComponents )
-			_meshOverlays.DrawSelected( component, Camera.WorldPosition, Gizmo.World );
+		UpdateSelectionGeometry();
+		_selectedRenderable ??= new ToolRenderable( RenderSelection );
+		if ( _selectedHashMarks.Count > 0 )
+			_hashRenderable ??= new ToolRenderable( RenderHashMarks ) { ViewDependent = true };
+		_selectedRenderable.Update( Gizmo.World );
+		_hashRenderable?.Update( Gizmo.World, _selectedHashMarks.Count > 0 ? new ToolRenderView( Gizmo.Camera ) : default );
+	}
+
+	private void OnSelectionGeometryChanged()
+	{
+		_selectionGeometryDirty = true;
+		_selectedRenderable?.MarkDirty();
+		_hashRenderable?.MarkDirty();
+	}
+
+	private void UpdateSelectionGeometry()
+	{
+		if ( !_selectionGeometryDirty )
+			return;
+
+		_selectedPoints.Clear();
+		_selectedEdges.Clear();
+		_selectedOpenEdges.Clear();
+		_selectedHashMarks.Clear();
+		foreach ( var element in _overlaySelection )
+		{
+			if ( !element.IsValid() || !element.Component.Active || element.Component.GameObject.Tags.Has( "hidden" ) )
+				continue;
+
+			if ( element is MeshVertex vertex )
+			{
+				_selectedPoints.Add( vertex.PositionWorld );
+			}
+			else if ( element is MeshEdge edge )
+			{
+				var open = edge.IsOpen;
+				var transform = edge.Transform;
+				var line = edge.Line;
+				var positions = open ? _selectedOpenEdges : _selectedEdges;
+				positions.Add( transform.PointToWorld( line.Start ) );
+				positions.Add( transform.PointToWorld( line.End ) );
+				if ( open && MeshEdgeHashMarks.TryCreate( edge, out var marks ) )
+					_selectedHashMarks.Add( marks );
+			}
+		}
+		_selectionGeometryDirty = false;
+	}
+
+	private void RenderSelection( ToolRenderContext context )
+	{
+		context.RenderOrder = 10;
+		context.Color = Color.White;
+		context.DrawPoints( CollectionsMarshal.AsSpan( _selectedPoints ) );
+		context.Color = Color.Yellow;
+		context.LineThickness = 4;
+		context.DrawLines( CollectionsMarshal.AsSpan( _selectedEdges ) );
+		context.LineThickness = 2;
+		context.DrawLines( CollectionsMarshal.AsSpan( _selectedOpenEdges ) );
+	}
+
+	private void RenderHashMarks( ToolRenderContext context )
+	{
+		_hashPositions.Clear();
+		foreach ( var marks in _selectedHashMarks )
+			marks.AddPositions( context.View, _hashPositions );
+		context.Color = Color.Yellow;
+		context.RenderOrder = 10;
+		context.DrawScreenLines( CollectionsMarshal.AsSpan( _hashPositions ) );
 	}
 
 	public override void SetMoveMode( MoveMode mode )
@@ -478,7 +564,20 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		UnsubscribeUndo();
 
 		SaveCurrentSelection<T>();
-		_meshOverlays.Dispose();
+		foreach ( var component in _activeMeshes )
+		{
+			if ( component.IsValid() )
+				component.EditorRenderFlags = MeshComponent.MeshRenderFlags.None;
+		}
+		_activeMeshes.Clear();
+		_nextActiveMeshes.Clear();
+		foreach ( var component in _overlayComponents )
+			component.EditorRenderDataChanged -= OnSelectionGeometryChanged;
+		_overlayComponents.Clear();
+		_selectedRenderable?.Dispose();
+		_hashRenderable?.Dispose();
+		_selectedRenderable = null;
+		_hashRenderable = null;
 		_overlaySelectionDirty = true;
 	}
 
@@ -641,12 +740,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		HandleGlobalMaterialOperations();
 
-		if ( IsAllowedToSelect )
-			DrawSelection();
-		else
-			_meshOverlays.HideBase( Gizmo.World );
-
-		_meshOverlays.Trim( _hoverMesh, _overlayComponents, Gizmo.World );
+		UpdateMeshRenderFlags();
 	}
 
 	/// <summary>
@@ -747,31 +841,35 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 	protected virtual IEnumerable<IMeshElement> GetAllSelectedElements() => [];
 
-	void DrawSelection()
+	void UpdateMeshRenderFlags()
 	{
 		UpdateOverlaySelection();
-		var face = TraceFace();
-		if ( face.IsValid() )
-			_hoverMesh = face.Component;
-
-		if ( _hoverMesh.IsValid() )
-			DrawMesh( _hoverMesh );
-
-		foreach ( var component in _overlayComponents )
+		_nextActiveMeshes.Clear();
+		if ( IsAllowedToSelect )
 		{
-			if ( !component.IsValid() )
-				continue;
-
-			if ( component == _hoverMesh )
-				continue;
-
-			DrawMesh( component );
+			var face = TraceFace();
+			if ( face.IsValid() )
+				_hoverMesh = face.Component;
+			if ( _hoverMesh.IsValid() )
+				_nextActiveMeshes.Add( _hoverMesh );
+			foreach ( var component in _overlayComponents )
+			{
+				if ( component.IsValid() )
+					_nextActiveMeshes.Add( component );
+			}
 		}
-	}
 
-	void DrawMesh( MeshComponent mesh )
-	{
-		_meshOverlays.Draw( mesh, DrawVertices, Gizmo.World );
+		foreach ( var component in _activeMeshes )
+		{
+			if ( component.IsValid() && !_nextActiveMeshes.Contains( component ) )
+				component.EditorRenderFlags = MeshComponent.MeshRenderFlags.None;
+		}
+		var flags = MeshComponent.MeshRenderFlags.Wireframe;
+		if ( DrawVertices )
+			flags |= MeshComponent.MeshRenderFlags.Vertices;
+		foreach ( var component in _nextActiveMeshes )
+			component.EditorRenderFlags = flags;
+		(_activeMeshes, _nextActiveMeshes) = (_nextActiveMeshes, _activeMeshes);
 	}
 
 	private void InvertSelection()

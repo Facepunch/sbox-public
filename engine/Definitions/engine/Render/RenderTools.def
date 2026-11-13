@@ -28,6 +28,7 @@ native static class RenderTools as NativeEngine.RenderTools
 	ulong GetSceneObjectLightmapKey( CSceneObject sceneObject );
 	void GetSceneWorldWind( ISceneWorld world, CastTo[Vector4D*] void* pStrengthFreq, CastTo[Vector4D*] void* pDir );
 	bool DrawDynamicSceneObject( IRenderContext renderContext, CSceneObject sceneObject, StringToken nShaderMode );
+	bool DrawBufferSceneObject( IRenderContext renderContext, CSceneObject sceneObject, StringToken nShaderMode, CRenderAttributes attributes );
 	bool ModelMeshHasMorphs( IModel hModel, int nMesh );
 	int QueueModelMeshMorph( CSceneObject sceneObject, IModel hModel, int nMesh );
 	void GenerateMorphs( IRenderContext context );

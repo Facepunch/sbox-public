@@ -28,12 +28,18 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 
 	public override void OnDisabled()
 	{
-		if ( Game.IsPlaying )
-			Cancel();
-		else
-			Create();
-
-		Editor = null;
+		try
+		{
+			if ( Game.IsPlaying )
+				Cancel();
+			else
+				Create();
+		}
+		finally
+		{
+			Editor?.Dispose();
+			Editor = null;
+		}
 	}
 
 	internal void SelectEditor( Type type )
@@ -41,6 +47,7 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 		if ( Editor?.GetType() == type )
 			return;
 
+		Editor?.Dispose();
 		Editor = EditorTypeLibrary.Create<PrimitiveEditor>( type, [this] );
 
 		if ( Editor is not null )

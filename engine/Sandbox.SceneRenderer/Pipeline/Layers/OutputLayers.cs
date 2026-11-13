@@ -56,6 +56,28 @@ internal sealed class ScreenOverlayLayer : OutputOverlayLayer
 	}
 }
 
+internal sealed class ToolOverlayLayer : OutputOverlayLayer
+{
+	public ToolOverlayLayer() : base( "ToolOverlay" )
+	{
+		WithDepth = true;
+		Runs = MeshRuns.ToolOverlay;
+		LayerType = SceneLayerType.Opaque;
+		ToneMapScalar = 1;
+	}
+}
+
+internal sealed class ToolScreenOverlayLayer : OutputOverlayLayer
+{
+	public ToolScreenOverlayLayer() : base( "ToolScreenOverlay" )
+	{
+		ShaderMode = new StringToken( "Default" );
+		Runs = MeshRuns.ToolScreenOverlay;
+		LayerType = SceneLayerType.Opaque;
+		ToneMapScalar = 1;
+	}
+}
+
 /// <summary>
 /// Redraws after-UI objects without depth (<c>UI Overlay</c>), using fade and alpha tint.
 /// Mixed objects contribute only opaque draws.

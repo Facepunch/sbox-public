@@ -69,7 +69,9 @@ public sealed class ResizeMode : MoveMode
 	static void DrawVertexIndicator( string name, Vector3 position, float gizmoSize, Color color, bool drawSprite = false )
 	{
 		var cameraDistance = Gizmo.Camera.Position.Distance( position );
-		var scaledGizmo = gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
+		var scaledGizmo = Gizmo.Camera.Ortho
+			? SceneEditorExtensions.GetGizmoSize( position, gizmoSize * 8 )
+			: gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
 
 		using ( Gizmo.Scope( name ) )
 		{

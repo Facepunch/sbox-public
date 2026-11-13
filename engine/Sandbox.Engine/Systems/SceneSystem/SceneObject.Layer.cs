@@ -35,7 +35,10 @@ public enum SceneRenderLayer
 	/// <summary>
 	/// Overlay - after post processing - without depth (draw over)
 	/// </summary>
-	OverlayWithoutDepth = 30
+	OverlayWithoutDepth = 30,
+
+	ToolOverlay = 40,
+	ToolScreenOverlay = 50
 }
 
 
@@ -49,7 +52,9 @@ internal static class SceneRenderLayerHelper
 	{
 		{ SceneRenderLayer.ViewModel, "viewmodel" },
 		{ SceneRenderLayer.OverlayWithDepth, "OverlayWithDepth" },
-		{ SceneRenderLayer.OverlayWithoutDepth, "OverlayWithoutDepth" }
+		{ SceneRenderLayer.OverlayWithoutDepth, "OverlayWithoutDepth" },
+		{ SceneRenderLayer.ToolOverlay, "ToolOverlay" },
+		{ SceneRenderLayer.ToolScreenOverlay, "ToolScreenOverlay" }
 	};
 }
 

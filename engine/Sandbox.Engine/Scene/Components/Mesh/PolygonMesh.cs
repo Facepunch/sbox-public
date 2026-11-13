@@ -184,7 +184,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	}
 
 	bool _isDirty;
-	public int TopologyVersion { get; private set; }
+	internal int TopologyVersion { get; private set; }
 
 	/// <summary>
 	/// Has there been changes to the vertex data?

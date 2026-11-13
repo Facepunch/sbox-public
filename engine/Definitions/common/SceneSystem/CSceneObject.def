@@ -1,6 +1,7 @@
 
 #include "scenesystem/iscenesystem.h"
 #include "scenesystem/sceneobject.h"
+#include "meshsystem/meshinstance.h"
 
 native enum ESceneObjectFlags is Sandbox.Rendering.SceneObjectFlags;
 native enum ESceneObjectTypeFlags is NativeEngine.ESceneObjectTypeFlags;
@@ -57,6 +58,15 @@ native class CSceneObject as NativeEngine.CSceneObject
 	BBox GetBounds();
 
 	void SetBoundsInfinite();
+
+	inline void SetBufferIndexRange( int start, int count )
+	{
+		CMeshInstance *pMesh = self->GetMeshInstanceData();
+		CSceneObjectData *pData = new CSceneObjectData( pMesh->GetSceneObjectData() );
+		pData->m_drawCalls[0].m_nStartIndex = start;
+		pData->m_drawCalls[0].m_nIndexCount = count;
+		pMesh->SetAndOwnDrawDataOverride( pData );
+	}
 
 	CSceneObject GetParent();
 	void AddChildObject( StringToken nId, CSceneObject pChild, uint nChildUpdateFlags );

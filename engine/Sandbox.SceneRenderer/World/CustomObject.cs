@@ -38,6 +38,8 @@ public abstract class CustomObject : RenderObject
 	/// </summary>
 	public bool Visible { get; set; } = true;
 
+	internal int RenderOrder { get; set; }
+
 	/// <summary>
 	/// Skip size culling because custom bounds may be absent or huge.
 	/// </summary>

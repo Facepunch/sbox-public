@@ -384,7 +384,10 @@ public static partial class Gizmo
 
 			if ( Camera.Ortho )
 			{
-				scale *= Camera.OrthoHeight * 0.006f;
+				var dpiScale = Camera.Attributes.GetFloat( "EditorGizmoDpiScale" );
+				scale *= Camera.OrthoHeight * (dpiScale > 0
+					? 6.0f * dpiScale / MathF.Max( Camera.Size.y, 1.0f )
+					: 0.006f);
 			}
 			else
 			{

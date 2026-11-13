@@ -45,6 +45,7 @@ partial class ViewportTools
 			var cs = new ControlSheet();
 
 			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.View ) ) );
+			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.Shading ) ) );
 			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.WireframeMode ) ) );
 			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.EnablePostProcessing ) ) );
 

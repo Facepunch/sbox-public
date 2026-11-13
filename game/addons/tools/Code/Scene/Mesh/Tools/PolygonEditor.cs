@@ -156,7 +156,7 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 		for ( int i = 0; i < _points.Count; i++ )
 		{
 			var point = _points[i];
-			var size = 3.0f * Gizmo.Camera.Position.Distance( point ) / 1000.0f;
+			var size = SceneEditorExtensions.GetGizmoSize( point, 3.0f );
 
 			using ( Gizmo.Scope( $"point {i}" ) )
 			{
@@ -246,7 +246,7 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 
 		if ( !Gizmo.HasHovered )
 		{
-			var size = 3.0f * Gizmo.Camera.Position.Distance( point ) / 1000.0f;
+			var size = SceneEditorExtensions.GetGizmoSize( point, 3.0f );
 			Gizmo.Draw.Color = Color.White;
 			Gizmo.Draw.SolidSphere( point, size );
 			Gizmo.Draw.Line( _points.Last(), point );
@@ -261,7 +261,7 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 
 		if ( !tr.Hit )
 		{
-			var plane = new Plane( Vector3.Up, 0.0f );
+			var plane = new Plane( Gizmo.Camera.Ortho ? -Gizmo.Camera.Rotation.Forward : Vector3.Up, 0.0f );
 			if ( plane.TryTrace( Gizmo.CurrentRay, out var point, true ) )
 			{
 				tr.Hit = true;
@@ -286,7 +286,7 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 
 		if ( !Gizmo.HasHovered )
 		{
-			var size = 3.0f * Gizmo.Camera.Position.Distance( tr.EndPosition ) / 1000.0f;
+			var size = SceneEditorExtensions.GetGizmoSize( tr.EndPosition, 3.0f );
 			Gizmo.Draw.Color = Color.White;
 			Gizmo.Draw.SolidSphere( tr.EndPosition, size );
 		}

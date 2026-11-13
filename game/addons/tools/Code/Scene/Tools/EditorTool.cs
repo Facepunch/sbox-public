@@ -77,6 +77,12 @@ public class EditorTool : IDisposable
 	/// </summary>
 	public bool AllowContextMenu { get; set; } = true;
 
+	public virtual bool TryGetSelectionOrigin( out Vector3 origin )
+	{
+		origin = default;
+		return false;
+	}
+
 	internal void InitializeInternal( EditorToolManager manager )
 	{
 		Manager = manager;

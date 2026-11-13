@@ -142,4 +142,10 @@ public enum LayerMatch : byte
 	/// Unsupported match: draws nowhere, including shadows.
 	/// </summary>
 	Unsupported,
+
+	/// <summary>Ordered tool geometry after post processing.</summary>
+	ToolOverlay,
+
+	/// <summary>Ordered screen-space tool geometry after post processing.</summary>
+	ToolScreenOverlay,
 }

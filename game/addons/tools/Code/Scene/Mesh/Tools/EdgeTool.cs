@@ -1,4 +1,5 @@
 ﻿using HalfEdgeMesh;
+using System.Runtime.InteropServices;
 
 namespace Editor.MeshEditor;
 
@@ -11,7 +12,10 @@ namespace Editor.MeshEditor;
 [Group( "2" )]
 public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>( tool )
 {
-	readonly List<Vector3> _hoverHatches = [];
+	readonly List<Vector2> _hoverHashPositions = [];
+	MeshEdgeHashMarks _hoverHashMarks;
+	SceneWorld _hoverHashWorld;
+	ToolRenderable _hoverHashRenderable;
 
 	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
 	{
@@ -64,9 +68,11 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 			}
 		}
 
-		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection && !IsLassoSelecting )
+		var canSelect = Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection && !IsLassoSelecting;
+		UpdateHoverHashMarks( canSelect ? closestEdge : default );
+		if ( canSelect )
 		{
-			SelectEdge();
+			SelectEdge( closestEdge );
 
 			if ( Gizmo.IsDoubleClicked )
 				SelectEdgeLoop();
@@ -81,6 +87,15 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 
 		if ( edges.Count == 2 )
 			AngleFromEdges( edges[0], edges[1] );
+	}
+
+	public override void OnDisabled()
+	{
+		_hoverHashRenderable?.Dispose();
+		_hoverHashRenderable = null;
+		_hoverHashMarks = default;
+		_hoverHashWorld = null;
+		base.OnDisabled();
 	}
 
 	private void DrawBounds()
@@ -334,29 +349,41 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		return null;
 	}
 
-	private void DrawHoveredOpenEdge( MeshEdge edge )
+	private void UpdateHoverHashMarks( MeshEdge edge )
 	{
-		_hoverHatches.Clear();
-		MeshOverlayRenderer.AddHatches( edge, Gizmo.Camera.Position, _hoverHatches );
-		for ( var i = 0; i < _hoverHatches.Count; i += 2 )
-			Gizmo.Draw.Line( _hoverHatches[i], _hoverHatches[i + 1] );
+		MeshEdgeHashMarks.TryCreate( edge, out var marks );
+		var world = Gizmo.World;
+		if ( marks != default )
+			_hoverHashWorld = world;
+		else if ( _hoverHashWorld != world )
+		{
+			_hoverHashRenderable?.Update( world );
+			return;
+		}
+
+		if ( _hoverHashMarks != marks )
+		{
+			_hoverHashMarks = marks;
+			_hoverHashRenderable?.MarkDirty();
+		}
+		if ( marks != default )
+			_hoverHashRenderable ??= new ToolRenderable( RenderHoverHashMarks ) { ViewDependent = true };
+		_hoverHashRenderable?.Update( world, marks != default ? new ToolRenderView( Gizmo.Camera ) : default );
 	}
 
-	private void SelectEdge()
+	private void RenderHoverHashMarks( ToolRenderContext context )
 	{
-		var edge = MeshTrace.GetClosestEdge( 8 );
+		_hoverHashPositions.Clear();
+		_hoverHashMarks.AddPositions( context.View, _hoverHashPositions );
+		context.Color = Color.Green;
+		context.RenderOrder = 20;
+		context.DrawScreenLines( CollectionsMarshal.AsSpan( _hoverHashPositions ) );
+	}
+
+	private void SelectEdge( MeshEdge edge )
+	{
 		if ( edge.IsValid() )
 		{
-			using ( Gizmo.Scope( "Edge Hover" ) )
-			{
-				Gizmo.Draw.IgnoreDepth = true;
-				Gizmo.Draw.Color = Color.Green;
-				Gizmo.Draw.LineThickness = edge.IsOpen ? 2 : 4;
-
-				if ( edge.IsOpen )
-					DrawHoveredOpenEdge( edge );
-			}
-
 			using ( Gizmo.ObjectScope( edge.Component.GameObject, edge.Transform ) )
 			{
 				using ( Gizmo.Scope( "Edge Hover" ) )

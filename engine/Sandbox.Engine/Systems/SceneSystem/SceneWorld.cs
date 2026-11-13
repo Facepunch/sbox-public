@@ -27,6 +27,8 @@ public sealed partial class SceneWorld : IHandle
 	/// </summary>
 	internal Rendering.ISceneObjectListener ChangeListener { get; set; }
 
+	internal event Action<SceneWorld> Destroyed;
+
 	/// <summary>
 	/// This world's fog volumes, in the order native's world lists them (<c>CSceneWorld::m_VolumetricFogVolumes</c>: added at
 	/// the end, removed by moving the last into the gap), for the managed scene renderer. <see cref="FogVolumesVersion"/> goes
@@ -146,6 +148,7 @@ public sealed partial class SceneWorld : IHandle
 		native = IntPtr.Zero;
 		ActivePVS = default;
 		All.Remove( this );
+		NotifyDestroyed();
 	}
 
 	internal void OnNativeInit( ISceneWorld ptr )
@@ -160,6 +163,14 @@ public sealed partial class SceneWorld : IHandle
 		native = IntPtr.Zero;
 		ActivePVS = default;
 		All.Remove( this );
+		NotifyDestroyed();
+	}
+
+	void NotifyDestroyed()
+	{
+		var destroyed = Destroyed;
+		Destroyed = null;
+		destroyed?.Invoke( this );
 	}
 
 	/// <summary>

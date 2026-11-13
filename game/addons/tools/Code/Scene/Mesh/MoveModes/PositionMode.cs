@@ -42,7 +42,9 @@ public sealed class PositionMode : MoveMode
 			if ( hasSnapTarget )
 			{
 				var cameraDistance = Gizmo.Camera.Position.Distance( closestVertex.PositionWorld );
-				var scaledGizmo = gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
+				var scaledGizmo = Gizmo.Camera.Ortho
+					? SceneEditorExtensions.GetGizmoSize( closestVertex.PositionWorld, gizmoSize * 8 )
+					: gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
 
 				snapTarget = closestVertex.PositionWorld;
 				isActivelySnapping = Gizmo.IsLeftMouseDown;
@@ -65,7 +67,9 @@ public sealed class PositionMode : MoveMode
 				if ( nearbyVertex.IsValid() )
 				{
 					var cameraDistance = Gizmo.Camera.Position.Distance( nearbyVertex.PositionWorld );
-					var scaledGizmo = gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
+					var scaledGizmo = Gizmo.Camera.Ortho
+						? SceneEditorExtensions.GetGizmoSize( nearbyVertex.PositionWorld, gizmoSize * 8 )
+						: gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
 
 					var distance = Vector3.DistanceBetween( nearbyVertex.PositionWorld, origin );
 
@@ -192,7 +196,7 @@ public sealed class PositionMode : MoveMode
 			var textSize = 22 * Gizmo.Settings.GizmoScale * Application.DpiScale;
 
 			var cameraDistance = Gizmo.Camera.Position.Distance( midPoint );
-			var scaledTextSize = textSize * (cameraDistance / 50.0f).Clamp( 0.5f, 1.0f );
+			var scaledTextSize = Gizmo.Camera.Ortho ? textSize : textSize * (cameraDistance / 50.0f).Clamp( 0.5f, 1.0f );
 
 			string distanceText;
 			//Local distance

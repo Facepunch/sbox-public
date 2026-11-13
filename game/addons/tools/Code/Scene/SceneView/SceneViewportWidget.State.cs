@@ -26,6 +26,14 @@ public partial class SceneViewportWidget
 		Flat2d
 	}
 
+	public enum Shading2D
+	{
+		[Icon( "square" )]
+		Shaded,
+		[Icon( "polyline" )]
+		Wireframe
+	}
+
 	public class ViewportState
 	{
 		public Vector3 CameraPosition { get; set; }
@@ -52,6 +60,9 @@ public partial class SceneViewportWidget
 		/// Should the scene render in wireframe mode
 		/// </summary>
 		public bool WireframeMode { get; set; } = false;
+
+		[Title( "2D Shading" ), ShowIf( nameof( Is2D ), true )]
+		public Shading2D Shading { get; set; } = Shading2D.Shaded;
 
 		/// <summary>
 		/// Should we render post processing effects?
@@ -230,10 +241,14 @@ public partial class SceneViewportWidget
 		Vector3 center = Vector3.Zero;
 		int count = 0;
 
-		// TODO: support other (mesh tool?) selections here
-		if ( SceneEditorSession.Active is not null )
+		if ( Tools.CurrentSubTool is { } tool && tool.TryGetSelectionOrigin( out var origin ) )
 		{
-			foreach ( var selected in SceneEditorSession.Active.Selection.OfType<GameObject>() )
+			center = origin;
+			count = 1;
+		}
+		else
+		{
+			foreach ( var selected in Session.Selection.OfType<GameObject>() )
 			{
 				center += selected.WorldPosition;
 				count++;
@@ -242,7 +257,14 @@ public partial class SceneViewportWidget
 
 		if ( count > 0 )
 		{
-			State.CameraPosition = (center / count) - State.CameraRotation.Forward * 400;
+			center /= count;
+			var forward = State.CameraRotation.Forward;
+			var distance = State.Is2D ? forward.Dot( center - State.CameraPosition ) : 400;
+			State.CameraPosition = center - forward * distance;
 		}
+
+		cameraTargetPosition = null;
+		GizmoInstance.SetValue<Vector3?>( "CameraTarget", null );
+		GizmoInstance.SetValue<Vector3>( "CameraVelocity", Vector3.Zero );
 	}
 }

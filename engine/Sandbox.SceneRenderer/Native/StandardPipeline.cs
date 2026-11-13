@@ -38,6 +38,8 @@ internal sealed class StandardPipeline
 	static readonly StringToken StaticOverlayMatch = "StaticOverlayLayer";
 	static readonly StringToken OverlayWithDepthMatch = "OverlayWithDepth";
 	static readonly StringToken OverlayWithoutDepthMatch = "OverlayWithoutDepth";
+	static readonly StringToken ToolOverlayMatch = "ToolOverlay";
+	static readonly StringToken ToolScreenOverlayMatch = "ToolScreenOverlay";
 
 	readonly ClusteredCullingLayer clusteredCulling = new();
 	readonly NativeOcclusionCull occlusionCull = new();
@@ -60,6 +62,7 @@ internal sealed class StandardPipeline
 		var view = setup.m_pView;
 		var pipelineAttributes = setup.m_pAttributes;
 		var viewAttributes = view.GetRenderAttributesPtr();
+		setup.m_bWireframe |= viewAttributes.GetBoolValue( "ToolsWireframe", false );
 		var viewport = setup.m_viewport;
 		var color = setup.m_hColor;
 		var depth = setup.m_hDepth;
@@ -422,6 +425,10 @@ internal sealed class StandardPipeline
 		//
 		if ( !capture )
 		{
+			var tools = AddScreenOverlay( view, "ToolOverlay", ToolOverlayMatch, viewport, shadingMode, finalColor, depth, colorSpace );
+			setup.SortByRenderOrder( tools );
+			var screenTools = AddScreenOverlay( view, "ToolScreenOverlay", ToolScreenOverlayMatch, viewport, "Default", finalColor, NativeRenderPipeline.NoTarget, colorSpace );
+			setup.SortByRenderOrder( screenTools );
 			AddScreenOverlay( view, "OverlayWithDepth", OverlayWithDepthMatch, viewport, shadingMode, finalColor, depth, colorSpace );
 			AddScreenOverlay( view, "OverlayWithoutDepth", OverlayWithoutDepthMatch, viewport, shadingMode, finalColor, NativeRenderPipeline.NoTarget, colorSpace );
 		}
@@ -587,7 +594,7 @@ internal sealed class StandardPipeline
 		}
 	}
 
-	static void AddScreenOverlay( ISceneView view, string name, StringToken match, RenderViewport viewport, StringToken shadingMode,
+	static ISceneLayer AddScreenOverlay( ISceneView view, string name, StringToken match, RenderViewport viewport, StringToken shadingMode,
 		SceneViewRenderTargetHandle color, SceneViewRenderTargetHandle depth, RenderColorSpace colorSpace )
 	{
 		var layer = NativeLayers.Add( view, name, viewport, shadingMode, color, depth, colorSpace, LayerFlags.NeedsPerViewLightingConstants | LayerFlags.NeedsFullSort );
@@ -595,5 +602,6 @@ internal sealed class StandardPipeline
 		layer.SetObjectMatchID( match );
 		layer.SetTonemapOverrideScaleValue( 1.0f );
 		layer.SetFadeTargetLayer( layer );
+		return layer;
 	}
 }

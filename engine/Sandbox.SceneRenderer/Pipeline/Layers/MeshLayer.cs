@@ -71,6 +71,9 @@ internal enum MeshRuns : ushort
 	/// The main view's decal geometry (<see cref="MeshObject.Decal"/>), faded too, in native's full sort.
 	/// </summary>
 	Decal = 8192,
+
+	ToolOverlay = 16384,
+	ToolScreenOverlay = 32768,
 }
 
 /// <summary>

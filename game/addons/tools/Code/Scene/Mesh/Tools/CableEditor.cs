@@ -215,7 +215,7 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		for ( int i = 0; i < _points.Count; i++ )
 		{
 			var point = _points[i];
-			var size = 3.0f * Gizmo.Camera.Position.Distance( point ) / 1000.0f;
+			var size = SceneEditorExtensions.GetGizmoSize( point, 3.0f );
 			Gizmo.Draw.Color = Color.White;
 			Gizmo.Draw.SolidSphere( point, size );
 		}
@@ -223,7 +223,7 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		if ( _points.Count > 0 && TryGetPoint( trace, out var preview, out var normal ) && !Gizmo.HasHovered )
 		{
 			preview = ApplyPlacementOffset( preview, normal );
-			var size = 3.0f * Gizmo.Camera.Position.Distance( preview ) / 1000.0f;
+			var size = SceneEditorExtensions.GetGizmoSize( preview, 3.0f );
 			Gizmo.Draw.Color = Color.White;
 			Gizmo.Draw.SolidSphere( preview, size );
 			Gizmo.Draw.Line( _points[^1], preview );
@@ -275,7 +275,7 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 			return true;
 		}
 
-		var ground = new Plane( Vector3.Up, 0.0f );
+		var ground = new Plane( Gizmo.Camera.Ortho ? -Gizmo.Camera.Rotation.Forward : Vector3.Up, 0.0f );
 		if ( ground.TryTrace( Gizmo.CurrentRay, out point, true ) )
 		{
 			normal = ground.Normal;

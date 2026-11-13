@@ -130,6 +130,8 @@ native accessor g_pRenderDevice
 	}
 
 	void DestroyGPUBuffer( RenderBufferHandle_t hGPUBuffer );
+	void DestroyVertexBuffer( VertexBufferHandle_t buffer );
+	void DestroyIndexBuffer( IndexBufferHandle_t buffer );
 	bool ReadBuffer( RenderBufferHandle_t hBuffer, uint nOffsetInBytes, void* pBuf, uint nBytesToRead );
 
 	IntPtr GetDeviceSpecificInfo( DeviceSpecificInfo_t info );

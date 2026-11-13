@@ -430,6 +430,11 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		{
 			camera.RenderTags.SetFrom( RenderTags );
 			camera.ExcludeTags.SetFrom( RenderExcludeTags );
+			if ( Scene.IsEditor && !IsSceneEditorCamera )
+			{
+				camera.ExcludeTags.Add( "editor_wireframe" );
+				camera.ExcludeTags.Add( "editor_overlay" );
+			}
 		}
 
 		// Merge our global Scene attributes into the camera

@@ -243,6 +243,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			SceneModel => new MeshObject( null, sceneObject.Transform ),
 			SceneCustomObject custom => new BridgeCustomObject( custom ),
 			SceneDynamicObject dynamic => new BridgeDynamicObject( dynamic ),
+			SceneMeshObject buffered => new BridgeMeshObject( buffered ),
 			DecalSceneObject => new DecalObject( sceneObject.Transform ),
 			SceneAggregateObject => AggregateFor( sceneObject ),
 
@@ -497,6 +498,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	/// </summary>
 	static void ApplyCustom( SceneObject sceneObject, CustomObject custom, SceneObjectChange change )
 	{
+		custom.RenderOrder = sceneObject.native.GetIntValue( RenderOrderName, 0 );
 		const SceneObjectChange Placement = SceneObjectChange.Transform | SceneObjectChange.Bounds;
 		if ( (change & Placement) != 0 )
 		{
@@ -530,6 +532,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	static readonly uint StaticOverlayMatch = new StringToken( "StaticOverlayLayer" ).Value;
 	static readonly uint OverlayWithDepthMatch = new StringToken( "OverlayWithDepth" ).Value;
 	static readonly uint OverlayWithoutDepthMatch = new StringToken( "OverlayWithoutDepth" ).Value;
+	static readonly uint ToolOverlayMatch = new StringToken( "ToolOverlay" ).Value;
+	static readonly uint ToolScreenOverlayMatch = new StringToken( "ToolScreenOverlay" ).Value;
 	static readonly StringToken RenderOrderName = new( "RenderOrder" );
 	static readonly StringToken LightGroupName = new( "LightGroup" );
 
@@ -551,7 +555,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		mesh.LightGroup = (uint)sceneObject.native.GetIntValue( LightGroupName, 0 );
 
 		mesh.LayerMatch = LayerMatchFor( sceneObject.native.GetLayerMatchIDValue() );
-		mesh.RenderOrder = mesh.LayerMatch == LayerMatch.StaticOverlay ? sceneObject.native.GetIntValue( RenderOrderName, 0 ) : 0;
+		mesh.RenderOrder = mesh.LayerMatch is LayerMatch.StaticOverlay or LayerMatch.ToolOverlay or LayerMatch.ToolScreenOverlay ? sceneObject.native.GetIntValue( RenderOrderName, 0 ) : 0;
 	}
 
 	/// <summary>
@@ -582,6 +586,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		if ( match == StaticOverlayMatch ) return LayerMatch.StaticOverlay;
 		if ( match == OverlayWithDepthMatch ) return LayerMatch.OverlayWithDepth;
 		if ( match == OverlayWithoutDepthMatch ) return LayerMatch.OverlayWithoutDepth;
+		if ( match == ToolOverlayMatch ) return LayerMatch.ToolOverlay;
+		if ( match == ToolScreenOverlayMatch ) return LayerMatch.ToolScreenOverlay;
 		return LayerMatch.Unsupported;
 	}
 

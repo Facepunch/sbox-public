@@ -4,6 +4,14 @@ public static class SceneEditorExtensions
 {
 	private static readonly Pixmap EyeCursor = Pixmap.FromFile( "toolimages:scene_view/cursor_eye.png" );
 
+	public static float GetGizmoSize( Vector3 position, float size )
+	{
+		var dpiScale = Gizmo.Camera.Attributes.GetFloat( "EditorGizmoDpiScale" );
+		return size * (Gizmo.Camera.Ortho
+			? Gizmo.Camera.OrthoHeight * MathF.Max( dpiScale, 1.0f ) / MathF.Max( Gizmo.Camera.Size.y, 1.0f )
+			: Gizmo.Camera.Position.Distance( position ) / 1000.0f);
+	}
+
 	/// <summary>
 	/// Helper to easily set up all of the inputs for this camera and widget. This is assuming
 	/// that the passed in widget is the render panel.
@@ -207,21 +215,20 @@ public static class SceneEditorExtensions
 
 		if ( self.Input.IsHovered && !rightMouse && Math.Abs( Application.MouseWheelDelta.y ) > 0.001f )
 		{
-			const float zoomSpeed = 24.0f;
 			if ( camera.Orthographic )
 			{
-				var canvasCursor = Application.CursorPosition - canvas.ScreenPosition;
+				var canvasCursor = canvas.FromScreen( Application.CursorPosition ) * canvas.DpiScale;
 				Vector3 worldBefore = camera.ScreenToWorld( canvasCursor );
 
-				camera.OrthographicHeight -= Application.MouseWheelDelta.y * zoomSpeed * 2 * (camera.OrthographicHeight / canvas.Height);
-				camera.OrthographicHeight = camera.OrthographicHeight.Clamp( 32.0f, 8192.0f );
+				var zoomFactor = MathF.Pow( 1.2f, -Application.MouseWheelDelta.y );
+				camera.OrthographicHeight = (camera.OrthographicHeight * zoomFactor).Clamp( 1.0f, 16384.0f );
 
 				Vector3 worldAfter = camera.ScreenToWorld( canvasCursor );
 				camera.WorldPosition -= worldAfter - worldBefore;
 			}
 			else
 			{
-				camera.WorldPosition += camera.WorldRotation.Forward * Application.MouseWheelDelta.y * zoomSpeed;
+				camera.WorldPosition += camera.WorldRotation.Forward * Application.MouseWheelDelta.y * 24.0f;
 			}
 
 			cameraTarget = default;
