@@ -92,7 +92,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		ResetEnvironment();
 		Networking.StartThread();
 
-		if ( !Application.IsStandalone )
+		if ( !Application.IsStandalone && !Application.IsEditor )
 		{
 			await Mounting.MountConfig.Mount();
 		}

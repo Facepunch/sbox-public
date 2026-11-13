@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.IO.Enumeration;
 using System.Text.Json;
 using Zio.FileSystems;
 
@@ -111,10 +112,16 @@ public class BaseFileSystem
 
 		List<string> foundFiles = new();
 
+		bool hasPattern = !string.IsNullOrWhiteSpace( pattern ) && pattern != "*";
+
 		try
 		{
-			foreach ( var path in system.EnumeratePaths( folder, pattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly, Zio.SearchTarget.File ) )
+			foreach ( var path in system.EnumeratePaths( folder, "*", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly, Zio.SearchTarget.File ) )
 			{
+				// zio's pattern matching is case sensitive, which we don't want
+				if ( hasPattern && !FileSystemName.MatchesSimpleExpression( pattern, Path.GetFileName( path.FullName ), ignoreCase: true ) )
+					continue;
+
 				var found = path.FullName.Substring( folder.Length ).Trim( '/' );
 				foundFiles.Add( found );
 			}

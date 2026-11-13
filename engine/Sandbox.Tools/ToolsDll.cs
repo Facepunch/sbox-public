@@ -179,11 +179,11 @@ internal class ToolsDll : IToolsDll
 			{
 				EditorEvent.RegisterAssembly( assembly.Assembly );
 				ConVarSystem.AddAssembly( assembly.Assembly, $"editor.{assembly.Name.Replace( ".editor", "" )}" );
-				Sandbox.Mounting.Directory.AddAssembly( assembly.Assembly );
 			}
 
 			EditorTypeLibrary.AddAssembly( assembly.Assembly, true );
 			GameData.AddAssembly( assembly.Assembly );
+			Sandbox.Mounting.Directory.AddAssembly( assembly.Assembly, (assembly.Package as LocalPackage)?.Project?.FileSystem );
 
 			if ( !StartupLoadProject.IsLoading )
 			{
@@ -203,11 +203,11 @@ internal class ToolsDll : IToolsDll
 			{
 				EditorEvent.UnregisterAssembly( outgoing.Assembly );
 				ConVarSystem.RemoveAssembly( outgoing.Assembly );
-				Sandbox.Mounting.Directory.RemoveAssembly( outgoing.Assembly );
 			}
 
 			EditorTypeLibrary.RemoveAssembly( outgoing.Assembly );
 			GameData.RemoveAssembly( outgoing.Assembly );
+			Sandbox.Mounting.Directory.RemoveAssembly( outgoing.Assembly );
 			ManagedTools.AssembliesDirty = true;
 		};
 

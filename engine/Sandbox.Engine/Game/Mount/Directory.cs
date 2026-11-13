@@ -1,4 +1,5 @@
 ﻿using Sandbox.Engine;
+using System.IO;
 using System.Reflection;
 
 namespace Sandbox.Mounting;
@@ -7,42 +8,156 @@ public static class Directory
 {
 	static MountHost _system;
 
-	/// <summary>
-	/// Load the assemblies and collect sources. That's all.
-	/// </summary>
-	internal static void LoadAssemblies()
+	internal static void LoadSources()
 	{
 		// Create system first.
 		var config = new Configuration();
 		config.SteamIntegration = new SteamIntegration();
 		_system = new MountHost( config );
 
-		//
-		// Loop each folder in mount/, look for /mount/x/x.dll and load it.
-		//
-		foreach ( var file in System.IO.Directory.EnumerateDirectories( "mount/" ) )
+		if ( !System.IO.Directory.Exists( "mounts/" ) )
+			return;
+
+		LoadAddons();
+		LoadAssemblies();
+	}
+
+	//
+	// Load mounts from .sbprojs, setup compilers and mount their assets.
+	//
+	static void LoadAddons()
+	{
+		var projects = new List<Project>();
+
+		foreach ( var projFile in System.IO.Directory.EnumerateFiles( "mounts/", "*.sbproj", SearchOption.AllDirectories ) )
 		{
-			var folderName = System.IO.Path.GetFileName( file );
-			var assemblyName = System.IO.Path.Combine( file, folderName + ".dll" );
-
-			if ( !System.IO.File.Exists( assemblyName ) )
-			{
-				Log.Warning( $"Couldn't find {assemblyName} - skipping." );
-				continue;
-			}
-
-			assemblyName = System.IO.Path.GetFullPath( assemblyName );
+			string projPath = System.IO.Path.GetFullPath( projFile );
 
 			try
 			{
-				var assembly = Assembly.LoadFile( assemblyName );
-				AddAssembly( assembly );
-				TryMountFilesystem( folderName );
-				ReflectionUtility.RunAllStaticConstructors( assembly );
+				// don't load the open project as a mount here (again)
+				if ( Project.All.Any( x => x.ConfigFilePath.Equals( projPath, StringComparison.OrdinalIgnoreCase ) ) )
+					continue;
+
+				var project = Project.AddFromFile( projPath );
+				if ( project.Config.Type != "addon" )
+				{
+					Log.Info( $"Mount {project.Config.Title} is not an addon, skipping." );
+					Project.Remove( project );
+					continue;
+				}
+
+				if ( project.HasAssetsPath() )
+				{
+					using var scope = GlobalContext.MenuScope();
+					EngineFileSystem.AddAssetPath( $"mnt_{project.Config.FullIdent}", project.GetAssetsPath() );
+				}
+
+				projects.Add( project );
 			}
 			catch ( System.Exception e )
 			{
-				Log.Warning( e, $"Exception when loading {assemblyName}" );
+				Log.Warning( e, $"Exception when loading mount addon: {projPath}" );
+			}
+		}
+
+		// in editor, the package manager will compile and register mounts for us
+		if ( Application.IsEditor )
+			return;
+
+		if ( projects.Count == 0 )
+			return;
+
+		// :(
+		SyncContext.RunBlocking( Project.CompileAsync() );
+
+		foreach ( var project in projects )
+		{
+			try
+			{
+				LoadFromAddon( project );
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( e, $"Exception when loading mount addon: {project.ConfigFilePath}" );
+			}
+		}
+	}
+
+	static void LoadFromAddon( Project project )
+	{
+		if ( project.Compiler is null )
+		{
+			Log.Error( $"Mount {project.Config.Title} has no code to compile" );
+			return;
+		}
+
+		var result = SyncContext.RunBlocking( project.Compiler.GetCompileOutputAsync() );
+		if ( !result.Successful )
+		{
+			Log.Error( $"Failed to compile mount: {project.Config.Title}" );
+			return;
+		}
+
+		var assembly = Assembly.Load( result.AssemblyData );
+		AddAssembly( assembly, project.FileSystem );
+		ReflectionUtility.RunAllStaticConstructors( assembly );
+	}
+
+	/// <summary>
+	/// Load mounts from DLLs and mount their assets.
+	/// </summary>
+	static void LoadAssemblies()
+	{
+		foreach ( var folder in System.IO.Directory.EnumerateDirectories( "mounts/" ) )
+		{
+			var folderName = System.IO.Path.GetFileName( folder );
+			var assemblies = System.IO.Directory.GetFiles( folder, "*.dll" );
+			if ( assemblies.Length == 0 )
+				continue;
+
+			var fullPath = System.IO.Path.GetFullPath( folder );
+			var fileSystem = new LocalFileSystem( fullPath );
+
+			foreach ( var dll in assemblies )
+			{
+				try
+				{
+					string dllPath = System.IO.Path.GetFullPath( dll );
+
+					byte[] bytes = File.ReadAllBytes( dllPath );
+					if ( bytes is null ) continue;
+
+					var attrs = AssemblyMetadata.GetCustomAttributes( bytes );
+					var metadata = attrs
+						.Where( a => a.AttributeFullName == "System.Reflection.AssemblyMetadataAttribute" )
+						.Where( a => a.Arguments.Length == 2 )
+						.ToDictionary(
+							a => (string)a.Arguments[0],
+							a => (string)a.Arguments[1]
+						);
+
+					if ( metadata.TryGetValue( "Ident", out var ident ) == false || Project.FindByIdent( ident ) is not null )
+					{
+						// this is an already open project, don't load it twice
+						continue;
+					}
+
+					Assembly assembly = Assembly.Load( bytes );
+					AddAssembly( assembly, fileSystem );
+					ReflectionUtility.RunAllStaticConstructors( assembly );
+				}
+				catch ( System.Exception e )
+				{
+					Log.Warning( e, $"Exception when loading mount assembly: {dll}" );
+				}
+			}
+
+			var assetsPath = System.IO.Path.Combine( fullPath, "Assets" );
+			if ( System.IO.Directory.Exists( assetsPath ) )
+			{
+				using var scope = GlobalContext.MenuScope();
+				EngineFileSystem.AddAssetPath( $"mnt_{folderName}", assetsPath );
 			}
 		}
 	}
@@ -133,20 +248,6 @@ public static class Directory
 		{
 			IToolsDll.Current?.RunEvent<IMountEvents>( x => x.OnMountDisabled( Get( name ) ) );
 		}
-	}
-
-	/// <summary>
-	/// If /mount/{x}/assets exists, add it to our filesystem
-	/// </summary>
-	static void TryMountFilesystem( string name )
-	{
-		using var scope = GlobalContext.MenuScope();
-
-		var path = EngineFileSystem.Root.GetFullPath( $"/mount/{name}/assets" );
-		if ( string.IsNullOrWhiteSpace( path ) ) return;
-		if ( !System.IO.Directory.Exists( path ) ) return;
-
-		EngineFileSystem.AddAssetPath( $"mnt_{name}", path );
 	}
 
 	internal static bool TryLoad( string filename, out object resource )
@@ -277,9 +378,9 @@ public static class Directory
 		return null;
 	}
 
-	internal static void AddAssembly( Assembly assembly )
+	internal static void AddAssembly( Assembly assembly, BaseFileSystem projectFileSystem = null )
 	{
-		_system.RegisterTypes( assembly );
+		_system.RegisterTypes( assembly, projectFileSystem );
 	}
 
 	internal static void RemoveAssembly( Assembly assembly )
@@ -291,10 +392,15 @@ public static class Directory
 
 class SteamIntegration : ISteamIntegration
 {
-	public string GetAppDirectory( long appid )
+	public BaseFileSystem GetFileSystem( long appid )
 	{
-		if ( !NativeEngine.Steam.SteamApps().IsValid ) return string.Empty;
-		return NativeEngine.Steam.SteamApps().GetAppInstallDir( (int)appid );
+		if ( !NativeEngine.Steam.SteamApps().IsValid ) return null;
+
+		var dir = NativeEngine.Steam.SteamApps().GetAppInstallDir( (int)appid );
+		if ( string.IsNullOrWhiteSpace( dir ) ) return null;
+
+		// Read-only and rooted at the install dir - the mount can't write or escape above it.
+		return new LocalFileSystem( dir, makereadonly: true );
 	}
 
 	public bool IsAppInstalled( long appid )

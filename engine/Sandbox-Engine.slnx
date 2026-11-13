@@ -37,6 +37,7 @@
     <Project Path="Sandbox.Hotload/Sandbox.Hotload.csproj" />
     <Project Path="Sandbox.Layout/Sandbox.Layout.csproj" />
     <Project Path="Sandbox.Navigation/Sandbox.Navigation.csproj" />
+    <Project Path="Sandbox.Mounting/Sandbox.Mounting.csproj" />
     <Project Path="Sandbox.NetCore/Sandbox.NetCore.csproj" />
     <Project Path="Sandbox.Razor/Sandbox.Razor.csproj" />
     <Project Path="Sandbox.Reflection/Sandbox.Reflection.csproj" />
@@ -48,14 +49,6 @@
   <Folder Name="/Engine/Tier0/Compiling/">
     <Project Path="Sandbox.Compiling/Sandbox.Compiling.csproj" />
     <Project Path="Sandbox.ContentBuild/Sandbox.ContentBuild.csproj" />
-  </Folder>
-  <Folder Name="/Engine/Tier0/Mounting/">
-    <Project Path="Mounting/Sandbox.Mounting.GoldSrc/Sandbox.Mounting.GoldSrc.csproj" />
-    <Project Path="Mounting/Sandbox.Mounting.NS2/Sandbox.Mounting.NS2.csproj" />
-    <Project Path="Mounting/Sandbox.Mounting.Quake/Sandbox.Mounting.Quake.csproj" />
-    <Project Path="Mounting/Sandbox.Mounting.SE3/Sandbox.Mounting.SE3.csproj" />
-    <Project Path="Mounting/Sandbox.Mounting.Source1/Sandbox.Mounting.Source1.csproj" />
-    <Project Path="Mounting/Sandbox.Mounting/Sandbox.Mounting.csproj" />
   </Folder>
   <Folder Name="/Engine/Tier1/">
     <Project Path="Sandbox.Engine/Sandbox.Engine.csproj" DefaultStartup="true" />

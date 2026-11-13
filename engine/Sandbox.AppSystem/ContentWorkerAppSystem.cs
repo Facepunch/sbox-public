@@ -37,7 +37,7 @@ public sealed class ContentWorkerAppSystem : ToolAppSystem
 		EngineFileSystem.InitializeDataFolder();
 
 		// As every app has them (Bootstrap.PreInit); a worker never mounts a game, so a compile can't read one
-		Mounting.Directory.LoadAssemblies();
+		Mounting.Directory.LoadSources();
 	}
 
 	public override void Init()

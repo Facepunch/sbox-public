@@ -36,7 +36,7 @@ internal class UploadBuildArtifacts
 		"core/**",
 		"config/**",
 		"editor/**",
-		"mount/**",
+		"mounts/**",
 		"samples/**",
 		"templates/**"
 	};
