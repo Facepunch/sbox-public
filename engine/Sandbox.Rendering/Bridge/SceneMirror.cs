@@ -340,6 +340,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		if ( volume.Attributes is not null ) return;
 
 		SceneNative.ReadLightProbeVolume( probe, volume );
+		volume.Handshake = probe.Handshake;
 		volume.Attributes = MirrorContent.Gpu is { } gpu
 			// On Basalt.Gpu: its constants made here, over its textures read by path
 			? gpu.LightProbeVolumeParameters( MirrorContent.Texture( probe.ProbeTexture ), MirrorContent.Texture( probe.IndicesTexture ), MirrorContent.Texture( probe.ScalarsTexture ), probe.Transform, volume.BoxMins, volume.BoxMaxs )
@@ -665,6 +666,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		mesh.Decal = flags.HasFlag( SceneObjectFlags.IsDecal );
 		mesh.NeedsLightProbe = flags.HasFlag( SceneObjectFlags.NeedsLightProbe );
 		mesh.LightGroup = (uint)sceneObject.native.GetIntValue( LightGroupName, 0 );
+		mesh.LightProbeHandshake = SceneNative.LightProbeHandshake( sceneObject );
 
 		mesh.LayerMatch = LayerMatchFor( sceneObject.native.GetLayerMatchIDValue() );
 		mesh.RenderOrder = mesh.LayerMatch == LayerMatch.StaticOverlay ? sceneObject.native.GetIntValue( RenderOrderName, 0 ) : 0;

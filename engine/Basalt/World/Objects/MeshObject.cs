@@ -269,6 +269,12 @@ public sealed class MeshObject : RenderObject
 	public Vector3? LightingOrigin { get; set; }
 
 	/// <summary>
+	/// The light probe volume the map compiler bound it to (<see cref="LightProbeVolume.Handshake"/>), chosen before any by
+	/// position; zero for none.
+	/// </summary>
+	public int LightProbeHandshake { get; set; }
+
+	/// <summary>
 	/// Probe light-group token (<c>LightGroup</c>); zero means none.
 	/// </summary>
 	public uint LightGroup { get; set; }
@@ -279,6 +285,7 @@ public sealed class MeshObject : RenderObject
 	internal int ProbeChoice = -1;
 	internal Vector3 ProbeCenter, ProbeExtents, ProbeOrigin;
 	internal uint ProbeLightGroup;
+	internal int ProbeHandshake;
 	internal long ProbeVolumesKey = long.MinValue;
 
 	/// <summary>

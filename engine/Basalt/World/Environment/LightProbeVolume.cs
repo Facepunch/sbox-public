@@ -44,6 +44,12 @@ public sealed class LightProbeVolume
 	public Vector3 BoxMaxs { get; set { field = value; Version++; } }
 
 	/// <summary>
+	/// The handshake the map compiler gave the volume: objects bound to it (<see cref="MeshObject.LightProbeHandshake"/>)
+	/// choose it before any by position. Zero for none.
+	/// </summary>
+	public int Handshake { get; set { field = value; Version++; } }
+
+	/// <summary>
 	/// Higher priority wins when both volumes contain the lighting origin.
 	/// </summary>
 	public int RenderPriority { get; set { field = value; Version++; } }
@@ -64,11 +70,20 @@ public sealed class LightProbeVolume
 	internal ShaderParameters Attributes { get; set { field = value; Version++; } }
 
 	/// <summary>
-	/// Select by origin containment, priority, then distance (<c>CLightBinner2::ChooseLightProbeVolume</c>).
-	/// Non-containing candidates must touch object bounds. Returns -1 for none.
+	/// Select the volume the object is bound to by <paramref name="handshake"/> if there's one, else by origin containment,
+	/// priority, then distance (<c>ChooseLightProbeVolume</c>, <c>CLightBinner2::ChooseLightProbeVolume</c>). Non-containing
+	/// candidates must touch object bounds. Returns -1 for none.
 	/// </summary>
-	internal static int Choose( List<LightProbeVolume> volumes, Vector3 origin, Vector3 boundsCenter, Vector3 boundsExtents, uint lightGroup )
+	internal static int Choose( List<LightProbeVolume> volumes, Vector3 origin, Vector3 boundsCenter, Vector3 boundsExtents, uint lightGroup, int handshake = 0 )
 	{
+		if ( handshake != 0 )
+		{
+			for ( int i = 0; i < volumes.Count; i++ )
+			{
+				if ( volumes[i].Handshake == handshake && volumes[i].Enabled && volumes[i].Attributes is not null ) return i;
+			}
+		}
+
 		var boundsRadiusSq = boundsExtents.LengthSquared;
 
 		var nearestPriority = int.MinValue;

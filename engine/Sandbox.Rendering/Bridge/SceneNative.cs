@@ -121,6 +121,9 @@ internal static class SceneNative
 		return model.IsNull ? null : Model.FromNative( model );
 	}
 
+	/// <summary>The light probe volume the map compiler bound an object to, 0 for none (<c>RenderTools.GetLightProbeVolumeHandshake</c>).</summary>
+	public static int LightProbeHandshake( SceneObject sceneObject ) => RenderTools.GetLightProbeVolumeHandshake( sceneObject );
+
 	/// <summary>
 	/// A native aggregate's fragments as it draws them (<c>RenderTools.GetAggregateFragments</c>).
 	/// </summary>
