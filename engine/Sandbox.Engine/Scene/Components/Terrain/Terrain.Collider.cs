@@ -49,24 +49,26 @@ public partial class Terrain
 
 		// Extract base texture IDs from the compact format
 		var surfaceMap = ArrayPool<byte>.Shared.Rent( Storage.ControlMap.Length );
-		for ( int i = 0; i < Storage.ControlMap.Length; i++ )
-		{
-			var material = new CompactTerrainMaterial( Storage.ControlMap[i] );
-
-			// If marked as a hole, use 255
-			if ( material.IsHole )
-			{
-				surfaceMap[i] = 255;
-			}
-			else
-			{
-				// Use the base texture ID
-				surfaceMap[i] = material.BaseTextureId;
-			}
-		}
-
 		try
 		{
+			// The pool can return extra capacity; only initialized entries belong to the heightfield.
+			var materials = surfaceMap.AsSpan( 0, Storage.ControlMap.Length );
+			for ( int i = 0; i < materials.Length; i++ )
+			{
+				var material = new CompactTerrainMaterial( Storage.ControlMap[i] );
+
+				// If marked as a hole, use 255
+				if ( material.IsHole )
+				{
+					materials[i] = 255;
+				}
+				else
+				{
+					// Use the base texture ID
+					materials[i] = material.BaseTextureId;
+				}
+			}
+
 			Span<int> surfaceIndices = stackalloc int[4];
 			surfaceIndices.Fill( Surface?.Index ?? -1 );
 			int index = 0;
@@ -76,7 +78,7 @@ public partial class Terrain
 				surfaceIndices[index++] = (material.Surface ?? Surface)?.Index ?? -1;
 			}
 
-			_shape = targetBody.AddHeightFieldShape( Storage.HeightMap, surfaceMap, Storage.Resolution, Storage.Resolution, sizeScale, heightScale, 4, surfaceIndices );
+			_shape = targetBody.AddHeightFieldShape( Storage.HeightMap, materials, Storage.Resolution, Storage.Resolution, sizeScale, heightScale, 4, surfaceIndices );
 			_shapeResolution = Storage.Resolution;
 		}
 		finally

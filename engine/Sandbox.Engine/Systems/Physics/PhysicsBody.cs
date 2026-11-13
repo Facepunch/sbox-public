@@ -311,7 +311,11 @@ public sealed partial class PhysicsBody : IValid
 	/// </summary>
 	public PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale );
 
-	internal PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount, ReadOnlySpan<int> surfaceIndices = default ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale, materialCount, surfaceIndices );
+	/// <summary>
+	/// Creates a heightfield from the supplied material entries, excluding any unused buffer capacity.
+	/// The native shape copies the buffers before returning.
+	/// </summary>
+	internal PhysicsShape AddHeightFieldShape( ushort[] heights, ReadOnlySpan<byte> materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount, ReadOnlySpan<int> surfaceIndices = default ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale, materialCount, surfaceIndices );
 
 	[Obsolete]
 	public PhysicsShape AddCloneShape( PhysicsShape shape ) => null;

@@ -374,7 +374,11 @@ internal abstract partial class PhysicsBodyInternal : IValid
 		return AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale, 0 );
 	}
 
-	internal virtual unsafe PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount, ReadOnlySpan<int> surfaceIndices = default ) => throw new NotSupportedException();
+	/// <summary>
+	/// Creates a heightfield, copying the supplied buffers before returning. A default material
+	/// span uses material zero; otherwise both buffers must contain exactly sizeX * sizeY entries.
+	/// </summary>
+	internal virtual unsafe PhysicsShape AddHeightFieldShape( ushort[] heights, ReadOnlySpan<byte> materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount, ReadOnlySpan<int> surfaceIndices = default ) => throw new NotSupportedException();
 
 	[Obsolete]
 	public PhysicsShape AddCloneShape( PhysicsShape shape ) => null;
