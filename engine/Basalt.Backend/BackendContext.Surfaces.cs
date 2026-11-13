@@ -122,7 +122,12 @@ internal sealed partial class BackendContext
 	/// A draw's vertex and pixel material records: a surface's one record (its <c>[Material]</c> struct) for both stages,
 	/// or a variant's per stage.
 	/// </summary>
-	(uint Vertex, uint Pixel) Records( GpuDrivenTables tables, GpuDrivenBucket bucket, GpuMaterial material, bool uncompressedTangentFrame )
+	(uint Vertex, uint Pixel) Records( GpuDrivenTables tables, GpuDrivenBucket bucket, GpuMaterial material, bool uncompressedTangentFrame ) =>
+		bucket.Surface is not null ? Records( tables, bucket, material, uncompressedTangentFrame, 0, 0 )
+		: Records( tables, bucket, material, uncompressedTangentFrame, bucket.Variant.Vertex is { } vertex ? AttributeHash( vertex ) : 0, !bucket.DepthOnly && bucket.Variant.Pixel is { } pixel ? AttributeHash( pixel ) : 0 );
+
+	/// <summary>The same with the bucket's stages' attribute hashes (<see cref="AttributeHash"/>) already worked out.</summary>
+	(uint Vertex, uint Pixel) Records( GpuDrivenTables tables, GpuDrivenBucket bucket, GpuMaterial material, bool uncompressedTangentFrame, int vertexAttributes, int pixelAttributes )
 	{
 		if ( bucket.Surface is not null )
 		{
@@ -138,7 +143,7 @@ internal sealed partial class BackendContext
 		}
 
 		var classic = (BackendMaterial)material;
-		return (MaterialRecord( tables, classic, bucket.Variant.Vertex, uncompressedTangentFrame ), bucket.DepthOnly ? 0 : MaterialRecord( tables, classic, bucket.Variant.Pixel, uncompressedTangentFrame ));
+		return (MaterialRecord( tables, classic, bucket.Variant.Vertex, uncompressedTangentFrame, vertexAttributes ), bucket.DepthOnly ? 0 : MaterialRecord( tables, classic, bucket.Variant.Pixel, uncompressedTangentFrame, pixelAttributes ));
 	}
 
 	/// <summary>

@@ -481,6 +481,9 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// <summary>The fragment table's slot in the raw buffer array.</summary>
 	public int FragmentSlot => fragments.Slot;
 
+	/// <summary>A stage's material record when it's made.</summary>
+	public bool TryMaterial( in MaterialRecordKey key, out uint record ) => materialRecords.TryGetValue( key, out record );
+
 	/// <summary>A stage's material record, made once by <paramref name="write"/> (which fills the bytes it's given).</summary>
 	public uint Material<T>( in MaterialRecordKey key, int size, T state, Action<T, Span<byte>> write )
 	{
