@@ -326,7 +326,13 @@ class LauncherWindow : Panel
 		if ( !searchFocused && searchBox.IsValid() )
 		{
 			searchFocused = true;
-			searchBox.Focus();
+
+			// A click may have already focused the box and positioned its caret.
+			if ( !searchBox.HasFocus )
+			{
+				searchBox.CaretPosition = searchBox.TextLength;
+				searchBox.Focus();
+			}
 		}
 	}
 
@@ -374,6 +380,8 @@ class LauncherWindow : Panel
 		search.Placeholder = "Search";
 		search.Icon = "search";
 		search.OnTextEdited = value => { filter = value ?? ""; RefreshProjects(); };
+		search.Text = filter;
+		search.CaretPosition = search.TextLength;
 
 		// The keyboard path is the fastest path - typing filters, Enter opens the top hit
 		search.AddEventListener( "onsubmit", () => { if ( topHit is not null ) OpenProject( topHit ); } );
@@ -989,6 +997,8 @@ class LauncherWindow : Panel
 
 				if ( project is not null )
 				{
+					// Clear the search so the project just created is not hidden by it.
+					filter = "";
 					ShowHome();
 					OpenProject( project );
 					return;
