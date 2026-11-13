@@ -32,6 +32,12 @@ public class AssetPreview : IDisposable
 	public GameObject PrimaryObject;
 
 	/// <summary>
+	/// The widget showing this preview live, or null when it's only rendered to an image (thumbnails, videos).
+	/// Lets a preview read the mouse over itself: its render surface is native and gets no Qt mouse events.
+	/// </summary>
+	public Widget LiveWidget { get; internal set; }
+
+	/// <summary>
 	/// If you want to slow down the cycle speed when displaying in a scene widget, you can do that here
 	/// </summary>
 	public virtual float PreviewWidgetCycleSpeed => 1.0f;
