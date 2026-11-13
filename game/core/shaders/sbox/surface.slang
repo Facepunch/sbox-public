@@ -41,6 +41,16 @@ public struct Material
 	// Unlit, as the final combiner's S_UNLIT: the diffuse colour and emission as they are, no lights
 	public bool Unlit = false;
 
+	// Blended additively (S_ADDITIVE_BLEND): fog thins it, its alpha by the fog's transmittance, instead of colouring it
+	public bool Additive = false;
+
+	// Fogged (the combiner's g_bFogEnabled, a material value of complex and generic.shader)
+	public bool Fog = true;
+
+	// A multiplying overlay (static_overlay.shader's blend modes 3 mod2x, 5 multiply, 6 mod then add; 0 for none): fogged
+	// as an overlay, then faded by its opacity towards the colour that leaves what's behind it as it is
+	public int OverlayMode = 0;
+
 	/// Blend two surfaces' properties, as common/material.hlsl's Material::lerp does (the normal renormalized).
 	public static Material Lerp( Material a, Material b, float amount )
 	{

@@ -94,6 +94,13 @@ public class SurfaceTests : GpuTest
 
 		Assert.IsNull( rock.Pass( ShaderPasses.Depth ).Pixel );
 		var forward = rock.Pass( ShaderPasses.Forward ).Pixel;
+
+		// Opaque depth's vertex stage reads the position alone (and the instance id), so it can draw from positions-only
+		// vertices; translucent forward compiles with S_TRANSLUCENT, which keeps opacity in alpha
+		var depthInputs = rock.Pass( ShaderPasses.Depth ).Vertex.Inputs.Select( i => i.Semantic + i.SemanticIndex ).ToArray();
+		Assert.IsTrue( depthInputs.All( i => i is "POSITION0" or "TEXCOORD13" or "BLENDINDICES0" ), string.Join( ", ", depthInputs ) );
+		Assert.IsTrue( rock.Pass( ShaderPasses.Forward ).Vertex.Inputs.Any( i => i.Semantic == "NORMAL" ) );
+		Assert.IsNotNull( rock.Pass( ShaderPasses.Forward + "Translucent" )?.Pixel );
 		Assert.IsTrue( forward.Bindings.Any( b => b.Kind == BindingKind.MaterialRecords && b.Set == 1 ) );
 		Assert.IsTrue( forward.Bindings.Any( b => b.Variable == "g_MaterialTextures2D" && b.Set == 4 && b.Binding == ShaderAbi.BindlessTextures ) );
 		Assert.IsTrue( forward.Bindings.Any( b => b.Name == "PerViewConstantBuffer_t" && b.Kind == BindingKind.ConstantBuffer && b.Size > 0 ) );
@@ -147,7 +154,10 @@ public class SurfaceTests : GpuTest
 	{
 		var rock = Compiler().CompileSurface( Path.Combine( Surfaces, "rock.slang" ) );
 		static bool ReadsLightmapUv( CompiledStage vertex ) => vertex.Inputs.Any( i => i.Semantic == "TEXCOORD" && i.SemanticIndex == 3 );
-		foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
+
+		// Opaque depth reads the position alone, lightmapped or not
+		Assert.AreSame( rock.Pass( ShaderPasses.Depth ).Vertex, rock.Pass( ShaderPasses.Depth + ShaderPasses.Lightmapped ).Vertex );
+		foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Forward + "Translucent", ShaderPasses.DepthAlphaTest } )
 		{
 			var plain = rock.Pass( name );
 			var lightmapped = rock.Pass( name + ShaderPasses.Lightmapped );
@@ -553,9 +563,7 @@ public class SurfaceTests : GpuTest
 				Assert.IsTrue( Mean( reference, converted ) < 0.5, $"{path}: the surface differs by {Mean( reference, converted ):F3}" );
 			}
 
-			// Translucency isn't the surface's: the material stays on complex.shader
-			DrawMaterial( "materials/dev/primary_white_trans.vmat", true, out var translucent );
-			Assert.IsNotInstanceOfType<SurfaceMaterial>( translucent, "a translucent complex material was converted" );
+			// Translucent complex materials: CombinerSurfacesDrawAsTheirShaders
 		}
 		finally
 		{
@@ -657,8 +665,9 @@ public class SurfaceTests : GpuTest
 
 	/// <summary>
 	/// The final combiner family's other surfaces, on by default: generic.slang (plain, specular on, self-illuminated,
-	/// two-sided, unlit, alpha-tested) and vertex_color.slang (the mesh's colour as Varyings) draw their materials as their
-	/// .shader does; a material using a feature they don't do (translucency) stays on the .shader.
+	/// two-sided, unlit, alpha-tested, translucent) and vertex_color.slang (the mesh's colour as Varyings) draw their
+	/// materials as their .shader does, and so do complex.slang's translucent ones; a material using a feature a surface
+	/// doesn't do (generic's vertex paint) stays on the .shader.
 	/// </summary>
 	[TestMethod]
 	public void CombinerSurfacesDrawAsTheirShaders()
@@ -680,7 +689,7 @@ public class SurfaceTests : GpuTest
 				return picture;
 			}
 
-			foreach ( var path in new[] { "materials/dev/gray_25.vmat", "materials/dev/roomwalls_white.vmat", "materials/dev/bright_10.vmat", "materials/tools/hlmv_ground.vmat", "materials/dev/sky_camera.vmat", "models/vr/autochap_hand.vmat", "materials/default/vertex_color.vmat" } )
+			foreach ( var path in new[] { "materials/dev/gray_25.vmat", "materials/dev/roomwalls_white.vmat", "materials/dev/bright_10.vmat", "materials/tools/hlmv_ground.vmat", "materials/dev/sky_camera.vmat", "models/vr/autochap_hand.vmat", "materials/default/vertex_color.vmat", "materials/dev/static_overlay_test.vmat" } )
 			{
 				var reference = DrawMaterial( path, false, out var classic );
 				if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( $"{path} isn't compiled" );
@@ -692,8 +701,19 @@ public class SurfaceTests : GpuTest
 				Assert.IsTrue( Mean( reference, converted ) < 0.5, $"{path}: the surface differs by {Mean( reference, converted ):F3}" );
 			}
 
-			DrawMaterial( "materials/tools/toolsclip.vmat", true, out var translucent );
-			Assert.IsNotInstanceOfType<SurfaceMaterial>( translucent, "a translucent generic material was converted" );
+			// Translucent: blended with the .shader's render state, in the translucent layer
+			foreach ( var path in new[] { "materials/tools/toolsclip.vmat", "materials/tools/toolsgeneric.vmat", "materials/dev/primary_green_additive.vmat", "materials/dev/primary_white_trans.vmat" } )
+			{
+				var reference = DrawMaterial( path, false, out var classic );
+				if ( classic is not BackendMaterial { Shader: not null, IsTranslucent: true } ) Assert.Inconclusive( $"{path} isn't compiled, or isn't translucent" );
+				var converted = DrawMaterial( path, true, out var surface );
+				Assert.IsInstanceOfType<SurfaceMaterial>( surface, $"{path} isn't a surface by default" );
+				Assert.IsTrue( surface.IsTranslucent, $"{path} isn't translucent as a surface" );
+				var name = Path.GetFileNameWithoutExtension( path );
+				SaveRgb( reference, $"combiner-{name}-shader" );
+				SaveRgb( converted, $"combiner-{name}-surface" );
+				Assert.IsTrue( Mean( reference, converted ) < 0.5, $"{path}: the surface differs by {Mean( reference, converted ):F3}" );
+			}
 		}
 		finally
 		{

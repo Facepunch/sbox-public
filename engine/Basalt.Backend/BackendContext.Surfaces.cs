@@ -14,6 +14,7 @@ namespace Basalt.Backend;
 internal sealed partial class BackendContext
 {
 	const string ForwardAlphaTestPass = ShaderPasses.Forward + "AlphaTest";
+	const string ForwardTranslucentPass = ShaderPasses.Forward + "Translucent";
 
 	static readonly StringToken LightmapCombo = new( "D_BAKED_LIGHTING_FROM_LIGHTMAP" );
 
@@ -36,7 +37,18 @@ internal sealed partial class BackendContext
 		var r = recording;
 		var noColor = stripPixelShader || r.Color is null;
 		string name;
-		if ( noColor )
+		SurfaceRenderState? state = null;
+		if ( material.Translucent || material.ShaderState )
+		{
+			// Blended over the colour behind with the .shader's state (compiled translucent when it blends, as the .shader's
+			// S_TRANSLUCENT is); its depth and shadow passes are the .shader's
+			if ( noColor || shaderMode.Value != ForwardMode.Value ) return false;
+			var blended = TranslucentState( material );
+			name = material.Translucent || blended.Blend.Enable ? ForwardTranslucentPass : material.AlphaTest ? ForwardAlphaTestPass : ShaderPasses.Forward;
+			if ( program.Pass( name ) is null ) return false;
+			state = blended;
+		}
+		else if ( noColor )
 		{
 			name = material.AlphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth;
 		}
@@ -57,10 +69,13 @@ internal sealed partial class BackendContext
 		var color = noColor ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
 		var depth = r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth );
 		var geometry = source.For( draw.Mesh, draw.DrawCall );
+
+		// Opaque depth reads the positions-only vertex copy, when its vertex stage reads nothing else of the mesh's
+		if ( pass.Pass.Pixel is null && device.PositionStreams && geometry.Positions.IsValid && ReadsOnlyPositions( pass.Pass.Vertex, geometry.Layout ) ) geometry = geometry.PositionsOnly;
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
-		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, twoSided: material.TwoSided, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0 );
+		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, twoSided: material.TwoSided, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0, state: state );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
@@ -79,6 +94,33 @@ internal sealed partial class BackendContext
 		return true;
 	}
 
+	/// <summary>Whether a surface's vertex stage reads nothing of these vertices but their positions.</summary>
+	static bool ReadsOnlyPositions( CompiledStage stage, VertexLayout layout )
+	{
+		foreach ( var input in stage.Inputs )
+		{
+			if ( input.Semantic != "POSITION" && layout.Find( SurfaceProgram.Semantic( input.Semantic ), input.SemanticIndex ) is not null ) return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// A translucent surface's forward render state: the forward variant's of the <c>.shader</c> material it stands in for,
+	/// evaluated with that material's features and found once; alpha blending for a surface with no <c>.shader</c>.
+	/// </summary>
+	SurfaceRenderState TranslucentState( SurfaceMaterial material )
+	{
+		if ( material.State is { } known ) return known;
+
+		var state = SurfaceRenderState.AlphaBlend;
+		if ( material.Fallback is BackendMaterial { Shader: { } shader } fallback && CachedModeName( shader, ForwardMode ) is { } mode && Variant( fallback, mode )?.State is { } classic )
+			state = SurfaceRenderState.From( classic );
+
+		material.State = state;
+		return state;
+	}
+
 	/// <summary>
 	/// The GPU-driven bucket a surface batch draws in (BackendContext.GpuDriven.cs), made when none fits: its GPU-driven
 	/// pass for the mode, alpha test and lightmap combo, under the batch's object attributes. Null, so it draws the classic
@@ -86,6 +128,8 @@ internal sealed partial class BackendContext
 	/// </summary>
 	GpuDrivenBucket SurfaceBucket( SurfaceMaterial material, StringToken shaderMode, bool noColor, ShaderParameters attributes, long key )
 	{
+		// Translucent draws are sorted, so they stay classic, as .shader materials' do; so do those with the .shader's state
+		if ( material.Translucent || material.ShaderState ) return null;
 		if ( !noColor && shaderMode.Value != ForwardMode.Value ) return null;
 		if ( device.Surfaces.For( material ) is not { } program ) return null;
 		if ( program.GpuDrivenPass( noColor, material.AlphaTest, LookupCombo( LightmapCombo ) is > 0 ) is not { } pass ) return null;

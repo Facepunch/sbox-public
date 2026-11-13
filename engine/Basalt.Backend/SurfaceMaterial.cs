@@ -1,3 +1,4 @@
+using Basalt.Gpu;
 using System.Buffers.Binary;
 using System.Threading;
 
@@ -58,6 +59,36 @@ public abstract class SurfaceMaterial : GpuMaterial
 	}
 
 	bool twoSided;
+
+	/// <summary>
+	/// Blended over what's behind it, in the translucent layer, without writing depth: the surface's <c>Opacity</c> over
+	/// the colour behind (<c>F_TRANSLUCENT</c>). A converted material draws with the render state of the <c>.shader</c> it
+	/// stands in for (its blend, depth and culling, additive with <c>F_ADDITIVE_BLEND</c>); its depth and shadow passes are
+	/// that <c>.shader</c>'s.
+	/// </summary>
+	public bool Translucent
+	{
+		get => translucent;
+		set
+		{
+			translucent = value;
+			Interlocked.Increment( ref version );
+		}
+	}
+
+	bool translucent;
+
+	/// <summary>
+	/// Its forward draws take the render state of the <c>.shader</c> it stands in for even when not translucent (a
+	/// static overlay's blend modes: no depth write, multiplying blends), and its other passes are that <c>.shader</c>'s.
+	/// </summary>
+	internal bool ShaderState { get; set; }
+
+	/// <summary>
+	/// A translucent (or <see cref="ShaderState"/>) surface's forward render state: the <c>.shader</c>'s for a converted
+	/// material, found at its first draw; null until then, or for one with no <c>.shader</c> (alpha blending).
+	/// </summary>
+	internal SurfaceRenderState? State { get; set; }
 
 	/// <summary>
 	/// What draws where the surface can't (a skinned mesh, a mode surfaces have no pass for): the <c>.shader</c> material a
@@ -162,7 +193,7 @@ public abstract class SurfaceMaterial : GpuMaterial
 	public override string Name => DisplayName ?? Shader;
 
 	/// <inheritdoc/>
-	public override bool IsTranslucent => false;
+	public override bool IsTranslucent => Translucent;
 
 	/// <inheritdoc/>
 	public override bool IsAlphaTest => AlphaTest;
@@ -185,4 +216,18 @@ public abstract class SurfaceMaterial : GpuMaterial
 
 	/// <inheritdoc/>
 	public override void Dispose() { }
+}
+
+/// <summary>
+/// A surface pipeline's render state where it isn't the opaque default: blending into the colour target, depth test and
+/// write, culling and alpha to coverage, as a <c>.shader</c>'s forward variant sets them (<c>ShaderPipelineState</c>).
+/// </summary>
+internal readonly record struct SurfaceRenderState( BlendState Blend, bool DepthTest, bool DepthWrite, CompareFunction DepthCompare, CullMode Cull, bool AlphaToCoverage )
+{
+	/// <summary>Straight alpha over what's behind, depth tested and not written, back faces culled.</summary>
+	public static SurfaceRenderState AlphaBlend => new( BlendState.AlphaBlend, true, false, CompareFunction.GreaterEqual, CullMode.Back, false );
+
+	/// <summary>A <c>.shader</c> variant's state, for its first colour target.</summary>
+	public static SurfaceRenderState From( Basalt.Source2.Shaders.ShaderPipelineState state ) =>
+		new( state.Blend.Length > 0 ? state.Blend[0] : BlendState.Opaque, state.DepthTest, state.DepthWrite, state.DepthCompare, state.Cull, state.AlphaToCoverage );
 }

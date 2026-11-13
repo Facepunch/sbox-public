@@ -1,6 +1,7 @@
 using Basalt.Source2.Materials;
 using Sandbox.ShaderCompiler;
 using System.IO;
+using System.Linq;
 
 namespace Basalt.Backend;
 
@@ -25,26 +26,43 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 	/// </summary>
 	public static bool Accepts( CompiledShader compiled, MaterialFile file )
 	{
+		var blends = false;
 		foreach ( var field in compiled.Material.Fields )
 		{
 			if ( field.Source is not { } source || !source.StartsWith( "F_", StringComparison.Ordinal ) ) continue;
 			var value = file.Value( source ) is { Length: > 0 } v ? v[0] : 0;
 			if ( (field.Min is { } min && value < min) || (field.Max is { } max && value > max) ) return false;
+			blends |= source is "F_TRANSLUCENT" or "F_ADDITIVE_BLEND";
 		}
 
-		return true;
+		// A translucent material converts only to a surface that reads its translucency features
+		return blends || !Blended( file );
 	}
+
+	/// <summary>Whether a material blends (<c>F_TRANSLUCENT</c> or <c>F_ADDITIVE_BLEND</c>), as BackendMaterial.IsTranslucent reads it.</summary>
+	static bool Blended( MaterialFile file ) => file.Value( "F_TRANSLUCENT" ) is [> 0, ..] || file.Value( "F_ADDITIVE_BLEND" ) is [> 0, ..];
 
 	public static ConvertedMaterial Create( CompiledShader compiled, MaterialFile file, string name, Func<string, GpuTexture> loadTexture )
 	{
-		// Alpha test and two-sidedness are the material's, as for converted shaders: F_ALPHA_TEST picks the alpha-tested
-		// passes, F_RENDER_BACKFACES draws back faces
+		// Alpha test, two-sidedness and translucency are the material's, as for converted shaders: F_ALPHA_TEST picks the
+		// alpha-tested passes, F_RENDER_BACKFACES draws back faces, F_TRANSLUCENT or F_ADDITIVE_BLEND blends (as
+		// BackendMaterial.IsTranslucent reads them)
 		var material = new ConvertedMaterial( compiled.Path, compiled.Material )
 		{
 			DisplayName = name,
 			AlphaTest = file.Value( "F_ALPHA_TEST" ) is [> 0, ..],
 			TwoSided = file.Value( "F_RENDER_BACKFACES" ) is [> 0, ..],
+			Translucent = Blended( file ),
 		};
+
+		// A blend mode (static_overlay.shader's F_BLEND_MODE): its forward draws take the .shader's render state in every
+		// mode (blending, no depth write), and mode 2 alpha-tests
+		if ( compiled.Material.Fields.Any( f => f.Source == "F_BLEND_MODE" ) )
+		{
+			material.ShaderState = true;
+			material.AlphaTest |= file.Value( "F_BLEND_MODE" ) is [2, ..];
+		}
+
 		foreach ( var field in compiled.Material.Fields )
 		{
 			if ( field.Kind == MaterialFieldKind.Texture2D )

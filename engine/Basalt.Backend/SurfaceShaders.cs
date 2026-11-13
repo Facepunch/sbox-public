@@ -69,6 +69,7 @@ public sealed class SurfaceShaders : IDisposable
 		["blendable"] = "blendable.slang",
 		["generic"] = "generic.slang",
 		["vertex_color"] = "vertex_color.slang",
+		["static_overlay"] = "static_overlay.slang",
 		["simple"] = null,
 	};
 
@@ -376,7 +377,7 @@ internal sealed class SurfaceProgram : IDisposable
 {
 	readonly BackendDevice device;
 	readonly Dictionary<string, PassObjects> passes = new();
-	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool TwoSided, bool OpaqueFade), PipelineHandle> pipelines = new();
+	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool TwoSided, bool OpaqueFade, SurfaceRenderState? State), PipelineHandle> pipelines = new();
 
 	/// <summary>Material classes already reported as generated for another layout.</summary>
 	public readonly HashSet<Type> Mismatched = new();
@@ -473,13 +474,14 @@ internal sealed class SurfaceProgram : IDisposable
 	/// Mesh vertices are stream 0, instance ids stream 1, the default stream 2, as for classic draws. Specialization
 	/// constants (<c>SpecializedConstant()</c> globals) are per pipeline, <paramref name="constantsKey"/> their values.
 	/// With <paramref name="ids"/>, the visibility-driven forward pass's id prepass: target 0 an R8 scratch (its alpha drives
-	/// alpha to coverage), target 1 the ids, as BackendDevice.Pipeline makes them.
+	/// alpha to coverage), target 1 the ids, as BackendDevice.Pipeline makes them. A translucent material's passes take
+	/// <paramref name="state"/> instead of the default's blending, depth, culling and alpha to coverage.
 	/// </summary>
-	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, bool ids = false, bool twoSided = false, bool opaqueFade = false )
+	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, bool ids = false, bool twoSided = false, bool opaqueFade = false, SurfaceRenderState? state = null )
 	{
 		lock ( pipelines )
 		{
-			var key = (pass, layout, color, depth, samples, constantsKey, ids, twoSided, opaqueFade);
+			var key = (pass, layout, color, depth, samples, constantsKey, ids, twoSided, opaqueFade, state);
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
 			var inputs = pass.Pass.Vertex.Inputs.Select( i => new VertexInput( i.Location, Semantic( i.Semantic ), i.SemanticIndex, i.Kind == ScalarKind.Float ? SpirvScalar.Float : i.Kind == ScalarKind.Int ? SpirvScalar.Int : SpirvScalar.UInt, i.Components ) ).ToList();
@@ -494,7 +496,7 @@ internal sealed class SurfaceProgram : IDisposable
 
 			var depthOnly = color == Format.Unknown && !ids;
 			var pixel = pass.Pixel.IsValid;
-			pipeline = device.Gpu.CreateGraphicsPipeline( new GraphicsPipelineInfo
+			var info = new GraphicsPipelineInfo
 			{
 				VertexShader = pass.Vertex,
 				VertexEntry = pass.Pass.Vertex.Entry,
@@ -521,14 +523,25 @@ internal sealed class SurfaceProgram : IDisposable
 				DepthFormat = depth,
 				Samples = samples,
 				Name = $"{Compiled.Name} {pass.Pass.Name}",
-			} );
+			};
 
+			if ( state is { } s && !depthOnly && !ids )
+			{
+				info.Blend = [s.Blend];
+				info.DepthTest = depth != Format.Unknown && s.DepthTest;
+				info.DepthWrite = depth != Format.Unknown && s.DepthWrite;
+				info.DepthCompare = s.DepthCompare;
+				info.CullMode = s.Cull;
+				info.AlphaToCoverage = samples > 1 && s.AlphaToCoverage;
+			}
+
+			pipeline = device.Gpu.CreateGraphicsPipeline( info );
 			pipelines[key] = pipeline;
 			return pipeline;
 		}
 	}
 
-	static VertexSemantic Semantic( string name ) => name switch
+	internal static VertexSemantic Semantic( string name ) => name switch
 	{
 		"POSITION" => VertexSemantic.Position,
 		"BLENDWEIGHT" => VertexSemantic.BlendWeight,
