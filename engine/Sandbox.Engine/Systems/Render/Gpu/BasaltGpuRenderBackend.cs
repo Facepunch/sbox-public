@@ -111,6 +111,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		files = ContentFiles.FindGame();
 		services = new BackendDevice( gpu, files );
 		services.Shaders.Unloaded = message => Log.Warning( $"Basalt.Gpu: {message}" );
+		services.Passes.Error = message => Log.Warning( $"Basalt.Gpu: {message}" );
 		drawer = new ShaderDrawer( services );
 		context = new GraphicsContext( gpu, drawer, null );
 
