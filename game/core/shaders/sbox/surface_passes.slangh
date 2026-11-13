@@ -75,6 +75,14 @@ struct SurfaceWithVaryings<S : IInterpolatedSurface> : ISurface
 	Material Evaluate( SurfaceInput i ) { return Surface.Evaluate( i, Values ); }
 };
 
+/// The same for an IInterpolatedCombinerSurface, as an ICombinerSurface.
+struct SurfaceWithVaryingsCombiner<S : IInterpolatedCombinerSurface> : ICombinerSurface
+{
+	S Surface;
+	S.Varyings Values;
+	Material Evaluate( SurfaceInput i ) { return Surface.Evaluate( i, Values ); }
+};
+
 #if ( PROGRAM == VFX_PROGRAM_VS )
 
 /// The vertex stage's output with the record offset passed on, and the surface's Varyings.
@@ -321,9 +329,14 @@ float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool
 	f.vRoughness = m.Roughness.xx;   // the final combiner adjusts it by the geometric normal itself
 	f.flAmbientOcclusionDirectDiffuse = s.AmbientOcclusionDirectDiffuse;
 	f.flAmbientOcclusionDirectSpecular = s.AmbientOcclusionDirectSpecular;
+	f.vDiffuseColor *= s.DiffuseScale;
+	f.vSpecularColor *= s.SpecularScale;
 
 	LightingTerms_t terms = InitLightingTerms();
-	PS_OUTPUT o = PS_FinalCombinerDoLighting( f, terms );
+	PS_OUTPUT o;
+	[branch]
+	if ( s.Unlit && !DepthNormals::WantsDepthNormals() ) o.vColor = float4( f.vDiffuseColor + f.vEmissive, f.flOpacity );   // S_UNLIT's colour
+	else o = PS_FinalCombinerDoLighting( f, terms );
 	o = PS_FinalCombinerDoPostProcessing( f, terms, o );
 	float4 color = o.vColor;
 	if ( spread ) color.a *= s.Coverage;
