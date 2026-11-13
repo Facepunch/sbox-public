@@ -779,14 +779,16 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	{
 		get
 		{
+			// Loaded once; read without a lock by every GPU-driven call after
+			if ( Volatile.Read( ref visibilityShadersLoaded ) ) return (visibilityIds, visibilityMark, visibilityCompact);
 			lock ( visibilityViews )
 			{
 				if ( !visibilityShadersLoaded )
 				{
-					visibilityShadersLoaded = true;
 					if ( Shaders.Load( "shaders/basalt_gpu_driven_ids.shader" ) is not null ) visibilityIds = MaterialFromShader( "shaders/basalt_gpu_driven_ids.shader" ) as BackendMaterial;
 					visibilityMark = Shaders.Load( "shaders/basalt_gpu_driven_mark_cs.shader" );
 					visibilityCompact = Shaders.Load( "shaders/basalt_gpu_driven_compact_cs.shader" );
+					Volatile.Write( ref visibilityShadersLoaded, true );
 				}
 
 				return (visibilityIds, visibilityMark, visibilityCompact);
@@ -855,6 +857,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		/// <summary>The frame (<see cref="GpuDrivenFrame"/>) its mask was last cleared in, before any call drew ids into it.</summary>
 		public uint ClearedFrame;
 
+		/// <summary>Whether its buffers and targets are made, which <see cref="VisibilityFor"/> sets last, under its lock.</summary>
+		public volatile bool Ready;
+
 		/// <summary>
 		/// Indices at the start of each compacted buffer that hold its cursor instead: every call compacting into the view
 		/// this frame takes its triangles' range from it on the GPU, so calls recorded on different workers reserve nothing.
@@ -878,6 +883,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>A view's visibility resources, made the first time and remade when its depth target changes size.</summary>
 	internal VisibilityView VisibilityFor( object view, TextureInfo depth )
 	{
+		// Made already, for a depth target of this size: found without a lock, as every GPU-driven call of the view asks
+		if ( visibilityViews.TryGetValue( view, out var made ) && made.Ready && (depth.Width == 0 || made.Width == depth.Width && made.Height == depth.Height && made.Samples == depth.Samples) ) return made;
+
 		lock ( visibilityViews )
 		{
 			var state = visibilityViews.GetValue( view, static _ => new VisibilityView() );
@@ -927,6 +935,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 				(state.Width, state.Height, state.Samples) = (depth.Width, depth.Height, depth.Samples);
 			}
 
+			state.Ready = true;
 			return state;
 		}
 	}

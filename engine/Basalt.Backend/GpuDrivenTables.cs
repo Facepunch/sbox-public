@@ -106,7 +106,8 @@ internal sealed class GpuDrivenTables : IDisposable
 	readonly Table geometry, draws, materials, fragments, lighting;
 	readonly Dictionary<(int Page, long Offset, VertexLayout Layout, int Count), uint> geometryRecords = new();
 	readonly Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage), uint> drawRecords = new();
-	readonly Dictionary<MaterialRecordKey, uint> materialRecords = new();
+	// Found without a lock by every recording thread, many times a frame; added to under its own lock
+	readonly System.Collections.Concurrent.ConcurrentDictionary<MaterialRecordKey, uint> materialRecords = new();
 
 	/// <summary>A material record: per material and its version, stage, and the attribute values its constants read.</summary>
 	internal readonly record struct MaterialRecordKey( GpuMaterial Material, int Version, ShaderStage Stage, bool UncompressedTangentFrame, int Attributes );
@@ -352,7 +353,7 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	public const int FragmentStride = 32;
 
-	readonly ConditionalWeakTable<object, Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags), uint>> ownerFragments = new();
+	readonly ConditionalWeakTable<object, System.Collections.Concurrent.ConcurrentDictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags), uint>> ownerFragments = new();
 
 	/// <summary>
 	/// The first of an owner's fragment records for one geometry and pair of material records, made once by
@@ -361,11 +362,9 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// </summary>
 	public uint FragmentsOf<T>( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial, uint flags, int count, T state, Action<T, Span<byte>> write )
 	{
+		// Found without a lock: the views recording on other workers draw the same owners
 		var byKey = ownerFragments.GetValue( owner, static _ => new() );
-		lock ( byKey )
-		{
-			if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var first ) ) return first;
-		}
+		if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var known ) ) return known;
 
 		// Written outside the lock: writing makes draw records, under the draw table's lock
 		var records = new byte[count * FragmentStride];
@@ -484,10 +483,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// <summary>A stage's material record, made once by <paramref name="write"/> (which fills the bytes it's given).</summary>
 	public uint Material<T>( in MaterialRecordKey key, int size, T state, Action<T, Span<byte>> write )
 	{
-		lock ( materialRecords )
-		{
-			if ( materialRecords.TryGetValue( key, out var found ) ) return found;
-		}
+		if ( materialRecords.TryGetValue( key, out var known ) ) return known;
 
 		// Written outside the lock: writing reads the material's and attributes' values, which take their own locks
 		var record = new byte[Math.Max( size, 16 )];
