@@ -21,6 +21,7 @@
       "Metadata": {
         "SingleAssetSource": "materials/sbox/wall/wallpaper_a.vmat"
       }
-    }
+    },
+    "HammerAutoPackageReferences": null
   }
 }

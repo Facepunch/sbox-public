@@ -21,6 +21,7 @@
       "Metadata": {
         "SingleAssetSource": "materials/sbox/ceiling/ceiling_plaster_03b.vmat"
       }
-    }
+    },
+    "HammerAutoPackageReferences": null
   }
 }

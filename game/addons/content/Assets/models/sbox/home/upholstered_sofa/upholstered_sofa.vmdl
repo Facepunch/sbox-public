@@ -1,0 +1,267 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 23.774298
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"upholstered_sofa",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 52.808418
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 126.712509
+						auto_simplify_mode = 1
+						auto_reduction = 0.45
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 275.633331
+						auto_simplify_mode = 1
+						auto_reduction = 0.4
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = [  ]
+						use_global_default = true
+						global_default_material = "models/sbox/home/upholstered_sofa/materials/upholstered_sofa.vmat"
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ 4.922876, 0.0, 11.718902 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 19.845753, 64.325623, 13.140341 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -10.724264, 0.0, 26.441366 ]
+						angles = [ -20.18668, 0.0, 0.0 ]
+						dimensions = [ 5.343341, 64.325623, 21.939978 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -1.315499, 34.970005, 14.991687 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 32.32251, 3.191609, 19.685911 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -11.833273, 34.970005, 28.206114 ]
+						angles = [ -49.594048, 0.0, 0.0 ]
+						dimensions = [ 3.40144, 3.191609, 10.773781 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -15.223582, 34.970005, 28.148045 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 3.167658, 3.191609, 9.118675 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -15.223582, -34.71233, 28.148045 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 3.167658, 3.191609, 9.118675 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -11.833273, -34.884449, 28.206114 ]
+						angles = [ -49.594048, 0.0, 0.0 ]
+						dimensions = [ 3.40144, 3.191609, 10.773781 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -1.315499, -34.219158, 14.991687 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 32.32251, 3.191609, 19.685911 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -14.740755, 0.114536, 17.480234 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 3.724735, 65.630257, 24.663002 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ 13.503983, -34.353954, 2.755519 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 2.68354, 1.753716, 5.571428 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -15.98156, -34.353954, 2.755519 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 2.68354, 1.753716, 5.571428 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -15.98156, 34.369415, 2.755519 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 2.68354, 1.753716, 5.571428 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ 13.585068, 34.369415, 2.755519 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 2.68354, 1.753716, 5.571428 ]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "upholstered_sofa"
+						filename = "models/sbox/home/upholstered_sofa/upholstered_sofa.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"upholstered_sofa_lod0",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children = 
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 97.994698
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		animation_graph_name = ""
+		skeleton_name = ""
+		base_model_name = ""
+	}
+}

@@ -21,6 +21,7 @@
       "Metadata": {
         "SingleAssetSource": "materials/sbox/floor/wooden_flooring_b.vmat"
       }
-    }
+    },
+    "HammerAutoPackageReferences": null
   }
 }

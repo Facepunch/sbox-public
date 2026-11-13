@@ -1,0 +1,13 @@
+
+Layer0
+{
+	shader "shaders/complex.shader_c"
+
+	TextureColor "models/sbox/home/cafeteria_table/materials/cafeteria_table_color.png"
+	TextureAmbientOcclusion "models/sbox/home/cafeteria_table/materials/cafeteria_table_ao.png"
+	TextureNormal "models/sbox/home/cafeteria_table/materials/cafeteria_table_normal.png"
+	TextureRoughness "models/sbox/home/cafeteria_table/materials/cafeteria_table_rough.png"
+	F_METALNESS_TEXTURE 1
+	TextureMetalness "models/sbox/home/cafeteria_table/materials/cafeteria_table_metal.png"
+
+}

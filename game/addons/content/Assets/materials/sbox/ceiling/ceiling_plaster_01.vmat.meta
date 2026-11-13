@@ -25,6 +25,7 @@
         "Public": true,
         "AssetLicense": "CC0"
       }
-    }
+    },
+    "HammerAutoPackageReferences": null
   }
 }

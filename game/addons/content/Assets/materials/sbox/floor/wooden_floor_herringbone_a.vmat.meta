@@ -22,6 +22,7 @@
         "SingleAssetSource": "materials/sbox/floor/wooden_floor_herringbone_a.vmat",
         "AssetLicense": "CC0"
       }
-    }
+    },
+    "HammerAutoPackageReferences": null
   }
 }

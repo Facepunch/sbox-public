@@ -21,6 +21,7 @@
       "Metadata": {
         "SingleAssetSource": "materials/sbox/wall/concrete_painted_c.vmat"
       }
-    }
+    },
+    "HammerAutoPackageReferences": null
   }
 }

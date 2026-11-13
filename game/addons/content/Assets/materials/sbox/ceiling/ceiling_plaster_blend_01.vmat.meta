@@ -24,6 +24,7 @@
         "Description": "",
         "Public": true
       }
-    }
+    },
+    "HammerAutoPackageReferences": null
   }
 }
