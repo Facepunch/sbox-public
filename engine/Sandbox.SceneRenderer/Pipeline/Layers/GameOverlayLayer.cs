@@ -26,6 +26,10 @@ internal class GameOverlayLayer : MeshLayer
 
 	public override bool IsShared => false;
 
+	// Main thread if it draws custom objects (game code) or reads the shared frame buffer copy
+	public override bool RecordsOffMainThread( RenderFrame frame ) => frame.System.CanRecordOffMainThread( frame.MainPass, this )
+		&& !(LayerType == SceneLayerType.Translucent && frame.ReadsFrameBuffer( Runs ));
+
 	public override bool IsNeeded( RenderFrame frame ) => frame.RunCount( this ) > 0;
 
 	/// <summary>
