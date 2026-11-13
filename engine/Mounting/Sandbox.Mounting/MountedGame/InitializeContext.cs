@@ -1,4 +1,7 @@
-﻿namespace Sandbox.Mounting;
+﻿using System.Globalization;
+using System.IO;
+
+namespace Sandbox.Mounting;
 
 public ref struct InitializeContext
 {
@@ -44,5 +47,24 @@ public ref struct InitializeContext
 		// not 100% safe, it'll never be truly sandboxed, so should we even try?
 
 		return system.Steam?.GetAppDirectory( appid ) ?? null;
+	}
+
+	/// <summary>
+	/// If this app is installed we'll return the folder containing its Workshop content
+	/// </summary>
+	public string GetWorkshopDirectory( long appid )
+	{
+		var appDirectory = GetAppDirectory( appid );
+		if ( string.IsNullOrEmpty( appDirectory ) ) return null;
+
+		// App directories live at <library>/steamapps/common/<game>, with Workshop
+		// content alongside them at <library>/steamapps/workshop/content/<appid>.
+		var directory = new DirectoryInfo( appDirectory );
+		while ( directory is not null && !directory.Name.Equals( "steamapps", StringComparison.OrdinalIgnoreCase ) )
+			directory = directory.Parent;
+
+		return directory is null
+			? null
+			: Path.Combine( directory.FullName, "workshop", "content", appid.ToString( CultureInfo.InvariantCulture ) );
 	}
 }

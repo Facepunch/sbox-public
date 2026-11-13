@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Sandbox.Mounting;
@@ -40,7 +41,13 @@ public abstract partial class BaseMount : BaseGameMount
 		if ( !System.IO.Directory.Exists( directory ) )
 			return;
 
-		IndexContent( directory );
+		var sources = new List<ContentSource>( ScanContent( directory ) );
+
+		var workshopDirectory = context.GetWorkshopDirectory( AppId );
+		if ( !string.IsNullOrEmpty( workshopDirectory ) && System.IO.Directory.Exists( workshopDirectory ) )
+			sources.AddRange( ScanContent( workshopDirectory ) );
+
+		IndexContent( sources );
 	}
 
 	internal void IndexContent( string directory ) => IndexContent( ScanContent( directory ) );
