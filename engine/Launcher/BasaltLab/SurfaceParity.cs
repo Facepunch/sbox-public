@@ -310,6 +310,15 @@ internal static class SurfaceParity
 			}
 
 			RenderHost.Current = new BackendRenderHost( device );
+
+			// A model (.vmdl): its own meshes and materials, in a field of instances seen at a grazing angle
+			if ( path.EndsWith( ".vmdl", StringComparison.OrdinalIgnoreCase ) )
+			{
+				var model = device.LoadModel( path ) ?? throw new FileNotFoundException( $"{path} isn't in the content" );
+				converted = model.Draws.Any( d => d.Material is SurfaceMaterial );
+				return RenderModel( device, model );
+			}
+
 			var material = ((Basalt.GpuDevice)device).LoadMaterial( path );
 			converted = material is SurfaceMaterial;
 
@@ -334,6 +343,45 @@ internal static class SurfaceParity
 			Save( diff, Path.Combine( output, name + "-diff.png" ) );
 			lines.Add( $"material {path}: surface against .shader: mean difference {mean:F3}, max {max}, {over} pixels over 8" );
 		}
+	}
+
+	/// <summary>
+	/// A model's instances in a 7 by 7 field on a grey ground, under the sun, seen low and from afar, as Construct's
+	/// scattered props are; varied in yaw, some mirrored.
+	/// </summary>
+	static Color32[] RenderModel( BackendDevice device, RenderMesh model )
+	{
+		var world = new RenderWorld();
+		world.Lighting.SunDirection = new Vector3( -0.45f, 0.55f, -0.7f ).Normal;
+		world.Lighting.SunColor = new Color( 1.3f, 1.2f, 1.05f );
+		world.Lighting.AmbientColor = new Color( 0.15f, 0.17f, 0.2f, 1 );
+		world.Lighting.SunShadowCascades = 2;
+
+		var ground = ((Basalt.GpuDevice)device).CreateMaterial( "Ground", "shaders/complex.shader" );
+		world.Add( new MeshObject( Box( device, new Vector3( 1200, 1200, 8 ), ground, "Ground", uvScale: 1 / 100f ), new Transform( new Vector3( 0, 0, -4 ) ) ) );
+		var size = Math.Max( model.Bounds.Size.Length, 1 );
+		for ( int i = 0; i < 49; i++ )
+		{
+			var scale = 60 / size;
+			var mirror = i % 3 == 0 ? -1 : 1;
+			var transform = new Transform( new Vector3( (i % 7 - 3) * 70, (i / 7 - 3) * 70, 0 ), Rotation.FromYaw( i * 47 ), new Vector3( scale * mirror, scale, scale ) );
+			world.Add( new MeshObject( model, transform ) );
+		}
+
+		var view = new RenderView { Name = "Surface parity model", Time = 12.5f, FieldOfView = 60, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.1f, 0.12f, 0.16f ), Viewport = new Rect( 0, 0, Width, Height ) };
+		view.Position = new Vector3( -420, 0, 60 );
+		view.Rotation = Rotation.LookAt( new Vector3( 0, 0, 0 ) - view.Position );
+
+		using var system = new RenderSystem { ParallelRecording = false };
+		using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface parity model" );
+		for ( int frame = 0; frame < Frames; frame++ )
+		{
+			device.BeginFrame();
+			RenderHost.Current.NextFrame();
+			system.Render( world, view, target );
+		}
+
+		return ModelParity.ReadBack( device, target, Width, Height );
 	}
 
 	static void ConvertShader( BackendDevice device, string game, string output, string relative, List<string> lines )

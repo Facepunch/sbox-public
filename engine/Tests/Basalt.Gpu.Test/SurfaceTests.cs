@@ -531,6 +531,9 @@ public class SurfaceTests : GpuTest
 				if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( $"{path} isn't compiled" );
 				var converted = DrawMaterial( path, true, out var surface );
 				Assert.IsInstanceOfType<SurfaceMaterial>( surface, $"{path} wasn't converted" );
+
+				// Lit as complex.shader is: from a probe volume's baked light when its object isn't lightmapped
+				Assert.IsTrue( surface.NeedsLightProbe, "a surface doesn't ask for its object's light probe" );
 				SaveRgb( reference, $"complex-{Path.GetFileNameWithoutExtension( path )}-shader" );
 				SaveRgb( converted, $"complex-{Path.GetFileNameWithoutExtension( path )}-surface" );
 				Assert.IsTrue( Mean( reference, converted ) < 0.5, $"{path}: the surface differs by {Mean( reference, converted ):F3}" );

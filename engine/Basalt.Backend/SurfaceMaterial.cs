@@ -162,8 +162,12 @@ public abstract class SurfaceMaterial : GpuMaterial
 	/// <summary>Never: a surface draws its depth with its own pass (vertices it moves, opacity it clips).</summary>
 	public override bool ShadowFastPath => false;
 
-	/// <inheritdoc/>
-	public override bool NeedsLightProbe => false;
+	/// <summary>
+	/// Always: a surface lights through the engine's lighting, which reads a probe volume's baked light and occlusion
+	/// when its object isn't lightmapped, as today's lit shaders declare (<c>NeedsLightProbe</c>,
+	/// <c>UsesBakedLightingFromProbe</c>).
+	/// </summary>
+	public override bool NeedsLightProbe => true;
 
 	/// <inheritdoc/>
 	public override ulong SimilarityKey => (ulong)StringComparer.OrdinalIgnoreCase.GetHashCode( Shader );
