@@ -94,6 +94,8 @@ public enum StageKind
 	Vertex,
 	/// <summary>Pixel (fragment).</summary>
 	Pixel,
+	/// <summary>Compute: a pass module's <c>MainCs</c>.</summary>
+	Compute,
 }
 
 /// <summary>One entry point compiled: its SPIR-V and what it binds.</summary>
