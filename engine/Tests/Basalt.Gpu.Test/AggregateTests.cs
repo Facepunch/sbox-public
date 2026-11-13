@@ -101,7 +101,8 @@ public class AggregateTests : GpuTest
 	[TestMethod]
 	public void FragmentsOutOfViewAreCulled()
 	{
-		using var backend = new BackendDevice( Device );
+		// The classic fragment path, culled on the CPU: GPU-driven drawing culls on the GPU (GpuDrivenTests)
+		using var backend = new BackendDevice( Device ) { GpuDriven = false };
 		var previousHost = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( backend );
 		try
