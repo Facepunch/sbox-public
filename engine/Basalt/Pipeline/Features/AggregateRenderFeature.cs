@@ -328,6 +328,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 			ref readonly var draw = ref draws[0];
 			var material = MaterialFor( draw, depth, layer.ForceDepthFastPath, out var stripPixelShader );
 			if ( material is null ) continue;
+			if ( context.Census ) context.CensusNote = gpuDriven is not null ? "aggregate: the device's GPU-driven path left it" : !context.GpuDriven ? "aggregate: GPU-driven off" : phase != OcclusionPhase.None || culledOnly ? "aggregate: occlusion culled" : "aggregate: no transforms";
 
 			// Lightmaps light every draw or none of them (CAggregateSceneObjectDesc::SetBakedLightingAttributes)
 			context.SetObjectAttributes( null, !depth && aggregate.Lightmapped ? aggregate.LightmapAttributes : null );

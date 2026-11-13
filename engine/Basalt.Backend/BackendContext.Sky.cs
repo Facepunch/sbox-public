@@ -67,6 +67,7 @@ internal sealed partial class BackendContext
 
 		var box = device.SkyBox;
 		SetObjectAttributes( sky );
+		if ( Census ) CensusNote = "2D sky: one draw a view";
 		var drawn = DrawModel( material, mode, box, box.DrawsForLod( 0 )[0], 0, 1 );
 		SetObjectAttributes( null );
 		return drawn;

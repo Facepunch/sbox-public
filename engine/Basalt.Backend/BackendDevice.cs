@@ -214,6 +214,12 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>Model draws timed with <see cref="TimeDraws"/> on.</summary>
 	public DrawTimings DrawTimes { get; } = new();
 
+	/// <summary>
+	/// While set, contexts that begin recording count every draw into it (<c>basaltlab -drawcensus</c>, debug only): set it
+	/// for one frame, then clear it. Null by default.
+	/// </summary>
+	internal DrawCensus Census { get; set; }
+
 	/// <summary>The unit box the 2D sky draws (native's well-known box shape, half a unit each way), made once.</summary>
 	internal RenderMesh SkyBox => skyBox ??= MakeSkyBox();
 
