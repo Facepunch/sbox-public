@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using Sandbox.UI;
 
 namespace UITests.Controls;
@@ -15,7 +16,11 @@ public class LabelEditingRegressionTests
 	}
 
 	[TestCleanup]
-	public void RestoreTextTextures() => TextBlock.ui_rendertext = previousRenderText;
+	public void RestoreTextTextures()
+	{
+		GlobalContext.Current.UISystem.Clear();
+		TextBlock.ui_rendertext = previousRenderText;
+	}
 
 	static Label CreateLabel( string text )
 	{
@@ -28,6 +33,20 @@ public class LabelEditingRegressionTests
 		root.Layout();
 		label.ShouldDrawSelection = true;
 		return label;
+	}
+
+	[TestMethod]
+	[DataRow( "12:34:56", false )]
+	[DataRow( "12:34:56", true )]
+	[DataRow( "😀e\u0301", false )]
+	[DataRow( "😀e\u0301", true )]
+	public void CopySelectionClampedToEndReturnsEmpty( string text, bool backwards )
+	{
+		var label = CreateLabel( text );
+		label.SelectionStart = backwards ? int.MaxValue : label.TextLength;
+		label.SelectionEnd = backwards ? label.TextLength : int.MaxValue;
+
+		Assert.AreEqual( "", label.GetSelectedText() );
 	}
 
 	[TestMethod]
