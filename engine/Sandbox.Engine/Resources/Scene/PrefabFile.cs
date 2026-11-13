@@ -31,9 +31,81 @@ public partial class PrefabFile : GameResource
 	}
 
 	/// <summary>
-	/// Contains the original JSON read from File.
+	/// Contains the original JSON read from File. JSON loaded from the compiled file is only held while it's
+	/// being used - loading, then building the cache scene - and dropped after each use: a big prefab's JSON is
+	/// tens of megabytes and every prefab in a project is loaded at startup, spawned or not. It is read back
+	/// from disk the next time it's read.
 	/// </summary>
-	public JsonObject RootObject { get; set; }
+	public JsonObject RootObject
+	{
+		get => _rootObject ??= _rootObjectOnDisk ? ReadRootObjectFromDisk() : null;
+		set
+		{
+			_rootObject = value;
+			_rootObjectOnDisk = false;
+		}
+	}
+
+	JsonObject _rootObject;
+
+	/// <summary>
+	/// <see cref="RootObject"/> came from the compiled file and hasn't been replaced since, so it can be read back from it.
+	/// </summary>
+	bool _rootObjectOnDisk;
+
+	/// <summary>
+	/// Whether this prefab has data, without reading a dropped <see cref="RootObject"/> back from disk.
+	/// </summary>
+	internal bool HasRootObject => _rootObject is not null || _rootObjectOnDisk;
+
+	internal override bool LoadFromResource( Span<byte> data )
+	{
+		_rootObjectOnDisk = _rootObject is not null && !string.IsNullOrEmpty( ResourcePath );
+		return base.LoadFromResource( data );
+	}
+
+	/// <summary>
+	/// Drop the JSON after it has been used, if it can be read back from disk.
+	/// JSON set in memory (an applied but unsaved prefab edit, a mounted prefab) is always kept.
+	/// </summary>
+	internal void ReleaseRootObject()
+	{
+		if ( _rootObjectOnDisk )
+			_rootObject = null;
+	}
+
+	JsonObject ReadRootObjectFromDisk()
+	{
+		try
+		{
+			var json = Game.Resources.ReadCompiledResourceJson( FileSystem.Mounted, ResourcePath + "_c" );
+			if ( string.IsNullOrEmpty( json ) )
+			{
+				Log.Warning( $"Prefab '{ResourcePath}' is no longer on disk" );
+				return null;
+			}
+
+			// Load into a throwaway resource so the json gets the same upgrades as a normal load
+			var copy = new PrefabFile();
+			copy.LoadFromJson( json );
+			SyncRootObjectName( copy._rootObject );
+			return copy._rootObject;
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Couldn't read prefab '{ResourcePath}' back from disk: {e.Message}" );
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// Keep the root object's name consistent with the file name, in case of renames or duplicated prefabs.
+	/// </summary>
+	void SyncRootObjectName( JsonObject root )
+	{
+		if ( root is not null && root[GameObject.JsonKeys.Name]?.GetValue<string>() != ResourceName )
+			root[GameObject.JsonKeys.Name] = ResourceName;
+	}
 
 	public override int ResourceVersion => 2;
 
@@ -62,16 +134,13 @@ public partial class PrefabFile : GameResource
 		};
 
 		CachedScene.Load( this );
+		ReleaseRootObject();
 		return CachedScene;
 	}
 
 	protected override void PostLoad()
 	{
-		// Make sure our RootObjects name is consistent with the file name.
-		if ( RootObject is not null && RootObject[GameObject.JsonKeys.Name]?.GetValue<string>() != ResourceName )
-		{
-			RootObject[GameObject.JsonKeys.Name] = ResourceName;
-		}
+		SyncRootObjectName( _rootObject );
 
 		// If loaded while promise, refresh now that all resources are available.
 		// Also need to update dependants
@@ -83,16 +152,12 @@ public partial class PrefabFile : GameResource
 		}
 
 		Register();
+		ReleaseRootObject();
 	}
 
 	protected override void PostReload()
 	{
-		// Make sure our RootObjects name is consistent with the file name.
-		// In case of renames or duplicated prefabs.
-		if ( RootObject is not null && RootObject[GameObject.JsonKeys.Name]?.GetValue<string>() != ResourceName )
-		{
-			RootObject[GameObject.JsonKeys.Name] = ResourceName;
-		}
+		SyncRootObjectName( _rootObject );
 
 		// On hot-reload, refresh the cache and update dependencies
 		if ( CachedScene is PrefabCacheScene cachedScene )
@@ -101,6 +166,7 @@ public partial class PrefabFile : GameResource
 		}
 
 		Register();
+		ReleaseRootObject();
 	}
 
 	protected override void OnDestroy()
