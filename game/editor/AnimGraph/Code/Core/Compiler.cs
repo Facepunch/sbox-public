@@ -9,7 +9,8 @@ public sealed class Compiler
 	private sealed record CompiledStateMachine(
 		GraphBuilder.Node Node,
 		IReadOnlyDictionary<StateMachineNode.State, int> StateNodes,
-		IReadOnlyDictionary<TransitionNode, GraphBuilder.Node> TransitionNodes );
+		IReadOnlyDictionary<TransitionNode, GraphBuilder.Node> TransitionNodes,
+		GraphBuilder.Node ExitCondition );
 	private sealed record CompiledLayer( GraphBuilder.Node Node, int LayerIndex );
 
 	public enum Severity
@@ -81,6 +82,7 @@ public sealed class Compiler
 
 	internal float TransitionDuration { get; set; }
 	internal GraphBuilder.StateMachineBuilder.State SourceState { get; set; }
+	internal GraphBuilder.Node SourceStateExitCondition { get; set; }
 	internal GraphBuilder.Node TransitionDurationOverride { get; set; }
 
 	private Compiler( Data graph, string variationID )
@@ -573,8 +575,12 @@ public sealed class Compiler
 		StateMachineNode node,
 		GraphBuilder.Node emitted,
 		IReadOnlyDictionary<StateMachineNode.State, int> states,
-		IReadOnlyDictionary<TransitionNode, GraphBuilder.Node> transitions )
-		=> _stateMachines[node] = new( emitted, states, transitions );
+		IReadOnlyDictionary<TransitionNode, GraphBuilder.Node> transitions,
+		GraphBuilder.Node exitCondition )
+		=> _stateMachines[node] = new( emitted, states, transitions, exitCondition );
+
+	internal GraphBuilder.Node GetStateMachineExitCondition( StateMachineNode node )
+		=> _stateMachines.TryGetValue( node, out var machine ) ? machine.ExitCondition : default;
 
 	internal void Warn( string message, Node node = null ) => AddMessage( message, node, Severity.Warning );
 

@@ -1119,6 +1119,7 @@ native class CStateCompletedConditionNode::Definition as NativeEngine.GraphState
 	short m_sourceStateNodeIdx;
 	float m_transitionDuration;
 	short m_transitionDurationOverrideNodeIdx;
+	bool m_requireFullyInState;
 }
 
 native class CStateMachineNode::Definition as NativeEngine.GraphStateMachineNode : AnimationGraphNodeDefinition

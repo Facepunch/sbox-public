@@ -79,6 +79,9 @@ public class StateMachineNode : Node
 		[Property]
 		public string Name { get; set; } = "State";
 
+		[Property, Title( "Exit State" ), Description( "Allow the containing state machine to complete after this state's animation finishes." )]
+		public bool IsExitState { get; set; }
+
 		// Not editable in the property panel — type changes go through the context
 		// menu conversions, which do the graph work. The canvas already shows the type.
 		[Hide]
@@ -418,12 +421,28 @@ public class StateMachineNode : Node
 			this,
 			emitted,
 			States.Select( ( state, index ) => (state, index) ).ToDictionary( entry => entry.state, entry => compiledStates[entry.index].NodeIndex ),
-			transitionNodes.ToDictionary( entry => entry.Key, entry => entry.Value.Node ) );
+			transitionNodes.ToDictionary( entry => entry.Key, entry => entry.Value.Node ),
+			EmitExitCondition( compiler, compiledStates ) );
 		return emitted;
 	}
 
+	private GraphBuilder.Node EmitExitCondition( Compiler compiler, IReadOnlyList<CompiledState> compiledStates )
+	{
+		var exits = States.Select( ( state, index ) => (state, compiled: compiledStates[index]) )
+			.Where( entry => entry.state.IsExitState )
+			.Select( entry =>
+			{
+				var completed = compiler.Builder.StateCompletedCondition( entry.compiled.State, 0.0f, default, true );
+				return entry.compiled.ExitCondition is { } childExit
+					? compiler.Builder.And( completed, childExit )
+					: completed;
+			} ).ToArray();
 
-	private readonly record struct CompiledState( GraphBuilder.StateMachineBuilder.State State, int NodeIndex );
+		return exits.Length > 0 ? compiler.Builder.Or( exits ) : default;
+	}
+
+
+	private readonly record struct CompiledState( GraphBuilder.StateMachineBuilder.State State, int NodeIndex, GraphBuilder.Node ExitCondition );
 
 	private readonly record struct CompiledTransition( GraphBuilder.Node Node, GraphBuilder.Node Condition );
 
@@ -459,12 +478,14 @@ public class StateMachineNode : Node
 
 			var previousDuration = compiler.TransitionDuration;
 			var previousState = compiler.SourceState;
+			var previousExitCondition = compiler.SourceStateExitCondition;
 			var previousDurationOverride = compiler.TransitionDurationOverride;
 
 			compiler.TransitionDuration = transition.Duration;
 
 
 			compiler.SourceState = transition is GlobalTransitionNode ? null : sourceState.State;
+			compiler.SourceStateExitCondition = transition is GlobalTransitionNode ? default : sourceState.ExitCondition;
 			compiler.TransitionDurationOverride = durationOverride;
 
 			var condition = compiler.EmitValue( transition, transition.Condition );
@@ -473,6 +494,7 @@ public class StateMachineNode : Node
 
 			compiler.TransitionDuration = previousDuration;
 			compiler.SourceState = previousState;
+			compiler.SourceStateExitCondition = previousExitCondition;
 			compiler.TransitionDurationOverride = previousDurationOverride;
 
 			var transitionNode = stateMachine.CreateTransition(
@@ -546,7 +568,10 @@ public class StateMachineNode : Node
 				LayerBoneMask = layer is null ? default : compiler.EmitValue( layer, layer.BoneMask ),
 			} );
 
-		return new( compiledState, compiledState.GetRuntimeIndex() );
+		var exitCondition = state.NestedStateMachine is { } nested
+			? compiler.GetStateMachineExitCondition( nested )
+			: default;
+		return new( compiledState, compiledState.GetRuntimeIndex(), exitCondition );
 	}
 
 

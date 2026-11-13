@@ -140,6 +140,7 @@ public class Properties : Widget
 	private void SyncPreview()
 	{
 		_miniPreview.Graph = _window.Graph;
+		_miniPreview.PlaybackRate = _target is Nodes.AnimationClipNode animationClip ? animationClip.SpeedMultiplier : 1f;
 
 		switch ( _target )
 		{

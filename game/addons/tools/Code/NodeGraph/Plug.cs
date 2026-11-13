@@ -172,7 +172,6 @@ public abstract class Plug : GraphicsItem
 				if ( plugIn.ConnectedOutput is not null )
 				{
 					var output = plugIn.ConnectedOutput;
-					plugIn.ConnectedOutput = null;
 					Reconnection = Node.Graph.Items.OfType<Connection>()
 						.FirstOrDefault( x => x.Input == this && x.Output.Inner == output );
 				}

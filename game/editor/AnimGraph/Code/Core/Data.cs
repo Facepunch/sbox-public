@@ -960,7 +960,7 @@ public class Data : IGraph
 	/// Ensures every parameter node references a defined parameter, so pasted
 	/// graphs self-heal into the parameter list.
 	/// </summary>
-	private void RegisterParametersFromNodes( IEnumerable<INode> nodes )
+	internal void RegisterParametersFromNodes( IEnumerable<INode> nodes )
 	{
 		var parameters = Root.Parameters;
 

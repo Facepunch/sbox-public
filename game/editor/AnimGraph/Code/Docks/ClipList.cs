@@ -134,9 +134,10 @@ public class ClipList : Widget, AssetSystem.IEventListener
 		_referenced = GetReferencedAnimations();
 
 		var filter = _filter?.Text?.Trim() ?? "";
+		var keywords = new KeywordFilter( filter );
 		var typeFilter = (ClipFilter)_typeFilter.CurrentIndex;
 		var filtered = (_graph?.SelectedVariation.CompatibleClips ?? [])
-			.Where( n => string.IsNullOrEmpty( filter ) || n.Contains( filter, StringComparison.OrdinalIgnoreCase ) )
+			.Where( n => keywords.Matches( System.IO.Path.GetFileName( n ), n ) )
 			.Where( n => !_used.IsActive || _referenced.Contains( n ) )
 			.Where( n => typeFilter == ClipFilter.All || MatchesType( GetMetadata( n ), typeFilter ) );
 

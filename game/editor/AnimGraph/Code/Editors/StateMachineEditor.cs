@@ -44,6 +44,7 @@ internal sealed class StateMachinePage : Widget, INodePage
 internal sealed class StateMachineCanvas : CanvasWidget
 {
 	private const string StateClipboardIdent = "animgraph-state";
+	private const string TransitionClipboardIdent = "animgraph-transitions";
 
 	private sealed class StateClipboardData
 	{
@@ -385,36 +386,99 @@ internal sealed class StateMachineCanvas : CanvasWidget
 	}
 
 	private bool CanPasteState() => GraphClipboard.CanPaste( StateClipboardIdent );
+	private bool CanPasteTransitions() => GraphClipboard.CanPaste( TransitionClipboardIdent );
 
-	internal bool CanCutSelection => Selected is StateMachineNode.State;
-	internal bool CanCopySelection => Selected is StateMachineNode.State;
-	internal bool CanPasteSelection => CanPasteState();
+	internal bool CanCutSelection => CanCopySelection;
+	internal bool CanCopySelection => Selected is StateMachineNode.State or StateMachineNode.Conduit;
+	internal bool CanPasteSelection => CanPasteState() || Selected is StateMachineNode.Conduit && CanPasteTransitions();
 
 	internal bool CutSelection()
 	{
-		if ( Selected is not StateMachineNode.State state )
-			return false;
-
-		CutState( state );
-		return true;
+		switch ( Selected )
+		{
+			case StateMachineNode.State state:
+				CutState( state );
+				return true;
+			case StateMachineNode.Conduit conduit:
+				CopyTransitions( conduit );
+				RemoveConduit( conduit );
+				return true;
+			default:
+				return false;
+		}
 	}
 
 	internal bool CopySelection()
 	{
-		if ( Selected is not StateMachineNode.State state )
-			return false;
-
-		CopyState( state );
-		return true;
+		switch ( Selected )
+		{
+			case StateMachineNode.State state:
+				CopyState( state );
+				return true;
+			case StateMachineNode.Conduit conduit:
+				CopyTransitions( conduit );
+				return true;
+			default:
+				return false;
+		}
 	}
 
 	internal bool PasteSelection()
 	{
+		if ( Selected is StateMachineNode.Conduit conduit && CanPasteTransitions() )
+		{
+			PasteTransitions( conduit );
+			return true;
+		}
+
 		if ( !CanPasteState() )
 			return false;
 
 		PasteState( FromCanvas( _mouse ) );
 		return true;
+	}
+
+	private void CopyTransitions( StateMachineNode.Conduit conduit )
+	{
+		GraphClipboard.Copy( TransitionClipboardIdent, conduit.Graph.SerializeNodes( conduit.Graph.Nodes ) );
+	}
+
+	private void PasteTransitions( StateMachineNode.Conduit conduit )
+	{
+		if ( !GraphClipboard.TryPaste( TransitionClipboardIdent, out var json ) )
+			return;
+
+		Node[] nodes;
+		try
+		{
+			var graph = Data.CreateSubGraph( GraphKind.TransitionConduit );
+			nodes = graph.DeserializeNodes( json ).OfType<Node>().ToArray();
+		}
+		catch ( System.Text.Json.JsonException exception )
+		{
+			Log.Warning( $"Could not paste AnimGraph transitions: {exception.Message}" );
+			return;
+		}
+
+		if ( !nodes.OfType<TransitionNode>().Any() )
+		{
+			Log.Warning( "Could not paste AnimGraph transitions: clipboard contains no transition rules." );
+			return;
+		}
+
+		var offset = new Vector2( 0, conduit.Graph.Nodes.Select( node => node.Position.y ).DefaultIfEmpty( -200 ).Max()
+			+ 200 - nodes.Min( node => node.Position.y ) );
+
+		Editor.PushGraphUndo( "Paste Transitions" );
+		foreach ( var node in nodes )
+		{
+			node.Position += offset;
+			conduit.Graph.AddNode( node );
+		}
+		conduit.Graph.RegisterParametersFromNodes( conduit.Graph.AllNodes );
+		Changed();
+		Editor.PushGraphRedo();
+		Select( conduit );
 	}
 
 	private void PasteState( Vector2 position )
@@ -558,6 +622,14 @@ internal sealed class StateMachineCanvas : CanvasWidget
 	{
 		Editor.PushGraphUndo( "Reverse Transition" );
 		(conduit.From, conduit.To) = (conduit.To, conduit.From);
+		Changed();
+		Editor.PushGraphRedo();
+	}
+
+	private void SetExitState( StateMachineNode.State state, bool isExitState )
+	{
+		Editor.PushGraphUndo( "Set Exit State" );
+		state.IsExitState = isExitState;
 		Changed();
 		Editor.PushGraphRedo();
 	}
@@ -809,6 +881,8 @@ internal sealed class StateMachineCanvas : CanvasWidget
 			var isDefault = _node.States.IndexOf( state ) == _node.DefaultStateIndex;
 			var setDefault = menu.AddOption( "Set as Default State", "star", () => SetDefaultState( state ) );
 			setDefault.Enabled = !isDefault;
+			var exitState = menu.AddOption( "Exit State", "logout", () => SetExitState( state, !state.IsExitState ) );
+			exitState.Checked = state.IsExitState;
 
 			if ( state.Type == StateMachineNode.StateType.BlendTree && CanConvertToStateMachineState( state ) )
 				menu.AddOption( "Convert to State Machine State", "hub", () => ConvertStateType( state, StateMachineNode.StateType.StateMachine ) );
@@ -835,6 +909,14 @@ internal sealed class StateMachineCanvas : CanvasWidget
 			Select( conduit );
 
 			menu.AddOption( "Edit Transitions", "route", () => EditConduit( conduit ) );
+			menu.AddOption( "Cut Transition", "content_cut", () =>
+			{
+				CopyTransitions( conduit );
+				RemoveConduit( conduit );
+			}, "Ctrl+X" );
+			menu.AddOption( "Copy Transitions", "content_copy", () => CopyTransitions( conduit ), "Ctrl+C" );
+			var paste = menu.AddOption( "Paste Transitions", "content_paste", () => PasteTransitions( conduit ), "Ctrl+V" );
+			paste.Enabled = CanPasteTransitions();
 
 			var reverse = menu.AddOption( "Reverse Direction", "swap_horiz", () => ReverseConduit( conduit ) );
 			reverse.Enabled = FindState( conduit.To ) is { } from && FindState( conduit.From ) is { } to && CanLink( from, to );
@@ -1237,7 +1319,8 @@ internal sealed class StateMachineCanvas : CanvasWidget
 
 		var inner = titleRect.Shrink( 9 * Zoom, 0 );
 
-		var icon = isOff ? "power_settings_new"
+		var icon = state.IsExitState ? "logout"
+			: isOff ? "power_settings_new"
 			: state.Type == StateMachineNode.StateType.StateMachine ? "hub"
 			: isDefault ? "play_arrow" : "animation";
 

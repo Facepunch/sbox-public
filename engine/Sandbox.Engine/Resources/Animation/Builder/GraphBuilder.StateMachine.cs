@@ -430,6 +430,9 @@ public sealed partial class GraphBuilder
 		/// </summary>
 		public Node Completed( State state, float transitionDuration = 0.0f ) => Completed( state, transitionDuration, default );
 		public Node Completed( State state, float transitionDuration, Node transitionDurationOverride )
+			=> Completed( state, transitionDuration, transitionDurationOverride, false );
+
+		public Node Completed( State state, float transitionDuration, Node transitionDurationOverride, bool requireFullyInState )
 		{
 			ValidateState( state, nameof( state ) );
 			builder.Optional( transitionDurationOverride, NodeKind.Float, nameof( transitionDurationOverride ) );
@@ -439,6 +442,7 @@ public sealed partial class GraphBuilder
 				definition.m_sourceStateNodeIdx = (short)builder.Resolve( States[state.Index] );
 				definition.m_transitionDurationOverrideNodeIdx = (short)builder.ResolveOptional( transitionDurationOverride );
 				definition.m_transitionDuration = transitionDuration;
+				definition.m_requireFullyInState = requireFullyInState;
 				return definition;
 			} );
 		}
@@ -508,11 +512,14 @@ public sealed partial class GraphBuilder
 	}
 
 	public Node StateCompletedCondition( StateMachineBuilder.State sourceState, float transitionDuration, Node transitionDurationOverride )
+		=> StateCompletedCondition( sourceState, transitionDuration, transitionDurationOverride, false );
+
+	public Node StateCompletedCondition( StateMachineBuilder.State sourceState, float transitionDuration, Node transitionDurationOverride, bool requireFullyInState )
 	{
 		ArgumentNullException.ThrowIfNull( sourceState );
 		if ( !ReferenceEquals( sourceState.Builder, this ) )
 			throw new ArgumentException( "The source state was created by a different GraphBuilder.", nameof( sourceState ) );
-		return sourceState.Owner.Completed( sourceState, transitionDuration, transitionDurationOverride );
+		return sourceState.Owner.Completed( sourceState, transitionDuration, transitionDurationOverride, requireFullyInState );
 	}
 
 	public Node TimeCondition( StateMachineBuilder.State sourceState, StateMachineBuilder.TimeConditionSettings settings )
