@@ -224,8 +224,10 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// The converter turns pixel.hlsl-style .shaders into surfaces that compile: the template (Material::Init) and bark
-	/// (Material.CommonInputs, a helper, a feature global), and says what it leaves out (bark's vertex animation).
+	/// The converter turns pixel.hlsl-style .shaders into surfaces that compile: the template (Material::Init), bark
+	/// (Material.CommonInputs, a helper, a feature global, and its vertex sway as Displace with trunk_bending.hlsl's
+	/// functions copied) and water_simple (engine-bound textures as module globals, a helper taking the input, and the
+	/// refraction after shading as Composite).
 	/// </summary>
 	[TestMethod]
 	public void ConverterTurnsPixelShadersIntoSurfaces()
@@ -237,10 +239,12 @@ public class SurfaceTests : GpuTest
 		try
 		{
 			var bin = Path.Combine( game, "bin", "win64" );
-			var compiler = new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] );
-			foreach ( var (relative, name) in new[] { ("templates/material.shader", "material"), ("core/shaders/bark.shader", "bark") } )
+			var shaders = Path.Combine( Core, "shaders" );
+			var compiler = new SlangCompiler( bin, [shaders] );
+			string Include( string path ) => File.Exists( Path.Combine( shaders, path ) ) ? File.ReadAllText( Path.Combine( shaders, path ) ) : null;
+			foreach ( var (relative, name) in new[] { ("templates/material.shader", "material"), ("core/shaders/bark.shader", "bark"), ("core/shaders/water_simple.shader", "water_simple") } )
 			{
-				var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( game, relative ) ), name );
+				var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( game, relative ) ), name, Include );
 				Assert.IsNotNull( result.Source, name );
 				var path = Path.Combine( folder, name + ".slang" );
 				File.WriteAllText( path, result.Source );
@@ -248,9 +252,25 @@ public class SurfaceTests : GpuTest
 				Assert.IsNotNull( compiled.Pass( ShaderPasses.Forward ), name );
 				if ( name == "bark" )
 				{
-					Assert.IsTrue( result.Notes.Any( n => n.Contains( "moves vertices", StringComparison.Ordinal ) ) );
+					StringAssert.Contains( result.Source, "IVertexSurface" );
+					StringAssert.Contains( result.Source, "public float3 Displace( VertexSurfaceInput v )" );
+					Assert.IsFalse( result.Notes.Any( n => n.Contains( "vertex shader", StringComparison.Ordinal ) ), string.Join( "; ", result.Notes ) );
+					Assert.IsTrue( compiled.Generated.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) );
 					Assert.IsNotNull( compiled.Material.Field( "SpecularOcclusion" ) );
 					Assert.IsNotNull( compiled.Material.Field( "Color" ) );
+				}
+
+				if ( name == "water_simple" )
+				{
+					StringAssert.Contains( result.Source, "ICompositeSurface" );
+					Assert.IsTrue( compiled.Generated.Contains( "SurfaceForwardComposite", StringComparison.Ordinal ) );
+
+					// The refraction and reflection textures are bound by attribute, not material fields
+					var forward = compiled.Pass( ShaderPasses.Forward ).Pixel;
+					Assert.IsTrue( forward.Bindings.Any( b => b.Name == "RefractionTexture" ), "no RefractionTexture binding" );
+					Assert.IsTrue( forward.Bindings.Any( b => b.Name == "ReflectionTexture" ), "no ReflectionTexture binding" );
+					Assert.IsNull( compiled.Material.Field( "RefractionTexture" ) );
+					Assert.IsNotNull( compiled.Material.Field( "BigWaveScale" ) );
 				}
 			}
 		}
@@ -329,21 +349,70 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// Material.CommonInputs.hlsl's TextureFiltering takes its filter from an expression on F_TEXTURE_FILTERING: a classic
-	/// draw samples anisotropically, that feature's default, not point as the expression's unevaluated literal says.
+	/// Material.CommonInputs.hlsl's TextureFiltering takes its filter from an expression on F_TEXTURE_FILTERING, evaluated
+	/// per material: anisotropic by default, and the feature's other values pick bilinear, trilinear and point. Materials
+	/// that differ only in it don't share a variant.
 	/// </summary>
 	[TestMethod]
-	public void ExpressionFilteredSamplersAreAnisotropic()
+	public void ExpressionFilteredSamplersFollowTheirFeature()
 	{
 		using var backend = new BackendDevice( Device );
-		var foliage = (BackendMaterial)((GpuDevice)backend).CreateMaterial( "Foliage (.shader)", "shaders/foliage.shader" );
-		if ( foliage.Shader is null ) Assert.Inconclusive( "foliage.shader isn't compiled" );
-		var variant = foliage.Variant( backend.Shaders, "Forward", "Forward", _ => null, _ => null );
-		var samplers = variant.Resources.Where( r => r.Kind == Basalt.Source2.Shaders.ShaderResourceKind.Sampler && r.Set == ShaderAbi.FragmentSet ).Select( r => r.Sampler ).ToList();
+		List<SamplerInfo> Samplers( int filtering )
+		{
+			var foliage = (BackendMaterial)((GpuDevice)backend).CreateMaterial( $"Foliage {filtering}", "shaders/foliage.shader" );
+			if ( foliage.Shader is null ) Assert.Inconclusive( "foliage.shader isn't compiled" );
+			var feature = foliage.Shader.FeatureIndex( "F_TEXTURE_FILTERING" );
+			Assert.IsTrue( feature >= 0, "foliage.shader has no F_TEXTURE_FILTERING" );
+			foliage.Features[feature] = filtering;
+			var variant = foliage.Variant( backend.Shaders, "Forward", "Forward", _ => null, _ => null );
+			return variant.Resources.Where( r => r.Kind == Basalt.Source2.Shaders.ShaderResourceKind.Sampler && r.Set == ShaderAbi.FragmentSet ).Select( r => r.Sampler ).ToList();
+		}
 
-		// TextureFiltering: MaxAniso( 8 ) beside the expression; it read as point filtering with anisotropy 8
-		Assert.IsTrue( samplers.Any( s => s.MaxAnisotropy == 8 && s.MinFilter == Filter.Linear && s.MipFilter == Filter.Linear ), "TextureFiltering isn't anisotropic" );
-		Assert.IsFalse( samplers.Any( s => s.MaxAnisotropy > 1 && s.MinFilter == Filter.Nearest ), "a point sampler with anisotropy" );
+		// 0, anisotropic: MaxAniso( 8 ) beside the expression. Unevaluated, it read as point filtering with anisotropy 8
+		var anisotropic = Samplers( 0 );
+		Assert.IsTrue( anisotropic.Any( s => s.MaxAnisotropy == 8 && s.MinFilter == Filter.Linear && s.MipFilter == Filter.Linear ), "TextureFiltering isn't anisotropic" );
+		Assert.IsFalse( anisotropic.Any( s => s.MaxAnisotropy > 1 && s.MinFilter == Filter.Nearest ), "a point sampler with anisotropy" );
+
+		// 1, bilinear: linear within a mip, nearest between them
+		Assert.IsTrue( Samplers( 1 ).Any( s => s.MaxAnisotropy == 1 && s.MinFilter == Filter.Linear && s.MagFilter == Filter.Linear && s.MipFilter == Filter.Nearest ), "F_TEXTURE_FILTERING 1 isn't bilinear" );
+
+		// 2, trilinear
+		Assert.IsTrue( Samplers( 2 ).Any( s => s.MaxAnisotropy == 1 && s.MinFilter == Filter.Linear && s.MipFilter == Filter.Linear ), "F_TEXTURE_FILTERING 2 isn't trilinear" );
+
+		// 3, point
+		var point = Samplers( 3 );
+		Assert.IsTrue( point.Any( s => s.MaxAnisotropy == 1 && s.MinFilter == Filter.Nearest && s.MagFilter == Filter.Nearest ), "F_TEXTURE_FILTERING 3 isn't point" );
+		Assert.IsFalse( point.Any( s => s.MaxAnisotropy == 8 ), "F_TEXTURE_FILTERING 3 kept the anisotropic sampler (shared the variant)" );
+	}
+
+	/// <summary>
+	/// The expression evaluator runs the stack machine as native's VfxEval does: literals, feature loads, comparisons and
+	/// conditional jumps, swizzles and builtins; reads it can't answer fail rather than guess.
+	/// </summary>
+	[TestMethod]
+	public void ShaderExpressionsEvaluateAsNativeDoes()
+	{
+		static byte[] Literal( float value ) => [7, .. BitConverter.GetBytes( value )];
+		var context = new Basalt.Source2.Shaders.ShaderExpressionContext { Features = [0, 3] };
+		static float Evaluate( byte[] code, Basalt.Source2.Shaders.ShaderExpressionContext context ) =>
+			Basalt.Source2.Shaders.ShaderExpression.TryEvaluate( code, context, out var value ) ? value.X : float.NaN;
+
+		// F_1 == 3 ? 85 : 20, laid out as the builder lays out a ternary: test, conditional jump, else, jump, then
+		byte[] ternary = [26, 1, .. Literal( 3 ), 13, 4, 13, 0, 21, 0, .. Literal( 85 ), 2, 26, 0, .. Literal( 20 ), 0];
+		Assert.AreEqual( 85f, Evaluate( ternary, context ) );
+		Assert.AreEqual( 20f, Evaluate( ternary, new Basalt.Source2.Shaders.ShaderExpressionContext { Features = [0, 1] } ) );
+
+		// clamp( 2 * 3, 0, 5 ) + max( 1, -1 ): builtins by table index (clamp 7, max 29)
+		byte[] math = [.. Literal( 2 ), .. Literal( 3 ), 21, .. Literal( 0 ), .. Literal( 5 ), 6, 7, 0, .. Literal( 1 ), .. Literal( -1 ), 6, 29, 0, 19, 0];
+		Assert.AreEqual( 6f, Evaluate( math, context ) );
+
+		// float2( 1, 2 ).y via a swizzle (yyyy)
+		byte[] swizzle = [.. Literal( 1 ), .. Literal( 2 ), 6, 26, 0, 30, 0b01_01_01_01, 0];
+		Assert.AreEqual( 2f, Evaluate( swizzle, context ) );
+
+		// A render attribute with nothing to answer it fails; exists() of it is 0
+		Assert.IsTrue( float.IsNaN( Evaluate( [25, 1, 2, 3, 4, 0], context ) ) );
+		Assert.AreEqual( 0f, Evaluate( [31, 1, 2, 3, 4, 0], context ) );
 	}
 
 	/// <summary>

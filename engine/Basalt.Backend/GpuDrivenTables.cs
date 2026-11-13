@@ -4,6 +4,7 @@ using System.Buffers.Binary;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Basalt.Backend;
 
@@ -106,7 +107,8 @@ internal sealed class GpuDrivenTables : IDisposable
 	readonly Table geometry, draws, materials, fragments, lighting;
 	readonly Dictionary<(int Page, long Offset, VertexLayout Layout, int Count), uint> geometryRecords = new();
 	readonly Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage), uint> drawRecords = new();
-	readonly Dictionary<MaterialRecordKey, uint> materialRecords = new();
+	// Found without a lock by every recording thread, many times a frame; added to under its own lock
+	readonly System.Collections.Concurrent.ConcurrentDictionary<MaterialRecordKey, uint> materialRecords = new();
 
 	/// <summary>A material record: per material and its version, stage, and the attribute values its constants read.</summary>
 	internal readonly record struct MaterialRecordKey( GpuMaterial Material, int Version, ShaderStage Stage, bool UncompressedTangentFrame, int Attributes );
@@ -352,7 +354,7 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	public const int FragmentStride = 32;
 
-	readonly ConditionalWeakTable<object, Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags), uint>> ownerFragments = new();
+	readonly ConditionalWeakTable<object, System.Collections.Concurrent.ConcurrentDictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags), uint>> ownerFragments = new();
 
 	/// <summary>
 	/// The first of an owner's fragment records for one geometry and pair of material records, made once by
@@ -361,11 +363,9 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// </summary>
 	public uint FragmentsOf<T>( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial, uint flags, int count, T state, Action<T, Span<byte>> write )
 	{
+		// Found without a lock: the views recording on other workers draw the same owners
 		var byKey = ownerFragments.GetValue( owner, static _ => new() );
-		lock ( byKey )
-		{
-			if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var first ) ) return first;
-		}
+		if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var known ) ) return known;
 
 		// Written outside the lock: writing makes draw records, under the draw table's lock
 		var records = new byte[count * FragmentStride];
@@ -484,10 +484,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// <summary>A stage's material record, made once by <paramref name="write"/> (which fills the bytes it's given).</summary>
 	public uint Material<T>( in MaterialRecordKey key, int size, T state, Action<T, Span<byte>> write )
 	{
-		lock ( materialRecords )
-		{
-			if ( materialRecords.TryGetValue( key, out var found ) ) return found;
-		}
+		if ( materialRecords.TryGetValue( key, out var known ) ) return known;
 
 		// Written outside the lock: writing reads the material's and attributes' values, which take their own locks
 		var record = new byte[Math.Max( size, 16 )];
@@ -524,6 +521,9 @@ internal sealed class GpuDrivenTables : IDisposable
 	readonly List<Chunk>[] frames = [new(), new(), new()];
 	int frame;
 
+	/// <summary>The chunk this frame's calls take room from without a lock, until it's full.</summary>
+	Chunk current;
+
 	/// <summary>Start a frame: reuse the chunks of the frame <see cref="FrameSlots"/> back, which the device has finished.</summary>
 	public void BeginFrame()
 	{
@@ -531,6 +531,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		{
 			frame = (frame + 1) % FrameSlots;
 			foreach ( var chunk in frames[frame] ) chunk.Used = 0;
+			Volatile.Write( ref current, frames[frame].Count > 0 ? frames[frame][0] : null );
 		}
 
 		lock ( frameVisibility )
@@ -544,36 +545,53 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	/// <summary>
 	/// Room this frame for <paramref name="bytes"/> of instance records and commands, in one host-visible buffer readable
-	/// as storage and indirect arguments; write it through <see cref="Device.Map"/>.
+	/// as storage and indirect arguments; write it through <see cref="Device.Map"/>. Every recording thread asks, so room
+	/// comes from the current chunk by an atomic add, and only a full chunk takes the lock to move on.
 	/// </summary>
 	public (BufferHandle Buffer, int Slot, long Offset) Allocate( int bytes )
 	{
+		var aligned = (bytes + 15L) & ~15L;
+		long offset;
+		if ( Volatile.Read( ref current ) is { } chunk && Take( chunk, aligned, out offset ) ) return (chunk.Buffer, chunk.Slot, offset);
+
 		lock ( frames )
 		{
-			var list = frames[frame];
-			Chunk chunk = null;
-			foreach ( var c in list )
+			// Another chunk of the frame's with room, else a new one; it becomes the current one
+			Chunk found = null;
+			offset = 0;
+			foreach ( var c in frames[frame] )
 			{
-				if ( c.Used + bytes <= c.Size )
+				if ( Take( c, aligned, out offset ) )
 				{
-					chunk = c;
+					found = c;
 					break;
 				}
 			}
 
-			if ( chunk is null )
+			if ( found is null )
 			{
-				var size = Math.Max( 4 << 20, (bytes + 15) & ~15 );
+				var size = Math.Max( 4L << 20, aligned );
 				var buffer = gpu.CreateBuffer( new BufferInfo { Size = size, Usage = BufferUsage.Storage | BufferUsage.Indirect, Memory = MemoryLocation.Upload, Name = "Basalt GPU-driven frame" } );
 				lock ( pagesLock ) owned.Add( buffer );
-				chunk = new Chunk { Buffer = buffer, Slot = gpu.BindlessIndex( buffer ), Size = size };
-				list.Add( chunk );
+				found = new Chunk { Buffer = buffer, Slot = gpu.BindlessIndex( buffer ), Size = size };
+				frames[frame].Add( found );
+				Take( found, aligned, out offset );
 			}
 
-			var offset = chunk.Used;
-			chunk.Used = (offset + bytes + 15) & ~15;
-			return (chunk.Buffer, chunk.Slot, offset);
+			Volatile.Write( ref current, found );
+			return (found.Buffer, found.Slot, offset);
 		}
+	}
+
+	/// <summary>Take room in a chunk by an atomic add; false when it's full (what was added past its end is never used).</summary>
+	static bool Take( Chunk chunk, long bytes, out long offset )
+	{
+		offset = 0;
+		if ( Volatile.Read( ref chunk.Used ) + bytes > chunk.Size ) return false;
+
+		var end = Interlocked.Add( ref chunk.Used, bytes );
+		offset = end - bytes;
+		return end <= chunk.Size;
 	}
 
 	public void Dispose()
