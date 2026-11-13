@@ -270,6 +270,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		Gpu = gpu;
 		Content = content ?? ContentFiles.FindGame();
 		Shaders = new ShaderLibrary( gpu, Content );
+		Passes = new PassModules( this );
+		SlangPasses = SlangPassesByDefault;
 		CompileGpuDrivenWithShaderCompiler();
 		Defaults = new ShaderDefaults( gpu );
 
@@ -295,6 +297,27 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	public static bool GpuDrivenByDefault { get; set; } = !HasSwitch( "-no-gpudriven" );
 
 	static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
+
+	/// <summary>The pass modules shaders without a material draw from (<see cref="SlangPasses"/>).</summary>
+	public PassModules Passes { get; }
+
+	/// <summary>
+	/// Whether shaders that have a pass module beside them (post-processing, UI, tools, compute, the engine's fullscreen
+	/// passes) draw from it, compiled with Slang (on), or from their compiled <c>.shader_c</c> programs. Set it before
+	/// drawing: variants already made keep their stages.
+	/// </summary>
+	public bool SlangPasses
+	{
+		get => Shaders.Modules is not null;
+		set => Shaders.Modules = value ? Passes : null;
+	}
+
+	/// <summary>
+	/// Whether a new device draws pass modules (<see cref="SlangPasses"/>): on unless the process was started with
+	/// <c>-no-slang-passes</c> (or with <c>BASALT_NO_SLANG_PASSES=1</c>, for test runs), which draws every shader from its
+	/// compiled programs, for comparisons.
+	/// </summary>
+	public static bool SlangPassesByDefault { get; set; } = !HasSwitch( "-no-slang-passes" ) && Environment.GetEnvironmentVariable( "BASALT_NO_SLANG_PASSES" ) != "1";
 
 	/// <summary>
 	/// Shaders without a GPU-driven variant beside them (a package's) get one compiled at load by the ShaderCompiler
