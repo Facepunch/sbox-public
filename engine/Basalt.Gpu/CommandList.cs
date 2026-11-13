@@ -41,6 +41,12 @@ public sealed unsafe class CommandList
 	internal readonly nint Handle;
 	internal SyncPoint Submitted;
 
+	/// <summary>Its progress marker slot (<see cref="DeviceOptions.ProgressMarkers"/>), -1 without.</summary>
+	internal int MarkerSlot = -1;
+
+	// The labels open, for naming the markers that end them
+	readonly Stack<string> openLabels = new();
+
 	/// <summary>What it has recorded since it began, for profiling: draw calls (an indirect call counts once), pipeline and descriptor set binds, and rendering scopes.</summary>
 	public (int Draws, int Pipelines, int Sets, int Scopes) Counts => (draws, pipelines, setBinds, scopes);
 
@@ -112,6 +118,9 @@ public sealed unsafe class CommandList
 		Submitted = default;
 		draws = pipelines = setBinds = scopes = 0;
 
+		MarkerSlot = device.ProgressMarkers ? device.TakeMarkerSlot( name ) : -1;
+		openLabels.Clear();
+		Marker( "begin" );
 		labelled = name is not null && device.Instance.vkCmdBeginDebugUtilsLabelEXT != null;
 		if ( labelled ) BeginLabel( name );
 	}
@@ -123,6 +132,7 @@ public sealed unsafe class CommandList
 
 		FlushBarriers();
 		if ( labelled ) EndLabel();
+		Marker( "end" );
 		vk.vkEndCommandBuffer( Handle ).Check( "vkEndCommandBuffer" );
 		recording = false;
 	}
@@ -264,9 +274,26 @@ public sealed unsafe class CommandList
 	// Debug labels
 	//
 
+	/// <summary>
+	/// A progress marker (<see cref="DeviceOptions.ProgressMarkers"/>): after the device is lost, its report says whether the
+	/// GPU reached it and finished the work before it. Labels write one at either end. Nothing without markers.
+	/// </summary>
+	public void Marker( string name )
+	{
+		if ( MarkerSlot < 0 ) return;
+		Recording();
+		device.WriteMarker( Handle, MarkerSlot, name );
+	}
+
 	/// <summary>Start a named region, which RenderDoc and validation messages show.</summary>
 	public void BeginLabel( string name )
 	{
+		if ( MarkerSlot >= 0 )
+		{
+			openLabels.Push( name );
+			Marker( name );
+		}
+
 		if ( device.Instance.vkCmdBeginDebugUtilsLabelEXT == null ) return;
 
 		Span<byte> utf8 = stackalloc byte[256];
@@ -283,6 +310,7 @@ public sealed unsafe class CommandList
 	/// <summary>End the region <see cref="BeginLabel"/> started.</summary>
 	public void EndLabel()
 	{
+		if ( MarkerSlot >= 0 ) Marker( openLabels.TryPop( out var label ) ? $"end {label}" : "end" );
 		if ( device.Instance.vkCmdEndDebugUtilsLabelEXT == null ) return;
 		device.Instance.vkCmdEndDebugUtilsLabelEXT( Handle );
 	}

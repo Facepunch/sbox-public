@@ -25,6 +25,13 @@ public sealed class DeviceOptions
 	/// </summary>
 	public bool SynchronizationValidation { get; init; }
 
+	/// <summary>
+	/// Write progress markers (VK_AMD_buffer_marker, when the device has it) into host memory at each list's start and end
+	/// and at every label, so a report after the device is lost shows how far the GPU got in each list
+	/// (<see cref="Device.DescribeRecentSubmissions"/>).
+	/// </summary>
+	public bool ProgressMarkers { get; init; }
+
 	/// <summary>Frames the CPU may record ahead of the GPU.</summary>
 	public int FramesInFlight { get; init; } = 2;
 
