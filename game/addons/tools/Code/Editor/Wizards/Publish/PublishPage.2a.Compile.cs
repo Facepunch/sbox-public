@@ -23,6 +23,11 @@ partial class PublishWizard
 	/// </summary>
 	int compileVersion;
 
+	/// <summary>
+	/// The package the code was compiled for - the assembly's named after it
+	/// </summary>
+	string compiledIdent;
+
 	CompileBadge badge;
 
 	/// <summary>
@@ -48,6 +53,7 @@ partial class PublishWizard
 			return;
 
 		var version = ++compileVersion;
+		compiledIdent = Project.Config.FullIdent;
 
 		Config.AssemblyFiles = null;
 		Config.CompilerOutput = null;
@@ -89,6 +95,25 @@ partial class PublishWizard
 
 		if ( badge.IsValid() )
 			badge.Update();
+	}
+
+	/// <summary>
+	/// Compile again if the org or ident changed on the first page - the code would go up named after the old package.
+	/// The editor's own compile under the new name is waited for first, so it finishes while that page does instead of
+	/// restarting ours on a later one.
+	/// </summary>
+	async Task<bool> CompileForIdentAsync()
+	{
+		if ( compileState is CompileState.None || compiledIdent == Project.Config.FullIdent )
+			return true;
+
+		await EditorUtility.Projects.Updated( Project );
+
+		if ( !IsValid )
+			return false;
+
+		await CompileAsync();
+		return compileState is CompileState.Compiled;
 	}
 
 	/// <summary>
