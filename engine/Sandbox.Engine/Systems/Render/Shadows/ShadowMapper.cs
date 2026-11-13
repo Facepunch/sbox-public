@@ -108,12 +108,15 @@ internal partial class ShadowMapper
 		GPUDirectionalLightData.Enabled = false;
 		GPUDirectionalLightData.ShadowMaskTextureIndex = 0;
 		ShadowsAllocated = 0;
+		viewHullValid = false;
 
 		// Save statistics from last frame, then reset
 		ProjectedShadowsRenderedLastFrame = ProjectedShadowsRendered;
 		ProjectedShadowsCulledLastFrame = ProjectedShadowsCulled;
+		ShadowViewsCulledLastFrame = ShadowViewsCulled;
 		ProjectedShadowsRendered = 0;
 		ProjectedShadowsCulled = 0;
+		ShadowViewsCulled = 0;
 	}
 
 	/// <summary>
@@ -218,6 +221,14 @@ internal partial class ShadowMapper
 		public ulong RenderedFrame;
 		public ulong UsedFrame;
 		public bool Scheduled;
+
+		/// <summary>
+		/// Which parts of the map hold depth for the light where it stands now: a cube's six faces, or just bit 0 for
+		/// a spot. A view no visible receiver could sample is left out (<see cref="ShadowViewReachesCamera"/>), so a
+		/// later view that does need it - a mirror, or the camera having turned - renders it even when this light
+		/// isn't due an update.
+		/// </summary>
+		public int RenderedFaces;
 		internal GPUProjectedShadow Projected;
 		internal GPUProjectedCubeShadow Cube;
 	}
@@ -284,6 +295,7 @@ internal partial class ShadowMapper
 			entry.StaticCache = null;
 			entry.CurrentResolution = desiredResolution;
 			entry.RenderedFrame = 0;
+			entry.RenderedFaces = 0;
 		}
 
 		// The static cache is only valid for the transform it was rendered at, and a moved light must re-render
@@ -293,6 +305,7 @@ internal partial class ShadowMapper
 			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
 			entry.StaticCache = null;
 			entry.RenderedFrame = 0;
+			entry.RenderedFaces = 0;
 		}
 
 		return entry;
@@ -374,6 +387,9 @@ internal partial class ShadowMapper
 		FrameStamp = Application.FrameCount;
 		float now = RealTime.Now;
 
+		// Last frame's caster volumes may still be read by a render thread finishing it, so this frame fills the other set
+		BeginCasterVolumes();
+
 		// Evict stale cache entries, and those whose light is gone
 		for ( int i = Entries.Count - 1; i >= 0; i-- )
 		{
@@ -440,6 +456,7 @@ internal partial class ShadowMapper
 		Entries.Clear();
 		Schedule.Clear();
 		LastCascades = default;
+		BeginCasterVolumes();
 	}
 
 	/// <summary>

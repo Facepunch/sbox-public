@@ -48,6 +48,22 @@ CS
 	// the transpose and we consume it as mul( M, pos ). A row_major qualifier here breaks the planes.
 	float4x4 ClutterWorldToProjection < Attribute( "ClutterWorldToProjection" ); >;
 
+	// Shadow views: the camera's visible range closed up at the light (ShadowMapper.BuildCasterVolume) - a cascade's
+	// sweep along the sun, a point or spot light's cone. xyz = inward unit normal, w = -distance. Count is 0 elsewhere.
+	int ClutterCasterPlaneCount < Attribute( "ClutterCasterPlaneCount" ); >;
+	float4 ClutterCasterPlane0 < Attribute( "ClutterCasterPlane0" ); >;
+	float4 ClutterCasterPlane1 < Attribute( "ClutterCasterPlane1" ); >;
+	float4 ClutterCasterPlane2 < Attribute( "ClutterCasterPlane2" ); >;
+	float4 ClutterCasterPlane3 < Attribute( "ClutterCasterPlane3" ); >;
+	float4 ClutterCasterPlane4 < Attribute( "ClutterCasterPlane4" ); >;
+	float4 ClutterCasterPlane5 < Attribute( "ClutterCasterPlane5" ); >;
+	float4 ClutterCasterPlane6 < Attribute( "ClutterCasterPlane6" ); >;
+	float4 ClutterCasterPlane7 < Attribute( "ClutterCasterPlane7" ); >;
+	float4 ClutterCasterPlane8 < Attribute( "ClutterCasterPlane8" ); >;
+	float4 ClutterCasterPlane9 < Attribute( "ClutterCasterPlane9" ); >;
+	float4 ClutterCasterPlane10 < Attribute( "ClutterCasterPlane10" ); >;
+	float4 ClutterCasterPlane11 < Attribute( "ClutterCasterPlane11" ); >;
+
 	// Bounding-sphere frustum test - cheaper and slightly looser than an 8-corner OBB test.
 	bool SphereInFrustum( float3 center, float radius )
 	{
@@ -81,6 +97,24 @@ CS
 
 			float dist = ( dot( planes[i].xyz, center ) + planes[i].w ) / len;
 			if ( dist < -radius )
+				return false;
+		}
+		return true;
+	}
+
+	bool SphereInCasterVolume( float3 center, float radius )
+	{
+		float4 planes[12] =
+		{
+			ClutterCasterPlane0, ClutterCasterPlane1, ClutterCasterPlane2, ClutterCasterPlane3,
+			ClutterCasterPlane4, ClutterCasterPlane5, ClutterCasterPlane6, ClutterCasterPlane7,
+			ClutterCasterPlane8, ClutterCasterPlane9, ClutterCasterPlane10, ClutterCasterPlane11,
+		};
+
+		[loop]
+		for ( int i = 0; i < ClutterCasterPlaneCount; i++ )
+		{
+			if ( dot( planes[i].xyz, center ) + planes[i].w < -radius )
 				return false;
 		}
 		return true;
@@ -133,6 +167,8 @@ CS
 			return;
 
 		if ( !SphereInFrustum( sphere.xyz, sphere.w ) )
+			return;
+		if ( !SphereInCasterVolume( sphere.xyz, sphere.w ) )
 			return;
 
 		// Only the full transform is fetched once an instance survives.
