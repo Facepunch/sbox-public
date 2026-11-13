@@ -631,11 +631,19 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	GpuMaterial Converted( string path )
 	{
-		if ( surfaces is not { HasConversions: true } || Content.TryRead( path ) is not { } data || ReadMaterial( data ) is not { } file ) return null;
-		if ( surfaces.ConversionFor( file.Shader ) is not { } surface || surfaces.Compile( surface ) is not { } compiled ) return null;
-		if ( !ConvertedMaterial.Accepts( compiled, file ) || surfaces.ConvertMaterial?.Invoke( path ) == false ) return null;
-		surfaces.CountConverted( path );
-		return ConvertedMaterial.Create( compiled, file, path, texture => LoadTexture( texture ) );
+		var tier = Surfaces;
+		if ( !tier.HasConversions || Content.TryRead( path ) is not { } data || ReadMaterial( data ) is not { } file ) return null;
+		if ( tier.ConversionFor( file.Shader ) is not { } surface || tier.Compile( surface ) is not { } compiled ) return null;
+		if ( !ConvertedMaterial.Accepts( compiled, file ) || tier.ConvertMaterial?.Invoke( path ) == false ) return null;
+		tier.CountConverted( path );
+		var converted = ConvertedMaterial.Create( compiled, file, path, texture => LoadTexture( texture ) );
+
+		// The .shader material, for draws the surface can't make
+		converted.SetFallback( () =>
+		{
+			lock ( sharedMaterials ) return Material( path, null );
+		} );
+		return converted;
 	}
 
 	/// <summary>A material that's a shader with its defaults.</summary>

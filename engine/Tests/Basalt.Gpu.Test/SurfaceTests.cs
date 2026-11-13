@@ -513,6 +513,9 @@ public class SurfaceTests : GpuTest
 				var errors = new List<string>();
 				backend.Surfaces.Error = errors.Add;
 				RenderHost.Current = new BackendRenderHost( backend );
+
+				// The reference: the .shader route, with the core shaders' default surfaces off
+				backend.Surfaces.ConvertShaders = false;
 				if ( convert )
 				{
 					backend.Surfaces.AddFolder( Path.Combine( Core, "shaders" ) );
@@ -553,6 +556,144 @@ public class SurfaceTests : GpuTest
 			// Translucency isn't the surface's: the material stays on complex.shader
 			DrawMaterial( "materials/dev/primary_white_trans.vmat", true, out var translucent );
 			Assert.IsNotInstanceOfType<SurfaceMaterial>( translucent, "a translucent complex material was converted" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// The converter turns a .shader of the final combiner shape (simple.shader: the standard processing, lit by the final
+	/// combiner) into a combiner surface with its features as fields, which draws simple's materials as simple.shader
+	/// does, colour-alpha occlusion included; shaders that do more than that shape stay as they are.
+	/// </summary>
+	[TestMethod]
+	public void ConverterTurnsStandardCombinerShadersIntoSurfaces()
+	{
+		var compiler = Compiler();
+		var shaders = Path.Combine( Core, "shaders" );
+		string Convert( string name, out IReadOnlyList<string> notes )
+		{
+			var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( shaders, name + ".shader" ) ), name );
+			notes = result.Notes;
+			return result.Source;
+		}
+
+		// Shaders that do more than the standard processing: their notes say why
+		Assert.IsNull( Convert( "vertex_color", out var notes ), "vertex_color converted" );
+		StringAssert.Contains( notes[0], "vertex shader" );
+		Assert.IsNull( Convert( "static_overlay", out notes ), "static_overlay converted" );
+		StringAssert.Contains( notes[0], "MainPs works on" );
+		Assert.IsNull( Convert( "generic", out notes ), "generic converted" );
+		StringAssert.Contains( notes[0], "FinalCombiner" );
+
+		var folder = Path.Combine( Path.GetTempPath(), "basalt-surface-combiner-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		var previousHost = RenderHost.Current;
+		try
+		{
+			var source = Convert( "simple", out notes );
+			Assert.IsNotNull( source, string.Join( "; ", notes ) );
+			StringAssert.Contains( source, "ICombinerSurface" );
+			File.WriteAllText( Path.Combine( folder, "simple.slang" ), source );
+			var compiled = compiler.CompileSurface( Path.Combine( folder, "simple.slang" ) );
+			Assert.IsTrue( compiled.Generated.Contains( "SurfaceForwardCombiner", StringComparison.Ordinal ) );
+			foreach ( var field in new[] { "UseMetalnessTexture", "UseAmbientOcclusionTexture", "Metalness", "MetalnessMap", "AmbientOcclusion", "Color", "Normal" } )
+				Assert.IsNotNull( compiled.Material.Field( field ), field );
+
+			// simple.shader doesn't do these: no fields for them
+			Assert.IsNull( compiled.Material.Field( "TintMask" ) );
+			Assert.IsNull( compiled.Material.Field( "AlphaTestReference" ) );
+
+			byte[] DrawMaterial( string path, bool convert, out GpuMaterial loaded )
+			{
+				using var backend = new BackendDevice( Device );
+				var errors = new List<string>();
+				backend.Surfaces.Error = errors.Add;
+				RenderHost.Current = new BackendRenderHost( backend );
+
+				// The reference: the .shader route, with the core shaders' default surfaces off
+				backend.Surfaces.ConvertShaders = false;
+				if ( convert )
+				{
+					backend.Surfaces.AddFolder( folder );
+					backend.Surfaces.Convert( "shaders/simple.shader", "simple.slang" );
+				}
+
+				loaded = ((GpuDevice)backend).LoadMaterial( path );
+				var picture = Draw( backend, loaded );
+				Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+				return picture;
+			}
+
+			// A plain one, colour-alpha occlusion (F_AMBIENT_OCCLUSION_TEXTURE) and a metal
+			foreach ( var path in new[] { "materials/dev/simple/floor_simple_128.vmat", "materials/black_matte.vmat", "materials/editor/env_cubemap_model.vmat" } )
+			{
+				var reference = DrawMaterial( path, false, out var classic );
+				if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( $"{path} isn't compiled" );
+				var converted = DrawMaterial( path, true, out var surface );
+				Assert.IsInstanceOfType<SurfaceMaterial>( surface, $"{path} wasn't converted" );
+				SaveRgb( reference, $"simple-{Path.GetFileNameWithoutExtension( path )}-shader" );
+				SaveRgb( converted, $"simple-{Path.GetFileNameWithoutExtension( path )}-surface" );
+				Assert.IsTrue( Mean( reference, converted ) < 0.5, $"{path}: the surface differs by {Mean( reference, converted ):F3}" );
+			}
+
+			// By default the core shaders' materials load as their surfaces: complex's written by hand, simple's the converter's
+			using var defaults = new BackendDevice( Device );
+			RenderHost.Current = new BackendRenderHost( defaults );
+			Assert.IsTrue( defaults.Surfaces.ConvertShaders );
+			Assert.IsInstanceOfType<SurfaceMaterial>( ((GpuDevice)defaults).LoadMaterial( "materials/dev/simple/floor_simple_128.vmat" ), "simple isn't a surface by default" );
+			Assert.IsInstanceOfType<SurfaceMaterial>( ((GpuDevice)defaults).LoadMaterial( "materials/default.vmat" ), "complex isn't a surface by default" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
+	/// The final combiner family's other surfaces, on by default: generic.slang (plain, specular on, self-illuminated,
+	/// two-sided, unlit, alpha-tested) and vertex_color.slang (the mesh's colour as Varyings) draw their materials as their
+	/// .shader does; a material using a feature they don't do (translucency) stays on the .shader.
+	/// </summary>
+	[TestMethod]
+	public void CombinerSurfacesDrawAsTheirShaders()
+	{
+		Compiler();
+		var previousHost = RenderHost.Current;
+		try
+		{
+			byte[] DrawMaterial( string path, bool surfaces, out GpuMaterial loaded )
+			{
+				using var backend = new BackendDevice( Device );
+				var errors = new List<string>();
+				backend.Surfaces.Error = errors.Add;
+				backend.Surfaces.ConvertShaders = surfaces;
+				RenderHost.Current = new BackendRenderHost( backend );
+				loaded = ((GpuDevice)backend).LoadMaterial( path );
+				var picture = Draw( backend, loaded );
+				Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+				return picture;
+			}
+
+			foreach ( var path in new[] { "materials/dev/gray_25.vmat", "materials/dev/roomwalls_white.vmat", "materials/dev/bright_10.vmat", "materials/tools/hlmv_ground.vmat", "materials/dev/sky_camera.vmat", "models/vr/autochap_hand.vmat", "materials/default/vertex_color.vmat" } )
+			{
+				var reference = DrawMaterial( path, false, out var classic );
+				if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( $"{path} isn't compiled" );
+				var converted = DrawMaterial( path, true, out var surface );
+				Assert.IsInstanceOfType<SurfaceMaterial>( surface, $"{path} isn't a surface by default" );
+				var name = Path.GetFileNameWithoutExtension( path );
+				SaveRgb( reference, $"combiner-{name}-shader" );
+				SaveRgb( converted, $"combiner-{name}-surface" );
+				Assert.IsTrue( Mean( reference, converted ) < 0.5, $"{path}: the surface differs by {Mean( reference, converted ):F3}" );
+			}
+
+			DrawMaterial( "materials/tools/toolsclip.vmat", true, out var translucent );
+			Assert.IsNotInstanceOfType<SurfaceMaterial>( translucent, "a translucent generic material was converted" );
 		}
 		finally
 		{

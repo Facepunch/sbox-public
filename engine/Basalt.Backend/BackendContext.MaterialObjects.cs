@@ -185,7 +185,14 @@ internal sealed partial class BackendContext
 	/// </summary>
 	bool DrawUntimed( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect )
 	{
-		if ( material is SurfaceMaterial surface ) return DrawSurface( surface, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
+		if ( material is SurfaceMaterial surface )
+		{
+			// Where the surface can't draw (a skinned mesh, a mode it has no pass for), the .shader it stands in for does
+			if ( DrawSurface( surface, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect ) ) return true;
+			if ( surface.Fallback is not BackendMaterial fallback ) return false;
+			material = fallback;
+		}
+
 		return device.MaterialObjects
 			? DrawWithMaterialObject( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect )
 			: DrawByReflection( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
