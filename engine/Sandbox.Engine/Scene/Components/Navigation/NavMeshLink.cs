@@ -19,38 +19,20 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 	/// Start position relative to the game object's position.
 	/// </summary>
 	[Property]
-	public Vector3 LocalStartPosition
-	{
-		get => _start;
-		set
-		{
-			_start = value;
-			CreateOrUpdateLink();
-		}
-	}
-
-	private Vector3 _start;
+	public Vector3 LocalStartPosition { get; set; }
 
 	/// <summary>
 	/// End position relative to the game object's position.
 	/// </summary>
 	[Property]
-	public Vector3 LocalEndPosition
-	{
-		get => _end;
-		set
-		{
-			_end = value;
-			CreateOrUpdateLink();
-		}
-	}
+	public Vector3 LocalEndPosition { get; set; }
 
 	/// <summary>
 	/// Start position in world space snapped to the navmesh.
 	/// </summary>
 	public Vector3? WorldStartPositionOnNavmesh
 	{
-		get => linkData.IsStartConnected ? linkData.StartPositionOnNavMesh : null;
+		get => startOnNavmesh;
 	}
 
 	/// <summary>
@@ -58,10 +40,11 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 	/// </summary>
 	public Vector3? WorldEndPositionOnNavmesh
 	{
-		get => linkData.IsEndConnected ? linkData.EndPositionOnNavMesh : null;
+		get => endOnNavmesh;
 	}
 
-	private Vector3 _end;
+	// Written by the navmesh in every navigation update
+	internal Vector3? startOnNavmesh, endOnNavmesh;
 
 	/// <summary>
 	/// Whether this link can be traverse bi-directional or only start towards end.
@@ -79,16 +62,7 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 	/// The NavMesh area definition to apply to this link.
 	/// </summary>
 	[Property]
-	public NavMeshAreaDefinition Area
-	{
-		get => _area;
-		set
-		{
-			_area = value;
-			CreateOrUpdateLink();
-		}
-	}
-	private NavMeshAreaDefinition _area;
+	public NavMeshAreaDefinition Area { get; set; }
 
 	/// <summary>
 	/// Emitted when an agent enters the link.
@@ -99,8 +73,6 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 	/// Emitted when an agent exits the link.
 	/// </summary>
 	public Action<NavMeshAgent> LinkExited { get; set; }
-
-	private NavMeshLinkData linkData;
 
 	/// <summary>
 	/// Start position in world space.
@@ -160,73 +132,40 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 
 	internal override void OnEnabledInternal()
 	{
-		CreateOrUpdateLink();
-		Transform.OnTransformChanged += TransformChanged;
+		Scene.NavMesh.AddLink( this );
 		base.OnEnabledInternal();
 	}
 
 	internal override void OnDisabledInternal()
 	{
-		ClearLink();
-		Transform.OnTransformChanged -= TransformChanged;
+		Scene.NavMesh?.RemoveLink( this );
 		base.OnDisabledInternal();
-	}
-
-	private void CreateOrUpdateLink()
-	{
-		if ( !Active )
-			return;
-
-		if ( linkData == null )
-		{
-			linkData = new NavMeshLinkData();
-			linkData.UserData = this;
-			Scene.NavMesh.AddSpatiaData( linkData );
-		}
-
-		linkData.StartPosition = WorldStartPosition;
-		linkData.EndPosition = WorldEndPosition;
-
-		linkData.IsBiDirectional = IsBiDirectional;
-		linkData.ConnectionRadius = ConnectionRadius;
-
-		linkData.AreaDefinition = Area;
-
-		linkData.HasChanged = true;
-	}
-
-	private void ClearLink()
-	{
-		if ( linkData != null )
-		{
-			// tile cache will take care of removal
-			linkData.IsPendingRemoval = true;
-			linkData = null;
-		}
 	}
 
 	protected override void DrawGizmos()
 	{
-		if ( linkData == null )
+		if ( !Active )
 			return;
 
-		Gizmo.Draw.Color = linkData.IsStartConnected ? NavMesh.debugInnerLineColor.WithAlpha( 1 ) : Color.Red;
+		bool startConnected = startOnNavmesh.HasValue, endConnected = endOnNavmesh.HasValue;
+
+		Gizmo.Draw.Color = startConnected ? NavMesh.debugInnerLineColor.WithAlpha( 1 ) : Color.Red;
 		Gizmo.Draw.LineSphere( LocalStartPosition, ConnectionRadius );
-		Gizmo.Draw.Color = linkData.IsEndConnected ? NavMesh.debugInnerLineColor.WithAlpha( 1 ) : Color.Red;
+		Gizmo.Draw.Color = endConnected ? NavMesh.debugInnerLineColor.WithAlpha( 1 ) : Color.Red;
 		Gizmo.Draw.LineSphere( LocalEndPosition, ConnectionRadius );
 
 		var drawStartPosition = LocalStartPosition;
-		if ( linkData.IsStartConnected )
+		if ( startConnected )
 		{
-			drawStartPosition = WorldTransform.PointToLocal( linkData.StartPositionOnNavMesh ) + NavMesh.debugDrawGroundOffset + new Vector3( 0, 0, 0.01f );
+			drawStartPosition = WorldTransform.PointToLocal( startOnNavmesh.Value ) + NavMesh.debugDrawGroundOffset + new Vector3( 0, 0, 0.01f );
 			Gizmo.Draw.Color = NavMesh.debugInnerLineColor.WithAlpha( 1 );
 			Gizmo.Draw.SolidSphere( drawStartPosition, 8f );
 		}
 
 		var drawEndPosition = LocalEndPosition;
-		if ( linkData.IsEndConnected )
+		if ( endConnected )
 		{
-			drawEndPosition = WorldTransform.PointToLocal( linkData.EndPositionOnNavMesh ) + NavMesh.debugDrawGroundOffset + new Vector3( 0, 0, 0.01f );
+			drawEndPosition = WorldTransform.PointToLocal( endOnNavmesh.Value ) + NavMesh.debugDrawGroundOffset + new Vector3( 0, 0, 0.01f );
 			Gizmo.Draw.Color = NavMesh.debugInnerLineColor.WithAlpha( 1 );
 			Gizmo.Draw.SolidSphere( drawEndPosition, 8f );
 		}
@@ -261,8 +200,16 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 		}
 	}
 
-	private void TransformChanged()
+	internal Nav.NavLink CreateLink()
 	{
-		CreateOrUpdateLink();
+		return new()
+		{
+			Start = WorldStartPosition,
+			End = WorldEndPosition,
+			Radius = ConnectionRadius,
+			Bidirectional = IsBiDirectional,
+			// A link without a definition has an area of its own, which every agent may cross
+			Area = (byte)(Area is null ? NavMesh.LinkArea : Scene.NavMesh.AreaDefinitionToId( Area ))
+		};
 	}
 }

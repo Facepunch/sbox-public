@@ -1,6 +1,9 @@
 using Editor;
+using Sandbox.Compression;
+using System.Buffers;
+using System.Buffers.Binary;
+using System.IO;
 using System.IO.Compression;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -9,10 +12,23 @@ namespace Sandbox.Navigation;
 
 public sealed partial class NavMesh
 {
+	// Header, then the library's bake as one LZ4 block. A tile inside the baked rectangle that the bake lacks is empty on purpose.
+	//   uint magic, uint version, int minTileX, minTileY, maxTileX, maxTileY, int uncompressedLength
+	private const uint BakeMagic = 0x56414E53;
+	private const uint BakeVersion = 1;
+	private const int BakeHeaderSize = 28;
+
+	// The tiles the loaded bake covers
+	private RectInt? bakedTiles;
+
 	[Menu( "Editor", "Scene/Bake NavMesh", "directions_run", Priority = 1800 )]
 	public static async void BakeNavMesh()
 	{
-		if ( !Application.IsEditor ) throw new InvalidOperationException( "NavMesh Baking is only available in editor." );
+		if ( !Application.IsEditor )
+		{
+			Log.Warning( "NavMesh Baking is only available in editor." );
+			return;
+		}
 
 		var navMesh = Application.Editor.Scene.NavMesh;
 
@@ -26,7 +42,7 @@ public sealed partial class NavMesh
 			{
 				progress.Current = current;
 				progress.TotalCount = total;
-				progress.Subtitle = $"Processing chunk {current} / {total}";
+				progress.Subtitle = "Compressing...";
 			},
 			cancelToken: progress.GetCancel()
 		);
@@ -39,7 +55,7 @@ public sealed partial class NavMesh
 	/// </summary>
 	internal async Task BakeData( Scene scene, Action<int, int> onProgress = null, CancellationToken cancelToken = default )
 	{
-		var data = await BakeDataToBytes( onProgress, cancelToken );
+		var data = await BakeDataToBytes( onProgress, cancelToken, scene?.PhysicsWorld );
 		if ( data is null )
 		{
 			_bakedDataPath = null;
@@ -62,107 +78,66 @@ public sealed partial class NavMesh
 
 	/// <summary>
 	/// Bakes the navmesh tile data to a byte array. Returns null if there are no tiles to bake.
-	/// Used internally by BakeData and for testing.
+	/// Used internally by BakeData and for testing. Waits for pending tiles, and builds them when given the world.
 	/// </summary>
-	internal async Task<byte[]> BakeDataToBytes( Action<int, int> onProgress = null, CancellationToken cancelToken = default )
+	internal async Task<byte[]> BakeDataToBytes( Action<int, int> onProgress = null, CancellationToken cancelToken = default, PhysicsWorld world = null )
 	{
-		// Suspend auto-update so it doesn't dispatch new heightfield builds while we bake.
-		// Without this, WaitForHeightfieldBuilds would never finish because new builds
-		// are dispatched every frame.
+		ThreadSafe.AssertIsMainThread();
+
+		// Auto update marks every tile again each frame, which would keep the wait below from ending
 		var wasAutoUpdate = EditorAutoUpdate;
 		EditorAutoUpdate = false;
-
-		// Wait for any in-progress heightfield builds to finish first.
-		// Without this, SetCachedHeightField can mutate tiles concurrently during the bake.
-		await WaitForHeightfieldBuilds( cancelToken );
-
-		if ( cancelToken.IsCancellationRequested )
+		try
 		{
-			EditorAutoUpdate = wasAutoUpdate;
-			return null;
-		}
-
-		var minMaxTileCoords = CalculateMinMaxTileCoords( Bounds );
-
-		// Every tile in bounds is recorded, empty ones included. Their absence would be
-		// indistinguishable from "not baked" on load, and the tile would be rebuilt from
-		// live geometry, undoing any region the bake deliberately left out.
-		List<NavMeshTile> tiles = new();
-		bool anyHeightField = false;
-
-		for ( int x = minMaxTileCoords.Left; x <= minMaxTileCoords.Right; x++ )
-		{
-			for ( int y = minMaxTileCoords.Top; y <= minMaxTileCoords.Bottom; y++ )
+			// A tile the bake lacks counts as empty on purpose at load, so nothing may be missing yet
+			while ( live is not null && (IsGenerating || IsDirty || next is not null || live.Mesh.PendingTiles > 0) )
 			{
-				var tileCoords = new Vector2Int( x, y );
-				var tile = tileCache.GetOrAddTile( tileCoords );
-				tiles.Add( tile );
-				anyHeightField |= tile.IsHeightFieldValid;
-			}
-		}
+				if ( cancelToken.IsCancellationRequested ) return null;
 
-		if ( !anyHeightField )
-		{
-			EditorAutoUpdate = wasAutoUpdate;
-			return null;
-		}
-
-		var chunkCount = (tiles.Count + TilesPerChunk - 1) / TilesPerChunk;
-		var compressedChunks = new byte[chunkCount][];
-		int completedChunks = 0;
-
-		onProgress?.Invoke( 0, chunkCount );
-
-		await Task.Run( () =>
-		{
-			Parallel.For( 0, chunkCount, TileParallelOptions, chunkIndex =>
-			{
-				if ( cancelToken.IsCancellationRequested )
-					return;
-
-				var start = chunkIndex * TilesPerChunk;
-				var chunkTileCount = Math.Min( TilesPerChunk, tiles.Count - start );
-
-				using var chunkStream = ByteStream.Create( 1024 );
-				chunkStream.Write( chunkTileCount );
-
-				for ( int i = 0; i < chunkTileCount; i++ )
+				if ( world is not null && !IsGenerating )
 				{
-					var tile = tiles[start + i];
-					chunkStream.Write( tile.TilePosition );
-					chunkStream.WriteArray( tile.CopyCompressedHeightField().AsSpan() );
+					if ( IsDirty ) InvalidateAllTiles( world );
+					UpdateCache( world );
 				}
 
-				using var compressedStream = chunkStream.Compress( CompressionLevel.SmallestSize );
-				compressedChunks[chunkIndex] = compressedStream.ToArray();
+				await Task.Delay( 10 );
+				await GameTask.MainThread();
+			}
 
-				var current = Interlocked.Increment( ref completedChunks );
-				onProgress?.Invoke( current, chunkCount );
+			Span<(int, int)> any = stackalloc (int, int)[1];
+			if ( live is null || live.Mesh.GetTiles( any ) == 0 ) return null;
+
+			var tiles = CalculateMinMaxTileCoords( Bounds );
+			var writer = new ArrayBufferWriter<byte>();
+			if ( !live.Mesh.Save( writer ) )
+			{
+				Log.Warning( "NavMesh: the navmesh is too large to bake" );
+				return null;
+			}
+			onProgress?.Invoke( 0, 1 );
+
+			var baked = await Task.Run( () =>
+			{
+				var raw = writer.WrittenSpan;
+				var data = new byte[BakeHeaderSize + LZ4.MaxCompressedSize( raw.Length )];
+				BinaryPrimitives.WriteUInt32LittleEndian( data, BakeMagic );
+				BinaryPrimitives.WriteUInt32LittleEndian( data.AsSpan( 4 ), BakeVersion );
+				BinaryPrimitives.WriteInt32LittleEndian( data.AsSpan( 8 ), tiles.Left );
+				BinaryPrimitives.WriteInt32LittleEndian( data.AsSpan( 12 ), tiles.Top );
+				BinaryPrimitives.WriteInt32LittleEndian( data.AsSpan( 16 ), tiles.Right );
+				BinaryPrimitives.WriteInt32LittleEndian( data.AsSpan( 20 ), tiles.Bottom );
+				BinaryPrimitives.WriteInt32LittleEndian( data.AsSpan( 24 ), raw.Length );
+				int length = LZ4.CompressBlock( raw, data.AsSpan( BakeHeaderSize ), CompressionLevel.Optimal );
+				return data.AsSpan( 0, BakeHeaderSize + length ).ToArray();
 			} );
-		} );
 
-		// Restore auto-update now that bake is done
-		EditorAutoUpdate = wasAutoUpdate;
-
-		if ( cancelToken.IsCancellationRequested )
-			return null;
-
-		// Calculate total size needed
-		var totalSize = sizeof( int ); // chunk count
-		foreach ( var chunk in compressedChunks )
-		{
-			totalSize += sizeof( int ) + chunk.Length; // length prefix + data
+			onProgress?.Invoke( 1, 1 );
+			return cancelToken.IsCancellationRequested ? null : baked;
 		}
-
-		// Write all chunks into a single byte array
-		using var outputStream = ByteStream.Create( totalSize );
-		outputStream.Write( chunkCount );
-		foreach ( var chunk in compressedChunks )
+		finally
 		{
-			outputStream.WriteArray( chunk );
+			EditorAutoUpdate = wasAutoUpdate;
 		}
-
-		return outputStream.ToArray();
 	}
 
 	internal async Task LoadFromBake()
@@ -192,75 +167,59 @@ public sealed partial class NavMesh
 
 	/// <summary>
 	/// Loads navmesh tile data from a byte array. Used internally by LoadFromBake and for testing.
+	/// Data in an older format, damaged, or baked with other agent settings is ignored with a warning.
 	/// </summary>
 	internal async Task LoadFromBakedData( byte[] bakedData )
 	{
 		if ( bakedData is null || bakedData.Length == 0 )
 			return;
 
-		// Parse chunk offsets from the data before await - avoid per-chunk allocations
-		var chunkCount = MemoryMarshal.Read<int>( bakedData );
-		if ( chunkCount <= 0 )
-			return;
-
-		// Calculate offsets for each chunk in the original data
-		var chunkOffsets = new (int Start, int Length)[chunkCount];
-
-		int offset = sizeof( int ); // Skip chunk count
-		for ( int i = 0; i < chunkCount; i++ )
+		int rawLength = bakedData.Length >= BakeHeaderSize ? BinaryPrimitives.ReadInt32LittleEndian( bakedData.AsSpan( 24 ) ) : -1;
+		if ( rawLength < 0 || BinaryPrimitives.ReadUInt32LittleEndian( bakedData ) != BakeMagic || BinaryPrimitives.ReadUInt32LittleEndian( bakedData.AsSpan( 4 ) ) != BakeVersion
+			|| rawLength / 255 > bakedData.Length )
 		{
-			var length = MemoryMarshal.Read<int>( bakedData.AsSpan( offset ) );
-			offset += sizeof( int );
-			chunkOffsets[i] = (offset, length);
-			offset += length;
+			Log.Warning( "NavMesh: Baked data is in an older format and is ignored. Bake the navmesh again." );
+			return;
 		}
+
+		var min = new Vector2Int( BinaryPrimitives.ReadInt32LittleEndian( bakedData.AsSpan( 8 ) ), BinaryPrimitives.ReadInt32LittleEndian( bakedData.AsSpan( 12 ) ) );
+		var max = new Vector2Int( BinaryPrimitives.ReadInt32LittleEndian( bakedData.AsSpan( 16 ) ), BinaryPrimitives.ReadInt32LittleEndian( bakedData.AsSpan( 20 ) ) );
 
 		long generation = Generation;
+		var settings = CreateSettings();
+		string problem = null;
 
-		await Task.Run( () =>
+		var loaded = await Task.Run( () =>
 		{
-			Parallel.For( 0, chunkOffsets.Length, TileParallelOptions, chunkIndex =>
+			var raw = new byte[rawLength];
+			try
 			{
-				var (start, length) = chunkOffsets[chunkIndex];
-				using var compressedStream = ByteStream.CreateReader( bakedData.AsSpan( start, length ) );
-				using var chunkStream = compressedStream.Decompress();
+				if ( LZ4.DecompressBlock( bakedData.AsSpan( BakeHeaderSize ), raw ) != rawLength ) problem = "is damaged";
+			}
+			catch ( InvalidDataException )
+			{
+				problem = "is damaged";
+			}
 
-				var tileCount = chunkStream.Read<int>();
+			if ( problem is null && (!Nav.NavMesh.TryReadSettings( raw, out var baked ) || !baked.Equals( settings )) ) problem = "was made with other agent settings";
+			if ( problem is not null ) return null;
 
-				for ( int i = 0; i < tileCount; i++ )
-				{
-					var tilePosition = chunkStream.Read<Vector2Int>();
-					var heightFieldData = chunkStream.ReadArray<byte>();
-
-					lock ( SyncRoot )
-					{
-						if ( generation != Generation || disposed ) return;
-						var tile = tileCache.GetOrAddTile( tilePosition );
-						tile.SetCompressedHeightField( heightFieldData );
-					}
-				}
-			} );
+			var mesh = Nav.NavMesh.Load( raw, cacheCodec );
+			if ( mesh is null ) problem = "is damaged";
+			return mesh;
 		} );
-	}
+		await GameTask.MainThread();
 
-	/// <summary>
-	/// Waits for all in-progress heightfield builds to complete.
-	/// This ensures we snapshot a consistent state before baking.
-	/// </summary>
-	private async Task WaitForHeightfieldBuilds( CancellationToken cancelToken )
-	{
-		while ( !cancelToken.IsCancellationRequested && tileCache.HasAnyBuildsInProgress() )
+		if ( generation != Generation || disposed ) return;
+		if ( loaded is null )
 		{
-			await Task.Delay( 50, cancelToken ).ConfigureAwait( false );
+			Log.Warning( $"NavMesh: Baked data {problem} and is ignored. Bake the navmesh again." );
+			return;
 		}
+
+		SetMesh( loaded );
+		bakedTiles = new RectInt( min, max - min );
 	}
-
-	private const int TilesPerChunk = 64;
-
-	private static readonly ParallelOptions TileParallelOptions = new()
-	{
-		MaxDegreeOfParallelism = Math.Max( 1, Environment.ProcessorCount - 1 )
-	};
 
 	/// <summary>
 	/// The relative path to the baked navdata file (without _c suffix)

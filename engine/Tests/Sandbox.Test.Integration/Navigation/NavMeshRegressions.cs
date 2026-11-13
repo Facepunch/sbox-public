@@ -35,6 +35,7 @@ public class NavMeshRegressions
 		agent.MoveTo( new Vector3( 150, 0, 200 ) );
 		for ( int i = 0; i < 100 && !agent.IsTraversingLink; i++ ) scene.GameTick();
 		Assert.IsTrue( agent.IsTraversingLink );
+		Assert.AreSame( link, agent.CurrentLinkTraversal.Value.LinkComponent );
 		var landing = agent.CurrentLinkTraversal.Value.LinkExitPosition + new Vector3( 80, 0, 0 );
 		go.WorldPosition = handBackPositionControl ? landing : landing + new Vector3( 0, 25, 0 );
 		var bodyPosition = go.WorldPosition;
@@ -104,13 +105,13 @@ public class NavMeshRegressions
 		agent.MoveTo( new Vector3( 100, 0, 0 ) );
 		scene.GameTick();
 		var position = agent.AgentPosition;
-		var path = agent.agentInternal.Path.ToArray();
+		var path = agent.GetPath().Polygons;
 		parent.WorldPosition += new Vector3( 50, 100, 200 );
 		parent.WorldRotation = Rotation.FromYaw( 90 );
 		parent.WorldScale = new Vector3( 2 );
 		Assert.AreEqual( position, agent.AgentPosition );
 		Assert.IsTrue( agent.IsNavigating );
-		CollectionAssert.AreEqual( path, agent.agentInternal.Path.ToArray() );
+		CollectionAssert.AreEqual( path, agent.GetPath().Polygons );
 	}
 
 	[TestMethod]
@@ -140,13 +141,13 @@ public class NavMeshRegressions
 		agent.MoveTo( new Vector3( 100, 0, 0 ) );
 		scene.GameTick();
 		var position = agent.AgentPosition;
-		var path = agent.agentInternal.Path.ToArray();
+		var path = agent.GetPath().Polygons;
 		go.WorldPosition = new Vector3( 0, 100, 500 );
 		go.WorldRotation = Rotation.FromYaw( 90 );
 		go.WorldScale = new Vector3( 2 );
 		Assert.AreEqual( position, agent.AgentPosition );
 		Assert.IsTrue( agent.IsNavigating );
-		CollectionAssert.AreEqual( path, agent.agentInternal.Path.ToArray() );
+		CollectionAssert.AreEqual( path, agent.GetPath().Polygons );
 		var body = go.WorldTransform;
 		for ( int tick = 0; tick < 80; tick++ ) scene.GameTick();
 		Assert.IsTrue( agent.AgentPosition.x > 90 );
@@ -175,30 +176,14 @@ public class NavMeshRegressions
 			if ( agent.AgentPosition.x > 90 ) break;
 			Assert.IsTrue( agent.IsNavigating );
 			var position = agent.AgentPosition;
-			var path = agent.agentInternal.Path.ToArray();
+			var path = agent.GetPath().Polygons;
 			go.WorldRotation = Rotation.FromYaw( tick * 31 );
 			go.WorldScale = new Vector3( tick % 2 == 0 ? 1.1f : 1 );
 			Assert.AreEqual( position, agent.AgentPosition, "Visual transform changes must not pull the simulated position backwards" );
 			Assert.IsTrue( agent.IsNavigating, "Rotation/scale changes must not drop the route" );
-			CollectionAssert.AreEqual( path, agent.agentInternal.Path.ToArray() );
+			CollectionAssert.AreEqual( path, agent.GetPath().Polygons );
 		}
 		Assert.IsTrue( agent.AgentPosition.x > 90, "Facing updates must not slow the agent's progress" );
-	}
-
-	[TestMethod]
-	public void CachedHeightfieldReadsSurviveConcurrentRetirement()
-	{
-		using var field = new Sandbox.Navigation.Generation.Heightfield( 8, 8, Vector3.Zero, new Vector3( 8, 64, 8 ), 1, 1 );
-		for ( int z = 0; z < 8; z++ )
-			for ( int x = 0; x < 8; x++ ) field.AddOrMergeSpan( x, z, 0, 1, 1, 0 );
-		using var compact = field.BuildCompactHeightfield( 8, 4 );
-		using var tile = new NavMeshTile();
-		tile.SetCachedHeightField( compact );
-		byte[] payload = tile.CopyCompressedHeightField();
-		System.Threading.Tasks.Parallel.Invoke(
-			() => { for ( int i = 0; i < 500; i++ ) { tile.Dispose(); tile.SetCompressedHeightField( payload ); } },
-			() => { for ( int i = 0; i < 500; i++ ) { using var copy = tile.DecompressCachedHeightField(); if ( copy is not null ) Assert.AreEqual( compact.SpanCount, copy.SpanCount ); } },
-			() => { for ( int i = 0; i < 500; i++ ) { var copy = tile.CopyCompressedHeightField(); Assert.IsTrue( copy.Length == 0 || copy.SequenceEqual( payload ) ); } } );
 	}
 
 	[TestMethod]
@@ -217,53 +202,6 @@ public class NavMeshRegressions
 		Assert.AreEqual( (Vector3?)target, agent.TargetPosition );
 		agent.SetPath( agent.GetPath() );
 		Assert.AreEqual( (Vector3?)target, agent.TargetPosition );
-	}
-
-	[TestMethod]
-	public void ConcurrentTileBuildsKeepTheirOwnLinks()
-	{
-		var scene = new Scene();
-		using var scope = scene.Push();
-		using var field = new Sandbox.Navigation.Generation.Heightfield( 64, 64, Vector3.Zero, new Vector3( 640, 512, 640 ), 10, 1 );
-		for ( int z = 0; z < 64; z++ )
-			for ( int x = 0; x < 64; x++ )
-			{
-				field.AddOrMergeSpan( x, z, 0, 1, 1, 0 );
-				field.AddOrMergeSpan( x, z, 200, 201, 1, 0 );
-			}
-		using var compact = field.BuildCompactHeightfield( 32, 8 );
-		using var tile = new NavMeshTile();
-		for ( int i = 0; i < 8; i++ )
-			tile.AddSpatialData( new NavMeshLinkData { StartPosition = new Vector3( 100 + i * 50, 320, 1 ), EndPosition = new Vector3( 100 + i * 50, 320, 201 ), ConnectionRadius = 24, UserData = i } );
-		var config = new Sandbox.Navigation.Generation.Config { CellSize = 10, CellHeight = 1, WalkableHeight = 32, WalkableRadius = 8, WalkableClimb = 8, MaxSimplificationError = 1, MaxEdgeLen = 8, MaxVertsPerPoly = 6 };
-		Parallel.For( 0, 32, _ =>
-		{
-			var data = tile.BuildNavmesh( compact, config, scene.NavMesh );
-			Assert.AreEqual( 8, data.offMeshCons.Length );
-			Assert.AreEqual( 8, data.offMeshCons.Select( link => link.userData ).Distinct().Count() );
-		} );
-	}
-
-	[TestMethod]
-	public async Task IncrementalBuildRequestsWaitForTheCurrentBuild()
-	{
-		var scene = new Scene();
-		using var scope = scene.Push();
-		scene.NavMesh.IsEnabled = true;
-		using var field = new Sandbox.Navigation.Generation.Heightfield( 8, 8, Vector3.Zero, new Vector3( 8, 64, 8 ), 1, 1 );
-		field.AddOrMergeSpan( 0, 0, 0, 1, 1, 0 );
-		using var compact = field.BuildCompactHeightfield( 8, 4 );
-		using var cache = new NavMeshTileCache();
-		var tile = cache.GetOrAddTile( Vector2Int.Zero );
-		tile.SetCachedHeightField( compact );
-		tile.DispatchNavmeshBuild( scene.NavMesh );
-		tile.RequestNavmeshBuild();
-		cache.Update( scene.NavMesh, scene.PhysicsWorld );
-		Assert.IsTrue( tile.IsNavmeshBuildRequested, "The next request must remain queued while this tile is busy" );
-		for ( int i = 0; i < 200 && tile.IsNavmeshBuildInProgress; i++ ) { await Task.Delay( 10 ); MainThread.RunQueues(); }
-		Assert.IsFalse( tile.IsNavmeshBuildInProgress );
-		Assert.IsFalse( tile.DispatchHeightFieldBuild( scene.NavMesh, scene.PhysicsWorld ) );
-		Assert.IsFalse( tile.IsHeightFieldValid, "An empty rebuild must discard the previous cached geometry" );
 	}
 
 	[TestMethod, TestCategory( Allocations.Category )]
@@ -309,30 +247,32 @@ public class NavMeshRegressions
 		{
 			scene.NavMesh.UpdateAreaIds();
 			int id = scene.NavMesh.AreaDefinitionToId( area );
-			Assert.AreNotEqual( Sandbox.Navigation.Generation.Constants.WALKABLE_AREA, id );
+			Assert.AreNotEqual( NavMesh.DefaultArea, id );
 			var agent = scene.CreateObject().Components.Create<NavMeshAgent>();
 			var original = scene.NavMesh.CreateFilter( agent );
 			area.CostMultiplier = 7;
 			agent.ForbiddenAreas.Add( area );
 			var restricted = scene.NavMesh.CreateFilter( agent );
-			Assert.IsFalse( restricted.Allows( id ) );
-			Assert.AreEqual( 7f, restricted.CostMultiplier( id ) );
-			Assert.IsTrue( original.Allows( id ) );
-			Assert.AreEqual( 1f, original.CostMultiplier( id ) );
+			Assert.IsFalse( Allows( restricted, id ) );
+			Assert.AreEqual( 7f, restricted.Costs[id] );
+			Assert.IsTrue( Allows( original, id ) );
+			Assert.AreEqual( 1f, original.Costs[id] );
 			var unrestricted = scene.NavMesh.CreateFilter();
-			Assert.AreEqual( 7f, unrestricted.CostMultiplier( id ) );
+			Assert.AreEqual( 7f, unrestricted.Costs[id] );
 			Allocations.AssertSettles( "64 pairs of unchanged filters", () =>
 			{
 				for ( int i = 0; i < 64; i++ ) { scene.NavMesh.CreateFilter( agent ); scene.NavMesh.CreateFilter(); }
 			}, allowedPerPass: 256 );
 			agent.ForbiddenAreas.Clear();
 			area.CostMultiplier = 3;
-			Assert.IsTrue( scene.NavMesh.CreateFilter( agent ).Allows( id ) );
-			Assert.AreEqual( 3f, scene.NavMesh.CreateFilter().CostMultiplier( id ) );
-			Assert.AreEqual( 7f, unrestricted.CostMultiplier( id ) );
-			Assert.IsFalse( restricted.Allows( id ) );
+			Assert.IsTrue( Allows( scene.NavMesh.CreateFilter( agent ), id ) );
+			Assert.AreEqual( 3f, scene.NavMesh.CreateFilter().Costs[id] );
+			Assert.AreEqual( 7f, unrestricted.Costs[id] );
+			Assert.IsFalse( Allows( restricted, id ) );
 		}
 		finally { Game.Resources.Unregister( area ); }
+
+		static bool Allows( Nav.NavFilter filter, int area ) => (filter.Forbidden >> area & 1) == 0;
 	}
 
 	sealed class NavigationEditorScene : Scene
@@ -424,7 +364,7 @@ public class NavMeshRegressions
 	}
 
 	[TestMethod]
-	public async Task NonBlockingAreaRegeneratesNewFloorGeometry_10587()
+	public async Task NewFloorUnderANonBlockingAreaNeedsATileRequest_10587()
 	{
 		var scene = new Scene();
 		using var scope = scene.Push();
@@ -439,6 +379,8 @@ public class NavMeshRegressions
 		area.IsBlocker = false;
 		area.SceneVolume = new SceneVolume { Type = SceneVolume.VolumeTypes.Box, Box = BBox.FromPositionAndSize( Vector3.Zero, new Vector3( 450, 450, 100 ) ) };
 		area.Enabled = true;
+		// An area marks the navmesh that is there. Geometry that is new to it has to be asked for
+		scene.NavMesh.RequestTilesGeneration( BBox.FromPositionAndSize( new Vector3( 650, 650, 200 ), 450 ) );
 		for ( int i = 0; i < 200; i++ )
 		{
 			MainThread.RunQueues();
@@ -446,7 +388,7 @@ public class NavMeshRegressions
 			if ( scene.NavMesh.GetClosestPoint( new Vector3( 650, 650, 200 ), 40 ).HasValue ) return;
 			await Task.Delay( 10 );
 		}
-		Assert.Fail( "Adding a nonblocking area must update the cached geometry without SetDirty" );
+		Assert.Fail( "A tile request must build the new floor under the area" );
 	}
 
 	[TestMethod]

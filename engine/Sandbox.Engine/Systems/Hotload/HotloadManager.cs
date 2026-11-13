@@ -117,6 +117,7 @@ internal class HotloadManager : IDisposable
 		Hotload.IgnoreAssembly<SkiaSharp.SKBitmap>();
 		Hotload.IgnoreAssembly<Microsoft.CodeAnalysis.Diagnostic>();
 		Hotload.IgnoreAssembly<Refit.PostAttribute>();
+		Hotload.IgnoreAssembly<Nav.NavMesh>();
 
 		var skipUpgrader = Hotload.GetUpgrader<Upgraders.SkipUpgrader>();
 

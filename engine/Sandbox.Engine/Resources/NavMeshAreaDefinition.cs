@@ -35,11 +35,7 @@ public sealed class NavMeshAreaDefinition : GameResource
 		set
 		{
 			_priority = value;
-			IToolsDll.Current?.RunEvent<NavMesh.IEventListener>( x => x.OnAreaDefinitionChanged() );
-			if ( Game.ActiveScene.IsValid() )
-			{
-				Game.ActiveScene.NavMesh?.UpdateAreaIds();
-			}
+			UpdateAreaIds();
 		}
 	}
 	private int _priority = 0;
@@ -51,10 +47,16 @@ public sealed class NavMeshAreaDefinition : GameResource
 
 	protected override void PostReload()
 	{
+		UpdateAreaIds();
+	}
+
+	// Area ids follow the priorities, in the navmesh of every scene. Editor scenes hear of it through the event.
+	private static void UpdateAreaIds()
+	{
 		IToolsDll.Current?.RunEvent<NavMesh.IEventListener>( x => x.OnAreaDefinitionChanged() );
-		if ( Game.ActiveScene.IsValid() )
+		foreach ( var scene in Scene.AllIncludingUnlisted )
 		{
-			Game.ActiveScene.NavMesh?.UpdateAreaIds();
+			scene.NavMesh?.UpdateAreaIds();
 		}
 	}
 

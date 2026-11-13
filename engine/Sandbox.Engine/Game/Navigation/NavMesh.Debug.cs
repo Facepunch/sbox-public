@@ -1,9 +1,3 @@
-using System;
-using System.Numerics;
-using Sandbox.Navigation.Pathfinding;
-using NativeEngine;
-using Sandbox.ModelEditor;
-
 namespace Sandbox.Navigation;
 
 public sealed partial class NavMesh
@@ -106,85 +100,59 @@ public sealed partial class NavMesh
 		debugTileBorders.Clear();
 		debugInnerLines.Clear();
 	}
-	private unsafe void DebugCollectTileNavmeshGeometry( Vector2Int tilePosition )
+
+	private void DebugCollectTileNavmeshGeometry( Vector2Int tilePosition )
 	{
-		var cameraToTileDistanceSquared = TilePositionToWorldPosition( tilePosition ).WithZ( 0 ).DistanceSquared( Gizmo.Camera.Position.WithZ( 0 ) );
+		ReadPolygons( tilePosition );
 
-		if ( navmeshInternal == null )
+		var tileMins = new Vector2( tilePosition.x, tilePosition.y ) * TileSizeXYWorldSpace;
+		var tileMaxs = tileMins + TileSizeXYWorldSpace;
+
+		int first = 0;
+		for ( int iPoly = 0; iPoly < polyVertexCounts.Count; first += polyVertexCounts[iPoly], ++iPoly )
 		{
-			return;
-		}
+			int polyVertexCount = polyVertexCounts[iPoly];
 
-		var tile = navmeshInternal.GetTileAt( tilePosition.x, tilePosition.y, 0 );
-		if ( tile == null || tile.data.header == null )
-		{
-			return;
-		}
-
-		Span<Vector3> polyVerts = stackalloc Vector3[navmeshInternal.GetMaxVertsPerPoly()];
-
-		for ( int iPoly = 0; iPoly < GetPolyCount( tilePosition ); ++iPoly )
-		{
-			if ( iPoly >= tile.data.header.polyCount )
-				break;
-
-			var poly = tile.data.polys[iPoly];
-
-			if ( poly.type == PolyTypes.POLYTYPE_OFFMESH_CONNECTION )
-				continue;
-
-			int polyVertexCount = poly.vertCount;
-
-			var polyAreaDefintion = AreaIdToDefinition( poly.area );
+			var polyAreaDefintion = AreaIdToDefinition( polyAreas[iPoly] );
 			var polyColor = polyAreaDefintion != null ? polyAreaDefintion.Color.WithAlpha( 0.6f ) : debugTriangleColor;
 
-			// Simple fan triangulation - create triangles from vertex 0 to all other vertices
-			if ( polyVertexCount >= 3 )
+			if ( !debugTriangles.TryGetValue( polyColor, out var triangles ) )
 			{
-				for ( int i = 0; i < polyVertexCount; i++ )
-				{
-					polyVerts[i] = FromNav( tile.data.verts[poly.verts[i]] ) + debugDrawGroundOffset;
-				}
+				debugTriangles[polyColor] = triangles = new();
+			}
 
-				// Create triangles using fan triangulation
-				for ( int j = 2; j < polyVertexCount; j++ )
+			// Simple fan triangulation - create triangles from vertex 0 to all other vertices
+			var v0 = (Vector3)polyVertices[first] + debugDrawGroundOffset;
+			for ( int j = 2; j < polyVertexCount; j++ )
+			{
+				triangles.Add( new Triangle
 				{
-					var triangle = new Triangle
-					{
-						A = polyVerts[0],
-						B = polyVerts[j - 1],
-						C = polyVerts[j]
-					};
-
-					if ( !debugTriangles.ContainsKey( polyColor ) )
-					{
-						debugTriangles[polyColor] = new();
-					}
-					debugTriangles[polyColor].Add( triangle );
-				}
+					A = v0,
+					B = (Vector3)polyVertices[first + j - 1] + debugDrawGroundOffset,
+					C = (Vector3)polyVertices[first + j] + debugDrawGroundOffset
+				} );
 			}
 
 			for ( int vertexIndex = 0; vertexIndex < polyVertexCount; ++vertexIndex )
 			{
-				bool bIsInterEdge = ((poly.neis[vertexIndex] & MeshConstants.EXT_LINK) != 0) && (poly.neis[vertexIndex] != 0);
+				var a = (Vector3)polyVertices[first + vertexIndex] + debugDrawGroundOffset;
+				var b = (Vector3)polyVertices[first + (vertexIndex + 1) % polyVertexCount] + debugDrawGroundOffset;
 
-				// Use the poly vertices directly because we don't use the detail mesh
-				// If we ever change that, we need more complex logic to align the poly boundaries with the detail mesh
-				int vertIndexV0 = poly.verts[vertexIndex];
-				int vertIndexV1 = poly.verts[(vertexIndex + 1) % polyVertexCount];
+				// An edge along the side of the tile is where the next tile joins
+				bool isTileBorder = OnSameLine( a.x, b.x, tileMins.x ) || OnSameLine( a.x, b.x, tileMaxs.x )
+					|| OnSameLine( a.y, b.y, tileMins.y ) || OnSameLine( a.y, b.y, tileMaxs.y );
 
-				Vector3 v0 = FromNav( tile.data.verts[vertIndexV0] ) + debugDrawGroundOffset;
-				Vector3 v1 = FromNav( tile.data.verts[vertIndexV1] ) + debugDrawGroundOffset;
-
-				if ( bIsInterEdge )
+				if ( isTileBorder )
 				{
-					debugTileBorders.Add( new Line( v0, v1 ) );
+					debugTileBorders.Add( new Line( a, b ) );
 				}
 				else
 				{
-					debugInnerLines.Add( new Line( v0, v1 ) );
+					debugInnerLines.Add( new Line( a, b ) );
 				}
 			}
 		}
+
+		static bool OnSameLine( float a, float b, float line ) => MathF.Abs( a - line ) < 0.01f && MathF.Abs( b - line ) < 0.01f;
 	}
 }

@@ -180,7 +180,7 @@ public class NavMeshComponentTest
 		Assert.AreEqual( 80f, option.Height );
 		Assert.AreEqual( 480f, option.Acceleration );
 		Assert.AreEqual( 0.5f, option.Separation, 0.001f );
-		Assert.IsFalse( option.AutoTraverseLinks );
+		Assert.IsFalse( option.AutoLinks );
 
 		// Disabling removes the agent from the crowd, re-enabling adds it back
 		agent.Enabled = false;

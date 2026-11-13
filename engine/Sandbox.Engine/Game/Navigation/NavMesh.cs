@@ -1,8 +1,6 @@
-using Sandbox.Navigation.Pathfinding;
-using System.Runtime.CompilerServices;
-using Sandbox.Engine.Resources;
-using Sandbox.Navigation.Generation;
-using Sandbox.Utility;
+using Nav;
+using Sandbox.Compression;
+using System.Buffers;
 
 namespace Sandbox.Navigation;
 
@@ -12,63 +10,51 @@ namespace Sandbox.Navigation;
 [Expose]
 public sealed partial class NavMesh : IDisposable
 {
-	internal NavMeshGraph navmeshInternal;
+	// The library mesh queries read, on any thread. Written on the main thread only.
+	internal Nav.NavMesh mesh;
+	internal Nav.NavMesh meshAside => next?.Mesh;
 
 	internal NavigationSimulation Simulation;
 
-	internal readonly object SyncRoot = new();
 	internal long Generation;
 	private bool disposed;
-
-	internal MeshQuery query;
 
 	// Making this only work from Scene.NavMesh for now. There's no real reason we can't let
 	// then create these and manage them themselves. But for now, early days, I want to lock
 	// it down to only required functionality.
 	internal NavMesh()
 	{
-		navmeshInternal = new NavMeshGraph();
-	}
-
-	~NavMesh()
-	{
-		Dispose();
+		UpdateAreaIds();
 	}
 
 	public void Dispose()
 	{
-		lock ( SyncRoot )
-		{
-			if ( disposed ) return;
-			disposed = true;
-			Generation++;
-			Simulation?.Invalidate();
-			Simulation = null;
-			IsEnabled = false;
-			tileCache.Dispose();
-			query = null;
-		}
-
-		GC.SuppressFinalize( this );
+		if ( disposed ) return;
+		disposed = true;
+		Clear();
 	}
 
 	internal void Reset()
 	{
-		lock ( SyncRoot )
-		{
-			Generation++;
-			Simulation?.Invalidate();
-			Simulation = null;
-			IsEnabled = false;
-			tileCache.Dispose();
-			navmeshInternal = new NavMeshGraph();
-			query = null;
-			_isInitialized = false;
-			IsLoaded = false;
-			IsGenerating = false;
-			IsDirty = false;
-			_bakedDataPath = null;
-		}
+		Clear();
+		IsLoaded = false;
+		IsGenerating = false;
+		IsDirty = false;
+		boundsKnown = false;
+		_bakedDataPath = null;
+	}
+
+	void Clear()
+	{
+		Generation++;
+		Simulation?.Invalidate();
+		Simulation = null;
+		IsEnabled = false;
+		mesh = null;
+		live = next = null;
+		bakedTiles = null;
+		queryPool.Clear();
+		ReadLinkEnds();
 	}
 
 	/// <summary>
@@ -175,39 +161,16 @@ public sealed partial class NavMesh : IDisposable
 	public float AgentMaxSlope { get; set; } = 40.0f;
 
 	// Tiling props not exposed until we are sure we want to expose them
+	private const float CellSize = 4.0f;
+	private const float CellHeight = 4.0f;
+	private const int TileSizeXYVoxels = 256;
+	private const float TileSizeXYWorldSpace = TileSizeXYVoxels * CellSize;
 
-	/// <summary>
-	/// The xz-plane cell size to use for fields. [Limit: > 0] [Units: wu] 
-	/// </summary>
-	private float CellSize = 4.0f;
-
-	/// <summary>
-	/// The y-axis cell size to use for fields. [Limit: > 0] [Units: wu]
-	/// </summary>
-	private float CellHeight = 4.0f;
-
-	/// <summary>
-	/// The width/height size of tile's on the xy-plane. [Limit: &gt;= 0] [Units: vx]
-	/// </summary>
-	private int TileSizeXYVoxels { get; set; } = 256;
-
-	private float TileSizeXYWorldSpace { get => TileSizeXYVoxels * CellSize; }
-
-	// We have TILE_BITS(28) bits for tiles and POLY_BITS(20) for poly's, so we can have 2^28 tiles and 2^20 polys
-	internal Vector2Int TileCount { get; set; } = new Vector2Int( 512, 512 ); // Sqrt( 1<< 28 ) = 16384
-
+	// How far off the mesh a path end, an agent or its target may be: sideways, and in agent heights up or down
+	internal const float SnapDistance = 256f;
+	internal const float SnapHeights = 1.51f;
 
 	internal Action OnInit;
-
-	private float TileHeightWorldSpace { get; set; } = 1048576f;
-
-	// The origin of the tile grid
-	private Vector3 TileOrigin
-	{
-		get => -0.5f * TileSizeWorldSpace.WithZ( 0 ) * new Vector3( TileCount.x, TileCount.y ) - new Vector3( 0, 0, 0.5f * TileSizeWorldSpace.z );
-	}
-
-	private Vector3 TileSizeWorldSpace { get => new Vector3( TileSizeXYWorldSpace, TileSizeXYWorldSpace, TileHeightWorldSpace ); }
 
 	/// <summary>
 	/// Set the navgiation a dirty, so it will rebuild over the next few frames.
@@ -218,67 +181,88 @@ public sealed partial class NavMesh : IDisposable
 		IsDirty = true;
 	}
 
-	private bool _isInitialized = false;
-
 	internal void Init()
 	{
 		ThreadSafe.AssertIsMainThread();
+		ObjectDisposedException.ThrowIf( disposed, this );
+		if ( live is null ) SetMesh( new Nav.NavMesh( CreateSettings(), cacheCodec ) );
+	}
 
-		lock ( SyncRoot )
+	private void SetMesh( Nav.NavMesh loaded )
+	{
+		live = new MeshWork( loaded );
+		next = null;
+		bakedTiles = null;
+		Publish();
+	}
+
+	// The first mesh brings the crowd, and with it the agents that waited for one
+	private void Publish()
+	{
+		mesh = live.Mesh;
+		queryPool.Clear();
+		if ( Simulation is not null )
 		{
-			ObjectDisposedException.ThrowIf( disposed, this );
-			if ( _isInitialized )
-			{
-				return;
-			}
-
-			var navMeshParams = new MeshParameters
-			{
-				tileHeight = TileSizeXYWorldSpace,
-				tileWidth = TileSizeXYWorldSpace,
-				maxTiles = TileCount.x * TileCount.y,
-				orig = ToNav( TileOrigin ),
-			};
-
-			navmeshInternal.Init( navMeshParams, 6 );
-
-			Simulation = new NavigationSimulation( navmeshInternal, SyncRoot, AgentRadius, AgentHeight );
-
-			query = new MeshQuery( navmeshInternal );
-
-			_isInitialized = true;
+			Simulation.SetMesh( mesh );
+			return;
 		}
 
+		Simulation = new NavigationSimulation( this, mesh );
 		OnInit?.Invoke();
 	}
 
+	// Agent settings are fixed per library mesh, so changed ones are built into a second mesh aside
+	private void Retarget()
+	{
+		var settings = CreateSettings();
+		if ( live.Mesh.Settings.Equals( settings ) ) next = null;
+		else if ( next is null || !next.Mesh.Settings.Equals( settings ) ) next = new MeshWork( new Nav.NavMesh( settings, cacheCodec ) );
+		if ( next is not null ) next.Abandoned = false;
+	}
+
+	// Clamped to what the library can build with
+	private NavSettings CreateSettings()
+	{
+		static float Clamp( float value, float min, float max ) => value >= min ? MathF.Min( value, max ) : min;
+
+		return NavSettings.Create(
+			Clamp( AgentHeight, CellHeight, 32767 * CellHeight ),
+			Clamp( AgentRadius, 0, 127 * CellSize ),
+			Clamp( AgentStepSize, 0, 32767 * CellHeight ),
+			Clamp( AgentMaxSlope, 0, 90 ),
+			CellSize, CellHeight, TileSizeXYVoxels );
+	}
+
+	// LZ4 throws without room for the worst case, where the library expects 0 for "did not fit"
+	private static readonly NavCodec cacheCodec = new( static ( source, target ) =>
+	{
+		var buffer = ArrayPool<byte>.Shared.Rent( LZ4.MaxCompressedSize( source.Length ) );
+		int written = LZ4.CompressBlock( source, buffer );
+		bool fits = written <= target.Length;
+		if ( fits ) buffer.AsSpan( 0, written ).CopyTo( target );
+		ArrayPool<byte>.Shared.Return( buffer );
+		return fits ? written : 0;
+	}, LZ4.DecompressBlock );
+
 	internal void InvalidateAllTiles( PhysicsWorld world )
 	{
-		if ( IsGenerating ) return;
+		if ( IsGenerating || live is null ) return;
 
-		if ( !CustomBounds )
+		// Settings that change every update start a mesh aside per batch of tiles, not per update
+		if ( next is not null && next.Builds.Count > 0 && !next.Mesh.Settings.Equals( CreateSettings() ) )
 		{
-			Bounds = CalculateWorldBounds( world );
+			next.Abandoned = true;
+			return;
 		}
 
-		var minMaxBounds = CalculateMinMaxTileCoords( Bounds );
-
-		// request full rebuild for every tile in bounds
-		for ( int x = minMaxBounds.Left; x <= minMaxBounds.Right; x++ )
-		{
-			for ( int y = minMaxBounds.Top; y <= minMaxBounds.Bottom; y++ )
-			{
-				var tile = tileCache.GetOrAddTile( new Vector2Int( x, y ) );
-				tile.RequestFullRebuild();
-			}
-		}
+		Retarget();
+		UpdateBounds( world );
+		MarkDirty( CalculateMinMaxTileCoords( Bounds ) );
 
 		IsDirty = false;
 	}
 
-	// In the future will handle loading from disk
-	// Right now it's the same as Generate
-	// should probably obsolete generate
+	// Scene load: the bake if there is one, then every tile of the bounds the bake does not cover
 	internal async Task<bool> Load( PhysicsWorld world )
 	{
 		if ( IsGenerating )
@@ -293,26 +277,16 @@ public sealed partial class NavMesh : IDisposable
 			IsEnabled = true;
 			IsGenerating = true;
 
-			Init();
+			await LoadFromBake();
+			if ( generation != Generation || disposed ) return false;
 
-			if ( !DeferGeneration )
-			{
-				await LoadFromBake();
-				if ( generation != Generation || disposed ) return false;
+			Retarget();
+			UpdateBounds( world );
 
-				if ( !CustomBounds ) Bounds = CalculateWorldBounds( world );
-
-				await GenerateTiles( world, Bounds );
-			}
-			else
-			{
-				if ( !string.IsNullOrEmpty( _bakedDataPath ) )
-				{
-					Log.Warning( "NavMesh: Baked data is ignored when DeferGeneration is enabled" );
-				}
-
-				if ( !CustomBounds ) Bounds = CalculateWorldBounds( world );
-			}
+			// Tiles the bake covers are finished, the ones it left empty on purpose included
+			var waiting = new List<(int X, int Y)>();
+			if ( !DeferGeneration ) MarkDirty( CalculateMinMaxTileCoords( Bounds ), waiting, bakedTiles, world );
+			await BuildTiles( world, waiting );
 		}
 		finally
 		{
@@ -327,6 +301,10 @@ public sealed partial class NavMesh : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	/// Builds every tile in the bounds from the geometry of the world. False when a tile failed to build
+	/// or the navmesh is already generating.
+	/// </summary>
 	public async Task<bool> Generate( PhysicsWorld world )
 	{
 		if ( IsGenerating )
@@ -336,16 +314,19 @@ public sealed partial class NavMesh : IDisposable
 		}
 
 		long generation = Generation;
+		int failed = failedBuilds;
 		try
 		{
 			IsEnabled = true;
 			IsGenerating = true;
 
-			Init();
+			Retarget();
+			bakedTiles = null;
+			UpdateBounds( world );
 
-			if ( !CustomBounds ) Bounds = CalculateWorldBounds( world );
-
-			await GenerateTiles( world, Bounds );
+			var waiting = new List<(int X, int Y)>();
+			MarkDirty( CalculateMinMaxTileCoords( Bounds ), waiting, world: world );
+			await BuildTiles( world, waiting );
 		}
 		finally
 		{
@@ -357,7 +338,16 @@ public sealed partial class NavMesh : IDisposable
 			}
 		}
 
-		return true;
+		return failedBuilds == failed;
+	}
+
+	// Calls that take a box clamp to Bounds once those are custom or have been computed
+	private bool boundsKnown;
+
+	void UpdateBounds( PhysicsWorld world )
+	{
+		if ( !CustomBounds ) Bounds = CalculateWorldBounds( world );
+		boundsKnown = true;
 	}
 
 	private BBox CalculateWorldBounds( PhysicsWorld world )
@@ -371,18 +361,11 @@ public sealed partial class NavMesh : IDisposable
 				continue;
 			}
 
-
-			result = result == null ? body.GetBounds() : result?.AddBBox( body.GetBounds() );
+			result = result == null ? body.GetBounds() : result.Value.AddBBox( body.GetBounds() );
 		}
 
-		if ( result != null )
-		{
-			result?.Grow( CellSize * 2.0f ); // Grow the bounds a bit to make sure we don't have any precission issues with the edges
-
-			return (BBox)result;
-		}
-
-		return new BBox( Vector3.Zero, Vector3.Zero );
+		// Grow the bounds a bit to make sure we don't have any precission issues with the edges
+		return result?.Grow( CellSize * 2.0f ) ?? new BBox( Vector3.Zero, Vector3.Zero );
 	}
 
 	internal bool IsBodyRelevantForNavmesh( PhysicsBody body )
@@ -404,103 +387,6 @@ public sealed partial class NavMesh : IDisposable
 		return true;
 	}
 
-	internal int GetPolyCount( Vector2Int tilePosition )
-	{
-		var tile = navmeshInternal.GetTileAt( tilePosition.x, tilePosition.y, 0 );
-		if ( tile == null || tile.data.header == null )
-		{
-			return default;
-		}
-
-		return tile == null ? 0 : tile.data.header.polyCount;
-	}
-
-	internal Poly GetPoly( Vector2Int tilePosition, int index )
-	{
-		var tile = navmeshInternal.GetTileAt( tilePosition.x, tilePosition.y, 0 );
-		if ( tile == null || tile.data.header == null || index >= tile.data.header.polyCount )
-		{
-			return default;
-		}
-
-		return tile.data.polys[index];
-	}
-
-	internal int GetPolyVertCount( Vector2Int tilePosition, int index )
-	{
-		var tile = navmeshInternal.GetTileAt( tilePosition.x, tilePosition.y, 0 );
-		if ( tile == null || tile.data.header == null || index >= tile.data.header.polyCount )
-		{
-			return default;
-		}
-
-		return tile.data.header.vertCount;
-	}
-
-	internal IEnumerable<Vector3> GetPolyVerts( Vector2Int tilePosition, int polyIndex )
-	{
-		var tile = navmeshInternal.GetTileAt( tilePosition.x, tilePosition.y, 0 );
-		if ( tile == null || tile.data.header == null || polyIndex >= tile.data.header.polyCount )
-		{
-			return [];
-		}
-		var poly = tile.data.polys[polyIndex];
-
-		var vertices = new Vector3[poly.vertCount];
-		for ( int i = 0; i < vertices.Length; i++ ) vertices[i] = FromNav( tile.data.verts[poly.verts[i]] );
-		return vertices;
-	}
-
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	internal static Vector3 FromNav( Vector3 v )
-	{
-		return new Vector3( v.x, v.z, v.y );
-	}
-
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	internal static Vector3 ToNav( Vector3 v )
-	{
-		return new Vector3( v.x, v.z, v.y );
-	}
-
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	internal static BBox ToNav( BBox b )
-	{
-		return new BBox( ToNav( b.Mins ), ToNav( b.Maxs ) );
-	}
-
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	internal static Sphere ToNav( Sphere s )
-	{
-		return new Sphere( ToNav( s.Center ), s.Radius );
-	}
-
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	internal static Capsule ToNav( Capsule c )
-	{
-		return new Capsule( ToNav( c.CenterA ), ToNav( c.CenterB ), c.Radius );
-	}
-
-	// Quaternion/Rotation conversion between world space and nav space.
-	// Mapping chosen to match existing position (Vector3) axis swizzle (Y<->Z) plus handedness adjustments:
-	// World (x, y, z, w) -> Nav ( -x, -z,  y, w )
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	internal static Rotation ToNav( Rotation r )
-	{
-		return new Rotation( -r.x, -r.z, -r.y, r.w );
-	}
-
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	internal static Transform ToNav( in Transform t )
-	{
-		return new Transform(
-			ToNav( t.Position ),
-			ToNav( t.Rotation ),
-			ToNav( t.Scale )
-		);
-	}
-
-
 	/// <summary>
 	/// Implement this interface to receive navmesh editor events.
 	/// </summary>
@@ -510,33 +396,5 @@ public sealed partial class NavMesh : IDisposable
 		/// Called when an area definition has changed or loaded/created.
 		/// </summary>
 		void OnAreaDefinitionChanged() { }
-	}
-
-
-	private NavMeshTileCache tileCache = new();
-
-	internal void AddSpatiaData( NavMeshSpatialAuxiliaryData data )
-	{
-		tileCache.AddSpatiaData( data );
-	}
-
-	internal void UpdateCache( PhysicsWorld physicsWorld )
-	{
-		tileCache.Update( this, physicsWorld );
-	}
-
-	internal int AreaDefinitionToId( NavMeshAreaDefinition areaDefinition )
-	{
-		return tileCache.AreaDefinitionToId( areaDefinition );
-	}
-
-	internal NavMeshAreaDefinition AreaIdToDefinition( int id )
-	{
-		return tileCache.AreaIdToDefinition( id );
-	}
-
-	internal void UpdateAreaIds()
-	{
-		tileCache.UpdateAreaIds();
 	}
 }

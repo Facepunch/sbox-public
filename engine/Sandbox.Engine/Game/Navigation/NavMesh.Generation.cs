@@ -1,70 +1,51 @@
-using Sandbox.Navigation.Pathfinding;
-using Sandbox.Navigation.Generation;
+using Nav;
+using System.Buffers;
 using System.Collections.Concurrent;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using NVector3 = System.Numerics.Vector3;
 
 namespace Sandbox.Navigation;
 
 public sealed partial class NavMesh
 {
-	internal static int HeightFieldGenerationThreadCount
+	private readonly record struct TileBuild( TileJob Job, Task Task, NVector3[] Vertices, int[] Indices );
+
+	// A library mesh with the areas and links it was given, by component, and its builds under way
+	private sealed class MeshWork( Nav.NavMesh mesh )
 	{
-		get
-		{
-			return Math.Max( 2, Environment.ProcessorCount - 1 );
-		}
+		public readonly Nav.NavMesh Mesh = mesh;
+		public readonly Dictionary<NavMeshArea, (int Id, NavVolume Volume)> Areas = new();
+		public readonly Dictionary<NavMeshLink, (int Id, NavLink Link)> Links = new();
+		public NavMeshLink[] LinkComponents = [];
+		public readonly List<TileBuild> Builds = new();
+
+		// The world an awaited call named for a tile, until that tile is given its geometry
+		public readonly Dictionary<(int X, int Y), PhysicsWorld> Worlds = new();
+
+		// For a mesh built aside: the tiles marked before its first update, less the ones built since
+		public readonly HashSet<(int X, int Y)> FirstPass = new();
+		public bool Started;
+
+		// Its settings changed again: it takes no more tiles and never takes over
+		public bool Abandoned;
 	}
 
-	internal static int NavMeshGenerationThreadCount
-	{
-		get => HeightFieldGenerationThreadCount;
-	}
+	// The mesh in use, and the one being built aside. Tile calls go to the second while there is one.
+	private MeshWork live, next;
 
-	internal class GeneratorPool<T> : IDisposable where T : class, IDisposable, new()
-	{
-		public GeneratorPool( int poolSize )
-		{
-			for ( int i = 0; i < poolSize; i++ )
-			{
-				var generator = new T();
-				_pool.Enqueue( generator );
-			}
-		}
+	private MeshWork Target => next ?? live;
 
-		public T Get()
-		{
-			if ( _pool.TryDequeue( out var o ) )
-				return o;
+	private readonly TileJob[] jobs = new TileJob[MaxBuilds];
+	private int failedBuilds;
 
-			return new T();
-		}
+	private static readonly ConcurrentQueue<NavBuilder> builders = new();
 
-		public void Return( T obj )
-		{
-			_pool.Enqueue( obj );
-		}
-
-		ConcurrentQueue<T> _pool = new();
-
-		public void Dispose()
-		{
-			while ( _pool.TryDequeue( out var o ) )
-			{
-				o.Dispose();
-			}
-		}
-	}
-
-	static internal GeneratorPool<HeightFieldGenerator> HeightFieldGeneratorPool = new( HeightFieldGenerationThreadCount );
-	static internal GeneratorPool<NavMeshGenerator> NavMeshGeneratorPool = new( NavMeshGenerationThreadCount );
+	private static int MaxBuilds => Math.Max( 2, Environment.ProcessorCount - 1 );
 
 	/// <summary>
 	/// Generates or regenerates the navmesh tile at the given world position.
 	/// This function is thread safe but can only be called from the main thread.
 	/// </summary>
-	/// 
+	///
 	/// <remarks>
 	/// While most of the generation happens in parallel, this function also requires some time on the main thread.
 	/// If you need to update many tiles, consider spreading the updates accross multiple frames.
@@ -75,45 +56,16 @@ public sealed partial class NavMesh
 
 		if ( !IsEnabled ) return;
 
-		var tilePosition = WorldPositionToTilePosition( worldPosition );
-		var tile = tileCache.GetOrAddTile( tilePosition );
-
-		var generatorConfig = CreateTileGenerationConfig( tile.TilePosition );
-		var heightFieldGenerator = HeightFieldGeneratorPool.Get();
-		heightFieldGenerator.Init( generatorConfig );
-		heightFieldGenerator.CollectGeometry( this, world, generatorConfig.Bounds );
-
-		var data = await Task.Run( () =>
-		{
-			CompactHeightfield heightField = null;
-			try
-			{
-				heightField = heightFieldGenerator.Generate();
-
-				tile.SetCachedHeightField( heightField );
-
-				if ( heightField == null )
-				{
-					return null;
-				}
-
-				return tile.BuildNavmesh( heightField, generatorConfig, this );
-			}
-			finally
-			{
-				HeightFieldGeneratorPool.Return( heightFieldGenerator );
-				heightField?.Dispose();
-			}
-		} );
-
-		LoadTileOnMainThread( tile, data );
+		var waiting = new List<(int X, int Y)>();
+		MarkDirty( new RectInt( WorldPositionToTilePosition( worldPosition ) ), waiting, world: world );
+		await BuildTiles( world, waiting );
 	}
 
 	/// <summary>
 	/// Generates or regenerates the navmesh tiles overlapping with the given bounds.
 	/// This function is thread safe but can only be called from the main thread.
 	/// </summary>
-	/// 
+	///
 	/// <remarks>
 	/// While most of the generation happens in parallel, this function also requires some time on the main thread.
 	/// If you need to update many tiles, consider spreading the updates accross multiple frames.
@@ -124,151 +76,9 @@ public sealed partial class NavMesh
 
 		if ( !IsEnabled ) return;
 
-		var minMaxTileCoords = CalculateMinMaxTileCoords( bounds );
-
-		if ( minMaxTileCoords.Width < 0 || minMaxTileCoords.Height < 0 ) return;
-
-		var tilesToProcess = new List<NavMeshTile>( minMaxTileCoords.Width * minMaxTileCoords.Height );
-		for ( int x = minMaxTileCoords.Left; x <= minMaxTileCoords.Right; x++ )
-		{
-			for ( int y = minMaxTileCoords.Top; y <= minMaxTileCoords.Bottom; y++ )
-			{
-				tilesToProcess.Add( tileCache.GetOrAddTile( new Vector2Int( x, y ) ) );
-			}
-		}
-
-		var maxConcurrency = Math.Max( 1, HeightFieldGenerationThreadCount );
-		using var concurrencySemaphore = new SemaphoreSlim( maxConcurrency, maxConcurrency );
-
-		int tilesDone = 0;
-		await Task.WhenAll( tilesToProcess.Select( async tile =>
-		{
-			await ProcessTileAsync( tile );
-			if ( LoadingScreen.IsVisible ) LoadProgress.Report( (double)Interlocked.Increment( ref tilesDone ) / tilesToProcess.Count );
-		} ) );
-
-		async Task ProcessTileAsync( NavMeshTile tile )
-		{
-			await concurrencySemaphore.WaitAsync().ConfigureAwait( false );
-
-			HeightFieldGenerator heightFieldGenerator = null;
-			try
-			{
-				await Task.Yield();
-				await GameTask.MainThread();
-
-				var generatorConfig = CreateTileGenerationConfig( tile.TilePosition );
-				bool isBakedTile = tile.IsBakedHeightField;
-
-				// Use baked heightfield data directly if available, avoiding expensive geometry collection.
-				if ( !isBakedTile )
-				{
-					heightFieldGenerator = HeightFieldGeneratorPool.Get();
-					heightFieldGenerator.Init( generatorConfig );
-					heightFieldGenerator.CollectGeometry( this, world, generatorConfig.Bounds );
-				}
-
-				var tileMesh = await Task.Run( () =>
-				{
-					CompactHeightfield heightField;
-
-					// A baked tile with no heightfield was excluded on purpose and stays empty.
-					if ( isBakedTile )
-					{
-						heightField = tile.IsHeightFieldValid ? tile.DecompressCachedHeightField() : null;
-					}
-					else
-					{
-						heightField = heightFieldGenerator.Generate();
-						tile.SetCachedHeightField( heightField );
-					}
-
-					if ( heightField == null )
-					{
-						return null;
-					}
-
-					using ( heightField )
-					{
-						return tile.BuildNavmesh( heightField, generatorConfig, this );
-					}
-				} ).ConfigureAwait( false );
-
-				await GameTask.MainThread();
-				LoadTileOnMainThread( tile, tileMesh );
-			}
-			catch ( Exception e )
-			{
-				// Swallow per-tile exceptions to avoid cancelling whole batch;
-				Log.Warning( $"Navmesh: Exception while generating tile {tile.TilePosition.x},{tile.TilePosition.y}" );
-				Log.Warning( e );
-			}
-			finally
-			{
-				if ( heightFieldGenerator != null )
-				{
-					HeightFieldGeneratorPool.Return( heightFieldGenerator );
-				}
-
-				concurrencySemaphore.Release();
-			}
-		}
-	}
-
-	internal void LoadTileOnMainThread( NavMeshTile targetTile, MeshData data )
-	{
-		lock ( SyncRoot )
-		{
-			ThreadSafe.AssertIsMainThread();
-			if ( disposed ) return;
-
-			// Tile may have been evicted (via UnloadTile) while an async build was in flight.
-			// Don't re-add it to the navmesh if it's no longer in the cache.
-			if ( !tileCache.Contains( targetTile ) )
-				return;
-			if ( Simulation is not null ) Simulation.Revision++;
-
-			var tileRef = navmeshInternal.GetTileRefAt( targetTile.TilePosition.x, targetTile.TilePosition.y, 0 );
-
-			if ( data == null )
-			{
-				if ( tileRef != default )
-				{
-					navmeshInternal.RemoveTile( tileRef );
-				}
-				return;
-			}
-
-			if ( tileRef != default )
-			{
-				navmeshInternal.UpdateTile( data, 0 );
-			}
-			else
-			{
-				navmeshInternal.AddTile( data, 0, 0, out var _ );
-			}
-
-			targetTile.UpdateLinkStatus( this );
-
-		}
-	}
-
-	internal void UnloadTileOnMainThread( Vector2Int tilePosition )
-	{
-		lock ( SyncRoot )
-		{
-			ThreadSafe.AssertIsMainThread();
-			if ( disposed ) return;
-			if ( Simulation is not null ) Simulation.Revision++;
-
-			var tileRef = navmeshInternal.GetTileRefAt( tilePosition.x, tilePosition.y, 0 );
-
-			if ( tileRef != default )
-			{
-				navmeshInternal.RemoveTile( tileRef );
-			}
-
-		}
+		var waiting = new List<(int X, int Y)>();
+		MarkDirty( CalculateMinMaxTileCoords( bounds ), waiting, world: world );
+		await BuildTiles( world, waiting );
 	}
 
 	/// <summary>
@@ -280,9 +90,9 @@ public sealed partial class NavMesh
 
 		if ( !IsEnabled ) return;
 
-		var tilePosition = WorldPositionToTilePosition( worldPosition );
-		UnloadTileOnMainThread( tilePosition );
-		tileCache.RemoveTile( tilePosition );
+		var tiles = new RectInt( WorldPositionToTilePosition( worldPosition ) );
+		Unload( live, tiles );
+		if ( next is not null ) Unload( next, tiles );
 	}
 
 	/// <summary>
@@ -294,17 +104,23 @@ public sealed partial class NavMesh
 
 		if ( !IsEnabled ) return;
 
-		var minMaxTileCoords = CalculateMinMaxTileCoords( bounds );
+		var tiles = CalculateMinMaxTileCoords( bounds );
+		Unload( live, tiles );
+		if ( next is not null ) Unload( next, tiles );
+	}
 
-		for ( int x = minMaxTileCoords.Left; x <= minMaxTileCoords.Right; x++ )
+	private static void Unload( MeshWork work, RectInt tiles )
+	{
+		for ( int x = tiles.Left; x <= tiles.Right; x++ )
 		{
-			for ( int y = minMaxTileCoords.Top; y <= minMaxTileCoords.Bottom; y++ )
+			for ( int y = tiles.Top; y <= tiles.Bottom; y++ )
 			{
-				var tilePosition = new Vector2Int( x, y );
-				UnloadTileOnMainThread( tilePosition );
-				tileCache.RemoveTile( tilePosition );
+				work.Mesh.RemoveTile( x, y );
+				work.FirstPass.Remove( (x, y) );
+				work.Worlds.Remove( (x, y) );
 			}
 		}
+		work.Mesh.Commit();
 	}
 
 	/// <summary>
@@ -317,9 +133,7 @@ public sealed partial class NavMesh
 
 		if ( !IsEnabled ) return;
 
-		var tilePosition = WorldPositionToTilePosition( worldPosition );
-		var tile = tileCache.GetOrAddTile( tilePosition );
-		tile.RequestFullRebuild();
+		MarkDirty( new RectInt( WorldPositionToTilePosition( worldPosition ) ) );
 	}
 
 	/// <summary>
@@ -332,68 +146,179 @@ public sealed partial class NavMesh
 
 		if ( !IsEnabled ) return;
 
-		var minMaxTileCoords = CalculateMinMaxTileCoords( bounds );
-
-		for ( int x = minMaxTileCoords.Left; x <= minMaxTileCoords.Right; x++ )
-		{
-			for ( int y = minMaxTileCoords.Top; y <= minMaxTileCoords.Bottom; y++ )
-			{
-				var tile = tileCache.GetOrAddTile( new Vector2Int( x, y ) );
-				tile.RequestFullRebuild();
-			}
-		}
+		MarkDirty( CalculateMinMaxTileCoords( bounds ) );
 	}
 
 	internal Vector2Int WorldPositionToTilePosition( Vector3 worldPosition )
 	{
-		var tileLocationFloat = (worldPosition - TileOrigin) / TileSizeWorldSpace;
-		return new Vector2Int( (int)tileLocationFloat.x, (int)tileLocationFloat.y );
+		return new Vector2Int( (int)MathF.Floor( worldPosition.x / TileSizeXYWorldSpace ), (int)MathF.Floor( worldPosition.y / TileSizeXYWorldSpace ) );
 	}
 
 	internal Vector3 TilePositionToWorldPosition( Vector2Int tilePosition )
 	{
-		return TileOrigin + new Vector3( tilePosition.x, tilePosition.y, 0 ) * TileSizeWorldSpace + TileSizeWorldSpace * 0.5f;
+		return new Vector3( (tilePosition.x + 0.5f) * TileSizeXYWorldSpace, (tilePosition.y + 0.5f) * TileSizeXYWorldSpace, 0 );
 	}
+
+	// Limits a box while there are no bounds: 512 tiles each way
+	private static readonly BBox worldLimit = BBox.FromPositionAndSize( 0, 512 * TileSizeXYWorldSpace - CellSize );
 
 	internal RectInt CalculateMinMaxTileCoords( BBox bounds )
 	{
-		var clampedMins = Vector3.Max( bounds.Mins, Bounds.Mins );
-		var clampedMaxs = Vector3.Min( bounds.Maxs, Bounds.Maxs );
-
-		var coordMin = WorldPositionToTilePosition( clampedMins );
-		var coordMax = WorldPositionToTilePosition( clampedMaxs );
+		var limit = CustomBounds || boundsKnown ? Bounds : worldLimit;
+		var coordMin = WorldPositionToTilePosition( Vector3.Max( bounds.Mins, limit.Mins ) );
+		var coordMax = WorldPositionToTilePosition( Vector3.Min( bounds.Maxs, limit.Maxs ) );
 
 		return new RectInt( coordMin, coordMax - coordMin );
 	}
 
-	internal BBox CalculateTileBounds( Vector2Int tilePosition )
+	// Rebuilds these tiles from geometry, apart from the ones a bake covers. An awaiting caller passes the list and its world.
+	private void MarkDirty( RectInt tiles, List<(int X, int Y)> waiting = null, RectInt? baked = null, PhysicsWorld world = null )
 	{
-		return BBox.FromPositionAndSize( TilePositionToWorldPosition( tilePosition ), TileSizeWorldSpace );
+		var work = Target;
+		for ( int x = tiles.Left; x <= tiles.Right; x++ )
+		{
+			for ( int y = tiles.Top; y <= tiles.Bottom; y++ )
+			{
+				if ( baked is RectInt done && x >= done.Left && x <= done.Right && y >= done.Top && y <= done.Bottom ) continue;
+				work.Mesh.MarkDirty( x, y );
+				waiting?.Add( (x, y) );
+				if ( world is not null ) work.Worlds[(x, y)] = world;
+				if ( !work.Started ) work.FirstPass.Add( (x, y) );
+			}
+		}
 	}
 
-	internal Config CreateTileGenerationConfig( Vector2Int tilePosition )
+	// One round of the tile flow. A mesh built aside takes over once every tile it started with has been built.
+	internal void UpdateCache( PhysicsWorld world )
 	{
-		var tileBoundsWorld = CalculateTileBounds( tilePosition );
+		ThreadSafe.AssertIsMainThread();
 
-		// When using custom bounds, clamp the per-tile Z range so geometry outside
-		// the specified vertical extent is excluded from heightfield generation.
-		if ( CustomBounds )
+		if ( live is null ) return;
+
+		CurrentCosts();
+		UpdateTiles( live, world );
+		if ( next is not null )
 		{
-			tileBoundsWorld.Mins = tileBoundsWorld.Mins.WithZ( Math.Max( tileBoundsWorld.Mins.z, Bounds.Mins.z ) );
-			tileBoundsWorld.Maxs = tileBoundsWorld.Maxs.WithZ( Math.Min( tileBoundsWorld.Maxs.z, Bounds.Maxs.z ) );
+			UpdateTiles( next, world );
+			if ( next.FirstPass.Count == 0 && !next.Abandoned )
+			{
+				live = next;
+				next = null;
+				bakedTiles = null;
+				Publish();
+			}
 		}
 
-		var cfg = Config.CreateValidatedConfig(
-			tilePosition,
-			tileBoundsWorld,
-			CellSize,
-			CellHeight,
-			AgentHeight,
-			AgentRadius,
-			AgentStepSize,
-			AgentMaxSlope
-		);
+		ReadLinkEnds();
+	}
 
-		return cfg;
+	private void UpdateTiles( MeshWork work, PhysicsWorld world )
+	{
+		work.Started = true;
+		UpdateAreas( work );
+		UpdateLinks( work );
+
+		int done = 0;
+		for ( int i = work.Builds.Count - 1; i >= 0; i-- )
+		{
+			var build = work.Builds[i];
+			if ( !build.Task.IsCompleted ) continue;
+			work.Builds.RemoveAt( i );
+			if ( build.Vertices is not null ) ArrayPool<NVector3>.Shared.Return( build.Vertices );
+			if ( build.Indices is not null ) ArrayPool<int>.Shared.Return( build.Indices );
+
+			if ( build.Task.IsFaulted )
+			{
+				// The tile goes, or it would be built forever
+				Log.Warning( build.Task.Exception, $"Navmesh: Exception while generating tile {build.Job.X},{build.Job.Y}" );
+				work.Mesh.RemoveTile( build.Job.X, build.Job.Y );
+				failedBuilds++;
+			}
+			jobs[done++] = build.Job;
+		}
+
+		// Also publishes link changes and removed tiles
+		failedBuilds += work.Mesh.Commit( jobs.AsSpan( 0, done ) );
+
+		for ( int i = 0; i < done; i++ )
+		{
+			var job = jobs[i];
+			// A job that came back asking for geometry built nothing, and its tile gets another
+			if ( job.Status != TileJobStatus.NeedsGeometry ) work.FirstPass.Remove( (job.X, job.Y) );
+			if ( job.Status == TileJobStatus.Failed ) Log.Warning( $"Navmesh: tile {job.X},{job.Y} was not built: {job.Error}" );
+		}
+
+		int taken = work.Abandoned ? 0 : work.Mesh.TakeJobs( jobs.AsSpan( 0, Math.Max( 0, MaxBuilds - work.Builds.Count ) ) );
+		for ( int i = 0; i < taken; i++ )
+		{
+			var job = jobs[i];
+			if ( CustomBounds )
+			{
+				job.MinZ = Bounds.Mins.z;
+				job.MaxZ = Bounds.Maxs.z;
+			}
+
+			NVector3[] vertices = null;
+			int[] indices = null;
+			if ( !work.Worlds.Remove( (job.X, job.Y), out var tileWorld ) ) tileWorld = world;
+			if ( job.NeedsGeometry ) CollectGeometry( tileWorld, job, out vertices, out indices );
+
+			var task = Task.Run( () =>
+			{
+				if ( !builders.TryDequeue( out var builder ) ) builder = new NavBuilder();
+				try { builder.Build( job ); }
+				finally { builders.Enqueue( builder ); }
+			} );
+			work.Builds.Add( new TileBuild( job, task, vertices, indices ) );
+		}
+		Array.Clear( jobs );
+	}
+
+	// Runs the tile flow until these tiles are built and in the mesh in use
+	private async Task BuildTiles( PhysicsWorld world, List<(int X, int Y)> waiting )
+	{
+		var work = Target;
+		int total = waiting.Count;
+		while ( work == live || work == next )
+		{
+			UpdateCache( world );
+
+			for ( int i = waiting.Count - 1; i >= 0; i-- )
+			{
+				if ( !work.Mesh.IsPending( waiting[i].X, waiting[i].Y ) ) waiting.RemoveAt( i );
+			}
+			if ( total > 0 && LoadingScreen.IsVisible ) LoadProgress.Report( (double)(total - waiting.Count) / total );
+			if ( (waiting.Count == 0 && work == live) || work.Builds.Count == 0 ) return;
+
+			await Task.WhenAny( work.Builds.Select( build => build.Task ) );
+			await GameTask.MainThread();
+		}
+	}
+
+	// For the debug draw and tests
+	private readonly List<NVector3> polyVertices = new();
+	private readonly List<int> polyVertexCounts = new();
+	private readonly List<byte> polyAreas = new();
+
+	internal int GetPolyCount( Vector2Int tilePosition )
+	{
+		ReadPolygons( tilePosition );
+		return polyVertexCounts.Count;
+	}
+
+	internal IEnumerable<Vector3> GetPolyVerts( Vector2Int tilePosition, int polyIndex )
+	{
+		ReadPolygons( tilePosition );
+		if ( polyIndex >= polyVertexCounts.Count ) return [];
+		int first = polyVertexCounts.Take( polyIndex ).Sum();
+		return polyVertices.Skip( first ).Take( polyVertexCounts[polyIndex] ).Select( vertex => (Vector3)vertex ).ToArray();
+	}
+
+	private void ReadPolygons( Vector2Int tilePosition )
+	{
+		polyVertices.Clear();
+		polyVertexCounts.Clear();
+		polyAreas.Clear();
+		mesh?.GetPolygons( tilePosition.x, tilePosition.y, polyVertices, polyVertexCounts, polyAreas );
 	}
 }
