@@ -172,7 +172,8 @@ struct LightModulators
         else if ( rect.BlendMode == 2 )
             transmission = min( transmission, 1.0f );
 
-        return lerp( 1.0f, transmission, saturate( sampleValue.a ) * coverage );
+        // Caustics can amplify modulation beyond a full blend, but cannot produce negative light.
+        return max( lerp( 1.0f, transmission, saturate( sampleValue.a ) * coverage ), 0.0f );
     }
 
     // True when this view has any rectangles to evaluate. Uniform: test it once, outside light loops.

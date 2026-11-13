@@ -78,7 +78,7 @@ public partial class ProjectPublisher
 		public static ResourceRuleCleanup CleanResourceRules( string rules )
 		{
 			var lines = (rules ?? "").Split( '\n' );
-			var parsed = lines.Select( ( line, index ) => ParseResourceRule( line, index ) ).ToArray();
+			var parsed = lines.Select( ( line, index ) => ResourceRule.Parse( line, index ) ).ToArray();
 			if ( parsed.Any( x => x?.Exclude == true ) )
 			{
 				// Earlier identical patterns are shadowed by the last one. Avoid broader coverage
@@ -129,7 +129,7 @@ public partial class ProjectPublisher
 		/// <summary>Add reviewed rules as a single edit, without rescanning existing rules for every file.</summary>
 		public static string AddResourceRules( string rules, IEnumerable<string> additions )
 		{
-			var parsed = ParseResourceRules( rules );
+			var parsed = ResourceRule.ParseAll( rules );
 			var lastByPattern = new Dictionary<string, ResourceRule>( StringComparer.OrdinalIgnoreCase );
 			foreach ( var rule in parsed ) lastByPattern[rule.Pattern] = rule;
 			var lastInclude = parsed.LastOrDefault( x => !x.Exclude )?.Index ?? -1;
@@ -138,7 +138,7 @@ public partial class ProjectPublisher
 			var added = new List<string>();
 			foreach ( var text in additions )
 			{
-				var rule = ParseResourceRule( text, index++ );
+				var rule = ResourceRule.Parse( text, index++ );
 				var rawPattern = text?.Trim();
 				if ( rawPattern?.StartsWith( '!' ) == true ) rawPattern = rawPattern[1..].TrimStart();
 				if ( rule is null || text.IndexOfAny( ['\r', '\n'] ) >= 0 || rawPattern.IndexOfAny( [':', '"'] ) >= 0

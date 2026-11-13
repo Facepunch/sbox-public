@@ -152,7 +152,21 @@ public static partial class MenuUtility
 #nullable disable
 
 	/// <summary>
-	/// Open a folder 
+	/// The text on the clipboard - null if there isn't any. The menu's alone: games don't get to read what's been copied.
+	/// </summary>
+	public static string GetClipboardText()
+	{
+		if ( !NativeEngine.Sdl.HasClipboardText() ) return null;
+
+		var ptr = NativeEngine.Sdl.GetClipboardText();
+		var text = System.Runtime.InteropServices.Marshal.PtrToStringUTF8( ptr );
+		NativeEngine.Sdl.Free( ptr );
+
+		return text;
+	}
+
+	/// <summary>
+	/// Open a folder
 	/// </summary>
 	public static void OpenFolder( string path )
 	{

@@ -222,7 +222,30 @@ public static class Directory
 
 		var result = await entry.GetOrCreate();
 		if ( entry.Type != ResourceType.GameResource || result is null )
+		{
+			if ( result is Resource mounted )
+			{
+				if ( entry.IsShutdown )
+				{
+					entry.InvalidateCachedResult( mounted );
+					Log.Warning( $"Mount shut down while loading resource '{entry.Path}'." );
+					return null;
+				}
+
+				try
+				{
+					mounted.OnMounted( entry.Path );
+				}
+				catch ( InvalidOperationException e )
+				{
+					entry.InvalidateCachedResult( mounted );
+					Log.Warning( e, $"Exception when registering mounted resource '{entry.Path}'." );
+					return null;
+				}
+			}
+
 			return result;
+		}
 
 		ThreadSafe.AssertIsMainThread();
 

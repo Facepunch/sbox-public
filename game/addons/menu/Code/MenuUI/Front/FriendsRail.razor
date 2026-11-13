@@ -9,8 +9,6 @@
 
 <root>
 
-    <LookingToPlay />
-
     @if ( !HasFriends )
     {
         @* Nobody on the list at all - say what it's for, and give them a way to fill it *@
@@ -57,7 +55,7 @@
                     var party = partyItem.Party;
 
                     @* A party you can join joins wherever you click it - the faces still open their cards *@
-                    <div class="party @(party.IsMine ? "mine" : "") @(party.Joinable is not null ? "joinable" : "")" onmousedown=@( ( e ) => { if ( party.Joinable is { } leader ) Join( e, leader ); } )>
+                    <div class="party @(party.IsMine ? "mine" : "") @(party.Joinable is not null ? "joinable" : "") @(partyItem.Offset == 0 ? "first" : "") @(partyItem.Last ? "last" : "")" onmousedown=@( ( e ) => { if ( party.Joinable is { } leader ) Join( e, leader ); } )>
                         @if ( partyItem.Art is { } partyArt )
                         {
                             <div class="game-art" style="background-image: url( @partyArt );"></div>
@@ -107,7 +105,7 @@
                 {
                     var row = friendItem.Row;
 
-                    <div class="friend @row.StatusClass" onmousedown=@( ( e ) => ShowPopup( e, row ) )>
+                    <div class="friend @row.StatusClass @(friendItem.Offset == 0 ? "first" : "") @(friendItem.Last ? "last" : "")" onmousedown=@( ( e ) => ShowPopup( e, row ) )>
                         @* The game they're in, faded in behind the row - or a blueprint if they're making one *@
                         @if ( row.InEditor )
                         {
@@ -197,6 +195,11 @@
 
     record Section( string Id, string Title, int Count, List<PartyGroup> Parties, List<FriendRow> Friends );
 
+    /// <summary>
+    /// What the friends playing this game are under - "Playing s&amp;box" unless it's said otherwise
+    /// </summary>
+    public string PlayingTitle { get; set; }
+
     //
     // What goes in the list, one after the other. Each only gets rebuilt when it stops being equal to
     // what it was - so everything a cell shows that can change lives in its item.
@@ -205,9 +208,10 @@
     record HeadItem( string Id, string Title, int Count );
 
     // Section and Offset - which section a row's in and how far down it it starts - are for the fold
-    // animation, which has to know how much of a section is showing
-    record PartyItem( PartyGroup Party, string Art, string Section, float Offset );
-    record FriendItem( FriendRow Row, string Art, string Section, float Offset );
+    // animation, which has to know how much of a section is showing. Last - the section's last row, so a
+    // section's rows can be drawn as one box (FriendsPanel rounds its first's top, at offset 0, and its last's bottom)
+    record PartyItem( PartyGroup Party, string Art, string Section, float Offset, bool Last = false );
+    record FriendItem( FriendRow Row, string Art, string Section, float Offset, bool Last = false );
 
     /// <summary>
     /// How tall each kind of item is - the list lays out from these, so they're pinned in the
@@ -367,11 +371,17 @@
             TimeSinceRefresh = RefreshInterval;
     }
 
-    void OnSearchEdited( string text )
+    /// <summary>
+    /// Narrowed down to the friends matching <paramref name="text"/> - its own search box's, or one somewhere else's
+    /// (the platform's friends panel's bar)
+    /// </summary>
+    public void SetSearch( string text )
     {
         Search = text?.Trim();
         Refresh();
     }
+
+    void OnSearchEdited( string text ) => SetSearch( text );
 
     bool Searching => !string.IsNullOrWhiteSpace( Search );
 
@@ -417,7 +427,7 @@
                 sections.Add( new Section( "parties", "#menu.friends.parties", parties.Count, parties, new() ) );
 
             if ( solo.Count > 0 )
-                sections.Add( new Section( "playing", "#menu.friends.playing_s_box", solo.Count, new(), solo ) );
+                sections.Add( new Section( "playing", PlayingTitle ?? "#menu.friends.playing_s_box", solo.Count, new(), solo ) );
         }
 
         var online = friends.Where( x => RailPresence.IsOnline( x ) && !RailPresence.IsPlayingThisGame( x ) ).OrderBy( x => x.Name ).Select( ToRow ).Where( IsSearchMatch ).ToList();
@@ -468,6 +478,13 @@
                 items.Add( new FriendItem( row, row.InEditor ? null : GameArt( row.GameIdent ), section.Id, offset ) );
                 offset += FriendHeight;
             }
+
+            items[^1] = items[^1] switch
+            {
+                PartyItem last => last with { Last = true },
+                FriendItem last => last with { Last = true },
+                var head => head,
+            };
 
             if ( toggled )
                 _toggledHeight = offset;
@@ -686,6 +703,8 @@
             return;
         }
 
+        if ( !MenuProject.Platform.PlatformMenu.CanChangeGame ) return;
+
         MenuUtility.JoinFriendGame( row.Friend );
     }
 
@@ -710,7 +729,8 @@
         var source = e.This ?? this;
         var offset = (source.Box.Rect.Left - Box.Rect.Left) * source.ScaleFromScreen + PopupGap;
 
-        FriendMenu = FriendCard.Show( source, row.Friend, Popup.PositionMode.Left, offset );
+        // Kept level with what the list's in - the platform's friends panel - not above or below it
+        FriendMenu = FriendCard.Show( source, row.Friend, Popup.PositionMode.Left, offset, Parent );
     }
 
     /// <summary>

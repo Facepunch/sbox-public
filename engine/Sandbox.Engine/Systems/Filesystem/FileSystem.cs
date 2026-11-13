@@ -5,6 +5,7 @@ namespace Sandbox;
 /// <summary>
 /// A filesystem that can be accessed by the game.
 /// </summary>
+[Expose]
 public static class FileSystem
 {
 	/// <summary>

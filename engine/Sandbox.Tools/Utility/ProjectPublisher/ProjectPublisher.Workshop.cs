@@ -315,7 +315,7 @@ public partial class ProjectPublisher
 	/// </remarks>
 	public static string[] WorkshopTagChoices( string type ) => type switch
 	{
-		"game" => ["Action", "Adventure", "Arcade", "Building", "Casual", "Competitive", "Cozy", "Exploration", "Horror", "Idle", "Party", "Physics", "Platformer", "Puzzle", "Racing", "Roguelike", "Roleplay", "Sandbox", "Shooter", "Simulation", "Social", "Sports", "Strategy", "Survival", "Tycoon"],
+		"game" => Workshop.GameTags,
 		"map" => ["Arena", "City", "Deathmatch", "Horror", "Indoor", "Large", "Liminal", "Nature", "Racing", "Remake", "Roleplay", "Sandbox", "Scenic", "Small", "Space"],
 		_ => []
 	};
@@ -368,10 +368,10 @@ public partial class ProjectPublisher
 		var from = Math.Max( recommendedMin > 0 ? recommendedMin : min, 1 );
 		var to = Math.Max( recommendedMax > 0 ? recommendedMax : max, from );
 
-		if ( from <= 1 ) tags.Add( "Singleplayer" );
-		if ( to > 1 || coop || versus ) tags.Add( "Multiplayer" );
-		if ( coop ) tags.Add( "Co-op" );
-		if ( versus ) tags.Add( "Versus" );
+		if ( from <= 1 ) tags.Add( Workshop.PlayerTags[0] );
+		if ( to > 1 || coop || versus ) tags.Add( Workshop.PlayerTags[1] );
+		if ( coop ) tags.Add( Workshop.PlayerTags[2] );
+		if ( versus ) tags.Add( Workshop.PlayerTags[3] );
 
 		return tags;
 	}
@@ -589,6 +589,13 @@ public partial class ProjectPublisher
 						if ( Project.Config.GetMetaOrDefault( key, 0 ) is > 0 and var value )
 							item.SetKeyValue( key, value.ToString() );
 					}
+
+					// Whether it has a menu of its own - the platform menu reads it before the game's downloaded, and
+					// doesn't load a game that hasn't
+					item.RemoveKeyValues( "MenuScene" );
+
+					if ( Project.Config.GetMetaOrDefault( "MenuScene", "" ) is { Length: > 0 } menuScene )
+						item.SetKeyValue( "MenuScene", menuScene );
 				}
 
 				// A new item isn't for everyone until whoever's publishing says so

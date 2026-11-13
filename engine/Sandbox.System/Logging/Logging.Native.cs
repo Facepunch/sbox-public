@@ -3,11 +3,13 @@ namespace Sandbox.Diagnostics;
 internal static partial class Logging
 {
 	static Logger nativeLogger;
-	static string nativePartial = "";
+
+	// Each thread's own: native code on several threads logs at once
+	[ThreadStatic] static string nativePartial;
 
 	internal static void PrintNative( int severity, string logger, string message )
 	{
-		nativePartial += message;
+		nativePartial = (nativePartial ?? "") + message;
 
 		var newline = nativePartial.LastIndexOf( '\n' );
 		if ( newline < 0 ) return;

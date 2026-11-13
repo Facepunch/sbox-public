@@ -126,6 +126,67 @@ public class SceneLoadSaveTest : SceneTest
 		}
 	}
 
+	sealed class MenuScenePackage : Package
+	{
+		public override T GetMeta<T>( string keyName, T defaultValue = default )
+			=> keyName == "MenuScene" ? (T)(object)"menu_is_scene.scene" : defaultValue;
+	}
+
+	sealed class MenuSceneInstance : GameInstance
+	{
+		public MenuSceneInstance() : base( "test.game", GameLoadingFlags.Host ) => _package = new MenuScenePackage();
+	}
+
+	/// <summary>
+	/// A game is on its menu while its scene is its menu scene - changing scene starts it, and changing back
+	/// returns to it. An additive load is neither.
+	/// </summary>
+	[TestMethod]
+	public void GameIsOnMenuWhileOnItsMenuScene()
+	{
+		// Arrange
+		var previousInstance = IGameInstance.Current;
+		var previousSystem = Networking.System;
+		var previousScene = Game.ActiveScene;
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		try
+		{
+			IGameInstance.Current = new MenuSceneInstance();
+			Networking.System = null;
+			Game.ActiveScene = scene;
+
+			var menu = MakeSceneFile( "menu_is_scene.scene", "Menu Object" );
+			var game = MakeSceneFile( "menu_is_scene_game.scene", "Game Object" );
+			var backdrop = MakeSceneFile( "menu_is_scene_backdrop.scene", "Backdrop" );
+
+			// Act
+			var before = Game.IsOnMenu;
+			Game.ChangeScene( MakeOptions( menu ) );
+			var onMenuScene = Game.IsOnMenu;
+			scene.Load( MakeOptions( backdrop, additive: true ) );
+			var afterAdditive = Game.IsOnMenu;
+			Game.ChangeScene( MakeOptions( game ) );
+			var afterStart = Game.IsOnMenu;
+			Game.ChangeScene( MakeOptions( menu ) );
+			var afterReturn = Game.IsOnMenu;
+
+			// Assert
+			Assert.IsFalse( before );
+			Assert.IsTrue( onMenuScene );
+			Assert.IsTrue( afterAdditive );
+			Assert.IsFalse( afterStart );
+			Assert.IsTrue( afterReturn );
+		}
+		finally
+		{
+			scene.Destroy();
+			Game.ActiveScene = previousScene;
+			IGameInstance.Current = previousInstance;
+			Networking.System = previousSystem;
+		}
+	}
+
 	/// <summary>
 	/// The Load( GameResource ) overload loads scene files and rejects any other
 	/// resource type by returning false.

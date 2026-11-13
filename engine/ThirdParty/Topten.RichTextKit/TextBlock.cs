@@ -268,6 +268,8 @@ namespace Topten.RichTextKit
 			if ( _truncated )
 				return;
 
+			_layoutVersion++;
+
 			if ( _lines.Count == 0 )
 				throw new InvalidOperationException( "Ellipsis can't be appended to a text block with no lines" );
 
@@ -336,6 +338,7 @@ namespace Topten.RichTextKit
 			if ( !force && !_needsLayout )
 				return;
 			_needsLayout = false;
+			_layoutVersion++;
 
 			// Resolve max width/height
 			_maxWidthResolved = _maxWidth ?? float.MaxValue;
@@ -463,6 +466,20 @@ namespace Topten.RichTextKit
 				return _fontRuns;
 			}
 		}
+
+		/// <summary>
+		/// Changes whenever the lines, font runs or glyph positions do, so whatever is built from them can be cached
+		/// </summary>
+		public int LayoutVersion
+		{
+			get
+			{
+				Layout();
+				return _layoutVersion;
+			}
+		}
+
+		int _layoutVersion;
 
 		/// <summary>
 		/// Get all the lines for this text block

@@ -18,5 +18,8 @@ public enum ResourceType
 	/// Should return a PrefabFile
 	/// </summary>
 	PrefabFile,
-	GameResource
+	GameResource,
+	AnimationGraph,
+	AnimationSkeleton,
+	AnimationClip
 }

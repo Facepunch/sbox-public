@@ -7,6 +7,7 @@ public partial class Material
 {
 	internal override void OnReloaded()
 	{
+		_shaderName = null;
 		Attributes.Set( native.GetRenderAttributes() );
 	}
 

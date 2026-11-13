@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/shorts/football_shorts/football_shorts.clothing.png",
+    "Path": "models/citizen_clothes/shorts/football_shorts/football_shorts.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "100,0,-17"

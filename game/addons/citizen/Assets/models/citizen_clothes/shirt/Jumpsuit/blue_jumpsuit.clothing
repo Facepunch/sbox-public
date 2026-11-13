@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/shirt/jumpsuit/blue_jumpsuit.clothing.png",
+    "Path": "models/citizen_clothes/shirt/jumpsuit/blue_jumpsuit.clothing.vtex",
     "Mode": "Generic",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

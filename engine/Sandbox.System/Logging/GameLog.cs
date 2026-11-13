@@ -49,6 +49,8 @@ namespace Sandbox
 				Diagnostics.Logging.OnException?.Invoke( logEvent.Exception );
 			}
 
+			Diagnostics.Logging.Capture?.Invoke()?.AppendLine( logEvent.FormattedMessage );
+
 			if ( Diagnostics.Logging.PrintToConsole )
 			{
 				var now = DateTime.Now;

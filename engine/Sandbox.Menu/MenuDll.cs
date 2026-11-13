@@ -25,8 +25,6 @@ internal sealed class MenuDll : IMenuDll
 	private PackageLoader.Enroller Enroller { get; set; }
 	private Task AccountUpdateTask { get; set; }
 
-	public Scene Scene => MenuScene.Scene;
-
 	/// <summary>
 	/// Runs menu async tasks, so they execute in the same context as the menu.
 	/// </summary>
@@ -57,12 +55,13 @@ internal sealed class MenuDll : IMenuDll
 		//
 		GlobalContext.Current.FileMount = new AggregateFileSystem();
 		{
-			// No menu or citizen addon in standalone
+			// Built-in addons aren't mounted in standalone games.
 			if ( !Application.IsStandalone )
 			{
 				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/menu/Code/" );
 				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/menu/Assets/" );
 				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/citizen/Assets/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/content/Assets/" );
 			}
 
 			FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/core/" );
@@ -84,7 +83,7 @@ internal sealed class MenuDll : IMenuDll
 		// Give the GAM an early init, because we might want to load an assembly before
 		// it's actually initialized properly
 		//
-		Loader = new PackageLoader( "Menu", GetType().Assembly, disableAccessControl: true );
+		Loader = new PackageLoader( "Menu", GetType().Assembly );
 		Loader.HotloadWatch( Game.GameAssembly ); // Sandbox.Game is per instance
 		Loader.OnAfterHotload = () =>
 		{
@@ -171,9 +170,6 @@ internal sealed class MenuDll : IMenuDll
 		if ( !string.IsNullOrWhiteSpace( AccountInformation.AvatarJson ) )
 			Avatar.AvatarJson = AccountInformation.AvatarJson;
 
-		if ( !Application.IsEditor )
-			SetupMenuScene();
-
 		IMenuSystem.Current = GlobalContext.Menu.TypeLibrary.Create<IMenuSystem>( "MenuSystem", true );
 
 		if ( IMenuSystem.Current == null )
@@ -205,10 +201,6 @@ internal sealed class MenuDll : IMenuDll
 			// Save and dispose cookies
 			Game.Cookies?.Save();
 			Game.Cookies = null;
-
-			// Cleanup scene
-			MenuScene.Scene?.Destroy();
-			MenuScene.Scene = null;
 
 			// Dispose package loader and enroller
 			Enroller?.Dispose();
@@ -277,12 +269,6 @@ internal sealed class MenuDll : IMenuDll
 		startDeferredResources = () => ResourceLoader.LoadAllGameResourceAsync( fileSystem, preEnumeratedFiles: files, includeExtension: IsDeferredResource );
 	}
 
-	private void SetupMenuScene()
-	{
-		var package = PackageManager.Find( "local.menu" ).Package;
-		MenuScene.Startup( package.GetMeta<string>( "StartupScene" ) );
-	}
-
 	/// <summary>
 	/// A message has come in from the web pubsub protbuf stuff
 	/// </summary>
@@ -294,21 +280,21 @@ internal sealed class MenuDll : IMenuDll
 
 	public IDisposable PushScope() => EnterScope();
 
-	MenuScope EnterScope() => new( GlobalContext.Menu, MenuScene.Scene );
+	MenuScope EnterScope() => new( GlobalContext.Menu );
 
 	/// <summary>
-	/// The menu context and scene, entered together without allocating. Use with <c>using var</c>;
-	/// <see cref="PushScope"/> boxes one.
+	/// The menu context, with no active scene - the menu has none of its own. Entered without allocating; use with
+	/// <c>using var</c>. <see cref="PushScope"/> boxes one.
 	/// </summary>
 	struct MenuScope : IDisposable
 	{
 		GlobalContext.GlobalContextScope _context;
 		ScenePushScope _scene;
 
-		public MenuScope( GlobalContext context, Scene scene )
+		public MenuScope( GlobalContext context )
 		{
 			_context = new GlobalContext.GlobalContextScope( context );
-			_scene = new ScenePushScope( scene );
+			_scene = new ScenePushScope( null );
 		}
 
 		public void Dispose()
@@ -321,11 +307,6 @@ internal sealed class MenuDll : IMenuDll
 
 	public void Tick()
 	{
-		if ( MenuScene.Scene is { } menuScene )
-		{
-			menuScene.IsSuspended = !Game.IsMainMenuVisible;
-		}
-
 		using var _ = EnterScope();
 
 		if ( startDeferredResources is { } startDeferred && Application.FrameCount > 120 )
@@ -350,15 +331,6 @@ internal sealed class MenuDll : IMenuDll
 		catch ( System.Exception e )
 		{
 			Log.Error( e, "Error in PackageLoader tick" );
-		}
-
-		try
-		{
-			MenuScene.Tick();
-		}
-		catch ( System.Exception e )
-		{
-			Log.Error( e, "Error in MenuScene tick" );
 		}
 
 		MenuUtility.Tick?.Invoke();
@@ -394,11 +366,8 @@ internal sealed class MenuDll : IMenuDll
 	{
 		using var _ = EnterScope();
 
-		using ( new ScenePushScope( MenuScene.Scene ) )
-		{
-			Game.Language.Tick();
-			GlobalContext.Current.UISystem.Simulate( true );
-		}
+		Game.Language.Tick();
+		GlobalContext.Current.UISystem.Simulate( true );
 	}
 
 	public void ClosePopups( object panelClickedOn )
@@ -410,6 +379,16 @@ internal sealed class MenuDll : IMenuDll
 	[MenuConCmd( "menu_reload", ConVarFlags.Protected )]
 	public static void Recreate()
 	{
+		(IMenuDll.Current as MenuDll)?.Restart();
+	}
+
+	/// <summary>
+	/// Shut the menu system down and start it again
+	/// </summary>
+	void Restart()
+	{
+		using var _ = EnterScope();
+
 		IMenuSystem.Current?.Shutdown();
 		IMenuSystem.Current?.Init();
 	}
@@ -451,7 +430,6 @@ internal sealed class MenuDll : IMenuDll
 	{
 		using var _ = EnterScope();
 
-		MenuScene.Render( swapChain );
 		CCameraRenderer.RenderOverlay( swapChain );
 	}
 

@@ -26,6 +26,20 @@ internal partial class SoundData
 	/// </summary>
 	public int LoopEnd { get; private set; }
 
+	/// <summary>Extracts one authored channel without mixing near/far or directional encodings together.</summary>
+	internal void SelectChannel( int channel )
+	{
+		if ( channel < 0 || channel >= Channels ) throw new ArgumentOutOfRangeException( nameof( channel ) );
+		if ( Channels == 1 ) return;
+		var bytes = BitsPerSample / 8;
+		if ( bytes < 1 || BitsPerSample % 8 != 0 ) throw new InvalidOperationException( "Sound must be decoded PCM." );
+		var output = new byte[checked((int)SampleCount * bytes)];
+		for ( var frame = 0; frame < SampleCount; frame++ )
+			PCMData.AsSpan( checked((frame * Channels + channel) * bytes), bytes ).CopyTo( output.AsSpan( frame * bytes, bytes ) );
+		PCMData = output;
+		Channels = 1;
+	}
+
 	public static SoundData FromWav( Span<byte> data )
 	{
 		using var stream = new MemoryStream( data.ToArray() );

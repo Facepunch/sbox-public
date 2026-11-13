@@ -5,12 +5,12 @@
 
 @namespace MenuProject.Modals.MapSelect
 
-@* One of a mounted game's maps to pick - dressed like the menu's package tiles (the Workshop's maps are
-   those, real ones): the picture is the tile, its name over the foot on a scrim *@
+@* A map to pick - one of a mounted game's, or the Workshop's by its picture's url - dressed like the menu's
+   package tiles: the picture is the tile, its name over the foot on a scrim *@
 <root>
-	<div class="image" @ref=ThumbnailPanel>
+	<div class="image" @ref=ThumbnailPanel style="@MenuHelpers.BackgroundImage( Thumb )">
 
-		@if ( !Thumbnail.IsValid() )
+		@if ( !Thumbnail.IsValid() && string.IsNullOrEmpty( Thumb ) )
 		{
 			<i class="none">no_photography</i>
 		}
@@ -29,8 +29,20 @@
 	[Parameter]
 	public Texture Thumbnail { get; set; }
 
+	/// <summary>
+	/// Its picture's url, when it hasn't a texture
+	/// </summary>
+	[Parameter]
+	public string Thumb { get; set; }
+
 	[Parameter]
 	public Action OnSelect { get; set; }
+
+	/// <summary>
+	/// Its page - on right-click, beside picking it. A mounted map has none.
+	/// </summary>
+	[Parameter]
+	public Action OnView { get; set; }
 
 	Panel ThumbnailPanel = null;
 
@@ -48,5 +60,15 @@
 	{
 		base.OnClick(e);
 		OnSelect?.Invoke();
+	}
+
+	protected override void OnRightClick( MousePanelEvent e )
+	{
+		base.OnRightClick( e );
+		if ( OnView is null ) return;
+
+		var menu = MenuProject.UI.MenuPanel.Open( this );
+		menu.AddOption( "check", "Select map", () => OnSelect?.Invoke() );
+		menu.AddOption( "info", "View map", OnView );
 	}
 }

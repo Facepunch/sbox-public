@@ -1,4 +1,4 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 using System.Diagnostics;
 using System.Threading;
 
@@ -9,7 +9,7 @@ internal static class ResourceLoader
 	// Native resource extensions (with _c suffix) not covered by AssetTypeAttribute.
 	private static readonly HashSet<string> NativeExtensions = new( StringComparer.OrdinalIgnoreCase )
 	{
-		".vmat_c", ".vmdl_c", ".vtex_c", ".shader_c", ".vanmgrph_c", ".ag_c"
+		".vmat_c", ".vmdl_c", ".vtex_c", ".shader_c", ".vanmgrph_c", ".ag_c", ".anim_c", ".skel_c"
 	};
 
 	/// Registers resource paths into PathIndex without loading them, for any file whose
@@ -30,7 +30,7 @@ internal static class ResourceLoader
 	{
 		var sw = Stopwatch.StartNew();
 		var types = GlobalContext.Current.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
-			.ToDictionary( x => $".{x.Extension}_c", x => x, StringComparer.OrdinalIgnoreCase );
+			.ToDictionary( x => x.RuntimeExtension, x => x, StringComparer.OrdinalIgnoreCase );
 
 		var allFiles = fileSystem.FindFile( "/", "*", true ).ToArray();
 
@@ -39,6 +39,7 @@ internal static class ResourceLoader
 		allExtensions.UnionWith( NativeExtensions );
 
 		RegisterPaths( allFiles, allExtensions );
+		LoadUncompiledResources( fileSystem, allFiles, types, reloadExisting: reloadExisting );
 
 		var allResources = new List<GameResource>();
 
@@ -48,6 +49,8 @@ internal static class ResourceLoader
 
 			if ( !types.TryGetValue( extension, out var type ) )
 				continue;
+			if ( type.IsUncompiled )
+				continue;
 
 			// Skip resources that are already fully loaded - this allows calling this method
 			// multiple times (e.g. once per package) without redundant work.
@@ -56,7 +59,7 @@ internal static class ResourceLoader
 
 			try
 			{
-				var se = Game.Resources.LoadGameResource( type, file, fileSystem, true, sourcePackage );
+				var se = Game.Resources.LoadGameResource( type, file, fileSystem, true, sourcePackage, knownToExist: true );
 				if ( se != null ) allResources.Add( se );
 			}
 			catch ( Exception ex )
@@ -88,7 +91,7 @@ internal static class ResourceLoader
 	{
 		var sw = Stopwatch.StartNew();
 		var types = GlobalContext.Current.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
-			.ToDictionary( x => $".{x.Extension}_c", x => x, StringComparer.OrdinalIgnoreCase );
+			.ToDictionary( x => x.RuntimeExtension, x => x, StringComparer.OrdinalIgnoreCase );
 
 		var allExtensions = new HashSet<string>( types.Keys, StringComparer.OrdinalIgnoreCase );
 		allExtensions.UnionWith( NativeExtensions );
@@ -104,6 +107,8 @@ internal static class ResourceLoader
 			if ( sw.ElapsedMilliseconds > 8 ) { LoadingScreen.Subtitle = System.IO.Path.GetFileName( file ); await Task.Yield(); sw.Restart(); }
 		}
 
+		LoadUncompiledResources( fileSystem, allFiles, types, ct, includeExtension, reloadExisting );
+
 		var allResources = new List<GameResource>();
 
 		for ( int i = 0; i < allFiles.Count; i++ )
@@ -113,6 +118,7 @@ internal static class ResourceLoader
 			LoadProgress.Report( (double)i / allFiles.Count );
 			var extension = System.IO.Path.GetExtension( file );
 			if ( !types.TryGetValue( extension, out var type ) ) continue;
+			if ( type.IsUncompiled ) continue;
 			if ( includeExtension is not null && !includeExtension( extension ) ) continue;
 
 			// Skip resources that are already fully loaded - this allows calling this method
@@ -146,8 +152,93 @@ internal static class ResourceLoader
 			AddWatcherForType( type.Value );
 	}
 
+	/// <summary>
+	/// Loads source assets before compiled resources, allowing their declarations to participate in deserialization.
+	/// Scripts publish together and execute in path order before other source assets; ordinary resource loads only read their source.
+	/// </summary>
+	private static void LoadUncompiledResources( BaseFileSystem fileSystem, IEnumerable<string> files,
+		IReadOnlyDictionary<string, AssetTypeAttribute> types, CancellationToken cancellationToken = default,
+		Func<string, bool> includeExtension = null, bool reloadExisting = false )
+	{
+		var scripts = new Dictionary<string, string>( StringComparer.Ordinal );
+		var remaining = new List<(AssetTypeAttribute Type, string Path)>();
+		foreach ( var path in files.OrderBy( path => path.EndsWith( ".csx", StringComparison.OrdinalIgnoreCase ) ? 0 : 1 )
+			.ThenBy( path => path, StringComparer.OrdinalIgnoreCase ) )
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			var extension = System.IO.Path.GetExtension( path );
+			if ( !types.TryGetValue( extension, out var type ) || !type.IsUncompiled )
+				continue;
+			if ( includeExtension is not null && !includeExtension( extension ) )
+				continue;
 
-	static Dictionary<string, FileWatch> Watchers = new();
+			if ( type.TargetType == typeof( ScriptResource ) )
+			{
+				// The menu never loads scripts. Clients get their scripts from the host's table.
+				if ( GlobalContext.Current == GlobalContext.Menu || GlobalContext.Current.ReceivesNetworkScripts )
+				{
+					continue;
+				}
+
+				if ( LoadUncompiledResource( type, path, fileSystem, true ) is ScriptResource script )
+				{
+					scripts[script.ResourcePath] = script.Source;
+				}
+			}
+			else
+			{
+				remaining.Add( (type, path) );
+			}
+		}
+
+		cancellationToken.ThrowIfCancellationRequested();
+		LoadScriptResources( scripts );
+		foreach ( var (type, path) in remaining )
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			LoadUncompiledResource( type, path, fileSystem, reloadExisting );
+		}
+	}
+
+	/// <summary>
+	/// Reads uncompiled resource source, isolating I/O failures before a script batch is prepared.
+	/// </summary>
+	private static Resource LoadUncompiledResource( AssetTypeAttribute type, string path, BaseFileSystem fileSystem, bool reloadExisting )
+	{
+		try
+		{
+			return Game.Resources.LoadUncompiledResource( type, path, fileSystem,
+				reloadExisting || type.TargetType == typeof( ScriptResource ) );
+		}
+		catch ( Exception exception )
+		{
+			Log.Warning( exception, $"Exception when trying to load {path}" );
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// Keeps script context failures from stopping unrelated resource loading. Empty scans do not create a scripting context.
+	/// </summary>
+	private static void LoadScriptResources( IReadOnlyDictionary<string, string> scripts, IReadOnlyCollection<string> removed = null )
+	{
+		if ( scripts.Count == 0 && (removed is null || removed.Count == 0) )
+		{
+			return;
+		}
+		try
+		{
+			Game.Scripting.LoadResourceFiles( scripts, removed );
+		}
+		catch ( Exception exception )
+		{
+			Log.Warning( exception, "Exception when publishing script resources" );
+		}
+	}
+
+	// Watchers belong to the mounted filesystem, not just the asset type. Game and menu contexts
+	// can have different mounts, and a disposed mount must not prevent a new context from watching.
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<BaseFileSystem, Dictionary<(GlobalContext Context, string Type), WatcherSubscription>> Watchers = new();
 
 	static void AddWatcherForType( AssetTypeAttribute type )
 	{
@@ -155,18 +246,67 @@ internal static class ResourceLoader
 			return;
 
 		// Watcher already set up for this type - no need to allocate another one.
-		if ( Watchers.ContainsKey( type.TargetType.AssemblyQualifiedName ) )
+		var context = GlobalContext.Current;
+		if ( context == GlobalContext.Menu && type.TargetType == typeof( ScriptResource ) )
 			return;
 
-		var watcher = EngineFileSystem.Mounted.Watch( $"*.{type.Extension}_c" );
-		watcher.OnChanges += ( w ) => OnAssetFilesChanged( w, type );
+		var fileSystem = EngineFileSystem.Mounted;
+		var watchers = Watchers.GetOrCreateValue( fileSystem );
+		var key = (context, type.TargetType.AssemblyQualifiedName);
+		if ( watchers.ContainsKey( key ) )
+			return;
 
-		Watchers[type.TargetType.AssemblyQualifiedName] = watcher;
+		var watcher = fileSystem.Watch( $"*{type.RuntimeExtension}" );
+		watcher.OnChanges += watch =>
+		{
+			if ( context.FileMount != fileSystem || context.ResourceSystem is null )
+				return;
+
+			// Watchers are dispatched together, outside the context in which they were created.
+			using var scope = new GlobalContext.GlobalContextScope( context );
+			OnAssetFilesChanged( watch, type );
+		};
+
+		var subscription = new WatcherSubscription( watcher );
+		watchers[key] = subscription;
+		subscription.CancellationRegistration = context.CancellationTokenSource.Token.Register( () =>
+		{
+			watcher.Dispose();
+			watchers.Remove( key );
+		} );
 	}
 
 	private static void OnAssetFilesChanged( FileWatch watch, AssetTypeAttribute type )
 	{
+		if ( type.TargetType == typeof( ScriptResource )
+			&& (GlobalContext.Current == GlobalContext.Menu || GlobalContext.Current.ReceivesNetworkScripts) )
+		{
+			return;
+		}
+
 		var fs = EngineFileSystem.Mounted;
+		if ( type.IsUncompiled )
+		{
+			var scripts = new Dictionary<string, string>( StringComparer.Ordinal );
+			var removed = new List<string>();
+			foreach ( var path in watch.Changes.Select( path => path.NormalizeFilename() ).Distinct( StringComparer.OrdinalIgnoreCase )
+				.OrderBy( path => path, StringComparer.OrdinalIgnoreCase ) )
+			{
+				if ( fs.FileExists( path ) )
+				{
+					if ( LoadUncompiledResource( type, path, fs, reloadExisting: true ) is ScriptResource script )
+					{
+						scripts[script.ResourcePath] = script.Source;
+					}
+				}
+				else if ( type.TargetType == typeof( ScriptResource ) )
+				{
+					removed.Add( Resource.FixPath( path ) );
+				}
+			}
+			LoadScriptResources( scripts, removed );
+			return;
+		}
 
 		Dictionary<string, (GameResource resource, ulong id)> removes = new();
 
@@ -240,7 +380,32 @@ internal static class ResourceLoader
 	internal static void Clear()
 	{
 		// Dispose of watchers too
-		foreach ( var watcher in Watchers ) watcher.Value.Dispose();
+		foreach ( var (_, watchers) in Watchers )
+		{
+			foreach ( var watcher in watchers.Values )
+			{
+				watcher.Dispose();
+			}
+			watchers.Clear();
+		}
 		Watchers.Clear();
+	}
+
+	/// <summary>
+	/// Releases the cancellation callback as well as the watcher when cleared before context shutdown.
+	/// </summary>
+	private sealed class WatcherSubscription( FileWatch watcher ) : IDisposable
+	{
+		/// <summary>
+		/// Context cancellation callback owned by this subscription.
+		/// </summary>
+		public CancellationTokenRegistration CancellationRegistration { get; set; }
+
+		/// <inheritdoc />
+		public void Dispose()
+		{
+			CancellationRegistration.Dispose();
+			watcher.Dispose();
+		}
 	}
 }

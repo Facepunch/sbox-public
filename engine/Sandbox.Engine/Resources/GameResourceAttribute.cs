@@ -4,8 +4,8 @@ using System.ComponentModel;
 namespace Sandbox;
 
 /// <summary>
-/// Should be applied to a class that inherits from <see cref="GameResource"/>.
-/// Makes the class able to be stored as an asset on disk.
+/// Defines a disk asset for a <see cref="Resource"/> class. Compiled JSON assets inherit
+/// from <see cref="GameResource"/>; uncompiled assets receive their source through Resource.OnLoaded.
 /// </summary>
 [AttributeUsage( AttributeTargets.Class )]
 public class AssetTypeAttribute : System.Attribute, ITypeAttribute, IUninheritable
@@ -35,6 +35,16 @@ public class AssetTypeAttribute : System.Attribute, ITypeAttribute, IUninheritab
 	/// Flags for this asset type.
 	/// </summary>
 	public AssetTypeFlags Flags { get; set; }
+
+	/// <summary>
+	/// Whether the source file is loaded and published directly, without a compiled counterpart.
+	/// </summary>
+	public bool IsUncompiled => (Flags & AssetTypeFlags.Uncompiled) != 0;
+
+	/// <summary>
+	/// Extension of the file loaded at runtime, including its leading period.
+	/// </summary>
+	internal string RuntimeExtension => IsUncompiled ? $".{Extension}" : $".{Extension}_c";
 
 	/// <summary>
 	/// Color of the bottom line and background gradient for this resource's thumbnail.
@@ -78,6 +88,12 @@ public enum AssetTypeFlags
 	/// Include thumbnails when publishing as part of another package
 	/// </summary>
 	IncludeThumbnails = 1 << 1,
+
+	/// <summary>
+	/// Load and publish the original file without invoking a resource compiler or producing an _c file.
+	/// The resource reads its source data through Resource.OnLoaded.
+	/// </summary>
+	Uncompiled = 1 << 2,
 }
 
 [Obsolete( "Use AssetType instead" )]

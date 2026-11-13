@@ -1,0 +1,200 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Network;
+@namespace MenuProject.Platform
+@page "/platform/servers"
+@inherits Panel
+
+@*
+    The front's game's servers, on the front - the Multiplayer shelf's table (ServerTable) in a panel (the platform-panel mixin), with a
+    search over it, and which of them down a rail out on the art (the platform-side mixin): all of them on the internet, those
+    your friends are on, those you've joined before, or those on your network.
+*@
+<root>
+
+    <div class="side">
+        <label class="heading">Servers</label>
+
+        <div class="rail">
+            @foreach ( var (key, title, icon) in Filters )
+            {
+                <div class="tab @(key == filter ? "on" : "")" onclick=@( () => Show( key ) )>
+                    <i>@icon</i>
+                    <label>@title</label>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="panel" @ref="PanelBox">
+        <PanelHead Title=@(PlatformMenu.IsDedicatedServerOnly ? "Find a Server" : "Find Multiplayer Game") Icon="public" Art=@PlatformMenu.Art
+                   Back=@Back Search="Search servers or maps" OnSearch=@( ( string text ) => { search = text ?? ""; } )>
+            <Tools>
+                <div class="tool @(refreshing ? "busy" : "")" onclick=@Refresh tooltip="Refresh"><i>refresh</i></div>
+            </Tools>
+        </PanelHead>
+
+        <div class="body">
+            @if ( !string.IsNullOrEmpty( error ) )
+            {
+                <div class="status error"><i>error</i><label>@error</label></div>
+            }
+            else
+            {
+                <ServerTable @ref="Table" @key=@Ident Servers=@Shown Loading=@(!loaded)
+                             EmptyText=@(string.IsNullOrWhiteSpace( search ) ? EmptyText : "Nothing matches that") />
+            }
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    static readonly (string Key, string Title, string Icon)[] Filters =
+    [
+        ("internet", "Internet", "public"),
+        ("friends", "Friends", "group"),
+        ("history", "History", "history"),
+        ("lan", "LAN", "lan"),
+    ];
+
+    string filter = "internet";
+
+    /// <summary>
+    /// On your network rather than the internet - its own query; the rest narrow down the internet's
+    /// </summary>
+    bool Lan => filter == "lan";
+
+    List<LobbyInformation> lobbies = new();
+    bool loaded;
+    bool loadedLan;
+    bool refreshing;
+    string error;
+    string search = "";
+    double nextRefresh;
+    string loadedFor;
+
+    static string Ident => PlatformMenu.Ident;
+
+    List<LobbyInformation> Shown
+    {
+        get
+        {
+            IEnumerable<LobbyInformation> shown = lobbies;
+
+            if ( filter == "friends" )
+                shown = shown.Where( x => ServerTable.HostIsFriend( x ) || FriendsIn( x ) is { Count: > 0 } );
+
+            if ( filter == "history" )
+            {
+                var history = MenuHelpers.ServerHistory( Ident );
+                shown = shown.Where( x => history.Contains( x.LobbyId ) );
+            }
+
+            var query = search?.Trim();
+            if ( !string.IsNullOrEmpty( query ) )
+                shown = shown.Where( x => $"{x.Name} {x.Map} {MenuHelpers.CachedTitle( x.Map )}".Contains( query, StringComparison.OrdinalIgnoreCase ) );
+
+            return shown.ToList();
+        }
+    }
+
+    List<Friend> FriendsIn( LobbyInformation server ) =>
+        MenuHelpers.FriendsPlaying.ByLobby.GetValueOrDefault( server.LobbyId );
+
+    string EmptyText => filter switch
+    {
+        "friends" => "None of your friends are on a server",
+        "history" => "None of the servers you've joined are up",
+        "lan" => "No servers on your network",
+        _ => "Nobody's playing it on a server right now"
+    };
+
+    /// <summary>
+    /// Another filter - from nothing if it's the other query
+    /// </summary>
+    void Show( string key )
+    {
+        filter = key;
+        if ( loadedLan == Lan ) return;
+
+        loadedLan = Lan;
+        lobbies = new();
+        loaded = false;
+        error = null;
+        nextRefresh = 0;
+    }
+
+    void Refresh() => _ = RefreshServers();
+
+    async Task RefreshServers()
+    {
+        if ( refreshing || Ident is not { } ident ) return;
+
+        var lan = Lan;
+        refreshing = true;
+        nextRefresh = RealTime.Now + 30;
+
+        try
+        {
+            List<LobbyInformation> found;
+
+            if ( lan )
+            {
+                found = await Networking.QueryLanServers( ident );
+            }
+            else
+            {
+                // The outdated ones too - listed, but marked and not joined (ServerTable)
+                found = await Networking.QueryLobbies( new Dictionary<string, string> { { "game", ident }, { "map", null } }, true, true );
+            }
+
+            // Their maps' names and art, before they're shown
+            found ??= new();
+            await MenuHelpers.FetchPackages( found.Select( x => x.Map ) );
+
+            if ( !IsValid || ident != Ident || lan != Lan ) return;
+
+            lobbies = found;
+            loaded = true;
+            error = null;
+        }
+        catch ( Exception e )
+        {
+            error = $"Couldn't find servers: {e.Message}";
+        }
+        finally
+        {
+            refreshing = false;
+        }
+    }
+
+    void Back() => FrontPages.Of( this )?.Leave();
+
+    Panel PanelBox;
+    ServerTable Table;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( loadedFor != Ident )
+        {
+            loadedFor = Ident;
+            lobbies = new();
+            loaded = false;
+            nextRefresh = 0;
+        }
+
+        // Kept current while it's the page you're on
+        if ( !HasClass( "hidden" ) && !refreshing && RealTime.Now >= nextRefresh )
+            Refresh();
+
+        // Running on down into the dock as the shelves' panels do - not faded while a server's picked, its card's down there
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Ident, search, loaded, refreshing, error, lobbies, filter, filter == "friends" ? MenuHelpers.FriendsPlaying.Key : null );
+}

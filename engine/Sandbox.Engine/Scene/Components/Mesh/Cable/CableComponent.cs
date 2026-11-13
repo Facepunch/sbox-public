@@ -3,7 +3,7 @@ namespace Sandbox;
 /// <summary>
 /// Non-destructive cable data + mesh generation.
 /// </summary>
-[Hide]
+[Hide, StripOnSceneCompile]
 [Title( "Cable Component" ), Icon( "cable" )]
 public sealed class CableComponent : Component, Component.ExecuteInEditor
 {

@@ -28,9 +28,12 @@ namespace Sandbox;
 /// </code>
 /// </example>
 /// <seealso cref="Application"/>
+[Expose]
 public static partial class Game
 {
-	/// <summary>Creates scripts using the current menu or game's exposed types and cached code.</summary>
+	/// <summary>
+	/// Creates scripts using the current menu or game's exposed types and cached code.
+	/// </summary>
 	public static ScriptSystem Scripting => GlobalContext.Game.Scripting;
 
 	/// <summary>
@@ -133,9 +136,25 @@ public static partial class Game
 	public static SceneTrace SceneTrace => Game.ActiveScene.Trace;
 
 	/// <summary>
-	/// Close the current game.
+	/// Close the current game. Ignored while it's on its menu (<see cref="IsOnMenu"/>) - that's the platform menu's to
+	/// close, and closing it from under it leaves nothing running; start it by changing scene instead.
 	/// </summary>
 	public static void Close()
+	{
+		// A warning, not an exception - a Quit button on a game's own menu is common, and it's just ignored
+		if ( IsOnMenu && IMenuDll.Current is not null && !Application.IsEditor && GlobalContext.Current != GlobalContext.Menu )
+		{
+			Log.Warning( "Game.Close() ignored - the game can't close itself while it's on its menu, the platform menu does that. Change scene to start it." );
+			return;
+		}
+
+		CloseGame();
+	}
+
+	/// <summary>
+	/// Close the current game, whatever it's on - the engine's own way out, under <see cref="Close"/>'s check
+	/// </summary>
+	internal static void CloseGame()
 	{
 		// Editor only: just exit playmode
 		if ( IToolsDll.Current is not null )

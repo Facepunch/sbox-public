@@ -56,10 +56,10 @@
   "TintDefault": 0.4,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/hair/hair_longbrown/models/hair_longbrown.clothing.png",
-    "Mode": "Eyes",
-    "UsePositionOffset": false,
-    "PositionOffset": "0,0,0"
+    "Path": "models/citizen_clothes/hair/hair_longbrown/models/hair_longbrown.clothing.vtex",
+    "Mode": "Head",
+    "UsePositionOffset": true,
+    "PositionOffset": "5.68998384,-0.220000058,0.380000412"
   },
   "__references": [],
   "__version": 0

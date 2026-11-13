@@ -1,0 +1,160 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@inherits ShelfPage
+
+@* Rows of games on the shelf - Your games (YourGamesShelf) or Discover (DiscoverShelf). *@
+<root class="game-rows">
+    @for ( var i = 0; i < Rows.Length; i++ )
+    {
+        <GameShelf Row=@Rows[i] MaxRows=@MaxRows( i ) OnPicked=@Pressed OnPickedItem=@PressedItem Skip=@ShownAbove( i )
+                   OnSeeMore=@( ( GameRow row ) => PlatformRoot.Instance?.Browse( null, row.BrowseSort ) ) />
+    }
+</root>
+
+@code
+{
+    protected virtual bool IsDiscover => false;
+
+    /// <summary>
+    /// How much taller than its first row your games have been scrolled open - see <see cref="OnMouseWheel"/>
+    /// </summary>
+    float grown;
+
+    float growRoom;
+
+    const float WheelGrow = 90;
+
+    GameRow[] Rows => IsDiscover ? PlatformMenu.Discover : FavouritesLeft ? YoursAndFavourites : YoursOnly;
+
+    static readonly GameRow[] YoursOnly = [PlatformMenu.YourGames];
+    static readonly GameRow[] YoursAndFavourites = [PlatformMenu.YourGames, PlatformMenu.Favourites];
+
+    /// <summary>
+    /// The row <paramref name="index"/> down, or null - by index, as the shelf asks how tall it is every frame
+    /// </summary>
+    GameShelf ShelfAt( int index )
+    {
+        for ( var i = 0; i < ChildrenCount; i++ )
+        {
+            if ( GetChild( i ) is not GameShelf shelf ) continue;
+            if ( index-- == 0 ) return shelf;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Any of your favourites that aren't in your recent games already - none, and there's no row for them rather than an
+    /// empty one
+    /// </summary>
+    bool FavouritesLeft => PlatformMenu.Favourites.Games is { Length: > 0 } favourites
+        && favourites.Select( x => x.Id ).Except( ShownAbove( 1 ) ?? [] ).Any();
+
+    /// <summary>
+    /// Discover's rows are as many cards as fit across, Featured two rows of them - the rest are a See more away. Your
+    /// recent games are one row, your favourites all of them.
+    /// </summary>
+    int MaxRows( int row ) => !IsDiscover ? (row == 0 ? 1 : 0) : row == 0 ? 2 : 1;
+
+
+    /// <summary>
+    /// The games on the rows above this one - a game's only on the first row it's on. Your favourites leave out just
+    /// the recent ones showing, not the rest of what you've installed.
+    /// </summary>
+    HashSet<ulong> ShownAbove( int row )
+    {
+        if ( row == 0 ) return null;
+        if ( IsDiscover ) return Rows.Take( row ).SelectMany( x => x.Games ?? [] ).Select( x => x.Id ).ToHashSet();
+
+        return ShelfAt( 0 )?.ShownIds.ToHashSet();
+    }
+
+    public override void OnShelfShown()
+    {
+        grown = 0;
+
+        // Fetched again when they're old - or never came, a fetch lost to a hotload or failed. Favourited lately, on the
+        // Workshop, there under your recent ones next time it's looked at.
+        foreach ( var row in IsDiscover ? PlatformMenu.Discover : [PlatformMenu.Favourites] )
+            _ = row.RefreshAsync();
+    }
+
+    public override bool Fills => false;
+
+    /// <summary>
+    /// Your games with your favourites peeking out under them scroll - faded off over the favourites' art. Just their
+    /// first row, they don't - all of it shown, not faded off over its names.
+    /// </summary>
+    public override bool Scrolls => IsDiscover || grown > 0 || ShelfAt( 1 ) is not null;
+
+
+    public override float Height( float room, float tall )
+    {
+        if ( ShelfAt( 0 ) is not { } first ) return 0;
+        var second = ShelfAt( 1 );
+
+        // Discover's Featured, with the top of the next row peeking out under it - it scrolls down to the rest
+        if ( IsDiscover && second is not null )
+            return (second.Box.Rect.Top - Box.Rect.Top) * ScaleFromScreen + second.PeekHeight;
+
+        if ( IsDiscover ) return tall;
+
+        // Your games - its first row, the top of your favourites peeking out under it as Discover's next row does, so it's
+        // plain there's more to scroll down to, and as much taller as it's been scrolled open
+        var opens = second is not null
+            ? (second.Box.Rect.Top - Box.Rect.Top) * ScaleFromScreen + second.PeekHeight
+            : first.CollapsedHeight;
+
+        growRoom = Math.Max( 0, Math.Min( tall, room ) - opens );
+        return opens + Math.Min( grown, growRoom );
+    }
+
+    /// <summary>
+    /// Your games are switched to by their Workshop item. Discover's open their page, which is by package.
+    /// </summary>
+    Action<WorkshopItemDetails> PressedItem => IsDiscover ? null : item => PlatformRoot.Instance?.Picked( item );
+
+    void Pressed( Package package )
+    {
+        if ( package is not null && IsDiscover && package.IsRemote )
+        {
+            PlatformRoot.Instance?.ShowGame( package );
+            return;
+        }
+
+        PlatformRoot.Instance?.Picked( package );
+    }
+
+    /// <summary>
+    /// Your games grow with the wheel before they scroll - up to their full height first, then scrolling on past the top
+    /// of the screen; back up at the top, they shrink back down to their first row
+    /// </summary>
+    public override void OnMouseWheel( Vector2 value )
+    {
+        if ( !IsDiscover && value.y != 0 )
+        {
+            if ( value.y > 0 && grown < growRoom )
+            {
+                grown = Math.Min( growRoom, grown + value.y * WheelGrow );
+                return;
+            }
+
+            if ( value.y < 0 && grown > 0 && ShelfPanel.Of( this )?.AtTop != false )
+            {
+                grown = Math.Max( 0, Math.Min( grown, growRoom ) + value.y * WheelGrow );
+                return;
+            }
+        }
+
+        base.OnMouseWheel( value );
+    }
+
+    // What the rows are made from, not the rows - they're worked out from it when it's built, not every frame. A row's
+    // games are a new array each time they change; how many of your recent games show goes by how many fit across.
+    protected override int ShownHash() => IsDiscover
+        ? MenuHelpers.HashOf( PlatformMenu.Discover, static x => x.Games )
+        : HashCode.Combine( PlatformMenu.YourGames.Games, PlatformMenu.Favourites.Games, ShelfAt( 0 )?.ColumnCount );
+}

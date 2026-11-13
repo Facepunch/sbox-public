@@ -705,26 +705,28 @@ internal abstract partial class PhysicsBodyInternal : IValid
 
 	internal CollisionEventSystem Listener { get; set; }
 
-	internal void DispatchIntersectionStart( PhysicsIntersection c )
+	static PhysicsContact.Target ToTarget( in CollisionSource s ) => new( s.Body, s.Shape, s.Surface );
+
+	internal void DispatchIntersectionStart( in Collision c )
 	{
 		Listener?.OnIntersectionStart( c );
-		OnIntersectionStart?.InvokeWithWarning( c );
+		OnIntersectionStart?.InvokeWithWarning( new PhysicsIntersection( ToTarget( c.Self ), ToTarget( c.Other ), c.Contact ) );
 	}
 
-	internal void DispatchIntersectionUpdate( PhysicsIntersection c )
+	internal void DispatchIntersectionUpdate( in Collision c )
 	{
 		Listener?.OnIntersectionUpdate( c );
-		OnIntersectionUpdate?.InvokeWithWarning( c );
+		OnIntersectionUpdate?.InvokeWithWarning( new PhysicsIntersection( ToTarget( c.Self ), ToTarget( c.Other ), c.Contact ) );
 	}
 
-	internal void DispatchIntersectionEnd( PhysicsIntersectionEnd c )
+	internal void DispatchIntersectionEnd( in CollisionStop c )
 	{
 		Listener?.OnIntersectionEnd( c );
-		OnIntersectionEnd?.InvokeWithWarning( c );
+		OnIntersectionEnd?.InvokeWithWarning( new PhysicsIntersectionEnd( ToTarget( c.Self ), ToTarget( c.Other ) ) );
 	}
 
-	internal void DispatchTriggerBegin( PhysicsIntersection c ) => Listener?.OnTriggerBegin( c );
-	internal void DispatchTriggerEnd( PhysicsIntersectionEnd c ) => Listener?.OnTriggerEnd( c );
+	internal void DispatchTriggerBegin( in CollisionSource self, in CollisionSource other ) => Listener?.OnTriggerBegin( self, other );
+	internal void DispatchTriggerEnd( in CollisionSource self, in CollisionSource other ) => Listener?.OnTriggerEnd( self, other );
 
 	/// <summary>
 	/// Transform, on previous step

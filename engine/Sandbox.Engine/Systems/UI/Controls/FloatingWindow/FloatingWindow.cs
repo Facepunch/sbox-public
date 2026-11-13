@@ -58,6 +58,20 @@ public partial class FloatingWindow : Panel
 	[Parameter] public bool KeepOnScreen { get; set; }
 
 	/// <summary>
+	/// Whether its titlebar moves it. Off for a window kept where its owner puts it.
+	/// </summary>
+	[Parameter]
+	public bool Draggable
+	{
+		get;
+		set
+		{
+			field = value;
+			SetClass( "fixed", !value );
+		}
+	} = true;
+
+	/// <summary>
 	/// Handles a close request. When unset, closing deletes the window.
 	/// </summary>
 	[Parameter] public Action OnCloseRequested { get; set; }

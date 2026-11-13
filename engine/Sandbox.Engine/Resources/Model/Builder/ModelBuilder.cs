@@ -4,6 +4,7 @@ namespace Sandbox;
 /// Provides the ability to generate <see cref="Model"/>s at runtime.
 /// A new instance is available from <see cref="Model.Builder"/>.
 /// </summary>
+[Expose]
 public sealed partial class ModelBuilder
 {
 	private string modelName;

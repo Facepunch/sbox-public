@@ -172,7 +172,19 @@ public sealed partial class PolygonMesh : IJsonConvert
 	/// <summary>
 	/// Has there been changes to the mesh that need rebuilding?
 	/// </summary>
-	public bool IsDirty { get; internal set; }
+	public bool IsDirty
+	{
+		get => _isDirty;
+		internal set
+		{
+			_isDirty = value;
+			if ( value )
+				TopologyVersion++;
+		}
+	}
+
+	bool _isDirty;
+	public int TopologyVersion { get; private set; }
 
 	/// <summary>
 	/// Has there been changes to the vertex data?
@@ -196,7 +208,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 			ComputeFaceTextureParametersFromCoordinates();
 
-			IsDirty = true;
+			_isDirty = true;
 		}
 	}
 
@@ -285,7 +297,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		}
 
 		_materialId = newId;
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	/// <summary>
@@ -380,7 +392,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			Positions[hVertex] = Positions[hVertex] * scale;
 		}
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	/// <summary>
@@ -394,7 +406,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		MaterialIndex[hFace] = id;
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	/// <summary>
@@ -420,7 +432,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		ComputeFaceTextureCoordinatesFromParameters( changedFaces );
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	/// <summary>
@@ -530,7 +542,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	public void SetEdgeSmoothing( HalfEdgeHandle hEdge, EdgeSmoothMode mode )
 	{
 		EdgeFlags[hEdge] = (int)mode;
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	public void SetSmoothingAngle( float smoothingAngle )
@@ -539,7 +551,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		if ( threshold != _smoothingThreshold )
 		{
 			_smoothingThreshold = threshold;
-			IsDirty = true;
+			_isDirty = true;
 		}
 	}
 
@@ -1125,6 +1137,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 				// Remove the vertex, combining the two edges into a single edge
 				if ( Topology.RemoveVertex( hVertex, true ) )
 				{
+					IsDirty = true;
 					// Remove the two old edges from the table and add the new edge
 					if ( bEdgeInTable )
 					{
@@ -1419,6 +1432,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		// the interpolated values of the original vertices.
 		if ( Topology.MergeVertices( hVertexA, hVertexB, out hOutNewVertex ) )
 		{
+			IsDirty = true;
 			SetVertexPosition( hOutNewVertex, newVertex );
 			return true;
 		}
@@ -1724,6 +1738,9 @@ public sealed partial class PolygonMesh : IJsonConvert
 		var newVertex = GetVertexPosition( hVertexA ).LerpTo( GetVertexPosition( hVertexB ), flParam );
 		var hEdge = Topology.GetFullEdgeForHalfEdge( hHalfEdgeA );
 		var bRemoved = Topology.CollapseEdge( hEdge, out pOutNewVertex, out var _ );
+
+		if ( bRemoved )
+			IsDirty = true;
 
 		if ( pOutNewVertex != VertexHandle.Invalid )
 		{
@@ -2650,6 +2667,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		pOutNewVertex = hNewVertex;
 
+		IsDirty = true;
+
 		return true;
 	}
 
@@ -2692,7 +2711,11 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 	public bool RemoveVertex( VertexHandle hVertex, bool removeFreeVerts )
 	{
-		return Topology.RemoveVertex( hVertex, removeFreeVerts );
+		if ( !Topology.RemoveVertex( hVertex, removeFreeVerts ) )
+			return false;
+
+		IsDirty = true;
+		return true;
 	}
 
 	private bool AddVertexToEdgeAtDistance( VertexHandle hVertexA, VertexHandle hVertexB, float distance, float maxParam, out VertexHandle newVertex )
@@ -2992,7 +3015,11 @@ public sealed partial class PolygonMesh : IJsonConvert
 		if ( !ResolveFaceVerticesForNewEdge( hFace, hVertexA, hVertexB, out var hFaceVertexA, out var hFaceVertexB ) )
 			return false;
 
-		return Topology.AddEdgeToFace( hFaceVertexA, hFaceVertexB, out pOutNewEdge );
+		if ( !Topology.AddEdgeToFace( hFaceVertexA, hFaceVertexB, out pOutNewEdge ) )
+			return false;
+
+		IsDirty = true;
+		return true;
 	}
 
 	/// <summary>
@@ -3536,7 +3563,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		Positions[hVertex] = position;
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	/// <summary>
@@ -3681,6 +3708,20 @@ public sealed partial class PolygonMesh : IJsonConvert
 		}
 	}
 
+	public IEnumerable<HalfEdgeHandle> GetVisibleEdgeHandles()
+	{
+		foreach ( var hEdge in Topology.HalfEdgeHandles )
+		{
+			if ( hEdge.Index > Topology.GetOppositeHalfEdge( hEdge ).Index )
+				continue;
+
+			if ( IsEdgeHidden( hEdge ) )
+				continue;
+
+			yield return hEdge;
+		}
+	}
+
 	public IEnumerable<Vector3> GetFaceVertexPositions( FaceHandle hFace, Transform transform )
 	{
 		var hFirstFaceVertex = Topology.GetFirstEdgeInFaceLoop( hFace );
@@ -3820,7 +3861,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			}
 		}
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	private static bool CalcTextureBasisFromUVs( Vector3[] vVertPos, Vector2[] vTexCoord, out Vector3 vOutU, out Vector3 vOutV )
@@ -3990,7 +4031,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		ComputeFaceTextureCoordinatesFromParameters( new[] { hFace } );
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	/// <summary>
@@ -4010,7 +4051,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		ComputeFaceTextureCoordinatesFromParameters( new[] { hFace } );
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	/// <summary>
@@ -4031,7 +4072,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		ComputeFaceTextureCoordinatesFromParameters( new[] { hFace } );
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	/// <summary>
@@ -4055,7 +4096,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		ComputeFaceTextureCoordinatesFromParameters( [hFace] );
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	/// <summary>
@@ -4120,7 +4161,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		ComputeFaceTextureCoordinatesFromParameters( [hDestFace] );
 
-		IsDirty = true;
+		_isDirty = true;
 
 		return true;
 	}
@@ -4158,7 +4199,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	{
 		TextureCoord[faceVertex] = texcoord;
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	/// <summary>
@@ -4195,7 +4236,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		ComputeFaceTextureParametersFromCoordinates( new[] { hFace } );
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	public Vector2[] GetFaceTextureCoords( FaceHandle hFace )
@@ -4228,7 +4269,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		ComputeFaceTextureCoordinatesFromParameters( new[] { hFace } );
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	/// <summary>
@@ -4241,7 +4282,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			TextureAlignToGrid( transform, hFace );
 		}
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	/// <summary>
@@ -4346,7 +4387,11 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 	public bool SplitEdges( IReadOnlyList<HalfEdgeHandle> edges, out HalfEdgeHandle[] newEdgesA, out HalfEdgeHandle[] pOutNewEdgesB )
 	{
-		return Topology.SplitEdges( edges, out newEdgesA, out pOutNewEdgesB );
+		if ( !Topology.SplitEdges( edges, out newEdgesA, out pOutNewEdgesB ) )
+			return false;
+
+		IsDirty = true;
+		return true;
 	}
 
 	public void CollapseEdges( IReadOnlyList<HalfEdgeHandle> edges )
@@ -4439,7 +4484,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		// The built buffers no longer match the mesh, fall back to a full rebuild
 		if ( !_keepVertexData && !RestoreVertexData() )
 		{
-			IsDirty = true;
+			_isDirty = true;
 			return;
 		}
 
@@ -5271,7 +5316,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			ComputeFaceTextureParametersFromCoordinates( new[] { hFace1, hFace2 } );
 		}
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	public void AverageVertexUVs( IReadOnlyList<VertexHandle> vertices )
@@ -5334,7 +5379,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			ComputeFaceTextureParametersFromCoordinates( connectedFaces );
 		}
 
-		IsDirty = true;
+		_isDirty = true;
 	}
 
 	public static void GetBestPlanesForEdgeBetweenFaces( PolygonMesh pMesh1, FaceHandle hFace1, Transform mLocalToWorld1,

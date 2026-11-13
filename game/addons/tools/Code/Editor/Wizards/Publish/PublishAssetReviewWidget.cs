@@ -308,7 +308,8 @@ internal sealed class PublishAssetReviewWidget : Widget
 	void AddScenes( FileEntry[] files )
 	{
 		var scenes = files.Where( x => x.Path.EndsWith( ".scene", StringComparison.OrdinalIgnoreCase ) )
-			.OrderBy( x => x.Path, StringComparer.OrdinalIgnoreCase ).Select( x => x with { Note = SceneNote( x ) } ).ToArray();
+			.OrderBy( x => x.Path, StringComparer.OrdinalIgnoreCase )
+			.Select( x => x with { Note = SceneNote( x ), Compilation = SceneCompilation( x.Path ) } ).ToArray();
 		var section = content.Layout.Add( new PublishSection( content, "Included scenes", Theme.Text, "image", count: scenes.Length, iconImage: AssetType.FromExtension( "scene" )?.Icon16 ) );
 		section.Header.Add( new PublishButton( "Add scene", "add", primary: true ) ).Clicked = OpenScenePicker;
 		if ( scenes.Length == 0 ) section.Layout.Add( new Label.Body( "No scenes in this preview. Add a scene or check Game Setup." ) );
@@ -320,6 +321,28 @@ internal sealed class PublishAssetReviewWidget : Widget
 			actionLists.Add( list );
 		}
 	}
+
+	static CompileState SceneCompilation( string path )
+	{
+		try
+		{
+			var asset = AssetSystem.FindByPath( path );
+			return asset?.HasSourceFile != true ? CompileState.Unavailable
+				: SceneCompileSession.HasCurrentBake( asset ) ? CompileState.Compiled : CompileState.Uncompiled;
+		}
+		catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
+		{
+			Log.Warning( e, $"Could not check compile status for scene '{path}'" );
+			return CompileState.Unavailable;
+		}
+	}
+
+	static string CompileMessage( CompileState state ) => state switch
+	{
+		CompileState.Compiled => "Geometry compiled",
+		CompileState.Uncompiled => "No current geometry bake",
+		_ => "Compile status unavailable"
+	};
 
 	string SceneNote( FileEntry file )
 	{
@@ -500,7 +523,9 @@ internal sealed class PublishAssetReviewWidget : Widget
 		return asset?.Path ?? path;
 	}
 
-	sealed record FileEntry( string Path, long Size = 0, PublishImpact Impact = null, string Note = null, DependencySummary Dependencies = null, string[] Files = null )
+	enum CompileState { Unavailable, Uncompiled, Compiled }
+
+	sealed record FileEntry( string Path, long Size = 0, PublishImpact Impact = null, string Note = null, DependencySummary Dependencies = null, string[] Files = null, CompileState Compilation = CompileState.Unavailable )
 	{
 		public IEnumerable<string> Paths => Files ?? [Path];
 		public long? SortSize => Impact is null ? Size : SizeForSort( Impact );
@@ -624,7 +649,15 @@ internal sealed class PublishAssetReviewWidget : Widget
 			rect.Right = item.Rect.Left + item.Rect.Width * 0.55f - 16;
 			Paint.SetDefaultFont( 10, 500 );
 			Paint.SetPen( Theme.Text );
-			Paint.DrawText( rect, Paint.GetElidedText( file.Path, Math.Max( 0, rect.Width ) ), TextFlag.LeftCenter );
+			var title = rect;
+			title.Top += 4;
+			title.Height = 17;
+			Paint.DrawText( title, Paint.GetElidedText( file.Path, Math.Max( 0, title.Width ) ), TextFlag.LeftCenter );
+			title.Top += 17;
+			title.Height = 13;
+			Paint.SetDefaultFont( 8 );
+			Paint.SetPen( file.Compilation == CompileState.Compiled ? Theme.Green : Theme.TextLight );
+			Paint.DrawText( title, Paint.GetElidedText( CompileMessage( file.Compilation ), Math.Max( 0, title.Width ) ), TextFlag.LeftCenter );
 
 			var reason = file.Note?.Split( '\n' )[0] ?? "Included content";
 			var configured = reason is "Startup scene" or "System scene" or "Map startup scene" or "Dedicated server startup scene";
@@ -663,7 +696,7 @@ internal sealed class PublishAssetReviewWidget : Widget
 		protected override string GetTooltip( object item )
 		{
 			var file = (FileEntry)item;
-			return WebUtility.HtmlEncode( $"{file.Path}\n{file.Note}\n{file.Size.FormatBytes()}\n{DependencyText( file.Dependencies )}\nConfigured scenes are managed in Game Setup. Scenes included only by rules can be removed here. Required dependencies cannot be removed." );
+			return WebUtility.HtmlEncode( $"{file.Path}\n{CompileMessage( file.Compilation )}\n{file.Note}\n{file.Size.FormatBytes()}\n{DependencyText( file.Dependencies )}\nConfigured scenes are managed in Game Setup. Scenes included only by rules can be removed here. Required dependencies cannot be removed." );
 		}
 	}
 

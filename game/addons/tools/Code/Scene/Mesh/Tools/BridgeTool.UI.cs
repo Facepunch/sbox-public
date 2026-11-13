@@ -85,14 +85,14 @@ partial class BridgeTool
 			_tool.Apply();
 		}
 
-		[Shortcut( "mesh.bridge-increase", "]", typeof( SceneViewWidget ) )]
+		[Shortcut( "mesh.bridge-increase", "CTRL+]", typeof( SceneViewWidget ) )]
 		private void IncreaseSteps()
 		{
 			NumSteps = Math.Min( 128, NumSteps + 1 );
 			UpdateMesh();
 		}
 
-		[Shortcut( "mesh.bridge-decrease", "[", typeof( SceneViewWidget ) )]
+		[Shortcut( "mesh.bridge-decrease", "CTRL+[", typeof( SceneViewWidget ) )]
 		private void DecreaseSteps()
 		{
 			NumSteps = Math.Max( 1, NumSteps - 1 );

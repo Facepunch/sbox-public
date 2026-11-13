@@ -13,7 +13,7 @@ public static class Protocol
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
 	/// </summary>
-	public static int Network => 1116;
+	public static int Network => 1117;
 }
 
 // Api Versions
@@ -34,6 +34,7 @@ public static class Protocol
 
 
 // Network Versions
+// 1117. 11 November 2026 - Scripts string table and ServerPackages resource readiness payload
 // 1116. 4 November 2026 - LoadSceneSnapshotMsg carries the maps to mount
 // 1115. 29th October 2026 - Voice travels as VoiceChatBroadcastMsg instead of the Msg_Voice RPC
 // 1114. 29 October 2026 - ParticleFloat uses an explicit BytePack format

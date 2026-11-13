@@ -50,7 +50,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		FlipX = 0x2,
 		FlipY = 0x4,
 		SnapToFrame = 0x8,
-		Text = 0x10
+		Text = 0x10,
+		VelocityStretch = 0x40
 	}
 
 	// GPU Resident representation of a sprite

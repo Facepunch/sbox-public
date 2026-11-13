@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/jacket/winter_coat/winter_coat.clothing.png",
+    "Path": "models/citizen_clothes/jacket/winter_coat/winter_coat.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "47.8000603,0,-1.39999902"

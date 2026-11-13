@@ -150,9 +150,9 @@ public class EditorStartupContentBuild
 		edited.Assert( compiles: 3, failed: 1 );
 		edited.AssertCopiedPixels();
 
-		// The library material's shader changes its signature: the project model follows in the same startup
+		// The library material's shader changes: the project model reads its materials order-only, so only the material builds
 		project.Write( "materials/libm.vmat", Sources.Material( "shaders/unlit.shader", ["TextureColor", "materials/libm_color.tga"] ), EditorProject.Library );
-		project.Open().Assert( compiles: 1, failed: 1, library: 1 );
+		project.Open().Assert( compiles: 0, failed: 1, library: 1 );
 
 		// The missing image turns up
 		project.Copy( $"core/{BloodColor}", "decals/later.png" );
@@ -248,10 +248,10 @@ public class EditorStartupContentBuild
 			return $"built with 1 {before}, kept {kept}, new source with 2 {Marked( @"{{b}}", "compiler 2" )}";
 			""" );
 
-		StringAssert.Contains( live.Summary, $"Content local.{EditorProject.Ident}: 2 compiles, 1 failed", live.ToString() );
+		StringAssert.Contains( live.Summary, $"Content local.{EditorProject.Ident}: 1 compiles, 1 failed", live.ToString() );
 		StringAssert.Contains( live.Live, "built with 1 True, kept True, new source with 2 True", live.ToString() );
 		Assert.AreEqual( 1, Regex.Matches( live.Live, @"Content build: \d+ compiles" ).Count, live.ToString() );
-		Assert.AreEqual( 1, Regex.Matches( live.Live, @"Content build: 2 compiles, 0 adopted, 1 failed" ).Count, live.ToString() );
+		Assert.AreEqual( 1, Regex.Matches( live.Live, @"Content build: 1 compiles, 0 adopted, 1 failed" ).Count, live.ToString() );
 	}
 
 	/// <summary>
@@ -476,6 +476,41 @@ public class EditorStartupContentBuild
 		StringAssert.Contains( live.Summary, $"Content local.{EditorProject.Ident}: 4 compiles, 0 failed", live.ToString() );
 		StringAssert.Contains( live.Live, "deferred compile published", live.ToString() );
 		StringAssert.Contains( live.Live, "Content build: 1 compiles", live.ToString() );
+	}
+
+	/// <summary>
+	/// A project's compiler that ends the process it runs in: startup fails that source alone, in a worker, and the editor
+	/// opens. Edited while open, the source compiles in a worker again, so the editor goes on and builds the rest.
+	/// </summary>
+	[TestMethod, TestCategory( "Slow" )]
+	public void CompilerThatEndsItsProcessFailsItsSourceNotTheEditor()
+	{
+		if ( Environment.GetEnvironmentVariable( "SBOX_EDITOR_TESTS" ) is null )
+			Assert.Inconclusive( "Opens an editor: set SBOX_EDITOR_TESTS=1 to run" );
+
+		using var project = new EditorProject();
+		Directory.CreateDirectory( Path.Combine( project.Dir, "Editor" ) );
+		File.WriteAllText( Path.Combine( project.Dir, "Editor", "LiveGraph.cs" ), LiveGraphSource.Replace( "return Task.FromResult( true );", """
+			if ( !Context.Describing && json["Crash"] is not null ) System.Environment.Exit( 3 );
+			return Task.FromResult( true );
+			""" ) );
+		project.Write( "graphs/a.lvg", """{ "Name": "a" }""" );
+		project.Write( "graphs/crash.lvg", """{ "Name": "crash", "Crash": true }""" );
+		var b = Path.Combine( project.Assets, "graphs", "b.lvg_c" );
+
+		var live = project.Open( $$"""
+			System.IO.File.WriteAllText( @"{{project.Assets}}\graphs\crash.lvg", "{ \"Name\": \"crash again\", \"Crash\": true }" );
+			System.IO.File.WriteAllText( @"{{project.Assets}}\graphs\b.lvg", "{ \"Name\": \"b\" }" );
+			var timer = System.Diagnostics.Stopwatch.StartNew();
+			while ( !System.IO.File.Exists( @"{{b}}" ) && timer.ElapsedMilliseconds < 60000 ) await Task.Delay( 250 );
+			await Task.Delay( 5000 );
+			return $"editor alive, b built {System.IO.File.Exists( @"{{b}}" )}";
+			""" );
+
+		StringAssert.Contains( live.Summary, $"Content local.{EditorProject.Ident}: 2 compiles, 1 failed", live.ToString() );
+		Assert.IsTrue( File.Exists( Path.Combine( project.Assets, "graphs", "a.lvg_c" ) ), live.ToString() );
+		Assert.IsFalse( File.Exists( Path.Combine( project.Assets, "graphs", "crash.lvg_c" ) ), live.ToString() );
+		StringAssert.Contains( live.Live, "editor alive, b built True", live.ToString() );
 	}
 
 	/// <summary>

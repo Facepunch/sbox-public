@@ -1,0 +1,9 @@
+{
+  "$compiler": "texture",
+  "$source": "imagefile",
+  "data": {
+    "FilePath": "models/citizen_clothes/hair/hair_longbob/hair_longbob.clothing.png",
+    "Lossless": true
+  },
+  "compiled": null
+}

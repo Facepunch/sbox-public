@@ -5,6 +5,7 @@ namespace Sandbox;
 /// <summary>
 /// Text settings for Painter.
 /// </summary>
+[Expose]
 public readonly partial record struct TextStyle
 {
 	/// <summary>

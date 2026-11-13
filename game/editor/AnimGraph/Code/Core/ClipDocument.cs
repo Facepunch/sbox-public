@@ -11,8 +11,8 @@ public sealed class ClipDocument : IAnimationDocument
 	[Property, Hide, ResourceType( "vmdl" ), Description( "Optional preview model. Leave empty to use the skeleton's preview model." )]
 	public string PreviewModel
 	{
-		get => ReadString( PreviewModelKey );
-		set => _root[PreviewModelKey] = value ?? "";
+		get => ReadResource( PreviewModelKey );
+		set => _root[PreviewModelKey] = ResourceReference.Write( ResourceId.FromPath( value ) );
 	}
 
 	[Property, Group( "Import" ), Title( "Animation File" ), FilePath( Extension = "fbx,dmx,smd" ), Description( "Choose a project animation, drag in a file, or browse for an FBX, DMX or SMD file on your computer." ), HideIf( nameof( UseMorphFrame ), true )]
@@ -25,8 +25,8 @@ public sealed class ClipDocument : IAnimationDocument
 	[Property, Group( "Import" ), Title( "Skeleton" ), ResourceType( "skel" )]
 	public string SkeletonName
 	{
-		get => ReadString( SkeletonKey );
-		set => _root[SkeletonKey] = AssetSystem.FindByPath( value )?.Path ?? value ?? "";
+		get => ReadResource( SkeletonKey );
+		set => _root[SkeletonKey] = ResourceReference.Write( ResourceId.FromPath( AssetSystem.FindByPath( value )?.Path ?? value ) );
 	}
 
 	[Property, Group( "Import Settings", StartFolded = true ), Editor( "animgraph.take" ), HideIf( nameof( HasSingleTake ), true ), Description( "Which animation to import when the source file contains several takes." )]
@@ -34,6 +34,13 @@ public sealed class ClipDocument : IAnimationDocument
 	{
 		get => ReadInt( TakeKey, 0 );
 		set => _root[TakeKey] = Math.Max( value, 0 );
+	}
+
+	[Property, Group( "Import Settings", StartFolded = true ), HideIf( nameof( UseMorphFrame ), true ), Description( "Reverse the animation after trimming the source frames." )]
+	public bool Reverse
+	{
+		get => ReadBool( ReverseKey, false );
+		set => _root[ReverseKey] = value;
 	}
 
 	[Property, Group( "Import Settings", StartFolded = true ), WideMode, Editor( "animgraph.frame-range" ), ShowIf( nameof( HasSourceFrames ), true ), HideIf( nameof( UseMorphFrame ), true ),
@@ -207,6 +214,14 @@ public sealed class ClipDocument : IAnimationDocument
 		set => _root[AlignmentReferenceKey] = value ?? "";
 	}
 
+	[Property, Group( "Alignment", StartFolded = true ), Title( "Reference Take" ), Editor( "animgraph.take" ), ShowIf( nameof( HasAlignment ), true ),
+		Description( "Which animation to align against when the reference file contains several takes." )]
+	public int AlignmentReferenceTake
+	{
+		get => ReadInt( AlignmentReferenceTakeKey, 0 );
+		set => _root[AlignmentReferenceTakeKey] = Math.Max( value, 0 );
+	}
+
 	[Property, Group( "Alignment", StartFolded = true ), Title( "Bone" ), Editor( "animgraph.bone" ), ShowIf( nameof( HasAlignment ), true )]
 	public string AlignmentBone
 	{
@@ -348,32 +363,47 @@ public sealed class ClipDocument : IAnimationDocument
 	}
 
 	internal Skeleton SourceSkeleton => string.IsNullOrWhiteSpace( SkeletonName ) ? null : Skeleton.Load( SkeletonName );
-	private string _takeSource;
-	private int _takeIndex = -1;
-	private int _sourceFrameCount;
-	private IReadOnlyList<string> _animationTakes = [];
+	private readonly AnimationTakeInfo _sourceTakes = new();
+	private readonly AnimationTakeInfo _alignmentReferenceTakes = new();
 
 	internal IReadOnlyList<string> GetAnimationTakes( bool refresh = false )
-	{
-		if ( refresh || _takeSource != SourceFilename || _takeIndex != Take )
-		{
-			_takeSource = SourceFilename;
-			_takeIndex = Take;
-			_sourceFrameCount = 0;
-			_animationTakes = [];
-			try
-			{
-				if ( !string.IsNullOrWhiteSpace( _takeSource ) )
-					_animationTakes = ModelEditor.ModelDoc.GetAnimationTakes( _takeSource, _takeIndex, out _sourceFrameCount );
-			}
-			catch ( InvalidOperationException exception )
-			{
-				_sourceFrameCount = 0;
-				Log.Warning( $"Couldn't read animation takes for '{_takeSource}': {exception.Message}" );
-			}
-		}
+		=> _sourceTakes.GetTakes( SourceFilename, Take, refresh );
 
-		return _animationTakes;
+	internal IReadOnlyList<string> GetAlignmentReferenceTakes( bool refresh = false )
+		=> _alignmentReferenceTakes.GetTakes( AlignmentReference, AlignmentReferenceTake, refresh );
+
+	private sealed class AnimationTakeInfo
+	{
+		private string _source;
+		private int _take = -1;
+		private IReadOnlyList<string> _takes = [];
+
+		public int FrameCount { get; private set; }
+
+		public IReadOnlyList<string> GetTakes( string source, int take, bool refresh )
+		{
+			if ( refresh || _source != source || _take != take )
+			{
+				_source = source;
+				_take = take;
+				FrameCount = 0;
+				_takes = [];
+				try
+				{
+					if ( !string.IsNullOrWhiteSpace( _source ) )
+					{
+						_takes = ModelEditor.ModelDoc.GetAnimationTakes( _source, _take, out var frameCount );
+						FrameCount = frameCount;
+					}
+				}
+				catch ( InvalidOperationException exception )
+				{
+					Log.Warning( $"Couldn't read animation takes for '{_source}': {exception.Message}" );
+				}
+			}
+
+			return _takes;
+		}
 	}
 
 	internal int SourceFrameCount
@@ -381,7 +411,7 @@ public sealed class ClipDocument : IAnimationDocument
 		get
 		{
 			GetAnimationTakes();
-			return _sourceFrameCount;
+			return _sourceTakes.FrameCount;
 		}
 	}
 
@@ -487,6 +517,7 @@ public sealed class ClipDocument : IAnimationDocument
 	private bool HasAdditive => AdditiveType != AdditiveMode.None;
 
 	private string ReadString( string key ) => _root[key] is JsonValue value && value.TryGetValue( out string text ) ? text : string.Empty;
+	private string ReadResource( string key ) => _root[key] is { } value ? ResourceReference.Read( value ).ResolvePath() ?? "" : "";
 	private int ReadInt( string key, int fallback ) => _root[key] is JsonValue value && value.TryGetValue( out int number ) ? number : fallback;
 	private float ReadFloat( string key, float fallback ) => _root[key] is JsonValue value && value.TryGetValue( out float number ) ? number : fallback;
 	private bool ReadBool( string key, bool fallback ) => _root[key] is JsonValue value && value.TryGetValue( out bool flag ) ? flag : fallback;
@@ -760,6 +791,7 @@ public sealed class ClipDocument : IAnimationDocument
 		try
 		{
 			var document = new ClipDocument { FilePath = filePath, _root = root };
+			UpdateResourceReferences( root );
 			document.RebuildTracks();
 			document._savedState = document.CreateSnapshot();
 
@@ -847,6 +879,7 @@ public sealed class ClipDocument : IAnimationDocument
 				CopyMember( _root, document, key );
 		}
 
+		UpdateResourceReferences( document, _savedState );
 		if ( !Kv3Document.Write( FilePath, document ) )
 			return false;
 
@@ -858,6 +891,7 @@ public sealed class ClipDocument : IAnimationDocument
 	{
 		UpdateMorphFrameWeights();
 		UpdateMotionExtractionFrames();
+		UpdateResourceReferences( _root );
 		filePath = System.IO.Path.GetFullPath( filePath );
 		System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( filePath ) );
 		if ( !Kv3Document.Write( filePath, _root, overwrite: false ) )
@@ -886,6 +920,40 @@ public sealed class ClipDocument : IAnimationDocument
 		else
 			target.Remove( key );
 	}
+
+	private static void UpdateResourceReferences( JsonObject document, JsonObject previous = null )
+	{
+		foreach ( var key in new[] { SkeletonKey, PreviewModelKey } )
+		{
+			if ( document[key] is { } value )
+				document[key] = UpdateResourceReference( value, previous?[key] );
+		}
+
+		if ( document[SecondaryAnimationsKey] is JsonArray animations )
+		{
+			var previousAnimations = previous?[SecondaryAnimationsKey] as JsonArray;
+			for ( var i = 0; i < animations.Count; i++ )
+			{
+				var path = Sandbox.Json.FromNode<ResourceId>( animations[i] ).Path;
+				var known = previousAnimations?.FirstOrDefault( value => SameResourcePath( Sandbox.Json.FromNode<ResourceId>( value ).Path, path ) );
+				animations[i] = UpdateResourceReference( animations[i], known );
+			}
+		}
+	}
+
+	private static JsonNode UpdateResourceReference( JsonNode value, JsonNode previous )
+	{
+		var id = Sandbox.Json.FromNode<ResourceId>( value );
+		var known = Sandbox.Json.FromNode<ResourceId>( previous );
+		// The disk document can still contain a legacy path whose resource moved while this editor was open.
+		if ( id.Guid is null && known.Guid is not null && !string.IsNullOrWhiteSpace( id.Path ) && SameResourcePath( id.Path, known.Path ) )
+			return ResourceReference.Write( known );
+
+		return ResourceReference.Write( ResourceReference.Read( value ) );
+	}
+
+	private static bool SameResourcePath( string left, string right )
+		=> string.Equals( left?.Replace( '\\', '/' ), right?.Replace( '\\', '/' ), StringComparison.OrdinalIgnoreCase );
 
 	public Track AddTrack( string eventClass )
 	{
@@ -954,10 +1022,10 @@ public sealed class ClipDocument : IAnimationDocument
 	[SkipHotload]
 	private static readonly string[] ImportKeys =
 	[
-		SourceFilenameKey, SkeletonKey, TakeKey, StartFrameKey, EndFrameKey, ImportScaleKey, ImportFrameRateKey, DurationOverrideKey, DisableInterpolationKey,
+		SourceFilenameKey, SkeletonKey, TakeKey, ReverseKey, StartFrameKey, EndFrameKey, ImportScaleKey, ImportFrameRateKey, DurationOverrideKey, DisableInterpolationKey,
 		SmoothLoopKey, SmoothLoopFramesFromStartKey, SmoothLoopFramesFromEndKey,
 		StartLoopFrameKey, LinearDeltaKey, LinearDeltaSplineKey, MorphFrameWeightsKey,
-		AlignmentReferenceKey, AlignmentBoneKey, AlignmentFrameModeKey, AlignmentFrameKey,
+		AlignmentReferenceKey, AlignmentReferenceTakeKey, AlignmentBoneKey, AlignmentFrameModeKey, AlignmentFrameKey,
 		AlignmentReferenceFrameModeKey, AlignmentReferenceFrameKey,
 		"m_bAlignTX", "m_bAlignTY", "m_bAlignTZ", "m_bAlignRX", "m_bAlignRY", "m_bAlignRZ",
 		ExtractMotionKey, MotionExtractionBoneKey, "m_bExtractMotionTX", "m_bExtractMotionTY", "m_bExtractMotionTZ",
@@ -968,13 +1036,15 @@ public sealed class ClipDocument : IAnimationDocument
 	private static readonly string[] EditableKeys =
 	[
 		.. ImportKeys,
-		PreviewModelKey, TracksKey, AdditiveTypeKey, AdditiveModelSpaceKey, AdditiveBaseFileKey, AdditiveBaseTakeKey,
+		PreviewModelKey, SecondaryAnimationsKey, TracksKey, AdditiveTypeKey, AdditiveModelSpaceKey, AdditiveBaseFileKey, AdditiveBaseTakeKey,
 		AdditiveBaseStartFrameKey, AdditiveBaseEndFrameKey, AdditiveBaseFrameKey
 	];
 	private const string PreviewModelKey = "m_previewModel";
 	private const string SkeletonKey = "m_animationSkeletonName";
+	private const string SecondaryAnimationsKey = "m_secondaryAnimations";
 	private const string SourceFilenameKey = "m_sourceFilename";
 	private const string TakeKey = "m_nTake";
+	private const string ReverseKey = "m_bReverse";
 	private const string StartFrameKey = "m_nStartFrame";
 	private const string EndFrameKey = "m_nEndFrame";
 	private const string ImportScaleKey = "m_flImportScale";
@@ -989,6 +1059,7 @@ public sealed class ClipDocument : IAnimationDocument
 	private const string LinearDeltaSplineKey = "m_bLinearDeltaSpline";
 	private const string MorphFrameWeightsKey = "m_morphFrameWeights";
 	private const string AlignmentReferenceKey = "m_alignToClipFilename";
+	private const string AlignmentReferenceTakeKey = "m_nAlignToTake";
 	private const string AlignmentBoneKey = "m_alignBone";
 	private const string AlignmentFrameModeKey = "m_alignFrameType";
 	private const string AlignmentFrameKey = "m_nAlignFrameIdx";

@@ -1,0 +1,123 @@
+@import "/Platform/_platform.scss";
+
+// Its rows as Your games' and Discover's (GameShelf) - a header, then cards. The cards are MountCard's, in the
+// platform's look: GameCard's fill and corners, its blue for one that's on.
+MountsShelf
+{
+	@include platform-16x9;
+	flex-shrink: 0;
+	height: 100%;
+	gap: 12px;
+
+	// Its scrollbar down its right, clear of the cards
+	> .rows
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		min-width: 0;
+		gap: 32px;
+		padding: 0 12px 32px 0;
+		overflow-y: scroll;
+		scrollbar-width: thin;
+		scrollbar-color: $platform-faint transparent;
+		scrollbar-gutter: auto;
+
+		> *
+		{
+			flex-shrink: 0;
+		}
+	}
+
+	.row
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 18px;
+	}
+
+	.header
+	{
+		@include platform-shelf-header;
+	}
+
+	.cards
+	{
+		gap: 16px;
+		flex-wrap: wrap;
+	}
+
+	.empty
+	{
+		@include platform-shelf-empty;
+	}
+
+	MountCard
+	{
+		// Not the old page's round outlined pill - no outline, no padding, its icon square in the middle
+		.bar .action
+		{
+			@include platform-tool( 28px, 16px );
+			padding: 0;
+			border: 0px solid transparent;
+		}
+
+		border-radius: $platform-radius;
+		background-color: rgba( 22, 28, 40, 0.95 );
+		box-shadow: none;
+
+		// Next to nothing shows through its fill - and each blur is a grab of the screen, one per card
+		backdrop-filter: none;
+
+		.art
+		{
+			background-color: $platform-panel;
+		}
+
+		// The same height on every card, what's in it in the middle of it - even padding, not the old page's, and the
+		// name's line held to its letters so one line on its own sits centred
+		.bar
+		{
+			height: 54px;
+			min-height: 54px;
+			padding: 0 12px;
+			background-color: transparent;
+		}
+
+		.body
+		{
+			justify-content: center;
+		}
+
+		.title
+		{
+			font-family: $platform-font;
+			line-height: 1.2;
+			color: $platform-text;
+		}
+
+		.meta
+		{
+			line-height: 1.2;
+			color: $platform-muted;
+		}
+
+		&.installed:not( .busy ), &.mounted:not( .busy )
+		{
+			&:hover
+			{
+				border-color: $platform-primary;
+			}
+		}
+
+		&.mounted
+		{
+			border-color: $platform-primary;
+
+			.switch
+			{
+				background-color: $platform-primary;
+				border-color: $platform-primary;
+			}
+		}
+	}
+}

@@ -6,7 +6,7 @@ namespace Sandbox.SceneRenderer.Features;
 
 /// <summary>
 /// Sorts meshes and custom objects into layer run lists, instancing compatible neighbours.
-/// Membership and draw rules live in <c>MeshRenderFeature.Lists.cs</c>; native instancing is described in <c>docs/native/instancing.md</c>.
+/// Membership and draw rules live in <c>MeshRenderFeature.Lists.cs</c>; native instancing is described in <c>docs/reference/rendering.md</c>.
 /// </summary>
 internal sealed partial class MeshRenderFeature : RenderFeature
 {
@@ -866,7 +866,17 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				context.SetCombo( CsVertexAnimation, vertexAnimation );
 			}
 
-			if ( vertexCache )
+			// The model draw calls below draw from the start of the mesh's vertex buffers. A draw call with a base vertex (an
+			// aggregate's, whose indices count from its own first vertex) is drawn with it here, or it picks up the vertices of
+			// the draws before it and stretches across the screen
+			if ( draw.BaseVertex != 0 && !run.Skinned && !vertexCache )
+			{
+				if ( !context.BindGeometry( mesh, draw ) ) continue;
+				if ( !context.SetRenderState( material, mode, mesh, draw, depthBias, slopeBias, stripPixelShader, false ) ) continue;
+				context.BindInstances( 1, first );
+				context.DrawIndexedInstanced( draw, run.Count, draw.BaseVertex );
+			}
+			else if ( vertexCache )
 			{
 				if ( !context.BindGeometry( mesh, draw ) ) continue;
 				if ( !context.SetRenderState( material, mode, mesh, draw, depthBias, slopeBias, stripPixelShader, vertexCache ) ) continue;

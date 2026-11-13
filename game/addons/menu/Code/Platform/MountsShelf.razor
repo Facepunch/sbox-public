@@ -1,0 +1,141 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Mounting;
+@using Sandbox.UI;
+@using Sandbox.UI.Mounts;
+@namespace MenuProject.Platform
+@page "/shelf/mounts"
+@inherits ShelfPage
+
+@*
+    The games s&box can mount, up out of the dock - those installed, each a press to turn on or off, then the others,
+    to install from your Steam library or buy (MountCard, in the platform's look).
+*@
+<root>
+
+    <div class="rows" @ref="Rows">
+        <div class="row">
+            <div class="header">
+                <i class="icon">extension</i>
+                <label class="title">Installed</label>
+                <label class="subtitle">Turn one on to use its maps and models</label>
+            </div>
+
+            <div class="cards">
+                @foreach ( var mount in Installed )
+                {
+                    <MountCard Mount=@mount ActionInBar=@true />
+                }
+
+                @if ( !Installed.Any() )
+                {
+                    <div class="empty"><i>extension_off</i><label>None of these games are installed</label></div>
+                }
+            </div>
+        </div>
+
+        @if ( Others.Any() )
+        {
+            <div class="row">
+                <div class="header">
+                    <i class="icon">videogame_asset_off</i>
+                    <label class="title">Other games</label>
+                    <label class="subtitle">Install from your Steam library, or get them on Steam</label>
+                </div>
+
+                <div class="cards">
+                    @foreach ( var mount in Others )
+                    {
+                        <MountCard Mount=@mount ActionInBar=@true />
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+</root>
+
+@code
+{
+    // The whole shelf, down to the dock - its rows scrolling on their own
+    public override bool ToDock => true;
+
+    Panel Rows;
+
+    List<BaseGameMount> mounts;
+
+    /// <summary>
+    /// Every mount, cached - which there are only changes when an assembly loads
+    /// </summary>
+    List<BaseGameMount> Mounts => mounts ??= BaseGameMount.All.ToList();
+
+    IEnumerable<BaseGameMount> Installed => Mounts.Where( x => x.IsInstalled );
+
+    /// <summary>
+    /// The rest - in your library first, as they're a click from installing
+    /// </summary>
+    IEnumerable<BaseGameMount> Others => Mounts.Where( x => !x.IsInstalled ).OrderByDescending( x => x.IsOwned ).ThenBy( x => x.Title );
+
+    const float CardMin = 300;
+    const float CardGap = 16;
+
+    float sizedFor;
+
+    readonly ScrollFade rowsFade = new( 32 );
+
+    /// <summary>
+    /// As many cards across as fit at <see cref="CardMin"/>, stretched so a row fills the width edge to edge - their art
+    /// kept to Steam's capsule's shape (460x215), as the cards have it
+    /// </summary>
+    protected override void TickShown()
+    {
+        rowsFade.Apply( Rows );
+
+        if ( !cards.IsValid() ) cards = Descendants.OfType<MountCard>().FirstOrDefault()?.Parent;
+        if ( !cards.IsValid() ) return;
+
+        var width = cards.Box.Rect.Width * ScaleFromScreen;
+        if ( width <= 0 ) return;
+
+        // A pixel spare per card, as GameShelf has - each is rounded to whole screen pixels, and a row a pixel over wraps
+        // its last card, leaving a gap at the end of every row
+        var columns = Math.Max( 1, (int)((width + CardGap) / (CardMin + CardGap + 1)) );
+        var card = MathF.Floor( (width - CardGap * (columns - 1) - columns) / columns );
+
+        if ( MathF.Abs( card - sizedFor ) < 0.5f ) return;
+
+        sizedFor = card;
+
+        foreach ( var mount in Descendants.OfType<MountCard>() )
+        {
+            mount.Style.Width = Length.Pixels( card );
+            if ( mount.Children.FirstOrDefault( x => x.HasClass( "art" ) ) is { } art )
+                art.Style.Height = Length.Pixels( MathF.Round( card * 215f / 460f ) );
+        }
+    }
+
+    /// <summary>
+    /// What the cards are in - found once, the width they're sized to
+    /// </summary>
+    Panel cards;
+
+    // Built again - its cards may be new, so they're sized again, and found again
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        cards = null;
+        sizedFor = -1;
+    }
+
+    protected override int ShownHash()
+    {
+        var hash = new HashCode();
+
+        foreach ( var mount in Mounts )
+            hash.Add( mount.IsInstalled );
+
+        return hash.ToHashCode();
+    }
+}

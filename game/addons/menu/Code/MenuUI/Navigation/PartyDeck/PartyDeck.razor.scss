@@ -1,5 +1,5 @@
 @import '/styles/_Theme.scss';
-@import '/styles/_front.scss';
+@import "/Platform/_platform.scss";
 
 PartyDeck
 {
@@ -13,45 +13,55 @@ PartyDeck
 
 	.floating-window
 	{
-		@include front-card;
+		@include platform-surface;
+		// Placed by FloatingWindow itself, over the page
+		position: absolute;
+		flex-shrink: 0;
+		overflow: hidden;
+		// No edge - FloatingWindow's own sheet gives it one, the platform's panels have none
+		border-width: 0px;
 
-		color: $front-body;
-		box-shadow: $front-rail-shadow;
+		// Over the dock - unseen till it's been put there, then fading in as it grows up out of what it came from
+		// (PartyDeck.Grow)
+		opacity: 0;
+		transition: opacity 0.15s ease-out;
 
+		&.pinned
+		{
+			opacity: 1;
+		}
+
+		// Put away - fading back down into the dock
+		&:outro
+		{
+			opacity: 0;
+			transform: translateY( 12px );
+			transition: opacity 0.12s ease-in, transform 0.12s ease-in;
+		}
+
+		// No titlebar - it isn't dragged here, and has nothing to close or minimize
 		.floating-window-header
 		{
-			background: radial-gradient( circle at 10% 10%, rgba( $front-primary, 0.2 ) 25%, rgba( $front-primary, 0.02 ) 60% );
+			display: none;
 		}
 
 		.floating-window-icon, .floating-window-title, .floating-window-control, .floating-window-restore
 		{
-			color: $front-heading;
+			color: $platform-text;
 		}
 
-		// Minimized - a round pill like the reaction pills' active one: the party emoji on a blue wash,
-		// a fine outline. The engine docks it overhanging the screen's foot
+		// Minimized - a round pill, the blue button: the party emoji on it. The engine docks it overhanging the
+		// screen's foot
 		&.minimized
 		{
+			@include platform-button-primary;
 			border-radius: 999px;
-			border: 1px solid rgba( $front-primary, 0.55 );
-			background-color: $front-card;
-			background-image: linear-gradient( 180deg, rgba( $front-primary, 0.38 ), rgba( $front-primary, 0.12 ) );
-			box-shadow: 0 8px 24px rgba( 0, 0, 0, 0.5 ), 0 0 18px rgba( $front-primary, 0.22 );
-			transition: border-color 0.1s ease, box-shadow 0.1s ease;
-
-			&:hover
-			{
-				border-color: rgba( $front-primary, 0.9 );
-				box-shadow: 0 8px 24px rgba( 0, 0, 0, 0.5 ), 0 0 22px rgba( $front-primary, 0.4 );
-			}
 		}
 
 		.floating-window-restore
 		{
 			// Centred in the part that's on screen
 			padding: 0 0 12px 0;
-			border-radius: 999px;
-			transition: background-color 0.1s ease;
 
 			.button-text
 			{
@@ -61,7 +71,6 @@ PartyDeck
 			&:hover
 			{
 				sound-in: "ui.button.over";
-				background-color: rgba( $front-primary, 0.18 );
 			}
 
 			&:active
@@ -80,19 +89,14 @@ PartyDeck
 		}
 	}
 
-	FloatingWindow.joining
-	{
-		background-color: $front-card;
-		background-image: linear-gradient( 20deg, rgba( $front-reward, 0.32 ), rgba( $front-reward-deep, 0.12 ) 55%, rgba( $front-reward, 0 ) );
-		border-color: rgba( $front-reward, 0.4 );
-	}
+}
 
-	FloatingWindow.failed
-	{
-		background-color: $front-card;
-		background-image: linear-gradient( 20deg, rgba( $front-danger, 0.22 ), rgba( $front-danger, 0 ) 60% );
-		border-color: rgba( $front-danger, 0.35 );
-	}
+// Clips what's in the window to the height it's easing to (PartyDeck.EaseHeight)
+PartyDeck .party-deck-sizer
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	overflow: hidden;
 }
 
 PartyDeck .party-deck-content
@@ -105,49 +109,12 @@ PartyDeck .party-deck-content
 	gap: 14px;
 	padding: 14px $front-inset;
 
-	.party-play
+	// A new party's bar, and the party's on the platform menu - in the window's own padding already, so none of its
+	// own; its tile on the window's edge
+	> PanelHead
 	{
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 8px;
-		padding-top: 12px;
-		border-top: 1px solid $front-hairline;
-
-		.play-hint
-		{
-			width: 100%;
-			flex-grow: 1;
-			flex-shrink: 1;
-			font-size: 11px;
-			color: $front-secondary;
-		}
-
-		.configure-button
-		{
-			@include front-pill;
-			padding: 8px 12px;
-			flex-grow: 1;
-			justify-content: center;
-		}
-
-		.play-button
-		{
-			@include front-button;
-
-			padding: 8px 12px;
-		}
-
-		.ready-button
-		{
-			@include front-pill;
-
-			padding: 8px 12px;
-
-			label, iconpanel
-			{
-				color: $front-reward;
-			}
-		}
+		height: 34px;
+		padding: 0;
 	}
 
 	// The game we're headed into, behind everything - just a wash on the left under its thumbnail.
@@ -169,81 +136,6 @@ PartyDeck .party-deck-content
 		mask-image: linear-gradient( 90deg, white 0%, black 60% );
 	}
 
-	.toolbar.divided
-	{
-		border-bottom: 1px solid $front-hairline;
-		padding-bottom: 12px;
-	}
-
-	.current-game
-	{
-		flex-grow: 1;
-		flex-shrink: 1;
-		width: 0;
-		border-radius: 4px;
-		align-items: center;
-		gap: 8px;
-		min-width: 0;
-
-		&.editable
-		{
-			cursor: pointer;
-			&:hover { background-color: rgba( 255, 255, 255, 0.04 ); }
-		}
-
-		&.empty label { color: $front-secondary; }
-
-		.game-summary
-		{
-			flex-direction: column;
-			flex-grow: 1;
-			flex-shrink: 1;
-			min-width: 0;
-		}
-
-		.game-thumb, icon
-		{
-			width: 28px;
-			height: 28px;
-			flex-shrink: 0;
-		}
-
-		.game-thumb
-		{
-			border-radius: 4px;
-			background-size: cover;
-			background-position: center;
-		}
-
-		icon
-		{
-			font-family: "Material Icons";
-			font-size: 22px;
-			align-items: center;
-			justify-content: center;
-			color: $front-secondary;
-		}
-
-		label
-		{
-			min-width: 0;
-			flex-shrink: 1;
-			font-size: 12px;
-			font-weight: 600;
-			color: $front-heading;
-			white-space: nowrap;
-			overflow: hidden;
-			text-overflow: ellipsis;
-		}
-
-		.game-capacity
-		{
-			font-size: 10px;
-			font-weight: 400;
-			color: $front-secondary;
-		}
-	}
-
 	.head
 	{
 		flex-direction: row;
@@ -259,32 +151,23 @@ PartyDeck .party-deck-content
 		// Neutral for stopped / can't join, green on the way in, red when it went wrong
 		.status-icon
 		{
-			flex-shrink: 0;
-			width: 30px;
-			height: 30px;
-			align-items: center;
-			justify-content: center;
-			border-radius: 50%;
-			background-color: rgba( 255, 255, 255, 0.08 );
+			@include platform-tile( 17px, 30px );
 
 			icon
 			{
 				width: 100%;
 				text-align: center;
 				font-size: 17px;
-				color: $front-secondary;
+				color: $platform-muted;
 			}
 
-			// The game itself - a rounded square, like games are everywhere else in the menu
+			// The game itself
 			&.game
 			{
 				width: 34px;
 				height: 34px;
-				border-radius: 6px;
 				background-size: cover;
 				background-position: center;
-				background-color: rgba( 0, 0, 0, 0.35 );
-				box-shadow: 0 2px 8px rgba( 0, 0, 0, 0.4 );
 			}
 		}
 
@@ -309,7 +192,7 @@ PartyDeck .party-deck-content
 		{
 			font-size: 11px;
 			font-weight: 500;
-			color: $front-secondary;
+			color: $platform-muted;
 			white-space: nowrap;
 			overflow: hidden;
 			text-overflow: ellipsis;
@@ -323,35 +206,24 @@ PartyDeck .party-deck-content
 			text-align: right;
 			font-size: 14px;
 			font-weight: 700;
-			color: $front-heading;
+			color: $platform-text;
 		}
 
 		.status-button
 		{
-			@include front-pill;
-
-			cursor: pointer;
+			@include platform-text-button( 30px, 12.5px, 15px );
+			padding: 0 12px;
 		}
 	}
 
-	&.joining .head .status-icon
+	&.joining .head .status-icon icon
 	{
-		background-color: rgba( $front-reward, 0.2 );
-
-		icon
-		{
-			color: $front-reward;
-		}
+		color: $platform-reward;
 	}
 
-	&.failed .head .status-icon
+	&.failed .head .status-icon icon
 	{
-		background-color: rgba( $front-danger, 0.18 );
-
-		icon
-		{
-			color: $front-danger;
-		}
+		color: $platform-danger;
 	}
 
 	// Right under the status - how far along we are
@@ -366,80 +238,49 @@ PartyDeck .party-deck-content
 		{
 			height: 100%;
 			border-radius: 999px;
-			background-image: linear-gradient( 90deg, $front-reward-deep, $front-reward );
+			background-image: linear-gradient( 90deg, $front-reward-deep, $platform-reward );
 			transition: width 0.3s ease-out;
 		}
 	}
 
 	.settings-error
 	{
-		color: $front-danger;
+		color: $platform-danger;
 		font-size: 12px;
 	}
 
 	// Small controls alongside the game.
+	// Rounded squares on the dock's button fill - like the platform menu dock's own buttons
 	.icon-button
 	{
-		@include front-icon-button;
-
-		width: 28px;
-		height: 28px;
-		background-color: transparent;
+		@include platform-tool;
+		width: 34px;
 		padding: 0;
 
-		icon, iconpanel
+		&.leave iconpanel
 		{
-			font-size: 17px;
-		}
-
-		&.voice
-		{
-			&.talking
-			{
-				background-color: rgba( $primary-green, 0.15 );
-				border-color: rgba( $primary-green, 0.35 );
-
-				icon
-				{
-					color: $primary-green;
-				}
-			}
-
-			&.disabled icon
-			{
-				color: $front-tertiary;
-			}
+			color: $platform-danger;
 		}
 
 		&.settings, &.privacy
 		{
-			cursor: pointer;
-			&.disabled { cursor: default; pointer-events: none; }
-
-			.icon
-			{
-				font-size: 20px;
-			}
+			&.disabled { pointer-events: none; }
 
 			&:hover
 			{
 				sound-in: "ui.button.over";
 			}
 
+			// Open - blue, as a picked choice is
 			&.active
 			{
-				border-color: rgba( $front-primary, 0.5 );
-				background-color: rgba( $front-primary, 0.18 );
-
-				.icon { color: $front-link; }
+				@include platform-button-selected;
 			}
 		}
 
 		// Stop following the leader - stays in the party
 		&.cancel
 		{
-			cursor: pointer;
-
 			&:hover
 			{
 				sound-in: "ui.button.over";
@@ -455,7 +296,7 @@ PartyDeck .party-deck-content
 		align-items: center;
 		gap: 8px;
 
-		PartyMember Avatar .avatar, .open-seat, .pending-seat Avatar .avatar
+		PartyMember Avatar .avatar, .open-seat, PartyPendingSeat Avatar .avatar
 		{
 			width: 44px;
 			height: 44px;
@@ -465,7 +306,7 @@ PartyDeck .party-deck-content
 		{
 			gap: 6px;
 
-			PartyMember Avatar .avatar, .open-seat, .pending-seat Avatar .avatar
+			PartyMember Avatar .avatar, .open-seat, PartyPendingSeat Avatar .avatar
 			{
 				width: 38px;
 				height: 38px;
@@ -473,103 +314,21 @@ PartyDeck .party-deck-content
 		}
 	}
 
-	// Asked in, not here yet - their face, greyed right back inside a dashed ring, with an hourglass.
-	// Pointing at it offers to stop waiting.
-	.pending-seat
-	{
-		position: relative;
-		flex-shrink: 0;
-		pointer-events: all;
-		cursor: pointer;
-
-		Avatar .avatar, Avatar .avatar.online, Avatar .avatar.ingame
-		{
-			// A border, not an outline - outlines don't do dashed
-			border-radius: 50%;
-			border: 2px dashed rgba( 255, 255, 255, 0.3 );
-			background-color: rgba( 0, 0, 0, 0.35 );
-			opacity: 0.45;
-			filter: saturate( 0 );
-			transition: all 0.1s ease;
-		}
-
-		.pending-badge
-		{
-			pointer-events: none;
-			position: absolute;
-			bottom: -5px;
-			left: 50%;
-			transform: translateX( -50% );
-			width: 18px;
-			height: 16px;
-			align-items: center;
-			justify-content: center;
-			border-radius: 999px;
-			border: 1px solid $front-card-deep;
-			background-color: $front-secondary;
-			transition: background-color 0.1s ease;
-
-			icon
-			{
-				font-size: 11px;
-				color: $front-card-deep;
-			}
-
-			.dismiss
-			{
-				display: none;
-			}
-		}
-
-		&:hover
-		{
-			Avatar .avatar, Avatar .avatar.online, Avatar .avatar.ingame
-			{
-				opacity: 0.7;
-				border-color: rgba( $front-danger, 0.7 );
-			}
-
-			.pending-badge
-			{
-				background-color: $front-danger;
-
-				icon { color: #ffffff; }
-				.waiting { display: none; }
-				.dismiss { display: flex; }
-			}
-		}
-	}
-
-	// An open seat invites another friend into the party.
+	// An open seat invites another friend into the party - a rounded square, like the faces.
 	.open-seat
 	{
-		flex-shrink: 0;
-		align-items: center;
-		justify-content: center;
-		border-radius: 50%;
-		border: 1px dashed rgba( 255, 255, 255, 0.35 );
+		@include platform-tool( 34px, 18px );
 		pointer-events: all;
-		cursor: pointer;
-		transition: all 0.1s ease;
 
 		icon
 		{
 			width: 100%;
 			text-align: center;
-			font-size: 18px;
-			color: $front-secondary;
 		}
 
 		&:hover
 		{
-			border: 1px solid rgba( $front-primary, 0.8 );
-			background-color: rgba( $front-primary, 0.15 );
 			sound-in: "ui.button.over";
-
-			icon
-			{
-				color: $front-heading;
-			}
 		}
 
 		&:active

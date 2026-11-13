@@ -231,7 +231,8 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 			// Compute face texture parameters on transform change but don't rebuild mesh now.
 			var wasDirty = Mesh.IsDirty;
 			Mesh.Transform = WorldTransform;
-			Mesh.IsDirty = wasDirty;
+			if ( !wasDirty )
+				Mesh.IsDirty = false;
 		}
 
 		base.TransformChanged( root );

@@ -1,7 +1,7 @@
 @import '/styles/_Theme.scss';
-@import '/styles/_front.scss';
+@import "/Platform/_platform.scss";
 
-// A round face in the party card - people are circles, games are squares. The leader wears a
+// A face in the party card - round, as the seat beside it is. The leader wears a
 // little crown on the corner, and whoever's talking lights up green.
 PartyMember
 {
@@ -46,44 +46,68 @@ PartyMember
 		opacity: 0.75;
 	}
 
-	// Along the bottom edge - download percent, or a glyph for ready / in game / stuck
+	// Tucked onto the bottom-right corner - a small dark chip, what they're up to in its glyph's colour with a ring of
+	// it: plain to see, without sitting over the face. Download percent, or ready / in the game / stuck.
 	> .status-badge
 	{
 		pointer-events: none;
 		position: absolute;
-		bottom: -5px;
-		left: 50%;
-		transform: translateX( -50% );
-		min-width: 18px;
-		height: 16px;
-		padding: 0 4px;
+		bottom: -3px;
+		right: -3px;
+		width: 14px;
+		height: 14px;
 		align-items: center;
 		justify-content: center;
-		border-radius: 999px;
-		border: 1px solid $front-card-deep;
-		background-color: $front-primary;
+		border-radius: 50%;
+		border: 0.5px solid rgba( $platform-primary, 0.6 );
+		background-color: rgba( 12, 15, 22, 0.92 );
 
+		// A square of its own as wide as the glyph, an even pixel in from each side of the chip's 13 inside -
+		// a 10px one landed on half a pixel and the narrow ones (!) sat off to a side
 		icon
 		{
+			width: 11px;
+			height: 11px;
 			font-size: 11px;
-			color: #ffffff;
+			text-align: center;
+			justify-content: center;
+			align-items: center;
+			color: $platform-primary;
 		}
 
+		// Every digit as wide as the next, so a climbing percent doesn't jiggle
 		label
 		{
-			font-size: 9.5px;
+			font-size: 8.5px;
 			font-weight: 700;
-			color: #ffffff;
+			font-variant-numeric: tabular-nums;
+			color: $platform-primary;
+		}
+
+		// A download percent's as wide as "100%" all the way up, so it doesn't twitch as the number changes
+		&.percent
+		{
+			width: 26px;
 		}
 
 		&.ready
 		{
-			background-color: $front-reward;
+			border-color: rgba( $platform-reward, 0.6 );
+
+			icon, label
+			{
+				color: $platform-reward;
+			}
 		}
 
 		&.failed
 		{
-			background-color: $front-danger;
+			border-color: rgba( $platform-danger, 0.7 );
+
+			icon, label
+			{
+				color: $platform-danger;
+			}
 		}
 	}
 }

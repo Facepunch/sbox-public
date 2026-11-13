@@ -5,7 +5,9 @@ public partial class Material
 	/// <summary>
 	/// Gets the underlying shader name for this material.
 	/// </summary>
-	public string ShaderName => native.GetString( "shader", "invalid" );
+	public string ShaderName => _shaderName ??= native.GetString( "shader", "invalid" );
+
+	string _shaderName;
 
 	/// <summary>
 	/// Get thje first texture assigned to this material, if any.
@@ -22,7 +24,7 @@ public partial class Material
 	{
 		get
 		{
-			return anonymousShader ?? Shader.Load( native.GetString( "shader", "invalid" ) );
+			return anonymousShader ?? Shader.Load( ShaderName );
 		}
 
 		set
@@ -32,6 +34,7 @@ public partial class Material
 
 			anonymousShader = null;
 			native.Set( "shader", value?.ResourcePath ?? "invalid" );
+			_shaderName = null;
 		}
 	}
 

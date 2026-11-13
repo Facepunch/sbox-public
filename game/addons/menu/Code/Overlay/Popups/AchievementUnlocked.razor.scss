@@ -1,14 +1,13 @@
 
+@import "/Platform/_platform.scss";
+
 AchievementUnlocked
 {
-    background-color: #222;
-    color: white;
-    border-radius: 8px;
+    @include platform-surface;
+    flex-direction: row;
     height: 64px;
-    font-family: Poppins;
     font-size: 18px;
     font-weight: 600;
-    box-shadow: 5px 5px 50px rgba( black, 0.5 );
     sound-in: "ui.popup.message.open"; // todo achievement unlocked osund
     overflow: hidden;
     position: relative;
@@ -72,7 +71,7 @@ AchievementUnlocked .a, AchievementUnlocked .c
     justify-content: center;
     align-items: center;
     color: white;
-    background-color: #3472e6;
+    background-color: $platform-primary;
     z-index: 100;
 }
 
@@ -111,7 +110,7 @@ AchievementUnlocked .a, AchievementUnlocked .c
     justify-content: center;
     align-items: center;
     color: white;
-    background-color: #3472e6;
+    background-color: $platform-primary;
     z-index: 100;
     font-size: 28px;
     font-weight: bold;

@@ -110,12 +110,12 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 	{
 		emitted = 0;
 		time = 0;
-		EmitRandom = Random.Shared.Float( 0, 1 );
+		EmitRandom = ParticleRandom.Shared.Float( 0, 1 );
 		burstPending = true;
 
-		EvaluatedDuration = Duration.Evaluate( 0, Random.Shared.Float( 0, 1 ) );
-		EvaluatedDelay = Delay.Evaluate( 0, Random.Shared.Float( 0, 1 ) );
-		evaluatedBurst = Burst.Evaluate( 0, Random.Shared.Float( 0, 1 ) );
+		EvaluatedDuration = Duration.Evaluate( 0, ParticleRandom.Shared.Float( 0, 1 ) );
+		EvaluatedDelay = Delay.Evaluate( 0, ParticleRandom.Shared.Float( 0, 1 ) );
+		evaluatedBurst = Burst.Evaluate( 0, ParticleRandom.Shared.Float( 0, 1 ) );
 	}
 
 	bool IsStarted => time - EvaluatedDelay >= 0;

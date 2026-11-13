@@ -131,8 +131,31 @@ class GameRootPanel : RootPanel
 
 	override public bool IsWorldPanel => false;
 
+	/// <summary>
+	/// What it's laid out on - the whole screen, or a camera's own target. Scaled from this, not the safe area, so
+	/// a smaller safe area moves it rather than shrinking it.
+	/// </summary>
+	Rect laidOutOn;
+
+	/// <summary>
+	/// Laid out on the screen, inside <see cref="Screen.SafeArea"/>.
+	/// Laid out on anything else (a camera's own target), the whole of that.
+	/// </summary>
+	protected override void UpdateBounds( Rect rect )
+	{
+		laidOutOn = rect;
+
+		if ( !IsVR && rect.Size == Screen.Size )
+			rect = Screen.SafeArea;
+
+		base.UpdateBounds( rect );
+	}
+
 	protected override void UpdateScale( Rect screenSize )
 	{
+		// From what it's laid out on, not the safe area it's given
+		screenSize = laidOutOn;
+
 		if ( AutoScale )
 		{
 			if ( ScaleStrategy == ScreenPanel.AutoScale.ConsistentHeight )

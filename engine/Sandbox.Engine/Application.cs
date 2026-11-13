@@ -227,19 +227,14 @@ public static class Application
 	}
 
 	/// <summary>
-	/// Gets the active scene. This could be in the menu system, or in the game. This is provided
-	/// for internal engine, and should never be accessible to the user code.
+	/// Gets the active scene - the game's, as the menu has none of its own. This is provided for internal engine, and
+	/// should never be accessible to the user code.
 	/// </summary>
 	internal static Scene GetActiveScene()
 	{
 		if ( IGameInstance.Current?.Scene is Scene gameScene && gameScene.IsValid() )
 		{
 			return gameScene;
-		}
-
-		if ( IMenuDll.Current?.Scene is Scene menuScene && menuScene.IsValid() )
-		{
-			return menuScene;
 		}
 
 		return null;

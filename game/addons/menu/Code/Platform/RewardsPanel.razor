@@ -1,0 +1,33 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.Modals;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    Your weekly drop, in from the right as your friends are (FriendsPanel) - the old menu's rewards popup (RewardsView) on
+    a panel of the platform's. Put away to go off to an objective's game, or to open the drop.
+*@
+<root class="@(Open ? "open" : "")">
+
+    <div class="panel" @ref="PanelBox">
+        <RewardsView OnLeave=@( () => PlatformRoot.Instance?.CloseAll() ) />
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter] public bool Open { get; set; }
+
+    Panel PanelBox;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Open );
+}

@@ -23,6 +23,4 @@ internal interface IMenuDll
 	void Reset();
 
 	IDisposable PushScope();
-
-	public Scene Scene { get; }
 }

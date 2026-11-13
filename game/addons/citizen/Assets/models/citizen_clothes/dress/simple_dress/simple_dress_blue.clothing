@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/dress/simple_dress/simple_dress_blue.clothing.png",
+    "Path": "models/citizen_clothes/dress/simple_dress/simple_dress_blue.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "-56.7000694,0,-8.49999714"

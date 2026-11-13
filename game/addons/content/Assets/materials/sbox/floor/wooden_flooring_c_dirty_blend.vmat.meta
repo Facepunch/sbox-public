@@ -1,0 +1,27 @@
+{
+  "guid": "10eeed18-00fc-0000-f800-000000000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Wooden Flooring c Dirty Blend",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "woodenfloorcdirtblend",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/wood/floor/wooden_flooring_c_dirty_blend.vmat",
+        "ParentPackage": "facepunch.sbox_content",
+        "AssetLicense": "CC0"
+      }
+    }
+  }
+}

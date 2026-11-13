@@ -1,5 +1,6 @@
 using Sandbox.Engine;
 using System.Threading;
+using ClothingCategory = Sandbox.Clothing.ClothingCategory;
 using static Sandbox.ClothingContainer;
 
 namespace Sandbox;
@@ -153,69 +154,72 @@ public sealed partial class Dresser
 	{
 		using var SceneScope = body.Scene.Push();
 
-		bool isHuman = DetermineHuman( body );
-
-		// remove our outfit
-		ResetClothing( body );
-		_clothingRenderers.Clear();
 		outfit.Normalize();
+		ApplyBodyReplacement( outfit, body );
 
-		// Clean the clothing. Remove any invalid items, any items with broken models
-		// any items that can't be worn with other items.
-		List<ClothingContainer.ClothingEntry> set = outfit.Clothing?
-														.Where( x => IsValidClothing( x, isHuman ) )
-														.ToList() ?? new();
+		// Remove the previous outfit without resetting the body's baseline.
+		RemoveClothing( body );
+		_clothingRenderers.Clear();
 
+		bool acceptsClothing = AllowedSlots != Sandbox.Clothing.Slots.None;
 		TagSet tags = new();
+		tags.Add( _activeBody?.BodyTags );
 
-		Material skinMaterial = default;
-		Material eyesMaterial = default;
-
-		//
-		// apply alternate human skin, if we have one
-		//
-		if ( isHuman )
-		{
-			skinMaterial = set.Select( x => x.Clothing.HumanSkinMaterial ).Where( x => !string.IsNullOrWhiteSpace( x ) ).Select( x => Material.Load( x ) ).FirstOrDefault();
-			eyesMaterial = set.Select( x => x.Clothing.HumanEyesMaterial ).Where( x => !string.IsNullOrWhiteSpace( x ) ).Select( x => Material.Load( x ) ).FirstOrDefault();
-
+		if ( acceptsClothing )
 			tags.Add( "human" );
 
-			var humanskin = set.Where( x => x.Clothing.HasHumanSkin ).FirstOrDefault();
-			if ( humanskin is not null && Model.Load( humanskin.Clothing.HumanSkinModel ) is Model model && model.IsValid() )
-			{
-				body.Model = model;
-				tags.Add( humanskin.Clothing.HumanSkinTags );
+		var set = outfit.Clothing?
+			.Where( x => IsValidClothing( x, tags ) )
+			.Where( x => !x.Clothing.ReplacesBody || x.Clothing == _activeBody )
+			.ToList() ?? new();
 
-				body.BodyGroups = humanskin.Clothing.HumanSkinBodyGroups;
-				body.MaterialGroup = humanskin.Clothing.HumanSkinMaterialGroup;
+		// Body materials are shared with compatible clothing. Material-only clothing can override them.
+#pragma warning disable CS0618 // Existing clothing resources can still supply material overrides.
+		Material skinMaterial = set.Select( x => x.Clothing.HumanSkinMaterial ).Concat( set.Select( x => x.Clothing.SkinMaterial ) )
+			.Where( x => !string.IsNullOrWhiteSpace( x ) ).Select( Material.Load ).FirstOrDefault();
+		Material eyesMaterial = set.Select( x => x.Clothing.HumanEyesMaterial ).Concat( set.Select( x => x.Clothing.EyesMaterial ) )
+			.Where( x => !string.IsNullOrWhiteSpace( x ) ).Select( Material.Load ).FirstOrDefault();
+#pragma warning restore CS0618
+
+#pragma warning disable CS0618
+		if ( SupportsHumanAppearance || _hasSkinAttributes )
+		{
+			var heelHeight = set.Select( x => x.Clothing.HeelHeight ).DefaultIfEmpty( 0 ).Max();
+			if ( body.Animation.Graph is not null )
+			{
+				body.Animation.Parameters.Set( "scale_heel", heelHeight, persist: true );
 			}
 			else
 			{
-				body.BodyGroups = body.Model.Parts.DefaultMask;
-				body.MaterialGroup = "default";
+				body.Set( "scale_heel", heelHeight );
 			}
 		}
-		else
-		{
-			skinMaterial = set.Select( x => x.Clothing.SkinMaterial ).Where( x => !string.IsNullOrWhiteSpace( x ) ).Select( x => Material.Load( x ) ).FirstOrDefault();
-			eyesMaterial = set.Select( x => x.Clothing.EyesMaterial ).Where( x => !string.IsNullOrWhiteSpace( x ) ).Select( x => Material.Load( x ) ).FirstOrDefault();
-		}
-
-#pragma warning disable CS0618
-		var heelHeight = outfit.Clothing?.Select( x => x.Clothing?.HeelHeight ?? 0.0f ).DefaultIfEmpty( 0 ).Max() ?? 0.0f;
-		if ( body.Animation.Graph is not null )
-			body.Animation.Parameters.Set( "scale_heel", heelHeight, persist: true );
-		else
-			body.Set( "scale_heel", heelHeight );
 #pragma warning restore CS0618
 
-		body.SetMaterialOverride( skinMaterial, "skin" );
-		body.SetMaterialOverride( eyesMaterial, "eyes" );
+		if ( skinMaterial is not null )
+			body.SetMaterialOverride( skinMaterial, "skin" );
 
-		if ( isHuman )
+		if ( eyesMaterial is not null )
+			body.SetMaterialOverride( eyesMaterial, "eyes" );
+
+		// Garments can contain exposed skin meshes. Match those to the body's selected material group,
+		// without replacing the body's own group materials or overriding explicit legacy material choices.
+		if ( acceptsClothing && body.Model is { MaterialGroupCount: > 0 } )
 		{
-			EnsureHumanUnderwear( set, tags.Has( "female" ) );
+			var group = Math.Max( 0, body.Model.GetMaterialGroupIndex( body.MaterialGroup ) );
+			foreach ( var material in body.Model.GetMaterials( group ) )
+			{
+				if ( material.Flags.GetInt( "skin" ) != 0 )
+					skinMaterial ??= material;
+
+				if ( material.Flags.GetInt( "eyes" ) != 0 )
+					eyesMaterial ??= material;
+			}
+		}
+
+		if ( acceptsClothing )
+		{
+			EnsureHumanUnderwear( set, tags );
 		}
 
 		//
@@ -225,10 +229,15 @@ public sealed partial class Dresser
 		{
 			var c = entry.Clothing;
 
+			if ( c.ReplacesBody )
+				continue;
+
 			var modelPath = c.GetModel( set.Select( x => x.Clothing ).Except( new[] { c } ), tags );
 
+#pragma warning disable CS0618 // Legacy skin items replace materials instead of adding a garment.
 			if ( string.IsNullOrEmpty( modelPath ) || !string.IsNullOrEmpty( c.SkinMaterial ) )
 				continue;
+#pragma warning restore CS0618
 
 			var model = Model.Load( modelPath );
 			if ( !model.IsValid() || model.IsError )
@@ -237,6 +246,10 @@ public sealed partial class Dresser
 			var go = new GameObject( false, $"Clothing - {c.ResourceName}" );
 			go.Parent = body.GameObject;
 			go.Tags.Add( "clothing" );
+			// Accessories can use their own bones or be weighted below the neck, so collapsing the
+			// body's upper bones isn't enough. Hide the whole accessory in the first-person preview.
+			if ( IsFirstPersonHiddenClothing( c.Category ) )
+				go.Tags.Add( "firstperson-hidden" );
 
 			var r = go.Components.Create<SkinnedModelRenderer>();
 			r.Model = model;
@@ -244,8 +257,11 @@ public sealed partial class Dresser
 			r.DeformationMode = c.DeformationMode;
 			_clothingRenderers[entry] = r;
 
-			r.SetMaterialOverride( skinMaterial, "skin" );
-			r.SetMaterialOverride( eyesMaterial, "eyes" );
+			if ( skinMaterial is not null )
+				r.SetMaterialOverride( skinMaterial, "skin" );
+
+			if ( eyesMaterial is not null )
+				r.SetMaterialOverride( eyesMaterial, "eyes" );
 
 			if ( !string.IsNullOrEmpty( c.MaterialGroup ) )
 				r.MaterialGroup = c.MaterialGroup;
@@ -263,7 +279,7 @@ public sealed partial class Dresser
 		//
 		// Set body groups
 		//
-		foreach ( var (name, value) in outfit.GetBodyGroups( set.Select( x => x.Clothing ), body.Model ) )
+		foreach ( var (name, value) in outfit.GetBodyGroups( set.Where( x => !x.Clothing.ReplacesBody ).Select( x => x.Clothing ), body.Model ) )
 		{
 			if ( value == 0 ) continue;
 
@@ -272,6 +288,21 @@ public sealed partial class Dresser
 
 		UpdateAppearance();
 	}
+
+	static bool IsFirstPersonHiddenClothing( ClothingCategory category ) => category is
+		ClothingCategory.Hat or ClothingCategory.HatBeanie or ClothingCategory.HatFormal or
+		ClothingCategory.HatCostume or ClothingCategory.HatUniform or ClothingCategory.HatSpecial or
+		ClothingCategory.Headwear or ClothingCategory.HeadTech or ClothingCategory.HeadBand or
+		ClothingCategory.HeadJewel or ClothingCategory.HeadSpecial or
+		ClothingCategory.Hair or ClothingCategory.HairShort or ClothingCategory.HairMedium or
+		ClothingCategory.HairLong or ClothingCategory.HairUpdo or ClothingCategory.HairSpecial or
+		ClothingCategory.Facial or ClothingCategory.FacialHairMustache or ClothingCategory.FacialHairBeard or
+		ClothingCategory.FacialHairStubble or ClothingCategory.FacialHairSideburns or ClothingCategory.FacialHairGoatee or
+		ClothingCategory.Eyewear or ClothingCategory.GlassesEye or ClothingCategory.GlassesSun or ClothingCategory.GlassesSpecial or
+		ClothingCategory.Eyes or ClothingCategory.Eyebrows or ClothingCategory.Eyelashes or
+		ClothingCategory.NecklaceChain or ClothingCategory.NecklacePendant or ClothingCategory.NecklaceSpecial or
+		ClothingCategory.EarringStud or ClothingCategory.EarringDangle or ClothingCategory.EarringSpecial or
+		ClothingCategory.Piercing or ClothingCategory.PierceNose or ClothingCategory.PierceEyebrow or ClothingCategory.PierceSpecial;
 
 	/// <summary>
 	/// Cancels any existing Dresser request and resets clothing without initializing appearance.
@@ -303,9 +334,14 @@ public sealed partial class Dresser
 			body.Set( "scale_height", 1.0f );
 #pragma warning restore CS0618
 		body.MaterialGroup = "default";
-		body.MaterialOverride = null;
+		body.ClearMaterialOverrides();
 		body.BodyGroups = body.Model?.Parts.DefaultMask ?? 0;
 
+		RemoveClothing( body );
+	}
+
+	private static void RemoveClothing( SkinnedModelRenderer body )
+	{
 		//
 		// Remove old models
 		//
@@ -324,14 +360,6 @@ public sealed partial class Dresser
 	static readonly Lazy<Sandbox.Clothing> DefaultUnderwear = new( () => ResourceLibrary.Get<Sandbox.Clothing>( DefaultUnderwearPath ) );
 	static readonly Lazy<Sandbox.Clothing> DefaultBra = new( () => ResourceLibrary.Get<Sandbox.Clothing>( DefaultBraPath ) );
 
-	static bool DetermineHuman( SkinnedModelRenderer b, bool defaultValue = false )
-	{
-		if ( b?.Model is null ) return defaultValue;
-
-		var model = b.Model.BaseModel ?? b.Model;
-		return !model.Name.Contains( "citizen.vmdl", StringComparison.OrdinalIgnoreCase );
-	}
-
 	static bool IsValidModel( string modelName )
 	{
 		if ( string.IsNullOrWhiteSpace( modelName ) )
@@ -345,7 +373,7 @@ public sealed partial class Dresser
 		return true;
 	}
 
-	static void EnsureHumanUnderwear( List<ClothingEntry> set, bool isFemale )
+	void EnsureHumanUnderwear( List<ClothingEntry> set, TagSet tags )
 	{
 		var hiddenParts = set.Select( x => x.Clothing.HideBody ).DefaultIfEmpty().Aggregate( ( a, b ) => a | b );
 
@@ -354,49 +382,52 @@ public sealed partial class Dresser
 		{
 			bool hasUnderwear = set.Any( x => x.Clothing.Category is Sandbox.Clothing.ClothingCategory.Underwear or Sandbox.Clothing.ClothingCategory.Underpants );
 			if ( !hasUnderwear )
-				TryAddDefault( set, DefaultUnderwear.Value, isHuman: true );
+				TryAddDefault( set, DefaultUnderwear.Value, tags );
 		}
 
 		// Don't add bra if chest is hidden
-		if ( isFemale && !hiddenParts.HasFlag( Sandbox.Clothing.BodyGroups.Chest ) && !set.Any( x => x.Clothing.Category == Sandbox.Clothing.ClothingCategory.Bra ) )
-			TryAddDefault( set, DefaultBra.Value, isHuman: true );
+		if ( tags.Has( "female" ) && !hiddenParts.HasFlag( Sandbox.Clothing.BodyGroups.Chest ) && !set.Any( x => x.Clothing.Category == Sandbox.Clothing.ClothingCategory.Bra ) )
+			TryAddDefault( set, DefaultBra.Value, tags );
 	}
 
-	static void TryAddDefault( List<ClothingEntry> set, Sandbox.Clothing clothing, bool isHuman )
+	void TryAddDefault( List<ClothingEntry> set, Sandbox.Clothing clothing, TagSet tags )
 	{
 		if ( clothing is null ) return;
 
 		var entry = new ClothingEntry( clothing );
 
-		if ( !IsValidClothing( entry, isHuman ) ) return;
+		if ( !IsValidClothing( entry, tags ) ) return;
 		if ( set.Any( x => !(x.Clothing?.CanBeWornWith( clothing ) ?? true) ) ) return;
 
 		set.Add( entry );
 	}
 
-	static bool IsValidClothing( ClothingContainer.ClothingEntry e, bool targetIsHuman )
+	bool IsValidClothing( ClothingEntry entry, TagSet tags )
 	{
-		if ( e is null ) return false;
-		if ( e.Clothing is null ) return false;
-		if ( targetIsHuman && e.Clothing.HasHumanSkin ) return true;
+		var clothing = entry?.Clothing;
+		if ( clothing is null )
+			return false;
 
-		var model = e.Clothing.Model;
+		if ( clothing.ReplacesBody )
+			return IsValidBodyReplacement( clothing );
 
-		if ( targetIsHuman )
-		{
-			model = e.Clothing.HumanAltModel;
+		if ( AllowedSlots == Sandbox.Clothing.Slots.None || (_activeBody is not null && !_activeBody.CanWear( clothing )) )
+			return false;
 
-			// If we have a citizen model, but not a human model, make clothing invalid
-			if ( string.IsNullOrEmpty( model ) && !string.IsNullOrEmpty( e.Clothing.Model ) )
-				return false;
-		}
-
+		var model = clothing.GetModel( Enumerable.Empty<Sandbox.Clothing>(), tags );
 		if ( string.IsNullOrEmpty( model ) )
-			return true;
+		{
+			// An item with a mesh for a different body is not a material-only item.
+#pragma warning disable CS0618 // Retain the distinction for old Citizen resources.
+			return string.IsNullOrEmpty( clothing.Model )
+				&& string.IsNullOrEmpty( clothing.HumanAltModel )
+				&& string.IsNullOrEmpty( clothing.HumanAltFemaleModel );
+#pragma warning restore CS0618
+		}
 
 		if ( !IsValidModel( model ) )
 		{
-			Log.Warning( $"Clothing model '{model}' in {e.Clothing} is invalid, removing" );
+			Log.Warning( $"Clothing model '{model}' in {clothing} is invalid, removing" );
 			return false;
 		}
 

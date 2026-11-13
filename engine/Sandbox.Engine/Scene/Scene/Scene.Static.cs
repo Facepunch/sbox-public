@@ -14,6 +14,11 @@ partial class Scene
 	internal static IEnumerable<Scene> AllIncludingUnlisted => _all.Where( x => !x.IsEditor && x.Active );
 
 	/// <summary>
+	/// Every scene not yet destroyed, editor and inactive ones included.
+	/// </summary>
+	internal static IEnumerable<Scene> AllLive => _all;
+
+	/// <summary>
 	/// Kept out of <see cref="All"/>, like the menu's own scene.
 	/// </summary>
 	internal bool IsUnlisted { get; init; }

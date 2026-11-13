@@ -6,9 +6,12 @@ namespace Sandbox.Animation;
 /// A compiled skeleton (.skel) - a bone hierarchy and its reference pose. This is the
 /// skeleton animation clips and graphs are authored against, independent of any one model.
 /// </summary>
-public sealed class Skeleton : Resource
+public sealed class Skeleton : Resource, IDisposable
 {
 	internal HAnimSkeleton native;
+	private bool shared;
+
+	public static SkeletonBuilder Builder => new();
 
 	public override bool IsValid => native.IsValid;
 
@@ -20,30 +23,71 @@ public sealed class Skeleton : Resource
 	/// <summary>
 	/// Skeleton resource name.
 	/// </summary>
-	public string Name { get; }
+	public string Name => ResourcePath;
 
-	private Skeleton( HAnimSkeleton native, string name )
+	private Skeleton( HAnimSkeleton native, string name, bool procedural )
 	{
 		this.native = native;
-		Name = name;
-
-		RegisterWeakResourceId( Name );
+		shared = !procedural;
+		SetResourceIdentity( name, procedural ? null : native.GetGuid() );
+		if ( !NativeGlue.Resources.IsAnonymousResource( native.GetBindingPtr() ) )
+			Game.Resources.RegisterWeak( this );
 	}
 
 	/// <summary>
 	/// Load a skeleton from the given file.
 	/// </summary>
-	public static Skeleton Load( string filename )
+	public static Skeleton Load( string filename ) => Load( (ResourceId)filename );
+
+	internal static Skeleton Load( ResourceId id )
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		return FromNative( NativeGlue.Resources.GetAnimSkeleton( filename ), filename );
+		if ( id.Guid is Guid guid && Game.Resources.TryGet<Skeleton>( guid, out var resource ) )
+			return resource;
+
+		var path = FixPath( id.ResolvePath() );
+		if ( string.IsNullOrWhiteSpace( path ) && id.Guid is null )
+			return null;
+
+		if ( Mounting.MountUtility.IsMountPath( path ) )
+			return Mounting.Directory.TryLoad( path, out var mounted ) ? mounted as Skeleton : null;
+
+		return FromNative( NativeGlue.Resources.GetAnimSkeleton( path, id.Guid ?? Guid.Empty ), path );
+	}
+
+	internal override void OnMounted( string path )
+	{
+		ThreadSafe.AssertIsMainThread();
+		if ( shared )
+		{
+			if ( ResourcePath != FixPath( path ) )
+				throw new InvalidOperationException( $"Mounted skeleton '{path}' must be created by its loader, not shared from '{ResourcePath}'." );
+			if ( Game.Resources.Get<Skeleton>( ResourcePath ) != this )
+				Game.Resources.RegisterWeak( this );
+			return;
+		}
+
+		RegisterWeakResourceId( path );
+		shared = true;
+	}
+
+	public static Task<Skeleton> LoadAsync( string filename )
+	{
+		ThreadSafe.AssertIsMainThread();
+		return ResourceLibrary.LoadAsync<Skeleton>( FixPath( filename ) );
+	}
+
+	public void Dispose()
+	{
+		if ( !shared )
+			Destroy();
 	}
 
 	/// <summary>
 	/// Try to make it so only one Skeleton class exists for each skeleton
 	/// </summary>
-	internal static Skeleton FromNative( HAnimSkeleton native, string name )
+	internal static Skeleton FromNative( HAnimSkeleton native, string name, bool procedural = false )
 	{
 		if ( native.IsNull )
 			return null;
@@ -59,10 +103,12 @@ public sealed class Skeleton : Resource
 		{
 			// If we're using a cached one we don't need this handle, we'll leak
 			native.DestroyStrongHandle();
+			if ( !NativeGlue.Resources.IsAnonymousResource( skeleton.native.GetBindingPtr() ) )
+				Game.Resources.RegisterWeak( skeleton );
 			return skeleton;
 		}
 
-		skeleton = new Skeleton( native, name );
+		skeleton = new Skeleton( native, name, procedural );
 		NativeResourceCache.Add( instanceId, skeleton );
 
 		return skeleton;

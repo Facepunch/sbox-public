@@ -1,4 +1,4 @@
-<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
 	rootNode = 
 	{
@@ -29,16 +29,16 @@
 						remaps = 
 						[
 							{
-								from = "m_scruffyshort.vmat"
-								to = "models/citizen_clothes/hair/legacy_hair/textures/hair_01.vmat"
-							},
-							{
-								from = "pasted__m_scruffyhair_cap.vmat"
+								from = "hair_cap.vmat"
 								to = "models/citizen_clothes/hair/hair_shortscruffy/textures/hair_shortscruffy_cap.vmat"
 							},
 							{
-								from = "m_scruffyhair_cap.vmat"
-								to = "models/citizen_clothes/hair/hair_shortscruffy/textures/hair_shortscruffy_cap.vmat"
+								from = "thinning_hair.vmat"
+								to = "models/citizen_clothes/hair/hair_shortscruffy/textures/short_scruffy_hair_trans.vmat"
+							},
+							{
+								from = "under_hair.vmat"
+								to = "models/citizen_clothes/hair/hair_shortscruffy/textures/short_scruffy_hair.vmat"
 							},
 						]
 						use_global_default = false
@@ -52,7 +52,7 @@
 				[
 					{
 						_class = "RenderMeshFile"
-						name = "hair_scruffyshort_LOD0"
+						name = "LOD0"
 						filename = "models/citizen_clothes/hair/hair_shortscruffy/models/hair_shortscruffy_m_human.fbx"
 						import_translation = [ 0.0, 0.0, 0.0 ]
 						import_rotation = [ 0.0, 0.0, 0.0 ]
@@ -69,72 +69,6 @@
 								"hair_scruffyshort_LOD1",
 								"hair_scruffyshort_LOD2",
 								"hair_scruffyshort_LOD3",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "hair_scruffyshort_LOD1"
-						filename = "models/citizen_clothes/hair/hair_shortscruffy/models/hair_shortscruffy_m_human.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = false
-							exception_list = 
-							[
-								"hair_scruffyshort_LOD0",
-								"hair_scruffyshort_LOD2",
-								"hair_scruffyshort_LOD3",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "hair_scruffyshort_LOD2"
-						filename = "models/citizen_clothes/hair/hair_shortscruffy/models/hair_shortscruffy_m_human.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = false
-							exception_list = 
-							[
-								"hair_scruffyshort_LOD1",
-								"hair_scruffyshort_LOD0",
-								"hair_scruffyshort_LOD3",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "hair_scruffyshort_LOD3"
-						filename = "models/citizen_clothes/hair/hair_shortscruffy/models/hair_shortscruffy_m_human.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = false
-							exception_list = 
-							[
-								"hair_scruffyshort_LOD1",
-								"hair_scruffyshort_LOD0",
-								"hair_scruffyshort_LOD2",
 							]
 						}
 					},
@@ -147,33 +81,116 @@
 					{
 						_class = "LODGroup"
 						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
 						meshes = 
 						[
-							"hair_scruffyshort_LOD0",
+							"LOD0",
 						]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 10.0
-						meshes = 
-						[
-							"hair_scruffyshort_LOD1",
-						]
+						auto_simplify_mode = 1
+						auto_reduction = 0.8645
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 20.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.6395
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = true
 						meshes = 
 						[
-							"hair_scruffyshort_LOD2",
+							"lod2_autolod2",
 						]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 40.0
-						meshes = 
+						auto_simplify_mode = 1
+						auto_reduction = 0.4505
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 2
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = 
 						[
-							"hair_scruffyshort_LOD3",
+							{
+								material = "models/citizen_clothes/hair/hair_slickedback/textures/hair_slickedback_cap.vmat"
+								remove = true
+								replacement = ""
+							},
+							{
+								material = "models/citizen_clothes/hair/hair_shortscruffy/textures/short_scruffy_hair_trans.vmat"
+								remove = true
+								replacement = ""
+							},
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 60.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.2165
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = true
+						auto_regularize = 2
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = true
+						meshes = [  ]
+						material_culls = 
+						[
+							{
+								material = "models/citizen_clothes/hair/hair_slickedback/textures/hair_slickedback_cap.vmat"
+								remove = true
+								replacement = ""
+							},
+							{
+								material = "models/citizen_clothes/hair/hair_thinning_short/textures/hair_thinning_short_trans_01.vmat"
+								remove = true
+								replacement = ""
+							},
+							{
+								material = "models/citizen_clothes/hair/hair_shortscruffy/textures/hair_shortscruffy_cap.vmat"
+								remove = true
+								replacement = ""
+							},
 						]
 					},
 				]

@@ -13,7 +13,7 @@ public sealed class RenderMesh
 	/// <paramref name="Tint"/> is a linear per-draw multiplier, or null for white (<c>CMaterialDrawDescriptor::m_vTintColor</c>).
 	/// </summary>
 	public readonly record struct Draw( int Mesh, int DrawCall, int StartIndex, int IndexCount, int VertexCount, int PrimitiveType, Material Material,
-		bool Translucent = false, bool AlphaTest = false, bool ShadowFastPath = false, bool Lightmapped = false, Vector3? Tint = null );
+		bool Translucent = false, bool AlphaTest = false, bool ShadowFastPath = false, bool Lightmapped = false, Vector3? Tint = null, int BaseVertex = 0 );
 
 	/// <summary>
 	/// Whether a material blends, as native reads its <c>translucent</c> attribute.
@@ -332,7 +332,7 @@ public sealed class RenderMesh
 					var translucent = IsTranslucent( material );
 					var alphaTest = IsAlphaTest( material );
 					var fastPath = material is not null && material.native.GetBoolAttributeOrDefault( "ShadowFastPath", false ) && !translucent && !alphaTest;
-					draws.Add( new Draw( m, d, call.StartIndex, call.Indices, call.Vertices, call.PrimitiveType, material, translucent, alphaTest, fastPath, Tint: RenderContext.ReadDrawTint( model, m, d ) ) );
+					draws.Add( new Draw( m, d, call.StartIndex, call.Indices, call.Vertices, call.PrimitiveType, material, translucent, alphaTest, fastPath, Tint: RenderContext.ReadDrawTint( model, m, d ), BaseVertex: call.BaseVertex ) );
 				}
 			}
 

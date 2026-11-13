@@ -11,9 +11,8 @@
 
 	<div class="line">
 
-		<div class="preset-head">
-			<label class="name">#menu.settings.quality_preset</label>
-			<label class="hint">#menu.settings.gfx.postprocess.description</label>
+		<div class="title">
+			<label class="name">#menu.settings.post_processing_quality</label>
 		</div>
 
 		<div class="control">
@@ -42,6 +41,13 @@
 @code
 {
 	[Parameter] public SettingsView View { get; set; }
+
+	public override void Tick()
+	{
+		base.Tick();
+
+		SetClass( "focused", View?.Focused == View?.Catalog.PostProcessInfo );
+	}
 
 	static readonly PostProcessQuality[] Tiers =
 		[PostProcessQuality.Off, PostProcessQuality.Low, PostProcessQuality.Medium, PostProcessQuality.High];

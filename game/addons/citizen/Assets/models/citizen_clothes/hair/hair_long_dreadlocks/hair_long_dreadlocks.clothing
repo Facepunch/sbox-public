@@ -44,7 +44,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/hair/hair_long_dreadlocks/hair_long_dreadlocks.clothing.png",
+    "Path": "models/citizen_clothes/hair/hair_long_dreadlocks/hair_long_dreadlocks.clothing.vtex",
     "Mode": "Eyes",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

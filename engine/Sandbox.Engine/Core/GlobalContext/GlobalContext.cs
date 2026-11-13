@@ -15,6 +15,20 @@ internal partial class GlobalContext
 	public Assembly LocalAssembly { get; set; }
 
 	/// <summary>
+	/// Publishes script assemblies through this context's package loader, installing the
+	/// incoming catalog after ordinary hotload has migrated references.
+	/// </summary>
+	internal Action<Assembly, Assembly, Action> ReplaceScriptAssembly { get; set; }
+
+	/// <summary>
+	/// Rebuilds existing script types before their C# dependencies migrate, without creating a scripting context.
+	/// </summary>
+	internal ScriptSystem.AssemblyHotload PrepareScriptHotload( IReadOnlyList<Assembly> incoming, Action<Assembly, Assembly> replace )
+	{
+		return scripting?.PrepareHotload( incoming, replace );
+	}
+
+	/// <summary>
 	/// The input context for this game instance, which contains the current input state and bindings.
 	/// </summary>
 	public InputContext InputContext { get; set; }
@@ -55,6 +69,17 @@ internal partial class GlobalContext
 	}
 
 	private ScriptSystem scripting;
+
+	/// <summary>
+	/// Network clients use the host's script set, even when local packages contain script source.
+	/// </summary>
+	internal bool ReceivesNetworkScripts => scripting?.ReceivesNetworkFiles == true
+		|| (this == Game && Networking.IsClient);
+
+	/// <summary>
+	/// Resumes ready scripts in this context's scene scope without creating an unused scripting system.
+	/// </summary>
+	internal void TickScripting() => scripting?.Tick();
 
 	internal ScriptSystem Scripting
 	{

@@ -15,11 +15,11 @@ public sealed class PoseGroupNode : Node
 
 	public override IEnumerable<Data> SubGraphs => [Contents];
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{
-			var info = base.DisplayInfo;
+			var info = base.DefaultDisplayInfo;
 			info.Name = Name;
 			return info;
 		}

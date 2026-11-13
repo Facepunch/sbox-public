@@ -1,59 +1,70 @@
+@import "/Platform/_platform.scss";
+
+// A line of the log - when, then what, edged in its level's colour down the left (its .stripe - not a border, whose
+// unseen sides the engine draws as hairlines while the window scales in)
 ConsoleRow
 {
-    flex-shrink: 0;
-    flex-grow: 0;
-    color: #a0a4a7;
-    width: 100%;
-    cursor: pointer;
-    align-items: center;
-    white-space: pre;
+	position: relative;
+	width: 100%;
+	height: 100%;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 12px;
+	padding-left: 3px;
+	padding-right: 12px;
+	color: #c3cad8;
+	white-space: pre;
+	cursor: pointer;
 
-    .time
-    {
-        color: red;
-        margin-right: 5px;
-        background-color: rgba(104, 125, 104, 0.2);
-        color: #687d68;
-        padding: 1px 5px;
-        flex-shrink: 0;
-        flex-grow: 0;
-        white-space: nowrap;
-    }
+	> .stripe
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: 3px;
+	}
 
-    .message
-    {
-        white-space: pre;
-    }
+	.time
+	{
+		flex-shrink: 0;
+		padding-left: 9px;
+		color: $platform-faint;
+		white-space: nowrap;
+	}
 
-    &.trace
-    {
-        opacity: 0.6;
-    }
+	.message
+	{
+		white-space: pre;
+	}
 
-    &.warn
-    {
-        color: #d47050;
-    }
+	&.trace
+	{
+		opacity: 0.6;
+	}
 
-    &.error
-    {
-        color: #BF616A;
-        background-color: rgba(#BF616A, 0.05);
-    }
+	&.warn
+	{
+		> .stripe { background-color: $platform-warning; }
+		background-color: rgba( $platform-warning, 0.05 );
+		color: #f3c27e;
+	}
 
-    &:hover
-    {
-        background-color: #333;
-    }
+	&.error
+	{
+		> .stripe { background-color: $platform-danger; }
+		background-color: rgba( $platform-danger, 0.07 );
+		color: #ff9aa3;
+	}
 
-    &.in
-    {
-        color: #68bf61;
-    }
+	&:hover
+	{
+		background-color: rgba( 255, 255, 255, 0.05 );
+	}
 
-    &.highlight
-    {
-        background-color: rgba(#fff, 0.02);
-        color: white;
-    }
+	&.highlight
+	{
+		background-color: rgba( $platform-primary, 0.22 );
+		color: white;
+	}
 }

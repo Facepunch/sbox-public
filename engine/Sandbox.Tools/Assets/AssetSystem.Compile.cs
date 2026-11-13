@@ -6,12 +6,26 @@ namespace Editor;
 
 public static partial class AssetSystem
 {
-	internal unsafe static bool TryManagedCompile( IResourceCompilerContext _context )
+	/// <summary>
+	/// A compile of a type managed code compiles. On the main thread, where the type library changes (a hotload), as are
+	/// managed compiles of build jobs running on threads of their own (<see cref="ContentCompilerHost.CompileOnMainThread"/>).
+	/// </summary>
+	internal static bool TryManagedCompile( IResourceCompilerContext context ) => ContentCompilerHost.CompileOnMainThread( () => ManagedCompile( context ) );
+
+	/// <summary>
+	/// A compile asked for while the editor's content build holds the roots: whether the build let go of them.
+	/// </summary>
+	internal static bool YieldContentBuild() => EditorContentBuild.Yield();
+
+	static async Task<bool> ManagedCompile( IResourceCompilerContext _context )
 	{
 		using var context = new ResourceCompileContextImp( _context );
 
 		var filename = context.AbsolutePath;
 		var extension = System.IO.Path.GetExtension( filename ).Trim( '.' );
+
+		if ( AssetType.Find( extension )?.IsUncompiled == true )
+			return false;
 
 		// Do we have a specific compiler? These register the source extensions they
 		// handle themselves ([ResourceIdentity("wav")] etc), so check before the
@@ -24,13 +38,13 @@ public static partial class AssetSystem
 		{
 			var compiler = chosen.Create<ResourceCompiler>();
 			compiler.SetContext( context );
-			return compiler.CompileInternal();
+			return await compiler.CompileInternalAsync();
 		}
 
 		if ( !IsGameResource( extension ) )
 			return false;
 
-		CompileGameResource( context );
+		await CompileGameResource( context );
 		return true;
 	}
 
@@ -40,7 +54,9 @@ public static partial class AssetSystem
 	/// </summary>
 	internal static bool IsGameResource( string extension )
 	{
-		var set = _gameResourceExtensions ??= EditorTypeLibrary.GetAttributes<AssetTypeAttribute>().Select( x => x.Extension ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+		var set = _gameResourceExtensions ??= EditorTypeLibrary.GetAttributes<AssetTypeAttribute>()
+			.Where( x => !x.IsUncompiled && x.TargetType.IsAssignableTo( typeof( GameResource ) ) )
+			.Select( x => x.Extension ).ToHashSet( StringComparer.OrdinalIgnoreCase );
 		return set.Contains( extension );
 	}
 
@@ -105,7 +121,7 @@ public static partial class AssetSystem
 		return map.TryGetValue( extension, out var found ) ? found : null;
 	}
 
-	internal static void CompileGameResource( ResourceCompileContextImp context )
+	internal static async Task CompileGameResource( ResourceCompileContextImp context )
 	{
 		// Get the json contents: the file's, or what a parent compile gave a child it generated
 		var jsonString = context.TryReadOverrideInput( out var input ) ? System.Text.Encoding.UTF8.GetString( input ) : System.IO.File.ReadAllText( context.AbsolutePath );
@@ -122,7 +138,7 @@ public static partial class AssetSystem
 			kv.DeleteThis();
 		}
 
-		jsonString = context.ScanJson( jsonString );
+		jsonString = await context.ScanJsonAsync( jsonString );
 
 		context.Data.Write( jsonString );
 

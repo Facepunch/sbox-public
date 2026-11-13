@@ -1,3 +1,5 @@
+@import "/Platform/_platform.scss";
+
 .tag-selector
 {
 	display: flex;
@@ -8,32 +10,7 @@
 
 .tag
 {
-	border: 1px;
-	padding: 8px 10px;
-	font-size: 1rem;
-	font-weight: bold;
-	border-radius: 4px;
+	@include platform-choice;
 	flex-grow: 0;
-	background-color: #212d3b;
-	border: 1px solid #515d6b55;
-	color: #fffc;
-	opacity: 0.9;
-	cursor: pointer;
-}
-
-
-.tag:hover
-{
-	background-color: #3273eb55;
-	border: 1px solid #3273ebcc;
-	color: white;
-	opacity: 1;
-}
-
-.tag.active
-{
-	background-color: #3273eb;
-	border: 1px solid #3273eb;
-	color: white;
-	opacity: 1;
+	flex-basis: auto;
 }

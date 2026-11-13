@@ -7,7 +7,28 @@ public sealed partial class PlayerController : ICameraModifier
 
 	[Property, Feature( "Camera" )] public float EyeDistanceFromTop { get; set; } = 8;
 	[Property, Feature( "Camera" )] public bool ThirdPerson { get; set; } = true;
+	/// <summary>
+	/// Hide the local player's body and its children in first person.
+	/// </summary>
 	[Property, Feature( "Camera" )] public bool HideBodyInFirstPerson { get; set; } = true;
+
+	/// <summary>
+	/// When the body is visible in first person, also show the chest, arms, hands and anything held in them.
+	/// </summary>
+	[Property, Feature( "Camera" ), ShowIf( nameof( HideBodyInFirstPerson ), false )]
+	public bool ShowArmsInFirstPerson { get; set; } = false;
+
+	/// <summary>
+	/// Disable this when the first person pose doesn't suit the situation, like sitting in a seat where it leans the back into it.
+	/// </summary>
+	[Property, Feature( "Camera" ), ShowIf( nameof( HideBodyInFirstPerson ), false )]
+	public bool UseFirstPersonAnimation { get; set; } = true;
+
+	/// <summary>
+	/// Allow the body and its child models to cast shadows in first person, even when hidden.
+	/// </summary>
+	[Property, Feature( "Camera" )] public bool CastShadowsInFirstPerson { get; set; } = true;
+
 	[Property, Feature( "Camera" )] public bool UseFovFromPreferences { get; set; } = true;
 	[Property, Feature( "Camera" )] public Vector3 CameraOffset { get; set; } = new Vector3( 256, 0, 12 );
 	[Property, Feature( "Camera" ), InputAction] public string ToggleCameraModeButton { get; set; } = "view";

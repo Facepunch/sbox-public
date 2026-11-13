@@ -160,6 +160,8 @@ internal class UploadBuildArtifacts
 
 		// addons raw assets
 		"addons/**/*.tga",
+		"addons/content/**/*.png",
+		"addons/content/**/*.meta",
 		"addons/citizen/Assets/models/**/*_color.png",
 		"addons/citizen/Assets/models/**/*_normal.png",
 		"addons/citizen/Assets/models/**/*_bentnormal.png",
@@ -223,6 +225,7 @@ internal class UploadBuildArtifacts
 	private static readonly string[] CompilerEmptyFolders =
 	{
 		"game/addons/citizen/Assets/",
+		"game/addons/content/Assets/",
 		"game/mount/"
 	};
 

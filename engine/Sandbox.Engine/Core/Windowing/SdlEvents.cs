@@ -98,7 +98,7 @@ internal static class SdlEvents
 				break;
 			case Sdl.EventType.MouseWheel:
 				var wheel = WheelDelta( e.Wheel );
-				if ( wheel != Vector2.Zero ) InputRouter.OnMouseWheel( wheel.x, wheel.y );
+				if ( wheel != Vector2.Zero ) InputRouter.OnMouseWheel( wheel.x, wheel.y, WheelFlip( e.Wheel ) * e.Wheel.IntegerX, WheelFlip( e.Wheel ) * e.Wheel.IntegerY );
 				break;
 			case Sdl.EventType.Quit: InputRouter.CloseApplication(); break;
 			case Sdl.EventType.WindowCloseRequested:
@@ -139,5 +139,10 @@ internal static class SdlEvents
 		((mod & 0x00c0) != 0 ? KeyboardModifiers.Ctrl : KeyboardModifiers.None) |
 		((mod & 0x0300) != 0 ? KeyboardModifiers.Alt : KeyboardModifiers.None);
 
-	internal static Vector2 WheelDelta( Sdl.MouseWheelEvent wheel ) => new Vector2( wheel.X, wheel.Y ) * (wheel.Direction == 1 ? -1 : 1);
+	internal static Vector2 WheelDelta( Sdl.MouseWheelEvent wheel ) => new Vector2( wheel.X, wheel.Y ) * WheelFlip( wheel );
+
+	/// <summary>
+	/// SDL reports natural/flipped scrolling as inverted values, integer notches included - this turns them back.
+	/// </summary>
+	static int WheelFlip( Sdl.MouseWheelEvent wheel ) => wheel.Direction == 1 ? -1 : 1;
 }

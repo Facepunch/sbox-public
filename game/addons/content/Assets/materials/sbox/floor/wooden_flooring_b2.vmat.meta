@@ -1,0 +1,27 @@
+{
+  "guid": "11f6edd8-00fc-0000-ee00-000000000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Wooden Flooring b Light",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "woodenflooringblight",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/floor/wooden_flooring_b2.vmat",
+        "AssetLicense": "CC0"
+      }
+    }
+  }
+}

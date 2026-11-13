@@ -183,7 +183,7 @@ public static class PartyView
 		{
 			if ( gameIdent == SelectedGameIdent )
 			{
-				if ( !Modals.GameModalComponents.GameSetup.SettingsEqual( mockGameSettings, settings ) ) mockReady = false;
+				if ( !Platform.GameSetup.SettingsEqual( mockGameSettings, settings ) ) mockReady = false;
 				mockGameSettings = settings;
 			}
 		}

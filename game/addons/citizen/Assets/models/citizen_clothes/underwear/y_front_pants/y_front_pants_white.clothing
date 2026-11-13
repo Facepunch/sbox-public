@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/underwear/y_front_pants/y_front_pants_white.clothing.png",
+    "Path": "models/citizen_clothes/underwear/y_front_pants/y_front_pants_white.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "202.699997,0.0999999866,-14.0999699"

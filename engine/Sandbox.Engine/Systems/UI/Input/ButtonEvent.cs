@@ -5,6 +5,7 @@ namespace Sandbox.UI;
 /// <summary>
 /// Keyboard (and mouse) key press <see cref="PanelEvent"/>.
 /// </summary>
+[Expose]
 public record ButtonEvent
 {
 	/// <summary>

@@ -40,7 +40,6 @@ public partial class Project
 		CompileGroup?.Dispose();
 
 		CompileGroup = new( "local" );
-		CompileGroup.AccessControl = PackageManager.AccessControl;
 		CompileGroup.PrintErrorsInConsole = !Application.IsEditor;
 		CompileGroup.OnCompileStarted = OnCompileStarted;
 		CompileGroup.OnCompileFinished = OnCompileFinished;
@@ -52,7 +51,6 @@ public partial class Project
 		CompileGroup?.Dispose();
 
 		CompileGroup = new( "local" );
-		CompileGroup.AccessControl = PackageManager.AccessControl;
 		CompileGroup.PrintErrorsInConsole = !Application.IsEditor;
 		CompileGroup.OnCompileStarted = OnCompileStarted;
 		CompileGroup.OnCompileFinished = OnCompileFinished;
@@ -268,6 +266,41 @@ public partial class Project
 	}
 
 	internal static Project AddFromFileBuiltIn( string path ) => AddFromFile( path, flags: ProjectLoadFlags.BuiltIn );
+
+	/// <summary>
+	/// Add a game project from its .sbproj - its assets mounted, the libraries in its Libraries folder added
+	/// alongside it - and compile it, so it can be run like a package. Null if it didn't load.
+	/// </summary>
+	internal static async Task<Project> AddGameFromFile( string path )
+	{
+		var project = AddFromFile( path );
+		if ( project is null ) return null;
+
+		NativeEngine.FullFileSystem.AddProjectPath( path, project.GetAssetsPath().ToLowerInvariant() );
+
+		// What the editor's put on disk for it - the cloud assets its own use, and generated files - found from there as
+		// they are in the editor, rather than nowhere
+		var sbox = Path.Combine( project.GetRootPath(), ".sbox" );
+		NativeEngine.FullFileSystem.AddCloudPath( "mod_cloud", Path.Combine( sbox, "cloud" ) );
+		NativeEngine.FullFileSystem.AddCloudPath( "mod_transient", Path.Combine( sbox, "transient" ) );
+
+		var libraries = Path.Combine( project.RootDirectory.FullName, "Libraries" );
+
+		// We should iterate all available libraries and add their projects
+		foreach ( var folder in Directory.Exists( libraries ) ? Directory.EnumerateDirectories( libraries ) : [] )
+		{
+			var configs = Directory.EnumerateFiles( folder, "*.sbproj" ).ToArray();
+			if ( configs.Length != 1 ) continue;
+			AddFromFile( configs[0] );
+		}
+
+		// We need to reload the project since we may have had a bunch of libraries added
+		project.Load();
+
+		await CompileAsync();
+
+		return project.Active ? project : null;
+	}
 
 	internal static Project AddFromFile( string path, bool active = true, ProjectLoadFlags flags = ProjectLoadFlags.None )
 	{

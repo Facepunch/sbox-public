@@ -87,20 +87,53 @@ public static class Preferences
 	[ConVar( "voip_agc", ConVarFlags.Protected, Help = "Automatically adjust the microphone's volume so voice is sent at a consistent level", Saved = true )]
 	public static bool VoiceAutomaticGainControl { get; internal set; } = true;
 
-	[ConVar( "platform.chat.enabled", ConVarFlags.Saved, Help = "Do we want to enable the platform level chat system? The game also has to have it enabled." )]
-	public static bool ChatEnabled { get; set; } = true;
+	/// <summary>
+	/// Show the microphone indicator while voice is being sent. Only the player can change this, games and servers can't.
+	/// </summary>
+	[ConVar( "voip_show_indicator", ConVarFlags.Protected, Help = "Show the microphone indicator while talking", Saved = true )]
+	public static bool ShowVoiceIndicator { get; internal set; } = true;
+
+	/// <summary>
+	/// Show the list of who's talking. Only the player can change this, games and servers can't.
+	/// </summary>
+	[ConVar( "voip_show_speakers", ConVarFlags.Protected, Help = "Show the list of who's talking", Saved = true )]
+	public static bool ShowVoiceSpeakers { get; internal set; } = true;
+
+	public static bool ChatEnabled
+	{
+		get => ChatEnabledSetting;
+		[Obsolete( "Only the player can change this, in the settings menu" )]
+		set { }
+	}
+
+	[ConVar( "platform.chat.enabled", ConVarFlags.Protected | ConVarFlags.Saved, Help = "Do we want to enable the platform level chat system? The game also has to have it enabled." )]
+	internal static bool ChatEnabledSetting { get; set; } = true;
 
 	/// <summary>
 	/// Disabling this will turn off the UI, recording, and playback.
 	/// </summary>
-	[ConVar( "platform.voice.enabled", ConVarFlags.Saved, Help = "Do we want to enable the platform level voice chat system? The game also has to have it enabled." )]
-	public static bool VoiceEnabled { get; set; } = true;
+	public static bool VoiceEnabled
+	{
+		get => VoiceEnabledSetting;
+		[Obsolete( "Only the player can change this, in the settings menu" )]
+		set { }
+	}
+
+	[ConVar( "platform.voice.enabled", ConVarFlags.Protected | ConVarFlags.Saved, Help = "Do we want to enable the platform level voice chat system? The game also has to have it enabled." )]
+	internal static bool VoiceEnabledSetting { get; set; } = true;
 
 	/// <summary>
 	/// When enabled, player usernames/avatars are replaced with anonymous versions.
 	/// </summary>
-	[ConVar( "streamer_mode", ConVarFlags.Saved, Help = "Hide usernames and profile pictures in the built-in chat behind anonymous aliases." )]
-	public static bool StreamerMode { get; set; } = false;
+	public static bool StreamerMode
+	{
+		get => StreamerModeSetting;
+		[Obsolete( "Only the player can change this, in the settings menu" )]
+		set { }
+	}
+
+	[ConVar( "streamer_mode", ConVarFlags.Protected | ConVarFlags.Saved, Help = "Hide usernames and profile pictures in the built-in chat behind anonymous aliases." )]
+	internal static bool StreamerModeSetting { get; set; } = false;
 
 	/// <summary>
 	/// Whether the user wants to see subtitles for sounds that have them. Off by

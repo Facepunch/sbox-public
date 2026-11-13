@@ -10,7 +10,7 @@ public static partial class SceneFileTools
 	/// Open a scene from the asset system and make it the active tab. Already open scenes are just
 	/// brought to the front. Play mode has to be stopped first - play_start then runs this scene.
 	/// </summary>
-	/// <param name="path">Scene asset path, like "scenes/menu-main.scene". asset_search finds them.</param>
+	/// <param name="path">Scene asset path, like "scenes/start.scene". asset_search finds them.</param>
 	[McpTool( "open_scene" )]
 	public static OpenedScene OpenScene( string path )
 	{

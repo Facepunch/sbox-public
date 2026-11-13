@@ -66,26 +66,26 @@ partial class InsetTool
 			_tool.UpdateInset( InsetAmount, InsetSteps );
 		}
 
-		[Shortcut( "mesh.inset-apply", "enter", ShortcutType.Application )]
+		[Shortcut( "mesh.inset-apply", "enter", typeof( SceneViewWidget ) )]
 		void Apply()
 		{
 			_tool.Apply();
 		}
 
-		[Shortcut( "mesh.inset-cancel", "ESC", ShortcutType.Application )]
+		[Shortcut( "mesh.inset-cancel", "ESC", typeof( SceneViewWidget ) )]
 		void Cancel()
 		{
 			_tool.Cancel();
 		}
 
-		[Shortcut( "mesh.inset-increase", "]", typeof( SceneViewWidget ) )]
+		[Shortcut( "mesh.inset-increase", "CTRL+]", typeof( SceneViewWidget ) )]
 		void IncreaseAmount()
 		{
 			InsetAmount = MathF.Min( 256.0f, InsetAmount + 1.0f );
 			UpdateMesh();
 		}
 
-		[Shortcut( "mesh.inset-decrease", "[", typeof( SceneViewWidget ) )]
+		[Shortcut( "mesh.inset-decrease", "CTRL+[", typeof( SceneViewWidget ) )]
 		void DecreaseAmount()
 		{
 			InsetAmount = MathF.Max( -256.0f, InsetAmount - 1.0f );

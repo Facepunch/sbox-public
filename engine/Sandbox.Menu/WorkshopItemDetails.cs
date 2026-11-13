@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 
 namespace Sandbox;
 
@@ -41,7 +42,7 @@ public sealed class WorkshopItemDetails
 	public long OwnerId { get; init; }
 
 	/// <summary>
-	/// Their Steam name, if we know it
+	/// Their Steam name, if Steam knows it - see <see cref="MenuUtility.RequestOwnerNamesAsync"/>
 	/// </summary>
 	public string OwnerName { get; init; }
 
@@ -85,7 +86,7 @@ public sealed class WorkshopItemDetails
 		Images = item.Previews.Where( x => x.Type == Workshop.PreviewType.Image && !string.IsNullOrEmpty( x.Url ) ).Select( x => x.Url ).ToArray(),
 		YouTubeVideos = item.Previews.Where( x => x.Type == Workshop.PreviewType.YouTubeVideo && !string.IsNullOrEmpty( x.Url ) ).Select( x => x.Url ).ToArray(),
 		OwnerId = item.Owner is { } owner ? owner.Id.Value : 0,
-		OwnerName = item.Owner?.Name,
+		OwnerName = item.Owner is { } author ? SteamName( (ulong)author.Id.Value ) : null,
 		Created = item.Created,
 		Updated = item.Updated,
 		VotesUp = item.VotesUp,
@@ -94,6 +95,60 @@ public sealed class WorkshopItemDetails
 		Size = item.Size,
 		Url = item.Url,
 		Tags = item.Tags,
-		KeyValues = item.KeyValues
+		KeyValues = item.KeyValues,
+		Meta = ReadMeta( item.Metadata )
 	};
+
+	/// <summary>
+	/// A value its Steam metadata carries from the published meta - for a game, what's needed before it's downloaded,
+	/// like its <c>LaunchMode</c> and <c>MaxPlayers</c>. <paramref name="defaultValue"/> if it doesn't have it.
+	/// </summary>
+	public T GetMeta<T>( string key, T defaultValue = default )
+	{
+		if ( Meta is null || !Meta.TryGetValue( key, out var value ) ) return defaultValue;
+
+		try
+		{
+			return value.Deserialize<T>() ?? defaultValue;
+		}
+		catch ( Exception )
+		{
+			// Whatever its publisher wrote - not what was asked for
+			return defaultValue;
+		}
+	}
+
+	IReadOnlyDictionary<string, JsonElement> Meta { get; init; }
+
+	/// <summary>
+	/// The published meta out of an item's Steam metadata (<see cref="WorkshopItemMetaData.Meta"/>). Null if it has none.
+	/// </summary>
+	static IReadOnlyDictionary<string, JsonElement> ReadMeta( string metadata )
+	{
+		if ( string.IsNullOrWhiteSpace( metadata ) ) return null;
+
+		try
+		{
+			var item = JsonSerializer.Deserialize<WorkshopItemMetaData>( metadata );
+			if ( string.IsNullOrWhiteSpace( item.Meta ) ) return null;
+
+			var meta = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>( item.Meta );
+			return meta is null ? null : new Dictionary<string, JsonElement>( meta, StringComparer.OrdinalIgnoreCase );
+		}
+		catch ( JsonException )
+		{
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// Someone's name as Steam has it now - an item's own copy is "[unknown]" if Steam hadn't come across them when it
+	/// answered. Null while it still hasn't.
+	/// </summary>
+	static string SteamName( ulong id )
+	{
+		if ( Steamworks.SteamFriends.RequestUserInformation( id ) ) return null;
+
+		return new Steamworks.Friend( id ).Name;
+	}
 }

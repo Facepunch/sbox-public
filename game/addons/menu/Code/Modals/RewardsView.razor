@@ -1,0 +1,290 @@
+@using Sandbox
+@using Sandbox.UI
+@using System
+@using System.Linq
+
+@namespace MenuProject.Modals
+@inherits Panel
+
+@* Your weekly drop - how far along it is, then what it still wants from you, each a press away from its game. In the
+   old menu's popup beside the rail (RewardsModal) and the platform menu's panel in from the right (RewardsPanel). *@
+<root>
+
+	<div class="header">
+		<div class="tile"><i>redeem</i></div>
+		<label class="heading">#menu.rewards.weekly_rewards</label>
+		<div class="grow" />
+
+		@if ( EndsIn is { } left )
+		{
+			<div class="ends" tooltip="When this week's goals reset"><icon>schedule</icon><label>@left</label></div>
+		}
+
+		<div class="refresh @( IsLoading ? "busy" : "" )" onclick=@Refresh tooltip="#menu.common.refresh"><i>refresh</i></div>
+	</div>
+
+	<div class="rewards-list">
+
+		@if ( LoadFailed )
+		{
+			<label class="load-error">#menu.rewards.load_failed</label>
+		}
+
+		@if ( Window is null && State?.Pending is null )
+		{
+			<div class="rewards-empty">
+				@if ( IsLoading )
+				{
+					<Spinner />
+				}
+				else
+				{
+					<i>redeem</i>
+				}
+				<label class="title">@( IsLoading ? "#menu.rewards.checking_your_progress" : "#menu.rewards.no_drop_right_now" )</label>
+				<label class="hint">@( IsLoading ? "#menu.rewards.one_moment" : "#menu.rewards.no_active_week" )</label>
+			</div>
+		}
+		else
+		{
+			@* The drop - what it is and how many of its goals are met, a step of the bar for each, and the way in once
+			   they all are *@
+			<div class="hero @( CanOpen ? "done" : "" )">
+
+				<div class="hero-top">
+					<label class="hero-title">@Title</label>
+					<div class="grow" />
+
+					@if ( State?.Pending is not null || Window?.IsClaimed == true )
+					{
+						<div class="state">
+							<icon>@( State?.Pending is not null ? "inventory_2" : "check" )</icon>
+							<label>@( State?.Pending is not null ? "#menu.rewards.ready" : "#menu.rewards.collected" )</label>
+						</div>
+					}
+					else if ( Facets.Length > 0 )
+					{
+						<label class="count">@($"{MetCount} / {Facets.Length}")</label>
+					}
+				</div>
+
+				@if ( Facets.Length > 0 )
+				{
+					<div class="segments">
+						@foreach ( var facet in Facets )
+						{
+							<div class="segment @( facet.Met || CanOpen || Window?.IsClaimed == true ? "lit" : "" )" />
+						}
+					</div>
+				}
+
+				<label class="hero-hint">@StatusText</label>
+
+				@if ( CanOpen )
+				{
+					<div class="open reward" onclick=@OpenReward>
+						<icon>inventory_2</icon>
+						<label>#menu.rewards.open_your_drop</label>
+					</div>
+				}
+			</div>
+
+			@if ( Facets.Length > 0 )
+			{
+				<label class="section">#menu.rewards.objectives</label>
+
+				@foreach ( var facet in Facets )
+				{
+					var hasGame = !string.IsNullOrWhiteSpace( facet.GameIdent );
+
+					@* One goal - its achievement's art (a tick on it once it's met), what it is, and the game it's in. The
+					   whole row a press into that game. *@
+					<div class="objective @( facet.Met ? "met" : "" ) @( hasGame ? "linked" : "" )" onclick=@( () => OpenGame( facet ) )>
+
+						<div class="achievement-icon">
+							@if ( !string.IsNullOrWhiteSpace( facet.Icon ) )
+							{
+								<img src=@facet.Icon />
+							}
+							else
+							{
+								<icon>emoji_events</icon>
+							}
+
+							@if ( facet.Met )
+							{
+								<div class="badge" tooltip="#menu.rewards.unlocked"><icon>check</icon></div>
+							}
+						</div>
+
+						<div class="objective-body">
+							<label class="objective-title">@AchievementTitle( facet )</label>
+
+							@if ( !string.IsNullOrWhiteSpace( facet.Description ) )
+							{
+								<label class="objective-hint">@facet.Description</label>
+							}
+
+							@if ( hasGame )
+							{
+								<div class="objective-game">
+									<icon>sports_esports</icon>
+									<label>@( string.IsNullOrWhiteSpace( facet.GameTitle ) ? facet.GameIdent : facet.GameTitle )</label>
+								</div>
+							}
+						</div>
+
+						@if ( hasGame )
+						{
+							<icon class="go">chevron_right</icon>
+						}
+					</div>
+				}
+			}
+		}
+
+	</div>
+
+</root>
+
+@code
+{
+	/// <summary>
+	/// Going off to an objective's game or to open the drop - whatever it's in gets out of the way
+	/// </summary>
+	[Parameter] public Action OnLeave { get; set; }
+
+	RewardState State { get; set; }
+
+	bool IsLoading { get; set; }
+	bool LoadFailed { get; set; }
+
+	/// <summary>
+	/// The current weekly challenge, independent of any pending offer from an earlier week.
+	/// </summary>
+	RewardWindow Window => State?.Windows.FirstOrDefault();
+
+	RewardFacet[] Facets => Window?.Facets ?? Array.Empty<RewardFacet>();
+
+	bool WeekEnded => Window is not null && Window.EndsAt != default && Window.EndsAt <= DateTimeOffset.UtcNow;
+
+	bool CanOpen => State?.Pending is not null || (Window?.IsEligible == true && !WeekEnded);
+
+	int MetCount => Window?.MetCount ?? 0;
+
+	/// <summary>
+	/// How long's left of this week, as short as it goes - null once it's over, or with no end to it
+	/// </summary>
+	string EndsIn
+	{
+		get
+		{
+			if ( Window is null || Window.EndsAt == default || WeekEnded ) return null;
+
+			var left = Window.EndsAt - DateTimeOffset.UtcNow;
+			if ( left.TotalDays >= 1 ) return $"{(int)left.TotalDays}d left";
+			if ( left.TotalHours >= 1 ) return $"{(int)left.TotalHours}h left";
+			return $"{Math.Max( 1, (int)left.TotalMinutes )}m left";
+		}
+	}
+
+	string Title => string.IsNullOrWhiteSpace( Window?.Title ) ? "#menu.rewards.item_drop" : Window.Title;
+
+	/// <summary>
+	/// Prefer the separate achievement title; older servers still supply a combined title.
+	/// </summary>
+	static string AchievementTitle( RewardFacet facet )
+	{
+		if ( !string.IsNullOrWhiteSpace( facet.AchievementTitle ) ) return facet.AchievementTitle;
+
+		return string.IsNullOrWhiteSpace( facet.Title ) ? facet.AchievementName : facet.Title;
+	}
+
+	string StatusText
+	{
+		get
+		{
+			if ( State?.Pending is not null ) return "#menu.rewards.you_started_opening_this_one_go_back_and_pick_your_item";
+			if ( Window?.IsClaimed == true || Window?.Reason == "already_claimed" ) return "#menu.rewards.week_claimed";
+			if ( WeekEnded ) return "#menu.rewards.week_ended";
+			if ( CanOpen ) return "#menu.rewards.everything_s_met_open_it_and_choose_what_you_keep";
+
+			return Window?.Reason switch
+			{
+				"disabled" => "#menu.rewards.disabled",
+				"not_game_owner" => "#menu.rewards.not_game_owner",
+				"untrusted" => "#menu.rewards.unavailable",
+				"no_active_week" => "#menu.rewards.no_active_week",
+				"week_ended" => "#menu.rewards.week_ended",
+				_ => Facets.Length == 0 ? "#menu.rewards.no_active_week" : "#menu.rewards.unlock_objectives"
+			};
+		}
+	}
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		base.OnAfterTreeRender( firstTime );
+
+		if ( !firstTime ) return;
+
+		// Fetched every time it opens - progress moves while you're playing.
+		_ = Load();
+	}
+
+	void Refresh()
+	{
+		_ = Load();
+	}
+
+	async Task Load()
+	{
+		if ( IsLoading ) return;
+
+		IsLoading = true;
+		LoadFailed = false;
+		StateHasChanged();
+
+		try
+		{
+			var state = await MenuUtility.Rewards.GetRewards();
+			if ( !this.IsValid() ) return;
+
+			State = state;
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Unable to load weekly rewards: {e.Message}" );
+			if ( this.IsValid() ) LoadFailed = true;
+		}
+		finally
+		{
+			if ( this.IsValid() )
+			{
+				IsLoading = false;
+				StateHasChanged();
+			}
+		}
+	}
+
+	/// <summary>
+	/// Open the objective's game using the normal game details and Play flow.
+	/// </summary>
+	void OpenGame( RewardFacet facet )
+	{
+		if ( string.IsNullOrWhiteSpace( facet.GameIdent ) ) return;
+
+		OnLeave?.Invoke();
+		MenuHelpers.LaunchGame( facet.GameIdent );
+	}
+
+	void OpenReward()
+	{
+		if ( !CanOpen )
+			return;
+
+		OnLeave?.Invoke();
+		MenuProject.Platform.PlatformRoot.Instance?.OpenShelf( MenuProject.Platform.PlatformShelf.Unbox );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( State, IsLoading, LoadFailed, MetCount, CanOpen, WeekEnded, EndsIn );
+}

@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 19196,
   "Icon": {
-    "Path": "models/citizen_clothes/seasonal/2025/valentines_bear/bear_top.clothing.png",
+    "Path": "models/citizen_clothes/seasonal/2025/valentines_bear/bear_top.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "-155.100098,0,-1.80000198"

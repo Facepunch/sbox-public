@@ -22,6 +22,10 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 	Vector3 WorldScale { get; }
 	Rotation WorldRotation { get; }
 	bool FaceVelocity { get; }
+	bool VelocityStretch => false;
+	ParticleFloat StretchTime => 0;
+	Vector2 StretchLengthLimits => new( 0, 2000 );
+	float StretchFadeIn => 0;
 	float RotationOffset { get; }
 	bool MotionBlur { get; }
 	bool LeadingTrail { get; }
@@ -92,7 +96,11 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		var blurAmountRemapped = BlurAmount.Remap( 0, 1, 0, 6, false );
 		var blurSpacingRemapped = BlurSpacing.Remap( 0, 1, 0, 1, false );
 		var leadingTrailMultiplier = LeadingTrail ? 2f : 1f;
-		var rotationOffsetValue = FaceVelocity ? RotationOffset : -1.0f;
+		var velocityStretch = VelocityStretch;
+		var stretchTime = StretchTime;
+		var stretchLimits = StretchLengthLimits;
+		var stretchFadeIn = StretchFadeIn;
+		var rotationOffsetValue = FaceVelocity && !velocityStretch ? RotationOffset : -1.0f;
 
 		var samplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = TextureFilter } );
 		var sequenceData = texture.SequenceData;
@@ -101,7 +109,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		var normalTextureHandle = RefractionNormalTexture?.Index ?? 0;
 		var refractionStrength = RefractionStrength;
 
-		var motionBlurEnabled = MotionBlur;
+		var motionBlurEnabled = MotionBlur && !velocityStretch;
 		const float blurReciprocal = 0.02f;
 
 		var packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( this.FogStrength, 0.001f );
@@ -112,6 +120,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		var renderFlags = SpriteFlags.None;
 		if ( ParticleEffect.SnapToFrame ) renderFlags |= SpriteFlags.SnapToFrame;
 		if ( isText ) renderFlags |= SpriteFlags.Text;
+		if ( velocityStretch ) renderFlags |= SpriteFlags.VelocityStretch;
 
 		// A text sprite carries its block's placement where a sprite carries its texture, see sprite_ps.shader
 		var size = isText ? new Vector2( textSprite.Width, textSprite.Height ) : texture.Size;
@@ -170,9 +179,21 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 					scaleX *= aspect;
 				}
 
+				var particlePos = new Vector3( pos.x, pos.y, pos.z );
+				if ( velocityStretch )
+				{
+					var length = vel.Length * MathF.Max( 0, stretchTime.Evaluate( p, 7193 ) );
+					if ( stretchFadeIn > 0 ) length *= Math.Clamp( p.Age / stretchFadeIn, 0, 1 );
+					if ( length <= 0 ) continue;
+					length = Math.Clamp( length, MathF.Max( 0, stretchLimits.x ), MathF.Max( 0, MathF.Max( stretchLimits.x, stretchLimits.y ) ) );
+					length *= scale * 2;
+					scaleY = length * 0.5f;
+					scaleX = MathF.Min( scaleX, scaleY );
+					particlePos -= vel.Normal * scaleY;
+				}
+
 				float halfSize = MathF.Max( pivotMaxX * 2f * scaleX, pivotMaxY * 2f * scaleY );
 				var expand = new Vector3( halfSize, halfSize, halfSize );
-				var particlePos = new Vector3( pos.x, pos.y, pos.z );
 				boundsMin = Vector3.Min( boundsMin, particlePos - expand );
 				boundsMax = Vector3.Max( boundsMax, particlePos + expand );
 
@@ -199,7 +220,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 
 				var spritePtr = destinationPtr + validCount;
 
-				spritePtr->Position = new Vector3( pos.x, pos.y, pos.z );
+				spritePtr->Position = particlePos;
 				spritePtr->Rotation = new Vector3( angles.pitch, angles.yaw, angles.roll );
 				spritePtr->Scale = new Vector2( scaleX, scaleY );
 				spritePtr->Velocity = velocity;
@@ -227,6 +248,6 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 			}
 		}
 
-		return new( validCount, totalSplotCount, new BBox( boundsMin, boundsMax ) );
+		return new( validCount, totalSplotCount, validCount == 0 ? default : new BBox( boundsMin, boundsMax ) );
 	}
 }

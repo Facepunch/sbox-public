@@ -1,0 +1,235 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "material.vmat"
+								to = "models/sbox/warehouse/cardboard_carton_01/materials/cardboard_carton_a.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "cardboard_carton_01_gib_00"
+						filename = "models/sbox/warehouse/cardboard_carton_01/gibs/cardboard_carton_01_gibs.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "BoundsCenter"
+						align_origin_y_type = "BoundsCenter"
+						align_origin_z_type = "BoundsCenter"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"cardboard_carton_01_gib_00",
+								"Cube_gib_flatpack",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "base"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ -0.003835, -0.112261, -0.139448 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 31.496277, 37.215675, 0.249512 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "back"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 0.0972, 11.179325, 0.032102 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 31.920864, 22.195293, 0.336216 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "front"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 0.13007, 11.196461, 0.112708 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 31.696007, 22.38382, 0.421535 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "left"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ -0.080487, 11.181008, -0.158986 ]
+						angles = [ 1.155697, -0.002933, 0.000311 ]
+						dimensions = [ 36.980568, 22.291479, 0.53499 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "left_flap"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 0.195704, 8.108866, -0.198576 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 37.543026, 16.022518, 0.33432 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "right"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 0.153949, 11.031009, -0.091426 ]
+						angles = [ -0.706125, -0.001784, 0.000303 ]
+						dimensions = [ 37.213615, 22.019117, 0.493756 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "right_flap"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ -0.000087, 7.896671, -0.082663 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 37.598396, 15.74813, 0.376698 ]
+					},
+				]
+			},
+			{
+				_class = "Skeleton"
+				children = 
+				[
+					{
+						_class = "SkeletonFile"
+						name = "cardboard_carton_01_gibs"
+						filename = "models/sbox/warehouse/cardboard_carton_01/gibs/cardboard_carton_01_gibs.fbx"
+						import_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsJointList"
+				children = 
+				[
+					{
+						_class = "PhysicsJointRevolute"
+						children = 
+						[
+							{
+								_class = "PhysicsJointRevolute"
+								parent_body = "base"
+								child_body = "front"
+								anchor_origin = [ 0.054159, -18.673771, -0.056719 ]
+								anchor_angles = [ -89.999962, -0.424597, 0.0 ]
+								collision_enabled = true
+								linear_strength = 0.0
+								angular_strength = 0.0
+								friction = 0.1
+								enable_limit = true
+								min_angle = -170.0
+								max_angle = 170.0
+							},
+						]
+						parent_body = "base"
+						child_body = "back"
+						anchor_origin = [ 0.033132, 18.509741, -0.221614 ]
+						anchor_angles = [ -89.999977, -179.723679, 0.0 ]
+						collision_enabled = true
+						linear_strength = 0.0
+						angular_strength = 0.0
+						friction = 0.1
+						enable_limit = true
+						min_angle = -170.0
+						max_angle = 170.0
+					},
+					{
+						_class = "PhysicsJointRevolute"
+						parent_body = "base"
+						child_body = "left"
+						anchor_origin = [ -15.802017, -0.07845, -0.11787 ]
+						anchor_angles = [ 89.999992, -88.18351, 0.0 ]
+						collision_enabled = true
+						linear_strength = 0.0
+						angular_strength = 0.0
+						friction = 0.1
+						enable_limit = true
+						min_angle = -170.0
+						max_angle = 170.0
+					},
+					{
+						_class = "PhysicsJointRevolute"
+						parent_body = "left"
+						child_body = "left_flap"
+						anchor_origin = [ -0.016768, 22.572954, 0.144492 ]
+						anchor_angles = [ 88.134468, -175.544342, 4.474853 ]
+						collision_enabled = true
+						linear_strength = 0.0
+						angular_strength = 0.0
+						friction = 0.1
+						enable_limit = true
+						min_angle = -170.0
+						max_angle = 170.0
+					},
+					{
+						_class = "PhysicsJointRevolute"
+						parent_body = "base"
+						child_body = "right"
+						anchor_origin = [ 15.889307, -0.085586, -0.160467 ]
+						anchor_angles = [ -89.999947, 89.147652, 0.0 ]
+						collision_enabled = true
+						linear_strength = 0.0
+						angular_strength = 0.0
+						friction = 0.1
+						enable_limit = true
+						min_angle = -170.0
+						max_angle = 170.0
+					},
+					{
+						_class = "PhysicsJointRevolute"
+						parent_body = "right"
+						child_body = "right_flap"
+						anchor_origin = [ -0.178761, 22.244724, 0.126475 ]
+						anchor_angles = [ 89.178123, 10.159648, -169.862961 ]
+						collision_enabled = true
+						linear_strength = 0.0
+						angular_strength = 0.0
+						friction = 0.1
+						enable_limit = true
+						min_angle = -170.0
+						max_angle = 170.0
+					},
+				]
+			},
+		]
+		model_archetype = "physics_prop_model"
+		primary_associated_entity = "prop_physics"
+		anim_graph_name = ""
+		animation_graph_name = ""
+		skeleton_name = ""
+		base_model_name = ""
+	}
+}

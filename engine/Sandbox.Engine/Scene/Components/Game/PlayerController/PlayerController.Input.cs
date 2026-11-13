@@ -11,6 +11,24 @@ public sealed partial class PlayerController : Component
 	[Property, Feature( "Input" )] public float JumpSpeed { get; set; } = Movement.MovementMath.JumpSpeed;
 	[Property, Feature( "Input" )] public float DuckedHeight { get; set; } = 36;
 
+	/// <summary>
+	/// The button that the player will hold to duck. Leave empty to disable ducking input
+	/// (ducking can still be driven from code via <see cref="UpdateDucking"/>).
+	/// </summary>
+	[Property, Feature( "Input" ), InputAction, Category( "Ducking" )] public string DuckButton { get; set; } = "duck";
+
+	/// <summary>
+	/// How many seconds it takes to crouch while on the ground. Set to 0 to crouch instantly.
+	/// </summary>
+	[Property, Feature( "Input" ), Category( "Ducking" ), Range( 0f, 1f )]
+	public float DuckDuration { get; set; } = 0.4f;
+
+	/// <summary>
+	/// How many seconds it takes to stand back up while on the ground. Set to 0 to stand instantly.
+	/// </summary>
+	[Property, Feature( "Input" ), Category( "Ducking" ), Range( 0f, 1f )]
+	public float UnduckDuration { get; set; } = 0.2f;
+
 	/// <summary>Input smoothing for non-walking modes.</summary>
 	[Property, Feature( "Input" )] public float AccelerationTime { get; set; } = 0;
 
@@ -85,7 +103,7 @@ public sealed partial class PlayerController : Component
 
 		input *= LookSensitivity;
 
-		IEvents.PostToGameObject( GameObject, x => x.OnEyeAngles( ref input ) );
+		GameObject.Components.ExecuteEnabledInSelfAndDescendants<IEvents, Angles>( ref input, static ( IEvents x, ref Angles angles ) => x.OnEyeAngles( ref angles ) );
 
 		var ee = EyeAngles;
 		ee += input;
@@ -147,17 +165,18 @@ public sealed partial class PlayerController : Component
 	}
 
 	Vector3 bodyDuckOffset = 0;
-	const float _duckDuration = 0.4f;
-	const float _unduckDuration = 0.2f;
 	bool _duckInput;
 	float _duckInputElapsed;
 	internal bool IsDuckTransition { get; private set; }
+	float CurrentDuckDuration => MathF.Max( 0, _duckInput ? DuckDuration : UnduckDuration );
 	internal float DuckInputFraction
 	{
 		get
 		{
 			if ( !IsDuckTransition || !IsOnGround ) return IsDucking ? 1 : 0;
-			var t = (_duckInputElapsed / (_duckInput ? _duckDuration : _unduckDuration)).Clamp( 0, 1 );
+			var duration = CurrentDuckDuration;
+			if ( duration <= 0 ) return _duckInput ? 1 : 0;
+			var t = (_duckInputElapsed / duration).Clamp( 0, 1 );
 			var fraction = t * t * (3 - 2 * t);
 			return _duckInput ? fraction : 1 - fraction;
 		}
@@ -180,7 +199,8 @@ public sealed partial class PlayerController : Component
 			IsDuckTransition = false;
 			return;
 		}
-		if ( Mode is Movement.MoveModeWalk && IsOnGround && _duckInputElapsed <= (wantsDuck ? _duckDuration : _unduckDuration) ) return;
+		var duration = CurrentDuckDuration;
+		if ( Mode is Movement.MoveModeWalk && IsOnGround && duration > 0 && _duckInputElapsed <= duration ) return;
 		UpdateDucking( wantsDuck );
 		IsDuckTransition = wantsDuck != IsDucking;
 	}

@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 508962,
   "Icon": {
-    "Path": "models/citizen_clothes/seasonal/2025/easter_farmer/easter_slippers/models/easter_slippers.clothing.png",
+    "Path": "models/citizen_clothes/seasonal/2025/easter_farmer/easter_slippers/models/easter_slippers.clothing.vtex",
     "Mode": "Foot",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

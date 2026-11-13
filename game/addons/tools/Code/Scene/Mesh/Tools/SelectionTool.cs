@@ -329,7 +329,49 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	private bool _invertSelection;
 
 	private MeshComponent _hoverMesh;
+	private readonly MeshOverlayRenderer _meshOverlays = new();
+	private readonly List<T> _overlaySelection = [];
+	private readonly HashSet<MeshComponent> _overlayComponents = [];
+	private bool _overlaySelectionDirty = true;
+	private SelectionSystem _overlaySelectionSource;
 	public virtual bool DrawVertices => false;
+
+	protected IReadOnlyList<T> SelectedMeshElements
+	{
+		get
+		{
+			UpdateOverlaySelection();
+			return _overlaySelection;
+		}
+	}
+
+	private void UpdateOverlaySelection()
+	{
+		var selection = Selection;
+		if ( !_overlaySelectionDirty && ReferenceEquals( _overlaySelectionSource, selection ) )
+			return;
+
+		_overlaySelectionSource = selection;
+		_overlaySelection.Clear();
+		_overlayComponents.Clear();
+		foreach ( var element in selection.OfType<IMeshElement>() )
+		{
+			if ( !element.IsValid() )
+				continue;
+			_overlayComponents.Add( element.Component );
+			if ( element is T selected )
+				_overlaySelection.Add( selected );
+		}
+		_meshOverlays.SetSelection( _overlaySelection.Cast<IMeshElement>() );
+		_overlaySelectionDirty = false;
+	}
+
+	protected void DrawSelectedElements()
+	{
+		UpdateOverlaySelection();
+		foreach ( var component in _overlayComponents )
+			_meshOverlays.DrawSelected( component, Camera.WorldPosition, Gizmo.World );
+	}
 
 	public override void SetMoveMode( MoveMode mode )
 	{
@@ -436,6 +478,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		UnsubscribeUndo();
 
 		SaveCurrentSelection<T>();
+		_meshOverlays.Dispose();
+		_overlaySelectionDirty = true;
 	}
 
 	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
@@ -599,6 +643,10 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		if ( IsAllowedToSelect )
 			DrawSelection();
+		else
+			_meshOverlays.HideBase( Gizmo.World );
+
+		_meshOverlays.Trim( _hoverMesh, _overlayComponents, Gizmo.World );
 	}
 
 	/// <summary>
@@ -701,6 +749,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 	void DrawSelection()
 	{
+		UpdateOverlaySelection();
 		var face = TraceFace();
 		if ( face.IsValid() )
 			_hoverMesh = face.Component;
@@ -708,9 +757,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		if ( _hoverMesh.IsValid() )
 			DrawMesh( _hoverMesh );
 
-		foreach ( var group in Selection.OfType<IMeshElement>().GroupBy( x => x.Component ) )
+		foreach ( var component in _overlayComponents )
 		{
-			var component = group.Key;
 			if ( !component.IsValid() )
 				continue;
 
@@ -723,39 +771,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 	void DrawMesh( MeshComponent mesh )
 	{
-		using ( Gizmo.ObjectScope( mesh.GameObject, mesh.WorldTransform ) )
-		{
-			using ( Gizmo.Scope( "Edges" ) )
-			{
-				var edgeColor = new Color( 0.3137f, 0.7843f, 1.0f, 1f );
-
-				Gizmo.Draw.LineThickness = 1;
-				Gizmo.Draw.IgnoreDepth = true;
-				Gizmo.Draw.Color = edgeColor.Darken( 0.3f ).WithAlpha( 0.1f );
-				Gizmo.Draw.Lines( mesh.Mesh.GetVisibleEdges() );
-
-				Gizmo.Draw.Color = edgeColor;
-				Gizmo.Draw.IgnoreDepth = false;
-				Gizmo.Draw.LineThickness = 2;
-				Gizmo.Draw.Lines( mesh.Mesh.GetVisibleEdges() );
-			}
-
-			if ( DrawVertices )
-			{
-				var vertexColor = new Color( 1.0f, 1.0f, 0.3f, 1f );
-
-				using ( Gizmo.Scope( "Vertices" ) )
-				{
-					Gizmo.Draw.IgnoreDepth = true;
-					Gizmo.Draw.Color = vertexColor.Darken( 0.3f ).WithAlpha( 0.2f );
-					Gizmo.Draw.Sprites( mesh.Mesh.GetVisibleVertexPositions(), 8, worldspace: false );
-
-					Gizmo.Draw.Color = vertexColor;
-					Gizmo.Draw.IgnoreDepth = false;
-					Gizmo.Draw.Sprites( mesh.Mesh.GetVisibleVertexPositions(), 8, worldspace: false );
-				}
-			}
-		}
+		_meshOverlays.Draw( mesh, DrawVertices, Gizmo.World );
 	}
 
 	private void InvertSelection()
@@ -907,9 +923,24 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 	public override BBox CalculateSelectionBounds()
 	{
-		return BBox.FromPoints( _vertexSelection
-			.Where( x => x.IsValid() )
-			.Select( x => x.Transform.PointToWorld( x.Component.Mesh.GetVertexPosition( x.Handle ) ) ) );
+		var bounds = default( BBox );
+		var hasPoint = false;
+		foreach ( var vertex in _vertexSelection )
+		{
+			var component = vertex.Component;
+			if ( !component.IsValid() )
+				continue;
+
+			var mesh = component.Mesh;
+			var handle = mesh.VertexHandleFromIndex( vertex.HandleIndex );
+			if ( !handle.IsValid )
+				continue;
+
+			var point = component.WorldTransform.PointToWorld( mesh.GetVertexPosition( handle ) );
+			bounds = hasPoint ? bounds.AddPoint( point ) : new BBox( point, point );
+			hasPoint = true;
+		}
+		return bounds;
 	}
 
 	public override Vector3 CalculateSelectionOrigin()
@@ -997,6 +1028,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	private void OnMeshSelectionChanged( object o )
 	{
 		_hoverMesh = null;
+		_overlaySelectionDirty = true;
 		_meshSelectionDirty = true;
 	}
 

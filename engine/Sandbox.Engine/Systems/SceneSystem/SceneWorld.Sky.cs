@@ -18,7 +18,7 @@ public sealed partial class SceneWorld
 	/// </summary>
 	internal SceneSkybox3D GetRenderingSkybox()
 	{
-		return ActiveSkybox is { IsValid: true, Scale: > 0 } skybox && ConVarSystem.GetInt( "r_3d_skybox", 1, true ) != 0
+		return ActiveSkybox is { IsValid: true, Scale: > 0 } skybox && ConVarSystem.GetNativeInt( "r_3d_skybox", 1 ) != 0
 			? skybox : null;
 	}
 

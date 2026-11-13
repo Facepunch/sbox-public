@@ -142,6 +142,22 @@ public class View : GraphView, Nodes.IInternalGraphEditorActions
 		base.OnMousePress( e );
 	}
 
+	protected override void OnKeyPress( KeyEvent e )
+	{
+		if ( e.Key == KeyCode.F2 )
+		{
+			var selection = SelectedItems.OfType<NodeUI>().ToArray();
+
+			if ( selection.Length == 1 && selection[0].Node is Node node && _window.StartNodeRename( node ) )
+			{
+				e.Accepted = true;
+				return;
+			}
+		}
+
+		base.OnKeyPress( e );
+	}
+
 	private void SelectionChanged()
 	{
 		if ( _suppressSelection )

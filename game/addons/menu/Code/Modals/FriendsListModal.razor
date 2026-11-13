@@ -41,11 +41,26 @@
     {
         base.Tick();
 
+        // What it came up off has gone - closed, or put away with what it's in - so it goes with it, rather than being
+        // left behind on its own
+        if ( !IsDeleting && Options.Anchor?.Panel is { } anchor && AnchorGone( anchor ) )
+        {
+            CloseModal( false );
+            return;
+        }
+
         if ( IsAnchored && Inner.IsValid() )
             PositionAnchored( Options.Anchor.Value.Panel, Options.Anchor.Value.Position, Options.Anchor.Value.Offset );
     }
 
+    static bool AnchorGone( Panel anchor ) => !anchor.IsValid() || !anchor.IsVisible || anchor.IsDeleting || anchor.Ancestors.Any( x => x.IsDeleting );
+
     bool IsAnchored => Options.Anchor.HasValue && Options.Anchor.Value.Panel is { IsValid: true };
+
+    /// <summary>
+    /// What it came up off, if anything
+    /// </summary>
+    internal Panel AnchorPanel => Options.Anchor?.Panel;
 
     /// <summary>
     /// As narrow as it goes, anchored - names and what they're doing still read at this.

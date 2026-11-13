@@ -12,6 +12,7 @@ public class SceneRenderingWidget : Frame
 
 	internal SwapChainHandle_t SwapChain;
 	bool renderingStopped;
+	bool renderFailed;
 
 	/// <summary>
 	/// The active scene that we're rendering
@@ -208,6 +209,7 @@ public class SceneRenderingWidget : Frame
 		}
 
 		g_pRenderDevice.Present( SwapChain );
+		renderFailed = false;
 	}
 
 	private void UpdateGizmoInputs( ref Gizmo.Inputs input, SceneCamera camera, bool hasMouseFocus )
@@ -291,7 +293,16 @@ public class SceneRenderingWidget : Frame
 		{
 			if ( !widget.Visible ) continue;
 
-			widget.Render();
+			try
+			{
+				widget.Render();
+			}
+			catch ( Exception e )
+			{
+				if ( widget.renderFailed ) continue;
+				widget.renderFailed = true;
+				Log.Error( e, $"Exception rendering {widget.Scene}" );
+			}
 		}
 	}
 }

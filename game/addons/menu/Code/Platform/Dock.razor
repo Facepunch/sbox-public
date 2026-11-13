@@ -1,0 +1,349 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    Along the bottom, under every game: game navigation on the left, party and friends in the middle,
+    and avatar, rewards, mounts, settings and quit on the right.
+*@
+<root>
+	<div class="inner">
+		<div class="left">
+			<div class="pill library @(LibraryOpen ? "open" : "")" onclick=@SwitchGame>
+				<i>sports_esports</i>
+				<label>Library</label>
+				<label class="count">@InstalledGames</label>
+			</div>
+
+			@* Browse opens with its search field ready to type in. *@
+			<div class="pill search @(Shelf == PlatformShelf.Browse ? "open" : "")" onclick=@ToggleSearch>
+				<i>search</i>
+				<label>Games</label>
+			</div>
+
+			<div class="pill multiplayer @(Shelf == PlatformShelf.Multiplayer ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Multiplayer ) )>
+				<i>public</i>
+				<label>Multiplayer</label>
+			</div>
+		</div>
+
+		<div class="middle">
+			<div class="party @(PartyDeck.ShownOnPlatform || (card.IsValid() && !card.IsDeleting) ? "open" : "") @(PartyDeck.Activity() ?? "")" @ref="PartyButton">
+				@if ( Joining is { ShowGame: true } && !string.IsNullOrWhiteSpace( PartyArt ) )
+				{
+					<div class="game-art" style="background-image: url( @PartyArt );"></div>
+				}
+
+				@* Pressed apart from the + beside them, so a press on one is never one on the other *@
+				<div class="faces" onmousedown=@( () => cardWasUp = cardUp ) onclick=@PressParty tooltip="@(PartyView.Exists ? "Your party" : "You")">
+					@if ( Joining is { ShowGame: false } stage )
+					{
+						<div class="status-icon @(PartyDeck.Activity() ?? "")"><i>@stage.Icon</i></div>
+					}
+
+					@if ( PartyView.Exists )
+					{
+						@foreach ( var member in ShownMembers )
+						{
+							<PartyMember Friend=@member Status=@PartyView.StatusOf( member ) Ready=@PartyView.IsMemberReady( member ) />
+						}
+
+						@foreach ( var invited in ShownInvites )
+						{
+							<PartyPendingSeat Friend=@invited />
+						}
+
+						@if ( MoreSeats > 0 )
+						{
+							<div class="more"><label>@($"+{MoreSeats}")</label></div>
+						}
+					}
+					else
+					{
+						<div class="me" style="background-image: url( avatar:@Game.SteamId );"></div>
+					}
+				</div>
+
+				<div class="add @(PartyDeck.Drafting || FriendsUpFrom( InviteButton ) ? "open" : "")" @ref="InviteButton" onclick=@AddToParty tooltip="@(PartyView.Exists ? "Invite friends" : "Start a party")">
+					<i>add</i>
+				</div>
+			</div>
+
+			<div class="square friends @(Root?.FriendsOpen == true ? "open" : "")" @ref="FriendsButton" onclick=@Friends tooltip="Friends">
+				<i>group</i>
+				@if ( PlayingFriends > 0 )
+				{
+					<label class="count">@PlayingFriends</label>
+				}
+			</div>
+		</div>
+
+		<div class="right">
+			@* Your weekly drop, in from the right as your friends are - not in a started game: opening one loads its own
+			   scene, which would pull you out of it. A pip when there's one waiting. Not while it's being opened. *@
+			@if ( PlatformRoot.CanDressUp )
+			{
+				<div class="square rewards @(Root?.RewardsOpen == true ? "open" : "") @(Shelf == PlatformShelf.Unbox ? "disabled" : "")" onclick=@( () => Root?.ToggleSide( PlatformRoot.SidePanel.Rewards ) ) tooltip="Weekly rewards">
+					<i>redeem</i>
+					@if ( MenuHelpers.RewardReady( rewards ) )
+					{
+						<div class="pip"></div>
+					}
+				</div>
+			}
+
+			@* Not in a started game - you dress up on a menu *@
+			@if ( PlatformRoot.CanDressUp )
+			{
+				<div class="square @(Shelf == PlatformShelf.Avatar ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Avatar ) ) tooltip="Avatar">
+					<i>checkroom</i>
+				</div>
+			}
+
+			<div class="square @(Shelf == PlatformShelf.Mounts ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Mounts ) ) tooltip="Mounts">
+				<i>extension</i>
+			</div>
+
+			<div class="square @(Root?.SettingsPage is not null ? "open" : "")" onclick=@( () => ModalSystem.Instance?.Settings() ) tooltip="Settings">
+				<i>settings</i>
+			</div>
+
+			<div class="square quit" onclick=@Quit tooltip="@(Application.IsEditor ? "Stop playing" : "Quit to desktop")">
+				<i>power_settings_new</i>
+			</div>
+		</div>
+	</div>
+</root>
+
+@code
+{
+    PlatformRoot Root => PlatformRoot.Instance;
+
+    string Shelf => Root?.Shelf;
+
+    bool LibraryOpen => Shelf == PlatformShelf.YourGames;
+
+    /// <summary>
+    /// Your games - in a game too, where picking one leaves it for that one (PlatformRoot.Picked): the way out, there
+    /// even when the game puts its own pause screen in front of everything
+    /// </summary>
+    void SwitchGame() => Root?.ToggleShelf( PlatformShelf.YourGames );
+
+    Panel InviteButton;
+    Panel PartyButton;
+    Panel FriendsButton;
+
+    const int MaxShownSeats = 6;
+
+    static IEnumerable<Friend> ShownMembers => PartyView.Members.OrderByDescending( x => x.IsMe ).Take( MaxShownSeats );
+
+    static IEnumerable<Friend> ShownInvites => PartyInvites.Pending.Take( Math.Max( 0, MaxShownSeats - ShownMembers.Count() ) );
+
+    static PartyDeck.JoinStatus Joining => PartyDeck.Describe();
+
+    static string PartyArt => PartyDeck.Instance?.GameArt;
+
+    static int MoreSeats => Math.Max( 0, PartyView.MemberCount + PartyInvites.Pending.Count - MaxShownSeats );
+
+    void PressParty( PanelEvent e )
+    {
+        if ( !PartyView.Exists && !PartyDeck.Drafting )
+        {
+            // Pressed with it up - the press closed it, as one does every popup, so leave it closed
+            card = cardWasUp ? null : ShowCard( e, new Friend( Game.SteamId.Value ) );
+            return;
+        }
+
+        var show = !PartyDeck.ShownOnPlatform;
+        if ( show ) Root?.PutAwaySide();
+
+        PartyDeck.ShownOnPlatform = show;
+    }
+
+    void AddToParty( PanelEvent e )
+    {
+        e.StopPropagation();
+
+        if ( PartyView.Exists )
+        {
+            OpenFriends( InviteButton );
+            return;
+        }
+
+        // Pressed again with a new party's setup up - given up on, as a click off it does
+        if ( PartyDeck.Drafting )
+        {
+            PartyDeck.PutAwayOnPlatform();
+            return;
+        }
+
+        Root?.PutAwaySide();
+        PartyDeck.ShownOnPlatform = true;
+        _ = PartyDeck.EnsurePartyExists();
+    }
+
+    MenuProject.MenuUI.Popups.FriendCard card;
+
+    /// <summary>
+    /// Your card's up - as of the last frame, so a press can tell it was, after the press has closed it
+    /// </summary>
+    bool cardUp;
+    bool cardWasUp;
+
+    int installedGames;
+    RealTimeSince gamesCounted = 10;
+
+    /// <summary>
+    /// Installed games in the library, excluding recent games that are no longer downloaded.
+    /// Recounted at most once a second as installs finish or games are removed.
+    /// </summary>
+    int InstalledGames
+    {
+        get
+        {
+            if ( gamesCounted < 1 ) return installedGames;
+
+            gamesCounted = 0;
+            installedGames = PlatformMenu.YourGames.Games?.Count( x => MenuUtility.IsInstalled( x.Id ) ) ?? 0;
+            return installedGames;
+        }
+    }
+
+    int playingFriends;
+    RealTimeSince playingCounted = 10;
+
+    /// <summary>
+    /// How many of your friends are playing s&amp;box - counted again at most once a second
+    /// </summary>
+    int PlayingFriends
+    {
+        get
+        {
+            if ( playingCounted < 1 ) return playingFriends;
+
+            playingCounted = 0;
+            playingFriends = MenuUtility.Friends.Count( x => !x.IsMe && x.IsOnline && x.IsPlayingThisGame );
+            return playingFriends;
+        }
+    }
+
+    /// <summary>
+    /// Your weekly drop's state, for its pip - off the backend, so polled, as the old menu's rail does
+    /// </summary>
+    RewardState rewards;
+    RealTimeUntil untilRewardsPoll = 0;
+
+    async Task PollRewards()
+    {
+        rewards = await MenuUtility.Rewards.GetRewards();
+        StateHasChanged();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( untilRewardsPoll <= 0 )
+        {
+            untilRewardsPoll = 60 * 5;
+            _ = PollRewards();
+        }
+
+        PartyDeck.PlatformAnchor = PartyButton;
+
+        cardUp = card.IsValid() && !card.IsDeleting;
+
+        // Set up and then cancelled - put away, not up again the next time you're in a party
+        if ( !PartyView.Exists && !PartyDeck.Drafting ) PartyDeck.ShownOnPlatform = false;
+    }
+
+    void ToggleSearch()
+    {
+        if ( Root is not { } root ) return;
+
+        if ( root.Shelf == PlatformShelf.Browse ) root.ToggleShelf( PlatformShelf.Browse );
+        else root.Browse( null );
+    }
+
+    /// <summary>
+    /// Your friends, in from the right - the popup's for inviting to a party (OpenFriends)
+    /// </summary>
+    void Friends()
+    {
+        PartyDeck.ShownOnPlatform = false;
+        Root?.ToggleFriends();
+    }
+
+    /// <summary>
+    /// How far over one of its buttons a popup goes, to clear the dock - its buttons are 40 tall in the middle of its
+    /// 64, so 12 to its top, then a gap
+    /// </summary>
+    internal const float PopupOffset = 18;
+
+    static MenuProject.MenuUI.Popups.FriendCard ShowCard( PanelEvent e, Friend friend )
+    {
+        e.StopPropagation();
+        Popup.CloseAll();
+        return MenuProject.MenuUI.Popups.FriendCard.Show( e.This, friend, Popup.PositionMode.AboveCenter, PopupOffset );
+    }
+
+    static Panel friendsFrom;
+
+    static bool FriendsUpFrom( Panel button ) => button is not null && friendsFrom == button && (ModalSystem.Instance?.IsOpen<MenuProject.Modals.FriendsListModal>() ?? false);
+
+    /// <summary>
+    /// Your friends, up off <paramref name="anchor"/> like a shelf - pressed again, put away; a shelf, settings or the
+    /// party window up, put away for it
+    /// </summary>
+    internal static void OpenFriends( Panel anchor )
+    {
+        if ( ModalSystem.Instance is not { } modals ) return;
+
+        var wasUp = modals.CloseFriendsList();
+        if ( wasUp && friendsFrom == anchor )
+        {
+            friendsFrom = null;
+            return;
+        }
+
+        Action open = () =>
+        {
+            PartyDeck.ShownOnPlatform = false;
+            friendsFrom = anchor;
+            modals.FriendsList( new Sandbox.Modals.FriendsListModalOptions
+            {
+                ShowOnlineMembers = true,
+                ShowOfflineMembers = false,
+                Anchor = new() { Panel = anchor, Position = Sandbox.Modals.ModalAnchorPosition.AboveLeft, Offset = PopupOffset },
+            } );
+        };
+
+        if ( PlatformRoot.Instance is { } root ) root.CloseAll( open );
+        else open();
+    }
+
+    /// <summary>
+    /// Out of the game - in the editor, out of play mode rather than the editor itself
+    /// </summary>
+    void Quit()
+    {
+        if ( !Application.IsEditor )
+        {
+            MenuHelpers.ConfirmQuit();
+            return;
+        }
+
+        MenuHelpers.ConfirmLeave( () =>
+        {
+            Root?.Resume();
+            Game.Close();
+        } );
+    }
+
+    protected override int BuildHash() => HashCode.Combine( InstalledGames, Shelf, PlatformMenu.CanSwitch, Root?.SettingsPage is not null, HashCode.Combine( PartyView.Exists, PartyDeck.Drafting, PlayingFriends, Root?.FriendsOpen == true, FriendsUpFrom( InviteButton ), card.IsValid() && !card.IsDeleting ), PartyDeck.ShownOnPlatform,
+        MenuHelpers.HashOf( ShownMembers, static x => (x.Id, PartyView.StatusOf( x ), PartyView.IsMemberReady( x )) ), HashCode.Combine( MenuHelpers.HashOf( ShownInvites, static x => x.Id ),
+        Joining?.Icon, Joining?.ShowGame, PartyArt, PartyDeck.Activity(), MenuHelpers.RewardReady( rewards ), Root?.RewardsOpen == true, LibraryOpen ) );
+}

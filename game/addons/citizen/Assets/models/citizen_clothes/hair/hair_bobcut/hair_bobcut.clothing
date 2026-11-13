@@ -56,7 +56,7 @@
   "TintDefault": 0.41,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/hair/hair_bobcut/hair_bobcut.clothing.png",
+    "Path": "models/citizen_clothes/hair/hair_bobcut/hair_bobcut.clothing.vtex",
     "Mode": "Eyes",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0.499999911"

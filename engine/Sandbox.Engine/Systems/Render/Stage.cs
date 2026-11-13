@@ -1,5 +1,9 @@
 ﻿namespace Sandbox.Rendering;
 
+/// <summary>
+/// Camera rendering stages at which command lists can execute.
+/// </summary>
+[Expose]
 public enum Stage
 {
 	AfterDepthPrepass = 1000,

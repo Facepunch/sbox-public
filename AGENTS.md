@@ -41,4 +41,4 @@ Engine and Integration tests need the `FACEPUNCH_ENGINE` environment variable po
 - Standard .NET style, enforced by `.editorconfig` and `format --verify`. Match surrounding code.
 - Keep pull requests small and in scope. Reference the issue you're fixing. Add a unit test where one fits.
 - The public API surface that addons compile against is deliberately controlled. Exposing a new .NET
-  type to game code means adding it to the access allow-list in `engine/Sandbox.Access/`, not bypassing it.
+  type to game code means adding it to the access allow-list in `engine/Sandbox.Compiling/Compiler/Access/Rules/`, not bypassing it.

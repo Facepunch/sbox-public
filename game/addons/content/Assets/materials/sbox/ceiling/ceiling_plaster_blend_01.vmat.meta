@@ -1,0 +1,29 @@
+{
+  "guid": "17232f8a-907d-42f1-82d9-cf461ccf8fd6",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Ceiling Plaster Blend",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "ceiling_plaster_blend_01",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/ceiling/ceiling_plaster_blend_01.vmat",
+        "Summary": "",
+        "Description": "",
+        "Public": true
+      }
+    }
+  }
+}

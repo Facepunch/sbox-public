@@ -68,7 +68,12 @@ public sealed partial class Material : Resource
 	public Material CreateCopy( string name = null )
 	{
 		var copy = FromNative( MaterialSystem2.CreateProceduralMaterialCopy( native, 0, true ), name );
-		if ( copy is not null ) copy.anonymousShader = anonymousShader;
+		if ( copy is not null )
+		{
+			copy.anonymousShader = anonymousShader;
+			// The native copy merges raw buffer pointers, so the copy needs its own bindings
+			Attributes?.MergeUsedBuffersTo( copy.Attributes );
+		}
 		return copy;
 	}
 }

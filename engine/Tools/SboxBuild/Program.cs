@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using Facepunch.Steps;
 using static Facepunch.Constants;
 
@@ -25,6 +26,7 @@ internal class Program
 		AddTestCommand( rootCommand );
 		AddBuildShadersCommand( rootCommand );
 		AddShaderStatsCommand( rootCommand );
+		AddRenderTestsCommand( rootCommand );
 		AddGenerateSolutionsCommand( rootCommand );
 		AddSyncPublicRepoCommand( rootCommand );
 		AddWriteVersionCommand( rootCommand );
@@ -139,8 +141,10 @@ internal class Program
 	{
 		var cmd = new Command( "build-content", "Build game content" );
 		var rootOption = new Option<string>( "--root", description: "Only build the content root at this path under game/, with whatever it reads from the others", getDefaultValue: () => null );
+		var forceOption = new Option<bool>( "--force", description: "Compile everything again, current or not", getDefaultValue: () => false );
 		cmd.AddOption( rootOption );
-		cmd.SetHandler( ( string root ) => Environment.ExitCode = (int)new BuildContent( root ).Run(), rootOption );
+		cmd.AddOption( forceOption );
+		cmd.SetHandler( ( string root, bool force ) => Environment.ExitCode = (int)new BuildContent( root, force ).Run(), rootOption, forceOption );
 		rootCommand.Add( cmd );
 	}
 
@@ -182,7 +186,7 @@ internal class Program
 
 	private static void AddShaderStatsCommand( RootCommand rootCommand )
 	{
-		var cmd = new Command( "shader-stats", "Compile every shader combo with AMD's Radeon GPU Analyzer and write register use and occupancy to docs/shaders/shader-stats.md" );
+		var cmd = new Command( "shader-stats", "Compile every shader combo with AMD's Radeon GPU Analyzer and write register use and occupancy to docs/reference/shader-stats.md" );
 		var asicOption = new Option<string[]>( "--asic",
 			description: "Target to analyze, repeatable. The first one gets the detailed tables",
 			getDefaultValue: () => ShaderStats.DefaultAsics )
@@ -197,6 +201,63 @@ internal class Program
 		{
 			Environment.ExitCode = (int)new ShaderStats( asics, shaders ).Run();
 		}, asicOption, shaderOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddRenderTestsCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "render-tests", "Render SceneLab presets on Lavapipe (software Vulkan, no GPU needed) and check them against the golden truth images in engine/Tests/GoldenTruth" );
+		var suiteOption = new Option<string>( "--suite",
+			description: "Which presets: core (the renderer), extended (features built on it) or all",
+			getDefaultValue: () => "all" );
+		var presetOption = new Option<string[]>( "--preset",
+			description: "Preset to render, repeatable, instead of a suite",
+			getDefaultValue: () => [] )
+		{ AllowMultipleArgumentsPerToken = true };
+		var updateOption = new Option<bool>( "--update",
+			description: "Write each frame rendered here as its preset's golden truth image. Golden truth comes from CI: prefer --from-ci",
+			getDefaultValue: () => false );
+		var fromCiOption = new Option<string>( "--from-ci",
+			description: "Accept CI's failing captures as golden truth images instead of rendering: from a run ID or URL, or with none, the newest run for the commit checked out" )
+		{ Arity = ArgumentArity.ZeroOrOne };
+		var pullRequestOption = new Option<bool>( "--pull-request",
+			description: "On a pull request, run only with the render-tests label, or when it changes rendering (which adds the label); skip with skip-render-tests",
+			getDefaultValue: () => false );
+		var slackOption = new Option<bool>( "--notify-slack",
+			description: "Tell Slack when they fail",
+			getDefaultValue: () => false );
+		cmd.AddOption( suiteOption );
+		cmd.AddOption( presetOption );
+		cmd.AddOption( updateOption );
+		cmd.AddOption( fromCiOption );
+		cmd.AddOption( pullRequestOption );
+		cmd.AddOption( slackOption );
+		cmd.SetHandler( ( InvocationContext context ) =>
+		{
+			var parse = context.ParseResult;
+			var suite = parse.GetValueForOption( suiteOption );
+			var presets = parse.GetValueForOption( presetOption );
+			var update = parse.GetValueForOption( updateOption );
+			var pullRequest = parse.GetValueForOption( pullRequestOption );
+			var notifySlack = parse.GetValueForOption( slackOption );
+
+			// Present without a value means the commit checked out
+			if ( parse.FindResultFor( fromCiOption ) is not null )
+			{
+				Environment.ExitCode = (int)new RenderTestsFromCi( parse.GetValueForOption( fromCiOption ), presets ).Run();
+				return;
+			}
+
+			if ( presets.Length == 0 ) presets = RenderTests.Suite( suite );
+			if ( presets is null )
+			{
+				Log.Error( $"Unknown suite '{suite}': core, extended or all." );
+				Environment.ExitCode = (int)ExitCode.Failure;
+				return;
+			}
+
+			Environment.ExitCode = (int)new RenderTests( presets, update, pullRequest, notifySlack ).Run();
+		} );
 		rootCommand.Add( cmd );
 	}
 

@@ -377,6 +377,11 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 	[ThreadStatic]
 	private static ExpirableSynchronizationContext _sCurrentProcessingContext;
 
+	/// <summary>
+	/// Inside a queue being processed on this thread, where processing another does nothing.
+	/// </summary>
+	internal static bool IsProcessing => _sCurrentProcessingContext != null;
+
 	private class ExecutingJob
 	{
 		public object State { get; init; }

@@ -221,7 +221,7 @@ public partial class Window : DockWindow, IAssetEditor
 		Update();
 	}
 
-	[Shortcut( "grid.toggle-grid", "CTRL+G" )]
+	[Shortcut( "grid.toggle-grid", "CTRL+ALT+G" )]
 	internal void SetGridEnabled( bool enabled )
 	{
 		GridEnabled = enabled;

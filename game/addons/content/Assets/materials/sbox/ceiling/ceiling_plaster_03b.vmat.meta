@@ -1,0 +1,26 @@
+{
+  "guid": "020800f4-0000-0000-90e8-960efc000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Ceiling Plaster 03 Damaged",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "ceilingplaster03",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/ceiling/ceiling_plaster_03b.vmat"
+      }
+    }
+  }
+}

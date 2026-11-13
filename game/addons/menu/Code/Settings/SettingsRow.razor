@@ -8,7 +8,14 @@
 
 	<div class="line">
 
-		<label class="name">@Item.Title</label>
+		<div class="title">
+			<label class="name">@Item.Title</label>
+
+			@if ( Item.Kind != SettingKind.Dropdown )
+			{
+				@Flag
+			}
+		</div>
 
 		<div class="control">
 			@if ( ReadOnly )
@@ -29,7 +36,9 @@
 			}
 			else if ( Item.Kind == SettingKind.Dropdown )
 			{
-				<DropDown Value:bind=@Item.Value BuildOptions=@( () => Item.CurrentOptions )></DropDown>
+				var flag = Flag;
+				<DropDown class="@( flag is not null ? "flagged" : "" )" Value:bind=@Item.Value BuildOptions=@( () => Item.CurrentOptions )></DropDown>
+				@flag
 			}
 			else
 			{
@@ -38,21 +47,6 @@
 		</div>
 
 	</div>
-
-	@if ( Disabled is not null )
-	{
-		<div class="note locked">
-			<i>lock</i>
-			<label>@Disabled</label>
-		</div>
-	}
-	else if ( Warning is not null )
-	{
-		<div class="note warn">
-			<i>warning</i>
-			<label>@Warning</label>
-		</div>
-	}
 
 </root>
 
@@ -74,6 +68,14 @@
 	SettingItem customItem;
 
 	string Disabled => Item?.Disabled;
+
+	/// <summary>
+	/// A lock when it's locked, a warning when there's something to watch for - what, in the detail (and its tooltip,
+	/// where there's no detail). In a dropdown, by its chevron; after the name otherwise.
+	/// </summary>
+	RenderFragment Flag => Disabled is not null ? @<i class="flag locked" tooltip=@Disabled>lock</i>
+		: Warning is not null ? @<i class="flag warn" tooltip=@Warning>warning</i>
+		: null;
 	string Warning => Item?.Warning?.Invoke();
 
 	string ReadOnlyValue

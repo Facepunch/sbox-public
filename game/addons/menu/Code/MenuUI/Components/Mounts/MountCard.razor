@@ -6,7 +6,7 @@
 @namespace Sandbox.UI.Mounts
 @inherits Panel
 
-@* Art on top, a band under it - the menu's tile shape, same as PackageCard. The whole tile is
+@* Art on top, a band under it - the menu's tile shape. The whole tile is
    the toggle when the game is installed, so there's no small target to hit. The tooltip carries
    the full name, since a long one ellipsises in the band. *@
 <root class="@StateClass @(IsBusy ? "busy" : "")" onclick=@Toggle>
@@ -21,7 +21,7 @@
 
 		@* Rides the art rather than the band so the title gets the band's full width. Two
 		   Serious Sams both truncate to "Serious Sam HD: The..." otherwise. *@
-		@if ( !Mount.IsInstalled && Mount.SteamAppId is not null )
+		@if ( !Mount.IsInstalled && Mount.SteamAppId is not null && !ActionInBar )
 		{
 			<div class="art-actions">
 				@if ( Mount.IsOwned )
@@ -57,9 +57,21 @@
 
 		@if ( Mount.IsInstalled )
 		{
-			<div class="switch">
+			<div class="switch @( Mount.IsMounted && !IsBusy ? "on" : "" )">
 				<div class="knob" />
 			</div>
+		}
+		else if ( ActionInBar && Mount.SteamAppId is not null )
+		{
+			@* Just the icon here - what it does is in its tooltip *@
+			@if ( Mount.IsOwned )
+			{
+				<div class="action" onclick=@OpenInstall tooltip="#menu.mounts.install"><icon>download</icon></div>
+			}
+			else
+			{
+				<div class="action" onclick=@OpenStore tooltip="Get it on Steam"><icon>shopping_cart</icon></div>
+			}
 		}
 
 	</div>
@@ -70,6 +82,9 @@
 {
 	/// <summary>The game this card turns on and off.</summary>
 	[Parameter] public BaseGameMount Mount { get; set; }
+
+	/// <summary>Its Install or Steam button at the end of the band, where the switch goes, rather than over the art.</summary>
+	[Parameter] public bool ActionInBar { get; set; }
 
 	string StateClass
 	{

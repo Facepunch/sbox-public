@@ -4,6 +4,7 @@
 /// Base <see cref="Panel"/> event.<br/>
 /// See <see cref="Panel.CreateEvent(PanelEvent)"/>.
 /// </summary>
+[Expose]
 public class PanelEvent
 {
 	public string Name { get; init; }

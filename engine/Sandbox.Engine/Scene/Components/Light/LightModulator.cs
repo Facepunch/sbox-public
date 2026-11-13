@@ -75,6 +75,7 @@ public sealed class LightModulator : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// Blend between original light at zero and full texture modulation at one.
 	/// Multiplies texture alpha and edge feathering rather than dimming the light itself.
+	/// Caustics also accept values above one to amplify modulation, with dark troughs limited to black.
 	/// </summary>
 	[Property, Range( 0, 1 )]
 	public float Strength
@@ -838,9 +839,9 @@ public sealed class LightModulator : Component, Component.ExecuteInEditor
 		var angle = float.IsFinite( TextureRotation ) ? TextureRotation % 360 * (MathF.PI / 180) : 0;
 		data.Rotation = new Vector2( MathF.Cos( angle ), MathF.Sin( angle ) );
 		data.Contrast = FiniteClamp( Contrast, 0, 8, 1 );
-		data.Brightness = FiniteClamp( Brightness, 0, 16, 1 );
+		data.Brightness = FiniteClamp( Brightness, 0, Effect == ModulationEffect.Caustics ? 80 : 16, 1 );
 		data.BlendMode = Enum.IsDefined( BlendMode ) ? (int)BlendMode : 0;
-		data.Strength = FiniteClamp( Strength, 0, 1, 1 );
+		data.Strength = FiniteClamp( Strength, 0, Effect == ModulationEffect.Caustics ? 8 : 1, 1 );
 		data.EdgeFeather = FiniteClamp( EdgeFeather, 0, 0.5f );
 		data.DistanceFeather = FiniteClamp( DistanceFeather, 0, 1000000 );
 		data.Effect = Enum.IsDefined( Effect ) ? (int)Effect : 0;

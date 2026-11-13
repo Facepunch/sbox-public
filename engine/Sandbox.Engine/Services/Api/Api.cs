@@ -73,7 +73,7 @@ internal static partial class Api
 	}
 }
 
-public class CachingHandler : DelegatingHandler
+internal class CachingHandler : DelegatingHandler
 {
 	private readonly MemoryCache _cache;
 
@@ -82,7 +82,8 @@ public class CachingHandler : DelegatingHandler
 		var options = new MemoryCacheOptions();
 
 		_cache = new MemoryCache( options );
-		InnerHandler = new BackendHttpHandler();
+		InnerHandler = new BackendAuthenticationHandler( new BackendHttpHandler(),
+			() => new( AccountInformation.Session, AccountInformation.SteamId ), AccountInformation.Update );
 	}
 
 	protected override async Task<HttpResponseMessage> SendAsync( HttpRequestMessage request, CancellationToken cancellationToken )
@@ -154,6 +155,10 @@ class BackendHttpHandler : DelegatingHandler
 
 	protected override async Task<HttpResponseMessage> SendAsync( HttpRequestMessage request, CancellationToken cancellationToken )
 	{
+		// Session headers must only ever reach our backend
+		if ( request.RequestUri is not { Scheme: "https", Host: "public.facepunch.com" } )
+			throw new InvalidOperationException( $"Backend request to {request.RequestUri} is not allowed" );
+
 		var url = request.RequestUri.ToString();
 
 		var eventRecord = new Api.Events.EventRecord( "BackendRequest" );
@@ -214,21 +219,6 @@ class BackendHttpHandler : DelegatingHandler
 
 	private void AddHeaders( HttpRequestMessage request )
 	{
-		//
-		// Session authorization
-		//
-		if ( AccountInformation.Session is not null )
-		{
-			request.Headers.Remove( "Authorization" );
-			request.Headers.Add( "Authorization", $"session {AccountInformation.Session}" );
-
-			request.Headers.Remove( "X-User-Id" );
-			request.Headers.Add( "X-User-Id", $"{AccountInformation.SteamId}" );
-
-			//	Log.Info( $"{AccountInformation.Session}" );
-			//	Log.Info( $"{Steamworks.SteamClient.SteamId}" );
-		}
-
 		//
 		// Just for fun and diagnostics
 		//

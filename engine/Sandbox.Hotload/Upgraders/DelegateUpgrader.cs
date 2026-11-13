@@ -248,7 +248,7 @@ namespace Sandbox.Upgraders
 			MethodInfo newMethod;
 			object newTarget;
 
-			if ( !IsCompilerGenerated( oldMethod ) || !IsSwappedType( oldMethod.DeclaringType ) )
+			if ( !GetLambdaMethodInfo( oldMethod, out _, out _, out _ ) || !IsSwappedType( oldMethod.DeclaringType ) )
 			{
 				newMethod = GetNewInstance( oldMethod );
 				newTarget = GetNewInstance( oldTarget );

@@ -24,7 +24,13 @@ public static partial class Networking
 	public static Task<List<LobbyInformation>> QueryLobbies( string gameIdent, string mapIdent, CancellationToken ct = default ) =>
 		QueryLobbies( new Dictionary<string, string> { { "game", gameIdent }, { "map", mapIdent } }, true, ct );
 
-	private static async Task<List<LobbyInformation>> QueryServers( string gameIdent, string mapIdent, IReadOnlyDictionary<string, string> filters, CancellationToken ct )
+	/// <summary>
+	/// Dedicated servers for a specific game on the local network.
+	/// </summary>
+	public static Task<List<LobbyInformation>> QueryLanServers( string gameIdent, CancellationToken ct = default ) =>
+		QueryServers( gameIdent, null, new Dictionary<string, string>(), ct, lan: true );
+
+	private static async Task<List<LobbyInformation>> QueryServers( string gameIdent, string mapIdent, IReadOnlyDictionary<string, string> filters, CancellationToken ct, bool lan = false )
 	{
 		var list = new List<LobbyInformation>();
 
@@ -58,7 +64,8 @@ public static partial class Networking
 				}
 			}
 
-			serverList.Query();
+			if ( lan ) serverList.QueryLan();
+			else serverList.Query();
 
 			while ( serverList.IsQuerying )
 			{
@@ -133,7 +140,15 @@ public static partial class Networking
 	/// <summary>
 	/// Get all lobbies that match the specified filters.
 	/// </summary>
-	public static async Task<List<LobbyInformation>> QueryLobbies( Dictionary<string, string> filters, bool includeServers = true, CancellationToken ct = default )
+	public static Task<List<LobbyInformation>> QueryLobbies( Dictionary<string, string> filters, bool includeServers = true, CancellationToken ct = default ) =>
+		QueryLobbies( filters, includeServers, false, ct );
+
+	/// <summary>
+	/// Get all lobbies that match the specified filters - and with <paramref name="includeOutdated"/>, the ones on another
+	/// API version or network protocol too, which can't be joined (<see cref="LobbyInformation.IsOutdated"/>), to show
+	/// them as such. Dedicated servers are listed whatever their version either way: their tags can be cut short.
+	/// </summary>
+	public static async Task<List<LobbyInformation>> QueryLobbies( Dictionary<string, string> filters, bool includeServers, bool includeOutdated, CancellationToken ct = default )
 	{
 		if ( Application.IsDedicatedServer )
 		{
@@ -156,8 +171,12 @@ public static partial class Networking
 		var q = Steamworks.SteamMatchmaking.LobbyList;
 		q = q.FilterDistanceWorldwide();
 		q = q.WithKeyValue( "lobby_type", "scene" );
-		q = q.WithKeyValue( "protocol", $"{Protocol.Network}" );
-		q = q.WithKeyValue( "api", $"{Protocol.Api}" );
+
+		if ( !includeOutdated )
+		{
+			q = q.WithKeyValue( "protocol", $"{Protocol.Network}" );
+			q = q.WithKeyValue( "api", $"{Protocol.Api}" );
+		}
 
 		foreach ( var filter in filters )
 		{

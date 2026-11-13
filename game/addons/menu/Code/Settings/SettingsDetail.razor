@@ -1,21 +1,34 @@
 ﻿@using Sandbox
 @using Sandbox.UI
 @using System
+@using MenuProject.Platform
 @namespace MenuProject.Settings
 @inherits Panel
 
-<root class="detail">
+<root class="detail @(Item is null ? "empty" : "")">
 
 	@if ( Item is not null )
 	{
-		<label class="title">@Item.Title</label>
+		<PanelHead Icon="info" Title=@Item.Title />
 
-		@if ( Item.Section is not null )
-		{
-			<label class="meta">@Item.Section</label>
-		}
+		<div class="text">
+			<label class="about">@Item.Description</label>
 
-		<label class="body">@Item.Description</label>
+			@if ( Item.Disabled is { } locked )
+			{
+				<div class="note locked">
+					<i>lock</i>
+					<label>@locked</label>
+				</div>
+			}
+			else if ( Item.Warning?.Invoke() is { } warning )
+			{
+				<div class="note warn">
+					<i>warning</i>
+					<label>@warning</label>
+				</div>
+			}
+		</div>
 	}
 	else
 	{
@@ -33,5 +46,5 @@
 
 	SettingItem Item => View?.Described;
 
-	protected override int BuildHash() => HashCode.Combine( Item?.Id );
+	protected override int BuildHash() => HashCode.Combine( Item?.Id, Item?.Disabled, Item?.Warning?.Invoke() );
 }

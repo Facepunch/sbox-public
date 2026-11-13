@@ -1,16 +1,14 @@
 
+@import "/Platform/_platform.scss";
+
 NoticePopup
 {
-    background-color: #222;
-    color: white;
-    border-radius: 8px;
+    @include platform-surface;
     min-height: 64px;
     max-width: 480px;
     margin-top: 8px;
-    font-family: Poppins;
     font-size: 16px;
     font-weight: 500;
-    box-shadow: 5px 5px 50px rgba( black, 0.5 );
     sound-in: "ui.popup.message.open";
     overflow: hidden;
     position: relative;
@@ -19,11 +17,6 @@ NoticePopup
     flex-direction: row;
     align-items: stretch;
     cursor: pointer;
-}
-
-NoticePopup:hover
-{
-    background-color: #2a2a2a;
 }
 
 NoticePopup:intro
@@ -61,14 +54,13 @@ NoticePopup:outro
     {
         font-size: 16px;
         font-weight: 600;
-        color: white;
     }
 
     .text
     {
         font-size: 13px;
         font-weight: normal;
-        opacity: 0.7;
+        color: $platform-muted;
         white-space: pre-line;
     }
 }

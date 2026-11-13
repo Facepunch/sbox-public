@@ -25,7 +25,7 @@ namespace Sandbox.Audio
 		/// <summary>
 		/// The stock falloff curve every sound had before <see cref="SoundFalloffMode.Physical"/>. Sounds still using it get the physical model.
 		/// </summary>
-		public static Curve ClassicCurve => new( new( 0, 1, 0, -1.8f ), new( 0.05f, 0.22f, 3.5f, -3.5f ), new( 0.2f, 0.04f, 0.16f, -0.16f ), new( 1, 0 ) );
+		public static Curve ClassicCurve { get; } = new( new( 0, 1, 0, -1.8f ), new( 0.05f, 0.22f, 3.5f, -3.5f ), new( 0.2f, 0.04f, 0.16f, -0.16f ), new( 1, 0 ) );
 
 		// An unset min distance is a 70th of the max distance (37 dB down there before the fade), which keeps sounds mixed against the
 		// classic curve close to how they were.

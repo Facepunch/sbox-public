@@ -42,6 +42,10 @@ public partial class Scene : GameObject
 			return false;
 		}
 
+		// Changing scene is how a game leaves its menu, and goes back to it
+		var startingGame = !options.IsAdditive && !options.IsSystemScene && !IsEditor && this == Game.ActiveScene
+			&& (IGameInstance.Current?.OnSceneChange( sceneFile ) ?? false);
+
 		if ( sceneFile.ResourceName != null )
 		{
 			Name = sceneFile.ResourceName;
@@ -116,6 +120,12 @@ public partial class Scene : GameObject
 			Source = sceneFile;
 		}
 
+		// The game's starting - off its menu scene by now, the same as a game launched without one
+		if ( startingGame )
+		{
+			RunEvent<ISceneStartup>( x => x.OnHostPreInitialize( sceneFile ) );
+		}
+
 		{
 			using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = IsEditor } );
 			using var sceneScope = Push();
@@ -173,6 +183,12 @@ public partial class Scene : GameObject
 			// We wrap this in an IsSystemScene check so that it's not called twice
 			// for every scene load.
 			Signal( GameObjectSystem.Stage.SceneLoaded );
+		}
+
+		if ( startingGame )
+		{
+			RunEvent<ISceneStartup>( x => x.OnHostInitialize() );
+			RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
 		}
 
 		return true;

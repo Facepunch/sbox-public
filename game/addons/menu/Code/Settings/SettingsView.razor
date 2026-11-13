@@ -3,12 +3,18 @@
 @using Sandbox.Engine.Settings
 @using System
 @using System.Linq
+@using MenuProject.Platform
 @namespace MenuProject.Settings
 @inherits Panel
 
-<root>
+<root class="@(HasDetail ? "" : "no-detail")">
 
 	<div class="rail">
+
+		@if ( !string.IsNullOrEmpty( Heading ) )
+		{
+			<label class="heading">@Heading</label>
+		}
 
 		<TextEntry @ref=SearchEntry class="settings-search" Icon="search" Placeholder="#menu.settings.search_settings" OnTextEdited=@OnSearchEdited></TextEntry>
 
@@ -32,10 +38,8 @@
 
 	<div class="body">
 
-		<div class="head">
-			<label class="title">@(Searching ? "#menu.common.search" : Current?.Title)</label>
-			<label class="blurb">@(Searching ? MatchSummary : Current?.Blurb)</label>
-		</div>
+		<PanelHead Icon=@(Searching ? "search" : SubPage?.Icon ?? Current?.Icon) Title=@(Searching ? "#menu.common.search" : SubPage?.Title ?? Current?.Title)
+		           Back=@(SubPage is { } sub && !Searching ? sub.Back : OnCancel is null ? null : (Action)Back) Search="#menu.settings.search_settings" OnSearch=@(SearchInBar ? (Action<string>)OnSearchEdited : null) />
 
 		@if ( Searching )
 		{
@@ -59,6 +63,8 @@
 					</div>
 				}
 			</div>
+
+			<SettingsActions View=@this />
 		}
 		else if ( Current is { IsCustom: true } )
 		{
@@ -106,12 +112,6 @@
 					</div>
 				}
 
-				@* What you've hidden, and the way to bring it back - after the game settings *@
-				@if ( Category == "game" )
-				{
-					<HiddenSettings />
-				}
-
 			</div>
 
 			<SettingsActions View=@this />
@@ -119,7 +119,7 @@
 
 	</div>
 
-	@if ( Searching || Category != "storage" )
+	@if ( HasDetail )
 	{
 		<SettingsDetail View=@this />
 	}
@@ -130,6 +130,21 @@
 {
 	/// <summary>Which category to open on.</summary>
 	[Parameter] public string StartCategory { get; set; }
+
+	/// <summary>
+	/// A title over the categories - none if not given
+	/// </summary>
+	[Parameter] public string Heading { get; set; }
+
+	/// <summary>Where back goes - a way back in the head, with the category's icon, when it's set. What's unsaved is
+	/// the host's to ask about.</summary>
+	[Parameter] public Action OnCancel { get; set; }
+
+	/// <summary>
+	/// Searched from a button on the head, which opens a search box across it, rather than from a box over the
+	/// categories (the platform menu's)
+	/// </summary>
+	[Parameter] public bool SearchInBar { get; set; }
 
 	public SettingsCatalog Catalog { get; } = new();
 
@@ -165,18 +180,15 @@
 
 	TextEntry SearchEntry;
 
-	bool Searching => !string.IsNullOrWhiteSpace( Query );
+	public bool Searching => !string.IsNullOrWhiteSpace( Query );
+
+	/// <summary>
+	/// Has what the setting being read about does beside it - Storage hasn't. A class on it as it's built, not :last-child,
+	/// which only catches up once the detail's gone - a frame late.
+	/// </summary>
+	bool HasDetail => Searching || Category != "storage";
 
 	SettingsCategory Current => Catalog.Categories.FirstOrDefault( x => x.Id == Category );
-
-	string MatchSummary
-	{
-		get
-		{
-			var count = Catalog.Search( Query ).Count();
-			return $"{count} setting{(count == 1 ? "" : "s")} matching \"{Query}\"";
-		}
-	}
 
 	protected override void OnParametersSet()
 	{
@@ -216,11 +228,32 @@
 		Focused = item;
 	}
 
+	void Back() => OnCancel?.Invoke();
+
+	/// <summary>
+	/// A page within a page with its own markup (Storage's Games) - its name and icon in the bar, and the bar's back
+	/// going back to the page. Null on the page itself; gone when another category's picked.
+	/// </summary>
+	public record SubPageInfo( string Title, string Icon, Action Back );
+
+	SubPageInfo _subPage;
+
+	public SubPageInfo SubPage
+	{
+		get => _subPage;
+		set
+		{
+			_subPage = value;
+			StateHasChanged();
+		}
+	}
+
 	void Select( string id )
 	{
 		Category = id;
 		Query = "";
 		Focused = null;
+		_subPage = null;
 
 		if ( SearchEntry.IsValid() )
 			SearchEntry.Text = "";

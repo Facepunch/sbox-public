@@ -34,6 +34,16 @@ public partial class SceneFile : GameResource
 
 	public override int ResourceVersion => 3;
 
+	/// <summary>
+	/// Called when this scene file is destroyed, lets a mount release what it built the scene with.
+	/// </summary>
+	internal Action OnDestroyed;
+
+	protected override void OnDestroy()
+	{
+		OnDestroyed?.Invoke();
+	}
+
 	[Hide, JsonIgnore]
 	protected override Type ActionGraphTargetType => null;
 

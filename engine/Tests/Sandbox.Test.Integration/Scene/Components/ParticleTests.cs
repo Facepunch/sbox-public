@@ -7,6 +7,87 @@ namespace SceneTests.Components;
 [TestClass]
 public class ParticleEffectTest
 {
+	[TestMethod]
+	public void VelocityStretch_UploadsRibbonAndConservativeBounds()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var renderer = scene.CreateObject().AddComponent<ParticleSpriteRenderer>();
+		renderer.Sprite = Sprite.FromTexture( Texture.White );
+		renderer.VelocityStretch = true;
+		renderer.StretchTime = 0.5f;
+		renderer.StretchLengthLimits = new Vector2( 0, 20 );
+		var particle = renderer.ParticleEffect.Emit( new Vector3( 10, 0, 0 ), 0 );
+		particle.Velocity = new Vector3( 100, 0, 0 );
+		particle.Size = 4;
+		particle.Age = 1;
+		var upload = new SpriteBatchSceneObject.SpriteData[1];
+		IBatchedParticleSpriteRenderer batched = renderer;
+		var result = batched.ProcessParticlesDirectly( upload );
+		Assert.AreEqual( 1, result.SpriteCount );
+		Assert.AreEqual( Vector3.Zero, upload[0].Position );
+		Assert.AreEqual( new Vector2( 2, 10 ), upload[0].Scale );
+		Assert.IsTrue( ((SpriteBatchSceneObject.SpriteFlags)upload[0].RenderFlags).HasFlag( SpriteBatchSceneObject.SpriteFlags.VelocityStretch ) );
+		Assert.IsTrue( result.Bounds.Contains( new Vector3( -10, 0, 0 ) ) );
+		Assert.IsTrue( result.Bounds.Contains( new Vector3( 10, 0, 0 ) ) );
+		renderer.StretchFadeIn = 10;
+		batched.ProcessParticlesDirectly( upload );
+		Assert.AreEqual( 2.5f, upload[0].Scale.y, 0.001f );
+		renderer.StretchFadeIn = 100;
+		batched.ProcessParticlesDirectly( upload );
+		Assert.AreEqual( new Vector2( 0.25f, 0.25f ), upload[0].Scale, "A ribbon shorter than its width narrows to stay square, as Source's sprite trails do." );
+		particle.Velocity = Vector3.Zero;
+		Assert.AreEqual( 0, batched.ProcessParticlesDirectly( upload ).SpriteCount );
+		renderer.VelocityStretch = false;
+		Assert.AreEqual( 1, batched.ProcessParticlesDirectly( upload ).SpriteCount );
+		Assert.AreEqual( new Vector2( 2, 2 ), upload[0].Scale );
+		Assert.AreEqual( new Vector3( 10, 0, 0 ), upload[0].Position );
+	}
+
+	[TestMethod]
+	public void AngularVelocity_IntegratesAndRespectsPause()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var effect = scene.CreateObject().AddComponent<ParticleEffect>();
+		effect.Lifetime = 10;
+		effect.ApplyRotation = true;
+		effect.InitialRoll = 10;
+		effect.AngularVelocity = new Vector3( 0, 0, 90 );
+		var particle = effect.Emit( Vector3.Zero, 0 );
+		effect.Step( 0.5f );
+		Assert.AreEqual( 55, particle.Angles.roll, 0.001f );
+		effect.Paused = true;
+		effect.Step( 0.5f );
+		Assert.AreEqual( 55, particle.Angles.roll, 0.001f );
+		effect.Paused = false;
+		effect.Step( 0.5f );
+		Assert.AreEqual( 100, particle.Angles.roll, 0.001f );
+	}
+
+	[TestMethod]
+	public void DirectionalSphere_RotatesPositionAndVelocity()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var go = scene.CreateObject();
+		go.WorldRotation = Rotation.FromYaw( 90 );
+		var effect = go.AddComponent<ParticleEffect>();
+		effect.Lifetime = 10;
+		var emitter = go.AddComponent<ParticleSphereEmitter>();
+		emitter.Radius = 10;
+		emitter.Velocity = 100;
+		emitter.DistanceBias = new Vector3( 1, 0, 0 );
+		emitter.LocalDirection = true;
+		for ( var i = 0; i < 20; i++ ) emitter.Emit( effect );
+		foreach ( var particle in effect.Particles )
+		{
+			Assert.AreEqual( 0, particle.Position.x, 0.001f );
+			Assert.AreEqual( 0, particle.Velocity.x, 0.001f );
+			Assert.AreEqual( particle.Position.y * 10, particle.Velocity.y, 0.001f );
+		}
+	}
+
 	/// <summary>
 	/// A box emitter with an initial burst should spawn exactly that many particles on the
 	/// first scene tick, because OnBurst emits GetBurstCount() particles in one go, and a

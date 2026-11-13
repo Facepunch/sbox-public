@@ -21275,7 +21275,7 @@
                   "ReferencePoseTwistWeight": 0,
                   "DefaultVariationData": {
                     "EffectorBone": "hand_L",
-                    "BlendTime": 0
+                    "BlendTime": 0.35
                   },
                   "Overrides": [],
                   "Identifier": "c5dacc14-aa82-4a88-9604-981702f0749a",
@@ -21321,7 +21321,7 @@
                   "ReferencePoseTwistWeight": 0,
                   "DefaultVariationData": {
                     "EffectorBone": "hand_R",
-                    "BlendTime": 0
+                    "BlendTime": 0.35
                   },
                   "Overrides": [],
                   "Identifier": "7707f4c6-e43f-4252-81ff-8fc41eac1387",
@@ -21367,7 +21367,7 @@
                   "ReferencePoseTwistWeight": 0,
                   "DefaultVariationData": {
                     "EffectorBone": "ankle_L",
-                    "BlendTime": 0
+                    "BlendTime": 0.35
                   },
                   "Overrides": [],
                   "Identifier": "5c3d1843-1baf-4b78-b7de-d3b7b6a33e8c",
@@ -21413,7 +21413,7 @@
                   "ReferencePoseTwistWeight": 0,
                   "DefaultVariationData": {
                     "EffectorBone": "ankle_R",
-                    "BlendTime": 0
+                    "BlendTime": 0.35
                   },
                   "Overrides": [],
                   "Identifier": "530b2498-e978-4453-bc2c-635086d68089",

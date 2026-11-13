@@ -54,13 +54,13 @@ partial class EdgeArchTool
 			_tool.CommitParameterEdit( $"Adjust Edge Arch {property.DisplayName}" );
 		}
 
-		[Shortcut( "mesh.edge-arch-increase", "]", typeof( SceneViewWidget ) )]
+		[Shortcut( "mesh.edge-arch-increase", "CTRL+]", typeof( SceneViewWidget ) )]
 		private void IncreaseSteps()
 		{
 			AdjustSteps( 1 );
 		}
 
-		[Shortcut( "mesh.edge-arch-decrease", "[", typeof( SceneViewWidget ) )]
+		[Shortcut( "mesh.edge-arch-decrease", "CTRL+[", typeof( SceneViewWidget ) )]
 		private void DecreaseSteps()
 		{
 			AdjustSteps( -1 );

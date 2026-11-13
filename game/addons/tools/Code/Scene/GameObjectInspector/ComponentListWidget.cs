@@ -324,9 +324,8 @@ public class ComponentListWidget : Widget
 		var t = EditorTypeLibrary.GetType( component.GetType() );
 		if ( t.SourceFile is not null )
 		{
-			bool isPackage = component.GetType().Assembly.IsPackage();
 			var filename = System.IO.Path.GetFileName( t.SourceFile );
-			menu.AddOption( $"Open {filename}", "code", action: () => CodeEditor.OpenFile( t ) ).Enabled = isPackage;
+			menu.AddOption( $"Open {filename}", "code", action: () => CodeEditor.OpenFile( t ) ).Enabled = CodeEditor.CanOpenFile( t.SourceFile );
 		}
 	}
 
@@ -462,9 +461,8 @@ public class ComponentListWidget : Widget
 		var t = EditorTypeLibrary.GetType( component.GetType() );
 		if ( t.SourceFile is not null )
 		{
-			bool isPackage = component.GetType().Assembly.IsPackage();
 			var filename = System.IO.Path.GetFileName( t.SourceFile );
-			menu.AddOption( $"Open {filename}", "open_in_new", action: () => CodeEditor.OpenFile( t ) ).Enabled = isPackage;
+			menu.AddOption( $"Open {filename}", "open_in_new", action: () => CodeEditor.OpenFile( t ) ).Enabled = CodeEditor.CanOpenFile( t.SourceFile );
 		}
 	}
 

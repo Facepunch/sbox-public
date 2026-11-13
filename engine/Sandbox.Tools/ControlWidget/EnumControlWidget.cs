@@ -71,7 +71,8 @@ public class EnumControlWidget : ControlWidget
 		else if ( IsFlagsMode )
 		{
 			var e = _enumDesc.GetEntries( value );
-			var str = string.Join( ", ", e.Select( x => $"{x.Name}" ) );
+			var exact = _enumDesc.GetEntry( value );
+			var str = exact.Title ?? string.Join( ", ", e.Select( x => $"{x.Name}" ) );
 
 			Paint.SetPen( color );
 			Paint.DrawText( rect, str, TextFlag.LeftCenter );
@@ -129,7 +130,11 @@ public class EnumControlWidget : ControlWidget
 
 		if ( IsFlagsMode )
 		{
-			if ( (value & e.IntegerValue) != 0 )
+			if ( e.IntegerValue == 0 )
+			{
+				value = 0;
+			}
+			else if ( (value & e.IntegerValue) == e.IntegerValue )
 			{
 				value &= ~e.IntegerValue;
 			}
@@ -175,6 +180,13 @@ public class EnumControlWidget : ControlWidget
 		};
 
 		var entries = IsFlagsMode ? _enumDesc.AsEnumerable() : _enumDesc;
+		if ( IsFlagsMode )
+		{
+			// Keep the clear/all presets reachable without scrolling through every individual flag.
+			var allFlags = _enumDesc.Unique.Aggregate( 0L, ( mask, entry ) => mask | entry.IntegerValue );
+			entries = entries.OrderBy( x => x.IntegerValue != 0 && x.IntegerValue != allFlags );
+		}
+
 		float h = 0;
 
 		foreach ( var o in entries )
@@ -271,7 +283,7 @@ file class MenuOption : Widget
 	bool HasValue()
 	{
 		var value = property.GetValue<long>( 0 );
-		if ( flagMode ) return (value & info.IntegerValue) == info.IntegerValue;
+		if ( flagMode && info.IntegerValue != 0 ) return (value & info.IntegerValue) == info.IntegerValue;
 		return value == info.IntegerValue;
 	}
 

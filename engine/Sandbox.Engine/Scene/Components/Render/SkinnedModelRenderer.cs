@@ -304,7 +304,8 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 			// Updated bones, transform is no longer dirty.
 			_transformDirty = false;
 
-			UpdateGameObjectsFromBones();
+			if ( UpdateGameObjectsFromBones() && ThreadSafe.IsMainThread )
+				Transform.TransformChanged( true );
 		}
 	}
 

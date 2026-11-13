@@ -19,7 +19,7 @@
     /// - Local preferences
     /// - Game preferences
     /// </summary>
-    bool WantsChat => Preferences.VoiceEnabled && VoiceChat.ShowSpeakers;
+    bool WantsChat => Preferences.VoiceEnabled && Preferences.ShowVoiceSpeakers && VoiceChat.ShowSpeakers;
 
     /// <summary>
     /// Are we in a game that supports voice chat, and are we connected to a server?
