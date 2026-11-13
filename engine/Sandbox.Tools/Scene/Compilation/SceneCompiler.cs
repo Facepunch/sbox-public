@@ -128,7 +128,7 @@ internal static partial class SceneCompiler
 	{
 		var generation = Guid.NewGuid().ToString( "N" );
 		var outputFolder = $"/compiled/{generation}";
-		var generationPath = GetGenerationPath( sourceAsset, generation );
+		var generationPath = GetGenerationPath( sourcePath, generation );
 
 		lock ( GenerationGate )
 			ActiveGenerations.Add( generationPath );
