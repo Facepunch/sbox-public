@@ -301,44 +301,7 @@ internal sealed partial class MapWorld
 
 	/// <summary>A probe volume's attributes: <c>PerBatchLightProbeVolumeConstantBuffer_t</c> over its box and transform, and the flags.</summary>
 	ShaderParameters ProbeAttributes( BackendTexture probe, GpuTexture indices, GpuTexture scalars, Transform transform, NumericsVector3 mins, NumericsVector3 maxs )
-	{
-		// World to the box's [0, 1]: the transform's inverse, then the fit
-		var size = maxs - mins;
-		var position = transform.Position;
-		Vector3[] axes = [transform.Rotation.Forward, transform.Rotation.Left, transform.Rotation.Up];
-		float[] boxMins = [mins.X, mins.Y, mins.Z];
-		float[] boxSizes = [size.X, size.Y, size.Z];
-		var rows = new Vector4[3];
-		for ( int i = 0; i < 3; i++ )
-		{
-			var a = axes[i] / boxSizes[i];
-			rows[i] = new Vector4( a.x, a.y, a.z, -(Vector3.Dot( axes[i], position ) + boxMins[i]) / boxSizes[i] );
-		}
-
-		var info = gpu.InfoOf( probe.Handle );
-		var half = new NumericsVector3( 0.5f / info.Width, 0.5f / info.Height, 0.5f / info.Depth );
-		const int Layers = 6;
-		var constants = new ProbeConstants
-		{
-			Row0 = rows[0],
-			Row1 = rows[1],
-			Row2 = rows[2],
-			TextureMin = new Vector4( half.X, half.Y, half.Z, 0 ),
-			TextureMax = new Vector4( 1 - half.X, 1 - half.Y, 1f / Layers - half.Z, 0 ),
-			Colour = new Vector4( 1, 1, 1, 0 ),
-			Probe = probe.BindlessIndex,
-			Indices = indices.BindlessIndex,
-			Scalars = scalars.BindlessIndex,
-		};
-
-		var attributes = Backend.CreateParameters();
-		attributes.SetData( "PerBatchLightProbeVolumeConstantBuffer_t", constants );
-		attributes.Set( "UsesBakedLightmaps", false );
-		attributes.Set( "UsesBakedLightingFromProbe", true );
-		attributes.SetCombo( "D_BAKED_LIGHTING_FROM_PROBE", 1 );
-		attributes.SetCombo( "D_BAKED_LIGHTING_FROM_LIGHTMAP", 0 );
-		return attributes;
-	}
+		=> Backend.LightProbeVolumeParameters( probe, indices, scalars, transform, V( mins ), V( maxs ) );
 
 	/// <summary>
 	/// The 3D skybox (<c>MapSkybox3D</c>): the sky world's <c>sky_camera</c> and scale, placed so the main world's

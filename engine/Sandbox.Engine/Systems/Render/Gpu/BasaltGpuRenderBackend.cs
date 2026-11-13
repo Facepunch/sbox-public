@@ -68,9 +68,10 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	/// the same driver profile (AMD's changes trilinear filtering otherwise). <paramref name="source2Names"/> false uses
 	/// Basalt's, to show the difference. <paramref name="presentation"/> lets it present to windows; with
 	/// <paramref name="frames"/> the first block of each engine frame starts the device's next frame, as the process's
-	/// device does.
+	/// device does. <paramref name="markers"/> writes progress markers for the device-loss report
+	/// (<see cref="DeviceOptions.ProgressMarkers"/>).
 	/// </summary>
-	public static BasaltGpuRenderBackend Create( bool validation = false, Action<DeviceMessage> message = null, bool source2Names = true, bool presentation = false, bool frames = false )
+	public static BasaltGpuRenderBackend Create( bool validation = false, Action<DeviceMessage> message = null, bool source2Names = true, bool presentation = false, bool frames = false, bool markers = false )
 	{
 		var gpu = GpuDevice.Create( new DeviceOptions
 		{
@@ -78,6 +79,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 			EngineName = source2Names ? "Source2" : "Basalt",
 			Validation = validation,
 			Presentation = presentation,
+			ProgressMarkers = markers,
 			Message = message,
 		} );
 
@@ -287,6 +289,9 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 
 		var sky = System.IO.Path.Combine( System.IO.Path.GetDirectoryName( vpk ), System.IO.Path.GetFileNameWithoutExtension( vpk ) + "_sky.vpk" );
 		if ( System.IO.File.Exists( sky ) && mapPackages.Add( sky ) ) AddPackage( sky );
+
+		// The process's video memory as the map's world is made (both devices: Source 2 still loads the map's lightmaps)
+		Log.Info( $"Basalt.Gpu memory at {System.IO.Path.GetFileName( vpk )}: {gpu.DescribeMemory()}" );
 	}
 
 	void AddPackage( string vpk )

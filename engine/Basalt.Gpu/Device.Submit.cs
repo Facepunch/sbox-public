@@ -1,5 +1,6 @@
 using Basalt.Gpu.Vulkan;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 
@@ -60,6 +61,9 @@ internal sealed unsafe class DeviceQueue : IDisposable
 			return value;
 		}
 	}
+
+	/// <summary>The value the GPU had reached when last asked, without asking it.</summary>
+	public ulong CompletedSeen => Volatile.Read( ref completed );
 
 	/// <summary>Take the next value for a submission. Call with <see cref="SubmitLock"/> held.</summary>
 	public ulong Next() => ++submitted;
@@ -200,6 +204,7 @@ public sealed unsafe partial class Device
 			if ( waitCount > 0 || swapChain is not null ) FlushLocked( queue );
 
 			var value = queue.Next();
+			Remember( queue, value, list, queue.Pending.Count );
 			signals[0] = new VkSemaphoreSubmitInfo { sType = VkStructureType.SemaphoreSubmitInfo, semaphore = queue.Timeline, value = value, stageMask = Vulkan.Vk.Stage2AllCommands };
 
 			var count = queue.Pending.Count + 1;
@@ -241,6 +246,7 @@ public sealed unsafe partial class Device
 		lock ( queue.SubmitLock )
 		{
 			var value = queue.Next();
+			Remember( queue, value, list, -1 );
 			queue.Pending.Add( list.Handle );
 			return list.Submitted = new SyncPoint( list.Queue, value );
 		}
@@ -282,6 +288,110 @@ public sealed unsafe partial class Device
 		Interlocked.Increment( ref submissions );
 		queue.Pending.Clear();
 		Volatile.Write( ref queue.Flushed, value );
+	}
+
+	// The last lists submitted, for what was in flight when the device is lost (DescribeRecentSubmissions)
+	readonly (QueueType Queue, ulong Value, string Name, int HeldBefore, long Ticks, int Markers)[] recentSubmissions = new (QueueType, ulong, string, int, long, int)[48];
+	int recentNext;
+
+	void Remember( DeviceQueue queue, ulong value, CommandList list, int heldBefore )
+	{
+		lock ( recentSubmissions )
+		{
+			recentSubmissions[recentNext] = (queue.Type, value, list.Name, heldBefore, Stopwatch.GetTimestamp(), list.MarkerSlot);
+			recentNext = (recentNext + 1) % recentSubmissions.Length;
+		}
+	}
+
+	/// <summary>
+	/// For after the device is lost: the driver's fault report (only valid then), the process's memory use
+	/// (<see cref="DescribeMemory"/>), each queue's timeline, then the last lists submitted, oldest first, each with its
+	/// queue, timeline value, when it was submitted (a list held for one submission is "held"; one submitted directly says
+	/// how many held lists went with it), whether the timeline had passed it when last read before the loss, and with
+	/// <see cref="DeviceOptions.ProgressMarkers"/> how far the GPU got in it. A timeline read after the loss can't be
+	/// trusted: drivers may signal everything pending.
+	/// </summary>
+	public string DescribeRecentSubmissions()
+	{
+		var text = new System.Text.StringBuilder();
+		DescribeFault( text );
+		text.Append( $"memory: {DescribeMemory()}; " );
+		var seen = new Dictionary<QueueType, ulong>();
+		foreach ( var queue in (DeviceQueue[])[graphicsQueue, computeQueue] )
+		{
+			seen[queue.Type] = queue.CompletedSeen;
+			string now;
+			try { now = queue.Completed.ToString(); } catch ( GpuException ) { now = "unknown"; }
+			text.Append( $"{queue.Type} queue: submitted {queue.Submitted}, flushed {Volatile.Read( ref queue.Flushed )}, completed {seen[queue.Type]} when last read, {now} read now; " );
+			if ( computeQueue == graphicsQueue ) break;
+		}
+
+		lock ( recentSubmissions )
+		{
+			var now = Stopwatch.GetTimestamp();
+			for ( int i = 0; i < recentSubmissions.Length; i++ )
+			{
+				var (queue, value, name, held, ticks, markers) = recentSubmissions[(recentNext + i) % recentSubmissions.Length];
+				if ( name is null && value == 0 ) continue;
+				var done = seen.GetValueOrDefault( queue ) >= value ? "done" : "not seen done";
+				text.Append( $"\n  {queue} {value} {name} ({(held < 0 ? "held" : $"with {held} held")}, {Stopwatch.GetElapsedTime( ticks, now ).TotalMilliseconds:F0} ms ago) {done}{DescribeMarkers( markers )}" );
+			}
+		}
+
+		return text.ToString();
+	}
+
+	/// <summary>The driver's VK_EXT_device_fault report after the device is lost: its description and the faulting addresses.</summary>
+	void DescribeFault( System.Text.StringBuilder text )
+	{
+		if ( !faultReports || Vk.vkGetDeviceFaultInfoEXT == null )
+		{
+			text.Append( "no device fault report; " );
+			return;
+		}
+
+		var counts = new VkDeviceFaultCountsEXT { sType = VkStructureType.DeviceFaultCountsExt };
+		var result = Vk.vkGetDeviceFaultInfoEXT( Vk.Device, &counts, null );
+		if ( result < 0 )
+		{
+			text.Append( $"device fault counts failed ({result}); " );
+			return;
+		}
+
+		var addresses = new VkDeviceFaultAddressInfoEXT[Math.Max( counts.addressInfoCount, 1u )];
+		var vendors = new VkDeviceFaultVendorInfoEXT[Math.Max( counts.vendorInfoCount, 1u )];
+		counts.vendorBinarySize = 0;
+		var info = new VkDeviceFaultInfoEXT { sType = VkStructureType.DeviceFaultInfoExt };
+		fixed ( VkDeviceFaultAddressInfoEXT* a = addresses )
+		fixed ( VkDeviceFaultVendorInfoEXT* v = vendors )
+		{
+			info.pAddressInfos = a;
+			info.pVendorInfos = v;
+			result = Vk.vkGetDeviceFaultInfoEXT( Vk.Device, &counts, &info );
+		}
+
+		if ( result < 0 )
+		{
+			text.Append( $"device fault info failed ({result}); " );
+			return;
+		}
+
+		ReadOnlySpan<string> kinds = ["none", "read invalid", "write invalid", "execute invalid", "ip unknown frame", "ip invalid frame", "ip fault frame"];
+		text.Append( $"device fault: \"{Marshal.PtrToStringUTF8( (nint)info.description )}\", {counts.addressInfoCount} addresses, {counts.vendorInfoCount} vendor records" );
+		for ( int i = 0; i < counts.addressInfoCount; i++ )
+		{
+			var address = addresses[i];
+			var kind = address.addressType >= 0 && address.addressType < kinds.Length ? kinds[address.addressType] : address.addressType.ToString();
+			text.Append( $"\n  fault address {kind} 0x{address.reportedAddress:X} (precision 0x{address.addressPrecision:X})" );
+		}
+
+		for ( int i = 0; i < counts.vendorInfoCount; i++ )
+		{
+			fixed ( VkDeviceFaultVendorInfoEXT* v = &vendors[i] )
+				text.Append( $"\n  vendor \"{Marshal.PtrToStringUTF8( (nint)v->description )}\" code 0x{v->vendorFaultCode:X} data 0x{v->vendorFaultData:X}" );
+		}
+
+		text.Append( "\n" );
 	}
 
 	/// <summary>Submissions made to the GPU (<c>vkQueueSubmit2</c> calls) so far, on every queue. For profiling and tests.</summary>

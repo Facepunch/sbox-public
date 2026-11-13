@@ -272,7 +272,9 @@ public sealed class GraphicsContext
 		var height = (int)Viewport.W;
 		EndScope();
 		Transition( Target, ImageLayout.CopySource );
-		Transition( destination, ImageLayout.CopyDestination );
+
+		// A destination already in CopyDestination (cleared, or copied into) still needs its last write finished first
+		TransitionForWrite( destination, ImageLayout.CopyDestination );
 		List.Blit( Target, ((int)Viewport.X, (int)Viewport.Y, width, height), destination, (0, 0, width, height), Filter.Nearest );
 	}
 

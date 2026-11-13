@@ -333,30 +333,7 @@ internal sealed partial class MapWorld : IDisposable
 			var scalars = Backend.LoadTexture( prefix + "_dls.vtex" ) is BackendTexture { Dimension: TextureDimension.Texture3D } dls ? dls : probe;
 			var mins = group.Select( p => p.Mins ).Aggregate( NumericsVector3.Min ) - new NumericsVector3( 16 );
 			var maxs = group.Select( p => p.Maxs ).Aggregate( NumericsVector3.Max ) + new NumericsVector3( 16 );
-			var size = maxs - mins;
-			var info = gpu.InfoOf( probe.Handle );
-			var half = new NumericsVector3( 0.5f / info.Width, 0.5f / info.Height, 0.5f / info.Depth );
-			const int Layers = 6;
-
-			var constants = new ProbeConstants
-			{
-				Row0 = new Vector4( 1 / size.X, 0, 0, -mins.X / size.X ),
-				Row1 = new Vector4( 0, 1 / size.Y, 0, -mins.Y / size.Y ),
-				Row2 = new Vector4( 0, 0, 1 / size.Z, -mins.Z / size.Z ),
-				TextureMin = new Vector4( half.X, half.Y, half.Z, 0 ),
-				TextureMax = new Vector4( 1 - half.X, 1 - half.Y, 1f / Layers - half.Z, 0 ),
-				Colour = new Vector4( 1, 1, 1, 0 ),
-				Probe = probe.BindlessIndex,
-				Indices = indices.BindlessIndex,
-				Scalars = scalars.BindlessIndex,
-			};
-
-			var attributes = Backend.CreateParameters();
-			attributes.SetData( "PerBatchLightProbeVolumeConstantBuffer_t", constants );
-			attributes.Set( "UsesBakedLightmaps", false );
-			attributes.Set( "UsesBakedLightingFromProbe", true );
-			attributes.SetCombo( "D_BAKED_LIGHTING_FROM_PROBE", 1 );
-			attributes.SetCombo( "D_BAKED_LIGHTING_FROM_LIGHTMAP", 0 );
+			var attributes = Backend.LightProbeVolumeParameters( probe, indices, scalars, Transform.Zero, new Vector3( mins.X, mins.Y, mins.Z ), new Vector3( maxs.X, maxs.Y, maxs.Z ) );
 
 			target.LightProbeVolumes.Add( new global::Basalt.LightProbeVolume
 			{
@@ -389,13 +366,6 @@ internal sealed partial class MapWorld : IDisposable
 		public LightmapIndices Indices;
 	}
 
-	/// <summary><c>PerBatchLightProbeVolumeConstantBuffer_t</c>.</summary>
-	struct ProbeConstants
-	{
-		public Vector4 Row0, Row1, Row2;
-		public Vector4 TextureMin, TextureMax, Colour;
-		public int Probe, Indices, Scalars;
-	}
 
 	/// <summary>A model's bounds placed by a row-vector object-to-world matrix, in world space.</summary>
 	static (NumericsVector3 Mins, NumericsVector3 Maxs) WorldBounds( ModelFile file, NumericsMatrix transform )

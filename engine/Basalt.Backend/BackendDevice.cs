@@ -471,8 +471,70 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <inheritdoc/>
 	public override ShaderParameters CreateParameters() => new BackendParameters();
 
+	/// <summary>
+	/// A light probe volume's attributes here: <c>PerBatchLightProbeVolumeConstantBuffer_t</c> as
+	/// <c>CSceneLightProbeVolumeObject::CreateConstants</c> makes it - world to the box's [0, 1] through the volume's
+	/// transform, the probe texture's texel-centre range, its three textures' bindless indices - and the flags for baked
+	/// lighting from a probe. Null unless <paramref name="probe"/> is a 3D texture here; an index or scalar texture that
+	/// isn't is the probe's, as the shader samples each as 3D.
+	/// </summary>
+	public ShaderParameters LightProbeVolumeParameters( GpuTexture probe, GpuTexture indices, GpuTexture scalars, Transform transform, Vector3 mins, Vector3 maxs )
+	{
+		if ( probe is not BackendTexture { Dimension: TextureDimension.Texture3D } ) return null;
+		if ( indices is not BackendTexture { Dimension: TextureDimension.Texture3D } ) indices = probe;
+		if ( scalars is not BackendTexture { Dimension: TextureDimension.Texture3D } ) scalars = probe;
+
+		var size = maxs - mins;
+		var position = transform.Position;
+		Vector3[] axes = [transform.Rotation.Forward, transform.Rotation.Left, transform.Rotation.Up];
+		float[] boxMins = [mins.x, mins.y, mins.z];
+		float[] boxSizes = [size.x, size.y, size.z];
+		var rows = new Vector4[3];
+		for ( int i = 0; i < 3; i++ )
+		{
+			var a = axes[i] / boxSizes[i];
+			rows[i] = new Vector4( a.x, a.y, a.z, -(Vector3.Dot( axes[i], position ) + boxMins[i]) / boxSizes[i] );
+		}
+
+		const int Layers = 6;
+		var info = Gpu.InfoOf( ((BackendTexture)probe).Handle );
+		var half = new Vector3( 0.5f / info.Width, 0.5f / info.Height, 0.5f / Math.Max( info.Depth, 1 ) );
+		var constants = new LightProbeVolumeConstants
+		{
+			Row0 = rows[0],
+			Row1 = rows[1],
+			Row2 = rows[2],
+			TextureMin = new Vector4( half.x, half.y, half.z, 0 ),
+			TextureMax = new Vector4( 1 - half.x, 1 - half.y, 1f / Layers - half.z, 0 ),
+			Colour = new Vector4( 1, 1, 1, 0 ),
+			Probe = probe.BindlessIndex,
+			Indices = indices.BindlessIndex,
+			Scalars = scalars.BindlessIndex,
+		};
+
+		var attributes = CreateParameters();
+		attributes.SetData( "PerBatchLightProbeVolumeConstantBuffer_t", constants );
+		attributes.Set( "UsesBakedLightmaps", false );
+		attributes.Set( "UsesBakedLightingFromProbe", true );
+		attributes.SetCombo( "D_BAKED_LIGHTING_FROM_PROBE", 1 );
+		attributes.SetCombo( "D_BAKED_LIGHTING_FROM_LIGHTMAP", 0 );
+		return attributes;
+	}
+
+	/// <summary><c>PerBatchLightProbeVolumeConstantBuffer_t</c>.</summary>
+	struct LightProbeVolumeConstants
+	{
+		public Vector4 Row0, Row1, Row2;
+		public Vector4 TextureMin, TextureMax, Colour;
+		public int Probe, Indices, Scalars;
+	}
+
 	/// <inheritdoc/>
 	public override GpuTexture SheetMetadata => sheetMetadata;
+
+	/// <summary>A compiled material's texture for a shader variable (<c>g_tSkyTexture</c>), or null.</summary>
+	public GpuTexture MaterialTexture( string material, string variable )
+		=> LoadMaterial( material ) is BackendMaterial m && m.Textures.TryGetValue( variable, out var texture ) ? texture : null;
 
 	/// <summary>
 	/// A compiled material (<c>.vmat_c</c>) with its shader and textures; one that isn't there, or whose shader isn't,
@@ -723,6 +785,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	internal override bool DrawsAggregatesGpuDriven => GpuDriven && MaterialObjects && GpuDrivenTables is not null;
 
+	internal override bool CullsAggregatesGpuDriven => DrawsAggregatesGpuDriven && GpuDrivenCulling;
+
 	internal override bool DrawsMeshesGpuDriven => GpuDrivenMeshes && DrawsAggregatesGpuDriven;
 
 	/// <summary>
@@ -780,14 +844,16 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	{
 		get
 		{
+			// Loaded once; read without a lock by every GPU-driven call after
+			if ( Volatile.Read( ref visibilityShadersLoaded ) ) return (visibilityIds, visibilityMark, visibilityCompact);
 			lock ( visibilityViews )
 			{
 				if ( !visibilityShadersLoaded )
 				{
-					visibilityShadersLoaded = true;
 					if ( Shaders.Load( "shaders/basalt_gpu_driven_ids.shader" ) is not null ) visibilityIds = MaterialFromShader( "shaders/basalt_gpu_driven_ids.shader" ) as BackendMaterial;
 					visibilityMark = Shaders.Load( "shaders/basalt_gpu_driven_mark_cs.shader" );
 					visibilityCompact = Shaders.Load( "shaders/basalt_gpu_driven_compact_cs.shader" );
+					Volatile.Write( ref visibilityShadersLoaded, true );
 				}
 
 				return (visibilityIds, visibilityMark, visibilityCompact);
@@ -856,6 +922,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		/// <summary>The frame (<see cref="GpuDrivenFrame"/>) its mask was last cleared in, before any call drew ids into it.</summary>
 		public uint ClearedFrame;
 
+		/// <summary>Whether its buffers and targets are made, which <see cref="VisibilityFor"/> sets last, under its lock.</summary>
+		public volatile bool Ready;
+
 		/// <summary>
 		/// Indices at the start of each compacted buffer that hold its cursor instead: every call compacting into the view
 		/// this frame takes its triangles' range from it on the GPU, so calls recorded on different workers reserve nothing.
@@ -879,6 +948,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>A view's visibility resources, made the first time and remade when its depth target changes size.</summary>
 	internal VisibilityView VisibilityFor( object view, TextureInfo depth )
 	{
+		// Made already, for a depth target of this size: found without a lock, as every GPU-driven call of the view asks
+		if ( visibilityViews.TryGetValue( view, out var made ) && made.Ready && (depth.Width == 0 || made.Width == depth.Width && made.Height == depth.Height && made.Samples == depth.Samples) ) return made;
+
 		lock ( visibilityViews )
 		{
 			var state = visibilityViews.GetValue( view, static _ => new VisibilityView() );
@@ -928,6 +1000,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 				(state.Width, state.Height, state.Samples) = (depth.Width, depth.Height, depth.Samples);
 			}
 
+			state.Ready = true;
 			return state;
 		}
 	}

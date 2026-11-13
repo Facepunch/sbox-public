@@ -25,9 +25,11 @@ public static partial class Graphics
 		if ( IsAvailable && Sandbox.Utility.CommandLine.HasSwitch( "-basaltgpu" ) && RenderBackend.Default is Source2RenderBackend )
 		{
 			var validation = Sandbox.Utility.CommandLine.HasSwitch( "-basaltgpu-validation" );
-			_basaltGpu = BasaltGpuRenderBackend.Create( validation, m => Log.Info( $"Basalt.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true );
+			// Progress markers for the device-loss report, unless -basaltgpu-nomarkers
+			var markers = !Sandbox.Utility.CommandLine.HasSwitch( "-basaltgpu-nomarkers" );
+			_basaltGpu = BasaltGpuRenderBackend.Create( validation, m => Log.Info( $"Basalt.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true, markers: markers );
 			RenderBackend.SetDefault( _basaltGpu );
-			Log.Info( $"Rendering on Basalt.Gpu ({_basaltGpu.Device.Adapter.Name}){(validation ? ", validation on" : "")}" );
+			Log.Info( $"Rendering on Basalt.Gpu ({_basaltGpu.Device.Adapter.Name}){(validation ? ", validation on" : "")}; memory: {_basaltGpu.Device.DescribeMemory()}" );
 		}
 
 		_mipMapGeneratorShader = IsAvailable ? new ComputeShader( "downsample_cs" ) : null;
