@@ -805,7 +805,7 @@ public class TerrainComponentTest
 	}
 
 	/// <summary>
-	/// The local frustum test should match testing the box's eight world-space corners against the world planes.
+	/// The local cull planes should classify a box the same way the world planes classify its eight world-space corners.
 	/// </summary>
 	[TestMethod]
 	[DataRow( "perspective" )]
@@ -819,9 +819,11 @@ public class TerrainComponentTest
 		Plane[] planes = [frustum.RightPlane, frustum.LeftPlane, frustum.TopPlane, frustum.BottomPlane, frustum.NearPlane, frustum.FarPlane];
 
 		int visible = 0, hidden = 0;
+		var localPlanes = new Plane[6];
 		foreach ( var transform in CullTransforms )
 		{
-			var local = TerrainClipmapSceneObject.ToLocal( frustum, transform );
+			TerrainClipmapCuller.ToLocalPlanes( frustum, transform, localPlanes );
+			var local = new Frustum( localPlanes[1], localPlanes[0], localPlanes[2], localPlanes[3], localPlanes[4], localPlanes[5] );
 
 			for ( int i = 0; i < 4000; i++ )
 			{
