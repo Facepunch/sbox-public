@@ -97,7 +97,7 @@ public sealed partial class NavCrowd
 			ref var a = ref agents[i];
 			if ( !a.Has( AgentFlags.Active ) ) continue;
 			parms[i] = Sanitize( parms[i] );
-			states[i].Link = -1;
+			LeaveLink( i );
 			a.Unseat();
 			Publish( i );
 		}
@@ -209,7 +209,7 @@ public sealed partial class NavCrowd
 		ref var state = ref states[agent];
 		// On a link, or moved by SetPosition, the agent is not where its corridor starts.
 		bool seated = !state.Poly.IsNone;
-		state.Link = -1;
+		LeaveLink( agent );
 		Halt( ref state, parms[agent] );
 		a.Flags &= ~(AgentFlags.HasTarget | AgentFlags.HasRoute | AgentFlags.Partial | AgentFlags.AtEnd | AgentFlags.NeedsPlan | AgentFlags.NeedsRepair);
 		if ( seated ) a.Count = 1;
@@ -265,7 +265,7 @@ public sealed partial class NavCrowd
 	{
 		if ( !Live( agent ) || states[agent].Link < 0 ) return;
 		ref var state = ref states[agent];
-		state.Link = -1;
+		LeaveLink( agent );
 		Halt( ref state, parms[agent] );
 		agents[agent].Unseat();
 		Publish( agent );
@@ -316,7 +316,7 @@ public sealed partial class NavCrowd
 		route.CopyTo( own );
 
 		if ( !p.External ) state.Position = point;
-		state.Link = -1;
+		LeaveLink( agent );
 		state.Target = state.RouteTarget = target;
 		a.RouteEnd = end;
 		a.Count = count;
@@ -368,6 +368,14 @@ public sealed partial class NavCrowd
 	}
 
 	bool Live( int agent ) => (uint)agent < (uint)high && agents[agent].Has( AgentFlags.Active );
+
+	// A call takes the agent off its link. The next Step enters none, so States show it off the link once.
+	void LeaveLink( int agent )
+	{
+		if ( states[agent].Link < 0 ) return;
+		states[agent].Link = -1;
+		agents[agent].LinkStep = step + 1;
+	}
 
 	void Grow( int capacity )
 	{

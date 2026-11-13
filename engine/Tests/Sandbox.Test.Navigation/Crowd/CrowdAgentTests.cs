@@ -75,6 +75,36 @@ public class CrowdAgentTests
 	}
 
 	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void ALinkLeftByACallIsSeenLeftBeforeItIsEnteredAgain( bool stop )
+	{
+		var sim = new Sim( new() { UpperFloor = true, Link = true } );
+		int agent = sim.Add( At( 250, 320 ), At( 550, 320, 201 ), Walker( autoLinks: false ) );
+		var watch = new LinkWatch();
+		for ( int i = 0; i < 100 && !sim.OnLink( agent ); i++ )
+		{
+			sim.Step();
+			watch.See( sim[agent] );
+		}
+		Assert.IsTrue( sim.OnLink( agent ) );
+
+		// Sent back while it stands on the far end: the way back starts with the same link
+		sim.Crowd.SetPosition( agent, sim[agent].LinkEnd );
+		if ( stop ) sim.Crowd.Stop( agent );
+		else sim.Crowd.CompleteLink( agent );
+		sim.Crowd.MoveTo( agent, At( 250, 320 ) );
+		for ( int i = 0; i < 10 && watch.Entries < 2; i++ )
+		{
+			sim.Step();
+			watch.See( sim[agent] );
+		}
+		Assert.AreEqual( 2, watch.Entries );
+		Assert.AreEqual( 1, watch.Exits );
+		Assert.AreEqual( At( 320, 320, 201 ), sim[agent].LinkStart );
+	}
+
+	[TestMethod]
 	public void PendingRetargetKeepsTheActivePathSnapshotConsistent()
 	{
 		var sim = new Sim();

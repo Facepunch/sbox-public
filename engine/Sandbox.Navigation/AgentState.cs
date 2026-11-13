@@ -40,7 +40,8 @@ public struct AgentState
 	public uint Generation;
 
 	/// <summary>
-	/// The link id while OnLink, else -1.
+	/// The link id while OnLink, else -1. Between two links the agent is off the link for at least one
+	/// Step, also when a call ended the first, so comparing States between Steps shows every entry and exit.
 	/// </summary>
 	public int Link;
 

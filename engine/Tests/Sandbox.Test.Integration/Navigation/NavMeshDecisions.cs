@@ -1,6 +1,7 @@
 using Sandbox.Navigation;
 using Sandbox.Volumes;
 using System;
+using System.Collections.Generic;
 
 namespace NavigationTests;
 
@@ -198,6 +199,32 @@ public class NavMeshDecisions
 	}
 
 	[TestMethod]
+	public async Task AnAgentHeldAtZeroSpeedKeepsItsRoute()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		scene.Floor( Vector3.Zero );
+		await scene.NavMesh.Generate( scene.PhysicsWorld );
+		var agent = scene.Agent( new Vector3( -150, 0, 0 ) );
+		var target = new Vector3( 150, 0, 0 );
+		agent.MoveTo( target );
+		for ( int i = 0; i < 25; i++ ) scene.NavUpdate();
+		Assert.IsTrue( agent.IsNavigating );
+
+		agent.MaxSpeed = 0;
+		scene.NavUpdate();
+		var held = agent.AgentPosition;
+		for ( int i = 0; i < 50; i++ ) scene.NavUpdate();
+		Assert.IsTrue( agent.AgentPosition.Distance( held ) < 0.01f, $"Held at {held}, now at {agent.AgentPosition}" );
+		Assert.IsTrue( agent.IsNavigating );
+		Assert.AreEqual( target, agent.TargetPosition );
+
+		agent.MaxSpeed = 120;
+		for ( int i = 0; i < 500 && agent.IsNavigating; i++ ) scene.NavUpdate();
+		Assert.IsTrue( agent.AgentPosition.Distance( target ) < 8, $"The agent stopped at {agent.AgentPosition}" );
+	}
+
+	[TestMethod]
 	public async Task ABakeHoldsFinishedTiles()
 	{
 		var scene = new Scene();
@@ -214,6 +241,29 @@ public class NavMeshDecisions
 		Assert.AreEqual( scene.NavMesh.mesh.GetStats().Polygons, loaded.mesh.GetStats().Polygons );
 		Assert.AreEqual( 0, loaded.mesh.GetStats().CacheBytes );
 		Assert.AreEqual( NavMeshPathStatus.Complete, loaded.CalculatePath( new() { Start = new Vector3( -250, -250, 0 ), Target = new Vector3( 250, 250, 0 ) } ).Status );
+	}
+
+	[TestMethod]
+	public async Task ALoadedBakeGetsTheLinksOfTheScene()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		scene.Floor( Vector3.Zero );
+		scene.Floor( new Vector3( 0, 0, 200 ) );
+		var link = scene.Link<NavMeshLink>( new Vector3( 100, 0, 0 ), new Vector3( 100, 0, 200 ) );
+		Assert.IsTrue( await scene.NavMesh.Generate( scene.PhysicsWorld ) );
+		var baked = await scene.NavMesh.BakeDataToBytes();
+		Assert.IsNotNull( baked );
+
+		// A bake holds no links. The loaded mesh is given the scene's in the next update, without building a tile
+		await scene.NavMesh.LoadFromBakedData( baked );
+		scene.NavUpdate();
+		scene.NavUpdate();
+		Assert.AreEqual( 0, scene.NavMesh.mesh.PendingTiles );
+		Assert.AreEqual( 0, scene.NavMesh.mesh.GetStats().CacheBytes );
+		Assert.IsTrue( link.WorldStartPositionOnNavmesh.HasValue && link.WorldEndPositionOnNavmesh.HasValue );
+		var path = scene.NavMesh.CalculatePath( new() { Start = new Vector3( -100, 0, 0 ), Target = new Vector3( -100, 0, 200 ) } );
+		Assert.AreEqual( NavMeshPathStatus.Complete, path.Status );
 	}
 
 	[TestMethod]
@@ -425,6 +475,77 @@ public class NavMeshDecisions
 		Assert.AreEqual( (1, 1), (entries, exits) );
 		Assert.IsFalse( thrower.IsTraversingLink );
 		Assert.IsFalse( other.IsTraversingLink );
+	}
+
+	[TestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public async Task LinksBackToBackEachRaiseEnterAndExit( bool autoTraverse )
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		scene.Floor( Vector3.Zero );
+		scene.Floor( new Vector3( 0, 0, 200 ) );
+		scene.Floor( new Vector3( 0, 0, 400 ) );
+		// The second link starts where the first one ends
+		var first = scene.Link<NavMeshLink>( new Vector3( 100, 0, 0 ), new Vector3( 100, 0, 200 ) );
+		var second = scene.Link<NavMeshLink>( new Vector3( 100, 0, 200 ), new Vector3( 100, 0, 400 ) );
+		Assert.IsTrue( await scene.NavMesh.Generate( scene.PhysicsWorld ) );
+
+		var agent = scene.Agent();
+		agent.AutoTraverseLinks = autoTraverse;
+		var entered = new List<NavMeshLink>();
+		int exits = 0;
+		agent.LinkEnter = () => entered.Add( agent.CurrentLinkTraversal.Value.LinkComponent );
+		agent.LinkExit = () => exits++;
+		var target = new Vector3( -100, 0, 400 );
+		agent.MoveTo( target );
+
+		bool Arrived() => agent.AgentPosition.z > 300 && agent.AgentPosition.WithZ( 0 ).Distance( target.WithZ( 0 ) ) < 8;
+		for ( int i = 0; i < 3000 && !Arrived(); i++ )
+		{
+			scene.NavUpdate();
+			if ( autoTraverse || !agent.IsTraversingLink ) continue;
+			agent.SetAgentPosition( agent.CurrentLinkTraversal.Value.LinkExitPosition );
+			agent.CompleteLinkTraversal();
+		}
+
+		Assert.IsTrue( Arrived(), $"The agent stopped at {agent.AgentPosition}" );
+		Assert.AreEqual( 2, entered.Count );
+		Assert.AreSame( first, entered[0] );
+		Assert.AreSame( second, entered[1] );
+		Assert.AreEqual( 2, exits );
+	}
+
+	[TestMethod]
+	public async Task ALinkTakenAgainRightAfterItWasCompletedRaisesEnterAgain()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		scene.Floor( Vector3.Zero );
+		scene.Floor( new Vector3( 0, 0, 200 ) );
+		scene.Link<NavMeshLink>( new Vector3( 100, 0, 0 ), new Vector3( 100, 0, 200 ) );
+		Assert.IsTrue( await scene.NavMesh.Generate( scene.PhysicsWorld ) );
+
+		var agent = scene.Agent();
+		agent.AutoTraverseLinks = false;
+		int entries = 0, exits = 0;
+		agent.LinkEnter = () => entries++;
+		agent.LinkExit = () => exits++;
+		agent.MoveTo( new Vector3( -100, 0, 200 ) );
+		for ( int i = 0; i < 1000 && !agent.IsTraversingLink; i++ ) scene.NavUpdate();
+		Assert.IsTrue( agent.IsTraversingLink );
+		var top = agent.CurrentLinkTraversal.Value.LinkExitPosition;
+
+		// Sent back down while it stands on the upper end: the way back starts with the same link
+		agent.SetAgentPosition( top );
+		agent.MoveTo( new Vector3( -100, 0, 0 ) );
+		agent.CompleteLinkTraversal();
+		for ( int i = 0; i < 10 && entries < 2; i++ ) scene.NavUpdate();
+
+		Assert.AreEqual( (2, 1), (entries, exits) );
+		Assert.IsTrue( agent.IsTraversingLink );
+		Assert.AreEqual( top, agent.CurrentLinkTraversal.Value.LinkEnterPosition );
 	}
 
 	[TestMethod]
