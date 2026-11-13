@@ -34,8 +34,11 @@ public static partial class ShaderConverter
 	[GeneratedRegex( @"(\w+)\s*\(\s*([^()]*)\)" )]
 	private static partial Regex Annotation();
 
-	/// <summary>Convert a <c>.shader</c>'s text; <paramref name="name"/> is its file name without extension.</summary>
-	public static Result Convert( string shader, string name )
+	/// <summary>
+	/// Convert a <c>.shader</c>'s text; <paramref name="name"/> is its file name without extension. <paramref name="include"/>
+	/// reads an include by its path (<c>common/trunk_bending.hlsl</c>), for helpers the vertex shader includes; null when there's none.
+	/// </summary>
+	public static Result Convert( string shader, string name, Func<string, string> include = null )
 	{
 		var notes = new List<string>();
 		var type = Pascal( name );
@@ -43,14 +46,13 @@ public static partial class ShaderConverter
 		var ps = Block( shader, "PS" );
 		if ( ps is null ) return new Result( null, type, ["no PS block"] );
 
-		if ( Block( shader, "VS" ) is { } vs && Regex.IsMatch( vs, @"vPositionOs|vPositionWs\s*=|ApplyTrunkBending" ) )
-			notes.Add( "its vertex shader moves vertices: not converted (would be IVertexSurface.Displace)" );
+		var vs = Block( shader, "VS" ) ?? "";
 
 		var fields = new StringBuilder();
 		var renames = new Dictionary<string, string>( StringComparer.Ordinal );
 
 		// Declarations can sit in COMMON as well as PS
-		var declarations = (Block( shader, "COMMON" ) ?? "") + "\n" + ps;
+		var declarations = (Block( shader, "COMMON" ) ?? "") + "\n" + vs + "\n" + ps;
 
 		// Material.CommonInputs.hlsl's textures and tint
 		if ( ps.Contains( "Material.CommonInputs.hlsl", StringComparison.Ordinal ) )
@@ -64,7 +66,7 @@ public static partial class ShaderConverter
 
 		// Features read through static combos: fields, their .vmat values by [Source]
 		var features = FeatureDecl().Matches( Block( shader, "FEATURES" ) ?? "" ).ToDictionary( m => m.Groups[1].Value, m => (int.Parse( m.Groups[2].Value, CultureInfo.InvariantCulture ), int.Parse( m.Groups[3].Value, CultureInfo.InvariantCulture )) );
-		foreach ( Match combo in StaticComboDecl().Matches( ps ) )
+		foreach ( Match combo in StaticComboDecl().Matches( vs + "\n" + ps ).DistinctBy( m => m.Groups[1].Value ) )
 		{
 			var (comboName, feature) = (combo.Groups[1].Value, combo.Groups[2].Value);
 			if ( feature == "F_ALPHA_TEST" )
@@ -147,6 +149,10 @@ public static partial class ShaderConverter
 		}
 
 		if ( evaluate is null ) return new Result( null, type, ["no MainPs"] );
+
+		// A vertex shader that moves vertices in object space becomes Displace, with the helpers it includes
+		var (displace, vertexHelpers) = Displace( vs, renames, notes, include );
+		samplers += vertexHelpers;
 		foreach ( var line in ps.Split( '\n' ) )
 		{
 			if ( Regex.IsMatch( line, @"^\s*RenderState\(" ) ) notes.Add( $"render state not converted: {line.Trim()}" );
@@ -156,10 +162,62 @@ public static partial class ShaderConverter
 		text.Append( "// " ).Append( name ).Append( ".shader as a surface, converted by Sandbox.ShaderCompiler's ShaderConverter; the .shader stays.\n" );
 		foreach ( var note in notes.Distinct() ) text.Append( "// Not converted: " ).Append( note ).Append( '\n' );
 		text.Append( "import sbox.surface;\n\n" ).Append( samplers ).Append( samplers.Length > 0 ? "\n" : "" );
-		text.Append( "[Material]\npublic struct " ).Append( type ).Append( " : ISurface\n{\n" ).Append( fields ).Append( '\n' );
+		text.Append( "[Material]\npublic struct " ).Append( type ).Append( displace is null ? " : ISurface\n{\n" : " : IVertexSurface\n{\n" ).Append( fields ).Append( '\n' );
+		if ( displace is not null ) text.Append( "\tpublic float3 Displace( VertexSurfaceInput v )\n\t{\n\t\tfloat3 __position = v.Position;" ).Append( displace ).Append( "\t\treturn __position;\n\t}\n\n" );
 		text.Append( methods );
 		text.Append( "\tpublic Material Evaluate( SurfaceInput i )\n\t{" ).Append( evaluate ).Append( "}\n}\n" );
 		return new Result( text.ToString(), type, notes.Distinct().ToList() );
+	}
+
+	/// <summary>Includes the engine's passes provide, which a converted vertex shader doesn't copy.</summary>
+	static readonly HashSet<string> EngineIncludes = new( StringComparer.OrdinalIgnoreCase ) { "common/vertex.hlsl", "common/shared.hlsl", "common/pixel.hlsl", "system.fxc", "common.fxc" };
+
+	/// <summary>
+	/// A <c>MainVs</c> that moves vertices in object space as <c>Displace</c>'s body (null when it only does the engine's
+	/// work), and the functions of the includes it adds, copied: its code between <c>ProcessVertex</c> and
+	/// <c>FinalizeVertex</c> with the object-space position from the input, the wind, time, colour, normal and origin from
+	/// <c>VertexSurfaceInput</c>, and the world position it writes as the position Displace returns.
+	/// </summary>
+	static (string Body, string Helpers) Displace( string vs, Dictionary<string, string> renames, List<string> notes, Func<string, string> include )
+	{
+		var main = Functions( vs ).FirstOrDefault( f => Regex.IsMatch( f.Signature, @"\bMainVs\s*\(" ) );
+		if ( main.Body is null || !Regex.IsMatch( main.Body, @"\bo\.vPositionWs\b|vPositionOs" ) ) return (null, "");
+
+		var body = main.Body;
+		body = Regex.Replace( body, @"^[ \t]*PixelInput\s+o\s*=\s*ProcessVertex\(\s*i\s*\)\s*;[^\n]*\n", "", RegexOptions.Multiline );
+		body = Regex.Replace( body, @"^[ \t]*return\s+FinalizeVertex\(\s*o\s*\)\s*;[^\n]*\n?", "", RegexOptions.Multiline );
+		body = Regex.Replace( body, @"^[ \t]*o\.vPositionPs[^;]*;[^\n]*\n", "", RegexOptions.Multiline );
+		body = Regex.Replace( body, @"^[ \t]*o\.vColor\s*=[^;]*;[^\n]*\n", "", RegexOptions.Multiline );
+		body = Regex.Replace( body, @"^[ \t]*float3x4\s+(\w+)\s*=\s*GetTransformMatrix\([^;]*\)\s*;[^\n]*\n", "", RegexOptions.Multiline );
+		body = Regex.Replace( body, @"o\.vPositionWs(?:\.xyz)?\s*=\s*mul\(\s*\w+\s*,\s*float4\(\s*(.+?)\s*,\s*1(?:\.0)?f?\s*\)\s*\)\s*;", "__position = $1;" );
+		body = Regex.Replace( body, @"VS_DecodeObjectSpaceNormalAndTangent\(\s*i\s*,\s*(\w+)\s*,\s*(\w+)\s*\)\s*;", "$1 = v.Normal; $2 = 0;" );
+		body = Regex.Replace( body, @"mul\(\s*\w+\s*,\s*float4\(\s*0(?:\.0)?\s*,\s*0(?:\.0)?\s*,\s*0(?:\.0)?\s*,\s*1(?:\.0)?\s*\)\s*\)", "v.ObjectOrigin" );
+		body = Regex.Replace( body, @"\bi\.vPositionOs(\.xyz)?\b", "v.Position" );
+		body = Regex.Replace( body, @"g_vWindDirection\.xyz\s*\*\s*g_vWindStrengthFreqMulHighStrength\.x", "v.Wind" );
+		body = Regex.Replace( body, @"\bg_flTime\b", "v.Time" );
+		body = Regex.Replace( body, @"\bi\.vColor\b", "v.Color" );
+		body = Rewrite( body, renames, notes, commonInputs: false, evaluate: false );
+
+		var left = Regex.Matches( body, @"\b[io]\.\w+" ).Select( m => m.Value ).Distinct().ToList();
+		if ( left.Count > 0 ) notes.Add( $"vertex shader reads or writes {string.Join( ", ", left )}: left as written" );
+
+		// The includes' functions, copied, so the vertex code can call them
+		var helpers = new StringBuilder();
+		foreach ( Match m in Regex.Matches( vs, @"#include\s+""([^""]+)""" ) )
+		{
+			var path = m.Groups[1].Value;
+			if ( EngineIncludes.Contains( path ) ) continue;
+			if ( include?.Invoke( path ) is not { } text )
+			{
+				notes.Add( $"vertex shader includes {path}, not found" );
+				continue;
+			}
+
+			helpers.Append( "// From " ).Append( path ).Append( '\n' );
+			foreach ( var (signature, functionBody) in Functions( text ) ) helpers.Append( signature.Trim() ).Append( "\n{" ).Append( functionBody ).Append( "}\n\n" );
+		}
+
+		return (body, helpers.ToString());
 	}
 
 	/// <summary>The fixed vocabulary from common/pixel.hlsl shaders to surfaces.</summary>

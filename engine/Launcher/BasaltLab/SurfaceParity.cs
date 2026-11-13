@@ -275,7 +275,8 @@ internal static class SurfaceParity
 				continue;
 			}
 
-			var result = ShaderConverter.Convert( File.ReadAllText( source ), name );
+			var includes = Path.Combine( device.Content.Roots[0], "shaders" );
+			var result = ShaderConverter.Convert( File.ReadAllText( source ), name, include => File.Exists( Path.Combine( includes, include ) ) ? File.ReadAllText( Path.Combine( includes, include ) ) : null );
 			if ( result.Source is null )
 			{
 				lines.Add( $"convert {name}: not converted ({string.Join( "; ", result.Notes )})" );
@@ -317,7 +318,17 @@ internal static class SurfaceParity
 			}
 
 			foreach ( var (variable, path) in textures ) classic.SetTexture( variable, (BackendTexture)device.LoadTexture( path ) );
-			using var surface = device.Surfaces.CreateMaterial( converted, textures, null, $"{name} (surface)" ) as SurfaceMaterial;
+
+			// The features the surface reads as fields on, on both sides (bark's sway)
+			var features = new Dictionary<string, float[]>();
+			foreach ( var field in compiled.Material.Fields )
+			{
+				if ( field.Source is not { } feature || !feature.StartsWith( "F_", StringComparison.Ordinal ) || classic.Shader.FeatureIndex( feature ) is not (>= 0 and var index) ) continue;
+				classic.Features[index] = 1;
+				features[feature] = [1];
+			}
+
+			using var surface = device.Surfaces.CreateMaterial( converted, textures, features, $"{name} (surface)" ) as SurfaceMaterial;
 			if ( surface is null ) continue;
 
 			var a = Render( device, classic );
