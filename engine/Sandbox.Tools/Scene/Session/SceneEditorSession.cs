@@ -364,6 +364,10 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem
 		var asset = AssetSystem.CreateResource( extension, saveLocation );
 		Assert.NotNull( asset, $"Failed to CreateResource for {fileType} at {saveLocation}" );
 
+		// The saved scene refers to its navmesh bake, which is written once the navmesh is built from the scene as saved
+		if ( !isPrefab )
+			_ = Scene.NavMesh.BakeInEditor( Scene.PhysicsWorld, Scene.NavMesh.IsEnabled ? SceneFolderOf( asset ) : null, () => !HasUnsavedChanges, regenerate: true );
+
 		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.CreateSceneFile();
 		var saved = resource is SceneFile sceneFile ? SceneSource.Save( asset, sceneFile ) : asset.SaveToDisk( resource );
 		if ( !saved )
@@ -598,8 +602,13 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem
 		if ( Scene?.Source?.ResourcePath is not { } path || AssetSystem.FindByPath( path ) is not { } sourceAsset )
 			return default;
 
-		var relativePath = sourceAsset.GetSourceFile( false );
-		var assetPath = sourceAsset.GetSourceFile( true );
+		return SceneFolderOf( sourceAsset );
+	}
+
+	static Editor.SceneFolder SceneFolderOf( Asset asset )
+	{
+		var relativePath = asset.GetSourceFile( false );
+		var assetPath = asset.GetSourceFile( true );
 		if ( string.IsNullOrEmpty( relativePath ) || string.IsNullOrEmpty( assetPath ) )
 			return default;
 

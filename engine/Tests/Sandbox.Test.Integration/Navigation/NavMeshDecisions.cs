@@ -359,6 +359,127 @@ public class NavMeshDecisions
 		Assert.IsFalse( wider.OnMesh( new Vector3( 180, 0, 0 ), 4 ), "The scene should have generated with its own radius" );
 	}
 
+	// What the editor's scene folder was given to write, in order
+	sealed class WrittenFiles : Editor.SceneFolder
+	{
+		public readonly List<byte[]> Written = new();
+
+		public override string WriteFile( string filename, byte[] data )
+		{
+			Written.Add( data );
+			return "scene_data" + filename;
+		}
+	}
+
+	[TestMethod]
+	public async Task AnEditorBakeIsEmptyUntilTheNavMeshIsBuiltFromTheWorldAsItIs()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		scene.Floor( Vector3.Zero );
+		await scene.NavMesh.Generate( scene.PhysicsWorld );
+		Assert.IsTrue( scene.NavMesh.OnMesh( Vector3.Zero ) );
+
+		// A crate the navmesh has not seen yet, too low to stand in
+		scene.Box( new Vector3( 0, 0, 20 ), new Vector3( 60, 60, 40 ) );
+
+		var folder = new WrittenFiles();
+		scene.NavMesh.DrawMesh = true;
+		scene.NavMesh.EditorAutoUpdate = true;
+		var bake = scene.NavMesh.BakeInEditor( scene.PhysicsWorld, folder, () => true, regenerate: true );
+		Assert.AreEqual( 1, folder.Written.Count );
+		Assert.AreEqual( 0, folder.Written[0].Length, "Until the bake is done the file makes the scene generate" );
+		Assert.IsTrue( scene.NavMesh.Serialize().ContainsKey( "BakedDataPath" ) );
+
+		// The scene is written to disk right now: the bake holds auto update back without touching the setting
+		Assert.IsTrue( (bool)scene.NavMesh.Serialize()["EditorAutoUpdate"] );
+		Assert.IsFalse( scene.NavMesh.AutoUpdates );
+
+		await bake;
+		Assert.IsTrue( scene.NavMesh.AutoUpdates );
+		Assert.AreEqual( 2, folder.Written.Count );
+		using var loaded = new NavMesh { IsEnabled = true };
+		await loaded.LoadFromBakedData( folder.Written[1] );
+		Assert.IsTrue( loaded.OnMesh( new Vector3( 150, 150, 0 ) ) );
+		Assert.IsFalse( loaded.OnMesh( Vector3.Zero ), "The bake should be of the world as it was when it was asked for" );
+	}
+
+	[TestMethod]
+	public async Task AnEditorBakeIsNotWrittenForASceneEditedMeanwhileOrBakedAgain()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		scene.Floor( Vector3.Zero );
+		await scene.NavMesh.Generate( scene.PhysicsWorld );
+
+		var folder = new WrittenFiles();
+		bool unedited = true;
+		var edited = scene.NavMesh.BakeInEditor( scene.PhysicsWorld, folder, () => unedited, regenerate: true );
+		unedited = false;
+		await edited;
+		Assert.AreEqual( 1, folder.Written.Count, "What was built is no longer the scene as it was saved" );
+
+		// Saved twice in a row: only the later bake is written, and auto update comes back once both are over
+		unedited = true;
+		scene.NavMesh.DrawMesh = true;
+		scene.NavMesh.EditorAutoUpdate = true;
+		var first = scene.NavMesh.BakeInEditor( scene.PhysicsWorld, folder, () => unedited, regenerate: true );
+		var second = scene.NavMesh.BakeInEditor( scene.PhysicsWorld, folder, () => unedited, regenerate: true );
+		await first;
+		Assert.IsFalse( scene.NavMesh.AutoUpdates );
+		Assert.IsTrue( scene.NavMesh.EditorAutoUpdate );
+		await second;
+		Assert.IsTrue( scene.NavMesh.AutoUpdates );
+		Assert.AreEqual( 4, folder.Written.Count );
+		Assert.AreEqual( 0, folder.Written[1].Length + folder.Written[2].Length );
+		Assert.IsTrue( folder.Written[3].Length > 0 );
+
+		// A scene without a navmesh refers to no bake
+		scene.NavMesh.IsEnabled = false;
+		await scene.NavMesh.BakeInEditor( scene.PhysicsWorld, folder, () => unedited, regenerate: true );
+		Assert.AreEqual( 4, folder.Written.Count );
+		Assert.IsFalse( scene.NavMesh.Serialize().ContainsKey( "BakedDataPath" ) );
+	}
+
+	[TestMethod]
+	public async Task ASceneLoadedWithoutAUsableBakeIsMissingOne()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		scene.Floor( Vector3.Zero );
+		await scene.NavMesh.Generate( scene.PhysicsWorld );
+		var baked = await scene.NavMesh.BakeDataToBytes();
+
+		// Never baked: nothing is missing
+		scene.NavMesh.Reset();
+		Assert.IsTrue( await scene.NavMesh.Load( scene.PhysicsWorld ) );
+		Assert.IsFalse( scene.NavMesh.TakeMissingBake() );
+
+		// The scene refers to a baked file, which is in the old format: the scene generates and misses its bake
+		scene.NavMesh.Reset();
+		ReferToABake( scene.NavMesh );
+		await scene.NavMesh.LoadFromBakedData( [1, 0, 0, 0, 4, 0, 0, 0, 31, 139, 8, 0] );
+		Assert.IsTrue( await scene.NavMesh.Load( scene.PhysicsWorld ) );
+		Assert.IsTrue( scene.NavMesh.OnMesh( Vector3.Zero ), "The scene should have generated" );
+		Assert.IsTrue( scene.NavMesh.TakeMissingBake() );
+		Assert.IsFalse( scene.NavMesh.TakeMissingBake() );
+
+		scene.NavMesh.Reset();
+		ReferToABake( scene.NavMesh );
+		await scene.NavMesh.LoadFromBakedData( baked );
+		Assert.IsTrue( await scene.NavMesh.Load( scene.PhysicsWorld ) );
+		Assert.IsFalse( scene.NavMesh.TakeMissingBake() );
+	}
+
+	// As a scene file that refers to a baked file leaves the navmesh
+	static void ReferToABake( NavMesh navMesh )
+	{
+		var json = navMesh.Serialize();
+		json["Enabled"] = true;
+		json["BakedDataPath"] = new System.Text.Json.Nodes.JsonObject { ["path"] = "navmesh/baked.navdata" };
+		navMesh.Deserialize( json );
+	}
+
 	[TestMethod]
 	public async Task FailedPathsHaveAnEmptyListOfPoints()
 	{

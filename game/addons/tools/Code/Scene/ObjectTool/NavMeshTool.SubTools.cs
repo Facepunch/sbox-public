@@ -87,10 +87,6 @@ public class NavTestSettings : EditorTool
 			{
 				Clicked = () => Tool.Scene.NavMesh.SetDirty()
 			} );
-			Layout.Add( new Button( "Bake", "download" )
-			{
-				Clicked = () => NavMesh.BakeNavMesh()
-			} );
 
 			Layout.AddStretchCell();
 		}

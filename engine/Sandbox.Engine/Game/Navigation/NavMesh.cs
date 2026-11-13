@@ -42,6 +42,9 @@ public sealed partial class NavMesh : IDisposable
 		IsDirty = false;
 		boundsKnown = false;
 		_bakedDataPath = null;
+		bakeMissing = false;
+		editorBake?.Cancel();
+		editorBake = null;
 	}
 
 	void Clear()
@@ -279,6 +282,7 @@ public sealed partial class NavMesh : IDisposable
 
 			await LoadFromBake();
 			if ( generation != Generation || disposed ) return false;
+			bakeMissing = !string.IsNullOrEmpty( _bakedDataPath ) && bakedTiles is null;
 
 			Retarget();
 			UpdateBounds( world );

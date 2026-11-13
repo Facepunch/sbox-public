@@ -21,72 +21,86 @@ public sealed partial class NavMesh
 	// The tiles the loaded bake covers
 	private RectInt? bakedTiles;
 
-	[Menu( "Editor", "Scene/Bake NavMesh", "directions_run", Priority = 1800 )]
-	public static async void BakeNavMesh()
+	// The scene refers to a baked file that held nothing the navmesh could use
+	private bool bakeMissing;
+	private CancellationTokenSource editorBake;
+
+	// Bakes waiting for the navmesh to finish. Auto update would mark every tile again each frame.
+	private int bakesWaiting;
+
+	/// <summary>
+	/// An editor scene that draws its navmesh rebuilds it every update, unless a bake is waiting for it.
+	/// </summary>
+	internal bool AutoUpdates => DrawMesh && EditorAutoUpdate && bakesWaiting == 0;
+
+	/// <summary>
+	/// True once after a scene was loaded whose baked file was empty, damaged or made for an older
+	/// version or other agent settings.
+	/// </summary>
+	internal bool TakeMissingBake()
 	{
-		if ( !Application.IsEditor )
-		{
-			Log.Warning( "NavMesh Baking is only available in editor." );
-			return;
-		}
+		bool missing = bakeMissing;
+		bakeMissing = false;
+		return missing;
+	}
 
-		var navMesh = Application.Editor.Scene.NavMesh;
-
-		using var progress = Application.Editor.ProgressSection();
-		progress.Title = "Baking NavMesh";
-		progress.Subtitle = "Collecting tiles...";
-
-		await navMesh.BakeData(
-			scene: Application.Editor.Scene,
-			onProgress: ( current, total ) =>
-			{
-				progress.Current = current;
-				progress.TotalCount = total;
-				progress.Subtitle = "Compressing...";
-			},
-			cancelToken: progress.GetCancel()
-		);
-
-		progress.Subtitle = "Complete!";
+	[Obsolete( "The navmesh is baked whenever its scene is saved in the editor" )]
+	public static void BakeNavMesh()
+	{
+		if ( Application.IsEditor && Application.Editor.Scene is { Editor: { } editor } scene )
+			_ = scene.NavMesh.BakeInEditor( scene.PhysicsWorld, editor.GetSceneFolder(), () => !editor.HasUnsavedChanges, regenerate: true );
 	}
 
 	/// <summary>
-	/// Core baking logic without editor dependencies. Used by BakeDataAsync and tests.
+	/// The editor's bake: the scene refers to the baked file from now on, and the file is empty until
+	/// the navmesh is finished, so a bake that is interrupted leaves a scene that generates when it
+	/// loads. Nothing is written unless unedited() still holds then: what was built would no longer
+	/// be the scene as it was saved. regenerate builds every tile from the world as it is now first.
 	/// </summary>
-	internal async Task BakeData( Scene scene, Action<int, int> onProgress = null, CancellationToken cancelToken = default )
+	internal Task BakeInEditor( PhysicsWorld world, SceneFolder folder, Func<bool> unedited, bool regenerate )
 	{
-		var data = await BakeDataToBytes( onProgress, cancelToken, scene?.PhysicsWorld );
-		if ( data is null )
+		editorBake?.Cancel();
+		editorBake = null;
+		if ( !IsEnabled || folder is null )
 		{
 			_bakedDataPath = null;
-			return;
+			return Task.CompletedTask;
 		}
 
-		// Save baked data to navdata_c file
-		var sceneFolder = scene?.Editor?.GetSceneFolder();
-		if ( sceneFolder is null )
+		_bakedDataPath = folder.WriteFile( _navDataFilename, [] );
+		editorBake = new CancellationTokenSource();
+		return WriteBake( world, folder, unedited, regenerate, editorBake.Token );
+	}
+
+	private async Task WriteBake( PhysicsWorld world, SceneFolder folder, Func<bool> unedited, bool regenerate, CancellationToken cancelToken )
+	{
+		try
 		{
-			Log.Warning( "NavMesh: Cannot save baked data - no scene folder available" );
-			return;
+			if ( regenerate ) SetDirty();
+			var data = await BakeDataToBytes( cancelToken, world );
+			await GameTask.MainThread();
+			if ( data is null || cancelToken.IsCancellationRequested || !unedited() ) return;
+
+			folder.WriteFile( _navDataFilename, data );
 		}
-
-		scene?.Editor?.HasUnsavedChanges = true;
-
-		_bakedDataPath = sceneFolder.WriteFile( _navDataFilename, data );
-		Log.Info( $"NavMesh: Saved baked data to {_bakedDataPath} ({data.Length} bytes)" );
+		catch ( OperationCanceledException )
+		{
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, "NavMesh: Failed to bake" );
+		}
 	}
 
 	/// <summary>
 	/// Bakes the navmesh tile data to a byte array. Returns null if there are no tiles to bake.
-	/// Used internally by BakeData and for testing. Waits for pending tiles, and builds them when given the world.
+	/// Waits for pending tiles, and builds them when given the world.
 	/// </summary>
-	internal async Task<byte[]> BakeDataToBytes( Action<int, int> onProgress = null, CancellationToken cancelToken = default, PhysicsWorld world = null )
+	internal async Task<byte[]> BakeDataToBytes( CancellationToken cancelToken = default, PhysicsWorld world = null )
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		// Auto update marks every tile again each frame, which would keep the wait below from ending
-		var wasAutoUpdate = EditorAutoUpdate;
-		EditorAutoUpdate = false;
+		bakesWaiting++;
 		try
 		{
 			// A tile the bake lacks counts as empty on purpose at load, so nothing may be missing yet
@@ -114,7 +128,6 @@ public sealed partial class NavMesh
 				Log.Warning( "NavMesh: the navmesh is too large to bake" );
 				return null;
 			}
-			onProgress?.Invoke( 0, 1 );
 
 			var baked = await Task.Run( () =>
 			{
@@ -131,12 +144,11 @@ public sealed partial class NavMesh
 				return data.AsSpan( 0, BakeHeaderSize + length ).ToArray();
 			} );
 
-			onProgress?.Invoke( 1, 1 );
 			return cancelToken.IsCancellationRequested ? null : baked;
 		}
 		finally
 		{
-			EditorAutoUpdate = wasAutoUpdate;
+			bakesWaiting--;
 		}
 	}
 
@@ -178,7 +190,7 @@ public sealed partial class NavMesh
 		if ( rawLength < 0 || BinaryPrimitives.ReadUInt32LittleEndian( bakedData ) != BakeMagic || BinaryPrimitives.ReadUInt32LittleEndian( bakedData.AsSpan( 4 ) ) != BakeVersion
 			|| rawLength / 255 > bakedData.Length )
 		{
-			Log.Warning( "NavMesh: Baked data is in an older format and is ignored. Bake the navmesh again." );
+			Log.Warning( "NavMesh: Baked data is in an older format and is ignored. Saving the scene in the editor bakes it again." );
 			return;
 		}
 
@@ -201,7 +213,11 @@ public sealed partial class NavMesh
 				problem = "is damaged";
 			}
 
-			if ( problem is null && (!Nav.NavMesh.TryReadSettings( raw, out var baked ) || !baked.Equals( settings )) ) problem = "was made with other agent settings";
+			if ( problem is null )
+			{
+				if ( !Nav.NavMesh.TryReadSettings( raw, out var baked ) ) problem = "is in an older format";
+				else if ( !baked.Equals( settings ) ) problem = "was made with other agent settings";
+			}
 			if ( problem is not null ) return null;
 
 			var mesh = Nav.NavMesh.Load( raw, cacheCodec );
@@ -213,7 +229,7 @@ public sealed partial class NavMesh
 		if ( generation != Generation || disposed ) return;
 		if ( loaded is null )
 		{
-			Log.Warning( $"NavMesh: Baked data {problem} and is ignored. Bake the navmesh again." );
+			Log.Warning( $"NavMesh: Baked data {problem} and is ignored. Saving the scene in the editor bakes it again." );
 			return;
 		}
 
