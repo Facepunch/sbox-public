@@ -171,6 +171,8 @@ public static partial class AssetSystem
 		// Thumbnails have their own queue, so do that all in main
 		foreach ( var asset in UpdateQueue )
 		{
+			AssetUpgrader.Upgrade( asset );
+
 			EditorEvent.RunInterface<IEventListener>( x => x.OnAssetChanged( asset ) );
 
 			// Only drop it: the next draw renders it. A scene's thumbnail loads the whole scene, so rendering it on every

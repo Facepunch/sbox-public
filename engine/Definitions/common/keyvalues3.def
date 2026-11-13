@@ -6,6 +6,7 @@ native class KeyValues3
 {
 	void DeleteThis(); [delete]
 	static KeyValues3 Create(); [new]
+	void CopyFrom( KeyValues3 other );
 
 	bool IsArray();
 	bool IsTable();
@@ -41,7 +42,9 @@ native class KeyValues3
 	int GetArrayLength();
 	KeyValues3 ArrayAddToTail();
 	KeyValues3 GetArrayElement( int i );
+	void ArrayRemoveMultiple( int firstIndex, int count );
 
+	KeyValues3 FindMember( CastTo[CKV3MemberName] string name );
 	KeyValues3 FindOrCreateMember( CastTo[CKV3MemberName] string name );
 
 	void SetToEmptyTable();

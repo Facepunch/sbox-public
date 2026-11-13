@@ -75,6 +75,7 @@ native class IAsset
 
 	void RequireDependencyInfo_Virtual();
 	bool NeedAnyDependencyUpdate_Virtual();
+	bool IsSourceUnchangedSinceCompile();
 
 	bool IsTrivialChildAsset();
 	bool HasHiddenAssetFlag();

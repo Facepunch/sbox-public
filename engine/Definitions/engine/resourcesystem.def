@@ -51,6 +51,12 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 }
 
 
+managed class Sandbox.Internal.CompiledAssetUpgrader
+{
+	// The parsed resource data is owned by native and only valid during this call.
+	static void UpgradeCompiled( string path, KeyValues3 data );
+}
+
 managed class Sandbox.Resource
 {
 	static void OnResourceReloaded( string name, void* resourceBinding );
