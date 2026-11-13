@@ -224,8 +224,10 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// The converter turns pixel.hlsl-style .shaders into surfaces that compile: the template (Material::Init) and bark
-	/// (Material.CommonInputs, a helper, a feature global), and says what it leaves out (bark's vertex animation).
+	/// The converter turns pixel.hlsl-style .shaders into surfaces that compile: the template (Material::Init), bark
+	/// (Material.CommonInputs, a helper, a feature global, and its vertex sway as Displace with trunk_bending.hlsl's
+	/// functions copied) and water_simple (engine-bound textures as module globals, a helper taking the input, and the
+	/// refraction after shading as Composite).
 	/// </summary>
 	[TestMethod]
 	public void ConverterTurnsPixelShadersIntoSurfaces()
@@ -237,10 +239,12 @@ public class SurfaceTests : GpuTest
 		try
 		{
 			var bin = Path.Combine( game, "bin", "win64" );
-			var compiler = new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] );
-			foreach ( var (relative, name) in new[] { ("templates/material.shader", "material"), ("core/shaders/bark.shader", "bark") } )
+			var shaders = Path.Combine( Core, "shaders" );
+			var compiler = new SlangCompiler( bin, [shaders] );
+			string Include( string path ) => File.Exists( Path.Combine( shaders, path ) ) ? File.ReadAllText( Path.Combine( shaders, path ) ) : null;
+			foreach ( var (relative, name) in new[] { ("templates/material.shader", "material"), ("core/shaders/bark.shader", "bark"), ("core/shaders/water_simple.shader", "water_simple") } )
 			{
-				var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( game, relative ) ), name );
+				var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( game, relative ) ), name, Include );
 				Assert.IsNotNull( result.Source, name );
 				var path = Path.Combine( folder, name + ".slang" );
 				File.WriteAllText( path, result.Source );
@@ -248,9 +252,25 @@ public class SurfaceTests : GpuTest
 				Assert.IsNotNull( compiled.Pass( ShaderPasses.Forward ), name );
 				if ( name == "bark" )
 				{
-					Assert.IsTrue( result.Notes.Any( n => n.Contains( "moves vertices", StringComparison.Ordinal ) ) );
+					StringAssert.Contains( result.Source, "IVertexSurface" );
+					StringAssert.Contains( result.Source, "public float3 Displace( VertexSurfaceInput v )" );
+					Assert.IsFalse( result.Notes.Any( n => n.Contains( "vertex shader", StringComparison.Ordinal ) ), string.Join( "; ", result.Notes ) );
+					Assert.IsTrue( compiled.Generated.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) );
 					Assert.IsNotNull( compiled.Material.Field( "SpecularOcclusion" ) );
 					Assert.IsNotNull( compiled.Material.Field( "Color" ) );
+				}
+
+				if ( name == "water_simple" )
+				{
+					StringAssert.Contains( result.Source, "ICompositeSurface" );
+					Assert.IsTrue( compiled.Generated.Contains( "SurfaceForwardComposite", StringComparison.Ordinal ) );
+
+					// The refraction and reflection textures are bound by attribute, not material fields
+					var forward = compiled.Pass( ShaderPasses.Forward ).Pixel;
+					Assert.IsTrue( forward.Bindings.Any( b => b.Name == "RefractionTexture" ), "no RefractionTexture binding" );
+					Assert.IsTrue( forward.Bindings.Any( b => b.Name == "ReflectionTexture" ), "no ReflectionTexture binding" );
+					Assert.IsNull( compiled.Material.Field( "RefractionTexture" ) );
+					Assert.IsNotNull( compiled.Material.Field( "BigWaveScale" ) );
 				}
 			}
 		}
