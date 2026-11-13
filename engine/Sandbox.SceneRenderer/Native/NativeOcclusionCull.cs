@@ -41,6 +41,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 	OcclusionHistory history;
 	OcclusionDebugTarget debug;
 	bool rejectEarly;
+	bool readsTotals;
 
 	// What the late and early culls test against. Frozen, the late cull tests against the frozen depth rather than building
 	// its own
@@ -141,7 +142,12 @@ internal sealed class NativeOcclusionCull : IDisposable
 	/// Reads back the cull stats. Reading a buffer submits everything recorded before it, so this goes last in the view:
 	/// mid-frame, the GPU would sit idle until the render thread submitted the rest.
 	/// </summary>
-	public ISceneLayer AddStatsToView( ISceneView view, RenderViewport viewport ) => statsRead.AddToView( view, viewport );
+	public void AddStatsToView( ISceneView view, RenderViewport viewport )
+	{
+		// The totals are only shown, so they're read every few frames; the debug view shows its counts every frame
+		readsTotals = RenderPipeline.ReadsOcclusionStats;
+		if ( readsTotals || debug is not null ) statsRead.AddToView( view, viewport );
+	}
 
 	void Cull( bool earlyPass )
 	{
@@ -205,7 +211,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 	{
 		Graphics.Context.BufferBarrierTransition( stats.native, RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierPipelineStageFlags_t.TransferBit,
 			RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.TransferReadBit );
-		RenderPipeline.ReadOcclusionStats( Graphics.Context, stats );
+		if ( readsTotals ) RenderPipeline.ReadOcclusionStats( Graphics.Context, stats );
 		debug?.ReadCounts( Graphics.Context );
 	}
 
@@ -218,13 +224,14 @@ internal sealed class NativeOcclusionCull : IDisposable
 		dispatchArgs = null;
 	}
 
-	// The capacity-sized buffers. The render device frees them once the GPU is done with them
+	// The capacity-sized buffers. Resize runs from Setup, which isn't on the main thread, so Dispose() would throw before
+	// freeing any of them while capacity already said they were bigger. The render device frees them once the GPU is done
 	void DisposeCullBuffers()
 	{
-		instances?.Dispose();
-		runs?.Dispose();
-		args?.Dispose();
-		culledIds?.Dispose();
+		instances?.DisposeAnyThread();
+		runs?.DisposeAnyThread();
+		args?.DisposeAnyThread();
+		culledIds?.DisposeAnyThread();
 		instances = null;
 		runs = null;
 		args = null;
