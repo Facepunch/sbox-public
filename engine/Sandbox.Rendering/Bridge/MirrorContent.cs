@@ -35,7 +35,12 @@ internal static class MirrorContent
 		if ( Gpu is not { } gpu ) return Source2Texture.From( texture );
 
 		var path = texture?.ResourcePath;
-		return string.IsNullOrEmpty( path ) ? null : gpu.LoadTexture( path );
+		if ( !string.IsNullOrEmpty( path ) ) return gpu.LoadTexture( path );
+
+		// A material's texture (a sky's cubemap for fog and sky lighting) is the material's, read by its path
+		return texture is not null && Sandbox.Texture.MaterialOrigins.TryGetValue( texture, out var origin ) && origin is Sandbox.Texture.MaterialOrigin o
+			? gpu.MaterialTexture( o.Material, o.Parameter )
+			: null;
 	}
 
 	/// <summary>Attributes, which only Source 2's device reads.</summary>
