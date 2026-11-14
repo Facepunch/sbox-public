@@ -665,6 +665,16 @@ internal sealed class Source2Context : GpuContext
 	}
 
 	/// <summary>
+	/// Copy a rectangle of the first slice between textures of the same format.
+	/// </summary>
+	public override void CopyTextureRegion( GpuTexture source, GpuTexture destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height )
+	{
+		if ( width <= 0 || height <= 0 ) return;
+		var rect = new NativeRect( sourceX, sourceY, width, height );
+		RenderTools.CopyTexture( context, source.Native(), destination.Native(), rect, destinationX, destinationY, 0, 0, 0, 0 );
+	}
+
+	/// <summary>
 	/// Transition depth to writable after prior pixel-shader reads.
 	/// </summary>
 	public override void BarrierToDepthWrite( GpuTexture depth )

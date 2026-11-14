@@ -146,11 +146,14 @@ uint TakeSlot( uint nRun )
 				for ( uint p = 0; p < 6; p++ )
 					bVisible = bVisible && Inside( vPlanes[p], vCenter, vExtents );
 
-				// Borealis's size cull: too small for the threshold unless the camera is inside the bounding sphere
+				// Borealis's size cull: too small for the threshold unless the camera is inside the bounding sphere. A negative
+				// threshold is a sun cascade's, by its texel size: the squared radius below which it culls, wherever it is
 				float flRadiusSquared = dot( vExtents, vExtents );
 				float3 vToCamera = vCenter - vCamera.xyz;
 				float flDistanceSquared = dot( vToCamera, vToCamera );
 				if ( vCamera.w > 0 && flDistanceSquared > flRadiusSquared && flRadiusSquared < vCamera.w * flDistanceSquared )
+					bVisible = false;
+				if ( vCamera.w < 0 && flRadiusSquared < -vCamera.w )
 					bVisible = false;
 
 				nTransform = vBatch.z + ( b.w & 0x7fffffffu );

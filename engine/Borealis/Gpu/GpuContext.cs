@@ -181,6 +181,9 @@ internal abstract class GpuContext : IDisposable
 	/// <summary>Copy the first array slices or cube faces between equal-sized textures.</summary>
 	public abstract void CopyTexture( GpuTexture source, GpuTexture destination, int slices );
 
+	/// <summary>Copy a rectangle of the first slice between textures of the same format.</summary>
+	public abstract void CopyTextureRegion( GpuTexture source, GpuTexture destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height );
+
 	/// <summary>Make depth writable after pixel-shader reads.</summary>
 	public abstract void BarrierToDepthWrite( GpuTexture depth );
 

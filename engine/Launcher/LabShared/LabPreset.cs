@@ -117,6 +117,11 @@ internal record LabPreset
 	/// </summary>
 	public Vector3? SunDirection { get; init; }
 
+	/// <summary>
+	/// How far the camera starts from the middle, if not far enough to see the whole grid.
+	/// </summary>
+	public float? CameraDistance { get; init; }
+
 	public bool HasLocalLights => Lights > 0 || Spot;
 }
 
@@ -188,6 +193,10 @@ internal static class LabPresets
 		new() { Name = "50k LOD Test", Group = "Stress", Models = [LodTestModel.Path], Grid = 224 },
 		new() { Name = "100 Citizens", Group = "Stress", Models = ["models/citizen_human/human.vmdl"], Grid = 10, Floor = true, Sun = 0.6f, SunDirection = SideSun,
 			Sequences = CitizenSequences },
+
+		// A field wider than the sun's shadow distance with the camera inside it: every cascade full, the last one most
+		new() { Name = "Sun Far Field", Group = "Stress", Models = ["models/dev/box.vmdl", "models/dev/sphere.vmdl"], Grid = 160, Floor = true, Sun = 1, SunDirection = SideSun,
+			CameraDistance = 1500 },
 	];
 
 	/// <summary>

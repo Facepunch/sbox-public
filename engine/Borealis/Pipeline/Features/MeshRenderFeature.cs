@@ -248,6 +248,15 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	Kept[] keptShadow = new Kept[256];
 
 	/// <summary>
+	/// What shadow views that pick LODs by their own texels (<see cref="ViewPass.LodTexelsPerUnit"/>, the sun's last cascade)
+	/// made of each object. Kept apart from <see cref="keptShadow"/>, so an object in a near cascade and the last one isn't
+	/// made again twice a frame for its two LODs.
+	/// </summary>
+	Kept[] keptTexel = [];
+
+	Kept[] KeptFor( ViewPass pass ) => pass.LodTexelsPerUnit > 0 ? keptTexel : pass.IsShadow ? keptShadow : keptMain;
+
+	/// <summary>
 	/// What an object is classified as, kept between frames while its draw version (<see cref="RenderWorld.DrawVersions"/>)
 	/// is the one it was made at and its LOD and probe are the ones it was made for. Whatever else decides its lists and
 	/// batch key gives it a new draw version when it changes.
@@ -424,6 +433,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( lodFrames.Length < lods.Length ) Array.Resize( ref lodFrames, lods.Length );
 		if ( keptMain.Length < lods.Length ) Array.Resize( ref keptMain, lods.Length );
 		if ( keptShadow.Length < lods.Length ) Array.Resize( ref keptShadow, lods.Length );
+		if ( pass.LodTexelsPerUnit > 0 && keptTexel.Length < lods.Length ) Array.Resize( ref keptTexel, lods.Length );
 		if ( classified.Length < visible.Count ) Array.Resize( ref classified, Math.Max( visible.Count, classified.Length * 2 ) );
 		var volumes = world.LightProbeVolumes;
 		var volumesKey = volumes.Count > 0 && !pass.IsShadow ? LightProbeVolume.Key( volumes ) : 0;
@@ -438,7 +448,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		// Then into the buckets in visible order, whichever thread classified what. Buckets hold places in the visible list
 		var visibleSpan = CollectionsMarshal.AsSpan( visible );
-		var kept = pass.IsShadow ? keptShadow : keptMain;
+		var kept = KeptFor( pass );
 		var opaque = buckets[0];
 		MeshRuns frameBufferReads = 0;
 		MeshRuns callbacks = 0;
@@ -599,7 +609,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var centers = world.BoundsCenter;
 		var extents = world.BoundsExtents;
 		var shadow = pass.IsShadow;
-		var kept = shadow ? keptShadow : keptMain;
+		var kept = KeptFor( pass );
+		var texelsPerUnit = pass.LodTexelsPerUnit;
 
 		var made = 0;
 
@@ -620,9 +631,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				continue;
 			}
 
-			// One LOD a frame, whichever view chooses it. Only a mesh with LODs needs its object for that
+			// One LOD a frame, whichever view chooses it. Only a mesh with LODs needs its object for that. A view picking by its
+			// own texels has its own, which the others don't take
 			int lod;
-			if ( lodFrames[index] == generation ) lod = lods[index];
+			if ( texelsPerUnit > 0 ) lod = (keep.Flags & KeptFlags.Lods) != 0 ? ChooseLodByTexels( (MeshObject)objects[index], texelsPerUnit ) : 0;
+			else if ( lodFrames[index] == generation ) lod = lods[index];
 			else
 			{
 				lod = 0;
@@ -1109,6 +1122,21 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var largest = MathF.Max( MathF.Abs( scale.x ), MathF.Max( MathF.Abs( scale.y ), MathF.Abs( scale.z ) ) );
 
 		return mesh.LodForScreenSize( screenSize * screenWidth, largest );
+	}
+
+	/// <summary>
+	/// <see cref="ChooseLod"/> for an orthographic view, by how many of its texels a world unit covers: the same anywhere in
+	/// it, so wherever the camera is.
+	/// </summary>
+	static int ChooseLodByTexels( MeshObject obj, float texelsPerUnit )
+	{
+		var mesh = obj.Mesh;
+		if ( mesh.LodCount == 1 ) return 0;
+		if ( obj.LodOverride >= 0 ) return Math.Min( obj.LodOverride, mesh.LodCount - 1 );
+
+		var scale = obj.Transform.Scale;
+		var largest = MathF.Max( MathF.Abs( scale.x ), MathF.Max( MathF.Abs( scale.y ), MathF.Abs( scale.z ) ) );
+		return mesh.LodForScreenSize( texelsPerUnit, largest );
 	}
 
 	internal override void Dispose()

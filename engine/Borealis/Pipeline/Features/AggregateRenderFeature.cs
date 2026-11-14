@@ -83,7 +83,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 
 		var objects = world.Objects;
 		var frustum = pass.View.Frustum;
-		var size = new SizeCull( pass.Root );
+		var size = SizeCull.ForPass( pass );
 		var shadow = pass.IsShadow;
 		var textureSizes = new TextureSizes( pass.View, pass.Root );
 		var viewCamera = pass.View.Position;
@@ -443,7 +443,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 			Top = frustum.Plane( 3 ),
 			Near = frustum.Plane( 4 ),
 			Far = frustum.Plane( 5 ),
-			CameraAndThreshold = new SizeCull( view.Root ).CameraAndThreshold,
+			CameraAndThreshold = SizeCull.ForPass( view ).CameraAndThreshold,
 			Shadow = view.IsShadow,
 			View = view,
 			Ids = depth && !view.IsShadow,

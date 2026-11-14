@@ -90,9 +90,12 @@ public class ShadowTests
 	[TestMethod]
 	public void SunCascades()
 	{
-		// The sun asks for four; pin the cap so the test doesn't depend on the default quality profile
+		// The sun asks for four; pin the cap so the test doesn't depend on the default quality profile. Every cascade fit to
+		// the view, the last too (CascadeCacheTests has the cached one)
 		var maxCascades = RenderHost.Current.Shadows.MaxCascades;
 		RenderHost.Current.Shadows.MaxCascades = 4;
+		var farCache = Borealis.Shadows.ShadowMapper.FarCascadeCache;
+		Borealis.Shadows.ShadowMapper.FarCascadeCache = false;
 
 		try
 		{
@@ -137,6 +140,7 @@ public class ShadowTests
 		finally
 		{
 			RenderHost.Current.Shadows.MaxCascades = maxCascades;
+			Borealis.Shadows.ShadowMapper.FarCascadeCache = farCache;
 		}
 	}
 
@@ -181,6 +185,8 @@ public class ShadowTests
 	{
 		var maxCascades = RenderHost.Current.Shadows.MaxCascades;
 		RenderHost.Current.Shadows.MaxCascades = 4;
+		var farCache = Borealis.Shadows.ShadowMapper.FarCascadeCache;
+		Borealis.Shadows.ShadowMapper.FarCascadeCache = false;
 
 		try
 		{
@@ -223,6 +229,7 @@ public class ShadowTests
 		finally
 		{
 			RenderHost.Current.Shadows.MaxCascades = maxCascades;
+			Borealis.Shadows.ShadowMapper.FarCascadeCache = farCache;
 		}
 	}
 
