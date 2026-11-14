@@ -728,6 +728,46 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// Surfaces bind the frame's view set themselves: with enough draws, layers record on command lists of their own, a
+	/// surface is the first draw of its list, and without the view set it would light and fog as no view does.
+	/// </summary>
+	[TestMethod]
+	public void SurfacesBindTheViewSetOnTheirOwnLists()
+	{
+		Compiler();
+		var previousHost = RenderHost.Current;
+		try
+		{
+			byte[] DrawMaterial( string path, bool surfaces, out GpuMaterial loaded )
+			{
+				// Drawn the classic way, so opaque draws record on the worker segments' lists
+				using var backend = new BackendDevice( Device ) { GpuDriven = false };
+				backend.Surfaces.ConvertShaders = surfaces;
+				RenderHost.Current = new BackendRenderHost( backend );
+				loaded = ((GpuDevice)backend).LoadMaterial( path );
+				return Draw( backend, loaded, boxes: 144 );
+			}
+
+			foreach ( var path in new[] { "materials/dev/primary_white_trans.vmat", "materials/dev/gray_25.vmat" } )
+			{
+				var reference = DrawMaterial( path, false, out var classic );
+				if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( $"{path} isn't compiled" );
+				var converted = DrawMaterial( path, true, out var surface );
+				Assert.IsInstanceOfType<SurfaceMaterial>( surface, $"{path} isn't a surface by default" );
+				var name = Path.GetFileNameWithoutExtension( path );
+				SaveRgb( reference, $"viewset-{name}-shader" );
+				SaveRgb( converted, $"viewset-{name}-surface" );
+				Assert.IsTrue( Mean( reference, converted ) < 0.5, $"{path}: the surface differs by {Mean( reference, converted ):F3}" );
+			}
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A surface's render state: the struct's attributes are every material's defaults, [RenderState] fields change them
 	/// per material (in field order), the generated class carries both, and a material resolves its state from its record.
 	/// </summary>
@@ -925,14 +965,19 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>A box lit by the sun, filling most of the frame, as 8-bit sRGB-ish bytes (red channel of RGBA16F).</summary>
-	byte[] Draw( BackendDevice backend, GpuMaterial material, Color? tint = null )
+	byte[] Draw( BackendDevice backend, GpuMaterial material, Color? tint = null, int boxes = 1 )
 	{
-		using var system = new RenderSystem { ParallelRecording = false };
+		using var system = new RenderSystem { ParallelRecording = boxes > 1 };
 		using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface test" );
 		var world = new RenderWorld();
 		world.Lighting.SunDirection = new Vector3( -0.4f, 0.5f, -0.75f ).Normal;
 		world.Lighting.SunShadowCascades = 1;
-		world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), new Transform( Vector3.Zero, Rotation.FromYaw( 35 ), 2 ) ) { Tint = tint ?? Color.White } );
+		if ( boxes == 1 ) world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), new Transform( Vector3.Zero, Rotation.FromYaw( 35 ), 2 ) ) { Tint = tint ?? Color.White } );
+
+		// Or a grid of small ones apart, enough draws that each layer records on lists of its own
+		var side = (int)MathF.Ceiling( MathF.Sqrt( boxes ) );
+		for ( int i = 0; boxes > 1 && i < boxes; i++ )
+			world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), new Transform( new Vector3( 0, (i % side - side / 2) * 18, (i / side - side / 2) * 18 ), Rotation.FromYaw( 35 ), 0.1f ) ) { Tint = tint ?? Color.White } );
 
 		var view = new RenderView { Name = "Surface test", FieldOfView = 60, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.2f, 0.2f, 0.2f ), Viewport = new Rect( 0, 0, Width, Height ) };
 		view.Position = new Vector3( -220, 60, 90 );

@@ -81,6 +81,10 @@ internal sealed partial class BackendContext
 
 		uncompressedTangentFrame = geometry.UncompressedTangentFrame;
 		var record = device.Surfaces.Records.Offset( material );
+
+		// The frame's view set, as classic draws bind it: a list whose draws so far are all surfaces has the default
+		// (zeroed) one otherwise, which lights and fogs as no view
+		BindViewSet( r.List );
 		BindSurface( pass, pass.Pass.Vertex, ShaderAbi.VertexSet );
 		if ( pass.Pass.Pixel is not null ) BindSurface( pass, pass.Pass.Pixel, ShaderAbi.FragmentSet );
 		r.List.PushConstants( record );
@@ -191,6 +195,7 @@ internal sealed partial class BackendContext
 			r.Pipeline = pipeline;
 		}
 
+		BindViewSet( r.List );
 		BindSurface( pass, pass.Pass.Vertex, ShaderAbi.VertexSet );
 		if ( pass.Pass.Pixel is not null ) BindSurface( pass, pass.Pass.Pixel, ShaderAbi.FragmentSet );
 		r.Binder = null;
