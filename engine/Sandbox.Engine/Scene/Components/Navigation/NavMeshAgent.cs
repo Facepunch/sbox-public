@@ -110,6 +110,20 @@ public sealed class NavMeshAgent : Component
 	public bool AllowDefaultArea { get; set; } = true;
 
 	/// <summary>
+	/// Can the agent take links of every type? When false it takes plain links and the types in <see cref="AllowedLinkTypes"/> only.
+	/// </summary>
+	[Group( "Constraints" )]
+	[Property]
+	public bool AllowAllLinkTypes { get; set; } = true;
+
+	/// <summary>
+	/// The link types the agent may take when <see cref="AllowAllLinkTypes"/> is false. Empty means plain links only.
+	/// </summary>
+	[Group( "Constraints" )]
+	[Property, ShowIf( nameof( AllowAllLinkTypes ), false )]
+	public HashSet<NavMeshLinkType> AllowedLinkTypes { get; set; } = new();
+
+	/// <summary>
 	/// Should the agent automatically traverse links when it reaches them? Or do you want to implement your own link traversal logic?
 	/// </summary>
 	[Group( "Constraints" )]
@@ -233,26 +247,89 @@ public sealed class NavMeshAgent : Component
 		public Vector3 LinkExitPosition { get; init; }
 		public Vector3 AgentInitialPosition { get; init; }
 		public NavMeshLink LinkComponent { get; init; }
+		/// <summary>The type of the link being crossed, null for a plain link.</summary>
+		public NavMeshLinkType Type { get; init; }
 	}
 	public LinkTraversalData? CurrentLinkTraversal;
+
+	// The link the agent stands at until it is free. It is on the link in the crowd, held there.
+	internal NavMeshLink waitingFor;
 
 	// Called right after the navigation update in which the agent entered or left a link
 	internal void LinkChanged( in Nav.AgentState state, NavMeshLink link )
 	{
-		if ( CurrentLinkTraversal is LinkTraversalData previous )
-		{
-			CurrentLinkTraversal = null;
-			try
-			{
-				LinkExit?.Invoke();
-				if ( previous.LinkComponent.IsValid() ) previous.LinkComponent.TriggetExited( this );
-			}
-			catch ( Exception e ) { Log.Error( e, $"Exception when calling 'LinkExit' on {this}" ); }
-		}
+		// Left the link it waited for without crossing it: there is nothing to exit
+		if ( waitingFor is not null ) ReleaseLink();
+		else ExitLink();
 
 		if ( state.Link < 0 ) return;
 
-		CurrentLinkTraversal = new() { LinkEnterPosition = state.LinkStart, LinkExitPosition = state.LinkEnd, AgentInitialPosition = state.LinkEntry, LinkComponent = link };
+		// First come, first served: an agent arriving while others wait queues behind them
+		if ( link.IsValid() && link.Occupancy == NavMeshLinkOccupancy.OneAtATime && (link.IsOccupied || link.queued > 0) )
+		{
+			waitingFor = link;
+			link.queued++;
+			agentInternal.Owner.Waiting.Add( this );
+			agentInternal.Held = true;
+			return;
+		}
+
+		EnterLink( state, link );
+	}
+
+	// The link it waited for is free
+	internal void StartWaitedLink()
+	{
+		var link = waitingFor;
+		ReleaseLink();
+		var state = agentInternal.State;
+		if ( state.Link >= 0 ) EnterLink( state, link );
+	}
+
+	// The link it waited for is gone: it leaves the link where it stands and plans without it
+	internal void StopWaiting()
+	{
+		ReleaseLink();
+		agentInternal?.CompleteLink();
+	}
+
+	// The link it crosses is gone: it stops crossing where it stands
+	internal void AbandonLink()
+	{
+		agentInternal?.CompleteLink();
+		ExitLink();
+	}
+
+	// Gives up the link the agent waits for or crosses, without callbacks
+	internal void ReleaseLink()
+	{
+		if ( waitingFor is { } link )
+		{
+			link.queued--;
+			waitingFor = null;
+			agentInternal?.Owner.Waiting.Remove( this );
+			if ( agentInternal is not null ) agentInternal.Held = false;
+		}
+		CurrentLinkTraversal?.LinkComponent?.occupants?.Remove( this );
+	}
+
+	private void ExitLink()
+	{
+		if ( CurrentLinkTraversal is not LinkTraversalData previous ) return;
+		ReleaseLink();
+		CurrentLinkTraversal = null;
+		try
+		{
+			LinkExit?.Invoke();
+			if ( previous.LinkComponent.IsValid() ) previous.LinkComponent.TriggetExited( this );
+		}
+		catch ( Exception e ) { Log.Error( e, $"Exception when calling 'LinkExit' on {this}" ); }
+	}
+
+	private void EnterLink( in Nav.AgentState state, NavMeshLink link )
+	{
+		if ( link.IsValid() ) (link.occupants ??= new()).Add( this );
+		CurrentLinkTraversal = new() { LinkEnterPosition = state.LinkStart, LinkExitPosition = state.LinkEnd, AgentInitialPosition = state.LinkEntry, LinkComponent = link, Type = link?.Type };
 		try
 		{
 			LinkEnter?.Invoke();
@@ -264,7 +341,7 @@ public sealed class NavMeshAgent : Component
 	protected override void OnFixedUpdate()
 	{
 		if ( agentInternal is null ) return;
-		// Game code edits the area sets in place and area costs change without notice
+		// Game code edits the area and link type collections in place, and costs of areas and link types change without notice
 		if ( !Scene.NavMesh.FilterMatches( capturedFilter, this ) ) UpdateAgentParameters();
 	}
 
@@ -276,7 +353,7 @@ public sealed class NavMeshAgent : Component
 		if ( UpdatePosition )
 		{
 			Vector3 position = state.Position;
-			if ( state.Link < 0 ) position.z = groundTraceZ;
+			if ( state.Link < 0 || waitingFor is not null ) position.z = groundTraceZ;
 			transform.Position = WorldPosition.LerpTo( position, Math.Clamp( Time.Delta * 20, 0, 1 ) );
 		}
 		if ( UpdateRotation )

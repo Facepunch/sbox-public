@@ -27,6 +27,9 @@ public sealed partial class NavMesh
 
 		// Its settings changed again: it takes no more tiles and never takes over
 		public bool Abandoned;
+
+		// Tiles whose generated links are compared with the components next, and those whose components came from a bake
+		public readonly HashSet<(int X, int Y)> LinkTiles = new(), BakedLinkTiles = new();
 	}
 
 	// The mesh in use, and the one being built aside. Tile calls go to the second while there is one.
@@ -118,6 +121,7 @@ public sealed partial class NavMesh
 				work.Mesh.RemoveTile( x, y );
 				work.FirstPass.Remove( (x, y) );
 				work.Worlds.Remove( (x, y) );
+				if ( work.BakedLinkTiles.Remove( (x, y) ) ) work.LinkTiles.Add( (x, y) );
 			}
 		}
 		work.Mesh.Commit();
@@ -196,6 +200,8 @@ public sealed partial class NavMesh
 		if ( live is null ) return;
 
 		CurrentCosts();
+		CurrentLinkPrices();
+		if ( generatedRoot is not null && (!generatedRoot.IsValid() || generatedRoot.IsDestroyed) ) RestoreGeneratedLinks();
 		UpdateTiles( live, world );
 		if ( next is not null )
 		{
@@ -205,6 +211,7 @@ public sealed partial class NavMesh
 				live = next;
 				next = null;
 				bakedTiles = null;
+				TakeOverLinks();
 				Publish();
 			}
 		}
@@ -246,7 +253,10 @@ public sealed partial class NavMesh
 			// A job that came back asking for geometry built nothing, and its tile gets another
 			if ( job.Status != TileJobStatus.NeedsGeometry ) work.FirstPass.Remove( (job.X, job.Y) );
 			if ( job.Status == TileJobStatus.Failed ) Log.Warning( $"Navmesh: tile {job.X},{job.Y} was not built: {job.Error}" );
+			// The mesh reports nothing for a baked tile built again without links
+			if ( job.NeedsGeometry && (job.Status is TileJobStatus.Built or TileJobStatus.Unchanged) && work.BakedLinkTiles.Remove( (job.X, job.Y) ) ) work.LinkTiles.Add( (job.X, job.Y) );
 		}
+		UpdateGeneratedLinks( work );
 
 		int taken = work.Abandoned ? 0 : work.Mesh.TakeJobs( jobs.AsSpan( 0, Math.Max( 0, MaxBuilds - work.Builds.Count ) ) );
 		for ( int i = 0; i < taken; i++ )
@@ -258,10 +268,14 @@ public sealed partial class NavMesh
 				job.MaxZ = Bounds.Maxs.z;
 			}
 
+			// A job that only judges generated links across tile borders needs no geometry and is named after a tile it does not build
 			NVector3[] vertices = null;
 			int[] indices = null;
-			if ( !work.Worlds.Remove( (job.X, job.Y), out var tileWorld ) ) tileWorld = world;
-			if ( job.NeedsGeometry ) CollectGeometry( tileWorld, job, out vertices, out indices );
+			if ( job.NeedsGeometry )
+			{
+				if ( !work.Worlds.Remove( (job.X, job.Y), out var tileWorld ) ) tileWorld = world;
+				CollectGeometry( tileWorld, job, out vertices, out indices );
+			}
 
 			var task = Task.Run( () =>
 			{

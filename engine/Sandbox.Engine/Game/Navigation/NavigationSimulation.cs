@@ -21,6 +21,9 @@ internal sealed class NavigationSimulation
 	private NavQuery query;
 	private readonly List<(SimulationAgent Agent, AgentState State)> linkChanges = new();
 
+	// Agents held at a link that takes one at a time, in the order they arrived. Main thread only.
+	internal readonly List<NavMeshAgent> Waiting = new();
+
 	private static readonly Action<int, Action<int>> run = static ( count, body ) => JobDispatcher.For( count, body, static ( body, index ) => body( index ), 1 );
 
 	internal NavigationSimulation( NavMesh owner, Nav.NavMesh mesh )
@@ -59,7 +62,7 @@ internal sealed class NavigationSimulation
 			int id = Crowd.Add( position, options );
 			if ( id >= agents.Length ) Array.Resize( ref agents, Math.Max( 16, id * 2 ) );
 			count++;
-			return agents[id] = new SimulationAgent( this, id, component );
+			return agents[id] = new SimulationAgent( this, id, component, options );
 		}
 	}
 
@@ -72,6 +75,21 @@ internal sealed class NavigationSimulation
 			Crowd.Remove( agent.Id );
 			agents[agent.Id] = null;
 			count--;
+			agent.Component.ReleaseLink();
+		}
+	}
+
+	// The agents crossing it and those waiting leave the link where they stand and plan without it
+	internal void LinkRemoved( NavMeshLink link )
+	{
+		if ( link.IsOccupied )
+		{
+			foreach ( var agent in link.occupants.ToArray() ) agent.AbandonLink();
+			link.occupants.Clear();
+		}
+		for ( int i = Waiting.Count - 1; i >= 0; i-- )
+		{
+			if ( Waiting[i].waitingFor == link ) Waiting[i].StopWaiting();
 		}
 	}
 
@@ -109,6 +127,15 @@ internal sealed class NavigationSimulation
 			if ( !agent.Removed ) agent.Component.LinkChanged( state, Owner.LinkComponent( state.Link ) );
 		}
 		linkChanges.Clear();
+
+		// A freed link goes to the first agent waiting for it. Game code called from here may change the list, then the rest waits an update.
+		for ( int i = 0; i < Waiting.Count; i++ )
+		{
+			var agent = Waiting[i];
+			if ( agent.waitingFor.Occupancy == NavMeshLinkOccupancy.OneAtATime && agent.waitingFor.IsOccupied ) continue;
+			agent.StartWaitedLink();
+			i--;
+		}
 	}
 }
 
@@ -128,11 +155,17 @@ internal sealed class SimulationAgent
 	internal bool Removed;
 	private AgentState last;
 
-	internal SimulationAgent( NavigationSimulation owner, int id, NavMeshAgent component )
+	// Held at a link that is taken: the crowd neither moves it nor takes it across, and others walk around it.
+	// Applied under the gate to whatever the component asks for, which is kept in wanted.
+	private bool held;
+	private AgentParams wanted;
+
+	internal SimulationAgent( NavigationSimulation owner, int id, NavMeshAgent component, in AgentParams options )
 	{
 		Owner = owner;
 		Id = id;
 		Component = component;
+		wanted = options;
 	}
 
 	internal void Retire( in AgentState state )
@@ -146,7 +179,35 @@ internal sealed class SimulationAgent
 	internal AgentParams Options
 	{
 		get { lock ( Owner.Gate ) return Removed ? default : Owner.Crowd.Params[Id]; }
-		set { lock ( Owner.Gate ) if ( !Removed ) Owner.Crowd.SetParams( Id, value ); }
+		set
+		{
+			lock ( Owner.Gate )
+			{
+				wanted = value;
+				Apply();
+			}
+		}
+	}
+
+	internal bool Held
+	{
+		set
+		{
+			lock ( Owner.Gate )
+			{
+				if ( held == value ) return;
+				held = value;
+				Apply();
+			}
+		}
+	}
+
+	private void Apply()
+	{
+		if ( Removed ) return;
+		var options = wanted;
+		if ( held ) (options.AutoLinks, options.External) = (false, true);
+		Owner.Crowd.SetParams( Id, options );
 	}
 
 	internal void MoveTo( Vector3 target ) { lock ( Owner.Gate ) if ( !Removed ) Owner.Crowd.MoveTo( Id, target ); }

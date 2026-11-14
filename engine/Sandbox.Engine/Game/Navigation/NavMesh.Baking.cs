@@ -1,4 +1,5 @@
 using Editor;
+using Nav;
 using Sandbox.Compression;
 using System.Buffers;
 using System.Buffers.Binary;
@@ -12,11 +13,13 @@ namespace Sandbox.Navigation;
 
 public sealed partial class NavMesh
 {
-	// Header, then the library's bake as one LZ4 block. A tile inside the baked rectangle that the bake lacks is empty on purpose.
-	//   uint magic, uint version, int minTileX, minTileY, maxTileX, maxTileY, int uncompressedLength
+	// Header, then blocks to the end: the library's bake, then the generated links. A tile inside the baked rectangle that the bake lacks is empty on purpose.
+	//   uint magic, uint version, int minTileX, minTileY, maxTileX, maxTileY
+	//   Per block: int rawLength, int storedLength, the LZ4 block. Version 1 had the library's bake only, without storedLength.
+	//   Links: float maxDrop, maxJumpDistance, maxJumpUp, spacing, int tiles, per tile int x, y, links, per link float start xyz, end xyz, radius, byte 1 two-way | 2 jump
 	private const uint BakeMagic = 0x56414E53;
-	private const uint BakeVersion = 1;
-	private const int BakeHeaderSize = 28;
+	private const uint BakeVersion = 2;
+	private const int BakeHeaderSize = 24;
 
 	// The tiles the loaded bake covers
 	private RectInt? bakedTiles;
@@ -128,20 +131,22 @@ public sealed partial class NavMesh
 				Log.Warning( "NavMesh: the navmesh is too large to bake" );
 				return null;
 			}
+			var links = SaveGeneratedLinks();
 
 			var baked = await Task.Run( () =>
 			{
 				var raw = writer.WrittenSpan;
-				var data = new byte[BakeHeaderSize + LZ4.MaxCompressedSize( raw.Length )];
+				var data = new byte[BakeHeaderSize + 16 + LZ4.MaxCompressedSize( raw.Length ) + LZ4.MaxCompressedSize( links.Length )];
 				BinaryPrimitives.WriteUInt32LittleEndian( data, BakeMagic );
 				BinaryPrimitives.WriteUInt32LittleEndian( data.AsSpan( 4 ), BakeVersion );
 				BinaryPrimitives.WriteInt32LittleEndian( data.AsSpan( 8 ), tiles.Left );
 				BinaryPrimitives.WriteInt32LittleEndian( data.AsSpan( 12 ), tiles.Top );
 				BinaryPrimitives.WriteInt32LittleEndian( data.AsSpan( 16 ), tiles.Right );
 				BinaryPrimitives.WriteInt32LittleEndian( data.AsSpan( 20 ), tiles.Bottom );
-				BinaryPrimitives.WriteInt32LittleEndian( data.AsSpan( 24 ), raw.Length );
-				int length = LZ4.CompressBlock( raw, data.AsSpan( BakeHeaderSize ), CompressionLevel.Optimal );
-				return data.AsSpan( 0, BakeHeaderSize + length ).ToArray();
+				int length = BakeHeaderSize;
+				length += WriteBlock( raw, data.AsSpan( length ) );
+				length += WriteBlock( links, data.AsSpan( length ) );
+				return data.AsSpan( 0, length ).ToArray();
 			} );
 
 			return cancelToken.IsCancellationRequested ? null : baked;
@@ -186,9 +191,8 @@ public sealed partial class NavMesh
 		if ( bakedData is null || bakedData.Length == 0 )
 			return;
 
-		int rawLength = bakedData.Length >= BakeHeaderSize ? BinaryPrimitives.ReadInt32LittleEndian( bakedData.AsSpan( 24 ) ) : -1;
-		if ( rawLength < 0 || BinaryPrimitives.ReadUInt32LittleEndian( bakedData ) != BakeMagic || BinaryPrimitives.ReadUInt32LittleEndian( bakedData.AsSpan( 4 ) ) != BakeVersion
-			|| rawLength / 255 > bakedData.Length )
+		uint version = bakedData.Length >= BakeHeaderSize + 4 && BinaryPrimitives.ReadUInt32LittleEndian( bakedData ) == BakeMagic ? BinaryPrimitives.ReadUInt32LittleEndian( bakedData.AsSpan( 4 ) ) : 0;
+		if ( version is not (1 or BakeVersion) )
 		{
 			Log.Warning( "NavMesh: Baked data is in an older format and is ignored. Saving the scene in the editor bakes it again." );
 			return;
@@ -199,28 +203,22 @@ public sealed partial class NavMesh
 
 		long generation = Generation;
 		var settings = CreateSettings();
+		var linkSettings = CreateLinkSettings( settings );
 		string problem = null;
+		Dictionary<(int X, int Y), List<NavLink>> links = null;
 
 		var loaded = await Task.Run( () =>
 		{
-			var raw = new byte[rawLength];
-			try
-			{
-				if ( LZ4.DecompressBlock( bakedData.AsSpan( BakeHeaderSize ), raw ) != rawLength ) problem = "is damaged";
-			}
-			catch ( InvalidDataException )
-			{
-				problem = "is damaged";
-			}
-
-			if ( problem is null )
-			{
-				if ( !Nav.NavMesh.TryReadSettings( raw, out var baked ) ) problem = "is in an older format";
-				else if ( !baked.Equals( settings ) ) problem = "was made with other agent settings";
-			}
+			int offset = BakeHeaderSize;
+			var raw = ReadBlock( bakedData, ref offset, version == 1 );
+			var linkRaw = version == 1 ? [] : ReadBlock( bakedData, ref offset, false );
+			if ( raw is null || linkRaw is null ) problem = "is damaged";
+			else if ( !Nav.NavMesh.TryReadSettings( raw, out var baked ) ) problem = "is in an older format";
+			else if ( !baked.Equals( settings ) ) problem = "was made with other agent settings";
+			else problem = ReadGeneratedLinks( linkRaw, linkSettings, out links );
 			if ( problem is not null ) return null;
 
-			var mesh = Nav.NavMesh.Load( raw, cacheCodec );
+			var mesh = Nav.NavMesh.Load( raw, cacheCodec, links: linkSettings );
 			if ( mesh is null ) problem = "is damaged";
 			return mesh;
 		} );
@@ -233,8 +231,121 @@ public sealed partial class NavMesh
 			return;
 		}
 
-		SetMesh( loaded );
+		SetMesh( loaded, links );
 		bakedTiles = new RectInt( min, max - min );
+	}
+
+	internal static int WriteBlock( ReadOnlySpan<byte> raw, Span<byte> target )
+	{
+		int stored = LZ4.CompressBlock( raw, target[8..], CompressionLevel.Optimal );
+		BinaryPrimitives.WriteInt32LittleEndian( target, raw.Length );
+		BinaryPrimitives.WriteInt32LittleEndian( target[4..], stored );
+		return 8 + stored;
+	}
+
+	// Null when damaged. A block of version 1 runs to the end.
+	internal static byte[] ReadBlock( byte[] data, ref int offset, bool toEnd )
+	{
+		int head = toEnd ? 4 : 8;
+		if ( data.Length - offset < head ) return null;
+		int rawLength = BinaryPrimitives.ReadInt32LittleEndian( data.AsSpan( offset ) );
+		int stored = toEnd ? data.Length - offset - head : BinaryPrimitives.ReadInt32LittleEndian( data.AsSpan( offset + 4 ) );
+		offset += head;
+		if ( rawLength < 0 || stored < 0 || stored > data.Length - offset || rawLength / 255 > stored ) return null;
+
+		var raw = new byte[rawLength];
+		try
+		{
+			if ( LZ4.DecompressBlock( data.AsSpan( offset, stored ), raw ) != rawLength ) return null;
+		}
+		catch ( InvalidDataException )
+		{
+			return null;
+		}
+		offset += stored;
+		return raw;
+	}
+
+	// The generated links of the mesh in use, by tile
+	private byte[] SaveGeneratedLinks()
+	{
+		var settings = live.Mesh.LinkSettings;
+		using var stream = new MemoryStream();
+		using var writer = new BinaryWriter( stream );
+		writer.Write( settings.MaxDrop );
+		writer.Write( settings.MaxJumpDistance );
+		writer.Write( settings.MaxJumpUp );
+		writer.Write( settings.Spacing );
+		writer.Write( generatedLinks.Count );
+		foreach ( var ((x, y), components) in generatedLinks )
+		{
+			writer.Write( x );
+			writer.Write( y );
+			writer.Write( components.Count );
+			foreach ( var component in components )
+			{
+				var link = component.generated;
+				writer.Write( link.Start.X );
+				writer.Write( link.Start.Y );
+				writer.Write( link.Start.Z );
+				writer.Write( link.End.X );
+				writer.Write( link.End.Y );
+				writer.Write( link.End.Z );
+				writer.Write( link.Radius );
+				writer.Write( (byte)((link.Bidirectional ? 1 : 0) | (link.Type != settings.DropType ? 2 : 0)) );
+			}
+		}
+		writer.Flush();
+		return stream.ToArray();
+	}
+
+	// Null when the links were generated with these settings, as none were by a bake of version 1. Anything malformed rejects them all.
+	static string ReadGeneratedLinks( byte[] raw, in NavLinkSettings settings, out Dictionary<(int X, int Y), List<NavLink>> links )
+	{
+		links = new();
+		if ( raw.Length == 0 ) return settings.Enabled ? "was made with other agent settings" : null;
+
+		string problem = null;
+		using var reader = new BinaryReader( new MemoryStream( raw ) );
+		try
+		{
+			if ( reader.ReadSingle() != settings.MaxDrop || reader.ReadSingle() != settings.MaxJumpDistance || reader.ReadSingle() != settings.MaxJumpUp || reader.ReadSingle() != settings.Spacing )
+				problem = "was made with other agent settings";
+			else problem = ReadTiles( reader, raw.Length, settings, links ) ? null : "is damaged";
+		}
+		catch ( EndOfStreamException )
+		{
+			problem = "is damaged";
+		}
+
+		if ( problem is not null ) links = null;
+		return problem;
+	}
+
+	// A tile takes at least 12 bytes and a link 29
+	static bool ReadTiles( BinaryReader reader, int length, in NavLinkSettings settings, Dictionary<(int X, int Y), List<NavLink>> links )
+	{
+		int tiles = reader.ReadInt32();
+		if ( tiles < 0 || tiles > (length - reader.BaseStream.Position) / 12 ) return false;
+		for ( ; tiles > 0; tiles-- )
+		{
+			var tile = (reader.ReadInt32(), reader.ReadInt32());
+			int count = reader.ReadInt32();
+			if ( count < 0 || count > (length - reader.BaseStream.Position) / 29 || !links.TryAdd( tile, new List<NavLink>( count ) ) ) return false;
+			for ( int i = 0; i < count; i++ )
+			{
+				var link = new NavLink
+				{
+					Start = new( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() ),
+					End = new( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() ),
+					Radius = reader.ReadSingle()
+				};
+				byte flags = reader.ReadByte();
+				if ( !float.IsFinite( link.Start.X + link.Start.Y + link.Start.Z + link.End.X + link.End.Y + link.End.Z ) || !(link.Radius > 0) || !float.IsFinite( link.Radius ) || (flags & ~3) != 0 ) return false;
+				links[tile].Add( link with { Bidirectional = (flags & 1) != 0, Type = (flags & 2) != 0 ? settings.JumpType : settings.DropType } );
+			}
+		}
+		return reader.BaseStream.Position == length;
 	}
 
 	/// <summary>
@@ -262,6 +373,10 @@ public sealed partial class NavMesh
 		jso["AgentRadius"] = AgentRadius;
 		jso["AgentStepSize"] = AgentStepSize;
 		jso["AgentMaxSlope"] = AgentMaxSlope;
+		jso["GenerateLinks"] = GenerateLinks;
+		jso["AgentMaxDrop"] = AgentMaxDrop;
+		jso["AgentMaxJumpDistance"] = AgentMaxJumpDistance;
+		jso["AgentMaxJumpHeight"] = AgentMaxJumpHeight;
 		jso["ExcludedBodies"] = Json.ToNode( ExcludedBodies, typeof( TagSet ) );
 		jso["IncludedBodies"] = Json.ToNode( IncludedBodies, typeof( TagSet ) );
 		jso["DeferGeneration"] = DeferGeneration;
@@ -292,6 +407,10 @@ public sealed partial class NavMesh
 		AgentRadius = (float)(jso["AgentRadius"] ?? AgentRadius);
 		AgentStepSize = (float)(jso["AgentStepSize"] ?? AgentStepSize);
 		AgentMaxSlope = (float)(jso["AgentMaxSlope"] ?? AgentMaxSlope);
+		GenerateLinks = (bool)(jso["GenerateLinks"] ?? GenerateLinks);
+		AgentMaxDrop = (float)(jso["AgentMaxDrop"] ?? AgentMaxDrop);
+		AgentMaxJumpDistance = (float)(jso["AgentMaxJumpDistance"] ?? AgentMaxJumpDistance);
+		AgentMaxJumpHeight = (float)(jso["AgentMaxJumpHeight"] ?? AgentMaxJumpHeight);
 
 		ExcludedBodies = Json.FromNode<TagSet>( jso["ExcludedBodies"] ) ?? ExcludedBodies;
 		IncludedBodies = Json.FromNode<TagSet>( jso["IncludedBodies"] ) ?? IncludedBodies;

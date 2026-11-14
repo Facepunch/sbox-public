@@ -17,6 +17,15 @@ public sealed partial class NavMesh
 	private readonly List<NavMeshArea> areas = new();
 	private readonly List<NavMeshLink> links = new();
 
+	// Link type ids, given out on first use and kept. 0 is the plain link. Published registries and prices are never mutated.
+	internal const int LinkTypeCount = NavFilter.MaxLinkType + 1;
+	private sealed record LinkTypeRegistry( Dictionary<NavMeshLinkType, int> Ids, NavMeshLinkType[] Types );
+	private sealed record LinkPrices( float[] Costs, float[] Penalties );
+	private LinkTypeRegistry linkTypes = new( new(), new NavMeshLinkType[LinkTypeCount] );
+	private LinkPrices linkPrices = new( Enumerable.Repeat( 1f, LinkTypeCount ).ToArray(), new float[LinkTypeCount] );
+	private readonly object linkTypeGate = new();
+	private bool linkTypesFull;
+
 	internal void UpdateAreaIds()
 	{
 		var ids = new Dictionary<NavMeshAreaDefinition, int>();
@@ -42,16 +51,70 @@ public sealed partial class NavMesh
 
 	internal NavMeshAreaDefinition AreaIdToDefinition( int id ) => Volatile.Read( ref areaRegistry ).Definitions[id];
 
-	// Equal filters share their costs array, and a filter handed out never changes
-	internal NavFilter CreateFilter( NavMeshAgent agent = null )
+	internal int LinkTypeToId( NavMeshLinkType type )
 	{
-		return new NavFilter( agent is null ? 0 : ForbiddenAreas( agent ), CurrentCosts() );
+		if ( type is null ) return 0;
+		if ( Volatile.Read( ref linkTypes ).Ids.TryGetValue( type, out int id ) ) return id;
+		lock ( linkTypeGate )
+		{
+			var registry = linkTypes;
+			if ( registry.Ids.TryGetValue( type, out id ) ) return id;
+			if ( registry.Ids.Count == LinkTypeCount - 1 )
+			{
+				if ( !linkTypesFull ) Log.Warning( $"NavMeshLinkType limit reached. Max {LinkTypeCount - 1} link types are currently supported, links of type '{type.ResourcePath}' are plain links." );
+				linkTypesFull = true;
+				return 0;
+			}
+			id = registry.Ids.Count + 1;
+			var types = (NavMeshLinkType[])registry.Types.Clone();
+			types[id] = type;
+			Volatile.Write( ref linkTypes, new LinkTypeRegistry( new Dictionary<NavMeshLinkType, int>( registry.Ids ) { [type] = id }, types ) );
+			return id;
+		}
 	}
 
-	// Whether CreateFilter would still give the agent this filter. Costs are as of the last navigation update.
+	// Equal filters share their cost and penalty arrays, and a filter handed out never changes
+	internal NavFilter CreateFilter( NavMeshAgent agent = null )
+	{
+		var prices = CurrentLinkPrices();
+		return new NavFilter( agent is null ? 0 : ForbiddenAreas( agent ), CurrentCosts(), agent is null ? 0 : ForbiddenLinks( agent ), prices.Costs, prices.Penalties );
+	}
+
+	// Whether CreateFilter would still give the agent this filter. Costs and penalties are as of the last navigation update.
 	internal bool FilterMatches( in NavFilter filter, NavMeshAgent agent )
 	{
-		return filter.Costs == Volatile.Read( ref areaCosts ) && filter.Forbidden == ForbiddenAreas( agent );
+		var prices = Volatile.Read( ref linkPrices );
+		return filter.Costs == Volatile.Read( ref areaCosts ) && filter.LinkCosts == prices.Costs && filter.LinkPenalties == prices.Penalties
+			&& filter.Forbidden == ForbiddenAreas( agent ) && filter.ForbiddenLinks == ForbiddenLinks( agent );
+	}
+
+	// Plain links are always open. A restricted agent forbids every other type, also those no link has used yet.
+	private ulong ForbiddenLinks( NavMeshAgent agent )
+	{
+		if ( agent.AllowAllLinkTypes ) return 0;
+		var ids = Volatile.Read( ref linkTypes ).Ids;
+		ulong allowed = 1;
+		foreach ( var type in agent.AllowedLinkTypes ?? [] )
+		{
+			if ( type is not null && ids.TryGetValue( type, out int id ) ) allowed |= 1ul << id;
+		}
+		return ~allowed;
+	}
+
+	// A type's cost and penalty change without notice, so the arrays are replaced when one differs
+	private LinkPrices CurrentLinkPrices()
+	{
+		var types = Volatile.Read( ref linkTypes ).Types;
+		var prices = Volatile.Read( ref linkPrices );
+		for ( int id = 1; id < LinkTypeCount && types[id] is { } type; id++ )
+		{
+			if ( prices.Costs[id] == CostOf( type.CostMultiplier ) && prices.Penalties[id] == PenaltyOf( type.Penalty ) ) continue;
+			prices = new LinkPrices( Enumerable.Repeat( 1f, LinkTypeCount ).ToArray(), new float[LinkTypeCount] );
+			for ( int i = 1; i < LinkTypeCount && types[i] is { } priced; i++ ) (prices.Costs[i], prices.Penalties[i]) = (CostOf( priced.CostMultiplier ), PenaltyOf( priced.Penalty ));
+			Volatile.Write( ref linkPrices, prices );
+			break;
+		}
+		return prices;
 	}
 
 	// A definition's cost changes without notice, so the array is replaced when one differs
@@ -82,12 +145,11 @@ public sealed partial class NavMesh
 		return forbidden;
 	}
 
-	// The library refuses a cost below 1
-	static float CostOf( NavMeshAreaDefinition definition )
-	{
-		float cost = definition?.CostMultiplier ?? 1f;
-		return cost >= 1f ? MathF.Min( cost, 100f ) : 1f;
-	}
+	static float CostOf( NavMeshAreaDefinition definition ) => CostOf( definition?.CostMultiplier ?? 1f );
+
+	// The library refuses a cost below 1 and a penalty below 0, and anything not finite
+	static float CostOf( float cost ) => cost >= 1f ? MathF.Min( cost, 100f ) : 1f;
+	static float PenaltyOf( float penalty ) => penalty > 0f && float.IsFinite( penalty ) ? penalty : 0f;
 
 	internal void AddArea( NavMeshArea area ) => areas.Add( area );
 
@@ -105,12 +167,17 @@ public sealed partial class NavMesh
 		work.Mesh.RemoveVolume( given.Id );
 	}
 
-	internal void AddLink( NavMeshLink link ) => links.Add( link );
+	internal void AddLink( NavMeshLink link )
+	{
+		if ( !link.IsGenerated ) links.Add( link );
+		else if ( live is not null ) AddGeneratedLink( live, link );
+	}
 
 	internal void RemoveLink( NavMeshLink link )
 	{
 		links.Remove( link );
 		link.startOnNavmesh = link.endOnNavmesh = null;
+		Simulation?.LinkRemoved( link );
 		if ( live is null ) return;
 		RemoveLink( live, link );
 		if ( next is not null ) RemoveLink( next, link );
@@ -163,16 +230,24 @@ public sealed partial class NavMesh
 			bool added = !work.Links.TryGetValue( link, out var given );
 			if ( !added && wanted == given.Link ) continue;
 
-			int id = given.Id;
 			if ( added )
 			{
-				id = work.Mesh.AddLink( wanted );
-				if ( id < 0 ) continue;
-				if ( work.LinkComponents.Length <= id ) Array.Resize( ref work.LinkComponents, Math.Max( 16, (id + 1) * 2 ) );
-				work.LinkComponents[id] = link;
+				Register( work, link, wanted );
+				continue;
 			}
-			else work.Mesh.SetLink( id, wanted );
-			work.Links[link] = (id, wanted);
+			work.Mesh.SetLink( given.Id, wanted );
+			work.Links[link] = (given.Id, wanted);
 		}
+	}
+
+	// False when the mesh has no free link id
+	private static bool Register( MeshWork work, NavMeshLink link, in NavLink wanted )
+	{
+		int id = work.Mesh.AddLink( wanted );
+		if ( id < 0 ) return false;
+		if ( work.LinkComponents.Length <= id ) Array.Resize( ref work.LinkComponents, Math.Max( 16, (id + 1) * 2 ) );
+		work.LinkComponents[id] = link;
+		work.Links[link] = (id, wanted);
+		return true;
 	}
 }

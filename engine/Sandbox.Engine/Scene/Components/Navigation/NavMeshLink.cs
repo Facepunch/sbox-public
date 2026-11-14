@@ -1,8 +1,21 @@
-﻿using Sandbox.Engine.Resources;
+using Sandbox.Engine.Resources;
 using Sandbox.Navigation;
 using System;
 
 namespace Sandbox;
+
+/// <summary>
+/// How many agents may cross a <see cref="NavMeshLink"/> at once.
+/// </summary>
+[Expose]
+public enum NavMeshLinkOccupancy
+{
+	/// <summary>Any number of agents cross at once.</summary>
+	Unlimited,
+
+	/// <summary>One agent crosses at a time. Others wait at their end of the link until it is free, first come, first served.</summary>
+	OneAtATime
+}
 
 /// <summary>
 /// NavigationLinks connect navigation mesh polygons for pathfinding and enable shortcuts like ladders, jumps, or teleports.
@@ -63,6 +76,51 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 	/// </summary>
 	[Property]
 	public NavMeshAreaDefinition Area { get; set; }
+
+	/// <summary>
+	/// What kind of link this is, for agents to allow, for paths to price and for game code to pick how to cross it. Without one it is a plain link that every agent takes.
+	/// <see cref="NavMeshLinkType"/> has the ones the engine ships. Fixed on a generated link: setting it there does nothing.
+	/// </summary>
+	[Property]
+	public NavMeshLinkType Type
+	{
+		get;
+		set
+		{
+			if ( !IsGenerated ) field = value;
+		}
+	}
+
+	/// <summary>
+	/// How many agents may cross at once.
+	/// </summary>
+	[Property]
+	public NavMeshLinkOccupancy Occupancy { get; set; }
+
+	/// <summary>
+	/// The agents crossing this link, in the order they entered.
+	/// </summary>
+	public IReadOnlyList<NavMeshAgent> Occupants => occupants ?? (IReadOnlyList<NavMeshAgent>)Array.Empty<NavMeshAgent>();
+
+	/// <summary>
+	/// True while an agent crosses this link.
+	/// </summary>
+	public bool IsOccupied => occupants is { Count: > 0 };
+
+	// Made when the first agent enters, so a link nobody takes carries no list
+	internal List<NavMeshAgent> occupants;
+
+	// Agents waiting at either end
+	internal int queued;
+
+	/// <summary>
+	/// True for a drop or jump the navmesh generated. The navmesh owns it: it is not saved with the scene and may be destroyed or recreated at any time.
+	/// Its type, positions, radius, direction and area are fixed and changes to them are ignored. <see cref="Occupancy"/> and the enter and exit callbacks may be used.
+	/// </summary>
+	public bool IsGenerated { get; internal set; }
+
+	// What the navmesh reported for a generated link
+	internal Nav.NavLink generated;
 
 	/// <summary>
 	/// Emitted when an agent enters the link.
@@ -144,7 +202,8 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 
 	protected override void DrawGizmos()
 	{
-		if ( !Active )
+		// Generated links are drawn with the navmesh
+		if ( !Active || IsGenerated )
 			return;
 
 		bool startConnected = startOnNavmesh.HasValue, endConnected = endOnNavmesh.HasValue;
@@ -171,7 +230,7 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 		}
 
 		Gizmo.Draw.LineThickness = 2f;
-		Gizmo.Draw.Color = NavMesh.debugTileBorderColor.WithAlpha( 1 );
+		Gizmo.Draw.Color = (Type?.Color ?? NavMesh.debugTileBorderColor).WithAlpha( 1 );
 
 		// Draw arc between start end
 		int segments = 8;
@@ -209,7 +268,8 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 			Radius = ConnectionRadius,
 			Bidirectional = IsBiDirectional,
 			// A link without a definition has an area of its own, which every agent may cross
-			Area = (byte)(Area is null ? NavMesh.LinkArea : Scene.NavMesh.AreaDefinitionToId( Area ))
+			Area = (byte)(Area is null ? NavMesh.LinkArea : Scene.NavMesh.AreaDefinitionToId( Area )),
+			Type = (byte)Scene.NavMesh.LinkTypeToId( Type )
 		};
 	}
 }

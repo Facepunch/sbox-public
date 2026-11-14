@@ -17,6 +17,7 @@ public sealed partial class NavMesh
 	private List<Line> debugInnerLines;
 
 	private Dictionary<Color, List<Triangle>> debugTriangles;
+	private Dictionary<Color, List<Line>> debugLinkLines;
 
 	internal void DebugDraw()
 	{
@@ -33,6 +34,7 @@ public sealed partial class NavMesh
 		debugTriangles ??= new( 4096 );
 		debugTileBorders ??= new( 4096 );
 		debugInnerLines ??= new( 4096 * 2 );
+		debugLinkLines ??= new();
 
 		var cameraRotation = Gizmo.Camera.Angles.ToRotation();
 		var cameraForward = cameraRotation.Forward;
@@ -60,6 +62,7 @@ public sealed partial class NavMesh
 				if ( tileWorldPosition.WithZ( 0 ).DistanceSquared( cameraPosition.WithZ( 0 ) ) < debugTileDrawDistance * debugTileDrawDistance )
 				{
 					DebugCollectTileNavmeshGeometry( new Vector2Int( x, y ) );
+					DebugCollectTileLinks( new Vector2Int( x, y ) );
 				}
 			}
 		}
@@ -90,6 +93,13 @@ public sealed partial class NavMesh
 				Gizmo.Draw.LineThickness = 1.5f;
 				Gizmo.Draw.Color = debugTileBorderColor;
 				Gizmo.Draw.Lines( debugTileBorders );
+
+				Gizmo.Draw.LineThickness = 2f;
+				foreach ( var (color, lines) in debugLinkLines )
+				{
+					Gizmo.Draw.Color = color;
+					Gizmo.Draw.Lines( lines );
+				}
 			}
 		}
 
@@ -97,8 +107,37 @@ public sealed partial class NavMesh
 		{
 			triangles.Clear();
 		}
+		foreach ( var (color, lines) in debugLinkLines )
+		{
+			lines.Clear();
+		}
 		debugTileBorders.Clear();
 		debugInnerLines.Clear();
+	}
+
+	// Generated links as arcs in the color of their type, one way ones with a tick at the end they lead to
+	private void DebugCollectTileLinks( Vector2Int tilePosition )
+	{
+		if ( !generatedLinks.TryGetValue( (tilePosition.x, tilePosition.y), out var components ) ) return;
+		foreach ( var component in components )
+		{
+			var color = (component.Type?.Color ?? debugTileBorderColor).WithAlpha( 1 );
+			if ( !debugLinkLines.TryGetValue( color, out var lines ) )
+			{
+				debugLinkLines[color] = lines = new();
+			}
+
+			Vector3 start = (Vector3)component.generated.Start + debugDrawGroundOffset, end = (Vector3)component.generated.End + debugDrawGroundOffset;
+			var previous = start;
+			for ( int i = 1; i <= 4; i++ )
+			{
+				float t = i / 4f;
+				var point = Vector3.Lerp( start, end, t ) + Vector3.Up * (MathF.Sin( t * MathF.PI ) * MathF.Abs( start.z - end.z ) * 0.5f);
+				lines.Add( new Line( previous, point ) );
+				previous = point;
+			}
+			if ( !component.generated.Bidirectional ) lines.Add( new Line( end, end + Vector3.Up * 8f ) );
+		}
 	}
 
 	private void DebugCollectTileNavmeshGeometry( Vector2Int tilePosition )

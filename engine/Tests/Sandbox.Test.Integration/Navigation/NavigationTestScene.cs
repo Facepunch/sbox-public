@@ -1,3 +1,4 @@
+using Sandbox.Engine.Resources;
 using Sandbox.Navigation;
 using Sandbox.Volumes;
 using System;
@@ -10,6 +11,19 @@ namespace NavigationTests;
 /// </summary>
 internal static class NavigationTestScene
 {
+	/// <summary>
+	/// A link type the engine ships, by file name. Nothing mounts core content here, so one is registered in its place.
+	/// </summary>
+	public static NavMeshLinkType ShippedLinkType( string name )
+	{
+		string path = $"navigation/{name}.navlink";
+		if ( ResourceLibrary.Get<NavMeshLinkType>( path ) is { } shipped ) return shipped;
+		var type = new NavMeshLinkType();
+		type.RegisterWeakResourceId( path );
+		Game.Resources.Register( type );
+		return type;
+	}
+
 	/// <summary>
 	/// A box collider of this size around the centre.
 	/// </summary>

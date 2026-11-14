@@ -1,5 +1,6 @@
 using Nav;
 using Sandbox.Compression;
+using Sandbox.Engine.Resources;
 using System.Buffers;
 
 namespace Sandbox.Navigation;
@@ -15,6 +16,9 @@ public sealed partial class NavMesh : IDisposable
 	internal Nav.NavMesh meshAside => next?.Mesh;
 
 	internal NavigationSimulation Simulation;
+
+	// The scene this is the navmesh of, which holds the generated link components. Null for a navmesh of its own.
+	internal Scene scene;
 
 	internal long Generation;
 	private bool disposed;
@@ -58,6 +62,7 @@ public sealed partial class NavMesh : IDisposable
 		bakedTiles = null;
 		queryPool.Clear();
 		ReadLinkEnds();
+		DestroyGeneratedLinks();
 	}
 
 	/// <summary>
@@ -163,6 +168,30 @@ public sealed partial class NavMesh : IDisposable
 	/// </summary>
 	public float AgentMaxSlope { get; set; } = 40.0f;
 
+	/// <summary>
+	/// Generate links for drops off ledges and jumps across gaps: <see cref="NavMeshLink"/> components of type <see cref="NavMeshLinkType.Drop"/> and <see cref="NavMeshLinkType.Jump"/> that are not saved with the scene.
+	/// </summary>
+	[Header( "Generated Links" )]
+	public bool GenerateLinks { get; set; } = false;
+
+	/// <summary>
+	/// The highest ledge an agent drops off.
+	/// </summary>
+	[ShowIf( nameof( GenerateLinks ), true )]
+	public float AgentMaxDrop { get; set; } = 192.0f;
+
+	/// <summary>
+	/// The widest gap an agent jumps across.
+	/// </summary>
+	[ShowIf( nameof( GenerateLinks ), true )]
+	public float AgentMaxJumpDistance { get; set; } = 128.0f;
+
+	/// <summary>
+	/// The highest an agent jumps up, onto a ledge or across a gap.
+	/// </summary>
+	[ShowIf( nameof( GenerateLinks ), true )]
+	public float AgentMaxJumpHeight { get; set; } = 48.0f;
+
 	// Tiling props not exposed until we are sure we want to expose them
 	private const float CellSize = 4.0f;
 	private const float CellHeight = 4.0f;
@@ -188,14 +217,16 @@ public sealed partial class NavMesh : IDisposable
 	{
 		ThreadSafe.AssertIsMainThread();
 		ObjectDisposedException.ThrowIf( disposed, this );
-		if ( live is null ) SetMesh( new Nav.NavMesh( CreateSettings(), cacheCodec ) );
+		if ( live is null ) SetMesh( CreateMesh() );
 	}
 
-	private void SetMesh( Nav.NavMesh loaded )
+	// A loaded mesh brings the generated links of its bake, by tile
+	private void SetMesh( Nav.NavMesh loaded, Dictionary<(int X, int Y), List<NavLink>> bakedLinks = null )
 	{
 		live = new MeshWork( loaded );
 		next = null;
 		bakedTiles = null;
+		TakeOverLinks( bakedLinks ?? new() );
 		Publish();
 	}
 
@@ -214,13 +245,24 @@ public sealed partial class NavMesh : IDisposable
 		OnInit?.Invoke();
 	}
 
-	// Agent settings are fixed per library mesh, so changed ones are built into a second mesh aside
+	// Agent and link settings are fixed per library mesh, so changed ones are built into a second mesh aside
 	private void Retarget()
 	{
-		var settings = CreateSettings();
-		if ( live.Mesh.Settings.Equals( settings ) ) next = null;
-		else if ( next is null || !next.Mesh.Settings.Equals( settings ) ) next = new MeshWork( new Nav.NavMesh( settings, cacheCodec ) );
+		if ( IsCurrent( live.Mesh ) ) next = null;
+		else if ( next is null || !IsCurrent( next.Mesh ) ) next = new MeshWork( CreateMesh() );
 		if ( next is not null ) next.Abandoned = false;
+	}
+
+	private Nav.NavMesh CreateMesh()
+	{
+		var settings = CreateSettings();
+		return new Nav.NavMesh( settings, cacheCodec, links: CreateLinkSettings( settings ) );
+	}
+
+	private bool IsCurrent( Nav.NavMesh mesh )
+	{
+		var settings = CreateSettings();
+		return mesh.Settings.Equals( settings ) && mesh.LinkSettings.Equals( CreateLinkSettings( settings ) );
 	}
 
 	// Clamped to what the library can build with
@@ -234,6 +276,24 @@ public sealed partial class NavMesh : IDisposable
 			Clamp( AgentStepSize, 0, 32767 * CellHeight ),
 			Clamp( AgentMaxSlope, 0, 90 ),
 			CellSize, CellHeight, TileSizeXYVoxels );
+	}
+
+	// Off unless asked for. The library refuses a link reach that does not fit in a tile with two agent diameters.
+	private NavLinkSettings CreateLinkSettings( in NavSettings settings )
+	{
+		float room = TileSizeXYWorldSpace - 4 * settings.AgentRadius - CellSize;
+		if ( !GenerateLinks || room < 2 * settings.AgentRadius + (2 * settings.MaxEdgeError + 2) * CellSize ) return default;
+
+		static float Clamp( float value, float max ) => value > 0 ? MathF.Min( value, max ) : 0;
+
+		return new NavLinkSettings
+		{
+			MaxDrop = Clamp( AgentMaxDrop, 32767 * CellHeight ),
+			MaxJumpDistance = Clamp( AgentMaxJumpDistance, room ),
+			MaxJumpUp = Clamp( AgentMaxJumpHeight, 32767 * CellHeight ),
+			DropType = (byte)LinkTypeToId( NavMeshLinkType.Drop ),
+			JumpType = (byte)LinkTypeToId( NavMeshLinkType.Jump )
+		};
 	}
 
 	// LZ4 throws without room for the worst case, where the library expects 0 for "did not fit"
@@ -252,7 +312,7 @@ public sealed partial class NavMesh : IDisposable
 		if ( IsGenerating || live is null ) return;
 
 		// Settings that change every update start a mesh aside per batch of tiles, not per update
-		if ( next is not null && next.Builds.Count > 0 && !next.Mesh.Settings.Equals( CreateSettings() ) )
+		if ( next is not null && next.Builds.Count > 0 && !IsCurrent( next.Mesh ) )
 		{
 			next.Abandoned = true;
 			return;
