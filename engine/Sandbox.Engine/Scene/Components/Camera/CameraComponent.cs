@@ -642,7 +642,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			var renderer = Rendering.SceneRenderer.Current;
 			RenderWith( renderer, swapChain, CustomSize ?? size );
 
-			// r_managed_scene_compare: native renders over Basalt's frame while the compare warms up
+			// r_managed_scene_compare: native renders over Borealis's frame while the compare warms up
 			if ( warmingCompare && renderer != Rendering.SceneRenderer.Native )
 				RenderWith( Rendering.SceneRenderer.Native, swapChain, CustomSize ?? size );
 		}

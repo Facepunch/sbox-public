@@ -1,0 +1,170 @@
+using System.Runtime.InteropServices;
+
+namespace Borealis;
+
+/// <summary>
+/// Many pieces of static geometry drawn as one object: every fragment is one draw of <see cref="Mesh"/>'s single material,
+/// with its own world transform and bounds, culled on its own and drawn together in one multi-draw. A map's world geometry
+/// is made of these. The managed counterpart of native's <c>CAggregateSceneObject</c>.
+/// </summary>
+internal sealed class AggregateObject : RenderObject
+{
+	/// <summary>
+	/// One fragment as native draws it (<c>RenderTools::AggregateFragmentDraw_t</c>): its world transform and bounds, its draw's
+	/// tint and UV density, and its draw's range with the fragment's index as its base instance.
+	/// </summary>
+	[StructLayout( LayoutKind.Sequential )]
+	internal struct FragmentDraw
+	{
+		public Matrix3x4 Transform;
+		public Vector3 BoundsMin;
+		public FragmentFlags Flags;
+		public Vector3 BoundsMax;
+		public float UvDensity;
+		public Vector3 DrawTint;
+		uint unused2;
+		public GpuBuffer.IndirectDrawIndexedArguments Args;
+
+		internal static void ValidateLayout()
+		{
+			const int nativeSize = 116;
+			var size = Marshal.SizeOf<FragmentDraw>();
+			if ( size != nativeSize ) throw new InvalidOperationException( $"AggregateObject.FragmentDraw is {size} bytes, native's AggregateFragmentDraw_t is {nativeSize}" );
+		}
+	}
+
+	/// <summary>
+	/// The model's draws: the material the fragments share, and the buffers they're all drawn from.
+	/// </summary>
+	public RenderMesh Mesh { get; }
+
+	FragmentDraw[] fragments;
+	Vector3[] centers;
+	Vector3[] extents;
+
+	/// <summary>
+	/// Every fragment, by index - the base instance its draw names.
+	/// </summary>
+	public ReadOnlySpan<FragmentDraw> Fragments => fragments;
+
+	/// <summary>
+	/// Each fragment's world bounds as a center and half extents, for culling.
+	/// </summary>
+	public ReadOnlySpan<Vector3> Centers => centers;
+	public ReadOnlySpan<Vector3> Extents => extents;
+
+	public AggregateObject( RenderMesh mesh, ReadOnlySpan<FragmentDraw> fragments )
+	{
+		ArgumentNullException.ThrowIfNull( mesh );
+		Mesh = mesh;
+
+		// Fragments are already in world space; the object's bounds are all of theirs (AggregateGlue::CreateAggregateSceneObject)
+		Transform = Transform.Zero;
+		SetFragments( fragments );
+	}
+
+	/// <summary>
+	/// Replace the fragments, and the bounds they make.
+	/// </summary>
+	public void SetFragments( ReadOnlySpan<FragmentDraw> value )
+	{
+		fragments = value.ToArray();
+		centers = new Vector3[fragments.Length];
+		extents = new Vector3[fragments.Length];
+
+		var bounds = fragments.Length > 0 ? new BBox( fragments[0].BoundsMin, fragments[0].BoundsMax ) : default;
+		for ( int i = 0; i < fragments.Length; i++ )
+		{
+			ref readonly var fragment = ref fragments[i];
+			centers[i] = (fragment.BoundsMin + fragment.BoundsMax) * 0.5f;
+			extents[i] = (fragment.BoundsMax - fragment.BoundsMin) * 0.5f;
+			bounds = bounds.AddPoint( fragment.BoundsMin ).AddPoint( fragment.BoundsMax );
+		}
+
+		TransformsGeneration = -1;
+		LocalBounds = bounds;
+	}
+
+	/// <summary>
+	/// Draws at all (<c>SceneObject.RenderingEnabled</c>).
+	/// </summary>
+	public bool Visible
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			ShadowChanged();
+		}
+	} = true;
+
+	/// <summary>
+	/// Multiplies every fragment's draw tint (<c>CAggregateSceneObjectDesc::FindOrAllocateFragmentTransforms</c>).
+	/// </summary>
+	public Color Tint
+	{
+		get;
+		set
+		{
+			// Only alpha reaches a shadow: a faded caster dithers. Its fragments' kept entries hold it
+			var faded = field.a != value.a;
+			var changed = !field.Equals( value );
+			field = value;
+			if ( faded ) ShadowChanged();
+			if ( changed ) World?.EntryChanged( this );
+		}
+	} = Color.White;
+
+	/// <summary>
+	/// Draws in shadow maps, apart from fragments flagged <see cref="FragmentFlags.DoNotCastShadows"/>.
+	/// </summary>
+	public bool CastShadows
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			ShadowChanged();
+		}
+	} = true;
+
+	/// <summary>
+	/// GPU occlusion culled, fragment by fragment (<c>SCENEOBJECTFLAG_NO_OCCLUSION_CULLING</c> off).
+	/// </summary>
+	public bool OcclusionCulling { get; set; } = true;
+
+	/// <summary>
+	/// Lit from lightmaps in forward passes; the bridge supplies <see cref="LightmapAttributes"/>.
+	/// </summary>
+	public bool Lightmapped { get; set; }
+
+	/// <summary>
+	/// Lightmap textures and constants (<c>CAggregateSceneObjectDesc::SetBakedLightingAttributes</c>).
+	/// </summary>
+	internal ShaderParameters LightmapAttributes { get; set; }
+
+	/// <summary>
+	/// Where this frame's instance ids for the fragments start: fragment i's transform is the id at this plus i.
+	/// Valid while <see cref="TransformsGeneration"/> is the frame's.
+	/// </summary>
+	internal int FirstInstance;
+
+	/// <summary>
+	/// The <see cref="Gpu.TransformBuffer.Generation"/> its fragments' transforms were last written in.
+	/// </summary>
+	internal int TransformsGeneration = -1;
+}
+
+/// <summary>
+/// An aggregate fragment's flags, as native's aggregate stores them (<c>AggregateFragmentFlags</c>).
+/// </summary>
+[Flags]
+internal enum FragmentFlags
+{
+	None = 0,
+	RenderToCubemaps = 1,
+	DisabledInLowQuality = 2,
+	DoNotCastShadows = 4,
+}

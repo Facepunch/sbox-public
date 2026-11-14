@@ -4,4 +4,4 @@ global using System.Linq;
 
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo( "Basalt.Gpu.Test" )]
+[assembly: InternalsVisibleTo( "Borealis.Gpu.Test" )]

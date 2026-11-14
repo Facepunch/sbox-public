@@ -133,7 +133,7 @@ public sealed unsafe partial class CommandList
 	/// <summary>
 	/// The view <see cref="RenderReflection(SceneCamera, NativeEngine.ISceneView, Transform, float, float, float, float, Plane, RenderTarget, ReflectionSetup, string)"/>
 	/// renders: the eye mirrored in the plane, an oblique projection clipped to the plane's far side, flipped, with the
-	/// reflection flag. Basalt renders a top-level view's planar reflection from it itself.
+	/// reflection flag. Borealis renders a top-level view's planar reflection from it itself.
 	/// </summary>
 	internal static ViewSetup ReflectionView( Transform eye, float fieldOfView, float aspect, float zNear, float zFar, Plane plane, ReflectionSetup setup )
 	{

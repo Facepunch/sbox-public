@@ -69,7 +69,7 @@ public static class ShaderPasses
 
 	/// <summary>
 	/// A surface's passes with this suffix (<c>ForwardGpuDriven</c>, <c>ForwardGpuDrivenLightmapped</c>) draw GPU-driven:
-	/// vertices pulled, the material record and lighting from the GPU-driven tables (docs/managed/basalt-gpu-driven.md).
+	/// vertices pulled, the material record and lighting from the GPU-driven tables (docs/managed/borealis-gpu-driven.md).
 	/// </summary>
 	public const string GpuDriven = "GpuDriven";
 }

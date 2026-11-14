@@ -61,7 +61,7 @@ internal static class SceneNative
 	/// <summary>
 	/// Read native probe bounds, priority and light groups (<c>RenderTools.GetLightProbeVolume</c>).
 	/// </summary>
-	public static unsafe void ReadLightProbeVolume( SceneObject lightProbeVolume, Basalt.LightProbeVolume into )
+	public static unsafe void ReadLightProbeVolume( SceneObject lightProbeVolume, Borealis.LightProbeVolume into )
 	{
 		Vector3 mins, maxs;
 		int priority;

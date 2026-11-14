@@ -1,4 +1,4 @@
-// particle_lighting_cs.shader as a pass module: Basalt.Gpu draws this; the .shader stays for the other routes
+// particle_lighting_cs.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
 // and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
 // Lights lit sprites per froxel, 4x4x2 to a light cluster, in the clusters around them (ParticleLightingSystem)
 // HEADER: DevShader = true;

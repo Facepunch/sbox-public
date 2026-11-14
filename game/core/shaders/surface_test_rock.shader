@@ -1,11 +1,11 @@
 //
-// Basalt's test material for the Slang material tier, written as today's .shader: the same material as the surface in
-// engine/Launcher/BasaltLab/Surfaces/rock.slang (colour, normal map, roughness-metalness-occlusion, tint, roughness
-// scale), lit by ShadingModelStandard. basaltlab -surface-parity draws the two side by side and compares them.
+// Borealis's test material for the Slang material tier, written as today's .shader: the same material as the surface in
+// engine/Launcher/BorealisLab/Surfaces/rock.slang (colour, normal map, roughness-metalness-occlusion, tint, roughness
+// scale), lit by ShadingModelStandard. borealislab -surface-parity draws the two side by side and compares them.
 //
 HEADER
 {
-	Description = "Basalt surface test: rock.slang as a .shader";
+	Description = "Borealis surface test: rock.slang as a .shader";
 	DevShader = true;
 }
 

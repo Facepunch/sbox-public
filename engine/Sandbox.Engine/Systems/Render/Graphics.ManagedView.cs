@@ -5,7 +5,7 @@ namespace Sandbox;
 public static partial class Graphics
 {
 	/// <summary>
-	/// A frame drawn outside native's scene views, by the managed scene renderer (Basalt, with
+	/// A frame drawn outside native's scene views, by the managed scene renderer (Borealis, with
 	/// <c>r_managed_scene</c>). A camera's command lists, post processing and UI run against it at native's stages, and ask
 	/// it (<see cref="IFrameView"/>) what they'd ask a native view: the targets being drawn into, the viewport, the camera
 	/// and its frustum, and whether post processing is on.

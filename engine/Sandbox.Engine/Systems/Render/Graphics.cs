@@ -21,15 +21,15 @@ public static partial class Graphics
 	{
 		IsAvailable = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
 
-		// -basaltgpu: the process draws on a Basalt.Gpu device of its own (docs/managed/basalt-gpu-path.md, stage 2)
-		if ( IsAvailable && Sandbox.Utility.CommandLine.HasSwitch( "-basaltgpu" ) && RenderBackend.Default is Source2RenderBackend )
+		// -borealisgpu: the process draws on a Borealis.Gpu device of its own (docs/managed/borealis-gpu-path.md, stage 2)
+		if ( IsAvailable && Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu" ) && RenderBackend.Default is Source2RenderBackend )
 		{
-			var validation = Sandbox.Utility.CommandLine.HasSwitch( "-basaltgpu-validation" );
-			// Progress markers for the device-loss report, unless -basaltgpu-nomarkers
-			var markers = !Sandbox.Utility.CommandLine.HasSwitch( "-basaltgpu-nomarkers" );
-			_basaltGpu = BasaltGpuRenderBackend.Create( validation, m => Log.Info( $"Basalt.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true, markers: markers );
-			RenderBackend.SetDefault( _basaltGpu );
-			Log.Info( $"Rendering on Basalt.Gpu ({_basaltGpu.Device.Adapter.Name}){(validation ? ", validation on" : "")}; memory: {_basaltGpu.Device.DescribeMemory()}" );
+			var validation = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-validation" );
+			// Progress markers for the device-loss report, unless -borealisgpu-nomarkers
+			var markers = !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nomarkers" );
+			_borealisGpu = BorealisGpuRenderBackend.Create( validation, m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true, markers: markers );
+			RenderBackend.SetDefault( _borealisGpu );
+			Log.Info( $"Rendering on Borealis.Gpu ({_borealisGpu.Device.Adapter.Name}){(validation ? ", validation on" : "")}; memory: {_borealisGpu.Device.DescribeMemory()}" );
 		}
 
 		_mipMapGeneratorShader = IsAvailable ? new ComputeShader( "downsample_cs" ) : null;
@@ -39,18 +39,18 @@ public static partial class Graphics
 			Cmaa2Renderer.Initialize();
 	}
 
-	// The process's Basalt.Gpu device, with -basaltgpu
-	static BasaltGpuRenderBackend _basaltGpu;
+	// The process's Borealis.Gpu device, with -borealisgpu
+	static BorealisGpuRenderBackend _borealisGpu;
 
 	internal static void Shutdown()
 	{
 		Cmaa2Renderer.Shutdown();
 
-		if ( _basaltGpu is not null )
+		if ( _borealisGpu is not null )
 		{
 			RenderBackend.SetDefault( null );
-			_basaltGpu.Dispose();
-			_basaltGpu = null;
+			_borealisGpu.Dispose();
+			_borealisGpu = null;
 		}
 
 		IsAvailable = false;
@@ -289,7 +289,7 @@ public static partial class Graphics
 		/// in it asks a view (post processing on, the frustum, binding a render target and going back to the frame's) is
 		/// <paramref name="view"/>'s.
 		/// </summary>
-		internal static Scope CreateOnView( RenderBackend backend, BasaltGpuView view )
+		internal static Scope CreateOnView( RenderBackend backend, BorealisGpuView view )
 		{
 			ThreadSafe.AssertIsMainThread();
 
@@ -300,7 +300,7 @@ public static partial class Graphics
 
 				var managed = backend.BeginBlock();
 				var block = new Scope { _previous = _state, standalone = true, _attributes = managed, _backend = backend };
-				// Its targets are single-sampled (a Basalt.Gpu frame hands over its resolved colour)
+				// Its targets are single-sampled (a Borealis.Gpu frame hands over its resolved colour)
 				_state = new RenderState { active = true, attributes = managed, backend = backend, msaaLevel = MultisampleAmount.MultisampleNone };
 				if ( view is not null )
 				{
@@ -574,7 +574,7 @@ public static partial class Graphics
 				return;
 
 			var view = _state.view;
-			// A Basalt.Gpu block takes a depth target with its colour (a Basalt frame's, which post processing reads); it
+			// A Borealis.Gpu block takes a depth target with its colour (a Borealis frame's, which post processing reads); it
 			// draws to the colour
 			if ( view is null && (value?.ColorTarget is null || (value.DepthTarget is not null && Backend is Source2RenderBackend)) )
 				throw new InvalidOperationException( "Standalone rendering requires a color target without a depth target." );

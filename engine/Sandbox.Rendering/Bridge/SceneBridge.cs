@@ -7,10 +7,10 @@ using Sandbox.VR;
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// Basalt behind the engine's scene renderer seam (<see cref="ISceneRenderer"/>, <c>r_managed_scene</c>): one world mirror per
+/// Borealis behind the engine's scene renderer seam (<see cref="ISceneRenderer"/>, <c>r_managed_scene</c>): one world mirror per
 /// scene world and a render system per camera view. Registered at startup (<see cref="EngineHooks"/>);
-/// <see cref="CameraStages"/> runs camera effects and UI at native hook points. What Basalt doesn't do yet goes to
-/// <see cref="SceneRenderer.Native"/> from here (<see cref="NotYetInBasalt"/>, <see cref="NotYetOnSwapChain"/>).
+/// <see cref="CameraStages"/> runs camera effects and UI at native hook points. What Borealis doesn't do yet goes to
+/// <see cref="SceneRenderer.Native"/> from here (<see cref="NotYetInBorealis"/>, <see cref="NotYetOnSwapChain"/>).
 /// </summary>
 internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 {
@@ -82,11 +82,11 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		public bool IsOrphaned => !Camera.TryGetTarget( out var camera ) || camera.IsDisposed;
 
 		/// <summary>
-		/// On a Basalt.Gpu device (<c>-basaltgpu</c>): what the camera's frame renders into, and that frame handed to the
+		/// On a Borealis.Gpu device (<c>-borealisgpu</c>): what the camera's frame renders into, and that frame handed to the
 		/// engine's drawing on the device for its stages (<see cref="RenderInto"/>).
 		/// </summary>
 		public ViewTarget GpuTarget;
-		public BasaltGpuFrame GpuFrame;
+		public BorealisGpuFrame GpuFrame;
 		public GpuCameraStages GpuStages;
 
 		/// <summary>
@@ -251,7 +251,7 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	}
 
 	/// <summary>
-	/// Make the shaders Basalt's render systems share, at startup: layers otherwise make them as they first render, and the
+	/// Make the shaders Borealis's render systems share, at startup: layers otherwise make them as they first render, and the
 	/// first frames draw differently.
 	/// </summary>
 	public void WarmUp() => RenderSystem.WarmUp();
@@ -270,10 +270,10 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	}
 
 	/// <summary>
-	/// What a view needs that Basalt doesn't do yet, or null when it can render it. Those views render natively, so the switch
+	/// What a view needs that Borealis doesn't do yet, or null when it can render it. Those views render natively, so the switch
 	/// still covers every path, and each is a gap listed in docs/managed/render-paths.md.
 	/// </summary>
-	internal static string NotYetInBasalt( SceneCamera camera, in ViewSetup setup )
+	internal static string NotYetInBorealis( SceneCamera camera, in ViewSetup setup )
 	{
 		if ( !camera.World.IsValid() ) return "a camera without a world";
 
@@ -282,20 +282,20 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 	/// <summary>
 	/// A reflection asked for outside one of our frames: native's planar reflections, which its pipeline sets up for a native
-	/// view while it builds the view's layers. Basalt renders its own frames' reflections (<c>DrawReflection</c>) as their
+	/// view while it builds the view's layers. Borealis renders its own frames' reflections (<c>DrawReflection</c>) as their
 	/// children.
 	/// </summary>
 	bool NativeReflection( in ViewSetup setup ) => setup.Reflection && !(Graphics.IsActive && DrawingOurs);
 
 	/// <summary>
-	/// What a swap chain render needs that Basalt doesn't do yet, or null.
+	/// What a swap chain render needs that Borealis doesn't do yet, or null.
 	/// </summary>
 	static string NotYetOnSwapChain( SceneCamera camera )
 	{
-		// Not yet in Basalt: VR's eyes (per-eye projection and clip bounds, stereo targets, the compositor submit)
+		// Not yet in Borealis: VR's eyes (per-eye projection and clip bounds, stereo targets, the compositor submit)
 		if ( VRSystem.IsActive && camera.TargetEye != StereoTargetEye.None ) return "VR";
 
-		// Upscalers aren't in Basalt yet either, but an upscaled game window stays here: Basalt renders it at full resolution,
+		// Upscalers aren't in Borealis yet either, but an upscaled game window stays here: Borealis renders it at full resolution,
 		// so the switch flips the main view too (the owner's call, 2026-11-09)
 
 		return null;
@@ -337,7 +337,7 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		state.View.ToneMapScalar = state.Stages.BeginFrame( camera, state.View, setup, updateExposure );
 
 		// A top-level view's planar reflection renders first, since it depends on nothing in the view's frame. Not yet on a
-		// Basalt.Gpu device: it renders into engine textures through Source 2's
+		// Borealis.Gpu device: it renders into engine textures through Source 2's
 		if ( parent is null && MirrorContent.Gpu is null ) RenderPlanarReflection( camera, mirror, state, setup );
 		else if ( parent is null ) state.View.ViewAttributes = null;
 		return (mirror, state);
@@ -540,10 +540,10 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		if ( rendering is null || !skyMirror.HasSynced ) skyMirror.Sync( camera, skyboxView: true );
 
 		var skybox = mirror.World.Skybox3D;
-		if ( skybox?.World != skyMirror.World ) skybox = mirror.World.Skybox3D = new Basalt.Skybox3D( skyMirror.World );
+		if ( skybox?.World != skyMirror.World ) skybox = mirror.World.Skybox3D = new Borealis.Skybox3D( skyMirror.World );
 		skybox.Origin = source.Origin;
 		skybox.Scale = source.Scale;
-		skybox.Fog = setup.Fog.HasValue ? setup.Fog.ToBasalt() : camera.EnablePostProcessing ? source.ResolveFog( camera ).ToBasalt() : null;
+		skybox.Fog = setup.Fog.HasValue ? setup.Fog.ToBorealis() : camera.EnablePostProcessing ? source.ResolveFog( camera ).ToBorealis() : null;
 	}
 
 	/// <summary>
@@ -560,7 +560,7 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		view.ZFar = setup.ZFar ?? camera.ZFar;
 		view.ClearColor = setup.ClearColor ?? camera.BackgroundColor;
 		view.CameraAttributes = MirrorContent.Parameters( camera.Attributes );
-		view.Fog = camera.ResolveFog( setup ).ToBasalt();
+		view.Fog = camera.ResolveFog( setup ).ToBorealis();
 
 		// mat_toolsvis overrides camera debug mode (CameraRenderer.Configure).
 		view.ToolsView = camera.ToolsView;
@@ -597,7 +597,7 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		ambient.a = ambient.a.Clamp( 0.0f, 1.0f );
 		view.AmbientLight = ambient;
 
-		view.GradientFog = setup.GradientFog is { } gradientFog ? gradientFog.ToBasalt() : null;
+		view.GradientFog = setup.GradientFog is { } gradientFog ? gradientFog.ToBorealis() : null;
 		view.LightModulators = setup.EnableLightModulators != false;
 		view.Time = setup.Time;
 
@@ -636,15 +636,15 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 	public void Render( SceneCamera camera, SwapChainHandle_t swapChain, Vector2? size, in ViewSetup setup )
 	{
-		// A game window on Basalt.Gpu (-basaltgpu) has no Source 2 swap chain: the camera draws into the window's frame
-		if ( swapChain.self == default && BasaltGpuWindow.Drawing is { } window )
+		// A game window on Borealis.Gpu (-borealisgpu) has no Source 2 swap chain: the camera draws into the window's frame
+		if ( swapChain.self == default && BorealisGpuWindow.Drawing is { } window )
 		{
 			RenderInto( window, camera, size, setup );
 			return;
 		}
 
 		// A camera that only draws UI has no scene: native's UI-only path draws its panels, outside the seam
-		if ( camera.UIOnly || NotYetOnSwapChain( camera ) is not null || NotYetInBasalt( camera, setup ) is not null )
+		if ( camera.UIOnly || NotYetOnSwapChain( camera ) is not null || NotYetInBorealis( camera, setup ) is not null )
 		{
 			SceneRenderer.Native.Render( camera, swapChain, size, setup );
 			return;
@@ -669,30 +669,30 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	}
 
 	/// <summary>
-	/// Whether the process draws on Basalt.Gpu (<c>-basaltgpu</c>): what renders into an engine texture there that isn't a
+	/// Whether the process draws on Borealis.Gpu (<c>-borealisgpu</c>): what renders into an engine texture there that isn't a
 	/// window's camera or a texture render between blocks (<see cref="RenderIntoTexture"/>) - cube captures, a render inside
 	/// a block or with a depth target of the caller's - isn't there yet, and does nothing; drawn on Source 2's device it
-	/// would never reach the texture's copy on Basalt.Gpu.
+	/// would never reach the texture's copy on Borealis.Gpu.
 	/// </summary>
-	static bool OnBasaltGpu => RenderBackend.Default is BasaltGpuRenderBackend;
+	static bool OnBorealisGpu => RenderBackend.Default is BorealisGpuRenderBackend;
 
 	public void RenderToTexture( SceneCamera camera, Texture target, Vector2? size, in ViewSetup setup )
 	{
 		if ( target is null || target.native.IsNull ) return;
 
-		// On Basalt.Gpu, between blocks, on its device
-		if ( RenderBackend.Default is BasaltGpuRenderBackend gpu && !Graphics.IsActive )
+		// On Borealis.Gpu, between blocks, on its device
+		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu && !Graphics.IsActive )
 		{
 			RenderIntoTexture( gpu, camera, target, size ?? target.Size, setup );
 			return;
 		}
 
-		// The rest of Basalt.Gpu's texture renders aren't there yet: drawn natively they'd never reach its copy (OnBasaltGpu)
-		if ( OnBasaltGpu ) return;
+		// The rest of Borealis.Gpu's texture renders aren't there yet: drawn natively they'd never reach its copy (OnBorealisGpu)
+		if ( OnBorealisGpu ) return;
 
 		// Inside a frame (a command list's DrawView, a stage) the view is the frame's child: ours renders it in its own frame,
 		// before what samples it; native's, or a standalone render block, render it natively
-		if ( (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null || NativeReflection( setup ) )
+		if ( (Graphics.IsActive && !DrawingOurs) || NotYetInBorealis( camera, setup ) is not null || NativeReflection( setup ) )
 		{
 			SceneRenderer.Native.RenderToTexture( camera, target, size, setup );
 			return;
@@ -714,23 +714,23 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 	public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, ISceneView parent, in ViewSetup setup, string name, out ViewData viewData )
 	{
-		// On Basalt.Gpu, between blocks, a texture with no depth of the caller's renders on its device
-		if ( RenderBackend.Default is BasaltGpuRenderBackend gpu && !Graphics.IsActive && parent == default && depthTarget is null && target is { native.IsNull: false } )
+		// On Borealis.Gpu, between blocks, a texture with no depth of the caller's renders on its device
+		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu && !Graphics.IsActive && parent == default && depthTarget is null && target is { native.IsNull: false } )
 		{
 			viewData = default;
 			RenderIntoTexture( gpu, camera, target, target.Size, setup );
 			return true;
 		}
 
-		if ( OnBasaltGpu )
+		if ( OnBorealisGpu )
 		{
 			viewData = default;
 			return false;
 		}
 
-		// A native parent's child view (see above), and a caller's depth target that Basalt can't draw into with the colour
+		// A native parent's child view (see above), and a caller's depth target that Borealis can't draw into with the colour
 		// target directly, render natively
-		if ( parent != default || (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null || NativeReflection( setup ) || !CanDrawInto( target, depthTarget ) )
+		if ( parent != default || (Graphics.IsActive && !DrawingOurs) || NotYetInBorealis( camera, setup ) is not null || NativeReflection( setup ) || !CanDrawInto( target, depthTarget ) )
 			return SceneRenderer.Native.RenderToTexture( camera, target, depthTarget, parent, setup, name, out viewData );
 
 		camera.ConfigureView( setup );
@@ -838,8 +838,8 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		if ( bitmap.Width <= 1 || bitmap.Height <= 1 ) return;
 
 		// Native only ever writes 8-bit pixels, whatever the bitmap holds; a float bitmap keeps what it gets now
-		// On Basalt.Gpu too: the pixels come back to the CPU, so Source 2's device can draw them
-		if ( bitmap.BytesPerPixel != 4 || NotYetInBasalt( camera, setup ) is not null || OnBasaltGpu )
+		// On Borealis.Gpu too: the pixels come back to the CPU, so Source 2's device can draw them
+		if ( bitmap.BytesPerPixel != 4 || NotYetInBorealis( camera, setup ) is not null || OnBorealisGpu )
 		{
 			SceneRenderer.Native.RenderToBitmap( camera, bitmap, setup );
 			return;
@@ -866,7 +866,7 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	Texture captureColor, captureDepth;
 
 	/// <summary>
-	/// Render a cube capture (an envmap probe, a DDGI probe): six 90-degree faces, each a Basalt frame of its own submitted in
+	/// Render a cube capture (an envmap probe, a DDGI probe): six 90-degree faces, each a Borealis frame of its own submitted in
 	/// face order, as native's six face views (<c>CCameraRenderer::RenderToCubeTexture</c>). Each face's frame ends by copying it
 	/// into its slice of the cube, and the last then runs <paramref name="afterFaces"/>. A camera with stage hooks of its own
 	/// gets the face so far in its slice before each stage, as native's face draws straight into it. A capture asked for
@@ -874,9 +874,9 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	/// </summary>
 	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null )
 	{
-		if ( cube is null || cube.native.IsNull || OnBasaltGpu ) return;
+		if ( cube is null || cube.native.IsNull || OnBorealisGpu ) return;
 
-		if ( Graphics.IsActive || NotYetInBasalt( camera, setup ) is not null )
+		if ( Graphics.IsActive || NotYetInBorealis( camera, setup ) is not null )
 		{
 			SceneRenderer.Native.RenderToCube( camera, cube, setup, afterFaces );
 			return;

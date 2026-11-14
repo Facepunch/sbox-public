@@ -1,4 +1,4 @@
-// clustered_light_culling_cs.shader as a pass module: Basalt.Gpu draws this; the .shader stays for the other routes
+// clustered_light_culling_cs.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
 // and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
 // HEADER: DevShader = true;
 // HEADER: Description = "Clustered light culling compute shader.";

@@ -258,7 +258,7 @@ public sealed partial class SlangCompiler
 	/// </summary>
 	static readonly Dictionary<string, string> Lightmapped = new() { ["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = "1" };
 
-	/// <summary>GPU-driven passes (<c>sbox/surface_passes.slangh</c>, docs/managed/basalt-gpu-driven.md).</summary>
+	/// <summary>GPU-driven passes (<c>sbox/surface_passes.slangh</c>, docs/managed/borealis-gpu-driven.md).</summary>
 	static readonly Dictionary<string, string> GpuDriven = new() { ["SURFACE_GPU_DRIVEN"] = "1" };
 
 	static Dictionary<string, string> With( Dictionary<string, string> a, Dictionary<string, string> b )
@@ -325,7 +325,7 @@ public sealed partial class SlangCompiler
 		text.Append( "import " ).Append( module ).Append( ";\n\n" );
 		text.Append( "#ifdef SURFACE_GPU_DRIVEN\n" );
 		text.Append( "// What a GPU-driven vertex stage hands the pixel stage: the draw and the vertex's visibility bit, flat, first\n" );
-		text.Append( "struct SurfaceGpuDrivenVertexOutput { nointerpolation uint Draw : BASALT_DRAW; nointerpolation uint VertexBit : BASALT_VERTEX; " ).Append( output ).Append( " o; };\n" );
+		text.Append( "struct SurfaceGpuDrivenVertexOutput { nointerpolation uint Draw : BOREALIS_DRAW; nointerpolation uint VertexBit : BOREALIS_VERTEX; " ).Append( output ).Append( " o; };\n" );
 		text.Append( "struct SurfaceIdsOutput { float4 Color : SV_Target0; uint Id : SV_Target1; };\n" );
 		text.Append( "#endif\n\n" );
 		text.Append( "#if ( PROGRAM == VFX_PROGRAM_VS )\n" );
@@ -373,8 +373,8 @@ public sealed partial class SlangCompiler
 		var text = new StringBuilder();
 		text.Append( "\n#if ( PROGRAM == VFX_PROGRAM_VS )\n" );
 		text.Append( "[shader( \"vertex\" )] SurfaceGpuDrivenVertexOutput MainVsGpuDriven( uint vertex : SV_VulkanVertexID, uint instance : SV_VulkanInstanceID )\n{\n" );
-		text.Append( "\tuint2 record = BasaltGpuDrivenInstance( instance );\n" );
-		text.Append( "\tuint4 draw = BasaltGpuDrivenDraw( record.y );\n" );
+		text.Append( "\tuint2 record = BorealisGpuDrivenInstance( instance );\n" );
+		text.Append( "\tuint4 draw = BorealisGpuDrivenDraw( record.y );\n" );
 		text.Append( "\ts_SurfaceDrawRecord = draw.y;\n" );
 		text.Append( "\tg_bUncompressedTangentFrame = ( draw.w & 1 ) != 0;\n" );
 		text.Append( "\tSurfaceFetchBakedLighting( record.y );\n" );
@@ -394,14 +394,14 @@ public sealed partial class SlangCompiler
 			var isFloat = input.Kind == ScalarKind.Float;
 			var convert = isFloat ? "asfloat" : input.Kind == ScalarKind.Int ? "asint" : "";
 			var swizzle = "xyzw"[..input.Components];
-			text.Append( $"\t{input.Field} = {convert}( BasaltGpuDrivenFetch( draw.x, {usage * 16 + input.SemanticIndex}, vertex, {(isFloat ? "true" : "false")} ) ).{swizzle};\n" );
+			text.Append( $"\t{input.Field} = {convert}( BorealisGpuDrivenFetch( draw.x, {usage * 16 + input.SemanticIndex}, vertex, {(isFloat ? "true" : "false")} ) ).{swizzle};\n" );
 		}
 
 		text.Append( "\tSurfaceGpuDrivenVertexOutput o;\n" );
 		text.Append( interpolated ? $"\to.o = SurfaceOutputWith<{type}>( {vertex}, varyings );\n" : $"\to.o = SurfaceOutput( {vertex} );\n" );
 		text.Append( "\to.o.MaterialOffset = draw.z;\n" );
 		text.Append( "\to.Draw = record.y;\n" );
-		text.Append( "\to.VertexBit = BasaltGpuDrivenVertexBit( instance, vertex );\n" );
+		text.Append( "\to.VertexBit = BorealisGpuDrivenVertexBit( instance, vertex );\n" );
 		text.Append( "\treturn o;\n}\n#endif\n" );
 		return text.ToString();
 	}

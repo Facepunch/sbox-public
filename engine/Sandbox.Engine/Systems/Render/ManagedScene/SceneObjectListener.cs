@@ -69,7 +69,7 @@ internal enum SceneObjectChange
 
 /// <summary>
 /// Told about every change to a <see cref="SceneWorld"/>'s scene objects, as the change is made - so a renderer
-/// that isn't native (Basalt, with <c>r_managed_scene</c>) can keep its own objects in step without
+/// that isn't native (Borealis, with <c>r_managed_scene</c>) can keep its own objects in step without
 /// polling. A world has at most one, in <see cref="SceneWorld.ChangeListener"/>.
 ///
 /// Changes come from any thread - animation updates run in parallel - so an implementation should only record

@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Borealis.Gpu's tests. Everything renders offscreen, so no window is needed; tests that need a GPU are inconclusive
+		on machines without Vulkan 1.3. The sample's scene and shaders are compiled in, so the tests draw what it draws.
+	-->
+
+	<PropertyGroup>
+		<RootNamespace>BorealisGpuTests</RootNamespace>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Borealis.Gpu\Borealis.Gpu.csproj" />
+		<ProjectReference Include="..\..\Borealis.Sdl\Borealis.Sdl.csproj" />
+		<ProjectReference Include="..\..\Borealis.Backend\Borealis.Backend.csproj" />
+		<ProjectReference Include="..\..\Borealis.Source2\Borealis.Source2.csproj" />
+		<ProjectReference Include="..\..\Borealis\Borealis.csproj" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
+		<ProjectReference Include="..\..\Sandbox.ShaderCompiler\Sandbox.ShaderCompiler.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Compile Include="..\..\Launcher\BorealisGpuSample\SampleScene.cs" Link="Sample\SampleScene.cs" />
+		<Compile Include="..\..\Launcher\BorealisGpuSample\BorealisScene.cs" Link="Sample\BorealisScene.cs" />
+		<Compile Include="..\..\Launcher\BorealisLab\Surfaces\*.g.cs" Link="Surfaces\%(Filename)%(Extension)" />
+		<EmbeddedResource Include="..\..\Launcher\BorealisGpuSample\Shaders\*.spv" LogicalName="%(Filename)%(Extension)" WithCulture="false" Link="Sample\%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The engine's SDL3, for the window tests; they're inconclusive without it -->
+		<None Include="..\..\..\game\bin\win64\SDL3.dll" Link="SDL3.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" Condition="Exists('..\..\..\game\bin\win64\SDL3.dll')" />
+		<None Include="..\..\..\game\bin\linuxsteamrt64\libSDL3.so.0" Link="libSDL3.so.0" CopyToOutputDirectory="PreserveNewest" Visible="false" Condition="Exists('..\..\..\game\bin\linuxsteamrt64\libSDL3.so.0')" />
+	</ItemGroup>
+
+</Project>

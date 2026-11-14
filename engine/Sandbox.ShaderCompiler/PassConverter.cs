@@ -18,7 +18,7 @@ public static partial class PassConverter
 	public static string Refuse( string shader )
 	{
 		var blocks = Blocks( shader );
-		if ( blocks.Exists( b => b.Name is "GS" or "HS" or "DS" ) ) return "it has a geometry or tessellation stage, which Basalt.Gpu doesn't draw";
+		if ( blocks.Exists( b => b.Name is "GS" or "HS" or "DS" ) ) return "it has a geometry or tessellation stage, which Borealis.Gpu doesn't draw";
 		if ( !blocks.Exists( b => b.Name is "PS" or "CS" ) ) return "it has no pixel or compute stage";
 		return null;
 	}
@@ -28,7 +28,7 @@ public static partial class PassConverter
 	{
 		var blocks = Blocks( shader );
 		var text = new StringBuilder();
-		text.Append( "// " ).Append( name ).Append( ".shader as a pass module: Basalt.Gpu draws this; the .shader stays for the other routes\n" );
+		text.Append( "// " ).Append( name ).Append( ".shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes\n" );
 		text.Append( "// and as the fallback (docs/managed/shader-format-replacement.md, \"Pass modules\").\n" );
 
 		foreach ( var block in blocks )

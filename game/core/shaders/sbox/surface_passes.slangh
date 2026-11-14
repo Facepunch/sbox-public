@@ -27,21 +27,21 @@ static bool s_SurfaceBackfaceTransmission = false;
 import sbox.surface;
 
 #ifdef SURFACE_GPU_DRIVEN
-// GPU-driven passes (docs/managed/basalt-gpu-driven.md): the draw comes from the instance and draw records, the material
+// GPU-driven passes (docs/managed/borealis-gpu-driven.md): the draw comes from the instance and draw records, the material
 // record from the materials table, at the draw record's offsets
-#include "basalt_gpu_driven.fxc"
+#include "borealis_gpu_driven.fxc"
 #include "baked_lighting_constants.fxc"
 
 static uint s_SurfaceDrawRecord = 0;   // the draw's material record, set by the GPU-driven vertex entry
 uint SurfaceDrawRecord() { return s_SurfaceDrawRecord; }
-T SurfaceRecord<T>( uint offset ) { return g_bindless_VertexBuffers[g_nBasaltMaterials].Load<T>( offset ); }
+T SurfaceRecord<T>( uint offset ) { return g_bindless_VertexBuffers[g_nBorealisMaterials].Load<T>( offset ); }
 
 /// The draw's lightmap constants (statics under SURFACE_GPU_DRIVEN, baked_lighting_constants.fxc) from the start of its
 /// lighting record; the vertex stage reads the uv scale, the pixel stage the texture indices.
 void SurfaceFetchBakedLighting( uint draw )
 {
-	uint baked = ( BasaltGpuDrivenDraw( draw ).w >> 8 ) * 16;
-	ByteAddressBuffer lighting = g_bindless_VertexBuffers[g_nBasaltLighting];
+	uint baked = ( BorealisGpuDrivenDraw( draw ).w >> 8 ) * 16;
+	ByteAddressBuffer lighting = g_bindless_VertexBuffers[g_nBorealisLighting];
 	g_vLightmapUvScale = asfloat( lighting.Load4( baked ) );
 	g_nLightmapTextureIndices = asint( lighting.Load4( baked + 16 ) );
 	g_nLightmapTextureIndices2 = asint( lighting.Load4( baked + 32 ) );
@@ -141,8 +141,8 @@ PixelInput SurfaceVertexDisplaced<S : IVertexSurface>( VertexInput i )
 void SurfaceFetchLighting( uint draw )
 {
 	SurfaceFetchBakedLighting( draw );
-	uint offset = ( BasaltGpuDrivenDraw( draw ).w >> 8 ) * 16 + 48;
-	ByteAddressBuffer lighting = g_bindless_VertexBuffers[g_nBasaltLighting];
+	uint offset = ( BorealisGpuDrivenDraw( draw ).w >> 8 ) * 16 + 48;
+	ByteAddressBuffer lighting = g_bindless_VertexBuffers[g_nBorealisLighting];
 	MatLightProbeVolumeWorldToLocal = transpose( float3x4( asfloat( lighting.Load4( offset ) ), asfloat( lighting.Load4( offset + 16 ) ), asfloat( lighting.Load4( offset + 32 ) ) ) );
 	LightProbeVolumeLayer0TextureMin = asfloat( lighting.Load4( offset + 48 ) );
 	LightProbeVolumeLayer0TextureMax = asfloat( lighting.Load4( offset + 64 ) );

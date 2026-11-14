@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    s&box's rendering integration: native's pipeline layers, and the bridge that renders GameObject scenes through Basalt.
+    s&box's rendering integration: native's pipeline layers, and the bridge that renders GameObject scenes through Borealis.
   -->
 
   <PropertyGroup>
@@ -17,7 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Basalt\Basalt.csproj" Private="false" />
+    <ProjectReference Include="..\Borealis\Borealis.csproj" Private="false" />
     <ProjectReference Include="..\Sandbox.Engine\Sandbox.Engine.csproj" Private="false" />
     <ProjectReference Include="..\Sandbox.System\Sandbox.System.csproj" Private="false" />
   </ItemGroup>

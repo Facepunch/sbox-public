@@ -171,7 +171,7 @@ internal sealed class DevToolsRenderingTab : DevToolsTab
 			? "A frame is picked: the GPU's passes are one captured frame, the soonest after it - GPU results arrive a few frames late. Counters are the last second's"
 			: "GPU times are averaged over the frames captured in the last two seconds; max is the most any of them took" );
 		_context.Set( "Renderer", isManaged ? "managed" : "native", tooltip: isManaged
-			? $"{m.Renders} camera {(m.Renders == 1 ? "frame" : "frames")} through Basalt last frame"
+			? $"{m.Renders} camera {(m.Renders == 1 ? "frame" : "frames")} through Borealis last frame"
 			: ManagedSceneRendering.Enabled ? "r_managed_scene is on, but no camera rendered through it" : "The Source 2 scene system" );
 		_context.Set( "Resolution", $"{Screen.Width:0}x{Screen.Height:0}" );
 		_context.Set( "AA", aa );
