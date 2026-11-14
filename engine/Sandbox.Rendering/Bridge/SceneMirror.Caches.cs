@@ -111,7 +111,16 @@ internal sealed partial class SceneMirror
 		RenderMesh mesh;
 		try
 		{
-			mesh = MirrorContent.Mesh( model ) ?? throw new InvalidOperationException( "No compiled model" );
+			mesh = MirrorContent.Mesh( model, out var pending );
+
+			// Still loading on Basalt.Gpu: nothing is cached, and what draws it is asked again once it's read (CheckLoaded)
+			if ( pending )
+			{
+				loading.Add( model );
+				return null;
+			}
+
+			if ( mesh is null ) throw new InvalidOperationException( "No compiled model" );
 		}
 		catch ( InvalidOperationException )
 		{
@@ -272,6 +281,84 @@ internal sealed partial class SceneMirror
 	readonly HashSet<RenderMesh> staleMeshes = new( ReferenceEqualityComparer.Instance );
 	readonly HashSet<Model> staleFailed = new();
 	readonly List<SceneObject> remake = new();
+
+	// Models loading asynchronously on Basalt.Gpu (MirrorContent.Mesh), and those whose files are now read
+	readonly HashSet<Model> loading = new();
+	readonly HashSet<Model> loaded = new();
+
+	/// <summary>Models loading asynchronously, which what draws them waits for.</summary>
+	public int ModelsLoading => loading.Count;
+
+	// Textures loading asynchronously on Basalt.Gpu (TextureFor), with the object to apply again once each is read
+	readonly List<(string Path, SceneObject Object, SceneObjectChange Change)> textureWaits = new();
+
+	/// <summary>
+	/// A texture an object draws with; on Basalt.Gpu loading asynchronously, null while it loads, and the object is applied
+	/// with <paramref name="change"/> again once it's read.
+	/// </summary>
+	GpuTexture TextureFor( Texture texture, SceneObject sceneObject, SceneObjectChange change )
+	{
+		if ( MirrorContent.Gpu is not { AsyncModels: true } gpu || string.IsNullOrEmpty( texture?.ResourcePath ) ) return MirrorContent.Texture( texture );
+
+		var loaded = gpu.LoadTextureAsync( texture.ResourcePath, out var pending );
+		if ( pending ) textureWaits.Add( (texture.ResourcePath, sceneObject, change) );
+		return loaded;
+	}
+
+	/// <summary>Whether an object waits for a texture (<see cref="TextureFor"/>).</summary>
+	bool TexturesWaiting( SceneObject sceneObject )
+	{
+		foreach ( var wait in textureWaits )
+		{
+			if ( wait.Object == sceneObject ) return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Queue what waits for a model that has finished loading in the background: an object drawing it is asked for its model
+	/// again, an aggregate made again. One whose model still can't be made this frame waits again.
+	/// </summary>
+	void CheckLoaded()
+	{
+		if ( MirrorContent.Gpu is not { } gpu ) return;
+
+		// Textures first: an object waiting on one is applied again once it's read, and asks for it again then
+		for ( int i = textureWaits.Count - 1; i >= 0; i-- )
+		{
+			var (path, sceneObject, change) = textureWaits[i];
+			if ( !gpu.TextureRead( path ) ) continue;
+			textureWaits.RemoveAt( i );
+			if ( sceneObject.IsValid() ) OnChanged( sceneObject, change );
+		}
+
+		if ( loading.Count == 0 ) return;
+
+		foreach ( var model in loading )
+		{
+			if ( !model.IsValid() || gpu.ModelRead( model.ResourcePath ) ) loaded.Add( model );
+		}
+
+		if ( loaded.Count == 0 ) return;
+		loading.ExceptWith( loaded );
+
+		foreach ( var (sceneObject, obj) in objects )
+		{
+			if ( !sceneObject.IsValid() ) continue;
+			if ( obj is MeshObject { Mesh: null } && sceneObject.Model is { } model && loaded.Contains( model ) ) OnChanged( sceneObject, SceneObjectChange.Model );
+			else if ( obj is null && (sceneObject is SceneAggregateObject || sceneObject.GetType() == typeof( SceneObject )) && SceneNative.AggregateModel( sceneObject, out _ ) is { } aggregate && loaded.Contains( aggregate ) ) remake.Add( sceneObject );
+		}
+
+		foreach ( var sceneObject in remake )
+		{
+			Remove( sceneObject );
+			OnChanged( sceneObject, SceneObjectChange.Added );
+		}
+
+		remake.Clear();
+		loaded.Clear();
+	}
 
 	/// <summary>
 	/// After a resource reload (<see cref="Resource.Reloads"/>, editor hot reload or a model compiled again), drop every model

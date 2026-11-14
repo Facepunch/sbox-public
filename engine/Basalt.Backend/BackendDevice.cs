@@ -16,7 +16,7 @@ namespace Basalt.Backend;
 /// content. What it can't do yet (morphs, engine compute shaders with parameters) draws nothing. See
 /// docs/managed/basalt-gpu.md.
 /// </summary>
-public sealed class BackendDevice : GpuDevice, IDisposable
+public sealed partial class BackendDevice : GpuDevice, IDisposable
 {
 	readonly Stopwatch clock = Stopwatch.StartNew();
 	readonly Dictionary<string, GpuTexture> loadedTextures = new( StringComparer.OrdinalIgnoreCase );
@@ -432,17 +432,24 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		lock ( loadedTextures )
 		{
 			if ( loadedTextures.TryGetValue( path, out var texture ) ) return texture;
-			return loadedTextures[path] = Load( path ) ?? Placeholder( path, cube: path.Contains( "cube", StringComparison.OrdinalIgnoreCase ) );
+			var t0 = Stopwatch.GetTimestamp(); // GWDIAG
+			try { return loadedTextures[path] = Load( path ) ?? Placeholder( path, cube: path.Contains( "cube", StringComparison.OrdinalIgnoreCase ) ); }
+			finally { DiagTextures++; DiagTextureTicks += Stopwatch.GetTimestamp() - t0; } // GWDIAG
 		}
 	}
 
 	BackendTexture Load( string path )
 	{
-		// From the content's folders or packages (a map's VPK)
-		var data = Content.TryRead( path );
-		if ( data is null ) return null;
+		// Read ahead on a worker for a model loading asynchronously (LoadModelAsync), else from the content's folders or
+		// packages (a map's VPK)
+		if ( !readTextures.TryRemove( path, out var texture ) )
+		{
+			var data = Content.TryRead( path );
+			if ( data is null ) return null;
+			texture = TextureFile.Read( data );
+		}
 
-		var texture = TextureFile.Read( data );
+		if ( texture is null ) return null;
 		if ( texture.Format == Format.Unknown ) return null;
 
 		var desc = new TextureDesc
@@ -655,10 +662,12 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	GpuMaterial Converted( string path )
 	{
-		if ( surfaces is not { HasConversions: true } || Content.TryRead( path ) is not { } data || ReadMaterial( data ) is not { } file ) return null;
+		if ( surfaces is not { HasConversions: true } ) return null;
+		if ( (readMaterials.TryGetValue( path, out var read ) ? read : Content.TryRead( path ) is { } data ? ReadMaterial( data ) : null) is not { } file ) return null;
 		if ( surfaces.ConversionFor( file.Shader ) is not { } surface || surfaces.Compile( surface ) is not { } compiled ) return null;
 		if ( !ConvertedMaterial.Accepts( compiled, file ) || surfaces.ConvertMaterial?.Invoke( path ) == false ) return null;
 		surfaces.CountConverted( path );
+		readMaterials.TryRemove( path, out _ );
 		return ConvertedMaterial.Create( compiled, file, path, texture => LoadTexture( texture ) );
 	}
 
@@ -709,7 +718,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	BackendMaterial Material( string path, Dictionary<string, float[]> values, string name = null )
 	{
-		var file = Content.TryRead( path ) is { } data ? ReadMaterial( data ) : null;
+		var file = readMaterials.TryRemove( path, out var read ) ? read : Content.TryRead( path ) is { } data ? ReadMaterial( data ) : null;
 		if ( file is null ) return Track( new BackendMaterial( name ?? path, null, null, null, values ) );
 		return Track( new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, Textures( file ), values ) );
 	}
@@ -719,6 +728,11 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// when it isn't built. See <see cref="BackendModel.Load"/>.
 	/// </summary>
 	public RenderMesh LoadModel( string path, ulong? meshGroups = null, int materialGroup = 0 ) => BackendModel.Load( this, path, meshGroups, materialGroup );
+
+	/// <summary>GWDIAG</summary>
+	public static int DiagTextures, DiagModels; // GWDIAG
+	/// <summary>GWDIAG</summary>
+	public static long DiagTextureTicks, DiagModelTicks; // GWDIAG
 
 	/// <summary>The vertex layouts pipelines have been made for, for tests.</summary>
 	internal VertexLayout[] PipelineLayouts
@@ -1292,6 +1306,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		Gpu.BeginFrame();
 		gpuDrivenTables?.BeginFrame();
 		GpuDrivenFrame++;
+		loadFrame++;
 		Poll();
 	}
 

@@ -135,8 +135,12 @@ internal sealed partial class SceneBridge
 	{
 		SceneMirror mirror;
 		CameraState state;
+		var diag0 = System.Diagnostics.Stopwatch.GetTimestamp(); // GWDIAG
+		var (dt0, dtt0, dm0, dmt0) = (Basalt.Backend.BackendDevice.DiagTextures, Basalt.Backend.BackendDevice.DiagTextureTicks, Basalt.Backend.BackendDevice.DiagModels, Basalt.Backend.BackendDevice.DiagModelTicks); // GWDIAG
 		using ( PrepareTiming.Scope() )
 			(mirror, state) = Prepare( camera, setup, size );
+		var diagPrepare = System.Diagnostics.Stopwatch.GetElapsedTime( diag0 ).TotalMilliseconds; // GWDIAG
+		if ( diagPrepare > 50 ) Log.Info( $"GWDIAG slow prepare {diagPrepare:F0} ms: textures {Basalt.Backend.BackendDevice.DiagTextures - dt0} in {(Basalt.Backend.BackendDevice.DiagTextureTicks - dtt0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:F0} ms, models made {Basalt.Backend.BackendDevice.DiagModels - dm0} in {(Basalt.Backend.BackendDevice.DiagModelTicks - dmt0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:F0} ms" ); // GWDIAG
 
 		// Auto exposure is the port on this device: its frame update here, where native's runs, its scale this frame's
 		var exposure = camera.Tonemap?.GpuExposure( backend );
