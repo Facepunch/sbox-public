@@ -41,12 +41,18 @@ public sealed partial class NavMesh
 		foreach ( var (x, y) in bins.Tiles ) MarkDirty( x, y );
 
 		var jobs = new TileJob[64];
+		TriangleBins? wide = null;
 		int failed = 0;
 		while ( true )
 		{
 			int count = TakeJobs( jobs );
 			if ( count == 0 ) break;
-			for ( int i = 0; i < count; i++ ) builder.Build( jobs[i], vertices, bins.Indices( jobs[i].X, jobs[i].Y ).Span );
+			for ( int i = 0; i < count; i++ )
+			{
+				// A tile built beside one that is not looks further for its links.
+				var sorted = jobs[i].Apron ? wide ??= new TriangleBins( settings, vertices, indices, BuildConfig.ApronCells( settings, links ) ) : bins;
+				builder.Build( jobs[i], vertices, sorted.Indices( jobs[i].X, jobs[i].Y ).Span );
+			}
 			failed += Commit( jobs.AsSpan( 0, count ) );
 			for ( int i = 0; i < count && failures != null; i++ )
 			{
@@ -90,7 +96,11 @@ public sealed partial class NavMesh
 	{
 		job.Volumes = VolumesOver( job.X, job.Y, out job.VolumeHash );
 		job.KeepField = KeepFields && job.Volumes.Length > 0;
-		if ( geometryForced ) return;
+		if ( geometryForced )
+		{
+			FindLinks( job );
+			return;
+		}
 
 		records.TryGetValue( (job.X, job.Y), out var record );
 		if ( (record == null && State.Find( job.X, job.Y ) == null) || (record?.VolumeHash ?? 0) == job.VolumeHash )
@@ -99,11 +109,23 @@ public sealed partial class NavMesh
 			return;
 		}
 
-		// Without a field the first volume over a tile has to ask for the triangles once
-		if ( record?.Field == null ) return;
+		// Without a field the first volume over a tile has to ask for the triangles once. They are the
+		// ones the tile was built from: what was found about its links then still stands.
+		if ( record?.Field == null )
+		{
+			if ( !tileLinks.ContainsKey( (job.X, job.Y) ) ) FindLinks( job );
+			return;
+		}
 		job.NeedsGeometry = false;
 		job.Cached = record.Field;
 		job.LastAreaHash = record.AreaHash;
+	}
+
+	void FindLinks( TileJob job )
+	{
+		if ( !links.Enabled ) return;
+		job.FindLinks = true;
+		PrepareLinks( job );
 	}
 
 	// Called at commit for a job that built a tile or found it unchanged.

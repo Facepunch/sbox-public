@@ -23,11 +23,18 @@ internal static class Rasterizer
 	/// </summary>
 	public static void Triangle( SolidField field, in FieldFrame frame, Vector3 v0, Vector3 v1, Vector3 v2, int area, int mergeThreshold )
 	{
+		Triangle( field, frame, v0, v1, v2, area, mergeThreshold, field.Width, field.Height, 0, field.Width );
+	}
+
+	/// <summary>
+	/// The same into a window of the field: w by h cells whose first column is origin, in a field stride
+	/// columns wide. The frame is that of the window.
+	/// </summary>
+	public static void Triangle( SolidField field, in FieldFrame frame, Vector3 v0, Vector3 v1, Vector3 v2, int area, int mergeThreshold, int w, int h, int origin, int stride )
+	{
 		var triangleMin = Vector3.Min( Vector3.Min( v0, v1 ), v2 );
 		var triangleMax = Vector3.Max( Vector3.Max( v0, v1 ), v2 );
 
-		int w = field.Width;
-		int h = field.Height;
 		float cellSize = frame.CellSize;
 		float inverseCellSize = frame.InverseCellSize;
 
@@ -76,8 +83,8 @@ internal static class Rasterizer
 			x0 = Math.Clamp( x0, -1, w - 1 );
 			x1 = Math.Clamp( x1, 0, w - 1 );
 
-			if ( flat ) FlatRow( field, frame, row, rowCount, y * w, x0, x1, flatMin, flatMax, area, mergeThreshold );
-			else SlopedRow( field, frame, row, rowCount, y * w, x0, x1, area, mergeThreshold );
+			if ( flat ) FlatRow( field, frame, row, rowCount, origin + y * stride, x0, x1, flatMin, flatMax, area, mergeThreshold );
+			else SlopedRow( field, frame, row, rowCount, origin + y * stride, x0, x1, area, mergeThreshold );
 		}
 	}
 

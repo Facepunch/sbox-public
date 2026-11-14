@@ -276,7 +276,8 @@ public sealed partial class NavQuery
 	const int IslandCheck = 256;
 
 	/// <summary>
-	/// A* over polygons: cost is distance times the area multiplier, the estimate is 0.999 of the
+	/// A* over polygons: cost is distance times the area multiplier, for a link also times the
+	/// multiplier of its type and plus the penalty of its type. The estimate is 0.999 of the
 	/// straight distance, a hair under it so that rounding never lifts the estimate above the cost that
 	/// is left. When the target turns out to be on another island it is replaced by the nearest
 	/// polygon of the start island and the search starts over, so an unreachable goal does not flood
@@ -399,15 +400,17 @@ public sealed partial class NavQuery
 				ref readonly var link = ref s.Links[attach[e].Link];
 				bool forward = link.StartPoly == id;
 				uint next = forward ? link.EndPoly : link.StartPoly;
-				if ( next == parent || !filter.Allows( link.Def.Area ) ) continue;
+				int type = link.Def.Type;
+				if ( next == parent || !filter.Allows( link.Def.Area ) || !filter.AllowsLink( type ) ) continue;
 				byte area = s.Get( next ).Polys[next & PolyRef.PolyMask].Area;
 				if ( !filter.Allows( area ) ) continue;
 
-				// Walk to the entry on this polygon, then the link itself at the cost of its area.
+				// Walk to the entry on this polygon, pay the penalty of the link's type, then the link
+				// itself at the cost of its area and type.
 				Vector3 entry = forward ? link.StartPoint : link.EndPoint, exit = forward ? link.EndPoint : link.StartPoint;
 				int index = SearchNode( Run( s, next >> PolyRef.PolyBits ) + (int)(next & PolyRef.PolyMask), next, out bool created );
 				if ( created ) Place( index, entry, exit, exit, area );
-				Improve( index, current, cost + Vector3.Distance( position, entry ) * areaCost, entry, filter.Cost( link.Def.Area ), attach[e].Link + 1u );
+				Improve( index, current, cost + Vector3.Distance( position, entry ) * areaCost + filter.LinkPenalty( type ), entry, filter.Cost( link.Def.Area ) * filter.LinkCost( type ), attach[e].Link + 1u );
 			}
 		}
 
@@ -516,16 +519,16 @@ public sealed partial class NavQuery
 	}
 
 	/// <summary>
-	/// The island map of a state for the area mask of the filter, built on first need and kept with the
-	/// state. Finding a map that exists takes no lock. Threads that miss it at the same moment queue
-	/// behind one builder, so a state gets each map once.
+	/// The island map of a state for the area and link type masks of the filter, built on first need
+	/// and kept with the state. Finding a map that exists takes no lock. Threads that miss it at the
+	/// same moment queue behind one builder, so a state gets each map once.
 	/// </summary>
 	internal static IslandMap GetIslands( MeshState s, in NavFilter filter )
 	{
-		ulong forbidden = filter.Forbidden;
+		ulong forbidden = filter.Forbidden, forbiddenLinks = filter.ForbiddenLinks;
 		for ( var map = Volatile.Read( ref s.Islands ); map != null; map = map.Next )
 		{
-			if ( map.Forbidden == forbidden ) return map;
+			if ( map.Forbidden == forbidden && map.ForbiddenLinks == forbiddenLinks ) return map;
 		}
 
 		// Taken only on the miss path, never by a reader that finds the value
@@ -533,9 +536,9 @@ public sealed partial class NavQuery
 		{
 			for ( var map = s.Islands; map != null; map = map.Next )
 			{
-				if ( map.Forbidden == forbidden ) return map;
+				if ( map.Forbidden == forbidden && map.ForbiddenLinks == forbiddenLinks ) return map;
 			}
-			var built = new IslandMap( s, forbidden ) { Next = s.Islands };
+			var built = new IslandMap( s, forbidden, forbiddenLinks ) { Next = s.Islands };
 			Volatile.Write( ref s.Islands, built );
 			return built;
 		}

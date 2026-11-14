@@ -45,7 +45,7 @@ public sealed partial class NavMesh
 
 	int Apply()
 	{
-		if ( changes.Count == 0 && !linksDirty ) return 0;
+		if ( changes.Count == 0 && !linksDirty && relink.Count == 0 && held.Count == 0 ) return 0;
 
 		var old = state;
 		if ( ++commits == 0 )
@@ -121,7 +121,9 @@ public sealed partial class NavMesh
 		if ( indexOwned ) workIndex.Seal();
 		// Link ends snap against the new tiles. Attaching them may still replace tile objects.
 		var links = old.Links;
-		bool linksChanged = linkHigh > 0 && (linksDirty || touched.Count > 0) && ResolveLinks( new MeshState( workPages, workIndex, links, 0, tileCount ), serial, ref links );
+		var next = new MeshState( workPages, workIndex, links, 0, tileCount );
+		if ( relink.Count > 0 || held.Count > 0 ) SettleLinks( next );
+		bool linksChanged = linkHigh > 0 && (linksDirty || touched.Count > 0) && ResolveLinks( next, serial, ref links );
 		linksDirty = false;
 
 		if ( touched.Count > 0 || linksChanged ) Volatile.Write( ref state, new MeshState( workPages, workIndex, links, old.Version + 1, tileCount ) );
@@ -363,6 +365,15 @@ public sealed partial class NavMesh
 		var entry = new LinkEntry { Def = link, StartPoint = link.Start, EndPoint = link.End, StartPoly = PolyRef.NoId, EndPoly = PolyRef.NoId };
 		var half = new Vector3( link.Radius, link.Radius, MathF.Max( link.Radius, settings.AgentClimb ) );
 		snapQuery ??= new NavQuery( this );
+		if ( link.Generated )
+		{
+			// Its ends are over the polygons its tile build found them on, at the height of the ground
+			// there, which is within two climbs of their planes.
+			float reach = 2 * settings.AgentClimb;
+			if ( snapQuery.Under( next, link.Start, link.Start.Z - reach, link.Start.Z + reach, out entry.StartPoly, out float startZ ) ) entry.StartPoint.Z = startZ;
+			if ( snapQuery.Under( next, link.End, link.End.Z - reach, link.End.Z + reach, out entry.EndPoly, out float endZ ) ) entry.EndPoint.Z = endZ;
+			return entry;
+		}
 		if ( snapQuery.Nearest( next, link.Start, half, default, null, 0, out uint start, out var startPoint ) && WithinRadius( startPoint, link.Start, link.Radius ) )
 		{
 			entry.StartPoly = start;

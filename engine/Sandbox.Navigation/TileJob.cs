@@ -22,7 +22,8 @@ public sealed partial class TileJob
 	public int Y { get; internal set; }
 
 	/// <summary>
-	/// Call SetGeometry before building. False for a job that rebuilds from what the mesh kept.
+	/// Call SetGeometry before building. False for a job that rebuilds from what the mesh kept, and for
+	/// one that only judges generated links across tile borders and builds no tile.
 	/// </summary>
 	public bool NeedsGeometry { get; internal set; }
 

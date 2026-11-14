@@ -28,10 +28,10 @@ internal sealed class TriangleBins
 	int[] counts = new int[16];
 	bool[] inside = new bool[16];
 
-	public TriangleBins( in NavSettings settings, ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> soup )
+	public TriangleBins( in NavSettings settings, ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> soup, int apronCells = 0 )
 	{
 		float tile = settings.TileSize * settings.CellSize;
-		float pad = BuildConfig.BorderCells( settings ) * settings.CellSize;
+		float pad = (BuildConfig.BorderCells( settings ) + apronCells) * settings.CellSize;
 		int triangles = soup.Length / 3;
 
 		// First the sizes, then the indices

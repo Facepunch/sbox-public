@@ -84,6 +84,24 @@ internal static class VolumeMarker
 		}
 	}
 
+	/// <summary>
+	/// Whether a world point is inside the volume, as Mark tests the centre of a span.
+	/// </summary>
+	public static bool Contains( in NavVolume volume, Vector3 world )
+	{
+		if ( volume.Shape == VolumeShape.Everything ) return true;
+		if ( !Matrix4x4.Invert( volume.LocalToWorld, out var inverse ) || !Local( volume, out var min, out var max, out float radius ) ) return false;
+		var point = Vector3.Transform( world, inverse );
+		if ( volume.Shape == VolumeShape.Box ) return point.X >= min.X && point.X <= max.X && point.Y >= min.Y && point.Y <= max.Y && point.Z >= min.Z && point.Z <= max.Z;
+
+		var a = volume.A;
+		var axis = (volume.Shape == VolumeShape.Sphere ? a : volume.B) - a;
+		var offset = point - a;
+		float lengthSquared = axis.LengthSquared();
+		float along = lengthSquared > 0 ? Math.Clamp( Vector3.Dot( offset, axis ) / lengthSquared, 0f, 1f ) : 0;
+		return (offset - axis * along).LengthSquared() <= radius * radius;
+	}
+
 	// The local box around the shape, grown by the margin, and the grown radius of a sphere or capsule.
 	// False for a radius that is negative or not a number.
 	static bool Local( in NavVolume volume, out Vector3 min, out Vector3 max, out float radius )

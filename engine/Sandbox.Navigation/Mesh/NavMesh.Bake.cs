@@ -228,11 +228,12 @@ public sealed partial class NavMesh
 	/// cannot be wrong. Keeps nothing of data.
 	/// A bake holds neither volumes nor links: add those of the scene to the new mesh before its first
 	/// TakeJobs. That call compares each tile's volumes with the ones it was baked with and issues a job,
-	/// which asks for geometry, for every tile where they differ.
+	/// which asks for geometry, for every tile where they differ. Generated links are not in a bake
+	/// either: a loaded tile has none until it is built from triangles again.
 	/// </summary>
-	public static NavMesh? Load( ReadOnlySpan<byte> data, NavCodec codec = default, bool keepFields = true )
+	public static NavMesh? Load( ReadOnlySpan<byte> data, NavCodec codec = default, bool keepFields = true, NavLinkSettings links = default )
 	{
-		if ( !TryReadSettings( data, out var settings ) ) return null;
+		if ( !TryReadSettings( data, out var settings ) || !links.IsValid( settings, out _ ) ) return null;
 		int count = BinaryPrimitives.ReadInt32LittleEndian( data[48..] );
 		if ( count < 0 || count > PolyRef.MaxTiles || HeaderBytes + (long)count * MinTileBytes > data.Length ) return null;
 
@@ -256,7 +257,7 @@ public sealed partial class NavMesh
 		}
 		if ( reader.Left != 0 ) return null;
 
-		var mesh = new NavMesh( settings, codec, keepFields );
+		var mesh = new NavMesh( settings, codec, keepFields, links );
 		mesh.CommitTiles( tiles );
 		mesh.SetVolumeHashes( tiles, hashes );
 		return mesh;

@@ -4,7 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Nav.Lib.Tests.Docs;
 
 /// <summary>
-/// The three examples of the library's README.md, compiled and run. The example code is kept as the README has
+/// The four examples of the library's README.md, compiled and run. The example code is kept as the README has
 /// it; what is added around it are the checks. Change one, change the other.
 /// </summary>
 [TestClass]
@@ -36,6 +36,97 @@ public class ReadmeExamples
 		var settings = mesh.Settings;
 		var halfExtents = new Vector3( 2.1f * settings.AgentRadius, 2.1f * settings.AgentRadius, 1.51f * settings.AgentHeight );
 		return new NavQuery( mesh ).FindPath( new Vector3( 5, 5, 0 ), new Vector3( 45, 5, 0 ), halfExtents, default, path );
+	}
+
+	[TestMethod]
+	public void GeneratedLinks()
+	{
+		// Metres. A loading dock 2 high along one side of a yard: its top, the yard, the face between them.
+		Vector3[] dockVertices =
+		[
+			new( 0, 0, 2 ), new( 8, 0, 2 ), new( 8, 20, 2 ), new( 0, 20, 2 ),
+			new( 8, 0, 0 ), new( 20, 0, 0 ), new( 20, 20, 0 ), new( 8, 20, 0 ),
+			new( 8, 0, 0 ), new( 8, 20, 0 ), new( 8, 20, 2 ), new( 8, 0, 2 ),
+		];
+		int[] dockIndices = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11];
+
+		// The link types are the caller's numbers: what a filter forbids or prices generated links by.
+		const byte drop = 1, jump = 2;
+		var settings = NavSettings.Create( agentHeight: 1.8f, agentRadius: 0.4f, agentClimb: 0.4f, agentMaxSlope: 45, cellSize: 0.1f, cellHeight: 0.1f );
+		var links = new NavLinkSettings { MaxDrop = 3, MaxJumpDistance = 2, MaxJumpUp = 0.5f, DropType = drop, JumpType = jump, Insert = true };
+		var mesh = new NavMesh( settings, links: links );
+		mesh.Build( new NavBuilder(), dockVertices, dockIndices );
+
+		// For drawing: the generated links, apart from those placed by hand.
+		var ids = new List<int>();
+		mesh.GetGeneratedLinks( ids );
+		foreach ( int id in ids )
+		{
+			mesh.GetLink( id, out var link, out _ );
+			Console.WriteLine( $"{(link.Type == drop ? "drop" : "jump")} from {link.Start} to {link.End}" );
+		}
+
+		// Off the dock into the yard. A traveller that may not drop gets as far as the edge.
+		var query = new NavQuery( mesh );
+		var path = new NavPath();
+		var halfExtents = new Vector3( 2.1f * settings.AgentRadius, 2.1f * settings.AgentRadius, 1.51f * settings.AgentHeight );
+		Vector3 onTheDock = new( 4, 10, 2 ), inTheYard = new( 15, 10, 0 );
+		var down = query.FindPath( onTheDock, inTheYard, halfExtents, default, path );
+		var careful = query.FindPath( onTheDock, inTheYard, halfExtents, new NavFilter( 0, forbiddenLinks: 1ul << drop ), path );
+		var up = query.FindPath( inTheYard, onTheDock, halfExtents, default, path );
+
+		Assert.AreEqual( PathStatus.Complete, down );
+		Assert.AreEqual( PathStatus.Partial, careful );
+		Assert.AreEqual( PathStatus.Partial, up );
+		Assert.IsTrue( ids.Count >= 8 && ids.Count <= 13, $"{ids.Count} links" );
+		foreach ( int id in ids )
+		{
+			Assert.IsTrue( mesh.GetLink( id, out var link, out bool generated ) && generated );
+			Assert.AreEqual( drop, link.Type );
+			Assert.IsFalse( link.Bidirectional );
+			Assert.IsTrue( link.Start.X < 8 && link.End.X > 8 && link.Start.Z > 1.9f && link.End.Z < 0.2f );
+		}
+		Assert.AreEqual( 0, mesh.LinksRefused );
+		Assert.IsTrue( jump != drop );
+
+		// Example: generated links an engine keeps as its own objects.
+		var reported = new NavMesh( settings, links: links with { Insert = false } );
+		reported.Build( new NavBuilder(), dockVertices, dockIndices );
+
+		// Per tile, the link objects the engine made and the id each got from AddLink.
+		var objects = new Dictionary<(int X, int Y), List<(NavLink Link, int Id)>>();
+		var changed = new List<(int X, int Y)>();
+		var now = new List<NavLink>();
+
+		// After every Commit of jobs:
+		reported.TakeLinkChanges( changed );
+		foreach ( var tile in changed )
+		{
+			now.Clear();
+			reported.GetGeneratedLinks( tile.X, tile.Y, now );
+			if ( !objects.TryGetValue( tile, out var had ) ) objects[tile] = had = [];
+
+			// Gone from the tile's set: destroy the object. New in it: create one. The rest is left alone.
+			for ( int i = had.Count - 1; i >= 0; i-- )
+			{
+				if ( now.Contains( had[i].Link ) ) continue;
+				reported.RemoveLink( had[i].Id );
+				had.RemoveAt( i );
+			}
+			foreach ( var link in now )
+			{
+				if ( !had.Exists( o => o.Link == link ) ) had.Add( (link, reported.AddLink( link )) );
+			}
+		}
+		changed.Clear();
+		reported.Commit();
+
+		Assert.AreEqual( ids.Count, objects.Values.Sum( o => o.Count ) );
+		Assert.AreEqual( 0, reported.GetGeneratedLinks( new List<int>() ) );
+		var theirs = new NavQuery( reported );
+		Assert.AreEqual( PathStatus.Complete, theirs.FindPath( onTheDock, inTheYard, halfExtents, default, path ) );
+		Assert.AreEqual( PathStatus.Partial, theirs.FindPath( onTheDock, inTheYard, halfExtents, new NavFilter( 0, forbiddenLinks: 1ul << drop ), path ) );
+		Assert.AreEqual( 0, reported.TakeLinkChanges( changed ) );
 	}
 
 	[TestMethod]

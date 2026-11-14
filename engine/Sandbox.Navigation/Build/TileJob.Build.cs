@@ -19,4 +19,21 @@ public sealed partial class TileJob
 	internal CachedField? Field;
 	internal ulong AreaHash;
 	internal int TrianglesUsed, TrianglesRejected;
+
+	// Links: whether the build looks for them, whether it rasterises an apron, because a tile around this one is not built with it,
+	// the edge points of those tiles with the frames they are packed in, and whether the solid spans go
+	// to the mesh, because a tile around is still to be built or holds its own.
+	internal bool FindLinks, Apron, KeepSolid;
+	internal (EdgePoint[] Points, FieldFrame Frame, int X, int Y)[] Around = [];
+
+	// What the builder leaves for the mesh about links.
+	internal LinkSet? Found;
+	internal HeldField? Solid;
+
+	// One job at a time also judges the links across tile borders of the tiles named here, on the mesh
+	// as it was when the job was taken: the first job of a TakeJobs, or one that does nothing else when
+	// no tile is dirty.
+	internal SeamTask[]? Seams;
+	internal MeshState? SeamState;
+	internal bool SeamsOnly;
 }

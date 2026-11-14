@@ -22,7 +22,8 @@ public class TileTests
 	public void PolyRefSplitsSlotAndPolygonAtOnePlace()
 	{
 		Assert.AreEqual( 32, PolyRef.SlotBits + PolyRef.PolyBits );
-		Assert.AreEqual( 262143, PolyRef.MaxTiles );
+		Assert.AreEqual( 262140, PolyRef.MaxTiles );
+		Assert.AreEqual( 65535, PolyRef.MaxLinks );
 		Assert.AreEqual( 16383, PolyRef.MaxPolys );
 
 		var poly = new PolyRef( 7, 5u << PolyRef.PolyBits | 9 );
@@ -33,6 +34,13 @@ public class TileTests
 		var link = PolyRef.ForLink( 3, 12 );
 		Assert.IsTrue( link.IsLink );
 		Assert.AreEqual( 12, link.Link );
+		// The top four slots are links: 16 bits of id, and the last tile slot is not one.
+		var high = PolyRef.ForLink( 3, PolyRef.MaxLinks - 1 );
+		Assert.IsTrue( high.IsLink );
+		Assert.AreEqual( 65534, high.Link );
+		Assert.AreNotEqual( PolyRef.NoId, high.Id );
+		var lastTile = new PolyRef( 1, (uint)(PolyRef.MaxTiles - 1) << PolyRef.PolyBits | PolyRef.PolyMask );
+		Assert.IsFalse( lastTile.IsLink );
 		Assert.IsTrue( default( PolyRef ).IsNone );
 		Assert.IsFalse( default( PolyRef ).IsLink );
 	}

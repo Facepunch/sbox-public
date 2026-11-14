@@ -124,9 +124,9 @@ public sealed partial class NavQuery
 		return FindPath( s, startPoly.Id, start, endPoly.Id, end, filter, path );
 	}
 
-	PathStatus FindPath( MeshState s, uint from, Vector3 start, uint to, Vector3 end, in NavFilter filter, NavPath path )
+	PathStatus FindPath( MeshState s, uint from, Vector3 start, uint to, Vector3 end, in NavFilter filter, NavPath path, int maxExpansions = int.MaxValue )
 	{
-		var status = SearchCorridor( s, from, start, to, ref end, filter, ref path.polys, out int count );
+		var status = SearchCorridor( s, from, start, to, ref end, filter, ref path.polys, out int count, maxExpansions );
 		if ( status == PathStatus.NotFound )
 		{
 			path.Clear( PathStatus.NotFound );
@@ -153,9 +153,9 @@ public sealed partial class NavQuery
 
 	// Searches and writes the corridor. On a partial path end becomes the point of the last polygon
 	// nearest to it.
-	PathStatus SearchCorridor( MeshState s, uint from, Vector3 start, uint to, ref Vector3 end, in NavFilter filter, ref PolyRef[] corridor, out int count )
+	PathStatus SearchCorridor( MeshState s, uint from, Vector3 start, uint to, ref Vector3 end, in NavFilter filter, ref PolyRef[] corridor, out int count, int maxExpansions = int.MaxValue )
 	{
-		Search( s, from, to, start, end, filter, int.MaxValue );
+		Search( s, from, to, start, end, filter, maxExpansions );
 		count = Corridor( s, searchEnd, ref corridor, 0 );
 		if ( count == 0 ) return PathStatus.NotFound;
 		uint last = corridor[count - 1].Id;

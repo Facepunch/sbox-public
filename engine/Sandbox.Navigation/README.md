@@ -21,7 +21,7 @@ Z is up, always; a Y-up engine swaps at its boundary. Every distance is in the c
 derives from `NavSettings`, the agent or a time horizon. One mesh has one agent radius, height and climb; agents of
 very different sizes need a mesh each.
 
-How the engine uses it is in `docs/reference/simulation.md`. The three examples below are compiled and run as
+How the engine uses it is in `docs/reference/simulation.md`. The four examples below are compiled and run as
 tests in `engine/Tests/Sandbox.Test.Navigation/Docs/ReadmeExamples.cs`; change one, change the other.
 
 ## Example: a static level and a path
@@ -212,6 +212,103 @@ a crowd this small runs on the calling thread. An id is reused after `Remove`: a
 `generation` checks `crowd.States[id].Generation == generation` and that the status is not `Free`. Every `NavCrowd`
 call happens on one thread and never during a `Step`; a mesh `Commit` during a step is harmless.
 
+## Example: generated links
+
+Drops off ledges and jumps across gaps, found by the tile builds themselves. Off unless the mesh is given
+`NavLinkSettings`. With `Insert` the mesh adds them as links of its own, as here; without, it reports them and the
+caller adds them (next example).
+
+```csharp
+using System.Numerics;
+using Nav;
+
+// Metres. A loading dock 2 high along one side of a yard: its top, the yard, the face between them.
+Vector3[] dockVertices =
+[
+	new( 0, 0, 2 ), new( 8, 0, 2 ), new( 8, 20, 2 ), new( 0, 20, 2 ),
+	new( 8, 0, 0 ), new( 20, 0, 0 ), new( 20, 20, 0 ), new( 8, 20, 0 ),
+	new( 8, 0, 0 ), new( 8, 20, 0 ), new( 8, 20, 2 ), new( 8, 0, 2 ),
+];
+int[] dockIndices = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11];
+
+// The link types are the caller's numbers: what a filter forbids or prices generated links by.
+const byte drop = 1, jump = 2;
+var settings = NavSettings.Create( agentHeight: 1.8f, agentRadius: 0.4f, agentClimb: 0.4f, agentMaxSlope: 45, cellSize: 0.1f, cellHeight: 0.1f );
+var links = new NavLinkSettings { MaxDrop = 3, MaxJumpDistance = 2, MaxJumpUp = 0.5f, DropType = drop, JumpType = jump, Insert = true };
+var mesh = new NavMesh( settings, links: links );
+mesh.Build( new NavBuilder(), dockVertices, dockIndices );
+
+// For drawing: the generated links, apart from those placed by hand.
+var ids = new List<int>();
+mesh.GetGeneratedLinks( ids );
+foreach ( int id in ids )
+{
+	mesh.GetLink( id, out var link, out _ );
+	Console.WriteLine( $"{(link.Type == drop ? "drop" : "jump")} from {link.Start} to {link.End}" );
+}
+
+// Off the dock into the yard. A traveller that may not drop gets as far as the edge.
+var query = new NavQuery( mesh );
+var path = new NavPath();
+var halfExtents = new Vector3( 2.1f * settings.AgentRadius, 2.1f * settings.AgentRadius, 1.51f * settings.AgentHeight );
+Vector3 onTheDock = new( 4, 10, 2 ), inTheYard = new( 15, 10, 0 );
+var down = query.FindPath( onTheDock, inTheYard, halfExtents, default, path );
+var careful = query.FindPath( onTheDock, inTheYard, halfExtents, new NavFilter( 0, forbiddenLinks: 1ul << drop ), path );
+var up = query.FindPath( inTheYard, onTheDock, halfExtents, default, path );
+```
+
+`down` is `Complete` and crosses one of the drops, spaced two agent diameters apart along the dock; `careful` and
+`up` are `Partial`: a drop is one way, and a jump back up comes beside it only where the ledge is no higher than
+`MaxJumpUp`, which 2 is not. Generated links are ordinary links to
+queries and the crowd, with `NavLink.Type` set to `DropType` or `JumpType`. They follow the mesh: a tile built again
+from triangles finds its links again, a blocking volume takes out the links it stands on or in the way of and gives
+them back when it leaves, without triangles.
+
+## Example: generated links an engine keeps as its own objects
+
+An engine whose links are objects of its own (a component, an entity) leaves `Insert` off. The mesh then adds
+nothing: after each `Commit` it says which tiles' generated links changed, and the engine makes its objects match
+and adds them with `AddLink` like any link placed by hand.
+
+```csharp
+var reported = new NavMesh( settings, links: links with { Insert = false } );
+reported.Build( new NavBuilder(), dockVertices, dockIndices );
+
+// Per tile, the link objects the engine made and the id each got from AddLink.
+var objects = new Dictionary<(int X, int Y), List<(NavLink Link, int Id)>>();
+var changed = new List<(int X, int Y)>();
+var now = new List<NavLink>();
+
+// After every Commit of jobs:
+reported.TakeLinkChanges( changed );
+foreach ( var tile in changed )
+{
+	now.Clear();
+	reported.GetGeneratedLinks( tile.X, tile.Y, now );
+	if ( !objects.TryGetValue( tile, out var had ) ) objects[tile] = had = [];
+
+	// Gone from the tile's set: destroy the object. New in it: create one. The rest is left alone.
+	for ( int i = had.Count - 1; i >= 0; i-- )
+	{
+		if ( now.Contains( had[i].Link ) ) continue;
+		reported.RemoveLink( had[i].Id );
+		had.RemoveAt( i );
+	}
+	foreach ( var link in now )
+	{
+		if ( !had.Exists( o => o.Link == link ) ) had.Add( (link, reported.AddLink( link )) );
+	}
+}
+changed.Clear();
+reported.Commit();
+```
+
+A reported link is plain `NavLink` data with the type set, its ends on the polygons it joins and a radius of a
+cell, so `AddLink` connects it to those polygons. A tile's set comes in a fixed order and with the same values for
+the same mesh: compare old and new by value, as above. A tile that is built again and finds the same links is not
+reported as changed. Links the caller adds are never counted as a way on foot, so adding the reported links back
+does not make the generator drop them.
+
 ## Things that are easy to miss
 
 **Geometry**
@@ -224,8 +321,8 @@ call happens on one thread and never during a `Step`; a mesh `Commit` during a s
   commit removes the tile. Building without `SetGeometry` ends `Failed` and keeps the old tile, which is the right
   answer for a game shipped without its source geometry. A non-finite vertex or an index out of range fails the
   whole tile; only `NavMesh.Build` filters such triangles out.
-- `BoundsMin` and `BoundsMax` include a border of the agent radius plus three cells around the tile, and are
-  unbounded in Z unless the job's `MinZ` and `MaxZ` are set. Triangle binning is the engine's; the library's own is
+- `BoundsMin` and `BoundsMax` include a border of the agent radius plus three cells around the tile (more for
+  some jobs when links are generated, see below), and are unbounded in Z unless the job's `MinZ` and `MaxZ` are set. Triangle binning is the engine's; the library's own is
   internal to `NavMesh.Build`.
 - `GetStats().TrianglesUsed` and `TrianglesRejected` are running totals over every build from triangles, not a
   count of what the mesh holds now.
@@ -273,6 +370,44 @@ call happens on one thread and never during a `Step`; a mesh `Commit` during a s
 - `workers` only sizes scratch; threads come from `Step`'s `run` hook, which must call `body( i )` for every `i`
   below `count` and return when all have returned. Small crowds never call it.
 
+**Generated links**
+
+- With `NavLinkSettings` left at its default nothing is generated and a build does what it does without. Any of
+  `MaxDrop` and `MaxJumpDistance` above 0 turns generation on; `MaxJumpDistance` plus two agent diameters must fit
+  in a tile, or the constructor throws.
+- The type says what the agent does. A drop is one way. A ledge no higher than `MaxJumpUp` also gets a one-way
+  jump from below up onto it, so a filter can allow down and forbid up. A jump is two-way when its ends are within
+  `MaxJumpUp` of each other in height, else one way towards the lower end. Links go straight out from
+  an edge: a landing that lies to the side of every edge facing it gets none.
+- A link is found on the height field of a tile build: the agent's body must fit along the way, over its width less
+  a cell on each side, level out and straight down for a drop, along `NavLinkSettings.JumpHeight` for a jump. A way
+  that is no more than four times as long on foot gets no link. Hand-placed links do not count as a way on foot and
+  hide nothing.
+- Links across a tile border need both tiles. While tiles around a built tile are still dirty the mesh holds the
+  tile's solid spans (`TakeJobs` hands dirty tiles out row by row for that reason, and beyond 1,024 held fields the
+  oldest are let go early), so commit often during a generation: what is held grows with the jobs per commit. A tile built
+  beside tiles that are not being rebuilt asks for triangles from further out instead: `BoundsMin` and `BoundsMax`
+  of such a job are wider by the reach of a link, and the engine must honour them.
+- Judging the links across borders is work for a worker too. It rides on the first job of a `TakeJobs`; when no
+  tile is dirty, `TakeJobs` hands out a job that builds no tile and needs no geometry (`Unchanged` once built).
+  Build and commit it like any other. Until it is back its tiles count in `PendingTiles` and `IsPending`, so a
+  loop that runs until nothing is pending does the right thing, and one that stops when no tile is dirty stops a
+  job too early: the last links across borders are then missing and their spans stay held.
+- `NavLinkSettings.Insert` decides who owns them. On: the mesh adds them as links of its own;
+  `GetGeneratedLinks( ids )` and `GetLink` tell them from the caller's, `SetLink` throws for a generated id and
+  `RemoveLink` ignores it, their ids change when a tile's links change and a rebuild that finds the same links keeps
+  them. They share the 65,535 link ids with the caller's: one that finds no free id is left out and counted in
+  `LinksRefused`, and the next build of its tile tries again. Off: the mesh adds nothing, uses no ids, and
+  `LinksRefused` stays 0.
+- Either way `GetGeneratedLinks( tileX, tileY, list )` gives a tile's links that are good as of the last `Commit`.
+  With `Insert` off, `TakeLinkChanges` gives the tiles whose set changed since it was last called (with it on the
+  mesh keeps no such list). Both belong to the owner thread. A
+  tile whose links across a border are still to be judged reports them once the tiles around it are in; a tile that
+  is being built again keeps reporting what it had until the new links are made.
+- A bake does not hold generated links. `Load` takes the link settings for later builds; a loaded tile has no
+  generated links, and reports none, until it is built from triangles again. An engine that saves its link objects
+  with the scene has them after a load without generating.
+
 **Bakes**
 
 - A bake is for start-up time on large maps: it saves generating the mesh at load. A level that generates in a
@@ -297,8 +432,8 @@ call happens on one thread and never during a `Step`; a mesh `Commit` during a s
 | Tile size | 32 to 1,024 cells, a multiple of 16 |
 | Agent | radius up to 127 cells; height and climb up to 32,767 cell heights |
 | One tile | 16,383 polygons, 65,535 vertices, geometry up to 65,533 cell heights tall |
-| Loaded tiles | 262,143 |
-| Links | 16,384 |
+| Loaded tiles | 262,140 |
+| Links | 65,535, generated ones included |
 | Area ids | 0 to 63 |
 | Bake | 2 GB |
 

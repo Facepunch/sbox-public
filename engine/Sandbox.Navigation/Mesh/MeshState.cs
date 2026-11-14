@@ -76,7 +76,7 @@ internal sealed class MeshState
 	{
 		if ( !entry.IsLink ) return TryGet( entry, out var tile, out int poly ) && filter.Allows( tile.Polys[poly].Area );
 		int id = entry.Link;
-		return (uint)id < (uint)Links.Length && Links[id].Serial == entry.Serial && Links[id].Connected && filter.Allows( Links[id].Def.Area );
+		return (uint)id < (uint)Links.Length && Links[id].Serial == entry.Serial && Links[id].Connected && filter.Allows( Links[id].Def.Area ) && filter.AllowsLink( Links[id].Def.Type );
 	}
 }
 

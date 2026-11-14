@@ -16,10 +16,14 @@ public sealed partial class NavMesh
 	}
 
 	readonly Dictionary<(int X, int Y), Mark> marks = new();
-	// In the order tiles became dirty. A dirty tile without a job has at least one entry; an entry for
-	// anything else is skipped when it comes up.
-	readonly Queue<(int X, int Y)> dirtyQueue = new();
+	// In the order tiles became dirty, from dirtyHead on. A dirty tile without a job has at least one
+	// entry; an entry for anything else is skipped when it comes up. With links, the tiles that became
+	// dirty between two TakeJobs are handed out row by row, so that a generation holds the solid spans
+	// of two rows of tiles and not of all of them: dirtySorted is where the tiles not yet sorted begin.
+	readonly List<(int X, int Y)> dirtyQueue = new();
+	int dirtyHead, dirtySorted;
 	readonly List<TileJob> published = new();
+	readonly List<(int X, int Y)> arrived = new();
 
 	const byte LinkFree = 0, LinkUsed = 1, LinkDirty = 2, LinkRemoved = 3;
 
@@ -27,17 +31,21 @@ public sealed partial class NavMesh
 	byte[] linkStatus = [];
 	int linkHigh;
 	bool linksDirty;
+	// Ids below linkHigh that are free or removed, lowest first.
+	readonly PriorityQueue<int, int> freeLinks = new();
 
 	/// <summary>
-	/// Tiles that are dirty or have a job in flight. Owner thread.
+	/// Tiles that are dirty or have a job in flight, and those whose links across a tile border a job is
+	/// still to judge. Owner thread.
 	/// </summary>
-	public int PendingTiles => marks.Count;
+	public int PendingTiles => marks.Count + seamsDue;
 
 	/// <summary>
-	/// Whether this tile is dirty or has a job in flight. False once every change made to it so far has
-	/// been built and committed, or failed. Owner thread.
+	/// Whether this tile is dirty, has a job in flight or has links across its borders still to be
+	/// judged. False once every change made to it so far has been built and committed, or failed.
+	/// Owner thread.
 	/// </summary>
-	public bool IsPending( int tileX, int tileY ) => marks.ContainsKey( (tileX, tileY) );
+	public bool IsPending( int tileX, int tileY ) => marks.ContainsKey( (tileX, tileY) ) || SeamsPending( (tileX, tileY) );
 
 	/// <summary>
 	/// Geometry changed inside this box: every tile it can affect is rebuilt by the next jobs.
@@ -68,7 +76,7 @@ public sealed partial class NavMesh
 		if ( mark.Dirty ) return;
 		mark.Dirty = true;
 		// A tile in flight is queued again when its job comes back.
-		if ( mark.InFlight == null ) dirtyQueue.Enqueue( (tileX, tileY) );
+		if ( mark.InFlight == null ) dirtyQueue.Add( (tileX, tileY) );
 	}
 
 	/// <summary>
@@ -78,6 +86,7 @@ public sealed partial class NavMesh
 	{
 		changes.Add( new( tileX, tileY, null, null ) );
 		TileRemoved( tileX, tileY );
+		LinksRemoved( (tileX, tileY) );
 		ref var mark = ref CollectionsMarshal.GetValueRefOrNullRef( marks, (tileX, tileY) );
 		if ( Unsafe.IsNullRef( ref mark ) ) return;
 		mark.Dirty = mark.NeedsGeometry = false;
@@ -88,17 +97,28 @@ public sealed partial class NavMesh
 	/// <summary>
 	/// Hands out jobs for dirty tiles, oldest first, at most one in flight per tile. Returns how many.
 	/// A tile that is marked again while its job is in flight gets its next job after that one has been
-	/// committed.
+	/// committed. With generated links, one job at a time also judges links across tile borders; when no
+	/// tile is dirty that is a job that builds no tile and needs no geometry, built and committed like
+	/// the others.
 	/// </summary>
 	public int TakeJobs( Span<TileJob> jobs )
 	{
 		CheckLoadedTiles();
 		int count = 0;
 		float border = BorderCells * settings.CellSize;
-		while ( count < jobs.Length && dirtyQueue.TryDequeue( out var at ) )
+		var seams = jobs.Length > 0 ? TakeSeams() : null;
+		if ( links.Enabled && dirtySorted < dirtyQueue.Count )
 		{
+			dirtySorted = Math.Max( dirtySorted, dirtyHead );
+			dirtyQueue.Sort( dirtySorted, dirtyQueue.Count - dirtySorted, RowOrder );
+			dirtySorted = dirtyQueue.Count;
+		}
+		while ( count < jobs.Length && dirtyHead < dirtyQueue.Count )
+		{
+			var at = dirtyQueue[dirtyHead++];
 			ref var mark = ref CollectionsMarshal.GetValueRefOrNullRef( marks, at );
-			if ( Unsafe.IsNullRef( ref mark ) || !mark.Dirty || mark.InFlight != null ) continue;
+			// The tile a job that judges links is named after waits for it: one job in flight per tile.
+			if ( Unsafe.IsNullRef( ref mark ) || !mark.Dirty || mark.InFlight != null || (seamJob is { SeamsOnly: true } && at == (seamJob.X, seamJob.Y)) ) continue;
 
 			var job = new TileJob
 			{
@@ -121,9 +141,21 @@ public sealed partial class NavMesh
 			mark.Dirty = mark.NeedsGeometry = false;
 			mark.InFlight = job;
 			jobs[count++] = job;
+
+			// The first job takes the judging of links across borders along.
+			if ( seams == null ) continue;
+			(job.Seams, job.SeamState, seamJob, seams) = (seams, State, job, null);
+		}
+		if ( seams != null ) jobs[count++] = seamJob = new TileJob { X = seams[0].X, Y = seams[0].Y, Mesh = this, Seams = seams, SeamState = State, SeamsOnly = true };
+		if ( dirtyHead == dirtyQueue.Count )
+		{
+			dirtyQueue.Clear();
+			dirtyHead = dirtySorted = 0;
 		}
 		return count;
 	}
+
+	static readonly Comparer<(int X, int Y)> RowOrder = Comparer<(int X, int Y)>.Create( static ( a, b ) => a.Y != b.Y ? a.Y.CompareTo( b.Y ) : a.X.CompareTo( b.X ) );
 
 	/// <summary>
 	/// Publishes built jobs, pending tile removals and link changes in one state swap. Returns the number
@@ -139,11 +171,17 @@ public sealed partial class NavMesh
 		foreach ( var job in jobs )
 		{
 			var at = (job.X, job.Y);
+			if ( job.Mesh == this && job == seamJob )
+			{
+				SeamsJudged( job );
+				if ( job.SeamsOnly ) continue;
+			}
 			ref var mark = ref CollectionsMarshal.GetValueRefOrNullRef( marks, at );
 			if ( job.Mesh != this || Unsafe.IsNullRef( ref mark ) || mark.InFlight != job ) continue;
 			mark.InFlight = null;
 
 			var status = job.Status;
+			if ( links.Enabled && status is not (TileJobStatus.Pending or TileJobStatus.NeedsGeometry) ) arrived.Add( at );
 			if ( mark.Discard ) mark.Discard = false;
 			else if ( status is TileJobStatus.Built or TileJobStatus.Unchanged )
 			{
@@ -158,12 +196,18 @@ public sealed partial class NavMesh
 				else mark.Dirty = true;
 			}
 
-			if ( mark.Dirty ) dirtyQueue.Enqueue( at );
+			if ( mark.Dirty ) dirtyQueue.Add( at );
 			else marks.Remove( at );
 		}
 
 		// What a job leaves behind is kept only once its tile is in: a tile the table had no room for
 		// comes out of Apply as Failed.
+		if ( links.Enabled )
+		{
+			foreach ( var job in published ) LinksPublished( job );
+			foreach ( var at in arrived ) LinksArrived( at );
+			arrived.Clear();
+		}
 		failed += Apply();
 		foreach ( var job in published )
 		{
@@ -189,50 +233,66 @@ public sealed partial class NavMesh
 	partial void TileRemoved( int tileX, int tileY );
 
 	/// <summary>
-	/// Takes effect at the next Commit. Returns the link id, or -1 when no id is free.
+	/// Takes effect at the next Commit. Returns the link id, the lowest that is free, or -1 when all
+	/// 65,535 are in use, generated links included.
 	/// </summary>
 	public int AddLink( in NavLink link )
 	{
-		int id = 0;
-		while ( id < linkHigh && linkStatus[id] is LinkUsed or LinkDirty ) id++;
-		if ( id == PolyRef.MaxLinks ) return -1;
+		var value = Checked( link );
+		if ( !freeLinks.TryDequeue( out int id, out _ ) )
+		{
+			if ( linkHigh == PolyRef.MaxLinks ) return -1;
+			id = linkHigh++;
+		}
 		if ( id == linkDefs.Length )
 		{
 			int capacity = Math.Min( PolyRef.MaxLinks, Math.Max( 16, linkDefs.Length * 2 ) );
 			Array.Resize( ref linkDefs, capacity );
 			Array.Resize( ref linkStatus, capacity );
 		}
-		linkHigh = Math.Max( linkHigh, id + 1 );
-		linkDefs[id] = Checked( link );
+		linkDefs[id] = value;
 		linkStatus[id] = LinkDirty;
 		linksDirty = true;
 		return id;
 	}
 
-	// An area id out of range is refused: a filter has one bit per id. No area means ground.
+	// An area id or type out of range is refused: a filter has one bit per id. No area means ground.
+	// Only the mesh makes generated links.
 	static NavLink Checked( in NavLink link )
 	{
 		if ( link.Area > NavFilter.MaxArea ) throw new ArgumentOutOfRangeException( nameof( link ), $"Link area {link.Area} is above {NavFilter.MaxArea}" );
+		if ( link.Type > NavFilter.MaxLinkType ) throw new ArgumentOutOfRangeException( nameof( link ), $"Link type {link.Type} is above {NavFilter.MaxLinkType}" );
 		var value = link;
 		if ( value.Area == NavFilter.NoArea ) value.Area = NavFilter.DefaultArea;
 		return value;
 	}
 
 	/// <summary>
-	/// Throws for an id that is not in use and for an area id above NavFilter.MaxArea, as AddLink does.
+	/// Throws for an id that is not in use, and for an area id above NavFilter.MaxArea or a type above
+	/// NavFilter.MaxLinkType, as AddLink does.
 	/// </summary>
 	public void SetLink( int id, in NavLink link )
 	{
 		if ( (uint)id >= (uint)linkHigh || linkStatus[id] is LinkFree or LinkRemoved ) throw new ArgumentException( "No such link", nameof( id ) );
+		if ( linkDefs[id].Generated ) throw new ArgumentException( "The link is a generated one", nameof( id ) );
 		linkDefs[id] = Checked( link );
 		linkStatus[id] = LinkDirty;
 		linksDirty = true;
 	}
 
+	/// <summary>
+	/// Does nothing for an id that is not in use and for a generated link: those go with their tile.
+	/// </summary>
 	public void RemoveLink( int id )
+	{
+		if ( (uint)id < (uint)linkHigh && !linkDefs[id].Generated ) FreeLink( id );
+	}
+
+	void FreeLink( int id )
 	{
 		if ( (uint)id >= (uint)linkHigh || linkStatus[id] is LinkFree or LinkRemoved ) return;
 		linkStatus[id] = LinkRemoved;
+		freeLinks.Enqueue( id, id );
 		linksDirty = true;
 	}
 

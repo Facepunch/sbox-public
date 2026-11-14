@@ -138,10 +138,10 @@ public sealed partial class NavCrowd
 	/// <summary>
 	/// A changed filter plans the route again; a changed size or filter collects the walls again; an
 	/// agent that is off the mesh is looked for again whatever changed. Nothing else is planned
-	/// again: a new size or speed is simply used from the next Step on. The filter's costs are
-	/// compared by content, so a cost array edited in place counts as changed once it is handed in
-	/// again. Until then the crowd does not know. Radius and Height are kept above zero, speeds at
-	/// zero or more and Separation between 0 and 1.
+	/// again: a new size or speed is simply used from the next Step on. The filter's costs and link
+	/// penalties are compared by content, so an array edited in place counts as changed once it is
+	/// handed in again. Until then the crowd does not know. Radius and Height are kept above zero,
+	/// speeds at zero or more and Separation between 0 and 1.
 	/// </summary>
 	public void SetParams( int agent, in AgentParams value )
 	{
@@ -150,7 +150,7 @@ public sealed partial class NavCrowd
 		var old = parms[agent];
 		var now = parms[agent] = Sanitize( value );
 		uint costs = CostKey( now.Filter );
-		bool filter = old.Filter.Forbidden != now.Filter.Forbidden || costs != a.CostKey;
+		bool filter = old.Filter.Forbidden != now.Filter.Forbidden || old.Filter.ForbiddenLinks != now.Filter.ForbiddenLinks || costs != a.CostKey;
 		a.CostKey = costs;
 		if ( filter ) a.Flags |= AgentFlags.Validate | AgentFlags.NeedsPlan;
 		if ( filter || old.Radius != now.Radius || old.Height != now.Height ) a.WallCount = -1;
@@ -161,12 +161,21 @@ public sealed partial class NavCrowd
 		Publish( agent );
 	}
 
-	// The contents of a filter's cost array, to notice an array that was edited in place.
+	// The contents of a filter's cost and penalty arrays, to notice an array that was edited in place.
 	static uint CostKey( in NavFilter filter )
 	{
 		uint key = 2166136261;
-		foreach ( float cost in filter.Costs ?? [] ) key = (key ^ BitConverter.SingleToUInt32Bits( cost )) * 16777619;
+		Mix( ref key, filter.Costs );
+		Mix( ref key, filter.LinkCosts );
+		Mix( ref key, filter.LinkPenalties );
 		return key;
+	}
+
+	// The length first, so that a value moving from one array to the next changes the key.
+	static void Mix( ref uint key, float[]? values )
+	{
+		key = (key ^ (uint)(values?.Length ?? 0)) * 16777619;
+		foreach ( float value in values ?? [] ) key = (key ^ BitConverter.SingleToUInt32Bits( value )) * 16777619;
 	}
 
 	/// <summary>

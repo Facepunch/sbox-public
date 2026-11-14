@@ -83,13 +83,14 @@ internal sealed class TileEdges
 }
 
 /// <summary>
-/// Polygons with the same label can reach each other under one area mask. Two levels: the components
-/// inside each tile, kept with the tile, and here a label per component, from a union over the
-/// connections between tiles and over links. Building it costs per tile, not per polygon.
+/// Polygons with the same label can reach each other under one area mask and one link type mask.
+/// Two levels: the components inside each tile, kept with the tile, and here a label per component,
+/// from a union over the connections between tiles and over links. Building it costs per tile, not
+/// per polygon.
 /// </summary>
 internal sealed class IslandMap
 {
-	public readonly ulong Forbidden;
+	public readonly ulong Forbidden, ForbiddenLinks;
 
 	// Labels of a tile's components start at First[slot].
 	public readonly int[] Labels;
@@ -97,10 +98,11 @@ internal sealed class IslandMap
 	public IslandMap? Next;
 	readonly MeshState state;
 
-	public IslandMap( MeshState s, ulong forbidden )
+	public IslandMap( MeshState s, ulong forbidden, ulong forbiddenLinks )
 	{
 		state = s;
 		Forbidden = forbidden;
+		ForbiddenLinks = forbiddenLinks;
 		var pages = s.Pages;
 		var first = new int[pages.Length * MeshState.PageSize];
 		int total = 0;
@@ -134,7 +136,7 @@ internal sealed class IslandMap
 		// across a link that is the only connection.
 		foreach ( ref readonly var link in s.Links.AsSpan() )
 		{
-			if ( link.Serial == 0 || !link.Connected || (forbidden >> link.Def.Area & 1) != 0 ) continue;
+			if ( link.Serial == 0 || !link.Connected || (forbidden >> link.Def.Area & 1) != 0 || (forbiddenLinks >> link.Def.Type & 1) != 0 ) continue;
 			int a = Component( link.StartPoly, first ), b = Component( link.EndPoly, first );
 			if ( a >= 0 && b >= 0 ) Union( parent, a, b );
 		}

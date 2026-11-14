@@ -74,7 +74,7 @@ internal struct Agent
 	// The Step in which the agent last entered or left a link. One link transition per Step.
 	public uint LinkStep;
 
-	// The contents of the filter's cost array as SetParams last saw them.
+	// The contents of the filter's cost and penalty arrays as SetParams last saw them.
 	public uint CostKey;
 
 	// External only: where the agent was at the last Step, to tell its velocity.

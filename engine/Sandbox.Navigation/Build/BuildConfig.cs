@@ -70,6 +70,11 @@ internal struct BuildConfig
 	// The cells a tile build reads around the tile: what erosion by the agent radius eats, and three more.
 	public static int BorderCells( in NavSettings settings ) => RadiusCells( settings ) + 3;
 
+	// The cells of solid spans beyond the border that the link stage reads when the tiles around are not
+	// built with this one: as far as a link reaches from an edge on the tile's border, its landing an
+	// agent radius further in with ground a radius around it, and a cell.
+	public static int ApronCells( in NavSettings settings, in NavLinkSettings links ) => Math.Max( CeilToCells( (links.Reach( settings ) + 2 * settings.AgentRadius) / settings.CellSize ) + 1 - BorderCells( settings ), 0 );
+
 	static int CeilToCells( float value ) => (int)MathF.Min( MathF.Ceiling( value ), 1 << 20 );
 	static int FloorToCells( float value ) => (int)MathF.Min( MathF.Floor( value ), 1 << 20 );
 }

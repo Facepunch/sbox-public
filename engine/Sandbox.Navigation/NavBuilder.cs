@@ -18,6 +18,7 @@ public sealed class NavBuilder
 	internal readonly ContourBuilder Contours = new();
 	internal readonly PolyBuilder Polys = new();
 	internal readonly TileAssembler Assembler = new();
+	internal readonly LinkBuilder Links = new();
 
 	/// <summary>
 	/// Triangles touching the tile that were rasterized as ground, and those that were not because they
@@ -31,6 +32,8 @@ public sealed class NavBuilder
 	internal FieldFrame Frame;
 
 	readonly CachedField unpacked = new();
+	NavQuery? seamQuery;
+	NavMesh? seamMesh;
 	byte[] raw = [];
 	byte[] packed = [];
 
@@ -74,6 +77,13 @@ public sealed class NavBuilder
 
 		var settings = mesh.Settings;
 		if ( !BuildConfig.TryCreate( settings, out var config, out error ) ) return TileJobStatus.Failed;
+		if ( job.Seams != null )
+		{
+			if ( seamQuery == null || seamMesh != mesh ) (seamQuery, seamMesh) = (new NavQuery( mesh ), mesh);
+			foreach ( var task in job.Seams ) Links.Judge( task, job.SeamState!, mesh, seamQuery, config );
+			if ( job.SeamsOnly ) return TileJobStatus.Unchanged;
+		}
+
 		ref var frame = ref Frame;
 		frame = config.Frame( job.X, job.Y );
 
@@ -100,6 +110,8 @@ public sealed class NavBuilder
 			if ( walkable )
 			{
 				Rasterize( vertices, indices, job.MinZ, job.MaxZ, config, frame );
+				// Copied while the spans are still in the cache.
+				if ( job.KeepSolid ) job.Solid = HeldField.From( Solid, frame, mesh.TakeSpare() );
 				walkable = Solid.SpanCount > 0;
 			}
 			if ( walkable )
@@ -112,21 +124,21 @@ public sealed class NavBuilder
 		ulong areaHash = 0;
 		if ( walkable )
 		{
+			// Links are found on the ground as it is without volumes, so that a blocker that leaves gives
+			// them back: under one, the polygons are built twice.
+			bool links = job.FindLinks;
+			if ( links && Blocks( job.Volumes ) )
+			{
+				MarkAreas( default, frame, config.CellHeight );
+				if ( !Polygons( job, config, settings, out var whole, out error ) ) return TileJobStatus.Failed;
+				if ( whole != null ) job.Found = Links.Run( whole, this, frame, config, settings, mesh.LinkSettings, job, vertices, indices );
+				links = false;
+			}
+
 			areaHash = MarkAreas( job.Volumes, frame, config.CellHeight );
 			if ( job.Cached != null && areaHash == job.LastAreaHash ) return TileJobStatus.Unchanged;
-
-			Open.Find( Field, config.Border );
-			if ( !Regions.Build( Field, Open, config.Border, config.MinRegionCells, out error ) ) return TileJobStatus.Failed;
-			if ( !Contours.Build( Field, Open, config.Border, config.MaxEdgeError, config.MaxEdgeLength, out error ) ) return TileJobStatus.Failed;
-			if ( Contours.Count > 0 )
-			{
-				if ( !Polys.Build( Contours, config.TileSize, out error ) ) return TileJobStatus.Failed;
-				if ( Polys.PolyCount > 0 )
-				{
-					tile = Assemble( job.X, job.Y, frame.MinZ, settings, out error );
-					if ( tile == null ) return TileJobStatus.Failed;
-				}
-			}
+			if ( !Polygons( job, config, settings, out tile, out error ) ) return TileJobStatus.Failed;
+			if ( links && tile != null ) job.Found = Links.Run( tile, this, frame, config, settings, mesh.LinkSettings, job, vertices, indices );
 		}
 
 		job.AreaHash = areaHash;
@@ -145,6 +157,21 @@ public sealed class NavBuilder
 			}
 		}
 		return TileJobStatus.Built;
+	}
+
+	// Regions, outlines and polygons of the field as its areas are now. Null without an error where
+	// nothing walkable is left.
+	bool Polygons( TileJob job, in BuildConfig config, in NavSettings settings, out Tile? tile, out string? error )
+	{
+		tile = null;
+		Open.Find( Field, config.Border );
+		if ( !Regions.Build( Field, Open, config.Border, config.MinRegionCells, out error ) ) return false;
+		if ( !Contours.Build( Field, Open, config.Border, config.MaxEdgeError, config.MaxEdgeLength, out error ) ) return false;
+		if ( Contours.Count == 0 ) return true;
+		if ( !Polys.Build( Contours, config.TileSize, out error ) ) return false;
+		if ( Polys.PolyCount == 0 ) return true;
+		tile = Assemble( job.X, job.Y, Frame.MinZ, settings, out error );
+		return tile != null;
 	}
 
 	/// <summary>
@@ -216,20 +243,86 @@ public sealed class NavBuilder
 			var max = Vector3.Max( Vector3.Max( v0, v1 ), v2 );
 			if ( !Touches( frame, min, max, minZ, maxZ ) ) continue;
 
-			// Ground when the unit normal's z is above the cosine of the slope limit. A triangle thinner
-			// than a hundred-thousandth of its own size has no direction worth trusting and is not ground.
-			// Two things here are as they are only to match today's engine bit for bit, and can go once
-			// that comparison is no longer needed: the normal's components are summed in the order x, z, y
-			// (its Y-up code), and the triangle is clipped as v0, v2, v1, which decides the cut points.
-			Vector3 e1 = v1 - v0, e2 = v2 - v0;
-			var normal = Vector3.Cross( e1, e2 );
-			var ordered = new Vector3( normal.X, normal.Z, normal.Y );
-			bool ground = ordered.LengthSquared() > 1e-10f * e1.LengthSquared() * e2.LengthSquared() && Vector3.Normalize( ordered ).Y > config.WalkableCos;
+			bool ground = IsGround( v0, v1, v2, config.WalkableCos );
 			if ( ground ) TrianglesUsed++;
 			else TrianglesRejected++;
 
 			Rasterizer.Triangle( Solid, frame, v0, v2, v1, ground ? NavFilter.DefaultArea : NavFilter.NoArea, config.WalkableClimb );
 		}
+	}
+
+	// Ground when the unit normal's z is above the cosine of the slope limit. A triangle thinner than a
+	// hundred-thousandth of its own size has no direction worth trusting and is not ground. Two things
+	// here are as they are only to match today's engine bit for bit, and can go once that comparison is
+	// no longer needed: the normal's components are summed in the order x, z, y (its Y-up code), and the
+	// triangle is clipped as v0, v2, v1, which decides the cut points.
+	[System.Runtime.CompilerServices.MethodImpl( System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining )]
+	static bool IsGround( Vector3 v0, Vector3 v1, Vector3 v2, float walkableCos )
+	{
+		Vector3 e1 = v1 - v0, e2 = v2 - v0;
+		var normal = Vector3.Cross( e1, e2 );
+		var ordered = new Vector3( normal.X, normal.Z, normal.Y );
+		return ordered.LengthSquared() > 1e-10f * e1.LengthSquared() * e2.LengthSquared() && Vector3.Normalize( ordered ).Y > walkableCos;
+	}
+
+	static bool Blocks( NavVolume[] volumes )
+	{
+		foreach ( ref readonly var volume in volumes.AsSpan() )
+		{
+			if ( volume.Area == NavFilter.NoArea ) return true;
+		}
+		return false;
+	}
+
+	// The solid spans of a ring of cells around the field, for the link stage. Nothing else is built there.
+	internal readonly SolidField Apron = new();
+	internal FieldFrame ApronFrame;
+
+	/// <summary>
+	/// Rasterises the triangles into four strips around the field, each a window of a field cells wider
+	/// than the tile's on every side, with its floor 0 at floorZ.
+	/// </summary>
+	internal void RasterizeApron( ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices, float minZ, float maxZ, in BuildConfig config, int tileX, int tileY, float floorZ, int cells )
+	{
+		int main = config.FieldSize, size = main + 2 * cells;
+		Apron.Reset( size, size );
+		ApronFrame = Window( config, tileX, tileY, 0, 0, size, size, cells, floorZ );
+
+		// The strips along Y take the corners.
+		Span<(int X, int Y, int W, int H)> rects = [(cells + main, 0, cells, size), (0, 0, cells, size), (cells, cells + main, main, cells), (cells, 0, main, cells)];
+		Span<FieldFrame> frames = stackalloc FieldFrame[4];
+		for ( int k = 0; k < 4; k++ ) frames[k] = Window( config, tileX, tileY, rects[k].X, rects[k].Y, rects[k].W, rects[k].H, cells, floorZ );
+
+		for ( int t = 0; t < indices.Length; t += 3 )
+		{
+			Vector3 v0 = vertices[indices[t]], v1 = vertices[indices[t + 1]], v2 = vertices[indices[t + 2]];
+			var min = Vector3.Min( Vector3.Min( v0, v1 ), v2 );
+			var max = Vector3.Max( Vector3.Max( v0, v1 ), v2 );
+			int area = -1;
+			for ( int k = 0; k < 4; k++ )
+			{
+				if ( !Touches( frames[k], min, max, minZ, maxZ ) ) continue;
+				if ( area < 0 ) area = IsGround( v0, v1, v2, config.WalkableCos ) ? NavFilter.DefaultArea : NavFilter.NoArea;
+				Rasterizer.Triangle( Apron, frames[k], v0, v2, v1, area, config.WalkableClimb, rects[k].W, rects[k].H, rects[k].X + rects[k].Y * size, size );
+			}
+		}
+	}
+
+	// The frame of a window of the apron field, on the cell lines every tile shares.
+	static FieldFrame Window( in BuildConfig config, int tileX, int tileY, int x, int y, int w, int h, int cells, float floorZ )
+	{
+		long cellX = (long)tileX * config.TileSize - config.Border - cells + x, cellY = (long)tileY * config.TileSize - config.Border - cells + y;
+		return new FieldFrame
+		{
+			MinX = (float)(cellX * (double)config.CellSize),
+			MinY = (float)(cellY * (double)config.CellSize),
+			MaxX = (float)((cellX + w) * (double)config.CellSize),
+			MaxY = (float)((cellY + h) * (double)config.CellSize),
+			MinZ = floorZ,
+			CellSize = config.CellSize,
+			InverseCellSize = 1.0f / config.CellSize,
+			InverseCellHeight = 1.0f / config.CellHeight
+		};
 	}
 
 	static bool Touches( in FieldFrame frame, Vector3 min, Vector3 max, float minZ, float maxZ )

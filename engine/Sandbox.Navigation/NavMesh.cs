@@ -31,12 +31,15 @@ public sealed partial class NavMesh
 	MeshState state;
 
 	/// <summary>
-	/// Throws when the settings are not valid.
+	/// Throws when the settings are not valid. With links set, tile builds from triangles also find
+	/// drops and jumps, which the mesh keeps as links of its own.
 	/// </summary>
-	public NavMesh( in NavSettings settings, NavCodec codec = default, bool keepFields = true )
+	public NavMesh( in NavSettings settings, NavCodec codec = default, bool keepFields = true, NavLinkSettings links = default )
 	{
 		if ( !settings.IsValid( out var reason ) ) throw new ArgumentException( reason, nameof( settings ) );
+		if ( !links.IsValid( settings, out reason ) ) throw new ArgumentException( reason, nameof( links ) );
 		this.settings = settings;
+		this.links = links;
 		Codec = codec;
 		KeepFields = keepFields;
 		TileWorld = settings.TileSize * settings.CellSize;
@@ -44,6 +47,7 @@ public sealed partial class NavMesh
 	}
 
 	public NavSettings Settings => settings;
+	public NavLinkSettings LinkSettings => links;
 
 	/// <summary>
 	/// Bumped by every Commit that changed the mesh.
