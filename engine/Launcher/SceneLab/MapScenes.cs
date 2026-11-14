@@ -15,7 +15,8 @@ internal static class MapScenes
 		var scene = new Scene();
 		using var _ = scene.Push();
 
-		// -camera-pos x,y,z and -camera-lookat x,y,z move any map preset's camera
+		// -camera-pos x,y,z and -camera-lookat x,y,z move any map preset's camera; -map-ident loads another map package in it
+		if ( Args.String( "-map-ident" ) is { Length: > 0 } ident ) map = ident;
 		if ( Args.String( "-camera-pos" ) is { } pos ) cameraPosition = Vector3.Parse( pos );
 		if ( Args.String( "-camera-lookat" ) is { } at ) lookAt = Vector3.Parse( at );
 

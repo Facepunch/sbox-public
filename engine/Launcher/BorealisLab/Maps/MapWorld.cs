@@ -67,19 +67,19 @@ internal sealed partial class MapWorld : IDisposable
 		this.gpu = gpu;
 		timer = Stopwatch.StartNew();
 
-		var vpks = Directory.GetFiles( Path.Combine( folder, "maps" ), "*.vpk" );
+		// The map is the shortest-named package under maps/ (a map in a folder of its own, maps/city/name.vpk, is city/name);
+		// its 3D skybox is the one its skybox_reference names, or else name_sky
+		var maps = Path.Combine( folder, "maps" );
+		var vpks = Directory.GetFiles( maps, "*.vpk", SearchOption.AllDirectories );
+		string MapName( string path ) => Path.ChangeExtension( Path.GetRelativePath( maps, path ), null ).Replace( '\\', '/' );
 		var vpk = vpks.Where( x => !Path.GetFileNameWithoutExtension( x ).EndsWith( "_sky", StringComparison.OrdinalIgnoreCase ) ).OrderBy( x => x.Length ).First();
-		var map = Path.GetFileNameWithoutExtension( vpk );
-		var skyVpk = vpks.FirstOrDefault( x => string.Equals( Path.GetFileNameWithoutExtension( x ), map + "_sky", StringComparison.OrdinalIgnoreCase ) );
+		var map = MapName( vpk );
 
 		var content = new ContentFiles( folder );
 		foreach ( var root in core.Roots ) content.Add( root );
-		foreach ( var path in skyVpk is null ? [vpk] : new[] { vpk, skyVpk } )
-		{
-			var package = VpkFile.Open( path );
-			packages.Add( package );
-			content.AddPackage( package );
-		}
+		var mapPackage = VpkFile.Open( vpk );
+		packages.Add( mapPackage );
+		content.AddPackage( mapPackage );
 
 		Backend = new BackendDevice( gpu, content ) { GpuDrivenGeometry = gpuDriven };
 
@@ -111,10 +111,18 @@ internal sealed partial class MapWorld : IDisposable
 		World.Lighting.SunShadowCascades = 3;
 
 		var level = LoadLevel( World, content, map, castShadows, aggregatesAsMeshes, bakedLighting, entities );
-		if ( entities && skyVpk is not null && level.Entities.FirstOrDefault( e => e.ClassName == "skybox_reference" ) is { } reference )
+		var reference = entities ? level.Entities.FirstOrDefault( e => e.ClassName == "skybox_reference" ) : null;
+		var skyName = reference?.String( "targetMapName" ) is { Length: > 0 } target ? Path.ChangeExtension( target.Replace( '\\', '/' ), null ) : null;
+		if ( skyName is not null && skyName.StartsWith( "maps/", StringComparison.OrdinalIgnoreCase ) ) skyName = skyName["maps/".Length..];
+		var skyVpk = vpks.FirstOrDefault( x => string.Equals( MapName( x ), skyName, StringComparison.OrdinalIgnoreCase ) )
+			?? vpks.FirstOrDefault( x => string.Equals( MapName( x ), map + "_sky", StringComparison.OrdinalIgnoreCase ) );
+		if ( reference is not null && skyVpk is not null )
 		{
+			var skyPackage = VpkFile.Open( skyVpk );
+			packages.Add( skyPackage );
+			content.AddPackage( skyPackage );
 			SkyWorld = new RenderWorld();
-			var sky = LoadLevel( SkyWorld, content, map + "_sky", false, aggregatesAsMeshes, bakedLighting, entities );
+			var sky = LoadLevel( SkyWorld, content, MapName( skyVpk ), false, aggregatesAsMeshes, bakedLighting, entities );
 			LoadSkybox( reference, sky );
 		}
 

@@ -17,8 +17,11 @@ namespace Sandbox.BorealisLab.Maps;
 /// draw it on a Borealis.Gpu device of its own, with no Source 2 device and none of the engine started, from fixed cameras
 /// (SceneLab's for Construct), timing each way of issuing the draws. Prints and saves a table; exits 1 on validation errors.
 /// <list type="bullet">
-/// <item><c>-map-folder path</c> - the map package's folder instead of finding the installed workshop item.</item>
+/// <item><c>-map-folder path</c> - the map package's folder instead of finding the installed workshop item: the map in it is
+/// <c>maps/name.vpk</c> or <c>maps/folder/name.vpk</c>.</item>
 /// <item><c>-view name</c> - one camera (<c>skyline</c>, <c>overview</c>); all by default.</item>
+/// <item><c>-camera-pos x,y,z</c>, <c>-camera-lookat x,y,z</c> ((0, 0, 30) by default) - one camera of any map instead, as SceneLab's
+/// switches move its map presets' cameras; <c>-view</c> names it.</item>
 /// <item><c>-variants a,b</c> - which of the runs below; all by default.</item>
 /// <item><c>-frames N</c> (600), <c>-warmup N</c> (120 frames and 2 s) - measured and warm-up frames per run.</item>
 /// <item><c>-width</c> / <c>-height</c> (1280x720, SceneLab's frame), <c>-msaa N</c> (4), <c>-vsync</c> (off by default).</item>
@@ -78,7 +81,8 @@ internal static class MapRun
 		var warmup = Math.Max( Args.Int( "-warmup", 120 ), 1 );
 		var only = Args.String( "-variants" )?.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
 		var variants = only is null ? Variants : Variants.Where( v => only.Contains( v.Name, StringComparer.OrdinalIgnoreCase ) ).ToArray();
-		var views = Args.String( "-view" ) is { } viewName ? ConstructViews.Where( v => v.Name.Equals( viewName, StringComparison.OrdinalIgnoreCase ) ).ToArray() : ConstructViews;
+		var views = Args.String( "-camera-pos" ) is { } cameraPos ? [new MapView( Args.String( "-view" ) ?? "camera", Vector( cameraPos ), Args.String( "-camera-lookat" ) is { } at ? Vector( at ) : new V3( 0, 0, 30 ) )]
+			: Args.String( "-view" ) is { } viewName ? ConstructViews.Where( v => v.Name.Equals( viewName, StringComparison.OrdinalIgnoreCase ) ).ToArray() : ConstructViews;
 		var captures = Args.String( "-capture" );
 		var output = Path.GetFullPath( Args.String( "-out" ) ?? Path.Combine( "screenshots", "borealislab", "map" ) );
 
@@ -240,6 +244,13 @@ internal static class MapRun
 	{
 		var sorted = values.OrderBy( x => x ).ToArray();
 		return sorted.Length == 0 ? 0 : sorted[Math.Clamp( (int)(p * (sorted.Length - 1) + 0.5), 0, sorted.Length - 1 )];
+	}
+
+	/// <summary>"x,y,z" as a vector.</summary>
+	static V3 Vector( string text )
+	{
+		var v = text.Split( ',' ).Select( x => float.Parse( x, System.Globalization.CultureInfo.InvariantCulture ) ).ToArray();
+		return new V3( v[0], v[1], v[2] );
 	}
 
 	/// <summary>Our assemblies in this process that were built without optimisation, or empty.</summary>
