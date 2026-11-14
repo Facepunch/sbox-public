@@ -140,7 +140,7 @@ public class SceneSkyTests
 			using var camera = new SceneCamera { World = world };
 			var mirrorType = System.Type.GetType( "Sandbox.Rendering.Bridge.SceneMirror, Sandbox.Rendering", true );
 			using var mirror = (IDisposable)Activator.CreateInstance( mirrorType, [world] );
-			var renderWorld = (Basalt.RenderWorld)mirrorType.GetProperty( "World" ).GetValue( mirror );
+			var renderWorld = (Borealis.RenderWorld)mirrorType.GetProperty( "World" ).GetValue( mirror );
 			var sync = mirrorType.GetMethod( "Sync" );
 
 			sync.Invoke( mirror, [camera, false] );
@@ -156,7 +156,7 @@ public class SceneSkyTests
 			nativeSky.SetMaterial( replacement.native );
 			camera.ExcludeTags.RemoveAll();
 			sync.Invoke( mirror, [camera, false] );
-			Assert.AreSame( Basalt.Gpu.Source2.Source2Material.From( replacement ), renderWorld.Lighting.SkyMaterial );
+			Assert.AreSame( Borealis.Gpu.Source2.Source2Material.From( replacement ), renderWorld.Lighting.SkyMaterial );
 			nativeSky.SetMaterial( default );
 			sync.Invoke( mirror, [camera, false] );
 			Assert.IsNull( renderWorld.Lighting.SkyMaterial, "A null material on the newest sky must not reveal an older sky" );

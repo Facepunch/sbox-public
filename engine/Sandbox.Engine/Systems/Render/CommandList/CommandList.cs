@@ -1053,15 +1053,15 @@ public sealed unsafe partial class CommandList
 				return;
 			}
 
-			// Source 2's table is its scene system's; Basalt.Gpu's is its backend's, written in the block's list
-			if ( Graphics.Backend is BasaltGpuRenderBackend gpu )
+			// Source 2's table is its scene system's; Borealis.Gpu's is its backend's, written in the block's list
+			if ( Graphics.Backend is BorealisGpuRenderBackend gpu )
 			{
 				gpu.SetPipelineTexture( (int)entry.Data1.x, target.ColorTarget );
 				return;
 			}
 
 			if ( Graphics.Backend is not Source2RenderBackend )
-				throw new NotSupportedException( "Pipeline textures (ambient occlusion's and reflections' results) need Source 2's device or Basalt.Gpu" );
+				throw new NotSupportedException( "Pipeline textures (ambient occlusion's and reflections' results) need Source 2's device or Borealis.Gpu" );
 
 			NativeEngine.CSceneSystem.SetPipelineTextureIndex( (int)entry.Data1.x, target.ColorTarget.Index );
 		}

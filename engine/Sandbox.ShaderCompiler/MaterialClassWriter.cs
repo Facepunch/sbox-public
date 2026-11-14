@@ -7,7 +7,7 @@ namespace Sandbox.ShaderCompiler;
 /// <summary>
 /// The typed C# class for a compiled material: one property per <c>[Material]</c> field, reading and writing its record
 /// at the field's offset, so <c>new Rock { Color = texture, Tint = ... }</c> is checked by the C# compiler. The class
-/// derives from Basalt.Backend's <c>SurfaceMaterial</c>, which writes the record and draws it.
+/// derives from Borealis.Backend's <c>SurfaceMaterial</c>, which writes the record and draws it.
 /// </summary>
 public static class MaterialClassWriter
 {
@@ -22,7 +22,7 @@ public static class MaterialClassWriter
 		s.Append( "#nullable disable\n\n" );
 		s.Append( "namespace " ).Append( @namespace ).Append( ";\n\n" );
 		s.Append( "/// <summary>The material <c>" ).Append( layout.Type ).Append( "</c> (" ).Append( file ).Append( ", " ).Append( shader.Tier == ShaderTier.Surface ? "a surface" : "a raw module" ).Append( ").</summary>\n" );
-		s.Append( "public sealed class " ).Append( layout.Type ).Append( " : global::Basalt.Backend.SurfaceMaterial\n{\n" );
+		s.Append( "public sealed class " ).Append( layout.Type ).Append( " : global::Borealis.Backend.SurfaceMaterial\n{\n" );
 		s.Append( "\t/// <summary>A material with every field at its default.</summary>\n" );
 		s.Append( "\tpublic " ).Append( layout.Type ).Append( "() : base( \"" ).Append( file ).Append( "\", " ).Append( layout.Size ).Append( ", 0x" ).Append( Hash( layout ).ToString( "X8", CultureInfo.InvariantCulture ) ).Append( "u )\n\t{\n" );
 		foreach ( var field in layout.Fields )
@@ -72,7 +72,7 @@ public static class MaterialClassWriter
 	{
 		var o = field.Offset.ToString( CultureInfo.InvariantCulture );
 		if ( field.Kind == MaterialFieldKind.Texture2D )
-			return ("global::Basalt.GpuTexture", $"GetTexture( {o} )", $"SetTexture( {o}, value, srgb: {(field.Srgb ? "true" : "false")} )");
+			return ("global::Borealis.GpuTexture", $"GetTexture( {o} )", $"SetTexture( {o}, value, srgb: {(field.Srgb ? "true" : "false")} )");
 
 		return (field.Kind, field.Components) switch
 		{

@@ -1,0 +1,354 @@
+using Borealis.Gpu;
+using BorealisGpuSample;
+using System.Numerics;
+using System.Runtime.InteropServices;
+
+namespace BorealisGpuTests;
+
+/// <summary>
+/// Rendering, compute, copies, synchronisation and resource lifetime on a real device, offscreen, with the validation
+/// layer checking every test.
+/// </summary>
+[TestClass]
+[DoNotParallelize]
+public class DeviceTests : GpuTest
+{
+	TextureHandle Target( int width, int height ) => Device.CreateTexture( TextureInfo.RenderTarget( width, height, Format.RGBA8Unorm, name: "Target" ) );
+
+	/// <summary>
+	/// A cleared target reads back as exactly the clear colour.
+	/// </summary>
+	[TestMethod]
+	public void ClearReadsBack()
+	{
+		var target = Target( 64, 32 );
+		var list = Device.BeginCommandList();
+		list.Barrier( TextureBarrier.Transition( target, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.TopOfPipe, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+		list.BeginRendering( [ColorTarget.Of( target, new Vector4( 1, 0.5f, 0, 1 ) )] );
+		list.EndRendering();
+		Device.Wait( Device.Submit( list ) );
+
+		var pixels = ReadBack( target, ImageLayout.ColorTarget );
+		Assert.AreEqual( 64 * 32 * 4, pixels.Length );
+		Assert.AreEqual( ((byte)255, (byte)128, (byte)0, (byte)255), Pixel( pixels, 64, 0, 0 ) );
+		Assert.AreEqual( ((byte)255, (byte)128, (byte)0, (byte)255), Pixel( pixels, 64, 63, 31 ) );
+	}
+
+	/// <summary>
+	/// The validation layer is really checking: a copy into a buffer with no barrier after a fill of it is a write-after-write
+	/// hazard, and gets reported. (Every other test passes only if nothing is reported.)
+	/// </summary>
+	[TestMethod]
+	public void ValidationReportsHazards()
+	{
+		if ( !Device.ValidationEnabled ) Assert.Inconclusive( "The validation layer isn't installed" );
+
+		var a = Device.CreateBuffer( new BufferInfo { Size = 256, Usage = BufferUsage.Storage } );
+		var b = Device.CreateBuffer( new BufferInfo { Size = 256, Usage = BufferUsage.Storage } );
+		var list = Device.BeginCommandList();
+		list.FillBuffer( b, 1 );
+		list.CopyBuffer( a, 0, b, 0, 256 );
+		Device.Wait( Device.Submit( list ) );
+
+		var errors = TakeValidationErrors();
+		Assert.IsTrue( errors.Any( e => e.Contains( "SYNC-HAZARD" ) ), $"Reported: {string.Join( ", ", errors )}" );
+	}
+
+	/// <summary>
+	/// The sample's scene, offscreen: the background is the clear colour, the triangle's corners are its vertex colours
+	/// blended toward the middle, and both cubes - one sampling an uploaded checkerboard, one the compute pattern -
+	/// cover the middle of their halves, in front of the background.
+	/// </summary>
+	[TestMethod]
+	public void SampleSceneRenders()
+	{
+		const int width = 640, height = 400;
+		var target = Target( width, height );
+		using var scene = new SampleScene( Device, Format.RGBA8Unorm );
+
+		var list = Device.BeginCommandList( QueueType.Graphics, "Scene" );
+		scene.Render( list, target, ImageLayout.Undefined, ImageLayout.ShaderRead, 0.5f );
+		Device.Wait( Device.Submit( list ) );
+
+		var pixels = ReadBack( target, ImageLayout.ShaderRead );
+		Save( pixels, width, height, "sample-scene" );
+
+		var clear = ((byte)13, (byte)15, (byte)20, (byte)255);
+		Assert.AreEqual( clear, Pixel( pixels, width, 2, 2 ), "the corner is background" );
+
+		// The triangle: centred at (0, 0.55) in clip space, so near the top middle
+		var triangle = Pixel( pixels, width, width / 2, (int)(height * (1 - 0.55f) / 2) );
+		Assert.AreNotEqual( clear, triangle, "the triangle is drawn" );
+
+		// Each cube covers the middle of its half: lit, and not the background
+		var left = Pixel( pixels, width, width / 2 - 125, height / 2 + 10 );
+		var right = Pixel( pixels, width, width / 2 + 125, height / 2 + 10 );
+		Assert.AreNotEqual( clear, left, "the checkerboard cube is drawn" );
+		Assert.AreNotEqual( clear, right, "the pattern cube is drawn" );
+	}
+
+	/// <summary>
+	/// Compute writes a texture through the bindless storage table, and the texture reads back as written.
+	/// </summary>
+	[TestMethod]
+	public void ComputeWritesThroughBindlessStorage()
+	{
+		var info = TextureInfo.Texture2D( SampleScene.PatternSize, SampleScene.PatternSize, Format.RGBA8Unorm, name: "Compute target" );
+		info.Usage |= TextureUsage.Storage;
+		var texture = Device.CreateTexture( info );
+		Assert.IsTrue( Device.StorageIndex( texture ) >= 0 );
+		Assert.IsTrue( Device.BindlessIndex( texture ) >= 2, "texture index 0 means none to s&box's shaders" );
+
+		var shader = Device.CreateShader( LoadShader( "pattern.cs.spv" ), "pattern" );
+		var pipeline = Device.CreateComputePipeline( new ComputePipelineInfo { Shader = shader, Entry = "MainCs" } );
+
+		var list = Device.BeginCommandList( QueueType.Graphics, "Pattern" );
+		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.Undefined, ImageLayout.General, PipelineStage.TopOfPipe, MemoryAccess.None, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite ) );
+		list.SetPipeline( pipeline );
+		list.PushConstants( new PatternConstants { Target = (uint)Device.StorageIndex( texture ), Width = SampleScene.PatternSize, Height = SampleScene.PatternSize } );
+		list.Dispatch( SampleScene.PatternSize / 8, SampleScene.PatternSize / 8 );
+		Device.Wait( Device.Submit( list ) );
+
+		var pixels = ReadBack( texture, ImageLayout.General );
+		Save( pixels, SampleScene.PatternSize, SampleScene.PatternSize, "compute-pattern" );
+
+		// Opaque everywhere, and not one flat colour
+		var distinct = new HashSet<int>();
+		for ( int i = 0; i < pixels.Length; i += 4 )
+		{
+			Assert.AreEqual( 255, pixels[i + 3] );
+			distinct.Add( pixels[i] | pixels[i + 1] << 8 | pixels[i + 2] << 16 );
+		}
+
+		Assert.IsTrue( distinct.Count > 50, $"{distinct.Count} colours" );
+	}
+
+	[StructLayout( LayoutKind.Sequential )]
+	struct PatternConstants
+	{
+		public uint Target;
+		public float Time;
+		public uint Width, Height;
+	}
+
+	static byte[] LoadShader( string name )
+	{
+		using var stream = typeof( SampleScene ).Assembly.GetManifestResourceStream( name );
+		var bytes = new byte[stream.Length];
+		stream.ReadExactly( bytes );
+		return bytes;
+	}
+
+	/// <summary>
+	/// Work on the async compute queue fills a buffer; the graphics queue waits for its sync point and copies it back.
+	/// </summary>
+	[TestMethod]
+	public void QueuesSynchroniseThroughTimelines()
+	{
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = 4096, Usage = BufferUsage.Storage, Name = "Shared" } );
+		var readback = Device.CreateBuffer( new BufferInfo { Size = 4096, Memory = MemoryLocation.Readback, Name = "Readback" } );
+
+		var compute = Device.BeginCommandList( QueueType.Compute, "Fill" );
+		compute.FillBuffer( buffer, 0xC0FFEE );
+		var filled = Device.Submit( compute );
+
+		var graphics = Device.BeginCommandList( QueueType.Graphics, "Copy" );
+		graphics.Barrier( new BufferBarrier { Buffer = buffer, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Transfer, DestinationAccess = MemoryAccess.TransferRead } );
+		graphics.CopyBuffer( buffer, 0, readback, 0, 4096 );
+		graphics.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+		var copied = Device.Submit( graphics, [filled] );
+
+		Device.Wait( copied );
+		Assert.IsTrue( Device.IsComplete( filled ) );
+		Assert.IsTrue( MemoryMarshal.Cast<byte, uint>( Device.Map( readback ) ).ToArray().All( v => v == 0xC0FFEE ) );
+	}
+
+	/// <summary>
+	/// Lists submitted later go to the GPU together, in order, in one submission: with the next list submitted normally,
+	/// or when something waits for them.
+	/// </summary>
+	[TestMethod]
+	public void ListsSubmittedLaterGoTogetherInOrder()
+	{
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = 4096, Usage = BufferUsage.Storage, Name = "Ordered" } );
+		var readback = Device.CreateBuffer( new BufferInfo { Size = 4096, Memory = MemoryLocation.Readback, Name = "Readback" } );
+		var transfer = new BufferBarrier { Buffer = buffer, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Transfer, DestinationAccess = MemoryAccess.TransferRead | MemoryAccess.TransferWrite };
+
+		uint Run( bool waitForLast )
+		{
+			var before = Device.Submissions;
+			SyncPoint last = default;
+			for ( uint i = 1; i <= 3; i++ )
+			{
+				var list = Device.BeginCommandList( QueueType.Graphics, $"Fill {i}" );
+				list.Barrier( transfer );
+				list.FillBuffer( buffer, i );
+				last = Device.SubmitLater( list );
+			}
+
+			Assert.AreEqual( before, Device.Submissions, "nothing reached the GPU yet" );
+			Assert.IsFalse( Device.IsComplete( last ) );
+
+			if ( !waitForLast )
+			{
+				var copy = Device.BeginCommandList( QueueType.Graphics, "Copy" );
+				copy.Barrier( transfer );
+				copy.CopyBuffer( buffer, 0, readback, 0, 4096 );
+				copy.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+				Device.Wait( Device.Submit( copy ) );
+				Assert.IsTrue( Device.IsComplete( last ) );
+				Assert.AreEqual( before + 1, Device.Submissions, "the three went with the copy, in one submission" );
+				return MemoryMarshal.Cast<byte, uint>( Device.Map( readback ) )[0];
+			}
+
+			Device.Wait( last );
+			Assert.AreEqual( before + 1, Device.Submissions, "waiting sent the three in one submission" );
+			return 0;
+		}
+
+		Run( waitForLast: true );
+		Assert.AreEqual( 3u, Run( waitForLast: false ), "the last fill submitted is the one left" );
+	}
+
+	/// <summary>
+	/// Per-frame uploads larger than a page, across more frames than are in flight, all arrive.
+	/// </summary>
+	[TestMethod]
+	public void UploadsSpanPagesAndFrames()
+	{
+		const int count = 3 << 20;
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = count * 4L, Usage = BufferUsage.Storage, Name = "Big" } );
+		var readback = Device.CreateBuffer( new BufferInfo { Size = count * 4L, Memory = MemoryLocation.Readback, Name = "Readback" } );
+		var data = new uint[count];
+
+		for ( int frame = 0; frame < 5; frame++ )
+		{
+			Device.BeginFrame();
+			for ( int i = 0; i < count; i++ ) data[i] = (uint)(i * 3 + frame);
+
+			var list = Device.BeginCommandList();
+			list.UpdateBuffer<uint>( buffer, data.AsSpan( 0, count / 2 ) );
+			list.UpdateBuffer<uint>( buffer, data.AsSpan( count / 2 ), count / 2 * 4L );
+			list.Barrier( new BufferBarrier { Buffer = buffer, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Transfer, DestinationAccess = MemoryAccess.TransferRead } );
+			list.CopyBuffer( buffer, 0, readback, 0, count * 4L );
+			list.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+			Device.Wait( Device.Submit( list ) );
+
+			CollectionAssert.AreEqual( data, MemoryMarshal.Cast<byte, uint>( Device.Map( readback ) ).ToArray(), $"frame {frame}" );
+		}
+	}
+
+	/// <summary>
+	/// Destroyed resources are freed once the frames that used them are done, and their handles stop working at once.
+	/// </summary>
+	[TestMethod]
+	public void DestructionWaitsForTheGpu()
+	{
+		Device.BeginFrame();
+		var baseline = Device.MemoryUsage.Used;
+		var texture = Device.CreateTexture( TextureInfo.RenderTarget( 512, 512, Format.RGBA16Float ) );
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = 1 << 20, Usage = BufferUsage.Storage } );
+
+		var list = Device.BeginCommandList();
+		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.TopOfPipe, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		list.ClearTexture( texture, Vector4.One );
+		list.FillBuffer( buffer, 1 );
+		Device.Submit( list );
+
+		Device.Destroy( texture );
+		Device.Destroy( buffer );
+		Assert.IsFalse( Device.IsAlive( texture ) );
+		Assert.ThrowsException<ArgumentException>( () => Device.InfoOf( texture ) );
+		Assert.IsTrue( Device.MemoryUsage.Used > baseline, "the memory waits for the GPU" );
+
+		for ( int i = 0; i <= Device.FramesInFlight; i++ ) Device.BeginFrame();
+		Assert.AreEqual( baseline, Device.MemoryUsage.Used, "freed once its frame finished" );
+	}
+
+	/// <summary>
+	/// Bindless slots are handed out in linear/sRGB pairs and reused once freed.
+	/// </summary>
+	[TestMethod]
+	public void BindlessSlotsComeInPairs()
+	{
+		var a = Device.CreateTexture( TextureInfo.Texture2D( 4, 4, Format.RGBA8Unorm ) );
+		var b = Device.CreateTexture( TextureInfo.Texture2D( 4, 4, Format.RGBA16Float ) );
+		Assert.AreEqual( 0, Device.BindlessIndex( a ) % 2 );
+		Assert.AreEqual( Device.BindlessIndex( a ) + 2, Device.BindlessIndex( b ) );
+
+		var freed = Device.BindlessIndex( a );
+		Device.Destroy( a );
+		Device.WaitIdle();
+		Device.BeginFrame();
+
+		var c = Device.CreateTexture( TextureInfo.Texture2D( 4, 4, Format.RGBA8Unorm ) );
+		Assert.AreEqual( freed, Device.BindlessIndex( c ) );
+	}
+
+	/// <summary>
+	/// The pipeline cache comes back out non-empty, and a device made with it accepts it.
+	/// </summary>
+	[TestMethod]
+	public void PipelineCacheRoundTrips()
+	{
+		using ( new SampleScene( Device, Format.RGBA8Unorm ) ) { }
+		var data = Device.GetPipelineCacheData();
+		Assert.IsTrue( data.Length > 32 );
+
+		using var second = Device.Create( new DeviceOptions { Presentation = false, PipelineCacheData = data } );
+		using ( new SampleScene( second, Format.RGBA8Unorm ) ) { }
+		Assert.IsTrue( second.GetPipelineCacheData().Length >= data.Length / 2 );
+	}
+
+	/// <summary>
+	/// Many frames of the sample through the frame ring don't grow memory: command lists, upload pages and descriptor
+	/// pools are recycled.
+	/// </summary>
+	[TestMethod]
+	public void FramesRecycle()
+	{
+		using var scene = new SampleScene( Device, Format.RGBA8Unorm );
+		var target = Target( 256, 256 );
+		var layout = ImageLayout.Undefined;
+		long reserved = 0;
+
+		for ( int frame = 0; frame < 60; frame++ )
+		{
+			Device.BeginFrame();
+			var list = Device.BeginCommandList();
+			scene.Render( list, target, layout, ImageLayout.ShaderRead, frame / 60f );
+			layout = ImageLayout.ShaderRead;
+			Device.Submit( list );
+			if ( frame == 10 ) reserved = Device.MemoryUsage.Reserved;
+		}
+
+		Device.WaitIdle();
+		Assert.AreEqual( reserved, Device.MemoryUsage.Reserved, "steady frames allocate no more memory" );
+	}
+
+	/// <summary>
+	/// Writes made outside any frame (loading textures before the first one) give their upload memory back as soon as
+	/// they've finished, rather than keeping it until the next frame begins.
+	/// </summary>
+	[TestMethod]
+	public void WritesBeforeTheFirstFrameReuseUploadMemory()
+	{
+		var pixels = new byte[1024 * 1024 * 4];
+		var textures = new List<TextureHandle>();
+		textures.Add( Device.CreateTexture( TextureInfo.Texture2D( 1024, 1024, Format.RGBA8Unorm, name: "Loaded 0" ) ) );
+		Device.WriteTexture( textures[0], pixels );
+		var after = Device.MemoryUsage.Reserved;
+
+		for ( int i = 1; i < 32; i++ )
+		{
+			var texture = Device.CreateTexture( TextureInfo.Texture2D( 1024, 1024, Format.RGBA8Unorm, name: $"Loaded {i}" ) );
+			Device.WriteTexture( texture, pixels );
+			textures.Add( texture );
+		}
+
+		// 31 more textures of 4 MB each; without reuse, each write's 4 MB of upload memory would stay as well
+		var grown = Device.MemoryUsage.Reserved - after;
+		Assert.IsTrue( grown < 31 * pixels.Length * 3 / 2, $"{grown >> 20} MB reserved for 124 MB of textures" );
+		foreach ( var texture in textures ) Device.Destroy( texture );
+	}
+}

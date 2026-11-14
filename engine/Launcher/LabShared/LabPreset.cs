@@ -2,7 +2,7 @@ namespace Sandbox.Lab;
 
 /// <summary>
 /// A lab preset: a grid of one model, and optionally a floor with lights over it, a probe, a sky or fog. SceneLab and
-/// BasaltLab both build it into a <see cref="Basalt.RenderWorld"/> through <see cref="LabWorld"/>.
+/// BorealisLab both build it into a <see cref="Borealis.RenderWorld"/> through <see cref="LabWorld"/>.
 /// </summary>
 internal record LabPreset
 {
@@ -122,7 +122,7 @@ internal record LabPreset
 
 /// <summary>
 /// The lab presets: worlds built straight from a <see cref="LabPreset"/>, with no GameObject scene. SceneLab lists them
-/// among its own presets and compares them with native; BasaltLab renders them alone and checks them against its
+/// among its own presets and compares them with native; BorealisLab renders them alone and checks them against its
 /// approved images.
 /// </summary>
 internal static class LabPresets

@@ -1,4 +1,4 @@
-// motion_vectors_debug.shader as a pass module: Basalt.Gpu draws this; the .shader stays for the other routes
+// motion_vectors_debug.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
 // and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Visualizes the cached MotionVectors texture (produced by motion_vectors.shader) by sampling it

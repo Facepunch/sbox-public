@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Windows, input and Vulkan surfaces for Borealis's own programs, over SDL3 through our own loader and function pointers.
+    References nothing: a swap chain takes a window through SurfaceSource.Custom( window.CreateVulkanSurface ).
+    See docs/managed/borealis-gpu.md.
+  -->
+
+  <PropertyGroup>
+    <VersionPrefix>1.0.0</VersionPrefix>
+    <TargetFramework>net10.0</TargetFramework>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>Borealis.Sdl</AssemblyName>
+    <PackageId>Borealis.Sdl</PackageId>
+    <OutputPath>..\..\game\bin\managed</OutputPath>
+    <!-- Keep CS1591 enabled for public API documentation. -->
+    <NoWarn>1701;1702</NoWarn>
+    <LangVersion>14</LangVersion>
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

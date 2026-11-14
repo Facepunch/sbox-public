@@ -130,7 +130,7 @@ public static class ShaderCompile
 	/// </summary>
 	internal static string GpuDrivenPath( string shaderPath ) => System.IO.Path.ChangeExtension( shaderPath, null ) + ".gpudriven.shader_c";
 
-	/// <summary>The compile flag that makes vfx_vulkan compile the GPU-driven variant (<c>VFX_COMPILE_SHADER_FLAGS_BASALT_GPU_DRIVEN</c>).</summary>
+	/// <summary>The compile flag that makes vfx_vulkan compile the GPU-driven variant (<c>VFX_COMPILE_SHADER_FLAGS_BOREALIS_GPU_DRIVEN</c>).</summary>
 	const uint GpuDrivenFlag = 0x8;
 
 	/// <summary>

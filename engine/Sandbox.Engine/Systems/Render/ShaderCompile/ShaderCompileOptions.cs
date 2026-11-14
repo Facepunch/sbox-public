@@ -25,9 +25,9 @@ public struct ShaderCompileOptions
 	public string SpirvDumpPath { get; set; }
 
 	/// <summary>
-	/// Compile Basalt's GPU-driven variant (<c>BASALT_GPU_DRIVEN</c>, entry points wrapped to pull vertices and read
+	/// Compile Borealis's GPU-driven variant (<c>BOREALIS_GPU_DRIVEN</c>, entry points wrapped to pull vertices and read
 	/// materials from tables) into <c>name.gpudriven.shader_c</c> beside the shader, leaving its <c>.shader_c</c> alone.
-	/// See docs/managed/basalt-gpu-driven.md.
+	/// See docs/managed/borealis-gpu-driven.md.
 	/// </summary>
 	internal bool GpuDriven { get; set; }
 

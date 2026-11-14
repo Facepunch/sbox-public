@@ -20,18 +20,18 @@ internal sealed partial class GameWindow
 
 	/// <summary>
 	/// The frame gate: native's loop calls it after the frame's rendering has finished, and renders the next frame only if
-	/// it returns true. On Basalt.Gpu it presents the frame <see cref="Render"/> drew, then lets native end a frame with
+	/// it returns true. On Borealis.Gpu it presents the frame <see cref="Render"/> drew, then lets native end a frame with
 	/// nothing to present, so its frame count, per-frame cleanup and resource loading go on as they do after a present.
 	/// </summary>
 	internal static bool Present()
 	{
 		if ( Current is not { } game ) return true;
-		if ( game.basalt is null ) return game.window.Present();
+		if ( game.borealis is null ) return game.window.Present();
 
 		using ( WindowPresentTiming.Scope() )
 		{
-			game.basalt.PresentFrame();
-			game.UpdateBasaltGpuTitle();
+			game.borealis.PresentFrame();
+			game.UpdateBorealisGpuTitle();
 			g_pRenderDevice.Present( default );
 		}
 
@@ -44,9 +44,9 @@ internal sealed partial class GameWindow
 		CSceneSystem.BeginRenderingViews( true );
 		try
 		{
-			if ( basalt is not null )
+			if ( borealis is not null )
 			{
-				RenderOnBasaltGpu();
+				RenderOnBorealisGpu();
 				return;
 			}
 
@@ -65,20 +65,20 @@ internal sealed partial class GameWindow
 	}
 
 	/// <summary>
-	/// A frame on Basalt.Gpu: the game's and the menu's cameras draw into the window's target (<see cref="BasaltGpuWindow.Drawing"/>),
+	/// A frame on Borealis.Gpu: the game's and the menu's cameras draw into the window's target (<see cref="BorealisGpuWindow.Drawing"/>),
 	/// then the overlay, in the block that copies it into the acquired image. Scene panels render into their textures first,
 	/// in blocks of their own. A minimised window draws nothing.
 	/// </summary>
-	void RenderOnBasaltGpu()
+	void RenderOnBorealisGpu()
 	{
 		using var _ = WindowFrameTiming.Scope();
-		if ( !basalt.Update( window.PixelSize ) ) return;
+		if ( !borealis.Update( window.PixelSize ) ) return;
 
 		Sandbox.UI.ScenePanel.RenderPending();
 
 		using ( WindowBeginTiming.Scope() )
 		{
-			if ( !basalt.BeginFrame( Color.Black ) ) return;
+			if ( !borealis.BeginFrame( Color.Black ) ) return;
 		}
 
 		try
@@ -91,25 +91,25 @@ internal sealed partial class GameWindow
 		finally
 		{
 			using ( WindowOverlayTiming.Scope() )
-				basalt.EndFrame( Graphics.RenderOverlay );
+				borealis.EndFrame( Graphics.RenderOverlay );
 		}
 	}
 
-	BasaltGpuTitle basaltTitle;
+	BorealisGpuTitle borealisTitle;
 
-	// Live stats in the title on Basalt.Gpu: the game's name, else the map's, else the window's own
-	void UpdateBasaltGpuTitle()
+	// Live stats in the title on Borealis.Gpu: the game's name, else the map's, else the window's own
+	void UpdateBorealisGpuTitle()
 	{
-		if ( RenderBackend.Default is not BasaltGpuRenderBackend backend ) return;
-		basaltTitle ??= new BasaltGpuTitle();
-		basaltTitle.Frame( basalt, backend, Application.GamePackage?.Title ?? backend.LastMap ?? title, setTitle ??= value => window.Title = value );
+		if ( RenderBackend.Default is not BorealisGpuRenderBackend backend ) return;
+		borealisTitle ??= new BorealisGpuTitle();
+		borealisTitle.Frame( borealis, backend, Application.GamePackage?.Title ?? backend.LastMap ?? title, setTitle ??= value => window.Title = value );
 	}
 
 	Action<string> setTitle;
 
-	// Where a Basalt.Gpu window's frame goes, in the dev tools' timings
-	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowFrameTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window" );
-	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowBeginTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window begin" );
-	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowOverlayTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window overlay" );
-	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowPresentTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu window present" );
+	// Where a Borealis.Gpu window's frame goes, in the dev tools' timings
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowFrameTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu window" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowBeginTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu window begin" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowOverlayTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu window overlay" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings WindowPresentTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu window present" );
 }

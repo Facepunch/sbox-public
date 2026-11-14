@@ -1,4 +1,4 @@
-using Basalt;
+using Borealis;
 using Sandbox.Rendering;
 using Sandbox.Rendering.Bridge;
 
@@ -493,7 +493,7 @@ internal sealed partial class SceneLabWindow
 	/// <summary>
 	/// The managed renderer's numbers for the game camera's last frame.
 	/// </summary>
-	Basalt.RenderStats? GameStats()
+	Borealis.RenderStats? GameStats()
 	{
 		if ( game?.Camera is not { } camera || gameBridge?.StatsFor( camera.SceneCamera, camera.SceneCamera.MainView ) is not { } stats ) return null;
 

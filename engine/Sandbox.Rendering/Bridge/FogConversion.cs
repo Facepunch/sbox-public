@@ -1,21 +1,21 @@
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// The engine's fog settings as Basalt's, and back for SceneLab's native references.
+/// The engine's fog settings as Borealis's, and back for SceneLab's native references.
 /// </summary>
 internal static class FogConversion
 {
-	public static FogSettings? ToBasalt( this FogSetup? fog ) => fog is { } f ? f.ToBasalt() : null;
+	public static FogSettings? ToBorealis( this FogSetup? fog ) => fog is { } f ? f.ToBorealis() : null;
 
-	public static FogSettings ToBasalt( this in FogSetup fog ) => new()
+	public static FogSettings ToBorealis( this in FogSetup fog ) => new()
 	{
 		Enabled = fog.Enabled,
 		DistanceEnabled = fog.DistanceEnabled,
 		DistanceContribution = fog.DistanceContribution,
 		EnabledContribution = fog.EnabledContribution,
 		Weight = fog.Weight,
-		Mode = (Basalt.FogMode)fog.Mode,
-		DistanceMetric = (Basalt.FogDistanceMetric)fog.DistanceMetric,
+		Mode = (Borealis.FogMode)fog.Mode,
+		DistanceMetric = (Borealis.FogDistanceMetric)fog.DistanceMetric,
 		DirectionalColorEnabled = fog.DirectionalColorEnabled,
 		SecondaryColor = fog.SecondaryColor,
 		ColorDirection = fog.ColorDirection,
@@ -35,7 +35,7 @@ internal static class FogConversion
 		SkyAffect = fog.SkyAffect,
 		MaxDistance = fog.MaxDistance,
 		SkyTexture = MirrorContent.Texture( fog.SkyTexture ),
-		SkyEncoding = (Basalt.FogSkyEncoding)fog.SkyEncoding,
+		SkyEncoding = (Borealis.FogSkyEncoding)fog.SkyEncoding,
 		SkyContribution = fog.SkyContribution,
 		SkyBlur = fog.SkyBlur,
 		SkyBlurDistanceEnabled = fog.SkyBlurDistanceEnabled,
@@ -49,13 +49,13 @@ internal static class FogConversion
 		SunSaturation = fog.SunSaturation,
 		SkyRotation = fog.SkyRotation,
 		HeightSkyTexture = MirrorContent.Texture( fog.HeightSkyTexture ),
-		HeightSkyEncoding = (Basalt.FogSkyEncoding)fog.HeightSkyEncoding,
+		HeightSkyEncoding = (Borealis.FogSkyEncoding)fog.HeightSkyEncoding,
 		HeightSkyContribution = fog.HeightSkyContribution,
 		HeightSkyBlur = fog.HeightSkyBlur,
 		HeightSkyRotation = fog.HeightSkyRotation,
 	};
 
-	public static GradientFogSettings ToBasalt( this in GradientFogSetup fog ) => new()
+	public static GradientFogSettings ToBorealis( this in GradientFogSetup fog ) => new()
 	{
 		Enabled = fog.Enabled,
 		StartDistance = fog.StartDistance,

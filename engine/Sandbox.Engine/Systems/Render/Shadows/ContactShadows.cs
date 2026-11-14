@@ -4,8 +4,8 @@ using System.Runtime.InteropServices;
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// Bend Studio contact shadows, for native's views (<see cref="ShadowMapper.RenderScreenSpaceShadows"/>). Basalt has its own
-/// (<c>Basalt.Gpu.ContactShadows</c>).
+/// Bend Studio contact shadows, for native's views (<see cref="ShadowMapper.RenderScreenSpaceShadows"/>). Borealis has its own
+/// (<c>Borealis.Gpu.ContactShadows</c>).
 /// </summary>
 internal static class ContactShadows
 {

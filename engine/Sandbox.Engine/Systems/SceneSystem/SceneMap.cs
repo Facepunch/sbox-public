@@ -135,8 +135,8 @@ public sealed partial class SceneMap : IValid
 		WorldRef = worldRef;
 		MapFolder = worldRef.GetFolder();
 
-		// On Basalt.Gpu the world's models, materials and textures are read by path from the map's package and VPK
-		if ( RenderBackend.Default is BasaltGpuRenderBackend gpu && FileSystem.Mounted.GetFullPath( vpk ) is { } fullVpk && System.IO.File.Exists( fullVpk ) )
+		// On Borealis.Gpu the world's models, materials and textures are read by path from the map's package and VPK
+		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu && FileSystem.Mounted.GetFullPath( vpk ) is { } fullVpk && System.IO.File.Exists( fullVpk ) )
 			gpu.AddMapContent( fullVpk );
 		WorldGroup = worldGroup;
 		World = sceneWorld;

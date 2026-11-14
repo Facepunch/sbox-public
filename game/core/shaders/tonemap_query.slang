@@ -1,4 +1,4 @@
-// tonemap_query.shader as a pass module: Basalt.Gpu draws this; the .shader stays for the other routes
+// tonemap_query.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
 // and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 

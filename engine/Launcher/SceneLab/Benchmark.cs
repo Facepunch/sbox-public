@@ -100,7 +100,7 @@ internal sealed class Benchmark
 
 	double[] sums = new double[13];
 
-	void Accumulate( Basalt.RenderStats s )
+	void Accumulate( Borealis.RenderStats s )
 	{
 		sums[0] += s.CollectMs; sums[1] += s.PrepareMs; sums[2] += s.SetupMs; sums[3] += s.RecordMs; sums[4] += s.WorkerRecordMs;
 		sums[5] += s.StagesMs; sums[6] += s.SubmitMs; sums[7] += s.Draws + s.DepthDraws; sums[8] += s.ShadowDraws; sums[9] += s.RecordWaitMs; sums[10] += s.SyncMs;
@@ -124,7 +124,7 @@ internal sealed class Benchmark
 
 	/// <summary>
 	/// Our assemblies in this process that were built without optimisation, or empty. A Debug build - what a bare
-	/// <c>dotnet build</c> or <c>dotnet test</c> leaves in bin/managed - measures the build, not the renderer: Basalt's
+	/// <c>dotnet build</c> or <c>dotnet test</c> leaves in bin/managed - measures the build, not the renderer: Borealis's
 	/// Prepare took four times as long in one.
 	/// </summary>
 	static string UnoptimisedAssemblies()
@@ -133,7 +133,7 @@ internal sealed class Benchmark
 		foreach ( var assembly in AppDomain.CurrentDomain.GetAssemblies() )
 		{
 			var name = assembly.GetName().Name ?? "";
-			if ( !name.StartsWith( "Sandbox.", StringComparison.Ordinal ) && !name.StartsWith( "Basalt", StringComparison.Ordinal ) && name != "scenelab" ) continue;
+			if ( !name.StartsWith( "Sandbox.", StringComparison.Ordinal ) && !name.StartsWith( "Borealis", StringComparison.Ordinal ) && name != "scenelab" ) continue;
 			if ( assembly.GetCustomAttributes( typeof( System.Diagnostics.DebuggableAttribute ), false ) is [System.Diagnostics.DebuggableAttribute { IsJITOptimizerDisabled: true }, ..] )
 				names.Add( name );
 		}

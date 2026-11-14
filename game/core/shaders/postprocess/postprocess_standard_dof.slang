@@ -1,4 +1,4 @@
-// postprocess_standard_dof.shader as a pass module: Basalt.Gpu draws this; the .shader stays for the other routes
+// postprocess_standard_dof.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
 // and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
 // HEADER: Description = "Depth of Field";
 // HEADER: DevShader = true;

@@ -61,7 +61,7 @@ public class PanelGalleryAppSystem : PanelAppSystem
 		var surface = window?.Surface;
 		if ( surface is null ) return running;
 
-		// With -basaltgpu the window draws on Basalt.Gpu and Source 2's device is idle: capture what that device draws
+		// With -borealisgpu the window draws on Borealis.Gpu and Source 2's device is idle: capture what that device draws
 		if ( RenderBackend.Default is not Source2RenderBackend && window.Core is { } core )
 		{
 			var pixels = core.RenderToPixels( RenderBackend.Default );

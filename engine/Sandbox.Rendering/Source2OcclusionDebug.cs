@@ -1,7 +1,7 @@
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// Basalt's occlusion debug view into the engine's <see cref="OcclusionDebugTarget"/>, which the overlay shows.
+/// Borealis's occlusion debug view into the engine's <see cref="OcclusionDebugTarget"/>, which the overlay shows.
 /// </summary>
 internal sealed class Source2OcclusionDebug : OcclusionDebugOutput
 {

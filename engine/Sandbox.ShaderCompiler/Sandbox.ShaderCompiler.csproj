@@ -2,7 +2,7 @@
 
   <!--
     The shader compiler for plain Slang modules: material shaders written as surfaces ([Material] structs) and raw
-    modules, compiled with the engine's slang.dll and reflected into what Basalt binds, plus a typed C# class per
+    modules, compiled with the engine's slang.dll and reflected into what Borealis binds, plus a typed C# class per
     material. References nothing of the engine. See docs/managed/shader-format-replacement.md.
   -->
 

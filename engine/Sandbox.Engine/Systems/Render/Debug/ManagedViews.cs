@@ -25,7 +25,7 @@ internal static partial class DebugOverlay
 		/// <summary>
 		/// Whether there's anything to draw: a view is on and the managed renderer has published a frame lately.
 		/// </summary>
-		public static bool Showing => ManagedDebugViews.Views != Basalt.DebugViews.None && ManagedDebugViews.Latest is { } report
+		public static bool Showing => ManagedDebugViews.Views != Borealis.DebugViews.None && ManagedDebugViews.Latest is { } report
 			&& report.Frame + 2 >= Application.FrameCount;
 
 		/// <summary>
@@ -41,7 +41,7 @@ internal static partial class DebugOverlay
 		/// <summary>
 		/// Draws the key at <paramref name="pos"/>, and the labels over <paramref name="area"/>, where the view is shown.
 		/// </summary>
-		public static void Draw( Painter painter, ref Vector2 pos, Basalt.DebugViewReport report, Rect area )
+		public static void Draw( Painter painter, ref Vector2 pos, Borealis.DebugViewReport report, Rect area )
 		{
 			if ( report is null ) return;
 
@@ -75,15 +75,15 @@ internal static partial class DebugOverlay
 
 			pos.y = panel.Bottom;
 
-			if ( (report.Views & Basalt.DebugViews.ShadowMaps) != 0 )
+			if ( (report.Views & Borealis.DebugViews.ShadowMaps) != 0 )
 				Labels( painter, report, area );
 		}
 
-		static void Lines( Basalt.DebugViewReport report )
+		static void Lines( Borealis.DebugViewReport report )
 		{
 			lines.Clear();
 
-			if ( (report.Views & Basalt.DebugViews.LodColors) != 0 )
+			if ( (report.Views & Borealis.DebugViews.LodColors) != 0 )
 			{
 				lines.Add( new( null, "LOD each mesh drew at", default ) );
 				var last = 0;
@@ -91,32 +91,32 @@ internal static partial class DebugOverlay
 					if ( report.Lods[i] > 0 ) last = i;
 
 				for ( int i = 0; i <= last; i++ )
-					lines.Add( new( $"{report.Lods[i]:N0}", i == report.Lods.Length - 1 ? $"LOD {i}+" : $"LOD {i}", Basalt.DebugViewReport.LodColor( i ) ) );
+					lines.Add( new( $"{report.Lods[i]:N0}", i == report.Lods.Length - 1 ? $"LOD {i}+" : $"LOD {i}", Borealis.DebugViewReport.LodColor( i ) ) );
 
 				lines.Add( new( $"{report.SingleLod:N0}", "one LOD, own tint", default ) );
 			}
 
-			if ( (report.Views & Basalt.DebugViews.CullReasons) != 0 )
+			if ( (report.Views & Borealis.DebugViews.CullReasons) != 0 )
 			{
 				lines.Add( new( null, $"Culling, {report.Objects:N0} objects", default ) );
 				lines.Add( new( $"{report.Visible:N0}", "passed the CPU cull", default ) );
-				lines.Add( new( $"{report.Culled[(int)Basalt.CullReason.Frustum]:N0}", "off screen", default ) );
-				lines.Add( new( $"{report.Culled[(int)Basalt.CullReason.Size]:N0}", "too small, drawn", Basalt.DebugViewReport.CullColor( Basalt.CullReason.Size ) ) );
-				lines.Add( new( $"{report.Culled[(int)Basalt.CullReason.Tags]:N0}", "tags, drawn", Basalt.DebugViewReport.CullColor( Basalt.CullReason.Tags ) ) );
+				lines.Add( new( $"{report.Culled[(int)Borealis.CullReason.Frustum]:N0}", "off screen", default ) );
+				lines.Add( new( $"{report.Culled[(int)Borealis.CullReason.Size]:N0}", "too small, drawn", Borealis.DebugViewReport.CullColor( Borealis.CullReason.Size ) ) );
+				lines.Add( new( $"{report.Culled[(int)Borealis.CullReason.Tags]:N0}", "tags, drawn", Borealis.DebugViewReport.CullColor( Borealis.CullReason.Tags ) ) );
 				lines.Add( report.OcclusionCulling
 					? new( $"{report.Occluded:N0}", "occluded instances", default )
 					: new( null, "occlusion culling off", default ) );
 			}
 
-			if ( (report.Views & Basalt.DebugViews.ShadowMaps) != 0 )
+			if ( (report.Views & Borealis.DebugViews.ShadowMaps) != 0 )
 			{
 				var rendered = 0;
 				foreach ( var map in report.ShadowMaps )
 					if ( map.Rendered ) rendered++;
 
 				lines.Add( new( null, "Shadow maps", default ) );
-				lines.Add( new( $"{rendered:N0}", "rendered this frame", Basalt.DebugViewReport.ShadowFrameColor( new Basalt.ShadowMapInfo { Rendered = true } ) ) );
-				lines.Add( new( $"{report.ShadowMaps.Count - rendered:N0}", "cached", Basalt.DebugViewReport.ShadowFrameColor( default ) ) );
+				lines.Add( new( $"{rendered:N0}", "rendered this frame", Borealis.DebugViewReport.ShadowFrameColor( new Borealis.ShadowMapInfo { Rendered = true } ) ) );
+				lines.Add( new( $"{report.ShadowMaps.Count - rendered:N0}", "cached", Borealis.DebugViewReport.ShadowFrameColor( default ) ) );
 				if ( report.ShadowMapsNotShown > 0 ) lines.Add( new( $"{report.ShadowMapsNotShown:N0}", "not shown, no room", default ) );
 			}
 		}
@@ -124,7 +124,7 @@ internal static partial class DebugOverlay
 		/// <summary>
 		/// Each thumbnail's name, resolution and last render, above it.
 		/// </summary>
-		static void Labels( Painter painter, Basalt.DebugViewReport report, Rect area )
+		static void Labels( Painter painter, Borealis.DebugViewReport report, Rect area )
 		{
 			var viewport = report.Viewport;
 			if ( viewport.Width <= 0 || viewport.Height <= 0 ) return;
@@ -137,8 +137,8 @@ internal static partial class DebugOverlay
 				var top = area.Top + (thumbnail.Top - viewport.Top) * scale.y;
 				var name = map.Kind switch
 				{
-					Basalt.ShadowMapKind.Cascade => $"Cascade {map.Index}",
-					Basalt.ShadowMapKind.Spot => $"Spot {map.Index}",
+					Borealis.ShadowMapKind.Cascade => $"Cascade {map.Index}",
+					Borealis.ShadowMapKind.Spot => $"Spot {map.Index}",
 					_ => $"Point {map.Index}",
 				};
 				if ( map.StaticCache ) name += " static";
