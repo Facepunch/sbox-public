@@ -30,7 +30,7 @@ internal static class MapRealRun
 	/// A way of drawing it: recording on one thread or several, material objects or binding by reflection, whether static
 	/// geometry casts sun shadows, and whether aggregates draw GPU-driven (<c>-gpudriven</c>).
 	/// </summary>
-	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false, bool CpuCulling = false, bool NoCompaction = false, bool FullVertices = false, bool Visibility = false );
+	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false, bool CpuCulling = false, bool NoCompaction = false, bool FullVertices = false, bool Visibility = false, bool FreezeFar = false, bool? FarCache = null, bool NoTiles = false );
 
 	static readonly Variant[] Variants =
 	[
@@ -52,6 +52,11 @@ internal static class MapRealRun
 		new( "real-parallel-gpudriven-visibility", true, true, false, true, Visibility: true ),
 		new( "real-serial-gpudriven-shadows", false, true, true, true, Visibility: true ),
 		new( "real-parallel-gpudriven-shadows", true, true, true, true, Visibility: true ),
+		new( "real-parallel-gpudriven-shadows-frozen", true, true, true, true, Visibility: true, FreezeFar: true ),
+		new( "real-parallel-gpudriven-shadows-farcache", true, true, true, true, Visibility: true, FarCache: true ),
+		new( "real-parallel-gpudriven-shadows-nofarcache", true, true, true, true, Visibility: true, FarCache: false ),
+		new( "real-parallel-gpudriven-shadows-notiles", true, true, true, true, Visibility: true, NoTiles: true ),
+		new( "real-parallel-gpudriven-visibility-notiles", true, true, false, true, Visibility: true, NoTiles: true ),
 		new( "real-parallel-gpudriven-fullvertices", true, true, false, true, FullVertices: true ),
 		new( "real-serial-fullvertices", false, true, false, FullVertices: true ),
 		new( "real-parallel-fullvertices", true, true, false, FullVertices: true ),
@@ -87,6 +92,16 @@ internal static class MapRealRun
 		map.Backend.Figure = figure;
 
 		if ( Args.Has( "-occlusion" ) && RenderHost.Current is BackendRenderHost host ) host.Occlusion = true;
+
+		// Sun cascades: -no-texel-cascades culls and picks LODs by the main view, as native; -freeze-far-cascade (or the
+		// -frozen variant) draws the last cascade once and copies it in after, an experiment for a camera that doesn't move;
+		// -far-cache / -no-far-cache, -no-cascade-tiles (or the -farcache, -nofarcache and -notiles variants);
+		// -cascade-resolution N; -cascade-cull-texels N
+		global::Borealis.Shadows.ShadowMapper.TexelSizedCascades = !Args.Has( "-no-texel-cascades" );
+		var farCache = Args.Has( "-far-cache" ) || (global::Borealis.Shadows.ShadowMapper.FarCascadeCache && !Args.Has( "-no-far-cache" ));
+		var cascadeTiles = global::Borealis.Shadows.ShadowMapper.CascadeTiles && !Args.Has( "-no-cascade-tiles" );
+		if ( Args.Int( "-cascade-resolution", 0 ) is > 0 and var cascadeResolution ) RenderHost.Current.Shadows.MaxCascadeResolution = cascadeResolution;
+		if ( Args.Int( "-cascade-cull-texels", 0 ) is > 0 and var cullTexels ) global::Borealis.Culling.SizeCull.CascadeTexels = cullTexels;
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		Console.WriteLine( $"Loaded in {load.Elapsed.TotalSeconds:0.0} s; {map.Problems.Count} problems" );
 		if ( map.Backend.Surfaces.ConvertedMaterials > 0 ) Console.WriteLine( $"  {map.Backend.Surfaces.ConvertedMaterials} materials drawn as surfaces" );
@@ -182,6 +197,11 @@ internal static class MapRealRun
 				map.Backend.PositionStreams = !variant.FullVertices;
 				map.Backend.GpuDrivenVisibility = variant.Visibility;
 				map.SetCastShadows( variant.Shadows );
+				global::Borealis.Shadows.ShadowMapper.FreezeFarCascade = variant.FreezeFar || Args.Has( "-freeze-far-cascade" );
+				global::Borealis.Shadows.ShadowMapper.ForgetFrozenFar();
+				global::Borealis.Shadows.ShadowMapper.FarCascadeCache = variant.FarCache ?? farCache;
+				global::Borealis.Shadows.ShadowMapper.CascadeTiles = cascadeTiles && !variant.NoTiles;
+				var farDraws = global::Borealis.Shadows.ShadowMapper.FarCaches.Sum( f => f.Draws );
 
 				var warm = Stopwatch.StartNew();
 				for ( int i = 0; (i < options.Warmup || warm.Elapsed.TotalSeconds < 2) && !window.CloseRequested; i++ )
@@ -204,6 +224,9 @@ internal static class MapRealRun
 					frameTimes.Add( Stopwatch.GetElapsedTime( last, now ).TotalMilliseconds );
 					last = now;
 				}
+
+				if ( global::Borealis.Shadows.ShadowMapper.FarCascadeCache )
+					Console.WriteLine( $"{view.Name} {variant.Name}: far cascade cache drawn {(global::Borealis.Shadows.ShadowMapper.FarCaches.Sum( f => f.Draws ) - farDraws)} times over the warm-up and timed frames" );
 
 				if ( passTimer is not null )
 				{
@@ -258,6 +281,9 @@ internal static class MapRealRun
 				map.Backend.MaterialObjects = true;
 				// -capture-shadows: with static geometry casting sun shadows, so GPU-driven shadow views are compared too
 				map.SetCastShadows( Args.Has( "-capture-shadows" ) );
+				global::Borealis.Shadows.ShadowMapper.FarCascadeCache = farCache;
+				global::Borealis.Shadows.ShadowMapper.CascadeTiles = cascadeTiles;
+				global::Borealis.Shadows.ShadowMapper.FreezeFarCascade = false;
 				var path = Path.Combine( Path.GetFullPath( options.Captures ), $"{options.Ident.Split( '.' ).Last()}-{view.Name}-real.png" );
 
 				// The GPU-driven frames between two classic ones, to compare (wind and water move between captures)

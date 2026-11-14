@@ -110,6 +110,7 @@ public sealed partial class RenderSystem : IDisposable
 		SharedPasses.WarmUp();
 		Gpu.ContactShadows.WarmUp();
 		OutputFlipLayer.WarmUp();
+		Borealis.Shadows.ShadowSystem.WarmUp();
 	}
 
 	/// <summary>

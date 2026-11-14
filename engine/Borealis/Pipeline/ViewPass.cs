@@ -16,6 +16,28 @@ internal enum StaticFilter
 	/// Rendering on top of a static cache, or for a baked light.
 	/// </summary>
 	NoStatic,
+
+	/// <summary>
+	/// No casters: the view is only its static cache.
+	/// </summary>
+	Nothing,
+
+	/// <summary>
+	/// Rendering the sun's cached far cascade: static casters, and those settled by <see cref="ViewPass.SettledStamp"/>
+	/// (<see cref="Shadows.SettledCasters"/>).
+	/// </summary>
+	Settled,
+
+	/// <summary>
+	/// <see cref="Settled"/> for a baked sun: only the settled casters that aren't static.
+	/// </summary>
+	SettledNoStatic,
+
+	/// <summary>
+	/// Rendering on top of the sun's cached far cascade: casters that aren't static and weren't settled by
+	/// <see cref="ViewPass.SettledStamp"/>.
+	/// </summary>
+	Unsettled,
 }
 
 /// <summary>
@@ -53,6 +75,40 @@ internal sealed class ViewPass
 	public ShadowMap CachedStatic { get; set; }
 
 	public StaticFilter StaticFilter { get; set; }
+
+	/// <summary>
+	/// A sun cascade that size culls its casters by its own texel size rather than by <see cref="Root"/>'s screen
+	/// (<see cref="Culling.SizeCull.ForPass"/>), so what it draws doesn't depend on where the camera is.
+	/// </summary>
+	public bool TexelSized { get; set; }
+
+	/// <summary>
+	/// Picks its meshes' LODs by its own texels, how many a world unit covers, rather than by <see cref="Root"/>'s screen;
+	/// 0 for the root's.
+	/// </summary>
+	public float LodTexelsPerUnit { get; set; }
+
+	/// <summary>
+	/// The <see cref="Shadows.SettledCasters"/> stamp a <see cref="StaticFilter.Settled"/> or <see cref="StaticFilter.Unsettled"/>
+	/// view splits casters at.
+	/// </summary>
+	public ulong SettledStamp { get; set; }
+
+	/// <summary>
+	/// An <see cref="StaticFilter.Unsettled"/> view counts here the casters it drew that have settled since, which its cache
+	/// would hold if it were drawn again.
+	/// </summary>
+	public Shadows.CasterCount NewlySettled { get; set; }
+
+	/// <summary>
+	/// <see cref="CachedStatic"/> is held wrapped around by this many texels (<see cref="Shadows.ShadowViewDesc.CacheOffset"/>).
+	/// </summary>
+	public Vector2Int CacheOffset { get; set; }
+
+	/// <summary>
+	/// A cleared depth tile copied over the view's viewport instead of clearing the target, for a view of part of it.
+	/// </summary>
+	public ShadowMap Blank { get; set; }
 
 	/// <summary>
 	/// While <see cref="DebugViews.CullReasons"/> is on, the main view's <see cref="CullReason"/> by world index for meshes it
@@ -116,6 +172,12 @@ internal sealed class ViewPass
 		Target = null;
 		CachedStatic = null;
 		StaticFilter = StaticFilter.Any;
+		TexelSized = false;
+		LodTexelsPerUnit = 0;
+		SettledStamp = 0;
+		NewlySettled = null;
+		CacheOffset = default;
+		Blank = null;
 		TargetSlice = 0;
 		DepthBias = 0;
 		SlopeScaledDepthBias = 0;
