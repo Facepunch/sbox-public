@@ -471,6 +471,104 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// A GPU-driven table that grows while a frame records keeps its old buffer: draws recorded earlier in the frame read it
+	/// at its slot once the frame is submitted, which was a GPU page fault and a lost device when it was destroyed at once.
+	/// </summary>
+	[TestMethod]
+	public void GrownTablesKeepTheirOldBuffer()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		var tables = backend.GpuDrivenTables;
+		var first = tables.LightingBuffer;
+		for ( int i = 1; tables.LightingBuffer.Equals( first ) && i < 100000; i++ ) tables.Lighting( BitConverter.GetBytes( i ), null );
+
+		Assert.IsFalse( tables.LightingBuffer.Equals( first ), "the lighting table grew" );
+		Device.WaitIdle();
+		Assert.IsTrue( Device.IsAlive( first ), "its old buffer is kept" );
+	}
+
+	/// <summary>
+	/// Static overlays draw GPU-driven a call per render order (<see cref="BackendDevice.GpuDrivenOverlays"/>): four overlays of
+	/// two materials in render order 0 are one bucket, the one in render order 1 another, nothing draws classic, and where
+	/// they don't overlap the pixels are the classic path's.
+	/// </summary>
+	[TestMethod]
+	public void OverlaysDrawGpuDrivenByRenderOrder()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenMeshes = false };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven overlay test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 0;
+
+			GpuMaterial[] materials = [backend.CreateMaterial( "Overlay A", new Color( 0.8f, 0.6f, 0.4f ) ), backend.CreateMaterial( "Overlay B", new Color( 0.3f, 0.7f, 0.4f ) )];
+			for ( int i = 0; i < 5; i++ )
+			{
+				var (mesh, _) = Boxes( backend, materials[i % 2], i * 100 - 200 );
+				world.Add( new MeshObject( mesh, new Transform( new Vector3( 0, 0, i * 15 ) ) ) { LayerMatch = LayerMatch.StaticOverlay, RenderOrder = i == 4 ? 1 : 0 } );
+			}
+
+			var view = new RenderView { Name = "Overlays", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			byte[] Frame( bool gpuDriven, DrawCensus census = null )
+			{
+				backend.GpuDrivenOverlays = gpuDriven;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				backend.Census = census;
+				try
+				{
+					system.Render( world, view, target );
+				}
+				finally
+				{
+					backend.Census = null;
+				}
+
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			var classic = Frame( false );
+			var census = new DrawCensus();
+			var driven = Frame( true, census );
+			census.Resolve( Device );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.AreEqual( 0, Different( classic, driven ), "the overlays draw the classic pixels" );
+
+			var overlays = census.Draws.Where( d => d.Pass.EndsWith( "Static World Overlays", StringComparison.Ordinal ) ).ToArray();
+			Assert.AreEqual( 0, overlays.Count( d => d.Path == DrawCensus.Path.Classic ), "no overlay drew classic" );
+			Assert.AreEqual( 2, overlays.Select( d => d.Bucket ).Distinct().Count(), "a bucket per render order" );
+			Assert.AreEqual( 2, overlays.Max( d => d.BucketMaterials ), "render order 0's two materials in one bucket" );
+			Assert.IsTrue( overlays.Sum( d => d.Commands ) >= 5, "every overlay drew" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A shader with no variant beside it (a package's) gets one from the library's compiler: none while it compiles,
 	/// then the compiled one, cached, so another library loads it without compiling.
 	/// </summary>

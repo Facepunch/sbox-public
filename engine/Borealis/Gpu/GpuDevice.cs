@@ -86,6 +86,9 @@ public abstract class GpuDevice
 	/// <summary>Whether static meshes' opaque draws join the aggregates' GPU-driven call (<see cref="DrawsAggregatesGpuDriven"/> too).</summary>
 	internal virtual bool DrawsMeshesGpuDriven => false;
 
+	/// <summary>Whether a map's static overlays draw GPU-driven, a call per render order, regrouped by pipeline within it.</summary>
+	internal virtual bool DrawsOverlaysGpuDriven => false;
+
 	/// <summary>Whether the device has an async compute queue.</summary>
 	public abstract bool SupportsAsyncCompute { get; }
 
