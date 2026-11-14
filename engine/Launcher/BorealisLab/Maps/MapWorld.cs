@@ -54,6 +54,9 @@ internal sealed partial class MapWorld : IDisposable
 	readonly List<MeshObject> meshObjects = new();
 	readonly List<AggregateObject> aggregateObjects = new();
 
+	/// <summary>The static overlays' render orders and how many objects have each, for the draw census.</summary>
+	public IEnumerable<(int Order, int Objects)> OverlayOrders => meshObjects.Where( o => o.LayerMatch == LayerMatch.StaticOverlay ).GroupBy( o => o.RenderOrder ).Select( g => (g.Key, g.Count()) ).OrderBy( x => x.Key );
+
 	/// <param name="castShadows">Whether the map's static geometry casts sun shadows; Construct's sun is baked, so in the
 	/// game its world geometry and static props don't.</param>
 	/// <param name="bakedLighting">Light lightmapped draws from the map's lightmaps and the rest from its probe volumes.</param>

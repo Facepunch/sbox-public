@@ -921,6 +921,15 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	internal override bool DrawsMeshesGpuDriven => GpuDrivenMeshes && DrawsAggregatesGpuDriven;
 
 	/// <summary>
+	/// Draw a map's static overlays GPU-driven (on by default; <c>-no-gpudriven-overlays</c> turns it off): those of one
+	/// render order as one call, so draws of a pipeline go together whatever their material, which reorders overlays within
+	/// a render order where they overlap.
+	/// </summary>
+	public bool GpuDrivenOverlays { get; set; } = !HasSwitch( "-no-gpudriven-overlays" );
+
+	internal override bool DrawsOverlaysGpuDriven => GpuDrivenOverlays && DrawsAggregatesGpuDriven;
+
+	/// <summary>
 	/// Static meshes' opaque draws join the aggregates' GPU-driven call (docs/managed/borealis-gpu-driven.md). Off by default:
 	/// on Construct it saves GPU time but costs CPU time, mostly on worker threads, where the one GPU-driven run now records
 	/// what workers drew between them; <c>-gpudriven-meshes</c> turns it on.
