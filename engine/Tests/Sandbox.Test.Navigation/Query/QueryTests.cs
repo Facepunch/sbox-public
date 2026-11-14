@@ -403,18 +403,18 @@ public class QueryTests
 	public void CornersStopAtTheFirstLinkAndThePathHasBothEnds()
 	{
 		var mesh = Mesh( new Layout( UpperFloor: true ) );
-		mesh.AddLink( new NavLink { Start = new Vector3( 320, 325, 1 ), End = new Vector3( 320, 325, 201 ), Radius = 24, Bidirectional = true, Area = 1 } );
+		mesh.AddLink( new NavLink { Start = new Vector3( 325, 325, 1 ), End = new Vector3( 325, 325, 201 ), Radius = 24, Bidirectional = true, Area = 1 } );
 		mesh.Commit();
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
 		Vector3 from = new( 105, 105, 0 ), to = new( 505, 505, 200 );
 		Assert.AreEqual( PathStatus.Complete, query.FindPath( from, to, Snap, default, path ) );
-		CollectionAssert.AreEqual( new[] { from, new Vector3( 320, 325, 0 ), new Vector3( 320, 325, 200 ), to }, path.Corners.ToArray() );
+		CollectionAssert.AreEqual( new[] { from, new Vector3( 325, 325, 0 ), new Vector3( 325, 325, 200 ), to }, path.Corners.ToArray() );
 
 		Span<Vector3> corners = stackalloc Vector3[8];
 		int count = query.FindCorners( path.Polys, from, to, corners );
 		Assert.AreEqual( 2, count, "A mover gets the corners up to the link entry" );
-		Assert.AreEqual( new Vector3( 320, 325, 0 ), corners[1] );
+		Assert.AreEqual( new Vector3( 325, 325, 0 ), corners[1] );
 
 		// After the link the rest of the corridor is pulled from the exit.
 		int link = 0;
@@ -659,8 +659,8 @@ public class QueryTests
 		var end = corridor[^1];
 
 		// The agent was moved a few cells off its corridor.
-		var moved = new Vector3( 135, 365, 0 );
-		var poly = GridMesh.Nearest( query, 135, 365 );
+		var moved = new Vector3( 135, 285, 0 );
+		var poly = GridMesh.Nearest( query, 135, 285 );
 		Assert.IsFalse( corridor.Contains( poly ) );
 		Assert.IsTrue( query.Repair( mesh.State, poly, moved, target, default, ref corridor, ref count, 64 ) );
 		Assert.AreEqual( poly, corridor[0] );

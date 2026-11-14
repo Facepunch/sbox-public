@@ -13,9 +13,9 @@ public class LinkTypeTests
 
 	const byte Jump = 3;
 
-	// A ridge across the tile: the ground climbs 3 in 4 from both sides to x = 320. Along a row the
-	// search's cost of a walk is exact, every portal midpoint lies on it: from West to East it is
-	// 537.5 over the top. A link straight through is 430 long, so it saves 107.5.
+	// A ridge across the tile: the ground climbs 3 in 4 from both sides to x = 320. From West to East
+	// along the row the walk is 537.5 over the top. A link straight through is 430 long, so it saves
+	// 107.5.
 	static readonly Vector3 West = new( 105, 325, 3.75f ), East = new( 535, 325, 3.75f );
 	const float Walk = 537.5f, Through = 430, Saved = Walk - Through;
 
@@ -109,6 +109,47 @@ public class LinkTypeTests
 		// A penalty for another type, and one the array does not reach, change nothing.
 		Assert.IsTrue( TakesLink( query, new NavFilter( 0, linkPenalties: [1000, 1000, 1000] ) ) );
 		Assert.IsFalse( TakesLink( query, new NavFilter( 0, linkPenalties: [0, 0, 0, 1000] ) ) );
+	}
+
+	[TestMethod]
+	public void AStraightWalkOverAHillCostsTheGroundNotTheLineThroughIt()
+	{
+		// A hill near the start: up 3 in 4 to x = 220, down to level ground at x = 420. The walk along
+		// the row is 143.75 up, 250 down and 115 level. The link goes straight through.
+		Vector3 west = new( 105, 325, 63.75f ), east = new( 535, 325, 0 );
+		var mesh = GridMesh.Mesh( GridMesh.Tile( 0, 0, new GridMesh.Layer( 0, Height: ( x, y ) => MathF.Max( 0, 150 - 0.75f * MathF.Abs( x - 220 ) ) ) ) );
+		mesh.AddLink( new NavLink { Start = west, End = east, Radius = 4, Bidirectional = true, Area = 1, Type = Jump } );
+		mesh.Commit();
+		var query = new NavQuery( mesh );
+		var path = new NavPath();
+		float saved = 143.75f + 250 + 115 - Vector3.Distance( west, east );
+
+		bool Takes( float penalty ) => query.FindPath( west, east, Snap, Priced( penalty: penalty ), path ) == PathStatus.Complete && path.Polys.ToArray().Any( p => p.IsLink );
+		Assert.IsTrue( Takes( saved - 1 ) );
+		Assert.IsFalse( Takes( saved + 1 ) );
+	}
+
+	[TestMethod]
+	public void APenaltyTurnsTheRouteAtTheRealDetourOnLargePolygons()
+	{
+		// An open floor of 4 by 3 tiles and a wall with one way round. A walk priced from portal
+		// midpoint to portal midpoint came out 723 too long here, on a real detour of 292.
+		var scene = new GeneratedLinkTests.Scene().Floor( 0, 0, 2048, 1536, 0 ).Box( 620, 380, 640, 1536, 0, 200 ).Generate( default );
+		scene.Mesh.AddLink( new NavLink { Start = new Vector3( 560, 700, 0 ), End = new Vector3( 700, 700, 0 ), Radius = 8, Bidirectional = true, Type = Jump } );
+		scene.Mesh.Commit();
+		var query = new NavQuery( scene.Mesh );
+		var path = new NavPath();
+		Vector3 start = new( 300, 700, 0 ), goal = new( 960, 700, 0 );
+
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( start, goal, GeneratedLinkTests.Snap, Barred( Jump ), path ) );
+		float walk = path.Length;
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( start, goal, GeneratedLinkTests.Snap, default, path ) );
+		Assert.IsTrue( path.Polys.ToArray().Any( p => p.IsLink ) );
+		float detour = walk - path.Length;
+
+		bool Takes( float penalty ) => query.FindPath( start, goal, GeneratedLinkTests.Snap, Priced( penalty: penalty ), path ) == PathStatus.Complete && path.Polys.ToArray().Any( p => p.IsLink );
+		Assert.IsTrue( Takes( detour * 0.95f ), $"A penalty below the detour of {detour:0} should leave the link the shorter way" );
+		Assert.IsFalse( Takes( detour * 1.05f ), $"A penalty above the detour of {detour:0} should send the path round the wall" );
 	}
 
 	[TestMethod]
