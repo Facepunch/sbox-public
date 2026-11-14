@@ -531,7 +531,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		{
 			var item = items[i];
 			ref readonly var run = ref runs[item.Run];
-			if ( TakesGpuDriven( run ) )
+			if ( TakesGpuDriven( run ) && !(run.ReadsFrameBuffer && NoGpuDrivenReaders) )
 			{
 				layers.GpuDriven.Add( item );
 				layers.ReadersTaken |= run.ReadsFrameBuffer;
@@ -543,6 +543,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		CollectionsMarshal.SetCount( items, kept );
 	}
+
+	/// <summary><c>-no-gpudriven-readers</c>: leave frame-buffer readers to the classic path, for comparisons.</summary>
+	static readonly bool NoGpuDrivenReaders = Array.Exists( Environment.GetCommandLineArgs(), a => a.Equals( "-no-gpudriven-readers", StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>Whether <see cref="TakeGpuDriven"/> takes a run: nothing per object but its lighting.</summary>
 	static bool TakesGpuDriven( in Run run ) => run.Custom is null && run.Callbacks is null && !run.Skinned && !run.Deformed && !run.Morphable && run.CullDraw < 0 && run.Attributes is null;
