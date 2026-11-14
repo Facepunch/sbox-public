@@ -162,7 +162,7 @@ internal sealed class LabWorld
 			world.Lighting.SunDirection = sunDirection;
 
 		Focus = first.Bounds.Center;
-		DefaultDistance = MathF.Max( first.Bounds.Size.Length * 1.6f, scene.Grid * spacing * 1.2f );
+		DefaultDistance = scene.CameraDistance ?? MathF.Max( first.Bounds.Size.Length * 1.6f, scene.Grid * spacing * 1.2f );
 
 		if ( scene.HasLocalLights || scene.Floor )
 			AddLights( content, first, MathF.Max( scene.Grid * spacing, spacing * 2 ) );

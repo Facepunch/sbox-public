@@ -1016,6 +1016,15 @@ internal sealed partial class BackendContext : GpuContext
 		else List.CopyTexture( from.Handle, to.Handle, 0, Math.Max( slices, 1 ) );
 	}
 
+	public override void CopyTextureRegion( GpuTexture source, GpuTexture destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height )
+	{
+		if ( recording is null || source is not BackendTexture from || destination is not BackendTexture to ) return;
+		CloseScope();
+		Transition( from, ImageLayout.CopySource, always: true );
+		Transition( to, ImageLayout.CopyDestination, always: true );
+		List.CopyTextureRegion( from.Handle, to.Handle, sourceX, sourceY, destinationX, destinationY, width, height );
+	}
+
 	public override void CopyToSwapChain( in RenderOutput output, Rect viewport )
 	{
 		// Only texture outputs: windows present what a ViewTarget holds themselves (BackendDevice.Unwrap)

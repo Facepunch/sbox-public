@@ -181,6 +181,9 @@ internal abstract class GpuContext : IDisposable
 	/// <summary>Copy the first array slices or cube faces between equal-sized textures.</summary>
 	public abstract void CopyTexture( GpuTexture source, GpuTexture destination, int slices );
 
+	/// <summary>Copy a rectangle of the first slice between textures of the same format.</summary>
+	public abstract void CopyTextureRegion( GpuTexture source, GpuTexture destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height );
+
 	/// <summary>Make depth writable after pixel-shader reads.</summary>
 	public abstract void BarrierToDepthWrite( GpuTexture depth );
 
@@ -256,7 +259,7 @@ internal abstract class GpuContext : IDisposable
 	/// With <paramref name="Instances"/>, it's a mesh draw's <paramref name="Count"/> instances from
 	/// <paramref name="FirstInstance"/> instead, each the whole draw, which the caller has already culled: no arguments, no owner.
 	/// </summary>
-	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner, bool Instances = false );
+	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner, bool Instances = false, int TextureSize = TextureSizes.All );
 
 	/// <summary>Whether <see cref="DrawGpuDriven"/> draws anything on this device.</summary>
 	internal virtual bool GpuDriven => false;

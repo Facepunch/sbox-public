@@ -26,8 +26,31 @@ internal sealed class BackendTexture : GpuTexture
 		Dimension = desc.Cube ? TextureDimension.TextureCube : desc.Depth > 1 ? TextureDimension.Texture3D : TextureDimension.Texture2D;
 	}
 
-	public TextureHandle Handle { get; }
+	/// <summary>Its image: swapped between frames for one of other mips while it streams (<see cref="Stream"/>).</summary>
+	public TextureHandle Handle { get; private set; }
+
 	public string Name { get; }
+
+	/// <summary>Its streaming state while only some of its mips may be resident, or null when it holds them all.</summary>
+	public StreamedTexture Stream { get; set; }
+
+	/// <summary>
+	/// Take a new image (a streamed texture's other mips), ready to sample once work submitted after now runs; the old one
+	/// is destroyed once the GPU is done with it. Between frames only.
+	/// </summary>
+	public void Swap( TextureHandle image )
+	{
+		if ( disposed )
+		{
+			device.Gpu.Destroy( image );
+			return;
+		}
+
+		var old = Handle;
+		Handle = image;
+		Layout = ImageLayout.ShaderRead;
+		device.Gpu.Destroy( old );
+	}
 
 	/// <summary>The layout the last recorded use left it in.</summary>
 	public ImageLayout Layout { get; set; }
@@ -287,7 +310,7 @@ internal sealed class BackendParameters : ShaderParameters
 /// (<see cref="Set(string, float[])"/>, <see cref="SetTexture"/>, <see cref="Reload"/>) moves <see cref="Version"/> on,
 /// which makes its material objects again the next time it draws.
 /// </summary>
-internal sealed class BackendMaterial : GpuMaterial
+internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 {
 	// Variants by key, read without a lock by every recording thread: replaced whole under variantsGate when one is added
 	Dictionary<string, ShaderVariant> variants = new();
@@ -307,6 +330,7 @@ internal sealed class BackendMaterial : GpuMaterial
 		Shader = shader;
 		File = file;
 		Textures = textures ?? new( StringComparer.OrdinalIgnoreCase );
+		Streamed();
 
 		Features = new int[shader?.Features?.StaticCombos.Length ?? 0];
 		foreach ( var (parameter, value) in file?.Ints ?? new Dictionary<string, int>() )
@@ -363,8 +387,28 @@ internal sealed class BackendMaterial : GpuMaterial
 	{
 		var textures = new Dictionary<string, BackendTexture>( Textures, StringComparer.OrdinalIgnoreCase ) { [variable] = texture };
 		Textures = textures;
+		Streamed();
 		Interlocked.Increment( ref version );
 	}
+
+	/// <summary>The texture sizes its draws ask for, for its streamed textures.</summary>
+	internal MaterialAsks Asks { get; } = new();
+
+	// Its streamed textures, which ask for mips through it and re-key it when their images change
+	void Streamed()
+	{
+		List<StreamedTexture> streamed = null;
+		foreach ( var texture in Textures.Values )
+		{
+			if ( texture?.Stream is not { } stream ) continue;
+			stream.AddDependent( this );
+			(streamed ??= new()).Add( stream );
+		}
+
+		Asks.Textures = streamed?.ToArray();
+	}
+
+	void IStreamDependent.TexturesChanged() => Interlocked.Increment( ref version );
 
 	/// <summary>
 	/// Take a material's new compiled form, after its file (or its shader) changed on disk: values set in code stay.

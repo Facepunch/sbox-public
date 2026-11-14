@@ -69,9 +69,11 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 	/// Borealis's, to show the difference. <paramref name="presentation"/> lets it present to windows; with
 	/// <paramref name="frames"/> the first block of each engine frame starts the device's next frame, as the process's
 	/// device does. <paramref name="markers"/> writes progress markers for the device-loss report
-	/// (<see cref="DeviceOptions.ProgressMarkers"/>).
+	/// (<see cref="DeviceOptions.ProgressMarkers"/>). <paramref name="pipelineCacheFolder"/> keeps the device's pipeline
+	/// cache there (<see cref="DeviceOptions.PipelineCacheFolder"/>); with <paramref name="frames"/>, it's saved in the
+	/// background every <see cref="PipelineCacheSaveFrames"/> frames when pipelines were made.
 	/// </summary>
-	public static BorealisGpuRenderBackend Create( bool validation = false, Action<DeviceMessage> message = null, bool source2Names = true, bool presentation = false, bool frames = false, bool markers = false )
+	public static BorealisGpuRenderBackend Create( bool validation = false, Action<DeviceMessage> message = null, bool source2Names = true, bool presentation = false, bool frames = false, bool markers = false, string pipelineCacheFolder = null )
 	{
 		var gpu = GpuDevice.Create( new DeviceOptions
 		{
@@ -80,6 +82,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 			Validation = validation,
 			Presentation = presentation,
 			ProgressMarkers = markers,
+			PipelineCacheFolder = pipelineCacheFolder,
 			Message = message,
 		} );
 
@@ -102,6 +105,29 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		frame = Application.FrameCount;
 		SubmitUploads();
 		services.BeginFrame();
+		if ( frame % PipelineCacheSaveFrames == 0 ) SavePipelineCacheInBackground();
+	}
+
+	/// <summary>Frames between background saves of the pipeline cache.</summary>
+	const ulong PipelineCacheSaveFrames = 900;
+
+	int savingPipelineCache;
+
+	/// <summary>Save the device's pipeline cache on a worker if pipelines were made since the last save (and none is saving).</summary>
+	void SavePipelineCacheInBackground()
+	{
+		if ( gpu.PipelineCachePath is null || System.Threading.Interlocked.Exchange( ref savingPipelineCache, 1 ) != 0 ) return;
+		System.Threading.Tasks.Task.Run( () =>
+		{
+			try
+			{
+				gpu.SavePipelineCache();
+			}
+			finally
+			{
+				System.Threading.Volatile.Write( ref savingPipelineCache, 0 );
+			}
+		} );
 	}
 
 	BorealisGpuRenderBackend( GpuDevice gpu, bool ownsDevice )
@@ -303,7 +329,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		if ( System.IO.File.Exists( sky ) ) services.MapLightmapParameters( $"maps/{map}_sky" );
 
 		// The process's video memory as the map's world is made (both devices: Source 2 still loads the map's lightmaps)
-		Log.Info( $"Borealis.Gpu memory at {System.IO.Path.GetFileName( vpk )}: {gpu.DescribeMemory()}" );
+		Log.Info( $"Borealis.Gpu memory at {System.IO.Path.GetFileName( vpk )}: {gpu.DescribeMemory()}{(services.DescribeStreaming() is { } streaming ? $"; {streaming}" : "")}" );
 	}
 
 	void AddPackage( string vpk )

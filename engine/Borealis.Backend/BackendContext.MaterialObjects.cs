@@ -51,6 +51,7 @@ internal sealed partial class BackendContext
 			{
 				case ShaderResourceKind.ConstantBuffer when value is byte[] data:
 					{
+						HandFilledConstants.CheckSize( stage, name, data.Length );
 						var size = data.Length;
 						foreach ( var layout in stage.Program.ConstantBuffers )
 						{
@@ -95,6 +96,7 @@ internal sealed partial class BackendContext
 				case ShaderResourceKind.ConstantBuffer:
 					{
 						var data = context.attributes.Get( Token( resource.Name ) ) as byte[];
+						if ( data is not null ) HandFilledConstants.CheckSize( stage, resource.Name, data.Length );
 						var size = data?.Length ?? 0;
 						foreach ( var layout in stage.Program.ConstantBuffers )
 						{
@@ -157,7 +159,10 @@ internal sealed partial class BackendContext
 	long timedLayer;
 
 	public override bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All )
-		=> Draw( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, default );
+	{
+		device.AskTextures( material, textureSize );
+		return Draw( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, default );
+	}
 
 	/// <summary>A model draw, direct or indirect, through material objects or by reflection; timed when the device times draws, counted while a census runs.</summary>
 	bool Draw( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect )

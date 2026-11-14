@@ -12,7 +12,7 @@ namespace Borealis.Backend;
 /// write the record at their fields' offsets. The device finds and compiles the shader by file name the first time the
 /// material draws, and checks the layout the class was generated for against it.
 /// </summary>
-public abstract class SurfaceMaterial : GpuMaterial
+public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 {
 	readonly byte[] record;
 	readonly Dictionary<int, (GpuTexture Texture, bool Srgb)> textures = new();
@@ -138,9 +138,25 @@ public abstract class SurfaceMaterial : GpuMaterial
 	/// <summary>Set a texture field; <paramref name="srgb"/> reads it through its sRGB view.</summary>
 	protected void SetTexture( int offset, GpuTexture texture, bool srgb )
 	{
-		lock ( record ) textures[offset] = (texture, srgb);
+		List<StreamedTexture> streamed = null;
+		lock ( record )
+		{
+			textures[offset] = (texture, srgb);
+			foreach ( var (t, _) in textures.Values )
+			{
+				if ( t is BackendTexture { Stream: { } stream } ) (streamed ??= new()).Add( stream );
+			}
+		}
+
+		if ( texture is BackendTexture { Stream: { } added } ) added.AddDependent( this );
+		Asks.Textures = streamed?.ToArray();
 		Changed();
 	}
+
+	/// <summary>The texture sizes its draws ask for, for its streamed textures.</summary>
+	internal MaterialAsks Asks { get; } = new();
+
+	void IStreamDependent.TexturesChanged() => Changed();
 
 	/// <summary>A float field.</summary>
 	protected float GetFloat( int offset )

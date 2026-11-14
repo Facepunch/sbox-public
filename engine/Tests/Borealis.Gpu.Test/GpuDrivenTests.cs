@@ -139,7 +139,8 @@ public class GpuDrivenTests : GpuTest
 	[TestMethod]
 	public void AggregatesRecordFromParallelSegments()
 	{
-		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true };
+		// The meshes stay classic, for workers to record beside the aggregates' run
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, GpuDrivenMeshes = false };
 		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
 		{
 			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
@@ -560,6 +561,190 @@ public class GpuDrivenTests : GpuTest
 			Assert.AreEqual( 2, overlays.Select( d => d.Bucket ).Distinct().Count(), "a bucket per render order" );
 			Assert.AreEqual( 2, overlays.Max( d => d.BucketMaterials ), "render order 0's two materials in one bucket" );
 			Assert.IsTrue( overlays.Sum( d => d.Commands ) >= 5, "every overlay drew" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// A depth-only bucket (its depth pass strips the pixel shader) that draws its ids with its variant's pixel shader has a
+	/// pixel material record for it: an alpha-tested generic material on boxes whose draws aren't flagged alpha-tested read
+	/// texture slots from record 0 there, another material's words, which lost the device. (Its ids pass alpha-tests where
+	/// the stripped depth pass doesn't, so its cut-out pixels aren't the classic ones; frames with ids draw alike.)
+	/// </summary>
+	[TestMethod]
+	public void DepthOnlyBucketsDrawingIdsHaveAPixelRecord()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDrivenVisibility = true };
+		backend.Surfaces.ConvertShaders = false;
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			if ( ((GpuDevice)backend).LoadMaterial( "models/vr/autochap_hand.vmat" ) is not BackendMaterial { Shader: not null } material ) { Assert.Inconclusive( "models/vr/autochap_hand.vmat isn't compiled" ); return; }
+			if ( backend.Shaders.GpuDriven( material.Shader ) is null ) Assert.Inconclusive( "generic.shader has no GPU-driven variant: ShaderCompiler -gpudriven" );
+
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven depth-only ids test" );
+			var world = new RenderWorld();
+			var (mesh, fragments) = Boxes( backend, material, 0 );
+			world.Add( new AggregateObject( mesh, fragments ) );
+			var view = new RenderView { Name = "GPU-driven depth-only ids test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			// The view's second frame is the first to draw ids
+			byte[] Frame()
+			{
+				backend.GpuDriven = true;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			Frame();
+			var ids = Frame();
+			var again = Frame();
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.AreEqual( 0, Different( ids, again ), "frames with ids draw alike" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// A frame whose draws are a few GPU-driven runs of many draws each (here, one run of 100 static overlays) still
+	/// records on workers: the parallel threshold counts draws, not runs.
+	/// </summary>
+	[TestMethod]
+	public void HeavyGpuDrivenRunsRecordOnWorkers()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenOverlays = true };
+		if ( backend.Shaders.GpuDriven( backend.Shaders.Load( "shaders/complex.shader" ) ) is null ) Assert.Inconclusive( "complex has no GPU-driven variant: ShaderCompiler -gpudriven" );
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = true };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Heavy run test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunShadowCascades = 0;
+			// A mesh each, so they're 100 draws rather than one draw of 100 instances
+			var material = backend.CreateMaterial( "Heavy run overlays", new Color( 0.8f, 0.6f, 0.4f ) );
+			for ( int i = 0; i < 100; i++ )
+			{
+				var (mesh, _) = Boxes( backend, material, 0 );
+				world.Add( new MeshObject( mesh, new Transform( new Vector3( i % 10 * 30 - 150, i / 10 * 30 - 150, 0 ) ) ) { LayerMatch = LayerMatch.StaticOverlay } );
+			}
+
+			var view = new RenderView { Name = "Heavy run", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			var workerMs = 0.0;
+			for ( int i = 0; i < 5; i++ )
+			{
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				workerMs += system.Stats.WorkerRecordMs;
+			}
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.IsTrue( workerMs > 0, "the overlays' run recorded on a worker" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// A static mesh that reads the frame buffer copy draws GPU-driven, its depth and its colour: nothing draws the classic
+	/// way in the prepass or the opaque pass, and the frame is the classic path's.
+	/// </summary>
+	[TestMethod]
+	public void FrameBufferReadersDrawGpuDriven()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = false, GpuDrivenMeshes = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven reader test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 0;
+
+			var (aggregate, fragments) = Boxes( backend, backend.CreateMaterial( "Reader test boxes", new Color( 0.8f, 0.6f, 0.4f ) ), 0 );
+			world.Add( new AggregateObject( aggregate, fragments ) );
+			var (reader, _) = Boxes( backend, backend.CreateMaterial( "Reader boxes", new Color( 0.3f, 0.7f, 0.4f ) ), 120 );
+			world.Add( new MeshObject( reader, Transform.Zero ) { WantsFrameBufferCopy = true } );
+			var (plain, _) = Boxes( backend, backend.CreateMaterial( "Plain mesh boxes", new Color( 0.4f, 0.5f, 0.9f ) ), -120 );
+			world.Add( new MeshObject( plain, Transform.Zero ) );
+
+			var view = new RenderView { Name = "Readers", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			byte[] Frame( bool gpuDriven, DrawCensus census = null )
+			{
+				backend.GpuDriven = gpuDriven;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				backend.Census = census;
+				try
+				{
+					system.Render( world, view, target );
+				}
+				finally
+				{
+					backend.Census = null;
+				}
+
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			var classic = Frame( false );
+			Frame( true );
+			var census = new DrawCensus();
+			var driven = Frame( true, census );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.AreEqual( 0, Different( classic, driven ), "the classic pixels" );
+
+			Assert.IsFalse( census.Draws.Any( d => d.Path == DrawCensus.Path.Classic && d.Pass.EndsWith( "Depth Prepass", StringComparison.Ordinal ) ), "nothing in the prepass draws the classic way" );
+			Assert.IsFalse( census.Draws.Any( d => d.Path == DrawCensus.Path.Classic && d.Pass.EndsWith( "Opaque Forward", StringComparison.Ordinal ) ), "nor in the opaque pass" );
+			var forwardMaterials = census.Draws.Where( d => d.Path == DrawCensus.Path.Bucket && d.Pass.EndsWith( "Opaque Forward", StringComparison.Ordinal ) ).GroupBy( d => d.Bucket ).Sum( g => g.First().BucketMaterials );
+			Assert.AreEqual( 3, forwardMaterials, "the aggregate's, the reader's and the other mesh's materials are in the opaque pass's buckets" );
 		}
 		finally
 		{

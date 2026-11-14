@@ -17,7 +17,7 @@ internal sealed partial class FrameRecorder
 	{
 		var runs = 0;
 		for ( int w = 0; w < workCount; w++ )
-			runs += work[w].Runs;
+			runs += DrawsIn( w, 0, work[w].Runs );
 
 		Parallel = parallel && runs >= ParallelRunThreshold;
 		var maxSegments = Parallel ? MaxRecordThreads : 1;

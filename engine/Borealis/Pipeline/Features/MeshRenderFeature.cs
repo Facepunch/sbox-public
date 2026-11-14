@@ -156,6 +156,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		/// </summary>
 		public readonly List<DrawItem> GpuDriven = new();
 
+		/// <summary><see cref="GpuDriven"/> holds frame-buffer readers, so colour layers take the frame copy before the call.</summary>
+		public bool ReadersTaken;
+
 		/// <summary>Each static overlay run's render order, by run (<see cref="StaticOverlay"/>).</summary>
 		public readonly List<int> OverlayOrders = new();
 
@@ -166,6 +169,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			foreach ( var list in ItemsByBit )
 				list.Clear();
 			GpuDriven.Clear();
+			ReadersTaken = false;
 			OverlayOrders.Clear();
 			Custom = 0;
 			Callbacks = 0;
@@ -246,6 +250,15 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// object: its LOD comes from the main view's camera and shadows take no probe. Only the sort distance is each view's own.
 	/// </summary>
 	Kept[] keptShadow = new Kept[256];
+
+	/// <summary>
+	/// What shadow views that pick LODs by their own texels (<see cref="ViewPass.LodTexelsPerUnit"/>, the sun's last cascade)
+	/// made of each object. Kept apart from <see cref="keptShadow"/>, so an object in a near cascade and the last one isn't
+	/// made again twice a frame for its two LODs.
+	/// </summary>
+	Kept[] keptTexel = [];
+
+	Kept[] KeptFor( ViewPass pass ) => pass.LodTexelsPerUnit > 0 ? keptTexel : pass.IsShadow ? keptShadow : keptMain;
 
 	/// <summary>
 	/// What an object is classified as, kept between frames while its draw version (<see cref="RenderWorld.DrawVersions"/>)
@@ -424,6 +437,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( lodFrames.Length < lods.Length ) Array.Resize( ref lodFrames, lods.Length );
 		if ( keptMain.Length < lods.Length ) Array.Resize( ref keptMain, lods.Length );
 		if ( keptShadow.Length < lods.Length ) Array.Resize( ref keptShadow, lods.Length );
+		if ( pass.LodTexelsPerUnit > 0 && keptTexel.Length < lods.Length ) Array.Resize( ref keptTexel, lods.Length );
 		if ( classified.Length < visible.Count ) Array.Resize( ref classified, Math.Max( visible.Count, classified.Length * 2 ) );
 		var volumes = world.LightProbeVolumes;
 		var volumesKey = volumes.Count > 0 && !pass.IsShadow ? LightProbeVolume.Key( volumes ) : 0;
@@ -438,7 +452,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		// Then into the buckets in visible order, whichever thread classified what. Buckets hold places in the visible list
 		var visibleSpan = CollectionsMarshal.AsSpan( visible );
-		var kept = pass.IsShadow ? keptShadow : keptMain;
+		var kept = KeptFor( pass );
 		var opaque = buckets[0];
 		MeshRuns frameBufferReads = 0;
 		MeshRuns callbacks = 0;
@@ -504,8 +518,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 	/// <summary>
 	/// Move the opaque list's draws the GPU-driven path can take into <see cref="RunLists.GpuDriven"/>: static meshes'
-	/// instances with nothing per object but their lighting (no attributes, callbacks, skinning, frame copy or culled
-	/// arguments), which the aggregates' feature hands the device with its own batches.
+	/// instances with nothing per object but their lighting (no attributes, callbacks, skinning or culled arguments),
+	/// which the aggregates' feature hands the device with its own batches. Frame-buffer readers too: colour layers take
+	/// the frame copy before the call that draws them (<see cref="RunLists.ReadersTaken"/>).
 	/// </summary>
 	static void TakeGpuDriven( RunLists layers )
 	{
@@ -516,9 +531,10 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		{
 			var item = items[i];
 			ref readonly var run = ref runs[item.Run];
-			if ( run.Custom is null && run.Callbacks is null && !run.Skinned && !run.Deformed && !run.Morphable && !run.ReadsFrameBuffer && run.CullDraw < 0 && run.Attributes is null )
+			if ( TakesGpuDriven( run ) && !(run.ReadsFrameBuffer && NoGpuDrivenReaders) )
 			{
 				layers.GpuDriven.Add( item );
+				layers.ReadersTaken |= run.ReadsFrameBuffer;
 				continue;
 			}
 
@@ -527,6 +543,18 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		CollectionsMarshal.SetCount( items, kept );
 	}
+
+	/// <summary><c>-no-gpudriven-readers</c>: leave frame-buffer readers to the classic path, for comparisons.</summary>
+	static readonly bool NoGpuDrivenReaders = Array.Exists( Environment.GetCommandLineArgs(), a => a.Equals( "-no-gpudriven-readers", StringComparison.OrdinalIgnoreCase ) );
+
+	/// <summary>Whether <see cref="TakeGpuDriven"/> takes a run: nothing per object but its lighting.</summary>
+	static bool TakesGpuDriven( in Run run ) => run.Custom is null && run.Callbacks is null && !run.Skinned && !run.Deformed && !run.Morphable && run.CullDraw < 0 && run.Attributes is null;
+
+	/// <summary>Whether a draw <see cref="TakeGpuDriven"/> took reads the frame buffer.</summary>
+	internal bool ReadsFrameBuffer( ViewPass view, DrawItem item ) => CollectionsMarshal.AsSpan( view.State<RunLists>( this ).Opaque )[item.Run].ReadsFrameBuffer;
+
+	/// <summary>Whether the view's GPU-driven draws include frame-buffer readers (<see cref="RunLists.ReadersTaken"/>).</summary>
+	internal bool ReadersTaken( ViewPass view ) => view.State<RunLists>( this ).ReadersTaken;
 
 	/// <summary>
 	/// For the aggregates' feature: a GPU-driven draw of <see cref="RunLists.GpuDriven"/> as its batch would be, with the
@@ -543,7 +571,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var probe = depth || run.Probe is null || !RenderMesh.NeedsLightProbe( material ) ? null : run.Probe;
 		var lighting = draw.Lightmapped ? (depth ? null : run.Lightmap) : probe;
 		var first = run.FirstInstance + (run.Tinted ? item.Draw * run.Count : 0);
-		return new GpuContext.GpuDrivenBatch( material, run.Mesh, draw, lighting, strip, -1, run.Count, first, (long)(draw.IndexCount / 3) * run.Count, null, Instances: true );
+		var textureSize = TextureSizes.ForDraw( draw.UvDensity, run.TextureScale, run.TextureFallback );
+		return new GpuContext.GpuDrivenBatch( material, run.Mesh, draw, lighting, strip, -1, run.Count, first, (long)(draw.IndexCount / 3) * run.Count, null, Instances: true, TextureSize: textureSize );
 	}
 
 	/// <summary>The view's GPU-driven draws the device left, drawn here as <see cref="DrawItems"/> draws any.</summary>
@@ -599,7 +628,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var centers = world.BoundsCenter;
 		var extents = world.BoundsExtents;
 		var shadow = pass.IsShadow;
-		var kept = shadow ? keptShadow : keptMain;
+		var kept = KeptFor( pass );
+		var texelsPerUnit = pass.LodTexelsPerUnit;
 
 		var made = 0;
 
@@ -620,9 +650,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				continue;
 			}
 
-			// One LOD a frame, whichever view chooses it. Only a mesh with LODs needs its object for that
+			// One LOD a frame, whichever view chooses it. Only a mesh with LODs needs its object for that. A view picking by its
+			// own texels has its own, which the others don't take
 			int lod;
-			if ( lodFrames[index] == generation ) lod = lods[index];
+			if ( texelsPerUnit > 0 ) lod = (keep.Flags & KeptFlags.Lods) != 0 ? ChooseLodByTexels( (MeshObject)objects[index], texelsPerUnit ) : 0;
+			else if ( lodFrames[index] == generation ) lod = lods[index];
 			else
 			{
 				lod = 0;
@@ -1111,6 +1143,21 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		return mesh.LodForScreenSize( screenSize * screenWidth, largest );
 	}
 
+	/// <summary>
+	/// <see cref="ChooseLod"/> for an orthographic view, by how many of its texels a world unit covers: the same anywhere in
+	/// it, so wherever the camera is.
+	/// </summary>
+	static int ChooseLodByTexels( MeshObject obj, float texelsPerUnit )
+	{
+		var mesh = obj.Mesh;
+		if ( mesh.LodCount == 1 ) return 0;
+		if ( obj.LodOverride >= 0 ) return Math.Min( obj.LodOverride, mesh.LodCount - 1 );
+
+		var scale = obj.Transform.Scale;
+		var largest = MathF.Max( MathF.Abs( scale.x ), MathF.Max( MathF.Abs( scale.y ), MathF.Abs( scale.z ) ) );
+		return mesh.LodForScreenSize( texelsPerUnit, largest );
+	}
+
 	internal override void Dispose()
 	{
 		if ( defaultMaterial is not null && --s_defaultMaterialUsers == 0 )
@@ -1222,6 +1269,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var mode = layer.ShaderMode;
 		var shadow = layer.LayerType == MeshLayerType.Shadow;
 		var translucentLayer = layer.LayerType == MeshLayerType.Translucent;
+
 		var depthBias = shadow ? view.DepthBias : 0;
 		var slopeBias = shadow ? view.SlopeScaledDepthBias : 0;
 

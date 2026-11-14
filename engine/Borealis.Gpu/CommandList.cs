@@ -928,6 +928,29 @@ public sealed unsafe class CommandList
 	}
 
 	/// <summary>
+	/// Copy a rectangle of mip 0, layer 0 between textures of the same format, from <see cref="ImageLayout.CopySource"/> to
+	/// <see cref="ImageLayout.CopyDestination"/>.
+	/// </summary>
+	public void CopyTextureRegion( TextureHandle source, TextureHandle destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height )
+	{
+		if ( width <= 0 || height <= 0 ) return;
+		OutsideRendering();
+		FlushBarriers();
+		ref var src = ref device.Get( source );
+		ref var dst = ref device.Get( destination );
+		var region = new VkImageCopy
+		{
+			srcSubresource = new VkImageSubresourceLayers { aspectMask = src.Aspect, layerCount = 1 },
+			srcOffset = new VkOffset3D { x = sourceX, y = sourceY },
+			dstSubresource = new VkImageSubresourceLayers { aspectMask = dst.Aspect, layerCount = 1 },
+			dstOffset = new VkOffset3D { x = destinationX, y = destinationY },
+			extent = new VkExtent3D { width = (uint)width, height = (uint)height, depth = 1 },
+		};
+
+		vk.vkCmdCopyImage( Handle, src.Image, VkImageLayout.TransferSrcOptimal, dst.Image, VkImageLayout.TransferDstOptimal, 1, &region );
+	}
+
+	/// <summary>
 	/// Scale one texture region into another with filtering, converting formats, from <see cref="ImageLayout.CopySource"/>
 	/// to <see cref="ImageLayout.CopyDestination"/>.
 	/// </summary>

@@ -151,7 +151,7 @@ internal sealed partial class BackendContext
 	/// </summary>
 	(uint Vertex, uint Pixel) Records( GpuDrivenTables tables, GpuDrivenBucket bucket, GpuMaterial material, bool uncompressedTangentFrame ) =>
 		bucket.Surface is not null ? Records( tables, bucket, material, uncompressedTangentFrame, 0, 0 )
-		: Records( tables, bucket, material, uncompressedTangentFrame, bucket.Variant.Vertex is { } vertex ? AttributeHash( vertex ) : 0, !bucket.DepthOnly && bucket.Variant.Pixel is { } pixel ? AttributeHash( pixel ) : 0 );
+		: Records( tables, bucket, material, uncompressedTangentFrame, bucket.Variant.Vertex is { } vertex ? AttributeHash( vertex ) : 0, (!bucket.DepthOnly || bucket.Ids && !bucket.IdsShader) && bucket.Variant.Pixel is { } pixel ? AttributeHash( pixel ) : 0 );
 
 	/// <summary>The same with the bucket's stages' attribute hashes (<see cref="AttributeHash"/>) already worked out.</summary>
 	(uint Vertex, uint Pixel) Records( GpuDrivenTables tables, GpuDrivenBucket bucket, GpuMaterial material, bool uncompressedTangentFrame, int vertexAttributes, int pixelAttributes )
@@ -170,7 +170,7 @@ internal sealed partial class BackendContext
 		}
 
 		var classic = (BackendMaterial)material;
-		return (MaterialRecord( tables, classic, bucket.Variant.Vertex, uncompressedTangentFrame, vertexAttributes ), bucket.DepthOnly ? 0 : MaterialRecord( tables, classic, bucket.Variant.Pixel, uncompressedTangentFrame, pixelAttributes ));
+		return (MaterialRecord( tables, classic, bucket.Variant.Vertex, uncompressedTangentFrame, vertexAttributes ), bucket.DepthOnly && !(bucket.Ids && !bucket.IdsShader) ? 0 : MaterialRecord( tables, classic, bucket.Variant.Pixel, uncompressedTangentFrame, pixelAttributes ));
 	}
 
 	/// <summary>
@@ -181,9 +181,9 @@ internal sealed partial class BackendContext
 	{
 		var r = recording;
 		var pass = bucket.Surface;
-		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
+		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey, gpuDriven: true );
 		ulong pixelKey = 0;
-		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
+		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey, gpuDriven: true ) : null;
 		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, bucket.SurfaceState, ids, LookupCombo( OpaqueFadeCombo ) is > 0 );
 		if ( r.Pipeline != pipeline )
 		{
@@ -201,10 +201,11 @@ internal sealed partial class BackendContext
 	/// <c>DDGI_Enabled</c>, <c>ToolsVisMode</c>), each from its attribute or its default, as classic variants take them;
 	/// <paramref name="key"/> tells their values apart for the pipeline cache.
 	/// </summary>
-	SpecializationConstant[] SurfaceConstants( CompiledStage stage, out ulong key )
+	SpecializationConstant[] SurfaceConstants( CompiledStage stage, out ulong key, bool gpuDriven = false )
 	{
-		// Where the pixel stage reads the material record's offset (sbox/material.slang): passed on per pixel, or the draw's
-		var perPixel = device.Surfaces.MaterialOffsetPerPixel;
+		// Where the pixel stage reads the material record's offset (sbox/material.slang): passed on per pixel, or the draw's.
+		// A GPU-driven draw has no push constant of its own, so its pixels always take it from the vertex stage
+		var perPixel = gpuDriven || device.Surfaces.MaterialOffsetPerPixel;
 		var fade = LookupCombo( OpaqueFadeCombo ) is > 0;
 		var info = StageBindings( stage );
 		key = (perPixel ? 1u : 2u) + (fade ? 4u : 0u);

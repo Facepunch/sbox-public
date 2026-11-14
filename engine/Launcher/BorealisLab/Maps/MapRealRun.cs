@@ -30,7 +30,7 @@ internal static class MapRealRun
 	/// A way of drawing it: recording on one thread or several, material objects or binding by reflection, whether static
 	/// geometry casts sun shadows, and whether aggregates draw GPU-driven (<c>-gpudriven</c>).
 	/// </summary>
-	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false, bool CpuCulling = false, bool NoCompaction = false, bool FullVertices = false, bool Visibility = false );
+	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false, bool CpuCulling = false, bool NoCompaction = false, bool FullVertices = false, bool Visibility = false, bool FreezeFar = false, bool? FarCache = null, bool NoTiles = false );
 
 	static readonly Variant[] Variants =
 	[
@@ -52,6 +52,11 @@ internal static class MapRealRun
 		new( "real-parallel-gpudriven-visibility", true, true, false, true, Visibility: true ),
 		new( "real-serial-gpudriven-shadows", false, true, true, true, Visibility: true ),
 		new( "real-parallel-gpudriven-shadows", true, true, true, true, Visibility: true ),
+		new( "real-parallel-gpudriven-shadows-frozen", true, true, true, true, Visibility: true, FreezeFar: true ),
+		new( "real-parallel-gpudriven-shadows-farcache", true, true, true, true, Visibility: true, FarCache: true ),
+		new( "real-parallel-gpudriven-shadows-nofarcache", true, true, true, true, Visibility: true, FarCache: false ),
+		new( "real-parallel-gpudriven-shadows-notiles", true, true, true, true, Visibility: true, NoTiles: true ),
+		new( "real-parallel-gpudriven-visibility-notiles", true, true, false, true, Visibility: true, NoTiles: true ),
 		new( "real-parallel-gpudriven-fullvertices", true, true, false, true, FullVertices: true ),
 		new( "real-serial-fullvertices", false, true, false, FullVertices: true ),
 		new( "real-parallel-fullvertices", true, true, false, FullVertices: true ),
@@ -87,6 +92,19 @@ internal static class MapRealRun
 		map.Backend.Figure = figure;
 
 		if ( Args.Has( "-occlusion" ) && RenderHost.Current is BackendRenderHost host ) host.Occlusion = true;
+
+		// -debug-views shadowmaps: the shadow maps as thumbnails along the bottom of the frame, framed green where drawn this frame
+		if ( Args.String( "-debug-views" ) is "shadowmaps" && RenderHost.Current is BackendRenderHost debugHost ) debugHost.Views = DebugViews.ShadowMaps;
+
+		// Sun cascades: -no-texel-cascades culls and picks LODs by the main view, as native; -freeze-far-cascade (or the
+		// -frozen variant) draws the last cascade once and copies it in after, an experiment for a camera that doesn't move;
+		// -far-cache / -no-far-cache, -no-cascade-tiles (or the -farcache, -nofarcache and -notiles variants);
+		// -cascade-resolution N; -cascade-cull-texels N
+		global::Borealis.Shadows.ShadowMapper.TexelSizedCascades = !Args.Has( "-no-texel-cascades" );
+		var farCache = Args.Has( "-far-cache" ) || (global::Borealis.Shadows.ShadowMapper.FarCascadeCache && !Args.Has( "-no-far-cache" ));
+		var cascadeTiles = global::Borealis.Shadows.ShadowMapper.CascadeTiles && !Args.Has( "-no-cascade-tiles" );
+		if ( Args.Int( "-cascade-resolution", 0 ) is > 0 and var cascadeResolution ) RenderHost.Current.Shadows.MaxCascadeResolution = cascadeResolution;
+		if ( Args.Int( "-cascade-cull-texels", 0 ) is > 0 and var cullTexels ) global::Borealis.Culling.SizeCull.CascadeTexels = cullTexels;
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		Console.WriteLine( $"Loaded in {load.Elapsed.TotalSeconds:0.0} s; {map.Problems.Count} problems" );
 		if ( map.Backend.Surfaces.ConvertedMaterials > 0 ) Console.WriteLine( $"  {map.Backend.Surfaces.ConvertedMaterials} materials drawn as surfaces" );
@@ -157,6 +175,22 @@ internal static class MapRealRun
 			return f;
 		}
 
+		// The first frames after loading, each with the pipelines it made and the time that took: start-up hitches
+		var (loadPipelines, loadPipelineMs) = gpu.PipelineCreation;
+		Console.WriteLine( $"Pipeline cache: {(gpu.PipelineCachePath is null ? "off" : gpu.PipelineCacheLoaded ? $"loaded from {gpu.PipelineCachePath}" : "empty")}; {loadPipelines} pipelines made while loading, {loadPipelineMs:0.0} ms" );
+		var firstFrames = new List<string>();
+		for ( int i = 0; i < 10 && figure is null; i++ )
+		{
+			var (made, ms) = gpu.PipelineCreation;
+			var started = Stopwatch.GetTimestamp();
+			RenderFrame( options.Views[0] );
+			var took = Ms( started, Stopwatch.GetTimestamp() );
+			var (madeAfter, msAfter) = gpu.PipelineCreation;
+			firstFrames.Add( FormattableString.Invariant( $"{took:0.0} ms ({madeAfter - made} pipelines, {msAfter - ms:0.0} ms)" ) );
+		}
+
+		if ( firstFrames.Count > 0 ) Console.WriteLine( $"First frames: {string.Join( ", ", firstFrames )}" );
+
 		if ( figure is not null )
 		{
 			VisibilityFigureCapture.Save( gpu, map, figure, options.Views[0], view => RenderFrame( view ), figureFolder );
@@ -182,6 +216,11 @@ internal static class MapRealRun
 				map.Backend.PositionStreams = !variant.FullVertices;
 				map.Backend.GpuDrivenVisibility = variant.Visibility;
 				map.SetCastShadows( variant.Shadows );
+				global::Borealis.Shadows.ShadowMapper.FreezeFarCascade = variant.FreezeFar || Args.Has( "-freeze-far-cascade" );
+				global::Borealis.Shadows.ShadowMapper.ForgetFrozenFar();
+				global::Borealis.Shadows.ShadowMapper.FarCascadeCache = variant.FarCache ?? farCache;
+				global::Borealis.Shadows.ShadowMapper.CascadeTiles = cascadeTiles && !variant.NoTiles;
+				var farDraws = global::Borealis.Shadows.ShadowMapper.FarCaches.Sum( f => f.Draws );
 
 				var warm = Stopwatch.StartNew();
 				for ( int i = 0; (i < options.Warmup || warm.Elapsed.TotalSeconds < 2) && !window.CloseRequested; i++ )
@@ -204,6 +243,9 @@ internal static class MapRealRun
 					frameTimes.Add( Stopwatch.GetElapsedTime( last, now ).TotalMilliseconds );
 					last = now;
 				}
+
+				if ( global::Borealis.Shadows.ShadowMapper.FarCascadeCache )
+					Console.WriteLine( $"{view.Name} {variant.Name}: far cascade cache drawn {(global::Borealis.Shadows.ShadowMapper.FarCaches.Sum( f => f.Draws ) - farDraws)} times over the warm-up and timed frames" );
 
 				if ( passTimer is not null )
 				{
@@ -258,7 +300,98 @@ internal static class MapRealRun
 				map.Backend.MaterialObjects = true;
 				// -capture-shadows: with static geometry casting sun shadows, so GPU-driven shadow views are compared too
 				map.SetCastShadows( Args.Has( "-capture-shadows" ) );
+				global::Borealis.Shadows.ShadowMapper.FarCascadeCache = farCache;
+				global::Borealis.Shadows.ShadowMapper.CascadeTiles = cascadeTiles;
+				global::Borealis.Shadows.ShadowMapper.FreezeFarCascade = false;
 				var path = Path.Combine( Path.GetFullPath( options.Captures ), $"{options.Ident.Split( '.' ).Last()}-{view.Name}-real.png" );
+
+				// -capture-page: the far cascade's cache at work, for the status page: kept (casters settled into it), a strip drawn
+				// as the camera crosses a grid line, and all of it drawn again as the sun turns
+				if ( Args.Has( "-capture-page" ) )
+				{
+					map.Backend.GpuDriven = true;
+					map.Backend.GpuDrivenVisibility = true;
+					var far = global::Borealis.Shadows.ShadowMapper.FarCaches;
+					void Save( string name )
+					{
+						gpu.WaitIdle();
+						var (texture, layout) = map.Output;
+						var file = Path.Combine( Path.GetFullPath( options.Captures ), name + ".png" );
+						Capture.Save( gpu, texture, layout, file );
+						BackendDevice.SetLayout( map.Target.Samples > 1 ? map.Target.Resolved : map.Target.Color, ImageLayout.CopySource );
+						var report = map.System.DebugReport;
+						Console.WriteLine( $"Saved {file}; far cache drawn whole {far.Sum( f => f.Draws )} times, {far.Sum( f => f.CellsDrawn )} cells in parts; debug views {RenderHost.Current.DebugViews}, thumbnails {string.Join( ", ", report.ShadowMaps.Select( m => $"{m.Kind} {m.Index} {(m.Rendered ? "drawn" : "kept")} at {m.Thumbnail}" ) )}" );
+					}
+
+					// Long enough for the casters to settle and the cache to take them, then a frame that only copies it
+					var settle = Stopwatch.StartNew();
+					while ( settle.Elapsed.TotalSeconds < global::Borealis.Shadows.SettledCasters.Seconds * 3 ) RenderFrame( view );
+					for ( int i = 0; i < 10; i++ )
+					{
+						var (draws, drawnCells) = (far.Sum( f => f.Draws ), far.Sum( f => f.CellsDrawn ));
+						RenderFrame( view );
+						if ( far.Sum( f => f.Draws ) == draws && far.Sum( f => f.CellsDrawn ) == drawnCells ) break;
+					}
+
+					Save( "a-kept" );
+
+					// Walk forward until a frame draws cells, and keep that frame
+					var look = view.LookAt - view.Position;
+					var step = System.Numerics.Vector3.Normalize( new System.Numerics.Vector3( look.X, look.Y, 0 ) ) * 20;
+					var walked = view;
+					var cells = far.Sum( f => f.CellsDrawn );
+					for ( int i = 0; i < 1000 && far.Sum( f => f.CellsDrawn ) == cells; i++ )
+					{
+						walked = walked with { Position = walked.Position + step, LookAt = walked.LookAt + step };
+						RenderFrame( walked );
+					}
+
+					Save( "b-strip" );
+
+					// The sun a degree round: the whole cache again
+					var lighting = map.World.Lighting;
+					lighting.SunDirection = Rotation.FromYaw( 1 ) * lighting.SunDirection;
+					RenderFrame( walked );
+					Save( "c-sun-turned" );
+					continue;
+				}
+
+				// -capture-walk N: walk the camera N steps of a sun-cascade cell and a half along its view, 30 frames a step, and at
+				// each step capture the frame as the far cascade's cache has it (strips drawn as it went) and drawn whole again
+				if ( Args.Int( "-capture-walk", 0 ) is > 0 and var steps )
+				{
+					map.Backend.GpuDriven = true;
+					map.Backend.GpuDrivenVisibility = true;
+					var look = view.LookAt - view.Position;
+					var forward = System.Numerics.Vector3.Normalize( new System.Numerics.Vector3( look.X, look.Y, 0 ) ) * 3800;
+					var start = view;
+					for ( int step = 0; step <= steps; step++ )
+					{
+						for ( int i = 0; i < 30; i++ )
+						{
+							var at = start.Position + forward * (step - 1 + (i + 1) / 30.0f);
+							RenderFrame( step == 0 ? start : start with { Position = at, LookAt = at + (start.LookAt - start.Position) } );
+						}
+
+						var current = step == 0 ? start : start with { Position = start.Position + forward * step, LookAt = start.LookAt + forward * step };
+						foreach ( var (whole, suffix) in new[] { (false, "cache"), (true, "whole") } )
+						{
+							global::Borealis.Shadows.ShadowMapper.FarCacheRedrawWhole = whole;
+							for ( int i = 0; i < 3; i++ ) RenderFrame( current );
+							gpu.WaitIdle();
+							var (walked, walkedLayout) = map.Output;
+							var walkPath = Path.ChangeExtension( path, null ) + $"-walk{step}-{suffix}.png";
+							Capture.Save( gpu, walked, walkedLayout, walkPath );
+							BackendDevice.SetLayout( map.Target.Samples > 1 ? map.Target.Resolved : map.Target.Color, ImageLayout.CopySource );
+							var farCaches = global::Borealis.Shadows.ShadowMapper.FarCaches;
+							Console.WriteLine( $"Saved {walkPath}; far cascade cache drawn whole {farCaches.Sum( f => f.Draws )} times, cells {farCaches.Sum( f => f.CellsDrawn )}" );
+						}
+
+						global::Borealis.Shadows.ShadowMapper.FarCacheRedrawWhole = false;
+					}
+
+					continue;
+				}
 
 				// The GPU-driven frames between two classic ones, to compare (wind and water move between captures)
 				foreach ( var (drivenCapture, materialBuckets, visibility, suffix) in gpuDriven ? new[] { (false, false, false, "-classic-before"), (true, false, false, "-gpudriven"), (true, true, false, "-gpudriven-materials"), (true, false, true, "-gpudriven-visibility"), (false, false, false, "") } : [(false, false, false, "")] )
@@ -299,6 +432,8 @@ internal static class MapRealRun
 		}
 
 		Console.WriteLine( bindingReport );
+		var (allPipelines, allPipelineMs) = gpu.PipelineCreation;
+		Console.WriteLine( $"Pipelines made in the whole run: {allPipelines}, {allPipelineMs:0.0} ms" );
 		gpu.WaitIdle();
 		if ( censusFolder is not null ) File.WriteAllText( Path.Combine( censusFolder, "census.md" ), censusReport.ToString() );
 		Directory.CreateDirectory( options.Output );

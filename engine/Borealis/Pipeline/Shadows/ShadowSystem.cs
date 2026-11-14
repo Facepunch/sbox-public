@@ -22,7 +22,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// <summary>
 	/// Stable map/face pooling preserves list capacity across time-sliced updates.
 	/// </summary>
-	readonly Dictionary<(ShadowMap Map, int Slice), ViewPass> passPool = new();
+	readonly Dictionary<(ShadowMap Map, int Slice, int Region), ViewPass> passPool = new();
 
 	readonly ShadowMap[] cascadeTargets = new ShadowMap[MaxCascades];
 	readonly List<GpuTexture> targets = new();
@@ -90,6 +90,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			ProjectionToView = view.SquareViewToProjection.Inverted,
 			ViewToWorldRotation = view.WorldToViewRotation.Transpose(),
 			CameraPosition = view.Position,
+			Camera = view,
 			ViewportSize = new Vector2( view.Viewport.Width, view.Viewport.Height ),
 			RenderTags = view.RenderTags,
 			ExcludeTags = view.ExcludeTags,
@@ -168,6 +169,10 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 			// Baked suns leave static casters to the lightmaps
 			Baked = lighting.SunShadowsBaked,
+
+			// What the cached far cascade holds changed
+			StaticChanges = world.StaticChanges,
+			SettledChanges = world.SettledChanges,
 		};
 
 		mapper.DoDirectionalLight( sun );
@@ -216,8 +221,10 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// </summary>
 	public System.Numerics.Matrix4x4 RenderShadowView( in ShadowViewDesc desc )
 	{
-		if ( !passPool.TryGetValue( (desc.Target, desc.Slice), out var pass ) )
-			passPool[(desc.Target, desc.Slice)] = pass = new ViewPass { View = new RenderView() };
+		if ( !passPool.TryGetValue( (desc.Target, desc.Slice, desc.Region), out var pass ) )
+			passPool[(desc.Target, desc.Slice, desc.Region)] = pass = new ViewPass { View = new RenderView() };
+
+		var viewport = desc.Viewport.Width > 0 ? desc.Viewport : new Rect( 0, 0, desc.Resolution, desc.Resolution );
 
 		passes.Add( pass );
 		pass.Reset( featureCount );
@@ -229,6 +236,13 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		pass.DepthBias = desc.DepthBias;
 		pass.SlopeScaledDepthBias = desc.SlopeScaledDepthBias;
 		pass.StaticFilter = desc.StaticFilter;
+		pass.TexelSized = desc.Orthographic && desc.TexelSized;
+		pass.LodTexelsPerUnit = desc.Orthographic && desc.TexelLods ? viewport.Width / MathF.Max( desc.Width, 1 ) : 0;
+		pass.SettledStamp = desc.SettledStamp;
+		pass.RestlessStamp = desc.RestlessStamp;
+		pass.NewlySettled = desc.NewlySettled;
+		pass.CacheOffset = desc.CacheOffset;
+		pass.Blank = desc.Blank;
 
 		var view = pass.View;
 		view.Name = desc.Name;
@@ -239,7 +253,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		view.FieldOfView = desc.FieldOfView;
 		view.ZNear = desc.ZNear;
 		view.ZFar = desc.ZFar;
-		view.Viewport = new Rect( 0, 0, desc.Resolution, desc.Resolution );
+		view.Viewport = viewport;
 		view.Update();
 
 		// Local-light views share a sphere query during CullPasses.
@@ -360,10 +374,138 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 				targets.Add( pass.Target );
 		}
 
+		MarkCascades();
+
 		var attributes = context.Attributes;
 		attributes.Set( ProjectedShadowsName, projectedRing.Upload( context, mapper.ProjectedShadowData ) );
 		attributes.Set( ProjectedCubeShadowsName, cubeRing.Upload( context, mapper.ProjectedCubeShadowData ) );
 		attributes.Set( ShadowFilterQualityName, ShadowMapper.ShadowFilter );
+	}
+
+	//
+	// Cheaper sun shadow sampling: a lit shader skips the filter where a cascade drew nothing, or where the receiver is nearer
+	// the sun than every caster the filter could reach, or behind all of them (ShadowMapper.CascadeTiles)
+	//
+
+	/// <summary>
+	/// Texels along each side of a tile.
+	/// </summary>
+	const int TileTexels = 32;
+
+	static readonly StringToken ShadowTilesName = new( "ShadowTiles" );
+	static readonly StringToken ShadowTileDepthName = new( "ShadowTileDepth" );
+	static readonly StringToken ShadowTilesInName = new( "ShadowTilesIn" );
+	static readonly StringToken ShadowTilesOutName = new( "ShadowTilesOut" );
+	static readonly StringToken WidenCombo = new( "D_WIDEN" );
+
+	static GpuMaterial tilesCompute;
+	static GpuMaterial TilesCompute => tilesCompute ??= RenderHost.Current.Device.MaterialFromShader( "shaders/borealis_shadow_tiles_cs.shader" );
+
+	/// <summary>
+	/// Make the tiles' shader on the main thread: made where it's first dispatched, on a recording thread, it isn't there
+	/// for that frame, whose tiles would then say every receiver is lit.
+	/// </summary>
+	public static void WarmUp() => _ = TilesCompute;
+
+	// Each cascade's tiles side by side: their own min and max depth, then widened over their neighbours
+	GpuTexture tilesRaw, tiles;
+
+	// The cascades whose tiles are made this frame, a bit each
+	uint tileCascades;
+
+	/// <summary>
+	/// Flag the cascades that drew nothing, and, where any drew something, have their tiles made after the shadow passes
+	/// (<see cref="BuildTiles"/>). After culling: a cascade with no caster left is empty, unless it starts from a cache.
+	/// </summary>
+	void MarkCascades()
+	{
+		tileCascades = 0;
+		ref var sun = ref mapper.DirectionalLightData;
+		var cascades = mapper.Cascades;
+		if ( !ShadowMapper.CascadeTiles || cascades.Length == 0 ) return;
+
+		uint drawn = 0, empty = 0;
+		for ( int i = 0; i < cascades.Length; i++ )
+		{
+			foreach ( var pass in Passes )
+			{
+				if ( pass.TargetMap != cascades[i] ) continue;
+				drawn |= 1u << i;
+				if ( pass.CachedStatic is null && !HasCasters( pass ) ) empty |= 1u << i;
+			}
+		}
+
+		// Cascades another view drew this frame keep the tiles it made
+		if ( drawn == 0 ) return;
+
+		var resolution = cascades[0].Resolution;
+		var side = Math.Max( resolution / TileTexels, 1 );
+		if ( tiles is null || tiles.Height != side )
+		{
+			tilesRaw?.Dispose();
+			tiles?.Dispose();
+			var desc = TextureDesc.Target( side * MaxCascades, side, TextureFormat.RG3232F ) with { Storage = true };
+			tilesRaw = RenderHost.Current.Device.CreateTexture( desc, "Borealis cascade tiles (raw)" );
+			tiles = RenderHost.Current.Device.CreateTexture( desc, "Borealis cascade tiles" );
+		}
+
+		tileCascades = drawn & ~empty;
+		if ( tileCascades != 0 ) WarmUp();
+		sun.SetCascadeFlags( empty, tileCascades != 0 ? tiles.BindlessIndex : 0 );
+	}
+
+	static bool HasCasters( ViewPass pass )
+	{
+		foreach ( var list in pass.VisibleByFeature )
+		{
+			if ( list.Count > 0 ) return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Make the tiles of the cascades drawn this frame, once their shadow passes are done: the min and max depth of each 32x32
+	/// texel tile, then each over its neighbours too, so one read covers the widest filter.
+	/// </summary>
+	public void BuildTiles( GpuContext context )
+	{
+		if ( tileCascades == 0 ) return;
+		context.Invalidate();
+
+		var cascades = mapper.Cascades;
+		var side = tiles.Height;
+		context.TextureBarrier( tilesRaw, GpuStage.ComputeShader, GpuAccess.ShaderRead, GpuStage.ComputeShader, GpuAccess.ShaderWrite, TextureLayout.General );
+
+		var parameters = ParameterPool.Get();
+		parameters.Set( ShadowTilesOutName, tilesRaw );
+		parameters.SetCombo( WidenCombo, false );
+		for ( int i = 0; i < cascades.Length; i++ )
+		{
+			if ( (tileCascades & (1u << i)) == 0 ) continue;
+			var depth = cascades[i].Texture;
+			context.TextureBarrier( depth, GpuStage.LateFragmentTests, GpuAccess.DepthStencilAttachmentWrite, GpuStage.ComputeShader | GpuStage.FragmentShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
+			parameters.Set( ShadowTileDepthName, depth );
+			parameters.Set( ShadowTilesName, new Vector4( i * side, side, 0, 0 ) );
+			context.Dispatch( TilesCompute, parameters, side * 8, side * 8, 1 );
+		}
+
+		context.TextureBarrier( tilesRaw, GpuStage.ComputeShader, GpuAccess.ShaderWrite, GpuStage.ComputeShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
+		context.TextureBarrier( tiles, GpuStage.FragmentShader, GpuAccess.ShaderRead, GpuStage.ComputeShader, GpuAccess.ShaderWrite, TextureLayout.General );
+
+		parameters.Clear();
+		parameters.Set( ShadowTilesInName, tilesRaw );
+		parameters.Set( ShadowTilesOutName, tiles );
+		parameters.SetCombo( WidenCombo, true );
+		for ( int i = 0; i < cascades.Length; i++ )
+		{
+			if ( (tileCascades & (1u << i)) == 0 ) continue;
+			parameters.Set( ShadowTilesName, new Vector4( i * side, side, 0, 0 ) );
+			context.Dispatch( TilesCompute, parameters, side, side, 1 );
+		}
+
+		ParameterPool.Return( parameters );
+		context.TextureBarrier( tiles, GpuStage.ComputeShader, GpuAccess.ShaderWrite, GpuStage.FragmentShader | GpuStage.ComputeShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
 	}
 
 	/// <summary>
@@ -380,6 +522,10 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		var cascades = mapper.Cascades;
 		for ( int i = 0; i < cascades.Length; i++ )
 			Add( report, ref layout, cascades[i], ShadowMapKind.Cascade, i, false, frame );
+
+		// The far cascade's cache after them, framed as drawn this frame (green: a strip, changed cells or all of it) or kept
+		// (grey); it's held wrapped around, so its picture is the cascade's cut into four and swapped
+		if ( mapper.FarCacheMap is { } farCache ) Add( report, ref layout, farCache, ShadowMapKind.Cascade, cascades.Length, false, frame );
 
 		var spots = mapper.SpotShadows;
 		for ( int i = 0; i < spots.Count; i++ )
@@ -476,12 +622,27 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	public void BeginPass( GpuContext context, ViewPass pass, bool clear )
 	{
 		var view = pass.View;
-		var size = new Vector2( view.Viewport.Width, view.Viewport.Height );
+		var size = new Vector2( pass.Target.Width, pass.Target.Height );
 
-		// Copy static depth once before drawing dynamic casters.
+		// Copy static depth once before drawing dynamic casters. A cache held wrapped around is unwrapped
 		var cached = pass.CachedStatic;
 		if ( clear && cached is not null && pass.TargetSlice == 0 )
-			context.CopyTexture( cached.Texture, pass.Target, cached.IsCube ? 6 : 1 );
+		{
+			if ( pass.CacheOffset == default ) context.CopyTexture( cached.Texture, pass.Target, cached.IsCube ? 6 : 1 );
+			else CopyWrapped( context, cached.Texture, pass.Target, pass.CacheOffset );
+		}
+
+		// A view of part of a map clears only that part, from a cleared tile
+		if ( clear && cached is null && pass.Blank is { } blank )
+		{
+			var tile = blank.Resolution;
+			var rect = view.Viewport;
+			for ( int y = (int)rect.Top; y < (int)rect.Bottom; y += tile )
+			{
+				for ( int x = (int)rect.Left; x < (int)rect.Right; x += tile )
+					context.CopyTextureRegion( blank.Texture, pass.Target, 0, 0, x, y, Math.Min( tile, (int)rect.Right - x ), Math.Min( tile, (int)rect.Bottom - y ) );
+			}
+		}
 
 		context.Bind( new StageTarget
 		{
@@ -495,7 +656,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			ColorFormat = TextureFormat.None,
 			Samples = 1,
 		} );
-		if ( clear && cached is null ) context.Clear( Color.Black, clearColor: false );
+		if ( clear && cached is null && pass.Blank is null ) context.Clear( Color.Black, clearColor: false );
 
 		// The shadow view's own, which no key describes
 		var constants = new ViewConstants();
@@ -504,9 +665,25 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	}
 
 
+	/// <summary>
+	/// Copy a texture held wrapped around by <paramref name="offset"/> texels into one that isn't: four rectangles.
+	/// </summary>
+	static void CopyWrapped( GpuContext context, GpuTexture source, GpuTexture destination, Vector2Int offset )
+	{
+		int w = source.Width, h = source.Height;
+		int ox = ((offset.x % w) + w) % w, oy = ((offset.y % h) + h) % h;
+		context.CopyTextureRegion( source, destination, ox, oy, 0, 0, w - ox, h - oy );
+		context.CopyTextureRegion( source, destination, 0, oy, w - ox, 0, ox, h - oy );
+		context.CopyTextureRegion( source, destination, ox, 0, 0, h - oy, w - ox, oy );
+		context.CopyTextureRegion( source, destination, 0, 0, w - ox, h - oy, ox, oy );
+	}
+
 	public void Dispose()
 	{
 		passPool.Clear();
+		tilesRaw?.Dispose();
+		tiles?.Dispose();
+		tilesRaw = tiles = null;
 		projectedRing.Dispose();
 		cubeRing.Dispose();
 

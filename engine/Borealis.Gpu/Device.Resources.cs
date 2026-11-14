@@ -2,6 +2,7 @@ using Borealis.Gpu.Memory;
 using Borealis.Gpu.Vulkan;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 namespace Borealis.Gpu;
 
@@ -786,7 +787,9 @@ public sealed unsafe partial class Device
 		};
 
 		ulong pipeline;
+		var started = System.Diagnostics.Stopwatch.GetTimestamp();
 		Vk.vkCreateGraphicsPipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateGraphicsPipelines ({info.Name})" );
+		CountPipeline( started );
 		SetName( VkObjectType.Pipeline, pipeline, info.Name );
 
 		var (index, generation) = Pipelines.Add( new PipelineRecord { Pipeline = pipeline, Layout = layout, BindPoint = Vulkan.Vk.BindPointGraphics } );
@@ -817,7 +820,9 @@ public sealed unsafe partial class Device
 		};
 
 		ulong pipeline;
+		var started = System.Diagnostics.Stopwatch.GetTimestamp();
 		Vk.vkCreateComputePipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateComputePipelines ({info.Name})" );
+		CountPipeline( started );
 		SetName( VkObjectType.Pipeline, pipeline, info.Name );
 
 		var (index, generation) = Pipelines.Add( new PipelineRecord { Pipeline = pipeline, Layout = layout, BindPoint = Vulkan.Vk.BindPointCompute } );
@@ -867,8 +872,10 @@ public sealed unsafe partial class Device
 			ulong cache;
 
 			// Data from another driver or GPU is rejected; start empty then
+			PipelineCacheLoaded = data is { Length: > 0 };
 			if ( Vk.vkCreatePipelineCache( Vk.Device, &info, null, &cache ) != VkResult.Success )
 			{
+				PipelineCacheLoaded = false;
 				info.initialDataSize = 0;
 				info.pInitialData = null;
 				Vk.vkCreatePipelineCache( Vk.Device, &info, null, &cache ).Check( "vkCreatePipelineCache" );
@@ -876,6 +883,40 @@ public sealed unsafe partial class Device
 
 			pipelineCache = cache;
 		}
+	}
+
+	string pipelineCachePath;
+	int pipelinesMade, pipelinesSaved;
+	long pipelineTicks;
+
+	/// <summary>Whether the device started from saved pipeline cache data the driver took.</summary>
+	public bool PipelineCacheLoaded { get; private set; }
+
+	/// <summary>The pipeline cache's file (<see cref="DeviceOptions.PipelineCacheFolder"/>), or null.</summary>
+	public string PipelineCachePath => pipelineCachePath;
+
+	/// <summary>Pipelines made so far and the milliseconds spent making them, for start-up and first-use measurements.</summary>
+	public (int Made, double Ms) PipelineCreation => (Volatile.Read( ref pipelinesMade ), Volatile.Read( ref pipelineTicks ) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+
+	void CountPipeline( long started )
+	{
+		Interlocked.Add( ref pipelineTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
+		Interlocked.Increment( ref pipelinesMade );
+	}
+
+	/// <summary>
+	/// Save the pipeline cache to its file (<see cref="DeviceOptions.PipelineCacheFolder"/>) if pipelines were made since
+	/// it was loaded or last saved; false when there's no file, nothing new, or it couldn't be written. Safe to call from
+	/// any thread while pipelines are made. The device saves it when disposed too.
+	/// </summary>
+	public bool SavePipelineCache()
+	{
+		if ( pipelineCachePath is null || pipelineCache == 0 ) return false;
+		var made = Volatile.Read( ref pipelinesMade );
+		if ( made == Volatile.Read( ref pipelinesSaved ) ) return false;
+		if ( !PipelineCacheFile.Save( pipelineCachePath, GetPipelineCacheData() ) ) return false;
+		Volatile.Write( ref pipelinesSaved, made );
+		return true;
 	}
 
 	/// <summary>
@@ -899,7 +940,7 @@ public sealed unsafe partial class Device
 	}
 
 	//
-	// Destruction: deferred until every queue has finished what was submitted before it
+	// Destruction: deferred until every queue has finished the frame it was destroyed in
 	//
 
 	readonly struct Garbage( ulong graphics, ulong compute, Action free )
@@ -911,16 +952,38 @@ public sealed unsafe partial class Device
 
 	readonly List<Garbage> garbage = new();
 
+	/// <summary>What was destroyed this frame, tagged when the frame closes.</summary>
+	readonly List<Action> destroyedThisFrame = new();
+
 	/// <summary>
-	/// Free something once the GPU has finished everything submitted so far.
+	/// Free something once the GPU has finished the frame it was destroyed in: every list of the frame, those still
+	/// recording or held for a later submission as well as those submitted, since any of them may use it. A frame's lists
+	/// all have their timeline values once <see cref="BeginFrame"/> has flushed them, so it's tagged then.
 	/// </summary>
 	internal void Defer( Action free )
 	{
-		lock ( garbage ) garbage.Add( new Garbage( graphicsQueue.Submitted, computeQueue.Submitted, free ) );
+		lock ( garbage ) destroyedThisFrame.Add( free );
+	}
+
+	/// <summary>The queues' values what was destroyed in the frame <see cref="BeginFrame"/> last closed waits for, for the tests.</summary>
+	internal (ulong Graphics, ulong Compute) LastGarbageTag { get; private set; }
+
+	/// <summary>Tag what was destroyed this frame with every queue's last value, once the frame's lists are all submitted.</summary>
+	void TagDestroyed()
+	{
+		lock ( garbage )
+		{
+			if ( destroyedThisFrame.Count == 0 ) return;
+			var (graphics, compute) = (graphicsQueue.Submitted, computeQueue.Submitted);
+			foreach ( var free in destroyedThisFrame ) garbage.Add( new Garbage( graphics, compute, free ) );
+			destroyedThisFrame.Clear();
+			LastGarbageTag = (graphics, compute);
+		}
 	}
 
 	void CollectGarbage( bool force = false )
 	{
+		if ( force ) TagDestroyed();
 		var graphics = graphicsQueue.Completed;
 		var compute = computeQueue.Completed;
 

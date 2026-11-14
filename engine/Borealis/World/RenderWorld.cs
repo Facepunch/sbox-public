@@ -34,6 +34,22 @@ public sealed class RenderWorld
 	// Each object's leaf in DynamicTree, or NotAdded
 	int[] _dynamicTreeLeaves = new int[InitialCapacity];
 
+	// When each object last moved or changed how it casts (SettledCasters.Now), and how often it did after it had settled
+	ulong[] _movedStamps = new ulong[InitialCapacity];
+	byte[] _settleMoves = new byte[InitialCapacity];
+
+	/// <summary>
+	/// When each object last moved or changed how it casts, by index, as a <see cref="Shadows.SettledCasters"/> stamp; it
+	/// counts as settled once that's old enough.
+	/// </summary>
+	internal ReadOnlySpan<ulong> MovedStamps => _movedStamps.AsSpan( 0, Count );
+
+	/// <summary>
+	/// Where settled casters that aren't static moved or changed, so the sun's cached far cascade, which holds them, is redrawn
+	/// when a change reaches it.
+	/// </summary>
+	internal StaticCasterChanges SettledChanges { get; } = new();
+
 	/// <summary>
 	/// Objects that are never size culled - lights - by index. Few, so views just test them all.
 	/// </summary>
@@ -149,6 +165,8 @@ public sealed class RenderWorld
 			Array.Resize( ref _drawVersions, capacity );
 			Array.Resize( ref _entryVersions, capacity );
 			Array.Resize( ref _dynamicTreeLeaves, capacity );
+			Array.Resize( ref _movedStamps, capacity );
+			Array.Resize( ref _settleMoves, capacity );
 		}
 
 		obj.World = this;
@@ -157,6 +175,7 @@ public sealed class RenderWorld
 		_objects[obj.Index] = obj;
 		_treeLeaves[obj.Index] = NotAdded;
 		_dynamicTreeLeaves[obj.Index] = NotAdded;
+		_settleMoves[obj.Index] = 0;
 		_drawVersions[obj.Index] = NextDrawVersion();
 		_entryVersions[obj.Index]++;
 		Sync( obj );
@@ -174,6 +193,7 @@ public sealed class RenderWorld
 		var last = --Count;
 
 		if ( obj.IsStatic ) StaticCasterChanged( obj );
+		else if ( IsSettledCaster( obj ) ) SettledChanges.Add( _boundsCenters[index], _boundsExtents[index] );
 
 		if ( _treeLeaves[index] >= 0 ) Tree.Remove( _treeLeaves[index] );
 		else _unculledObjectIndices.Remove( index );
@@ -188,6 +208,8 @@ public sealed class RenderWorld
 			_localToWorld[index] = _localToWorld[last];
 			_treeLeaves[index] = _treeLeaves[last];
 			_dynamicTreeLeaves[index] = _dynamicTreeLeaves[last];
+			_movedStamps[index] = _movedStamps[last];
+			_settleMoves[index] = _settleMoves[last];
 			_drawVersions[index] = NextDrawVersion();
 			_entryVersions[index] = _entryVersions[last] + 1;
 			moved.Index = index;
@@ -214,6 +236,11 @@ public sealed class RenderWorld
 		var logged = obj.IsStatic && CastsShadows( obj );
 		if ( logged && _treeLeaves[index] != NotAdded ) StaticChanges.Add( _boundsCenters[index], _boundsExtents[index] );
 
+		// So does a settled one, which is drawn every frame again from now
+		var settled = !obj.IsStatic && _treeLeaves[index] != NotAdded && IsSettledCaster( obj );
+		if ( settled ) SettledChanges.Add( _boundsCenters[index], _boundsExtents[index] );
+		Moved( index, settled );
+
 		var matrix = ToMatrix( obj.Transform );
 		_localToWorld[index] = matrix;
 		_entryVersions[index]++;
@@ -230,6 +257,7 @@ public sealed class RenderWorld
 		_boundsCenters[index] = center;
 		_boundsExtents[index] = extents;
 		if ( logged ) StaticChanges.Add( center, extents );
+		if ( settled ) SettledChanges.Add( center, extents );
 
 		var leaf = _treeLeaves[index];
 		if ( leaf >= 0 ) Tree.Move( leaf, center - extents, center + extents );
@@ -272,6 +300,42 @@ public sealed class RenderWorld
 	{
 		if ( obj.Index >= 0 && CastsShadows( obj ) ) StaticChanges.Add( _boundsCenters[obj.Index], _boundsExtents[obj.Index] );
 	}
+
+	/// <summary>
+	/// Note a change to how a caster casts: a static one's in <see cref="StaticChanges"/>, a settled one's in
+	/// <see cref="SettledChanges"/>, and any that isn't static starts settling again.
+	/// </summary>
+	internal void CasterChanged( RenderObject obj )
+	{
+		if ( obj.IsStatic )
+		{
+			StaticCasterChanged( obj );
+			return;
+		}
+
+		if ( obj.Index < 0 ) return;
+		var settled = IsSettledCaster( obj );
+		if ( settled ) SettledChanges.Add( _boundsCenters[obj.Index], _boundsExtents[obj.Index] );
+		Moved( obj.Index, settled );
+	}
+
+	/// <summary>
+	/// An object that isn't static moved or changed now: it settles again <see cref="Shadows.SettledCasters.Seconds"/> from
+	/// now, or, if it has moved after settling too often, <see cref="Shadows.SettledCasters.RestlessSeconds"/>. A restless one
+	/// that stayed put that long starts over.
+	/// </summary>
+	void Moved( int index, bool wasSettled )
+	{
+		if ( wasSettled && (_movedStamps[index] & Shadows.SettledCasters.Restless) != 0 ) _settleMoves[index] = 0;
+		if ( wasSettled && _settleMoves[index] < byte.MaxValue ) _settleMoves[index]++;
+		var restless = _settleMoves[index] >= Shadows.SettledCasters.MaxSettles ? Shadows.SettledCasters.Restless : 0;
+		_movedStamps[index] = Shadows.SettledCasters.Now | restless;
+	}
+
+	/// <summary>
+	/// A caster that isn't static and counts as settled now.
+	/// </summary>
+	bool IsSettledCaster( RenderObject obj ) => Shadows.SettledCasters.Settled( _movedStamps[obj.Index] ) && CastsShadows( obj );
 
 	/// <summary>
 	/// Lights, environment maps and decals never draw into shadow maps.

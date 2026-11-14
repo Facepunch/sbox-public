@@ -53,5 +53,9 @@ internal sealed class ShadowsReadyLayer : RenderLayer
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.ShadowMaps.Passes.Length > 0;
 	public override FrameResources Reads( RenderFrame frame ) => FrameResources.ShadowMaps;
 
-	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats ) => frame.System.ShadowMaps.BarrierToRead( rc );
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
+	{
+		frame.System.ShadowMaps.BarrierToRead( rc );
+		frame.System.ShadowMaps.BuildTiles( rc );
+	}
 }

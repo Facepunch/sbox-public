@@ -13,7 +13,7 @@ namespace BorealisTests;
 [DoNotParallelize]
 public class AggregateTests
 {
-	static AggregateObject.FragmentDraw Fragment( int index, Vector3 center, float size = 1, uint indices = 3 ) => new()
+	internal static AggregateObject.FragmentDraw Fragment( int index, Vector3 center, float size = 1, uint indices = 3 ) => new()
 	{
 		Transform = Matrix3x4.Identity,
 		BoundsMin = center - size,

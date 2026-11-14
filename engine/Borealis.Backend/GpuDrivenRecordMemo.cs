@@ -46,6 +46,9 @@ internal sealed class GpuDrivenRecordMemo
 		public object Stages;
 		public bool DepthOnly;
 
+		/// <summary>Whether the bucket has a pixel record: not depth-only, or drawing ids with its own pixel shader.</summary>
+		public bool PixelRecord;
+
 		/// <summary>The bucket's attribute hashes for its vertex and pixel stage (<see cref="BackendContext"/>'s AttributeHash).</summary>
 		public int VertexAttributes, PixelAttributes;
 		public object Owner;

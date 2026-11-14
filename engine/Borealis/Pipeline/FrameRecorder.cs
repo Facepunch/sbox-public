@@ -15,7 +15,8 @@ internal sealed partial class FrameRecorder : IDisposable
 	static readonly int MaxRecordThreads = Math.Clamp( Environment.ProcessorCount - 1, 1, 8 );
 
 	/// <summary>
-	/// Minimum total runs needed to justify worker recording.
+	/// Minimum total draws (runs as <see cref="RenderFeature.RunWeights"/> weighs them) needed to justify worker recording:
+	/// a GPU-driven run of hundreds of draws is one run but not one draw's work.
 	/// </summary>
 	const int ParallelRunThreshold = 64;
 

@@ -1,5 +1,6 @@
 using Borealis.Gpu;
 using BorealisGpuSample;
+using System.IO;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -32,6 +33,23 @@ public class DeviceTests : GpuTest
 		Assert.AreEqual( 64 * 32 * 4, pixels.Length );
 		Assert.AreEqual( ((byte)255, (byte)128, (byte)0, (byte)255), Pixel( pixels, 64, 0, 0 ) );
 		Assert.AreEqual( ((byte)255, (byte)128, (byte)0, (byte)255), Pixel( pixels, 64, 63, 31 ) );
+	}
+
+	/// <summary>
+	/// A resource destroyed while a frame records waits for the whole frame: a list recorded before the destroy and submitted
+	/// after it still reads it, so it isn't freed once only what was submitted before the destroy has finished.
+	/// </summary>
+	[TestMethod]
+	public void DestroyedResourcesWaitForTheirFrame()
+	{
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = 256, Usage = BufferUsage.Storage, Name = "Destroyed mid-frame" } );
+		var list = Device.BeginCommandList();
+		list.FillBuffer( buffer, 1 );
+		Device.Destroy( buffer );
+		var point = Device.Submit( list );
+		Device.BeginFrame();
+		Device.WaitIdle();
+		Assert.IsTrue( Device.LastGarbageTag.Graphics >= point.Value, $"the buffer waits for the list that used it (tagged {Device.LastGarbageTag.Graphics}, the list is {point.Value})" );
 	}
 
 	/// <summary>
@@ -161,6 +179,29 @@ public class DeviceTests : GpuTest
 		Device.Wait( copied );
 		Assert.IsTrue( Device.IsComplete( filled ) );
 		Assert.IsTrue( MemoryMarshal.Cast<byte, uint>( Device.Map( readback ) ).ToArray().All( v => v == 0xC0FFEE ) );
+	}
+
+	/// <summary>
+	/// Writes in a deferred-uploads scope go with the next submission instead of waiting each, and work submitted after the
+	/// scope reads them.
+	/// </summary>
+	[TestMethod]
+	public void DeferredUploadsArriveBeforeLaterWork()
+	{
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = 4096, Usage = BufferUsage.Storage, Name = "Written" } );
+		var readback = Device.CreateBuffer( new BufferInfo { Size = 4096, Memory = MemoryLocation.Readback, Name = "Readback" } );
+		var values = Enumerable.Range( 0, 1024 ).Select( i => (uint)(i * 7 + 3) ).ToArray();
+
+		var before = Device.Submissions;
+		using ( Device.DeferUploads() ) Device.WriteBuffer<uint>( buffer, values );
+		Assert.AreEqual( before, Device.Submissions, "a deferred write submits nothing by itself" );
+
+		var copy = Device.BeginCommandList( QueueType.Graphics, "Copy" );
+		copy.CopyBuffer( buffer, 0, readback, 0, 4096 );
+		copy.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+		Device.Wait( Device.Submit( copy ) );
+
+		CollectionAssert.AreEqual( values, MemoryMarshal.Cast<byte, uint>( Device.Map( readback ) ).ToArray() );
 	}
 
 	/// <summary>
@@ -298,6 +339,73 @@ public class DeviceTests : GpuTest
 		using var second = Device.Create( new DeviceOptions { Presentation = false, PipelineCacheData = data } );
 		using ( new SampleScene( second, Format.RGBA8Unorm ) ) { }
 		Assert.IsTrue( second.GetPipelineCacheData().Length >= data.Length / 2 );
+	}
+
+	/// <summary>
+	/// A device with a pipeline cache folder saves its cache there when disposed, after making pipelines, and the next
+	/// device for the same GPU loads it; a device that made none since loading doesn't write it again.
+	/// </summary>
+	[TestMethod]
+	public void PipelineCacheFolderRoundTrips()
+	{
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-pipelines-{Guid.NewGuid():N}" );
+		try
+		{
+			string path;
+			using ( var first = Device.Create( new DeviceOptions { Presentation = false, PipelineCacheFolder = folder } ) )
+			{
+				Assert.IsFalse( first.PipelineCacheLoaded, "nothing to load the first time" );
+				using ( new SampleScene( first, Format.RGBA8Unorm ) ) { }
+				Assert.IsTrue( first.PipelineCreation.Made > 0, "the sample made pipelines" );
+				path = first.PipelineCachePath;
+			}
+
+			Assert.IsTrue( File.Exists( path ), "saved when the device was disposed" );
+			var written = File.GetLastWriteTimeUtc( path );
+
+			using ( var second = Device.Create( new DeviceOptions { Presentation = false, PipelineCacheFolder = folder } ) )
+			{
+				Assert.IsTrue( second.PipelineCacheLoaded, "the next device loads it" );
+				Assert.IsFalse( second.SavePipelineCache(), "nothing new to save" );
+			}
+
+			Assert.AreEqual( written, File.GetLastWriteTimeUtc( path ), "not written again" );
+		}
+		finally
+		{
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>A pipeline cache file that's truncated, corrupted or not one loads as nothing; a good one as what was saved.</summary>
+	[TestMethod]
+	public void DamagedPipelineCacheFilesLoadAsNothing()
+	{
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-pipelines-{Guid.NewGuid():N}" );
+		try
+		{
+			var path = Path.Combine( folder, "cache.bin" );
+			var data = new byte[1000];
+			new Random( 3 ).NextBytes( data );
+			Assert.IsTrue( PipelineCacheFile.Save( path, data ) );
+			CollectionAssert.AreEqual( data, PipelineCacheFile.Load( path ), "a good file loads as saved" );
+
+			var bytes = File.ReadAllBytes( path );
+			bytes[^1] ^= 1;
+			File.WriteAllBytes( path, bytes );
+			Assert.IsNull( PipelineCacheFile.Load( path ), "a flipped bit" );
+
+			File.WriteAllBytes( path, bytes[..^10] );
+			Assert.IsNull( PipelineCacheFile.Load( path ), "a truncated file" );
+
+			File.WriteAllBytes( path, data );
+			Assert.IsNull( PipelineCacheFile.Load( path ), "not a cache file" );
+			Assert.IsNull( PipelineCacheFile.Load( Path.Combine( folder, "missing.bin" ) ), "no file" );
+		}
+		finally
+		{
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, true );
+		}
 	}
 
 	/// <summary>
