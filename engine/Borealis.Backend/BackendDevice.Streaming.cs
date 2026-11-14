@@ -71,9 +71,7 @@ public sealed partial class BackendDevice
 			return null;
 		}
 
-		var d0 = Stopwatch.GetTimestamp(); // GWDIAG
 		made = read.IsCompletedSuccessfully && read.Result is { } file ? BackendModel.Create( this, file, meshGroups ) : null;
-		DiagModels++; DiagModelTicks += Stopwatch.GetTimestamp() - d0; // GWDIAG
 		streamedModels[(path, meshGroups)] = made;
 		return made;
 	}

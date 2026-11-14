@@ -432,9 +432,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		lock ( loadedTextures )
 		{
 			if ( loadedTextures.TryGetValue( path, out var texture ) ) return texture;
-			var t0 = Stopwatch.GetTimestamp(); // GWDIAG
-			try { return loadedTextures[path] = Load( path ) ?? Placeholder( path, cube: path.Contains( "cube", StringComparison.OrdinalIgnoreCase ) ); }
-			finally { DiagTextures++; DiagTextureTicks += Stopwatch.GetTimestamp() - t0; } // GWDIAG
+			return loadedTextures[path] = Load( path ) ?? Placeholder( path, cube: path.Contains( "cube", StringComparison.OrdinalIgnoreCase ) );
 		}
 	}
 
@@ -728,11 +726,6 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// when it isn't built. See <see cref="BackendModel.Load"/>.
 	/// </summary>
 	public RenderMesh LoadModel( string path, ulong? meshGroups = null, int materialGroup = 0 ) => BackendModel.Load( this, path, meshGroups, materialGroup );
-
-	/// <summary>GWDIAG</summary>
-	public static int DiagTextures, DiagModels; // GWDIAG
-	/// <summary>GWDIAG</summary>
-	public static long DiagTextureTicks, DiagModelTicks; // GWDIAG
 
 	/// <summary>The vertex layouts pipelines have been made for, for tests.</summary>
 	internal VertexLayout[] PipelineLayouts
