@@ -2,7 +2,7 @@ namespace Sandbox.SceneLab;
 
 /// <summary>
 /// What a Scene Lab scene is made of: a lab preset's grid of one model, with optionally a floor with lights over it
-/// (<see cref="LabPreset"/>, shared with BasaltLab), or a GameObject scene.
+/// (<see cref="LabPreset"/>, shared with BorealisLab), or a GameObject scene.
 /// </summary>
 internal sealed record SceneLabScene : LabPreset
 {

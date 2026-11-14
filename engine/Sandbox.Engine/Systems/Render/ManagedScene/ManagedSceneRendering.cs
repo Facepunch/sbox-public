@@ -1,7 +1,7 @@
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// The compare Basalt offers <c>r_managed_scene_compare</c>: a camera rendered by both renderers, compared per pixel.
+/// The compare Borealis offers <c>r_managed_scene_compare</c>: a camera rendered by both renderers, compared per pixel.
 /// </summary>
 internal interface IManagedSceneCompare
 {
@@ -14,15 +14,15 @@ internal interface IManagedSceneCompare
 }
 
 /// <summary>
-/// Basalt's switches, its compare and its frame counters. With <c>r_managed_scene</c> on, every scene render goes through
-/// Basalt (<see cref="SceneRenderer"/>), which owns the camera's whole frame: native's post processing, UI and command lists
+/// Borealis's switches, its compare and its frame counters. With <c>r_managed_scene</c> on, every scene render goes through
+/// Borealis (<see cref="SceneRenderer"/>), which owns the camera's whole frame: native's post processing, UI and command lists
 /// don't run for it, and the platform overlay (the console, debug overlays) is drawn over it by whoever owns the swap chain.
-/// See docs/managed/basalt.md, <i>The GameObject bridge</i>, and docs/managed/render-paths.md.
+/// See docs/managed/borealis.md, <i>The GameObject bridge</i>, and docs/managed/render-paths.md.
 /// </summary>
 internal static partial class ManagedSceneRendering
 {
 	/// <summary>
-	/// Render every scene through Basalt instead of native. Read once a frame (<see cref="SceneRenderer.BeginFrame"/>).
+	/// Render every scene through Borealis instead of native. Read once a frame (<see cref="SceneRenderer.BeginFrame"/>).
 	/// </summary>
 	[ConVar( "r_managed_scene", ConVarFlags.Protected, Help = "Render cameras through the managed scene renderer (experimental)" )]
 	public static bool Enabled { get; set; }
@@ -40,7 +40,7 @@ internal static partial class ManagedSceneRendering
 
 	/// <summary>
 	/// Called as a camera component renders, before it does: counts down to a queued compare. True while the compare warms
-	/// up, when native renders the camera too, over Basalt's frame, so both renderers' effects that carry frames forward
+	/// up, when native renders the camera too, over Borealis's frame, so both renderers' effects that carry frames forward
 	/// (volumetric fog's history, auto exposure) have run when they're compared.
 	/// </summary>
 	internal static bool BeforeCameraRender( CameraComponent camera )
@@ -108,7 +108,7 @@ internal static partial class ManagedSceneRendering
 
 	static void RunCompare( CameraComponent camera, string folder )
 	{
-		var renderer = SceneRenderer.Basalt as IManagedSceneCompare;
+		var renderer = SceneRenderer.Borealis as IManagedSceneCompare;
 		if ( renderer is null )
 		{
 			Log.Warning( "r_managed_scene_compare: no managed renderer" );

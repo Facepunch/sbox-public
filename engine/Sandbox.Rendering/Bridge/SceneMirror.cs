@@ -284,7 +284,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		}
 	}
 
-	readonly Dictionary<SceneLightProbe, Basalt.LightProbeVolume> lightProbes = new();
+	readonly Dictionary<SceneLightProbe, Borealis.LightProbeVolume> lightProbes = new();
 
 	readonly Dictionary<ulong, SharedLightmap> lightmaps = new();
 	readonly Dictionary<RenderAttributes, ulong> lightmapKeys = new( ReferenceEqualityComparer.Instance );
@@ -320,7 +320,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 	/// <summary>
 	/// The world lightmaps a lightmapped object draws with: native's, shared per lightmap set (<see cref="AcquireLightmap"/>);
-	/// on Basalt.Gpu, those of the map its model is in (<c>maps/construct_25/worldnodes/...</c>), read from the map's world
+	/// on Borealis.Gpu, those of the map its model is in (<c>maps/construct_25/worldnodes/...</c>), read from the map's world
 	/// file. Null for an object without lightmaps.
 	/// </summary>
 	ShaderParameters LightmapFor( SceneObject sceneObject, Model model )
@@ -343,7 +343,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// <summary>
 	/// Mirror probe placement and selection data; create attributes once (<c>CLightBinner2::GetLightProbeVolumeData</c>).
 	/// </summary>
-	void ApplyLightProbe( SceneLightProbe probe, Basalt.LightProbeVolume volume, SceneObjectChange change )
+	void ApplyLightProbe( SceneLightProbe probe, Borealis.LightProbeVolume volume, SceneObjectChange change )
 	{
 		if ( (change & SceneObjectChange.Transform) != 0 )
 			volume.Transform = probe.Transform;
@@ -357,7 +357,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		volume.Handshake = probe.Handshake;
 		if ( MirrorContent.Gpu is { } gpu )
 		{
-			// On Basalt.Gpu: its constants made here, over its textures read by path, once they've loaded
+			// On Borealis.Gpu: its constants made here, over its textures read by path, once they've loaded
 			var texture = TextureFor( probe.ProbeTexture, probe, SceneObjectChange.Settings );
 			var indices = TextureFor( probe.IndicesTexture, probe, SceneObjectChange.Settings );
 			var scalars = TextureFor( probe.ScalarsTexture, probe, SceneObjectChange.Settings );
@@ -373,8 +373,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	{
 		// Probe volumes belong to the world's lighting list, not its draw list. An extra world's aren't drawn: the list is the
 		// main world's, for every view of it
-		// On a Basalt.Gpu device: what draws through native (custom and dynamic objects) isn't mirrored yet
-		// (docs/managed/basalt-gpu-path.md)
+		// On a Borealis.Gpu device: what draws through native (custom and dynamic objects) isn't mirrored yet
+		// (docs/managed/borealis-gpu-path.md)
 		if ( MirrorContent.Gpu is not null && sceneObject is SceneCustomObject or SceneDynamicObject )
 		{
 			objects[sceneObject] = null;
@@ -384,7 +384,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 		if ( sceneObject is SceneLightProbe probe && SubWorld == 0 )
 		{
-			var volume = new Basalt.LightProbeVolume();
+			var volume = new Borealis.LightProbeVolume();
 			lightProbes[probe] = volume;
 			World.LightProbeVolumes.Add( volume );
 			objects[sceneObject] = null;
@@ -767,7 +767,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			decal.EmissionEnergy = source.EmissionEnergy;
 			decal.SequenceIndex = source.SequenceIndex;
 			decal.ColorMix = source.ColorMix;
-			decal.BlendMode = (Basalt.DecalBlendMode)source.BlendMode;
+			decal.BlendMode = (Borealis.DecalBlendMode)source.BlendMode;
 			decal.ParallaxStrength = source.ParallaxStrength;
 			decal.SamplerIndex = source.SamplerIndex;
 			decal.CoverageAmount = source.CoverageAmount;
@@ -925,7 +925,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		}
 
 		lighting.AmbientColor = source.AmbientLightColor + camera.AmbientLightColor;
-		lighting.GradientFog = source.GradientFog.ToBasalt();
+		lighting.GradientFog = source.GradientFog.ToBorealis();
 
 		// Per-view wind (SetWindParams).
 		SceneNative.ReadWorldWind( source, out var windStrength, out var windDirection );
@@ -1025,7 +1025,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		text.Append( $"; {probesAsNative} of {probes} envmap probes packed as native packs them" );
 
 		var volumes = World.LightProbeVolumes;
-		text.Append( $"; {volumes.Count} light probe volumes ({volumes.Count( x => x.Attributes is not null )} with constants, light groups {string.Join( " ", volumes.SelectMany( x => x.LightGroups ).Distinct() )}), {meshes.Count( x => x.NeedsLightProbe )} meshes need one, {meshes.Count( x => x.NeedsLightProbe && Basalt.LightProbeVolume.Choose( volumes, World.BoundsCenter[x.Index], World.BoundsCenter[x.Index], World.BoundsExtents[x.Index], x.LightGroup ) >= 0 )} find one" );
+		text.Append( $"; {volumes.Count} light probe volumes ({volumes.Count( x => x.Attributes is not null )} with constants, light groups {string.Join( " ", volumes.SelectMany( x => x.LightGroups ).Distinct() )}), {meshes.Count( x => x.NeedsLightProbe )} meshes need one, {meshes.Count( x => x.NeedsLightProbe && Borealis.LightProbeVolume.Choose( volumes, World.BoundsCenter[x.Index], World.BoundsCenter[x.Index], World.BoundsExtents[x.Index], x.LightGroup ) >= 0 )} find one" );
 
 		// Report unusual layer membership per model.
 		foreach ( var group in meshes.GroupBy( x => (x.Mesh?.Geometry?.Name ?? "(hidden)", LayerDescription( x )) ) )

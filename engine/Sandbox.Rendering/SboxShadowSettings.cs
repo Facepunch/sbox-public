@@ -1,9 +1,9 @@
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// Basalt's shadow settings from the engine's <c>r.shadows</c> convars.
+/// Borealis's shadow settings from the engine's <c>r.shadows</c> convars.
 /// </summary>
-internal sealed class SboxShadowSettings : Basalt.Shadows.ShadowSettings
+internal sealed class SboxShadowSettings : Borealis.Shadows.ShadowSettings
 {
 	public override int MaxShadows { get => ShadowMapper.MaxShadows; set => ShadowMapper.MaxShadows = value; }
 	public override int MaxResolution { get => ShadowMapper.MaxResolution; set => ShadowMapper.MaxResolution = value; }

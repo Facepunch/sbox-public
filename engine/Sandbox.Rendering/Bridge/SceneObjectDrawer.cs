@@ -37,12 +37,12 @@ internal sealed class SceneObjectDrawer : IDisposable
 		return null;
 	}
 
-	Basalt.GpuBuffer<TransformBuffer.Entry> entries;
-	Basalt.GpuBuffer<uint> ids;
+	Borealis.GpuBuffer<TransformBuffer.Entry> entries;
+	Borealis.GpuBuffer<uint> ids;
 	int entryCount, idCount, generation = -1;
 
 	// Retain outgrown buffers until next frame for earlier recorded draws.
-	readonly List<Basalt.GpuBuffer> outgrown = new();
+	readonly List<Borealis.GpuBuffer> outgrown = new();
 
 	readonly RenderAttributes drawAttributes = new();
 	readonly uint[] idScratch = new uint[64];
@@ -159,7 +159,7 @@ internal sealed class SceneObjectDrawer : IDisposable
 
 	bool WriteEntry( GpuContext context, in Matrix m, Color color )
 	{
-		Grow( ref entries, entryCount + 1, "Basalt drawn objects' transforms", Basalt.GpuBuffer.UsageFlags.Structured );
+		Grow( ref entries, entryCount + 1, "Borealis drawn objects' transforms", Borealis.GpuBuffer.UsageFlags.Structured );
 
 		var entry = TransformBuffer.MakeEntry( m, color );
 		context.UploadBuffer( entries, MemoryMarshal.CreateReadOnlySpan( ref entry, 1 ), entryCount * Marshal.SizeOf<TransformBuffer.Entry>() );
@@ -169,20 +169,20 @@ internal sealed class SceneObjectDrawer : IDisposable
 
 	bool WriteIds( GpuContext context, ReadOnlySpan<uint> values )
 	{
-		Grow( ref ids, idCount + values.Length, "Basalt drawn objects' instance ids", Basalt.GpuBuffer.UsageFlags.Vertex );
+		Grow( ref ids, idCount + values.Length, "Borealis drawn objects' instance ids", Borealis.GpuBuffer.UsageFlags.Vertex );
 		context.UploadBuffer( ids, values, idCount * sizeof( uint ) );
 		idCount += values.Length;
 		return true;
 	}
 
-	void Grow<T>( ref Basalt.GpuBuffer<T> buffer, int needed, string name, Basalt.GpuBuffer.UsageFlags usage ) where T : unmanaged
+	void Grow<T>( ref Borealis.GpuBuffer<T> buffer, int needed, string name, Borealis.GpuBuffer.UsageFlags usage ) where T : unmanaged
 	{
 		if ( buffer is not null && buffer.ElementCount >= needed ) return;
 
 		// Earlier draws still reference the old buffer.
 		if ( buffer is not null ) outgrown.Add( buffer );
 		var size = Math.Max( 64, buffer is null ? needed : Math.Max( needed, buffer.ElementCount * 2 ) );
-		buffer = new Basalt.GpuBuffer<T>( size, usage, name );
+		buffer = new Borealis.GpuBuffer<T>( size, usage, name );
 	}
 
 	public void Dispose()

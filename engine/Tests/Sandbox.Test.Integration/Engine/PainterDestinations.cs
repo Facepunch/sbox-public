@@ -5,34 +5,34 @@ using System.Runtime.InteropServices;
 namespace EngineTests;
 
 /// <summary>
-/// Painting into textures and command lists. Tests that paint a texture run on Source 2's device and again on a Basalt.Gpu
-/// device (<c>basalt: true</c>), through the engine's <see cref="BasaltGpuRenderBackend"/>, and check the same pixels.
+/// Painting into textures and command lists. Tests that paint a texture run on Source 2's device and again on a Borealis.Gpu
+/// device (<c>borealis: true</c>), through the engine's <see cref="BorealisGpuRenderBackend"/>, and check the same pixels.
 /// </summary>
 [TestClass]
 public class PainterDestinationsTest
 {
 	static readonly Rect Bounds = new( 0, 0, 64, 64 );
 
-	static BasaltGpuRenderBackend basaltBackend;
+	static BorealisGpuRenderBackend borealisBackend;
 
-	/// <summary>The device a test paints on: Source 2's, or one Basalt.Gpu device the class shares.</summary>
-	static RenderBackend Backend( bool basalt ) => basalt ? basaltBackend ??= BasaltGpuRenderBackend.Create() : RenderBackend.Default;
+	/// <summary>The device a test paints on: Source 2's, or one Borealis.Gpu device the class shares.</summary>
+	static RenderBackend Backend( bool borealis ) => borealis ? borealisBackend ??= BorealisGpuRenderBackend.Create() : RenderBackend.Default;
 
 	[ClassCleanup]
 	public static void Cleanup()
 	{
-		basaltBackend?.Dispose();
-		basaltBackend = null;
+		borealisBackend?.Dispose();
+		borealisBackend = null;
 	}
 
-	static Painter Begin( Texture target, bool basalt ) => Painter.Begin( target, Backend( basalt ) );
+	static Painter Begin( Texture target, bool borealis ) => Painter.Begin( target, Backend( borealis ) );
 
 	/// <summary>What the device painted into a texture, as <see cref="Texture.GetBitmap"/> reads it: straight alpha.</summary>
-	static Bitmap Read( Texture target, bool basalt )
+	static Bitmap Read( Texture target, bool borealis )
 	{
-		if ( !basalt ) return target.GetBitmap();
+		if ( !borealis ) return target.GetBitmap();
 
-		var pixels = basaltBackend.ReadPixels( target );
+		var pixels = borealisBackend.ReadPixels( target );
 		var bitmap = new Bitmap( target.Width, target.Height );
 		bitmap.SetPixelData( MemoryMarshal.AsBytes( pixels.AsSpan() ), premultiplied: target.Flags.HasFlag( TextureFlags.PremultipliedAlpha ) );
 		return bitmap;
@@ -41,18 +41,18 @@ public class PainterDestinationsTest
 	[TestMethod]
 	[DataRow( false )]
 	[DataRow( true )]
-	public void RingFillsBandAndStrokesBothEdges( bool basalt )
+	public void RingFillsBandAndStrokesBothEdges( bool borealis )
 	{
 		RequireVulkan();
 		using var target = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		using ( var painter = Begin( target, basalt ) )
+		using ( var painter = Begin( target, borealis ) )
 		{
 			painter.Clear( Color.Transparent );
 			painter.Fill = Color.Red;
 			painter.Stroke = new Stroke( Color.Blue, 4 );
 			painter.Ring( Bounds.Center, innerRadius: 10, outerRadius: 24 );
 		}
-		using var bitmap = Read( target, basalt );
+		using var bitmap = Read( target, borealis );
 		AssertColor( Color.Transparent, bitmap.GetPixel( 32, 32 ) );
 		AssertColor( Color.Blue, bitmap.GetPixel( 42, 32 ) );
 		AssertColor( Color.Red, bitmap.GetPixel( 49, 32 ) );
@@ -63,24 +63,24 @@ public class PainterDestinationsTest
 	[TestMethod]
 	[DataRow( false )]
 	[DataRow( true )]
-	public void RingImageFillMapsAcrossOuterBounds( bool basalt )
+	public void RingImageFillMapsAcrossOuterBounds( bool borealis )
 	{
 		RequireVulkan();
 		using var source = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		using ( var painter = Begin( source, basalt ) )
+		using ( var painter = Begin( source, borealis ) )
 		{
 			painter.Clear( Color.Red );
 			painter.Fill = Color.Blue;
 			painter.Rect( new Rect( 32, 0, 32, 64 ) );
 		}
 		using var target = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		using ( var painter = Begin( target, basalt ) )
+		using ( var painter = Begin( target, borealis ) )
 		{
 			painter.Clear( Color.Transparent );
 			painter.Fill = Fill.Image( source );
 			painter.Ring( Bounds.Center, 10, 24 );
 		}
-		using var bitmap = Read( target, basalt );
+		using var bitmap = Read( target, borealis );
 		AssertColor( Color.Red, bitmap.GetPixel( 15, 32 ) );
 		AssertColor( Color.Blue, bitmap.GetPixel( 49, 32 ) );
 		AssertColor( Color.Transparent, bitmap.GetPixel( 32, 32 ) );
@@ -143,22 +143,22 @@ public class PainterDestinationsTest
 	[TestMethod]
 	[DataRow( false )]
 	[DataRow( true )]
-	public void TextureRecordingsAreIndependent( bool basalt )
+	public void TextureRecordingsAreIndependent( bool borealis )
 	{
 		RequireVulkan();
 		using var texture = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		var first = Begin( texture, basalt );
+		var first = Begin( texture, borealis );
 		var context = first.ActiveContext;
 		var commands = context.Batcher;
 		first.Clear( Color.Red );
 
-		using ( var second = Begin( texture, basalt ) )
+		using ( var second = Begin( texture, borealis ) )
 		{
 			Assert.AreNotSame( context, second.ActiveContext );
 			second.Clear( Color.Green );
 		}
 
-		using ( var intermediate = Read( texture, basalt ) )
+		using ( var intermediate = Read( texture, borealis ) )
 		{
 			Assert.AreEqual( Color.Green, intermediate.GetPixel( 32, 32 ) );
 		}
@@ -170,7 +170,7 @@ public class PainterDestinationsTest
 		Assert.AreEqual( 0, context.CommandList.GetCheckpoint() );
 		Assert.AreEqual( 0, commands.Instances.Count );
 
-		using var bitmap = Read( texture, basalt );
+		using var bitmap = Read( texture, borealis );
 		Assert.AreEqual( Color.Blue, bitmap.GetPixel( 16, 32 ) );
 		Assert.AreEqual( Color.Red, bitmap.GetPixel( 48, 32 ) );
 	}
@@ -178,11 +178,11 @@ public class PainterDestinationsTest
 	[TestMethod]
 	[DataRow( false )]
 	[DataRow( true )]
-	public void DisposedTextureReleasesRecordedReferences( bool basalt )
+	public void DisposedTextureReleasesRecordedReferences( bool borealis )
 	{
 		RequireVulkan();
 		var texture = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		var painter = Begin( texture, basalt );
+		var painter = Begin( texture, borealis );
 		painter.Texture( Texture.White, Bounds );
 		var context = painter.ActiveContext;
 		var buffer = context.Batcher;
@@ -365,11 +365,11 @@ public class PainterDestinationsTest
 	[TestMethod]
 	[DataRow( false )]
 	[DataRow( true )]
-	public void LayerFiltersMasksAndBackdropsPreserveOrder( bool basalt )
+	public void LayerFiltersMasksAndBackdropsPreserveOrder( bool borealis )
 	{
 		RequireVulkan();
 		using var target = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		using ( var painter = Begin( target, basalt ) )
+		using ( var painter = Begin( target, borealis ) )
 		{
 			painter.Clear( Color.Blue );
 			painter.Translate( 8, 8 );
@@ -383,7 +383,7 @@ public class PainterDestinationsTest
 			painter.Fill = Color.Green;
 			painter.Rect( new Rect( 0, 0, 4, 4 ) );
 		}
-		using var bitmap = Read( target, basalt );
+		using var bitmap = Read( target, borealis );
 		AssertColor( new Color( 0.213f, 0.213f, 0.213f ), bitmap.GetPixel( 18, 28 ) );
 		AssertColor( new Color( 0.787f, 0.787f, 0.787f ), bitmap.GetPixel( 34, 28 ) );
 		AssertColor( Color.Blue, bitmap.GetPixel( 44, 28 ) );
@@ -432,11 +432,11 @@ public class PainterDestinationsTest
 	[DataRow( BlendMode.Multiply, 0.16f, 0.12f, 0.36f, 0.5f, true )]
 	[DataRow( BlendMode.Lighten, 0.5f, 0.35f, 0.6f, 1f, true )]
 	[DataRow( BlendMode.PremultipliedAlpha, 0.45f, 0.25f, 0.45f, 1f, true )]
-	public void LayerCompositingUsesDestinationBlendMode( BlendMode blend, float red, float green, float blue, float alpha, bool basalt )
+	public void LayerCompositingUsesDestinationBlendMode( BlendMode blend, float red, float green, float blue, float alpha, bool borealis )
 	{
 		RequireVulkan();
 		using var target = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		using ( var painter = Begin( target, basalt ) )
+		using ( var painter = Begin( target, borealis ) )
 		{
 			painter.Clear( new Color( 0.1f, 0.2f, 0.3f ) );
 			painter.BlendMode = blend;
@@ -444,7 +444,7 @@ public class PainterDestinationsTest
 			painter.Fill = new Color( 0.8f, 0.3f, 0.6f );
 			painter.Rect( Bounds );
 		}
-		using var bitmap = Read( target, basalt );
+		using var bitmap = Read( target, borealis );
 		// GetBitmap returns straight alpha, including the multiply blend's 0.5 output alpha.
 		AssertColor( new Color( red, green, blue, alpha ), bitmap.GetPixel( 32, 32 ) );
 	}

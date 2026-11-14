@@ -93,7 +93,7 @@ internal sealed class BridgeCustomObject : CustomObject
 		var extents = bounds.Size * 0.5f;
 		var lightGroup = (uint)sceneObject.native.GetIntValue( LightGroupName, 0 );
 
-		var choice = Basalt.LightProbeVolume.Choose( volumes, center, center, extents, lightGroup );
+		var choice = Borealis.LightProbeVolume.Choose( volumes, center, center, extents, lightGroup );
 		if ( choice >= 0 ) volumes[choice].Attributes.Engine().MergeTo( attributes );
 	}
 

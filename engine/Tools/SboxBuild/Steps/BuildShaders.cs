@@ -50,8 +50,8 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 	} );
 
 	/// <summary>
-	/// Shaders Basalt.Gpu draws GPU-driven, whose <c>.gpudriven.shader_c</c> variant is built too
-	/// (docs/managed/basalt-gpu-driven.md). A variant that fails only warns: Basalt draws that shader the classic way.
+	/// Shaders Borealis.Gpu draws GPU-driven, whose <c>.gpudriven.shader_c</c> variant is built too
+	/// (docs/managed/borealis-gpu-driven.md). A variant that fails only warns: Borealis draws that shader the classic way.
 	/// </summary>
 	static readonly string[] GpuDrivenShaders =
 	[
@@ -76,7 +76,7 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 			if ( e.Data != null && !BuildDisplay.IsActive ) Log.Info( e.Data );
 		} );
 
-		if ( !success ) Log.Warning( "Some GPU-driven shader variants failed to compile; Basalt.Gpu draws those shaders the classic way." );
+		if ( !success ) Log.Warning( "Some GPU-driven shader variants failed to compile; Borealis.Gpu draws those shaders the classic way." );
 	}
 
 	private ExitCode RunShaderCompiler( string shaderCompilerPath, string workingDirectory )

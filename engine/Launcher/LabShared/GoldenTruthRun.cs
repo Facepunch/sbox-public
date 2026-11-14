@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 namespace Sandbox.Lab;
 
 /// <summary>
-/// <c>-golden-truth folder</c>, in SceneLab and BasaltLab: check each capture against approved (golden truth) images
+/// <c>-golden-truth folder</c>, in SceneLab and BorealisLab: check each capture against approved (golden truth) images
 /// instead of native. The golden
 /// truth images live in a bucket per platform, API and device, one per preset,
 /// <c>folder/Windows.Vulkan/Lavapipe/AllShadows.png</c>, with optional alternates (<c>AllShadows.variant2.png</c>, ...)

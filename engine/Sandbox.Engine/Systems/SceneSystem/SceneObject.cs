@@ -40,7 +40,7 @@ public partial class SceneObject : IHandle
 
 	/// <summary>
 	/// <see cref="Attributes"/> if anything has asked for them, without making them - for a renderer that chains them
-	/// in (Basalt).
+	/// in (Borealis).
 	/// </summary>
 	internal RenderAttributes CreatedAttributes => _attributes;
 

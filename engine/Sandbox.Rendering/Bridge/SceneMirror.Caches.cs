@@ -113,7 +113,7 @@ internal sealed partial class SceneMirror
 		{
 			mesh = MirrorContent.Mesh( model, out var pending );
 
-			// Still loading on Basalt.Gpu: nothing is cached, and what draws it is asked again once it's read (CheckLoaded)
+			// Still loading on Borealis.Gpu: nothing is cached, and what draws it is asked again once it's read (CheckLoaded)
 			if ( pending )
 			{
 				loading.Add( model );
@@ -282,18 +282,18 @@ internal sealed partial class SceneMirror
 	readonly HashSet<Model> staleFailed = new();
 	readonly List<SceneObject> remake = new();
 
-	// Models loading asynchronously on Basalt.Gpu (MirrorContent.Mesh), and those whose files are now read
+	// Models loading asynchronously on Borealis.Gpu (MirrorContent.Mesh), and those whose files are now read
 	readonly HashSet<Model> loading = new();
 	readonly HashSet<Model> loaded = new();
 
 	/// <summary>Models loading asynchronously, which what draws them waits for.</summary>
 	public int ModelsLoading => loading.Count;
 
-	// Textures loading asynchronously on Basalt.Gpu (TextureFor), with the object to apply again once each is read
+	// Textures loading asynchronously on Borealis.Gpu (TextureFor), with the object to apply again once each is read
 	readonly List<(string Path, SceneObject Object, SceneObjectChange Change)> textureWaits = new();
 
 	/// <summary>
-	/// A texture an object draws with; on Basalt.Gpu loading asynchronously, null while it loads, and the object is applied
+	/// A texture an object draws with; on Borealis.Gpu loading asynchronously, null while it loads, and the object is applied
 	/// with <paramref name="change"/> again once it's read.
 	/// </summary>
 	GpuTexture TextureFor( Texture texture, SceneObject sceneObject, SceneObjectChange change )

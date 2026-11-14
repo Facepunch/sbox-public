@@ -3,7 +3,7 @@ using Sandbox.Rendering;
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// A camera rendering into a game window on Basalt.Gpu (<c>-basaltgpu</c>, docs/managed/basalt-gpu-path.md stage 5).
+/// A camera rendering into a game window on Borealis.Gpu (<c>-borealisgpu</c>, docs/managed/borealis-gpu-path.md stage 5).
 /// </summary>
 internal sealed partial class SceneBridge
 {
@@ -13,29 +13,29 @@ internal sealed partial class SceneBridge
 	static readonly StringToken FlipXName = new( "FlipX" );
 	static readonly StringToken FlipYName = new( "FlipY" );
 
-	// Where a camera's frame in a Basalt.Gpu window goes, in the dev tools' timings
-	static readonly Sandbox.Diagnostics.PerformanceStats.Timings PrepareTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu camera prepare" );
-	static readonly Sandbox.Diagnostics.PerformanceStats.Timings SceneTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu camera scene" );
-	static readonly Sandbox.Diagnostics.PerformanceStats.Timings PostTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu camera post" );
-	static readonly Sandbox.Diagnostics.PerformanceStats.Timings OutputTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Basalt.Gpu camera output" );
+	// Where a camera's frame in a Borealis.Gpu window goes, in the dev tools' timings
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings PrepareTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu camera prepare" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings SceneTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu camera scene" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings PostTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu camera post" );
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings OutputTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu camera output" );
 
-	// What a camera's stages on Basalt.Gpu ask of their frame; stages run one camera at a time, so one does
-	BasaltGpuView gpuView;
+	// What a camera's stages on Borealis.Gpu ask of their frame; stages run one camera at a time, so one does
+	BorealisGpuView gpuView;
 	Material copyMaterial;
 	RenderAttributes copyAttributes;
 
 	/// <summary>
 	/// Render a camera into the frame <paramref name="window"/> is drawing, as a swap chain render does on Source 2's device:
 	/// <list type="number">
-	/// <item>its scene, by Basalt on the Basalt.Gpu device, into a float target of its own (with no stages inside it yet);</item>
-	/// <item>that frame handed to the engine's drawing (<see cref="BasaltGpuFrame"/>), where the stages after the scene and
+	/// <item>its scene, by Borealis on the Borealis.Gpu device, into a float target of its own (with no stages inside it yet);</item>
+	/// <item>that frame handed to the engine's drawing (<see cref="BorealisGpuFrame"/>), where the stages after the scene and
 	/// post processing run, auto exposure counts its bucket, and tonemapping;</item>
 	/// <item>the frame copied into the camera's part of the window, encoded as an sRGB swap chain stores it;</item>
 	/// <item>the stages that draw into the output: after post processing, the UI, after the UI.</item>
 	/// </list>
 	/// A camera without a scene (UI only) clears its part of the window instead.
 	/// </summary>
-	void RenderInto( BasaltGpuWindow window, SceneCamera camera, Vector2? size, in ViewSetup setup )
+	void RenderInto( BorealisGpuWindow window, SceneCamera camera, Vector2? size, in ViewSetup setup )
 	{
 		var renderSize = size ?? window.Size;
 		if ( renderSize.x < 1 || renderSize.y < 1 ) return;
@@ -45,14 +45,14 @@ internal sealed partial class SceneBridge
 		var rect = camera.Rect;
 		var viewport = new Rect( rect.Left * renderSize.x, rect.Top * renderSize.y, rect.Width * renderSize.x, rect.Height * renderSize.y );
 
-		var backend = (BasaltGpuRenderBackend)RenderBackend.Default;
-		gpuView ??= new BasaltGpuView( backend );
+		var backend = (BorealisGpuRenderBackend)RenderBackend.Default;
+		gpuView ??= new BorealisGpuView( backend );
 		gpuView.Viewport = viewport;
 		gpuView.SrgbWrite = false;
 		gpuView.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
 		gpuView.SetCamera( camera, viewport.Size );
 
-		var frame = camera.UIOnly || NotYetInBasalt( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup );
+		var frame = camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup );
 
 		// Made outside any block: materials can't be made while drawing
 		copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
@@ -66,18 +66,18 @@ internal sealed partial class SceneBridge
 	}
 
 	/// <summary>
-	/// Render a camera into an engine texture on Basalt.Gpu (a scene panel's), as native's texture render: its scene and stages
+	/// Render a camera into an engine texture on Borealis.Gpu (a scene panel's), as native's texture render: its scene and stages
 	/// as into a window, without multisampling, then the frame copied into the texture (mirrored as the setup asks) and the
 	/// stages that draw into the output. An 8-bit texture is written through its sRGB view, as Source 2 writes one: encoded,
 	/// with the frame's alpha kept (a scene panel's transparent background).
 	/// </summary>
-	void RenderIntoTexture( BasaltGpuRenderBackend backend, SceneCamera camera, Texture target, Vector2 size, in ViewSetup setup )
+	void RenderIntoTexture( BorealisGpuRenderBackend backend, SceneCamera camera, Texture target, Vector2 size, in ViewSetup setup )
 	{
-		if ( size.x < 1 || size.y < 1 || NotYetInBasalt( camera, setup ) is not null ) return;
+		if ( size.x < 1 || size.y < 1 || NotYetInBorealis( camera, setup ) is not null ) return;
 
 		camera.ConfigureView( setup );
 		var viewport = new Rect( 0, 0, size.x, size.y );
-		gpuView ??= new BasaltGpuView( backend );
+		gpuView ??= new BorealisGpuView( backend );
 		gpuView.Viewport = viewport;
 		gpuView.SrgbWrite = false;
 		gpuView.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
@@ -109,7 +109,7 @@ internal sealed partial class SceneBridge
 	/// linear view: the copy and the UI write gamma-encoded output into it, as native's UI hook layers do over an sRGB swap
 	/// chain (ui_gamma_blend).
 	/// </summary>
-	void DrawOutput( SceneCamera camera, BasaltGpuFrame frame, bool ui, bool encode, bool flipX, bool flipY )
+	void DrawOutput( SceneCamera camera, BorealisGpuFrame frame, bool ui, bool encode, bool flipX, bool flipY )
 	{
 		if ( frame is not null ) CopyFrame( frame, encode, flipX, flipY );
 		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( camera.BackgroundColor, true, false, false );
@@ -127,20 +127,20 @@ internal sealed partial class SceneBridge
 	}
 
 	/// <summary>
-	/// The camera's scene rendered by Basalt on the Basalt.Gpu device, then its stages after the scene and its post processing
+	/// The camera's scene rendered by Borealis on the Borealis.Gpu device, then its stages after the scene and its post processing
 	/// over that frame. Null if it couldn't render. With <paramref name="samples"/> over one the scene is multisampled, as the
 	/// game's anti-aliasing setting asks, and the stages get its resolved colour.
 	/// </summary>
-	BasaltGpuFrame RenderScene( BasaltGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup )
+	BorealisGpuFrame RenderScene( BorealisGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup )
 	{
 		SceneMirror mirror;
 		CameraState state;
 		var diag0 = System.Diagnostics.Stopwatch.GetTimestamp(); // GWDIAG
-		var (dt0, dtt0, dm0, dmt0) = (Basalt.Backend.BackendDevice.DiagTextures, Basalt.Backend.BackendDevice.DiagTextureTicks, Basalt.Backend.BackendDevice.DiagModels, Basalt.Backend.BackendDevice.DiagModelTicks); // GWDIAG
+		var (dt0, dtt0, dm0, dmt0) = (Borealis.Backend.BackendDevice.DiagTextures, Borealis.Backend.BackendDevice.DiagTextureTicks, Borealis.Backend.BackendDevice.DiagModels, Borealis.Backend.BackendDevice.DiagModelTicks); // GWDIAG
 		using ( PrepareTiming.Scope() )
 			(mirror, state) = Prepare( camera, setup, size );
 		var diagPrepare = System.Diagnostics.Stopwatch.GetElapsedTime( diag0 ).TotalMilliseconds; // GWDIAG
-		if ( diagPrepare > 50 ) Log.Info( $"GWDIAG slow prepare {diagPrepare:F0} ms: textures {Basalt.Backend.BackendDevice.DiagTextures - dt0} in {(Basalt.Backend.BackendDevice.DiagTextureTicks - dtt0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:F0} ms, models made {Basalt.Backend.BackendDevice.DiagModels - dm0} in {(Basalt.Backend.BackendDevice.DiagModelTicks - dmt0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:F0} ms" ); // GWDIAG
+		if ( diagPrepare > 50 ) Log.Info( $"GWDIAG slow prepare {diagPrepare:F0} ms: textures {Borealis.Backend.BackendDevice.DiagTextures - dt0} in {(Borealis.Backend.BackendDevice.DiagTextureTicks - dtt0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:F0} ms, models made {Borealis.Backend.BackendDevice.DiagModels - dm0} in {(Borealis.Backend.BackendDevice.DiagModelTicks - dmt0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:F0} ms" ); // GWDIAG
 
 		// Auto exposure is the port on this device: its frame update here, where native's runs, its scale this frame's
 		var exposure = camera.Tonemap?.GpuExposure( backend );
@@ -152,11 +152,11 @@ internal sealed partial class SceneBridge
 		if ( state.GpuTarget is null || state.GpuTarget.Size != targetSize || state.GpuTarget.Samples != samples )
 		{
 			state.GpuTarget?.Dispose();
-			state.GpuTarget = ViewTarget.Create( targetSize, samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Basalt.Gpu camera" );
+			state.GpuTarget = ViewTarget.Create( targetSize, samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Borealis.Gpu camera" );
 		}
 
 		// The stages before the scene is finished draw inside its frame; ambient occlusion runs in its stage, not early
-		var frame = state.GpuFrame ??= new BasaltGpuFrame( backend );
+		var frame = state.GpuFrame ??= new BorealisGpuFrame( backend );
 		var stages = state.GpuStages ??= new GpuCameraStages { Run = RunStage };
 		stages.Camera = camera;
 		stages.System = state.System;
@@ -189,7 +189,7 @@ internal sealed partial class SceneBridge
 	/// The frame's colour into the bound target's viewport (<c>copytexture.shader</c>), encoded to sRGB when
 	/// <paramref name="encode"/>, mirrored as asked.
 	/// </summary>
-	void CopyFrame( BasaltGpuFrame frame, bool encode, bool flipX, bool flipY )
+	void CopyFrame( BorealisGpuFrame frame, bool encode, bool flipX, bool flipY )
 	{
 		copyAttributes ??= RenderAttributes.CreateManaged();
 		copyAttributes.Set( CopySource, frame.Color );
@@ -210,7 +210,7 @@ internal sealed partial class SceneBridge
 		}
 		catch ( Exception e )
 		{
-			if ( stageFailures.Add( (camera._cameraId, stage) ) ) Log.Warning( e, $"Basalt.Gpu: {camera.Name}'s {stage} stage: {e.Message}" );
+			if ( stageFailures.Add( (camera._cameraId, stage) ) ) Log.Warning( e, $"Borealis.Gpu: {camera.Name}'s {stage} stage: {e.Message}" );
 		}
 	}
 }

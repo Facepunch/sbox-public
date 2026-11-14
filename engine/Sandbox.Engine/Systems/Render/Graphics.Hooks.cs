@@ -46,7 +46,7 @@ public static partial class Graphics
 
 	/// <summary>
 	/// The platform overlay, over the window's cameras: the menu's UI, the debug overlay, frame capture and the dev tools
-	/// dock. Native's overlay view draws it (<c>CCameraRenderer.RenderOverlay</c>), or a Basalt.Gpu game window's last block.
+	/// dock. Native's overlay view draws it (<c>CCameraRenderer.RenderOverlay</c>), or a Borealis.Gpu game window's last block.
 	/// </summary>
 	internal static void RenderOverlay()
 	{

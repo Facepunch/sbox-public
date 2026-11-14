@@ -85,8 +85,8 @@ internal partial class SurfaceWindow
 			{
 				// Scene panels queue their render during simulate - fill them in before we draw,
 				// otherwise a panel that just resized draws a texture with nothing in it yet.
-				// Scenes don't render on Basalt.Gpu yet.
-				if ( _basalt is null ) ScenePanel.RenderPending();
+				// Scenes don't render on Borealis.Gpu yet.
+				if ( _borealis is null ) ScenePanel.RenderPending();
 
 				DrawFrame();
 				return true;
@@ -133,12 +133,12 @@ internal partial class SurfaceWindow
 	bool SimulateFrame()
 	{
 		if ( !ApplyFullscreen() || Window is null ) return false;
-		if ( _basalt is not null ? !_basalt.Update( Window.PixelSize ) : !Window.UpdateSwapChain( vsync: VSync ) ) return false;
+		if ( _borealis is not null ? !_borealis.Update( Window.PixelSize ) : !Window.UpdateSwapChain( vsync: VSync ) ) return false;
 
 		UpdateMouseCapture();
 
 		// Lay out and render at the actual swapchain size, including while a resize is pending.
-		Surface.Size = _basalt?.Size ?? Window.SwapChainSize;
+		Surface.Size = _borealis?.Size ?? Window.SwapChainSize;
 
 		// A window that sizes to its contents has nothing to show until it has some - drawing
 		// now would put an empty window on the screen at whatever size it happens to be
@@ -201,10 +201,10 @@ internal partial class SurfaceWindow
 	{
 		var profile = !IsShown && Sandbox.Utility.CommandLine.HasSwitch( "-startup-profile" ) ? Stopwatch.StartNew() : null;
 
-		if ( _basalt is not null )
+		if ( _borealis is not null )
 		{
-			// The whole frame on Basalt.Gpu; a background drawn into Source 2's swap chain has nowhere to go
-			_basalt.Present( BackgroundColor, ClearsBackground, Surface.Render );
+			// The whole frame on Borealis.Gpu; a background drawn into Source 2's swap chain has nowhere to go
+			_borealis.Present( BackgroundColor, ClearsBackground, Surface.Render );
 		}
 		else
 		{
@@ -250,9 +250,9 @@ internal partial class SurfaceWindow
 		{
 			var size = Surface.Size;
 			using var target = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( ImageFormat.RGBA8888 ).Create( "Window capture" );
-			BasaltGpuWindow.Draw( device, target, BackgroundColor, ClearsBackground, Surface.Render );
+			BorealisGpuWindow.Draw( device, target, BackgroundColor, ClearsBackground, Surface.Render );
 
-			if ( device is BasaltGpuRenderBackend basalt ) return basalt.ReadPixels( target );
+			if ( device is BorealisGpuRenderBackend borealis ) return borealis.ReadPixels( target );
 
 			g_pRenderDevice.Flush();
 			return target.GetPixels();

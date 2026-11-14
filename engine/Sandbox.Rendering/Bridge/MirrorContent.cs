@@ -1,23 +1,23 @@
-using Basalt.Backend;
+using Borealis.Backend;
 
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// An engine resource as what the mirror's world draws with on the device Basalt renders on (<see cref="RenderHost.Device"/>).
-/// On Source 2's device it's the resource's native handle, wrapped. On a Basalt.Gpu device (<c>-basaltgpu</c>) it's the
-/// compiled file Basalt.Source2 reads by the resource's path: what was made at run time (procedural models, materials and
+/// An engine resource as what the mirror's world draws with on the device Borealis renders on (<see cref="RenderHost.Device"/>).
+/// On Source 2's device it's the resource's native handle, wrapped. On a Borealis.Gpu device (<c>-borealisgpu</c>) it's the
+/// compiled file Borealis.Source2 reads by the resource's path: what was made at run time (procedural models, materials and
 /// textures made in code) and attributes have no file, so they're null there.
 /// </summary>
 internal static class MirrorContent
 {
-	/// <summary>The Basalt.Gpu device Basalt renders on, or null when it's Source 2's.</summary>
+	/// <summary>The Borealis.Gpu device Borealis renders on, or null when it's Source 2's.</summary>
 	public static BackendDevice Gpu => RenderHost.Current.Device as BackendDevice;
 
 	/// <summary>A model's mesh, every mesh group in it (an object's draws hide those it doesn't draw).</summary>
 	public static RenderMesh Mesh( Model model ) => Mesh( model, out _ );
 
 	/// <summary>
-	/// A model's mesh; on a Basalt.Gpu device loading asynchronously (<see cref="BackendDevice.AsyncModels"/>) null with
+	/// A model's mesh; on a Borealis.Gpu device loading asynchronously (<see cref="BackendDevice.AsyncModels"/>) null with
 	/// <paramref name="pending"/> set while it loads.
 	/// </summary>
 	public static RenderMesh Mesh( Model model, out bool pending )

@@ -3,43 +3,43 @@ using NativeEngine;
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// Basalt's settings from s&amp;box's convars, its profiler zones into Tracy, and its frame plans and counters into the dev tools.
+/// Borealis's settings from s&amp;box's convars, its profiler zones into Tracy, and its frame plans and counters into the dev tools.
 /// </summary>
 internal sealed class SboxRenderHost : RenderHost
 {
 	/// <summary>
-	/// The process's Basalt.Gpu device under <c>-basaltgpu</c>, where Source 2's draws nothing: its renderer services, which
+	/// The process's Borealis.Gpu device under <c>-borealisgpu</c>, where Source 2's draws nothing: its renderer services, which
 	/// the engine's drawing on that device shares.
 	/// </summary>
-	static GpuDevice BasaltGpu => RenderBackend.Default is BasaltGpuRenderBackend backend ? backend.Services : null;
+	static GpuDevice BorealisGpu => RenderBackend.Default is BorealisGpuRenderBackend backend ? backend.Services : null;
 
-	public override GpuDevice Device => BasaltGpu ?? Source2Device.Instance;
+	public override GpuDevice Device => BorealisGpu ?? Source2Device.Instance;
 
-	// What a Basalt.Gpu device doesn't do yet: async compute, contact shadows (Basalt.Backend's BackendRenderHost), occlusion
+	// What a Borealis.Gpu device doesn't do yet: async compute, contact shadows (Borealis.Backend's BackendRenderHost), occlusion
 	// culling's debug output and native's GPU profiler
-	public override bool AsyncCompute => BasaltGpu is null && ManagedSceneRendering.AsyncCompute;
+	public override bool AsyncCompute => BorealisGpu is null && ManagedSceneRendering.AsyncCompute;
 
 	public override ulong FrameCount => Application.FrameCount;
 
-	public override Basalt.Shadows.ShadowSettings Shadows { get; } = new SboxShadowSettings();
+	public override Borealis.Shadows.ShadowSettings Shadows { get; } = new SboxShadowSettings();
 
-	public override bool ContactShadows => BasaltGpu is null && Sandbox.Rendering.ContactShadows.Enabled;
+	public override bool ContactShadows => BorealisGpu is null && Sandbox.Rendering.ContactShadows.Enabled;
 
 	public override bool OcclusionCulling => ManagedSceneRendering.Occlusion;
 
 	public override FragmentOcclusion FragmentOcclusion => (FragmentOcclusion)RenderPipeline.OcclusionAggregates;
 
-	public override Basalt.OcclusionDebugView OcclusionDebugView => (Basalt.OcclusionDebugView)OcclusionDebug.View;
+	public override Borealis.OcclusionDebugView OcclusionDebugView => (Borealis.OcclusionDebugView)OcclusionDebug.View;
 
-	internal override OcclusionDebugOutput CreateOcclusionDebug() => BasaltGpu is null ? new Source2OcclusionDebug() : null;
+	internal override OcclusionDebugOutput CreateOcclusionDebug() => BorealisGpu is null ? new Source2OcclusionDebug() : null;
 
-	public override Basalt.OcclusionEarlyCull OcclusionEarlyCull => (Basalt.OcclusionEarlyCull)OcclusionDebug.EarlyCull;
+	public override Borealis.OcclusionEarlyCull OcclusionEarlyCull => (Borealis.OcclusionEarlyCull)OcclusionDebug.EarlyCull;
 
 	public override bool OcclusionFrozen => OcclusionDebug.Freeze;
 
 	public override int OcclusionFreezes => OcclusionDebug.Freezes;
 
-	public override bool GpuTimings => BasaltGpu is null && Sandbox.Diagnostics.GpuProfilerStats.Enabled;
+	public override bool GpuTimings => BorealisGpu is null && Sandbox.Diagnostics.GpuProfilerStats.Enabled;
 
 	public override unsafe bool ProfilesZones => PerformanceTrace.__N.PerformanceTrace_BeginEvent != null;
 
@@ -47,7 +47,7 @@ internal sealed class SboxRenderHost : RenderHost
 
 	public override void EndZone() => PerformanceTrace.EndEvent();
 
-	public override Basalt.DebugViews DebugViews => ManagedDebugViews.Views;
+	public override Borealis.DebugViews DebugViews => ManagedDebugViews.Views;
 
 	public override void PublishDebugViews( DebugViewReport report ) => ManagedDebugViews.Latest = report;
 
@@ -124,7 +124,7 @@ internal sealed class SboxRenderHost : RenderHost
 		published.Publish();
 	}
 
-	// Native's counters leave out Basalt's draws; these go into the frame stats beside them
+	// Native's counters leave out Borealis's draws; these go into the frame stats beside them
 	public override void Rendered( in RenderStats stats ) => ManagedSceneRendering.Report( new ManagedFrameCounters
 	{
 		Renders = 1,

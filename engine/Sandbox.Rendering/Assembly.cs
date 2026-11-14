@@ -3,13 +3,13 @@ global using System;
 global using System.Collections.Generic;
 global using static Sandbox.Internal.GlobalSystemNamespace;
 
-global using Basalt;
-global using Basalt.Culling;
-global using Basalt.Features;
-global using Basalt.Gpu;
+global using Borealis;
+global using Borealis.Culling;
+global using Borealis.Features;
+global using Borealis.Gpu;
 
-// Basalt's Source 2 backend, in the engine (Systems/Render/Basalt/)
-global using Basalt.Gpu.Source2;
+// Borealis's Source 2 backend, in the engine (Systems/Render/Borealis/)
+global using Borealis.Gpu.Source2;
 
 using System.Runtime.CompilerServices;
 

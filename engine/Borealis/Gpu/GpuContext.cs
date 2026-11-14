@@ -1,0 +1,374 @@
+namespace Borealis.Gpu;
+
+/// <summary>
+/// Records GPU work for a frame: frame contexts set up, segment contexts record passes (<c>CRenderBatchList</c>). The
+/// <see cref="GpuDevice"/> makes them. Shader parameters form frame, segment and draw levels, so concurrent recording stays
+/// isolated.
+/// </summary>
+internal abstract class GpuContext : IDisposable
+{
+	/// <summary>
+	/// This thread's segment context, for engine drawing that records into it.
+	/// </summary>
+	[ThreadStatic] internal static GpuContext Recording;
+
+	static GpuDevice Device => RenderHost.Current.Device;
+
+	/// <summary>Whether the device has an async compute queue.</summary>
+	public static bool SupportsAsyncCompute => Device.SupportsAsyncCompute;
+
+	/// <summary>Whether the device can take an indirect draw count from a buffer.</summary>
+	public static bool SupportsDrawIndirectCount => Device.SupportsDrawIndirectCount;
+
+	/// <summary>Allocate vertex-cache space this frame and return its first vertex.</summary>
+	public static int AllocateVertexCache( int vertices ) => Device.AllocateVertexCache( vertices );
+
+	/// <summary>Where a queued morph is in the atlas, once generated.</summary>
+	public static Vector4 MorphSubrect( int handle ) => Device.MorphSubrect( handle );
+
+	/// <summary>Start a frame's submission, naming the swap chain it ends up in.</summary>
+	public static void BeginSubmitting( GpuSwapChain swapChain ) => Device.BeginSubmitting( swapChain );
+
+	/// <summary>The time shaders see this frame.</summary>
+	public static float RenderTime => Device.RenderTime;
+
+	/// <summary>A zeroed constant buffer beyond per-frame limits. Free with <see cref="DestroyConstantBuffer"/>.</summary>
+	public static IntPtr CreateConstantBuffer( int size ) => Device.CreateConstantBuffer( size );
+
+	/// <summary>Free a buffer from <see cref="CreateConstantBuffer"/>.</summary>
+	public static void DestroyConstantBuffer( IntPtr buffer ) => Device.DestroyConstantBuffer( buffer );
+
+	/// <summary>Whether a texture exists on the GPU.</summary>
+	public static bool HasData( GpuTexture texture ) => texture is { IsValid: true };
+
+	/// <summary>A texture's bindless sRGB index through its own dimension.</summary>
+	public static uint BindlessIndex( GpuTexture texture ) => (uint)texture.ViewIndex( true, TextureViewDimension.Default );
+
+	/// <summary>A material's similarity key.</summary>
+	public static ulong SimilarityKey( GpuMaterial material ) => material.SimilarityKey;
+
+	/// <summary>A GPU timing or debug marker scope, from <see cref="BeginGpuScope"/>.</summary>
+	public readonly record struct GpuScope( IntPtr Marker, bool Pix );
+
+	/// <summary>Record on the async compute queue: compute only. Set before <see cref="Begin"/>.</summary>
+	public abstract bool AsyncCompute { get; set; }
+
+	internal abstract bool GpuScopesEnabled { get; }
+
+	/// <summary>Whether this is the frame's setup context.</summary>
+	internal abstract bool IsFrame { get; }
+
+	internal abstract bool IsRecording { get; }
+
+	/// <summary>This context's frame or pass parameters.</summary>
+	internal abstract ShaderParameters Attributes { get; }
+
+	/// <summary>Full and similar-material binds this context's draws have made, ever.</summary>
+	internal abstract (int Full, int Similar) MaterialBinds { get; }
+
+	/// <summary>Last targets, viewport and depth range; restored after custom drawing.</summary>
+	internal abstract StageTarget Bound { get; }
+
+	/// <summary>Current view-constant key; null for unknown or unkeyed shadow constants.</summary>
+	internal abstract ViewConstantsKey? ViewConstants { get; }
+
+	/// <summary>Prepass overlay-stencil mode; reset for each recording and pass.</summary>
+	public abstract OverlayStencil OverlayStencil { get; set; }
+
+	/// <summary>The frame's instance ids, which draws bind at their first instance.</summary>
+	public abstract GpuBuffer<uint> InstanceIds { get; set; }
+
+	/// <summary>The frame's occlusion culler, whose culled ids and arguments culled draws read.</summary>
+	public abstract OcclusionCuller Occlusion { get; set; }
+
+	/// <summary>Record a frame segment into its own or a shared context.</summary>
+	public abstract void BeginSegment( GpuContext frame, GpuContext shared );
+
+	/// <summary>Begin recording into an owned or shared context. Only the owner submits a shared context.</summary>
+	public abstract void Begin( GpuContext shared = null );
+
+	/// <summary>Submit and end recording, naming the swap chain on a frame's first submission.</summary>
+	public abstract void Submit( GpuSwapChain swapChain = default );
+
+	/// <summary>Submit after earlier work and end recording.</summary>
+	public abstract void SubmitNext();
+
+	/// <summary>Stop recording without submitting.</summary>
+	public abstract void End();
+
+	/// <summary>Signal a semaphore when this context's work is done. Once per context, after recording.</summary>
+	public abstract GpuSemaphore SignalAtEnd();
+
+	/// <summary>Start this context's work only once another's semaphore has signalled.</summary>
+	public abstract void WaitAtBegin( GpuSemaphore semaphore );
+
+	/// <summary>Release the context's own resources.</summary>
+	public abstract void Dispose();
+
+	/// <summary>Force a full material bind after external parameter changes or drawing.</summary>
+	public abstract void ResetMaterialBind();
+
+	/// <summary>Bind targets, viewport and depth range, reusing unchanged bindings.</summary>
+	public abstract void Bind( in StageTarget target );
+
+	/// <summary>Restore cached targets and viewport after engine drawing.</summary>
+	internal abstract void RestoreBound();
+
+	/// <summary>Invalidate target, parameter and material caches after external drawing.</summary>
+	internal abstract void Invalidate();
+
+	/// <summary>Bind the view constants and cache their key.</summary>
+	public abstract void SetViewConstants( in ViewConstants constants, ViewConstantsKey? key );
+
+	/// <summary>Cache the frame constants inherited by this segment.</summary>
+	internal abstract void InheritViewConstants( ViewConstantsKey key );
+
+	/// <summary>Set a combo.</summary>
+	public abstract void SetCombo( StringToken name, int value );
+
+	/// <summary>Set a texture.</summary>
+	public abstract void Set( StringToken name, GpuTexture value );
+
+	/// <summary>Set a pass-local combo, reset to zero by <see cref="EndPass"/>.</summary>
+	public abstract void SetPassCombo( StringToken name, int value );
+
+	/// <summary>Set a pass-local value, reset to zero by <see cref="EndPass"/>.</summary>
+	public abstract void SetPassAttribute( StringToken name, int value );
+
+	/// <summary>Reset pass-local values and overlay stencil.</summary>
+	public abstract void EndPass();
+
+	/// <summary>Start a named GPU scope.</summary>
+	public abstract GpuScope BeginGpuScope( string name );
+
+	/// <summary>End a scope <see cref="BeginGpuScope"/> started.</summary>
+	public abstract void EndGpuScope( GpuScope scope );
+
+	/// <summary>Merge lightmap then object parameters above the context's, for the draws that follow.</summary>
+	public abstract void SetObjectAttributes( ShaderParameters objectAttributes, ShaderParameters lightmap = null );
+
+	/// <summary>Compute-skin a mesh's instances into vertex-cache blocks.</summary>
+	public abstract bool DispatchSkinning( GpuMaterial skinningShader, RenderMesh mesh, int modelMesh, GpuBuffer transforms, ReadOnlySpan<int> slots, ReadOnlySpan<int> vertexCacheOffsets, int blendWeights,
+		GpuBuffer volumes = null, ReadOnlySpan<int> volumeOffsets = default, ReadOnlySpan<int> volumeCounts = default, GpuBuffer anchors = null, ReadOnlySpan<int> anchorOffsets = default, bool morph = false );
+
+	/// <summary>Record queued morphs, before skinning.</summary>
+	public abstract void GenerateMorphs();
+
+	/// <summary>Before skinning: earlier vertex shaders finish reading the cache.</summary>
+	public abstract void BarrierVertexCacheToWrite();
+
+	/// <summary>After skinning: the writes are visible to vertex shaders.</summary>
+	public abstract void BarrierVertexCacheToRead();
+
+	/// <summary>Bind a draw's vertex-cache id streams, after instance ids.</summary>
+	public abstract bool BindVertexCacheIds( RenderMesh mesh, in RenderMesh.Draw draw );
+
+	/// <summary>Draw the 2D sky into the bound target.</summary>
+	public abstract bool DrawSky( SceneLighting lighting, StringToken shaderMode );
+
+	/// <summary>Copy HDR to the output, encoding 8-bit targets as sRGB.</summary>
+	public abstract void CopyToSwapChain( in RenderOutput output, Rect viewport );
+
+	/// <summary>The final colour target and whether it's written through an sRGB view.</summary>
+	public abstract GpuTexture OutputColor( in RenderOutput output, out bool srgbWrite );
+
+	/// <summary>Resolve bound MSAA colour into <see cref="ViewTarget.Resolved"/>.</summary>
+	public abstract void Resolve( in RenderOutput output );
+
+	/// <summary>Resolve a multisampled texture output's scratch into the texture.</summary>
+	public abstract void ResolveScratch( in RenderOutput output );
+
+	/// <summary>Copy the first array slices or cube faces between equal-sized textures.</summary>
+	public abstract void CopyTexture( GpuTexture source, GpuTexture destination, int slices );
+
+	/// <summary>Make depth writable after pixel-shader reads.</summary>
+	public abstract void BarrierToDepthWrite( GpuTexture depth );
+
+	/// <summary>Make depth readable by compute.</summary>
+	public abstract void BarrierToComputeRead( GpuTexture depth );
+
+	/// <summary>Make a drawn colour target readable by compute.</summary>
+	public abstract void BarrierColorToComputeRead( GpuTexture texture );
+
+	/// <summary>Make a compute-written texture readable by pixel shaders.</summary>
+	public abstract void BarrierComputeToPixelShaderRead( GpuTexture texture );
+
+	/// <summary>Make depth readable by pixel shaders.</summary>
+	public abstract void BarrierToPixelShaderRead( GpuTexture depth );
+
+	/// <summary>Set the viewport and depth range.</summary>
+	public abstract void SetViewport( Rect rect, float minZ = 0, float maxZ = 1 );
+
+	/// <summary>Clear the bound targets.</summary>
+	public abstract void Clear( Color color, bool clearColor = true, bool clearDepth = true );
+
+	/// <summary>Set a constant buffer's contents for this frame.</summary>
+	public abstract void SetConstants<T>( StringToken name, in T value ) where T : unmanaged;
+
+	/// <summary>Write and bind a buffer from <see cref="CreateConstantBuffer"/>.</summary>
+	public abstract void SetConstantBuffer<T>( StringToken name, IntPtr buffer, in T value ) where T : unmanaged;
+
+	/// <summary>
+	/// Write the view's descriptor set (<c>g_viewSet</c>) from this frame context's attributes - its fog, lighting config,
+	/// sun, clusters, lights, decals, shadows, volumes and light modulators, by their attribute names - and bind it for
+	/// everything recorded after, here and on the frame's segments. Once a frame, after all of them are set and before
+	/// anything reads them; later calls in the frame do nothing. See docs/managed/static-descriptor-sets.md.
+	/// </summary>
+	public virtual void WriteViewSet() { }
+
+	/// <summary>Bind a draw's vertex and index buffers.</summary>
+	public abstract bool BindGeometry( RenderMesh mesh, in RenderMesh.Draw draw );
+
+	/// <summary>Set a draw's pipeline state for a shader mode.</summary>
+	public abstract bool SetRenderState( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool vertexCache = false );
+
+	/// <summary>
+	/// Draw skinned instances whose vertices come from the vertex cache: the draw's geometry and state with the cache's input
+	/// layout, the instance ids, then the cache's vertex ids. A backend can do it in one call that reuses similar-material
+	/// state, as <see cref="DrawModel"/> does.
+	/// </summary>
+	public virtual bool DrawVertexCache( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All )
+	{
+		if ( !BindGeometry( mesh, draw ) ) return false;
+		if ( !SetRenderState( material, shaderMode, mesh, draw, depthBias, slopeScaledDepthBias, stripPixelShader, vertexCache: true ) ) return false;
+
+		// Instance ids over the model's stream 1, before the cache's vertex ids
+		BindInstances( 1, firstInstance );
+		BindVertexCacheIds( mesh, draw );
+		DrawIndexedInstanced( draw, instances );
+		return true;
+	}
+
+	/// <summary>
+	/// Bind and draw instances in one call, reusing similar-material state. <paramref name="textureSize"/> is the size in texels
+	/// the draw's textures appear at, which texture streaming takes as the mips they need (<see cref="TextureSizes"/>).
+	/// </summary>
+	public abstract bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All );
+
+	/// <summary>Draw the instances occlusion culling kept, from its arguments.</summary>
+	public abstract bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All );
+
+	/// <summary>
+	/// One aggregate's visible fragments for <see cref="DrawGpuDriven"/>: its arguments are <paramref name="Count"/> of the
+	/// frame's from <paramref name="FirstArg"/>, its fragments' instances in the transform buffer start at
+	/// <paramref name="FirstInstance"/>, and <paramref name="ObjectAttributes"/> are what it would set as object attributes.
+	/// <paramref name="Owner"/> is the aggregate, whose fragments (by their arguments' first instance) don't change.
+	/// With <paramref name="Instances"/>, it's a mesh draw's <paramref name="Count"/> instances from
+	/// <paramref name="FirstInstance"/> instead, each the whole draw, which the caller has already culled: no arguments, no owner.
+	/// </summary>
+	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner, bool Instances = false );
+
+	/// <summary>Whether <see cref="DrawGpuDriven"/> draws anything on this device.</summary>
+	internal virtual bool GpuDriven => false;
+
+	/// <summary>
+	/// Whether a draw census is counting what this context records (<c>borealislab -drawcensus</c>, debug only): features then
+	/// say what each draw is in <see cref="CensusNote"/>, and the frame names its scopes by view. Off, nothing is counted.
+	/// </summary>
+	internal bool Census;
+
+	/// <summary>While <see cref="Census"/>: what the next model draw is and why it isn't GPU-driven, which the census takes.</summary>
+	internal string CensusNote;
+
+	/// <summary>
+	/// Before a frame's segments record: get <paramref name="view"/>'s state for <see cref="DrawGpuDriven"/>'s
+	/// visibility-driven pass ready (cleared once, here, for every call that then writes into it).
+	/// </summary>
+	internal virtual void BeginGpuDrivenView( object view )
+	{
+	}
+
+	/// <summary>
+	/// The view's culling for <see cref="DrawGpuDriven"/> to repeat on the GPU over every fragment of an aggregate (the
+	/// same frustum and size tests the CPU makes): the frustum's six planes, the camera and squared size threshold
+	/// (<see cref="Culling.SizeCull"/>), and whether it's a shadow view (fragments that cast no shadow drop out).
+	/// </summary>
+	internal struct GpuDrivenCull
+	{
+		public Vector4 Left, Right, Bottom, Top, Near, Far;
+		public Vector4 CameraAndThreshold;
+		public bool Shadow;
+
+		/// <summary>
+		/// The view, which the visibility-driven forward pass keeps its ids and lists for; and whether this is its depth
+		/// prepass (it may write ids) or a pass that may draw only what owns a sample of them.
+		/// </summary>
+		public object View;
+		public bool Ids, Visibility;
+	}
+
+	/// <summary>
+	/// Draw a layer's aggregate batches GPU-driven: per-draw data in tables and one multi-draw per pipeline, where the device
+	/// can. Sets <paramref name="drawn"/> for each batch drawn; the caller draws the rest as before. Devices without a
+	/// GPU-driven path draw none. With <paramref name="cull"/>, a device may cull every fragment of each batch's aggregate
+	/// on the GPU instead of drawing the batch's arguments.
+	/// </summary>
+	internal virtual void DrawGpuDriven( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, ReadOnlySpan<GpuBuffer.IndirectDrawIndexedArguments> args, TransformBuffer transforms, int depthBias, float slopeScaledDepthBias, Span<bool> drawn, in GpuDrivenCull? cull = null )
+	{
+	}
+
+	/// <summary>Draw an aggregate's fragments, one indirect draw each.</summary>
+	public abstract bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All );
+
+	/// <summary>Draw the aggregate fragments occlusion culling kept.</summary>
+	public abstract bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All );
+
+	/// <summary>Copy data into a buffer, ordered before later draws.</summary>
+	public void UploadBuffer<T>( GpuBuffer buffer, ReadOnlySpan<T> data ) where T : unmanaged => UploadBuffer( buffer, data, 0 );
+
+	/// <summary>Copy data into a buffer from <paramref name="offsetBytes"/> in, ordered before later draws.</summary>
+	public abstract void UploadBuffer<T>( GpuBuffer buffer, ReadOnlySpan<T> data, int offsetBytes ) where T : unmanaged;
+
+	/// <summary>Bind instance ids at <paramref name="firstInstance"/>.</summary>
+	public abstract void BindInstances( int stream, int firstInstance );
+
+	/// <summary>Order a buffer's accesses.</summary>
+	public abstract void BufferBarrier( GpuBuffer buffer, GpuStage srcStage, GpuAccess srcAccess, GpuStage dstStage, GpuAccess dstAccess );
+
+	/// <summary>Read part of a buffer back once the GPU has written it. The callback runs later, on any thread.</summary>
+	public abstract void ReadBuffer( GpuBuffer buffer, int offset, int bytes, GpuReadback callback );
+
+	/// <summary>Allow one lazy frame copy for this translucent layer.</summary>
+	public abstract void BeginFrameBufferReads( GpuTexture copy, Rect viewport );
+
+	/// <summary>Stop frame copies after the translucent layer.</summary>
+	public abstract void EndFrameBufferReads();
+
+	/// <summary>Copy the frame on its first reader in the layer.</summary>
+	public abstract void CopyFrameBuffer();
+
+	/// <summary>Dispatch a compute material with this context's parameters.</summary>
+	public abstract void Dispatch( GpuMaterial computeShader, int x, int y, int z );
+
+	/// <summary>Dispatch a compute material with its own parameters.</summary>
+	public abstract void Dispatch( GpuMaterial computeShader, ShaderParameters parameters, int x, int y, int z );
+
+	/// <summary>Draw a material over the bound target's viewport, with its own parameters and a shader mode.</summary>
+	public abstract void DrawFullscreen( GpuMaterial material, ShaderParameters parameters, StringToken shaderMode );
+
+	/// <summary>Order accesses to a texture, leaving it in <paramref name="layout"/>.</summary>
+	public abstract void TextureBarrier( GpuTexture texture, GpuStage srcStage, GpuAccess srcAccess, GpuStage dstStage, GpuAccess dstAccess, TextureLayout layout );
+
+	/// <summary>Draw a draw call's indices with the state already bound.</summary>
+	public abstract void DrawIndexedInstanced( in RenderMesh.Draw draw, int instanceCount );
+}
+
+/// <summary>
+/// Receives a buffer read back from the GPU (<see cref="GpuContext.ReadBuffer"/>).
+/// </summary>
+internal delegate void GpuReadback( Span<byte> data );
+
+/// <summary>
+/// How depth prepasses treat overlay (viewmodel) pixels in the stencil.
+/// </summary>
+internal enum OverlayStencil
+{
+	/// <summary>Nothing.</summary>
+	None,
+
+	/// <summary>Claim overlay pixels at their real depth.</summary>
+	Write,
+
+	/// <summary>Exclude claimed overlay pixels from the world prepass.</summary>
+	Test,
+}

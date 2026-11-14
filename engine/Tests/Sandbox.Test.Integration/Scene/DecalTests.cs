@@ -37,14 +37,14 @@ public class DecalTests
 		try
 		{
 			var source = new DecalSceneObject( scene.SceneWorld );
-			var decal = new Basalt.DecalObject( Transform.Zero );
+			var decal = new Borealis.DecalObject( Transform.Zero );
 			var mirror = System.Type.GetType( "Sandbox.Rendering.Bridge.SceneMirror, Sandbox.Rendering", true );
 			var apply = mirror.GetMethod( "ApplyDecal", BindingFlags.Static | BindingFlags.NonPublic );
 			foreach ( var mode in new[] { DecalBlendMode.Multiply, DecalBlendMode.Additive, DecalBlendMode.Alpha } )
 			{
 				source.BlendMode = mode;
 				apply.Invoke( null, [source, decal, SceneObjectChange.Settings] );
-				Assert.AreEqual( (Basalt.DecalBlendMode)mode, decal.BlendMode );
+				Assert.AreEqual( (Borealis.DecalBlendMode)mode, decal.BlendMode );
 			}
 			source.Delete();
 		}

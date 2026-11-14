@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <!--
-    What SceneLab and BasaltLab share: the lab presets and the world they build, their content through the engine, and the
+    What SceneLab and BorealisLab share: the lab presets and the world they build, their content through the engine, and the
     golden truth runner. Both launchers compile it, so they build the same worlds and check them the same way.
   -->
   <PropertyGroup>

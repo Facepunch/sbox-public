@@ -149,17 +149,17 @@ internal class TonemapSystem
 		}
 	}
 
-	// The camera's auto exposure on a Basalt.Gpu device, made when its frames are drawn there
-	Basalt.Backend.AutoExposure gpuExposure;
-	BasaltGpuRenderBackend gpuExposureDevice;
+	// The camera's auto exposure on a Borealis.Gpu device, made when its frames are drawn there
+	Borealis.Backend.AutoExposure gpuExposure;
+	BorealisGpuRenderBackend gpuExposureDevice;
 
 	/// <summary>
 	/// The camera's auto exposure on <paramref name="backend"/>'s device: native's tonemap system ported, with the settings
 	/// native's has (what the tonemapping component sets through <c>CameraComponent.AutoExposure</c>). A frame there calls
-	/// its <see cref="Basalt.Backend.AutoExposure.FrameUpdate"/> where native's frame update runs, and counts its bucket over
-	/// the HDR colour before tonemapping (<see cref="BasaltGpuFrame.CountExposure"/>). Null while exposure is off.
+	/// its <see cref="Borealis.Backend.AutoExposure.FrameUpdate"/> where native's frame update runs, and counts its bucket over
+	/// the HDR colour before tonemapping (<see cref="BorealisGpuFrame.CountExposure"/>). Null while exposure is off.
 	/// </summary>
-	internal Basalt.Backend.AutoExposure GpuExposure( BasaltGpuRenderBackend backend )
+	internal Borealis.Backend.AutoExposure GpuExposure( BorealisGpuRenderBackend backend )
 	{
 		if ( !Enabled ) return null;
 
@@ -170,11 +170,11 @@ internal class TonemapSystem
 			gpuExposureDevice = backend;
 		}
 
-		gpuExposure.SetSettings( BasaltGpuRenderBackend.Settings( Parameters ) );
+		gpuExposure.SetSettings( BorealisGpuRenderBackend.Settings( Parameters ) );
 		return gpuExposure;
 	}
 
-	/// <summary>Free the exposure made on a Basalt.Gpu device, once its device is done with it.</summary>
+	/// <summary>Free the exposure made on a Borealis.Gpu device, once its device is done with it.</summary>
 	internal void DisposeGpuExposure()
 	{
 		gpuExposure?.Dispose();

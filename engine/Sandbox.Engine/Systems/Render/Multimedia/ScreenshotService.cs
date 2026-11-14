@@ -59,10 +59,10 @@ internal static class ScreenshotService
 	}
 
 	/// <summary>
-	/// Take the screenshots asked for from a Basalt.Gpu window's finished frame, <paramref name="frame"/> (RGBA8, as the window
+	/// Take the screenshots asked for from a Borealis.Gpu window's finished frame, <paramref name="frame"/> (RGBA8, as the window
 	/// presents it), read back once its last block has been submitted.
 	/// </summary>
-	internal static void ProcessFrame( BasaltGpuRenderBackend backend, Texture frame )
+	internal static void ProcessFrame( BorealisGpuRenderBackend backend, Texture frame )
 	{
 		if ( _pendingRequests.IsEmpty ) return;
 

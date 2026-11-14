@@ -1,7 +1,7 @@
 using System;
-using Basalt;
-using Basalt.Gpu;
-using Basalt.Gpu.Source2;
+using Borealis;
+using Borealis.Gpu;
+using Borealis.Gpu.Source2;
 
 namespace EngineTests;
 
@@ -37,33 +37,33 @@ public class DownsampleSpdTest
 	}
 
 	/// <summary>
-	/// The same methods through the engine's Basalt.Gpu backend: downsample_spd dispatched by Basalt.Backend's
+	/// The same methods through the engine's Borealis.Gpu backend: downsample_spd dispatched by Borealis.Backend's
 	/// GraphicsContext, read back mip by mip.
 	/// </summary>
 	[TestMethod]
 	[DataRow( 1280, 720, Graphics.DownsampleMethod.MinMax )]
 	[DataRow( 4500, 300, Graphics.DownsampleMethod.MinMax )]
 	[DataRow( 1366, 769, Graphics.DownsampleMethod.Box )]
-	public void MatchesCpuReductionOnBasaltGpu( int width, int height, Graphics.DownsampleMethod method )
+	public void MatchesCpuReductionOnBorealisGpu( int width, int height, Graphics.DownsampleMethod method )
 	{
 		RequireVulkan();
-		using var basalt = BasaltGpuRenderBackend.Create( validation: true );
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 
 		var random = new Random( width * height );
 		var source = new Vector2[width * height];
 		for ( int i = 0; i < source.Length; i++ ) source[i] = new Vector2( random.Float(), random.Float() );
 
-		// Made after the Basalt.Gpu device, so the texture keeps its pixels for that device's copy
+		// Made after the Borealis.Gpu device, so the texture keeps its pixels for that device's copy
 		var mips = (int)Math.Log2( Math.Min( width, height ) ) + 1;
 		using var texture = Texture.Create( width, height, ImageFormat.RG3232F ).WithMips( mips ).WithUAVBinding().WithData<Vector2>( source ).Finish();
 
-		using ( Graphics.Scope.CreateOn( basalt ) )
+		using ( Graphics.Scope.CreateOn( borealis ) )
 		{
 			Graphics.GenerateMipMaps( texture, method );
 		}
 
-		AssertChain( texture, source, width, height, method, ( mip, actual ) => System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector2>( basalt.ReadBytes( texture, mip ) ).CopyTo( actual ) );
-		Assert.AreEqual( 0, basalt.ValidationErrors );
+		AssertChain( texture, source, width, height, method, ( mip, actual ) => System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector2>( borealis.ReadBytes( texture, mip ) ).CopyTo( actual ) );
+		Assert.AreEqual( 0, borealis.ValidationErrors );
 	}
 
 	/// <summary>
@@ -86,7 +86,7 @@ public class DownsampleSpdTest
 		using var source = Texture.Create( width, height, ImageFormat.R32F ).WithData<float>( depth ).Finish();
 		using var chain = Sandbox.Rendering.Pipeline.SharedPasses.DepthChainTarget( width, height );
 
-		// Basalt's fuses the resolve off the async compute queue; native's pipeline can resolve first on the graphics queue
+		// Borealis's fuses the resolve off the async compute queue; native's pipeline can resolve first on the graphics queue
 		if ( fuseResolve )
 		{
 			Record( context => SharedPasses.BuildDepthChain( context, Source2Texture.From( source ), Source2Texture.From( chain.DepthTarget ), false, width, height ) );
@@ -141,7 +141,7 @@ public class DownsampleSpdTest
 	}
 
 	/// <summary>
-	/// Record into a Basalt context of its own and submit it.
+	/// Record into a Borealis context of its own and submit it.
 	/// </summary>
 	static void Record( Action<GpuContext> record )
 	{
