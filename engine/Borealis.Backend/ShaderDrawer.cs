@@ -413,7 +413,7 @@ public sealed class ShaderDrawer : IDisposable
 				bindings[count++] = resource.Kind switch
 				{
 					ShaderResourceKind.MaterialConstants => Constants( list, stage, resource.Binding, attributes, viewport ),
-					ShaderResourceKind.ConstantBuffer when value is byte[] data => ConstantBuffer( list, resource.Binding, data ),
+					ShaderResourceKind.ConstantBuffer when value is byte[] data => ConstantBuffer( list, resource.Binding, data, stage, resource.Name ),
 					_ => Resource( resource, value ),
 				};
 			}
@@ -465,8 +465,9 @@ public sealed class ShaderDrawer : IDisposable
 		};
 	}
 
-	Binding ConstantBuffer( CommandList list, int binding, byte[] data )
+	Binding ConstantBuffer( CommandList list, int binding, byte[] data, ShaderStage stage, string name )
 	{
+		HandFilledConstants.CheckSize( stage, name, data.Length );
 		var size = (data.Length + 15) & ~15;
 		var allocation = list.AllocateUpload( size, gpu.Capabilities.UniformAlignment );
 		allocation.Data.Clear();
@@ -502,6 +503,7 @@ public sealed class ShaderDrawer : IDisposable
 
 				case ShaderResourceKind.ConstantBuffer when value is byte[] data:
 					{
+						HandFilledConstants.CheckSize( stage, resource.Name, data.Length );
 						var size = (data.Length + 15) & ~15;
 						Span<byte> target = dynamic ? Space( size, out dynamicOffset ) : new byte[size];
 						target.Clear();
