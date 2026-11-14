@@ -535,6 +535,13 @@ internal sealed partial class MapWorld : IDisposable
 	/// <summary>The shaders' debug view (<c>ToolsVis.hlsl</c>'s modes: 10 albedo, 2 diffuse lighting...); 0 for none.</summary>
 	public int ToolsVisMode { get; set; }
 
+	/// <summary>Shader time in seconds for every frame (<see cref="RenderView.Time"/>), so captures repeat; null for the frame's.</summary>
+	public float? Time
+	{
+		get => view.Time;
+		set => view.Time = value;
+	}
+
 	/// <summary>Size the target: colour and depth with <paramref name="samples"/> samples, as SceneLab's window is.</summary>
 	public void SetTarget( int width, int height, int samples )
 	{

@@ -424,6 +424,22 @@ public enum StoreOp
 }
 
 /// <summary>
+/// How a rendering scope carries on across command lists (<see cref="CommandList.BeginRendering"/>).
+/// </summary>
+[Flags]
+public enum RenderingFlags
+{
+	/// <summary>It begins and ends in its list.</summary>
+	None = 0,
+
+	/// <summary>It's left suspended when it ends, for the next list submitted to resume.</summary>
+	Suspend = 1,
+
+	/// <summary>It continues the scope the list submitted before left suspended, when it's the list's first command.</summary>
+	Resume = 2,
+}
+
+/// <summary>
 /// How a swap chain paces presentation.
 /// </summary>
 public enum PresentMode

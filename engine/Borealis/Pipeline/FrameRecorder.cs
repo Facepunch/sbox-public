@@ -709,6 +709,7 @@ internal sealed partial class FrameRecorder : IDisposable
 			// Context command memory is thread-owned (CRenderBatchList::Start). Only fully serial frames share the first context.
 			rc.BeginSegment( frame.System.FrameContext, SeparateContexts ? null : frames[0].System.FrameContext );
 			rc.InheritViewConstants( frame.ConstantsKey );
+			if ( SeparateContexts ) rc.CarryRendering( Carries( slot ), Carries( slot + 1 ) );
 			GpuContext.Recording = rc;
 
 			// What the async layers left for graphics, now they're done
@@ -736,6 +737,21 @@ internal sealed partial class FrameRecorder : IDisposable
 		segment.EndedAt = Stopwatch.GetTimestamp();
 		segment.Thread = Environment.CurrentManagedThreadId;
 		segment.Ms = Stopwatch.GetElapsedTime( start, segment.EndedAt ).TotalMilliseconds;
+	}
+
+	/// <summary>
+	/// Whether segment <paramref name="i"/> carries on the draws of the one before it: both draw segments of one frame, split
+	/// inside one view's layer work, neither waiting for nor signalling other work. Their draws go to the same targets, so
+	/// their lists can keep one rendering scope (<see cref="GpuContext.CarryRendering"/>).
+	/// </summary>
+	bool Carries( int i )
+	{
+		if ( i <= 0 || i >= segmentCount ) return false;
+		ref var segment = ref segments[i];
+		ref var before = ref segments[i - 1];
+		return segment.Kind == SegmentKind.Draw && before.Kind == SegmentKind.Draw && segment.Frame == before.Frame
+			&& segment.First > 0 && before.Index + before.Count - 1 == segment.Index && before.End == segment.First
+			&& segment.HandOff < 0 && segment.WaitFor < 0 && !before.Signal && !segment.Async && !before.Async;
 	}
 
 	/// <summary>

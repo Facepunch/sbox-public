@@ -17,7 +17,7 @@ internal sealed class PassTotals
 		public double Ms, Start;
 		public long Scopes;
 		public double Primitives, Vertices, Fragments;
-		public long Draws, Pipelines, Sets, RenderScopes;
+		public long Draws, Pipelines, Sets, RenderScopes, Barriers;
 	}
 
 	readonly Dictionary<(string, PassTimer.ScopeKind), Total> totals = new();
@@ -67,6 +67,7 @@ internal sealed class PassTotals
 			total.Pipelines += t.Recorded.Pipelines;
 			total.Sets += t.Recorded.Sets;
 			total.RenderScopes += t.Recorded.Scopes;
+			total.Barriers += t.Recorded.Barriers;
 		}
 
 		span += last - first;
@@ -82,11 +83,11 @@ internal sealed class PassTotals
 		var lists = totals.Values.Where( t => t.Kind == PassTimer.ScopeKind.List ).Sum( t => t.Scopes ) / (double)frames;
 		sb.AppendLine( FormattableString.Invariant( $"{title}: {span / frames:0.000} ms of GPU from the first list to the copy's end, over {frames} frames. {lists:0.0} lists a frame, {inLists / frames:0.000} ms in them and {(span - inLists) / frames:0.000} ms between them; {inPasses / frames:0.000} ms in timed passes" ) );
 		sb.AppendLine();
-		sb.AppendLine( "| Scope | Kind | ms | Scopes/frame | Draws | Pipelines | Sets | Rendering scopes |" + (statistics ? " Primitives | Vertex invocations | Fragment invocations | Per pixel |" : "") );
-		sb.AppendLine( "|---|---|---|---|---|---|---|---|" + (statistics ? "---|---|---|---|" : "") );
+		sb.AppendLine( "| Scope | Kind | ms | Scopes/frame | Draws | Pipelines | Sets | Rendering scopes | Barriers |" + (statistics ? " Primitives | Vertex invocations | Fragment invocations | Per pixel |" : "") );
+		sb.AppendLine( "|---|---|---|---|---|---|---|---|---|" + (statistics ? "---|---|---|---|" : "") );
 		foreach ( var t in Ordered )
 		{
-			var line = FormattableString.Invariant( $"| {t.Name} | {t.Kind} | {t.Ms / frames:0.000} | {t.Scopes / (double)frames:0.0} | {t.Draws / (double)frames:0} | {t.Pipelines / (double)frames:0} | {t.Sets / (double)frames:0} | {t.RenderScopes / (double)frames:0} |" );
+			var line = FormattableString.Invariant( $"| {t.Name} | {t.Kind} | {t.Ms / frames:0.000} | {t.Scopes / (double)frames:0.0} | {t.Draws / (double)frames:0} | {t.Pipelines / (double)frames:0} | {t.Sets / (double)frames:0} | {t.RenderScopes / (double)frames:0} | {t.Barriers / (double)frames:0} |" );
 			if ( statistics ) line += FormattableString.Invariant( $" {t.Primitives / frames:#,0} | {t.Vertices / frames:#,0} | {t.Fragments / frames:#,0} | {t.Fragments / frames / pixels:0.00} |" );
 			sb.AppendLine( line );
 		}
@@ -108,9 +109,10 @@ internal sealed class PassTotals
 				(t.Draws / (double)frames).ToString( "0", CultureInfo.InvariantCulture ),
 				(t.Pipelines / (double)frames).ToString( "0", CultureInfo.InvariantCulture ),
 				(t.Sets / (double)frames).ToString( "0", CultureInfo.InvariantCulture ),
-				(t.RenderScopes / (double)frames).ToString( "0", CultureInfo.InvariantCulture ) ) );
+				(t.RenderScopes / (double)frames).ToString( "0", CultureInfo.InvariantCulture ),
+				(t.Barriers / (double)frames).ToString( "0", CultureInfo.InvariantCulture ) ) );
 		}
 
-		csv.AppendLine( string.Join( ',', view, variant, "\"(between lists)\"", "Gap", ((span - inLists) / frames).ToString( "0.0000", CultureInfo.InvariantCulture ), "", "", "", "", "", "", "", "" ) );
+		csv.AppendLine( string.Join( ',', view, variant, "\"(between lists)\"", "Gap", ((span - inLists) / frames).ToString( "0.0000", CultureInfo.InvariantCulture ), "", "", "", "", "", "", "", "", "" ) );
 	}
 }

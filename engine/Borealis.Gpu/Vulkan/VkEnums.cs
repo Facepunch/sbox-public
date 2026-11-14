@@ -344,6 +344,10 @@ internal static class Vk
 	public const int StoreOpStore = 0;
 	public const int StoreOpDontCare = 1;
 
+	// VkRenderingFlagBits
+	public const uint RenderingSuspending = 0x2;
+	public const uint RenderingResuming = 0x4;
+
 	// VkResolveModeFlagBits
 	public const uint ResolveModeNone = 0;
 	public const uint ResolveModeSampleZero = 0x1;

@@ -69,6 +69,10 @@ internal sealed partial class BackendContext : GpuContext
 	bool clearColor, clearDepth;
 	Color clearValue;
 
+	// Carrying a rendering scope across lists (CarryRendering): the first scope may resume the list before's, and scopes
+	// suspend for the next list to resume
+	bool resumeFirst, suspendScopes;
+
 	public BackendContext( BackendDevice device, BackendContext frame )
 	{
 		this.device = device;
@@ -158,6 +162,7 @@ internal sealed partial class BackendContext : GpuContext
 		boundValid = false;
 		bound = default;
 		clearColor = clearDepth = false;
+		resumeFirst = suspendScopes = false;
 		viewConstants = null;
 		passStateCount = 0;
 		if ( frame is null ) viewSetWritten = false;
@@ -202,6 +207,14 @@ internal sealed partial class BackendContext : GpuContext
 		}
 	}
 
+	internal override void CarryRendering( bool fromPrevious, bool intoNext )
+	{
+		// Only lists of their own, submitted together: a suspended scope can't cross a submission
+		var carry = device.CarryScopes && device.BatchSubmits && !borrowed && recording is not null;
+		resumeFirst = carry && fromPrevious;
+		suspendScopes = carry && intoNext;
+	}
+
 	/// <summary>
 	/// Before a segment's own list: move every texture it used from where the lists submitted before left it to what
 	/// this one needs at its start, then remember where this one leaves it. Called in submission order.
@@ -220,8 +233,7 @@ internal sealed partial class BackendContext : GpuContext
 					timed = device.PassTimer?.Begin( fixUps, fixUps.Name, PassTimer.ScopeKind.List ) ?? -1;
 				}
 
-				fixUps.Barrier( Borealis.Gpu.TextureBarrier.Transition( texture.Handle, texture.Layout, first,
-					PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite ) );
+				fixUps.Barrier( LayoutBarrier( texture.Handle, texture.Layout, first ) );
 			}
 
 			texture.Layout = current;
@@ -496,8 +508,11 @@ internal sealed partial class BackendContext : GpuContext
 			ClearDepth = 0,
 		};
 
+		// A scope that clears begins anew; one carried from the list before resumes it
+		var flags = (resumeFirst && !clearColor && !clearDepth ? RenderingFlags.Resume : RenderingFlags.None) | (suspendScopes ? RenderingFlags.Suspend : RenderingFlags.None);
+		resumeFirst = false;
 		clearColor = clearDepth = false;
-		r.List.BeginRendering( colors[..colorCount], depthTarget );
+		r.List.BeginRendering( colors[..colorCount], depthTarget, flags );
 		r.Rendering = true;
 		r.Color = color;
 		r.Depth = depth;
@@ -579,10 +594,88 @@ internal sealed partial class BackendContext : GpuContext
 		if ( from == layout && !always ) return;
 		if ( recording.Rendering ) CloseScope();
 
-		recording.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( texture.Handle, from, layout,
-			PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite ) );
+		recording.List.Barrier( LayoutBarrier( texture.Handle, from, layout ) );
 		if ( local is null ) texture.Layout = layout;
 		else local[texture] = (known.First, layout);
+	}
+
+	const MemoryAccess Writes = MemoryAccess.ShaderWrite | MemoryAccess.ColorTargetWrite | MemoryAccess.DepthTargetWrite | MemoryAccess.TransferWrite | MemoryAccess.HostWrite | MemoryAccess.MemoryWrite;
+	const PipelineStage Shaders = PipelineStage.VertexShader | PipelineStage.FragmentShader | PipelineStage.ComputeShader;
+	const PipelineStage DepthTests = PipelineStage.EarlyFragmentTests | PipelineStage.LateFragmentTests;
+
+	/// <summary>
+	/// The stages that use a texture in <paramref name="layout"/>, and how: what a barrier moving it out of the layout waits
+	/// for (of which the writes are made available), and what one moving it in blocks (the accesses made visible).
+	/// </summary>
+	static (PipelineStage Stages, MemoryAccess Access) UseOf( ImageLayout layout ) => layout switch
+	{
+		ImageLayout.ColorTarget => (PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetRead | MemoryAccess.ColorTargetWrite),
+		ImageLayout.DepthTarget => (DepthTests, MemoryAccess.DepthTargetRead | MemoryAccess.DepthTargetWrite),
+		ImageLayout.DepthReadOnly => (DepthTests | Shaders, MemoryAccess.DepthTargetRead | MemoryAccess.ShaderRead),
+		ImageLayout.ShaderRead => (Shaders, MemoryAccess.ShaderRead),
+		ImageLayout.General => (Shaders, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite),
+		ImageLayout.CopySource => (PipelineStage.Transfer, MemoryAccess.TransferRead),
+		ImageLayout.CopyDestination => (PipelineStage.Transfer, MemoryAccess.TransferWrite),
+		_ => (PipelineStage.None, MemoryAccess.None),
+	};
+
+	/// <summary>
+	/// Move a texture between layouts: with <see cref="BackendDevice.ExactBarriers"/>, waiting for the stages of its use in
+	/// <paramref name="from"/> and their writes, and blocking those of its use in <paramref name="to"/>; else waiting for
+	/// everything. From <see cref="ImageLayout.Undefined"/> it waits for everything (a texture's first use); from
+	/// <see cref="ImageLayout.Present"/> for the stages it's moved for, which the swap chain's acquire wait covers.
+	/// </summary>
+	Borealis.Gpu.TextureBarrier LayoutBarrier( TextureHandle texture, ImageLayout from, ImageLayout to )
+	{
+		if ( !device.ExactBarriers )
+			return Borealis.Gpu.TextureBarrier.Transition( texture, from, to, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
+
+		var (dstStages, dstAccess) = UseOf( to );
+		var (srcStages, srcAccess) = from switch
+		{
+			ImageLayout.Undefined => (PipelineStage.AllCommands, MemoryAccess.None),
+			ImageLayout.Present => (dstStages, MemoryAccess.None),
+			_ => UseOf( from ),
+		};
+
+		return Borealis.Gpu.TextureBarrier.Transition( texture, from, to, srcStages, srcAccess & Writes, dstStages, dstAccess );
+	}
+
+	/// <summary>As <see cref="LayoutBarrier"/>, for one mip of the first layer.</summary>
+	Borealis.Gpu.TextureBarrier MipBarrier( TextureHandle texture, int mip, ImageLayout from, ImageLayout to ) => LayoutBarrier( texture, from, to ) with { BaseMip = mip, MipCount = 1, LayerCount = 1 };
+
+	static PipelineStage Map( GpuStage stage )
+	{
+		var stages = PipelineStage.None;
+		if ( (stage & GpuStage.DrawIndirect) != 0 ) stages |= PipelineStage.DrawIndirect;
+		if ( (stage & GpuStage.VertexInput) != 0 ) stages |= PipelineStage.VertexInput;
+		if ( (stage & GpuStage.PreRasterizationShaders) != 0 ) stages |= PipelineStage.PreRasterizationShaders;
+		if ( (stage & GpuStage.FragmentShader) != 0 ) stages |= PipelineStage.FragmentShader;
+		if ( (stage & GpuStage.EarlyFragmentTests) != 0 ) stages |= PipelineStage.EarlyFragmentTests;
+		if ( (stage & GpuStage.LateFragmentTests) != 0 ) stages |= PipelineStage.LateFragmentTests;
+		if ( (stage & GpuStage.ColorAttachmentOutput) != 0 ) stages |= PipelineStage.ColorTargetOutput;
+		if ( (stage & GpuStage.ComputeShader) != 0 ) stages |= PipelineStage.ComputeShader;
+		if ( (stage & GpuStage.Transfer) != 0 ) stages |= PipelineStage.Transfer;
+		if ( (stage & GpuStage.AllGraphics) != 0 ) stages |= PipelineStage.AllGraphics;
+		return stages;
+	}
+
+	static MemoryAccess Map( GpuAccess access )
+	{
+		var accesses = MemoryAccess.None;
+		if ( (access & GpuAccess.IndirectCommandRead) != 0 ) accesses |= MemoryAccess.IndirectRead;
+		if ( (access & GpuAccess.IndexRead) != 0 ) accesses |= MemoryAccess.IndexRead;
+		if ( (access & GpuAccess.VertexAttributeRead) != 0 ) accesses |= MemoryAccess.VertexRead;
+		if ( (access & GpuAccess.UniformRead) != 0 ) accesses |= MemoryAccess.UniformRead;
+		if ( (access & (GpuAccess.ShaderRead | GpuAccess.InputAttachmentRead)) != 0 ) accesses |= MemoryAccess.ShaderRead;
+		if ( (access & GpuAccess.ShaderWrite) != 0 ) accesses |= MemoryAccess.ShaderWrite;
+		if ( (access & GpuAccess.ColorAttachmentRead) != 0 ) accesses |= MemoryAccess.ColorTargetRead;
+		if ( (access & GpuAccess.ColorAttachmentWrite) != 0 ) accesses |= MemoryAccess.ColorTargetWrite;
+		if ( (access & GpuAccess.DepthStencilAttachmentRead) != 0 ) accesses |= MemoryAccess.DepthTargetRead;
+		if ( (access & GpuAccess.DepthStencilAttachmentWrite) != 0 ) accesses |= MemoryAccess.DepthTargetWrite;
+		if ( (access & GpuAccess.TransferRead) != 0 ) accesses |= MemoryAccess.TransferRead;
+		if ( (access & GpuAccess.TransferWrite) != 0 ) accesses |= MemoryAccess.TransferWrite;
+		return accesses;
 	}
 
 	static ImageLayout Map( TextureLayout layout, BackendTexture texture ) => layout switch
@@ -602,7 +695,13 @@ internal sealed partial class BackendContext : GpuContext
 
 	public override void TextureBarrier( GpuTexture texture, GpuStage srcStage, GpuAccess srcAccess, GpuStage dstStage, GpuAccess dstAccess, TextureLayout layout )
 	{
-		if ( texture is BackendTexture t ) Barrier( t, Map( layout, t ) );
+		if ( texture is not BackendTexture t ) return;
+		Barrier( t, Map( layout, t ) );
+
+		// The caller's stages too, beyond what the layouts imply (a compute write left in General): a memory barrier beside it
+		if ( !device.ExactBarriers || recording is null ) return;
+		var (src, dst) = (Map( srcStage ), Map( dstStage ));
+		if ( src != PipelineStage.None && dst != PipelineStage.None ) List.Barrier( src, Map( srcAccess ) & Writes, dst, Map( dstAccess ) );
 	}
 
 	public override void BarrierToDepthWrite( GpuTexture depth ) => Barrier( depth, ImageLayout.DepthTarget );
@@ -615,7 +714,9 @@ internal sealed partial class BackendContext : GpuContext
 	{
 		if ( recording is null ) return;
 		CloseScope();
-		List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
+		var (src, dst) = (Map( srcStage ), Map( dstStage ));
+		if ( device.ExactBarriers && src != PipelineStage.None && dst != PipelineStage.None ) List.Barrier( src, Map( srcAccess ) & Writes, dst, Map( dstAccess ) );
+		else List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
 	}
 
 	//
