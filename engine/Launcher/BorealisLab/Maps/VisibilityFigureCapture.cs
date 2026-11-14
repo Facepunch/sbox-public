@@ -54,6 +54,12 @@ internal static class VisibilityFigureCapture
 
 		// The ids and marked bits of the frame with the lists on
 		var (ids, mask, aggregateBits, meshBits) = map.Backend.FigureVisibility;
+		if ( !ids.IsValid )
+		{
+			Console.Error.WriteLine( "No GPU-driven draws in this view, so no figure: a map whose world is all meshes needs -gpudriven-meshes" );
+			return;
+		}
+
 		var idPixels = Capture.Read( gpu, ids, ImageLayout.ShaderRead );
 		var maskBits = aggregateBits + meshBits;
 		var marked = MarkedBits( gpu, mask, 0, aggregateBits ) + MarkedBits( gpu, mask, BackendDevice.FigureFrameBitBase, meshBits );
