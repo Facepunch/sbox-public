@@ -1236,6 +1236,7 @@ native class CTargetOffsetNode::Definition as NativeEngine.GraphTargetOffsetNode
 	}
 	short m_inputValueNodeIdx;
 	bool m_isBoneSpaceOffset;
+	bool m_followTargetRotation;
 	Rotation m_rotationOffset;
 	Vector3 m_translationOffset;
 	short m_translationOffsetNodeIdx;
