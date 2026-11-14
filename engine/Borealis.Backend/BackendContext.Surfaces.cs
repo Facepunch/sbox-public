@@ -14,6 +14,7 @@ namespace Borealis.Backend;
 internal sealed partial class BackendContext
 {
 	const string ForwardAlphaTestPass = ShaderPasses.Forward + "AlphaTest";
+	const string ForwardTranslucentPass = ShaderPasses.Forward + "Translucent";
 
 	static readonly StringToken LightmapCombo = new( "D_BAKED_LIGHTING_FROM_LIGHTMAP" );
 
@@ -35,18 +36,26 @@ internal sealed partial class BackendContext
 		// The targets are this scope's only once it's open
 		var r = recording;
 		var noColor = stripPixelShader || r.Color is null;
+		var state = material.RenderState;
 		string name;
 		if ( noColor )
 		{
-			name = material.AlphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth;
+			// A surface that writes no depth has no depth or shadow passes of its own (a converted one's are its .shader's)
+			if ( !state.DepthWrite ) return false;
+			name = state.AlphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth;
 		}
-		else if ( shaderMode.Value == ForwardMode.Value )
+		else if ( shaderMode.Value != ForwardMode.Value )
 		{
-			name = material.AlphaTest && program.Pass( ForwardAlphaTestPass ) is not null ? ForwardAlphaTestPass : ShaderPasses.Forward;
+			return false;
+		}
+		else if ( state.Blends )
+		{
+			// Blended over the colour behind: compiled translucent (opacity kept in alpha), as a .shader's S_TRANSLUCENT is
+			name = ForwardTranslucentPass;
 		}
 		else
 		{
-			return false;
+			name = state.AlphaTest && program.Pass( ForwardAlphaTestPass ) is not null ? ForwardAlphaTestPass : ShaderPasses.Forward;
 		}
 
 		// A lightmapped object's draws (today's D_BAKED_LIGHTING_FROM_LIGHTMAP combo) pass the mesh's lightmap uv on
@@ -57,10 +66,13 @@ internal sealed partial class BackendContext
 		var color = noColor ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
 		var depth = r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth );
 		var geometry = source.For( draw.Mesh, draw.DrawCall );
+
+		// Opaque depth reads the positions-only vertex copy, when its vertex stage reads nothing else of the mesh's
+		if ( pass.Pass.Pixel is null && device.PositionStreams && geometry.Positions.IsValid && ReadsOnlyPositions( pass.Pass.Vertex, geometry.Layout ) ) geometry = geometry.PositionsOnly;
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
-		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, twoSided: material.TwoSided, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0 );
+		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, state, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0 );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
@@ -69,6 +81,10 @@ internal sealed partial class BackendContext
 
 		uncompressedTangentFrame = geometry.UncompressedTangentFrame;
 		var record = device.Surfaces.Records.Offset( material );
+
+		// The frame's view set, as classic draws bind it: a list whose draws so far are all surfaces has the default
+		// (zeroed) one otherwise, which lights and fogs as no view
+		BindViewSet( r.List );
 		BindSurface( pass, pass.Pass.Vertex, ShaderAbi.VertexSet );
 		if ( pass.Pass.Pixel is not null ) BindSurface( pass, pass.Pass.Pixel, ShaderAbi.FragmentSet );
 		r.List.PushConstants( record );
@@ -79,6 +95,17 @@ internal sealed partial class BackendContext
 		return true;
 	}
 
+	/// <summary>Whether a surface's vertex stage reads nothing of these vertices but their positions.</summary>
+	static bool ReadsOnlyPositions( CompiledStage stage, VertexLayout layout )
+	{
+		foreach ( var input in stage.Inputs )
+		{
+			if ( input.Semantic != "POSITION" && layout.Find( SurfaceProgram.Semantic( input.Semantic ), input.SemanticIndex ) is not null ) return false;
+		}
+
+		return true;
+	}
+
 	/// <summary>
 	/// The GPU-driven bucket a surface batch draws in (BackendContext.GpuDriven.cs), made when none fits: its GPU-driven
 	/// pass for the mode, alpha test and lightmap combo, under the batch's object attributes. Null, so it draws the classic
@@ -86,15 +113,19 @@ internal sealed partial class BackendContext
 	/// </summary>
 	GpuDrivenBucket SurfaceBucket( SurfaceMaterial material, StringToken shaderMode, bool noColor, ShaderParameters attributes, long key )
 	{
+		// Blended draws are sorted, so they stay classic, as .shader materials' do; so do those that don't test and write
+		// depth (overlays, drawn in order)
+		var state = material.RenderState;
+		if ( state.Blends || !state.DepthWrite || !state.DepthTest ) return null;
 		if ( !noColor && shaderMode.Value != ForwardMode.Value ) return null;
 		if ( device.Surfaces.For( material ) is not { } program ) return null;
-		if ( program.GpuDrivenPass( noColor, material.AlphaTest, LookupCombo( LightmapCombo ) is > 0 ) is not { } pass ) return null;
+		if ( program.GpuDrivenPass( noColor, state.AlphaTest, LookupCombo( LightmapCombo ) is > 0 ) is not { } pass ) return null;
 
 		var depthOnly = pass.Pass.Pixel is null;
 		for ( int i = openBucket; i < gpuDrivenBucketCount; i++ )
 		{
 			var bucket = gpuDrivenBuckets[i];
-			if ( ReferenceEquals( bucket.Surface, pass ) && bucket.AttributesKey == key && bucket.NoColor == noColor && bucket.TwoSided == material.TwoSided ) return bucket;
+			if ( ReferenceEquals( bucket.Surface, pass ) && bucket.AttributesKey == key && bucket.NoColor == noColor && bucket.SurfaceState == state ) return bucket;
 		}
 
 		if ( gpuDrivenBucketCount == gpuDrivenBuckets.Count ) gpuDrivenBuckets.Add( new GpuDrivenBucket() );
@@ -109,7 +140,7 @@ internal sealed partial class BackendContext
 		made.AttributesKey = key;
 		made.DepthOnly = depthOnly;
 		made.NoColor = noColor;
-		made.TwoSided = material.TwoSided;
+		made.SurfaceState = state;
 		made.PixelMaterial = 0;
 		made.Batches.Clear();
 		made.Commands = 0;
@@ -157,13 +188,14 @@ internal sealed partial class BackendContext
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey, gpuDriven: true );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey, gpuDriven: true ) : null;
-		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, ids, bucket.TwoSided, LookupCombo( OpaqueFadeCombo ) is > 0 );
+		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, bucket.SurfaceState, ids, LookupCombo( OpaqueFadeCombo ) is > 0 );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
 			r.Pipeline = pipeline;
 		}
 
+		BindViewSet( r.List );
 		BindSurface( pass, pass.Pass.Vertex, ShaderAbi.VertexSet );
 		if ( pass.Pass.Pixel is not null ) BindSurface( pass, pass.Pass.Pixel, ShaderAbi.FragmentSet );
 		r.Binder = null;

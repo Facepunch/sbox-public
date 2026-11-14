@@ -319,7 +319,7 @@ float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool
 		// After the derivatives above, as the shading model does
 		clip( min( raw - 1.0 / 255.0, m.Opacity - 0.000001 ) );
 	}
-#else
+#elif ( !S_TRANSLUCENT )
 	// A fading object (D_OPAQUE_FADE): dithered by its opacity without multisampling, alpha to coverage with it
 	if ( kSurfaceOpaqueFade && g_nMSAASampleCount == 1 ) OpaqueFadeDepth( ( m.Opacity + 0.5 + 1.0 / 255.0 ) * 0.5, i.vPositionSs.xy );
 #endif
@@ -337,7 +337,34 @@ float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool
 	[branch]
 	if ( s.Unlit && !DepthNormals::WantsDepthNormals() ) o.vColor = float4( f.vDiffuseColor + f.vEmissive, f.flOpacity );   // S_UNLIT's colour
 	else o = PS_FinalCombinerDoLighting( f, terms );
-	o = PS_FinalCombinerDoPostProcessing( f, terms, o );
+	// Specular off (S_SPECULAR 0): its terms taken back out, and zero for the tools' views
+	if ( !s.Specular )
+	{
+		o.vColor.rgb -= terms.vSpecular.rgb + terms.vIndirectSpecular.rgb;
+		terms.vSpecular = 0;
+		terms.vIndirectSpecular = 0;
+	}
+	float4 lit = o.vColor;
+	[branch]
+	if ( s.OverlayMode != 0 && !ToolsVis::WantsToolsVis() )
+	{
+		// A multiplying overlay keeps its own fog blending per layer (static_overlay.shader)
+		if ( g_bFogEnabled && s.Fog ) o.vColor = Fog::ApplyOverlay( f.vPositionWs, f.vPositionSs.xy, o.vColor, s.OverlayMode );
+	}
+	else
+	{
+		if ( ToolsVis::WantsToolsVis() && s.OverlayMode == 6 ) f.vDiffuseColor.rgb = saturate( f.vDiffuseColor.rgb + f.vEmissive.rgb );
+		o = PS_FinalCombinerDoPostProcessing( f, terms, o );
+		// A material without fog (its g_bFogEnabled off) keeps the lit colour; an additive one (S_ADDITIVE_BLEND's fog) too,
+		// its alpha thinned by the fog
+		if ( ( s.Additive || !s.Fog ) && g_bFogEnabled && !DepthNormals::WantsDepthNormals() && !ToolsVis::WantsToolsVis() && !g_bWireframeMode )
+			o.vColor = float4( lit.rgb, s.Fog ? lit.a * Fog::Transmittance( f.vPositionWs, f.vPositionSs.xy ) : lit.a );
+	}
+
+	// Multiplying overlays fade to the colour that leaves what's behind them unchanged
+	if ( s.OverlayMode == 3 ) o.vColor.rgb = lerp( float3( 0.5, 0.5, 0.5 ), o.vColor.rgb, o.vColor.a );
+	else if ( s.OverlayMode == 5 ) o.vColor.rgb = lerp( float3( 1, 1, 1 ), o.vColor.rgb, o.vColor.a );
+	else if ( s.OverlayMode == 6 ) o.vColor.rgb *= o.vColor.a;
 	float4 color = o.vColor;
 	if ( spread ) color.a *= s.Coverage;
 	return color;

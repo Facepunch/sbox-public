@@ -47,14 +47,37 @@ public sealed unsafe class CommandList
 	// The labels open, for naming the markers that end them
 	readonly Stack<string> openLabels = new();
 
-	/// <summary>What it has recorded since it began, for profiling: draw calls (an indirect call counts once), pipeline and descriptor set binds, and rendering scopes.</summary>
-	public (int Draws, int Pipelines, int Sets, int Scopes) Counts => (draws, pipelines, setBinds, scopes);
+	/// <summary>
+	/// What it has recorded since it began, for profiling: draw calls (an indirect call counts once), pipeline and descriptor
+	/// set binds, rendering scopes begun (resumed ones included), barrier calls, those of them that wait for every stage
+	/// (<see cref="PipelineStage.AllCommands"/> or <see cref="PipelineStage.AllGraphics"/> as a source), and scopes that
+	/// resumed one suspended before.
+	/// </summary>
+	public (int Draws, int Pipelines, int Sets, int Scopes, int Barriers, int FullBarriers, int Resumed) Counts => (draws, pipelines, setBinds, scopes, barriers, fullBarriers, resumed);
 
-	int draws, pipelines, setBinds, scopes;
+	int draws, pipelines, setBinds, scopes, barriers, fullBarriers, resumed;
 
 	bool recording;
 	bool rendering;
 	bool labelled;
+
+	// Suspended rendering scopes (RenderingFlags): whether anything that must not sit between a suspended scope and the one
+	// resuming it has been recorded yet, whether the scope open now suspends, and whether the last one ended suspended
+	bool acted;
+	bool suspending;
+	bool suspended;
+
+	/// <summary>The targets of the first scope when it resumes one the list before left suspended (<see cref="StartsResumed"/>).</summary>
+	internal readonly RenderingTargets ResumedTargets = new();
+
+	/// <summary>The targets of the last scope, while it's suspended (<see cref="EndsSuspended"/>).</summary>
+	internal readonly RenderingTargets SuspendedTargets = new();
+
+	/// <summary>Its first command is a scope resuming one suspended in the list submitted before it.</summary>
+	internal bool StartsResumed { get; private set; }
+
+	/// <summary>It ended with its last scope suspended, for the next list submitted to resume.</summary>
+	internal bool EndsSuspended { get; private set; }
 
 	// Barriers wait here until the next command that isn't one
 	VkImageMemoryBarrier2[] imageBarriers = new VkImageMemoryBarrier2[16];
@@ -116,7 +139,9 @@ public sealed unsafe class CommandList
 		Array.Clear( setOffsetCounts );
 		viewSet = 0;
 		Submitted = default;
-		draws = pipelines = setBinds = scopes = 0;
+		draws = pipelines = setBinds = scopes = barriers = fullBarriers = resumed = 0;
+		acted = suspending = suspended = false;
+		StartsResumed = EndsSuspended = false;
 
 		MarkerSlot = device.ProgressMarkers ? device.TakeMarkerSlot( name ) : -1;
 		openLabels.Clear();
@@ -133,6 +158,7 @@ public sealed unsafe class CommandList
 		FlushBarriers();
 		if ( labelled ) EndLabel();
 		Marker( "end" );
+		EndsSuspended = suspended;
 		vk.vkEndCommandBuffer( Handle ).Check( "vkEndCommandBuffer" );
 		recording = false;
 	}
@@ -187,6 +213,35 @@ public sealed unsafe class CommandList
 	{
 		Recording();
 		if ( rendering ) throw new InvalidOperationException( $"{call} isn't allowed while rendering: end rendering first" );
+		Act();
+	}
+
+	/// <summary>
+	/// Work outside rendering is about to be recorded: nothing may sit between a suspended scope and the one resuming it, so
+	/// a scope left suspended is ended first, and a scope begun after this can't resume one from the list before.
+	/// </summary>
+	void Act()
+	{
+		if ( suspended ) EndSuspended();
+		acted = true;
+	}
+
+	/// <summary>End the scope left suspended in this list: resume it and end it at once.</summary>
+	void EndSuspended()
+	{
+		suspended = false;
+		RecordScope( SuspendedTargets, Vulkan.Vk.RenderingResuming );
+	}
+
+	/// <summary>Begin a scope on <paramref name="targets"/> with <paramref name="flags"/> and end it at once, drawing nothing.</summary>
+	internal void RecordScope( RenderingTargets targets, uint flags )
+	{
+		var attachments = stackalloc VkRenderingAttachmentInfo[RenderingTargets.Max];
+		var info = targets.Info( attachments, flags );
+		vk.vkCmdBeginRendering( Handle, &info );
+		vk.vkCmdEndRendering( Handle );
+		scopes++;
+		if ( (flags & Vulkan.Vk.RenderingResuming) != 0 ) resumed++;
 	}
 
 	//
@@ -205,6 +260,7 @@ public sealed unsafe class CommandList
 	public void WriteTimestamp( TimestampQueries queries, int index, PipelineStage stage = PipelineStage.AllCommands )
 	{
 		Recording();
+		if ( !rendering ) Act();
 		FlushBarriers();
 		vk.vkCmdWriteTimestamp2( Handle, (ulong)stage, queries.Pool, (uint)index );
 	}
@@ -259,6 +315,7 @@ public sealed unsafe class CommandList
 	public void BeginQuery( PipelineStatistics queries, int index )
 	{
 		Recording();
+		if ( !rendering ) Act();
 		FlushBarriers();
 		vk.vkCmdBeginQuery( Handle, queries.Pool, (uint)index, 0 );
 	}
@@ -267,6 +324,7 @@ public sealed unsafe class CommandList
 	public void EndQuery( PipelineStatistics queries, int index )
 	{
 		Recording();
+		if ( !rendering ) Act();
 		vk.vkCmdEndQuery( Handle, queries.Pool, (uint)index );
 	}
 
@@ -282,6 +340,7 @@ public sealed unsafe class CommandList
 	{
 		if ( MarkerSlot < 0 ) return;
 		Recording();
+		if ( !rendering ) Act();
 		device.WriteMarker( Handle, MarkerSlot, name );
 	}
 
@@ -406,6 +465,13 @@ public sealed unsafe class CommandList
 			vk.vkCmdPipelineBarrier2( Handle, &info );
 		}
 
+		barriers++;
+		const ulong Full = (ulong)(PipelineStage.AllCommands | PipelineStage.AllGraphics);
+		var full = hasMemoryBarrier && (memoryBarrier.srcStageMask & Full) != 0;
+		for ( int i = 0; i < imageBarrierCount && !full; i++ ) full = (imageBarriers[i].srcStageMask & Full) != 0;
+		for ( int i = 0; i < bufferBarrierCount && !full; i++ ) full = (bufferBarriers[i].srcStageMask & Full) != 0;
+		if ( full ) fullBarriers++;
+
 		imageBarrierCount = 0;
 		bufferBarrierCount = 0;
 		hasMemoryBarrier = false;
@@ -420,9 +486,22 @@ public sealed unsafe class CommandList
 	/// <see cref="ImageLayout.ColorTarget"/> and <see cref="ImageLayout.DepthTarget"/>. The viewport and scissor are set to
 	/// the whole of the first target.
 	/// </summary>
-	public void BeginRendering( ReadOnlySpan<ColorTarget> colors, in DepthTarget depth = default )
+	/// <remarks>
+	/// <paramref name="flags"/> carry one scope across lists recorded apart, as one render pass on the GPU:
+	/// <see cref="RenderingFlags.Suspend"/> leaves the scope suspended when it ends, for the next list submitted to resume;
+	/// <see cref="RenderingFlags.Resume"/> continues the scope the list submitted before left suspended (its load operations
+	/// don't apply). Neither has to be matched: a scope suspended with no resume after it, or anything recorded between, is
+	/// ended there, and a resume that's not the list's first command begins an ordinary scope. Lists submitted apart
+	/// (<see cref="Device.Submit"/> and <see cref="Device.SubmitLater"/> both pair them) end and begin theirs on their own.
+	/// </remarks>
+	public void BeginRendering( ReadOnlySpan<ColorTarget> colors, in DepthTarget depth = default, RenderingFlags flags = RenderingFlags.None )
 	{
-		OutsideRendering();
+		Recording();
+		if ( rendering ) throw new InvalidOperationException( "BeginRendering isn't allowed while rendering: end rendering first" );
+
+		// Only the list's first command resumes the list before's scope; a scope suspended in this list is ended first
+		var resume = (flags & RenderingFlags.Resume) != 0 && !acted;
+		if ( suspended ) EndSuspended();
 		FlushBarriers();
 
 		if ( colors.Length > 8 ) throw new ArgumentException( "At most 8 colour targets" );
@@ -490,9 +569,11 @@ public sealed unsafe class CommandList
 
 		if ( width == 0 ) throw new ArgumentException( "Rendering needs a colour or depth target" );
 
+		var suspend = (flags & RenderingFlags.Suspend) != 0;
 		var info = new VkRenderingInfo
 		{
 			sType = VkStructureType.RenderingInfo,
+			flags = (resume ? Vulkan.Vk.RenderingResuming : 0) | (suspend ? Vulkan.Vk.RenderingSuspending : 0),
 			renderArea = new VkRect2D { extent = new VkExtent2D { width = width, height = height } },
 			layerCount = 1,
 			colorAttachmentCount = (uint)colors.Length,
@@ -501,8 +582,20 @@ public sealed unsafe class CommandList
 			pStencilAttachment = hasStencil ? &depthAttachment : null,
 		};
 
+		// What pairing the scope with another list's needs: its targets
+		if ( resume )
+		{
+			ResumedTargets.Set( attachments, colors.Length, hasDepth ? &depthAttachment : null, hasStencil, width, height );
+			StartsResumed = true;
+			resumed++;
+		}
+
+		if ( suspend ) SuspendedTargets.Set( attachments, colors.Length, hasDepth ? &depthAttachment : null, hasStencil, width, height );
+
 		vk.vkCmdBeginRendering( Handle, &info );
 		scopes++;
+		acted = true;
+		suspending = suspend;
 		rendering = true;
 		RenderSize = (int.CreateTruncating( width ), int.CreateTruncating( height ));
 
@@ -525,6 +618,8 @@ public sealed unsafe class CommandList
 		if ( !rendering ) throw new InvalidOperationException( "Not rendering" );
 		vk.vkCmdEndRendering( Handle );
 		rendering = false;
+		suspended = suspending;
+		suspending = false;
 	}
 
 	/// <summary>
@@ -1030,4 +1125,70 @@ public sealed unsafe class CommandList
 
 	/// <inheritdoc/>
 	public override string ToString() => Name ?? $"{Queue} command list";
+}
+
+/// <summary>
+/// A rendering scope's targets, kept to pair a scope a list left suspended with the one resuming it in the next list, and to
+/// begin and end either alone when they don't pair.
+/// </summary>
+internal sealed unsafe class RenderingTargets
+{
+	/// <summary>Eight colour targets and depth.</summary>
+	public const int Max = 9;
+
+	readonly VkRenderingAttachmentInfo[] attachments = new VkRenderingAttachmentInfo[Max];
+	int colors;
+	bool depth, stencil;
+	uint width, height;
+
+	public void Set( VkRenderingAttachmentInfo* colorInfos, int colorCount, VkRenderingAttachmentInfo* depthInfo, bool hasStencil, uint width, uint height )
+	{
+		for ( int i = 0; i < colorCount; i++ ) attachments[i] = colorInfos[i];
+		if ( depthInfo is not null ) attachments[colorCount] = *depthInfo;
+		colors = colorCount;
+		depth = depthInfo is not null;
+		stencil = hasStencil;
+		this.width = width;
+		this.height = height;
+	}
+
+	/// <summary>Whether a scope on <paramref name="other"/> draws to the same views, in the same layouts, resolves and size.</summary>
+	public bool Matches( RenderingTargets other )
+	{
+		if ( colors != other.colors || depth != other.depth || stencil != other.stencil || width != other.width || height != other.height ) return false;
+		for ( int i = 0; i < colors + (depth ? 1 : 0); i++ )
+		{
+			ref readonly var a = ref attachments[i];
+			ref readonly var b = ref other.attachments[i];
+			if ( a.imageView != b.imageView || a.imageLayout != b.imageLayout || a.resolveMode != b.resolveMode || a.resolveImageView != b.resolveImageView ) return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// The scope's rendering info with <paramref name="flags"/>, its attachments copied into <paramref name="into"/>
+	/// (<see cref="Max"/> long). Every target loads what it holds: a scope begun alone to be resumed keeps it.
+	/// </summary>
+	public VkRenderingInfo Info( VkRenderingAttachmentInfo* into, uint flags )
+	{
+		var count = colors + (depth ? 1 : 0);
+		for ( int i = 0; i < count; i++ )
+		{
+			into[i] = attachments[i];
+			into[i].loadOp = Vulkan.Vk.LoadOpLoad;
+		}
+
+		return new VkRenderingInfo
+		{
+			sType = VkStructureType.RenderingInfo,
+			flags = flags,
+			renderArea = new VkRect2D { extent = new VkExtent2D { width = width, height = height } },
+			layerCount = 1,
+			colorAttachmentCount = (uint)colors,
+			pColorAttachments = into,
+			pDepthAttachment = depth ? into + colors : null,
+			pStencilAttachment = stencil ? into + colors : null,
+		};
+	}
 }

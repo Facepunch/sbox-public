@@ -27,16 +27,16 @@ internal sealed class PassTimer : IDisposable
 	/// </summary>
 	public record struct Scope( string Name, ScopeKind Kind, int Begin, int End, int Query, Recorded Before, Recorded Recorded );
 
-	/// <summary>Draw calls, pipeline binds, descriptor set binds and rendering scopes recorded.</summary>
-	public readonly record struct Recorded( int Draws, int Pipelines, int Sets, int Scopes )
+	/// <summary>Draw calls, pipeline binds, descriptor set binds, rendering scopes and barrier calls recorded.</summary>
+	public readonly record struct Recorded( int Draws, int Pipelines, int Sets, int Scopes, int Barriers )
 	{
 		public static Recorded Of( CommandList list )
 		{
-			var (draws, pipelines, sets, scopes) = list.Counts;
-			return new( draws, pipelines, sets, scopes );
+			var c = list.Counts;
+			return new( c.Draws, c.Pipelines, c.Sets, c.Scopes, c.Barriers );
 		}
 
-		public Recorded Since( Recorded before ) => new( Draws - before.Draws, Pipelines - before.Pipelines, Sets - before.Sets, Scopes - before.Scopes );
+		public Recorded Since( Recorded before ) => new( Draws - before.Draws, Pipelines - before.Pipelines, Sets - before.Sets, Scopes - before.Scopes, Barriers - before.Barriers );
 	}
 
 	/// <summary>What a scope times.</summary>

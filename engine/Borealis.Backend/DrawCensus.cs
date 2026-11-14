@@ -108,7 +108,7 @@ internal sealed class DrawCensus
 			if ( now.Draws < last.Draws || now.Pipelines < last.Pipelines || now.Sets < last.Sets ) last = default;
 			var since = now.Since( last );
 			var total = passes.GetValueOrDefault( pass );
-			passes[pass] = new PassTimer.Recorded( total.Draws + since.Draws, total.Pipelines + since.Pipelines, total.Sets + since.Sets, total.Scopes + since.Scopes );
+			passes[pass] = new PassTimer.Recorded( total.Draws + since.Draws, total.Pipelines + since.Pipelines, total.Sets + since.Sets, total.Scopes + since.Scopes, total.Barriers + since.Barriers );
 			marks[list] = now;
 		}
 	}

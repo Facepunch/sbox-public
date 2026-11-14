@@ -273,6 +273,20 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal bool BatchSubmits { get; set; } = true;
 
+	/// <summary>
+	/// Barriers wait for and block only the stages and accesses of the uses on either side (a texture's layouts, a buffer
+	/// barrier's given stages) rather than every stage and access. Off for comparisons.
+	/// </summary>
+	internal bool ExactBarriers { get; set; } = true;
+
+	/// <summary>
+	/// A layer's draws split over lists recorded apart keep one rendering scope on the GPU: each list suspends its last scope
+	/// and the next resumes it (<see cref="RenderingFlags"/>), when the plan says the next carries on its draws. Needs
+	/// <see cref="BatchSubmits"/>. Off by default: on Construct it made no measurable GPU difference, and the 1.4.321
+	/// validation layer reports a scope that both resumes and suspends (a chain of three lists or more) as resuming nothing.
+	/// </summary>
+	internal bool CarryScopes { get; set; }
+
 	/// <summary>Send the frame's lists held for one submission (<see cref="BatchSubmits"/>) to the GPU.</summary>
 	public override void EndSubmitting() => Gpu.Flush();
 

@@ -23,8 +23,17 @@ public static class MaterialClassWriter
 		s.Append( "namespace " ).Append( @namespace ).Append( ";\n\n" );
 		s.Append( "/// <summary>The material <c>" ).Append( layout.Type ).Append( "</c> (" ).Append( file ).Append( ", " ).Append( shader.Tier == ShaderTier.Surface ? "a surface" : "a raw module" ).Append( ").</summary>\n" );
 		s.Append( "public sealed class " ).Append( layout.Type ).Append( " : global::Borealis.Backend.SurfaceMaterial\n{\n" );
+		var states = layout.States();
+		var hasStates = states.Fields.Count > 0 || states.Defaults != SurfaceRenderDefaults.None;
+		if ( hasStates )
+		{
+			s.Append( "\t/// <summary>Its render state: the struct's attributes and the fields that change it.</summary>\n" );
+			s.Append( "\tstatic readonly global::Sandbox.ShaderCompiler.SurfaceStateLayout RenderStates = " ).Append( StatesLiteral( states ) ).Append( ";\n\n" );
+		}
+
 		s.Append( "\t/// <summary>A material with every field at its default.</summary>\n" );
-		s.Append( "\tpublic " ).Append( layout.Type ).Append( "() : base( \"" ).Append( file ).Append( "\", " ).Append( layout.Size ).Append( ", 0x" ).Append( Hash( layout ).ToString( "X8", CultureInfo.InvariantCulture ) ).Append( "u )\n\t{\n" );
+		s.Append( "\tpublic " ).Append( layout.Type ).Append( "() : base( \"" ).Append( file ).Append( "\", " ).Append( layout.Size ).Append( ", 0x" ).Append( Hash( layout ).ToString( "X8", CultureInfo.InvariantCulture ) ).Append( 'u' )
+			.Append( hasStates ? ", RenderStates" : "" ).Append( " )\n\t{\n" );
 		foreach ( var field in layout.Fields )
 		{
 			if ( field.Kind == MaterialFieldKind.Texture2D || field.Default is null ) continue;
@@ -41,8 +50,13 @@ public static class MaterialClassWriter
 			if ( field.Min is not null || field.Max is not null ) notes.Add( $"range {(field.Min ?? 0).ToString( CultureInfo.InvariantCulture )} to {(field.Max ?? 0).ToString( CultureInfo.InvariantCulture )}" );
 			if ( field.Srgb ) notes.Add( "sRGB" );
 			if ( field.Opacity ) notes.Add( "opacity" );
+			if ( field.RenderStates is { Count: > 0 } rules ) notes.Add( $"render state {string.Join( ", ", rules.Select( r => r.State ) )}" );
 			s.Append( "\t/// <summary><c>" ).Append( field.Name ).Append( "</c>" ).Append( notes.Count > 0 ? ": " + string.Join( ", ", notes ) : "" ).Append( ".</summary>\n" );
 			var (type, get, set) = Accessors( field );
+
+			// A field that is a blend mode itself reads and writes as one
+			if ( field.RenderStates is [{ State: SurfaceStateKind.Blend, Values: null }] && field.Kind is MaterialFieldKind.Int or MaterialFieldKind.UInt )
+				(type, get, set) = ("global::Sandbox.ShaderCompiler.SurfaceBlend", $"(global::Sandbox.ShaderCompiler.SurfaceBlend)GetInt( {field.Offset} )", $"SetInt( {field.Offset}, (int)value )");
 			s.Append( "\tpublic " ).Append( type ).Append( ' ' ).Append( field.Name ).Append( " { get => " ).Append( get ).Append( "; set => " ).Append( set ).Append( "; }\n" );
 		}
 
@@ -65,6 +79,10 @@ public static class MaterialClassWriter
 
 		Add( layout.Type );
 		foreach ( var f in layout.Fields ) Add( $";{f.Name}:{f.Kind}:{f.Components}@{f.Offset}" );
+
+		// The render state too: a class generated before its struct's attributes changed would resolve the old state
+		var states = layout.States();
+		if ( states.Fields.Count > 0 || states.Defaults != SurfaceRenderDefaults.None ) Add( $";state:{states}" );
 		return hash;
 	}
 
@@ -85,6 +103,17 @@ public static class MaterialClassWriter
 			(MaterialFieldKind.Bool, 1 ) => ("bool", $"GetInt( {o} ) != 0", $"SetInt( {o}, value ? 1 : 0 )"),
 			_ => throw new NotSupportedException( $"{field.Name}: {field.Kind}{field.Components} fields have no C# type yet" ),
 		};
+	}
+
+	/// <summary>A render-state layout as a C# expression.</summary>
+	static string StatesLiteral( SurfaceStateLayout states )
+	{
+		const string ns = "global::Sandbox.ShaderCompiler.";
+		var d = states.Defaults;
+		static string Bool( bool b ) => b ? "true" : "false";
+		var defaults = $"new {ns}SurfaceRenderDefaults( {ns}SurfaceBlend.{d.Blend}, {(d.DepthWrite is { } w ? Bool( w ) : "null")}, {Bool( d.DepthTest )}, {Number( d.DepthBias )}, {Number( d.SlopeDepthBias )}, {Bool( d.TwoSided )}, {Bool( d.AlphaTest )} )";
+		var fields = states.Fields.Select( f => $"new {ns}SurfaceStateField( new {ns}SurfaceStateRule( {ns}SurfaceStateKind.{f.Rule.State}, {(f.Rule.Values is null ? "null" : $"[{string.Join( ", ", f.Rule.Values )}]")} ), {f.Offset}, {Bool( f.Float )} )" );
+		return $"new( {defaults}, [{string.Join( ", ", fields )}] )";
 	}
 
 	static string Literal( MaterialField field, float[] value )

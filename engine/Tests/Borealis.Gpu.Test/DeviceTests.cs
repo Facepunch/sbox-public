@@ -36,6 +36,50 @@ public class DeviceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A scope one list suspends and the next resumes is one scope: the second's clear doesn't apply. Lists that don't pair
+	/// (something recorded before the resume, or a resume with nothing suspended) get a scope of their own begun or ended
+	/// between them, and validation, synchronisation included, stays clean.
+	/// </summary>
+	[TestMethod]
+	public void SuspendedScopeResumesInTheNextList()
+	{
+		var target = Target( 64, 32 );
+		var red = new Vector4( 1, 0, 0, 1 );
+		var green = new Vector4( 0, 1, 0, 1 );
+		var layout = ImageLayout.Undefined;
+
+		(byte, byte, byte, byte) Draw( bool barrierFirst, bool suspend = true )
+		{
+			var first = Device.BeginCommandList();
+			first.Barrier( TextureBarrier.Transition( target, layout, ImageLayout.ColorTarget, PipelineStage.Transfer, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+			first.BeginRendering( [ColorTarget.Of( target, red )], default, suspend ? RenderingFlags.Suspend : RenderingFlags.None );
+			first.EndRendering();
+			Device.SubmitLater( first );
+
+			var second = Device.BeginCommandList();
+			if ( barrierFirst ) second.Barrier( PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite );
+			second.BeginRendering( [ColorTarget.Of( target, green )], default, RenderingFlags.Resume );
+			second.EndRendering();
+			Assert.AreEqual( barrierFirst ? 0 : 1, second.Counts.Resumed );
+			Device.Wait( Device.Submit( second ) );
+
+			var pixels = ReadBack( target, ImageLayout.ColorTarget );
+			layout = ImageLayout.CopySource;
+			return Pixel( pixels, 64, 10, 10 );
+		}
+
+		var pairings = Device.ScopePairings;
+		Assert.AreEqual( ((byte)255, (byte)0, (byte)0, (byte)255), Draw( barrierFirst: false ), "the resumed scope kept what the suspended one cleared" );
+		Assert.AreEqual( pairings, Device.ScopePairings, "they paired without help" );
+
+		Assert.AreEqual( ((byte)0, (byte)255, (byte)0, (byte)255), Draw( barrierFirst: true ), "a barrier before the resume ends the suspended scope, and the next clears" );
+		Assert.AreEqual( pairings + 1, Device.ScopePairings, "the suspended scope was ended by a list of its own" );
+
+		Assert.AreEqual( ((byte)255, (byte)0, (byte)0, (byte)255), Draw( barrierFirst: false, suspend: false ), "a resume with nothing suspended loads what's there" );
+		Assert.AreEqual( pairings + 2, Device.ScopePairings, "a scope was begun for it to resume" );
+	}
+
+	/// <summary>
 	/// A resource destroyed while a frame records waits for the whole frame: a list recorded before the destroy and submitted
 	/// after it still reads it, so it isn't freed once only what was submitted before the destroy has finished.
 	/// </summary>

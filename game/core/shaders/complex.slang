@@ -1,12 +1,13 @@
 // complex.shader written as a surface, for the features complex materials use (the Construct package and core content):
 // colour with tint mask and object tint, the hemi-octahedral normal map with roughness, ambient occlusion, metalness as a
-// value or texture, alpha test, self-illumination, detail textures (all four modes), scaled normal maps and back-face
-// transmission. It lights through the final combiner (ICombinerSurface), as complex.shader does.
+// value or texture, alpha test, translucency and additive blending, self-illumination, detail textures (all four modes),
+// scaled normal maps and back-face transmission. It lights through the final combiner (ICombinerSurface), as complex.shader
+// does.
 //
 // The shader's features are fields, [Source] naming the feature a .vmat sets them with, read by uniform branches. A
 // material using a feature this surface doesn't do (a field below with Range( 0, 0 )) isn't converted and stays on
-// complex.shader: translucency, parallax occlusion, anisotropic gloss, retro-reflection, cloth, bent normals, normal self
-// shadowing, diffuse wrap, the secondary uv set, wrinkles and unlit.
+// complex.shader: parallax occlusion, anisotropic gloss, retro-reflection, cloth, bent normals, normal self shadowing,
+// diffuse wrap, the secondary uv set, wrinkles and unlit.
 import sbox.surface;
 
 // complex.shader's g_sTrilinearWrap, for occlusion, metalness, self-illumination and transmission (the rest use
@@ -19,15 +20,16 @@ public struct Complex : ICombinerSurface
 	// Features
 	[Group( "Features" ), Source( "F_TINT_MASK" )] bool UseTintMask;
 	[Group( "Features" ), Source( "F_METALNESS_TEXTURE" )] bool UseMetalnessTexture;
-	[Group( "Features" ), Source( "F_ALPHA_TEST" )] bool UseAlphaTest;
+	[Group( "Features" ), Source( "F_ALPHA_TEST" ), RenderState( "AlphaTest" )] bool UseAlphaTest;
 	[Group( "Features" ), Source( "F_SELF_ILLUM" )] bool UseSelfIllum;
 	[Group( "Features" ), Source( "F_DETAIL_TEXTURE" ), Range( 0, 4 )] int DetailMode;   // 1 mod2x, 2 overlay, 3 normals, 4 overlay and normals
 	[Group( "Features" ), Source( "F_SCALE_NORMAL_MAP" )] bool UseNormalMapScale;
 	[Group( "Features" ), Source( "F_TRANSMISSIVE_BACKFACE_NDOTL" )] bool UseBackfaceTransmission;
+	[Group( "Features" ), Source( "F_TRANSLUCENT" ), RenderState( "Blend: Alpha" )] bool UseTranslucent;
+	[Group( "Features" ), Source( "F_ADDITIVE_BLEND" ), RenderState( "Blend: Additive" )] bool UseAdditiveBlend;
+	[Group( "Features" ), Source( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
 
 	// Features this surface doesn't do: materials that set them stay on complex.shader
-	[Group( "Not converted" ), Source( "F_TRANSLUCENT" ), Range( 0, 0 )] int Translucent;
-	[Group( "Not converted" ), Source( "F_ADDITIVE_BLEND" ), Range( 0, 0 )] int AdditiveBlend;
 	[Group( "Not converted" ), Source( "F_PARALLAX_OCCLUSION" ), Range( 0, 0 )] int ParallaxOcclusion;
 	[Group( "Not converted" ), Source( "F_ANISOTROPIC_GLOSS" ), Range( 0, 0 )] int AnisotropicGloss;
 	[Group( "Not converted" ), Source( "F_RETRO_REFLECTIVE" ), Range( 0, 0 )] int RetroReflective;
@@ -65,9 +67,13 @@ public struct Complex : ICombinerSurface
 	[Group( "Ambient Occlusion" ), Range( 0, 1 )] float AmbientOcclusionDirectDiffuse;
 	[Group( "Ambient Occlusion" ), Range( 0, 1 )] float AmbientOcclusionDirectSpecular;
 
-	// Alpha test
+	// Alpha test and translucency
 	[Group( "Translucent" ), Default( 0.5 ), Range( 0.01, 0.99 )] float AlphaTestReference;
 	[Group( "Translucent" ), Default( 1 ), Range( 0, 1 )] float AntiAliasedEdgeStrength;
+	[Group( "Translucent" ), Default( 1 ), Range( 0, 1 )] float OpacityScale;
+
+	// Fog (g_bFogEnabled)
+	[Group( "Fog" ), Default( 1 )] bool FogEnabled;
 
 	// Self-illumination
 	[Group( "Self Illum" ), Srgb] Texture2D SelfIllumMask;
@@ -131,8 +137,11 @@ public struct Complex : ICombinerSurface
 		Material m = Material.Init( i );
 		float4 color = i.Sample( Color, uv );
 
-		// Opacity: the colour's alpha with alpha test, else the vertex fade
+		// Opacity: the colour's alpha with alpha test, also scaled when translucent; else the vertex fade
 		m.Opacity = UseAlphaTest ? color.a * fade : fade;
+		if ( UseTranslucent ) m.Opacity = fade * color.a * OpacityScale;
+		m.Additive = UseAdditiveBlend;
+		m.Fog = FogEnabled;
 		m.AlphaTestReference = AlphaTestReference;
 		m.AntiAliasedEdgeStrength = AntiAliasedEdgeStrength;
 		m.OpacityUvScale = TexCoordScale;
@@ -156,7 +165,7 @@ public struct Complex : ICombinerSurface
 
 		// Metalness: a value, or with the feature the colour's alpha (the metalness texture's green when the alpha is opacity)
 		m.Metalness = Metalness;
-		if ( UseMetalnessTexture ) m.Metalness = UseAlphaTest ? i.Sample( MetalnessMap, uv, g_ComplexTrilinear ).g : color.a;
+		if ( UseMetalnessTexture ) m.Metalness = UseAlphaTest || UseTranslucent ? i.Sample( MetalnessMap, uv, g_ComplexTrilinear ).g : color.a;
 
 		float detailMask = 0;
 		if ( DetailMode != 0 ) detailMask = max( i.Sample( DetailMask, uv ).r, DetailBlendToFull ) * DetailBlendFactor;

@@ -97,3 +97,42 @@ public struct SrgbAttribute {};
 // ShaderVersion. Without it the field is found by name (g_tName, g_flName, g_vName, g_nName, g_bName, Name)
 [__AttributeUsage( _AttributeTargets.Var )]
 public struct SourceAttribute { string Name; };
+
+// How the surface draws (its render state), on the [Material] struct; the engine resolves it per material and picks
+// the layer from it. Blend: how the colour meets what's behind it: "Opaque" (the default), "Alpha" (over it by
+// Opacity), "Premultiplied" (colour already multiplied by Opacity), "Additive" (added, by Opacity), "Multiply" (the
+// colour behind times the colour), "Mod2x" (the colour behind times twice the colour), "ModulateAdd" (the colour behind
+// times the colour, plus the colour behind). A blended surface draws in the translucent layer and writes no depth
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct BlendAttribute { string Mode; };
+
+// Write depth even when blended
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct DepthWriteAttribute {};
+
+// Don't write depth, even when opaque
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct NoDepthWriteAttribute {};
+
+// Don't test depth: draw over everything
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct NoDepthTestAttribute {};
+
+// Pull the surface towards the camera in depth: a constant in depth-buffer steps and a factor of the slope (decals)
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct DepthBiasAttribute { float Constant; float Slope; };
+
+// Draw back faces too, their normal turned to the viewer
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct TwoSidedAttribute {};
+
+// Clip pixels whose opacity is under the cutoff, with alpha to coverage under multisampling
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct AlphaTestAttribute {};
+
+// A field a material changes its render state with: "State" (the field's value is the state: a Blend by its index in
+// the list above, a flag by non-zero), "State: Value" (non-zero sets it), or "State: A, B, C" (the field's value picks
+// one); several separated by ';'. States: Blend, DepthWrite, DepthTest, TwoSided, AlphaTest; flag values true or false.
+// For example [Source( "F_TRANSLUCENT" ), RenderState( "Blend: Alpha" )] bool UseTranslucent;
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct RenderStateAttribute { string Rule; };

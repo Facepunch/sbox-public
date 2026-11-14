@@ -203,7 +203,10 @@ public static partial class ShaderConverter
 		text.Append( "import sbox.surface;\n\n" );
 		text.Append( "// g_sTrilinearWrap, for occlusion, metalness and self-illumination (the rest use g_sAniso, the surfaces' standard filtering)\n" );
 		text.Append( "SamplerState g_StandardTrilinear < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;\n\n" );
-		text.Append( "[Material]\npublic struct " ).Append( type ).Append( " : ICombinerSurface\n{\n" ).Append( fields ).Append( '\n' ).Append( methods );
+		// Render state: the shader's lines and the standard processing's
+		var stateText = (Block( shader, "COMMON" ) ?? "") + "\n" + ps + "\n" + StandardRenderState;
+		var materialAttributes = ApplyRenderStates( fields, TranslateRenderState( stateText, pre.Combos, FeatureRanges( shader, stateText ) ), notes );
+		text.Append( "[Material" ).Append( materialAttributes ).Append( "]\npublic struct " ).Append( type ).Append( " : ICombinerSurface\n{\n" ).Append( fields ).Append( '\n' ).Append( methods );
 		text.Append( "\tpublic Material Evaluate( SurfaceInput i )\n\t{\n" ).Append( e ).Append( "\t}\n}\n" );
 		return new Result( text.ToString(), type, notes.Distinct().ToList() );
 	}

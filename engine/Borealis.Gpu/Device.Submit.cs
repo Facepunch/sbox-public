@@ -27,6 +27,9 @@ internal sealed unsafe class DeviceQueue : IDisposable
 	/// <summary>The last value a submission made to the GPU signals; <see cref="Submitted"/> is past it while lists are pending.</summary>
 	public ulong Flushed;
 
+	/// <summary>The last pending list, when it ended with its rendering scope suspended (<see cref="CommandList.EndsSuspended"/>).</summary>
+	public CommandList Suspended;
+
 	/// <summary>The value the last submission signals.</summary>
 	public ulong Submitted => Volatile.Read( ref submitted );
 
@@ -203,15 +206,19 @@ public sealed unsafe partial class Device
 		{
 			// Lists waiting to go with this one go first, in one submission, unless this one waits: its waits are its own
 			if ( waitCount > 0 || swapChain is not null ) FlushLocked( queue );
+			PairScopes( queue, list );
 
 			var value = queue.Next();
 			Remember( queue, value, list, queue.Pending.Count );
 			signals[0] = new VkSemaphoreSubmitInfo { sType = VkStructureType.SemaphoreSubmitInfo, semaphore = queue.Timeline, value = value, stageMask = Vulkan.Vk.Stage2AllCommands };
 
-			var count = queue.Pending.Count + 1;
+			// A scope it leaves suspended ends in this submission: nothing after it can resume it
+			var ending = list.EndsSuspended ? ScopeList( queue, list.SuspendedTargets, Vulkan.Vk.RenderingResuming ) : null;
+			var count = queue.Pending.Count + (ending is null ? 1 : 2);
 			var commandBuffers = stackalloc VkCommandBufferSubmitInfo[count];
 			for ( int i = 0; i < queue.Pending.Count; i++ ) commandBuffers[i] = new VkCommandBufferSubmitInfo { sType = VkStructureType.CommandBufferSubmitInfo, commandBuffer = queue.Pending[i] };
-			commandBuffers[count - 1] = new VkCommandBufferSubmitInfo { sType = VkStructureType.CommandBufferSubmitInfo, commandBuffer = list.Handle };
+			commandBuffers[queue.Pending.Count] = new VkCommandBufferSubmitInfo { sType = VkStructureType.CommandBufferSubmitInfo, commandBuffer = list.Handle };
+			if ( ending is not null ) commandBuffers[count - 1] = new VkCommandBufferSubmitInfo { sType = VkStructureType.CommandBufferSubmitInfo, commandBuffer = ending.Handle };
 
 			var submit = new VkSubmitInfo2
 			{
@@ -246,12 +253,52 @@ public sealed unsafe partial class Device
 		var queue = QueueFor( list.Queue );
 		lock ( queue.SubmitLock )
 		{
+			PairScopes( queue, list );
 			var value = queue.Next();
 			Remember( queue, value, list, -1 );
 			queue.Pending.Add( list.Handle );
+			queue.Suspended = list.EndsSuspended ? list : null;
 			return list.Submitted = new SyncPoint( list.Queue, value );
 		}
 	}
+
+	/// <summary>
+	/// Before <paramref name="list"/> goes after the pending lists (with <see cref="DeviceQueue.SubmitLock"/> held): a
+	/// rendering scope the last one left suspended that this one doesn't resume on the same targets is ended, and a scope this
+	/// one resumes that nothing left suspended is begun, each by a list of its own between them.
+	/// </summary>
+	void PairScopes( DeviceQueue queue, CommandList list )
+	{
+		var open = queue.Suspended;
+		queue.Suspended = null;
+		if ( open is not null && !(list.StartsResumed && open.SuspendedTargets.Matches( list.ResumedTargets )) )
+		{
+			queue.Pending.Add( ScopeList( queue, open.SuspendedTargets, Vulkan.Vk.RenderingResuming ).Handle );
+			open = null;
+		}
+
+		if ( list.StartsResumed && open is null ) queue.Pending.Add( ScopeList( queue, list.ResumedTargets, Vulkan.Vk.RenderingSuspending ).Handle );
+	}
+
+	/// <summary>A list holding one empty rendering scope on <paramref name="targets"/>, to pair suspended and resumed scopes.</summary>
+	CommandList ScopeList( DeviceQueue queue, RenderingTargets targets, uint flags )
+	{
+		var list = BeginCommandList( queue.Type, "Rendering scope pairing" );
+		list.RecordScope( targets, flags );
+		list.End();
+		Interlocked.Increment( ref scopePairings );
+		lock ( recentSubmissions ) Tally( list );
+		return list;
+	}
+
+	/// <summary>
+	/// Lists added between submitted ones to end a rendering scope left suspended that the next didn't resume, or to begin one
+	/// it resumed that nothing left suspended (<see cref="RenderingFlags"/>). For profiling and tests: each costs an empty
+	/// render pass on the GPU.
+	/// </summary>
+	public long ScopePairings => Interlocked.Read( ref scopePairings );
+
+	long scopePairings;
 
 	/// <summary>Submit every list <see cref="SubmitLater"/> is holding, on every queue.</summary>
 	public void Flush()
@@ -268,6 +315,13 @@ public sealed unsafe partial class Device
 	void FlushLocked( DeviceQueue queue )
 	{
 		if ( queue.Pending.Count == 0 ) return;
+
+		// A scope the last list left suspended ends in this submission
+		if ( queue.Suspended is { } open )
+		{
+			queue.Pending.Add( ScopeList( queue, open.SuspendedTargets, Vulkan.Vk.RenderingResuming ).Handle );
+			queue.Suspended = null;
+		}
 
 		// The lists took values up to the queue's last; signalling it reaches all of them
 		var value = queue.Submitted;
@@ -301,7 +355,26 @@ public sealed unsafe partial class Device
 		{
 			recentSubmissions[recentNext] = (queue.Type, value, list.Name, heldBefore, Stopwatch.GetTimestamp(), list.MarkerSlot);
 			recentNext = (recentNext + 1) % recentSubmissions.Length;
+			Tally( list );
 		}
+	}
+
+	/// <summary>
+	/// What the lists submitted so far recorded, added up (<see cref="CommandList.Counts"/>): lists, rendering scopes begun
+	/// (resumed ones included), barrier calls, those that wait for every stage, and resumed scopes. For profiling: take the
+	/// difference over a run of frames.
+	/// </summary>
+	public (long Lists, long Scopes, long Barriers, long FullBarriers, long Resumed) Recorded
+	{
+		get { lock ( recentSubmissions ) return recorded; }
+	}
+
+	(long Lists, long Scopes, long Barriers, long FullBarriers, long Resumed) recorded;
+
+	void Tally( CommandList list )
+	{
+		var c = list.Counts;
+		recorded = (recorded.Lists + 1, recorded.Scopes + c.Scopes, recorded.Barriers + c.Barriers, recorded.FullBarriers + c.FullBarriers, recorded.Resumed + c.Resumed);
 	}
 
 	/// <summary>

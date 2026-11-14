@@ -25,7 +25,7 @@ namespace Sandbox.BorealisLab.Maps;
 /// <item><c>-capture folder</c> - save each view's frame (material objects, shadows) as <c>map-view.png</c>.</item>
 /// <item><c>-out folder</c> - where <c>map.md</c> and <c>map.csv</c> go (default <c>screenshots/borealislab/map</c>).</item>
 /// <item><c>-texture-size N</c> (1024) - mips above this are left out, to load faster.</item>
-/// <item><c>-validation</c> - the Khronos validation layer.</item>
+/// <item><c>-validation</c> - the Khronos validation layer; <c>-sync-validation</c> with synchronisation checked too. Each message is counted by id and the counts printed at the end.</item>
 /// <item><c>-real</c> - draw it with Borealis's renderer and the map's own materials and shaders instead (<see cref="MapRealRun"/>).</item>
 /// <item><c>-borealis-driver-names</c> - introduce the device to the driver as Borealis instead of as native's names.</item>
 /// </list>
@@ -86,13 +86,15 @@ internal static class MapRun
 		if ( unoptimised.Length > 0 ) Console.WriteLine( $"WARNING: {unoptimised} built without optimisation (Debug). These numbers aren't the renderer's." );
 
 		var errors = 0;
+		var messageCounts = new System.Collections.Concurrent.ConcurrentDictionary<string, int>();
 		var driverNames = !Args.Has( "-borealis-driver-names" );
 		using var window = new SdlWindow( new SdlWindowOptions { Title = $"Borealis Lab: {ident} on Borealis.Gpu", Width = width, Height = height } );
 		using var gpu = GpuDevice.Create( new DeviceOptions
 		{
 			ApplicationName = driverNames ? "Sbox" : "Borealis Lab map",
 			EngineName = driverNames ? "Source2" : "Borealis",
-			Validation = Args.Has( "-validation" ),
+			Validation = Args.Has( "-validation" ) || Args.Has( "-sync-validation" ),
+			SynchronizationValidation = Args.Has( "-sync-validation" ),
 			InstanceExtensions = Sdl.VulkanInstanceExtensions,
 			// game/.source2/borealispipelines, as the game keeps it; -no-pipeline-cache starts cold and saves nothing
 			PipelineCacheFolder = Args.Has( "-no-pipeline-cache" ) ? null : Path.GetFullPath( Path.Combine( AppContext.BaseDirectory, "..", "..", ".source2", "borealispipelines" ) ),
@@ -100,6 +102,7 @@ internal static class MapRun
 			{
 				if ( m.Severity < MessageSeverity.Warning ) return;
 				if ( m.Severity == MessageSeverity.Error ) Interlocked.Increment( ref errors );
+				messageCounts.AddOrUpdate( $"[{m.Severity}] {m.Id}", 1, ( _, n ) => n + 1 );
 				if ( errors < 20 ) Console.WriteLine( $"[{m.Severity}] {m.Id}: {m.Text}" );
 			},
 		} );
@@ -123,6 +126,7 @@ internal static class MapRun
 		if ( Args.Has( "-real" ) )
 		{
 			var code = MapRealRun.Run( gpu, window, swapChain, folder, core, new MapRealRun.Options( ident, views, width, height, samples, frames, warmup, captures, output, unoptimised ) );
+			foreach ( var (id, count) in messageCounts.OrderByDescending( x => x.Value ) ) Console.WriteLine( $"{count,8} {id}" );
 			return code != 0 || gpu.ValidationErrors > 0 || errors > 0 ? Math.Max( code, 1 ) : 0;
 		}
 
