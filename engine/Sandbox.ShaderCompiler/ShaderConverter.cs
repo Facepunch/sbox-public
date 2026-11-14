@@ -54,6 +54,9 @@ public static partial class ShaderConverter
 		if ( main.Body is null ) return new Result( null, type, ["no MainPs"] );
 		if ( !Regex.IsMatch( main.Body, @"\bMaterial::(From|Init)\b|\bShadingModelStandard::Shade\b" ) )
 		{
+			// The final combiner shape: the standard processing with the shader's features, lit by the combiner
+			if ( StandardCombiner( shader, name, ps, main.Body, type ) is { } standard ) return standard;
+
 			return new Result( null, type, [ps.Contains( "FinalCombiner", StringComparison.Ordinal )
 				? "lit through the legacy FinalCombiner path (complex's), not a Material and Shade"
 				: "not a material shader: MainPs doesn't build a Material and Shade it"] );

@@ -33,6 +33,14 @@ public struct Material
 	public float2 OpacityUvScale = 1;
 	public bool BackfaceTransmission = false;
 
+	// Factors on the diffuse and specular colours the combiner lights with (generic.shader's specular switched off, and
+	// the share its self-illumination mask takes off both)
+	public float DiffuseScale = 1;
+	public float SpecularScale = 1;
+
+	// Unlit, as the final combiner's S_UNLIT: the diffuse colour and emission as they are, no lights
+	public bool Unlit = false;
+
 	/// Blend two surfaces' properties, as common/material.hlsl's Material::lerp does (the normal renormalized).
 	public static Material Lerp( Material a, Material b, float amount )
 	{
@@ -256,5 +264,11 @@ public interface ICompositeSurface : ISurface
 /// material's direct-light occlusion factors and its own alpha-test cutoff. For surfaces standing in for complex-style
 /// materials, so they draw as those do.
 public interface ICombinerSurface : ISurface
+{
+}
+
+/// An interpolated surface (IInterpolatedSurface) lit through the final combiner, as ICombinerSurface is
+/// (vertex_color.shader's mesh colour).
+public interface IInterpolatedCombinerSurface : IInterpolatedSurface
 {
 }

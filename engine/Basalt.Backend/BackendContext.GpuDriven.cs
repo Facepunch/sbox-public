@@ -68,6 +68,11 @@ internal sealed partial class BackendContext
 
 		/// <summary>With <see cref="Ids"/>: its variant has no pixel shader, so <c>basalt_gpu_driven_ids</c> draws it.</summary>
 		public bool IdsShader;
+
+		/// <summary>While a census runs: its number in the frame (-1 until it draws), shader name and distinct materials.</summary>
+		public int CensusId;
+		public string CensusShader;
+		public int CensusMaterials;
 	}
 
 	readonly List<GpuDrivenBucket> gpuDrivenBuckets = new();
@@ -83,6 +88,7 @@ internal sealed partial class BackendContext
 	/// <summary>Count a batch left to the classic path, for the report (<see cref="BackendDevice.GpuDrivenLeftClassic"/>).</summary>
 	void LeftClassic( ShaderFile shader, object mode, string why )
 	{
+		if ( Census ) device.Census?.Left( $"{DrawCensus.ShaderName( shader.Name )} {mode} ({why})" );
 		if ( !device.TimeDraws ) return;
 		device.GpuDrivenLeftClassic.AddOrUpdate( $"{shader.Name} {mode} ({why})", 1, static ( _, n ) => n + 1 );
 	}
@@ -210,6 +216,7 @@ internal sealed partial class BackendContext
 
 		SetObjectAttributes( null );
 		if ( gpuDrivenBucketCount == 0 ) return;
+		if ( Census ) CensusBuckets( batches );
 
 		if ( gpuCull )
 		{
@@ -713,7 +720,9 @@ internal sealed partial class BackendContext
 				bound = false;
 			}
 
+			if ( Census ) censusCompacted = run.First >= totalFragments;
 			DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, run.Page, run.Format, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count, compact ? frameOffset + runsOffset + i * 8 + 4 : -1 );
+			censusCompacted = false;
 		}
 
 		// Debug only: the forward pass's multi-draws again, into the figure's targets
@@ -877,6 +886,7 @@ internal sealed partial class BackendContext
 			var run = cullRuns[i];
 			var bucket = gpuDrivenBuckets[run.Bucket];
 			if ( !bucket.Ids ) continue;
+			var censusBefore = Census ? PassTimer.Recorded.Of( r.List ) : default;
 
 			if ( run.Bucket != lastBucket )
 			{
@@ -915,6 +925,7 @@ internal sealed partial class BackendContext
 			r.List.SetIndexBuffer( run.Page, run.Format, 0 );
 			r.List.DrawIndexedIndirectCount( frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, frameBuffer, frameOffset + runsOffset + i * 8 + 4, run.Count, GpuDrivenTables.CommandStride );
 			gpuDrivenRuns++;
+			if ( Census ) CensusMultiDraw( bucket, DrawCensus.Path.BucketIds, censusBefore, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count, frameOffset + runsOffset + i * 8 + 4 );
 		}
 
 		r.List.EndRendering();
@@ -981,13 +992,37 @@ internal sealed partial class BackendContext
 	/// <summary>A bucket's key for attributes: the same for attributes that differ only in what each draw's lighting record holds.</summary>
 	static long AttributesKey( ShaderParameters attributes ) => attributes switch { null => 0L, BackendParameters parameters => parameters.LightingFreeKey, _ => (uint)RuntimeHelpers.GetHashCode( attributes ) | 1L << 62 };
 
+	/// <summary>
+	/// Whether two GPU-driven variants draw the same way: the same one, or the same shader, mode, combos' code,
+	/// specialization constants, samplers and resolved render state. Materials whose render-state or sampler expressions
+	/// evaluate differently get variants of their own (<see cref="ShaderLibrary"/> keys them by the evaluated values), but
+	/// those that end in the same pipeline and sets can share a bucket: its records are laid out by the same combos.
+	/// </summary>
+	static bool SameDrawing( ShaderVariant a, ShaderVariant b )
+	{
+		if ( ReferenceEquals( a, b ) ) return true;
+		if ( a is null || b is null || !ReferenceEquals( a.Shader, b.Shader ) || !ReferenceEquals( a.Mode, b.Mode ) ) return false;
+		if ( !SameStage( a.Vertex, b.Vertex ) || !SameStage( a.Pixel, b.Pixel ) ) return false;
+		return SameState( a.State, b.State ) && System.Linq.Enumerable.SequenceEqual( a.Resources, b.Resources );
+	}
+
+	static bool SameStage( ShaderStage a, ShaderStage b ) => a is null || b is null
+		? a is null && b is null
+		: ReferenceEquals( a.Dynamic, b.Dynamic ) && MemoryExtensions.SequenceEqual<SpecializationConstant>( a.Constants, b.Constants );
+
+	static bool SameState( ShaderPipelineState a, ShaderPipelineState b ) => a.Cull == b.Cull && a.Wireframe == b.Wireframe && a.DepthClip == b.DepthClip
+		&& a.DepthBiasConstant == b.DepthBiasConstant && a.DepthBiasSlope == b.DepthBiasSlope && a.DepthTest == b.DepthTest && a.DepthWrite == b.DepthWrite
+		&& a.DepthCompare == b.DepthCompare && a.StencilTest == b.StencilTest && a.StencilFront == b.StencilFront && a.StencilBack == b.StencilBack
+		&& a.StencilReadMask == b.StencilReadMask && a.StencilWriteMask == b.StencilWriteMask && a.StencilReference == b.StencilReference
+		&& a.AlphaToCoverage == b.AlphaToCoverage && MemoryExtensions.SequenceEqual<BlendState>( a.Blend, b.Blend );
+
 	GpuDrivenBucket FindBucket( ShaderVariant variant, ShaderParameters attributes, long key, bool depthOnly, bool noColor, uint pixelMaterial, BackendMaterial material, string mode )
 	{
 		// Attributes that differ only in their lighting share a bucket: the variants read it from each draw's lighting record
 		for ( int i = 0; i < gpuDrivenBucketCount; i++ )
 		{
 			var bucket = gpuDrivenBuckets[i];
-			if ( ReferenceEquals( bucket.Variant, variant ) && bucket.AttributesKey == key && bucket.DepthOnly == depthOnly && bucket.NoColor == noColor && bucket.PixelMaterial == pixelMaterial ) return bucket;
+			if ( SameDrawing( bucket.Variant, variant ) && bucket.AttributesKey == key && bucket.DepthOnly == depthOnly && bucket.NoColor == noColor && bucket.PixelMaterial == pixelMaterial ) return bucket;
 		}
 
 		if ( gpuDrivenBucketCount == gpuDrivenBuckets.Count ) gpuDrivenBuckets.Add( new GpuDrivenBucket() );
@@ -1020,6 +1055,7 @@ internal sealed partial class BackendContext
 		BufferHandle page, IndexFormat format, BufferHandle commands, long offset, int count, long countOffset = -1 )
 	{
 		var r = recording;
+		var censusBefore = Census ? PassTimer.Recorded.Of( r.List ) : default;
 		if ( !bound && bucket.Surface is not null )
 		{
 			BindSurfaceGpuDriven( bucket, bucket.NoColor ? Format.Unknown : color, depth, samples, ids: false );
@@ -1045,6 +1081,7 @@ internal sealed partial class BackendContext
 		if ( countOffset >= 0 ) r.List.DrawIndexedIndirectCount( commands, offset, commands, countOffset, count, GpuDrivenTables.CommandStride );
 		else r.List.DrawIndexedIndirect( commands, offset, count, GpuDrivenTables.CommandStride );
 		gpuDrivenRuns++;
+		if ( Census ) CensusMultiDraw( bucket, DrawCensus.Path.Bucket, censusBefore, commands, offset, count, countOffset );
 	}
 
 	/// <summary>

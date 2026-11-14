@@ -274,6 +274,86 @@ public class WorkTests
 	}
 
 	/// <summary>
+	/// An aggregate's fragments keep a run of transform entries, one per fragment in order: frame entries the first frame it's
+	/// drawn, its run after that, written again only when its tint changes, and what the buffer a frame draws with holds stays
+	/// what the fragments are as aggregates change, go and come.
+	/// </summary>
+	[TestMethod]
+	public void KeptAggregateRunsReachEveryBuffer()
+	{
+		static AggregateObject Make( float y ) => new( TestMesh( false ), Enumerable.Range( 0, 4 ).Select( i => new AggregateObject.FragmentDraw
+		{
+			Transform = Matrix3x4.Identity with { Row1 = new Vector4( 0, 1, 0, y + i ) },
+			BoundsMin = new Vector3( 19, y + i - 1, -1 ),
+			BoundsMax = new Vector3( 21, y + i + 1, 1 ),
+			DrawTint = new Vector3( 1, 0.5f + i * 0.1f, 1 ),
+			Args = new GpuBuffer.IndirectDrawIndexedArguments { IndexCount = 3, InstanceCount = 1, FirstInstance = (uint)i },
+		} ).ToArray() );
+
+		var world = new RenderWorld();
+		for ( int i = 0; i < 40; i++ ) world.Add( Make( i % 10 - 5 ) );
+		var view = LookingDownX();
+		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var system = new RenderSystem();
+		var transforms = system.Transforms;
+		var random = new Random( 5 );
+
+		void Frame()
+		{
+			RenderHost.Current.NextFrame();
+			system.Render( world, view, target );
+		}
+
+		// Runs are made between frames, for the aggregates that wanted one
+		for ( int i = 0; i < 3; i++ ) Frame();
+		Assert.AreEqual( 0, transforms.Count, "no frame entries once every aggregate has its run" );
+
+		var writes = transforms.KeptWrites;
+		for ( int i = 0; i < 4; i++ ) Frame();
+		Assert.AreEqual( writes, transforms.KeptWrites, "nothing changed, so nothing written" );
+		Assert.AreEqual( 0, transforms.KeptUploaded, "or uploaded" );
+
+		((AggregateObject)world.Objects[7]).Tint = new Color( 0.5f, 1, 1 );
+		Frame();
+		Assert.AreEqual( writes + 4, transforms.KeptWrites, "a new tint rewrites its four fragments" );
+
+		for ( int frame = 0; frame < 40; frame++ )
+		{
+			for ( int c = 0; c < 4; c++ )
+			{
+				var obj = (AggregateObject)world.Objects[random.Next( world.Count )];
+				switch ( random.Next( 3 ) )
+				{
+					case 0: obj.Tint = new Color( (float)random.NextDouble(), 1, 1 ); break;
+					case 1: world.Remove( obj ); break;
+					default: world.Add( Make( random.Next( 10 ) - 5 ) ); break;
+				}
+			}
+
+			Frame();
+			var entries = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, TransformBuffer.Entry>( ((HeadlessBuffer)transforms.Current.Resource).Contents );
+			var drawn = 0;
+			foreach ( var obj in world.Objects )
+			{
+				var aggregate = (AggregateObject)obj;
+				if ( aggregate.TransformsGeneration != transforms.Generation ) continue;
+
+				for ( int i = 0; i < aggregate.Fragments.Length; i++ )
+				{
+					var fragment = aggregate.Fragments[i];
+					var tint = new Color( aggregate.Tint.r * fragment.DrawTint.x, aggregate.Tint.g * fragment.DrawTint.y, aggregate.Tint.b * fragment.DrawTint.z, aggregate.Tint.a );
+					var expected = new TransformBuffer.Entry { Row0 = fragment.Transform.Row0, Row1 = fragment.Transform.Row1, Row2 = fragment.Transform.Row2, Alpha = tint.a, TintRgb888 = TransformBuffer.PackRgb888( tint ) };
+					Assert.AreEqual( expected, entries[transforms.InstanceSlot( aggregate.FirstInstance + i )], $"frame {frame}, aggregate {obj.Index}, fragment {i}" );
+				}
+
+				drawn++;
+			}
+
+			Assert.IsTrue( drawn > 30, $"{drawn} drawn" );
+		}
+	}
+
+	/// <summary>
 	/// Bins nothing draws with are dropped, so objects taking new attributes every frame don't pile them up, and an object out
 	/// of view for longer than a bin lives finds its bin again and still matches a rebuild.
 	/// </summary>

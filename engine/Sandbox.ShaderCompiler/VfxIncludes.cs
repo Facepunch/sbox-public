@@ -132,6 +132,14 @@ internal static partial class VfxIncludes
 					result.Specialized = true;
 					any = true;
 					break;
+				case "Source":
+					result.Source = argument;
+					any = true;
+					break;
+				case "SourceArg":
+					result.SourceArg = argument;
+					any = true;
+					break;
 			}
 		}
 
@@ -186,4 +194,10 @@ public sealed class Annotations
 
 	/// <summary><c>SpecializedConstant()</c>: vfx makes it a specialization constant; here it stays a constant.</summary>
 	public bool Specialized { get; set; }
+
+	/// <summary>A value the engine computes per draw (<c>Source( Viewport )</c>, <c>Source( InvTextureDim )</c>), as written; null for none.</summary>
+	public string Source { get; set; }
+
+	/// <summary>The variable a texture-derived <see cref="Source"/> reads (<c>SourceArg( g_tColor )</c>); null for none.</summary>
+	public string SourceArg { get; set; }
 }

@@ -323,6 +323,10 @@ public sealed class ShaderLibrary : IDisposable
 			return fallback is null ? null : Variant( fallback, mode, [], dynamicCombos, attributes, gpuDriven );
 		}
 
+		// A shader with a module draws from it; one whose module doesn't compile draws from its programs
+		if ( !gpuDriven && Modules is { } modules && modules.Has( shader ) && modules.Compile( shader, drawMode, features, dynamicCombos, attributes ) is { } compiled )
+			return ModuleVariant( shader, drawMode, compiled );
+
 		if ( gpuDriven )
 		{
 			shader = GpuDriven( shader );
@@ -361,6 +365,27 @@ public sealed class ShaderLibrary : IDisposable
 			variants[key] = variant;
 			return variant;
 		}
+	}
+
+	/// <summary>
+	/// Where shaders that have source modules are compiled from (pass modules: docs/managed/shader-format-replacement.md);
+	/// null draws every shader from its compiled programs.
+	/// </summary>
+	public IShaderModules Modules { get; set; }
+
+	readonly Dictionary<string, ShaderVariant> moduleVariants = new( StringComparer.Ordinal );
+
+	ShaderVariant ModuleVariant( ShaderFile shader, ShaderMode mode, ModuleProgram program )
+	{
+		var key = $"{shader.Name}|{mode.Name}|{program.Key}";
+		lock ( moduleVariants )
+		{
+			if ( moduleVariants.TryGetValue( key, out var known ) ) return known;
+		}
+
+		ShaderStage Stage( ModuleStage stage ) => stage is null ? null : new ShaderStage( this, shader, stage );
+		var variant = new ShaderVariant( this, shader, mode, Stage( program.Vertex ), Stage( program.Pixel ), Stage( program.Compute ), fromModule: true );
+		lock ( moduleVariants ) return moduleVariants.TryAdd( key, variant ) ? variant : moduleVariants[key];
 	}
 
 	readonly record struct VariantKey( ShaderMode Mode, DynamicCombo Vertex, DynamicCombo Pixel, DynamicCombo Compute, string Constants );

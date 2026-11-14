@@ -165,6 +165,7 @@ internal sealed partial class BackendContext : GpuContext
 		SetObjectAttributes( null );
 		recording.BindVersion = -1;
 		recording.Active = this;
+		CensusBegin();
 	}
 
 	public override void Submit( GpuSwapChain swapChain = default ) => SubmitNext();
@@ -172,6 +173,7 @@ internal sealed partial class BackendContext : GpuContext
 	public override void SubmitNext()
 	{
 		if ( recording is null ) return;
+		if ( Census ) CensusScope( null, pop: false );
 
 		try
 		{
@@ -678,6 +680,7 @@ internal sealed partial class BackendContext : GpuContext
 	public override GpuScope BeginGpuScope( string name )
 	{
 		if ( recording is null ) return default;
+		if ( Census ) CensusScope( name, pop: false );
 		List.BeginLabel( name );
 		if ( device.PassTimer is not { } timer ) return new GpuScope( 1, false );
 
@@ -692,6 +695,7 @@ internal sealed partial class BackendContext : GpuContext
 	public override void EndGpuScope( GpuScope scope )
 	{
 		if ( recording is null || scope.Marker == IntPtr.Zero ) return;
+		if ( Census ) CensusScope( null, pop: true );
 		if ( scope.Marker > 1 && device.PassTimer is { } timer )
 		{
 			var timed = (int)scope.Marker - 2;

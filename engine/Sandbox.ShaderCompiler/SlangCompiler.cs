@@ -56,7 +56,7 @@ public sealed partial class SlangCompiler
 	static Dictionary<string, string> Defines( StageKind stage ) => new()
 	{
 		["SHADER_MODEL"] = "60",
-		["PROGRAM"] = stage == StageKind.Vertex ? "1" : "2",
+		["PROGRAM"] = stage switch { StageKind.Vertex => "1", StageKind.Compute => "6", _ => "2" },
 		["D3D"] = "1",
 		["VULKAN"] = "1",
 		["DXC"] = "1",
@@ -112,14 +112,15 @@ public sealed partial class SlangCompiler
 			var layout = ReflectMaterial( path, source, material.Name, directory );
 			var displaces = material.Interfaces.Contains( "IVertexSurface" );
 			var lit = material.Interfaces.Contains( "ILitSurface" );
-			var interpolated = material.Interfaces.Contains( "IInterpolatedSurface" );
+			var interpolatedCombiner = material.Interfaces.Contains( "IInterpolatedCombinerSurface" );
+			var interpolated = interpolatedCombiner || material.Interfaces.Contains( "IInterpolatedSurface" );
 			var sunLit = material.Interfaces.Contains( "ISunLitSurface" );
 			var composite = material.Interfaces.Contains( "ICompositeSurface" );
-			var combiner = material.Interfaces.Contains( "ICombinerSurface" );
+			var combiner = interpolatedCombiner || material.Interfaces.Contains( "ICombinerSurface" );
 			if ( !displaces && !lit && !interpolated && !sunLit && !composite && !combiner && !material.Interfaces.Contains( "ISurface" ) )
-				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface, ISunLitSurface, ICompositeSurface or ICombinerSurface" );
-			if ( combiner && (lit || sunLit || composite || interpolated) )
-				throw new ShaderCompileException( path, $"{material.Name}: an ICombinerSurface can't also be an ILitSurface, ISunLitSurface, ICompositeSurface or IInterpolatedSurface yet" );
+				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface, ISunLitSurface, ICompositeSurface, ICombinerSurface or IInterpolatedCombinerSurface" );
+			if ( combiner && (lit || sunLit || composite || (interpolated && !interpolatedCombiner)) )
+				throw new ShaderCompileException( path, $"{material.Name}: an ICombinerSurface can't also be an ILitSurface, ISunLitSurface, ICompositeSurface or IInterpolatedSurface yet (an IInterpolatedCombinerSurface is both)" );
 			if ( interpolated && (displaces || lit || sunLit || composite) )
 				throw new ShaderCompileException( path, $"{material.Name}: an IInterpolatedSurface can't also be an IVertexSurface, ILitSurface, ISunLitSurface or ICompositeSurface yet" );
 			if ( lit && sunLit )
@@ -296,8 +297,8 @@ public sealed partial class SlangCompiler
 		var opacity = opacityField is null ? "0" : $"m.{opacityField}.Slot";
 		var keep = lit ? " s_LitSurface = m;" : "";
 		var output = interpolated ? $"SurfaceVertexOutputWith<{type}.Varyings>" : "SurfaceVertexOutput";
-		var surface = interpolated ? $"SurfaceWithVaryings<{type}>" : type;
-		var wrap = interpolated ? $" SurfaceWithVaryings<{type}> s; s.Surface = m; s.Values = i.Varyings;" : "";
+		var surface = interpolated ? $"{(combiner ? "SurfaceWithVaryingsCombiner" : "SurfaceWithVaryings")}<{type}>" : type;
+		var wrap = interpolated ? $" {surface} s; s.Surface = m; s.Values = i.Varyings;" : "";
 		var argument = interpolated ? "s" : "m";
 		string Shade( bool alphaTest ) => $"{type} m = SurfaceRecord<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{keep}{wrap} return {forward}<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} );";
 		// Every pixel entry takes the facing, so a two-sided material's back faces shade with the normal turned to the viewer

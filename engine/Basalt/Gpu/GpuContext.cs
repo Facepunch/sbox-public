@@ -265,6 +265,15 @@ internal abstract class GpuContext : IDisposable
 	internal virtual bool GpuDriven => false;
 
 	/// <summary>
+	/// Whether a draw census is counting what this context records (<c>basaltlab -drawcensus</c>, debug only): features then
+	/// say what each draw is in <see cref="CensusNote"/>, and the frame names its scopes by view. Off, nothing is counted.
+	/// </summary>
+	internal bool Census;
+
+	/// <summary>While <see cref="Census"/>: what the next model draw is and why it isn't GPU-driven, which the census takes.</summary>
+	internal string CensusNote;
+
+	/// <summary>
 	/// Before a frame's segments record: get <paramref name="view"/>'s state for <see cref="DrawGpuDriven"/>'s
 	/// visibility-driven pass ready (cleared once, here, for every call that then writes into it).
 	/// </summary>

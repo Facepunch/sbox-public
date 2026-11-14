@@ -553,7 +553,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal void DrawGpuDrivenLeft( GpuContext context, ViewPass view, ReadOnlySpan<DrawItem> items, MeshLayer layer, ref RenderStats stats )
 	{
 		if ( items.IsEmpty ) return;
-		DrawItems( context, view, CollectionsMarshal.AsSpan( view.State<RunLists>( this ).Opaque ), items, layer, ref stats );
+		DrawItems( context, view, CollectionsMarshal.AsSpan( view.State<RunLists>( this ).Opaque ), items, layer, ref stats, MeshRuns.Opaque, left: true );
 	}
 
 	/// <summary>A GPU-driven draw's triangles (over its instances) and instances, for the stats.</summary>
@@ -561,6 +561,29 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	{
 		ref readonly var run = ref CollectionsMarshal.AsSpan( view.State<RunLists>( this ).Opaque )[item.Run];
 		return ((long)(run.Mesh.DrawsForLod( run.Lod )[item.Draw].IndexCount / 3) * run.Count, run.Count);
+	}
+
+	/// <summary>
+	/// For a draw census (<see cref="GpuContext.Census"/>): what a run's draws are and why they aren't GPU-driven, by
+	/// <see cref="TakeGpuDriven"/>'s rules.
+	/// </summary>
+	static string CensusNote( in Run run, MeshRuns list, bool left )
+	{
+		var kind = run.Custom is not null ? $"custom object ({run.Custom.GetType().Name})"
+			: run.Skinned ? (run.Morphable ? "skinned mesh, morphs" : run.Deformed ? "skinned mesh, deformed" : "skinned mesh")
+			: run.Morphable ? "mesh with morphs" : "static mesh";
+		var why = left ? "the device's GPU-driven path left it"
+			: list != MeshRuns.Opaque ? $"{list} list (only the opaque list goes GPU-driven)"
+			: run.Custom is not null ? "custom object"
+			: run.Callbacks is not null ? "draw callbacks"
+			: run.Skinned ? "skinned"
+			: run.Deformed ? "deformed"
+			: run.Morphable ? "morphs"
+			: run.ReadsFrameBuffer ? "reads the frame buffer"
+			: run.CullDraw >= 0 ? "occlusion culled"
+			: run.Attributes is not null ? "object attributes"
+			: RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } ? "occlusion culling on" : "GPU-driven meshes off";
+		return $"{kind}: {why}";
 	}
 
 	/// <summary>The view's draws <see cref="TakeGpuDriven"/> took.</summary>
@@ -1187,11 +1210,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		for ( int bit = 0; bit < lists.ByBit.Length; bit++ )
 		{
 			if ( (layer.Runs & Lists[bit].Runs) == 0 ) continue;
-			DrawListRange( context, view, CollectionsMarshal.AsSpan( lists.ByBit[bit] ), CollectionsMarshal.AsSpan( lists.ItemsByBit[bit] ), layer, first, end, ref start, Lists[bit].Fade, ref stats );
+			DrawListRange( context, view, CollectionsMarshal.AsSpan( lists.ByBit[bit] ), CollectionsMarshal.AsSpan( lists.ItemsByBit[bit] ), layer, first, end, ref start, Lists[bit].Fade, ref stats, Lists[bit].Runs );
 		}
 	}
 
-	void DrawListRange( GpuContext context, ViewPass view, ReadOnlySpan<Run> runs, ReadOnlySpan<DrawItem> items, MeshLayer layer, int first, int end, ref int start, bool fade, ref RenderStats stats )
+	void DrawListRange( GpuContext context, ViewPass view, ReadOnlySpan<Run> runs, ReadOnlySpan<DrawItem> items, MeshLayer layer, int first, int end, ref int start, bool fade, ref RenderStats stats, MeshRuns list )
 	{
 		var from = Math.Max( first - start, 0 );
 		var to = Math.Min( end - start, items.Length );
@@ -1199,11 +1222,15 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( from >= to ) return;
 
 		if ( fade ) context.SetCombo( OpaqueFade, 1 );
-		DrawItems( context, view, runs, items[from..to], layer, ref stats );
+		DrawItems( context, view, runs, items[from..to], layer, ref stats, list );
 		if ( fade ) context.SetCombo( OpaqueFade, 0 );
 	}
 
-	void DrawItems( GpuContext context, ViewPass view, ReadOnlySpan<Run> runs, ReadOnlySpan<DrawItem> items, MeshLayer layer, ref RenderStats stats )
+	/// <summary>
+	/// Draw items of <paramref name="list"/>'s runs; <paramref name="left"/>: draws the device's GPU-driven path took from the
+	/// opaque list and gave back.
+	/// </summary>
+	void DrawItems( GpuContext context, ViewPass view, ReadOnlySpan<Run> runs, ReadOnlySpan<DrawItem> items, MeshLayer layer, ref RenderStats stats, MeshRuns list, bool left = false )
 	{
 		var depth = layer.Depth;
 		var mode = layer.ShaderMode;
@@ -1227,6 +1254,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		{
 			ref readonly var run = ref runs[item.Run];
 			if ( culledOnly && run.CullDraw < 0 ) continue;
+			if ( context.Census ) context.CensusNote = CensusNote( run, list, left );
 
 			// Around each stretch of an object's draws in colour layers: its after-work when another object's draw comes,
 			// then the next one's before-work (CRenderBatchList::DrawCurrentPrimitives, FlushAfterRenderCallback)

@@ -88,6 +88,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		var textureSizes = new TextureSizes( pass.View, pass.Root );
 		var viewCamera = pass.View.Position;
 		var objectCenters = world.BoundsCenter;
+		var versions = world.EntryVersions;
 		var objectExtents = world.BoundsExtents;
 		var occlusion = !shadow && Occlusion is { CullsFragments: true } culler ? culler : null;
 
@@ -117,7 +118,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 				}
 
 				if ( argCount == first ) continue;
-				WriteTransforms( aggregate, transforms );
+				WriteTransforms( aggregate, index, versions[index], transforms );
 				batches.Add( new Batch( aggregate, first, argCount - first, -1, indices / 3, SortKey( aggregate ), TextureSizes.All ) );
 				continue;
 			}
@@ -139,7 +140,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 			var count = argCount - first;
 			if ( count == 0 ) continue;
 
-			WriteTransforms( aggregate, transforms );
+			WriteTransforms( aggregate, index, versions[index], transforms );
 			var cull = occlusion is not null && aggregate.OcclusionCulling ? occlusion.CommitFragments( args.AsSpan( first, count ), centers, extents ) : -1;
 			batches.Add( new Batch( aggregate, first, count, cull, indices / 3, SortKey( aggregate ), TextureSizes.Clamp( textureSize ) ) );
 		}
@@ -149,20 +150,37 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	}
 
 	/// <summary>
-	/// Every fragment's transform, once a frame, with instance ids in fragment order: a draw's base instance is its fragment's
-	/// index (<c>CAggregateSceneObjectDesc::FindOrAllocateFragmentTransforms</c>).
+	/// Every fragment's transform, with instance ids in fragment order, once a frame: a draw's base instance is its fragment's
+	/// index (<c>CAggregateSceneObjectDesc::FindOrAllocateFragmentTransforms</c>). The transforms stay in the aggregate's run of
+	/// kept entries between frames, rewritten when its entry <paramref name="version"/> moves (its tint or the world's
+	/// change of it); its first frame drawn, they're frame entries.
 	/// </summary>
-	static void WriteTransforms( AggregateObject aggregate, TransformBuffer transforms )
+	static void WriteTransforms( AggregateObject aggregate, int index, int version, TransformBuffer transforms )
 	{
 		if ( aggregate.TransformsGeneration == transforms.Generation ) return;
 		aggregate.TransformsGeneration = transforms.Generation;
 
 		var tint = aggregate.Tint;
 		var fragments = aggregate.Fragments;
+		var first = transforms.KeptRunFor( index, aggregate, fragments.Length, version, out var write );
 		for ( int i = 0; i < fragments.Length; i++ )
 		{
-			var drawTint = fragments[i].DrawTint;
-			var slot = transforms.Add( fragments[i].Transform, new Color( tint.r * drawTint.x, tint.g * drawTint.y, tint.b * drawTint.z, tint.a ) );
+			int slot;
+			if ( first >= 0 )
+			{
+				slot = first + i;
+				if ( write )
+				{
+					var drawTint = fragments[i].DrawTint;
+					transforms.WriteKept( slot, fragments[i].Transform, new Color( tint.r * drawTint.x, tint.g * drawTint.y, tint.b * drawTint.z, tint.a ) );
+				}
+			}
+			else
+			{
+				var drawTint = fragments[i].DrawTint;
+				slot = transforms.Add( fragments[i].Transform, new Color( tint.r * drawTint.x, tint.g * drawTint.y, tint.b * drawTint.z, tint.a ) );
+			}
+
 			var instance = transforms.AddInstance( slot );
 			if ( i == 0 ) aggregate.FirstInstance = instance;
 		}
@@ -328,6 +346,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 			ref readonly var draw = ref draws[0];
 			var material = MaterialFor( draw, depth, layer.ForceDepthFastPath, out var stripPixelShader );
 			if ( material is null ) continue;
+			if ( context.Census ) context.CensusNote = gpuDriven is not null ? "aggregate: the device's GPU-driven path left it" : !context.GpuDriven ? "aggregate: GPU-driven off" : phase != OcclusionPhase.None || culledOnly ? "aggregate: occlusion culled" : "aggregate: no transforms";
 
 			// Lightmaps light every draw or none of them (CAggregateSceneObjectDesc::SetBakedLightingAttributes)
 			context.SetObjectAttributes( null, !depth && aggregate.Lightmapped ? aggregate.LightmapAttributes : null );
