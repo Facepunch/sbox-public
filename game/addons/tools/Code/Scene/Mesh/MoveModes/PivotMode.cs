@@ -86,8 +86,7 @@ public sealed class PivotMode : MoveMode
 
 			_moveDelta += delta;
 
-			var target = (_unsnappedPivot + _moveDelta) * _basis.Inverse;
-			Install( tool, Gizmo.Snap( target, _moveDelta * _basis.Inverse ) * _basis );
+			Install( tool, tool.SnapTranslation( _unsnappedPivot, _moveDelta, _basis ) );
 		}
 	}
 
@@ -130,7 +129,7 @@ public sealed class PivotMode : MoveMode
 			return distance < SnapScreenDistance ? vertex.Value : SnapToGrid( position );
 		}
 
-		var plane = new Plane( tool.Pivot.Position, Gizmo.Camera.Ortho ? -Gizmo.Camera.Rotation.Forward : Vector3.Up );
+		var plane = new Plane( tool.Pivot.Position, Gizmo.Camera.Ortho ? -Gizmo.Camera.Rotation.Forward : WorkPlane.Current.Rotation.Up );
 
 		return plane.TryTrace( Gizmo.CurrentRay, out var hit )
 			? SnapToGrid( hit )
@@ -165,9 +164,7 @@ public sealed class PivotMode : MoveMode
 
 	private static Vector3 SnapToGrid( Vector3 position )
 	{
-		return Gizmo.Settings.SnapToGrid || Gizmo.IsCtrlPressed
-			? Gizmo.Snap( position, Vector3.One )
-			: position;
+		return WorkPlane.Snap( position );
 	}
 
 	private static float ScreenDistance( Vector3 a, Vector3 b )

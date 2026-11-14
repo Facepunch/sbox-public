@@ -54,7 +54,7 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 			return mesh;
 		}
 
-		var offset = Vector3.Up * Height;
+		var offset = _plane.Normal * Height;
 		var topPoints = new Vector3[count];
 		for ( var i = 0; i < count; i++ ) topPoints[i] = basePoints[i] + offset;
 
@@ -101,6 +101,8 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 
 	public override void OnUpdate( SceneTrace trace )
 	{
+		UpdateConstructionFrame( trace, true );
+		using var scope = Gizmo.Scope( "ConstructionFrame", ConstructionFrame );
 		if ( Application.IsKeyDown( KeyCode.Escape ) )
 			Cancel();
 
@@ -156,7 +158,7 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 		for ( int i = 0; i < _points.Count; i++ )
 		{
 			var point = _points[i];
-			var size = SceneEditorExtensions.GetGizmoSize( point, 3.0f );
+			var size = GetPointSize( point, 3.0f );
 
 			using ( Gizmo.Scope( $"point {i}" ) )
 			{
@@ -173,7 +175,7 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 						_dragBefore = [.. _points];
 					}
 
-					if ( _plane.TryTrace( Gizmo.CurrentRay, out var newPoint, true ) )
+					if ( _plane.TryTrace( LocalRay, out var newPoint, true ) )
 					{
 						newPoint = GridSnap( newPoint, _plane.Normal );
 
@@ -237,7 +239,7 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 
 	void DrawingStage()
 	{
-		if ( !_plane.TryTrace( Gizmo.CurrentRay, out var point, true ) ) return;
+		if ( !_plane.TryTrace( LocalRay, out var point, true ) ) return;
 
 		point = GridSnap( point, _plane.Normal );
 
@@ -246,7 +248,7 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 
 		if ( !Gizmo.HasHovered )
 		{
-			var size = SceneEditorExtensions.GetGizmoSize( point, 3.0f );
+			var size = GetPointSize( point, 3.0f );
 			Gizmo.Draw.Color = Color.White;
 			Gizmo.Draw.SolidSphere( point, size );
 			Gizmo.Draw.Line( _points.Last(), point );
@@ -257,38 +259,24 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 	{
 		_previewModel = null;
 
-		var tr = trace.Run();
-
-		if ( !tr.Hit )
-		{
-			var plane = new Plane( Gizmo.Camera.Ortho ? -Gizmo.Camera.Rotation.Forward : Vector3.Up, 0.0f );
-			if ( plane.TryTrace( Gizmo.CurrentRay, out var point, true ) )
-			{
-				tr.Hit = true;
-				tr.Normal = plane.Normal;
-				tr.EndPosition = point;
-			}
-		}
-
-		if ( !tr.Hit ) return;
-
-		tr.EndPosition = GridSnap( tr.EndPosition, tr.Normal );
+		if ( !TryGetPlacement( trace, out var point, out var normal ) ) return;
+		point = GridSnap( point, normal );
 
 		if ( Gizmo.WasLeftMousePressed )
 		{
-			_plane = new Plane( tr.EndPosition, tr.Normal );
+			_plane = new Plane( point, normal );
 
 			if ( _points.Count == 0 )
 				_undoStartCount = SceneEditorSession.Active.UndoSystem.Back.Count;
 
-			AddPoint( tr.EndPosition );
+			AddPoint( point );
 		}
 
 		if ( !Gizmo.HasHovered )
 		{
-			var size = SceneEditorExtensions.GetGizmoSize( tr.EndPosition, 3.0f );
+			var size = GetPointSize( point, 3.0f );
 			Gizmo.Draw.Color = Color.White;
-			Gizmo.Draw.SolidSphere( tr.EndPosition, size );
+			Gizmo.Draw.SolidSphere( point, size );
 		}
 	}
 

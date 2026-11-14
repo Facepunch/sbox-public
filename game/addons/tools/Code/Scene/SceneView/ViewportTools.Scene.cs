@@ -78,6 +78,8 @@ partial class ViewportTools
 				group.Layout.Add( snapStep );
 			}
 		}
+
+		BuildWorkPlaneToolbar( layout );
 	}
 
 	private void OpenGizmosMenu()

@@ -36,7 +36,7 @@ public class RotationEditorTool : EditorTool
 			undoScope = null;
 		}
 
-		var basis = Gizmo.Settings.GlobalSpace ? Rotation.Identity : handleRotation;
+		var basis = Gizmo.Settings.GlobalSpace ? WorkPlane.Current.Rotation : handleRotation;
 
 		// Stop updating the handle position if we're dragging
 

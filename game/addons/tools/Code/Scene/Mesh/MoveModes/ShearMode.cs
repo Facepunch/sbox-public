@@ -10,11 +10,13 @@
 public sealed class ShearMode : MoveMode
 {
 	private BBox _startBox;
+	private Rotation _basis;
 	private Dictionary<string, float> _axisDelta = new();
 
 	public override void OnBegin( SelectionTool tool )
 	{
-		_startBox = tool.CalculateSelectionBounds();
+		_basis = tool.GlobalSpace ? tool.CalculateSelectionBasis() : Rotation.Identity;
+		_startBox = _basis == Rotation.Identity ? tool.CalculateSelectionBounds() : tool.CalculateLocalBounds();
 		_axisDelta.Clear();
 	}
 
@@ -25,7 +27,7 @@ public sealed class ShearMode : MoveMode
 			Gizmo.Draw.IgnoreDepth = true;
 			Gizmo.Hitbox.DepthBias = 0.01f;
 			Gizmo.Hitbox.CanInteract = CanUseGizmo;
-			Gizmo.Transform = new Transform( tool.Pivot.Position, Rotation.Identity );
+			Gizmo.Transform = new Transform( tool.Pivot.Position, _basis );
 
 			using var scaler = Gizmo.GizmoControls.PushFixedScale();
 
@@ -161,6 +163,6 @@ public sealed class ShearMode : MoveMode
 
 		var normalizedShear = shearAmount / MathF.Max( constraintSize, 1.0f );
 
-		tool.Shear( center, Rotation.Identity, shearAxis, constraintAxis, normalizedShear );
+		tool.Shear( _basis * center, _basis, shearAxis, constraintAxis, normalizedShear );
 	}
 }

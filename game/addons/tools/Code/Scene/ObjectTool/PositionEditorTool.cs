@@ -49,7 +49,7 @@ public class PositionEditorTool : EditorTool
 
 		var positions = nonSceneGos.Select( x => x.WorldPosition ).ToArray();
 		var centroid = positions.Aggregate( Vector3.Zero, ( sum, p ) => sum + p ) / positions.Length;
-		var handleRotation = Gizmo.Settings.GlobalSpace ? Rotation.Identity : nonSceneGos.FirstOrDefault().WorldRotation;
+		var handleRotation = Gizmo.Settings.GlobalSpace ? WorkPlane.Current.Rotation : nonSceneGos.FirstOrDefault().WorldRotation;
 
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
 		{
@@ -81,7 +81,7 @@ public class PositionEditorTool : EditorTool
 
 				moveDelta = surfaceHit.HasValue ? surfaceHit.Value - handlePosition : moveDelta + delta;
 
-				var snapped = Gizmo.Snap( handlePosition, moveDelta, handleRotation );
+				var snapped = WorkPlane.SnapTranslation( handlePosition, moveDelta, handleRotation, Gizmo.Settings.GlobalSpace );
 				var offset = snapped - handlePosition;
 
 				var alignToSurface = Gizmo.IsAltPressed && surfaceNormal.HasValue;

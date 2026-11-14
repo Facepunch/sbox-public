@@ -65,7 +65,7 @@ public static partial class Gizmo
 
 			using var x = Sandbox.Gizmo.Scope( name, Vector3.Zero, axis );
 
-			if ( Settings.GlobalSpace )
+			if ( Settings.GlobalSpace && axisRotation is null )
 				Transform = Transform.WithRotation( Rotation.Identity );
 
 			using ( Sandbox.Gizmo.Scope( name ) )

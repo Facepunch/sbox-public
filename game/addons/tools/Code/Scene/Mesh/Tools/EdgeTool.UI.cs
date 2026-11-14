@@ -1143,11 +1143,7 @@ partial class EdgeTool
 					{
 						var world = new MeshVertex( component, hVertex ).PositionWorld;
 
-						world = new Vector3(
-							MathF.Round( world.x / grid ) * grid,
-							MathF.Round( world.y / grid ) * grid,
-							MathF.Round( world.z / grid ) * grid
-						);
+						world = WorkPlane.Snap( WorkPlane.Current, world, grid );
 
 						var local = component.WorldTransform.PointToLocal( world );
 						mesh.SetVertexPosition( hVertex, local );

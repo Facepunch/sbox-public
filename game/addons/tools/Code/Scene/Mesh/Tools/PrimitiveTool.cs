@@ -76,11 +76,11 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 			var bounds = mesh.CalculateBounds();
 			mesh.ApplyTransform( new Transform( -bounds.Center ) );
 
-			var rotation = Editor.BuildRotation;
+			var transform = Editor.BuildTransform;
 
 			var go = new GameObject( true, name );
-			go.WorldPosition = rotation * bounds.Center;
-			go.WorldRotation = rotation;
+			go.WorldPosition = transform.PointToWorld( bounds.Center );
+			go.WorldRotation = transform.Rotation;
 			go.IsStatic = true;
 			var c = go.Components.Create<MeshComponent>( false );
 			c.Mesh = mesh;

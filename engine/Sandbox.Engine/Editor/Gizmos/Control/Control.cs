@@ -41,7 +41,7 @@ public static partial class Gizmo
 			using var scaler = PushFixedScale();
 
 			// I don't know if we should even be doing this here or leave it to the implementation
-			if ( Settings.GlobalSpace )
+			if ( Settings.GlobalSpace && axisRotation is null )
 				Transform = Transform.WithRotation( Rotation.Identity );
 
 			Sandbox.Gizmo.Draw.IgnoreDepth = true;

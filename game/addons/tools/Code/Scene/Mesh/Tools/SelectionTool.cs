@@ -100,7 +100,12 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 
 	public virtual Rotation CalculateSelectionBasis()
 	{
-		return Rotation.Identity;
+		return GlobalSpace ? WorkPlane.Current.Rotation : Rotation.Identity;
+	}
+
+	public Vector3 SnapTranslation( Vector3 start, Vector3 movement, Rotation basis )
+	{
+		return WorkPlane.SnapTranslation( start, movement, basis, GlobalSpace );
 	}
 
 	public virtual BBox CalculateSelectionBounds()

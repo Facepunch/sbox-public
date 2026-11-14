@@ -113,7 +113,7 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		{
 			if ( component.GameObject.Components.Create( cableType ) is Component cable )
 			{
-				var localPoints = points.Select( x => x - component.GameObject.WorldPosition ).ToArray();
+				var localPoints = points.Select( x => component.WorldTransform.PointToLocal( ConstructionFrame.PointToWorld( x ) ) ).ToArray();
 				var serialized = cable.Serialize().AsObject();
 				serialized["Material"] = JsonNode.Parse( Json.Serialize( Tool.ActiveMaterial ) );
 				serialized["Size"] = JsonNode.Parse( Json.Serialize( Math.Max( 0.1f, Size ) ) );
@@ -147,6 +147,8 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 	public override void OnUpdate( SceneTrace trace )
 	{
+		UpdateConstructionFrame( trace );
+		using var scope = Gizmo.Scope( "ConstructionFrame", ConstructionFrame );
 		if ( _activeMaterial != Tool.ActiveMaterial )
 		{
 			_activeMaterial = Tool.ActiveMaterial;
@@ -215,7 +217,7 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		for ( int i = 0; i < _points.Count; i++ )
 		{
 			var point = _points[i];
-			var size = SceneEditorExtensions.GetGizmoSize( point, 3.0f );
+			var size = GetPointSize( point, 3.0f );
 			Gizmo.Draw.Color = Color.White;
 			Gizmo.Draw.SolidSphere( point, size );
 		}
@@ -223,7 +225,7 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		if ( _points.Count > 0 && TryGetPoint( trace, out var preview, out var normal ) && !Gizmo.HasHovered )
 		{
 			preview = ApplyPlacementOffset( preview, normal );
-			var size = SceneEditorExtensions.GetGizmoSize( preview, 3.0f );
+			var size = GetPointSize( preview, 3.0f );
 			Gizmo.Draw.Color = Color.White;
 			Gizmo.Draw.SolidSphere( preview, size );
 			Gizmo.Draw.Line( _points[^1], preview );
@@ -267,24 +269,10 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 	bool TryGetPoint( SceneTrace trace, out Vector3 point, out Vector3 normal )
 	{
-		var tr = trace.Run();
-		if ( tr.Hit )
-		{
-			point = tr.EndPosition;
-			normal = tr.Normal;
-			return true;
-		}
-
-		var ground = new Plane( Gizmo.Camera.Ortho ? -Gizmo.Camera.Rotation.Forward : Vector3.Up, 0.0f );
-		if ( ground.TryTrace( Gizmo.CurrentRay, out point, true ) )
-		{
-			normal = ground.Normal;
-			return true;
-		}
-
-		point = default;
-		normal = Vector3.Up;
-		return false;
+		if ( !TryGetPlacement( trace, out point, out normal ) ) return false;
+		if ( ConstructionFrame != Transform.Zero )
+			point = Gizmo.Snap( point, Vector3.One );
+		return true;
 	}
 
 	float[] BuildPathUvs( IReadOnlyList<Vector3> pathPoints, Material material )

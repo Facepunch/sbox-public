@@ -601,11 +601,7 @@ partial class VertexTool
 				{
 					var world = vertex.PositionWorld;
 
-					world = new Vector3(
-						MathF.Round( world.x / grid ) * grid,
-						MathF.Round( world.y / grid ) * grid,
-						MathF.Round( world.z / grid ) * grid
-					);
+					world = WorkPlane.Snap( WorkPlane.Current, world, grid );
 
 					var local = vertex.Transform.PointToLocal( world );
 

@@ -225,7 +225,7 @@ public partial class SceneViewportWidget : Widget
 		State.CameraRotation = Rotation.LookAt( -axisDir, up );
 		State.CameraPosition = pivot + axisDir * distance;
 		State.CameraOrthoHeight = SizeFromDistanceAndFieldOfView( distance, EditorPreferences.CameraFieldOfView );
-		State.GridAxis = ViewportState.GridAxisForDirection( axisDir );
+		State.GridAxis = ViewportState.GridAxisForDirection( Session.WorkPlane.NormalToLocal( axisDir ) );
 
 		_activeCamera.WorldRotation = State.CameraRotation;
 		_activeCamera.WorldPosition = State.CameraPosition;
@@ -412,27 +412,26 @@ public partial class SceneViewportWidget : Widget
 
 	SceneTraceResult? GetCursorTracePosition( Ray ray )
 	{
-		var tr = Session.Scene.Trace.Ray( ray, Gizmo.RayDepth )
-			.UseRenderMeshes( true )
-			.UsePhysicsWorld( false )
-			.Run();
-
-		if ( tr.Hit ) return tr;
-		else
+		var frame = Session.WorkPlane;
+		if ( frame == Transform.Zero )
 		{
-			var plane = new Plane( Vector3.Up, 0.0f );
-			if ( plane.TryTrace( ray, out var point, true, Gizmo.RayDepth ) )
-			{
-				tr = default;
-				tr.Hit = true;
-				tr.Normal = plane.Normal;
-				tr.EndPosition = point;
-				tr.HitPosition = point;
-				return tr;
-			}
+			var tr = Session.Scene.Trace.Ray( ray, Gizmo.RayDepth )
+				.UseRenderMeshes( true )
+				.UsePhysicsWorld( false )
+				.Run();
+			if ( tr.Hit ) return tr;
 		}
 
-		return null;
+		var normal = WantOrtho ? -_activeCamera.WorldRotation.Forward : frame.Rotation.Up;
+		var plane = new Plane( frame.Position, normal );
+		if ( !plane.TryTrace( ray, out var point, true, Gizmo.RayDepth ) ) return null;
+		return new SceneTraceResult
+		{
+			Hit = true,
+			Normal = normal,
+			EndPosition = point,
+			HitPosition = point
+		};
 	}
 
 	public bool TryGetCursorTracePosition( out SceneTraceResult tr )
@@ -565,6 +564,7 @@ public partial class SceneViewportWidget : Widget
 
 		MousePosition = Renderer.FromScreen( Application.CursorPosition ) * Renderer.DpiScale;
 
+		UpdateWorkPlane();
 		UpdateCamera();
 		DressPrefabScene();
 
@@ -691,28 +691,39 @@ public partial class SceneViewportWidget : Widget
 		Gizmo.Camera.Attributes.Set( "ToolsWireframe", Use2DWireframe );
 		Gizmo.Camera.Attributes.Set( "EditorGizmoDpiScale", Renderer.DpiScale );
 
-		if ( State.ShowGrid )
-		{
-			using ( Gizmo.Scope( "grid" ) )
-			{
-				Gizmo.Draw.IgnoreDepth = State.Is2D;
-				Gizmo.Draw.Grid( State.GridAxis, Gizmo.Settings.GridSpacing, State.GridOpacity );
-			}
-		}
-
 		if ( GizmoInstance.Input.IsHovered )
 		{
 			UpdateHovered();
 		}
 
-		Tools.Frame( _activeCamera, Session, GizmoInstance.Input.IsHovered );
+		var editingWorkPlane = Tools.Frame( _activeCamera, Session, GizmoInstance.Input.IsHovered, this );
 
-		_drawGizmosInterface ??= x => x.DrawGizmos( Session.Scene );
-		EditorEvent.RunInterface( _drawGizmosInterface );
-		Session.Scene.EditorDraw();
+		if ( State.ShowGrid )
+		{
+			var frame = Session.WorkPlane;
+			var axis = State.GridAxis;
+			if ( !editingWorkPlane && Tools.CurrentSubTool is MeshEditor.PrimitiveTool { Editor: { } editor } )
+			{
+				frame = editor.BuildTransform;
+				axis = Gizmo.GridAxis.XY;
+			}
+
+			using ( Gizmo.Scope( "grid", frame ) )
+			{
+				Gizmo.Draw.IgnoreDepth = State.Is2D;
+				Gizmo.Draw.Grid( axis, Gizmo.Settings.GridSpacing, State.GridOpacity );
+			}
+		}
+
+		if ( !editingWorkPlane )
+		{
+			_drawGizmosInterface ??= x => x.DrawGizmos( Session.Scene );
+			EditorEvent.RunInterface( _drawGizmosInterface );
+			Session.Scene.EditorDraw();
+			UpdateDragDrops();
+		}
 
 		DrawSelection();
-		UpdateDragDrops();
 
 		DrawCameraSpeedOverlay();
 		DrawOrientationGizmo();

@@ -17,7 +17,7 @@ public sealed class ResizeMode : MoveMode
 	public override void OnBegin( SelectionTool tool )
 	{
 		_basis = tool.CalculateSelectionBasis();
-		_startBox = tool.GlobalSpace ? tool.CalculateSelectionBounds() : tool.CalculateLocalBounds();
+		_startBox = tool.GlobalSpace && _basis == Rotation.Identity ? tool.CalculateSelectionBounds() : tool.CalculateLocalBounds();
 		_box = _startBox;
 	}
 

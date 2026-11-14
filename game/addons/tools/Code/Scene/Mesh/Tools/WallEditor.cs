@@ -357,6 +357,8 @@ public sealed class WallEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 	public override void OnUpdate( SceneTrace trace )
 	{
+		UpdateConstructionFrame( trace );
+		using var scope = Gizmo.Scope( "ConstructionFrame", ConstructionFrame );
 		if ( _activeMaterial != Tool.ActiveMaterial )
 		{
 			_activeMaterial = Tool.ActiveMaterial;
@@ -394,7 +396,7 @@ public sealed class WallEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		Gizmo.Draw.Color = Color.Cyan.WithAlpha( 0.8f );
 		Gizmo.Draw.LineThickness = 1;
 		DrawDashedLine( _offsetAnchor, raised );
-		Gizmo.Draw.ScreenText( text, raised, Vector2.Up * 24 );
+		Gizmo.Draw.ScreenText( text, ConstructionFrame.PointToWorld( raised ), Vector2.Up * 24 );
 	}
 
 	/// <summary>
@@ -410,7 +412,7 @@ public sealed class WallEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 			_offsetDragStart = Application.UnscaledCursorPosition;
 			_offsetDragBase = GroundOffset;
 			_offsetAnchor = _points.Count > 0 ? _points[^1] : Vector3.Zero;
-			if ( new Plane( Vector3.Up, _offsetAnchor.z ).TryTrace( Gizmo.CurrentRay, out var hit, true ) )
+			if ( new Plane( Vector3.Up, _offsetAnchor.z ).TryTrace( LocalRay, out var hit, true ) )
 				_offsetAnchor = hit;
 		}
 
@@ -454,7 +456,7 @@ public sealed class WallEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		if ( Gizmo.IsLeftMouseDown )
 		{
 			var plane = new Plane( Vector3.Up, _points[i].z );
-			if ( plane.TryTrace( Gizmo.CurrentRay, out var hit, true ) )
+			if ( plane.TryTrace( LocalRay, out var hit, true ) )
 			{
 				var offset = (SnapToGrid( hit ) - _points[i]).WithZ( 0 );
 				if ( !_bends[i - 1].AlmostEqual( offset ) )
@@ -582,24 +584,11 @@ public sealed class WallEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 			MathF.Round( point.z / spacing ) * spacing );
 	}
 
-	static bool TryGetPoint( SceneTrace trace, out Vector3 point )
+	bool TryGetPoint( SceneTrace trace, out Vector3 point )
 	{
-		var tr = trace.Run();
-		if ( tr.Hit )
-		{
-			point = SnapToGrid( tr.EndPosition );
-			return true;
-		}
-
-		var ground = new Plane( Vector3.Up, 0.0f );
-		if ( ground.TryTrace( Gizmo.CurrentRay, out point, true ) )
-		{
-			point = SnapToGrid( point );
-			return true;
-		}
-
-		point = default;
-		return false;
+		if ( !TryGetPlacement( trace, out point, out _ ) ) return false;
+		point = SnapToGrid( point );
+		return true;
 	}
 
 	void DrawGizmos( SceneTrace trace )
@@ -642,7 +631,7 @@ public sealed class WallEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 		var closing = _points.Count >= 3 && _points[0].AlmostEqual( preview );
 		Gizmo.Draw.Color = closing ? Color.Green : Color.White;
-		Gizmo.Draw.SolidSphere( preview, 4.0f * Gizmo.Camera.Position.Distance( preview ) / 1000.0f );
+		Gizmo.Draw.SolidSphere( preview, GetPointSize( preview, 4.0f ) );
 		var baseline = preview + Vector3.Up * GroundOffset;
 		if ( GroundOffset != 0 ) DrawDashedLine( preview, baseline );
 		Gizmo.Draw.Line( baseline, baseline + Vector3.Up * Height );
@@ -659,7 +648,7 @@ public sealed class WallEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		var length = a.Distance( b );
 		if ( length < 0.01f ) return;
 
-		var dash = Math.Max( 1f, Gizmo.Camera.Position.Distance( a ) / 150f );
+		var dash = Math.Max( 1f, Gizmo.LocalCameraTransform.Position.Distance( a ) / 150f );
 		var dir = (b - a) / length;
 		for ( float d = 0; d < length; d += dash * 2 )
 			Gizmo.Draw.Line( a + dir * d, a + dir * MathF.Min( d + dash, length ) );
@@ -682,7 +671,7 @@ public sealed class WallEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		var b = _points[i + 1];
 		var mid = (a + b) * 0.5f;
 		var handle = mid + _bends[i];
-		var size = 2.5f * Gizmo.Camera.Position.Distance( handle ) / 1000.0f;
+		var size = GetPointSize( handle, 2.5f );
 
 		using ( Gizmo.Scope( $"wall bend {i}" ) )
 		{
@@ -698,7 +687,7 @@ public sealed class WallEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 				}
 
 				var plane = new Plane( Vector3.Up, mid.z );
-				if ( plane.TryTrace( Gizmo.CurrentRay, out var hit, true ) )
+				if ( plane.TryTrace( LocalRay, out var hit, true ) )
 				{
 					var offset = hit.Distance( mid ) < size * 3 ? Vector3.Zero : (SnapToGrid( hit ) - mid).WithZ( 0 );
 					if ( !_bends[i].AlmostEqual( offset ) )
@@ -728,7 +717,7 @@ public sealed class WallEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 	{
 		if ( _placingIndex >= 0 ) return;
 		var point = _points[i];
-		var size = 3.0f * Gizmo.Camera.Position.Distance( point ) / 1000.0f;
+		var size = GetPointSize( point, 3.0f );
 
 		using ( Gizmo.Scope( $"wall point {i}" ) )
 		{
@@ -746,7 +735,7 @@ public sealed class WallEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 				// Drag across the horizontal plane the point sits on
 				var plane = new Plane( Vector3.Up, _dragBefore.Points[i].z );
-				if ( plane.TryTrace( Gizmo.CurrentRay, out var hit, true ) )
+				if ( plane.TryTrace( LocalRay, out var hit, true ) )
 				{
 					hit = SnapToGrid( hit ).WithZ( _dragBefore.Points[i].z );
 					if ( !_points[i].AlmostEqual( hit ) )
