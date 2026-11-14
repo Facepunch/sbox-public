@@ -33,6 +33,14 @@ public sealed partial class BackendDevice
 	/// <summary>Main thread time each frame may spend making models whose files have been read (<see cref="LoadModelAsync"/>).</summary>
 	public double LoadBudgetMs { get; set; } = 6;
 
+	/// <summary>
+	/// Bytes of buffers and textures each frame may upload for what <see cref="LoadModelAsync"/> and
+	/// <see cref="LoadTextureAsync"/> make, so the GPU isn't held up copying a whole map in one frame.
+	/// </summary>
+	public long LoadUploadBytes { get; set; } = 32 << 20;
+
+	long budgetBytes;
+
 	/// <summary>Models still being read on workers for <see cref="LoadModelAsync"/>.</summary>
 	public int ModelReadsPending => Volatile.Read( ref readsPending );
 
@@ -71,12 +79,17 @@ public sealed partial class BackendDevice
 			return null;
 		}
 
-		made = read.IsCompletedSuccessfully && read.Result is { } file ? BackendModel.Create( this, file, meshGroups ) : null;
+		// Its buffers and textures written with the frame's next submission, not each waited for
+		using ( Gpu.DeferUploads() )
+			made = read.IsCompletedSuccessfully && read.Result is { } file ? BackendModel.Create( this, file, meshGroups ) : null;
 		streamedModels[(path, meshGroups)] = made;
 		return made;
 	}
 
-	/// <summary>Whether this frame's <see cref="LoadBudgetMs"/> has time left; it starts with the first thing made in the frame.</summary>
+	/// <summary>
+	/// Whether this frame's <see cref="LoadBudgetMs"/> and <see cref="LoadUploadBytes"/> have room left; they start with the
+	/// first thing made in the frame.
+	/// </summary>
 	bool WithinBudget()
 	{
 		var now = Stopwatch.GetTimestamp();
@@ -84,9 +97,10 @@ public sealed partial class BackendDevice
 		{
 			budgetFrame = loadFrame;
 			budgetEnd = now + (long)(LoadBudgetMs * Stopwatch.Frequency / 1000);
+			budgetBytes = Gpu.DeferredUploadBytes + LoadUploadBytes;
 		}
 
-		return now <= budgetEnd;
+		return now <= budgetEnd && Gpu.DeferredUploadBytes < budgetBytes;
 	}
 
 	readonly ConcurrentDictionary<string, Task> textureReads = new( StringComparer.OrdinalIgnoreCase );
@@ -113,7 +127,8 @@ public sealed partial class BackendDevice
 		}
 
 		textureReads.TryRemove( path, out _ );
-		return LoadTexture( path );
+		using ( Gpu.DeferUploads() )
+			return LoadTexture( path );
 	}
 
 	Task StartTextureRead( string path )

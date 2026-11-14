@@ -427,9 +427,57 @@ public sealed unsafe partial class Device
 	// Copies outside any frame, which wait
 	//
 
+	// A thread's deferred uploads (DeferUploads): its writes on this device go into one list, not a submission each
+	[ThreadStatic] static Device deferringDevice;
+	[ThreadStatic] static CommandList deferredList;
+
 	/// <summary>
-	/// Copy <paramref name="data"/> into a buffer at <paramref name="offset"/> now, and wait for it. For loading; per-frame
-	/// data goes through <see cref="CommandList.UpdateBuffer"/>.
+	/// Until the scope is disposed, this thread's <see cref="WriteBuffer"/> and <see cref="WriteTexture"/> on this device are
+	/// recorded into one list rather than each submitted and waited for. Disposing it ends the list with a barrier that makes
+	/// the writes visible to everything after it and sends it with the next submission (<see cref="SubmitLater"/>), so work
+	/// submitted after it reads them. For loading many resources in a frame without stalling on each. A scope inside
+	/// another on the same thread shares the outer one.
+	/// </summary>
+	public UploadScope DeferUploads()
+	{
+		if ( deferringDevice is not null ) return default;
+		deferringDevice = this;
+		return new UploadScope( this );
+	}
+
+	/// <summary>See <see cref="DeferUploads"/>.</summary>
+	public readonly struct UploadScope : IDisposable
+	{
+		readonly Device device;
+
+		internal UploadScope( Device device ) => this.device = device;
+
+		/// <summary>Send what the scope recorded with the next submission.</summary>
+		public void Dispose()
+		{
+			if ( device is null ) return;
+			var list = deferredList;
+			deferringDevice = null;
+			deferredList = null;
+			if ( list is null ) return;
+
+			list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead );
+			device.SubmitLater( list );
+		}
+	}
+
+	// The list this thread's writes go into while it defers them, or null
+	CommandList DeferredUploads() => deferringDevice == this ? deferredList ??= BeginCommandList( QueueType.Graphics, "Deferred uploads" ) : null;
+
+	long deferredBytes;
+
+	/// <summary>Bytes written in <see cref="DeferUploads"/> scopes so far, for capping how much a frame uploads.</summary>
+	public long DeferredUploadBytes => Interlocked.Read( ref deferredBytes );
+
+	/// <summary>
+	/// Copy <paramref name="data"/> into a buffer at <paramref name="offset"/> now, and wait for it (or, in a
+	/// <see cref="DeferUploads"/> scope, with the scope's list). For loading; per-frame data goes through
+	/// <see cref="CommandList.UpdateBuffer"/>.
 	/// </summary>
 	public void WriteBuffer( BufferHandle buffer, ReadOnlySpan<byte> data, long offset = 0 )
 	{
@@ -437,6 +485,13 @@ public sealed unsafe partial class Device
 		if ( record.Memory.Mapped != 0 )
 		{
 			data.CopyTo( new Span<byte>( (void*)(record.Memory.Mapped + (nint)offset), data.Length ) );
+			return;
+		}
+
+		if ( DeferredUploads() is { } deferred )
+		{
+			deferred.UpdateBuffer( buffer, data, offset );
+			Interlocked.Add( ref deferredBytes, data.Length );
 			return;
 		}
 
@@ -467,13 +522,15 @@ public sealed unsafe partial class Device
 	public void WriteBuffer<T>( BufferHandle buffer, ReadOnlySpan<T> data, long offset = 0 ) where T : unmanaged => WriteBuffer( buffer, MemoryMarshal.AsBytes( data ), offset );
 
 	/// <summary>
-	/// Fill one mip of one layer of a texture now, from tightly packed rows, and wait. It's left in
+	/// Fill one mip of one layer of a texture now, from tightly packed rows, and wait (or, in a <see cref="DeferUploads"/>
+	/// scope, with the scope's list). It's left in
 	/// <see cref="ImageLayout.ShaderRead"/>, after <paramref name="from"/> (Undefined for a new texture, which is also what
 	/// discards the rest of its contents).
 	/// </summary>
 	public void WriteTexture( TextureHandle texture, ReadOnlySpan<byte> data, int mip = 0, int layer = 0, ImageLayout from = ImageLayout.Undefined )
 	{
-		var list = BeginCommandList( QueueType.Graphics, "WriteTexture" );
+		var deferred = DeferredUploads();
+		var list = deferred ?? BeginCommandList( QueueType.Graphics, "WriteTexture" );
 		var info = InfoOf( texture );
 		list.Barrier( new TextureBarrier
 		{
@@ -506,7 +563,8 @@ public sealed unsafe partial class Device
 			LayerCount = 1,
 		} );
 
-		SubmitAndRecycle( list );
+		if ( deferred is null ) SubmitAndRecycle( list );
+		else Interlocked.Add( ref deferredBytes, data.Length );
 	}
 
 	/// <summary>
