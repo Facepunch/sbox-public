@@ -93,6 +93,13 @@
 
     Material Terrain_SampleLayer( TerrainMaterial mat, float2 tileUV, float2 tileDdx, float2 tileDdy, out float height )
     {
+        // Empty slot (a new terrain has no materials): bindless texture 0 samples black, AO included
+        if ( mat.bcr_texid <= 0 )
+        {
+            height = 0;
+            return Material::Init();
+        }
+
         float2 layerUV = tileUV * mat.uvscale;
         float2x2 uvAngle = float2x2( 1, 0, 0, 1 );
 
@@ -114,7 +121,7 @@
         Material o = Material::Init();
         o.Albedo = SrgbGammaToLinear( bcr.rgb );
         o.Normal = normal;
-        o.Roughness = bcr.a;
+        o.Roughness = bcr.a * mat.Roughness();
         o.AmbientOcclusion = nho.a;
         o.Metalness = mat.metalness;
 

@@ -116,9 +116,10 @@ public partial class TerrainEditorTool : EditorTool
 				var group = ToolSidebarWidget.CreateGroupWidget( "Materials", SizeMode.Flexible );
 				paintOnlySection.Layout.Add( group, 1 );
 
-				var materialList = new TerrainMaterialList( paintOnlySection, terrain );
-				materialList.ItemSize += 24;
-				materialList.BuildItems();
+				// Material being painted with, big, above the palette; click to pick another
+				group.ContentLayout.Add( new TerrainMaterialButton( paintOnlySection, terrain ) );
+
+				var materialList = new TerrainMaterialList( paintOnlySection, terrain ) { Palette = true };
 				group.ContentLayout.Add( materialList, 1 );
 
 				var hlayout = group.ContentLayout.AddRow();
@@ -156,7 +157,8 @@ public partial class TerrainEditorTool : EditorTool
 			("Adjust Size", "Shift+MMB ↔"),
 			("Adjust Opacity", "Shift+MMB ↕"),
 			("Rotate", "CTRL+MMB ↔"),
-			("Switch brush preview", "Capslock")
+			("Switch brush preview", "Capslock"),
+			("Pick material (Paint)", "Alt+LMB")
 			);
 
 		return sidebar;
@@ -400,7 +402,7 @@ internal class TerrainMaterialButton : Widget
 	public TerrainMaterialButton( Widget parent, Terrain terrain ) : base( parent )
 	{
 		Terrain = terrain;
-		MinimumSize = new( 200, 64 );
+		MinimumSize = new( 200, 112 );
 		Cursor = CursorShape.Finger;
 	}
 
@@ -422,7 +424,7 @@ internal class TerrainMaterialButton : Widget
 			if ( asset is not null )
 			{
 				// Draw thumbnail on left side
-				var thumbRect = new Rect( LocalRect.Left + 4, LocalRect.Top + 4, 56, 56 );
+				var thumbRect = new Rect( LocalRect.Left + 4, LocalRect.Top + 4, LocalRect.Height - 8, LocalRect.Height - 8 );
 				var pixmap = asset.GetAssetThumb();
 				Paint.Draw( thumbRect, pixmap );
 
@@ -437,9 +439,16 @@ internal class TerrainMaterialButton : Widget
 
 				// Draw material name on right side
 				var textRect = new Rect( thumbRect.Right + 8, LocalRect.Top, LocalRect.Right - thumbRect.Right - 12, LocalRect.Height );
+
+				// No Tiling: the layer is de-tiled (stochastic), so a visible repeat is not a texture-scale problem
+				if ( material.NoTiling )
+				{
+					Paint.SetPen( Theme.Primary );
+					Paint.DrawIcon( new Rect( LocalRect.Right - 28, LocalRect.Top + 6, 22, 22 ), "grid_off", 18, TextFlag.Center );
+				}
 				Paint.SetPen( Theme.Text );
-				Paint.SetDefaultFont( 11 );
-				Paint.DrawText( textRect, material.ResourceName, TextFlag.LeftCenter );
+				Paint.SetDefaultFont( 12, 600 );
+				Paint.DrawText( textRect, material.ResourceName, TextFlag.LeftCenter | TextFlag.WrapAnywhere );
 			}
 		}
 		else
@@ -477,6 +486,8 @@ internal class TerrainMaterialButton : Widget
 	[EditorEvent.Frame]
 	public void UpdatePreview()
 	{
+		// Nothing to show until the terrain has a material: the palette below says so already
+		Hidden = !(Terrain?.Storage?.Materials?.Count > 0);
 		Update();
 	}
 }
@@ -570,6 +581,16 @@ internal class TerrainMaterialGridView : ListView
 		Paint.SetDefaultFont();
 		Paint.SetPen( Theme.Text );
 		Paint.DrawText( item.Rect.Shrink( 2 ), material.ResourceName, TextFlag.CenterBottom );
+
+		if ( material.NoTiling )
+		{
+			var iconRect = new Rect( item.Rect.Right - 28, item.Rect.Top + 4, 24, 24 );
+			Paint.SetBrush( Theme.ControlBackground.WithAlpha( 0.8f ) );
+			Paint.ClearPen();
+			Paint.DrawRect( iconRect, 4 );
+			Paint.SetPen( Theme.Primary );
+			Paint.DrawIcon( iconRect, "grid_off", 16, TextFlag.Center );
+		}
 	}
 
 	protected override void OnPaint()

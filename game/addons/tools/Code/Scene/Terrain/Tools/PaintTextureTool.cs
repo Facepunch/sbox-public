@@ -17,6 +17,28 @@ public class PaintTextureTool : BaseBrushTool
 
 	public override bool PaintMode { get; set; } = true;
 
+	/// <summary>
+	/// Eyedropper: Alt + click selects the material that shows most at the cursor.
+	/// </summary>
+	protected override bool OnPick( Terrain terrain, Vector3 worldPos )
+	{
+		if ( terrain.GetMaterialAtWorldPosition( worldPos ) is not { IsHole: false } info )
+			return false;
+
+		var index = info.GetDominantMaterialIndex();
+		var material = info.GetDominantMaterial();
+
+		Gizmo.Draw.ScreenText( material is null ? "Pick: none" : $"Pick: {material.ResourceName}", Gizmo.CursorPosition + new Vector2( 16, 16 ), "Roboto", 14, TextFlag.LeftTop );
+
+		// Picks while the button is held, so the material follows the cursor until release
+		if ( Gizmo.IsLeftMouseDown && material is not null )
+			SplatChannel = index;
+
+		return true;
+	}
+
+	public override bool HasAltClickMode() => true;
+
 	protected override void OnPaint( Terrain terrain, TerrainPaintParameters paint )
 	{
 		int size = (int)Math.Floor( paint.BrushSettings.Size * 2.0f / terrain.Storage.TerrainSize * terrain.Storage.Resolution );

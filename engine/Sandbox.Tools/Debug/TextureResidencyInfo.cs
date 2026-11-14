@@ -127,6 +127,15 @@ public class TextureResidencyInfo
 	}
 
 	/// <summary>
+	/// Residency info for one texture, without walking every resident texture like <see cref="GetAll"/>.
+	/// </summary>
+	public static TextureResidencyInfo Get( Texture texture )
+	{
+		if ( texture is null || texture.native.IsNull ) return null;
+		return From( texture.native, texture, texture.ResourcePath, 0 );
+	}
+
+	/// <summary>
 	/// Get info about all resident textures
 	/// </summary>
 	public static IEnumerable<TextureResidencyInfo> GetAll()
