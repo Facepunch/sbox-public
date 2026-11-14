@@ -15,6 +15,9 @@ public sealed class ShaderLibrary : IDisposable
 {
 	readonly Device gpu;
 	readonly Dictionary<string, ShaderFile> files = new( StringComparer.OrdinalIgnoreCase );
+
+	// Loads in progress, so threads asking for the same shader at once load (and recompile) it once
+	readonly Dictionary<string, Lazy<(ShaderFile Shader, bool Found)>> loading = new( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<byte[], ShaderHandle> modules = new( ReferenceEqualityComparer.Instance );
 	readonly ConditionalWeakTable<byte[], SpirvReflection> reflections = new();
 	readonly Dictionary<string, BindingLayoutHandle> layouts = new();
@@ -34,24 +37,41 @@ public sealed class ShaderLibrary : IDisposable
 
 	/// <summary>
 	/// A shader by path (<c>shaders/complex.shader</c>, with or without <c>_c</c>) or by bare name (<c>downsample_spd</c>),
-	/// loaded once; null if there's no compiled file for it.
+	/// loaded once; null if there's no compiled file for it. Threads asking for one at once share one load.
 	/// </summary>
 	public ShaderFile Load( string path )
 	{
 		var key = path.Replace( '\\', '/' );
 		if ( key.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) key = key[..^2];
+		Lazy<(ShaderFile Shader, bool Found)> load;
 		lock ( files )
 		{
 			if ( files.TryGetValue( key, out var cached ) ) return cached;
+			if ( !loading.TryGetValue( key, out load ) ) loading[key] = load = new( () => LoadUncached( key ) );
 		}
 
+		try
+		{
+			var (shader, found) = load.Value;
+			lock ( files )
+			{
+				if ( found ) files[key] = shader;
+			}
+
+			return shader;
+		}
+		finally
+		{
+			lock ( files ) loading.Remove( key );
+		}
+	}
+
+	(ShaderFile Shader, bool Found) LoadUncached( string key )
+	{
 		// A bare name (downsample_spd), as the engine's Material.FromShader takes one, is a shader under shaders/
 		var full = Files.Find( key );
 		if ( full is null && !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) full = Files.Find( $"shaders/{key}.shader" );
-		if ( full is null ) return null;
-		var shader = LoadOrUpgrade( full );
-		lock ( files ) files[key] = shader;
-		return shader;
+		return full is null ? (null, false) : (LoadOrUpgrade( full ), true);
 	}
 
 	/// <summary>

@@ -1,0 +1,467 @@
+using Borealis.Gpu;
+using Borealis.Source2;
+using Borealis.Source2.Materials;
+using System.Collections.Concurrent;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Borealis.Backend;
+
+/// <summary>
+/// A streamed texture's state: the mips it holds, those its draws ask for, and the materials that name it. Its
+/// <see cref="BackendTexture"/> keeps its identity while its image is swapped for one of more or fewer mips.
+/// </summary>
+internal sealed class StreamedTexture
+{
+	readonly List<WeakReference<IStreamDependent>> dependents = new();
+
+	public StreamedTexture( BackendTexture texture, string path, TextureFile file )
+	{
+		Texture = texture;
+		Path = path;
+		Mips = file.Mips;
+		TailTop = file.TailTop;
+		MaxSide = Math.Max( file.Width, file.Height );
+		ResidentTop = file.TopMip;
+		ResidentBytes = TextureStreamer.Bytes( file, file.TopMip );
+		MipBytes = new long[file.Mips];
+		for ( int mip = 0; mip < file.Mips; mip++ ) MipBytes[mip] = file.MipBytes( mip );
+	}
+
+	public BackendTexture Texture { get; }
+	public string Path { get; }
+	public int Mips { get; }
+	public int TailTop { get; }
+	public int MaxSide { get; }
+	public long[] MipBytes { get; }
+
+	/// <summary>The finest mip its image holds.</summary>
+	public int ResidentTop { get; set; }
+
+	/// <summary>Bytes of its image.</summary>
+	public long ResidentBytes { get; set; }
+
+	/// <summary>The finest mip asked for in this window and the last; <see cref="int.MaxValue"/> for none.</summary>
+	public int Asked = int.MaxValue, AskedBefore = int.MaxValue;
+
+	/// <summary>Kept at every mip whatever is asked: something that doesn't ask (<see cref="BackendDevice.LoadTexture"/>) uses it.</summary>
+	public bool Pinned { get; set; }
+
+	/// <summary>The streamer's frame it was last asked for in.</summary>
+	public uint LastAsked { get; set; }
+
+	/// <summary>A build in flight for it, or null.</summary>
+	public TextureStreamer.Build Building { get; set; }
+
+	/// <summary>The finest mip it wants: what was asked for lately, or its tail.</summary>
+	public int Wanted => Pinned ? 0 : Math.Min( Math.Min( Asked, AskedBefore ), TailTop );
+
+	/// <summary>Bytes of an image of mips <paramref name="top"/> to the last.</summary>
+	public long BytesFrom( int top )
+	{
+		long bytes = 0;
+		for ( int mip = top; mip < Mips; mip++ ) bytes += MipBytes[mip];
+		return bytes;
+	}
+
+	/// <summary>The coarsest mip a draw asking for <paramref name="size"/> texels needs (native's required texture size).</summary>
+	public int TopFor( int size )
+	{
+		if ( size <= 0 ) return TailTop;
+		var top = 0;
+		while ( top < TailTop && (MaxSide >> (top + 1)) >= size ) top++;
+		return top;
+	}
+
+	/// <summary>Note a material that names this texture, so it re-keys when the image is swapped.</summary>
+	public void AddDependent( IStreamDependent dependent )
+	{
+		lock ( dependents )
+		{
+			foreach ( var known in dependents )
+			{
+				if ( known.TryGetTarget( out var target ) && ReferenceEquals( target, dependent ) ) return;
+			}
+
+			dependents.Add( new WeakReference<IStreamDependent>( dependent ) );
+		}
+	}
+
+	/// <summary>Tell the materials that name it that its image changed.</summary>
+	public void Swapped()
+	{
+		lock ( dependents )
+		{
+			for ( int i = dependents.Count - 1; i >= 0; i-- )
+			{
+				if ( dependents[i].TryGetTarget( out var target ) ) target.TexturesChanged();
+				else dependents.RemoveAt( i );
+			}
+		}
+	}
+}
+
+/// <summary>Something that names streamed textures in what it binds (a material), so a swapped image re-keys it.</summary>
+internal interface IStreamDependent
+{
+	/// <summary>A texture it names has a new image: move its version on.</summary>
+	void TexturesChanged();
+}
+
+/// <summary>
+/// A material's asks: the largest texture size its draws asked for in a frame, and its streamed textures. Draws on any
+/// thread ask; the streamer reads them at the start of the next frame.
+/// </summary>
+internal sealed class MaterialAsks
+{
+	long packed;
+	StreamedTexture[] textures = [];
+
+	/// <summary>The material's streamed textures.</summary>
+	public StreamedTexture[] Textures
+	{
+		get => Volatile.Read( ref textures );
+		set => Volatile.Write( ref textures, value ?? [] );
+	}
+
+	/// <summary>The size asked for in the last frame asked in.</summary>
+	public int Size => (int)(uint)Volatile.Read( ref packed );
+
+	/// <summary>Ask for <paramref name="size"/> texels this frame; the first ask of a frame queues it.</summary>
+	public void Ask( TextureStreamer streamer, int size )
+	{
+		if ( Volatile.Read( ref textures ).Length == 0 ) return;
+
+		var frame = streamer.Frame;
+		while ( true )
+		{
+			var old = Volatile.Read( ref packed );
+			var oldFrame = (uint)(old >> 32);
+			var oldSize = (int)(uint)old;
+			if ( oldFrame == frame && oldSize >= size ) return;
+
+			var next = ((long)frame << 32) | (uint)Math.Max( size, oldFrame == frame ? oldSize : 0 );
+			if ( Interlocked.CompareExchange( ref packed, next, old ) != old ) continue;
+			if ( oldFrame != frame ) streamer.Queue( this );
+			return;
+		}
+	}
+}
+
+/// <summary>
+/// Texture streaming for the game window: material textures start as their tails (<see cref="TextureFile.Tail"/>) and get
+/// the mips their draws ask for (<c>textureSize</c>, see <c>TextureSizes</c>) as new images built from the file on a
+/// worker, uploaded a few each frame and swapped in whole. Textures grow while video memory has room and give mips back
+/// when it runs short. Runs on the thread that begins frames. See docs/managed/borealis-gpu-path.md.
+/// </summary>
+internal sealed class TextureStreamer
+{
+	readonly BackendDevice device;
+	readonly List<StreamedTexture> textures = new();
+	readonly ConcurrentQueue<MaterialAsks> asked = new();
+	readonly ConcurrentQueue<StreamedTexture> added = new();
+	readonly List<Build> builds = new();
+	readonly List<StreamedTexture> candidates = new();
+	uint frame = 1;
+	long room;
+	uint memoryFrame;
+	long startedSinceMemory;
+
+	public TextureStreamer( BackendDevice device ) => this.device = device;
+
+	/// <summary>The frame draws are asking in.</summary>
+	public uint Frame => Volatile.Read( ref frame );
+
+	/// <summary>Frames in each of the two windows asks are kept over.</summary>
+	public int WindowFrames { get; set; } = 60;
+
+	/// <summary>Builds in flight at once.</summary>
+	public int MaxBuilds { get; set; } = 16;
+
+	/// <summary>Bytes of mips uploaded each frame.</summary>
+	public long UploadBytesPerFrame { get; set; } = 16 << 20;
+
+	/// <summary>A budget in bytes for streamed textures, or 0 for as much as video memory has room for.</summary>
+	public long BudgetBytes { get; set; }
+
+	/// <summary>Streamed textures.</summary>
+	public int Count => textures.Count;
+
+	/// <summary>Bytes of streamed textures' images.</summary>
+	public long ResidentBytes { get; private set; }
+
+	/// <summary>Bytes they'd take at the mips they want.</summary>
+	public long WantedBytes { get; private set; }
+
+	/// <summary>Builds in flight.</summary>
+	public int BuildsInFlight => builds.Count;
+
+	/// <summary>Textures that want mips they don't hold and there's room for: what deterministic runs wait on.</summary>
+	public int Waiting { get; private set; }
+
+	/// <summary>Mips given back for room so far.</summary>
+	public int GivenBack { get; private set; }
+
+	/// <summary>Bytes of an image of a file's mips from <paramref name="top"/>.</summary>
+	public static long Bytes( TextureFile file, int top )
+	{
+		long bytes = 0;
+		for ( int mip = Math.Max( top, 0 ); mip < file.Mips; mip++ ) bytes += file.MipBytes( mip );
+		return bytes;
+	}
+
+	/// <summary>Whether a texture file streams: a 2D texture of one slice, with mips above its tail.</summary>
+	public static bool Streams( TextureFile file ) => file.Dimension == TextureDimension.Texture2D && file.Slices == 1 && file.Format != Format.Unknown && file.TailTop > 0;
+
+	/// <summary>Keep a texture made from a file's tail (or more) streaming, from the next <see cref="Update"/>. Any thread.</summary>
+	public StreamedTexture Add( BackendTexture texture, string path, TextureFile file )
+	{
+		var streamed = new StreamedTexture( texture, path, file );
+		added.Enqueue( streamed );
+		return streamed;
+	}
+
+	internal void Queue( MaterialAsks asks ) => asked.Enqueue( asks );
+
+	/// <summary>
+	/// Once a frame, between frames: take the last frame's asks, finish builds whose files have been read (uploads go with
+	/// the frame's next submission, in a <see cref="Device.DeferUploads"/> scope the caller holds), give mips back when
+	/// room is short, and start builds for what's wanted.
+	/// </summary>
+	public void Update()
+	{
+		var now = Frame;
+		while ( added.TryDequeue( out var texture ) )
+		{
+			textures.Add( texture );
+			ResidentBytes += texture.ResidentBytes;
+		}
+
+		while ( asked.TryDequeue( out var asks ) )
+		{
+			var size = asks.Size;
+			foreach ( var texture in asks.Textures )
+			{
+				var top = texture.TopFor( size );
+				if ( top < texture.Asked ) texture.Asked = top;
+				texture.LastAsked = now;
+			}
+		}
+
+		if ( now % (uint)Math.Max( WindowFrames, 1 ) == 0 )
+		{
+			foreach ( var texture in textures ) (texture.AskedBefore, texture.Asked) = (texture.Asked, int.MaxValue);
+		}
+
+		Volatile.Write( ref frame, now + 1 );
+
+		Forget();
+		Upload();
+		Measure( now );
+		GiveBack();
+		Start();
+	}
+
+	// Textures disposed since
+	void Forget()
+	{
+		for ( int i = textures.Count - 1; i >= 0; i-- )
+		{
+			var texture = textures[i];
+			if ( texture.Texture.IsValid ) continue;
+			ResidentBytes -= texture.ResidentBytes;
+			textures.RemoveAt( i );
+		}
+	}
+
+	/// <summary>A new image of a texture's mips from <see cref="Top"/>: read on a worker, then made and uploaded over frames, then swapped in.</summary>
+	internal sealed class Build
+	{
+		public StreamedTexture Texture;
+		public int Top;
+		public Task<TextureFile> Read;
+		public TextureHandle Image;
+		public int NextMip = -1;
+	}
+
+	/// <summary>Bytes the last <see cref="Update"/> uploaded.</summary>
+	public long Uploaded { get; private set; }
+
+	void Upload()
+	{
+		var gpu = device.Gpu;
+		long uploaded = 0;
+		Uploaded = 0;
+		for ( int i = 0; i < builds.Count && uploaded < UploadBytesPerFrame; i++ )
+		{
+			var build = builds[i];
+			if ( !build.Read.IsCompleted ) continue;
+
+			var texture = build.Texture;
+			if ( !texture.Texture.IsValid || !build.Read.IsCompletedSuccessfully || build.Read.Result is not { } file || file.TopMip != build.Top )
+			{
+				Drop( build, i-- );
+				continue;
+			}
+
+			if ( build.NextMip < 0 )
+			{
+				build.Image = file.CreateEmpty( gpu, texture.Path );
+				build.NextMip = file.Mips - 1;
+			}
+
+			// Coarsest first, so a build spread over frames leaves its largest mip for last
+			while ( build.NextMip >= build.Top && uploaded < UploadBytesPerFrame )
+			{
+				uploaded += file.Write( gpu, build.Image, build.NextMip );
+				build.NextMip--;
+			}
+
+			Uploaded = uploaded;
+			if ( build.NextMip >= build.Top ) continue;
+
+			// Every mip written with the frame's next submission, ahead of anything that samples it
+			var bytes = texture.BytesFrom( build.Top );
+			ResidentBytes += bytes - texture.ResidentBytes;
+			texture.Texture.Swap( build.Image );
+			texture.ResidentTop = build.Top;
+			texture.ResidentBytes = bytes;
+			texture.Building = null;
+			texture.Swapped();
+			builds.RemoveAt( i-- );
+		}
+	}
+
+	void Drop( Build build, int index )
+	{
+		if ( build.NextMip >= 0 ) device.Gpu.Destroy( build.Image );
+		build.Texture.Building = null;
+		builds.RemoveAt( index );
+	}
+
+	// The room left for textures to grow into: video memory over the headroom, and the budget
+	void Measure( uint now )
+	{
+		if ( memoryFrame == 0 || now - memoryFrame >= 15 )
+		{
+			memoryFrame = now;
+			startedSinceMemory = 0;
+			var (used, budget) = device.Gpu.DeviceLocalMemory();
+			var headroom = Math.Max( 256L << 20, budget / 10 );
+			room = budget - used - headroom;
+		}
+
+		var left = room - startedSinceMemory;
+		if ( BudgetBytes > 0 ) left = Math.Min( left, BudgetBytes - ResidentBytes - InFlightBytes() );
+		available = left;
+
+		long wanted = 0;
+		foreach ( var texture in textures ) wanted += texture.BytesFrom( Math.Min( texture.Wanted, texture.ResidentTop ) );
+		WantedBytes = wanted;
+	}
+
+	long available;
+
+	long InFlightBytes()
+	{
+		long bytes = 0;
+		foreach ( var build in builds ) bytes += Math.Max( build.Texture.BytesFrom( build.Top ) - build.Texture.ResidentBytes, 0 );
+		return bytes;
+	}
+
+	// When there's no room: textures holding finer mips than they want give them back first, then the least lately asked
+	// give back a mip, one build each
+	void GiveBack()
+	{
+		if ( available >= 0 ) return;
+
+		candidates.Clear();
+		foreach ( var texture in textures )
+		{
+			if ( texture.Building is null && !texture.Pinned && texture.ResidentTop < texture.TailTop ) candidates.Add( texture );
+		}
+
+		candidates.Sort( static ( a, b ) =>
+		{
+			var aSpare = a.ResidentTop < a.Wanted;
+			var bSpare = b.ResidentTop < b.Wanted;
+			if ( aSpare != bSpare ) return aSpare ? -1 : 1;
+			return a.LastAsked.CompareTo( b.LastAsked );
+		} );
+
+		foreach ( var texture in candidates )
+		{
+			if ( available >= 0 || builds.Count >= MaxBuilds ) break;
+			var top = texture.ResidentTop < texture.Wanted ? texture.Wanted : texture.ResidentTop + 1;
+			available += texture.ResidentBytes - texture.BytesFrom( top );
+			StartBuild( texture, top );
+			GivenBack++;
+		}
+	}
+
+	// Builds for textures that want finer mips than they hold, the largest shortfall first, while there's room
+	void Start()
+	{
+		candidates.Clear();
+		foreach ( var texture in textures )
+		{
+			if ( texture.Building is null && texture.Wanted < texture.ResidentTop ) candidates.Add( texture );
+		}
+
+		var waiting = 0;
+		if ( candidates.Count > 0 )
+		{
+			candidates.Sort( static ( a, b ) =>
+			{
+				var shortfall = (b.ResidentTop - b.Wanted).CompareTo( a.ResidentTop - a.Wanted );
+				return shortfall != 0 ? shortfall : b.LastAsked.CompareTo( a.LastAsked );
+			} );
+
+			foreach ( var texture in candidates )
+			{
+				var grow = texture.BytesFrom( texture.Wanted ) - texture.ResidentBytes;
+				if ( grow > available ) continue;
+				waiting++;
+				if ( builds.Count >= MaxBuilds ) continue;
+				available -= grow;
+				startedSinceMemory += grow;
+				StartBuild( texture, texture.Wanted );
+			}
+		}
+
+		Waiting = waiting + builds.Count;
+	}
+
+	void StartBuild( StreamedTexture texture, int top )
+	{
+		var content = device.Content;
+		var path = texture.Path;
+		var build = new Build { Texture = texture, Top = top };
+		build.Read = Task.Run( () => ReadMips( content, path, top ) );
+		texture.Building = build;
+		builds.Add( build );
+	}
+
+	/// <summary>A texture's mips from <paramref name="top"/>, reading only as much of its file as they need; null when it can't be read.</summary>
+	internal static TextureFile ReadMips( ContentFiles content, string path, int top )
+	{
+		try
+		{
+			// The header and the tail fit the first read of most textures; finer mips read the header, then on to them
+			var data = content.TryReadPrefix( path, top < 0 ? TextureFile.TailBytes + 16384 : 16384 );
+			for ( int i = 0; data is not null && i < 4; i++ )
+			{
+				var needed = TextureFile.PrefixNeeded( data, top );
+				if ( needed <= data.Length ) return TextureFile.Read( data, top );
+				data = content.TryReadPrefix( path, needed );
+			}
+
+			return null;
+		}
+		catch ( InvalidDataException )
+		{
+			return null;
+		}
+	}
+}

@@ -182,8 +182,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	{
 		HasSynced = true;
 
-		// A reload queues the objects drawing what it changed
+		// A reload queues the objects drawing what it changed, and so does a model finishing loading
 		CheckReloads();
+		CheckLoaded();
 
 		lock ( gate )
 		{
@@ -342,7 +343,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// <summary>
 	/// Mirror probe placement and selection data; create attributes once (<c>CLightBinner2::GetLightProbeVolumeData</c>).
 	/// </summary>
-	static void ApplyLightProbe( SceneLightProbe probe, Borealis.LightProbeVolume volume, SceneObjectChange change )
+	void ApplyLightProbe( SceneLightProbe probe, Borealis.LightProbeVolume volume, SceneObjectChange change )
 	{
 		if ( (change & SceneObjectChange.Transform) != 0 )
 			volume.Transform = probe.Transform;
@@ -354,10 +355,15 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 		SceneNative.ReadLightProbeVolume( probe, volume );
 		volume.Handshake = probe.Handshake;
-		volume.Attributes = MirrorContent.Gpu is { } gpu
-			// On Borealis.Gpu: its constants made here, over its textures read by path
-			? gpu.LightProbeVolumeParameters( MirrorContent.Texture( probe.ProbeTexture ), MirrorContent.Texture( probe.IndicesTexture ), MirrorContent.Texture( probe.ScalarsTexture ), probe.Transform, volume.BoxMins, volume.BoxMaxs )
-			: MirrorContent.Parameters( SceneNative.CreateLightProbeAttributes( probe ) );
+		if ( MirrorContent.Gpu is { } gpu )
+		{
+			// On Borealis.Gpu: its constants made here, over its textures read by path, once they've loaded
+			var texture = TextureFor( probe.ProbeTexture, probe, SceneObjectChange.Settings );
+			var indices = TextureFor( probe.IndicesTexture, probe, SceneObjectChange.Settings );
+			var scalars = TextureFor( probe.ScalarsTexture, probe, SceneObjectChange.Settings );
+			if ( !TexturesWaiting( probe ) ) volume.Attributes = gpu.LightProbeVolumeParameters( texture, indices, scalars, probe.Transform, volume.BoxMins, volume.BoxMaxs );
+		}
+		else volume.Attributes = MirrorContent.Parameters( SceneNative.CreateLightProbeAttributes( probe ) );
 	}
 
 	/// <summary>
@@ -399,7 +405,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			SceneAggregateObject => AggregateFor( sceneObject ),
 
 			// A map's world geometry is native aggregates, which have no managed type of their own
-			_ when sceneObject.GetType() == typeof( SceneObject ) => AggregateFor( sceneObject ) ?? (RenderObject)new MeshObject( null, sceneObject.Transform ),
+			_ when sceneObject.GetType() == typeof( SceneObject ) => (RenderObject)AggregateFor( sceneObject, out var waiting ) ?? (waiting ? null : new MeshObject( null, sceneObject.Transform )),
 			_ => null,
 		};
 
@@ -551,10 +557,18 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// <summary>
 	/// An aggregate's model and fragments as native draws them, or null if the object isn't one.
 	/// </summary>
-	AggregateObject AggregateFor( SceneObject sceneObject )
+	AggregateObject AggregateFor( SceneObject sceneObject ) => AggregateFor( sceneObject, out _ );
+
+	/// <summary>An aggregate's model and fragments, or null; <paramref name="waiting"/> while its model is still loading.</summary>
+	AggregateObject AggregateFor( SceneObject sceneObject, out bool waiting )
 	{
 		var model = SceneNative.AggregateModel( sceneObject, out var lightmapped );
-		if ( ModelFor( model )?.Mesh is not { } mesh ) return null;
+		waiting = false;
+		if ( ModelFor( model )?.Mesh is not { } mesh )
+		{
+			waiting = model is not null && loading.Contains( model );
+			return null;
+		}
 
 		Hold( mesh );
 
@@ -761,14 +775,14 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		}
 	}
 
-	static void ApplyEnvMap( SceneCubemap cubemap, EnvMapObject envMap, SceneObjectChange change )
+	void ApplyEnvMap( SceneCubemap cubemap, EnvMapObject envMap, SceneObjectChange change )
 	{
 		if ( (change & SceneObjectChange.Transform) != 0 )
 			envMap.Transform = cubemap.Transform;
 
 		if ( (change & SceneObjectChange.Settings) != 0 )
 		{
-			envMap.Cubemap = MirrorContent.Texture( cubemap.Texture );
+			envMap.Cubemap = TextureFor( cubemap.Texture, cubemap, SceneObjectChange.Settings );
 			envMap.ProjectionBounds = cubemap.ProjectionBounds;
 			envMap.Tint = cubemap.TintColor;
 			envMap.Feathering = cubemap.Feathering;

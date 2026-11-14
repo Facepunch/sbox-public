@@ -14,12 +14,20 @@ internal static class MirrorContent
 	public static BackendDevice Gpu => RenderHost.Current.Device as BackendDevice;
 
 	/// <summary>A model's mesh, every mesh group in it (an object's draws hide those it doesn't draw).</summary>
-	public static RenderMesh Mesh( Model model )
+	public static RenderMesh Mesh( Model model ) => Mesh( model, out _ );
+
+	/// <summary>
+	/// A model's mesh; on a Borealis.Gpu device loading asynchronously (<see cref="BackendDevice.AsyncModels"/>) null with
+	/// <paramref name="pending"/> set while it loads.
+	/// </summary>
+	public static RenderMesh Mesh( Model model, out bool pending )
 	{
+		pending = false;
 		if ( Gpu is not { } gpu ) return Source2Mesh.FromModel( model );
 
 		var path = model?.ResourcePath;
-		return string.IsNullOrEmpty( path ) ? null : gpu.LoadModel( path, ulong.MaxValue );
+		if ( string.IsNullOrEmpty( path ) ) return null;
+		return gpu.AsyncModels ? gpu.LoadModelAsync( path, ulong.MaxValue, out pending ) : gpu.LoadModel( path, ulong.MaxValue );
 	}
 
 	public static GpuMaterial Material( Material material )

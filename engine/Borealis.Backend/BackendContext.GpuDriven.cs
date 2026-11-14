@@ -120,6 +120,7 @@ internal sealed partial class BackendContext
 		for ( int i = 0; i < batches.Length; i++ )
 		{
 			ref readonly var batch = ref batches[i];
+			device.AskTextures( batch.Material, batch.TextureSize );
 
 			// A surface material: its own GPU-driven passes, in buckets of its own (BackendContext.Surfaces.cs)
 			if ( batch.Material is SurfaceMaterial surface )

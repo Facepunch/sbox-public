@@ -1,0 +1,136 @@
+using Borealis;
+using Borealis.Backend;
+using Borealis.Gpu;
+using Borealis.Source2;
+using Borealis.Source2.Materials;
+using System.IO;
+using System.Threading;
+
+namespace BorealisGpuTests;
+
+/// <summary>
+/// Texture streaming in the game window (<see cref="TextureStreamer"/>): a texture's tail read from the start of its file,
+/// its image swapped for the mips its draws ask for, and mips given back when the budget runs short.
+/// </summary>
+[TestClass]
+[DoNotParallelize]
+public class TextureStreamingTests : GpuTest
+{
+	/// <summary>A few of the core content's textures that stream: 2D, one slice, mips above a 64 KiB tail.</summary>
+	static List<string> StreamingTextures( int count )
+	{
+		var root = ContentFiles.FindGame().Roots.FirstOrDefault();
+		if ( root is null ) Assert.Inconclusive( "No game content" );
+
+		var found = new List<string>();
+		foreach ( var file in Directory.EnumerateFiles( Path.Combine( root, "materials" ), "*.vtex_c", SearchOption.AllDirectories ).Order( StringComparer.Ordinal ) )
+		{
+			if ( new FileInfo( file ).Length < 256 << 10 ) continue;
+			if ( !TextureStreamer.Streams( TextureFile.Load( file ) ) ) continue;
+			found.Add( Path.GetRelativePath( root, file ).Replace( '\\', '/' )[..^2] );
+			if ( found.Count == count ) break;
+		}
+
+		if ( found.Count == 0 ) Assert.Inconclusive( "No streaming textures in the core content" );
+		return found;
+	}
+
+	/// <summary>
+	/// A tail read takes only the start of the file, decodes only the tail's mips (within 64 KiB), and they're the same as a
+	/// whole read's; a read from a finer mip reads on to it.
+	/// </summary>
+	[TestMethod]
+	public void TailReadsTheStartOfTheFile()
+	{
+		var content = ContentFiles.FindGame();
+		foreach ( var path in StreamingTextures( 4 ) )
+		{
+			var whole = content.TryRead( path );
+			var full = TextureFile.Read( whole );
+			var tail = TextureStreamer.ReadMips( content, path, TextureFile.Tail );
+
+			Assert.IsNotNull( tail, path );
+			Assert.AreEqual( full.TailTop, tail.TopMip, path );
+			Assert.IsTrue( tail.TopMip > 0, path );
+			Assert.IsTrue( TextureFile.PrefixNeeded( whole, TextureFile.Tail ) < whole.Length, $"{path}: the tail is the whole file" );
+			Assert.IsNull( tail.MipData[tail.TopMip - 1], path );
+
+			long bytes = 0;
+			for ( int mip = tail.TopMip; mip < tail.Mips; mip++ )
+			{
+				CollectionAssert.AreEqual( full.MipData[mip], tail.MipData[mip], $"{path} mip {mip}" );
+				bytes += tail.MipData[mip].Length;
+			}
+
+			Assert.IsTrue( bytes <= TextureFile.TailBytes || tail.TopMip == tail.Mips - 1, $"{path}: tail of {bytes} bytes" );
+
+			var finer = TextureStreamer.ReadMips( content, path, 1 );
+			Assert.AreEqual( 1, finer.TopMip, path );
+			CollectionAssert.AreEqual( full.MipData[1], finer.MipData[1], path );
+		}
+	}
+
+	/// <summary>
+	/// A streamed material texture starts as its tail; a draw asking for every mip gets a new image of them all, the material
+	/// re-keyed; a budget too small for it gives them back, a mip a build, down to the tail.
+	/// </summary>
+	[TestMethod]
+	public void AskedMipsSwapInAndGoBackUnderBudget()
+	{
+		var path = StreamingTextures( 1 )[0];
+		using var backend = new BackendDevice( Device ) { StreamTextures = true };
+		var texture = (BackendTexture)backend.MaterialTextureFile( path );
+		var stream = texture.Stream;
+		Assert.IsNotNull( stream );
+		Assert.AreEqual( stream.TailTop, stream.ResidentTop );
+		Assert.AreEqual( Math.Max( texture.Width >> stream.TailTop, 1 ), Device.InfoOf( texture.Handle ).Width );
+
+		using var material = new BackendMaterial( "streamed", null, null, new( StringComparer.OrdinalIgnoreCase ) { ["g_tColor"] = texture } );
+		var version = material.Version;
+		var tail = texture.Handle;
+
+		// Asked for in each frame, as draws ask
+		for ( int frame = 0; frame < 200 && stream.ResidentTop > 0; frame++ )
+		{
+			backend.AskTextures( material, TextureSizes.All );
+			backend.BeginFrame();
+			Thread.Sleep( 5 );
+		}
+
+		Assert.AreEqual( 0, stream.ResidentTop );
+		Assert.AreEqual( texture.Width, Device.InfoOf( texture.Handle ).Width );
+		Assert.AreEqual( texture.Mips, Device.InfoOf( texture.Handle ).Mips );
+		Assert.AreNotEqual( tail, texture.Handle );
+		Assert.AreNotEqual( version, material.Version );
+		Assert.IsFalse( backend.StreamingTextures );
+
+		// A budget of a byte: mips given back down to the tail, which always stays
+		backend.TextureBudgetBytes = 1;
+		for ( int frame = 0; frame < 400 && stream.ResidentTop < stream.TailTop; frame++ )
+		{
+			backend.AskTextures( material, TextureSizes.All );
+			backend.BeginFrame();
+			Thread.Sleep( 5 );
+		}
+
+		Assert.AreEqual( stream.TailTop, stream.ResidentTop );
+		Assert.AreEqual( Math.Max( texture.Width >> stream.TailTop, 1 ), Device.InfoOf( texture.Handle ).Width );
+		Device.WaitIdle();
+	}
+
+	/// <summary>A draw asking for a size wants the coarsest mip at least that large, and its tail for nothing.</summary>
+	[TestMethod]
+	public void AskedSizeWantsTheCoarsestMipThatCoversIt()
+	{
+		var path = StreamingTextures( 1 )[0];
+		using var backend = new BackendDevice( Device ) { StreamTextures = true };
+		var stream = ((BackendTexture)backend.MaterialTextureFile( path )).Stream;
+
+		Assert.AreEqual( 0, stream.TopFor( TextureSizes.All ) );
+		Assert.AreEqual( 0, stream.TopFor( stream.MaxSide ) );
+		Assert.AreEqual( 1, stream.TopFor( stream.MaxSide / 2 ) );
+		Assert.AreEqual( 0, stream.TopFor( stream.MaxSide / 2 + 1 ) );
+		Assert.AreEqual( stream.TailTop, stream.TopFor( 0 ) );
+		Assert.AreEqual( stream.TailTop, stream.TopFor( 1 ) );
+	}
+}

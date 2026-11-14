@@ -29,6 +29,7 @@ internal sealed partial class BackendContext
 	public override bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All )
 	{
 		if ( count <= 0 || args?.Resource is not BackendBuffer arguments ) return false;
+		device.AskTextures( material, textureSize );
 		var indirect = new IndirectDraws( arguments.Handle, (long)firstArg * IndirectDraws.Stride, count );
 		return Draw( material, shaderMode, mesh, draw, firstInstance, 1, depthBias, slopeScaledDepthBias, stripPixelShader, false, indirect );
 	}
@@ -40,6 +41,7 @@ internal sealed partial class BackendContext
 	public override bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All )
 	{
 		if ( Occlusion is not { } culler || culler.Args?.Resource is not BackendBuffer arguments || culler.CulledIds?.Resource is not BackendBuffer ids ) return false;
+		device.AskTextures( material, textureSize );
 		var indirect = new IndirectDraws( arguments.Handle, (long)(culler.ArgOffset( phase ) + argsIndex) * IndirectDraws.Stride, 1, ids, BaseVertexInBuffer: true );
 		return Draw( material, shaderMode, mesh, draw, culler.IdOffset( phase ) + firstInstance, 1, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
 	}
@@ -51,6 +53,7 @@ internal sealed partial class BackendContext
 	public override bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All )
 	{
 		if ( count <= 0 || Occlusion is not { } culler || culler.Args?.Resource is not BackendBuffer arguments ) return false;
+		device.AskTextures( material, textureSize );
 		var offset = (long)culler.FragmentArgs( phase, cullArg, count ) * IndirectDraws.Stride;
 		var indirect = culler.CompactFragments
 			? new IndirectDraws( arguments.Handle, offset, count, CountBuffer: arguments.Handle, CountOffset: (long)culler.FragmentCountArg( phase, cullArg, count ) * IndirectDraws.Stride )
