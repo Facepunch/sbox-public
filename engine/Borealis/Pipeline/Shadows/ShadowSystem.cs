@@ -400,6 +400,12 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	static GpuMaterial tilesCompute;
 	static GpuMaterial TilesCompute => tilesCompute ??= RenderHost.Current.Device.MaterialFromShader( "shaders/borealis_shadow_tiles_cs.shader" );
 
+	/// <summary>
+	/// Make the tiles' shader on the main thread: made where it's first dispatched, on a recording thread, it isn't there
+	/// for that frame, whose tiles would then say every receiver is lit.
+	/// </summary>
+	public static void WarmUp() => _ = TilesCompute;
+
 	// Each cascade's tiles side by side: their own min and max depth, then widened over their neighbours
 	GpuTexture tilesRaw, tiles;
 
@@ -443,6 +449,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		}
 
 		tileCascades = drawn & ~empty;
+		if ( tileCascades != 0 ) WarmUp();
 		sun.SetCascadeFlags( empty, tileCascades != 0 ? tiles.BindlessIndex : 0 );
 	}
 
