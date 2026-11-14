@@ -328,7 +328,10 @@ internal class ConsoleWidget : Widget
 
 	void AddConsoleMessage( LogEvent e )
 	{
+		// Kept for the whole session: the message and stack text are enough. The exception's stack trace references the
+		// methods it was thrown from, which kept every hotloaded-out game assembly that ever logged one alive.
 		e = e.WithWeakArguments();
+		e.Exception = null;
 		Events.Add( e );
 
 		if ( e.Level == LogLevel.Trace && Message.Button.IsValid() ) Message.Button.Text = GetCount( ++Message.Count );
