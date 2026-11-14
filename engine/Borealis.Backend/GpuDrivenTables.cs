@@ -59,7 +59,9 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	/// <summary>
 	/// A table in host-visible memory that only grows: records are appended and never change. Growing copies it into a
-	/// bigger buffer with a slot of its own; frames still in flight keep reading the old one until it's freed.
+	/// bigger buffer with a slot of its own. The old buffer is kept until the tables are disposed: draws recorded earlier
+	/// in the frame being recorded read it at its slot, and a destroy only waits for what's been submitted. It only doubles a
+	/// few times, so that's at most its size again.
 	/// </summary>
 	sealed class Table( Device gpu, string name, int initial )
 	{
@@ -67,6 +69,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		public int Slot = -1;
 		public long Used;
 		long size;
+		readonly List<BufferHandle> retired = new();
 
 		public uint Append( ReadOnlySpan<byte> record )
 		{
@@ -90,7 +93,7 @@ internal sealed class GpuDrivenTables : IDisposable
 			if ( Buffer.IsValid )
 			{
 				gpu.Map( Buffer )[..(int)Used].CopyTo( gpu.Map( buffer ) );
-				gpu.Destroy( Buffer );
+				retired.Add( Buffer );
 			}
 
 			Buffer = buffer;
@@ -101,6 +104,8 @@ internal sealed class GpuDrivenTables : IDisposable
 		public void Dispose()
 		{
 			if ( Buffer.IsValid ) gpu.Destroy( Buffer );
+			foreach ( var old in retired ) gpu.Destroy( old );
+			retired.Clear();
 		}
 	}
 
@@ -129,6 +134,9 @@ internal sealed class GpuDrivenTables : IDisposable
 		fragments.Append( new byte[FragmentStride] );
 		lighting.Append( new byte[LightingStride] );
 	}
+
+	/// <summary>The lighting table's buffer now, for tests.</summary>
+	internal BufferHandle LightingBuffer => lighting.Buffer;
 
 	/// <summary>The tables' slots in the raw buffer array, as <c>BorealisGpuDriven_t</c> wants them after the instances'.</summary>
 	public (int Geometry, int Draws, int Materials, int Lighting) Slots => (geometry.Slot, draws.Slot, materials.Slot, lighting.Slot);

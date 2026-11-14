@@ -471,6 +471,23 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// A GPU-driven table that grows while a frame records keeps its old buffer: draws recorded earlier in the frame read it
+	/// at its slot once the frame is submitted, which was a GPU page fault and a lost device when it was destroyed at once.
+	/// </summary>
+	[TestMethod]
+	public void GrownTablesKeepTheirOldBuffer()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		var tables = backend.GpuDrivenTables;
+		var first = tables.LightingBuffer;
+		for ( int i = 1; tables.LightingBuffer.Equals( first ) && i < 100000; i++ ) tables.Lighting( BitConverter.GetBytes( i ), null );
+
+		Assert.IsFalse( tables.LightingBuffer.Equals( first ), "the lighting table grew" );
+		Device.WaitIdle();
+		Assert.IsTrue( Device.IsAlive( first ), "its old buffer is kept" );
+	}
+
+	/// <summary>
 	/// A shader with no variant beside it (a package's) gets one from the library's compiler: none while it compiles,
 	/// then the compiled one, cached, so another library loads it without compiling.
 	/// </summary>
