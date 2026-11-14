@@ -19,6 +19,12 @@ public static class Launcher
 		// -shader-route: the core shaders' materials as their .shader, not the surfaces standing in for them (for A/B)
 		if ( Lab.Args.Has( "-shader-route" ) ) Borealis.Backend.SurfaceShaders.ConvertByDefault = false;
 
+		// Sun cascades, for A/B runs in any mode: -far-cache, -no-far-cache, -no-cascade-tiles, -no-texel-cascades
+		if ( Lab.Args.Has( "-far-cache" ) ) Borealis.Shadows.ShadowMapper.FarCascadeCache = true;
+		if ( Lab.Args.Has( "-no-far-cache" ) ) Borealis.Shadows.ShadowMapper.FarCascadeCache = false;
+		if ( Lab.Args.Has( "-no-cascade-tiles" ) ) Borealis.Shadows.ShadowMapper.CascadeTiles = false;
+		if ( Lab.Args.Has( "-no-texel-cascades" ) ) Borealis.Shadows.ShadowMapper.TexelSizedCascades = false;
+
 		return BorealisLab.BorealisLabApp.Run();
 	}
 }

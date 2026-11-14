@@ -192,6 +192,12 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		Root.AddChild( BuildUI() );
 		Load( scene );
 
+		// Borealis's sun cascades, for A/B runs: -far-cache, -no-far-cache, -no-cascade-tiles, -no-texel-cascades
+		if ( Args.Has( "-far-cache" ) ) global::Borealis.Shadows.ShadowMapper.FarCascadeCache = true;
+		if ( Args.Has( "-no-far-cache" ) ) global::Borealis.Shadows.ShadowMapper.FarCascadeCache = false;
+		if ( Args.Has( "-no-cascade-tiles" ) ) global::Borealis.Shadows.ShadowMapper.CascadeTiles = false;
+		if ( Args.Has( "-no-texel-cascades" ) ) global::Borealis.Shadows.ShadowMapper.TexelSizedCascades = false;
+
 		if ( Args.Has( "-benchmark" ) )
 		{
 			VSync = false;
