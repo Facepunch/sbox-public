@@ -214,6 +214,7 @@ public class ObjectAttributeTests : GpuTest
 	public void BlendableMaterialsDrawForward()
 	{
 		using var backend = new BackendDevice( Device );
+		backend.Surfaces.ConvertShaders = false;   // blendable.shader itself, not the surface standing in for it
 		var previousHost = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( backend );
 		try
@@ -272,6 +273,7 @@ public class ObjectAttributeTests : GpuTest
 	public void BlendableMaterialsReadTheirShaderVersion()
 	{
 		using var backend = new BackendDevice( Device );
+		backend.Surfaces.ConvertShaders = false;   // blendable.shader itself, not the surface standing in for it
 		var previousHost = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( backend );
 		try

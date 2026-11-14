@@ -89,7 +89,7 @@ internal static class MapRealRun
 		if ( Args.Has( "-occlusion" ) && RenderHost.Current is BackendRenderHost host ) host.Occlusion = true;
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		Console.WriteLine( $"Loaded in {load.Elapsed.TotalSeconds:0.0} s; {map.Problems.Count} problems" );
-		if ( Args.String( "-surface-convert" ) is not null ) Console.WriteLine( $"  {map.Backend.Surfaces.ConvertedMaterials} materials drawn as surfaces (-surface-convert)" );
+		if ( map.Backend.Surfaces.ConvertedMaterials > 0 ) Console.WriteLine( $"  {map.Backend.Surfaces.ConvertedMaterials} materials drawn as surfaces" );
 		if ( Args.Has( "-surface-convert-list" ) )
 		{
 			foreach ( var path in map.Backend.Surfaces.ConvertedPaths ) Console.WriteLine( $"  as a surface: {path}" );
@@ -325,7 +325,7 @@ internal static class MapRealRun
 		md.AppendLine( bindingReport );
 		File.WriteAllText( Path.Combine( options.Output, "map-real.md" ), md.ToString() );
 		File.WriteAllText( Path.Combine( options.Output, "map-real.csv" ), csv.ToString() );
-		if ( Args.String( "-surface-convert" ) is not null ) Console.WriteLine( $"Surface batches drawn GPU-driven: {map.Backend.Surfaces.GpuDrivenBatches} over the run" );
+		if ( map.Backend.Surfaces.ConvertedMaterials > 0 ) Console.WriteLine( $"Surface batches drawn GPU-driven: {map.Backend.Surfaces.GpuDrivenBatches} over the run" );
 		Console.WriteLine( $"Results in {options.Output}; validation errors {gpu.ValidationErrors}" );
 		return 0;
 	}

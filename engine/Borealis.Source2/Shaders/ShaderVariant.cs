@@ -37,8 +37,12 @@ public sealed class ShaderVariant
 	/// <summary>The resolved render state.</summary>
 	public ShaderPipelineState State { get; }
 
-	internal ShaderVariant( ShaderLibrary library, ShaderFile shader, ShaderMode mode, ShaderStage vertex, ShaderStage pixel, ShaderStage compute )
+	/// <summary>Whether its stages were compiled from the shader's module (<see cref="IShaderModules"/>) rather than its programs.</summary>
+	public bool FromModule { get; }
+
+	internal ShaderVariant( ShaderLibrary library, ShaderFile shader, ShaderMode mode, ShaderStage vertex, ShaderStage pixel, ShaderStage compute, bool fromModule = false )
 	{
+		FromModule = fromModule;
 		Shader = shader;
 		Mode = mode;
 		Vertex = vertex;
@@ -306,6 +310,42 @@ public sealed class ShaderStage
 		MaterialBuffer = dynamic.ConstantBuffer.Slot >= 0 && combo.ConstantBufferSize > 0
 			? (dynamic.ConstantBuffer.Set, ShaderAbi.ConstantBuffer( dynamic.ConstantBuffer.Slot ), combo.ConstantBufferSize)
 			: (-1, -1, 0);
+	}
+
+	/// <summary>
+	/// A stage compiled from <paramref name="shader"/>'s module (<see cref="IShaderModules"/>): one program of its own
+	/// variables, one static and one dynamic combo, its <c>$Globals</c> as the material constants, its render states as
+	/// literals over the defaults.
+	/// </summary>
+	internal ShaderStage( ShaderLibrary library, ShaderFile shader, ModuleStage stage )
+	{
+		EvaluatedRenderStates = new Dictionary<ShaderVariable, float>( ReferenceEqualityComparer.Instance );
+		Type = stage.Type;
+
+		var all = new List<ShaderVariable>();
+		foreach ( var resource in stage.Resources )
+		{
+			if ( resource.Variable is null ) continue;
+			named[(resource.Set, resource.Binding)] = all.Count;
+			all.Add( resource.Variable );
+			if ( resource.Sampler is { } sampler ) samplers[(resource.Set, resource.Binding - ShaderAbi.SamplerBase)] = sampler;
+		}
+
+		foreach ( var (variable, _) in stage.GlobalMembers ) all.Add( variable );
+		foreach ( var (_, variable) in stage.RenderStates ) all.Add( variable );
+		variables = [.. all];
+
+		Program = new ShaderProgram( shader, stage.Type, variables, [.. stage.ConstantBuffers] );
+		Static = new StaticCombo( Program, stage.Globals.Size );
+		Bytecode = ShaderBytecode.FromModule( stage );
+		Dynamic = new DynamicCombo { Id = 0, Shader = Bytecode, Variables = [], ConstantBuffer = (-1, -1), RenderState = new ShaderRenderState() };
+		Module = library.Module( Bytecode, stage.Name ?? $"{shader.Name} {stage.Type}" );
+		Reflection = library.Reflect( Bytecode );
+		Constants = [.. Bytecode.Constants];
+		MaterialConstants = stage.GlobalMembers;
+		RenderStates = stage.RenderStates;
+		RecordTextures = [];
+		MaterialBuffer = stage.Globals.Set >= 0 && stage.Globals.Size > 0 ? stage.Globals : (-1, -1, 0);
 	}
 
 	/// <summary>

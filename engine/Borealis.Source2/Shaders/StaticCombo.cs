@@ -147,6 +147,18 @@ public sealed class StaticCombo
 		if ( reader.Remaining != 0 ) throw new InvalidDataException( $"{program}: static combo {id} has {reader.Remaining} bytes left over" );
 	}
 
+	/// <summary>The one static combo of a stage compiled from a module, with its material constant buffer's size.</summary>
+	internal StaticCombo( ShaderProgram program, int constantBufferSize )
+	{
+		Program = program;
+		Used = [];
+		Attributes = [];
+		Shaders = [];
+		DynamicCombos = [];
+		dynamicById = [];
+		ConstantBufferSize = constantBufferSize;
+	}
+
 	static VariableBinding[] ReadBindings( ByteReader reader, bool offsets )
 	{
 		var count = reader.Int();
@@ -269,6 +281,22 @@ public sealed class ShaderBytecode
 			Constants = own,
 			ThreadGroupSize = threads,
 			RequiredSubgroupSize = subgroup,
+		};
+
+		module.Shared = module;
+		return module;
+	}
+
+	/// <summary>SPIR-V compiled from a module, its entry points named by stage.</summary>
+	internal static ShaderBytecode FromModule( ModuleStage stage )
+	{
+		var module = new ShaderBytecode
+		{
+			Spirv = stage.Spirv,
+			AttributeMap = stage.AttributeMap ?? [],
+			StageEntryNames = true,
+			Constants = stage.Constants ?? [],
+			ThreadGroupSize = stage.ThreadGroupSize,
 		};
 
 		module.Shared = module;

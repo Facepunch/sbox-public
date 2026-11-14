@@ -22,6 +22,7 @@ public class DepthPassTests : GpuTest
 	public void AlphaTestedDrawsMatchWithAndWithoutThePrepass()
 	{
 		using var backend = new BackendDevice( Device );
+		backend.Surfaces.ConvertShaders = false;   // the .shader route's prepass
 		var previousHost = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( backend );
 		try
@@ -86,6 +87,9 @@ public class DepthPassTests : GpuTest
 		byte[] Frame( bool positions, out bool positionLayout, out long copied )
 		{
 			using var backend = new BackendDevice( Device ) { PositionStreams = positions, GpuDriven = false };
+
+			// The .shader route's prepass: surfaces read the full vertices
+			backend.Surfaces.ConvertShaders = false;
 			var previousHost = RenderHost.Current;
 			RenderHost.Current = new BackendRenderHost( backend );
 			try

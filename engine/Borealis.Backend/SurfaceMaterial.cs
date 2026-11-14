@@ -59,6 +59,17 @@ public abstract class SurfaceMaterial : GpuMaterial
 
 	bool twoSided;
 
+	/// <summary>
+	/// What draws where the surface can't (a skinned mesh, a mode surfaces have no pass for): the <c>.shader</c> material a
+	/// converted <c>.vmat</c> stands in for, made the first time it's needed; null for none.
+	/// </summary>
+	internal GpuMaterial Fallback => fallback?.Value;
+
+	Lazy<GpuMaterial> fallback;
+
+	/// <summary>Set what draws where the surface can't (<see cref="Fallback"/>).</summary>
+	internal void SetFallback( Func<GpuMaterial> make ) => fallback = new Lazy<GpuMaterial>( make, LazyThreadSafetyMode.ExecutionAndPublication );
+
 	/// <summary>Its compiled program, once a device found it (<see cref="SurfaceShaders"/>).</summary>
 	internal SurfaceProgram Program { get; set; }
 

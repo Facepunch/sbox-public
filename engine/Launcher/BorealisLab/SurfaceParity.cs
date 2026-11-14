@@ -48,6 +48,9 @@ internal static class SurfaceParity
 		} );
 
 		using var device = new BackendDevice( gpu ) { TimeDraws = true };
+
+		// The references are the .shader route: no core shader's materials load as surfaces unless converted below
+		device.Surfaces.ConvertShaders = false;
 		var surfaces = Folder( device );
 		device.Surfaces.AddFolder( surfaces );
 		device.Surfaces.Error = m => Console.WriteLine( $"Shader: {m}" );
@@ -303,6 +306,7 @@ internal static class SurfaceParity
 			using var device = new BackendDevice( gpu );
 			if ( content is not null ) device.Content.Add( Path.GetFullPath( content ) );
 			device.Surfaces.Error = m => Console.WriteLine( $"Shader: {m}" );
+			device.Surfaces.ConvertShaders = false;   // the reference is the .shader route
 			if ( convert )
 			{
 				device.Surfaces.AddFolder( Path.Combine( device.Content.Roots[0], "shaders" ) );

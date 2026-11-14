@@ -142,6 +142,27 @@ public sealed class ShaderProgram
 		DynamicComboCount = (int)dynamicCount;
 	}
 
+	/// <summary>
+	/// A program for a stage compiled from a module (<see cref="IShaderModules"/>): its variables and constant buffers, no
+	/// combos and no compiled static combos.
+	/// </summary>
+	internal ShaderProgram( ShaderFile shader, ShaderProgramType type, ShaderVariable[] variables, ConstantBufferLayout[] constantBuffers )
+	{
+		Shader = shader;
+		Type = type;
+		data = [];
+		comboIds = [];
+		comboOffsets = [];
+		sharedGroups = [];
+		sharedModules = [];
+		StaticCombos = [];
+		DynamicCombos = [];
+		Variables = variables;
+		ConstantBuffers = constantBuffers;
+		InputSignatures = [];
+		DynamicComboCount = 1;
+	}
+
 	static ShaderCombo[] ReadCombos( ByteReader reader, int vcs )
 	{
 		var combos = new ShaderCombo[reader.Count( 1000 )];

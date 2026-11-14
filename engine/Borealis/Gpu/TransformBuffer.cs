@@ -9,9 +9,10 @@ namespace Borealis.Gpu;
 /// See <c>docs/native/instancing.md</c>.
 /// <para>
 /// Rigid meshes keep an entry between frames, in a slot that stays theirs while they're drawn, rewritten only when the world's
-/// entry version for them changes (<see cref="KeptSlotFor"/>); the GPU buffers get only the kept entries written since each was
-/// last current. Everything else - skinned bones, custom objects, draw tints, aggregates, debug tints - is written each frame,
-/// into the frame's entries after the kept ones (<see cref="FrameBase"/>).
+/// entry version for them changes (<see cref="KeptSlotFor"/>), and aggregates a run of them, one per fragment
+/// (<see cref="KeptRunFor"/>); the GPU buffers get only the kept entries written since each was last current. Everything
+/// else - skinned bones, custom objects, draw tints, debug tints - is written each frame, into the frame's entries after
+/// the kept ones (<see cref="FrameBase"/>).
 /// </para>
 /// </summary>
 internal sealed class TransformBuffer : IDisposable
@@ -92,6 +93,7 @@ internal sealed class TransformBuffer : IDisposable
 		dirty[frame % FramesInFlight].Clear();
 		if ( wanted > 0 ) GrowKept( wanted );
 		wanted = 0;
+		if ( wantedRuns.Count > 0 ) MakeRuns();
 		if ( frame % SweepInterval == 0 ) Sweep();
 	}
 
@@ -100,6 +102,23 @@ internal sealed class TransformBuffer : IDisposable
 	RenderObject[] owners = [];
 	int[] used = [];
 	int keptCapacity;
+
+	/// <summary>
+	/// By slot: the length of the run that starts there (<see cref="KeptRunFor"/>), -1 for a run's later slots, 0 for a
+	/// slot of its own. A run's first slot says when it was last drawn for all of it.
+	/// </summary>
+	int[] runs = [];
+
+	/// <summary>
+	/// Objects drawn this frame that wanted a run of kept slots: made before the next frame.
+	/// </summary>
+	readonly List<(RenderObject Owner, int Index, int Count)> wantedRuns = new();
+
+	/// <summary>Runs given back, by length, for another of the same length.</summary>
+	readonly Dictionary<int, Stack<int>> freeRuns = new();
+
+	/// <summary>Kept slots made for runs and not yet taken by one: [reserve, reserveEnd).</summary>
+	int reserve, reserveEnd;
 
 	// Slots no one has, as a stack
 	int[] free = [];
@@ -181,19 +200,95 @@ internal sealed class TransformBuffer : IDisposable
 	}
 
 	/// <summary>
+	/// An object's run of <paramref name="count"/> kept entries, by its world index (an aggregate's, a slot per fragment in
+	/// order): its first slot, with <paramref name="write"/> set when <paramref name="version"/> isn't the one the entries
+	/// hold, for the caller to rewrite them (<see cref="WriteKept"/>). -1 when it has none yet: the caller writes frame
+	/// entries this frame, and the run is made before the next.
+	/// </summary>
+	public int KeptRunFor( int index, RenderObject obj, int count, int version, out bool write )
+	{
+		if ( (uint)index >= (uint)keptByIndex.Length ) Array.Resize( ref keptByIndex, Math.Max( index + 1, keptByIndex.Length * 2 ) );
+
+		ref var keep = ref keptByIndex[index];
+		var slot = keep.Slot;
+		if ( count > 0 && (uint)slot < (uint)keptCapacity && owners[slot] == obj && runs[slot] == count )
+		{
+			write = keep.Version != version;
+			keep.Version = version;
+			used[slot] = frame;
+			return slot;
+		}
+
+		write = false;
+		if ( count > 0 ) wantedRuns.Add( (obj, index, count) );
+		return -1;
+	}
+
+	/// <summary>Write a kept entry of a run from a transform in native's row layout and a tint.</summary>
+	public void WriteKept( int slot, in Matrix3x4 m, Color tint )
+	{
+		kept[slot] = new Entry { Row0 = m.Row0, Row1 = m.Row1, Row2 = m.Row2, Alpha = tint.a, TintRgb888 = PackRgb888( tint ) };
+		dirty[frame % FramesInFlight].Add( slot );
+		KeptWrites++;
+	}
+
+	/// <summary>
+	/// The runs asked for last frame, between frames, each in one piece with no entry written yet: one given back of the
+	/// same length, else from the slots kept for runs, which grow by half at least when they run out.
+	/// </summary>
+	void MakeRuns()
+	{
+		foreach ( var (owner, index, count) in wantedRuns )
+		{
+			int start;
+			if ( freeRuns.TryGetValue( count, out var given ) && given.Count > 0 )
+			{
+				start = given.Pop();
+			}
+			else
+			{
+				if ( reserveEnd - reserve < count )
+				{
+					// What's left of the old reserve becomes slots of their own
+					for ( int slot = reserveEnd - 1; slot >= reserve; slot-- ) free[freeCount++] = slot;
+					reserve = keptCapacity;
+					GrowKept( count, keepFirst: int.MaxValue );
+					reserveEnd = keptCapacity;
+				}
+
+				start = reserve;
+				reserve += count;
+			}
+
+			if ( (uint)index >= (uint)keptByIndex.Length ) Array.Resize( ref keptByIndex, Math.Max( index + 1, keptByIndex.Length * 2 ) );
+			for ( int i = 0; i < count; i++ )
+			{
+				owners[start + i] = owner;
+				runs[start + i] = i == 0 ? count : -1;
+			}
+
+			used[start] = frame;
+			keptByIndex[index] = (start, int.MinValue);
+		}
+
+		wantedRuns.Clear();
+	}
+
+	/// <summary>
 	/// Make <paramref name="count"/> or more kept slots, between frames. The kept entries grow by half at least, so growing
 	/// slot by slot doesn't copy them every frame.
 	/// </summary>
-	void GrowKept( int count )
+	void GrowKept( int count, int keepFirst = 0 )
 	{
 		var capacity = keptCapacity + Math.Max( count, Math.Max( keptCapacity / 2, 64 ) );
 		Array.Resize( ref kept, capacity );
 		Array.Resize( ref owners, capacity );
 		Array.Resize( ref used, capacity );
+		Array.Resize( ref runs, capacity );
 		Array.Resize( ref free, capacity );
 
-		// Lowest first
-		for ( int slot = capacity - 1; slot >= keptCapacity; slot-- )
+		// Lowest first, but for the first keepFirst new slots, which runs take
+		for ( int slot = capacity - 1; slot >= keptCapacity + (long)keepFirst; slot-- )
 			free[freeCount++] = slot;
 
 		keptCapacity = capacity;
@@ -206,7 +301,17 @@ internal sealed class TransformBuffer : IDisposable
 	{
 		for ( int slot = 0; slot < keptCapacity; slot++ )
 		{
-			if ( owners[slot] is null || frame - used[slot] < SlotLifetime ) continue;
+			// A run's later slots go with its first, and it's kept whole for another run as long
+			if ( runs[slot] < 0 || owners[slot] is null || frame - used[slot] < SlotLifetime ) continue;
+
+			if ( runs[slot] > 0 )
+			{
+				for ( int i = 0; i < runs[slot]; i++ ) owners[slot + i] = null;
+				if ( !freeRuns.TryGetValue( runs[slot], out var given ) ) freeRuns[runs[slot]] = given = new();
+				given.Push( slot );
+				continue;
+			}
+
 			owners[slot] = null;
 			free[freeCount++] = slot;
 		}

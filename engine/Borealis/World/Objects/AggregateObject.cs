@@ -107,10 +107,12 @@ internal sealed class AggregateObject : RenderObject
 		get;
 		set
 		{
-			// Only alpha reaches a shadow: a faded caster dithers
+			// Only alpha reaches a shadow: a faded caster dithers. Its fragments' kept entries hold it
 			var faded = field.a != value.a;
+			var changed = !field.Equals( value );
 			field = value;
 			if ( faded ) ShadowChanged();
+			if ( changed ) World?.EntryChanged( this );
 		}
 	} = Color.White;
 

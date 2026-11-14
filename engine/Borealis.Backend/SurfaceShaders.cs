@@ -50,7 +50,76 @@ public sealed class SurfaceShaders : IDisposable
 	internal string ConversionFor( string shader )
 	{
 		if ( shader is null ) return null;
-		lock ( programs ) return conversions.TryGetValue( ShaderKey( shader ), out var file ) ? file : null;
+		var key = ShaderKey( shader );
+		lock ( programs )
+		{
+			if ( conversions.TryGetValue( key, out var file ) ) return file;
+		}
+
+		return ConvertShaders && DefaultSurfaces.TryGetValue( key, out var surface ) ? DefaultSurface( key, surface ) : null;
+	}
+
+	/// <summary>
+	/// The core shaders drawn as surfaces by default (<see cref="ConvertShaders"/>): by the surface written beside them
+	/// (<c>complex.slang</c>), or, for null, by what <see cref="ShaderConverter"/> makes of the <c>.shader</c>.
+	/// </summary>
+	static readonly Dictionary<string, string> DefaultSurfaces = new( StringComparer.OrdinalIgnoreCase )
+	{
+		["complex"] = "complex.slang",
+		["blendable"] = "blendable.slang",
+		["generic"] = "generic.slang",
+		["vertex_color"] = "vertex_color.slang",
+		["simple"] = null,
+	};
+
+	/// <summary>
+	/// The single switch between the surface tier and the <c>.shader</c> route for the core shaders that have a surface:
+	/// on (the default), their materials load as surfaces; off, as their <c>.shader</c>, for comparisons. Read by each
+	/// device as it's made (<see cref="ConvertShaders"/>).
+	/// </summary>
+	public static bool ConvertByDefault { get; set; } = true;
+
+	/// <summary>
+	/// Whether this device loads the core shaders' materials as the surfaces standing in for them; from
+	/// <see cref="ConvertByDefault"/>. Shaders given with <see cref="Convert"/> convert either way.
+	/// </summary>
+	public bool ConvertShaders { get; set; } = ConvertByDefault;
+
+	readonly Dictionary<string, string> defaultPaths = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>A default surface's path: beside its .shader in the core shaders, or the converter's output in the cache.</summary>
+	string DefaultSurface( string key, string surface )
+	{
+		lock ( defaultPaths )
+		{
+			if ( defaultPaths.TryGetValue( key, out var known ) ) return known;
+			string path = null;
+			try
+			{
+				var shaders = CoreShaders();
+				if ( surface is not null ) path = File.Exists( Path.Combine( shaders, surface ) ) ? Path.Combine( shaders, surface ) : null;
+				else if ( File.Exists( Path.Combine( shaders, key + ".shader" ) ) )
+				{
+					var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( shaders, key + ".shader" ) ), key, include => File.Exists( Path.Combine( shaders, include ) ) ? File.ReadAllText( Path.Combine( shaders, include ) ) : null );
+					if ( result.Source is null ) Error?.Invoke( $"{key}.shader: not converted ({string.Join( "; ", result.Notes )})" );
+					else
+					{
+						// Written to the cache, only when it changed, so its compile is cached too
+						var folder = Path.Combine( Compiler().CacheFolder, "converted" );
+						Directory.CreateDirectory( folder );
+						path = Path.Combine( folder, key + ".slang" );
+						var text = result.Source.Replace( "\n", "\r\n" );
+						if ( !File.Exists( path ) || File.ReadAllText( path ) != text ) File.WriteAllText( path, text );
+					}
+				}
+			}
+			catch ( InvalidOperationException e )
+			{
+				Error?.Invoke( $"{key}.shader: {e.Message}" );
+			}
+
+			return defaultPaths[key] = path;
+		}
 	}
 
 	/// <summary>
@@ -81,6 +150,7 @@ public sealed class SurfaceShaders : IDisposable
 	{
 		get
 		{
+			if ( ConvertShaders ) return true;
 			lock ( programs ) return conversions.Count > 0;
 		}
 	}
@@ -137,15 +207,21 @@ public sealed class SurfaceShaders : IDisposable
 	SlangCompiler Compiler()
 	{
 		if ( compiler is not null ) return compiler;
-		// The engine's core content: the root with the surface library (a map's own package comes first in its content)
-		var core = device.Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "sbox", "surface.slang" ) ) ) ?? device.Content.Roots.FirstOrDefault()
-			?? throw new InvalidOperationException( "No content folder to find the engine's shaders in" );
-		var game = Path.GetDirectoryName( core );
-		Watch( Path.Combine( core, "shaders" ) );
-		return compiler = new SlangCompiler( Path.Combine( game, "bin", "win64" ), [Path.Combine( core, "shaders" )] )
+		var shaders = CoreShaders();
+		var game = Path.GetDirectoryName( Path.GetDirectoryName( shaders ) );
+		Watch( shaders );
+		return compiler = new SlangCompiler( Path.Combine( game, "bin", "win64" ), [shaders] )
 		{
 			CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealissurfaces" ),
 		};
+	}
+
+	/// <summary>The engine's core shaders: in the content root with the surface library (a map's own package comes first in its content).</summary>
+	string CoreShaders()
+	{
+		var core = device.Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "sbox", "surface.slang" ) ) ) ?? device.Content.Roots.FirstOrDefault()
+			?? throw new InvalidOperationException( "No content folder to find the engine's shaders in" );
+		return Path.Combine( core, "shaders" );
 	}
 
 	/// <summary>
