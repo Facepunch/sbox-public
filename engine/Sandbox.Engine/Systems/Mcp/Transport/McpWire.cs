@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -16,7 +17,16 @@ internal sealed class McpWire( Stream input, int maxBytes = 8 * 1024 * 1024 )
 	int length;
 	static readonly UTF8Encoding Encoding = new( false, true );
 
+	internal static string PipeName( Process process ) => PipeName( process.Id, StartTime( process ) );
 	internal static string PipeName( int pid, long startTime ) => $"sbox-mcp-{pid}-{startTime:x}";
+
+	// Process.StartTime on Linux adds a boot time sampled in each process, so two processes can disagree by a tick.
+	static long StartTime( Process process )
+	{
+		if ( !OperatingSystem.IsLinux() ) return process.StartTime.ToUniversalTime().Ticks;
+		var stat = File.ReadAllText( $"/proc/{process.Id}/stat" );
+		return long.Parse( stat[(stat.LastIndexOf( ')' ) + 2)..].Split( ' ' )[19] );
+	}
 
 	internal async Task<string> ReadAsync( CancellationToken cancellation )
 	{
