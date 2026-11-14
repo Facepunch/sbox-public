@@ -569,11 +569,11 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
-	/// A static mesh that reads the frame buffer copy draws GPU-driven where it only writes depth (the prepass, here) and
-	/// the classic way in colour layers, where its copy is taken: the frame is the classic path's.
+	/// A static mesh that reads the frame buffer copy draws GPU-driven, its depth and its colour: nothing draws the classic
+	/// way in the prepass or the opaque pass, and the frame is the classic path's.
 	/// </summary>
 	[TestMethod]
-	public void FrameBufferReadersDrawDepthGpuDriven()
+	public void FrameBufferReadersDrawGpuDriven()
 	{
 		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = false, GpuDrivenMeshes = true };
 		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
@@ -635,10 +635,10 @@ public class GpuDrivenTests : GpuTest
 			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
 			Assert.AreEqual( 0, Different( classic, driven ), "the classic pixels" );
 
-			var readers = census.Draws.Where( d => d.Path == DrawCensus.Path.Classic && d.Kind.Contains( "frame buffer", StringComparison.Ordinal ) ).ToArray();
-			Assert.IsFalse( readers.Any( d => d.Pass.EndsWith( "Depth Prepass", StringComparison.Ordinal ) ), "the reader's depth isn't drawn the classic way" );
-			Assert.IsTrue( readers.Any( d => d.Pass.EndsWith( "Opaque Forward", StringComparison.Ordinal ) ), "its colour is" );
 			Assert.IsFalse( census.Draws.Any( d => d.Path == DrawCensus.Path.Classic && d.Pass.EndsWith( "Depth Prepass", StringComparison.Ordinal ) ), "nothing in the prepass draws the classic way" );
+			Assert.IsFalse( census.Draws.Any( d => d.Path == DrawCensus.Path.Classic && d.Pass.EndsWith( "Opaque Forward", StringComparison.Ordinal ) ), "nor in the opaque pass" );
+			var forwardMaterials = census.Draws.Where( d => d.Path == DrawCensus.Path.Bucket && d.Pass.EndsWith( "Opaque Forward", StringComparison.Ordinal ) ).GroupBy( d => d.Bucket ).Sum( g => g.First().BucketMaterials );
+			Assert.AreEqual( 3, forwardMaterials, "the aggregate's, the reader's and the other mesh's materials are in the opaque pass's buckets" );
 		}
 		finally
 		{

@@ -296,20 +296,6 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		var depthBias = shadow ? view.DepthBias : 0;
 		var slopeBias = shadow ? view.SlopeScaledDepthBias : 0;
 
-		// Frame-buffer readers draw GPU-driven in depth and shadow layers only; colour layers leave them to the mesh feature
-		MeshRenderFeature.DrawItem[] colourDraws = null;
-		if ( !depth && !shadow && !meshDraws.IsEmpty && Meshes.ReadersTaken( view ) )
-		{
-			colourDraws = System.Buffers.ArrayPool<MeshRenderFeature.DrawItem>.Shared.Rent( meshDraws.Length );
-			var kept = 0;
-			foreach ( var item in meshDraws )
-			{
-				if ( !Meshes.ReadsFrameBuffer( view, item ) ) colourDraws[kept++] = item;
-			}
-
-			meshDraws = colourDraws.AsSpan( 0, kept );
-		}
-
 		// As MeshRenderFeature: the early prepass culls only with last frame's chain, the late one draws only culled batches
 		var phase = context.Occlusion is { } occlusion && (layer.OcclusionPhase != OcclusionPhase.Early || occlusion.CullsEarly) ? layer.OcclusionPhase : OcclusionPhase.None;
 		var culledOnly = layer.OcclusionPhase == OcclusionPhase.Late;
@@ -321,6 +307,9 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		{
 			var drawn = gpuDriven.AsSpan( 0, batches.Length + meshDraws.Length );
 			drawn.Clear();
+			// The frame copy frame-buffer readers among the mesh draws read, taken as the mesh feature takes it before its first
+			// reader (where the layer copies at all)
+			if ( !depth && !shadow && ReadsFrameBuffer( view, meshDraws ) ) context.CopyFrameBuffer();
 			DrawGpuDriven( context, view, batches, meshDraws, mode, depth, layer.ForceDepthFastPath, depthBias, slopeBias, drawn );
 
 			for ( int i = 0; i < batches.Length; i++ )
@@ -374,8 +363,19 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		}
 
 		if ( gpuDriven is not null ) System.Buffers.ArrayPool<bool>.Shared.Return( gpuDriven );
-		if ( colourDraws is not null ) System.Buffers.ArrayPool<MeshRenderFeature.DrawItem>.Shared.Return( colourDraws );
 		context.SetObjectAttributes( null );
+	}
+
+	/// <summary>Whether any of the mesh draws reads the frame buffer copy (<see cref="MeshRenderFeature.ReadersTaken"/>).</summary>
+	bool ReadsFrameBuffer( ViewPass view, ReadOnlySpan<MeshRenderFeature.DrawItem> meshDraws )
+	{
+		if ( meshDraws.IsEmpty || !Meshes.ReadersTaken( view ) ) return false;
+		foreach ( var item in meshDraws )
+		{
+			if ( Meshes.ReadsFrameBuffer( view, item ) ) return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>Count a mesh draw the GPU-driven path took, as the mesh feature counts its draws.</summary>
