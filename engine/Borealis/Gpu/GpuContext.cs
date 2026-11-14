@@ -87,6 +87,13 @@ internal abstract class GpuContext : IDisposable
 	/// <summary>Begin recording into an owned or shared context. Only the owner submits a shared context.</summary>
 	public abstract void Begin( GpuContext shared = null );
 
+	/// <summary>
+	/// After <see cref="BeginSegment"/> into a context of its own: the segment carries on the draws of the segment submitted
+	/// before it (<paramref name="fromPrevious"/>), or the next one carries on its own (<paramref name="intoNext"/>), on the
+	/// same targets, so their rendering can be one scope on the GPU. A device that places its own render passes ignores it.
+	/// </summary>
+	internal virtual void CarryRendering( bool fromPrevious, bool intoNext ) { }
+
 	/// <summary>Submit and end recording, naming the swap chain on a frame's first submission.</summary>
 	public abstract void Submit( GpuSwapChain swapChain = default );
 

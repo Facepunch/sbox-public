@@ -173,6 +173,47 @@ public class MaterialObjectTests : GpuTest
 		CollectionAssert.AreEqual( batched.Pixels, again.Pixels );
 	}
 
+	/// <summary>
+	/// A frame recorded on workers draws the same with exact barriers as with ones that wait for everything, and with
+	/// rendering scopes carried across lists as without, batched or submitted a list at a time, and no list is added to pair
+	/// scopes. (This scene's layers don't split inside a view's work, so nothing resumes here: see
+	/// <c>DeviceTests.SuspendedScopeResumesInTheNextList</c>.)
+	/// </summary>
+	[TestMethod]
+	public void ParallelRecordingDrawsTheSameWithExactBarriersAndCarriedScopes()
+	{
+		const int width = 640, height = 400;
+		using var scene = new BorealisScene( Device );
+		scene.Backend.MaterialObjects = true;
+		scene.System.ParallelRecording = true;
+
+		(byte[] Pixels, long Pairings) Frame( bool carry, bool exact, bool batch = true )
+		{
+			scene.Backend.CarryScopes = carry;
+			scene.Backend.ExactBarriers = exact;
+			scene.Backend.BatchSubmits = batch;
+			Device.BeginFrame();
+			var pairings = Device.ScopePairings;
+			var (texture, layout, color) = scene.Render( width, height, 1.0f );
+			Device.Flush();
+			pairings = Device.ScopePairings - pairings;
+			Device.WaitIdle();
+			return (Read( texture, layout, color ), pairings);
+		}
+
+		// A scene's first frame isn't compared: it can differ from the ones after
+		Frame( carry: false, exact: false );
+		var full = Frame( carry: false, exact: false );
+		var exact = Frame( carry: false, exact: true );
+		var carried = Frame( carry: true, exact: true );
+		var separate = Frame( carry: true, exact: true, batch: false );
+
+		Assert.AreEqual( 0, carried.Pairings, "no list was added to pair scopes" );
+		Assert.AreEqual( 0, Different( full.Pixels, exact.Pixels ), "exact barriers draw what full ones do" );
+		Assert.AreEqual( 0, Different( full.Pixels, carried.Pixels ), "scopes carried across lists draw what a scope per list does" );
+		Assert.AreEqual( 0, Different( full.Pixels, separate.Pixels ), "a submission per list draws the same" );
+	}
+
 	/// <summary>Read a frame back, and tell the backend where that left its target.</summary>
 	byte[] Read( TextureHandle texture, ImageLayout layout, Borealis.GpuTexture color )
 	{

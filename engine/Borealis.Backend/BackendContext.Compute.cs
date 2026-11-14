@@ -117,18 +117,4 @@ internal sealed partial class BackendContext
 			return view;
 		}
 	}
-
-	static Borealis.Gpu.TextureBarrier MipBarrier( TextureHandle texture, int mip, ImageLayout from, ImageLayout to ) => new()
-	{
-		Texture = texture,
-		OldLayout = from,
-		NewLayout = to,
-		SourceStage = PipelineStage.AllCommands,
-		SourceAccess = MemoryAccess.MemoryWrite,
-		DestinationStage = PipelineStage.AllCommands,
-		DestinationAccess = MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite,
-		BaseMip = mip,
-		MipCount = 1,
-		LayerCount = 1,
-	};
 }
