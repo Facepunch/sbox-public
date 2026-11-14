@@ -326,6 +326,9 @@ internal sealed class HeadlessContext : GpuContext
 	public override void CopyTexture( GpuTexture source, GpuTexture destination, int slices )
 		=> Record( Command( GpuOp.CopyTexture ) with { Texture = destination, Source = source, Count = slices } );
 
+	public override void CopyTextureRegion( GpuTexture source, GpuTexture destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height )
+		=> Record( Command( GpuOp.CopyTexture ) with { Texture = destination, Source = source, Count = 1 } );
+
 	void Barrier( GpuTexture texture, GpuStage srcStage, GpuAccess srcAccess, GpuStage dstStage, GpuAccess dstAccess, TextureLayout layout ) => Record( Command( GpuOp.TextureBarrier ) with
 	{
 		Texture = texture,

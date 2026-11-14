@@ -73,6 +73,10 @@ struct DirectionalLightShadow
 	// Camera-relative position (vPositionWithOffsetWs).
 	static float SampleCascadeWithOffset( int cascadeIndex, float3 positionWithOffsetWs, float3 normalWs, float2 screenPos )
     {
+		// A cascade that drew nothing is lit
+		if ( ( ( g_DirectionalLightFlags >> ( 1 + cascadeIndex ) ) & 1 ) != 0 )
+			return 1.0;
+
 		float4x4 worldToShadow = g_DirectionalLightWorldToShadowViewMatrices[cascadeIndex];
 
 		positionWithOffsetWs = ApplyShadowNormalOffset( positionWithOffsetWs, normalWs, g_DirectionalLightInverseShadowMapSize / length( worldToShadow[0].xyz ), g_DirectionalLightCascadeHardness[cascadeIndex] );
@@ -84,6 +88,22 @@ struct DirectionalLightShadow
         pcfInput.Bias = g_DirectionalLightShadowBias[cascadeIndex];
 		pcfInput.Hardness = g_DirectionalLightCascadeHardness[cascadeIndex];
         pcfInput.ScreenPos = screenPos;
+
+		// Nearer the sun than every caster the filter could reach is lit, behind every one of them shadowed: the filter
+		// would return exactly that, so skip it. The tiles hold each 32x32 texel tile's farthest and nearest caster depth
+		// over it and its neighbours, cascades side by side (Basalt's; native sets no index)
+		uint nTiles = g_DirectionalLightFlags >> 5;
+		if ( nTiles != 0 )
+		{
+			int nTilesPerSide = (int)( rcp( g_DirectionalLightInverseShadowMapSize ) * ( 1.0 / 32.0 ) + 0.5 );
+			int2 vTile = clamp( int2( pcfInput.ShadowPos.xy * nTilesPerSide ), 0, nTilesPerSide - 1 );
+			float2 vMinMax = Bindless::GetTexture2D( nTiles ).Load( int3( vTile.x + cascadeIndex * nTilesPerSide, vTile.y, 0 ) ).xy;
+			float flCompareDepth = saturate( pcfInput.ShadowPos.z + pcfInput.Bias );
+			if ( flCompareDepth >= vMinMax.y )
+				return 1.0;
+			if ( flCompareDepth < vMinMax.x )
+				return 0.0;
+		}
 
         return SampleShadowPCF( pcfInput );
     }

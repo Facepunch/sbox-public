@@ -121,10 +121,16 @@ public sealed partial class RenderSystem
 	internal static bool FindCandidates( RenderWorld world, ViewPass pass, List<int> candidates, out int inTree, out int rejected, bool sizeCull = true )
 	{
 		candidates.Clear();
-		var size = sizeCull && !KeepsSmallCasters( pass ) ? new SizeCull( pass.Root ) : default;
+		if ( pass.StaticFilter == StaticFilter.Nothing )
+		{
+			(inTree, rejected) = (0, 0);
+			return true;
+		}
+
+		var size = sizeCull && !KeepsSmallCasters( pass ) ? SizeCull.ForPass( pass ) : default;
 
 		// Avoid traversing static objects for dynamic-only shadows.
-		var tree = pass.StaticFilter == StaticFilter.NoStatic ? world.DynamicTree : world.Tree;
+		var tree = pass.StaticFilter is StaticFilter.NoStatic or StaticFilter.SettledNoStatic or StaticFilter.Unsettled ? world.DynamicTree : world.Tree;
 
 		bool inFrustum;
 		if ( pass.LightSphere is { } sphere )
@@ -164,7 +170,7 @@ public sealed partial class RenderSystem
 	{
 		var frustum = pass.View.Frustum;
 		var root = pass.Root;
-		var sizeCull = KeepsSmallCasters( pass ) ? default : new SizeCull( root );
+		var sizeCull = KeepsSmallCasters( pass ) ? default : SizeCull.ForPass( pass );
 		var shadow = pass.IsShadow;
 		var filter = pass.StaticFilter;
 		var objects = world.Objects;
@@ -231,6 +237,7 @@ public sealed partial class RenderSystem
 				if ( !f.DrawsShadows || !f.CastsShadow( obj ) ) continue;
 				if ( filter == StaticFilter.OnlyStatic && !obj.IsStatic ) continue;
 				if ( filter == StaticFilter.NoStatic && obj.IsStatic ) continue;
+				if ( filter >= StaticFilter.Settled && !TakesSettled( pass, filter, obj.IsStatic, world.MovedStamps[i] ) ) continue;
 			}
 
 			visible[feature].Add( i );
@@ -239,9 +246,26 @@ public sealed partial class RenderSystem
 	}
 
 	/// <summary>
-	/// A static shadow cache is kept while the camera moves, so it isn't size culled by where the camera was when it was drawn.
+	/// Whether the sun's cached far cascade (<see cref="StaticFilter.Settled"/>, <see cref="StaticFilter.SettledNoStatic"/>) or
+	/// what's drawn on top of it (<see cref="StaticFilter.Unsettled"/>) takes a caster that last moved at <paramref name="moved"/>.
+	/// The one on top counts those it takes that have settled since its cache was drawn.
 	/// </summary>
-	static bool KeepsSmallCasters( ViewPass pass ) => pass.StaticFilter == StaticFilter.OnlyStatic;
+	static bool TakesSettled( ViewPass pass, StaticFilter filter, bool isStatic, ulong moved )
+	{
+		if ( filter == StaticFilter.Settled && isStatic ) return true;
+		if ( isStatic ) return false;
+		if ( filter != StaticFilter.Unsettled ) return moved <= pass.SettledStamp;
+		if ( moved <= pass.SettledStamp ) return false;
+
+		if ( pass.NewlySettled is { } count && Basalt.Shadows.SettledCasters.Settled( moved ) ) count.Value++;
+		return true;
+	}
+
+	/// <summary>
+	/// A static shadow cache is kept while the camera moves, so it isn't size culled by where the camera was when it was drawn.
+	/// A texel-sized cull doesn't depend on the camera, so it keeps that.
+	/// </summary>
+	static bool KeepsSmallCasters( ViewPass pass ) => pass.StaticFilter == StaticFilter.OnlyStatic && !pass.TexelSized;
 
 	/// <summary>
 	/// Warm type lookups before parallel culling; cache misses write shared state.

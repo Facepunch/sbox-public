@@ -61,7 +61,8 @@ public class WorkTests
 
 	/// <summary>
 	/// An object in several shadow views is classified once, for the first of them: its LOD comes from the main view's
-	/// camera and shadows take no probe, so every shadow view would make the same of it.
+	/// camera and shadows take no probe, so every shadow view would make the same of it. The sun's last cascade picks LODs
+	/// by its own texels, so it makes its own once more.
 	/// </summary>
 	[TestMethod]
 	public void ShadowViewsClassifyAnObjectOnce()
@@ -73,10 +74,12 @@ public class WorkTests
 		CollectAndPrepare( system, world, view );
 
 		var feature = system.GetFeature<MeshRenderFeature>();
-		var shadowVisible = system.ShadowMaps.Passes.ToArray().SelectMany( p => p.Visible( feature ) ).ToList();
+		var passes = system.ShadowMaps.Passes.ToArray();
+		var shadowVisible = passes.Where( p => p.LodTexelsPerUnit == 0 ).SelectMany( p => p.Visible( feature ) ).ToList();
 		var distinct = shadowVisible.Distinct().Count();
+		var texelDistinct = passes.Where( p => p.LodTexelsPerUnit > 0 ).SelectMany( p => p.Visible( feature ) ).Distinct().Count();
 		Assert.IsTrue( shadowVisible.Count >= distinct * 2, $"objects in several shadow views: {shadowVisible.Count} in {distinct}" );
-		Assert.AreEqual( system.MainPass.Visible( feature ).Count + distinct, feature.ObjectsClassified );
+		Assert.AreEqual( system.MainPass.Visible( feature ).Count + distinct + texelDistinct, feature.ObjectsClassified );
 	}
 
 	/// <summary>
@@ -124,8 +127,11 @@ public class WorkTests
 		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, view );
 
+		// The main view, the shadow views, and the sun's last cascade, which picks LODs by its own texels
+		var passes = system.ShadowMaps.Passes.ToArray();
 		var kinds = (system.MainPass.Visible( feature ).Contains( changed.Index ) ? 1 : 0)
-			+ (system.ShadowMaps.Passes.ToArray().Any( p => p.Visible( feature ).Contains( changed.Index ) ) ? 1 : 0);
+			+ (passes.Any( p => p.LodTexelsPerUnit == 0 && p.Visible( feature ).Contains( changed.Index ) ) ? 1 : 0)
+			+ (passes.Any( p => p.LodTexelsPerUnit > 0 && p.Visible( feature ).Contains( changed.Index ) ) ? 1 : 0);
 		Assert.IsTrue( kinds > 0, "the changed object is drawn" );
 		Assert.AreEqual( kinds, feature.ObjectsClassified - classified, "objects classified" );
 		Assert.AreEqual( 1, feature.KeysMade - keys, "one new bin, which the main and shadow views share" );

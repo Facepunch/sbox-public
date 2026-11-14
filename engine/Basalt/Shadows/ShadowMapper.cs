@@ -102,7 +102,7 @@ internal partial class ShadowMapper
 		Drawn.Clear();
 		CascadeShadowMapCount = 0;
 		GPUDirectionalLightData.CascadeCount = 0;
-		GPUDirectionalLightData.Enabled = false;
+		GPUDirectionalLightData.Flags = 0;
 		GPUDirectionalLightData.ShadowMaskTextureIndex = 0;
 		ShadowsAllocated = 0;
 
@@ -144,6 +144,7 @@ internal partial class ShadowMapper
 
 		Drawn.Clear();
 		if ( LastCascades.Mapper == this ) LastCascades = default;
+		AbandonFarCascades();
 	}
 
 	/// <summary>
@@ -464,6 +465,8 @@ internal partial class ShadowMapper
 
 		FrameStamp = FrameCount;
 		float now = RealTime.Now;
+		SettledCasters.Tick( now );
+		EvictFarCascades( now );
 
 		// Evict stale cache entries, and those whose light is gone
 		for ( int i = Entries.Count - 1; i >= 0; i-- )
@@ -530,6 +533,8 @@ internal partial class ShadowMapper
 		Entries.Clear();
 		Schedule.Clear();
 		LastCascades = default;
+		ResetFarCascades();
+		SettledCasters.Reset();
 	}
 
 	/// <summary>

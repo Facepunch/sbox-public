@@ -50,6 +50,11 @@ internal struct ShadowLight
 	public StaticCasterChanges StaticChanges;
 
 	/// <summary>
+	/// Directional: where the light's world has changed settled casters, which its cached far cascade must redraw for.
+	/// </summary>
+	public StaticCasterChanges SettledChanges;
+
+	/// <summary>
 	/// A light that doesn't move keeps its static casters in a cache, and only re-renders dynamic ones.
 	/// </summary>
 	public bool Static;
@@ -91,6 +96,12 @@ internal struct ShadowViewInfo
 	public System.Numerics.Matrix4x4 ViewToWorldRotation;
 
 	public Vector3 CameraPosition;
+
+	/// <summary>
+	/// The camera's own view, which keeps its sun's cached far cascade (<see cref="ShadowMapper.FarCascadeCache"/>); null
+	/// for none.
+	/// </summary>
+	public object Camera;
 
 	/// <summary>
 	/// The main viewport's size in pixels.
@@ -177,6 +188,55 @@ internal struct ShadowViewDesc
 	/// dynamic casters are rendered on top.
 	/// </summary>
 	public ShadowMap CachedStatic;
+
+	/// <summary>
+	/// Orthographic: size cull casters by this view's texel size rather than the main view's screen.
+	/// </summary>
+	public bool TexelSized;
+
+	/// <summary>
+	/// Orthographic: pick mesh LODs by this view's texel size rather than the main view's screen.
+	/// </summary>
+	public bool TexelLods;
+
+	/// <summary>
+	/// The <see cref="SettledCasters"/> stamp a <see cref="StaticFilter.Settled"/> or <see cref="StaticFilter.Unsettled"/> view
+	/// splits casters at.
+	/// </summary>
+	public ulong SettledStamp;
+
+	/// <summary>
+	/// Where an <see cref="StaticFilter.Unsettled"/> view counts the casters it draws that have settled since.
+	/// </summary>
+	public CasterCount NewlySettled;
+
+	/// <summary>
+	/// The part of the target drawn, in texels; empty for all of it. A view of part of a map is sized to it.
+	/// </summary>
+	public Rect Viewport;
+
+	/// <summary>
+	/// Several views of parts of one map in a frame each have their own number.
+	/// </summary>
+	public int Region;
+
+	/// <summary>
+	/// <see cref="CachedStatic"/> is held wrapped around: the target's texel (x, y) is its texel ((x + offset.x) mod size, ...).
+	/// </summary>
+	public Vector2Int CacheOffset;
+
+	/// <summary>
+	/// A cleared depth tile copied over <see cref="Viewport"/> before drawing, instead of clearing all of the target.
+	/// </summary>
+	public ShadowMap Blank;
+}
+
+/// <summary>
+/// A count a shadow view's culling writes for the mapper to read the next frame.
+/// </summary>
+internal sealed class CasterCount
+{
+	public int Value;
 }
 
 /// <summary>

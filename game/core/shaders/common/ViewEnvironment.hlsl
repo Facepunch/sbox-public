@@ -92,7 +92,10 @@ cbuffer ViewEnvironment EXTERNAL_DESC_SET( b, g_viewSet, 0 )
 	float g_DirectionalLightInverseShadowMapSize;
 	// Bindless index of the screen-space (contact) shadow mask, 0 if none.
 	uint g_DirectionalLightScreenSpaceShadowIndex;
-	bool g_DirectionalLightEnabled;
+	// Bit 0: the sun lights the view. Basalt's beside it (0 from native): bits 1-4, which cascades drew nothing; above
+	// them, the bindless index of the cascades' min/max tiles (Shadows/DirectionalLightShadow.hlsl)
+	uint g_DirectionalLightFlags;
+	#define g_DirectionalLightEnabled ( ( g_DirectionalLightFlags & 1 ) != 0 )
 	float4 g_DirectionalLightCascadeHardness;
 	float4 g_DirectionalLightCascadeSpheres[MAX_CASCADE_COUNT]; // xyz = world center, w = radius squared
 	float4 g_DirectionalLightShadowBias; // per-cascade depth bias, scaled by cascade size

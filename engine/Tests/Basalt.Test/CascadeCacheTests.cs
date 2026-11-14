@@ -1,0 +1,210 @@
+using Basalt;
+using Basalt.Culling;
+using Basalt.Features;
+using Basalt.Shadows;
+using System;
+using static BasaltTests.TestScenes;
+
+namespace BasaltTests;
+
+/// <summary>
+/// The sun's cascades: casters sized by each cascade's texels, and the cached far cascade, kept while the camera turns and
+/// zooms, drawn again a strip at a time as it walks.
+/// </summary>
+// Frames go through Basalt's ShadowMapper, whose caches and frame counter are static
+[TestClass]
+[DoNotParallelize]
+public class CascadeCacheTests
+{
+	bool wasCached;
+
+	[TestInitialize]
+	public void Start()
+	{
+		ShadowMapper.ResetCache();
+		wasCached = ShadowMapper.FarCascadeCache;
+		ShadowMapper.FarCascadeCache = true;
+	}
+
+	[TestCleanup]
+	public void Finish()
+	{
+		ShadowMapper.FarCascadeCache = wasCached;
+		ShadowMapper.ResetCache();
+	}
+
+	static ViewPass[] CacheViews( RenderSystem system ) => system.ShadowMaps.Passes.ToArray().Where( p => p.View.Name == "CSM Far Cache" ).ToArray();
+
+	static ViewPass FarView( RenderSystem system ) => system.ShadowMaps.Passes.ToArray().Single( p => p.StaticFilter == StaticFilter.Unsettled );
+
+	static RenderWorld SunWorld()
+	{
+		var world = new RenderWorld();
+		world.Lighting.SunDirection = new Angles( 60, 30, 0 ).Forward;
+		return world;
+	}
+
+	static MeshObject Box( RenderWorld world, Vector3 position, bool isStatic )
+	{
+		var box = new MeshObject( null, new Transform( position ) ) { LocalBounds = new BBox( new Vector3( -20 ), new Vector3( 20 ) ), IsStatic = isStatic };
+		world.Add( box );
+		return box;
+	}
+
+	/// <summary>
+	/// A cascade culls casters narrower than one of its texels, wherever they are: not by how big they are on the camera's
+	/// screen.
+	/// </summary>
+	[TestMethod]
+	public void CascadeCullsByItsTexelsWhereverTheCameraIs()
+	{
+		var view = new RenderView { Orthographic = true, OrthoSize = new Vector2( 2048 ), Viewport = new Rect( 0, 0, 1024, 1024 ) };
+		view.Update();
+		var pass = new ViewPass { View = view, Root = LookingDownX(), TexelSized = true };
+		var size = SizeCull.ForPass( pass );
+
+		// Two units a texel: a sphere of radius under one is culled, near the camera or not
+		Assert.IsTrue( size.Culls( new Vector3( 5, 0, 0 ), new Vector3( 0.5f ) ) );
+		Assert.IsFalse( size.Culls( new Vector3( 1e5f, 0, 0 ), new Vector3( 1.0f ) ) );
+		Assert.IsTrue( size.CameraAndThreshold.w < 0, "the GPU cull gets the texel test" );
+
+		pass.TexelSized = false;
+		Assert.IsFalse( SizeCull.ForPass( pass ).Culls( new Vector3( 5, 0, 0 ), new Vector3( 0.5f ) ), "the camera's screen keeps it" );
+	}
+
+	/// <summary>
+	/// The cached far cascade is drawn once, then kept while the camera turns, zooms and moves within a cell. Crossing a cell
+	/// draws one strip of cells; the sun turning draws all of it again.
+	/// </summary>
+	[TestMethod]
+	public void FarCascadeIsKeptAndScrolls()
+	{
+		var world = SunWorld();
+		Box( world, new Vector3( 100, 0, 0 ), isStatic: true );
+		var view = LookingDownX();
+		using var system = new RenderSystem();
+
+		CollectAndPrepare( system, world, view );
+		Assert.IsTrue( CacheViews( system ).Length > 0, "drawn the first time" );
+		var far = ShadowMapper.FarCaches.Single();
+		Assert.AreEqual( 1, far.Draws );
+
+		void Kept( string change, Action act )
+		{
+			act();
+			view.Update();
+			CollectAndPrepare( system, world, view );
+			Assert.AreEqual( 0, CacheViews( system ).Length, change );
+			Assert.AreEqual( 1, far.Draws, change );
+		}
+
+		Kept( "nothing", () => { } );
+		Kept( "turned", () => view.Rotation = Rotation.From( 10, 120, 0 ) );
+		Kept( "zoomed", () => view.FieldOfView = 30 );
+
+		// A cell is an eighth of the cache, about 2,570 units on the default settings
+		var rotation = world.Lighting.SunDirection.EulerAngles.ToRotation();
+		var grid = RenderHost.Current.Shadows.CascadeDistance * ShadowMapper.FarCacheDistanceScale * 2 / (1 - 1.0f / ShadowMapper.FarCacheCells) / ShadowMapper.FarCacheCells;
+		Kept( "moved within a cell", () => view.Position = rotation.Right * grid * 0.3f );
+
+		view.Position = rotation.Right * grid * 1.2f;
+		view.Update();
+		CollectAndPrepare( system, world, view );
+		Assert.IsTrue( CacheViews( system ).Length > 0, "crossed a cell" );
+		Assert.AreEqual( 1, far.Draws, "not drawn whole" );
+		Assert.AreEqual( ShadowMapper.FarCacheCells, far.CellsDrawn, "one strip of cells" );
+		Assert.IsTrue( FarView( system ).CacheOffset != default, "the cascade unwraps it" );
+
+		world.Lighting.SunDirection = new Angles( 61, 30, 0 ).Forward;
+		CollectAndPrepare( system, world, view );
+		Assert.AreEqual( 2, far.Draws, "the sun turned" );
+	}
+
+	/// <summary>
+	/// A walk through a level: 30 seconds at 60 frames a second and 320 units a second, turning as it goes, looking around.
+	/// Under one frame in a hundred draws any of the cache, and never all of it.
+	/// </summary>
+	[TestMethod]
+	public void WalkingRarelyDrawsTheFarCascade()
+	{
+		var world = SunWorld();
+		Box( world, new Vector3( 100, 0, 0 ), isStatic: true );
+		var view = LookingDownX();
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, view );
+		var far = ShadowMapper.FarCaches.Single();
+
+		var position = Vector3.Zero;
+		var drawing = 0;
+		const int frames = 30 * 60;
+		for ( int frame = 0; frame < frames; frame++ )
+		{
+			var heading = 40.0f * MathF.Sin( frame * 0.004f ) + frame * 0.05f;
+			position += Rotation.From( 0, heading, 0 ).Forward * (320.0f / 60.0f);
+			view.Position = position;
+			view.Rotation = Rotation.From( 10.0f * MathF.Sin( frame * 0.03f ), heading + 30.0f * MathF.Sin( frame * 0.02f ), 0 );
+			view.Update();
+			CollectAndPrepare( system, world, view );
+			if ( CacheViews( system ).Length > 0 ) drawing++;
+		}
+
+		Assert.AreEqual( 1, far.Draws, "never drawn whole" );
+		Assert.IsTrue( drawing * 100 < frames, $"drew in {drawing} of {frames} frames" );
+	}
+
+	/// <summary>
+	/// A static caster changing in the cache draws only the cells it covers again.
+	/// </summary>
+	[TestMethod]
+	public void FarCascadeRedrawsOnlyChangedCells()
+	{
+		var world = SunWorld();
+		var box = Box( world, new Vector3( 100, 0, 0 ), isStatic: true );
+		var view = LookingDownX();
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, view );
+		CollectAndPrepare( system, world, view );
+		var far = ShadowMapper.FarCaches.Single();
+
+		box.Transform = new Transform( new Vector3( 110, 0, 0 ) );
+		CollectAndPrepare( system, world, view );
+		Assert.AreEqual( 1, far.Draws );
+		Assert.IsTrue( far.CellsDrawn is > 0 and <= 4, $"{far.CellsDrawn} cells" );
+
+		var mesh = system.GetFeature<MeshRenderFeature>();
+		Assert.IsTrue( CacheViews( system ).Any( p => p.Visible( mesh ).Contains( box.Index ) ) );
+	}
+
+	/// <summary>
+	/// A caster that isn't static is drawn over the cache every frame until it has settled, then the cache takes it, until it
+	/// moves again.
+	/// </summary>
+	[TestMethod]
+	public void SettledCastersMoveIntoTheCache()
+	{
+		var world = SunWorld();
+		var box = Box( world, new Vector3( 100, 0, 0 ), isStatic: false );
+		var view = LookingDownX();
+		using var system = new RenderSystem();
+		var mesh = system.GetFeature<MeshRenderFeature>();
+
+		CollectAndPrepare( system, world, view );
+		Assert.IsTrue( FarView( system ).Visible( mesh ).Contains( box.Index ), "drawn on top while it might move" );
+		Assert.IsFalse( CacheViews( system ).Any( p => p.Visible( mesh ).Contains( box.Index ) ) );
+
+		// It has stayed put long enough, and so has the cache
+		SettledCasters.Reset( settled: true );
+		CollectAndPrepare( system, world, view );
+		var far = ShadowMapper.FarCaches.Single();
+		far.DrawnAt -= SettledCasters.Seconds;
+		CollectAndPrepare( system, world, view );
+		Assert.AreEqual( 2, far.Draws, "drawn again to take it" );
+		Assert.IsTrue( CacheViews( system ).Any( p => p.Visible( mesh ).Contains( box.Index ) ) );
+		Assert.IsFalse( FarView( system ).Visible( mesh ).Contains( box.Index ), "not on top any more" );
+
+		box.Transform = new Transform( new Vector3( 140, 0, 0 ) );
+		CollectAndPrepare( system, world, view );
+		Assert.IsTrue( FarView( system ).Visible( mesh ).Contains( box.Index ), "moved: on top again" );
+		Assert.IsTrue( far.CellsDrawn > 0, "and its old place drawn again" );
+	}
+}

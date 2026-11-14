@@ -58,12 +58,10 @@ public abstract class RenderObject
 	}
 
 	/// <summary>
-	/// Tell the world a static object changed how it casts shadows, so lights it reaches redraw their static shadow caches.
+	/// Tell the world this changed how it casts shadows, so lights it reaches redraw their static shadow caches, and the sun's
+	/// cached far cascade redraws if it holds it.
 	/// </summary>
-	private protected void ShadowChanged()
-	{
-		if ( IsStatic ) World?.StaticCasterChanged( this );
-	}
+	private protected void ShadowChanged() => World?.CasterChanged( this );
 
 	/// <summary>
 	/// Tell the world something that decides how this draws changed, so what renderers kept of it is made again

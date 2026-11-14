@@ -16,7 +16,12 @@ internal unsafe struct GPUDirectionalLight
 	public uint CascadeCount;
 	public float InverseShadowMapSize;
 	public uint ShadowMaskTextureIndex;
-	public bool Enabled;
+
+	/// <summary>
+	/// Bit 0 <see cref="Enabled"/>; bits 1-4 which cascades drew nothing; above them the bindless index of the cascades'
+	/// min/max tiles (<c>g_DirectionalLightFlags</c>). Native's struct has a bool here, which reads as just bit 0.
+	/// </summary>
+	public uint Flags;
 	public fixed float CascadeHardness[4];
 	public Vector4 CascadeSphere0;
 	public Vector4 CascadeSphere1;
@@ -24,6 +29,20 @@ internal unsafe struct GPUDirectionalLight
 	public Vector4 CascadeSphere3;
 
 	public fixed float ShadowBias[4];
+
+	/// <summary>
+	/// Whether the sun lights the view.
+	/// </summary>
+	public bool Enabled
+	{
+		readonly get => (Flags & 1) != 0;
+		set => Flags = value ? Flags | 1 : Flags & ~1u;
+	}
+
+	/// <summary>
+	/// Mark cascades that drew nothing (a bit each), and the bindless index of their min/max tiles, 0 for none.
+	/// </summary>
+	public void SetCascadeFlags( uint emptyCascades, int tiles ) => Flags = (Flags & 1) | ((emptyCascades & 0xF) << 1) | ((uint)Math.Max( tiles, 0 ) << 5);
 
 	public Span<Matrix> WorldToShadowMatrices => MemoryMarshal.CreateSpan( ref WorldToShadowMatrices0, 4 );
 	public Span<Vector4> CascadeSpheres => MemoryMarshal.CreateSpan( ref CascadeSphere0, 4 );
@@ -53,6 +72,61 @@ internal partial class ShadowMapper
 		public uint[] RenderTags, ExcludeTags;
 		public ulong SubWorlds;
 		public GPUDirectionalLight Data;
+	}
+
+	/// <summary>
+	/// Sun cascades cull casters, and the last picks LODs, by the cascade's own texel size instead of the main view's
+	/// screen. Off: as native, by the main view.
+	/// </summary>
+	internal static bool TexelSizedCascades { get; set; } = true;
+
+	/// <summary>
+	/// Lit shaders skip the sun's shadow filter where a cascade drew nothing, and, from each cascade's min/max depth tiles,
+	/// where the receiver is nearer the sun than every caster the filter reaches or behind all of them: the filter's own
+	/// answer there. Off: every receiver in a cascade is filtered.
+	/// </summary>
+	internal static bool CascadeTiles { get; set; } = true;
+
+	/// <summary>
+	/// Lab experiment (<c>basaltlab -freeze-far-cascade</c>): the last cascade is drawn once into a cache, then each frame
+	/// is that cache copied in, with no casters drawn on top. Only for a camera that doesn't move: its fit is kept too.
+	/// </summary>
+	internal static bool FreezeFarCascade { get; set; }
+
+	static ShadowMap frozenFarMap;
+	static ShadowViewDesc frozenFarView;
+
+	/// <summary>
+	/// <see cref="FreezeFarCascade"/>: draw the cache again on the next frame, for another view.
+	/// </summary>
+	internal static void ForgetFrozenFar() => frozenFarView = default;
+
+	/// <summary>
+	/// <see cref="FreezeFarCascade"/>: draw the cache the first time, and turn the cascade's view into a copy of it.
+	/// </summary>
+	void FreezeFar( ref ShadowViewDesc view )
+	{
+		if ( frozenFarMap is null || frozenFarMap.Resolution != view.Resolution )
+		{
+			frozenFarMap?.Dispose();
+			frozenFarMap = new ShadowMap( view.Resolution, false, TextureFormat.D32 );
+			frozenFarView = default;
+		}
+
+		var (name, target) = (view.Name, view.Target);
+		if ( frozenFarView.Target is null )
+		{
+			frozenFarView = view;
+			frozenFarView.Name = "CSM Far Cache";
+			frozenFarView.Target = frozenFarMap;
+			Renderer.RenderShadowView( frozenFarView );
+		}
+
+		view = frozenFarView;
+		view.Name = name;
+		view.Target = target;
+		view.CachedStatic = frozenFarMap;
+		view.StaticFilter = StaticFilter.Nothing;
 	}
 
 	// ponytail: single slot, add a per-light dictionary if two worlds with suns interleave views in one frame
@@ -373,6 +447,15 @@ internal partial class ShadowMapper
 		cascades = cascades[..cascadeCount];
 		float baseHardness = 1.0f + light.Hardness * 4.0f;
 
+		// The last of several from the camera's cache, unless this view's camera is a mirror's
+		FarCascade far = null;
+		var farFit = default( FarFit );
+		if ( FarCascadeCache && !FreezeFarCascade && cascadeCount > 1 && !View.IsReflection && View.Camera is not null )
+		{
+			far = FarCascadeFor( View.Camera, shadowmapSize );
+			cascades[^1] = FitFarCascade( far, light, staticFilter, new RenderWorldChanges( light.StaticChanges, light.SettledChanges ), out farFit );
+		}
+
 		for ( int i = 0; i < cascades.Length; i++ )
 		{
 			var cascade = cascades[i];
@@ -393,7 +476,15 @@ internal partial class ShadowMapper
 				StaticFilter = staticFilter,
 				DepthBias = ShadowDepthBias,
 				SlopeScaledDepthBias = ShadowSlopeScale,
+
+				// Casters too small for the cascade's texels are culled by them, not by the main view's screen. The last of
+				// several picks LODs by them too; the near ones keep the LODs the camera sees, which they're close to
+				TexelSized = TexelSizedCascades,
+				TexelLods = TexelSizedCascades && i == cascades.Length - 1 && i > 0,
 			};
+
+			if ( FreezeFarCascade && i > 0 && i == cascades.Length - 1 ) FreezeFar( ref shadowView );
+			if ( far is not null && i == cascades.Length - 1 ) RenderFarCascade( far, ref shadowView, farFit, light.Baked );
 
 			Matrix viewProjection = Renderer.RenderShadowView( shadowView );
 

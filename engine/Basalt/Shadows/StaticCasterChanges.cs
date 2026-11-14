@@ -47,4 +47,21 @@ internal sealed class StaticCasterChanges
 
 		return false;
 	}
+
+	/// <summary>
+	/// The boxes of the changes after revision <paramref name="since"/>, or false when some of them are no longer kept.
+	/// </summary>
+	public bool ChangesSince( long since, List<(Vector3 Min, Vector3 Max)> boxes )
+	{
+		boxes.Clear();
+		if ( Revision - since > Capacity ) return false;
+
+		for ( var revision = since; revision < Revision; revision++ )
+		{
+			var slot = (int)(revision % Capacity);
+			boxes.Add( (mins[slot], maxs[slot]) );
+		}
+
+		return true;
+	}
 }

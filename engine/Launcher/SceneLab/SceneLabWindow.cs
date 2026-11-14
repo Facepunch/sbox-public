@@ -201,6 +201,11 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		if ( Args.Has( "-parity" ) )
 		{
 			VSync = false;
+
+			// Basalt's sun cascades as native fits and culls them: the last one fit to the view, casters by its screen
+			global::Basalt.Shadows.ShadowMapper.FarCascadeCache = false;
+			global::Basalt.Shadows.ShadowMapper.TexelSizedCascades = false;
+
 			parity = new ParityRun( Args.String( "-parity" ) );
 			parity.Start( this );
 		}
