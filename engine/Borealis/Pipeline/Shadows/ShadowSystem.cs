@@ -239,6 +239,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		pass.TexelSized = desc.Orthographic && desc.TexelSized;
 		pass.LodTexelsPerUnit = desc.Orthographic && desc.TexelLods ? viewport.Width / MathF.Max( desc.Width, 1 ) : 0;
 		pass.SettledStamp = desc.SettledStamp;
+		pass.RestlessStamp = desc.RestlessStamp;
 		pass.NewlySettled = desc.NewlySettled;
 		pass.CacheOffset = desc.CacheOffset;
 		pass.Blank = desc.Blank;
@@ -521,6 +522,10 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		var cascades = mapper.Cascades;
 		for ( int i = 0; i < cascades.Length; i++ )
 			Add( report, ref layout, cascades[i], ShadowMapKind.Cascade, i, false, frame );
+
+		// The far cascade's cache after them, framed as drawn this frame (green: a strip, changed cells or all of it) or kept
+		// (grey); it's held wrapped around, so its picture is the cascade's cut into four and swapped
+		if ( mapper.FarCacheMap is { } farCache ) Add( report, ref layout, farCache, ShadowMapKind.Cascade, cascades.Length, false, frame );
 
 		var spots = mapper.SpotShadows;
 		for ( int i = 0; i < spots.Count; i++ )

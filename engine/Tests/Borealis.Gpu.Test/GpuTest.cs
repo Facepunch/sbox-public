@@ -39,11 +39,20 @@ public abstract class GpuTest
 		{
 			Assert.Inconclusive( e.Message );
 		}
+
+		// Casters move into the sun's cached far cascade once they've stayed put for a while of wall-clock time. Tests compare
+		// frames rendered seconds apart (a first frame can take seconds), so in them casters stay where they are: every frame a
+		// test draws has the same cache, whenever it's drawn
+		Borealis.Shadows.SettledCasters.Reset();
+		Borealis.Shadows.SettledCasters.Seconds = float.PositiveInfinity;
+		Borealis.Shadows.SettledCasters.RestlessSeconds = float.PositiveInfinity;
 	}
 
 	[TestCleanup]
 	public void DestroyDevice()
 	{
+		Borealis.Shadows.SettledCasters.Seconds = Borealis.Shadows.SettledCasters.DefaultSeconds;
+		Borealis.Shadows.SettledCasters.RestlessSeconds = Borealis.Shadows.SettledCasters.DefaultRestlessSeconds;
 		Device?.Dispose();
 		Device = null;
 

@@ -206,6 +206,11 @@ internal struct ShadowViewDesc
 	public ulong SettledStamp;
 
 	/// <summary>
+	/// <see cref="SettledStamp"/> for restless casters.
+	/// </summary>
+	public ulong RestlessStamp;
+
+	/// <summary>
 	/// Where an <see cref="StaticFilter.Unsettled"/> view counts the casters it draws that have settled since.
 	/// </summary>
 	public CasterCount NewlySettled;

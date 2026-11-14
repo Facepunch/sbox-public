@@ -13,6 +13,17 @@ internal partial class ShadowMapper
 	internal static bool FarCascadeCache { get; set; } = true;
 
 	/// <summary>
+	/// A check (the lab's <c>-capture-walk</c>): draw the far cascade's cache whole every frame, at the window it would have
+	/// kept, so a frame drawn from strips can be compared with one drawn whole.
+	/// </summary>
+	internal static bool FarCacheRedrawWhole { get; set; }
+
+	/// <summary>
+	/// This view's far cascade cache, for the shadow map debug view; null when its last cascade isn't cached.
+	/// </summary>
+	internal ShadowMap FarCacheMap { get; private set; }
+
+	/// <summary>
 	/// How far from the camera the cached far cascade shadows, as a fraction of <see cref="CascadeDistance"/>: about where the
 	/// last cascade fit to a 90 degree view ends, which shrinks the shadow distance for its field of view.
 	/// </summary>
@@ -84,7 +95,7 @@ internal partial class ShadowMapper
 		/// <summary>
 		/// The <see cref="SettledCasters"/> stamp it was drawn at: casters that moved after it are drawn on top each frame.
 		/// </summary>
-		internal ulong SettledStamp;
+		internal ulong SettledStamp, RestlessStamp;
 
 		internal float DrawnAt;
 		internal ulong DrawnFrame;
@@ -196,6 +207,7 @@ internal partial class ShadowMapper
 		var cellX = (long)MathF.Round( Vector3.Dot( camera, right ) / grid );
 		var cellY = (long)MathF.Round( Vector3.Dot( camera, up ) / grid );
 
+		whole |= FarCacheRedrawWhole;
 		whole |= Math.Abs( cellX - far.CellX ) >= FarCacheCells || Math.Abs( cellY - far.CellY ) >= FarCacheCells;
 
 		// Casters drawn on top every frame have settled: draw them into the cache, but not more often than they settle
@@ -235,6 +247,7 @@ internal partial class ShadowMapper
 			far.SubWorlds = View.SubWorlds;
 			far.Changes = changes;
 			far.SettledStamp = SettledCasters.Stamp;
+			far.RestlessStamp = SettledCasters.RestlessStamp;
 			far.DrawnAt = RealTime.Now;
 			far.Draws++;
 		}
@@ -342,6 +355,7 @@ internal partial class ShadowMapper
 					part.Region = ++region;
 					part.StaticFilter = baked ? StaticFilter.SettledNoStatic : StaticFilter.Settled;
 					part.SettledStamp = far.SettledStamp;
+					part.RestlessStamp = far.RestlessStamp;
 					part.Position = right * ((x0 + x1) * 0.5f * fit.Grid) + up * ((y0 + y1) * 0.5f * fit.Grid) + forward * fit.Near;
 					part.Width = (x1 - x0) * fit.Grid;
 					part.Height = (y1 - y0) * fit.Grid;
@@ -363,6 +377,7 @@ internal partial class ShadowMapper
 		view.CacheOffset = new Vector2Int( (int)Wrap( far.CellX - half ) * cellTexels, (int)Wrap( -(far.CellY + half) ) * cellTexels );
 		view.StaticFilter = StaticFilter.Unsettled;
 		view.SettledStamp = far.SettledStamp;
+		view.RestlessStamp = far.RestlessStamp;
 		far.NewlySettled.Value = 0;
 		view.NewlySettled = far.NewlySettled;
 	}

@@ -1393,6 +1393,14 @@ public class BackendRenderHost( BackendDevice device ) : RenderHost
 	public override bool ContactShadows => false;
 
 	/// <summary>
+	/// The debug views drawn into the frame (none by default): the labs' <c>-debug-views</c>.
+	/// </summary>
+	public DebugViews Views { get; set; }
+
+	/// <inheritdoc/>
+	public override DebugViews DebugViews => Views;
+
+	/// <summary>
 	/// GPU occlusion culling (off by default): the culler's compute pass, and culled draws from its arguments and surviving
 	/// instance ids.
 	/// </summary>
