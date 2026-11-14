@@ -8,6 +8,12 @@ public static class Directory
 {
 	static MountHost _system;
 
+	/// <summary>
+	/// Mount assemblies loaded outside the package system (DLL mounts, and addon mounts compiled at startup).
+	/// Nothing else enrolls these in a type library, so we do, and <see cref="Game.InitTypeLibrary"/> adds them back on rebuild.
+	/// </summary>
+	static readonly List<Assembly> _typeAssemblies = new();
+
 	internal static void LoadSources()
 	{
 		// Create system first.
@@ -99,9 +105,7 @@ public static class Directory
 			return;
 		}
 
-		var assembly = Assembly.Load( result.AssemblyData );
-		AddAssembly( assembly, project.FileSystem );
-		ReflectionUtility.RunAllStaticConstructors( assembly );
+		LoadAssembly( Assembly.Load( result.AssemblyData ), project.FileSystem );
 	}
 
 	/// <summary>
@@ -118,6 +122,14 @@ public static class Directory
 
 			var fullPath = System.IO.Path.GetFullPath( folder );
 			var fileSystem = new LocalFileSystem( fullPath );
+
+			// Before the mounts initialize, so their static constructors can find their own assets
+			var assetsPath = System.IO.Path.Combine( fullPath, "Assets" );
+			if ( System.IO.Directory.Exists( assetsPath ) )
+			{
+				using var scope = GlobalContext.MenuScope();
+				EngineFileSystem.AddAssetPath( $"mnt_{folderName}", assetsPath );
+			}
 
 			foreach ( var dll in assemblies )
 			{
@@ -143,9 +155,7 @@ public static class Directory
 						continue;
 					}
 
-					Assembly assembly = Assembly.Load( bytes );
-					AddAssembly( assembly, fileSystem );
-					ReflectionUtility.RunAllStaticConstructors( assembly );
+					LoadAssembly( Assembly.Load( bytes ), fileSystem );
 				}
 				catch ( System.Exception e )
 				{
@@ -153,12 +163,6 @@ public static class Directory
 				}
 			}
 
-			var assetsPath = System.IO.Path.Combine( fullPath, "Assets" );
-			if ( System.IO.Directory.Exists( assetsPath ) )
-			{
-				using var scope = GlobalContext.MenuScope();
-				EngineFileSystem.AddAssetPath( $"mnt_{folderName}", assetsPath );
-			}
 		}
 	}
 
@@ -378,6 +382,13 @@ public static class Directory
 		return null;
 	}
 
+	static void LoadAssembly( Assembly assembly, BaseFileSystem fileSystem )
+	{
+		AddTypeAssembly( assembly );
+		AddAssembly( assembly, fileSystem );
+		ReflectionUtility.RunAllStaticConstructors( assembly );
+	}
+
 	internal static void AddAssembly( Assembly assembly, BaseFileSystem projectFileSystem = null )
 	{
 		_system.RegisterTypes( assembly, projectFileSystem );
@@ -386,6 +397,59 @@ public static class Directory
 	internal static void RemoveAssembly( Assembly assembly )
 	{
 		_system.UnregisterTypes( assembly );
+		RemoveTypeAssembly( assembly );
+	}
+
+	/// <summary>
+	/// Enroll a mount assembly's exposed types in the menu and game type libraries, and keep them there across rebuilds.
+	/// Only for assemblies the package system doesn't already add.
+	/// </summary>
+	internal static void AddTypeAssembly( Assembly assembly )
+	{
+		lock ( _typeAssemblies )
+		{
+			if ( _typeAssemblies.Contains( assembly ) ) return;
+			_typeAssemblies.Add( assembly );
+		}
+
+		foreach ( var library in ContextLibraries() )
+		{
+			library.AddAssembly( assembly, false );
+		}
+	}
+
+	internal static void RemoveTypeAssembly( Assembly assembly )
+	{
+		lock ( _typeAssemblies )
+		{
+			if ( !_typeAssemblies.Remove( assembly ) ) return;
+		}
+
+		foreach ( var library in ContextLibraries() )
+		{
+			library.RemoveAssembly( assembly );
+		}
+	}
+
+	/// <summary>
+	/// Called by <see cref="Game.InitTypeLibrary"/> so a rebuilt library keeps the mount types.
+	/// </summary>
+	internal static void AddTypesTo( Internal.TypeLibrary library )
+	{
+		Assembly[] assemblies;
+		lock ( _typeAssemblies ) assemblies = _typeAssemblies.ToArray();
+
+		foreach ( var assembly in assemblies )
+		{
+			library.AddAssembly( assembly, false );
+		}
+	}
+
+	static IEnumerable<Internal.TypeLibrary> ContextLibraries()
+	{
+		return new[] { GlobalContext.Menu?.TypeLibrary, GlobalContext.Game?.TypeLibrary }
+			.Where( x => x is not null )
+			.Distinct();
 	}
 }
 
