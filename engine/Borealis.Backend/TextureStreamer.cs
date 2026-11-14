@@ -161,6 +161,8 @@ internal sealed class TextureStreamer
 	readonly List<StreamedTexture> textures = new();
 	readonly ConcurrentQueue<MaterialAsks> asked = new();
 	readonly ConcurrentQueue<StreamedTexture> added = new();
+	readonly List<ITextureSizeSource> sources = new();
+	readonly Action<GpuMaterial, int> ask;
 	readonly List<Build> builds = new();
 	readonly List<StreamedTexture> candidates = new();
 	uint frame = 1;
@@ -168,7 +170,20 @@ internal sealed class TextureStreamer
 	uint memoryFrame;
 	long startedSinceMemory;
 
-	public TextureStreamer( BackendDevice device ) => this.device = device;
+	public TextureStreamer( BackendDevice device )
+	{
+		this.device = device;
+		ask = device.AskTextures;
+	}
+
+	/// <summary>Take sizes from <paramref name="source"/> at the start of every <see cref="Update"/>, as draws' asks.</summary>
+	public void AddSource( ITextureSizeSource source )
+	{
+		lock ( sources )
+		{
+			if ( !sources.Contains( source ) ) sources.Add( source );
+		}
+	}
 
 	/// <summary>The frame draws are asking in.</summary>
 	public uint Frame => Volatile.Read( ref frame );
@@ -231,6 +246,11 @@ internal sealed class TextureStreamer
 	/// </summary>
 	public void Update()
 	{
+		lock ( sources )
+		{
+			foreach ( var source in sources ) source.Take( ask );
+		}
+
 		var now = Frame;
 		while ( added.TryDequeue( out var texture ) )
 		{

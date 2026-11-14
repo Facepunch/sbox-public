@@ -47,6 +47,13 @@ public sealed partial class BackendDevice
 
 	internal TextureStreamer Streamer => streamer ??= new TextureStreamer( this );
 
+	internal override bool StreamsTextures => StreamTextures;
+
+	internal override void AddTextureSizes( ITextureSizeSource source )
+	{
+		if ( StreamTextures ) Streamer.AddSource( source );
+	}
+
 	/// <summary>
 	/// Whether streamed textures still want mips they don't hold and have room for, or have builds in flight. What
 	/// measures or compares frames waits until it's false, as for <see cref="LoadingModels"/>.
