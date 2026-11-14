@@ -1,5 +1,5 @@
-using Basalt;
-using Basalt.Gpu.Source2;
+using Borealis;
+using Borealis.Gpu.Source2;
 using Sandbox.Rendering;
 
 namespace Sandbox.SceneLab;

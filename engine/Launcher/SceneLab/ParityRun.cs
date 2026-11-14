@@ -1,4 +1,4 @@
-using Basalt;
+using Borealis;
 using Sandbox.Rendering.Bridge;
 
 namespace Sandbox.SceneLab;

@@ -4,8 +4,8 @@ namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// Passes and targets of native's pipeline, over the engine's temporary render targets and Graphics: the depth chain,
-/// quarter-resolution depth, and the bloom and refraction stencil targets. Basalt builds the same with its own
-/// (<c>Basalt.Gpu.SharedPasses</c>), from the same shaders.
+/// quarter-resolution depth, and the bloom and refraction stencil targets. Borealis builds the same with its own
+/// (<c>Borealis.Gpu.SharedPasses</c>), from the same shaders.
 /// </summary>
 internal static class SharedPasses
 {

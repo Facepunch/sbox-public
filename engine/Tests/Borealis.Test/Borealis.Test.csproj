@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Borealis's tests, on a headless device (Headless/) that records what a frame asks of the GPU and never touches one.
+		References Borealis and Sandbox.System only - keep it that way: a test that needs the engine means Borealis has
+		started to need it too. Tests of s&box's Source 2 backend belong in Sandbox.Test.Unit.
+	-->
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Borealis\Borealis.csproj" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
+	</ItemGroup>
+
+	<!--
+		Built on its own (dotnet test on this project), Borealis and Sandbox.System build into this project's folder. Borealis's
+		own OutputPath is game/bin/managed, where a Debug build replaces the Release one SceneLab and the engine run, and
+		every benchmark after it measures unoptimised code. In a solution build they build once, as usual.
+	-->
+	<ItemGroup Condition="'$(SolutionDir)' == '' Or '$(SolutionDir)' == '*Undefined*'">
+		<ProjectReference Update="..\..\Borealis\Borealis.csproj;..\..\Sandbox.System\Sandbox.System.csproj" AdditionalProperties="OutputPath=$(MSBuildProjectDirectory)\bin\Borealis\$(Configuration)\" />
+	</ItemGroup>
+
+</Project>

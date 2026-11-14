@@ -1,4 +1,4 @@
-// ColorGrading.shader as a pass module: Basalt.Gpu draws this; the .shader stays for the other routes
+// ColorGrading.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
 // and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
 //
 //  Purpose: Colour grading methods` for post process  'ColorGrading.cs'

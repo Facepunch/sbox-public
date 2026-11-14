@@ -1,10 +1,10 @@
-using Basalt;
-using Basalt.Gpu.Source2;
+using Borealis;
+using Borealis.Gpu.Source2;
 
 namespace Sandbox.Lab;
 
 /// <summary>
-/// A lab world's content through the engine: models, materials and textures loaded as resources and wrapped for Basalt's
+/// A lab world's content through the engine: models, materials and textures loaded as resources and wrapped for Borealis's
 /// Source 2 device. Models are kept for the life of this object - a frame still on the GPU can be reading an old world's
 /// buffers. Skinned objects are posed by a native <see cref="SceneModel"/>, which needs the animation system.
 /// </summary>

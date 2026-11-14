@@ -12,7 +12,7 @@ namespace Sandbox;
 internal abstract class RenderBackend
 {
 	/// <summary>
-	/// The process's device: Source 2's, or a Basalt.Gpu device's with <c>-basaltgpu</c> (<see cref="Graphics.Initialize"/>).
+	/// The process's device: Source 2's, or a Borealis.Gpu device's with <c>-borealisgpu</c> (<see cref="Graphics.Initialize"/>).
 	/// </summary>
 	public static RenderBackend Default { get; private set; } = Source2RenderBackend.Instance;
 

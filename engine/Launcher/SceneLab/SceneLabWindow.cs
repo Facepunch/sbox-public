@@ -1,10 +1,10 @@
 using PanelWindow = Editor.PanelWindow;
 using NativeEngine;
-using Basalt;
+using Borealis;
 using Sandbox.Rendering.Bridge;
-using Basalt.Features;
-using Basalt.Gpu;
-using Basalt.Gpu.Source2;
+using Borealis.Features;
+using Borealis.Gpu;
+using Borealis.Gpu.Source2;
 using Sandbox.UI;
 
 namespace Sandbox.SceneLab;
@@ -111,7 +111,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 	/// <summary>
 	/// The managed renderer's numbers for the last frame: the game camera's, or the lab's own renderer's.
 	/// </summary>
-	public Basalt.RenderStats ManagedStats => GameStats() ?? renderer.Stats;
+	public Borealis.RenderStats ManagedStats => GameStats() ?? renderer.Stats;
 
 	/// <summary>
 	/// The scene on screen.
@@ -202,9 +202,9 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		{
 			VSync = false;
 
-			// Basalt's sun cascades as native fits and culls them: the last one fit to the view, casters by its screen
-			global::Basalt.Shadows.ShadowMapper.FarCascadeCache = false;
-			global::Basalt.Shadows.ShadowMapper.TexelSizedCascades = false;
+			// Borealis's sun cascades as native fits and culls them: the last one fit to the view, casters by its screen
+			global::Borealis.Shadows.ShadowMapper.FarCascadeCache = false;
+			global::Borealis.Shadows.ShadowMapper.TexelSizedCascades = false;
 
 			parity = new ParityRun( Args.String( "-parity" ) );
 			parity.Start( this );

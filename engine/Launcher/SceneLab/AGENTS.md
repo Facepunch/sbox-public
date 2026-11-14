@@ -1,8 +1,8 @@
 # SceneLab — agent guide
 
 > Scope: `scenelab.exe`, the proving ground for the managed scene renderer. Last reviewed: 2026-09-29.
-> The renderer's own guide is [`engine/Basalt/README.md`](../../Basalt/README.md);
-> read it first. The details are in [`docs/managed/basalt.md`](../../../docs/managed/basalt.md)
+> The renderer's own guide is [`engine/Borealis/README.md`](../../Borealis/README.md);
+> read it first. The details are in [`docs/managed/borealis.md`](../../../docs/managed/borealis.md)
 > (*SceneLab*, *Parity with native*, *Benchmark*).
 
 SceneLab is to the managed renderer what PanelGallery is to panels. It's a borderless `PanelWindow` that draws
@@ -35,7 +35,7 @@ the same world through native too, to compare the two.
 | `SmokeAndGlassScene.cs` | Smoke and Glass: a street at dusk in volumetric fog, a shopfront with refracting glass windows on two floors and a lit room behind, a glass bus shelter, three smoke grenades (a soda can stand-in) going off in turn, each pouring lit, overlapping smoke, and two shadowed street lamps. The camera dollies along the street and back. Renders natively alongside, for the fog's history. |
 | `Benchmark.cs`, `FrameTimer.cs` | `-benchmark`: both renderers, warm-up, measured frames, results table, and the managed main thread by section (collect, prepare, setup, recording wall time and wait, the workers' total, stages, submit) from `RenderStats`. `-gpuprofile` adds GPU time by layer, from the engine's GPU profiler. |
 | `SceneViewport.cs` | The see-through panel the world renders into: orbiting and zooming. |
-| `../LabShared/` | Shared with BasaltLab: the lab presets (`LabPresets`, the `LabPreset` settings `SceneLabScene` derives from), `LabWorld` (building a preset's world, its lights and camera), `Source2LabContent` (meshes, materials, posing), the runtime test assets `LodTestModel` and `SkyCube`, and `GoldenTruthRun` (`-golden-truth`: captures checked against approved images instead of native). |
+| `../LabShared/` | Shared with BorealisLab: the lab presets (`LabPresets`, the `LabPreset` settings `SceneLabScene` derives from), `LabWorld` (building a preset's world, its lights and camera), `Source2LabContent` (meshes, materials, posing), the runtime test assets `LodTestModel` and `SkyCube`, and `GoldenTruthRun` (`-golden-truth`: captures checked against approved images instead of native). |
 | `BridgeScene.cs` | The GameObject Bridge preset (and `-gamescene builtin`): a GameObject scene built from components, for the GameObject bridge. |
 | `PlanOverlay.cs` | The frame plan over the viewport (View > Frame Plan, `-plan [level]`): the engine's `overlay_scene_plan`, drawn by a panel, and saved beside a capture as `<name>.plan.png`. |
 | `ParityRun.cs` | `-parity`: every preset or some compared with native one after another in this process (about a minute for all of them), isolated presets in two fresh passes, native frames saved or compared across a change (`-save-native`/`-compare-native`), a table at the end (`parity.txt`) and exit code 1 on a failure. |
@@ -101,7 +101,7 @@ Other switches:
   reference comes from native `RenderToTexture` at the same count, three frames later.
 - **Window:** multisampled at 4x by default, as a game's is; `-swapchain-msaa 2|8` for another count, `-swapchain-msaa 1`
   for none (the native frames saved before 2026-09-29 were captured without).
-- **Debug views:** Basalt's own (View > LOD Colours, Cull Reasons, Shadow Maps, or `+sv_cheats 1 +r_managed_debug_lod 1`,
+- **Debug views:** Borealis's own (View > LOD Colours, Cull Reasons, Shadow Maps, or `+sv_cheats 1 +r_managed_debug_lod 1`,
   `+r_managed_debug_cull 1`, `+r_managed_debug_shadows 1`). `DebugViewsOverlay.cs` draws their key and labels; a capture with
   one on saves `name.debug.png` too, the frame with those over it.
 - **Capture:** `-capture-frame` (default 30). `-debugmode <SceneCameraDebugMode>` captures a GameObject preset's debug

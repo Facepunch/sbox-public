@@ -3,7 +3,7 @@ using NativeEngine;
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// One way of rendering a scene camera's view: native's scene system (<see cref="NativeSceneRenderer"/>) or Basalt
+/// One way of rendering a scene camera's view: native's scene system (<see cref="NativeSceneRenderer"/>) or Borealis
 /// (Sandbox.Rendering's bridge, registered at startup). Every path that renders a scene ends in one of
 /// <see cref="SceneCamera"/>'s entry points, which forward here, so <c>r_managed_scene</c> switches them all at once.
 /// See docs/managed/render-paths.md.
@@ -71,23 +71,23 @@ internal static class SceneRenderer
 	public static ISceneRenderer Native { get; } = new NativeSceneRenderer();
 
 	/// <summary>
-	/// Basalt, through the GameObject bridge. Set by Sandbox.Rendering when the app system installs it.
+	/// Borealis, through the GameObject bridge. Set by Sandbox.Rendering when the app system installs it.
 	/// </summary>
-	public static ISceneRenderer Basalt { get; set; }
+	public static ISceneRenderer Borealis { get; set; }
 
 	/// <summary>
-	/// What renders this frame: Basalt while <c>r_managed_scene</c> is on and it's installed, native otherwise.
+	/// What renders this frame: Borealis while <c>r_managed_scene</c> is on and it's installed, native otherwise.
 	/// </summary>
 	public static ISceneRenderer Current { get; private set; } = Native;
 
 	/// <summary>
-	/// Read the switch, at the top of the frame's output. Moving off Basalt frees what it holds. A process drawing on
-	/// Basalt.Gpu (<c>-basaltgpu</c>) always renders through Basalt: Source 2's renderer has no device to draw on there.
+	/// Read the switch, at the top of the frame's output. Moving off Borealis frees what it holds. A process drawing on
+	/// Borealis.Gpu (<c>-borealisgpu</c>) always renders through Borealis: Source 2's renderer has no device to draw on there.
 	/// </summary>
 	internal static void BeginFrame()
 	{
-		var managed = ManagedSceneRendering.Enabled || RenderBackend.Default is BasaltGpuRenderBackend;
-		var next = managed && Basalt is not null ? Basalt : Native;
+		var managed = ManagedSceneRendering.Enabled || RenderBackend.Default is BorealisGpuRenderBackend;
+		var next = managed && Borealis is not null ? Borealis : Native;
 		if ( Current != next && Current != Native ) Current.Shutdown();
 
 		Current = next;
@@ -99,7 +99,7 @@ internal static class SceneRenderer
 	internal static void Forget( SceneCamera camera )
 	{
 		Native.Forget( camera );
-		Basalt?.Forget( camera );
+		Borealis?.Forget( camera );
 	}
 
 	/// <summary>
@@ -108,21 +108,21 @@ internal static class SceneRenderer
 	internal static void Forget( SceneWorld world )
 	{
 		Native.Forget( world );
-		Basalt?.Forget( world );
+		Borealis?.Forget( world );
 	}
 
 	/// <summary>
 	/// Called at startup, before anything renders, whichever renderer the switch will pick.
 	/// </summary>
-	internal static void WarmUp() => Basalt?.WarmUp();
+	internal static void WarmUp() => Borealis?.WarmUp();
 
 	/// <summary>
 	/// Called at engine shutdown, while native is still there.
 	/// </summary>
 	internal static void Shutdown()
 	{
-		Basalt?.Shutdown();
-		Basalt = null;
+		Borealis?.Shutdown();
+		Borealis = null;
 		Current = Native;
 	}
 }

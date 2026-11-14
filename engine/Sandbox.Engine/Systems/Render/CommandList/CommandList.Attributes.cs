@@ -250,7 +250,7 @@ public sealed partial class CommandList
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
 
-							// A block with no view on a device of its own (a Basalt.Gpu frame's) draws into its bound target
+							// A block with no view on a device of its own (a Borealis.Gpu frame's) draws into its bound target
 							if ( Graphics.CurrentView is null && attrAccess.attributes.IsManaged )
 							{
 								attrAccess.attributes.Set( entry.Token, Graphics.RenderTarget?.ColorTarget );

@@ -91,7 +91,7 @@ struct DirectionalLightShadow
 
 		// Nearer the sun than every caster the filter could reach is lit, behind every one of them shadowed: the filter
 		// would return exactly that, so skip it. The tiles hold each 32x32 texel tile's farthest and nearest caster depth
-		// over it and its neighbours, cascades side by side (Basalt's; native sets no index)
+		// over it and its neighbours, cascades side by side (Borealis's; native sets no index)
 		uint nTiles = g_DirectionalLightFlags >> 5;
 		if ( nTiles != 0 )
 		{

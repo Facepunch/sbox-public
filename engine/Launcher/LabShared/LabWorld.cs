@@ -1,10 +1,10 @@
-using Basalt;
+using Borealis;
 
 namespace Sandbox.Lab;
 
 /// <summary>
 /// Where a <see cref="LabWorld"/> gets its meshes, materials and textures, so the world building needs nothing but
-/// Basalt. <see cref="Source2LabContent"/> loads them through the engine.
+/// Borealis. <see cref="Source2LabContent"/> loads them through the engine.
 /// </summary>
 internal interface ILabContent
 {
@@ -35,7 +35,7 @@ internal interface ILabContent
 
 /// <summary>
 /// A <see cref="LabPreset"/> built into a <see cref="RenderWorld"/>: the grid, probes, sky and fog, the floor and lights,
-/// and where the camera looks from. SceneLab and BasaltLab build the same world from the same preset.
+/// and where the camera looks from. SceneLab and BorealisLab build the same world from the same preset.
 /// </summary>
 internal sealed class LabWorld
 {
@@ -131,7 +131,7 @@ internal sealed class LabWorld
 		var size = scene.Grid * spacing;
 		if ( scene.GradientFog )
 		{
-			world.Lighting.GradientFog = new Basalt.GradientFogSettings
+			world.Lighting.GradientFog = new Borealis.GradientFogSettings
 			{
 				Enabled = true,
 				StartDistance = size * 0.05f,

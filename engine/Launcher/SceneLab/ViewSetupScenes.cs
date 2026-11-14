@@ -45,7 +45,7 @@ internal static class ViewSetupScenes
 	/// Two monitors with oblique projections, near planes moved onto clip planes through the props, as water's refraction is
 	/// clipped by its surface: one the view's (<see cref="ViewSetup.ProjectionMatrix"/>) keeping what's below, one the camera's
 	/// own keeping what's above a tilted plane. The sun casts no shadows here: an oblique view's cascades differ by design (native
-	/// fits them to the clip plane, which shrinks them to a few units round the camera; Basalt fits a near plane square to the view).
+	/// fits them to the clip plane, which shrinks them to a few units round the camera; Borealis fits a near plane square to the view).
 	/// </summary>
 	public static Scene Oblique()
 	{
@@ -174,7 +174,7 @@ internal static class ViewSetupScenes
 			monitor.RenderExcludeTags.Add( ScreenTag );
 
 			// Each a little bigger than the last: native reuses the last view's sun cascades this frame for one no bigger, near
-			// enough, whatever its projection or tags, where Basalt also asks for the same tags
+			// enough, whatever its projection or tags, where Borealis also asks for the same tags
 			var format = i == floatTarget ? ImageFormat.RGBA16161616F : ImageFormat.RGBA8888;
 			var size = MonitorSize + i * 8;
 			monitor.RenderTarget = Texture.CreateRenderTarget().WithSize( size, size ).WithFormat( format ).Create( $"Scene Lab monitor {i}" );

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Basalt.Culling;
+using Borealis.Culling;
 using V3 = System.Numerics.Vector3;
 
 internal struct SurfaceAreaPolicy { }
