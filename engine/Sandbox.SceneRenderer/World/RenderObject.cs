@@ -11,6 +11,11 @@ public abstract class RenderObject
 	public RenderWorld World { get; internal set; }
 
 	/// <summary>
+	/// Per-object shader attributes, overriding the view's attributes.
+	/// </summary>
+	public RenderAttributes Attributes { get; set; }
+
+	/// <summary>
 	/// Slot in the world's dense arrays. Changes when another object is removed.
 	/// </summary>
 	internal int Index { get; set; } = -1;
