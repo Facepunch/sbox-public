@@ -91,7 +91,7 @@ internal sealed partial class BackendContext
 		if ( program.GpuDrivenPass( noColor, material.AlphaTest, LookupCombo( LightmapCombo ) is > 0 ) is not { } pass ) return null;
 
 		var depthOnly = pass.Pass.Pixel is null;
-		for ( int i = 0; i < gpuDrivenBucketCount; i++ )
+		for ( int i = openBucket; i < gpuDrivenBucketCount; i++ )
 		{
 			var bucket = gpuDrivenBuckets[i];
 			if ( ReferenceEquals( bucket.Surface, pass ) && bucket.AttributesKey == key && bucket.NoColor == noColor && bucket.TwoSided == material.TwoSided ) return bucket;

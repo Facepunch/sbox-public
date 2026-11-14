@@ -186,6 +186,24 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>Batches whose records came from the memo, for tests.</summary>
 	internal long GpuDrivenRecordMemoHits;
 
+	/// <summary>
+	/// Keep what a call of resident aggregates makes (<see cref="GpuDrivenPlan"/>: its buckets, batch records and
+	/// multi-draws) between frames and views of the same kind, so a view pays per frame only for its own culling record, a
+	/// check per bucket and its multi-draws (docs/managed/borealis-gpu-driven.md, "Resident aggregates"). On by default;
+	/// <c>-no-resident</c> turns it off, and views then prepare their own batches.
+	/// </summary>
+	public bool GpuDrivenResident { get; set; } = !HasSwitch( "-no-resident" );
+
+	internal override bool DrawsAggregatesResident => GpuDrivenResident && CullsAggregatesGpuDriven && GpuDrivenCompaction && SupportsDrawIndirectCount && !GpuDrivenMaterialBuckets;
+
+	/// <summary>Resident calls drawn from a kept plan, and plans made, for tests and reports.</summary>
+	internal long GpuDrivenPlanHits, GpuDrivenPlanBuilds;
+
+	readonly ConditionalWeakTable<object, GpuDrivenPlans> gpuDrivenPlans = new();
+
+	/// <summary>The plans kept for a resident list, made the first time.</summary>
+	internal GpuDrivenPlans PlansFor( object list ) => gpuDrivenPlans.GetValue( list, static _ => new() );
+
 	/// <summary>When set, a copy of each GPU-culled call's batch records, for tests.</summary>
 	internal List<uint[]> GpuDrivenRecordLog { get; set; }
 

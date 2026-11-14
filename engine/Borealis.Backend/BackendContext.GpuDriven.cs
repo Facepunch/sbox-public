@@ -54,7 +54,7 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>A bucket: what one multi-draw shares, and the batches in it.</summary>
-	sealed class GpuDrivenBucket
+	internal sealed class GpuDrivenBucket
 	{
 		public ShaderVariant Variant;
 		public BackendMaterial Material;
@@ -80,7 +80,7 @@ internal sealed partial class BackendContext
 		/// <summary>With <see cref="BackendDevice.GpuDrivenMaterialBuckets"/>, the one pixel material record its draws share; else 0.</summary>
 		public uint PixelMaterial;
 		/// <summary>Its batches, with the index page each draws from: sorted by page, a bucket is one multi-draw per page.</summary>
-		public readonly List<(int Page, int Batch)> Batches = new();
+		public List<(int Page, int Batch)> Batches = new();
 		public int Commands;
 
 		/// <summary>Every fragment of its batches' aggregates: its commands when they're culled on the GPU.</summary>
@@ -96,9 +96,23 @@ internal sealed partial class BackendContext
 		public int CensusId;
 		public string CensusShader;
 		public int CensusMaterials;
+
+		/// <summary>A copy of what it draws with, without its batches, for a plan (<see cref="GpuDrivenPlan"/>).</summary>
+		public GpuDrivenBucket Kept()
+		{
+			var kept = (GpuDrivenBucket)MemberwiseClone();
+			kept.Batches = new();
+			return kept;
+		}
 	}
 
-	readonly List<GpuDrivenBucket> gpuDrivenBuckets = new();
+	/// <summary>The current call's buckets: the context's own, or a plan's and then its own while it draws from one.</summary>
+	List<GpuDrivenBucket> gpuDrivenBuckets;
+
+	readonly List<GpuDrivenBucket> ownBuckets = new(), combinedBuckets = new();
+
+	/// <summary>The first bucket a batch may join: those before it are a resident prefix's.</summary>
+	int openBucket;
 
 	/// <summary>Each batch's lighting record (<see cref="GpuDrivenTables.Lighting"/>), by its index in the call.</summary>
 	uint[] batchLighting = [];
@@ -120,7 +134,35 @@ internal sealed partial class BackendContext
 	{
 		if ( !GpuDriven || recording is null || batches.IsEmpty || !EnsureScope() ) return;
 
+		// A call whose first batches are a resident list's: those drawn from what an earlier call of their kind made of them,
+		// when nothing it was made from has changed (GpuDrivenPlan), and the rest bucketed after them as usual
+		var prefix = cull is { Plan: not null } resident && UsesPlans ? Math.Clamp( resident.PlanBatches, 0, batches.Length ) : 0;
+		if ( prefix > 0 && CurrentPlan( shaderMode, batches[..prefix], cull.Value ) is { } plan )
+		{
+			if ( DrawBucketed( shaderMode, batches, args, transforms, depthBias, slopeScaledDepthBias, drawn, cull, plan, prefix ) )
+			{
+				System.Threading.Interlocked.Increment( ref device.GpuDrivenPlanHits );
+				return;
+			}
+
+			// Its other batches can't be culled on the GPU: the whole call the usual way
+			drawn.Clear();
+			prefix = 0;
+		}
+
+		DrawBucketed( shaderMode, batches, args, transforms, depthBias, slopeScaledDepthBias, drawn, cull, null, prefix );
+	}
+
+	/// <summary>
+	/// The buckets of a call's batches, then its culling and multi-draws. With <paramref name="plan"/>, its first
+	/// <paramref name="prefix"/> batches come from the plan, in its buckets, and the rest go in buckets of their own after
+	/// them; false, having drawn nothing, when those can't be culled on the GPU. Without one, a call with a resident
+	/// prefix still buckets it apart from the rest, and keeps what it made of it as the plan for its kind.
+	/// </summary>
+	bool DrawBucketed( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, ReadOnlySpan<GpuBuffer.IndirectDrawIndexedArguments> args, TransformBuffer transforms, int depthBias, float slopeScaledDepthBias, Span<bool> drawn, in GpuDrivenCull? cull, GpuDrivenPlan plan, int prefix )
+	{
 		var start = device.TimeDraws ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+		gpuDrivenBuckets = ownBuckets;
 		var tables = device.GpuDrivenTables;
 		var cache = device.MaterialCache;
 		var resolver = Resolver( cache );
@@ -129,10 +171,28 @@ internal sealed partial class BackendContext
 		var depth = r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth );
 		var samples = (r.Color ?? r.Depth).Samples;
 
-		// Which bucket each batch goes in: its material's GPU-driven variant under its object attributes
+		// Which bucket each batch goes in: its material's GPU-driven variant under its object attributes. A plan's buckets
+		// come first, as it made them; no batch after them joins one
 		gpuDrivenBucketCount = 0;
+		openBucket = 0;
 		var totalCommands = 0;
 		var totalFragments = 0;
+		var prefixBuckets = 0;
+		if ( plan is not null )
+		{
+			combinedBuckets.Clear();
+			combinedBuckets.AddRange( plan.Buckets );
+			combinedBuckets.AddRange( ownBuckets );
+			gpuDrivenBuckets = combinedBuckets;
+			gpuDrivenBucketCount = openBucket = prefixBuckets = plan.Buckets.Count;
+			totalCommands = plan.Commands;
+			totalFragments = plan.Fragments;
+			plan.Drawn.AsSpan().CopyTo( drawn );
+		}
+
+		try
+		{
+		if ( batchLighting.Length < batches.Length ) Array.Resize( ref batchLighting, Math.Max( batches.Length, batchLighting.Length * 2 ) );
 
 		// Culled on the GPU when every batch is a whole aggregate whose fragments' transforms are in order
 		var gpuCull = device.GpuDrivenCulling && cull.HasValue && CullShader is not null;
@@ -140,8 +200,11 @@ internal sealed partial class BackendContext
 		var lastAttributesSet = false;
 		var lastLighting = 0u;
 		var lastKey = 0L;
-		for ( int i = 0; i < batches.Length; i++ )
+		for ( int i = plan is null ? 0 : prefix; i < batches.Length; i++ )
 		{
+			// The batches after a resident prefix go in buckets of their own
+			if ( i == prefix && plan is null && prefix > 0 ) openBucket = prefixBuckets = gpuDrivenBucketCount;
+
 			ref readonly var batch = ref batches[i];
 			if ( batch.TextureSize > 0 ) device.AskTextures( batch.Material, batch.TextureSize );
 
@@ -239,14 +302,16 @@ internal sealed partial class BackendContext
 		}
 
 		SetObjectAttributes( null );
-		if ( gpuDrivenBucketCount == 0 ) return;
+		if ( plan is null && prefix == batches.Length ) prefixBuckets = gpuDrivenBucketCount;
+		if ( gpuDrivenBucketCount == 0 ) return true;
+		if ( plan is not null && !gpuCull ) return false;
 		if ( Census ) CensusBuckets( batches );
 
 		if ( gpuCull )
 		{
-			DrawGpuCulled( shaderMode, batches, transforms, cull.Value, totalFragments, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, drawn );
+			DrawGpuCulled( shaderMode, batches, transforms, cull.Value, totalFragments, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, drawn, plan, prefix, prefixBuckets, totalCommands );
 			TimeGpuDriven( start, drawn, totalFragments );
-			return;
+			return true;
 		}
 
 		// One region this frame for every instance record (8 bytes) and command (20 bytes)
@@ -358,6 +423,18 @@ internal sealed partial class BackendContext
 		SetObjectAttributes( null );
 		r.Binder = null;
 		TimeGpuDriven( start, drawn, written );
+		return true;
+		}
+		finally
+		{
+			// The context's own buckets again, keeping any made beyond them while a plan's were in the list
+			if ( ReferenceEquals( gpuDrivenBuckets, combinedBuckets ) )
+			{
+				for ( int i = prefixBuckets + ownBuckets.Count; i < combinedBuckets.Count; i++ ) ownBuckets.Add( combinedBuckets[i] );
+				combinedBuckets.Clear();
+				gpuDrivenBuckets = ownBuckets;
+			}
+		}
 	}
 
 	/// <summary>Instance <paramref name="instance"/> of a mesh draw's batch, as the arguments an aggregate's fragment has.</summary>
@@ -413,15 +490,16 @@ internal sealed partial class BackendContext
 	/// a view's depth prepass also draws ids and marks the triangles that own a sample, and its forward pass draws only
 	/// those (<see cref="DrawIds"/>).
 	/// </summary>
-	void DrawGpuCulled( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, TransformBuffer transforms, in GpuDrivenCull cull, int totalFragments, Format color, Format depth, int samples, int depthBias, float slopeScaledDepthBias, PassResolver resolver, Span<bool> drawn )
+	void DrawGpuCulled( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, TransformBuffer transforms, in GpuDrivenCull cull, int totalFragments, Format color, Format depth, int samples, int depthBias, float slopeScaledDepthBias, PassResolver resolver, Span<bool> drawn, GpuDrivenPlan plan, int prefix, int prefixBuckets, int totalCommands )
 	{
 		var tables = device.GpuDrivenTables;
 		var cache = device.MaterialCache;
 		var r = recording;
 
-		var batchCount = 0;
+		// A plan's buckets have its records; the rest have their batches
+		var batchCount = plan is not null ? plan.BatchRecords.Length / (CullBatchBytes / 4) : 0;
 		var instanceFragments = 0;
-		for ( int b = 0; b < gpuDrivenBucketCount; b++ )
+		for ( int b = plan is not null ? prefixBuckets : 0; b < gpuDrivenBucketCount; b++ )
 		{
 			batchCount += gpuDrivenBuckets[b].Batches.Count;
 			foreach ( var (_, index) in gpuDrivenBuckets[b].Batches )
@@ -431,13 +509,7 @@ internal sealed partial class BackendContext
 		}
 
 		// The visibility-driven forward pass: the view's ids and lists, compacting only
-		var compact = device.GpuDrivenCompaction && device.SupportsDrawIndirectCount;
-		var shaders = compact && device.GpuDrivenVisibility && cull.View is not null && (cull.Ids || cull.Visibility) ? device.GpuDrivenVisibilityShaders : default;
-		var visibility = shaders.Mark is not null && shaders.Compact is not null && r.Depth is not null ? device.VisibilityFor( cull.View, Gpu.InfoOf( r.Depth.Handle ) ) : null;
-		// Only once its state was cleared this frame, before any call that writes into it; the first frame draws plainly
-		var ready = visibility is not null && visibility.ClearedFrame == device.GpuDrivenFrame;
-		var ids = ready && cull.Ids && r.Color is null;
-		var lists = ready && cull.Visibility;
+		var (compact, shaders, visibility, ids, lists) = CullState( cull );
 
 		// One region: the view, the batches, the multi-draws (first slot and visible count, when compacting; a run of
 		// compacted triangles per bucket after its own), the listed fragments, mesh draws'
@@ -485,14 +557,35 @@ internal sealed partial class BackendContext
 		var memoTaken = false;
 		var memoHits = 0;
 		GpuDrivenRecordMemo.Slot unkept = default;
-		var written = 0;
-		var compactWritten = totalFragments;
-		var record = 0;
+		var written = plan?.Written ?? 0;
+		var compactWritten = totalFragments + (plan?.CompactUsed ?? 0);
+		var record = plan is not null ? plan.BatchRecords.Length / (CullBatchBytes / 4) : 0;
+
+		// A resident prefix's buckets come first: what a plan checks of them, and where their records and multi-draws end
+		var checks = plan is null && prefixBuckets > 0 && cull.Plan is not null && UsesPlans && compact ? new (GpuMaterial, ShaderParameters, ShaderVariant, int, int)[prefixBuckets] : null;
+		var (prefixRecords, prefixWritten, prefixCompact, prefixRuns) = (0, 0, 0, 0);
 		try
 		{
 			if ( memo is not null ) System.Threading.Monitor.TryEnter( memo, ref memoTaken );
 			cullRuns.Clear();
-			for ( int b = 0; b < gpuDrivenBucketCount; b++ )
+			if ( plan is not null )
+			{
+				// The plan's records and multi-draws, as the call that made it wrote them
+				plan.BatchRecords.CopyTo( batchRecords );
+				cullRuns.AddRange( plan.Runs );
+
+				// Forward's compacted triangles come from this frame's compacted buffer, which turns over each frame, after
+				// this call's own slots
+				for ( int i = 0; i < cullRuns.Count; i++ )
+				{
+					if ( plan.Compacted[i] ) cullRuns[i] = cullRuns[i] with { Page = compacted, First = cullRuns[i].First - plan.CompactBase + totalFragments };
+				}
+
+				// The ids shader, which this context may not have made yet
+				if ( ids && shaders.Ids is not null ) idsShaderVariant ??= Variant( shaders.Ids, "Default" );
+			}
+
+			for ( int b = plan is null ? 0 : prefixBuckets; b < gpuDrivenBucketCount; b++ )
 			{
 				var bucket = gpuDrivenBuckets[b];
 				SetObjectAttributes( null, bucket.Attributes );
@@ -525,6 +618,13 @@ internal sealed partial class BackendContext
 				var vertexAttributes = bucket.Surface is null && bucket.Variant.Vertex is { } vertexStage ? AttributeHash( vertexStage ) : 0;
 				var pixelAttributes = bucket.Surface is null && pixelRecord && bucket.Variant.Pixel is { } pixelStage ? AttributeHash( pixelStage ) : 0;
 				var stages = (object)bucket.Surface ?? bucket.Variant;
+
+				// What a plan of this call checks of the bucket before it's used again
+				if ( checks is not null && b < prefixBuckets )
+				{
+					if ( bucket.Batches.Count == 0 ) checks = null;
+					else checks[b] = (batches[bucket.Batches[0].Batch].Material, batches[bucket.Batches[0].Batch].ObjectAttributes, bucket.Variant, vertexAttributes, pixelAttributes);
+				}
 
 				foreach ( var (_, index) in bucket.Batches )
 				{
@@ -640,6 +740,8 @@ internal sealed partial class BackendContext
 					compactWritten += bucket.Fragments;
 					for ( int i = record - bucket.Batches.Count; i < record; i++ ) batchRecords[i * (CullBatchBytes / 4) + 5] = (uint)compactRun;
 				}
+
+				if ( checks is not null && b == prefixBuckets - 1 ) (prefixRecords, prefixWritten, prefixCompact, prefixRuns) = (record, written, compactWritten - totalFragments, cullRuns.Count);
 			}
 		}
 		finally
@@ -648,6 +750,7 @@ internal sealed partial class BackendContext
 		}
 
 		if ( memoHits > 0 ) System.Threading.Interlocked.Add( ref device.GpuDrivenRecordMemoHits, memoHits );
+		if ( checks is not null ) KeepPlan( shaderMode, batches[..prefix], cull, color, depth, samples, totalFragments, checks, batchRecords[..(prefixRecords * (CullBatchBytes / 4))], drawn[..prefix], compacted, prefixWritten, prefixCompact, prefixRuns );
 		if ( device.GpuDrivenRecordLog is { } log )
 		{
 			lock ( log ) log.Add( batchRecords.ToArray() );
@@ -757,6 +860,169 @@ internal sealed partial class BackendContext
 
 		SetObjectAttributes( null );
 		r.Binder = null;
+	}
+
+	/// <summary>Whether resident calls may be drawn from plans now: not while a census or the record log watches each call.</summary>
+	bool UsesPlans => device.DrawsAggregatesResident && !Census && device.GpuDrivenRecordLog is null && CullShader is not null;
+
+	/// <summary>
+	/// What a GPU-culled call of <paramref name="cull"/>'s view does with the visibility-driven forward pass: whether it
+	/// compacts, the shaders, the view's state, and whether it draws ids (a depth prepass) or lists (a pass after it). Only
+	/// once the view's state was cleared this frame, before any call that writes into it; the first frame draws plainly.
+	/// </summary>
+	(bool Compact, (BackendMaterial Ids, ShaderFile Mark, ShaderFile Compact) Shaders, BackendDevice.VisibilityView Visibility, bool Ids, bool Lists) CullState( in GpuDrivenCull cull )
+	{
+		var r = recording;
+		var compact = device.GpuDrivenCompaction && device.SupportsDrawIndirectCount;
+		var shaders = compact && device.GpuDrivenVisibility && cull.View is not null && (cull.Ids || cull.Visibility) ? device.GpuDrivenVisibilityShaders : default;
+		var visibility = shaders.Mark is not null && shaders.Compact is not null && r.Depth is not null ? device.VisibilityFor( cull.View, Gpu.InfoOf( r.Depth.Handle ) ) : null;
+		var ready = visibility is not null && visibility.ClearedFrame == device.GpuDrivenFrame;
+		return (compact, shaders, visibility, ready && cull.Ids && r.Color is null, ready && cull.Visibility);
+	}
+
+	/// <summary>A GPU-culled call's kind, for its plan: what decides its buckets and records besides the batches.</summary>
+	GpuDrivenPlan.CallKey PlanKey( StringToken shaderMode, in GpuDrivenCull cull, Format color, Format depth, int samples )
+	{
+		var (_, _, visibility, ids, lists) = CullState( cull );
+		return new GpuDrivenPlan.CallKey( shaderMode.Value, color, depth, samples, recording.Color is null, ids, lists, visibility is not null, device.PositionStreams );
+	}
+
+	/// <summary>
+	/// The plan an earlier call of this kind made of a resident list's <paramref name="prefix"/> (<see cref="GpuDrivenPlan"/>),
+	/// when there's one for this version of the list and nothing it was made from has changed; null otherwise (a stale one is
+	/// dropped), and the call makes it again.
+	/// </summary>
+	GpuDrivenPlan CurrentPlan( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> prefix, in GpuDrivenCull cull )
+	{
+		var r = recording;
+		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
+		var depth = r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth );
+		var samples = (r.Color ?? r.Depth).Samples;
+
+		var key = PlanKey( shaderMode, cull, color, depth, samples );
+		var plans = device.PlansFor( cull.Plan );
+		var plan = plans.Find( key, cull.PlanVersion, prefix.Length );
+		if ( plan is null ) return null;
+		if ( PlanCurrent( plan, shaderMode ) ) return plan;
+
+		plans.Drop( key );
+		return null;
+	}
+
+	/// <summary>
+	/// Whether a plan still draws what its call would: each material's version is the one its records were written at, and
+	/// each bucket's first batch takes a variant that draws the same way under the pass's attributes now, whose stages read
+	/// the same attribute values into their records.
+	/// </summary>
+	bool PlanCurrent( GpuDrivenPlan plan, StringToken shaderMode )
+	{
+		foreach ( var (material, version) in plan.Materials )
+		{
+			if ( MaterialVersion( material ) != version ) return false;
+		}
+
+		foreach ( var (attributes, version) in plan.Attributes )
+		{
+			if ( attributes.Version != version ) return false;
+		}
+
+		var cache = device.MaterialCache;
+		comboLookup ??= name => LookupCombo( Token( name ) );
+		specializationLookup ??= name => Integer( Lookup( Token( name ) ) );
+		var current = true;
+		for ( int b = 0; b < plan.Checks.Length && current; b++ )
+		{
+			var (first, attributes, variant, vertexAttributes, pixelAttributes) = plan.Checks[b];
+			var bucket = plan.Buckets[b];
+			SetObjectAttributes( null, attributes );
+			NextPassState( cache );
+
+			// A surface's: the same GPU-driven pass of its program under the pass's attributes now
+			if ( bucket.Surface is not null )
+			{
+				current = first is SurfaceMaterial surface && device.Surfaces.For( surface ) is { } program && ReferenceEquals( program, bucket.SurfaceProgram )
+					&& ReferenceEquals( program.GpuDrivenPass( bucket.NoColor, surface.AlphaTest, LookupCombo( LightmapCombo ) is > 0 ), bucket.Surface );
+				continue;
+			}
+
+			if ( first is not BackendMaterial material )
+			{
+				current = false;
+				break;
+			}
+
+			var mode = CachedModeName( material.Shader, shaderMode );
+			var now = mode is null ? null : material.GpuDrivenVariant( device.Shaders, mode, ComboKey( material, mode ), comboLookup, specializationLookup );
+			if ( !SameDrawing( now, variant ) )
+			{
+				current = false;
+				break;
+			}
+
+			if ( !ReferenceEquals( attributes, bucket.Attributes ) )
+			{
+				SetObjectAttributes( null, bucket.Attributes );
+				NextPassState( cache );
+			}
+
+			var pixelRecord = !bucket.DepthOnly || bucket.Ids && !bucket.IdsShader;
+			current = (bucket.Variant.Vertex is { } vertexStage ? AttributeHash( vertexStage ) : 0) == vertexAttributes
+				&& (pixelRecord && bucket.Variant.Pixel is { } pixelStage ? AttributeHash( pixelStage ) : 0) == pixelAttributes;
+		}
+
+		SetObjectAttributes( null );
+		return current;
+	}
+
+	/// <summary>
+	/// Keep what this call made of its resident prefix (<paramref name="batches"/>) as its kind's plan (<see cref="GpuDrivenPlan"/>):
+	/// the first buckets, their batches' records, and the first <paramref name="runs"/> multi-draws, which end at slot
+	/// <paramref name="written"/> and <paramref name="compactUsed"/> slots into the compacted ones.
+	/// </summary>
+	void KeepPlan( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, in GpuDrivenCull cull, Format color, Format depth, int samples, int totalFragments,
+		(GpuMaterial, ShaderParameters, ShaderVariant, int, int)[] checks, ReadOnlySpan<uint> batchRecords, ReadOnlySpan<bool> drawn, BufferHandle compactedBuffer, int written, int compactUsed, int runs )
+	{
+		var buckets = new List<GpuDrivenBucket>( checks.Length );
+		var (commands, fragments) = (0, 0);
+		for ( int b = 0; b < checks.Length; b++ )
+		{
+			buckets.Add( gpuDrivenBuckets[b].Kept() );
+			commands += gpuDrivenBuckets[b].Commands;
+			fragments += gpuDrivenBuckets[b].Fragments;
+		}
+
+		var compacted = new bool[runs];
+		for ( int i = 0; i < runs; i++ ) compacted[i] = compactedBuffer.IsValid && cullRuns[i].Page == compactedBuffer;
+
+		var materials = new List<(GpuMaterial, int)>();
+		var attributes = new List<(BackendParameters, int)>();
+		var seen = new HashSet<object>( ReferenceEqualityComparer.Instance );
+		foreach ( ref readonly var batch in batches )
+		{
+			if ( batch.Material is not null && seen.Add( batch.Material ) ) materials.Add( (batch.Material, MaterialVersion( batch.Material )) );
+			if ( batch.ObjectAttributes is BackendParameters parameters && seen.Add( parameters ) ) attributes.Add( (parameters, parameters.Version) );
+		}
+
+		device.PlansFor( cull.Plan ).Keep( new GpuDrivenPlan
+		{
+			Key = PlanKey( shaderMode, cull, color, depth, samples ),
+			Version = cull.PlanVersion,
+			Batches = batches.Length,
+			Commands = commands,
+			Fragments = fragments,
+			Written = written,
+			CompactUsed = compactUsed,
+			CompactBase = totalFragments,
+			Buckets = buckets,
+			Checks = checks,
+			Materials = materials.ToArray(),
+			Attributes = attributes.ToArray(),
+			BatchRecords = batchRecords.ToArray(),
+			Runs = cullRuns.GetRange( 0, runs ).ToArray(),
+			Compacted = compacted,
+			Drawn = drawn.ToArray(),
+		} );
+		System.Threading.Interlocked.Increment( ref device.GpuDrivenPlanBuilds );
 	}
 
 	/// <summary>
@@ -894,8 +1160,9 @@ internal sealed partial class BackendContext
 		var timer = device.PassTimer;
 		var idsScope = timer?.Begin( r.List, "GPU-driven ids", PassTimer.ScopeKind.Own ) ?? -1;
 		r.List.Marker( "GPU-driven ids" );
-		r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Ids, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
-		r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Scratch, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+		// After any earlier ids pass of the view this frame (another call's): its writes and the mark's reads come first
+		r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Ids, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.ColorTargetOutput | PipelineStage.ComputeShader, MemoryAccess.ColorTargetWrite, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+		r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Scratch, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
 		r.List.BeginRendering(
 			[new ColorTarget { Texture = visibility.Scratch, Load = LoadOp.DontCare, Store = StoreOp.DontCare }, new ColorTarget { Texture = visibility.Ids, Load = LoadOp.Clear, Store = StoreOp.Store, ClearColor = default }],
 			new DepthTarget { Texture = depthTexture.Handle, Layer = bound.DepthSlice, Load = LoadOp.Load, Store = StoreOp.Store } );
@@ -1047,7 +1314,7 @@ internal sealed partial class BackendContext
 	GpuDrivenBucket FindBucket( ShaderVariant variant, ShaderParameters attributes, long key, bool depthOnly, bool noColor, uint pixelMaterial, BackendMaterial material, string mode )
 	{
 		// Attributes that differ only in their lighting share a bucket: the variants read it from each draw's lighting record
-		for ( int i = 0; i < gpuDrivenBucketCount; i++ )
+		for ( int i = openBucket; i < gpuDrivenBucketCount; i++ )
 		{
 			var bucket = gpuDrivenBuckets[i];
 			if ( SameDrawing( bucket.Variant, variant ) && bucket.AttributesKey == key && bucket.DepthOnly == depthOnly && bucket.NoColor == noColor && bucket.PixelMaterial == pixelMaterial ) return bucket;
