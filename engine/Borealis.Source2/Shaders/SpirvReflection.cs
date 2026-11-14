@@ -24,18 +24,26 @@ public sealed class SpirvReflection
 	/// <summary>Specialization constant ids it declares.</summary>
 	public IReadOnlyList<uint> SpecializationIds { get; }
 
-	SpirvReflection( List<SpirvBinding> bindings, List<SpirvInput> inputs, List<string> entryPoints, List<uint> specialization )
+	/// <summary>
+	/// Uniform buffers' members as compiled: offsets and sizes always, names where the module keeps them (vfx strips them,
+	/// Slang keeps them). A compiler may drop members nothing reads.
+	/// </summary>
+	public IReadOnlyList<SpirvBlock> Blocks { get; }
+
+	SpirvReflection( List<SpirvBinding> bindings, List<SpirvInput> inputs, List<string> entryPoints, List<uint> specialization, List<SpirvBlock> blocks )
 	{
 		Bindings = bindings;
 		Inputs = inputs;
 		EntryPoints = entryPoints;
 		SpecializationIds = specialization;
+		Blocks = blocks;
 	}
 
 	const int OpEntryPoint = 15, OpTypeVoid = 19, OpTypeBool = 20, OpTypeInt = 21, OpTypeFloat = 22, OpTypeVector = 23, OpTypeMatrix = 24;
 	const int OpTypeImage = 25, OpTypeSampler = 26, OpTypeSampledImage = 27, OpTypeArray = 28, OpTypeRuntimeArray = 29, OpTypeStruct = 30;
-	const int OpTypePointer = 32, OpConstant = 43, OpVariable = 59, OpDecorate = 71;
-	const int DecorationSpecId = 1, DecorationBlock = 2, DecorationBufferBlock = 3, DecorationBuiltIn = 11, DecorationLocation = 30;
+	const int OpTypePointer = 32, OpConstant = 43, OpVariable = 59, OpDecorate = 71, OpMemberDecorate = 72, OpName = 5, OpMemberName = 6;
+	const int DecorationSpecId = 1, DecorationBlock = 2, DecorationBufferBlock = 3, DecorationArrayStride = 6, DecorationMatrixStride = 7, DecorationBuiltIn = 11, DecorationLocation = 30;
+	const int DecorationOffset = 35;
 	const int DecorationBinding = 33, DecorationDescriptorSet = 34;
 	const int StorageUniformConstant = 0, StorageInput = 1, StorageUniform = 2, StorageBuffer = 12;
 
@@ -53,6 +61,10 @@ public sealed class SpirvReflection
 		var variables = new List<(uint Id, uint Type, int Storage)>();
 		var entryPoints = new List<string>();
 		var specialization = new List<uint>();
+		var names = new Dictionary<uint, string>();
+		var memberNames = new Dictionary<(uint, int), string>();
+		var memberOffsets = new Dictionary<(uint, int), uint>();
+		var matrixStrides = new Dictionary<(uint, int), uint>();
 
 		for ( int i = 5; i < words.Length; )
 		{
@@ -64,6 +76,18 @@ public sealed class SpirvReflection
 			{
 				case OpEntryPoint:
 					entryPoints.Add( ReadString( words, i + 3, i + count ) );
+					break;
+				case OpName:
+					names[words[i + 1]] = ReadString( words, i + 2, i + count );
+					break;
+				case OpMemberName:
+					memberNames[(words[i + 1], (int)words[i + 2])] = ReadString( words, i + 3, i + count );
+					break;
+				case OpMemberDecorate when count > 4 && words[i + 3] == DecorationOffset:
+					memberOffsets[(words[i + 1], (int)words[i + 2])] = words[i + 4];
+					break;
+				case OpMemberDecorate when count > 4 && words[i + 3] == DecorationMatrixStride:
+					matrixStrides[(words[i + 1], (int)words[i + 2])] = words[i + 4];
 					break;
 				case OpDecorate:
 					var target = words[i + 1];
@@ -89,6 +113,7 @@ public sealed class SpirvReflection
 
 		var bindings = new List<SpirvBinding>();
 		var inputs = new List<SpirvInput>();
+		var blocks = new List<SpirvBlock>();
 		foreach ( var (id, pointerType, storage) in variables )
 		{
 			decorations.TryGetValue( id, out var decorated );
@@ -137,11 +162,51 @@ public sealed class SpirvReflection
 
 			if ( storage != StorageUniformConstant && storage != StorageUniform && storage != StorageBuffer ) continue;
 			bindings.Add( new SpirvBinding( (int)descriptorSet, (int)binding, type, arrayCount, dimension ) );
+
+			// A uniform buffer's members, in declaration order
+			if ( type == BindingType.UniformBuffer && elementOp == OpTypeStruct )
+			{
+				var memberCount = types[element].Count - 1;
+				var members = new SpirvMember[memberCount];
+				for ( int m = 0; m < memberCount; m++ )
+				{
+					var memberType = words[elementStart + m];
+					var size = SizeOf( memberType, types, words, constants, decorations, matrixStrides.GetValueOrDefault( (element, m) ) );
+					members[m] = new SpirvMember( memberNames.GetValueOrDefault( (element, m) ), (int)memberOffsets.GetValueOrDefault( (element, m) ), size );
+				}
+
+				blocks.Add( new SpirvBlock( (int)descriptorSet, (int)binding, names.GetValueOrDefault( element ) ?? names.GetValueOrDefault( id ), members ) );
+			}
 		}
 
 		bindings.Sort( ( a, b ) => a.Set != b.Set ? a.Set.CompareTo( b.Set ) : a.Binding.CompareTo( b.Binding ) );
 		inputs.Sort( ( a, b ) => a.Location.CompareTo( b.Location ) );
-		return new SpirvReflection( bindings, inputs, entryPoints, specialization );
+		blocks.Sort( ( a, b ) => a.Set != b.Set ? a.Set.CompareTo( b.Set ) : a.Binding.CompareTo( b.Binding ) );
+		return new SpirvReflection( bindings, inputs, entryPoints, specialization, blocks );
+	}
+
+	/// <summary>A member type's size in bytes as laid out: scalars by width, vectors by count, matrices by stride, arrays by stride; 0 if unknown.</summary>
+	static int SizeOf( uint type, Dictionary<uint, (int Op, int Start, int Count)> types, uint[] words, Dictionary<uint, uint> constants, Dictionary<uint, Dictionary<int, uint>> decorations, uint matrixStride )
+	{
+		if ( !types.TryGetValue( type, out var t ) ) return 0;
+		switch ( t.Op )
+		{
+			case OpTypeBool:
+				return 4;
+			case OpTypeInt or OpTypeFloat:
+				return (int)words[t.Start + 1] / 8;
+			case OpTypeVector:
+				return SizeOf( words[t.Start], types, words, constants, decorations, 0 ) * (int)words[t.Start + 1];
+			case OpTypeMatrix:
+				var columns = (int)words[t.Start + 1];
+				return matrixStride != 0 ? (int)matrixStride * columns : SizeOf( words[t.Start], types, words, constants, decorations, 0 ) * columns;
+			case OpTypeArray:
+				var length = (int)constants.GetValueOrDefault( words[t.Start + 1] );
+				var stride = decorations.TryGetValue( type, out var arrayDecorations ) && arrayDecorations.TryGetValue( DecorationArrayStride, out var s ) ? (int)s : SizeOf( words[t.Start], types, words, constants, decorations, matrixStride );
+				return stride * length;
+			default:
+				return 0;
+		}
 	}
 
 	static SpirvInput Input( int location, uint type, Dictionary<uint, (int Op, int Start, int Count)> types, uint[] words )
@@ -185,6 +250,16 @@ public sealed class SpirvReflection
 /// A descriptor binding: set, binding, what it is and how many (0 for a runtime array).
 /// </summary>
 public readonly record struct SpirvBinding( int Set, int Binding, BindingType Type, int Count, SpirvImageDimension Dimension );
+
+/// <summary>
+/// A uniform buffer: its set, binding, name (null where stripped) and members.
+/// </summary>
+public sealed record SpirvBlock( int Set, int Binding, string Name, SpirvMember[] Members );
+
+/// <summary>
+/// A uniform buffer member: its name (null where stripped), byte offset and size.
+/// </summary>
+public readonly record struct SpirvMember( string Name, int Offset, int Size );
 
 /// <summary>
 /// A stage input: its location, component type and count.

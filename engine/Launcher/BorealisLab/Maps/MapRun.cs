@@ -94,6 +94,8 @@ internal static class MapRun
 			EngineName = driverNames ? "Source2" : "Borealis",
 			Validation = Args.Has( "-validation" ),
 			InstanceExtensions = Sdl.VulkanInstanceExtensions,
+			// game/.source2/borealispipelines, as the game keeps it; -no-pipeline-cache starts cold and saves nothing
+			PipelineCacheFolder = Args.Has( "-no-pipeline-cache" ) ? null : Path.GetFullPath( Path.Combine( AppContext.BaseDirectory, "..", "..", ".source2", "borealispipelines" ) ),
 			Message = m =>
 			{
 				if ( m.Severity < MessageSeverity.Warning ) return;

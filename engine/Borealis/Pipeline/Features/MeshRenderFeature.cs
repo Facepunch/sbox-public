@@ -156,6 +156,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		/// </summary>
 		public readonly List<DrawItem> GpuDriven = new();
 
+		/// <summary><see cref="GpuDriven"/> holds frame-buffer readers, so colour layers take the frame copy before the call.</summary>
+		public bool ReadersTaken;
+
 		/// <summary>Each static overlay run's render order, by run (<see cref="StaticOverlay"/>).</summary>
 		public readonly List<int> OverlayOrders = new();
 
@@ -166,6 +169,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			foreach ( var list in ItemsByBit )
 				list.Clear();
 			GpuDriven.Clear();
+			ReadersTaken = false;
 			OverlayOrders.Clear();
 			Custom = 0;
 			Callbacks = 0;
@@ -514,8 +518,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 	/// <summary>
 	/// Move the opaque list's draws the GPU-driven path can take into <see cref="RunLists.GpuDriven"/>: static meshes'
-	/// instances with nothing per object but their lighting (no attributes, callbacks, skinning, frame copy or culled
-	/// arguments), which the aggregates' feature hands the device with its own batches.
+	/// instances with nothing per object but their lighting (no attributes, callbacks, skinning or culled arguments),
+	/// which the aggregates' feature hands the device with its own batches. Frame-buffer readers too: colour layers take
+	/// the frame copy before the call that draws them (<see cref="RunLists.ReadersTaken"/>).
 	/// </summary>
 	static void TakeGpuDriven( RunLists layers )
 	{
@@ -526,9 +531,10 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		{
 			var item = items[i];
 			ref readonly var run = ref runs[item.Run];
-			if ( run.Custom is null && run.Callbacks is null && !run.Skinned && !run.Deformed && !run.Morphable && !run.ReadsFrameBuffer && run.CullDraw < 0 && run.Attributes is null )
+			if ( TakesGpuDriven( run ) && !(run.ReadsFrameBuffer && NoGpuDrivenReaders) )
 			{
 				layers.GpuDriven.Add( item );
+				layers.ReadersTaken |= run.ReadsFrameBuffer;
 				continue;
 			}
 
@@ -537,6 +543,18 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		CollectionsMarshal.SetCount( items, kept );
 	}
+
+	/// <summary><c>-no-gpudriven-readers</c>: leave frame-buffer readers to the classic path, for comparisons.</summary>
+	static readonly bool NoGpuDrivenReaders = Array.Exists( Environment.GetCommandLineArgs(), a => a.Equals( "-no-gpudriven-readers", StringComparison.OrdinalIgnoreCase ) );
+
+	/// <summary>Whether <see cref="TakeGpuDriven"/> takes a run: nothing per object but its lighting.</summary>
+	static bool TakesGpuDriven( in Run run ) => run.Custom is null && run.Callbacks is null && !run.Skinned && !run.Deformed && !run.Morphable && run.CullDraw < 0 && run.Attributes is null;
+
+	/// <summary>Whether a draw <see cref="TakeGpuDriven"/> took reads the frame buffer.</summary>
+	internal bool ReadsFrameBuffer( ViewPass view, DrawItem item ) => CollectionsMarshal.AsSpan( view.State<RunLists>( this ).Opaque )[item.Run].ReadsFrameBuffer;
+
+	/// <summary>Whether the view's GPU-driven draws include frame-buffer readers (<see cref="RunLists.ReadersTaken"/>).</summary>
+	internal bool ReadersTaken( ViewPass view ) => view.State<RunLists>( this ).ReadersTaken;
 
 	/// <summary>
 	/// For the aggregates' feature: a GPU-driven draw of <see cref="RunLists.GpuDriven"/> as its batch would be, with the
@@ -1251,6 +1269,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var mode = layer.ShaderMode;
 		var shadow = layer.LayerType == MeshLayerType.Shadow;
 		var translucentLayer = layer.LayerType == MeshLayerType.Translucent;
+
 		var depthBias = shadow ? view.DepthBias : 0;
 		var slopeBias = shadow ? view.SlopeScaledDepthBias : 0;
 

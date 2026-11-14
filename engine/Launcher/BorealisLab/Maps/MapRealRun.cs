@@ -175,6 +175,22 @@ internal static class MapRealRun
 			return f;
 		}
 
+		// The first frames after loading, each with the pipelines it made and the time that took: start-up hitches
+		var (loadPipelines, loadPipelineMs) = gpu.PipelineCreation;
+		Console.WriteLine( $"Pipeline cache: {(gpu.PipelineCachePath is null ? "off" : gpu.PipelineCacheLoaded ? $"loaded from {gpu.PipelineCachePath}" : "empty")}; {loadPipelines} pipelines made while loading, {loadPipelineMs:0.0} ms" );
+		var firstFrames = new List<string>();
+		for ( int i = 0; i < 10 && figure is null; i++ )
+		{
+			var (made, ms) = gpu.PipelineCreation;
+			var started = Stopwatch.GetTimestamp();
+			RenderFrame( options.Views[0] );
+			var took = Ms( started, Stopwatch.GetTimestamp() );
+			var (madeAfter, msAfter) = gpu.PipelineCreation;
+			firstFrames.Add( FormattableString.Invariant( $"{took:0.0} ms ({madeAfter - made} pipelines, {msAfter - ms:0.0} ms)" ) );
+		}
+
+		if ( firstFrames.Count > 0 ) Console.WriteLine( $"First frames: {string.Join( ", ", firstFrames )}" );
+
 		if ( figure is not null )
 		{
 			VisibilityFigureCapture.Save( gpu, map, figure, options.Views[0], view => RenderFrame( view ), figureFolder );
@@ -416,6 +432,8 @@ internal static class MapRealRun
 		}
 
 		Console.WriteLine( bindingReport );
+		var (allPipelines, allPipelineMs) = gpu.PipelineCreation;
+		Console.WriteLine( $"Pipelines made in the whole run: {allPipelines}, {allPipelineMs:0.0} ms" );
 		gpu.WaitIdle();
 		if ( censusFolder is not null ) File.WriteAllText( Path.Combine( censusFolder, "census.md" ), censusReport.ToString() );
 		Directory.CreateDirectory( options.Output );

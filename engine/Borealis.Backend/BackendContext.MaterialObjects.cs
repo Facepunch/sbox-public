@@ -51,6 +51,7 @@ internal sealed partial class BackendContext
 			{
 				case ShaderResourceKind.ConstantBuffer when value is byte[] data:
 					{
+						HandFilledConstants.CheckSize( stage, name, data.Length );
 						var size = data.Length;
 						foreach ( var layout in stage.Program.ConstantBuffers )
 						{
@@ -95,6 +96,7 @@ internal sealed partial class BackendContext
 				case ShaderResourceKind.ConstantBuffer:
 					{
 						var data = context.attributes.Get( Token( resource.Name ) ) as byte[];
+						if ( data is not null ) HandFilledConstants.CheckSize( stage, resource.Name, data.Length );
 						var size = data?.Length ?? 0;
 						foreach ( var layout in stage.Program.ConstantBuffers )
 						{

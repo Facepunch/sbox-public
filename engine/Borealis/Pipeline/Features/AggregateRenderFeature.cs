@@ -308,6 +308,9 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 		{
 			var drawn = gpuDriven.AsSpan( 0, batches.Length + meshDraws.Length );
 			drawn.Clear();
+			// The frame copy frame-buffer readers among the mesh draws read, taken as the mesh feature takes it before its first
+			// reader (where the layer copies at all)
+			if ( !depth && !shadow && ReadsFrameBuffer( view, meshDraws ) ) context.CopyFrameBuffer();
 			DrawGpuDriven( context, view, batches, meshDraws, mode, depth, layer.ForceDepthFastPath, depthBias, slopeBias, drawn );
 
 			for ( int i = 0; i < batches.Length; i++ )
@@ -362,6 +365,18 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 
 		if ( gpuDriven is not null ) System.Buffers.ArrayPool<bool>.Shared.Return( gpuDriven );
 		context.SetObjectAttributes( null );
+	}
+
+	/// <summary>Whether any of the mesh draws reads the frame buffer copy (<see cref="MeshRenderFeature.ReadersTaken"/>).</summary>
+	bool ReadsFrameBuffer( ViewPass view, ReadOnlySpan<MeshRenderFeature.DrawItem> meshDraws )
+	{
+		if ( meshDraws.IsEmpty || !Meshes.ReadersTaken( view ) ) return false;
+		foreach ( var item in meshDraws )
+		{
+			if ( Meshes.ReadsFrameBuffer( view, item ) ) return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>Count a mesh draw the GPU-driven path took, as the mesh feature counts its draws.</summary>
