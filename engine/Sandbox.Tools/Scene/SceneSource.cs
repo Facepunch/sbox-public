@@ -89,8 +89,17 @@ internal static class SceneSource
 			if ( !editor.IsMounted && FindAsset( source ) is { } asset )
 			{
 				var path = asset.GetCompiledFile( true );
-				if ( string.IsNullOrEmpty( path ) )
-					throw new FileNotFoundException( $"No compiled file exists for '{asset.Path}'." );
+
+				// Saving doesn't compile the scene, the content build does on a worker. A scene saved since is compiled
+				// here; only a failed compile plays it from memory. The compile's result is what counts: an unchanged
+				// output keeps its old time, so the file can still look older than the source.
+				if ( IsStale( asset, path ) )
+				{
+					path = asset.Compile( false ) ? asset.GetCompiledFile( true ) : null;
+					if ( string.IsNullOrEmpty( path ) )
+						return editor.Scene.CreateSceneFile();
+				}
+
 				return SceneFile.FromCompiled( asset.Path, asset.Guid, File.ReadAllBytes( path ) );
 			}
 
@@ -105,4 +114,19 @@ internal static class SceneSource
 			return null;
 		}
 	}
+
+	/// <summary>
+	/// The saved scene hasn't been compiled yet and a content build is running, so it can't be compiled now: on-demand
+	/// compiles are suspended until the build ends. Playing should wait for it rather than play without the bake.
+	/// </summary>
+	internal static bool WaitsForBuild( SceneEditorSession editor ) =>
+		EditorContentBuild.IsBuilding && !editor.HasUnsavedChanges && !editor.IsMounted
+		&& editor.Scene.Source is SceneFile { ResourcePath: { Length: > 0 } } source
+		&& FindAsset( source ) is { } asset && IsStale( asset, asset.GetCompiledFile( true ) );
+
+	/// <summary>
+	/// The compiled scene is older than its source: saved since it was last compiled.
+	/// </summary>
+	static bool IsStale( Asset asset, string compiled ) =>
+		string.IsNullOrEmpty( compiled ) || !File.Exists( compiled ) || File.GetLastWriteTimeUtc( compiled ) < File.GetLastWriteTimeUtc( asset.GetSourceFile( true ) );
 }

@@ -452,8 +452,11 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		{
 			try
 			{
+				// Unchanged blobs (a scene saved after moving an object) aren't written again: a scene's can be
+				// 100 MB, and an unchanged one would still be a changed input to the content build
 				var blobPath = filename + "_d";
-				System.IO.File.WriteAllBytes( blobPath, BinaryData );
+				if ( !SameAsFile( BinaryData, blobPath ) )
+					System.IO.File.WriteAllBytes( blobPath, BinaryData );
 			}
 			catch ( Exception e )
 			{
@@ -466,6 +469,34 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		}
 
 		IToolsDll.Current?.RunEvent<ResourceLibrary.IEventListener>( i => i.OnSave( this ) );
+	}
+
+	/// <summary>
+	/// Whether <paramref name="path"/> holds exactly <paramref name="data"/>. Reads it in pooled chunks: a scene's
+	/// blob file can be 100 MB, which read whole is a large-object allocation on every save.
+	/// </summary>
+	static bool SameAsFile( byte[] data, string path )
+	{
+		var file = new System.IO.FileInfo( path );
+		if ( !file.Exists || file.Length != data.Length ) return false;
+
+		var chunk = System.Buffers.ArrayPool<byte>.Shared.Rent( 1 << 20 );
+		try
+		{
+			using var stream = new System.IO.FileStream( path, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.Read, 1, System.IO.FileOptions.SequentialScan );
+			var offset = 0;
+			while ( offset < data.Length )
+			{
+				var read = stream.Read( chunk, 0, Math.Min( chunk.Length, data.Length - offset ) );
+				if ( read == 0 || !data.AsSpan( offset, read ).SequenceEqual( chunk.AsSpan( 0, read ) ) ) return false;
+				offset += read;
+			}
+			return true;
+		}
+		finally
+		{
+			System.Buffers.ArrayPool<byte>.Shared.Return( chunk );
+		}
 	}
 
 	internal virtual bool CanLoadFromJson()
