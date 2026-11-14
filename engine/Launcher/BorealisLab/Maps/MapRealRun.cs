@@ -303,7 +303,8 @@ internal static class MapRealRun
 						var file = Path.Combine( Path.GetFullPath( options.Captures ), name + ".png" );
 						Capture.Save( gpu, texture, layout, file );
 						BackendDevice.SetLayout( map.Target.Samples > 1 ? map.Target.Resolved : map.Target.Color, ImageLayout.CopySource );
-						Console.WriteLine( $"Saved {file}; far cache drawn whole {far.Sum( f => f.Draws )} times, {far.Sum( f => f.CellsDrawn )} cells in parts" );
+						var report = map.System.DebugReport;
+						Console.WriteLine( $"Saved {file}; far cache drawn whole {far.Sum( f => f.Draws )} times, {far.Sum( f => f.CellsDrawn )} cells in parts; debug views {RenderHost.Current.DebugViews}, thumbnails {string.Join( ", ", report.ShadowMaps.Select( m => $"{m.Kind} {m.Index} {(m.Rendered ? "drawn" : "kept")} at {m.Thumbnail}" ) )}" );
 					}
 
 					// Long enough for the casters to settle and the cache to take them, then a frame that only copies it
