@@ -207,4 +207,60 @@ public class CascadeCacheTests
 		Assert.IsTrue( FarView( system ).Visible( mesh ).Contains( box.Index ), "moved: on top again" );
 		Assert.IsTrue( far.CellsDrawn > 0, "and its old place drawn again" );
 	}
+
+	/// <summary>
+	/// A caster's stamp comes from the settling clock's own count of frames, not the render host's: a caster added after other
+	/// frames have settled hasn't, whatever host or world it's in (a render host's frame count starts again at 0).
+	/// </summary>
+	[TestMethod]
+	public void ANewCasterHasNotSettled()
+	{
+		SettledCasters.Reset();
+		var time = 1e6f;
+		for ( int i = 0; i < 5; i++ ) SettledCasters.Tick( time += 10 );
+
+		var world = SunWorld();
+		var box = Box( world, Vector3.Zero, isStatic: false );
+		Assert.IsFalse( SettledCasters.Settled( world.MovedStamps[box.Index] ) );
+	}
+
+	/// <summary>
+	/// A caster settles after a short quiet; after moving twice once settled it's restless, and settles only after a long one,
+	/// after which it starts over.
+	/// </summary>
+	[TestMethod]
+	public void RestlessCastersSettleAfterALongerQuiet()
+	{
+		SettledCasters.Reset();
+		var world = SunWorld();
+		var box = Box( world, Vector3.Zero, isStatic: false );
+		var time = 1e6f;
+		bool Settled() => SettledCasters.Settled( world.MovedStamps[box.Index] );
+
+		// Two frames a quiet: the move came after the first frame began
+		void Quiet( float seconds )
+		{
+			SettledCasters.Tick( time += 0.01f );
+			SettledCasters.Tick( time += seconds );
+		}
+
+		void Move() => box.Transform = new Transform( box.Transform.Position + Vector3.Up );
+
+		Quiet( SettledCasters.Seconds + 1 );
+		Assert.IsTrue( Settled(), "settled" );
+
+		Move();
+		Quiet( SettledCasters.Seconds + 1 );
+		Assert.IsTrue( Settled(), "settled again after a move" );
+
+		Move();
+		Quiet( SettledCasters.Seconds + 1 );
+		Assert.IsFalse( Settled(), "restless after its second move" );
+		Quiet( SettledCasters.RestlessSeconds );
+		Assert.IsTrue( Settled(), "settled after a long quiet" );
+
+		Move();
+		Quiet( SettledCasters.Seconds + 1 );
+		Assert.IsTrue( Settled(), "and starts over" );
+	}
 }

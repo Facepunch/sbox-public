@@ -254,8 +254,9 @@ public sealed partial class RenderSystem
 	{
 		if ( filter == StaticFilter.Settled && isStatic ) return true;
 		if ( isStatic ) return false;
-		if ( filter != StaticFilter.Unsettled ) return moved <= pass.SettledStamp;
-		if ( moved <= pass.SettledStamp ) return false;
+		var cached = Borealis.Shadows.SettledCasters.SettledBy( moved, pass.SettledStamp, pass.RestlessStamp );
+		if ( filter != StaticFilter.Unsettled ) return cached;
+		if ( cached ) return false;
 
 		if ( pass.NewlySettled is { } count && Borealis.Shadows.SettledCasters.Settled( moved ) ) count.Value++;
 		return true;

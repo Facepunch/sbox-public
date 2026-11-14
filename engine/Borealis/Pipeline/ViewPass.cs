@@ -95,6 +95,11 @@ internal sealed class ViewPass
 	public ulong SettledStamp { get; set; }
 
 	/// <summary>
+	/// <see cref="SettledStamp"/> for restless casters (<see cref="Shadows.SettledCasters.RestlessStamp"/>).
+	/// </summary>
+	public ulong RestlessStamp { get; set; }
+
+	/// <summary>
 	/// An <see cref="StaticFilter.Unsettled"/> view counts here the casters it drew that have settled since, which its cache
 	/// would hold if it were drawn again.
 	/// </summary>
@@ -175,6 +180,7 @@ internal sealed class ViewPass
 		TexelSized = false;
 		LodTexelsPerUnit = 0;
 		SettledStamp = 0;
+		RestlessStamp = 0;
 		NewlySettled = null;
 		CacheOffset = default;
 		Blank = null;
