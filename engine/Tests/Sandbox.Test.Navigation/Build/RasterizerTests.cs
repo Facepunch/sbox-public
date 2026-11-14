@@ -227,6 +227,32 @@ public class RasterizerTests
 	}
 
 	[TestMethod]
+	public void FieldThatGrewStartsSmallAgainAndGrowsInPlace()
+	{
+		var field = new SolidField();
+		field.Reset( 3, 3 );
+		for ( int i = 0; i < 40; i++ ) field.Add( 4, i * 3, i * 3 + 1, 1, 0 );
+		var grown = field.Spans;
+		Assert.IsTrue( field.Capacity >= 40 );
+
+		field.Reset( 3, 3 );
+		Assert.AreEqual( 4, field.Capacity );
+		for ( int c = 0; c < 9; c++ )
+		{
+			for ( int i = 0; i < (c == 7 ? 9 : 3); i++ ) field.Add( c, c * 100 + i * 3, c * 100 + i * 3 + 1, 1, 0 );
+		}
+
+		Assert.AreSame( grown, field.Spans );
+		Assert.AreEqual( 16, field.Capacity );
+		Assert.AreEqual( 8 * 3 + 9, field.SpanCount );
+		for ( int c = 0; c < 9; c++ )
+		{
+			Assert.AreEqual( c == 7 ? 9 : 3, field.Counts[c] );
+			for ( int i = 0; i < field.Counts[c]; i++ ) Assert.AreEqual( SolidField.Pack( c * 100 + i * 3, c * 100 + i * 3 + 1, 1 ), field.Spans[c * field.Capacity + i] );
+		}
+	}
+
+	[TestMethod]
 	public void SpanBridgingSeveralSwallowsThem()
 	{
 		var field = new SolidField();

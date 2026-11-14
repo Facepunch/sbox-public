@@ -9,10 +9,13 @@ internal sealed class SolidField
 	public int Width, Height;
 	public int SpanCount;
 
+	const int FirstCapacity = 4;
+
 	/// <summary>
-	/// Slots per column. Doubles when a column overflows and never shrinks.
+	/// Slots per column. Doubles when a column overflows, back to the first on Reset: a field with fewer
+	/// slots is smaller in the cache, and most tiles need no more.
 	/// </summary>
-	public int Capacity = 4;
+	public int Capacity = FirstCapacity;
 
 	/// <summary>
 	/// min | max &lt;&lt; 16 | area &lt;&lt; 32, sorted by min inside a column, never touching each other.
@@ -26,6 +29,7 @@ internal sealed class SolidField
 		Width = width;
 		Height = height;
 		SpanCount = 0;
+		Capacity = FirstCapacity;
 		int columns = width * height;
 		if ( Counts.Length < columns ) Counts = new ushort[columns];
 		if ( Spans.Length < columns * Capacity ) Spans = new ulong[columns * Capacity];
@@ -107,8 +111,10 @@ internal sealed class SolidField
 	{
 		int columns = Width * Height;
 		int capacity = Capacity * 2;
-		var spans = new ulong[columns * capacity];
-		for ( int c = 0; c < columns; c++ ) Array.Copy( Spans, c * Capacity, spans, c * capacity, Counts[c] );
+		var spans = Spans.Length < columns * capacity ? new ulong[columns * capacity] : Spans;
+
+		// From the last column down: spread out in the array it is in, a column lands on none that is still to move.
+		for ( int c = columns - 1; c >= 0; c-- ) Array.Copy( Spans, c * Capacity, spans, c * capacity, Counts[c] );
 		Spans = spans;
 		Capacity = capacity;
 	}
