@@ -26,6 +26,7 @@ namespace Sandbox.BasaltLab;
 /// <item><c>-exposure-parity folder</c> - run auto exposure over Sun Shadows with native's tonemap system and with its port on a Basalt.Gpu device, compare and exit (<see cref="ExposureParity"/>).</item>
 /// <item><c>-model-parity folder</c> - render s&amp;box models with Basalt on Source 2's device and on a Basalt.Gpu device, compare and exit (<see cref="ModelParity"/>).</item>
 /// <item><c>-surface-parity folder</c> - draw one material as a .shader, a Slang surface and a raw Slang module on a Basalt.Gpu device, compare and exit (<see cref="SurfaceParity"/>).</item>
+/// <item><c>-convert-passes a,b|all</c> - write a pass module beside each named non-material shader and compile it (<see cref="PassConversion"/>).</item>
 /// <item><c>-crowd</c> - SceneLab's Crowd Near, animated, on a Basalt.Gpu device in a window, timed (<see cref="CrowdRun"/>).</item>
 /// <item><c>-map ident</c>, <c>-construct</c> - read a compiled map with Basalt.Source2 and time drawing it on a Basalt.Gpu device, with no Source 2 device (<see cref="Maps.MapRun"/>).</item>
 /// </list>
@@ -40,6 +41,9 @@ internal static class BasaltLabApp
 
 		// The Slang material tier against today's shaders, on a Basalt.Gpu device of its own: nothing of the engine starts
 		if ( SurfaceParity.Requested ) return SurfaceParity.Run();
+
+		// Pass modules from today's non-material shaders: nothing of the engine starts
+		if ( PassConversion.Requested ) return PassConversion.Run();
 
 		// Posing skinned presets and models takes the animation system, which only the longer list of native modules starts
 		var presets = PresetRun.Selected();

@@ -1,0 +1,44 @@
+// What a pass module includes first: a fullscreen, UI, tools or compute shader on the raw tier, converted from a .shader.
+// It keeps the .shader's declarations, which compile to nothing here and which the shader compiler reads from the
+// module's text and its includes' (Sandbox.ShaderCompiler.PassModule): DynamicCombo and StaticCombo (each a define, set
+// per compile, as vfx compiles each combo), Feature, and RenderState (the pixel stage's pipeline state, evaluated with
+// the combos). Entry points are [shader( "vertex" )] MainVs, [shader( "pixel" )] MainPs and [shader( "compute" )] MainCs,
+// each in its program's #if block (PROGRAM is 1, 2 or 6, as in vfx). See docs/managed/pass-modules.md.
+#ifndef SBOX_PASS_SLANGH
+#define SBOX_PASS_SLANGH
+
+// The program numbers the #if blocks test, and the declarations' macros, as vfx gives every shader
+#include "system.fxc"
+
+// system.fxc makes render states and attributes string globals for vfx's parser to read; here they're nothing, so a state
+// set twice in different #if branches doesn't declare its global twice
+#undef RenderState
+#define RenderState( ... )
+#undef BoolAttribute
+#define BoolAttribute( ... )
+#undef FloatAttribute
+#define FloatAttribute( ... )
+#undef Float3Attribute
+#define Float3Attribute( ... )
+
+// What system.fxc doesn't declare: a FEATURES block's lines and the rarer attributes
+#ifndef Feature
+#define Feature( ... )
+#endif
+#ifndef ComboRule
+#define ComboRule( ... )
+#endif
+#ifndef IntAttribute
+#define IntAttribute( ... )
+#endif
+#ifndef StringAttribute
+#define StringAttribute( ... )
+#endif
+#ifndef Float2Attribute
+#define Float2Attribute( ... )
+#endif
+#ifndef Float4Attribute
+#define Float4Attribute( ... )
+#endif
+
+#endif

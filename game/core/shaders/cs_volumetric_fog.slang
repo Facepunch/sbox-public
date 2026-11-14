@@ -1,0 +1,650 @@
+// cs_volumetric_fog.shader as a pass module: Basalt.Gpu draws this; the .shader stays for the other routes
+// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------
+//
+// Volumetric Fogging Compute Shaders
+//
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------
+// HEADER: DevShader = true;
+// HEADER: CompileTargets = ( IS_SM_50 );
+// HEADER: Description = "Applies volumetric fog to each pixel on screen";
+
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------
+// MODES: Default();
+
+#include "sbox/pass.slangh"
+
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------
+	#define FORCE_BILINEAR_PCF_SHADOWS_ONLY
+	#define COMPUTE_SHADER
+	
+	#include "system.fxc" // This should always be the first include in COMMON
+	#include "vr_common.fxc"
+
+	#include "volumetric_fog.fxc"
+	#include "light_probe_volume.fxc"
+	
+    #include "common/lightbinner.hlsl"
+    #include "common/classes/Depth.hlsl"
+	#include "common/DDGI/DDGI.hlsl"
+
+	//------------------------------------------------------------------------------------------------------------------------------
+	cbuffer VolumetricFogConstantBuffer_t
+	{
+		float4		g_vViewDX;
+		float4		g_vViewDY;
+		float4		g_vViewCorner;
+		float4		g_vViewPos;
+		float4		g_vViewDir;
+
+		float4x4	g_matLastViewFrustum;
+
+		float4		g_vNearFarClipPlaneReciprocal;
+		float4		g_flVolumeScale_Shift_Near_Far;
+		float4		g_flAniosotrophy_Scattering_XYJitterScale;
+
+		float4		g_vIndirectBBScale_flIndirectStrength;
+		float4		g_vIndirectBBOffset;
+
+		float4		g_vPostWorldToFrustumScale;
+		float4		g_vPostWorldToFrustumBias;
+
+		float4		g_vThreadToVoxelScale;
+		float4		g_vThreadToVoxelBias;
+
+		float4		g_vFogFadeInScaleBias;
+	
+		int4		g_nNumFogVolumeBoundingBoxes;
+		float4		g_vFogVolumeBoundingBoxMin[128]; 	// Spherical on .w
+		float4		g_vFogVolumeBoundingBoxMax[128];	// Fog strength on .w
+		float4		g_vFogVolumeBoundingBoxColorExponent[128];
+		float4x4   	g_matFogVolumeBoundingBoxWorldToVolume[128];
+
+		uint4		g_nVolFogWidthHeightDepth;
+		float4		g_vOoVogFogWidthHeightDepth;
+	};
+
+	//------------------------------------------------------------------------------------------------------------------------------
+	#define g_flVolumeScale		g_flVolumeScale_Shift_Near_Far.x
+	#define g_flXShift			g_flVolumeScale_Shift_Near_Far.y
+	#define g_flNearClipPlane	g_flVolumeScale_Shift_Near_Far.z
+	#define g_flClipPlaneRange	g_flVolumeScale_Shift_Near_Far.w
+	#define g_flFarClipPlane	g_vNearFarClipPlaneReciprocal.z
+
+	#define g_flOffsetNear		g_flOffsetNear_OffsetFar_ScaleNear_ScaleFar.x
+	#define g_flOffsetFar		g_flOffsetNear_OffsetFar_ScaleNear_ScaleFar.y
+	#define g_flScaleNear		g_flOffsetNear_OffsetFar_ScaleNear_ScaleFar.z
+	#define g_flScaleFar		g_flOffsetNear_OffsetFar_ScaleNear_ScaleFar.w
+
+	#define g_flAnisotropy		g_flAniosotrophy_Scattering_XYJitterScale.x
+	#define g_flScattering		g_flAniosotrophy_Scattering_XYJitterScale.y
+	#define g_vXYJitterScale	g_flAniosotrophy_Scattering_XYJitterScale.zw
+
+	#define g_flNoiseOffset		g_vFogNoiseOffset_Scale_UVScale0_UVScale1.x
+	#define g_flNoiseScale		g_vFogNoiseOffset_Scale_UVScale0_UVScale1.y
+	#define g_flNoiseUVScale0	g_vFogNoiseOffset_Scale_UVScale0_UVScale1.z
+	#define g_flNoiseUVScale1	g_vFogNoiseOffset_Scale_UVScale0_UVScale1.w
+
+	//------------------------------------------------------------------------------------------------------------------------------
+
+	int		g_nJitterOffset	< Attribute( "g_nJitterOffset" ); >;
+
+	//------------------------------------------------------------------------------------------------------------------------------
+	float GetPhaseFunction( float cosPhi, float gFactor )
+	{
+		// Smoother falloff
+		gFactor = sqrt( gFactor );
+		gFactor = min( gFactor, 0.8f ); // Avoid singularity at 1
+
+		float gFactor2 = gFactor*gFactor;
+
+		return ( 1 - gFactor2 ) / pow( abs( 1 + gFactor2 - 2 * gFactor * cosPhi ), 1.5f ) / ( 4.0f * 3.1415926f );
+	}
+
+	//------------------------------------------------------------------------------------------------------------------------------
+
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------
+#if ( PROGRAM == VFX_PROGRAM_CS )
+	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
+
+	#include "math_general.fxc"
+	#include "light_probe_volume.fxc"
+	#include "vr_lighting.fxc"
+	
+	DynamicCombo( D_PASS, 0..1, Sys( PC || VULKAN ) );
+	DynamicCombo( D_ENABLE_BAKED_FOG_TEXTURE, 0..1, Sys( ALL ) );
+	DynamicCombo( D_INDIRECT_LIGHTING_FROM_IBL, 0..1, Sys( ALL ) );
+
+	#define D_JITTER 1
+
+	// fp32: Slang has no min16float, and its real fp16 (float16_t) needs the shaderFloat16 device
+	// feature, which is optional below GTX 1600 / RTX 2000.
+	#define lpfloat4 float4
+
+	// -----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+	enum FogPasses
+	{
+		Lighting,
+		Integrate,
+		Last
+	};
+
+    //-------------------------------------------------------------------------------------------------------------------------------------------------------------
+    // Textures
+	// -----------------------------------------------------------------------------------------------------------------------------------------------------------
+    Texture2D<float4> BlueNoise < Attribute("BlueNoise"); >;
+	
+	Texture3D<lpfloat4> InFogIndirectVolume 			< Attribute("InBakedFogTexture"); > ;
+	Texture3D<lpfloat4> InLightingTexture 				< Attribute( "InLightingTexture" ); > ;
+    Texture3D<lpfloat4> InAccumulationTexture 			< Attribute("InAccumulationTexture" ); > ;
+	
+	RWTexture3D<lpfloat4> OutAccumulationTexture 		< Attribute( "OutAccumulationTexture" ); > ;
+	RWTexture3D<lpfloat4> OutScatteringTexture 			< Attribute( "OutScatteringTexture" ); > ;
+	RWTexture3D<lpfloat4> OutLightingTexture 			< Attribute( "OutLightingTexture" ); > ;
+
+	SamplerState VolumeSampler < Filter( BILINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;;
+
+    // --------------------------------------------------------------------------------------------------------------------------------------------------------
+    //
+    // Calculate the lighting at the voxel position
+    // We could use analytical frustum bounds for these but would be way too specialized and shit to maintain
+    //
+    // --------------------------------------------------------------------------------------------------------------------------------------------------------
+    float3 CalculateLightingAtPoint(float3 vPositionWs, uint nIndex, float flDensity)
+	{
+		float3 vViewDirWs = CalculateCameraToPositionDirWs( vPositionWs.xyz );
+
+		BinnedLight light = DynamicLightConstantByIndex( nIndex );
+
+		// Skip lights that have no fog contribution (NONE or BAKED modes)
+		float flFogScale = light.FogIntensity;
+		if ( flFogScale == 0.0f )
+			return 0;
+
+		float3 vLightColor = light.Color;
+		float3 vLightPositionWs = light.GetPosition();
+		float3 vPositionToLightRayWs = vLightPositionWs - vPositionWs.xyz; // "L"
+		float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs(vPositionWs.xyz);
+
+		float3 vPositionToLightDirWs = normalize(vPositionToLightRayWs.xyz);
+
+		float flDistToLightSq = dot(vPositionToLightRayWs.xyz, vPositionToLightRayWs.xyz);
+
+		if (flDistToLightSq > light.RadiusSquared ) // .z stores radius squared of light
+		{
+			// Outside light range
+			return 0;
+		}
+
+		float flOuterConeCos = light.SpotLightInnerOuterConeCosines.y;
+		float flConeToDirection = dot(vPositionToLightDirWs.xyz, -light.GetDirection()) - flOuterConeCos;
+		if (flConeToDirection <= 0.0)
+		{
+			// Outside spotlight cone
+			return 0;
+		}
+
+		float flSpotAtten = flConeToDirection * light.SpotLightInnerOuterConeCosines.z;
+
+		[branch]
+		if (light.HasLightCookie())
+		{
+			float4 vCookieSample = light.SampleLightCookie( light.GetCookieUV( vPositionWs.xyz ) );
+			vLightColor.rgb *= vCookieSample.rgb * vCookieSample.a;
+			flSpotAtten = 1.0f;
+		}
+
+		float flLightFalloff = CalculateDistanceFalloff(flDistToLightSq, light.LinearFalloff, light.QuadraticFalloff, light.FalloffBias, 1.0);
+		float flLightMask = flLightFalloff * flSpotAtten;
+
+		float flShadowScalar = 1.0;
+
+		if (light.HasFogShadows())
+		{
+			/*if (light.Type == LightType::LightTypeDirectional)
+				flShadowScalar = DirectionalLightShadow::GetVisibility(vPositionWs, float4(0, 0, 0, 0));
+			else */
+			if (light.Type == LightType::LightTypePoint)
+				flShadowScalar = ProjectedShadowCube::GetVisibility(light.ShadowMapIndex, vPositionWs);
+			else if (light.Type == LightType::LightTypeSpot)
+				flShadowScalar = ProjectedShadow::GetVisibility(light.ShadowMapIndex, vPositionWs, float2(0, 0));
+		}
+
+		if (flShadowScalar <= 0.0)
+			return 0;
+
+		// Filter this source-to-froxel segment before accumulating any other light.
+		// Reuse the surface path's cached candidates and explicit-LOD texture sampling.
+		[branch]
+		if ( LightModulators::Active() && light.LightModulatorCount > 0 )
+		{
+			vLightColor *= LightModulators::Evaluate( vPositionWs, vPositionToLightDirWs, sqrt( flDistToLightSq ),
+				light.LightModulatorOffset, light.LightModulatorCount );
+		}
+
+		float3 vLightMask = vLightColor.rgb * flShadowScalar * flLightFalloff * flSpotAtten;
+
+		float flLightScattering = GetPhaseFunction( dot( vPositionToLightDirWs, vViewDirWs ), flDensity );
+
+		return vLightMask.rgb * flLightScattering * abs( flFogScale );
+	}
+
+	// ---------------------------------------------------------------------------------------------------------------------------------------------------
+
+	// Returns rgb = tint of dominant volume at this point, a = accumulated density contribution.
+	float4 GetContributionInBoundingVolumes( float3 vWorldPos )
+	{
+		float flContribution = 0.0f;
+		float3 vTint = float3( 1.0f, 1.0f, 1.0f );
+		for ( int n = 0; n < g_nNumFogVolumeBoundingBoxes.x; n++ )
+		{
+			float3 vMin = g_vFogVolumeBoundingBoxMin[n].xyz;
+			float3 vMax = g_vFogVolumeBoundingBoxMax[n].xyz;
+
+			//Transform the world position into the local space of the bounding box
+			float3 vPositionInVolumeWs = mul( float4( vWorldPos.xyz, 1.0f ),  g_matFogVolumeBoundingBoxWorldToVolume[n] ).xyz;
+
+			float3 vNormalizedPosInBB = saturate( ( vPositionInVolumeWs - vMin ) / ( vMax - vMin ) );
+			
+			if ( ( dot(1.f, vNormalizedPosInBB.xyz - saturate(vNormalizedPosInBB.xyz)) == 0.0f ) )
+			{
+				float3 vRelToCenter = abs( vNormalizedPosInBB.xyz * 2.0f - float3( 1.0f, 1.0f, 1.0f ) );
+				float flMaxDist = g_vFogVolumeBoundingBoxMin[ n ].w == 0.0f ? max( max( vRelToCenter.x, vRelToCenter.y ), vRelToCenter.z ) : length(vRelToCenter);
+				float flFalloff = 1.0f - flMaxDist;
+				// pow( 0, 0 ) is NaN on some GPUs (AMD), froxels on or outside the volume edge contribute nothing
+				float flLocal = flFalloff > 0.0f ? pow( flFalloff, g_vFogVolumeBoundingBoxColorExponent[ n ].a ) * g_vFogVolumeBoundingBoxMax[ n ].w : 0.0f;
+				// Take tint from the volume that contributes most at this voxel - keeps the math trivial and avoids order-dependence.
+				if ( flLocal > flContribution )
+				{
+					vTint = g_vFogVolumeBoundingBoxColorExponent[ n ].rgb;
+				}
+				flContribution = max( flContribution, flLocal );
+			}
+		}
+		return float4( vTint, saturate( flContribution ) );
+	}
+
+	// ---------------------------------------------------------------------------------------------------------------------------------------------------
+	
+	float3 IndirectLightingFromIBL( float3 vWorldPos )
+    {
+		#if (!D_INDIRECT_LIGHTING_FROM_IBL)
+				return 0.0f;
+		#endif
+		if ( NumEnvironmentMaps == 0 )
+			return 0.0f;
+
+		float3 vIndirectLighting = 0.0f;
+		float flDistAccumulated = 0.0f;
+		
+		for( uint i=0; i<1; i++ )
+		{
+			uint index = i;
+			float3 vCubePos = mul( float4( vWorldPos.xyz, 1.0 ), EnvMapWorldToLocal( index ) ).xyz;
+
+			const float3 vEnvMapMin = EnvMapBoxMins(index);
+			const float3 vEnvMapMax = EnvMapBoxMaxs(index);
+
+			const float flEdgeFeathering = EnvMapFeathering( index );
+
+			float3 vIntersectA = min( ( vCubePos - vEnvMapMin ), ( vEnvMapMax - vCubePos ) ) ;
+			float3 vIntersectB = min( ( vCubePos - vEnvMapMax ), ( vEnvMapMin - vCubePos ) ) ;
+
+			float flDistance = min(
+				min( vIntersectA.x, min( vIntersectA.y, vIntersectA.z ) ),
+				min( -vIntersectB.x, -min( vIntersectB.y, vIntersectB.z ) )
+			);
+
+			// Branch, but better than sampling all cubes
+			if( flDistance < 0.0 )
+				continue;
+
+			float3 vPositionCubemapLocal = mul(float4(vWorldPos.xyz, 1.0), EnvMapWorldToLocal(index)).xyz;
+			float flLod = flDistance / length( vEnvMapMax - vEnvMapMin ); // More scattered the further from edges
+
+			float3 vParallaxCubemapLocal = CubeMapBoxProjection( normalize(vPositionCubemapLocal), vPositionCubemapLocal.xyz, EnvMapBoxMins(index).xyz, EnvMapBoxMaxs(index).xyz);
+
+            float3 vCubeMapTexelDiffuse = SampleEnvironmentMapLevel( vParallaxCubemapLocal, max( flLod * 4, 0.25f ), index );
+
+			vIndirectLighting = lerp( vIndirectLighting, vCubeMapTexelDiffuse, 1.0 - flDistAccumulated );
+
+			// Update the accumulated distance
+			flDistAccumulated += RemapValClamped(flDistance, min(-flEdgeFeathering, 0.0f), max(-flEdgeFeathering, 0.0f), 0.0, 1.0);
+
+			// Break if we've accumulated enough light
+			if (flDistAccumulated >= 1.0)
+				break;
+
+		}
+		return vIndirectLighting;
+	}
+	
+	float3 GetViewVector( uint2 nThreadId )
+	{
+		return g_vViewCorner.xyz 
+			+ ( float( nThreadId.x ) + 0.5f ) * g_vViewDX.xyz 
+			+ ( float( nThreadId.y ) + 0.5f ) * g_vViewDY.xyz;
+	}
+
+    float GetScattering(float3 vViewVector, float flDepthSlice, float flDepthDelta)
+    {
+        float flScatteringAlongView = g_flScattering * length(vViewVector);
+        float flScattering = flDepthDelta * flScatteringAlongView;
+
+        flScattering *= saturate(flDepthSlice * g_vFogFadeInScaleBias.x + g_vFogFadeInScaleBias.y);
+
+		return flScattering;
+    }
+
+    //-----------------------------------------------------------------------------------------------------------------
+	//
+	// Per-Frame Update Light Volume
+	//
+	// ----------------------------------------------------------------------------------------------------------------
+	static const uint MAX_LIGHTS_PER_TILE = 64;
+	#define FOG_LIGHT_WORDS 32
+	#define FOG_THREADS_PER_GROUP 64
+
+	// Each thread owns a column, so no group barrier is needed. The light pool is limited
+	// to 2,048 entries; packing two indices per uint keeps this cache at 8 KiB per group.
+	groupshared uint g_FogLightIndices[FOG_LIGHT_WORDS][FOG_THREADS_PER_GROUP];
+
+	void LightingPass(uint3 nThreadId, uint nGroupIndex, Frustum f, float2 vDepthMinMax)
+	{
+		const bool bDebugTiled = false;
+
+		float3 vViewVector = GetViewVector(nThreadId.xy);
+		float vJitterValue = 0.0f;
+
+		// Precompute constants
+		const float flSliceSize = g_vOoVogFogWidthHeightDepth.z;
+		const float flHalfSliceSize = 0.5f * flSliceSize;
+
+		#if (D_JITTER)
+		{
+			int2 vBlueNoiseCoord = ( int2( nThreadId.xy ) + int2( g_nJitterOffset, g_nJitterOffset ) ) & 63;
+			vJitterValue = BlueNoise[uint2( vBlueNoiseCoord )].x * 2.0f;
+		}
+		#endif
+
+		// Precompute light list
+		uint numLights = 0;
+
+		[unroll]
+		for (int i = 0; ( i < NumDynamicLights && numLights < MAX_LIGHTS_PER_TILE ); i++) 
+		{
+			const BinnedLight light = BinnedLightBufferV2[i];
+			bool bHit = light.IsSpotLight() ?
+				f.ConeInside(light.GetPosition(), light.GetDirection(), light.GetDirectionUp(), light.Radius, light.SpotLightInnerOuterConeCosines.y) :
+				f.SphereInside(light.GetPosition(), light.Radius);
+
+			if (bHit)
+			{
+				uint slot = numLights >> 1;
+				if ( ( numLights & 1 ) == 0 )
+					g_FogLightIndices[slot][nGroupIndex] = (uint)i;
+				else
+					g_FogLightIndices[slot][nGroupIndex] |= (uint)i << 16;
+				numLights++;
+			}
+		}
+
+		float flCurrentSlice = flHalfSliceSize;
+		float flLastSliceDepth = VoxelSliceZToRealDepth(0.0f);
+		float flCurrentSliceDepth = VoxelSliceZToRealDepth(flCurrentSlice);
+
+		for (uint z = 0; z < g_nVolFogWidthHeightDepth.z; z++) 
+		{
+			if ( bDebugTiled ) 
+			{
+				OutLightingTexture[uint3(nThreadId.xy, z)] = lpfloat4(lerp((float)numLights / 16.0f, float4(0, 1, 0, 1), float4(1, 0, 0, 1)));
+				continue;
+			} 
+
+			float4 vIncomingLightAndDensity = float4(0, 0, 0, 0);
+			float flCurrentDeltaDepth = flCurrentSliceDepth - flLastSliceDepth;
+
+			float3 vJitteredWorldPos = g_vViewPos.xyz + vViewVector * (flCurrentSliceDepth - vJitterValue * flCurrentDeltaDepth);
+
+			// Calculate contributions
+			float4 vVolumeContribution = GetContributionInBoundingVolumes(vJitteredWorldPos);
+			vIncomingLightAndDensity.a = vVolumeContribution.a;
+
+			// Special path for Directional light - let's change this back please 🥺
+			if( g_DirectionalLightCascadeCount > 0 && g_DirectionalLightColor.w > 0.0f )
+			{
+				float flDirFogScale = g_DirectionalLightColor.w;
+				if ( flDirFogScale > 0.0f )
+				{
+					float3 vDirLightColor = g_DirectionalLightColor.rgb;
+					float3 vPositionToLightDirWs = -g_DirectionalLightDirection.xyz;
+
+					float flShadowScalar = DirectionalLightShadow::GetVisibility( vJitteredWorldPos, float4( 0, 0, 0, 0 ) );
+
+					if ( flShadowScalar > 0.0f )
+					{
+						// Sun rays have unlimited reach, but still cross each physical aperture.
+						[branch]
+						if ( LightModulators::Active() )
+							vDirLightColor *= LightModulators::EvaluateSun( vJitteredWorldPos, vPositionToLightDirWs );
+
+						float3 vViewDirWs = CalculateCameraToPositionDirWs( vJitteredWorldPos );
+						const float flDensity = vIncomingLightAndDensity.a;
+						float flLightScattering = GetPhaseFunction( dot( vPositionToLightDirWs, vViewDirWs ), flDensity );
+
+						vIncomingLightAndDensity.rgb += vDirLightColor * flShadowScalar * flLightScattering * flDirFogScale;
+					}
+				}
+			}
+
+			for (int i = 0; i < numLights; i++) 
+			{
+				uint packedIndices = g_FogLightIndices[i >> 1][nGroupIndex];
+				uint lightIndex = ( packedIndices >> ( ( i & 1 ) * 16 ) ) & 0xffffu;
+				vIncomingLightAndDensity.rgb += CalculateLightingAtPoint(vJitteredWorldPos, lightIndex, vIncomingLightAndDensity.a);
+			}
+
+			float4 ddgi = DDGI::EvaluateVolumes( vJitteredWorldPos, vViewVector.xyz );
+			vIncomingLightAndDensity.rgb += ddgi.rgb;
+			if ( ddgi.a < 1.0f )
+			{
+				#if (D_ENABLE_BAKED_FOG_TEXTURE)
+				{
+					float3 vLocalPosInIndirectVolume = vJitteredWorldPos * g_vIndirectBBScale_flIndirectStrength.xyz + g_vIndirectBBOffset.xyz;
+					vIncomingLightAndDensity.rgb += (1.0f - ddgi.a) * InFogIndirectVolume.SampleLevel(VolumeSampler, vLocalPosInIndirectVolume, 0).rgb * g_vIndirectBBScale_flIndirectStrength.w;
+				}
+				#else
+				{
+					vIncomingLightAndDensity.rgb += (1.0f - ddgi.a) * IndirectLightingFromIBL(vJitteredWorldPos).rgb;
+				}
+				#endif
+			}
+
+			// Tint the in-scattered light by the dominant fog volume's color.
+			vIncomingLightAndDensity.rgb *= vVolumeContribution.rgb;
+
+			// Encode it to Gamma to Linear so that TAA is softer
+			vIncomingLightAndDensity = sqrt(vIncomingLightAndDensity);
+
+			// Clamp to max representable float16
+			OutLightingTexture[uint3(nThreadId.xy, z)] = lpfloat4(min(vIncomingLightAndDensity, 65504.0f));
+
+			// Early out if we are past the depth + next slice
+			if( flCurrentSliceDepth > vDepthMinMax.y + flCurrentDeltaDepth )
+				return;
+
+			// Prepare for next iteration
+			flLastSliceDepth = flCurrentSliceDepth;
+			flCurrentSlice += flSliceSize;
+			flCurrentSliceDepth = VoxelSliceZToRealDepth(flCurrentSlice);
+		}
+	}
+
+	//-----------------------------------------------------------------------------------------------------------------
+	//
+	// Update Fogging Volume
+	// Does temporal antialiasing and flattens the fogging volume for compositing
+	//
+	//-----------------------------------------------------------------------------------------------------------------
+	void IntegratePass( uint3 nThreadId, Frustum f, float2 vDepthMinMax )
+	{
+		uint nView = nThreadId.z;
+
+		float3 vViewVector			= GetViewVector( nThreadId.xy );
+
+		float flSliceSize			= 1.0f * g_vOoVogFogWidthHeightDepth.z;
+		float flCurrentSlice		= 0.5 * g_vOoVogFogWidthHeightDepth.z;
+		float flCurrentSliceDepth	= VoxelSliceZToRealDepth( flCurrentSlice );
+		float flLastSliceDepth		= 0.0f;
+
+        float4 vCurrentColorAndDensity = float4(0.0f, 0.0f, 0.0f, 0.0f);
+
+		[unroll]
+		for ( uint zSlice = 0; zSlice < g_nVolFogWidthHeightDepth.z; zSlice++ )
+        {
+            const uint3 vCoord = uint3( nThreadId.x, nThreadId.y, zSlice );
+			float flCurrentDeltaDepth = ( flCurrentSliceDepth - flLastSliceDepth );
+
+			float4 vTemporalColor = 0.0f;
+            float4 vCurrentColor = InLightingTexture[vCoord];
+
+			//
+			// Do denoising from previous frame using temporal antialiasing
+			//
+            {
+				//
+                // Previous position at reprojected location
+				// Use view-relative position to avoid precision loss far from world origin.
+				// g_matLastViewFrustum bakes in the camera translation on the CPU side.
+                //
+				float4 vVoxelPos = float4(vViewVector * flCurrentSliceDepth, 1.0f);
+                vVoxelPos = mul(g_matLastViewFrustum, vVoxelPos);
+                vVoxelPos.xy /= vVoxelPos.w;
+                vVoxelPos.xyz = vVoxelPos.xyw * g_vPostWorldToFrustumScale.xyz + g_vPostWorldToFrustumBias.xyz;
+                vVoxelPos.z = FogFrustumDepthToVoxelSliceZ(vVoxelPos.z);
+
+				float4 vPreviousColor = InAccumulationTexture.SampleLevel( VolumeSampler, vVoxelPos.xyz, 0 );
+
+                //
+				// Clamp to TAA bounds using color bounding box
+				// https://de45xmedrsdbp.cloudfront.net/Resources/files/TemporalAA_small-59732822.pdf#page=30
+				// 
+                float4 minColor = 65504.0f, maxColor = 0.0f;
+                
+				// 8 trilinear samples at texel corners to cover 3x3x3 neighborhood
+				float3 vCenterUV = (float3(vCoord) + 0.5f) * g_vOoVogFogWidthHeightDepth.xyz;
+				float3 vHalfTexel = 0.5f * g_vOoVogFogWidthHeightDepth.xyz;
+
+				[unroll]
+				for (int x = -1; x <= 1; x += 2)
+				{
+					[unroll]
+					for (int y = -1; y <= 1; y += 2)
+					{
+						[unroll]
+						for (int z = -1; z <= 1; z += 2)
+						{
+							float3 vSampleUV = vCenterUV + float3(x, y, z) * vHalfTexel;
+							float4 color = InLightingTexture.SampleLevel(VolumeSampler, vSampleUV, 0);
+							minColor = min(minColor, color);
+							maxColor = max(maxColor, color);
+						}
+					}
+				}
+
+				// Clamp our previous color to the TAA bounds
+                vTemporalColor = clamp(vPreviousColor, minColor, maxColor);
+
+				// Let it have a few of the current samples to not overly soften it
+                vTemporalColor = lerp(vCurrentColor, vTemporalColor, 0.999f);
+
+				// Write back to accumulation texture
+				OutAccumulationTexture[vCoord] = lpfloat4(vTemporalColor);
+
+				// Decode it back to our color space
+				vTemporalColor = vTemporalColor * vTemporalColor;
+            }
+
+			//
+			// Integrate accumulated samples and pancake the fogging volume
+			//
+            {
+				// Adjust sample by scattering constant
+                vTemporalColor.a *= GetScattering( vViewVector, flCurrentSliceDepth, flCurrentDeltaDepth );
+                vTemporalColor.rgb *= vTemporalColor.a;
+
+				vCurrentColorAndDensity = float4(vCurrentColorAndDensity.rgb + saturate(exp(-vCurrentColorAndDensity.a)) * vTemporalColor.rgb,
+                                                vCurrentColorAndDensity.a + vTemporalColor.a);
+
+				// Clamp to max representable float16
+				float4 vOutColor = float4( vCurrentColorAndDensity.rgb , saturate( exp( -vCurrentColorAndDensity.a ) ) );
+				OutScatteringTexture[vCoord] = lpfloat4(min(vOutColor, 65504.0f));
+			}
+
+			// Early out if we are past the depth + next slice
+			if( flCurrentSliceDepth > vDepthMinMax.y + flCurrentDeltaDepth )
+				return;
+							
+			//
+			// Move to next voxel
+			//
+			flLastSliceDepth	 = flCurrentSliceDepth;
+			flCurrentSlice		 += flSliceSize;
+			flCurrentSliceDepth	 = VoxelSliceZToRealDepth( flCurrentSlice );
+		}
+	}
+
+	//------------------------------------------------------------------------------------------------------------------------------
+	float2 FetchDepthMinMax( uint2 vPositionSs )
+    {
+		// Make it a bit conservative to avoid disocclusion ghosting
+		int lods = 6;
+		
+        // Calculate depth
+        float2 vProjectedDepth = g_tDepthChain.Load( int3( ( vPositionSs.xy / pow(2,lods ) ), lods) ).xy;
+
+        // Convert to view space
+        return float2( Depth::Linearize( Depth::Normalize( vProjectedDepth.y ) ), Depth::Linearize( Depth::Normalize( vProjectedDepth.x ) ) );
+    }
+
+	Frustum GetFrustum( uint3 nThreadId : SV_DispatchThreadID, out float2 vDepthMinMax )
+	{
+		nThreadId = uint3( nThreadId.x, g_nVolFogWidthHeightDepth.y - 1 - nThreadId.y, nThreadId.z );
+
+		float2 pixelSize = g_vViewportSize * g_vOoVogFogWidthHeightDepth.xy;
+		// vDepthMinMax = FetchDepthMinMax( nThreadId.xy * pixelSize );
+
+		// Pixel size + bilinearity doesn't match the power of two in the depth chain, sample a few neighbors, we just want far value
+		float2 offsets[] = { float2( -1, -1 ), float2( 1, -1 ), float2( -1, 1 ), float2( 1, 1 ) };
+		for( uint i = 0; i < 4; i++ )
+			vDepthMinMax = max( vDepthMinMax, FetchDepthMinMax( ( nThreadId.xy * pixelSize ) + ( offsets[i] * pixelSize ) ) );
+		
+		// Near plane = camera
+		vDepthMinMax.x = g_flNearPlane;
+
+		Frustum f = Frustum::FromClusterTile( nThreadId.xy, vDepthMinMax, g_vOoVogFogWidthHeightDepth.xy );
+		return f;
+	}
+	//------------------------------------------------------------------------------------------------------------------------------
+        
+	[ numthreads( 8, 8, 1 ) ]
+	[shader( "compute" )] void MainCs( uint3 nThreadId : SV_DispatchThreadID, uint nGroupIndex : SV_GroupIndex )
+	{
+		if( nThreadId.x >= g_nVolFogWidthHeightDepth.x || nThreadId.y >= g_nVolFogWidthHeightDepth.y )
+			return;
+
+		float2 vDepthMinMax = 0;
+		Frustum f = GetFrustum( nThreadId, vDepthMinMax );
+
+		if ( D_PASS == FogPasses::Lighting)
+			LightingPass( nThreadId, nGroupIndex, f, vDepthMinMax );
+		else if ( D_PASS == FogPasses::Integrate )
+			IntegratePass( nThreadId, f, vDepthMinMax );
+	}
+
+#endif // CS
+

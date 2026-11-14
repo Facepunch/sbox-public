@@ -992,13 +992,37 @@ internal sealed partial class BackendContext
 	/// <summary>A bucket's key for attributes: the same for attributes that differ only in what each draw's lighting record holds.</summary>
 	static long AttributesKey( ShaderParameters attributes ) => attributes switch { null => 0L, BackendParameters parameters => parameters.LightingFreeKey, _ => (uint)RuntimeHelpers.GetHashCode( attributes ) | 1L << 62 };
 
+	/// <summary>
+	/// Whether two GPU-driven variants draw the same way: the same one, or the same shader, mode, combos' code,
+	/// specialization constants, samplers and resolved render state. Materials whose render-state or sampler expressions
+	/// evaluate differently get variants of their own (<see cref="ShaderLibrary"/> keys them by the evaluated values), but
+	/// those that end in the same pipeline and sets can share a bucket: its records are laid out by the same combos.
+	/// </summary>
+	static bool SameDrawing( ShaderVariant a, ShaderVariant b )
+	{
+		if ( ReferenceEquals( a, b ) ) return true;
+		if ( a is null || b is null || !ReferenceEquals( a.Shader, b.Shader ) || !ReferenceEquals( a.Mode, b.Mode ) ) return false;
+		if ( !SameStage( a.Vertex, b.Vertex ) || !SameStage( a.Pixel, b.Pixel ) ) return false;
+		return SameState( a.State, b.State ) && System.Linq.Enumerable.SequenceEqual( a.Resources, b.Resources );
+	}
+
+	static bool SameStage( ShaderStage a, ShaderStage b ) => a is null || b is null
+		? a is null && b is null
+		: ReferenceEquals( a.Dynamic, b.Dynamic ) && MemoryExtensions.SequenceEqual<SpecializationConstant>( a.Constants, b.Constants );
+
+	static bool SameState( ShaderPipelineState a, ShaderPipelineState b ) => a.Cull == b.Cull && a.Wireframe == b.Wireframe && a.DepthClip == b.DepthClip
+		&& a.DepthBiasConstant == b.DepthBiasConstant && a.DepthBiasSlope == b.DepthBiasSlope && a.DepthTest == b.DepthTest && a.DepthWrite == b.DepthWrite
+		&& a.DepthCompare == b.DepthCompare && a.StencilTest == b.StencilTest && a.StencilFront == b.StencilFront && a.StencilBack == b.StencilBack
+		&& a.StencilReadMask == b.StencilReadMask && a.StencilWriteMask == b.StencilWriteMask && a.StencilReference == b.StencilReference
+		&& a.AlphaToCoverage == b.AlphaToCoverage && MemoryExtensions.SequenceEqual<BlendState>( a.Blend, b.Blend );
+
 	GpuDrivenBucket FindBucket( ShaderVariant variant, ShaderParameters attributes, long key, bool depthOnly, bool noColor, uint pixelMaterial, BackendMaterial material, string mode )
 	{
 		// Attributes that differ only in their lighting share a bucket: the variants read it from each draw's lighting record
 		for ( int i = 0; i < gpuDrivenBucketCount; i++ )
 		{
 			var bucket = gpuDrivenBuckets[i];
-			if ( ReferenceEquals( bucket.Variant, variant ) && bucket.AttributesKey == key && bucket.DepthOnly == depthOnly && bucket.NoColor == noColor && bucket.PixelMaterial == pixelMaterial ) return bucket;
+			if ( SameDrawing( bucket.Variant, variant ) && bucket.AttributesKey == key && bucket.DepthOnly == depthOnly && bucket.NoColor == noColor && bucket.PixelMaterial == pixelMaterial ) return bucket;
 		}
 
 		if ( gpuDrivenBucketCount == gpuDrivenBuckets.Count ) gpuDrivenBuckets.Add( new GpuDrivenBucket() );
