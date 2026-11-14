@@ -376,7 +376,7 @@ internal sealed class SurfaceProgram : IDisposable
 {
 	readonly BackendDevice device;
 	readonly Dictionary<string, PassObjects> passes = new();
-	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool TwoSided, bool OpaqueFade), PipelineHandle> pipelines = new();
+	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State), PipelineHandle> pipelines = new();
 
 	/// <summary>Material classes already reported as generated for another layout.</summary>
 	public readonly HashSet<Type> Mismatched = new();
@@ -467,19 +467,20 @@ internal sealed class SurfaceProgram : IDisposable
 	public bool Displaces => Compiled.Generated?.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) == true;
 
 	/// <summary>
-	/// A pipeline for a pass drawing vertices laid out as <paramref name="layout"/> into these formats: the default render
-	/// state of today's shaders (back faces culled, depth tested and written greater-or-equal, reverse Z, no blending,
-	/// alpha to coverage for alpha-tested passes).
+	/// A pipeline for a pass drawing vertices laid out as <paramref name="layout"/> into these formats, with a material's
+	/// resolved render state <paramref name="state"/> in colour passes (its blending, depth test and write, culling);
+	/// depth is tested greater-or-equal (reverse Z) and alpha-tested passes use alpha to coverage with multisampling, as
+	/// today's shaders do. Depth-only passes cull by the state's two-sidedness and test and write depth.
 	/// Mesh vertices are stream 0, instance ids stream 1, the default stream 2, as for classic draws. Specialization
 	/// constants (<c>SpecializedConstant()</c> globals) are per pipeline, <paramref name="constantsKey"/> their values.
 	/// With <paramref name="ids"/>, the visibility-driven forward pass's id prepass: target 0 an R8 scratch (its alpha drives
 	/// alpha to coverage), target 1 the ids, as BackendDevice.Pipeline makes them.
 	/// </summary>
-	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, bool ids = false, bool twoSided = false, bool opaqueFade = false )
+	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, bool ids = false, bool opaqueFade = false )
 	{
 		lock ( pipelines )
 		{
-			var key = (pass, layout, color, depth, samples, constantsKey, ids, twoSided, opaqueFade);
+			var key = (pass, layout, color, depth, samples, constantsKey, ids, opaqueFade, state);
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
 			var inputs = pass.Pass.Vertex.Inputs.Select( i => new VertexInput( i.Location, Semantic( i.Semantic ), i.SemanticIndex, i.Kind == ScalarKind.Float ? SpirvScalar.Float : i.Kind == ScalarKind.Int ? SpirvScalar.Int : SpirvScalar.UInt, i.Components ) ).ToList();
@@ -494,7 +495,7 @@ internal sealed class SurfaceProgram : IDisposable
 
 			var depthOnly = color == Format.Unknown && !ids;
 			var pixel = pass.Pixel.IsValid;
-			pipeline = device.Gpu.CreateGraphicsPipeline( new GraphicsPipelineInfo
+			var info = new GraphicsPipelineInfo
 			{
 				VertexShader = pass.Vertex,
 				VertexEntry = pass.Pass.Vertex.Entry,
@@ -506,7 +507,7 @@ internal sealed class SurfaceProgram : IDisposable
 				VertexBuffers = [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )],
 				Attributes = attributes,
 				Topology = PrimitiveTopology.TriangleList,
-				CullMode = twoSided ? CullMode.None : CullMode.Back,
+				CullMode = state.TwoSided ? CullMode.None : CullMode.Back,
 				FrontFace = FrontFace.CounterClockwise,
 				DepthBias = depthOnly || ids,
 				DepthTest = depth != Format.Unknown,
@@ -515,20 +516,57 @@ internal sealed class SurfaceProgram : IDisposable
 				Blend = ids ? [BlendState.Opaque, BlendState.Opaque] : [BlendState.Opaque],
 
 				// Alpha-tested passes write today's alpha-to-coverage alpha (S_ALPHA_TEST), with multisampling only, as the
-				// .shaders' AlphaToCoverageEnable render state does; so does a fading object's (D_OPAQUE_FADE)
-				AlphaToCoverage = samples > 1 && (opaqueFade || pass.Pass.Name.Contains( "AlphaTest", StringComparison.Ordinal )),
+				// .shaders' AlphaToCoverageEnable render state does; so does a fading object's (D_OPAQUE_FADE), unless it blends
+				AlphaToCoverage = samples > 1 && !state.Blends && (opaqueFade || pass.Pass.Name.Contains( "AlphaTest", StringComparison.Ordinal )),
 				ColorFormats = ids ? [Format.R8Unorm, Format.R32Uint] : depthOnly ? [] : [color],
 				DepthFormat = depth,
 				Samples = samples,
 				Name = $"{Compiled.Name} {pass.Pass.Name}",
-			} );
+			};
 
+			if ( !depthOnly && !ids )
+			{
+				info.Blend = [Blend( state.Blend )];
+				info.DepthTest = depth != Format.Unknown && state.DepthTest;
+				info.DepthWrite = depth != Format.Unknown && state.DepthWrite;
+			}
+
+			pipeline = device.Gpu.CreateGraphicsPipeline( info );
 			pipelines[key] = pipeline;
 			return pipeline;
 		}
 	}
 
-	static VertexSemantic Semantic( string name ) => name switch
+	/// <summary>
+	/// A blend mode's colour blending; alpha is blended as today's shaders leave it (source alpha, one), premultiplied
+	/// alpha as glass sets it (one, one minus source alpha).
+	/// </summary>
+	internal static BlendState Blend( SurfaceBlend blend )
+	{
+		var (source, destination) = blend switch
+		{
+			SurfaceBlend.Alpha => (BlendFactor.SourceAlpha, BlendFactor.OneMinusSourceAlpha),
+			SurfaceBlend.Premultiplied => (BlendFactor.One, BlendFactor.OneMinusSourceAlpha),
+			SurfaceBlend.Additive => (BlendFactor.SourceAlpha, BlendFactor.One),
+			SurfaceBlend.Multiply => (BlendFactor.Zero, BlendFactor.SourceColor),
+			SurfaceBlend.Mod2x => (BlendFactor.DestinationColor, BlendFactor.SourceColor),
+			SurfaceBlend.ModulateAdd => (BlendFactor.DestinationColor, BlendFactor.One),
+			_ => (BlendFactor.One, BlendFactor.Zero),
+		};
+
+		if ( blend == SurfaceBlend.Opaque ) return BlendState.Opaque;
+		var premultiplied = blend == SurfaceBlend.Premultiplied;
+		return new BlendState
+		{
+			Enable = true,
+			SourceColor = source,
+			DestinationColor = destination,
+			SourceAlpha = premultiplied ? BlendFactor.One : BlendFactor.SourceAlpha,
+			DestinationAlpha = premultiplied ? BlendFactor.OneMinusSourceAlpha : BlendFactor.One,
+		};
+	}
+
+	internal static VertexSemantic Semantic( string name ) => name switch
 	{
 		"POSITION" => VertexSemantic.Position,
 		"BLENDWEIGHT" => VertexSemantic.BlendWeight,

@@ -136,14 +136,16 @@ public sealed partial class SlangCompiler
 			var forward = CompileEntry( instancePath, instance, "ForwardPs", StageKind.Pixel, directory );
 			var forwardAlphaTest = CompileEntry( instancePath, instance, "ForwardAlphaTestPs", StageKind.Pixel, directory, AlphaTested );
 			var depthAlphaTest = CompileEntry( instancePath, instance, "DepthAlphaTestPs", StageKind.Pixel, directory, AlphaTestedDepth );
+			var forwardTranslucent = CompileEntry( instancePath, instance, "ForwardTranslucentPs", StageKind.Pixel, directory, Translucent );
+			var depthVertex = CompileEntry( instancePath, instance, "DepthVs", StageKind.Vertex, directory );
 
 			// Each pass twice: as compiled, and with the vertex stage that passes on the mesh's lightmap uv
 			var passes = new Dictionary<string, CompiledPass>();
 			string gpuDrivenError = null;
 			foreach ( var (v, suffix) in new[] { (vertex, ""), (vertexLightmapped, ShaderPasses.Lightmapped) } )
 			{
-				foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, forward), (ShaderPasses.Forward + "AlphaTest", forwardAlphaTest), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, depthAlphaTest) } )
-					passes[name + suffix] = new() { Name = name + suffix, Vertex = v, Pixel = pixel };
+				foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, forward), (ShaderPasses.Forward + "AlphaTest", forwardAlphaTest), (ShaderPasses.Forward + "Translucent", forwardTranslucent), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, depthAlphaTest) } )
+					passes[name + suffix] = new() { Name = name + suffix, Vertex = name == ShaderPasses.Depth ? depthVertex : v, Pixel = pixel };
 			}
 
 			// The same passes GPU-driven, each with a vertex entry generated from what the classic one reads; a surface
@@ -247,6 +249,9 @@ public sealed partial class SlangCompiler
 	/// <summary>Alpha-tested passes compile with today's alpha test (S_ALPHA_TEST): Shade runs alpha to coverage.</summary>
 	static readonly Dictionary<string, string> AlphaTested = new() { ["S_ALPHA_TEST"] = "1" };
 
+	/// <summary>The translucent forward pass compiles with today's S_TRANSLUCENT: opacity kept in alpha, no screen-space occlusion.</summary>
+	static readonly Dictionary<string, string> Translucent = new() { ["S_TRANSLUCENT"] = "1" };
+
 	/// <summary>
 	/// The vertex stage of lightmapped draws: today's dynamic combo that reads the mesh's lightmap uv (TEXCOORD3) and passes
 	/// it on. The pixel stage is the same; it samples the lightmap when the object has one.
@@ -328,6 +333,8 @@ public sealed partial class SlangCompiler
 			text.Append( $"[shader( \"vertex\" )] {output} MainVs( VertexInput i, {type}.Varyings varyings ) {{ return SurfaceOutputWith<{type}>( {vertex}, varyings ); }}\n" );
 		else
 			text.Append( "[shader( \"vertex\" )] SurfaceVertexOutput MainVs( VertexInput i ) { return SurfaceOutput( " ).Append( vertex ).Append( " ); }\n" );
+		text.Append( "// Opaque depth: the position alone, so its draws can read a positions-only vertex copy\n" );
+		text.Append( "[shader( \"vertex\" )] float4 DepthVs( VertexInput i ) : SV_Position { return " ).Append( vertex ).Append( ".vPositionPs; }\n" );
 		text.Append( "#else\n" );
 		if ( lit )
 		{
@@ -338,6 +345,8 @@ public sealed partial class SlangCompiler
 
 		text.Append( Pixel( "ForwardPs", false ) );
 		text.Append( Pixel( "ForwardAlphaTestPs", true ) );
+		text.Append( "// Compiled with S_TRANSLUCENT, for blended materials\n" );
+		text.Append( Pixel( "ForwardTranslucentPs", false ) );
 		text.Append( "// Compiled in Depth mode: Shade returns the alpha-tested coverage before lighting\n" );
 		text.Append( Pixel( "DepthAlphaTestPs", true ) );
 		text.Append( "#ifdef SURFACE_GPU_DRIVEN\n" );

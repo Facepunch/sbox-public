@@ -5,8 +5,9 @@
 // colours (DiffuseScale, SpecularScale).
 //
 // The shader's features are fields, [Source] naming the feature a .vmat sets them with. A material using a feature this
-// surface doesn't do (a field below with Range( 0, 0 )) isn't converted and stays on generic.shader: translucency,
-// additive blending and vertex paint.
+// surface doesn't do (a field below with Range( 0, 0 )) isn't converted and stays on generic.shader: vertex paint.
+// Translucent materials blend their opacity (the colour's alpha) over what's behind, additive ones add it; both write no
+// depth, as generic.shader's render state says.
 import sbox.surface;
 
 // g_sDefault: the default state (trilinear, wrap), which every texture of generic.shader samples with
@@ -17,14 +18,15 @@ public struct Generic : ICombinerSurface
 {
 	// Features
 	[Group( "Features" ), Source( "F_SPECULAR" )] bool UseSpecular;
-	[Group( "Features" ), Source( "F_ALPHA_TEST" )] bool UseAlphaTest;
+	[Group( "Features" ), Source( "F_ALPHA_TEST" ), RenderState( "AlphaTest" )] bool UseAlphaTest;
 	[Group( "Features" ), Source( "F_SELF_ILLUM" )] bool UseSelfIllum;
 	[Group( "Features" ), Source( "F_TINT_MASK" )] bool UseTintMask;
 	[Group( "Features" ), Source( "F_UNLIT" )] bool UseUnlit;
+	[Group( "Features" ), Source( "F_TRANSLUCENT" ), RenderState( "Blend: Alpha" )] bool UseTranslucent;
+	[Group( "Features" ), Source( "F_ADDITIVE_BLEND" ), RenderState( "Blend: Additive" )] bool UseAdditiveBlend;
+	[Group( "Features" ), Source( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
 
 	// Features this surface doesn't do: materials that set them stay on generic.shader
-	[Group( "Not converted" ), Source( "F_TRANSLUCENT" ), Range( 0, 0 )] int Translucent;
-	[Group( "Not converted" ), Source( "F_ADDITIVE_BLEND" ), Range( 0, 0 )] int AdditiveBlend;
 	[Group( "Not converted" ), Source( "F_PAINT_VERTEX_COLORS" ), Range( 0, 0 )] int PaintVertexColors;
 
 	// Colour
@@ -42,8 +44,12 @@ public struct Generic : ICombinerSurface
 	[Group( "Lighting" )] Texture2D MetalnessReflectanceFresnel;
 	[Group( "Lighting" ), Default2( 0, 1 )] float2 MetalnessRange;
 
-	// Alpha test
+	// Alpha test and translucency
 	[Group( "Translucent" ), Default( 0.5 ), Range( 0.01, 0.99 )] float AlphaTestReference;
+	[Group( "Translucent" ), Default( 1 ), Range( 0, 1 )] float OpacityScale;
+
+	// Fog (g_bFogEnabled)
+	[Group( "Fog" ), Default( 1 )] bool FogEnabled;
 
 	// Self-illumination
 	[Group( "Self Illum" )] Texture2D SelfIllumMask;
@@ -80,11 +86,18 @@ public struct Generic : ICombinerSurface
 			m.Metalness = metalness * ( max( MetalnessRange.x, MetalnessRange.y ) - MetalnessRange.x ) + MetalnessRange.x;
 			m.SpecularScale = 1;
 		}
+		else
+		{
+			m.Specular = false;
+		}
 
-		// Opacity: the object's fade. The alpha test is generic.shader's hard cut of the colour's alpha at the material's
-		// cutoff (no alpha to coverage), as coverage
+		// Opacity: the object's fade, translucent by the colour's alpha and the opacity scale. The alpha test is
+		// generic.shader's hard cut of the colour's alpha at the material's cutoff (no alpha to coverage), as coverage
 		m.Opacity = i.Color.a;
+		if ( UseTranslucent ) m.Opacity *= color.a * OpacityScale;
 		if ( UseAlphaTest ) m.Coverage = color.a < AlphaTestReference ? 0.0 : 1.0;
+		m.Additive = UseAdditiveBlend;
+		m.Fog = FogEnabled;
 
 		// Self-illumination: the albedo lit by the mask (green), taken off the diffuse and specular colours there
 		if ( UseSelfIllum )

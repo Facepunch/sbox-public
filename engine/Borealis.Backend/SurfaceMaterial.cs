@@ -1,3 +1,5 @@
+using Borealis.Gpu;
+using Sandbox.ShaderCompiler;
 using System.Buffers.Binary;
 using System.Threading;
 
@@ -18,13 +20,15 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 
 	/// <summary>
 	/// A material of the shader in <paramref name="shader"/> (a file name the device's surface folders hold), with a
-	/// record of <paramref name="recordSize"/> bytes laid out as <paramref name="layoutHash"/> says.
+	/// record of <paramref name="recordSize"/> bytes laid out as <paramref name="layoutHash"/> says, drawn with the
+	/// render state <paramref name="states"/> describes (opaque for none).
 	/// </summary>
-	protected SurfaceMaterial( string shader, int recordSize, uint layoutHash )
+	protected SurfaceMaterial( string shader, int recordSize, uint layoutHash, SurfaceStateLayout states = null )
 	{
 		Shader = shader;
 		record = new byte[recordSize];
 		LayoutHash = layoutHash;
+		States = states ?? SurfaceStateLayout.Opaque;
 	}
 
 	/// <summary>The shader's file name (<c>rock.slang</c>).</summary>
@@ -33,7 +37,10 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	/// <summary>The layout fingerprint the class was generated for; the compiled shader's must match.</summary>
 	public uint LayoutHash { get; }
 
-	/// <summary>Clip pixels whose opacity is under a half, in colour and depth passes.</summary>
+	/// <summary>
+	/// Clip pixels whose opacity is under the cutoff, in colour and depth passes, whatever the render state says
+	/// (<see cref="RenderState"/>).
+	/// </summary>
 	public bool AlphaTest
 	{
 		get => alphaTest;
@@ -46,7 +53,7 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 
 	bool alphaTest;
 
-	/// <summary>Draw back faces too, their normal turned to the viewer (complex.shader's <c>F_RENDER_BACKFACES</c>).</summary>
+	/// <summary>Draw back faces too, their normal turned to the viewer, whatever the render state says (<see cref="RenderState"/>).</summary>
 	public bool TwoSided
 	{
 		get => twoSided;
@@ -58,6 +65,33 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	}
 
 	bool twoSided;
+
+	/// <summary>Its render state's defaults and the fields that change it: the shader's.</summary>
+	public SurfaceStateLayout States { get; }
+
+	/// <summary>
+	/// The render state it draws with: the shader's defaults, changed by its <c>[RenderState]</c> fields, with
+	/// <see cref="AlphaTest"/> and <see cref="TwoSided"/> on top. Resolved again when a field changes. A blended one draws
+	/// in the translucent layer.
+	/// </summary>
+	public SurfaceRenderState RenderState
+	{
+		get
+		{
+			var v = Version;
+			var known = resolved;
+			if ( known is not null && known.Version == v ) return known.State;
+			SurfaceRenderState state;
+			lock ( record ) state = States.Resolve( record );
+			state = state with { AlphaTest = state.AlphaTest || alphaTest, TwoSided = state.TwoSided || twoSided };
+			resolved = new Resolved( v, state );
+			return state;
+		}
+	}
+
+	sealed record Resolved( int Version, SurfaceRenderState State );
+
+	Resolved resolved;
 
 	/// <summary>
 	/// What draws where the surface can't (a skinned mesh, a mode surfaces have no pass for): the <c>.shader</c> material a
@@ -178,10 +212,10 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	public override string Name => DisplayName ?? Shader;
 
 	/// <inheritdoc/>
-	public override bool IsTranslucent => false;
+	public override bool IsTranslucent => RenderState.Blends;
 
 	/// <inheritdoc/>
-	public override bool IsAlphaTest => AlphaTest;
+	public override bool IsAlphaTest => RenderState.AlphaTest;
 
 	/// <inheritdoc/>
 	public override bool ReadsFrameBuffer => false;
