@@ -10,7 +10,7 @@ internal partial class ShadowMapper
 	/// (<see cref="SettledCasters"/>); each frame it's unwrapped into the cascade and only the casters that move are drawn on
 	/// top. Off: the last cascade is fit to the view and drawn whole every frame, like the others (and native's).
 	/// </summary>
-	internal static bool FarCascadeCache { get; set; } = false;
+	internal static bool FarCascadeCache { get; set; } = true;
 
 	/// <summary>
 	/// How far from the camera the cached far cascade shadows, as a fraction of <see cref="CascadeDistance"/>: about where the
