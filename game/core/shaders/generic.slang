@@ -84,6 +84,10 @@ public struct Generic : ICombinerSurface
 			m.Metalness = metalness * ( max( MetalnessRange.x, MetalnessRange.y ) - MetalnessRange.x ) + MetalnessRange.x;
 			m.SpecularScale = 1;
 		}
+		else
+		{
+			m.Specular = false;
+		}
 
 		// Opacity: the object's fade, translucent by the colour's alpha and the opacity scale. The alpha test is
 		// generic.shader's hard cut of the colour's alpha at the material's cutoff (no alpha to coverage), as coverage

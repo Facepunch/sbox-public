@@ -41,6 +41,10 @@ public struct Material
 	// Unlit, as the final combiner's S_UNLIT: the diffuse colour and emission as they are, no lights
 	public bool Unlit = false;
 
+	// Specular light at all (the combiner's S_SPECULAR): off, the lights' and environment's specular terms are dropped, as
+	// a zero specular colour alone doesn't (Fresnel still reflects at grazing angles)
+	public bool Specular = true;
+
 	// Blended additively (S_ADDITIVE_BLEND): fog thins it, its alpha by the fog's transmittance, instead of colouring it
 	public bool Additive = false;
 

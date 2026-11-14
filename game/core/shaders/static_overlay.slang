@@ -101,6 +101,7 @@ public struct StaticOverlay : ICombinerSurface
 		// No specular (S_SPECULAR 0) or metalness
 		m.Metalness = 0;
 		m.SpecularScale = 0;
+		m.Specular = false;
 		m.Albedo = albedo;
 		m.Unlit = !Lit;
 		m.Additive = BlendMode == 4 || BlendMode == 6;

@@ -337,6 +337,13 @@ float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool
 	[branch]
 	if ( s.Unlit && !DepthNormals::WantsDepthNormals() ) o.vColor = float4( f.vDiffuseColor + f.vEmissive, f.flOpacity );   // S_UNLIT's colour
 	else o = PS_FinalCombinerDoLighting( f, terms );
+	// Specular off (S_SPECULAR 0): its terms taken back out, and zero for the tools' views
+	if ( !s.Specular )
+	{
+		o.vColor.rgb -= terms.vSpecular.rgb + terms.vIndirectSpecular.rgb;
+		terms.vSpecular = 0;
+		terms.vIndirectSpecular = 0;
+	}
 	float4 lit = o.vColor;
 	[branch]
 	if ( s.OverlayMode != 0 && !ToolsVis::WantsToolsVis() )
