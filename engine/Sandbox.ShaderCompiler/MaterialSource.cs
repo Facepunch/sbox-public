@@ -10,7 +10,7 @@ namespace Sandbox.ShaderCompiler;
 /// </summary>
 internal static partial class MaterialSource
 {
-	[GeneratedRegex( @"\[\s*Material\s*\][^{;]*?\bstruct\s+(?<name>\w+)\s*(?::\s*(?<bases>[^{]*))?\{" )]
+	[GeneratedRegex( @"\[\s*Material\s*(?:,[^\]]*)?\][^{;]*?\bstruct\s+(?<name>\w+)\s*(?::\s*(?<bases>[^{]*))?\{" )]
 	private static partial Regex MaterialStruct();
 
 	// A field declaration of a texture type at the start of a line: optional attributes, Texture2D or Texture2D<...>
@@ -133,6 +133,7 @@ internal static unsafe class MaterialReflection
 			var srgb = false;
 			var opacity = false;
 			string source = null;
+			SurfaceStateRule[] renderStates = null;
 			var attributes = SlangApi.VariableGetUserAttributeCount( field );
 			for ( uint a = 0; a < attributes; a++ )
 			{
@@ -161,6 +162,17 @@ internal static unsafe class MaterialReflection
 					case "Source":
 						source = Text( attribute, 0 );
 						break;
+					case "RenderState":
+						try
+						{
+							renderStates = [.. renderStates ?? [], .. SurfaceStateRule.Parse( Text( attribute, 0 ) ?? "" )];
+						}
+						catch ( FormatException e )
+						{
+							throw new ShaderCompileException( path, $"{type}.{fieldName}: [RenderState]: {e.Message}" );
+						}
+
+						break;
 				}
 			}
 
@@ -172,10 +184,45 @@ internal static unsafe class MaterialReflection
 				else if ( kind != MaterialFieldKind.Float && SlangApi.VariableGetDefaultValueInt( field, &l ) >= 0 ) value = [l];
 			}
 
-			fields.Add( new MaterialField( fieldName, kind, components, 0, value, group, min, max, srgb ) { Opacity = opacity, Source = source } );
+			if ( renderStates is not null && (kind == MaterialFieldKind.Texture2D || components != 1) )
+				throw new ShaderCompileException( path, $"{type}.{fieldName}: a [RenderState] field is a bool, int, uint or float" );
+			fields.Add( new MaterialField( fieldName, kind, components, 0, value, group, min, max, srgb ) { Opacity = opacity, Source = source, RenderStates = renderStates } );
 		}
 
-		return MaterialLayout.Create( type, fields );
+		return MaterialLayout.Create( type, fields, RenderState( structType, type, path ) );
+	}
+
+	/// <summary>The struct's render-state attributes (<c>[Blend( "Alpha" )]</c>, <c>[NoDepthWrite]</c>, ...) as defaults.</summary>
+	static SurfaceRenderDefaults RenderState( IntPtr structType, string type, string path )
+	{
+		var state = SurfaceRenderDefaults.None;
+		var count = SlangApi.TypeGetUserAttributeCount( structType );
+		for ( uint a = 0; a < count; a++ )
+		{
+			var attribute = SlangApi.TypeGetUserAttribute( structType, a );
+			switch ( SlangApi.String( SlangApi.UserAttributeGetName( attribute ) ) )
+			{
+				case "Blend":
+					try
+					{
+						state = state with { Blend = SurfaceStateRule.ParseBlend( Text( attribute, 0 ) ?? "" ) };
+					}
+					catch ( FormatException e )
+					{
+						throw new ShaderCompileException( path, $"{type}: [Blend]: {e.Message}" );
+					}
+
+					break;
+				case "DepthWrite": state = state with { DepthWrite = true }; break;
+				case "NoDepthWrite": state = state with { DepthWrite = false }; break;
+				case "NoDepthTest": state = state with { DepthTest = false }; break;
+				case "DepthBias": state = state with { DepthBias = Number( attribute, 0 ) ?? 0, SlopeDepthBias = Number( attribute, 1 ) ?? 0 }; break;
+				case "TwoSided": state = state with { TwoSided = true }; break;
+				case "AlphaTest": state = state with { AlphaTest = true }; break;
+			}
+		}
+
+		return state;
 	}
 
 	static (MaterialFieldKind Kind, int Components)? Classify( IntPtr type )

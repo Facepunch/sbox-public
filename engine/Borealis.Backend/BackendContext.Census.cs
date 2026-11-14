@@ -145,7 +145,7 @@ internal sealed partial class BackendContext
 		else
 		{
 			counted.Mode = "surface";
-			counted.State = $"{(bucket.TwoSided ? "two-sided" : "cull back")} {(bucket.Surface?.Pass.Pixel is null ? "no-ps" : "ps")}";
+			counted.State = $"{(bucket.SurfaceState.TwoSided ? "two-sided" : "cull back")} {(bucket.Surface?.Pass.Pixel is null ? "no-ps" : "ps")}";
 		}
 
 		counted.Shader = bucket.CensusShader ?? counted.Shader;

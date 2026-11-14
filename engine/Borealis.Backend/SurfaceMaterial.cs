@@ -1,4 +1,5 @@
 using Borealis.Gpu;
+using Sandbox.ShaderCompiler;
 using System.Buffers.Binary;
 using System.Threading;
 
@@ -19,13 +20,15 @@ public abstract class SurfaceMaterial : GpuMaterial
 
 	/// <summary>
 	/// A material of the shader in <paramref name="shader"/> (a file name the device's surface folders hold), with a
-	/// record of <paramref name="recordSize"/> bytes laid out as <paramref name="layoutHash"/> says.
+	/// record of <paramref name="recordSize"/> bytes laid out as <paramref name="layoutHash"/> says, drawn with the
+	/// render state <paramref name="states"/> describes (opaque for none).
 	/// </summary>
-	protected SurfaceMaterial( string shader, int recordSize, uint layoutHash )
+	protected SurfaceMaterial( string shader, int recordSize, uint layoutHash, SurfaceStateLayout states = null )
 	{
 		Shader = shader;
 		record = new byte[recordSize];
 		LayoutHash = layoutHash;
+		States = states ?? SurfaceStateLayout.Opaque;
 	}
 
 	/// <summary>The shader's file name (<c>rock.slang</c>).</summary>
@@ -34,7 +37,10 @@ public abstract class SurfaceMaterial : GpuMaterial
 	/// <summary>The layout fingerprint the class was generated for; the compiled shader's must match.</summary>
 	public uint LayoutHash { get; }
 
-	/// <summary>Clip pixels whose opacity is under a half, in colour and depth passes.</summary>
+	/// <summary>
+	/// Clip pixels whose opacity is under the cutoff, in colour and depth passes, whatever the render state says
+	/// (<see cref="RenderState"/>).
+	/// </summary>
 	public bool AlphaTest
 	{
 		get => alphaTest;
@@ -47,7 +53,7 @@ public abstract class SurfaceMaterial : GpuMaterial
 
 	bool alphaTest;
 
-	/// <summary>Draw back faces too, their normal turned to the viewer (complex.shader's <c>F_RENDER_BACKFACES</c>).</summary>
+	/// <summary>Draw back faces too, their normal turned to the viewer, whatever the render state says (<see cref="RenderState"/>).</summary>
 	public bool TwoSided
 	{
 		get => twoSided;
@@ -60,35 +66,32 @@ public abstract class SurfaceMaterial : GpuMaterial
 
 	bool twoSided;
 
+	/// <summary>Its render state's defaults and the fields that change it: the shader's.</summary>
+	public SurfaceStateLayout States { get; }
+
 	/// <summary>
-	/// Blended over what's behind it, in the translucent layer, without writing depth: the surface's <c>Opacity</c> over
-	/// the colour behind (<c>F_TRANSLUCENT</c>). A converted material draws with the render state of the <c>.shader</c> it
-	/// stands in for (its blend, depth and culling, additive with <c>F_ADDITIVE_BLEND</c>); its depth and shadow passes are
-	/// that <c>.shader</c>'s.
+	/// The render state it draws with: the shader's defaults, changed by its <c>[RenderState]</c> fields, with
+	/// <see cref="AlphaTest"/> and <see cref="TwoSided"/> on top. Resolved again when a field changes. A blended one draws
+	/// in the translucent layer.
 	/// </summary>
-	public bool Translucent
+	public SurfaceRenderState RenderState
 	{
-		get => translucent;
-		set
+		get
 		{
-			translucent = value;
-			Interlocked.Increment( ref version );
+			var v = Version;
+			var known = resolved;
+			if ( known is not null && known.Version == v ) return known.State;
+			SurfaceRenderState state;
+			lock ( record ) state = States.Resolve( record );
+			state = state with { AlphaTest = state.AlphaTest || alphaTest, TwoSided = state.TwoSided || twoSided };
+			resolved = new Resolved( v, state );
+			return state;
 		}
 	}
 
-	bool translucent;
+	sealed record Resolved( int Version, SurfaceRenderState State );
 
-	/// <summary>
-	/// Its forward draws take the render state of the <c>.shader</c> it stands in for even when not translucent (a
-	/// static overlay's blend modes: no depth write, multiplying blends), and its other passes are that <c>.shader</c>'s.
-	/// </summary>
-	internal bool ShaderState { get; set; }
-
-	/// <summary>
-	/// A translucent (or <see cref="ShaderState"/>) surface's forward render state: the <c>.shader</c>'s for a converted
-	/// material, found at its first draw; null until then, or for one with no <c>.shader</c> (alpha blending).
-	/// </summary>
-	internal SurfaceRenderState? State { get; set; }
+	Resolved resolved;
 
 	/// <summary>
 	/// What draws where the surface can't (a skinned mesh, a mode surfaces have no pass for): the <c>.shader</c> material a
@@ -193,10 +196,10 @@ public abstract class SurfaceMaterial : GpuMaterial
 	public override string Name => DisplayName ?? Shader;
 
 	/// <inheritdoc/>
-	public override bool IsTranslucent => Translucent;
+	public override bool IsTranslucent => RenderState.Blends;
 
 	/// <inheritdoc/>
-	public override bool IsAlphaTest => AlphaTest;
+	public override bool IsAlphaTest => RenderState.AlphaTest;
 
 	/// <inheritdoc/>
 	public override bool ReadsFrameBuffer => false;
@@ -216,18 +219,4 @@ public abstract class SurfaceMaterial : GpuMaterial
 
 	/// <inheritdoc/>
 	public override void Dispose() { }
-}
-
-/// <summary>
-/// A surface pipeline's render state where it isn't the opaque default: blending into the colour target, depth test and
-/// write, culling and alpha to coverage, as a <c>.shader</c>'s forward variant sets them (<c>ShaderPipelineState</c>).
-/// </summary>
-internal readonly record struct SurfaceRenderState( BlendState Blend, bool DepthTest, bool DepthWrite, CompareFunction DepthCompare, CullMode Cull, bool AlphaToCoverage )
-{
-	/// <summary>Straight alpha over what's behind, depth tested and not written, back faces culled.</summary>
-	public static SurfaceRenderState AlphaBlend => new( BlendState.AlphaBlend, true, false, CompareFunction.GreaterEqual, CullMode.Back, false );
-
-	/// <summary>A <c>.shader</c> variant's state, for its first colour target.</summary>
-	public static SurfaceRenderState From( Borealis.Source2.Shaders.ShaderPipelineState state ) =>
-		new( state.Blend.Length > 0 ? state.Blend[0] : BlendState.Opaque, state.DepthTest, state.DepthWrite, state.DepthCompare, state.Cull, state.AlphaToCoverage );
 }

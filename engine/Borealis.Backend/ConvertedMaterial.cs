@@ -1,7 +1,6 @@
 using Borealis.Source2.Materials;
 using Sandbox.ShaderCompiler;
 using System.IO;
-using System.Linq;
 
 namespace Borealis.Backend;
 
@@ -9,13 +8,14 @@ namespace Borealis.Backend;
 /// A <c>.vmat</c> material of a <c>.shader</c> that a surface stands in for (<see cref="SurfaceShaders.Convert"/>): the
 /// surface's record filled from the material's values, field by field. A field takes the value of its <c>[Source]</c>
 /// (a feature, a variable or <c>ShaderVersion</c>), else of its name with vfx's prefixes; textures load from the
-/// material's texture of that name.
+/// material's texture of that name. Its render state is the surface's, changed by the material's values of the surface's
+/// <c>[RenderState]</c> fields (<c>F_TRANSLUCENT</c> blending, <c>F_ALPHA_TEST</c> alpha-testing), as any material's.
 /// </summary>
 internal sealed class ConvertedMaterial : SurfaceMaterial
 {
 	static readonly string[] Prefixes = ["g_t", "g_fl", "g_v", "g_n", "g_b", ""];
 
-	ConvertedMaterial( string shader, Sandbox.ShaderCompiler.MaterialLayout layout ) : base( shader, layout.Size, MaterialClassWriter.Hash( layout ) )
+	ConvertedMaterial( string shader, Sandbox.ShaderCompiler.MaterialLayout layout ) : base( shader, layout.Size, MaterialClassWriter.Hash( layout ), layout.States() )
 	{
 	}
 
@@ -44,24 +44,7 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 
 	public static ConvertedMaterial Create( CompiledShader compiled, MaterialFile file, string name, Func<string, GpuTexture> loadTexture )
 	{
-		// Alpha test, two-sidedness and translucency are the material's, as for converted shaders: F_ALPHA_TEST picks the
-		// alpha-tested passes, F_RENDER_BACKFACES draws back faces, F_TRANSLUCENT or F_ADDITIVE_BLEND blends (as
-		// BackendMaterial.IsTranslucent reads them)
-		var material = new ConvertedMaterial( compiled.Path, compiled.Material )
-		{
-			DisplayName = name,
-			AlphaTest = file.Value( "F_ALPHA_TEST" ) is [> 0, ..],
-			TwoSided = file.Value( "F_RENDER_BACKFACES" ) is [> 0, ..],
-			Translucent = Blended( file ),
-		};
-
-		// A blend mode (static_overlay.shader's F_BLEND_MODE): its forward draws take the .shader's render state in every
-		// mode (blending, no depth write), and mode 2 alpha-tests
-		if ( compiled.Material.Fields.Any( f => f.Source == "F_BLEND_MODE" ) )
-		{
-			material.ShaderState = true;
-			material.AlphaTest |= file.Value( "F_BLEND_MODE" ) is [2, ..];
-		}
+		var material = new ConvertedMaterial( compiled.Path, compiled.Material ) { DisplayName = name };
 
 		foreach ( var field in compiled.Material.Fields )
 		{

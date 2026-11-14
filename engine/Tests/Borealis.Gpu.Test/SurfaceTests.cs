@@ -615,6 +615,11 @@ public class SurfaceTests : GpuTest
 			Assert.IsNull( compiled.Material.Field( "TintMask" ) );
 			Assert.IsNull( compiled.Material.Field( "AlphaTestReference" ) );
 
+			// Its render state: opaque, back faces drawn with F_RENDER_BACKFACES (the standard processing's S_RENDER_BACKFACES)
+			StringAssert.Contains( source, "[Material]" );
+			StringAssert.Contains( source, "Source( \"F_RENDER_BACKFACES\" ), RenderState( \"TwoSided: true\" )" );
+			Assert.AreEqual( SurfaceRenderDefaults.None, compiled.Material.RenderState );
+
 			byte[] DrawMaterial( string path, bool convert, out GpuMaterial loaded )
 			{
 				using var backend = new BackendDevice( Device );
@@ -720,6 +725,156 @@ public class SurfaceTests : GpuTest
 			Device.WaitIdle();
 			RenderHost.Current = previousHost;
 		}
+	}
+
+	/// <summary>
+	/// A surface's render state: the struct's attributes are every material's defaults, [RenderState] fields change them
+	/// per material (in field order), the generated class carries both, and a material resolves its state from its record.
+	/// </summary>
+	[TestMethod]
+	public void SurfacesDeclareTheirRenderState()
+	{
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-surface-state-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var path = Path.Combine( folder, "decal_state.slang" );
+			File.WriteAllText( path, "import sbox.surface;\n[Material, NoDepthWrite, DepthBias( 250, 0.5 )]\npublic struct DecalState : ISurface\n{\n"
+				+ "\t[RenderState( \"Blend\" )] int Blending;\n"
+				+ "\t[Source( \"F_TRANSLUCENT\" ), RenderState( \"Blend: Alpha\" )] bool Translucent;\n"
+				+ "\t[RenderState( \"Blend: Opaque, Alpha, Opaque, Mod2x; AlphaTest: false, false, true\" )] int Mode;\n"
+				+ "\t[RenderState( \"TwoSided\" )] bool Sides;\n"
+				+ "\tpublic Material Evaluate( SurfaceInput i ) { return Material.Init( i ); }\n}\n" );
+			var compiled = Compiler().CompileSurface( path );
+			var layout = compiled.Material;
+			Assert.AreEqual( new SurfaceRenderDefaults( SurfaceBlend.Opaque, false, true, 250, 0.5f, false, false ), layout.RenderState );
+			Assert.AreEqual( 5, layout.States().Fields.Count );
+
+			SurfaceRenderState Resolve( int translucent, int mode, int sides, int blending )
+			{
+				var record = new byte[layout.Size];
+				BitConverter.TryWriteBytes( record.AsSpan( layout.Field( "Translucent" ).Offset ), translucent );
+				BitConverter.TryWriteBytes( record.AsSpan( layout.Field( "Mode" ).Offset ), mode );
+				BitConverter.TryWriteBytes( record.AsSpan( layout.Field( "Sides" ).Offset ), sides );
+				BitConverter.TryWriteBytes( record.AsSpan( layout.Field( "Blending" ).Offset ), blending );
+				return layout.States().Resolve( record );
+			}
+
+			Assert.AreEqual( new SurfaceRenderState( SurfaceBlend.Opaque, false, true, 250, 0.5f, false, false ), Resolve( 0, 0, 0, 0 ) );
+			Assert.AreEqual( SurfaceBlend.Alpha, Resolve( 1, 9, 0, 0 ).Blend );
+			Assert.AreEqual( SurfaceBlend.Opaque, Resolve( 1, 0, 0, 0 ).Blend, "later fields win, a by-value list in every value it lists" );
+			Assert.AreEqual( SurfaceBlend.Mod2x, Resolve( 1, 3, 0, 0 ).Blend );
+			Assert.IsTrue( Resolve( 0, 2, 0, 0 ) is { Blend: SurfaceBlend.Opaque, AlphaTest: true } );
+			Assert.IsTrue( Resolve( 0, 9, 1, 0 ) is { Blend: SurfaceBlend.Opaque, TwoSided: true }, "values past the list leave the state" );
+			Assert.AreEqual( SurfaceBlend.Additive, Resolve( 0, 9, 0, (int)SurfaceBlend.Additive ).Blend );
+			Assert.AreEqual( SurfaceBlend.Alpha, Resolve( 1, 9, 0, (int)SurfaceBlend.Additive ).Blend, "fields apply in order" );
+
+			// The generated class carries the state and types a blend-mode field as one
+			var source = MaterialClassWriter.Write( compiled, "Test" );
+			StringAssert.Contains( source, "RenderStates = new( new global::Sandbox.ShaderCompiler.SurfaceRenderDefaults( global::Sandbox.ShaderCompiler.SurfaceBlend.Opaque, false, true, 250.0f, 0.5f, false, false )" );
+			StringAssert.Contains( source, ", RenderStates )" );
+			StringAssert.Contains( source, "public global::Sandbox.ShaderCompiler.SurfaceBlend Blending {" );
+
+			// A material resolves its state from its record, and a blended one is translucent
+			using var backend = new BackendDevice( Device );
+			var material = (SurfaceMaterial)backend.Surfaces.CreateMaterial( path, null, new Dictionary<string, float[]> { ["F_TRANSLUCENT"] = [1], ["Mode"] = [9] } );
+			Assert.IsTrue( material.RenderState is { Blend: SurfaceBlend.Alpha, DepthWrite: false } );
+			Assert.IsTrue( material.IsTranslucent );
+
+			// A misspelt state is a compile error
+			File.WriteAllText( path, File.ReadAllText( path ).Replace( "Blend: Alpha\"", "Blend: Alpah\"" ) );
+			Assert.ThrowsException<ShaderCompileException>( () => Compiler().CompileSurface( path ) );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
+	/// The converter's render state: a .shader's RenderState lines evaluated per feature value become the struct's
+	/// attributes and rules on the features' fields, as static_overlay.slang and generic.slang declare them by hand.
+	/// </summary>
+	[TestMethod]
+	public void ConverterTranslatesRenderStates()
+	{
+		if ( Core is null ) Assert.Inconclusive( "No game content" );
+		static ShaderConverter.RenderStates Translate( string name )
+		{
+			var text = File.ReadAllText( Path.Combine( Core, "shaders", name + ".shader" ) );
+			var combos = System.Text.RegularExpressions.Regex.Matches( text, @"StaticCombo\(\s*(S_\w+)\s*,\s*(F_\w+)" ).DistinctBy( m => m.Groups[1].Value ).ToDictionary( m => m.Groups[1].Value, m => m.Groups[2].Value );
+			var features = System.Text.RegularExpressions.Regex.Matches( text, @"Feature\(\s*(F_\w+)\s*,\s*(\d+)\s*\.\.\s*(\d+)" ).ToDictionary( m => m.Groups[1].Value, m => (int.Parse( m.Groups[2].Value ), int.Parse( m.Groups[3].Value )) );
+			features.TryAdd( "F_RENDER_BACKFACES", (0, 1) );
+			return ShaderConverter.TranslateRenderState( text, combos, features );
+		}
+
+		var overlay = Translate( "static_overlay" );
+		var overlayRules = string.Join( "\n", overlay.Rules.Select( r => $"{r.Feature}: {r.Rule}" ) );
+		Assert.AreEqual( "NoDepthWrite, DepthBias( 250, 0.5 )", overlay.Attributes, overlayRules );
+		Assert.AreEqual( "F_BLEND_MODE: Blend: Opaque, Alpha, Opaque, Mod2x, Additive, Multiply, ModulateAdd; AlphaTest: false, false, true, false, false, false, false", overlayRules, string.Join( "\n", overlay.Notes ) );
+
+		var generic = Translate( "generic" );
+		var genericRules = string.Join( "\n", generic.Rules.Select( r => $"{r.Feature}: {r.Rule}" ) );
+		Assert.AreEqual( "", generic.Attributes, genericRules );
+		Assert.AreEqual( "F_TRANSLUCENT: Blend: Alpha", genericRules, string.Join( "\n", generic.Notes ) );
+
+		// Additive blending needs translucency on as well in generic.shader: a combination its own rule can't give alone
+		Assert.IsTrue( generic.Notes.Any( n => n.Contains( "F_ADDITIVE_BLEND", StringComparison.Ordinal ) ), string.Join( "\n", generic.Notes ) );
+	}
+
+	/// <summary>
+	/// Surfaces own their render state: every core material of a shader with a surface resolves, as that surface's
+	/// material, to the state its .shader's forward variant has (blending, depth test and write, culling, alpha to
+	/// coverage as the alpha test).
+	/// </summary>
+	[TestMethod]
+	public void SurfaceRenderStatesMatchTheirShaders()
+	{
+		Compiler();
+		var shaders = new HashSet<string>( StringComparer.OrdinalIgnoreCase ) { "complex", "generic", "simple", "vertex_color", "static_overlay" };
+		var paths = Directory.EnumerateFiles( Path.Combine( Core, "materials" ), "*.vmat", SearchOption.AllDirectories )
+			.Concat( Directory.EnumerateFiles( Path.Combine( Core, "models" ), "*.vmat", SearchOption.AllDirectories ) )
+			.Where( p => System.Text.RegularExpressions.Regex.Match( File.ReadAllText( p ), @"""shader""\s+""shaders/(\w+)\.shader" ) is { Success: true } m && shaders.Contains( m.Groups[1].Value ) )
+			.Select( p => Path.GetRelativePath( Core, p ).Replace( '\\', '/' ) )
+			.ToList();
+
+		using var classicDevice = new BackendDevice( Device );
+		classicDevice.Surfaces.ConvertShaders = false;
+		using var surfaceDevice = new BackendDevice( Device );
+		surfaceDevice.Surfaces.Convert( "shaders/static_overlay.shader", "static_overlay.slang" );
+		var errors = new List<string>();
+		surfaceDevice.Surfaces.Error = errors.Add;
+
+		var compared = 0;
+		var mismatches = new List<string>();
+		foreach ( var path in paths )
+		{
+			if ( ((GpuDevice)classicDevice).LoadMaterial( path ) is not BackendMaterial { Shader: not null } classic ) continue;
+			if ( ((GpuDevice)surfaceDevice).LoadMaterial( path ) is not SurfaceMaterial surface ) continue;
+			var variant = classic.Variant( classicDevice.Shaders, "Forward", "Forward", _ => null, _ => null );
+			if ( variant?.State is not { } expected ) continue;
+
+			var state = surface.RenderState;
+			var blend = SurfaceProgram.Blend( state.Blend );
+			var classicBlend = expected.Blend[0];
+			var differences = new List<string>();
+			if ( classicBlend.Enable != blend.Enable || (blend.Enable && (classicBlend.SourceColor, classicBlend.DestinationColor) != (blend.SourceColor, blend.DestinationColor)) )
+				differences.Add( $"blend {classicBlend.SourceColor}/{classicBlend.DestinationColor} ({(classicBlend.Enable ? "on" : "off")}) vs {state.Blend}" );
+			if ( expected.DepthWrite != state.DepthWrite ) differences.Add( $"depth write {expected.DepthWrite} vs {state.DepthWrite}" );
+			if ( expected.DepthTest != state.DepthTest ) differences.Add( $"depth test {expected.DepthTest} vs {state.DepthTest}" );
+			if ( (expected.Cull == CullMode.None) != state.TwoSided ) differences.Add( $"cull {expected.Cull} vs two-sided {state.TwoSided}" );
+			// generic.shader clips its alpha test hard, without alpha to coverage; its surface's alpha-tested pass uses it, with a
+			// hard coverage (a known small difference at multisampled edges)
+			var hardClip = !expected.AlphaToCoverage && state.AlphaTest && surface.Shader.EndsWith( "generic.slang", StringComparison.OrdinalIgnoreCase );
+			if ( !state.Blends && !hardClip && expected.AlphaToCoverage != state.AlphaTest ) differences.Add( $"alpha to coverage {expected.AlphaToCoverage} vs alpha test {state.AlphaTest}" );
+			if ( differences.Count > 0 ) mismatches.Add( $"{path}: {string.Join( ", ", differences )}" );
+			compared++;
+		}
+
+		Console.WriteLine( $"{compared} materials compared of {paths.Count}" );
+		if ( compared == 0 ) Assert.Inconclusive( "No core material of a converted shader is compiled" );
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+		Assert.AreEqual( 0, mismatches.Count, string.Join( "\n", mismatches ) );
 	}
 
 	/// <summary>

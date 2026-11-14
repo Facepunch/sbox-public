@@ -36,29 +36,26 @@ internal sealed partial class BackendContext
 		// The targets are this scope's only once it's open
 		var r = recording;
 		var noColor = stripPixelShader || r.Color is null;
+		var state = material.RenderState;
 		string name;
-		SurfaceRenderState? state = null;
-		if ( material.Translucent || material.ShaderState )
+		if ( noColor )
 		{
-			// Blended over the colour behind with the .shader's state (compiled translucent when it blends, as the .shader's
-			// S_TRANSLUCENT is); its depth and shadow passes are the .shader's
-			if ( noColor || shaderMode.Value != ForwardMode.Value ) return false;
-			var blended = TranslucentState( material );
-			name = material.Translucent || blended.Blend.Enable ? ForwardTranslucentPass : material.AlphaTest ? ForwardAlphaTestPass : ShaderPasses.Forward;
-			if ( program.Pass( name ) is null ) return false;
-			state = blended;
+			// A surface that writes no depth has no depth or shadow passes of its own (a converted one's are its .shader's)
+			if ( !state.DepthWrite ) return false;
+			name = state.AlphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth;
 		}
-		else if ( noColor )
+		else if ( shaderMode.Value != ForwardMode.Value )
 		{
-			name = material.AlphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth;
+			return false;
 		}
-		else if ( shaderMode.Value == ForwardMode.Value )
+		else if ( state.Blends )
 		{
-			name = material.AlphaTest && program.Pass( ForwardAlphaTestPass ) is not null ? ForwardAlphaTestPass : ShaderPasses.Forward;
+			// Blended over the colour behind: compiled translucent (opacity kept in alpha), as a .shader's S_TRANSLUCENT is
+			name = ForwardTranslucentPass;
 		}
 		else
 		{
-			return false;
+			name = state.AlphaTest && program.Pass( ForwardAlphaTestPass ) is not null ? ForwardAlphaTestPass : ShaderPasses.Forward;
 		}
 
 		// A lightmapped object's draws (today's D_BAKED_LIGHTING_FROM_LIGHTMAP combo) pass the mesh's lightmap uv on
@@ -75,7 +72,7 @@ internal sealed partial class BackendContext
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
-		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, twoSided: material.TwoSided, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0, state: state );
+		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, state, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0 );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
@@ -106,39 +103,25 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
-	/// A translucent surface's forward render state: the forward variant's of the <c>.shader</c> material it stands in for,
-	/// evaluated with that material's features and found once; alpha blending for a surface with no <c>.shader</c>.
-	/// </summary>
-	SurfaceRenderState TranslucentState( SurfaceMaterial material )
-	{
-		if ( material.State is { } known ) return known;
-
-		var state = SurfaceRenderState.AlphaBlend;
-		if ( material.Fallback is BackendMaterial { Shader: { } shader } fallback && CachedModeName( shader, ForwardMode ) is { } mode && Variant( fallback, mode )?.State is { } classic )
-			state = SurfaceRenderState.From( classic );
-
-		material.State = state;
-		return state;
-	}
-
-	/// <summary>
 	/// The GPU-driven bucket a surface batch draws in (BackendContext.GpuDriven.cs), made when none fits: its GPU-driven
 	/// pass for the mode, alpha test and lightmap combo, under the batch's object attributes. Null, so it draws the classic
 	/// way, when the surface has no GPU-driven passes or the mode isn't one a surface draws.
 	/// </summary>
 	GpuDrivenBucket SurfaceBucket( SurfaceMaterial material, StringToken shaderMode, bool noColor, ShaderParameters attributes, long key )
 	{
-		// Translucent draws are sorted, so they stay classic, as .shader materials' do; so do those with the .shader's state
-		if ( material.Translucent || material.ShaderState ) return null;
+		// Blended draws are sorted, so they stay classic, as .shader materials' do; so do those that don't test and write
+		// depth (overlays, drawn in order)
+		var state = material.RenderState;
+		if ( state.Blends || !state.DepthWrite || !state.DepthTest ) return null;
 		if ( !noColor && shaderMode.Value != ForwardMode.Value ) return null;
 		if ( device.Surfaces.For( material ) is not { } program ) return null;
-		if ( program.GpuDrivenPass( noColor, material.AlphaTest, LookupCombo( LightmapCombo ) is > 0 ) is not { } pass ) return null;
+		if ( program.GpuDrivenPass( noColor, state.AlphaTest, LookupCombo( LightmapCombo ) is > 0 ) is not { } pass ) return null;
 
 		var depthOnly = pass.Pass.Pixel is null;
 		for ( int i = 0; i < gpuDrivenBucketCount; i++ )
 		{
 			var bucket = gpuDrivenBuckets[i];
-			if ( ReferenceEquals( bucket.Surface, pass ) && bucket.AttributesKey == key && bucket.NoColor == noColor && bucket.TwoSided == material.TwoSided ) return bucket;
+			if ( ReferenceEquals( bucket.Surface, pass ) && bucket.AttributesKey == key && bucket.NoColor == noColor && bucket.SurfaceState == state ) return bucket;
 		}
 
 		if ( gpuDrivenBucketCount == gpuDrivenBuckets.Count ) gpuDrivenBuckets.Add( new GpuDrivenBucket() );
@@ -153,7 +136,7 @@ internal sealed partial class BackendContext
 		made.AttributesKey = key;
 		made.DepthOnly = depthOnly;
 		made.NoColor = noColor;
-		made.TwoSided = material.TwoSided;
+		made.SurfaceState = state;
 		made.PixelMaterial = 0;
 		made.Batches.Clear();
 		made.Commands = 0;
@@ -201,7 +184,7 @@ internal sealed partial class BackendContext
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
-		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, ids, bucket.TwoSided, LookupCombo( OpaqueFadeCombo ) is > 0 );
+		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, bucket.SurfaceState, ids, LookupCombo( OpaqueFadeCombo ) is > 0 );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );

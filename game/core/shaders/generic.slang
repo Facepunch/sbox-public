@@ -6,7 +6,8 @@
 //
 // The shader's features are fields, [Source] naming the feature a .vmat sets them with. A material using a feature this
 // surface doesn't do (a field below with Range( 0, 0 )) isn't converted and stays on generic.shader: vertex paint.
-// Translucent materials blend their opacity (the colour's alpha) with generic.shader's render state.
+// Translucent materials blend their opacity (the colour's alpha) over what's behind, additive ones add it; both write no
+// depth, as generic.shader's render state says.
 import sbox.surface;
 
 // g_sDefault: the default state (trilinear, wrap), which every texture of generic.shader samples with
@@ -17,12 +18,13 @@ public struct Generic : ICombinerSurface
 {
 	// Features
 	[Group( "Features" ), Source( "F_SPECULAR" )] bool UseSpecular;
-	[Group( "Features" ), Source( "F_ALPHA_TEST" )] bool UseAlphaTest;
+	[Group( "Features" ), Source( "F_ALPHA_TEST" ), RenderState( "AlphaTest" )] bool UseAlphaTest;
 	[Group( "Features" ), Source( "F_SELF_ILLUM" )] bool UseSelfIllum;
 	[Group( "Features" ), Source( "F_TINT_MASK" )] bool UseTintMask;
 	[Group( "Features" ), Source( "F_UNLIT" )] bool UseUnlit;
-	[Group( "Features" ), Source( "F_TRANSLUCENT" )] bool UseTranslucent;
-	[Group( "Features" ), Source( "F_ADDITIVE_BLEND" )] bool UseAdditiveBlend;
+	[Group( "Features" ), Source( "F_TRANSLUCENT" ), RenderState( "Blend: Alpha" )] bool UseTranslucent;
+	[Group( "Features" ), Source( "F_ADDITIVE_BLEND" ), RenderState( "Blend: Additive" )] bool UseAdditiveBlend;
+	[Group( "Features" ), Source( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
 
 	// Features this surface doesn't do: materials that set them stay on generic.shader
 	[Group( "Not converted" ), Source( "F_PAINT_VERTEX_COLORS" ), Range( 0, 0 )] int PaintVertexColors;

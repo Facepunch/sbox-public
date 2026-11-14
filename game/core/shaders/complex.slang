@@ -20,13 +20,14 @@ public struct Complex : ICombinerSurface
 	// Features
 	[Group( "Features" ), Source( "F_TINT_MASK" )] bool UseTintMask;
 	[Group( "Features" ), Source( "F_METALNESS_TEXTURE" )] bool UseMetalnessTexture;
-	[Group( "Features" ), Source( "F_ALPHA_TEST" )] bool UseAlphaTest;
+	[Group( "Features" ), Source( "F_ALPHA_TEST" ), RenderState( "AlphaTest" )] bool UseAlphaTest;
 	[Group( "Features" ), Source( "F_SELF_ILLUM" )] bool UseSelfIllum;
 	[Group( "Features" ), Source( "F_DETAIL_TEXTURE" ), Range( 0, 4 )] int DetailMode;   // 1 mod2x, 2 overlay, 3 normals, 4 overlay and normals
 	[Group( "Features" ), Source( "F_SCALE_NORMAL_MAP" )] bool UseNormalMapScale;
 	[Group( "Features" ), Source( "F_TRANSMISSIVE_BACKFACE_NDOTL" )] bool UseBackfaceTransmission;
-	[Group( "Features" ), Source( "F_TRANSLUCENT" )] bool UseTranslucent;
-	[Group( "Features" ), Source( "F_ADDITIVE_BLEND" )] bool UseAdditiveBlend;
+	[Group( "Features" ), Source( "F_TRANSLUCENT" ), RenderState( "Blend: Alpha" )] bool UseTranslucent;
+	[Group( "Features" ), Source( "F_ADDITIVE_BLEND" ), RenderState( "Blend: Additive" )] bool UseAdditiveBlend;
+	[Group( "Features" ), Source( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
 
 	// Features this surface doesn't do: materials that set them stay on complex.shader
 	[Group( "Not converted" ), Source( "F_PARALLAX_OCCLUSION" ), Range( 0, 0 )] int ParallaxOcclusion;

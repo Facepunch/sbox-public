@@ -48,6 +48,7 @@ internal static unsafe class SlangApi
 	public static delegate* unmanaged< IntPtr, IntPtr > TypeGetElementType;
 	public static delegate* unmanaged< IntPtr, byte* > TypeGetName;
 	public static delegate* unmanaged< IntPtr, uint > TypeGetUserAttributeCount;
+	public static delegate* unmanaged< IntPtr, uint, IntPtr > TypeGetUserAttribute;
 	public static delegate* unmanaged< IntPtr, byte* > VariableGetName;
 	public static delegate* unmanaged< IntPtr, IntPtr > VariableGetType;
 	public static delegate* unmanaged< IntPtr, uint > VariableGetUserAttributeCount;
@@ -102,6 +103,7 @@ internal static unsafe class SlangApi
 			TypeGetElementType = (delegate* unmanaged< IntPtr, IntPtr >)Export( "spReflectionType_GetElementType" );
 			TypeGetName = (delegate* unmanaged< IntPtr, byte* >)Export( "spReflectionType_GetName" );
 			TypeGetUserAttributeCount = (delegate* unmanaged< IntPtr, uint >)Export( "spReflectionType_GetUserAttributeCount" );
+			TypeGetUserAttribute = (delegate* unmanaged< IntPtr, uint, IntPtr >)Export( "spReflectionType_GetUserAttribute" );
 			VariableGetName = (delegate* unmanaged< IntPtr, byte* >)Export( "spReflectionVariable_GetName" );
 			VariableGetType = (delegate* unmanaged< IntPtr, IntPtr >)Export( "spReflectionVariable_GetType" );
 			VariableGetUserAttributeCount = (delegate* unmanaged< IntPtr, uint >)Export( "spReflectionVariable_GetUserAttributeCount" );

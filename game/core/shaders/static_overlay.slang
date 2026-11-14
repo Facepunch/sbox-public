@@ -1,6 +1,6 @@
 // static_overlay.shader written as a surface: a map's overlays (decals baked into the world), complex.shader's standard
-// processing without specular, tint mask, metalness or detail textures. Its blend modes are the .shader's: a converted
-// material draws with that .shader's render state (blending, no depth write), and mod2x, multiply and mod-then-add take
+// processing without specular, tint mask, metalness or detail textures. It writes no depth and is pulled towards the
+// camera; F_BLEND_MODE picks how it blends (render state, as the .shader's modes), and mod2x, multiply and mod-then-add take
 // the fog as overlays (Fog::ApplyOverlay) and fade towards their neutral colour by opacity after lighting
 // (Material.OverlayMode). Unlit unless F_LIT. It lights through the final combiner (ICombinerSurface).
 import sbox.surface;
@@ -8,12 +8,13 @@ import sbox.surface;
 // static_overlay.shader's g_sTrilinearWrap, for occlusion and self-illumination (the rest use g_sAniso)
 SamplerState g_OverlayTrilinear < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
 
-[Material]
+[Material, NoDepthWrite, DepthBias( 250, 0.5 )]
 public struct StaticOverlay : ICombinerSurface
 {
 	// Features
 	[Group( "Features" ), Source( "F_LIT" )] bool Lit;
-	[Group( "Features" ), Source( "F_BLEND_MODE" ), Range( 0, 6 )] int BlendMode;   // 0 opaque, 1 translucent, 2 alpha test, 3 mod2x, 4 additive, 5 multiply, 6 mod then add
+	[Group( "Features" ), Source( "F_BLEND_MODE" ), Range( 0, 6 ), RenderState( "Blend: Opaque, Alpha, Opaque, Mod2x, Additive, Multiply, ModulateAdd; AlphaTest: false, false, true" )]
+	int BlendMode;   // 0 opaque, 1 translucent, 2 alpha test, 3 mod2x, 4 additive, 5 multiply, 6 mod then add
 
 	// Colour: sRGB, but read linear in mod2x (the .shader's colour texture there)
 	[Group( "Color" ), Srgb, Opacity] Texture2D Color;

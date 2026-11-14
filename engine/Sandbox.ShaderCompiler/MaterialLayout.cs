@@ -19,8 +19,14 @@ public sealed class MaterialLayout
 	/// <summary>A field by name, or null.</summary>
 	public MaterialField Field( string name ) => Fields.FirstOrDefault( f => f.Name == name );
 
-	/// <summary>Lay out <paramref name="fields"/> (offsets ignored) in order.</summary>
-	public static MaterialLayout Create( string type, IEnumerable<MaterialField> fields )
+	/// <summary>The render state every material starts from: the struct's attributes (<c>[Blend( "Alpha" )]</c>).</summary>
+	public SurfaceRenderDefaults RenderState { get; init; } = SurfaceRenderDefaults.None;
+
+	/// <summary>The render state's defaults and <c>[RenderState]</c> fields, for resolving it per material.</summary>
+	public SurfaceStateLayout States() => new( RenderState, Fields.SelectMany( f => (f.RenderStates ?? []).Select( r => new SurfaceStateField( r, f.Offset, f.Kind == MaterialFieldKind.Float ) ) ).ToArray() );
+
+	/// <summary>Lay out <paramref name="fields"/> (offsets ignored) in order, with the struct's render state.</summary>
+	public static MaterialLayout Create( string type, IEnumerable<MaterialField> fields, SurfaceRenderDefaults renderState = null )
 	{
 		var laidOut = new List<MaterialField>();
 		var offset = 0;
@@ -30,7 +36,7 @@ public sealed class MaterialLayout
 			offset += field.Size;
 		}
 
-		return new MaterialLayout { Type = type, Size = offset, Fields = laidOut };
+		return new MaterialLayout { Type = type, Size = offset, Fields = laidOut, RenderState = renderState ?? SurfaceRenderDefaults.None };
 	}
 
 	/// <summary>A record with every field at its default (textures 0, which the engine's shaders read as none).</summary>
@@ -76,6 +82,12 @@ public sealed record MaterialField( string Name, MaterialFieldKind Kind, int Com
 	/// a feature, variable or <c>ShaderVersion</c>); null to look it up by name.
 	/// </summary>
 	public string Source { get; init; }
+
+	/// <summary>
+	/// The render states a material changes with this field (<c>[RenderState( "Blend: Alpha" )]</c>); null for none. Applied
+	/// in field order over the struct's defaults.
+	/// </summary>
+	public IReadOnlyList<SurfaceStateRule> RenderStates { get; init; }
 
 	/// <summary>Bytes it takes.</summary>
 	public int Size => Kind == MaterialFieldKind.Texture2D ? 4 : 4 * Components;

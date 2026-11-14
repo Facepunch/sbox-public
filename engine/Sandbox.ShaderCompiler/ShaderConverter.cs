@@ -87,8 +87,9 @@ public static partial class ShaderConverter
 			var (comboName, feature) = (combo.Groups[1].Value, combo.Groups[2].Value);
 			if ( feature == "F_ALPHA_TEST" )
 			{
+				// The alpha-tested passes compile with S_ALPHA_TEST; the material's feature picks them (render state)
 				renames[comboName] = "true";
-				notes.Add( "F_ALPHA_TEST is the material's AlphaTest" );
+				fields.Append( "\t[Group( \"Features\" ), Source( \"F_ALPHA_TEST\" ), RenderState( \"AlphaTest\" )] bool UseAlphaTest;\n" );
 				continue;
 			}
 
@@ -208,10 +209,10 @@ public static partial class ShaderConverter
 		// A vertex shader that moves vertices in object space becomes Displace, with the helpers it includes
 		var (displace, vertexHelpers) = Displace( vs, renames, notes, include );
 		samplers += vertexHelpers;
-		foreach ( var line in ps.Split( '\n' ) )
-		{
-			if ( Regex.IsMatch( line, @"^\s*RenderState\(" ) ) notes.Add( $"render state not converted: {line.Trim()}" );
-		}
+		// RenderState lines: the struct's attributes, and rules on the fields of the features that change them
+		var stateText = (Block( shader, "COMMON" ) ?? "") + "\n" + ps;
+		var combos = StaticComboDecl().Matches( vs + "\n" + ps ).DistinctBy( m => m.Groups[1].Value ).ToDictionary( m => m.Groups[1].Value, m => m.Groups[2].Value );
+		var materialAttributes = ApplyRenderStates( fields, TranslateRenderState( stateText, combos, FeatureRanges( shader, stateText ) ), notes );
 
 		var text = new StringBuilder();
 		text.Append( "// " ).Append( name ).Append( ".shader as a surface, converted by Sandbox.ShaderCompiler's ShaderConverter; the .shader stays.\n" );
@@ -219,7 +220,7 @@ public static partial class ShaderConverter
 		text.Append( "import sbox.surface;\n\n" ).Append( samplers ).Append( samplers.Length > 0 ? "\n" : "" );
 		var interfaces = new List<string> { displace is null ? "ISurface" : "IVertexSurface" };
 		if ( composite is not null ) interfaces = [.. interfaces.Where( n => n != "ISurface" ), "ICompositeSurface"];
-		text.Append( "[Material]\npublic struct " ).Append( type ).Append( " : " ).Append( string.Join( ", ", interfaces ) ).Append( "\n{\n" ).Append( fields ).Append( '\n' );
+		text.Append( "[Material" ).Append( materialAttributes ).Append( "]\npublic struct " ).Append( type ).Append( " : " ).Append( string.Join( ", ", interfaces ) ).Append( "\n{\n" ).Append( fields ).Append( '\n' );
 		if ( displace is not null ) text.Append( "\tpublic float3 Displace( VertexSurfaceInput v )\n\t{\n\t\tfloat3 __position = v.Position;" ).Append( displace ).Append( "\t\treturn __position;\n\t}\n\n" );
 		text.Append( methods );
 		text.Append( "\tpublic Material Evaluate( SurfaceInput i )\n\t{" ).Append( evaluate ).Append( "}\n" );
