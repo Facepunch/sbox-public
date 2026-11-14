@@ -1,5 +1,6 @@
 using Borealis.Gpu;
 using BorealisGpuSample;
+using System.IO;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -298,6 +299,73 @@ public class DeviceTests : GpuTest
 		using var second = Device.Create( new DeviceOptions { Presentation = false, PipelineCacheData = data } );
 		using ( new SampleScene( second, Format.RGBA8Unorm ) ) { }
 		Assert.IsTrue( second.GetPipelineCacheData().Length >= data.Length / 2 );
+	}
+
+	/// <summary>
+	/// A device with a pipeline cache folder saves its cache there when disposed, after making pipelines, and the next
+	/// device for the same GPU loads it; a device that made none since loading doesn't write it again.
+	/// </summary>
+	[TestMethod]
+	public void PipelineCacheFolderRoundTrips()
+	{
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-pipelines-{Guid.NewGuid():N}" );
+		try
+		{
+			string path;
+			using ( var first = Device.Create( new DeviceOptions { Presentation = false, PipelineCacheFolder = folder } ) )
+			{
+				Assert.IsFalse( first.PipelineCacheLoaded, "nothing to load the first time" );
+				using ( new SampleScene( first, Format.RGBA8Unorm ) ) { }
+				Assert.IsTrue( first.PipelineCreation.Made > 0, "the sample made pipelines" );
+				path = first.PipelineCachePath;
+			}
+
+			Assert.IsTrue( File.Exists( path ), "saved when the device was disposed" );
+			var written = File.GetLastWriteTimeUtc( path );
+
+			using ( var second = Device.Create( new DeviceOptions { Presentation = false, PipelineCacheFolder = folder } ) )
+			{
+				Assert.IsTrue( second.PipelineCacheLoaded, "the next device loads it" );
+				Assert.IsFalse( second.SavePipelineCache(), "nothing new to save" );
+			}
+
+			Assert.AreEqual( written, File.GetLastWriteTimeUtc( path ), "not written again" );
+		}
+		finally
+		{
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>A pipeline cache file that's truncated, corrupted or not one loads as nothing; a good one as what was saved.</summary>
+	[TestMethod]
+	public void DamagedPipelineCacheFilesLoadAsNothing()
+	{
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-pipelines-{Guid.NewGuid():N}" );
+		try
+		{
+			var path = Path.Combine( folder, "cache.bin" );
+			var data = new byte[1000];
+			new Random( 3 ).NextBytes( data );
+			Assert.IsTrue( PipelineCacheFile.Save( path, data ) );
+			CollectionAssert.AreEqual( data, PipelineCacheFile.Load( path ), "a good file loads as saved" );
+
+			var bytes = File.ReadAllBytes( path );
+			bytes[^1] ^= 1;
+			File.WriteAllBytes( path, bytes );
+			Assert.IsNull( PipelineCacheFile.Load( path ), "a flipped bit" );
+
+			File.WriteAllBytes( path, bytes[..^10] );
+			Assert.IsNull( PipelineCacheFile.Load( path ), "a truncated file" );
+
+			File.WriteAllBytes( path, data );
+			Assert.IsNull( PipelineCacheFile.Load( path ), "not a cache file" );
+			Assert.IsNull( PipelineCacheFile.Load( Path.Combine( folder, "missing.bin" ) ), "no file" );
+		}
+		finally
+		{
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, true );
+		}
 	}
 
 	/// <summary>

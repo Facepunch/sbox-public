@@ -27,7 +27,9 @@ public static partial class Graphics
 			var validation = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-validation" );
 			// Progress markers for the device-loss report, unless -borealisgpu-nomarkers
 			var markers = !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nomarkers" );
-			_borealisGpu = BorealisGpuRenderBackend.Create( validation, m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true, markers: markers );
+			// The device's pipeline cache in game/.source2/borealispipelines, apart from native's, unless -borealisgpu-nopipelinecache
+			var pipelineCache = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nopipelinecache" ) ? null : System.IO.Path.Combine( EngineFileSystem.Root.GetFullPath( "/" ), ".source2", "borealispipelines" );
+			_borealisGpu = BorealisGpuRenderBackend.Create( validation, m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true, markers: markers, pipelineCacheFolder: pipelineCache );
 			RenderBackend.SetDefault( _borealisGpu );
 			Log.Info( $"Rendering on Borealis.Gpu ({_borealisGpu.Device.Adapter.Name}){(validation ? ", validation on" : "")}; memory: {_borealisGpu.Device.DescribeMemory()}" );
 		}

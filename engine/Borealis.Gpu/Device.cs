@@ -203,7 +203,9 @@ public sealed unsafe partial class Device : IDisposable
 			};
 
 			Bindless = new BindlessTable( this, bindlessTextures, bindlessSamplers, bindlessStorage, features.storageBufferUpdateAfterBind );
-			CreatePipelineCache( options.PipelineCacheData );
+			if ( options.PipelineCacheFolder is { } folder ) pipelineCachePath = PipelineCacheFile.PathFor( folder, properties.vendorID, properties.deviceID, properties.driverVersion, new ReadOnlySpan<byte>( properties.pipelineCacheUUID, 16 ) );
+			var cacheData = pipelineCachePath is null ? null : PipelineCacheFile.Load( pipelineCachePath );
+			CreatePipelineCache( cacheData ?? options.PipelineCacheData );
 			CreateFrames();
 			CreateMarkers();
 			CreateDefaultViewSet();
@@ -594,6 +596,7 @@ public sealed unsafe partial class Device : IDisposable
 		CollectGarbage( force: true );
 		DestroyAllResources();
 		Bindless.Dispose();
+		SavePipelineCache();
 		DestroyPipelineCache();
 		graphicsQueue.Dispose();
 		if ( computeQueue != graphicsQueue ) computeQueue.Dispose();
