@@ -53,8 +53,10 @@ public partial class MoveModeWalk : MoveMode
 
 	public override void AddVelocity()
 	{
-		Controller.WishVelocity = Controller.WithoutVertical( Controller.WishVelocity );
 		var body = Controller.Body;
+		if ( !body.MotionEnabled ) return;
+
+		Controller.WishVelocity = Controller.WithoutVertical( Controller.WishVelocity );
 		var wish = Controller.WishVelocity;
 		var wishSpeed = wish.Length;
 		var direction = wishSpeed > 0 ? wish / wishSpeed : Vector3.Zero;
@@ -126,12 +128,19 @@ public partial class MoveModeWalk : MoveMode
 
 	internal void BeginPhysicsStep()
 	{
-		_physicsStep = true;
 		var body = Controller.Body;
-		var up = Controller.UpDirection;
-		var gravity = -Scene.PhysicsWorld.Gravity.Dot( up );
 		var jumpRequested = _jumpRequested;
 		_jumpRequested = false;
+		_physicsStep = body.MotionEnabled;
+		if ( !_physicsStep )
+		{
+			_hasStaticMove = false;
+			_previousSlideContact = null;
+			return;
+		}
+
+		var up = Controller.UpDirection;
+		var gravity = -Scene.PhysicsWorld.Gravity.Dot( up );
 		if ( !EnableBunnyHopping && Controller.IsOnGround
 			&& Controller.TimeSinceUngrounded < MathF.Max( BunnyHopRecoveryTime, 0 ) )
 			jumpRequested = false;
@@ -161,6 +170,8 @@ public partial class MoveModeWalk : MoveMode
 		if ( !_physicsStep ) return;
 		_physicsStep = false;
 		var body = Controller.Body;
+		if ( !body.MotionEnabled ) return;
+
 		var up = Controller.UpDirection;
 		var vertical = body.Velocity.Dot( up );
 		// Slow upward motion has reduced air control.
@@ -202,6 +213,8 @@ public partial class MoveModeWalk : MoveMode
 
 	public override void PrePhysicsStep()
 	{
+		if ( !Controller.Body.MotionEnabled ) return;
+
 		base.PrePhysicsStep();
 
 		// Apply drag once before either solver, so static contact correction cannot undo it.
@@ -219,6 +232,8 @@ public partial class MoveModeWalk : MoveMode
 
 	public override void PostPhysicsStep()
 	{
+		if ( !Controller.Body.MotionEnabled ) return;
+
 		base.PostPhysicsStep();
 		FinishStaticMove();
 		FinishStaticWallImpact();
