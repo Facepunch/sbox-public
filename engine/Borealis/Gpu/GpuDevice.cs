@@ -84,6 +84,14 @@ public abstract class GpuDevice
 	internal virtual bool CullsAggregatesGpuDriven => false;
 
 	/// <summary>
+	/// Whether, culling aggregates on the GPU, it keeps what a call of every aggregate makes between frames
+	/// (<see cref="Gpu.GpuContext.GpuDrivenCull.Plan"/>): views then hand it the world's aggregates as one unchanging list
+	/// instead of preparing their own, and pay per frame only for the view (docs/managed/borealis-gpu-driven.md, "Resident
+	/// aggregates").
+	/// </summary>
+	internal virtual bool DrawsAggregatesResident => false;
+
+	/// <summary>
 	/// Whether it streams textures by the sizes draws ask for, so what draws without a size of its own should give one
 	/// through <see cref="AddTextureSizes"/>.
 	/// </summary>

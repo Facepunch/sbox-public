@@ -111,4 +111,82 @@ public class AggregateTests
 		Assert.IsTrue( batch.CullArg >= 0, "the batch has a cull run" );
 		Assert.AreEqual( 1, system.Occlusion.InstanceCount, "an instance per drawn fragment" );
 	}
+
+	/// <summary>
+	/// On a device that keeps resident aggregates, a view draws every aggregate of the world from one list, the same object
+	/// frame after frame, made again only when an aggregate changes how it draws: so the device can keep what it makes of it.
+	/// A view whose root hides a tag gets the list of the classes it shows; a shadow view takes static casters, unless its
+	/// sun is baked, and those that aren't static where settling doesn't decide.
+	/// </summary>
+	[TestMethod]
+	public void ResidentAggregatesKeepOneListBetweenFrames()
+	{
+		var device = HeadlessRenderHost.Headless;
+		device.ResidentAggregates = true;
+		try
+		{
+			var world = new RenderWorld();
+			var plain = TestAggregate();
+			var tagged = TestAggregate();
+			plain.IsStatic = tagged.IsStatic = true;
+			tagged.Tags = [new StringToken( "resident-test" ).Value];
+			world.Add( plain );
+			world.Add( tagged );
+
+			// No depth prepass, so no occlusion culling, which keeps views preparing their own
+			using var system = new RenderSystem { DepthPrepass = false };
+			Borealis.Shadows.ShadowMapper.ResetCache();
+			var feature = system.GetFeature<AggregateRenderFeature>();
+			var view = LookingDownX();
+
+			// The first frame their transforms are frame entries, so the view prepares them; from the next, kept runs
+			CollectAndPrepare( system, world, view );
+			Assert.AreEqual( 0, feature.ResidentFor( system.MainPass ).Batches.Count, "nothing resident before the aggregates have kept runs" );
+			Assert.AreEqual( 2, feature.BatchesFor( system.MainPass ).Count, "the view prepared both" );
+
+			CollectAndPrepare( system, world, view );
+			var list = feature.ResidentFor( system.MainPass );
+			Assert.AreEqual( 2, list.Batches.Count, "both resident" );
+			Assert.AreEqual( 4, list.Batches[0].Count, "every fragment, for the GPU to cull" );
+			Assert.AreEqual( 0, feature.BatchesFor( system.MainPass ).Count, "the view prepares none of its own" );
+			Assert.IsTrue( system.ShadowMaps.Passes.ToArray().Any( p => feature.ResidentFor( p ) is { Batches.Count: 2 } ), "a cascade draws both static casters from its list" );
+
+			var made = feature.ResidentListsMade;
+			CollectAndPrepare( system, world, view );
+			Assert.AreSame( list, feature.ResidentFor( system.MainPass ), "the same list the next frame" );
+			Assert.AreEqual( made, feature.ResidentListsMade, "no list made again" );
+
+			// A view hiding the tag: the other class only
+			var hiding = LookingDownX();
+			hiding.ExcludeTags = tagged.Tags;
+			CollectAndPrepare( system, world, hiding );
+			Assert.AreSame( plain, feature.ResidentFor( system.MainPass ).Batches.Single().Aggregate, "the hidden tag's aggregate isn't in its list" );
+			Assert.AreEqual( 0, feature.BatchesFor( system.MainPass ).Count, "nor does it prepare it" );
+
+			// A change to how one draws makes them again
+			CollectAndPrepare( system, world, view );
+			plain.GameLayers = false;
+			CollectAndPrepare( system, world, view );
+			Assert.AreNotSame( list, feature.ResidentFor( system.MainPass ), "a new list after a change" );
+			Assert.AreSame( tagged, feature.ResidentFor( system.MainPass ).Batches.Single().Aggregate, "without the one out of the game's layers" );
+
+			// A baked sun's cascades take no static casters
+			world.Lighting.SunShadowsBaked = true;
+			Borealis.Shadows.ShadowMapper.ResetCache();
+			CollectAndPrepare( system, world, view );
+			Assert.IsTrue( system.ShadowMaps.Passes.ToArray().All( p => feature.ResidentFor( p ) is null or { Batches.Count: 0 } ), "a baked sun's cascades take no static casters from their lists" );
+			Assert.IsTrue( system.ShadowMaps.Passes.ToArray().All( p => feature.BatchesFor( p ).Count == 0 ), "nor of their own" );
+
+			// One that isn't static is in the lists of a baked sun's cascades that take every such caster
+			tagged.IsStatic = false;
+			CollectAndPrepare( system, world, view );
+			CollectAndPrepare( system, world, view );
+			Assert.IsTrue( system.ShadowMaps.Passes.ToArray().Any( p => p.StaticFilter == StaticFilter.NoStatic && feature.ResidentFor( p ) is { Batches.Count: 1 } list && list.Batches[0].Aggregate == tagged ), "a caster that isn't static is in a baked sun's cascade's list" );
+			Assert.IsTrue( system.ShadowMaps.Passes.ToArray().All( p => p.StaticFilter is StaticFilter.NoStatic or StaticFilter.Any || feature.ResidentFor( p ) is null or { Batches.Count: 0 } ), "where settling decides, it's left to the view" );
+		}
+		finally
+		{
+			device.ResidentAggregates = false;
+		}
+	}
 }

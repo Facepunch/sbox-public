@@ -96,6 +96,18 @@ internal sealed class HeadlessDevice : GpuDevice
 
 	public override bool SupportsDrawIndirectCount => DrawIndirectCount;
 
+	/// <summary>
+	/// Whether it claims to draw aggregates GPU-driven, culled on the GPU and resident (it records nothing of them): what
+	/// views prepare for such a device. Off by default; a test that turns it on is <c>[DoNotParallelize]</c>.
+	/// </summary>
+	public bool ResidentAggregates { get; set; }
+
+	internal override bool DrawsAggregatesGpuDriven => ResidentAggregates;
+
+	internal override bool CullsAggregatesGpuDriven => ResidentAggregates;
+
+	internal override bool DrawsAggregatesResident => ResidentAggregates;
+
 	public override int AllocateVertexCache( int vertices ) => Interlocked.Add( ref vertexCache, vertices ) - vertices;
 
 	public override Vector4 MorphSubrect( int handle ) => default;

@@ -144,6 +144,12 @@ public sealed class RenderWorld
 	internal int AttributeSources { get; set; }
 
 	/// <summary>
+	/// Counts up whenever an object is added or removed (so indices may have moved): what keeps a list of some of the
+	/// world's objects by index finds out it must look again.
+	/// </summary>
+	internal int Structure { get; private set; }
+
+	/// <summary>
 	/// Add an object. An object can be in one world at a time.
 	/// </summary>
 	public void Add( RenderObject obj )
@@ -171,6 +177,7 @@ public sealed class RenderWorld
 
 		obj.World = this;
 		obj.Index = Count++;
+		Structure++;
 		if ( obj is MeshObject { AttributesFrom: not null } ) AttributeSources++;
 		_objects[obj.Index] = obj;
 		_treeLeaves[obj.Index] = NotAdded;
@@ -191,6 +198,7 @@ public sealed class RenderWorld
 
 		var index = obj.Index;
 		var last = --Count;
+		Structure++;
 
 		if ( obj.IsStatic ) StaticCasterChanged( obj );
 		else if ( IsSettledCaster( obj ) ) SettledChanges.Add( _boundsCenters[index], _boundsExtents[index] );

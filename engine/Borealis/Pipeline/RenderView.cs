@@ -212,9 +212,16 @@ public sealed class RenderView
 		var exclude = ExcludeTags;
 		if ( render.Length == 0 && exclude.Length == 0 ) return true;
 
-		var tags = obj.Tags;
-		if ( render.Length > 0 && !(obj.IsWorld ? Contains( render, WorldTag ) : Overlaps( render, tags )) ) return false;
-		if ( exclude.Length > 0 && ((obj.IsWorld && Contains( exclude, WorldTag )) || Overlaps( exclude, tags )) ) return false;
+		return ShowsTags( obj.Tags, obj.IsWorld );
+	}
+
+	/// <summary>The tag part of <see cref="Shows"/>: whether an object with these tags (a world object, tagged <c>world</c>) passes.</summary>
+	internal bool ShowsTags( uint[] tags, bool isWorld )
+	{
+		var render = RenderTags;
+		var exclude = ExcludeTags;
+		if ( render.Length > 0 && !(isWorld ? Contains( render, WorldTag ) : Overlaps( render, tags )) ) return false;
+		if ( exclude.Length > 0 && ((isWorld && Contains( exclude, WorldTag )) || Overlaps( exclude, tags )) ) return false;
 		return true;
 	}
 
