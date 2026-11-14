@@ -24,6 +24,19 @@ internal sealed partial class MeshRenderFeature
 		&& RenderHost.Current?.Device is { DrawsOverlaysGpuDriven: true } && (lists.Custom & MeshRuns.StaticOverlay) == 0 && (lists.Callbacks & MeshRuns.StaticOverlay) == 0
 		&& lists.StaticOverlay.Count > 0 && lists.OverlayOrders.Count == lists.StaticOverlay.Count;
 
+	/// <summary>The overlays' one run weighs as many draws as it holds, so the frame's segments and its parallel threshold see its work.</summary>
+	internal override void RunWeights( ViewPass view, MeshLayer layer, Span<int> weights )
+	{
+		var lists = view.State<RunLists>( this );
+		if ( weights.Length == 1 && OverlaysOneRun( layer, lists ) )
+		{
+			weights[0] = Math.Max( lists.ItemsByBit[System.Numerics.BitOperations.TrailingZeroCount( (uint)MeshRuns.StaticOverlay )].Count, 1 );
+			return;
+		}
+
+		weights.Fill( 1 );
+	}
+
 	/// <summary>
 	/// Each run's render order, from the sorted bucket it was emitted from: <see cref="Emit"/> makes runs of consecutive
 	/// entries, so a run's first entry's key holds its order (<see cref="AddToLists"/>).

@@ -51,6 +51,13 @@ public sealed class DeviceOptions
 	/// <summary>Pipeline cache data saved from <see cref="Device.GetPipelineCacheData"/>, or null.</summary>
 	public byte[] PipelineCacheData { get; init; }
 
+	/// <summary>
+	/// A folder to keep the pipeline cache in, or null for none: the file for this GPU and driver is loaded when the device
+	/// is made (in place of <see cref="PipelineCacheData"/>), and saved by <see cref="Device.SavePipelineCache"/> and when
+	/// the device is disposed, if pipelines were made since.
+	/// </summary>
+	public string PipelineCacheFolder { get; init; }
+
 	/// <summary>Validation and driver messages. Called on any thread. Errors are also counted in <see cref="Device.ValidationErrors"/>.</summary>
 	public Action<DeviceMessage> Message { get; init; }
 }

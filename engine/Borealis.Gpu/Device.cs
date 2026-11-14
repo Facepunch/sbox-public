@@ -203,7 +203,9 @@ public sealed unsafe partial class Device : IDisposable
 			};
 
 			Bindless = new BindlessTable( this, bindlessTextures, bindlessSamplers, bindlessStorage, features.storageBufferUpdateAfterBind );
-			CreatePipelineCache( options.PipelineCacheData );
+			if ( options.PipelineCacheFolder is { } folder ) pipelineCachePath = PipelineCacheFile.PathFor( folder, properties.vendorID, properties.deviceID, properties.driverVersion, new ReadOnlySpan<byte>( properties.pipelineCacheUUID, 16 ) );
+			var cacheData = pipelineCachePath is null ? null : PipelineCacheFile.Load( pipelineCachePath );
+			CreatePipelineCache( cacheData ?? options.PipelineCacheData );
 			CreateFrames();
 			CreateMarkers();
 			CreateDefaultViewSet();
@@ -516,6 +518,29 @@ public sealed unsafe partial class Device : IDisposable
 		return string.Join( ", ", heaps );
 	}
 
+	/// <summary>
+	/// The largest device-local heap: how much of it this process uses (every device it has) and the budget the OS gives
+	/// it, with VK_EXT_memory_budget; without it, nothing used and the heap's size.
+	/// </summary>
+	public (long Used, long Budget) DeviceLocalMemory()
+	{
+		var budget = new VkPhysicalDeviceMemoryBudgetPropertiesEXT { sType = VkStructureType.PhysicalDeviceMemoryBudgetPropertiesExt };
+		var properties = new VkPhysicalDeviceMemoryProperties2 { sType = VkStructureType.PhysicalDeviceMemoryProperties2, pNext = memoryBudget ? &budget : null };
+		Instance.vkGetPhysicalDeviceMemoryProperties2( PhysicalDevice, &properties );
+
+		(long Used, long Budget) largest = default;
+		ulong largestSize = 0;
+		for ( int i = 0; i < properties.memoryProperties.memoryHeapCount; i++ )
+		{
+			var heap = properties.memoryProperties.Heap( i );
+			if ( (heap.flags & Vulkan.Vk.HeapDeviceLocal) == 0 || heap.size <= largestSize ) continue;
+			largestSize = heap.size;
+			largest = memoryBudget ? ((long)budget.heapUsage[i], (long)Math.Min( budget.heapBudget[i], heap.size )) : (0, (long)heap.size);
+		}
+
+		return largest;
+	}
+
 	/// <summary>The families resources are shared between: one, or graphics and compute.</summary>
 	internal uint[] queueFamilies;
 
@@ -594,6 +619,7 @@ public sealed unsafe partial class Device : IDisposable
 		CollectGarbage( force: true );
 		DestroyAllResources();
 		Bindless.Dispose();
+		SavePipelineCache();
 		DestroyPipelineCache();
 		graphicsQueue.Dispose();
 		if ( computeQueue != graphicsQueue ) computeQueue.Dispose();

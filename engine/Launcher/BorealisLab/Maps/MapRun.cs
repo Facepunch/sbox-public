@@ -96,6 +96,8 @@ internal static class MapRun
 			Validation = Args.Has( "-validation" ) || Args.Has( "-sync-validation" ),
 			SynchronizationValidation = Args.Has( "-sync-validation" ),
 			InstanceExtensions = Sdl.VulkanInstanceExtensions,
+			// game/.source2/borealispipelines, as the game keeps it; -no-pipeline-cache starts cold and saves nothing
+			PipelineCacheFolder = Args.Has( "-no-pipeline-cache" ) ? null : Path.GetFullPath( Path.Combine( AppContext.BaseDirectory, "..", "..", ".source2", "borealispipelines" ) ),
 			Message = m =>
 			{
 				if ( m.Severity < MessageSeverity.Warning ) return;

@@ -321,12 +321,15 @@ public sealed class RenderWorld
 
 	/// <summary>
 	/// An object that isn't static moved or changed now: it settles again <see cref="Shadows.SettledCasters.Seconds"/> from
-	/// now, unless it has moved after settling too often.
+	/// now, or, if it has moved after settling too often, <see cref="Shadows.SettledCasters.RestlessSeconds"/>. A restless one
+	/// that stayed put that long starts over.
 	/// </summary>
 	void Moved( int index, bool wasSettled )
 	{
+		if ( wasSettled && (_movedStamps[index] & Shadows.SettledCasters.Restless) != 0 ) _settleMoves[index] = 0;
 		if ( wasSettled && _settleMoves[index] < byte.MaxValue ) _settleMoves[index]++;
-		_movedStamps[index] = _settleMoves[index] >= Shadows.SettledCasters.MaxSettles ? Shadows.SettledCasters.Never : Shadows.SettledCasters.Now;
+		var restless = _settleMoves[index] >= Shadows.SettledCasters.MaxSettles ? Shadows.SettledCasters.Restless : 0;
+		_movedStamps[index] = Shadows.SettledCasters.Now | restless;
 	}
 
 	/// <summary>

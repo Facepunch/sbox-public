@@ -17,9 +17,9 @@ internal sealed partial class BackendContext
 {
 	static readonly StringToken GpuDrivenConstantsName = new( "BorealisGpuDriven_t" );
 
-	/// <summary>The table slots <c>borealis_gpu_driven.fxc</c>'s <c>BorealisGpuDriven_t</c> holds.</summary>
+	/// <summary>The table slots <c>borealis_gpu_driven.fxc</c>'s <c>BorealisGpuDriven_t</c> holds (<see cref="HandFilledConstants"/>).</summary>
 	[StructLayout( LayoutKind.Sequential )]
-	struct GpuDrivenConstants
+	internal struct GpuDrivenConstants
 	{
 		public uint Instances, Draws, Geometry, Materials;
 
@@ -28,6 +28,29 @@ internal sealed partial class BackendContext
 		/// <summary>The lighting table's slot: a draw's lighting record is its flags' top 24 bits, in 16 bytes.</summary>
 		public uint Lighting;
 		public uint Pad1, Pad2;
+	}
+
+	/// <summary><c>borealis_gpu_driven_cull_cs</c>'s and <c>borealis_gpu_driven_compact_cs</c>'s <c>BorealisGpuDrivenCull_t</c> (<see cref="HandFilledConstants"/>).</summary>
+	[StructLayout( LayoutKind.Sequential )]
+	internal struct GpuDrivenCullConstants
+	{
+		/// <summary>Byte offsets in the frame's region: the view record (then a batch record each), the instance records, the commands.</summary>
+		public uint Input, Batches, Instances, Commands;
+
+		/// <summary>The first instance record's index, the fragment and draw tables' bindless slots, the multi-draws' byte offset (0 to keep every slot).</summary>
+		public uint FirstInstance, Fragments, Draws, Runs;
+
+		/// <summary>The frame's stamp; unused; pads; the compacted buffer's indices; the fragment words' and the listed fragments' byte offsets.</summary>
+		public uint Frame, Visibility, Pad0, Capacity, FragmentWords, Listed, Pad1, Pad2;
+	}
+
+	/// <summary><c>borealis_gpu_driven_mark_cs</c>'s <c>BorealisGpuDrivenMark_t</c> (<see cref="HandFilledConstants"/>).</summary>
+	[StructLayout( LayoutKind.Sequential )]
+	internal struct GpuDrivenMarkConstants
+	{
+		/// <summary>The ids target's size and samples, and the vertex bits in use.</summary>
+		public uint Width, Height, Samples, Bits;
+		public uint Pad0, Pad1, Pad2, Pad3;
 	}
 
 	/// <summary>A bucket: what one multi-draw shares, and the batches in it.</summary>
@@ -120,6 +143,7 @@ internal sealed partial class BackendContext
 		for ( int i = 0; i < batches.Length; i++ )
 		{
 			ref readonly var batch = ref batches[i];
+			if ( batch.TextureSize > 0 ) device.AskTextures( batch.Material, batch.TextureSize );
 
 			// A surface material: its own GPU-driven passes, in buckets of its own (BackendContext.Surfaces.cs)
 			if ( batch.Material is SurfaceMaterial surface )
@@ -474,11 +498,6 @@ internal sealed partial class BackendContext
 				SetObjectAttributes( null, bucket.Attributes );
 				NextPassState( cache );
 
-				// What its stages' material records read of the attributes: the same for each of its batches
-				var vertexAttributes = bucket.Surface is null && bucket.Variant.Vertex is { } vertexStage ? AttributeHash( vertexStage ) : 0;
-				var pixelAttributes = bucket.Surface is null && !bucket.DepthOnly && bucket.Variant.Pixel is { } pixelStage ? AttributeHash( pixelStage ) : 0;
-				var stages = (object)bucket.Surface ?? bucket.Variant;
-
 				// The prepass draws ids with each bucket's own variant, whose pixel shader writes them where it covers; a depth
 				// bucket without one (opaque depth_only) with borealis_gpu_driven_ids, when its vertices need only their positions
 				var ownPixel = bucket.Surface is not null ? bucket.Surface.Pass.Pixel is not null : bucket.Variant.Pixel?.Bytecode is not null && bucket.Variant.Pixel.GpuDriven;
@@ -499,6 +518,13 @@ internal sealed partial class BackendContext
 					var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
 					if ( bucket.Classic is not null && !ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) bucket.Ids = bucket.IdsShader = false;
 				}
+
+				// What its stages' material records read of the attributes: the same for each of its batches. A depth-only
+				// bucket has a pixel record only when it draws ids with its own pixel shader, which its depth pass strips
+				var pixelRecord = !bucket.DepthOnly || bucket.Ids && !bucket.IdsShader;
+				var vertexAttributes = bucket.Surface is null && bucket.Variant.Vertex is { } vertexStage ? AttributeHash( vertexStage ) : 0;
+				var pixelAttributes = bucket.Surface is null && pixelRecord && bucket.Variant.Pixel is { } pixelStage ? AttributeHash( pixelStage ) : 0;
+				var stages = (object)bucket.Surface ?? bucket.Variant;
 
 				foreach ( var (_, index) in bucket.Batches )
 				{
@@ -548,7 +574,7 @@ internal sealed partial class BackendContext
 						ref var kept = ref memoTaken ? ref memo.At( record ) : ref unkept;
 						var version = MaterialVersion( material );
 						var visible = visibility is not null;
-						if ( memoTaken && ReferenceEquals( kept.Material, material ) && kept.Version == version && ReferenceEquals( kept.Stages, stages ) && kept.DepthOnly == bucket.DepthOnly
+						if ( memoTaken && ReferenceEquals( kept.Material, material ) && kept.Version == version && ReferenceEquals( kept.Stages, stages ) && kept.DepthOnly == bucket.DepthOnly && kept.PixelRecord == pixelRecord
 							&& kept.VertexAttributes == vertexAttributes && kept.PixelAttributes == pixelAttributes && ReferenceEquals( kept.Owner, aggregate ) && kept.Fragments == fragmentCount
 							&& kept.Flags == flags && kept.Pooled == pooled && ReferenceEquals( kept.Layout, geometry.Layout ) && ReferenceEquals( kept.Classic, bucket.Classic ) && kept.Positions == positions && kept.Visibility == visible )
 						{
@@ -568,6 +594,7 @@ internal sealed partial class BackendContext
 								Version = version,
 								Stages = stages,
 								DepthOnly = bucket.DepthOnly,
+								PixelRecord = pixelRecord,
 								VertexAttributes = vertexAttributes,
 								PixelAttributes = pixelAttributes,
 								Owner = aggregate,
@@ -643,23 +670,22 @@ internal sealed partial class BackendContext
 		// Cull and write the commands, then draw them
 		cullDrawer ??= new ShaderDrawer( device );
 		cullAttributes ??= new ShaderAttributes();
-		cullConstants ??= new byte[64];
-		var constants = MemoryMarshal.Cast<byte, uint>( cullConstants.AsSpan() );
-		constants.Clear();
-		constants[0] = (uint)frameOffset;
-		constants[1] = (uint)batchCount;
-		constants[2] = (uint)(frameOffset + instanceOffset);
-		constants[3] = (uint)(frameOffset + commandOffset);
-		constants[4] = firstInstance;
-		constants[5] = (uint)tables.FragmentSlot;
-		constants[6] = (uint)slots.Draws;
-		constants[7] = compact ? (uint)(frameOffset + runsOffset) : 0;
-		constants[8] = device.GpuDrivenFrame;
-		constants[9] = 0;
-		constants[10] = 0;
-		constants[11] = BackendDevice.VisibilityCompactedIndices;
-		constants[12] = (uint)(frameOffset + fragmentOffset) - firstInstance * 4;
-		constants[13] = lists ? (uint)(frameOffset + listedOffset) : 0;
+		cullConstants ??= new byte[Marshal.SizeOf<GpuDrivenCullConstants>()];
+		MemoryMarshal.Write( cullConstants, new GpuDrivenCullConstants
+		{
+			Input = (uint)frameOffset,
+			Batches = (uint)batchCount,
+			Instances = (uint)(frameOffset + instanceOffset),
+			Commands = (uint)(frameOffset + commandOffset),
+			FirstInstance = firstInstance,
+			Fragments = (uint)tables.FragmentSlot,
+			Draws = (uint)slots.Draws,
+			Runs = compact ? (uint)(frameOffset + runsOffset) : 0,
+			Frame = device.GpuDrivenFrame,
+			Capacity = BackendDevice.VisibilityCompactedIndices,
+			FragmentWords = (uint)(frameOffset + fragmentOffset) - firstInstance * 4,
+			Listed = lists ? (uint)(frameOffset + listedOffset) : 0,
+		} );
 		cullAttributes.Clear();
 		cullAttributes.Set( "BorealisCullFrame", frameBuffer );
 		if ( visibility is not null )
@@ -936,13 +962,15 @@ internal sealed partial class BackendContext
 		SetObjectAttributes( null );
 		// Mark: every distinct id of each pixel's samples sets its triangle's bit
 		r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Ids, ImageLayout.ColorTarget, ImageLayout.ShaderRead, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead ) );
-		var markConstants = this.markConstants ??= new byte[32];
-		var words = MemoryMarshal.Cast<byte, uint>( markConstants.AsSpan() );
-		words[0] = (uint)visibility.Width;
-		words[1] = (uint)visibility.Height;
-		words[2] = (uint)visibility.Samples;
+		var markConstants = this.markConstants ??= new byte[Marshal.SizeOf<GpuDrivenMarkConstants>()];
 		var frameBits = device.GpuDrivenTables.FrameVisibilityBits;
-		words[3] = (uint)Math.Min( frameBits > 0 ? GpuDrivenTables.FrameVisibilityBitBase + frameBits : device.GpuDrivenTables.VisibilityBits, uint.MaxValue );
+		MemoryMarshal.Write( markConstants, new GpuDrivenMarkConstants
+		{
+			Width = (uint)visibility.Width,
+			Height = (uint)visibility.Height,
+			Samples = (uint)visibility.Samples,
+			Bits = (uint)Math.Min( frameBits > 0 ? GpuDrivenTables.FrameVisibilityBitBase + frameBits : device.GpuDrivenTables.VisibilityBits, uint.MaxValue ),
+		} );
 		cullAttributes.Clear();
 		cullAttributes.Set( "BorealisIds", visibility.Ids );
 		cullAttributes.Set( "BorealisCullMask", visibility.Mask );

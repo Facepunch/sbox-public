@@ -16,7 +16,7 @@ namespace Borealis.Backend;
 /// content. What it can't do yet (morphs, engine compute shaders with parameters) draws nothing. See
 /// docs/managed/borealis-gpu.md.
 /// </summary>
-public sealed class BackendDevice : GpuDevice, IDisposable
+public sealed partial class BackendDevice : GpuDevice, IDisposable
 {
 	readonly Stopwatch clock = Stopwatch.StartNew();
 	readonly Dictionary<string, GpuTexture> loadedTextures = new( StringComparer.OrdinalIgnoreCase );
@@ -99,7 +99,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		var textures = new Dictionary<string, BackendTexture>( StringComparer.OrdinalIgnoreCase );
 		foreach ( var (variable, texture) in file.Textures )
 		{
-			if ( LoadTexture( texture ) is BackendTexture loaded ) textures[variable] = loaded;
+			if ( MaterialTextureFile( texture ) is BackendTexture loaded ) textures[variable] = loaded;
 		}
 
 		return textures;
@@ -464,23 +464,47 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// A compiled texture (<c>.vtex_c</c>) from the content, loaded once; a black 1x1 stand-in (a cube for cube paths)
 	/// when it isn't there or its format has no Borealis.Gpu form.
 	/// </summary>
-	public override GpuTexture LoadTexture( string path )
+	public override GpuTexture LoadTexture( string path ) => LoadOnce( path, streamed: false );
+
+	/// <summary>
+	/// A material's texture: with <see cref="StreamTextures"/>, its tail first, and the mips its draws ask for streamed
+	/// in later; otherwise as <see cref="LoadTexture(string)"/> loads it.
+	/// </summary>
+	internal GpuTexture MaterialTextureFile( string path ) => LoadOnce( path, streamed: StreamTextures );
+
+	GpuTexture LoadOnce( string path, bool streamed )
 	{
 		lock ( loadedTextures )
 		{
-			if ( loadedTextures.TryGetValue( path, out var texture ) ) return texture;
-			return loadedTextures[path] = Load( path ) ?? Placeholder( path, cube: path.Contains( "cube", StringComparison.OrdinalIgnoreCase ) );
+			if ( loadedTextures.TryGetValue( path, out var texture ) )
+			{
+				// Asked for whole by something that doesn't ask for mips
+				if ( !streamed && texture is BackendTexture { Stream: { } stream } ) stream.Pinned = true;
+				return texture;
+			}
+
+			return loadedTextures[path] = Load( path, streamed ) ?? Placeholder( path, cube: path.Contains( "cube", StringComparison.OrdinalIgnoreCase ) );
 		}
 	}
 
-	BackendTexture Load( string path )
+	BackendTexture Load( string path, bool streamed )
 	{
-		// From the content's folders or packages (a map's VPK)
-		var data = Content.TryRead( path );
-		if ( data is null ) return null;
+		// Read ahead on a worker for a model loading asynchronously (LoadModelAsync), else from the content's folders or
+		// packages (a map's VPK); a streamed texture's tail, unless it doesn't stream
+		if ( !readTextures.TryRemove( path, out var texture ) || (!streamed && texture?.TopMip > 0) )
+		{
+			texture = streamed ? TextureStreamer.ReadMips( Content, path, TextureFile.Tail ) : null;
+			if ( texture is null || (texture.TopMip > 0 && !TextureStreamer.Streams( texture )) )
+			{
+				var data = Content.TryRead( path );
+				if ( data is null ) return null;
+				texture = TextureFile.Read( data );
+			}
+		}
 
-		var texture = TextureFile.Read( data );
+		if ( texture is null ) return null;
 		if ( texture.Format == Format.Unknown ) return null;
+		if ( texture.TopMip > 0 && !TextureStreamer.Streams( texture ) ) return null;
 
 		var desc = new TextureDesc
 		{
@@ -493,7 +517,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 			Format = TextureFormat.RGBA8888,
 		};
 
-		return new BackendTexture( this, texture.Create( Gpu, path ), desc, path ) { Layout = ImageLayout.ShaderRead, Dimension = texture.Dimension };
+		var made = new BackendTexture( this, texture.Create( Gpu, path ), desc, path ) { Layout = ImageLayout.ShaderRead, Dimension = texture.Dimension };
+		if ( streamed && TextureStreamer.Streams( texture ) ) made.Stream = Streamer.Add( made, path, texture );
+		return made;
 	}
 
 	/// <inheritdoc/>
@@ -671,7 +697,13 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>A compiled material's texture for a shader variable (<c>g_tSkyTexture</c>), or null.</summary>
 	public GpuTexture MaterialTexture( string material, string variable )
-		=> LoadMaterial( material ) is BackendMaterial m && m.Textures.TryGetValue( variable, out var texture ) ? texture : null;
+	{
+		if ( LoadMaterial( material ) is not BackendMaterial m || !m.Textures.TryGetValue( variable, out var texture ) ) return null;
+
+		// Used outside the material's draws, which are what ask for its mips
+		if ( texture.Stream is { } stream ) stream.Pinned = true;
+		return texture;
+	}
 
 	/// <summary>
 	/// A compiled material (<c>.vmat_c</c>) with its shader and textures; one that isn't there, or whose shader isn't,
@@ -693,11 +725,13 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	GpuMaterial Converted( string path )
 	{
 		var tier = Surfaces;
-		if ( !tier.HasConversions || Content.TryRead( path ) is not { } data || ReadMaterial( data ) is not { } file ) return null;
+		if ( !tier.HasConversions ) return null;
+		if ( (readMaterials.TryGetValue( path, out var read ) ? read : Content.TryRead( path ) is { } data ? ReadMaterial( data ) : null) is not { } file ) return null;
 		if ( tier.ConversionFor( file.Shader ) is not { } surface || tier.Compile( surface ) is not { } compiled ) return null;
 		if ( !ConvertedMaterial.Accepts( compiled, file ) || tier.ConvertMaterial?.Invoke( path ) == false ) return null;
 		tier.CountConverted( path );
-		var converted = ConvertedMaterial.Create( compiled, file, path, texture => LoadTexture( texture ) );
+		readMaterials.TryRemove( path, out _ );
+		var converted = ConvertedMaterial.Create( compiled, file, path, MaterialTextureFile );
 
 		// The .shader material, for draws the surface can't make
 		converted.SetFallback( () =>
@@ -754,7 +788,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	BackendMaterial Material( string path, Dictionary<string, float[]> values, string name = null )
 	{
-		var file = Content.TryRead( path ) is { } data ? ReadMaterial( data ) : null;
+		var file = readMaterials.TryRemove( path, out var read ) ? read : Content.TryRead( path ) is { } data ? ReadMaterial( data ) : null;
 		if ( file is null ) return Track( new BackendMaterial( name ?? path, null, null, null, values ) );
 		return Track( new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, Textures( file ), values ) );
 	}
@@ -944,11 +978,11 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	internal override bool DrawsOverlaysGpuDriven => GpuDrivenOverlays && DrawsAggregatesGpuDriven;
 
 	/// <summary>
-	/// Static meshes' opaque draws join the aggregates' GPU-driven call (docs/managed/borealis-gpu-driven.md). Off by default:
-	/// on Construct it saves GPU time but costs CPU time, mostly on worker threads, where the one GPU-driven run now records
-	/// what workers drew between them; <c>-gpudriven-meshes</c> turns it on.
+	/// Static meshes' opaque draws join the aggregates' GPU-driven call (docs/managed/borealis-gpu-driven.md). On by default:
+	/// on Construct it saves GPU time but costs CPU time, mostly on worker threads, where the one GPU-driven run records what
+	/// workers drew between them; <c>-no-gpudriven-meshes</c> turns it off.
 	/// </summary>
-	public bool GpuDrivenMeshes { get; set; } = HasSwitch( "-gpudriven-meshes" );
+	public bool GpuDrivenMeshes { get; set; } = !HasSwitch( "-no-gpudriven-meshes" );
 
 	/// <summary>
 	/// Cull GPU-driven aggregates' fragments on the GPU (<c>borealis_gpu_driven_cull_cs</c>), by the same frustum and size
@@ -1346,7 +1380,17 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		Gpu.BeginFrame();
 		gpuDrivenTables?.BeginFrame();
 		GpuDrivenFrame++;
+		loadFrame++;
 		Poll();
+
+		// Streamed textures' new images, written now, ahead of the frame's work
+		if ( streamer is { } textures )
+		{
+			using ( Gpu.DeferUploads() )
+				textures.Update();
+
+			if ( textures.Uploaded > 0 ) Gpu.Flush();
+		}
 	}
 
 	/// <summary>
@@ -1405,6 +1449,14 @@ public class BackendRenderHost( BackendDevice device ) : RenderHost
 
 	/// <inheritdoc/>
 	public override bool ContactShadows => false;
+
+	/// <summary>
+	/// The debug views drawn into the frame (none by default): the labs' <c>-debug-views</c>.
+	/// </summary>
+	public DebugViews Views { get; set; }
+
+	/// <inheritdoc/>
+	public override DebugViews DebugViews => Views;
 
 	/// <summary>
 	/// GPU occlusion culling (off by default): the culler's compute pass, and culled draws from its arguments and surviving

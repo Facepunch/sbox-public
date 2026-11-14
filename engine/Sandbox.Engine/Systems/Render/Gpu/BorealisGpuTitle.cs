@@ -5,8 +5,9 @@ namespace Sandbox;
 
 /// <summary>
 /// Live stats in the title of a game window drawn on Borealis.Gpu, four times a second: frames a second, the main thread's
-/// time in each phase of Borealis's frames, the GPU's frame time, objects, visible objects and draws, the paths drawing, and
-/// the camera's position. Each frame only adds the last frame's counters to a sum; the text is made on the update.
+/// time in each phase of Borealis's frames, the GPU's frame time, objects, visible objects and draws, the paths drawing,
+/// streamed textures' memory and the camera's position. Each frame only adds the last frame's counters to a sum; the text
+/// is made on the update.
 /// </summary>
 internal sealed class BorealisGpuTitle
 {
@@ -41,6 +42,8 @@ internal sealed class BorealisGpuTitle
 
 		var services = backend.Services;
 		text.Append( services.GpuDriven ? services.GpuDrivenVisibility ? " | gpu-driven, visibility" : " | gpu-driven" : " | classic" );
+
+		if ( services.StreamingStats is { } streaming ) text.Append( $" | textures {streaming.Resident >> 20} of {streaming.Wanted >> 20} MiB, {streaming.Building} building" );
 
 		if ( window.CameraPosition is { } at ) text.Append( $" | ({at.x:0}, {at.y:0}, {at.z:0})" );
 

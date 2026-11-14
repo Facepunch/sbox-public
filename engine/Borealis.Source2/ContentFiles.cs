@@ -95,4 +95,30 @@ public sealed class ContentFiles
 
 		return null;
 	}
+
+	/// <summary>
+	/// The first <paramref name="most"/> bytes of a compiled resource (all of it when it's shorter) from the folders or
+	/// packages, as <see cref="TryRead"/> finds it, or null.
+	/// </summary>
+	public byte[] TryReadPrefix( string path, long most )
+	{
+		if ( Find( path ) is { } file )
+		{
+			using var stream = new FileStream( file, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.SequentialScan );
+			var data = new byte[(int)Math.Min( stream.Length, Math.Max( most, 0 ) )];
+			stream.ReadExactly( data );
+			return data;
+		}
+
+		if ( packages.Count == 0 || string.IsNullOrEmpty( path ) ) return null;
+
+		path = path.Replace( '\\', '/' ).TrimStart( '/' );
+		if ( !path.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) path += "_c";
+		foreach ( var package in packages )
+		{
+			if ( package.ReadPrefix( path, most ) is { } data ) return data;
+		}
+
+		return null;
+	}
 }

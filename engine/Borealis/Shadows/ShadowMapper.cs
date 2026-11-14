@@ -101,6 +101,7 @@ internal partial class ShadowMapper
 		PointEntries.Clear();
 		Drawn.Clear();
 		CascadeShadowMapCount = 0;
+		FarCacheMap = null;
 		GPUDirectionalLightData.CascadeCount = 0;
 		GPUDirectionalLightData.Flags = 0;
 		GPUDirectionalLightData.ShadowMaskTextureIndex = 0;
