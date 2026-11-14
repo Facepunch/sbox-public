@@ -69,7 +69,6 @@ public sealed class SurfaceShaders : IDisposable
 		["blendable"] = "blendable.slang",
 		["generic"] = "generic.slang",
 		["vertex_color"] = "vertex_color.slang",
-		["static_overlay"] = "static_overlay.slang",
 		["simple"] = null,
 	};
 

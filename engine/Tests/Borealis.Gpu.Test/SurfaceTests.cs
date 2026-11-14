@@ -689,7 +689,7 @@ public class SurfaceTests : GpuTest
 				return picture;
 			}
 
-			foreach ( var path in new[] { "materials/dev/gray_25.vmat", "materials/dev/roomwalls_white.vmat", "materials/dev/bright_10.vmat", "materials/tools/hlmv_ground.vmat", "materials/dev/sky_camera.vmat", "models/vr/autochap_hand.vmat", "materials/default/vertex_color.vmat", "materials/dev/static_overlay_test.vmat" } )
+			foreach ( var path in new[] { "materials/dev/gray_25.vmat", "materials/dev/roomwalls_white.vmat", "materials/dev/bright_10.vmat", "materials/tools/hlmv_ground.vmat", "materials/dev/sky_camera.vmat", "models/vr/autochap_hand.vmat", "materials/default/vertex_color.vmat" } )
 			{
 				var reference = DrawMaterial( path, false, out var classic );
 				if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( $"{path} isn't compiled" );
