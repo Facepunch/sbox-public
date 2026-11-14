@@ -35,6 +35,23 @@ public class DeviceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A resource destroyed while a frame records waits for the whole frame: a list recorded before the destroy and submitted
+	/// after it still reads it, so it isn't freed once only what was submitted before the destroy has finished.
+	/// </summary>
+	[TestMethod]
+	public void DestroyedResourcesWaitForTheirFrame()
+	{
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = 256, Usage = BufferUsage.Storage, Name = "Destroyed mid-frame" } );
+		var list = Device.BeginCommandList();
+		list.FillBuffer( buffer, 1 );
+		Device.Destroy( buffer );
+		var point = Device.Submit( list );
+		Device.BeginFrame();
+		Device.WaitIdle();
+		Assert.IsTrue( Device.LastGarbageTag.Graphics >= point.Value, $"the buffer waits for the list that used it (tagged {Device.LastGarbageTag.Graphics}, the list is {point.Value})" );
+	}
+
+	/// <summary>
 	/// The validation layer is really checking: a copy into a buffer with no barrier after a fill of it is a write-after-write
 	/// hazard, and gets reported. (Every other test passes only if nothing is reported.)
 	/// </summary>

@@ -124,6 +124,7 @@ public sealed unsafe partial class Device
 		Flush();
 		frame.Graphics = graphicsQueue.Submitted;
 		frame.Compute = computeQueue.Submitted;
+		TagDestroyed();
 
 		FrameNumber++;
 		frame = frames[FrameSlot];

@@ -899,7 +899,7 @@ public sealed unsafe partial class Device
 	}
 
 	//
-	// Destruction: deferred until every queue has finished what was submitted before it
+	// Destruction: deferred until every queue has finished the frame it was destroyed in
 	//
 
 	readonly struct Garbage( ulong graphics, ulong compute, Action free )
@@ -911,16 +911,38 @@ public sealed unsafe partial class Device
 
 	readonly List<Garbage> garbage = new();
 
+	/// <summary>What was destroyed this frame, tagged when the frame closes.</summary>
+	readonly List<Action> destroyedThisFrame = new();
+
 	/// <summary>
-	/// Free something once the GPU has finished everything submitted so far.
+	/// Free something once the GPU has finished the frame it was destroyed in: every list of the frame, those still
+	/// recording or held for a later submission as well as those submitted, since any of them may use it. A frame's lists
+	/// all have their timeline values once <see cref="BeginFrame"/> has flushed them, so it's tagged then.
 	/// </summary>
 	internal void Defer( Action free )
 	{
-		lock ( garbage ) garbage.Add( new Garbage( graphicsQueue.Submitted, computeQueue.Submitted, free ) );
+		lock ( garbage ) destroyedThisFrame.Add( free );
+	}
+
+	/// <summary>The queues' values what was destroyed in the frame <see cref="BeginFrame"/> last closed waits for, for the tests.</summary>
+	internal (ulong Graphics, ulong Compute) LastGarbageTag { get; private set; }
+
+	/// <summary>Tag what was destroyed this frame with every queue's last value, once the frame's lists are all submitted.</summary>
+	void TagDestroyed()
+	{
+		lock ( garbage )
+		{
+			if ( destroyedThisFrame.Count == 0 ) return;
+			var (graphics, compute) = (graphicsQueue.Submitted, computeQueue.Submitted);
+			foreach ( var free in destroyedThisFrame ) garbage.Add( new Garbage( graphics, compute, free ) );
+			destroyedThisFrame.Clear();
+			LastGarbageTag = (graphics, compute);
+		}
 	}
 
 	void CollectGarbage( bool force = false )
 	{
+		if ( force ) TagDestroyed();
 		var graphics = graphicsQueue.Completed;
 		var compute = computeQueue.Completed;
 
