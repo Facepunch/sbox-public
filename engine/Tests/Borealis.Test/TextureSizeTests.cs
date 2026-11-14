@@ -89,4 +89,48 @@ public class TextureSizeTests
 		Assert.AreEqual( 3, system.GetFeature<MeshRenderFeature>().RunsFor( system.MainPass ).Opaque.Single().Count );
 		Assert.AreEqual( (int)(4 * (500.0f / 19.0f)), forward[0].TextureSize );
 	}
+
+	/// <summary>
+	/// Aggregates the GPU culls are sized on a worker (<see cref="AggregateSizes"/>) as the CPU's own cull sizes them: the
+	/// largest size of the fragments in view, one answer per material, taken once.
+	/// </summary>
+	[TestMethod]
+	public void WorkerSizesAggregatesAsTheCpuCullDoes()
+	{
+		using var material = new HeadlessMaterial( "ground", "complex" );
+		var mesh = new RenderMesh( new HeadlessMesh( "ground" ), UnitBox, [[new RenderMesh.Draw( 0, 0, 0, 36, 24, 0, material )]] );
+		foreach ( var density in new[] { 0.0f, 4.0f } )
+		{
+			var world = new RenderWorld();
+			var aggregate = new AggregateObject( mesh,
+			[
+				AggregateTests.Fragment( 0, new Vector3( 20, 0, 0 ) ) with { UvDensity = density },
+				AggregateTests.Fragment( 1, new Vector3( 60, 2, 0 ) ) with { UvDensity = density * 2 },
+				AggregateTests.Fragment( 2, new Vector3( -20, 0, 0 ) ) with { UvDensity = density * 8 },
+			] );
+			world.Add( aggregate );
+
+			using var system = new RenderSystem();
+			Borealis.Shadows.ShadowMapper.ResetCache();
+			CollectAndPrepare( system, world, LookingDownX() );
+			var feature = system.GetFeature<AggregateRenderFeature>();
+			var expected = feature.BatchesFor( system.MainPass ).Single().TextureSize;
+			Assert.IsTrue( expected > 0 );
+
+			var sizes = new AggregateSizes();
+			sizes.Start( world, system.MainPass, system.MainPass.Visible( feature ) );
+			var asked = new System.Collections.Generic.List<(GpuMaterial Material, int Size)>();
+			for ( int i = 0; i < 1000 && asked.Count == 0; i++ )
+			{
+				sizes.Take( ( m, s ) => asked.Add( (m, s) ) );
+				if ( asked.Count == 0 ) System.Threading.Thread.Sleep( 5 );
+			}
+
+			Assert.AreSame( aggregate.Mesh.DrawsForLod( 0 )[0].Material, asked.Single().Material );
+			Assert.AreEqual( expected, asked.Single().Size, $"UV density {density}" );
+
+			sizes.Take( ( m, s ) => asked.Add( (m, s) ) );
+			Assert.AreEqual( 1, asked.Count, "an answer is taken once" );
+		}
+	}
 }

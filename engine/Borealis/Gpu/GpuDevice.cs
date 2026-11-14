@@ -78,10 +78,21 @@ public abstract class GpuDevice
 	internal virtual bool DrawsAggregatesGpuDriven => false;
 
 	/// <summary>
-	/// Whether, drawing aggregates GPU-driven, it also culls their fragments on the GPU and reads no texture sizes, so
-	/// preparing a view needn't cull or size them fragment by fragment.
+	/// Whether, drawing aggregates GPU-driven, it also culls their fragments on the GPU, so preparing a view needn't cull or
+	/// size them fragment by fragment (a worker sizes them for texture streaming instead).
 	/// </summary>
 	internal virtual bool CullsAggregatesGpuDriven => false;
+
+	/// <summary>
+	/// Whether it streams textures by the sizes draws ask for, so what draws without a size of its own should give one
+	/// through <see cref="AddTextureSizes"/>.
+	/// </summary>
+	internal virtual bool StreamsTextures => false;
+
+	/// <summary>Take texture sizes from <paramref name="source"/> every frame, for streaming; nothing on a device that doesn't stream.</summary>
+	internal virtual void AddTextureSizes( ITextureSizeSource source )
+	{
+	}
 
 	/// <summary>Whether static meshes' opaque draws join the aggregates' GPU-driven call (<see cref="DrawsAggregatesGpuDriven"/> too).</summary>
 	internal virtual bool DrawsMeshesGpuDriven => false;
