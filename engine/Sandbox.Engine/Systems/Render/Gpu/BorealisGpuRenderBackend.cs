@@ -329,7 +329,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		if ( System.IO.File.Exists( sky ) ) services.MapLightmapParameters( $"maps/{map}_sky" );
 
 		// The process's video memory as the map's world is made (both devices: Source 2 still loads the map's lightmaps)
-		Log.Info( $"Borealis.Gpu memory at {System.IO.Path.GetFileName( vpk )}: {gpu.DescribeMemory()}" );
+		Log.Info( $"Borealis.Gpu memory at {System.IO.Path.GetFileName( vpk )}: {gpu.DescribeMemory()}{(services.DescribeStreaming() is { } streaming ? $"; {streaming}" : "")}" );
 	}
 
 	void AddPackage( string vpk )

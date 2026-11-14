@@ -453,6 +453,7 @@ internal partial class ShadowMapper
 		if ( FarCascadeCache && !FreezeFarCascade && cascadeCount > 1 && !View.IsReflection && View.Camera is not null )
 		{
 			far = FarCascadeFor( View.Camera, shadowmapSize );
+			FarCacheMap = far.Cache;
 			cascades[^1] = FitFarCascade( far, light, staticFilter, new RenderWorldChanges( light.StaticChanges, light.SettledChanges ), out farFit );
 		}
 

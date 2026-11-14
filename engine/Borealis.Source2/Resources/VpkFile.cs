@@ -108,6 +108,29 @@ public sealed class VpkFile : IDisposable
 		return data;
 	}
 
+	/// <summary>
+	/// The first <paramref name="most"/> bytes of a file (all of it when it's shorter), or null when it isn't in the
+	/// package.
+	/// </summary>
+	public byte[] ReadPrefix( string file, long most )
+	{
+		if ( !entries.TryGetValue( Normalise( file ), out var entry ) ) return null;
+
+		var data = new byte[(int)Math.Min( entry.PreloadLength + (long)entry.Length, Math.Max( most, 0 ) )];
+		var preload = Math.Min( entry.PreloadLength, data.Length );
+		tree.AsSpan( entry.PreloadOffset, preload ).CopyTo( data );
+		if ( preload == data.Length ) return data;
+
+		lock ( sync )
+		{
+			var stream = Archive( entry.Archive );
+			stream.Position = (entry.Archive == InDirectory ? dataStart : 0) + entry.Offset;
+			stream.ReadExactly( data.AsSpan( preload ) );
+		}
+
+		return data;
+	}
+
 	FileStream Archive( int index )
 	{
 		if ( archives.TryGetValue( index, out var open ) ) return open;

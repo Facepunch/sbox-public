@@ -143,6 +143,7 @@ internal sealed partial class BackendContext
 		for ( int i = 0; i < batches.Length; i++ )
 		{
 			ref readonly var batch = ref batches[i];
+			if ( batch.TextureSize > 0 ) device.AskTextures( batch.Material, batch.TextureSize );
 
 			// A surface material: its own GPU-driven passes, in buckets of its own (BackendContext.Surfaces.cs)
 			if ( batch.Material is SurfaceMaterial surface )
@@ -497,11 +498,6 @@ internal sealed partial class BackendContext
 				SetObjectAttributes( null, bucket.Attributes );
 				NextPassState( cache );
 
-				// What its stages' material records read of the attributes: the same for each of its batches
-				var vertexAttributes = bucket.Surface is null && bucket.Variant.Vertex is { } vertexStage ? AttributeHash( vertexStage ) : 0;
-				var pixelAttributes = bucket.Surface is null && !bucket.DepthOnly && bucket.Variant.Pixel is { } pixelStage ? AttributeHash( pixelStage ) : 0;
-				var stages = (object)bucket.Surface ?? bucket.Variant;
-
 				// The prepass draws ids with each bucket's own variant, whose pixel shader writes them where it covers; a depth
 				// bucket without one (opaque depth_only) with borealis_gpu_driven_ids, when its vertices need only their positions
 				var ownPixel = bucket.Surface is not null ? bucket.Surface.Pass.Pixel is not null : bucket.Variant.Pixel?.Bytecode is not null && bucket.Variant.Pixel.GpuDriven;
@@ -522,6 +518,13 @@ internal sealed partial class BackendContext
 					var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
 					if ( bucket.Classic is not null && !ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) bucket.Ids = bucket.IdsShader = false;
 				}
+
+				// What its stages' material records read of the attributes: the same for each of its batches. A depth-only
+				// bucket has a pixel record only when it draws ids with its own pixel shader, which its depth pass strips
+				var pixelRecord = !bucket.DepthOnly || bucket.Ids && !bucket.IdsShader;
+				var vertexAttributes = bucket.Surface is null && bucket.Variant.Vertex is { } vertexStage ? AttributeHash( vertexStage ) : 0;
+				var pixelAttributes = bucket.Surface is null && pixelRecord && bucket.Variant.Pixel is { } pixelStage ? AttributeHash( pixelStage ) : 0;
+				var stages = (object)bucket.Surface ?? bucket.Variant;
 
 				foreach ( var (_, index) in bucket.Batches )
 				{
@@ -571,7 +574,7 @@ internal sealed partial class BackendContext
 						ref var kept = ref memoTaken ? ref memo.At( record ) : ref unkept;
 						var version = MaterialVersion( material );
 						var visible = visibility is not null;
-						if ( memoTaken && ReferenceEquals( kept.Material, material ) && kept.Version == version && ReferenceEquals( kept.Stages, stages ) && kept.DepthOnly == bucket.DepthOnly
+						if ( memoTaken && ReferenceEquals( kept.Material, material ) && kept.Version == version && ReferenceEquals( kept.Stages, stages ) && kept.DepthOnly == bucket.DepthOnly && kept.PixelRecord == pixelRecord
 							&& kept.VertexAttributes == vertexAttributes && kept.PixelAttributes == pixelAttributes && ReferenceEquals( kept.Owner, aggregate ) && kept.Fragments == fragmentCount
 							&& kept.Flags == flags && kept.Pooled == pooled && ReferenceEquals( kept.Layout, geometry.Layout ) && ReferenceEquals( kept.Classic, bucket.Classic ) && kept.Positions == positions && kept.Visibility == visible )
 						{
@@ -591,6 +594,7 @@ internal sealed partial class BackendContext
 								Version = version,
 								Stages = stages,
 								DepthOnly = bucket.DepthOnly,
+								PixelRecord = pixelRecord,
 								VertexAttributes = vertexAttributes,
 								PixelAttributes = pixelAttributes,
 								Owner = aggregate,

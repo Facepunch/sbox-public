@@ -8,7 +8,7 @@ namespace Borealis.Features;
 /// fragments on the CPU, then its visible fragments are one multi-draw, occlusion culled fragment by fragment in the main
 /// view. Aggregates are opaque, so they draw wherever the opaque runs do.
 /// </summary>
-internal sealed class AggregateRenderFeature : RenderFeature
+internal sealed partial class AggregateRenderFeature : RenderFeature
 {
 	/// <summary>
 	/// An aggregate's fragments visible in a view: their args in the frame's args buffer, and their occlusion cull run's, or -1.
@@ -92,9 +92,10 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		var objectExtents = world.BoundsExtents;
 		var occlusion = !shadow && Occlusion is { CullsFragments: true } culler ? culler : null;
 
-		// The GPU culls each fragment of what it draws GPU-driven, and this device reads no texture sizes: every fragment's
-		// args, for a batch it leaves to the classic path, without testing or sizing them one by one
+		// The GPU culls each fragment of what it draws GPU-driven: every fragment's args, for a batch it leaves to the classic
+		// path, without testing or sizing them one by one; a worker sizes them for texture streaming (AggregateRenderFeature.Sizes.cs)
 		var gpuCulls = state.OneRun && RenderHost.Current.Device.CullsAggregatesGpuDriven;
+		var gpuCulledSize = gpuCulls ? GpuCulledSize( pass, world, visible ) : 0;
 
 		foreach ( var index in CollectionsMarshal.AsSpan( visible ) )
 		{
@@ -119,7 +120,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 
 				if ( argCount == first ) continue;
 				WriteTransforms( aggregate, index, versions[index], transforms );
-				batches.Add( new Batch( aggregate, first, argCount - first, -1, indices / 3, SortKey( aggregate ), TextureSizes.All ) );
+				batches.Add( new Batch( aggregate, first, argCount - first, -1, indices / 3, SortKey( aggregate ), gpuCulledSize ) );
 				continue;
 			}
 
@@ -442,7 +443,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 			}
 
 			var attributes = !depth && batch.Aggregate.Lightmapped ? batch.Aggregate.LightmapAttributes : null;
-			list[count++] = new GpuContext.GpuDrivenBatch( material, batch.Aggregate.Mesh, draws[0], attributes, strip, batch.FirstArg, batch.Count, batch.Aggregate.FirstInstance, batch.Triangles, batch.Aggregate );
+			list[count++] = new GpuContext.GpuDrivenBatch( material, batch.Aggregate.Mesh, draws[0], attributes, strip, batch.FirstArg, batch.Count, batch.Aggregate.FirstInstance, batch.Triangles, batch.Aggregate, TextureSize: batch.TextureSize );
 		}
 
 		// Then the mesh draws, each its instances

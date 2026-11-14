@@ -165,6 +165,29 @@ public class DeviceTests : GpuTest
 	}
 
 	/// <summary>
+	/// Writes in a deferred-uploads scope go with the next submission instead of waiting each, and work submitted after the
+	/// scope reads them.
+	/// </summary>
+	[TestMethod]
+	public void DeferredUploadsArriveBeforeLaterWork()
+	{
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = 4096, Usage = BufferUsage.Storage, Name = "Written" } );
+		var readback = Device.CreateBuffer( new BufferInfo { Size = 4096, Memory = MemoryLocation.Readback, Name = "Readback" } );
+		var values = Enumerable.Range( 0, 1024 ).Select( i => (uint)(i * 7 + 3) ).ToArray();
+
+		var before = Device.Submissions;
+		using ( Device.DeferUploads() ) Device.WriteBuffer<uint>( buffer, values );
+		Assert.AreEqual( before, Device.Submissions, "a deferred write submits nothing by itself" );
+
+		var copy = Device.BeginCommandList( QueueType.Graphics, "Copy" );
+		copy.CopyBuffer( buffer, 0, readback, 0, 4096 );
+		copy.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+		Device.Wait( Device.Submit( copy ) );
+
+		CollectionAssert.AreEqual( values, MemoryMarshal.Cast<byte, uint>( Device.Map( readback ) ).ToArray() );
+	}
+
+	/// <summary>
 	/// Lists submitted later go to the GPU together, in order, in one submission: with the next list submitted normally,
 	/// or when something waits for them.
 	/// </summary>
