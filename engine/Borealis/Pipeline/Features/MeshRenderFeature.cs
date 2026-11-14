@@ -156,6 +156,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		/// </summary>
 		public readonly List<DrawItem> GpuDriven = new();
 
+		/// <summary>
+		/// <see cref="GpuDriven"/> holds frame-buffer readers too, which stay in the opaque list for colour layers: depth and
+		/// shadow layers draw them GPU-driven, colour layers here, so the frame copy they read is taken where it was.
+		/// </summary>
+		public bool ReadersTaken;
+
 		/// <summary>Each static overlay run's render order, by run (<see cref="StaticOverlay"/>).</summary>
 		public readonly List<int> OverlayOrders = new();
 
@@ -166,6 +172,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			foreach ( var list in ItemsByBit )
 				list.Clear();
 			GpuDriven.Clear();
+			ReadersTaken = false;
 			OverlayOrders.Clear();
 			Custom = 0;
 			Callbacks = 0;
@@ -504,8 +511,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 	/// <summary>
 	/// Move the opaque list's draws the GPU-driven path can take into <see cref="RunLists.GpuDriven"/>: static meshes'
-	/// instances with nothing per object but their lighting (no attributes, callbacks, skinning, frame copy or culled
-	/// arguments), which the aggregates' feature hands the device with its own batches.
+	/// instances with nothing per object but their lighting (no attributes, callbacks, skinning or culled arguments),
+	/// which the aggregates' feature hands the device with its own batches. Frame-buffer readers are taken too but stay in
+	/// the list as well (<see cref="RunLists.ReadersTaken"/>): only depth and shadow layers draw them GPU-driven.
 	/// </summary>
 	static void TakeGpuDriven( RunLists layers )
 	{
@@ -516,10 +524,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		{
 			var item = items[i];
 			ref readonly var run = ref runs[item.Run];
-			if ( run.Custom is null && run.Callbacks is null && !run.Skinned && !run.Deformed && !run.Morphable && !run.ReadsFrameBuffer && run.CullDraw < 0 && run.Attributes is null )
+			if ( TakesGpuDriven( run ) )
 			{
 				layers.GpuDriven.Add( item );
-				continue;
+				if ( !run.ReadsFrameBuffer ) continue;
+				layers.ReadersTaken = true;
 			}
 
 			items[kept++] = item;
@@ -527,6 +536,15 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		CollectionsMarshal.SetCount( items, kept );
 	}
+
+	/// <summary>Whether <see cref="TakeGpuDriven"/> takes a run: nothing per object but its lighting.</summary>
+	static bool TakesGpuDriven( in Run run ) => run.Custom is null && run.Callbacks is null && !run.Skinned && !run.Deformed && !run.Morphable && run.CullDraw < 0 && run.Attributes is null;
+
+	/// <summary>Whether a draw <see cref="TakeGpuDriven"/> took reads the frame buffer, which colour layers draw here instead.</summary>
+	internal bool ReadsFrameBuffer( ViewPass view, DrawItem item ) => CollectionsMarshal.AsSpan( view.State<RunLists>( this ).Opaque )[item.Run].ReadsFrameBuffer;
+
+	/// <summary>Whether the view's GPU-driven draws include frame-buffer readers (<see cref="RunLists.ReadersTaken"/>).</summary>
+	internal bool ReadersTaken( ViewPass view ) => view.State<RunLists>( this ).ReadersTaken;
 
 	/// <summary>
 	/// For the aggregates' feature: a GPU-driven draw of <see cref="RunLists.GpuDriven"/> as its batch would be, with the
@@ -1222,6 +1240,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var mode = layer.ShaderMode;
 		var shadow = layer.LayerType == MeshLayerType.Shadow;
 		var translucentLayer = layer.LayerType == MeshLayerType.Translucent;
+
+		// Frame-buffer readers the GPU-driven path took draw there in depth and shadow layers (RunLists.ReadersTaken)
+		var skipReaders = !left && list == MeshRuns.Opaque && (depth || view.IsShadow) && view.State<RunLists>( this ).ReadersTaken;
 		var depthBias = shadow ? view.DepthBias : 0;
 		var slopeBias = shadow ? view.SlopeScaledDepthBias : 0;
 
@@ -1240,6 +1261,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		{
 			ref readonly var run = ref runs[item.Run];
 			if ( culledOnly && run.CullDraw < 0 ) continue;
+			if ( skipReaders && run.ReadsFrameBuffer && TakesGpuDriven( run ) ) continue;
 			if ( context.Census ) context.CensusNote = CensusNote( run, list, left );
 
 			// Around each stretch of an object's draws in colour layers: its after-work when another object's draw comes,

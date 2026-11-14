@@ -569,6 +569,85 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// A static mesh that reads the frame buffer copy draws GPU-driven where it only writes depth (the prepass, here) and
+	/// the classic way in colour layers, where its copy is taken: the frame is the classic path's.
+	/// </summary>
+	[TestMethod]
+	public void FrameBufferReadersDrawDepthGpuDriven()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = false, GpuDrivenMeshes = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven reader test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 0;
+
+			var (aggregate, fragments) = Boxes( backend, backend.CreateMaterial( "Reader test boxes", new Color( 0.8f, 0.6f, 0.4f ) ), 0 );
+			world.Add( new AggregateObject( aggregate, fragments ) );
+			var (reader, _) = Boxes( backend, backend.CreateMaterial( "Reader boxes", new Color( 0.3f, 0.7f, 0.4f ) ), 120 );
+			world.Add( new MeshObject( reader, Transform.Zero ) { WantsFrameBufferCopy = true } );
+			var (plain, _) = Boxes( backend, backend.CreateMaterial( "Plain mesh boxes", new Color( 0.4f, 0.5f, 0.9f ) ), -120 );
+			world.Add( new MeshObject( plain, Transform.Zero ) );
+
+			var view = new RenderView { Name = "Readers", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			byte[] Frame( bool gpuDriven, DrawCensus census = null )
+			{
+				backend.GpuDriven = gpuDriven;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				backend.Census = census;
+				try
+				{
+					system.Render( world, view, target );
+				}
+				finally
+				{
+					backend.Census = null;
+				}
+
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			var classic = Frame( false );
+			Frame( true );
+			var census = new DrawCensus();
+			var driven = Frame( true, census );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.AreEqual( 0, Different( classic, driven ), "the classic pixels" );
+
+			var readers = census.Draws.Where( d => d.Path == DrawCensus.Path.Classic && d.Kind.Contains( "frame buffer", StringComparison.Ordinal ) ).ToArray();
+			Assert.IsFalse( readers.Any( d => d.Pass.EndsWith( "Depth Prepass", StringComparison.Ordinal ) ), "the reader's depth isn't drawn the classic way" );
+			Assert.IsTrue( readers.Any( d => d.Pass.EndsWith( "Opaque Forward", StringComparison.Ordinal ) ), "its colour is" );
+			Assert.IsFalse( census.Draws.Any( d => d.Path == DrawCensus.Path.Classic && d.Pass.EndsWith( "Depth Prepass", StringComparison.Ordinal ) ), "nothing in the prepass draws the classic way" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A shader with no variant beside it (a package's) gets one from the library's compiler: none while it compiles,
 	/// then the compiled one, cached, so another library loads it without compiling.
 	/// </summary>
