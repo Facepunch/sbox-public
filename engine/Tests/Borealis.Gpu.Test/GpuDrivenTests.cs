@@ -569,6 +569,60 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// A depth-only bucket (its depth pass strips the pixel shader) that draws its ids with its variant's pixel shader has a
+	/// pixel material record for it: an alpha-tested generic material on boxes whose draws aren't flagged alpha-tested read
+	/// texture slots from record 0 there, another material's words, which lost the device. (Its ids pass alpha-tests where
+	/// the stripped depth pass doesn't, so its cut-out pixels aren't the classic ones; frames with ids draw alike.)
+	/// </summary>
+	[TestMethod]
+	public void DepthOnlyBucketsDrawingIdsHaveAPixelRecord()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDrivenVisibility = true };
+		backend.Surfaces.ConvertShaders = false;
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			if ( ((GpuDevice)backend).LoadMaterial( "models/vr/autochap_hand.vmat" ) is not BackendMaterial { Shader: not null } material ) { Assert.Inconclusive( "models/vr/autochap_hand.vmat isn't compiled" ); return; }
+			if ( backend.Shaders.GpuDriven( material.Shader ) is null ) Assert.Inconclusive( "generic.shader has no GPU-driven variant: ShaderCompiler -gpudriven" );
+
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven depth-only ids test" );
+			var world = new RenderWorld();
+			var (mesh, fragments) = Boxes( backend, material, 0 );
+			world.Add( new AggregateObject( mesh, fragments ) );
+			var view = new RenderView { Name = "GPU-driven depth-only ids test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			// The view's second frame is the first to draw ids
+			byte[] Frame()
+			{
+				backend.GpuDriven = true;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			Frame();
+			var ids = Frame();
+			var again = Frame();
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.AreEqual( 0, Different( ids, again ), "frames with ids draw alike" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A shader with no variant beside it (a package's) gets one from the library's compiler: none while it compiles,
 	/// then the compiled one, cached, so another library loads it without compiling.
 	/// </summary>
