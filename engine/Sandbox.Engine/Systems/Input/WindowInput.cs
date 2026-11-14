@@ -93,6 +93,9 @@ internal static class WindowInput
 
 		var window = InputWindow;
 		value &= active && focused;
+		if ( value && !relative && OperatingSystem.IsLinux() && editorWindow != IntPtr.Zero && Sdl.GetGlobalMouseState( out _, out _ ) != 0 )
+			return;
+
 		var actual = SdlWindow.SetRelativeMouseMode( window, value );
 		if ( relative == actual ) return;
 		relative = actual;
