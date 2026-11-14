@@ -569,6 +569,57 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// A frame whose draws are a few GPU-driven runs of many draws each (here, one run of 100 static overlays) still
+	/// records on workers: the parallel threshold counts draws, not runs.
+	/// </summary>
+	[TestMethod]
+	public void HeavyGpuDrivenRunsRecordOnWorkers()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenOverlays = true };
+		if ( backend.Shaders.GpuDriven( backend.Shaders.Load( "shaders/complex.shader" ) ) is null ) Assert.Inconclusive( "complex has no GPU-driven variant: ShaderCompiler -gpudriven" );
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = true };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Heavy run test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunShadowCascades = 0;
+			// A mesh each, so they're 100 draws rather than one draw of 100 instances
+			var material = backend.CreateMaterial( "Heavy run overlays", new Color( 0.8f, 0.6f, 0.4f ) );
+			for ( int i = 0; i < 100; i++ )
+			{
+				var (mesh, _) = Boxes( backend, material, 0 );
+				world.Add( new MeshObject( mesh, new Transform( new Vector3( i % 10 * 30 - 150, i / 10 * 30 - 150, 0 ) ) ) { LayerMatch = LayerMatch.StaticOverlay } );
+			}
+
+			var view = new RenderView { Name = "Heavy run", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			var workerMs = 0.0;
+			for ( int i = 0; i < 5; i++ )
+			{
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				workerMs += system.Stats.WorkerRecordMs;
+			}
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.IsTrue( workerMs > 0, "the overlays' run recorded on a worker" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A static mesh that reads the frame buffer copy draws GPU-driven, its depth and its colour: nothing draws the classic
 	/// way in the prepass or the opaque pass, and the frame is the classic path's.
 	/// </summary>
