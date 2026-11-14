@@ -280,6 +280,30 @@ public partial class TerrainEditorTool : EditorTool
 		}
 	}
 
+	// What each terrain was last written as, or read as when its scene opened
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TerrainStorage, string> savedTerrains = new();
+	static Scene baselineScene;
+
+	/// <summary>
+	/// Records what a scene's terrains are on disk when it becomes active. A scene with unsaved changes may already
+	/// hold terrain edits, so it gets no baseline and its next save writes.
+	/// </summary>
+	[EditorEvent.Frame]
+	static void BaselineTerrains()
+	{
+		var session = SceneEditorSession.Active;
+		var scene = session?.Scene;
+		if ( scene == baselineScene ) return;
+		baselineScene = scene;
+		if ( scene is null || session.HasUnsavedChanges ) return;
+
+		foreach ( var terrain in scene.Components.GetAll<Terrain>( FindMode.EverythingInDescendants ) )
+		{
+			if ( terrain.Storage is null || string.IsNullOrEmpty( terrain.Storage.ResourcePath ) ) continue;
+			if ( !savedTerrains.TryGetValue( terrain.Storage, out _ ) ) savedTerrains.Add( terrain.Storage, State( terrain.Storage ) );
+		}
+	}
+
 	[Event( "scene.saved" )]
 	static void OnSceneSaved( Scene scene )
 	{
@@ -288,10 +312,28 @@ public partial class TerrainEditorTool : EditorTool
 			if ( terrain.Storage is null ) continue;
 			if ( string.IsNullOrEmpty( terrain.Storage.ResourcePath ) ) continue;
 
+			// A terrain added to the scene after it opened has no baseline yet, so its first save writes it
+			var state = State( terrain.Storage );
+			if ( savedTerrains.TryGetValue( terrain.Storage, out var saved ) && saved == state ) continue;
+
 			var asset = AssetSystem.FindByPath( terrain.Storage.ResourcePath );
-			asset?.SaveToDisk( terrain.Storage );
+			if ( asset?.SaveToDisk( terrain.Storage ) == true ) savedTerrains.AddOrUpdate( terrain.Storage, state );
 		}
 	}
+
+	/// <summary>
+	/// Everything a terrain saves: the maps as their revision, the settings compared outright. A setting added to
+	/// <see cref="TerrainStorage"/> has to be added here, or changing only it won't save the terrain.
+	/// </summary>
+	static string State( TerrainStorage storage ) => Json.Serialize( new
+	{
+		storage.MapsRevision,
+		storage.Resolution,
+		storage.TerrainSize,
+		storage.TerrainHeight,
+		Materials = storage.Materials.Select( x => x?.ResourcePath ),
+		storage.MaterialSettings,
+	} );
 }
 
 /// <summary>
