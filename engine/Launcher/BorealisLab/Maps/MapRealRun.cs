@@ -121,6 +121,14 @@ internal static class MapRealRun
 		using var passTimer = Args.Has( "-passes" ) || Args.Has( "-pass-stats" ) ? new PassTimer( gpu, statistics: Args.Has( "-pass-stats" ) ) : null;
 		map.Backend.PassTimer = passTimer;
 		map.Backend.BatchSubmits = !Args.Has( "-no-batch" );
+
+		// -full-barriers: every barrier waits for all GPU work, as before exact stages; -carry-scopes: worker lists splitting
+		// one view's layer keep one rendering scope (BackendDevice.CarryScopes)
+		map.Backend.ExactBarriers = !Args.Has( "-full-barriers" );
+		map.Backend.CarryScopes = Args.Has( "-carry-scopes" );
+
+		// -fixed-time S: shader time S seconds every frame, so captures from separate runs can be compared pixel for pixel
+		if ( Args.String( "-fixed-time" ) is { } fixedTime && float.TryParse( fixedTime, System.Globalization.CultureInfo.InvariantCulture, out var seconds ) ) map.Time = seconds;
 		map.Backend.Shaders.ShareVariants = !Args.Has( "-no-share-variants" );
 		var passes = new PassTotals();
 		var timings = new List<PassTimer.Timing>();
@@ -179,10 +187,10 @@ internal static class MapRealRun
 		}
 
 		var lines = new List<string>();
-		var csv = new StringBuilder( "view,variant,parallel,material_objects,shadows,frames,wait_ms,render_ms,collect_ms,prepare_ms,setup_ms,record_ms,worker_record_ms,stages_ms,submit_ms,copy_ms,cpu_ms,frame_ms,frame_p95_ms,gpu_ms,draws,depth_draws,shadow_draws,translucent_draws,instances,objects_visible,triangles,model_draws,binds,fragment_draws,ns_per_bind,ns_per_repeat,sets_written_per_frame,gcs,object_changes,ns_per_object_change,failed_draws,cpu_mean_ms,frame_mean_ms,gpu_mean_ms,prepass_record_ms,gpudriven,gpudriven_batches,gpudriven_buckets,gpudriven_multidraws\n" );
+		var csv = new StringBuilder( "view,variant,parallel,material_objects,shadows,frames,wait_ms,render_ms,collect_ms,prepare_ms,setup_ms,record_ms,worker_record_ms,stages_ms,submit_ms,copy_ms,cpu_ms,frame_ms,frame_p95_ms,gpu_ms,draws,depth_draws,shadow_draws,translucent_draws,instances,objects_visible,triangles,model_draws,binds,fragment_draws,ns_per_bind,ns_per_repeat,sets_written_per_frame,gcs,object_changes,ns_per_object_change,failed_draws,cpu_mean_ms,frame_mean_ms,gpu_mean_ms,prepass_record_ms,gpudriven,gpudriven_batches,gpudriven_buckets,gpudriven_multidraws,lists,scopes,resumed_scopes,barriers,full_barriers,layout_fixup_lists,scope_pairings\n" );
 		var bindingReport = "";
 		var passTables = new StringBuilder();
-		var passCsv = new StringBuilder( "view,variant,scope,kind,ms,per_frame,primitives,vertex_invocations,fragment_invocations,draws,pipelines,sets,rendering_scopes\n" );
+		var passCsv = new StringBuilder( "view,variant,scope,kind,ms,per_frame,primitives,vertex_invocations,fragment_invocations,draws,pipelines,sets,rendering_scopes,barriers\n" );
 
 		foreach ( var view in options.Views )
 		{
@@ -215,6 +223,8 @@ internal static class MapRealRun
 				var sets = map.Backend.MaterialObjectStats.SetsWritten;
 				var gcs = GC.CollectionCount( 0 );
 				passes.Clear();
+				var recordedBefore = gpu.Recorded;
+				var (fixUpsBefore, pairingsBefore) = (BackendContext.LayoutFixUps, gpu.ScopePairings);
 				var last = Stopwatch.GetTimestamp();
 				for ( int i = 0; i < options.Frames && !window.CloseRequested; i++ )
 				{
@@ -224,6 +234,16 @@ internal static class MapRealRun
 					frameTimes.Add( Stopwatch.GetElapsedTime( last, now ).TotalMilliseconds );
 					last = now;
 				}
+
+				// What the timed frames recorded, per frame: lists, rendering scopes (and of them resumed), barrier calls (and of them
+				// ones waiting for every stage), layout fix-up lists and lists pairing suspended scopes
+				var recorded = gpu.Recorded;
+				double PerFrame( long count ) => count / (double)Math.Max( frames.Count, 1 );
+				var counts = (Lists: PerFrame( recorded.Lists - recordedBefore.Lists ), Scopes: PerFrame( recorded.Scopes - recordedBefore.Scopes ), Resumed: PerFrame( recorded.Resumed - recordedBefore.Resumed ),
+					Barriers: PerFrame( recorded.Barriers - recordedBefore.Barriers ), Full: PerFrame( recorded.FullBarriers - recordedBefore.FullBarriers ),
+					FixUps: PerFrame( BackendContext.LayoutFixUps - fixUpsBefore ), Pairings: PerFrame( gpu.ScopePairings - pairingsBefore ));
+				var countsLine = FormattableString.Invariant( $"{counts.Lists:0.0} lists, {counts.Scopes:0.0} rendering scopes ({counts.Resumed:0.0} resumed), {counts.Barriers:0.0} barriers ({counts.Full:0.0} on every stage), {counts.FixUps:0.0} layout fix-up lists, {counts.Pairings:0.0} scope pairings a frame" );
+				Console.WriteLine( $"{view.Name} {variant.Name}: {countsLine}" );
 
 				if ( global::Borealis.Shadows.ShadowMapper.FarCascadeCache )
 					Console.WriteLine( $"{view.Name} {variant.Name}: far cascade cache drawn {(global::Borealis.Shadows.ShadowMapper.FarCaches.Sum( f => f.Draws ) - farDraws)} times over the warm-up and timed frames" );
@@ -267,17 +287,18 @@ internal static class MapRealRun
 				double Mean( Func<Frame, double> f ) => frames.Select( f ).Where( x => !double.IsNaN( x ) ).DefaultIfEmpty( double.NaN ).Average();
 				var cpu = M( f => f.Render + f.Copy );
 				var line = $"{view.Name,-9} {variant.Name,-22} collect {M( f => f.Collect ),6:0.000} prepare {M( f => f.Prepare ),6:0.000} setup {M( f => f.Setup ),6:0.000} record {M( f => f.Record ),6:0.000} (workers {M( f => f.WorkerRecord ):0.000}, prepass {M( f => f.Prepass ):0.000}) submit {M( f => f.Submit ),6:0.000} render {M( f => f.Render ),6:0.000} copy {M( f => f.Copy ),5:0.000} wait {M( f => f.Wait ),6:0.000} frame {Percentile( frameTimes, 0.5 ),6:0.000} gpu {M( f => f.Gpu ),6:0.000}  "
-					+ $"{stats.Draws}+{stats.DepthDraws} depth+{stats.ShadowDraws} shadow draws ({stats.TranslucentDraws} translucent, {stats.Instances} instances), {stats.ObjectsVisible} objects visible, {stats.Triangles / 1e6:0.00}M tris; {modelDraws} model draws, {binds} binds, {objectChanges} object changes, {fragmentDraws} fragment draws ({nsBind:0} ns a bind, {nsObjectChange:0} ns an object change, {nsRepeat:0} ns a repeat draw, timed), {setsPerFrame:0.0} sets written/frame, {gcs} GCs; {gpuDrivenLine}{(map.System.SkyboxStats is { } sky ? $"3D skybox {sky.Draws}+{sky.DepthDraws} depth draws of {sky.ObjectsVisible} visible objects of {sky.Objects} ({sky.ObjectsFrustumCulled} frustum culled, {sky.ObjectsSizeCulled} size culled, {sky.ObjectsTagCulled} tag culled, {sky.ObjectsOcclusionCulled} occlusion culled)" : "no 3D skybox drawn")}; draws that recorded nothing: {failed}";
+					+ $"{stats.Draws}+{stats.DepthDraws} depth+{stats.ShadowDraws} shadow draws ({stats.TranslucentDraws} translucent, {stats.Instances} instances), {stats.ObjectsVisible} objects visible, {stats.Triangles / 1e6:0.00}M tris; {modelDraws} model draws, {binds} binds, {objectChanges} object changes, {fragmentDraws} fragment draws ({nsBind:0} ns a bind, {nsObjectChange:0} ns an object change, {nsRepeat:0} ns a repeat draw, timed), {setsPerFrame:0.0} sets written/frame, {gcs} GCs; {countsLine}; {gpuDrivenLine}{(map.System.SkyboxStats is { } sky ? $"3D skybox {sky.Draws}+{sky.DepthDraws} depth draws of {sky.ObjectsVisible} visible objects of {sky.Objects} ({sky.ObjectsFrustumCulled} frustum culled, {sky.ObjectsSizeCulled} size culled, {sky.ObjectsTagCulled} tag culled, {sky.ObjectsOcclusionCulled} occlusion culled)" : "no 3D skybox drawn")}; draws that recorded nothing: {failed}";
 				Console.WriteLine( line );
 				lines.Add( line );
-				csv.AppendLine( FormattableString.Invariant( $"{view.Name},{variant.Name},{variant.Parallel},{variant.MaterialObjects},{variant.Shadows},{frames.Count},{M( f => f.Wait ):0.0000},{M( f => f.Render ):0.0000},{M( f => f.Collect ):0.0000},{M( f => f.Prepare ):0.0000},{M( f => f.Setup ):0.0000},{M( f => f.Record ):0.0000},{M( f => f.WorkerRecord ):0.0000},{M( f => f.Stages ):0.0000},{M( f => f.Submit ):0.0000},{M( f => f.Copy ):0.0000},{cpu:0.0000},{Percentile( frameTimes, 0.5 ):0.0000},{Percentile( frameTimes, 0.95 ):0.0000},{M( f => f.Gpu ):0.0000},{stats.Draws},{stats.DepthDraws},{stats.ShadowDraws},{stats.TranslucentDraws},{stats.Instances},{stats.ObjectsVisible},{stats.Triangles},{modelDraws},{binds},{fragmentDraws},{nsBind:0},{nsRepeat:0},{setsPerFrame:0.0},{gcs},{objectChanges},{nsObjectChange:0},{failedDraws},{Mean( f => f.Render + f.Copy ):0.0000},{frameTimes.DefaultIfEmpty( double.NaN ).Average():0.0000},{Mean( f => f.Gpu ):0.0000},{M( f => f.Prepass ):0.0000},{(variant.GpuDriven ? (variant.MaterialBuckets ? "materials" : "onebucket") : "classic")},{t.GpuDrivenBatches / Counted},{t.GpuDrivenBuckets / Counted},{t.GpuDrivenMultiDraws / Counted}" ) );
+				csv.AppendLine( FormattableString.Invariant( $"{view.Name},{variant.Name},{variant.Parallel},{variant.MaterialObjects},{variant.Shadows},{frames.Count},{M( f => f.Wait ):0.0000},{M( f => f.Render ):0.0000},{M( f => f.Collect ):0.0000},{M( f => f.Prepare ):0.0000},{M( f => f.Setup ):0.0000},{M( f => f.Record ):0.0000},{M( f => f.WorkerRecord ):0.0000},{M( f => f.Stages ):0.0000},{M( f => f.Submit ):0.0000},{M( f => f.Copy ):0.0000},{cpu:0.0000},{Percentile( frameTimes, 0.5 ):0.0000},{Percentile( frameTimes, 0.95 ):0.0000},{M( f => f.Gpu ):0.0000},{stats.Draws},{stats.DepthDraws},{stats.ShadowDraws},{stats.TranslucentDraws},{stats.Instances},{stats.ObjectsVisible},{stats.Triangles},{modelDraws},{binds},{fragmentDraws},{nsBind:0},{nsRepeat:0},{setsPerFrame:0.0},{gcs},{objectChanges},{nsObjectChange:0},{failedDraws},{Mean( f => f.Render + f.Copy ):0.0000},{frameTimes.DefaultIfEmpty( double.NaN ).Average():0.0000},{Mean( f => f.Gpu ):0.0000},{M( f => f.Prepass ):0.0000},{(variant.GpuDriven ? (variant.MaterialBuckets ? "materials" : "onebucket") : "classic")},{t.GpuDrivenBatches / Counted},{t.GpuDrivenBuckets / Counted},{t.GpuDrivenMultiDraws / Counted},{counts.Lists:0.00},{counts.Scopes:0.00},{counts.Resumed:0.00},{counts.Barriers:0.00},{counts.Full:0.00},{counts.FixUps:0.00},{counts.Pairings:0.00}" ) );
 			}
 
 			if ( bindingReport.Length == 0 ) bindingReport = DescribeBindings( map.Backend );
 
 			if ( options.Captures is not null )
 			{
-				map.System.ParallelRecording = false;
+				// -capture-parallel: captured recording on workers, as the threaded runs are
+				map.System.ParallelRecording = Args.Has( "-capture-parallel" );
 				map.Backend.MaterialObjects = true;
 				// -capture-shadows: with static geometry casting sun shadows, so GPU-driven shadow views are compared too
 				map.SetCastShadows( Args.Has( "-capture-shadows" ) );
