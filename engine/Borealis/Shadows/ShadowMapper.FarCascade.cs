@@ -39,7 +39,12 @@ internal partial class ShadowMapper
 	/// </summary>
 	const int FarCacheMaxRegions = 8;
 
-	const float CasterExtension = 4096f;
+	/// <summary>
+	/// The cache's depth runs this far either side of the plane across the sun through the world's origin, the same for every
+	/// window, so a texel drawn in one frame means the same in the next wherever the camera is (about 0.02 units of float
+	/// precision at worst over the whole range).
+	/// </summary>
+	internal const float FarCacheDepthRange = 131072f;
 
 	/// <summary>
 	/// One camera's cached far cascade.
@@ -72,9 +77,9 @@ internal partial class ShadowMapper
 		internal long StaticRevision, SettledRevision;
 
 		/// <summary>
-		/// The cell the window it holds is centred on, and its depth range's anchor, in light space.
+		/// The cell the window it holds is centred on, in light space.
 		/// </summary>
-		internal long CellX, CellY, Anchor;
+		internal long CellX, CellY;
 
 		/// <summary>
 		/// The <see cref="SettledCasters"/> stamp it was drawn at: casters that moved after it are drawn on top each frame.
@@ -164,7 +169,7 @@ internal partial class ShadowMapper
 
 	/// <summary>
 	/// Fit the camera's cached far cascade for this frame and work out which of its cells to draw: all of them when it's new,
-	/// the sun has turned <see cref="FarCacheSunDegrees"/>, its settings changed, the camera left its depth range or cast
+	/// the sun has turned <see cref="FarCacheSunDegrees"/>, its settings changed, the camera moved a whole window or cast
 	/// casters have settled; otherwise the strip the camera's move brought in, and the cells changed casters cover.
 	/// </summary>
 	Cascade FitFarCascade( FarCascade far, in ShadowLight light, StaticFilter filter, RenderWorldChanges changes, out FarFit fit )
@@ -191,10 +196,6 @@ internal partial class ShadowMapper
 		var cellX = (long)MathF.Round( Vector3.Dot( camera, right ) / grid );
 		var cellY = (long)MathF.Round( Vector3.Dot( camera, up ) / grid );
 
-		// Depth is kept from a near plane anchored on a grid of the cache's width, so it holds while the camera stays within
-		// half a width of the anchor along the sun
-		var anchor = (long)MathF.Round( Vector3.Dot( camera, forward ) / side );
-		whole |= anchor != far.Anchor;
 		whole |= Math.Abs( cellX - far.CellX ) >= FarCacheCells || Math.Abs( cellY - far.CellY ) >= FarCacheCells;
 
 		// Casters drawn on top every frame have settled: draw them into the cache, but not more often than they settle
@@ -233,7 +234,6 @@ internal partial class ShadowMapper
 			far.ExcludeTags = excludeTags.Length == 0 ? [] : (uint[])excludeTags.Clone();
 			far.SubWorlds = View.SubWorlds;
 			far.Changes = changes;
-			far.Anchor = anchor;
 			far.SettledStamp = SettledCasters.Stamp;
 			far.DrawnAt = RealTime.Now;
 			far.Draws++;
@@ -250,10 +250,9 @@ internal partial class ShadowMapper
 		if ( changes.Static is { } s ) far.StaticRevision = s.Revision;
 		if ( changes.Settled is { } t ) far.SettledRevision = t.Revision;
 
-		// The depth range covers casters from the camera's half-width behind it, back to the extension towards the sun, for
-		// every camera position the anchor keeps
-		var near = anchor * side - side - CasterExtension;
-		var range = side * 2.0f + CasterExtension;
+		// One depth encoding for every window (FarCacheDepthRange)
+		const float near = -FarCacheDepthRange;
+		const float range = FarCacheDepthRange * 2.0f;
 		fit = new FarFit { Whole = whole, Grid = grid, Near = near, Range = range, Regions = farRegions.Count };
 
 		return new Cascade
