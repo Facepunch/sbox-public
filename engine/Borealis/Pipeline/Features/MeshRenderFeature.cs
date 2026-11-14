@@ -156,6 +156,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		/// </summary>
 		public readonly List<DrawItem> GpuDriven = new();
 
+		/// <summary>Each static overlay run's render order, by run (<see cref="StaticOverlay"/>).</summary>
+		public readonly List<int> OverlayOrders = new();
+
 		public void Clear()
 		{
 			foreach ( var list in ByBit )
@@ -163,6 +166,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			foreach ( var list in ItemsByBit )
 				list.Clear();
 			GpuDriven.Clear();
+			OverlayOrders.Clear();
 			Custom = 0;
 			Callbacks = 0;
 			FrameBufferReads = 0;
@@ -488,7 +492,10 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 			Emit( buckets[bit], Lists[bit].Draws, layers.ByBit[bit], world, visibleSpan, transforms, bit == 0 && !pass.IsShadow ? Occlusion : null );
 			BuildItems( layers.ByBit[bit], layers.ItemsByBit[bit], Lists[bit].Sort == ListSort.Batched );
+			if ( Lists[bit].Runs == MeshRuns.StaticOverlay ) RenderOrders( buckets[bit], layers.ByBit[bit], layers.OverlayOrders );
 		}
+
+		overlayTransforms = transforms;
 
 		// Static opaque draws go with the aggregates when the device draws them GPU-driven, as one run (so not while
 		// occlusion culls, which the aggregates' feature then draws batch by batch)
@@ -1160,6 +1167,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal override int RunCount( ViewPass view, MeshLayer layer )
 	{
 		var lists = view.State<RunLists>( this );
+		if ( OverlaysOneRun( layer, lists ) ) return 1;
 		var items = 0;
 		for ( int bit = 0; bit < lists.ItemsByBit.Length; bit++ )
 		{
@@ -1175,6 +1183,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal override void Draw( GpuContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
 	{
 		var lists = view.State<RunLists>( this );
+		if ( OverlaysOneRun( layer, lists ) )
+		{
+			if ( first == 0 && count > 0 ) DrawOverlays( context, view, lists, layer, ref stats );
+			return;
+		}
+
 		var end = first + count;
 
 		// Each list's part of [first, end), in order

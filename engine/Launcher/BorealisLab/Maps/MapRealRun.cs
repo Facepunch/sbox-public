@@ -353,7 +353,9 @@ internal static class MapRealRun
 		census.Resolve( gpu );
 		File.WriteAllText( Path.Combine( folder, $"{name}-draws.csv" ), census.Csv() );
 		File.WriteAllText( Path.Combine( folder, $"{name}-passes.csv" ), census.PassCsv() );
-		var report = census.Report( name );
+		var orders = map.OverlayOrders.ToArray();
+		var report = census.Report( name ) + $"{Environment.NewLine}Static overlay objects: {orders.Sum( o => o.Objects )} in {orders.Length} render orders, at most {(orders.Length == 0 ? 0 : orders.Max( o => o.Objects ))} in one{Environment.NewLine}";
+		File.WriteAllText( Path.Combine( folder, $"{name}-overlay-orders.csv" ), "order,objects" + Environment.NewLine + string.Concat( orders.Select( o => $"{o.Order},{o.Objects}{Environment.NewLine}" ) ) );
 		Console.WriteLine( report );
 		return report;
 	}
