@@ -31,6 +31,10 @@ public static partial class Graphics
 
 			// Models load in the background, as Source 2 streams them, unless -borealisgpu-syncload
 			_borealisGpu.Services.AsyncModels = !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-syncload" );
+
+			// Material textures stream with them, tails first, unless -borealisgpu-nostream; -borealisgpu-texturebudget <MiB> caps them
+			_borealisGpu.Services.StreamTextures = _borealisGpu.Services.AsyncModels && !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nostream" );
+			if ( Sandbox.Utility.CommandLine.GetSwitchInt( "-borealisgpu-texturebudget", 0 ) is > 0 and var budget ) _borealisGpu.Services.TextureBudgetBytes = (long)budget << 20;
 			RenderBackend.SetDefault( _borealisGpu );
 			Log.Info( $"Rendering on Borealis.Gpu ({_borealisGpu.Device.Adapter.Name}){(validation ? ", validation on" : "")}; memory: {_borealisGpu.Device.DescribeMemory()}" );
 		}

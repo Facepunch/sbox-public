@@ -158,6 +158,7 @@ internal sealed partial class BackendContext
 	{
 		if ( mesh.Geometry is not ISkinnedGeometry geometry || geometry.VertexCacheFor( draw.Mesh, draw.DrawCall ) is not { } from ) return false;
 
+		device.AskTextures( material, textureSize );
 		cacheDraw = from;
 		try
 		{

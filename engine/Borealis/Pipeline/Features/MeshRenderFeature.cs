@@ -536,7 +536,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var probe = depth || run.Probe is null || !RenderMesh.NeedsLightProbe( material ) ? null : run.Probe;
 		var lighting = draw.Lightmapped ? (depth ? null : run.Lightmap) : probe;
 		var first = run.FirstInstance + (run.Tinted ? item.Draw * run.Count : 0);
-		return new GpuContext.GpuDrivenBatch( material, run.Mesh, draw, lighting, strip, -1, run.Count, first, (long)(draw.IndexCount / 3) * run.Count, null, Instances: true );
+		var textureSize = TextureSizes.ForDraw( draw.UvDensity, run.TextureScale, run.TextureFallback );
+		return new GpuContext.GpuDrivenBatch( material, run.Mesh, draw, lighting, strip, -1, run.Count, first, (long)(draw.IndexCount / 3) * run.Count, null, Instances: true, TextureSize: textureSize );
 	}
 
 	/// <summary>The view's GPU-driven draws the device left, drawn here as <see cref="DrawItems"/> draws any.</summary>

@@ -30,6 +30,47 @@ public sealed partial class BackendDevice
 	/// </summary>
 	public bool AsyncModels { get; set; }
 
+	/// <summary>
+	/// Whether material textures stream (<see cref="TextureStreamer"/>): made from their tails, with the mips their draws
+	/// ask for read and swapped in later, within video memory's room. Set before loading anything.
+	/// </summary>
+	public bool StreamTextures { get; set; }
+
+	/// <summary>A budget in bytes for streamed textures, or 0 for as much as video memory has room for.</summary>
+	public long TextureBudgetBytes
+	{
+		get => Streamer.BudgetBytes;
+		set => Streamer.BudgetBytes = value;
+	}
+
+	TextureStreamer streamer;
+
+	internal TextureStreamer Streamer => streamer ??= new TextureStreamer( this );
+
+	/// <summary>
+	/// Whether streamed textures still want mips they don't hold and have room for, or have builds in flight. What
+	/// measures or compares frames waits until it's false, as for <see cref="LoadingModels"/>.
+	/// </summary>
+	public bool StreamingTextures => streamer is { } s && s.Waiting > 0;
+
+	/// <summary>Streamed textures, for the window's stats: how many, their bytes now and at the mips they want, builds in flight.</summary>
+	public string DescribeStreaming() => streamer is not { } s ? null
+		: $"streamed textures {s.Count}, {s.ResidentBytes >> 20} MiB resident, {s.WantedBytes >> 20} MiB wanted, {s.BuildsInFlight} building, {s.GivenBack} given back";
+
+	/// <summary>Streamed textures' bytes now and at the mips they want, and builds in flight; null when nothing streams.</summary>
+	public (long Resident, long Wanted, int Building)? StreamingStats => streamer is { } s ? (s.ResidentBytes, s.WantedBytes, s.BuildsInFlight) : null;
+
+	/// <summary>A draw's texture size (<c>TextureSizes</c>) for its material's streamed textures, from any recording thread.</summary>
+	internal void AskTextures( GpuMaterial material, int size )
+	{
+		if ( streamer is not { } s ) return;
+		switch ( material )
+		{
+			case BackendMaterial m: m.Asks.Ask( s, size ); break;
+			case SurfaceMaterial m: m.Asks.Ask( s, size ); break;
+		}
+	}
+
 	/// <summary>Main thread time each frame may spend making models whose files have been read (<see cref="LoadModelAsync"/>).</summary>
 	public double LoadBudgetMs { get; set; } = 6;
 
@@ -195,10 +236,10 @@ public sealed partial class BackendDevice
 
 		// Its shader too: the first load of one reads a large file, and a package's may recompile
 		if ( !string.IsNullOrEmpty( file.Shader ) ) Shaders.Load( file.Shader );
-		foreach ( var (_, texture) in file.Textures ) ReadTextureAhead( texture );
+		foreach ( var (_, texture) in file.Textures ) ReadTextureAhead( texture, tail: StreamTextures );
 	}
 
-	void ReadTextureAhead( string path )
+	void ReadTextureAhead( string path, bool tail = false )
 	{
 		if ( string.IsNullOrEmpty( path ) || readTextures.ContainsKey( path ) ) return;
 		lock ( loadedTextures )
@@ -208,7 +249,10 @@ public sealed partial class BackendDevice
 
 		try
 		{
-			if ( Content.TryRead( path ) is { } data && TextureFile.Read( data ) is { } texture ) readTextures.TryAdd( path, texture );
+			// A streamed texture's tail, unless it doesn't stream
+			var texture = tail ? TextureStreamer.ReadMips( Content, path, TextureFile.Tail ) : null;
+			if ( texture is null || (texture.TopMip > 0 && !TextureStreamer.Streams( texture )) ) texture = Content.TryRead( path ) is { } data ? TextureFile.Read( data ) : null;
+			if ( texture is not null ) readTextures.TryAdd( path, texture );
 		}
 		catch ( InvalidDataException )
 		{
