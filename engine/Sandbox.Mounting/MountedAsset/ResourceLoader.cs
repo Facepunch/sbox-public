@@ -62,31 +62,67 @@ public abstract class ResourceLoader
 	/// </summary>
 	public ResourceFolder Folder { get; internal set; }
 
+	/// <summary>
+	/// The loader this one was resolved from, when its resource is derived from another
+	/// resource instead of having a file of its own.
+	/// </summary>
+	public ResourceLoader Parent { get; private set; }
+
 	public ResourceLoader()
 	{
 	}
 
+	/// <summary>
+	/// Called for a path below this loader's that nothing is registered at, so a resource can offer
+	/// others derived from it, such as the clips inside a model, without listing them while mounting.
+	/// The returned loader is registered at that path, with this loader as its <see cref="Parent"/>.
+	/// It can be called from any thread, and more than once for a path when threads race: only the first
+	/// result is kept, the others are shut down. Return a new loader each time.
+	/// </summary>
+	/// <param name="name">The path below this loader's, including its extension.</param>
+	/// <param name="type">The type of resource the returned loader creates.</param>
+	protected virtual ResourceLoader ResolveChild( string name, out ResourceType type )
+	{
+		type = default;
+		return null;
+	}
+
+	/// <summary>
+	/// Resolve a child of this loader, set up but not registered. Its path is exactly this loader's
+	/// plus <paramref name="name"/>, the path it was asked for, so the next lookup finds it.
+	/// </summary>
+	internal ResourceLoader ResolveChildInternal( string name )
+	{
+		var child = ResolveChild( name, out var type );
+		if ( child is null || child.Mount is not null )
+			return null;
+
+		child.Parent = this;
+		child.Setup( type, $"{RelativePath}/{name}", Mount );
+		return child;
+	}
+
 	internal void InitializeInternal( ResourceType type, string path, BaseGameMount mount )
 	{
-		Mount = mount;
-		IsShutdown = false;
-
 		// Standardize the path into a mount path
 		path = path.Replace( '\\', '/' ).Trim( '/' );
 
 		// Force an engine specific extension, if it isn't already set
-		if ( extensions.TryGetValue( type, out var extension ) )
-		{
-			if ( !path.EndsWith( extension ) )
-				path += extension;
-		}
+		if ( extensions.TryGetValue( type, out var extension ) && !path.EndsWith( extension, StringComparison.OrdinalIgnoreCase ) )
+			path += extension;
 
+		Setup( type, path, mount );
+		Mount.RegisterFileInternal( this );
+	}
+
+	void Setup( ResourceType type, string path, BaseGameMount mount )
+	{
+		Mount = mount;
+		IsShutdown = false;
 		RelativePath = path;
 		Path = $"mount://{Mount.Ident}/{RelativePath}";
 		Type = type;
 		Name = System.IO.Path.GetFileNameWithoutExtension( path );
-
-		Mount.RegisterFileInternal( this );
 	}
 
 	object _cachedResult;

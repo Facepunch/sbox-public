@@ -1,6 +1,8 @@
 ﻿using Sandbox.Diagnostics;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Sandbox.Mounting;
@@ -142,11 +144,19 @@ public abstract class BaseGameMount
 
 		if ( !IsInstalled ) return;
 
+		// Files are registered during Mount, before it sets IsMounted, until the mount shuts down
+		lock ( _entriesLock )
+		{
+			_acceptingEntries = true;
+		}
+
 		await Mount( new MountContext( this ) );
 
-		foreach ( var entry in _entries.Values )
+		foreach ( var entry in Resources )
 		{
-			RootFolder.AddResource( entry );
+			// Derived resources aren't files, they have no place in the folders
+			if ( entry.Parent is null )
+				RootFolder.AddResource( entry );
 		}
 	}
 
@@ -158,17 +168,27 @@ public abstract class BaseGameMount
 
 	internal void ShutdownInternal()
 	{
-		IsMounted = false;
+		// Under the lock, so a child resolved on another thread can't be published after this
+		lock ( _entriesLock )
+		{
+			IsMounted = false;
+			_acceptingEntries = false;
+		}
 
 		Shutdown();
 
-		foreach ( var entry in _entries.Values )
+		ResourceLoader[] entries;
+		lock ( _entriesLock )
+		{
+			entries = _entries.Values.ToArray();
+			_entries.Clear();
+			_entriesByType.Clear();
+		}
+
+		foreach ( var entry in entries )
 		{
 			entry?.ShutdownInternal();
 		}
-
-		_entries.Clear();
-		_entriesByType.Clear();
 
 		RootFolder = null;
 	}
@@ -181,21 +201,118 @@ public abstract class BaseGameMount
 
 	}
 
+	// Guards the entries: registration, shutdown and publishing resolved children all take it
+	readonly Lock _entriesLock = new();
+	bool _acceptingEntries;
 	readonly Dictionary<string, ResourceLoader> _entries = new Dictionary<string, ResourceLoader>( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<ResourceType, List<ResourceLoader>> _entriesByType = new();
 
 	/// <summary>
+	/// Paths longer than this are never looked up.
+	/// </summary>
+	const int MaxPathLength = 1024;
+
+	/// <summary>
 	/// All of the resources in this game
 	/// </summary>
-	public IReadOnlyCollection<ResourceLoader> Resources => _entries.Values;
+	public IReadOnlyCollection<ResourceLoader> Resources
+	{
+		get
+		{
+			lock ( _entriesLock ) return _entries.Values.ToArray();
+		}
+	}
 
 	/// <summary>
 	/// Retrieves the resource loader associated with the specified path, if it exists.
 	/// </summary>
 	public ResourceLoader GetByPath( string path )
 	{
-		if ( path.EndsWith( "_c" ) ) path = path[..^2];
-		return _entries.TryGetValue( path, out var entry ) ? entry : default;
+		if ( string.IsNullOrEmpty( path ) || path.Length > MaxPathLength )
+			return default;
+
+		var key = path.AsSpan();
+		if ( key.EndsWith( "_c" ) ) key = key[..^2];
+
+		var split = key.Length;
+
+		while ( true )
+		{
+			ResourceLoader parent = null;
+
+			lock ( _entriesLock )
+			{
+				var lookup = _entries.GetAlternateLookup<ReadOnlySpan<char>>();
+
+				if ( split == key.Length && lookup.TryGetValue( key, out var entry ) )
+					return entry;
+
+				if ( !IsMounted )
+					return default;
+
+				// Nothing is registered here, but a resource further up the path might derive one
+				for ( split = key[..split].LastIndexOf( '/' ); split > 0; split = key[..split].LastIndexOf( '/' ) )
+				{
+					if ( lookup.TryGetValue( key[..split], out parent ) )
+						break;
+				}
+			}
+
+			if ( parent is null )
+				return default;
+
+			var name = key[(split + 1)..];
+			if ( !IsValidChildName( name ) )
+				return default;
+
+			// Outside the lock, a resolver may load or look up other resources of this mount
+			var child = parent.ResolveChildInternal( name.ToString() );
+			if ( child is not null )
+				return PublishChild( child );
+		}
+	}
+
+	/// <summary>
+	/// A derived resource's name below its parent: no empty, "." or ".." segments and no backslashes,
+	/// so it's registered at exactly the path it was asked for.
+	/// </summary>
+	static bool IsValidChildName( ReadOnlySpan<char> name )
+	{
+		if ( name.IsEmpty || name.Contains( '\\' ) )
+			return false;
+
+		foreach ( var range in name.Split( '/' ) )
+		{
+			var segment = name[range];
+			if ( segment.IsEmpty || segment is "." || segment is ".." )
+				return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// Register a resolved child, unless another thread got there first or the mount has gone away since.
+	/// </summary>
+	ResourceLoader PublishChild( ResourceLoader child )
+	{
+		ResourceLoader published;
+
+		lock ( _entriesLock )
+		{
+			if ( _entries.TryGetValue( child.Path, out published ) )
+			{
+				// Someone else published it first, ours is discarded below
+			}
+			else if ( IsMounted && _entries.TryGetValue( child.Parent.Path, out var parent ) && ReferenceEquals( parent, child.Parent ) )
+			{
+				AddEntry( child );
+				return child;
+			}
+		}
+
+		child.ShutdownInternal();
+		return published;
 	}
 
 	/// <summary>
@@ -203,15 +320,64 @@ public abstract class BaseGameMount
 	/// </summary>
 	public IReadOnlyCollection<ResourceLoader> GetAll( ResourceType type )
 	{
-		return _entriesByType.TryGetValue( type, out var entry ) ? entry : [];
+		lock ( _entriesLock )
+		{
+			return _entriesByType.TryGetValue( type, out var entry ) ? entry.ToArray() : [];
+		}
 	}
 
 	public ResourceFolder RootFolder { get; internal set; }
 
 	internal void RegisterFileInternal( ResourceLoader entry )
 	{
+		var removed = new List<ResourceLoader>();
+
+		lock ( _entriesLock )
+		{
+			if ( !_acceptingEntries )
+			{
+				// Mounting is over, this loader would outlive the mount
+				removed.Add( entry );
+			}
+			else if ( _entries.TryGetValue( entry.Path, out var replaced ) )
+			{
+				if ( ReferenceEquals( replaced, entry ) )
+					return;
+
+				RemoveEntryAndChildren( replaced, removed );
+				AddEntry( entry );
+			}
+			else
+			{
+				AddEntry( entry );
+			}
+		}
+
+		foreach ( var loader in removed )
+		{
+			loader.ShutdownInternal();
+		}
+	}
+
+	void AddEntry( ResourceLoader entry )
+	{
 		_entries[entry.Path] = entry;
 		_entriesByType.GetOrCreate( entry.Type ).Add( entry );
+	}
+
+	/// <summary>
+	/// Unregister a loader and every loader resolved from it, adding them to <paramref name="removed"/> to be shut down.
+	/// </summary>
+	void RemoveEntryAndChildren( ResourceLoader entry, List<ResourceLoader> removed )
+	{
+		_entries.Remove( entry.Path );
+		_entriesByType.GetValueOrDefault( entry.Type )?.Remove( entry );
+		removed.Add( entry );
+
+		foreach ( var child in _entries.Values.Where( x => x.Parent == entry ).ToArray() )
+		{
+			RemoveEntryAndChildren( child, removed );
+		}
 	}
 
 	/// <summary>
