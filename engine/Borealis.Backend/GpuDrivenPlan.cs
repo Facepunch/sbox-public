@@ -109,9 +109,14 @@ internal sealed class GpuDrivenPlan
 	/// <summary>
 	/// For the resident cull (<see cref="ResidentCullItem"/>): a buffer of its batch records and entry map, written the first
 	/// time a setup culls it, its bindless slot, its entries and the entry map's byte offset. Destroyed once it's retired.
+	/// Its entry records (<see cref="ResidentCullEntryRecord"/>) and resident mesh batches' headers follow, written on the GPU
+	/// by the same setup from the tables in host memory, so the culls read only video memory.
 	/// </summary>
 	public BufferHandle Records;
-	public int RecordsSlot, Entries, EntryMap;
+	public int RecordsSlot, Entries, EntryMap, EntryRecords, Headers;
+
+	/// <summary>Whether a setup has recorded the expand dispatch that writes its entry records.</summary>
+	public bool EntryRecordsWritten;
 
 	/// <summary>
 	/// A forward plan that compacts: the prepass plan whose ids its records' entries name (<see cref="ResidentCullEntry.PrepassIds"/>).

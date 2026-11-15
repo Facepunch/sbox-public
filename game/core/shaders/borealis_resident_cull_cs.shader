@@ -50,6 +50,10 @@ CS
 		uint g_nResidentFragments;	// bindless slot of the fragment table
 		uint g_nResidentDraws;		// bindless slot of the draw table
 		uint g_nResidentFrame;		// this frame's stamp
+		uint g_nResidentFrameSlot;	// bindless slot of g_Frame, read there where a whole wave reads the same words
+		uint g_nResidentExpand;		// not 0: expand one plan's entries (g_Frame is its records), writing its entry records here
+		uint g_nResidentExpandMap;	// its entry map
+		uint g_nResidentExpandHeaders;	// its batches' headers
 		uint g_nResidentPad0;
 	};
 
@@ -108,14 +112,113 @@ CS
 		return min( nLod, nLods - 1 );
 	}
 
-	// A chunk of an item's views, read once per group: each view's 32-byte record, then its 160-byte view record
-	static const uint ViewChunk = 16;
-	static const uint ViewWords = 12;
-	groupshared uint4 g_vViews[192]; // ViewChunk * ViewWords
+	// A lane's place in what a counter at nCounter (the same for the whole wave) counts: one atomic a wave instead of one a
+	// lane. Every lane of the wave calls it
+	uint WaveAppend( bool bTake, uint nCounter )
+	{
+		uint nCount = WaveActiveCountBits( bTake );
+		uint nBase = 0;
+		if ( nCount > 0 && WaveIsFirstLane() )
+			g_Frame.InterlockedAdd( nCounter, nCount, nBase );
+		return WaveReadLaneFirst( nBase ) + WavePrefixCountBits( bTake );
+	}
+
+	// The next slot of multi-draw nRun (multi-draws at nRuns: first slot and count each) for each lane that takes one: lanes of
+	// the same multi-draw share one atomic. A wave's entries are a few batches', so it meets few multi-draws. Every lane calls it
+	uint WaveTakeSlot( bool bTake, uint nRuns, uint nRun, ByteAddressBuffer frame )
+	{
+		uint nSlot = 0;
+		bool bPending = bTake;
+		while ( WaveActiveAnyTrue( bPending ) )
+		{
+			uint nLeader = WaveActiveMin( bPending ? nRun : None );
+			bool bMine = bPending && nRun == nLeader;
+			uint nCount = WaveActiveCountBits( bMine );
+			uint nPrefix = WavePrefixCountBits( bMine );
+			uint nBase = 0;
+			if ( WaveIsFirstLane() )
+			{
+				g_Frame.InterlockedAdd( nRuns + nLeader * 8 + 4, nCount, nBase );
+				nBase += frame.Load( nRuns + nLeader * 8 );
+			}
+			nBase = WaveReadLaneFirst( nBase );
+			if ( bMine )
+			{
+				nSlot = nBase + nPrefix;
+				bPending = false;
+			}
+		}
+		return nSlot;
+	}
+
+	// An expand dispatch: entry n of a new plan, whose records are g_Frame. What the cull reads of its fragment or resident
+	// mesh and draw, from the fragment and draw tables in host memory, into its entry record (ResidentCullEntryRecord, 48
+	// bytes) in video memory: centre and transform slot; extents and draw record; the draw's first index, index count and base
+	// vertex, and a resident mesh's LOD scale or a fragment's no-shadow flag. A resident mesh batch's first entry writes its
+	// group's header record at the batch's index
+	void Expand( uint n )
+	{
+		if ( n >= g_nResidentEntries )
+			return;
+
+		uint2 vMap = g_Frame.Load2( g_nResidentExpandMap + n * 8 );
+		uint nBatch = vMap.x & 0x7fffffffu;
+		uint i = vMap.y;
+		uint4 vBatch = g_Frame.Load4( nBatch * 32 );
+		uint4 vVisibility = g_Frame.Load4( nBatch * 32 + 16 );
+		ByteAddressBuffer fragments = g_bindless_VertexBuffers[ g_nResidentFragments ];
+		ByteAddressBuffer draws = g_bindless_VertexBuffers[ g_nResidentDraws ];
+
+		uint4 a;
+		uint4 b;
+		uint nTransform;
+		uint nDrawRecord;
+		uint nLast;
+		if ( ( vVisibility.z & 8 ) != 0 )
+		{
+			// Resident mesh record: centre and LOD scale, extents and transform slot
+			a = fragments.Load4( ( vBatch.x + 1 + i ) * 32 );
+			b = fragments.Load4( ( vBatch.x + 1 + i ) * 32 + 16 );
+			nTransform = b.w;
+			nDrawRecord = ( vBatch.z & 0x80000000u ) != 0 ? fragments.Load( ( vBatch.z & 0x7fffffffu ) * 32 + i * 4 ) : vBatch.z;
+			nLast = a.w;
+			if ( i == 0 )
+			{
+				g_Frame.Store4( g_nResidentExpandHeaders + nBatch * 32, fragments.Load4( vBatch.x * 32 ) );
+				g_Frame.Store4( g_nResidentExpandHeaders + nBatch * 32 + 16, fragments.Load4( vBatch.x * 32 + 16 ) );
+			}
+		}
+		else
+		{
+			// Fragment record: centre and draw record, extents and fragment index (bit 31: casts no shadow)
+			a = fragments.Load4( ( vBatch.x + i ) * 32 );
+			b = fragments.Load4( ( vBatch.x + i ) * 32 + 16 );
+			nTransform = vBatch.z + ( b.w & 0x7fffffffu );
+			nDrawRecord = a.w;
+			nLast = b.w >> 31;
+		}
+
+		// Draw record's second half: first index, index count, base vertex, index page
+		uint4 vDraw = draws.Load4( nDrawRecord * 32 + 16 );
+		uint nAt = g_nResidentExpand + n * 48;
+		g_Frame.Store4( nAt, uint4( a.xyz, nTransform ) );
+		g_Frame.Store4( nAt + 16, uint4( b.xyz, nDrawRecord ) );
+		g_Frame.Store4( nAt + 32, uint4( vDraw.xyz, nLast ) );
+	}
 
 	[numthreads( 64, 1, 1 )]
 	void MainCs( uint3 vGroupId : SV_GroupID, uint nThread : SV_GroupIndex )
 	{
+		if ( g_nResidentExpand != 0 )
+		{
+			Expand( vGroupId.x * 64 + nThread );
+			return;
+		}
+
+		// What the CPU wrote (items, views, view records, multi-draws' first slots) is read through the frame's bindless slot,
+		// which the shader never writes: the same words for the whole wave
+		ByteAddressBuffer frame = g_bindless_VertexBuffers[ g_nResidentFrameSlot ];
+
 		// Its item: the last whose first entry is at or before the group's. An item is one plan's batches and the views that
 		// cull them; items start on a multiple of 64 threads, so a group reads one item
 		uint nGroupEntry = vGroupId.x * 64;
@@ -124,15 +227,16 @@ CS
 		while ( nItem < nHigh )
 		{
 			uint nMid = ( nItem + nHigh + 1 ) / 2;
-			if ( g_Frame.Load( g_nResidentItems + nMid * 32 ) <= nGroupEntry )
+			if ( frame.Load( g_nResidentItems + nMid * 32 ) <= nGroupEntry )
 				nItem = nMid;
 			else
 				nHigh = nMid - 1;
 		}
 
-		// Item: first entry, entries, the bindless slot of its plan's records and its entry map's offset in them; its first view and views
-		uint4 vItem = g_Frame.Load4( g_nResidentItems + nItem * 32 );
-		uint2 vItemViews = g_Frame.Load2( g_nResidentItems + nItem * 32 + 16 );
+		// Item: first entry, entries, the bindless slot of its plan's records and its entry map's offset in them; its first view
+		// and views, and its entry records' and batch headers' offsets in its records
+		uint4 vItem = frame.Load4( g_nResidentItems + nItem * 32 );
+		uint4 vItemViews = frame.Load4( g_nResidentItems + nItem * 32 + 16 );
 		uint nLocal = nGroupEntry + nThread - vItem.x;
 		bool bActive = g_nResidentItemCount > 0 && nGroupEntry + nThread < g_nResidentEntries && nLocal < vItem.y;
 
@@ -155,10 +259,8 @@ CS
 		uint nBatchLod = ( vVisibility.z >> 4 ) & 15;
 		uint nStride = vVisibility.z >> 8;
 
-		ByteAddressBuffer fragments = g_bindless_VertexBuffers[ g_nResidentFragments ];
-		ByteAddressBuffer draws = g_bindless_VertexBuffers[ g_nResidentDraws ];
-
-		// The entry's bounds, transform slot and draw record, read once for every view
+		// The entry's bounds, transform slot and draw, read once for every view from its entry record (written by the expand
+		// dispatch), and a resident mesh batch's header
 		float3 vCenter = 0;
 		float3 vExtents = 0;
 		float flLodScale = 0;
@@ -170,125 +272,97 @@ CS
 		uint4 vDraw = 0;
 		if ( bActive )
 		{
+			uint nAt = vItemViews.z + nLocal * 48;
+			uint4 e0 = records.Load4( nAt );
+			uint4 e1 = records.Load4( nAt + 16 );
+			uint4 e2 = records.Load4( nAt + 32 );
+			vCenter = asfloat( e0.xyz );
+			nTransform = e0.w;
+			vExtents = asfloat( e1.xyz );
+			nDrawRecord = e1.w;
+			vDraw = uint4( e2.xyz, 0 );
 			if ( bMeshes )
 			{
-				// Resident mesh record: centre and LOD scale, extents and transform slot
-				vHeader0 = fragments.Load4( vBatch.x * 32 );
-				vHeader1 = fragments.Load4( vBatch.x * 32 + 16 );
-				uint4 a = fragments.Load4( ( vBatch.x + 1 + i ) * 32 );
-				uint4 b = fragments.Load4( ( vBatch.x + 1 + i ) * 32 + 16 );
-				vCenter = asfloat( a.xyz );
-				vExtents = asfloat( b.xyz );
-				flLodScale = asfloat( a.w );
-				nTransform = b.w;
-				nDrawRecord = ( vBatch.z & 0x80000000u ) != 0 ? fragments.Load( ( vBatch.z & 0x7fffffffu ) * 32 + i * 4 ) : vBatch.z;
+				flLodScale = asfloat( e2.w );
+				vHeader0 = records.Load4( vItemViews.w + vMap.x * 32 );
+				vHeader1 = records.Load4( vItemViews.w + vMap.x * 32 + 16 );
 			}
 			else
 			{
-				// Fragment record: centre and draw record, extents and fragment index (bit 31: casts no shadow)
-				uint4 a = fragments.Load4( ( vBatch.x + i ) * 32 );
-				uint4 b = fragments.Load4( ( vBatch.x + i ) * 32 + 16 );
-				vCenter = asfloat( a.xyz );
-				vExtents = asfloat( b.xyz );
-				bNoShadow = ( b.w & 0x80000000u ) != 0;
-				nTransform = vBatch.z + ( b.w & 0x7fffffffu );
-				nDrawRecord = a.w;
+				bNoShadow = e2.w != 0;
 			}
-
-			// Draw record's second half: first index, index count, base vertex, index page
-			vDraw = draws.Load4( nDrawRecord * 32 + 16 );
 		}
 
 		uint nFragment = vVisibility.x != None ? vVisibility.x + i : None;
 		uint nVertexBase = vVisibility.w != None ? vVisibility.w + i * nStride : None;
 		float flRadiusSquared = dot( vExtents, vExtents );
 
-		for ( uint nChunk = 0; nChunk < vItemViews.y; nChunk += ViewChunk )
+		// Each view in turn, the same for the whole group: its 32-byte record (view record, instance records, commands,
+		// multi-draws; first instance, fragment words, listed fragments, flags), then the 160-byte view record (six planes, the
+		// camera and squared size threshold, whether it's a shadow view (bit 0) and its resident filter (bits 1-2), whether
+		// resident meshes skip the size test, the filter's settled and restless stamps, the LOD camera, and the LOD width and
+		// whether it's texels per unit). Every lane runs every view to the wave operations at its end, kept or not
+		for ( uint v = 0; v < vItemViews.y; v++ )
 		{
-			// The chunk's views into groupshared memory: its 32-byte record (view record, instance records, commands, multi-draws;
-			// first instance, fragment words, listed fragments), then the 160-byte view record (six planes, the camera and
-			// squared size threshold, whether it's a shadow view (bit 0) and its resident filter (bits 1-2), whether resident
-			// meshes skip the size test, the filter's settled and restless stamps, the LOD camera, and the LOD width and whether
-			// it's texels per unit)
-			uint nViews = min( ViewChunk, vItemViews.y - nChunk );
-			GroupMemoryBarrierWithGroupSync();
-			for ( uint w = nThread; w < nViews * ViewWords; w += 64 )
+			uint nViewAt = g_nResidentViews + ( vItemViews.x + v ) * 32;
+			uint4 vView = frame.Load4( nViewAt );
+			uint4 vViewOut = frame.Load4( nViewAt + 16 );
+			uint4 vViewFlags = frame.Load4( vView.x + 112 );
+			bool bKept = bActive && !( ( vViewFlags.x & 1 ) != 0 && bNoShadow );
+
+			// A resident filter: the casters it keeps by when each last moved, whose words the batch record's sixth word finds
+			uint nFilter = ( vViewFlags.x >> 1 ) & 3;
+			if ( bKept && nFilter != 0 && vVisibility.y != None )
+				bKept = TakesMoved( nFilter, records.Load( vVisibility.y + i * 4 ), vViewFlags.z, vViewFlags.w );
+
+			[unroll]
+			for ( uint p = 0; p < 6; p++ )
+				bKept = bKept && Inside( asfloat( frame.Load4( vView.x + p * 16 ) ), vCenter, vExtents );
+
+			// Borealis's size cull: too small for the threshold unless the camera is inside the bounding sphere. A negative
+			// threshold is a sun cascade's, by its texel size: the squared radius below which it culls, wherever it is
+			float4 vCamera = asfloat( frame.Load4( vView.x + 96 ) );
+			bool bSize = !bMeshes || ( vViewFlags.y & 1 ) == 0;
+			float3 vToCamera = vCenter - vCamera.xyz;
+			float flDistanceSquared = dot( vToCamera, vToCamera );
+			if ( bSize && vCamera.w > 0 && flDistanceSquared > flRadiusSquared && flRadiusSquared < vCamera.w * flDistanceSquared )
+				bKept = false;
+			if ( bSize && vCamera.w < 0 && flRadiusSquared < -vCamera.w )
+				bKept = false;
+
+			// A resident mesh is kept only in the batch of its LOD in this view
+			if ( bKept && bMeshes )
 			{
-				uint nView = w / ViewWords;
-				uint nWord = w % ViewWords;
-				uint nViewAt = g_nResidentViews + ( vItemViews.x + nChunk + nView ) * 32;
-				g_vViews[w] = nWord < 2 ? g_Frame.Load4( nViewAt + nWord * 16 ) : g_Frame.Load4( g_Frame.Load( nViewAt ) + ( nWord - 2 ) * 16 );
+				float4 vLodCamera = asfloat( frame.Load4( vView.x + 128 ) );
+				uint4 vLod = frame.Load4( vView.x + 144 );
+				bKept = MeshLod( vHeader0, vHeader1, vCenter, flLodScale, vLodCamera, asfloat( vLod.x ), vLod.y != 0 ) == nBatchLod;
 			}
-			GroupMemoryBarrierWithGroupSync();
 
-			if ( !bActive )
-				continue;
+			// Forward over a fragment its prepass view draws ids for this frame: listed for the compaction pass. The prepass
+			// keeps it as this view does; a view whose flags say so knows from the entry that it draws ids for it, and the rest
+			// read the stamps the prepass's culling wrote in an earlier dispatch
+			bool bListed = bKept && ( vVisibility.z & 2 ) != 0 && nFragment != None && nVertexBase != None;
+			if ( bListed && ( vViewOut.w & 1 ) != 0 )
+				bListed = bPrepassIds;
+			else if ( bListed )
+				bListed = g_Stamps.Load( nFragment * 4 ) == g_nResidentFrame;
 
-			for ( uint v = 0; v < nViews; v++ )
+			uint nAt = WaveAppend( bListed, vViewOut.z );
+			if ( bListed )
 			{
-				uint nBase = v * ViewWords;
-				uint4 vView = g_vViews[nBase];
-				uint4 vViewOut = g_vViews[nBase + 1];
-				uint4 vViewFlags = g_vViews[nBase + 2 + 7];
-				bool bVisible = !( ( vViewFlags.x & 1 ) != 0 && bNoShadow );
+				uint nListed = vViewOut.z + 16 + nAt * 32;
+				g_Frame.Store( nListed, nTransform );
+				g_Frame.Store( nListed + 4, nDrawRecord );
+				g_Frame.Store( nListed + 8, nVertexBase + vDraw.z );
+				g_Frame.Store( nListed + 12, vBatch.w );
+				g_Frame.Store( nListed + 16, vVisibility.y );
+			}
 
-				// A resident filter: the casters it keeps by when each last moved, whose words the batch record's sixth word finds
-				uint nFilter = ( vViewFlags.x >> 1 ) & 3;
-				if ( nFilter != 0 && vVisibility.y != None && !TakesMoved( nFilter, records.Load( vVisibility.y + i * 4 ), vViewFlags.z, vViewFlags.w ) )
-					continue;
-
-				[unroll]
-				for ( uint p = 0; p < 6; p++ )
-					bVisible = bVisible && Inside( asfloat( g_vViews[nBase + 2 + p] ), vCenter, vExtents );
-				if ( !bVisible )
-					continue;
-
-				// Borealis's size cull: too small for the threshold unless the camera is inside the bounding sphere. A negative
-				// threshold is a sun cascade's, by its texel size: the squared radius below which it culls, wherever it is
-				float4 vCamera = asfloat( g_vViews[nBase + 2 + 6] );
-				bool bSize = !bMeshes || ( vViewFlags.y & 1 ) == 0;
-				float3 vToCamera = vCenter - vCamera.xyz;
-				float flDistanceSquared = dot( vToCamera, vToCamera );
-				if ( bSize && vCamera.w > 0 && flDistanceSquared > flRadiusSquared && flRadiusSquared < vCamera.w * flDistanceSquared )
-					continue;
-				if ( bSize && vCamera.w < 0 && flRadiusSquared < -vCamera.w )
-					continue;
-
-				// A resident mesh is kept only in the batch of its LOD in this view
-				if ( bMeshes )
-				{
-					float4 vLodCamera = asfloat( g_vViews[nBase + 2 + 8] );
-					uint4 vLod = g_vViews[nBase + 2 + 9];
-					if ( MeshLod( vHeader0, vHeader1, vCenter, flLodScale, vLodCamera, asfloat( vLod.x ), vLod.y != 0 ) != nBatchLod )
-						continue;
-				}
-
-				// Forward over a fragment its prepass view draws ids for this frame: listed for the compaction pass. The prepass
-				// keeps it as this view does; a view whose flags say so knows from the entry that it draws ids for it, and the rest
-				// read the stamps the prepass's culling wrote in an earlier dispatch
-				bool bListed = ( vVisibility.z & 2 ) != 0 && nFragment != None && nVertexBase != None;
-				if ( bListed && ( vViewOut.w & 1 ) != 0 )
-					bListed = bPrepassIds;
-				else if ( bListed )
-					bListed = g_Stamps.Load( nFragment * 4 ) == g_nResidentFrame;
-				if ( bListed )
-				{
-					uint nAt;
-					g_Frame.InterlockedAdd( vViewOut.z, 1, nAt );
-					uint nListed = vViewOut.z + 16 + nAt * 32;
-					g_Frame.Store( nListed, nTransform );
-					g_Frame.Store( nListed + 4, nDrawRecord );
-					g_Frame.Store( nListed + 8, nVertexBase + vDraw.z );
-					g_Frame.Store( nListed + 12, vBatch.w );
-					g_Frame.Store( nListed + 16, vVisibility.y );
-					continue;
-				}
-
-				// The next slot of its multi-draw in this view
-				uint nIndex;
-				g_Frame.InterlockedAdd( vView.w + vBatch.w * 8 + 4, 1, nIndex );
-				uint nSlot = g_Frame.Load( vView.w + vBatch.w * 8 ) + nIndex;
-
+			// The next slot of its multi-draw in this view
+			bool bDrawn = bKept && !bListed;
+			uint nSlot = WaveTakeSlot( bDrawn, vView.w, vBatch.w, frame );
+			if ( bDrawn )
+			{
 				g_Frame.Store( vView.y + nSlot * 8, nTransform );
 				g_Frame.Store( vView.y + nSlot * 8 + 4, nDrawRecord );
 
