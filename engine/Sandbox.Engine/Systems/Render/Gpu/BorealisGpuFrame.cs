@@ -119,6 +119,19 @@ internal sealed class BorealisGpuFrame : IDisposable
 	/// </summary>
 	internal void RunStage( in StageTarget target, in GpuViewConstants viewConstants, BorealisGpuView view, bool first, Action draw )
 	{
+		if ( stageConstants.Length != System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>() ) stageConstants = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
+		System.Runtime.InteropServices.MemoryMarshal.Write( stageConstants, in viewConstants );
+		RunInFrame( target, stageConstants, view, first, draw );
+	}
+
+	byte[] stageConstants = [];
+
+	/// <summary>
+	/// As <see cref="RunStage"/>, with the view constants as <c>PerViewConstantBuffer_t</c>'s bytes: also what custom objects
+	/// draw through (<see cref="BorealisGpuCustomDraw"/>).
+	/// </summary>
+	internal void RunInFrame( in StageTarget target, byte[] viewConstants, BorealisGpuView view, bool first, Action draw )
+	{
 		var context = (BackendContext)target.Context;
 		var list = context.Lend();
 
@@ -134,12 +147,10 @@ internal sealed class BorealisGpuFrame : IDisposable
 		var depth = Borrow( ref stageDepth, target.Depth, ImageFormat.D32FS8, depth: true, Borealis.Gpu.ImageLayout.DepthTarget );
 		var chain = Borrow( ref stageChain, ((BackendParameters)target.Attributes).Get( DepthChainName ) as GpuTexture, ImageFormat.RG3232F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
 
-		var bytes = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
-		System.Runtime.InteropServices.MemoryMarshal.Write( bytes, in viewConstants );
-
 		view.Target = color.Engine is null ? null : RenderTarget.From( color.Engine, depth.Engine );
 		view.Viewport = target.Viewport;
 		backend.LendNextBlock( list );
+		backend.DepthRange = target.MaxZ > target.MinZ ? (target.MinZ, target.MaxZ) : (0, 1);
 		try
 		{
 			using var scope = Graphics.Scope.CreateOnView( backend, view );
@@ -147,7 +158,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			if ( first ) backend.ClearPipelineTextures();
 
 			var attributes = Graphics.Attributes;
-			attributes.SetData( ViewConstantsName, bytes.AsSpan() );
+			attributes.SetData( ViewConstantsName, viewConstants.AsSpan() );
 			if ( chain.Engine is not null )
 			{
 				attributes.Set( DepthChainName, chain.Engine );
@@ -168,6 +179,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 				backend.Release( engine );
 			}
 
+			backend.DepthRange = (0, 1);
 			context.Reclaim();
 		}
 	}

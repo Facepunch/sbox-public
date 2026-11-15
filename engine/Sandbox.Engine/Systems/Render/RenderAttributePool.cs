@@ -12,12 +12,19 @@ internal class RenderAttributePool
 {
 	private ConcurrentQueue<RenderAttributes> Pool = new();
 
+	// Managed sets, for a device that lowers attributes itself (Borealis.Gpu), apart from native ones
+	private ConcurrentQueue<RenderAttributes> ManagedPool = new();
+
 	/// <summary>
-	/// Get a pooled <see cref="RenderAttributes"/> instance.
+	/// Get a pooled <see cref="RenderAttributes"/> instance, of the kind the device being recorded for draws with
+	/// (<see cref="RenderAttributes.ForRecording"/>).
 	/// Make sure you return it to the pool after use with <see cref="Return(RenderAttributes)"/>.
 	/// </summary>
 	public RenderAttributes Get()
 	{
+		if ( Graphics.Backend is not Source2RenderBackend )
+			return ManagedPool.TryDequeue( out var managed ) ? managed : RenderAttributes.CreateManaged();
+
 		if ( Pool.TryDequeue( out var ra ) )
 			return ra;
 
@@ -33,7 +40,7 @@ internal class RenderAttributePool
 		ArgumentNullException.ThrowIfNull( renderAttributes );
 
 		renderAttributes.Clear( false ); // don't free our memory, we want to reuse it
-		Pool.Enqueue( renderAttributes );
+		(renderAttributes.IsManaged ? ManagedPool : Pool).Enqueue( renderAttributes );
 	}
 
 	/// <summary>
@@ -47,5 +54,6 @@ internal class RenderAttributePool
 		}
 
 		Pool.Clear();
+		ManagedPool.Clear();
 	}
 }

@@ -208,6 +208,13 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 	/// </summary>
 	internal void LendNextBlock( GpuCommandList list ) => lendNext = list;
 
+	/// <summary>The depth range draws map to (<see cref="ShaderDrawer.DepthRange"/>): a lent frame's, else 0 to 1.</summary>
+	internal (float Min, float Max) DepthRange
+	{
+		get => drawer.DepthRange;
+		set => drawer.DepthRange = value;
+	}
+
 	/// <summary>Write a GPU timestamp in this block's list (<see cref="GraphicsContext.WriteTimestamp"/>).</summary>
 	internal void WriteTimestamp( TimestampQueries queries, int index, PipelineStage stage, int reset = 0 )
 	{

@@ -270,6 +270,9 @@ public sealed class ShaderDrawer : IDisposable
 
 	void BindForDraw( CommandList list, ShaderVariant variant, ShaderAttributes attributes, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, System.Numerics.Vector4 viewport )
 	{
+		// A pipeline that tests stencil takes its reference as dynamic state, which nothing else in the list may have set
+		if ( variant.State.StencilTest && depth.HasStencil() ) list.SetStencilReference( (byte)variant.State.StencilReference );
+
 		if ( Objects( variant ) )
 		{
 			var key = new MaterialObjectCache.Key( null, variant, layout, color, depth, samples, false, false, topology );
@@ -374,9 +377,15 @@ public sealed class ShaderDrawer : IDisposable
 		return pipeline;
 	}
 
-	static void SetViewport( CommandList list, System.Numerics.Vector4 viewport )
+	/// <summary>
+	/// The depth range draws map to, 0 to 1 by default: a frame's own where drawing lands inside it (a custom object in one of
+	/// Borealis's layers, whose view may keep part of the range for its 3D skybox).
+	/// </summary>
+	public (float Min, float Max) DepthRange { get; set; } = (0, 1);
+
+	void SetViewport( CommandList list, System.Numerics.Vector4 viewport )
 	{
-		list.SetViewport( viewport.X, viewport.Y, viewport.Z, viewport.W );
+		list.SetViewport( viewport.X, viewport.Y, viewport.Z, viewport.W, DepthRange.Min, DepthRange.Max );
 		list.SetScissor( (int)viewport.X, (int)viewport.Y, (int)MathF.Ceiling( viewport.Z ), (int)MathF.Ceiling( viewport.W ) );
 	}
 
