@@ -25,6 +25,7 @@ namespace Sandbox.BorealisLab;
 /// <item><c>-variants serial,parallel</c> - recording on one thread or on workers; both by default.</item>
 /// <item><c>-capture path.png</c> - save the first measured frame; <c>-out folder</c> - where <c>crowd.md</c> and <c>crowd.csv</c> go.</item>
 /// <item><c>-validation</c> - the Khronos validation layer.</item>
+/// <item><c>-crowd-eyes path.vmat</c> - the citizens' eyes in another material (eyeball.shader's, to time that shader on faces).</item>
 /// </list>
 /// What differs from SceneLab's: sequences (looped every four seconds) rather than the citizens' animation graph, a fixed list of clothing models
 /// rather than the clothing resources (no body groups hidden under them), and no 2D sky or post processing.
@@ -283,6 +284,23 @@ internal static class CrowdRun
 
 		var engineHuman = Model.Load( Human );
 		var body = device.LoadModel( Human ) ?? throw new InvalidOperationException( $"{Human} isn't built" );
+		if ( Args.String( "-crowd-eyes" ) is { } eyes )
+		{
+			var eyeMaterial = device.LoadMaterial( eyes ) ?? throw new InvalidOperationException( $"{eyes} isn't built" );
+			var states = new List<RenderMesh.DrawState>();
+			for ( int lod = 0; lod < body.LodCount; lod++ )
+			{
+				foreach ( var draw in body.DrawsForLod( lod ) )
+				{
+					if ( draw.Material?.Name.Contains( "/eyes_", StringComparison.OrdinalIgnoreCase ) == true )
+						states.Add( new RenderMesh.DrawState( draw.Mesh, draw.DrawCall, eyeMaterial, true, false, eyeMaterial.ShadowFastPath ) );
+				}
+			}
+
+			Console.WriteLine( $"-crowd-eyes: {states.Count} eye draws in {eyes}" );
+			body = body.WithDraws( states.ToArray() );
+		}
+
 		var meshes = new Dictionary<string, (RenderMesh Mesh, Model Model)>();
 		(RenderMesh, Model) Clothing( string path )
 		{
