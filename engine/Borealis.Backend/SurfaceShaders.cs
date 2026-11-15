@@ -72,6 +72,7 @@ public sealed class SurfaceShaders : IDisposable
 		["static_overlay"] = "static_overlay.slang",
 		["glass"] = "glass.slang",
 		["foliage"] = "foliage.slang",
+		["fur"] = "fur.slang",
 		["simple"] = null,
 		["bark"] = null,
 		["terrain_preview"] = null,
@@ -473,8 +474,11 @@ internal sealed class SurfaceProgram : IDisposable
 		return found;
 	}
 
-	/// <summary>Whether its vertex stage moves vertices (<c>IVertexSurface</c>): when not, its positions alone place them.</summary>
-	public bool Displaces => Compiled.Generated?.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) == true;
+	/// <summary>
+	/// Whether its vertex stage moves vertices (<c>IVertexSurface</c>, <c>IInterpolatedVertexSurface</c>): when not, its
+	/// positions alone place them.
+	/// </summary>
+	public bool Displaces => Compiled.Generated is { } generated && (generated.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) || generated.Contains( "SurfaceOutputDisplacedWith", StringComparison.Ordinal ));
 
 	/// <summary>
 	/// A pipeline for a pass drawing vertices laid out as <paramref name="layout"/> into these formats, with a material's

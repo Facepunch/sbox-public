@@ -247,6 +247,28 @@ public interface IVertexSurface : ISurface
 	float3 Displace( VertexSurfaceInput v );
 }
 
+/// What the engine hands IInterpolatedVertexSurface.Displace: the vertex after the engine has moved it to world space.
+public struct WorldVertexInput
+{
+	public float3 Position;          // world
+	public float3 Normal;            // world
+	public float2 Uv;                // the mesh's first uv
+	public float3 ObjectOrigin;      // world
+	public float3 Camera;            // the camera's world position
+	public float3 Wind;              // world: the view's wind direction times its strength
+	public float Time;
+	public MaterialTexture2D BlueNoise;   // the view's blue noise texture (vr_lighting.fxc's g_tBlueNoise)
+}
+
+/// Instead of IInterpolatedSurface: one that also moves its vertices, in world space after the engine's transform (fur's
+/// wind, by the mesh's colour and a noise texture). Displace gets the Varyings as Vertex made them, may move v.Position
+/// and returns the Varyings to interpolate, so values it works out on the way reach Evaluate. Every pass that transforms
+/// vertices calls it.
+public interface IInterpolatedVertexSurface : IInterpolatedSurface
+{
+	Varyings Displace( inout WorldVertexInput v, Varyings values );
+}
+
 /// What a light hands ILitSurface.Light.
 public struct LightSample
 {
