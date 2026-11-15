@@ -332,7 +332,7 @@ public class GpuDrivenTests : GpuTest
 	{
 		var core = ContentFiles.FindGame().Roots.FirstOrDefault();
 		if ( core is null ) Assert.Inconclusive( "No game content" );
-		if ( !File.Exists( Path.Combine( Path.GetDirectoryName( core ), "bin", "win64", OperatingSystem.IsWindows() ? "slang.dll" : "libslang.so" ) ) ) Assert.Inconclusive( "The engine's Slang isn't built" );
+		if ( !File.Exists( Path.Combine( EngineFolders.NativeIn( Path.GetDirectoryName( core ) ), EngineFolders.Library( "slang" ) ) ) ) Assert.Inconclusive( "The engine's Slang isn't built" );
 
 		var folder = Path.Combine( Path.GetTempPath(), "borealis-resident-surface-" + Guid.NewGuid().ToString( "N" ) );
 		Directory.CreateDirectory( folder );
@@ -815,7 +815,7 @@ public class GpuDrivenTests : GpuTest
 
 			// A surface's aggregate too, where the engine's Slang and the rock's textures are built
 			var core = ContentFiles.FindGame().Roots.FirstOrDefault();
-			var slang = core is not null && File.Exists( Path.Combine( Path.GetDirectoryName( core ), "bin", "win64", OperatingSystem.IsWindows() ? "slang.dll" : "libslang.so" ) );
+			var slang = core is not null && File.Exists( Path.Combine( EngineFolders.NativeIn( Path.GetDirectoryName( core ) ), EngineFolders.Library( "slang" ) ) );
 			if ( slang ) backend.Surfaces.AddFolder( Path.GetFullPath( Path.Combine( core, "..", "..", "engine", "Launcher", "BorealisLab", "Surfaces" ) ) );
 			var color = slang ? backend.LoadTexture( "materials/default/rope_color_png_95bee33c.generated.vtex" ) : null;
 			var normal = slang ? backend.LoadTexture( "materials/default/rope_normal_png_b8960e44.generated.vtex" ) : null;
