@@ -254,6 +254,24 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// The alpha-tested depth pass writes nothing but coverage: it skips the decals (which don't change opacity), for the
+	/// plain shading model and the final combiner alike, so neither reads the decal buffer.
+	/// </summary>
+	[TestMethod]
+	public void AlphaTestedDepthSkipsDecals()
+	{
+		var compiler = Compiler();
+		var rock = compiler.CompileSurface( Path.Combine( Surfaces, "rock.slang" ) );
+		var complex = compiler.CompileSurface( Path.Combine( Core, "shaders", "complex.slang" ) );
+		foreach ( var (name, shader) in new[] { ("rock", rock), ("complex", complex) } )
+		{
+			Assert.IsTrue( shader.Pass( ShaderPasses.Forward ).Pixel.Bindings.Any( b => b.Variable == "DecalBuffer" ), $"{name} forward applies decals" );
+			Assert.IsFalse( shader.Pass( ShaderPasses.DepthAlphaTest ).Pixel.Bindings.Any( b => b.Variable == "DecalBuffer" ), $"{name} depth" );
+			Assert.IsFalse( shader.Pass( ShaderPasses.DepthAlphaTest + ShaderPasses.GpuDriven ).Pixel.Bindings.Any( b => b.Variable == "DecalBuffer" ), $"{name} GPU-driven depth" );
+		}
+	}
+
+	/// <summary>
 	/// vfx's spirv-opt recipe runs over what Slang emits (SpirvOptimizer): code after a constant return is gone, and so is
 	/// the binding only it read, as a .shader's compile drops it.
 	/// </summary>
