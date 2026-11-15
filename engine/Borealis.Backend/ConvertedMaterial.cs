@@ -68,6 +68,7 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 
 	static float[] Value( MaterialField field, MaterialFile file )
 	{
+		if ( field.ShaderNames is { } names ) return ShaderIndex( names, file.Shader ) is var index and >= 0 ? [index] : null;
 		if ( field.Source is { } source ) return file.Value( source );
 		foreach ( var prefix in Prefixes )
 		{
@@ -75,6 +76,19 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 		}
 
 		return null;
+	}
+
+	/// <summary>Where a material's <c>.shader</c> (<c>shaders/generic.shader</c>) is in a <c>[Source( "Shader: ..." )]</c> list; -1 when it isn't.</summary>
+	static int ShaderIndex( IReadOnlyList<string> names, string shader )
+	{
+		if ( shader is null ) return -1;
+		var name = Path.GetFileNameWithoutExtension( shader.Replace( '\\', '/' ) );
+		for ( int i = 0; i < names.Count; i++ )
+		{
+			if ( string.Equals( names[i], name, StringComparison.OrdinalIgnoreCase ) ) return i;
+		}
+
+		return -1;
 	}
 
 	static string Lookup( MaterialField field, IReadOnlyDictionary<string, string> textures )

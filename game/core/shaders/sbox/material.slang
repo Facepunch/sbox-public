@@ -89,6 +89,12 @@ public struct Default4Attribute { float X; float Y; float Z; float W; };
 [__AttributeUsage( _AttributeTargets.Var )]
 public struct OpacityAttribute {};
 
+// A feature pipelines are specialised for (a bool or int, fixed per material): each material's value folds its branches
+// in pixel stages, at the cost of a pipeline and a GPU-driven bucket per value. For features whose code is large where
+// most materials don't use it (unlit), not for ones every pipeline pays for anyway
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct SpecializeAttribute {};
+
 // A texture read in sRGB (colour); without it a texture is read linear (normals, masks)
 [__AttributeUsage( _AttributeTargets.Var )]
 public struct SrgbAttribute {};

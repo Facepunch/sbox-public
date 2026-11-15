@@ -308,7 +308,7 @@ internal static class SurfaceParity
 
 	/// <summary>
 	/// <c>-convert-materials complex:materials/a.vmat,materials/b.vmat</c>: each <c>.vmat</c> drawn as its <c>.shader</c> and
-	/// through the surface standing in for that shader (<c>shaders/complex.slang</c>), each on a device of its own, into
+	/// through the surface standing in for that shader (<c>shaders/standard.slang</c>), each on a device of its own, into
 	/// <c>materials/</c> in the results folder. <c>-convert-content</c> adds a package folder the materials are in.
 	/// </summary>
 	static void ConvertMaterials( Borealis.Gpu.Device gpu, string spec, string folder, List<string> lines )

@@ -56,29 +56,45 @@ public sealed class SurfaceShaders : IDisposable
 			if ( conversions.TryGetValue( key, out var file ) ) return file;
 		}
 
-		return ConvertShaders && DefaultSurfaces.TryGetValue( key, out var surface ) ? DefaultSurface( key, surface ) : null;
+		if ( !ConvertShaders ) return null;
+		return DefaultSurfaces.TryGetValue( key, out var surface ) ? DefaultSurface( key, surface ) : null;
 	}
 
 	/// <summary>
 	/// The core shaders drawn as surfaces by default (<see cref="ConvertShaders"/>): by the surface written beside them
-	/// (<c>complex.slang</c>), or, for null, by what <see cref="ShaderConverter"/> makes of the <c>.shader</c>.
+	/// (<c>standard.slang</c>), or, for null, by what <see cref="ShaderConverter"/> makes of the <c>.shader</c>.
 	/// </summary>
 	static readonly Dictionary<string, string> DefaultSurfaces = new( StringComparer.OrdinalIgnoreCase )
 	{
-		["complex"] = "complex.slang",
+		["complex"] = "standard.slang",
 		["blendable"] = "blendable.slang",
-		["generic"] = "generic.slang",
+		["generic"] = "standard.slang",
 		["vertex_color"] = "vertex_color.slang",
 		["static_overlay"] = "static_overlay.slang",
 		["glass"] = "glass.slang",
 		["foliage"] = "foliage.slang",
 		["fur"] = "fur.slang",
 		["skin"] = "skin.slang",
-		["simple"] = null,
+		["simple"] = "standard.slang",
 		["bark"] = null,
 		["terrain_preview"] = null,
 		["water_simple"] = null,
 	};
+
+	/// <summary>
+	/// Specialise pipelines for each material's features (<see cref="Sandbox.ShaderCompiler.MaterialLayout.Features"/>), built in the background
+	/// while the unspecialised pipeline draws: the default. Read by each device as it's made (<see cref="SpecializeFeatures"/>).
+	/// </summary>
+	public static bool SpecializeByDefault { get; set; } = true;
+
+	/// <summary>Whether this device specialises surface pipelines for their materials' features; from <see cref="SpecializeByDefault"/>.</summary>
+	public bool SpecializeFeatures { get; set; } = SpecializeByDefault;
+
+	/// <summary>
+	/// Make specialised pipelines on a worker while the unspecialised one draws (the default), or at once where they're first
+	/// asked for: for tests and pictures that must not depend on when a worker finishes.
+	/// </summary>
+	public bool SpecializeInBackground { get; set; } = true;
 
 	/// <summary>
 	/// The single switch between the surface tier and the <c>.shader</c> route for the core shaders that have a surface:
@@ -384,7 +400,11 @@ internal sealed class SurfaceProgram : IDisposable
 {
 	readonly BackendDevice device;
 	readonly Dictionary<string, PassObjects> passes = new();
-	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual), PipelineHandle> pipelines = new();
+	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, ulong Features), PipelineHandle> pipelines = new();
+	readonly HashSet<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, ulong Features)> building = new();
+	readonly Dictionary<ulong, SurfaceFeatures> features = new();
+	readonly List<System.Threading.Tasks.Task> builds = new();
+	bool disposed;
 
 	/// <summary>Material classes already reported as generated for another layout.</summary>
 	public readonly HashSet<Type> Mismatched = new();
@@ -455,6 +475,46 @@ internal sealed class SurfaceProgram : IDisposable
 	/// <summary>A pass by name, or null.</summary>
 	public PassObjects Pass( string name ) => passes.TryGetValue( name, out var pass ) ? pass : null;
 
+	/// <summary>
+	/// What pipelines for <paramref name="material"/> are specialised for: its feature values, the same object for every
+	/// material with the same values. Null when the shader has no features or the device doesn't specialise.
+	/// </summary>
+	public SurfaceFeatures Features( SurfaceMaterial material )
+	{
+		if ( !device.Surfaces.SpecializeFeatures ) return null;
+		var fields = Compiled.Material.Features;
+		if ( fields.Count == 0 ) return null;
+
+		// Kept on the material until a field changes: buckets ask for every batch
+		var version = material.Version;
+		if ( material.Specialization is { } cached && cached.Version == version && ReferenceEquals( cached.Program, this ) ) return cached.Features;
+
+		var (key, values) = material.Features( fields );
+		SurfaceFeatures found;
+		lock ( features )
+		{
+			if ( !features.TryGetValue( key, out found ) )
+			{
+				var constants = new SpecializationConstant[values.Length + 1];
+				constants[0] = new SpecializationConstant( Sandbox.ShaderCompiler.MaterialLayout.SpecializedId, 1 );
+				for ( int i = 0; i < values.Length; i++ ) constants[i + 1] = new SpecializationConstant( (uint)(Sandbox.ShaderCompiler.MaterialLayout.FirstFeatureId + i), (uint)values[i] );
+				features[key] = found = new SurfaceFeatures( key, constants );
+			}
+		}
+
+		material.Specialization = new SurfaceMaterial.SpecializedFor( version, this, found );
+		return found;
+	}
+
+	/// <summary>Specialised pipelines made so far, and being made, for reports.</summary>
+	public (int Made, int Building) Specialized
+	{
+		get
+		{
+			lock ( pipelines ) return (pipelines.Keys.Count( k => k.Features != 0 ), building.Count);
+		}
+	}
+
 	readonly PassObjects[] gpuDrivenPasses = new PassObjects[16];
 	readonly bool[] gpuDrivenLooked = new bool[16];
 
@@ -491,80 +551,128 @@ internal sealed class SurfaceProgram : IDisposable
 	/// With <paramref name="ids"/>, the visibility-driven forward pass's id prepass: target 0 an R8 scratch (its alpha drives
 	/// alpha to coverage), target 1 the ids, as BackendDevice.Pipeline makes them. With <paramref name="depthEqual"/>, a
 	/// colour pass whose depth a prepass already wrote with the same vertex stage: tested equal, not written.
+	/// With <paramref name="specialized"/>, the pipeline specialised for those feature values once a worker has made it; the
+	/// unspecialised one until then, so nothing waits for it.
 	/// </summary>
-	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, bool ids = false, bool opaqueFade = false, bool depthEqual = false )
+	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, bool ids = false, bool opaqueFade = false, bool depthEqual = false, SurfaceFeatures specialized = null )
 	{
 		lock ( pipelines )
 		{
-			var key = (pass, layout, color, depth, samples, constantsKey, ids, opaqueFade, state, depthEqual);
+			// Only a pixel stage reads the features
+			if ( !pass.Pixel.IsValid ) specialized = null;
+			var key = (pass, layout, color, depth, samples, constantsKey, ids, opaqueFade, state, depthEqual, specialized?.Key ?? 0);
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
-			// A vertex-cache draw reads its vertex ids from streams 2 and 3, as floats, and the default stream from 4, as
-			// BackendDevice.Pipeline maps classic variants
-			var vertexCache = layout.VertexCache;
-			var inputs = pass.Pass.Vertex.Inputs.Select( i => new VertexInput( i.Location, Semantic( i.Semantic ), i.SemanticIndex, i.Kind == ScalarKind.Float ? SpirvScalar.Float : i.Kind == ScalarKind.Int ? SpirvScalar.Int : SpirvScalar.UInt, i.Components ) ).ToList();
-			var attributes = ShaderDefaults.MapVertices( inputs, input =>
+			if ( specialized is not null )
 			{
-				if ( input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex == 13 ) return new VertexAttribute( 0, 1, VertexFormat.UInt, 0 );
-				if ( vertexCache && input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex is 14 or 15 ) return new VertexAttribute( 0, input.SemanticIndex == 14 ? 2 : 3, VertexFormat.Float, 0 );
-				if ( layout.Find( input.Semantic, input.SemanticIndex ) is not { } field ) return null;
-				var integer = field.Format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt4;
-				if ( integer != (input.Kind != SpirvScalar.Float) ) return null;
-				return new VertexAttribute( 0, 0, field.Format, field.Offset );
-			}, defaultBuffer: vertexCache ? 4 : 2 );
-
-			var depthOnly = color == Format.Unknown && !ids;
-			var pixel = pass.Pixel.IsValid;
-			var info = new GraphicsPipelineInfo
-			{
-				VertexShader = pass.Vertex,
-				VertexEntry = pass.Pass.Vertex.Entry,
-				VertexConstants = vertexConstants,
-				FragmentConstants = pixel ? pixelConstants : null,
-				FragmentShader = pixel ? pass.Pixel : default,
-				FragmentEntry = pixel ? pass.Pass.Pixel.Entry : null,
-				Sets = pass.Sets,
-				VertexBuffers = vertexCache
-					? [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 4 ), new( 4 ), new( 0 )]
-					: [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )],
-				Attributes = attributes,
-				Topology = PrimitiveTopology.TriangleList,
-				CullMode = state.TwoSided ? CullMode.None : CullMode.Back,
-				FrontFace = FrontFace.CounterClockwise,
-				DepthBias = depthOnly || ids,
-				DepthTest = depth != Format.Unknown,
-				DepthWrite = depth != Format.Unknown,
-				DepthCompare = CompareFunction.GreaterEqual,
-				Blend = ids ? [BlendState.Opaque, BlendState.Opaque] : [BlendState.Opaque],
-
-				// Alpha-tested passes write today's alpha-to-coverage alpha (S_ALPHA_TEST), with multisampling only, as the
-				// .shaders' AlphaToCoverageEnable render state does; so does a fading object's (D_OPAQUE_FADE), unless it blends
-				AlphaToCoverage = samples > 1 && !state.DrawsTranslucent && (opaqueFade || pass.Pass.Name.Contains( "AlphaTest", StringComparison.Ordinal )),
-				ColorFormats = ids ? [Format.R8Unorm, Format.R32Uint] : depthOnly ? [] : [color],
-				DepthFormat = depth,
-				Samples = samples,
-				Name = $"{Compiled.Name} {pass.Pass.Name}",
-			};
-
-			if ( !depthOnly && !ids )
-			{
-				info.Blend = [Blend( state.Blend )];
-				info.DepthTest = depth != Format.Unknown && state.DepthTest;
-				info.DepthWrite = depth != Format.Unknown && state.DepthWrite;
-
-				// Colour after a prepass that drew the same triangles with the same vertex stage: depth tested equal and not
-				// written, as foliage.shader's colour pass, so an alpha-tested pass keeps early depth testing
-				if ( depthEqual )
+				var info = Info( pass, layout, color, depth, samples, vertexConstants, [.. pixelConstants ?? [], .. specialized.Constants], state, ids, opaqueFade, depthEqual );
+				if ( !device.Surfaces.SpecializeInBackground )
 				{
-					info.DepthWrite = false;
-					info.DepthCompare = CompareFunction.Equal;
+					if ( BackendDevice.DumpSurfaceShaders is { } dumpNow ) Dump( dumpNow, pass, info.FragmentConstants, specialized );
+					return pipelines[key] = device.Gpu.CreateGraphicsPipeline( info );
 				}
+
+				var unspecialized = Pipeline( pass, layout, color, depth, samples, vertexConstants, pixelConstants, constantsKey, state, ids, opaqueFade, depthEqual );
+				if ( !disposed && building.Add( key ) )
+				{
+					builds.RemoveAll( b => b.IsCompleted );
+					builds.Add( System.Threading.Tasks.Task.Run( () =>
+					{
+						if ( BackendDevice.DumpSurfaceShaders is { } dump ) Dump( dump, pass, info.FragmentConstants, specialized );
+						var made = device.Gpu.CreateGraphicsPipeline( info );
+						lock ( pipelines )
+						{
+							building.Remove( key );
+							if ( disposed ) device.Gpu.Destroy( made );
+							else pipelines[key] = made;
+						}
+					} ) );
+				}
+
+				return unspecialized;
 			}
 
-			pipeline = device.Gpu.CreateGraphicsPipeline( info );
+			pipeline = device.Gpu.CreateGraphicsPipeline( Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, ids, opaqueFade, depthEqual ) );
 			pipelines[key] = pipeline;
 			return pipeline;
 		}
+	}
+
+	void Dump( string folder, PassObjects pass, SpecializationConstant[] constants, SurfaceFeatures specialized )
+	{
+		var name = Path.Combine( folder, $"{Compiled.Name}_{pass.Pass.Name}_{specialized.Key:x16}" );
+		if ( File.Exists( name + ".spv" ) || BackendDevice.Specialized( pass.Pass.Pixel.Spirv, constants ) is not { } spirv ) return;
+		Directory.CreateDirectory( folder );
+		File.WriteAllBytes( name + ".spv", spirv );
+		var fields = Compiled.Material.Features;
+		File.WriteAllText( name + ".txt", string.Join( ' ', specialized.Constants.Skip( 1 ).Select( ( c, i ) => $"{fields[i].Name}={c.Value}" ) ) );
+	}
+
+	GraphicsPipelineInfo Info( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, SurfaceRenderState state, bool ids, bool opaqueFade, bool depthEqual )
+	{
+		// A vertex-cache draw reads its vertex ids from streams 2 and 3, as floats, and the default stream from 4, as
+		// BackendDevice.Pipeline maps classic variants
+		var vertexCache = layout.VertexCache;
+		var inputs = pass.Pass.Vertex.Inputs.Select( i => new VertexInput( i.Location, Semantic( i.Semantic ), i.SemanticIndex, i.Kind == ScalarKind.Float ? SpirvScalar.Float : i.Kind == ScalarKind.Int ? SpirvScalar.Int : SpirvScalar.UInt, i.Components ) ).ToList();
+		var attributes = ShaderDefaults.MapVertices( inputs, input =>
+		{
+			if ( input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex == 13 ) return new VertexAttribute( 0, 1, VertexFormat.UInt, 0 );
+			if ( vertexCache && input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex is 14 or 15 ) return new VertexAttribute( 0, input.SemanticIndex == 14 ? 2 : 3, VertexFormat.Float, 0 );
+			if ( layout.Find( input.Semantic, input.SemanticIndex ) is not { } field ) return null;
+			var integer = field.Format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt4;
+			if ( integer != (input.Kind != SpirvScalar.Float) ) return null;
+			return new VertexAttribute( 0, 0, field.Format, field.Offset );
+		}, defaultBuffer: vertexCache ? 4 : 2 );
+
+		var depthOnly = color == Format.Unknown && !ids;
+		var pixel = pass.Pixel.IsValid;
+		var info = new GraphicsPipelineInfo
+		{
+			VertexShader = pass.Vertex,
+			VertexEntry = pass.Pass.Vertex.Entry,
+			VertexConstants = vertexConstants,
+			FragmentConstants = pixel ? pixelConstants : null,
+			FragmentShader = pixel ? pass.Pixel : default,
+			FragmentEntry = pixel ? pass.Pass.Pixel.Entry : null,
+			Sets = pass.Sets,
+			VertexBuffers = vertexCache
+				? [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 4 ), new( 4 ), new( 0 )]
+				: [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )],
+			Attributes = attributes,
+			Topology = PrimitiveTopology.TriangleList,
+			CullMode = state.TwoSided ? CullMode.None : CullMode.Back,
+			FrontFace = FrontFace.CounterClockwise,
+			DepthBias = depthOnly || ids,
+			DepthTest = depth != Format.Unknown,
+			DepthWrite = depth != Format.Unknown,
+			DepthCompare = CompareFunction.GreaterEqual,
+			Blend = ids ? [BlendState.Opaque, BlendState.Opaque] : [BlendState.Opaque],
+
+			// Alpha-tested passes write today's alpha-to-coverage alpha (S_ALPHA_TEST), with multisampling only, as the
+			// .shaders' AlphaToCoverageEnable render state does; so does a fading object's (D_OPAQUE_FADE), unless it blends
+			AlphaToCoverage = samples > 1 && !state.DrawsTranslucent && (opaqueFade || pass.Pass.Name.Contains( "AlphaTest", StringComparison.Ordinal )),
+			ColorFormats = ids ? [Format.R8Unorm, Format.R32Uint] : depthOnly ? [] : [color],
+			DepthFormat = depth,
+			Samples = samples,
+			Name = $"{Compiled.Name} {pass.Pass.Name}",
+		};
+
+		if ( !depthOnly && !ids )
+		{
+			info.Blend = [Blend( state.Blend )];
+			info.DepthTest = depth != Format.Unknown && state.DepthTest;
+			info.DepthWrite = depth != Format.Unknown && state.DepthWrite;
+
+			// Colour after a prepass that drew the same triangles with the same vertex stage: depth tested equal and not
+			// written, as foliage.shader's colour pass, so an alpha-tested pass keeps early depth testing
+			if ( depthEqual )
+			{
+				info.DepthWrite = false;
+				info.DepthCompare = CompareFunction.Equal;
+			}
+		}
+
+		return info;
 	}
 
 	/// <summary>
@@ -610,12 +718,34 @@ internal sealed class SurfaceProgram : IDisposable
 
 	public void Dispose()
 	{
+		// Pipelines still being made finish first: the device they're made on may go next
+		System.Threading.Tasks.Task[] running;
+		lock ( pipelines )
+		{
+			disposed = true;
+			running = builds.ToArray();
+		}
+
+		System.Threading.Tasks.Task.WaitAll( running );
 		lock ( pipelines )
 		{
 			foreach ( var pipeline in pipelines.Values ) device.Gpu.Destroy( pipeline );
 			pipelines.Clear();
 		}
 	}
+}
+
+/// <summary>
+/// Feature values surface pipelines are specialised for (<see cref="SurfaceProgram.Features"/>): a key, and the
+/// specialization constants that say so and carry the values.
+/// </summary>
+internal sealed class SurfaceFeatures( ulong key, SpecializationConstant[] constants )
+{
+	/// <summary>Tells value sets apart; never 0.</summary>
+	public ulong Key { get; } = key;
+
+	/// <summary>The specialised flag and each feature's value.</summary>
+	public SpecializationConstant[] Constants { get; } = constants;
 }
 
 /// <summary>
