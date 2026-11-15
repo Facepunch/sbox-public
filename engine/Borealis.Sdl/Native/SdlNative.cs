@@ -40,6 +40,7 @@ internal static unsafe class SdlNative
 	public static delegate* unmanaged< nint, float > SDL_GetWindowPixelDensity;
 	public static delegate* unmanaged< nint, float > SDL_GetWindowDisplayScale;
 	public static delegate* unmanaged< nint, byte, byte > SDL_SetWindowFullscreen;
+	public static delegate* unmanaged< nint, SdlDisplayMode*, byte > SDL_SetWindowFullscreenMode;
 	public static delegate* unmanaged< nint, byte > SDL_SyncWindow;
 	public static delegate* unmanaged< nint, byte > SDL_ShowWindow;
 	public static delegate* unmanaged< nint, byte > SDL_HideWindow;
@@ -173,6 +174,7 @@ internal static unsafe class SdlNative
 		SDL_GetWindowPixelDensity = (delegate* unmanaged< nint, float >)Need( "SDL_GetWindowPixelDensity" );
 		SDL_GetWindowDisplayScale = (delegate* unmanaged< nint, float >)Need( "SDL_GetWindowDisplayScale" );
 		SDL_SetWindowFullscreen = (delegate* unmanaged< nint, byte, byte >)Need( "SDL_SetWindowFullscreen" );
+		SDL_SetWindowFullscreenMode = (delegate* unmanaged< nint, SdlDisplayMode*, byte >)Need( "SDL_SetWindowFullscreenMode" );
 		SDL_SyncWindow = (delegate* unmanaged< nint, byte >)Need( "SDL_SyncWindow" );
 		SDL_ShowWindow = (delegate* unmanaged< nint, byte >)Need( "SDL_ShowWindow" );
 		SDL_HideWindow = (delegate* unmanaged< nint, byte >)Need( "SDL_HideWindow" );

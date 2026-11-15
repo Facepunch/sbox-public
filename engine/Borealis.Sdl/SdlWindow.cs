@@ -26,6 +26,9 @@ public sealed class SdlWindowOptions
 	/// <summary>Start fullscreen, borderless on the desktop's mode.</summary>
 	public bool Fullscreen { get; init; }
 
+	/// <summary>With <see cref="Fullscreen"/>, exclusive fullscreen in the display's current mode instead of borderless.</summary>
+	public bool Exclusive { get; init; }
+
 	/// <summary>No border or title bar.</summary>
 	public bool Borderless { get; init; }
 
@@ -116,6 +119,7 @@ public sealed unsafe class SdlWindow : IDisposable
 
 			// Sizes are asked for in pixels: where a window unit is more than one pixel (Retina, scaled Wayland), shrink it
 			SetPixelSize( options.Width, options.Height );
+			if ( options.Fullscreen && options.Exclusive ) ExclusiveMode();
 			if ( options.Fullscreen ) Fullscreen = true;
 			if ( !options.Hidden ) Show();
 		}
@@ -271,6 +275,14 @@ public sealed unsafe class SdlWindow : IDisposable
 			Check( SDL_SetWindowFullscreen( handle, value ? (byte)1 : (byte)0 ), "SDL_SetWindowFullscreen" );
 			SDL_SyncWindow( handle );
 		}
+	}
+
+	/// <summary>Fullscreen from now on means exclusive, in the current mode of the display it's on.</summary>
+	void ExclusiveMode()
+	{
+		var mode = SDL_GetCurrentDisplayMode( SDL_GetDisplayForWindow( handle ) );
+		if ( mode == null ) throw new SdlException( $"SDL_GetCurrentDisplayMode failed: {LastError}" );
+		Check( SDL_SetWindowFullscreenMode( handle, mode ), "SDL_SetWindowFullscreenMode" );
 	}
 
 	/// <summary>Whether it's minimised: there's nothing to present to.</summary>

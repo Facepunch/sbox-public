@@ -25,6 +25,8 @@ namespace Sandbox.BorealisLab.Maps;
 /// <item><c>-variants a,b</c> - which of the runs below; all by default.</item>
 /// <item><c>-frames N</c> (600), <c>-warmup N</c> (120 frames and 2 s) - measured and warm-up frames per run.</item>
 /// <item><c>-width</c> / <c>-height</c> (1280x720, SceneLab's frame), <c>-msaa N</c> (4), <c>-vsync</c> (off by default).</item>
+/// <item><c>-fullscreen</c> - borderless fullscreen on the desktop's mode; <c>-fullscreen exclusive</c> exclusive in it. The
+/// swap chain takes the display's size; <c>-width</c> / <c>-height</c> still set the frame drawn into it.</item>
 /// <item><c>-capture folder</c> - save each view's frame (material objects, shadows) as <c>map-view.png</c>.</item>
 /// <item><c>-out folder</c> - where <c>map.md</c> and <c>map.csv</c> go (default <c>screenshots/borealislab/map</c>).</item>
 /// <item><c>-texture-size N</c> (1024) - mips above this are left out, to load faster.</item>
@@ -92,7 +94,7 @@ internal static class MapRun
 		var errors = 0;
 		var messageCounts = new System.Collections.Concurrent.ConcurrentDictionary<string, int>();
 		var driverNames = !Args.Has( "-borealis-driver-names" );
-		using var window = new SdlWindow( new SdlWindowOptions { Title = $"Borealis Lab: {ident} on Borealis.Gpu", Width = width, Height = height } );
+		using var window = new SdlWindow( new SdlWindowOptions { Title = $"Borealis Lab: {ident} on Borealis.Gpu", Width = width, Height = height, Fullscreen = Args.Has( "-fullscreen" ), Exclusive = Args.String( "-fullscreen" ) is "exclusive" } );
 		using var gpu = GpuDevice.Create( new DeviceOptions
 		{
 			ApplicationName = driverNames ? "Sbox" : "Borealis Lab map",
