@@ -1015,7 +1015,15 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		var path = System.IO.Path.Combine( folder, name );
 		if ( System.IO.File.Exists( path ) ) return;
 
-		var spirv = (byte[])stage.Bytecode.Shared.Spirv.Clone();
+		if ( Specialized( stage.Bytecode.Shared.Spirv, constants ) is not { } spirv ) return;
+		System.IO.Directory.CreateDirectory( folder );
+		System.IO.File.WriteAllBytes( path, spirv );
+	}
+
+	/// <summary>A copy of <paramref name="source"/> with <paramref name="constants"/> as its specialization constants' defaults; null when it doesn't parse.</summary>
+	internal static byte[] Specialized( byte[] source, SpecializationConstant[] constants )
+	{
+		var spirv = (byte[])source.Clone();
 		var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( spirv.AsSpan() );
 		var specIds = new Dictionary<uint, uint>();
 		for ( int pass = 0; pass < 2; pass++ )
@@ -1024,7 +1032,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			{
 				var count = (int)(words[i] >> 16);
 				var opcode = (int)(words[i] & 0xffff);
-				if ( count == 0 ) return;
+				if ( count == 0 ) return null;
 				if ( pass == 0 && opcode == 71 && count >= 4 && words[i + 2] == 1 ) specIds[words[i + 1]] = words[i + 3];
 				else if ( pass == 1 && opcode is 48 or 49 or 50 && specIds.TryGetValue( words[i + 2], out var id ) )
 				{
@@ -1040,9 +1048,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			}
 		}
 
-		System.IO.Directory.CreateDirectory( folder );
-		System.IO.File.WriteAllBytes( path, spirv );
+		return spirv;
 	}
+
+	/// <summary>
+	/// <c>BOREALIS_DUMP_SURFACE_SHADERS=folder</c>: write the pixel shader of every specialised surface pipeline, its
+	/// constants applied, as <c>surface_pass_key.spv</c> with the feature values beside it (<c>.txt</c>), for register counts.
+	/// </summary>
+	internal static readonly string DumpSurfaceShaders = Environment.GetEnvironmentVariable( "BOREALIS_DUMP_SURFACE_SHADERS" );
 
 	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false, ShaderVariant StateFrom = null );
 

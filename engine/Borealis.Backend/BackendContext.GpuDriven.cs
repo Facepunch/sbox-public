@@ -68,6 +68,9 @@ internal sealed partial class BackendContext
 
 		/// <summary>A surface bucket's materials' resolved render state (<see cref="SurfaceMaterial.RenderState"/>).</summary>
 		public Sandbox.ShaderCompiler.SurfaceRenderState SurfaceState;
+
+		/// <summary>A surface bucket's materials' feature values, which its pipelines are specialised for; null for none.</summary>
+		public SurfaceFeatures SurfaceFeatures;
 		public ShaderParameters Attributes;
 		public bool DepthOnly, NoColor;
 
@@ -1548,6 +1551,7 @@ internal sealed partial class BackendContext
 		made.Variant = variant;
 		made.Surface = null;
 		made.SurfaceState = default;
+		made.SurfaceFeatures = null;
 		made.SurfaceProgram = null;
 		made.SurfacePositionsOnly = false;
 		made.Attributes = attributes;
