@@ -262,8 +262,8 @@ public class SurfaceTests : GpuTest
 	{
 		var compiler = Compiler();
 		var rock = compiler.CompileSurface( Path.Combine( Surfaces, "rock.slang" ) );
-		var complex = compiler.CompileSurface( Path.Combine( Core, "shaders", "complex.slang" ) );
-		foreach ( var (name, shader) in new[] { ("rock", rock), ("complex", complex) } )
+		var standard = compiler.CompileSurface( Path.Combine( Core, "shaders", "standard.slang" ) );
+		foreach ( var (name, shader) in new[] { ("rock", rock), ("standard", standard) } )
 		{
 			Assert.IsTrue( shader.Pass( ShaderPasses.Forward ).Pixel.Bindings.Any( b => b.Variable == "DecalBuffer" ), $"{name} forward applies decals" );
 			Assert.IsFalse( shader.Pass( ShaderPasses.DepthAlphaTest ).Pixel.Bindings.Any( b => b.Variable == "DecalBuffer" ), $"{name} depth" );
@@ -594,7 +594,7 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// complex.slang stands in for complex.shader's materials and draws them as complex.shader does, through the final
+	/// standard.slang stands in for complex.shader's materials and draws them as complex.shader does, through the final
 	/// combiner; a material using a feature it doesn't do (translucency) stays on complex.shader.
 	/// </summary>
 	[TestMethod]
@@ -616,7 +616,7 @@ public class SurfaceTests : GpuTest
 				if ( convert )
 				{
 					backend.Surfaces.AddFolder( Path.Combine( Core, "shaders" ) );
-					backend.Surfaces.Convert( "shaders/complex.shader", "complex.slang" );
+					backend.Surfaces.Convert( "shaders/complex.shader", "standard.slang" );
 				}
 
 				loaded = ((GpuDevice)backend).LoadMaterial( path );
@@ -756,9 +756,9 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// The final combiner family's other surfaces, on by default: generic.slang (plain, specular on, self-illuminated,
+	/// The final combiner family's other surfaces, on by default: standard.slang with generic's materials (plain, specular on, self-illuminated,
 	/// two-sided, unlit, alpha-tested, translucent) and vertex_color.slang (the mesh's colour as Varyings) draw their
-	/// materials as their .shader does, and so do complex.slang's translucent ones; a material using a feature a surface
+	/// materials as their .shader does, and so do complex's translucent ones; a material using a feature a surface
 	/// doesn't do (generic's vertex paint) stays on the .shader.
 	/// </summary>
 	[TestMethod]
@@ -805,6 +805,60 @@ public class SurfaceTests : GpuTest
 				SaveRgb( reference, $"combiner-{name}-shader" );
 				SaveRgb( converted, $"combiner-{name}-surface" );
 				Assert.IsTrue( Mean( reference, converted ) < 0.5, $"{path}: the surface differs by {Mean( reference, converted ):F3}" );
+			}
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// standard takes complex, simple and generic materials, each with its shader's packing, and a pipeline specialised for
+	/// a material's features (its [Specialize] fields as constants) draws what the unspecialised one does.
+	/// </summary>
+	[TestMethod]
+	public void StandardSurfaceSpecializesForItsMaterials()
+	{
+		var compiled = Compiler().CompileSurface( Path.Combine( Core, "shaders", "standard.slang" ) );
+		Assert.AreEqual( "UseUnlit", string.Join( ", ", compiled.Material.Features.Select( f => f.Name ) ), "only [Specialize] fields are specialised for" );
+		StringAssert.Contains( compiled.Generated, "SurfaceSpecialize( m );" );
+
+		var previousHost = RenderHost.Current;
+		try
+		{
+			byte[] DrawMaterial( string path, bool specialize, out SurfaceMaterial loaded, out int specialized )
+			{
+				using var backend = new BackendDevice( Device );
+				var errors = new List<string>();
+				backend.Surfaces.Error = errors.Add;
+				backend.Surfaces.SpecializeFeatures = specialize;
+				backend.Surfaces.SpecializeInBackground = false;
+				RenderHost.Current = new BackendRenderHost( backend );
+				var material = ((GpuDevice)backend).LoadMaterial( path );
+				if ( material is not SurfaceMaterial ) Assert.Inconclusive( $"{path} isn't compiled, or isn't a surface" );
+				loaded = (SurfaceMaterial)material;
+				var picture = Draw( backend, loaded );
+				specialized = loaded.Program?.Specialized.Made ?? 0;
+				Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+				return picture;
+			}
+
+			foreach ( var (path, packing) in new[] { ("materials/default.vmat", 0), ("materials/dev/simple/floor_simple_128.vmat", 1), ("materials/dev/primary_blue.vmat", 2), ("materials/dev/sky_helper.vmat", 2) } )
+			{
+				var plain = DrawMaterial( path, false, out _, out var none );
+				var specialized = DrawMaterial( path, true, out var material, out var made );
+				StringAssert.EndsWith( material.Shader, "standard.slang", path );
+				var record = new byte[material.RecordSize];
+				material.WriteRecord( record, ( _, _ ) => 0 );
+				Assert.AreEqual( packing, BitConverter.ToInt32( record, material.Program.Compiled.Material.Field( "Packing" ).Offset ), $"{path}: packing" );
+				Assert.AreEqual( 0, none, $"{path}: specialised with specialization off" );
+				Assert.IsTrue( made > 0, $"{path}: no specialised pipeline" );
+				var name = Path.GetFileNameWithoutExtension( path );
+				SaveRgb( plain, $"standard-{name}-plain" );
+				SaveRgb( specialized, $"standard-{name}-specialized" );
+				Assert.IsTrue( Mean( plain, specialized ) < 0.05, $"{path}: specialised differs by {Mean( plain, specialized ):F3}" );
 			}
 		}
 		finally
@@ -949,7 +1003,7 @@ public class SurfaceTests : GpuTest
 			Assert.IsTrue( forward.Bindings.Any( b => b.Name == name ), name );
 		Assert.IsNotNull( glass.Pass( ShaderPasses.Forward + "Translucent" + ShaderPasses.GpuDriven ), glass.GpuDrivenError );
 
-		var complex = Compiler().CompileSurface( Path.Combine( Core, "shaders", "complex.slang" ) ).Pass( ShaderPasses.Forward ).Pixel;
+		var complex = Compiler().CompileSurface( Path.Combine( Core, "shaders", "standard.slang" ) ).Pass( ShaderPasses.Forward ).Pixel;
 		Assert.IsFalse( complex.Bindings.Any( b => b.Name == "FrameBufferCopyTexture" ), string.Join( ", ", complex.Bindings.Select( b => b.Name ) ) );
 
 		// A translucent glass material is translucent and has no depth passes: its .shader's draw its shadows
@@ -961,7 +1015,7 @@ public class SurfaceTests : GpuTest
 
 	/// <summary>
 	/// The converter's render state: a .shader's RenderState lines evaluated per feature value become the struct's
-	/// attributes and rules on the features' fields, as static_overlay.slang and generic.slang declare them by hand.
+	/// attributes and rules on the features' fields, as static_overlay.slang and standard.slang declare them by hand.
 	/// </summary>
 	[TestMethod]
 	public void ConverterTranslatesRenderStates()
@@ -1035,7 +1089,7 @@ public class SurfaceTests : GpuTest
 			if ( (expected.Cull == CullMode.None) != state.TwoSided ) differences.Add( $"cull {expected.Cull} vs two-sided {state.TwoSided}" );
 			// generic.shader clips its alpha test hard, without alpha to coverage; its surface's alpha-tested pass uses it, with a
 			// hard coverage (a known small difference at multisampled edges)
-			var hardClip = !expected.AlphaToCoverage && state.AlphaTest && surface.Shader.EndsWith( "generic.slang", StringComparison.OrdinalIgnoreCase );
+			var hardClip = !expected.AlphaToCoverage && state.AlphaTest && classic.Shader.Name.Contains( "generic", StringComparison.OrdinalIgnoreCase );
 			if ( !state.Blends && !hardClip && expected.AlphaToCoverage != state.AlphaTest ) differences.Add( $"alpha to coverage {expected.AlphaToCoverage} vs alpha test {state.AlphaTest}" );
 			if ( differences.Count > 0 ) mismatches.Add( $"{path}: {string.Join( ", ", differences )}" );
 			compared++;

@@ -116,6 +116,44 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	/// <summary>Set where <see cref="Attribute"/> reads from: the <c>.shader</c> material, without its textures.</summary>
 	internal void SetAttributes( Func<BackendMaterial> make ) => attributes = new Lazy<BackendMaterial>( make, LazyThreadSafetyMode.ExecutionAndPublication );
 
+	/// <summary>
+	/// Its values of <paramref name="features"/> (its shader's <see cref="Sandbox.ShaderCompiler.MaterialLayout.Features"/>), as
+	/// pipelines are specialised for them: a key that tells value sets apart (0 for none), and the values. Read again when
+	/// a field changes.
+	/// </summary>
+	internal (ulong Key, int[] Values) Features( IReadOnlyList<Sandbox.ShaderCompiler.MaterialField> features )
+	{
+		if ( features.Count == 0 ) return (0, null);
+		var v = Version;
+		var known = featureValues;
+		if ( known is not null && known.Version == v ) return (known.Key, known.Values);
+
+		var values = new int[features.Count];
+		var key = 14695981039346656037ul;
+		lock ( record )
+		{
+			for ( int i = 0; i < values.Length; i++ )
+			{
+				values[i] = BinaryPrimitives.ReadInt32LittleEndian( record.AsSpan( features[i].Offset ) );
+				key = (key ^ (uint)values[i]) * 1099511628211ul;
+			}
+		}
+
+		key |= 1;
+		featureValues = new FeatureValues( v, key, values );
+		return (key, values);
+	}
+
+	sealed record FeatureValues( int Version, ulong Key, int[] Values );
+
+	FeatureValues featureValues;
+
+	/// <summary>What its program's pipelines are specialised for, at a version of it (<see cref="SurfaceProgram.Features"/>).</summary>
+	internal sealed record SpecializedFor( int Version, SurfaceProgram Program, SurfaceFeatures Features );
+
+	/// <summary>The last <see cref="SpecializedFor"/> worked out.</summary>
+	internal SpecializedFor Specialization { get; set; }
+
 	/// <summary>Its compiled program, once a device found it (<see cref="SurfaceShaders"/>).</summary>
 	internal SurfaceProgram Program { get; set; }
 

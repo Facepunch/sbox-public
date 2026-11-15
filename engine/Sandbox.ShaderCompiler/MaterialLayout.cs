@@ -25,6 +25,27 @@ public sealed class MaterialLayout
 	/// <summary>The render state's defaults and <c>[RenderState]</c> fields, for resolving it per material.</summary>
 	public SurfaceStateLayout States() => new( RenderState, Fields.SelectMany( f => (f.RenderStates ?? []).Select( r => new SurfaceStateField( r, f.Offset, f.Kind == MaterialFieldKind.Float ) ) ).ToArray() );
 
+	/// <summary>
+	/// Specialization constant id of the flag that says a pipeline is specialised for one material's features
+	/// (<see cref="Features"/>); each feature's value is constant <see cref="FirstFeatureId"/> plus its index.
+	/// </summary>
+	public const int SpecializedId = 15;
+
+	/// <summary>Specialization constant id of the first feature's value.</summary>
+	public const int FirstFeatureId = 16;
+
+	/// <summary>Features a pipeline can be specialised for, at most: ids up to the <c>SpecializedConstant()</c> globals'.</summary>
+	public const int MaxFeatures = 48;
+
+	/// <summary>
+	/// The fields a pipeline can be specialised for (<see cref="MaterialField.IsFeature"/>), in order, at most
+	/// <see cref="MaxFeatures"/>: pixel stages read them as specialization constants when the pipeline says so.
+	/// </summary>
+	[System.Text.Json.Serialization.JsonIgnore]
+	public IReadOnlyList<MaterialField> Features => features ??= Fields.Where( f => f.IsFeature ).Take( MaxFeatures ).ToArray();
+
+	MaterialField[] features;
+
 	/// <summary>Lay out <paramref name="fields"/> (offsets ignored) in order, with the struct's render state.</summary>
 	public static MaterialLayout Create( string type, IEnumerable<MaterialField> fields, SurfaceRenderDefaults renderState = null )
 	{
@@ -88,6 +109,26 @@ public sealed record MaterialField( string Name, MaterialFieldKind Kind, int Com
 	/// in field order over the struct's defaults.
 	/// </summary>
 	public IReadOnlyList<SurfaceStateRule> RenderStates { get; init; }
+
+	/// <summary>
+	/// The <c>.shader</c>s a <c>[Source( "Shader: complex simple generic" )]</c> field tells apart: a converted material
+	/// takes the index of its own shader in the list. Null for other fields.
+	/// </summary>
+	[System.Text.Json.Serialization.JsonIgnore]
+	public IReadOnlyList<string> ShaderNames => Source is { } s && s.StartsWith( "Shader:", StringComparison.Ordinal )
+		? s["Shader:".Length..].Split( ' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries )
+		: null;
+
+	/// <summary>Pipelines are specialised for its value (<c>[Specialize]</c>).</summary>
+	public bool Specialize { get; init; }
+
+	/// <summary>
+	/// A feature pipelines are specialised for: a <c>[Specialize]</c> bool or integer whose range lets it vary. Fixed per
+	/// material in practice, so each value is a pipeline of its own.
+	/// </summary>
+	[System.Text.Json.Serialization.JsonIgnore]
+	public bool IsFeature => Specialize && Components == 1 && Kind is MaterialFieldKind.Bool or MaterialFieldKind.Int or MaterialFieldKind.UInt
+		&& !(Min is { } min && Max is { } max && min == max);
 
 	/// <summary>Bytes it takes.</summary>
 	public int Size => Kind == MaterialFieldKind.Texture2D ? 4 : 4 * Components;

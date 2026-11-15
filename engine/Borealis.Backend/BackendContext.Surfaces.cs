@@ -83,7 +83,7 @@ internal sealed partial class BackendContext
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
-		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, state, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0 );
+		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, state, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0, specialized: program.Features( material ) );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
@@ -133,11 +133,13 @@ internal sealed partial class BackendContext
 		if ( device.Surfaces.For( material ) is not { } program ) return null;
 		if ( program.GpuDrivenPass( noColor, state.AlphaTest, LookupCombo( LightmapCombo ) is > 0, state.DrawsTranslucent ) is not { } pass ) return null;
 
+		// Buckets split by the materials' features where a pixel stage reads them, each drawn with a pipeline specialised for them
 		var depthOnly = pass.Pass.Pixel is null;
+		var features = depthOnly ? null : program.Features( material );
 		for ( int i = openBucket; i < gpuDrivenBucketCount; i++ )
 		{
 			var bucket = gpuDrivenBuckets[i];
-			if ( ReferenceEquals( bucket.Surface, pass ) && bucket.AttributesKey == key && bucket.NoColor == noColor && bucket.SurfaceState == state ) return bucket;
+			if ( ReferenceEquals( bucket.Surface, pass ) && bucket.AttributesKey == key && bucket.NoColor == noColor && bucket.SurfaceState == state && ReferenceEquals( bucket.SurfaceFeatures, features ) ) return bucket;
 		}
 
 		if ( gpuDrivenBucketCount == gpuDrivenBuckets.Count ) gpuDrivenBuckets.Add( new GpuDrivenBucket() );
@@ -153,6 +155,7 @@ internal sealed partial class BackendContext
 		made.DepthOnly = depthOnly;
 		made.NoColor = noColor;
 		made.SurfaceState = state;
+		made.SurfaceFeatures = features;
 		made.PixelMaterial = 0;
 		made.Batches.Clear();
 		made.Commands = 0;
@@ -211,7 +214,7 @@ internal sealed partial class BackendContext
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey, gpuDriven: true );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey, gpuDriven: true ) : null;
-		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, bucket.SurfaceState, ids, LookupCombo( OpaqueFadeCombo ) is > 0, depthEqual );
+		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, bucket.SurfaceState, ids, LookupCombo( OpaqueFadeCombo ) is > 0, depthEqual, bucket.SurfaceFeatures );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
