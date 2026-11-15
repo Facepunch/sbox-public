@@ -323,9 +323,9 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
-	/// A resident aggregate in a Slang surface whose render state turns alpha test on (the material's own
-	/// <see cref="SurfaceMaterial.AlphaTest"/> off) draws from kept plans: a frame like the last makes no plan, and the
-	/// pixels are those of the views' own batches.
+	/// Resident aggregates in a Slang surface whose render state turns alpha test on (the material's own
+	/// <see cref="SurfaceMaterial.AlphaTest"/> off), and in one whose render state blends, draw from kept plans: a frame
+	/// like the last makes no plan, and the pixels are those of the views' own batches.
 	/// </summary>
 	[TestMethod]
 	public void ResidentSurfaceAlphaTestedByItsRenderStateKeepsItsPlans()
@@ -343,6 +343,7 @@ public class GpuDrivenTests : GpuTest
 			var path = Path.Combine( folder, "clip_stripes.slang" );
 			File.WriteAllText( path, "import sbox.surface;\n[Material]\npublic struct ClipStripes : ISurface\n{\n"
 				+ "\t[RenderState( \"AlphaTest\" )] bool Clip;\n"
+				+ "\t[RenderState( \"Blend: Opaque, Alpha\" )] int Mode;\n"
 				+ "\t[Default3( 1, 1, 1 )] float3 Tint;\n"
 				+ "\tpublic Material Evaluate( SurfaceInput i )\n\t{\n\t\tMaterial m = Material.Init( i );\n\t\tm.Albedo = Tint;\n"
 				+ "\t\tm.Opacity = frac( i.Uv.x * 4 ) < 0.5 ? 1.0 : 0.0;\n\t\treturn m;\n\t}\n}\n" );
@@ -353,6 +354,8 @@ public class GpuDrivenTests : GpuTest
 			Assert.IsNotNull( material, "the surface compiled" );
 			Assert.IsFalse( material.AlphaTest, "the material's own alpha test is off" );
 			Assert.IsTrue( material.RenderState.AlphaTest, "its render state turns alpha test on" );
+			var blended = (SurfaceMaterial)backend.Surfaces.CreateMaterial( path, null, new Dictionary<string, float[]> { ["Mode"] = [1], ["Tint"] = [0.3f, 0.5f, 0.8f] } );
+			Assert.IsTrue( blended.RenderState.Blends, "the other's render state blends" );
 
 			using var system = new RenderSystem { ParallelRecording = false };
 			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven resident surface test" );
@@ -362,7 +365,7 @@ public class GpuDrivenTests : GpuTest
 			world.Lighting.SunShadowCascades = 2;
 			for ( int row = 0; row < Rows; row++ )
 			{
-				var (mesh, fragments) = Boxes( backend, material, row * 120 - 120 );
+				var (mesh, fragments) = Boxes( backend, row == Rows - 1 ? blended : material, row * 120 - 120 );
 				world.Add( new AggregateObject( mesh, fragments ) { IsStatic = true } );
 			}
 
