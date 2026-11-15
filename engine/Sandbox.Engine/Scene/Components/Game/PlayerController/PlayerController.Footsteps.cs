@@ -44,7 +44,11 @@ public sealed partial class PlayerController : Component
 		var handle = GameObject.PlaySound( soundEvent, 0 );
 		if ( !handle.IsValid() ) return;
 
-		handle.FollowParent = false;
+		handle.FollowParent = IsFirstPersonViewer;
+		if ( IsFirstPersonViewer )
+		{
+			handle.SpacialBlend = 0.0f;
+		}
 		handle.TargetMixer = FootstepMixer.GetOrDefault();
 		handle.Volume *= volume * FootstepVolume;
 
