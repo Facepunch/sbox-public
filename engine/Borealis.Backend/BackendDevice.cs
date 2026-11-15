@@ -234,7 +234,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal readonly ResidentCullState ResidentCulls = new();
 
 	/// <summary>Calls drawn from the resident cull, and its dispatches, items, views and entries, for tests and reports.</summary>
-	internal long ResidentCullCalls, ResidentCullDispatches, ResidentCullItems, ResidentCullViews, ResidentCullEntries;
+	internal long ResidentCullCalls, ResidentCullDispatches, ResidentCullItems, ResidentCullViews, ResidentCullEntries, ResidentCullListsFromIds;
 
 	internal void CountResidentCull( int items, int views, long entries )
 	{

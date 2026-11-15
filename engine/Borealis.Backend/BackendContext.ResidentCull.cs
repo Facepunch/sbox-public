@@ -160,6 +160,7 @@ internal sealed partial class BackendContext
 			assignment.Stamps = visibility?.Stamps ?? default;
 			assignment.Lists = lists;
 			assignment.FromPrepass = lists && prepass is not null && ReferenceEquals( plan.IdsFrom, prepass );
+			if ( assignment.FromPrepass ) System.Threading.Interlocked.Increment( ref device.ResidentCullListsFromIds );
 			assignment.Fragments = plan.Fragments;
 			residentWork.Add( assignment );
 		}
@@ -377,8 +378,9 @@ internal sealed partial class BackendContext
 	/// </summary>
 	bool PlanRecords( GpuDrivenPlan plan, GpuDrivenPlan prepass )
 	{
-		// Written again, once, for a forward plan first culled without its prepass's (the old buffer goes with the plan)
-		if ( plan.Records.IsValid && !(plan.Key.Lists && prepass is not null && plan.IdsFrom is null) ) return true;
+		// Written again for a forward plan whose view's prepass now draws with another plan (the old buffer is let go)
+		if ( plan.Records.IsValid && !(plan.Key.Lists && prepass is not null && !ReferenceEquals( plan.IdsFrom, prepass )) ) return true;
+		if ( plan.Records.IsValid ) device.ResidentCulls.Release( plan.Records, Gpu );
 
 		// The prepass's batches that draw ids, by their first visibility fragment: forward's batch of the same owner, LOD and
 		// draw has the same, and lists its fragments the prepass keeps, which the prepass keeps as forward does
@@ -585,6 +587,21 @@ internal sealed class ResidentCullState
 		{
 			foreach ( var (_, buffer) in owned ) gpu.Destroy( buffer );
 			owned.Clear();
+		}
+	}
+
+	/// <summary>Destroy a plan's records buffer now (written again): after the frames that read it, as every destroy is.</summary>
+	public void Release( BufferHandle buffer, Device gpu )
+	{
+		lock ( owned )
+		{
+			for ( int i = 0; i < owned.Count; i++ )
+			{
+				if ( owned[i].Buffer != buffer ) continue;
+				owned.RemoveAt( i );
+				gpu.Destroy( buffer );
+				return;
+			}
 		}
 	}
 
