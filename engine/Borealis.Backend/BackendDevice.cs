@@ -222,6 +222,13 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public bool GpuDrivenResidentCull { get; set; } = !HasSwitch( "-no-resident-cull" );
 
+	/// <summary>
+	/// In the resident cull, a forward pass that compacts lists what its prepass draws ids for from its plan's records, in the
+	/// same dispatch (<see cref="GpuDrivenPlan.IdsFrom"/>). On by default; <c>-resident-cull-stamps</c> turns it off, and such
+	/// passes cull in a second dispatch that reads the stamps their prepass's culling wrote.
+	/// </summary>
+	public bool GpuDrivenResidentListsFromIds { get; set; } = !HasSwitch( "-resident-cull-stamps" );
+
 	/// <summary>The resident cull's kept calls, this frame's assignments and plans' records.</summary>
 	internal readonly ResidentCullState ResidentCulls = new();
 

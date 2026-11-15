@@ -132,6 +132,10 @@ groupshared uint4 g_vViews[192]; // ViewChunk * ViewWords
 	uint2 vMap = bActive ? records.Load2( vItem.w + nLocal * 8 ) : 0;
 	uint i = vMap.y;
 
+	// Forward: whether the view's prepass draws ids for it (ResidentCullEntry.PrepassIds)
+	bool bPrepassIds = ( vMap.x & 0x80000000u ) != 0;
+	vMap.x &= 0x7fffffffu;
+
 	// Batch record, as borealis_gpu_driven_cull_cs reads it: first fragment record (resident meshes: their group's header),
 	// fragments, the first fragment's transform slot (resident meshes: the draw record, bit 31 a list of one per mesh), its
 	// multi-draw; then its first visibility fragment, its multi-draw of compacted triangles, its flags (1: ids, 2: lists,
@@ -250,8 +254,15 @@ groupshared uint4 g_vViews[192]; // ViewChunk * ViewWords
 					continue;
 			}
 
-			// Forward over a fragment its prepass view drew ids for this frame: listed for the compaction pass
-			if ( ( vVisibility.z & 2 ) != 0 && nFragment != None && nVertexBase != None && g_Stamps.Load( nFragment * 4 ) == g_nResidentFrame )
+			// Forward over a fragment its prepass view draws ids for this frame: listed for the compaction pass. The prepass
+			// keeps it as this view does; a view whose flags say so knows from the entry that it draws ids for it, and the rest
+			// read the stamps the prepass's culling wrote in an earlier dispatch
+			bool bListed = ( vVisibility.z & 2 ) != 0 && nFragment != None && nVertexBase != None;
+			if ( bListed && ( vViewOut.w & 1 ) != 0 )
+				bListed = bPrepassIds;
+			else if ( bListed )
+				bListed = g_Stamps.Load( nFragment * 4 ) == g_nResidentFrame;
+			if ( bListed )
 			{
 				uint nAt;
 				g_Frame.InterlockedAdd( vViewOut.z, 1, nAt );
@@ -279,11 +290,12 @@ groupshared uint4 g_vViews[192]; // ViewChunk * ViewWords
 			g_Frame.Store( nCommand + 12, vDraw.z );
 			g_Frame.Store( nCommand + 16, vViewOut.x + nSlot );
 
-			// The prepass's ids: this instance's fragment, and its stamp for forward this frame
+			// The prepass's ids: this instance's fragment, and its stamp for forward this frame where forward reads it
 			if ( ( vVisibility.z & 1 ) != 0 && nFragment != None )
 			{
 				g_Frame.Store( vViewOut.y + ( vViewOut.x + nSlot ) * 4, nVertexBase );
-				g_Stamps.Store( nFragment * 4, g_nResidentFrame );
+				if ( ( vViewOut.w & 2 ) != 0 )
+					g_Stamps.Store( nFragment * 4, g_nResidentFrame );
 			}
 		}
 	}

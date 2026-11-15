@@ -113,6 +113,12 @@ internal sealed class GpuDrivenPlan
 	public BufferHandle Records;
 	public int RecordsSlot, Entries, EntryMap;
 
+	/// <summary>
+	/// A forward plan that compacts: the prepass plan whose ids its records' entries name (<see cref="ResidentCullEntry.PrepassIds"/>).
+	/// A view whose prepass draws with that plan lists from them in the same dispatch; any other reads its prepass's stamps.
+	/// </summary>
+	public GpuDrivenPlan IdsFrom;
+
 	/// <summary>Replaced or dropped from its list's plans: no call finds it again.</summary>
 	public volatile bool Retired;
 }
