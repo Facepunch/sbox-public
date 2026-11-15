@@ -188,6 +188,25 @@ public sealed partial class PassModule
 		return states;
 	}
 
+	/// <summary>
+	/// How the vertex stage expands the draw's primitives with these combo values (<c>ExpandPrimitives( LINES, 4,
+	/// TRIANGLE_STRIP )</c>: what it expands, the vertices it runs for each, the topology they make), or null when it draws
+	/// the vertices it's given.
+	/// </summary>
+	public (string From, int Vertices, string Topology)? Expansion( IReadOnlyDictionary<string, int> values )
+	{
+		var all = ProgramValues( StageKind.Vertex );
+		foreach ( var (name, value) in values ) all[name] = value;
+
+		foreach ( var line in PassPreprocessor.ActiveLines( Path, Text, all, Include ) )
+		{
+			var m = ExpansionLine().Match( line );
+			if ( m.Success ) return (m.Groups["from"].Value, int.Parse( m.Groups["vertices"].Value, CultureInfo.InvariantCulture ), m.Groups["topology"].Value);
+		}
+
+		return null;
+	}
+
 	/// <summary>What every stage's preprocessing starts with: <c>PROGRAM</c> and vfx's program numbers.</summary>
 	internal static Dictionary<string, int> ProgramValues( StageKind stage ) => new( StringComparer.Ordinal )
 	{
@@ -220,6 +239,9 @@ public sealed partial class PassModule
 
 	[GeneratedRegex( @"^\s*RenderState\(\s*(?<state>\w+)\s*,\s*(?<value>.*?)\s*\)\s*;" )]
 	private static partial Regex RenderStateLine();
+
+	[GeneratedRegex( @"^\s*ExpandPrimitives\(\s*(?<from>\w+)\s*,\s*(?<vertices>\d+)\s*,\s*(?<topology>\w+)\s*\)\s*;" )]
+	private static partial Regex ExpansionLine();
 
 	static Regex EntryLine( StageKind stage ) => stage switch
 	{
