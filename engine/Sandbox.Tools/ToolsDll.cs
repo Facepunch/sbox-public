@@ -70,6 +70,7 @@ internal class ToolsDll : IToolsDll
 	public void Exiting()
 	{
 		EditorEvent.Run( "app.exit" );
+		EditorScene.SaveState();
 		EditorCookie?.Save();
 		ProjectCookie?.Save();
 	}
