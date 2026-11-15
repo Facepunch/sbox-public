@@ -302,6 +302,7 @@ internal enum VkFeature
 	ShaderSampledImageArrayDynamicIndexing = 34,
 	ShaderStorageBufferArrayDynamicIndexing = 35,
 	ShaderStorageImageArrayDynamicIndexing = 36,
+	ShaderClipDistance = 37,
 	ShaderInt64 = 40,
 	ShaderInt16 = 41,
 }
