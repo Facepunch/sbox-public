@@ -80,7 +80,7 @@ public sealed partial class SlangCompiler
 		Dictionary<string, Annotations> annotations = null;
 		var defines = Defines( stage );
 		foreach ( var (name, value) in extraDefines ?? new Dictionary<string, string>() ) defines[name] = value;
-		var request = new SlangRequest( session, [.. extraSearchPaths, .. searchPaths], defines, stage == StageKind.Vertex, ( path, text ) =>
+		var request = new SlangRequest( session, [.. extraSearchPaths, .. searchPaths], defines, stage == StageKind.Vertex, SpirvOptimizer.Available( slangDirectory ), ( path, text ) =>
 		{
 			readFiles?.Add( Path.GetFullPath( path ) );
 			return Rewrite( path, text, annotations );
@@ -317,6 +317,7 @@ public sealed partial class SlangCompiler
 		request.Compile( path );
 
 		var spirv = request.Code() ?? throw new ShaderCompileException( path, $"{entry}: Slang returned no code. {request.Diagnostics}" );
+		spirv = SpirvOptimizer.Optimize( slangDirectory, spirv, out _ );
 
 		// The pixel stage's own resources go in set 1, as vfx puts them, so the two stages' bindings never collide
 		if ( stage == StageKind.Pixel ) spirv = Spirv.MoveSet( spirv, 0, 1 );

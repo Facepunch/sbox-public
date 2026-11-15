@@ -254,6 +254,55 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// vfx's spirv-opt recipe runs over what Slang emits (SpirvOptimizer): code after a constant return is gone, and so is
+	/// the binding only it read, as a .shader's compile drops it.
+	/// </summary>
+	[TestMethod]
+	public void OptimizerStripsDeadCodeAndItsBindings()
+	{
+		Compiler();
+		var bin = Path.Combine( Path.GetDirectoryName( Core ), "bin", "win64" );
+		if ( !SpirvOptimizer.Available( bin ) ) Assert.Inconclusive( "spirv_optimizer isn't built" );
+
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-optimizer-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var path = Path.Combine( folder, "dead_binding.slang" );
+			File.WriteAllText( path, """
+				// MODES: Default();
+				#include "sbox/pass.slangh"
+				#include "system.fxc"
+				#include "common.fxc"
+
+				struct PS_INPUT { float4 vPositionSs : SV_Position; };
+
+				#if ( PROGRAM == VFX_PROGRAM_PS )
+				Texture2D g_tLive < Attribute( "Live" ); >;
+				Texture2D g_tDead < Attribute( "Dead" ); >;
+				static const bool kEarly = true;
+
+				[shader( "pixel" )] float4 MainPs( PS_INPUT i ) : SV_Target0
+				{
+					float4 color = g_tLive.Load( int3( i.vPositionSs.xy, 0 ) );
+					if ( kEarly ) return color;
+					return color + g_tDead.Load( int3( i.vPositionSs.xy, 0 ) );
+				}
+				#endif
+				""" );
+
+			var compiler = new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] );
+			var stage = compiler.CompilePass( PassModule.Read( path, [Path.Combine( Core, "shaders" )] ), StageKind.Pixel, new Dictionary<string, int>() ).Stage;
+			Assert.IsTrue( stage.Bindings.Any( b => b.Variable == "g_tLive" ) );
+			Assert.IsFalse( stage.Bindings.Any( b => b.Variable == "g_tDead" ), "the binding only dead code read is stripped" );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// The converter turns pixel.hlsl-style .shaders into surfaces that compile: the template (Material::Init), bark
 	/// (Material.CommonInputs, a helper, a feature global, and its vertex sway as Displace with trunk_bending.hlsl's
 	/// functions copied) and water_simple (engine-bound textures as module globals, a helper taking the input, and the

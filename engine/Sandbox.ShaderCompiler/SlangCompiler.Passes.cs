@@ -41,6 +41,7 @@ public sealed partial class SlangCompiler
 			request.Compile( module.Path );
 
 			var spirv = request.Code() ?? throw new ShaderCompileException( module.Path, $"{entry}: Slang returned no code. {request.Diagnostics}" );
+			spirv = SpirvOptimizer.Optimize( slangDirectory, spirv, out _ );
 			if ( stage == StageKind.Pixel ) spirv = Spirv.MoveSet( spirv, 0, 1 );
 			compiled = StageReflection.Describe( stage, entry, spirv, request.ReflectionJson(), request.Annotations );
 			compiled = AppendBuffers( compiled, request.Annotations );
@@ -155,7 +156,7 @@ internal static class PassCache
 			if ( identities.TryGetValue( slangDirectory, out var known ) ) return known;
 			var slang = Path.Combine( slangDirectory, OperatingSystem.IsWindows() ? "slang.dll" : "libslang.so" );
 			var slangHash = File.Exists( slang ) ? Convert.ToHexString( SHA256.HashData( File.ReadAllBytes( slang ) ) ) : "none";
-			return identities[slangDirectory] = $"{Format}:{typeof( PassCache ).Assembly.ManifestModule.ModuleVersionId}:{slangHash}";
+			return identities[slangDirectory] = $"{Format}:{typeof( PassCache ).Assembly.ManifestModule.ModuleVersionId}:{slangHash}:{SpirvOptimizer.Identity( slangDirectory )}";
 		}
 	}
 

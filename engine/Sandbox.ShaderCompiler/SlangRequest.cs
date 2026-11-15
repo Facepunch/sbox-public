@@ -8,7 +8,8 @@ namespace Sandbox.ShaderCompiler;
 /// <summary>
 /// One Slang compile: a translation unit and its entry points, with vfx's options (vfx_vulkan's
 /// <c>slang_shader_compiler.cpp</c>: entry point names kept, unscoped enums, scalar layout, column-major matrices, effect
-/// annotations, uniformity validation, the same binding shifts and capabilities, Y inverted in vertex shaders). Every
+/// annotations, uniformity validation, the same binding shifts and capabilities, Y inverted in vertex shaders, no
+/// optimization when <see cref="SpirvOptimizer"/> runs vfx's recipe after). Every
 /// file is read through <see cref="SlangFileSystem"/>, which applies the compiler's source rewrites.
 /// </summary>
 internal sealed unsafe class SlangRequest : IDisposable
@@ -25,7 +26,7 @@ internal sealed unsafe class SlangRequest : IDisposable
 	/// A request on <paramref name="session"/> searching <paramref name="searchPaths"/>. <paramref name="rewrite"/> gets
 	/// each file's path and text and returns what Slang compiles.
 	/// </summary>
-	public SlangRequest( IntPtr session, IReadOnlyList<string> searchPaths, IReadOnlyDictionary<string, string> defines, bool vertex, Func<string, string, string> rewrite )
+	public SlangRequest( IntPtr session, IReadOnlyList<string> searchPaths, IReadOnlyDictionary<string, string> defines, bool vertex, bool optimizeAfter, Func<string, string, string> rewrite )
 	{
 		this.rewrite = rewrite;
 		handle = SlangApi.CreateCompileRequest( session );
@@ -47,6 +48,9 @@ internal sealed unsafe class SlangRequest : IDisposable
 		foreach ( var capability in new[] { "spvDerivativeControl", "spvImageQuery", "spvImageGatherExtended", "spvSparseResidency", "spvMinLod", "spvGroupNonUniformArithmetic", "spvGroupNonUniformVote" } )
 			args.AddRange( ["-capability", capability] );
 
+		// As vfx: Slang's level picks nothing but the spirv-opt run its backend makes, so it's off when SpirvOptimizer runs
+		// the recipe after
+		if ( optimizeAfter ) args.Add( "-O0" );
 		if ( vertex ) args.Add( "-fvk-invert-y" );
 		foreach ( var path in searchPaths ) args.AddRange( ["-I", path] );
 		foreach ( var (name, value) in defines ) args.Add( $"-D{name}={value}" );

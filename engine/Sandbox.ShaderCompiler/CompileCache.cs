@@ -18,7 +18,7 @@ internal static class CompileCache
 	static readonly JsonSerializerOptions Options = new() { IncludeFields = false, WriteIndented = false };
 	static readonly Dictionary<string, string> identities = new( StringComparer.OrdinalIgnoreCase );
 
-	/// <summary>The compiler's identity: this assembly's build and the Slang it drives.</summary>
+	/// <summary>The compiler's identity: this assembly's build, the Slang it drives and the optimizer after it.</summary>
 	static string Identity( string slangDirectory )
 	{
 		lock ( identities )
@@ -26,7 +26,7 @@ internal static class CompileCache
 			if ( identities.TryGetValue( slangDirectory, out var known ) ) return known;
 			var slang = Path.Combine( slangDirectory, OperatingSystem.IsWindows() ? "slang.dll" : "libslang.so" );
 			var slangHash = File.Exists( slang ) ? Convert.ToHexString( SHA256.HashData( File.ReadAllBytes( slang ) ) ) : "none";
-			return identities[slangDirectory] = $"{Format}:{typeof( CompileCache ).Assembly.ManifestModule.ModuleVersionId}:{slangHash}";
+			return identities[slangDirectory] = $"{Format}:{typeof( CompileCache ).Assembly.ManifestModule.ModuleVersionId}:{slangHash}:{SpirvOptimizer.Identity( slangDirectory )}";
 		}
 	}
 
