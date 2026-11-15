@@ -172,6 +172,13 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		ClearsBackground = false;
 		AlwaysFullFrameRate = true;
 
+		// -fullscreen: the scene fills the display, borderless (or -fullscreen exclusive), with no title bar
+		if ( Args.Has( "-fullscreen" ) )
+		{
+			ExclusiveFullscreen = Args.String( "-fullscreen" ) is "exclusive";
+			Fullscreen = true;
+		}
+
 		// The render device only records GPU frame times for the main window's swap chain
 		g_pRenderDevice.SetSwapChainIsMainWindow( Window.SwapChain, true );
 		renderer.TimingSwapChain = new GpuSwapChain( Window.SwapChain );
@@ -265,6 +272,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		root.StyleSheet.Add( StyleSheet.FromString( Styles, "/styles/scenelab.scss" ) );
 
 		var bar = root.Add.Panel( "titlebar window-drag" );
+		if ( Args.Has( "-fullscreen" ) ) bar.Style.Display = DisplayMode.None;
 		bar.Add.Label( "Scene Lab", "scenelab-title" );
 
 		var menus = bar.AddChild( new MenuBar() );
