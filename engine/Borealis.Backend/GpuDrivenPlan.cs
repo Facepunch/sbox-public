@@ -106,6 +106,9 @@ internal sealed class GpuDrivenPlan
 	public bool[] Compacted;
 	public bool[] Drawn;
 
+	/// <summary>Its multi-draws' words in a resident cull's view region (first command slot, count), made the first time.</summary>
+	public uint[] ResidentRunWords;
+
 	/// <summary>
 	/// For the resident cull (<see cref="ResidentCullItem"/>): a buffer of its batch records and entry map, written the first
 	/// time a setup culls it, its bindless slot, its entries and the entry map's byte offset. Destroyed once it's retired.

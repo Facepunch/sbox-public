@@ -38,7 +38,6 @@ internal sealed partial class BackendContext
 		/// records (a forward pass that culls its own without stamps draws its fragments whole).
 		/// </summary>
 		public bool WritesStamps;
-		public readonly List<(int Bucket, BufferHandle Page, IndexFormat Format, int First, int Count)> Runs = new();
 		public int Taken;
 	}
 
@@ -231,6 +230,24 @@ internal sealed partial class BackendContext
 		timer?.End( r.List, scope );
 	}
 
+	/// <summary>
+	/// A plan's multi-draws' first command slots and zeroed counts, as a view's region holds them: a compacted one's slots
+	/// follow the plan's own fragments (<see cref="ResidentRun"/>).
+	/// </summary>
+	static uint[] ResidentRunWords( GpuDrivenPlan plan )
+	{
+		var words = new uint[plan.Runs.Length * 2];
+		for ( int i = 0; i < plan.Runs.Length; i++ ) words[i * 2] = (uint)ResidentRun( plan, i, default ).First;
+		return words;
+	}
+
+	/// <summary>A plan's multi-draw as a view's region draws it: a compacted one from <paramref name="compacted"/>, after the plan's fragments.</summary>
+	static (int Bucket, BufferHandle Page, IndexFormat Format, int First, int Count) ResidentRun( GpuDrivenPlan plan, int i, BufferHandle compacted )
+	{
+		var run = plan.Runs[i];
+		return plan.Compacted[i] ? run with { Page = compacted, First = run.First - plan.CompactBase + plan.Fragments } : run;
+	}
+
 	static bool ReadsStamps( ResidentAssignment work ) => work.Lists && !work.FromPrepass;
 
 	/// <summary>The prepass plan this setup culls for view <paramref name="view"/> with ids, or null.</summary>
@@ -317,16 +334,8 @@ internal sealed partial class BackendContext
 			var regionOffset = offset + at;
 			WriteCullView( views[work.ViewIndex], region );
 
-			var runs = MemoryMarshal.Cast<byte, uint>( region.Slice( layout.Runs, plan.Runs.Length * 8 ) );
-			work.Runs.Clear();
-			for ( int i = 0; i < plan.Runs.Length; i++ )
-			{
-				var run = plan.Runs[i];
-				if ( plan.Compacted[i] ) run = run with { Page = compacted, First = run.First - plan.CompactBase + work.Fragments };
-				work.Runs.Add( run );
-				runs[i * 2] = (uint)run.First;
-				runs[i * 2 + 1] = 0;
-			}
+			var runWords = plan.ResidentRunWords ??= ResidentRunWords( plan );
+			runWords.CopyTo( MemoryMarshal.Cast<byte, uint>( region.Slice( layout.Runs, runWords.Length * 4 ) ) );
 
 			if ( work.Lists )
 			{
@@ -353,7 +362,6 @@ internal sealed partial class BackendContext
 		}
 
 		var slots = tables.Slots;
-		residentAttributes ??= new ShaderAttributes();
 		residentConstants ??= new byte[Marshal.SizeOf<ResidentCullConstants>()];
 		MemoryMarshal.Write( residentConstants, new ResidentCullConstants
 		{
@@ -366,13 +374,7 @@ internal sealed partial class BackendContext
 			Frame = frame,
 			FrameSlot = (uint)slot,
 		} );
-		residentAttributes.Clear();
-		residentAttributes.Set( "BorealisCullFrame", buffer );
-		if ( visibility is not null ) residentAttributes.Set( "BorealisCullStamps", visibility.Stamps );
-		residentAttributes.SetData( "BorealisResidentCull_t", residentConstants );
-
-		cullDrawer ??= new ShaderDrawer( device );
-		cullDrawer.Dispatch( recording.List, shader, residentAttributes, (int)entries, 1, 1 );
+		DispatchResidentShader( shader, buffer, visibility?.Stamps ?? default, (int)entries );
 		device.CountResidentCull( residentItems.Count, group.Count, entries );
 	}
 
@@ -383,7 +385,6 @@ internal sealed partial class BackendContext
 	void ExpandResident( ShaderFile shader, GpuDrivenPlan plan )
 	{
 		var tables = device.GpuDrivenTables;
-		residentAttributes ??= new ShaderAttributes();
 		residentConstants ??= new byte[Marshal.SizeOf<ResidentCullConstants>()];
 		MemoryMarshal.Write( residentConstants, new ResidentCullConstants
 		{
@@ -394,13 +395,83 @@ internal sealed partial class BackendContext
 			ExpandMap = (uint)plan.EntryMap,
 			ExpandHeaders = (uint)plan.Headers,
 		} );
-		residentAttributes.Clear();
-		residentAttributes.Set( "BorealisCullFrame", plan.Records );
-		residentAttributes.SetData( "BorealisResidentCull_t", residentConstants );
-
-		cullDrawer ??= new ShaderDrawer( device );
-		cullDrawer.Dispatch( recording.List, shader, residentAttributes, plan.Entries, 1, 1 );
+		DispatchResidentShader( shader, plan.Records, default, plan.Entries );
 		plan.EntryRecordsWritten = true;
+	}
+
+	const string FrameAttribute = "BorealisCullFrame";
+	const string StampsAttribute = "BorealisCullStamps";
+	const string ConstantsAttribute = "BorealisResidentCull_t";
+	ShaderFile residentShader;
+	ShaderVariant residentVariant;
+	PipelineHandle residentPipeline;
+	bool residentGeneric;
+
+	/// <summary>
+	/// One dispatch of the resident cull's shader over <paramref name="threads"/> threads: its pipeline made once, and its
+	/// transient set filled straight from the frame's region, the stamps (a placeholder for none) and <see cref="residentConstants"/>,
+	/// without the generic binding's attribute lookups (which a variant with material constants still takes).
+	/// </summary>
+	void DispatchResidentShader( ShaderFile shader, BufferHandle frameBuffer, BufferHandle stamps, int threads )
+	{
+		cullDrawer ??= new ShaderDrawer( device );
+		residentAttributes ??= new ShaderAttributes();
+		if ( !ReferenceEquals( residentShader, shader ) )
+		{
+			residentShader = shader;
+			residentVariant = cullDrawer.Variant( shader, residentAttributes );
+			residentPipeline = residentVariant?.Compute?.Bytecode is null ? default : cullDrawer.ReflectedComputePipeline( residentVariant );
+			residentGeneric = residentVariant is not null && System.Linq.Enumerable.Any( residentVariant.Resources, r => r.Kind == ShaderResourceKind.MaterialConstants );
+			if ( residentPipeline.IsValid ) HandFilledConstants.CheckSize( residentVariant.Compute, ConstantsAttribute, residentConstants.Length );
+		}
+
+		if ( residentGeneric )
+		{
+			residentAttributes.Clear();
+			residentAttributes.Set( FrameAttribute, frameBuffer );
+			if ( stamps.IsValid ) residentAttributes.Set( StampsAttribute, stamps );
+			residentAttributes.SetData( ConstantsAttribute, residentConstants );
+			cullDrawer.Dispatch( recording.List, shader, residentAttributes, threads, 1, 1 );
+			return;
+		}
+
+		if ( !residentPipeline.IsValid ) return;
+
+		var variant = residentVariant;
+		var resources = variant.Resources;
+		var list = recording.List;
+		list.SetPipeline( residentPipeline );
+		Span<Binding> bindings = stackalloc Binding[16];
+		for ( int set = 0; set < variant.Sets.Length; set++ )
+		{
+			if ( !variant.Sets[set].IsValid ) continue;
+
+			var count = 0;
+			for ( int i = 0; i < resources.Count; i++ )
+			{
+				var resource = resources[i];
+				if ( resource.Set != set ) continue;
+				if ( count == bindings.Length ) throw new InvalidOperationException( $"{variant} binds more than {bindings.Length} resources in set {set}" );
+
+				var name = resource.Name;
+				if ( resource.Kind == ShaderResourceKind.ConstantBuffer && name == ConstantsAttribute )
+				{
+					var size = (residentConstants.Length + 15) & ~15;
+					var allocation = list.AllocateUpload( size, Gpu.Capabilities.UniformAlignment );
+					allocation.Data[..size].Clear();
+					residentConstants.CopyTo( allocation.Data );
+					bindings[count++] = Binding.Uniform( resource.Binding, allocation.Buffer, allocation.Offset, size );
+				}
+				else if ( resource.Kind == ShaderResourceKind.Buffer && name == FrameAttribute ) bindings[count++] = Binding.Storage( resource.Binding, frameBuffer );
+				else if ( resource.Kind == ShaderResourceKind.Buffer && name == StampsAttribute && stamps.IsValid ) bindings[count++] = Binding.Storage( resource.Binding, stamps );
+				else bindings[count++] = device.Defaults.For( resource );
+			}
+
+			list.SetBindings( set, variant.Sets[set], bindings[..count] );
+		}
+
+		var groupSize = Math.Max( variant.Compute.Bytecode.ThreadGroupSize.Item1, 1 );
+		list.Dispatch( (threads + groupSize - 1) / groupSize, 1, 1 );
 	}
 
 	/// <summary>
@@ -514,7 +585,8 @@ internal sealed partial class BackendContext
 		try
 		{
 			cullRuns.Clear();
-			cullRuns.AddRange( assignment.Runs );
+			var compacted = assignment.Visibility is { } own ? own.Compacted[frame % own.Compacted.Length] : default;
+			for ( int i = 0; i < plan.Runs.Length; i++ ) cullRuns.Add( ResidentRun( plan, i, compacted ) );
 			DrawCulledRegion( cull, assignment.Region, 0, compact, shaders, visibility, ids, lists, depth, samples, depthBias, slopeScaledDepthBias, resolver, assignment.Fragments, dispatch: false );
 			plan.Drawn.AsSpan().CopyTo( drawn );
 			TimeGpuDriven( start, drawn[..prefix], assignment.Fragments );
@@ -683,3 +755,4 @@ internal sealed class ResidentCullState
 		}
 	}
 }
+

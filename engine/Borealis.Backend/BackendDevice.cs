@@ -217,11 +217,10 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// Cull every view's resident plans in setup, in one dispatch of <c>borealis_resident_cull_cs</c> (a thread per entry looping
-	/// over the views), for the calls to draw from (<see cref="BackendContext.CullResident"/>). Off by default until its
-	/// fixed cost is gone (it costs a little on a frame with no shadow views); <c>-resident-cull</c> turns it on, and
-	/// otherwise each call culls its own.
+	/// over the views), for the calls to draw from (<see cref="BackendContext.CullResident"/>). On by default;
+	/// <c>-no-resident-cull</c> turns it off, and each call culls its own.
 	/// </summary>
-	public bool GpuDrivenResidentCull { get; set; } = HasSwitch( "-resident-cull" ) && !HasSwitch( "-no-resident-cull" );
+	public bool GpuDrivenResidentCull { get; set; } = !HasSwitch( "-no-resident-cull" );
 
 	/// <summary>
 	/// In the resident cull, a forward pass that compacts lists what its prepass draws ids for from its plan's records, in the
