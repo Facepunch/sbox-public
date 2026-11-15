@@ -163,6 +163,9 @@ internal static class PresetRun
 
 		var frames = Args.Int( "-frames", 0 );
 		var frameTimes = new List<double>();
+		var title = new BorealisGpuTitle( "Source 2" );
+		var titleName = $"Borealis Lab: {preset.Name}";
+		Action<string> setTitle = window.SetTitle;
 
 		for ( var frame = 1; ; frame++ )
 		{
@@ -178,6 +181,7 @@ internal static class PresetRun
 				if ( preset.Orbit ) lab.MoveLights( RealTime.Now );
 				view.Viewport = new Rect( 0, 0, size.x, size.y );
 				renderer.Render( lab.World, view, window.SwapChain, size );
+				title.Frame( titleName, Sandbox.Rendering.ManagedFrameCounters.From( renderer.Stats ), null, null, view.Position, setTitle );
 			}
 
 			backend.EndFrame();

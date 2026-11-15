@@ -279,6 +279,9 @@ internal sealed class LabWindow : IDisposable
 
 	public Vector2 Size => window.SwapChainSize;
 
+	/// <summary>Set the window's title.</summary>
+	public void SetTitle( string title ) => window.Title = title;
+
 	public bool Closed { get; private set; }
 
 	/// <summary>
