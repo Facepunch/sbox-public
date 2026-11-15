@@ -940,8 +940,8 @@ internal sealed partial class BackendContext
 			// A surface's: the same GPU-driven pass of its program under the pass's attributes now
 			if ( bucket.Surface is not null )
 			{
-				current = first is SurfaceMaterial surface && device.Surfaces.For( surface ) is { } program && ReferenceEquals( program, bucket.SurfaceProgram )
-					&& ReferenceEquals( program.GpuDrivenPass( bucket.NoColor, surface.AlphaTest, LookupCombo( LightmapCombo ) is > 0 ), bucket.Surface );
+				current = first is SurfaceMaterial surface && surface.RenderState == bucket.SurfaceState && device.Surfaces.For( surface ) is { } program && ReferenceEquals( program, bucket.SurfaceProgram )
+					&& ReferenceEquals( program.GpuDrivenPass( bucket.NoColor, bucket.SurfaceState.AlphaTest, LookupCombo( LightmapCombo ) is > 0 ), bucket.Surface );
 				continue;
 			}
 
