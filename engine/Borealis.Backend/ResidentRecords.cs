@@ -15,7 +15,8 @@ internal struct ResidentCullItem
 
 	/// <summary>
 	/// The bindless slot of its plan's records (its batch records, 32 bytes each, then its entry map of
-	/// <see cref="ResidentCullEntry"/>), and the entry map's byte offset in them.
+	/// <see cref="ResidentCullEntry"/>, then a resident filter's moved words, which a record's sixth word finds), and the
+	/// entry map's byte offset in them.
 	/// </summary>
 	public uint Records, EntryMap;
 
@@ -25,11 +26,17 @@ internal struct ResidentCullItem
 	public uint Pad0, Pad1;
 }
 
-/// <summary>An entry of an item: its batch record and its place in the batch's fragments or meshes, 8 bytes.</summary>
+/// <summary>
+/// An entry of an item: its batch record and its place in the batch's fragments or meshes, 8 bytes. A forward entry whose
+/// prepass draws ids for it has <see cref="PrepassIds"/> set in its batch word.
+/// </summary>
 [StructLayout( LayoutKind.Sequential )]
 internal struct ResidentCullEntry
 {
 	public uint Batch, Element;
+
+	/// <summary>Set in <see cref="Batch"/>: the view's prepass draws ids for it, so a view listing from the prepass's records lists it.</summary>
+	public const uint PrepassIds = 0x80000000u;
 }
 
 /// <summary>
@@ -51,7 +58,11 @@ internal struct ResidentCullView
 	/// <summary>Its listed fragments for forward's compaction: dispatch arguments, then 32 bytes each.</summary>
 	public uint Listed;
 
-	public uint Pad0;
+	/// <summary>
+	/// 1: it lists what its prepass draws ids for (<see cref="ResidentCullEntry.PrepassIds"/>), whose culling is in the same
+	/// dispatch, instead of what the prepass's culling stamped. 2: a prepass that stamps what it keeps, for its forward pass.
+	/// </summary>
+	public uint Flags;
 }
 
 /// <summary><c>borealis_resident_cull_cs</c>'s <c>BorealisResidentCull_t</c> (<see cref="HandFilledConstants"/>).</summary>

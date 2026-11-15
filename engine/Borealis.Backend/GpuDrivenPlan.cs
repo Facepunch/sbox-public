@@ -93,6 +93,13 @@ internal sealed class GpuDrivenPlan
 	public (BackendParameters Attributes, int Version)[] Attributes;
 
 	public uint[] BatchRecords;
+
+	/// <summary>
+	/// For a resident filter (<see cref="Borealis.Gpu.GpuContext.GpuDrivenCull.Filter"/>): every record's moved words, one per
+	/// fragment or mesh, and by record where its own start, or -1 for a record every view keeps. Null otherwise.
+	/// </summary>
+	public uint[] Moved;
+	public int[] MovedAt;
 	public (int Bucket, BufferHandle Page, IndexFormat Format, int First, int Count)[] Runs;
 
 	/// <summary>By multi-draw: whether it draws forward's compacted triangles, from the frame's compacted buffer rather than an index page.</summary>
@@ -105,6 +112,12 @@ internal sealed class GpuDrivenPlan
 	/// </summary>
 	public BufferHandle Records;
 	public int RecordsSlot, Entries, EntryMap;
+
+	/// <summary>
+	/// A forward plan that compacts: the prepass plan whose ids its records' entries name (<see cref="ResidentCullEntry.PrepassIds"/>).
+	/// A view whose prepass draws with that plan lists from them in the same dispatch; any other reads its prepass's stamps.
+	/// </summary>
+	public GpuDrivenPlan IdsFrom;
 
 	/// <summary>Replaced or dropped from its list's plans: no call finds it again.</summary>
 	public volatile bool Retired;

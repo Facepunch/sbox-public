@@ -60,6 +60,21 @@ CS
 		return dot( vPlane.xyz, vCenter ) + vPlane.w + dot( vExtents, abs( vPlane.xyz ) ) >= 0;
 	}
 
+	// A resident filter's test (GpuContext.ResidentFilter): whether a view keeps a caster by its moved word (its frame, bit 31
+	// restless; None for a static one) against the stamps the far cascade's cache was drawn at, as SettledCasters.SettledBy does.
+	// 1: static and settled ones (the cache), 2: settled ones that aren't static (a baked sun's cache), 3: the rest that aren't
+	// static (drawn over the cache)
+	bool TakesMoved( uint nFilter, uint nMoved, uint nSettled, uint nRestless )
+	{
+		bool bStatic = nMoved == None;
+		bool bSettled = bStatic || ( ( nMoved & 0x80000000u ) != 0 ? ( nMoved & 0x7fffffffu ) <= nRestless : nMoved <= nSettled );
+		if ( nFilter == 1 )
+			return bSettled;
+		if ( nFilter == 2 )
+			return !bStatic && bSettled;
+		return !bStatic && !bSettled;
+	}
+
 	// A resident mesh's LOD, as the CPU picks it (MeshRenderFeature.ChooseLod, RenderMesh.LodForScreenSize): its model's LOD count
 	// and switch distances (1 to 7) in its group's header record, its LOD scale (largest scale; -1 - LOD for a fixed one), and
 	// the view's LOD camera and tangent of half its field of view, and screen width, or texels per unit for a texel view
@@ -126,6 +141,10 @@ CS
 		uint2 vMap = bActive ? records.Load2( vItem.w + nLocal * 8 ) : 0;
 		uint i = vMap.y;
 
+		// Forward: whether the view's prepass draws ids for it (ResidentCullEntry.PrepassIds)
+		bool bPrepassIds = ( vMap.x & 0x80000000u ) != 0;
+		vMap.x &= 0x7fffffffu;
+
 		// Batch record, as borealis_gpu_driven_cull_cs reads it: first fragment record (resident meshes: their group's header),
 		// fragments, the first fragment's transform slot (resident meshes: the draw record, bit 31 a list of one per mesh), its
 		// multi-draw; then its first visibility fragment, its multi-draw of compacted triangles, its flags (1: ids, 2: lists,
@@ -188,8 +207,9 @@ CS
 		{
 			// The chunk's views into groupshared memory: its 32-byte record (view record, instance records, commands, multi-draws;
 			// first instance, fragment words, listed fragments), then the 160-byte view record (six planes, the camera and
-			// squared size threshold, whether it's a shadow view and whether resident meshes skip the size test, the LOD camera,
-			// and the LOD width and whether it's texels per unit)
+			// squared size threshold, whether it's a shadow view (bit 0) and its resident filter (bits 1-2), whether resident
+			// meshes skip the size test, the filter's settled and restless stamps, the LOD camera, and the LOD width and whether
+			// it's texels per unit)
 			uint nViews = min( ViewChunk, vItemViews.y - nChunk );
 			GroupMemoryBarrierWithGroupSync();
 			for ( uint w = nThread; w < nViews * ViewWords; w += 64 )
@@ -210,7 +230,12 @@ CS
 				uint4 vView = g_vViews[nBase];
 				uint4 vViewOut = g_vViews[nBase + 1];
 				uint4 vViewFlags = g_vViews[nBase + 2 + 7];
-				bool bVisible = !( vViewFlags.x != 0 && bNoShadow );
+				bool bVisible = !( ( vViewFlags.x & 1 ) != 0 && bNoShadow );
+
+				// A resident filter: the casters it keeps by when each last moved, whose words the batch record's sixth word finds
+				uint nFilter = ( vViewFlags.x >> 1 ) & 3;
+				if ( nFilter != 0 && vVisibility.y != None && !TakesMoved( nFilter, records.Load( vVisibility.y + i * 4 ), vViewFlags.z, vViewFlags.w ) )
+					continue;
 
 				[unroll]
 				for ( uint p = 0; p < 6; p++ )
@@ -238,8 +263,15 @@ CS
 						continue;
 				}
 
-				// Forward over a fragment its prepass view drew ids for this frame: listed for the compaction pass
-				if ( ( vVisibility.z & 2 ) != 0 && nFragment != None && nVertexBase != None && g_Stamps.Load( nFragment * 4 ) == g_nResidentFrame )
+				// Forward over a fragment its prepass view draws ids for this frame: listed for the compaction pass. The prepass
+				// keeps it as this view does; a view whose flags say so knows from the entry that it draws ids for it, and the rest
+				// read the stamps the prepass's culling wrote in an earlier dispatch
+				bool bListed = ( vVisibility.z & 2 ) != 0 && nFragment != None && nVertexBase != None;
+				if ( bListed && ( vViewOut.w & 1 ) != 0 )
+					bListed = bPrepassIds;
+				else if ( bListed )
+					bListed = g_Stamps.Load( nFragment * 4 ) == g_nResidentFrame;
+				if ( bListed )
 				{
 					uint nAt;
 					g_Frame.InterlockedAdd( vViewOut.z, 1, nAt );
@@ -267,11 +299,12 @@ CS
 				g_Frame.Store( nCommand + 12, vDraw.z );
 				g_Frame.Store( nCommand + 16, vViewOut.x + nSlot );
 
-				// The prepass's ids: this instance's fragment, and its stamp for forward this frame
+				// The prepass's ids: this instance's fragment, and its stamp for forward this frame where forward reads it
 				if ( ( vVisibility.z & 1 ) != 0 && nFragment != None )
 				{
 					g_Frame.Store( vViewOut.y + ( vViewOut.x + nSlot ) * 4, nVertexBase );
-					g_Stamps.Store( nFragment * 4, g_nResidentFrame );
+					if ( ( vViewOut.w & 2 ) != 0 )
+						g_Stamps.Store( nFragment * 4, g_nResidentFrame );
 				}
 			}
 		}

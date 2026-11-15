@@ -26,13 +26,28 @@ internal sealed partial class BackendContext
 		public CulledRegion Region;
 		public int Fragments;
 		public bool Lists;
+
+		/// <summary>
+		/// Forward's lists from its plan's records (<see cref="GpuDrivenPlan.IdsFrom"/>): the same view's prepass is culled in the
+		/// same dispatch, so it lists what that prepass draws ids for instead of reading its stamps after it.
+		/// </summary>
+		public bool FromPrepass;
+
+		/// <summary>
+		/// A prepass whose culling stamps its fragments for its forward pass to read: not where forward lists from its plan's
+		/// records (a forward pass that culls its own without stamps draws its fragments whole).
+		/// </summary>
+		public bool WritesStamps;
 		public readonly List<(int Bucket, BufferHandle Page, IndexFormat Format, int First, int Count)> Runs = new();
 		public int Taken;
 	}
 
 	readonly List<GpuDrivenPlan.CallKey> residentKeys = new();
+	readonly List<(int View, GpuDrivenPlan Plan, bool Lists, BackendDevice.VisibilityView Visibility)> residentFound = new();
+	readonly HashSet<uint> residentIds = new();
 	readonly List<ResidentAssignment> residentWork = new();
 	readonly List<GpuDrivenPlan> residentItems = new();
+	readonly List<ResidentAssignment> residentOrdered = new();
 	readonly List<List<ResidentAssignment>> residentGroups = new();
 	ShaderAttributes residentAttributes;
 	bool residentRecordsCopied;
@@ -55,7 +70,10 @@ internal sealed partial class BackendContext
 		return (bytes, runs, listed, instances, fragmentWords, commands);
 	}
 
-	/// <summary>A view record: the six planes, camera and size threshold, flags, LOD camera and LOD width (160 bytes).</summary>
+	/// <summary>
+	/// A view record: the six planes, camera and size threshold, flags (shadow and its resident filter, whether resident
+	/// meshes skip the size test, the filter's settled and restless stamps), LOD camera and LOD width (160 bytes).
+	/// </summary>
 	static void WriteCullView( in GpuDrivenCull cull, Span<byte> bytes )
 	{
 		var view = MemoryMarshal.Cast<byte, float>( bytes[..CullViewBytes] );
@@ -69,9 +87,10 @@ internal sealed partial class BackendContext
 		}
 
 		var viewWords = MemoryMarshal.Cast<byte, uint>( bytes[..CullViewBytes] );
-		viewWords[28] = cull.Shadow ? 1u : 0u;
+		viewWords[28] = (cull.Shadow ? 1u : 0u) | (uint)cull.Filter << 1;
 		viewWords[29] = cull.KeepsSmallMeshes ? 1u : 0u;
-		viewWords[30] = viewWords[31] = 0;
+		viewWords[30] = cull.Filter != ResidentFilter.None ? cull.SettledStamp : 0;
+		viewWords[31] = cull.Filter != ResidentFilter.None ? cull.RestlessStamp : 0;
 		view[32] = cull.LodCamera.x;
 		view[33] = cull.LodCamera.y;
 		view[34] = cull.LodCamera.z;
@@ -82,8 +101,9 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
-	/// In setup, after every view has prepared: cull each view's resident plans its calls drew last frame, in one dispatch
-	/// (two where a forward pass compacts: its prepass's stamps first), for the calls to draw from.
+	/// In setup, after every view has prepared: cull each view's resident plans its calls drew last frame, in one dispatch,
+	/// for the calls to draw from. A forward pass that compacts lists what its prepass draws ids for, from its plan's records;
+	/// one whose records don't name its prepass's plan reads the stamps its prepass's culling wrote, in a second dispatch.
 	/// </summary>
 	internal override void CullResident( ReadOnlySpan<GpuDrivenCull> views )
 	{
@@ -98,6 +118,7 @@ internal sealed partial class BackendContext
 		CloseScope( flushClears: false );
 		residentRecordsCopied = false;
 		residentWork.Clear();
+		residentFound.Clear();
 		for ( int v = 0; v < views.Length; v++ )
 		{
 			ref readonly var cull = ref views[v];
@@ -123,22 +144,41 @@ internal sealed partial class BackendContext
 					if ( visibility.ClearedFrame != frame ) continue;
 				}
 
-				if ( !PlanRecords( plan ) ) continue;
-				var assignment = culls.Add( cull.View, plan, frame );
-				if ( assignment is null ) continue;
-				assignment.ViewIndex = v;
-				assignment.Visibility = visibility;
-				assignment.Stamps = visibility?.Stamps ?? default;
-				assignment.Lists = key.Lists;
-				assignment.Fragments = plan.Fragments;
-				residentWork.Add( assignment );
+				residentFound.Add( (v, plan, key.Lists, visibility) );
+			}
+		}
+
+		// Records, a forward pass's naming the prepass plan its view draws ids with, then the assignments
+		foreach ( var (v, plan, lists, visibility) in residentFound )
+		{
+			var prepass = lists && device.GpuDrivenResidentListsFromIds ? PrepassOf( v ) : null;
+			if ( !PlanRecords( plan, prepass ) ) continue;
+			var assignment = culls.Add( views[v].View, plan, frame );
+			if ( assignment is null ) continue;
+			assignment.ViewIndex = v;
+			assignment.Visibility = visibility;
+			assignment.Stamps = visibility?.Stamps ?? default;
+			assignment.Lists = lists;
+			assignment.FromPrepass = lists && prepass is not null && ReferenceEquals( plan.IdsFrom, prepass );
+			if ( assignment.FromPrepass ) System.Threading.Interlocked.Increment( ref device.ResidentCullListsFromIds );
+			assignment.Fragments = plan.Fragments;
+			residentWork.Add( assignment );
+		}
+
+		foreach ( var work in residentWork )
+		{
+			if ( work.Lists || !work.Plan.Key.Ids || work.Visibility is null ) continue;
+			work.WritesStamps = true;
+			foreach ( var other in residentWork )
+			{
+				if ( other.FromPrepass && ReferenceEquals( other.View, work.View ) ) work.WritesStamps = false;
 			}
 		}
 
 		if ( residentWork.Count == 0 ) return;
 
-		// Dispatches: those that draw no lists, then those that do (they read the stamps the first wrote); each binds one
-		// view's stamps, and views without any join whichever
+		// Dispatches: those that read no stamps, then those that do (forward lists their prepass's culling stamped); each binds
+		// one view's stamps, and culls that touch none join whichever
 		foreach ( var group in residentGroups ) group.Clear();
 		var groups = 0;
 		for ( int phase = 0; phase < 2; phase++ )
@@ -146,12 +186,13 @@ internal sealed partial class BackendContext
 			var phaseStart = groups;
 			foreach ( var work in residentWork )
 			{
-				if ( work.Lists != (phase == 1) ) continue;
+				if ( (work.Lists && !work.FromPrepass) != (phase == 1) ) continue;
 				var found = -1;
 				for ( int g = phaseStart; g < groups && found < 0; g++ )
 				{
 					var other = GroupVisibility( residentGroups[g] );
-					if ( work.Visibility is null || other is null || ReferenceEquals( other, work.Visibility ) ) found = g;
+					var stamps = StampsOf( work );
+					if ( stamps is null || other is null || ReferenceEquals( other, stamps ) ) found = g;
 				}
 
 				if ( found < 0 )
@@ -175,7 +216,7 @@ internal sealed partial class BackendContext
 		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 		for ( int g = 0; g < groups; g++ )
 		{
-			if ( g > 0 && residentGroups[g][0].Lists && !residentGroups[g - 1][0].Lists )
+			if ( g > 0 && ReadsStamps( residentGroups[g][0] ) && !ReadsStamps( residentGroups[g - 1][0] ) )
 				r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 			DispatchResident( shader, residentGroups[g], views, frame );
 		}
@@ -186,11 +227,28 @@ internal sealed partial class BackendContext
 		timer?.End( r.List, scope );
 	}
 
+	static bool ReadsStamps( ResidentAssignment work ) => work.Lists && !work.FromPrepass;
+
+	/// <summary>The prepass plan this setup culls for view <paramref name="view"/> with ids, or null.</summary>
+	GpuDrivenPlan PrepassOf( int view )
+	{
+		foreach ( var (v, plan, lists, _) in residentFound )
+		{
+			if ( v == view && !lists && plan.Key.Ids ) return plan;
+		}
+
+		return null;
+	}
+
+	/// <summary>The visibility whose stamps a cull writes or reads, or null for one that touches none.</summary>
+	static BackendDevice.VisibilityView StampsOf( ResidentAssignment work ) => work.WritesStamps || ReadsStamps( work ) ? work.Visibility : null;
+
+	/// <summary>The visibility whose stamps a group's dispatch binds.</summary>
 	static BackendDevice.VisibilityView GroupVisibility( List<ResidentAssignment> group )
 	{
 		foreach ( var work in group )
 		{
-			if ( work.Visibility is not null ) return work.Visibility;
+			if ( StampsOf( work ) is { } stamps ) return stamps;
 		}
 
 		return null;
@@ -208,7 +266,17 @@ internal sealed partial class BackendContext
 			if ( !residentItems.Contains( work.Plan ) ) residentItems.Add( work.Plan );
 		}
 
-		group.Sort( ( a, b ) => residentItems.IndexOf( a.Plan ).CompareTo( residentItems.IndexOf( b.Plan ) ) );
+		residentOrdered.Clear();
+		foreach ( var plan in residentItems )
+		{
+			foreach ( var work in group )
+			{
+				if ( ReferenceEquals( work.Plan, plan ) ) residentOrdered.Add( work );
+			}
+		}
+
+		group.Clear();
+		group.AddRange( residentOrdered );
 
 		var headerBytes = (residentItems.Count * ResidentItemBytes + group.Count * ResidentViewBytes + 15) & ~15;
 		var bytes = headerBytes;
@@ -219,7 +287,6 @@ internal sealed partial class BackendContext
 		var items = MemoryMarshal.Cast<byte, ResidentCullItem>( data[..(residentItems.Count * ResidentItemBytes)] );
 		var viewRecords = MemoryMarshal.Cast<byte, ResidentCullView>( data.Slice( residentItems.Count * ResidentItemBytes, group.Count * ResidentViewBytes ) );
 		var visibility = GroupVisibility( group );
-		var compacted = visibility is not null ? visibility.Compacted[frame % visibility.Compacted.Length] : default;
 
 		var at = headerBytes;
 		var entries = 0u;
@@ -242,6 +309,7 @@ internal sealed partial class BackendContext
 			// The view's region, as a call lays out its own
 			var layout = ResidentRegion( plan, ids, work.Lists );
 			var region = data.Slice( at, layout.Bytes );
+			var compacted = work.Visibility is { } own ? own.Compacted[frame % own.Compacted.Length] : default;
 			var regionOffset = offset + at;
 			WriteCullView( views[work.ViewIndex], region );
 
@@ -275,6 +343,7 @@ internal sealed partial class BackendContext
 				FirstInstance = firstInstance,
 				FragmentWords = (uint)(regionOffset + layout.FragmentWords) - firstInstance * 4,
 				Listed = work.Lists ? (uint)(regionOffset + layout.Listed) : 0,
+				Flags = (work.FromPrepass ? 1u : 0u) | (work.WritesStamps ? 2u : 0u),
 			};
 			at += layout.Bytes;
 		}
@@ -303,12 +372,29 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
-	/// A plan's batch records and entry map in a buffer of its own, written the first time a setup culls it (plans never
-	/// change once made); false when there's nothing to cull.
+	/// A plan's batch records, entry map and a resident filter's moved words in a buffer of its own, written the first time a
+	/// setup culls it (plans never change once made); false when there's nothing to cull. A forward plan that compacts marks
+	/// the entries <paramref name="prepass"/> draws ids for (<see cref="GpuDrivenPlan.IdsFrom"/>).
 	/// </summary>
-	bool PlanRecords( GpuDrivenPlan plan )
+	bool PlanRecords( GpuDrivenPlan plan, GpuDrivenPlan prepass )
 	{
-		if ( plan.Records.IsValid ) return true;
+		// Written again for a forward plan whose view's prepass now draws with another plan (the old buffer is let go)
+		if ( plan.Records.IsValid && !(plan.Key.Lists && prepass is not null && !ReferenceEquals( plan.IdsFrom, prepass )) ) return true;
+		if ( plan.Records.IsValid ) device.ResidentCulls.Release( plan.Records, Gpu );
+
+		// The prepass's batches that draw ids, by their first visibility fragment: forward's batch of the same owner, LOD and
+		// draw has the same, and lists its fragments the prepass keeps, which the prepass keeps as forward does
+		residentIds.Clear();
+		if ( plan.Key.Lists && prepass is not null )
+		{
+			var prepassRecords = prepass.BatchRecords;
+			for ( int word = 0; word < prepassRecords.Length; word += CullBatchBytes / 4 )
+			{
+				if ( (prepassRecords[word + 6] & 1) != 0 && prepassRecords[word + 4] != GpuDrivenTables.NoVisibility ) residentIds.Add( prepassRecords[word + 4] );
+			}
+
+			plan.IdsFrom = prepass;
+		}
 
 		var records = plan.BatchRecords;
 		var batches = records.Length / (CullBatchBytes / 4);
@@ -317,18 +403,32 @@ internal sealed partial class BackendContext
 		if ( entries == 0 ) return false;
 
 		var mapOffset = records.Length * 4;
-		var bytes = mapOffset + entries * Marshal.SizeOf<ResidentCullEntry>();
+		var movedOffset = mapOffset + entries * Marshal.SizeOf<ResidentCullEntry>();
+		var bytes = movedOffset + (plan.Moved?.Length ?? 0) * 4;
 		// Written into the frame's chunk and copied into video memory, before this setup's dispatches
 		var buffer = Gpu.CreateBuffer( new BufferInfo { Size = bytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = "Borealis resident plan" } );
 		var (staging, _, stagingOffset) = device.GpuDrivenTables.Allocate( bytes );
 		var data = Gpu.Map( staging ).Slice( (int)stagingOffset, bytes );
 		MemoryMarshal.AsBytes( records.AsSpan() ).CopyTo( data );
+
+		// A resident filter's moved words after the entry map, which each record's sixth word finds
+		if ( plan.Moved is { } moved )
+		{
+			MemoryMarshal.AsBytes( moved.AsSpan() ).CopyTo( data[movedOffset..] );
+			var words = MemoryMarshal.Cast<byte, uint>( data[..mapOffset] );
+			for ( int b = 0; b < plan.MovedAt.Length; b++ )
+			{
+				if ( plan.MovedAt[b] >= 0 ) words[b * (CullBatchBytes / 4) + 5] = (uint)(movedOffset + plan.MovedAt[b] * 4);
+			}
+		}
 		var map = MemoryMarshal.Cast<byte, ResidentCullEntry>( data[mapOffset..] );
 		var at = 0;
 		for ( int b = 0; b < batches; b++ )
 		{
 			var count = records[b * (CullBatchBytes / 4) + 1];
-			for ( uint e = 0; e < count; e++ ) map[at++] = new ResidentCullEntry { Batch = (uint)b, Element = e };
+			var at4 = b * (CullBatchBytes / 4);
+			var ids = (records[at4 + 6] & 2) != 0 && residentIds.Contains( records[at4 + 4] ) ? ResidentCullEntry.PrepassIds : 0;
+			for ( uint e = 0; e < count; e++ ) map[at++] = new ResidentCullEntry { Batch = (uint)b | ids, Element = e };
 		}
 
 		recording.List.CopyBuffer( staging, stagingOffset, buffer, 0, bytes );
@@ -456,7 +556,10 @@ internal sealed class ResidentCullState
 			List<(object, object)> stale = null;
 			foreach ( var (key, keys) in calls )
 			{
-				keys.RemoveAll( k => now - k.Frame > KeptFrames );
+				for ( int i = keys.Count - 1; i >= 0; i-- )
+				{
+					if ( now - keys[i].Frame > KeptFrames ) keys.RemoveAt( i );
+				}
 				if ( keys.Count == 0 ) (stale ??= new()).Add( key );
 			}
 
@@ -484,6 +587,21 @@ internal sealed class ResidentCullState
 		{
 			foreach ( var (_, buffer) in owned ) gpu.Destroy( buffer );
 			owned.Clear();
+		}
+	}
+
+	/// <summary>Destroy a plan's records buffer now (written again): after the frames that read it, as every destroy is.</summary>
+	public void Release( BufferHandle buffer, Device gpu )
+	{
+		lock ( owned )
+		{
+			for ( int i = 0; i < owned.Count; i++ )
+			{
+				if ( owned[i].Buffer != buffer ) continue;
+				owned.RemoveAt( i );
+				gpu.Destroy( buffer );
+				return;
+			}
 		}
 	}
 

@@ -206,6 +206,16 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal override bool DrawsMeshesResident => GpuDrivenResidentMeshes && DrawsAggregatesResident && DrawsMeshesGpuDriven;
 
 	/// <summary>
+	/// Give the sun's far cascade cache and what's drawn over it resident lists of the casters that aren't static too, which
+	/// the GPU takes by when each last moved (<see cref="GpuContext.ResidentFilter"/>). On by default with
+	/// <see cref="GpuDrivenResident"/>; <c>-no-resident-settled</c> turns it off, and those views draw their static casters
+	/// from a list and the rest their own way.
+	/// </summary>
+	public bool GpuDrivenResidentSettled { get; set; } = !HasSwitch( "-no-resident-settled" );
+
+	internal override bool DrawsSettledResident => GpuDrivenResidentSettled && DrawsAggregatesResident;
+
+	/// <summary>
 	/// Cull every view's resident plans in setup, in one dispatch of <c>borealis_resident_cull_cs</c> (a thread per entry looping
 	/// over the views), for the calls to draw from (<see cref="BackendContext.CullResident"/>). Off by default until its
 	/// fixed cost is gone (it costs a little on a frame with no shadow views); <c>-resident-cull</c> turns it on, and
@@ -213,11 +223,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public bool GpuDrivenResidentCull { get; set; } = HasSwitch( "-resident-cull" ) && !HasSwitch( "-no-resident-cull" );
 
+	/// <summary>
+	/// In the resident cull, a forward pass that compacts lists what its prepass draws ids for from its plan's records, in the
+	/// same dispatch (<see cref="GpuDrivenPlan.IdsFrom"/>). On by default; <c>-resident-cull-stamps</c> turns it off, and such
+	/// passes cull in a second dispatch that reads the stamps their prepass's culling wrote.
+	/// </summary>
+	public bool GpuDrivenResidentListsFromIds { get; set; } = !HasSwitch( "-resident-cull-stamps" );
+
 	/// <summary>The resident cull's kept calls, this frame's assignments and plans' records.</summary>
 	internal readonly ResidentCullState ResidentCulls = new();
 
 	/// <summary>Calls drawn from the resident cull, and its dispatches, items, views and entries, for tests and reports.</summary>
-	internal long ResidentCullCalls, ResidentCullDispatches, ResidentCullItems, ResidentCullViews, ResidentCullEntries;
+	internal long ResidentCullCalls, ResidentCullDispatches, ResidentCullItems, ResidentCullViews, ResidentCullEntries, ResidentCullListsFromIds;
 
 	internal void CountResidentCull( int items, int views, long entries )
 	{

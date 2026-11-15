@@ -632,6 +632,143 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// The sun's far cascade cache takes resident casters that aren't static by when each last moved,
+	/// on the GPU (<see cref="GpuContext.ResidentFilter"/>): its lists hold the boxes and the aggregate that aren't static,
+	/// settled or not (what's drawn over it takes its own), and each call culling its own and the resident cull draw what every
+	/// view preparing its own does. A
+	/// cache drawn so holds no caster that hadn't settled: once those move away, without the cache drawn again, the picture is
+	/// that of a cache every view drew its own way.
+	/// </summary>
+	[TestMethod]
+	public void ResidentFarCacheTakesCastersByWhenTheyMoved()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		if ( backend.ResidentCullShader is null ) Assert.Inconclusive( "borealis_resident_cull_cs isn't compiled" );
+
+		var previousHost = RenderHost.Current;
+		var (wasCached, wasWhole) = (Borealis.Shadows.ShadowMapper.FarCascadeCache, Borealis.Shadows.ShadowMapper.FarCacheRedrawWhole);
+		RenderHost.Current = new BackendRenderHost( backend );
+		Borealis.Shadows.ShadowMapper.ResetCache();
+		Borealis.Shadows.ShadowMapper.FarCascadeCache = true;
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Resident far cache test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 3;
+
+			// The ground, and boxes on it: static, not static and settled, and not static and not settled
+			var material = (BackendMaterial)backend.CreateMaterial( "Resident far cache", new Color( 0.6f, 0.6f, 0.55f ) );
+			MeshVertex[] ground = [new( new Vector3( -4000, -4000, 0 ), Vector3.Up, new Vector2( 0, 0 ) ), new( new Vector3( 8000, -4000, 0 ), Vector3.Up, new Vector2( 1, 0 ) ),
+				new( new Vector3( 8000, 4000, 0 ), Vector3.Up, new Vector2( 1, 1 ) ), new( new Vector3( -4000, 4000, 0 ), Vector3.Up, new Vector2( 0, 1 ) )];
+			var groundMesh = BackendMesh.Create( backend, ground, [0, 2, 1, 0, 3, 2], material, "Resident far cache ground" );
+			world.Add( new MeshObject( groundMesh, new Transform( Vector3.Zero ) ) { IsStatic = true } );
+
+			var vertices = new List<MeshVertex>();
+			var indices = new List<uint>();
+			Box( vertices, indices, Vector3.Zero, 1 );
+			var cube = BackendMesh.Create( backend, vertices.ToArray(), indices.ToArray(), material, "Resident far cache box" );
+			var random = new Random( 2468 );
+			MeshObject Add( bool isStatic )
+			{
+				var box = new MeshObject( cube, new Transform( new Vector3( random.NextSingle() * 5000, random.NextSingle() * 5000 - 2500, 60 ), Rotation.FromYaw( random.NextSingle() * 360 ), 20 + random.NextSingle() * 40 ) ) { IsStatic = isStatic };
+				world.Add( box );
+				return box;
+			}
+
+			for ( int i = 0; i < 40; i++ ) Add( true );
+			var settled = Enumerable.Range( 0, 40 ).Select( _ => Add( false ) ).ToArray();
+			var (rowMesh, fragments) = Boxes( backend, material, 900 );
+			var aggregate = new AggregateObject( rowMesh, fragments );
+			world.Add( aggregate );
+
+			var view = new RenderView { Name = "Resident far cache test", FieldOfView = 70, ZNear = 4, ZFar = 10000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -300, 0, 500 );
+			view.Rotation = Rotation.LookAt( new Vector3( 1, 0, -0.2f ) );
+
+			byte[] Frame( bool resident, bool cull )
+			{
+				Borealis.Features.AggregateRenderFeature.ResidentEnabled = resident;
+				backend.GpuDrivenResidentCull = cull;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			// What's here now has settled; what's added after hasn't
+			Frame( false, false );
+			Borealis.Shadows.SettledCasters.Reset( settled: true );
+			var unsettled = Enumerable.Range( 0, 40 ).Select( _ => Add( false ) ).ToArray();
+
+			// The cache drawn whole every frame: every view's own way, each call culling its own, then the resident cull
+			Borealis.Shadows.ShadowMapper.FarCacheRedrawWhole = true;
+			byte[] reference = null;
+			for ( int i = 0; i < 4; i++ ) reference = Frame( false, false );
+			byte[] own = null;
+			for ( int i = 0; i < 4; i++ ) own = Frame( true, false );
+			Assert.AreEqual( 0, Different( reference, own ), "each call culling its own draws what every view's own way does" );
+
+			var aggregates = system.GetFeature<Borealis.Features.AggregateRenderFeature>();
+			var passes = system.ShadowMaps.Passes.ToArray();
+			var cache = passes.First( p => p.View.Name == "CSM Far Cache" );
+			var over = passes.Single( p => p.StaticFilter == Borealis.StaticFilter.Unsettled );
+			bool Holds( ViewPass pass, RenderObject obj ) => aggregates.ResidentFor( pass ) is { } list && obj.Index < list.Holds.Length && list.Holds[obj.Index];
+			Assert.IsTrue( Holds( cache, settled[0] ) && Holds( cache, unsettled[0] ) && Holds( cache, aggregate ), "the cache's list holds casters that aren't static, settled or not" );
+			Assert.IsFalse( Holds( over, unsettled[0] ) || Holds( over, aggregate ), "what's drawn over it takes its own, which the collect keeps" );
+
+			var calls = backend.ResidentCullCalls;
+			byte[] culled = null;
+			for ( int i = 0; i < 4 && backend.ResidentCullCalls == calls; i++ ) culled = Frame( true, true );
+			culled = Frame( true, true );
+			Assert.IsTrue( backend.ResidentCullCalls > calls, "calls drew from the resident cull" );
+			Assert.AreEqual( 0, Different( reference, culled ), "the resident cull draws what every view's own way does" );
+
+			// Kept caches, then the boxes that hadn't settled moved under the ground: one the GPU drew, one every view's own way did
+			var places = unsettled.Select( b => b.Transform ).ToArray();
+			byte[] Kept( bool resident )
+			{
+				for ( int i = 0; i < unsettled.Length; i++ ) unsettled[i].Transform = places[i];
+				Borealis.Shadows.ShadowMapper.FarCacheRedrawWhole = true;
+				for ( int i = 0; i < 3; i++ ) Frame( resident, resident );
+				Borealis.Shadows.ShadowMapper.FarCacheRedrawWhole = false;
+				foreach ( var box in unsettled ) box.Transform = box.Transform.WithPosition( box.Transform.Position.WithZ( -3000 ) );
+				Frame( resident, resident );
+				return Frame( resident, resident );
+			}
+
+			var gpuCache = Kept( true );
+			var ownCache = Kept( false );
+			Assert.AreEqual( 0, Different( ownCache, gpuCache ), "a cache the GPU drew holds no caster that hadn't settled" );
+			Assert.IsTrue( aggregates.SettledListsMade > 0 );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			Borealis.Features.AggregateRenderFeature.ResidentEnabled = true;
+			Borealis.Shadows.ShadowMapper.FarCascadeCache = wasCached;
+			Borealis.Shadows.ShadowMapper.FarCacheRedrawWhole = wasWhole;
+			Borealis.Shadows.ShadowMapper.ResetCache();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// The record memo (<see cref="BackendDevice.GpuDrivenRecordMemo"/>) gives every GPU-culled call the batch records
 	/// looking them up gives: on a frame like the last, which it serves, and after each change it has to notice - the
 	/// batches drawn, a material's values, object attributes and the lighting record they make, a surface's fields, and the

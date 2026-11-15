@@ -268,9 +268,37 @@ internal abstract class GpuContext : IDisposable
 	/// With a <see cref="ResidentMeshes"/> owner, it's draw <paramref name="Draw"/> of LOD <paramref name="Lod"/> for each of the
 	/// group's <paramref name="Count"/> meshes, which the GPU culls, keeping each only where it picks that LOD for it; with
 	/// <paramref name="MeshLighting"/>, each mesh's lighting attributes (<paramref name="ObjectAttributes"/> is the first's,
-	/// and the rest differ from it only in their lighting records, <see cref="GpuDevice.LightingFreeKey"/>).
+	/// and the rest differ from it only in their lighting records, <see cref="GpuDevice.LightingFreeKey"/>). An aggregate in a
+	/// resident list of casters whose settling decides (<see cref="GpuDrivenCull.Filter"/>) has its <paramref name="Moved"/>
+	/// word (<see cref="MovedWord"/>) for every fragment; <see cref="MovedNone"/> keeps it in every view.
 	/// </summary>
-	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner, bool Instances = false, int TextureSize = TextureSizes.All, int Lod = 0, ShaderParameters[] MeshLighting = null );
+	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner, bool Instances = false, int TextureSize = TextureSizes.All, int Lod = 0, ShaderParameters[] MeshLighting = null, uint Moved = MovedNone );
+
+	/// <summary>A moved word for a static caster, or for none: kept by every filter that keeps static casters.</summary>
+	internal const uint MovedNone = uint.MaxValue;
+
+	/// <summary>
+	/// A caster's moved stamp (<see cref="RenderWorld.MovedStamps"/>) as the GPU compares it with a view's
+	/// <see cref="GpuDrivenCull.SettledStamp"/>: its frame in the low 31 bits, bit 31 when it's restless; <see cref="MovedNone"/>
+	/// for a static one.
+	/// </summary>
+	internal static uint MovedWord( ulong moved, bool isStatic ) => isStatic ? MovedNone : StampWord( moved & ~Shadows.SettledCasters.Restless ) | ((moved & Shadows.SettledCasters.Restless) != 0 ? 0x80000000u : 0);
+
+	/// <summary>A settled stamp as the GPU compares it (31 bits).</summary>
+	internal static uint StampWord( ulong stamp ) => (uint)Math.Min( stamp, 0x7ffffffeul );
+
+	/// <summary>
+	/// Which casters of a resident list a shadow view keeps by when each last moved, as the collect's settled test does: the
+	/// sun's far cascade cache takes static ones and those settled when it was drawn (for a baked sun only the settled ones
+	/// that aren't static), and what's drawn over it the rest that aren't static.
+	/// </summary>
+	internal enum ResidentFilter
+	{
+		None,
+		Settled,
+		SettledNoStatic,
+		Unsettled,
+	}
 
 	/// <summary>
 	/// Resident meshes of one model that draw alike (a <see cref="GpuDrivenBatch"/>'s owner): what the GPU culls them
@@ -306,9 +334,15 @@ internal abstract class GpuContext : IDisposable
 		/// </summary>
 		public readonly ShaderParameters[] Lightmaps, Probes;
 
+		/// <summary>
+		/// In a list of casters whose settling decides (<see cref="GpuDrivenCull.Filter"/>): each mesh's moved word
+		/// (<see cref="MovedWord"/>); null in every other list.
+		/// </summary>
+		public readonly uint[] Moved;
+
 		public int Count => Slots.Length;
 
-		public ResidentMeshes( RenderMesh mesh, Vector3[] centers, Vector3[] extents, int[] slots, float[] lodScales, ShaderParameters[] lightmaps = null, ShaderParameters[] probes = null )
+		public ResidentMeshes( RenderMesh mesh, Vector3[] centers, Vector3[] extents, int[] slots, float[] lodScales, ShaderParameters[] lightmaps = null, ShaderParameters[] probes = null, uint[] moved = null )
 		{
 			Centers = centers;
 			Extents = extents;
@@ -316,6 +350,7 @@ internal abstract class GpuContext : IDisposable
 			LodScales = lodScales;
 			Lightmaps = lightmaps;
 			Probes = probes;
+			Moved = moved;
 			LodCount = mesh.LodCount;
 			SwitchDistances = mesh.SwitchDistances.ToArray();
 			Tinted = mesh.HasDrawTints;
@@ -378,6 +413,14 @@ internal abstract class GpuContext : IDisposable
 		public Vector4 LodCamera;
 		public float LodWidth;
 		public bool LodTexels;
+
+		/// <summary>
+		/// Which of its resident list's casters it keeps by when each last moved, against the stamps the far cascade's cache was
+		/// drawn at (<see cref="StampWord"/>, as <see cref="Shadows.SettledCasters.SettledBy"/> compares them). The view's own
+		/// batches are kept.
+		/// </summary>
+		public ResidentFilter Filter;
+		public uint SettledStamp, RestlessStamp;
 
 		/// <summary>
 		/// The view, which the visibility-driven forward pass keeps its ids and lists for; and whether this is its depth
