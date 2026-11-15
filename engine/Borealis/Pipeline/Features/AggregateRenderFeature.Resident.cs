@@ -140,6 +140,9 @@ internal sealed partial class AggregateRenderFeature
 	RenderWorld residentWorld;
 	int residentStructure = -1;
 	int residentVersion;
+
+	/// <summary>The last list version any list was made in: owners none of its lists drew are let go.</summary>
+	int listedVersion;
 	readonly List<ClassKey> residentClasses = new();
 	readonly Dictionary<(ResidentCasters Casters, uint Mask), ResidentList> residentLists = new();
 
@@ -636,16 +639,19 @@ internal sealed partial class AggregateRenderFeature
 	}
 
 	/// <summary>
-	/// Drop every list, to be made again. Owners no list of the version being dropped drew are let go, so the device frees
-	/// their records; the rest may be kept by the next version's lists.
+	/// Drop every list, to be made again. Owners no list of the last version that made any drew are let go, so the device
+	/// frees their records; the rest may be kept by the next version's lists. A version dropped before any list was made
+	/// (a rescan, then the slots it finds) lets nothing go, or every group would be made again with the same meshes. With
+	/// no resident meshes left, every owner goes.
 	/// </summary>
 	void DropResidentLists()
 	{
 		residentLists.Clear();
 		List<MeshGroupKey> stale = null;
+		var before = meshMemberCount == 0 ? int.MaxValue : listedVersion;
 		foreach ( var (key, owner) in meshOwners )
 		{
-			if ( owner.Version < residentVersion ) (stale ??= new()).Add( key );
+			if ( owner.Version < before ) (stale ??= new()).Add( key );
 		}
 
 		if ( stale is not null )
@@ -701,6 +707,7 @@ internal sealed partial class AggregateRenderFeature
 		if ( residentLists.TryGetValue( (casters, mask), out var list ) ) return list;
 
 		list = new ResidentList { Version = residentVersion };
+		listedVersion = residentVersion;
 		if ( list.Holds.Length < residentWorld.Count ) list.Holds = new bool[residentWorld.Count];
 		var settles = Settles( casters );
 		for ( int m = 0; m < memberCount; m++ )
