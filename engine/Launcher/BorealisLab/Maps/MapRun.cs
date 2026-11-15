@@ -17,7 +17,8 @@ namespace Sandbox.BorealisLab.Maps;
 /// draw it on a Borealis.Gpu device of its own, with no Source 2 device and none of the engine started, from fixed cameras
 /// (SceneLab's for Construct), timing each way of issuing the draws. Prints and saves a table; exits 1 on validation errors.
 /// <list type="bullet">
-/// <item><c>-map-folder path</c> - the map package's folder instead of finding the installed workshop item: the map in it is
+/// <item><c>-map-folder path</c> - the map package's folder instead of finding the installed workshop item (in Steam's libraries, or
+/// <c>-workshop-content dir</c>, a folder of items by id): the map in it is
 /// <c>maps/name.vpk</c> or <c>maps/folder/name.vpk</c>.</item>
 /// <item><c>-view name</c> - one camera (<c>skyline</c>, <c>overview</c>); all by default.</item>
 /// <item><c>-camera-pos x,y,z</c>, <c>-camera-lookat x,y,z</c> ((0, 0, 30) by default) - one camera of any map instead, as SceneLab's
@@ -25,6 +26,8 @@ namespace Sandbox.BorealisLab.Maps;
 /// <item><c>-variants a,b</c> - which of the runs below; all by default.</item>
 /// <item><c>-frames N</c> (600), <c>-warmup N</c> (120 frames and 2 s) - measured and warm-up frames per run.</item>
 /// <item><c>-width</c> / <c>-height</c> (1280x720, SceneLab's frame), <c>-msaa N</c> (4), <c>-vsync</c> (off by default).</item>
+/// <item><c>-fullscreen</c> - borderless fullscreen on the desktop's mode; <c>-fullscreen exclusive</c> exclusive in it. The
+/// swap chain takes the display's size; <c>-width</c> / <c>-height</c> still set the frame drawn into it.</item>
 /// <item><c>-capture folder</c> - save each view's frame (material objects, shadows) as <c>map-view.png</c>.</item>
 /// <item><c>-out folder</c> - where <c>map.md</c> and <c>map.csv</c> go (default <c>screenshots/borealislab/map</c>).</item>
 /// <item><c>-texture-size N</c> (1024) - mips above this are left out, to load faster.</item>
@@ -92,7 +95,7 @@ internal static class MapRun
 		var errors = 0;
 		var messageCounts = new System.Collections.Concurrent.ConcurrentDictionary<string, int>();
 		var driverNames = !Args.Has( "-borealis-driver-names" );
-		using var window = new SdlWindow( new SdlWindowOptions { Title = $"Borealis Lab: {ident} on Borealis.Gpu", Width = width, Height = height } );
+		using var window = new SdlWindow( new SdlWindowOptions { Title = $"Borealis Lab: {ident} on Borealis.Gpu", Width = width, Height = height, Fullscreen = Args.Has( "-fullscreen" ), Exclusive = Args.String( "-fullscreen" ) is "exclusive" } );
 		using var gpu = GpuDevice.Create( new DeviceOptions
 		{
 			ApplicationName = driverNames ? "Sbox" : "Borealis Lab map",
@@ -287,20 +290,8 @@ internal static class MapRun
 	/// <summary>The folder of an installed s&amp;box workshop item whose metadata names <paramref name="ident"/>, or null.</summary>
 	static string FindPackage( string ident )
 	{
-		var steam = (OperatingSystem.IsWindows() ? Microsoft.Win32.Registry.GetValue( @"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null ) as string : null)
-			?? @"C:\Program Files (x86)\Steam";
-
-		var libraries = new List<string> { steam };
-		var vdf = Path.Combine( steam, "steamapps", "libraryfolders.vdf" );
-		if ( File.Exists( vdf ) )
+		foreach ( var content in WorkshopContent.Folders() )
 		{
-			foreach ( Match m in Regex.Matches( File.ReadAllText( vdf ), @"""path""\s+""([^""]+)""" ) )
-				libraries.Add( m.Groups[1].Value.Replace( @"\\", @"\" ) );
-		}
-
-		foreach ( var library in libraries.Distinct( StringComparer.OrdinalIgnoreCase ) )
-		{
-			var content = Path.Combine( library, "steamapps", "workshop", "content", "590830" );
 			if ( !Directory.Exists( content ) ) continue;
 			foreach ( var item in Directory.GetDirectories( content ) )
 			{

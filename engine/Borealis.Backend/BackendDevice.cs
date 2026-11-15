@@ -449,7 +449,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		// Beside the application (BorealisLab, SceneLab), or beside this assembly when the application is elsewhere: the game's
 		// sbox.exe is in game/, its managed assemblies and the ShaderCompiler in game/bin/managed
 		var compiler = new[] { AppContext.BaseDirectory, Path.GetDirectoryName( typeof( BackendDevice ).Assembly.Location ) }
-			.Where( x => !string.IsNullOrEmpty( x ) ).Select( x => Path.Combine( x, "ShaderCompiler.exe" ) ).FirstOrDefault( File.Exists ) ?? "";
+			.Where( x => !string.IsNullOrEmpty( x ) ).Select( x => Path.Combine( x, EngineFolders.Executable( "ShaderCompiler" ) ) ).FirstOrDefault( File.Exists ) ?? "";
 		var core = Content.Roots.FirstOrDefault( x => File.Exists( Path.Combine( x, "shaders", "borealis_gpu_driven.fxc" ) ) );
 		if ( !File.Exists( compiler ) || core is null ) return;
 
@@ -458,7 +458,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		// The variant's form, the wrapper it appends and the vfx_vulkan that rewrites it: a stale variant from an older
 		// rewriter, whose record offsets may not be the ones the backend writes, can read a bindless index out of range
 		var wrapper = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( Path.Combine( core, "shaders", "borealis_gpu_driven.fxc" ) ) ), 0, 8 );
-		var vfx = new FileInfo( Path.Combine( AppContext.BaseDirectory, "..", "win64", "vfx_vulkan.dll" ) );
+		var vfx = new FileInfo( Path.Combine( AppContext.BaseDirectory, "..", EngineFolders.Native, EngineFolders.Library( "vfx_vulkan" ) ) );
 		var rewriter = vfx.Exists ? $".{vfx.Length:x}.{vfx.LastWriteTimeUtc.Ticks:x}" : "";
 		Shaders.GpuDrivenCompilerVersion = $"{ShaderLibrary.GpuDrivenVersion}.{wrapper}{rewriter}";
 		System.Threading.Tasks.Task.Run( Shaders.PruneGpuDrivenCache );
