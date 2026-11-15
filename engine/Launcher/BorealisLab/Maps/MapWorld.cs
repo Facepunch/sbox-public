@@ -238,7 +238,7 @@ internal sealed partial class MapWorld : IDisposable
 				foreach ( var aggregate in MakeAggregates( Mesh( a.Model, file, file.DefaultMeshGroupMask, 0 ), file, a ) )
 				{
 					aggregate.CastShadows = castShadows;
-					if ( Materials( aggregate.Mesh ).Any( m => m.Attribute( "overlay", false ) ) ) aggregate.LayerMatch = LayerMatch.StaticOverlay;
+					if ( Materials( aggregate.Mesh ).Any( m => Attribute( m, "overlay", false ) ) ) aggregate.LayerMatch = LayerMatch.StaticOverlay;
 					target.Add( aggregate );
 					aggregateObjects.Add( aggregate );
 					level.Aggregates.Add( aggregate );
@@ -470,17 +470,25 @@ internal sealed partial class MapWorld : IDisposable
 		}
 	}
 
-	/// <summary>The compiled materials a mesh draws with, at every LOD.</summary>
-	static IEnumerable<BackendMaterial> Materials( RenderMesh mesh )
+	/// <summary>The compiled materials a mesh draws with, at every LOD: .shader materials and surfaces.</summary>
+	static IEnumerable<GpuMaterial> Materials( RenderMesh mesh )
 	{
 		for ( int lod = 0; lod < mesh.LodCount; lod++ )
 		{
 			foreach ( var draw in mesh.DrawsForLod( lod ).ToArray() )
 			{
-				if ( draw.Material is BackendMaterial material ) yield return material;
+				if ( draw.Material is BackendMaterial or SurfaceMaterial ) yield return draw.Material;
 			}
 		}
 	}
+
+	/// <summary>A material's bool attribute: a surface answers as the .shader material it stands in for.</summary>
+	static bool Attribute( GpuMaterial material, string name, bool fallback ) => material switch
+	{
+		BackendMaterial m => m.Attribute( name, fallback ),
+		SurfaceMaterial s => s.Attribute( name, fallback ),
+		_ => fallback,
+	};
 
 	/// <summary>
 	/// The flags native's scene system takes from an object's materials (<c>DefaultMaterialBasedSceneObjectUpdater</c>): an
@@ -493,15 +501,15 @@ internal sealed partial class MapWorld : IDisposable
 		var materials = Materials( obj.Mesh ).Distinct().ToArray();
 		if ( materials.Length == 0 ) return;
 
-		if ( materials.Any( m => m.Attribute( "overlay", false ) ) )
+		if ( materials.Any( m => Attribute( m, "overlay", false ) ) )
 		{
 			obj.LayerMatch = LayerMatch.StaticOverlay;
 			obj.RenderOrder = renderOrder;
 		}
 
-		if ( materials.Any( m => m.Attribute( "NoZPrepass", false ) ) ) obj.DepthPrepass = false;
-		if ( materials.All( m => m.Attribute( "DoNotCastShadows", false ) ) ) obj.CastShadows = false;
-		if ( materials.Any( m => m.Attribute( "bWantsFBCopyTexture", false ) ) ) obj.WantsFrameBufferCopy = true;
+		if ( materials.Any( m => Attribute( m, "NoZPrepass", false ) ) ) obj.DepthPrepass = false;
+		if ( materials.All( m => Attribute( m, "DoNotCastShadows", false ) ) ) obj.CastShadows = false;
+		if ( materials.Any( m => Attribute( m, "bWantsFBCopyTexture", false ) ) ) obj.WantsFrameBufferCopy = true;
 	}
 
 	static Matrix3x4 ToMatrix3x4( NumericsMatrix m ) => new()

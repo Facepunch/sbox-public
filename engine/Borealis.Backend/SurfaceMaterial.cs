@@ -104,6 +104,18 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	/// <summary>Set what draws where the surface can't (<see cref="Fallback"/>).</summary>
 	internal void SetFallback( Func<GpuMaterial> make ) => fallback = new Lazy<GpuMaterial>( make, LazyThreadSafetyMode.ExecutionAndPublication );
 
+	/// <summary>
+	/// A bool attribute of the material as the scene reads it for its objects' flags (<c>overlay</c>, <c>NoZPrepass</c>,
+	/// <c>DoNotCastShadows</c>, <c>bWantsFBCopyTexture</c>): a converted <c>.vmat</c>'s are its <c>.shader</c> material's;
+	/// <paramref name="fallback"/> for a material with none.
+	/// </summary>
+	internal bool Attribute( string name, bool fallback ) => attributes?.Value is { } source ? source.Attribute( name, fallback ) : fallback;
+
+	Lazy<BackendMaterial> attributes;
+
+	/// <summary>Set where <see cref="Attribute"/> reads from: the <c>.shader</c> material, without its textures.</summary>
+	internal void SetAttributes( Func<BackendMaterial> make ) => attributes = new Lazy<BackendMaterial>( make, LazyThreadSafetyMode.ExecutionAndPublication );
+
 	/// <summary>Its compiled program, once a device found it (<see cref="SurfaceShaders"/>).</summary>
 	internal SurfaceProgram Program { get; set; }
 

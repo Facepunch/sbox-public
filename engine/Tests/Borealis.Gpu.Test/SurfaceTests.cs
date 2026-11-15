@@ -168,8 +168,8 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// Every pass also comes GPU-driven: its vertex stage pulls its vertices (no vertex inputs), and neither stage reads
-	/// the classic records' buffer.
+	/// Every pass also comes GPU-driven, the translucent forward pass too: its vertex stage pulls its vertices (no vertex
+	/// inputs), and neither stage reads the classic records' buffer.
 	/// </summary>
 	[TestMethod]
 	public void SurfacesHaveGpuDrivenPasses()
@@ -178,7 +178,7 @@ public class SurfaceTests : GpuTest
 		{
 			var surface = Compiler().CompileSurface( path );
 			Assert.IsNull( surface.GpuDrivenError, surface.GpuDrivenError );
-			foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
+			foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Forward + "Translucent", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
 			{
 				foreach ( var suffix in new[] { ShaderPasses.GpuDriven, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped } )
 				{
@@ -915,6 +915,44 @@ public class SurfaceTests : GpuTest
 		if ( compared == 0 ) Assert.Inconclusive( "No core material of a converted shader is compiled" );
 		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
 		Assert.AreEqual( 0, mismatches.Count, string.Join( "\n", mismatches ) );
+	}
+
+	/// <summary>
+	/// A converted material answers the scene's attributes as its .shader material does (<c>overlay</c> puts a map's
+	/// decals in the static overlay layer, <c>NoZPrepass</c> keeps an object out of the prepass, and so on), whatever the
+	/// default asked with: the lab's map loader reads these for its objects' layers and flags.
+	/// </summary>
+	[TestMethod]
+	public void SurfaceSceneAttributesMatchTheirShaders()
+	{
+		Compiler();
+		using var classicDevice = new BackendDevice( Device );
+		classicDevice.Surfaces.ConvertShaders = false;
+		using var surfaceDevice = new BackendDevice( Device );
+
+		var compared = 0;
+		var set = 0;
+		var mismatches = new List<string>();
+		foreach ( var path in new[] { "materials/dev/static_overlay_test.vmat", "materials/tools/toolsclip.vmat", "materials/dev/primary_green_additive.vmat", "materials/default.vmat" } )
+		{
+			if ( ((GpuDevice)classicDevice).LoadMaterial( path ) is not BackendMaterial { Shader: not null } classic ) continue;
+			if ( ((GpuDevice)surfaceDevice).LoadMaterial( path ) is not SurfaceMaterial surface ) continue;
+			foreach ( var name in new[] { "overlay", "NoZPrepass", "DoNotCastShadows", "bWantsFBCopyTexture", "NeedsLightProbe", "SupportsLightmapping" } )
+			{
+				foreach ( var fallback in new[] { false, true } )
+				{
+					var expected = classic.Attribute( name, fallback );
+					if ( expected != fallback ) set++;
+					if ( expected != surface.Attribute( name, fallback ) ) mismatches.Add( $"{path} {name} (default {fallback}): {expected} vs {surface.Attribute( name, fallback )}" );
+				}
+			}
+
+			compared++;
+		}
+
+		if ( compared == 0 ) Assert.Inconclusive( "No test material of a converted shader is compiled" );
+		Assert.AreEqual( 0, mismatches.Count, string.Join( "\n", mismatches ) );
+		Assert.IsTrue( set > 0, "the shaders set none of the attributes" );
 	}
 
 	/// <summary>
