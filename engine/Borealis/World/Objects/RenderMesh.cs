@@ -53,6 +53,9 @@ public sealed class RenderMesh
 	/// </summary>
 	public int LodCount => lods.Length;
 
+	/// <summary>Its LOD switch distances (<see cref="LodForScreenSize(float, float)"/>).</summary>
+	internal ReadOnlySpan<float> SwitchDistances => switchDistances;
+
 	/// <summary>
 	/// Triangles drawn per instance at LOD 0.
 	/// </summary>

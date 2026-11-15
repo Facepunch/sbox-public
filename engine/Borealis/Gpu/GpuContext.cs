@@ -265,8 +265,70 @@ internal abstract class GpuContext : IDisposable
 	/// <paramref name="Owner"/> is the aggregate, whose fragments (by their arguments' first instance) don't change.
 	/// With <paramref name="Instances"/>, it's a mesh draw's <paramref name="Count"/> instances from
 	/// <paramref name="FirstInstance"/> instead, each the whole draw, which the caller has already culled: no arguments, no owner.
+	/// With a <see cref="ResidentMeshes"/> owner, it's draw <paramref name="Draw"/> of LOD <paramref name="Lod"/> for each of the
+	/// group's <paramref name="Count"/> meshes, which the GPU culls, keeping each only where it picks that LOD for it; with
+	/// <paramref name="MeshLighting"/>, each mesh's lighting attributes (<paramref name="ObjectAttributes"/> is the first's,
+	/// and the rest differ from it only in their lighting records, <see cref="GpuDevice.LightingFreeKey"/>).
 	/// </summary>
-	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner, bool Instances = false, int TextureSize = TextureSizes.All );
+	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner, bool Instances = false, int TextureSize = TextureSizes.All, int Lod = 0, ShaderParameters[] MeshLighting = null );
+
+	/// <summary>
+	/// Resident meshes of one model that draw alike (a <see cref="GpuDrivenBatch"/>'s owner): what the GPU culls them
+	/// and picks each one's LOD by. Never changed once made; a change makes another.
+	/// </summary>
+	internal sealed class ResidentMeshes
+	{
+		/// <summary>Each mesh's world bounds, transform slot, and LOD scale (its largest scale, or -1 - LOD for a fixed LOD).</summary>
+		public readonly Vector3[] Centers, Extents;
+		public readonly int[] Slots;
+		public readonly float[] LodScales;
+
+		/// <summary>The model's LOD count and switch distances (<see cref="RenderMesh.LodForScreenSize(float, float)"/>).</summary>
+		public readonly int LodCount;
+		public readonly float[] SwitchDistances;
+
+		/// <summary>Per LOD and draw: what names its visibility, the same in every view and pass, and its records when tinted.</summary>
+		public readonly object[][] VisibilityKeys;
+
+		/// <summary>
+		/// A model with draw tints: each mesh's slot is the first of a kept run of an entry per draw of every LOD, a LOD's
+		/// first at <see cref="TintOffsets"/>, so each draw has records of its own.
+		/// </summary>
+		public readonly bool Tinted;
+		public readonly int[] TintOffsets;
+
+		/// <summary>Switch distances the GPU reads (index 0 is never read): a model with more isn't resident.</summary>
+		public const int MaxSwitchDistances = 8;
+
+		/// <summary>
+		/// Each mesh's lightmap and light probe attributes in main views, when they aren't all the same object: each mesh then
+		/// draws with its own lighting record. Null where every mesh has the same (or none).
+		/// </summary>
+		public readonly ShaderParameters[] Lightmaps, Probes;
+
+		public int Count => Slots.Length;
+
+		public ResidentMeshes( RenderMesh mesh, Vector3[] centers, Vector3[] extents, int[] slots, float[] lodScales, ShaderParameters[] lightmaps = null, ShaderParameters[] probes = null )
+		{
+			Centers = centers;
+			Extents = extents;
+			Slots = slots;
+			LodScales = lodScales;
+			Lightmaps = lightmaps;
+			Probes = probes;
+			LodCount = mesh.LodCount;
+			SwitchDistances = mesh.SwitchDistances.ToArray();
+			Tinted = mesh.HasDrawTints;
+			TintOffsets = new int[LodCount];
+			for ( int lod = 0; lod < LodCount; lod++ ) TintOffsets[lod] = Tinted ? mesh.TintOffsetForLod( lod ) : 0;
+			VisibilityKeys = new object[LodCount][];
+			for ( int lod = 0; lod < LodCount; lod++ )
+			{
+				VisibilityKeys[lod] = new object[mesh.DrawsForLod( lod ).Length];
+				for ( int d = 0; d < VisibilityKeys[lod].Length; d++ ) VisibilityKeys[lod][d] = new object();
+			}
+		}
+	}
 
 	/// <summary>Whether <see cref="DrawGpuDriven"/> draws anything on this device.</summary>
 	internal virtual bool GpuDriven => false;
@@ -298,6 +360,16 @@ internal abstract class GpuContext : IDisposable
 		public Vector4 Left, Right, Bottom, Top, Near, Far;
 		public Vector4 CameraAndThreshold;
 		public bool Shadow;
+
+		/// <summary>
+		/// For <see cref="ResidentMeshes"/>: whether they skip the size test (a static shadow cache, kept while the camera
+		/// moves), and how their LODs are picked: the root view's camera and tangent of half its field of view, and its
+		/// screen width; or, with <see cref="LodTexels"/>, <see cref="LodWidth"/> is the view's texels per unit.
+		/// </summary>
+		public bool KeepsSmallMeshes;
+		public Vector4 LodCamera;
+		public float LodWidth;
+		public bool LodTexels;
 
 		/// <summary>
 		/// The view, which the visibility-driven forward pass keeps its ids and lists for; and whether this is its depth

@@ -162,6 +162,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		/// <summary>Each static overlay run's render order, by run (<see cref="StaticOverlay"/>).</summary>
 		public readonly List<int> OverlayOrders = new();
 
+		/// <summary>The view's visible objects its resident list doesn't draw, which it prepares (AggregateRenderFeature.Resident.cs).</summary>
+		public readonly List<int> Unheld = new();
+
 		public void Clear()
 		{
 			foreach ( var list in ByBit )
@@ -359,6 +362,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// </summary>
 	internal OcclusionCuller Occlusion { get; set; }
 
+	/// <summary>The aggregates' feature, whose resident lists draw resident static meshes, which views then don't prepare.</summary>
+	internal AggregateRenderFeature Aggregates { get; set; }
+
 	/// <summary>
 	/// Borealis's debug views the frame draws, set before the main view prepares: LOD colours and cull reasons tint meshes
 	/// through their transform entries (<see cref="TintFor"/>).
@@ -400,6 +406,20 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( !pass.IsShadow ) DropUnusedBins();
 
 		var visible = pass.Visible( this );
+
+		// What the view's resident list draws isn't prepared here (AggregateRenderFeature.Resident.cs)
+		if ( Aggregates?.ResidentMeshHolds( world, pass, transforms ) is { } holds )
+		{
+			var unheld = layers.Unheld;
+			unheld.Clear();
+			foreach ( var index in CollectionsMarshal.AsSpan( visible ) )
+			{
+				if ( index >= holds.Length || !holds[index] ) unheld.Add( index );
+			}
+
+			visible = unheld;
+		}
+
 		if ( visible.Count == 0 ) return;
 		tintReasons = pass.CullReasons;
 
@@ -545,7 +565,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	}
 
 	/// <summary><c>-no-gpudriven-readers</c>: leave frame-buffer readers to the classic path, for comparisons.</summary>
-	static readonly bool NoGpuDrivenReaders = Array.Exists( Environment.GetCommandLineArgs(), a => a.Equals( "-no-gpudriven-readers", StringComparison.OrdinalIgnoreCase ) );
+	internal static readonly bool NoGpuDrivenReaders = Array.Exists( Environment.GetCommandLineArgs(), a => a.Equals( "-no-gpudriven-readers", StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>Whether <see cref="TakeGpuDriven"/> takes a run: nothing per object but its lighting.</summary>
 	static bool TakesGpuDriven( in Run run ) => run.Custom is null && run.Callbacks is null && !run.Skinned && !run.Deformed && !run.Morphable && run.CullDraw < 0 && run.Attributes is null;
@@ -818,7 +838,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// A batched draw's sort key, above its 24 index bits, as native's batch lists sort single draws by what they bind
 	/// (<c>CBaseSceneObjectDesc::BindMaterial</c>): depth-only draws first, as the prepass draws them all with one material
-	/// (<see cref="MaterialFor"/>), then skinned apart from rigid, then similarity (13 bits), material (16) and the bin's
+	/// (<see cref="MaterialFor(in Run, in RenderMesh.Draw, bool, bool, out bool)"/>), then skinned apart from rigid, then similarity (13 bits), material (16) and the bin's
 	/// attributes, lightmap and probe (8), which a change of rebinds. Custom objects go first, where their runs always sorted.
 	/// Collisions only cost binds. Made once a bin.
 	/// </summary>
@@ -876,7 +896,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// Reuse the cached probe choice until selection inputs change.
 	/// </summary>
-	static int ProbeFor( MeshObject obj, List<LightProbeVolume> volumes, long volumesKey, Vector3 center, Vector3 extents )
+	internal static int ProbeFor( MeshObject obj, List<LightProbeVolume> volumes, long volumesKey, Vector3 center, Vector3 extents )
 	{
 		// From its lighting origin, where it has one (CBaseSceneObjectDesc::GeneratePrimitives, GetLightingOrigin)
 		var origin = obj.LightingOrigin ?? center;
@@ -1126,7 +1146,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// Native <c>CalculateLODLevel</c>: radius-0.5 sphere pixel width and maximum object scale.
 	/// </summary>
-	static int ChooseLod( MeshObject obj, Vector3 center, Vector3 camera, float tanHalfFov, float screenWidth )
+	internal static int ChooseLod( MeshObject obj, Vector3 center, Vector3 camera, float tanHalfFov, float screenWidth )
 	{
 		var mesh = obj.Mesh;
 		if ( mesh.LodCount == 1 ) return 0;
@@ -1147,7 +1167,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <see cref="ChooseLod"/> for an orthographic view, by how many of its texels a world unit covers: the same anywhere in
 	/// it, so wherever the camera is.
 	/// </summary>
-	static int ChooseLodByTexels( MeshObject obj, float texelsPerUnit )
+	internal static int ChooseLodByTexels( MeshObject obj, float texelsPerUnit )
 	{
 		var mesh = obj.Mesh;
 		if ( mesh.LodCount == 1 ) return 0;
@@ -1419,6 +1439,13 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// Only fast-path depth draws dither when faded.
 	/// </summary>
 	GpuMaterial MaterialFor( in Run run, in RenderMesh.Draw draw, bool depth, bool forceDepthOnly, out bool stripPixelShader )
+		=> MaterialFor( run.Override, run.OverrideBlends, draw, depth, forceDepthOnly, out stripPixelShader );
+
+	/// <summary>
+	/// <see cref="MaterialFor(in Run, in RenderMesh.Draw, bool, bool, out bool)"/> for an object's override (and whether it
+	/// blends or alpha tests) rather than its run's.
+	/// </summary>
+	internal GpuMaterial MaterialFor( GpuMaterial materialOverride, bool overrideBlends, in RenderMesh.Draw draw, bool depth, bool forceDepthOnly, out bool stripPixelShader )
 	{
 		stripPixelShader = false;
 		if ( !UseMeshMaterials ) return defaultMaterial;
@@ -1426,9 +1453,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		// A layer on the forced fast path draws everything with it, overrides too (CSceneSystem::ShouldOverrideDepthMaterial)
 		if ( depth && forceDepthOnly && depthOnlyMaterial is not null ) return depthOnlyMaterial;
 
-		if ( run.Override is { } material )
+		if ( materialOverride is { } material )
 		{
-			stripPixelShader = depth && !run.OverrideBlends;
+			stripPixelShader = depth && !overrideBlends;
 			return material;
 		}
 

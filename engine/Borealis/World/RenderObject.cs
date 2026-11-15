@@ -54,6 +54,7 @@ public abstract class RenderObject
 			field = value;
 			World?.SyncDynamic( this );
 			World?.StaticCasterChanged( this );
+			DrawChanged();
 		}
 	}
 
@@ -80,6 +81,7 @@ public abstract class RenderObject
 			if ( field.AsSpan().SequenceEqual( value ) ) return;
 			field = value;
 			ShadowChanged();
+			DrawChanged();
 		}
 	} = [];
 
@@ -94,6 +96,7 @@ public abstract class RenderObject
 			if ( field == value ) return;
 			field = value;
 			ShadowChanged();
+			DrawChanged();
 		}
 	}
 
@@ -110,7 +113,9 @@ public abstract class RenderObject
 		{
 			ArgumentOutOfRangeException.ThrowIfNegative( value );
 			ArgumentOutOfRangeException.ThrowIfGreaterThan( value, RenderWorld.MaxSubWorlds );
+			if ( field == value ) return;
 			field = value;
+			DrawChanged();
 		}
 	}
 
@@ -174,7 +179,16 @@ public abstract class RenderObject
 	/// <summary>
 	/// Left out of cube captures (<c>SCENEOBJECTFLAG_HIDE_IN_CUBEMAPS</c>, <see cref="RenderView.Capture"/>).
 	/// </summary>
-	public bool HiddenInCaptures { get; set; }
+	public bool HiddenInCaptures
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	}
 
 	/// <summary>
 	/// Exclusive layer match (<c>SceneObject.RenderLayer</c>). Overrides all layer flags, including shadows,

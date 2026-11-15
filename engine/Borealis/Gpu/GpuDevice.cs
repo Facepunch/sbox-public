@@ -92,6 +92,33 @@ public abstract class GpuDevice
 	internal virtual bool DrawsAggregatesResident => false;
 
 	/// <summary>
+	/// Whether, drawing aggregates resident, static meshes join their lists too (<see cref="Gpu.GpuContext.ResidentMeshes"/>):
+	/// the GPU culls them and picks their LODs, and views don't prepare them.
+	/// </summary>
+	internal virtual bool DrawsMeshesResident => false;
+
+	/// <summary>
+	/// Whether a resident mesh's draws with this material can be drawn GPU-driven in every pass (its shader has GPU-driven
+	/// variants): a draw the device leaves would go undrawn, so a mesh with one isn't made resident.
+	/// </summary>
+	internal virtual bool TakesResident( GpuMaterial material ) => false;
+
+	/// <summary>
+	/// What GPU-driven drawing buckets these object attributes by, leaving out what each draw's lighting record holds (its
+	/// baked lighting and probe volume constants): resident meshes whose lighting attributes have the same key share a group,
+	/// each with its own lighting record. Without GPU-driven drawing, each attributes object is its own.
+	/// </summary>
+	internal virtual long LightingFreeKey( ShaderParameters attributes ) => attributes is null ? 0 : (uint)System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode( attributes ) | 1L << 62;
+
+	/// <summary>
+	/// A resident owner (<see cref="Gpu.GpuContext.ResidentMeshes"/>) no list draws any more: the device frees its records once
+	/// the frames that could read them are done.
+	/// </summary>
+	internal virtual void ReleaseResident( object owner )
+	{
+	}
+
+	/// <summary>
 	/// Whether it streams textures by the sizes draws ask for, so what draws without a size of its own should give one
 	/// through <see cref="AddTextureSizes"/>.
 	/// </summary>

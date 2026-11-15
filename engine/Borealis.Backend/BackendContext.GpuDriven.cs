@@ -230,8 +230,8 @@ internal sealed partial class BackendContext
 							device.Surfaces.CountGpuDriven();
 							surfaceBucket.Commands += batch.Count;
 							totalCommands += batch.Count;
-							var surfaceFragments = batch.Instances ? batch.Count : batch.Owner is AggregateObject surfaceAggregate ? surfaceAggregate.Fragments.Length : 0;
-							gpuCull &= surfaceFragments > 0 && (batch.Instances || transforms.InstanceSlot( batch.FirstInstance + surfaceFragments - 1 ) == transforms.InstanceSlot( batch.FirstInstance ) + surfaceFragments - 1);
+							var surfaceFragments = FragmentCount( batch );
+							gpuCull &= surfaceFragments > 0 && (batch.Instances || batch.Owner is ResidentMeshes || transforms.InstanceSlot( batch.FirstInstance + surfaceFragments - 1 ) == transforms.InstanceSlot( batch.FirstInstance ) + surfaceFragments - 1);
 							surfaceBucket.Fragments += surfaceFragments;
 							totalFragments += surfaceFragments;
 						}
@@ -295,8 +295,8 @@ internal sealed partial class BackendContext
 				totalCommands += batch.Count;
 
 				// A mesh draw's instances are its fragments, each with its own transform slot; an aggregate's need theirs in order
-				var fragmentCount = batch.Instances ? batch.Count : batch.Owner is AggregateObject aggregate ? aggregate.Fragments.Length : 0;
-				gpuCull &= fragmentCount > 0 && (batch.Instances || transforms.InstanceSlot( batch.FirstInstance + fragmentCount - 1 ) == transforms.InstanceSlot( batch.FirstInstance ) + fragmentCount - 1);
+				var fragmentCount = FragmentCount( batch );
+				gpuCull &= fragmentCount > 0 && (batch.Instances || batch.Owner is ResidentMeshes || transforms.InstanceSlot( batch.FirstInstance + fragmentCount - 1 ) == transforms.InstanceSlot( batch.FirstInstance ) + fragmentCount - 1);
 				bucket.Fragments += fragmentCount;
 				totalFragments += fragmentCount;
 			}
@@ -348,6 +348,10 @@ internal sealed partial class BackendContext
 				foreach ( var (_, index) in bucket.Batches )
 				{
 					ref readonly var batch = ref batches[index];
+
+					// Resident meshes draw only where the GPU picks their LOD: left undrawn here
+					if ( batch.Owner is ResidentMeshes ) continue;
+
 					var material = batch.Material;
 					var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
 					var pooled = geometry.Pooled.Value;
@@ -437,6 +441,14 @@ internal sealed partial class BackendContext
 		}
 	}
 
+	/// <summary>A batch's fragments: a mesh draw's instances, an aggregate's fragments, or resident meshes.</summary>
+	static int FragmentCount( in GpuDrivenBatch batch ) => batch.Instances ? batch.Count : batch.Owner switch
+	{
+		AggregateObject aggregate => aggregate.Fragments.Length,
+		ResidentMeshes meshes => meshes.Count,
+		_ => 0,
+	};
+
 	/// <summary>Instance <paramref name="instance"/> of a mesh draw's batch, as the arguments an aggregate's fragment has.</summary>
 	static GpuBuffer.IndirectDrawIndexedArguments InstanceArguments( in GpuDrivenBatch batch, in DrawGeometry geometry, int instance ) => new()
 	{
@@ -479,7 +491,7 @@ internal sealed partial class BackendContext
 	byte[] cullConstants;
 	readonly List<(int Bucket, BufferHandle Page, IndexFormat Format, int First, int Count)> cullRuns = new();
 
-	const int CullViewBytes = 128;
+	const int CullViewBytes = 160;
 	const int CullBatchBytes = 32;
 
 	/// <summary>
@@ -538,7 +550,17 @@ internal sealed partial class BackendContext
 			view[p * 4 + 3] = planes[p].w;
 		}
 
-		MemoryMarshal.Cast<byte, uint>( data[..CullViewBytes] )[28] = cull.Shadow ? 1u : 0u;
+		var viewWords = MemoryMarshal.Cast<byte, uint>( data[..CullViewBytes] );
+		viewWords[28] = cull.Shadow ? 1u : 0u;
+		viewWords[29] = cull.KeepsSmallMeshes ? 1u : 0u;
+		viewWords[30] = viewWords[31] = 0;
+		view[32] = cull.LodCamera.x;
+		view[33] = cull.LodCamera.y;
+		view[34] = cull.LodCamera.z;
+		view[35] = cull.LodCamera.w;
+		view[36] = cull.LodWidth;
+		viewWords[37] = cull.LodTexels ? 1u : 0u;
+		viewWords[38] = viewWords[39] = 0;
 		if ( lists )
 		{
 			// The compaction's dispatch: a group per listed fragment, counted up by the culling
@@ -664,6 +686,30 @@ internal sealed partial class BackendContext
 							? tables.FrameVisibility( (batch.FirstInstance, batch.Mesh, batch.Draw.Mesh, batch.Draw.DrawCall), fragmentCount, pooled.VertexCount )
 							: (GpuDrivenTables.NoVisibility, GpuDrivenTables.NoVisibility);
 						kind = 4u | stride << 8;
+					}
+					else if ( batch.Owner is ResidentMeshes meshes )
+					{
+						// Resident meshes: their group's records (a header with the model's LODs, then each mesh's bounds, LOD
+						// scale and transform slot), this draw's record, and a run of vertex bits each, made once
+						if ( positions && ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) pooled = pooled with { GeometryRecord = pooled.PositionsRecord };
+						var (vertexMaterial, pixelMaterial) = Records( tables, bucket, material, geometry.UncompressedTangentFrame, vertexAttributes, pixelAttributes );
+						fragmentCount = meshes.Count;
+						// A tinted model's draws each have their own entries, so records of their own
+						var keys = meshes.VisibilityKeys[batch.Lod];
+						var tinted = meshes.Tinted && (uint)batch.FirstArg < (uint)keys.Length;
+						var slotOffset = tinted ? meshes.TintOffsets[batch.Lod] + batch.FirstArg : 0;
+						batchRecords[at] = tables.FragmentsOf( tinted ? keys[batch.FirstArg] : meshes, 0, 0, 0, 0, fragmentCount + 1, (Meshes: meshes, Offset: slotOffset), static ( s, bytes ) => WriteResidentMeshes( s.Meshes, s.Offset, bytes ), releasable: true );
+						batchRecords[at + 2] = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex, pooled.IndexPageSlot );
+
+						// Meshes that differ in their lighting: a draw record each, listed in the fragment table (bit 31)
+						if ( batch.MeshLighting is { } meshLighting && meshLighting.Length == fragmentCount && (uint)batch.FirstArg < (uint)keys.Length )
+							batchRecords[at + 2] = MeshLightingDraws( tables, keys[batch.FirstArg], meshLighting, bucket.Attributes, pooled, vertexMaterial, pixelMaterial, flags & 0xff, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex ) | MeshDrawList;
+
+						var stride = (uint)pooled.VertexCount;
+						(visibilityFirst, vertexBase) = visibility is not null && stride < 1u << 24 && (long)stride * fragmentCount < int.MaxValue && (uint)batch.FirstArg < (uint)keys.Length
+							? tables.Visibility( keys[batch.FirstArg], fragmentCount, (int)stride * fragmentCount )
+							: (GpuDrivenTables.NoVisibility, GpuDrivenTables.NoVisibility);
+						kind = 8u | (uint)batch.Lod << 4 | stride << 8;
 					}
 					else
 					{
@@ -1001,6 +1047,11 @@ internal sealed partial class BackendContext
 		{
 			if ( batch.Material is not null && seen.Add( batch.Material ) ) materials.Add( (batch.Material, MaterialVersion( batch.Material )) );
 			if ( batch.ObjectAttributes is BackendParameters parameters && seen.Add( parameters ) ) attributes.Add( (parameters, parameters.Version) );
+			if ( batch.MeshLighting is null ) continue;
+			foreach ( var meshLighting in batch.MeshLighting )
+			{
+				if ( meshLighting is BackendParameters each && seen.Add( each ) ) attributes.Add( (each, each.Version) );
+			}
 		}
 
 		device.PlansFor( cull.Plan ).Keep( new GpuDrivenPlan
@@ -1276,6 +1327,81 @@ internal sealed partial class BackendContext
 			records[at + 6] = BitConverter.SingleToUInt32Bits( extents[i].z );
 			records[at + 7] = arg.FirstInstance | ((fragments[i].Flags & FragmentFlags.DoNotCastShadows) != 0 ? 0x80000000u : 0u);
 		}
+	}
+
+	/// <summary>
+	/// Resident meshes' records (<c>borealis_gpu_driven_cull_cs</c>): a header with the model's LOD count, its switch
+	/// distances' count (bits 8-15) and switch distances 1 to 7, then per mesh its centre and LOD scale, and its extents
+	/// and transform slot (plus <paramref name="slotOffset"/>, a tinted model's draw's entry in each mesh's run).
+	/// </summary>
+	static void WriteResidentMeshes( ResidentMeshes meshes, int slotOffset, Span<byte> bytes )
+	{
+		var records = MemoryMarshal.Cast<byte, uint>( bytes );
+		var switches = meshes.SwitchDistances;
+		records[0] = (uint)meshes.LodCount | (uint)switches.Length << 8;
+		for ( int i = 1; i < 8; i++ ) records[i] = i < switches.Length ? BitConverter.SingleToUInt32Bits( switches[i] ) : 0;
+
+		for ( int i = 0; i < meshes.Count; i++ )
+		{
+			var at = (i + 1) * (GpuDrivenTables.FragmentStride / 4);
+			records[at] = BitConverter.SingleToUInt32Bits( meshes.Centers[i].x );
+			records[at + 1] = BitConverter.SingleToUInt32Bits( meshes.Centers[i].y );
+			records[at + 2] = BitConverter.SingleToUInt32Bits( meshes.Centers[i].z );
+			records[at + 3] = BitConverter.SingleToUInt32Bits( meshes.LodScales[i] );
+			records[at + 4] = BitConverter.SingleToUInt32Bits( meshes.Extents[i].x );
+			records[at + 5] = BitConverter.SingleToUInt32Bits( meshes.Extents[i].y );
+			records[at + 6] = BitConverter.SingleToUInt32Bits( meshes.Extents[i].z );
+			records[at + 7] = (uint)(meshes.Slots[i] + slotOffset);
+		}
+	}
+
+	/// <summary>A resident mesh batch's draw word with this bit is a list of a draw record per mesh in the fragment table.</summary>
+	const uint MeshDrawList = 0x80000000u;
+
+	/// <summary>
+	/// A resident mesh batch's draw records when its meshes differ in their lighting: each mesh's, the batch's draw with
+	/// that mesh's lighting record, as a list of words in the fragment table, made once per owner, draw, records and the
+	/// lighting attributes' versions. <paramref name="restore"/> is what the call's object attributes go back to.
+	/// </summary>
+	uint MeshLightingDraws( GpuDrivenTables tables, object owner, ShaderParameters[] lighting, ShaderParameters restore, PooledGeometry pooled, uint vertexMaterial, uint pixelMaterial, uint flags, uint firstIndex, uint indexCount, int baseVertex )
+	{
+		var versions = new HashCode();
+		ShaderParameters last = null;
+		foreach ( var attributes in lighting )
+		{
+			if ( ReferenceEquals( attributes, last ) ) continue;
+			versions.Add( RuntimeHelpers.GetHashCode( attributes ) );
+			versions.Add( attributes is BackendParameters parameters ? parameters.Version : 0 );
+			last = attributes;
+		}
+
+		var key = flags | (uint)versions.ToHashCode() << 8;
+		var state = (Context: this, Tables: tables, Lighting: lighting, Restore: restore, Draw: (pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, indexCount, baseVertex, pooled.IndexPageSlot));
+		return tables.FragmentsOf( owner, pooled.GeometryRecord, vertexMaterial, pixelMaterial, key, (lighting.Length + 7) / 8, state,
+			static ( s, bytes ) => s.Context.WriteMeshLightingDraws( s.Tables, s.Lighting, s.Restore, s.Draw, MemoryMarshal.Cast<byte, uint>( bytes ) ), releasable: true );
+	}
+
+	void WriteMeshLightingDraws( GpuDrivenTables tables, ShaderParameters[] lighting, ShaderParameters restore, (uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage) d, Span<uint> words )
+	{
+		var cache = device.MaterialCache;
+		ShaderParameters last = null;
+		var draw = 0u;
+		for ( int i = 0; i < lighting.Length; i++ )
+		{
+			if ( i == 0 || !ReferenceEquals( lighting[i], last ) )
+			{
+				last = lighting[i];
+				SetObjectAttributes( null, last );
+				NextPassState( cache );
+				var record = tables.Lighting( Lookup( BakedLightingToken ) as byte[], Lookup( ProbeVolumeToken ) as byte[] );
+				draw = tables.Draw( d.Geometry, d.Vertex, d.Pixel, d.Flags | record << 8, d.FirstIndex, d.IndexCount, d.BaseVertex, d.IndexPage );
+			}
+
+			words[i] = draw;
+		}
+
+		SetObjectAttributes( null, restore );
+		NextPassState( cache );
 	}
 
 	/// <summary>Multi-draws recorded by the current <see cref="DrawGpuDriven"/>, for the timings.</summary>
