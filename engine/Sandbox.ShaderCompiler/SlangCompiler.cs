@@ -139,6 +139,8 @@ public sealed partial class SlangCompiler
 			var depthAlphaTest = CompileEntry( instancePath, instance, "DepthAlphaTestPs", StageKind.Pixel, directory, AlphaTestedDepth );
 			var forwardTranslucent = CompileEntry( instancePath, instance, "ForwardTranslucentPs", StageKind.Pixel, directory, Translucent );
 			var depthVertex = CompileEntry( instancePath, instance, "DepthVs", StageKind.Vertex, directory );
+			var vertexSkinned = CompileEntry( instancePath, instance, "MainVs", StageKind.Vertex, directory, VertexAnimation );
+			var depthVertexSkinned = CompileEntry( instancePath, instance, "DepthVs", StageKind.Vertex, directory, VertexAnimation );
 
 			// Each pass twice: as compiled, and with the vertex stage that passes on the mesh's lightmap uv
 			var passes = new Dictionary<string, CompiledPass>();
@@ -148,6 +150,10 @@ public sealed partial class SlangCompiler
 				foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, forward), (ShaderPasses.Forward + "AlphaTest", forwardAlphaTest), (ShaderPasses.Forward + "Translucent", forwardTranslucent), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, depthAlphaTest) } )
 					passes[name + suffix] = new() { Name = name + suffix, Vertex = name == ShaderPasses.Depth ? depthVertex : v, Pixel = pixel };
 			}
+
+			// And with the vertex stage of skinned draws from the vertex cache, which reads the skinned vertices by vertex id
+			foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, forward), (ShaderPasses.Forward + "AlphaTest", forwardAlphaTest), (ShaderPasses.Forward + "Translucent", forwardTranslucent), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, depthAlphaTest) } )
+				passes[name + ShaderPasses.Skinned] = new() { Name = name + ShaderPasses.Skinned, Vertex = name == ShaderPasses.Depth ? depthVertexSkinned : vertexSkinned, Pixel = pixel };
 
 			// The same passes GPU-driven, each with a vertex entry generated from what the classic one reads; a surface
 			// whose GPU-driven compile fails draws the classic way
@@ -259,6 +265,12 @@ public sealed partial class SlangCompiler
 	/// it on. The pixel stage is the same; it samples the lightmap when the object has one.
 	/// </summary>
 	static readonly Dictionary<string, string> Lightmapped = new() { ["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = "1" };
+
+	/// <summary>
+	/// The vertex stage of skinned draws from the vertex cache: today's dynamic combo that reads the skinned position and
+	/// tangent frame from the cache by the draw's vertex ids (TEXCOORD14, TEXCOORD15).
+	/// </summary>
+	static readonly Dictionary<string, string> VertexAnimation = new() { ["D_CS_VERTEX_ANIMATION"] = "1" };
 
 	/// <summary>GPU-driven passes (<c>sbox/surface_passes.slangh</c>, docs/managed/borealis-gpu-driven.md).</summary>
 	static readonly Dictionary<string, string> GpuDriven = new() { ["SURFACE_GPU_DRIVEN"] = "1" };

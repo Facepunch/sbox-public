@@ -497,15 +497,19 @@ internal sealed class SurfaceProgram : IDisposable
 			var key = (pass, layout, color, depth, samples, constantsKey, ids, opaqueFade, state);
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
+			// A vertex-cache draw reads its vertex ids from streams 2 and 3, as floats, and the default stream from 4, as
+			// BackendDevice.Pipeline maps classic variants
+			var vertexCache = layout.VertexCache;
 			var inputs = pass.Pass.Vertex.Inputs.Select( i => new VertexInput( i.Location, Semantic( i.Semantic ), i.SemanticIndex, i.Kind == ScalarKind.Float ? SpirvScalar.Float : i.Kind == ScalarKind.Int ? SpirvScalar.Int : SpirvScalar.UInt, i.Components ) ).ToList();
 			var attributes = ShaderDefaults.MapVertices( inputs, input =>
 			{
 				if ( input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex == 13 ) return new VertexAttribute( 0, 1, VertexFormat.UInt, 0 );
+				if ( vertexCache && input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex is 14 or 15 ) return new VertexAttribute( 0, input.SemanticIndex == 14 ? 2 : 3, VertexFormat.Float, 0 );
 				if ( layout.Find( input.Semantic, input.SemanticIndex ) is not { } field ) return null;
 				var integer = field.Format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt4;
 				if ( integer != (input.Kind != SpirvScalar.Float) ) return null;
 				return new VertexAttribute( 0, 0, field.Format, field.Offset );
-			}, defaultBuffer: 2 );
+			}, defaultBuffer: vertexCache ? 4 : 2 );
 
 			var depthOnly = color == Format.Unknown && !ids;
 			var pixel = pass.Pixel.IsValid;
@@ -518,7 +522,9 @@ internal sealed class SurfaceProgram : IDisposable
 				FragmentShader = pixel ? pass.Pixel : default,
 				FragmentEntry = pixel ? pass.Pass.Pixel.Entry : null,
 				Sets = pass.Sets,
-				VertexBuffers = [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )],
+				VertexBuffers = vertexCache
+					? [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 4 ), new( 4 ), new( 0 )]
+					: [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )],
 				Attributes = attributes,
 				Topology = PrimitiveTopology.TriangleList,
 				CullMode = state.TwoSided ? CullMode.None : CullMode.Back,

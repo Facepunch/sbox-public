@@ -1065,15 +1065,68 @@ public class SurfaceTests : GpuTest
 		}
 	}
 
-	/// <summary>A box lit by the sun, filling most of the frame, as 8-bit sRGB-ish bytes (red channel of RGBA16F).</summary>
-	byte[] Draw( BackendDevice backend, GpuMaterial material, Color? tint = null, int boxes = 1 )
+	/// <summary>
+	/// Surfaces draw skinned meshes: the citizen, whose many-weight meshes skin through the vertex cache and the rest in the
+	/// vertex stage, drawn with a surface as the same material written as a .shader draws it (the surface has no .shader
+	/// to fall back to, so a skinned draw it can't make is missing from the picture).
+	/// </summary>
+	[TestMethod]
+	public void SurfacesDrawSkinnedMeshes()
+	{
+		Compiler();
+		using var backend = new BackendDevice( Device ) { TimeDraws = true };
+		backend.Surfaces.AddFolder( Surfaces );
+		var errors = new List<string>();
+		backend.Surfaces.Error = errors.Add;
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			var citizen = backend.LoadModel( "models/citizen/citizen.vmdl" );
+			if ( citizen is null ) Assert.Inconclusive( "models/citizen/citizen.vmdl isn't built" );
+			Assert.IsTrue( Enumerable.Range( 0, citizen.ModelMeshCount ).Any( m => citizen.SkinFor( m ) is { UsesVertexCache: true } ), "the citizen skins through the vertex cache" );
+
+			var shader = (BackendMaterial)((GpuDevice)backend).CreateMaterial( "Rock (.shader)", "shaders/surface_test_rock.shader" );
+			if ( shader.Shader?.Name.Contains( "surface_test_rock", StringComparison.OrdinalIgnoreCase ) != true ) Assert.Inconclusive( "surface_test_rock.shader isn't compiled" );
+
+			var color = backend.LoadTexture( "materials/default/rope_color_png_95bee33c.generated.vtex" );
+			var normal = backend.LoadTexture( "materials/default/rope_normal_png_b8960e44.generated.vtex" );
+			var rma = backend.LoadTexture( "materials/default/rope01_vmat_g_trma_bbf6a2a.generated.vtex" );
+			shader.SetTexture( "g_tColor", (BackendTexture)color );
+			shader.SetTexture( "g_tNormal", (BackendTexture)normal );
+			shader.SetTexture( "g_tRma", (BackendTexture)rma );
+			shader.Set( "g_vTint", [1, 0.8f, 0.6f] );
+			using var surface = new Rock { Color = color, Normal = normal, Rma = rma, Tint = new Vector3( 1, 0.8f, 0.6f ) };
+
+			var reference = Draw( backend, shader, model: citizen );
+			var fromSurface = Draw( backend, surface, model: citizen );
+			SaveRgb( reference, "surface-skinned-shader" );
+			SaveRgb( fromSurface, "surface-skinned-surface" );
+			Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+			Assert.AreEqual( 0, backend.DrawTimes.Failed.Count, "Draws failed: " + string.Join( ", ", backend.DrawTimes.Failed.Select( f => $"{f.Key} x{f.Value}" ) ) );
+			Assert.IsTrue( Lit( reference ) > Width * Height / 10, "The .shader drew too little to compare" );
+			Assert.IsTrue( Mean( reference, fromSurface ) < 0.5, $"the skinned surface differs by {Mean( reference, fromSurface ):F3}" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// A box lit by the sun, filling most of the frame, as 8-bit sRGB-ish bytes (red channel of RGBA16F); or a model in its
+	/// bind pose with every draw in the material.
+	/// </summary>
+	byte[] Draw( BackendDevice backend, GpuMaterial material, Color? tint = null, int boxes = 1, RenderMesh model = null )
 	{
 		using var system = new RenderSystem { ParallelRecording = boxes > 1 };
 		using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface test" );
 		var world = new RenderWorld();
 		world.Lighting.SunDirection = new Vector3( -0.4f, 0.5f, -0.75f ).Normal;
 		world.Lighting.SunShadowCascades = 1;
-		if ( boxes == 1 ) world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), new Transform( Vector3.Zero, Rotation.FromYaw( 35 ), 2 ) ) { Tint = tint ?? Color.White } );
+		if ( model is not null ) world.Add( new MeshObject( model, new Transform( model.Bounds.Center * -(160 / model.Bounds.Size.Length), Rotation.Identity, 160 / model.Bounds.Size.Length ) ) { MaterialOverride = material } );
+		else if ( boxes == 1 ) world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), new Transform( Vector3.Zero, Rotation.FromYaw( 35 ), 2 ) ) { Tint = tint ?? Color.White } );
 
 		// Or a grid of small ones apart, enough draws that each layer records on lists of its own
 		var side = (int)MathF.Ceiling( MathF.Sqrt( boxes ) );

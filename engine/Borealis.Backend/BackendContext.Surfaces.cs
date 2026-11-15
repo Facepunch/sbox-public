@@ -26,9 +26,9 @@ internal sealed partial class BackendContext
 
 	static readonly StringToken OpaqueFadeCombo = new( "D_OPAQUE_FADE" );
 
-	bool DrawSurface( SurfaceMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect )
+	bool DrawSurface( SurfaceMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, in IndirectDraws indirect )
 	{
-		if ( mesh.Geometry is not IBackendGeometry source || skinned ) return false;
+		if ( mesh.Geometry is not IBackendGeometry source ) return false;
 		if ( (indirect.InstanceIds ?? InstanceIds?.Resource as BackendBuffer) is not { } instanceIds ) return false;
 		if ( device.Surfaces.For( material ) is not { } program ) return false;
 		if ( !EnsureScope() ) return false;
@@ -60,17 +60,21 @@ internal sealed partial class BackendContext
 			name = state.AlphaTest && program.Pass( ForwardAlphaTestPass ) is not null ? ForwardAlphaTestPass : ShaderPasses.Forward;
 		}
 
-		// A lightmapped object's draws (today's D_BAKED_LIGHTING_FROM_LIGHTMAP combo) pass the mesh's lightmap uv on
-		var pass = (LookupCombo( LightmapCombo ) is > 0 ? program.Pass( name + ShaderPasses.Lightmapped ) : null) ?? program.Pass( name );
+		// A skinned draw from the vertex cache reads its vertices there (today's D_CS_VERTEX_ANIMATION combo); a lightmapped
+		// object's draws (D_BAKED_LIGHTING_FROM_LIGHTMAP) pass the mesh's lightmap uv on. One-weight skinned draws need neither:
+		// the engine's vertex stage skins them from the transform buffer's bones
+		var vertexCache = cacheDraw is not null;
+		var pass = vertexCache ? program.Pass( name + ShaderPasses.Skinned )
+			: (LookupCombo( LightmapCombo ) is > 0 ? program.Pass( name + ShaderPasses.Lightmapped ) : null) ?? program.Pass( name );
 
 		if ( pass is null ) return false;
 
 		var color = noColor ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
 		var depth = r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth );
-		var geometry = source.For( draw.Mesh, draw.DrawCall );
+		var geometry = GeometryFor( source, draw );
 
 		// Opaque depth reads the positions-only vertex copy, when its vertex stage reads nothing else of the mesh's
-		if ( pass.Pass.Pixel is null && device.PositionStreams && geometry.Positions.IsValid && ReadsOnlyPositions( pass.Pass.Vertex, geometry.Layout ) ) geometry = geometry.PositionsOnly;
+		if ( !vertexCache && pass.Pass.Pixel is null && device.PositionStreams && geometry.Positions.IsValid && ReadsOnlyPositions( pass.Pass.Vertex, geometry.Layout ) ) geometry = geometry.PositionsOnly;
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;

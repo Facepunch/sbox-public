@@ -72,6 +72,12 @@ public static class ShaderPasses
 	/// vertices pulled, the material record and lighting from the GPU-driven tables (docs/managed/borealis-gpu-driven.md).
 	/// </summary>
 	public const string GpuDriven = "GpuDriven";
+
+	/// <summary>
+	/// A surface's passes with this suffix (<c>ForwardSkinned</c>) draw skinned vertices from the vertex cache: the vertex
+	/// stage compiled with <c>D_CS_VERTEX_ANIMATION</c>, the same pixel stage.
+	/// </summary>
+	public const string Skinned = "Skinned";
 }
 
 /// <summary>One pass: a vertex shader and, unless it draws depth alone, a pixel shader.</summary>
