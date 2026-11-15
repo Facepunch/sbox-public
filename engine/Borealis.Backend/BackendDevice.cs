@@ -205,6 +205,45 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	internal override bool DrawsMeshesResident => GpuDrivenResidentMeshes && DrawsAggregatesResident && DrawsMeshesGpuDriven;
 
+	/// <summary>
+	/// Cull every view's resident plans in setup, in one dispatch of <c>borealis_resident_cull_cs</c> (a thread per entry looping
+	/// over the views), for the calls to draw from (<see cref="BackendContext.CullResident"/>). On by default with
+	/// <see cref="GpuDrivenResident"/>; <c>-no-resident-cull</c> turns it off, and each call culls its own as before.
+	/// </summary>
+	public bool GpuDrivenResidentCull { get; set; } = !HasSwitch( "-no-resident-cull" );
+
+	/// <summary>The resident cull's kept calls, this frame's assignments and plans' records.</summary>
+	internal readonly ResidentCullState ResidentCulls = new();
+
+	/// <summary>Calls drawn from the resident cull, and its dispatches, items, views and entries, for tests and reports.</summary>
+	internal long ResidentCullCalls, ResidentCullDispatches, ResidentCullItems, ResidentCullViews, ResidentCullEntries;
+
+	internal void CountResidentCull( int items, int views, long entries )
+	{
+		System.Threading.Interlocked.Increment( ref ResidentCullDispatches );
+		System.Threading.Interlocked.Add( ref ResidentCullItems, items );
+		System.Threading.Interlocked.Add( ref ResidentCullViews, views );
+		System.Threading.Interlocked.Add( ref ResidentCullEntries, entries );
+	}
+
+	/// <summary>The resident cull's compute shader, or null when it isn't built.</summary>
+	internal ShaderFile ResidentCullShader
+	{
+		get
+		{
+			if ( !residentCullShaderLoaded )
+			{
+				residentCullShader = Shaders.Load( "shaders/borealis_resident_cull_cs.shader" );
+				residentCullShaderLoaded = true;
+			}
+
+			return residentCullShader;
+		}
+	}
+
+	ShaderFile residentCullShader;
+	bool residentCullShaderLoaded;
+
 	internal override long LightingFreeKey( ShaderParameters attributes ) => attributes is BackendParameters parameters ? parameters.LightingFreeKey : base.LightingFreeKey( attributes );
 
 	/// <summary>A resident owner's fragment records and its draws' (tinted records, each mesh's draw records), for reuse.</summary>
@@ -1467,6 +1506,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Poll();
 		materialCache?.Dispose();
 		surfaces?.Dispose();
+		ResidentCulls.Dispose( Gpu );
 		gpuDrivenTables?.Dispose();
 		lock ( visibilityViews )
 		{

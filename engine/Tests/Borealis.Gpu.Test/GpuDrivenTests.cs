@@ -528,6 +528,110 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// The resident cull (<see cref="BackendDevice.GpuDrivenResidentCull"/>): resident aggregates and a seeded field of
+	/// boxes with three LODs, in the prepass, two cascades and forward, culled for every view in setup draw the pixels each
+	/// call culling its own draws, serial and on workers; and after a box moves and a material changes, again.
+	/// </summary>
+	[TestMethod]
+	public void ResidentCullDrawsWhatEachCallCulls()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		if ( backend.ResidentCullShader is null ) Assert.Inconclusive( "borealis_resident_cull_cs isn't compiled" );
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Resident cull test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 2;
+
+			var material = (BackendMaterial)backend.CreateMaterial( "Resident cull boxes", new Color( 0.5f, 0.6f, 0.4f ) );
+			var (rowMesh, fragments) = Boxes( backend, material, -120 );
+			world.Add( new AggregateObject( rowMesh, fragments ) { IsStatic = true } );
+
+			var vertices = new List<MeshVertex>();
+			var indices = new List<uint>();
+			Box( vertices, indices, Vector3.Zero, 10 );
+			var lodMaterials = new[] { new Color( 0.9f, 0.2f, 0.2f ), new Color( 0.2f, 0.9f, 0.2f ), new Color( 0.2f, 0.2f, 0.9f ) }
+				.Select( ( c, i ) => backend.CreateMaterial( $"Resident cull LOD {i}", c ) ).ToArray();
+			var single = BackendMesh.Create( backend, vertices.ToArray(), indices.ToArray(), lodMaterials[0], "Resident cull LOD box" );
+			var draw = single.Draws[0];
+			RenderMesh.Draw[][] lods = [[draw], [draw with { Material = lodMaterials[1] }], [draw with { Material = lodMaterials[2], IndexCount = 12 }]];
+			var model = new RenderMesh( single.Geometry, single.Bounds, lods, [0, 30, 90] );
+
+			var random = new Random( 4321 );
+			var boxes = new List<MeshObject>();
+			for ( int i = 0; i < 120; i++ )
+			{
+				var position = new Vector3( random.NextSingle() * 1600 - 200, random.NextSingle() * 1600 - 800, random.NextSingle() * 60 );
+				var box = new MeshObject( model, new Transform( position, Rotation.FromYaw( random.NextSingle() * 360 ), 0.5f + random.NextSingle() * 2.5f ) ) { IsStatic = true };
+				world.Add( box );
+				boxes.Add( box );
+			}
+
+			var view = new RenderView { Name = "Resident cull test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -400, 0, 200 );
+			view.Rotation = Rotation.LookAt( new Vector3( 1, 0, -0.15f ) );
+
+			byte[] Frame( bool cull )
+			{
+				backend.GpuDrivenResidentCull = cull;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			// Each call culling its own until its plans are kept, then the resident cull until calls draw from it
+			void Same( string change )
+			{
+				for ( int i = 0; i < 3; i++ ) Frame( false );
+				var own = Frame( false );
+				var calls = backend.ResidentCullCalls;
+				byte[] culled = null;
+				for ( int i = 0; i < 4 && backend.ResidentCullCalls == calls; i++ ) culled = Frame( true );
+				var views = backend.ResidentCullViews;
+				culled = Frame( true );
+				Assert.IsTrue( backend.ResidentCullCalls >= calls + 3, $"{change}: the prepass, forward and a cascade drew from the resident cull ({backend.ResidentCullCalls - calls})" );
+				Assert.IsTrue( backend.ResidentCullViews - views >= 3, $"{change}: it culled for the main view's passes and the cascades ({backend.ResidentCullViews - views})" );
+				Assert.AreEqual( 0, Different( own, culled ), $"{change}: the resident cull draws what each call culling its own does" );
+			}
+
+			Same( "first" );
+
+			system.ParallelRecording = true;
+			Same( "on workers" );
+			system.ParallelRecording = false;
+
+			boxes[4].Transform = boxes[4].Transform.WithPosition( boxes[4].Transform.Position + new Vector3( 200, 0, 0 ) );
+			((BackendMaterial)lodMaterials[1]).Set( "g_vColorTint", [0.9f, 0.9f, 0.2f, 0] );
+			Same( "a box moved and a material changed" );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// The record memo (<see cref="BackendDevice.GpuDrivenRecordMemo"/>) gives every GPU-culled call the batch records
 	/// looking them up gives: on a frame like the last, which it serves, and after each change it has to notice - the
 	/// batches drawn, a material's values, object attributes and the lighting record they make, a surface's fields, and the

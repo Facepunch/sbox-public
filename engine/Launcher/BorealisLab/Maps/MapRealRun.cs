@@ -297,9 +297,11 @@ internal static class MapRealRun
 				map.Backend.TimeDraws = true;
 				map.Backend.DrawTimes.Reset();
 				var (planHits, planBuilds) = (map.Backend.GpuDrivenPlanHits, map.Backend.GpuDrivenPlanBuilds);
+				var (cullCalls, cullDispatches, cullViews, cullEntries) = (map.Backend.ResidentCullCalls, map.Backend.ResidentCullDispatches, map.Backend.ResidentCullViews, map.Backend.ResidentCullEntries);
 				const int Counted = 10;
 				for ( int i = 0; i < Counted; i++ ) RenderFrame( view );
 				(planHits, planBuilds) = (map.Backend.GpuDrivenPlanHits - planHits, map.Backend.GpuDrivenPlanBuilds - planBuilds);
+				(cullCalls, cullDispatches, cullViews, cullEntries) = (map.Backend.ResidentCullCalls - cullCalls, map.Backend.ResidentCullDispatches - cullDispatches, map.Backend.ResidentCullViews - cullViews, map.Backend.ResidentCullEntries - cullEntries);
 				var residentList = map.System.GetFeature<global::Borealis.Features.AggregateRenderFeature>().ResidentFor( map.System.MainPass );
 				var residentBatches = residentList?.Batches.Count ?? -1;
 				var residentMeshes = residentList?.MeshGroups.Sum( g => g.Owner.Count ) ?? 0;
@@ -309,7 +311,7 @@ internal static class MapRealRun
 				var (modelDraws, binds, fragmentDraws) = (t.Draws / Counted, t.Binds / Counted, t.IndirectDraws / Counted);
 				var (nsBind, nsRepeat) = (t.NanosecondsPerBind, t.NanosecondsPerRepeat);
 				var (objectChanges, nsObjectChange) = (t.ObjectChanges / Counted, t.NanosecondsPerObjectChange);
-				var gpuDrivenLine = variant.GpuDriven ? $"GPU-driven: {t.GpuDrivenBatches / Counted} aggregate batches in {t.GpuDrivenBuckets / Counted} buckets, {t.GpuDrivenMultiDraws / Counted} multi-draws of {t.GpuDrivenFragments / Counted} fragments, {planHits / (double)Counted:0.#} resident calls from plans and {planBuilds / (double)Counted:0.#} plans made a frame, {residentBatches} resident batches and {residentMeshes} resident meshes in {residentGroups} groups in the main view; " : "";
+				var gpuDrivenLine = variant.GpuDriven ? $"GPU-driven: {t.GpuDrivenBatches / Counted} aggregate batches in {t.GpuDrivenBuckets / Counted} buckets, {t.GpuDrivenMultiDraws / Counted} multi-draws of {t.GpuDrivenFragments / Counted} fragments, {planHits / (double)Counted:0.#} resident calls from plans and {planBuilds / (double)Counted:0.#} plans made a frame, {cullCalls / (double)Counted:0.#} calls from the resident cull ({cullDispatches / (double)Counted:0.#} dispatches culling {cullViews / (double)Counted:0.#} view plans of {cullEntries / Counted} entries a frame), {residentBatches} resident batches and {residentMeshes} resident meshes in {residentGroups} groups in the main view; " : "";
 				string failed;
 				int failedDraws;
 				lock ( t.Failed )

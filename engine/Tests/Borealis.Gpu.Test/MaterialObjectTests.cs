@@ -93,7 +93,9 @@ public class MaterialObjectTests : GpuTest
 			return Read( texture, layout, color );
 		}
 
-		// A view's first GPU-driven frame draws without ids or lists, whose objects come with the second
+		// A view's first GPU-driven frame draws without ids or lists, whose objects come with the second, and the resident
+		// cull culls for them from the third
+		Frame();
 		Frame();
 		var before = Frame();
 		var material = scene.Backend.MaterialCache.Materials.First( m => m.Value( "g_vColorTint" ) is not null );
