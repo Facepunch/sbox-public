@@ -190,6 +190,12 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
+	/// The GPU-driven run being drawn is the visibility-driven forward pass's lists: only triangles the view's ids prepass
+	/// drew, each with its depth already written.
+	/// </summary>
+	bool surfaceDepthFromIds;
+
+	/// <summary>
 	/// A surface bucket's pipeline (vertices pulled, so no vertex layout) and sets 0 and 1, bound by name from this
 	/// context's attributes as for its classic draws; with <paramref name="ids"/>, for the visibility prepass's targets.
 	/// </summary>
@@ -197,10 +203,15 @@ internal sealed partial class BackendContext
 	{
 		var r = recording;
 		var pass = bucket.Surface;
+
+		// Alpha-tested colour in the visibility-driven forward pass: the ids prepass drew these triangles with the bucket's own
+		// vertex stage and wrote their depth, so colour tests it equal without writing, keeping early depth testing
+		var depthEqual = surfaceDepthFromIds && !ids && color != Format.Unknown && !bucket.NoColor && !bucket.IdsShader
+			&& bucket.SurfaceState.AlphaTest && bucket.SurfaceState.DepthWrite && !bucket.SurfaceState.DrawsTranslucent;
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey, gpuDriven: true );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey, gpuDriven: true ) : null;
-		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, bucket.SurfaceState, ids, LookupCombo( OpaqueFadeCombo ) is > 0 );
+		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, bucket.SurfaceState, ids, LookupCombo( OpaqueFadeCombo ) is > 0, depthEqual );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );

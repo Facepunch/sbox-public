@@ -929,8 +929,10 @@ internal sealed partial class BackendContext
 			}
 
 			if ( Census ) censusCompacted = run.First >= totalFragments;
+			surfaceDepthFromIds = lists;
 			DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, run.Page, run.Format, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count, compact ? frameOffset + runsOffset + i * 8 + 4 : -1 );
 			censusCompacted = false;
+			surfaceDepthFromIds = false;
 		}
 
 		// Debug only: the forward pass's multi-draws again, into the figure's targets

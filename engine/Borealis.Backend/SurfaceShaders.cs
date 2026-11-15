@@ -384,7 +384,7 @@ internal sealed class SurfaceProgram : IDisposable
 {
 	readonly BackendDevice device;
 	readonly Dictionary<string, PassObjects> passes = new();
-	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State), PipelineHandle> pipelines = new();
+	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual), PipelineHandle> pipelines = new();
 
 	/// <summary>Material classes already reported as generated for another layout.</summary>
 	public readonly HashSet<Type> Mismatched = new();
@@ -489,13 +489,14 @@ internal sealed class SurfaceProgram : IDisposable
 	/// Mesh vertices are stream 0, instance ids stream 1, the default stream 2, as for classic draws. Specialization
 	/// constants (<c>SpecializedConstant()</c> globals) are per pipeline, <paramref name="constantsKey"/> their values.
 	/// With <paramref name="ids"/>, the visibility-driven forward pass's id prepass: target 0 an R8 scratch (its alpha drives
-	/// alpha to coverage), target 1 the ids, as BackendDevice.Pipeline makes them.
+	/// alpha to coverage), target 1 the ids, as BackendDevice.Pipeline makes them. With <paramref name="depthEqual"/>, a
+	/// colour pass whose depth a prepass already wrote with the same vertex stage: tested equal, not written.
 	/// </summary>
-	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, bool ids = false, bool opaqueFade = false )
+	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, bool ids = false, bool opaqueFade = false, bool depthEqual = false )
 	{
 		lock ( pipelines )
 		{
-			var key = (pass, layout, color, depth, samples, constantsKey, ids, opaqueFade, state);
+			var key = (pass, layout, color, depth, samples, constantsKey, ids, opaqueFade, state, depthEqual);
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
 			// A vertex-cache draw reads its vertex ids from streams 2 and 3, as floats, and the default stream from 4, as
@@ -550,6 +551,14 @@ internal sealed class SurfaceProgram : IDisposable
 				info.Blend = [Blend( state.Blend )];
 				info.DepthTest = depth != Format.Unknown && state.DepthTest;
 				info.DepthWrite = depth != Format.Unknown && state.DepthWrite;
+
+				// Colour after a prepass that drew the same triangles with the same vertex stage: depth tested equal and not
+				// written, as foliage.shader's colour pass, so an alpha-tested pass keeps early depth testing
+				if ( depthEqual )
+				{
+					info.DepthWrite = false;
+					info.DepthCompare = CompareFunction.Equal;
+				}
 			}
 
 			pipeline = device.Gpu.CreateGraphicsPipeline( info );

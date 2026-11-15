@@ -278,7 +278,15 @@ float4 SurfaceShade( PixelInput i, Material s, uint opacityTexture, bool alphaTe
 	s_SurfaceOpacityTexture = opacityTexture;
 	bool spread = alphaTest && g_nMSAASampleCount > 1;
 	if ( s.Coverage < 1.0 ) clip( s.Coverage - ( spread ? 1.0 / 255.0 : 0.5 ) );
+#if ( S_MODE_DEPTH )
+	// The depth pass writes nothing but alpha to coverage: the shading model's depth path without its decals, which
+	// don't change opacity
+	ClassicMaterial m = ToClassicMaterial( i, s );
+	AdjustAlphaToCoverage( m );
+	float4 color = DepthNormals::Output( m.Normal, m.Roughness, m.Opacity );
+#else
 	float4 color = ShadingModelStandard::Shade( i, ToClassicMaterial( i, s ) );
+#endif
 	if ( spread ) color.a *= s.Coverage;
 	return color;
 }
@@ -362,7 +370,10 @@ float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool
 	if ( s.Coverage < 1.0 ) clip( s.Coverage - ( spread ? 1.0 / 255.0 : 0.5 ) );
 
 	ClassicMaterial m = ToClassicMaterial( i, s );
+#if ( !S_MODE_DEPTH )
+	// Not in the depth pass, which writes nothing but alpha to coverage: decals don't change opacity
 	Decals::Apply( m.WorldPosition, m );
+#endif
 
 #if ( S_ALPHA_TEST )
 	{
