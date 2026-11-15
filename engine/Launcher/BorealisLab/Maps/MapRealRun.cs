@@ -155,6 +155,11 @@ internal static class MapRealRun
 		var censusFolder = Args.String( "-drawcensus" );
 		var censusReport = new StringBuilder();
 
+		// The window's title shows the frames' stats live, as the game window's does on Borealis.Gpu
+		var title = new BorealisGpuTitle();
+		var titleName = $"Borealis Lab: {options.Ident}";
+		Action<string> setTitle = text => window.Title = text;
+
 		Frame RenderFrame( MapView view )
 		{
 			var f = default( Frame );
@@ -192,6 +197,7 @@ internal static class MapRealRun
 			f.Render = Ms( t1, t2 );
 			f.Copy = Ms( t2, t3 );
 			(f.Collect, f.Prepare, f.Setup, f.Record, f.WorkerRecord, f.Prepass, f.Stages, f.Submit) = (s.CollectMs, s.PrepareMs, s.SetupMs, s.RecordMs, s.WorkerRecordMs, s.PrepassRecordMs, s.StagesMs, s.SubmitMs);
+			title.Frame( titleName, Sandbox.Rendering.ManagedFrameCounters.From( s ), f.Gpu, map.Backend, view.Position, setTitle );
 			return f;
 		}
 

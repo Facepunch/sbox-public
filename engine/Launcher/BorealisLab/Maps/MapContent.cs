@@ -479,9 +479,6 @@ internal sealed class MapContent : IDisposable
 		};
 	}
 
-	/// <summary>The compiler leaves this pattern in world geometry's mesh group mask: it means none was set.</summary>
-	const ulong UnsetMask = 0xD0D0D0D0D0D0D0D0;
-
 	void PlaceObjects()
 	{
 		var mins = new V3( float.MaxValue );
@@ -502,7 +499,7 @@ internal sealed class MapContent : IDisposable
 					}
 				}
 
-				var mask = o.MeshGroupMask == UnsetMask ? model.File.DefaultMeshGroupMask : o.MeshGroupMask;
+				var mask = o.MeshGroups( model.File.DefaultMeshGroupMask );
 				var obj = new MapObject
 				{
 					Model = model,

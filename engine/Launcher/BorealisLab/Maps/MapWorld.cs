@@ -186,7 +186,6 @@ internal sealed partial class MapWorld : IDisposable
 			return meshes[(path, mask, skin)] = BackendModel.Create( Backend, file, mask, skin );
 		}
 
-		const ulong UnsetMask = 0xD0D0D0D0D0D0D0D0;
 		var probed = new List<(MeshObject Object, int Volume, NumericsVector3 Mins, NumericsVector3 Maxs)>();
 		foreach ( var node in world.Nodes )
 		{
@@ -199,8 +198,7 @@ internal sealed partial class MapWorld : IDisposable
 					if ( !string.IsNullOrEmpty( o.Skin ) && string.Equals( file.MaterialGroups[g].Name, o.Skin, StringComparison.OrdinalIgnoreCase ) ) skin = g;
 				}
 
-				var mask = o.MeshGroupMask == UnsetMask ? file.DefaultMeshGroupMask : o.MeshGroupMask;
-				var mesh = Mesh( o.Model, file, mask, skin );
+				var mesh = Mesh( o.Model, file, o.MeshGroups( file.DefaultMeshGroupMask ), skin );
 				var obj = new MeshObject( mesh, ToTransform( o.Transform ) ) { CastShadows = castShadows };
 				ApplyTypeFlags( obj, ObjectTypeFlags( o.TypeFlags ), castShadows );
 				ApplyMaterialFlags( obj, o.OverlayRenderOrder );

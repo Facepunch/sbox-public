@@ -125,28 +125,5 @@ internal sealed class SboxRenderHost : RenderHost
 	}
 
 	// Native's counters leave out Borealis's draws; these go into the frame stats beside them
-	public override void Rendered( in RenderStats stats ) => ManagedSceneRendering.Report( new ManagedFrameCounters
-	{
-		Renders = 1,
-		Objects = stats.Objects,
-		ObjectsVisible = stats.ObjectsVisible,
-		ObjectsSizeCulled = stats.ObjectsSizeCulled,
-		ObjectsOcclusionCulled = stats.ObjectsOcclusionCulled,
-		Draws = stats.Draws,
-		DepthDraws = stats.DepthDraws,
-		TranslucentDraws = stats.TranslucentDraws,
-		ShadowDraws = stats.ShadowDraws,
-		CustomDraws = stats.CustomDraws,
-		Instances = stats.Instances,
-		Triangles = stats.Triangles,
-		Lights = stats.Lights,
-		ShadowViews = stats.ShadowViews,
-		CollectMs = stats.CollectMs,
-		PrepareMs = stats.PrepareMs,
-		SetupMs = stats.SetupMs,
-		RecordMs = stats.RecordMs,
-		RecordWaitMs = stats.RecordWaitMs,
-		SubmitMs = stats.SubmitMs,
-		WorkerRecordMs = stats.WorkerRecordMs,
-	} );
+	public override void Rendered( in RenderStats stats ) => ManagedSceneRendering.Report( ManagedFrameCounters.From( stats ) );
 }

@@ -159,6 +159,17 @@ internal static class MapRun
 		var csv = new StringBuilder( "view,variant,step,mode,parallel,cascades,frames,wait_ms,prepare_ms,record_ms,submit_ms,cpu_ms,frame_ms,frame_p95_ms,record_p95_ms,gpu_ms,gpu_shadows_ms,gpu_prepass_ms,gpu_forward_ms,draws,triangles,materials,pipelines,set_binds,indirect_calls,gcs\n" );
 		var passTable = new StringBuilder();
 
+		// The window's title shows frames a second, the GPU's time and the camera live
+		var title = new BorealisGpuTitle();
+		var titleName = $"Borealis Lab: {ident}";
+		Action<string> setTitle = text => window.Title = text;
+		FrameTimes Render( MapView view )
+		{
+			var drawn = renderer.Render( view, swapChain );
+			title.Frame( titleName, default, drawn.Gpu, null, view.Position, setTitle );
+			return drawn;
+		}
+
 		foreach ( var view in views )
 		{
 			foreach ( var variant in variants )
@@ -173,7 +184,7 @@ internal static class MapRun
 				for ( int i = 0; (i < warmup || warm.Elapsed.TotalSeconds < 2) && !window.CloseRequested; i++ )
 				{
 					Pump( window );
-					renderer.Render( view, swapChain );
+					Render( view );
 				}
 
 				var times = new List<FrameTimes>( frames );
@@ -183,7 +194,7 @@ internal static class MapRun
 				for ( int i = 0; i < frames && !window.CloseRequested; i++ )
 				{
 					Pump( window );
-					times.Add( renderer.Render( view, swapChain ) );
+					times.Add( Render( view ) );
 					var now = Stopwatch.GetTimestamp();
 					frameTimes.Add( Stopwatch.GetElapsedTime( last, now ).TotalMilliseconds );
 					last = now;

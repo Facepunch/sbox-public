@@ -33,6 +33,32 @@ internal struct ManagedFrameCounters
 	/// <summary>Main thread time, sync to submit.</summary>
 	public readonly double MainThreadMs => SyncMs + CollectMs + PrepareMs + SetupMs + RecordMs + SubmitMs;
 
+	/// <summary>One render's counters, from what Borealis counted (<see cref="global::Borealis.RenderSystem.Stats"/>).</summary>
+	internal static ManagedFrameCounters From( in global::Borealis.RenderStats stats ) => new()
+	{
+		Renders = 1,
+		Objects = stats.Objects,
+		ObjectsVisible = stats.ObjectsVisible,
+		ObjectsSizeCulled = stats.ObjectsSizeCulled,
+		ObjectsOcclusionCulled = stats.ObjectsOcclusionCulled,
+		Draws = stats.Draws,
+		DepthDraws = stats.DepthDraws,
+		TranslucentDraws = stats.TranslucentDraws,
+		ShadowDraws = stats.ShadowDraws,
+		CustomDraws = stats.CustomDraws,
+		Instances = stats.Instances,
+		Triangles = stats.Triangles,
+		Lights = stats.Lights,
+		ShadowViews = stats.ShadowViews,
+		CollectMs = stats.CollectMs,
+		PrepareMs = stats.PrepareMs,
+		SetupMs = stats.SetupMs,
+		RecordMs = stats.RecordMs,
+		RecordWaitMs = stats.RecordWaitMs,
+		SubmitMs = stats.SubmitMs,
+		WorkerRecordMs = stats.WorkerRecordMs,
+	};
+
 	internal void Add( in ManagedFrameCounters other )
 	{
 		Renders += other.Renders;

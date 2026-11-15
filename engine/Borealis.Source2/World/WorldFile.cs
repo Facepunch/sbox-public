@@ -181,8 +181,19 @@ public sealed record WorldSceneObject
 	/// <summary>A fixed LOD, or -1 to choose by screen size.</summary>
 	public int LodOverride { get; init; }
 
-	/// <summary>The mesh groups it draws.</summary>
+	/// <summary>The mesh groups it draws, as written (see <see cref="MeshGroups"/>).</summary>
 	public ulong MeshGroupMask { get; init; }
+
+	/// <summary>
+	/// The compiler leaves world geometry's mask unset, as 0 or as this fill pattern; any other value is the mask.
+	/// </summary>
+	public const ulong UnsetMeshGroupMask = 0xD0D0D0D0D0D0D0D0;
+
+	/// <summary>
+	/// The mesh groups it draws: <see cref="MeshGroupMask"/>, or <paramref name="modelDefault"/> where none was set. Native's
+	/// world node keeps the model's own groups for a 0 mask (<c>MESH_GROUP_NOT_FOUND</c>).
+	/// </summary>
+	public ulong MeshGroups( ulong modelDefault ) => MeshGroupMask is 0 or UnsetMeshGroupMask ? modelDefault : MeshGroupMask;
 
 	/// <summary>Its material group (skin) by name, or empty.</summary>
 	public string Skin { get; init; }
