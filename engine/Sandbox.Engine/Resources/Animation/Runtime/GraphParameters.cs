@@ -4,6 +4,7 @@ namespace Sandbox.Animation;
 /// Animation graph parameter access. Writes affect the live instance unless explicitly persisted.
 /// Inspector values are saved with the owner and reapplied when its instance is recreated.
 /// </summary>
+[Expose]
 public sealed partial class GraphParameters : IJsonPopulator
 {
 	private readonly AnimationAccessor _graph;

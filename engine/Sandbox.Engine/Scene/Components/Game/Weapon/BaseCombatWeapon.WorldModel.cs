@@ -28,16 +28,21 @@ public partial class BaseCombatWeapon
 	[Property, Feature( "WorldModel" )] public string HoldBone { get; set; } = "hold_r";
 
 	/// <summary>
-	/// How the holder poses their arms while this is deployed - an option name on the holder
-	/// animgraph's "holdtype" enum parameter (e.g. "pistol", "rifle"). Set on the holder's renderer
-	/// when equipped. Empty doesn't drive it.
+	/// How the holder carries this while it's deployed, usually one of <see cref="WeaponHolds"/>. The holder's
+	/// animator uses this exact name when its model has it, else the closest pose it has for a well-known name.
+	/// Empty doesn't drive it.
 	/// </summary>
 	[Property, Feature( "WorldModel" ), Editor( "holdtype" )] public string HoldType { get; set; } = "";
 
 	/// <summary>
+	/// A <see cref="WeaponHolds"/> name for holders that don't know <see cref="HoldType"/>, when that is a
+	/// game's own name. Empty when <see cref="HoldType"/> is well-known.
+	/// </summary>
+	[Property, Feature( "WorldModel" ), Editor( "holdtype" )] public string HoldFallback { get; set; } = "";
+
+	/// <summary>
 	/// Which hand(s) the holder carries this in - drives the holder animgraph's "holdtype_handedness"
-	/// parameter alongside <see cref="HoldType"/>. Only some hold types support it (e.g. pistol,
-	/// holditem).
+	/// parameter alongside the hold. Only some hold types support it (e.g. pistol, holditem).
 	/// </summary>
 	[Property, Feature( "WorldModel" )] public WeaponHandedness Handedness { get; set; } = WeaponHandedness.Both;
 
