@@ -153,6 +153,17 @@ public sealed class PassModules : IShaderModules
 				values[combo.Name] = Math.Clamp( value, combo.Min, combo.Max );
 			}
 
+			// Combo values the rules forbid weren't compiled by vfx: those draw the first dynamic combo, as a compiled program's lookup does
+			if ( !module.Allows( kind, values ) )
+			{
+				foreach ( var combo in module.Combos( kind ) )
+				{
+					if ( !combo.Static && !settings.ContainsKey( combo.Name ) ) values[combo.Name] = combo.Min;
+				}
+			}
+
+			// No entry point with these values (a depth pass without a pixel shader): a stage with no code, for the render states
+			if ( !module.Has( kind, values ) ) return kind == StageKind.Pixel ? new ModuleStage { Type = ShaderProgramType.Pixel, Name = $"{Path.GetFileName( module.Path )} pixel (none)" } : null;
 			return Compiled( shader, module, kind, values, attributes );
 		}
 
@@ -293,7 +304,7 @@ public sealed class PassModules : IShaderModules
 				case "InvTextureDim": source = VariableSource.InvTextureDimensions; break;
 				case "TextureDimLog2": source = VariableSource.TextureDimensionsLog2; break;
 				case "ShadingComplexity": source = VariableSource.ShadingComplexity; break;
-				case "ShaderIdColor": source = VariableSource.ShaderIdColor; break;
+				case "ShaderIdColor" or "ShaderIDColor": source = VariableSource.ShaderIdColor; break;
 			}
 
 			// A texture-derived value names its texture by the texture's index in the stage's variables (its named resources first)

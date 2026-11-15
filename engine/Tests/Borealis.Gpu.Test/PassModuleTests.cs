@@ -61,6 +61,20 @@ public class PassModuleTests : GpuTest
 		CollectionAssert.AreEqual( new[] { ("BlendEnable", "0"), ("CullMode", "NONE") }, module.RenderStates( new Dictionary<string, int> { ["F_BACK"] = 1 } ).ToArray() );
 	}
 
+	[TestMethod]
+	public void CombosFollowTheirRules()
+	{
+		const string text = "#include \"sbox/pass.slangh\"\n#if ( PROGRAM == VFX_PROGRAM_PS )\nStaticCombo( S_TOOLS, 0..1, Sys( ALL ) );\nDynamicCombo( D_FOG, 0..2, Sys( ALL ) );\nDynamicCombo( D_ANGLE, 0..1, Sys( ALL ) );\nDynamicCombo( D_QUAD, 0..1, Sys( ALL ) );\nDynamicComboRule( Requires1( D_ANGLE, D_FOG == 2 ) );\nDynamicComboRule( Allow1( S_TOOLS, D_FOG ) );\nDynamicComboRule( Requires1( D_QUAD, S_TOOLS ) );\n[shader( \"pixel\" )] float4 MainPs() : SV_Target0 { return 0; }\n#endif\n";
+		var module = PassModule.FromText( "x.slang", text );
+		bool Allows( int tools, int fog, int angle, int quad ) => module.Allows( StageKind.Pixel, new Dictionary<string, int> { ["S_TOOLS"] = tools, ["D_FOG"] = fog, ["D_ANGLE"] = angle, ["D_QUAD"] = quad } );
+		Assert.IsTrue( Allows( 0, 2, 1, 0 ) );
+		Assert.IsFalse( Allows( 0, 1, 1, 0 ) );
+		Assert.IsFalse( Allows( 1, 1, 0, 0 ) );
+		Assert.IsFalse( Allows( 0, 0, 0, 1 ) );
+		Assert.IsTrue( Allows( 1, 0, 0, 1 ) );
+		Assert.AreEqual( 3, module.Combos( StageKind.Pixel ).Count( c => !c.Static ) );
+	}
+
 	/// <summary>Each module's variants against its compiled shader's: the same bindings, constants, inputs and render state.</summary>
 	[TestMethod]
 	public void PassModulesMatchTheirShaders()

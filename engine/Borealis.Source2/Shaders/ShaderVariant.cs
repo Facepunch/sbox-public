@@ -337,11 +337,16 @@ public sealed class ShaderStage
 
 		Program = new ShaderProgram( shader, stage.Type, variables, [.. stage.ConstantBuffers] );
 		Static = new StaticCombo( Program, stage.Globals.Size );
-		Bytecode = ShaderBytecode.FromModule( stage );
+		// A stage with no code (a depth pass's pixel stage that only sets render states) has no bytecode, as a compiled one's
+		Bytecode = stage.Spirv is null ? null : ShaderBytecode.FromModule( stage );
 		Dynamic = new DynamicCombo { Id = 0, Shader = Bytecode, Variables = [], ConstantBuffer = (-1, -1), RenderState = new ShaderRenderState() };
-		Module = library.Module( Bytecode, stage.Name ?? $"{shader.Name} {stage.Type}" );
-		Reflection = library.Reflect( Bytecode );
-		Constants = [.. Bytecode.Constants];
+		if ( Bytecode is not null )
+		{
+			Module = library.Module( Bytecode, stage.Name ?? $"{shader.Name} {stage.Type}" );
+			Reflection = library.Reflect( Bytecode );
+		}
+
+		Constants = [.. Bytecode?.Constants ?? []];
 		MaterialConstants = stage.GlobalMembers;
 		RenderStates = stage.RenderStates;
 		RecordTextures = [];

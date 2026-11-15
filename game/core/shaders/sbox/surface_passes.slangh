@@ -198,6 +198,9 @@ Texture2D SurfaceOpacityTexture()
 	return g_bindless_Texture2D[NonUniformResourceIndex( s_SurfaceOpacityTexture )];
 }
 
+/// The draw is in the 3D skybox's view (today's D_SKYBOX combo), per pipeline.
+[vk::constant_id( 4 )] const bool kSurfaceSkybox = false;
+
 /// Whether the pixel is on a front face, set by the pixel entry: only a two-sided material's draws rasterize back faces.
 static bool s_SurfaceFrontFace = true;
 
@@ -246,6 +249,7 @@ SurfaceInput MakeSurfaceInput( PixelInput i )
 	float3 ray = s.Orthographic ? g_vCameraDirWs : normalize( i.vPositionWithOffsetWs.xyz );
 	s.ScenePosition = RecoverWorldPosFromProjectedDepthAndRay( 1.0 - Depth::GetNormalized( i.vPositionSs.xy ), ray );
 	s.FrameBufferUvScale = g_vFrameBufferCopyInvSizeAndUvScale.zw;
+	s.Skybox = kSurfaceSkybox;
 	return s;
 }
 

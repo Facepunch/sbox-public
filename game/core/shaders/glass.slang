@@ -6,7 +6,7 @@
 //
 // Glass materials with F_TRANSLUCENT draw in the translucent layer whatever their quality, and write depth, as the
 // .shader's default depth state does. Their shadows and depth passes are the .shader's (its depth mode dithers by an
-// opacity of its own). Not done: the 3D skybox's unrefracted fallback (D_SKYBOX) and the tools' refraction view.
+// opacity of its own). In the 3D skybox it doesn't refract, as the .shader's D_SKYBOX. Not done: the tools' refraction view.
 import sbox.surface;
 
 // The engine's, bound by attribute as glass.shader's are
@@ -73,9 +73,9 @@ public struct Glass : ICompositeSurface
 			float distanceVs = distance( i.PositionFromOrigin, behind );
 			float3 refracted = i.PositionFromOrigin + refract( ray, m.Normal, 1.0 / RefractionStrength ) * distanceVs;
 
-			// Where the refracted ray lands on screen; an orthographic view keeps the pixel's own
+			// Where the refracted ray lands on screen; an orthographic view and the 3D skybox keep the pixel's own
 			float2 screen = i.ScreenUv;
-			if ( !i.Orthographic )
+			if ( !i.Orthographic && !i.Skybox )
 			{
 				float4 projected = mul( i.WorldToProjection, float4( refracted, 0 ) );
 				screen = projected.xy / projected.w * 0.5 + 0.5;

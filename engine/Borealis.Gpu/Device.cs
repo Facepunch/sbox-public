@@ -387,7 +387,7 @@ public sealed unsafe partial class Device : IDisposable
 			VkFeature.FillModeNonSolid, VkFeature.SamplerAnisotropy, VkFeature.TextureCompressionBc, VkFeature.OcclusionQueryPrecise, VkFeature.PipelineStatisticsQuery, VkFeature.FragmentStoresAndAtomics,
 			VkFeature.ShaderImageGatherExtended, VkFeature.ShaderStorageImageExtendedFormats, VkFeature.ShaderStorageImageReadWithoutFormat,
 			VkFeature.ShaderStorageImageWriteWithoutFormat, VkFeature.ShaderUniformBufferArrayDynamicIndexing, VkFeature.ShaderSampledImageArrayDynamicIndexing,
-			VkFeature.ShaderStorageBufferArrayDynamicIndexing, VkFeature.ShaderStorageImageArrayDynamicIndexing, VkFeature.ShaderInt64, VkFeature.ShaderInt16,
+			VkFeature.ShaderStorageBufferArrayDynamicIndexing, VkFeature.ShaderStorageImageArrayDynamicIndexing, VkFeature.ShaderClipDistance, VkFeature.ShaderInt64, VkFeature.ShaderInt16,
 		];
 
 		foreach ( var f in core ) features.features.values[(int)f] = supported.features.values[(int)f];

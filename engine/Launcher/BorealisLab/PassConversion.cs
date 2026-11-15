@@ -80,6 +80,7 @@ internal static class PassConversion
 
 			foreach ( var values in sets )
 			{
+				if ( !module.Has( stage, values ) ) continue;
 				try
 				{
 					compiler.CompilePass( module, stage, values );
