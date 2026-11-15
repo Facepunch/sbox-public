@@ -26,6 +26,11 @@ internal sealed partial class BackendContext
 
 	static readonly StringToken OpaqueFadeCombo = new( "D_OPAQUE_FADE" );
 
+	/// <summary><c>kSurfaceSkybox</c> in sbox/surface_passes.slangh: the draw is in the 3D skybox's view (<c>D_SKYBOX</c>).</summary>
+	const uint SkyboxId = 4;
+
+	static readonly StringToken SkyboxCombo = new( "D_SKYBOX" );
+
 	bool DrawSurface( SurfaceMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, in IndirectDraws indirect )
 	{
 		if ( mesh.Geometry is not IBackendGeometry source ) return false;
@@ -219,8 +224,9 @@ internal sealed partial class BackendContext
 		// A GPU-driven draw has no push constant of its own, so its pixels always take it from the vertex stage
 		var perPixel = gpuDriven || device.Surfaces.MaterialOffsetPerPixel;
 		var fade = LookupCombo( OpaqueFadeCombo ) is > 0;
+		var skybox = LookupCombo( SkyboxCombo ) is > 0;
 		var info = StageBindings( stage );
-		key = (perPixel ? 1u : 2u) + (fade ? 4u : 0u);
+		key = (perPixel ? 1u : 2u) + (fade ? 4u : 0u) + (skybox ? 8u : 0u);
 		Span<int> values = stackalloc int[stage.Specializations.Count];
 		for ( int i = 0; i < values.Length; i++ )
 		{
@@ -232,7 +238,8 @@ internal sealed partial class BackendContext
 		// The same values as the last bind (nearly always): the same array, so a bind doesn't allocate
 		if ( info.LastConstants is not null && info.LastConstantsKey == key ) return info.LastConstants;
 
-		var constants = new SpecializationConstant[values.Length + 2];
+		var constants = new SpecializationConstant[values.Length + 3];
+		constants[^3] = new SpecializationConstant( SkyboxId, skybox ? 1u : 0u );
 		constants[^2] = new SpecializationConstant( MaterialOffsetPerPixelId, perPixel ? 1u : 0u );
 		constants[^1] = new SpecializationConstant( OpaqueFadeId, fade ? 1u : 0u );
 		for ( int i = 0; i < values.Length; i++ ) constants[i] = new SpecializationConstant( (uint)stage.Specializations[i].Id, (uint)values[i] );

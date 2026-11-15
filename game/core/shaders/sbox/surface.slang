@@ -190,6 +190,7 @@ public struct SurfaceInput
 	public float4x4 WorldToProjection;   // world to clip space; a direction (w 0) relative to the camera projects as a point relative to it
 	public float3 ScenePosition;     // world: where the view ray through the pixel meets the opaque scene behind it (the depth buffer), as RecoverWorldPosFromProjectedDepthAndRay finds it
 	public float2 FrameBufferUvScale;  // ScreenUv to the frame-buffer copy's uv (it may be larger than the view)
+	public bool Skybox;              // drawn in the 3D skybox's view (today's D_SKYBOX combo), whose reprojection from the world is wrong
 
 	public float4 Sample( MaterialTexture2D texture, float2 uv )
 	{
