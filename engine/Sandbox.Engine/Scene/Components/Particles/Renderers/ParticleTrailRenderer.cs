@@ -51,6 +51,8 @@ public sealed class ParticleTrailRenderer : ParticleController, Component.Execut
 
 	List<SceneTrailObject> adopted = new();
 
+	// A copy of its own, since it sets the texture on it; every trail it makes draws with it. Freed once the component is
+	// disabled and its trails are gone, rather than left to the GC
 	internal Material _defaultMaterial;
 
 	protected override void OnParticleCreated( Particle p )
@@ -130,6 +132,9 @@ public sealed class ParticleTrailRenderer : ParticleController, Component.Execut
 		}
 
 		adopted.Clear();
+
+		_defaultMaterial?.ReleaseCopy();
+		_defaultMaterial = null;
 	}
 }
 
