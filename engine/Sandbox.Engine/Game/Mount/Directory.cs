@@ -385,7 +385,18 @@ public static class Directory
 	static void LoadAssembly( Assembly assembly, BaseFileSystem fileSystem )
 	{
 		AddTypeAssembly( assembly );
-		AddAssembly( assembly, fileSystem );
+
+		try
+		{
+			AddAssembly( assembly, fileSystem );
+		}
+		catch
+		{
+			// Don't keep the types of a mount that failed to register
+			RemoveAssembly( assembly );
+			throw;
+		}
+
 		ReflectionUtility.RunAllStaticConstructors( assembly );
 	}
 
@@ -401,7 +412,7 @@ public static class Directory
 	}
 
 	/// <summary>
-	/// Enroll a mount assembly's exposed types in the menu and game type libraries, and keep them there across rebuilds.
+	/// Enroll a mount assembly's types in the menu and game type libraries, and keep them there across rebuilds.
 	/// Only for assemblies the package system doesn't already add.
 	/// </summary>
 	internal static void AddTypeAssembly( Assembly assembly )
@@ -418,7 +429,7 @@ public static class Directory
 		{
 			foreach ( var library in libraries )
 			{
-				library.AddAssembly( assembly, false );
+				library.AddAssembly( assembly, true );
 			}
 		}
 		catch
@@ -433,6 +444,8 @@ public static class Directory
 
 			throw;
 		}
+
+		UpdateUpgraders();
 	}
 
 	internal static void RemoveTypeAssembly( Assembly assembly )
@@ -446,6 +459,8 @@ public static class Directory
 		{
 			library.RemoveAssembly( assembly );
 		}
+
+		UpdateUpgraders();
 	}
 
 	/// <summary>
@@ -458,8 +473,15 @@ public static class Directory
 
 		foreach ( var assembly in assemblies )
 		{
-			library.AddAssembly( assembly, false );
+			library.AddAssembly( assembly, true );
 		}
+	}
+
+	// The game's type library holds the upgraders, and nothing else refreshes them until a game assembly loads
+	static void UpdateUpgraders()
+	{
+		if ( GlobalContext.Game?.TypeLibrary is { } library )
+			JsonUpgrader.UpdateUpgraders( library );
 	}
 
 	static IEnumerable<Internal.TypeLibrary> ContextLibraries()
