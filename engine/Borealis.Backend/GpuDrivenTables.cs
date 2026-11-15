@@ -429,11 +429,13 @@ internal sealed class GpuDrivenTables : IDisposable
 	}
 
 	/// <summary>
-	/// An owner no list draws any more: its releasable fragment runs are reused for others once the frames that could still
-	/// read them are done; its other runs stay, and asking for its records again makes new ones.
+	/// An owner no list draws any more: its releasable fragment runs and its visibility (<see cref="Visibility"/>) are reused
+	/// for others once the frames that could still read them are done; its other runs stay, and asking for its records
+	/// again makes new ones.
 	/// </summary>
 	public void ReleaseFragments( object owner )
 	{
+		ReleaseVisibility( owner );
 		if ( !ownerFragments.TryGetValue( owner, out var byKey ) ) return;
 		ownerFragments.Remove( owner );
 		lock ( releasableFragments )
@@ -456,50 +458,124 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// <summary>Vertex bits the mask holds, a bit for every vertex of every aggregate drawn.</summary>
 	public const long MaxVisibilityBits = 1L << 26;
 
-	readonly ConditionalWeakTable<object, StrongBox<(uint First, uint VertexBase)>> visibilityOwners = new();
-	long visibilityBits;
-	int visibilityFragments;
+	/// <summary>
+	/// An owner's visibility: its stamps and its vertex bits (in 32-bit words). One that found no room has
+	/// <see cref="NoVisibility"/> and the free generation it looked in; <see cref="Final"/> when it's made or never can be.
+	/// </summary>
+	sealed class VisibilityRun
+	{
+		public uint First = NoVisibility, VertexBase = NoVisibility;
+		public int Fragments;
+		public long Words;
+		public bool Final;
+		public int Generation;
+	}
+
+	readonly ConditionalWeakTable<object, VisibilityRun> visibilityOwners = new();
+
+	/// <summary>Stamps below <see cref="FrameVisibilityFragmentBase"/> and words of vertex bits below <see cref="FrameVisibilityBitBase"/>, which owners' runs take.</summary>
+	readonly RangeAllocator visibilityStamps = new( FrameVisibilityFragmentBase ), visibilityWords = new( FrameVisibilityBitBase / 32 );
+
+	/// <summary>Made runs whose owners haven't released them; runs released, by the frame they were released in.</summary>
+	readonly HashSet<VisibilityRun> visibilityRuns = new( ReferenceEqualityComparer.Instance );
+	readonly List<(long Frame, VisibilityRun Run)> releasedVisibility = new();
+	long visibilityFrame;
+
+	/// <summary>Moves when released runs are free again: an owner that found no room looks again in the next.</summary>
+	int visibilityGeneration;
+	int visibilitySwept = -1;
+
+	/// <summary>Visibility runs released, for the tests.</summary>
+	internal int VisibilityRunsReleased { get; private set; }
 
 	/// <summary>
-	/// An aggregate's visibility: the index of its first fragment's stamp (so the prepass's and forward's different
-	/// buckets name the same fragments) and the first of its vertices' bits in the mask, which the ids name. Made once;
-	/// <see cref="NoVisibility"/> when there's no room.
+	/// An owner's visibility: the index of its first fragment's stamp (so the prepass's and forward's different buckets name
+	/// the same fragments) and the first of its vertices' bits in the mask, which the ids name. Made once and kept until
+	/// <see cref="ReleaseFragments"/> or the owner is collected; <see cref="NoVisibility"/> for both when there's no room,
+	/// looked for again once released runs are free.
 	/// </summary>
 	public (uint First, uint VertexBase) Visibility( object owner, int fragments, int vertices )
 	{
-		if ( visibilityOwners.TryGetValue( owner, out var known ) ) return known.Value;
+		if ( visibilityOwners.TryGetValue( owner, out var known ) && (known.Final || known.Generation == Volatile.Read( ref visibilityGeneration )) ) return (known.First, known.VertexBase);
 
 		lock ( visibilityOwners )
 		{
-			if ( visibilityOwners.TryGetValue( owner, out known ) ) return known.Value;
+			if ( visibilityOwners.TryGetValue( owner, out known ) && (known.Final || known.Generation == visibilityGeneration) ) return (known.First, known.VertexBase);
 
-			var first = NoVisibility;
-			if ( visibilityFragments + fragments <= FrameVisibilityFragmentBase )
+			var run = new VisibilityRun { Fragments = fragments, Words = (vertices + 31L) / 32, Generation = visibilityGeneration };
+			if ( fragments <= 0 || vertices <= 0 || fragments > visibilityStamps.Capacity || run.Words > visibilityWords.Capacity ) run.Final = true;
+			else if ( !TryPlace( run ) )
 			{
-				first = (uint)visibilityFragments;
-				visibilityFragments += fragments;
+				// Owners collected without a release hold runs no frame can draw any more: they're free in a few frames
+				SweepVisibility();
 			}
 
-			var vertexBase = NoVisibility;
-			var bits = (vertices + 31L) & ~31L;
-			if ( vertices > 0 && visibilityBits + bits <= FrameVisibilityBitBase )
-			{
-				vertexBase = (uint)visibilityBits;
-				visibilityBits += bits;
-			}
-
-			var made = (first, vertexBase);
-			visibilityOwners.Add( owner, new StrongBox<(uint, uint)>( made ) );
-			return made;
+			visibilityOwners.AddOrUpdate( owner, run );
+			return (run.First, run.VertexBase);
 		}
 	}
 
-	/// <summary>The vertex bits in use.</summary>
+	bool TryPlace( VisibilityRun run )
+	{
+		if ( !visibilityStamps.TryAllocate( run.Fragments, out var first ) ) return false;
+		if ( !visibilityWords.TryAllocate( run.Words, out var word ) )
+		{
+			visibilityStamps.Free( first, run.Fragments );
+			return false;
+		}
+
+		run.First = (uint)first;
+		run.VertexBase = (uint)(word * 32);
+		run.Final = true;
+		visibilityRuns.Add( run );
+		return true;
+	}
+
+	/// <summary>Release the runs of owners that were collected without a release, once a generation: only when room runs out.</summary>
+	void SweepVisibility()
+	{
+		if ( visibilitySwept == visibilityGeneration ) return;
+		visibilitySwept = visibilityGeneration;
+
+		var live = new HashSet<VisibilityRun>( ReferenceEqualityComparer.Instance );
+		foreach ( var (_, run) in visibilityOwners ) live.Add( run );
+		foreach ( var run in visibilityRuns )
+		{
+			if ( !live.Contains( run ) ) releasedVisibility.Add( (visibilityFrame, run) );
+		}
+
+		visibilityRuns.RemoveWhere( run => !live.Contains( run ) );
+	}
+
+	/// <summary>An owner's visibility run, free for another's once the frames that could still read it are done.</summary>
+	void ReleaseVisibility( object owner )
+	{
+		if ( !visibilityOwners.TryGetValue( owner, out _ ) ) return;
+		lock ( visibilityOwners )
+		{
+			if ( !visibilityOwners.TryGetValue( owner, out var run ) ) return;
+			visibilityOwners.Remove( owner );
+			if ( !visibilityRuns.Remove( run ) ) return;
+			releasedVisibility.Add( (visibilityFrame, run) );
+			VisibilityRunsReleased++;
+		}
+	}
+
+	/// <summary>One past the highest vertex bit an owner holds: what a view's mask clears of them each frame.</summary>
 	public long VisibilityBits
 	{
 		get
 		{
-			lock ( visibilityOwners ) return visibilityBits;
+			lock ( visibilityOwners ) return visibilityWords.Top * 32;
+		}
+	}
+
+	/// <summary>The vertex bits and stamps owners hold, the vertex bits' gaps, and runs placed in a gap, for reports and the tests.</summary>
+	internal (long Bits, long Stamps, int Gaps, int Reused) VisibilityUse
+	{
+		get
+		{
+			lock ( visibilityOwners ) return (visibilityWords.Used * 32, visibilityStamps.Used, visibilityWords.Gaps, visibilityWords.Reused);
 		}
 	}
 
@@ -613,6 +689,29 @@ internal sealed class GpuDrivenTables : IDisposable
 			}
 
 			releasedFragments.RemoveRange( kept, releasedFragments.Count - kept );
+		}
+
+		// Released visibility the same way: free once no frame in flight reads it, and owners without room look again
+		lock ( visibilityOwners )
+		{
+			visibilityFrame++;
+			if ( releasedVisibility.Count > 0 )
+			{
+				var kept = 0;
+				for ( int i = 0; i < releasedVisibility.Count; i++ )
+				{
+					var (released, run) = releasedVisibility[i];
+					if ( visibilityFrame - released > FrameSlots )
+					{
+						visibilityStamps.Free( run.First, run.Fragments );
+						visibilityWords.Free( run.VertexBase / 32, run.Words );
+					}
+					else releasedVisibility[kept++] = (released, run);
+				}
+
+				if ( kept < releasedVisibility.Count ) visibilityGeneration++;
+				releasedVisibility.RemoveRange( kept, releasedVisibility.Count - kept );
+			}
 		}
 
 		lock ( frames )

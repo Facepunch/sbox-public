@@ -1043,6 +1043,75 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// A released owner's visibility (<see cref="GpuDrivenTables.Visibility"/>) is free again once the frames that could read
+	/// it are done, and reused: owners made and let go over and over never run the stamps and vertex bits out. They used to
+	/// be kept for good, so resident groups made again on Construct took every bit and later owners drew without culling.
+	/// </summary>
+	[TestMethod]
+	public void ReleasedVisibilityIsReused()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		var tables = backend.GpuDrivenTables;
+		var a = new object();
+		var made = tables.Visibility( a, 4, 1000 );
+		Assert.AreNotEqual( GpuDrivenTables.NoVisibility, made.VertexBase, "room for the first owner" );
+		Assert.AreEqual( made, tables.Visibility( a, 4, 1000 ), "made once" );
+
+		// Not reused while a frame in flight may still read it
+		tables.ReleaseFragments( a );
+		for ( int i = 0; i < 3; i++ )
+		{
+			Assert.AreNotEqual( made.VertexBase, tables.Visibility( new object(), 4, 1000 ).VertexBase, $"not reused {i} frames after its release" );
+			tables.BeginFrame();
+		}
+
+		var top = tables.VisibilityBits;
+		tables.BeginFrame();
+		Assert.AreEqual( made, tables.Visibility( new object(), 4, 1000 ), "reused once those frames are done" );
+		Assert.AreEqual( top, tables.VisibilityBits, "reused below the top" );
+
+		// A fifth of the bits each, made and let go many times over (three released ones wait at a time): always room
+		var fifth = (int)(GpuDrivenTables.FrameVisibilityBitBase / 5);
+		for ( int round = 0; round < 64; round++ )
+		{
+			var owner = new object();
+			Assert.AreNotEqual( GpuDrivenTables.NoVisibility, tables.Visibility( owner, 1, fifth ).VertexBase, $"room in round {round}" );
+			tables.ReleaseFragments( owner );
+			tables.BeginFrame();
+		}
+
+		Assert.IsTrue( tables.VisibilityUse.Bits <= 3L * (fifth + 32) + top, $"only what's held or waiting is in use ({tables.VisibilityUse.Bits} bits)" );
+		Assert.IsTrue( tables.VisibilityRunsReleased >= 65, "every release counted" );
+	}
+
+	/// <summary>
+	/// Owners collected without a release give their visibility back when room runs out, and an owner that found no room
+	/// looks again once it's free, rather than drawing without culling for good.
+	/// </summary>
+	[TestMethod]
+	public void CollectedOwnersVisibilityIsReused()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		var tables = backend.GpuDrivenTables;
+		var half = (int)(GpuDrivenTables.FrameVisibilityBitBase / 2);
+		MakeAndDrop( tables, half, 2 );
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+		GC.Collect();
+
+		var owner = new object();
+		Assert.AreEqual( GpuDrivenTables.NoVisibility, tables.Visibility( owner, 1, half ).VertexBase, "no room while the collected owners' runs wait" );
+		for ( int i = 0; i < 4; i++ ) tables.BeginFrame();
+		Assert.AreNotEqual( GpuDrivenTables.NoVisibility, tables.Visibility( owner, 1, half ).VertexBase, "room once they're free" );
+
+		[System.Runtime.CompilerServices.MethodImpl( System.Runtime.CompilerServices.MethodImplOptions.NoInlining )]
+		static void MakeAndDrop( GpuDrivenTables tables, int vertices, int count )
+		{
+			for ( int i = 0; i < count; i++ ) Assert.AreNotEqual( GpuDrivenTables.NoVisibility, tables.Visibility( new object(), 1, vertices ).VertexBase, $"room for owner {i}" );
+		}
+	}
+
+	/// <summary>
 	/// Static overlays draw GPU-driven a call per render order (<see cref="BackendDevice.GpuDrivenOverlays"/>): four overlays of
 	/// two materials in render order 0 are one bucket, the one in render order 1 another, nothing draws classic, and where
 	/// they don't overlap the pixels are the classic path's.
