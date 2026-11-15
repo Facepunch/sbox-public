@@ -146,6 +146,26 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// An interpolated surface that also moves its vertices (fur.slang, IInterpolatedVertexSurface): every vertex stage reads
+	/// its Varyings (the mesh's colour), opaque depth included, and the device knows it displaces, so depth and the ids
+	/// prepass don't place its vertices from their positions alone.
+	/// </summary>
+	[TestMethod]
+	public void InterpolatedVertexSurfaceDisplacesWithItsVaryings()
+	{
+		var fur = Compiler().CompileSurface( Path.Combine( Core, "shaders", "fur.slang" ) );
+		StringAssert.Contains( fur.Generated, "SurfaceOutputDisplacedWith<Fur>" );
+		foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
+			Assert.IsTrue( fur.Pass( name ).Vertex.Inputs.Any( i => i.Semantic == "COLOR" && i.SemanticIndex == 0 ), $"{name} doesn't read the mesh's colour" );
+		Assert.IsNull( fur.GpuDrivenError, fur.GpuDrivenError );
+		Assert.IsTrue( fur.Material.RenderState.AlphaTest );
+
+		using var backend = new BackendDevice( Device );
+		using var program = new SurfaceProgram( backend, fur );
+		Assert.IsTrue( program.Displaces );
+	}
+
+	/// <summary>
 	/// Every pass comes again for lightmapped draws, with the vertex stage that reads the mesh's lightmap uv (TEXCOORD3);
 	/// the plain one doesn't read it.
 	/// </summary>
