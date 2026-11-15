@@ -202,7 +202,7 @@ internal sealed class TransformBuffer : IDisposable
 	/// <summary>
 	/// An object's run of <paramref name="count"/> kept entries, by its world index (an aggregate's, a slot per fragment in
 	/// order): its first slot, with <paramref name="write"/> set when <paramref name="version"/> isn't the one the entries
-	/// hold, for the caller to rewrite them (<see cref="WriteKept"/>). -1 when it has none yet: the caller writes frame
+	/// hold, for the caller to rewrite them (<see cref="WriteKept(int, in Matrix3x4, Color)"/>). -1 when it has none yet: the caller writes frame
 	/// entries this frame, and the run is made before the next.
 	/// </summary>
 	public int KeptRunFor( int index, RenderObject obj, int count, int version, out bool write )
@@ -223,6 +223,9 @@ internal sealed class TransformBuffer : IDisposable
 		if ( count > 0 ) wantedRuns.Add( (obj, index, count) );
 		return -1;
 	}
+
+	/// <summary>Write a kept entry of a run from a world transform and a tint.</summary>
+	public void WriteKept( int slot, in Matrix m, Color tint ) => Write( slot, m, tint );
 
 	/// <summary>Write a kept entry of a run from a transform in native's row layout and a tint.</summary>
 	public void WriteKept( int slot, in Matrix3x4 m, Color tint )

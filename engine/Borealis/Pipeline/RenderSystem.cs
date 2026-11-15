@@ -133,6 +133,7 @@ public sealed partial class RenderSystem : IDisposable
 
 		// Static mesh draws join the aggregates' GPU-driven call, after the mesh feature prepares each view
 		aggregates.Meshes = meshes;
+		meshes.Aggregates = aggregates;
 	}
 
 	/// <summary>

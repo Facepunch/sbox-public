@@ -323,6 +323,211 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// Resident aggregates in a Slang surface whose render state turns alpha test on (the material's own
+	/// <see cref="SurfaceMaterial.AlphaTest"/> off), and in one whose render state blends, draw from kept plans: a frame
+	/// like the last makes no plan, and the pixels are those of the views' own batches.
+	/// </summary>
+	[TestMethod]
+	public void ResidentSurfaceAlphaTestedByItsRenderStateKeepsItsPlans()
+	{
+		var core = ContentFiles.FindGame().Roots.FirstOrDefault();
+		if ( core is null ) Assert.Inconclusive( "No game content" );
+		if ( !File.Exists( Path.Combine( Path.GetDirectoryName( core ), "bin", "win64", OperatingSystem.IsWindows() ? "slang.dll" : "libslang.so" ) ) ) Assert.Inconclusive( "The engine's Slang isn't built" );
+
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-resident-surface-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		var previousHost = RenderHost.Current;
+		try
+		{
+			// Stripes of zero opacity, clipped only when the render state's alpha test is on
+			var path = Path.Combine( folder, "clip_stripes.slang" );
+			File.WriteAllText( path, "import sbox.surface;\n[Material]\npublic struct ClipStripes : ISurface\n{\n"
+				+ "\t[RenderState( \"AlphaTest\" )] bool Clip;\n"
+				+ "\t[RenderState( \"Blend: Opaque, Alpha\" )] int Mode;\n"
+				+ "\t[Default3( 1, 1, 1 )] float3 Tint;\n"
+				+ "\tpublic Material Evaluate( SurfaceInput i )\n\t{\n\t\tMaterial m = Material.Init( i );\n\t\tm.Albedo = Tint;\n"
+				+ "\t\tm.Opacity = frac( i.Uv.x * 4 ) < 0.5 ? 1.0 : 0.0;\n\t\treturn m;\n\t}\n}\n" );
+
+			using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true };
+			RenderHost.Current = new BackendRenderHost( backend );
+			var material = (SurfaceMaterial)backend.Surfaces.CreateMaterial( path, null, new Dictionary<string, float[]> { ["Clip"] = [1], ["Tint"] = [0.8f, 0.5f, 0.3f] } );
+			Assert.IsNotNull( material, "the surface compiled" );
+			Assert.IsFalse( material.AlphaTest, "the material's own alpha test is off" );
+			Assert.IsTrue( material.RenderState.AlphaTest, "its render state turns alpha test on" );
+			var blended = (SurfaceMaterial)backend.Surfaces.CreateMaterial( path, null, new Dictionary<string, float[]> { ["Mode"] = [1], ["Tint"] = [0.3f, 0.5f, 0.8f] } );
+			Assert.IsTrue( blended.RenderState.Blends, "the other's render state blends" );
+
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven resident surface test" );
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 2;
+			for ( int row = 0; row < Rows; row++ )
+			{
+				var (mesh, fragments) = Boxes( backend, row == Rows - 1 ? blended : material, row * 120 - 120 );
+				world.Add( new AggregateObject( mesh, fragments ) { IsStatic = true } );
+			}
+
+			var view = new RenderView { Name = "GPU-driven resident surface test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			byte[] Frame( bool resident )
+			{
+				backend.GpuDrivenResident = resident;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			Frame( false );
+			var own = Frame( false );
+			var hits = backend.GpuDrivenPlanHits;
+			byte[] resident = null;
+			for ( int i = 0; i < 4 && backend.GpuDrivenPlanHits == hits; i++ ) resident = Frame( true );
+			Assert.IsTrue( backend.GpuDrivenPlanHits > hits, "a call drawn from a plan" );
+			Assert.AreEqual( 0, Different( own, resident ), "resident draws what the views' own batches do" );
+
+			var builds = backend.GpuDrivenPlanBuilds;
+			hits = backend.GpuDrivenPlanHits;
+			for ( int i = 0; i < 3; i++ ) CollectionAssert.AreEqual( resident, Frame( true ), $"frame {i} after draws the same" );
+			Assert.AreEqual( builds, backend.GpuDrivenPlanBuilds, "frames like the last make no plan" );
+			Assert.IsTrue( backend.GpuDrivenPlanHits >= hits + 3, "every frame drew from plans" );
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
+	/// Resident meshes (<see cref="BackendDevice.GpuDrivenResidentMeshes"/>): a seeded field of boxes with three LODs, a
+	/// colour each, half with draw tints, some not static, at random places and scales, some at a fixed LOD, draw the pixels
+	/// the views' own batches draw (whose LODs
+	/// the CPU picks), in the prepass, the sun's cascades and forward, from kept plans; the views prepare none of them; and a
+	/// fixed LOD set, a box moved and a box removed each still draw what the views' own batches do.
+	/// </summary>
+	[TestMethod]
+	public void ResidentMeshesPickTheCpusLods()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Resident meshes test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 2;
+
+			// One box, three LODs of a colour each (the last only two faces), switching by screen size
+			var vertices = new List<MeshVertex>();
+			var indices = new List<uint>();
+			Box( vertices, indices, Vector3.Zero, 10 );
+			var lodMaterials = new[] { new Color( 0.9f, 0.2f, 0.2f ), new Color( 0.2f, 0.9f, 0.2f ), new Color( 0.2f, 0.2f, 0.9f ) }
+				.Select( ( c, i ) => backend.CreateMaterial( $"Resident LOD {i}", c ) ).ToArray();
+			var single = BackendMesh.Create( backend, vertices.ToArray(), indices.ToArray(), lodMaterials[0], "Resident LOD box" );
+			var draw = single.Draws[0];
+			RenderMesh.Draw[][] lods = [[draw], [draw with { Material = lodMaterials[1] }], [draw with { Material = lodMaterials[2], IndexCount = 12 }]];
+			var model = new RenderMesh( single.Geometry, single.Bounds, lods, [0, 30, 90] );
+
+			// And a copy whose draws have tints, so each mesh's entries are a kept run of one per draw
+			RenderMesh.Draw[][] tintedLods = [[draw with { Tint = new Vector3( 1, 0.6f, 0.6f ) }], [lods[1][0] with { Tint = new Vector3( 0.6f, 1, 0.6f ) }], [lods[2][0]]];
+			var tinted = new RenderMesh( single.Geometry, single.Bounds, tintedLods, [0, 30, 90] );
+
+			var random = new Random( 1234 );
+			var boxes = new List<MeshObject>();
+			for ( int i = 0; i < 160; i++ )
+			{
+				var position = new Vector3( random.NextSingle() * 1600 - 200, random.NextSingle() * 1600 - 800, random.NextSingle() * 60 );
+				var scale = 0.5f + random.NextSingle() * 2.5f;
+				var box = new MeshObject( i % 2 == 0 ? model : tinted, new Transform( position, Rotation.FromYaw( random.NextSingle() * 360 ), scale ) ) { IsStatic = i % 5 != 0 };
+				if ( i % 17 == 0 ) box.LodOverride = i % 3;
+				world.Add( box );
+				boxes.Add( box );
+			}
+
+			var view = new RenderView { Name = "Resident meshes test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -400, 0, 200 );
+			view.Rotation = Rotation.LookAt( new Vector3( 1, 0, -0.15f ) );
+
+			// The CPU's LODs over the field: every LOD is picked somewhere
+			var tanHalfFov = MathF.Tan( view.FieldOfView.DegreeToRadian() * 0.5f );
+			var picked = new int[3];
+			foreach ( var box in boxes ) picked[Borealis.Features.MeshRenderFeature.ChooseLod( box, world.BoundsCenter[box.Index], view.Position, tanHalfFov, Width )]++;
+			Assert.IsTrue( picked.All( n => n > 5 ), $"the field takes every LOD: {string.Join( ", ", picked )}" );
+
+			byte[] Frame( bool resident )
+			{
+				backend.GpuDrivenResidentMeshes = resident;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			var aggregates = system.GetFeature<Borealis.Features.AggregateRenderFeature>();
+			var meshes = system.GetFeature<Borealis.Features.MeshRenderFeature>();
+			void Same( string change )
+			{
+				Frame( false );
+				var own = Frame( false );
+				var hits = backend.GpuDrivenPlanHits;
+				byte[] resident = null;
+				for ( int i = 0; i < 4 && backend.GpuDrivenPlanHits == hits; i++ ) resident = Frame( true );
+				Assert.IsTrue( backend.GpuDrivenPlanHits > hits, $"{change}: a call drawn from a plan" );
+				Assert.IsTrue( aggregates.ResidentFor( system.MainPass ) is { MeshGroups.Count: > 0 }, $"{change}: the main view's list holds meshes" );
+				Assert.AreEqual( 0, meshes.RunsFor( system.MainPass ).GpuDriven.Count, $"{change}: the main view prepared none of them" );
+				Assert.AreEqual( 0, Different( own, resident ), $"{change}: resident draws what the views' own batches do" );
+				var builds = backend.GpuDrivenPlanBuilds;
+				CollectionAssert.AreEqual( resident, Frame( true ), $"{change}: and the next frame the same" );
+				Assert.AreEqual( builds, backend.GpuDrivenPlanBuilds, $"{change}: a frame like the last makes no plan" );
+			}
+
+			Same( "first" );
+			Assert.IsTrue( system.ShadowMaps.Passes.ToArray().Any( p => aggregates.ResidentFor( p ) is { MeshGroups.Count: > 0 } ), "a cascade drew the static casters from its list" );
+
+			boxes[5].LodOverride = 2;
+			Same( "a fixed LOD" );
+
+			boxes[8].Transform = boxes[8].Transform.WithPosition( boxes[8].Transform.Position + new Vector3( 300, 0, 0 ) );
+			Same( "a box moved" );
+
+			world.Remove( boxes[3] );
+			Same( "a box gone" );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// The record memo (<see cref="BackendDevice.GpuDrivenRecordMemo"/>) gives every GPU-culled call the batch records
 	/// looking them up gives: on a frame like the last, which it serves, and after each change it has to notice - the
 	/// batches drawn, a material's values, object attributes and the lighting record they make, a surface's fields, and the

@@ -291,7 +291,16 @@ public sealed class MeshObject : RenderObject
 	/// <summary>
 	/// Fixed LOD, clamped to the mesh's range; -1 selects by screen size (<c>CSceneObject::SetLOD</c>).
 	/// </summary>
-	public int LodOverride { get; set; } = -1;
+	public int LodOverride
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	} = -1;
 
 	/// <summary>
 	/// Include in the decal layer (<c>SCENEOBJECTFLAG_IS_DECAL</c>). Opaque/translucent flags can also enable other layers.
