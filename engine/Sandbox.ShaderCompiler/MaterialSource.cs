@@ -132,6 +132,7 @@ internal static unsafe class MaterialReflection
 			float[] value = null;
 			var srgb = false;
 			var opacity = false;
+			var specialize = false;
 			string source = null;
 			SurfaceStateRule[] renderStates = null;
 			var attributes = SlangApi.VariableGetUserAttributeCount( field );
@@ -158,6 +159,9 @@ internal static unsafe class MaterialReflection
 						break;
 					case "Opacity":
 						opacity = true;
+						break;
+					case "Specialize":
+						specialize = true;
 						break;
 					case "Source":
 						source = Text( attribute, 0 );
@@ -186,7 +190,7 @@ internal static unsafe class MaterialReflection
 
 			if ( renderStates is not null && (kind == MaterialFieldKind.Texture2D || components != 1) )
 				throw new ShaderCompileException( path, $"{type}.{fieldName}: a [RenderState] field is a bool, int, uint or float" );
-			fields.Add( new MaterialField( fieldName, kind, components, 0, value, group, min, max, srgb ) { Opacity = opacity, Source = source, RenderStates = renderStates } );
+			fields.Add( new MaterialField( fieldName, kind, components, 0, value, group, min, max, srgb ) { Opacity = opacity, Source = source, RenderStates = renderStates, Specialize = specialize } );
 		}
 
 		return MaterialLayout.Create( type, fields, RenderState( structType, type, path ) );

@@ -10,8 +10,8 @@
 // diffuse and specular colours, and the alpha test's hard cut. It lights through the final combiner (ICombinerSurface), as
 // the three shaders do.
 //
-// The features are fields, [Source] naming the feature a .vmat sets them with. A pipeline specialised for a material
-// folds them as constants (docs/managed/shader-format-replacement.md). A material using a feature this surface doesn't do
+// The features are fields, [Source] naming the feature a .vmat sets them with, read by uniform branches; unlit, whose
+// pipelines need far fewer registers, is a specialization constant too ([Specialize]). A material using a feature this surface doesn't do
 // (a field below with Range( 0, 0 )) isn't converted and stays on its .shader: complex's parallax occlusion, anisotropic
 // gloss, retro-reflection, cloth, bent normals, normal self shadowing, diffuse wrap, the secondary uv set and wrinkles,
 // and generic's vertex paint.
@@ -37,7 +37,7 @@ public struct Standard : ICombinerSurface
 	[Group( "Features" ), Source( "F_SCALE_NORMAL_MAP" )] bool UseNormalMapScale;
 	[Group( "Features" ), Source( "F_TRANSMISSIVE_BACKFACE_NDOTL" )] bool UseBackfaceTransmission;
 	[Group( "Features" ), Source( "F_SPECULAR" )] bool UseSpecular;   // generic's; complex and simple are always specular
-	[Group( "Features" ), Source( "F_UNLIT" )] bool UseUnlit;
+	[Group( "Features" ), Source( "F_UNLIT" ), Specialize] bool UseUnlit;
 	[Group( "Features" ), Source( "F_TRANSLUCENT" ), RenderState( "Blend: Alpha" )] bool UseTranslucent;
 	[Group( "Features" ), Source( "F_ADDITIVE_BLEND" ), RenderState( "Blend: Additive" )] bool UseAdditiveBlend;
 	[Group( "Features" ), Source( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;

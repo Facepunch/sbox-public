@@ -816,16 +816,13 @@ public class SurfaceTests : GpuTest
 
 	/// <summary>
 	/// standard takes complex, simple and generic materials, each with its shader's packing, and a pipeline specialised for
-	/// a material's features (its F_ fields and the packing as constants) draws what the unspecialised one does. The
-	/// compiler gives standard's pixel stages the constants.
+	/// a material's features (its [Specialize] fields as constants) draws what the unspecialised one does.
 	/// </summary>
 	[TestMethod]
 	public void StandardSurfaceSpecializesForItsMaterials()
 	{
 		var compiled = Compiler().CompileSurface( Path.Combine( Core, "shaders", "standard.slang" ) );
-		Assert.AreEqual( "Packing", compiled.Material.Features[0].Name );
-		Assert.IsTrue( compiled.Material.Features.Any( f => f.Name == "UseSpecular" ) );
-		Assert.IsFalse( compiled.Material.Features.Any( f => f.Name == "ParallaxOcclusion" ), "a feature it doesn't do is never specialised for" );
+		Assert.AreEqual( "UseUnlit", string.Join( ", ", compiled.Material.Features.Select( f => f.Name ) ), "only [Specialize] fields are specialised for" );
 		StringAssert.Contains( compiled.Generated, "SurfaceSpecialize( m );" );
 
 		var previousHost = RenderHost.Current;
@@ -853,7 +850,9 @@ public class SurfaceTests : GpuTest
 				var plain = DrawMaterial( path, false, out _, out var none );
 				var specialized = DrawMaterial( path, true, out var material, out var made );
 				StringAssert.EndsWith( material.Shader, "standard.slang", path );
-				Assert.AreEqual( packing, material.Features( material.Program.Compiled.Material.Features ).Values[0], $"{path}: packing" );
+				var record = new byte[material.RecordSize];
+				material.WriteRecord( record, ( _, _ ) => 0 );
+				Assert.AreEqual( packing, BitConverter.ToInt32( record, material.Program.Compiled.Material.Field( "Packing" ).Offset ), $"{path}: packing" );
 				Assert.AreEqual( 0, none, $"{path}: specialised with specialization off" );
 				Assert.IsTrue( made > 0, $"{path}: no specialised pipeline" );
 				var name = Path.GetFileNameWithoutExtension( path );

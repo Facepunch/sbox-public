@@ -119,13 +119,15 @@ public sealed record MaterialField( string Name, MaterialFieldKind Kind, int Com
 		? s["Shader:".Length..].Split( ' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries )
 		: null;
 
+	/// <summary>Pipelines are specialised for its value (<c>[Specialize]</c>).</summary>
+	public bool Specialize { get; init; }
+
 	/// <summary>
-	/// A feature: a bool or integer whose <c>[Source]</c> is a <c>.shader</c> feature (<c>F_X</c>) or the shader list, and
-	/// whose range lets it vary. Fixed per material in practice, so a pipeline can be specialised for its value.
+	/// A feature pipelines are specialised for: a <c>[Specialize]</c> bool or integer whose range lets it vary. Fixed per
+	/// material in practice, so each value is a pipeline of its own.
 	/// </summary>
 	[System.Text.Json.Serialization.JsonIgnore]
-	public bool IsFeature => Components == 1 && Kind is MaterialFieldKind.Bool or MaterialFieldKind.Int or MaterialFieldKind.UInt
-		&& Source is { } source && (source.StartsWith( "F_", StringComparison.Ordinal ) || source.StartsWith( "Shader:", StringComparison.Ordinal ))
+	public bool IsFeature => Specialize && Components == 1 && Kind is MaterialFieldKind.Bool or MaterialFieldKind.Int or MaterialFieldKind.UInt
 		&& !(Min is { } min && Max is { } max && min == max);
 
 	/// <summary>Bytes it takes.</summary>
