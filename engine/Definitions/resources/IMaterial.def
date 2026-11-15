@@ -23,6 +23,11 @@ native class IMaterial2 as NativeEngine.IMaterial
 
 	void RecreateAllStaticConstantAndCommandBuffers();
 
+	inline void ForgetCachedConstantBuffers()
+	{
+		g_pMaterialSystem2->ForgetCachedConstantBuffers( self );
+	}
+
 	ITexture GetFirstTextureAttribute();
 
 	bool GetBoolAttributeOrDefault( StringToken name, bool i );
