@@ -41,7 +41,18 @@ internal static class BorealisGpuCustomDraw
 		var viewport = target.Viewport;
 		var aspect = viewport.Height > 0 ? viewport.Width / viewport.Height : 1;
 		view.SetCamera( camera.Position, camera.Rotation, camera.FieldOfView, camera.ZNear, camera.ZFar, aspect, camera.Orthographic, camera.OrthoSize );
-		frame.RunInFrame( target, constants, view, first: false, draw );
+		// The object's transform, as its run bound it (MeshRenderFeature binds instance ids before a custom object renders)
+		var (transforms, ids, offset) = ((BackendContext)context).LentInstances;
+		backend.LendInstances( transforms, ids, offset );
+		try
+		{
+			frame.RunInFrame( target, constants, view, first: false, draw );
+		}
+		finally
+		{
+			backend.LendInstances( default, default, 0 );
+		}
+
 		context.RestoreBound();
 		return true;
 	}
