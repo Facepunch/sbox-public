@@ -95,7 +95,9 @@ public class GpuDrivenTests : GpuTest
 			var driven = Frame( true, out var drivenBinds, false );
 			// The GPU culls them, so preparing the view tests none: each aggregate's batch has all five fragments, the one
 			// beyond the far plane too
-			var preparedFragments = system.GetFeature<Borealis.Features.AggregateRenderFeature>().BatchesFor( system.MainPass ).Select( b => b.Count ).ToArray();
+			// (from the view's resident list, where the device keeps one)
+			var aggregateFeature = system.GetFeature<Borealis.Features.AggregateRenderFeature>();
+			var preparedFragments = aggregateFeature.BatchesFor( system.MainPass ).Concat( aggregateFeature.ResidentFor( system.MainPass )?.Batches ?? [] ).Select( b => b.Count ).ToArray();
 			var drivenBatches = gpuDrivenBatches;
 			var drawRecords = backend.GpuDrivenTables.Records.Draws;
 			var again = Frame( true, out _, false );
@@ -216,6 +218,111 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// Resident aggregates (<see cref="BackendDevice.GpuDrivenResident"/>): static aggregates, drawn in the prepass, the sun's
+	/// cascades and forward, draw the pixels views preparing their own draw; from the frame their lists exist, calls are drawn
+	/// from kept plans; a material's value, a combo in their object attributes and an aggregate removed each make the plans
+	/// again and still draw what the views' own batches do.
+	/// </summary>
+	[TestMethod]
+	public void ResidentAggregatesDrawFromKeptPlans()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven resident test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 2;
+
+			var materials = new BackendMaterial[Rows];
+			var aggregates = new AggregateObject[Rows];
+			for ( int row = 0; row < Rows; row++ )
+			{
+				materials[row] = (BackendMaterial)backend.CreateMaterial( $"Resident boxes {row}", new Color( 0.3f + row * 0.2f, 0.6f, 0.4f ) );
+				var (mesh, fragments) = Boxes( backend, materials[row], row * 120 - 120 );
+				world.Add( aggregates[row] = new AggregateObject( mesh, fragments ) { IsStatic = true } );
+			}
+
+			var view = new RenderView { Name = "GPU-driven resident test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			byte[] Frame( bool resident )
+			{
+				backend.GpuDrivenResident = resident;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			// Each change: the views' own batches twice (the second with their visibility ready), then resident until a plan
+			// draws, which must draw the same
+			var feature = system.GetFeature<Borealis.Features.AggregateRenderFeature>();
+			void Same( string change )
+			{
+				Frame( false );
+				var own = Frame( false );
+				var hits = backend.GpuDrivenPlanHits;
+				byte[] resident = null;
+				for ( int i = 0; i < 4 && backend.GpuDrivenPlanHits == hits; i++ ) resident = Frame( true );
+				Assert.IsTrue( backend.GpuDrivenPlanHits > hits, $"{change}: a call drawn from a plan" );
+				Assert.IsTrue( feature.ResidentFor( system.MainPass ) is { Batches.Count: > 0 }, $"{change}: the main view has a resident list" );
+				Assert.AreEqual( 0, Different( own, resident ), $"{change}: resident draws what the views' own batches do" );
+				CollectionAssert.AreEqual( resident, Frame( true ), $"{change}: and the next frame the same" );
+			}
+
+			Same( "first" );
+			var builds = backend.GpuDrivenPlanBuilds;
+			Assert.IsTrue( system.ShadowMaps.Passes.ToArray().Any( p => feature.ResidentFor( p ) is { Batches.Count: > 0 } ), "a cascade drew the static casters from its list" );
+			var still = Frame( true );
+			Assert.AreEqual( builds, backend.GpuDrivenPlanBuilds, "a frame like the last makes no plan" );
+
+			// Recorded on workers, whose contexts take plans another context made
+			system.ParallelRecording = true;
+			for ( int i = 0; i < 6; i++ ) CollectionAssert.AreEqual( still, Frame( true ), $"parallel frame {i} draws what the serial one did" );
+			system.ParallelRecording = false;
+
+			materials[0].Set( "g_vColorTint", [0.9f, 0.2f, 0.2f, 0] );
+			Same( "a material's value" );
+			Assert.IsTrue( backend.GpuDrivenPlanBuilds > builds, "the material's change made plans again" );
+
+			var attributes = backend.CreateParameters();
+			attributes.SetData( "PerBatchLightProbeVolumeConstantBuffer_t", new Vector4( 1, 2, 3, 4 ) );
+			aggregates[2].LightmapAttributes = attributes;
+			aggregates[2].Lightmapped = true;
+			Same( "object attributes" );
+			attributes.SetCombo( "D_OPAQUE_FADE", 1 );
+			Same( "a combo in them" );
+
+			world.Remove( aggregates[1] );
+			Same( "an aggregate gone" );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// The record memo (<see cref="BackendDevice.GpuDrivenRecordMemo"/>) gives every GPU-culled call the batch records
 	/// looking them up gives: on a frame like the last, which it serves, and after each change it has to notice - the
 	/// batches drawn, a material's values, object attributes and the lighting record they make, a surface's fields, and the
@@ -224,7 +331,8 @@ public class GpuDrivenTests : GpuTest
 	[TestMethod]
 	public void RecordMemoGivesTheRecordsLookingUpDoes()
 	{
-		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true };
+		// Views preparing their own batches, which the memo serves (resident lists are drawn from plans instead)
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenResident = false };
 		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
 		{
 			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );

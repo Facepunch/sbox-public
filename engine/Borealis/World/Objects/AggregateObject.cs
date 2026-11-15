@@ -53,6 +53,9 @@ internal sealed class AggregateObject : RenderObject
 	public ReadOnlySpan<Vector3> Centers => centers;
 	public ReadOnlySpan<Vector3> Extents => extents;
 
+	/// <summary>The fragments' array: a new one each <see cref="SetFragments"/>, so a list kept of what they were sees the change.</summary>
+	internal object FragmentsKey => fragments;
+
 	public AggregateObject( RenderMesh mesh, ReadOnlySpan<FragmentDraw> fragments )
 	{
 		ArgumentNullException.ThrowIfNull( mesh );

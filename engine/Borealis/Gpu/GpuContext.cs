@@ -305,6 +305,17 @@ internal abstract class GpuContext : IDisposable
 		/// </summary>
 		public object View;
 		public bool Ids, Visibility;
+
+		/// <summary>
+		/// With <see cref="GpuDevice.DrawsAggregatesResident"/>: the caller's list of resident batches, the same object every
+		/// frame while <see cref="PlanVersion"/> is the same, so the device may keep what it makes of them (buckets, records,
+		/// multi-draws) between frames and views of the same kind. Null for a call of only the view's own batches.
+		/// </summary>
+		public object Plan;
+		public int PlanVersion;
+
+		/// <summary>How many of the call's first batches are <see cref="Plan"/>'s; the view's own follow them.</summary>
+		public int PlanBatches;
 	}
 
 	/// <summary>
