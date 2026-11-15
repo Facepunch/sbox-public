@@ -70,7 +70,12 @@ public sealed class SurfaceShaders : IDisposable
 		["generic"] = "generic.slang",
 		["vertex_color"] = "vertex_color.slang",
 		["static_overlay"] = "static_overlay.slang",
+		["glass"] = "glass.slang",
+		["foliage"] = "foliage.slang",
 		["simple"] = null,
+		["bark"] = null,
+		["terrain_preview"] = null,
+		["water_simple"] = null,
 	};
 
 	/// <summary>
@@ -522,7 +527,7 @@ internal sealed class SurfaceProgram : IDisposable
 
 				// Alpha-tested passes write today's alpha-to-coverage alpha (S_ALPHA_TEST), with multisampling only, as the
 				// .shaders' AlphaToCoverageEnable render state does; so does a fading object's (D_OPAQUE_FADE), unless it blends
-				AlphaToCoverage = samples > 1 && !state.Blends && (opaqueFade || pass.Pass.Name.Contains( "AlphaTest", StringComparison.Ordinal )),
+				AlphaToCoverage = samples > 1 && !state.DrawsTranslucent && (opaqueFade || pass.Pass.Name.Contains( "AlphaTest", StringComparison.Ordinal )),
 				ColorFormats = ids ? [Format.R8Unorm, Format.R32Uint] : depthOnly ? [] : [color],
 				DepthFormat = depth,
 				Samples = samples,

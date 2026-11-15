@@ -7,8 +7,11 @@ namespace Sandbox.BorealisLab.Surfaces;
 /// <summary>The material <c>Foliage</c> (foliage.slang, a surface).</summary>
 public sealed class Foliage : global::Borealis.Backend.SurfaceMaterial
 {
+	/// <summary>Its render state: the struct's attributes and the fields that change it.</summary>
+	static readonly global::Sandbox.ShaderCompiler.SurfaceStateLayout RenderStates = new( new global::Sandbox.ShaderCompiler.SurfaceRenderDefaults( global::Sandbox.ShaderCompiler.SurfaceBlend.Opaque, null, true, 0.0f, 0.0f, false, false ), [new global::Sandbox.ShaderCompiler.SurfaceStateField( new global::Sandbox.ShaderCompiler.SurfaceStateRule( global::Sandbox.ShaderCompiler.SurfaceStateKind.AlphaTest, null ), 0, false ), new global::Sandbox.ShaderCompiler.SurfaceStateField( new global::Sandbox.ShaderCompiler.SurfaceStateRule( global::Sandbox.ShaderCompiler.SurfaceStateKind.TwoSided, null ), 4, false )] );
+
 	/// <summary>A material with every field at its default.</summary>
-	public Foliage() : base( "foliage.slang", 116, 0xCB02C74Bu )
+	public Foliage() : base( "foliage.slang", 132, 0xB68C1C6Eu, RenderStates )
 	{
 		TintColor = new global::Vector3( 1.0f, 1.0f, 1.0f );
 		WrapAmount = 0.5f;
@@ -21,6 +24,7 @@ public sealed class Foliage : global::Borealis.Backend.SurfaceMaterial
 		NormalVariation = 0.1f;
 		GrassNormalUp = 0.0f;
 		TransmissionScale = 1.0f;
+		AlphaTestReference = 0.5f;
 		AlphaDistanceStart = 500.0f;
 		AlphaDistanceEnd = 2000.0f;
 		GrazingFadeStart = 0.5f;
@@ -33,84 +37,96 @@ public sealed class Foliage : global::Borealis.Backend.SurfaceMaterial
 		SwaySpeed = 1.0f;
 	}
 
+	/// <summary><c>UseAlphaTest</c>: group "Features", render state AlphaTest.</summary>
+	public bool UseAlphaTest { get => GetInt( 0 ) != 0; set => SetInt( 0, value ? 1 : 0 ); }
+
+	/// <summary><c>RenderBackfaces</c>: group "Features", render state TwoSided.</summary>
+	public bool RenderBackfaces { get => GetInt( 4 ) != 0; set => SetInt( 4, value ? 1 : 0 ); }
+
 	/// <summary><c>Color</c>: group "Material", sRGB, opacity.</summary>
-	public global::Borealis.GpuTexture Color { get => GetTexture( 0 ); set => SetTexture( 0, value, srgb: true ); }
+	public global::Borealis.GpuTexture Color { get => GetTexture( 8 ); set => SetTexture( 8, value, srgb: true ); }
 
 	/// <summary><c>Normal</c>: group "Material".</summary>
-	public global::Borealis.GpuTexture Normal { get => GetTexture( 4 ); set => SetTexture( 4, value, srgb: false ); }
+	public global::Borealis.GpuTexture Normal { get => GetTexture( 12 ); set => SetTexture( 12, value, srgb: false ); }
 
 	/// <summary><c>Rma</c>: group "Material".</summary>
-	public global::Borealis.GpuTexture Rma { get => GetTexture( 8 ); set => SetTexture( 8, value, srgb: false ); }
+	public global::Borealis.GpuTexture Rma { get => GetTexture( 16 ); set => SetTexture( 16, value, srgb: false ); }
 
 	/// <summary><c>TintColor</c>: group "Material".</summary>
-	public global::Vector3 TintColor { get => GetVector3( 12 ); set => SetVector3( 12, value ); }
+	public global::Vector3 TintColor { get => GetVector3( 20 ); set => SetVector3( 20, value ); }
 
 	/// <summary><c>WrapAmount</c>: group "Foliage", range 0 to 1.</summary>
-	public float WrapAmount { get => GetFloat( 24 ); set => SetFloat( 24, value ); }
+	public float WrapAmount { get => GetFloat( 32 ); set => SetFloat( 32, value ); }
 
 	/// <summary><c>WrapStrength</c>: group "Foliage", range 0 to 1.</summary>
-	public float WrapStrength { get => GetFloat( 28 ); set => SetFloat( 28, value ); }
+	public float WrapStrength { get => GetFloat( 36 ); set => SetFloat( 36, value ); }
 
 	/// <summary><c>RimStrength</c>: group "Foliage", range 0 to 2.</summary>
-	public float RimStrength { get => GetFloat( 32 ); set => SetFloat( 32, value ); }
+	public float RimStrength { get => GetFloat( 40 ); set => SetFloat( 40, value ); }
 
 	/// <summary><c>RimPower</c>: group "Foliage", range 1 to 8.</summary>
-	public float RimPower { get => GetFloat( 36 ); set => SetFloat( 36, value ); }
+	public float RimPower { get => GetFloat( 44 ); set => SetFloat( 44, value ); }
 
 	/// <summary><c>AmbientBoost</c>: group "Foliage", range 0 to 0.5.</summary>
-	public float AmbientBoost { get => GetFloat( 40 ); set => SetFloat( 40, value ); }
+	public float AmbientBoost { get => GetFloat( 48 ); set => SetFloat( 48, value ); }
 
 	/// <summary><c>DetailFadeDistance</c>: group "Foliage", range 100 to 2000.</summary>
-	public float DetailFadeDistance { get => GetFloat( 44 ); set => SetFloat( 44, value ); }
+	public float DetailFadeDistance { get => GetFloat( 52 ); set => SetFloat( 52, value ); }
 
 	/// <summary><c>MinRoughness</c>: group "Foliage", range 0 to 1.</summary>
-	public float MinRoughness { get => GetFloat( 48 ); set => SetFloat( 48, value ); }
+	public float MinRoughness { get => GetFloat( 56 ); set => SetFloat( 56, value ); }
 
 	/// <summary><c>NormalVariation</c>: group "Foliage", range 0 to 0.5.</summary>
-	public float NormalVariation { get => GetFloat( 52 ); set => SetFloat( 52, value ); }
+	public float NormalVariation { get => GetFloat( 60 ); set => SetFloat( 60, value ); }
 
 	/// <summary><c>GrassNormalUp</c>: group "Foliage", range 0 to 1.</summary>
-	public float GrassNormalUp { get => GetFloat( 56 ); set => SetFloat( 56, value ); }
+	public float GrassNormalUp { get => GetFloat( 64 ); set => SetFloat( 64, value ); }
 
 	/// <summary><c>Transmissive</c>: group "Transmissive".</summary>
-	public bool Transmissive { get => GetInt( 60 ) != 0; set => SetInt( 60, value ? 1 : 0 ); }
+	public bool Transmissive { get => GetInt( 68 ) != 0; set => SetInt( 68, value ? 1 : 0 ); }
 
 	/// <summary><c>TransmissiveColor</c>: group "Transmissive", sRGB.</summary>
-	public global::Borealis.GpuTexture TransmissiveColor { get => GetTexture( 64 ); set => SetTexture( 64, value, srgb: true ); }
+	public global::Borealis.GpuTexture TransmissiveColor { get => GetTexture( 72 ); set => SetTexture( 72, value, srgb: true ); }
 
 	/// <summary><c>TransmissionScale</c>: group "Transmissive", range 0 to 10.</summary>
-	public float TransmissionScale { get => GetFloat( 68 ); set => SetFloat( 68, value ); }
+	public float TransmissionScale { get => GetFloat( 76 ); set => SetFloat( 76, value ); }
+
+	/// <summary><c>AlphaTestReference</c>: group "Alpha Test", range 0.01 to 0.99.</summary>
+	public float AlphaTestReference { get => GetFloat( 80 ); set => SetFloat( 80, value ); }
 
 	/// <summary><c>AlphaDistanceStart</c>: group "Alpha Test", range 0 to 5000.</summary>
-	public float AlphaDistanceStart { get => GetFloat( 72 ); set => SetFloat( 72, value ); }
+	public float AlphaDistanceStart { get => GetFloat( 84 ); set => SetFloat( 84, value ); }
 
 	/// <summary><c>AlphaDistanceEnd</c>: group "Alpha Test", range 0 to 10000.</summary>
-	public float AlphaDistanceEnd { get => GetFloat( 76 ); set => SetFloat( 76, value ); }
+	public float AlphaDistanceEnd { get => GetFloat( 88 ); set => SetFloat( 88, value ); }
 
 	/// <summary><c>GrazingFade</c>: group "Grazing Fade".</summary>
-	public bool GrazingFade { get => GetInt( 80 ) != 0; set => SetInt( 80, value ? 1 : 0 ); }
+	public bool GrazingFade { get => GetInt( 92 ) != 0; set => SetInt( 92, value ? 1 : 0 ); }
 
 	/// <summary><c>GrazingFadeStart</c>: group "Grazing Fade", range 0 to 1.</summary>
-	public float GrazingFadeStart { get => GetFloat( 84 ); set => SetFloat( 84, value ); }
+	public float GrazingFadeStart { get => GetFloat( 96 ); set => SetFloat( 96, value ); }
 
 	/// <summary><c>GrazingFadeEnd</c>: group "Grazing Fade", range 0 to 1.</summary>
-	public float GrazingFadeEnd { get => GetFloat( 88 ); set => SetFloat( 88, value ); }
+	public float GrazingFadeEnd { get => GetFloat( 100 ); set => SetFloat( 100, value ); }
+
+	/// <summary><c>Animated</c>: group "Foliage Animation".</summary>
+	public bool Animated { get => GetInt( 104 ) != 0; set => SetInt( 104, value ? 1 : 0 ); }
 
 	/// <summary><c>EdgeFrequency</c>: group "Foliage Animation", range 0.1 to 5.</summary>
-	public float EdgeFrequency { get => GetFloat( 92 ); set => SetFloat( 92, value ); }
+	public float EdgeFrequency { get => GetFloat( 108 ); set => SetFloat( 108, value ); }
 
 	/// <summary><c>EdgeAmplitude</c>: group "Foliage Animation", range 0 to 1.</summary>
-	public float EdgeAmplitude { get => GetFloat( 96 ); set => SetFloat( 96, value ); }
+	public float EdgeAmplitude { get => GetFloat( 112 ); set => SetFloat( 112, value ); }
 
 	/// <summary><c>BranchFrequency</c>: group "Foliage Animation", range 0.1 to 5.</summary>
-	public float BranchFrequency { get => GetFloat( 100 ); set => SetFloat( 100, value ); }
+	public float BranchFrequency { get => GetFloat( 116 ); set => SetFloat( 116, value ); }
 
 	/// <summary><c>BranchAmplitude</c>: group "Foliage Animation", range 0 to 1.</summary>
-	public float BranchAmplitude { get => GetFloat( 104 ); set => SetFloat( 104, value ); }
+	public float BranchAmplitude { get => GetFloat( 120 ); set => SetFloat( 120, value ); }
 
 	/// <summary><c>SwayStrength</c>: group "Foliage Animation", range 0 to 25.</summary>
-	public float SwayStrength { get => GetFloat( 108 ); set => SetFloat( 108, value ); }
+	public float SwayStrength { get => GetFloat( 124 ); set => SetFloat( 124, value ); }
 
 	/// <summary><c>SwaySpeed</c>: group "Foliage Animation", range 0 to 10.</summary>
-	public float SwaySpeed { get => GetFloat( 112 ); set => SetFloat( 112, value ); }
+	public float SwaySpeed { get => GetFloat( 128 ); set => SetFloat( 128, value ); }
 }

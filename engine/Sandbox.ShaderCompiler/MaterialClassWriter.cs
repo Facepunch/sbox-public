@@ -111,7 +111,7 @@ public static class MaterialClassWriter
 		const string ns = "global::Sandbox.ShaderCompiler.";
 		var d = states.Defaults;
 		static string Bool( bool b ) => b ? "true" : "false";
-		var defaults = $"new {ns}SurfaceRenderDefaults( {ns}SurfaceBlend.{d.Blend}, {(d.DepthWrite is { } w ? Bool( w ) : "null")}, {Bool( d.DepthTest )}, {Number( d.DepthBias )}, {Number( d.SlopeDepthBias )}, {Bool( d.TwoSided )}, {Bool( d.AlphaTest )} )";
+		var defaults = $"new {ns}SurfaceRenderDefaults( {ns}SurfaceBlend.{d.Blend}, {(d.DepthWrite is { } w ? Bool( w ) : "null")}, {Bool( d.DepthTest )}, {Number( d.DepthBias )}, {Number( d.SlopeDepthBias )}, {Bool( d.TwoSided )}, {Bool( d.AlphaTest )}{(d.Translucent ? ", true" : "")} )";
 		var fields = states.Fields.Select( f => $"new {ns}SurfaceStateField( new {ns}SurfaceStateRule( {ns}SurfaceStateKind.{f.Rule.State}, {(f.Rule.Values is null ? "null" : $"[{string.Join( ", ", f.Rule.Values )}]")} ), {f.Offset}, {Bool( f.Float )} )" );
 		return $"new( {defaults}, [{string.Join( ", ", fields )}] )";
 	}
