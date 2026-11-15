@@ -122,27 +122,7 @@ internal static class MapScenes
 	/// <summary>
 	/// An s&box workshop item a game installed, in any of Steam's libraries, or null.
 	/// </summary>
-	static string InstalledWorkshopItem( ulong id )
-	{
-		var steam = (OperatingSystem.IsWindows() ? Microsoft.Win32.Registry.GetValue( @"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null ) as string : null)
-			?? @"C:\Program Files (x86)\Steam";
-
-		var libraries = new List<string> { steam };
-		var vdf = System.IO.Path.Combine( steam, "steamapps", "libraryfolders.vdf" );
-		if ( System.IO.File.Exists( vdf ) )
-		{
-			foreach ( System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches( System.IO.File.ReadAllText( vdf ), @"""path""\s+""([^""]+)""" ) )
-				libraries.Add( m.Groups[1].Value.Replace( @"\\", @"\" ) );
-		}
-
-		foreach ( var library in libraries )
-		{
-			var folder = System.IO.Path.Combine( library, "steamapps", "workshop", "content", "590830", id.ToString() );
-			if ( System.IO.Directory.Exists( folder ) ) return folder;
-		}
-
-		return null;
-	}
+	static string InstalledWorkshopItem( ulong id ) => WorkshopContent.Find( id );
 
 	/// <summary>
 	/// Every map instance in the scene has loaded.

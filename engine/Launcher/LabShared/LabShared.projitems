@@ -20,6 +20,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)LabWorld.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)LodTestModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SkyCube.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)WorkshopContent.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Source2LabContent.cs" />
   </ItemGroup>
 </Project>
