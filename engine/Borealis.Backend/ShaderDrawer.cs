@@ -356,6 +356,12 @@ public sealed class ShaderDrawer : IDisposable
 		}
 	}
 
+	/// <summary>
+	/// The compute pipeline a dispatch of <paramref name="variant"/> binds by reflection with (made once), for a caller that
+	/// fills the variant's transient sets itself.
+	/// </summary>
+	internal PipelineHandle ReflectedComputePipeline( ShaderVariant variant ) => ComputePipeline( variant, null );
+
 	/// <summary>A compute pipeline for the reflection path (cached here) or for a material object's sets (the object keeps it).</summary>
 	PipelineHandle ComputePipeline( ShaderVariant variant, BindingLayoutHandle[] sets )
 	{
