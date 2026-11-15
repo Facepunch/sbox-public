@@ -49,12 +49,14 @@ internal sealed partial class BackendContext
 	readonly List<GpuDrivenPlan> residentItems = new();
 	readonly List<ResidentAssignment> residentOrdered = new();
 	readonly List<List<ResidentAssignment>> residentGroups = new();
+	readonly List<GpuDrivenPlan> residentExpands = new();
 	ShaderAttributes residentAttributes;
 	bool residentRecordsCopied;
 	byte[] residentConstants;
 
 	const int ResidentItemBytes = 32;
 	const int ResidentViewBytes = 32;
+	const int ResidentHeaderBytes = 32;
 
 	/// <summary>Bytes of a view's region for a plan, as <see cref="DrawGpuCulled"/> lays out a call's, and its offsets.</summary>
 	static (int Bytes, int Runs, int Listed, int Instances, int FragmentWords, int Commands) ResidentRegion( GpuDrivenPlan plan, bool ids, bool lists )
@@ -117,6 +119,7 @@ internal sealed partial class BackendContext
 		var r = recording;
 		CloseScope( flushClears: false );
 		residentRecordsCopied = false;
+		residentExpands.Clear();
 		residentWork.Clear();
 		residentFound.Clear();
 		for ( int v = 0; v < views.Length; v++ )
@@ -209,8 +212,9 @@ internal sealed partial class BackendContext
 		var scope = timer?.Begin( r.List, "Resident cull", PassTimer.ScopeKind.Own, count: false ) ?? -1;
 		r.List.Marker( "Resident cull" );
 
-		// New plans' records copied in
-		if ( residentRecordsCopied ) r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead );
+		// New plans' records copied in, then their entry records written from the tables
+		if ( residentRecordsCopied ) r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+		foreach ( var plan in residentExpands ) ExpandResident( shader, plan );
 
 		// After last frame's culls and compactions of the same stamps
 		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
@@ -300,7 +304,7 @@ internal sealed partial class BackendContext
 			{
 				item++;
 				entries = (entries + 63) & ~63u;
-				items[item] = new ResidentCullItem { FirstEntry = entries, Entries = (uint)plan.Entries, Records = (uint)plan.RecordsSlot, EntryMap = (uint)plan.EntryMap, FirstView = (uint)w };
+				items[item] = new ResidentCullItem { FirstEntry = entries, Entries = (uint)plan.Entries, Records = (uint)plan.RecordsSlot, EntryMap = (uint)plan.EntryMap, FirstView = (uint)w, EntryRecords = (uint)plan.EntryRecords, Headers = (uint)plan.Headers };
 				entries += (uint)plan.Entries;
 			}
 
@@ -360,6 +364,7 @@ internal sealed partial class BackendContext
 			Fragments = (uint)tables.FragmentSlot,
 			Draws = (uint)slots.Draws,
 			Frame = frame,
+			FrameSlot = (uint)slot,
 		} );
 		residentAttributes.Clear();
 		residentAttributes.Set( "BorealisCullFrame", buffer );
@@ -372,6 +377,33 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
+	/// A new plan's entry records and batch headers, from the fragment and draw tables in host memory into its records in
+	/// video memory: once, so the culls read only video memory (<see cref="ResidentCullEntryRecord"/>).
+	/// </summary>
+	void ExpandResident( ShaderFile shader, GpuDrivenPlan plan )
+	{
+		var tables = device.GpuDrivenTables;
+		residentAttributes ??= new ShaderAttributes();
+		residentConstants ??= new byte[Marshal.SizeOf<ResidentCullConstants>()];
+		MemoryMarshal.Write( residentConstants, new ResidentCullConstants
+		{
+			Entries = (uint)plan.Entries,
+			Fragments = (uint)tables.FragmentSlot,
+			Draws = (uint)tables.Slots.Draws,
+			Expand = (uint)plan.EntryRecords,
+			ExpandMap = (uint)plan.EntryMap,
+			ExpandHeaders = (uint)plan.Headers,
+		} );
+		residentAttributes.Clear();
+		residentAttributes.Set( "BorealisCullFrame", plan.Records );
+		residentAttributes.SetData( "BorealisResidentCull_t", residentConstants );
+
+		cullDrawer ??= new ShaderDrawer( device );
+		cullDrawer.Dispatch( recording.List, shader, residentAttributes, plan.Entries, 1, 1 );
+		plan.EntryRecordsWritten = true;
+	}
+
+	/// <summary>
 	/// A plan's batch records, entry map and a resident filter's moved words in a buffer of its own, written the first time a
 	/// setup culls it (plans never change once made); false when there's nothing to cull. A forward plan that compacts marks
 	/// the entries <paramref name="prepass"/> draws ids for (<see cref="GpuDrivenPlan.IdsFrom"/>).
@@ -379,7 +411,13 @@ internal sealed partial class BackendContext
 	bool PlanRecords( GpuDrivenPlan plan, GpuDrivenPlan prepass )
 	{
 		// Written again for a forward plan whose view's prepass now draws with another plan (the old buffer is let go)
-		if ( plan.Records.IsValid && !(plan.Key.Lists && prepass is not null && !ReferenceEquals( plan.IdsFrom, prepass )) ) return true;
+		if ( plan.Records.IsValid && !(plan.Key.Lists && prepass is not null && !ReferenceEquals( plan.IdsFrom, prepass )) )
+		{
+			// Copied by a setup that then culled nothing: its entry records are still to write
+			if ( !plan.EntryRecordsWritten && !residentExpands.Contains( plan ) ) residentExpands.Add( plan );
+			return true;
+		}
+
 		if ( plan.Records.IsValid ) device.ResidentCulls.Release( plan.Records, Gpu );
 
 		// The prepass's batches that draw ids, by their first visibility fragment: forward's batch of the same owner, LOD and
@@ -404,11 +442,14 @@ internal sealed partial class BackendContext
 
 		var mapOffset = records.Length * 4;
 		var movedOffset = mapOffset + entries * Marshal.SizeOf<ResidentCullEntry>();
-		var bytes = movedOffset + (plan.Moved?.Length ?? 0) * 4;
+		var entryRecordsOffset = (movedOffset + (plan.Moved?.Length ?? 0) * 4 + 15) & ~15;
+		var headersOffset = entryRecordsOffset + entries * Marshal.SizeOf<ResidentCullEntryRecord>();
+		var bytes = headersOffset + batches * ResidentHeaderBytes;
+		var copied = entryRecordsOffset;
 		// Written into the frame's chunk and copied into video memory, before this setup's dispatches
 		var buffer = Gpu.CreateBuffer( new BufferInfo { Size = bytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = "Borealis resident plan" } );
-		var (staging, _, stagingOffset) = device.GpuDrivenTables.Allocate( bytes );
-		var data = Gpu.Map( staging ).Slice( (int)stagingOffset, bytes );
+		var (staging, _, stagingOffset) = device.GpuDrivenTables.Allocate( copied );
+		var data = Gpu.Map( staging ).Slice( (int)stagingOffset, copied );
 		MemoryMarshal.AsBytes( records.AsSpan() ).CopyTo( data );
 
 		// A resident filter's moved words after the entry map, which each record's sixth word finds
@@ -431,11 +472,15 @@ internal sealed partial class BackendContext
 			for ( uint e = 0; e < count; e++ ) map[at++] = new ResidentCullEntry { Batch = (uint)b | ids, Element = e };
 		}
 
-		recording.List.CopyBuffer( staging, stagingOffset, buffer, 0, bytes );
+		recording.List.CopyBuffer( staging, stagingOffset, buffer, 0, copied );
 		residentRecordsCopied = true;
 		plan.RecordsSlot = Gpu.BindlessIndex( buffer );
 		plan.Entries = entries;
 		plan.EntryMap = mapOffset;
+		plan.EntryRecords = entryRecordsOffset;
+		plan.Headers = headersOffset;
+		plan.EntryRecordsWritten = false;
+		residentExpands.Add( plan );
 		plan.Records = buffer;
 		device.ResidentCulls.Own( plan, buffer );
 		return true;
