@@ -184,36 +184,8 @@
 				children =
 				[
 					{
-						_class = "PhysicsJointWeld"
-						parent_body = "head"
-						child_body = "jaw_top"
-						anchor_origin = [ 0.0, 0.0, 0.0 ]
-						anchor_angles = [ 0.0, 0.0, 0.0 ]
-						collision_enabled = true
-						linear_strength = 0.0
-						angular_strength = 0.0
-						linear_freqeuncy = 0.0
-						linear_damping_ratio = 1.147
-						max_force = 0.0
-						angular_frequency = 27.209999
-						angular_damping_ratio = 1.814
-						max_torque = 0.0
-					},
-					{
-						_class = "PhysicsJointWeld"
-						parent_body = "jaw_top"
-						child_body = "jaw_bottom"
-						anchor_origin = [ -3.221826, 0.0, -0.000003 ]
-						anchor_angles = [ 0.0, 0.0, 0.0 ]
-						collision_enabled = true
-						linear_strength = 0.0
-						angular_strength = 0.0
-						linear_freqeuncy = 0.0
-						linear_damping_ratio = 0.0
-						max_force = 0.0
-						angular_frequency = 0.0
-						angular_damping_ratio = 0.0
-						max_torque = 0.0
+						_class = "Prefab"
+						target_file = "models/citizen_human/prefabs/human_physicsjointlist.vmdl_prefab"
 					},
 				]
 			},
@@ -222,29 +194,18 @@
 				children =
 				[
 					{
-						_class = "PhysicsShapeSphere"
-						parent_bone = "jaw_top"
-						surface_prop = "default"
-						collision_tags = "solid"
-						radius = 5.08001
-						center = [ 0.0, 0.0, 0.0 ]
+						_class = "Prefab"
+						target_file = "models/citizen_human/prefabs/human_physicsshapelist.vmdl_prefab"
 					},
+				]
+			},
+			{
+				_class = "HitboxSetList"
+				children =
+				[
 					{
-						_class = "PhysicsShapeSphere"
-						parent_bone = "jaw_bottom"
-						surface_prop = "default"
-						collision_tags = "solid"
-						radius = 1.016002
-						center = [ -0.0, 0.391031, 0.333002 ]
-					},
-					{
-						_class = "PhysicsShapeCapsule"
-						parent_bone = "head"
-						surface_prop = "default"
-						collision_tags = "solid"
-						radius = 7.620015
-						point0 = [ 0.0, 0.0, 0.0 ]
-						point1 = [ 16.007864, 0.0, 0.0 ]
+						_class = "Prefab"
+						target_file = "models/citizen_human/prefabs/human_hitboxsetlist.vmdl_prefab"
 					},
 				]
 			},
@@ -514,6 +475,16 @@
 					{
 						_class = "Prefab"
 						target_file = "models/citizen/prefabs/citizen_weightlistlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "GameDataList"
+				children =
+				[
+					{
+						_class = "Prefab"
+						target_file = "models/citizen_human/prefabs/human_gamedatalist.vmdl_prefab"
 					},
 				]
 			},
