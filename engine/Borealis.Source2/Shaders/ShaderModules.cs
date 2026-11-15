@@ -75,6 +75,94 @@ public sealed class ModuleStage
 
 	/// <summary>The pixel stage's render states, as render-state literals (<c>VfxRenderState_t</c>, variable).</summary>
 	public IReadOnlyList<(int State, ShaderVariable Variable)> RenderStates { get; init; } = [];
+
+	/// <summary>A vertex stage's expansion of the draw's primitives (<c>ExpandPrimitives</c>), or none.</summary>
+	public PrimitiveExpansion Expansion { get; init; }
+}
+
+/// <summary>What a vertex stage that expands primitives takes each instance of its draw from.</summary>
+public enum ExpandedPrimitive
+{
+	/// <summary>It draws the vertices it's given.</summary>
+	None,
+
+	/// <summary>Each point of a point list.</summary>
+	Points,
+
+	/// <summary>Each line of a line list or strip; its second end is read at semantic indices 4 up.</summary>
+	Lines,
+
+	/// <summary>Each triangle of a triangle list; its second and third corners are read at semantic indices 4 and 8 up.</summary>
+	Triangles,
+
+	/// <summary>Each vertex, whatever the topology.</summary>
+	Vertices,
+}
+
+/// <summary>
+/// A vertex stage that makes each primitive's geometry itself, in place of a <c>.shader</c>'s geometry stage
+/// (<c>ExpandPrimitives</c> in a pass module): the draw runs <see cref="Vertices"/> vertices as <see cref="Topology"/> for
+/// each primitive it's given, one instance per primitive, with the primitive's vertices as per-instance inputs.
+/// </summary>
+public readonly record struct PrimitiveExpansion( ExpandedPrimitive From, int Vertices, PrimitiveTopology Topology )
+{
+	/// <summary>Whether the stage expands primitives.</summary>
+	public bool Expands => From != ExpandedPrimitive.None;
+
+	/// <summary>Vertices of the draw each instance reads: two for a line, three for a triangle, else one.</summary>
+	public int Corners => From switch { ExpandedPrimitive.Lines => 2, ExpandedPrimitive.Triangles => 3, _ => 1 };
+
+	/// <summary>Which of the primitive's vertices an input reads (0 for the first), by its semantic index.</summary>
+	public int Corner( in VertexInput input ) => input.SemanticIndex >= 4 && input.SemanticIndex < 4 * Corners ? input.SemanticIndex / 4 : 0;
+
+	/// <summary>The semantic index an input reads in its vertex's stream.</summary>
+	public int SemanticIndex( in VertexInput input ) => input.SemanticIndex - 4 * Corner( input );
+
+	/// <summary>Vertices of the draw from one primitive to the next: a line list's two, a triangle list's three, else one.</summary>
+	public int Step( PrimitiveTopology topology ) => From switch
+	{
+		ExpandedPrimitive.Lines when topology == PrimitiveTopology.LineList => 2,
+		ExpandedPrimitive.Triangles => 3,
+		_ => 1,
+	};
+
+	/// <summary>
+	/// The primitives (instances) a draw of <paramref name="vertexCount"/> vertices as <paramref name="topology"/> gives, or
+	/// -1 when the stage can't take that topology, as a geometry stage's input wouldn't match it.
+	/// </summary>
+	public int Primitives( PrimitiveTopology topology, int vertexCount ) => From switch
+	{
+		ExpandedPrimitive.Vertices => vertexCount,
+		ExpandedPrimitive.Points when topology == PrimitiveTopology.PointList => vertexCount,
+		ExpandedPrimitive.Lines when topology == PrimitiveTopology.LineList => vertexCount / 2,
+		ExpandedPrimitive.Lines when topology == PrimitiveTopology.LineStrip => Math.Max( vertexCount - 1, 0 ),
+		ExpandedPrimitive.Triangles when topology == PrimitiveTopology.TriangleList => vertexCount / 3,
+		_ => -1,
+	};
+
+	/// <summary>An expansion from a module's <c>ExpandPrimitives( from, vertices, topology )</c>, or none when it doesn't read.</summary>
+	public static PrimitiveExpansion Parse( string from, int vertices, string topology )
+	{
+		var kind = from.ToUpperInvariant() switch
+		{
+			"POINTS" => ExpandedPrimitive.Points,
+			"LINES" => ExpandedPrimitive.Lines,
+			"TRIANGLES" => ExpandedPrimitive.Triangles,
+			"VERTICES" => ExpandedPrimitive.Vertices,
+			_ => ExpandedPrimitive.None,
+		};
+
+		PrimitiveTopology? output = topology.ToUpperInvariant() switch
+		{
+			"TRIANGLE_STRIP" => PrimitiveTopology.TriangleStrip,
+			"TRIANGLE_LIST" => PrimitiveTopology.TriangleList,
+			"LINE_LIST" => PrimitiveTopology.LineList,
+			"LINE_STRIP" => PrimitiveTopology.LineStrip,
+			_ => null,
+		};
+
+		return kind == ExpandedPrimitive.None || output is null || vertices <= 0 ? default : new PrimitiveExpansion( kind, vertices, output.Value );
+	}
 }
 
 /// <summary>

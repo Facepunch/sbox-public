@@ -40,6 +40,12 @@ public sealed class ShaderVariant
 	/// <summary>Whether its stages were compiled from the shader's module (<see cref="IShaderModules"/>) rather than its programs.</summary>
 	public bool FromModule { get; }
 
+	/// <summary>
+	/// How its vertex stage expands the draw's primitives, where the <c>.shader</c> had a geometry stage; none for a
+	/// stage that draws the vertices it's given.
+	/// </summary>
+	public PrimitiveExpansion Expansion => Vertex?.Expansion ?? default;
+
 	internal ShaderVariant( ShaderLibrary library, ShaderFile shader, ShaderMode mode, ShaderStage vertex, ShaderStage pixel, ShaderStage compute, bool fromModule = false )
 	{
 		FromModule = fromModule;
@@ -195,6 +201,9 @@ public sealed class ShaderStage
 	/// <summary>Render-state values the stage sets (pixel shaders): (<c>VfxRenderState_t</c>, variable).</summary>
 	public IReadOnlyList<(int State, ShaderVariable Variable)> RenderStates { get; }
 
+	/// <summary>A module's vertex stage's expansion of the draw's primitives (<see cref="ModuleStage.Expansion"/>); none otherwise.</summary>
+	public PrimitiveExpansion Expansion { get; }
+
 	/// <summary>
 	/// A GPU-driven variant's material textures (<c>borealis_gpu_driven.fxc</c>): each one's bindless slot goes in the material
 	/// record at this byte offset, after the constants (<see cref="ShaderLibrary.GpuDrivenTextureRegister"/>). Empty otherwise.
@@ -349,6 +358,7 @@ public sealed class ShaderStage
 		Constants = [.. Bytecode?.Constants ?? []];
 		MaterialConstants = stage.GlobalMembers;
 		RenderStates = stage.RenderStates;
+		Expansion = stage.Expansion;
 		RecordTextures = [];
 		MaterialBuffer = stage.Globals.Set >= 0 && stage.Globals.Size > 0 ? stage.Globals : (-1, -1, 0);
 	}

@@ -99,11 +99,13 @@ public sealed class VertexStreamLayout( int stride, params VertexField[] fields 
 		new( VertexSemantic.TexCoord, 1, VertexFormat.Float4, 44 ),
 		new( VertexSemantic.Tangent, 0, VertexFormat.Float4, 60 ) );
 
-	internal VertexField? Find( in VertexInput input )
+	internal VertexField? Find( in VertexInput input ) => Find( input.Semantic, input.SemanticIndex );
+
+	internal VertexField? Find( VertexSemantic semantic, int index )
 	{
 		foreach ( var field in Fields )
 		{
-			if ( field.Semantic == input.Semantic && field.Index == input.SemanticIndex ) return field;
+			if ( field.Semantic == semantic && field.Index == index ) return field;
 		}
 
 		return null;
@@ -241,10 +243,28 @@ public sealed class ShaderDrawer : IDisposable
 		var variant = Variant( shader, attributes, mode );
 		if ( variant?.Vertex?.Bytecode is null ) return false;
 
+		// A vertex stage that expands primitives (where the .shader had a geometry stage) runs its vertices once per
+		// primitive, an instance each, reading the primitive's vertices as per-instance streams 0, 2 and 3
+		var expansion = variant.Expansion;
+		var instances = 1;
+		if ( expansion.Expands )
+		{
+			instances = expansion.Primitives( topology, vertexCount );
+			if ( instances < 0 || layout is null ) return false;
+			if ( instances == 0 ) return true;
+		}
+
 		BindForDraw( list, variant, attributes, color, depth, samples, layout, topology, viewport );
 		list.SetVertexBuffer( 0, vertices, offset );
 		list.SetVertexBuffer( 1, defaults.VertexDefaults );
-		list.Draw( vertexCount );
+		if ( !expansion.Expands )
+		{
+			list.Draw( vertexCount );
+			return true;
+		}
+
+		for ( int corner = 1; corner < expansion.Corners; corner++ ) list.SetVertexBuffer( 1 + corner, vertices, offset + corner * layout.Stride );
+		list.Draw( expansion.Vertices, instances );
 		return true;
 	}
 
@@ -257,12 +277,16 @@ public sealed class ShaderDrawer : IDisposable
 				static ( s, materialLayout ) => s.Drawer.Pipeline( s.Variant, s.Color, s.Depth, s.Samples, s.Layout, s.Topology, materialLayout.Sets ) );
 			SetViewport( list, viewport );
 			BindObject( list, materialObject, attributes, viewport );
-			return;
+		}
+		else
+		{
+			list.SetPipeline( Pipeline( variant, color, depth, samples, layout, topology, null ) );
+			SetViewport( list, viewport );
+			Bind( list, variant, attributes, viewport );
 		}
 
-		list.SetPipeline( Pipeline( variant, color, depth, samples, layout, topology, null ) );
-		SetViewport( list, viewport );
-		Bind( list, variant, attributes, viewport );
+		// The stencil reference is dynamic state: a shader that tests or writes stencil (gizmos, tool overlays) sets its own
+		if ( variant.State.StencilTest && depth.HasStencil() ) list.SetStencilReference( (byte)variant.State.StencilReference );
 	}
 
 	/// <summary>Whether this draw binds through material objects: they're on, and the frame's pass constants have room for it.</summary>
@@ -376,6 +400,20 @@ public sealed class ShaderDrawer : IDisposable
 		{
 			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, _ => null, defaultBuffer: 0 );
 			info = variant.PipelineInfo( [new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias: false, null );
+		}
+		else if ( variant.Expansion is { Expands: true } expansion )
+		{
+			// One instance per primitive: its first vertex is stream 0, its others streams 2 and 3, each stepping a
+			// primitive's worth of vertices per instance; an input reads its vertex's field at its semantic index less 4 a corner
+			var step = new VertexBufferLayout( layout.Stride * expansion.Step( topology ), VertexStepRate.Instance );
+			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input =>
+			{
+				var corner = expansion.Corner( input );
+				return layout.Find( input.Semantic, expansion.SemanticIndex( input ) ) is { } field ? new VertexAttribute( 0, corner == 0 ? 0 : 1 + corner, field.Format, field.Offset ) : null;
+			}, defaultBuffer: 1 );
+			VertexBufferLayout[] streams = expansion.Corners switch { 3 => [step, new( 0 ), step, step], 2 => [step, new( 0 ), step], _ => [step, new( 0 )] };
+			info = variant.PipelineInfo( streams, attributes, colors, depth, samples, depthBias: false, null );
+			topology = expansion.Topology;
 		}
 		else
 		{

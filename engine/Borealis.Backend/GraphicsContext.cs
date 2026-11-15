@@ -205,6 +205,9 @@ public sealed class GraphicsContext
 		var upload = List.AllocateUpload( vertices.Length, 16 );
 		vertices.CopyTo( upload.Data );
 		Draws++;
+
+		// CPU vertices draw with the identity transform unless the draw sets its own, as native's do
+		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
 		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
 	}
 
@@ -589,9 +592,33 @@ public sealed class GraphicsContext
 		foreach ( var view in mipViews.Values ) gpu.Destroy( view );
 		foreach ( var texture in owned ) gpu.Destroy( texture );
 		if ( quadIndices.IsValid ) gpu.Destroy( quadIndices );
+		if ( identityTransform.IsValid ) gpu.Destroy( identityTransform );
 		mipViews.Clear();
 		owned.Clear();
 		quadIndices = default;
+		identityTransform = default;
+	}
+
+	BufferHandle identityTransform;
+	const string TransformBufferName = "g_TransformBuffer";
+
+	/// <summary>
+	/// One <c>TransformBufferData_t</c> holding the identity (a 3x4 matrix, alpha 1, white tint): the transform a shader that
+	/// reads <c>g_TransformBuffer</c> (gizmo lines, tool wireframes) draws CPU vertices with when the draw doesn't set one,
+	/// as native's <c>Graphics.Draw</c> does.
+	/// </summary>
+	BufferHandle IdentityTransform()
+	{
+		if ( identityTransform.IsValid ) return identityTransform;
+		identityTransform = gpu.CreateBuffer( new BufferInfo { Size = 64, Usage = BufferUsage.Storage } );
+		gpu.WriteBuffer<uint>( identityTransform,
+		[
+			BitConverter.SingleToUInt32Bits( 1 ), 0, 0, 0,
+			0, BitConverter.SingleToUInt32Bits( 1 ), 0, 0,
+			0, 0, BitConverter.SingleToUInt32Bits( 1 ), 0,
+			BitConverter.SingleToUInt32Bits( 1 ), 0xFFFFFF, 0, 0,
+		] );
+		return identityTransform;
 	}
 
 	TextureViewHandle MipView( TextureHandle texture, int mip )
