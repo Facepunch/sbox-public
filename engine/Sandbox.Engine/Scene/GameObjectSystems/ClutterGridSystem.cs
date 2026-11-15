@@ -116,10 +116,15 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	{
 		var sceneCamera = camera.SceneCamera;
 
+		// The shader pairs this with the viewport width, so a vertical FOV has to be widened by the aspect ratio.
+		var tanHalfFov = MathF.Tan( camera.FieldOfView.DegreeToRadian() * 0.5f );
+		if ( camera.FovAxis == CameraComponent.Axis.Vertical && sceneCamera is not null && sceneCamera.Size.y > 0 )
+			tanHalfFov *= sceneCamera.Size.x / sceneCamera.Size.y;
+
 		ClutterBatchSceneObject.Lod = new ClutterBatchSceneObject.LodParams
 		{
 			CameraPos = camera.WorldPosition,
-			TanHalfFov = MathF.Tan( camera.FieldOfView.DegreeToRadian() * 0.5f ),
+			TanHalfFov = tanHalfFov,
 			ViewportWidth = sceneCamera is not null ? sceneCamera.Size.x : 1920f,
 			// Before SceneCamera is created, use its initial square aspect rather than perspective coverage.
 			OrthoWidth = camera.Orthographic
