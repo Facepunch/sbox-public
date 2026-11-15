@@ -28,6 +28,7 @@ public static partial class PassConverter
 	{
 		var blocks = Blocks( shader );
 		var text = new StringBuilder();
+		var included = false;
 		text.Append( "// " ).Append( name ).Append( ".shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes\n" );
 		text.Append( "// and as the fallback (docs/managed/shader-format-replacement.md, \"Pass modules\").\n" );
 
@@ -40,11 +41,19 @@ public static partial class PassConverter
 					break;
 				case "MODES":
 					foreach ( var line in Lines( block.Body ) ) text.Append( "// MODES: " ).Append( line.Trim() ).Append( '\n' );
-					text.Append( "\n#include \"sbox/pass.slangh\"\n" );
+					if ( !included ) text.Append( "\n#include \"sbox/pass.slangh\"\n" );
+					included = true;
 					break;
 				case "FEATURES":
 				case "COMMON":
 				case null:
+					// Code before MODES (an include of feature lines) needs the declarations' macros first
+					if ( !included && Lines( block.Body ).Any( l => !l.TrimStart().StartsWith( "//", StringComparison.Ordinal ) ) )
+					{
+						text.Append( "\n#include \"sbox/pass.slangh\"\n" );
+						included = true;
+					}
+
 					text.Append( block.Body );
 					break;
 				default:
