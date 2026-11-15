@@ -110,10 +110,11 @@ public sealed partial class SlangCompiler
 		{
 			readFiles = new( StringComparer.OrdinalIgnoreCase ) { path };
 			var layout = ReflectMaterial( path, source, material.Name, directory );
-			var displaces = material.Interfaces.Contains( "IVertexSurface" );
+			var interpolatedDisplaces = material.Interfaces.Contains( "IInterpolatedVertexSurface" );
+			var displaces = interpolatedDisplaces || material.Interfaces.Contains( "IVertexSurface" );
 			var lit = material.Interfaces.Contains( "ILitSurface" );
 			var interpolatedCombiner = material.Interfaces.Contains( "IInterpolatedCombinerSurface" );
-			var interpolated = interpolatedCombiner || material.Interfaces.Contains( "IInterpolatedSurface" );
+			var interpolated = interpolatedCombiner || interpolatedDisplaces || material.Interfaces.Contains( "IInterpolatedSurface" );
 			var sunLit = material.Interfaces.Contains( "ISunLitSurface" );
 			var composite = material.Interfaces.Contains( "ICompositeSurface" );
 			var combiner = interpolatedCombiner || material.Interfaces.Contains( "ICombinerSurface" );
@@ -121,8 +122,8 @@ public sealed partial class SlangCompiler
 				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface, ISunLitSurface, ICompositeSurface, ICombinerSurface or IInterpolatedCombinerSurface" );
 			if ( combiner && (lit || sunLit || composite || (interpolated && !interpolatedCombiner)) )
 				throw new ShaderCompileException( path, $"{material.Name}: an ICombinerSurface can't also be an ILitSurface, ISunLitSurface, ICompositeSurface or IInterpolatedSurface yet (an IInterpolatedCombinerSurface is both)" );
-			if ( interpolated && (displaces || lit || sunLit || composite) )
-				throw new ShaderCompileException( path, $"{material.Name}: an IInterpolatedSurface can't also be an IVertexSurface, ILitSurface, ISunLitSurface or ICompositeSurface yet" );
+			if ( interpolated && ((displaces && !interpolatedDisplaces) || lit || sunLit || composite) )
+				throw new ShaderCompileException( path, $"{material.Name}: an IInterpolatedSurface can't also be an IVertexSurface (it displaces as an IInterpolatedVertexSurface), ILitSurface, ISunLitSurface or ICompositeSurface yet" );
 			if ( lit && sunLit )
 				throw new ShaderCompileException( path, $"{material.Name}: a surface is an ILitSurface (every light) or an ISunLitSurface (the sun alone), not both" );
 			if ( composite && (lit || sunLit) )
@@ -330,12 +331,12 @@ public sealed partial class SlangCompiler
 		text.Append( "struct SurfaceIdsOutput { float4 Color : SV_Target0; uint Id : SV_Target1; };\n" );
 		text.Append( "#endif\n\n" );
 		text.Append( "#if ( PROGRAM == VFX_PROGRAM_VS )\n" );
-		if ( interpolated )
-			text.Append( $"[shader( \"vertex\" )] {output} MainVs( VertexInput i, {type}.Varyings varyings ) {{ return SurfaceOutputWith<{type}>( {vertex}, varyings ); }}\n" );
-		else
-			text.Append( "[shader( \"vertex\" )] SurfaceVertexOutput MainVs( VertexInput i ) { return SurfaceOutput( " ).Append( vertex ).Append( " ); }\n" );
+		var varyingsInput = interpolated ? $", {type}.Varyings varyings" : "";
+		text.Append( $"[shader( \"vertex\" )] {output} MainVs( VertexInput i{varyingsInput} ) {{ return {VertexStage( type, displaces, interpolated )}; }}\n" );
 		text.Append( "// Opaque depth: the position alone, so its draws can read a positions-only vertex copy\n" );
-		text.Append( "[shader( \"vertex\" )] float4 DepthVs( VertexInput i ) : SV_Position { return " ).Append( vertex ).Append( ".vPositionPs; }\n" );
+		var depthInput = displaces && interpolated ? varyingsInput : "";
+		var depthPosition = displaces && interpolated ? $"{VertexStage( type, displaces, interpolated )}.Pixel" : vertex;
+		text.Append( $"[shader( \"vertex\" )] float4 DepthVs( VertexInput i{depthInput} ) : SV_Position {{ return {depthPosition}.vPositionPs; }}\n" );
 		text.Append( "#else\n" );
 		if ( lit )
 		{
@@ -360,6 +361,18 @@ public sealed partial class SlangCompiler
 		return text.ToString();
 	}
 
+	/// <summary>
+	/// What a surface's vertex entries return: the engine's stage (moved by an <c>IVertexSurface</c>'s Displace) with the
+	/// record offset, the <c>Varyings</c> too for an interpolated surface, which an <c>IInterpolatedVertexSurface</c>
+	/// displaces with in hand.
+	/// </summary>
+	static string VertexStage( string type, bool displaces, bool interpolated )
+	{
+		if ( displaces && interpolated ) return $"SurfaceOutputDisplacedWith<{type}>( i, varyings )";
+		var vertex = displaces ? $"SurfaceVertexDisplaced<{type}>( i )" : "SurfaceVertex( i )";
+		return interpolated ? $"SurfaceOutputWith<{type}>( {vertex}, varyings )" : $"SurfaceOutput( {vertex} )";
+	}
+
 	/// <summary>Usages in the order GPU-driven geometry records number semantics (<c>usage * 16 + index</c>).</summary>
 	static readonly string[] Usages = ["POSITION", "BLENDWEIGHT", "BLENDINDICES", "NORMAL", "PSIZE", "TEXCOORD", "TANGENT", "BINORMAL", "POSITIONT", "COLOR"];
 
@@ -371,7 +384,6 @@ public sealed partial class SlangCompiler
 	/// </summary>
 	internal static string GpuDrivenVertex( string type, bool displaces, bool interpolated, IReadOnlyList<VertexInputSlot> inputs )
 	{
-		var vertex = displaces ? $"SurfaceVertexDisplaced<{type}>( i )" : "SurfaceVertex( i )";
 		var text = new StringBuilder();
 		text.Append( "\n#if ( PROGRAM == VFX_PROGRAM_VS )\n" );
 		text.Append( "[shader( \"vertex\" )] SurfaceGpuDrivenVertexOutput MainVsGpuDriven( uint vertex : SV_VulkanVertexID, uint instance : SV_VulkanInstanceID )\n{\n" );
@@ -400,7 +412,7 @@ public sealed partial class SlangCompiler
 		}
 
 		text.Append( "\tSurfaceGpuDrivenVertexOutput o;\n" );
-		text.Append( interpolated ? $"\to.o = SurfaceOutputWith<{type}>( {vertex}, varyings );\n" : $"\to.o = SurfaceOutput( {vertex} );\n" );
+		text.Append( $"\to.o = {VertexStage( type, displaces, interpolated )};\n" );
 		text.Append( "\to.o.MaterialOffset = draw.z;\n" );
 		text.Append( "\to.Draw = record.y;\n" );
 		text.Append( "\to.VertexBit = BorealisGpuDrivenVertexBit( instance, vertex );\n" );

@@ -132,6 +132,32 @@ PixelInput SurfaceVertexDisplaced<S : IVertexSurface>( VertexInput i )
 	return FinalizeVertex( o );
 }
 
+/// The vertex stage of an interpolated surface that moves its vertices (IInterpolatedVertexSurface): the engine's transform,
+/// Vertex, then Displace in world space with the Varyings, as a .shader's VS moves vPositionWs; with the record offset.
+SurfaceVertexOutputWith<S.Varyings> SurfaceOutputDisplacedWith<S : IInterpolatedVertexSurface>( VertexInput i, S.Varyings varyings )
+{
+	PixelInput o = ProcessVertex( i );
+	S surface = SurfaceRecord<S>( SurfaceDrawRecord() );
+
+	WorldVertexInput v;
+	v.Position = o.vPositionWs;
+	v.Normal = o.vNormalWs;
+	v.Uv = o.vTextureCoords.xy;
+	v.ObjectOrigin = mul( GetTransformMatrix( i.nInstanceTransformID ), float4( 0, 0, 0, 1 ) );
+	v.Camera = g_vCameraPositionWs;
+	v.Wind = g_vWindDirection.xyz * g_vWindStrengthFreqMulHighStrength.x;
+	v.Time = g_flTime;
+	v.BlueNoise.Slot = g_vViewLookupIndices.y;
+
+	SurfaceVertexOutputWith<S.Varyings> output;
+	output.Varyings = surface.Displace( v, surface.Vertex( varyings ) );
+	o.vPositionWs = v.Position;
+	o.vPositionPs = Position3WsToPs( o.vPositionWs );
+	output.Pixel = FinalizeVertex( o );
+	output.MaterialOffset = SurfaceDrawRecord();
+	return output;
+}
+
 #else
 
 #ifdef SURFACE_GPU_DRIVEN
