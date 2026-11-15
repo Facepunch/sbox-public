@@ -912,7 +912,7 @@ public class SurfaceTests : GpuTest
 	public void SurfaceRenderStatesMatchTheirShaders()
 	{
 		Compiler();
-		var shaders = new HashSet<string>( StringComparer.OrdinalIgnoreCase ) { "complex", "generic", "simple", "vertex_color", "static_overlay" };
+		var shaders = new HashSet<string>( StringComparer.OrdinalIgnoreCase ) { "complex", "generic", "simple", "vertex_color", "static_overlay", "glass", "foliage", "bark", "terrain_preview", "water_simple" };
 		var paths = Directory.EnumerateFiles( Path.Combine( Core, "materials" ), "*.vmat", SearchOption.AllDirectories )
 			.Concat( Directory.EnumerateFiles( Path.Combine( Core, "models" ), "*.vmat", SearchOption.AllDirectories ) )
 			.Where( p => System.Text.RegularExpressions.Regex.Match( File.ReadAllText( p ), @"""shader""\s+""shaders/(\w+)\.shader" ) is { Success: true } m && shaders.Contains( m.Groups[1].Value ) )

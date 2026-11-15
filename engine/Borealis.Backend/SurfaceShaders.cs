@@ -70,7 +70,12 @@ public sealed class SurfaceShaders : IDisposable
 		["generic"] = "generic.slang",
 		["vertex_color"] = "vertex_color.slang",
 		["static_overlay"] = "static_overlay.slang",
+		["glass"] = "glass.slang",
+		["foliage"] = "foliage.slang",
 		["simple"] = null,
+		["bark"] = null,
+		["terrain_preview"] = null,
+		["water_simple"] = null,
 	};
 
 	/// <summary>
