@@ -102,6 +102,21 @@ CS
 		return min( nLod, nLods - 1 );
 	}
 
+	// A resident filter's test (GpuContext.ResidentFilter): whether a view keeps a caster by its moved word (its frame, bit 31
+	// restless; None for a static one) against the stamps the far cascade's cache was drawn at, as SettledCasters.SettledBy does.
+	// 1: static and settled ones (the cache), 2: settled ones that aren't static (a baked sun's cache), 3: the rest that aren't
+	// static (drawn over the cache)
+	bool TakesMoved( uint nFilter, uint nMoved, uint nSettled, uint nRestless )
+	{
+		bool bStatic = nMoved == None;
+		bool bSettled = bStatic || ( ( nMoved & 0x80000000u ) != 0 ? ( nMoved & 0x7fffffffu ) <= nRestless : nMoved <= nSettled );
+		if ( nFilter == 1 )
+			return bSettled;
+		if ( nFilter == 2 )
+			return !bStatic && bSettled;
+		return !bStatic && !bSettled;
+	}
+
 	// One index of a draw, from its index page (16 or 32 bits)
 	uint LoadIndex( ByteAddressBuffer page, uint nIndex, bool b32 )
 	{
@@ -147,7 +162,11 @@ CS
 			vPlanes[p] = asfloat( g_Frame.Load4( g_nCullInput + p * 16 ) );
 		float4 vCamera = asfloat( g_Frame.Load4( g_nCullInput + 96 ) );
 		uint4 vViewFlags = g_Frame.Load4( g_nCullInput + 112 );
-		bool bShadow = vViewFlags.x != 0;
+		bool bShadow = ( vViewFlags.x & 1 ) != 0;
+
+		// A resident filter (bits 1-2) and its settled and restless stamps: a batch's casters are kept by when each last moved,
+		// their words found by its record's sixth word (none: every one is kept)
+		uint nFilter = ( vViewFlags.x >> 1 ) & 3;
 
 		// Resident meshes: whether their size cull is off (a static shadow cache, kept while the camera moves), and their LOD's
 		// camera and tangent of half its field of view, and screen width or (a texel view) texels per unit
@@ -248,6 +267,9 @@ CS
 					nTransform = vBatch.z + ( b.w & 0x7fffffffu );
 					nDrawRecord = a.w;
 				}
+
+				if ( nFilter != 0 && vVisibility.y != None && !TakesMoved( nFilter, g_Frame.Load( vVisibility.y + i * 4 ), vViewFlags.z, vViewFlags.w ) )
+					bVisible = false;
 
 				// Draw record's second half: first index, index count, base vertex, index page
 				uint4 vDraw = draws.Load4( nDrawRecord * 32 + 16 );

@@ -511,8 +511,22 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 			Plan = plan,
 			PlanVersion = planVersion,
 			PlanBatches = planBatches,
+
+			// The far cascade's cache and what's drawn over it: the GPU takes their list's casters by when each last moved
+			Filter = plan is ResidentList && view.IsShadow ? ResidentFilterFor( view.StaticFilter ) : GpuContext.ResidentFilter.None,
+			SettledStamp = GpuContext.StampWord( view.SettledStamp ),
+			RestlessStamp = GpuContext.StampWord( view.RestlessStamp ),
 		};
 	}
+
+	/// <summary>Which of its resident list's casters a view keeps by when each last moved.</summary>
+	static GpuContext.ResidentFilter ResidentFilterFor( StaticFilter filter ) => filter switch
+	{
+		StaticFilter.Settled => GpuContext.ResidentFilter.Settled,
+		StaticFilter.SettledNoStatic => GpuContext.ResidentFilter.SettledNoStatic,
+		StaticFilter.Unsettled => GpuContext.ResidentFilter.Unsettled,
+		_ => GpuContext.ResidentFilter.None,
+	};
 
 	/// <summary>A resident list's weight in its run: a batch of it costs the run about this many times less than one of the view's own.</summary>
 	const int ResidentWeightDivisor = 16;

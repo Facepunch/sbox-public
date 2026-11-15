@@ -15,7 +15,8 @@ internal struct ResidentCullItem
 
 	/// <summary>
 	/// The bindless slot of its plan's records (its batch records, 32 bytes each, then its entry map of
-	/// <see cref="ResidentCullEntry"/>), and the entry map's byte offset in them.
+	/// <see cref="ResidentCullEntry"/>, then a resident filter's moved words, which a record's sixth word finds), and the
+	/// entry map's byte offset in them.
 	/// </summary>
 	public uint Records, EntryMap;
 

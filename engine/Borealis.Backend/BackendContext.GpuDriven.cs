@@ -532,13 +532,15 @@ internal sealed partial class BackendContext
 
 		// One region: the view, the batches, the multi-draws (first slot and visible count, when compacting; a run of
 		// compacted triangles per bucket after its own), the listed fragments, mesh draws'
-		// instances' transform slots, then a slot per fragment (twice, with lists) for its instance record (8 bytes), its
-		// fragment (4, for ids) and command (20)
+		// instances' transform slots, a resident filter's moved words, then a slot per fragment (twice, with lists) for its
+		// instance record (8 bytes), its fragment (4, for ids) and command (20)
 		var slotCount = totalFragments * (lists ? 2 : 1);
 		var runsOffset = CullViewBytes + batchCount * CullBatchBytes;
 		var listedOffset = (runsOffset + (compact ? (batchCount + gpuDrivenBucketCount) * 8 : 0) + 15) & ~15;
 		var transformSlotsOffset = listedOffset + (lists ? 16 + totalFragments * 32 : 0);
-		var instanceOffset = transformSlotsOffset + ((instanceFragments * 4 + 15) & ~15);
+		var filter = cull.Filter != ResidentFilter.None && !lists;
+		var movedOffset = transformSlotsOffset + ((instanceFragments * 4 + 15) & ~15);
+		var instanceOffset = movedOffset + (filter ? (totalFragments * 4 + 15) & ~15 : 0);
 		var fragmentOffset = instanceOffset + slotCount * GpuDrivenTables.InstanceStride;
 		var commandOffset = (fragmentOffset + (ids ? slotCount * 4 : 0) + 15) & ~15;
 		var frameBytes = commandOffset + slotCount * GpuDrivenTables.CommandStride;
@@ -547,27 +549,7 @@ internal sealed partial class BackendContext
 		var firstInstance = (uint)((frameOffset + instanceOffset) / GpuDrivenTables.InstanceStride);
 		var compacted = lists ? visibility.Compacted[device.GpuDrivenFrame % visibility.Compacted.Length] : default;
 
-		var view = MemoryMarshal.Cast<byte, float>( data[..CullViewBytes] );
-		Span<Vector4> planes = [cull.Left, cull.Right, cull.Bottom, cull.Top, cull.Near, cull.Far, cull.CameraAndThreshold];
-		for ( int p = 0; p < planes.Length; p++ )
-		{
-			view[p * 4] = planes[p].x;
-			view[p * 4 + 1] = planes[p].y;
-			view[p * 4 + 2] = planes[p].z;
-			view[p * 4 + 3] = planes[p].w;
-		}
-
-		var viewWords = MemoryMarshal.Cast<byte, uint>( data[..CullViewBytes] );
-		viewWords[28] = cull.Shadow ? 1u : 0u;
-		viewWords[29] = cull.KeepsSmallMeshes ? 1u : 0u;
-		viewWords[30] = viewWords[31] = 0;
-		view[32] = cull.LodCamera.x;
-		view[33] = cull.LodCamera.y;
-		view[34] = cull.LodCamera.z;
-		view[35] = cull.LodCamera.w;
-		view[36] = cull.LodWidth;
-		viewWords[37] = cull.LodTexels ? 1u : 0u;
-		viewWords[38] = viewWords[39] = 0;
+		WriteCullView( cull, data );
 		if ( lists )
 		{
 			// The compaction's dispatch: a group per listed fragment, counted up by the culling
@@ -579,6 +561,9 @@ internal sealed partial class BackendContext
 		var batchRecords = MemoryMarshal.Cast<byte, uint>( data.Slice( CullViewBytes, batchCount * CullBatchBytes ) );
 		var transformSlots = MemoryMarshal.Cast<byte, uint>( data.Slice( transformSlotsOffset, instanceFragments * 4 ) );
 		var slotsWritten = 0;
+		var movedWords = MemoryMarshal.Cast<byte, uint>( data.Slice( movedOffset, filter ? totalFragments * 4 : 0 ) );
+		var movedBase = (uint)(frameOffset + movedOffset);
+		var movedWritten = 0;
 
 		// Each batch's record and its fragments' slots, bucket by bucket and page by page, and the multi-draws they make; a
 		// batch drawn as it was last frame takes its records from the view's memo
@@ -602,6 +587,17 @@ internal sealed partial class BackendContext
 				// The plan's records and multi-draws, as the call that made it wrote them
 				plan.BatchRecords.CopyTo( batchRecords );
 				cullRuns.AddRange( plan.Runs );
+
+				// A resident filter's moved words, which its records' sixth word finds
+				if ( filter && plan.Moved is { } moved )
+				{
+					moved.CopyTo( movedWords );
+					movedWritten = moved.Length;
+					for ( int i = 0; i < plan.MovedAt.Length; i++ )
+					{
+						if ( plan.MovedAt[i] >= 0 ) batchRecords[i * (CullBatchBytes / 4) + 5] = movedBase + (uint)plan.MovedAt[i] * 4;
+					}
+				}
 
 				// Forward's compacted triangles come from this frame's compacted buffer, which turns over each frame, after
 				// this call's own slots
@@ -775,7 +771,7 @@ internal sealed partial class BackendContext
 					batchRecords[at + 1] = (uint)fragmentCount;
 					batchRecords[at + 3] = compact ? (uint)cullRuns.Count : (uint)written;
 					batchRecords[at + 4] = vertexBase != GpuDrivenTables.NoVisibility ? visibilityFirst : GpuDrivenTables.NoVisibility;
-					batchRecords[at + 5] = 0;
+					batchRecords[at + 5] = filter ? WriteMoved( batch, fragmentCount, movedWords, movedBase, ref movedWritten ) : 0;
 					batchRecords[at + 6] = (bucket.Ids ? 1u : 0u) | (bucketLists ? 2u : 0u) | kind;
 					batchRecords[at + 7] = vertexBase;
 					record++;
@@ -803,7 +799,7 @@ internal sealed partial class BackendContext
 		}
 
 		if ( memoHits > 0 ) System.Threading.Interlocked.Add( ref device.GpuDrivenRecordMemoHits, memoHits );
-		if ( checks is not null ) KeepPlan( shaderMode, batches[..prefix], cull, color, depth, samples, totalFragments, checks, batchRecords[..(prefixRecords * (CullBatchBytes / 4))], drawn[..prefix], compacted, prefixWritten, prefixCompact, prefixRuns );
+		if ( checks is not null ) KeepPlan( shaderMode, batches[..prefix], cull, color, depth, samples, totalFragments, checks, batchRecords[..(prefixRecords * (CullBatchBytes / 4))], drawn[..prefix], compacted, prefixWritten, prefixCompact, prefixRuns, filter ? movedWords : default, movedBase );
 		if ( device.GpuDrivenRecordLog is { } log )
 		{
 			lock ( log ) log.Add( batchRecords.ToArray() );
@@ -1064,11 +1060,16 @@ internal sealed partial class BackendContext
 	/// <summary>
 	/// Keep what this call made of its resident prefix (<paramref name="batches"/>) as its kind's plan (<see cref="GpuDrivenPlan"/>):
 	/// the first buckets, their batches' records, and the first <paramref name="runs"/> multi-draws, which end at slot
-	/// <paramref name="written"/> and <paramref name="compactUsed"/> slots into the compacted ones.
+	/// <paramref name="written"/> and <paramref name="compactUsed"/> slots into the compacted ones. With a resident filter, the
+	/// records' moved words (<paramref name="moved"/>, from <paramref name="movedBase"/> in the frame's region) go with it.
 	/// </summary>
 	void KeepPlan( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, in GpuDrivenCull cull, Format color, Format depth, int samples, int totalFragments,
-		(GpuMaterial, ShaderParameters, ShaderVariant, int, int)[] checks, ReadOnlySpan<uint> batchRecords, ReadOnlySpan<bool> drawn, BufferHandle compactedBuffer, int written, int compactUsed, int runs )
+		(GpuMaterial, ShaderParameters, ShaderVariant, int, int)[] checks, ReadOnlySpan<uint> batchRecords, ReadOnlySpan<bool> drawn, BufferHandle compactedBuffer, int written, int compactUsed, int runs,
+		ReadOnlySpan<uint> moved, uint movedBase )
 	{
+		var records = batchRecords.ToArray();
+		var (movedWords, movedAt) = KeptMoved( records, moved, movedBase );
+
 		var buckets = new List<GpuDrivenBucket>( checks.Length );
 		var (commands, fragments) = (0, 0);
 		for ( int b = 0; b < checks.Length; b++ )
@@ -1109,12 +1110,65 @@ internal sealed partial class BackendContext
 			Checks = checks,
 			Materials = materials.ToArray(),
 			Attributes = attributes.ToArray(),
-			BatchRecords = batchRecords.ToArray(),
+			BatchRecords = records,
+			Moved = movedWords,
+			MovedAt = movedAt,
 			Runs = cullRuns.GetRange( 0, runs ).ToArray(),
 			Compacted = compacted,
 			Drawn = drawn.ToArray(),
 		} );
 		System.Threading.Interlocked.Increment( ref device.GpuDrivenPlanBuilds );
+	}
+
+	/// <summary>
+	/// A kept plan's moved words: for each of its records whose sixth word finds moved words in the frame's region (from
+	/// <paramref name="movedBase"/>), where they start in the plan's own; that word is then <see cref="GpuDrivenTables.NoVisibility"/>
+	/// in its records, and set again where they're copied. Null without a resident filter.
+	/// </summary>
+	static (uint[] Moved, int[] MovedAt) KeptMoved( uint[] records, ReadOnlySpan<uint> moved, uint movedBase )
+	{
+		if ( moved.IsEmpty ) return (null, null);
+
+		var count = records.Length / (CullBatchBytes / 4);
+		var movedAt = new int[count];
+		var kept = new List<uint>();
+		for ( int i = 0; i < count; i++ )
+		{
+			var at = i * (CullBatchBytes / 4);
+			var offset = records[at + 5];
+			movedAt[i] = -1;
+			if ( offset == GpuDrivenTables.NoVisibility ) continue;
+
+			movedAt[i] = kept.Count;
+			var first = (int)((offset - movedBase) / 4);
+			for ( int e = 0; e < records[at + 1]; e++ ) kept.Add( moved[first + e] );
+			records[at + 5] = GpuDrivenTables.NoVisibility;
+		}
+
+		return (kept.ToArray(), movedAt);
+	}
+
+	/// <summary>
+	/// A batch's moved words for a resident filter, one per fragment or mesh, and their byte offset in the frame's region; or
+	/// <see cref="GpuDrivenTables.NoVisibility"/> for a batch every view keeps (static, or the view's own).
+	/// </summary>
+	static uint WriteMoved( in GpuDrivenBatch batch, int count, Span<uint> words, uint wordsBase, ref int written )
+	{
+		if ( batch.Instances ) return GpuDrivenTables.NoVisibility;
+		if ( batch.Owner is ResidentMeshes meshes )
+		{
+			if ( meshes.Moved is not { } moved || moved.Length != count ) return GpuDrivenTables.NoVisibility;
+			moved.CopyTo( words[written..] );
+		}
+		else
+		{
+			if ( batch.Moved == MovedNone ) return GpuDrivenTables.NoVisibility;
+			words.Slice( written, count ).Fill( batch.Moved );
+		}
+
+		var offset = wordsBase + (uint)written * 4;
+		written += count;
+		return offset;
 	}
 
 	/// <summary>

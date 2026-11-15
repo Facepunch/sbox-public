@@ -51,6 +51,21 @@ bool Inside( float4 vPlane, float3 vCenter, float3 vExtents )
 	return dot( vPlane.xyz, vCenter ) + vPlane.w + dot( vExtents, abs( vPlane.xyz ) ) >= 0;
 }
 
+// A resident filter's test (GpuContext.ResidentFilter): whether a view keeps a caster by its moved word (its frame, bit 31
+// restless; None for a static one) against the stamps the far cascade's cache was drawn at, as SettledCasters.SettledBy does.
+// 1: static and settled ones (the cache), 2: settled ones that aren't static (a baked sun's cache), 3: the rest that aren't
+// static (drawn over the cache)
+bool TakesMoved( uint nFilter, uint nMoved, uint nSettled, uint nRestless )
+{
+	bool bStatic = nMoved == None;
+	bool bSettled = bStatic || ( ( nMoved & 0x80000000u ) != 0 ? ( nMoved & 0x7fffffffu ) <= nRestless : nMoved <= nSettled );
+	if ( nFilter == 1 )
+		return bSettled;
+	if ( nFilter == 2 )
+		return !bStatic && bSettled;
+	return !bStatic && !bSettled;
+}
+
 // A resident mesh's LOD, as the CPU picks it (MeshRenderFeature.ChooseLod, RenderMesh.LodForScreenSize): its model's LOD count
 // and switch distances (1 to 7) in its group's header record, its LOD scale (largest scale; -1 - LOD for a fixed one), and
 // the view's LOD camera and tangent of half its field of view, and screen width, or texels per unit for a texel view
@@ -179,8 +194,9 @@ groupshared uint4 g_vViews[192]; // ViewChunk * ViewWords
 	{
 		// The chunk's views into groupshared memory: its 32-byte record (view record, instance records, commands, multi-draws;
 		// first instance, fragment words, listed fragments), then the 160-byte view record (six planes, the camera and
-		// squared size threshold, whether it's a shadow view and whether resident meshes skip the size test, the LOD camera,
-		// and the LOD width and whether it's texels per unit)
+		// squared size threshold, whether it's a shadow view (bit 0) and its resident filter (bits 1-2), whether resident
+		// meshes skip the size test, the filter's settled and restless stamps, the LOD camera, and the LOD width and whether
+		// it's texels per unit)
 		uint nViews = min( ViewChunk, vItemViews.y - nChunk );
 		GroupMemoryBarrierWithGroupSync();
 		for ( uint w = nThread; w < nViews * ViewWords; w += 64 )
@@ -201,7 +217,12 @@ groupshared uint4 g_vViews[192]; // ViewChunk * ViewWords
 			uint4 vView = g_vViews[nBase];
 			uint4 vViewOut = g_vViews[nBase + 1];
 			uint4 vViewFlags = g_vViews[nBase + 2 + 7];
-			bool bVisible = !( vViewFlags.x != 0 && bNoShadow );
+			bool bVisible = !( ( vViewFlags.x & 1 ) != 0 && bNoShadow );
+
+			// A resident filter: the casters it keeps by when each last moved, whose words the batch record's sixth word finds
+			uint nFilter = ( vViewFlags.x >> 1 ) & 3;
+			if ( nFilter != 0 && vVisibility.y != None && !TakesMoved( nFilter, records.Load( vVisibility.y + i * 4 ), vViewFlags.z, vViewFlags.w ) )
+				continue;
 
 			[unroll]
 			for ( uint p = 0; p < 6; p++ )

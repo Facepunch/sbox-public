@@ -55,7 +55,10 @@ internal sealed partial class BackendContext
 		return (bytes, runs, listed, instances, fragmentWords, commands);
 	}
 
-	/// <summary>A view record: the six planes, camera and size threshold, flags, LOD camera and LOD width (160 bytes).</summary>
+	/// <summary>
+	/// A view record: the six planes, camera and size threshold, flags (shadow and its resident filter, whether resident
+	/// meshes skip the size test, the filter's settled and restless stamps), LOD camera and LOD width (160 bytes).
+	/// </summary>
 	static void WriteCullView( in GpuDrivenCull cull, Span<byte> bytes )
 	{
 		var view = MemoryMarshal.Cast<byte, float>( bytes[..CullViewBytes] );
@@ -69,9 +72,10 @@ internal sealed partial class BackendContext
 		}
 
 		var viewWords = MemoryMarshal.Cast<byte, uint>( bytes[..CullViewBytes] );
-		viewWords[28] = cull.Shadow ? 1u : 0u;
+		viewWords[28] = (cull.Shadow ? 1u : 0u) | (uint)cull.Filter << 1;
 		viewWords[29] = cull.KeepsSmallMeshes ? 1u : 0u;
-		viewWords[30] = viewWords[31] = 0;
+		viewWords[30] = cull.Filter != ResidentFilter.None ? cull.SettledStamp : 0;
+		viewWords[31] = cull.Filter != ResidentFilter.None ? cull.RestlessStamp : 0;
 		view[32] = cull.LodCamera.x;
 		view[33] = cull.LodCamera.y;
 		view[34] = cull.LodCamera.z;
@@ -303,8 +307,8 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
-	/// A plan's batch records and entry map in a buffer of its own, written the first time a setup culls it (plans never
-	/// change once made); false when there's nothing to cull.
+	/// A plan's batch records, entry map and a resident filter's moved words in a buffer of its own, written the first time a
+	/// setup culls it (plans never change once made); false when there's nothing to cull.
 	/// </summary>
 	bool PlanRecords( GpuDrivenPlan plan )
 	{
@@ -317,12 +321,24 @@ internal sealed partial class BackendContext
 		if ( entries == 0 ) return false;
 
 		var mapOffset = records.Length * 4;
-		var bytes = mapOffset + entries * Marshal.SizeOf<ResidentCullEntry>();
+		var movedOffset = mapOffset + entries * Marshal.SizeOf<ResidentCullEntry>();
+		var bytes = movedOffset + (plan.Moved?.Length ?? 0) * 4;
 		// Written into the frame's chunk and copied into video memory, before this setup's dispatches
 		var buffer = Gpu.CreateBuffer( new BufferInfo { Size = bytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = "Borealis resident plan" } );
 		var (staging, _, stagingOffset) = device.GpuDrivenTables.Allocate( bytes );
 		var data = Gpu.Map( staging ).Slice( (int)stagingOffset, bytes );
 		MemoryMarshal.AsBytes( records.AsSpan() ).CopyTo( data );
+
+		// A resident filter's moved words after the entry map, which each record's sixth word finds
+		if ( plan.Moved is { } moved )
+		{
+			MemoryMarshal.AsBytes( moved.AsSpan() ).CopyTo( data[movedOffset..] );
+			var words = MemoryMarshal.Cast<byte, uint>( data[..mapOffset] );
+			for ( int b = 0; b < plan.MovedAt.Length; b++ )
+			{
+				if ( plan.MovedAt[b] >= 0 ) words[b * (CullBatchBytes / 4) + 5] = (uint)(movedOffset + plan.MovedAt[b] * 4);
+			}
+		}
 		var map = MemoryMarshal.Cast<byte, ResidentCullEntry>( data[mapOffset..] );
 		var at = 0;
 		for ( int b = 0; b < batches; b++ )

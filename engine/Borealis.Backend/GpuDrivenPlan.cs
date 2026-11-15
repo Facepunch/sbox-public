@@ -93,6 +93,13 @@ internal sealed class GpuDrivenPlan
 	public (BackendParameters Attributes, int Version)[] Attributes;
 
 	public uint[] BatchRecords;
+
+	/// <summary>
+	/// For a resident filter (<see cref="Borealis.Gpu.GpuContext.GpuDrivenCull.Filter"/>): every record's moved words, one per
+	/// fragment or mesh, and by record where its own start, or -1 for a record every view keeps. Null otherwise.
+	/// </summary>
+	public uint[] Moved;
+	public int[] MovedAt;
 	public (int Bucket, BufferHandle Page, IndexFormat Format, int First, int Count)[] Runs;
 
 	/// <summary>By multi-draw: whether it draws forward's compacted triangles, from the frame's compacted buffer rather than an index page.</summary>

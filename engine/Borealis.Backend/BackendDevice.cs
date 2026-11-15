@@ -206,6 +206,16 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal override bool DrawsMeshesResident => GpuDrivenResidentMeshes && DrawsAggregatesResident && DrawsMeshesGpuDriven;
 
 	/// <summary>
+	/// Give the sun's far cascade cache and what's drawn over it resident lists of the casters that aren't static too, which
+	/// the GPU takes by when each last moved (<see cref="GpuContext.ResidentFilter"/>). On by default with
+	/// <see cref="GpuDrivenResident"/>; <c>-no-resident-settled</c> turns it off, and those views draw their static casters
+	/// from a list and the rest their own way.
+	/// </summary>
+	public bool GpuDrivenResidentSettled { get; set; } = !HasSwitch( "-no-resident-settled" );
+
+	internal override bool DrawsSettledResident => GpuDrivenResidentSettled && DrawsAggregatesResident;
+
+	/// <summary>
 	/// Cull every view's resident plans in setup, in one dispatch of <c>borealis_resident_cull_cs</c> (a thread per entry looping
 	/// over the views), for the calls to draw from (<see cref="BackendContext.CullResident"/>). On by default with
 	/// <see cref="GpuDrivenResident"/>; <c>-no-resident-cull</c> turns it off, and each call culls its own as before.

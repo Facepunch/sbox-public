@@ -8,8 +8,9 @@ namespace Borealis.Features;
 /// device keeps what it makes of them (buckets, records, multi-draws) and the GPU culls every fragment. A list changes only
 /// when an aggregate is added, removed or changes how it draws, or its kept transforms move; a view takes the list of its
 /// kind (main, or which casters a shadow view takes) and of the tag classes it shows. A shadow view's list holds the casters
-/// its static filter takes whether or not they've settled: static ones for a far cascade cache, none for what's drawn over
-/// it. Casters whose settling decides, and aggregates a list doesn't hold, go the view's own way. Resident static meshes
+/// its static filter takes; for the sun's far cascade cache and what's drawn over it, those that aren't static too while
+/// they keep still, each with when it last moved, and the GPU keeps those the view's settled stamps take
+/// (<see cref="GpuContext.ResidentFilter"/>). Aggregates a list doesn't hold go the view's own way. Resident static meshes
 /// (<see cref="GpuDevice.DrawsMeshesResident"/>) join the lists in groups of one model drawn alike, a batch per LOD and draw,
 /// which the GPU culls and picks LODs for (<see cref="GpuContext.ResidentMeshes"/>); the mesh feature doesn't prepare them.
 /// </summary>
@@ -31,6 +32,12 @@ internal sealed partial class AggregateRenderFeature
 
 		/// <summary>Whether a mesh it holds reads the frame copy: colour layers take it before the call.</summary>
 		public bool ReadsFrameBuffer;
+
+		/// <summary>
+		/// For casters whose settling decides (<see cref="ResidentCasters.Settled"/>, <see cref="ResidentCasters.SettledNotStatic"/>):
+		/// by batch, each aggregate's moved word (<see cref="GpuContext.MovedWord"/>), which the GPU keeps by the view's stamps.
+		/// </summary>
+		public uint[] Moved;
 
 		public int Version;
 
@@ -61,6 +68,9 @@ internal sealed partial class AggregateRenderFeature
 		public ShaderParameters LightmapAttributes;
 		public int Class;
 
+		/// <summary>When it last moved (<see cref="RenderWorld.MovedStamps"/>), for lists whose casters' settling decides.</summary>
+		public ulong Moved;
+
 		/// <summary>Its first kept transform slot, or -1 while it has frame entries (its first frame): then it isn't resident.</summary>
 		public int FirstSlot;
 
@@ -79,6 +89,7 @@ internal sealed partial class AggregateRenderFeature
 		public int DrawVersion;
 		public int EntryVersion;
 		public int Class;
+		public ulong Moved;
 		public ShaderParameters Probe;
 
 		/// <summary>Its kept transform slot, or -1 while it has none: then it isn't resident.</summary>
@@ -161,6 +172,15 @@ internal sealed partial class AggregateRenderFeature
 	/// <summary>Frames a mesh that moved stays still before it's resident again.</summary>
 	internal static int SettleFrames { get; set; } = 60;
 
+	/// <summary>
+	/// Aggregates that aren't static whose moved stamp moved, by the frame it last did: lists whose casters' settling decides
+	/// hold them again once they've stayed still <see cref="SettleFrames"/> frames, as those lists hold each one's stamp.
+	/// </summary>
+	readonly Dictionary<AggregateObject, int> restlessAggregates = new( ReferenceEqualityComparer.Instance );
+
+	/// <summary>Lists whose casters' settling decides made since the feature was made, for the tests.</summary>
+	internal int SettledListsMade { get; private set; }
+
 	/// <summary>Meshes a resident list held whose draws the device left: they stay with the views' own batches.</summary>
 	readonly HashSet<MeshObject> meshesLeft = new( ReferenceEqualityComparer.Instance );
 	volatile bool meshesLeftChanged;
@@ -190,7 +210,16 @@ internal sealed partial class AggregateRenderFeature
 		All,
 		Static,
 		NotStatic,
+
+		/// <summary>The far cascade's cache: static casters and those that aren't, while they keep still.</summary>
+		Settled,
+
+		/// <summary>A baked sun's far cascade cache, and what's drawn over a far cascade's cache: casters that aren't static, while they keep still.</summary>
+		SettledNotStatic,
 	}
+
+	/// <summary>Whether a list's casters are taken by when each last moved, on the GPU.</summary>
+	static bool Settles( ResidentCasters casters ) => casters is ResidentCasters.Settled or ResidentCasters.SettledNotStatic;
 
 	/// <summary>Lists made since the feature was made, for the tests.</summary>
 	internal int ResidentListsMade { get; private set; }
@@ -286,7 +315,9 @@ internal sealed partial class AggregateRenderFeature
 
 		var drawVersions = world.DrawVersions;
 		var entryVersions = world.EntryVersions;
+		var movedStamps = world.MovedStamps;
 		var changed = false;
+		var settling = SettleAggregates( transforms.Generation );
 		for ( int m = 0; m < memberCount; m++ )
 		{
 			ref var member = ref members[m];
@@ -303,6 +334,14 @@ internal sealed partial class AggregateRenderFeature
 				Rescan( world );
 				RefreshResident( world, transforms );
 				return;
+			}
+
+			// Moved: lists whose casters' settling decides leave it out until it keeps still
+			if ( !member.IsStatic && member.Moved != movedStamps[index] )
+			{
+				member.Moved = movedStamps[index];
+				restlessAggregates[aggregate] = transforms.Generation;
+				settling = true;
 			}
 
 			// Its transforms, kept between frames, rewritten when its entry version moves
@@ -331,8 +370,9 @@ internal sealed partial class AggregateRenderFeature
 				return;
 			}
 
-			// Moved: the views' own way until it settles (every one that moved, then the lists again once)
-			if ( member.EntryVersion != entryVersions[index] )
+			// Moved: the views' own way until it settles (every one that moved, then the lists again once); a change to how it
+			// casts moves its moved stamp too
+			if ( member.EntryVersion != entryVersions[index] || (!member.Mesh.IsStatic && member.Moved != movedStamps[index]) )
 			{
 				restless[member.Mesh] = (transforms.Generation, entryVersions[index]);
 				moved = true;
@@ -357,6 +397,49 @@ internal sealed partial class AggregateRenderFeature
 		}
 
 		if ( changed ) DropResidentLists();
+		else if ( settling ) DropSettledLists();
+	}
+
+	/// <summary>
+	/// Forget aggregates that moved and have since kept still <see cref="SettleFrames"/> frames, or left the world; true when
+	/// lists whose casters' settling decides must be made again.
+	/// </summary>
+	bool SettleAggregates( int frame )
+	{
+		if ( restlessAggregates.Count == 0 ) return false;
+
+		List<AggregateObject> done = null;
+		var settled = false;
+		foreach ( var (aggregate, moved) in restlessAggregates )
+		{
+			var gone = !ReferenceEquals( aggregate.World, residentWorld ) || aggregate.Index < 0;
+			if ( !gone && frame - moved < SettleFrames ) continue;
+			(done ??= new()).Add( aggregate );
+			settled |= !gone;
+		}
+
+		if ( done is not null )
+		{
+			foreach ( var aggregate in done ) restlessAggregates.Remove( aggregate );
+		}
+
+		return settled;
+	}
+
+	/// <summary>
+	/// Drop the lists whose casters' settling decides, to be made again, keeping the rest. Their groups the new lists don't
+	/// keep are let go when every list is next dropped.
+	/// </summary>
+	void DropSettledLists()
+	{
+		List<(ResidentCasters, uint)> stale = null;
+		foreach ( var key in residentLists.Keys )
+		{
+			if ( Settles( key.Casters ) ) (stale ??= new()).Add( key );
+		}
+
+		if ( stale is null ) return;
+		foreach ( var key in stale ) residentLists.Remove( key );
 	}
 
 	/// <summary>
@@ -482,6 +565,7 @@ internal sealed partial class AggregateRenderFeature
 				Lightmapped = aggregate.Lightmapped,
 				LightmapAttributes = aggregate.LightmapAttributes,
 				Class = cls,
+				Moved = world.MovedStamps[i],
 				FirstSlot = -1,
 				FirstArg = residentArgCount,
 			};
@@ -527,6 +611,7 @@ internal sealed partial class AggregateRenderFeature
 					DrawVersion = drawVersions[i],
 					EntryVersion = entryVersions[i],
 					Class = cls,
+					Moved = world.MovedStamps[i],
 					Probe = known.Probe,
 					Slot = -1,
 				};
@@ -590,12 +675,16 @@ internal sealed partial class AggregateRenderFeature
 		if ( memberCount == 0 && meshMemberCount == 0 ) return null;
 
 		var shadow = pass.IsShadow;
+		var settled = RenderHost.Current?.Device is { DrawsSettledResident: true };
 		var casters = !shadow ? ResidentCasters.Main : pass.StaticFilter switch
 		{
 			StaticFilter.Any => ResidentCasters.All,
-			// A far cascade cache's settled casters that aren't static, and what's drawn over it, depend on when each settled
-			StaticFilter.OnlyStatic or StaticFilter.Settled => ResidentCasters.Static,
+			StaticFilter.OnlyStatic => ResidentCasters.Static,
 			StaticFilter.NoStatic => ResidentCasters.NotStatic,
+			// A far cascade cache's settled casters, and what's drawn over it, depend on when each settled: the GPU decides, or
+			// the cache takes its static casters from a list and the rest go the view's own way
+			StaticFilter.Settled => settled ? ResidentCasters.Settled : ResidentCasters.Static,
+			StaticFilter.SettledNoStatic or StaticFilter.Unsettled when settled => ResidentCasters.SettledNotStatic,
 			_ => (ResidentCasters)(-1),
 		};
 		if ( casters < 0 ) return null;
@@ -612,12 +701,14 @@ internal sealed partial class AggregateRenderFeature
 
 		list = new ResidentList { Version = residentVersion };
 		if ( list.Holds.Length < residentWorld.Count ) list.Holds = new bool[residentWorld.Count];
+		var settles = Settles( casters );
 		for ( int m = 0; m < memberCount; m++ )
 		{
 			ref readonly var member = ref members[m];
 			var aggregate = member.Aggregate;
 			if ( member.FirstSlot < 0 || (mask & 1u << member.Class) == 0 || !member.Visible ) continue;
 			if ( shadow ? !(member.CastShadows && member.LayerMatch == LayerMatch.None && TakesCaster( casters, member )) : !member.GameLayers ) continue;
+			if ( settles && !member.IsStatic && restlessAggregates.ContainsKey( aggregate ) ) continue;
 
 			var fragments = aggregate.Fragments;
 			long indices = 0;
@@ -640,6 +731,20 @@ internal sealed partial class AggregateRenderFeature
 
 		list.Batches.Sort( ByKey );
 		list.DeviceCount = list.Batches.Count;
+		if ( settles )
+		{
+			// Each aggregate's moved word, as it was when it last moved: a stamp that moves makes the list again
+			var stamps = residentWorld.MovedStamps;
+			list.Moved = new uint[list.Batches.Count];
+			for ( int i = 0; i < list.Moved.Length; i++ )
+			{
+				var aggregate = list.Batches[i].Aggregate;
+				list.Moved[i] = GpuContext.MovedWord( stamps[aggregate.Index], aggregate.IsStatic );
+			}
+
+			SettledListsMade++;
+		}
+
 		if ( meshMemberCount > 0 ) AddMeshGroups( list, casters, mask, shadow );
 		residentLists[(casters, mask)] = list;
 		ResidentListsMade++;
@@ -680,6 +785,7 @@ internal sealed partial class AggregateRenderFeature
 			var scales = new float[count];
 			var lightmaps = key.Lightmap.HasValue ? new ShaderParameters[count] : null;
 			var probes = key.Probe.HasValue ? new ShaderParameters[count] : null;
+			var moved = Settles( casters ) ? new uint[count] : null;
 			for ( int i = 0; i < count; i++ )
 			{
 				ref readonly var member = ref meshMembers[members[i]];
@@ -691,6 +797,7 @@ internal sealed partial class AggregateRenderFeature
 				scales[i] = obj.LodOverride >= 0 ? -1 - obj.LodOverride : MathF.Max( MathF.Abs( scale.x ), MathF.Max( MathF.Abs( scale.y ), MathF.Abs( scale.z ) ) );
 				if ( lightmaps is not null ) lightmaps[i] = obj.LightmapAttributes;
 				if ( probes is not null ) probes[i] = member.Probe;
+				if ( moved is not null ) moved[i] = GpuContext.MovedWord( member.Moved, obj.IsStatic );
 				list.Holds[member.Index] = true;
 			}
 
@@ -705,10 +812,10 @@ internal sealed partial class AggregateRenderFeature
 			var owner = kept?.Owner;
 			if ( owner is null || !owner.Slots.AsSpan().SequenceEqual( slots ) || !owner.Centers.AsSpan().SequenceEqual( groupCenters )
 				|| !owner.Extents.AsSpan().SequenceEqual( groupExtents ) || !owner.LodScales.AsSpan().SequenceEqual( scales )
-				|| !SameLighting( owner.Lightmaps, lightmaps ) || !SameLighting( owner.Probes, probes ) )
+				|| !SameLighting( owner.Lightmaps, lightmaps ) || !SameLighting( owner.Probes, probes ) || !owner.Moved.AsSpan().SequenceEqual( moved ) )
 			{
 				if ( owner is not null ) ReleaseOwner( owner );
-				owner = new GpuContext.ResidentMeshes( key.Mesh, groupCenters, groupExtents, slots, scales, lightmaps, probes );
+				owner = new GpuContext.ResidentMeshes( key.Mesh, groupCenters, groupExtents, slots, scales, lightmaps, probes, moved );
 				meshOwners[key] = kept = new MeshOwner { Owner = owner };
 			}
 
@@ -793,7 +900,7 @@ internal sealed partial class AggregateRenderFeature
 	static bool TakesCaster( ResidentCasters casters, bool isStatic ) => casters switch
 	{
 		ResidentCasters.Static => isStatic,
-		ResidentCasters.NotStatic => !isStatic,
+		ResidentCasters.NotStatic or ResidentCasters.SettledNotStatic => !isStatic,
 		_ => true,
 	};
 
@@ -821,6 +928,10 @@ internal sealed partial class AggregateRenderFeature
 			if ( made is null || made.Length < list.DeviceCount ) list.Device[kind] = made = new GpuContext.GpuDrivenBatch[list.DeviceCount];
 			var batches = CollectionsMarshal.AsSpan( list.Batches );
 			for ( int i = 0; i < batches.Length; i++ ) made[i] = DeviceBatch( batches[i], depth, forceDepthOnly );
+			if ( list.Moved is { } moved )
+			{
+				for ( int i = 0; i < batches.Length; i++ ) made[i] = made[i] with { Moved = moved[i] };
+			}
 
 			// Mesh groups' batches name no frame's instances: made once
 			if ( !list.DeviceMeshes[kind] ) MeshDeviceBatches( list, depth, forceDepthOnly, made.AsSpan( batches.Length, list.DeviceCount - batches.Length ) );

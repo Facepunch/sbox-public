@@ -98,6 +98,12 @@ public abstract class GpuDevice
 	internal virtual bool DrawsMeshesResident => false;
 
 	/// <summary>
+	/// Whether, drawing aggregates resident, the sun's far cascade cache and what's drawn over it take resident lists of the
+	/// casters that aren't static too, which the GPU takes by when each last moved (<see cref="Gpu.GpuContext.ResidentFilter"/>).
+	/// </summary>
+	internal virtual bool DrawsSettledResident => false;
+
+	/// <summary>
 	/// Whether a resident mesh's draws with this material can be drawn GPU-driven in every pass (its shader has GPU-driven
 	/// variants): a draw the device leaves would go undrawn, so a mesh with one isn't made resident.
 	/// </summary>
