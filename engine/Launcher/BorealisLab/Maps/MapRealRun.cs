@@ -105,6 +105,7 @@ internal static class MapRealRun
 		var cascadeTiles = global::Borealis.Shadows.ShadowMapper.CascadeTiles && !Args.Has( "-no-cascade-tiles" );
 		if ( Args.Int( "-cascade-resolution", 0 ) is > 0 and var cascadeResolution ) RenderHost.Current.Shadows.MaxCascadeResolution = cascadeResolution;
 		if ( Args.Int( "-cascade-cull-texels", 0 ) is > 0 and var cullTexels ) global::Borealis.Culling.SizeCull.CascadeTexels = cullTexels;
+		if ( !Args.Has( "-noprobes" ) ) map.CaptureProbes();
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		Console.WriteLine( $"Loaded in {load.Elapsed.TotalSeconds:0.0} s; {map.Problems.Count} problems" );
 		if ( map.Backend.Surfaces.ConvertedMaterials > 0 ) Console.WriteLine( $"  {map.Backend.Surfaces.ConvertedMaterials} materials drawn as surfaces" );
@@ -489,7 +490,7 @@ internal static class MapRealRun
 		var md = new StringBuilder();
 		md.AppendLine( $"Borealis Lab -map {options.Ident} -real, {DateTime.Now:yyyy-MM-dd HH:mm}, {gpu.Adapter.Name}, {options.Width}x{options.Height} {options.Samples}x MSAA, vsync off, {options.Frames} measured frames per run (medians, ms)" );
 		md.AppendLine();
-		md.AppendLine( $"Baked lighting: {map.LightmapTextures} lightmaps for {map.LightmappedObjects} objects and aggregates, {map.ProbeVolumes} probe volumes for {map.ProbeObjects} objects; {map.Lights} lights ({map.BakedLights} baked); 3D skybox {(map.SkyWorld is null ? "none" : "loaded")}; occlusion culling {(RenderHost.Current.OcclusionCulling ? "on" : "off")}" );
+		md.AppendLine( $"Baked lighting: {map.LightmapTextures} lightmaps for {map.LightmappedObjects} objects and aggregates, {map.ProbeVolumes} probe volumes for {map.ProbeObjects} objects; {map.EnvMapProbesCaptured} of {map.EnvMapProbes} envmap probes captured; {map.Lights} lights ({map.BakedLights} baked); 3D skybox {(map.SkyWorld is null ? "none" : "loaded")}; occlusion culling {(RenderHost.Current.OcclusionCulling ? "on" : "off")}" );
 		md.AppendLine();
 		md.AppendLine( $"GPU-driven tables: {map.Backend.GpuDrivenReport}" );
 		md.AppendLine();

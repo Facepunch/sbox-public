@@ -126,6 +126,7 @@ internal sealed partial class MapWorld : IDisposable
 			LoadSkybox( reference, sky );
 		}
 
+		if ( entities ) AddEnvMapProbes( level );
 	}
 
 	readonly Stopwatch timer;
