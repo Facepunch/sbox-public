@@ -196,6 +196,23 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	internal override bool DrawsAggregatesResident => GpuDrivenResident && CullsAggregatesGpuDriven && GpuDrivenCompaction && SupportsDrawIndirectCount && !GpuDrivenMaterialBuckets;
 
+	/// <summary>
+	/// Make static meshes resident with the aggregates (<see cref="GpuContext.ResidentMeshes"/>): the GPU culls them and picks
+	/// their LODs. On by default with <see cref="GpuDrivenResident"/> and <see cref="GpuDrivenMeshes"/>; <c>-no-resident-meshes</c>
+	/// turns it off, and views then prepare them.
+	/// </summary>
+	public bool GpuDrivenResidentMeshes { get; set; } = !HasSwitch( "-no-resident-meshes" );
+
+	internal override bool DrawsMeshesResident => GpuDrivenResidentMeshes && DrawsAggregatesResident && DrawsMeshesGpuDriven;
+
+	internal override bool TakesResident( GpuMaterial material ) => material switch
+	{
+		SurfaceMaterial surface => !surface.RenderState.Blends && surface.RenderState.DepthWrite && surface.RenderState.DepthTest && Surfaces.For( surface ) is { } program
+			&& program.GpuDrivenPass( false, surface.RenderState.AlphaTest, false ) is not null && program.GpuDrivenPass( true, surface.RenderState.AlphaTest, false ) is not null,
+		BackendMaterial { Shader: { } shader } => Shaders.GpuDriven( shader ) is not null,
+		_ => false,
+	};
+
 	/// <summary>Resident calls drawn from a kept plan, and plans made, for tests and reports.</summary>
 	internal long GpuDrivenPlanHits, GpuDrivenPlanBuilds;
 

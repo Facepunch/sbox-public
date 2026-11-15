@@ -92,6 +92,18 @@ public abstract class GpuDevice
 	internal virtual bool DrawsAggregatesResident => false;
 
 	/// <summary>
+	/// Whether, drawing aggregates resident, static meshes join their lists too (<see cref="Gpu.GpuContext.ResidentMeshes"/>):
+	/// the GPU culls them and picks their LODs, and views don't prepare them.
+	/// </summary>
+	internal virtual bool DrawsMeshesResident => false;
+
+	/// <summary>
+	/// Whether a resident mesh's draws with this material can be drawn GPU-driven in every pass (its shader has GPU-driven
+	/// variants): a draw the device leaves would go undrawn, so a mesh with one isn't made resident.
+	/// </summary>
+	internal virtual bool TakesResident( GpuMaterial material ) => false;
+
+	/// <summary>
 	/// Whether it streams textures by the sizes draws ask for, so what draws without a size of its own should give one
 	/// through <see cref="AddTextureSizes"/>.
 	/// </summary>
