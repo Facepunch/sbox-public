@@ -23,30 +23,38 @@ public enum SurfaceBlend
 
 /// <summary>
 /// A surface's render state, resolved for one material: its blending, depth test and write, depth bias, two-sidedness
-/// and alpha test. A blended surface draws in the translucent layer. Defaults come from the <c>[Material]</c> struct's
-/// attributes (<see cref="MaterialLayout.RenderState"/>), and a material changes them through its
-/// <c>[RenderState]</c> fields (<see cref="MaterialField.RenderStates"/>).
+/// and alpha test, and whether it draws in the translucent layer. A blended surface draws there; so does one marked
+/// <see cref="Translucent"/> without blending (refracting glass, which replaces what's behind it with what it reads of the
+/// frame-buffer copy). Defaults come from the <c>[Material]</c> struct's attributes (<see cref="MaterialLayout.RenderState"/>),
+/// and a material changes them through its <c>[RenderState]</c> fields (<see cref="MaterialField.RenderStates"/>).
 /// </summary>
-public readonly record struct SurfaceRenderState( SurfaceBlend Blend, bool DepthWrite, bool DepthTest, float DepthBias, float SlopeDepthBias, bool TwoSided, bool AlphaTest )
+public readonly record struct SurfaceRenderState( SurfaceBlend Blend, bool DepthWrite, bool DepthTest, float DepthBias, float SlopeDepthBias, bool TwoSided, bool AlphaTest, bool Translucent = false )
 {
 	/// <summary>Opaque, depth tested and written, back faces culled.</summary>
 	public static SurfaceRenderState Opaque => new( SurfaceBlend.Opaque, true, true, 0, 0, false, false );
 
 	/// <summary>Whether it blends with what's behind it.</summary>
 	public bool Blends => Blend != SurfaceBlend.Opaque;
+
+	/// <summary>
+	/// Whether it draws in the translucent layer, after the opaque one and sorted, with the translucent colour pass (opacity
+	/// kept in alpha, as a <c>.shader</c>'s S_TRANSLUCENT): when it blends or is marked <see cref="Translucent"/>. Such a
+	/// surface has no depth passes of its own.
+	/// </summary>
+	public bool DrawsTranslucent => Blends || Translucent;
 }
 
 /// <summary>
 /// What a <c>[Material]</c> struct's attributes say about its render state: the defaults every material starts from.
 /// <see cref="DepthWrite"/> null means "unless blended".
 /// </summary>
-public sealed record SurfaceRenderDefaults( SurfaceBlend Blend, bool? DepthWrite, bool DepthTest, float DepthBias, float SlopeDepthBias, bool TwoSided, bool AlphaTest )
+public sealed record SurfaceRenderDefaults( SurfaceBlend Blend, bool? DepthWrite, bool DepthTest, float DepthBias, float SlopeDepthBias, bool TwoSided, bool AlphaTest, bool Translucent = false )
 {
 	/// <summary>No attributes: opaque.</summary>
 	public static readonly SurfaceRenderDefaults None = new( SurfaceBlend.Opaque, null, true, 0, 0, false, false );
 
 	/// <summary>A stable text for layout fingerprints.</summary>
-	public override string ToString() => string.Create( CultureInfo.InvariantCulture, $"{Blend},{DepthWrite},{DepthTest},{DepthBias},{SlopeDepthBias},{TwoSided},{AlphaTest}" );
+	public override string ToString() => string.Create( CultureInfo.InvariantCulture, $"{Blend},{DepthWrite},{DepthTest},{DepthBias},{SlopeDepthBias},{TwoSided},{AlphaTest}{(Translucent ? ",Translucent" : "")}" );
 }
 
 /// <summary>The render states a field can set.</summary>
@@ -62,6 +70,8 @@ public enum SurfaceStateKind
 	TwoSided,
 	/// <summary>Alpha test.</summary>
 	AlphaTest,
+	/// <summary>Drawn in the translucent layer without blending (<see cref="SurfaceRenderState.Translucent"/>).</summary>
+	Translucent,
 }
 
 /// <summary>
@@ -148,6 +158,7 @@ public sealed record SurfaceStateLayout( SurfaceRenderDefaults Defaults, IReadOn
 		var depthTest = d.DepthTest;
 		var twoSided = d.TwoSided;
 		var alphaTest = d.AlphaTest;
+		var translucent = d.Translucent;
 		foreach ( var field in Fields )
 		{
 			var at = record[field.Offset..];
@@ -160,10 +171,11 @@ public sealed record SurfaceStateLayout( SurfaceRenderDefaults Defaults, IReadOn
 				case SurfaceStateKind.DepthTest: depthTest = set != 0; break;
 				case SurfaceStateKind.TwoSided: twoSided = set != 0; break;
 				case SurfaceStateKind.AlphaTest: alphaTest = set != 0; break;
+				case SurfaceStateKind.Translucent: translucent = set != 0; break;
 			}
 		}
 
-		return new SurfaceRenderState( blend, depthWrite ?? blend == SurfaceBlend.Opaque, depthTest, d.DepthBias, d.SlopeDepthBias, twoSided, alphaTest );
+		return new SurfaceRenderState( blend, depthWrite ?? blend == SurfaceBlend.Opaque, depthTest, d.DepthBias, d.SlopeDepthBias, twoSided, alphaTest, translucent );
 	}
 
 	/// <summary>A stable text for layout fingerprints.</summary>

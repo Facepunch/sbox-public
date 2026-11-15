@@ -40,17 +40,19 @@ internal sealed partial class BackendContext
 		string name;
 		if ( noColor )
 		{
-			// A surface that writes no depth has no depth or shadow passes of its own (a converted one's are its .shader's)
-			if ( !state.DepthWrite ) return false;
+			// A surface that writes no depth, or draws in the translucent layer, has no depth or shadow passes of its own (a
+			// converted one's are its .shader's: glass's dithered shadow)
+			if ( !state.DepthWrite || state.Translucent ) return false;
 			name = state.AlphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth;
 		}
 		else if ( shaderMode.Value != ForwardMode.Value )
 		{
 			return false;
 		}
-		else if ( state.Blends )
+		else if ( state.DrawsTranslucent )
 		{
-			// Blended over the colour behind: compiled translucent (opacity kept in alpha), as a .shader's S_TRANSLUCENT is
+			// Blended over the colour behind, or in the translucent layer: compiled translucent (opacity kept in alpha), as a
+			// .shader's S_TRANSLUCENT is
 			name = ForwardTranslucentPass;
 		}
 		else
@@ -108,18 +110,19 @@ internal sealed partial class BackendContext
 
 	/// <summary>
 	/// The GPU-driven bucket a surface batch draws in (BackendContext.GpuDriven.cs), made when none fits: its GPU-driven
-	/// pass for the mode, alpha test and lightmap combo, under the batch's object attributes. Null, so it draws the classic
-	/// way, when the surface has no GPU-driven passes or the mode isn't one a surface draws.
+	/// pass for the mode, alpha test, blending and lightmap combo, under the batch's object attributes. Null, so it draws
+	/// the classic way, when the surface has no GPU-driven passes or the mode isn't one a surface draws. Blended and
+	/// overlay surfaces come here only where the scene draws such materials GPU-driven (a render order's static overlays,
+	/// glass), as .shader materials do; a surface that writes no depth, or draws in the translucent layer, has no depth
+	/// passes of its own.
 	/// </summary>
 	GpuDrivenBucket SurfaceBucket( SurfaceMaterial material, StringToken shaderMode, bool noColor, ShaderParameters attributes, long key )
 	{
-		// Blended draws are sorted, so they stay classic, as .shader materials' do; so do those that don't test and write
-		// depth (overlays, drawn in order)
 		var state = material.RenderState;
-		if ( state.Blends || !state.DepthWrite || !state.DepthTest ) return null;
+		if ( noColor && (!state.DepthWrite || state.Translucent) ) return null;
 		if ( !noColor && shaderMode.Value != ForwardMode.Value ) return null;
 		if ( device.Surfaces.For( material ) is not { } program ) return null;
-		if ( program.GpuDrivenPass( noColor, state.AlphaTest, LookupCombo( LightmapCombo ) is > 0 ) is not { } pass ) return null;
+		if ( program.GpuDrivenPass( noColor, state.AlphaTest, LookupCombo( LightmapCombo ) is > 0, state.DrawsTranslucent ) is not { } pass ) return null;
 
 		var depthOnly = pass.Pass.Pixel is null;
 		for ( int i = openBucket; i < gpuDrivenBucketCount; i++ )

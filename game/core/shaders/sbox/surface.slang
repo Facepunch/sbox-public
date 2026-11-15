@@ -164,6 +164,16 @@ public struct SurfaceInput
 	public float2 UvDdy;
 	public bool Gradients;           // sample with UvDdx/UvDdy: in Light, which runs inside the light loop
 
+	// The view, for surfaces that look through themselves (glass's refraction). Unread ones cost nothing: the compiler
+	// drops them, and the depth read with them
+	public bool FrontFace;           // the pixel is on a front face (only two-sided materials draw back faces); a combiner surface's Normal is turned to the viewer
+	public float3 PositionFromOrigin;  // world, from the lighting origin (the main view's camera, in its shadow views too): ViewDistance is its length
+	public float3 CameraDirection;   // world, the camera's forward
+	public bool Orthographic;        // the view's projection is orthographic: view rays are parallel, along CameraDirection
+	public float4x4 WorldToProjection;   // world to clip space; a direction (w 0) relative to the camera projects as a point relative to it
+	public float3 ScenePosition;     // world: where the view ray through the pixel meets the opaque scene behind it (the depth buffer), as RecoverWorldPosFromProjectedDepthAndRay finds it
+	public float2 FrameBufferUvScale;  // ScreenUv to the frame-buffer copy's uv (it may be larger than the view)
+
 	public float4 Sample( MaterialTexture2D texture, float2 uv )
 	{
 		if ( kSampleWithGradients || Gradients ) return texture.SampleGrad( g_MaterialFiltering, uv, UvDdx, UvDdy );

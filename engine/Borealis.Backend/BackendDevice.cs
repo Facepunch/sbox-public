@@ -773,6 +773,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		{
 			lock ( sharedMaterials ) return Material( path, null );
 		} );
+
+		// Its scene attributes (overlay, NoZPrepass, ...) are the .shader material's: that material without textures
+		converted.SetAttributes( () => new BackendMaterial( path, Shaders.Load( file.Shader ), file, null ) );
 		return converted;
 	}
 

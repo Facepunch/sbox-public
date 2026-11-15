@@ -163,13 +163,18 @@ Texture2D SurfaceOpacityTexture()
 /// Whether the pixel is on a front face, set by the pixel entry: only a two-sided material's draws rasterize back faces.
 static bool s_SurfaceFrontFace = true;
 
-/// What a raster pass hands Evaluate. A back face's normal is turned to the viewer, as complex.shader does for materials
-/// that render back faces; the tangents stay as they are.
+/// What a raster pass hands Evaluate. A combiner surface's back face has its normal turned to the viewer, as complex.shader
+/// does for materials that render back faces; other surfaces keep the face's own, as common/pixel.hlsl's shaders do (their
+/// FrontFace says which side is seen). The tangents stay as they are.
 SurfaceInput MakeSurfaceInput( PixelInput i )
 {
 	SurfaceInput s;
 	s.Position = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
+#ifdef SURFACE_FINAL_COMBINER
 	s.Normal = normalize( s_SurfaceFrontFace ? i.vNormalWs.xyz : -i.vNormalWs.xyz );
+#else
+	s.Normal = normalize( i.vNormalWs.xyz );
+#endif
 	s.TangentU = i.vTangentUWs;
 	s.TangentV = i.vTangentVWs;
 	s.Uv = i.vTextureCoords.xy;
@@ -193,6 +198,16 @@ SurfaceInput MakeSurfaceInput( PixelInput i )
 	s.UvDdx = ddx( s.Uv );
 	s.UvDdy = ddy( s.Uv );
 	s.Gradients = false;
+
+	s.FrontFace = s_SurfaceFrontFace;
+	s.PositionFromOrigin = i.vPositionWithOffsetWs.xyz;
+	s.CameraDirection = g_vCameraDirWs;
+	s.Orthographic = g_matViewToProjection[3].w != 0;
+	s.WorldToProjection = g_matWorldToProjection;
+	// As glass.shader finds it: the ray along the camera's forward in an orthographic view, through the pixel otherwise
+	float3 ray = s.Orthographic ? g_vCameraDirWs : normalize( i.vPositionWithOffsetWs.xyz );
+	s.ScenePosition = RecoverWorldPosFromProjectedDepthAndRay( 1.0 - Depth::GetNormalized( i.vPositionSs.xy ), ray );
+	s.FrameBufferUvScale = g_vFrameBufferCopyInvSizeAndUvScale.zw;
 	return s;
 }
 

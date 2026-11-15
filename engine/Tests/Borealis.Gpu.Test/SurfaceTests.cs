@@ -168,17 +168,17 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// Every pass also comes GPU-driven: its vertex stage pulls its vertices (no vertex inputs), and neither stage reads
-	/// the classic records' buffer.
+	/// Every pass also comes GPU-driven, the translucent forward pass too: its vertex stage pulls its vertices (no vertex
+	/// inputs), and neither stage reads the classic records' buffer.
 	/// </summary>
 	[TestMethod]
 	public void SurfacesHaveGpuDrivenPasses()
 	{
-		foreach ( var path in new[] { Path.Combine( Surfaces, "rock.slang" ), Path.Combine( Surfaces, "foliage.slang" ), Path.Combine( Core, "shaders", "blendable.slang" ) } )
+		foreach ( var path in new[] { Path.Combine( Surfaces, "rock.slang" ), Path.Combine( Core, "shaders", "foliage.slang" ), Path.Combine( Core, "shaders", "blendable.slang" ) } )
 		{
 			var surface = Compiler().CompileSurface( path );
 			Assert.IsNull( surface.GpuDrivenError, surface.GpuDrivenError );
-			foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
+			foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Forward + "Translucent", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
 			{
 				foreach ( var suffix in new[] { ShaderPasses.GpuDriven, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped } )
 				{
@@ -335,7 +335,7 @@ public class SurfaceTests : GpuTest
 		Assert.IsNotNull( lit.Pass( ShaderPasses.Forward ).Pixel.Spirv );
 
 		// A sun-lit surface (foliage) lights once, outside the loop, and leaves the loop alone
-		var sunLit = Compiler().CompileSurface( Path.Combine( Surfaces, "foliage.slang" ) );
+		var sunLit = Compiler().CompileSurface( Path.Combine( Core, "shaders", "foliage.slang" ) );
 		StringAssert.Contains( sunLit.Generated, "SurfaceForwardSunLit<Foliage, true>" );
 		Assert.IsFalse( sunLit.Generated.Contains( "SURFACE_LIGHT_HOOK", StringComparison.Ordinal ) );
 	}
@@ -832,6 +832,47 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// glass.slang: F_TRANSLUCENT puts a glass material in the translucent layer whatever its quality, refractive glass
+	/// unblended, simple glass blended by opacity, layered glass premultiplied, all writing depth as glass.shader does; with
+	/// no depth passes of its own. Its forward pass reads the frame-buffer copy, the depth chain and the BRDF lookup by
+	/// attribute; a surface that doesn't read the view inputs (complex) doesn't bind the copy.
+	/// </summary>
+	[TestMethod]
+	public void GlassDrawsTranslucentFromTheFrameBufferCopy()
+	{
+		var glass = Compiler().CompileSurface( Path.Combine( Core, "shaders", "glass.slang" ) );
+		var layout = glass.Material;
+		Assert.AreEqual( true, layout.RenderState.DepthWrite );
+
+		SurfaceRenderState Resolve( int translucent, int quality )
+		{
+			var record = new byte[layout.Size];
+			BitConverter.TryWriteBytes( record.AsSpan( layout.Field( "UseTranslucent" ).Offset ), translucent );
+			BitConverter.TryWriteBytes( record.AsSpan( layout.Field( "Quality" ).Offset ), quality );
+			return layout.States().Resolve( record );
+		}
+
+		Assert.IsTrue( Resolve( 1, 0 ) is { Blend: SurfaceBlend.Opaque, Translucent: true, DepthWrite: true, DrawsTranslucent: true } );
+		Assert.IsTrue( Resolve( 1, 1 ) is { Blend: SurfaceBlend.Alpha, DepthWrite: true, DrawsTranslucent: true } );
+		Assert.IsTrue( Resolve( 1, 2 ) is { Blend: SurfaceBlend.Premultiplied, DrawsTranslucent: true } );
+		Assert.IsTrue( Resolve( 0, 0 ) is { DrawsTranslucent: false } );
+
+		var forward = glass.Pass( ShaderPasses.Forward + "Translucent" ).Pixel;
+		foreach ( var name in new[] { "FrameBufferCopyTexture", "DepthChainDownsample", "BRDFLookup" } )
+			Assert.IsTrue( forward.Bindings.Any( b => b.Name == name ), name );
+		Assert.IsNotNull( glass.Pass( ShaderPasses.Forward + "Translucent" + ShaderPasses.GpuDriven ), glass.GpuDrivenError );
+
+		var complex = Compiler().CompileSurface( Path.Combine( Core, "shaders", "complex.slang" ) ).Pass( ShaderPasses.Forward ).Pixel;
+		Assert.IsFalse( complex.Bindings.Any( b => b.Name == "FrameBufferCopyTexture" ), string.Join( ", ", complex.Bindings.Select( b => b.Name ) ) );
+
+		// A translucent glass material is translucent and has no depth passes: its .shader's draw its shadows
+		using var backend = new BackendDevice( Device );
+		var material = (SurfaceMaterial)backend.Surfaces.CreateMaterial( Path.Combine( Core, "shaders", "glass.slang" ), null, new Dictionary<string, float[]> { ["F_TRANSLUCENT"] = [1] } );
+		Assert.IsTrue( material.IsTranslucent );
+		Assert.IsTrue( material.RenderState is { Blend: SurfaceBlend.Opaque, Translucent: true } );
+	}
+
+	/// <summary>
 	/// The converter's render state: a .shader's RenderState lines evaluated per feature value become the struct's
 	/// attributes and rules on the features' fields, as static_overlay.slang and generic.slang declare them by hand.
 	/// </summary>
@@ -871,7 +912,7 @@ public class SurfaceTests : GpuTest
 	public void SurfaceRenderStatesMatchTheirShaders()
 	{
 		Compiler();
-		var shaders = new HashSet<string>( StringComparer.OrdinalIgnoreCase ) { "complex", "generic", "simple", "vertex_color", "static_overlay" };
+		var shaders = new HashSet<string>( StringComparer.OrdinalIgnoreCase ) { "complex", "generic", "simple", "vertex_color", "static_overlay", "glass", "foliage", "bark", "terrain_preview", "water_simple" };
 		var paths = Directory.EnumerateFiles( Path.Combine( Core, "materials" ), "*.vmat", SearchOption.AllDirectories )
 			.Concat( Directory.EnumerateFiles( Path.Combine( Core, "models" ), "*.vmat", SearchOption.AllDirectories ) )
 			.Where( p => System.Text.RegularExpressions.Regex.Match( File.ReadAllText( p ), @"""shader""\s+""shaders/(\w+)\.shader" ) is { Success: true } m && shaders.Contains( m.Groups[1].Value ) )
@@ -900,7 +941,9 @@ public class SurfaceTests : GpuTest
 			var differences = new List<string>();
 			if ( classicBlend.Enable != blend.Enable || (blend.Enable && (classicBlend.SourceColor, classicBlend.DestinationColor) != (blend.SourceColor, blend.DestinationColor)) )
 				differences.Add( $"blend {classicBlend.SourceColor}/{classicBlend.DestinationColor} ({(classicBlend.Enable ? "on" : "off")}) vs {state.Blend}" );
-			if ( expected.DepthWrite != state.DepthWrite ) differences.Add( $"depth write {expected.DepthWrite} vs {state.DepthWrite}" );
+			// foliage.shader's colour pass tests for equality after the prepass without writing; its surface writes the same depth
+			var foliage = surface.Shader.EndsWith( "foliage.slang", StringComparison.OrdinalIgnoreCase );
+			if ( expected.DepthWrite != state.DepthWrite && !foliage ) differences.Add( $"depth write {expected.DepthWrite} vs {state.DepthWrite}" );
 			if ( expected.DepthTest != state.DepthTest ) differences.Add( $"depth test {expected.DepthTest} vs {state.DepthTest}" );
 			if ( (expected.Cull == CullMode.None) != state.TwoSided ) differences.Add( $"cull {expected.Cull} vs two-sided {state.TwoSided}" );
 			// generic.shader clips its alpha test hard, without alpha to coverage; its surface's alpha-tested pass uses it, with a
@@ -915,6 +958,44 @@ public class SurfaceTests : GpuTest
 		if ( compared == 0 ) Assert.Inconclusive( "No core material of a converted shader is compiled" );
 		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
 		Assert.AreEqual( 0, mismatches.Count, string.Join( "\n", mismatches ) );
+	}
+
+	/// <summary>
+	/// A converted material answers the scene's attributes as its .shader material does (<c>overlay</c> puts a map's
+	/// decals in the static overlay layer, <c>NoZPrepass</c> keeps an object out of the prepass, and so on), whatever the
+	/// default asked with: the lab's map loader reads these for its objects' layers and flags.
+	/// </summary>
+	[TestMethod]
+	public void SurfaceSceneAttributesMatchTheirShaders()
+	{
+		Compiler();
+		using var classicDevice = new BackendDevice( Device );
+		classicDevice.Surfaces.ConvertShaders = false;
+		using var surfaceDevice = new BackendDevice( Device );
+
+		var compared = 0;
+		var set = 0;
+		var mismatches = new List<string>();
+		foreach ( var path in new[] { "materials/dev/static_overlay_test.vmat", "materials/tools/toolsclip.vmat", "materials/dev/primary_green_additive.vmat", "materials/default.vmat" } )
+		{
+			if ( ((GpuDevice)classicDevice).LoadMaterial( path ) is not BackendMaterial { Shader: not null } classic ) continue;
+			if ( ((GpuDevice)surfaceDevice).LoadMaterial( path ) is not SurfaceMaterial surface ) continue;
+			foreach ( var name in new[] { "overlay", "NoZPrepass", "DoNotCastShadows", "bWantsFBCopyTexture", "NeedsLightProbe", "SupportsLightmapping" } )
+			{
+				foreach ( var fallback in new[] { false, true } )
+				{
+					var expected = classic.Attribute( name, fallback );
+					if ( expected != fallback ) set++;
+					if ( expected != surface.Attribute( name, fallback ) ) mismatches.Add( $"{path} {name} (default {fallback}): {expected} vs {surface.Attribute( name, fallback )}" );
+				}
+			}
+
+			compared++;
+		}
+
+		if ( compared == 0 ) Assert.Inconclusive( "No test material of a converted shader is compiled" );
+		Assert.AreEqual( 0, mismatches.Count, string.Join( "\n", mismatches ) );
+		Assert.IsTrue( set > 0, "the shaders set none of the attributes" );
 	}
 
 	/// <summary>

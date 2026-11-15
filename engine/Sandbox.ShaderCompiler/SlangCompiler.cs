@@ -157,9 +157,10 @@ public sealed partial class SlangCompiler
 				var gpuForward = CompileEntry( instancePath, instance, "ForwardPsGpuDriven", StageKind.Pixel, directory, GpuDriven );
 				var gpuForwardAlphaTest = CompileEntry( instancePath, instance, "ForwardAlphaTestPsGpuDriven", StageKind.Pixel, directory, With( GpuDriven, AlphaTested ) );
 				var gpuDepthAlphaTest = CompileEntry( instancePath, instance, "DepthAlphaTestPsGpuDriven", StageKind.Pixel, directory, With( GpuDriven, AlphaTestedDepth ) );
+				var gpuForwardTranslucent = CompileEntry( instancePath, instance, "ForwardTranslucentPsGpuDriven", StageKind.Pixel, directory, With( GpuDriven, Translucent ) );
 				foreach ( var (v, suffix) in new[] { (gpuVertex, ShaderPasses.GpuDriven), (gpuVertexLightmapped, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped) } )
 				{
-					foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, gpuForward), (ShaderPasses.Forward + "AlphaTest", gpuForwardAlphaTest), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, gpuDepthAlphaTest) } )
+					foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, gpuForward), (ShaderPasses.Forward + "AlphaTest", gpuForwardAlphaTest), (ShaderPasses.Forward + "Translucent", gpuForwardTranslucent), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, gpuDepthAlphaTest) } )
 						passes[name + suffix] = new() { Name = name + suffix, Vertex = v, Pixel = pixel };
 				}
 			}
@@ -352,6 +353,7 @@ public sealed partial class SlangCompiler
 		text.Append( "#ifdef SURFACE_GPU_DRIVEN\n" );
 		text.Append( GpuDrivenPixel( "ForwardPsGpuDriven", false, false ) );
 		text.Append( GpuDrivenPixel( "ForwardAlphaTestPsGpuDriven", true, false ) );
+		text.Append( GpuDrivenPixel( "ForwardTranslucentPsGpuDriven", false, false ) );
 		text.Append( GpuDrivenPixel( "DepthAlphaTestPsGpuDriven", true, true ) );
 		text.Append( "#endif\n" );
 		text.Append( "#endif\n" );

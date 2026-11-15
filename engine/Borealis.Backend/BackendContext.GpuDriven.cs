@@ -983,7 +983,7 @@ internal sealed partial class BackendContext
 			if ( bucket.Surface is not null )
 			{
 				current = first is SurfaceMaterial surface && surface.RenderState == bucket.SurfaceState && device.Surfaces.For( surface ) is { } program && ReferenceEquals( program, bucket.SurfaceProgram )
-					&& ReferenceEquals( program.GpuDrivenPass( bucket.NoColor, bucket.SurfaceState.AlphaTest, LookupCombo( LightmapCombo ) is > 0 ), bucket.Surface );
+					&& ReferenceEquals( program.GpuDrivenPass( bucket.NoColor, bucket.SurfaceState.AlphaTest, LookupCombo( LightmapCombo ) is > 0, bucket.SurfaceState.DrawsTranslucent ), bucket.Surface );
 				continue;
 			}
 

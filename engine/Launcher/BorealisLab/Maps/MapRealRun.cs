@@ -112,6 +112,18 @@ internal static class MapRealRun
 		{
 			foreach ( var path in map.Backend.Surfaces.ConvertedPaths ) Console.WriteLine( $"  as a surface: {path}" );
 		}
+
+		// -material-values a,b: the values of the materials whose path contains one of these, as their .vmat sets them
+		if ( Args.String( "-material-values" ) is { } valuesOf )
+		{
+			var parts = valuesOf.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
+			foreach ( var path in map.Backend.Surfaces.ConvertedPaths.Where( p => parts.Any( q => p.Contains( q, StringComparison.OrdinalIgnoreCase ) ) ) )
+			{
+				if ( map.Backend.Content.TryRead( path ) is not { } data ) continue;
+				var file = global::Borealis.Source2.Materials.MaterialFile.Read( data );
+				Console.WriteLine( $"  values of {path} ({file.Shader}): {string.Join( ", ", file.Ints.Select( v => $"{v.Key}={v.Value}" ) )}; {string.Join( ", ", file.Floats.Select( v => $"{v.Key}={v.Value}" ) )}; {string.Join( ", ", file.Vectors.Select( v => $"{v.Key}=[{string.Join( " ", v.Value )}]" ) )}; {string.Join( ", ", file.Textures.Keys )}" );
+			}
+		}
 		foreach ( var problem in map.Problems.Take( 10 ) ) Console.WriteLine( $"  {problem}" );
 
 		using var timestamps = gpu.CreateTimestamps( 2 * 4 );

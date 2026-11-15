@@ -69,7 +69,13 @@ public sealed class SurfaceShaders : IDisposable
 		["blendable"] = "blendable.slang",
 		["generic"] = "generic.slang",
 		["vertex_color"] = "vertex_color.slang",
+		["static_overlay"] = "static_overlay.slang",
+		["glass"] = "glass.slang",
+		["foliage"] = "foliage.slang",
 		["simple"] = null,
+		["bark"] = null,
+		["terrain_preview"] = null,
+		["water_simple"] = null,
 	};
 
 	/// <summary>
@@ -447,16 +453,20 @@ internal sealed class SurfaceProgram : IDisposable
 	/// <summary>A pass by name, or null.</summary>
 	public PassObjects Pass( string name ) => passes.TryGetValue( name, out var pass ) ? pass : null;
 
-	readonly PassObjects[] gpuDrivenPasses = new PassObjects[8];
-	readonly bool[] gpuDrivenLooked = new bool[8];
+	readonly PassObjects[] gpuDrivenPasses = new PassObjects[16];
+	readonly bool[] gpuDrivenLooked = new bool[16];
 
-	/// <summary>A GPU-driven pass (<c>[Depth|Forward][AlphaTest]GpuDriven[Lightmapped]</c>), found once; null when there's none.</summary>
-	public PassObjects GpuDrivenPass( bool noColor, bool alphaTest, bool lightmapped )
+	/// <summary>
+	/// A GPU-driven pass (<c>[Depth|Forward][AlphaTest|Translucent]GpuDriven[Lightmapped]</c>), found once; null when
+	/// there's none. <paramref name="translucent"/> is the colour pass of blended materials (S_TRANSLUCENT).
+	/// </summary>
+	public PassObjects GpuDrivenPass( bool noColor, bool alphaTest, bool lightmapped, bool translucent = false )
 	{
-		var index = (noColor ? 4 : 0) | (alphaTest ? 2 : 0) | (lightmapped ? 1 : 0);
+		translucent &= !noColor;
+		var index = (translucent ? 8 : 0) | (noColor ? 4 : 0) | (alphaTest && !translucent ? 2 : 0) | (lightmapped ? 1 : 0);
 		if ( System.Threading.Volatile.Read( ref gpuDrivenLooked[index] ) ) return gpuDrivenPasses[index];
 
-		var name = (noColor ? (alphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth) : (alphaTest ? ShaderPasses.Forward + "AlphaTest" : ShaderPasses.Forward)) + ShaderPasses.GpuDriven;
+		var name = (noColor ? (alphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth) : translucent ? ShaderPasses.Forward + "Translucent" : (alphaTest ? ShaderPasses.Forward + "AlphaTest" : ShaderPasses.Forward)) + ShaderPasses.GpuDriven;
 		var found = (lightmapped ? Pass( name + ShaderPasses.Lightmapped ) : null) ?? Pass( name );
 		gpuDrivenPasses[index] = found;
 		System.Threading.Volatile.Write( ref gpuDrivenLooked[index], true );
@@ -517,7 +527,7 @@ internal sealed class SurfaceProgram : IDisposable
 
 				// Alpha-tested passes write today's alpha-to-coverage alpha (S_ALPHA_TEST), with multisampling only, as the
 				// .shaders' AlphaToCoverageEnable render state does; so does a fading object's (D_OPAQUE_FADE), unless it blends
-				AlphaToCoverage = samples > 1 && !state.Blends && (opaqueFade || pass.Pass.Name.Contains( "AlphaTest", StringComparison.Ordinal )),
+				AlphaToCoverage = samples > 1 && !state.DrawsTranslucent && (opaqueFade || pass.Pass.Name.Contains( "AlphaTest", StringComparison.Ordinal )),
 				ColorFormats = ids ? [Format.R8Unorm, Format.R32Uint] : depthOnly ? [] : [color],
 				DepthFormat = depth,
 				Samples = samples,
