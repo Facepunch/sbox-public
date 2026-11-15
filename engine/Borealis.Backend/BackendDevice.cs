@@ -207,7 +207,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	internal override bool TakesResident( GpuMaterial material ) => material switch
 	{
-		SurfaceMaterial surface => !surface.RenderState.Blends && surface.RenderState.DepthWrite && surface.RenderState.DepthTest && Surfaces.For( surface ) is { } program
+		SurfaceMaterial surface => !surface.RenderState.DrawsTranslucent && surface.RenderState.DepthWrite && surface.RenderState.DepthTest && Surfaces.For( surface ) is { } program
 			&& program.GpuDrivenPass( false, surface.RenderState.AlphaTest, false ) is not null && program.GpuDrivenPass( true, surface.RenderState.AlphaTest, false ) is not null,
 		BackendMaterial { Shader: { } shader } => Shaders.GpuDriven( shader ) is not null,
 		_ => false,
