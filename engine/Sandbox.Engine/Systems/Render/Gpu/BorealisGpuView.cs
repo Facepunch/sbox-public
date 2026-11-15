@@ -34,7 +34,7 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 	/// <summary>The kind of layer the stage is, which drawing code may check.</summary>
 	public SceneLayerType LayerType = SceneLayerType.Translucent;
 
-	/// <summary>The camera, as the view's frustum: set it up with <see cref="SetCamera"/>.</summary>
+	/// <summary>The camera, as the view's frustum: set it up with <see cref="SetCamera(SceneCamera, Vector2)"/>.</summary>
 	public CFrustum Frustum { get; } = CFrustum.Create();
 
 	/// <summary>Point the frustum where a camera is, as <c>CCameraRenderer</c> sets up its view's.</summary>
@@ -43,6 +43,13 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 		var aspect = size.y > 0 ? size.x / size.y : 1;
 		if ( camera.Ortho ) Frustum.InitOrthoCamera( camera.Position, camera.Rotation.Angles(), camera.ZNear, camera.ZFar, camera.OrthoHeight * aspect, camera.OrthoHeight );
 		else Frustum.InitCamera( camera.Position, camera.Rotation.Angles(), camera.ZNear, camera.ZFar, camera.FieldOfView, aspect );
+	}
+
+	/// <summary>Set the camera from a position, rotation and projection, for a view that isn't a scene camera's.</summary>
+	public void SetCamera( Vector3 position, Rotation rotation, float fieldOfView, float zNear, float zFar, float aspect, bool orthographic, Vector2 orthoSize )
+	{
+		if ( orthographic ) Frustum.InitOrthoCamera( position, rotation.Angles(), zNear, zFar, orthoSize.x, orthoSize.y );
+		else Frustum.InitCamera( position, rotation.Angles(), zNear, zFar, fieldOfView, aspect );
 	}
 
 	/// <summary>Bind the frame's targets and its viewport, as a stage starts.</summary>

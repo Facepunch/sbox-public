@@ -155,6 +155,10 @@ internal static class CrowdRun
 			long frameNumber = 0;
 			var step = 0;
 
+			// The window's title shows the frames' stats live, as the game window's does on Borealis.Gpu
+			var title = new BorealisGpuTitle();
+			Action<string> setTitle = text => window.Title = text;
+
 			Frame RenderFrame()
 			{
 				var f = default( Frame );
@@ -186,6 +190,7 @@ internal static class CrowdRun
 				f.Animate = Ms( t0, t1 );
 				f.Render = Ms( t2, t3 );
 				f.Copy = Ms( t3, t4 );
+				title.Frame( "Borealis Lab: Crowd Near", Sandbox.Rendering.ManagedFrameCounters.From( system.Stats ), f.Gpu, device, eye, setTitle );
 				return f;
 			}
 

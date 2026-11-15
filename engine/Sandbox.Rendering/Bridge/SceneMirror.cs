@@ -373,9 +373,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	{
 		// Probe volumes belong to the world's lighting list, not its draw list. An extra world's aren't drawn: the list is the
 		// main world's, for every view of it
-		// On a Borealis.Gpu device: what draws through native (custom and dynamic objects) isn't mirrored yet
+		// On a Borealis.Gpu device: dynamic objects, which draw native vertices, aren't mirrored yet
 		// (docs/managed/borealis-gpu-path.md)
-		if ( MirrorContent.Gpu is not null && sceneObject is SceneCustomObject or SceneDynamicObject )
+		if ( MirrorContent.Gpu is not null && sceneObject is SceneDynamicObject )
 		{
 			objects[sceneObject] = null;
 			Count( sceneObject, 1 );
