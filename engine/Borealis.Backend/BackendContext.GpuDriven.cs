@@ -192,238 +192,238 @@ internal sealed partial class BackendContext
 
 		try
 		{
-		if ( batchLighting.Length < batches.Length ) Array.Resize( ref batchLighting, Math.Max( batches.Length, batchLighting.Length * 2 ) );
-
-		// Culled on the GPU when every batch is a whole aggregate whose fragments' transforms are in order
-		var gpuCull = device.GpuDrivenCulling && cull.HasValue && CullShader is not null;
-		ShaderParameters lastAttributes = null;
-		var lastAttributesSet = false;
-		var lastLighting = 0u;
-		var lastKey = 0L;
-		for ( int i = plan is null ? 0 : prefix; i < batches.Length; i++ )
-		{
-			// The batches after a resident prefix go in buckets of their own
-			if ( i == prefix && plan is null && prefix > 0 ) openBucket = prefixBuckets = gpuDrivenBucketCount;
-
-			ref readonly var batch = ref batches[i];
-			if ( batch.TextureSize > 0 ) device.AskTextures( batch.Material, batch.TextureSize );
-
-			// A surface material: its own GPU-driven passes, in buckets of its own (BackendContext.Surfaces.cs)
-			if ( batch.Material is SurfaceMaterial surface )
-			{
-				if ( batch.Mesh?.Geometry is IBackendGeometry surfaceSource && surfaceSource.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled is not null )
-				{
-					SetObjectAttributes( null, batch.ObjectAttributes );
-					NextPassState( cache );
-					if ( batchLighting.Length < batches.Length ) Array.Resize( ref batchLighting, Math.Max( batches.Length, batchLighting.Length * 2 ) );
-					if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) )
-					{
-						(lastAttributes, lastAttributesSet) = (batch.ObjectAttributes, true);
-						lastLighting = tables.Lighting( Lookup( BakedLightingToken ) as byte[], Lookup( ProbeVolumeToken ) as byte[] );
-						lastKey = AttributesKey( batch.ObjectAttributes );
-					}
-
-					batchLighting[i] = lastLighting;
-					if ( SurfaceBucket( surface, shaderMode, batch.StripPixelShader || r.Color is null, batch.ObjectAttributes, lastKey ) is { } surfaceBucket )
-					{
-						surfaceBucket.Batches.Add( (surfaceSource.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled.Value.IndexPageSlot, i) );
-						device.Surfaces.CountGpuDriven();
-						surfaceBucket.Commands += batch.Count;
-						totalCommands += batch.Count;
-						var surfaceFragments = batch.Instances ? batch.Count : batch.Owner is AggregateObject surfaceAggregate ? surfaceAggregate.Fragments.Length : 0;
-						gpuCull &= surfaceFragments > 0 && (batch.Instances || transforms.InstanceSlot( batch.FirstInstance + surfaceFragments - 1 ) == transforms.InstanceSlot( batch.FirstInstance ) + surfaceFragments - 1);
-						surfaceBucket.Fragments += surfaceFragments;
-						totalFragments += surfaceFragments;
-					}
-				}
-
-				continue;
-			}
-
-			if ( batch.Material is not BackendMaterial { Shader: { } shader } m || batch.Mesh?.Geometry is not IBackendGeometry source ) continue;
-			if ( source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled is null )
-			{
-				LeftClassic( shader, shaderMode, "geometry not pooled" );
-				continue;
-			}
-
-			SetObjectAttributes( null, batch.ObjectAttributes );
-			NextPassState( cache );
-			var mode = CachedModeName( shader, shaderMode );
-			if ( mode is null ) continue;
-
-			// Its lighting constants as the draw would read them (the object's, else the pass's), as a lighting record
 			if ( batchLighting.Length < batches.Length ) Array.Resize( ref batchLighting, Math.Max( batches.Length, batchLighting.Length * 2 ) );
-			// Consecutive batches mostly share their attributes (the world's lightmap, a probe volume): looked up once for them
-			if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) )
+
+			// Culled on the GPU when every batch is a whole aggregate whose fragments' transforms are in order
+			var gpuCull = device.GpuDrivenCulling && cull.HasValue && CullShader is not null;
+			ShaderParameters lastAttributes = null;
+			var lastAttributesSet = false;
+			var lastLighting = 0u;
+			var lastKey = 0L;
+			for ( int i = plan is null ? 0 : prefix; i < batches.Length; i++ )
 			{
-				(lastAttributes, lastAttributesSet) = (batch.ObjectAttributes, true);
-				lastLighting = tables.Lighting( Lookup( BakedLightingToken ) as byte[], Lookup( ProbeVolumeToken ) as byte[] );
-				lastKey = AttributesKey( batch.ObjectAttributes );
-			}
+				// The batches after a resident prefix go in buckets of their own
+				if ( i == prefix && plan is null && prefix > 0 ) openBucket = prefixBuckets = gpuDrivenBucketCount;
 
-			batchLighting[i] = lastLighting;
+				ref readonly var batch = ref batches[i];
+				if ( batch.TextureSize > 0 ) device.AskTextures( batch.Material, batch.TextureSize );
 
-			comboLookup ??= name => LookupCombo( Token( name ) );
-			specializationLookup ??= name => Integer( Lookup( Token( name ) ) );
-			var variant = m.GpuDrivenVariant( device.Shaders, mode, ComboKey( m, mode ), comboLookup, specializationLookup );
-			if ( variant?.Vertex?.Bytecode is null )
-			{
-				LeftClassic( shader, mode, "no variant" );
-				continue;
-			}
-
-			var noColor = batch.StripPixelShader || r.Color is null;
-			var depthOnly = StripsPixelShader( m, noColor, batch.StripPixelShader );
-			if ( !depthOnly && variant.Pixel?.Bytecode is null )
-			{
-				LeftClassic( shader, mode, "no pixel variant" );
-				continue;
-			}
-
-			// One material per bucket where pixels read it, when asked: its record's offset is then the bucket's, uniform
-			var pixelMaterial = 0u;
-			if ( device.GpuDrivenMaterialBuckets && !depthOnly )
-			{
-				var uncompressed = source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).UncompressedTangentFrame;
-				pixelMaterial = MaterialRecord( tables, m, variant.Pixel, uncompressed );
-			}
-
-			var bucket = FindBucket( variant, batch.ObjectAttributes, lastKey, depthOnly, noColor, pixelMaterial, m, mode );
-			bucket.Batches.Add( (source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled.Value.IndexPageSlot, i) );
-			bucket.Commands += batch.Count;
-			totalCommands += batch.Count;
-
-			// A mesh draw's instances are its fragments, each with its own transform slot; an aggregate's need theirs in order
-			var fragmentCount = batch.Instances ? batch.Count : batch.Owner is AggregateObject aggregate ? aggregate.Fragments.Length : 0;
-			gpuCull &= fragmentCount > 0 && (batch.Instances || transforms.InstanceSlot( batch.FirstInstance + fragmentCount - 1 ) == transforms.InstanceSlot( batch.FirstInstance ) + fragmentCount - 1);
-			bucket.Fragments += fragmentCount;
-			totalFragments += fragmentCount;
-		}
-
-		SetObjectAttributes( null );
-		if ( plan is null && prefix == batches.Length ) prefixBuckets = gpuDrivenBucketCount;
-		if ( gpuDrivenBucketCount == 0 ) return true;
-		if ( plan is not null && !gpuCull ) return false;
-		if ( Census ) CensusBuckets( batches );
-
-		if ( gpuCull )
-		{
-			DrawGpuCulled( shaderMode, batches, transforms, cull.Value, totalFragments, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, drawn, plan, prefix, prefixBuckets, totalCommands );
-			TimeGpuDriven( start, drawn, totalFragments );
-			return true;
-		}
-
-		// One region this frame for every instance record (8 bytes) and command (20 bytes)
-		var instanceBytes = totalCommands * GpuDrivenTables.InstanceStride;
-		var commandBase = (instanceBytes + 15) & ~15;
-		var frameBytes = commandBase + totalCommands * GpuDrivenTables.CommandStride;
-		var (frameBuffer, frameSlot, frameOffset) = tables.Allocate( frameBytes );
-		var data = Gpu.Map( frameBuffer ).Slice( (int)frameOffset, frameBytes );
-		var firstInstance = (uint)(frameOffset / GpuDrivenTables.InstanceStride);
-		var instances = MemoryMarshal.Cast<byte, uint>( data[..instanceBytes] );
-		var commands = MemoryMarshal.Cast<byte, GpuBuffer.IndirectDrawIndexedArguments>( data.Slice( commandBase, totalCommands * GpuDrivenTables.CommandStride ) );
-
-		var slots = tables.Slots;
-		SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, VertexBases = (uint)frameOffset - firstInstance * 4, Lighting = (uint)slots.Lighting } );
-
-		var written = 0;
-		for ( int b = 0; b < gpuDrivenBucketCount; b++ )
-		{
-			var bucket = gpuDrivenBuckets[b];
-
-			// A bucket's one material, where it has one, is an object attribute: another bucket's moves a dynamic offset
-			SetObjectAttributes( bucket.PixelMaterial != 0 ? device.GpuDrivenMaterialParameters( bucket.PixelMaterial ) : null, bucket.Attributes );
-			NextPassState( cache );
-			resolver.Begin( passEpoch );
-
-			// The records, and each batch's commands, by index page
-			var bucketStart = written;
-			var currentPage = default( BufferHandle );
-			var currentFormat = IndexFormat.UInt16;
-			var runStart = written;
-			var bound = false;
-
-			bucket.Batches.Sort( static ( a, b ) => a.Page != b.Page ? a.Page.CompareTo( b.Page ) : a.Batch.CompareTo( b.Batch ) );
-			foreach ( var (_, index) in bucket.Batches )
-			{
-				ref readonly var batch = ref batches[index];
-				var material = batch.Material;
-				var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
-				var pooled = geometry.Pooled.Value;
-
-				// Depth only, from the positions-only copy when the vertex shader reads nothing else these vertices have
-				if ( bucket.Classic is not null && device.PositionStreams && pooled.PositionsRecord != 0 && ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) pooled = pooled with { GeometryRecord = pooled.PositionsRecord };
-
-				var (vertexMaterial, pixelMaterial) = Records( tables, bucket, material, geometry.UncompressedTangentFrame );
-				var flags = (geometry.UncompressedTangentFrame ? 1u : 0u) | batchLighting[index] << 8;
-
-				if ( pooled.IndexPage != currentPage )
+				// A surface material: its own GPU-driven passes, in buckets of its own (BackendContext.Surfaces.cs)
+				if ( batch.Material is SurfaceMaterial surface )
 				{
-					if ( written > runStart ) DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, currentPage, currentFormat, frameBuffer, frameOffset + commandBase + runStart * GpuDrivenTables.CommandStride, written - runStart );
-					currentPage = pooled.IndexPage;
-					currentFormat = pooled.IndexFormat;
-					runStart = written;
-				}
-
-				// An owner's fragments keep their draw records by instance; anything else looks them up by key. The owner's
-				// lock is held only around its records and the draw table, which takes no other lock, and is let go whatever
-				// throws, so a worker drawing the same owner in another segment can't wait on it forever
-				var owned = batch.Owner is null ? null : tables.DrawsOf( batch.Owner, pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags );
-				var ownedTaken = false;
-				try
-				{
-					if ( owned is not null ) System.Threading.Monitor.Enter( owned, ref ownedTaken );
-
-					for ( int f = 0; f < batch.Count; f++ )
+					if ( batch.Mesh?.Geometry is IBackendGeometry surfaceSource && surfaceSource.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled is not null )
 					{
-						var arg = batch.Instances ? InstanceArguments( batch, geometry, f ) : args[batch.FirstArg + f];
-						var firstIndex = pooled.FirstIndex + arg.FirstIndex;
-						uint draw;
-						if ( owned is null )
+						SetObjectAttributes( null, batch.ObjectAttributes );
+						NextPassState( cache );
+						if ( batchLighting.Length < batches.Length ) Array.Resize( ref batchLighting, Math.Max( batches.Length, batchLighting.Length * 2 ) );
+						if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) )
 						{
-							draw = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot );
-						}
-						else
-						{
-							var slot = (int)arg.FirstInstance;
-							if ( slot >= owned.Draws.Length ) Array.Resize( ref owned.Draws, Math.Max( slot + 1, owned.Draws.Length * 2 ) );
-
-							ref var entry = ref owned.Draws[slot];
-							if ( entry.IndexCount != arg.IndexCount || entry.FirstIndex != firstIndex || entry.BaseVertex != arg.BaseVertex )
-								entry = new GpuDrivenTables.OwnerDraw( firstIndex, arg.IndexCount, arg.BaseVertex, tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot ) );
-							draw = entry.Draw;
+							(lastAttributes, lastAttributesSet) = (batch.ObjectAttributes, true);
+							lastLighting = tables.Lighting( Lookup( BakedLightingToken ) as byte[], Lookup( ProbeVolumeToken ) as byte[] );
+							lastKey = AttributesKey( batch.ObjectAttributes );
 						}
 
-						instances[written * 2] = (uint)transforms.InstanceSlot( batch.FirstInstance + (int)arg.FirstInstance );
-						instances[written * 2 + 1] = draw;
-						commands[written] = new GpuBuffer.IndirectDrawIndexedArguments
+						batchLighting[i] = lastLighting;
+						if ( SurfaceBucket( surface, shaderMode, batch.StripPixelShader || r.Color is null, batch.ObjectAttributes, lastKey ) is { } surfaceBucket )
 						{
-							IndexCount = arg.IndexCount,
-							InstanceCount = 1,
-							FirstIndex = firstIndex,
-							BaseVertex = arg.BaseVertex,
-							FirstInstance = firstInstance + (uint)written,
-						};
-						written++;
+							surfaceBucket.Batches.Add( (surfaceSource.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled.Value.IndexPageSlot, i) );
+							device.Surfaces.CountGpuDriven();
+							surfaceBucket.Commands += batch.Count;
+							totalCommands += batch.Count;
+							var surfaceFragments = batch.Instances ? batch.Count : batch.Owner is AggregateObject surfaceAggregate ? surfaceAggregate.Fragments.Length : 0;
+							gpuCull &= surfaceFragments > 0 && (batch.Instances || transforms.InstanceSlot( batch.FirstInstance + surfaceFragments - 1 ) == transforms.InstanceSlot( batch.FirstInstance ) + surfaceFragments - 1);
+							surfaceBucket.Fragments += surfaceFragments;
+							totalFragments += surfaceFragments;
+						}
 					}
-				}
-				finally
-				{
-					if ( ownedTaken ) System.Threading.Monitor.Exit( owned );
+
+					continue;
 				}
 
-				drawn[index] = true;
+				if ( batch.Material is not BackendMaterial { Shader: { } shader } m || batch.Mesh?.Geometry is not IBackendGeometry source ) continue;
+				if ( source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled is null )
+				{
+					LeftClassic( shader, shaderMode, "geometry not pooled" );
+					continue;
+				}
+
+				SetObjectAttributes( null, batch.ObjectAttributes );
+				NextPassState( cache );
+				var mode = CachedModeName( shader, shaderMode );
+				if ( mode is null ) continue;
+
+				// Its lighting constants as the draw would read them (the object's, else the pass's), as a lighting record
+				if ( batchLighting.Length < batches.Length ) Array.Resize( ref batchLighting, Math.Max( batches.Length, batchLighting.Length * 2 ) );
+				// Consecutive batches mostly share their attributes (the world's lightmap, a probe volume): looked up once for them
+				if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) )
+				{
+					(lastAttributes, lastAttributesSet) = (batch.ObjectAttributes, true);
+					lastLighting = tables.Lighting( Lookup( BakedLightingToken ) as byte[], Lookup( ProbeVolumeToken ) as byte[] );
+					lastKey = AttributesKey( batch.ObjectAttributes );
+				}
+
+				batchLighting[i] = lastLighting;
+
+				comboLookup ??= name => LookupCombo( Token( name ) );
+				specializationLookup ??= name => Integer( Lookup( Token( name ) ) );
+				var variant = m.GpuDrivenVariant( device.Shaders, mode, ComboKey( m, mode ), comboLookup, specializationLookup );
+				if ( variant?.Vertex?.Bytecode is null )
+				{
+					LeftClassic( shader, mode, "no variant" );
+					continue;
+				}
+
+				var noColor = batch.StripPixelShader || r.Color is null;
+				var depthOnly = StripsPixelShader( m, noColor, batch.StripPixelShader );
+				if ( !depthOnly && variant.Pixel?.Bytecode is null )
+				{
+					LeftClassic( shader, mode, "no pixel variant" );
+					continue;
+				}
+
+				// One material per bucket where pixels read it, when asked: its record's offset is then the bucket's, uniform
+				var pixelMaterial = 0u;
+				if ( device.GpuDrivenMaterialBuckets && !depthOnly )
+				{
+					var uncompressed = source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).UncompressedTangentFrame;
+					pixelMaterial = MaterialRecord( tables, m, variant.Pixel, uncompressed );
+				}
+
+				var bucket = FindBucket( variant, batch.ObjectAttributes, lastKey, depthOnly, noColor, pixelMaterial, m, mode );
+				bucket.Batches.Add( (source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled.Value.IndexPageSlot, i) );
+				bucket.Commands += batch.Count;
+				totalCommands += batch.Count;
+
+				// A mesh draw's instances are its fragments, each with its own transform slot; an aggregate's need theirs in order
+				var fragmentCount = batch.Instances ? batch.Count : batch.Owner is AggregateObject aggregate ? aggregate.Fragments.Length : 0;
+				gpuCull &= fragmentCount > 0 && (batch.Instances || transforms.InstanceSlot( batch.FirstInstance + fragmentCount - 1 ) == transforms.InstanceSlot( batch.FirstInstance ) + fragmentCount - 1);
+				bucket.Fragments += fragmentCount;
+				totalFragments += fragmentCount;
 			}
 
-			if ( written > runStart ) DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, currentPage, currentFormat, frameBuffer, frameOffset + commandBase + runStart * GpuDrivenTables.CommandStride, written - runStart );
-			bucket.Batches.Clear();
-		}
+			SetObjectAttributes( null );
+			if ( plan is null && prefix == batches.Length ) prefixBuckets = gpuDrivenBucketCount;
+			if ( gpuDrivenBucketCount == 0 ) return true;
+			if ( plan is not null && !gpuCull ) return false;
+			if ( Census ) CensusBuckets( batches );
 
-		SetObjectAttributes( null );
-		r.Binder = null;
-		TimeGpuDriven( start, drawn, written );
-		return true;
+			if ( gpuCull )
+			{
+				DrawGpuCulled( shaderMode, batches, transforms, cull.Value, totalFragments, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, drawn, plan, prefix, prefixBuckets, totalCommands );
+				TimeGpuDriven( start, drawn, totalFragments );
+				return true;
+			}
+
+			// One region this frame for every instance record (8 bytes) and command (20 bytes)
+			var instanceBytes = totalCommands * GpuDrivenTables.InstanceStride;
+			var commandBase = (instanceBytes + 15) & ~15;
+			var frameBytes = commandBase + totalCommands * GpuDrivenTables.CommandStride;
+			var (frameBuffer, frameSlot, frameOffset) = tables.Allocate( frameBytes );
+			var data = Gpu.Map( frameBuffer ).Slice( (int)frameOffset, frameBytes );
+			var firstInstance = (uint)(frameOffset / GpuDrivenTables.InstanceStride);
+			var instances = MemoryMarshal.Cast<byte, uint>( data[..instanceBytes] );
+			var commands = MemoryMarshal.Cast<byte, GpuBuffer.IndirectDrawIndexedArguments>( data.Slice( commandBase, totalCommands * GpuDrivenTables.CommandStride ) );
+
+			var slots = tables.Slots;
+			SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, VertexBases = (uint)frameOffset - firstInstance * 4, Lighting = (uint)slots.Lighting } );
+
+			var written = 0;
+			for ( int b = 0; b < gpuDrivenBucketCount; b++ )
+			{
+				var bucket = gpuDrivenBuckets[b];
+
+				// A bucket's one material, where it has one, is an object attribute: another bucket's moves a dynamic offset
+				SetObjectAttributes( bucket.PixelMaterial != 0 ? device.GpuDrivenMaterialParameters( bucket.PixelMaterial ) : null, bucket.Attributes );
+				NextPassState( cache );
+				resolver.Begin( passEpoch );
+
+				// The records, and each batch's commands, by index page
+				var bucketStart = written;
+				var currentPage = default( BufferHandle );
+				var currentFormat = IndexFormat.UInt16;
+				var runStart = written;
+				var bound = false;
+
+				bucket.Batches.Sort( static ( a, b ) => a.Page != b.Page ? a.Page.CompareTo( b.Page ) : a.Batch.CompareTo( b.Batch ) );
+				foreach ( var (_, index) in bucket.Batches )
+				{
+					ref readonly var batch = ref batches[index];
+					var material = batch.Material;
+					var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
+					var pooled = geometry.Pooled.Value;
+
+					// Depth only, from the positions-only copy when the vertex shader reads nothing else these vertices have
+					if ( bucket.Classic is not null && device.PositionStreams && pooled.PositionsRecord != 0 && ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) pooled = pooled with { GeometryRecord = pooled.PositionsRecord };
+
+					var (vertexMaterial, pixelMaterial) = Records( tables, bucket, material, geometry.UncompressedTangentFrame );
+					var flags = (geometry.UncompressedTangentFrame ? 1u : 0u) | batchLighting[index] << 8;
+
+					if ( pooled.IndexPage != currentPage )
+					{
+						if ( written > runStart ) DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, currentPage, currentFormat, frameBuffer, frameOffset + commandBase + runStart * GpuDrivenTables.CommandStride, written - runStart );
+						currentPage = pooled.IndexPage;
+						currentFormat = pooled.IndexFormat;
+						runStart = written;
+					}
+
+					// An owner's fragments keep their draw records by instance; anything else looks them up by key. The owner's
+					// lock is held only around its records and the draw table, which takes no other lock, and is let go whatever
+					// throws, so a worker drawing the same owner in another segment can't wait on it forever
+					var owned = batch.Owner is null ? null : tables.DrawsOf( batch.Owner, pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags );
+					var ownedTaken = false;
+					try
+					{
+						if ( owned is not null ) System.Threading.Monitor.Enter( owned, ref ownedTaken );
+
+						for ( int f = 0; f < batch.Count; f++ )
+						{
+							var arg = batch.Instances ? InstanceArguments( batch, geometry, f ) : args[batch.FirstArg + f];
+							var firstIndex = pooled.FirstIndex + arg.FirstIndex;
+							uint draw;
+							if ( owned is null )
+							{
+								draw = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot );
+							}
+							else
+							{
+								var slot = (int)arg.FirstInstance;
+								if ( slot >= owned.Draws.Length ) Array.Resize( ref owned.Draws, Math.Max( slot + 1, owned.Draws.Length * 2 ) );
+
+								ref var entry = ref owned.Draws[slot];
+								if ( entry.IndexCount != arg.IndexCount || entry.FirstIndex != firstIndex || entry.BaseVertex != arg.BaseVertex )
+									entry = new GpuDrivenTables.OwnerDraw( firstIndex, arg.IndexCount, arg.BaseVertex, tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot ) );
+								draw = entry.Draw;
+							}
+
+							instances[written * 2] = (uint)transforms.InstanceSlot( batch.FirstInstance + (int)arg.FirstInstance );
+							instances[written * 2 + 1] = draw;
+							commands[written] = new GpuBuffer.IndirectDrawIndexedArguments
+							{
+								IndexCount = arg.IndexCount,
+								InstanceCount = 1,
+								FirstIndex = firstIndex,
+								BaseVertex = arg.BaseVertex,
+								FirstInstance = firstInstance + (uint)written,
+							};
+							written++;
+						}
+					}
+					finally
+					{
+						if ( ownedTaken ) System.Threading.Monitor.Exit( owned );
+					}
+
+					drawn[index] = true;
+				}
+
+				if ( written > runStart ) DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, currentPage, currentFormat, frameBuffer, frameOffset + commandBase + runStart * GpuDrivenTables.CommandStride, written - runStart );
+				bucket.Batches.Clear();
+			}
+
+			SetObjectAttributes( null );
+			r.Binder = null;
+			TimeGpuDriven( start, drawn, written );
+			return true;
 		}
 		finally
 		{
