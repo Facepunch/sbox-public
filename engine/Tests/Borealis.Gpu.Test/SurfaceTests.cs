@@ -168,8 +168,8 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// Every pass also comes GPU-driven: its vertex stage pulls its vertices (no vertex inputs), and neither stage reads
-	/// the classic records' buffer.
+	/// Every pass also comes GPU-driven, the translucent forward pass too: its vertex stage pulls its vertices (no vertex
+	/// inputs), and neither stage reads the classic records' buffer.
 	/// </summary>
 	[TestMethod]
 	public void SurfacesHaveGpuDrivenPasses()
@@ -178,7 +178,7 @@ public class SurfaceTests : GpuTest
 		{
 			var surface = Compiler().CompileSurface( path );
 			Assert.IsNull( surface.GpuDrivenError, surface.GpuDrivenError );
-			foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
+			foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Forward + "Translucent", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
 			{
 				foreach ( var suffix in new[] { ShaderPasses.GpuDriven, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped } )
 				{
