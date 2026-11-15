@@ -594,7 +594,7 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// complex.slang stands in for complex.shader's materials and draws them as complex.shader does, through the final
+	/// standard.slang stands in for complex.shader's materials and draws them as complex.shader does, through the final
 	/// combiner; a material using a feature it doesn't do (translucency) stays on complex.shader.
 	/// </summary>
 	[TestMethod]
@@ -756,9 +756,9 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// The final combiner family's other surfaces, on by default: generic.slang (plain, specular on, self-illuminated,
+	/// The final combiner family's other surfaces, on by default: standard.slang with generic's materials (plain, specular on, self-illuminated,
 	/// two-sided, unlit, alpha-tested, translucent) and vertex_color.slang (the mesh's colour as Varyings) draw their
-	/// materials as their .shader does, and so do complex.slang's translucent ones; a material using a feature a surface
+	/// materials as their .shader does, and so do complex's translucent ones; a material using a feature a surface
 	/// doesn't do (generic's vertex paint) stays on the .shader.
 	/// </summary>
 	[TestMethod]
@@ -1015,7 +1015,7 @@ public class SurfaceTests : GpuTest
 
 	/// <summary>
 	/// The converter's render state: a .shader's RenderState lines evaluated per feature value become the struct's
-	/// attributes and rules on the features' fields, as static_overlay.slang and generic.slang declare them by hand.
+	/// attributes and rules on the features' fields, as static_overlay.slang and standard.slang declare them by hand.
 	/// </summary>
 	[TestMethod]
 	public void ConverterTranslatesRenderStates()

@@ -57,13 +57,12 @@ public sealed class SurfaceShaders : IDisposable
 		}
 
 		if ( !ConvertShaders ) return null;
-		if ( SeparateStandard && SeparateSurfaces.TryGetValue( key, out var separate ) ) return DefaultSurface( key, separate );
 		return DefaultSurfaces.TryGetValue( key, out var surface ) ? DefaultSurface( key, surface ) : null;
 	}
 
 	/// <summary>
 	/// The core shaders drawn as surfaces by default (<see cref="ConvertShaders"/>): by the surface written beside them
-	/// (<c>complex.slang</c>), or, for null, by what <see cref="ShaderConverter"/> makes of the <c>.shader</c>.
+	/// (<c>standard.slang</c>), or, for null, by what <see cref="ShaderConverter"/> makes of the <c>.shader</c>.
 	/// </summary>
 	static readonly Dictionary<string, string> DefaultSurfaces = new( StringComparer.OrdinalIgnoreCase )
 	{
@@ -81,20 +80,6 @@ public sealed class SurfaceShaders : IDisposable
 		["terrain_preview"] = null,
 		["water_simple"] = null,
 	};
-
-	/// <summary>
-	/// The surfaces complex, generic and simple had before standard took all three; with <see cref="SeparateStandard"/>
-	/// their materials load as these again, for comparisons. Null: what <see cref="ShaderConverter"/> makes of the <c>.shader</c>.
-	/// </summary>
-	static readonly Dictionary<string, string> SeparateSurfaces = new( StringComparer.OrdinalIgnoreCase )
-	{
-		["complex"] = "complex.slang",
-		["generic"] = "generic.slang",
-		["simple"] = null,
-	};
-
-	/// <summary>Load complex, generic and simple materials as their own surfaces, not as standard, for comparisons.</summary>
-	public static bool SeparateStandard { get; set; }
 
 	/// <summary>
 	/// Specialise pipelines for each material's features (<see cref="Sandbox.ShaderCompiler.MaterialLayout.Features"/>), built in the background

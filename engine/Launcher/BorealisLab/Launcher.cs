@@ -19,9 +19,7 @@ public static class Launcher
 		// -shader-route: the core shaders' materials as their .shader, not the surfaces standing in for them (for A/B)
 		if ( Lab.Args.Has( "-shader-route" ) ) Borealis.Backend.SurfaceShaders.ConvertByDefault = false;
 
-		// -separate-standard: complex, generic and simple materials as their own surfaces, not standard; -no-specialize: surface
-		// pipelines not specialised for their materials' features (both for A/B)
-		if ( Lab.Args.Has( "-separate-standard" ) ) Borealis.Backend.SurfaceShaders.SeparateStandard = true;
+		// -no-specialize: surface pipelines not specialised for their materials' features (for A/B)
 		if ( Lab.Args.Has( "-no-specialize" ) ) Borealis.Backend.SurfaceShaders.SpecializeByDefault = false;
 
 		// Sun cascades, for A/B runs in any mode: -far-cache, -no-far-cache, -no-cascade-tiles, -no-texel-cascades
