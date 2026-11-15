@@ -56,7 +56,7 @@ public sealed class SurfaceShaders : IDisposable
 			if ( conversions.TryGetValue( key, out var file ) ) return file;
 		}
 
-		if ( !ConvertShaders ) return null;
+		if ( !ConvertShaders || NotConvertedByDefault.Contains( key ) ) return null;
 		return DefaultSurfaces.TryGetValue( key, out var surface ) ? DefaultSurface( key, surface ) : null;
 	}
 
@@ -75,11 +75,18 @@ public sealed class SurfaceShaders : IDisposable
 		["foliage"] = "foliage.slang",
 		["fur"] = "fur.slang",
 		["skin"] = "skin.slang",
+		["eyeball"] = "eyeball_surface.slang",
 		["simple"] = "standard.slang",
 		["bark"] = null,
 		["terrain_preview"] = null,
 		["water_simple"] = null,
 	};
+
+	/// <summary>
+	/// Core shaders (by name, <c>eyeball</c>) whose materials load as their <c>.shader</c> even with <see cref="ConvertShaders"/>
+	/// on, for comparing one surface against its shader while the others stay surfaces. Read as materials load.
+	/// </summary>
+	public static HashSet<string> NotConvertedByDefault { get; } = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
 	/// Specialise pipelines for each material's features (<see cref="Sandbox.ShaderCompiler.MaterialLayout.Features"/>), built in the background

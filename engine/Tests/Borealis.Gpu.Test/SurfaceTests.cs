@@ -1286,17 +1286,84 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// eyeball_surface.slang lights itself in two layers through the engine's lighting (ILayeredSurface) and draws eyeball
+	/// materials as eyeball.shader's compiled programs and its pass module do.
+	/// </summary>
+	[TestMethod]
+	public void EyeballSurfaceDrawsEyeballMaterials()
+	{
+		var eyeball = Compiler().CompileSurface( Path.Combine( Core, "shaders", "eyeball_surface.slang" ) );
+		StringAssert.Contains( eyeball.Generated, "SurfaceForwardLayered<Eyeball, false>" );
+		StringAssert.Contains( eyeball.Generated, "#define S_SUBSURFACE_SCATTERING SUBSURFACE_SCATTERING_WRAP" );
+		var skin = Compiler().CompileSurface( Path.Combine( Core, "shaders", "skin.slang" ) );
+		Assert.IsFalse( skin.Generated.Contains( "SurfaceForwardLayered", StringComparison.Ordinal ), "only layered surfaces shade through their own Shade" );
+
+		var previousHost = RenderHost.Current;
+		try
+		{
+			byte[] DrawMaterial( string path, bool slangPasses, bool convert, out GpuMaterial loaded )
+			{
+				using var backend = new BackendDevice( Device ) { SlangPasses = slangPasses };
+				var errors = new List<string>();
+				backend.Surfaces.Error = errors.Add;
+				backend.Passes.Error = errors.Add;
+				RenderHost.Current = new BackendRenderHost( backend );
+				backend.Surfaces.ConvertShaders = false;
+				if ( convert )
+				{
+					backend.Surfaces.AddFolder( Path.Combine( Core, "shaders" ) );
+					backend.Surfaces.Convert( "shaders/eyeball.shader", "eyeball_surface.slang" );
+				}
+
+				loaded = ((GpuDevice)backend).LoadMaterial( path );
+				// On the citizen, whose uvs spread the eye's textures over the frame
+				var citizen = backend.LoadModel( "models/citizen/citizen.vmdl" );
+				if ( citizen is null ) Assert.Inconclusive( "models/citizen/citizen.vmdl isn't built" );
+				// The eye occlusion's projection, which the game sets on eyes, across the model: without it the occlusion
+				// texture is read at its centre for every pixel. Not symmetric, so a transposed matrix would show
+				var attributes = backend.CreateParameters();
+				attributes.Set( "EyeOcclusionViewProj", (Matrix)new System.Numerics.Matrix4x4( 0, 0.012f, 0, 0, 0, 0, 0.012f, 0, 0.012f, 0, 0, 0, 0, 0, 0, 1 ) );
+				var picture = Draw( backend, loaded, model: citizen, attributes: attributes );
+				Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+				return picture;
+			}
+
+			const string eyes = "models/humans/misc/playermodeleyes_light.vmat";
+			var reference = DrawMaterial( eyes, false, false, out var classic );
+			if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( $"{eyes} isn't compiled" );
+			var module = DrawMaterial( eyes, true, false, out _ );
+			var converted = DrawMaterial( eyes, true, true, out var surface );
+			Assert.IsInstanceOfType<SurfaceMaterial>( surface, $"{eyes} wasn't converted" );
+			SaveRgb( reference, "eyeball-shader" );
+			SaveRgb( module, "eyeball-module" );
+			SaveRgb( converted, "eyeball-surface" );
+			TestContext.WriteLine( $"surface vs shader {Mean( reference, converted ):F3}, vs module {Mean( module, converted ):F3}; module vs shader {Mean( reference, module ):F3}" );
+			Assert.IsTrue( Lit( reference ) > Width * Height / 10, "The .shader drew too little to compare" );
+			// Lit, not black: the eye occlusion's projection (a matrix attribute) reaches the shaders
+			Assert.IsTrue( Bright( reference ) > Width * Height / 100, $"eyeball.shader drew {Bright( reference )} lit pixels: is the occlusion projection bound?" );
+			Assert.IsTrue( Bright( converted ) > Width * Height / 100, $"the surface drew {Bright( converted )} lit pixels: is the occlusion projection bound?" );
+			Assert.IsTrue( Mean( reference, converted ) < 0.5, $"the eyeball surface differs from eyeball.shader by {Mean( reference, converted ):F3}" );
+			Assert.IsTrue( Mean( module, converted ) < 0.5, $"the eyeball surface differs from its pass module by {Mean( module, converted ):F3}" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A box lit by the sun, filling most of the frame, as 8-bit sRGB-ish bytes (red channel of RGBA16F); or a model in its
 	/// bind pose with every draw in the material.
 	/// </summary>
-	byte[] Draw( BackendDevice backend, GpuMaterial material, Color? tint = null, int boxes = 1, RenderMesh model = null )
+	byte[] Draw( BackendDevice backend, GpuMaterial material, Color? tint = null, int boxes = 1, RenderMesh model = null, ShaderParameters attributes = null )
 	{
 		using var system = new RenderSystem { ParallelRecording = boxes > 1 };
 		using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface test" );
 		var world = new RenderWorld();
 		world.Lighting.SunDirection = new Vector3( -0.4f, 0.5f, -0.75f ).Normal;
 		world.Lighting.SunShadowCascades = 1;
-		if ( model is not null ) world.Add( new MeshObject( model, new Transform( model.Bounds.Center * -(160 / model.Bounds.Size.Length), Rotation.Identity, 160 / model.Bounds.Size.Length ) ) { MaterialOverride = material } );
+		if ( model is not null ) world.Add( new MeshObject( model, new Transform( model.Bounds.Center * -(160 / model.Bounds.Size.Length), Rotation.Identity, 160 / model.Bounds.Size.Length ) ) { MaterialOverride = material, Attributes = attributes } );
 		else if ( boxes == 1 ) world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), new Transform( Vector3.Zero, Rotation.FromYaw( 35 ), 2 ) ) { Tint = tint ?? Color.White } );
 
 		// Or a grid of small ones apart, enough draws that each layer records on lists of its own
@@ -1344,6 +1411,18 @@ public class SurfaceTests : GpuTest
 		long total = 0;
 		for ( int i = 0; i < a.Length; i++ ) total += Math.Abs( a[i] - b[i] );
 		return total / (double)a.Length;
+	}
+
+	/// <summary>Pixels neither black nor the clear colour (54 in these bytes): what a model drew lit.</summary>
+	static int Bright( byte[] rgb )
+	{
+		var bright = 0;
+		for ( int i = 0; i < rgb.Length; i += 3 )
+		{
+			if ( rgb[i] + rgb[i + 1] + rgb[i + 2] > 30 && Math.Abs( rgb[i] - 54 ) + Math.Abs( rgb[i + 1] - 54 ) + Math.Abs( rgb[i + 2] - 54 ) > 6 ) bright++;
+		}
+
+		return bright;
 	}
 
 	static int Lit( byte[] rgb )
