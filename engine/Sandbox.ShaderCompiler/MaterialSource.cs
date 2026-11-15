@@ -219,6 +219,7 @@ internal static unsafe class MaterialReflection
 				case "DepthBias": state = state with { DepthBias = Number( attribute, 0 ) ?? 0, SlopeDepthBias = Number( attribute, 1 ) ?? 0 }; break;
 				case "TwoSided": state = state with { TwoSided = true }; break;
 				case "AlphaTest": state = state with { AlphaTest = true }; break;
+				case "Translucent": state = state with { Translucent = true }; break;
 			}
 		}
 

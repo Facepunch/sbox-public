@@ -1,12 +1,19 @@
-// game/core/shaders/foliage.shader written as a surface, converted by hand: its PS body is Evaluate, its wind is Displace
-// and its wrap and translucency from the sun are Light (ISunLitSurface: once, outside the light loop, as foliage.shader
-// does). Alpha test is the material's (AlphaTest), with today's alpha to coverage; the features it had are fields:
-// Transmissive and GrazingFade switch terms, the wind's are off at zero strength.
+// foliage.shader written as a surface, by hand: its PS body is Evaluate, its wind is Displace and its wrap and
+// translucency from the sun are Light (ISunLitSurface: once, outside the light loop, as foliage.shader does). Its features
+// are fields a .vmat sets: alpha test (with today's alpha to coverage) and back faces through the render state, the wind
+// (F_FOLIAGE_ANIMATION), translucency (F_TRANSMISSIVE) and the grazing fade (F_GRAZING_FADE) switch their terms.
+//
+// foliage.shader's colour pass tests depth for equality without writing it (after the prepass); this one tests
+// greater-or-equal, which draws the same pixels.
 import sbox.surface;
 
 [Material]
 public struct Foliage : IVertexSurface, ISunLitSurface
 {
+	// Features
+	[Group( "Features" ), Source( "F_ALPHA_TEST" ), RenderState( "AlphaTest" )] bool UseAlphaTest;
+	[Group( "Features" ), Source( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
+
 	// Material.CommonInputs.hlsl's textures and tint
 	[Group( "Material" ), Srgb, Opacity] Texture2D Color;  // rgb albedo, a opacity
 	[Group( "Material" )] Texture2D Normal;                // rgb tangent normal, a tint mask
@@ -25,20 +32,22 @@ public struct Foliage : IVertexSurface, ISunLitSurface
 	[Group( "Foliage" ), Range( 0, 1 ), Default( 0 )] float GrassNormalUp;
 
 	// Wrap lighting and translucency (F_TRANSMISSIVE)
-	[Group( "Transmissive" )] bool Transmissive;
+	[Group( "Transmissive" ), Source( "F_TRANSMISSIVE" )] bool Transmissive;
 	[Group( "Transmissive" ), Srgb] Texture2D TransmissiveColor;
 	[Group( "Transmissive" ), Range( 0, 10 ), Default( 1 )] float TransmissionScale;
 
-	// The alpha test's cutoff relaxes with distance, so foliage doesn't pop as its LODs change
+	// The alpha test's cutoff (g_flAlphaTestReference), relaxed with distance so foliage doesn't pop as its LODs change
+	[Group( "Alpha Test" ), Range( 0.01, 0.99 ), Default( 0.5 )] float AlphaTestReference;
 	[Group( "Alpha Test" ), Range( 0, 5000 ), Default( 500 )] float AlphaDistanceStart;
 	[Group( "Alpha Test" ), Range( 0, 10000 ), Default( 2000 )] float AlphaDistanceEnd;
 
 	// Leaf cards fade out as they turn edge-on (F_GRAZING_FADE)
-	[Group( "Grazing Fade" )] bool GrazingFade;
+	[Group( "Grazing Fade" ), Source( "F_GRAZING_FADE" )] bool GrazingFade;
 	[Group( "Grazing Fade" ), Range( 0, 1 ), Default( 0.5 )] float GrazingFadeStart;
 	[Group( "Grazing Fade" ), Range( 0, 1 ), Default( 0.1 )] float GrazingFadeEnd;
 
 	// Wind (F_FOLIAGE_ANIMATION): vertex colour red and green attenuate edge and branch bending, blue is the phase
+	[Group( "Foliage Animation" ), Source( "F_FOLIAGE_ANIMATION" )] bool Animated;
 	[Group( "Foliage Animation" ), Range( 0.1, 5 ), Default( 1 )] float EdgeFrequency;
 	[Group( "Foliage Animation" ), Range( 0, 1 ), Default( 0.1 )] float EdgeAmplitude;
 	[Group( "Foliage Animation" ), Range( 0.1, 5 ), Default( 0.5 )] float BranchFrequency;
@@ -71,9 +80,10 @@ public struct Foliage : IVertexSurface, ISunLitSurface
 			m.Normal = normalize( m.Normal + i.TangentU * cos( angle ) * NormalVariation + i.TangentV * sin( angle ) * NormalVariation );
 		}
 
-		// The cutoff relaxed with distance: opacity scaled, so the sharpening's derivatives are unchanged
+		// The material's cutoff relaxed with distance, against the cutoff the pass tests with (i.AlphaReference): opacity
+		// scaled by their ratio, which the sharpening's derivatives cancel, so the edge falls where the material's cutoff puts it
 		float distance = saturate( ( i.ViewDistance - AlphaDistanceStart ) / max( AlphaDistanceEnd - AlphaDistanceStart, 0.001 ) );
-		m.Opacity *= i.AlphaReference / max( lerp( i.AlphaReference, 0.1, distance ), 0.001 );
+		m.Opacity *= i.AlphaReference / max( lerp( AlphaTestReference, 0.1, distance ), 0.001 );
 
 		// Edge-on cards fade as whole triangles: on the coverage, after the cutoff
 		if ( GrazingFade )
@@ -120,6 +130,7 @@ public struct Foliage : IVertexSurface, ISunLitSurface
 	public float3 Displace( VertexSurfaceInput v )
 	{
 		float3 position = v.Position;
+		if ( !Animated ) return position;
 
 		float bend = position.z * SwayStrength * 0.0001;
 		bend *= bend;

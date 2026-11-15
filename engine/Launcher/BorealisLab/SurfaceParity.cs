@@ -53,6 +53,7 @@ internal static class SurfaceParity
 		device.Surfaces.ConvertShaders = false;
 		var surfaces = Folder( device );
 		device.Surfaces.AddFolder( surfaces );
+		device.Surfaces.AddFolder( Path.Combine( device.Content.Roots[0], "shaders" ) );
 		device.Surfaces.Error = m => Console.WriteLine( $"Shader: {m}" );
 
 		// Compiled up front, so the times are the compiler's and a failure is reported once
@@ -146,11 +147,12 @@ internal static class SurfaceParity
 			var cutOut = (BackendMaterial)device.LoadMaterial( "materials/dev/simple/simple_rail_32.vmat" );
 			cutOut.Textures.TryGetValue( "g_tColor", out var leaf );
 			// A material's features and values are read when it first draws, so each setup gets a material of its own
-			BackendMaterial FoliageShader( bool alphaTest = true, bool transmissive = true, bool grazing = true, float variation = 0.1f, float bending = 0.1f )
+			BackendMaterial FoliageShader( bool alphaTest = true, bool transmissive = true, bool grazing = true, float variation = 0.1f, float bending = 0.1f, bool twoSided = false, float cutoff = 0.5f )
 			{
 				var m = (BackendMaterial)((Borealis.GpuDevice)device).CreateMaterial( "Foliage (.shader)", "shaders/foliage.shader" );
 				if ( m.Shader is null ) return m;
-				foreach ( var (feature, on) in new[] { ("F_ALPHA_TEST", alphaTest), ("F_TRANSMISSIVE", transmissive), ("F_FOLIAGE_ANIMATION", true), ("F_GRAZING_FADE", grazing) } ) m.Features[m.Shader.FeatureIndex( feature )] = on ? 1 : 0;
+				foreach ( var (feature, on) in new[] { ("F_ALPHA_TEST", alphaTest), ("F_TRANSMISSIVE", transmissive), ("F_FOLIAGE_ANIMATION", true), ("F_GRAZING_FADE", grazing), ("F_RENDER_BACKFACES", twoSided) } ) m.Features[m.Shader.FeatureIndex( feature )] = on ? 1 : 0;
+				m.Set( "g_flAlphaTestReference", [cutoff] );
 				m.SetTexture( "g_tColor", leaf );
 				m.SetTexture( "g_tNormal", (BackendTexture)normal );
 				m.SetTexture( "g_tRma", (BackendTexture)rma );
@@ -164,7 +166,7 @@ internal static class SurfaceParity
 			var foliageShader = FoliageShader();
 			if ( leaf is null || foliageShader.Shader?.Name.Contains( "foliage", StringComparison.OrdinalIgnoreCase ) != true ) return Fail( "foliage.shader or simple_rail_32.vmat isn't compiled" );
 
-			using var foliage = new Foliage { Color = leaf, Normal = normal, Rma = rma, Transmissive = true, TransmissiveColor = leaf, TransmissionScale = 1, SwayStrength = 0, GrazingFade = true, AlphaTest = true, DisplayName = "Foliage (surface)" };
+			using var foliage = new Foliage { Color = leaf, Normal = normal, Rma = rma, Transmissive = true, TransmissiveColor = leaf, TransmissionScale = 1, SwayStrength = 0, GrazingFade = true, Animated = true, AlphaTest = true, DisplayName = "Foliage (surface)" };
 			// Without multisampling the alpha test is a hard cut; with 4x it is alpha to coverage, which is what Construct draws
 			foreach ( var samples in new[] { 1, 4 } )
 			{
@@ -178,6 +180,21 @@ internal static class SurfaceParity
 				var fok = fmean <= tolerance;
 				if ( !fok ) failed++;
 				lines.Add( $"foliage surface against foliage.shader, {samples}x: mean difference {fmean:F3}, max {fmax}, {fover} pixels over 8{(fok ? "" : " FAIL")}" );
+			}
+
+			// Two-sided, as Construct's trees are, with a cutoff of their own: back faces seen through the cut-outs keep their
+			// own normal, as common/pixel.hlsl's shaders do, and the cutoff is the material's
+			{
+				using var twoSided = new Foliage { Color = leaf, Normal = normal, Rma = rma, Transmissive = true, TransmissiveColor = leaf, TransmissionScale = 1, SwayStrength = 0, GrazingFade = true, Animated = true, AlphaTest = true, RenderBackfaces = true, AlphaTestReference = 0.35f, DisplayName = "Foliage (surface, two-sided)" };
+				var twoSidedReference = Render( device, FoliageShader( twoSided: true, cutoff: 0.35f ), alphaTest: true, 4 );
+				var twoSidedPixels = Render( device, twoSided, alphaTest: true, 4 );
+				Save( twoSidedReference, Path.Combine( folder, "foliage-two-sided-shader-4x.png" ) );
+				Save( twoSidedPixels, Path.Combine( folder, "foliage-two-sided-surface-4x.png" ) );
+				var (wmean, wmax, wover, wdiff) = Compare( twoSidedReference, twoSidedPixels );
+				Save( wdiff, Path.Combine( folder, "foliage-two-sided-surface-4x-diff.png" ) );
+				var wok = wmean <= tolerance;
+				if ( !wok ) failed++;
+				lines.Add( $"foliage surface against foliage.shader, two-sided with cutoff 0.35, 4x: mean difference {wmean:F3}, max {wmax}, {wover} pixels over 8{(wok ? "" : " FAIL")}" );
 			}
 
 			// -foliage-terms: the same at 4x with one feature off on both sides at a time, to say where a difference comes from

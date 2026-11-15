@@ -122,7 +122,8 @@ public struct NoDepthTestAttribute {};
 [__AttributeUsage( _AttributeTargets.Struct )]
 public struct DepthBiasAttribute { float Constant; float Slope; };
 
-// Draw back faces too, their normal turned to the viewer
+// Draw back faces too: a combiner surface's normal turned to the viewer, as complex.shader does; others see the face's
+// own, as common/pixel.hlsl's shaders do (SurfaceInput.FrontFace says which side)
 [__AttributeUsage( _AttributeTargets.Struct )]
 public struct TwoSidedAttribute {};
 
@@ -130,9 +131,16 @@ public struct TwoSidedAttribute {};
 [__AttributeUsage( _AttributeTargets.Struct )]
 public struct AlphaTestAttribute {};
 
+// Draw in the translucent layer (after the opaque one, sorted, with opacity kept in alpha) even when not blended: for a
+// surface that replaces what's behind it with what it reads of the frame-buffer copy (refracting glass). It has no depth
+// passes of its own, as a blended surface hasn't
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct TranslucentAttribute {};
+
 // A field a material changes its render state with: "State" (the field's value is the state: a Blend by its index in
 // the list above, a flag by non-zero), "State: Value" (non-zero sets it), or "State: A, B, C" (the field's value picks
-// one); several separated by ';'. States: Blend, DepthWrite, DepthTest, TwoSided, AlphaTest; flag values true or false.
+// one); several separated by ';'. States: Blend, DepthWrite, DepthTest, TwoSided, AlphaTest, Translucent; flag values
+// true or false.
 // For example [Source( "F_TRANSLUCENT" ), RenderState( "Blend: Alpha" )] bool UseTranslucent;
 [__AttributeUsage( _AttributeTargets.Var )]
 public struct RenderStateAttribute { string Rule; };

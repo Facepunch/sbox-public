@@ -224,12 +224,15 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	public override string Name => DisplayName ?? Shader;
 
 	/// <inheritdoc/>
-	public override bool IsTranslucent => RenderState.Blends;
+	public override bool IsTranslucent => RenderState.DrawsTranslucent;
 
 	/// <inheritdoc/>
 	public override bool IsAlphaTest => RenderState.AlphaTest;
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Never by itself, as a <c>.shader</c> material: the scene asks for the frame-buffer copy from the material's
+	/// <c>bWantsFBCopyTexture</c> attribute (<see cref="Attribute"/>; native's object flags in the game).
+	/// </summary>
 	public override bool ReadsFrameBuffer => false;
 
 	/// <summary>Never: a surface draws its depth with its own pass (vertices it moves, opacity it clips).</summary>
