@@ -698,8 +698,12 @@ internal sealed partial class BackendContext
 						var keys = meshes.VisibilityKeys[batch.Lod];
 						var tinted = meshes.Tinted && (uint)batch.FirstArg < (uint)keys.Length;
 						var slotOffset = tinted ? meshes.TintOffsets[batch.Lod] + batch.FirstArg : 0;
-						batchRecords[at] = tables.FragmentsOf( tinted ? keys[batch.FirstArg] : meshes, 0, 0, 0, 0, fragmentCount + 1, (Meshes: meshes, Offset: slotOffset), static ( s, bytes ) => WriteResidentMeshes( s.Meshes, s.Offset, bytes ) );
+						batchRecords[at] = tables.FragmentsOf( tinted ? keys[batch.FirstArg] : meshes, 0, 0, 0, 0, fragmentCount + 1, (Meshes: meshes, Offset: slotOffset), static ( s, bytes ) => WriteResidentMeshes( s.Meshes, s.Offset, bytes ), releasable: true );
 						batchRecords[at + 2] = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex, pooled.IndexPageSlot );
+
+						// Meshes that differ in their lighting: a draw record each, listed in the fragment table (bit 31)
+						if ( batch.MeshLighting is { } meshLighting && meshLighting.Length == fragmentCount && (uint)batch.FirstArg < (uint)keys.Length )
+							batchRecords[at + 2] = MeshLightingDraws( tables, keys[batch.FirstArg], meshLighting, bucket.Attributes, pooled, vertexMaterial, pixelMaterial, flags & 0xff, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex ) | MeshDrawList;
 
 						var stride = (uint)pooled.VertexCount;
 						(visibilityFirst, vertexBase) = visibility is not null && stride < 1u << 24 && (long)stride * fragmentCount < int.MaxValue && (uint)batch.FirstArg < (uint)keys.Length
@@ -1043,6 +1047,11 @@ internal sealed partial class BackendContext
 		{
 			if ( batch.Material is not null && seen.Add( batch.Material ) ) materials.Add( (batch.Material, MaterialVersion( batch.Material )) );
 			if ( batch.ObjectAttributes is BackendParameters parameters && seen.Add( parameters ) ) attributes.Add( (parameters, parameters.Version) );
+			if ( batch.MeshLighting is null ) continue;
+			foreach ( var meshLighting in batch.MeshLighting )
+			{
+				if ( meshLighting is BackendParameters each && seen.Add( each ) ) attributes.Add( (each, each.Version) );
+			}
 		}
 
 		device.PlansFor( cull.Plan ).Keep( new GpuDrivenPlan
@@ -1344,6 +1353,55 @@ internal sealed partial class BackendContext
 			records[at + 6] = BitConverter.SingleToUInt32Bits( meshes.Extents[i].z );
 			records[at + 7] = (uint)(meshes.Slots[i] + slotOffset);
 		}
+	}
+
+	/// <summary>A resident mesh batch's draw word with this bit is a list of a draw record per mesh in the fragment table.</summary>
+	const uint MeshDrawList = 0x80000000u;
+
+	/// <summary>
+	/// A resident mesh batch's draw records when its meshes differ in their lighting: each mesh's, the batch's draw with
+	/// that mesh's lighting record, as a list of words in the fragment table, made once per owner, draw, records and the
+	/// lighting attributes' versions. <paramref name="restore"/> is what the call's object attributes go back to.
+	/// </summary>
+	uint MeshLightingDraws( GpuDrivenTables tables, object owner, ShaderParameters[] lighting, ShaderParameters restore, PooledGeometry pooled, uint vertexMaterial, uint pixelMaterial, uint flags, uint firstIndex, uint indexCount, int baseVertex )
+	{
+		var versions = new HashCode();
+		ShaderParameters last = null;
+		foreach ( var attributes in lighting )
+		{
+			if ( ReferenceEquals( attributes, last ) ) continue;
+			versions.Add( RuntimeHelpers.GetHashCode( attributes ) );
+			versions.Add( attributes is BackendParameters parameters ? parameters.Version : 0 );
+			last = attributes;
+		}
+
+		var key = flags | (uint)versions.ToHashCode() << 8;
+		var state = (Context: this, Tables: tables, Lighting: lighting, Restore: restore, Draw: (pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, indexCount, baseVertex, pooled.IndexPageSlot));
+		return tables.FragmentsOf( owner, pooled.GeometryRecord, vertexMaterial, pixelMaterial, key, (lighting.Length + 7) / 8, state,
+			static ( s, bytes ) => s.Context.WriteMeshLightingDraws( s.Tables, s.Lighting, s.Restore, s.Draw, MemoryMarshal.Cast<byte, uint>( bytes ) ), releasable: true );
+	}
+
+	void WriteMeshLightingDraws( GpuDrivenTables tables, ShaderParameters[] lighting, ShaderParameters restore, (uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage) d, Span<uint> words )
+	{
+		var cache = device.MaterialCache;
+		ShaderParameters last = null;
+		var draw = 0u;
+		for ( int i = 0; i < lighting.Length; i++ )
+		{
+			if ( i == 0 || !ReferenceEquals( lighting[i], last ) )
+			{
+				last = lighting[i];
+				SetObjectAttributes( null, last );
+				NextPassState( cache );
+				var record = tables.Lighting( Lookup( BakedLightingToken ) as byte[], Lookup( ProbeVolumeToken ) as byte[] );
+				draw = tables.Draw( d.Geometry, d.Vertex, d.Pixel, d.Flags | record << 8, d.FirstIndex, d.IndexCount, d.BaseVertex, d.IndexPage );
+			}
+
+			words[i] = draw;
+		}
+
+		SetObjectAttributes( null, restore );
+		NextPassState( cache );
 	}
 
 	/// <summary>Multi-draws recorded by the current <see cref="DrawGpuDriven"/>, for the timings.</summary>

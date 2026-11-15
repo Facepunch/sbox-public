@@ -154,7 +154,8 @@ uint TakeSlot( uint nRun )
 	// resident meshes, bits 4-7 their LOD) and its first vertex bit. A mesh draw's instances have its draw record first,
 	// and the g_Frame byte offset of their transform slots third; the CPU culled them; each has its own vertex bits, the
 	// flags' top 24 bits apart. Resident meshes have their group's header record first, then a record each, and their
-	// draw record third; each has its own vertex bits too
+	// draw record third (bit 31: a list of a draw record per mesh in the fragment table instead, for meshes lit
+	// differently); each has its own vertex bits too
 	uint4 vBatch = g_Frame.Load4( g_nCullInput + 160 + nBatch * 32 );
 	uint4 vVisibility = g_Frame.Load4( g_nCullInput + 160 + nBatch * 32 + 16 );
 	bool bInstances = ( vVisibility.z & 4 ) != 0;
@@ -210,7 +211,7 @@ uint TakeSlot( uint nRun )
 
 				bVisible = bVisible && MeshLod( vHeader0, vHeader1, vCenter, asfloat( a.w ), vLodCamera, flLodWidth, bLodTexels ) == nBatchLod;
 				nTransform = b.w;
-				nDrawRecord = vBatch.z;
+				nDrawRecord = ( vBatch.z & 0x80000000u ) != 0 ? fragments.Load( ( vBatch.z & 0x7fffffffu ) * 32 + i * 4 ) : vBatch.z;
 			}
 			else
 			{

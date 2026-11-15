@@ -84,6 +84,12 @@ internal sealed class GpuDrivenTables : IDisposable
 			}
 		}
 
+		/// <summary>Write over records appended earlier, at <paramref name="offset"/> (a released run, reused).</summary>
+		public void Write( uint offset, ReadOnlySpan<byte> record )
+		{
+			lock ( this ) record.CopyTo( gpu.Map( Buffer )[(int)offset..] );
+		}
+
 		void Grow( long needed )
 		{
 			var next = Math.Max( initial, size * 2 );
@@ -367,21 +373,77 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// <summary>
 	/// The first of an owner's fragment records for one geometry and pair of material records, made once by
 	/// <paramref name="write"/> (which fills <paramref name="count"/> records of <see cref="FragmentStride"/> bytes): the
-	/// fragments' bounds, draw records and indices, which culling on the GPU reads every frame.
+	/// fragments' bounds, draw records and indices, which culling on the GPU reads every frame. A
+	/// <paramref name="releasable"/> owner's runs are a power of two records long, and <see cref="ReleaseFragments"/> gives
+	/// them back for another owner's.
 	/// </summary>
-	public uint FragmentsOf<T>( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial, uint flags, int count, T state, Action<T, Span<byte>> write )
+	public uint FragmentsOf<T>( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial, uint flags, int count, T state, Action<T, Span<byte>> write, bool releasable = false )
 	{
 		// Found without a lock: the views recording on other workers draw the same owners
 		var byKey = ownerFragments.GetValue( owner, static _ => new() );
 		if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var known ) ) return known;
 
 		// Written outside the lock: writing makes draw records, under the draw table's lock
-		var records = new byte[count * FragmentStride];
-		write( state, records );
+		var sizeClass = releasable ? SizeClass( count ) : -1;
+		var records = new byte[(releasable ? 1 << sizeClass : count) * FragmentStride];
+		write( state, records.AsSpan( 0, count * FragmentStride ) );
 		lock ( byKey )
 		{
 			if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var first ) ) return first;
-			return byKey[(geometry, vertexMaterial, pixelMaterial, flags)] = fragments.Append( records ) / FragmentStride;
+			return byKey[(geometry, vertexMaterial, pixelMaterial, flags)] = releasable ? AppendReleasable( records, sizeClass ) : fragments.Append( records ) / FragmentStride;
+		}
+	}
+
+	/// <summary>Size classes of releasable fragment runs: <c>1 &lt;&lt; class</c> records each.</summary>
+	static int SizeClass( int count ) => count <= 1 ? 0 : 32 - System.Numerics.BitOperations.LeadingZeroCount( (uint)count - 1 );
+
+	/// <summary>Released runs that no frame can read any more, by size class; and each releasable run's class, by its first record.</summary>
+	readonly Stack<uint>[] freeFragments = new Stack<uint>[32];
+	readonly Dictionary<uint, int> releasableFragments = new();
+
+	/// <summary>Runs released, by the frame they were released in: reused once the frames that could read them are done.</summary>
+	readonly List<(long Frame, uint First, int Class)> releasedFragments = new();
+	long frameNumber;
+
+	/// <summary>Releasable runs reused and released, for the tests.</summary>
+	internal int FragmentRunsReused { get; private set; }
+	internal int FragmentRunsReleased { get; private set; }
+
+	uint AppendReleasable( byte[] records, int sizeClass )
+	{
+		lock ( releasableFragments )
+		{
+			if ( freeFragments[sizeClass] is { Count: > 0 } free )
+			{
+				var reused = free.Pop();
+				fragments.Write( reused * FragmentStride, records );
+				releasableFragments[reused] = sizeClass;
+				FragmentRunsReused++;
+				return reused;
+			}
+
+			var first = fragments.Append( records ) / FragmentStride;
+			releasableFragments[first] = sizeClass;
+			return first;
+		}
+	}
+
+	/// <summary>
+	/// An owner no list draws any more: its releasable fragment runs are reused for others once the frames that could still
+	/// read them are done; its other runs stay, and asking for its records again makes new ones.
+	/// </summary>
+	public void ReleaseFragments( object owner )
+	{
+		if ( !ownerFragments.TryGetValue( owner, out var byKey ) ) return;
+		ownerFragments.Remove( owner );
+		lock ( releasableFragments )
+		{
+			foreach ( var first in byKey.Values )
+			{
+				if ( !releasableFragments.Remove( first, out var sizeClass ) ) continue;
+				releasedFragments.Add( (frameNumber, first, sizeClass) );
+				FragmentRunsReleased++;
+			}
 		}
 	}
 
@@ -538,6 +600,21 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// <summary>Start a frame: reuse the chunks of the frame <see cref="FrameSlots"/> back, which the device has finished.</summary>
 	public void BeginFrame()
 	{
+		// Released fragment runs the frames still in flight can't read any more
+		lock ( releasableFragments )
+		{
+			frameNumber++;
+			var kept = 0;
+			for ( int i = 0; i < releasedFragments.Count; i++ )
+			{
+				var (released, first, sizeClass) = releasedFragments[i];
+				if ( frameNumber - released > FrameSlots ) (freeFragments[sizeClass] ??= new()).Push( first );
+				else releasedFragments[kept++] = (released, first, sizeClass);
+			}
+
+			releasedFragments.RemoveRange( kept, releasedFragments.Count - kept );
+		}
+
 		lock ( frames )
 		{
 			frame = (frame + 1) % FrameSlots;
