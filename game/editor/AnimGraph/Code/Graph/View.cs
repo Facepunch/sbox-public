@@ -30,6 +30,14 @@ public class View : GraphView, Nodes.IInternalGraphEditorActions
 
 	protected override bool AreConnectionTypesCompatible( Type a, Type b ) => a == b;
 
+	protected override NodeEditor.Connection CreateConnection( PlugOut nodeOutput, PlugIn dropTarget, bool uiOnly = false )
+	{
+		var connection = base.CreateConnection( nodeOutput, dropTarget, uiOnly );
+		if ( !uiOnly && connection.IsValid() )
+			UpdateConnections( Graph.Nodes );
+		return connection;
+	}
+
 	protected override void OnContextMenu( ContextMenuEvent e )
 	{
 		var item = GetItemAt( ToScene( e.LocalPosition ) );

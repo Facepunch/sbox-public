@@ -97,6 +97,7 @@ public sealed class Compiler
 	private Result Run()
 	{
 		BeginVariation();
+		WarnSharedPoseOutputs();
 
 		CollectParameters();
 		CollectVirtualParameters();
@@ -158,6 +159,19 @@ public sealed class Compiler
 			Error( $"Variation '{VariationID}' has no skeleton" );
 
 		_builder.SetSkeleton( variation.TargetSkeletonReference.IsEmpty ? ResourceId.FromPath( variation.TargetSkeletonPath ) : variation.TargetSkeletonReference );
+	}
+
+	private void WarnSharedPoseOutputs()
+	{
+		var outputs = _graph.AllNodes.SelectMany( node => node.Inputs )
+			.Select( input => input.ConnectedOutput )
+			.Where( output => output is AnimPlugOut { AllowMultipleConnections: false } )
+			.GroupBy( output => output );
+		foreach ( var output in outputs.Where( output => output.Count() > 1 ) )
+		{
+			var kind = output.Key.Type == typeof( LayerLink ) ? "Layer" : "Pose";
+			Warn( $"{kind} output '{output.Key.Identifier}' has multiple connections. Duplicate the pose branch and synchronize layers instead.", (Node)output.Key.Node );
+		}
 	}
 
 	private void CollectParameters()
@@ -588,7 +602,8 @@ public sealed class Compiler
 
 	private void AddMessage( string message, Node node, Severity severity )
 	{
-		if ( _warnings.All( w => w.Message != message || w.Severity != severity ) )
-			_warnings.Add( new Warning( message, node ?? (_compiling.Count > 0 ? _compiling[^1] : null), severity ) );
+		node ??= _compiling.Count > 0 ? _compiling[^1] : null;
+		if ( _warnings.All( w => w.Message != message || w.Severity != severity || w.Node != node ) )
+			_warnings.Add( new Warning( message, node, severity ) );
 	}
 }

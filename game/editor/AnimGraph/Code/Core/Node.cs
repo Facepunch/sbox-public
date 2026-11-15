@@ -750,25 +750,48 @@ public record AnimPlugIn( Node Node, AnimPlugInfo Info, Type ValueType ) : AnimP
 	IPlugOut IPlugIn.ConnectedOutput
 	{
 		get => Info.CanConnect ? Node.GetConnectedOutput( Info.GetInput( Node ) ) : null;
-		set
-		{
-			if ( !Info.CanConnect )
-				return;
+		set => SetConnection( value );
+	}
 
-			if ( value is null )
+	internal void SetConnection( IPlugOut value, bool replaceExisting = true )
+	{
+		if ( !Info.CanConnect )
+			return;
+
+		if ( value is null )
+		{
+			Info.SetInput( Node, default );
+			return;
+		}
+
+		if ( value is not AnimPlug source )
+			return;
+
+		Info.SetInput( Node, new NodeInput
+		{
+			Identifier = source.Node.Identifier,
+			Output = source.Identifier
+		} );
+
+		if ( !replaceExisting || value is not AnimPlugOut { AllowMultipleConnections: false } || Node.Graph is not Data graph )
+			return;
+
+		var consumers = graph.Nodes.SelectMany( node => node.Inputs ).ToLookup( input => input.ConnectedOutput );
+		var visited = new HashSet<INode>();
+		IPlugIn keep = this;
+		while ( keep is not null )
+		{
+			foreach ( var input in consumers[value] )
 			{
-				Info.SetInput( Node, default );
-				return;
+				if ( input != keep )
+					input.ConnectedOutput = null;
 			}
 
-			if ( value is not AnimPlug source )
-				return;
+			if ( keep.Node is not RerouteNode reroute || !visited.Add( reroute ) )
+				break;
 
-			Info.SetInput( Node, new NodeInput
-			{
-				Identifier = source.Node.Identifier,
-				Output = source.Identifier
-			} );
+			value = reroute.Outputs.Single();
+			keep = consumers[value].FirstOrDefault();
 		}
 	}
 
@@ -790,6 +813,8 @@ public record AnimPlugIn( Node Node, AnimPlugInfo Info, Type ValueType ) : AnimP
 /// </summary>
 public record AnimPlugOut( Node Node, AnimPlugInfo Info, Type ValueType ) : AnimPlug( Node, Info, ValueType ), IPlugOut
 {
+	internal bool AllowMultipleConnections => Type != typeof( PoseLink ) && Type != typeof( LayerLink );
+
 	public override DisplayInfo DisplayInfo
 	{
 		get

@@ -167,6 +167,72 @@ public class AnimationResourceGuidTests
 		Assert.AreEqual( 7f, clip.GetLocalTransform( .5f, 0 ).Position.x );
 	}
 
+	[DataTestMethod]
+	[DataRow( true, false, 0f, false )]
+	[DataRow( true, false, 0.5f, false )]
+	[DataRow( true, false, 1f, false )]
+	[DataRow( true, false, 1f, true )]
+	[DataRow( true, true, 1f, false )]
+	[DataRow( false, false, 1f, false )]
+	[DataRow( false, true, 1f, false )]
+	public void LayeredClipPlaybackDoesNotAdvanceSharedInputsTwice( bool shared, bool synchronized, float weight, bool blendedBase )
+	{
+		var skeletonPath = AssetPath( "layer.skel" );
+		WriteResource( skeletonPath, Guid.NewGuid(), CompileData( SkeletonData() ) );
+		var clipPath = AssetPath( "layer.anim" );
+		WriteResource( clipPath, Guid.NewGuid(), CompileData( ClipData( JsonValue.Create( skeletonPath ) ) ) );
+		var clip = Keep( Clip.Load( clipPath ) );
+		Keep( clip.Skeleton );
+		var builder = Graph.Builder;
+		builder.Skeleton = skeletonPath;
+		var baseClip = builder.Clip( clip );
+		var layerClip = shared ? baseClip : builder.Clip( clip, new() { Speed = 2f } );
+		var basePose = blendedBase ? builder.Blend( baseClip, builder.Clip( clip ), 0.5f ) : baseClip;
+		var settings = new GraphBuilder.LayerSettings
+		{
+			Weight = builder.Constant( weight ),
+			Synchronized = synchronized
+		};
+		using var graph = builder.Create( builder.Layers( basePose ).AddLayer( layerClip, settings ).AddLayer( layerClip, settings ) );
+		var reference = Graph.Builder;
+		reference.Skeleton = skeletonPath;
+		var referenceClip = reference.Clip( clip );
+		var referencePose = blendedBase ? reference.Blend( referenceClip, reference.Clip( clip ), 0.5f ) : referenceClip;
+		using var referenceGraph = reference.Create( referencePose );
+		var model = Keep( Model.Builder.AddBone( "root", Vector3.Zero, Rotation.Identity ).Create() );
+		var world = new SceneWorld();
+		try
+		{
+			var actor = new SceneModel( world, model, Transform.Zero ) { UseAnimGraph = true };
+			actor.Animation.Graph = graph;
+			var referenceActor = new SceneModel( world, model, Transform.Zero ) { UseAnimGraph = true };
+			referenceActor.Animation.Graph = referenceGraph;
+			for ( var i = 0; i < 24; ++i )
+			{
+				actor.Update( 0.125f );
+				referenceActor.Update( 0.125f );
+				Assert.IsTrue( actor.Animation.Debug.TryGetNode( baseClip.Index, out var actual ) );
+				Assert.IsTrue( referenceActor.Animation.Debug.TryGetNode( referenceClip.Index, out var expected ) );
+				Assert.IsTrue( actual.IsValid && expected.IsValid );
+				Assert.AreEqual( expected.NormalizedTime, actual.NormalizedTime, 0.0001f, $"Base time at update {i}" );
+				Assert.AreEqual( expected.PreviousNormalizedTime, actual.PreviousNormalizedTime, 0.0001f, $"Previous base time at update {i}" );
+				Assert.IsTrue( actor.Animation.Debug.TryGetNode( layerClip.Index, out var layer ) );
+				if ( shared || synchronized )
+				{
+					Assert.AreEqual( expected.NormalizedTime, layer.NormalizedTime, 0.0001f );
+				}
+				else if ( i == 0 )
+				{
+					Assert.AreEqual( 0.25f, layer.NormalizedTime, 0.0001f, "An independent unsynchronized layer keeps its own speed" );
+				}
+			}
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
 	[TestMethod]
 	public void NamedVariationResolvesTheMovedOwnerInsteadOfLoadingItsDefaultGraph()
 	{
