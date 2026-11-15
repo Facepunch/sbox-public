@@ -41,4 +41,11 @@
 #define Float4Attribute( ... )
 #endif
 
+// A vertex stage that makes each primitive's geometry itself, where a .shader had a geometry stage:
+// ExpandPrimitives( POINTS | LINES | TRIANGLES | VERTICES, vertices, TRIANGLE_STRIP | LINE_LIST ). The draw runs that
+// many vertices (SV_VertexID) for each point, line, triangle or vertex it's given, with the primitive's vertices as
+// per-instance inputs: a line's second end and a triangle's second and third corners at their semantics' index plus 4
+// and plus 8. Read by the compiler with the vertex stage's combos, as RenderState is with the pixel stage's
+#define ExpandPrimitives( ... )
+
 #endif

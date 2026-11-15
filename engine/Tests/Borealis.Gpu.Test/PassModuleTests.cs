@@ -75,6 +75,113 @@ public class PassModuleTests : GpuTest
 		Assert.AreEqual( 3, module.Combos( StageKind.Pixel ).Count( c => !c.Static ) );
 	}
 
+	[TestMethod]
+	public void ExpansionFollowsTheCombos()
+	{
+		const string text = "#include \"sbox/pass.slangh\"\n#if ( PROGRAM == VFX_PROGRAM_VS )\nDynamicCombo( D_THICK, 0..1, Sys( ALL ) );\n#if ( D_THICK )\nExpandPrimitives( LINES, 4, TRIANGLE_STRIP );\n#endif\n[shader( \"vertex\" )] float4 MainVs() : SV_Position { return 0; }\n#endif\n";
+		var module = PassModule.FromText( "x.slang", text );
+		Assert.IsNull( module.Expansion( new Dictionary<string, int> { ["D_THICK"] = 0 } ) );
+		var (from, vertices, topology) = module.Expansion( new Dictionary<string, int> { ["D_THICK"] = 1 } ).Value;
+		var expansion = PrimitiveExpansion.Parse( from, vertices, topology );
+		Assert.AreEqual( new PrimitiveExpansion( ExpandedPrimitive.Lines, 4, PrimitiveTopology.TriangleStrip ), expansion );
+
+		// A line list steps two vertices a line, a strip one; a line's second end is read at semantic indices 4 up
+		Assert.AreEqual( 3, expansion.Primitives( PrimitiveTopology.LineList, 6 ) );
+		Assert.AreEqual( 5, expansion.Primitives( PrimitiveTopology.LineStrip, 6 ) );
+		Assert.AreEqual( -1, expansion.Primitives( PrimitiveTopology.TriangleList, 6 ) );
+		Assert.AreEqual( 2, expansion.Step( PrimitiveTopology.LineList ) );
+		Assert.AreEqual( 1, expansion.Step( PrimitiveTopology.LineStrip ) );
+		var second = new VertexInput( 3, VertexSemantic.Color, 4, SpirvScalar.Float, 4 );
+		Assert.AreEqual( 1, expansion.Corner( second ) );
+		Assert.AreEqual( 0, expansion.SemanticIndex( second ) );
+		Assert.AreEqual( 0, expansion.Corner( new VertexInput( 4, VertexSemantic.TexCoord, 13, SpirvScalar.UInt, 1 ) ) );
+	}
+
+	/// <summary>The engine's <c>Vertex</c>, 76 bytes, as <see cref="VertexStreamLayout.EngineVertex"/> reads it.</summary>
+	[System.Runtime.InteropServices.StructLayout( System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 4 )]
+	struct EngineVertex
+	{
+		public System.Numerics.Vector3 Position;
+		public uint Color;
+		public System.Numerics.Vector3 Normal;
+		public System.Numerics.Vector4 TexCoord0, TexCoord1, Tangent;
+	}
+
+	/// <summary>
+	/// gizmo_line and gizmo_sprite drawn from their modules, whose vertex stages make each line's and point's quad where the
+	/// .shader's geometry stages did: a line list 5 pixels thick, a strip of the same, and points 8 pixels square.
+	/// </summary>
+	[TestMethod]
+	public void ExpandedPrimitivesDraw()
+	{
+		const int Size = 64;
+		using var backend = new BackendDevice( Device );
+		var errors = new List<string>();
+		backend.Passes.Error = e => errors.Add( e );
+		using var drawer = new ShaderDrawer( backend );
+		var line = backend.Shaders.Load( "shaders/gizmo/gizmo_line.shader" );
+		var sprite = backend.Shaders.Load( "shaders/gizmo/gizmo_sprite.shader" );
+		if ( line is null || sprite is null ) Assert.Inconclusive( "gizmo_line or gizmo_sprite isn't compiled" );
+
+		// World space is clip space: x and y -1 to 1 across the target, depth 0.5
+		var view = new Borealis.Gpu.ViewConstants { InvViewportSize = new Vector2( 1.0f / Size, 1.0f / Size ), ViewportSize = new Vector2( Size, Size ), CameraDirWs = new Vector3( 0, 0, 1 ), CameraUpDirWs = new Vector3( 0, 1, 0 ) };
+		System.Runtime.CompilerServices.Unsafe.As<Matrix, System.Numerics.Matrix4x4>( ref view.WorldToProjection ) = System.Numerics.Matrix4x4.Identity;
+		var viewBytes = new byte[Borealis.Gpu.ViewConstants.NativeSize];
+		System.Runtime.InteropServices.MemoryMarshal.Write( viewBytes, in view );
+
+		static EngineVertex V( float x, float y, System.Numerics.Vector4 uv = default ) => new() { Position = new( x, y, 0.5f ), Color = 0xFFFFFFFF, TexCoord0 = uv };
+		EngineVertex[] lines = [V( -0.5f, -0.5f ), V( 0.5f, -0.5f )];
+		EngineVertex[] strip = [V( -0.5f, 0.25f ), V( 0, 0.25f ), V( 0.5f, 0.25f )];
+		EngineVertex[] points = [V( 0.5f, 0.75f, new( 8, 8, 0, 0 ) )];
+
+		var vertices = Device.CreateBuffer( new BufferInfo { Size = 76 * 8, Usage = BufferUsage.Vertex } );
+		Device.WriteBuffer<EngineVertex>( vertices, [.. lines, .. strip, .. points] );
+
+		var white = Device.CreateTexture( TextureInfo.Texture2D( 1, 1, Format.RGBA8Unorm, name: "White" ) );
+		var attributes = new ShaderAttributes();
+		attributes.SetData( "PerViewConstantBuffer_t", viewBytes );
+		attributes.Set( "LineThickness", 5.0f );
+		attributes.Set( "TextureColor", white );
+
+		// The lines' object transform: the identity, alpha 1
+		var transform = Device.CreateBuffer( new BufferInfo { Size = 64, Usage = BufferUsage.Storage } );
+		Device.WriteBuffer<float>( transform, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0] );
+		attributes.Set( "g_TransformBuffer", transform );
+
+		var color = Device.CreateTexture( TextureInfo.RenderTarget( Size, Size, Format.RGBA8Unorm, name: "Expanded" ) );
+		var list = Device.BeginCommandList( QueueType.Graphics, "Expanded" );
+		list.Barrier( TextureBarrier.Transition( white, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.None, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		list.UpdateTexture( white, (ReadOnlySpan<byte>)[255, 255, 255, 255], 0, 0, 1, 1 );
+		list.Barrier( TextureBarrier.Transition( white, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.FragmentShader, MemoryAccess.ShaderRead ) );
+		list.Barrier( TextureBarrier.Transition( color, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.None, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+		list.BeginRendering( [ColorTarget.Of( color, System.Numerics.Vector4.Zero )] );
+		var viewport = new System.Numerics.Vector4( 0, 0, Size, Size );
+		Assert.IsTrue( drawer.Draw( list, line, attributes, Format.RGBA8Unorm, 1, vertices, 0, VertexStreamLayout.EngineVertex, 2, PrimitiveTopology.LineList, viewport ) );
+		Assert.IsTrue( drawer.Draw( list, line, attributes, Format.RGBA8Unorm, 1, vertices, 76 * 2, VertexStreamLayout.EngineVertex, 3, PrimitiveTopology.LineStrip, viewport ) );
+		Assert.IsTrue( drawer.Draw( list, sprite, attributes, Format.RGBA8Unorm, 1, vertices, 76 * 5, VertexStreamLayout.EngineVertex, 1, PrimitiveTopology.PointList, viewport ) );
+		list.EndRendering();
+		Device.Wait( Device.Submit( list ) );
+
+		var pixels = ReadBack( color, ImageLayout.ColorTarget );
+		Save( pixels, Size, Size, "expanded-primitives" );
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+
+		int Columns( int y, int from, int to ) => Enumerable.Range( from, to - from ).Count( x => Pixel( pixels, Size, x, y ).A > 0 );
+
+		// The list's line and the strip's two segments, five pixels thick each, wherever the rows fall on the screen
+		var lineRows = Enumerable.Range( 0, Size ).Where( y => Pixel( pixels, Size, 24, y ).A > 0 ).ToList();
+		var segmentRows = Enumerable.Range( 0, Size ).Where( y => Pixel( pixels, Size, 40, y ).A > 0 ).ToList();
+		TestContext.WriteLine( $"rows at x 24: {string.Join( ',', lineRows )}; at x 40: {string.Join( ',', segmentRows )}" );
+		Assert.AreEqual( 10, lineRows.Count, "two lines, five pixels thick each, cross x 24" );
+		Assert.AreEqual( 10, segmentRows.Count, "the list's line and the strip's second segment cross x 40" );
+		Assert.AreEqual( 0, Pixel( pixels, Size, 8, 48 ).A, "nothing past the lines' ends" );
+
+		// The point's quad: 8 by 8 pixels round (48, 8 or 56)
+		var spriteRows = Enumerable.Range( 0, Size ).Where( y => Pixel( pixels, Size, 48, y ).A > 0 && !lineRows.Contains( y ) ).ToList();
+		Assert.AreEqual( 8, spriteRows.Count, "a point eight pixels tall" );
+		Assert.AreEqual( 8, Columns( spriteRows[0], 40, Size ), "a point eight pixels wide" );
+	}
+
 	/// <summary>Each module's variants against its compiled shader's: the same bindings, constants, inputs and render state.</summary>
 	[TestMethod]
 	public void PassModulesMatchTheirShaders()
@@ -184,6 +291,10 @@ public class PassModuleTests : GpuTest
 			if ( a?.Bytecode is null ) continue;
 			if ( name == "compute" && a.Bytecode.ThreadGroupSize != b.Bytecode.ThreadGroupSize ) yield return $"thread group {a.Bytecode.ThreadGroupSize} vs {b.Bytecode.ThreadGroupSize}";
 
+			// A module stage whose code reads no constants has no $Globals (Slang drops what's never read; vfx keeps a
+			// combo's declared constants, as tools_sprite's border colour in its depth pass): nothing to bind, nothing to differ
+			if ( a.MaterialBuffer.Set >= 0 && b.MaterialBuffer.Set < 0 ) continue;
+
 			// Material constants the classic stage reads: the same offset and source in the module's $Globals
 			var moduleConstants = b.MaterialConstants.ToDictionary( c => c.Variable.Name, c => c );
 			foreach ( var (variable, offset) in a.MaterialConstants )
@@ -214,6 +325,7 @@ public class PassModuleTests : GpuTest
 		{
 			if ( !moduleResources.TryGetValue( at, out var m ) )
 			{
+				if ( r.Kind == ShaderResourceKind.MaterialConstants && !module.Resources.Any( x => x.Kind == ShaderResourceKind.MaterialConstants && x.Stages == r.Stages ) ) continue;
 				yield return $"binding {r} missing";
 				continue;
 			}
@@ -223,14 +335,21 @@ public class PassModuleTests : GpuTest
 			else if ( r.Kind == ShaderResourceKind.Texture && r.Variable.RenderStateId == 1 != (m.Variable.RenderStateId == 1) ) yield return $"binding {r} sRGB {r.Variable.RenderStateId == 1} vs {m.Variable.RenderStateId == 1}";
 		}
 
+		// A vertex stage that expands primitives does the .shader's geometry stage's work, so it reads what that stage read
+		// (the view constants), which the .shader's vertex stage didn't
 		foreach ( var (at, m) in moduleResources )
 		{
-			if ( !classicResources.ContainsKey( at ) ) yield return $"binding {m} only in the module";
+			if ( !classicResources.ContainsKey( at ) && !(module.Expansion.Expands && m.Stages == ShaderStages.Vertex) ) yield return $"binding {m} only in the module";
 		}
 
-		// Vertex inputs
-		var inputs = string.Join( ' ', classic.VertexInputs );
-		var moduleInputs = string.Join( ' ', module.VertexInputs );
+		// Vertex inputs. A stage that expands primitives (in place of a geometry stage) reads its primitive's first vertex
+		// as the .shader's stage reads its vertex, and the others besides, at their own locations
+		var expansion = module.Expansion;
+		static string Input( VertexInput i ) => $"{i.Semantic}{i.SemanticIndex}:{i.Kind}x{i.Components}";
+		var inputs = expansion.Expands ? string.Join( ' ', classic.VertexInputs.Select( Input ).Order( StringComparer.Ordinal ) ) : string.Join( ' ', classic.VertexInputs );
+		var moduleInputs = expansion.Expands
+			? string.Join( ' ', module.VertexInputs.Where( i => expansion.Corner( i ) == 0 ).Select( Input ).Order( StringComparer.Ordinal ) )
+			: string.Join( ' ', module.VertexInputs );
 		if ( inputs != moduleInputs ) yield return $"vertex inputs {inputs} vs {moduleInputs}";
 
 		// Render state

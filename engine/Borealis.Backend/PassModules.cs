@@ -169,7 +169,9 @@ public sealed class PassModules : IShaderModules
 
 		try
 		{
-			var vertex = Stage( StageKind.Vertex, out _ );
+			var vertex = Stage( StageKind.Vertex, out var vertexValues );
+			if ( vertex?.Spirv is not null && module.Expansion( vertexValues ) is { } expansion )
+				vertex = Copy( vertex, expansion: PrimitiveExpansion.Parse( expansion.From, expansion.Vertices, expansion.Topology ) );
 			var pixel = Stage( StageKind.Pixel, out var pixelValues );
 			var compute = Stage( StageKind.Compute, out _ );
 			if ( pixel is not null )
@@ -232,8 +234,9 @@ public sealed class PassModules : IShaderModules
 		return Copy( stage, renderStates: literals );
 	}
 
-	static ModuleStage Copy( ModuleStage stage, SpecializationConstant[] constants = null, IReadOnlyList<(int, ShaderVariable)> renderStates = null ) => new()
+	static ModuleStage Copy( ModuleStage stage, SpecializationConstant[] constants = null, IReadOnlyList<(int, ShaderVariable)> renderStates = null, PrimitiveExpansion? expansion = null ) => new()
 	{
+		Expansion = expansion ?? stage.Expansion,
 		Type = stage.Type,
 		Name = stage.Name,
 		Spirv = stage.Spirv,
