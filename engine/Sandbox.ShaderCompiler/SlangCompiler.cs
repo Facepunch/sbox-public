@@ -129,7 +129,9 @@ public sealed partial class SlangCompiler
 			if ( composite && (lit || sunLit) )
 				throw new ShaderCompileException( path, $"{material.Name}: an ICompositeSurface can't also be an ILitSurface or ISunLitSurface yet" );
 
-			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit, composite, combiner );
+			var defines = CombinerDefines( source );
+			if ( defines.Count > 0 && !combiner ) throw new ShaderCompileException( path, $"{material.Name}: [Combiner( ... )] is for an ICombinerSurface or IInterpolatedCombinerSurface" );
+			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit, composite, combiner, defines );
 			var instancePath = Path.Combine( directory, $"{module}.instance.slang" );
 
 			var vertex = CompileEntry( instancePath, instance, "MainVs", StageKind.Vertex, directory );
@@ -238,6 +240,28 @@ public sealed partial class SlangCompiler
 		}
 	}
 
+	/// <summary>
+	/// A combiner surface's <c>[Combiner( "A, B = C" )]</c>: the final combiner's compile-time features it lights with, each
+	/// a define before the engine's includes (a name alone is 1).
+	/// </summary>
+	internal static List<(string Name, string Value)> CombinerDefines( string source )
+	{
+		var defines = new List<(string, string)>();
+		foreach ( Match m in CombinerAttribute().Matches( source ) )
+		{
+			foreach ( var entry in m.Groups["defines"].Value.Split( ',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ) )
+			{
+				var parts = entry.Split( '=', 2, StringSplitOptions.TrimEntries );
+				defines.Add( (parts[0], parts.Length > 1 ? parts[1] : "1") );
+			}
+		}
+
+		return defines;
+	}
+
+	[GeneratedRegex( @"\bCombiner\s*\(\s*""(?<defines>[^""]*)""\s*\)" )]
+	private static partial Regex CombinerAttribute();
+
 	[GeneratedRegex( @"^[A-Za-z_]\w*$" )]
 	private static partial Regex ModuleName();
 
@@ -309,7 +333,7 @@ public sealed partial class SlangCompiler
 	/// composite surface's (<c>ICompositeSurface</c>) forward passes call its <c>Composite</c> on the lit colour, and a
 	/// combiner surface's (<c>ICombinerSurface</c>) shade through complex.shader's final combiner (<c>SURFACE_FINAL_COMBINER</c>).
 	/// </summary>
-	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false, bool sunLit = false, bool composite = false, bool combiner = false )
+	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false, bool sunLit = false, bool composite = false, bool combiner = false, IReadOnlyList<(string Name, string Value)> combinerDefines = null )
 	{
 		var forward = sunLit ? "SurfaceForwardSunLit" : composite ? "SurfaceForwardComposite" : combiner ? "SurfaceForwardCombiner" : "SurfaceForward";
 		var vertex = displaces ? $"SurfaceVertexDisplaced<{type}>( i )" : "SurfaceVertex( i )";
@@ -335,6 +359,7 @@ public sealed partial class SlangCompiler
 		if ( opacityField is not null ) text.Append( "#define SURFACE_OPACITY_TEXTURE 1\n" );
 		if ( lit ) text.Append( "#define SURFACE_LIGHT_HOOK 1\n" );
 		if ( combiner ) text.Append( "#define SURFACE_FINAL_COMBINER 1\n" );
+		foreach ( var (name, value) in combinerDefines ?? [] ) text.Append( "#define " ).Append( name ).Append( ' ' ).Append( value ).Append( '\n' );
 		text.Append( "#include \"sbox/surface_passes.slangh\"\n" );
 		text.Append( "import " ).Append( module ).Append( ";\n\n" );
 		text.Append( "#ifdef SURFACE_GPU_DRIVEN\n" );

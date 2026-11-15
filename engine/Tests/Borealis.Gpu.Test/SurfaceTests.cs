@@ -1115,6 +1115,56 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// skin.slang lights through the final combiner with skin.shader's lighting features (its [Combiner] defines, ahead of
+	/// the engine's includes) and draws skin materials as skin.shader does.
+	/// </summary>
+	[TestMethod]
+	public void SkinSurfaceDrawsSkinMaterials()
+	{
+		var skin = Compiler().CompileSurface( Path.Combine( Core, "shaders", "skin.slang" ) );
+		StringAssert.Contains( skin.Generated, "#define S_SUBSURFACE_SCATTERING SUBSURFACE_SCATTERING_PREINTEGRATED" );
+		StringAssert.Contains( skin.Generated, "#define S_TWO_LOBE_SPECULAR 1" );
+		Assert.IsTrue( skin.Generated.IndexOf( "S_TRANSMISSIVE", StringComparison.Ordinal ) < skin.Generated.IndexOf( "surface_passes.slangh", StringComparison.Ordinal ) );
+
+		var previousHost = RenderHost.Current;
+		try
+		{
+			byte[] DrawMaterial( string path, bool convert, out GpuMaterial loaded )
+			{
+				using var backend = new BackendDevice( Device );
+				var errors = new List<string>();
+				backend.Surfaces.Error = errors.Add;
+				RenderHost.Current = new BackendRenderHost( backend );
+				backend.Surfaces.ConvertShaders = false;
+				if ( convert )
+				{
+					backend.Surfaces.AddFolder( Path.Combine( Core, "shaders" ) );
+					backend.Surfaces.Convert( "shaders/skin.shader", "skin.slang" );
+				}
+
+				loaded = ((GpuDevice)backend).LoadMaterial( path );
+				var picture = Draw( backend, loaded );
+				Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+				return picture;
+			}
+
+			const string head = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01.vmat";
+			var reference = DrawMaterial( head, false, out var classic );
+			if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( $"{head} isn't compiled" );
+			var converted = DrawMaterial( head, true, out var surface );
+			Assert.IsInstanceOfType<SurfaceMaterial>( surface, $"{head} wasn't converted" );
+			SaveRgb( reference, "skin-shader" );
+			SaveRgb( converted, "skin-surface" );
+			Assert.IsTrue( Mean( reference, converted ) < 0.5, $"the skin surface differs by {Mean( reference, converted ):F3}" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A box lit by the sun, filling most of the frame, as 8-bit sRGB-ish bytes (red channel of RGBA16F); or a model in its
 	/// bind pose with every draw in the material.
 	/// </summary>

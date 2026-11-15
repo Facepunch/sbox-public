@@ -73,6 +73,7 @@ public sealed class SurfaceShaders : IDisposable
 		["glass"] = "glass.slang",
 		["foliage"] = "foliage.slang",
 		["fur"] = "fur.slang",
+		["skin"] = "skin.slang",
 		["simple"] = null,
 		["bark"] = null,
 		["terrain_preview"] = null,

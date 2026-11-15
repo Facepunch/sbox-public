@@ -122,6 +122,12 @@ public struct NoDepthTestAttribute {};
 [__AttributeUsage( _AttributeTargets.Struct )]
 public struct DepthBiasAttribute { float Constant; float Slope; };
 
+// The final combiner's compile-time lighting features a combiner surface lights with, as a .shader's COMMON block defines
+// them: "S_TWO_LOBE_SPECULAR, S_TRANSMISSIVE, S_SUBSURFACE_SCATTERING = SUBSURFACE_SCATTERING_PREINTEGRATED" (a name alone
+// is 1). Material's fields for them (SssNormal, TwoLobeSpecularRatio, ...) are read only where they're on
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct CombinerAttribute { string Defines; };
+
 // Draw back faces too: a combiner surface's normal turned to the viewer, as complex.shader does; others see the face's
 // own, as common/pixel.hlsl's shaders do (SurfaceInput.FrontFace says which side)
 [__AttributeUsage( _AttributeTargets.Struct )]

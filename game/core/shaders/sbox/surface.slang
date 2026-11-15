@@ -55,6 +55,23 @@ public struct Material
 	// as an overlay, then faded by its opacity towards the colour that leaves what's behind it as it is
 	public int OverlayMode = 0;
 
+	// Read by a combiner surface's shading only where its [Combiner( ... )] features are on (skin.shader's): the blurred
+	// normal subsurface scattering is lit with (zero for Normal), a factor on the curvature it takes from the normal's
+	// screen derivatives, and where it scatters (S_SUBSURFACE_SCATTERING); the second specular lobe's share and its roughness
+	// as a factor of Roughness (S_TWO_LOBE_SPECULAR); the colour occlusion bleeds (S_AMBIENT_OCCLUSION_COLOR_BLEED); how
+	// Transmission falls off (S_TRANSMISSIVE). Bent normals, where set, light the indirect terms
+	public float3 SssNormal = 0;
+	public float SssCurvatureScale = 1;
+	public float SssMask = 1;
+	public MaterialTexture2D SssFalloff;   // the lookup the scattering is lit through (skin's diffuse falloff)
+	public float TwoLobeSpecularRatio = 0;
+	public float SecondLobeRoughness = 1;
+	public float3 AmbientOcclusionColorBleed = 1;
+	public float3 TransmissiveFalloff = 0;
+	public bool UseBentNormals = false;
+	public float3 BentNormal = float3( 0, 0, 1 );
+	public float3 BentDiffuseNormal = float3( 0, 0, 1 );
+
 	/// Blend two surfaces' properties, as common/material.hlsl's Material::lerp does (the normal renormalized).
 	public static Material Lerp( Material a, Material b, float amount )
 	{
@@ -185,6 +202,21 @@ public struct SurfaceInput
 	{
 		if ( kSampleWithGradients || Gradients ) return texture.SampleGrad( filtering, uv, UvDdx, UvDdy );
 		return texture.Sample( filtering, uv );
+	}
+
+	/// At a mip level (a blurred read: skin's diffuse normal).
+	public float4 SampleLevel( MaterialTexture2D texture, float2 uv, float level )
+	{
+		return texture.SampleLevel( g_MaterialFiltering, uv, level );
+	}
+
+	/// vr_common.fxc's CalculateMipLevel: the mip level a texture is read at, at the mesh's uv (from UvDdx and UvDdy).
+	public float MipLevel( MaterialTexture2D texture )
+	{
+		float2 size = float2( texture.Size() );
+		float2 dx = UvDdx * size.x;
+		float2 dy = UvDdy * size.y;
+		return 0.5 * log2( max( dot( dx, dx ), dot( dy, dy ) ) );
 	}
 
 	/// A tangent-space normal to world space.
