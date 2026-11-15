@@ -8,8 +8,8 @@ namespace Borealis.Features;
 /// device keeps what it makes of them (buckets, records, multi-draws) and the GPU culls every fragment. A list changes only
 /// when an aggregate is added, removed or changes how it draws, or its kept transforms move; a view takes the list of its
 /// kind (main, or which casters a shadow view takes) and of the tag classes it shows. A shadow view's list holds the casters
-/// its static filter takes; for the sun's far cascade cache and what's drawn over it, those that aren't static too while
-/// they keep still, each with when it last moved, and the GPU keeps those the view's settled stamps take
+/// its static filter takes; for the sun's far cascade cache, those that aren't static too while they keep still, each with
+/// when it last moved, and the GPU keeps those the view's settled stamps take
 /// (<see cref="GpuContext.ResidentFilter"/>). Aggregates a list doesn't hold go the view's own way. Resident static meshes
 /// (<see cref="GpuDevice.DrawsMeshesResident"/>) join the lists in groups of one model drawn alike, a batch per LOD and draw,
 /// which the GPU culls and picks LODs for (<see cref="GpuContext.ResidentMeshes"/>); the mesh feature doesn't prepare them.
@@ -214,7 +214,7 @@ internal sealed partial class AggregateRenderFeature
 		/// <summary>The far cascade's cache: static casters and those that aren't, while they keep still.</summary>
 		Settled,
 
-		/// <summary>A baked sun's far cascade cache, and what's drawn over a far cascade's cache: casters that aren't static, while they keep still.</summary>
+		/// <summary>A baked sun's far cascade cache: casters that aren't static, while they keep still.</summary>
 		SettledNotStatic,
 	}
 
@@ -681,10 +681,11 @@ internal sealed partial class AggregateRenderFeature
 			StaticFilter.Any => ResidentCasters.All,
 			StaticFilter.OnlyStatic => ResidentCasters.Static,
 			StaticFilter.NoStatic => ResidentCasters.NotStatic,
-			// A far cascade cache's settled casters, and what's drawn over it, depend on when each settled: the GPU decides, or
-			// the cache takes its static casters from a list and the rest go the view's own way
+			// A far cascade cache's settled casters depend on when each settled: the GPU decides, or the cache takes its static
+			// casters from a list and the rest go the view's own way. What's drawn over it every frame goes its own way: the
+			// collect visits every caster anyway, and keeps only the few that haven't settled
 			StaticFilter.Settled => settled ? ResidentCasters.Settled : ResidentCasters.Static,
-			StaticFilter.SettledNoStatic or StaticFilter.Unsettled when settled => ResidentCasters.SettledNotStatic,
+			StaticFilter.SettledNoStatic when settled => ResidentCasters.SettledNotStatic,
 			_ => (ResidentCasters)(-1),
 		};
 		if ( casters < 0 ) return null;

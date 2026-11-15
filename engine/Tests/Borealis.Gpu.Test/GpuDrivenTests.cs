@@ -632,9 +632,10 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
-	/// The sun's far cascade cache and what's drawn over it take resident casters that aren't static by when each last moved,
-	/// on the GPU (<see cref="GpuContext.ResidentFilter"/>): their lists hold the boxes and the aggregate that aren't static,
-	/// settled or not, and each call culling its own and the resident cull draw what every view preparing its own does. A
+	/// The sun's far cascade cache takes resident casters that aren't static by when each last moved,
+	/// on the GPU (<see cref="GpuContext.ResidentFilter"/>): its lists hold the boxes and the aggregate that aren't static,
+	/// settled or not (what's drawn over it takes its own), and each call culling its own and the resident cull draw what every
+	/// view preparing its own does. A
 	/// cache drawn so holds no caster that hadn't settled: once those move away, without the cache drawn again, the picture is
 	/// that of a cache every view drew its own way.
 	/// </summary>
@@ -727,7 +728,7 @@ public class GpuDrivenTests : GpuTest
 			var over = passes.Single( p => p.StaticFilter == Borealis.StaticFilter.Unsettled );
 			bool Holds( ViewPass pass, RenderObject obj ) => aggregates.ResidentFor( pass ) is { } list && obj.Index < list.Holds.Length && list.Holds[obj.Index];
 			Assert.IsTrue( Holds( cache, settled[0] ) && Holds( cache, unsettled[0] ) && Holds( cache, aggregate ), "the cache's list holds casters that aren't static, settled or not" );
-			Assert.IsTrue( Holds( over, settled[0] ) && Holds( over, unsettled[0] ) && Holds( over, aggregate ), "and so does what's drawn over it" );
+			Assert.IsFalse( Holds( over, unsettled[0] ) || Holds( over, aggregate ), "what's drawn over it takes its own, which the collect keeps" );
 
 			var calls = backend.ResidentCullCalls;
 			byte[] culled = null;
