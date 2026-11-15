@@ -61,6 +61,30 @@ internal sealed class BorealisGpuFrame : IDisposable
 		System.Runtime.InteropServices.MemoryMarshal.Write( constants, in viewConstants );
 	}
 
+	byte[] outputConstants = [];
+
+	/// <summary>
+	/// Set the frame's view constants on the block being recorded for drawing over its output: the viewport and target sizes
+	/// become <paramref name="viewport"/> in a target of <paramref name="targetSize"/>. The stages after post processing and the
+	/// UI draw there, as native's draw with the view's constants.
+	/// </summary>
+	public void SetOutputConstants( Rect viewport, Vector2 targetSize )
+	{
+		if ( constants.Length == 0 || targetSize.x < 1 || targetSize.y < 1 ) return;
+
+		var c = System.Runtime.InteropServices.MemoryMarshal.Read<GpuViewConstants>( constants );
+		c.ViewportOffset = new( viewport.Left, viewport.Top );
+		c.ViewportSize = new( viewport.Width, viewport.Height );
+		c.InvViewportSize = new( 1.0f / viewport.Width, 1.0f / viewport.Height );
+		c.RenderTargetSize = new( targetSize.x, targetSize.y );
+		c.ViewportToGBufferRatio = new( viewport.Width / targetSize.x, viewport.Height / targetSize.y );
+		c.InvGBufferSize = new( 1.0f / targetSize.x, 1.0f / targetSize.y, 1.0f, 1.0f );
+
+		if ( outputConstants.Length != constants.Length ) outputConstants = new byte[constants.Length];
+		System.Runtime.InteropServices.MemoryMarshal.Write( outputConstants, in c );
+		Graphics.Attributes.SetData( ViewConstantsName, outputConstants.AsSpan() );
+	}
+
 	/// <summary>An engine texture of the target's size whose backing on the device is <paramref name="gpu"/>.</summary>
 	Texture Engine( Texture existing, GpuTexture gpu, Vector2Int size, ImageFormat format, bool depth )
 	{

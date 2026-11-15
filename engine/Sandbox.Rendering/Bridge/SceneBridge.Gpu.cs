@@ -111,15 +111,36 @@ internal sealed partial class SceneBridge
 	/// </summary>
 	void DrawOutput( SceneCamera camera, BorealisGpuFrame frame, bool ui, bool encode, bool flipX, bool flipY )
 	{
-		if ( frame is not null ) CopyFrame( frame, encode, flipX, flipY );
+		if ( frame is not null )
+		{
+			CopyFrame( frame, encode, flipX, flipY );
+
+			// What draws over the output reads the view's constants, sized for the output (pp_color's g_vRenderTargetSize)
+			var output = gpuView.Target?.ColorTarget;
+			frame.SetOutputConstants( gpuView.Viewport, output is null ? gpuView.Viewport.Size : new Vector2( output.Width, output.Height ) );
+		}
 		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( camera.BackgroundColor, true, false, false );
 
 		// Early UI draws here too, over the finished frame, not before post processing
 		Graphics.Attributes.Set( UIGammaOutput, encode );
 		if ( ui && camera.Attributes.GetBool( "enableEarlyUI" ) ) RunStage( camera, Stage.EarlyUI );
 
+		// Post processing over the output reads and writes it as on Source 2's sRGB targets: an 8-bit target bound linear for
+		// the UI is written through its sRGB view meanwhile, so the effects' linear results are encoded
 		Graphics.Attributes.Set( UIGammaOutput, false );
+		var srgbWrite = gpuView.SrgbWrite;
+		if ( encode )
+		{
+			gpuView.SrgbWrite = true;
+			gpuView.Bind();
+		}
+
 		RunStage( camera, Stage.AfterPostProcess );
+		if ( encode )
+		{
+			gpuView.SrgbWrite = srgbWrite;
+			gpuView.Bind();
+		}
 
 		Graphics.Attributes.Set( UIGammaOutput, encode );
 		if ( ui ) RunStage( camera, Stage.UI );
