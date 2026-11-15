@@ -412,9 +412,26 @@ public static class Directory
 			_typeAssemblies.Add( assembly );
 		}
 
-		foreach ( var library in ContextLibraries() )
+		var libraries = ContextLibraries().ToArray();
+
+		try
 		{
-			library.AddAssembly( assembly, false );
+			foreach ( var library in libraries )
+			{
+				library.AddAssembly( assembly, false );
+			}
+		}
+		catch
+		{
+			// Left in the list, it would throw again on every type library rebuild
+			lock ( _typeAssemblies ) _typeAssemblies.Remove( assembly );
+
+			foreach ( var library in libraries )
+			{
+				library.RemoveAssembly( assembly );
+			}
+
+			throw;
 		}
 	}
 
