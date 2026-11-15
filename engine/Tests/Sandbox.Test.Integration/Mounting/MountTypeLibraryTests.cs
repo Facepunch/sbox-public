@@ -8,13 +8,13 @@ namespace MountingTests;
 public sealed class TestMountComponent : Component
 {
 	[JsonUpgrader( typeof( TestMountComponent ), 1 )]
-	static void Upgrader_v1( JsonObject json )
+	public static void Upgrader_v1( JsonObject json )
 	{
 	}
 }
 
 /// <summary>
-/// Carries no attribute that would expose it, like most of a mount's own types.
+/// Carries no attribute that would expose it, like a mount's file readers and other internals.
 /// </summary>
 public enum TestMountEnum
 {
@@ -87,15 +87,17 @@ public class MountTypeLibraryTests
 	}
 
 	[TestMethod]
-	public void TypesWithoutAnExposingAttributeAreEnrolled()
+	public void TypesTheMountDoesNotExposeStayOut()
 	{
 		Sandbox.Mounting.Directory.AddTypeAssembly( typeof( TestMountEnum ).Assembly );
 
-		Assert.IsNotNull( GlobalContext.Game.TypeLibrary.GetType( typeof( TestMountEnum ) ) );
+		Assert.IsNotNull( GlobalContext.Game.TypeLibrary.GetType( typeof( TestMountComponent ) ) );
+		Assert.IsNull( GlobalContext.Game.TypeLibrary.GetType( typeof( TestMountEnum ) ) );
+		Assert.IsNull( GlobalContext.Menu.TypeLibrary.GetType( typeof( TestMountEnum ) ) );
 
 		var rebuilt = new TypeLibrary();
 		Sandbox.Mounting.Directory.AddTypesTo( rebuilt );
-		Assert.IsNotNull( rebuilt.GetType( typeof( TestMountEnum ) ) );
+		Assert.IsNull( rebuilt.GetType( typeof( TestMountEnum ) ) );
 	}
 
 	[TestMethod]

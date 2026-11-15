@@ -384,7 +384,15 @@ public static class Directory
 
 	static void LoadAssembly( Assembly assembly, BaseFileSystem fileSystem )
 	{
-		AddTypeAssembly( assembly );
+		try
+		{
+			AddTypeAssembly( assembly );
+		}
+		catch ( System.Exception e )
+		{
+			Log.Warning( e, $"Couldn't add the types of mount assembly {assembly.GetName().Name} to the type library, not loading it" );
+			return;
+		}
 
 		try
 		{
@@ -412,8 +420,9 @@ public static class Directory
 	}
 
 	/// <summary>
-	/// Enroll a mount assembly's types in the menu and game type libraries, and keep them there across rebuilds.
-	/// Only for assemblies the package system doesn't already add.
+	/// Enroll a mount assembly's exposed types in the menu and game type libraries, and keep them there across rebuilds.
+	/// Only for assemblies the package system doesn't already add. Those don't pass the whitelist, so game code
+	/// only gets the types the mount marks, such as components and [Library] types, not the rest of the assembly.
 	/// </summary>
 	internal static void AddTypeAssembly( Assembly assembly )
 	{
@@ -429,7 +438,7 @@ public static class Directory
 		{
 			foreach ( var library in libraries )
 			{
-				library.AddAssembly( assembly, true );
+				library.AddAssembly( assembly, false );
 			}
 		}
 		catch
@@ -473,7 +482,7 @@ public static class Directory
 
 		foreach ( var assembly in assemblies )
 		{
-			library.AddAssembly( assembly, true );
+			library.AddAssembly( assembly, false );
 		}
 	}
 
