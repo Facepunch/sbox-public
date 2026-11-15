@@ -384,6 +384,10 @@ public sealed class ShaderStage
 			}
 
 			var integer = variable.Type is >= VariableType.Int and <= VariableType.Bool4;
+
+			// A matrix nothing sets is identity, as native's material parameters default it (CMaterialShaderParams): world text
+			// sets neither of ui/vertex.hlsl's LayerMat and TransformMat
+			var matrix = components > 4;
 			for ( int i = 0; i < components; i++ )
 			{
 				var target = buffer[(offset + i * 4)..];
@@ -395,7 +399,7 @@ public sealed class ShaderStage
 				}
 				else
 				{
-					var value = given is not null ? (i < given.Length ? given[i] : 0) : i < 4 ? variable.FloatDefault[i] : 0;
+					var value = given is not null ? (i < given.Length ? given[i] : 0) : matrix ? (i % 5 == 0 ? 1 : 0) : i < 4 ? variable.FloatDefault[i] : 0;
 					System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian( target, value );
 				}
 			}

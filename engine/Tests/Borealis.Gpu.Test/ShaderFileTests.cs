@@ -171,6 +171,30 @@ public class ShaderDrawTests : GpuTest
 	}
 
 	/// <summary>
+	/// A matrix attribute nothing sets is identity, as on Source 2: world text's draws set neither of ui/vertex.hlsl's
+	/// LayerMat and TransformMat, and with zeros its quad has no position.
+	/// </summary>
+	[TestMethod]
+	public void UnsetMatrixAttributesAreIdentity()
+	{
+		using var library = new ShaderLibrary( Device, ShaderFileTests.Files );
+		var shader = library.Load( "shaders/ui_text.shader" );
+		var stage = library.Variant( shader, "Forward", new int[shader.Features.StaticCombos.Length] ).Vertex;
+		var data = new byte[stage.MaterialBuffer.Size];
+		stage.WriteMaterialConstants( data );
+
+		var found = 0;
+		foreach ( var (variable, offset) in stage.MaterialConstants )
+		{
+			if ( variable.Attribute is not ("LayerMat" or "TransformMat") ) continue;
+			for ( int i = 0; i < 16; i++ ) Assert.AreEqual( i % 5 == 0 ? 1f : 0f, BitConverter.ToSingle( data, offset + i * 4 ), $"{variable.Attribute}[{i}]" );
+			found++;
+		}
+
+		Assert.AreEqual( 2, found, "LayerMat and TransformMat in ui_text's vertex constants" );
+	}
+
+	/// <summary>
 	/// depth_only's Depth mode has no pixel shader; it writes a quad's depth.
 	/// </summary>
 	[TestMethod]

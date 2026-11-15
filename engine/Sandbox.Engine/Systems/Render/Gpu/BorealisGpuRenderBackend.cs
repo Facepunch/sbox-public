@@ -208,6 +208,19 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 	/// </summary>
 	internal void LendNextBlock( GpuCommandList list ) => lendNext = list;
 
+	/// <summary>
+	/// Draw with a lent frame's transform buffer as <c>g_TransformBuffer</c> (under the draws' own attributes) and its instance
+	/// ids at <paramref name="offset"/> bytes (<see cref="ShaderDrawer.InstanceIds"/>), as a custom object inside Borealis's
+	/// frame draws on Source 2. Default handles stop.
+	/// </summary>
+	internal void LendInstances( BufferHandle transforms, BufferHandle ids, long offset )
+	{
+		lentTransforms = transforms;
+		drawer.InstanceIds = (ids, offset);
+	}
+
+	BufferHandle lentTransforms;
+
 	/// <summary>The depth range draws map to (<see cref="ShaderDrawer.DepthRange"/>): a lent frame's, else 0 to 1.</summary>
 	internal (float Min, float Max) DepthRange
 	{
@@ -785,7 +798,9 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		if ( attributes?.Managed is null )
 			throw new NotSupportedException( "Native render attributes can't be drawn with on Borealis.Gpu" );
 
-		// A draw's attributes over the block's: a post process's blit reads the frame grab its command list set on the block
+		// A lent frame's transforms under everything, then a draw's attributes over the block's: a post process's blit reads
+		// the frame grab its command list set on the block
+		if ( lentTransforms.IsValid ) lowered.Set( "g_TransformBuffer", lentTransforms );
 		if ( blockAttributes?.Managed is { } block && !ReferenceEquals( block, attributes.Managed ) ) Lower( block );
 		Lower( attributes.Managed );
 		return lowered;

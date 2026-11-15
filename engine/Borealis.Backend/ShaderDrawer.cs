@@ -131,7 +131,7 @@ public sealed class ShaderDrawer : IDisposable
 	readonly ShaderLibrary shaders;
 	readonly ShaderDefaults defaults;
 	readonly Dictionary<(ShaderFile Shader, string Mode, string Combos), ShaderVariant> variants = new();
-	readonly Dictionary<(ShaderVariant Variant, Format Color, Format Depth, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology), PipelineHandle> pipelines = new();
+	readonly Dictionary<(ShaderVariant Variant, Format Color, Format Depth, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology, bool Ids), PipelineHandle> pipelines = new();
 	readonly Dictionary<ShaderVariant, PipelineHandle> computePipelines = new();
 	MaterialObjectCache cache;
 	readonly bool ownsCache;
@@ -177,6 +177,39 @@ public sealed class ShaderDrawer : IDisposable
 	/// <summary>Material objects made, descriptor sets written through them, and sets held now, for tests and benchmarks.</summary>
 	public (int Objects, int SetsWritten, int SetsHeld) MaterialObjectStats => cache is null ? default : (cache.Count, cache.SetsWritten, cache.SetCount);
 
+	/// <summary>
+	/// The instance id stream draws read <c>TEXCOORD13</c> (<c>InstanceTransformUv</c>) from, per instance, from an offset in
+	/// bytes: a frame's, where a custom object draws inside it, whose shaders index <c>g_TransformBuffer</c> with it as
+	/// native's <c>CSceneSystem::BindTransformSlot</c> has them do. None (the default) reads the default stream.
+	/// </summary>
+	public (BufferHandle Buffer, long Offset) InstanceIds { get; set; }
+
+	// Material objects key their pipelines by layout object: a layout with instance ids is another one, so it has a key of its own
+	readonly Dictionary<VertexStreamLayout, object> idsLayouts = new();
+	readonly object noLayoutIds = new();
+
+	object LayoutKey( VertexStreamLayout layout, bool ids )
+	{
+		if ( !ids ) return layout;
+		if ( layout is null ) return noLayoutIds;
+		if ( !idsLayouts.TryGetValue( layout, out var key ) ) idsLayouts[layout] = key = new object();
+		return key;
+	}
+
+	static bool IsInstanceId( in VertexInput input ) => input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex == 13;
+
+	// Whether a draw of the variant reads the lent instance ids. Not one that expands primitives: its instances are primitives
+	bool ReadsInstanceIds( ShaderVariant variant )
+	{
+		if ( !InstanceIds.Buffer.IsValid || variant.Expansion.Expands ) return false;
+		foreach ( var input in variant.VertexInputs )
+		{
+			if ( IsInstanceId( input ) ) return true;
+		}
+
+		return false;
+	}
+
 	/// <summary>Draws that fell back to binding by reflection because the frame's pass constants were full.</summary>
 	public int Fallbacks { get; private set; }
 
@@ -219,8 +252,9 @@ public sealed class ShaderDrawer : IDisposable
 		var variant = Variant( shader, attributes, mode );
 		if ( variant?.Vertex?.Bytecode is null ) return false;
 
-		BindForDraw( list, variant, attributes, color, depth, samples, null, PrimitiveTopology.TriangleList, viewport );
+		var ids = BindForDraw( list, variant, attributes, color, depth, samples, null, PrimitiveTopology.TriangleList, viewport );
 		list.SetVertexBuffer( 0, defaults.VertexDefaults );
+		if ( ids ) list.SetVertexBuffer( 1, InstanceIds.Buffer, InstanceIds.Offset );
 		list.SetIndexBuffer( indices, IndexFormat.UInt32 );
 		list.DrawIndexed( indexCount, instances );
 		return true;
@@ -254,9 +288,10 @@ public sealed class ShaderDrawer : IDisposable
 			if ( instances == 0 ) return true;
 		}
 
-		BindForDraw( list, variant, attributes, color, depth, samples, layout, topology, viewport );
+		var ids = BindForDraw( list, variant, attributes, color, depth, samples, layout, topology, viewport );
 		list.SetVertexBuffer( 0, vertices, offset );
 		list.SetVertexBuffer( 1, defaults.VertexDefaults );
+		if ( ids ) list.SetVertexBuffer( 2, InstanceIds.Buffer, InstanceIds.Offset );
 		if ( !expansion.Expands )
 		{
 			list.Draw( vertexCount );
@@ -268,28 +303,28 @@ public sealed class ShaderDrawer : IDisposable
 		return true;
 	}
 
-	void BindForDraw( CommandList list, ShaderVariant variant, ShaderAttributes attributes, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, System.Numerics.Vector4 viewport )
+	// Bind a draw's pipeline and resources; true when it reads the lent instance ids, which the caller binds after its streams
+	bool BindForDraw( CommandList list, ShaderVariant variant, ShaderAttributes attributes, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, System.Numerics.Vector4 viewport )
 	{
-		// A pipeline that tests stencil takes its reference as dynamic state, which nothing else in the list may have set
-		if ( variant.State.StencilTest && depth.HasStencil() ) list.SetStencilReference( (byte)variant.State.StencilReference );
-
+		var ids = ReadsInstanceIds( variant );
 		if ( Objects( variant ) )
 		{
-			var key = new MaterialObjectCache.Key( null, variant, layout, color, depth, samples, false, false, topology );
-			var materialObject = cache.Get( key, immediate: true, (Drawer: this, Variant: variant, Color: color, Depth: depth, Samples: samples, Layout: layout, Topology: topology),
-				static ( s, materialLayout ) => s.Drawer.Pipeline( s.Variant, s.Color, s.Depth, s.Samples, s.Layout, s.Topology, materialLayout.Sets ) );
+			var key = new MaterialObjectCache.Key( null, variant, LayoutKey( layout, ids ), color, depth, samples, false, false, topology );
+			var materialObject = cache.Get( key, immediate: true, (Drawer: this, Variant: variant, Color: color, Depth: depth, Samples: samples, Layout: layout, Topology: topology, Ids: ids),
+				static ( s, materialLayout ) => s.Drawer.Pipeline( s.Variant, s.Color, s.Depth, s.Samples, s.Layout, s.Topology, materialLayout.Sets, s.Ids ) );
 			SetViewport( list, viewport );
 			BindObject( list, materialObject, attributes, viewport );
 		}
 		else
 		{
-			list.SetPipeline( Pipeline( variant, color, depth, samples, layout, topology, null ) );
+			list.SetPipeline( Pipeline( variant, color, depth, samples, layout, topology, null, ids ) );
 			SetViewport( list, viewport );
 			Bind( list, variant, attributes, viewport );
 		}
 
 		// The stencil reference is dynamic state: a shader that tests or writes stencil (gizmos, tool overlays) sets its own
 		if ( variant.State.StencilTest && depth.HasStencil() ) list.SetStencilReference( (byte)variant.State.StencilReference );
+		return ids;
 	}
 
 	/// <summary>Whether this draw binds through material objects: they're on, and the frame's pass constants have room for it.</summary>
@@ -396,19 +431,20 @@ public sealed class ShaderDrawer : IDisposable
 	}
 
 	/// <summary>A graphics pipeline for the reflection path (cached here) or for a material object's sets (the object keeps it).</summary>
-	PipelineHandle Pipeline( ShaderVariant variant, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, BindingLayoutHandle[] sets )
+	PipelineHandle Pipeline( ShaderVariant variant, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, BindingLayoutHandle[] sets, bool ids = false )
 	{
-		var key = (variant, color, depth, samples, layout, topology);
+		var key = (variant, color, depth, samples, layout, topology, ids);
 		if ( sets is null && pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
 		// Inputs the stream lacks (or every input, with no stream) read the default stream. No colour format draws into
-		// depth alone
+		// depth alone. With instance ids, TEXCOORD13 reads them from a stream after the default one, per instance
 		GraphicsPipelineInfo info;
 		Format[] colors = color == Format.Unknown ? [] : [color];
+		var idsStream = new VertexBufferLayout( sizeof( uint ), VertexStepRate.Instance );
 		if ( layout is null )
 		{
-			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, _ => null, defaultBuffer: 0 );
-			info = variant.PipelineInfo( [new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias: false, null );
+			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input => ids && IsInstanceId( input ) ? new VertexAttribute( 0, 1, VertexFormat.UInt, 0 ) : null, defaultBuffer: 0 );
+			info = variant.PipelineInfo( ids ? [new VertexBufferLayout( 0 ), idsStream] : [new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias: false, null );
 		}
 		else if ( variant.Expansion is { Expands: true } expansion )
 		{
@@ -426,8 +462,10 @@ public sealed class ShaderDrawer : IDisposable
 		}
 		else
 		{
-			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input => layout.Find( input ) is { } field ? new VertexAttribute( 0, 0, field.Format, field.Offset ) : null, defaultBuffer: 1 );
-			info = variant.PipelineInfo( [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias: false, null );
+			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input =>
+				ids && IsInstanceId( input ) ? new VertexAttribute( 0, 2, VertexFormat.UInt, 0 )
+				: layout.Find( input ) is { } field ? new VertexAttribute( 0, 0, field.Format, field.Offset ) : null, defaultBuffer: 1 );
+			info = variant.PipelineInfo( ids ? [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 ), idsStream] : [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias: false, null );
 		}
 
 		info.Topology = topology;
