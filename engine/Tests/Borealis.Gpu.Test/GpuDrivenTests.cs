@@ -323,6 +323,90 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// A resident aggregate in a Slang surface whose render state turns alpha test on (the material's own
+	/// <see cref="SurfaceMaterial.AlphaTest"/> off) draws from kept plans: a frame like the last makes no plan, and the
+	/// pixels are those of the views' own batches.
+	/// </summary>
+	[TestMethod]
+	public void ResidentSurfaceAlphaTestedByItsRenderStateKeepsItsPlans()
+	{
+		var core = ContentFiles.FindGame().Roots.FirstOrDefault();
+		if ( core is null ) Assert.Inconclusive( "No game content" );
+		if ( !File.Exists( Path.Combine( Path.GetDirectoryName( core ), "bin", "win64", OperatingSystem.IsWindows() ? "slang.dll" : "libslang.so" ) ) ) Assert.Inconclusive( "The engine's Slang isn't built" );
+
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-resident-surface-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		var previousHost = RenderHost.Current;
+		try
+		{
+			// Stripes of zero opacity, clipped only when the render state's alpha test is on
+			var path = Path.Combine( folder, "clip_stripes.slang" );
+			File.WriteAllText( path, "import sbox.surface;\n[Material]\npublic struct ClipStripes : ISurface\n{\n"
+				+ "\t[RenderState( \"AlphaTest\" )] bool Clip;\n"
+				+ "\t[Default3( 1, 1, 1 )] float3 Tint;\n"
+				+ "\tpublic Material Evaluate( SurfaceInput i )\n\t{\n\t\tMaterial m = Material.Init( i );\n\t\tm.Albedo = Tint;\n"
+				+ "\t\tm.Opacity = frac( i.Uv.x * 4 ) < 0.5 ? 1.0 : 0.0;\n\t\treturn m;\n\t}\n}\n" );
+
+			using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true };
+			RenderHost.Current = new BackendRenderHost( backend );
+			var material = (SurfaceMaterial)backend.Surfaces.CreateMaterial( path, null, new Dictionary<string, float[]> { ["Clip"] = [1], ["Tint"] = [0.8f, 0.5f, 0.3f] } );
+			Assert.IsNotNull( material, "the surface compiled" );
+			Assert.IsFalse( material.AlphaTest, "the material's own alpha test is off" );
+			Assert.IsTrue( material.RenderState.AlphaTest, "its render state turns alpha test on" );
+
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven resident surface test" );
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 2;
+			for ( int row = 0; row < Rows; row++ )
+			{
+				var (mesh, fragments) = Boxes( backend, material, row * 120 - 120 );
+				world.Add( new AggregateObject( mesh, fragments ) { IsStatic = true } );
+			}
+
+			var view = new RenderView { Name = "GPU-driven resident surface test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			byte[] Frame( bool resident )
+			{
+				backend.GpuDrivenResident = resident;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			Frame( false );
+			var own = Frame( false );
+			var hits = backend.GpuDrivenPlanHits;
+			byte[] resident = null;
+			for ( int i = 0; i < 4 && backend.GpuDrivenPlanHits == hits; i++ ) resident = Frame( true );
+			Assert.IsTrue( backend.GpuDrivenPlanHits > hits, "a call drawn from a plan" );
+			Assert.AreEqual( 0, Different( own, resident ), "resident draws what the views' own batches do" );
+
+			var builds = backend.GpuDrivenPlanBuilds;
+			hits = backend.GpuDrivenPlanHits;
+			for ( int i = 0; i < 3; i++ ) CollectionAssert.AreEqual( resident, Frame( true ), $"frame {i} after draws the same" );
+			Assert.AreEqual( builds, backend.GpuDrivenPlanBuilds, "frames like the last make no plan" );
+			Assert.IsTrue( backend.GpuDrivenPlanHits >= hits + 3, "every frame drew from plans" );
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// The record memo (<see cref="BackendDevice.GpuDrivenRecordMemo"/>) gives every GPU-culled call the batch records
 	/// looking them up gives: on a frame like the last, which it serves, and after each change it has to notice - the
 	/// batches drawn, a material's values, object attributes and the lighting record they make, a surface's fields, and the
