@@ -9,7 +9,7 @@ namespace Sandbox.ShaderCompiler;
 /// vfx's spirv-opt recipe (vfx_spirv_fixups.cpp's <c>SPIRV_OPT_DEFAULT_RECIPE</c>, or <c>VFX_SPIRVOPT</c> as vfx reads it)
 /// over the SPIR-V Slang emits, as vfx runs it over a .shader's: Slang compiles at optimization none and this is the one
 /// spirv-opt run. It strips dead code and the bindings only dead code read, and shrinks the module. Runs through
-/// <c>spirv_optimizer.dll</c> beside <c>slang.dll</c>; where that isn't built (it's Windows only) Slang optimizes at its
+/// <c>spirv_optimizer.dll</c> (<c>libspirv_optimizer.so</c>) beside Slang; where that isn't built Slang optimizes at its
 /// default level instead.
 /// </summary>
 internal static unsafe class SpirvOptimizer
