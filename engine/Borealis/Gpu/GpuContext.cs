@@ -351,6 +351,14 @@ internal abstract class GpuContext : IDisposable
 	}
 
 	/// <summary>
+	/// In setup, after every view has prepared: cull the views' resident lists (<see cref="GpuDrivenCull.Plan"/>) on the GPU
+	/// for the calls that draw them this frame, all at once, where the device can.
+	/// </summary>
+	internal virtual void CullResident( ReadOnlySpan<GpuDrivenCull> views )
+	{
+	}
+
+	/// <summary>
 	/// The view's culling for <see cref="DrawGpuDriven"/> to repeat on the GPU over every fragment of an aggregate (the
 	/// same frustum and size tests the CPU makes): the frustum's six planes, the camera and squared size threshold
 	/// (<see cref="Culling.SizeCull"/>), and whether it's a shadow view (fragments that cast no shadow drop out).

@@ -30,7 +30,7 @@ internal sealed class GpuDrivenPlans
 	{
 		lock ( plans )
 		{
-			plans.RemoveAll( p => p.Key == plan.Key );
+			plans.RemoveAll( p => Retire( p, p.Key == plan.Key ) );
 			plans.Add( plan );
 		}
 	}
@@ -39,7 +39,14 @@ internal sealed class GpuDrivenPlans
 	public void Drop( in GpuDrivenPlan.CallKey key )
 	{
 		var drop = key;
-		lock ( plans ) plans.RemoveAll( p => p.Key == drop );
+		lock ( plans ) plans.RemoveAll( p => Retire( p, p.Key == drop ) );
+	}
+
+	/// <summary>Mark a plan retired when it's being removed (<see cref="GpuDrivenPlan.Retired"/>).</summary>
+	static bool Retire( GpuDrivenPlan plan, bool remove )
+	{
+		if ( remove ) plan.Retired = true;
+		return remove;
 	}
 
 	/// <summary>Plans kept, for the tests.</summary>
@@ -91,4 +98,14 @@ internal sealed class GpuDrivenPlan
 	/// <summary>By multi-draw: whether it draws forward's compacted triangles, from the frame's compacted buffer rather than an index page.</summary>
 	public bool[] Compacted;
 	public bool[] Drawn;
+
+	/// <summary>
+	/// For the resident cull (<see cref="ResidentCullItem"/>): a buffer of its batch records and entry map, written the first
+	/// time a setup culls it, its bindless slot, its entries and the entry map's byte offset. Destroyed once it's retired.
+	/// </summary>
+	public BufferHandle Records;
+	public int RecordsSlot, Entries, EntryMap;
+
+	/// <summary>Replaced or dropped from its list's plans: no call finds it again.</summary>
+	public volatile bool Retired;
 }

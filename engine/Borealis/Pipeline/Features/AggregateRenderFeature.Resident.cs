@@ -218,10 +218,43 @@ internal sealed partial class AggregateRenderFeature
 		{
 			argGeneration = transforms.Generation;
 			argCount = 0;
+			lock ( residentViews ) residentViews.Clear();
 			if ( resident ) RefreshResident( world, transforms );
 		}
 
 		if ( resident ) state.Resident = ResidentListFor( pass, device.CullsAggregatesGpuDriven ? WorkerSize( device ) : 0 );
+		if ( state.Resident is not null )
+		{
+			lock ( residentViews ) residentViews.Add( pass );
+		}
+	}
+
+	/// <summary>This frame's views with a resident list, which setup hands the device's resident cull.</summary>
+	readonly List<ViewPass> residentViews = new();
+
+	GpuContext.GpuDrivenCull[] residentCulls = [];
+
+	/// <summary>
+	/// In setup, after every view has prepared: hand the device every view's resident list and culling, for its resident cull
+	/// (<see cref="GpuContext.CullResident"/>).
+	/// </summary>
+	void CullResident( GpuContext context )
+	{
+		lock ( residentViews )
+		{
+			if ( residentViews.Count == 0 ) return;
+			if ( residentCulls.Length < residentViews.Count ) residentCulls = new GpuContext.GpuDrivenCull[Math.Max( residentViews.Count, residentCulls.Length * 2 )];
+
+			var count = 0;
+			foreach ( var pass in residentViews )
+			{
+				if ( pass.State<Batches>( this ).Resident is not { } list ) continue;
+				residentCulls[count++] = CullFor( pass, true, list, list.Version, list.DeviceCount );
+			}
+
+			context.CullResident( residentCulls.AsSpan( 0, count ) );
+			residentCulls.AsSpan( 0, count ).Clear();
+		}
 	}
 
 	/// <summary>

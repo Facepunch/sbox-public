@@ -139,6 +139,13 @@ internal sealed partial class BackendContext
 		var prefix = cull is { Plan: not null } resident && UsesPlans ? Math.Clamp( resident.PlanBatches, 0, batches.Length ) : 0;
 		if ( prefix > 0 && CurrentPlan( shaderMode, batches[..prefix], cull.Value ) is { } plan )
 		{
+			// Culled already, by the setup's resident cull
+			if ( DrawResidentCulled( shaderMode, batches, args, transforms, depthBias, slopeScaledDepthBias, drawn, cull.Value, plan, prefix ) )
+			{
+				System.Threading.Interlocked.Increment( ref device.GpuDrivenPlanHits );
+				return;
+			}
+
 			if ( DrawBucketed( shaderMode, batches, args, transforms, depthBias, slopeScaledDepthBias, drawn, cull, plan, prefix ) )
 			{
 				System.Threading.Interlocked.Increment( ref device.GpuDrivenPlanHits );
@@ -813,8 +820,34 @@ internal sealed partial class BackendContext
 		}
 
 		// The view's mask and stamps were cleared before the frame's segments (BeginGpuDrivenView)
+		var region = new CulledRegion( frameBuffer, frameSlot, frameOffset, runsOffset, listedOffset, instanceOffset, fragmentOffset, commandOffset, firstInstance, compacted );
+		DrawCulledRegion( cull, region, batchCount, compact, shaders, visibility, ids, lists, depth, samples, depthBias, slopeScaledDepthBias, resolver, totalFragments, dispatch: true );
+	}
+
+	/// <summary>
+	/// Where a GPU-culled call's region is in the frame's chunk, and its byte offsets in it: multi-draws, listed fragments,
+	/// instance records, fragment words, commands; its first instance record's index; this frame's compacted buffer.
+	/// </summary>
+	internal readonly record struct CulledRegion( BufferHandle Buffer, int Slot, long Offset, int Runs, int Listed, int Instances, int FragmentWords, int Commands, uint FirstInstance, BufferHandle Compacted );
+
+	/// <summary>
+	/// Cull a call's region (<paramref name="dispatch"/>; otherwise the setup's resident cull did), compact forward's listed
+	/// fragments, draw the prepass's ids and mark them, then draw <see cref="cullRuns"/> from the region's commands.
+	/// </summary>
+	void DrawCulledRegion( in GpuDrivenCull cull, in CulledRegion region, int batchCount, bool compact, (BackendMaterial Ids, ShaderFile Mark, ShaderFile Compact) shaders, BackendDevice.VisibilityView visibility, bool ids, bool lists,
+		Format depth, int samples, int depthBias, float slopeScaledDepthBias, PassResolver resolver, int totalFragments, bool dispatch )
+	{
+		var r = recording;
+		var tables = device.GpuDrivenTables;
+		var cache = device.MaterialCache;
+		var (frameBuffer, frameSlot, frameOffset) = (region.Buffer, region.Slot, region.Offset);
+		var (runsOffset, listedOffset, instanceOffset, fragmentOffset, commandOffset) = (region.Runs, region.Listed, region.Instances, region.FragmentWords, region.Commands);
+		var (firstInstance, compacted) = (region.FirstInstance, region.Compacted);
 		var slots = tables.Slots;
-		CloseScope( flushClears: false );
+
+		// Outside the rendering scope: the culling, the compaction and the ids' own rendering scope. A call the setup culled
+		// for that draws neither ids nor lists stays in the scope
+		if ( dispatch || ids || lists ) CloseScope( flushClears: false );
 
 		// Cull and write the commands, then draw them
 		cullDrawer ??= new ShaderDrawer( device );
@@ -849,16 +882,19 @@ internal sealed partial class BackendContext
 		// Another pass of the view this frame may still be drawing from the compacted indices this one writes over
 		if ( lists ) r.List.Barrier( PipelineStage.VertexInput, MemoryAccess.IndexRead, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite );
 		var timer = device.PassTimer;
-		var cullScope = timer?.Begin( r.List, ids ? "GPU-driven cull (ids)" : lists ? "GPU-driven cull (lists)" : "GPU-driven cull", PassTimer.ScopeKind.Own, count: false ) ?? -1;
-		r.List.Marker( "GPU-driven cull" );
-		cullDrawer.Dispatch( r.List, CullShader, cullAttributes, batchCount * 64, 1, 1 );
-		r.List.Marker( "end GPU-driven cull" );
-		timer?.End( r.List, cullScope );
+		if ( dispatch )
+		{
+			var cullScope = timer?.Begin( r.List, ids ? "GPU-driven cull (ids)" : lists ? "GPU-driven cull (lists)" : "GPU-driven cull", PassTimer.ScopeKind.Own, count: false ) ?? -1;
+			r.List.Marker( "GPU-driven cull" );
+			cullDrawer.Dispatch( r.List, CullShader, cullAttributes, batchCount * 64, 1, 1 );
+			r.List.Marker( "end GPU-driven cull" );
+			timer?.End( r.List, cullScope );
+		}
 
 		// Forward's listed fragments: a group each, which counts its triangles that own a sample and draws them or the whole
 		if ( lists )
 		{
-			r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.ComputeShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+			if ( dispatch ) r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.ComputeShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 			var compactScope = timer?.Begin( r.List, "GPU-driven compact", PassTimer.ScopeKind.Own, count: false ) ?? -1;
 			r.List.Marker( "GPU-driven compact" );
 			cullDrawer.DispatchIndirect( r.List, shaders.Compact, cullAttributes, frameBuffer, frameOffset + listedOffset );
@@ -867,7 +903,7 @@ internal sealed partial class BackendContext
 		}
 
 		// Only the culling's writes before the draws' reads of them: the draws before it needn't drain
-		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.VertexInput | PipelineStage.VertexShader, MemoryAccess.IndirectRead | MemoryAccess.IndexRead | MemoryAccess.ShaderRead );
+		if ( dispatch || lists ) r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.VertexInput | PipelineStage.VertexShader, MemoryAccess.IndirectRead | MemoryAccess.IndexRead | MemoryAccess.ShaderRead );
 		r.Pipeline = default;
 		r.Binder = null;
 
@@ -879,6 +915,7 @@ internal sealed partial class BackendContext
 
 		if ( !EnsureScope() ) return;
 
+		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
 		var bound = false;
 		var lastBucket = -1;
 		for ( int i = 0; i < cullRuns.Count; i++ )
@@ -946,6 +983,10 @@ internal sealed partial class BackendContext
 		var samples = (r.Color ?? r.Depth).Samples;
 
 		var key = PlanKey( shaderMode, cull, color, depth, samples );
+
+		// What the next frame's resident cull culls for this view
+		if ( device.GpuDrivenResidentCull && cull.View is not null ) device.ResidentCulls.Seen( cull.View, cull.Plan, key, device.GpuDrivenFrame );
+
 		var plans = device.PlansFor( cull.Plan );
 		var plan = plans.Find( key, cull.PlanVersion, prefix.Length );
 		if ( plan is null ) return null;

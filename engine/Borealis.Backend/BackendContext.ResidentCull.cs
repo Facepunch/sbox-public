@@ -1,0 +1,513 @@
+using Borealis.Gpu;
+using Borealis.Source2.Shaders;
+using System.Runtime.InteropServices;
+
+namespace Borealis.Backend;
+
+/// <summary>
+/// The resident cull (<see cref="BackendDevice.GpuDrivenResidentCull"/>, docs/managed/borealis-gpu-driven.md): in setup,
+/// after every view has prepared, one dispatch of <c>borealis_resident_cull_cs</c> culls every view's resident plans, a
+/// thread per entry looping over the views that draw its plan, into a region per view and plan laid out as a call's own.
+/// The call of that kind in that view then draws from it without culling. Which plans a view draws is what its calls drew
+/// last frame (<see cref="ResidentCullState"/>); a call the setup didn't cull for culls itself, as before.
+/// </summary>
+internal sealed partial class BackendContext
+{
+	/// <summary>One view's cull of one plan, made in setup; the call of the plan's kind in that view draws from it, once.</summary>
+	internal sealed class ResidentAssignment
+	{
+		public GpuDrivenPlan Plan;
+		public object View;
+
+		/// <summary>Its view's index in the setup's views, while the setup writes it.</summary>
+		public int ViewIndex;
+		public BackendDevice.VisibilityView Visibility;
+		public BufferHandle Stamps;
+		public CulledRegion Region;
+		public int Fragments;
+		public bool Lists;
+		public readonly List<(int Bucket, BufferHandle Page, IndexFormat Format, int First, int Count)> Runs = new();
+		public int Taken;
+	}
+
+	readonly List<GpuDrivenPlan.CallKey> residentKeys = new();
+	readonly List<ResidentAssignment> residentWork = new();
+	readonly List<GpuDrivenPlan> residentItems = new();
+	readonly List<List<ResidentAssignment>> residentGroups = new();
+	ShaderAttributes residentAttributes;
+	byte[] residentConstants;
+
+	const int ResidentItemBytes = 32;
+	const int ResidentViewBytes = 32;
+
+	/// <summary>Bytes of a view's region for a plan, as <see cref="DrawGpuCulled"/> lays out a call's, and its offsets.</summary>
+	static (int Bytes, int Runs, int Listed, int Instances, int FragmentWords, int Commands) ResidentRegion( GpuDrivenPlan plan, bool ids, bool lists )
+	{
+		var fragments = plan.Fragments;
+		var slots = fragments * (lists ? 2 : 1);
+		var runs = CullViewBytes;
+		var listed = (runs + plan.Runs.Length * 8 + 15) & ~15;
+		var instances = listed + (lists ? 16 + fragments * 32 : 0);
+		var fragmentWords = instances + slots * GpuDrivenTables.InstanceStride;
+		var commands = (fragmentWords + (ids ? slots * 4 : 0) + 15) & ~15;
+		var bytes = (commands + slots * GpuDrivenTables.CommandStride + 15) & ~15;
+		return (bytes, runs, listed, instances, fragmentWords, commands);
+	}
+
+	/// <summary>A view record: the six planes, camera and size threshold, flags, LOD camera and LOD width (160 bytes).</summary>
+	static void WriteCullView( in GpuDrivenCull cull, Span<byte> bytes )
+	{
+		var view = MemoryMarshal.Cast<byte, float>( bytes[..CullViewBytes] );
+		Span<Vector4> planes = [cull.Left, cull.Right, cull.Bottom, cull.Top, cull.Near, cull.Far, cull.CameraAndThreshold];
+		for ( int p = 0; p < planes.Length; p++ )
+		{
+			view[p * 4] = planes[p].x;
+			view[p * 4 + 1] = planes[p].y;
+			view[p * 4 + 2] = planes[p].z;
+			view[p * 4 + 3] = planes[p].w;
+		}
+
+		var viewWords = MemoryMarshal.Cast<byte, uint>( bytes[..CullViewBytes] );
+		viewWords[28] = cull.Shadow ? 1u : 0u;
+		viewWords[29] = cull.KeepsSmallMeshes ? 1u : 0u;
+		viewWords[30] = viewWords[31] = 0;
+		view[32] = cull.LodCamera.x;
+		view[33] = cull.LodCamera.y;
+		view[34] = cull.LodCamera.z;
+		view[35] = cull.LodCamera.w;
+		view[36] = cull.LodWidth;
+		viewWords[37] = cull.LodTexels ? 1u : 0u;
+		viewWords[38] = viewWords[39] = 0;
+	}
+
+	/// <summary>
+	/// In setup, after every view has prepared: cull each view's resident plans its calls drew last frame, in one dispatch
+	/// (two where a forward pass compacts: its prepass's stamps first), for the calls to draw from.
+	/// </summary>
+	internal override void CullResident( ReadOnlySpan<GpuDrivenCull> views )
+	{
+		if ( !GpuDriven || recording is null || !UsesPlans || !device.GpuDrivenResidentCull || device.ResidentCullShader is not { } shader ) return;
+
+		var frame = device.GpuDrivenFrame;
+		var culls = device.ResidentCulls;
+		culls.BeginFrame( frame, Gpu );
+
+		// Each view's plans of the kinds its calls drew
+		residentWork.Clear();
+		for ( int v = 0; v < views.Length; v++ )
+		{
+			ref readonly var cull = ref views[v];
+			if ( cull.Plan is null || cull.View is null || cull.PlanBatches <= 0 ) continue;
+
+			residentKeys.Clear();
+			culls.Keys( cull.View, cull.Plan, frame, residentKeys );
+			if ( residentKeys.Count == 0 ) continue;
+
+			var plans = device.PlansFor( cull.Plan );
+			foreach ( var key in residentKeys )
+			{
+				var plan = plans.Find( key, cull.PlanVersion, cull.PlanBatches );
+				if ( plan is null || plan.Fragments == 0 || plan.Runs.Length == 0 ) continue;
+
+				// The visibility-driven pass's state, cleared now rather than before the segments: the prepass's culling stamps it
+				BackendDevice.VisibilityView visibility = null;
+				if ( key.Ids || key.Lists )
+				{
+					visibility = device.ExistingVisibility( cull.View );
+					if ( visibility is null ) continue;
+					BeginGpuDrivenView( cull.View );
+					if ( visibility.ClearedFrame != frame ) continue;
+				}
+
+				if ( !PlanRecords( plan ) ) continue;
+				var assignment = culls.Add( cull.View, plan, frame );
+				if ( assignment is null ) continue;
+				assignment.ViewIndex = v;
+				assignment.Visibility = visibility;
+				assignment.Stamps = visibility?.Stamps ?? default;
+				assignment.Lists = key.Lists;
+				assignment.Fragments = plan.Fragments;
+				residentWork.Add( assignment );
+			}
+		}
+
+		if ( residentWork.Count == 0 ) return;
+
+		// Dispatches: those that draw no lists, then those that do (they read the stamps the first wrote); each binds one
+		// view's stamps, and views without any join whichever
+		foreach ( var group in residentGroups ) group.Clear();
+		var groups = 0;
+		for ( int phase = 0; phase < 2; phase++ )
+		{
+			var phaseStart = groups;
+			foreach ( var work in residentWork )
+			{
+				if ( work.Lists != (phase == 1) ) continue;
+				var found = -1;
+				for ( int g = phaseStart; g < groups && found < 0; g++ )
+				{
+					var other = GroupVisibility( residentGroups[g] );
+					if ( work.Visibility is null || other is null || ReferenceEquals( other, work.Visibility ) ) found = g;
+				}
+
+				if ( found < 0 )
+				{
+					found = groups++;
+					if ( residentGroups.Count < groups ) residentGroups.Add( new() );
+				}
+
+				residentGroups[found].Add( work );
+			}
+		}
+
+		var r = recording;
+		CloseScope( flushClears: false );
+		var timer = device.PassTimer;
+		var scope = timer?.Begin( r.List, "Resident cull", PassTimer.ScopeKind.Own, count: false ) ?? -1;
+		r.List.Marker( "Resident cull" );
+
+		// After last frame's culls and compactions of the same stamps
+		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+		for ( int g = 0; g < groups; g++ )
+		{
+			if ( g > 0 && residentGroups[g][0].Lists && !residentGroups[g - 1][0].Lists )
+				r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+			DispatchResident( shader, residentGroups[g], views, frame );
+		}
+
+		// The calls' compaction, ids and multi-draws read what it wrote, in later lists
+		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.VertexInput | PipelineStage.VertexShader | PipelineStage.ComputeShader, MemoryAccess.IndirectRead | MemoryAccess.IndexRead | MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+		r.List.Marker( "end Resident cull" );
+		timer?.End( r.List, scope );
+	}
+
+	static BackendDevice.VisibilityView GroupVisibility( List<ResidentAssignment> group )
+	{
+		foreach ( var work in group )
+		{
+			if ( work.Visibility is not null ) return work.Visibility;
+		}
+
+		return null;
+	}
+
+	/// <summary>One dispatch over a group's plans: the items, the views, and each view's region, in one allocation.</summary>
+	void DispatchResident( ShaderFile shader, List<ResidentAssignment> group, ReadOnlySpan<GpuDrivenCull> views, uint frame )
+	{
+		var tables = device.GpuDrivenTables;
+
+		// Items by plan, in order of first appearance; a plan's views after one another
+		residentItems.Clear();
+		foreach ( var work in group )
+		{
+			if ( !residentItems.Contains( work.Plan ) ) residentItems.Add( work.Plan );
+		}
+
+		group.Sort( ( a, b ) => residentItems.IndexOf( a.Plan ).CompareTo( residentItems.IndexOf( b.Plan ) ) );
+
+		var headerBytes = (residentItems.Count * ResidentItemBytes + group.Count * ResidentViewBytes + 15) & ~15;
+		var bytes = headerBytes;
+		foreach ( var work in group ) bytes += ResidentRegion( work.Plan, work.Plan.Key.Ids, work.Lists ).Bytes;
+
+		var (buffer, slot, offset) = tables.Allocate( bytes );
+		var data = Gpu.Map( buffer ).Slice( (int)offset, bytes );
+		var items = MemoryMarshal.Cast<byte, ResidentCullItem>( data[..(residentItems.Count * ResidentItemBytes)] );
+		var viewRecords = MemoryMarshal.Cast<byte, ResidentCullView>( data.Slice( residentItems.Count * ResidentItemBytes, group.Count * ResidentViewBytes ) );
+		var visibility = GroupVisibility( group );
+		var compacted = visibility is not null ? visibility.Compacted[frame % visibility.Compacted.Length] : default;
+
+		var at = headerBytes;
+		var entries = 0u;
+		var item = -1;
+		for ( int w = 0; w < group.Count; w++ )
+		{
+			var work = group[w];
+			var plan = work.Plan;
+			var ids = plan.Key.Ids;
+			if ( item < 0 || !ReferenceEquals( residentItems[item], plan ) )
+			{
+				item++;
+				entries = (entries + 63) & ~63u;
+				items[item] = new ResidentCullItem { FirstEntry = entries, Entries = (uint)plan.Entries, Records = (uint)plan.RecordsSlot, EntryMap = (uint)plan.EntryMap, FirstView = (uint)w };
+				entries += (uint)plan.Entries;
+			}
+
+			items[item].Views++;
+
+			// The view's region, as a call lays out its own
+			var layout = ResidentRegion( plan, ids, work.Lists );
+			var region = data.Slice( at, layout.Bytes );
+			var regionOffset = offset + at;
+			WriteCullView( views[work.ViewIndex], region );
+
+			var runs = MemoryMarshal.Cast<byte, uint>( region.Slice( layout.Runs, plan.Runs.Length * 8 ) );
+			work.Runs.Clear();
+			for ( int i = 0; i < plan.Runs.Length; i++ )
+			{
+				var run = plan.Runs[i];
+				if ( plan.Compacted[i] ) run = run with { Page = compacted, First = run.First - plan.CompactBase + work.Fragments };
+				work.Runs.Add( run );
+				runs[i * 2] = (uint)run.First;
+				runs[i * 2 + 1] = 0;
+			}
+
+			if ( work.Lists )
+			{
+				var arguments = MemoryMarshal.Cast<byte, uint>( region.Slice( layout.Listed, 16 ) );
+				arguments[0] = 0;
+				arguments[1] = 1;
+				arguments[2] = 1;
+			}
+
+			var firstInstance = (uint)((regionOffset + layout.Instances) / GpuDrivenTables.InstanceStride);
+			work.Region = new CulledRegion( buffer, slot, regionOffset, layout.Runs, layout.Listed, layout.Instances, layout.FragmentWords, layout.Commands, firstInstance, work.Lists ? compacted : default );
+			viewRecords[w] = new ResidentCullView
+			{
+				View = (uint)regionOffset,
+				Instances = (uint)(regionOffset + layout.Instances),
+				Commands = (uint)(regionOffset + layout.Commands),
+				Runs = (uint)(regionOffset + layout.Runs),
+				FirstInstance = firstInstance,
+				FragmentWords = (uint)(regionOffset + layout.FragmentWords) - firstInstance * 4,
+				Listed = work.Lists ? (uint)(regionOffset + layout.Listed) : 0,
+			};
+			at += layout.Bytes;
+		}
+
+		var slots = tables.Slots;
+		residentAttributes ??= new ShaderAttributes();
+		residentConstants ??= new byte[Marshal.SizeOf<ResidentCullConstants>()];
+		MemoryMarshal.Write( residentConstants, new ResidentCullConstants
+		{
+			Items = (uint)offset,
+			ItemCount = (uint)residentItems.Count,
+			Views = (uint)(offset + residentItems.Count * ResidentItemBytes),
+			Entries = entries,
+			Fragments = (uint)tables.FragmentSlot,
+			Draws = (uint)slots.Draws,
+			Frame = frame,
+		} );
+		residentAttributes.Clear();
+		residentAttributes.Set( "BorealisCullFrame", buffer );
+		if ( visibility is not null ) residentAttributes.Set( "BorealisCullStamps", visibility.Stamps );
+		residentAttributes.SetData( "BorealisResidentCull_t", residentConstants );
+
+		cullDrawer ??= new ShaderDrawer( device );
+		cullDrawer.Dispatch( recording.List, shader, residentAttributes, (int)entries, 1, 1 );
+		device.CountResidentCull( residentItems.Count, group.Count, entries );
+	}
+
+	/// <summary>
+	/// A plan's batch records and entry map in a buffer of its own, written the first time a setup culls it (plans never
+	/// change once made); false when there's nothing to cull.
+	/// </summary>
+	bool PlanRecords( GpuDrivenPlan plan )
+	{
+		if ( plan.Records.IsValid ) return true;
+
+		var records = plan.BatchRecords;
+		var batches = records.Length / (CullBatchBytes / 4);
+		var entries = 0;
+		for ( int b = 0; b < batches; b++ ) entries += (int)records[b * (CullBatchBytes / 4) + 1];
+		if ( entries == 0 ) return false;
+
+		var mapOffset = records.Length * 4;
+		var bytes = mapOffset + entries * Marshal.SizeOf<ResidentCullEntry>();
+		var buffer = Gpu.CreateBuffer( new BufferInfo { Size = bytes, Usage = BufferUsage.Storage, Memory = MemoryLocation.Upload, Name = "Borealis resident plan" } );
+		var data = Gpu.Map( buffer )[..bytes];
+		MemoryMarshal.AsBytes( records.AsSpan() ).CopyTo( data );
+		var map = MemoryMarshal.Cast<byte, ResidentCullEntry>( data[mapOffset..] );
+		var at = 0;
+		for ( int b = 0; b < batches; b++ )
+		{
+			var count = records[b * (CullBatchBytes / 4) + 1];
+			for ( uint e = 0; e < count; e++ ) map[at++] = new ResidentCullEntry { Batch = (uint)b, Element = e };
+		}
+
+		plan.RecordsSlot = Gpu.BindlessIndex( buffer );
+		plan.Entries = entries;
+		plan.EntryMap = mapOffset;
+		plan.Records = buffer;
+		device.ResidentCulls.Own( plan, buffer );
+		return true;
+	}
+
+	/// <summary>
+	/// Draw a call's resident prefix from what the setup culled for its view and plan, then the view's own batches after it
+	/// as a call of their own; false, having drawn nothing, when the setup culled nothing for it.
+	/// </summary>
+	bool DrawResidentCulled( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, ReadOnlySpan<GpuBuffer.IndirectDrawIndexedArguments> args, TransformBuffer transforms, int depthBias, float slopeScaledDepthBias, Span<bool> drawn, in GpuDrivenCull cull, GpuDrivenPlan plan, int prefix )
+	{
+		if ( !device.GpuDrivenResidentCull || cull.View is null || plan.Drawn.Length != prefix ) return false;
+
+		var (compact, shaders, visibility, ids, lists) = CullState( cull );
+		if ( !compact || ids != plan.Key.Ids || lists != plan.Key.Lists ) return false;
+
+		var frame = device.GpuDrivenFrame;
+		if ( device.ResidentCulls.Take( cull.View, plan, frame ) is not { } assignment ) return false;
+		if ( (ids || lists) && (!ReferenceEquals( assignment.Visibility, visibility ) || assignment.Stamps != visibility.Stamps) ) return false;
+		if ( lists && assignment.Region.Compacted != visibility.Compacted[frame % visibility.Compacted.Length] ) return false;
+
+		var start = device.TimeDraws ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+		var r = recording;
+		var depth = r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth );
+		var samples = (r.Color ?? r.Depth).Samples;
+		var resolver = Resolver( device.MaterialCache );
+		if ( ids && shaders.Ids is not null ) idsShaderVariant ??= Variant( shaders.Ids, "Default" );
+
+		gpuDrivenBuckets = plan.Buckets;
+		gpuDrivenBucketCount = plan.Buckets.Count;
+		try
+		{
+			cullRuns.Clear();
+			cullRuns.AddRange( assignment.Runs );
+			DrawCulledRegion( cull, assignment.Region, 0, compact, shaders, visibility, ids, lists, depth, samples, depthBias, slopeScaledDepthBias, resolver, assignment.Fragments, dispatch: false );
+			plan.Drawn.AsSpan().CopyTo( drawn );
+			TimeGpuDriven( start, drawn[..prefix], assignment.Fragments );
+		}
+		finally
+		{
+			gpuDrivenBuckets = ownBuckets;
+			gpuDrivenBucketCount = 0;
+		}
+
+		System.Threading.Interlocked.Increment( ref device.ResidentCullCalls );
+
+		// The view's own batches: a call of their own, with buckets, culling, ids and compaction of its own
+		if ( prefix < batches.Length && EnsureScope() )
+			DrawBucketed( shaderMode, batches[prefix..], args, transforms, depthBias, slopeScaledDepthBias, drawn[prefix..], cull with { Plan = null, PlanBatches = 0 }, null, 0 );
+
+		return true;
+	}
+}
+
+/// <summary>
+/// The resident cull's state on a device: the plans each view's calls drew (by view and resident list, with the frame
+/// last drawn), this frame's assignments, and the buffers of plans' records.
+/// </summary>
+internal sealed class ResidentCullState
+{
+	readonly Dictionary<(object View, object List), List<(GpuDrivenPlan.CallKey Key, uint Frame)>> calls = new();
+	readonly Dictionary<(object View, GpuDrivenPlan Plan), BackendContext.ResidentAssignment> assigned = new();
+	readonly List<BackendContext.ResidentAssignment> pool = new();
+	readonly List<(WeakReference<GpuDrivenPlan> Plan, BufferHandle Buffer)> owned = new();
+	int pooled;
+	uint frame;
+
+	/// <summary>A call's kind is kept this many frames after it was last drawn.</summary>
+	const uint KeptFrames = 4;
+
+	/// <summary>A call drew <paramref name="key"/> of <paramref name="list"/> in <paramref name="view"/>.</summary>
+	public void Seen( object view, object list, in GpuDrivenPlan.CallKey key, uint now )
+	{
+		lock ( calls )
+		{
+			if ( !calls.TryGetValue( (view, list), out var keys ) ) calls[(view, list)] = keys = new();
+			for ( int i = 0; i < keys.Count; i++ )
+			{
+				if ( keys[i].Key != key ) continue;
+				keys[i] = (key, now);
+				return;
+			}
+
+			keys.Add( (key, now) );
+		}
+	}
+
+	/// <summary>The kinds of call a view drew of a list in the last few frames.</summary>
+	public void Keys( object view, object list, uint now, List<GpuDrivenPlan.CallKey> into )
+	{
+		lock ( calls )
+		{
+			if ( !calls.TryGetValue( (view, list), out var keys ) ) return;
+			foreach ( var (key, seen) in keys )
+			{
+				if ( now - seen <= KeptFrames ) into.Add( key );
+			}
+		}
+	}
+
+	/// <summary>
+	/// Before a setup's cull: on a new frame, forget last frame's assignments and calls not drawn for a while, and destroy
+	/// the records of plans no call finds any more.
+	/// </summary>
+	public void BeginFrame( uint now, Device gpu )
+	{
+		if ( frame == now ) return;
+		frame = now;
+
+		lock ( assigned )
+		{
+			assigned.Clear();
+			pooled = 0;
+		}
+
+		lock ( calls )
+		{
+			List<(object, object)> stale = null;
+			foreach ( var (key, keys) in calls )
+			{
+				keys.RemoveAll( k => now - k.Frame > KeptFrames );
+				if ( keys.Count == 0 ) (stale ??= new()).Add( key );
+			}
+
+			if ( stale is not null )
+			{
+				foreach ( var key in stale ) calls.Remove( key );
+			}
+		}
+
+		lock ( owned )
+		{
+			for ( int i = owned.Count - 1; i >= 0; i-- )
+			{
+				if ( owned[i].Plan.TryGetTarget( out var plan ) && !plan.Retired ) continue;
+				gpu.Destroy( owned[i].Buffer );
+				owned.RemoveAt( i );
+			}
+		}
+	}
+
+	/// <summary>Destroy every plan's records (the device is going).</summary>
+	public void Dispose( Device gpu )
+	{
+		lock ( owned )
+		{
+			foreach ( var (_, buffer) in owned ) gpu.Destroy( buffer );
+			owned.Clear();
+		}
+	}
+
+	/// <summary>A plan's records buffer, destroyed when the plan is retired or gone.</summary>
+	public void Own( GpuDrivenPlan plan, BufferHandle buffer )
+	{
+		lock ( owned ) owned.Add( (new WeakReference<GpuDrivenPlan>( plan ), buffer) );
+	}
+
+	/// <summary>A new assignment of <paramref name="plan"/> in <paramref name="view"/> this frame; null when it has one.</summary>
+	public BackendContext.ResidentAssignment Add( object view, GpuDrivenPlan plan, uint now )
+	{
+		lock ( assigned )
+		{
+			if ( frame != now || assigned.ContainsKey( (view, plan) ) ) return null;
+			if ( pooled == pool.Count ) pool.Add( new() );
+			var assignment = pool[pooled++];
+			assignment.Plan = plan;
+			assignment.View = view;
+			assignment.Taken = 0;
+			assigned[(view, plan)] = assignment;
+			return assignment;
+		}
+	}
+
+	/// <summary>This frame's assignment of <paramref name="plan"/> in <paramref name="view"/>, for the one call that draws it.</summary>
+	public BackendContext.ResidentAssignment Take( object view, GpuDrivenPlan plan, uint now )
+	{
+		lock ( assigned )
+		{
+			if ( frame != now || !assigned.TryGetValue( (view, plan), out var assignment ) || assignment.Taken != 0 ) return null;
+			assignment.Taken = 1;
+			return assignment;
+		}
+	}
+}

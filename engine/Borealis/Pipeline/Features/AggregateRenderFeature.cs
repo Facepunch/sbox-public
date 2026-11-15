@@ -217,6 +217,9 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 		var buffer = argsRing.Upload( context, args.AsSpan( 0, argCount ) );
 		if ( argCount > 0 )
 			context.BufferBarrier( buffer, GpuStage.Transfer, GpuAccess.TransferWrite, GpuStage.DrawIndirect, GpuAccess.IndirectCommandRead );
+
+		// Every view's resident lists culled at once, before any view draws
+		CullResident( context );
 	}
 
 	/// <summary>
@@ -443,28 +446,30 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 		var total = residentCount + batches.Length + meshDraws.Length;
 		if ( total == 0 ) return;
 
-		var list = System.Buffers.ArrayPool<GpuContext.GpuDrivenBatch>.Shared.Rent( total );
+		// A resident list alone is handed over as the list's own batches, without a copy
+		var alone = resident is not null && batches.IsEmpty && meshDraws.IsEmpty;
+		var list = alone ? null : System.Buffers.ArrayPool<GpuContext.GpuDrivenBatch>.Shared.Rent( total );
 		var count = 0;
-		if ( resident is not null )
+		var deviceBatches = resident is not null ? DeviceBatches( resident, depth, forceDepthOnly ) : default;
+		if ( !alone )
 		{
-			DeviceBatches( resident, depth, forceDepthOnly ).CopyTo( list );
+			deviceBatches.CopyTo( list );
 			count = residentCount;
+			for ( int i = 0; i < batches.Length; i++ ) list[count++] = DeviceBatch( batches[i], depth, forceDepthOnly );
+
+			// Then the mesh draws, each its instances
+			foreach ( var item in meshDraws ) list[count++] = Meshes.GpuDrivenBatch( view, item, depth, forceDepthOnly ) ?? default;
 		}
-
-		for ( int i = 0; i < batches.Length; i++ ) list[count++] = DeviceBatch( batches[i], depth, forceDepthOnly );
-
-		// Then the mesh draws, each its instances
-		foreach ( var item in meshDraws ) list[count++] = Meshes.GpuDrivenBatch( view, item, depth, forceDepthOnly ) ?? default;
 
 		var all = System.Buffers.ArrayPool<bool>.Shared.Rent( total );
 		var allDrawn = all.AsSpan( 0, total );
 		allDrawn.Clear();
-		context.DrawGpuDriven( mode, list.AsSpan( 0, count ), args.AsSpan( 0, argCount ), transforms, depthBias, slopeBias, allDrawn, CullFor( view, depth, resident, resident?.Version ?? 0, residentCount ) );
+		context.DrawGpuDriven( mode, alone ? deviceBatches : list.AsSpan( 0, count ), args.AsSpan( 0, argCount ), transforms, depthBias, slopeBias, allDrawn, CullFor( view, depth, resident, resident?.Version ?? 0, residentCount ) );
 		allDrawn[residentCount..].CopyTo( drawn );
-		if ( resident is not null ) ResidentDrawn( context, layer, resident, list.AsSpan( 0, residentCount ), allDrawn[..residentCount], mode, depthBias, slopeBias, ref stats );
+		if ( resident is not null ) ResidentDrawn( context, layer, resident, alone ? deviceBatches : list.AsSpan( 0, residentCount ), allDrawn[..residentCount], mode, depthBias, slopeBias, ref stats );
 
 		System.Buffers.ArrayPool<bool>.Shared.Return( all );
-		System.Buffers.ArrayPool<GpuContext.GpuDrivenBatch>.Shared.Return( list, clearArray: true );
+		if ( list is not null ) System.Buffers.ArrayPool<GpuContext.GpuDrivenBatch>.Shared.Return( list, clearArray: true );
 	}
 
 	/// <summary>A batch as the device takes it, with the material it would bind here; default when it has nothing to draw.</summary>
