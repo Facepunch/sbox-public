@@ -189,11 +189,10 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// Keep what a call of resident aggregates makes (<see cref="GpuDrivenPlan"/>: its buckets, batch records and
 	/// multi-draws) between frames and views of the same kind, so a view pays per frame only for its own culling record, a
-	/// check per bucket and its multi-draws (docs/managed/borealis-gpu-driven.md, "Resident aggregates"). Off by default
-	/// until plans stop being rebuilt every frame with surfaces drawn by default; <c>-resident</c> turns it on, and views
-	/// otherwise prepare their own batches.
+	/// check per bucket and its multi-draws (docs/managed/borealis-gpu-driven.md, "Resident aggregates"). On by default;
+	/// <c>-no-resident</c> turns it off, and views then prepare their own batches.
 	/// </summary>
-	public bool GpuDrivenResident { get; set; } = HasSwitch( "-resident" ) && !HasSwitch( "-no-resident" );
+	public bool GpuDrivenResident { get; set; } = !HasSwitch( "-no-resident" );
 
 	internal override bool DrawsAggregatesResident => GpuDrivenResident && CullsAggregatesGpuDriven && GpuDrivenCompaction && SupportsDrawIndirectCount && !GpuDrivenMaterialBuckets;
 
