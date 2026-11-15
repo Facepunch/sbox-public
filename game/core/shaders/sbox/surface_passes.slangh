@@ -250,6 +250,7 @@ SurfaceInput MakeSurfaceInput( PixelInput i )
 	s.ScenePosition = RecoverWorldPosFromProjectedDepthAndRay( 1.0 - Depth::GetNormalized( i.vPositionSs.xy ), ray );
 	s.FrameBufferUvScale = g_vFrameBufferCopyInvSizeAndUvScale.zw;
 	s.Skybox = kSurfaceSkybox;
+	s.ToneMapScale = g_flToneMapScalarLinear;
 	return s;
 }
 
@@ -468,6 +469,118 @@ float4 SurfaceForwardCombiner<S : ICombinerSurface, let AlphaTest : bool>( Pixel
 	SurfaceInput input = MakeSurfaceInput( i );
 	Material s = surface.Evaluate( input );
 	return SurfaceShadeCombiner( i, s, opacityTexture, AlphaTest );
+}
+
+/// A layered surface's lighting (ILayerLighting): one light layer through the final combiner's light loops at the pixel, as
+/// a .shader lighting its own FinalCombinerInput_t does (ComputeDirectLighting, then CalculateIndirectLighting).
+struct SurfaceLayerLighting : ILayerLighting
+{
+	float3 PositionWs;
+	float3 PositionWithOffsetWs;
+	float4 PositionSs;
+	float3 TangentU;
+	float3 TangentV;
+	float GeometricRoughness;   // CalculateGeometricRoughnessFactor of the geometric normal, taken in uniform control flow
+
+	static SurfaceLayerLighting Make( PixelInput i, SurfaceInput s )
+	{
+		SurfaceLayerLighting l;
+		l.PositionWs = s.Position;
+		l.PositionWithOffsetWs = i.vPositionWithOffsetWs.xyz;
+		l.PositionSs = i.vPositionSs;
+		l.TangentU = s.TangentU;
+		l.TangentV = s.TangentV;
+		l.GeometricRoughness = CalculateGeometricRoughnessFactor( s.Normal );
+		return l;
+	}
+
+	LayerLight Light( LightLayer layer )
+	{
+		FinalCombinerInput_t f = PS_InitFinalCombiner();
+		f.vPositionWs = PositionWs + layer.Offset;
+		f.vPositionWithOffsetWs = PositionWithOffsetWs + layer.Offset;
+		f.vPositionSs = PositionSs;
+		f.vNormalWs = layer.Normal;
+		f.vTangentUWs = TangentU;
+		f.vTangentVWs = TangentV;
+		f.vRoughness = max( layer.Roughness, GeometricRoughness.xx );   // AdjustRoughnessByGeometricNormal
+		f.vSSSNormalWs = layer.DiffuseNormal;
+		f.vSSSWrapParameters = float4( layer.DiffuseWrap, layer.DiffuseWrapExponent, 1.0 / ( 1.0 + layer.DiffuseWrap ), ( 1.0 + layer.DiffuseWrapExponent ) / ( 2.0 + 2.0 * layer.DiffuseWrap ) );
+		f.vSpecularColor = layer.SpecularColor;
+
+		LightingTerms_t terms = InitLightingTerms();
+		ComputeDirectLighting( terms, f );
+		CalculateIndirectLighting( terms, f );
+
+		LayerLight o;
+		o.Diffuse = terms.vDiffuse;
+		o.IndirectDiffuse = terms.vIndirectDiffuse;
+		o.Specular = terms.vSpecular;
+		o.IndirectSpecular = terms.vIndirectSpecular;
+		return o;
+	}
+};
+
+/// Forward, and the alpha-tested depth pass, for a layered surface (ILayeredSurface): its Shade lights and mixes its layers,
+/// then the alpha test or a fading object's coverage, fog as eyeball.shader applies it (distance fog where enabled, then
+/// volumetric fog), the tools' views and wireframe. Depth passes evaluate and take the combiner's coverage.
+float4 SurfaceForwardLayered<S : ILayeredSurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
+{
+#if ( S_MODE_DEPTH )
+	return SurfaceForwardCombiner<S, AlphaTest>( i, surface, opacityTexture );
+#else
+	SurfaceInput input = MakeSurfaceInput( i );
+	SurfaceLayerLighting lighting = SurfaceLayerLighting::Make( i, input );
+	Material s;
+	float3 lit = surface.Shade( input, lighting, s );
+
+	s_SurfaceOpacityTexture = opacityTexture;
+	bool spread = AlphaTest && g_nMSAASampleCount > 1;
+	if ( s.Coverage < 1.0 ) clip( s.Coverage - ( spread ? 1.0 / 255.0 : 0.5 ) );
+	float alpha = 1.0;
+#if ( S_ALPHA_TEST )
+	{
+	#ifdef MATERIAL_ALPHA_TEXTURE
+		float2 size = float2( TextureDimensions2DS( MATERIAL_ALPHA_TEXTURE, 0 ) );
+	#else
+		float2 size = float2( 1.0, 1.0 );
+	#endif
+		alpha = AdjustOpacityForAlphaToCoverage( s.Opacity, s.AlphaTestReference, s.AntiAliasedEdgeStrength, input.Uv * s.OpacityUvScale, size );
+		clip( min( s.Opacity - 1.0 / 255.0, alpha - 0.000001 ) );
+	}
+#elif ( S_TRANSLUCENT )
+	alpha = s.Opacity;
+#else
+	// A fading object (D_OPAQUE_FADE): dithered without multisampling, its noisy fade as alpha to coverage with it
+	if ( kSurfaceOpaqueFade )
+	{
+		if ( g_nMSAASampleCount == 1 ) OpaqueFadeDepth( s.Opacity, i.vPositionSs.xy );
+		else alpha = OpaqueFade( s.Opacity, i.vPositionSs );
+	}
+#endif
+
+	if ( g_bFogEnabled && s.Fog ) lit = Fog::Apply( input.Position, lit );
+	lit = ApplyVolumetricFog( lit, input.Position, i.vPositionSs.xy );
+	float4 color = float4( lit, alpha );
+
+	[branch]
+	if ( ToolsVis::WantsToolsVis() )
+	{
+		ToolsVis toolVis = ToolsVis::Init( color, float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ) );
+		toolVis.HandleFullbright( color, s.Albedo, input.Position, input.Normal );
+		toolVis.HandleAlbedo( color, s.Albedo );
+		toolVis.HandleReflectivity( color, s.Albedo );
+		toolVis.HandleRoughness( color, s.Roughness.xx );
+		toolVis.HandleNormalWs( color, s.Normal );
+		toolVis.HandleTangentUWs( color, input.TangentU );
+		toolVis.HandleTangentVWs( color, input.TangentV );
+		toolVis.HandleGeometricRoughness( color, input.Normal );
+	}
+
+	if ( g_bWireframeMode ) color = g_vWireframeColor;
+	if ( spread ) color.a *= s.Coverage;
+	return color;
+#endif
 }
 #endif
 

@@ -191,6 +191,7 @@ public struct SurfaceInput
 	public float3 ScenePosition;     // world: where the view ray through the pixel meets the opaque scene behind it (the depth buffer), as RecoverWorldPosFromProjectedDepthAndRay finds it
 	public float2 FrameBufferUvScale;  // ScreenUv to the frame-buffer copy's uv (it may be larger than the view)
 	public bool Skybox;              // drawn in the 3D skybox's view (today's D_SKYBOX combo), whose reprojection from the world is wrong
+	public float ToneMapScale;       // the view's tone map scalar (g_flToneMapScalarLinear): what the frame's exposure multiplies by
 
 	public float4 Sample( MaterialTexture2D texture, float2 uv )
 	{
@@ -350,4 +351,42 @@ public interface ICombinerSurface : ISurface
 /// (vertex_color.shader's mesh colour).
 public interface IInterpolatedCombinerSurface : IInterpolatedSurface
 {
+}
+
+/// One layer of a layered surface (ILayeredSurface), as it asks the engine to light it.
+public struct LightLayer
+{
+	public float3 Normal;               // world: specular light and the lights' N.L
+	public float3 DiffuseNormal;        // world: diffuse light's, with a [Combiner] subsurface model (the combiner's subsurface normal)
+	public float2 Roughness;            // the engine raises it by the geometric normal's curvature
+	public float3 SpecularColor;
+	public float DiffuseWrap = 0;       // SUBSURFACE_SCATTERING_WRAP: how far diffuse light wraps past the terminator,
+	public float DiffuseWrapExponent = 1;   // and its falloff's exponent (0 and 1: the combiner's default)
+	public float3 Offset = 0;           // world: lit from this far off the pixel (lifting lighting off a coarse shadow mesh)
+}
+
+/// The light a layer receives: diffuse before the surface's diffuse colour, specular with its specular colour.
+public struct LayerLight
+{
+	public float3 Diffuse;
+	public float3 IndirectDiffuse;
+	public float3 Specular;
+	public float3 IndirectSpecular;
+}
+
+/// What the engine hands ILayeredSurface.Shade: its lighting at the pixel.
+public interface ILayerLighting
+{
+	/// Every light, the environment and the probes on one layer: the engine's light loops through the final combiner's
+	/// lighting with the surface's [Combiner] features. Callable inside branches: its derivatives were taken outside.
+	LayerLight Light( LightLayer layer );
+}
+
+/// Optional, for a combiner surface that combines its own light (eyeball's cornea over its iris): forward passes call
+/// Shade instead of Evaluate and the final combiner. Shade lights as many layers as it needs through the lighting it's
+/// handed, mixes them and returns the lit colour before fog, with the Material the engine still reads (opacity, alpha
+/// test, the tools' views). The engine fogs it. Depth passes call Evaluate, as for any combiner surface.
+public interface ILayeredSurface : ICombinerSurface
+{
+	float3 Shade<L : ILayerLighting>( SurfaceInput i, L lighting, out Material m );
 }
