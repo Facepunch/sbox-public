@@ -288,13 +288,16 @@ internal static class MapRealRun
 				const int Counted = 10;
 				for ( int i = 0; i < Counted; i++ ) RenderFrame( view );
 				(planHits, planBuilds) = (map.Backend.GpuDrivenPlanHits - planHits, map.Backend.GpuDrivenPlanBuilds - planBuilds);
-				var residentBatches = map.System.GetFeature<global::Borealis.Features.AggregateRenderFeature>().ResidentFor( map.System.MainPass )?.Batches.Count ?? -1;
+				var residentList = map.System.GetFeature<global::Borealis.Features.AggregateRenderFeature>().ResidentFor( map.System.MainPass );
+				var residentBatches = residentList?.Batches.Count ?? -1;
+				var residentMeshes = residentList?.MeshGroups.Sum( g => g.Owner.Count ) ?? 0;
+				var residentGroups = residentList?.MeshGroups.Count ?? 0;
 				map.Backend.TimeDraws = false;
 				var t = map.Backend.DrawTimes;
 				var (modelDraws, binds, fragmentDraws) = (t.Draws / Counted, t.Binds / Counted, t.IndirectDraws / Counted);
 				var (nsBind, nsRepeat) = (t.NanosecondsPerBind, t.NanosecondsPerRepeat);
 				var (objectChanges, nsObjectChange) = (t.ObjectChanges / Counted, t.NanosecondsPerObjectChange);
-				var gpuDrivenLine = variant.GpuDriven ? $"GPU-driven: {t.GpuDrivenBatches / Counted} aggregate batches in {t.GpuDrivenBuckets / Counted} buckets, {t.GpuDrivenMultiDraws / Counted} multi-draws of {t.GpuDrivenFragments / Counted} fragments, {planHits / (double)Counted:0.#} resident calls from plans and {planBuilds / (double)Counted:0.#} plans made a frame, {residentBatches} resident batches in the main view; " : "";
+				var gpuDrivenLine = variant.GpuDriven ? $"GPU-driven: {t.GpuDrivenBatches / Counted} aggregate batches in {t.GpuDrivenBuckets / Counted} buckets, {t.GpuDrivenMultiDraws / Counted} multi-draws of {t.GpuDrivenFragments / Counted} fragments, {planHits / (double)Counted:0.#} resident calls from plans and {planBuilds / (double)Counted:0.#} plans made a frame, {residentBatches} resident batches and {residentMeshes} resident meshes in {residentGroups} groups in the main view; " : "";
 				string failed;
 				int failedDraws;
 				lock ( t.Failed )
