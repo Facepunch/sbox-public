@@ -85,7 +85,10 @@ internal sealed partial class AggregateRenderFeature
 		public int Slot;
 	}
 
-	/// <summary>Resident meshes of one model drawn alike, in a list.</summary>
+	/// <summary>
+	/// Resident meshes of one model drawn alike, in a list. In main views each mesh keeps its own lightmap and probe
+	/// (<see cref="GpuContext.ResidentMeshes.Lightmaps"/>); <see cref="Lightmap"/> and <see cref="Probe"/> are the first's.
+	/// </summary>
 	internal sealed class MeshGroup
 	{
 		public RenderMesh Mesh;
@@ -96,8 +99,19 @@ internal sealed partial class AggregateRenderFeature
 		public MeshObject[] Members;
 	}
 
-	/// <summary>What a list's mesh group is found by; the group keeps its owner while its meshes are the same.</summary>
-	readonly record struct MeshGroupKey( ResidentCasters Casters, uint Mask, RenderMesh Mesh, GpuMaterial Override, ShaderParameters Lightmap, ShaderParameters Probe );
+	/// <summary>
+	/// What a list's mesh group is found by: in main views, whether its meshes have a lightmap and probe and what those
+	/// attributes hold but their lighting records (<see cref="GpuDevice.LightingFreeKey"/>), so meshes lit differently
+	/// share a group. The group keeps its owner while its meshes are the same.
+	/// </summary>
+	readonly record struct MeshGroupKey( ResidentCasters Casters, uint Mask, RenderMesh Mesh, GpuMaterial Override, long? Lightmap, long? Probe );
+
+	/// <summary>A group's owner and the list version that last drew it: one no list of the last version drew is let go.</summary>
+	sealed class MeshOwner
+	{
+		public GpuContext.ResidentMeshes Owner;
+		public int Version;
+	}
 
 	/// <summary>An aggregate's tag class: what decides whether a view's root shows it.</summary>
 	readonly record struct ClassKey( uint[] Tags, bool IsWorld, int SubWorld, bool HiddenInCaptures, bool Overlay );
@@ -122,7 +136,20 @@ internal sealed partial class AggregateRenderFeature
 	int meshMemberCount;
 	bool residentMeshes;
 	long residentVolumesKey;
-	readonly Dictionary<MeshGroupKey, GpuContext.ResidentMeshes> meshOwners = new();
+	readonly Dictionary<MeshGroupKey, MeshOwner> meshOwners = new();
+
+	/// <summary>
+	/// By world index, the meshes found resident at their draw version, entry version and probe volumes then, with their main
+	/// views' probe: a rescan after a change works out again only what changed (and meshes that weren't resident, which may
+	/// be once their shaders' variants exist).
+	/// </summary>
+	(MeshObject Mesh, int DrawVersion, int EntryVersion, long Volumes, ShaderParameters Probe)[] candidates = [];
+
+	/// <summary>Resident candidates worked out from scratch since the feature was made, for the tests.</summary>
+	internal int ResidentCandidatesChecked { get; private set; }
+
+	/// <summary>Resident mesh owners let go since the feature was made, for the tests.</summary>
+	internal int ResidentOwnersReleased { get; private set; }
 
 	/// <summary>
 	/// Meshes that moved (their entry version moved, as a transform, bounds or tint change moves it), by the frame they last
@@ -429,16 +456,28 @@ internal sealed partial class AggregateRenderFeature
 			residentArgCount += fragments.Length;
 		}
 
-		// Static meshes that may be resident, with their main views' probes
+		// Static meshes that may be resident, with their main views' probes; one that's the same object at the same versions as
+		// when it was last found resident is taken as it was
 		var device = RenderHost.Current?.Device;
 		if ( residentMeshes && device is not null )
 		{
 			var entryVersions = world.EntryVersions;
 			var centers = world.BoundsCenter;
 			var extents = world.BoundsExtents;
+			if ( candidates.Length < objects.Length ) Array.Resize( ref candidates, Math.Max( objects.Length, candidates.Length * 2 ) );
 			for ( int i = 0; i < objects.Length; i++ )
 			{
-				if ( objects[i] is not MeshObject mesh || restless.ContainsKey( mesh ) || !Meshes.ResidentCandidate( mesh, device ) ) continue;
+				if ( objects[i] is not MeshObject mesh || restless.ContainsKey( mesh ) ) continue;
+
+				ref var known = ref candidates[i];
+				if ( !ReferenceEquals( known.Mesh, mesh ) || known.DrawVersion != drawVersions[i] || known.EntryVersion != entryVersions[i] || known.Volumes != residentVolumesKey )
+				{
+					known = default;
+					ResidentCandidatesChecked++;
+					if ( !Meshes.ResidentCandidate( mesh, device ) ) continue;
+					known = (mesh, drawVersions[i], entryVersions[i], residentVolumesKey, MeshRenderFeature.ResidentProbe( mesh, volumes, residentVolumesKey, centers[i], extents[i] ));
+				}
+
 				lock ( meshesLeft )
 				{
 					if ( meshesLeft.Count > 0 && meshesLeft.Contains( mesh ) ) continue;
@@ -455,7 +494,7 @@ internal sealed partial class AggregateRenderFeature
 					DrawVersion = drawVersions[i],
 					EntryVersion = entryVersions[i],
 					Class = cls,
-					Probe = MeshRenderFeature.ResidentProbe( mesh, volumes, residentVolumesKey, centers[i], extents[i] ),
+					Probe = known.Probe,
 					Slot = -1,
 				};
 			}
@@ -478,10 +517,35 @@ internal sealed partial class AggregateRenderFeature
 		return residentClasses.Count - 1;
 	}
 
+	/// <summary>
+	/// Drop every list, to be made again. Owners no list of the version being dropped drew are let go, so the device frees
+	/// their records; the rest may be kept by the next version's lists.
+	/// </summary>
 	void DropResidentLists()
 	{
 		residentLists.Clear();
+		List<MeshGroupKey> stale = null;
+		foreach ( var (key, owner) in meshOwners )
+		{
+			if ( owner.Version < residentVersion ) (stale ??= new()).Add( key );
+		}
+
+		if ( stale is not null )
+		{
+			foreach ( var key in stale )
+			{
+				ReleaseOwner( meshOwners[key].Owner );
+				meshOwners.Remove( key );
+			}
+		}
+
 		residentVersion++;
+	}
+
+	void ReleaseOwner( GpuContext.ResidentMeshes owner )
+	{
+		ResidentOwnersReleased++;
+		RenderHost.Current?.Device?.ReleaseResident( owner );
 	}
 
 	/// <summary>
@@ -555,6 +619,7 @@ internal sealed partial class AggregateRenderFeature
 	/// </summary>
 	void AddMeshGroups( ResidentList list, ResidentCasters casters, uint mask, bool shadow )
 	{
+		var device = RenderHost.Current?.Device;
 		var groups = new Dictionary<MeshGroupKey, List<int>>();
 		for ( int m = 0; m < meshMemberCount; m++ )
 		{
@@ -564,7 +629,9 @@ internal sealed partial class AggregateRenderFeature
 			if ( shadow ? !(obj.CastShadows && TakesCaster( casters, obj.IsStatic )) : !obj.GameLayers ) continue;
 			list.ReadsFrameBuffer |= !shadow && obj.WantsFrameBufferCopy;
 
-			var key = new MeshGroupKey( casters, mask, obj.Mesh, obj.MaterialOverride, shadow ? null : obj.LightmapAttributes, shadow ? null : member.Probe );
+			var lightmap = shadow || obj.LightmapAttributes is null ? (long?)null : device?.LightingFreeKey( obj.LightmapAttributes ) ?? 0;
+			var probe = shadow || member.Probe is null ? (long?)null : device?.LightingFreeKey( member.Probe ) ?? 0;
+			var key = new MeshGroupKey( casters, mask, obj.Mesh, obj.MaterialOverride, lightmap, probe );
 			if ( !groups.TryGetValue( key, out var members ) ) groups[key] = members = new List<int>();
 			members.Add( m );
 		}
@@ -578,6 +645,8 @@ internal sealed partial class AggregateRenderFeature
 			var groupExtents = new Vector3[count];
 			var slots = new int[count];
 			var scales = new float[count];
+			var lightmaps = key.Lightmap.HasValue ? new ShaderParameters[count] : null;
+			var probes = key.Probe.HasValue ? new ShaderParameters[count] : null;
 			for ( int i = 0; i < count; i++ )
 			{
 				ref readonly var member = ref meshMembers[members[i]];
@@ -587,15 +656,31 @@ internal sealed partial class AggregateRenderFeature
 				slots[i] = member.Slot;
 				var scale = obj.Transform.Scale;
 				scales[i] = obj.LodOverride >= 0 ? -1 - obj.LodOverride : MathF.Max( MathF.Abs( scale.x ), MathF.Max( MathF.Abs( scale.y ), MathF.Abs( scale.z ) ) );
+				if ( lightmaps is not null ) lightmaps[i] = obj.LightmapAttributes;
+				if ( probes is not null ) probes[i] = member.Probe;
 				list.Holds[member.Index] = true;
 			}
 
-			// The same meshes as last time keep their owner, and so the device's records of them
-			if ( !meshOwners.TryGetValue( key, out var owner ) || !owner.Slots.AsSpan().SequenceEqual( slots ) || !owner.Centers.AsSpan().SequenceEqual( groupCenters )
-				|| !owner.Extents.AsSpan().SequenceEqual( groupExtents ) || !owner.LodScales.AsSpan().SequenceEqual( scales ) )
-				meshOwners[key] = owner = new GpuContext.ResidentMeshes( key.Mesh, groupCenters, groupExtents, slots, scales );
+			// Each mesh's own lighting only where they differ
+			if ( lightmaps is not null && AllSame( lightmaps ) ) lightmaps = null;
+			if ( probes is not null && AllSame( probes ) ) probes = null;
 
-			var first = meshMembers[members[0]].Mesh;
+			// The same meshes as last time keep their owner, and so the device's records of them; a changed group's old owner
+			// is let go
+			var firstMember = meshMembers[members[0]];
+			meshOwners.TryGetValue( key, out var kept );
+			var owner = kept?.Owner;
+			if ( owner is null || !owner.Slots.AsSpan().SequenceEqual( slots ) || !owner.Centers.AsSpan().SequenceEqual( groupCenters )
+				|| !owner.Extents.AsSpan().SequenceEqual( groupExtents ) || !owner.LodScales.AsSpan().SequenceEqual( scales )
+				|| !SameLighting( owner.Lightmaps, lightmaps ) || !SameLighting( owner.Probes, probes ) )
+			{
+				if ( owner is not null ) ReleaseOwner( owner );
+				owner = new GpuContext.ResidentMeshes( key.Mesh, groupCenters, groupExtents, slots, scales, lightmaps, probes );
+				meshOwners[key] = kept = new MeshOwner { Owner = owner };
+			}
+
+			kept.Version = residentVersion;
+			var first = firstMember.Mesh;
 			var objects = new MeshObject[count];
 			for ( int i = 0; i < count; i++ ) objects[i] = meshMembers[members[i]].Mesh;
 			list.MeshGroups.Add( new MeshGroup
@@ -604,8 +689,8 @@ internal sealed partial class AggregateRenderFeature
 				Mesh = key.Mesh,
 				Override = key.Override,
 				OverrideBlends = key.Override is not null && (first.OverrideTranslucent || first.OverrideAlphaTest),
-				Lightmap = key.Lightmap,
-				Probe = key.Probe,
+				Lightmap = key.Lightmap.HasValue ? first.LightmapAttributes : null,
+				Probe = key.Probe.HasValue ? firstMember.Probe : null,
 				Owner = owner,
 			} );
 
@@ -613,6 +698,28 @@ internal sealed partial class AggregateRenderFeature
 			list.Triangles += (long)key.Mesh.TrianglesForLod( 0 ) * count;
 			list.Fragments += count;
 		}
+	}
+
+	static bool AllSame( ShaderParameters[] attributes )
+	{
+		for ( int i = 1; i < attributes.Length; i++ )
+		{
+			if ( !ReferenceEquals( attributes[i], attributes[0] ) ) return false;
+		}
+
+		return true;
+	}
+
+	static bool SameLighting( ShaderParameters[] a, ShaderParameters[] b )
+	{
+		if ( a is null || b is null ) return a is null && b is null;
+		if ( a.Length != b.Length ) return false;
+		for ( int i = 0; i < a.Length; i++ )
+		{
+			if ( !ReferenceEquals( a[i], b[i] ) ) return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>A list's mesh groups as the device takes them for a depth kind: a batch per group, LOD and draw.</summary>
@@ -636,9 +743,11 @@ internal sealed partial class AggregateRenderFeature
 						continue;
 					}
 
+					// The first mesh's lighting, and each mesh's own where the group's meshes differ in it
 					var probe = depth || group.Probe is null || !RenderMesh.NeedsLightProbe( material ) ? null : group.Probe;
 					var lighting = draw.Lightmapped ? (depth ? null : group.Lightmap) : probe;
-					made[at++] = new GpuContext.GpuDrivenBatch( material, mesh, draw, lighting, strip, d, owner.Count, 0, (long)(draw.IndexCount / 3) * owner.Count, owner, TextureSize: 0, Lod: lod );
+					var meshLighting = lighting is null ? null : draw.Lightmapped ? owner.Lightmaps : owner.Probes;
+					made[at++] = new GpuContext.GpuDrivenBatch( material, mesh, draw, lighting, strip, d, owner.Count, 0, (long)(draw.IndexCount / 3) * owner.Count, owner, TextureSize: 0, Lod: lod, MeshLighting: meshLighting );
 				}
 			}
 		}

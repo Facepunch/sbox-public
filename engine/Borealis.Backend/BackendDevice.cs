@@ -205,6 +205,20 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	internal override bool DrawsMeshesResident => GpuDrivenResidentMeshes && DrawsAggregatesResident && DrawsMeshesGpuDriven;
 
+	internal override long LightingFreeKey( ShaderParameters attributes ) => attributes is BackendParameters parameters ? parameters.LightingFreeKey : base.LightingFreeKey( attributes );
+
+	/// <summary>A resident owner's fragment records and its draws' (tinted records, each mesh's draw records), for reuse.</summary>
+	internal override void ReleaseResident( object owner )
+	{
+		if ( gpuDrivenTables is not { } tables ) return;
+		tables.ReleaseFragments( owner );
+		if ( owner is not GpuContext.ResidentMeshes meshes ) return;
+		foreach ( var keys in meshes.VisibilityKeys )
+		{
+			foreach ( var key in keys ) tables.ReleaseFragments( key );
+		}
+	}
+
 	internal override bool TakesResident( GpuMaterial material ) => material switch
 	{
 		SurfaceMaterial surface => !surface.RenderState.DrawsTranslucent && surface.RenderState.DepthWrite && surface.RenderState.DepthTest && Surfaces.For( surface ) is { } program

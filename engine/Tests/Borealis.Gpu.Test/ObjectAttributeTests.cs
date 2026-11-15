@@ -445,6 +445,101 @@ public class ObjectAttributeTests : GpuTest
 	}
 
 	/// <summary>
+	/// Resident meshes lit by probe volumes of their own (red, green, blue) share one group, each drawing with its own
+	/// lighting record, and draw what the views' own batches draw; a box outside every volume is a group of its own. A box
+	/// removed lets its group's owner go, whose records are reused, and works out again only the box that moved index.
+	/// </summary>
+	[TestMethod]
+	public void ResidentMeshesLitApartShareAGroup()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Resident lit boxes test" );
+			var box = BoxMesh( backend, backend.CreateMaterial( "Resident lit boxes", new Color( 0.8f, 0.8f, 0.8f ) ) );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.0f, 0.9f, 0.8f );
+			world.Lighting.AmbientColor = new Color( 0.1f, 0.1f, 0.1f, 1 );
+			world.Lighting.SunShadowCascades = 0;
+			Color[] colours = [new( 4, 0, 0 ), new( 0, 4, 0 ), new( 0, 0, 4 )];
+			for ( int b = 1; b < Boxes; b++ ) world.LightProbeVolumes.Add( new LightProbeVolume { BoxMins = Centres[b] - 60, BoxMaxs = Centres[b] + 60, Attributes = ProbeAttributes( backend, Centres[b], colours[b - 1] ), LightGroups = [0] } );
+
+			var boxes = new List<MeshObject>();
+			for ( int b = 0; b < Boxes; b++ )
+			{
+				var obj = new MeshObject( box, new Transform( Centres[b] ) ) { NeedsLightProbe = true, IsStatic = true };
+				world.Add( obj );
+				boxes.Add( obj );
+			}
+
+			var view = new RenderView { Name = "Resident lit boxes test", FieldOfView = 60, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( 0, -700, 150 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 20 ) );
+
+			byte[] Frame( bool resident )
+			{
+				backend.GpuDrivenResidentMeshes = resident;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			var aggregates = system.GetFeature<Borealis.Features.AggregateRenderFeature>();
+			void Same( string change, int groups )
+			{
+				Frame( false );
+				var own = Frame( false );
+				var hits = backend.GpuDrivenPlanHits;
+				byte[] resident = null;
+				for ( int i = 0; i < 4 && backend.GpuDrivenPlanHits == hits; i++ ) resident = Frame( true );
+				Assert.IsTrue( backend.GpuDrivenPlanHits > hits, $"{change}: a call drawn from a plan" );
+				var list = aggregates.ResidentFor( system.MainPass );
+				Assert.AreEqual( groups, list?.MeshGroups.Count ?? 0, $"{change}: boxes lit apart share a group" );
+				Assert.IsTrue( list.MeshGroups.Any( g => g.Owner.Probes is { Length: > 1 } ), $"{change}: a group keeps each box's probe" );
+				Assert.AreEqual( 0, Different( own, resident ), $"{change}: resident draws what the views' own batches do" );
+			}
+
+			Same( "first", 2 );
+
+			// A box gone: the box last in the world moves into its index, the only one worked out again
+			var checkedBefore = aggregates.ResidentCandidatesChecked;
+			var releasedBefore = aggregates.ResidentOwnersReleased;
+			var runsBefore = backend.GpuDrivenTables.FragmentRunsReleased;
+			world.Remove( boxes[1] );
+			Same( "a box gone", 2 );
+			Assert.IsTrue( aggregates.ResidentCandidatesChecked - checkedBefore <= 2, $"a box gone worked out {aggregates.ResidentCandidatesChecked - checkedBefore} boxes again" );
+			Assert.IsTrue( aggregates.ResidentOwnersReleased > releasedBefore, "the changed group's owner was let go" );
+			Assert.IsTrue( backend.GpuDrivenTables.FragmentRunsReleased > runsBefore, "its records were released" );
+
+			for ( int i = 0; i < 6; i++ ) Frame( true );
+			world.Remove( boxes[0] );
+			Same( "the unlit box gone", 1 );
+			Assert.IsTrue( backend.GpuDrivenTables.FragmentRunsReused > 0, "released records were reused" );
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A light probe's attributes as native's <c>SetLightProbeVolumeAttributes</c> sets them: the volume's constants (its
 	/// world-to-texture transform and a probe texture of one colour), <c>UsesBakedLightingFromProbe</c> and the combos.
 	/// </summary>

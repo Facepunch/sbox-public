@@ -266,9 +266,11 @@ internal abstract class GpuContext : IDisposable
 	/// With <paramref name="Instances"/>, it's a mesh draw's <paramref name="Count"/> instances from
 	/// <paramref name="FirstInstance"/> instead, each the whole draw, which the caller has already culled: no arguments, no owner.
 	/// With a <see cref="ResidentMeshes"/> owner, it's draw <paramref name="Draw"/> of LOD <paramref name="Lod"/> for each of the
-	/// group's <paramref name="Count"/> meshes, which the GPU culls, keeping each only where it picks that LOD for it.
+	/// group's <paramref name="Count"/> meshes, which the GPU culls, keeping each only where it picks that LOD for it; with
+	/// <paramref name="MeshLighting"/>, each mesh's lighting attributes (<paramref name="ObjectAttributes"/> is the first's,
+	/// and the rest differ from it only in their lighting records, <see cref="GpuDevice.LightingFreeKey"/>).
 	/// </summary>
-	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner, bool Instances = false, int TextureSize = TextureSizes.All, int Lod = 0 );
+	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner, bool Instances = false, int TextureSize = TextureSizes.All, int Lod = 0, ShaderParameters[] MeshLighting = null );
 
 	/// <summary>
 	/// Resident meshes of one model that draw alike (a <see cref="GpuDrivenBatch"/>'s owner): what the GPU culls them
@@ -298,14 +300,22 @@ internal abstract class GpuContext : IDisposable
 		/// <summary>Switch distances the GPU reads (index 0 is never read): a model with more isn't resident.</summary>
 		public const int MaxSwitchDistances = 8;
 
+		/// <summary>
+		/// Each mesh's lightmap and light probe attributes in main views, when they aren't all the same object: each mesh then
+		/// draws with its own lighting record. Null where every mesh has the same (or none).
+		/// </summary>
+		public readonly ShaderParameters[] Lightmaps, Probes;
+
 		public int Count => Slots.Length;
 
-		public ResidentMeshes( RenderMesh mesh, Vector3[] centers, Vector3[] extents, int[] slots, float[] lodScales )
+		public ResidentMeshes( RenderMesh mesh, Vector3[] centers, Vector3[] extents, int[] slots, float[] lodScales, ShaderParameters[] lightmaps = null, ShaderParameters[] probes = null )
 		{
 			Centers = centers;
 			Extents = extents;
 			Slots = slots;
 			LodScales = lodScales;
+			Lightmaps = lightmaps;
+			Probes = probes;
 			LodCount = mesh.LodCount;
 			SwitchDistances = mesh.SwitchDistances.ToArray();
 			Tinted = mesh.HasDrawTints;
