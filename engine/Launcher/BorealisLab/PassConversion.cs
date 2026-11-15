@@ -21,7 +21,7 @@ internal static class PassConversion
 			?? throw new InvalidOperationException( "No core content with shaders/sbox/pass.slangh" );
 		var shaders = Path.Combine( core, "shaders" );
 		var game = Path.GetDirectoryName( core );
-		var compiler = new SlangCompiler( Path.Combine( game, "bin", "win64" ), [shaders] );
+		var compiler = new SlangCompiler( Borealis.Backend.EngineFolders.NativeIn( game ), [shaders] );
 
 		var failed = 0;
 		foreach ( var name in Args.String( "-convert-passes" ).Split( ',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ) )

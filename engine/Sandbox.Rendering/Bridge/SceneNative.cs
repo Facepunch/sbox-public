@@ -144,4 +144,27 @@ internal static class SceneNative
 	/// Returns false when empty.
 	/// </summary>
 	public static bool DrawDynamicObject( GpuContext context, SceneDynamicObject sceneObject, StringToken shaderMode ) => RenderTools.DrawDynamicSceneObject( context.NativeContext(), sceneObject, shaderMode );
+
+	/// <summary>
+	/// Forget the constant buffers Borealis's binds kept for a material's layers (<c>IMaterialSystem2::ForgetCachedConstantBuffers</c>),
+	/// at the end of the frame, when no bind is recording. A bind of it after makes them again. Nothing on a Borealis.Gpu
+	/// device, whose materials aren't native's, or for a material already freed, whose layers took theirs with them.
+	/// </summary>
+	public static void ForgetKeptConstants( GpuMaterial material )
+	{
+		if ( material.Engine() is not { } engine ) return;
+
+		// Frame end disposes it
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		EngineLoop.DisposeAtFrameEnd( new KeptConstantsForget( engine ) );
+#pragma warning restore CA2000
+	}
+
+	sealed class KeptConstantsForget( Material material ) : IDisposable
+	{
+		public void Dispose()
+		{
+			if ( material.IsValid ) material.native.ForgetCachedConstantBuffers();
+		}
+	}
 }

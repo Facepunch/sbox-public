@@ -1208,7 +1208,33 @@ internal sealed partial class BackendContext : GpuContext
 
 	public override bool SetRenderState( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool vertexCache = false ) => false;
 
-	public override void BindInstances( int stream, int firstInstance ) { }
+	/// <summary>
+	/// Where stream 1's instance ids start, as a custom object's run binds them before it draws: draws record their own ids,
+	/// so only draws through the engine's graphics context into this context's list read it (<see cref="LentInstances"/>).
+	/// </summary>
+	public override void BindInstances( int stream, int firstInstance )
+	{
+		if ( stream == 1 ) boundFirstInstance = firstInstance;
+	}
+
+	int boundFirstInstance;
+
+	/// <summary>
+	/// The frame's transform buffer, and its instance ids from where <see cref="BindInstances"/> last put stream 1: what a
+	/// custom object drawn through the engine's graphics context reads its transform with (<c>g_TransformBuffer</c>,
+	/// indexed by <c>TEXCOORD13</c>). Default handles before a frame has uploaded its transforms.
+	/// </summary>
+	internal (BufferHandle Transforms, BufferHandle Ids, long Offset) LentInstances
+	{
+		get
+		{
+			var transforms = attributes.Get( TransformBufferName ) is GpuBuffer { Resource: BackendBuffer buffer } ? buffer.Handle : default;
+			if ( InstanceIds?.Resource is not BackendBuffer ids ) return (transforms, default, 0);
+			return (transforms, ids.Handle, boundFirstInstance * (long)sizeof( uint ));
+		}
+	}
+
+	static readonly StringToken TransformBufferName = new( "g_TransformBuffer" );
 
 	/// <summary>
 	/// Run a compute shader over <paramref name="x"/> by <paramref name="y"/> by <paramref name="z"/> threads (divided

@@ -4,6 +4,7 @@ namespace Sandbox.SceneLab;
 /// Mirror Churn (Stress group): what a long session does to the bridge's caches. For <see cref="ChurnFrames"/> frames it
 /// spawns props and citizens that live a second each, cycling through models, body groups, material groups, material
 /// overrides and materials made at runtime, and changes the overrides of those alive; then it stops, and the scene empties.
+/// A prop's runtime material is freed when the prop goes (<see cref="Material.ReleaseCopy"/>), as the engine's components free theirs.
 /// Halfway it reloads a model and a material the props draw with. The window logs the mirror's cache counts as it goes
 /// (<see cref="SceneLabScene.ReportMirror"/>), so growth shows as a number. Parity compares it mid-churn, isolated.
 /// </summary>
@@ -42,7 +43,7 @@ internal static class MirrorChurnScene
 
 	static readonly string[] SkinGroups = ["default", "skin_light", "skin_dark"];
 
-	static readonly List<(GameObject Object, int Dies)> alive = new();
+	static readonly List<(GameObject Object, int Dies, Material Copy)> alive = new();
 	static int frame;
 	static int spawned;
 
@@ -58,9 +59,10 @@ internal static class MirrorChurnScene
 	/// </summary>
 	public static void Rewind( Scene scene )
 	{
-		foreach ( var (go, _) in alive )
+		foreach ( var (go, _, copy) in alive )
 		{
 			if ( go.IsValid() ) go.Destroy();
+			copy?.ReleaseCopy();
 		}
 
 		alive.Clear();
@@ -79,6 +81,7 @@ internal static class MirrorChurnScene
 		{
 			if ( alive[i].Dies > frame ) continue;
 			alive[i].Object.Destroy();
+			alive[i].Copy?.ReleaseCopy();
 			alive.RemoveAt( i );
 		}
 
@@ -109,6 +112,7 @@ internal static class MirrorChurnScene
 		var place = n * 7 % (Side * Side);
 		var position = new Vector3( (place % Side - Side / 2.0f + 0.5f) * 50, (place / Side - Side / 2.0f + 0.5f) * 50, 0 );
 		GameObject go;
+		Material copy = null;
 
 		if ( n % 10 == 0 )
 		{
@@ -141,12 +145,13 @@ internal static class MirrorChurnScene
 					break;
 				case 3:
 					// A material made at runtime, as game code makes them: a new one every time
-					prop.MaterialOverride = Material.Load( Materials[n % Materials.Length] ).CreateCopy();
+					copy = Material.Load( Materials[n % Materials.Length] ).CreateCopy();
+					prop.MaterialOverride = copy;
 					break;
 			}
 		}
 
-		alive.Add( (go, frame + Lifetime) );
+		alive.Add( (go, frame + Lifetime, copy) );
 	}
 
 	/// <summary>

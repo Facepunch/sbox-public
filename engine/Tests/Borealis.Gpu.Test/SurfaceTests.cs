@@ -26,8 +26,8 @@ public class SurfaceTests : GpuTest
 	static SlangCompiler Compiler()
 	{
 		if ( Core is null ) Assert.Inconclusive( "No game content" );
-		var bin = Path.Combine( Path.GetDirectoryName( Core ), "bin", "win64" );
-		if ( !File.Exists( Path.Combine( bin, OperatingSystem.IsWindows() ? "slang.dll" : "libslang.so" ) ) ) Assert.Inconclusive( "The engine's Slang isn't built" );
+		var bin = EngineFolders.NativeIn( Path.GetDirectoryName( Core ) );
+		if ( !File.Exists( Path.Combine( bin, EngineFolders.Library( "slang" ) ) ) ) Assert.Inconclusive( "The engine's Slang isn't built" );
 		return new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] );
 	}
 
@@ -226,7 +226,7 @@ public class SurfaceTests : GpuTest
 		{
 			var module = Path.Combine( folder, "cached_rock.slang" );
 			File.WriteAllText( module, File.ReadAllText( Path.Combine( Surfaces, "rock.slang" ) ).Replace( "public struct Rock", "public struct CachedRock", StringComparison.Ordinal ) );
-			var bin = Path.Combine( Path.GetDirectoryName( Core ), "bin", "win64" );
+			var bin = EngineFolders.NativeIn( Path.GetDirectoryName( Core ) );
 			var compiler = new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] ) { CacheFolder = Path.Combine( folder, "cache" ) };
 
 			var first = compiler.CompileSurface( module );
@@ -279,7 +279,7 @@ public class SurfaceTests : GpuTest
 	public void OptimizerStripsDeadCodeAndItsBindings()
 	{
 		Compiler();
-		var bin = Path.Combine( Path.GetDirectoryName( Core ), "bin", "win64" );
+		var bin = EngineFolders.NativeIn( Path.GetDirectoryName( Core ) );
 		if ( !SpirvOptimizer.Available( bin ) ) Assert.Inconclusive( "spirv_optimizer isn't built" );
 
 		var folder = Path.Combine( Path.GetTempPath(), "borealis-optimizer-test-" + Guid.NewGuid().ToString( "N" ) );
@@ -335,7 +335,7 @@ public class SurfaceTests : GpuTest
 		Directory.CreateDirectory( folder );
 		try
 		{
-			var bin = Path.Combine( game, "bin", "win64" );
+			var bin = EngineFolders.NativeIn( game );
 			var shaders = Path.Combine( Core, "shaders" );
 			var compiler = new SlangCompiler( bin, [shaders] );
 			string Include( string path ) => File.Exists( Path.Combine( shaders, path ) ) ? File.ReadAllText( Path.Combine( shaders, path ) ) : null;

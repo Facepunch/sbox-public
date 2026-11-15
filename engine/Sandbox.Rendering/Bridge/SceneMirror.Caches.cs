@@ -20,7 +20,8 @@ internal readonly record struct MirrorCacheCounts( int Objects, int Meshes, int 
 /// groups, material group, overrides) once more as a variant, shared by every object in that state so they instance.
 /// Objects hold what they draw (<see cref="Hold"/>, <see cref="Release"/>); what none holds is idle, and dropped once it has
 /// been idle for <see cref="IdleFrames"/>. A model or material reloaded since its mesh was made drops the mesh, and the
-/// objects drawing it make it again (<see cref="CheckReloads"/>).
+/// objects drawing it make it again (<see cref="CheckReloads"/>). A material no cached mesh draws any more has the constant
+/// buffers Borealis's binds kept for it forgotten (<see cref="CountMaterials"/>).
 /// </summary>
 internal sealed partial class SceneMirror
 {
@@ -79,6 +80,16 @@ internal sealed partial class SceneMirror
 	readonly List<RenderMesh.DrawState> drawStates = new();
 	int variantCount;
 	ulong nextSweep;
+
+	// How many cached meshes draw each material, and one mesh's materials while counting them
+	readonly Dictionary<GpuMaterial, int> materialMeshes = new( ReferenceEqualityComparer.Instance );
+	readonly HashSet<GpuMaterial> meshMaterials = new( ReferenceEqualityComparer.Instance );
+
+	/// <summary>Materials the cached meshes draw.</summary>
+	internal int MaterialsDrawn => materialMeshes.Count;
+
+	/// <summary>Materials no cached mesh draws any more, whose kept constant buffers were forgotten.</summary>
+	internal long MaterialsForgotten { get; private set; }
 	int seenReloads = Resource.Reloads;
 	long built, evicted, reloaded;
 
@@ -131,6 +142,7 @@ internal sealed partial class SceneMirror
 		cached = new CachedModel { Model = model, Mesh = mesh, Revision = model.Revision, MaterialRevisions = MaterialRevisions( mesh ) };
 		models[model] = cached;
 		if ( mesh is not null ) held[mesh] = cached;
+		CountMaterials( mesh, 1 );
 		built++;
 
 		// Idle until something holds it
@@ -172,6 +184,7 @@ internal sealed partial class SceneMirror
 
 		variant.MaterialRevisions = MaterialRevisions( variant.Mesh );
 		held[variant.Mesh] = variant;
+		CountMaterials( variant.Mesh, 1 );
 		model.Users++;
 		built++;
 		Idle( variant );
@@ -250,6 +263,7 @@ internal sealed partial class SceneMirror
 		{
 			case CachedVariant variant:
 				held.Remove( variant.Mesh );
+				CountMaterials( variant.Mesh, -1 );
 				var candidates = variant.Model.Variants[variant.Hash];
 				candidates.Remove( variant );
 				if ( candidates.Count == 0 ) variant.Model.Variants.Remove( variant.Hash );
@@ -260,20 +274,58 @@ internal sealed partial class SceneMirror
 			case CachedModel model:
 				if ( model.Mesh is not null ) held.Remove( model.Mesh );
 				if ( models.GetValueOrDefault( model.Model ) == model ) models.Remove( model.Model );
+				CountMaterials( model.Mesh, -1 );
 
 				foreach ( var (_, list) in model.Variants )
 				{
 					foreach ( var variant in list )
 					{
 						variant.Dropped = true;
-						if ( variant.Mesh != model.Mesh ) held.Remove( variant.Mesh );
 						variantCount--;
+						if ( variant.Mesh == model.Mesh ) continue;
+						held.Remove( variant.Mesh );
+						CountMaterials( variant.Mesh, -1 );
 					}
 				}
 
 				model.Variants.Clear();
 				break;
 		}
+	}
+
+	/// <summary>
+	/// Count a mesh the cache makes (1) or drops (-1) against each material it draws. Once no cached mesh draws a material,
+	/// the constant buffers Borealis's binds kept for its layers are forgotten (<see cref="SceneNative.ForgetKeptConstants"/>):
+	/// they go with the mirror's use of a material rather than with the material, which may wait for the GC. Only meshes
+	/// being made or dropped come here, never a frame's draws.
+	/// </summary>
+	void CountMaterials( RenderMesh mesh, int delta )
+	{
+		if ( mesh is null ) return;
+
+		for ( int lod = 0; lod < mesh.LodCount; lod++ )
+		{
+			foreach ( var draw in mesh.DrawsForLod( lod ) )
+			{
+				if ( draw.Material is { } material ) meshMaterials.Add( material );
+			}
+		}
+
+		foreach ( var material in meshMaterials )
+		{
+			var count = materialMeshes.GetValueOrDefault( material ) + delta;
+			if ( count > 0 )
+			{
+				materialMeshes[material] = count;
+				continue;
+			}
+
+			materialMeshes.Remove( material );
+			SceneNative.ForgetKeptConstants( material );
+			MaterialsForgotten++;
+		}
+
+		meshMaterials.Clear();
 	}
 
 	// Reload scratch: meshes dropped, models without geometry dropped, and aggregates to make again

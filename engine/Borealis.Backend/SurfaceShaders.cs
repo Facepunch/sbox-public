@@ -241,7 +241,7 @@ public sealed class SurfaceShaders : IDisposable
 		var shaders = CoreShaders();
 		var game = Path.GetDirectoryName( Path.GetDirectoryName( shaders ) );
 		Watch( shaders );
-		return compiler = new SlangCompiler( Path.Combine( game, "bin", "win64" ), [shaders] )
+		return compiler = new SlangCompiler( EngineFolders.NativeIn( game ), [shaders] )
 		{
 			CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealissurfaces" ),
 		};

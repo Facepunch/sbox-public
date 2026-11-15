@@ -48,7 +48,7 @@ public sealed class PassModules : IShaderModules
 	{
 		if ( compiler is not null ) return compiler;
 		var game = Path.GetDirectoryName( Core );
-		return compiler = new SlangCompiler( Path.Combine( game, "bin", "win64" ), [Path.Combine( Core, "shaders" )] )
+		return compiler = new SlangCompiler( EngineFolders.NativeIn( game ), [Path.Combine( Core, "shaders" )] )
 		{
 			CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealispasses" ),
 		};
