@@ -566,7 +566,7 @@ public sealed class SrgbGammaToLinear : ShaderNode
 	[Hide]
 	public NodeResult.Func Out => ( GraphCompiler compiler ) =>
 	{
-		return new NodeResult( 3, $"SrgbGammaToLinear( {compiler.ResultOrDefault( In, Vector3.One )} )" );
+		return new NodeResult( NodeResultType.Vector3, $"SrgbGammaToLinear( {compiler.ResultOrDefault( In, Vector3.One )} )" );
 	};
 }
 
@@ -584,6 +584,6 @@ public sealed class SrgbLinearToGamma : ShaderNode
 	[Hide]
 	public NodeResult.Func Out => ( GraphCompiler compiler ) =>
 	{
-		return new NodeResult( 3, $"SrgbLinearToGamma( {compiler.ResultOrDefault( In, Vector3.One )} )" );
+		return new NodeResult( NodeResultType.Vector3, $"SrgbLinearToGamma( {compiler.ResultOrDefault( In, Vector3.One )} )" );
 	};
 }
