@@ -131,7 +131,7 @@ public sealed partial class SlangCompiler
 
 			var defines = CombinerDefines( source );
 			if ( defines.Count > 0 && !combiner ) throw new ShaderCompileException( path, $"{material.Name}: [Combiner( ... )] is for an ICombinerSurface or IInterpolatedCombinerSurface" );
-			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit, composite, combiner, defines );
+			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit, composite, combiner, defines, layout.Features );
 			var instancePath = Path.Combine( directory, $"{module}.instance.slang" );
 
 			var vertex = CompileEntry( instancePath, instance, "MainVs", StageKind.Vertex, directory );
@@ -333,9 +333,12 @@ public sealed partial class SlangCompiler
 	/// interpolated surface's (<c>IInterpolatedSurface</c>) vertex stage also reads its <c>Varyings</c> and passes them on. A
 	/// composite surface's (<c>ICompositeSurface</c>) forward passes call its <c>Composite</c> on the lit colour, and a
 	/// combiner surface's (<c>ICombinerSurface</c>) shade through complex.shader's final combiner (<c>SURFACE_FINAL_COMBINER</c>).
+	/// Pixel entries read the material's <paramref name="features"/> as specialization constants instead of from the record
+	/// when the pipeline is specialised for its material (<see cref="MaterialLayout.SpecializedId"/>), so its branches fold.
 	/// </summary>
-	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false, bool sunLit = false, bool composite = false, bool combiner = false, IReadOnlyList<(string Name, string Value)> combinerDefines = null )
+	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false, bool sunLit = false, bool composite = false, bool combiner = false, IReadOnlyList<(string Name, string Value)> combinerDefines = null, IReadOnlyList<MaterialField> features = null )
 	{
+		var specialize = features is { Count: > 0 } ? " SurfaceSpecialize( m );" : "";
 		var forward = sunLit ? "SurfaceForwardSunLit" : composite ? "SurfaceForwardComposite" : combiner ? "SurfaceForwardCombiner" : "SurfaceForward";
 		var vertex = displaces ? $"SurfaceVertexDisplaced<{type}>( i )" : "SurfaceVertex( i )";
 		var opacity = opacityField is null ? "0" : $"m.{opacityField}.Slot";
@@ -344,7 +347,7 @@ public sealed partial class SlangCompiler
 		var surface = interpolated ? $"{(combiner ? "SurfaceWithVaryingsCombiner" : "SurfaceWithVaryings")}<{type}>" : type;
 		var wrap = interpolated ? $" {surface} s; s.Surface = m; s.Values = i.Varyings;" : "";
 		var argument = interpolated ? "s" : "m";
-		string Shade( bool alphaTest ) => $"{type} m = SurfaceRecord<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{keep}{wrap} return {forward}<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} );";
+		string Shade( bool alphaTest ) => $"{type} m = SurfaceRecord<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{specialize}{keep}{wrap} return {forward}<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} );";
 		// Every pixel entry takes the facing, so a two-sided material's back faces shade with the normal turned to the viewer
 		string Pixel( string entry, bool alphaTest ) =>
 			$"[shader( \"pixel\" )] float4 {entry}( {output} i, bool front : SV_IsFrontFace ) : SV_Target0 {{ s_SurfaceFrontFace = front; {Shade( alphaTest )} }}\n";
@@ -383,6 +386,8 @@ public sealed partial class SlangCompiler
 			text.Append( "float3 SurfaceLight( LightSample light ) { return s_LitSurface.Light( SurfaceLitMaterial(), SurfaceLitInput(), light ); }\n" );
 		}
 
+		if ( features is { Count: > 0 } ) text.Append( Specialization( type, features ) );
+
 		text.Append( Pixel( "ForwardPs", false ) );
 		text.Append( Pixel( "ForwardAlphaTestPs", true ) );
 		text.Append( "// Compiled with S_TRANSLUCENT, for blended materials\n" );
@@ -396,6 +401,33 @@ public sealed partial class SlangCompiler
 		text.Append( GpuDrivenPixel( "DepthAlphaTestPsGpuDriven", true, true ) );
 		text.Append( "#endif\n" );
 		text.Append( "#endif\n" );
+		return text.ToString();
+	}
+
+	/// <summary>
+	/// A pixel stage's feature constants: the flag that the pipeline is specialised for one material, each feature's value,
+	/// and <c>SurfaceSpecialize</c>, which puts them in the record's place. Unspecialised, the record's values stand.
+	/// </summary>
+	static string Specialization( string type, IReadOnlyList<MaterialField> features )
+	{
+		var text = new StringBuilder();
+		text.Append( "// The material's features as constants, when the pipeline is specialised for it\n" );
+		text.Append( $"[vk::constant_id( {MaterialLayout.SpecializedId} )] const bool kSurfaceSpecialized = false;\n" );
+		for ( int n = 0; n < features.Count; n++ ) text.Append( $"[vk::constant_id( {MaterialLayout.FirstFeatureId + n} )] const int kSurfaceFeature{n} = 0;\n" );
+		text.Append( $"void SurfaceSpecialize( inout {type} m )\n{{\n\tif ( !kSurfaceSpecialized ) return;\n" );
+		for ( int n = 0; n < features.Count; n++ )
+		{
+			var field = features[n];
+			var value = field.Kind switch
+			{
+				MaterialFieldKind.Bool => $"kSurfaceFeature{n} != 0",
+				MaterialFieldKind.UInt => $"uint( kSurfaceFeature{n} )",
+				_ => $"kSurfaceFeature{n}",
+			};
+			text.Append( $"\tm.{field.Name} = {value};\n" );
+		}
+
+		text.Append( "}\n" );
 		return text.ToString();
 	}
 
