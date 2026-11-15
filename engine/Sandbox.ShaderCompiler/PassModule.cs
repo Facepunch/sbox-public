@@ -23,6 +23,7 @@ public sealed partial class PassModule
 	public IReadOnlyList<PassCombo> Features { get; }
 
 	readonly Dictionary<StageKind, IReadOnlyList<PassCombo>> combos = new();
+	readonly Dictionary<StageKind, List<(string Kind, string[] Arguments)>> rules = new();
 	readonly HashSet<StageKind> stages = new();
 
 	readonly IReadOnlyList<string> searchPaths;
@@ -51,8 +52,15 @@ public sealed partial class PassModule
 		foreach ( var (stage, active) in lines )
 		{
 			var found = new List<PassCombo>();
+			var stageRules = new List<(string, string[])>();
 			foreach ( var line in active )
 			{
+				if ( RuleLine().Match( line ) is { Success: true } rule )
+				{
+					stageRules.Add( (rule.Groups["kind"].Value, rule.Groups["args"].Value.Split( ',', StringSplitOptions.TrimEntries )) );
+					continue;
+				}
+
 				// An entry point marked [shader], or one an include defines (UI shaders' MainVs comes from ui/vertex.hlsl)
 				var comment = line.IndexOf( "//", StringComparison.Ordinal );
 				var code = comment >= 0 ? line[..comment] : line;
@@ -79,6 +87,7 @@ public sealed partial class PassModule
 			}
 
 			combos[stage] = found;
+			rules[stage] = stageRules;
 		}
 	}
 
@@ -115,8 +124,45 @@ public sealed partial class PassModule
 	/// <summary>Whether it has an entry point for the stage (<c>MainVs</c>, <c>MainPs</c>, <c>MainCs</c>).</summary>
 	public bool Has( StageKind stage ) => stages.Contains( stage );
 
+	/// <summary>
+	/// Whether the stage has its entry point with these combo values: a material's depth pass can have no pixel stage
+	/// (<c>#if</c> round its <c>MainPs</c>).
+	/// </summary>
+	public bool Has( StageKind stage, IReadOnlyDictionary<string, int> values )
+	{
+		if ( !Has( stage ) ) return false;
+		var all = ProgramValues( stage );
+		foreach ( var (name, value) in values ) all[name] = value;
+		foreach ( var line in PassPreprocessor.ActiveLines( Path, Text, all, Include ) )
+		{
+			var comment = line.IndexOf( "//", StringComparison.Ordinal );
+			var code = comment >= 0 ? line[..comment] : line;
+			if ( EntryLine( stage ).IsMatch( code ) || EntryDefinition( stage ).IsMatch( code ) ) return true;
+		}
+
+		return false;
+	}
+
 	/// <summary>The combos a stage's code declares: those of its own block and the common code.</summary>
 	public IReadOnlyList<PassCombo> Combos( StageKind stage ) => combos.TryGetValue( stage, out var list ) ? list : [];
+
+	/// <summary>
+	/// Whether a stage's <c>DynamicComboRule</c>s allow these combo values: <c>Requires1( D_X, a, b )</c> (with D_X set, each
+	/// of the rest is true) and <c>Allow1( a, b )</c> (at most one is set). vfx compiles no other combination; drawing one
+	/// takes the dynamic combo with every value at its first, as a compiled program's lookup does.
+	/// </summary>
+	public bool Allows( StageKind stage, IReadOnlyDictionary<string, int> values )
+	{
+		if ( !rules.TryGetValue( stage, out var list ) ) return true;
+		bool True( string expression ) => PassPreprocessor.Evaluate( expression, values ) is { } v && v != "0";
+		foreach ( var (kind, arguments) in list )
+		{
+			if ( kind == "Requires1" && True( arguments[0] ) && !arguments.Skip( 1 ).All( True ) ) return false;
+			if ( kind == "Allow1" && arguments.Count( True ) > 1 ) return false;
+		}
+
+		return true;
+	}
 
 	/// <summary>The entry point a stage compiles.</summary>
 	public static string Entry( StageKind stage ) => stage switch { StageKind.Vertex => "MainVs", StageKind.Compute => "MainCs", _ => "MainPs" };
@@ -165,6 +211,9 @@ public sealed partial class PassModule
 
 	[GeneratedRegex( @"^\s*(?<kind>Dynamic|Static)Combo(?:FromFeature)?\(\s*(?<name>\w+)\s*,\s*(?<range>[^,)]+?)\s*(?:,\s*(?<feature>F_\w+))?\s*[,)]" )]
 	private static partial Regex ComboLine();
+
+	[GeneratedRegex( @"^\s*DynamicComboRule\(\s*(?<kind>Requires1|Allow1)\(\s*(?<args>.*?)\s*\)\s*\)\s*;" )]
+	private static partial Regex RuleLine();
 
 	[GeneratedRegex( @"^\s*Feature\(\s*(?<name>\w+)\s*,\s*(?<range>\d+\s*\.\.\s*\d+)" )]
 	private static partial Regex FeatureLine();
