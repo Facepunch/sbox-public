@@ -198,8 +198,8 @@ internal sealed partial class BackendContext
 	{
 		if ( material is SurfaceMaterial surface )
 		{
-			// Where the surface can't draw (a skinned mesh, a mode it has no pass for), the .shader it stands in for does
-			if ( DrawSurface( surface, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect ) ) return true;
+			// Where the surface can't draw (a mode it has no pass for), the .shader it stands in for does
+			if ( DrawSurface( surface, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, indirect ) ) return true;
 			if ( surface.Fallback is not BackendMaterial fallback ) return false;
 			material = fallback;
 		}

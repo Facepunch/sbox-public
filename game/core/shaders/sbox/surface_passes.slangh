@@ -20,11 +20,23 @@
 #ifdef SURFACE_FINAL_COMBINER
 static bool s_SurfaceBackfaceTransmission = false;
 #define S_TRANSMISSIVE_BACKFACE_NDOTL s_SurfaceBackfaceTransmission
+// Subsurface scattering's lookup texture is the material's (Material.SssFalloff), not a global the engine binds
+#define SURFACE_DIFFUSE_FALLOFF SurfaceDiffuseFalloffTexture()
 #endif
 #include "sbox/engine.slangh"
 #undef Material
 
 import sbox.surface;
+
+#ifdef SURFACE_FINAL_COMBINER
+/// The bindless slot of subsurface scattering's lookup texture, set by the pass before shading.
+static uint s_SurfaceDiffuseFalloff = 0;
+
+Texture2D SurfaceDiffuseFalloffTexture()
+{
+	return g_bindless_Texture2D[NonUniformResourceIndex( s_SurfaceDiffuseFalloff )];
+}
+#endif
 
 #ifdef SURFACE_GPU_DRIVEN
 // GPU-driven passes (docs/managed/borealis-gpu-driven.md): the draw comes from the instance and draw records, the material
@@ -372,6 +384,30 @@ float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool
 	f.flAmbientOcclusionDirectSpecular = s.AmbientOcclusionDirectSpecular;
 	f.vDiffuseColor *= s.DiffuseScale;
 	f.vSpecularColor *= s.SpecularScale;
+
+	// The surface's [Combiner( ... )] features, as skin.shader fills them
+#if ( S_SUBSURFACE_SCATTERING )
+	s_SurfaceDiffuseFalloff = s.SssFalloff.Slot;
+	f.vSSSNormalWs = any( s.SssNormal != 0 ) ? s.SssNormal : f.vNormalWs;
+	f.flSSSCurvature = length( fwidth( i.vNormalWs.xyz ) ) / length( fwidth( i.vPositionWithOffsetWs.xyz ) ) * s.SssCurvatureScale;
+	f.flSSSMask = s.SssMask;
+#endif
+#if ( S_TWO_LOBE_SPECULAR )
+	f.vRoughness.y *= s.SecondLobeRoughness;
+	f.flTwoLobeSpecularRatio = s.TwoLobeSpecularRatio;
+#endif
+#if ( S_AMBIENT_OCCLUSION_COLOR_BLEED )
+	f.vAmbientOcclusionColorBleed = s.AmbientOcclusionColorBleed;
+#endif
+#if ( S_TRANSMISSIVE )
+	f.vTransmissiveFalloff = s.TransmissiveFalloff;
+#endif
+	if ( s.UseBentNormals )
+	{
+		f.bUseBentNormalsForIndirect = true;
+		f.vBentNormalWs = s.BentNormal;
+		f.vBentDiffuseNormalWs = s.BentDiffuseNormal;
+	}
 
 	LightingTerms_t terms = InitLightingTerms();
 	PS_OUTPUT o;

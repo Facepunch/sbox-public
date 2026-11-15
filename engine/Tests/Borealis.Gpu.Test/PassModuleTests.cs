@@ -44,6 +44,11 @@ public class PassModuleTests : GpuTest
 		Assert.IsTrue( read.Has( StageKind.Compute ) );
 		Assert.IsFalse( read.Has( StageKind.Pixel ) );
 		Assert.AreEqual( "D_A", read.Combos( StageKind.Compute ).Single().Name );
+
+		// Code before MODES (line.shader includes its feature lines there) comes after the declarations' macros
+		var early = PassConverter.Convert( "#include \"vr_common_features.fxc\"\r\n" + shader, "x" );
+		Assert.IsTrue( early.IndexOf( "#include \"sbox/pass.slangh\"", StringComparison.Ordinal ) < early.IndexOf( "vr_common_features.fxc", StringComparison.Ordinal ) );
+		Assert.AreEqual( 1, early.Split( "sbox/pass.slangh" ).Length - 1 );
 	}
 
 	[TestMethod]

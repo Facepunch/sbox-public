@@ -37,10 +37,15 @@ bool g_bShowLPVVoxels < Attribute( "g_bShowLPVVoxels" ); >;
 	#define SSS_CURVATURE_SCALE ( 1.0 / ( SSS_CURVATURE_MAX - SSS_CURVATURE_MIN ) )
 	#define SSS_CURVATURE_BIAS ( -SSS_CURVATURE_MIN * SSS_CURVATURE_SCALE )
 
+	#ifdef SURFACE_DIFFUSE_FALLOFF
+		// A surface's lookup is its material's texture, from its record (sbox/surface_passes.slangh)
+		#define g_tDiffuseFalloff SURFACE_DIFFUSE_FALLOFF
+	#else
 	CreateInputTexture2D( TextureDiffuseFalloff, Srgb, 8, "", "_diffusewarp", "Lookup Textures", Default3AndFile( 0.5, 0.5, 0.5, "materials/default/default_skin_diffusewarp.tga" ) );
 	Texture2D g_tDiffuseFalloff < Channel( RGB, Box( TextureDiffuseFalloff ), Srgb );
 										   OutputFormat( RGBA8888 );
 										   SrgbRead( false ); >;
+	#endif
 
 	float3 g_vAmbientNormalSoftness < UiType( Color ); Default3( 1.0, 0.3, 0.0 ); UiGroup( "Lookup Textures" ); >;
 
