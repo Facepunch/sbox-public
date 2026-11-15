@@ -527,9 +527,84 @@ public class ObjectAttributeTests : GpuTest
 			Assert.IsTrue( backend.GpuDrivenTables.FragmentRunsReleased > runsBefore, "its records were released" );
 
 			for ( int i = 0; i < 6; i++ ) Frame( true );
+			var visibilityBefore = backend.GpuDrivenTables.VisibilityRunsReleased;
 			world.Remove( boxes[0] );
 			Same( "the unlit box gone", 1 );
 			Assert.IsTrue( backend.GpuDrivenTables.FragmentRunsReused > 0, "released records were reused" );
+			Assert.IsTrue( backend.GpuDrivenTables.VisibilityRunsReleased > visibilityBefore, "the changed group's vertex bits were released" );
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// A rescan that changes nothing of a resident group (another model's box added) keeps the group's owner, and so its
+	/// records and vertex bits: dropping the lists twice before any was made (the rescan, then the slots it found) let every
+	/// group's owner go and made it again, which ran the visibility bits out on Construct.
+	/// </summary>
+	[TestMethod]
+	public void ResidentGroupsKeepTheirOwnersAcrossARescan()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, GpuDrivenResidentMeshes = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Resident rescan test" );
+			var material = backend.CreateMaterial( "Resident rescan boxes", new Color( 0.8f, 0.8f, 0.8f ) );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.0f, 0.9f, 0.8f );
+			world.Lighting.AmbientColor = new Color( 0.1f, 0.1f, 0.1f, 1 );
+			world.Lighting.SunShadowCascades = 0;
+			var box = BoxMesh( backend, material );
+			for ( int b = 0; b < 3; b++ ) world.Add( new MeshObject( box, new Transform( Centres[b] ) ) { IsStatic = true } );
+
+			var view = new RenderView { Name = "Resident rescan test", FieldOfView = 60, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( 0, -700, 150 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 20 ) );
+
+			void Frames( int count )
+			{
+				for ( int i = 0; i < count; i++ )
+				{
+					backend.BeginFrame();
+					RenderHost.Current.NextFrame();
+					system.Render( world, view, target );
+				}
+
+				Device.WaitIdle();
+			}
+
+			var aggregates = system.GetFeature<Borealis.Features.AggregateRenderFeature>();
+			Frames( 8 );
+			var group = aggregates.ResidentFor( system.MainPass )?.MeshGroups.SingleOrDefault();
+			Assert.IsNotNull( group, "the boxes are a resident group" );
+			var tables = backend.GpuDrivenTables;
+			var released = aggregates.ResidentOwnersReleased;
+			var visibilityReleased = tables.VisibilityRunsReleased;
+			var bits = tables.VisibilityUse.Bits;
+			Assert.IsTrue( bits > 0, "the group has vertex bits" );
+
+			// Another model's box: the world's structure moves, so every list is made again
+			world.Add( new MeshObject( BoxMesh( backend, material ), new Transform( Centres[3] ) ) { IsStatic = true } );
+			Frames( 8 );
+			var list = aggregates.ResidentFor( system.MainPass );
+			Assert.AreEqual( 2, list?.MeshGroups.Count ?? 0, "the new box is a group of its own" );
+			Assert.IsTrue( list.MeshGroups.Any( g => ReferenceEquals( g.Owner, group.Owner ) ), "the unchanged group kept its owner" );
+			Assert.AreEqual( released, aggregates.ResidentOwnersReleased, "no owner was let go" );
+			Assert.AreEqual( visibilityReleased, tables.VisibilityRunsReleased, "no vertex bits were released" );
 			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
 		}
 		finally
