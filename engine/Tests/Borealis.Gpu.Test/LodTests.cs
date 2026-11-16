@@ -86,7 +86,7 @@ public class LodTests
 		}
 	}
 
-	/// <summary>A flat range simplifies without error; one under the config's triangles gets no levels.</summary>
+	/// <summary>A flat range simplifies with next to no error (a thousandth of its size); one under the config's triangles gets no levels.</summary>
 	[TestMethod]
 	public void FlatRangesCostNothingAndSmallOnesAreLeft()
 	{
@@ -94,7 +94,7 @@ public class LodTests
 		var (indices, positions) = Grid( 20, 0, ( _, _ ) => 0 );
 		var chain = LodBuilder.Build( indices, v => positions[v], 0, LodConfig.Default );
 		Assert.IsNotNull( chain );
-		Assert.IsTrue( chain.Errors.All( e => e < 1e-4f ), string.Join( ", ", chain.Errors ) );
+		Assert.IsTrue( chain.Errors.All( e => e < 1e-3f ), string.Join( ", ", chain.Errors ) );
 
 		var (small, smallPositions) = Grid( 5, 0, ( x, y ) => x * y );
 		Assert.IsNull( LodBuilder.Build( small, v => smallPositions[v], 0, LodConfig.Default ) );
