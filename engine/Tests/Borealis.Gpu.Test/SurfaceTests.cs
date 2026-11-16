@@ -155,6 +155,7 @@ public class SurfaceTests : GpuTest
 	/// prepass don't place its vertices from their positions alone.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void InterpolatedVertexSurfaceDisplacesWithItsVaryings()
 	{
 		var fur = Compiler().CompileSurface( Path.Combine( Core, "shaders", "fur.slang" ) );
@@ -986,6 +987,7 @@ public class SurfaceTests : GpuTest
 	/// attribute; a surface that doesn't read the view inputs (complex) doesn't bind the copy.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void GlassDrawsTranslucentFromTheFrameBufferCopy()
 	{
 		var glass = Compiler().CompileSurface( Path.Combine( Core, "shaders", "glass.slang" ) );
