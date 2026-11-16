@@ -172,8 +172,12 @@ public class PassModuleTests : GpuTest
 		var lineRows = Enumerable.Range( 0, Size ).Where( y => Pixel( pixels, Size, 24, y ).A > 0 ).ToList();
 		var segmentRows = Enumerable.Range( 0, Size ).Where( y => Pixel( pixels, Size, 40, y ).A > 0 ).ToList();
 		TestContext.WriteLine( $"rows at x 24: {string.Join( ',', lineRows )}; at x 40: {string.Join( ',', segmentRows )}" );
-		Assert.AreEqual( 10, lineRows.Count, "two lines, five pixels thick each, cross x 24" );
-		Assert.AreEqual( 10, segmentRows.Count, "the list's line and the strip's second segment cross x 40" );
+
+		// Lines fade over a pixel at their edges: what they cover down a column adds up to their thickness
+		float Covered( int x ) => Enumerable.Range( 0, Size ).Sum( y => Pixel( pixels, Size, x, y ).R / 255f );
+		Assert.AreEqual( 10, Covered( 24 ), 0.25f, "two lines, five pixels thick each, cross x 24" );
+		Assert.AreEqual( 10, Covered( 40 ), 0.25f, "the list's line and the strip's second segment cross x 40" );
+		Assert.IsTrue( Enumerable.Range( 0, Size ).Any( y => Pixel( pixels, Size, 24, y ).R is > 0 and < 255 ), "edges partly covered: antialiased without multisampling" );
 		Assert.AreEqual( 0, Pixel( pixels, Size, 8, 48 ).A, "nothing past the lines' ends" );
 
 		// The point's quad: 8 by 8 pixels round (48, 8 or 56)
@@ -262,7 +266,7 @@ public class PassModuleTests : GpuTest
 		// rows 16 and 8 from one edge or the other)
 		var rows = Enumerable.Range( 0, Size ).Where( y => Pixel( pixels, Size, 32, y ).A > 0 ).ToList();
 		TestContext.WriteLine( $"rows at x 32: {string.Join( ',', rows )}" );
-		Assert.AreEqual( 6, rows.Count, "two lines, three pixels thick each" );
+		Assert.AreEqual( 6, rows.Sum( y => Pixel( pixels, Size, 32, y ).R / 255f ), 0.25f, "two lines, three pixels thick each" );
 		var identityRows = Enumerable.Range( 0, Size ).Where( y => new[] { 8, 16, Size - 16, Size - 8 }.Any( r => Math.Abs( y + 0.5f - r ) < 3 ) ).ToList();
 		Assert.IsFalse( rows.Any( identityRows.Contains ), $"no line where the identity would put it ({string.Join( ',', identityRows )})" );
 	}
