@@ -38,8 +38,10 @@ struct ClusterRange
     uint BaseOffset;
     uint Features; // ClusterFeature bits, lights only
 
-    // ClusterForEach state
-    uint Taken;     // Items this lane has taken
+    // ClusterForEach state. Where this lane's next item and its cluster's run end are in ClusterItemIndices, rather than
+    // a count taken against Count and BaseOffset: one register less through the loops' bodies
+    uint Next;      // Where this lane's next item is
+    uint End;       // BaseOffset + Count
     uint Pending;   // This lane's next item, ~0 when done
     uint Item;      // The wave's current item
 };
@@ -145,7 +147,8 @@ struct Cluster
         range.Count = min( packed & ClusterCountMask, Capacity( type ) );
         range.BaseOffset = IndexBase( type, flatIndex );
         range.Features = packed >> ClusterFeatureShift;
-        range.Taken = 0;
+        range.Next = range.BaseOffset;
+        range.End = range.BaseOffset + range.Count;
         range.Pending = LoadPending( range );
         range.Item = 0xFFFFFFFF;
 
@@ -167,9 +170,9 @@ struct Cluster
     // This lane's next item, ~0 once it has taken them all. Branch, not ?:, so a full cluster never loads past its end
     static uint LoadPending( ClusterRange range )
     {
-        if ( range.Taken >= range.Count )
+        if ( range.Next >= range.End )
             return 0xFFFFFFFF;
-        return LoadItem( range, range.Taken );
+        return ClusterItemIndices[range.Next];
     }
 
     // Wave steps to the lowest item any lane still has pending, false once none do
@@ -185,7 +188,7 @@ struct Cluster
         if ( range.Pending > range.Item )
             return false;
 
-        range.Taken++;
+        range.Next++;
         range.Pending = LoadPending( range );
         return true;
     }
