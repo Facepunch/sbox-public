@@ -72,6 +72,7 @@ internal static class MapRun
 		LabTracy.Start();
 		global::Borealis.Features.AggregateRenderFeature.QuietRefresh = !Args.Has( "-no-quiet-resident" );
 		global::Borealis.Features.AggregateRenderFeature.ShadowsLeaveResidentOut = !Args.Has( "-shadows-cull-resident" );
+		global::Borealis.RenderSystem.CollectSkipsResident = !Args.Has( "-collect-resident" );
 		var ident = Args.String( "-map" ) ?? "facepunch.construct";
 		var folder = Args.String( "-map-folder" ) ?? FindPackage( ident );
 		if ( folder is null )

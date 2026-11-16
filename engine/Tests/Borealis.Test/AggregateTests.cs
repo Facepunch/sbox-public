@@ -149,6 +149,7 @@ public class AggregateTests
 			Assert.AreEqual( 2, list.Batches.Count, "both resident" );
 			Assert.AreEqual( 4, list.Batches[0].Count, "every fragment, for the GPU to cull" );
 			Assert.AreEqual( 0, feature.BatchesFor( system.MainPass ).Count, "the view prepares none of its own" );
+			Assert.AreEqual( 0, system.MainPass.Visible( feature ).Count, "its collect leaves them out" );
 			Assert.IsTrue( system.ShadowMaps.Passes.ToArray().Any( p => feature.ResidentFor( p ) is { Batches.Count: 2 } ), "a cascade draws both static casters from its list" );
 			Assert.IsTrue( system.ShadowMaps.Passes.ToArray().Where( p => feature.ResidentFor( p ) is { Batches.Count: 2 } ).All( p => p.Visible( feature ).Count == 0 && p.ResidentInView ),
 				"its culling leaves them out, noting it has casters in view" );

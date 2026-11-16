@@ -749,7 +749,9 @@ public sealed partial class RenderSystem : IDisposable
 	/// </summary>
 	internal void Prepare( RenderWorld world, RenderView view )
 	{
-		transforms.Clear();
+		// Begun by the collect when it left resident objects out
+		if ( !collectedResident ) transforms.Clear();
+		collectedResident = false;
 
 		// Shadows, skyboxes and views without a prepass never cull
 		var wanted = RenderHost.Current.OcclusionCulling && DepthPrepass && !isSkybox && !view.Capture;

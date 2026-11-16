@@ -29,6 +29,16 @@ public sealed partial class RenderSystem
 			mainPass.CullReasons = cullReasons;
 		}
 
+		// What the view's resident list draws (the GPU culls it) is left out: the frame's transforms begin here, as the list is
+		// worked out from them
+		var occlusion = RenderHost.Current.OcclusionCulling && DepthPrepass && !isSkybox && !view.Capture;
+		collectedResident = CollectSkipsResident && !reasons && frame.DebugViews == DebugViews.None && !occlusion;
+		if ( collectedResident )
+		{
+			transforms.Clear();
+			mainPass.ResidentHolds = aggregates.CollectHolds( world, mainPass, transforms );
+		}
+
 		var inFrustum = FindCandidates( world, mainPass, candidates, out var inTree, out var rejected, sizeCull: !reasons );
 		stats.ObjectsSizeCulled += rejected;
 		if ( reasons ) stats.ObjectsFrustumCulled += world.Count - candidates.Count;
@@ -38,6 +48,15 @@ public sealed partial class RenderSystem
 		else
 			Cull( world, mainPass, candidates, inTree, inFrustum, ref stats );
 	}
+
+	/// <summary>
+	/// Leave out of the main view's collect what its resident list draws (<see cref="ViewPass.ResidentHolds"/>). Never with
+	/// debug views or occlusion culling. Off for the tests' comparisons, and with borealislab's <c>-collect-resident</c>.
+	/// </summary>
+	internal static bool CollectSkipsResident { get; set; } = true;
+
+	/// <summary>Whether this frame's collect left resident objects out, having begun the frame's transforms.</summary>
+	bool collectedResident;
 
 	/// <summary>
 	/// Candidates a main view has before culling splits them across threads. 2,500 broke even; 5,000 took 20-30% off
@@ -132,6 +151,7 @@ public sealed partial class RenderSystem
 		// Avoid traversing static objects for dynamic-only shadows.
 		var tree = pass.StaticFilter is StaticFilter.NoStatic or StaticFilter.SettledNoStatic or StaticFilter.Unsettled ? world.DynamicTree : world.Tree;
 
+		using var zone = Zones.TreeQuery.Start();
 		bool inFrustum;
 		if ( pass.LightSphere is { } sphere )
 		{
@@ -178,6 +198,7 @@ public sealed partial class RenderSystem
 		var extents = world.BoundsExtents;
 		var reasons = pass.CullReasons;
 		var members = pass.ResidentMembers;
+		var holds = pass.ResidentHolds;
 
 		// Neighbours are mostly of one type: look its feature up again only when the type changes
 		Type lastType = null;
@@ -188,6 +209,9 @@ public sealed partial class RenderSystem
 		{
 			var entry = entries[k];
 			var i = entry >> 1;
+
+			// Drawn from the main view's resident list
+			if ( holds is not null && i < holds.Length && holds[i] ) continue;
 
 			// Drawn from the view's resident list: noted only if it's a caster the view takes in its frustum, for HasCasters
 			if ( members is not null && i < members.Length && members[i] != 0 )

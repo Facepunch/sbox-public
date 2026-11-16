@@ -297,6 +297,16 @@ internal sealed partial class AggregateRenderFeature
 	}
 
 	/// <summary>
+	/// For the main view's collect, the frame's transforms begun: by world index, the aggregates and meshes its resident list
+	/// draws, which the collect leaves out; null when it draws none.
+	/// </summary>
+	internal bool[] CollectHolds( RenderWorld world, ViewPass pass, TransformBuffer transforms )
+	{
+		PrepareResident( world, pass, transforms );
+		return pass.State<Batches>( this ).Resident is { DeviceCount: > 0 } list ? list.Holds : null;
+	}
+
+	/// <summary>
 	/// For the mesh feature, before it prepares a view: by world index, the meshes the view's resident list draws, which it
 	/// then leaves out; null when the list holds none.
 	/// </summary>

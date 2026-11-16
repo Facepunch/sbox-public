@@ -127,6 +127,12 @@ internal sealed class ViewPass
 	/// </summary>
 	internal byte[] ResidentMembers { get; set; }
 
+	/// <summary>
+	/// By world index, the objects this main view's resident list draws (the GPU culls them), which its collect leaves out;
+	/// null when it collects every object.
+	/// </summary>
+	internal bool[] ResidentHolds { get; set; }
+
 	/// <summary>Whether a resident caster this view takes was in its frustum: its culling left it out, but it has casters.</summary>
 	internal bool ResidentInView { get; set; }
 
@@ -192,6 +198,7 @@ internal sealed class ViewPass
 		RestlessStamp = 0;
 		NewlySettled = null;
 		ResidentMembers = null;
+		ResidentHolds = null;
 		ResidentInView = false;
 		CacheOffset = default;
 		Blank = null;
