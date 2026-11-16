@@ -54,7 +54,7 @@ CS
 		uint g_nResidentExpand;		// not 0: expand one plan's entries (g_Frame is its records), writing its entry records here
 		uint g_nResidentExpandMap;	// its entry map
 		uint g_nResidentExpandHeaders;	// its batches' headers
-		uint g_nResidentPad0;
+		uint g_nResidentMeshletRuns;	// bindless slot of the meshlet runs; meshlets are culled where the pass module runs
 	};
 
 	static const uint None = 0xffffffffu;

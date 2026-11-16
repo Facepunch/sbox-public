@@ -45,7 +45,7 @@ cbuffer BorealisResidentCull_t
 	uint g_nResidentExpand;		// not 0: expand one plan's entries (g_Frame is its records), writing its entry records here
 	uint g_nResidentExpandMap;	// its entry map
 	uint g_nResidentExpandHeaders;	// its batches' headers
-	uint g_nResidentPad0;
+	uint g_nResidentMeshletRuns;	// bindless slot of the meshlet runs (16 bytes per draw record), or None
 };
 
 static const uint None = 0xffffffffu;
@@ -338,19 +338,32 @@ void Expand( uint n )
 		else if ( bListed )
 			bListed = g_Stamps.Load( nFragment * 4 ) == g_nResidentFrame;
 
-		uint nAt = WaveAppend( bListed, vViewOut.z );
-		if ( bListed )
+		// A prepass that culls meshlets (view flag 4): a fragment of an ids bucket whose draw has meshlets is listed for the
+		// meshlet pass, which draws those that can reach a sample (borealis_meshlet_cull_cs); its stamp is written here
+		bool bMeshlets = bKept && !bListed && ( vViewOut.w & 4 ) != 0 && ( vVisibility.z & 1 ) != 0 && g_nResidentMeshletRuns != None
+			&& g_bindless_VertexBuffers[ g_nResidentMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u;
+
+		uint nAt = WaveAppend( bListed || bMeshlets, vViewOut.z );
+		if ( bListed || bMeshlets )
 		{
 			uint nListed = vViewOut.z + 16 + nAt * 32;
 			g_Frame.Store( nListed, nTransform );
 			g_Frame.Store( nListed + 4, nDrawRecord );
-			g_Frame.Store( nListed + 8, nVertexBase + vDraw.z );
+			g_Frame.Store( nListed + 8, bMeshlets ? ( nFragment != None ? nVertexBase : None ) : nVertexBase + vDraw.z );
 			g_Frame.Store( nListed + 12, vBatch.w );
 			g_Frame.Store( nListed + 16, vVisibility.y );
+
+			// The meshlet pass's kept triangles and room (zeroed), and the visibility fragment forward's compaction checks
+			g_Frame.Store( nListed + 20, 0 );
+			g_Frame.Store( nListed + 24, 0 );
+			g_Frame.Store( nListed + 28, nFragment );
 		}
 
+		if ( bMeshlets && nFragment != None && ( vViewOut.w & 2 ) != 0 )
+			g_Stamps.Store( nFragment * 4, g_nResidentFrame );
+
 		// The next slot of its multi-draw in this view
-		bool bDrawn = bKept && !bListed;
+		bool bDrawn = bKept && !bListed && !bMeshlets;
 		uint nSlot = WaveTakeSlot( bDrawn, vView.w, vBatch.w, frame );
 		if ( bDrawn )
 		{
