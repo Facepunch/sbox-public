@@ -212,6 +212,12 @@ internal abstract class GpuContext : IDisposable
 	/// <summary>Clear the bound targets.</summary>
 	public abstract void Clear( Color color, bool clearColor = true, bool clearDepth = true );
 
+	/// <summary>
+	/// Fill a texture with a colour at this point in the work, not bound as a target. By default the device fills it now
+	/// (<see cref="GpuDevice.Clear"/>).
+	/// </summary>
+	public virtual void ClearTexture( GpuTexture texture, Color color ) => RenderHost.Current.Device.Clear( texture, color );
+
 	/// <summary>Set a constant buffer's contents for this frame.</summary>
 	public abstract void SetConstants<T>( StringToken name, in T value ) where T : unmanaged;
 

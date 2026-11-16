@@ -1118,6 +1118,15 @@ internal sealed partial class BackendContext : GpuContext
 		else List.CopyTexture( from.Handle, to.Handle, 0, Math.Max( slices, 1 ) );
 	}
 
+	/// <summary>Recorded with the rest of the work, rather than the device's clear, which waits for the GPU.</summary>
+	public override void ClearTexture( GpuTexture texture, Color color )
+	{
+		if ( recording is null || texture is not BackendTexture t ) return;
+		CloseScope();
+		Transition( t, ImageLayout.CopyDestination, always: true );
+		List.ClearTexture( t.Handle, new System.Numerics.Vector4( color.r, color.g, color.b, color.a ) );
+	}
+
 	public override void CopyTextureRegion( GpuTexture source, GpuTexture destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height )
 	{
 		if ( recording is null || source is not BackendTexture from || destination is not BackendTexture to ) return;
@@ -1195,6 +1204,14 @@ internal sealed partial class BackendContext : GpuContext
 
 		CopyTexture( bound.Color, frameBufferCopy, 1 );
 		var viewport = frameBufferCopyViewport;
+
+		// Its mips for blurred refraction, then readable by the draws after it: they bind only what's readable
+		if ( frameBufferCopy is BackendTexture copy )
+		{
+			if ( device.FrameBufferCopyMips ) GenerateFrameBufferCopyMips( copy, viewport );
+			Transition( copy, ImageLayout.ShaderRead );
+		}
+
 		attributes.Set( FrameBufferCopyTexture, frameBufferCopy );
 		attributes.Set( FrameBufferCopyRectangle, new Vector4( 0, 0, viewport.Width / frameBufferCopy.Width, viewport.Height / frameBufferCopy.Height ) );
 	}

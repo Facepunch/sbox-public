@@ -15,15 +15,15 @@ internal sealed class SboxRenderHost : RenderHost
 
 	public override GpuDevice Device => BorealisGpu ?? Source2Device.Instance;
 
-	// What a Borealis.Gpu device doesn't do yet: async compute, contact shadows (Borealis.Backend's BackendRenderHost), occlusion
-	// culling's debug output and native's GPU profiler
+	// What a Borealis.Gpu device doesn't do yet: async compute (Borealis.Backend's BackendRenderHost), occlusion culling's debug
+	// output and native's GPU profiler
 	public override bool AsyncCompute => BorealisGpu is null && ManagedSceneRendering.AsyncCompute;
 
 	public override ulong FrameCount => Application.FrameCount;
 
 	public override Borealis.Shadows.ShadowSettings Shadows { get; } = new SboxShadowSettings();
 
-	public override bool ContactShadows => BorealisGpu is null && Sandbox.Rendering.ContactShadows.Enabled;
+	public override bool ContactShadows => Sandbox.Rendering.ContactShadows.Enabled;
 
 	public override bool OcclusionCulling => ManagedSceneRendering.Occlusion;
 

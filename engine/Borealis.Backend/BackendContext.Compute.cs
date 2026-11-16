@@ -106,6 +106,47 @@ internal sealed partial class BackendContext
 		}
 	}
 
+	static readonly StringToken MipLevel0 = new( "MipLevel0" ), MipLevel1 = new( "MipLevel1" ), TextureSize = new( "TextureSize" ), InvTextureSize = new( "InvTextureSize" ), DownsampleMethod = new( "D_DOWNSAMPLE_METHOD" );
+	static readonly StringToken MaskOutput = new( "Output" ), MaskMip = new( "Mip" );
+
+	/// <summary>The frame buffer copy's mask and downsample parameters, kept between frames.</summary>
+	readonly BackendParameters maskParameters = new(), mipParameters = new();
+
+	/// <summary>
+	/// The frame buffer copy's mips, as native's <c>CSceneSystem::DownsampleTexture</c> makes them after the copy: first
+	/// <c>depthaware_mask_cs</c> over the copy (where something is nearer than the glass in <c>RefractionDepthTexture</c>,
+	/// the last frame's blurred copy reprojected, so nearer objects stay out of the refraction), then a gaussian
+	/// <c>downsample_cs</c> dispatch a mip, each from the one above, over the viewport's part.
+	/// </summary>
+	void GenerateFrameBufferCopyMips( BackendTexture copy, Rect viewport )
+	{
+		if ( copy.Mips <= 1 ) return;
+
+		if ( device.MaterialFromShader( "shaders/depthaware_mask_cs.shader" ) is BackendMaterial { Shader: not null } mask )
+		{
+			maskParameters.Set( MaskOutput, copy, 0 );
+			maskParameters.Set( MaskMip, copy, 1 );
+			Dispatch( mask, maskParameters, copy.Width, copy.Height, 1 );
+			List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+		}
+
+		if ( device.MaterialFromShader( "shaders/downsample_cs.shader" ) is not BackendMaterial { Shader: not null } downsample ) return;
+
+		var parameters = mipParameters;
+		parameters.SetCombo( DownsampleMethod, 1 );
+		for ( int i = 0; i < copy.Mips - 1; i++ )
+		{
+			var width = Math.Max( 1, (int)viewport.Width >> (i + 1) );
+			var height = Math.Max( 1, (int)viewport.Height >> (i + 1) );
+			parameters.Set( MipLevel0, copy, i );
+			parameters.Set( MipLevel1, copy, i + 1 );
+			parameters.Set( TextureSize, new Vector2( width, height ) );
+			parameters.Set( InvTextureSize, new Vector2( 1.0f / width, 1.0f / height ) );
+			Dispatch( downsample, parameters, width, height, 1 );
+			List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+		}
+	}
+
 	TextureViewHandle MipView( BackendTexture texture, int mip )
 	{
 		var views = mipViews.GetValue( texture, static _ => new Dictionary<int, TextureViewHandle>() );
