@@ -133,6 +133,12 @@ internal sealed class ViewPass
 	/// </summary>
 	internal bool[] ResidentHolds { get; set; }
 
+	/// <summary>
+	/// By node of the tree the view queries, the subtrees with an object it doesn't leave out (<see cref="Culling.SpatialTree.Mark"/>):
+	/// its query skips the rest. Null when it queries every object.
+	/// </summary>
+	internal bool[] TreeKept { get; set; }
+
 	/// <summary>Whether a resident caster this view takes was in its frustum: its culling left it out, but it has casters.</summary>
 	internal bool ResidentInView { get; set; }
 
@@ -199,6 +205,7 @@ internal sealed class ViewPass
 		NewlySettled = null;
 		ResidentMembers = null;
 		ResidentHolds = null;
+		TreeKept = null;
 		ResidentInView = false;
 		CacheOffset = default;
 		Blank = null;

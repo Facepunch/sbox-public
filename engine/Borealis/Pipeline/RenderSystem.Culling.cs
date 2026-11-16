@@ -37,6 +37,7 @@ public sealed partial class RenderSystem
 		{
 			transforms.Clear();
 			mainPass.ResidentHolds = aggregates.CollectHolds( world, mainPass, transforms );
+			mainPass.TreeKept = aggregates.CollectTreeKept( world, mainPass );
 		}
 
 		var inFrustum = FindCandidates( world, mainPass, candidates, out var inTree, out var rejected, sizeCull: !reasons );
@@ -156,13 +157,13 @@ public sealed partial class RenderSystem
 		if ( pass.LightSphere is { } sphere )
 		{
 			var query = new SpatialTree.SphereQuery { Center = sphere.Center, Radius = sphere.Radius, Size = size };
-			tree.QueryClassified( ref query, candidates, out rejected );
+			tree.QueryClassified( ref query, candidates, out rejected, pass.TreeKept );
 			inFrustum = false;
 		}
 		else
 		{
 			var query = new SpatialTree.FrustumQuery { Frustum = pass.View.Frustum, Size = size };
-			tree.QueryClassified( ref query, candidates, out rejected );
+			tree.QueryClassified( ref query, candidates, out rejected, pass.TreeKept );
 			inFrustum = true;
 		}
 
@@ -213,13 +214,8 @@ public sealed partial class RenderSystem
 			// Drawn from the main view's resident list
 			if ( holds is not null && i < holds.Length && holds[i] ) continue;
 
-			// Drawn from the view's resident list: noted only if it's a caster the view takes in its frustum, for HasCasters
-			if ( members is not null && i < members.Length && members[i] != 0 )
-			{
-				if ( !pass.ResidentInView && Features.AggregateRenderFeature.TakesMember( members[i], filter )
-					&& ((inFrustum && (entry & 1) != 0) || frustum.Intersects( centers[i], extents[i] )) ) pass.ResidentInView = true;
-				continue;
-			}
+			// Drawn from the view's resident list (its query leaves most of these out already)
+			if ( members is not null && i < members.Length && members[i] != 0 ) continue;
 
 			if ( !(inFrustum && (entry & 1) != 0) && !frustum.Intersects( centers[i], extents[i] ) )
 			{

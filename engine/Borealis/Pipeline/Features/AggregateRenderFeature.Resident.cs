@@ -455,6 +455,7 @@ internal sealed partial class AggregateRenderFeature
 
 	void MarkMembers( RenderWorld world )
 	{
+		memberVersion++;
 		if ( memberFlags.Length < world.Count ) memberFlags = new byte[Math.Max( world.Count, memberFlags.Length * 2 )];
 		else Array.Clear( memberFlags );
 
@@ -485,11 +486,65 @@ internal sealed partial class AggregateRenderFeature
 		{
 			if ( pass.StaticFilter == StaticFilter.Unsettled ) continue;
 			PrepareResident( world, pass, transforms );
-			if ( pass.State<Batches>( this ).Resident is not null ) pass.ResidentMembers = memberFlags;
+			if ( pass.State<Batches>( this ).Resident is not { } list ) continue;
+			pass.ResidentMembers = memberFlags;
+
+			// Its query leaves the members out too, so it can't tell which of its list's casters are in its frustum: a list with
+			// any counts as having casters
+			pass.ResidentInView = list.DeviceCount > 0;
+			var tree = pass.StaticFilter is StaticFilter.NoStatic or StaticFilter.SettledNoStatic ? world.DynamicTree : world.Tree;
+			pass.TreeKept = TreeKept( tree, memberFlags, memberFlags, memberVersion );
 		}
 	}
 
 	internal static bool ShadowsLeaveResidentOut { get; set; } = true;
+
+	/// <summary>
+	/// For the main view's collect, after <see cref="CollectHolds"/>: the world tree's node marks leaving out what its resident
+	/// list holds, or null when it holds none.
+	/// </summary>
+	internal bool[] CollectTreeKept( RenderWorld world, ViewPass pass )
+	{
+		if ( pass.State<Batches>( this ).Resident is not { DeviceCount: > 0 } list ) return null;
+		return TreeKept( world.Tree, MemoryMarshal.Cast<bool, byte>( list.Holds.AsSpan() ), list, list.Version );
+	}
+
+	/// <summary>A tree's node marks for leaving out a source's objects, at the tree's and the source's versions then.</summary>
+	sealed class TreeMarks
+	{
+		public Culling.SpatialTree Tree;
+		public int TreeVersion;
+		public object Source;
+		public int SourceVersion;
+		public bool[] Kept = [];
+	}
+
+	readonly TreeMarks[] treeMarks = [new(), new(), new(), new()];
+	int nextMarks;
+
+	/// <summary>Bumped each time the members are marked again (<see cref="MarkMembers"/>).</summary>
+	int memberVersion;
+
+	/// <summary>
+	/// A tree's node marks for leaving out what <paramref name="leftOut"/> holds (<see cref="Culling.SpatialTree.Mark"/>), made again
+	/// only when the tree or the source has changed since: the members after a refresh that looked, a main list when it's
+	/// made again.
+	/// </summary>
+	bool[] TreeKept( Culling.SpatialTree tree, ReadOnlySpan<byte> leftOut, object source, int sourceVersion )
+	{
+		foreach ( var marks in treeMarks )
+		{
+			if ( ReferenceEquals( marks.Tree, tree ) && marks.TreeVersion == tree.Version && ReferenceEquals( marks.Source, source ) && marks.SourceVersion == sourceVersion ) return marks.Kept;
+		}
+
+		var made = treeMarks[nextMarks++ % treeMarks.Length];
+		tree.Mark( leftOut, ref made.Kept );
+		made.Tree = tree;
+		made.TreeVersion = tree.Version;
+		made.Source = source;
+		made.SourceVersion = sourceVersion;
+		return made.Kept;
+	}
 
 	/// <summary>
 	/// Take every frame after a look that found nothing resident changed and every member kept as that one, while no object
