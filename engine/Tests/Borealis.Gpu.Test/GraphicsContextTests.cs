@@ -81,6 +81,53 @@ public class GraphicsContextTests : GpuTest
 	}
 
 	/// <summary>
+	/// A model's draw call drawn from vertex and index buffers, as <c>Graphics.DrawModelInstanced</c> draws one: its indices
+	/// start part way into the index buffer and its vertices part way into the vertex buffer, whose first quad (elsewhere)
+	/// stays undrawn.
+	/// </summary>
+	[TestMethod]
+	public void IndexedDrawReadsFromItsOffsets()
+	{
+		var list = Device.BeginCommandList( QueueType.Graphics, "Indexed" );
+		var context = new GraphicsContext( Device, drawer, list );
+		var main = context.CreateTarget( Size, Size, Format.RGBA8Unorm, name: "Main" );
+		var layer = context.CreateTarget( 16, 16, Format.RGBA8Unorm, name: "Layer" );
+		context.SetTarget( main );
+		context.Clear( new Vector4( 0, 0, 0, 1 ) );
+		context.SetTarget( layer );
+		context.Clear( new Vector4( 0.25f, 0.5f, 0.75f, 1 ) );
+		context.SetTarget( main );
+
+		static EngineVertex V( float x, float y, float u, float v ) => new() { Position = new( x, y, 0 ), Color = 0xFFFFFFFF, TexCoord0 = new( u, v, 0, 0 ) };
+		EngineVertex[] vertices = [V( 40, 40, 0, 0 ), V( 56, 40, 1, 0 ), V( 40, 56, 0, 1 ), V( 56, 56, 1, 1 ), V( 16, 8, 0, 0 ), V( 32, 8, 1, 0 ), V( 16, 24, 0, 1 ), V( 32, 24, 1, 1 )];
+		var vertexBuffer = Device.CreateBuffer( new BufferInfo { Size = 76 * vertices.Length, Usage = BufferUsage.Vertex, Name = "Vertices" } );
+		var indexBuffer = Device.CreateBuffer( new BufferInfo { Size = 12 * 4, Usage = BufferUsage.Index, Name = "Indices" } );
+		Device.WriteBuffer<EngineVertex>( vertexBuffer, vertices );
+		Device.WriteBuffer<uint>( indexBuffer, [7, 7, 7, 7, 7, 7, 0, 1, 2, 2, 1, 3] );
+
+		Assert.IsTrue( context.DrawIndexed( library.Load( "shaders/ui_filter.shader" ), Composite( layer, 16, 8 ), vertexBuffer, VertexStreamLayout.EngineVertex, indexBuffer, 6, 6, 4, 2 ) );
+
+		var pixels = Finish( context, main );
+		Save( pixels, Size, Size, "graphics-indexed" );
+		Near( (64, 128, 191, 255), Pixel( pixels, Size, 20, 12 ), "inside the drawn quad" );
+		Assert.AreEqual( ((byte)0, (byte)0, (byte)0, (byte)255), Pixel( pixels, Size, 48, 48 ), "where the buffer's first quad would be" );
+		context.Release();
+		Device.Destroy( vertexBuffer );
+		Device.Destroy( indexBuffer );
+	}
+
+	// The engine's Vertex, as VertexStreamLayout.EngineVertex lays it out
+	struct EngineVertex
+	{
+		public Vector3 Position;
+		public uint Color;
+#pragma warning disable CS0649 // laid out for the stream, never set
+		public Vector3 Normal;
+		public Vector4 TexCoord0, TexCoord1, Tangent;
+#pragma warning restore CS0649
+	}
+
+	/// <summary>
 	/// <c>downsample_cs</c> fills a mip chain in one list: a checker of black and white 2x2 squares averages to grey
 	/// in mip 1 (gaussian with a transparent border, as layers use), and the texture ends readable.
 	/// </summary>
