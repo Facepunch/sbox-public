@@ -41,7 +41,7 @@ internal sealed class LodStore : IDisposable
 	/// <summary>Bytes of a view's levels: a byte per aggregate visibility fragment (level, last direction, changed before).</summary>
 	public const int StateSliceBytes = GpuDrivenTables.FrameVisibilityFragmentBase;
 
-	const uint CacheMagic = 0x53444F4C, CacheVersion = 1;
+	const uint CacheMagic = 0x53444F4C, CacheVersion = 3;
 	const int CounterRing = 4;
 
 	readonly Device gpu;
@@ -153,6 +153,9 @@ internal sealed class LodStore : IDisposable
 		}
 	}
 
+	/// <summary>The vertex layouts of the ranges built, and how many of each: which texture coordinates were weighed.</summary>
+	public readonly ConcurrentDictionary<string, int> FieldsSeen = new();
+
 	/// <summary>Built ranges no GPU-driven colour pass has drawn, so not published, and their triangles.</summary>
 	public (int Ranges, long Triangles) WaitingForColor
 	{
@@ -221,7 +224,43 @@ internal sealed class LodStore : IDisposable
 				positions[v] = new V3( p.X, p.Y, p.Z );
 			}
 
-			var key = CacheFolder is null ? null : Key( indices, positions );
+			// Its texture coordinates (2D float sets), which count in the error
+			var sets = new List<System.Numerics.Vector2[]>();
+			foreach ( var field in s.Vertices.Fields )
+			{
+				if ( sets.Count == 4 || !string.Equals( field.Semantic, "TEXCOORD", StringComparison.OrdinalIgnoreCase ) || field.PerInstance ) continue;
+				if ( field.Format is not (ColorFormat.R32G32_FLOAT or ColorFormat.R16G16_FLOAT or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT or ColorFormat.R16G16B16A16_FLOAT or ColorFormat.R16G16_UNORM) ) continue;
+				var set = new System.Numerics.Vector2[positions.Length];
+				for ( int v = 0; v < set.Length; v++ ) set[v] = Coordinate( s.Vertices, field, s.VertexBase + (int)min + v );
+				sets.Add( set );
+			}
+
+			// Its vertex colours and blend weights (four bytes each), which count in the error too
+			var colors = new List<System.Numerics.Vector4[]>();
+			foreach ( var field in s.Vertices.Fields )
+			{
+				if ( colors.Count == 4 || field.PerInstance || field.Format != ColorFormat.R8G8B8A8_UNORM ) continue;
+				if ( !string.Equals( field.Semantic, "TEXCOORD", StringComparison.OrdinalIgnoreCase ) && !string.Equals( field.Semantic, "COLOR", StringComparison.OrdinalIgnoreCase ) ) continue;
+				var set = new System.Numerics.Vector4[positions.Length];
+				for ( int v = 0; v < set.Length; v++ )
+				{
+					var c = s.Vertices.Read( field, s.VertexBase + (int)min + v );
+					set[v] = new System.Numerics.Vector4( c.X, c.Y, c.Z, c.W );
+				}
+
+				colors.Add( set );
+			}
+
+			// Its normals, where the format is one read here (a compressed tangent frame's octahedral normal, or floats)
+			V3[] normals = null;
+			if ( s.Vertices.Find( "NORMAL" ) is { } normalField && normalField.Format is ColorFormat.R10G10B10A2_UNORM or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT )
+			{
+				normals = new V3[positions.Length];
+				for ( int v = 0; v < normals.Length; v++ ) normals[v] = Normal( s.Vertices, normalField, s.VertexBase + (int)min + v );
+			}
+
+			FieldsSeen.AddOrUpdate( string.Join( " ", s.Vertices.Fields.Select( f => f.ToString() ) ), 1, ( _, n ) => n + 1 );
+			var key = CacheFolder is null ? null : Key( indices, positions, sets, normals, colors );
 			var empty = false;
 			var cached = key is null ? null : ReadCached( key, out empty );
 			LodChain chain;
@@ -232,7 +271,9 @@ internal sealed class LodStore : IDisposable
 			}
 			else
 			{
-				chain = LodBuilder.Build( indices, v => positions[v - s.VertexBase - (int)min], s.VertexBase, Config );
+				var readers = sets.Select( set => (Func<int, System.Numerics.Vector2>)(v => set[v - s.VertexBase - (int)min]) ).ToArray();
+				var colorReaders = colors.Select( set => (Func<int, System.Numerics.Vector4>)(v => set[v - s.VertexBase - (int)min]) ).ToArray();
+				chain = LodBuilder.Build( indices, v => positions[v - s.VertexBase - (int)min], s.VertexBase, Config, readers, normals is null ? null : v => normals[v - s.VertexBase - (int)min], colorReaders );
 				if ( key is not null ) WriteCached( key, chain );
 			}
 
@@ -499,13 +540,48 @@ internal sealed class LodStore : IDisposable
 	// The disk cache
 	//
 
-	string Key( uint[] indices, V3[] positions )
+	/// <summary>A vertex's texture coordinate pair.</summary>
+	static System.Numerics.Vector2 Coordinate( MeshVertexBuffer vertices, Borealis.Source2.Models.VertexField field, int vertex )
+	{
+		if ( field.Format == ColorFormat.R16G16_UNORM )
+		{
+			var at = vertices.Data.AsSpan( vertex * vertices.Stride + field.Offset );
+			return new System.Numerics.Vector2( System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian( at ), System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian( at[2..] ) ) / 65535f;
+		}
+
+		var uv = vertices.Read( field, vertex );
+		return new System.Numerics.Vector2( uv.X, uv.Y );
+	}
+
+	/// <summary>A vertex's normal: floats, or a compressed tangent frame's octahedral normal (<c>_DecompressNormal</c>).</summary>
+	static V3 Normal( MeshVertexBuffer vertices, Borealis.Source2.Models.VertexField field, int vertex )
+	{
+		if ( field.Format != ColorFormat.R10G10B10A2_UNORM )
+		{
+			var n = vertices.Read( field, vertex );
+			return new V3( n.X, n.Y, n.Z );
+		}
+
+		var packed = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian( vertices.Data.AsSpan( vertex * vertices.Stride + field.Offset ) );
+		var x = (packed & 1023) / 1023f * 2 - 1;
+		var y = ((packed >> 10) & 1023) / 1023f * 2 - 1;
+		var normal = new V3( x, y, 1 - MathF.Abs( x ) - MathF.Abs( y ) );
+		var t = Math.Clamp( -normal.Z, 0, 1 );
+		normal.X += normal.X >= 0 ? -t : t;
+		normal.Y += normal.Y >= 0 ? -t : t;
+		return normal.LengthSquared() > 0 ? V3.Normalize( normal ) : V3.UnitZ;
+	}
+
+	string Key( uint[] indices, V3[] positions, List<System.Numerics.Vector2[]> sets, V3[] normals, List<System.Numerics.Vector4[]> colors )
 	{
 		using var hash = System.Security.Cryptography.IncrementalHash.CreateHash( System.Security.Cryptography.HashAlgorithmName.SHA256 );
-		Span<int> head = [(int)CacheVersion, Config.MaxLevels, BitConverter.SingleToInt32Bits( Config.Ratio ), BitConverter.SingleToInt32Bits( Config.KeepRatio ), Config.MinTriangles, Config.MinRangeTriangles, indices.Length, positions.Length];
+		Span<int> head = [(int)CacheVersion, Config.MaxLevels, BitConverter.SingleToInt32Bits( Config.Ratio ), BitConverter.SingleToInt32Bits( Config.KeepRatio ), Config.MinTriangles, Config.MinRangeTriangles, BitConverter.SingleToInt32Bits( Config.NormalWeight ), BitConverter.SingleToInt32Bits( Config.ColorWeight ), indices.Length, positions.Length];
 		hash.AppendData( MemoryMarshal.AsBytes( head ) );
 		hash.AppendData( MemoryMarshal.AsBytes( indices.AsSpan() ) );
 		hash.AppendData( MemoryMarshal.AsBytes( positions.AsSpan() ) );
+		foreach ( var set in sets ) hash.AppendData( MemoryMarshal.AsBytes( set.AsSpan() ) );
+		if ( normals is not null ) hash.AppendData( MemoryMarshal.AsBytes( normals.AsSpan() ) );
+		foreach ( var set in colors ) hash.AppendData( MemoryMarshal.AsBytes( set.AsSpan() ) );
 		return Convert.ToHexString( hash.GetHashAndReset() );
 	}
 
