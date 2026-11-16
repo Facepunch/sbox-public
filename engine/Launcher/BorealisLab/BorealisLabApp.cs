@@ -39,6 +39,9 @@ internal static class BorealisLabApp
 		// A map on a Borealis.Gpu device of its own: nothing of the engine starts
 		if ( Maps.MapRun.Requested ) return Maps.MapRun.Run();
 
+		// The front end's cost of many small indirect draws, on a Borealis.Gpu device of its own: nothing of the engine starts
+		if ( MdiBench.Requested ) return MdiBench.Run();
+
 		// The Slang material tier against today's shaders, on a Borealis.Gpu device of its own: nothing of the engine starts
 		if ( SurfaceParity.Requested ) return SurfaceParity.Run();
 

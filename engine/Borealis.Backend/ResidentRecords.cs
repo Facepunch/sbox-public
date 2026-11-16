@@ -105,5 +105,5 @@ internal struct ResidentCullConstants
 	/// offsets of its entry records (<see cref="ResidentCullEntryRecord"/>), its entry map and its batches' headers.
 	/// <see cref="Entries"/> is its entries; the other fields aren't read.
 	/// </summary>
-	public uint Expand, ExpandMap, ExpandHeaders, Pad0;
+	public uint Expand, ExpandMap, ExpandHeaders, MeshletRuns;
 }

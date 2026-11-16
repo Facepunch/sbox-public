@@ -194,7 +194,7 @@ public sealed class SpirvReflection
 			case OpTypeBool:
 				return 4;
 			case OpTypeInt or OpTypeFloat:
-				return (int)words[t.Start + 1] / 8;
+				return (int)words[t.Start] / 8;
 			case OpTypeVector:
 				return SizeOf( words[t.Start], types, words, constants, decorations, 0 ) * (int)words[t.Start + 1];
 			case OpTypeMatrix:
