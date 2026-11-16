@@ -371,8 +371,9 @@ void PrepareSunShadow( const FinalCombinerInput_t f, float3 vReceiverNormalWs, b
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
 void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiverNormalWs, const BinnedLight lightData, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive, bool bBaked = false, bool bModulators = false )
 {
-	const float2 vDiffuseExponent = ( ( 1.0 - f.vRoughness.xy ) * 0.8 ) + 0.6; // 0.8 and 0.6 are magic numbers;
-
+	// The shadow comes right after the rejections, and what only the lit part needs after it: computed first, the camera
+	// direction, falloff and the cookie's colour (a vector register phi for every light) were held through the filters,
+	// the peak of the light loops' registers. Same sums as before, in the same order
 	float3 vLightColor		= lightData.Color;
 	float3 vLightPositionWs = lightData.GetPosition();
 	float3 vPositionToLightRayWs = vLightPositionWs - f.vPositionWs.xyz; // "L"
@@ -382,7 +383,6 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 	if ( flDistToLightSq > lightData.RadiusSquared && !bBaked )
 		return;
 
-	float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs( f.vPositionWs.xyz);
 	float3 vPositionToLightDirWs = vPositionToLightRayWs * rsqrt( flDistToLightSq );
 	float flNDotL = ClampToPositive( dot( f.vNormalWs.xyz, vPositionToLightDirWs.xyz ) );
 
@@ -402,25 +402,6 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 
 	if ( bReject )
 		return;
-
-    float flSpotAtten = flConeToDirection * lightData.SpotLightInnerOuterConeCosines.z;
-    float flLightFalloff = CalculateDistanceFalloff(flDistToLightSq, lightData.LinearFalloff, lightData.QuadraticFalloff, lightData.FalloffBias, 1.0);
-
-	[branch]
-	if ( lightData.HasLightCookie() )
-	{
-		float4 vCookieSample = lightData.SampleLightCookie( lightData.GetCookieUV( f.vPositionWs.xyz ) );
-		float3 vCookieColor = vCookieSample.rgb * vCookieSample.a;
-
-		// If baked, we just want the hue shift, we already have luminance
-		if ( bBaked && any(vCookieColor) )
-			vCookieColor = normalize( vCookieColor );
-
-		vLightColor.rgb *= vCookieColor;
-		flSpotAtten = 1.0f;
-	}
-
-	float flLightMask = bBaked ? 1.0f : flLightFalloff * flSpotAtten;
 
 	float flShadowScalar = 1.0f;
 	float3 vTransmissiveThickness = 0.1f; // Default low, unshadowed lights look like shit for SSS since u cant derive thickness
@@ -454,7 +435,26 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 		if ( flShadowScalar <= 0.0 )
 			return;
 	#endif
-	
+
+    float flSpotAtten = flConeToDirection * lightData.SpotLightInnerOuterConeCosines.z;
+    float flLightFalloff = CalculateDistanceFalloff(flDistToLightSq, lightData.LinearFalloff, lightData.QuadraticFalloff, lightData.FalloffBias, 1.0);
+
+	[branch]
+	if ( lightData.HasLightCookie() )
+	{
+		float4 vCookieSample = lightData.SampleLightCookie( lightData.GetCookieUV( f.vPositionWs.xyz ) );
+		float3 vCookieColor = vCookieSample.rgb * vCookieSample.a;
+
+		// If baked, we just want the hue shift, we already have luminance
+		if ( bBaked && any(vCookieColor) )
+			vCookieColor = normalize( vCookieColor );
+
+		vLightColor.rgb *= vCookieColor;
+		flSpotAtten = 1.0f;
+	}
+
+	float flLightMask = bBaked ? 1.0f : flLightFalloff * flSpotAtten;
+
 	// Apply transmission after range, cone and shadow rejection, to this light alone.
 	// bModulators is uniform: the clustered loop passes its wave's cluster features
 	[branch]
@@ -471,6 +471,9 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 				sqrt( flDistToLightSq ), lightData.LightModulatorOffset, lightData.LightModulatorCount );
 		}
 	}
+
+	const float2 vDiffuseExponent = ( ( 1.0 - f.vRoughness.xy ) * 0.8 ) + 0.6; // 0.8 and 0.6 are magic numbers;
+	float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs( f.vPositionWs.xyz);
 
 	float3 vDiffuseTerm, vSpecularTerm, vTransmissiveTerm;
 	ComputeDiffuseAndSpecularTerms(
