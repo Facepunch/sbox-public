@@ -122,6 +122,15 @@ internal sealed class ViewPass
 	public byte[] CullReasons { get; set; }
 
 	/// <summary>
+	/// By world index, what the resident lists draw (<see cref="Features.AggregateRenderFeature.ResidentMembers"/>), which this
+	/// view's culling leaves out: its resident list draws them. Null when it culls every object.
+	/// </summary>
+	internal byte[] ResidentMembers { get; set; }
+
+	/// <summary>Whether a resident caster this view takes was in its frustum: its culling left it out, but it has casters.</summary>
+	internal bool ResidentInView { get; set; }
+
+	/// <summary>
 	/// Cube face or array layer of <see cref="Target"/>.
 	/// </summary>
 	public int TargetSlice { get; set; }
@@ -182,6 +191,8 @@ internal sealed class ViewPass
 		SettledStamp = 0;
 		RestlessStamp = 0;
 		NewlySettled = null;
+		ResidentMembers = null;
+		ResidentInView = false;
 		CacheOffset = default;
 		Blank = null;
 		TargetSlice = 0;

@@ -177,6 +177,7 @@ public sealed partial class RenderSystem
 		var centers = world.BoundsCenter;
 		var extents = world.BoundsExtents;
 		var reasons = pass.CullReasons;
+		var members = pass.ResidentMembers;
 
 		// Neighbours are mostly of one type: look its feature up again only when the type changes
 		Type lastType = null;
@@ -187,6 +188,15 @@ public sealed partial class RenderSystem
 		{
 			var entry = entries[k];
 			var i = entry >> 1;
+
+			// Drawn from the view's resident list: noted only if it's a caster the view takes in its frustum, for HasCasters
+			if ( members is not null && i < members.Length && members[i] != 0 )
+			{
+				if ( !pass.ResidentInView && Features.AggregateRenderFeature.TakesMember( members[i], filter )
+					&& ((inFrustum && (entry & 1) != 0) || frustum.Intersects( centers[i], extents[i] )) ) pass.ResidentInView = true;
+				continue;
+			}
+
 			if ( !(inFrustum && (entry & 1) != 0) && !frustum.Intersects( centers[i], extents[i] ) )
 			{
 				if ( reasons is not null ) stats.ObjectsFrustumCulled++;

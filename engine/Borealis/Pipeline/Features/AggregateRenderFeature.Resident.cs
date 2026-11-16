@@ -414,10 +414,67 @@ internal sealed partial class AggregateRenderFeature
 			return;
 		}
 
+		MarkMembers( world );
 		if ( changed ) DropResidentLists();
 		else if ( settling ) DropSettledLists();
 		else if ( allKept ) KeepQuiet( world, transforms, firstInstance );
 	}
+
+	/// <summary>
+	/// By world index, after each frame's refresh: the aggregates and meshes the resident lists draw (<see cref="MemberKept"/>),
+	/// whether each casts shadows and is static. A shadow view with a resident list draws every kept one its static filter
+	/// and tag classes take, so its culling leaves them out (<see cref="LeaveResidentOut"/>).
+	/// </summary>
+	internal byte[] ResidentMembers => memberFlags;
+
+	internal const byte MemberKept = 1, MemberCasts = 2, MemberStatic = 4;
+	byte[] memberFlags = [];
+
+	/// <summary>Whether a view with this filter takes a kept member's casting, as the culling's own tests would (settling aside).</summary>
+	internal static bool TakesMember( byte flags, StaticFilter filter ) => (flags & MemberCasts) != 0 && filter switch
+	{
+		StaticFilter.OnlyStatic => (flags & MemberStatic) != 0,
+		StaticFilter.NoStatic or StaticFilter.SettledNoStatic => (flags & MemberStatic) == 0,
+		_ => true,
+	};
+
+	void MarkMembers( RenderWorld world )
+	{
+		if ( memberFlags.Length < world.Count ) memberFlags = new byte[Math.Max( world.Count, memberFlags.Length * 2 )];
+		else Array.Clear( memberFlags );
+
+		for ( int m = 0; m < memberCount; m++ )
+		{
+			ref readonly var member = ref members[m];
+			if ( member.FirstSlot < 0 ) continue;
+			memberFlags[member.Index] = (byte)(MemberKept | (CastsShadow( member.Aggregate ) ? MemberCasts : 0) | (member.IsStatic ? MemberStatic : 0));
+		}
+
+		for ( int m = 0; m < meshMemberCount; m++ )
+		{
+			ref readonly var member = ref meshMembers[m];
+			if ( member.Slot < 0 ) continue;
+			memberFlags[member.Index] = (byte)(MemberKept | (Meshes.CastsShadow( member.Mesh ) ? MemberCasts : 0) | (member.Mesh.IsStatic ? MemberStatic : 0));
+		}
+	}
+
+	/// <summary>
+	/// Before the shadow views' culls start: each view's resident list, and for a view that has one, the members it leaves out of
+	/// its culling (<see cref="ViewPass.ResidentMembers"/>). Not for what's drawn over the far cascade's cache, which counts the
+	/// casters it takes. Off for the tests' comparisons.
+	/// </summary>
+	internal void LeaveResidentOut( RenderWorld world, ReadOnlySpan<ViewPass> passes, TransformBuffer transforms )
+	{
+		if ( !ShadowsLeaveResidentOut ) return;
+		foreach ( var pass in passes )
+		{
+			if ( pass.StaticFilter == StaticFilter.Unsettled ) continue;
+			PrepareResident( world, pass, transforms );
+			if ( pass.State<Batches>( this ).Resident is not null ) pass.ResidentMembers = memberFlags;
+		}
+	}
+
+	internal static bool ShadowsLeaveResidentOut { get; set; } = true;
 
 	/// <summary>
 	/// Take every frame after a look that found nothing resident changed and every member kept as that one, while no object
