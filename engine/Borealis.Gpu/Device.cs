@@ -33,6 +33,9 @@ public sealed unsafe partial class Device : IDisposable
 	/// <summary>What it can do beyond the baseline.</summary>
 	public DeviceCapabilities Capabilities { get; }
 
+	/// <summary>Every shader stage the device has (<c>VkShaderStageFlags</c>): graphics and compute, and task and mesh with <see cref="DeviceCapabilities.MeshShaders"/>.</summary>
+	internal uint StageAll { get; }
+
 	/// <summary>Frames the CPU may record ahead of the GPU.</summary>
 	public int FramesInFlight { get; }
 
@@ -171,6 +174,7 @@ public sealed unsafe partial class Device : IDisposable
 
 			deviceExtensions = DeviceExtensions( PhysicalDevice );
 			Vk = CreateLogicalDevice( options, out var features, out var computeFamily );
+			StageAll = Vulkan.Vk.StageAllGraphics | Vulkan.Vk.StageCompute | (features.meshShaders ? Vulkan.Vk.StageTask | Vulkan.Vk.StageMesh : 0);
 			graphicsQueue = new DeviceQueue( this, Vk, queueFamilies[0], QueueType.Graphics );
 			computeQueue = computeFamily ? new DeviceQueue( this, Vk, queueFamilies[1], QueueType.Compute ) : graphicsQueue;
 
@@ -204,6 +208,7 @@ public sealed unsafe partial class Device : IDisposable
 				BindlessTextures = bindlessTextures,
 				BindlessSamplers = bindlessSamplers,
 				BindlessStorageTextures = bindlessStorage,
+				MeshShaders = features.meshShaders,
 			};
 
 			Bindless = new BindlessTable( this, bindlessTextures, bindlessSamplers, bindlessStorage, features.storageBufferUpdateAfterBind );
@@ -243,6 +248,7 @@ public sealed unsafe partial class Device : IDisposable
 		public bool preciseOcclusion { get; init; }
 		public bool pipelineStatistics { get; init; }
 		public bool storageBufferUpdateAfterBind { get; init; }
+		public bool meshShaders { get; init; }
 	}
 
 	HashSet<string> InstanceExtensions()
@@ -466,6 +472,23 @@ public sealed unsafe partial class Device : IDisposable
 		// Memory budgets, for how much of each heap the process is using
 		if ( deviceExtensions.Contains( "VK_EXT_memory_budget" ) ) extensions.Add( "VK_EXT_memory_budget" );
 
+		// Task and mesh shaders, where the device has both
+		var mesh = new VkPhysicalDeviceMeshShaderFeaturesEXT { sType = VkStructureType.PhysicalDeviceMeshShaderFeaturesExt };
+		if ( options.MeshShaders && deviceExtensions.Contains( "VK_EXT_mesh_shader" ) )
+		{
+			var supportedMesh = new VkPhysicalDeviceMeshShaderFeaturesEXT { sType = VkStructureType.PhysicalDeviceMeshShaderFeaturesExt };
+			var query = new VkPhysicalDeviceFeatures2 { sType = VkStructureType.PhysicalDeviceFeatures2, pNext = &supportedMesh };
+			Instance.vkGetPhysicalDeviceFeatures2( PhysicalDevice, &query );
+			if ( supportedMesh.taskShader != 0 && supportedMesh.meshShader != 0 )
+			{
+				extensions.Add( "VK_EXT_mesh_shader" );
+				mesh.taskShader = 1;
+				mesh.meshShader = 1;
+				mesh.pNext = e13.pNext;
+				e13.pNext = &mesh;
+			}
+		}
+
 		using var strings = new NativeStrings();
 		var info = new VkDeviceCreateInfo
 		{
@@ -497,6 +520,7 @@ public sealed unsafe partial class Device : IDisposable
 		memoryBudget = extensions.Contains( "VK_EXT_memory_budget" );
 		bufferMarkers = extensions.Contains( "VK_AMD_buffer_marker" );
 		shaderStatistics = extensions.Contains( "VK_KHR_pipeline_executable_properties" );
+		enabled = enabled with { meshShaders = extensions.Contains( "VK_EXT_mesh_shader" ) && vk.vkCmdDrawMeshTasksIndirectEXT != null && vk.vkCmdDrawMeshTasksIndirectCountEXT != null };
 		queueFamilies = asyncCompute ? [(uint)graphics, (uint)compute] : [(uint)graphics];
 		return vk;
 	}

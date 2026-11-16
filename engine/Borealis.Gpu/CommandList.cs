@@ -814,7 +814,7 @@ public sealed unsafe class CommandList
 		if ( lastLayout == 0 ) throw new InvalidOperationException( "Bind a pipeline before setting push constants" );
 		if ( offset + sizeof( T ) > ShaderAbi.PushConstantSize ) throw new ArgumentException( $"Push constants are {ShaderAbi.PushConstantSize} bytes" );
 
-		fixed ( T* p = &data ) vk.vkCmdPushConstants( Handle, lastLayout, Vulkan.Vk.StageAllGraphics | Vulkan.Vk.StageCompute, (uint)offset, (uint)sizeof( T ), p );
+		fixed ( T* p = &data ) vk.vkCmdPushConstants( Handle, lastLayout, device.StageAll, (uint)offset, (uint)sizeof( T ), p );
 	}
 
 	//
@@ -855,6 +855,23 @@ public sealed unsafe class CommandList
 	{
 		BeforeDraw();
 		vk.vkCmdDrawIndexedIndirectCount( Handle, device.Get( arguments ).Buffer, (ulong)offset, device.Get( countBuffer ).Buffer, (ulong)countOffset, (uint)maxCount, (uint)stride );
+	}
+
+	/// <summary>
+	/// Draw with the bound task and mesh pipeline (<see cref="DeviceCapabilities.MeshShaders"/>): <paramref name="count"/>
+	/// task grids, each three group counts, <paramref name="stride"/> bytes apart.
+	/// </summary>
+	public void DrawMeshTasksIndirect( BufferHandle arguments, long offset, int count = 1, int stride = 12 )
+	{
+		BeforeDraw();
+		vk.vkCmdDrawMeshTasksIndirectEXT( Handle, device.Get( arguments ).Buffer, (ulong)offset, (uint)count, (uint)stride );
+	}
+
+	/// <summary>Draw task grids with the bound task and mesh pipeline, with the count from a buffer, at most <paramref name="maxCount"/>.</summary>
+	public void DrawMeshTasksIndirectCount( BufferHandle arguments, long offset, BufferHandle countBuffer, long countOffset, int maxCount, int stride = 12 )
+	{
+		BeforeDraw();
+		vk.vkCmdDrawMeshTasksIndirectCountEXT( Handle, device.Get( arguments ).Buffer, (ulong)offset, device.Get( countBuffer ).Buffer, (ulong)countOffset, (uint)maxCount, (uint)stride );
 	}
 
 	/// <summary>Run the bound compute pipeline over a grid of thread groups.</summary>
