@@ -133,11 +133,34 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		} );
 	}
 
+	/// <summary>
+	/// Where the game's or the menu's mounted files have a compiled file on disk: a game package's models, materials,
+	/// textures and shaders, which are named by their hash in the download cache.
+	/// </summary>
+	static string MountedFile( string path )
+	{
+		foreach ( var context in (Sandbox.Engine.GlobalContext[])[Sandbox.Engine.GlobalContext.Game, Sandbox.Engine.GlobalContext.Menu] )
+		{
+			if ( context?.FileMount is not { } mount ) continue;
+			try
+			{
+				if ( mount.FileExists( path ) && mount.GetFullPath( path ) is { } full ) return full;
+			}
+			catch ( System.IO.IOException )
+			{
+				// A package mounting or unmounting while a worker looks: not found this time
+			}
+		}
+
+		return null;
+	}
+
 	BorealisGpuRenderBackend( GpuDevice gpu, bool ownsDevice )
 	{
 		this.gpu = gpu;
 		this.ownsDevice = ownsDevice;
 		files = ContentFiles.FindGame();
+		files.Resolve = MountedFile;
 		services = new BackendDevice( gpu, files );
 		services.Shaders.Unloaded = message => Log.Warning( $"Borealis.Gpu: {message}" );
 		services.Passes.Error = message => Log.Warning( $"Borealis.Gpu: {message}" );
