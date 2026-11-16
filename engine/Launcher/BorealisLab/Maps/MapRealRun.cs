@@ -349,6 +349,10 @@ internal static class MapRealRun
 
 			if ( bindingReport.Length == 0 ) bindingReport = DescribeBindings( map.Backend );
 
+			// -meshlet-census folder: what culling meshlets would take out of the view's prepass (MeshletCensus)
+			if ( Args.String( "-meshlet-census" ) is { } meshletCensus )
+				MeshletCensus.Run( map, view, options.Width, options.Height, options.Samples, Path.Combine( Path.GetFullPath( meshletCensus ), view.Name ), () => RenderFrame( view ) );
+
 			if ( options.Captures is not null )
 			{
 				// -capture-parallel: captured recording on workers, as the threaded runs are
