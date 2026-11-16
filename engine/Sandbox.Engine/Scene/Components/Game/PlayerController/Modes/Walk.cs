@@ -105,7 +105,7 @@ public partial class MoveModeWalk : MoveMode
 				velocity -= (gravity - normal * gravity.Dot( normal )) * Time.Delta;
 			}
 		}
-		else if ( normalUp > 0 )
+		else if ( normalUp > 0 && (StepDownHeight <= 0 || !AllowGrounding || velocity.Dot( normal ) < 0) )
 		{
 			velocity -= up * (velocity.Dot( normal ) / normalUp);
 		}
