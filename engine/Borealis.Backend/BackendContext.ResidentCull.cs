@@ -61,7 +61,7 @@ internal sealed partial class BackendContext
 	static (int Bytes, int Runs, int Listed, int Instances, int FragmentWords, int Commands) ResidentRegion( GpuDrivenPlan plan, bool ids, bool lists )
 	{
 		var fragments = plan.Fragments;
-		var slots = fragments * (plan.Key.Meshlets && ids ? 1 + (int)MeshletChunks : lists ? 2 : 1);
+		var slots = fragments * (plan.Key.Meshlets && ids ? 1 + 2 * (int)MeshletChunks : lists ? 2 : 1);
 		var runs = CullViewBytes;
 		var listed = (runs + plan.Runs.Length * 8 + 15) & ~15;
 		var instances = listed + (lists ? 16 + fragments * 32 : 0);
@@ -242,10 +242,11 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>A plan's multi-draw as a view's region draws it: a compacted one from <paramref name="compacted"/>, after the plan's fragments.</summary>
-	static (int Bucket, BufferHandle Page, IndexFormat Format, int First, int Count) ResidentRun( GpuDrivenPlan plan, int i, BufferHandle compacted )
+	static (int Bucket, BufferHandle Page, IndexFormat Format, int First, int Count) ResidentRun( GpuDrivenPlan plan, int i, BufferHandle compacted, BufferHandle compacted16 = default )
 	{
 		var run = plan.Runs[i];
-		return plan.Compacted[i] ? run with { Page = compacted, First = run.First - plan.CompactBase + plan.Fragments } : run;
+		var page = run.Format == IndexFormat.UInt16 && compacted16.IsValid ? compacted16 : compacted;
+		return plan.Compacted[i] ? run with { Page = page, First = run.First - plan.CompactBase + plan.Fragments } : run;
 	}
 
 	static bool ReadsStamps( ResidentAssignment work ) => work.Lists && !work.FromPrepass;
@@ -348,7 +349,7 @@ internal sealed partial class BackendContext
 			}
 
 			var firstInstance = (uint)((regionOffset + layout.Instances) / GpuDrivenTables.InstanceStride);
-			work.Region = new CulledRegion( buffer, slot, regionOffset, layout.Runs, layout.Listed, layout.Instances, layout.FragmentWords, layout.Commands, firstInstance, listing ? compacted : default );
+			work.Region = new CulledRegion( buffer, slot, regionOffset, layout.Runs, layout.Listed, layout.Instances, layout.FragmentWords, layout.Commands, firstInstance, listing ? compacted : default, meshlets ? work.Visibility.PrepassCompacted16 : default );
 			viewRecords[w] = new ResidentCullView
 			{
 				View = (uint)regionOffset,
@@ -589,7 +590,7 @@ internal sealed partial class BackendContext
 		try
 		{
 			cullRuns.Clear();
-			for ( int i = 0; i < plan.Runs.Length; i++ ) cullRuns.Add( ResidentRun( plan, i, assignment.Region.Compacted ) );
+			for ( int i = 0; i < plan.Runs.Length; i++ ) cullRuns.Add( ResidentRun( plan, i, assignment.Region.Compacted, assignment.Region.Compacted16 ) );
 			DrawCulledRegion( cull, assignment.Region, 0, compact, shaders, visibility, ids, lists, meshlets, depth, samples, depthBias, slopeScaledDepthBias, resolver, assignment.Fragments, dispatch: false );
 			plan.Drawn.AsSpan().CopyTo( drawn );
 			TimeGpuDriven( start, drawn[..prefix], assignment.Fragments );

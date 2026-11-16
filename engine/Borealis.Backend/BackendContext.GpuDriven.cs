@@ -563,7 +563,7 @@ internal sealed partial class BackendContext
 		// instances' transform slots, a resident filter's moved words, then a slot per fragment (twice, with lists or
 		// meshlets) for its instance record (8 bytes), its fragment (4, for ids) and command (20); with meshlets, a fragment
 		// has a compacted slot per chunk of its meshlets
-		var slotCount = totalFragments * (meshlets ? 1 + (int)MeshletChunks : listing ? 2 : 1);
+		var slotCount = totalFragments * (meshlets ? 1 + 2 * (int)MeshletChunks : listing ? 2 : 1);
 		var runsOffset = CullViewBytes + batchCount * CullBatchBytes;
 		var listedOffset = (runsOffset + (compact ? (batchCount + gpuDrivenBucketCount) * 8 : 0) + 15) & ~15;
 		var transformSlotsOffset = listedOffset + (listing ? 16 + totalFragments * 32 : 0);
@@ -825,6 +825,13 @@ internal sealed partial class BackendContext
 					var compactSlots = bucket.Fragments * (meshlets ? (int)MeshletChunks : 1);
 					cullRuns.Add( (b, compacted, IndexFormat.UInt32, compactWritten, compactSlots) );
 					compactWritten += compactSlots;
+
+					// Meshlets of ranges with 16-bit indices: the next multi-draw, from the 16-bit compacted buffer
+					if ( meshlets )
+					{
+						cullRuns.Add( (b, visibility.PrepassCompacted16, IndexFormat.UInt16, compactWritten, compactSlots) );
+						compactWritten += compactSlots;
+					}
 					for ( int i = record - bucket.Batches.Count; i < record; i++ ) batchRecords[i * (CullBatchBytes / 4) + 5] = (uint)compactRun;
 				}
 
@@ -854,7 +861,7 @@ internal sealed partial class BackendContext
 		}
 
 		// The view's mask and stamps were cleared before the frame's segments (BeginGpuDrivenView)
-		var region = new CulledRegion( frameBuffer, frameSlot, frameOffset, runsOffset, listedOffset, instanceOffset, fragmentOffset, commandOffset, firstInstance, compacted );
+		var region = new CulledRegion( frameBuffer, frameSlot, frameOffset, runsOffset, listedOffset, instanceOffset, fragmentOffset, commandOffset, firstInstance, compacted, meshlets ? visibility.PrepassCompacted16 : default );
 		DrawCulledRegion( cull, region, batchCount, compact, shaders, visibility, ids, lists, meshlets, depth, samples, depthBias, slopeScaledDepthBias, resolver, totalFragments, dispatch: true );
 	}
 
@@ -862,7 +869,7 @@ internal sealed partial class BackendContext
 	/// Where a GPU-culled call's region is in the frame's chunk, and its byte offsets in it: multi-draws, listed fragments,
 	/// instance records, fragment words, commands; its first instance record's index; this frame's compacted buffer.
 	/// </summary>
-	internal readonly record struct CulledRegion( BufferHandle Buffer, int Slot, long Offset, int Runs, int Listed, int Instances, int FragmentWords, int Commands, uint FirstInstance, BufferHandle Compacted );
+	internal readonly record struct CulledRegion( BufferHandle Buffer, int Slot, long Offset, int Runs, int Listed, int Instances, int FragmentWords, int Commands, uint FirstInstance, BufferHandle Compacted, BufferHandle Compacted16 = default );
 
 	/// <summary>
 	/// Cull a call's region (<paramref name="dispatch"/>; otherwise the setup's resident cull did), compact forward's listed
@@ -914,6 +921,7 @@ internal sealed partial class BackendContext
 			{
 				cullAttributes.Set( "BorealisMeshletStamps", visibility.MeshletStamps );
 				cullAttributes.Set( "BorealisMeshletCompacted", visibility.PrepassCompacted );
+				cullAttributes.Set( "BorealisMeshletCompacted16", visibility.PrepassCompacted16 );
 			}
 		}
 
@@ -1043,6 +1051,7 @@ internal sealed partial class BackendContext
 			meshletAttributes.Clear();
 			meshletAttributes.Set( "BorealisCullFrame", frameBuffer );
 			meshletAttributes.Set( "BorealisMeshletCompacted", compacted );
+			meshletAttributes.Set( "BorealisMeshletCompacted16", visibility.PrepassCompacted16 );
 			meshletAttributes.Set( "BorealisMeshletStamps", visibility.MeshletStamps );
 			meshletAttributes.Set( "BorealisMeshletJobs", visibility.MeshletJobs );
 			meshletAttributes.Set( "g_TransformBuffer", LentInstances.Transforms );
@@ -1218,7 +1227,7 @@ internal sealed partial class BackendContext
 		}
 
 		var compacted = new bool[runs];
-		for ( int i = 0; i < runs; i++ ) compacted[i] = compactedBuffer.IsValid && cullRuns[i].Page == compactedBuffer;
+		for ( int i = 0; i < runs; i++ ) compacted[i] = compactedBuffer.IsValid && (cullRuns[i].Page == compactedBuffer || cullRuns[i].First >= totalFragments);
 
 		var materials = new List<(GpuMaterial, int)>();
 		var attributes = new List<(BackendParameters, int)>();
@@ -1336,6 +1345,7 @@ internal sealed partial class BackendContext
 		if ( visibility.PrepassCompacted.IsValid )
 		{
 			r.List.FillBuffer( visibility.PrepassCompacted, BackendDevice.VisibilityView.CompactedCursorIndices, 0, 4 );
+			r.List.FillBuffer( visibility.PrepassCompacted16, BackendDevice.VisibilityView.CompactedCursorIndices, 0, 4 );
 			if ( !visibility.MeshletStampsCleared ) r.List.FillBuffer( visibility.MeshletStamps, 0 );
 			visibility.MeshletStampsCleared = true;
 		}

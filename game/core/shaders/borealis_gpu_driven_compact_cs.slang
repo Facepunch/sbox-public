@@ -29,10 +29,11 @@ RWByteAddressBuffer g_Mask < Attribute( "BorealisCullMask" ); >;
 RWByteAddressBuffer g_Compacted < Attribute( "BorealisCullCompacted" ); >;
 
 // Where the view's prepass culled meshlets (borealis_meshlet_cull_cs): per visibility fragment, the frame, where its kept
-// triangles' indices start in the prepass's compacted buffer (None: drawn whole) and how many; a fragment stamped this
-// frame scans only those
+// triangles' indices start in the prepass's compacted buffer (None: drawn whole), how many and whether that's its 16-bit
+// buffer; a fragment stamped this frame scans only those
 RWByteAddressBuffer g_MeshletStamps < Attribute( "BorealisMeshletStamps" ); >;
 RWByteAddressBuffer g_PrepassCompacted < Attribute( "BorealisMeshletCompacted" ); >;
+RWByteAddressBuffer g_PrepassCompacted16 < Attribute( "BorealisMeshletCompacted16" ); >;
 
 cbuffer BorealisGpuDrivenCull_t
 {
@@ -89,10 +90,17 @@ groupshared uint gs_Owned;
 groupshared uint gs_Start;
 groupshared uint gs_Cursor;
 
-// A triangle's index k (0-2): from the page, or from the prepass's compacted buffer
+// A triangle's index k (0-2): from the page, or from the prepass's compacted buffer (32 or 16-bit, by b32)
 uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass, uint t, uint k )
 {
-	return bPrepass ? g_PrepassCompacted.Load( ( nFirst + t * 3 + k ) * 4 ) : LoadIndex( page, nFirst + t * 3 + k, b32 );
+	uint i = nFirst + t * 3 + k;
+	if ( !bPrepass )
+		return LoadIndex( page, i, b32 );
+	if ( b32 )
+		return g_PrepassCompacted.Load( i * 4 );
+
+	uint nWord = g_PrepassCompacted16.Load( ( i * 2 ) & ~3u );
+	return ( i & 1 ) != 0 ? nWord >> 16 : nWord & 0xffff;
 }
 
 // A listed fragment: transform, draw record, its vertices' first bit (with the base vertex), its multi-draw and its
@@ -140,6 +148,7 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 				bPrepass = true;
 				nFirst = vStamp.y;
 				nScan = vStamp.z;
+				b32 = vStamp.w == 0;
 			}
 		}
 	}

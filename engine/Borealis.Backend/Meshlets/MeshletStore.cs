@@ -83,7 +83,7 @@ internal sealed class MeshletStore : IDisposable
 	readonly List<BufferHandle> retiredRuns = new();
 
 	/// <summary>Ranges asked for, built, published and refused; meshlets and triangles published; build time on the workers.</summary>
-	public long Requested, Built, Published, Refused, Meshlets, Triangles, BuildTicks;
+	public long Requested, Built, Published, Refused, Meshlets, Triangles, Triangles16, BuildTicks;
 
 	public MeshletStore( Device gpu, MeshletConfig config, int threads, string cacheFolder = null )
 	{
@@ -338,6 +338,7 @@ internal sealed class MeshletStore : IDisposable
 				Published++;
 				Meshlets += entry.Set.Meshlets.Length;
 				Triangles += entry.Set.Triangles;
+				if ( entry.Source.Format == IndexFormat.UInt16 ) Triangles16 += entry.Set.Triangles;
 				entry.Set = null;
 				entry.Source = null;
 				uploaded.RemoveAt( i );
