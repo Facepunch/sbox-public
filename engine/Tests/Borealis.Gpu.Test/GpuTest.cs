@@ -14,6 +14,9 @@ public abstract class GpuTest
 
 	protected Device Device { get; private set; }
 
+	/// <summary>Whether the test's device also has GPU-assisted validation (<see cref="DeviceOptions.GpuAssistedValidation"/>).</summary>
+	protected virtual bool GpuAssistedValidation => false;
+
 	public TestContext TestContext { get; set; }
 
 	[TestInitialize]
@@ -28,6 +31,7 @@ public abstract class GpuTest
 				ApplicationName = "Borealis.Gpu.Test",
 				Validation = true,
 				SynchronizationValidation = true,
+				GpuAssistedValidation = GpuAssistedValidation,
 				Presentation = false,
 				Message = m =>
 				{

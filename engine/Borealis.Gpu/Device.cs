@@ -103,12 +103,16 @@ public sealed unsafe partial class Device : IDisposable
 			pUserData = (void*)GCHandle.ToIntPtr( self ),
 		};
 
-		var syncValidation = 4; // VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
+		// VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT, VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT
+		var enabledValidation = stackalloc int[2];
+		var enabledValidationCount = 0u;
+		if ( options.SynchronizationValidation ) enabledValidation[enabledValidationCount++] = 4;
+		if ( options.GpuAssistedValidation ) enabledValidation[enabledValidationCount++] = 0;
 		var validationFeatures = new VkValidationFeaturesEXT
 		{
 			sType = VkStructureType.ValidationFeaturesExt,
-			enabledValidationFeatureCount = 1,
-			pEnabledValidationFeatures = &syncValidation,
+			enabledValidationFeatureCount = enabledValidationCount,
+			pEnabledValidationFeatures = enabledValidation,
 		};
 
 		void* instanceNext = null;
@@ -118,7 +122,7 @@ public sealed unsafe partial class Device : IDisposable
 			instanceNext = &messengerInfo;
 		}
 
-		if ( ValidationEnabled && options.SynchronizationValidation )
+		if ( ValidationEnabled && enabledValidationCount > 0 )
 		{
 			validationFeatures.pNext = instanceNext;
 			instanceNext = &validationFeatures;
@@ -209,6 +213,7 @@ public sealed unsafe partial class Device : IDisposable
 			CreateFrames();
 			CreateMarkers();
 			CreateDefaultViewSet();
+			CreateBindlessDefaults();
 		}
 		catch
 		{
@@ -626,6 +631,8 @@ public sealed unsafe partial class Device : IDisposable
 		Vk.vkDeviceWaitIdle( Vk.Device );
 		foreach ( var swapChain in swapChains.ToArray() ) swapChain.Dispose();
 
+		// Nothing reads the table any more, and the defaults are about to go with everything else
+		Bindless.ForgetDefaults();
 		DestroyFrames();
 		CollectGarbage( force: true );
 		DestroyAllResources();
