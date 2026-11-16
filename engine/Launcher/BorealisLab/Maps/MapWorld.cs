@@ -127,6 +127,8 @@ internal sealed partial class MapWorld : IDisposable
 		}
 
 		if ( entities ) AddEnvMapProbes( level );
+		// -nowater leaves the scene's water bodies out
+		if ( entities && !Args.Has( "-nowater" ) ) LoadWater( content, map );
 	}
 
 	readonly Stopwatch timer;
@@ -579,6 +581,7 @@ internal sealed partial class MapWorld : IDisposable
 		view.ToolsVisMode = ToolsVisMode;
 
 		RenderHost.Current.NextFrame();
+		UpdateWater( view );
 		System.Render( World, view, Target, CameraStages );
 	}
 
@@ -613,6 +616,7 @@ internal sealed partial class MapWorld : IDisposable
 	{
 		gpu.WaitIdle();
 		Target?.Dispose();
+		DisposeWater();
 		System.Dispose();
 		Backend.Dispose();
 		RenderHost.Current = previousHost;
