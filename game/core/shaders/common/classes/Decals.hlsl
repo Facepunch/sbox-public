@@ -134,8 +134,9 @@ float3x3 DecalRotation( float4 quat )
 
 // A decal's sheet frames, as Sheet::Blended takes them before the decal's UV: frame 0 and 1 as offset and size, and the
 // blend between them. A decal's sheet data and sequence are the wave's own (ClusterForEach) and the time is the frame's,
-// so every lookup is the same for the whole wave: each is read back to scalar registers as it lands, rather than four
-// held in vector ones at once. Same lookups and the same sums as SampleSheetData
+// so every lookup is the same for the whole wave, and what's worked out from them is read back to scalar registers as
+// it's made, rather than four lookups held in vector ones at once. (The compiler drops a read of a lookup itself.) Same
+// lookups and the same sums as SampleSheetData
 bool DecalSheetFrames( float4 data, float sequence, float time, out float4 frame0, out float4 frame1, out float blend )
 {
 	frame0 = float4( 0, 0, 1, 1 );
@@ -171,7 +172,7 @@ bool DecalSheetFrames( float4 data, float sequence, float time, out float4 frame
 	blend = WaveReadLaneFirst( lerp( vControl.x, vControl.y, flFractionalFrameIndex ) );
 
 	float4 vCrop = WaveReadLaneFirst( g_SheetTexture.SampleLevel( g_sPointWrap, float2( flTexFrameIndex + params.m_flOOSheetTextureWidth, flV + params.m_flOOSheetTextureHeight ), 0 ) );
-	float2 vCroppedSize = vCrop.zw - vCrop.xy;
+	float2 vCroppedSize = WaveReadLaneFirst( vCrop.zw - vCrop.xy );
 
 	float4 vBounds = WaveReadLaneFirst( g_SheetTexture.SampleLevel( g_sPointWrap, float2( flTexFrameIndex, flV + params.m_flOOSheetTextureHeight ), 0 ) );
 	float2 vUncroppedSize = ( vBounds.zw - vBounds.xy ) / vCroppedSize.xy;
@@ -346,10 +347,11 @@ struct Decals
 				// blend everything else in from the color transparency
 				if ( normal > 0 )
 				{
+					// The rotation before the lookup: worked out after it, its nine values were made while the lookup was held
+					float3x3 rot = DecalRotation( decal.Quat );
 					SamplerState textureSampler = Bindless::GetSampler( asDynamicUniform( samplerIndex ) );
 					float3 normalts = DecodeNormal( Bindless::GetTexture2D( asDynamicUniform( UniformIndex( normal ) ) ).SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw ).xyz );
 
-					float3x3 rot = DecalRotation( decal.Quat );
 					float3 normal = TransformNormal( normalts, -rot[0], -rot[1], -rot[2] );
 
 					material.Normal = normalize( lerp( material.Normal, normal, decal_albedo.a ) );
