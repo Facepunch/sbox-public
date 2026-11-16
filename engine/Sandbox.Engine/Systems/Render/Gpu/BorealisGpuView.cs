@@ -7,8 +7,8 @@ namespace Sandbox;
 /// the targets it draws into, the camera's frustum and whether post processing is on. A block made with
 /// <see cref="Graphics.Scope.CreateOnView"/> draws into <see cref="Target"/> at
 /// <see cref="Viewport"/>, and setting <see cref="Graphics.RenderTarget"/> back to null comes back to them. It has no native
-/// targets or layer: what asks for those (native readbacks of the frame, per-object lighting, drawing a scene object
-/// again) gets nothing.
+/// targets or layer: what asks for those (native readbacks of the frame, per-object lighting) gets nothing. Drawing a scene
+/// object again (<c>Graphics.Render</c>, a highlight's outline) goes to <see cref="RenderSceneObject"/>.
 /// </summary>
 internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 {
@@ -110,7 +110,14 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 
 	void Graphics.IFrameView.SetupLighting( SceneObject obj, RenderAttributes attributes ) { }
 
-	void Graphics.IFrameView.RenderSceneObject( IRenderContext context, SceneObject obj, Transform transform, Color color, Material material, RenderAttributes attributes ) { }
+	/// <summary>
+	/// Draws a scene object of the camera's world again where <c>Graphics.Render</c> asks (the camera's mirror knows it):
+	/// its transform, tint, override material (null for its own) and the caller's attributes. Null draws nothing.
+	/// </summary>
+	public Action<SceneObject, Transform, Color, Material, RenderAttributes> RenderSceneObject;
+
+	void Graphics.IFrameView.RenderSceneObject( IRenderContext context, SceneObject obj, Transform transform, Color color, Material material, RenderAttributes attributes )
+		=> RenderSceneObject?.Invoke( obj, transform, color, material, attributes );
 
 	// A target of only depth draws into the frame's colour, as native's layer binding assumes
 	void Graphics.IFrameView.BindTarget( IRenderContext context, RenderTarget target )

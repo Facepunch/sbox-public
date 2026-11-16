@@ -229,6 +229,19 @@ public sealed class GraphicsContext
 	}
 
 	/// <summary>
+	/// Draw <paramref name="count"/> vertices of <paramref name="layout"/> from <paramref name="vertices"/> at
+	/// <paramref name="offset"/> into the target, as <see cref="DrawVertices"/> draws CPU vertices: for one that expands
+	/// primitives, the buffer holds a primitive's worth past the last.
+	/// </summary>
+	public bool DrawBuffer( ShaderFile shader, ShaderAttributes attributes, BufferHandle vertices, long offset, VertexStreamLayout layout, int count, PrimitiveTopology topology )
+	{
+		var depth = BeginScope( shader, attributes );
+		Draws++;
+		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
+		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, vertices, offset, layout, count, topology, Viewport );
+	}
+
+	/// <summary>
 	/// Draw <paramref name="instances"/> instances of a model's draw call into the target: <paramref name="indexCount"/>
 	/// 32-bit indices from <paramref name="firstIndex"/>, its vertices of <paramref name="layout"/> in
 	/// <paramref name="vertices"/> from <paramref name="baseVertex"/>, as <c>Graphics.DrawModelInstanced</c> draws a model.

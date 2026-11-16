@@ -21,7 +21,7 @@ namespace Sandbox;
 /// layouts and opens rendering scopes itself, and draw with the engine's compiled shaders through
 /// <see cref="ShaderDrawer"/>, bound by attribute name from managed attributes. What <c>Painter.Begin( Texture )</c>
 /// needs runs here: CPU-vertex and instanced draws, clears, render targets, frame grabs, gaussian mips and compute; and
-/// models drawn by instance count (the terrain clipmap).
+/// models drawn by instance count (the terrain clipmap); a mirrored scene object drawn again (<see cref="DrawObject"/>).
 /// The rest throws <see cref="NotSupportedException"/> (docs/managed/borealis-gpu-path.md).
 /// </summary>
 /// <remarks>
@@ -30,7 +30,7 @@ namespace Sandbox;
 /// recording for this device start empty, and others start with what Source 2's copy holds. A backing lives until its
 /// resource is disposed, or until this backend is.
 /// </remarks>
-internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
+internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposable
 {
 	readonly GpuDevice gpu;
 	readonly BackendDevice services;
