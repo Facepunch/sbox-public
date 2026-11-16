@@ -37,6 +37,11 @@ CS
 	RWByteAddressBuffer g_Mask < Attribute( "BorealisCullMask" ); >;
 	RWByteAddressBuffer g_Compacted < Attribute( "BorealisCullCompacted" ); >;
 
+	// The module also reads where the view's prepass culled meshlets (borealis_meshlet_cull_cs): declared here for its bindings
+	RWByteAddressBuffer g_MeshletStamps < Attribute( "BorealisMeshletStamps" ); >;
+	RWByteAddressBuffer g_PrepassCompacted < Attribute( "BorealisMeshletCompacted" ); >;
+	RWByteAddressBuffer g_PrepassCompacted16 < Attribute( "BorealisMeshletCompacted16" ); >;
+
 	cbuffer BorealisGpuDrivenCull_t
 	{
 		uint g_nCullInput;
@@ -53,7 +58,7 @@ CS
 		uint g_nCullCapacity;		// indices g_Compacted holds
 		uint g_nCullFragmentWords;
 		uint g_nCullListed;			// byte offset of the listed fragments: dispatch arguments, then 32 bytes each
-		uint g_nCullPad1;
+		uint g_nCullMeshletRuns;	// meshlets are culled where the pass module runs
 		uint g_nCullPad2;
 	};
 
@@ -105,6 +110,8 @@ CS
 	void MainCs( uint3 vGroupId : SV_GroupID, uint nThread : SV_GroupIndex )
 	{
 		uint nEntry = g_nCullListed + 16 + vGroupId.x * 32;
+		if ( g_nCullListed == None )
+			g_Frame.Store( 0, g_MeshletStamps.Load( 0 ) + g_PrepassCompacted.Load( 0 ) + g_PrepassCompacted16.Load( 0 ) );
 		uint nTransform = g_Frame.Load( nEntry );
 		uint nDrawRecord = g_Frame.Load( nEntry + 4 );
 		uint nVertexBase = g_Frame.Load( nEntry + 8 );

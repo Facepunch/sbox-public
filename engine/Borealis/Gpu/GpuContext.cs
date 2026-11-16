@@ -418,6 +418,13 @@ internal abstract class GpuContext : IDisposable
 		public bool Shadow;
 
 		/// <summary>
+		/// The view's world to clip transform (as its vertex shaders take it, before they negate y) and its viewport's size:
+		/// what meshlet culling tests a meshlet's screen bounds against the sample grid with.
+		/// </summary>
+		public System.Numerics.Matrix4x4 WorldToClip;
+		public Vector2 ViewportSize;
+
+		/// <summary>
 		/// For <see cref="ResidentMeshes"/>: whether they skip the size test (a static shadow cache, kept while the camera
 		/// moves), and how their LODs are picked: the root view's camera and tangent of half its field of view, and its
 		/// screen width; or, with <see cref="LodTexels"/>, <see cref="LodWidth"/> is the view's texels per unit.

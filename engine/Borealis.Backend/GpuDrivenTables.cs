@@ -337,9 +337,14 @@ internal sealed class GpuDrivenTables : IDisposable
 
 			Span<uint> record = [geometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, indexCount, (uint)baseVertex, (uint)indexPage];
 			var offset = draws.Append( MemoryMarshal.AsBytes( record ) );
-			return drawRecords[key] = offset / DrawStride;
+			var index = offset / DrawStride;
+			Meshlets?.RegisterDraw( index, new Borealis.Backend.Meshlets.MeshletStore.Range( indexPage, firstIndex, indexCount, baseVertex ) );
+			return drawRecords[key] = index;
 		}
 	}
+
+	/// <summary>Where draw records find their ranges' meshlets (<see cref="BackendDevice.Meshlets"/>), or null.</summary>
+	public Borealis.Backend.Meshlets.MeshletStore Meshlets { get; set; }
 
 	/// <summary>A fragment's draw record, remembered with the arguments it was made for.</summary>
 	public record struct OwnerDraw( uint FirstIndex, uint IndexCount, int BaseVertex, uint Draw );
