@@ -54,12 +54,12 @@ CS
 		uint g_nCullRuns;			// byte offset of the multi-draws: first command slot and count each
 		uint g_nCullFrame;
 		uint g_nCullVisibility;
-		uint g_nCullPad0;			// the compacted indices' cursor is g_Compacted's first word, shared by the view's calls
+		uint g_nCullLodTable;		// the culls' (the compacted indices' cursor is g_Compacted's first word, shared by the view's calls)
 		uint g_nCullCapacity;		// indices g_Compacted holds
 		uint g_nCullFragmentWords;
 		uint g_nCullListed;			// byte offset of the listed fragments: dispatch arguments, then 32 bytes each
 		uint g_nCullMeshletRuns;	// meshlets are culled where the pass module runs
-		uint g_nCullPad2;
+		uint g_nCullLodCount;
 	};
 
 	static const uint None = 0xffffffffu;

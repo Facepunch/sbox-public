@@ -224,6 +224,24 @@ internal static class MapRealRun
 
 		if ( firstFrames.Count > 0 ) Console.WriteLine( $"First frames: {string.Join( ", ", firstFrames )}" );
 
+		// Meshlets and generated LODs build on workers after load (and levels' meshlets after their levels), asked for as draws
+		// find their GPU-driven variants, which package shaders compile on workers: the timed frames start once none has been
+		// pending or asked for in two seconds, or after three minutes
+		var building = Stopwatch.StartNew();
+		var quiet = Stopwatch.StartNew();
+		var asked = map.Backend.BuildsRequested;
+		while ( quiet.Elapsed.TotalSeconds < 2 && building.Elapsed.TotalSeconds < 180 && figure is null && !window.CloseRequested )
+		{
+			MapRun.Pump( window );
+			RenderFrame( options.Views[0] );
+			if ( map.Backend.BuildsPending > 0 || map.Backend.BuildsRequested != asked ) quiet.Restart();
+			asked = map.Backend.BuildsRequested;
+		}
+
+		Console.WriteLine( FormattableString.Invariant( $"Built in {building.Elapsed.TotalSeconds:0.0} s after the first frames" ) );
+		Console.WriteLine( map.Backend.MeshletReport );
+		Console.WriteLine( map.Backend.LodReport );
+
 		if ( figure is not null )
 		{
 			VisibilityFigureCapture.Save( gpu, map, figure, options.Views[0], view => RenderFrame( view ), figureFolder );
@@ -346,7 +364,17 @@ internal static class MapRealRun
 					+ $"{stats.Draws}+{stats.DepthDraws} depth+{stats.ShadowDraws} shadow draws ({stats.TranslucentDraws} translucent, {stats.Instances} instances), {stats.ObjectsVisible} objects visible, {stats.Triangles / 1e6:0.00}M tris; {modelDraws} model draws, {binds} binds, {objectChanges} object changes, {fragmentDraws} fragment draws ({nsBind:0} ns a bind, {nsObjectChange:0} ns an object change, {nsRepeat:0} ns a repeat draw, timed), {setsPerFrame:0.0} sets written/frame, {gcs} GCs; {countsLine}; {gpuDrivenLine}{(map.System.SkyboxStats is { } sky ? $"3D skybox {sky.Draws}+{sky.DepthDraws} depth draws of {sky.ObjectsVisible} visible objects of {sky.Objects} ({sky.ObjectsFrustumCulled} frustum culled, {sky.ObjectsSizeCulled} size culled, {sky.ObjectsTagCulled} tag culled, {sky.ObjectsOcclusionCulled} occlusion culled)" : "no 3D skybox drawn")}; draws that recorded nothing: {failed}";
 				Console.WriteLine( line );
 				Console.WriteLine( map.Backend.MeshletReport );
+				Console.WriteLine( map.Backend.LodReport );
 				lines.Add( line );
+
+				// -lod-shimmer: generated levels' changes with the camera still, moving slowly and swaying (LodShimmer)
+				if ( Args.Has( "-lod-shimmer" ) && variant.GpuDriven )
+				{
+					var shimmer = LodShimmer.Run( map.Backend, view, Args.Int( "-lod-shimmer-frames", 300 ), v => RenderFrame( v ) );
+					Console.WriteLine( shimmer );
+					File.AppendAllText( Path.Combine( options.Output, "lod-shimmer.md" ), $"## {view.Name} {variant.Name}\n\n{shimmer}\n\n" );
+				}
+
 				csv.AppendLine( FormattableString.Invariant( $"{view.Name},{variant.Name},{variant.Parallel},{variant.MaterialObjects},{variant.Shadows},{frames.Count},{M( f => f.Wait ):0.0000},{M( f => f.Render ):0.0000},{M( f => f.Collect ):0.0000},{M( f => f.Prepare ):0.0000},{M( f => f.Setup ):0.0000},{M( f => f.Record ):0.0000},{M( f => f.WorkerRecord ):0.0000},{M( f => f.Stages ):0.0000},{M( f => f.Submit ):0.0000},{M( f => f.Copy ):0.0000},{cpu:0.0000},{Percentile( frameTimes, 0.5 ):0.0000},{Percentile( frameTimes, 0.95 ):0.0000},{M( f => f.Gpu ):0.0000},{stats.Draws},{stats.DepthDraws},{stats.ShadowDraws},{stats.TranslucentDraws},{stats.Instances},{stats.ObjectsVisible},{stats.Triangles},{modelDraws},{binds},{fragmentDraws},{nsBind:0},{nsRepeat:0},{setsPerFrame:0.0},{gcs},{objectChanges},{nsObjectChange:0},{failedDraws},{Mean( f => f.Render + f.Copy ):0.0000},{frameTimes.DefaultIfEmpty( double.NaN ).Average():0.0000},{Mean( f => f.Gpu ):0.0000},{M( f => f.Prepass ):0.0000},{(variant.GpuDriven ? (variant.MaterialBuckets ? "materials" : "onebucket") : "classic")},{t.GpuDrivenBatches / Counted},{t.GpuDrivenBuckets / Counted},{t.GpuDrivenMultiDraws / Counted},{counts.Lists:0.00},{counts.Scopes:0.00},{counts.Resumed:0.00},{counts.Barriers:0.00},{counts.Full:0.00},{counts.FixUps:0.00},{counts.Pairings:0.00}" ) );
 			}
 
