@@ -760,6 +760,11 @@ public sealed partial class RenderSystem : IDisposable
 	}
 
 	/// <summary>
+	/// Whether a prepared view draws from a resident list, besides what its visible lists hold.
+	/// </summary>
+	internal bool DrawsResident( ViewPass view ) => aggregates.DrawsResident( view );
+
+	/// <summary>
 	/// Release owned GPU resources. The device retains those used by in-flight frames.
 	/// </summary>
 	public void Dispose()

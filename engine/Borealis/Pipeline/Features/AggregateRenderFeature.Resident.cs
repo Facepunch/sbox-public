@@ -264,6 +264,11 @@ internal sealed partial class AggregateRenderFeature
 	/// <summary>This frame's views with a resident list, which setup hands the device's resident cull.</summary>
 	readonly List<ViewPass> residentViews = new();
 
+	/// <summary>
+	/// Whether a prepared view draws anything from a resident list, which its visible lists don't show.
+	/// </summary>
+	internal bool DrawsResident( ViewPass pass ) => pass.State<Batches>( this ).Resident is { } list && (list.Batches.Count > 0 || list.MeshGroups.Count > 0);
+
 	GpuContext.GpuDrivenCull[] residentCulls = [];
 
 	/// <summary>
