@@ -90,6 +90,18 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		public GpuCameraStages GpuStages;
 
 		/// <summary>
+		/// What a child view on a Borealis.Gpu device draws into for an 8-bit texture (<see cref="RenderChildOnGpu"/>); a float
+		/// one draws into <see cref="GpuTarget"/>.
+		/// </summary>
+		public GpuTexture GpuOutput;
+
+		/// <summary>
+		/// A top-level view's own attributes on a Borealis.Gpu device (its planar reflection), and what Borealis reads them as.
+		/// </summary>
+		public RenderAttributes GpuViewAttributes;
+		public ShaderParameters GpuViewParameters;
+
+		/// <summary>
 		/// Release owned resources; colour targets and caller depth remain the caller's.
 		/// </summary>
 		public void Dispose()
@@ -104,6 +116,8 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 			GpuFrame = null;
 			GpuTarget?.Dispose();
 			GpuTarget = null;
+			GpuOutput?.Dispose();
+			GpuOutput = null;
 			TextureTargetColor = null;
 			TextureTargetCallerDepth = null;
 		}
@@ -670,9 +684,10 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 	/// <summary>
 	/// Whether the process draws on Borealis.Gpu (<c>-borealisgpu</c>): what renders into an engine texture there that isn't a
-	/// window's camera or a texture render between blocks (<see cref="RenderIntoTexture"/>) - cube captures, a render inside
-	/// a block or with a depth target of the caller's - isn't there yet, and does nothing; drawn on Source 2's device it
-	/// would never reach the texture's copy on Borealis.Gpu.
+	/// window's camera, a texture render between blocks (<see cref="RenderIntoTexture"/>) or a child of one of our frames
+	/// (<see cref="RenderChildOnGpu"/>) - cube captures, a render inside another block or with a depth target of the caller's
+	/// outside a frame - isn't there yet, and does nothing; drawn on Source 2's device it would never reach the texture's copy
+	/// on Borealis.Gpu.
 	/// </summary>
 	static bool OnBorealisGpu => RenderBackend.Default is BorealisGpuRenderBackend;
 
@@ -684,6 +699,14 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu && !Graphics.IsActive )
 		{
 			RenderIntoTexture( gpu, camera, target, size ?? target.Size, setup );
+			return;
+		}
+
+		// On Borealis.Gpu, inside one of our frames (a command list's view), as its child on the device
+		if ( OnBorealisGpu && Graphics.IsActive && rendering is not null )
+		{
+			camera.ConfigureView( setup );
+			RenderChild( camera, setup, target, null, out _ );
 			return;
 		}
 
@@ -720,6 +743,13 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 			viewData = default;
 			RenderIntoTexture( gpu, camera, target, target.Size, setup );
 			return true;
+		}
+
+		// On Borealis.Gpu, inside one of our frames (a command list's view, water's refraction), as its child on the device
+		if ( OnBorealisGpu && Graphics.IsActive && rendering is not null )
+		{
+			camera.ConfigureView( setup );
+			return RenderChild( camera, setup, target, depthTarget, out viewData );
 		}
 
 		if ( OnBorealisGpu )
@@ -760,7 +790,8 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		CameraState state;
 		try
 		{
-			if ( !RenderToTexture( camera, setup, target, depthTarget, out state ) ) return false;
+			var rendered = OnBorealisGpu ? RenderChildOnGpu( camera, setup, target, depthTarget, out state ) : RenderToTexture( camera, setup, target, depthTarget, out state );
+			if ( !rendered ) return false;
 		}
 		finally
 		{

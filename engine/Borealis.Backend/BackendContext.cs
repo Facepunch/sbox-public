@@ -1282,7 +1282,33 @@ internal sealed partial class BackendContext : GpuContext
 		r.List.Dispatch( (x + Math.Max( gx, 1 ) - 1) / Math.Max( gx, 1 ), (y + Math.Max( gy, 1 ) - 1) / Math.Max( gy, 1 ), (z + Math.Max( gz, 1 ) - 1) / Math.Max( gz, 1 ) );
 	}
 
-	public override void DrawFullscreen( GpuMaterial material, ShaderParameters parameters, StringToken shaderMode ) { }
+	readonly List<BackendTexture> fullscreenTextures = new();
+
+	/// <summary>
+	/// Draw <paramref name="material"/> over the bound target, as <c>Graphics.Blit</c> does: a quad in clip space
+	/// (<see cref="BackendDevice.FullscreenQuad"/>) with <paramref name="parameters"/> over this context's, in
+	/// <paramref name="shaderMode"/> (else the material's first mode). A frame's flipped output is copied this way.
+	/// </summary>
+	public override void DrawFullscreen( GpuMaterial material, ShaderParameters parameters, StringToken shaderMode )
+	{
+		if ( recording is null || material is not BackendMaterial { Shader: { } shader } || shader.Modes.Count == 0 ) return;
+
+		var mode = ModeName( shader, shaderMode ) is null ? Token( shader.Modes[0].Name ) : shaderMode;
+
+		// What it samples is read where it was drawn: a frame's colour, moved there first, as Source 2's blit does
+		if ( parameters is BackendParameters own )
+		{
+			fullscreenTextures.Clear();
+			own.TexturesInto( fullscreenTextures );
+			foreach ( var texture in fullscreenTextures ) Transition( texture, ImageLayout.ShaderRead );
+			fullscreenTextures.Clear();
+		}
+
+		var quad = device.FullscreenQuad;
+		SetObjectAttributes( parameters );
+		DrawModel( material, mode, quad, quad.DrawsForLod( 0 )[0], 0, 1 );
+		SetObjectAttributes( null );
+	}
 
 	public override void DrawIndexedInstanced( in RenderMesh.Draw draw, int instanceCount ) { }
 }
