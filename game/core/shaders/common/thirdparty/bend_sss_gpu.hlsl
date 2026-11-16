@@ -454,24 +454,34 @@ void WriteScreenSpaceShadow(DispatchParameters inParameters, int3 inGroupID, int
 		// full-contrast shadow; hits further along the ray fade towards lit. This replaces the
 		// stock fixed tail fade (last FADE_OUT_SAMPLES only) with a bias that grows over the whole
 		// ray, so shadow softness tracks receiver-to-occluder distance.
+		// sbox: the per-lane choices below, taken once rather than for every sample (the loop is the pass's cost, and it's
+		// arithmetic): the sign folded into the start and the scale, so a sample's distance toward the light is one
+		// multiply-add (the sign is +-1, so this rounds as the product did); whether hits toward the light count as
+		// hits (near_sharpen's backfacing occluders) as the cap a sample's distance toward the light keeps; and whether
+		// the fade applies, as a factor
+		const float start_signed = start_depth * z_sign;
+		const float scale_signed = depth_scale * z_sign;
+		const bool backfaces = near_sharpen && (start_depth - end_depth) * z_sign > 0;
+		const float toward_cap = backfaces ? 0.0 : 3.402823466e+38;
+		const float fade_weight = near_sharpen ? 0.0 : 1.0;
+
 		[unroll] for (i = HARD_SHADOW_SAMPLES; i < SAMPLE_COUNT; i++)
 		{
 			// sbox: near_sharpen (viewmodels) accepts backfacing occluders: a sample between the
 			// receiver and the light whose depth recedes toward the light along the ray occludes
 			// regardless of the thickness window. Front-facing hits keep the stock window so thin
 			// objects still pass light. 1e8 cap skips the 1e10/1e20 sentinels.
-			float toward_light = (start_depth - DepthData[sample_index + i] * depth_scale) * z_sign;
-            bool backface_hit = near_sharpen && toward_light > 0
-				&& (start_depth - end_depth) * z_sign > 0;
+			float toward_light = start_signed - DepthData[sample_index + i] * scale_signed;
 
-            float depth_delta = backface_hit ? 0 : abs(toward_light);
+			// abs(toward_light), or 0 for a backfacing hit toward the light (toward_cap 0)
+            float depth_delta = max(-toward_light, min(toward_light, toward_cap));
 
 			// Do the same as the hard_shadow code above, but this will accumulate to 4 separate values.
 			// By using 4 values, the average shadow can be taken, which can help soften single-pixel shadows.
 			// Softening bias grows linearly with sample distance; 0.75 max matches the stock tail fade.
 			const float fade_out = (float)(i + 1 - HARD_SHADOW_SAMPLES) / (float)(SAMPLE_COUNT - HARD_SHADOW_SAMPLES) * 0.75;
 
-			shadow_value[i & 3] = min(shadow_value[i & 3], depth_delta + (near_sharpen ? 0.0 : fade_out));
+			shadow_value[i & 3] = min(shadow_value[i & 3], depth_delta + fade_weight * fade_out);
 		}
 
 		// Apply the contrast value.
