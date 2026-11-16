@@ -503,7 +503,7 @@ void Expand( uint n )
 		uint nSlot = WaveTakeSlot( bDrawn || bTask, vView.w, bTask ? vVisibility.y & ~TaskRun : vBatch.w, frame );
 		if ( bTask )
 		{
-			g_Frame.Store2( vView.y + nSlot * 8, uint2( nTransform, nDrawRecord ) );
+			g_Frame.Store2( vView.y + nSlot * 8, uint2( nTransform, nViewDraw ) );
 			g_Frame.Store( vViewOut.y + ( vViewOut.x + nSlot ) * 4, nFragment != None ? nVertexBase : None );
 			g_Frame.Store( vView.z + nSlot * 20, nFragment );
 		}
