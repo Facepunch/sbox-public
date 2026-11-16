@@ -70,6 +70,7 @@ internal static class MapRun
 	public static int Run()
 	{
 		LabTracy.Start();
+		global::Borealis.Features.AggregateRenderFeature.QuietRefresh = !Args.Has( "-no-quiet-resident" );
 		var ident = Args.String( "-map" ) ?? "facepunch.construct";
 		var folder = Args.String( "-map-folder" ) ?? FindPackage( ident );
 		if ( folder is null )

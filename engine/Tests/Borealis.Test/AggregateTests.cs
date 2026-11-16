@@ -189,4 +189,79 @@ public class AggregateTests
 			device.ResidentAggregates = false;
 		}
 	}
+
+	/// <summary>
+	/// Once nothing resident changes, each frame repeats the last look: the same instance ids, kept runs and lists, while an
+	/// object that isn't resident moves and past the frames a kept slot lasts undrawn. A change to a resident one is looked at.
+	/// </summary>
+	[TestMethod]
+	public void QuietFramesRepeatTheLastLook()
+	{
+		var device = HeadlessRenderHost.Headless;
+		device.ResidentAggregates = true;
+		try
+		{
+			var world = new RenderWorld();
+			var aggregate = TestAggregate();
+			aggregate.IsStatic = true;
+			world.Add( aggregate );
+			var mover = new MeshObject( TestMesh( false ), new Transform( new Vector3( 30, 0, 0 ) ) );
+			world.Add( mover );
+
+			using var system = new RenderSystem { DepthPrepass = false };
+			Borealis.Shadows.ShadowMapper.ResetCache();
+			var feature = system.GetFeature<AggregateRenderFeature>();
+			var view = LookingDownX();
+
+			// Kept runs from the second frame; the third finds them all kept, and is the look the quiet frames repeat
+			CollectAndPrepare( system, world, view );
+			CollectAndPrepare( system, world, view );
+			CollectAndPrepare( system, world, view );
+			var list = feature.ResidentFor( system.MainPass );
+			Assert.AreEqual( 1, list.Batches.Count, "resident" );
+			var first = aggregate.FirstInstance;
+			var slot = system.Transforms.InstanceSlot( first );
+
+			var quiet = feature.QuietFrames;
+			var frames = Borealis.Gpu.TransformBuffer.SlotLifetime + 70;
+			for ( int i = 0; i < frames; i++ )
+			{
+				mover.Transform = new Transform( new Vector3( 31 + i, 0, 0 ) );
+				CollectAndPrepare( system, world, view );
+			}
+
+			Assert.AreEqual( quiet + frames, feature.QuietFrames, "every frame quiet while only an object that isn't resident moves" );
+			Assert.AreSame( list, feature.ResidentFor( system.MainPass ), "the same list" );
+			Assert.AreEqual( first, aggregate.FirstInstance, "its instance ids at the same place" );
+			Assert.AreEqual( slot, system.Transforms.InstanceSlot( aggregate.FirstInstance ), "its kept run kept" );
+			Assert.AreEqual( system.Transforms.Generation, aggregate.TransformsGeneration, "its transforms current this frame" );
+			Assert.AreEqual( 0, feature.BatchesFor( system.MainPass ).Count, "the view prepares none of its own" );
+
+			// A frame drawn the views' own way gives it other ids: the next frame looks again, and the quiet ones after keep its ids
+			device.ResidentAggregates = false;
+			CollectAndPrepare( system, world, view );
+			device.ResidentAggregates = true;
+			quiet = feature.QuietFrames;
+			CollectAndPrepare( system, world, view );
+			Assert.AreEqual( quiet, feature.QuietFrames, "a look after a frame without one" );
+			Assert.AreEqual( slot, system.Transforms.InstanceSlot( aggregate.FirstInstance ), "its ids find its kept run" );
+			CollectAndPrepare( system, world, view );
+			Assert.AreEqual( quiet + 1, feature.QuietFrames, "then quiet" );
+			Assert.AreEqual( slot, system.Transforms.InstanceSlot( aggregate.FirstInstance ), "its ids still find its kept run" );
+			frames = feature.QuietFrames - quiet;
+
+			// A change to the resident one is looked at: its kept entries written again, then quiet again
+			var writes = system.Transforms.KeptWrites;
+			aggregate.Tint = new Color( 1, 0, 0 );
+			CollectAndPrepare( system, world, view );
+			Assert.AreEqual( quiet + frames, feature.QuietFrames, "not quiet the frame it changed" );
+			Assert.AreEqual( writes + aggregate.Fragments.Length, system.Transforms.KeptWrites, "each fragment's entry written again" );
+			CollectAndPrepare( system, world, view );
+			Assert.AreEqual( quiet + frames + 1, feature.QuietFrames, "quiet again after" );
+		}
+		finally
+		{
+			device.ResidentAggregates = false;
+		}
+	}
 }

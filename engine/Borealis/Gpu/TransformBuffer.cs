@@ -395,6 +395,37 @@ internal sealed class TransformBuffer : IDisposable
 	}
 
 	/// <summary>
+	/// This buffer's frames so far: one more each <see cref="Clear"/>.
+	/// </summary>
+	public int Frame => frame;
+
+	/// <summary>
+	/// Append instance ids, returning the first one's index.
+	/// </summary>
+	public int AddInstances( ReadOnlySpan<uint> slots )
+	{
+		if ( InstanceCount + slots.Length > ids.Length ) Array.Resize( ref ids, Math.Max( InstanceCount + slots.Length, ids.Length * 2 ) );
+
+		var first = InstanceCount;
+		slots.CopyTo( ids.AsSpan( first ) );
+		InstanceCount += slots.Length;
+		return first;
+	}
+
+	/// <summary>
+	/// The instance ids written this frame from <paramref name="first"/> on.
+	/// </summary>
+	public ReadOnlySpan<uint> InstancesFrom( int first ) => ids.AsSpan( first, InstanceCount - first );
+
+	/// <summary>
+	/// Count a kept slot, or a run by its first slot, as drawn this frame, as <see cref="KeptSlotFor"/> does for a current one.
+	/// </summary>
+	public void KeepUsed( int slot )
+	{
+		if ( (uint)slot < (uint)keptCapacity ) used[slot] = frame;
+	}
+
+	/// <summary>
 	/// Write a frame entry: a transform and tint, returning its slot.
 	/// </summary>
 	public int Add( in Matrix m, Color tint )
