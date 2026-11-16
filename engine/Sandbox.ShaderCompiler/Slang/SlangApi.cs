@@ -11,7 +11,7 @@ internal static unsafe class SlangApi
 {
 	public const int LanguageSlang = 1;
 	public const uint CompileFlagNoCodegen = 1 << 4;
-	public const int StageVertex = 1, StagePixel = 5, StageCompute = 6;
+	public const int StageVertex = 1, StagePixel = 5, StageCompute = 6, StageMesh = 13, StageAmplification = 14;
 	public const int TypeKindStruct = 1, TypeKindArray = 2, TypeKindMatrix = 3, TypeKindVector = 4, TypeKindScalar = 5;
 	public const int ScalarBool = 2, ScalarInt32 = 3, ScalarUInt32 = 4, ScalarFloat32 = 8;
 

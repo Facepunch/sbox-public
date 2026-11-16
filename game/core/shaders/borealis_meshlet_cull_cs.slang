@@ -16,6 +16,7 @@
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "common.fxc"
 #include "transform_buffer.fxc"
+#include "borealis_meshlet.fxc"
 
 #ifndef BINDLESS_VERTEX_BUFFERS_DECLARED
 #define BINDLESS_VERTEX_BUFFERS_DECLARED
@@ -92,64 +93,17 @@ void WriteDraw( uint nSlot, uint nTransform, uint nDraw, uint nVertexBase, uint 
 		g_Frame.Store( g_nMeshletFragmentWords + ( g_nMeshletFirstInstance + nSlot ) * 4, nVertexBase );
 }
 
-float4 Clip( float3 vPosition, float flW )
+// The view the meshlets are culled against
+MeshletView View()
 {
-	float4 v = float4( vPosition, flW );
-	return float4( dot( g_nMeshletClipX, v ), dot( g_nMeshletClipY, v ), dot( g_nMeshletClipZ, v ), dot( g_nMeshletClipW, v ) );
-}
-
-// Whether a sample of the frame's grid lies in [vMin, vMax] (pixels): pixel centres, or the standard 4x positions
-bool HoldsSample( float2 vMin, float2 vMax )
-{
-	if ( g_nMeshletSamples == 1 )
-		return all( ceil( vMin - 0.5 ) <= floor( vMax - 0.5 ) );
-
-	const float2 vSamples[4] = { float2( 0.375, 0.125 ), float2( 0.875, 0.375 ), float2( 0.125, 0.625 ), float2( 0.625, 0.875 ) };
-	[unroll]
-	for ( uint s = 0; s < 4; s++ )
-	{
-		if ( all( ceil( vMin - vSamples[s] ) <= floor( vMax - vSamples[s] ) ) )
-			return true;
-	}
-
-	return false;
-}
-
-// A meshlet's box (centre and half extents in the mesh's space) under its instance's transform: outside one clip plane,
-// or wholly in front of the near plane with screen bounds that hold no sample
-bool Culled( float3 vCenter, float3 vExtents, float3x4 mTransform )
-{
-	float4 vC = Clip( mul( mTransform, float4( vCenter, 1 ) ), 1 );
-	float4 vA0 = Clip( float3( mTransform[0][0], mTransform[1][0], mTransform[2][0] ) * vExtents.x, 0 );
-	float4 vA1 = Clip( float3( mTransform[0][1], mTransform[1][1], mTransform[2][1] ) * vExtents.y, 0 );
-	float4 vA2 = Clip( float3( mTransform[0][2], mTransform[1][2], mTransform[2][2] ) * vExtents.z, 0 );
-
-	uint nOutLeft = 0, nOutRight = 0, nOutBottom = 0, nOutTop = 0, nOutFar = 0, nOutNear = 0;
-	bool bFront = true;
-	float2 vMin = 1e30;
-	float2 vMax = -1e30;
-	[unroll]
-	for ( uint k = 0; k < 8; k++ )
-	{
-		float4 v = vC + ( ( k & 1 ) != 0 ? vA0 : -vA0 ) + ( ( k & 2 ) != 0 ? vA1 : -vA1 ) + ( ( k & 4 ) != 0 ? vA2 : -vA2 );
-		nOutLeft += v.x < -v.w ? 1 : 0;
-		nOutRight += v.x > v.w ? 1 : 0;
-		nOutBottom += v.y < -v.w ? 1 : 0;
-		nOutTop += v.y > v.w ? 1 : 0;
-		nOutFar += v.z < 0 ? 1 : 0;
-		nOutNear += v.z > v.w ? 1 : 0;
-
-		// Reverse depth: the near plane is z = w
-		bFront = bFront && v.w > 1e-4 && v.z <= v.w;
-		float2 vPixel = float2( v.x / v.w * 0.5 + 0.5, 0.5 - v.y / v.w * 0.5 ) * g_nMeshletViewport.xy;
-		vMin = min( vMin, vPixel );
-		vMax = max( vMax, vPixel );
-	}
-
-	if ( nOutLeft == 8 || nOutRight == 8 || nOutBottom == 8 || nOutTop == 8 || nOutFar == 8 || nOutNear == 8 )
-		return true;
-
-	return bFront && ( g_nMeshletSamples == 1 || g_nMeshletSamples == 4 ) && !HoldsSample( vMin, vMax );
+	MeshletView view;
+	view.vClipX = g_nMeshletClipX;
+	view.vClipY = g_nMeshletClipY;
+	view.vClipZ = g_nMeshletClipZ;
+	view.vClipW = g_nMeshletClipW;
+	view.vViewport = g_nMeshletViewport.xy;
+	view.nSamples = g_nMeshletSamples;
+	return view;
 }
 
 // The kept meshlets of the chunk a group is on: first triangle << 8 | triangles
@@ -221,6 +175,7 @@ void Copy( uint nJob, uint nThread )
 	bool b32 = ( vDrawHead.w & 2 ) != 0;
 	uint nPage = vDraw.w | ( b32 ? 0x80000000u : 0 );
 	bool bWhole = false;
+	MeshletView view = View();
 
 	for ( uint nChunk = 0; nChunk < nMeshlets && !bWhole; nChunk += ChunkMeshlets )
 	{
@@ -239,7 +194,7 @@ void Copy( uint nJob, uint nThread )
 			uint nAt = ( vRun.y + nChunk + m ) * 32;
 			uint4 r0 = meshlets.Load4( nAt );
 			uint4 r1 = meshlets.Load4( nAt + 16 );
-			if ( !Culled( asfloat( r0.xyz ), asfloat( r1.xyz ), mTransform ) )
+			if ( !MeshletCulled( view, asfloat( r0.xyz ), asfloat( r1.xyz ), mTransform ) )
 			{
 				uint nSlot;
 				InterlockedAdd( gs_Count, 1, nSlot );

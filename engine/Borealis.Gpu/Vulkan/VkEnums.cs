@@ -103,6 +103,7 @@ internal enum VkStructureType
 	PipelineExecutablePropertiesKhr = 1000269002,
 	PipelineExecutableInfoKhr = 1000269003,
 	PipelineExecutableStatisticKhr = 1000269004,
+	PhysicalDeviceMeshShaderFeaturesExt = 1000328000,
 	PhysicalDeviceFaultFeaturesExt = 1000341000,
 	DeviceFaultCountsExt = 1000341001,
 	DeviceFaultInfoExt = 1000341002,
@@ -284,6 +285,8 @@ internal static class Vk
 	public const uint StageVertex = 0x1;
 	public const uint StageFragment = 0x10;
 	public const uint StageCompute = 0x20;
+	public const uint StageTask = 0x40;
+	public const uint StageMesh = 0x80;
 	public const uint StageAllGraphics = 0x1F;
 	public const uint StageAll = 0x7FFFFFFF;
 

@@ -237,7 +237,11 @@ internal sealed partial class BackendContext
 	static uint[] ResidentRunWords( GpuDrivenPlan plan )
 	{
 		var words = new uint[plan.Runs.Length * 2];
-		for ( int i = 0; i < plan.Runs.Length; i++ ) words[i * 2] = (uint)ResidentRun( plan, i, default ).First;
+		for ( int i = 0; i < plan.Runs.Length; i++ )
+		{
+			words[i * 2] = (uint)ResidentRun( plan, i, default ).First;
+			if ( plan.Runs[i].Count == TaskTail ) words[i * 2 + 1] = 1;
+		}
 		return words;
 	}
 
@@ -571,7 +575,7 @@ internal sealed partial class BackendContext
 
 		var (compact, shaders, visibility, ids, lists) = CullState( cull );
 		var meshlets = MeshletsFor( cull, ids );
-		if ( !compact || ids != plan.Key.Ids || lists != plan.Key.Lists || meshlets != plan.Key.Meshlets ) return false;
+		if ( !compact || ids != plan.Key.Ids || lists != plan.Key.Lists || meshlets != plan.Key.Meshlets || (meshlets && MeshTasksFor( cull, ids )) != plan.Key.MeshTasks ) return false;
 
 		var frame = device.GpuDrivenFrame;
 		if ( device.ResidentCulls.Take( cull.View, plan, frame ) is not { } assignment ) return false;

@@ -174,6 +174,8 @@ public sealed class PassModules : IShaderModules
 				vertex = Copy( vertex, expansion: PrimitiveExpansion.Parse( expansion.From, expansion.Vertices, expansion.Topology ) );
 			var pixel = Stage( StageKind.Pixel, out var pixelValues );
 			var compute = Stage( StageKind.Compute, out _ );
+			var task = Stage( StageKind.Task, out _ );
+			var mesh = Stage( StageKind.Mesh, out _ );
 			if ( pixel is not null )
 			{
 				var all = new Dictionary<string, int>( pixelValues );
@@ -186,7 +188,9 @@ public sealed class PassModules : IShaderModules
 				Vertex = vertex,
 				Pixel = pixel,
 				Compute = compute,
-				Key = $"{module.Text.GetHashCode()}|{vertex?.Name}|{pixel?.Name}|{compute?.Name}|{Key( pixel?.RenderStates )}|{Key( vertex )}{Key( pixel )}{Key( compute )}",
+				Task = task,
+				Mesh = mesh,
+				Key = $"{module.Text.GetHashCode()}|{vertex?.Name}|{pixel?.Name}|{compute?.Name}|{task?.Name}|{mesh?.Name}|{Key( pixel?.RenderStates )}|{Key( vertex )}{Key( pixel )}{Key( compute )}{Key( task )}{Key( mesh )}",
 			};
 		}
 		catch ( ShaderCompileException e )
@@ -342,7 +346,7 @@ public sealed class PassModules : IShaderModules
 
 		return new ModuleStage
 		{
-			Type = kind switch { StageKind.Vertex => ShaderProgramType.Vertex, StageKind.Compute => ShaderProgramType.Compute, _ => ShaderProgramType.Pixel },
+			Type = kind switch { StageKind.Vertex => ShaderProgramType.Vertex, StageKind.Compute => ShaderProgramType.Compute, StageKind.Task => ShaderProgramType.Task, StageKind.Mesh => ShaderProgramType.Mesh, _ => ShaderProgramType.Pixel },
 			Name = $"{Path.GetFileName( shader.Name )} {stage.Entry} ({key.GetHashCode():x8})",
 			Spirv = stage.Spirv,
 			AttributeMap = map,

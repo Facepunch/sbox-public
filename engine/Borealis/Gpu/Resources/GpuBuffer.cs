@@ -89,6 +89,15 @@ public class GpuBuffer : IDisposable
 		Resource = RenderHost.Current.Device.CreateBuffer( elementCount, elementSize, usage, name );
 	}
 
+	/// <summary>A buffer the renderer made and keeps itself, wrapped so draws can bind it by attribute; disposing it frees it.</summary>
+	internal GpuBuffer( IDisposable resource, int elementCount, int elementSize )
+	{
+		ElementCount = elementCount;
+		ElementSize = elementSize;
+		Usage = UsageFlags.Structured;
+		Resource = resource;
+	}
+
 	/// <summary>
 	/// Copy data into it now, outside any recorded work.
 	/// </summary>
