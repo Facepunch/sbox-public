@@ -2,7 +2,7 @@
 HEADER
 {
 	DevShader = true;
-	Description = "Borealis meshlet culling: a group per chunk of each fragment a depth prepass listed tests its meshlets against the view and draws those that can reach a sample from compacted indices.";
+	Description = "Borealis meshlet culling: a group per fragment a depth prepass listed tests its meshlets against the view and draws those that can reach a sample from compacted indices.";
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -24,12 +24,18 @@ COMMON
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // The work is in borealis_meshlet_cull_cs.slang, which Borealis.Gpu draws: the backend only culls meshlets where pass
-// modules run. This declares the constants, whose reflection the backend's struct is checked against.
+// modules run. This declares the constants, whose reflection the backend's struct is checked against, and the buffers.
 CS
 {
 	#include "common.fxc"
+	#include "transform_buffer.fxc"
 
+	// The module's buffers, declared for their bindings
 	RWByteAddressBuffer g_Frame < Attribute( "BorealisCullFrame" ); >;
+	RWByteAddressBuffer g_Compacted < Attribute( "BorealisMeshletCompacted" ); >;
+	RWByteAddressBuffer g_Compacted16 < Attribute( "BorealisMeshletCompacted16" ); >;
+	RWByteAddressBuffer g_MeshletStamps < Attribute( "BorealisMeshletStamps" ); >;
+	RWByteAddressBuffer g_MeshletJobs < Attribute( "BorealisMeshletJobs" ); >;
 
 	cbuffer BorealisMeshletCull_t
 	{
@@ -55,9 +61,11 @@ CS
 	[numthreads( 64, 1, 1 )]
 	void MainCs( uint3 vGroupId : SV_GroupID )
 	{
-		// Keep the constants: a count of what it would cull, written nowhere a draw reads
+		// Keep the constants and buffers: a count of what it would cull, written nowhere a draw reads
+		uint nTransforms, nStride;
+		g_TransformData.GetDimensions( nTransforms, nStride );
 		if ( g_nMeshletListed == 0xffffffffu )
-			g_Frame.Store( 0, g_nMeshletInstances + g_nMeshletCommands + g_nMeshletFirstInstance + g_nMeshletRuns + g_nMeshletDraws + g_nMeshletRunTable + g_nMeshletCapacity
+			g_Frame.Store( 0, nTransforms + g_Compacted.Load( 0 ) + g_Compacted16.Load( 0 ) + g_MeshletStamps.Load( 0 ) + g_MeshletJobs.Load( 0 ) + g_nMeshletInstances + g_nMeshletCommands + g_nMeshletFirstInstance + g_nMeshletRuns + g_nMeshletDraws + g_nMeshletRunTable + g_nMeshletCapacity
 				+ g_nMeshletFragmentWords + g_nMeshletSamples + g_nMeshletPass + g_nMeshletFrame + asuint( g_nMeshletViewport.x + g_nMeshletClipX.x + g_nMeshletClipY.x + g_nMeshletClipZ.x + g_nMeshletClipW.x ) );
 	}
 }
