@@ -395,6 +395,13 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal bool CarryScopes { get; set; }
 
+	/// <summary>
+	/// A list recorded beside others starts from where the lists before leave its textures, as learnt the last time the frame
+	/// had the same shape (<see cref="GpuContext.PlanLayouts"/>), and moves them itself, rather than by a fix-up list at
+	/// submission. Off for comparisons.
+	/// </summary>
+	internal bool LayoutPlans { get; set; } = true;
+
 	/// <summary>Send the frame's lists held for one submission (<see cref="BatchSubmits"/>) to the GPU.</summary>
 	public override void EndSubmitting() => Gpu.Flush();
 

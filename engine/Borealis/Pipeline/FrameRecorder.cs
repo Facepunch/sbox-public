@@ -66,6 +66,9 @@ internal sealed partial class FrameRecorder : IDisposable
 		/// <summary>When it was recorded, and on which thread.</summary>
 		public long StartedAt, EndedAt;
 		public int Thread;
+
+		/// <summary>The frame's shape up to and including this segment, for the device's layout plan (<see cref="GpuContext.PlanLayouts"/>).</summary>
+		public int Shape;
 	}
 
 	/// <summary>
@@ -614,6 +617,10 @@ internal sealed partial class FrameRecorder : IDisposable
 		for ( int l = 0; l < layerCount; l++ )
 			layers[l].Layer.BeforeSegments( layers[l].Frame, layers[l].Frame.System.FrameContext );
 
+		var shape = 0;
+		for ( int i = 0; i < segmentCount; i++ )
+			segments[i].Shape = shape = HashCode.Combine( shape, ShapeOf( i ) );
+
 		var start = Stopwatch.GetTimestamp();
 		var workers = 0;
 		for ( int i = 0; i < segmentCount; i++ )
@@ -709,7 +716,11 @@ internal sealed partial class FrameRecorder : IDisposable
 			// Context command memory is thread-owned (CRenderBatchList::Start). Only fully serial frames share the first context.
 			rc.BeginSegment( frame.System.FrameContext, SeparateContexts ? null : frames[0].System.FrameContext );
 			rc.InheritViewConstants( frame.ConstantsKey );
-			if ( SeparateContexts ) rc.CarryRendering( Carries( slot ), Carries( slot + 1 ) );
+			if ( SeparateContexts )
+			{
+				rc.CarryRendering( Carries( slot ), Carries( slot + 1 ) );
+				rc.PlanLayouts( segment.Shape );
+			}
 			GpuContext.Recording = rc;
 
 			// What the async layers left for graphics, now they're done
@@ -752,6 +763,20 @@ internal sealed partial class FrameRecorder : IDisposable
 		return segment.Kind == SegmentKind.Draw && before.Kind == SegmentKind.Draw && segment.Frame == before.Frame
 			&& segment.First > 0 && before.Index + before.Count - 1 == segment.Index && before.End == segment.First
 			&& segment.HandOff < 0 && segment.WaitFor < 0 && !before.Signal && !segment.Async && !before.Async;
+	}
+
+	/// <summary>
+	/// What segment <paramref name="i"/> records, for the frame's shape: its kind, frame and the layers and views it starts
+	/// and ends with, and what it waits for. Not its draw counts, which change from frame to frame.
+	/// </summary>
+	int ShapeOf( int i )
+	{
+		ref var segment = ref segments[i];
+		var last = segment.Index + segment.Count - 1;
+		var (first, end) = segment.Kind == SegmentKind.Draw
+			? (HashCode.Combine( work[segment.Index].Layer, work[segment.Index].View ), HashCode.Combine( work[last].Layer, work[last].View ))
+			: segment.Count > 0 ? (HashCode.Combine( layers[segment.Index].Layer ), HashCode.Combine( layers[last].Layer )) : (0, 0);
+		return HashCode.Combine( segment.Kind, segment.Frame, first, end, segment.Count, segment.HandOff, segment.WaitFor, segment.Async );
 	}
 
 	/// <summary>
