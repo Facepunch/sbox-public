@@ -562,7 +562,7 @@ internal sealed partial class BackendContext
 		// The visibility-driven forward pass: the view's ids and lists, compacting only
 		var (compact, shaders, visibility, ids, lists) = CullState( cull );
 		var meshlets = compact && MeshletsFor( cull, ids );
-		var meshTasks = meshlets && MeshTasksFor( cull, ids );
+		var meshTasks = meshlets && MeshTasksFor( cull, ids ) && device.PrepassCompactedFor( visibility ).IsValid && visibility.MeshletKept;
 		var listing = lists || meshlets;
 
 		// One region: the view, the batches, the multi-draws (first slot and visible count, when compacting; a run of
@@ -1397,8 +1397,8 @@ internal sealed partial class BackendContext
 			if ( !visibility.MeshletStampsCleared ) r.List.FillBuffer( visibility.MeshletStamps, 0 );
 			visibility.MeshletStampsCleared = true;
 
-			// The kept lists' cursor, which task shaders count up (borealis_meshlet_ids)
-			r.List.FillBuffer( visibility.MeshletStamps, 0, BackendDevice.MeshletKeptAt, 4 );
+			// The kept triangles' cursor, which task shaders count up (borealis_meshlet_ids)
+			if ( visibility.MeshletKept ) r.List.FillBuffer( visibility.MeshletStamps, 0, BackendDevice.MeshletKeptAt, 4 );
 		}
 		r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader | (device.Gpu.Capabilities.MeshShaders ? PipelineStage.TaskShader : 0), MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 	}
