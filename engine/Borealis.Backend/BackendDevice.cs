@@ -867,6 +867,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
+	/// A compiled material as its <c>.shader</c> draws it, with its shader, values and textures: <see cref="LoadMaterial(string)"/>'s,
+	/// or where a surface stands in for its shader in the scene, the surface's fallback. What the engine's drawing
+	/// (<see cref="ShaderDrawer.Material"/>) takes, as it draws the <c>.shader</c>. Null when it can't be read.
+	/// </summary>
+	internal BackendMaterial ShaderMaterial( string path )
+	{
+		var loaded = LoadMaterial( path );
+		var material = (loaded as SurfaceMaterial)?.Fallback as BackendMaterial ?? loaded as BackendMaterial;
+		return material?.Shader is null ? null : material;
+	}
+
+	/// <summary>
 	/// A material whose <c>.shader</c> has a surface standing in for it (<see cref="SurfaceShaders.Convert"/>), as that
 	/// surface with the material's values; null when it has none or doesn't compile.
 	/// </summary>
