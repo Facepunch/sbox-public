@@ -85,12 +85,12 @@ public sealed partial class Material : Resource
 	bool releaseQueued;
 
 	/// <summary>
-	/// Free a copy made by <see cref="CreateCopy"/> at the end of this frame, once everything has rendered, rather than whenever
-	/// the GC finalizes it: its strong handle goes then, and with native's last reference its material and layers. What drew
-	/// it must have let go of it by then (its scene object deleted, or given another material). Does nothing for a material
-	/// that isn't a copy, which others share.
+	/// Free a copy made by <see cref="CreateCopy"/> now, rather than when the garbage collector finalizes it. It goes at the
+	/// end of this frame, after everything has rendered, so draws this frame may still use it; nothing should draw with it
+	/// after that (delete its scene object, or give it another material). Does nothing for a material that isn't a copy, such
+	/// as one from <see cref="Load(string)"/>, which others share.
 	/// </summary>
-	internal void ReleaseCopy()
+	public void ReleaseCopy()
 	{
 		if ( !IsCopy || releaseQueued || native.IsNull ) return;
 
