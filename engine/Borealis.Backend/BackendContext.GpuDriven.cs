@@ -834,12 +834,14 @@ internal sealed partial class BackendContext
 				if ( written > runStart ) cullRuns.Add( (b, currentPage, currentFormat, runStart, written - runStart) );
 
 				// Kept meshlets drawn by task and mesh shaders: a task run, a slot per fragment the culling lists (the task
-				// shader reads each slot's instance record), then a run of 1 and 1 after its count, so that the count and it make
-				// the task draw's group counts. The records' sixth word names the task run, with TaskRun set
+				// shader reads each slot's instance record); then a run whose count the culling counts up, a task group per
+				// TaskSlots slots; then a run of 1 and 1, so that the task groups and it make the task draw's group counts. The
+				// records' sixth word names the task run, with TaskRun set
 				if ( bucketCompact && bucket.MeshTasks )
 				{
 					var taskRun = cullRuns.Count;
 					cullRuns.Add( (b, default, IndexFormat.UInt32, compactWritten, TaskRunCount( bucket.Fragments )) );
+					cullRuns.Add( (b, default, IndexFormat.UInt32, 1, TaskGroups) );
 					cullRuns.Add( (b, default, IndexFormat.UInt32, 1, TaskTail) );
 					compactWritten += bucket.Fragments;
 					for ( int i = record - bucket.Batches.Count; i < record; i++ ) batchRecords[i * (CullBatchBytes / 4) + 5] = (uint)taskRun | TaskRunBit;
@@ -1285,7 +1287,7 @@ internal sealed partial class BackendContext
 		}
 
 		var compacted = new bool[runs];
-		for ( int i = 0; i < runs; i++ ) compacted[i] = compactedBuffer.IsValid && cullRuns[i].Count != TaskTail && (cullRuns[i].Page == compactedBuffer || cullRuns[i].First >= totalFragments);
+		for ( int i = 0; i < runs; i++ ) compacted[i] = compactedBuffer.IsValid && cullRuns[i].Count is not (TaskTail or TaskGroups) && (cullRuns[i].Page == compactedBuffer || cullRuns[i].First >= totalFragments);
 
 		var materials = new List<(GpuMaterial, int)>();
 		var attributes = new List<(BackendParameters, int)>();
@@ -1407,8 +1409,12 @@ internal sealed partial class BackendContext
 			if ( !visibility.MeshletStampsCleared ) r.List.FillBuffer( visibility.MeshletStamps, 0 );
 			visibility.MeshletStampsCleared = true;
 
-			// The kept triangles' cursor, which task shaders count up (borealis_meshlet_ids)
-			if ( visibility.MeshletKept ) r.List.FillBuffer( visibility.MeshletStamps, 0, BackendDevice.MeshletKeptAt, 4 );
+			// The kept triangles' and kept meshlets' cursors, which task shaders count up (borealis_meshlet_ids)
+			if ( visibility.MeshletKept )
+			{
+				r.List.FillBuffer( visibility.MeshletStamps, 0, BackendDevice.MeshletKeptAt, 4 );
+				r.List.FillBuffer( visibility.MeshletStamps, 0, BackendDevice.MeshletListAt, 4 );
+			}
 		}
 		r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader | (device.Gpu.Capabilities.MeshShaders ? PipelineStage.TaskShader : 0), MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 	}
@@ -1520,6 +1526,9 @@ internal sealed partial class BackendContext
 
 		/// <summary>The faces the pipeline culls, which the mesh shader culls first: 0 none, 1 front, 2 back.</summary>
 		public uint CullMode;
+
+		/// <summary>The kept meshlets' byte offset in the meshlet stamps (a cursor, then 8-byte entries) and how many fit.</summary>
+		public uint ListAt, ListCapacity;
 	}
 
 	/// <summary>A batch record's sixth word's bit for a bucket drawn with task and mesh shaders: the rest is its task run.</summary>
@@ -1528,8 +1537,17 @@ internal sealed partial class BackendContext
 	/// <summary>A task run's count in <see cref="cullRuns"/> (negative, with its slots): what tells it from a multi-draw.</summary>
 	static int TaskRunCount( int slots ) => -1 - slots;
 
-	/// <summary>The count of the run after a task run, whose words are 1 and 1: the task draw's second and third group counts.</summary>
+	/// <summary>The count of the last run after a task run, whose words are 1 and 1: the task draw's second and third group counts.</summary>
 	internal const int TaskTail = int.MinValue;
+
+	/// <summary>
+	/// The count of the run after a task run, whose words are 1 and its task groups (<see cref="TaskSlots"/> slots each),
+	/// which the culling counts up: the task draw's first group count.
+	/// </summary>
+	internal const int TaskGroups = int.MinValue + 1;
+
+	/// <summary>Slots of a task run each task group of <c>borealis_meshlet_ids</c> takes (its <c>TaskSlots</c>, the culls' too).</summary>
+	internal const int TaskSlots = 16;
 
 	/// <summary>Task groups a task run may launch: a draw's first group count, at most 65535 where the device allows only the minimum.</summary>
 	const int MaxTaskGroups = 65535;
@@ -1572,7 +1590,7 @@ internal sealed partial class BackendContext
 		{
 			var run = cullRuns[i];
 			var bucket = gpuDrivenBuckets[run.Bucket];
-			if ( !bucket.Ids || run.Count == TaskTail ) continue;
+			if ( !bucket.Ids || run.Count is TaskTail or TaskGroups ) continue;
 			var censusBefore = Census ? PassTimer.Recorded.Of( r.List ) : default;
 
 			// A task run: borealis_meshlet_ids with the bucket's culling, depth and stencil, its group counts the run's count and tail
@@ -1614,8 +1632,10 @@ internal sealed partial class BackendContext
 					KeptAt = BackendDevice.MeshletKeptAt,
 					KeptCapacity = BackendDevice.MeshletKeptCapacity,
 					CullMode = (uint)((bucket.Variant ?? idsShaderVariant).State.Cull),
+					ListAt = BackendDevice.MeshletListAt,
+					ListCapacity = BackendDevice.MeshletListCapacity,
 				} );
-				r.List.DrawMeshTasksIndirect( frameBuffer, frameOffset + runsOffset + i * 8 + 4 );
+				r.List.DrawMeshTasksIndirect( frameBuffer, frameOffset + runsOffset + (i + 1) * 8 + 4 );
 				gpuDrivenRuns++;
 				continue;
 			}

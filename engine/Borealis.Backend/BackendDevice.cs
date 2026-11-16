@@ -1619,6 +1619,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal const uint MeshletKeptCapacity = 6 << 20;
 
 	/// <summary>
+	/// Where a view's kept meshlets start in its meshlet stamps (after the kept triangles): a cursor, then
+	/// <see cref="MeshletListCapacity"/> entries of 8 bytes, each task group's kept meshlets for its mesh groups.
+	/// </summary>
+	internal const uint MeshletListAt = MeshletKeptAt + 4 + MeshletKeptCapacity * 4;
+
+	/// <summary>
+	/// Meshlets a view's task groups list in a frame (room for every meshlet of their fragments, taken before culling them);
+	/// a task group without room draws all its fragments' meshlets.
+	/// </summary>
+	internal const uint MeshletListCapacity = 1 << 20;
+
+	/// <summary>
 	/// A view's prepass compacted buffer (<see cref="VisibilityView.PrepassCompacted"/>), with its meshlet stamps, made the
 	/// first time.
 	/// </summary>
@@ -1630,7 +1642,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
 			// Room for task shaders' kept triangles only where they draw
 			state.MeshletKept = MeshletIds is not null;
-			var stampBytes = state.MeshletKept ? MeshletKeptAt + 4 + MeshletKeptCapacity * 4L : MeshletKeptAt;
+			var stampBytes = state.MeshletKept ? MeshletListAt + 4 + MeshletListCapacity * 8L : MeshletKeptAt;
 			state.MeshletStamps = Gpu.CreateBuffer( new BufferInfo { Size = stampBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet stamps" } );
 			state.MeshletJobs = Gpu.CreateBuffer( new BufferInfo { Size = 16 + MeshletJobCapacity * 16L, Usage = BufferUsage.Storage | BufferUsage.Indirect | BufferUsage.CopyDestination, Name = "Borealis meshlet copy jobs" } );
 			visibilityBuffers.Add( state.MeshletJobs );

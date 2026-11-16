@@ -212,8 +212,12 @@ uint WaveAppend( bool bTake, uint nCounter )
 }
 
 // A batch record's sixth word with this bit: its bucket's meshlets are drawn with task and mesh shaders, from the task run
-// the rest names (its first slot and count, then a run of 1 and 1, which make the count a task draw's arguments)
+// the rest names (its first slot and count; then its task groups, a group per TaskSlots slots, after a 1; then a run of
+// 1 and 1, which make the task groups a task draw's arguments)
 static const uint TaskRun = 0x80000000u;
+
+// Slots of a task run a task group of borealis_meshlet_ids takes
+static const uint TaskSlots = 16;
 
 // The next slot of multi-draw nRun (multi-draws at nRuns: first slot and count each) for each lane that takes one: lanes of
 // the same multi-draw share one atomic. A wave's entries are a few batches', so it meets few multi-draws. Every lane calls it
@@ -475,7 +479,7 @@ void Expand( uint n )
 			&& g_bindless_VertexBuffers[ g_nResidentMeshletRuns ].Load( nViewDraw * 16 + 8 ) - 1 < 4096u;
 
 		// In a bucket drawn with task and mesh shaders (the sixth word's top bit), it takes a slot of the bucket's task run
-		// instead, a task group of borealis_meshlet_ids each
+		// instead, which task groups of borealis_meshlet_ids take TaskSlots at a time
 		bool bTask = bMeshlets && ( vVisibility.y & TaskRun ) != 0;
 		bMeshlets = bMeshlets && !bTask;
 
@@ -503,6 +507,10 @@ void Expand( uint n )
 		uint nSlot = WaveTakeSlot( bDrawn || bTask, vView.w, bTask ? vVisibility.y & ~TaskRun : vBatch.w, frame );
 		if ( bTask )
 		{
+			// A task group for each TaskSlots slots of the run
+			uint nRun = vVisibility.y & ~TaskRun;
+			if ( ( nSlot - frame.Load( vView.w + nRun * 8 ) ) % TaskSlots == 0 )
+				g_Frame.InterlockedAdd( vView.w + nRun * 8 + 12, 1 );
 			g_Frame.Store2( vView.y + nSlot * 8, uint2( nTransform, nViewDraw ) );
 			g_Frame.Store( vViewOut.y + ( vViewOut.x + nSlot ) * 4, nFragment != None ? nVertexBase : None );
 			g_Frame.Store( vView.z + nSlot * 20, nFragment );
