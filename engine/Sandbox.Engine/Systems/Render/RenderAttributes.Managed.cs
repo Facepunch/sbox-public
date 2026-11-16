@@ -15,6 +15,21 @@ public partial class RenderAttributes
 	/// </summary>
 	internal bool IsManaged => Managed is not null;
 
+	/// <summary>
+	/// A managed copy of a native set's values, kept when the process draws on a backend that lowers attributes itself
+	/// (<see cref="KeepManagedCopy"/>): a custom object's, which it merges into the attributes it draws with under
+	/// <c>-borealisgpu</c>. Null otherwise, and always for a set that is <see cref="Managed"/>.
+	/// </summary>
+	internal ManagedRenderAttributes Shadow { get; private set; }
+
+	/// <summary>
+	/// Keep a managed copy of what's set on this native set from now on (<see cref="Shadow"/>), so it merges into managed sets.
+	/// </summary>
+	internal void KeepManagedCopy()
+	{
+		if ( Managed is null ) Shadow ??= new ManagedRenderAttributes();
+	}
+
 	RenderAttributes( ManagedRenderAttributes managed )
 	{
 		Managed = managed;

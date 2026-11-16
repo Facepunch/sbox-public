@@ -212,6 +212,20 @@ public sealed class GraphicsContext
 	}
 
 	/// <summary>
+	/// Draw <paramref name="instances"/> instances of a model's draw call into the target: <paramref name="indexCount"/>
+	/// 32-bit indices from <paramref name="firstIndex"/>, its vertices of <paramref name="layout"/> in
+	/// <paramref name="vertices"/> from <paramref name="baseVertex"/>, as <c>Graphics.DrawModelInstanced</c> draws a model.
+	/// With the identity transform unless the draw sets its own, as <see cref="DrawVertices"/>.
+	/// </summary>
+	public bool DrawIndexed( ShaderFile shader, ShaderAttributes attributes, BufferHandle vertices, VertexStreamLayout layout, BufferHandle indices, int firstIndex, int indexCount, int baseVertex, int instances )
+	{
+		var depth = BeginScope( shader, attributes );
+		Draws++;
+		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
+		return drawer.DrawIndexed( List, shader, attributes, TargetFormat, depth, TargetSamples, vertices, layout, indices, firstIndex, indexCount, baseVertex, instances, Viewport );
+	}
+
+	/// <summary>
 	/// Draw vertices into depth alone - a target of the bound colour target's size, which only this draw's scope uses, its
 	/// contents never read - counting the samples that pass into occlusion query <paramref name="query"/>, which is reset
 	/// first: how native counts the pixels of a frame in a luminance range for auto exposure (<c>tonemap_query</c>, with
