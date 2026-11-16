@@ -258,6 +258,37 @@ public class GraphicsContextTests : GpuTest
 	}
 
 	/// <summary>
+	/// <see cref="GraphicsContext.ClearDepth"/> (<c>Graphics.Clear</c> asked to clear depth) clears the bound depth to the far
+	/// plane, 0: a depth at a quarter reads 0 everywhere after, through the depth chain.
+	/// </summary>
+	[TestMethod]
+	public void ClearDepthClearsTheBoundDepth()
+	{
+		const int size = 64;
+		var list = Device.BeginCommandList( QueueType.Graphics, "Depth cleared" );
+		var context = new GraphicsContext( Device, drawer, list );
+		var color = context.CreateTarget( size, size, Format.RGBA8Unorm, name: "Colour" );
+		var depth = Device.CreateTexture( TextureInfo.RenderTarget( size, size, Format.D32FloatS8Uint, name: "Depth" ) );
+		var chain = context.CreateTarget( size, size, Format.RG32Float, mips: 7, name: "Depth chain" );
+
+		list.Barrier( TextureBarrier.Transition( depth, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.None, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		list.ClearTexture( depth, depth: 0.25f, stencil: 7 );
+		context.Track( depth, ImageLayout.CopyDestination );
+		context.SetTarget( color, depth );
+		context.ClearDepth();
+		context.BuildDepthChain( depth, chain, library.Load( "shaders/downsample_spd.shader" ) );
+
+		var readback = Device.CreateBuffer( new BufferInfo { Size = size * size * 8, Memory = MemoryLocation.Readback, Name = "Chain" } );
+		context.CopyToBuffer( chain, readback, 0 );
+		Device.Wait( Device.Submit( list ) );
+
+		var texels = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>( Device.Map( readback )[..(size * size * 8)] ).ToArray();
+		Assert.IsTrue( texels.All( d => d == 0 ), $"mip 0 holds {texels.Distinct().Count()} values, first {texels[0]}, not the cleared depth" );
+		Device.Destroy( depth );
+		context.Release();
+	}
+
+	/// <summary>
 	/// ui_filter's attributes for drawing <paramref name="texture"/> unfiltered at (<paramref name="x"/>,
 	/// <paramref name="y"/>), as <c>Painter.CompositeLayer</c> sets them for a layer in gamma space.
 	/// </summary>

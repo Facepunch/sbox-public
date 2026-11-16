@@ -28,11 +28,37 @@ public class RenderAttributeShadowTest
 		CollectionAssert.AreEqual( new[] { 3f, 4f }, target.Managed.GetFloats( "Offset" ) );
 		Assert.AreEqual( 1, target.Managed.GetCombo( "D_GRID" ) );
 
+		// The copy says when it changed, so what reads it converts it again only then
+		var version = source.Shadow.Version;
+		source.Set( "Height", 3.0f );
+		Assert.AreNotEqual( version, source.Shadow.Version );
+		CollectionAssert.AreEqual( new[] { 3f }, source.Shadow.GetFloats( "Height" ) );
+
 		// Without the copy a native set has nothing to give a managed one
 		var plain = new RenderAttributes();
 		plain.Set( "Height", 2.5f );
 		var empty = RenderAttributes.CreateManaged();
 		plain.MergeTo( empty );
 		Assert.IsNull( empty.Managed.GetFloats( "Height" ) );
+	}
+
+	/// <summary>
+	/// The managed copy as a set of its own (what a dynamic object draws with on Borealis.Gpu) is managed, reads what's set
+	/// on the native set after it's made, and is the same set every time.
+	/// </summary>
+	[TestMethod]
+	public void ShadowSetIsTheManagedCopy()
+	{
+		var source = new RenderAttributes();
+		Assert.IsNull( source.ShadowSet, "no copy, no set" );
+
+		source.KeepManagedCopy();
+		var set = source.ShadowSet;
+		Assert.IsTrue( set.IsManaged );
+		source.Set( "LineThickness", 3.0f );
+		source.SetCombo( "D_NO_ZTEST", 1 );
+		CollectionAssert.AreEqual( new[] { 3f }, set.Managed.GetFloats( "LineThickness" ) );
+		Assert.AreEqual( 1, set.Managed.GetCombo( "D_NO_ZTEST" ) );
+		Assert.AreSame( set, source.ShadowSet );
 	}
 }

@@ -56,6 +56,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 	readonly BufferHandle pipelineTextures;
 
 	// SetRenderState's material, for the draw after it
+	Material pendingMaterial;
 	ShaderFile pendingShader;
 	RenderAttributes pendingAttributes;
 
@@ -271,7 +272,9 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 			lent = false;
 			presentTo = null;
 			pendingAttributes = null;
+			pendingMaterial = null;
 			blockAttributes = null;
+			drawer.Material = null;
 		}
 	}
 
@@ -468,7 +471,8 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		{
 			var info = TextureInfo.RenderTarget( texture.Width, texture.Height, FormatOf( texture.ImageFormat ), name: $"Engine target {texture.Width}x{texture.Height}" );
 			info.Mips = Math.Max( texture.Mips, 1 );
-			info.Usage |= TextureUsage.Storage;
+			var depth = info.Format.IsDepth();
+			if ( !depth ) info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
 
 			// A target made with pixels - an image whose mips Source 2 generates, or one made for compute - starts with them
@@ -479,7 +483,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 			else
 			{
 				context.Track( handle, ImageLayout.Undefined );
-				if ( texture.InitialColor is { } clear ) ClearNow( handle, clear );
+				if ( !depth && texture.InitialColor is { } clear ) ClearNow( handle, clear );
 			}
 		}
 		else if ( FromFile( texture ) is { } file )
@@ -727,10 +731,18 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		gpu.Submit( clear );
 	}
 
-	// An A8 target is one channel written and read as red (ambient occlusion's result), as its R8 image holds it
-	static GpuFormat FormatOf( ImageFormat format ) => format is not ImageFormat.I8 && DataFormatOf( format ) is var mapped && mapped != GpuFormat.Unknown
-		? mapped
-		: throw new NotSupportedException( $"Render target format {format} on Borealis.Gpu" );
+	const string UncompressedTangentFrame = "UncompressedTangentFrame";
+
+	// An A8 target is one channel written and read as red (ambient occlusion's result), as its R8 image holds it. Depth with
+	// stencil is 32-bit float depth, as the frame's depth is
+	static GpuFormat FormatOf( ImageFormat format ) => format switch
+	{
+		ImageFormat.D24S8 or ImageFormat.LINEAR_D24S8 or ImageFormat.D24FS8 or ImageFormat.D32FS8 => GpuFormat.D32FloatS8Uint,
+		ImageFormat.D32 or ImageFormat.D24X8 => GpuFormat.D32Float,
+		_ => format is not ImageFormat.I8 && DataFormatOf( format ) is var mapped && mapped != GpuFormat.Unknown
+			? mapped
+			: throw new NotSupportedException( $"Render target format {format} on Borealis.Gpu" ),
+	};
 
 	/// <summary>
 	/// A buffer's backing. One made while recording for another device starts with what Source 2's copy holds.
@@ -809,6 +821,9 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 	ShaderAttributes Lower( RenderAttributes attributes )
 	{
 		lowered.Clear();
+
+		// A native set that keeps a managed copy (a custom or dynamic object's) draws with the copy
+		if ( attributes?.Managed is null && attributes?.ShadowSet is { } copy ) attributes = copy;
 		if ( attributes?.Managed is null )
 			throw new NotSupportedException( "Native render attributes can't be drawn with on Borealis.Gpu" );
 
@@ -853,6 +868,38 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 
 	ShaderFile Require( Material material ) => ShaderOf( material ) ?? throw new NotSupportedException( $"{material} has no compiled shader Borealis.Gpu can load" );
 
+	/// <summary>
+	/// The shader a draw with <paramref name="material"/> draws with, and the material's compiled file as the drawer's
+	/// material (<see cref="ShaderDrawer.Material"/>: its features, constants and textures), as native binds a material's mode.
+	/// A material made or changed in code (a copy) has no file to read and draws with its shader's defaults.
+	/// </summary>
+	ShaderFile Prepare( Material material )
+	{
+		// The shader by the material's name, which also learns the names its attributes lower to; the file's values only
+		// when it names the same shader
+		var shader = Require( material );
+		var values = MaterialValues ? MaterialFile( material ) : null;
+		drawer.Material = values is not null && ReferenceEquals( values.Shader, shader ) ? values : null;
+		return shader;
+	}
+
+	/// <summary>Draw with materials' compiled values (the default); off draws their shaders' defaults, for comparisons.</summary>
+	internal static bool MaterialValues { get; set; } = true;
+
+	readonly ConditionalWeakTable<Material, Backing<BackendMaterial>> materialFiles = new();
+
+	BackendMaterial MaterialFile( Material material )
+	{
+		if ( material is null ) return null;
+		if ( materialFiles.TryGetValue( material, out var known ) ) return known.Handle;
+
+		var path = material.ResourcePath;
+		var file = !material.IsCopy && !string.IsNullOrEmpty( path ) && files.Find( path ) is not null ? services.LoadMaterial( path ) as BackendMaterial : null;
+		if ( file?.Shader is null ) file = null;
+		materialFiles.Add( material, new Backing<BackendMaterial>( file ) );
+		return file;
+	}
+
 	GpuCommandList Recording => list ?? throw new InvalidOperationException( "Borealis.Gpu draws need a render block (Graphics.Scope.CreateOn)." );
 
 	//
@@ -885,6 +932,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 	{
 		_ = Recording;
 		if ( clearColor ) context.Clear( new Num.Vector4( color.r, color.g, color.b, color.a ) );
+		if ( clearDepth || clearStencil ) context.ClearDepth();
 	}
 
 	public override void ClearTexture( Texture texture, Color color )
@@ -913,9 +961,12 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		if ( vertexType != typeof( Vertex ) ) throw new NotSupportedException( $"Vertices of {vertexType} on Borealis.Gpu" );
 		if ( indices != IntPtr.Zero ) throw new NotSupportedException( "Indexed CPU vertices on Borealis.Gpu" );
 
-		var shader = Require( material );
+		var shader = Prepare( material );
 		var bytes = new ReadOnlySpan<byte>( (void*)vertices, vertexSize * vertexCount );
-		context.DrawVertices( shader, Lower( attributes ), bytes, VertexStreamLayout.EngineVertex, vertexCount, Topology( primitiveType ) );
+		// CPU vertices hold plain normals and tangents, as a native view tells its draws (UncompressedTangentFrame)
+		var lowered = Lower( attributes );
+		if ( lowered.Get( UncompressedTangentFrame ) is null ) lowered.Set( UncompressedTangentFrame, 1.0f );
+		context.DrawVertices( shader, lowered, bytes, VertexStreamLayout.EngineVertex, vertexCount, Topology( primitiveType ) );
 	}
 
 	public override bool SetRenderState( Material material, RenderAttributes attributes, Type vertexType )
@@ -923,7 +974,8 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		_ = Recording;
 		if ( vertexType is not null ) throw new NotSupportedException( $"Vertex buffers of {vertexType} on Borealis.Gpu" );
 
-		pendingShader = Require( material );
+		pendingMaterial = material;
+		pendingShader = Prepare( material );
 		pendingAttributes = attributes;
 		return true;
 	}
@@ -933,6 +985,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		if ( primitiveType != Graphics.PrimitiveType.Triangles ) throw new NotSupportedException( $"Instanced {primitiveType} on Borealis.Gpu" );
 		if ( indexBuffer.ElementSize != sizeof( uint ) ) throw new NotSupportedException( "16-bit index buffers on Borealis.Gpu" );
 
+		Prepare( pendingMaterial );
 		context.DrawIndexedInstanced( pendingShader, Lower( pendingAttributes ), BufferOf( indexBuffer ), indexBuffer.ElementCount, instanceCount );
 	}
 
@@ -956,7 +1009,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		_ = Recording;
 		var geometry = GeometryOf( model );
 		foreach ( var draw in geometry.Draws )
-			context.DrawIndexed( Require( draw.Material ), Lower( attributes ), geometry.Vertices, VertexStreamLayout.EngineVertex, geometry.Indices, draw.FirstIndex, draw.IndexCount, draw.BaseVertex, count );
+			context.DrawIndexed( Prepare( draw.Material ), Lower( attributes ), geometry.Vertices, VertexStreamLayout.EngineVertex, geometry.Indices, draw.FirstIndex, draw.IndexCount, draw.BaseVertex, count );
 	}
 
 	/// <summary>
@@ -1069,6 +1122,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 	public override void Dispatch( Material computeMaterial, RenderAttributes attributes, int threadsX, int threadsY, int threadsZ )
 	{
 		_ = Recording;
+		drawer.Material = null;
 		if ( !context.Dispatch( Require( computeMaterial ), Lower( attributes ), threadsX, threadsY, threadsZ ) )
 			throw new InvalidOperationException( $"{computeMaterial} didn't dispatch on Borealis.Gpu" );
 	}
@@ -1076,6 +1130,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 	public override void DispatchIndirect( Material computeMaterial, RenderAttributes attributes, GpuBuffer indirectBuffer, uint bufferOffset )
 	{
 		_ = Recording;
+		drawer.Material = null;
 		if ( !context.DispatchIndirect( Require( computeMaterial ), Lower( attributes ), BufferOf( indirectBuffer ), bufferOffset ) )
 			throw new InvalidOperationException( $"{computeMaterial} didn't dispatch on Borealis.Gpu" );
 	}

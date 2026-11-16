@@ -61,10 +61,12 @@ struct CornerInputs
 	#endif
 };
 
+// The geometry stage offset a position its vertex stage had already flipped for Vulkan, then flipped it back before its own
+// flip: its offsets land mirrored in y against one added before this stage's flip
 void PositionOffset (inout PixelInput input, float2 vOffsetDir, float flOutlineSize)
 {
 	float2 vAspectRatio = normalize(g_vInvViewportSize);
-	input.vPositionPs.xy += (vOffsetDir * 2.0) * vAspectRatio * input.vPositionPs.w * flOutlineSize;
+	input.vPositionPs.xy += (float2( vOffsetDir.x, -vOffsetDir.y ) * 2.0) * vAspectRatio * input.vPositionPs.w * flOutlineSize;
 }
 
 [shader( "vertex" )] PixelInput MainVs( VertexInput i, CornerInputs c, uint nStripVertex : SV_VertexID )

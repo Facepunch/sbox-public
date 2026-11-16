@@ -1,4 +1,7 @@
 using Borealis.Backend;
+using System.Runtime.CompilerServices;
+using Borealis.Source2.Models;
+using System.Runtime.InteropServices;
 
 namespace Sandbox.Rendering.Bridge;
 
@@ -6,7 +9,9 @@ namespace Sandbox.Rendering.Bridge;
 /// An engine resource as what the mirror's world draws with on the device Borealis renders on (<see cref="RenderHost.Device"/>).
 /// On Source 2's device it's the resource's native handle, wrapped. On a Borealis.Gpu device (<c>-borealisgpu</c>) it's the
 /// compiled file Borealis.Source2 reads by the resource's path: what was made at run time (procedural models, materials and
-/// textures made in code) and attributes have no file, so they're null there.
+/// textures made in code) and attributes have no file: models made at run time are read back from Source 2 (see
+/// <see cref="RuntimeMesh"/>), attributes come from their managed copy (<see cref="ObjectParameters"/>), and the rest are
+/// null there.
 /// </summary>
 internal static class MirrorContent
 {
@@ -25,9 +30,40 @@ internal static class MirrorContent
 		pending = false;
 		if ( Gpu is not { } gpu ) return Source2Mesh.FromModel( model );
 
+		if ( model is { IsProcedural: true } ) return RuntimeMesh( model, gpu );
 		var path = model?.ResourcePath;
 		if ( string.IsNullOrEmpty( path ) ) return null;
 		return gpu.AsyncModels ? gpu.LoadModelAsync( path, ulong.MaxValue, out pending ) : gpu.LoadModel( path, ulong.MaxValue );
+	}
+
+	static readonly ConditionalWeakTable<Model, RuntimeModel> runtimeMeshes = new();
+	static readonly System.Collections.Concurrent.ConcurrentQueue<BackendModel> freedModels = new();
+
+	/// <summary>
+	/// A model made at run time (no file to read), on a Borealis.Gpu device: saved as a compiled model in memory
+	/// (<c>Model.SaveToVmdl</c>, its buffers read back from Source 2 as they are) and read as a model file is, its materials by
+	/// path. Its buffers are freed once the engine's model is gone.
+	/// </summary>
+	static RenderMesh RuntimeMesh( Model model, BackendDevice gpu )
+	{
+		while ( freedModels.TryDequeue( out var freed ) ) freed.Free();
+		if ( runtimeMeshes.TryGetValue( model, out var known ) ) return known.Mesh;
+
+		// Every mesh: a model built in code has no default mesh groups (native draws them all)
+		var mesh = BackendModel.Create( gpu, ModelFile.Read( model.SaveToVmdl(), gpu.Content.TryRead ), meshGroups: ulong.MaxValue, drawFastPath: true );
+		runtimeMeshes.AddOrUpdate( model, new RuntimeModel( mesh ) );
+		return mesh;
+	}
+
+	/// <summary>A run-time model's mesh, which frees its geometry after the engine's model is collected.</summary>
+	sealed class RuntimeModel( RenderMesh mesh )
+	{
+		public RenderMesh Mesh { get; } = mesh;
+
+		~RuntimeModel()
+		{
+			if ( Mesh.Geometry is BackendModel geometry ) freedModels.Enqueue( geometry );
+		}
 	}
 
 	public static GpuMaterial Material( Material material )
@@ -50,6 +86,48 @@ internal static class MirrorContent
 			? gpu.MaterialTexture( o.Material, o.Parameter )
 			: null;
 	}
+
+	/// <summary>
+	/// An object's attributes as its draws read them: native's on Source 2's device; on a Borealis.Gpu device, its managed copy
+	/// (<c>RenderAttributes.Shadow</c>) converted, again only when it changed. Numbers, vectors, matrices, combos and textures
+	/// with a file carry over; buffers, samplers and constant buffers don't yet.
+	/// </summary>
+	public static ShaderParameters ObjectParameters( RenderAttributes attributes )
+	{
+		if ( Gpu is not { } gpu ) return Source2Parameters.From( attributes );
+		if ( attributes?.Shadow is not { } shadow ) return null;
+
+		var converted = convertedAttributes.GetOrCreateValue( shadow );
+		if ( converted.Parameters is not null && converted.Version == shadow.Version ) return converted.Parameters;
+
+		var parameters = gpu.CreateParameters();
+		foreach ( var (token, value) in shadow.Values )
+		{
+			var name = new StringToken( token );
+			switch ( value )
+			{
+				case float[] { Length: 1 } f: parameters.Set( name, f[0] ); break;
+				case float[] { Length: 2 } f: parameters.Set( name, new Vector2( f[0], f[1] ) ); break;
+				case float[] { Length: 3 } f: parameters.Set( name, new Vector3( f[0], f[1], f[2] ) ); break;
+				case float[] { Length: 4 } f: parameters.Set( name, new Vector4( f[0], f[1], f[2], f[3] ) ); break;
+				case float[] { Length: 16 } f: parameters.Set( name, MemoryMarshal.Read<Matrix>( MemoryMarshal.AsBytes( f.AsSpan() ) ) ); break;
+				case ManagedRenderAttributes.TextureValue t when Texture( t.Texture ) is { } texture: parameters.Set( name, texture, t.Mip ); break;
+			}
+		}
+
+		foreach ( var (token, value) in shadow.Combos ) parameters.SetCombo( new StringToken( token ), value );
+		converted.Parameters = parameters;
+		converted.Version = shadow.Version;
+		return parameters;
+	}
+
+	sealed class ConvertedAttributes
+	{
+		public ShaderParameters Parameters;
+		public int Version;
+	}
+
+	static readonly ConditionalWeakTable<ManagedRenderAttributes, ConvertedAttributes> convertedAttributes = new();
 
 	/// <summary>Attributes, which only Source 2's device reads.</summary>
 	public static ShaderParameters Parameters( RenderAttributes attributes ) => Gpu is null ? Source2Parameters.From( attributes ) : null;
