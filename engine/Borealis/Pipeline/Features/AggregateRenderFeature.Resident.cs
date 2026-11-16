@@ -251,7 +251,11 @@ internal sealed partial class AggregateRenderFeature
 			argGeneration = transforms.Generation;
 			argCount = 0;
 			lock ( residentViews ) residentViews.Clear();
-			if ( resident ) RefreshResident( world, transforms );
+			if ( resident )
+			{
+				using var zone = Zones.ResidentRefresh.Start();
+				RefreshResident( world, transforms );
+			}
 		}
 
 		if ( resident ) state.Resident = ResidentListFor( pass, device.CullsAggregatesGpuDriven ? WorkerSize( device ) : 0 );

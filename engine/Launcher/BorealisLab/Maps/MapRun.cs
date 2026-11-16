@@ -69,6 +69,7 @@ internal static class MapRun
 
 	public static int Run()
 	{
+		LabTracy.Start();
 		var ident = Args.String( "-map" ) ?? "facepunch.construct";
 		var folder = Args.String( "-map-folder" ) ?? FindPackage( ident );
 		if ( folder is null )
