@@ -182,6 +182,65 @@ public class PassModuleTests : GpuTest
 		Assert.AreEqual( 8, Columns( spriteRows[0], 40, Size ), "a point eight pixels wide" );
 	}
 
+	/// <summary>
+	/// An expanding module's draw with lent instance ids (a dynamic object's, inside a frame) reads its object's transform from
+	/// the first id for every primitive, as native binds one transform slot for the object: a line moved half the screen up.
+	/// </summary>
+	[TestMethod]
+	public void ExpandedPrimitivesReadTheLentTransform()
+	{
+		const int Size = 64;
+		using var backend = new BackendDevice( Device );
+		var errors = new List<string>();
+		backend.Passes.Error = e => errors.Add( e );
+		using var drawer = new ShaderDrawer( backend );
+		var line = backend.Shaders.Load( "shaders/gizmo/gizmo_line.shader" );
+		if ( line is null ) Assert.Inconclusive( "gizmo_line isn't compiled" );
+
+		// World space is clip space: x and y -1 to 1 across the target, depth 0.5
+		var view = new Borealis.Gpu.ViewConstants { InvViewportSize = new Vector2( 1.0f / Size, 1.0f / Size ), ViewportSize = new Vector2( Size, Size ), CameraDirWs = new Vector3( 0, 0, 1 ), CameraUpDirWs = new Vector3( 0, 1, 0 ) };
+		System.Runtime.CompilerServices.Unsafe.As<Matrix, System.Numerics.Matrix4x4>( ref view.WorldToProjection ) = System.Numerics.Matrix4x4.Identity;
+		var viewBytes = new byte[Borealis.Gpu.ViewConstants.NativeSize];
+		System.Runtime.InteropServices.MemoryMarshal.Write( viewBytes, in view );
+
+		static EngineVertex V( float x, float y ) => new() { Position = new( x, y, 0.5f ), Color = 0xFFFFFFFF };
+		// Room for a whole step past the last line, as the engine's uploads leave (a device may check bounds by the step)
+		var vertices = Device.CreateBuffer( new BufferInfo { Size = 76 * 6, Usage = BufferUsage.Vertex } );
+		Device.WriteBuffer<EngineVertex>( vertices, [V( -0.5f, -0.5f ), V( 0.5f, -0.5f ), V( -0.5f, -0.75f ), V( 0.5f, -0.75f )] );
+
+		// Two transforms, the identity and one moving up by 0.4 (a fifth of the screen); the lent ids start at the second
+		var transforms = Device.CreateBuffer( new BufferInfo { Size = 128, Usage = BufferUsage.Storage } );
+		Device.WriteBuffer<float>( transforms, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0.4f, 0, 0, 1, 0, 1, 0, 0, 0] );
+		var ids = Device.CreateBuffer( new BufferInfo { Size = 8, Usage = BufferUsage.Vertex } );
+		Device.WriteBuffer<uint>( ids, [0, 1] );
+		drawer.InstanceIds = (ids, sizeof( uint ));
+
+		var attributes = new ShaderAttributes();
+		attributes.SetData( "PerViewConstantBuffer_t", viewBytes );
+		attributes.Set( "LineThickness", 3.0f );
+		attributes.Set( "g_TransformBuffer", transforms );
+
+		var color = Device.CreateTexture( TextureInfo.RenderTarget( Size, Size, Format.RGBA8Unorm, name: "Expanded with ids" ) );
+		var list = Device.BeginCommandList( QueueType.Graphics, "Expanded with ids" );
+		list.Barrier( TextureBarrier.Transition( color, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.None, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+		list.BeginRendering( [ColorTarget.Of( color, System.Numerics.Vector4.Zero )] );
+		Assert.IsTrue( drawer.Draw( list, line, attributes, Format.RGBA8Unorm, 1, vertices, 0, VertexStreamLayout.EngineVertex, 4, PrimitiveTopology.LineList, new System.Numerics.Vector4( 0, 0, Size, Size ) ) );
+		list.EndRendering();
+		Device.Wait( Device.Submit( list ) );
+
+		var pixels = ReadBack( color, ImageLayout.ColorTarget );
+		Save( pixels, Size, Size, "expanded-lent-transform" );
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+
+		// Both lines moved by the second transform, to y -0.1 and -0.35: no row where the identity puts them (y -0.5 and -0.75,
+		// rows 16 and 8 from one edge or the other)
+		var rows = Enumerable.Range( 0, Size ).Where( y => Pixel( pixels, Size, 32, y ).A > 0 ).ToList();
+		TestContext.WriteLine( $"rows at x 32: {string.Join( ',', rows )}" );
+		Assert.AreEqual( 6, rows.Count, "two lines, three pixels thick each" );
+		var identityRows = Enumerable.Range( 0, Size ).Where( y => new[] { 8, 16, Size - 16, Size - 8 }.Any( r => Math.Abs( y + 0.5f - r ) < 3 ) ).ToList();
+		Assert.IsFalse( rows.Any( identityRows.Contains ), $"no line where the identity would put it ({string.Join( ',', identityRows )})" );
+	}
+
 	/// <summary>Each module's variants against its compiled shader's: the same bindings, constants, inputs and render state.</summary>
 	[TestMethod]
 	public void PassModulesMatchTheirShaders()

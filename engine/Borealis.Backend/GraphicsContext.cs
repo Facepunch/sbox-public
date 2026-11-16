@@ -202,7 +202,10 @@ public sealed class GraphicsContext
 	public bool DrawVertices( ShaderFile shader, ShaderAttributes attributes, ReadOnlySpan<byte> vertices, VertexStreamLayout layout, int count, PrimitiveTopology topology )
 	{
 		var depth = BeginScope( shader, attributes );
-		var upload = List.AllocateUpload( vertices.Length, 16 );
+
+		// Padded by a triangle's vertices: a draw that expands primitives reads each through per-instance streams, and a
+		// device checking bounds by the stream's whole step would read the last one's other corners as zeros
+		var upload = List.AllocateUpload( vertices.Length + 3 * layout.Stride, 16 );
 		vertices.CopyTo( upload.Data );
 		Draws++;
 
