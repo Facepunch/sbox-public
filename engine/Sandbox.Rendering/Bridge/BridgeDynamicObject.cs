@@ -19,11 +19,17 @@ internal sealed class BridgeDynamicObject : CustomObject
 	{
 		if ( !Source.IsValid() ) return;
 
-		// On Borealis.Gpu: in colour layers through the engine's graphics context into Borealis's list, as custom objects draw;
-		// the overlay layers after post processing, where native draws them (the camera's output, BorealisGpuCustomDraw)
+		// On Borealis.Gpu: in colour layers through the engine's graphics context into Borealis's list, as custom objects draw,
+		// and into depth alone in shadow maps and the depth prepass; the overlay layers after post processing, where native
+		// draws them (the camera's output, BorealisGpuCustomDraw)
 		if ( MirrorContent.Gpu is not null )
 		{
-			if ( view.IsShadow || layer.Depth ) return;
+			if ( view.IsShadow || layer.Depth )
+			{
+				BridgeCustomObject.DrawDepthOnGpu( context, view, layer, draw ??= () => BorealisGpuCustomDraw.DrawDynamic( Source ) );
+				return;
+			}
+
 			if ( (layer.Runs & (MeshRuns.OverlayWithDepth | MeshRuns.OverlayWithoutDepth)) != 0 )
 			{
 				BorealisGpuCustomDraw.DeferOverlay( context, view.View, (layer.Runs & MeshRuns.OverlayWithDepth) != 0, Source );

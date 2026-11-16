@@ -168,10 +168,17 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 	/// <summary>
 	/// As <see cref="RunStage"/>, with the view constants as <c>PerViewConstantBuffer_t</c>'s bytes: also what custom objects
-	/// draw through (<see cref="BorealisGpuCustomDraw"/>).
+	/// draw through (<see cref="BorealisGpuCustomDraw"/>). <paramref name="depthAlone"/> draws into the target's depth with no
+	/// colour, at its slice (a shadow map's, or the depth prepass's), where a stage with no colour binds nothing.
 	/// </summary>
-	internal void RunInFrame( in StageTarget target, byte[] viewConstants, BorealisGpuView view, bool first, Action draw )
+	internal void RunInFrame( in StageTarget target, byte[] viewConstants, BorealisGpuView view, bool first, Action draw, bool depthAlone = false )
 	{
+		if ( depthAlone )
+		{
+			RunInDepth( target, viewConstants, view, draw );
+			return;
+		}
+
 		var context = (BackendContext)target.Context;
 		var list = context.Lend();
 
@@ -188,6 +195,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		var chain = Borrow( ref stageChain, ((BackendParameters)target.Attributes).Get( DepthChainName ) as GpuTexture, ImageFormat.RG3232F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
 
 		view.Target = color.Engine is null ? null : RenderTarget.From( color.Engine, depth.Engine );
+		view.DepthSlice = 0;
 		view.Viewport = target.Viewport;
 		backend.LendNextBlock( list );
 		backend.DepthRange = target.MaxZ > target.MinZ ? (target.MinZ, target.MaxZ) : (0, 1);
@@ -220,6 +228,51 @@ internal sealed class BorealisGpuFrame : IDisposable
 			}
 
 			backend.DepthRange = (0, 1);
+			context.Reclaim();
+		}
+	}
+
+	// Depth targets drawn into alone (RunInDepth), by size: engine textures kept from frame to frame, each borrowed for a draw,
+	// and a target of each
+	readonly Dictionary<Vector2Int, (Texture Texture, RenderTarget Target)> depthAlone = new();
+
+	/// <summary>
+	/// <see cref="RunInFrame"/> into <paramref name="target"/>'s depth alone, at its slice: what a custom object in a shadow map
+	/// or the depth prepass draws into. The frame's view constants for that view, no depth chain (depth passes don't read it).
+	/// </summary>
+	void RunInDepth( in StageTarget target, byte[] viewConstants, BorealisGpuView view, Action draw )
+	{
+		if ( target.Depth is not BackendTexture gpu ) return;
+
+		var context = (BackendContext)target.Context;
+		var list = context.Lend();
+		var size = new Vector2Int( gpu.Width, gpu.Height );
+		if ( !depthAlone.TryGetValue( size, out var kept ) )
+		{
+			var texture = Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithDepthFormat().Create( "Borealis.Gpu depth drawn alone" );
+			depthAlone[size] = kept = (texture, RenderTarget.FromDepth( texture ));
+		}
+
+		backend.Borrow( kept.Texture, gpu.Handle, context.LendLayout( gpu, Borealis.Gpu.ImageLayout.DepthTarget ) );
+		view.Target = kept.Target;
+		view.DepthSlice = target.DepthSlice;
+		view.Viewport = target.Viewport;
+		backend.LendNextBlock( list );
+		backend.DepthRange = target.MaxZ > target.MinZ ? (target.MinZ, target.MaxZ) : (0, 1);
+		try
+		{
+			using var scope = Graphics.Scope.CreateOnView( backend, view );
+			view.Bind();
+			Graphics.Attributes.SetData( ViewConstantsName, viewConstants.AsSpan() );
+			draw();
+		}
+		finally
+		{
+			context.SetLayout( gpu, backend.LayoutOf( kept.Texture ) );
+			backend.Release( kept.Texture );
+			backend.DepthRange = (0, 1);
+			view.Target = null;
+			view.DepthSlice = 0;
 			context.Reclaim();
 		}
 	}
@@ -318,6 +371,8 @@ internal sealed class BorealisGpuFrame : IDisposable
 		stageChain?.Dispose();
 		resolvedDepth?.Dispose();
 		resolveScratch?.Dispose();
+		foreach ( var (texture, _) in depthAlone.Values ) texture.Dispose();
+		depthAlone.Clear();
 		Color = Depth = DepthChain = stageColor = stageDepth = stageChain = resolvedDepth = resolveScratch = null;
 	}
 }

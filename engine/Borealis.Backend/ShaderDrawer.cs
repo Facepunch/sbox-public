@@ -375,6 +375,9 @@ public sealed class ShaderDrawer : IDisposable
 
 		// The stencil reference is dynamic state: a shader that tests or writes stencil (gizmos, tool overlays) sets its own
 		if ( variant.State.StencilTest && depth.HasStencil() ) list.SetStencilReference( (byte)variant.State.StencilReference );
+
+		// So is the depth bias drawing into depth alone (a shadow map's)
+		if ( color == Format.Unknown && depth != Format.Unknown ) list.SetDepthBias( DepthBias.Constant, DepthBias.Slope );
 		return ids;
 	}
 
@@ -475,6 +478,12 @@ public sealed class ShaderDrawer : IDisposable
 	/// </summary>
 	public (float Min, float Max) DepthRange { get; set; } = (0, 1);
 
+	/// <summary>
+	/// The rasterizer depth bias of draws into depth alone, none by default: a shadow map's, as native's shadow layers override
+	/// their draws' (<c>RsDepthBiasStateOverride_t</c>). Draws with colour have none.
+	/// </summary>
+	public (int Constant, float Slope) DepthBias { get; set; }
+
 	void SetViewport( CommandList list, System.Numerics.Vector4 viewport )
 	{
 		list.SetViewport( viewport.X, viewport.Y, viewport.Z, viewport.W, DepthRange.Min, DepthRange.Max );
@@ -491,11 +500,14 @@ public sealed class ShaderDrawer : IDisposable
 		// depth alone. With instance ids, TEXCOORD13 reads them from a stream after the default one, per instance
 		GraphicsPipelineInfo info;
 		Format[] colors = color == Format.Unknown ? [] : [color];
+
+		// Into depth alone, the depth bias is dynamic (DepthBias)
+		var depthBias = color == Format.Unknown && depth != Format.Unknown;
 		var idsStream = new VertexBufferLayout( sizeof( uint ), VertexStepRate.Instance );
 		if ( layout is null )
 		{
 			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input => ids && IsInstanceId( input ) ? new VertexAttribute( 0, 1, VertexFormat.UInt, 0 ) : null, defaultBuffer: 0 );
-			info = variant.PipelineInfo( ids ? [new VertexBufferLayout( 0 ), idsStream] : [new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias: false, null );
+			info = variant.PipelineInfo( ids ? [new VertexBufferLayout( 0 ), idsStream] : [new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias, null );
 		}
 		else if ( variant.Expansion is { Expands: true } expansion )
 		{
@@ -512,7 +524,7 @@ public sealed class ShaderDrawer : IDisposable
 			}, defaultBuffer: 1 );
 			VertexBufferLayout[] streams = expansion.Corners switch { 3 => [step, new( 0 ), step, step], 2 => [step, new( 0 ), step], _ => [step, new( 0 )] };
 			if ( ids ) streams = [.. streams, new VertexBufferLayout( 0, VertexStepRate.Instance )];
-			info = variant.PipelineInfo( streams, attributes, colors, depth, samples, depthBias: false, null );
+			info = variant.PipelineInfo( streams, attributes, colors, depth, samples, depthBias, null );
 			topology = expansion.Topology;
 		}
 		else
@@ -520,7 +532,7 @@ public sealed class ShaderDrawer : IDisposable
 			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input =>
 				ids && IsInstanceId( input ) ? new VertexAttribute( 0, 2, VertexFormat.UInt, 0 )
 				: layout.Find( input ) is { } field && SameKind( field, input ) ? new VertexAttribute( 0, 0, field.Format, field.Offset ) : null, defaultBuffer: 1 );
-			info = variant.PipelineInfo( ids ? [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 ), idsStream] : [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias: false, null );
+			info = variant.PipelineInfo( ids ? [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 ), idsStream] : [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias, null );
 		}
 
 		info.Topology = topology;
