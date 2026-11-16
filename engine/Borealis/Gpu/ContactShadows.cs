@@ -62,7 +62,7 @@ internal static class ContactShadows
 		// Sparse wavefront writes - unwritten pixels stay lit.
 		if ( (steps & Steps.Prepare) != 0 )
 		{
-			RenderHost.Current.Device.Clear( mask, Color.White );
+			context.ClearTexture( mask, Color.White );
 			context.TextureBarrier( mask, GpuStage.BottomOfPipe, 0, GpuStage.FragmentShader | GpuStage.ComputeShader, GpuAccess.ShaderRead | GpuAccess.ShaderWrite, TextureLayout.General );
 		}
 
