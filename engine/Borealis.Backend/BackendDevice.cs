@@ -137,7 +137,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		get => gpuDrivenTables is not null;
 		set
 		{
-			if ( value && gpuDrivenTables is null ) gpuDrivenTables = new GpuDrivenTables( Gpu );
+			if ( value && gpuDrivenTables is null ) gpuDrivenTables = new GpuDrivenTables( Gpu ) { LevelRoom = GeneratedLods && Borealis.Backend.Meshlets.MeshOptimizer.Available ? LodLevelRoom : 0 };
 		}
 	}
 
@@ -519,6 +519,85 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			}
 
 			return meshletStore;
+		}
+	}
+
+	/// <summary>
+	/// Generated LODs for GPU-driven aggregates (docs/managed/borealis-gpu-driven.md, "Generated LODs"): coarser levels of
+	/// each fragment's range are simplified after load, and the culls draw each fragment at the coarsest whose error stays
+	/// under <see cref="LodPixels"/>. On by default; <c>-no-lodgen</c> turns it off. Set before loading models: index pages
+	/// keep room for the levels (<see cref="LodLevelRoom"/>).
+	/// </summary>
+	public bool GeneratedLods { get; set; } = !HasSwitch( "-no-lodgen" );
+
+	/// <summary>Room index pages keep for generated levels, as a fraction of their meshes' indices.</summary>
+	public static float LodLevelRoom { get; set; } = 0.75f;
+
+	/// <summary>The error a generated level may have, in pixels at the fragment's nearest point (texels in a texel-sized cascade); <c>-lodgen-pixels</c>.</summary>
+	public float LodPixels { get; set; } = float.TryParse( SwitchValue( "-lodgen-pixels" ), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var pixels ) && pixels > 0 ? pixels : 1.0f;
+
+	/// <summary>Threads simplifying at once: a quarter of the cores, as meshlets take.</summary>
+	public static int LodThreads { get; set; } = Math.Max( 1, Environment.ProcessorCount / 4 );
+
+	Borealis.Backend.Lods.LodStore lodStore;
+	bool lodStoreTried;
+
+	/// <summary>The generated levels of GPU-driven ranges, or null when <see cref="GeneratedLods"/> is off or the library isn't there.</summary>
+	internal Borealis.Backend.Lods.LodStore LodStore
+	{
+		get
+		{
+			if ( !GeneratedLods || gpuDrivenTables is null || gpuDrivenTables.LevelRoom <= 0 ) return null;
+			if ( Volatile.Read( ref lodStoreTried ) ) return lodStore;
+			lock ( meshletStoreLock )
+			{
+				if ( !lodStoreTried )
+				{
+					lodStore = new Borealis.Backend.Lods.LodStore( Gpu, gpuDrivenTables, Borealis.Backend.Lods.LodConfig.Default, LodThreads, CacheFolder( "-no-lod-cache", "borealislods" ) );
+					gpuDrivenTables.Lods = lodStore;
+					Volatile.Write( ref lodStoreTried, true );
+				}
+			}
+
+			// Outside the lock: the meshlet store takes it too
+			if ( lodStore is not null && lodStore.Meshlets is null ) lodStore.Meshlets = MeshletStore;
+			return lodStore;
+		}
+	}
+
+	/// <summary>Ranges whose meshlets or generated levels are still being built or waiting to be published.</summary>
+	public int BuildsPending => (meshletStore?.Pending ?? 0) + (lodStore?.Pending ?? 0);
+
+	/// <summary>Ranges asked for meshlets or generated levels so far: still moving while draws find their GPU-driven variants.</summary>
+	public long BuildsRequested => (meshletStore?.Requested ?? 0) + (meshletStore?.Refused ?? 0) + (lodStore?.Requested ?? 0);
+
+	/// <summary>View records written, by how they pick generated levels (<c>LodMode</c>: none, by distance, by texels, kept).</summary>
+	internal readonly long[] LodModes = new long[4];
+
+	/// <summary>
+	/// Count the culls' level changes in views that keep levels (borealislab's <c>-lod-shimmer</c>): every change, those
+	/// against the fragment's last change, to coarser and to finer levels, as of a few frames ago; null without generated LODs.
+	/// </summary>
+	public bool CountLodChanges
+	{
+		get => lodStore?.CountChanges ?? false;
+		set
+		{
+			if ( LodStore is { } store ) store.CountChanges = value;
+		}
+	}
+
+	/// <summary>The level changes counted so far (<see cref="CountLodChanges"/>).</summary>
+	public (long Changes, long Reversals, long Coarser, long Finer)? LodChanges => lodStore?.Changes;
+
+	/// <summary>What generated LODs have been built, for reports.</summary>
+	public string LodReport
+	{
+		get
+		{
+			if ( lodStore is not { } s ) return GeneratedLods ? "generated LODs: none (meshopt not found or no GPU-driven geometry)" : "generated LODs: off";
+			var (room, used) = gpuDrivenTables.LevelBytes;
+			return $"generated LODs ({s.Config}, {LodPixels:0.##} px; view records by mode {string.Join( '/', LodModes )}, {s.SlicesTaken} views keeping levels): {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Simplest:N0} simplify no further, {s.Dropped:N0} without room, {s.Pending:N0} pending, {s.WaitingForColor.Ranges:N0} of {s.WaitingForColor.Triangles:N0} triangles drawn in no GPU-driven colour pass), {s.Levels:N0} levels, {s.LevelTriangles:N0} level triangles over {s.BaseTriangles:N0}, {s.NoRoom:N0} levels without room; built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); level indices {used / 1048576.0:0.0} MB of {room / 1048576.0:0.0} MB of room, tables {s.Bytes / 1048576.0:0.0} MB; layouts {string.Join( "; ", s.FieldsSeen.OrderByDescending( f => f.Value ).Take( 4 ).Select( f => $"{f.Value} x {f.Key}" ) )}";
 		}
 	}
 
@@ -1407,11 +1486,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// Where built meshlets are kept between runs: <c>game/.source2/borealismeshlets</c> beside the engine's other caches;
 	/// none with <c>-no-meshlet-cache</c> or no engine content.
 	/// </summary>
-	string MeshletCacheFolder()
+	string MeshletCacheFolder() => CacheFolder( "-no-meshlet-cache", "borealismeshlets" );
+
+	/// <summary>A cache folder in <c>game/.source2</c> beside the engine's other caches; none with <paramref name="off"/> or no engine content.</summary>
+	string CacheFolder( string off, string name )
 	{
-		if ( HasSwitch( "-no-meshlet-cache" ) ) return null;
+		if ( HasSwitch( off ) ) return null;
 		var core = Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "sbox", "pass.slangh" ) ) );
-		return core is null ? null : Path.Combine( Path.GetDirectoryName( core ), ".source2", "borealismeshlets" );
+		return core is null ? null : Path.Combine( Path.GetDirectoryName( core ), ".source2", name );
 	}
 
 	/// <summary>What meshlets have been built, for reports.</summary>
@@ -1817,6 +1899,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Gpu.BeginFrame();
 		gpuDrivenTables?.BeginFrame();
 		meshletStore?.BeginFrame();
+		lodStore?.BeginFrame();
 		GpuDrivenFrame++;
 		loadFrame++;
 		Poll();
@@ -1855,6 +1938,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		surfaces?.Dispose();
 		ResidentCulls.Dispose( Gpu );
 		meshletStore?.Dispose();
+		lodStore?.Dispose();
 		gpuDrivenTables?.Dispose();
 		lock ( visibilityViews )
 		{
