@@ -66,7 +66,11 @@ internal sealed class BackendLabContent( BackendDevice device ) : Lab.ILabConten
 
 	public void Dispose()
 	{
-		animationWorld?.Delete();
+		if ( animationWorld is null ) return;
+
+		// Deleted now rather than at a frame's end, so nothing it posed with is still held at shutdown
+		animationWorld.Delete();
 		animationWorld = null;
+		SceneWorld.FlushQueuedDeletes();
 	}
 }
