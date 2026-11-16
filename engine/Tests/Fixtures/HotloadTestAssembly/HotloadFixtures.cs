@@ -13,13 +13,13 @@ using Sandbox;
 [AttributeUsage( AttributeTargets.Field )]
 public sealed class ResetAttribute : Attribute { }
 
-public class TestClass1
+public class BasicMembersClass
 {
 	[Reset]
 	public static int StaticIntField;
 
 	[Reset]
-	public static TestClass1 Instance;
+	public static BasicMembersClass Instance;
 
 	public int IntField;
 
@@ -91,10 +91,10 @@ public class TestClass1
 	}
 }
 
-public class TestClass2
+public class NestedActionClass
 {
 	[Reset]
-	public static TestClass2 Instance;
+	public static NestedActionClass Instance;
 
 	public Action ActionSimple;
 
@@ -108,17 +108,17 @@ public class TestClass2
 	}
 }
 
-public class TestClass3
+public class CtorCaptureClass
 {
 	[Reset]
-	public static TestClass3 Instance;
+	public static CtorCaptureClass Instance;
 
 	public int IntField;
 	public int IntProperty { get; set; }
 
-	public TestClass3( int field, int property )
+	public CtorCaptureClass( int field, int property )
 	{
-		TestClass2.Instance.ActionSimple = TestClass2.Instance.CreateAction1( value =>
+		NestedActionClass.Instance.ActionSimple = NestedActionClass.Instance.CreateAction1( value =>
 		{
 			if ( value ) IntField = field;
 			else IntProperty = property;
@@ -126,10 +126,10 @@ public class TestClass3
 	}
 }
 
-public class TestClass4
+public class ReflectionClass
 {
 	[Reset]
-	public static TestClass4 Instance;
+	public static ReflectionClass Instance;
 
 	public Type Type;
 	public FieldInfo FieldInfo;
@@ -142,7 +142,7 @@ public class TestClass4
 
 	public void FetchReflectionInstances()
 	{
-		Type = typeof( TestClass4 );
+		Type = typeof( ReflectionClass );
 
 		FieldInfo = Type.GetField( nameof( Field ), BindingFlags.Instance | BindingFlags.Public );
 		PropertyInfo = Type.GetProperty( nameof( Property ), BindingFlags.Instance | BindingFlags.Public );
@@ -150,21 +150,21 @@ public class TestClass4
 	}
 }
 
-public class TestClass5
+public class WeakReferenceClass
 {
 	[Reset]
-	public static TestClass5 Instance;
+	public static WeakReferenceClass Instance;
 
-	public WeakReference<TestClass1> WeakReference;
+	public WeakReference<BasicMembersClass> WeakReference;
 
-	public ConditionalWeakTable<TestClass1, string> ConditionalWeakTable1 = new ConditionalWeakTable<TestClass1, string>();
-	public ConditionalWeakTable<TestClass1, TestClass2> ConditionalWeakTable2 = new ConditionalWeakTable<TestClass1, TestClass2>();
+	public ConditionalWeakTable<BasicMembersClass, string> ConditionalWeakTable1 = new ConditionalWeakTable<BasicMembersClass, string>();
+	public ConditionalWeakTable<BasicMembersClass, NestedActionClass> ConditionalWeakTable2 = new ConditionalWeakTable<BasicMembersClass, NestedActionClass>();
 }
 
-public class TestClass6
+public class CaptureChangeClass
 {
 	[Reset]
-	public static TestClass6 Instance;
+	public static CaptureChangeClass Instance;
 
 	public int IntField;
 
@@ -216,7 +216,7 @@ public class TestClass6
 	}
 }
 
-public class TestClass7
+public class HashSetClass
 {
 	public struct ExampleStruct : IEquatable<ExampleStruct>
 	{
@@ -294,17 +294,17 @@ public class TestClass7
 	}
 
 	[Reset]
-	public static TestClass7 Instance;
+	public static HashSetClass Instance;
 
 	public readonly HashSet<ExampleStruct> HashSet1 = new HashSet<ExampleStruct>();
 	public readonly HashSet<ExampleClass> HashSet2 = new HashSet<ExampleClass>();
 }
 
 
-public class TestClass8
+public class MultiDimArrayClass
 {
 	[Reset]
-	public static TestClass8 Instance;
+	public static MultiDimArrayClass Instance;
 
 	public struct ExampleStruct1
 	{
@@ -321,26 +321,26 @@ public class TestClass8
 
 	public int[,] IntArray2D;
 
-	public TestClass1[,] ObjArray2D;
+	public BasicMembersClass[,] ObjArray2D;
 
 	public ExampleStruct1[,] StructArray2D1;
 	public ExampleStruct2[,] StructArray2D2;
 }
 
-public class TestClass9
+public class DictionaryClass
 {
 	[Reset]
-	public static TestClass9 Instance;
+	public static DictionaryClass Instance;
 
 	public Dictionary<string, int> Dict1;
-	public Dictionary<string, TestClass1> Dict2;
-	public SortedDictionary<string, TestClass1> Dict3;
+	public Dictionary<string, BasicMembersClass> Dict2;
+	public SortedDictionary<string, BasicMembersClass> Dict3;
 }
 
-public class TestClass10
+public class MulticastClass
 {
 	[Reset]
-	public static TestClass10 Instance;
+	public static MulticastClass Instance;
 
 	[Reset]
 	public static bool Bool1;
@@ -348,22 +348,22 @@ public class TestClass10
 	[Reset]
 	public static bool Bool2;
 
-	public Action<TestClass10> Action = instance => Bool1 = true;
+	public Action<MulticastClass> Action = instance => Bool1 = true;
 
-	public TestClass10()
+	public MulticastClass()
 	{
 		Action += ActionHandler;
 	}
 
-	private static void ActionHandler( TestClass10 instance )
+	private static void ActionHandler( MulticastClass instance )
 	{
 		Bool2 = true;
 	}
 }
 
-public class TestClass11
+public class MethodGroupClass
 {
-	[Reset] public static TestClass11 Instance;
+	[Reset] public static MethodGroupClass Instance;
 
 	public Action Action;
 
@@ -389,46 +389,36 @@ public enum TestEnum
 	D
 }
 
-public class TestClass12
+public class EnumClass
 {
-	[Reset] public static TestClass12 Instance;
+	[Reset] public static EnumClass Instance;
 
 	public TestEnum EnumValue;
 	public TestEnum[] EnumArray;
 }
 
-public class TestClass13
+public class StaticReadonlyClass
 {
 	public int IntValue;
 
-	public static readonly TestClass13 Instance = new();
+	public static readonly StaticReadonlyClass Instance = new();
 }
 
-public class TestClass14
+public class InstanceReadonlyClass
 {
-	[Reset] public static TestClass14 Instance;
-
-	public TypeDescription TypeDesc;
-	public PropertyDescription PropertyDesc;
-	public MethodDescription MethodDesc;
-	public FieldDescription FieldDesc;
-}
-
-public class TestClass15
-{
-	[Reset] public static TestClass15 Instance;
+	[Reset] public static InstanceReadonlyClass Instance;
 
 	public readonly int IntValue;
 
-	public TestClass15( int value )
+	public InstanceReadonlyClass( int value )
 	{
 		IntValue = value;
 	}
 }
 
-public class TestClass16
+public class SameNameMethodClass
 {
-	[Reset] public static TestClass16 Instance;
+	[Reset] public static SameNameMethodClass Instance;
 
 	public Action Action1;
 	public Action Action2;
@@ -453,9 +443,9 @@ public class TestClass16
 	}
 }
 
-public class TestClass17
+public class LambdaScopeClass
 {
-	[Reset] public static TestClass17 Instance;
+	[Reset] public static LambdaScopeClass Instance;
 
 	public Func<int> Func;
 
@@ -498,7 +488,7 @@ public class TestClass17
 		await Task.Yield();
 	}
 
-	public void NoNamespaceTypeMethod( TestClass1 inst )
+	public void NoNamespaceTypeMethod( BasicMembersClass inst )
 	{
 		var counter = inst.IntField;
 
@@ -577,14 +567,14 @@ public class TestClass17
 	public object FuncTarget;
 }
 
-public class TestClass18
+public class StaticCtorClass
 {
 	public static Func<int> Func;
 	public static event Action OnEvent;
 
 	public static int Counter;
 
-	static TestClass18()
+	static StaticCtorClass()
 	{
 		Func = () => 1;
 		OnEvent += () => Counter++;
@@ -596,7 +586,7 @@ public class TestClass18
 	}
 }
 
-public class TestClass19
+public class AsyncMethodClass
 {
 	[Reset]
 	public static Task<int> Task;
@@ -616,7 +606,7 @@ public class TestClass19
 	}
 }
 
-public class TestClass20
+public class GenericMethodClass
 {
 	[Reset]
 	public static MethodInfo MethodInfo;
@@ -627,7 +617,7 @@ public class TestClass20
 	}
 }
 
-public class TestClass21<T>
+public class GenericTypeClass<T>
 {
 	public string GenericMethod()
 	{
@@ -635,29 +625,29 @@ public class TestClass21<T>
 	}
 }
 
-public class TestClass22A
+public class GenericLambdaClass
 {
 	[Reset]
 	public static Func<string> Lambda;
 }
 
-public class TestClass22B<T1>
+public class GenericScopeClass<T1>
 {
 	public static void LambdaScopeMethod( int param )
 	{
-		TestClass22A.Lambda = () => typeof( T1 ).Name.Substring( 0, param );
+		GenericLambdaClass.Lambda = () => typeof( T1 ).Name.Substring( 0, param );
 	}
 
 	public static void GenericLambdaScopeMethod1<T2>( int param )
 	{
-		TestClass22A.Lambda = () => typeof( T1 ).Name.Substring( 0, param ) + typeof( T2 ).Name.Substring( 0, param );
+		GenericLambdaClass.Lambda = () => typeof( T1 ).Name.Substring( 0, param ) + typeof( T2 ).Name.Substring( 0, param );
 	}
 
 #pragma warning disable CS0693
 	public static void GenericLambdaScopeMethod2<T1>( int param )
 #pragma warning restore CS0693
 	{
-		TestClass22A.Lambda = () => typeof( T1 ).Name.Substring( 0, param );
+		GenericLambdaClass.Lambda = () => typeof( T1 ).Name.Substring( 0, param );
 	}
 }
 
@@ -666,9 +656,9 @@ public struct ListElement
 	public object Object;
 }
 
-public class TestClass23
+public class ClearedListClass
 {
-	[Reset] public static TestClass23 Instance;
+	[Reset] public static ClearedListClass Instance;
 
 	public List<ListElement> List { get; } = new List<ListElement>();
 }
@@ -685,18 +675,18 @@ public struct BlockCopyableStruct2
 	public int Index;
 }
 
-public class TestClass24
+public class BlockCopyClass
 {
-	[Reset] public static TestClass24 Instance;
+	[Reset] public static BlockCopyClass Instance;
 
 	public List<BlockCopyableStruct> List;
 	public List<BlockCopyableStruct2> List2;
 	public BlockCopyableStruct[] Array;
 }
 
-public class TestClass25
+public class NestedScopeClass
 {
-	[Reset] public static TestClass25 Instance;
+	[Reset] public static NestedScopeClass Instance;
 
 	public Func<int> Func1;
 	public Func<int> Func2;
@@ -716,7 +706,7 @@ public class TestClass25
 	}
 }
 
-public class TestClass26
+public class HierarchyChangeClass
 {
 	public class TestBaseClass
 	{
@@ -731,13 +721,13 @@ public class TestClass26
 		public int Field2;
 	}
 
-	[Reset] public static TestClass26 Instance;
+	[Reset] public static HierarchyChangeClass Instance;
 
 	public TestBaseClass BaseClassField;
 	public TestDerivingClass DerivingClassField;
 }
 
-public class TestClass27
+public class FieldTypeChangeClass
 {
 	public class ExampleClass1
 	{
@@ -749,7 +739,7 @@ public class TestClass27
 		public int Field;
 	}
 
-	[Reset] public static TestClass27 Instance;
+	[Reset] public static FieldTypeChangeClass Instance;
 
 #if TEST_BEFORE
 	public ExampleClass1 Field;
@@ -758,7 +748,7 @@ public class TestClass27
 #endif
 }
 
-public class TestClass28
+public class GenericDefaultClass
 {
 	public class ExampleGenericClass<T>
 	{
@@ -770,14 +760,14 @@ public class TestClass28
 		}
 	}
 
-	[Reset] public static TestClass28 Instance;
+	[Reset] public static GenericDefaultClass Instance;
 
 #if TEST_AFTER
 	public ExampleGenericClass<int> Field = new( 21 );
 #endif
 }
 
-public class TestClass29
+public class FieldInitializerClass
 {
 	public static void Method1( string arg )
 	{
@@ -799,7 +789,7 @@ public class TestClass29
 		return arg;
 	}
 
-	[Reset] public static TestClass29 Instance;
+	[Reset] public static FieldInitializerClass Instance;
 
 	public string StringField = Method2( "Hello" );
 
@@ -807,7 +797,7 @@ public class TestClass29
 	public int AddedField = 123;
 #endif
 
-	public TestClass29()
+	public FieldInitializerClass()
 	{
 		Method1( "Hello" );
 		Method2( "Hello" );
@@ -816,7 +806,7 @@ public class TestClass29
 	}
 }
 
-public class TestClass30
+public class GenericStructParamClass
 {
 	public readonly struct ValueChangedEvent<T>
 	{
@@ -830,7 +820,7 @@ public class TestClass30
 		public T Old { get; }
 	}
 
-	[Reset] public static TestClass30 Instance;
+	[Reset] public static GenericStructParamClass Instance;
 
 	public Delegate Delegate { get; set; }
 
@@ -846,10 +836,10 @@ public class TestClass30
 	}
 }
 
-public class TestClass31
+public class StaticLambdaClass
 {
 	[Reset]
-	public static TestClass31 Instance;
+	public static StaticLambdaClass Instance;
 
 	public Func<int, int> Func { get; set; }
 
@@ -859,10 +849,10 @@ public class TestClass31
 	}
 }
 
-public class TestClass32
+public class SignatureChangeClass
 {
 	[Reset]
-	public static TestClass32 Instance;
+	public static SignatureChangeClass Instance;
 
 	public Delegate Delegate { get; set; }
 
@@ -876,10 +866,10 @@ public class TestClass32
 	}
 }
 
-public class TestClass33 : IHotloadManaged
+public class ManagedStateClass : IHotloadManaged
 {
 	[Reset]
-	public static TestClass33 Instance;
+	public static ManagedStateClass Instance;
 
 	public string Field1;
 	public string Field2;
@@ -895,15 +885,15 @@ public class TestClass33 : IHotloadManaged
 	}
 }
 
-public class TestClass34
+public class ManagedFailureClass
 {
 	[Reset]
-	public static TestClass34 Instance;
+	public static ManagedFailureClass Instance;
 
 #if TEST_BEFORE
 	public class RemovedClass : IHotloadManaged
 	{
-		public TestClass34 Parent;
+		public ManagedFailureClass Parent;
 
 		void IHotloadManaged.Failed()
 		{
@@ -916,7 +906,7 @@ public class TestClass34
 	public object RemovedInstance;
 }
 
-public class TestClass35
+public class CollectionOrderClass
 {
 	public class StringWrapper
 	{
@@ -929,13 +919,13 @@ public class TestClass35
 	}
 
 	[Reset]
-	public static TestClass35 Instance;
+	public static CollectionOrderClass Instance;
 
 	public Dictionary<int, StringWrapper> Dictionary;
 	public HashSet<StringWrapper> Set;
 }
 
-public class TestClass36
+public class ParameterInfoClass
 {
 	[Reset]
 	public static ParameterInfo ParameterInfo;
@@ -951,18 +941,18 @@ public class TestClass36
 	}
 }
 
-public class TestClass37
+public class ActionGraphClass
 {
 	[Reset]
-	public static TestClass37 Instance;
+	public static ActionGraphClass Instance;
 
 	public Func<Task> Func;
 }
 
-public class TestClass38
+public class VoxelArrayClass
 {
 	[Reset]
-	public static TestClass38 Instance;
+	public static VoxelArrayClass Instance;
 
 	public interface IVoxel { }
 
@@ -979,9 +969,9 @@ public class TestClass38
 	public Chunk[] Chunks { get; set; }
 }
 
-public class TestClass39
+public class RecursiveGenericClass
 {
-	[Reset] public static TestClass39 Instance;
+	[Reset] public static RecursiveGenericClass Instance;
 
 	public class Generic<T>
 	{
@@ -991,9 +981,9 @@ public class TestClass39
 	public Generic<Generic<int>> SelfReferencingGeneric;
 }
 
-public class TestClass40
+public class GenericOverloadClass
 {
-	[Reset] public static TestClass40 Instance;
+	[Reset] public static GenericOverloadClass Instance;
 
 	public MethodInfo MethodInfo;
 
@@ -1008,7 +998,7 @@ public class TestClass40
 	}
 }
 
-public class TestClass41
+public class InsertedBaseClass
 {
 	[Reset] public static A Instance;
 
@@ -1032,7 +1022,7 @@ public class TestClass41
 	}
 }
 
-public class TestClass42
+public class RemovedBaseClass
 {
 	[Reset] public static A Instance;
 
@@ -1056,7 +1046,7 @@ public class TestClass42
 	}
 }
 
-public class TestClass43
+public class BaseGenericArgClass
 {
 	[Reset] public static A Instance;
 
@@ -1076,7 +1066,7 @@ public class TestClass43
 	}
 }
 
-public class TestClass44
+public class AnonymousTypeClass
 {
 	[Reset] public static object Instance;
 
@@ -1135,7 +1125,7 @@ public class TestClass44
 	}
 }
 
-public class TestClass45
+public class DerivedTargetClass
 {
 	[Reset] public static Action Instance;
 
@@ -1157,7 +1147,7 @@ public class TestClass45
 #endif
 }
 
-public class TestClass46
+public class StaticHandlerClass
 {
 	public static void Handler()
 	{
@@ -1165,7 +1155,7 @@ public class TestClass46
 	}
 }
 
-public class TestClass47
+public class SyncPropertyClass
 {
 #if TEST_BEFORE
 	public float MySyncFloat { get; set; }
@@ -1176,7 +1166,7 @@ public class TestClass47
 #endif
 }
 
-public class TestClass48
+public class CollectionExpressionClass
 {
 	[Reset] public static IEnumerable<int> Collection;
 
@@ -1191,9 +1181,9 @@ public class TestClass48
 	}
 }
 
-public class TestClass49
+public class ConcurrentDictionaryClass
 {
-	[Reset] public static ConcurrentDictionary<int, TestClass49> Dictionary;
+	[Reset] public static ConcurrentDictionary<int, ConcurrentDictionaryClass> Dictionary;
 
 	public int IntProperty;
 }

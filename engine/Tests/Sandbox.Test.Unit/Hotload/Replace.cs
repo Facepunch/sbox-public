@@ -26,94 +26,94 @@ namespace HotloadTests
 		public static object ObjectField1;
 
 		[TestMethod]
-		public void StaticField1()
+		public void StaticField()
 		{
-			Before::TestClass1.StaticIntField = 81;
+			Before::BasicMembersClass.StaticIntField = 81;
 
-			Assert.AreEqual( 0, After::TestClass1.StaticIntField );
+			Assert.AreEqual( 0, After::BasicMembersClass.StaticIntField );
 
 			Hotload();
 
-			Assert.AreEqual( 81, After::TestClass1.StaticIntField );
+			Assert.AreEqual( 81, After::BasicMembersClass.StaticIntField );
 		}
 
 		[TestMethod]
-		public void Field1()
+		public void InstanceField()
 		{
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Before::TestClass1.Instance.IntField = 32;
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Before::BasicMembersClass.Instance.IntField = 32;
 
-			Assert.AreEqual( 32, Before::TestClass1.Instance.IntField );
-			Assert.IsNull( After::TestClass1.Instance );
+			Assert.AreEqual( 32, Before::BasicMembersClass.Instance.IntField );
+			Assert.IsNull( After::BasicMembersClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( 32, Before::TestClass1.Instance.IntField );
-			Assert.AreEqual( 32, After::TestClass1.Instance.IntField );
+			Assert.AreEqual( 32, Before::BasicMembersClass.Instance.IntField );
+			Assert.AreEqual( 32, After::BasicMembersClass.Instance.IntField );
 		}
 
 		/// <remarks>
 		/// This will fail if Sandbox.Hotload was built without MONO_CECIL defined.
 		/// </remarks>
 		[TestMethod]
-		public void Field2()
+		public void AddedFieldInitializer()
 		{
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Assert.IsNull( After::TestClass1.Instance );
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Assert.IsNull( After::BasicMembersClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( 83, After::TestClass1.Instance.AddedField );
+			Assert.AreEqual( 83, After::BasicMembersClass.Instance.AddedField );
 		}
 
 		[TestMethod]
-		public void Field3()
+		public void ObjectFieldInNonSwappedType()
 		{
-			ObjectField1 = new Before::TestClass1();
-			Assert.IsInstanceOfType( ObjectField1, typeof( Before::TestClass1 ) );
+			ObjectField1 = new Before::BasicMembersClass();
+			Assert.IsInstanceOfType( ObjectField1, typeof( Before::BasicMembersClass ) );
 
 			Hotload();
 
-			Assert.IsInstanceOfType( ObjectField1, typeof( After::TestClass1 ) );
+			Assert.IsInstanceOfType( ObjectField1, typeof( After::BasicMembersClass ) );
 		}
 
 		[TestMethod]
-		public void Field4()
+		public void AddedFieldInitializerWithCtorBody()
 		{
-			Before::TestClass29.Instance = new Before::TestClass29();
+			Before::FieldInitializerClass.Instance = new Before::FieldInitializerClass();
 
-			Assert.IsNull( After::TestClass29.Instance );
+			Assert.IsNull( After::FieldInitializerClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass29.Instance );
-			Assert.AreEqual( 123, After::TestClass29.Instance.AddedField );
+			Assert.IsNotNull( After::FieldInitializerClass.Instance );
+			Assert.AreEqual( 123, After::FieldInitializerClass.Instance.AddedField );
 		}
 
 		[TestMethod]
-		public void Property1()
+		public void AutoProperty()
 		{
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Before::TestClass1.Instance.IntProperty = 22;
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Before::BasicMembersClass.Instance.IntProperty = 22;
 
-			Assert.AreEqual( 22, Before::TestClass1.Instance.IntProperty );
-			Assert.IsNull( After::TestClass1.Instance );
+			Assert.AreEqual( 22, Before::BasicMembersClass.Instance.IntProperty );
+			Assert.IsNull( After::BasicMembersClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( 22, Before::TestClass1.Instance.IntProperty );
-			Assert.AreEqual( 22, After::TestClass1.Instance.IntProperty );
+			Assert.AreEqual( 22, Before::BasicMembersClass.Instance.IntProperty );
+			Assert.AreEqual( 22, After::BasicMembersClass.Instance.IntProperty );
 		}
 
 		[TestMethod]
-		public void Property2()
+		public void AddedPropertyInitializer()
 		{
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Assert.IsNull( After::TestClass1.Instance );
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Assert.IsNull( After::BasicMembersClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( 84, After::TestClass1.Instance.AddedProperty );
+			Assert.AreEqual( 84, After::BasicMembersClass.Instance.AddedProperty );
 		}
 
 		public static event Action ExampleEvent;
@@ -122,17 +122,17 @@ namespace HotloadTests
 		/// Static delegate fields / events in non-swapped types must have their values replaced.
 		/// </summary>
 		[TestMethod]
-		public void StaticEvent1()
+		public void StaticEventInNonSwappedType()
 		{
 			try
 			{
-				ExampleEvent += Before::TestClass46.Handler;
+				ExampleEvent += Before::StaticHandlerClass.Handler;
 
-				Assert.AreEqual( typeof( Before::TestClass46 ), ExampleEvent?.Method.DeclaringType );
+				Assert.AreEqual( typeof( Before::StaticHandlerClass ), ExampleEvent?.Method.DeclaringType );
 
 				Hotload();
 
-				Assert.AreEqual( typeof( After::TestClass46 ), ExampleEvent?.Method.DeclaringType );
+				Assert.AreEqual( typeof( After::StaticHandlerClass ), ExampleEvent?.Method.DeclaringType );
 			}
 			finally
 			{
@@ -144,330 +144,330 @@ namespace HotloadTests
 		/// Delegates must not be processed by the DefaultUpgrader, they contain fields that throw when accessed.
 		/// </summary>
 		[TestMethod]
-		public void DefaultUpgraderRejectDelegate1()
+		public void DefaultUpgraderRejectsDelegate()
 		{
 			var hotload = CreateHotload();
 
 			hotload.UpdateReferences();
 
-			var deleg = Before::TestClass46.Handler;
+			var deleg = Before::StaticHandlerClass.Handler;
 
 			Assert.IsFalse( hotload.GetUpgrader<DefaultUpgrader>().TryUpgradeInstance( deleg, deleg ) );
 		}
 
 		[TestMethod]
-		public void Reflection1()
+		public void ReflectionType()
 		{
-			Before::TestClass4.Instance = new Before::TestClass4();
+			Before::ReflectionClass.Instance = new Before::ReflectionClass();
 
-			var beforeType = typeof( Before::TestClass4 );
-			var afterType = typeof( After::TestClass4 );
+			var beforeType = typeof( Before::ReflectionClass );
+			var afterType = typeof( After::ReflectionClass );
 
 			Assert.AreNotEqual( beforeType, afterType );
 
-			Before::TestClass4.Instance.FetchReflectionInstances();
+			Before::ReflectionClass.Instance.FetchReflectionInstances();
 
-			Assert.AreEqual( typeof( Before::TestClass4 ), Before::TestClass4.Instance.Type );
-			Assert.IsNull( After::TestClass4.Instance );
+			Assert.AreEqual( typeof( Before::ReflectionClass ), Before::ReflectionClass.Instance.Type );
+			Assert.IsNull( After::ReflectionClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( typeof( After::TestClass4 ), After::TestClass4.Instance.Type );
+			Assert.AreEqual( typeof( After::ReflectionClass ), After::ReflectionClass.Instance.Type );
 		}
 
 		[TestMethod]
-		public void Reflection2()
+		public void ReflectionFieldInfo()
 		{
-			Before::TestClass4.Instance = new Before::TestClass4();
+			Before::ReflectionClass.Instance = new Before::ReflectionClass();
 
-			var beforeField = typeof( Before::TestClass4 )
-				.GetField( nameof( Before::TestClass4.Field ), BindingFlags.Public | BindingFlags.Instance );
+			var beforeField = typeof( Before::ReflectionClass )
+				.GetField( nameof( Before::ReflectionClass.Field ), BindingFlags.Public | BindingFlags.Instance );
 
-			var afterField = typeof( After::TestClass4 )
-				.GetField( nameof( After::TestClass4.Field ), BindingFlags.Public | BindingFlags.Instance );
+			var afterField = typeof( After::ReflectionClass )
+				.GetField( nameof( After::ReflectionClass.Field ), BindingFlags.Public | BindingFlags.Instance );
 
 			Assert.IsNotNull( beforeField );
 			Assert.IsNotNull( afterField );
 
 			Assert.AreNotEqual( beforeField, afterField );
 
-			Before::TestClass4.Instance.FetchReflectionInstances();
+			Before::ReflectionClass.Instance.FetchReflectionInstances();
 
-			Assert.AreEqual( beforeField, Before::TestClass4.Instance.FieldInfo );
-			Assert.IsNull( After::TestClass4.Instance );
+			Assert.AreEqual( beforeField, Before::ReflectionClass.Instance.FieldInfo );
+			Assert.IsNull( After::ReflectionClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( afterField, After::TestClass4.Instance.FieldInfo );
+			Assert.AreEqual( afterField, After::ReflectionClass.Instance.FieldInfo );
 		}
 
 		[TestMethod]
-		public void Reflection3()
+		public void ReflectionPropertyInfo()
 		{
-			Before::TestClass4.Instance = new Before::TestClass4();
+			Before::ReflectionClass.Instance = new Before::ReflectionClass();
 
-			var beforeProperty = typeof( Before::TestClass4 )
-				.GetProperty( nameof( Before::TestClass4.Property ), BindingFlags.Public | BindingFlags.Instance );
+			var beforeProperty = typeof( Before::ReflectionClass )
+				.GetProperty( nameof( Before::ReflectionClass.Property ), BindingFlags.Public | BindingFlags.Instance );
 
-			var afterProperty = typeof( After::TestClass4 )
-				.GetProperty( nameof( After::TestClass4.Property ), BindingFlags.Public | BindingFlags.Instance );
+			var afterProperty = typeof( After::ReflectionClass )
+				.GetProperty( nameof( After::ReflectionClass.Property ), BindingFlags.Public | BindingFlags.Instance );
 
 			Assert.IsNotNull( beforeProperty );
 			Assert.IsNotNull( afterProperty );
 
 			Assert.AreNotEqual( beforeProperty, afterProperty );
 
-			Before::TestClass4.Instance.FetchReflectionInstances();
+			Before::ReflectionClass.Instance.FetchReflectionInstances();
 
-			Assert.AreEqual( beforeProperty, Before::TestClass4.Instance.PropertyInfo );
-			Assert.IsNull( After::TestClass4.Instance );
+			Assert.AreEqual( beforeProperty, Before::ReflectionClass.Instance.PropertyInfo );
+			Assert.IsNull( After::ReflectionClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( afterProperty, After::TestClass4.Instance.PropertyInfo );
+			Assert.AreEqual( afterProperty, After::ReflectionClass.Instance.PropertyInfo );
 		}
 
 		[TestMethod]
-		public void Reflection4()
+		public void ReflectionMethodInfo()
 		{
-			Before::TestClass4.Instance = new Before::TestClass4();
+			Before::ReflectionClass.Instance = new Before::ReflectionClass();
 
-			var beforeMethod = typeof( Before::TestClass4 )
-				.GetMethod( nameof( Before::TestClass4.Method ), BindingFlags.Public | BindingFlags.Instance );
+			var beforeMethod = typeof( Before::ReflectionClass )
+				.GetMethod( nameof( Before::ReflectionClass.Method ), BindingFlags.Public | BindingFlags.Instance );
 
-			var afterMethod = typeof( After::TestClass4 )
-				.GetMethod( nameof( After::TestClass4.Method ), BindingFlags.Public | BindingFlags.Instance );
+			var afterMethod = typeof( After::ReflectionClass )
+				.GetMethod( nameof( After::ReflectionClass.Method ), BindingFlags.Public | BindingFlags.Instance );
 
 			Assert.IsNotNull( beforeMethod );
 			Assert.IsNotNull( afterMethod );
 
 			Assert.AreNotEqual( beforeMethod, afterMethod );
 
-			Before::TestClass4.Instance.FetchReflectionInstances();
+			Before::ReflectionClass.Instance.FetchReflectionInstances();
 
-			Assert.AreEqual( beforeMethod, Before::TestClass4.Instance.MethodInfo );
-			Assert.IsNull( After::TestClass4.Instance );
+			Assert.AreEqual( beforeMethod, Before::ReflectionClass.Instance.MethodInfo );
+			Assert.IsNull( After::ReflectionClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( afterMethod, After::TestClass4.Instance.MethodInfo );
+			Assert.AreEqual( afterMethod, After::ReflectionClass.Instance.MethodInfo );
 		}
 
 		/// <summary>
 		/// Make sure that we don't lose type parameters from generic method MethodInfos.
 		/// </summary>
 		[TestMethod]
-		public void Reflection5()
+		public void ReflectionGenericMethodInfo()
 		{
-			Before::TestClass20.MethodInfo = typeof( Before::TestClass20 )
-				.GetMethod( nameof( Before::TestClass20.GenericMethod ) )
+			Before::GenericMethodClass.MethodInfo = typeof( Before::GenericMethodClass )
+				.GetMethod( nameof( Before::GenericMethodClass.GenericMethod ) )
 				.MakeGenericMethod( typeof( string ) );
 
-			Assert.IsNotNull( Before::TestClass20.MethodInfo );
+			Assert.IsNotNull( Before::GenericMethodClass.MethodInfo );
 
-			Assert.AreEqual( typeof( Before::TestClass20 ), Before::TestClass20.MethodInfo.DeclaringType );
-			Assert.IsTrue( Before::TestClass20.MethodInfo.IsConstructedGenericMethod );
-			Assert.AreEqual( typeof( string ), Before::TestClass20.MethodInfo.GetGenericArguments()[0] );
+			Assert.AreEqual( typeof( Before::GenericMethodClass ), Before::GenericMethodClass.MethodInfo.DeclaringType );
+			Assert.IsTrue( Before::GenericMethodClass.MethodInfo.IsConstructedGenericMethod );
+			Assert.AreEqual( typeof( string ), Before::GenericMethodClass.MethodInfo.GetGenericArguments()[0] );
 
-			Assert.IsNull( After::TestClass20.MethodInfo );
+			Assert.IsNull( After::GenericMethodClass.MethodInfo );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass20.MethodInfo );
+			Assert.IsNotNull( After::GenericMethodClass.MethodInfo );
 
-			Assert.AreEqual( typeof( After::TestClass20 ), After::TestClass20.MethodInfo.DeclaringType );
-			Assert.IsTrue( After::TestClass20.MethodInfo.IsConstructedGenericMethod );
-			Assert.AreEqual( typeof( string ), After::TestClass20.MethodInfo.GetGenericArguments()[0] );
+			Assert.AreEqual( typeof( After::GenericMethodClass ), After::GenericMethodClass.MethodInfo.DeclaringType );
+			Assert.IsTrue( After::GenericMethodClass.MethodInfo.IsConstructedGenericMethod );
+			Assert.AreEqual( typeof( string ), After::GenericMethodClass.MethodInfo.GetGenericArguments()[0] );
 		}
 
 		/// <summary>
 		/// Make sure that we don't lose type parameters from generic declaring type MethodInfos.
 		/// </summary>
 		[TestMethod]
-		public void Reflection6()
+		public void ReflectionGenericTypeMethodInfo()
 		{
-			Before::TestClass20.MethodInfo = typeof( Before::TestClass21<string> )
-				.GetMethod( nameof( Before::TestClass21<string>.GenericMethod ) );
+			Before::GenericMethodClass.MethodInfo = typeof( Before::GenericTypeClass<string> )
+				.GetMethod( nameof( Before::GenericTypeClass<string>.GenericMethod ) );
 
-			Assert.IsNotNull( Before::TestClass20.MethodInfo );
+			Assert.IsNotNull( Before::GenericMethodClass.MethodInfo );
 
-			Assert.AreEqual( typeof( Before::TestClass21<string> ), Before::TestClass20.MethodInfo.DeclaringType );
+			Assert.AreEqual( typeof( Before::GenericTypeClass<string> ), Before::GenericMethodClass.MethodInfo.DeclaringType );
 
-			Assert.IsNull( After::TestClass20.MethodInfo );
+			Assert.IsNull( After::GenericMethodClass.MethodInfo );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass20.MethodInfo );
+			Assert.IsNotNull( After::GenericMethodClass.MethodInfo );
 
-			Assert.AreEqual( typeof( After::TestClass21<string> ), After::TestClass20.MethodInfo.DeclaringType );
+			Assert.AreEqual( typeof( After::GenericTypeClass<string> ), After::GenericMethodClass.MethodInfo.DeclaringType );
 		}
 
 		/// <summary>
 		/// Special case for <see cref="ParameterInfo"/>.
 		/// </summary>
 		[TestMethod]
-		public void Reflection7()
+		public void ReflectionParameterInfo()
 		{
-			Before::TestClass36.ParameterInfo = typeof( Before::TestClass36 )
-				.GetMethod( nameof( Before::TestClass36.Method1 ) ).GetParameters()[0];
+			Before::ParameterInfoClass.ParameterInfo = typeof( Before::ParameterInfoClass )
+				.GetMethod( nameof( Before::ParameterInfoClass.Method1 ) ).GetParameters()[0];
 
-			Assert.IsNotNull( Before::TestClass36.ParameterInfo );
+			Assert.IsNotNull( Before::ParameterInfoClass.ParameterInfo );
 
-			Assert.AreEqual( typeof( Before::TestClass36 ), Before::TestClass36.ParameterInfo.Member.DeclaringType );
-			Assert.AreEqual( typeof( int ), Before::TestClass36.ParameterInfo.ParameterType );
+			Assert.AreEqual( typeof( Before::ParameterInfoClass ), Before::ParameterInfoClass.ParameterInfo.Member.DeclaringType );
+			Assert.AreEqual( typeof( int ), Before::ParameterInfoClass.ParameterInfo.ParameterType );
 
-			Assert.IsNull( After::TestClass36.ParameterInfo );
+			Assert.IsNull( After::ParameterInfoClass.ParameterInfo );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass36.ParameterInfo );
+			Assert.IsNotNull( After::ParameterInfoClass.ParameterInfo );
 
-			Assert.AreEqual( typeof( After::TestClass36 ).GetMethod( nameof( After::TestClass36.Method1 ) ).GetParameters()[0], After::TestClass36.ParameterInfo );
-			Assert.AreEqual( typeof( int ), After::TestClass36.ParameterInfo.ParameterType );
+			Assert.AreEqual( typeof( After::ParameterInfoClass ).GetMethod( nameof( After::ParameterInfoClass.Method1 ) ).GetParameters()[0], After::ParameterInfoClass.ParameterInfo );
+			Assert.AreEqual( typeof( int ), After::ParameterInfoClass.ParameterInfo.ParameterType );
 		}
 
 		/// <summary>
 		/// Test upgrading <see cref="ParameterInfo"/> from a generic instance method.
 		/// </summary>
 		[TestMethod]
-		public void Reflection8()
+		public void ReflectionGenericMethodParameterInfo()
 		{
-			Before::TestClass36.ParameterInfo = typeof( Before::TestClass36 )
-				.GetMethod( nameof( Before::TestClass36.Method2 ) )
+			Before::ParameterInfoClass.ParameterInfo = typeof( Before::ParameterInfoClass )
+				.GetMethod( nameof( Before::ParameterInfoClass.Method2 ) )
 				.MakeGenericMethod( typeof( string ) ).GetParameters()[0];
 
-			Assert.IsNotNull( Before::TestClass36.ParameterInfo );
+			Assert.IsNotNull( Before::ParameterInfoClass.ParameterInfo );
 
-			Assert.AreEqual( typeof( Before::TestClass36 ), Before::TestClass36.ParameterInfo.Member.DeclaringType );
-			Assert.AreEqual( typeof( string ), Before::TestClass36.ParameterInfo.ParameterType );
+			Assert.AreEqual( typeof( Before::ParameterInfoClass ), Before::ParameterInfoClass.ParameterInfo.Member.DeclaringType );
+			Assert.AreEqual( typeof( string ), Before::ParameterInfoClass.ParameterInfo.ParameterType );
 
-			Assert.IsNull( After::TestClass36.ParameterInfo );
-
-			Hotload();
-
-			Assert.IsNotNull( After::TestClass36.ParameterInfo );
-
-			Assert.AreEqual( typeof( After::TestClass36 ), After::TestClass36.ParameterInfo.Member.DeclaringType );
-			Assert.AreEqual( typeof( string ), After::TestClass36.ParameterInfo.ParameterType );
-		}
-
-		[TestMethod]
-		public void WeakReference1()
-		{
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Before::TestClass5.Instance = new Before::TestClass5();
-
-			Before::TestClass5.Instance.WeakReference = new WeakReference<Before::TestClass1>( Before::TestClass1.Instance );
-
-			Assert.IsNull( After::TestClass1.Instance );
-			Assert.IsNull( After::TestClass5.Instance );
+			Assert.IsNull( After::ParameterInfoClass.ParameterInfo );
 
 			Hotload();
 
-			Assert.IsTrue( After::TestClass5.Instance.WeakReference.TryGetTarget( out var instance ) );
+			Assert.IsNotNull( After::ParameterInfoClass.ParameterInfo );
 
-			Assert.AreEqual( After::TestClass1.Instance, instance );
+			Assert.AreEqual( typeof( After::ParameterInfoClass ), After::ParameterInfoClass.ParameterInfo.Member.DeclaringType );
+			Assert.AreEqual( typeof( string ), After::ParameterInfoClass.ParameterInfo.ParameterType );
 		}
 
 		[TestMethod]
-		public void WeakReference2()
+		public void WeakReferenceTarget()
 		{
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Before::TestClass5.Instance = new Before::TestClass5();
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Before::WeakReferenceClass.Instance = new Before::WeakReferenceClass();
+
+			Before::WeakReferenceClass.Instance.WeakReference = new WeakReference<Before::BasicMembersClass>( Before::BasicMembersClass.Instance );
+
+			Assert.IsNull( After::BasicMembersClass.Instance );
+			Assert.IsNull( After::WeakReferenceClass.Instance );
+
+			Hotload();
+
+			Assert.IsTrue( After::WeakReferenceClass.Instance.WeakReference.TryGetTarget( out var instance ) );
+
+			Assert.AreEqual( After::BasicMembersClass.Instance, instance );
+		}
+
+		[TestMethod]
+		public void ConditionalWeakTableValue()
+		{
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Before::WeakReferenceClass.Instance = new Before::WeakReferenceClass();
 
 			const string testValue = "Hello!";
 
-			Before::TestClass5.Instance.ConditionalWeakTable1.Add( Before::TestClass1.Instance, testValue );
+			Before::WeakReferenceClass.Instance.ConditionalWeakTable1.Add( Before::BasicMembersClass.Instance, testValue );
 
-			Assert.IsNull( After::TestClass1.Instance );
-			Assert.IsNull( After::TestClass5.Instance );
+			Assert.IsNull( After::BasicMembersClass.Instance );
+			Assert.IsNull( After::WeakReferenceClass.Instance );
 
 			Hotload();
 
-			Assert.IsTrue( After::TestClass5.Instance.ConditionalWeakTable1.TryGetValue( After::TestClass1.Instance, out var value ) );
+			Assert.IsTrue( After::WeakReferenceClass.Instance.ConditionalWeakTable1.TryGetValue( After::BasicMembersClass.Instance, out var value ) );
 			Assert.AreEqual( testValue, value );
 		}
 
 		[TestMethod]
-		public void WeakReference3()
+		public void ConditionalWeakTableSwappedValue()
 		{
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Before::TestClass2.Instance = new Before::TestClass2();
-			Before::TestClass5.Instance = new Before::TestClass5();
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Before::NestedActionClass.Instance = new Before::NestedActionClass();
+			Before::WeakReferenceClass.Instance = new Before::WeakReferenceClass();
 
-			Before::TestClass5.Instance.ConditionalWeakTable2.Add( Before::TestClass1.Instance, Before::TestClass2.Instance );
+			Before::WeakReferenceClass.Instance.ConditionalWeakTable2.Add( Before::BasicMembersClass.Instance, Before::NestedActionClass.Instance );
 
-			Assert.IsNull( After::TestClass1.Instance );
-			Assert.IsNull( After::TestClass2.Instance );
-			Assert.IsNull( After::TestClass5.Instance );
+			Assert.IsNull( After::BasicMembersClass.Instance );
+			Assert.IsNull( After::NestedActionClass.Instance );
+			Assert.IsNull( After::WeakReferenceClass.Instance );
 
 			Hotload();
 
-			Assert.IsTrue( After::TestClass5.Instance.ConditionalWeakTable2.TryGetValue( After::TestClass1.Instance, out var value ) );
-			Assert.AreEqual( After::TestClass2.Instance, value );
+			Assert.IsTrue( After::WeakReferenceClass.Instance.ConditionalWeakTable2.TryGetValue( After::BasicMembersClass.Instance, out var value ) );
+			Assert.AreEqual( After::NestedActionClass.Instance, value );
 		}
 
 		[TestMethod]
-		public void Async1()
+		public void CompletedTask()
 		{
-			Before::TestClass19.Task = Before::TestClass19.AsyncMethod( 30 );
+			Before::AsyncMethodClass.Task = Before::AsyncMethodClass.AsyncMethod( 30 );
 
-			Assert.IsNull( After::TestClass19.Task );
+			Assert.IsNull( After::AsyncMethodClass.Task );
 
-			Before::TestClass19.Task.Wait();
+			Before::AsyncMethodClass.Task.Wait();
 
-			Assert.IsTrue( Before::TestClass19.Task.IsCompletedSuccessfully );
+			Assert.IsTrue( Before::AsyncMethodClass.Task.IsCompletedSuccessfully );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass19.Task );
-			Assert.IsTrue( After::TestClass19.Task.IsCompletedSuccessfully );
+			Assert.IsNotNull( After::AsyncMethodClass.Task );
+			Assert.IsTrue( After::AsyncMethodClass.Task.IsCompletedSuccessfully );
 
-			Assert.AreEqual( 30, After::TestClass19.Task.Result );
+			Assert.AreEqual( 30, After::AsyncMethodClass.Task.Result );
 		}
 
 		[TestMethod]
-		public void HashSet1()
+		public void HashSetOfStructs()
 		{
-			Before::TestClass7.Instance = new Before::TestClass7();
+			Before::HashSetClass.Instance = new Before::HashSetClass();
 
-			Before::TestClass7.Instance.HashSet1.Add( new Before::TestClass7.ExampleStruct( 2 ) );
-			Before::TestClass7.Instance.HashSet1.Add( new Before::TestClass7.ExampleStruct( 5 ) );
-			Before::TestClass7.Instance.HashSet1.Add( new Before::TestClass7.ExampleStruct( 9 ) );
+			Before::HashSetClass.Instance.HashSet1.Add( new Before::HashSetClass.ExampleStruct( 2 ) );
+			Before::HashSetClass.Instance.HashSet1.Add( new Before::HashSetClass.ExampleStruct( 5 ) );
+			Before::HashSetClass.Instance.HashSet1.Add( new Before::HashSetClass.ExampleStruct( 9 ) );
 
-			Assert.IsNull( After::TestClass7.Instance );
+			Assert.IsNull( After::HashSetClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( 3, After::TestClass7.Instance.HashSet1.Count );
-			Assert.IsTrue( After::TestClass7.Instance.HashSet1.Contains( new After::TestClass7.ExampleStruct( 2 ) ) );
-			Assert.IsTrue( After::TestClass7.Instance.HashSet1.Contains( new After::TestClass7.ExampleStruct( 5 ) ) );
-			Assert.IsTrue( After::TestClass7.Instance.HashSet1.Contains( new After::TestClass7.ExampleStruct( 9 ) ) );
+			Assert.AreEqual( 3, After::HashSetClass.Instance.HashSet1.Count );
+			Assert.IsTrue( After::HashSetClass.Instance.HashSet1.Contains( new After::HashSetClass.ExampleStruct( 2 ) ) );
+			Assert.IsTrue( After::HashSetClass.Instance.HashSet1.Contains( new After::HashSetClass.ExampleStruct( 5 ) ) );
+			Assert.IsTrue( After::HashSetClass.Instance.HashSet1.Contains( new After::HashSetClass.ExampleStruct( 9 ) ) );
 		}
 
 		[TestMethod]
-		public void HashSet2()
+		public void HashSetOfClasses()
 		{
-			Before::TestClass7.Instance = new Before::TestClass7();
+			Before::HashSetClass.Instance = new Before::HashSetClass();
 
-			Before::TestClass7.Instance.HashSet2.Add( new Before::TestClass7.ExampleClass( 2 ) );
-			Before::TestClass7.Instance.HashSet2.Add( new Before::TestClass7.ExampleClass( 5 ) );
-			Before::TestClass7.Instance.HashSet2.Add( new Before::TestClass7.ExampleClass( 9 ) );
+			Before::HashSetClass.Instance.HashSet2.Add( new Before::HashSetClass.ExampleClass( 2 ) );
+			Before::HashSetClass.Instance.HashSet2.Add( new Before::HashSetClass.ExampleClass( 5 ) );
+			Before::HashSetClass.Instance.HashSet2.Add( new Before::HashSetClass.ExampleClass( 9 ) );
 
-			Assert.IsNull( After::TestClass7.Instance );
+			Assert.IsNull( After::HashSetClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( 3, After::TestClass7.Instance.HashSet2.Count );
-			Assert.IsTrue( After::TestClass7.Instance.HashSet2.Contains( new After::TestClass7.ExampleClass( 2 ) ) );
-			Assert.IsTrue( After::TestClass7.Instance.HashSet2.Contains( new After::TestClass7.ExampleClass( 5 ) ) );
-			Assert.IsTrue( After::TestClass7.Instance.HashSet2.Contains( new After::TestClass7.ExampleClass( 9 ) ) );
+			Assert.AreEqual( 3, After::HashSetClass.Instance.HashSet2.Count );
+			Assert.IsTrue( After::HashSetClass.Instance.HashSet2.Contains( new After::HashSetClass.ExampleClass( 2 ) ) );
+			Assert.IsTrue( After::HashSetClass.Instance.HashSet2.Contains( new After::HashSetClass.ExampleClass( 5 ) ) );
+			Assert.IsTrue( After::HashSetClass.Instance.HashSet2.Contains( new After::HashSetClass.ExampleClass( 9 ) ) );
 		}
 
 		private static readonly HashSet<object> InitOnlyHashSet = new();
 
 		[TestMethod]
-		public void HashSet3()
+		public void ReadonlyHashSetField()
 		{
 			InitOnlyHashSet.Clear();
 			InitOnlyHashSet.Add( "Hello" );
@@ -547,121 +547,121 @@ namespace HotloadTests
 		[TestMethod]
 		public void ConcurrentDictionary()
 		{
-			Before::TestClass49.Dictionary = new ConcurrentDictionary<int, Before::TestClass49>();
+			Before::ConcurrentDictionaryClass.Dictionary = new ConcurrentDictionary<int, Before::ConcurrentDictionaryClass>();
 
-			Before::TestClass49.Dictionary.TryAdd( 1, new Before::TestClass49 { IntProperty = 1 } );
-			Before::TestClass49.Dictionary.TryAdd( 2, new Before::TestClass49 { IntProperty = 2 } );
-			Before::TestClass49.Dictionary.TryAdd( 3, new Before::TestClass49 { IntProperty = 3 } );
+			Before::ConcurrentDictionaryClass.Dictionary.TryAdd( 1, new Before::ConcurrentDictionaryClass { IntProperty = 1 } );
+			Before::ConcurrentDictionaryClass.Dictionary.TryAdd( 2, new Before::ConcurrentDictionaryClass { IntProperty = 2 } );
+			Before::ConcurrentDictionaryClass.Dictionary.TryAdd( 3, new Before::ConcurrentDictionaryClass { IntProperty = 3 } );
 
-			Assert.IsNull( After::TestClass49.Dictionary );
+			Assert.IsNull( After::ConcurrentDictionaryClass.Dictionary );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass49.Dictionary );
-			Assert.AreEqual( 3, After::TestClass49.Dictionary.Count );
-			Assert.AreEqual( 2, After::TestClass49.Dictionary[2].IntProperty );
+			Assert.IsNotNull( After::ConcurrentDictionaryClass.Dictionary );
+			Assert.AreEqual( 3, After::ConcurrentDictionaryClass.Dictionary.Count );
+			Assert.AreEqual( 2, After::ConcurrentDictionaryClass.Dictionary[2].IntProperty );
 		}
 
 		[TestMethod]
-		public void MultiDimensionalArray1()
+		public void MultiDimIntArray()
 		{
-			Before::TestClass8.Instance = new Before::TestClass8
+			Before::MultiDimArrayClass.Instance = new Before::MultiDimArrayClass
 			{
 				IntArray2D = new int[10, 20]
 			};
 
-			Before::TestClass8.Instance.IntArray2D[7, 3] = 290;
+			Before::MultiDimArrayClass.Instance.IntArray2D[7, 3] = 290;
 
-			Assert.IsNull( After::TestClass8.Instance );
+			Assert.IsNull( After::MultiDimArrayClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass8.Instance.IntArray2D );
-			Assert.AreEqual( 10, After::TestClass8.Instance.IntArray2D.GetLength( 0 ) );
-			Assert.AreEqual( 20, After::TestClass8.Instance.IntArray2D.GetLength( 1 ) );
-			Assert.AreEqual( 290, After::TestClass8.Instance.IntArray2D[7, 3] );
+			Assert.IsNotNull( After::MultiDimArrayClass.Instance.IntArray2D );
+			Assert.AreEqual( 10, After::MultiDimArrayClass.Instance.IntArray2D.GetLength( 0 ) );
+			Assert.AreEqual( 20, After::MultiDimArrayClass.Instance.IntArray2D.GetLength( 1 ) );
+			Assert.AreEqual( 290, After::MultiDimArrayClass.Instance.IntArray2D[7, 3] );
 		}
 
 		[TestMethod]
-		public void MultiDimensionalArray2()
+		public void MultiDimObjectArray()
 		{
-			Before::TestClass8.Instance = new Before::TestClass8
+			Before::MultiDimArrayClass.Instance = new Before::MultiDimArrayClass
 			{
-				ObjArray2D = new Before::TestClass1[10, 20]
+				ObjArray2D = new Before::BasicMembersClass[10, 20]
 			};
 
-			Before::TestClass8.Instance.ObjArray2D[7, 3] = new Before::TestClass1
+			Before::MultiDimArrayClass.Instance.ObjArray2D[7, 3] = new Before::BasicMembersClass
 			{
 				IntField = 91
 			};
 
-			Assert.IsNull( After::TestClass8.Instance );
+			Assert.IsNull( After::MultiDimArrayClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass8.Instance.ObjArray2D );
-			Assert.AreEqual( 10, After::TestClass8.Instance.ObjArray2D.GetLength( 0 ) );
-			Assert.AreEqual( 20, After::TestClass8.Instance.ObjArray2D.GetLength( 1 ) );
-			Assert.AreEqual( 91, After::TestClass8.Instance.ObjArray2D[7, 3].IntField );
+			Assert.IsNotNull( After::MultiDimArrayClass.Instance.ObjArray2D );
+			Assert.AreEqual( 10, After::MultiDimArrayClass.Instance.ObjArray2D.GetLength( 0 ) );
+			Assert.AreEqual( 20, After::MultiDimArrayClass.Instance.ObjArray2D.GetLength( 1 ) );
+			Assert.AreEqual( 91, After::MultiDimArrayClass.Instance.ObjArray2D[7, 3].IntField );
 		}
 
 		/// <summary>
 		/// Test struct block copy of a multi-dimensional array.
 		/// </summary>
 		[TestMethod]
-		public void MultiDimensionalArray3()
+		public void MultiDimStructArray()
 		{
-			Before::TestClass8.Instance = new Before::TestClass8
+			Before::MultiDimArrayClass.Instance = new Before::MultiDimArrayClass
 			{
-				StructArray2D1 = new Before::TestClass8.ExampleStruct1[10, 20]
+				StructArray2D1 = new Before::MultiDimArrayClass.ExampleStruct1[10, 20]
 			};
 
-			Before::TestClass8.Instance.StructArray2D1[7, 3] = new Before::TestClass8.ExampleStruct1
+			Before::MultiDimArrayClass.Instance.StructArray2D1[7, 3] = new Before::MultiDimArrayClass.ExampleStruct1
 			{
 				Value = 73
 			};
 
-			Assert.IsNull( After::TestClass8.Instance );
+			Assert.IsNull( After::MultiDimArrayClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass8.Instance.StructArray2D1 );
-			Assert.AreEqual( 10, After::TestClass8.Instance.StructArray2D1.GetLength( 0 ) );
-			Assert.AreEqual( 20, After::TestClass8.Instance.StructArray2D1.GetLength( 1 ) );
-			Assert.AreEqual( 73, After::TestClass8.Instance.StructArray2D1[7, 3].Value );
+			Assert.IsNotNull( After::MultiDimArrayClass.Instance.StructArray2D1 );
+			Assert.AreEqual( 10, After::MultiDimArrayClass.Instance.StructArray2D1.GetLength( 0 ) );
+			Assert.AreEqual( 20, After::MultiDimArrayClass.Instance.StructArray2D1.GetLength( 1 ) );
+			Assert.AreEqual( 73, After::MultiDimArrayClass.Instance.StructArray2D1[7, 3].Value );
 		}
 
 		/// <summary>
 		/// Test struct block copy of a multi-dimensional array.
 		/// </summary>
 		[TestMethod]
-		public void MultiDimensionalArray4()
+		public void MultiDimChangedStructArray()
 		{
-			Before::TestClass8.Instance = new Before::TestClass8
+			Before::MultiDimArrayClass.Instance = new Before::MultiDimArrayClass
 			{
-				StructArray2D2 = new Before::TestClass8.ExampleStruct2[10, 20]
+				StructArray2D2 = new Before::MultiDimArrayClass.ExampleStruct2[10, 20]
 			};
 
-			Before::TestClass8.Instance.StructArray2D2[7, 3] = new Before::TestClass8.ExampleStruct2
+			Before::MultiDimArrayClass.Instance.StructArray2D2[7, 3] = new Before::MultiDimArrayClass.ExampleStruct2
 			{
 				Value = 73
 			};
 
-			Assert.IsNull( After::TestClass8.Instance );
+			Assert.IsNull( After::MultiDimArrayClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass8.Instance.StructArray2D2 );
-			Assert.AreEqual( 10, After::TestClass8.Instance.StructArray2D2.GetLength( 0 ) );
-			Assert.AreEqual( 20, After::TestClass8.Instance.StructArray2D2.GetLength( 1 ) );
-			Assert.AreEqual( 73, After::TestClass8.Instance.StructArray2D2[7, 3].Value );
+			Assert.IsNotNull( After::MultiDimArrayClass.Instance.StructArray2D2 );
+			Assert.AreEqual( 10, After::MultiDimArrayClass.Instance.StructArray2D2.GetLength( 0 ) );
+			Assert.AreEqual( 20, After::MultiDimArrayClass.Instance.StructArray2D2.GetLength( 1 ) );
+			Assert.AreEqual( 73, After::MultiDimArrayClass.Instance.StructArray2D2[7, 3].Value );
 		}
 
 		/// <summary>
 		/// Test struct array block copy.
 		/// </summary>
 		[TestMethod]
-		public void BlockCopyArray1()
+		public void BlockCopyArray()
 		{
 			const int testLength = 1_000_000;
 			const int testIndex = 123_456;
@@ -669,24 +669,24 @@ namespace HotloadTests
 			const float testFloat = 100f;
 			var testVector = new Vector3( 1f, 2f, 3f );
 
-			Before::TestClass24.Instance = new Before::TestClass24 { Array = new Before::BlockCopyableStruct[testLength] };
-			Before::TestClass24.Instance.Array[testIndex] = new Before::BlockCopyableStruct
+			Before::BlockCopyClass.Instance = new Before::BlockCopyClass { Array = new Before::BlockCopyableStruct[testLength] };
+			Before::BlockCopyClass.Instance.Array[testIndex] = new Before::BlockCopyableStruct
 			{
 				IntValue = testInt,
 				FloatValue = testFloat,
 				InnerStructValue = testVector
 			};
 
-			Assert.IsNull( After::TestClass24.Instance );
+			Assert.IsNull( After::BlockCopyClass.Instance );
 
 			var result = Hotload();
 
-			Assert.IsNotNull( After::TestClass24.Instance );
+			Assert.IsNotNull( After::BlockCopyClass.Instance );
 
-			Assert.AreEqual( 1_000_000, After::TestClass24.Instance.Array.Length );
-			Assert.AreEqual( testInt, After::TestClass24.Instance.Array[testIndex].IntValue );
-			Assert.AreEqual( testFloat, After::TestClass24.Instance.Array[testIndex].FloatValue );
-			Assert.AreEqual( testVector, After::TestClass24.Instance.Array[testIndex].InnerStructValue );
+			Assert.AreEqual( 1_000_000, After::BlockCopyClass.Instance.Array.Length );
+			Assert.AreEqual( testInt, After::BlockCopyClass.Instance.Array[testIndex].IntValue );
+			Assert.AreEqual( testFloat, After::BlockCopyClass.Instance.Array[testIndex].FloatValue );
+			Assert.AreEqual( testVector, After::BlockCopyClass.Instance.Array[testIndex].InnerStructValue );
 
 			Assert.AreEqual( 1, result.TypeTimings["BlockCopyableStruct[]"].Instances );
 			Assert.IsFalse( result.TypeTimings.ContainsKey( "BlockCopyableStruct" ) );
@@ -696,7 +696,7 @@ namespace HotloadTests
 		/// Test struct list block copy.
 		/// </summary>
 		[TestMethod]
-		public void BlockCopyList1()
+		public void BlockCopyList()
 		{
 			const int testLength = 1_000_000;
 			const int testIndex = 123_456;
@@ -704,62 +704,62 @@ namespace HotloadTests
 			const float testFloat = 100f;
 			var testVector = new Vector3( 1f, 2f, 3f );
 
-			Before::TestClass24.Instance = new Before::TestClass24 { List = new List<Before::BlockCopyableStruct>( new Before::BlockCopyableStruct[testLength] ) };
-			Before::TestClass24.Instance.List[testIndex] = new Before::BlockCopyableStruct
+			Before::BlockCopyClass.Instance = new Before::BlockCopyClass { List = new List<Before::BlockCopyableStruct>( new Before::BlockCopyableStruct[testLength] ) };
+			Before::BlockCopyClass.Instance.List[testIndex] = new Before::BlockCopyableStruct
 			{
 				IntValue = testInt,
 				FloatValue = testFloat,
 				InnerStructValue = testVector
 			};
 
-			Assert.IsNull( After::TestClass24.Instance );
+			Assert.IsNull( After::BlockCopyClass.Instance );
 
 			var result = Hotload();
 
-			Assert.IsNotNull( After::TestClass24.Instance );
+			Assert.IsNotNull( After::BlockCopyClass.Instance );
 
-			Assert.AreEqual( 1_000_000, After::TestClass24.Instance.List.Count );
-			Assert.AreEqual( testInt, After::TestClass24.Instance.List[testIndex].IntValue );
-			Assert.AreEqual( testFloat, After::TestClass24.Instance.List[testIndex].FloatValue );
-			Assert.AreEqual( testVector, After::TestClass24.Instance.List[testIndex].InnerStructValue );
+			Assert.AreEqual( 1_000_000, After::BlockCopyClass.Instance.List.Count );
+			Assert.AreEqual( testInt, After::BlockCopyClass.Instance.List[testIndex].IntValue );
+			Assert.AreEqual( testFloat, After::BlockCopyClass.Instance.List[testIndex].FloatValue );
+			Assert.AreEqual( testVector, After::BlockCopyClass.Instance.List[testIndex].InnerStructValue );
 
 			Assert.AreEqual( 1, result.TypeTimings["System.Collections.Generic.List<BlockCopyableStruct>"].Instances );
 			Assert.IsFalse( result.TypeTimings.ContainsKey( "BlockCopyableStruct" ) );
 		}
 
 		/// <summary>
-		/// Test readonly struct list block copy.
+		/// Test struct list block copy when the list's backing array is larger than its count.
 		/// </summary>
 		[TestMethod]
-		public void BlockCopyList2()
+		public void BlockCopyListSpareCapacity()
 		{
 			const int testLength = 1_000_000;
 			const int testIndex = 123_456;
 
-			Before::TestClass24.Instance = new Before::TestClass24 { List2 = new List<Before::BlockCopyableStruct2>() };
+			Before::BlockCopyClass.Instance = new Before::BlockCopyClass { List2 = new List<Before::BlockCopyableStruct2>() };
 
 			for ( var i = 0; i < testLength; ++i )
 			{
-				Before::TestClass24.Instance.List2.Add( new Before::BlockCopyableStruct2 { Index = i } );
+				Before::BlockCopyClass.Instance.List2.Add( new Before::BlockCopyableStruct2 { Index = i } );
 			}
 
-			Assert.IsNull( After::TestClass24.Instance );
+			Assert.IsNull( After::BlockCopyClass.Instance );
 
 			var result = Hotload();
 
-			Assert.IsNotNull( After::TestClass24.Instance );
+			Assert.IsNotNull( After::BlockCopyClass.Instance );
 
-			Assert.AreEqual( 1_000_000, After::TestClass24.Instance.List2.Count );
-			Assert.AreEqual( testIndex, After::TestClass24.Instance.List2[testIndex].Index );
+			Assert.AreEqual( 1_000_000, After::BlockCopyClass.Instance.List2.Count );
+			Assert.AreEqual( testIndex, After::BlockCopyClass.Instance.List2[testIndex].Index );
 
 			Assert.AreEqual( 1, result.TypeTimings["System.Collections.Generic.List<BlockCopyableStruct2>"].Instances );
 			Assert.IsFalse( result.TypeTimings.ContainsKey( "BlockCopyableStruct2" ) );
 		}
 
 		[TestMethod]
-		public void DictionaryComparer1()
+		public void DictionaryComparer()
 		{
-			Before::TestClass9.Instance = new Before::TestClass9
+			Before::DictionaryClass.Instance = new Before::DictionaryClass
 			{
 				Dict1 = new Dictionary<string, int>( StringComparer.OrdinalIgnoreCase )
 			{
@@ -767,61 +767,61 @@ namespace HotloadTests
 			}
 			};
 
-			Assert.IsNull( After::TestClass9.Instance );
+			Assert.IsNull( After::DictionaryClass.Instance );
 
 			Hotload();
 
-			Assert.IsTrue( After::TestClass9.Instance.Dict1.ContainsKey( "TEST" ) );
-			Assert.IsTrue( After::TestClass9.Instance.Dict1.ContainsKey( "test" ) );
-			Assert.AreEqual( 28, After::TestClass9.Instance.Dict1["test"] );
+			Assert.IsTrue( After::DictionaryClass.Instance.Dict1.ContainsKey( "TEST" ) );
+			Assert.IsTrue( After::DictionaryClass.Instance.Dict1.ContainsKey( "test" ) );
+			Assert.AreEqual( 28, After::DictionaryClass.Instance.Dict1["test"] );
 		}
 
 		[TestMethod]
-		public void DictionaryComparer2()
+		public void DictionaryComparerSwappedValues()
 		{
-			Before::TestClass9.Instance = new Before::TestClass9
+			Before::DictionaryClass.Instance = new Before::DictionaryClass
 			{
-				Dict2 = new Dictionary<string, Before::TestClass1>( StringComparer.OrdinalIgnoreCase )
+				Dict2 = new Dictionary<string, Before::BasicMembersClass>( StringComparer.OrdinalIgnoreCase )
 				{
-					{ "TEST", new Before::TestClass1 { IntField = 29 } }
+					{ "TEST", new Before::BasicMembersClass { IntField = 29 } }
 				}
 			};
 
-			Assert.IsNull( After::TestClass9.Instance );
+			Assert.IsNull( After::DictionaryClass.Instance );
 
 			Hotload();
 
-			Assert.IsTrue( After::TestClass9.Instance.Dict2.ContainsKey( "TEST" ) );
-			Assert.IsTrue( After::TestClass9.Instance.Dict2.ContainsKey( "test" ) );
-			Assert.AreEqual( 29, After::TestClass9.Instance.Dict2["test"].IntField );
+			Assert.IsTrue( After::DictionaryClass.Instance.Dict2.ContainsKey( "TEST" ) );
+			Assert.IsTrue( After::DictionaryClass.Instance.Dict2.ContainsKey( "test" ) );
+			Assert.AreEqual( 29, After::DictionaryClass.Instance.Dict2["test"].IntField );
 		}
 
 		[TestMethod]
-		public void DictionaryComparer3()
+		public void SortedDictionaryComparer()
 		{
-			Before::TestClass9.Instance = new Before::TestClass9
+			Before::DictionaryClass.Instance = new Before::DictionaryClass
 			{
-				Dict3 = new SortedDictionary<string, Before::TestClass1>( StringComparer.OrdinalIgnoreCase )
+				Dict3 = new SortedDictionary<string, Before::BasicMembersClass>( StringComparer.OrdinalIgnoreCase )
 				{
-					{ "TEST", new Before::TestClass1 { IntField = 29 } }
+					{ "TEST", new Before::BasicMembersClass { IntField = 29 } }
 				}
 			};
 
-			Assert.IsNull( After::TestClass9.Instance );
+			Assert.IsNull( After::DictionaryClass.Instance );
 
 			Hotload();
 
-			Assert.IsTrue( After::TestClass9.Instance.Dict3.ContainsKey( "TEST" ) );
-			Assert.IsTrue( After::TestClass9.Instance.Dict3.ContainsKey( "test" ) );
-			Assert.AreEqual( 29, After::TestClass9.Instance.Dict3["test"].IntField );
+			Assert.IsTrue( After::DictionaryClass.Instance.Dict3.ContainsKey( "TEST" ) );
+			Assert.IsTrue( After::DictionaryClass.Instance.Dict3.ContainsKey( "test" ) );
+			Assert.AreEqual( 29, After::DictionaryClass.Instance.Dict3["test"].IntField );
 		}
 
 		[TestMethod]
-		public void CollectionOrder1()
+		public void DictionaryOrder()
 		{
-			Before::TestClass35.Instance = new Before::TestClass35
+			Before::CollectionOrderClass.Instance = new Before::CollectionOrderClass
 			{
-				Dictionary = new Dictionary<int, Before::TestClass35.StringWrapper>()
+				Dictionary = new Dictionary<int, Before::CollectionOrderClass.StringWrapper>()
 			};
 
 			var random = new Random( 123 );
@@ -830,85 +830,85 @@ namespace HotloadTests
 			{
 				var index = random.Next( 0, 1_000 );
 
-				if ( Before::TestClass35.Instance.Dictionary.ContainsKey( index ) )
+				if ( Before::CollectionOrderClass.Instance.Dictionary.ContainsKey( index ) )
 				{
-					Before::TestClass35.Instance.Dictionary.Remove( index );
+					Before::CollectionOrderClass.Instance.Dictionary.Remove( index );
 				}
 				else
 				{
-					Before::TestClass35.Instance.Dictionary.Add( index, $"Item_{j}" );
+					Before::CollectionOrderClass.Instance.Dictionary.Add( index, $"Item_{j}" );
 				}
 			}
 
-			var order = Before::TestClass35.Instance.Dictionary.Select( x => x.Value.Value ).ToArray();
+			var order = Before::CollectionOrderClass.Instance.Dictionary.Select( x => x.Value.Value ).ToArray();
 
 			for ( var i = 0; i < order.Length; ++i )
 			{
-				Assert.AreEqual( order[i], Before::TestClass35.Instance.Dictionary.ElementAt( i ).Value.Value );
+				Assert.AreEqual( order[i], Before::CollectionOrderClass.Instance.Dictionary.ElementAt( i ).Value.Value );
 			}
 
-			Assert.IsNull( After::TestClass35.Instance );
+			Assert.IsNull( After::CollectionOrderClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass35.Instance?.Dictionary );
+			Assert.IsNotNull( After::CollectionOrderClass.Instance?.Dictionary );
 
 			for ( var i = 0; i < order.Length; ++i )
 			{
-				Assert.AreEqual( order[i], After::TestClass35.Instance.Dictionary.ElementAt( i ).Value.Value );
+				Assert.AreEqual( order[i], After::CollectionOrderClass.Instance.Dictionary.ElementAt( i ).Value.Value );
 			}
 		}
 
 		[TestMethod]
-		public void Enum1()
+		public void EnumField()
 		{
-			Before::TestClass12.Instance = new Before::TestClass12 { EnumValue = Before::TestEnum.C };
+			Before::EnumClass.Instance = new Before::EnumClass { EnumValue = Before::TestEnum.C };
 
-			Assert.IsNull( After::TestClass12.Instance );
+			Assert.IsNull( After::EnumClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( After::TestEnum.C, After::TestClass12.Instance.EnumValue );
+			Assert.AreEqual( After::TestEnum.C, After::EnumClass.Instance.EnumValue );
 		}
 
 		[TestMethod]
-		public void Enum2()
+		public void EnumArray()
 		{
-			Before::TestClass12.Instance = new Before::TestClass12 { EnumArray = new Before::TestEnum[] { Before::TestEnum.B } };
+			Before::EnumClass.Instance = new Before::EnumClass { EnumArray = new Before::TestEnum[] { Before::TestEnum.B } };
 
-			Assert.IsNull( After::TestClass12.Instance );
+			Assert.IsNull( After::EnumClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( 1, After::TestClass12.Instance.EnumArray.Length );
-			Assert.AreEqual( After::TestEnum.B, After::TestClass12.Instance.EnumArray[0] );
+			Assert.AreEqual( 1, After::EnumClass.Instance.EnumArray.Length );
+			Assert.AreEqual( After::TestEnum.B, After::EnumClass.Instance.EnumArray[0] );
 		}
 
 		[TestMethod]
-		public void StaticReadonly1()
+		public void StaticReadonlyField()
 		{
-			Before::TestClass13.Instance.IntValue = 20;
-			After::TestClass13.Instance.IntValue = 0;
+			Before::StaticReadonlyClass.Instance.IntValue = 20;
+			After::StaticReadonlyClass.Instance.IntValue = 0;
 
 			Hotload();
 
-			Assert.AreEqual( 20, After::TestClass13.Instance.IntValue );
+			Assert.AreEqual( 20, After::StaticReadonlyClass.Instance.IntValue );
 		}
 
 		[TestMethod]
-		public void InstanceReadonly1()
+		public void InstanceReadonlyField()
 		{
-			Before::TestClass15.Instance = new Before::TestClass15( 21 );
+			Before::InstanceReadonlyClass.Instance = new Before::InstanceReadonlyClass( 21 );
 
-			Assert.IsNull( After::TestClass15.Instance );
+			Assert.IsNull( After::InstanceReadonlyClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( 21, After::TestClass15.Instance.IntValue );
+			Assert.AreEqual( 21, After::InstanceReadonlyClass.Instance.IntValue );
 		}
 
 		[TestMethod]
-		public void JsonSerialize1()
+		public void JsonSerializerOptionsField()
 		{
 			Before::SerializableClass.Options = new System.Text.Json.JsonSerializerOptions();
 
@@ -935,11 +935,11 @@ namespace HotloadTests
 		{
 			var hotload = CreateHotload();
 
-			Assert.IsFalse( hotload.WatchedAssemblies.Contains( typeof( After::TestClass1 ).Assembly ) );
+			Assert.IsFalse( hotload.WatchedAssemblies.Contains( typeof( After::BasicMembersClass ).Assembly ) );
 
 			hotload.UpdateReferences();
 
-			Assert.IsTrue( hotload.WatchedAssemblies.Contains( typeof( After::TestClass1 ).Assembly ) );
+			Assert.IsTrue( hotload.WatchedAssemblies.Contains( typeof( After::BasicMembersClass ).Assembly ) );
 		}
 
 		/// <summary>
@@ -950,11 +950,11 @@ namespace HotloadTests
 		{
 			var hotload = CreateHotload();
 
-			Assert.IsFalse( hotload.WatchedAssemblies.Contains( typeof( Before::TestClass1 ).Assembly ) );
+			Assert.IsFalse( hotload.WatchedAssemblies.Contains( typeof( Before::BasicMembersClass ).Assembly ) );
 
 			hotload.UpdateReferences();
 
-			Assert.IsFalse( hotload.WatchedAssemblies.Contains( typeof( Before::TestClass1 ).Assembly ) );
+			Assert.IsFalse( hotload.WatchedAssemblies.Contains( typeof( Before::BasicMembersClass ).Assembly ) );
 		}
 
 		/// <summary>
@@ -967,40 +967,40 @@ namespace HotloadTests
 
 			hotload.UpdateReferences();
 
-			hotload.ReplacingAssembly( typeof( After::TestClass1 ).Assembly, null );
+			hotload.ReplacingAssembly( typeof( After::BasicMembersClass ).Assembly, null );
 
 			hotload.UpdateReferences();
 
-			Assert.IsFalse( hotload.WatchedAssemblies.Contains( typeof( Before::TestClass1 ).Assembly ) );
-			Assert.IsFalse( hotload.WatchedAssemblies.Contains( typeof( After::TestClass1 ).Assembly ) );
+			Assert.IsFalse( hotload.WatchedAssemblies.Contains( typeof( Before::BasicMembersClass ).Assembly ) );
+			Assert.IsFalse( hotload.WatchedAssemblies.Contains( typeof( After::BasicMembersClass ).Assembly ) );
 		}
 
 		[TestMethod]
-		public void ClearedList1()
+		public void ClearedList()
 		{
-			Before::TestClass23.Instance = new Before::TestClass23();
+			Before::ClearedListClass.Instance = new Before::ClearedListClass();
 
 			// Processing the cleared backing array would count its whole capacity (131,072)
 			const int addedItems = 100_000;
 
 			for ( var i = 0; i < addedItems; ++i )
 			{
-				Before::TestClass23.Instance.List.Add( new Before::ListElement() );
+				Before::ClearedListClass.Instance.List.Add( new Before::ListElement() );
 			}
 
-			Before::TestClass23.Instance.List.Clear();
-			Before::TestClass23.Instance.List.Add( new Before::ListElement() );
+			Before::ClearedListClass.Instance.List.Clear();
+			Before::ClearedListClass.Instance.List.Add( new Before::ListElement() );
 
-			Assert.IsNull( After::TestClass23.Instance );
+			Assert.IsNull( After::ClearedListClass.Instance );
 
-			Assert.AreEqual( 1, Before::TestClass23.Instance.List.Count );
+			Assert.AreEqual( 1, Before::ClearedListClass.Instance.List.Count );
 
 			var result = Hotload();
 
-			Assert.IsNotNull( After::TestClass23.Instance );
-			Assert.IsNotNull( After::TestClass23.Instance.List );
+			Assert.IsNotNull( After::ClearedListClass.Instance );
+			Assert.IsNotNull( After::ClearedListClass.Instance.List );
 
-			Assert.AreEqual( 1, After::TestClass23.Instance.List.Count );
+			Assert.AreEqual( 1, After::ClearedListClass.Instance.List.Count );
 
 			Assert.IsFalse( result.InstancesProcessed > addedItems );
 		}
@@ -1009,22 +1009,22 @@ namespace HotloadTests
 		/// Tests class hierarchies changing after a swap.
 		/// </summary>
 		[TestMethod]
-		public void ClassHierarchyChange1()
+		public void AddedBaseClass()
 		{
-			Before::TestClass26.Instance = new Before::TestClass26();
+			Before::HierarchyChangeClass.Instance = new Before::HierarchyChangeClass();
 
-			Assert.IsNull( After::TestClass26.Instance );
+			Assert.IsNull( After::HierarchyChangeClass.Instance );
 
-			Before::TestClass26.Instance.BaseClassField = new Before::TestClass26.TestBaseClass { Field1 = 7 };
-			Before::TestClass26.Instance.DerivingClassField = new Before::TestClass26.TestDerivingClass { Field2 = 21 };
+			Before::HierarchyChangeClass.Instance.BaseClassField = new Before::HierarchyChangeClass.TestBaseClass { Field1 = 7 };
+			Before::HierarchyChangeClass.Instance.DerivingClassField = new Before::HierarchyChangeClass.TestDerivingClass { Field2 = 21 };
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass26.Instance );
+			Assert.IsNotNull( After::HierarchyChangeClass.Instance );
 
-			Assert.AreEqual( 7, After::TestClass26.Instance.BaseClassField.Field1 );
-			Assert.AreEqual( 0, After::TestClass26.Instance.DerivingClassField.Field1 );
-			Assert.AreEqual( 21, After::TestClass26.Instance.DerivingClassField.Field2 );
+			Assert.AreEqual( 7, After::HierarchyChangeClass.Instance.BaseClassField.Field1 );
+			Assert.AreEqual( 0, After::HierarchyChangeClass.Instance.DerivingClassField.Field1 );
+			Assert.AreEqual( 21, After::HierarchyChangeClass.Instance.DerivingClassField.Field2 );
 		}
 
 		/// <summary>
@@ -1033,14 +1033,14 @@ namespace HotloadTests
 		[TestMethod]
 		public void FieldTypeChanged()
 		{
-			Before::TestClass27.Instance = new Before::TestClass27 { Field = new Before::TestClass27.ExampleClass1() };
+			Before::FieldTypeChangeClass.Instance = new Before::FieldTypeChangeClass { Field = new Before::FieldTypeChangeClass.ExampleClass1() };
 
-			Assert.IsNull( After::TestClass27.Instance );
+			Assert.IsNull( After::FieldTypeChangeClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass27.Instance );
-			Assert.IsNull( After::TestClass27.Instance.Field );
+			Assert.IsNotNull( After::FieldTypeChangeClass.Instance );
+			Assert.IsNull( After::FieldTypeChangeClass.Instance.Field );
 		}
 
 		/// <summary>
@@ -1049,59 +1049,59 @@ namespace HotloadTests
 		[TestMethod]
 		public void ResolveGenericTypeDefaultValue()
 		{
-			Before::TestClass28.Instance = new Before::TestClass28();
+			Before::GenericDefaultClass.Instance = new Before::GenericDefaultClass();
 
-			Assert.IsNull( After::TestClass28.Instance );
+			Assert.IsNull( After::GenericDefaultClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass28.Instance );
-			Assert.IsNotNull( After::TestClass28.Instance.Field );
-			Assert.AreEqual( 21, After::TestClass28.Instance.Field.Field );
+			Assert.IsNotNull( After::GenericDefaultClass.Instance );
+			Assert.IsNotNull( After::GenericDefaultClass.Instance.Field );
+			Assert.AreEqual( 21, After::GenericDefaultClass.Instance.Field.Field );
 		}
 
 		/// <summary>
 		/// Tests <see cref="IHotloadManaged.Created"/> / <see cref="IHotloadManaged.Destroyed"/> being called.
 		/// </summary>
 		[TestMethod]
-		public void IHotloadManaged1()
+		public void HotloadManagedState()
 		{
-			Before::TestClass33.Instance = new Before::TestClass33();
+			Before::ManagedStateClass.Instance = new Before::ManagedStateClass();
 
-			Assert.IsNull( After::TestClass33.Instance );
+			Assert.IsNull( After::ManagedStateClass.Instance );
 
-			Before::TestClass33.Instance.Field1 = "World";
-			Before::TestClass33.Instance.Field2 = null;
+			Before::ManagedStateClass.Instance.Field1 = "World";
+			Before::ManagedStateClass.Instance.Field2 = null;
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass33.Instance );
-			Assert.AreEqual( "World", After::TestClass33.Instance.Field1 );
-			Assert.AreEqual( "World", After::TestClass33.Instance.Field2 );
+			Assert.IsNotNull( After::ManagedStateClass.Instance );
+			Assert.AreEqual( "World", After::ManagedStateClass.Instance.Field1 );
+			Assert.AreEqual( "World", After::ManagedStateClass.Instance.Field2 );
 		}
 
 		/// <summary>
 		/// Tests <see cref="IHotloadManaged.Failed"/> being called.
 		/// </summary>
 		[TestMethod]
-		public void IHotloadManaged2()
+		public void HotloadManagedFailed()
 		{
-			Before::TestClass34.Instance = new Before::TestClass34();
+			Before::ManagedFailureClass.Instance = new Before::ManagedFailureClass();
 
-			Assert.IsNull( After::TestClass34.Instance );
+			Assert.IsNull( After::ManagedFailureClass.Instance );
 
-			Before::TestClass34.Instance.RemovedInstance = new Before::TestClass34.RemovedClass
+			Before::ManagedFailureClass.Instance.RemovedInstance = new Before::ManagedFailureClass.RemovedClass
 			{
-				Parent = Before::TestClass34.Instance
+				Parent = Before::ManagedFailureClass.Instance
 			};
 
-			Assert.IsFalse( Before::TestClass34.Instance.FailureHandled );
+			Assert.IsFalse( Before::ManagedFailureClass.Instance.FailureHandled );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass34.Instance );
-			Assert.IsNull( After::TestClass34.Instance.RemovedInstance );
-			Assert.IsTrue( Before::TestClass34.Instance.FailureHandled );
+			Assert.IsNotNull( After::ManagedFailureClass.Instance );
+			Assert.IsNull( After::ManagedFailureClass.Instance.RemovedInstance );
+			Assert.IsTrue( Before::ManagedFailureClass.Instance.FailureHandled );
 		}
 
 		[TestMethod]
@@ -1117,27 +1117,27 @@ namespace HotloadTests
 
 			const bool testInterfaceArrays = false;
 
-			Before::TestClass38.Instance = new Before::TestClass38();
+			Before::VoxelArrayClass.Instance = new Before::VoxelArrayClass();
 
-			Assert.IsNull( After::TestClass38.Instance );
+			Assert.IsNull( After::VoxelArrayClass.Instance );
 
-			Before::TestClass38.Instance.Chunks = new Before::TestClass38.Chunk[chunkCount];
+			Before::VoxelArrayClass.Instance.Chunks = new Before::VoxelArrayClass.Chunk[chunkCount];
 
 			var random = new Random( seed );
 
 			for ( var i = 0; i < chunkCount; i++ )
 			{
-				var chunk = new Before::TestClass38.Chunk();
+				var chunk = new Before::VoxelArrayClass.Chunk();
 
-				Before::TestClass38.Instance.Chunks[i] = chunk;
+				Before::VoxelArrayClass.Instance.Chunks[i] = chunk;
 
-				chunk.Array = new Before::TestClass38.Voxel[chunkSize * chunkSize * chunkSize];
-				chunk.Array3D = new Before::TestClass38.Voxel[chunkSize, chunkSize, chunkSize];
+				chunk.Array = new Before::VoxelArrayClass.Voxel[chunkSize * chunkSize * chunkSize];
+				chunk.Array3D = new Before::VoxelArrayClass.Voxel[chunkSize, chunkSize, chunkSize];
 
 				if ( testInterfaceArrays )
 				{
-					chunk.InterfaceArray = new Before::TestClass38.IVoxel[chunkSize * chunkSize * chunkSize];
-					chunk.InterfaceArray3D = new Before::TestClass38.IVoxel[chunkSize, chunkSize, chunkSize];
+					chunk.InterfaceArray = new Before::VoxelArrayClass.IVoxel[chunkSize * chunkSize * chunkSize];
+					chunk.InterfaceArray3D = new Before::VoxelArrayClass.IVoxel[chunkSize, chunkSize, chunkSize];
 				}
 
 				for ( var x = 0; x < chunkSize; x++ )
@@ -1145,7 +1145,7 @@ namespace HotloadTests
 						for ( var z = 0; z < chunkSize; z++ )
 						{
 							var rgb = random.Next( 0, 256 * 256 * 256 );
-							var voxel = new Before::TestClass38.Voxel( (byte)(rgb & 0xff), (byte)((rgb >> 8) & 0xff), (byte)((rgb >> 16) & 0xff) );
+							var voxel = new Before::VoxelArrayClass.Voxel( (byte)(rgb & 0xff), (byte)((rgb >> 8) & 0xff), (byte)((rgb >> 16) & 0xff) );
 							var index = x * chunkSize * chunkSize + y * chunkSize + z;
 
 							chunk.Array[index] = voxel;
@@ -1161,12 +1161,12 @@ namespace HotloadTests
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass38.Instance );
-			Assert.IsNotNull( After::TestClass38.Instance.Chunks );
+			Assert.IsNotNull( After::VoxelArrayClass.Instance );
+			Assert.IsNotNull( After::VoxelArrayClass.Instance.Chunks );
 
 			random = new Random( seed );
 
-			foreach ( var chunk in After::TestClass38.Instance.Chunks )
+			foreach ( var chunk in After::VoxelArrayClass.Instance.Chunks )
 			{
 				Assert.IsNotNull( chunk.Array );
 				Assert.IsNotNull( chunk.Array3D );
@@ -1182,7 +1182,7 @@ namespace HotloadTests
 						for ( var z = 0; z < chunkSize; z++ )
 						{
 							var rgb = random.Next( 0, 256 * 256 * 256 );
-							var voxel = new After::TestClass38.Voxel( (byte)(rgb & 0xff), (byte)((rgb >> 8) & 0xff), (byte)((rgb >> 16) & 0xff) );
+							var voxel = new After::VoxelArrayClass.Voxel( (byte)(rgb & 0xff), (byte)((rgb >> 8) & 0xff), (byte)((rgb >> 16) & 0xff) );
 							var index = x * chunkSize * chunkSize + y * chunkSize + z;
 
 							Assert.AreEqual( voxel, chunk.Array[index] );
@@ -1206,17 +1206,17 @@ namespace HotloadTests
 		[TestMethod]
 		public void SelfReferencingGeneric()
 		{
-			Before::TestClass39.Instance = new Before::TestClass39
+			Before::RecursiveGenericClass.Instance = new Before::RecursiveGenericClass
 			{
 				SelfReferencingGeneric = new() { Value = new() { Value = 123 } }
 			};
 
-			Assert.IsNull( After::TestClass39.Instance );
+			Assert.IsNull( After::RecursiveGenericClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass39.Instance );
-			Assert.AreEqual( 123, After::TestClass39.Instance.SelfReferencingGeneric.Value.Value );
+			Assert.IsNotNull( After::RecursiveGenericClass.Instance );
+			Assert.AreEqual( 123, After::RecursiveGenericClass.Instance.SelfReferencingGeneric.Value.Value );
 		}
 
 		/// <summary>
@@ -1225,23 +1225,23 @@ namespace HotloadTests
 		[TestMethod]
 		public void CompareGenericMethods()
 		{
-			Before::TestClass40.Instance = new Before::TestClass40();
+			Before::GenericOverloadClass.Instance = new Before::GenericOverloadClass();
 
-			Assert.IsNull( After::TestClass40.Instance );
-			Assert.IsNull( Before::TestClass40.Instance.MethodInfo );
+			Assert.IsNull( After::GenericOverloadClass.Instance );
+			Assert.IsNull( Before::GenericOverloadClass.Instance.MethodInfo );
 
-			Before::TestClass40.Instance.MethodInfo = typeof( Before::TestClass40 )
+			Before::GenericOverloadClass.Instance.MethodInfo = typeof( Before::GenericOverloadClass )
 				.GetMethods()
-				.FirstOrDefault( x => x.Name == nameof( Before::TestClass40.GenericMethod ) && x.IsGenericMethodDefinition );
+				.FirstOrDefault( x => x.Name == nameof( Before::GenericOverloadClass.GenericMethod ) && x.IsGenericMethodDefinition );
 
-			Assert.IsNotNull( Before::TestClass40.Instance.MethodInfo );
+			Assert.IsNotNull( Before::GenericOverloadClass.Instance.MethodInfo );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass40.Instance.MethodInfo );
+			Assert.IsNotNull( After::GenericOverloadClass.Instance.MethodInfo );
 
-			Assert.AreEqual( nameof( After::TestClass40.GenericMethod ), After::TestClass40.Instance.MethodInfo.Name );
-			Assert.AreEqual( typeof( After::TestClass40 ), After::TestClass40.Instance.MethodInfo.DeclaringType );
+			Assert.AreEqual( nameof( After::GenericOverloadClass.GenericMethod ), After::GenericOverloadClass.Instance.MethodInfo.Name );
+			Assert.AreEqual( typeof( After::GenericOverloadClass ), After::GenericOverloadClass.Instance.MethodInfo.DeclaringType );
 		}
 
 		/// <summary>
@@ -1251,15 +1251,15 @@ namespace HotloadTests
 		[TestMethod]
 		public void InsertedBaseType()
 		{
-			Before::TestClass41.Instance = new Before::TestClass41.A { AField = 10, CField = 20 };
+			Before::InsertedBaseClass.Instance = new Before::InsertedBaseClass.A { AField = 10, CField = 20 };
 
-			Assert.IsNull( After::TestClass41.Instance );
+			Assert.IsNull( After::InsertedBaseClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass41.Instance );
-			Assert.AreEqual( 10, After::TestClass41.Instance.AField );
-			Assert.AreEqual( 20, After::TestClass41.Instance.CField );
+			Assert.IsNotNull( After::InsertedBaseClass.Instance );
+			Assert.AreEqual( 10, After::InsertedBaseClass.Instance.AField );
+			Assert.AreEqual( 20, After::InsertedBaseClass.Instance.CField );
 		}
 
 		/// <summary>
@@ -1269,15 +1269,15 @@ namespace HotloadTests
 		[TestMethod]
 		public void RemovedBaseType()
 		{
-			Before::TestClass42.Instance = new Before::TestClass42.A { AField = 10, BField = 15, CField = 20 };
+			Before::RemovedBaseClass.Instance = new Before::RemovedBaseClass.A { AField = 10, BField = 15, CField = 20 };
 
-			Assert.IsNull( After::TestClass42.Instance );
+			Assert.IsNull( After::RemovedBaseClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass42.Instance );
-			Assert.AreEqual( 10, After::TestClass42.Instance.AField );
-			Assert.AreEqual( 20, After::TestClass42.Instance.CField );
+			Assert.IsNotNull( After::RemovedBaseClass.Instance );
+			Assert.AreEqual( 10, After::RemovedBaseClass.Instance.AField );
+			Assert.AreEqual( 20, After::RemovedBaseClass.Instance.CField );
 		}
 
 		/// <summary>
@@ -1287,16 +1287,16 @@ namespace HotloadTests
 		[TestMethod]
 		public void ChangedBaseTypeGenericArgument()
 		{
-			Before::TestClass43.Instance = new Before::TestClass43.A { AField = 10, BField1 = 15, BField2 = 20 };
+			Before::BaseGenericArgClass.Instance = new Before::BaseGenericArgClass.A { AField = 10, BField1 = 15, BField2 = 20 };
 
-			Assert.IsNull( After::TestClass43.Instance );
+			Assert.IsNull( After::BaseGenericArgClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass43.Instance );
-			Assert.AreEqual( 10, After::TestClass43.Instance.AField );
-			Assert.AreEqual( 15, After::TestClass43.Instance.BField1 );
-			Assert.AreEqual( null, After::TestClass43.Instance.BField2 );
+			Assert.IsNotNull( After::BaseGenericArgClass.Instance );
+			Assert.AreEqual( 10, After::BaseGenericArgClass.Instance.AField );
+			Assert.AreEqual( 15, After::BaseGenericArgClass.Instance.BField1 );
+			Assert.AreEqual( null, After::BaseGenericArgClass.Instance.BField2 );
 		}
 
 		/// <summary>
@@ -1305,14 +1305,14 @@ namespace HotloadTests
 		[TestMethod]
 		public void AnonymousTypeUnchanged()
 		{
-			Before::TestClass44.Unchanged();
+			Before::AnonymousTypeClass.Unchanged();
 
-			Assert.AreEqual( "{ Property1 = World }", Before::TestClass44.Instance?.ToString() );
-			Assert.IsNull( After::TestClass44.Instance );
+			Assert.AreEqual( "{ Property1 = World }", Before::AnonymousTypeClass.Instance?.ToString() );
+			Assert.IsNull( After::AnonymousTypeClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( "{ Property1 = World }", After::TestClass44.Instance?.ToString() );
+			Assert.AreEqual( "{ Property1 = World }", After::AnonymousTypeClass.Instance?.ToString() );
 		}
 
 		/// <summary>
@@ -1322,14 +1322,14 @@ namespace HotloadTests
 		[TestMethod]
 		public void AnonymousTypeReordered()
 		{
-			Before::TestClass44.Reordered();
+			Before::AnonymousTypeClass.Reordered();
 
-			Assert.AreEqual( "{ Property3 = World }", Before::TestClass44.Instance?.ToString() );
-			Assert.IsNull( After::TestClass44.Instance );
+			Assert.AreEqual( "{ Property3 = World }", Before::AnonymousTypeClass.Instance?.ToString() );
+			Assert.IsNull( After::AnonymousTypeClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( "{ Property3 = World }", After::TestClass44.Instance?.ToString() );
+			Assert.AreEqual( "{ Property3 = World }", After::AnonymousTypeClass.Instance?.ToString() );
 		}
 
 		/// <summary>
@@ -1337,12 +1337,12 @@ namespace HotloadTests
 		/// </summary>
 		private void TestAnonymousTypeChange()
 		{
-			Assert.IsNull( After::TestClass44.Instance );
+			Assert.IsNull( After::AnonymousTypeClass.Instance );
 
-			var anonType = Before::TestClass44.Instance.GetType().GetGenericTypeDefinition();
+			var anonType = Before::AnonymousTypeClass.Instance.GetType().GetGenericTypeDefinition();
 			var result = Hotload();
 
-			Assert.IsNull( After::TestClass44.Instance );
+			Assert.IsNull( After::AnonymousTypeClass.Instance );
 			Assert.IsTrue( result.Warnings.Any( x => x.Member == anonType ) );
 		}
 
@@ -1350,9 +1350,9 @@ namespace HotloadTests
 		[TestMethod]
 		public void AnonymousTypeAddProperty()
 		{
-			Before::TestClass44.AddProperty();
+			Before::AnonymousTypeClass.AddProperty();
 
-			Assert.AreEqual( "{ Property4 = World }", Before::TestClass44.Instance?.ToString() );
+			Assert.AreEqual( "{ Property4 = World }", Before::AnonymousTypeClass.Instance?.ToString() );
 
 			TestAnonymousTypeChange();
 		}
@@ -1361,9 +1361,9 @@ namespace HotloadTests
 		[TestMethod]
 		public void AnonymousTypeRemoveProperty()
 		{
-			Before::TestClass44.RemoveProperty();
+			Before::AnonymousTypeClass.RemoveProperty();
 
-			Assert.AreEqual( "{ Property6 = World, Property7 = 0 }", Before::TestClass44.Instance?.ToString() );
+			Assert.AreEqual( "{ Property6 = World, Property7 = 0 }", Before::AnonymousTypeClass.Instance?.ToString() );
 
 			TestAnonymousTypeChange();
 		}
@@ -1372,47 +1372,47 @@ namespace HotloadTests
 		[TestMethod]
 		public void AnonymousTypeChangeProperty()
 		{
-			Before::TestClass44.ChangeProperty();
+			Before::AnonymousTypeClass.ChangeProperty();
 
-			Assert.AreEqual( "{ Property8 = World, Property9 = 0 }", Before::TestClass44.Instance?.ToString() );
+			Assert.AreEqual( "{ Property8 = World, Property9 = 0 }", Before::AnonymousTypeClass.Instance?.ToString() );
 
 			TestAnonymousTypeChange();
 		}
 
 		[TestMethod]
-		public void CompilerGeneratedCollectionType1()
+		public void CollectionExpressionSingle()
 		{
-			Assert.IsNull( Before::TestClass48.Collection );
+			Assert.IsNull( Before::CollectionExpressionClass.Collection );
 
-			Before::TestClass48.InitializeSingle();
+			Before::CollectionExpressionClass.InitializeSingle();
 
-			Assert.IsNull( After::TestClass48.Collection );
+			Assert.IsNull( After::CollectionExpressionClass.Collection );
 
-			Assert.AreEqual( 123, Before::TestClass48.Collection!.Single() );
+			Assert.AreEqual( 123, Before::CollectionExpressionClass.Collection!.Single() );
 
 			Hotload();
 
-			Assert.AreEqual( 123, After::TestClass48.Collection!.Single() );
+			Assert.AreEqual( 123, After::CollectionExpressionClass.Collection!.Single() );
 		}
 
 		[TestMethod]
-		public void CompilerGeneratedCollectionType2()
+		public void CollectionExpressionMultiple()
 		{
-			Assert.IsNull( Before::TestClass48.Collection );
+			Assert.IsNull( Before::CollectionExpressionClass.Collection );
 
-			Before::TestClass48.InitializeMultiple();
+			Before::CollectionExpressionClass.InitializeMultiple();
 
-			Assert.IsNull( After::TestClass48.Collection );
+			Assert.IsNull( After::CollectionExpressionClass.Collection );
 
-			Assert.AreEqual( 2, Before::TestClass48.Collection!.Count() );
-			Assert.AreEqual( 123, Before::TestClass48.Collection.First() );
-			Assert.AreEqual( 456, Before::TestClass48.Collection.Skip( 1 ).First() );
+			Assert.AreEqual( 2, Before::CollectionExpressionClass.Collection!.Count() );
+			Assert.AreEqual( 123, Before::CollectionExpressionClass.Collection.First() );
+			Assert.AreEqual( 456, Before::CollectionExpressionClass.Collection.Skip( 1 ).First() );
 
 			Hotload();
 
-			Assert.AreEqual( 2, After::TestClass48.Collection!.Count() );
-			Assert.AreEqual( 123, After::TestClass48.Collection.First() );
-			Assert.AreEqual( 456, After::TestClass48.Collection.Skip( 1 ).First() );
+			Assert.AreEqual( 2, After::CollectionExpressionClass.Collection!.Count() );
+			Assert.AreEqual( 123, After::CollectionExpressionClass.Collection.First() );
+			Assert.AreEqual( 456, After::CollectionExpressionClass.Collection.Skip( 1 ).First() );
 		}
 
 		[Reset]

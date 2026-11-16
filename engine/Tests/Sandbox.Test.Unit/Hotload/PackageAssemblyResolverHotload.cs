@@ -30,8 +30,8 @@ namespace HotloadTests
 			Resolver.AddAssembly( PackageAssemblyResolverTest.Compile( gameName, "public sealed class Game { }" ), gameName );
 
 			// A lambda from the swapped assembly makes the hotload read its Cecil definitions
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Before::TestClass1.Instance.ActionSimple = Before::TestClass1.Instance.CreateAction1( 50 );
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Before::BasicMembersClass.Instance.ActionSimple = Before::BasicMembersClass.Instance.CreateAction1( 50 );
 
 			var hotload = CreateHotload();
 			var resolver = new ResolveAlongside( hotload.AssemblyResolver, () => Resolver.Resolve( new AssemblyNameReference( gameName, new Version( 0, 0, 0, 0 ) ) ) );
