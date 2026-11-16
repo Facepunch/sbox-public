@@ -911,8 +911,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		if ( materialFiles.TryGetValue( material, out var known ) ) return known.Handle;
 
 		var path = material.ResourcePath;
-		var file = !material.IsCopy && !string.IsNullOrEmpty( path ) && files.Find( path ) is not null ? services.LoadMaterial( path ) as BackendMaterial : null;
-		if ( file?.Shader is null ) file = null;
+		// As the .shader draws it, also where a surface stands in for its shader in the scene
+		var file = !material.IsCopy && !string.IsNullOrEmpty( path ) && files.Find( path ) is not null ? services.ShaderMaterial( path ) : null;
 		materialFiles.Add( material, new Backing<BackendMaterial>( file ) );
 		return file;
 	}

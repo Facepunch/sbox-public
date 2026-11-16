@@ -37,6 +37,46 @@ public class MaterialCopyReleaseTests
 	}
 
 	/// <summary>
+	/// Game code frees a copy with ReleaseCopy while a scene object still draws it: it stays valid for the rest of the frame,
+	/// which may still draw it, and goes at frame end. Releasing a loaded material does nothing.
+	/// </summary>
+	[TestMethod]
+	public void ReleasedCopyStaysValidForItsFrame()
+	{
+		Assert.IsTrue( typeof( Material ).GetMethod( nameof( Material.ReleaseCopy ) ).IsPublic, "Game code frees its copies" );
+
+		var source = Material.Load( Source );
+		var world = new SceneWorld();
+		try
+		{
+			var copy = source.CreateCopy();
+			var sceneModel = new SceneModel( world, "models/dev/box.vmdl", Transform.Zero );
+			sceneModel.SetMaterialOverride( copy );
+
+			using var camera = new SceneCamera { World = world };
+			using var mirror = new SceneMirror( world );
+			mirror.Sync( camera );
+			var drawn = mirror.MaterialsDrawn;
+
+			copy.ReleaseCopy();
+
+			// Still this frame: a draw may use it
+			Assert.IsTrue( copy.IsValid, "A released copy stays valid until frame end" );
+			mirror.Sync( camera );
+			Assert.AreEqual( drawn, mirror.MaterialsDrawn );
+
+			sceneModel.Delete();
+			EngineLoop.DrainFrameEndDisposables();
+			Assert.IsFalse( copy.IsValid, "A released copy goes at frame end" );
+			mirror.Sync( camera );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	/// <summary>
 	/// A variant made for an override copy counts the copy; once the object goes and the variant has been idle long enough,
 	/// the mirror drops it and forgets the copy, then the model's own mesh and its material. A copy freed while the mirror
 	/// still caches a variant drawing it is forgotten safely.

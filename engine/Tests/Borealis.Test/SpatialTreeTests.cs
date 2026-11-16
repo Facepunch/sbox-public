@@ -41,6 +41,45 @@ public class SpatialTreeTests
 		return world;
 	}
 
+	/// <summary>
+	/// A query with node marks (<see cref="SpatialTree.Mark"/>) finds what the plain query finds less the items left out, and
+	/// marks made again after a move find the same.
+	/// </summary>
+	[TestMethod]
+	public void MarkedQueryLeavesOutWhatItsMarksLeaveOut()
+	{
+		var random = new Random( 7 );
+		var tree = new SpatialTree();
+		var leaves = new List<int>();
+		for ( int i = 0; i < 500; i++ )
+		{
+			var center = new Vector3( random.NextSingle() * 2000 - 1000, random.NextSingle() * 2000 - 1000, 0 );
+			leaves.Add( tree.Add( center - 5, center + 5, i ) );
+		}
+
+		var leftOut = new byte[500];
+		for ( int i = 0; i < leftOut.Length; i++ ) leftOut[i] = (byte)(random.Next( 4 ) == 0 ? 0 : 1);
+
+		for ( int round = 0; round < 2; round++ )
+		{
+			bool[] kept = [];
+			tree.Mark( leftOut, ref kept );
+			var query = new SpatialTree.SphereQuery { Center = Vector3.Zero, Radius = 600 };
+			var all = new List<int>();
+			var marked = new List<int>();
+			tree.QueryClassified( ref query, all, out _ );
+			tree.QueryClassified( ref query, marked, out _, kept );
+			var expected = all.Where( e => leftOut[e >> 1] == 0 ).ToList();
+			CollectionAssert.AreEquivalent( expected, marked, "the plain query's results less those left out" );
+			Assert.IsTrue( expected.Count > 0 && expected.Count < all.Count );
+
+			// Moves change the tree; marks are made again from it
+			var version = tree.Version;
+			for ( int i = 0; i < 100; i++ ) tree.Move( leaves[i], new Vector3( i * 3 + round * 500 ), new Vector3( i * 3 + round * 500 + 10 ) );
+			Assert.AreNotEqual( version, tree.Version, "moving leaves moves the version" );
+		}
+	}
+
 	[TestMethod]
 	public void MoveRetainsPaddingButShrinksOversizedBounds()
 	{

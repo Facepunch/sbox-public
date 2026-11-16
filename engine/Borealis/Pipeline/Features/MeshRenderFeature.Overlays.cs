@@ -8,7 +8,8 @@ namespace Borealis.Features;
 /// order go to the device in one call, which draws each pipeline's as one multi-draw whatever their material. Render orders
 /// stay in order; within one, overlays of different pipelines no longer interleave, so where they overlap the later one
 /// may no longer be on top. Runs the GPU-driven path can't take (object attributes, callbacks, skinning, frame copies)
-/// draw the classic way after their render order's call.
+/// draw the classic way after their render order's call. Render orders the view's resident list holds
+/// (<see cref="AggregateRenderFeature.ResidentOverlays"/>) draw from it instead, in their place among the view's own.
 /// </summary>
 internal sealed partial class MeshRenderFeature
 {
@@ -20,17 +21,24 @@ internal sealed partial class MeshRenderFeature
 	/// so render order 0's overlays go in one call whatever the number of workers. Not with custom objects or callbacks
 	/// among them, which record on the main thread.
 	/// </summary>
-	bool OverlaysOneRun( MeshLayer layer, RunLists lists ) => layer.Runs == MeshRuns.StaticOverlay && Occlusion is null && overlayTransforms is not null
+	bool OverlaysOneRun( ViewPass view, MeshLayer layer, RunLists lists ) => layer.Runs == MeshRuns.StaticOverlay && Occlusion is null && overlayTransforms is not null
 		&& RenderHost.Current?.Device is { DrawsOverlaysGpuDriven: true } && (lists.Custom & MeshRuns.StaticOverlay) == 0 && (lists.Callbacks & MeshRuns.StaticOverlay) == 0
-		&& lists.StaticOverlay.Count > 0 && lists.OverlayOrders.Count == lists.StaticOverlay.Count;
+		&& (lists.StaticOverlay.Count > 0 || Aggregates?.ResidentOverlays( view ) is { Count: > 0 }) && lists.OverlayOrders.Count == lists.StaticOverlay.Count;
 
 	/// <summary>The overlays' one run weighs as many draws as it holds, so the frame's segments and its parallel threshold see its work.</summary>
 	internal override void RunWeights( ViewPass view, MeshLayer layer, Span<int> weights )
 	{
 		var lists = view.State<RunLists>( this );
-		if ( weights.Length == 1 && OverlaysOneRun( layer, lists ) )
+		if ( weights.Length == 1 && OverlaysOneRun( view, layer, lists ) )
 		{
-			weights[0] = Math.Max( lists.ItemsByBit[System.Numerics.BitOperations.TrailingZeroCount( (uint)MeshRuns.StaticOverlay )].Count, 1 );
+			// A resident list's batch costs the run less than one of the view's own, as the aggregates weigh theirs
+			var listed = 0;
+			if ( Aggregates?.ResidentOverlays( view ) is { } orders )
+			{
+				foreach ( var order in orders ) listed += order.Device.Length;
+			}
+
+			weights[0] = Math.Max( lists.ItemsByBit[System.Numerics.BitOperations.TrailingZeroCount( (uint)MeshRuns.StaticOverlay )].Count + listed / AggregateRenderFeature.ResidentWeightDivisor, 1 );
 			return;
 		}
 
@@ -58,9 +66,13 @@ internal sealed partial class MeshRenderFeature
 		}
 	}
 
-	/// <summary>Every static overlay of the view: a GPU-driven call per render order, then what it didn't take the classic way.</summary>
+	/// <summary>
+	/// Every static overlay of the view, render order by render order: one its resident list holds from the list, else a
+	/// GPU-driven call of the view's own, then what that didn't take the classic way.
+	/// </summary>
 	void DrawOverlays( GpuContext context, ViewPass view, RunLists lists, MeshLayer layer, ref RenderStats stats )
 	{
+		using var zone = Zones.OverlayDraw.Start();
 		var bit = System.Numerics.BitOperations.TrailingZeroCount( (uint)MeshRuns.StaticOverlay );
 		var runs = CollectionsMarshal.AsSpan( lists.ByBit[bit] );
 		ReadOnlySpan<DrawItem> items = CollectionsMarshal.AsSpan( lists.ItemsByBit[bit] );
@@ -68,6 +80,15 @@ internal sealed partial class MeshRenderFeature
 		if ( !context.GpuDriven )
 		{
 			DrawItems( context, view, runs, items, layer, ref stats, MeshRuns.StaticOverlay );
+			return;
+		}
+
+		var listed = Aggregates?.ResidentOverlays( view );
+		var nextListed = 0;
+		var listedCount = listed?.Count ?? 0;
+		if ( items.IsEmpty )
+		{
+			while ( nextListed < listedCount ) Aggregates.DrawOverlayOrder( context, view, listed[nextListed++], layer, ref stats );
 			return;
 		}
 
@@ -84,6 +105,15 @@ internal sealed partial class MeshRenderFeature
 				var j = i + 1;
 				while ( j < items.Length && orders[items[j].Run] == order ) j++;
 
+				// The listed render orders up to it. The view's own overlays of a listed one draw after the list, as they would
+				// after the order's call
+				var alsoListed = false;
+				while ( nextListed < listedCount && listed[nextListed].RenderOrder <= order )
+				{
+					alsoListed |= listed[nextListed].RenderOrder == order;
+					Aggregates.DrawOverlayOrder( context, view, listed[nextListed++], layer, ref stats );
+				}
+
 				var count = 0;
 				for ( int k = i; k < j; k++ )
 				{
@@ -95,6 +125,10 @@ internal sealed partial class MeshRenderFeature
 				var drawnSpan = drawn.AsSpan( 0, count );
 				drawnSpan.Clear();
 				if ( count > 0 ) context.DrawGpuDriven( layer.ShaderMode, batches.AsSpan( 0, count ), default, overlayTransforms, 0, 0, drawnSpan );
+
+				// Ones the device took in a listed order should have been in the list: a change it hasn't seen, so the next
+				// frame's lists are made again
+				if ( alsoListed && drawnSpan.IndexOf( true ) >= 0 ) Aggregates.OverlaysStale();
 
 				// Then what it didn't take, the classic way, in their order
 				var leftCount = 0;
@@ -119,6 +153,9 @@ internal sealed partial class MeshRenderFeature
 				if ( leftCount > 0 ) DrawItems( context, view, runs, left.AsSpan( 0, leftCount ), layer, ref stats, MeshRuns.StaticOverlay );
 				i = j;
 			}
+
+			// The listed render orders after the view's own
+			while ( nextListed < listedCount ) Aggregates.DrawOverlayOrder( context, view, listed[nextListed++], layer, ref stats );
 		}
 		finally
 		{

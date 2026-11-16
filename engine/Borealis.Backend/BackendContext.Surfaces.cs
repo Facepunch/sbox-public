@@ -273,6 +273,21 @@ internal sealed partial class BackendContext
 		public SpecializationConstant[] LastConstants;
 		public ulong LastConstantsKey;
 
+		/// <summary>The pass state (the context's pass epoch) and list <see cref="Bound"/> was resolved in.</summary>
+		public long Epoch = -1;
+		public CommandList List;
+
+		/// <summary>By binding, what it bound in that pass state, where <see cref="Resolved"/>.</summary>
+		public readonly Binding[] Bound;
+		public readonly bool[] Resolved;
+
+		/// <summary>The <c>UncompressedTangentFrame</c> the bound <c>$Globals</c> were written with.</summary>
+		public bool Tangent;
+
+		/// <summary>By binding, whether an object's attributes can set what it reads, as of the cache's layer names version.</summary>
+		bool[] objectNames;
+		int objectNamesVersion = -1;
+
 		public SurfaceStageBindings( CompiledStage stage, ShaderDefaults defaults )
 		{
 			Tokens = new StringToken[stage.Bindings.Count];
@@ -286,6 +301,40 @@ internal sealed partial class BackendContext
 
 			SpecializationTokens = new StringToken[stage.Specializations.Count];
 			for ( int i = 0; i < SpecializationTokens.Length; i++ ) SpecializationTokens[i] = Token( stage.Specializations[i].Attribute );
+
+			Bound = new Binding[stage.Bindings.Count];
+			Resolved = new bool[stage.Bindings.Count];
+		}
+
+		/// <summary>By binding, whether an object's attributes (<see cref="MaterialObjectCache.IsLayerName"/>) can set what it reads.</summary>
+		public bool[] ObjectNames( CompiledStage stage, MaterialObjectCache cache )
+		{
+			var version = cache.LayerNames;
+			if ( objectNames is not null && objectNamesVersion == version ) return objectNames;
+
+			var names = new bool[Tokens.Length];
+			for ( int i = 0; i < names.Length; i++ )
+			{
+				names[i] = stage.Bindings[i].Kind switch
+				{
+					BindingKind.Sampler or BindingKind.MaterialRecords or BindingKind.StorageTexture => false,
+					BindingKind.Globals => stage.Globals is { } globals && AnyLayerName( GlobalLayouts.GetValue( globals, static g => new SurfaceGlobalsLayout( g ) ).Tokens, cache ),
+					_ => cache.IsLayerName( Tokens[i].Value ),
+				};
+			}
+
+			(objectNames, objectNamesVersion) = (names, version);
+			return names;
+		}
+
+		static bool AnyLayerName( StringToken[] tokens, MaterialObjectCache cache )
+		{
+			foreach ( var token in tokens )
+			{
+				if ( cache.IsLayerName( token.Value ) ) return true;
+			}
+
+			return false;
 		}
 	}
 
@@ -299,11 +348,26 @@ internal sealed partial class BackendContext
 		return info;
 	}
 
-	/// <summary>One stage's set: every binding its SPIR-V uses, by the name the engine binds it by.</summary>
+	/// <summary>
+	/// One stage's set: every binding its SPIR-V uses, by the name the engine binds it by. What the pass state decides is
+	/// resolved once per pass state (<see cref="NextPassState"/>: the attributes changed or a scope opened), and only what an
+	/// object's attributes can set is looked up again for each draw, so draws of one stage write the same set.
+	/// </summary>
 	void BindSurface( SurfaceProgram.PassObjects pass, CompiledStage stage, int set )
 	{
 		if ( !pass.Sets[set].IsValid ) return;
 		var info = StageBindings( stage );
+		var cache = device.MaterialCache;
+		NextPassState( cache );
+		var list = recording.List;
+		if ( !device.SurfacePassBindings ) info.Epoch = -1;
+		if ( info.Epoch != passEpoch || !ReferenceEquals( info.List, list ) )
+		{
+			(info.Epoch, info.List) = (passEpoch, list);
+			info.Resolved.AsSpan().Clear();
+		}
+
+		var perObject = layerEpoch != 0 ? info.ObjectNames( stage, cache ) : null;
 		Span<Binding> bindings = stackalloc Binding[64];
 		var count = 0;
 		for ( int i = 0; i < stage.Bindings.Count; i++ )
@@ -311,10 +375,25 @@ internal sealed partial class BackendContext
 			var b = stage.Bindings[i];
 			if ( b.Set != set ) continue;
 			if ( count == bindings.Length ) throw new InvalidOperationException( $"{stage.Entry} binds more than {bindings.Length} resources in set {set}" );
-			bindings[count++] = SurfaceBinding( stage, b, info.Tokens[i], info.Samplers[i] );
+
+			if ( perObject is not null && perObject[i] )
+			{
+				bindings[count++] = SurfaceBinding( stage, b, info.Tokens[i], info.Samplers[i] );
+				continue;
+			}
+
+			var globals = b.Kind == BindingKind.Globals;
+			if ( !info.Resolved[i] || (globals && info.Tangent != uncompressedTangentFrame) )
+			{
+				info.Bound[i] = SurfaceBinding( stage, b, info.Tokens[i], info.Samplers[i] );
+				info.Resolved[i] = true;
+				if ( globals ) info.Tangent = uncompressedTangentFrame;
+			}
+
+			bindings[count++] = info.Bound[i];
 		}
 
-		recording.List.SetBindings( set, pass.Sets[set], bindings[..count] );
+		list.SetBindings( set, pass.Sets[set], bindings[..count] );
 	}
 
 	Binding SurfaceBinding( CompiledStage stage, ShaderBinding b, StringToken token, SamplerHandle sampler )

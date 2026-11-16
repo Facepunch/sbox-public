@@ -452,6 +452,13 @@ internal abstract class GpuContext : IDisposable
 
 		/// <summary>How many of the call's first batches are <see cref="Plan"/>'s; the view's own follow them.</summary>
 		public int PlanBatches;
+
+		/// <summary>
+		/// Keep the call's order: no compaction, a command per fragment in batch then fragment order, with no instance where
+		/// it's culled, so each multi-draw draws in the order its batches came (static overlays, whose blending depends on it).
+		/// Such a call culls itself, never in the setup's resident cull.
+		/// </summary>
+		public bool KeepsOrder;
 	}
 
 	/// <summary>

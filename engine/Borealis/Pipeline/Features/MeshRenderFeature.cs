@@ -411,6 +411,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var layers = pass.State<RunLists>( this );
 		layers.Clear();
 		if ( !pass.IsShadow ) DropUnusedBins();
+		overlayTransforms = transforms;
 
 		var visible = pass.Visible( this );
 
@@ -539,8 +540,6 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			BuildItems( layers.ByBit[bit], layers.ItemsByBit[bit], Lists[bit].Sort == ListSort.Batched );
 			if ( Lists[bit].Runs == MeshRuns.StaticOverlay ) RenderOrders( buckets[bit], layers.ByBit[bit], layers.OverlayOrders );
 		}
-
-		overlayTransforms = transforms;
 
 		// Static opaque draws go with the aggregates when the device draws them GPU-driven, as one run (so not while
 		// occlusion culls, which the aggregates' feature then draws batch by batch)
@@ -1249,7 +1248,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal override int RunCount( ViewPass view, MeshLayer layer )
 	{
 		var lists = view.State<RunLists>( this );
-		if ( OverlaysOneRun( layer, lists ) ) return 1;
+		if ( OverlaysOneRun( view, layer, lists ) ) return 1;
 		var items = 0;
 		for ( int bit = 0; bit < lists.ItemsByBit.Length; bit++ )
 		{
@@ -1265,11 +1264,14 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal override void Draw( GpuContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
 	{
 		var lists = view.State<RunLists>( this );
-		if ( OverlaysOneRun( layer, lists ) )
+		if ( OverlaysOneRun( view, layer, lists ) )
 		{
 			if ( first == 0 && count > 0 ) DrawOverlays( context, view, lists, layer, ref stats );
 			return;
 		}
+
+		// Resident overlays draw only in their one run: lists made before the change that stopped it go undrawn, and are made again
+		if ( layer.Runs == MeshRuns.StaticOverlay && Aggregates?.ResidentOverlays( view ) is { Count: > 0 } ) Aggregates.OverlaysStale();
 
 		var end = first + count;
 

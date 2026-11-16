@@ -85,7 +85,7 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 		// path, without testing or sizing them one by one; a worker sizes them, and resident meshes, for texture streaming
 		// (AggregateRenderFeature.Sizes.cs)
 		var gpuCulls = state.OneRun && RenderHost.Current.Device.CullsAggregatesGpuDriven;
-		var gpuCulledSize = gpuCulls && (visible.Count > 0 || state.Resident is { MeshGroups.Count: > 0 }) ? GpuCulledSize( pass, world, visible, state.Resident ) : 0;
+		var gpuCulledSize = gpuCulls && (visible.Count > 0 || state.Resident is not null) ? GpuCulledSize( pass, world, visible, state.Resident ) : 0;
 		if ( visible.Count == 0 ) return;
 
 		var objects = world.Objects;
@@ -532,7 +532,45 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 	};
 
 	/// <summary>A resident list's weight in its run: a batch of it costs the run about this many times less than one of the view's own.</summary>
-	const int ResidentWeightDivisor = 16;
+	internal const int ResidentWeightDivisor = 16;
+
+	/// <summary>
+	/// Draw one render order's resident static overlays as one call that keeps their order (<see cref="GpuContext.GpuDrivenCull.KeepsOrder"/>):
+	/// culled on the GPU, a command per overlay in list order. Overlays the device leaves go undrawn this frame and the
+	/// view's own way from the next.
+	/// </summary>
+	internal void DrawOverlayOrder( GpuContext context, ViewPass view, OverlayOrder order, MeshLayer layer, ref RenderStats stats )
+	{
+		var batches = order.Device;
+		if ( batches.Length == 0 ) return;
+
+		var rented = System.Buffers.ArrayPool<bool>.Shared.Rent( batches.Length );
+		var drawn = rented.AsSpan( 0, batches.Length );
+		drawn.Clear();
+		var cull = CullFor( view, false, order, order.Version, batches.Length );
+		cull.View = null;
+		cull.Visibility = false;
+		cull.KeepsOrder = true;
+		context.DrawGpuDriven( layer.ShaderMode, batches, default, transforms, 0, 0, drawn, cull );
+
+		if ( drawn.IndexOf( false ) < 0 )
+		{
+			stats.DrawnTriangles += order.Triangles;
+			stats.Draws += batches.Length;
+			stats.Instances += order.Fragments;
+			stats.Triangles += order.Triangles;
+		}
+		else
+		{
+			for ( int i = 0; i < batches.Length; i++ )
+			{
+				if ( drawn[i] ) stats.Draws++;
+				else if ( batches[i].Owner is GpuContext.ResidentMeshes owner ) MeshesLeft( order.Groups, owner );
+			}
+		}
+
+		System.Buffers.ArrayPool<bool>.Shared.Return( rented );
+	}
 
 	/// <summary>
 	/// Count what the device drew of a view's resident list (<see cref="GpuContext.GpuDrivenCull.Plan"/>) and draw what it left

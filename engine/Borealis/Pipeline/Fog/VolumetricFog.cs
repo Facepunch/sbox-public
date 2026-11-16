@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Borealis;
@@ -56,7 +57,7 @@ internal sealed class VolumetricFog : IDisposable
 	IntPtr constantBuffer;
 	GpuTexture lighting, fogVolume;
 	readonly GpuTexture[] accumulated = new GpuTexture[2];
-	static GpuTexture opaqueBlack;
+	static readonly ConditionalWeakTable<GpuDevice, GpuTexture> opaqueBlack = new();
 	GpuMaterial computeShader;
 
 	uint frameIndex;
@@ -82,10 +83,11 @@ internal sealed class VolumetricFog : IDisposable
 	public GpuTexture FogVolumeTexture => Active && scattering != 0.0f ? fogVolume : OpaqueBlack;
 
 	/// <summary>
-	/// No-fog fallback: opaque black 2x2x2 (<c>SCENE_TXTR_OPAQUE_BLACK_2x2x2</c>).
+	/// No-fog fallback: opaque black 2x2x2 (<c>SCENE_TXTR_OPAQUE_BLACK_2x2x2</c>), one per device: a texture of one device
+	/// isn't another's.
 	/// </summary>
-	public static GpuTexture OpaqueBlack => opaqueBlack ??= RenderHost.Current.Device.CreateTexture(
-		TextureDesc.Volume( 2, 2, 2, TextureFormat.RGBA8888 ) with { Data = OpaqueBlackData() }, "Borealis opaque black 2x2x2" );
+	public static GpuTexture OpaqueBlack => opaqueBlack.GetValue( RenderHost.Current.Device, static device => device.CreateTexture(
+		TextureDesc.Volume( 2, 2, 2, TextureFormat.RGBA8888 ) with { Data = OpaqueBlackData() }, "Borealis opaque black 2x2x2" ) );
 
 	static byte[] OpaqueBlackData()
 	{

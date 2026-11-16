@@ -64,6 +64,10 @@ uint SurfaceDrawRecord() { return DrawMaterialOffset(); }
 T SurfaceRecord<T>( uint offset ) { return LoadMaterial<T>( offset ); }
 #endif
 
+/// An interpolated surface's Varyings, named through IInterpolatedSurface: a layered one also declares them for
+/// IInterpolatedLayeredSurface, which makes `S.Varyings` ambiguous.
+typealias SurfaceVaryings<S : IInterpolatedSurface> = S.Varyings;
+
 /// What the vertex stage hands the pixel stage: the engine's interpolants and the draw's material record offset, flat.
 struct SurfaceVertexOutput
 {
@@ -94,6 +98,15 @@ struct SurfaceWithVaryingsCombiner<S : IInterpolatedCombinerSurface> : ICombiner
 	S Surface;
 	S.Varyings Values;
 	Material Evaluate( SurfaceInput i ) { return Surface.Evaluate( i, Values ); }
+};
+
+/// The same for an IInterpolatedLayeredSurface, as an ILayeredSurface.
+struct SurfaceWithVaryingsLayered<S : IInterpolatedLayeredSurface> : ILayeredSurface
+{
+	S Surface;
+	S.Varyings Values;
+	Material Evaluate( SurfaceInput i ) { return Surface.Evaluate( i, Values ); }
+	float3 Shade<L : ILayerLighting>( SurfaceInput i, L lighting, out Material m ) { return Surface.Shade( i, Values, lighting, m ); }
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
@@ -161,6 +174,9 @@ SurfaceVertexOutputWith<S.Varyings> SurfaceOutputDisplacedWith<S : IInterpolated
 	v.Wind = g_vWindDirection.xyz * g_vWindStrengthFreqMulHighStrength.x;
 	v.Time = g_flTime;
 	v.BlueNoise.Slot = g_vViewLookupIndices.y;
+	v.TangentU = o.vTangentUWs;
+	v.TangentV = o.vTangentVWs;
+	VS_DecodeObjectSpaceNormalAndTangent( i, v.ObjectNormal, v.ObjectTangent );
 
 	SurfaceVertexOutputWith<S.Varyings> output;
 	output.Varyings = surface.Displace( v, surface.Vertex( varyings ) );
@@ -268,6 +284,7 @@ SurfaceInput MakeSurfaceInput( PixelInput i )
 	s.FrameBufferUvScale = g_vFrameBufferCopyInvSizeAndUvScale.zw;
 	s.Skybox = kSurfaceSkybox;
 	s.ToneMapScale = g_flToneMapScalarLinear;
+	s.ViewportSize = g_vViewportSize;
 	return s;
 }
 
@@ -527,21 +544,30 @@ struct SurfaceLayerLighting : ILayerLighting
 		f.vNormalWs = layer.Normal;
 		f.vTangentUWs = TangentU;
 		f.vTangentVWs = TangentV;
-		f.vRoughness = max( layer.Roughness, GeometricRoughness.xx );   // AdjustRoughnessByGeometricNormal
+		f.vRoughness = layer.GeometricRoughness ? max( layer.Roughness, GeometricRoughness.xx ) : layer.Roughness;   // AdjustRoughnessByGeometricNormal
 		f.vSSSNormalWs = layer.DiffuseNormal;
 		f.vSSSWrapParameters = float4( layer.DiffuseWrap, layer.DiffuseWrapExponent, 1.0 / ( 1.0 + layer.DiffuseWrap ), ( 1.0 + layer.DiffuseWrapExponent ) / ( 2.0 + 2.0 * layer.DiffuseWrap ) );
 		f.vSpecularColor = layer.SpecularColor;
 
 		LightingTerms_t terms = InitLightingTerms();
-		ComputeDirectLighting( terms, f );
-		CalculateIndirectLighting( terms, f );
+		if ( layer.Direct ) ComputeDirectLighting( terms, f );
+		else terms.vDiffuse = 0;   // InitLightingTerms starts it white, for unlit callers
+		if ( layer.Indirect ) CalculateIndirectLighting( terms, f );
 
 		LayerLight o;
 		o.Diffuse = terms.vDiffuse;
 		o.IndirectDiffuse = terms.vIndirectDiffuse;
 		o.Specular = terms.vSpecular;
 		o.IndirectSpecular = terms.vIndirectSpecular;
+		// As CalculateDiffuseAmbientOcclusion and CalculateSpecularAmbientOcclusion read them, with no material occlusion
+		o.DiffuseOcclusion = min( sqrt( terms.flBakedAmbientOcclusion ), terms.flDynamicAmbientOcclusion );
+		o.SpecularOcclusion = PowerSpecularOcclusion( f.vPositionWs, f.vNormalWs, min( terms.flBakedAmbientOcclusion, terms.flDynamicAmbientOcclusion ) );
 		return o;
+	}
+
+	float3 ScenePosition( float2 pixel )
+	{
+		return Depth::GetWorldPosition( pixel );
 	}
 };
 

@@ -362,6 +362,8 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		var count = passes.Count;
 		if ( count == 0 ) return;
 
+		MarkUnsettled();
+
 		groupStarts.Clear();
 		for ( int i = 0; i < count; i++ )
 		{
@@ -400,6 +402,65 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 		// Workers and the caller share chunk claiming.
 		JobDispatcher.For( chunkCount, this, static ( shadows, chunk ) => shadows.CullChunk( chunk ), itemsPerBatch: 1 );
+	}
+
+	readonly List<UnsettledMarks> unsettledMarks = new();
+
+	/// <summary>
+	/// Whether <see cref="StaticFilter.Unsettled"/> views query only casters their cache doesn't hold (<see cref="MarkUnsettled"/>).
+	/// </summary>
+	internal static bool MarksUnsettled { get; set; } = true;
+
+	/// <summary>
+	/// Give each <see cref="StaticFilter.Unsettled"/> view tree marks that leave out the casters its far cascade's cache holds:
+	/// its filter takes none of them, and its query would otherwise visit every caster that isn't static.
+	/// </summary>
+	void MarkUnsettled()
+	{
+		if ( !MarksUnsettled ) return;
+		var n = 0;
+		foreach ( var pass in passes )
+		{
+			if ( pass.StaticFilter != StaticFilter.Unsettled || pass.TreeKept is not null || pass.CullReasons is not null ) continue;
+			if ( n == unsettledMarks.Count ) unsettledMarks.Add( new UnsettledMarks() );
+			pass.TreeKept = unsettledMarks[n++].For( world, pass );
+		}
+	}
+
+	/// <summary>
+	/// An <see cref="StaticFilter.Unsettled"/> view's tree marks, made again only when the tree or which casters count as
+	/// cached have changed since.
+	/// </summary>
+	sealed class UnsettledMarks
+	{
+		Culling.SpatialTree tree;
+		int treeVersion;
+		byte[] cached = [];
+		byte[] scratch = [];
+		int count = -1;
+		bool[] kept = [];
+
+		public bool[] For( RenderWorld world, ViewPass pass )
+		{
+			var stamps = world.MovedStamps;
+			if ( scratch.Length < stamps.Length ) scratch = new byte[Math.Max( stamps.Length, scratch.Length * 2 )];
+
+			// What the cache holds, by world index: the same test the view's filter rejects them by
+			var now = scratch.AsSpan( 0, stamps.Length );
+			for ( int i = 0; i < stamps.Length; i++ )
+				now[i] = SettledCasters.SettledBy( stamps[i], pass.SettledStamp, pass.RestlessStamp ) ? (byte)1 : (byte)0;
+
+			var dynamic = world.DynamicTree;
+			if ( ReferenceEquals( tree, dynamic ) && treeVersion == dynamic.Version && count == stamps.Length && now.SequenceEqual( cached.AsSpan( 0, count ) ) )
+				return kept;
+
+			(cached, scratch) = (scratch, cached);
+			dynamic.Mark( cached.AsSpan( 0, stamps.Length ), ref kept );
+			tree = dynamic;
+			treeVersion = dynamic.Version;
+			count = stamps.Length;
+			return kept;
+		}
 	}
 
 	/// <summary>
@@ -566,6 +627,9 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 	static bool HasCasters( ViewPass pass )
 	{
+		// Casters its resident list draws, which its culling left out
+		if ( pass.ResidentInView ) return true;
+
 		foreach ( var list in pass.VisibleByFeature )
 		{
 			if ( list.Count > 0 ) return true;

@@ -61,8 +61,9 @@ public sealed class SurfaceShaders : IDisposable
 	}
 
 	/// <summary>
-	/// The core shaders drawn as surfaces by default (<see cref="ConvertShaders"/>): by the surface written beside them
-	/// (<c>standard.slang</c>), or, for null, by what <see cref="ShaderConverter"/> makes of the <c>.shader</c>.
+	/// The shaders drawn as surfaces by default (<see cref="ConvertShaders"/>): by the surface written beside them
+	/// (<c>standard.slang</c>; in the core shaders, else in a content folder's, as the citizen's <c>citizen_eye.shader</c>),
+	/// or, for null, by what <see cref="ShaderConverter"/> makes of the core <c>.shader</c>.
 	/// </summary>
 	static readonly Dictionary<string, string> DefaultSurfaces = new( StringComparer.OrdinalIgnoreCase )
 	{
@@ -76,6 +77,7 @@ public sealed class SurfaceShaders : IDisposable
 		["fur"] = "fur.slang",
 		["skin"] = "skin.slang",
 		["eyeball"] = "eyeball_surface.slang",
+		["citizen_eye"] = "citizen_eye_surface.slang",
 		["simple"] = "standard.slang",
 		["bark"] = null,
 		["terrain_preview"] = null,
@@ -128,7 +130,11 @@ public sealed class SurfaceShaders : IDisposable
 			try
 			{
 				var shaders = CoreShaders();
-				if ( surface is not null ) path = File.Exists( Path.Combine( shaders, surface ) ) ? Path.Combine( shaders, surface ) : null;
+				if ( surface is not null )
+				{
+					path = new[] { shaders }.Concat( device.Content.Roots.Select( r => Path.Combine( r, "shaders" ) ) ).Select( f => Path.Combine( f, surface ) ).FirstOrDefault( File.Exists );
+					if ( path is not null ) Watch( Path.GetDirectoryName( path ) );
+				}
 				else if ( File.Exists( Path.Combine( shaders, key + ".shader" ) ) )
 				{
 					var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( shaders, key + ".shader" ) ), key, include => File.Exists( Path.Combine( shaders, include ) ) ? File.ReadAllText( Path.Combine( shaders, include ) ) : null );

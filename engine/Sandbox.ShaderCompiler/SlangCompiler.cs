@@ -113,16 +113,19 @@ public sealed partial class SlangCompiler
 			var interpolatedDisplaces = material.Interfaces.Contains( "IInterpolatedVertexSurface" );
 			var displaces = interpolatedDisplaces || material.Interfaces.Contains( "IVertexSurface" );
 			var lit = material.Interfaces.Contains( "ILitSurface" );
-			var interpolatedCombiner = material.Interfaces.Contains( "IInterpolatedCombinerSurface" );
+			var interpolatedLayered = material.Interfaces.Contains( "IInterpolatedLayeredSurface" );
+			var interpolatedCombiner = interpolatedLayered || material.Interfaces.Contains( "IInterpolatedCombinerSurface" );
 			var interpolated = interpolatedCombiner || interpolatedDisplaces || material.Interfaces.Contains( "IInterpolatedSurface" );
 			var sunLit = material.Interfaces.Contains( "ISunLitSurface" );
 			var composite = material.Interfaces.Contains( "ICompositeSurface" );
-			var layered = material.Interfaces.Contains( "ILayeredSurface" );
+			var layered = interpolatedLayered || material.Interfaces.Contains( "ILayeredSurface" );
 			var combiner = layered || interpolatedCombiner || material.Interfaces.Contains( "ICombinerSurface" );
 			if ( !displaces && !lit && !interpolated && !sunLit && !composite && !combiner && !material.Interfaces.Contains( "ISurface" ) )
-				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface, ISunLitSurface, ICompositeSurface, ICombinerSurface, IInterpolatedCombinerSurface or ILayeredSurface" );
-			if ( layered && interpolated )
-				throw new ShaderCompileException( path, $"{material.Name}: an ILayeredSurface can't also be an IInterpolatedSurface yet" );
+				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface, ISunLitSurface, ICompositeSurface, ICombinerSurface, IInterpolatedCombinerSurface, ILayeredSurface or IInterpolatedLayeredSurface" );
+			if ( interpolatedLayered && !material.Interfaces.Contains( "IInterpolatedSurface" ) && !interpolatedDisplaces )
+				throw new ShaderCompileException( path, $"{material.Name}: an IInterpolatedLayeredSurface is also an IInterpolatedSurface or IInterpolatedVertexSurface, for its vertex stage" );
+			if ( layered && interpolated && !interpolatedLayered )
+				throw new ShaderCompileException( path, $"{material.Name}: an ILayeredSurface can't also be an IInterpolatedSurface (it's an IInterpolatedLayeredSurface)" );
 			if ( combiner && (lit || sunLit || composite || (interpolated && !interpolatedCombiner)) )
 				throw new ShaderCompileException( path, $"{material.Name}: an ICombinerSurface can't also be an ILitSurface, ISunLitSurface, ICompositeSurface or IInterpolatedSurface yet (an IInterpolatedCombinerSurface is both)" );
 			if ( interpolated && ((displaces && !interpolatedDisplaces) || lit || sunLit || composite) )
@@ -336,7 +339,7 @@ public sealed partial class SlangCompiler
 	/// interpolated surface's (<c>IInterpolatedSurface</c>) vertex stage also reads its <c>Varyings</c> and passes them on. A
 	/// composite surface's (<c>ICompositeSurface</c>) forward passes call its <c>Composite</c> on the lit colour, and a
 	/// combiner surface's (<c>ICombinerSurface</c>) shade through complex.shader's final combiner (<c>SURFACE_FINAL_COMBINER</c>),
-	/// a layered one's (<c>ILayeredSurface</c>, <paramref name="layered"/>) through its own Shade over that lighting.
+	/// a layered one's (<c>ILayeredSurface</c> or <c>IInterpolatedLayeredSurface</c>, <paramref name="layered"/>) through its own Shade over that lighting.
 	/// Pixel entries read the material's <paramref name="features"/> as specialization constants instead of from the record
 	/// when the pipeline is specialised for its material (<see cref="MaterialLayout.SpecializedId"/>), so its branches fold.
 	/// </summary>
@@ -347,8 +350,8 @@ public sealed partial class SlangCompiler
 		var vertex = displaces ? $"SurfaceVertexDisplaced<{type}>( i )" : "SurfaceVertex( i )";
 		var opacity = opacityField is null ? "0" : $"m.{opacityField}.Slot";
 		var keep = lit ? " s_LitSurface = m;" : "";
-		var output = interpolated ? $"SurfaceVertexOutputWith<{type}.Varyings>" : "SurfaceVertexOutput";
-		var surface = interpolated ? $"{(combiner ? "SurfaceWithVaryingsCombiner" : "SurfaceWithVaryings")}<{type}>" : type;
+		var output = interpolated ? $"SurfaceVertexOutputWith<SurfaceVaryings<{type}>>" : "SurfaceVertexOutput";
+		var surface = interpolated ? $"{(layered ? "SurfaceWithVaryingsLayered" : combiner ? "SurfaceWithVaryingsCombiner" : "SurfaceWithVaryings")}<{type}>" : type;
 		var wrap = interpolated ? $" {surface} s; s.Surface = m; s.Values = i.Varyings;" : "";
 		var argument = interpolated ? "s" : "m";
 		string Shade( bool alphaTest ) => $"{type} m = SurfaceRecord<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{specialize}{keep}{wrap} return {forward}<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} );";
@@ -395,7 +398,7 @@ public sealed partial class SlangCompiler
 		text.Append( "struct SurfaceIdsOutput { float4 Color : SV_Target0; uint Id : SV_Target1; };\n" );
 		text.Append( "#endif\n\n" );
 		text.Append( "#if ( PROGRAM == VFX_PROGRAM_VS )\n" );
-		var varyingsInput = interpolated ? $", {type}.Varyings varyings" : "";
+		var varyingsInput = interpolated ? $", SurfaceVaryings<{type}> varyings" : "";
 		text.Append( $"[shader( \"vertex\" )] {output} MainVs( VertexInput i{varyingsInput} ) {{ return {VertexStage( type, displaces, interpolated )}; }}\n" );
 		text.Append( "// Opaque depth: the position alone, so its draws can read a positions-only vertex copy\n" );
 		var depthInput = displaces && interpolated ? varyingsInput : "";
@@ -486,7 +489,7 @@ public sealed partial class SlangCompiler
 		text.Append( "\tg_bUncompressedTangentFrame = ( draw.w & 1 ) != 0;\n" );
 		text.Append( "\tSurfaceFetchBakedLighting( record.y );\n" );
 		text.Append( "\tVertexInput i = {};\n" );
-		if ( interpolated ) text.Append( $"\t{type}.Varyings varyings = {{}};\n" );
+		if ( interpolated ) text.Append( $"\tSurfaceVaryings<{type}> varyings = {{}};\n" );
 		foreach ( var input in inputs )
 		{
 			if ( input.Field is null ) throw new InvalidOperationException( $"vertex input {input.Semantic}{input.SemanticIndex} has no field" );

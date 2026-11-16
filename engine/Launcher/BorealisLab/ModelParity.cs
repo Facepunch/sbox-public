@@ -99,6 +99,7 @@ internal static class ModelParity
 		using var gpu = GpuDevice.Create( new DeviceOptions { ApplicationName = "Borealis Lab model parity", Validation = Args.Has( "-validation" ), Presentation = false, Message = m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ) } );
 		using var device = new BackendDevice( gpu );
 		backend.Phase( $"Borealis.Gpu device ({gpu.Adapter.Name})" );
+		device.Surfaces.Error = m => Log.Warning( $"Surface: {m}" );
 
 		var failed = 0;
 		var lines = new List<string>();
@@ -250,7 +251,7 @@ internal static class ModelParity
 			+ (weights.Length > 0 ? $" morphs {string.Join( ", ", weights.Select( x => $"{x.Name} {x.Weight:F2}" ) )}" : "");
 		var line = $"{test.Name}: {test.Path}{(test.MeshGroups is { } m ? $" mesh groups {m}" : "")}{posed}: mean difference {mean:F3}, max {maxDiff}, {over} pixels over 8; "
 			+ $"engine {info.TotalVertices} vertices, {info.TotalTriangles} triangles, {info.TotalDrawCalls} draws, {info.LodCount} LODs, bounds {model.Bounds.Mins} {model.Bounds.Maxs}"
-			+ $"; {comparedDraws} draws' vertices compared"
+			+ $"; {comparedDraws} draws' vertices compared; materials as surfaces so far: {string.Join( ", ", device.Surfaces.ConvertedPaths.Select( System.IO.Path.GetFileNameWithoutExtension ) )}"
 			+ (mismatches.Count == 0 ? "; reader matches" : $"; reader differs: {string.Join( "; ", mismatches )}")
 			+ (ok ? "" : " FAIL");
 		return (line, ok);

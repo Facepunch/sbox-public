@@ -207,6 +207,27 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal override bool DrawsMeshesResident => GpuDrivenResidentMeshes && DrawsAggregatesResident && DrawsMeshesGpuDriven;
 
 	/// <summary>
+	/// Make a map's static overlays resident with the meshes: a list per render order, culled on the GPU with its order kept.
+	/// On by default with <see cref="GpuDrivenResidentMeshes"/> and <see cref="GpuDrivenOverlays"/>; <c>-no-resident-overlays</c>
+	/// turns it off, and views then prepare them.
+	/// </summary>
+	public bool GpuDrivenResidentOverlays { get; set; } = !HasSwitch( "-no-resident-overlays" );
+
+	/// <summary>
+	/// Resolve what a surface stage binds from the pass once per pass state, and only what objects' attributes set for each
+	/// draw, so its draws bind the same set (<see cref="Device.ReusesTransientSets"/>); <c>-no-pass-bindings</c> turns both off.
+	/// </summary>
+	public bool SurfacePassBindings
+	{
+		get => surfacePassBindings;
+		set => Gpu.ReusesTransientSets = surfacePassBindings = value;
+	}
+
+	bool surfacePassBindings = true;
+
+	internal override bool DrawsOverlaysResident => GpuDrivenResidentOverlays && DrawsMeshesResident && DrawsOverlaysGpuDriven;
+
+	/// <summary>
 	/// Give the sun's far cascade cache and what's drawn over it resident lists of the casters that aren't static too, which
 	/// the GPU takes by when each last moved (<see cref="GpuContext.ResidentFilter"/>). On by default with
 	/// <see cref="GpuDrivenResident"/>; <c>-no-resident-settled</c> turns it off, and those views draw their static casters
@@ -280,6 +301,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		SurfaceMaterial surface => !surface.RenderState.DrawsTranslucent && surface.RenderState.DepthWrite && surface.RenderState.DepthTest && Surfaces.For( surface ) is { } program
 			&& program.GpuDrivenPass( false, surface.RenderState.AlphaTest, false ) is not null && program.GpuDrivenPass( true, surface.RenderState.AlphaTest, false ) is not null,
+		BackendMaterial { Shader: { } shader } => Shaders.GpuDriven( shader ) is not null,
+		_ => false,
+	};
+
+	internal override bool TakesOverlay( GpuMaterial material ) => material switch
+	{
+		SurfaceMaterial surface => Surfaces.For( surface ) is { } program && program.GpuDrivenPass( false, surface.RenderState.AlphaTest, false, surface.RenderState.DrawsTranslucent ) is not null
+			&& program.GpuDrivenPass( false, surface.RenderState.AlphaTest, true, surface.RenderState.DrawsTranslucent ) is not null,
 		BackendMaterial { Shader: { } shader } => Shaders.GpuDriven( shader ) is not null,
 		_ => false,
 	};
@@ -415,6 +444,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public BackendDevice( Device gpu, ContentFiles content = null )
 	{
 		Gpu = gpu;
+		SurfacePassBindings = !HasSwitch( "-no-pass-bindings" );
 		Content = content ?? ContentFiles.FindGame();
 		Shaders = new ShaderLibrary( gpu, Content );
 		Passes = new PassModules( this );
@@ -584,8 +614,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			Name = name,
 		};
 
+		// Initial pixels for mip 0: a 2D texture's, or every slice of a volume's
 		var texture = new BackendTexture( this, Gpu.CreateTexture( info ), desc, name );
-		if ( !desc.Data.IsEmpty && !desc.Cube && desc.Depth <= 1 )
+		if ( !desc.Data.IsEmpty && !desc.Cube )
 		{
 			Gpu.WriteTexture( texture.Handle, desc.Data.Span );
 			texture.Layout = ImageLayout.ShaderRead;
@@ -868,29 +899,64 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
+	/// A compiled material as its <c>.shader</c> draws it, with its shader, values and textures: <see cref="LoadMaterial(string)"/>'s,
+	/// or where a surface stands in for its shader in the scene, the surface's fallback. What the engine's drawing
+	/// (<see cref="ShaderDrawer.Material"/>) takes, as it draws the <c>.shader</c>. Null when it can't be read.
+	/// </summary>
+	internal BackendMaterial ShaderMaterial( string path )
+	{
+		var loaded = LoadMaterial( path );
+		var material = (loaded as SurfaceMaterial)?.Fallback as BackendMaterial ?? loaded as BackendMaterial;
+		return material?.Shader is null ? null : material;
+	}
+
+	/// <summary>
 	/// A material whose <c>.shader</c> has a surface standing in for it (<see cref="SurfaceShaders.Convert"/>), as that
 	/// surface with the material's values; null when it has none or doesn't compile.
 	/// </summary>
 	GpuMaterial Converted( string path )
 	{
-		var tier = Surfaces;
-		if ( !tier.HasConversions ) return null;
+		if ( !Surfaces.HasConversions ) return null;
 		if ( (readMaterials.TryGetValue( path, out var read ) ? read : Content.TryRead( path ) is { } data ? ReadMaterial( data ) : null) is not { } file ) return null;
-		if ( tier.ConversionFor( file.Shader ) is not { } surface || tier.Compile( surface ) is not { } compiled ) return null;
-		if ( !ConvertedMaterial.Accepts( compiled, file ) || tier.ConvertMaterial?.Invoke( path ) == false ) return null;
-		tier.CountConverted( path );
-		readMaterials.TryRemove( path, out _ );
-		var converted = ConvertedMaterial.Create( compiled, file, path, MaterialTextureFile );
-
-		// The .shader material, for draws the surface can't make
-		converted.SetFallback( () =>
+		var converted = Converted( path, file, () =>
 		{
 			lock ( sharedMaterials ) return Material( path, null );
 		} );
+		if ( converted is not null ) readMaterials.TryRemove( path, out _ );
+		return converted;
+	}
+
+	/// <summary>
+	/// <paramref name="file"/> as the surface standing in for its shader, with <paramref name="fallback"/> (its <c>.shader</c>
+	/// material) for draws the surface can't make; null when it has none or doesn't compile.
+	/// </summary>
+	ConvertedMaterial Converted( string path, MaterialFile file, Func<BackendMaterial> fallback )
+	{
+		var tier = Surfaces;
+		if ( tier.ConversionFor( file.Shader ) is not { } surface || tier.Compile( surface ) is not { } compiled ) return null;
+		if ( !ConvertedMaterial.Accepts( compiled, file ) || tier.ConvertMaterial?.Invoke( path ) == false ) return null;
+		tier.CountConverted( path );
+		var converted = ConvertedMaterial.Create( compiled, file, path, MaterialTextureFile );
+
+		// The .shader material, for draws the surface can't make
+		converted.SetFallback( fallback );
 
 		// Its scene attributes (overlay, NoZPrepass, ...) are the .shader material's: that material without textures
 		converted.SetAttributes( () => new BackendMaterial( path, Shaders.Load( file.Shader ), file, null ) );
 		return converted;
+	}
+
+	/// <summary>
+	/// A material from a material file in hand rather than in the content (one made in memory), as <see cref="LoadMaterial(string)"/>
+	/// loads one: as the surface standing in for its shader when it has one. Not shared.
+	/// </summary>
+	internal GpuMaterial LoadMaterial( string name, MaterialFile file )
+	{
+		BackendMaterial Classic() => Track( new BackendMaterial( name, Shaders.Load( file.Shader ), file, Textures( file ) ) );
+#pragma warning disable CA2000 // Returned: the caller owns it
+		if ( Surfaces.HasConversions && Converted( name, file, Classic ) is { } converted ) return converted;
+#pragma warning restore CA2000
+		return Classic();
 	}
 
 	/// <summary>A material that's a shader with its defaults.</summary>

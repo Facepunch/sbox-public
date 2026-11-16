@@ -750,7 +750,9 @@ public sealed partial class RenderSystem : IDisposable
 	/// </summary>
 	internal void Prepare( RenderWorld world, RenderView view )
 	{
-		transforms.Clear();
+		// Begun by the collect when it left resident objects out
+		if ( !collectedResident ) transforms.Clear();
+		collectedResident = false;
 
 		// Shadows, skyboxes and views without a prepass never cull
 		var wanted = RenderHost.Current.OcclusionCulling && DepthPrepass && !isSkybox && !view.Capture;
@@ -764,6 +766,9 @@ public sealed partial class RenderSystem : IDisposable
 		// other features prepare here - culling only reads what preparing doesn't write
 		using ( Zones.LightPrepare.Start() ) lightBinner.Prepare( world, mainPass, transforms );
 		shadows.Select( world, mainPass, lightBinner, features.Count, Shadows, isSkybox );
+
+		// Resident casters reach the shadow views through their resident lists: the culls leave them out
+		aggregates.LeaveResidentOut( world, shadows.Passes, transforms );
 		var shadowCull = shadows.BeginCull();
 		try
 		{

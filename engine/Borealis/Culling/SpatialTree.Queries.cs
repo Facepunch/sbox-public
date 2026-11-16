@@ -38,7 +38,13 @@ internal sealed partial class SpatialTree
 	/// </summary>
 	public void QueryClassified<T>( ref T query, List<int> results, out int rejected ) where T : struct, ISpatialQuery => Query( ref query, results, true, out rejected );
 
-	void Query<T>( ref T query, List<int> results, bool classified, out int rejected ) where T : struct, ISpatialQuery
+	/// <summary>
+	/// As <see cref="QueryClassified{T}(ref T, List{int}, out int)"/>, leaving out the subtrees <paramref name="kept"/> (from
+	/// <see cref="Mark"/>, at this <see cref="Version"/>) says have no leaf to keep; null leaves out none.
+	/// </summary>
+	public void QueryClassified<T>( ref T query, List<int> results, out int rejected, bool[] kept ) where T : struct, ISpatialQuery => Query( ref query, results, true, out rejected, kept );
+
+	void Query<T>( ref T query, List<int> results, bool classified, out int rejected, bool[] kept = null ) where T : struct, ISpatialQuery
 	{
 		rejected = 0;
 		if ( root == Null ) return;
@@ -56,6 +62,7 @@ internal sealed partial class SpatialTree
 		{
 			var entry = stack[--count];
 			var index = entry >> 1;
+			if ( kept is not null && !kept[index] ) continue;
 			ref var node = ref nodes[index];
 
 			var inside = (entry & 1) != 0;

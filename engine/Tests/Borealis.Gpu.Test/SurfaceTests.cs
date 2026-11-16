@@ -23,12 +23,16 @@ public class SurfaceTests : GpuTest
 
 	static string Surfaces => Path.GetFullPath( Path.Combine( Core, "..", "..", "engine", "Launcher", "BorealisLab", "Surfaces" ) );
 
+	/// <summary>
+	/// The engine's Slang over the core shaders, with the backend's disk cache (<see cref="Fixtures.SurfaceCache"/>): a surface
+	/// compiles once until it or anything it reads changes. Tests of compiling itself make compilers of their own.
+	/// </summary>
 	static SlangCompiler Compiler()
 	{
 		if ( Core is null ) Assert.Inconclusive( "No game content" );
 		var bin = EngineFolders.NativeIn( Path.GetDirectoryName( Core ) );
 		if ( !File.Exists( Path.Combine( bin, EngineFolders.Library( "slang" ) ) ) ) Assert.Inconclusive( "The engine's Slang isn't built" );
-		return new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] );
+		return new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] ) { CacheFolder = Fixtures.SurfaceCache };
 	}
 
 	/// <summary>vfx's include rewrite: static sets become defines, annotations are recorded per variable.</summary>
@@ -151,6 +155,7 @@ public class SurfaceTests : GpuTest
 	/// prepass don't place its vertices from their positions alone.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void InterpolatedVertexSurfaceDisplacesWithItsVaryings()
 	{
 		var fur = Compiler().CompileSurface( Path.Combine( Core, "shaders", "fur.slang" ) );
@@ -217,6 +222,7 @@ public class SurfaceTests : GpuTest
 	/// (or anything it read) compiles again.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void CompileCacheKeepsUnchangedModules()
 	{
 		Compiler();
@@ -327,6 +333,7 @@ public class SurfaceTests : GpuTest
 	/// refraction after shading as Composite).
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void ConverterTurnsPixelShadersIntoSurfaces()
 	{
 		Compiler();
@@ -379,6 +386,7 @@ public class SurfaceTests : GpuTest
 
 	/// <summary>Hotload: changing a surface's module drops its program, and the next compile is a fresh one.</summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void ChangedSurfacesHotload()
 	{
 		Compiler();
@@ -665,6 +673,7 @@ public class SurfaceTests : GpuTest
 	/// does, colour-alpha occlusion included; shaders that do more than that shape stay as they are.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void ConverterTurnsStandardCombinerShadersIntoSurfaces()
 	{
 		var compiler = Compiler();
@@ -909,14 +918,44 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// The engine's drawing (a custom or dynamic object's <c>Graphics.Draw</c>) draws a material's <c>.shader</c>: where a
+	/// surface stands in for that shader in the scene, <see cref="BackendDevice.ShaderMaterial"/> is still the
+	/// <c>.shader</c> material with its textures. Without them its draws read black textures and come out unlit.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "materials/dev/red.vmat" )]
+	[DataRow( "materials/default/vertex_color.vmat" )]
+	public void ConvertedMaterialsKeepTheirShaderMaterial( string path )
+	{
+		Compiler();
+		var previousHost = RenderHost.Current;
+		try
+		{
+			using var backend = new BackendDevice( Device );
+			backend.Surfaces.ConvertShaders = true;
+			RenderHost.Current = new BackendRenderHost( backend );
+			if ( ((GpuDevice)backend).LoadMaterial( path ) is not SurfaceMaterial ) Assert.Inconclusive( $"{path} isn't a surface" );
+
+			var material = backend.ShaderMaterial( path );
+			Assert.IsNotNull( material, "the .shader material behind the surface" );
+			Assert.IsNotNull( material.Shader );
+			Assert.IsTrue( material.Textures.Count > 0, $"{path}'s textures" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A surface's render state: the struct's attributes are every material's defaults, [RenderState] fields change them
 	/// per material (in field order), the generated class carries both, and a material resolves its state from its record.
 	/// </summary>
 	[TestMethod]
 	public void SurfacesDeclareTheirRenderState()
 	{
-		var folder = Path.Combine( Path.GetTempPath(), "borealis-surface-state-" + Guid.NewGuid().ToString( "N" ) );
-		Directory.CreateDirectory( folder );
+		var folder = Fixtures.Folder( "surface-state" );
 		try
 		{
 			var path = Path.Combine( folder, "decal_state.slang" );
@@ -979,6 +1018,7 @@ public class SurfaceTests : GpuTest
 	/// attribute; a surface that doesn't read the view inputs (complex) doesn't bind the copy.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void GlassDrawsTranslucentFromTheFrameBufferCopy()
 	{
 		var glass = Compiler().CompileSurface( Path.Combine( Core, "shaders", "glass.slang" ) );
@@ -1287,9 +1327,11 @@ public class SurfaceTests : GpuTest
 
 	/// <summary>
 	/// eyeball_surface.slang lights itself in two layers through the engine's lighting (ILayeredSurface) and draws eyeball
-	/// materials as eyeball.shader's compiled programs and its pass module do.
+	/// materials as eyeball.shader's compiled programs and its pass module do: the legacy human eyes where they're built,
+	/// else an eyeball material made here from the citizen's eye textures.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void EyeballSurfaceDrawsEyeballMaterials()
 	{
 		var eyeball = Compiler().CompileSurface( Path.Combine( Core, "shaders", "eyeball_surface.slang" ) );
@@ -1301,6 +1343,27 @@ public class SurfaceTests : GpuTest
 		var previousHost = RenderHost.Current;
 		try
 		{
+			const string legacyEyes = "models/humans/misc/playermodeleyes_light.vmat";
+			var file = ContentFiles.FindGame().Find( legacyEyes ) is not null ? null : new Borealis.Source2.Materials.MaterialFile
+			{
+				Name = "eyeball test",
+				Shader = "shaders/eyeball.shader",
+				Ints = new Dictionary<string, int>(),
+				Floats = new Dictionary<string, float>(),
+				Vectors = new Dictionary<string, float[]>(),
+				IntAttributes = new Dictionary<string, int>(),
+				Textures = new Dictionary<string, string>
+				{
+					["g_tColor"] = "models/citizen/skin/citizen_eyes_color_png_1d89fc80.generated.vtex",
+					["g_tNormal"] = "models/citizen/skin/citizen_eyes_vmat_g_tnormal_7658099d.generated.vtex",
+					["g_tIrisMask"] = "models/citizen/skin/citizen_eyes_trans_png_74956c5.generated.vtex",
+					["g_tIris"] = "models/citizen/skin/citizen_eyes_vmat_g_tcombinedmasks_4a4a6307.generated.vtex",
+					["g_tOcclusion"] = "models/citizen/skin/citizen_eyeao_vmat_g_tambientocclusion_74d62832.generated.vtex",
+				},
+				ShaderVersion = 1,
+			};
+			var eyes = file?.Name ?? legacyEyes;
+
 			byte[] DrawMaterial( string path, bool slangPasses, bool convert, out GpuMaterial loaded )
 			{
 				using var backend = new BackendDevice( Device ) { SlangPasses = slangPasses };
@@ -1315,7 +1378,7 @@ public class SurfaceTests : GpuTest
 					backend.Surfaces.Convert( "shaders/eyeball.shader", "eyeball_surface.slang" );
 				}
 
-				loaded = ((GpuDevice)backend).LoadMaterial( path );
+				loaded = file is null ? ((GpuDevice)backend).LoadMaterial( path ) : backend.LoadMaterial( path, file );
 				// On the citizen, whose uvs spread the eye's textures over the frame
 				var citizen = backend.LoadModel( "models/citizen/citizen.vmdl" );
 				if ( citizen is null ) Assert.Inconclusive( "models/citizen/citizen.vmdl isn't built" );
@@ -1328,7 +1391,6 @@ public class SurfaceTests : GpuTest
 				return picture;
 			}
 
-			const string eyes = "models/humans/misc/playermodeleyes_light.vmat";
 			var reference = DrawMaterial( eyes, false, false, out var classic );
 			if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( $"{eyes} isn't compiled" );
 			var module = DrawMaterial( eyes, true, false, out _ );
@@ -1344,6 +1406,59 @@ public class SurfaceTests : GpuTest
 			Assert.IsTrue( Bright( converted ) > Width * Height / 100, $"the surface drew {Bright( converted )} lit pixels: is the occlusion projection bound?" );
 			Assert.IsTrue( Mean( reference, converted ) < 0.5, $"the eyeball surface differs from eyeball.shader by {Mean( reference, converted ):F3}" );
 			Assert.IsTrue( Mean( module, converted ) < 0.5, $"the eyeball surface differs from its pass module by {Mean( module, converted ):F3}" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// citizen_eye_surface.slang, the citizen's procedural eye as a layered surface with per-vertex values (its axes, worked
+	/// out in world space): it draws the citizen's eye materials as citizen_eye.shader's compiled programs do.
+	/// </summary>
+	[TestMethod]
+	public void CitizenEyeSurfaceDrawsCitizenEyes()
+	{
+		var citizen = ContentFiles.FindGame().Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "citizen_eye_surface.slang" ) ) );
+		if ( citizen is null ) Assert.Inconclusive( "The citizen addon isn't here" );
+		var eye = Compiler().CompileSurface( Path.Combine( citizen, "shaders", "citizen_eye_surface.slang" ) );
+		StringAssert.Contains( eye.Generated, "SurfaceForwardLayered<SurfaceWithVaryingsLayered<CitizenEye>, false>" );
+		StringAssert.Contains( eye.Generated, "SurfaceOutputDisplacedWith<CitizenEye>" );
+
+		var previousHost = RenderHost.Current;
+		try
+		{
+			byte[] DrawMaterial( string path, bool convert, out GpuMaterial loaded )
+			{
+				using var backend = new BackendDevice( Device );
+				var errors = new List<string>();
+				backend.Surfaces.Error = errors.Add;
+				backend.Passes.Error = errors.Add;
+				RenderHost.Current = new BackendRenderHost( backend );
+				backend.Surfaces.ConvertShaders = convert;
+
+				loaded = ((GpuDevice)backend).LoadMaterial( path );
+				// On the whole citizen, whose tangent frames and uvs spread the eye over the frame
+				var model = backend.LoadModel( "models/citizen/citizen.vmdl" );
+				if ( model is null ) Assert.Inconclusive( "models/citizen/citizen.vmdl isn't built" );
+				var picture = Draw( backend, loaded, model: model );
+				Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+				return picture;
+			}
+
+			const string eyes = "models/citizen_human/heads/citizen_human_malehead01/eyes_light.vmat";
+			var reference = DrawMaterial( eyes, false, out var classic );
+			if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( $"{eyes} isn't compiled" );
+			var converted = DrawMaterial( eyes, true, out var surface );
+			Assert.IsInstanceOfType<SurfaceMaterial>( surface, $"{eyes} wasn't converted" );
+			SaveRgb( reference, "citizen-eye-shader" );
+			SaveRgb( converted, "citizen-eye-surface" );
+			TestContext.WriteLine( $"surface vs shader {Mean( reference, converted ):F3}" );
+			Assert.IsTrue( Lit( reference ) > Width * Height / 10, "The .shader drew too little to compare" );
+			Assert.IsTrue( Bright( converted ) > Width * Height / 100, $"the surface drew {Bright( converted )} lit pixels" );
+			Assert.IsTrue( Mean( reference, converted ) < 0.5, $"the citizen eye surface differs from citizen_eye.shader by {Mean( reference, converted ):F3}" );
 		}
 		finally
 		{

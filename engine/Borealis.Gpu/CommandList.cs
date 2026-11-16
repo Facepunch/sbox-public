@@ -97,8 +97,20 @@ public sealed unsafe class CommandList
 	readonly uint[] setOffsets = new uint[4 * MaxDynamicOffsets];
 	readonly int[] setOffsetCounts = new int[4];
 
+	// Each slot's last transient set written, and what it holds: the same bindings again reuse it rather than write another
+	readonly ulong[] writtenSets = new ulong[4];
+	readonly ulong[] writtenLayouts = new ulong[4];
+	readonly Binding[][] writtenBindings = [[], [], [], []];
+	readonly int[] writtenCounts = new int[4];
+
+	/// <summary>Transient sets written since the list began, for tests.</summary>
+	internal int TransientSetsWritten { get; private set; }
+
 	// The view set (ShaderAbi.ViewSet), bound beside the bindless set
 	ulong viewSet;
+
+	/// <summary>The view set the draws that follow bind (<see cref="SetViewSet"/>); 0 for the device's placeholders.</summary>
+	internal ulong BoundViewSet => viewSet;
 
 	// Transient descriptor sets and upload memory, recycled with the frame
 	readonly List<ulong> descriptorPools = new();
@@ -177,6 +189,8 @@ public sealed unsafe class CommandList
 		vk.vkResetCommandPool( vk.Device, pool, 0 ).Check( "vkResetCommandPool" );
 		foreach ( var p in descriptorPools ) vk.vkResetDescriptorPool( vk.Device, p, 0 );
 		descriptorPool = 0;
+		writtenSets.AsSpan().Clear();
+		TransientSetsWritten = 0;
 
 		foreach ( var p in pages )
 		{
@@ -688,14 +702,39 @@ public sealed unsafe class CommandList
 		if ( (uint)set >= ShaderAbi.BindlessSet ) throw new ArgumentOutOfRangeException( nameof( set ), "Transient sets are 0 to 3" );
 
 		var setLayout = device.Get( layout ).SetLayout;
-		var descriptorSet = AllocateSet( setLayout );
+		ulong descriptorSet;
+		if ( device.ReusesTransientSets && writtenSets[set] != 0 && writtenLayouts[set] == setLayout && Same( bindings, writtenBindings[set].AsSpan( 0, writtenCounts[set] ) ) )
+		{
+			// Bound already, as it was: nothing to do
+			descriptorSet = writtenSets[set];
+			if ( sets[set] == descriptorSet && setOffsetCounts[set] == 0 ) return;
+		}
+		else
+		{
+			descriptorSet = AllocateSet( setLayout );
+			device.WriteDescriptors( descriptorSet, bindings );
+			TransientSetsWritten++;
+			if ( writtenBindings[set].Length < bindings.Length ) writtenBindings[set] = new Binding[Math.Max( bindings.Length, 16 )];
+			bindings.CopyTo( writtenBindings[set] );
+			(writtenSets[set], writtenLayouts[set], writtenCounts[set]) = (descriptorSet, setLayout, bindings.Length);
+		}
 
-		device.WriteDescriptors( descriptorSet, bindings );
 		sets[set] = descriptorSet;
 		setOffsetCounts[set] = 0;
 		setLayouts[set] = setLayout;
 		dirty[0] |= 1 << set;
 		dirty[1] |= 1 << set;
+	}
+
+	static bool Same( ReadOnlySpan<Binding> a, ReadOnlySpan<Binding> b )
+	{
+		if ( a.Length != b.Length ) return false;
+		for ( int i = 0; i < a.Length; i++ )
+		{
+			if ( !a[i].Same( b[i] ) ) return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>
