@@ -30,8 +30,8 @@ RWByteAddressBuffer g_Compacted < Attribute( "BorealisCullCompacted" ); >;
 
 // Where the view's prepass culled meshlets (borealis_meshlet_cull_cs): per visibility fragment, the frame, where its kept
 // triangles' indices start in the prepass's compacted buffer (None: drawn whole), how many and whether that's its 16-bit
-// buffer (0 or 1), or, where task shaders culled them (borealis_meshlet_ids), 2: the word its kept list starts at in this
-// buffer and how many meshlets, each its first triangle << 8 | its triangles; a fragment stamped this frame scans only those
+// buffer (0 or 1), or, where task shaders culled them (borealis_meshlet_ids), 2: the word its kept triangles' numbers start
+// at in this buffer and how many; a fragment stamped this frame scans only those
 RWByteAddressBuffer g_MeshletStamps < Attribute( "BorealisMeshletStamps" ); >;
 RWByteAddressBuffer g_PrepassCompacted < Attribute( "BorealisMeshletCompacted" ); >;
 RWByteAddressBuffer g_PrepassCompacted16 < Attribute( "BorealisMeshletCompacted16" ); >;
@@ -89,37 +89,14 @@ uint TakeSlot( uint nRun )
 
 groupshared uint gs_Owned;
 groupshared uint gs_Start;
-
-// A kept list's meshlets (first triangle << 8 | triangles) and the triangles up to each one's end
-static const uint MaxListed = 1024;
-groupshared uint gs_Listed[MaxListed];
-groupshared uint gs_ListEnd[MaxListed];
-groupshared uint gs_ListScan[256];
-
-// The triangle of the draw that a kept list's triangle t is
-uint ListedTriangle( uint t, uint nListed )
-{
-	uint lo = 0;
-	uint hi = nListed - 1;
-	while ( lo < hi )
-	{
-		uint mid = ( lo + hi ) >> 1;
-		if ( gs_ListEnd[mid] <= t )
-			lo = mid + 1;
-		else
-			hi = mid;
-	}
-
-	return ( gs_Listed[lo] >> 8 ) + t - ( lo > 0 ? gs_ListEnd[lo - 1] : 0 );
-}
 groupshared uint gs_Cursor;
 
-// A triangle's index k (0-2): from the page (through a kept list's triangles, where there's one), or from the
-// prepass's compacted buffer (32 or 16-bit, by b32)
+// A triangle's index k (0-2): from the page (the kept triangle t's number from word nListed, where task shaders wrote
+// them), or from the prepass's compacted buffer (32 or 16-bit, by b32)
 uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass, uint t, uint k, uint nListed )
 {
-	if ( nListed > 0 )
-		t = ListedTriangle( t, nListed );
+	if ( nListed != None )
+		t = g_MeshletStamps.Load( ( nListed + t ) * 4 );
 	uint i = nFirst + t * 3 + k;
 	if ( !bPrepass )
 		return LoadIndex( page, i, b32 );
@@ -162,7 +139,7 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 	uint nScan = nTriangles;
 	uint nFirst = vDraw.x;
 	bool bPrepass = false;
-	uint nListed = 0;
+	uint nListed = None;
 	if ( g_nCullMeshletRuns != None )
 	{
 		uint nFragment = g_Frame.Load( nEntry + 28 );
@@ -171,44 +148,11 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 		{
 			if ( vStamp.z == 0 )
 				return;
-			if ( vStamp.y != None && vStamp.w == 2 && vStamp.z <= MaxListed )
+			if ( vStamp.y != None && vStamp.w == 2 )
 			{
-				// A kept list: its meshlets, and where each one's triangles end among theirs (four a lane, then a scan)
-				nListed = vStamp.z;
-				uint nRunning = 0;
-				uint vCounts[4];
-				[unroll]
-				for ( uint j = 0; j < 4; j++ )
-				{
-					uint e = nThread * 4 + j;
-					uint nWord = e < nListed ? g_MeshletStamps.Load( ( vStamp.y + e ) * 4 ) : 0;
-					if ( e < nListed )
-						gs_Listed[e] = nWord;
-					nRunning += nWord & 0xff;
-					vCounts[j] = nRunning;
-				}
-
-				gs_ListScan[nThread] = nRunning;
-				GroupMemoryBarrierWithGroupSync();
-				[unroll]
-				for ( uint d = 1; d < 256; d <<= 1 )
-				{
-					uint nAdd = nThread >= d ? gs_ListScan[nThread - d] : 0;
-					GroupMemoryBarrierWithGroupSync();
-					gs_ListScan[nThread] += nAdd;
-					GroupMemoryBarrierWithGroupSync();
-				}
-
-				uint nBefore = gs_ListScan[nThread] - nRunning;
-				[unroll]
-				for ( uint k = 0; k < 4; k++ )
-				{
-					if ( nThread * 4 + k < nListed )
-						gs_ListEnd[nThread * 4 + k] = nBefore + vCounts[k];
-				}
-
-				GroupMemoryBarrierWithGroupSync();
-				nScan = gs_ListEnd[nListed - 1];
+				// Kept triangles' numbers, which the task shaders' mesh groups wrote
+				nListed = vStamp.y;
+				nScan = vStamp.z;
 			}
 			else if ( vStamp.y != None && vStamp.w != 2 )
 			{

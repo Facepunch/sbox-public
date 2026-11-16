@@ -28,15 +28,25 @@ struct PS_INPUT
 // Meshlets a listed fragment has at most (the culls list no fragment with more)
 static const uint MaxMeshlets = 4096;
 
-// What a task group hands its mesh groups: the fragment's instance record, its meshlets, and the kept ones' indices among
-// them, two to a word
+// A fragment with more kept meshlets than this has no kept triangles written: forward's compaction scans it whole
+static const uint MaxListed = 1024;
+
+// What a task group hands its mesh groups: the fragment's instance record, its meshlets, the kept ones' indices among
+// them, two to a word, and where the first MaxListed write their triangles' numbers in g_MeshletStamps (words; None for
+// none)
 struct MeshletPayload
 {
 	uint nInstance;
 	uint nMeshletPage;
 	uint nFirstMeshlet;
+	uint nListed;
 	uint nKept[MaxMeshlets / 2];
+	uint nTrianglesAt[MaxListed];
 };
+
+// Per visibility fragment a 16-byte stamp for forward's compaction (frame, where its kept triangles' numbers start in
+// words, how many, 2), then from nKeptAt the kept triangles' cursor and the numbers: each kept triangle's among its draw's
+RWByteAddressBuffer g_MeshletStamps < Attribute( "BorealisMeshletStamps" ); >;
 
 // Per draw: the view the meshlets are culled against, where the bucket's task run is in the region (its first slot), the
 // region's first instance record and its commands (a task slot's first word is its visibility fragment), the meshlet
@@ -69,16 +79,10 @@ static const uint None = 0xffffffffu;
 #include "borealis_gpu_driven.fxc"
 #include "borealis_meshlet.fxc"
 
-// Per visibility fragment a 16-byte stamp for forward's compaction (frame, where its kept list starts, how many, 2 for a
-// kept list), then from nKeptAt the kept lists' cursor and entries: a kept meshlet's first triangle << 8 | its triangles
-RWByteAddressBuffer g_MeshletStamps < Attribute( "BorealisMeshletStamps" ); >;
-
-// A fragment with more kept meshlets than this is stamped as drawn whole
-static const uint MaxListed = 1024;
-
 groupshared MeshletPayload gs_Payload;
 groupshared uint gs_Kept[MaxMeshlets / 2];
 groupshared uint gs_Listed[MaxListed];
+groupshared uint gs_Scan[64];
 groupshared uint gs_Count;
 groupshared uint gs_ListAt;
 
@@ -123,7 +127,7 @@ groupshared uint gs_ListAt;
 			InterlockedAdd( gs_Count, 1, nKeptAt );
 			InterlockedOr( gs_Kept[nKeptAt >> 1], m << ( ( nKeptAt & 1 ) * 16 ) );
 			if ( nKeptAt < MaxListed )
-				gs_Listed[nKeptAt] = r0.w << 8 | ( r1.w & 0xff );
+				gs_Listed[nKeptAt] = r1.w;
 		}
 	}
 
@@ -131,35 +135,64 @@ groupshared uint gs_ListAt;
 	uint nKept = gs_Count;
 	for ( uint k = nThread; k * 2 < nKept; k += 64 )
 		gs_Payload.nKept[k] = gs_Kept[k];
+
+	// Where each kept meshlet's triangles go among the fragment's kept ones: sixteen a lane, then a scan of the lanes
+	bool bListed = nFragment != None && nKept > 0 && nKept <= MaxListed;
+	uint nMine = 0;
+	for ( uint j = 0; j < 16; j++ )
+		nMine += bListed && nThread * 16 + j < nKept ? gs_Listed[nThread * 16 + j] : 0;
+	gs_Scan[nThread] = nMine;
+	GroupMemoryBarrierWithGroupSync();
+	[unroll]
+	for ( uint d = 1; d < 64; d <<= 1 )
+	{
+		uint nAdd = nThread >= d ? gs_Scan[nThread - d] : 0;
+		GroupMemoryBarrierWithGroupSync();
+		gs_Scan[nThread] += nAdd;
+		GroupMemoryBarrierWithGroupSync();
+	}
+
+	uint nKeptTriangles = gs_Scan[63];
 	if ( nThread == 0 )
 	{
 		gs_Payload.nInstance = nInstance;
 		gs_Payload.nMeshletPage = vRun.x;
 		gs_Payload.nFirstMeshlet = vRun.y;
 
-		// Forward's compaction scans only the kept meshlets' triangles, from a list where there's room; none kept, nothing
+		// Forward's compaction scans only the kept triangles, from their numbers where there's room; none kept, nothing
 		uint nListAt = None;
+		if ( bListed )
+		{
+			g_MeshletStamps.InterlockedAdd( g_MeshletTask.nKeptAt, nKeptTriangles, nListAt );
+			if ( nListAt + nKeptTriangles > g_MeshletTask.nKeptCapacity )
+				nListAt = None;
+		}
+
 		if ( nFragment != None )
 		{
-			if ( nKept > 0 && nKept <= MaxListed )
-			{
-				g_MeshletStamps.InterlockedAdd( g_MeshletTask.nKeptAt, nKept, nListAt );
-				if ( nListAt + nKept > g_MeshletTask.nKeptCapacity )
-					nListAt = None;
-			}
-
 			uint nTriangles = g_bindless_VertexBuffers[ g_nBorealisDraws ].Load( vInstance.y * 32 + 20 ) / 3;
-			g_MeshletStamps.Store4( nFragment * 16, nListAt != None ? uint4( g_MeshletTask.nFrame, g_MeshletTask.nKeptAt / 4 + 1 + nListAt, nKept, 2 )
+			uint nWord = g_MeshletTask.nKeptAt / 4 + 1 + nListAt;
+			g_MeshletStamps.Store4( nFragment * 16, nListAt != None ? uint4( g_MeshletTask.nFrame, nWord, nKeptTriangles, 2 )
 				: uint4( g_MeshletTask.nFrame, None, nKept == 0 ? 0 : nTriangles, 0 ) );
 		}
 
 		gs_ListAt = nListAt;
+		gs_Payload.nListed = nListAt;
 	}
 
 	GroupMemoryBarrierWithGroupSync();
 	uint nListAt = gs_ListAt;
-	for ( uint e = nThread; nListAt != None && e < nKept; e += 64 )
-		g_MeshletStamps.Store( g_MeshletTask.nKeptAt + 4 + ( nListAt + e ) * 4, gs_Listed[e] );
+	uint nAt = g_MeshletTask.nKeptAt / 4 + 1 + nListAt + gs_Scan[nThread] - nMine;
+	for ( uint i = 0; nListAt != None && i < 16; i++ )
+	{
+		uint k = nThread * 16 + i;
+		if ( k >= nKept )
+			break;
+		gs_Payload.nTrianglesAt[k] = nAt;
+		nAt += gs_Listed[k];
+	}
+
+	GroupMemoryBarrierWithGroupSync();
 	DispatchMesh( nKept, 1, 1, gs_Payload );
 }
 
@@ -270,6 +303,10 @@ uint Place( uint nIndex )
 
 	if ( nThread < nTriangles )
 		triangles[nThread] = uint3( gs_Vertex[vSlots.x], gs_Vertex[vSlots.y], gs_Vertex[vSlots.z] );
+
+	// Each triangle's number among its draw's, for forward's compaction, where the task group made room
+	if ( payload.nListed != None && vGroupId.x < MaxListed && nThread < nTriangles )
+		g_MeshletStamps.Store( ( payload.nTrianglesAt[vGroupId.x] + nThread ) * 4, nFirstTriangle + nThread );
 }
 
 #endif // MS

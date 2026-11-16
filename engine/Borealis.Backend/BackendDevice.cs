@@ -1486,13 +1486,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal const int PrepassCompactedIndices = 12 << 20;
 
 	/// <summary>
-	/// Where a view's kept meshlet lists start in its meshlet stamps (after a stamp per visibility fragment): a cursor, then
-	/// <see cref="MeshletKeptCapacity"/> entries, a meshlet each that task shaders kept, for forward's compaction.
+	/// Where a view's kept triangles start in its meshlet stamps (after a stamp per visibility fragment): a cursor, then
+	/// <see cref="MeshletKeptCapacity"/> words, the number of each triangle task and mesh shaders kept among its draw's, for
+	/// forward's compaction.
 	/// </summary>
 	internal const uint MeshletKeptAt = GpuDrivenTables.MaxVisibilityFragments * 16;
 
-	/// <summary>Kept meshlets a view's lists hold in a frame; a fragment without room is scanned whole.</summary>
-	internal const uint MeshletKeptCapacity = 1 << 18;
+	/// <summary>Kept triangles a view's prepass writes in a frame; a fragment without room is scanned whole.</summary>
+	internal const uint MeshletKeptCapacity = 6 << 20;
 
 	/// <summary>
 	/// A view's prepass compacted buffer (<see cref="VisibilityView.PrepassCompacted"/>), with its meshlet stamps, made the
