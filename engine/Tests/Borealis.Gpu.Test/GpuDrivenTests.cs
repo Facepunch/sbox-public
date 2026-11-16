@@ -334,8 +334,7 @@ public class GpuDrivenTests : GpuTest
 		if ( core is null ) Assert.Inconclusive( "No game content" );
 		if ( !File.Exists( Path.Combine( EngineFolders.NativeIn( Path.GetDirectoryName( core ) ), EngineFolders.Library( "slang" ) ) ) ) Assert.Inconclusive( "The engine's Slang isn't built" );
 
-		var folder = Path.Combine( Path.GetTempPath(), "borealis-resident-surface-" + Guid.NewGuid().ToString( "N" ) );
-		Directory.CreateDirectory( folder );
+		var folder = Fixtures.Folder( "resident-surface" );
 		var previousHost = RenderHost.Current;
 		try
 		{

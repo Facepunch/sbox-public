@@ -23,12 +23,16 @@ public class SurfaceTests : GpuTest
 
 	static string Surfaces => Path.GetFullPath( Path.Combine( Core, "..", "..", "engine", "Launcher", "BorealisLab", "Surfaces" ) );
 
+	/// <summary>
+	/// The engine's Slang over the core shaders, with the backend's disk cache (<see cref="Fixtures.SurfaceCache"/>): a surface
+	/// compiles once until it or anything it reads changes. Tests of compiling itself make compilers of their own.
+	/// </summary>
 	static SlangCompiler Compiler()
 	{
 		if ( Core is null ) Assert.Inconclusive( "No game content" );
 		var bin = EngineFolders.NativeIn( Path.GetDirectoryName( Core ) );
 		if ( !File.Exists( Path.Combine( bin, EngineFolders.Library( "slang" ) ) ) ) Assert.Inconclusive( "The engine's Slang isn't built" );
-		return new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] );
+		return new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] ) { CacheFolder = Fixtures.SurfaceCache };
 	}
 
 	/// <summary>vfx's include rewrite: static sets become defines, annotations are recorded per variable.</summary>
@@ -151,6 +155,7 @@ public class SurfaceTests : GpuTest
 	/// prepass don't place its vertices from their positions alone.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void InterpolatedVertexSurfaceDisplacesWithItsVaryings()
 	{
 		var fur = Compiler().CompileSurface( Path.Combine( Core, "shaders", "fur.slang" ) );
@@ -217,6 +222,7 @@ public class SurfaceTests : GpuTest
 	/// (or anything it read) compiles again.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void CompileCacheKeepsUnchangedModules()
 	{
 		Compiler();
@@ -327,6 +333,7 @@ public class SurfaceTests : GpuTest
 	/// refraction after shading as Composite).
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void ConverterTurnsPixelShadersIntoSurfaces()
 	{
 		Compiler();
@@ -379,6 +386,7 @@ public class SurfaceTests : GpuTest
 
 	/// <summary>Hotload: changing a surface's module drops its program, and the next compile is a fresh one.</summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void ChangedSurfacesHotload()
 	{
 		Compiler();
@@ -665,6 +673,7 @@ public class SurfaceTests : GpuTest
 	/// does, colour-alpha occlusion included; shaders that do more than that shape stay as they are.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void ConverterTurnsStandardCombinerShadersIntoSurfaces()
 	{
 		var compiler = Compiler();
@@ -915,8 +924,7 @@ public class SurfaceTests : GpuTest
 	[TestMethod]
 	public void SurfacesDeclareTheirRenderState()
 	{
-		var folder = Path.Combine( Path.GetTempPath(), "borealis-surface-state-" + Guid.NewGuid().ToString( "N" ) );
-		Directory.CreateDirectory( folder );
+		var folder = Fixtures.Folder( "surface-state" );
 		try
 		{
 			var path = Path.Combine( folder, "decal_state.slang" );
@@ -979,6 +987,7 @@ public class SurfaceTests : GpuTest
 	/// attribute; a surface that doesn't read the view inputs (complex) doesn't bind the copy.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void GlassDrawsTranslucentFromTheFrameBufferCopy()
 	{
 		var glass = Compiler().CompileSurface( Path.Combine( Core, "shaders", "glass.slang" ) );
@@ -1290,6 +1299,7 @@ public class SurfaceTests : GpuTest
 	/// materials as eyeball.shader's compiled programs and its pass module do.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public void EyeballSurfaceDrawsEyeballMaterials()
 	{
 		var eyeball = Compiler().CompileSurface( Path.Combine( Core, "shaders", "eyeball_surface.slang" ) );
