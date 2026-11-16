@@ -512,7 +512,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			{
 				if ( !meshletStoreTried )
 				{
-					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) : null;
+					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) { LocalData = MeshletTasks && Gpu.Capabilities.MeshShaders } : null;
 					if ( meshletStore is not null ) gpuDrivenTables.Meshlets = meshletStore;
 					Volatile.Write( ref meshletStoreTried, true );
 				}
