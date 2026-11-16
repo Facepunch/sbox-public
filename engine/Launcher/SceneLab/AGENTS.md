@@ -1,117 +1,98 @@
 # SceneLab — agent guide
 
-> Scope: `scenelab.exe`, the proving ground for the managed scene renderer. Last reviewed: 2026-09-29.
-> The renderer's own guide is [`engine/Borealis/README.md`](../../Borealis/README.md);
-> read it first. The details are in [`docs/managed/borealis.md`](../../../docs/managed/borealis.md)
-> (*SceneLab*, *Parity with native*, *Benchmark*).
+> Scope: `scenelab.exe`, the lab for native's scene system. Last reviewed: 2026-11-16.
+> Borealis has its own lab, BorealisLab ([`docs/managed/borealis-host.md`](../../../docs/managed/borealis-host.md)). How the
+> two compare is in [`docs/managed/borealis.md`](../../../docs/managed/borealis.md) (*Labs and comparisons*).
 
-SceneLab is to the managed renderer what PanelGallery is to panels. It's a borderless `PanelWindow` that draws
-a `RenderWorld` into its swap chain, with panel UI over the top: a menu bar and a stats overlay. It can draw
-the same world through native too, to compare the two.
+SceneLab renders GameObject scenes, maps and scripted scenarios through native's scene system, to measure and capture it. It's
+a borderless `PanelWindow`: native draws the scene's camera into its swap chain, and panel UI draws over it (a menu bar and a
+stats overlay). It's for changes to native, and to code both renderers share: capture native before and after, and compare.
 
 ## Files
 
 | File | What it does |
 |---|---|
-| `SceneLabAppSystem.cs` | Boots the panel app and opens the window. `DrawsScenes` keeps the engine's scene buffers full size (no `-panelapp`) and loads the native modules a game does (world renderer, physics, animation, sound: `SourceEnginePanelAppInit`), so maps load. The owner's call (2026-09-24): SceneLab doesn't need the launcher's slim startup. |
-| `SceneLabWindow.cs` | The window. It holds the menus and the stats overlay. `Load` builds a preset's world, `OnRenderBackground` renders each frame, and it handles capture, parity and the benchmark hookup. |
-| `SceneLabScene.cs` | What a scene is: models on a grid, lights, floor, probe, fog, shadow settings, or a GameObject scene (`Game`, with `ChangeGame` and a per-frame `Frame` hook). It holds the `Presets` (the Scene menu, a submenu per `Group`) and the command line parsing. `Checker` gives every other object another material or tint alpha. |
-| `SceneLabWindow.Game.cs` | GameObject presets: loading, the orbit camera around `GameFocus`, ticking the scene, rendering through the bridge or natively, and their captures, compared through the bridge's compare before and after `ChangeGame`. `WithGameUI` swaps the window's `UISystem` in for screen UI. |
-| `MapScenes.cs` | Maps from the cloud through a `MapInstance` (the Maps group: Flatgrass, Flatgrass Skyline, out on the grass looking at the 3D skybox, Flatgrass Interior, inside the building under its skylights, and Flatgrass Props, low over grass clumps lit from light probe volumes). It sets up what a game's boot does for downloads and a panel app's doesn't (downloads folder, asset cache, `ServerPackages`), names the map once the backend is up (`PanelAppSystem.ApiReady`), and says when it's loaded (`SceneLabScene.Ready`), so captures wait for it. |
-| `GameScenes.cs` | The GameObject presets past the bridge scene: post processing, depth of field, auto exposure, screen UI and a HUD, early UI, a world panel, the output layers (overlays after post processing, after-UI objects), sprites and particles, decals, decal geometry (the decal layer), tools views and debug visualisations (the Tools group), contact shadows, volumetric fog (its camera rendered natively every frame too, `NativeAlongside`), refraction (glass: the frame buffer copy and the refraction stencil), soft particles (the depth chain), a viewmodel (the game overlay layers), the viewmodel's depth chain (the overlay prepass stencil), bloom objects (the bloom layer) and lights switched on and off every frame through their components (Light Switching: a light deleted this frame is still in native's frame). Each with a change to compare after, where there's one to make. |
-| `OutfitScenes.cs` | Workshop clothing on Citizen 2.0's avatar deforms (the Avatar group). Hotdog Costume (`glitchworkshop.thehotdogcostume`), Banana Suit (`falkoworkshop.mrbananasuit`) Katana (`glitchworkshop.katana`) and Golf Backpack (`tarbaganchik.golfbackpack`) each download their package once the backend is up, and Pearl Necklace loads the citizen addon's own, and each dresses three citizens in it; Fried Onion Earrings (`pkxuni.earring_onio`) frames four faces close: the deforms reaching the earrings, opted out, opted out under a big head of its own (an inflate deformer), and rigid under it (`SkinnedModelRenderer.DeformationMode`); All Outfits puts every one in one scene, three groups across the front and two behind, each named and its citizens tagged (`Ready` waits for that), each labelled by a world panel at its feet: a reference without `citizen_deforms.prefab`, one whose deforms (a thin neck and big nose, past the sliders' range) reach the costume, and one whose costume has `DeformationMode` set to `None`, so its body is deformed and the costume isn't. |
-| `ExtraWorldsScene.cs` | Extra Worlds: a camera's extra world (`SceneCamera.Worlds`) and the scene's debug world (gizmos drawn every tick), in front of and behind a wall. Its compare goes through a `SceneCamera` set up from the scene's camera, since the camera component clears `Worlds` every frame (`SceneLabScene.ExtraWorld`). |
-| `DynamicScene.cs` | The Dynamic preset (Stress group): 400 props fading, recolouring and moving every frame, four circling shadowed point lights, sprites, particles and a second camera rendering into a texture - the renderer and bridge measured under change and with two cameras. |
-| `MirrorChurnScene.cs` | The Mirror Churn preset (Stress group): props and citizens spawned and destroyed for 3,000 frames, cycling models, body groups, material groups, overrides and runtime materials, with a model and a material reloaded halfway, then emptied. It logs the bridge mirror's cache counts (`SceneLabScene.ReportMirror`, `SceneBridge.CachesFor`), so they can be seen to level off and come back down. Each object has its own place on a grid (coincident boxes z-fight), and parity compares it isolated at frame 1,560, mid-churn. |
-| `NativeReference.cs` | `NativeScene` mirrors the world as native `SceneModel`s, lights, cubemaps and fog. `NativeReference.Compare` is the per-pixel comparison. |
-| `HeavyScene.cs` | The Heavy Scene preset (Stress group): 900 varied citizen props (overrides, attributes of their own, a tenth moving), 40 animating citizens, 24 circling shadowed point and spot lights, the sun's contact shadows, glass, sprites, particles, tonemapping and bloom - a busy game's frame, GPU included. `-width 3840 -height 2160` makes it GPU-bound. Heavy Scene AO adds ambient occlusion, without the particles, since it compares isolated. |
-| `OcclusionScene.cs` | The Occlusion City preset (Stress group): a street-level lap of a city of hollow buildings with props along the pavements and props and dense sculptures (about 200k triangles each) in their courtyards, one lap per 600 frames - the case culling is for, so a regression shows in its GPU time. View > Occlusion Culling (or `+r_managed_occlusion 1` / `+r_occlusion_culling 1`) switches culling and shows the occluded count. The benchmark runs presets marked `CompareOcclusion` with culling off and then on. |
-| `Scenarios.cs` | What the Scenarios group shares: game-like scenes measured as a whole frame, scripted by frame count from fixed seeds so every run sees the same frames. Each has a `Rewind` the benchmark calls as it starts measuring (so both renderers measure the same frames whatever the warm-up took), and may set `BenchmarkFrames` (its whole script) and `CaptureFrame` (a frame where the script has got going). Helpers: dressed citizens on the `human.ag` animation graph (`AnimatedCitizen`, `Move`, `Set`), random layered outfits, `CameraPath` (moves at a speed, turns, holds, cuts; loops), particles with no emitter and nothing random (`Particles`, `Emit`: an emitter's spread and a particle's seed come from `Random.Shared`), nameplates, a light's flicker, and mounting a package's files without its map (`Mounted`). |
-| `FirefightScene.cs` | Firefight: 28 dressed citizens in two teams on Flatgrass, running between cover and shooting in bursts, every shot traced against the map: a muzzle flash (sprite, and a point light enabled for two frames), dust and debris, and a bullet hole decal (up to 256, from core's impact decal PNGs). Nameplates (world panels) over heads, a HUD (screen panels), the camera over one fighter's shoulder. The guns are a stand-in: a dark box in the hand (`hold_R`), as the repository has no gun model. |
-| `FlythroughScene.cs` | Flythrough: a scripted camera through Construct, on the ground at eye height (traced once the map is in): a walk over the field, a fast 180, a run north and east between the buildings, then a cut to the road by the car park, driven at car speed with a handbrake 180 and back. Its whole path (about 2,900 frames) is the benchmark's run. |
-| `CrowdScene.cs` | Crowd Near, Crowd Mid, Crowd Far: 240 citizens in a plaza, each dressed in layers from a seed, on their animation graphs - a third walking slow circles - with four morphs each moving on their faces; the camera among them, across the plaza, and far off (so their LODs differ), drifting side to side. |
-| `ForestScene.cs` | Forest: 260 oaks and 340 bushes and a clutter volume of grass, tall grass, clover and flowers over hilly terrain, under a low sun's cascades, the camera walking a loop at eye height. The foliage is Construct's (`facepunch.construct` mounted, no map loaded) since the repository has none; leaves move in the world's default wind (`r_world_wind_*`), which follows real time, not the frame count. The terrain has no material, so it draws its grid. |
-| `NightInteriorScene.cs` | Night Interior: a corridor with four rooms either side, furnished with citizen props, lit at night by 48 shadowed point and spot lights, every sixth flickering (`Scenarios.Flicker`). Its shell is static, so lights cache its shadows. The camera walks down the corridor, into a room on each side, looks round, and back. |
-| `SmokeAndGlassScene.cs` | Smoke and Glass: a street at dusk in volumetric fog, a shopfront with refracting glass windows on two floors and a lit room behind, a glass bus shelter, three smoke grenades (a soda can stand-in) going off in turn, each pouring lit, overlapping smoke, and two shadowed street lamps. The camera dollies along the street and back. Renders natively alongside, for the fog's history. |
-| `Benchmark.cs`, `FrameTimer.cs` | `-benchmark`: both renderers, warm-up, measured frames, results table, and the managed main thread by section (collect, prepare, setup, recording wall time and wait, the workers' total, stages, submit) from `RenderStats`. `-gpuprofile` adds GPU time by layer, from the engine's GPU profiler. |
-| `SceneViewport.cs` | The see-through panel the world renders into: orbiting and zooming. |
-| `../LabShared/` | Shared with BorealisLab: the lab presets (`LabPresets`, the `LabPreset` settings `SceneLabScene` derives from), `LabWorld` (building a preset's world, its lights and camera), `Source2LabContent` (meshes, materials, posing), the runtime test assets `LodTestModel` and `SkyCube`, and `GoldenTruthRun` (`-golden-truth`: captures checked against approved images instead of native). |
-| `BridgeScene.cs` | The GameObject Bridge preset (and `-gamescene builtin`): a GameObject scene built from components, for the GameObject bridge. |
-| `PlanOverlay.cs` | The frame plan over the viewport (View > Frame Plan, `-plan [level]`): the engine's `overlay_scene_plan`, drawn by a panel, and saved beside a capture as `<name>.plan.png`. |
-| `ParityRun.cs` | `-parity`: every preset or some compared with native one after another in this process (about a minute for all of them), isolated presets in two fresh passes, native frames saved or compared across a change (`-save-native`/`-compare-native`), a table at the end (`parity.txt`) and exit code 1 on a failure. |
+| `Launcher.cs` | The entry point the shared launcher startup calls: runs `SceneLabAppSystem`. |
+| `SceneLabAppSystem.cs` | Boots the panel app and opens the window. `DrawsScenes` keeps the engine's scene buffers full size and loads the native modules a game does (world renderer, physics, animation, sound), so maps load. Registers the engine's managed console variables under SceneLab's own cookies and runs `+name value` from the command line. |
+| `SceneLabWindow.cs` | The window: the menus (Scene, a submenu per `Group`; View: Occlusion Culling, VSync, Reset Camera, Capture), the stats overlay, `Load`, `OnRenderBackground`, and the capture, parity and benchmark hookup. `-swapchain-msaa` sets the window's sample count. |
+| `SceneLabWindow.Game.cs` | Loading a preset's scene, the orbit camera around `GameFocus`, ticking the scene, rendering it through `SceneRenderer.Native`, and its captures (`CaptureGame`, `CaptureIsolated`). `WithGameUI` swaps the window's `UISystem` in for screen UI. |
+| `SceneLabScene.cs` | What a preset is (a `Func<Scene>`, its `ChangeGame`, per-frame `Frame`, `Ready`, `Isolated`, `Rewind` and the rest) and the `Presets` list, in Scene menu order. |
+| `SceneViewport.cs` | The see-through panel the scene shows through: left drag orbits, the wheel zooms. |
+| `GameScenes.cs` | The GameObject presets built on a shared `Stage()` (camera, sun with sky light, default sky, floor): post processing, depth of field, auto exposure, blur, highlight outlines, screen UI and a HUD, early UI, a world panel, output overlays, sprites and particles, decals, decal geometry, tools views and debug views, volumetric fog and dense smoke, contact shadows, soft particles, particle refraction, glass refraction, a viewmodel and its depth chain, bloom objects, scene attributes, scene object children, morphs, model deformers, AO and SSR, light cookies, light modulation, light switching and the debug overlay. Each with a change to capture after, where there's one to make. `LoadResource` loads game resources from their compiled files, which a panel app doesn't register. |
+| `GameScenes.Fog.cs` | The Better Fog presets (Environment group): distance, height, sky, 3D skybox, blending, overlays, sprites, lines, water and text in fog. |
+| `StageAttributesScene.cs` | Stage Attributes: attributes a camera command list sets stay in its stage. |
+| `ExtraWorldsScene.cs` | Extra Worlds: a camera's extra world (`SceneCamera.Worlds`) and the scene's debug world, in front of and behind a wall. Its capture renders a `SceneCamera` set up from the scene's camera with the extra world added, since the camera component clears `Worlds` every frame (`SceneLabScene.ExtraWorld`). |
+| `TerrainScenes.cs` | Terrain and Clutter, and Terrain Ambient Occlusion: terrain and clutter, which draw themselves as custom objects. |
+| `InstancedScene.cs` | Instanced Models: a custom object drawing models with `Graphics.DrawModelInstanced`, casting shadows. |
+| `ObjectCommandListScene.cs` | Object Command Lists: a renderer's own command list (`Renderer.ExecuteBefore`) painting a texture its material samples. |
+| `ViewSetupScenes.cs` | View Projections, View Oblique, View Overrides: monitors rendering into textures, each with its own `ViewSetup` (`SceneLabScene.TargetSetup`). |
+| `WaterScene.cs` | Water Refraction, Water Planar, Water Planar Shadows: a water body's refraction capture and planar reflections. |
+| `MirrorScene.cs` | Mirror Reflection and Mirror Reflection Shadows: a camera command list's `DrawReflection` shown in the same frame. |
+| `EnvmapCaptureScene.cs` | Envmap Capture: an envmap probe captured every frame (six faces and the GGX filter); the isolated capture saves the cube's faces too. |
+| `DDGIBakeScene.cs` | DDGI Bake: a small indirect light volume baked in a room of coloured walls; the isolated capture saves the last probe's captures and the baked volumes too. |
+| `LightModulatorScenes.cs` | Light Modulation Baked Sun, Dynamic Sun and Gallery: textured transmission through light modulators. |
+| `OutfitScenes.cs` | Workshop clothing on Citizen 2.0's avatar deforms (the Avatar group): Hotdog Costume, Banana Suit, Katana, Golf Backpack, Pearl Necklace, Fried Onion Earrings and All Outfits. Workshop packages download once the backend is up; `Ready` waits for the citizens to be dressed. |
+| `Outfits.cs` | Dressing citizens in the citizen addon's clothing, for the scenes that dress them. |
+| `MapScenes.cs` | Maps from the cloud through a `MapInstance` (the Maps group: Flatgrass, Flatgrass Skyline, Flatgrass Interior, Flatgrass Props, Construct Skyline, Construct Overview, Construct Skyline Fog). Sets up what a game's boot does for downloads, starts once the backend is up, and says when it's loaded (`Ready`), so captures wait. `-map-ident`, `-camera-pos` and `-camera-lookat` override a map preset's map and camera. |
+| `DynamicScene.cs` | Dynamic (Stress group): 400 props fading, recolouring and moving every frame, four circling shadowed point lights, sprites, particles and a second camera rendering into a texture. |
+| `HeavyScene.cs` | Heavy Scene, Heavy Scene AO, Heavy Scene AO SSR (Stress group): 900 varied citizen props, 40 animating citizens, 24 circling shadowed lights, contact shadows, glass, sprites, particles, tonemapping and bloom. `-width 3840 -height 2160` makes it GPU-bound. |
+| `OcclusionScene.cs` | Occlusion City (Stress group): a street-level lap of a city of hollow buildings and dense courtyard sculptures. View > Occlusion Culling (or `+r_occlusion_culling 1`) switches culling; the benchmark measures it off and then on (`CompareOcclusion`). |
+| `Scenarios.cs` | What the Scenarios group shares: game-like scenes scripted by frame count from fixed seeds, each with a `Rewind` the benchmark calls as it starts measuring. Helpers: dressed animated citizens, random layered outfits, `CameraPath`, emitter-less particles (`Particles`, `Emit`), nameplates, a light's flicker, mounting a package's files without its map (`Mounted`). |
+| `FirefightScene.cs` | Firefight: 28 dressed citizens in two teams on Flatgrass, running and shooting, every shot traced: muzzle flashes, dust and debris, bullet hole decals, nameplates and a HUD. |
+| `FlythroughScene.cs` | Flythrough: a scripted camera through Construct, walking then driving; its whole path is the benchmark's run. |
+| `CrowdScene.cs` | Crowd Near, Crowd Mid, Crowd Far: 240 dressed citizens in a plaza on their animation graphs, with face morphs, seen from three distances. |
+| `ForestScene.cs` | Forest: Construct's oaks, bushes and clutter over hilly terrain under a low sun's cascades, the camera walking a loop. Mounts `facepunch.construct` without loading its map. |
+| `NightInteriorScene.cs` | Night Interior: a corridor with eight rooms lit at night by 48 shadowed lights, some flickering, walked through. |
+| `SmokeAndGlassScene.cs` | Smoke and Glass: a street at dusk in volumetric fog, refracting shop and bus shelter glass, three smoke grenades and two shadowed street lamps. |
+| `Benchmark.cs`, `FrameTimer.cs` | `-benchmark`: each scene rendered natively with vsync off, a warm-up, then a measured run, and a table (markdown and CSV in `screenshots/scenelab`): FPS, frame time and percentiles, the main thread's render time, GPU time, allocations and GCs, and native's scenesystem counters. `-gpuprofile` adds GPU time by layer. |
+| `ParityRun.cs` | `-parity`: presets captured natively one after another in this process, a table at the end (`parity.txt`) and exit code 1 on a failure. `-save-native name` keeps the frames under a name; `-compare-native name` compares each with the saved one, pixel for pixel. |
+| `SceneLab.csproj` | The project. It imports `../Shared/LaunchShared.projitems` and `../LabShared/LabShared.projitems` (SceneLab uses its `Args`). |
 
-## The one rule
-
-**Everything the managed world can express has to reach `NativeScene` too.** If you add a setting to a
-`RenderObject`, `SceneLighting` or a preset, mirror it in `NativeReference.cs`. Otherwise parity compares
-different scenes, and a pass means nothing. The mirror uses the engine's own types where they exist: the
-native sun, `SceneCubemap`, `GradientFogSetup`, `CubemapFogController`, material overrides.
+`FrameComparison` (`engine/Sandbox.Rendering/Bridge/FrameComparison.cs`) holds the pixel comparison and PNG writing the
+captures use.
 
 ## Running it
 
 From `game/`:
 
 ```
-bin/managed/scenelab.exe -scene "All Shadows"                          # interactive
-bin/managed/scenelab.exe -scene "Reflections" -capture out.png -native # parity; exit code 2 on failure
-bin/managed/scenelab.exe -benchmark "10k Boxes;50k Mixed" -novsync     # ; separates scenes
-bin/managed/scenelab.exe -parity                                    # compare every preset
-bin/managed/scenelab.exe -parity "Sun Shadows;Reflections"            # compare selected presets
+bin/managed/scenelab.exe -scene "Heavy Scene"                         # interactive
+bin/managed/scenelab.exe -scene "Decals" -capture out.png              # saves out.native.png (and out_changed.native.png)
+bin/managed/scenelab.exe -benchmark "Heavy Scene;Crowd Near" -novsync  # ; separates scenes
+bin/managed/scenelab.exe -parity -save-native before                  # capture every preset and keep them
+bin/managed/scenelab.exe -parity -compare-native before               # after a change: compare with them
+bin/managed/scenelab.exe -parity "Heavy Scene;Decals"                 # selected presets
 ```
 
 Other switches:
 
-- **Scene:** `-model`, `-grid`, `-lights`, `-lightradius`, `-spot`, `-sun`, `-lightshadows`, `-floor` build a
-  scene from the command line.
-- **GameObject scenes:** the GameObject presets (groups GameObject, Post Processing, UI and Effects) build a scene
-  from engine components and core assets, and with `-capture -native` compare its camera through native and the
-  managed renderer's GameObject bridge, then again ten frames after their change (`<name>_changed.png`).
-  `-gamescene builtin` is the GameObject Bridge preset, and `-gamescene path.scene` loads a scene file; their frames
-  go to `screenshots/scenelab/gamescene`. The exit code is 2 on a failure. A panel app doesn't register game resources
-  (`Clothing`, `DecalDefinition` and the like) the way a game does, so `GameScenes.LoadResource` loads them from their
-  compiled files. It has no game `UISystem` either, so screen UI renders with the window's (`WithGameUI`).
-- **Native against itself** (`scenelab.exe -parity -save-native before` / `scenelab.exe -parity -compare-native before`) works for every preset but Auto Exposure,
-  which adapts in real time, Sprites and Particles and Soft Particles, whose particles are random, Dynamic, which
-  animates, and the two Flatgrass maps: native differs run to run on those, while they still match managed within a
-  run. The GameObject Bridge's first frame and Spot Light have each flaked once; rerun them. `parity/before_post` holds the older presets' native frames
-  and `parity/stages` the other GameObject presets' (2026-09-24).
-- **A new GameObject preset:** a `Func<Scene>` in `GameScenes.cs` (start from `Stage()`), a `ChangeGame` that changes
-  it through its components so the second compare proves changes arrive, and an entry in `Presets` with its
-  `Group`. Switch the feature off once and see the compare fail, or the pass means nothing.
-- **Isolated:** `-isolated` captures a GameObject preset through the chosen renderer alone: the camera renders once a
-  frame, and on capture frames into a readback target instead of the swap chain. With `-native-renderer` it saves
-  `name.native.png`; without, `name.png`, compared with the native one when it's there (exit code 2 on a failure).
-  `-parity` does the same in one process: an isolated preset gets a native pass and then a managed pass, each from a
-  fresh load after 10 frames with nothing loaded, so the render target pool (which frees targets unused for 8 frames)
-  has forgotten the last pass's effect history. The results match separate processes (SSR 0.33/255 either way; without
-  the idle, the managed pass inherited native's history and failed at 5.47). Presets marked `Isolated` (AO, SSR) always
-  run that way; `-isolated` makes every GameObject preset do so.
-- **Parity in one process:** `-parity ["A;B"] [-parity-out folder] [-save-native name | -compare-native name]
-  [-parity-timeout s]`. A preset that doesn't finish in 180 s, or throws while loading, is reported and skipped. Native
-  frames are repeatable within this mode but not always between it and one-process-per-preset runs (a preset's native
-  frame can differ in the last bit after the ones before it, e.g. the citizen presets), so save and compare native
-  frames in the same mode.
-- **Animation:** `-sequence-time f` (0 to 1) poses skinned presets at another frame. Skinned objects are posed by a
-  `SceneModel` in a world that's never rendered, and the native reference sets the same bones on its own.
-- **Camera and window:** `-zoom`, `-width`, `-height`.
-- **Renderer:** `-noprepass`, `-nosizecull`, `-noshadows`, `-debugshader`, `-native-renderer`, `-novsync`,
-  `-serialrecording` (record every segment on the main thread, for the lab's renderer and the bridge's alike).
-- **Target:** `-target` renders into a `ViewTarget` instead of the swap chain; `-msaa 2|4|8` multisamples it and
-  `-targetformat` picks its colour format (RGBA16F by default). With `-native`, a multisampled capture's
-  reference comes from native `RenderToTexture` at the same count, three frames later.
-- **Window:** multisampled at 4x by default, as a game's is; `-swapchain-msaa 2|8` for another count, `-swapchain-msaa 1`
-  for none (the native frames saved before 2026-09-29 were captured without).
-- **Debug views:** Borealis's own (View > LOD Colours, Cull Reasons, Shadow Maps, or `+sv_cheats 1 +r_managed_debug_lod 1`,
-  `+r_managed_debug_cull 1`, `+r_managed_debug_shadows 1`). `DebugViewsOverlay.cs` draws their key and labels; a capture with
-  one on saves `name.debug.png` too, the frame with those over it.
-- **Capture:** `-capture-frame` (default 30). `-debugmode <SceneCameraDebugMode>` captures a GameObject preset's debug
-  visualisation instead of its lit frame, e.g. `-debugmode AmbientOcclusion` for the AO alone; with `+r_ao_reference 128`
-  for a converged ground truth to compare AO changes against.
-- **Console variables:** `+name value` sets one before the first scene loads (`ConVarSystem.Run`), managed ones included
-  (SceneLab registers the engine's, under its own cookies; before 2026-09-27 they were unknown commands). Native scenesystem
+- **Capture:** `-capture path.png` saves the camera's frame beside it as `path.native.png`, rendered natively into an 8-bit
+  bitmap, effects and UI included, at the capture frame (`-capture-frame`, default 30, or the preset's own), then again ten
+  frames after the preset's change (`path_changed.native.png`), then exits. A preset's `ValidateGame` failing sets exit
+  code 2. View > Capture saves into `screenshots/scenelab`.
+- **Isolated:** `-isolated` captures with the camera rendered once on capture frames, into a readback target instead of the
+  swap chain, for effects whose history belongs to the camera (AO, SSR). Presets marked `Isolated` always capture that way,
+  and `-parity` loads them fresh, after 10 frames with nothing loaded, so the render target pool (which frees targets unused
+  for 8 frames) has forgotten the last preset's history.
+- **Parity:** `-parity ["A;B"] [-parity-out folder] [-save-native name | -compare-native name] [-parity-timeout s]`. Frames go
+  to `screenshots/scenelab/parity` by default. A preset that doesn't finish in 180 s, or throws while loading, is reported and
+  skipped. Save and compare frames in the same mode: a preset's frame can differ in the last bit between `-parity` and
+  one-process-per-preset runs. Native differs run to run on Auto Exposure (it adapts in real time), Sprites and Particles and
+  Soft Particles (random particles), Dynamic (it animates) and the Flatgrass maps.
+- **Benchmark:** `-benchmark ["A;B"]` (default Heavy Scene, Dynamic, Crowd Near, Night Interior), `-benchmark-frames N`
+  (default 600, or a scripted preset's whole script), `-gpuprofile`.
+- **Debug visualisation:** `-debugmode <SceneCameraDebugMode>` captures a preset's debug visualisation instead of its lit
+  frame, e.g. `-debugmode AmbientOcclusion`; with `+r_ao_reference 128` for a converged AO reference.
+- **Window:** `-width`, `-height`, `-fullscreen [exclusive]`, `-novsync`. Multisampled at 4x by default, as a game's is;
+  `-swapchain-msaa 2|8` for another count, `-swapchain-msaa 1` for none. Captures render at that sample count.
+- **Console variables:** `+name value` sets one before the first scene loads, managed ones included. Native scenesystem
   convars such as `sc_fbcopy_depthaware_mask` aren't reachable this way.
 
-Captures render the whole window with the lights frozen, then read the swap chain (or target) back before the panels
-draw, so they're repeatable.
+**A new preset:** a `Func<Scene>` (in `GameScenes.cs` start from `Stage()`), a `ChangeGame` that changes it through its
+components so the second capture shows changes arrive, and an entry in `SceneLabScene.Presets` with its `Group`.
+
+A panel app doesn't register game resources (`Clothing`, `DecalDefinition` and the like) the way a game does, so
+`GameScenes.LoadResource` loads them from their compiled files. It has no game `UISystem` either, so screen UI renders with
+the window's (`WithGameUI`).
 
 A running SceneLab locks the DLLs in `game/bin/managed`. Close it before building, or the copy fails.
