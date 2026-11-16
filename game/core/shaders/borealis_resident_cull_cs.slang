@@ -211,6 +211,10 @@ uint WaveAppend( bool bTake, uint nCounter )
 	return WaveReadLaneFirst( nBase ) + WavePrefixCountBits( bTake );
 }
 
+// A batch record's sixth word with this bit: its bucket's meshlets are drawn with task and mesh shaders, from the task run
+// the rest names (its first slot and count, then a run of 1 and 1, which make the count a task draw's arguments)
+static const uint TaskRun = 0x80000000u;
+
 // The next slot of multi-draw nRun (multi-draws at nRuns: first slot and count each) for each lane that takes one: lanes of
 // the same multi-draw share one atomic. A wave's entries are a few batches', so it meets few multi-draws. Every lane calls it
 uint WaveTakeSlot( bool bTake, uint nRuns, uint nRun, ByteAddressBuffer frame )
@@ -470,6 +474,11 @@ void Expand( uint n )
 		bool bMeshlets = bKept && !bListed && ( vViewOut.w & 4 ) != 0 && ( vVisibility.z & 1 ) != 0 && g_nResidentMeshletRuns != None
 			&& g_bindless_VertexBuffers[ g_nResidentMeshletRuns ].Load( nViewDraw * 16 + 8 ) - 1 < 4096u;
 
+		// In a bucket drawn with task and mesh shaders (the sixth word's top bit), it takes a slot of the bucket's task run
+		// instead, a task group of borealis_meshlet_ids each
+		bool bTask = bMeshlets && ( vVisibility.y & TaskRun ) != 0;
+		bMeshlets = bMeshlets && !bTask;
+
 		uint nAt = WaveAppend( bListed || bMeshlets, vViewOut.z );
 		if ( bListed || bMeshlets )
 		{
@@ -486,12 +495,19 @@ void Expand( uint n )
 			g_Frame.Store( nListed + 28, nFragment );
 		}
 
-		if ( bMeshlets && nFragment != None && ( vViewOut.w & 2 ) != 0 )
+		if ( ( bMeshlets || bTask ) && nFragment != None && ( vViewOut.w & 2 ) != 0 )
 			g_Stamps.Store( nFragment * 4, g_nResidentFrame );
 
-		// The next slot of its multi-draw in this view
-		bool bDrawn = bKept && !bListed && !bMeshlets;
-		uint nSlot = WaveTakeSlot( bDrawn, vView.w, vBatch.w, frame );
+		// The next slot of its multi-draw (or task run) in this view
+		bool bDrawn = bKept && !bListed && !bMeshlets && !bTask;
+		uint nSlot = WaveTakeSlot( bDrawn || bTask, vView.w, bTask ? vVisibility.y & ~TaskRun : vBatch.w, frame );
+		if ( bTask )
+		{
+			g_Frame.Store2( vView.y + nSlot * 8, uint2( nTransform, nDrawRecord ) );
+			g_Frame.Store( vViewOut.y + ( vViewOut.x + nSlot ) * 4, nFragment != None ? nVertexBase : None );
+			g_Frame.Store( vView.z + nSlot * 20, nFragment );
+		}
+
 		if ( bDrawn )
 		{
 			g_Frame.Store( vView.y + nSlot * 8, nTransform );

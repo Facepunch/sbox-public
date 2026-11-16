@@ -224,6 +224,10 @@ void WriteDraw( uint nSlot, uint nTransform, uint nDraw, uint nIndexCount, uint 
 	g_Frame.Store( nCommand + 16, g_nCullFirstInstance + nSlot );
 }
 
+// A batch record's sixth word with this bit: its bucket's meshlets are drawn with task and mesh shaders, from the task run
+// the rest names (its first slot and count, then a run of 1 and 1, which make the count a task draw's arguments)
+static const uint TaskRun = 0x80000000u;
+
 // The next slot of multi-draw nRun
 uint TakeSlot( uint nRun )
 {
@@ -396,8 +400,21 @@ uint TakeSlot( uint nRun )
 				}
 
 				// A prepass that culls meshlets: an ids fragment whose draw has meshlets is listed for the meshlet pass
-				// (borealis_meshlet_cull_cs), which draws those that can reach a sample
-				if ( !bListed && ( vVisibility.z & 1 ) != 0 && g_nCullMeshletRuns != None && g_bindless_VertexBuffers[ g_nCullMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u )
+				// (borealis_meshlet_cull_cs), which draws those that can reach a sample; or, in a bucket drawn with task and
+				// mesh shaders (its sixth word's top bit), takes a slot of the bucket's task run, a task group of
+				// borealis_meshlet_ids each
+				bool bMeshlets = !bListed && ( vVisibility.z & 1 ) != 0 && g_nCullMeshletRuns != None && g_bindless_VertexBuffers[ g_nCullMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u;
+				if ( bMeshlets && ( vVisibility.y & TaskRun ) != 0 )
+				{
+					uint nSlot = TakeSlot( vVisibility.y & ~TaskRun );
+					g_Frame.Store2( g_nCullInstances + nSlot * 8, uint2( nTransform, nDrawRecord ) );
+					g_Frame.Store( g_nCullFragmentWords + ( g_nCullFirstInstance + nSlot ) * 4, nFragment != None ? nVertexBase : None );
+					g_Frame.Store( g_nCullCommands + nSlot * 20, nFragment );
+					if ( nFragment != None )
+						g_Stamps.Store( nFragment * 4, g_nCullFrame );
+					bListed = true;
+				}
+				else if ( bMeshlets )
 				{
 					uint nAt;
 					g_Frame.InterlockedAdd( g_nCullListed, 1, nAt );

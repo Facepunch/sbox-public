@@ -23,6 +23,10 @@ public enum ShaderProgramType
 	PixelRenderState,
 	/// <summary>Ray tracing.</summary>
 	RayTracing,
+	/// <summary>Task shader: a pass module's only (no <c>.shader</c> program has one).</summary>
+	Task,
+	/// <summary>Mesh shader: a pass module's only (no <c>.shader</c> program has one).</summary>
+	Mesh,
 }
 
 /// <summary>

@@ -286,6 +286,10 @@ internal sealed unsafe class VkDeviceApi
 	/// <summary>VK_AMD_buffer_marker, when the device was made with it; null otherwise.</summary>
 	public delegate* unmanaged< nint, uint, ulong, ulong, uint, void > vkCmdWriteBufferMarkerAMD;
 
+	/// <summary>VK_EXT_mesh_shader, when the device was made with it; null otherwise.</summary>
+	public delegate* unmanaged< nint, ulong, ulong, uint, uint, void > vkCmdDrawMeshTasksIndirectEXT;
+	public delegate* unmanaged< nint, ulong, ulong, ulong, ulong, uint, uint, void > vkCmdDrawMeshTasksIndirectCountEXT;
+
 	/// <summary>VK_EXT_device_fault, when the device was made with it; null otherwise.</summary>
 	public delegate* unmanaged< nint, VkDeviceFaultCountsEXT*, VkDeviceFaultInfoEXT*, VkResult > vkGetDeviceFaultInfoEXT;
 
@@ -412,6 +416,8 @@ internal sealed unsafe class VkDeviceApi
 		vkCmdBeginQuery = (delegate* unmanaged< nint, ulong, uint, uint, void >)Need( "vkCmdBeginQuery" );
 		vkCmdEndQuery = (delegate* unmanaged< nint, ulong, uint, void >)Need( "vkCmdEndQuery" );
 		vkCmdWriteBufferMarkerAMD = (delegate* unmanaged< nint, uint, ulong, ulong, uint, void >)Get( "vkCmdWriteBufferMarkerAMD" );
+		vkCmdDrawMeshTasksIndirectEXT = (delegate* unmanaged< nint, ulong, ulong, uint, uint, void >)Get( "vkCmdDrawMeshTasksIndirectEXT" );
+		vkCmdDrawMeshTasksIndirectCountEXT = (delegate* unmanaged< nint, ulong, ulong, ulong, ulong, uint, uint, void >)Get( "vkCmdDrawMeshTasksIndirectCountEXT" );
 		vkGetDeviceFaultInfoEXT = (delegate* unmanaged< nint, VkDeviceFaultCountsEXT*, VkDeviceFaultInfoEXT*, VkResult >)Get( "vkGetDeviceFaultInfoEXT" );
 		vkGetPipelineExecutablePropertiesKHR = (delegate* unmanaged< nint, VkPipelineInfoKHR*, uint*, VkPipelineExecutablePropertiesKHR*, VkResult >)Get( "vkGetPipelineExecutablePropertiesKHR" );
 		vkGetPipelineExecutableStatisticsKHR = (delegate* unmanaged< nint, VkPipelineExecutableInfoKHR*, uint*, VkPipelineExecutableStatisticKHR*, VkResult >)Get( "vkGetPipelineExecutableStatisticsKHR" );

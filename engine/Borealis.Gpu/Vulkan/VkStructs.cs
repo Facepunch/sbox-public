@@ -1343,6 +1343,18 @@ internal unsafe struct VkWaylandSurfaceCreateInfoKHR
 }
 
 [StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDeviceMeshShaderFeaturesEXT
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint taskShader;
+	public uint meshShader;
+	public uint multiviewMeshShader;
+	public uint primitiveFragmentShadingRateMeshShader;
+	public uint meshShaderQueries;
+}
+
+[StructLayout( LayoutKind.Sequential )]
 internal unsafe struct VkPhysicalDeviceFaultFeaturesEXT
 {
 	public VkStructureType sType;

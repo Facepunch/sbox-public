@@ -97,7 +97,7 @@ internal sealed unsafe class SlangRequest : IDisposable
 	public int AddEntryPoint( string name, StageKind stage )
 	{
 		var bytes = Encoding.UTF8.GetBytes( name + "\0" );
-		var kind = stage switch { StageKind.Vertex => SlangApi.StageVertex, StageKind.Compute => SlangApi.StageCompute, _ => SlangApi.StagePixel };
+		var kind = stage switch { StageKind.Vertex => SlangApi.StageVertex, StageKind.Compute => SlangApi.StageCompute, StageKind.Task => SlangApi.StageAmplification, StageKind.Mesh => SlangApi.StageMesh, _ => SlangApi.StagePixel };
 		fixed ( byte* n = bytes ) return SlangApi.AddEntryPoint( handle, unit, n, kind );
 	}
 
