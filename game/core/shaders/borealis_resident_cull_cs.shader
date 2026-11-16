@@ -55,6 +55,10 @@ CS
 		uint g_nResidentExpandMap;	// its entry map
 		uint g_nResidentExpandHeaders;	// its batches' headers
 		uint g_nResidentMeshletRuns;	// bindless slot of the meshlet runs; meshlets are culled where the pass module runs
+		uint g_nResidentLodTable;		// generated LODs are picked where the pass module runs
+		uint g_nResidentLodCount;
+		uint g_nResidentPad0;
+		uint g_nResidentPad1;
 	};
 
 	static const uint None = 0xffffffffu;
