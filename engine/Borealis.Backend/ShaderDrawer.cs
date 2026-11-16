@@ -508,7 +508,7 @@ public sealed class ShaderDrawer : IDisposable
 			{
 				if ( ids && IsInstanceId( input ) ) return new VertexAttribute( 0, idStream, VertexFormat.UInt, 0 );
 				var corner = expansion.Corner( input );
-				return layout.Find( input.Semantic, expansion.SemanticIndex( input ) ) is { } field ? new VertexAttribute( 0, corner == 0 ? 0 : 1 + corner, field.Format, field.Offset ) : null;
+				return layout.Find( input.Semantic, expansion.SemanticIndex( input ) ) is { } field && SameKind( field, input ) ? new VertexAttribute( 0, corner == 0 ? 0 : 1 + corner, field.Format, field.Offset ) : null;
 			}, defaultBuffer: 1 );
 			VertexBufferLayout[] streams = expansion.Corners switch { 3 => [step, new( 0 ), step, step], 2 => [step, new( 0 ), step], _ => [step, new( 0 )] };
 			if ( ids ) streams = [.. streams, new VertexBufferLayout( 0, VertexStepRate.Instance )];
@@ -519,7 +519,7 @@ public sealed class ShaderDrawer : IDisposable
 		{
 			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input =>
 				ids && IsInstanceId( input ) ? new VertexAttribute( 0, 2, VertexFormat.UInt, 0 )
-				: layout.Find( input ) is { } field ? new VertexAttribute( 0, 0, field.Format, field.Offset ) : null, defaultBuffer: 1 );
+				: layout.Find( input ) is { } field && SameKind( field, input ) ? new VertexAttribute( 0, 0, field.Format, field.Offset ) : null, defaultBuffer: 1 );
 			info = variant.PipelineInfo( ids ? [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 ), idsStream] : [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias: false, null );
 		}
 
@@ -529,6 +529,11 @@ public sealed class ShaderDrawer : IDisposable
 		if ( sets is null ) pipelines[key] = pipeline;
 		return pipeline;
 	}
+
+	// A field the shader reads as the other kind (integers as floats, or the other way round) reads the default stream, as a
+	// model's draws do (BackendDevice.Pipeline)
+	static bool SameKind( in VertexField field, in VertexInput input )
+		=> (field.Format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt4) == (input.Kind != SpirvScalar.Float);
 
 	/// <summary>
 	/// The binding a reflected resource gets from a draw's attribute value, or for a material variable the material's

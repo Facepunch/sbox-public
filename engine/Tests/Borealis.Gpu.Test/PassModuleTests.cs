@@ -267,6 +267,132 @@ public class PassModuleTests : GpuTest
 		Assert.IsFalse( rows.Any( identityRows.Contains ), $"no line where the identity would put it ({string.Join( ',', identityRows )})" );
 	}
 
+	/// <summary>
+	/// ObjectHighlight's outline drawn from a model's vertices laid out one triangle after another (what Borealis.Gpu draws a
+	/// highlighted model with): each corner of the expanded triangle reads its own place in the vertex cache (the skinned
+	/// citizen's path, <c>TEXCOORD15</c> held again as <c>TEXCOORD3</c>) and its own bone, not the first corner's. With a
+	/// line width of nothing the outline is the triangle itself.
+	/// </summary>
+	[TestMethod]
+	public void HighlightOutlineCornersReadTheirOwnVertices()
+	{
+		const int Size = 64;
+		using var backend = new BackendDevice( Device );
+		var errors = new List<string>();
+		backend.Passes.Error = e => errors.Add( e );
+		using var drawer = new ShaderDrawer( backend );
+		var highlight = backend.Shaders.Load( "shaders/postprocess/ObjectHighlight/ObjectHighlight.shader" );
+		if ( highlight is null ) Assert.Inconclusive( "ObjectHighlight isn't compiled" );
+
+		// World space is clip space: x and y -1 to 1 across the target, depth 0.5
+		var view = new Borealis.Gpu.ViewConstants { InvViewportSize = new Vector2( 1.0f / Size, 1.0f / Size ), ViewportSize = new Vector2( Size, Size ), CameraDirWs = new Vector3( 0, 0, 1 ), CameraUpDirWs = new Vector3( 0, 1, 0 ) };
+		System.Runtime.CompilerServices.Unsafe.As<Matrix, System.Numerics.Matrix4x4>( ref view.WorldToProjection ) = System.Numerics.Matrix4x4.Identity;
+		var viewBytes = new byte[Borealis.Gpu.ViewConstants.NativeSize];
+		System.Runtime.InteropServices.MemoryMarshal.Write( viewBytes, in view );
+
+		// A triangle in the target's right half: (0.2, -0.6), (0.8, -0.6), (0.5, 0.6)
+		float[][] corners = [[0.2f, -0.6f], [0.8f, -0.6f], [0.5f, 0.6f]];
+
+		// The vertex cache holds the triangle; the vertices' own positions are mirrored into the left half, as a skinned
+		// mesh's bind pose is elsewhere
+		var first = backend.AllocateVertexCache( 3 );
+		var cached = new byte[3 * BackendDevice.VertexCacheStride];
+		for ( int i = 0; i < 3; i++ )
+		{
+			BitConverter.TryWriteBytes( cached.AsSpan( i * BackendDevice.VertexCacheStride ), corners[i][0] );
+			BitConverter.TryWriteBytes( cached.AsSpan( i * BackendDevice.VertexCacheStride + 4 ), corners[i][1] );
+			BitConverter.TryWriteBytes( cached.AsSpan( i * BackendDevice.VertexCacheStride + 8 ), 0.5f );
+		}
+		Device.WriteBuffer( backend.VertexCacheBuffer, cached, (long)first * BackendDevice.VertexCacheStride );
+
+		var cacheLayout = new VertexStreamLayout( 16,
+			new( VertexSemantic.Position, 0, VertexFormat.Float3, 0 ),
+			new( VertexSemantic.TexCoord, 15, VertexFormat.Float, 12 ),
+			new( VertexSemantic.TexCoord, 3, VertexFormat.Float, 12 ) );
+		var cacheVertices = new float[6 * 4];
+		for ( int i = 0; i < 3; i++ ) (cacheVertices[i * 4], cacheVertices[i * 4 + 1], cacheVertices[i * 4 + 2], cacheVertices[i * 4 + 3]) = (-corners[i][0], corners[i][1], 0.5f, i);
+
+		// Rigid skinning: every vertex on bone 1, which moves the left half's triangle right by 1; bone 0 leaves it there
+		var boneLayout = new VertexStreamLayout( 16,
+			new( VertexSemantic.Position, 0, VertexFormat.Float3, 0 ),
+			new( VertexSemantic.BlendIndices, 0, VertexFormat.UByte4, 12 ) );
+		var boneVertices = new float[6 * 4];
+		for ( int i = 0; i < 3; i++ ) (boneVertices[i * 4], boneVertices[i * 4 + 1], boneVertices[i * 4 + 2], boneVertices[i * 4 + 3]) = (corners[i][0] - 1, corners[i][1], 0.5f, BitConverter.Int32BitsToSingle( 1 ));
+
+		// Slot 0 reads the cache from its first vertex; slot 1 is a skeleton (it and one more before its bones), bone 1 moving x by 1
+		float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+		float[] right = [1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0];
+		var entries = new byte[6 * 64];
+		void Entry( int slot, float[] rows, uint cacheOffset, uint blendWeights )
+		{
+			Buffer.BlockCopy( rows, 0, entries, slot * 64, 48 );
+			BitConverter.TryWriteBytes( entries.AsSpan( slot * 64 + 48 ), 1.0f );
+			BitConverter.TryWriteBytes( entries.AsSpan( slot * 64 + 52 ), 0xFFFFFFu );
+			BitConverter.TryWriteBytes( entries.AsSpan( slot * 64 + 56 ), cacheOffset );
+			BitConverter.TryWriteBytes( entries.AsSpan( slot * 64 + 60 ), blendWeights );
+		}
+		Entry( 0, identity, (uint)first, 0 );
+		Entry( 1, identity, 0, 1 );
+		Entry( 2, identity, 0, 0 );
+		Entry( 3, identity, 0, 0 );
+		Entry( 4, right, 0, 0 );
+		Entry( 5, identity, 0, 0 );
+		var transforms = Device.CreateBuffer( new BufferInfo { Size = entries.Length, Usage = BufferUsage.Storage } );
+		Device.WriteBuffer( transforms, entries );
+		var ids = Device.CreateBuffer( new BufferInfo { Size = 8, Usage = BufferUsage.Vertex } );
+		Device.WriteBuffer<uint>( ids, [0, 1] );
+
+		byte[] Draw( float[] vertexData, VertexStreamLayout layout, int cache, int slot, string name )
+		{
+			var vertices = Device.CreateBuffer( new BufferInfo { Size = vertexData.Length * 4, Usage = BufferUsage.Vertex } );
+			Device.WriteBuffer<float>( vertices, vertexData );
+			drawer.InstanceIds = (ids, slot * sizeof( uint ));
+
+			var attributes = new ShaderAttributes();
+			attributes.SetData( "PerViewConstantBuffer_t", viewBytes );
+			attributes.Set( "g_TransformBuffer", transforms );
+			attributes.SetCombo( "D_OUTLINE_PASS", 1 );
+			attributes.SetCombo( "D_CS_VERTEX_ANIMATION", cache );
+			attributes.Set( "Color", 1, 1, 1, 1 );
+			attributes.Set( "ObscuredColor", 1, 1, 1, 1 );
+			attributes.Set( "LineWidth", 0.0f );
+
+			var color = Device.CreateTexture( TextureInfo.RenderTarget( Size, Size, Format.RGBA8Unorm, name: name ) );
+			var list = Device.BeginCommandList( QueueType.Graphics, name );
+			list.Barrier( TextureBarrier.Transition( color, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.None, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+			list.BeginRendering( [ColorTarget.Of( color, System.Numerics.Vector4.Zero )] );
+			Assert.IsTrue( drawer.Draw( list, highlight, attributes, Format.RGBA8Unorm, 1, vertices, 0, layout, 3, PrimitiveTopology.TriangleList, new System.Numerics.Vector4( 0, 0, Size, Size ) ) );
+			list.EndRendering();
+			Device.Wait( Device.Submit( list ) );
+
+			var pixels = ReadBack( color, ImageLayout.ColorTarget );
+			Save( pixels, Size, Size, name );
+			return pixels;
+		}
+
+		foreach ( var (pixels, what) in new[] { (Draw( cacheVertices, cacheLayout, 1, 0, "highlight-vertex-cache" ), "from the vertex cache"), (Draw( boneVertices, boneLayout, 0, 1, "highlight-bones" ), "on bone 1") } )
+		{
+			var left = 0;
+			var rightHalf = 0;
+			for ( int y = 0; y < Size; y++ )
+			{
+				for ( int x = 0; x < Size; x++ )
+				{
+					if ( Pixel( pixels, Size, x, y ).A == 0 ) continue;
+					if ( x < Size / 2 ) left++;
+					else rightHalf++;
+				}
+			}
+
+			// The triangle covers about 0.5 * 19.2 * 38.4 = 369 pixels
+			TestContext.WriteLine( $"{what}: {rightHalf} pixels in the right half, {left} in the left" );
+			Assert.AreEqual( 0, left, $"every corner {what}: nothing in the left half" );
+			Assert.IsTrue( rightHalf is > 300 and < 440, $"the whole triangle {what} ({rightHalf} pixels)" );
+		}
+
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+	}
+
 	/// <summary>Each module's variants against its compiled shader's: the same bindings, constants, inputs and render state.</summary>
 	[TestMethod]
 	public void PassModulesMatchTheirShaders()

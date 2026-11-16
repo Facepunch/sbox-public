@@ -59,6 +59,16 @@ struct CornerInputs
 	#if ( VS_INPUT_HAS_TANGENT_BASIS )
 		float4 vTangentUOs_flTangentVSign2 : TANGENT8;
 	#endif
+
+	uint nBoneIndex1 : BLENDINDICES4;
+	uint nBoneIndex2 : BLENDINDICES8;
+
+	// Their places in the vertex cache: TEXCOORD15 is past the corners' semantic range, so a model's vertices drawn for this
+	// stage hold them as TEXCOORD3 too (a skinned mesh has no lightmap uvs), read here four and eight up
+	#if ( D_CS_VERTEX_ANIMATION )
+		float nVertexCacheIndex1 : TEXCOORD7;
+		float nVertexCacheIndex2 : TEXCOORD11;
+	#endif
 };
 
 // The geometry stage offset a position its vertex stage had already flipped for Vulkan, then flipped it back before its own
@@ -90,6 +100,10 @@ void PositionOffset (inout PixelInput input, float2 vOffsetDir, float flOutlineS
 		#if ( VS_INPUT_HAS_TANGENT_BASIS )
 			v.vTangentUOs_flTangentVSign = c.vTangentUOs_flTangentVSign1;
 		#endif
+		v.nBoneIndex = c.nBoneIndex1;
+		#if ( D_CS_VERTEX_ANIMATION )
+			v.nVertexCacheIndex = c.nVertexCacheIndex1;
+		#endif
 	}
 	else if ( nCorner == 2 )
 	{
@@ -99,6 +113,10 @@ void PositionOffset (inout PixelInput input, float2 vOffsetDir, float flOutlineS
 		v.vNormalOs = c.vNormalOs2;
 		#if ( VS_INPUT_HAS_TANGENT_BASIS )
 			v.vTangentUOs_flTangentVSign = c.vTangentUOs_flTangentVSign2;
+		#endif
+		v.nBoneIndex = c.nBoneIndex2;
+		#if ( D_CS_VERTEX_ANIMATION )
+			v.nVertexCacheIndex = c.nVertexCacheIndex2;
 		#endif
 	}
 

@@ -51,6 +51,7 @@ internal sealed partial class SceneBridge
 		gpuView.SrgbWrite = false;
 		gpuView.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
 		gpuView.SetCamera( camera, viewport.Size );
+		gpuView.RenderSceneObject = null;
 
 		var frame = camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup );
 
@@ -159,6 +160,9 @@ internal sealed partial class SceneBridge
 		CameraState state;
 		using ( PrepareTiming.Scope() )
 			(mirror, state) = Prepare( camera, setup, size );
+
+		// Graphics.Render in its stages (a highlight's outline) draws the camera's mirrored objects again
+		gpuView.RenderSceneObject = state.Drawer.RenderOnGpu;
 
 		// Auto exposure is the port on this device: its frame update here, where native's runs, its scale this frame's
 		var exposure = camera.Tonemap?.GpuExposure( backend );
