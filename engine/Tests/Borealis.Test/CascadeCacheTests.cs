@@ -212,7 +212,8 @@ public class CascadeCacheTests
 
 	/// <summary>
 	/// A cascade view that would leave its map as it is, drawing no casters over a clear or over the copy of an unchanged
-	/// cache, is left out of the frame, and so are its tiles. A caster, the frame after one and a changed cache draw it again.
+	/// cache, once a second frame in a row has drawn it the same, is left out of the frame, and so are its tiles. A caster, the
+	/// frame after one and a changed cache draw it again.
 	/// The sun's constants read the same either way.
 	/// </summary>
 	[TestMethod]
@@ -247,6 +248,10 @@ public class CascadeCacheTests
 		Assert.IsTrue( IntoCascades( commands ) > 0, "cleared and copied into" );
 		Assert.IsTrue( Tiles( commands ) > 0, "with the far cascade's tiles" );
 		var flags = system.ShadowMaps.Directional.Flags;
+
+		commands = Frame();
+		Assert.AreEqual( cascades, Cascades( system.ShadowMaps.Drawn ).Length, "and drawn the same once more" );
+		Assert.AreEqual( flags, system.ShadowMaps.Directional.Flags );
 
 		commands = Frame();
 		Assert.AreEqual( cascades, Cascades( system.ShadowMaps.Passes ).Length, "the views are chosen as before" );
