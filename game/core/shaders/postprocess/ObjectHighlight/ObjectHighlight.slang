@@ -1,9 +1,10 @@
 // ObjectHighlight.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
 // and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
-// The outside pass's geometry stage draws each triangle again at 4 to 7 offsets round a circle, as one triangle strip
-// (so consecutive copies are joined by the strip's in-between triangles). Here the vertex stage makes that strip: the
-// draw runs 21 vertices per triangle (ExpandPrimitives), with the triangle's corners as per-instance inputs (the second's
-// semantics 4 up, the third's 8 up); strip vertices past the last copy repeat it, which adds only empty triangles.
+// The outside pass draws a quad round each edge of each triangle, the outline's width and half a pixel past it every way,
+// where the .shader's geometry stage draws them: the inside pass's stencil keeps the outline outside the object, and the
+// pixel shader fades it over one pixel from the distance to the edge (OutlineCoverage), so it's smooth at any sample
+// count. Here the vertex stage makes the quads, one strip of 16 vertices per triangle (ExpandPrimitives) joined by
+// repeated vertices, with the triangle's corners as per-instance inputs (the second's semantics 4 up, the third's 8 up).
 
 // MODES: Forward();
 // MODES: Depth(); // It was doing this before, is it correct?
@@ -29,6 +30,13 @@ struct VertexInput
 struct PixelInput
 {
 	#include "common/pixelinput.hlsl"
+
+	#if ( D_OUTLINE_PASS == OUTLINE_OUTSIDE )
+		// In pixels: where this is, the edge's ends and the outline's width
+		noperspective float2 vOutlinePixel : TEXCOORD8;
+		nointerpolation float4 vOutlineEdge : TEXCOORD9;
+		nointerpolation float flOutlineRadius : TEXCOORD10;
+	#endif
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
@@ -36,8 +44,9 @@ struct PixelInput
 
 #if ( D_OUTLINE_PASS == OUTLINE_OUTSIDE )
 
-// Up to seven copies of three strip vertices each
-ExpandPrimitives( TRIANGLES, 21, TRIANGLE_STRIP );
+// Three quads, one round each edge, as one strip: vertices 0-3, 6-9 and 12-15, joined by 4-5 and 10-11 repeating the last
+// of one and the first of the next
+ExpandPrimitives( TRIANGLES, 16, TRIANGLE_STRIP );
 
 float _LineSize < UiType( Color ); UiGroup( "Color" ); Attribute( "LineWidth" ); Default( 0.2f ); >;
 
@@ -71,25 +80,9 @@ struct CornerInputs
 	#endif
 };
 
-// The geometry stage offset a position its vertex stage had already flipped for Vulkan, then flipped it back before its own
-// flip: its offsets land mirrored in y against one added before this stage's flip
-void PositionOffset (inout PixelInput input, float2 vOffsetDir, float flOutlineSize)
+// The vertex stage's inputs for corner 0, 1 or 2 of the triangle
+VertexInput CornerInput( VertexInput i, CornerInputs c, uint nCorner )
 {
-	float2 vAspectRatio = normalize(g_vInvViewportSize);
-	input.vPositionPs.xy += (float2( vOffsetDir.x, -vOffsetDir.y ) * 2.0) * vAspectRatio * input.vPositionPs.w * flOutlineSize;
-}
-
-[shader( "vertex" )] PixelInput MainVs( VertexInput i, CornerInputs c, uint nStripVertex : SV_VertexID )
-{
-	const float flOutlineSize = _LineSize / 64.0f;
-	const float fTwoPi = 6.28318f;
-	const int nNumIterations = clamp( _LineSize * 10, 3, 6 ); // Thin lines don't need many iterations
-
-	// The geometry stage's strip: copy n of corners 2, 0, 1 for n = 0 to nNumIterations; vertices past it repeat its last
-	uint nVertex = min( nStripVertex, (uint)( nNumIterations * 3 + 2 ) );
-	uint nCopy = nVertex / 3;
-	uint nCorner = ( nVertex % 3 + 2 ) % 3;
-
 	VertexInput v = i;
 	if ( nCorner == 1 )
 	{
@@ -120,16 +113,51 @@ void PositionOffset (inout PixelInput input, float2 vOffsetDir, float flOutlineS
 		#endif
 	}
 
-	PixelInput o = FinalizeVertex( ProcessVertex( v ) );
+	return v;
+}
 
-	float fCycle = (float)nCopy / nNumIterations;
-	float2 vOffset = float2(
-		( sin( fCycle * fTwoPi ) ),
-		( cos( fCycle * fTwoPi ) )
-	);
+// The outline's width in pixels: LineWidth / 64 of the normalized inverse viewport size in projection space, which is the
+// same number of pixels across and down
+float OutlineRadius()
+{
+	return ( _LineSize / 64.0f ) / length( g_vInvViewportSize );
+}
 
-	PositionOffset( o, vOffset, flOutlineSize );
+// Corner 0-3 of the quad round edge a-b: past a, then past b, on one side then the other, half a pixel more than the
+// outline's width every way. An end behind the camera leaves the quad empty
+PixelInput OutlineCorner( PixelInput a, PixelInput b, uint nCorner, float flRadius )
+{
+	bool bEnd = nCorner >= 2;
+	PixelInput o = bEnd ? b : a;
+
+	float2 vHalfViewport = 0.5 / g_vInvViewportSize;
+	float2 vA = a.vPositionPs.xy / a.vPositionPs.w * vHalfViewport;
+	float2 vB = b.vPositionPs.xy / b.vPositionPs.w * vHalfViewport;
+	float2 vAlong = vB - vA;
+	float flLength = length( vAlong );
+	vAlong = flLength > 1e-4 ? vAlong / flLength : float2( 1, 0 );
+	float2 vAcross = float2( -vAlong.y, vAlong.x );
+	float flHalf = flRadius + 0.5;
+
+	float2 vPixel = ( bEnd ? vB + vAlong * flHalf : vA - vAlong * flHalf ) + vAcross * ( ( nCorner & 1 ) != 0 ? -flHalf : flHalf );
+	if ( a.vPositionPs.w > 0.01 && b.vPositionPs.w > 0.01 ) o.vPositionPs.xy = vPixel / vHalfViewport * o.vPositionPs.w;
+
+	o.vOutlinePixel = vPixel;
+	o.vOutlineEdge = float4( vA, vB );
+	o.flOutlineRadius = flRadius;
 	return o;
+}
+
+[shader( "vertex" )] PixelInput MainVs( VertexInput i, CornerInputs c, uint nStripVertex : SV_VertexID )
+{
+	// Which edge (0 from corner 0 to 1, 1 from 1 to 2, 2 from 2 to 0) and which corner of its quad
+	uint s = min( nStripVertex, 15u );
+	uint nEdge = s < 5 ? 0 : ( s < 11 ? 1 : 2 );
+	uint nQuadCorner = s < 4 ? s : s == 4 ? 3 : s <= 6 ? 0 : s <= 9 ? s - 6 : s == 10 ? 3 : s <= 12 ? 0 : s - 12;
+
+	PixelInput a = FinalizeVertex( ProcessVertex( CornerInput( i, c, nEdge ) ) );
+	PixelInput b = FinalizeVertex( ProcessVertex( CornerInput( i, c, ( nEdge + 1 ) % 3 ) ) );
+	return OutlineCorner( a, b, nQuadCorner, OutlineRadius() );
 }
 
 #else
@@ -183,10 +211,27 @@ float2 g_vPatternScrollRate < Default2( 0.0, 0.0 ); Range2( -2.0, -2.0, 2.0, 2.0
 CreateInputTexture2D( Pattern, Linear, 8, "", "",  "Pattern,11/2", Default( 1.0 ) );
 Texture2D g_tPattern < Channel( R, Box( Pattern ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
 
+#if ( D_OUTLINE_PASS == OUTLINE_OUTSIDE )
+// How much of the pixel the outline covers: 1 to half a pixel inside its width from the edge, 0 half a pixel past it (as
+// Hud/line.shader's analytical antialiasing)
+float OutlineCoverage( PixelInput i )
+{
+	float2 vA = i.vOutlineEdge.xy;
+	float2 vEdge = i.vOutlineEdge.zw - vA;
+	float t = saturate( dot( i.vOutlinePixel - vA, vEdge ) / max( dot( vEdge, vEdge ), 1e-6 ) );
+	float flDistance = length( i.vOutlinePixel - ( vA + t * vEdge ) );
+	return saturate( i.flOutlineRadius + 0.5 - flDistance );
+}
+#endif
+
 //
 // Main
 //
+#if ( D_OUTLINE_PASS == OUTLINE_OUTSIDE )
+[shader( "pixel" )] float4 MainPs( PixelInput i, out float flDepth : SV_Depth ): SV_Target
+#else
 [shader( "pixel" )] float4 MainPs( PixelInput i ): SV_Target
+#endif
 {
 	float objectDepth = i.vPositionSs.z;
 
@@ -212,6 +257,16 @@ Texture2D g_tPattern < Channel( R, Box( Pattern ), Linear ); OutputFormat( BC7 )
 		float2 vPatternDims = TextureDimensions2D( g_tPattern, 0 ).xy;
 		float fPattern = g_tPattern.Sample( g_sPointWrap, i.vPositionSs.xy / vPatternDims + ( g_vPatternScrollRate * g_flTime ) ).r;
 		vColor.a *= fPattern;
+	}
+	#endif
+
+	// The outline's edge fades over a pixel. Where edges' quads overlap the one covering more wins (its depth is greater,
+	// which the depth test keeps), the nearer object's where both cover the pixel
+	#if ( D_OUTLINE_PASS == OUTLINE_OUTSIDE )
+	{
+		float flCoverage = OutlineCoverage( i );
+		vColor.a *= flCoverage;
+		flDepth = flCoverage * 0.999 + saturate( objectDepth ) * 0.001;
 	}
 	#endif
 

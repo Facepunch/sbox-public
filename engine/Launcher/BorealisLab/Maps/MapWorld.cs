@@ -563,7 +563,7 @@ internal sealed partial class MapWorld : IDisposable
 	public void SetTarget( int width, int height, int samples )
 	{
 		Target?.Dispose();
-		Target = ViewTarget.Create( new Vector2Int( width, height ), samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Map" );
+		Target = ViewTarget.Create( new Vector2Int( width, height ), samples, TextureFormat.RGBA16161616F, System.DepthFormat, "Map" );
 		view.Viewport = new Rect( 0, 0, width, height );
 	}
 

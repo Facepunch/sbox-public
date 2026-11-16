@@ -37,6 +37,13 @@ public abstract class GpuMaterial : IDisposable
 	public abstract bool NeedsLightProbe { get; }
 
 	/// <summary>
+	/// Whether its draws need a stencil to be right (they write one, or test it against something other than zero), so a
+	/// view drawing it gets a depth target with stencil (<see cref="RenderSystem.DepthFormat"/>). False where the device
+	/// can't tell; such a device keeps stencil on every view (<see cref="GpuDevice.KnowsStencilUse"/>).
+	/// </summary>
+	public virtual bool NeedsStencil => false;
+
+	/// <summary>
 	/// Materials with equal keys share a shader and most of their state, so switching between them is cheap.
 	/// </summary>
 	public abstract ulong SimilarityKey { get; }
