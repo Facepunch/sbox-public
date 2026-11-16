@@ -1505,8 +1505,11 @@ internal sealed partial class BackendContext
 		/// <summary>The depth target's samples; the task run's byte offset in the frame buffer; the region's first instance record; the meshlet run table's bindless slot.</summary>
 		public uint Samples, RunAt, FirstInstance, RunTable;
 
-		/// <summary>The region's commands' byte offset; the frame's stamp; the kept lists' byte offset in the meshlet stamps and the entries they hold.</summary>
+		/// <summary>The region's commands' byte offset; the frame's stamp; the kept triangles' byte offset in the meshlet stamps and how many fit.</summary>
 		public uint Commands, Frame, KeptAt, KeptCapacity;
+
+		/// <summary>The faces the pipeline culls, which the mesh shader culls first: 0 none, 1 front, 2 back.</summary>
+		public uint CullMode;
 	}
 
 	/// <summary>A batch record's sixth word's bit for a bucket drawn with task and mesh shaders: the rest is its task run.</summary>
@@ -1600,6 +1603,7 @@ internal sealed partial class BackendContext
 					Frame = device.GpuDrivenFrame,
 					KeptAt = BackendDevice.MeshletKeptAt,
 					KeptCapacity = BackendDevice.MeshletKeptCapacity,
+					CullMode = (uint)((bucket.Variant ?? idsShaderVariant).State.Cull),
 				} );
 				r.List.DrawMeshTasksIndirect( frameBuffer, frameOffset + runsOffset + i * 8 + 4 );
 				gpuDrivenRuns++;

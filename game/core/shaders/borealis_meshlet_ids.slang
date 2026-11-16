@@ -50,7 +50,8 @@ RWByteAddressBuffer g_MeshletStamps < Attribute( "BorealisMeshletStamps" ); >;
 
 // Per draw: the view the meshlets are culled against, where the bucket's task run is in the region (its first slot), the
 // region's first instance record and its commands (a task slot's first word is its visibility fragment), the meshlet
-// run table's bindless slot, the frame's stamp, and where the kept lists are in g_MeshletStamps and how many entries fit
+// run table's bindless slot, the frame's stamp, where the kept triangles are in g_MeshletStamps and how many fit, and the
+// faces the pipeline culls (0 none, 1 front, 2 back)
 struct BorealisMeshletTask_t
 {
 	float4 vClipX;
@@ -66,6 +67,7 @@ struct BorealisMeshletTask_t
 	uint nFrame;
 	uint nKeptAt;
 	uint nKeptCapacity;
+	uint nCullMode;
 };
 
 [[vk::push_constant]] ConstantBuffer<BorealisMeshletTask_t> g_MeshletTask;
@@ -202,6 +204,7 @@ groupshared uint gs_ListAt;
 #if ( PROGRAM == VFX_PROGRAM_MS )
 #include "instancing.fxc"
 #include "borealis_gpu_driven.fxc"
+#include "borealis_meshlet.fxc"
 
 // The meshlet builder's limits this stage takes (64x124 and smaller; BackendDevice.MeshletTasks)
 static const uint MaxVertices = 64;
@@ -214,6 +217,43 @@ groupshared uint gs_Index[TableSize];
 groupshared uint gs_Vertex[TableSize];
 groupshared uint gs_IndexOf[MaxVertices];
 groupshared uint gs_Vertices;
+
+// Each vertex's position, for the triangles' culling, and each wave's kept triangles
+groupshared float4 gs_Position[MaxVertices];
+groupshared uint gs_WaveKept[4];
+
+// Whether a triangle can't reach a sample, as the hardware would find (a vertex shader's triangles are culled so before
+// they reach the rasterizer; a mesh shader's aren't): wholly outside a clip plane, facing a way the pipeline culls, or in
+// front of the camera with no sample of the grid inside its screen bounds. Positions as they're output (y negated)
+bool TriangleCulled( float4 a, float4 b, float4 c )
+{
+	if ( ( a.x < -a.w && b.x < -b.w && c.x < -c.w ) || ( a.x > a.w && b.x > b.w && c.x > c.w )
+		|| ( a.y < -a.w && b.y < -b.w && c.y < -c.w ) || ( a.y > a.w && b.y > b.w && c.y > c.w )
+		|| ( a.z < 0 && b.z < 0 && c.z < 0 ) || ( a.z > a.w && b.z > b.w && c.z > c.w ) )
+		return true;
+
+	// Through the camera plane: the hardware clips it
+	if ( a.w <= 0 || b.w <= 0 || c.w <= 0 )
+		return false;
+
+	// Framebuffer coordinates (y down); counter-clockwise there is front facing, a negative cross product. A sliver whose
+	// facing rounding could flip goes to the hardware
+	float2 vSize = g_MeshletTask.vViewport;
+	float2 pa = ( a.xy / a.w * 0.5 + 0.5 ) * vSize;
+	float2 pb = ( b.xy / b.w * 0.5 + 0.5 ) * vSize;
+	float2 pc = ( c.xy / c.w * 0.5 + 0.5 ) * vSize;
+	float flCross = ( pb.x - pa.x ) * ( pc.y - pa.y ) - ( pc.x - pa.x ) * ( pb.y - pa.y );
+	if ( g_MeshletTask.nCullMode == 2 && flCross > 1.0 / 256 )
+		return true;
+	if ( g_MeshletTask.nCullMode == 1 && flCross < -1.0 / 256 )
+		return true;
+
+	// No sample inside its bounds, widened by the hardware's subpixel step
+	uint nSamples = g_MeshletTask.nSamples;
+	float2 vMin = min( pa, min( pb, pc ) ) - 1.0 / 128;
+	float2 vMax = max( pa, max( pb, pc ) ) + 1.0 / 128;
+	return ( nSamples == 1 || nSamples == 4 ) && !MeshletHoldsSample( nSamples, vMin, vMax );
+}
 
 uint LoadIndex( ByteAddressBuffer page, uint nIndex, bool b32 )
 {
@@ -283,26 +323,46 @@ uint Place( uint nIndex )
 
 	GroupMemoryBarrierWithGroupSync();
 	uint nVertices = min( gs_Vertices, MaxVertices );
-	SetMeshOutputCounts( nVertices, nTriangles );
 
+	// The draw's vertex as its vertex shader sees it: the index plus the base vertex
+	PS_INPUT o;
 	if ( nThread < nVertices )
 	{
-		// The draw's vertex as its vertex shader sees it: the index plus the base vertex
 		uint nVertex = gs_IndexOf[nThread] + vDraw.z;
 		float3 vPositionOs = asfloat( BorealisGpuDrivenFetch( vDrawHead.x, 0, nVertex, true ).xyz );
 		float3x4 matObjectToWorld = GetTransformMatrix( vInstance.x, 0 );
 		float3 vPositionWs = mul( matObjectToWorld, float4( vPositionOs.xyz, 1.0 ) );
-
-		PS_INPUT o;
 		o.vPositionPs.xyzw = Position3WsToPs( vPositionWs.xyz );
 		// As the vertex stage's compile flips it (SlangCompiler.CompilePass)
 		o.vPositionPs.y = -o.vPositionPs.y;
 		o.nVertexBit = BorealisGpuDrivenVertexBit( nInstance, nVertex );
-		vertices[nThread] = o;
+		gs_Position[nThread] = o.vPositionPs;
 	}
 
-	if ( nThread < nTriangles )
-		triangles[nThread] = uint3( gs_Vertex[vSlots.x], gs_Vertex[vSlots.y], gs_Vertex[vSlots.z] );
+	GroupMemoryBarrierWithGroupSync();
+
+	// Only the triangles that can reach a sample, in their order
+	uint3 vCorners = uint3( gs_Vertex[vSlots.x], gs_Vertex[vSlots.y], gs_Vertex[vSlots.z] );
+	bool bKeep = nThread < nTriangles && !TriangleCulled( gs_Position[vCorners.x], gs_Position[vCorners.y], gs_Position[vCorners.z] );
+	uint nWave = nThread / WaveGetLaneCount();
+	uint nBefore = WavePrefixCountBits( bKeep );
+	uint nWaveKept = WaveActiveCountBits( bKeep );
+	if ( WaveIsFirstLane() )
+		gs_WaveKept[nWave] = nWaveKept;
+	GroupMemoryBarrierWithGroupSync();
+	uint nKept = 0;
+	for ( uint w = 0; w * WaveGetLaneCount() < 128; w++ )
+	{
+		if ( w < nWave )
+			nBefore += gs_WaveKept[w];
+		nKept += gs_WaveKept[w];
+	}
+
+	SetMeshOutputCounts( nVertices, nKept );
+	if ( nThread < nVertices )
+		vertices[nThread] = o;
+	if ( bKeep )
+		triangles[nBefore] = vCorners;
 
 	// Each triangle's number among its draw's, for forward's compaction, where the task group made room
 	if ( payload.nListed != None && vGroupId.x < MaxListed && nThread < nTriangles )
