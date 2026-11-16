@@ -28,7 +28,14 @@ internal static unsafe partial class MeshOptimizer
 
 	static MeshOptimizer()
 	{
-		NativeLibrary.SetDllImportResolver( typeof( MeshOptimizer ).Assembly, ( name, _, _ ) => name == LibraryName ? Load() : IntPtr.Zero );
+		// In the engine its own resolver (DLLImportResolver) is already set for this assembly and loads meshopt from the native folder
+		try
+		{
+			NativeLibrary.SetDllImportResolver( typeof( MeshOptimizer ).Assembly, ( name, _, _ ) => name == LibraryName ? Load() : IntPtr.Zero );
+		}
+		catch ( InvalidOperationException )
+		{
+		}
 	}
 
 	/// <summary>Whether the library is there to call.</summary>
