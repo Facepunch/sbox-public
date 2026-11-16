@@ -451,11 +451,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		switch ( resource )
 		{
 			case Texture texture when textures.TryGetValue( texture, out var backing ):
-				textures.Remove( texture );
-				context.Forget( backing.Handle );
+				lock ( textureOwners )
+				{
+					textures.Remove( texture );
+					context.Forget( backing.Handle );
 
-				// A borrowed backing (a Borealis frame's target) stays its owner's
-				if ( textureOwners.Remove( backing.Handle ) ) gpu.Destroy( backing.Handle );
+					// A borrowed backing (a Borealis frame's target) stays its owner's
+					if ( textureOwners.Remove( backing.Handle ) ) gpu.Destroy( backing.Handle );
+				}
+
 				break;
 
 			case GpuBuffer buffer when buffers.TryGetValue( buffer, out var backing ):
@@ -506,8 +510,22 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		ArgumentNullException.ThrowIfNull( texture );
 		if ( textures.TryGetValue( texture, out var backing ) ) return backing.Handle;
 
+		// Made once, under a lock: a sprite batch's workers ask for their sprites' indices (Texture.Index) in parallel
+		// while the main thread waits for them
+		lock ( textureOwners )
+		{
+			return textures.TryGetValue( texture, out backing ) ? backing.Handle : Make( texture );
+		}
+	}
+
+	TextureHandle Make( Texture texture )
+	{
 		TextureHandle handle;
-		if ( texture.IsRenderTarget )
+		if ( texture.Width < 1 || texture.Height < 1 )
+		{
+			handle = Unreadable( texture );
+		}
+		else if ( texture.IsRenderTarget )
 		{
 			var info = TextureInfo.RenderTarget( texture.Width, texture.Height, FormatOf( texture.ImageFormat ), name: $"Engine target {texture.Width}x{texture.Height}" );
 			info.Mips = Math.Max( texture.Mips, 1 );
@@ -555,11 +573,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			context.Track( handle, ImageLayout.Undefined );
 			ClearNow( handle, Color.Transparent );
 		}
-		else
+		else if ( TryCopyFromSource2( texture ) is { } copy )
 		{
 			var info = TextureInfo.Texture2D( texture.Width, texture.Height, GpuFormat.RGBA8Unorm, name: $"Engine image {texture.Width}x{texture.Height}" );
 			handle = gpu.CreateTexture( info );
-			Upload( handle, info, CopyFromSource2( texture ), ImageLayout.Undefined );
+			Upload( handle, info, copy, ImageLayout.Undefined );
+		}
+		else
+		{
+			handle = Unreadable( texture );
 		}
 
 		textures.Add( texture, new Backing<TextureHandle>( handle ) );
@@ -641,10 +663,33 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		_ => GpuFormat.Unknown,
 	};
 
-	byte[] CopyFromSource2( Texture texture )
+	/// <summary>Mip 0 of Source 2's copy as RGBA8, or null when Source 2 can't read it back.</summary>
+	byte[] TryCopyFromSource2( Texture texture )
 	{
-		CopiedFromSource2++;
-		return MemoryMarshal.AsBytes( texture.GetPixels().AsSpan() ).ToArray();
+		try
+		{
+			var pixels = MemoryMarshal.AsBytes( texture.GetPixels().AsSpan() ).ToArray();
+			CopiedFromSource2++;
+			return pixels;
+		}
+		catch ( Exception )
+		{
+			// Texture.GetPixels throws a plain Exception when the readback fails
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// A texture with nothing to make it from (no size, or pixels Source 2 can't read back): one transparent pixel, kept
+	/// as its backing so it isn't made again each time it's asked for, and said once.
+	/// </summary>
+	TextureHandle Unreadable( Texture texture )
+	{
+		Log.Warning( $"Borealis.Gpu: {(string.IsNullOrEmpty( texture.ResourcePath ) ? $"a {texture.Width}x{texture.Height} {texture.ImageFormat} texture" : texture.ResourcePath)} has nothing to read, so it draws transparent" );
+		var handle = gpu.CreateTexture( TextureInfo.Texture2D( 1, 1, GpuFormat.RGBA8Unorm, name: "Engine image without pixels" ) );
+		context.Track( handle, ImageLayout.Undefined );
+		ClearNow( handle, Color.Transparent );
+		return handle;
 	}
 
 	/// <summary>
