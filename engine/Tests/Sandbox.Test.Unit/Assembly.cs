@@ -18,17 +18,5 @@ public class TestInit
 	{
 		// Managed-only setup - keep anything native out of here.
 		Application.IsUnitTest = true;
-
-		// Anything here that reaches Borealis goes through the Source 2 backend, as in s&box. Borealis's own tests are in
-		// Borealis.Test, on a headless device.
-		Borealis.RenderHost.Current = new UnitTestRenderHost();
 	}
-}
-
-/// <summary>
-/// Borealis's default host with s&amp;box's Source 2 device.
-/// </summary>
-internal sealed class UnitTestRenderHost : Borealis.RenderHost
-{
-	public override Borealis.GpuDevice Device => Borealis.Gpu.Source2.Source2Device.Instance;
 }
