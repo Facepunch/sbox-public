@@ -211,6 +211,52 @@ public class CascadeCacheTests
 	}
 
 	/// <summary>
+	/// The view drawn over the cache queries only the casters the cache doesn't hold: its tree query leaves the settled ones
+	/// out, and it draws what it draws when it culls each of them.
+	/// </summary>
+	[TestMethod]
+	public void FarViewQueriesOnlyUnsettledCasters()
+	{
+		var world = SunWorld();
+		var boxes = new List<MeshObject>();
+		for ( int i = 0; i < 20; i++ ) boxes.Add( Box( world, new Vector3( 100 + i * 50, 0, 0 ), isStatic: false ) );
+		var view = LookingDownX();
+		using var system = new RenderSystem();
+		var mesh = system.GetFeature<MeshRenderFeature>();
+
+		// All of them settled into the cache, then one moves
+		SettledCasters.Tick( 1e6f );
+		SettledCasters.Reset( settled: true );
+		CollectAndPrepare( system, world, view );
+		var far = ShadowMapper.FarCaches.Single();
+		far.DrawnAt -= SettledCasters.Seconds;
+		CollectAndPrepare( system, world, view );
+		var moving = boxes[3];
+		moving.Transform = new Transform( new Vector3( 260, 10, 0 ) );
+		CollectAndPrepare( system, world, view );
+
+		var pass = FarView( system );
+		Assert.IsNotNull( pass.TreeKept, "marked" );
+		var candidates = new List<int>();
+		RenderSystem.FindCandidates( world, pass, candidates, out var inTree, out _ );
+		CollectionAssert.AreEqual( new[] { moving.Index }, candidates.Take( inTree ).Select( c => c >> 1 ).ToArray(), "only the one that moved" );
+		var marked = pass.Visible( mesh ).ToArray();
+		CollectionAssert.AreEqual( new[] { moving.Index }, marked );
+
+		ShadowSystem.MarksUnsettled = false;
+		try
+		{
+			CollectAndPrepare( system, world, view );
+			Assert.IsNull( FarView( system ).TreeKept );
+			CollectionAssert.AreEquivalent( marked, FarView( system ).Visible( mesh ).ToArray(), "the same casters culled one by one" );
+		}
+		finally
+		{
+			ShadowSystem.MarksUnsettled = true;
+		}
+	}
+
+	/// <summary>
 	/// A cascade view that would leave its map as it is, drawing no casters over a clear or over the copy of an unchanged
 	/// cache, is left out of the frame, and so are its tiles. A caster, the frame after one and a changed cache draw it again.
 	/// The sun's constants read the same either way.

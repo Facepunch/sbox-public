@@ -192,6 +192,7 @@ public struct SurfaceInput
 	public float2 FrameBufferUvScale;  // ScreenUv to the frame-buffer copy's uv (it may be larger than the view)
 	public bool Skybox;              // drawn in the 3D skybox's view (today's D_SKYBOX combo), whose reprojection from the world is wrong
 	public float ToneMapScale;       // the view's tone map scalar (g_flToneMapScalarLinear): what the frame's exposure multiplies by
+	public float2 ViewportSize;      // the view's size in pixels
 
 	public float4 Sample( MaterialTexture2D texture, float2 uv )
 	{
@@ -292,6 +293,13 @@ public struct WorldVertexInput
 	public float3 Wind;              // world: the view's wind direction times its strength
 	public float Time;
 	public MaterialTexture2D BlueNoise;   // the view's blue noise texture (vr_lighting.fxc's g_tBlueNoise)
+
+	// The tangent frame: in world space after the engine's transform (and skinning), and the mesh's own in object space.
+	// Together they carry an object-space direction through skinning (citizen_eye's gaze axes)
+	public float3 TangentU;          // world
+	public float3 TangentV;          // world
+	public float3 ObjectNormal;      // object space, the mesh's
+	public float4 ObjectTangent;     // object space, the mesh's: tangent U, and V's sign in w
 }
 
 /// Instead of IInterpolatedSurface: one that also moves its vertices, in world space after the engine's transform (fur's
@@ -363,6 +371,9 @@ public struct LightLayer
 	public float DiffuseWrap = 0;       // SUBSURFACE_SCATTERING_WRAP: how far diffuse light wraps past the terminator,
 	public float DiffuseWrapExponent = 1;   // and its falloff's exponent (0 and 1: the combiner's default)
 	public float3 Offset = 0;           // world: lit from this far off the pixel (lifting lighting off a coarse shadow mesh)
+	public bool GeometricRoughness = true;   // raise Roughness by the geometric normal's curvature; off for a surface that filters its own
+	public bool Direct = true;          // the lights
+	public bool Indirect = true;        // lightmaps, probes, the environment and screen-space reflections
 }
 
 /// The light a layer receives: diffuse before the surface's diffuse colour, specular with its specular colour.
@@ -372,6 +383,8 @@ public struct LayerLight
 	public float3 IndirectDiffuse;
 	public float3 Specular;
 	public float3 IndirectSpecular;
+	public float DiffuseOcclusion;      // the scene's occlusion of indirect diffuse light (screen-space and baked), not applied
+	public float SpecularOcclusion;     // and of indirect specular light along the layer's normal, not applied
 }
 
 /// What the engine hands ILayeredSurface.Shade: its lighting at the pixel.
@@ -380,6 +393,10 @@ public interface ILayerLighting
 	/// Every light, the environment and the probes on one layer: the engine's light loops through the final combiner's
 	/// lighting with the surface's [Combiner] features. Callable inside branches: its derivatives were taken outside.
 	LayerLight Light( LightLayer layer );
+
+	/// Where the opaque scene is at a pixel of the view (from the depth prepass), in world space: for a surface's own
+	/// screen-space occlusion.
+	float3 ScenePosition( float2 pixel );
 }
 
 /// Optional, for a combiner surface that combines its own light (eyeball's cornea over its iris): forward passes call
@@ -389,4 +406,16 @@ public interface ILayerLighting
 public interface ILayeredSurface : ICombinerSurface
 {
 	float3 Shade<L : ILayerLighting>( SurfaceInput i, L lighting, out Material m );
+}
+
+/// A layered surface with per-vertex values of its own (as IInterpolatedSurface's Varyings, read and adjusted the same
+/// way): Shade gets them interpolated. Lit through the final combiner as an ICombinerSurface is. Also an
+/// IInterpolatedVertexSurface to work them out from the vertex in world space (citizen_eye's gaze). Not derived from
+/// IInterpolatedSurface: Slang doesn't match a requirement naming an associated type inherited from a base interface.
+public interface IInterpolatedLayeredSurface
+{
+	associatedtype Varyings;
+	Varyings Vertex( Varyings v );
+	Material Evaluate( SurfaceInput i, Varyings v );
+	float3 Shade<L : ILayerLighting>( SurfaceInput i, Varyings v, L lighting, out Material m );
 }

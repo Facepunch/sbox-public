@@ -608,7 +608,7 @@ internal sealed partial class BackendContext
 
 		// A resident prefix's buckets come first: what a plan checks of them, and where their records and multi-draws end. A
 		// call that keeps its order has a slot per fragment, the same each frame, so its plan holds them as they are
-		var checks = plan is null && prefixBuckets > 0 && cull.Plan is not null && UsesPlans && (compact || cull.KeepsOrder) ?new (GpuMaterial, ShaderParameters, ShaderVariant, int, int)[prefixBuckets] : null;
+		var checks = plan is null && prefixBuckets > 0 && cull.Plan is not null && UsesPlans && (compact || cull.KeepsOrder) ? new (GpuMaterial, ShaderParameters, ShaderVariant, int, int)[prefixBuckets] : null;
 		var (prefixRecords, prefixWritten, prefixCompact, prefixRuns) = (0, 0, 0, 0);
 		try
 		{
