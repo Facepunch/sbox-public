@@ -46,6 +46,13 @@ internal readonly struct StageTarget
 	public GpuTexture Depth { get; init; }
 
 	/// <summary>
+	/// The opaque pass's second colour target while screen-space reflections are on: each opaque surface's normal and
+	/// roughness (<see cref="ScreenSpaceReflectionsLayer.NormalsFor"/>). Bound beside <see cref="Color"/> in the opaque
+	/// pass; given to the reflections' trace, which reads last frame's.
+	/// </summary>
+	public GpuTexture Normals { get; init; }
+
+	/// <summary>
 	/// The array slice or cube face of <see cref="Depth"/> bound, for a shadow view with no colour.
 	/// </summary>
 	public int DepthSlice { get; init; }

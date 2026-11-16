@@ -195,11 +195,17 @@ public record struct BlendState
 	/// <summary>Alpha blend operation.</summary>
 	public BlendOp AlphaOp;
 
-	/// <summary>Channels written, RGBA in bits 0-3; 0 means all.</summary>
+	/// <summary>Channels written, RGBA in bits 0-3; 0 means all, <see cref="NoChannels"/> none.</summary>
 	public int WriteMask;
+
+	/// <summary>A <see cref="WriteMask"/> that writes no channel.</summary>
+	public const int NoChannels = 0x10;
 
 	/// <summary>No blending.</summary>
 	public static BlendState Opaque => default;
+
+	/// <summary>Nothing written: a target the shader has no output for.</summary>
+	public static BlendState NoWrites => new() { WriteMask = NoChannels };
 
 	/// <summary>Premultiplied-alpha-style "over" blending of straight alpha.</summary>
 	public static BlendState AlphaBlend => new()

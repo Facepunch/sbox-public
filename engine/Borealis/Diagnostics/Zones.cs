@@ -24,6 +24,7 @@ internal static class Zones
 	public static readonly Zone RecordWait = new( "Borealis Record Wait", Color.Gray );
 	public static readonly Zone Submit = new( "Borealis Submit", Color.Blue );
 	public static readonly Zone Stage = new( "Borealis Stage", Color.White );
+	public static readonly Zone Reflections = new( "Borealis Screen-space Reflections", Color.White );
 	public static readonly Zone CustomObject = new( "Borealis Custom Object", Color.White );
 }
 

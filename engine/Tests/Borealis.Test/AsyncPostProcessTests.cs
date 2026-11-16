@@ -82,36 +82,61 @@ public class AsyncPostProcessTests
 	}
 
 	/// <summary>
-	/// Borealis traces no screen-space reflections for a camera that has them: they need material normals and roughness, and it
-	/// draws no G-buffer. They come back behind one switch. Its frames tell shaders there's no G-buffer either.
+	/// Borealis traces screen-space reflections for a camera that has them on a device whose opaque pass writes surfaces'
+	/// normals and roughness: the frame gets a target for them of its colour's size and samples, kept from frame to frame,
+	/// which the opaque pass binds beside colour. Switched off (<c>r_ssr_downsample_ratio 0</c>), or on a device that writes
+	/// none, a frame has no such target and traces nothing.
 	/// </summary>
 	[TestMethod]
-	public void ScreenSpaceReflectionsStayOffUntilSwitchedOn()
+	public void ScreenSpaceReflectionsTraceWhereTheOpaquePassWritesNormals()
 	{
 		var world = new RenderWorld();
 		world.Add( new MeshObject( TestMesh( false ), new Transform( new Vector3( 30, 0, 0 ) ) ) );
 
 		using var system = new RenderSystem();
+		using var target = ViewTarget.Create( new Vector2Int( 64, 32 ), samples: 4 );
 		CollectAndPrepare( system, world, LookingDownX() );
-		system.Frame.Stages = new ReflectingStages();
+		var frame = system.Frame;
+		frame.Output = RenderOutput.ForTarget( target );
+		frame.Stages = new ReflectingStages();
+		var layer = system.Layers.OfType<ScreenSpaceReflectionsLayer>().Single();
 		using var recorder = new FrameRecorder();
 
 		bool Traces()
 		{
-			recorder.Plan( system.Frame, parallel: false, asyncCompute: false );
-			return recorder.Planned.Any( p => p.Layer is ScreenSpaceReflectionsLayer or ScreenSpaceReflectionsHistoryLayer );
+			frame.Normals = layer.NormalsFor( frame );
+			recorder.Plan( frame, parallel: false, asyncCompute: false );
+			var traces = recorder.Planned.Any( p => p.Layer is ScreenSpaceReflectionsLayer );
+			Assert.AreEqual( traces, recorder.Planned.Any( p => p.Layer is ScreenSpaceReflectionsHistoryLayer ) );
+			Assert.AreEqual( traces, frame.Normals is not null );
+			return traces;
 		}
 
-		Assert.IsFalse( Traces() );
+		var device = HeadlessRenderHost.Headless;
+		Assert.IsTrue( ScreenSpaceReflectionsLayer.Enabled );
+		Assert.IsFalse( Traces(), "a device that writes no normals traces none" );
 
-		ScreenSpaceReflectionsLayer.Enabled = true;
+		device.ForwardNormals = true;
 		try
 		{
 			Assert.IsTrue( Traces() );
+			var normals = frame.Normals;
+			Assert.AreEqual( (target.Color.Width, target.Color.Height, 4), (normals.Width, normals.Height, normals.Samples) );
+			Assert.AreEqual( ScreenSpaceReflectionsLayer.NormalsFormat, normals.Format );
+			Assert.IsTrue( Traces() );
+			Assert.AreSame( normals, frame.Normals, "kept from frame to frame" );
+
+			using var context = RenderHost.Current.Device.CreateContext();
+			Assert.AreSame( normals, frame.Target( context, color: true, final: false, normals: true ).Normals, "the opaque pass binds it" );
+			Assert.IsNull( frame.Target( context, color: true, final: false ).Normals, "other passes don't" );
+
+			ScreenSpaceReflectionsLayer.Enabled = false;
+			Assert.IsFalse( Traces() );
 		}
 		finally
 		{
-			ScreenSpaceReflectionsLayer.Enabled = false;
+			device.ForwardNormals = false;
+			ScreenSpaceReflectionsLayer.Enabled = true;
 		}
 	}
 }

@@ -739,7 +739,7 @@ public sealed unsafe partial class Device
 				srcAlphaBlendFactor = (int)blend.SourceAlpha,
 				dstAlphaBlendFactor = (int)blend.DestinationAlpha,
 				alphaBlendOp = (int)blend.AlphaOp,
-				colorWriteMask = blend.WriteMask == 0 ? Vulkan.Vk.ColorComponentAll : (uint)blend.WriteMask,
+				colorWriteMask = blend.WriteMask == 0 ? Vulkan.Vk.ColorComponentAll : (uint)blend.WriteMask & Vulkan.Vk.ColorComponentAll,
 			};
 		}
 
