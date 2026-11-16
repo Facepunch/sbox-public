@@ -120,10 +120,12 @@ internal sealed partial class BackendContext
 		skinningDrawer ??= new ShaderDrawer( device );
 		var atlas = device.Morphs.Texture;
 
-		// A list recorded beside others that hasn't used the atlas yet needs it as a target at its start
+		// A list recorded beside others that hasn't used the atlas yet needs it as a target at its start, unless the plan says
+		// where the lists before leave it
 		var local = recording.Layouts;
 		var known = default( (ImageLayout First, ImageLayout Current) );
 		var used = local is not null && local.TryGetValue( atlas, out known );
+		if ( local is not null && !used && PlannedLayout( atlas, out var planned ) ) (known, used) = ((planned, planned), true);
 		var layout = local is null ? atlas.Layout : used ? known.Current : ImageLayout.ColorTarget;
 		if ( !device.Morphs.Generate( List, skinningDrawer, ref layout ) ) return;
 

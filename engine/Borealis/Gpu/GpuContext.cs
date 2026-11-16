@@ -94,6 +94,13 @@ internal abstract class GpuContext : IDisposable
 	/// </summary>
 	internal virtual void CarryRendering( bool fromPrevious, bool intoNext ) { }
 
+	/// <summary>
+	/// After <see cref="BeginSegment"/> into a context of its own: the frame's shape up to and including this segment (its
+	/// segments and what each records). A device tracking texture layouts per list can start the list from where the lists
+	/// before leave each texture, learnt the last time the frame had this shape, rather than move them at submission.
+	/// </summary>
+	internal virtual void PlanLayouts( int shape ) { }
+
 	/// <summary>Submit and end recording, naming the swap chain on a frame's first submission.</summary>
 	public abstract void Submit( GpuSwapChain swapChain = default );
 
