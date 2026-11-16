@@ -583,8 +583,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			Name = name,
 		};
 
+		// Initial pixels for mip 0: a 2D texture's, or every slice of a volume's
 		var texture = new BackendTexture( this, Gpu.CreateTexture( info ), desc, name );
-		if ( !desc.Data.IsEmpty && !desc.Cube && desc.Depth <= 1 )
+		if ( !desc.Data.IsEmpty && !desc.Cube )
 		{
 			Gpu.WriteTexture( texture.Handle, desc.Data.Span );
 			texture.Layout = ImageLayout.ShaderRead;
