@@ -89,11 +89,6 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		public ulong SourceVersion;
 		public Vector2Int Offset;
 
-		/// <summary>
-		/// A second view in a row has drawn the same, so the next can be left out.
-		/// </summary>
-		public bool Repeated;
-
 		public ulong TilesVersion;
 	}
 
@@ -195,9 +190,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// <summary>
 	/// Leave out the cascade views that would leave their maps as they are: ones that draw no casters, into a map that holds
 	/// just the clear or the copy of an unchanged cache they'd start from. Their tiles stay too (<see cref="MarkCascades"/>).
-	/// Every other view is drawn, and its map's version moves on. A map that changes is drawn the same way once more before
-	/// it's kept, so what's kept never comes from a frame that also changed what it's made from (on the Steam Deck, tiles made
-	/// in a render system's first frame weren't always right; drawing every frame hid that).
+	/// Every other view is drawn, and its map's version moves on.
 	/// </summary>
 	void KeepUnchangedCascades()
 	{
@@ -235,14 +228,9 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		var plain = pass.Blank is null && pass.TargetSlice == 0 && !HasCasters( pass ) && !system.DrawsResident( pass );
 		if ( plain && held.Map == map && held.Plain && held.Source == source
 			&& (source is null || (held.SourceVersion == source.Version && held.Offset == pass.CacheOffset)) )
-		{
-			if ( held.Repeated ) return true;
-			held.Repeated = true;
-			return false;
-		}
+			return true;
 
 		if ( held.Map != map ) held = new CascadeContents { Map = map };
-		held.Repeated = false;
 		held.Plain = plain;
 		held.Source = source;
 		held.SourceVersion = source?.Version ?? 0;
