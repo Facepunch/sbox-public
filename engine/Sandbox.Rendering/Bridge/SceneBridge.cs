@@ -325,6 +325,9 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		var parent = rendering;
 		if ( parent is null ) FreeInvalid();
 
+		// Borealis traces screen-space reflections as the graphics settings leave them (r_ssr_downsample_ratio)
+		Borealis.ScreenSpaceReflectionsLayer.Enabled = ScreenSpaceReflectionsPass.IsEnabled;
+
 		var syncStart = System.Diagnostics.Stopwatch.GetTimestamp();
 		var mirror = MirrorFor( camera.World );
 		if ( parent is null || !mirror.HasSynced ) mirror.Sync( camera );

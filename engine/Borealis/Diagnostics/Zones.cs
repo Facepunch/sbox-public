@@ -26,10 +26,13 @@ internal static class Zones
 	public static readonly Zone RecordWait = new( "Borealis Record Wait", Color.Gray );
 	public static readonly Zone Submit = new( "Borealis Submit", Color.Blue );
 	public static readonly Zone Stage = new( "Borealis Stage", Color.White );
+	public static readonly Zone Reflections = new( "Borealis Screen-space Reflections", Color.White );
 	public static readonly Zone CustomObject = new( "Borealis Custom Object", Color.White );
 	public static readonly Zone MeshletBuild = new( "Borealis Meshlet Build", Color.Yellow );
 	public static readonly Zone MeshletUpload = new( "Borealis Meshlet Upload", Color.Yellow );
 	public static readonly Zone MeshletCull = new( "Borealis Meshlet Cull", Color.Yellow );
+	public static readonly Zone LodBuild = new( "Borealis LOD Build", Color.Yellow );
+	public static readonly Zone LodUpload = new( "Borealis LOD Upload", Color.Yellow );
 }
 
 /// <summary>

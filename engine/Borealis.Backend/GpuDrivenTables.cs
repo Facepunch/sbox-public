@@ -51,11 +51,16 @@ internal sealed class GpuDrivenTables : IDisposable
 		public int Slot;
 		public long Size;
 		public long Used;
+
+		/// <summary>Where meshes' own data stops: an index page's room for generated levels follows (<see cref="LevelRoom"/>).</summary>
+		public long Limit;
+		public long LevelUsed;
 	}
 
 	Page vertexPage;
 	readonly Dictionary<IndexFormat, Page> indexPages = new();
-	long pageBytes;
+	readonly Dictionary<int, Page> indexPagesBySlot = new();
+	long pageBytes, levelBytes;
 
 	/// <summary>
 	/// A table in host-visible memory that only grows: records are appended and never change. Growing copies it into a
@@ -82,6 +87,12 @@ internal sealed class GpuDrivenTables : IDisposable
 				Used += aligned;
 				return (uint)offset;
 			}
+		}
+
+		/// <summary>Read back records appended earlier, at <paramref name="offset"/>.</summary>
+		public void Read( uint offset, Span<byte> record )
+		{
+			lock ( this ) gpu.Map( Buffer ).Slice( (int)offset, record.Length ).CopyTo( record );
 		}
 
 		/// <summary>Write over records appended earlier, at <paramref name="offset"/> (a released run, reused).</summary>
@@ -193,6 +204,50 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
+	/// <summary>
+	/// Room each index page keeps after meshes' indices for their generated levels (<see cref="Lods.LodStore"/>), as a
+	/// fraction of what meshes fill: a level must be in its range's page, as a multi-draw binds one page. Set before any
+	/// index page is made; 0 keeps none.
+	/// </summary>
+	public float LevelRoom { get; set; }
+
+	/// <summary>Bytes of index pages' level room, and how much of it levels use, for reports.</summary>
+	public (long Room, long Used) LevelBytes
+	{
+		get
+		{
+			lock ( pagesLock )
+			{
+				long room = 0;
+				foreach ( var page in indexPagesBySlot.Values ) room += page.Size - page.Limit;
+				return (room, levelBytes);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Room for <paramref name="bytes"/> of a generated level's indices in the index page at <paramref name="slot"/>, after
+	/// its meshes' own: the page and the level's first index there; false when the page has no room left. The caller
+	/// writes them, in a command list ordered before any draw of them.
+	/// </summary>
+	public bool TryAddLevelIndices( int slot, IndexFormat format, int bytes, out BufferHandle page, out uint firstIndex )
+	{
+		lock ( pagesLock )
+		{
+			page = default;
+			firstIndex = 0;
+			if ( !indexPagesBySlot.TryGetValue( slot, out var found ) ) return false;
+			var offset = found.LevelUsed;
+			var aligned = (bytes + 15) & ~15;
+			if ( offset + aligned > found.Size ) return false;
+			found.LevelUsed = offset + aligned;
+			levelBytes += aligned;
+			page = found.Buffer;
+			firstIndex = (uint)(offset / (format == IndexFormat.UInt32 ? 4 : 2));
+			return true;
+		}
+	}
+
 	//
 	// Geometry, at load
 	//
@@ -232,8 +287,9 @@ internal sealed class GpuDrivenTables : IDisposable
 		lock ( pagesLock )
 		{
 			indexPages.TryGetValue( format, out var page );
-			page = Place( ref page, data.Length, IndexPageSize, BufferUsage.Index | BufferUsage.Storage, $"Borealis index page {format}" );
+			page = Place( ref page, data.Length, IndexPageSize, BufferUsage.Index | BufferUsage.Storage, $"Borealis index page {format}", LevelRoom );
 			indexPages[format] = page;
+			indexPagesBySlot[page.Slot] = page;
 			var offset = page.Used;
 			if ( data.Length > 0 ) gpu.WriteBuffer( page.Buffer, data, offset );
 			page.Used = (offset + data.Length + 15) & ~15;
@@ -241,16 +297,20 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
-	/// <summary>Room for <paramref name="bytes"/>: the current page, a new one, or a buffer of its own when it's bigger than a page.</summary>
-	Page Place( ref Page current, int bytes, int pageSize, BufferUsage usage, string name )
+	/// <summary>
+	/// Room for <paramref name="bytes"/>: the current page, a new one, or a buffer of its own when it's bigger than a page;
+	/// a new one with <paramref name="room"/> of its meshes' size again after them.
+	/// </summary>
+	Page Place( ref Page current, int bytes, int pageSize, BufferUsage usage, string name, float room = 0 )
 	{
-		if ( current is not null && current.Used + bytes <= current.Size ) return current;
+		if ( current is not null && current.Used + bytes <= current.Limit ) return current;
 
-		var size = Math.Max( pageSize, (bytes + 15) & ~15 );
+		var limit = Math.Max( pageSize, (bytes + 15) & ~15 );
+		var size = (limit + (long)(limit * Math.Max( room, 0 )) + 15) & ~15L;
 		var buffer = gpu.CreateBuffer( new BufferInfo { Size = size, Usage = usage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = name } );
 		owned.Add( buffer );
 		pageBytes += size;
-		var page = new Page { Buffer = buffer, Slot = gpu.BindlessIndex( buffer ), Size = size };
+		var page = new Page { Buffer = buffer, Slot = gpu.BindlessIndex( buffer ), Size = size, Limit = limit, LevelUsed = limit };
 
 		// A buffer bigger than a page stands alone; the page being filled stays current
 		if ( bytes > pageSize ) return page;
@@ -338,9 +398,23 @@ internal sealed class GpuDrivenTables : IDisposable
 			Span<uint> record = [geometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, indexCount, (uint)baseVertex, (uint)indexPage];
 			var offset = draws.Append( MemoryMarshal.AsBytes( record ) );
 			var index = offset / DrawStride;
-			Meshlets?.RegisterDraw( index, new Borealis.Backend.Meshlets.MeshletStore.Range( indexPage, firstIndex, indexCount, baseVertex ) );
-			return drawRecords[key] = index;
+			var range = new Borealis.Backend.Meshlets.MeshletStore.Range( indexPage, firstIndex, indexCount, baseVertex );
+			Meshlets?.RegisterDraw( index, range );
+			drawRecords[key] = index;
+			Lods?.RegisterDraw( index, range );
+			return index;
 		}
+	}
+
+	/// <summary>Where draw records find their ranges' generated levels (<see cref="BackendDevice.GeneratedLods"/>), or null.</summary>
+	public Lods.LodStore Lods { get; set; }
+
+	/// <summary>A draw record's geometry and material records, flags and base vertex, as <see cref="Draw"/> made it.</summary>
+	public (uint Geometry, uint Vertex, uint Pixel, uint Flags, int BaseVertex) DrawFields( uint index )
+	{
+		Span<uint> record = stackalloc uint[DrawStride / 4];
+		draws.Read( index * (uint)DrawStride, MemoryMarshal.AsBytes( record ) );
+		return (record[0], record[1], record[2], record[3], (int)record[6]);
 	}
 
 	/// <summary>Where draw records find their ranges' meshlets (<see cref="BackendDevice.Meshlets"/>), or null.</summary>

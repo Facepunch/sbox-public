@@ -160,6 +160,12 @@ public abstract class GpuDevice
 	/// </summary>
 	internal virtual bool KnowsStencilUse => false;
 
+	/// <summary>
+	/// Whether its opaque pass writes surfaces' normals and roughness into a second target
+	/// (<see cref="StageTarget.Normals"/>), which screen-space reflections trace from. Off, a frame traces none.
+	/// </summary>
+	internal virtual bool WritesForwardNormals => false;
+
 	/// <summary>Whether the device has an async compute queue.</summary>
 	public abstract bool SupportsAsyncCompute { get; }
 

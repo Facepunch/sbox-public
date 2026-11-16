@@ -30,7 +30,8 @@ RWByteAddressBuffer g_Compacted < Attribute( "BorealisCullCompacted" ); >;
 
 // Where the view's prepass culled meshlets (borealis_meshlet_cull_cs): per visibility fragment, the frame, where its kept
 // triangles' indices start in the prepass's compacted buffer (None: drawn whole), how many and whether that's its 16-bit
-// buffer; a fragment stamped this frame scans only those
+// buffer (0 or 1), or, where task shaders culled them (borealis_meshlet_ids), 2: the word its kept triangles' numbers start
+// at in this buffer and how many; a fragment stamped this frame scans only those
 RWByteAddressBuffer g_MeshletStamps < Attribute( "BorealisMeshletStamps" ); >;
 RWByteAddressBuffer g_PrepassCompacted < Attribute( "BorealisMeshletCompacted" ); >;
 RWByteAddressBuffer g_PrepassCompacted16 < Attribute( "BorealisMeshletCompacted16" ); >;
@@ -47,12 +48,12 @@ cbuffer BorealisGpuDrivenCull_t
 	uint g_nCullRuns;			// byte offset of the multi-draws: first command slot and count each
 	uint g_nCullFrame;
 	uint g_nCullVisibility;
-	uint g_nCullPad0;			// the compacted indices' cursor is g_Compacted's first word, shared by the view's calls
+	uint g_nCullLodTable;		// the culls' (the compacted indices' cursor is g_Compacted's first word, shared by the view's calls)
 	uint g_nCullCapacity;		// indices g_Compacted holds
 	uint g_nCullFragmentWords;
 	uint g_nCullListed;			// byte offset of the listed fragments: dispatch arguments, then 32 bytes each
 	uint g_nCullMeshletRuns;		// bindless slot of the meshlet runs (16 bytes per draw record) where the view's prepass culls meshlets; else None
-	uint g_nCullPad2;
+	uint g_nCullLodCount;
 };
 
 static const uint None = 0xffffffffu;
@@ -90,9 +91,12 @@ groupshared uint gs_Owned;
 groupshared uint gs_Start;
 groupshared uint gs_Cursor;
 
-// A triangle's index k (0-2): from the page, or from the prepass's compacted buffer (32 or 16-bit, by b32)
-uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass, uint t, uint k )
+// A triangle's index k (0-2): from the page (the kept triangle t's number from word nListed, where task shaders wrote
+// them), or from the prepass's compacted buffer (32 or 16-bit, by b32)
+uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass, uint t, uint k, uint nListed )
 {
+	if ( nListed != None )
+		t = g_MeshletStamps.Load( ( nListed + t ) * 4 );
 	uint i = nFirst + t * 3 + k;
 	if ( !bPrepass )
 		return LoadIndex( page, i, b32 );
@@ -135,6 +139,7 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 	uint nScan = nTriangles;
 	uint nFirst = vDraw.x;
 	bool bPrepass = false;
+	uint nListed = None;
 	if ( g_nCullMeshletRuns != None )
 	{
 		uint nFragment = g_Frame.Load( nEntry + 28 );
@@ -143,7 +148,13 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 		{
 			if ( vStamp.z == 0 )
 				return;
-			if ( vStamp.y != None )
+			if ( vStamp.y != None && vStamp.w == 2 )
+			{
+				// Kept triangles' numbers, which the task shaders' mesh groups wrote
+				nListed = vStamp.y;
+				nScan = vStamp.z;
+			}
+			else if ( vStamp.y != None && vStamp.w != 2 )
 			{
 				bPrepass = true;
 				nFirst = vStamp.y;
@@ -161,8 +172,8 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 		uint4 vT = t0 + uint4( 0, 256, 512, 768 );
 		uint4 vIn = uint4( vT < nScan );
 		vT = min( vT, nScan - 1 );
-		uint4 vBit = nVertexBase + uint4( TriangleIndex( page, nFirst, b32, bPrepass, vT.x, 0 ), TriangleIndex( page, nFirst, b32, bPrepass, vT.y, 0 ),
-			TriangleIndex( page, nFirst, b32, bPrepass, vT.z, 0 ), TriangleIndex( page, nFirst, b32, bPrepass, vT.w, 0 ) );
+		uint4 vBit = nVertexBase + uint4( TriangleIndex( page, nFirst, b32, bPrepass, vT.x, 0, nListed ), TriangleIndex( page, nFirst, b32, bPrepass, vT.y, 0, nListed ),
+			TriangleIndex( page, nFirst, b32, bPrepass, vT.z, 0, nListed ), TriangleIndex( page, nFirst, b32, bPrepass, vT.w, 0, nListed ) );
 		uint4 vWords = uint4( g_Mask.Load( ( vBit.x >> 5 ) * 4 ), g_Mask.Load( ( vBit.y >> 5 ) * 4 ), g_Mask.Load( ( vBit.z >> 5 ) * 4 ), g_Mask.Load( ( vBit.w >> 5 ) * 4 ) );
 		uint4 vOwned = ( ( vWords >> ( vBit & 31 ) ) & 1 ) * vIn;
 		nMine += vOwned.x + vOwned.y + vOwned.z + vOwned.w;
@@ -202,7 +213,7 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 	// Each owned triangle takes the next three indices (order within the fragment doesn't matter)
 	for ( uint t = nThread; t < nScan; t += 256 )
 	{
-		uint i0 = TriangleIndex( page, nFirst, b32, bPrepass, t, 0 );
+		uint i0 = TriangleIndex( page, nFirst, b32, bPrepass, t, 0, nListed );
 		uint nBit = nVertexBase + i0;
 		if ( ( ( g_Mask.Load( ( nBit >> 5 ) * 4 ) >> ( nBit & 31 ) ) & 1 ) == 0 )
 			continue;
@@ -211,8 +222,8 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 		InterlockedAdd( gs_Cursor, 3, nAt );
 		nAt += nStart;
 		g_Compacted.Store( ( nAt + 0 ) * 4, i0 );
-		g_Compacted.Store( ( nAt + 1 ) * 4, TriangleIndex( page, nFirst, b32, bPrepass, t, 1 ) );
-		g_Compacted.Store( ( nAt + 2 ) * 4, TriangleIndex( page, nFirst, b32, bPrepass, t, 2 ) );
+		g_Compacted.Store( ( nAt + 1 ) * 4, TriangleIndex( page, nFirst, b32, bPrepass, t, 1, nListed ) );
+		g_Compacted.Store( ( nAt + 2 ) * 4, TriangleIndex( page, nFirst, b32, bPrepass, t, 2, nListed ) );
 	}
 }
 

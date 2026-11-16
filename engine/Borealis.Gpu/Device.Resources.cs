@@ -612,7 +612,7 @@ public sealed unsafe partial class Device
 			if ( pipelineLayouts.TryGetValue( key, out var existing ) ) return existing;
 
 			var setLayouts = stackalloc ulong[ShaderAbi.SetCount] { key.Item1, key.Item2, key.Item3, key.Item4, Bindless.SetLayout, Get( ViewSetLayout ).SetLayout };
-			var push = new VkPushConstantRange { stageFlags = Vulkan.Vk.StageAllGraphics | Vulkan.Vk.StageCompute, size = ShaderAbi.PushConstantSize };
+			var push = new VkPushConstantRange { stageFlags = StageAll, size = ShaderAbi.PushConstantSize };
 			var info = new VkPipelineLayoutCreateInfo
 			{
 				sType = VkStructureType.PipelineLayoutCreateInfo,
@@ -638,30 +638,29 @@ public sealed unsafe partial class Device
 		using var strings = new NativeStrings();
 		var layout = PipelineLayout( info.Sets );
 
-		var stages = stackalloc VkPipelineShaderStageCreateInfo[2];
-		var specializations = stackalloc VkSpecializationInfo[2];
-		var stageCount = 1u;
-		stages[0] = new VkPipelineShaderStageCreateInfo
+		var stages = stackalloc VkPipelineShaderStageCreateInfo[3];
+		var specializations = stackalloc VkSpecializationInfo[3];
+		var stageCount = 0u;
+		void Stage( uint stage, ShaderHandle shader, string entry, SpecializationConstant[] constants, VkPipelineShaderStageCreateInfo* stages, VkSpecializationInfo* specializations, NativeStrings strings )
 		{
-			sType = VkStructureType.PipelineShaderStageCreateInfo,
-			stage = Vulkan.Vk.StageVertex,
-			module = Shaders.Get( info.VertexShader.Index, info.VertexShader.Generation ).Module,
-			pName = strings.Add( info.VertexEntry ?? "main" ),
-			pSpecializationInfo = Specialize( info.VertexConstants, &specializations[0], strings ),
-		};
-
-		if ( info.FragmentShader.IsValid )
-		{
-			stages[1] = new VkPipelineShaderStageCreateInfo
+			stages[stageCount] = new VkPipelineShaderStageCreateInfo
 			{
 				sType = VkStructureType.PipelineShaderStageCreateInfo,
-				stage = Vulkan.Vk.StageFragment,
-				module = Shaders.Get( info.FragmentShader.Index, info.FragmentShader.Generation ).Module,
-				pName = strings.Add( info.FragmentEntry ?? "main" ),
-				pSpecializationInfo = Specialize( info.FragmentConstants, &specializations[1], strings ),
+				stage = stage,
+				module = Shaders.Get( shader.Index, shader.Generation ).Module,
+				pName = strings.Add( entry ?? "main" ),
+				pSpecializationInfo = Specialize( constants, &specializations[stageCount], strings ),
 			};
-			stageCount = 2;
+			stageCount++;
 		}
+
+		// A mesh pipeline: task (if any) and mesh shaders, and no vertex input
+		var meshPipeline = info.MeshShader.IsValid;
+		if ( meshPipeline && !Capabilities.MeshShaders ) throw new InvalidOperationException( $"{info.Name}: the device has no mesh shaders" );
+		if ( meshPipeline && info.TaskShader.IsValid ) Stage( Vulkan.Vk.StageTask, info.TaskShader, info.TaskEntry, info.TaskConstants, stages, specializations, strings );
+		if ( meshPipeline ) Stage( Vulkan.Vk.StageMesh, info.MeshShader, info.MeshEntry, info.MeshConstants, stages, specializations, strings );
+		else Stage( Vulkan.Vk.StageVertex, info.VertexShader, info.VertexEntry, info.VertexConstants, stages, specializations, strings );
+		if ( info.FragmentShader.IsValid ) Stage( Vulkan.Vk.StageFragment, info.FragmentShader, info.FragmentEntry, info.FragmentConstants, stages, specializations, strings );
 
 		var buffers = info.VertexBuffers ?? [];
 		var attributes = info.Attributes ?? [];
@@ -739,7 +738,7 @@ public sealed unsafe partial class Device
 				srcAlphaBlendFactor = (int)blend.SourceAlpha,
 				dstAlphaBlendFactor = (int)blend.DestinationAlpha,
 				alphaBlendOp = (int)blend.AlphaOp,
-				colorWriteMask = blend.WriteMask == 0 ? Vulkan.Vk.ColorComponentAll : (uint)blend.WriteMask,
+				colorWriteMask = blend.WriteMask == 0 ? Vulkan.Vk.ColorComponentAll : (uint)blend.WriteMask & Vulkan.Vk.ColorComponentAll,
 			};
 		}
 
@@ -774,8 +773,8 @@ public sealed unsafe partial class Device
 			pNext = &rendering,
 			stageCount = stageCount,
 			pStages = stages,
-			pVertexInputState = &vertexInput,
-			pInputAssemblyState = &inputAssembly,
+			pVertexInputState = meshPipeline ? null : &vertexInput,
+			pInputAssemblyState = meshPipeline ? null : &inputAssembly,
 			pViewportState = &viewport,
 			pRasterizationState = &raster,
 			pMultisampleState = &multisample,
@@ -865,7 +864,7 @@ public sealed unsafe partial class Device
 		for ( int i = 0; i < viewSlots.Length; i++ )
 		{
 			var (binding, type, _) = ShaderAbi.ViewSetBindings[i];
-			viewSlots[i] = new BindingSlot( binding, type, ShaderStages.All );
+			viewSlots[i] = new BindingSlot( binding, type, (ShaderStages)StageAll );
 		}
 
 		ViewSetLayout = CreateBindingLayout( viewSlots );

@@ -74,6 +74,12 @@ internal sealed class RenderFrame
 	public GpuTexture ContactShadowMask { get; internal set; }
 
 	/// <summary>
+	/// The opaque pass's normals and roughness while this frame traces screen-space reflections, or null
+	/// (<see cref="ScreenSpaceReflectionsLayer.NormalsFor"/>).
+	/// </summary>
+	public GpuTexture Normals { get; internal set; }
+
+	/// <summary>
 	/// Accumulated segment draw counts.
 	/// </summary>
 	internal RenderStats Recorded;
@@ -106,6 +112,7 @@ internal sealed class RenderFrame
 		Space = default;
 		Skybox = null;
 		ContactShadowMask = null;
+		Normals = null;
 		Recorded = default;
 
 		// The 3D skybox draws as it is
@@ -126,6 +133,7 @@ internal sealed class RenderFrame
 		Output = default;
 		Skybox = null;
 		ContactShadowMask = null;
+		Normals = null;
 	}
 
 	/// <summary>
@@ -206,14 +214,14 @@ internal sealed class RenderFrame
 	internal void UseFrameConstants( GpuContext rc ) => UseViewConstants( rc, constantsKey );
 
 	/// <summary>
-	/// Bind HDR depth and optional colour with the frame's constants.
+	/// Bind HDR depth and optional colour with the frame's constants; the opaque pass also binds <see cref="Normals"/>.
 	/// </summary>
-	internal void BindFrame( GpuContext rc, bool color = true ) => BeginPass( rc, Target( rc, color, final: false ) );
+	internal void BindFrame( GpuContext rc, bool color = true, bool normals = false ) => BeginPass( rc, Target( rc, color, final: false, normals ) );
 
 	/// <summary>
-	/// Describe the HDR or final target, with optional colour.
+	/// Describe the HDR or final target, with optional colour, and with <see cref="Normals"/> when asked.
 	/// </summary>
-	internal StageTarget Target( GpuContext rc, bool color, bool final )
+	internal StageTarget Target( GpuContext rc, bool color, bool final, bool normals = false )
 	{
 		var output = Output;
 		var target = output.Target;
@@ -229,6 +237,7 @@ internal sealed class RenderFrame
 			Attributes = rc.Attributes,
 			Color = stageColor,
 			Depth = samples == target.Samples ? target.Depth : null,
+			Normals = normals && !final ? Normals : null,
 			HdrColor = final ? target.Resolved : target.Color,
 			SrgbWrite = srgbWrite,
 			IsOutput = final,
@@ -268,7 +277,7 @@ internal sealed class RenderFrame
 		if ( Stages is null ) return;
 
 		var start = Stopwatch.GetTimestamp();
-		Stages.RenderScreenSpaceReflections( history, Target( rc, color: history, final: false ) );
+		Stages.RenderScreenSpaceReflections( history, Target( rc, color: history, final: false, normals: !history ) );
 		rc.Invalidate();
 		StagesMs += Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
 	}

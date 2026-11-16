@@ -72,7 +72,7 @@ internal sealed unsafe class BindlessTable : IDisposable
 		storage = new SlotAllocator( storageCount, 1, "storage texture" );
 		buffers = new SlotAllocator( BufferCount, 1, "raw buffer" );
 
-		var all = Vulkan.Vk.StageAllGraphics | Vulkan.Vk.StageCompute;
+		var all = device.StageAll;
 		var bindings = stackalloc VkDescriptorSetLayoutBinding[6];
 		bindings[0] = new VkDescriptorSetLayoutBinding { binding = ShaderAbi.BindlessSamplers, descriptorType = VkDescriptorType.Sampler, descriptorCount = (uint)samplerCount, stageFlags = all };
 		bindings[1] = new VkDescriptorSetLayoutBinding { binding = ShaderAbi.BindlessVertexCache, descriptorType = VkDescriptorType.StorageBuffer, descriptorCount = 1, stageFlags = Vulkan.Vk.StageVertex | Vulkan.Vk.StageCompute };

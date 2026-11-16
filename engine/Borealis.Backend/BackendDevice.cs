@@ -137,7 +137,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		get => gpuDrivenTables is not null;
 		set
 		{
-			if ( value && gpuDrivenTables is null ) gpuDrivenTables = new GpuDrivenTables( Gpu );
+			if ( value && gpuDrivenTables is null ) gpuDrivenTables = new GpuDrivenTables( Gpu ) { LevelRoom = GeneratedLods && Borealis.Backend.Meshlets.MeshOptimizer.Available ? LodLevelRoom : 0 };
 		}
 	}
 
@@ -522,6 +522,85 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		}
 	}
 
+	/// <summary>
+	/// Generated LODs for GPU-driven aggregates (docs/managed/borealis-gpu-driven.md, "Generated LODs"): coarser levels of
+	/// each fragment's range are simplified after load, and the culls draw each fragment at the coarsest whose error stays
+	/// under <see cref="LodPixels"/>. On by default; <c>-no-lodgen</c> turns it off. Set before loading models: index pages
+	/// keep room for the levels (<see cref="LodLevelRoom"/>).
+	/// </summary>
+	public bool GeneratedLods { get; set; } = !HasSwitch( "-no-lodgen" );
+
+	/// <summary>Room index pages keep for generated levels, as a fraction of their meshes' indices.</summary>
+	public static float LodLevelRoom { get; set; } = 0.75f;
+
+	/// <summary>The error a generated level may have, in pixels at the fragment's nearest point (texels in a texel-sized cascade); <c>-lodgen-pixels</c>.</summary>
+	public float LodPixels { get; set; } = float.TryParse( SwitchValue( "-lodgen-pixels" ), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var pixels ) && pixels > 0 ? pixels : 1.0f;
+
+	/// <summary>Threads simplifying at once: a quarter of the cores, as meshlets take.</summary>
+	public static int LodThreads { get; set; } = Math.Max( 1, Environment.ProcessorCount / 4 );
+
+	Borealis.Backend.Lods.LodStore lodStore;
+	bool lodStoreTried;
+
+	/// <summary>The generated levels of GPU-driven ranges, or null when <see cref="GeneratedLods"/> is off or the library isn't there.</summary>
+	internal Borealis.Backend.Lods.LodStore LodStore
+	{
+		get
+		{
+			if ( !GeneratedLods || gpuDrivenTables is null || gpuDrivenTables.LevelRoom <= 0 ) return null;
+			if ( Volatile.Read( ref lodStoreTried ) ) return lodStore;
+			lock ( meshletStoreLock )
+			{
+				if ( !lodStoreTried )
+				{
+					lodStore = new Borealis.Backend.Lods.LodStore( Gpu, gpuDrivenTables, Borealis.Backend.Lods.LodConfig.Default, LodThreads, CacheFolder( "-no-lod-cache", "borealislods" ) );
+					gpuDrivenTables.Lods = lodStore;
+					Volatile.Write( ref lodStoreTried, true );
+				}
+			}
+
+			// Outside the lock: the meshlet store takes it too
+			if ( lodStore is not null && lodStore.Meshlets is null ) lodStore.Meshlets = MeshletStore;
+			return lodStore;
+		}
+	}
+
+	/// <summary>Ranges whose meshlets or generated levels are still being built or waiting to be published.</summary>
+	public int BuildsPending => (meshletStore?.Pending ?? 0) + (lodStore?.Pending ?? 0);
+
+	/// <summary>Ranges asked for meshlets or generated levels so far: still moving while draws find their GPU-driven variants.</summary>
+	public long BuildsRequested => (meshletStore?.Requested ?? 0) + (meshletStore?.Refused ?? 0) + (lodStore?.Requested ?? 0);
+
+	/// <summary>View records written, by how they pick generated levels (<c>LodMode</c>: none, by distance, by texels, kept).</summary>
+	internal readonly long[] LodModes = new long[4];
+
+	/// <summary>
+	/// Count the culls' level changes in views that keep levels (borealislab's <c>-lod-shimmer</c>): every change, those
+	/// against the fragment's last change, to coarser and to finer levels, as of a few frames ago; null without generated LODs.
+	/// </summary>
+	public bool CountLodChanges
+	{
+		get => lodStore?.CountChanges ?? false;
+		set
+		{
+			if ( LodStore is { } store ) store.CountChanges = value;
+		}
+	}
+
+	/// <summary>The level changes counted so far (<see cref="CountLodChanges"/>).</summary>
+	public (long Changes, long Reversals, long Coarser, long Finer)? LodChanges => lodStore?.Changes;
+
+	/// <summary>What generated LODs have been built, for reports.</summary>
+	public string LodReport
+	{
+		get
+		{
+			if ( lodStore is not { } s ) return GeneratedLods ? "generated LODs: none (meshopt not found or no GPU-driven geometry)" : "generated LODs: off";
+			var (room, used) = gpuDrivenTables.LevelBytes;
+			return $"generated LODs ({s.Config}, {LodPixels:0.##} px; view records by mode {string.Join( '/', LodModes )}, {s.SlicesTaken} views keeping levels): {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Simplest:N0} simplify no further, {s.Dropped:N0} without room, {s.Pending:N0} pending, {s.WaitingForColor.Ranges:N0} of {s.WaitingForColor.Triangles:N0} triangles drawn in no GPU-driven colour pass), {s.Levels:N0} levels, {s.LevelTriangles:N0} level triangles over {s.BaseTriangles:N0}, {s.NoRoom:N0} levels without room; built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); level indices {used / 1048576.0:0.0} MB of {room / 1048576.0:0.0} MB of room, tables {s.Bytes / 1048576.0:0.0} MB; layouts {string.Join( "; ", s.FieldsSeen.OrderByDescending( f => f.Value ).Take( 4 ).Select( f => $"{f.Value} x {f.Key}" ) )}";
+		}
+	}
+
 	/// <summary>The pass modules shaders without a material draw from (<see cref="SlangPasses"/>).</summary>
 	public PassModules Passes { get; }
 
@@ -638,8 +717,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		var format = Map( desc.Format );
 		var samples = Math.Max( desc.Samples, 1 );
 		var usage = TextureUsage.CopySource | TextureUsage.CopyDestination;
-		// Multisampled targets aren't sampled, except depth: a frame's depth chain reads it (D_MSAA), as Source 2's targets allow
-		if ( samples == 1 || format.IsDepth() ) usage |= TextureUsage.Sampled;
+		// Multisampled targets aren't sampled, except depth (a frame's depth chain reads it, D_MSAA, as Source 2's targets
+		// allow) and those that ask (the opaque pass's normals, which reflections read)
+		if ( samples == 1 || format.IsDepth() || desc.SampledMultisampled ) usage |= TextureUsage.Sampled;
 		if ( desc.RenderTarget ) usage |= format.IsDepth() ? TextureUsage.DepthTarget : TextureUsage.ColorTarget;
 		if ( desc.Storage ) usage |= TextureUsage.Storage;
 
@@ -1091,11 +1171,13 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// made once. Mesh vertices are stream 0, instance ids stream 1 (<c>TEXCOORD13</c>), and inputs the mesh lacks, or
 	/// has as integers where the shader wants floats (or the other way round), read the default stream 2, as native's
 	/// input layouts do for streams a mesh doesn't have. A vertex-cache layout reads vertex ids from streams 2 and 3 and
-	/// the default stream from 4.
+	/// the default stream from 4. With <paramref name="normals"/>, the opaque pass's normals target follows colour, unwritten
+	/// (<see cref="AddNormalsTarget"/>).
 	/// </summary>
-	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false, bool ids = false, ShaderVariant stateFrom = null )
+	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false, bool ids = false, ShaderVariant stateFrom = null, bool normals = false )
 	{
-		var key = new PipelineKey( variant, layout, ids ? IdsColorKey : color, depth, samples, depthOnly, sets, materialPerDraw, stateFrom );
+		normals &= color != Format.Unknown && !ids;
+		var key = new PipelineKey( variant, layout, ids ? IdsColorKey : color, depth, samples, depthOnly, sets, materialPerDraw, stateFrom, normals );
 		lock ( pipelines )
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
@@ -1118,8 +1200,13 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			// The visibility-driven forward pass's id prepass: target 0 takes the authored output (its alpha drives alpha to
 			// coverage) and goes nowhere, target 1 the ids (a GPU-driven pixel shader's id output)
 			Format[] colors = ids ? [Format.R8Unorm, Format.R32Uint] : color == Format.Unknown ? [] : [color];
-			var info = variant.PipelineInfo( streams, attributes, colors, depth, samples, depthBias: depthOnly || color == Format.Unknown || ids, $"{variant}{(depthOnly ? " depth" : ids ? " ids" : "")}" );
+			var name = $"{variant}{(depthOnly ? " depth" : ids ? " ids" : "")}";
+			var depthBias = depthOnly || color == Format.Unknown || ids;
+
+			// A module with task and mesh stages draws with them, and no vertex input
+			var info = variant.Mesh is not null && Gpu.Capabilities.MeshShaders ? variant.MeshPipelineInfo( colors, depth, samples, depthBias, name ).Value : variant.PipelineInfo( streams, attributes, colors, depth, samples, depthBias, name );
 			if ( ids ) info.Blend = [BlendState.Opaque, BlendState.Opaque];
+			if ( normals ) AddNormalsTarget( ref info, !depthOnly && WritesNormals( variant ) );
 			if ( sets is not null ) info.Sets = sets;
 
 			// borealis_gpu_driven_ids drawing another variant's depth: that variant's culling, depth and stencil
@@ -1212,7 +1299,35 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal static readonly string DumpSurfaceShaders = Environment.GetEnvironmentVariable( "BOREALIS_DUMP_SURFACE_SHADERS" );
 
-	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false, ShaderVariant StateFrom = null );
+	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false, ShaderVariant StateFrom = null, bool Normals = false );
+
+	/// <summary>
+	/// <c>kForwardNormalsOutput</c> in sbox/forward_normals.slangh: a pixel stage that has it writes the opaque pass's normals
+	/// and roughness at target 1 while it's set.
+	/// </summary>
+	internal const uint NormalsOutputId = 121;
+
+	/// <summary>
+	/// Add the opaque pass's normals target (<see cref="NormalsFormat"/>) after a pipeline's colour targets: written with
+	/// <paramref name="writes"/> (an opaque forward pass whose pixel stage has <see cref="NormalsOutputId"/>, which this sets),
+	/// left as it is otherwise. Each colour target keeps its blend.
+	/// </summary>
+	internal static void AddNormalsTarget( ref GraphicsPipelineInfo info, bool writes )
+	{
+		var colors = info.ColorFormats ?? [];
+		var blend = new BlendState[colors.Length + 1];
+		for ( int i = 0; i < colors.Length; i++ ) blend[i] = info.Blend is { Length: > 0 } b ? b[Math.Min( i, b.Length - 1 )] : BlendState.Opaque;
+		blend[^1] = writes ? BlendState.Opaque : BlendState.NoWrites;
+		info.ColorFormats = [.. colors, NormalsFormat];
+		info.Blend = blend;
+		if ( writes ) info.FragmentConstants = [.. (info.FragmentConstants ?? []).Where( c => c.Id != NormalsOutputId ), new SpecializationConstant( NormalsOutputId, 1 )];
+	}
+
+	/// <summary>
+	/// Whether a variant's pixel stage writes the opaque pass's normals: a Slang pass module's that includes
+	/// sbox/forward_normals.slangh (water), whose SPIR-V has <see cref="NormalsOutputId"/>. Compiled programs have none.
+	/// </summary>
+	static bool WritesNormals( ShaderVariant variant ) => variant.Pixel?.Reflection?.SpecializationIds?.Contains( NormalsOutputId ) == true;
 
 	/// <summary><c>BOREALIS_GPU_DRIVEN_MATERIAL_PER_DRAW_ID</c>: set, a GPU-driven pixel shader reads <c>g_nBorealisPixelMaterial</c>.</summary>
 	const uint GpuDrivenMaterialPerDrawConstant = 120;
@@ -1247,6 +1362,15 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>Its materials read their shaders' stencil state (<see cref="BackendMaterial.NeedsStencil"/>).</summary>
 	internal override bool KnowsStencilUse => true;
+
+	/// <summary>
+	/// Surfaces' opaque forward passes write their normal and roughness into the pass's second target when it has one
+	/// (<see cref="NormalsFormat"/>); every other pipeline drawn there leaves it as it is.
+	/// </summary>
+	internal override bool WritesForwardNormals => true;
+
+	/// <summary>The opaque pass's normals target (<see cref="ScreenSpaceReflectionsLayer.NormalsFormat"/>).</summary>
+	internal const Format NormalsFormat = Format.RGB10A2Unorm;
 
 	/// <summary>
 	/// Draw a map's static overlays GPU-driven (on by default; <c>-no-gpudriven-overlays</c> turns it off): those of one
@@ -1361,19 +1485,61 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	bool meshletShaderLoaded;
 
 	/// <summary>
+	/// Whether prepass meshlets are culled and drawn with task and mesh shaders (<c>borealis_meshlet_ids</c>) where the
+	/// device has them, in place of the compute pass, its index copies and indexed draws. Off by default: it costs more GPU
+	/// time than the compute pass on the Steam Deck and saves none on the PC (docs/managed/borealis-gpu-driven.md,
+	/// "Meshlets"); <c>-mesh-shaders</c> turns it on. Set it before drawing.
+	/// </summary>
+	public bool MeshletTasks { get; set; } = HasSwitch( "-mesh-shaders" );
+
+	/// <summary>
+	/// <c>borealis_meshlet_ids</c>, which culls and draws a prepass's meshlets with task and mesh shaders, when
+	/// <see cref="MeshletTasks"/> is on, the device has mesh shaders, its pass module draws with both stages and meshlets are
+	/// no bigger than its mesh stage takes (64 vertices, 128 triangles); null otherwise, and the compute pass culls them.
+	/// </summary>
+	internal BackendMaterial MeshletIds
+	{
+		get
+		{
+			if ( !MeshletTasks || !Gpu.Capabilities.MeshShaders || MeshletCullShader is null || MeshletStore is not { } store ) return null;
+			if ( store.Config.MaxVertices > 64 || store.Config.MaxTriangles > 128 ) return null;
+			if ( Volatile.Read( ref meshletIdsLoaded ) ) return meshletIds;
+			lock ( visibilityViews )
+			{
+				if ( !meshletIdsLoaded )
+				{
+					const string path = "shaders/borealis_meshlet_ids.shader";
+					if ( Shaders.Load( path ) is { } shader && Passes.ModuleOf( shader ) is not null && MaterialFromShader( path ) is BackendMaterial material
+						&& Shaders.Variant( shader, "Default", [] ) is { Mesh: not null, Task: not null } )
+						meshletIds = material;
+					Volatile.Write( ref meshletIdsLoaded, true );
+				}
+
+				return meshletIds;
+			}
+		}
+	}
+
+	BackendMaterial meshletIds;
+	bool meshletIdsLoaded;
+
+	/// <summary>
 	/// Where built meshlets are kept between runs: <c>game/.source2/borealismeshlets</c> beside the engine's other caches;
 	/// none with <c>-no-meshlet-cache</c> or no engine content.
 	/// </summary>
-	string MeshletCacheFolder()
+	string MeshletCacheFolder() => CacheFolder( "-no-meshlet-cache", "borealismeshlets" );
+
+	/// <summary>A cache folder in <c>game/.source2</c> beside the engine's other caches; none with <paramref name="off"/> or no engine content.</summary>
+	string CacheFolder( string off, string name )
 	{
-		if ( HasSwitch( "-no-meshlet-cache" ) ) return null;
+		if ( HasSwitch( off ) ) return null;
 		var core = Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "sbox", "pass.slangh" ) ) );
-		return core is null ? null : Path.Combine( Path.GetDirectoryName( core ), ".source2", "borealismeshlets" );
+		return core is null ? null : Path.Combine( Path.GetDirectoryName( core ), ".source2", name );
 	}
 
 	/// <summary>What meshlets have been built, for reports.</summary>
 	public string MeshletReport => meshletStore is not { } s ? (Meshlets ? "meshlets: none (meshopt not found or no GPU-driven geometry)" : "meshlets: off")
-		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles ({s.Triangles16:N0} with 16-bit indices), built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); pass module {(MeshletCullShader is null ? "missing" : "drawing")}";
+		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles ({s.Triangles16:N0} with 16-bit indices), built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); pass module {(MeshletCullShader is null ? "missing" : "drawing")}; task and mesh shaders {(MeshletIds is null ? "off" : "on")}";
 
 	/// <summary>
 	/// Debug only (<c>borealislab -capture-visibility</c>): GPU-driven forward passes also replay their multi-draws into this
@@ -1444,6 +1610,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		/// </summary>
 		public BufferHandle MeshletStamps;
 
+		/// <summary><see cref="MeshletStamps"/> as an attribute's value, which <c>borealis_meshlet_ids</c>'s material object binds.</summary>
+		public GpuBuffer MeshletStampsAttribute;
+
+		/// <summary>Whether <see cref="MeshletStamps"/> has room for task shaders' kept triangles after the stamps (<see cref="MeshletKeptAt"/>).</summary>
+		public bool MeshletKept;
+
 		/// <summary>The meshlet pass's copy jobs: their count (also the copy dispatch's group count), 1, 1, then a job per kept meshlet.</summary>
 		public BufferHandle MeshletJobs;
 		public bool MeshletStampsCleared;
@@ -1478,6 +1650,16 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal const int PrepassCompactedIndices = 12 << 20;
 
 	/// <summary>
+	/// Where a view's kept triangles start in its meshlet stamps (after a stamp per visibility fragment): a cursor, then
+	/// <see cref="MeshletKeptCapacity"/> words, the number of each triangle task and mesh shaders kept among its draw's, for
+	/// forward's compaction.
+	/// </summary>
+	internal const uint MeshletKeptAt = GpuDrivenTables.MaxVisibilityFragments * 16;
+
+	/// <summary>Kept triangles a view's prepass writes in a frame; a fragment without room is scanned whole.</summary>
+	internal const uint MeshletKeptCapacity = 6 << 20;
+
+	/// <summary>
 	/// A view's prepass compacted buffer (<see cref="VisibilityView.PrepassCompacted"/>), with its meshlet stamps, made the
 	/// first time.
 	/// </summary>
@@ -1487,13 +1669,20 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		lock ( visibilityViews )
 		{
 			if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
-			state.MeshletStamps = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 16L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet stamps" } );
+			// Room for task shaders' kept triangles only where they draw
+			state.MeshletKept = MeshletIds is not null;
+			var stampBytes = state.MeshletKept ? MeshletKeptAt + 4 + MeshletKeptCapacity * 4L : MeshletKeptAt;
+			state.MeshletStamps = Gpu.CreateBuffer( new BufferInfo { Size = stampBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet stamps" } );
 			state.MeshletJobs = Gpu.CreateBuffer( new BufferInfo { Size = 16 + MeshletJobCapacity * 16L, Usage = BufferUsage.Storage | BufferUsage.Indirect | BufferUsage.CopyDestination, Name = "Borealis meshlet copy jobs" } );
 			visibilityBuffers.Add( state.MeshletJobs );
 			state.PrepassCompacted16 = Gpu.CreateBuffer( new BufferInfo { Size = PrepassCompactedIndices * 2L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles 16" } );
 			visibilityBuffers.Add( state.PrepassCompacted16 );
 			var buffer = Gpu.CreateBuffer( new BufferInfo { Size = PrepassCompactedIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles" } );
 			visibilityBuffers.Add( state.MeshletStamps );
+			// Freed with the view's other buffers (visibilityBuffers), not through the wrapper
+#pragma warning disable CA2000
+			state.MeshletStampsAttribute = new GpuBuffer( new BackendBuffer( this, state.MeshletStamps, stampBytes, "Borealis meshlet stamps" ), (int)(stampBytes / 4), 4 );
+#pragma warning restore CA2000
 			visibilityBuffers.Add( buffer );
 			state.PrepassCompacted = buffer;
 			return buffer;
@@ -1751,6 +1940,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Gpu.BeginFrame();
 		gpuDrivenTables?.BeginFrame();
 		meshletStore?.BeginFrame();
+		lodStore?.BeginFrame();
 		GpuDrivenFrame++;
 		loadFrame++;
 		Poll();
@@ -1789,6 +1979,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		surfaces?.Dispose();
 		ResidentCulls.Dispose( Gpu );
 		meshletStore?.Dispose();
+		lodStore?.Dispose();
 		gpuDrivenTables?.Dispose();
 		lock ( visibilityViews )
 		{

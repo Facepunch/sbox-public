@@ -413,8 +413,8 @@ internal sealed class SurfaceProgram : IDisposable
 {
 	readonly BackendDevice device;
 	readonly Dictionary<string, PassObjects> passes = new();
-	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, ulong Features), PipelineHandle> pipelines = new();
-	readonly HashSet<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, ulong Features)> building = new();
+	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, ulong Features, bool Normals), PipelineHandle> pipelines = new();
+	readonly HashSet<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, ulong Features, bool Normals)> building = new();
 	readonly Dictionary<ulong, SurfaceFeatures> features = new();
 	readonly List<System.Threading.Tasks.Task> builds = new();
 	bool disposed;
@@ -564,28 +564,31 @@ internal sealed class SurfaceProgram : IDisposable
 	/// With <paramref name="ids"/>, the visibility-driven forward pass's id prepass: target 0 an R8 scratch (its alpha drives
 	/// alpha to coverage), target 1 the ids, as BackendDevice.Pipeline makes them. With <paramref name="depthEqual"/>, a
 	/// colour pass whose depth a prepass already wrote with the same vertex stage: tested equal, not written.
+	/// With <paramref name="normals"/>, the opaque pass's normals target follows colour: an opaque forward pass of a surface
+	/// writes its normal and roughness there (<see cref="WritesNormals"/>), any other leaves it as it is.
 	/// With <paramref name="specialized"/>, the pipeline specialised for those feature values once a worker has made it; the
 	/// unspecialised one until then, so nothing waits for it.
 	/// </summary>
-	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, bool ids = false, bool opaqueFade = false, bool depthEqual = false, SurfaceFeatures specialized = null )
+	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, bool ids = false, bool opaqueFade = false, bool depthEqual = false, SurfaceFeatures specialized = null, bool normals = false )
 	{
 		lock ( pipelines )
 		{
 			// Only a pixel stage reads the features
 			if ( !pass.Pixel.IsValid ) specialized = null;
-			var key = (pass, layout, color, depth, samples, constantsKey, ids, opaqueFade, state, depthEqual, specialized?.Key ?? 0);
+			normals &= color != Format.Unknown && !ids;
+			var key = (pass, layout, color, depth, samples, constantsKey, ids, opaqueFade, state, depthEqual, specialized?.Key ?? 0, normals);
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
 			if ( specialized is not null )
 			{
-				var info = Info( pass, layout, color, depth, samples, vertexConstants, [.. pixelConstants ?? [], .. specialized.Constants], state, ids, opaqueFade, depthEqual );
+				var info = Info( pass, layout, color, depth, samples, vertexConstants, [.. pixelConstants ?? [], .. specialized.Constants], state, ids, opaqueFade, depthEqual, normals );
 				if ( !device.Surfaces.SpecializeInBackground )
 				{
 					if ( BackendDevice.DumpSurfaceShaders is { } dumpNow ) Dump( dumpNow, pass, info.FragmentConstants, specialized );
 					return pipelines[key] = device.Gpu.CreateGraphicsPipeline( info );
 				}
 
-				var unspecialized = Pipeline( pass, layout, color, depth, samples, vertexConstants, pixelConstants, constantsKey, state, ids, opaqueFade, depthEqual );
+				var unspecialized = Pipeline( pass, layout, color, depth, samples, vertexConstants, pixelConstants, constantsKey, state, ids, opaqueFade, depthEqual, normals: normals );
 				if ( !disposed && building.Add( key ) )
 				{
 					builds.RemoveAll( b => b.IsCompleted );
@@ -605,7 +608,7 @@ internal sealed class SurfaceProgram : IDisposable
 				return unspecialized;
 			}
 
-			pipeline = device.Gpu.CreateGraphicsPipeline( Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, ids, opaqueFade, depthEqual ) );
+			pipeline = device.Gpu.CreateGraphicsPipeline( Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, ids, opaqueFade, depthEqual, normals ) );
 			pipelines[key] = pipeline;
 			return pipeline;
 		}
@@ -621,7 +624,14 @@ internal sealed class SurfaceProgram : IDisposable
 		File.WriteAllText( name + ".txt", string.Join( ' ', specialized.Constants.Skip( 1 ).Select( ( c, i ) => $"{fields[i].Name}={c.Value}" ) ) );
 	}
 
-	GraphicsPipelineInfo Info( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, SurfaceRenderState state, bool ids, bool opaqueFade, bool depthEqual )
+	/// <summary>
+	/// Whether a pass's pixel stage writes the opaque pass's normals and roughness (<c>ForwardOutput</c>): a surface's
+	/// opaque forward entries, which the engine generates. A raw module's entries are its author's, and write none.
+	/// </summary>
+	public bool WritesNormals( PassObjects pass ) => Compiled.Tier == ShaderTier.Surface
+		&& pass.Pass.Pixel?.Entry is "ForwardPs" or "ForwardAlphaTestPs" or "ForwardPsGpuDriven" or "ForwardAlphaTestPsGpuDriven";
+
+	GraphicsPipelineInfo Info( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, SurfaceRenderState state, bool ids, bool opaqueFade, bool depthEqual, bool normals )
 	{
 		// A vertex-cache draw reads its vertex ids from streams 2 and 3, as floats, and the default stream from 4, as
 		// BackendDevice.Pipeline maps classic variants
@@ -683,6 +693,9 @@ internal sealed class SurfaceProgram : IDisposable
 				info.DepthWrite = false;
 				info.DepthCompare = CompareFunction.Equal;
 			}
+
+			// The opaque pass's normals: written by an opaque surface (its pixel stage's output switched on), kept otherwise
+			if ( normals ) BackendDevice.AddNormalsTarget( ref info, pixel && !state.DrawsTranslucent && WritesNormals( pass ) );
 		}
 
 		return info;

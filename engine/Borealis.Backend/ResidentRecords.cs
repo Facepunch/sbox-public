@@ -106,4 +106,7 @@ internal struct ResidentCullConstants
 	/// <see cref="Entries"/> is its entries; the other fields aren't read.
 	/// </summary>
 	public uint Expand, ExpandMap, ExpandHeaders, MeshletRuns;
+
+	/// <summary>The generated LOD table's bindless slot (none when there's none) and the draw records it covers (<see cref="Lods.LodStore.Table"/>).</summary>
+	public uint LodTable, LodCount, Pad0, Pad1;
 }

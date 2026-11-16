@@ -77,6 +77,9 @@ internal static class VisibilityFigureCapture
 		Write( folder, "visible-triangles.png", after.Colour, width, height );
 		Write( folder, "ids.png", Ids( idPixels ), width, height );
 
+		// The ids as they are, a 32-bit word per pixel, for comparing two runs exactly
+		File.WriteAllBytes( Path.Combine( folder, "ids.raw" ), idPixels );
+
 		var distinct = new HashSet<uint>();
 		for ( int i = 0; i + 3 < idPixels.Length; i += 4 )
 		{

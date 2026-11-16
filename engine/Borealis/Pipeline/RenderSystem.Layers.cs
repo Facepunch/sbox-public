@@ -13,11 +13,13 @@ public sealed partial class RenderSystem
 	internal RenderLayer[] Layers => layers ??= isSkybox ? SkyboxLayers() : StandardLayers();
 
 	ContactShadowLayer contactShadows;
+	ScreenSpaceReflectionsLayer reflections;
 
 	RenderLayer[] StandardLayers()
 	{
 		var bloom = new BloomLayer();
 		contactShadows = new ContactShadowLayer();
+		reflections = new ScreenSpaceReflectionsLayer();
 		var overlayPrepass = new OverlayDepthPrepassLayer();
 		return
 		[
@@ -35,7 +37,7 @@ public sealed partial class RenderSystem
 			new EarlyStageLayer( RenderStage.AfterDepthPrepass, StageQueue.AsyncCompute ),
 			contactShadows,
 			new EarlyStageLayer( RenderStage.AfterDepthPrepass, StageQueue.Graphics ),
-			new ScreenSpaceReflectionsLayer(),
+			reflections,
 			new ShadowLayer(),
 			new ShadowsReadyLayer(),
 

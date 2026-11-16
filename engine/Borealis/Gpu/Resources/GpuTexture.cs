@@ -130,6 +130,9 @@ public struct TextureDesc
 	/// <summary>Whether compute can write it.</summary>
 	public bool Storage;
 
+	/// <summary>Whether shaders read a multisampled render target (one with a single sample always can be).</summary>
+	public bool SampledMultisampled;
+
 	/// <summary>Whether the device can generate its mips.</summary>
 	public bool GenerateMips;
 
