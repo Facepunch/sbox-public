@@ -1124,12 +1124,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		_ = Recording;
 		switch ( method )
 		{
-			case Graphics.DownsampleMethod.GaussianBlur or Graphics.DownsampleMethod.GaussianBorder:
+			// Gaussian and GGX: downsample_cs, a mip a pass, its kernel by the method
+			case Graphics.DownsampleMethod.GaussianBlur or Graphics.DownsampleMethod.GaussianBorder or Graphics.DownsampleMethod.GGX:
 				context.GenerateMips( TextureOf( texture ), Shader( "shaders/downsample_cs.shader" ), (int)method, initialMip );
 				break;
-
-			case Graphics.DownsampleMethod.GGX:
-				throw Unsupported( "GGX mips" );
 
 			// Box, min, max and min-max: downsample_spd, six mips a pass, as Source 2 runs them
 			default:
