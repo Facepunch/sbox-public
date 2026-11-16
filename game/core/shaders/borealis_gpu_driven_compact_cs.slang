@@ -28,10 +28,11 @@ RWByteAddressBuffer g_Frame < Attribute( "BorealisCullFrame" ); >;
 RWByteAddressBuffer g_Mask < Attribute( "BorealisCullMask" ); >;
 RWByteAddressBuffer g_Compacted < Attribute( "BorealisCullCompacted" ); >;
 
-// The view's prepass meshlet bits and their stamps (borealis_meshlet_cull_cs): a fragment stamped this frame scans only
-// the triangles of the meshlets its prepass kept
-RWByteAddressBuffer g_MeshletBits < Attribute( "BorealisMeshletBits" ); >;
+// Where the view's prepass culled meshlets (borealis_meshlet_cull_cs): per visibility fragment, the frame, where its kept
+// triangles' indices start in the prepass's compacted buffer (None: drawn whole) and how many; a fragment stamped this
+// frame scans only those
 RWByteAddressBuffer g_MeshletStamps < Attribute( "BorealisMeshletStamps" ); >;
+RWByteAddressBuffer g_PrepassCompacted < Attribute( "BorealisMeshletCompacted" ); >;
 
 cbuffer BorealisGpuDrivenCull_t
 {
@@ -84,40 +85,14 @@ uint TakeSlot( uint nRun )
 	return g_Frame.Load( g_nCullRuns + nRun * 8 ) + nIndex;
 }
 
-bool Owned( ByteAddressBuffer page, uint nFirst, bool b32, uint nVertexBase, uint t, out uint i0 )
-{
-	i0 = LoadIndex( page, nFirst + t * 3, b32 );
-	uint nBit = nVertexBase + i0;
-	return ( ( g_Mask.Load( ( nBit >> 5 ) * 4 ) >> ( nBit & 31 ) ) & 1 ) != 0;
-}
-
 groupshared uint gs_Owned;
 groupshared uint gs_Start;
 groupshared uint gs_Cursor;
 
-// A fragment whose prepass culled meshlets: its kept ones (first triangle << 8 | triangles), where each one's triangles
-// start among the kept ones', and how many
-static const uint MaxKept = 1024;
-groupshared uint gs_Kept[MaxKept];
-groupshared uint gs_KeptStart[MaxKept];
-groupshared uint gs_KeptCount;
-groupshared uint gs_KeptTriangles;
-groupshared uint gs_Scan[256];
-
-// Kept triangle t's triangle in the fragment
-uint KeptTriangle( uint t, uint nKept )
+// A triangle's index k (0-2): from the page, or from the prepass's compacted buffer
+uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass, uint t, uint k )
 {
-	uint lo = 0, hi = nKept - 1;
-	while ( lo < hi )
-	{
-		uint mid = ( lo + hi + 1 ) / 2;
-		if ( gs_KeptStart[mid] <= t )
-			lo = mid;
-		else
-			hi = mid - 1;
-	}
-
-	return ( gs_Kept[lo] >> 8 ) + t - gs_KeptStart[lo];
+	return bPrepass ? g_PrepassCompacted.Load( ( nFirst + t * 3 + k ) * 4 ) : LoadIndex( page, nFirst + t * 3 + k, b32 );
 }
 
 // A listed fragment: transform, draw record, its vertices' first bit (with the base vertex), its multi-draw and its
@@ -143,69 +118,28 @@ uint KeptTriangle( uint t, uint nKept )
 	{
 		gs_Owned = 0;
 		gs_Cursor = 0;
-		gs_KeptCount = 0;
-		gs_KeptTriangles = 0;
 	}
 
 	GroupMemoryBarrierWithGroupSync();
 
-	// Where its prepass culled meshlets this frame: only their kept meshlets' triangles, nScan of them
+	// Where its prepass culled meshlets this frame: only the triangles it kept, from its compacted indices (or, where it
+	// drew all of them, the page)
 	uint nScan = nTriangles;
-	uint nKeptMeshlets = 0;
+	uint nFirst = vDraw.x;
+	bool bPrepass = false;
 	if ( g_nCullMeshletRuns != None )
 	{
 		uint nFragment = g_Frame.Load( nEntry + 28 );
-		uint4 vRun = g_bindless_VertexBuffers[ g_nCullMeshletRuns ].Load4( nDrawRecord * 16 );
-		if ( nFragment != None && vRun.z - 1 < 4096u && g_MeshletStamps.Load( nFragment * 4 ) == g_nCullFrame )
+		uint4 vStamp = nFragment != None ? g_MeshletStamps.Load4( nFragment * 16 ) : 0;
+		if ( nFragment != None && vStamp.x == g_nCullFrame )
 		{
-			ByteAddressBuffer meshlets = g_bindless_VertexBuffers[ vRun.x ];
-			for ( uint m = nThread; m < vRun.z; m += 256 )
-			{
-				uint nBit = vRun.w + m;
-				if ( ( ( g_MeshletBits.Load( ( nBit >> 5 ) * 4 ) >> ( nBit & 31 ) ) & 1 ) == 0 )
-					continue;
-
-				uint nCount = meshlets.Load( ( vRun.y + m ) * 32 + 28 );
-				uint nSlot;
-				InterlockedAdd( gs_KeptCount, 1, nSlot );
-				if ( nSlot < MaxKept )
-					gs_Kept[nSlot] = meshlets.Load( ( vRun.y + m ) * 32 + 12 ) << 8 | ( nCount & 0xff );
-				InterlockedAdd( gs_KeptTriangles, nCount );
-			}
-
-			GroupMemoryBarrierWithGroupSync();
-			nKeptMeshlets = gs_KeptCount;
-			if ( nKeptMeshlets == 0 )
+			if ( vStamp.z == 0 )
 				return;
-
-			// Too many kept to list: scan every triangle as without meshlets
-			if ( nKeptMeshlets > MaxKept )
+			if ( vStamp.y != None )
 			{
-				nKeptMeshlets = 0;
-			}
-			else
-			{
-				nScan = gs_KeptTriangles;
-				uint nRunning = 0;
-				for ( uint c = 0; c < nKeptMeshlets; c += 256 )
-				{
-					uint nValue = c + nThread < nKeptMeshlets ? gs_Kept[c + nThread] & 0xff : 0;
-					gs_Scan[nThread] = nValue;
-					GroupMemoryBarrierWithGroupSync();
-					[unroll]
-					for ( uint d = 1; d < 256; d <<= 1 )
-					{
-						uint nAdd = nThread >= d ? gs_Scan[nThread - d] : 0;
-						GroupMemoryBarrierWithGroupSync();
-						gs_Scan[nThread] += nAdd;
-						GroupMemoryBarrierWithGroupSync();
-					}
-
-					if ( c + nThread < nKeptMeshlets )
-						gs_KeptStart[c + nThread] = nRunning + gs_Scan[nThread] - nValue;
-					nRunning += gs_Scan[255];
-					GroupMemoryBarrierWithGroupSync();
-				}
+				bPrepass = true;
+				nFirst = vStamp.y;
+				nScan = vStamp.z;
 			}
 		}
 	}
@@ -218,10 +152,8 @@ uint KeptTriangle( uint t, uint nKept )
 		uint4 vT = t0 + uint4( 0, 256, 512, 768 );
 		uint4 vIn = uint4( vT < nScan );
 		vT = min( vT, nScan - 1 );
-		if ( nKeptMeshlets != 0 )
-			vT = uint4( KeptTriangle( vT.x, nKeptMeshlets ), KeptTriangle( vT.y, nKeptMeshlets ), KeptTriangle( vT.z, nKeptMeshlets ), KeptTriangle( vT.w, nKeptMeshlets ) );
-		vT = vT * 3 + vDraw.x;
-		uint4 vBit = nVertexBase + uint4( LoadIndex( page, vT.x, b32 ), LoadIndex( page, vT.y, b32 ), LoadIndex( page, vT.z, b32 ), LoadIndex( page, vT.w, b32 ) );
+		uint4 vBit = nVertexBase + uint4( TriangleIndex( page, nFirst, b32, bPrepass, vT.x, 0 ), TriangleIndex( page, nFirst, b32, bPrepass, vT.y, 0 ),
+			TriangleIndex( page, nFirst, b32, bPrepass, vT.z, 0 ), TriangleIndex( page, nFirst, b32, bPrepass, vT.w, 0 ) );
 		uint4 vWords = uint4( g_Mask.Load( ( vBit.x >> 5 ) * 4 ), g_Mask.Load( ( vBit.y >> 5 ) * 4 ), g_Mask.Load( ( vBit.z >> 5 ) * 4 ), g_Mask.Load( ( vBit.w >> 5 ) * 4 ) );
 		uint4 vOwned = ( ( vWords >> ( vBit & 31 ) ) & 1 ) * vIn;
 		nMine += vOwned.x + vOwned.y + vOwned.z + vOwned.w;
@@ -259,19 +191,19 @@ uint KeptTriangle( uint t, uint nKept )
 		return;
 
 	// Each owned triangle takes the next three indices (order within the fragment doesn't matter)
-	for ( uint s = nThread; s < nScan; s += 256 )
+	for ( uint t = nThread; t < nScan; t += 256 )
 	{
-		uint t = nKeptMeshlets != 0 ? KeptTriangle( s, nKeptMeshlets ) : s;
-		uint i0;
-		if ( !Owned( page, vDraw.x, b32, nVertexBase, t, i0 ) )
+		uint i0 = TriangleIndex( page, nFirst, b32, bPrepass, t, 0 );
+		uint nBit = nVertexBase + i0;
+		if ( ( ( g_Mask.Load( ( nBit >> 5 ) * 4 ) >> ( nBit & 31 ) ) & 1 ) == 0 )
 			continue;
 
 		uint nAt;
 		InterlockedAdd( gs_Cursor, 3, nAt );
 		nAt += nStart;
 		g_Compacted.Store( ( nAt + 0 ) * 4, i0 );
-		g_Compacted.Store( ( nAt + 1 ) * 4, LoadIndex( page, vDraw.x + t * 3 + 1, b32 ) );
-		g_Compacted.Store( ( nAt + 2 ) * 4, LoadIndex( page, vDraw.x + t * 3 + 2, b32 ) );
+		g_Compacted.Store( ( nAt + 1 ) * 4, TriangleIndex( page, nFirst, b32, bPrepass, t, 1 ) );
+		g_Compacted.Store( ( nAt + 2 ) * 4, TriangleIndex( page, nFirst, b32, bPrepass, t, 2 ) );
 	}
 }
 

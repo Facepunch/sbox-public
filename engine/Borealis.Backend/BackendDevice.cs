@@ -1358,11 +1358,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		public BufferHandle PrepassCompacted;
 
 		/// <summary>
-		/// A bit per meshlet (by its index among every meshlet) its prepass kept, and a stamp per visibility fragment whose
-		/// bits this frame's prepass wrote: where forward's compaction scans only kept meshlets. Made with
-		/// <see cref="PrepassCompacted"/>; the stamps are cleared once, by the first prepass after.
+		/// Per visibility fragment a 16-byte stamp (frame, where its kept triangles start in <see cref="PrepassCompacted"/>,
+		/// how many): where forward's compaction scans only those. Made with <see cref="PrepassCompacted"/>; cleared once, by
+		/// the first prepass after.
 		/// </summary>
-		public BufferHandle MeshletBits, MeshletStamps;
+		public BufferHandle MeshletStamps;
+
+		/// <summary>The meshlet pass's copy jobs: a count, the copy dispatch's arguments, then a job per kept meshlet.</summary>
+		public BufferHandle MeshletJobs;
 		public bool MeshletStampsCleared;
 		public bool StampsCleared;
 
@@ -1388,15 +1391,15 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>Indices each compacted index buffer holds; a fragment that doesn't fit draws whole.</summary>
 	internal const int VisibilityCompactedIndices = 4 << 20;
 
+	/// <summary>Kept meshlets a prepass call's copy jobs hold (Construct Overview keeps ~62k); past it, fragments draw whole.</summary>
+	internal const int MeshletJobCapacity = 1 << 18;
+
 	/// <summary>Indices a view's prepass compacted buffer holds: Construct Overview keeps ~10M at 64x124.</summary>
 	internal const int PrepassCompactedIndices = 12 << 20;
 
-	/// <summary>Meshlets a view's meshlet bits cover; one past it draws whole.</summary>
-	internal const int MeshletBitCapacity = 1 << 22;
-
 	/// <summary>
-	/// A view's prepass compacted buffer (<see cref="VisibilityView.PrepassCompacted"/>), with its meshlet bits and stamps,
-	/// made the first time.
+	/// A view's prepass compacted buffer (<see cref="VisibilityView.PrepassCompacted"/>), with its meshlet stamps, made the
+	/// first time.
 	/// </summary>
 	internal BufferHandle PrepassCompactedFor( VisibilityView state )
 	{
@@ -1404,10 +1407,10 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		lock ( visibilityViews )
 		{
 			if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
-			state.MeshletBits = Gpu.CreateBuffer( new BufferInfo { Size = MeshletBitCapacity / 8, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet bits" } );
-			state.MeshletStamps = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 4L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet stamps" } );
+			state.MeshletStamps = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 16L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet stamps" } );
+			state.MeshletJobs = Gpu.CreateBuffer( new BufferInfo { Size = 32 + MeshletJobCapacity * 16L, Usage = BufferUsage.Storage | BufferUsage.Indirect | BufferUsage.CopyDestination, Name = "Borealis meshlet copy jobs" } );
+			visibilityBuffers.Add( state.MeshletJobs );
 			var buffer = Gpu.CreateBuffer( new BufferInfo { Size = PrepassCompactedIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles" } );
-			visibilityBuffers.Add( state.MeshletBits );
 			visibilityBuffers.Add( state.MeshletStamps );
 			visibilityBuffers.Add( buffer );
 			state.PrepassCompacted = buffer;

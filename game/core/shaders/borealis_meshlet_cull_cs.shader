@@ -2,7 +2,7 @@
 HEADER
 {
 	DevShader = true;
-	Description = "Borealis meshlet culling: a group per fragment a depth prepass listed tests its meshlets against the view and draws those that can reach a sample, from compacted indices.";
+	Description = "Borealis meshlet culling: a group per chunk of each fragment a depth prepass listed tests its meshlets against the view and draws those that can reach a sample from compacted indices.";
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------

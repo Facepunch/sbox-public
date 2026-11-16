@@ -561,8 +561,9 @@ internal sealed partial class BackendContext
 		// One region: the view, the batches, the multi-draws (first slot and visible count, when compacting; a run of
 		// compacted triangles per bucket after its own), the listed fragments, mesh draws'
 		// instances' transform slots, a resident filter's moved words, then a slot per fragment (twice, with lists or
-		// meshlets) for its instance record (8 bytes), its fragment (4, for ids) and command (20)
-		var slotCount = totalFragments * (listing ? 2 : 1);
+		// meshlets) for its instance record (8 bytes), its fragment (4, for ids) and command (20); with meshlets, a fragment
+		// has a compacted slot per chunk of its meshlets
+		var slotCount = totalFragments * (meshlets ? 1 + (int)MeshletChunks : listing ? 2 : 1);
 		var runsOffset = CullViewBytes + batchCount * CullBatchBytes;
 		var listedOffset = (runsOffset + (compact ? (batchCount + gpuDrivenBucketCount) * 8 : 0) + 15) & ~15;
 		var transformSlotsOffset = listedOffset + (listing ? 16 + totalFragments * 32 : 0);
@@ -821,8 +822,9 @@ internal sealed partial class BackendContext
 				if ( bucketCompact )
 				{
 					var compactRun = cullRuns.Count;
-					cullRuns.Add( (b, compacted, IndexFormat.UInt32, compactWritten, bucket.Fragments) );
-					compactWritten += bucket.Fragments;
+					var compactSlots = bucket.Fragments * (meshlets ? (int)MeshletChunks : 1);
+					cullRuns.Add( (b, compacted, IndexFormat.UInt32, compactWritten, compactSlots) );
+					compactWritten += compactSlots;
 					for ( int i = record - bucket.Batches.Count; i < record; i++ ) batchRecords[i * (CullBatchBytes / 4) + 5] = (uint)compactRun;
 				}
 
@@ -899,7 +901,7 @@ internal sealed partial class BackendContext
 			Capacity = BackendDevice.VisibilityCompactedIndices,
 			FragmentWords = (uint)(frameOffset + fragmentOffset) - firstInstance * 4,
 			Listed = lists || meshlets ? (uint)(frameOffset + listedOffset) : 0,
-			MeshletRuns = meshlets || lists && MeshletBitsReady( visibility ) ? (uint)device.MeshletStore.RunSlot : uint.MaxValue,
+			MeshletRuns = meshlets || lists && MeshletStampsReady( visibility ) ? (uint)device.MeshletStore.RunSlot : uint.MaxValue,
 		} );
 		cullAttributes.Clear();
 		cullAttributes.Set( "BorealisCullFrame", frameBuffer );
@@ -908,10 +910,10 @@ internal sealed partial class BackendContext
 			cullAttributes.Set( "BorealisCullStamps", visibility.Stamps );
 			cullAttributes.Set( "BorealisCullMask", visibility.Mask );
 			cullAttributes.Set( "BorealisCullCompacted", lists ? compacted : visibility.Compacted[0] );
-			if ( MeshletBitsReady( visibility ) )
+			if ( MeshletStampsReady( visibility ) )
 			{
-				cullAttributes.Set( "BorealisMeshletBits", visibility.MeshletBits );
 				cullAttributes.Set( "BorealisMeshletStamps", visibility.MeshletStamps );
+				cullAttributes.Set( "BorealisMeshletCompacted", visibility.PrepassCompacted );
 			}
 		}
 
@@ -995,17 +997,17 @@ internal sealed partial class BackendContext
 	/// Whether a view's meshlet bits can be read: its prepass culled meshlets since its stamps were cleared, so forward's
 	/// compaction scans only the meshlets the prepass kept where it stamped them this frame.
 	/// </summary>
-	bool MeshletBitsReady( BackendDevice.VisibilityView visibility ) => visibility is { MeshletStampsCleared: true } && device.MeshletStore is not null;
+	bool MeshletStampsReady( BackendDevice.VisibilityView visibility ) => visibility is { MeshletStampsCleared: true } && device.MeshletStore is not null;
 
 	/// <summary>Groups of <c>borealis_meshlet_cull_cs</c> per listed fragment: chunks of 1024 of its meshlets, up to 4096.</summary>
 	internal const uint MeshletChunks = 4;
 
 	/// <summary>
 	/// <c>borealis_meshlet_cull_cs</c> over a prepass's listed fragments, a group per chunk of each (an indirect dispatch,
-	/// counted up by its culling), in three passes: test each meshlet against the view, writing the view's meshlet bits and
-	/// each fragment's kept triangles; place each fragment, writing its instance record, command and ids fragment word for
-	/// its kept meshlets' room in the view's prepass compacted buffer, or whole, or nothing; then copy its kept meshlets'
-	/// indices there.
+	/// counted up by its culling): each tests its meshlets against the view and draws the kept ones from room of its own in
+	/// the view's prepass compacted buffer, writing the instance record, command and ids fragment word (or the fragment
+	/// whole, or nothing), stamps what a fragment of one chunk drew for its forward compaction and leaves a copy job per
+	/// kept meshlet; then a copy dispatch, four jobs a group, copies their indices there.
 	/// </summary>
 	void DispatchMeshlets( in GpuDrivenCull cull, in CulledRegion region, BackendDevice.VisibilityView visibility, int samples, bool culledHere )
 	{
@@ -1025,7 +1027,7 @@ internal sealed partial class BackendContext
 			FragmentWords = (uint)(region.Offset + region.FragmentWords) - region.FirstInstance * 4,
 			Samples = (uint)samples,
 			Frame = device.GpuDrivenFrame,
-			Viewport = new System.Numerics.Vector4( cull.ViewportSize.x, cull.ViewportSize.y, BackendDevice.MeshletBitCapacity, 0 ),
+			Viewport = new System.Numerics.Vector4( cull.ViewportSize.x, cull.ViewportSize.y, BackendDevice.MeshletJobCapacity, 0 ),
 			ClipX = new System.Numerics.Vector4( m.M11, m.M21, m.M31, m.M41 ),
 			ClipY = new System.Numerics.Vector4( m.M12, m.M22, m.M32, m.M42 ),
 			ClipZ = new System.Numerics.Vector4( m.M13, m.M23, m.M33, m.M43 ),
@@ -1034,27 +1036,38 @@ internal sealed partial class BackendContext
 
 		meshletConstants ??= new byte[Marshal.SizeOf<MeshletCullConstants>()];
 		meshletAttributes ??= new ShaderAttributes();
+		var (frameBuffer, compacted) = (region.Buffer, region.Compacted);
+		void Bind()
+		{
+			MemoryMarshal.Write( meshletConstants, constants );
+			meshletAttributes.Clear();
+			meshletAttributes.Set( "BorealisCullFrame", frameBuffer );
+			meshletAttributes.Set( "BorealisMeshletCompacted", compacted );
+			meshletAttributes.Set( "BorealisMeshletStamps", visibility.MeshletStamps );
+			meshletAttributes.Set( "BorealisMeshletJobs", visibility.MeshletJobs );
+			meshletAttributes.Set( "g_TransformBuffer", LentInstances.Transforms );
+			meshletAttributes.SetData( "BorealisMeshletCull_t", meshletConstants );
+		}
+
 		var timer = device.PassTimer;
 		var scope = timer?.Begin( r.List, "GPU-driven meshlets", PassTimer.ScopeKind.Own, count: false ) ?? -1;
 		r.List.Marker( "GPU-driven meshlets" );
 
-		// After the culling that listed them, in this list or the setup's
-		if ( culledHere ) r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.ComputeShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
-		for ( uint pass = 0; pass < 3; pass++ )
-		{
-			if ( pass > 0 ) r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
-			constants.Pass = pass;
-			MemoryMarshal.Write( meshletConstants, constants );
-			meshletAttributes.Clear();
-			meshletAttributes.Set( "BorealisCullFrame", region.Buffer );
-			meshletAttributes.Set( "BorealisMeshletCompacted", region.Compacted );
-			meshletAttributes.Set( "BorealisMeshletBits", visibility.MeshletBits );
-			meshletAttributes.Set( "BorealisMeshletStamps", visibility.MeshletStamps );
-			meshletAttributes.Set( "g_TransformBuffer", LentInstances.Transforms );
-			meshletAttributes.SetData( "BorealisMeshletCull_t", meshletConstants );
-			cullDrawer.DispatchIndirect( r.List, device.MeshletCullShader, meshletAttributes, region.Buffer, region.Offset + region.Listed );
-		}
+		// No copy jobs yet: after an earlier call's copy read them
+		r.List.Barrier( PipelineStage.ComputeShader | PipelineStage.DrawIndirect, MemoryAccess.ShaderRead | MemoryAccess.IndirectRead, PipelineStage.Transfer, MemoryAccess.TransferWrite );
+		r.List.FillBuffer( visibility.MeshletJobs, 0, 0, 32 );
+		r.List.FillBuffer( visibility.MeshletJobs, 1, 20, 8 );
+		r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 
+		// After the culling that listed them, in this list or the setup's: test and place, then copy
+		if ( culledHere ) r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.ComputeShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+		constants.Pass = 0;
+		Bind();
+		cullDrawer.DispatchIndirect( r.List, device.MeshletCullShader, meshletAttributes, region.Buffer, region.Offset + region.Listed );
+		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.ComputeShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+		constants.Pass = 1;
+		Bind();
+		cullDrawer.DispatchIndirect( r.List, device.MeshletCullShader, meshletAttributes, visibility.MeshletJobs, 16 );
 		r.List.Marker( "end GPU-driven meshlets" );
 		timer?.End( r.List, scope );
 	}

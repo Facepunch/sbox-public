@@ -61,7 +61,7 @@ internal sealed partial class BackendContext
 	static (int Bytes, int Runs, int Listed, int Instances, int FragmentWords, int Commands) ResidentRegion( GpuDrivenPlan plan, bool ids, bool lists )
 	{
 		var fragments = plan.Fragments;
-		var slots = fragments * (lists ? 2 : 1);
+		var slots = fragments * (plan.Key.Meshlets && ids ? 1 + (int)MeshletChunks : lists ? 2 : 1);
 		var runs = CullViewBytes;
 		var listed = (runs + plan.Runs.Length * 8 + 15) & ~15;
 		var instances = listed + (lists ? 16 + fragments * 32 : 0);
