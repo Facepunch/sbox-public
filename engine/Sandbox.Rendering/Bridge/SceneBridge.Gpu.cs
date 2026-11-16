@@ -177,7 +177,7 @@ internal sealed partial class SceneBridge
 		if ( state.GpuTarget is null || state.GpuTarget.Size != targetSize || state.GpuTarget.Samples != samples )
 		{
 			state.GpuTarget?.Dispose();
-			state.GpuTarget = ViewTarget.Create( targetSize, samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Borealis.Gpu camera" );
+			state.GpuTarget = ViewTarget.Create( targetSize, samples, TextureFormat.RGBA16161616F, state.System.DepthFormat, "Borealis.Gpu camera" );
 		}
 
 		// The stages before the scene is finished draw inside its frame; ambient occlusion runs in its stage, not early
@@ -262,7 +262,7 @@ internal sealed partial class SceneBridge
 		if ( state.GpuTarget is not { } drawn || drawn.Size != size || drawn.Samples != samples || drawn.Color.Format != format )
 		{
 			state.GpuTarget?.Dispose();
-			state.GpuTarget = drawn = ViewTarget.Create( size, samples, format, TextureFormat.D32FS8, "Borealis.Gpu child view" );
+			state.GpuTarget = drawn = ViewTarget.Create( size, samples, format, state.System.DepthFormat, "Borealis.Gpu child view" );
 		}
 
 		state.System.Render( mirror.World, state.View, drawn, null );

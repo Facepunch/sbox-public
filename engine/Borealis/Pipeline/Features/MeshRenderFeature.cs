@@ -141,6 +141,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		public MeshRuns FrameBufferReads;
 
 		/// <summary>
+		/// Whether anything the view draws needs a stencil in its depth (<see cref="GpuMaterial.NeedsStencil"/>).
+		/// </summary>
+		public bool Stencil;
+
+		/// <summary>
 		/// Lists containing custom objects, which require main-thread recording.
 		/// </summary>
 		public MeshRuns Custom;
@@ -177,6 +182,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			Custom = 0;
 			Callbacks = 0;
 			FrameBufferReads = 0;
+			Stencil = false;
 		}
 	}
 
@@ -305,6 +311,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	{
 		public MeshRuns Runs;
 		public MeshRuns FrameBufferReads;
+		public bool Stencil;
 
 		/// <summary>
 		/// The bin it draws in, found on the main thread as it's put in its lists; a custom object's own.
@@ -476,6 +483,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var opaque = buckets[0];
 		MeshRuns frameBufferReads = 0;
 		MeshRuns callbacks = 0;
+		var stencil = false;
 		for ( int k = 0; k < visibleSpan.Length; k++ )
 		{
 			var index = visibleSpan[k];
@@ -495,6 +503,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				AddToLists( customRuns, k, index, c.Bin.Key, customDistance, !custom.IsOpaque, 0 );
 				layers.Custom |= customRuns;
 				if ( custom.WantsFrameBufferCopy && !pass.IsShadow ) layers.FrameBufferReads |= customRuns & FrameBufferCopyingLists;
+				if ( custom.NeedsStencil && !pass.IsShadow ) layers.Stencil = true;
 				continue;
 			}
 
@@ -508,6 +517,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			}
 
 			frameBufferReads |= c.FrameBufferReads;
+			stencil |= c.Stencil;
 			if ( c.Callbacks ) callbacks |= c.Runs;
 
 			// Most objects go in the opaque list alone
@@ -517,6 +527,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		layers.FrameBufferReads |= frameBufferReads;
 		layers.Callbacks |= callbacks;
+		layers.Stencil |= stencil;
 
 		for ( int bit = 0; bit < buckets.Length; bit++ )
 		{
@@ -759,6 +770,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		// A translucent layer copies the frame for what reads it
 		if ( obj.WantsFrameBufferCopy && !shadow ) c.FrameBufferReads = runs & FrameBufferCopyingLists;
+		c.Stencil = obj.WantsStencil && !shadow;
 
 		c.OnlyTranslucent = blend == MeshBlend.Translucent;
 		c.Occludes = obj.OcclusionCulling;
@@ -1227,6 +1239,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	}
 
 	internal override bool ReadsFrameBuffer( ViewPass view, MeshRuns runs ) => (view.State<RunLists>( this ).FrameBufferReads & runs) != 0;
+
+	/// <summary>Whether a prepared view draws something that needs a stencil in its depth (<see cref="GpuMaterial.NeedsStencil"/>).</summary>
+	internal bool WantsStencil( ViewPass view ) => view.State<RunLists>( this ).Stencil;
 
 	/// <summary>
 	/// Count draws in the layer's selected lists, in list order: a layer records draws, not runs.

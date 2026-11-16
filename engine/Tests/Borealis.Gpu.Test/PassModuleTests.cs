@@ -393,6 +393,30 @@ public class PassModuleTests : GpuTest
 		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
 	}
 
+	/// <summary>
+	/// Which shaders' draws need a stencil in the depth they draw into (<see cref="ShaderPipelineState.NeedsStencil"/>): not a
+	/// standard material's (its test passes on zero and it writes nothing), nor gizmo_line's (it writes zero); tools_solid's
+	/// (it writes one) and the highlight's inside pass (it writes one).
+	/// </summary>
+	[TestMethod]
+	public void StencilNeedsFollowTheShaders()
+	{
+		using var backend = new BackendDevice( Device );
+		bool Needs( string path, int outlinePass = 0 )
+		{
+			var shader = backend.Shaders.Load( path );
+			if ( shader is null ) Assert.Inconclusive( $"{path} isn't compiled" );
+			var variant = backend.Shaders.Variant( shader, shader.Modes[0].Name, [], name => name == "D_OUTLINE_PASS" ? outlinePass : null );
+			Assert.IsNotNull( variant, path );
+			return variant.State.NeedsStencil;
+		}
+
+		Assert.IsFalse( Needs( "shaders/complex.shader" ), "complex: tests NOT_EQUAL 3 against bit 0, writes nothing" );
+		Assert.IsFalse( Needs( "shaders/gizmo/gizmo_line.shader" ), "gizmo_line writes zero" );
+		Assert.IsTrue( Needs( "shaders/tools_solid.shader" ), "tools_solid writes one" );
+		Assert.IsTrue( Needs( "shaders/postprocess/ObjectHighlight/ObjectHighlight.shader" ), "the highlight's inside pass writes one" );
+	}
+
 	/// <summary>Each module's variants against its compiled shader's: the same bindings, constants, inputs and render state.</summary>
 	[TestMethod]
 	public void PassModulesMatchTheirShaders()

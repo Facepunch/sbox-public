@@ -191,6 +191,8 @@ internal sealed class HeadlessMaterial( string name, string shader ) : GpuMateri
 	public bool FrameBuffer { get; init; }
 	public bool FastPath { get; init; }
 	public bool LightProbe { get; init; } = true;
+	public bool Stencil { get; init; }
+	public override bool NeedsStencil => Stencil;
 
 	public override void Dispose() => Disposed = true;
 }

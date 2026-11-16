@@ -141,6 +141,13 @@ public abstract class GpuDevice
 	/// <summary>Whether a map's static overlays draw GPU-driven, a call per render order, regrouped by pipeline within it.</summary>
 	internal virtual bool DrawsOverlaysGpuDriven => false;
 
+	/// <summary>
+	/// Whether its materials say if their draws need a stencil (<see cref="GpuMaterial.NeedsStencil"/>), so views can draw
+	/// into depth without one until something needs it (<see cref="RenderSystem.DepthFormat"/>). Off, every view's depth
+	/// has a stencil.
+	/// </summary>
+	internal virtual bool KnowsStencilUse => false;
+
 	/// <summary>Whether the device has an async compute queue.</summary>
 	public abstract bool SupportsAsyncCompute { get; }
 
