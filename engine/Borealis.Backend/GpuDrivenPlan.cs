@@ -68,7 +68,7 @@ internal sealed class GpuDrivenPlans
 internal sealed class GpuDrivenPlan
 {
 	/// <summary>What a call's kind is: the same key, the same buckets and records for the same list.</summary>
-	public readonly record struct CallKey( uint Mode, Format Color, Format Depth, int Samples, bool NoColor, bool Ids, bool Lists, bool Visibility, bool Positions );
+	public readonly record struct CallKey( uint Mode, Format Color, Format Depth, int Samples, bool NoColor, bool Ids, bool Lists, bool Visibility, bool Positions, bool Meshlets = false );
 
 	public CallKey Key;
 	public int Version;

@@ -49,7 +49,7 @@ cbuffer BorealisGpuDrivenCull_t
 	uint g_nCullCapacity;		// indices g_Compacted holds
 	uint g_nCullFragmentWords;	// g_Frame byte offset of instance 0's fragment word, for the id prepass (wraps)
 	uint g_nCullListed;			// byte offset of the fragments forward compacts: dispatch arguments, then 32 bytes each
-	uint g_nCullPad1;
+	uint g_nCullMeshletRuns;		// a prepass that culls meshlets: bindless slot of the meshlet runs (16 bytes per draw record); else None
 	uint g_nCullPad2;
 };
 
@@ -286,6 +286,27 @@ uint TakeSlot( uint nRun )
 					g_Frame.Store( nEntry + 8, nVertexBase + vDraw.z );
 					g_Frame.Store( nEntry + 12, vBatch.w );
 					g_Frame.Store( nEntry + 16, vVisibility.y );
+					g_Frame.Store( nEntry + 28, nFragment );
+					bListed = true;
+				}
+
+				// A prepass that culls meshlets: an ids fragment whose draw has meshlets is listed for the meshlet pass
+				// (borealis_meshlet_cull_cs), which draws those that can reach a sample
+				if ( !bListed && ( vVisibility.z & 1 ) != 0 && g_nCullMeshletRuns != None && g_bindless_VertexBuffers[ g_nCullMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u )
+				{
+					uint nAt;
+					g_Frame.InterlockedAdd( g_nCullListed, 1, nAt );
+					uint nEntry = g_nCullListed + 16 + nAt * 32;
+					g_Frame.Store( nEntry, nTransform );
+					g_Frame.Store( nEntry + 4, nDrawRecord );
+					g_Frame.Store( nEntry + 8, nFragment != None ? nVertexBase : None );
+					g_Frame.Store( nEntry + 12, vBatch.w );
+					g_Frame.Store( nEntry + 16, vVisibility.y );
+					g_Frame.Store( nEntry + 20, 0 );
+					g_Frame.Store( nEntry + 24, 0 );
+					g_Frame.Store( nEntry + 28, nFragment );
+					if ( nFragment != None )
+						g_Stamps.Store( nFragment * 4, g_nCullFrame );
 					bListed = true;
 				}
 

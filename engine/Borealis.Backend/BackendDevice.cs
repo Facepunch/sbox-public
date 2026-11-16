@@ -445,6 +445,53 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
 
+	/// <summary>The value after a switch on the command line, or null.</summary>
+	static string SwitchValue( string name )
+	{
+		var args = Environment.GetCommandLineArgs();
+		for ( int i = 0; i + 1 < args.Length; i++ )
+		{
+			if ( args[i].Equals( name, StringComparison.OrdinalIgnoreCase ) ) return args[i + 1];
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Meshlet culling in GPU-driven depth prepasses (docs/managed/borealis-gpu-driven.md, "Meshlets"): index ranges are cut
+	/// into meshlets after they load, and a prepass draws only the meshlets that can reach a sample. On by default;
+	/// <c>-no-meshlets</c> turns it off, <c>-meshlets 32x32</c> picks the meshlet size (64x124 by default).
+	/// </summary>
+	public bool Meshlets { get; set; } = !HasSwitch( "-no-meshlets" );
+
+	/// <summary>Threads building meshlets at once: a quarter of the cores, so the frame keeps the rest.</summary>
+	public static int MeshletThreads { get; set; } = Math.Max( 1, Environment.ProcessorCount / 4 );
+
+	Borealis.Backend.Meshlets.MeshletStore meshletStore;
+	bool meshletStoreTried;
+	readonly object meshletStoreLock = new();
+
+	/// <summary>The meshlets of GPU-driven ranges, or null when <see cref="Meshlets"/> is off or the library isn't there.</summary>
+	internal Borealis.Backend.Meshlets.MeshletStore MeshletStore
+	{
+		get
+		{
+			if ( !Meshlets || gpuDrivenTables is null ) return null;
+			if ( Volatile.Read( ref meshletStoreTried ) ) return meshletStore;
+			lock ( meshletStoreLock )
+			{
+				if ( !meshletStoreTried )
+				{
+					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads ) : null;
+					if ( meshletStore is not null ) gpuDrivenTables.Meshlets = meshletStore;
+					Volatile.Write( ref meshletStoreTried, true );
+				}
+			}
+
+			return meshletStore;
+		}
+	}
+
 	/// <summary>The pass modules shaders without a material draw from (<see cref="SlangPasses"/>).</summary>
 	public PassModules Passes { get; }
 
@@ -1221,6 +1268,37 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	bool visibilityShadersLoaded;
 
 	/// <summary>
+	/// <c>borealis_meshlet_cull_cs</c>, which culls a prepass's meshlets, when its pass module draws (its <c>.shader</c> only
+	/// declares the constants): null with <see cref="SlangPasses"/> off or the module missing, and prepasses draw whole.
+	/// </summary>
+	internal ShaderFile MeshletCullShader
+	{
+		get
+		{
+			if ( !SlangPasses ) return null;
+			if ( Volatile.Read( ref meshletShaderLoaded ) ) return meshletShader;
+			lock ( visibilityViews )
+			{
+				if ( !meshletShaderLoaded )
+				{
+					var shader = Shaders.Load( "shaders/borealis_meshlet_cull_cs.shader" );
+					meshletShader = shader is not null && Passes.ModuleOf( shader ) is not null ? shader : null;
+					Volatile.Write( ref meshletShaderLoaded, true );
+				}
+
+				return meshletShader;
+			}
+		}
+	}
+
+	ShaderFile meshletShader;
+	bool meshletShaderLoaded;
+
+	/// <summary>What meshlets have been built, for reports.</summary>
+	public string MeshletReport => meshletStore is not { } s ? (Meshlets ? "meshlets: none (meshopt not found or no GPU-driven geometry)" : "meshlets: off")
+		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles, built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time; pass module {(MeshletCullShader is null ? "missing" : "drawing")}";
+
+	/// <summary>
 	/// Debug only (<c>borealislab -capture-visibility</c>): GPU-driven forward passes also replay their multi-draws into this
 	/// figure's targets. Set it before the first frame, so the view's ids and mask can be copied out too.
 	/// </summary>
@@ -1272,6 +1350,20 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		public int Width, Height, Samples;
 		public BufferHandle Mask, Stamps;
 		public readonly BufferHandle[] Compacted = new BufferHandle[3];
+
+		/// <summary>
+		/// The prepass's kept meshlets' indices (<see cref="Meshlets"/>), made when a prepass first culls meshlets: written
+		/// and drawn within a frame, after barriers on the frames before, so one is enough. Its cursor is its first word.
+		/// </summary>
+		public BufferHandle PrepassCompacted;
+
+		/// <summary>
+		/// A bit per meshlet (by its index among every meshlet) its prepass kept, and a stamp per visibility fragment whose
+		/// bits this frame's prepass wrote: where forward's compaction scans only kept meshlets. Made with
+		/// <see cref="PrepassCompacted"/>; the stamps are cleared once, by the first prepass after.
+		/// </summary>
+		public BufferHandle MeshletBits, MeshletStamps;
+		public bool MeshletStampsCleared;
 		public bool StampsCleared;
 
 		/// <summary>The frame (<see cref="GpuDrivenFrame"/>) its mask was last cleared in, before any call drew ids into it.</summary>
@@ -1295,6 +1387,33 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>Indices each compacted index buffer holds; a fragment that doesn't fit draws whole.</summary>
 	internal const int VisibilityCompactedIndices = 4 << 20;
+
+	/// <summary>Indices a view's prepass compacted buffer holds: Construct Overview keeps ~10M at 64x124.</summary>
+	internal const int PrepassCompactedIndices = 12 << 20;
+
+	/// <summary>Meshlets a view's meshlet bits cover; one past it draws whole.</summary>
+	internal const int MeshletBitCapacity = 1 << 22;
+
+	/// <summary>
+	/// A view's prepass compacted buffer (<see cref="VisibilityView.PrepassCompacted"/>), with its meshlet bits and stamps,
+	/// made the first time.
+	/// </summary>
+	internal BufferHandle PrepassCompactedFor( VisibilityView state )
+	{
+		if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
+		lock ( visibilityViews )
+		{
+			if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
+			state.MeshletBits = Gpu.CreateBuffer( new BufferInfo { Size = MeshletBitCapacity / 8, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet bits" } );
+			state.MeshletStamps = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 4L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet stamps" } );
+			var buffer = Gpu.CreateBuffer( new BufferInfo { Size = PrepassCompactedIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles" } );
+			visibilityBuffers.Add( state.MeshletBits );
+			visibilityBuffers.Add( state.MeshletStamps );
+			visibilityBuffers.Add( buffer );
+			state.PrepassCompacted = buffer;
+			return buffer;
+		}
+	}
 
 	readonly ConditionalWeakTable<object, VisibilityView> visibilityViews = new();
 	readonly List<BufferHandle> visibilityBuffers = new();
@@ -1546,6 +1665,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		Gpu.BeginFrame();
 		gpuDrivenTables?.BeginFrame();
+		meshletStore?.BeginFrame();
 		GpuDrivenFrame++;
 		loadFrame++;
 		Poll();
@@ -1583,6 +1703,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		materialCache?.Dispose();
 		surfaces?.Dispose();
 		ResidentCulls.Dispose( Gpu );
+		meshletStore?.Dispose();
 		gpuDrivenTables?.Dispose();
 		lock ( visibilityViews )
 		{

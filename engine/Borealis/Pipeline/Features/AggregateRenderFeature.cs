@@ -503,6 +503,8 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 			Top = frustum.Plane( 3 ),
 			Near = frustum.Plane( 4 ),
 			Far = frustum.Plane( 5 ),
+			WorldToClip = view.View.WorldToProjection,
+			ViewportSize = new Vector2( view.View.Viewport.Width, view.View.Viewport.Height ),
 			CameraAndThreshold = SizeCull.ForPass( view ).CameraAndThreshold,
 			Shadow = view.IsShadow,
 			View = view,

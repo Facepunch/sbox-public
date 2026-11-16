@@ -53,7 +53,7 @@ CS
 		uint g_nCullCapacity;		// indices g_Compacted holds
 		uint g_nCullFragmentWords;
 		uint g_nCullListed;			// byte offset of the listed fragments: dispatch arguments, then 32 bytes each
-		uint g_nCullPad1;
+		uint g_nCullMeshletRuns;	// meshlets are culled where the pass module runs
 		uint g_nCullPad2;
 	};
 
