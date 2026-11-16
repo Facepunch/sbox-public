@@ -296,15 +296,17 @@ uint Place( uint nIndex )
 [outputtopology( "triangle" )]
 [shader( "mesh" )] void MainMs( uint3 vGroupId : SV_GroupID, uint nThread : SV_GroupIndex, in payload MeshletPayload payload, out vertices PS_INPUT vertices[MaxVertices], out indices uint3 triangles[MaxTriangles] )
 {
-	uint nInstance = payload.nInstance;
-	uint nMeshlet = payload.nFirstMeshlet + ( ( payload.nKept[vGroupId.x >> 1] >> ( ( vGroupId.x & 1 ) * 16 ) ) & 0xffff );
-	uint2 vInstance = BorealisGpuDrivenInstance( nInstance );
-	uint4 vDrawHead = BorealisGpuDrivenDraw( vInstance.y );
-	uint4 vDraw = g_bindless_VertexBuffers[ g_nBorealisDraws ].Load4( vInstance.y * 32 + 16 );
+	// The group's records are the same for every lane: read once, as scalars (WaveReadLaneFirst tells the compiler so)
+	uint nInstance = WaveReadLaneFirst( payload.nInstance );
+	uint nMeshlet = WaveReadLaneFirst( payload.nFirstMeshlet + ( ( payload.nKept[vGroupId.x >> 1] >> ( ( vGroupId.x & 1 ) * 16 ) ) & 0xffff ) );
+	uint2 vInstance = WaveReadLaneFirst( BorealisGpuDrivenInstance( nInstance ) );
+	uint4 vDrawHead = WaveReadLaneFirst( BorealisGpuDrivenDraw( vInstance.y ) );
+	uint4 vDraw = WaveReadLaneFirst( g_bindless_VertexBuffers[ g_nBorealisDraws ].Load4( vInstance.y * 32 + 16 ) );
 	bool b32 = ( vDrawHead.w & 2 ) != 0;
-	ByteAddressBuffer meshlets = g_bindless_VertexBuffers[ payload.nMeshletPage ];
-	uint nFirstTriangle = meshlets.Load( nMeshlet * 32 + 12 );
-	uint nTriangles = min( meshlets.Load( nMeshlet * 32 + 28 ), MaxTriangles );
+	ByteAddressBuffer meshlets = g_bindless_VertexBuffers[ WaveReadLaneFirst( payload.nMeshletPage ) ];
+	uint2 vMeshlet = WaveReadLaneFirst( uint2( meshlets.Load( nMeshlet * 32 + 12 ), meshlets.Load( nMeshlet * 32 + 28 ) ) );
+	uint nFirstTriangle = vMeshlet.x;
+	uint nTriangles = min( vMeshlet.y, MaxTriangles );
 
 	gs_Index[nThread] = None;
 	if ( nThread == 0 )
