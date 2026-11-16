@@ -154,6 +154,20 @@ public sealed class GraphicsContext
 	}
 
 	/// <summary>
+	/// Clear the bound depth to 0 (the far plane: depth is reversed, as native's clears it) and its stencil to 0, as
+	/// <c>Graphics.Clear</c> asked to clear depth or stencil does. Nothing without a depth bound.
+	/// </summary>
+	public void ClearDepth()
+	{
+		if ( !Depth.IsValid || !Target.IsValid ) return;
+		EndScope();
+		TransitionForWrite( Depth, ImageLayout.DepthTarget );
+		Transition( Target, ImageLayout.ColorTarget );
+		List.BeginRendering( [new ColorTarget { Texture = Target, Load = LoadOp.Load, Store = StoreOp.Store, Srgb = SrgbWrite }], new DepthTarget { Texture = Depth, Load = LoadOp.Clear, Store = StoreOp.Store } );
+		List.EndRendering();
+	}
+
+	/// <summary>
 	/// Draw <paramref name="instances"/> instances of a quad (indices 0, 1, 2, 0, 2, 3) into the target, as
 	/// <c>Graphics.DrawIndexedInstanced</c> does with the painter's quad index buffer.
 	/// </summary>
@@ -202,7 +216,10 @@ public sealed class GraphicsContext
 	public bool DrawVertices( ShaderFile shader, ShaderAttributes attributes, ReadOnlySpan<byte> vertices, VertexStreamLayout layout, int count, PrimitiveTopology topology )
 	{
 		var depth = BeginScope( shader, attributes );
-		var upload = List.AllocateUpload( vertices.Length, 16 );
+
+		// Padded by a triangle's vertices: a draw that expands primitives reads each through per-instance streams, and a
+		// device checking bounds by the stream's whole step would read the last one's other corners as zeros
+		var upload = List.AllocateUpload( vertices.Length + 3 * layout.Stride, 16 );
 		vertices.CopyTo( upload.Data );
 		Draws++;
 

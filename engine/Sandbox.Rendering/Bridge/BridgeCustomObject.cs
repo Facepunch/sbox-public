@@ -26,6 +26,13 @@ internal sealed class BridgeCustomObject : CustomObject
 		// depth prepass yet)
 		if ( MirrorContent.Gpu is not null )
 		{
+			// The overlay layers draw after post processing, where native draws them (the camera's output)
+			if ( !view.IsShadow && (layer.Runs & (MeshRuns.OverlayWithDepth | MeshRuns.OverlayWithoutDepth)) != 0 )
+			{
+				BorealisGpuCustomDraw.DeferOverlay( context, view.View, (layer.Runs & MeshRuns.OverlayWithDepth) != 0, Source );
+				return;
+			}
+
 			var layerType = (SceneLayerType)layer.LayerType;
 			if ( view.IsShadow || layer.Depth || layerType is not (SceneLayerType.Opaque or SceneLayerType.Translucent) ) return;
 			BorealisGpuCustomDraw.Draw( context, layerType, view.View, Source.RenderInternal );

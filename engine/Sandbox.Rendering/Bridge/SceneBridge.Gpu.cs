@@ -136,6 +136,7 @@ internal sealed partial class SceneBridge
 		}
 
 		RunStage( camera, Stage.AfterPostProcess );
+		if ( frame is not null ) DrawOverlays( frame );
 		if ( encode )
 		{
 			gpuView.SrgbWrite = srgbWrite;
@@ -181,6 +182,10 @@ internal sealed partial class SceneBridge
 		stages.View = gpuView;
 		camera.ScheduleEarlyPostProcess( Stage.AfterDepthPrepass, false );
 
+		// Dynamic objects its overlay layers reach wait for the output (DrawOverlays)
+		BorealisGpuCustomDraw.ForgetOverlays( state.View );
+		overlayView = state.View;
+
 		using ( SceneTiming.Scope() )
 		using ( new Drawing( this, state ) )
 			state.System.Render( mirror.World, state.View, state.GpuTarget, stages );
@@ -200,6 +205,24 @@ internal sealed partial class SceneBridge
 
 		frame.End();
 		return frame;
+	}
+
+	// The view of the scene the output is drawing, whose overlays wait for it
+	RenderView overlayView;
+
+	/// <summary>
+	/// The dynamic objects the scene's overlay layers reached (gizmos, debug overlays), after post processing as native draws
+	/// its overlay layers: those depth tested against the frame's depth, single-sampled for the output.
+	/// </summary>
+	void DrawOverlays( BorealisGpuFrame frame )
+	{
+		var view = overlayView;
+		overlayView = null;
+		if ( view is null || !BorealisGpuCustomDraw.HasOverlays( view, out var withDepth ) ) return;
+
+		var depth = !withDepth ? null : frame.Multisampled ? frame.ResolvedDepth() : frame.Depth;
+		if ( depth is not null && frame.Multisampled ) gpuView.Bind();
+		BorealisGpuCustomDraw.DrawOverlays( view, gpuView, depth );
 	}
 
 	/// <summary>
