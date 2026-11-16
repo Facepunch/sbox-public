@@ -1329,10 +1329,11 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// Whether prepass meshlets are culled and drawn with task and mesh shaders (<c>borealis_meshlet_ids</c>) where the
-	/// device has them, in place of the compute pass, its index copies and indexed draws. On by default;
-	/// <c>-no-mesh-shaders</c> keeps the compute pass, for comparisons. Set it before drawing.
+	/// device has them, in place of the compute pass, its index copies and indexed draws. Off by default: it costs more GPU
+	/// time than the compute pass on the Steam Deck and saves none on the PC (docs/managed/borealis-gpu-driven.md,
+	/// "Meshlets"); <c>-mesh-shaders</c> turns it on. Set it before drawing.
 	/// </summary>
-	public bool MeshletTasks { get; set; } = !HasSwitch( "-no-mesh-shaders" );
+	public bool MeshletTasks { get; set; } = HasSwitch( "-mesh-shaders" );
 
 	/// <summary>
 	/// <c>borealis_meshlet_ids</c>, which culls and draws a prepass's meshlets with task and mesh shaders, when
