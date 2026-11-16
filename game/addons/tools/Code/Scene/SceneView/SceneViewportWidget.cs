@@ -107,7 +107,7 @@ public partial class SceneViewportWidget : Widget
 	{
 		base.OnDoubleClick( e );
 
-		doubleClick = true;
+		doubleClick |= e.LeftMouseButton;
 
 		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Alt ) )
 		{
@@ -689,8 +689,7 @@ public partial class SceneViewportWidget : Widget
 			_activeCamera.WorldPosition -= _activeCamera.WorldRotation.Forward * MathF.Min( dolly, EditorPreferences.CameraZFar ) * TransitionBlend;
 		}
 
-		if ( GizmoInstance.Input.IsHovered && hasMouseFocus )
-			GizmoInstance.Input.DoubleClick = doubleClick;
+		GizmoInstance.Input.DoubleClick = doubleClick && GizmoInstance.Input.IsHovered && hasMouseFocus;
 
 		doubleClick = false;
 

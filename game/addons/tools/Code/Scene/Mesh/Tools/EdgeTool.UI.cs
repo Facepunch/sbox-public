@@ -177,29 +177,6 @@ partial class EdgeTool
 			_tool.CurrentTool = tool;
 		}
 
-		[Shortcut( "mesh.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
-		private void SelectAll()
-		{
-			using var scope = SceneEditorSession.Scope();
-			using var undoScope = SceneEditorSession.Active.UndoScope( "Select All Edges" ).Push();
-
-			var selection = SceneEditorSession.Active.Selection;
-			selection.Clear();
-
-			foreach ( var edgeGroup in _edgeGroups )
-			{
-				var edges = edgeGroup.Key.Mesh.HalfEdgeHandles;
-
-				foreach ( var edge in edges )
-				{
-					if ( edge.Index > edgeGroup.Key.Mesh.GetOppositeHalfEdge( edge ).Index )
-						continue;
-
-					selection.Add( new MeshEdge( edgeGroup.Key, edge ) );
-				}
-			}
-		}
-
 		[Shortcut( "mesh.edge-cut-tool", "C", typeof( SceneViewWidget ) )]
 		void OpenEdgeCutTool()
 		{

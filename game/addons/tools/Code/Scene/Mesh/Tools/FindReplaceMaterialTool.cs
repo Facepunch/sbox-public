@@ -93,6 +93,8 @@ public partial class FindReplaceMaterialTool : SelectionTool<MeshFace>
 			RefreshMatches();
 	}
 
+	public override void SelectAll() => EditorShortcuts.PassShortcut = true;
+
 	IEnumerable<MeshComponent> GetTargetComponents()
 	{
 		if ( Scope == ReplaceScope.Scene )

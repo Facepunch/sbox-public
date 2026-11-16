@@ -47,6 +47,8 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 
 	public virtual void SetMoveMode( MoveMode mode ) { }
 
+	public virtual void SelectAll() => EditorShortcuts.PassShortcut = true;
+
 	SelectionPivot _pivot;
 
 	/// <summary>
@@ -275,6 +277,9 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 
 file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
 {
+	[Shortcut( "mesh.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
+	public void SelectAll() => tool.SelectAll();
+
 	[Shortcut( "mesh.selection-nudge-up", "UP", typeof( SceneViewWidget ) )]
 	public void NudgeUp() => tool.Nudge( Vector2.Up );
 
@@ -340,6 +345,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 	private bool _meshSelectionDirty;
 	private bool _invertSelection;
+	bool _doubleClickSelection;
+	readonly HashSet<IMeshElement> _paintedElements = [];
 
 	private MeshComponent _hoverMesh;
 	private readonly List<T> _overlaySelection = [];
@@ -566,6 +573,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		Selection.OnItemRemoved -= OnMeshSelectionChanged;
 
 		EndBoxSelectUndoScope();
+		EndSelection();
+		_lastToggleClickElement = null;
 
 		UnsubscribeUndo();
 
@@ -704,11 +713,6 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 			EndBoxSelectUndoScope();
 		}
 
-		if ( IsAllowedToSelect && Gizmo.WasLeftMouseReleased && !Gizmo.Pressed.Any && Gizmo.Pressed.CursorDelta.Length < 1 )
-		{
-			Gizmo.Select();
-		}
-
 		var removeList = GetInvalidSelection().ToList();
 		foreach ( var s in removeList )
 		{
@@ -794,6 +798,20 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 	protected void UpdateMoveMode()
 	{
+		if ( Gizmo.WasLeftMousePressed && _pressedElement is null )
+			_lastToggleClickElement = null;
+
+		if ( IsAllowedToSelect && Gizmo.WasLeftMouseReleased && !Gizmo.Pressed.Any &&
+			!(_pressedElement?.IsValid() ?? false) && !_doubleClickSelection && Gizmo.Pressed.CursorDelta.Length < 1 &&
+			!Gizmo.IsShiftPressed && !Gizmo.IsCtrlPressed && Selection.Any() )
+		{
+			using var undo = Manager.CurrentSession.UndoScope( "Update Selection" ).Push();
+			Selection.Clear();
+		}
+
+		if ( !Gizmo.IsLeftMouseDown )
+			EndSelection();
+
 		if ( _meshSelectionDirty )
 		{
 			var previous = _vertexSelection.ToArray();
@@ -832,11 +850,11 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		if ( !isConverting )
 		{
-			foreach ( var element in elements ) Selection.Add( element );
+			foreach ( var element in elements.Where( element => IsSelectableElement( element ) ) ) Selection.Add( element );
 		}
 
-		foreach ( var element in convertedElements ) Selection.Add( element );
-		foreach ( var element in connectedElements ) Selection.Add( element );
+		foreach ( var element in convertedElements.Where( element => IsSelectableElement( element ) ) ) Selection.Add( element );
+		foreach ( var element in connectedElements.Where( element => IsSelectableElement( element ) ) ) Selection.Add( element );
 	}
 
 	protected virtual IEnumerable<T> ConvertSelectionToCurrentType() => [];
@@ -844,6 +862,66 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	protected virtual IEnumerable<T> GetConnectedSelectionElements() => [];
 
 	protected virtual IEnumerable<IMeshElement> GetAllSelectedElements() => [];
+
+	protected IEnumerable<MeshComponent> SelectedMeshes => Selection.OfType<IMeshElement>()
+		.Where( element => element is T && element.Component.IsValid() && element.Component.Mesh is not null &&
+			element.IsValid() && element.Scene == Scene )
+		.Select( element => element.Component )
+		.Distinct()
+		.Where( component => component.Active && !component.GameObject.Tags.Has( "hidden" ) );
+
+	protected bool IsSelectableElement( IMeshElement element )
+	{
+		if ( element is null || !element.Component.IsValid() || element.Component.Mesh is null ||
+			!element.IsValid() || element.Scene != Scene || !element.Component.Active ||
+			element.Component.GameObject.Tags.Has( "hidden" ) )
+			return false;
+
+		var mesh = element.Component.Mesh;
+		return element switch
+		{
+			MeshVertex vertex => !mesh.IsVertexHidden( vertex.Handle ),
+			MeshEdge edge => !mesh.IsEdgeHidden( edge.Handle ),
+			MeshFace face => !mesh.IsFaceHidden( face.Handle ),
+			_ => false
+		};
+	}
+
+	public override void SelectAll()
+	{
+		ApplyElementSelection( GetAllSelectedElements(), KeyboardModifiers.Shift, "Select All" );
+	}
+
+	protected void ApplyElementSelection( IEnumerable<IMeshElement> elements, KeyboardModifiers modifiers, string title )
+	{
+		var candidates = elements.Where( IsSelectableElement ).Distinct().ToArray();
+		if ( candidates.Length == 0 )
+			return;
+
+		var add = modifiers.HasFlag( KeyboardModifiers.Shift );
+		var remove = modifiers.HasFlag( KeyboardModifiers.Ctrl );
+		if ( !remove && (add || Selection.Count == candidates.Length) && candidates.All( Selection.Contains ) )
+			return;
+		if ( remove && !add && !candidates.Any( Selection.Contains ) )
+			return;
+
+		using var scene = Scene.Push();
+		using var undo = Manager.CurrentSession.UndoScope( title ).Push();
+
+		if ( !add && !remove )
+			Selection.Clear();
+
+		foreach ( var element in candidates )
+		{
+			if ( add && remove && Gizmo.IsDoubleClicked && Equals( element, _lastToggleClickElement ) )
+				continue;
+
+			if ( remove && (!add || Selection.Contains( element )) )
+				Selection.Remove( element );
+			else
+				Selection.Add( element );
+		}
+	}
 
 	void UpdateMeshRenderFlags()
 	{
@@ -882,9 +960,11 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 			return;
 
 		var newSelection = GetAllSelectedElements()
+			.Where( IsSelectableElement )
 			.Except( Selection )
 			.ToArray();
 
+		using var undo = Manager.CurrentSession.UndoScope( "Invert Selection" ).Push();
 		Selection.Clear();
 
 		foreach ( var element in newSelection )
@@ -1121,7 +1201,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	private IEnumerable<IMeshElement> GetInvalidSelection()
 	{
 		foreach ( var selection in Selection.OfType<IMeshElement>()
-			.Where( x => !x.IsValid() || x.Scene != Scene ) )
+			.Where( x => !x.Component.IsValid() || x.Component.Mesh is null || !x.IsValid() || x.Scene != Scene ) )
 		{
 			yield return selection;
 		}
@@ -1136,63 +1216,52 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 	protected void Select( IMeshElement element )
 	{
-		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
-		{
-			using var scope = SceneEditorSession.Active
-				.UndoScope( "Update Selection" ).Push();
-
-			if ( Selection.Contains( element ) )
-			{
-				Selection.Remove( element );
-			}
-			else
-			{
-				Selection.Add( element );
-			}
-
-			return;
-		}
-		else if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
-		{
-			if ( !Selection.Contains( element ) )
-			{
-				using var scope = SceneEditorSession.Active
-					.UndoScope( "Update Selection" ).Push();
-
-				Selection.Add( element );
-			}
-
-			return;
-		}
-
-		if ( !Selection.Contains( element ) || Selection.Count != 1 )
-		{
-			using var scope = SceneEditorSession.Active
-				.UndoScope( "Update Selection" ).Push();
-
-			Selection.Set( element );
-		}
+		ApplyElementSelection( [element], Gizmo.KeyboardModifiers, "Update Selection" );
 	}
 
 	IDisposable _selectionUndoScope;
 	IMeshElement _pressedElement;
+	IMeshElement _lastToggleClickElement;
+
+	protected virtual bool OnDoubleClick( IMeshElement element ) => false;
+
+	void EndSelection()
+	{
+		_selectionUndoScope?.Dispose();
+		_selectionUndoScope = null;
+		_pressedElement = null;
+		_doubleClickSelection = false;
+		_paintedElements.Clear();
+	}
 
 	public void UpdateSelection( IMeshElement element )
 	{
 		if ( Tool?.MoveMode?.AllowSceneSelection == false )
 			return;
 
+		if ( Gizmo.IsDoubleClicked && OnDoubleClick( element ) )
+		{
+			_lastToggleClickElement = null;
+			_pressedElement = element;
+			_doubleClickSelection = true;
+			return;
+		}
+
 		if ( Gizmo.WasLeftMousePressed )
 		{
+			EndSelection();
 			_pressedElement = element;
+			_lastToggleClickElement = null;
+			_paintedElements.Add( element );
 
 			if ( element.IsValid() )
 			{
 				Select( element );
+				_lastToggleClickElement = Gizmo.IsCtrlPressed && Gizmo.IsShiftPressed ? element : null;
 			}
-			else if ( !IsMultiSelecting && Selection.Any() )
+			else if ( !Gizmo.IsShiftPressed && !Gizmo.IsCtrlPressed && Selection.Any() )
 			{
-				using var scope = SceneEditorSession.Active
+				using var scope = Manager.CurrentSession
 					.UndoScope( "Update Selection" ).Push();
 
 				Selection.Clear();
@@ -1203,14 +1272,14 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		if ( Gizmo.IsLeftMouseDown )
 		{
-			// The press already selected this one, painting over it again would just undo that
-			if ( element.IsValid() && !Equals( element, _pressedElement ) )
+			if ( _pressedElement is not null && !_doubleClickSelection && IsSelectableElement( element ) && _paintedElements.Add( element ) )
 			{
-				if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+				var remove = Gizmo.IsCtrlPressed && (!Gizmo.IsShiftPressed || Selection.Contains( element ));
+				if ( remove )
 				{
 					if ( Selection.Contains( element ) )
 					{
-						_selectionUndoScope ??= SceneEditorSession.Active
+						_selectionUndoScope ??= Manager.CurrentSession
 							.UndoScope( "Update Selection" ).Push();
 
 						Selection.Remove( element );
@@ -1220,20 +1289,14 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 				{
 					if ( !Selection.Contains( element ) )
 					{
-						_selectionUndoScope ??= SceneEditorSession.Active
+						_selectionUndoScope ??= Manager.CurrentSession
 							.UndoScope( "Update Selection" ).Push();
 
 						Selection.Add( element );
 					}
 				}
 			}
-
-			return;
 		}
-
-		_selectionUndoScope?.Dispose();
-		_selectionUndoScope = null;
-		_pressedElement = null;
 	}
 
 	protected override void OnStartDrag()

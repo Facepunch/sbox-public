@@ -42,6 +42,9 @@ public static partial class Gizmo
 				eventsProcessed = true;
 				ReadPointerEvents();
 			}
+			if ( usesPointerEvents )
+				current.Input.DoubleClick = MousePressed && pressed.Input.DoubleClick;
+
 			if ( HasReleaseInput )
 			{
 				current.Input.CursorPosition = releaseInput.CursorPosition;
@@ -74,6 +77,12 @@ public static partial class Gizmo
 
 				if ( next.LeftMouse )
 				{
+					while ( pointerEvents.TryPeek( out var duplicate ) && duplicate.LeftMouse )
+					{
+						pointerEvents.Dequeue();
+						next.DoubleClick |= duplicate.DoubleClick;
+					}
+
 					current.Input = next;
 					Pick();
 					cancelled = false;

@@ -73,9 +73,6 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		if ( canSelect )
 		{
 			SelectEdge( closestEdge );
-
-			if ( Gizmo.IsDoubleClicked )
-				SelectEdgeLoop();
 		}
 
 		UpdateMoveMode();
@@ -243,55 +240,41 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		}
 	}
 
-	private void SelectEdgeLoop()
+	protected override bool OnDoubleClick( IMeshElement element )
 	{
-		var targetEdge = MeshTrace.GetClosestEdge( 8 );
+		var targetEdge = element is MeshEdge target ? target : default;
 		if ( !targetEdge.IsValid() )
-			return;
+			return false;
 
-		var modifiers = Application.KeyboardModifiers;
+		var modifiers = Gizmo.KeyboardModifiers;
 		var shift = modifiers.HasFlag( KeyboardModifiers.Shift );
 		var ctrl = modifiers.HasFlag( KeyboardModifiers.Ctrl );
 
-		using var undoScope = SceneEditorSession.Active.UndoScope( "Select Edge Loop" ).Push();
-		if ( !shift && !ctrl )
-			Selection.Set( targetEdge );
-		else
-			Selection.Add( targetEdge );
-
-		var mesh = targetEdge.Component.Mesh;
-		var selected = Selection.OfType<MeshEdge>()
-			.Where( e => e.IsValid() && e.Component == targetEdge.Component )
-			.Select( e => e.Handle )
-			.Distinct()
-			.ToArray();
-
-		mesh.FindEdgeLoopForEdges( selected, out var loopEdges );
-		var singleLoop = loopEdges;
-		if ( shift || ctrl )
-			mesh.FindEdgeLoopForEdges( [targetEdge.Handle], out singleLoop );
-
-		var singleLoopEdges = singleLoop.ToHashSet();
-
-		foreach ( var edge in loopEdges )
+		if ( shift && !ctrl )
 		{
-			if ( !singleLoopEdges.Contains( edge ) && !singleLoopEdges.Contains( mesh.GetOppositeHalfEdge( edge ) ) )
-				continue;
-
-			var meshEdge = new MeshEdge( targetEdge.Component, edge );
-			if ( ctrl && (!shift || Selection.Contains( meshEdge )) )
-				Selection.Remove( meshEdge );
-			else
-				Selection.Add( meshEdge );
+			var start = Selection.OfType<MeshEdge>().LastOrDefault( edge =>
+				IsSelectableElement( edge ) && edge.Component == targetEdge.Component && !edge.Equals( targetEdge ) );
+			if ( start.IsValid() && FindShortestEdgePath( start, targetEdge ) is { Count: > 0 } path )
+			{
+				ApplyElementSelection( path.Cast<IMeshElement>(), modifiers, "Select Edge Path" );
+				return true;
+			}
 		}
+
+		targetEdge.Component.Mesh.FindEdgeLoopForEdges( [targetEdge.Handle], out var loopEdges );
+		ApplyElementSelection( loopEdges.Select( edge => (IMeshElement)new MeshEdge( targetEdge.Component, edge ) ),
+			modifiers, "Select Edge Loop" );
+		return true;
 	}
 
 	internal static List<MeshEdge> FindShortestEdgePath( MeshEdge start, MeshEdge end )
 	{
-		if ( start.Component != end.Component )
+		if ( !start.IsValid() || !end.IsValid() || start.Component != end.Component )
 			return null;
 
 		var mesh = start.Component.Mesh;
+		if ( mesh.IsEdgeHidden( start.Handle ) || mesh.IsEdgeHidden( end.Handle ) )
+			return null;
 		var queue = new Queue<HalfEdgeHandle>();
 		var visited = new HashSet<HalfEdgeHandle>();
 		var parent = new Dictionary<HalfEdgeHandle, HalfEdgeHandle>();
@@ -333,7 +316,7 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 
 			foreach ( var neighbor in edgesA.Concat( edgesB ) )
 			{
-				if ( neighbor.IsValid && !visited.Contains( neighbor ) )
+				if ( neighbor.IsValid && !mesh.IsEdgeHidden( neighbor ) && !visited.Contains( neighbor ) )
 				{
 					var oppositeNeighbor = mesh.GetOppositeHalfEdge( neighbor );
 					if ( !visited.Contains( oppositeNeighbor ) )
@@ -421,10 +404,8 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 
 	protected override IEnumerable<IMeshElement> GetAllSelectedElements()
 	{
-		foreach ( var group in Selection.OfType<MeshEdge>()
-			.GroupBy( x => x.Component ) )
+		foreach ( var component in SelectedMeshes )
 		{
-			var component = group.Key;
 			var mesh = component.Mesh;
 
 			foreach ( var hEdge in mesh.HalfEdgeHandles )
