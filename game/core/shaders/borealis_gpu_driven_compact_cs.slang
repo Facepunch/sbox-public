@@ -117,14 +117,23 @@ groupshared uint gs_Cursor;
 
 	GroupMemoryBarrierWithGroupSync();
 
+	// Four triangles a lane at a time, their index loads and then their mask loads issued together: the count waits on
+	// memory, not arithmetic
 	uint nMine = 0;
-	for ( uint t = nThread; t < nTriangles; t += 256 )
+	for ( uint t0 = nThread; t0 < nTriangles; t0 += 1024 )
 	{
-		uint i0;
-		nMine += Owned( page, vDraw.x, b32, nVertexBase, t, i0 ) ? 1 : 0;
+		uint4 vT = t0 + uint4( 0, 256, 512, 768 );
+		uint4 vIn = uint4( vT < nTriangles );
+		vT = min( vT, nTriangles - 1 ) * 3 + vDraw.x;
+		uint4 vBit = nVertexBase + uint4( LoadIndex( page, vT.x, b32 ), LoadIndex( page, vT.y, b32 ), LoadIndex( page, vT.z, b32 ), LoadIndex( page, vT.w, b32 ) );
+		uint4 vWords = uint4( g_Mask.Load( ( vBit.x >> 5 ) * 4 ), g_Mask.Load( ( vBit.y >> 5 ) * 4 ), g_Mask.Load( ( vBit.z >> 5 ) * 4 ), g_Mask.Load( ( vBit.w >> 5 ) * 4 ) );
+		uint4 vOwned = ( ( vWords >> ( vBit & 31 ) ) & 1 ) * vIn;
+		nMine += vOwned.x + vOwned.y + vOwned.z + vOwned.w;
 	}
 
-	InterlockedAdd( gs_Owned, nMine );
+	nMine = WaveActiveSum( nMine );
+	if ( WaveIsFirstLane() )
+		InterlockedAdd( gs_Owned, nMine );
 	GroupMemoryBarrierWithGroupSync();
 	uint nOwned = gs_Owned;
 	if ( nOwned == 0 )
