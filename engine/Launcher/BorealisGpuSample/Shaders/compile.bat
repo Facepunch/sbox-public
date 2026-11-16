@@ -13,4 +13,5 @@ for %%s in (triangle mesh) do (
 	"%DXC%" %FLAGS% -T ps_6_6 -E MainPs -Fo %%s.ps.spv %%s.hlsl || exit /b 1
 )
 "%DXC%" %FLAGS% -T cs_6_6 -E MainCs -Fo pattern.cs.spv pattern.hlsl || exit /b 1
+"%DXC%" %FLAGS% -T cs_6_6 -E MainCs -Fo slots.cs.spv slots.hlsl || exit /b 1
 echo Compiled

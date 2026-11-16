@@ -108,6 +108,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	BackendMaterial Track( BackendMaterial material )
 	{
 		material.Disposing = m => materialCache?.Invalidate( m );
+		material.Library = Shaders;
 		return material;
 	}
 
@@ -1130,6 +1131,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal override bool CullsAggregatesGpuDriven => DrawsAggregatesGpuDriven && GpuDrivenCulling;
 
 	internal override bool DrawsMeshesGpuDriven => GpuDrivenMeshes && DrawsAggregatesGpuDriven;
+
+	/// <summary>Its materials read their shaders' stencil state (<see cref="BackendMaterial.NeedsStencil"/>).</summary>
+	internal override bool KnowsStencilUse => true;
 
 	/// <summary>
 	/// Draw a map's static overlays GPU-driven (on by default; <c>-no-gpudriven-overlays</c> turns it off): those of one

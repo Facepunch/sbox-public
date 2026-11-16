@@ -29,6 +29,7 @@ public sealed class MeshObject : RenderObject
 			mesh = value;
 			LocalBounds = value?.Bounds ?? default;
 			WantsFrameBufferCopy = MaterialOverride is { } material ? RenderMesh.ReadsFrameBuffer( material ) : value?.ReadsFrameBufferCopy ?? false;
+			WantsStencil = MaterialOverride is { } stencilMaterial ? stencilMaterial.NeedsStencil : value?.NeedsStencil ?? false;
 			DrawChanged();
 		}
 	}
@@ -66,11 +67,18 @@ public sealed class MeshObject : RenderObject
 			OverrideTranslucent = RenderMesh.IsTranslucent( value );
 			OverrideAlphaTest = RenderMesh.IsAlphaTest( value );
 			WantsFrameBufferCopy = value is not null ? RenderMesh.ReadsFrameBuffer( value ) : mesh?.ReadsFrameBufferCopy ?? false;
+			WantsStencil = value is not null ? value.NeedsStencil : mesh?.NeedsStencil ?? false;
 			if ( !changed ) return;
 			ShadowChanged();
 			DrawChanged();
 		}
 	}
+
+	/// <summary>
+	/// Whether a material it draws with needs a stencil in the view's depth (<see cref="GpuMaterial.NeedsStencil"/>).
+	/// Recomputed when the mesh or material override changes.
+	/// </summary>
+	internal bool WantsStencil { get; private set; }
 
 	/// <summary>
 	/// Translucent draws need a frame copy and refraction depth (<c>SCENEOBJECTFLAG_WANTS_FRAMEBUFFER_COPY_TEXTURE</c>).
