@@ -45,6 +45,12 @@ public sealed unsafe partial class Device : IDisposable
 	/// <summary>Whether the validation layer is on.</summary>
 	public bool ValidationEnabled { get; }
 
+	/// <summary>
+	/// Whether <see cref="CommandList.SetBindings"/> binds the slot's last set again when the bindings are the same, rather
+	/// than writing another.
+	/// </summary>
+	public bool ReusesTransientSets { get; set; } = true;
+
 	/// <summary>Whether a Vulkan loader is installed, without creating anything.</summary>
 	public static bool IsSupported => VkLoader.IsAvailable;
 

@@ -172,23 +172,41 @@ struct DirectionalLightShadow
             return ssShadow;
 
 		float3 posLs;
-		int cascade = FindCascadeWithOffset( positionWithOffsetWs, posLs );
-		if ( cascade < 0 )
+		int want = FindCascadeWithOffset( positionWithOffsetWs, posLs );
+		if ( want < 0 )
 			return ssShadow;
 
-		// Sampled outside a loop: the filter inside the cascade loop cost lit shaders about 50 VGPRs
-		float visibility = SampleCascadeWithOffset( cascade, positionWithOffsetWs, normalWs, vPositionSs.xy );
-
-		// Near the edge, blend into the next cascade, or out to unshadowed past the last
-		float weight = CascadeBlendWeight( cascade, positionWithOffsetWs );
-		if ( weight < 1.0 )
+		// The cascades the wave's lanes want, one at a time, each wave-uniform: the cascade's matrix, bias and shadow map
+		// are scalar, the filter's taps need no loop over the lanes' shadow maps, and the filter is in the shader once. A
+		// lane near its cascade's edge wants the next one too, and blends into it, or out to unshadowed past the last.
+		// Not inside the unrolled search: the filter in there cost lit shaders about 50 VGPRs
+		float visibility = 1.0;
+		float weight = 1.0;
+		bool primary = true;
+		[loop]
+		for ( ;; )
 		{
-			int next = cascade + 1;
-			float nextVisibility = 1.0;
-			if ( next < (int)g_DirectionalLightCascadeCount )
-				nextVisibility = SampleCascadeWithOffset( next, positionWithOffsetWs, normalWs, vPositionSs.xy );
+			int cascade = WaveReadLaneFirst( want );
+			if ( cascade != want )
+				continue;
 
-			visibility = lerp( nextVisibility, visibility, weight );
+			float sampled = 1.0;
+			if ( cascade < (int)g_DirectionalLightCascadeCount )
+				sampled = SampleCascadeWithOffset( cascade, positionWithOffsetWs, normalWs, vPositionSs.xy );
+
+			if ( !primary )
+			{
+				visibility = lerp( sampled, visibility, weight );
+				break;
+			}
+
+			visibility = sampled;
+			weight = CascadeBlendWeight( cascade, positionWithOffsetWs );
+			if ( !( weight < 1.0 ) )
+				break;
+
+			primary = false;
+			want = cascade + 1;
 		}
 
 		return visibility * ssShadow;

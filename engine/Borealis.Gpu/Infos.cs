@@ -421,6 +421,11 @@ public struct Binding
 
 	/// <summary>A sampler.</summary>
 	public static Binding SamplerState( int slot, SamplerHandle sampler ) => new() { Slot = slot, Type = BindingType.Sampler, Sampler = sampler };
+
+	/// <summary>Whether it binds the same as <paramref name="other"/>, field for field.</summary>
+	internal readonly bool Same( in Binding other ) => Slot == other.Slot && ArrayElement == other.ArrayElement && Type == other.Type
+		&& Buffer == other.Buffer && Offset == other.Offset && Size == other.Size && Texture == other.Texture && View == other.View
+		&& Srgb == other.Srgb && Sampler == other.Sampler && Layout == other.Layout;
 }
 
 /// <summary>
