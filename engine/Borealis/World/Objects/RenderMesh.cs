@@ -241,6 +241,14 @@ public sealed class RenderMesh
 	/// </summary>
 	internal bool ReadsFrameBufferCopy => readsFrameBuffer ??= lods.Any( lod => lod.Any( draw => ReadsFrameBuffer( draw.Material ) ) );
 
+	bool? needsStencil;
+
+	/// <summary>
+	/// Whether any LOD draws with a material that needs a stencil (<see cref="GpuMaterial.NeedsStencil"/>). Cached on first
+	/// main-thread access.
+	/// </summary>
+	internal bool NeedsStencil => needsStencil ??= lods.Any( lod => lod.Any( draw => draw.Material is { NeedsStencil: true } ) );
+
 	/// <summary>
 	/// Model-free mesh for sorting and culling tests; cannot render.
 	/// </summary>

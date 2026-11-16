@@ -503,4 +503,26 @@ public class DeviceTests : GpuTest
 		Assert.IsTrue( grown < 31 * pixels.Length * 3 / 2, $"{grown >> 20} MB reserved for 124 MB of textures" );
 		foreach ( var texture in textures ) Device.Destroy( texture );
 	}
+
+	/// <summary>
+	/// A 1280x720 4x MSAA depth target, the game window's at 4x: without a stencil it takes less video memory than with one.
+	/// </summary>
+	[TestMethod]
+	public void DepthWithoutStencilTakesLessMemory()
+	{
+		var plain = Device.CreateTexture( TextureInfo.RenderTarget( 1280, 720, Format.D32Float, samples: 4, name: "D32" ) );
+		var stencil = Device.CreateTexture( TextureInfo.RenderTarget( 1280, 720, Format.D32FloatS8Uint, samples: 4, name: "D32S8" ) );
+		try
+		{
+			var plainBytes = (long)Device.Get( plain ).Memory.Size;
+			var stencilBytes = (long)Device.Get( stencil ).Memory.Size;
+			TestContext.WriteLine( $"1280x720 4x: D32Float {plainBytes / 1024.0 / 1024:F2} MiB, D32FloatS8Uint {stencilBytes / 1024.0 / 1024:F2} MiB" );
+			Assert.IsTrue( plainBytes < stencilBytes );
+		}
+		finally
+		{
+			Device.Destroy( plain );
+			Device.Destroy( stencil );
+		}
+	}
 }

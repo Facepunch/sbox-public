@@ -73,6 +73,7 @@ public sealed class GraphicsContext
 		Depth = default;
 		SrgbWrite = false;
 		Viewport = default;
+		dispatched.Clear();
 	}
 
 	/// <summary>The layout a texture is in at this point of the recording, as tracked.</summary>
@@ -85,6 +86,7 @@ public sealed class GraphicsContext
 	public void Forget( TextureHandle texture )
 	{
 		layouts.Remove( texture );
+		dispatched.Remove( texture );
 		foreach ( var key in mipViews.Keys.Where( k => k.Texture == texture ).ToArray() )
 		{
 			gpu.Destroy( mipViews[key] );
@@ -364,11 +366,20 @@ public sealed class GraphicsContext
 			else if ( resource.Kind == ShaderResourceKind.Texture && dispatchLayouts[texture] != ImageLayout.General ) dispatchLayouts[texture] = ImageLayout.ShaderRead;
 		}
 
-		foreach ( var (texture, layout) in dispatchLayouts ) Transition( texture, layout == ImageLayout.Undefined ? ImageLayout.General : layout );
+		foreach ( var (texture, layout) in dispatchLayouts )
+		{
+			Transition( texture, layout == ImageLayout.Undefined ? ImageLayout.General : layout );
+			if ( layout != ImageLayout.ShaderRead ) dispatched.Add( texture );
+		}
+
 		dispatchLayouts.Clear();
 	}
 
 	readonly Dictionary<TextureHandle, ImageLayout> dispatchLayouts = new();
+
+	// What dispatches left in General: a draw after them may sample them by bindless index (the terrain's normal map, baked
+	// then drawn in one block), which no attribute shows, so they're readable before it
+	readonly HashSet<TextureHandle> dispatched = new();
 
 	/// <summary>Copy bytes into a buffer in order with the rest of the list, visible to everything after it.</summary>
 	public void UpdateBuffer( BufferHandle buffer, ReadOnlySpan<byte> data, long offset )
@@ -684,6 +695,8 @@ public sealed class GraphicsContext
 		var variant = Depth.IsValid ? drawer.Variant( shader, attributes ) : null;
 		var depth = variant?.State is { } state && (state.DepthTest || state.DepthWrite) ? (state.DepthWrite ? DepthUse.Write : DepthUse.ReadOnly) : DepthUse.None;
 
+		if ( dispatched.Count > 0 ) ReadableAfterDispatches( attributes );
+
 		foreach ( var (name, value) in attributes.Values )
 		{
 			if ( value is not TextureHandle texture || Layout( texture ) == ImageLayout.ShaderRead ) continue;
@@ -714,6 +727,32 @@ public sealed class GraphicsContext
 		rendering = true;
 		scopeDepth = depth;
 		return depth == DepthUse.None ? Format.Unknown : gpu.InfoOf( Depth ).Format;
+	}
+
+	/// <summary>
+	/// Before a draw: what dispatches wrote goes to <see cref="ImageLayout.ShaderRead"/>, as a bindless descriptor samples it,
+	/// except what the draw binds itself (its attributes' textures take the layouts their bindings want).
+	/// </summary>
+	void ReadableAfterDispatches( ShaderAttributes attributes )
+	{
+		foreach ( var texture in dispatched )
+		{
+			if ( Layout( texture ) == ImageLayout.ShaderRead || Binds( attributes, texture ) ) continue;
+			EndScope();
+			Transition( texture, ImageLayout.ShaderRead );
+		}
+
+		dispatched.Clear();
+	}
+
+	static bool Binds( ShaderAttributes attributes, TextureHandle texture )
+	{
+		foreach ( var (_, value) in attributes.Values )
+		{
+			if ( value is TextureHandle bound && bound == texture ) return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>Whether a variant binds the texture set under <paramref name="name"/>.</summary>

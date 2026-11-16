@@ -116,6 +116,48 @@ public class GraphicsContextTests : GpuTest
 		Device.Destroy( indexBuffer );
 	}
 
+	/// <summary>
+	/// A texture a dispatch writes is readable when a draw after it in the block runs, though the draw doesn't bind it: the
+	/// terrain bakes its normal map and draws in one block, sampling the map by bindless index, which wants it in
+	/// <see cref="ImageLayout.ShaderRead"/> (it was left in <see cref="ImageLayout.General"/>).
+	/// </summary>
+	[TestMethod]
+	public void DispatchedTexturesAreReadableForTheNextDraw()
+	{
+		var bake = library.Load( "shaders/terrain/cs_terrain_normal.shader" );
+		if ( bake is null ) Assert.Inconclusive( "cs_terrain_normal isn't compiled" );
+
+		var list = Device.BeginCommandList( QueueType.Graphics, "Dispatch then draw" );
+		var context = new GraphicsContext( Device, drawer, list );
+		var storage = TextureUsage.Sampled | TextureUsage.Storage | TextureUsage.CopyDestination;
+		var height = Device.CreateTexture( TextureInfo.Texture2D( 16, 16, Format.R16Unorm, name: "Height" ) with { Usage = storage } );
+		var normals = Device.CreateTexture( TextureInfo.Texture2D( 16, 16, Format.RG16Unorm, name: "Normals" ) with { Usage = storage } );
+		var main = context.CreateTarget( Size, Size, Format.RGBA8Unorm, name: "Main" );
+		var layer = context.CreateTarget( 16, 16, Format.RGBA8Unorm, name: "Layer" );
+		context.Track( height, ImageLayout.Undefined );
+		context.Track( normals, ImageLayout.Undefined );
+
+		var attributes = new ShaderAttributes();
+		attributes.Set( "Heightmap", height );
+		attributes.Set( "OutputMap", normals );
+		attributes.Set( "HeightScale", 100.0f );
+		attributes.Set( "UnitsPerTexel", 1.0f );
+		Assert.IsTrue( context.Dispatch( bake, attributes, 2, 2, 1 ) );
+		Assert.AreEqual( ImageLayout.General, context.LayoutOf( normals ) );
+
+		context.SetTarget( layer );
+		context.Clear( new Vector4( 1, 1, 1, 1 ) );
+		context.SetTarget( main );
+		Assert.IsTrue( context.DrawQuad( library.Load( "shaders/ui_filter.shader" ), Composite( layer, 0, 0 ), new Vector4( 0, 0, 16, 16 ), 0xFFFFFFFF ) );
+		Assert.AreEqual( ImageLayout.ShaderRead, context.LayoutOf( normals ), "readable for the draw, which may sample it by bindless index" );
+		Assert.AreEqual( ImageLayout.ShaderRead, context.LayoutOf( height ) );
+
+		Finish( context, main );
+		context.Release();
+		Device.Destroy( height );
+		Device.Destroy( normals );
+	}
+
 	// The engine's Vertex, as VertexStreamLayout.EngineVertex lays it out
 	struct EngineVertex
 	{

@@ -641,6 +641,39 @@ public sealed class ShaderPipelineState
 	public bool Translucent => Blend.Length > 0 && Blend[0].Enable;
 #pragma warning restore CS1591
 
+	/// <summary>
+	/// Whether drawing with this state needs a stencil to be right: it can leave a stencil it starts as zero non-zero, or its
+	/// test fails against zero. A test that passes on zero and writes nothing (every standard material's, which skips VR's
+	/// checkerboard) draws the same into a depth target with no stencil, where the test is off.
+	/// </summary>
+	public bool NeedsStencil => StencilTest && (Matters( StencilFront ) || Matters( StencilBack ));
+
+	bool Matters( in StencilFace face )
+	{
+		var reference = (byte)StencilReference;
+		bool Writes( StencilOp op ) => StencilWriteMask != 0 && op switch
+		{
+			StencilOp.Replace => (reference & StencilWriteMask) != 0,
+			StencilOp.IncrementClamp or StencilOp.IncrementWrap or StencilOp.DecrementWrap or StencilOp.Invert => true,
+			_ => false,
+		};
+
+		// Vulkan compares the masked reference with the masked stencil, here zero
+		var masked = reference & StencilReadMask;
+		var passesOnZero = face.Compare switch
+		{
+			CompareFunction.Never => false,
+			CompareFunction.Less => false,
+			CompareFunction.Equal => masked == 0,
+			CompareFunction.LessEqual => masked == 0,
+			CompareFunction.Greater => masked != 0,
+			CompareFunction.NotEqual => masked != 0,
+			_ => true,
+		};
+
+		return !passesOnZero || Writes( face.Pass ) || Writes( face.Fail ) || Writes( face.DepthFail );
+	}
+
 	internal static ShaderPipelineState Resolve( ShaderStage pixel )
 	{
 		var fixedState = pixel?.Dynamic.RenderState;

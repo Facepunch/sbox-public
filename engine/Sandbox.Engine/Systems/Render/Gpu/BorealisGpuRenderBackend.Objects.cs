@@ -101,6 +101,37 @@ internal sealed partial class BorealisGpuRenderBackend
 		}
 	}
 
+	readonly ConditionalWeakTable<Material, System.Runtime.CompilerServices.StrongBox<bool>> stencilMaterials = new();
+
+	/// <summary>
+	/// Whether a draw with <paramref name="material"/> through the engine's graphics context (its shader's first mode, its
+	/// file's features) needs a stencil in the depth it draws into (<see cref="ShaderPipelineState.NeedsStencil"/>): a dynamic
+	/// object's, known before the frame records. Read once per material.
+	/// </summary>
+	internal bool NeedsStencil( Material material )
+	{
+		if ( material is null ) return false;
+		if ( stencilMaterials.TryGetValue( material, out var known ) ) return known.Value;
+
+		var needs = false;
+		try
+		{
+			if ( ShaderOf( material ) is { Modes.Count: > 0 } shader )
+			{
+				var file = MaterialValues ? MaterialFile( material ) : null;
+				var features = file is not null && ReferenceEquals( file.Shader, shader ) ? file.Features : [];
+				needs = services.Shaders.Variant( shader, shader.Modes[0].Name, features )?.State.NeedsStencil == true;
+			}
+		}
+		catch ( System.IO.InvalidDataException )
+		{
+			// A combo that wasn't compiled doesn't draw
+		}
+
+		stencilMaterials.AddOrUpdate( material, new System.Runtime.CompilerServices.StrongBox<bool>( needs ) );
+		return needs;
+	}
+
 	/// <summary>
 	/// A model's draws with their triangles' vertices one after another, in the model's own vertex layout: what a module that
 	/// expands triangles reads (each triangle's corners as one instance's streams), made the first time a draw is drawn

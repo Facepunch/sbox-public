@@ -172,8 +172,12 @@ public class PassModuleTests : GpuTest
 		var lineRows = Enumerable.Range( 0, Size ).Where( y => Pixel( pixels, Size, 24, y ).A > 0 ).ToList();
 		var segmentRows = Enumerable.Range( 0, Size ).Where( y => Pixel( pixels, Size, 40, y ).A > 0 ).ToList();
 		TestContext.WriteLine( $"rows at x 24: {string.Join( ',', lineRows )}; at x 40: {string.Join( ',', segmentRows )}" );
-		Assert.AreEqual( 10, lineRows.Count, "two lines, five pixels thick each, cross x 24" );
-		Assert.AreEqual( 10, segmentRows.Count, "the list's line and the strip's second segment cross x 40" );
+
+		// Lines fade over a pixel at their edges: what they cover down a column adds up to their thickness
+		float Covered( int x ) => Enumerable.Range( 0, Size ).Sum( y => Pixel( pixels, Size, x, y ).R / 255f );
+		Assert.AreEqual( 10, Covered( 24 ), 0.25f, "two lines, five pixels thick each, cross x 24" );
+		Assert.AreEqual( 10, Covered( 40 ), 0.25f, "the list's line and the strip's second segment cross x 40" );
+		Assert.IsTrue( Enumerable.Range( 0, Size ).Any( y => Pixel( pixels, Size, 24, y ).R is > 0 and < 255 ), "edges partly covered: antialiased without multisampling" );
 		Assert.AreEqual( 0, Pixel( pixels, Size, 8, 48 ).A, "nothing past the lines' ends" );
 
 		// The point's quad: 8 by 8 pixels round (48, 8 or 56)
@@ -262,7 +266,7 @@ public class PassModuleTests : GpuTest
 		// rows 16 and 8 from one edge or the other)
 		var rows = Enumerable.Range( 0, Size ).Where( y => Pixel( pixels, Size, 32, y ).A > 0 ).ToList();
 		TestContext.WriteLine( $"rows at x 32: {string.Join( ',', rows )}" );
-		Assert.AreEqual( 6, rows.Count, "two lines, three pixels thick each" );
+		Assert.AreEqual( 6, rows.Sum( y => Pixel( pixels, Size, 32, y ).R / 255f ), 0.25f, "two lines, three pixels thick each" );
 		var identityRows = Enumerable.Range( 0, Size ).Where( y => new[] { 8, 16, Size - 16, Size - 8 }.Any( r => Math.Abs( y + 0.5f - r ) < 3 ) ).ToList();
 		Assert.IsFalse( rows.Any( identityRows.Contains ), $"no line where the identity would put it ({string.Join( ',', identityRows )})" );
 	}
@@ -270,8 +274,8 @@ public class PassModuleTests : GpuTest
 	/// <summary>
 	/// ObjectHighlight's outline drawn from a model's vertices laid out one triangle after another (what Borealis.Gpu draws a
 	/// highlighted model with): each corner of the expanded triangle reads its own place in the vertex cache (the skinned
-	/// citizen's path, <c>TEXCOORD15</c> held again as <c>TEXCOORD3</c>) and its own bone, not the first corner's. With a
-	/// line width of nothing the outline is the triangle itself.
+	/// citizen's path, <c>TEXCOORD15</c> held again as <c>TEXCOORD3</c>) and its own bone, not the first corner's. With no
+	/// stencil the outline is a band two pixels round each of the triangle's edges.
 	/// </summary>
 	[TestMethod]
 	public void HighlightOutlineCornersReadTheirOwnVertices()
@@ -355,7 +359,8 @@ public class PassModuleTests : GpuTest
 			attributes.SetCombo( "D_CS_VERTEX_ANIMATION", cache );
 			attributes.Set( "Color", 1, 1, 1, 1 );
 			attributes.Set( "ObscuredColor", 1, 1, 1, 1 );
-			attributes.Set( "LineWidth", 0.0f );
+			// Two pixels: LineWidth / 64 of the normalized inverse viewport size, in projection space
+			attributes.Set( "LineWidth", 2.0f * 64 * MathF.Sqrt( 2 ) / Size );
 
 			var color = Device.CreateTexture( TextureInfo.RenderTarget( Size, Size, Format.RGBA8Unorm, name: name ) );
 			var list = Device.BeginCommandList( QueueType.Graphics, name );
@@ -384,13 +389,38 @@ public class PassModuleTests : GpuTest
 				}
 			}
 
-			// The triangle covers about 0.5 * 19.2 * 38.4 = 369 pixels
+			// The triangle's edges, about 19 + 2 * 40 pixels long, with a band of 2.5 pixels each side round them
 			TestContext.WriteLine( $"{what}: {rightHalf} pixels in the right half, {left} in the left" );
 			Assert.AreEqual( 0, left, $"every corner {what}: nothing in the left half" );
-			Assert.IsTrue( rightHalf is > 300 and < 440, $"the whole triangle {what} ({rightHalf} pixels)" );
+			Assert.IsTrue( rightHalf > 300, $"round the whole triangle {what} ({rightHalf} pixels)" );
+			Assert.AreEqual( 0, Pixel( pixels, Size, 48, 32 ).A, $"a band round its edges, not the triangle filled {what}" );
 		}
 
 		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+	}
+
+	/// <summary>
+	/// Which shaders' draws need a stencil in the depth they draw into (<see cref="ShaderPipelineState.NeedsStencil"/>): not a
+	/// standard material's (its test passes on zero and it writes nothing), nor gizmo_line's (it writes zero); tools_solid's
+	/// (it writes one) and the highlight's inside pass (it writes one).
+	/// </summary>
+	[TestMethod]
+	public void StencilNeedsFollowTheShaders()
+	{
+		using var backend = new BackendDevice( Device );
+		bool Needs( string path, int outlinePass = 0 )
+		{
+			var shader = backend.Shaders.Load( path );
+			if ( shader is null ) Assert.Inconclusive( $"{path} isn't compiled" );
+			var variant = backend.Shaders.Variant( shader, shader.Modes[0].Name, [], name => name == "D_OUTLINE_PASS" ? outlinePass : null );
+			Assert.IsNotNull( variant, path );
+			return variant.State.NeedsStencil;
+		}
+
+		Assert.IsFalse( Needs( "shaders/complex.shader" ), "complex: tests NOT_EQUAL 3 against bit 0, writes nothing" );
+		Assert.IsFalse( Needs( "shaders/gizmo/gizmo_line.shader" ), "gizmo_line writes zero" );
+		Assert.IsTrue( Needs( "shaders/tools_solid.shader" ), "tools_solid writes one" );
+		Assert.IsTrue( Needs( "shaders/postprocess/ObjectHighlight/ObjectHighlight.shader" ), "the highlight's inside pass writes one" );
 	}
 
 	/// <summary>Each module's variants against its compiled shader's: the same bindings, constants, inputs and render state.</summary>
