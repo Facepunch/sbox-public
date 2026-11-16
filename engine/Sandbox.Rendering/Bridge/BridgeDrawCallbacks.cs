@@ -23,7 +23,7 @@ internal sealed class BridgeDrawCallbacks : DrawCallbacks
 		{
 			var layerType = (SceneLayerType)layer.LayerType;
 			if ( view.IsShadow || layer.Depth || layerType is not (SceneLayerType.Opaque or SceneLayerType.Translucent) ) return;
-			BorealisGpuCustomDraw.Draw( context, layerType, view.View, after ? Source.ExecuteAfter : Source.ExecuteBefore );
+			RenderOnGpu( context, layerType, view.View, after );
 			return;
 		}
 
@@ -33,5 +33,49 @@ internal sealed class BridgeDrawCallbacks : DrawCallbacks
 			if ( after ) Source.ExecuteAfter();
 			else Source.ExecuteBefore();
 		}
+	}
+
+	// What the block's attributes held before a command list ran, and the context it ran for; callbacks run on the main thread
+	static readonly Dictionary<uint, object> valuesBefore = new();
+	static readonly Dictionary<uint, int> combosBefore = new();
+	static GpuContext running;
+	Action runBefore, runAfter;
+
+	/// <summary>
+	/// The command list in a block on the list <paramref name="context"/> records, then what it set on the block's attributes
+	/// set on the context's own, for the object's draws after it: on Source 2 a command list writes the layer context's
+	/// attributes, which those draws read (a water body's refraction texture and viewport).
+	/// </summary>
+	void RenderOnGpu( GpuContext context, SceneLayerType layerType, RenderView camera, bool after )
+	{
+		var run = after ? runAfter ??= () => Run( Source.ExecuteAfter ) : runBefore ??= () => Run( Source.ExecuteBefore );
+		var previous = running;
+		running = context;
+		try
+		{
+			BorealisGpuCustomDraw.Draw( context, layerType, camera, run );
+		}
+		finally
+		{
+			running = previous;
+		}
+	}
+
+	static void Run( Action commands )
+	{
+		var attributes = Graphics.Attributes.Managed;
+		if ( attributes is null )
+		{
+			commands();
+			return;
+		}
+
+		valuesBefore.Clear();
+		combosBefore.Clear();
+		foreach ( var (token, value) in attributes.Values ) valuesBefore[token] = value;
+		foreach ( var (token, value) in attributes.Combos ) combosBefore[token] = value;
+
+		commands();
+		if ( running is { } context ) MirrorContent.SetChanged( attributes, valuesBefore, combosBefore, context.Attributes );
 	}
 }

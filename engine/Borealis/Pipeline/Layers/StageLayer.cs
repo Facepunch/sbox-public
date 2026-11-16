@@ -125,14 +125,23 @@ internal sealed class OutputFlipLayer : RenderLayer
 	static readonly StringToken SrgbTransferCombo = new( "D_SRGB_TRANSFER" );
 
 	static GpuMaterial material;
+	static GpuDevice materialDevice;
 
 	public OutputFlipLayer() : base( "Output Flip" ) { }
 
 	/// <summary>
-	/// Make the copy's material, on the main thread before any frame records (<see cref="RenderSystem.WarmUp"/>): the engine
-	/// makes no materials while a frame draws, and a flipped child view (a reflection) records inside its parent's frame.
+	/// Make the copy's material on the device rendering, on the main thread before any frame records
+	/// (<see cref="RenderSystem.WarmUp"/>): the engine makes no materials while a frame draws, and a flipped child view (a
+	/// reflection) records inside its parent's frame.
 	/// </summary>
-	internal static void WarmUp() => material ??= RenderHost.Current.Device.MaterialFromShader( "shaders/copytexture.shader" );
+	internal static void WarmUp()
+	{
+		var device = RenderHost.Current.Device;
+		if ( material is not null && materialDevice == device ) return;
+
+		material = device.MaterialFromShader( "shaders/copytexture.shader" );
+		materialDevice = device;
+	}
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.Output.FlipInto is not null;
 

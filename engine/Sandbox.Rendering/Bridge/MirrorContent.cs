@@ -78,13 +78,81 @@ internal static class MirrorContent
 	{
 		if ( Gpu is not { } gpu ) return Source2Texture.From( texture );
 
-		var path = texture?.ResourcePath;
+		if ( texture is null ) return null;
+
+		// A view rendered for it on this device (a water body's refraction) drew into Borealis's own texture (a render
+		// target's path is its name, with no file behind it)
+		if ( captures.TryGetValue( texture, out var capture ) && capture.Texture is { IsValid: true } drawn ) return drawn;
+
+		var path = texture.ResourcePath;
 		if ( !string.IsNullOrEmpty( path ) ) return gpu.LoadTexture( path );
 
 		// A material's texture (a sky's cubemap for fog and sky lighting) is the material's, read by its path
-		return texture is not null && Sandbox.Texture.MaterialOrigins.TryGetValue( texture, out var origin ) && origin is Sandbox.Texture.MaterialOrigin o
+		return Sandbox.Texture.MaterialOrigins.TryGetValue( texture, out var origin ) && origin is Sandbox.Texture.MaterialOrigin o
 			? gpu.MaterialTexture( o.Material, o.Parameter )
 			: null;
+	}
+
+	sealed class Capture
+	{
+		public GpuTexture Texture;
+	}
+
+	static readonly ConditionalWeakTable<Texture, Capture> captures = new();
+
+	/// <summary>
+	/// Note that a view rendered on a Borealis.Gpu device for <paramref name="texture"/> (an engine render target a command
+	/// list's view asked for) drew into <paramref name="drawn"/>, a texture of Borealis's: what Borealis's draws read for the
+	/// engine texture from then on.
+	/// </summary>
+	public static void SetCapture( Texture texture, GpuTexture drawn ) => captures.GetOrCreateValue( texture ).Texture = drawn;
+
+	/// <summary>
+	/// Set on <paramref name="into"/> what <paramref name="attributes"/> holds that differs from <paramref name="before"/> and
+	/// <paramref name="beforeCombos"/> (its values and combos taken earlier): what a command list set meanwhile. Numbers,
+	/// vectors, matrices, combos and the textures Borealis can read carry over.
+	/// </summary>
+	public static void SetChanged( ManagedRenderAttributes attributes, Dictionary<uint, object> before, Dictionary<uint, int> beforeCombos, ShaderParameters into )
+	{
+		foreach ( var (token, value) in attributes.Values )
+		{
+			if ( before.TryGetValue( token, out var old ) && ReferenceEquals( old, value ) ) continue;
+			Set( into, new StringToken( token ), value );
+		}
+
+		foreach ( var (token, value) in attributes.Combos )
+		{
+			if ( beforeCombos.TryGetValue( token, out var old ) && old == value ) continue;
+			into.SetCombo( new StringToken( token ), value );
+		}
+	}
+
+	/// <summary>
+	/// A view's own attributes with a managed store (a planar reflection published for it) written into
+	/// <paramref name="parameters"/> on a Borealis.Gpu device, made the first time: what was there before is cleared.
+	/// </summary>
+	public static ShaderParameters ViewParameters( RenderAttributes attributes, ref ShaderParameters parameters )
+	{
+		if ( Gpu is not { } gpu || attributes?.Managed is not { } managed ) return null;
+
+		parameters ??= gpu.CreateParameters();
+		parameters.Clear();
+		foreach ( var (token, value) in managed.Values ) Set( parameters, new StringToken( token ), value );
+		foreach ( var (token, value) in managed.Combos ) parameters.SetCombo( new StringToken( token ), value );
+		return parameters;
+	}
+
+	static void Set( ShaderParameters parameters, StringToken name, object value )
+	{
+		switch ( value )
+		{
+			case float[] { Length: 1 } f: parameters.Set( name, f[0] ); break;
+			case float[] { Length: 2 } f: parameters.Set( name, new Vector2( f[0], f[1] ) ); break;
+			case float[] { Length: 3 } f: parameters.Set( name, new Vector3( f[0], f[1], f[2] ) ); break;
+			case float[] { Length: 4 } f: parameters.Set( name, new Vector4( f[0], f[1], f[2], f[3] ) ); break;
+			case float[] { Length: 16 } f: parameters.Set( name, MemoryMarshal.Read<Matrix>( MemoryMarshal.AsBytes( f.AsSpan() ) ) ); break;
+			case ManagedRenderAttributes.TextureValue t when Texture( t.Texture ) is { } texture: parameters.Set( name, texture, t.Mip ); break;
+		}
 	}
 
 	/// <summary>
@@ -101,19 +169,7 @@ internal static class MirrorContent
 		if ( converted.Parameters is not null && converted.Version == shadow.Version ) return converted.Parameters;
 
 		var parameters = gpu.CreateParameters();
-		foreach ( var (token, value) in shadow.Values )
-		{
-			var name = new StringToken( token );
-			switch ( value )
-			{
-				case float[] { Length: 1 } f: parameters.Set( name, f[0] ); break;
-				case float[] { Length: 2 } f: parameters.Set( name, new Vector2( f[0], f[1] ) ); break;
-				case float[] { Length: 3 } f: parameters.Set( name, new Vector3( f[0], f[1], f[2] ) ); break;
-				case float[] { Length: 4 } f: parameters.Set( name, new Vector4( f[0], f[1], f[2], f[3] ) ); break;
-				case float[] { Length: 16 } f: parameters.Set( name, MemoryMarshal.Read<Matrix>( MemoryMarshal.AsBytes( f.AsSpan() ) ) ); break;
-				case ManagedRenderAttributes.TextureValue t when Texture( t.Texture ) is { } texture: parameters.Set( name, texture, t.Mip ); break;
-			}
-		}
+		foreach ( var (token, value) in shadow.Values ) Set( parameters, new StringToken( token ), value );
 
 		foreach ( var (token, value) in shadow.Combos ) parameters.SetCombo( new StringToken( token ), value );
 		converted.Parameters = parameters;

@@ -272,6 +272,18 @@ internal sealed class BackendParameters : ShaderParameters
 		Parent?.Names( values, combosSet );
 	}
 
+	/// <summary>The textures set here (not a parent's), into <paramref name="into"/>.</summary>
+	internal void TexturesInto( List<BackendTexture> into )
+	{
+		lock ( gate )
+		{
+			for ( int i = 0; i < values.Slots; i++ )
+			{
+				if ( values.At( i, out _, out var value ) && value is BackendTexture texture ) into.Add( texture );
+			}
+		}
+	}
+
 	public override void MergeTo( ShaderParameters target )
 	{
 		var into = (BackendParameters)target;
