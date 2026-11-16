@@ -16,7 +16,8 @@ namespace Sandbox.BorealisLab.Maps;
 /// (<c>maps/name/world.scene</c>) or of a prefab it instances, drawn as the component draws it. Its surface is the
 /// component's clipmap (<c>WaterBody.SelectClipmap</c>, <c>BuildClipmap</c> and <c>BuildUnderside</c>) chosen for the view,
 /// with the material's water shader and the attributes the component sets: the surface frame, waves, the clipmap, the sky
-/// it reflects. Its refraction is a view of the world without the water, through the material's water fog, rendered
+/// it reflects. Its refraction is a view of the world below the surface (an oblique projection clips and culls what's
+/// above), without the water, through the material's water fog, rendered
 /// before the frame while the water is in view (<c>WaterBody.AddRefractionCapture</c>). Prefab instance patches,
 /// caustics, overlays and the underwater effects aren't applied.
 /// </summary>
@@ -128,7 +129,8 @@ internal sealed partial class MapWorld
 		probe.Viewport = view.Viewport;
 		probe.Update();
 
-		var now = view.Time ?? (float)waterClock.Elapsed.TotalSeconds;
+		// The frame's shader time, which the water's clocks run on as the component's run on the game's
+		var now = view.Time ?? GpuContext.RenderTime;
 		foreach ( var water in waters ) water.Update( view.Position, now, probe.Frustum );
 		foreach ( var water in waters )
 		{
@@ -138,7 +140,6 @@ internal sealed partial class MapWorld
 
 	RenderView waterCullView;
 	RenderSystem waterRefractionSystem;
-	readonly global::System.Diagnostics.Stopwatch waterClock = global::System.Diagnostics.Stopwatch.StartNew();
 
 	void DisposeWater()
 	{
@@ -370,8 +371,8 @@ internal sealed partial class MapWorld
 		}
 
 		/// <summary>
-		/// <c>WaterBody.AddRefractionCapture</c> from above: the world without the water from the view's camera, through the
-		/// material's water fog (cleared to its colour), into a full size float target the surface samples. A material
+		/// <c>WaterBody.AddRefractionCapture</c>: the world below the surface without the water, from the view's camera, through
+		/// the material's water fog (cleared to its colour), into a full size float target the surface samples. A material
 		/// that covers what's behind it (opacity 1) needs none.
 		/// </summary>
 		public void RenderRefraction( RenderView view, RenderSystem system, RenderSystem main )
@@ -401,6 +402,20 @@ internal sealed partial class MapWorld
 			capture.Viewport = new Rect( 0, 0, size.x, size.y );
 			capture.Fog = fog;
 			capture.ClearColor = fog?.Color ?? view.ClearColor;
+
+			// CommandList.DrawRefraction: an oblique projection whose near plane is the surface (lifted over the waves), so
+			// what's above the water is clipped and culled; a camera at the surface keeps its own projection
+			float rise = waves ? waveHeight : 0;
+			var normal = rotation.Up;
+			var height = Vector3.Dot( view.Position - origin, normal );
+			capture.Projection = null;
+			if ( MathF.Abs( height ) > MathF.Max( 0.5f, rise ) + view.ZNear * 2 )
+			{
+				if ( height < 0 ) normal = -normal;
+				var eye = new Transform( view.Position, view.Rotation );
+				var projection = Matrix.CreateProjection( view.ZNear, view.ZFar, view.FieldOfView, size.x / (float)size.y );
+				capture.Projection = Matrix.CreateObliqueProjection( eye, new Plane( origin + normal * (rise + 0.125f), -normal ), projection );
+			}
 
 			system.ParallelRecording = main.ParallelRecording;
 			system.DepthPrepass = main.DepthPrepass;
