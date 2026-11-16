@@ -182,6 +182,33 @@ public class PassModuleTests : GpuTest
 		Assert.AreEqual( 8, Columns( spriteRows[0], 40, Size ), "a point eight pixels wide" );
 	}
 
+	/// <summary>
+	/// A material's compiled values reach the constants of draws of its shader (<see cref="ShaderDrawer.Material"/>), as
+	/// native binds a material's mode: gizmo_line's <c>g_DepthBiasAmount</c>, a material variable, is the material's, and the
+	/// shader's default without one.
+	/// </summary>
+	[TestMethod]
+	public void MaterialValuesReachConstants()
+	{
+		using var backend = new BackendDevice( Device );
+		using var drawer = new ShaderDrawer( backend );
+		var line = backend.Shaders.Load( "shaders/gizmo/gizmo_line.shader" );
+		if ( line is null ) Assert.Inconclusive( "gizmo_line isn't compiled" );
+
+		var attributes = new ShaderAttributes();
+		var stage = drawer.Variant( line, attributes ).Vertex;
+		var (_, offset) = stage.MaterialConstants.First( c => c.Variable.Name == "g_DepthBiasAmount" );
+		var data = new byte[stage.MaterialBuffer.Size];
+
+		drawer.WriteConstants( data, stage, attributes, default );
+		Assert.AreEqual( 0f, BitConverter.ToSingle( data, offset ), "the shader's default without a material" );
+
+		drawer.Material = new BackendMaterial( "test", line, null, null, new Dictionary<string, float[]>( StringComparer.OrdinalIgnoreCase ) { ["g_DepthBiasAmount"] = [0.25f] } );
+		drawer.WriteConstants( data, stage, attributes, default );
+		Assert.AreEqual( 0.25f, BitConverter.ToSingle( data, offset ), "the material's value" );
+
+	}
+
 	/// <summary>Each module's variants against its compiled shader's: the same bindings, constants, inputs and render state.</summary>
 	[TestMethod]
 	public void PassModulesMatchTheirShaders()

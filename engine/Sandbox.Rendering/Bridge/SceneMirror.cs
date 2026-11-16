@@ -807,7 +807,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			return;
 		}
 
-		mesh.Attributes = MirrorContent.Parameters( SharedAttributes( mesh, attributes, native ) );
+		mesh.Attributes = MirrorContent.ObjectParameters( SharedAttributes( mesh, attributes, native ) );
 	}
 
 	// The attribute set each object draws with, someone's own whose values are the same as its own, and the sets lately shared
