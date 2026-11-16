@@ -36,9 +36,20 @@ public sealed class GraphicsContext
 
 	/// <summary>
 	/// The depth target bound with it, or default. A draw whose shader tests or writes depth gets it in its scope (read-only
-	/// when it only tests); others draw without it.
+	/// when it only tests); others draw without it. Bound with no colour target, every draw's scope has it: drawing into
+	/// depth alone, as a shadow map or a depth prepass is drawn.
 	/// </summary>
 	public TextureHandle Depth { get; private set; }
+
+	/// <summary>The array layer or cube face of <see cref="Depth"/> drawn to: a shadow map's slice.</summary>
+	public int DepthSlice { get; private set; }
+
+	/// <summary>
+	/// The shader mode draws ask for by name (<c>Depth</c> in a shadow map or a prepass), as a native layer's mode: a shader
+	/// without it doesn't draw, as native skips a material with no such mode. Null (the default) draws each shader's first
+	/// mode.
+	/// </summary>
+	public string Mode { get; set; }
 
 	// The open scope's depth: none, read-only or written
 	enum DepthUse { None, ReadOnly, Write }
@@ -71,6 +82,7 @@ public sealed class GraphicsContext
 		rendering = false;
 		Target = default;
 		Depth = default;
+		DepthSlice = 0;
 		SrgbWrite = false;
 		Viewport = default;
 		dispatched.Clear();
@@ -126,30 +138,39 @@ public sealed class GraphicsContext
 	/// <paramref name="srgb"/> and its format has one: the hardware encodes what's drawn, as a Source 2 target with sRGB
 	/// writes does.
 	/// </summary>
-	public void SetTarget( TextureHandle texture, TextureHandle depth, bool srgb )
+	public void SetTarget( TextureHandle texture, TextureHandle depth, bool srgb ) => SetTarget( texture, depth, srgb, 0 );
+
+	/// <summary>
+	/// <see cref="SetTarget(TextureHandle, TextureHandle, bool)"/>, drawing into layer <paramref name="depthSlice"/> of the
+	/// depth. <paramref name="texture"/> may be default with a depth: drawing into depth alone, the viewport covering it.
+	/// </summary>
+	public void SetTarget( TextureHandle texture, TextureHandle depth, bool srgb, int depthSlice )
 	{
-		srgb = srgb && gpu.InfoOf( texture ).Format.HasSrgb();
-		if ( Target == texture && Depth == depth && SrgbWrite == srgb ) return;
+		if ( !texture.IsValid && !depth.IsValid ) throw new ArgumentException( "Neither a colour nor a depth target" );
+		srgb = srgb && texture.IsValid && gpu.InfoOf( texture ).Format.HasSrgb();
+		if ( Target == texture && Depth == depth && SrgbWrite == srgb && DepthSlice == depthSlice ) return;
 		EndScope();
 		Target = texture;
 		Depth = depth;
+		DepthSlice = depthSlice;
 		SrgbWrite = srgb;
-		var info = gpu.InfoOf( texture );
+		var info = gpu.InfoOf( texture.IsValid ? texture : depth );
 		Viewport = new Num.Vector4( 0, 0, info.Width, info.Height );
 	}
 
 	/// <summary>Whether the colour target is written through its sRGB view (<see cref="SetTarget(TextureHandle, TextureHandle, bool)"/>).</summary>
 	public bool SrgbWrite { get; private set; }
 
-	/// <summary>The colour target's format as drawing sees it: its sRGB twin while <see cref="SrgbWrite"/>.</summary>
-	Format TargetFormat => SrgbWrite ? gpu.InfoOf( Target ).Format.Srgb() : gpu.InfoOf( Target ).Format;
+	/// <summary>The colour target's format as drawing sees it: its sRGB twin while <see cref="SrgbWrite"/>; none for depth alone.</summary>
+	Format TargetFormat => !Target.IsValid ? Format.Unknown : SrgbWrite ? gpu.InfoOf( Target ).Format.Srgb() : gpu.InfoOf( Target ).Format;
 
-	/// <summary>The colour target's samples: a multisampled frame's when drawing inside one (a camera's stage).</summary>
-	int TargetSamples => gpu.InfoOf( Target ).Samples;
+	/// <summary>The targets' samples: a multisampled frame's when drawing inside one (a camera's stage).</summary>
+	int TargetSamples => gpu.InfoOf( Target.IsValid ? Target : Depth ).Samples;
 
-	/// <summary>Fill the whole target with <paramref name="color"/>.</summary>
+	/// <summary>Fill the whole target with <paramref name="color"/>. Nothing with depth alone bound.</summary>
 	public void Clear( Num.Vector4 color )
 	{
+		if ( !Target.IsValid ) return;
 		EndScope();
 		TransitionForWrite( Target, ImageLayout.CopyDestination );
 		List.ClearTexture( Target, color );
@@ -161,11 +182,16 @@ public sealed class GraphicsContext
 	/// </summary>
 	public void ClearDepth()
 	{
-		if ( !Depth.IsValid || !Target.IsValid ) return;
+		if ( !Depth.IsValid ) return;
 		EndScope();
 		TransitionForWrite( Depth, ImageLayout.DepthTarget );
-		Transition( Target, ImageLayout.ColorTarget );
-		List.BeginRendering( [new ColorTarget { Texture = Target, Load = LoadOp.Load, Store = StoreOp.Store, Srgb = SrgbWrite }], new DepthTarget { Texture = Depth, Load = LoadOp.Clear, Store = StoreOp.Store } );
+		var depth = new DepthTarget { Texture = Depth, Layer = DepthSlice, Load = LoadOp.Clear, Store = StoreOp.Store };
+		if ( Target.IsValid )
+		{
+			Transition( Target, ImageLayout.ColorTarget );
+			List.BeginRendering( [new ColorTarget { Texture = Target, Load = LoadOp.Load, Store = StoreOp.Store, Srgb = SrgbWrite }], depth );
+		}
+		else List.BeginRendering( [], depth );
 		List.EndRendering();
 	}
 
@@ -187,9 +213,10 @@ public sealed class GraphicsContext
 	/// <summary>Draw <paramref name="instances"/> instances of <paramref name="indexCount"/> 32-bit indices into the target.</summary>
 	public bool DrawIndexedInstanced( ShaderFile shader, ShaderAttributes attributes, BufferHandle indices, int indexCount, int instances )
 	{
-		var depth = BeginScope( shader, attributes );
+		if ( !ModeOf( shader, out var mode ) ) return false;
+		var depth = BeginScope( shader, attributes, mode );
 		Draws++;
-		return drawer.DrawIndexedInstanced( List, shader, attributes, TargetFormat, depth, TargetSamples, indices, indexCount, instances, Viewport );
+		return drawer.DrawIndexedInstanced( List, shader, attributes, TargetFormat, depth, TargetSamples, indices, indexCount, instances, Viewport, mode );
 	}
 
 	/// <summary>
@@ -217,7 +244,8 @@ public sealed class GraphicsContext
 	/// </summary>
 	public bool DrawVertices( ShaderFile shader, ShaderAttributes attributes, ReadOnlySpan<byte> vertices, VertexStreamLayout layout, int count, PrimitiveTopology topology )
 	{
-		var depth = BeginScope( shader, attributes );
+		if ( !ModeOf( shader, out var mode ) ) return false;
+		var depth = BeginScope( shader, attributes, mode );
 
 		// Padded by a triangle's vertices: a draw that expands primitives reads each through per-instance streams, and a
 		// device checking bounds by the stream's whole step would read the last one's other corners as zeros
@@ -227,7 +255,7 @@ public sealed class GraphicsContext
 
 		// CPU vertices draw with the identity transform unless the draw sets its own, as native's do
 		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
-		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
+		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, upload.Buffer, upload.Offset, layout, count, topology, Viewport, mode );
 	}
 
 	/// <summary>
@@ -237,10 +265,11 @@ public sealed class GraphicsContext
 	/// </summary>
 	public bool DrawBuffer( ShaderFile shader, ShaderAttributes attributes, BufferHandle vertices, long offset, VertexStreamLayout layout, int count, PrimitiveTopology topology )
 	{
-		var depth = BeginScope( shader, attributes );
+		if ( !ModeOf( shader, out var mode ) ) return false;
+		var depth = BeginScope( shader, attributes, mode );
 		Draws++;
 		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
-		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, vertices, offset, layout, count, topology, Viewport );
+		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, vertices, offset, layout, count, topology, Viewport, mode );
 	}
 
 	/// <summary>
@@ -251,10 +280,29 @@ public sealed class GraphicsContext
 	/// </summary>
 	public bool DrawIndexed( ShaderFile shader, ShaderAttributes attributes, BufferHandle vertices, VertexStreamLayout layout, BufferHandle indices, int firstIndex, int indexCount, int baseVertex, int instances )
 	{
-		var depth = BeginScope( shader, attributes );
+		if ( !ModeOf( shader, out var mode ) ) return false;
+		var depth = BeginScope( shader, attributes, mode );
 		Draws++;
 		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
-		return drawer.DrawIndexed( List, shader, attributes, TargetFormat, depth, TargetSamples, vertices, layout, indices, firstIndex, indexCount, baseVertex, instances, Viewport );
+		return drawer.DrawIndexed( List, shader, attributes, TargetFormat, depth, TargetSamples, vertices, layout, indices, firstIndex, indexCount, baseVertex, instances, Viewport, mode );
+	}
+
+	/// <summary>
+	/// The mode a draw of <paramref name="shader"/> draws: its first (null) when no <see cref="Mode"/> is asked for, else that
+	/// mode's name as the shader spells it. False when the shader has no such mode, and the draw is skipped.
+	/// </summary>
+	bool ModeOf( ShaderFile shader, out string mode )
+	{
+		mode = null;
+		if ( Mode is null ) return true;
+		foreach ( var candidate in shader.Modes )
+		{
+			if ( !string.Equals( candidate.Name, Mode, StringComparison.OrdinalIgnoreCase ) ) continue;
+			mode = candidate.Name;
+			return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>
@@ -602,11 +650,14 @@ public sealed class GraphicsContext
 	public void CopyToBuffer( TextureHandle texture, BufferHandle readback ) => CopyToBuffer( texture, readback, 0 );
 
 	/// <summary>As <see cref="CopyToBuffer(TextureHandle, BufferHandle)"/>, for one mip.</summary>
-	public void CopyToBuffer( TextureHandle texture, BufferHandle readback, int mip )
+	public void CopyToBuffer( TextureHandle texture, BufferHandle readback, int mip ) => CopyToBuffer( texture, readback, mip, 0 );
+
+	/// <summary>As <see cref="CopyToBuffer(TextureHandle, BufferHandle)"/>, for one mip of one array layer.</summary>
+	public void CopyToBuffer( TextureHandle texture, BufferHandle readback, int mip, int layer )
 	{
 		EndScope();
 		Transition( texture, ImageLayout.CopySource );
-		List.CopyTextureToBuffer( texture, mip, 0, readback );
+		List.CopyTextureToBuffer( texture, mip, layer, readback );
 		List.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
 	}
 
@@ -686,14 +737,16 @@ public sealed class GraphicsContext
 
 	/// <summary>
 	/// Make every texture a draw samples readable, then open a scope on the target - with the bound depth when the shader
-	/// tests or writes depth, read-only when it only tests. Returns the depth format the draw's pipeline needs.
+	/// tests or writes depth, read-only when it only tests; always with it when it's bound alone. Returns the depth format the
+	/// draw's pipeline needs.
 	/// </summary>
-	Format BeginScope( ShaderFile shader, ShaderAttributes attributes )
+	Format BeginScope( ShaderFile shader, ShaderAttributes attributes, string mode )
 	{
-		if ( !Target.IsValid ) throw new InvalidOperationException( "No colour target is bound." );
+		if ( !Target.IsValid && !Depth.IsValid ) throw new InvalidOperationException( "No target is bound." );
 
-		var variant = Depth.IsValid ? drawer.Variant( shader, attributes ) : null;
+		var variant = Depth.IsValid ? drawer.Variant( shader, attributes, mode ) : null;
 		var depth = variant?.State is { } state && (state.DepthTest || state.DepthWrite) ? (state.DepthWrite ? DepthUse.Write : DepthUse.ReadOnly) : DepthUse.None;
+		if ( depth == DepthUse.None && !Target.IsValid ) depth = DepthUse.ReadOnly;
 
 		if ( dispatched.Count > 0 ) ReadableAfterDispatches( attributes );
 
@@ -704,7 +757,7 @@ public sealed class GraphicsContext
 			// The targets may be among the attributes (a post process's view colour and depth) without the shader reading them
 			if ( texture == Target || texture == Depth )
 			{
-				if ( !Reads( variant ?? drawer.Variant( shader, attributes ), name ) ) continue;
+				if ( !Reads( variant ?? drawer.Variant( shader, attributes, mode ), name ) ) continue;
 				if ( texture == Target || depth != DepthUse.None ) throw new InvalidOperationException( $"{name} samples a target being drawn to." );
 			}
 
@@ -715,15 +768,19 @@ public sealed class GraphicsContext
 		if ( rendering && scopeDepth == depth ) return depth == DepthUse.None ? Format.Unknown : gpu.InfoOf( Depth ).Format;
 		EndScope();
 
-		Transition( Target, ImageLayout.ColorTarget );
 		var depthTarget = default( DepthTarget );
 		if ( depth != DepthUse.None )
 		{
 			Transition( Depth, depth == DepthUse.Write ? ImageLayout.DepthTarget : ImageLayout.DepthReadOnly );
-			depthTarget = new DepthTarget { Texture = Depth, Load = LoadOp.Load, Store = StoreOp.Store, ReadOnly = depth == DepthUse.ReadOnly };
+			depthTarget = new DepthTarget { Texture = Depth, Layer = DepthSlice, Load = LoadOp.Load, Store = StoreOp.Store, ReadOnly = depth == DepthUse.ReadOnly };
 		}
 
-		List.BeginRendering( [new ColorTarget { Texture = Target, Load = LoadOp.Load, Store = StoreOp.Store, Srgb = SrgbWrite }], depthTarget );
+		if ( Target.IsValid )
+		{
+			Transition( Target, ImageLayout.ColorTarget );
+			List.BeginRendering( [new ColorTarget { Texture = Target, Load = LoadOp.Load, Store = StoreOp.Store, Srgb = SrgbWrite }], depthTarget );
+		}
+		else List.BeginRendering( [], depthTarget );
 		rendering = true;
 		scopeDepth = depth;
 		return depth == DepthUse.None ? Format.Unknown : gpu.InfoOf( Depth ).Format;

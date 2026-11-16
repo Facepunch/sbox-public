@@ -76,6 +76,9 @@ internal sealed partial class AggregateRenderFeature
 
 		/// <summary>Its fragments' arguments' first index in the frame's arguments: the same every frame.</summary>
 		public int FirstArg;
+
+		/// <summary>Its first instance id at the last look, which quiet frames give it again.</summary>
+		public int FirstInstance;
 	}
 
 	/// <summary>
@@ -251,7 +254,11 @@ internal sealed partial class AggregateRenderFeature
 			argGeneration = transforms.Generation;
 			argCount = 0;
 			lock ( residentViews ) residentViews.Clear();
-			if ( resident ) RefreshResident( world, transforms );
+			if ( resident )
+			{
+				using var zone = Zones.ResidentRefresh.Start();
+				RefreshResident( world, transforms );
+			}
 		}
 
 		if ( resident ) state.Resident = ResidentListFor( pass, device.CullsAggregatesGpuDriven ? WorkerSize( device ) : 0 );
@@ -321,6 +328,11 @@ internal sealed partial class AggregateRenderFeature
 		residentArgs.AsSpan( 0, residentArgCount ).CopyTo( args );
 		argCount = residentArgCount;
 
+		// Nothing resident changed since a look that found every one kept: this frame is that one again
+		if ( Quiet( world, transforms ) ) return;
+		var firstInstance = transforms.InstanceCount;
+		var allKept = true;
+
 		var drawVersions = world.DrawVersions;
 		var entryVersions = world.EntryVersions;
 		var movedStamps = world.MovedStamps;
@@ -355,8 +367,10 @@ internal sealed partial class AggregateRenderFeature
 			// Its transforms, kept between frames, rewritten when its entry version moves
 			if ( aggregate.Fragments.Length == 0 ) continue;
 			WriteTransforms( aggregate, index, entryVersions[index], transforms );
+			member.FirstInstance = aggregate.FirstInstance;
 			var slot = transforms.InstanceSlot( aggregate.FirstInstance );
 			if ( slot >= transforms.FrameBase ) slot = -1;
+			allKept &= slot >= 0;
 			if ( slot != member.FirstSlot )
 			{
 				member.FirstSlot = slot;
@@ -390,6 +404,7 @@ internal sealed partial class AggregateRenderFeature
 			var slot = member.Mesh.Mesh.HasDrawTints ? TintedRun( member.Mesh, index, matrices[index], entryVersions[index], transforms )
 				: transforms.KeptSlotFor( index, member.Mesh, matrices[index], entryVersions[index] );
 			if ( slot >= transforms.FrameBase ) slot = -1;
+			allKept &= slot >= 0;
 			if ( slot != member.Slot )
 			{
 				member.Slot = slot;
@@ -406,6 +421,110 @@ internal sealed partial class AggregateRenderFeature
 
 		if ( changed ) DropResidentLists();
 		else if ( settling ) DropSettledLists();
+		else if ( allKept ) KeepQuiet( world, transforms, firstInstance );
+	}
+
+	/// <summary>
+	/// Take every frame after a look that found nothing resident changed and every member kept as that one, while no object
+	/// the lists hold changes (<see cref="RenderWorld.ChangedAt"/>); off for the tests' comparisons.
+	/// </summary>
+	internal static bool QuietRefresh { get; set; } = true;
+
+	/// <summary>Frames between keeping each member's kept slots used while quiet, well inside <see cref="TransformBuffer.SlotLifetime"/>.</summary>
+	const int QuietTouchFrames = 16;
+
+	/// <summary><see cref="RenderWorld.Changes"/> at the look the quiet frames take, or -1 while there's none.</summary>
+	long quietChanges = -1;
+	TransformBuffer quietTransforms;
+
+	/// <summary>The transforms' frame the last refresh ran in: a frame without one (resident off, or the system not drawn) looks again.</summary>
+	int quietFrame = -1;
+
+	/// <summary>Where that look's instance ids started, and they: every frame writes the same.</summary>
+	int quietFirstInstance;
+	uint[] quietIds = [];
+	int quietIdCount;
+
+	/// <summary>The members' world indices, aggregates then meshes, and the next member a quiet frame keeps used.</summary>
+	int[] quietIndices = [];
+	int quietTouch;
+
+	/// <summary>Frames that repeated the last look, for the tests.</summary>
+	internal int QuietFrames { get; private set; }
+
+	void KeepQuiet( RenderWorld world, TransformBuffer transforms, int firstInstance )
+	{
+		if ( !QuietRefresh || restless.Count > 0 || restlessAggregates.Count > 0 ) return;
+		quietChanges = world.Changes;
+		quietTransforms = transforms;
+		quietFrame = transforms.Frame;
+		quietFirstInstance = firstInstance;
+
+		var ids = transforms.InstancesFrom( firstInstance );
+		if ( quietIds.Length < ids.Length ) quietIds = new uint[ids.Length];
+		ids.CopyTo( quietIds );
+		quietIdCount = ids.Length;
+
+		var count = memberCount + meshMemberCount;
+		if ( quietIndices.Length < count ) quietIndices = new int[count];
+		for ( int m = 0; m < memberCount; m++ ) quietIndices[m] = members[m].Index;
+		for ( int m = 0; m < meshMemberCount; m++ ) quietIndices[memberCount + m] = meshMembers[m].Index;
+	}
+
+	/// <summary>
+	/// A frame like the last look, when no object the lists hold has changed since: its instance ids again, at the same place,
+	/// each aggregate's transforms current, and a few members' kept slots used, so none is given back while quiet.
+	/// </summary>
+	bool Quiet( RenderWorld world, TransformBuffer transforms )
+	{
+		if ( quietChanges < 0 ) return false;
+		if ( !QuietRefresh || !ReferenceEquals( transforms, quietTransforms ) || transforms.Frame != quietFrame + 1 || transforms.InstanceCount != quietFirstInstance
+			|| restless.Count > 0 || restlessAggregates.Count > 0 )
+		{
+			quietChanges = -1;
+			return false;
+		}
+
+		var count = memberCount + meshMemberCount;
+		if ( world.Changes != quietChanges )
+		{
+			var changedAt = world.ChangedAt;
+			foreach ( var index in quietIndices.AsSpan( 0, count ) )
+			{
+				if ( changedAt[index] > quietChanges )
+				{
+					quietChanges = -1;
+					return false;
+				}
+			}
+
+			// Only objects the lists don't hold changed
+			quietChanges = world.Changes;
+		}
+
+		// Each aggregate's ids where they were: another system drawing the world, or a frame drawn the views' own way, moves them
+		transforms.AddInstances( quietIds.AsSpan( 0, quietIdCount ) );
+		var generation = transforms.Generation;
+		for ( int m = 0; m < memberCount; m++ )
+		{
+			ref readonly var member = ref members[m];
+			if ( member.FirstSlot < 0 ) continue;
+			member.Aggregate.FirstInstance = member.FirstInstance;
+			member.Aggregate.TransformsGeneration = generation;
+		}
+
+		quietFrame = transforms.Frame;
+
+		var touches = (count + QuietTouchFrames - 1) / QuietTouchFrames;
+		for ( int i = 0; i < touches; i++ )
+		{
+			if ( quietTouch >= count ) quietTouch = 0;
+			var m = quietTouch++;
+			transforms.KeepUsed( m < memberCount ? members[m].FirstSlot : meshMembers[m - memberCount].Slot );
+		}
+
+		QuietFrames++;
+		return true;
 	}
 
 	/// <summary>
@@ -524,6 +643,7 @@ internal sealed partial class AggregateRenderFeature
 	{
 		residentWorld = world;
 		residentStructure = world.Structure;
+		quietChanges = -1;
 		memberCount = 0;
 		meshMemberCount = 0;
 		residentArgCount = 0;

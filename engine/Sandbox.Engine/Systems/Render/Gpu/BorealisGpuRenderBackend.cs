@@ -231,6 +231,23 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		set => drawer.DepthRange = value;
 	}
 
+	/// <summary>
+	/// The shader mode draws take by name (<see cref="GraphicsContext.Mode"/>): <c>Depth</c> where a custom object draws into
+	/// a shadow map or the depth prepass. Null draws each shader's first mode.
+	/// </summary>
+	internal string DrawMode
+	{
+		get => context.Mode;
+		set => context.Mode = value;
+	}
+
+	/// <summary>The depth bias of draws into depth alone (<see cref="ShaderDrawer.DepthBias"/>): a shadow map's.</summary>
+	internal (int Constant, float Slope) DepthBias
+	{
+		get => drawer.DepthBias;
+		set => drawer.DepthBias = value;
+	}
+
 	/// <summary>Write a GPU timestamp in this block's list (<see cref="GraphicsContext.WriteTimestamp"/>).</summary>
 	internal void WriteTimestamp( TimestampQueries queries, int index, PipelineStage stage, int reset = 0 )
 	{
@@ -922,10 +939,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// Bind <paramref name="target"/>, its colour written through its sRGB view when <paramref name="srgbWrite"/> (and its
 	/// format has one), as Source 2 writes an 8-bit texture a camera renders into.
 	/// </summary>
-	internal void BindRenderTarget( RenderTarget target, bool srgbWrite )
+	internal void BindRenderTarget( RenderTarget target, bool srgbWrite ) => BindRenderTarget( target, srgbWrite, 0 );
+
+	/// <summary>
+	/// <see cref="BindRenderTarget(RenderTarget, bool)"/>, drawing into layer <paramref name="depthSlice"/> of its depth. A target
+	/// with no colour draws into its depth alone (a shadow map's slice).
+	/// </summary>
+	internal void BindRenderTarget( RenderTarget target, bool srgbWrite, int depthSlice )
 	{
 		_ = Recording;
-		context.SetTarget( TextureOf( target.ColorTarget ), target.DepthTarget is { } depth ? TextureOf( depth ) : default, srgbWrite );
+		context.SetTarget( target.ColorTarget is { } color ? TextureOf( color ) : default, target.DepthTarget is { } depth ? TextureOf( depth ) : default, srgbWrite, depthSlice );
 	}
 
 	public override void Clear( Color color, bool clearColor, bool clearDepth, bool clearStencil )

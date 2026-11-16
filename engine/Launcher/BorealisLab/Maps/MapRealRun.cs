@@ -168,6 +168,7 @@ internal static class MapRealRun
 
 		Frame RenderFrame( MapView view )
 		{
+			using var frameZone = LabTracy.Frame();
 			var f = default( Frame );
 			var t0 = Stopwatch.GetTimestamp();
 			map.Backend.BeginFrame();

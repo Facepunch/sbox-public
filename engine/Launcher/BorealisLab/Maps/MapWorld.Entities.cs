@@ -258,8 +258,9 @@ internal sealed partial class MapWorld
 
 	/// <summary>
 	/// The probe volumes from the entity lump (<c>SceneMapLoader.CreateLightProbeVolume</c>): each with a probe texture, its
-	/// own box and transform, its constants as <c>CSceneLightProbeVolumeObject::CreateConstants</c> makes them. Objects the
-	/// compiler gave a volume need a probe. False when the lump has none.
+	/// own box and transform, its constants as <c>CSceneLightProbeVolumeObject::CreateConstants</c> makes them, its handshake
+	/// and its priority. Objects the compiler gave a volume need a probe, and get that volume by its handshake, as native's
+	/// light binner binds them. False when the lump has none.
 	/// </summary>
 	bool LoadProbeVolumes( RenderWorld target, Level level, List<(MeshObject Object, int Volume, NumericsVector3 Mins, NumericsVector3 Maxs)> probed )
 	{
@@ -286,6 +287,8 @@ internal sealed partial class MapWorld
 				BoxMaxs = V( maxs ),
 				LightGroups = [0],
 				Attributes = ProbeAttributes( probe, indices, scalars, transform, mins, maxs ),
+				Handshake = e.Int( "handshake" ),
+				RenderPriority = e.Int( "indoor_outdoor_level" ),
 			} );
 
 			volumes++;
@@ -294,9 +297,10 @@ internal sealed partial class MapWorld
 		}
 
 		if ( volumes == 0 ) return false;
-		foreach ( var (obj, _, _, _) in probed )
+		foreach ( var (obj, volume, _, _) in probed )
 		{
 			obj.NeedsLightProbe = true;
+			obj.LightProbeHandshake = volume;
 			ProbeObjects++;
 		}
 
