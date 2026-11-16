@@ -45,6 +45,24 @@ public class VolumeTextureTests : GpuTest
 		Device.Destroy( texture );
 	}
 
+	/// <summary>
+	/// A volume made through Borealis.Backend with initial pixels (the opaque black 2x2x2 fog fallback is one) holds them in
+	/// every slice, ready to sample. Before, a volume's initial data was dropped and the texture left undefined.
+	/// </summary>
+	[TestMethod]
+	public void BackendVolumeKeepsItsInitialData()
+	{
+		const int Size = 4, Depth = 6;
+		var data = new byte[Size * Size * Depth * 4];
+		for ( int i = 0; i < data.Length; i++ ) data[i] = (byte)(i / (Size * Size * 4) * 40 + i % 4 + 1);
+
+		using var backend = new Borealis.Backend.BackendDevice( Device );
+		var texture = (Borealis.Backend.BackendTexture)backend.CreateTexture( Borealis.TextureDesc.Volume( Size, Size, Depth, Borealis.TextureFormat.RGBA8888 ) with { Data = data }, "Volume with data" );
+		Assert.AreEqual( ImageLayout.ShaderRead, texture.Layout, "ready to sample" );
+		CollectionAssert.AreEqual( data, ReadVolume( texture.Handle, 0, data.Length ), "every slice" );
+		texture.Dispose();
+	}
+
 	byte[] ReadVolume( TextureHandle texture, int mip, int bytes )
 	{
 		var buffer = Device.CreateBuffer( new BufferInfo { Size = bytes, Memory = MemoryLocation.Readback, Name = "Readback" } );
