@@ -533,11 +533,27 @@ internal static class MapRealRun
 		}
 
 		md.AppendLine( bindingReport );
+		if ( gpu.ShaderStatistics.Count > 0 ) File.WriteAllText( Path.Combine( options.Output, "map-shader-stats.csv" ), ShaderStatisticsCsv( gpu.ShaderStatistics ) );
 		File.WriteAllText( Path.Combine( options.Output, "map-real.md" ), md.ToString() );
 		File.WriteAllText( Path.Combine( options.Output, "map-real.csv" ), csv.ToString() );
 		if ( map.Backend.Surfaces.ConvertedMaterials > 0 ) Console.WriteLine( $"Surface batches drawn GPU-driven: {map.Backend.Surfaces.GpuDrivenBatches} over the run" );
 		Console.WriteLine( $"Results in {options.Output}; validation errors {gpu.ValidationErrors}" );
 		return 0;
+	}
+
+	/// <summary>
+	/// -shader-stats: the driver's statistics for every pipeline the run made, a row per executable (pipeline, executable,
+	/// stages, wave size, then each statistic the driver names).
+	/// </summary>
+	static string ShaderStatisticsCsv( IReadOnlyCollection<ShaderStatistics> statistics )
+	{
+		var names = statistics.SelectMany( s => s.Values.Keys ).Distinct().ToList();
+		static string Quote( string text ) => $"\"{text.Replace( "\"", "\"\"" )}\"";
+		var csv = new StringBuilder();
+		csv.AppendLine( string.Join( ',', new[] { "pipeline", "executable", "stages", "wave" }.Concat( names ).Select( Quote ) ) );
+		foreach ( var s in statistics )
+			csv.AppendLine( string.Join( ',', new[] { Quote( s.Pipeline ?? "" ), Quote( s.Executable ), s.Stages.ToString(), s.WaveSize.ToString() }.Concat( names.Select( n => s.Values.TryGetValue( n, out var v ) ? v.ToString( System.Globalization.CultureInfo.InvariantCulture ) : "" ) ) ) );
+		return csv.ToString();
 	}
 
 	/// <summary>

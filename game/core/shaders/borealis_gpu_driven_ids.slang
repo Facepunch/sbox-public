@@ -33,7 +33,7 @@ struct PS_INPUT
 #include "borealis_gpu_driven.fxc"
 
 // depth_only's position, pulled as its GPU-driven variant pulls it, so the depth is the same
-[shader( "vertex" )] PS_INPUT MainVs( uint nVertex : SV_VulkanVertexID, uint nInstance : SV_VulkanInstanceID )
+PS_INPUT IdsVertex( uint nVertex, uint nInstance )
 {
 	PS_INPUT o;
 	uint2 vInstance = BorealisGpuDrivenInstance( nInstance );
@@ -46,6 +46,17 @@ struct PS_INPUT
 
 	o.nVertexBit = BorealisGpuDrivenVertexBit( nInstance, nVertex );
 	return o;
+}
+
+// A wave's vertices are mostly one instance's: then the instance, draw, geometry and transform records are read once
+// for the wave, and only the position per vertex
+[shader( "vertex" )] PS_INPUT MainVs( uint nVertex : SV_VulkanVertexID, uint nInstance : SV_VulkanInstanceID )
+{
+	uint nFirst = WaveReadLaneFirst( nInstance );
+	if ( WaveActiveAllTrue( nInstance == nFirst ) )
+		return IdsVertex( nVertex, nFirst );
+
+	return IdsVertex( nVertex, nInstance );
 }
 
 #endif // VS

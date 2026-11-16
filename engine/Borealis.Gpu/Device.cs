@@ -448,6 +448,16 @@ public sealed unsafe partial class Device : IDisposable
 		// Progress markers, for how far the GPU got when the device is lost
 		if ( options.ProgressMarkers && deviceExtensions.Contains( "VK_AMD_buffer_marker" ) ) extensions.Add( "VK_AMD_buffer_marker" );
 
+		// Shader statistics, for measuring register use
+		var executables = new VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR { sType = VkStructureType.PhysicalDevicePipelineExecutablePropertiesFeaturesKhr };
+		if ( options.ShaderStatistics && deviceExtensions.Contains( "VK_KHR_pipeline_executable_properties" ) )
+		{
+			extensions.Add( "VK_KHR_pipeline_executable_properties" );
+			executables.pipelineExecutableInfo = 1;
+			executables.pNext = e13.pNext;
+			e13.pNext = &executables;
+		}
+
 		// Memory budgets, for how much of each heap the process is using
 		if ( deviceExtensions.Contains( "VK_EXT_memory_budget" ) ) extensions.Add( "VK_EXT_memory_budget" );
 
@@ -481,6 +491,7 @@ public sealed unsafe partial class Device : IDisposable
 		faultReports = extensions.Contains( "VK_EXT_device_fault" );
 		memoryBudget = extensions.Contains( "VK_EXT_memory_budget" );
 		bufferMarkers = extensions.Contains( "VK_AMD_buffer_marker" );
+		shaderStatistics = extensions.Contains( "VK_KHR_pipeline_executable_properties" );
 		queueFamilies = asyncCompute ? [(uint)graphics, (uint)compute] : [(uint)graphics];
 		return vk;
 	}
