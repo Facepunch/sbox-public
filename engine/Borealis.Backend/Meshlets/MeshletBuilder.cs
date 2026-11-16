@@ -14,7 +14,11 @@ internal static unsafe class MeshletBuilder
 	/// </summary>
 	public static MeshletSet Build( ReadOnlySpan<uint> indices, Func<int, V3> position, int baseVertex, MeshletConfig config )
 	{
-		var count = indices.Length / 3 * 3;
+		// meshoptimizer is built without its asserts: what it would assert is checked here
+		if ( config.MaxVertices is < 3 or > 256 || config.MaxTriangles is < 4 or > 252 || config.MaxTriangles % 4 != 0 )
+			throw new ArgumentOutOfRangeException( nameof( config ), config, "3-256 vertices and 4-252 triangles, a multiple of 4: meshoptimizer's limits and a meshlet record's" );
+		if ( indices.Length % 3 != 0 ) throw new ArgumentException( "Not whole triangles", nameof( indices ) );
+		var count = indices.Length;
 		if ( count == 0 || !MeshOptimizer.Available ) return null;
 
 		// The range's vertices, from the lowest index it uses

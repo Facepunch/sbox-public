@@ -97,6 +97,18 @@ public class MeshletTests
 		}
 	}
 
+	/// <summary>meshoptimizer is built without its asserts: a call it would assert on throws here instead of reaching it.</summary>
+	[TestMethod]
+	public void BadInputsThrowBeforeTheLibrary()
+	{
+		UseEngineLibrary();
+		var (indices, positions) = Grid( 2, 0 );
+		V3 Position( int vertex ) => positions[vertex];
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => MeshletBuilder.Build( indices, Position, 0, new MeshletConfig( 64, 126 ) ) );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => MeshletBuilder.Build( indices, Position, 0, new MeshletConfig( 300, 124 ) ) );
+		Assert.ThrowsException<ArgumentException>( () => MeshletBuilder.Build( indices.AsSpan( 0, 4 ), Position, 0, MeshletConfig.Default ) );
+	}
+
 	[TestMethod]
 	public void ConfigsParse()
 	{
