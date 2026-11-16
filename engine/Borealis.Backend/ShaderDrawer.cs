@@ -303,6 +303,27 @@ public sealed class ShaderDrawer : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	/// Draw <paramref name="instances"/> instances of <paramref name="indexCount"/> 32-bit indices from
+	/// <paramref name="firstIndex"/> in <paramref name="indices"/>, reading vertices of <paramref name="layout"/> from
+	/// <paramref name="vertices"/> offset by <paramref name="baseVertex"/>, as triangles: a model's draw call, as
+	/// <c>Graphics.DrawModelInstanced</c> draws it. False for a variant that expands primitives. The rest is as
+	/// <see cref="Draw(CommandList, ShaderFile, ShaderAttributes, Format, Format, int, BufferHandle, long, VertexStreamLayout, int, PrimitiveTopology, System.Numerics.Vector4, string)"/>.
+	/// </summary>
+	public bool DrawIndexed( CommandList list, ShaderFile shader, ShaderAttributes attributes, Format color, Format depth, int samples, BufferHandle vertices, VertexStreamLayout layout, BufferHandle indices, int firstIndex, int indexCount, int baseVertex, int instances, System.Numerics.Vector4 viewport, string mode = null )
+	{
+		var variant = Variant( shader, attributes, mode );
+		if ( variant?.Vertex?.Bytecode is null || variant.Expansion.Expands ) return false;
+
+		var ids = BindForDraw( list, variant, attributes, color, depth, samples, layout, PrimitiveTopology.TriangleList, viewport );
+		list.SetVertexBuffer( 0, vertices );
+		list.SetVertexBuffer( 1, defaults.VertexDefaults );
+		if ( ids ) list.SetVertexBuffer( 2, InstanceIds.Buffer, InstanceIds.Offset );
+		list.SetIndexBuffer( indices, IndexFormat.UInt32 );
+		list.DrawIndexed( indexCount, instances, firstIndex, baseVertex );
+		return true;
+	}
+
 	// Bind a draw's pipeline and resources; true when it reads the lent instance ids, which the caller binds after its streams
 	bool BindForDraw( CommandList list, ShaderVariant variant, ShaderAttributes attributes, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, System.Numerics.Vector4 viewport )
 	{

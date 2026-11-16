@@ -20,7 +20,8 @@ namespace Sandbox;
 /// record into one of the device's command lists through Borealis.Backend's <see cref="GraphicsContext"/>, which tracks
 /// layouts and opens rendering scopes itself, and draw with the engine's compiled shaders through
 /// <see cref="ShaderDrawer"/>, bound by attribute name from managed attributes. What <c>Painter.Begin( Texture )</c>
-/// needs runs here: CPU-vertex and instanced draws, clears, render targets, frame grabs, gaussian mips and compute.
+/// needs runs here: CPU-vertex and instanced draws, clears, render targets, frame grabs, gaussian mips and compute; and
+/// models drawn by instance count (the terrain clipmap).
 /// The rest throws <see cref="NotSupportedException"/> (docs/managed/borealis-gpu-path.md).
 /// </summary>
 /// <remarks>
@@ -104,6 +105,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		if ( !followsFrames || frame == Application.FrameCount ) return;
 		frame = Application.FrameCount;
 		SubmitUploads();
+		FreeModelGeometry();
 		services.BeginFrame();
 		if ( frame % PipelineCacheSaveFrames == 0 ) SavePipelineCacheInBackground();
 	}
@@ -500,6 +502,15 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 			handle = gpu.CreateTexture( info );
 			Upload( handle, info, raw.Data, ImageLayout.Undefined );
 		}
+		else if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) && texture.Depth <= 1 && DataFormatOf( texture.ImageFormat ) is var storage && storage != GpuFormat.Unknown )
+		{
+			// Made empty for compute to fill (a terrain's baked normals): its own format, storage, cleared as a new target is
+			var info = TextureInfo.Texture2D( texture.Width, texture.Height, storage, Math.Max( texture.Mips, 1 ), $"Engine storage {texture.Width}x{texture.Height}" );
+			info.Usage |= TextureUsage.Storage;
+			handle = gpu.CreateTexture( info );
+			context.Track( handle, ImageLayout.Undefined );
+			ClearNow( handle, Color.Transparent );
+		}
 		else
 		{
 			var info = TextureInfo.Texture2D( texture.Width, texture.Height, GpuFormat.RGBA8Unorm, name: $"Engine image {texture.Width}x{texture.Height}" );
@@ -580,6 +591,9 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		ImageFormat.I16F or ImageFormat.R16F => GpuFormat.R16Float,
 		ImageFormat.R11G11B10F => GpuFormat.RG11B10Float,
 		ImageFormat.RGBA1010102 => GpuFormat.RGB10A2Unorm,
+		ImageFormat.R16 => GpuFormat.R16Unorm,
+		ImageFormat.RG1616 => GpuFormat.RG16Unorm,
+		ImageFormat.R32_UINT => GpuFormat.R32Uint,
 		_ => GpuFormat.Unknown,
 	};
 
@@ -931,8 +945,79 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 	// Models
 	//
 
-	public override void DrawModel( Model model, ReadOnlySpan<Transform> transforms, int? lodLevel, RenderAttributes attributes ) => throw Unsupported( "Model draws" );
-	public override void DrawModel( Model model, int count, RenderAttributes attributes ) => throw Unsupported( "Model draws" );
+	public override void DrawModel( Model model, ReadOnlySpan<Transform> transforms, int? lodLevel, RenderAttributes attributes ) => throw Unsupported( "Model draws with transforms" );
+
+	/// <summary>
+	/// <paramref name="count"/> instances of each of the model's LOD 0 draw calls, every mesh group, with its material's
+	/// shader: what the terrain clipmap draws its meshlets with, its shaders reading <c>SV_InstanceID</c>.
+	/// </summary>
+	public override void DrawModel( Model model, int count, RenderAttributes attributes )
+	{
+		_ = Recording;
+		var geometry = GeometryOf( model );
+		foreach ( var draw in geometry.Draws )
+			context.DrawIndexed( Require( draw.Material ), Lower( attributes ), geometry.Vertices, VertexStreamLayout.EngineVertex, geometry.Indices, draw.FirstIndex, draw.IndexCount, draw.BaseVertex, count );
+	}
+
+	/// <summary>
+	/// A model's LOD 0 geometry on this device: every draw call's vertices (as the engine's <see cref="Vertex"/>) and 32-bit
+	/// indices, read back from Source 2's buffers once, which covers models made at run time. Freed after the model is.
+	/// </summary>
+	sealed class ModelGeometry
+	{
+		public BufferHandle Vertices, Indices;
+		public (Material Material, int FirstIndex, int IndexCount, int BaseVertex)[] Draws = [];
+		public System.Collections.Concurrent.ConcurrentQueue<BufferHandle> FreeQueue;
+
+		~ModelGeometry()
+		{
+			if ( Vertices.IsValid ) FreeQueue.Enqueue( Vertices );
+			if ( Indices.IsValid ) FreeQueue.Enqueue( Indices );
+		}
+	}
+
+	readonly ConditionalWeakTable<Model, ModelGeometry> models = new();
+	readonly System.Collections.Concurrent.ConcurrentQueue<BufferHandle> freedModelBuffers = new();
+
+	ModelGeometry GeometryOf( Model model )
+	{
+		if ( models.TryGetValue( model, out var geometry ) ) return geometry;
+
+		var vertices = new List<Vertex>();
+		var indices = new List<uint>();
+		var draws = new List<(Material, int, int, int)>();
+		var meshes = model.MeshInfo.Meshes;
+		for ( int mesh = 0; mesh < meshes.Length; mesh++ )
+		{
+			if ( (meshes[mesh].LodMask & 1) == 0 ) continue;
+			for ( int call = 0; call < meshes[mesh].DrawCalls.Length; call++ )
+			{
+				var info = meshes[mesh].DrawCalls[call];
+				if ( info.Indices < 3 || !model.TryReadDrawCall( mesh, call, out var v, out var i, out _ ) ) continue;
+				draws.Add( (info.Material, indices.Count, i.Length, vertices.Count) );
+				vertices.AddRange( v );
+				indices.AddRange( i );
+			}
+		}
+
+		geometry = new ModelGeometry { FreeQueue = freedModelBuffers, Draws = [.. draws] };
+		if ( indices.Count > 0 )
+		{
+			geometry.Vertices = gpu.CreateBuffer( new BufferInfo { Size = (long)vertices.Count * Unsafe.SizeOf<Vertex>(), Usage = BufferUsage.Vertex | BufferUsage.CopyDestination, Name = $"Model {model.Name}" } );
+			geometry.Indices = gpu.CreateBuffer( new BufferInfo { Size = (long)indices.Count * sizeof( uint ), Usage = BufferUsage.Index | BufferUsage.CopyDestination, Name = $"Model {model.Name} indices" } );
+			gpu.WriteBuffer( geometry.Vertices, MemoryMarshal.AsBytes( CollectionsMarshal.AsSpan( vertices ) ) );
+			gpu.WriteBuffer<uint>( geometry.Indices, CollectionsMarshal.AsSpan( indices ) );
+		}
+
+		models.Add( model, geometry );
+		return geometry;
+	}
+
+	/// <summary>Free the geometry of models that have gone (the GPU is done with it before it's destroyed).</summary>
+	void FreeModelGeometry()
+	{
+		while ( freedModelBuffers.TryDequeue( out var handle ) ) gpu.Destroy( handle );
+	}
 	public override void DrawModelIndirect( Model model, GpuBuffer arguments, int argumentsOffset, RenderAttributes attributes ) => throw Unsupported( "Model draws" );
 	public override void DrawModelIndirect( Model model, GpuBuffer transforms, GpuBuffer arguments, int argumentsOffset, int lodLevel, RenderAttributes attributes ) => throw Unsupported( "Model draws" );
 
@@ -1201,6 +1286,14 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 			gpu.Destroy( handle );
 		}
 		foreach ( var handle in ownedBuffers ) gpu.Destroy( handle );
+		foreach ( var (_, geometry) in models )
+		{
+			if ( geometry.Vertices.IsValid ) gpu.Destroy( geometry.Vertices );
+			if ( geometry.Indices.IsValid ) gpu.Destroy( geometry.Indices );
+			geometry.Vertices = geometry.Indices = default;
+		}
+		models.Clear();
+		FreeModelGeometry();
 		gpu.Destroy( pipelineTextures );
 		foreach ( var package in mapVpks ) package.Dispose();
 		mapVpks.Clear();
