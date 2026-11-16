@@ -357,9 +357,11 @@ public sealed partial class SlangCompiler
 		// The record offset (and on GPU-driven passes the draw) reaches the pixel stage flat, so per lane: shaded with it as
 		// it is, every record field and texture slot would be read per lane, and each texture sample would loop over the
 		// slots in the wave. The wave shades its distinct values one at a time instead, each wave-uniform. A quad's lanes
-		// share a primitive, so a value, and stay together for derivatives. A wave holds at most 64 distinct values.
+		// share a primitive, so a value; its helper lanes, which wave operations may leave out, take the turn from the
+		// quad's other lanes, so derivatives stay whole. A wave holds at most 64 distinct values.
 		static string ForEachInWave( string key, string body ) =>
-			$"[loop] for ( uint n = 0; n < 64; n++ ) {{ uint first = WaveReadLaneFirst( {key} ); if ( first == {key} ) {{ {body} break; }} }}";
+			$"[loop] for ( uint n = 0; n < 64; n++ ) {{ uint first = WaveReadLaneFirst( {key} ); uint turn = first == {key} ? 1u : 0u; " +
+			$"turn |= QuadReadAcrossX( turn ) | QuadReadAcrossY( turn ) | QuadReadAcrossDiagonal( turn ); if ( turn != 0 ) {{ {body} break; }} }}";
 
 		// Every pixel entry takes the facing, so a two-sided material's back faces shade with the normal turned to the viewer
 		string Pixel( string entry, bool alphaTest ) => Shaded( entry, alphaTest ) +
