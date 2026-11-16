@@ -398,7 +398,7 @@ internal sealed partial class BackendContext
 		layout.Defaults.AsSpan( 0, Math.Min( layout.Defaults.Length, size ) ).CopyTo( data );
 		if ( layout.Defaults.Length < size ) data[layout.Defaults.Length..].Clear();
 
-		Span<float> value = stackalloc float[4];
+		Span<float> value = stackalloc float[16];
 		for ( int a = 0; a < layout.Bound.Length; a++ )
 		{
 			var member = globals.Members[layout.Bound[a]];
@@ -468,7 +468,7 @@ internal sealed partial class BackendContext
 		}
 	}
 
-	/// <summary>An attribute's value as up to four floats, as <see cref="Floats"/> reads it, without allocating; 0 for none.</summary>
+	/// <summary>An attribute's value as up to sixteen floats (a matrix), as <see cref="Floats"/> reads it, without allocating; 0 for none.</summary>
 	static int Components( object attribute, Span<float> into )
 	{
 		switch ( attribute )
@@ -482,6 +482,13 @@ internal sealed partial class BackendContext
 			case Vector4 v: into[0] = v.x; into[1] = v.y; into[2] = v.z; into[3] = v.w; return 4;
 			case Color c: into[0] = c.r; into[1] = c.g; into[2] = c.b; into[3] = c.a; return 4;
 			case Vector2Int v: into[0] = v.x; into[1] = v.y; return 2;
+			case Matrix m:
+				if ( into.Length < 16 ) return 0;
+				into[0] = m.M11; into[1] = m.M12; into[2] = m.M13; into[3] = m.M14;
+				into[4] = m.M21; into[5] = m.M22; into[6] = m.M23; into[7] = m.M24;
+				into[8] = m.M31; into[9] = m.M32; into[10] = m.M33; into[11] = m.M34;
+				into[12] = m.M41; into[13] = m.M42; into[14] = m.M43; into[15] = m.M44;
+				return 16;
 			default: return 0;
 		}
 	}

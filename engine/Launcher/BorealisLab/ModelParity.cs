@@ -9,7 +9,7 @@ using GpuDevice = Borealis.Gpu.Device;
 namespace Sandbox.BorealisLab;
 
 /// <summary>
-/// <c>-model-parity folder [-model path] [-mesh-groups mask] [-tolerance N] [-validation]</c>: renders s&amp;box models
+/// <c>-model-parity folder [-model path [-distance d] [-aim a]] [-mesh-groups mask] [-tolerance N] [-validation]</c>: renders s&amp;box models
 /// with Borealis twice in one process - on Source 2's device, with the engine's own model loading, and on a Borealis.Gpu
 /// device of its own, with the model read by <see cref="ModelFile"/> - from the same camera under the same sun, and
 /// compares the pixels. Each case writes <c>native.png</c>, <c>borealis.png</c> and <c>diff.png</c> (differences x8) to a
@@ -65,6 +65,9 @@ internal static class ModelParity
 		new( "human-face-posed", Human, Distance: 0.5f, Sequence: "AvatarMenu_Entry_Wave_01", Time: 0.5f, Morphs: 12, Aim: 0.8f ),
 	];
 
+	/// <summary>A number argument (<c>-distance 0.3</c>), or <paramref name="fallback"/>.</summary>
+	static float Number( string name, float fallback ) => float.TryParse( Args.String( name ), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value ) ? value : fallback;
+
 	/// <summary>The controllers a morph case sets: every 7th of the model's, at weights between 0.5 and 1.</summary>
 	static (string Name, float Weight)[] MorphWeights( Model model, int count )
 	{
@@ -87,7 +90,7 @@ internal static class ModelParity
 	public static int Run( Source2Backend backend, string folder )
 	{
 		var cases = Args.String( "-model" ) is { } single
-			? [new Case( System.IO.Path.GetFileNameWithoutExtension( single ), single, ulong.TryParse( Args.String( "-mesh-groups" ), out var mask ) ? mask : null )]
+			? [new Case( System.IO.Path.GetFileNameWithoutExtension( single ), single, ulong.TryParse( Args.String( "-mesh-groups" ), out var mask ) ? mask : null, Number( "-distance", 1 ), Aim: Number( "-aim", 0.5f ) )]
 			: Cases;
 
 		var tolerance = double.TryParse( Args.String( "-tolerance" ), System.Globalization.CultureInfo.InvariantCulture, out var t ) ? t : 1.0;

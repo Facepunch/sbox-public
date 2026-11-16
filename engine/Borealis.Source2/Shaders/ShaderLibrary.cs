@@ -361,12 +361,31 @@ public sealed class ShaderLibrary : IDisposable
 			if ( program is null ) return null;
 
 			var staticId = shader.StaticComboId( program, drawMode, features );
+			if ( !program.HasCombo( staticId ) ) staticId = Allowed( program, features, staticId );
 			if ( !program.HasCombo( staticId ) ) throw new InvalidDataException( $"{shader.Name}: {type} static combo {staticId} for mode {mode} wasn't compiled (skipped by its rules)" );
 			var combo = program.LoadCombo( staticId );
 
 			var dynamicId = ShaderFile.DynamicComboId( program, dynamicCombos, features );
 			var dynamic = combo.Dynamic( dynamicId ) ?? combo.Dynamic( 0 ) ?? throw new InvalidDataException( $"{shader.Name}: {type} has no dynamic combo {dynamicId}" );
 			return new ShaderStage( this, type, program, combo, dynamic, attributes, features );
+		}
+
+		// A combo its rules skip (eyeball.shader's Allow1( S_MODE_DEPTH, S_SPECULAR_CUBE_MAP ) in Depth mode): the feature
+		// combos the rules forbid there taken back to 0, the last first, as the rule leaves only one of them set
+		ulong Allowed( ShaderProgram program, ReadOnlySpan<int> features, ulong id )
+		{
+			var values = features.ToArray();
+			var combos = program.StaticCombos;
+			for ( int c = combos.Length - 1; c >= 0; c-- )
+			{
+				var feature = combos[c].FeatureIndex;
+				if ( combos[c].Source != 0 || feature < 0 || feature >= values.Length || values[feature] == 0 ) continue;
+				values[feature] = 0;
+				var allowed = shader.StaticComboId( program, drawMode, values );
+				if ( program.HasCombo( allowed ) ) return allowed;
+			}
+
+			return id;
 		}
 
 		var vertex = Stage( ShaderProgramType.Vertex, features );

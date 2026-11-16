@@ -117,9 +117,12 @@ public sealed partial class SlangCompiler
 			var interpolated = interpolatedCombiner || interpolatedDisplaces || material.Interfaces.Contains( "IInterpolatedSurface" );
 			var sunLit = material.Interfaces.Contains( "ISunLitSurface" );
 			var composite = material.Interfaces.Contains( "ICompositeSurface" );
-			var combiner = interpolatedCombiner || material.Interfaces.Contains( "ICombinerSurface" );
+			var layered = material.Interfaces.Contains( "ILayeredSurface" );
+			var combiner = layered || interpolatedCombiner || material.Interfaces.Contains( "ICombinerSurface" );
 			if ( !displaces && !lit && !interpolated && !sunLit && !composite && !combiner && !material.Interfaces.Contains( "ISurface" ) )
-				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface, ISunLitSurface, ICompositeSurface, ICombinerSurface or IInterpolatedCombinerSurface" );
+				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface, ISunLitSurface, ICompositeSurface, ICombinerSurface, IInterpolatedCombinerSurface or ILayeredSurface" );
+			if ( layered && interpolated )
+				throw new ShaderCompileException( path, $"{material.Name}: an ILayeredSurface can't also be an IInterpolatedSurface yet" );
 			if ( combiner && (lit || sunLit || composite || (interpolated && !interpolatedCombiner)) )
 				throw new ShaderCompileException( path, $"{material.Name}: an ICombinerSurface can't also be an ILitSurface, ISunLitSurface, ICompositeSurface or IInterpolatedSurface yet (an IInterpolatedCombinerSurface is both)" );
 			if ( interpolated && ((displaces && !interpolatedDisplaces) || lit || sunLit || composite) )
@@ -131,7 +134,7 @@ public sealed partial class SlangCompiler
 
 			var defines = CombinerDefines( source );
 			if ( defines.Count > 0 && !combiner ) throw new ShaderCompileException( path, $"{material.Name}: [Combiner( ... )] is for an ICombinerSurface or IInterpolatedCombinerSurface" );
-			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit, composite, combiner, defines, layout.Features );
+			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit, composite, combiner, defines, layout.Features, layered );
 			var instancePath = Path.Combine( directory, $"{module}.instance.slang" );
 
 			var vertex = CompileEntry( instancePath, instance, "MainVs", StageKind.Vertex, directory );
@@ -332,14 +335,15 @@ public sealed partial class SlangCompiler
 	/// engine light loop's hook (<c>SURFACE_LIGHT_HOOK</c>) and hands it the material, so <c>Light</c> runs per light. An
 	/// interpolated surface's (<c>IInterpolatedSurface</c>) vertex stage also reads its <c>Varyings</c> and passes them on. A
 	/// composite surface's (<c>ICompositeSurface</c>) forward passes call its <c>Composite</c> on the lit colour, and a
-	/// combiner surface's (<c>ICombinerSurface</c>) shade through complex.shader's final combiner (<c>SURFACE_FINAL_COMBINER</c>).
+	/// combiner surface's (<c>ICombinerSurface</c>) shade through complex.shader's final combiner (<c>SURFACE_FINAL_COMBINER</c>),
+	/// a layered one's (<c>ILayeredSurface</c>, <paramref name="layered"/>) through its own Shade over that lighting.
 	/// Pixel entries read the material's <paramref name="features"/> as specialization constants instead of from the record
 	/// when the pipeline is specialised for its material (<see cref="MaterialLayout.SpecializedId"/>), so its branches fold.
 	/// </summary>
-	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false, bool sunLit = false, bool composite = false, bool combiner = false, IReadOnlyList<(string Name, string Value)> combinerDefines = null, IReadOnlyList<MaterialField> features = null )
+	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false, bool sunLit = false, bool composite = false, bool combiner = false, IReadOnlyList<(string Name, string Value)> combinerDefines = null, IReadOnlyList<MaterialField> features = null, bool layered = false )
 	{
 		var specialize = features is { Count: > 0 } ? " SurfaceSpecialize( m );" : "";
-		var forward = sunLit ? "SurfaceForwardSunLit" : composite ? "SurfaceForwardComposite" : combiner ? "SurfaceForwardCombiner" : "SurfaceForward";
+		var forward = sunLit ? "SurfaceForwardSunLit" : composite ? "SurfaceForwardComposite" : layered ? "SurfaceForwardLayered" : combiner ? "SurfaceForwardCombiner" : "SurfaceForward";
 		var vertex = displaces ? $"SurfaceVertexDisplaced<{type}>( i )" : "SurfaceVertex( i )";
 		var opacity = opacityField is null ? "0" : $"m.{opacityField}.Slot";
 		var keep = lit ? " s_LitSurface = m;" : "";
