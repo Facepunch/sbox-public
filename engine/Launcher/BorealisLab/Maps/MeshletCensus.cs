@@ -7,6 +7,7 @@ using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using GpuCullMode = Borealis.Gpu.CullMode;
 using M4 = System.Numerics.Matrix4x4;
@@ -60,9 +61,9 @@ internal static unsafe class MeshletCensus
 	}
 
 	/// <summary>One way of cutting meshes into meshlets.</summary>
-	readonly record struct Config( int Vertices, int Triangles, float ConeWeight )
+	readonly record struct Config( int Vertices, int Triangles, float ConeWeight, bool Scan = false )
 	{
-		public override string ToString() => FormattableString.Invariant( $"{Vertices}v/{Triangles}t cone {ConeWeight:0.##}" );
+		public override string ToString() => Scan ? FormattableString.Invariant( $"{Vertices}v/{Triangles}t scan" ) : FormattableString.Invariant( $"{Vertices}v/{Triangles}t cone {ConeWeight:0.##}" );
 	}
 
 	/// <summary>A meshlet: bounds in the mesh's space and its triangles as indices into the draw's triangle order.</summary>
@@ -98,7 +99,7 @@ internal static unsafe class MeshletCensus
 		samples = SampleX.Length;
 
 		LoadMeshopt();
-		var configs = (Args.String( "-meshlet-configs" ) ?? "64x124@0.25,64x124@0,128x124@0.25,64x64@0.25,32x32@0.25").Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ).Select( ParseConfig ).ToArray();
+		var configs = (Args.String( "-meshlet-configs" ) ?? "64x124@0.25,64x124@scan,128x124@0.25,64x64@0.25,32x32@0.25").Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ).Select( ParseConfig ).ToArray();
 
 		// Classic frames, so materials get the objects that say how they cull and meshes pick their LOD on the CPU
 		var gpuDriven = map.Backend.GpuDriven;
@@ -133,7 +134,7 @@ internal static unsafe class MeshletCensus
 		Census( "main view and 3D skybox", draws, width, height, configs, Line );
 
 		// -meshlet-census-sun size,...: sun views, orthographic along the sun at 2048x2048 one sample, centred where the
-		// camera looks, each the given width in world units (an approximation of a cascade; casters only, texel-sized cull)
+		// camera looks, each the given width in world units (an approximation of a cascade: every opaque draw as if it cast, texel-sized cull)
 		foreach ( var size in (Args.String( "-meshlet-census-sun" ) ?? "").Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ).Select( x => float.Parse( x, CultureInfo.InvariantCulture ) ) )
 		{
 			const int SunResolution = 2048;
@@ -209,8 +210,8 @@ internal static unsafe class MeshletCensus
 			Line( "" );
 			Line( "Culled by: frustum (meshlet box in clip space), cone (normal cone against the camera, apex form; not for two-sided draws), small (the box's screen bounds hold no sample). Ideal: meshlets whose every triangle is off screen, back facing or covers no sample." );
 			Line( "" );
-			Line( "| View | Source | Meshlets | Tris/meshlet | Verts/meshlet | Frustum | Cone | Small | Any | Ideal | Kept tris | Kept: off / back / no sample / hidden / visible | Kept meshlet verts | Cone culled a front triangle |" );
-			Line( "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|" );
+			Line( "| View | Source | Meshlets | Tris/meshlet | Verts/meshlet | Frustum | Cone | Small | Any | Ideal | Kept tris | Kept: off / back / no sample / hidden / visible | Kept meshlet verts | Cone culled a front triangle | Kept meshlets | Runs of kept meshlets (draws if each run were one) |" );
+			Line( "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|" );
 			foreach ( var isSky in new[] { false, true } )
 			{
 				var of = Enumerable.Range( 0, draws.Count ).Where( i => draws[i].Sky == isSky ).ToList();
@@ -227,7 +228,8 @@ internal static unsafe class MeshletCensus
 	{
 		var at = s.Split( '@' );
 		var vt = at[0].Split( 'x' );
-		return new Config( int.Parse( vt[0], CultureInfo.InvariantCulture ), int.Parse( vt[1], CultureInfo.InvariantCulture ), at.Length > 1 ? float.Parse( at[1], CultureInfo.InvariantCulture ) : 0.25f );
+		var scan = at.Length > 1 && at[1] == "scan";
+		return new Config( int.Parse( vt[0], CultureInfo.InvariantCulture ), int.Parse( vt[1], CultureInfo.InvariantCulture ), at.Length > 1 && !scan ? float.Parse( at[1], CultureInfo.InvariantCulture ) : 0.25f, scan );
 	}
 
 	static string Pct( long part, long whole ) => whole == 0 ? "-" : FormattableString.Invariant( $"{100.0 * part / whole:0.0}%" );
@@ -243,7 +245,7 @@ internal static unsafe class MeshletCensus
 	sealed class Result
 	{
 		public long Triangles, Meshlets, MeshletVertices;
-		public long Frustum, Cone, Small, Any, Ideal, KeptVertices, ConeFront;
+		public long Frustum, Cone, Small, Any, Ideal, KeptVertices, ConeFront, KeptMeshlets, Runs;
 		public readonly long[] Kept = new long[5];
 	}
 
@@ -262,11 +264,13 @@ internal static unsafe class MeshletCensus
 			r.Ideal += x.Ideal;
 			r.KeptVertices += x.KeptVertices;
 			r.ConeFront += x.ConeFront;
+			r.KeptMeshlets += x.KeptMeshlets;
+			r.Runs += x.Runs;
 			for ( int i = 0; i < 5; i++ ) r.Kept[i] += x.Kept[i];
 		}
 
 		var kept = r.Triangles - r.Any;
-		return FormattableString.Invariant( $"| {view} | {source} | {r.Meshlets:N0} | {r.Triangles / (double)Math.Max( r.Meshlets, 1 ):0.0} | {r.MeshletVertices / (double)Math.Max( r.Meshlets, 1 ):0.0} | {Pct( r.Frustum, r.Triangles )} | {Pct( r.Cone, r.Triangles )} | {Pct( r.Small, r.Triangles )} | {Pct( r.Any, r.Triangles )} | {Pct( r.Ideal, r.Triangles )} | {kept:N0} ({Pct( kept, r.Triangles )}) | {Pct( r.Kept[0], kept )} / {Pct( r.Kept[1], kept )} / {Pct( r.Kept[2], kept )} / {Pct( r.Kept[3], kept )} / {Pct( r.Kept[4], kept )} | {r.KeptVertices:N0} of {r.MeshletVertices:N0} | {r.ConeFront:N0} |" );
+		return FormattableString.Invariant( $"| {view} | {source} | {r.Meshlets:N0} | {r.Triangles / (double)Math.Max( r.Meshlets, 1 ):0.0} | {r.MeshletVertices / (double)Math.Max( r.Meshlets, 1 ):0.0} | {Pct( r.Frustum, r.Triangles )} | {Pct( r.Cone, r.Triangles )} | {Pct( r.Small, r.Triangles )} | {Pct( r.Any, r.Triangles )} | {Pct( r.Ideal, r.Triangles )} | {kept:N0} ({Pct( kept, r.Triangles )}) | {Pct( r.Kept[0], kept )} / {Pct( r.Kept[1], kept )} / {Pct( r.Kept[2], kept )} / {Pct( r.Kept[3], kept )} / {Pct( r.Kept[4], kept )} | {r.KeptVertices:N0} of {r.MeshletVertices:N0} | {r.ConeFront:N0} | {r.KeptMeshlets:N0} | {r.Runs:N0} |" );
 	}
 
 	static ViewSetup MakeView( MapView camera, int width, int height )
@@ -308,7 +312,6 @@ internal static unsafe class MeshletCensus
 			if ( obj is MeshObject mo && mo.Mesh is { } mesh && mesh.Geometry is BackendModel model )
 			{
 				if ( size.Culls( centers[i], extents[i] ) || ((V3)extents[i]).Length() < minRadius ) continue;
-				if ( minRadius > 0 && !mo.CastShadows ) continue;
 				var lod = Math.Clamp( mo.DrawnLod, 0, mesh.LodCount - 1 );
 				var local = (M4)toWorld[i];
 				foreach ( ref readonly var draw in mesh.DrawsForLod( lod ) )
@@ -341,7 +344,6 @@ internal static unsafe class MeshletCensus
 				if ( first.Length == 0 ) continue;
 				var draw0 = first[0];
 				var overlay = ag.LayerMatch == LayerMatch.StaticOverlay;
-				if ( minRadius > 0 && !ag.CastShadows ) continue;
 				var aggregateCulled = size.Culls( centers[i], extents[i] ) || ((V3)extents[i]).Length() < minRadius;
 				var fragments = ag.Fragments;
 				var fc = ag.Centers;
@@ -389,6 +391,36 @@ internal static unsafe class MeshletCensus
 		var (ibIndex, ibOffset) = c.IndexBuffer;
 		var ib = m.IndexBuffers[ibIndex];
 		var known = cull.TryGetValue( material, out var mode );
+		if ( !known && material is SurfaceMaterial surface )
+		{
+			mode = surface.RenderState.TwoSided ? GpuCullMode.None : GpuCullMode.Back;
+			known = true;
+		}
+
+		if ( !known && material is BackendMaterial { Library: { } library, Shader: not null } backend )
+		{
+			lock ( cull )
+			{
+				known = cull.TryGetValue( material, out mode );
+				if ( !known )
+				{
+					try
+					{
+						if ( backend.Variant( library, "Forward", "Forward", static _ => null, static _ => null )?.State is { } state )
+						{
+							mode = state.Cull;
+							known = true;
+						}
+					}
+					catch ( InvalidDataException )
+					{
+					}
+
+					if ( known ) cull[material] = mode;
+				}
+			}
+		}
+
 		if ( !known && material is not null ) lock ( unknownCull ) unknownCull.Add( material );
 		return new Draw
 		{
@@ -646,18 +678,23 @@ internal static unsafe class MeshletCensus
 		public int ConeS8;
 	}
 
-	static delegate* unmanaged<nuint, nuint, nuint, nuint> buildMeshletsBound;
-	static delegate* unmanaged<NativeMeshlet*, uint*, byte*, uint*, nuint, float*, nuint, nuint, nuint, nuint, float, nuint> buildMeshlets;
-	static delegate* unmanaged<uint*, byte*, nuint, float*, nuint, nuint, NativeBounds> computeMeshletBounds;
+	static delegate* unmanaged< nuint, nuint, nuint, nuint > buildMeshletsBound;
+	static delegate* unmanaged< NativeMeshlet*, uint*, byte*, uint*, nuint, float*, nuint, nuint, nuint, nuint, float, nuint > buildMeshlets;
+	static delegate* unmanaged< NativeMeshlet*, uint*, byte*, uint*, nuint, nuint, nuint, nuint, nuint > buildMeshletsScan;
+
+	// Ticks spent in meshoptimizer's builder and bounds, for the load cost
+	static long buildTicks, boundsTicks;
+	static delegate* unmanaged< uint*, byte*, nuint, float*, nuint, nuint, NativeBounds > computeMeshletBounds;
 
 	static void LoadMeshopt()
 	{
 		if ( buildMeshlets is not null ) return;
 		var path = Args.String( "-meshopt-dll" ) ?? Path.Combine( AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "meshoptimizer.dll" : "libmeshoptimizer.so" );
 		var lib = NativeLibrary.Load( path );
-		buildMeshletsBound = (delegate* unmanaged<nuint, nuint, nuint, nuint>)NativeLibrary.GetExport( lib, "meshopt_buildMeshletsBound" );
-		buildMeshlets = (delegate* unmanaged<NativeMeshlet*, uint*, byte*, uint*, nuint, float*, nuint, nuint, nuint, nuint, float, nuint>)NativeLibrary.GetExport( lib, "meshopt_buildMeshlets" );
-		computeMeshletBounds = (delegate* unmanaged<uint*, byte*, nuint, float*, nuint, nuint, NativeBounds>)NativeLibrary.GetExport( lib, "meshopt_computeMeshletBounds" );
+		buildMeshletsBound = (delegate* unmanaged< nuint, nuint, nuint, nuint >)NativeLibrary.GetExport( lib, "meshopt_buildMeshletsBound" );
+		buildMeshlets = (delegate* unmanaged< NativeMeshlet*, uint*, byte*, uint*, nuint, float*, nuint, nuint, nuint, nuint, float, nuint >)NativeLibrary.GetExport( lib, "meshopt_buildMeshlets" );
+		buildMeshletsScan = (delegate* unmanaged< NativeMeshlet*, uint*, byte*, uint*, nuint, nuint, nuint, nuint, nuint >)NativeLibrary.GetExport( lib, "meshopt_buildMeshletsScan" );
+		computeMeshletBounds = (delegate* unmanaged< uint*, byte*, nuint, float*, nuint, nuint, NativeBounds >)NativeLibrary.GetExport( lib, "meshopt_computeMeshletBounds" );
 	}
 
 	static Meshlets Build( uint[] indices, float[] positions, int vertexCount, Config config, bool mapTriangles )
@@ -672,7 +709,13 @@ internal static unsafe class MeshletCensus
 		fixed ( byte* mt = meshletTriangles )
 		fixed ( uint* ix = indices )
 		fixed ( float* p = positions )
-			count = (int)buildMeshlets( m, mv, mt, ix, (nuint)indices.Length, p, (nuint)vertexCount, 12, (nuint)config.Vertices, (nuint)config.Triangles, config.ConeWeight );
+		{
+			var started = Stopwatch.GetTimestamp();
+			count = config.Scan
+				? (int)buildMeshletsScan( m, mv, mt, ix, (nuint)indices.Length, (nuint)vertexCount, (nuint)config.Vertices, (nuint)config.Triangles )
+				: (int)buildMeshlets( m, mv, mt, ix, (nuint)indices.Length, p, (nuint)vertexCount, 12, (nuint)config.Vertices, (nuint)config.Triangles, config.ConeWeight );
+			Interlocked.Add( ref buildTicks, Stopwatch.GetTimestamp() - started );
+		}
 
 		// Each meshlet triangle back to the draw's triangle with the same corners (cyclic order kept)
 		Dictionary<(uint, uint, uint), int> original = null;
@@ -691,7 +734,9 @@ internal static unsafe class MeshletCensus
 			for ( int i = 0; i < count; i++ )
 			{
 				ref readonly var m = ref meshlets[i];
+				var boundsStarted = Stopwatch.GetTimestamp();
 				var b = computeMeshletBounds( mv + m.VertexOffset, mt + m.TriangleOffset, m.TriangleCount, p, (nuint)vertexCount, 12 );
+				Interlocked.Add( ref boundsTicks, Stopwatch.GetTimestamp() - boundsStarted );
 				var lo = new V3( float.MaxValue );
 				var hi = new V3( float.MinValue );
 				for ( int k = 0; k < m.VertexCount; k++ )
@@ -743,6 +788,7 @@ internal static unsafe class MeshletCensus
 		var coneAllowed = !d.TwoSided && uniform;
 
 		Span<V4> corners = stackalloc V4[8];
+		var previousKept = false;
 		foreach ( ref readonly var meshlet in meshlets.List.AsSpan() )
 		{
 			r.MeshletVertices += meshlet.VertexCount;
@@ -780,7 +826,14 @@ internal static unsafe class MeshletCensus
 			if ( cone ) r.Cone += meshlet.Count;
 			if ( small ) r.Small += meshlet.Count;
 			if ( any ) r.Any += meshlet.Count;
-			else r.KeptVertices += meshlet.VertexCount;
+			else
+			{
+				r.KeptVertices += meshlet.VertexCount;
+				r.KeptMeshlets++;
+				if ( !previousKept ) r.Runs++;
+			}
+
+			previousKept = !any;
 			if ( ideal ) r.Ideal += meshlet.Count;
 		}
 
@@ -880,18 +933,20 @@ internal static unsafe class MeshletCensus
 		long triangles = list.Sum( r => (long)r.IC / 3 );
 		line( $"{list.Count:N0} draw ranges, {triangles / 1e6:0.000}M triangles." );
 		line( "" );
-		line( "| Config | Meshlets | Tris/meshlet | One core s | All cores s | ns a triangle (one core) | Records MB (48 B each) | Index buffer reordered in place |" );
-		line( "|---|---|---|---|---|---|---|---|" );
+		line( "| Config | Meshlets | Tris/meshlet | One core s | All cores s | ns a triangle (one core) | of which meshopt build s | of which meshopt bounds s | Records MB (32 B each) |" );
+		line( "|---|---|---|---|---|---|---|---|---|" );
 		foreach ( var config in configs )
 		{
 			var sw = Stopwatch.StartNew();
 			long meshlets = 0;
+			(buildTicks, boundsTicks) = (0, 0);
 			foreach ( var r in list ) meshlets += Build( r.V, r.P, r.I, r.VB, r.IB, r.IC, config, mapTriangles: false ).List.Length;
 			var one = sw.Elapsed.TotalSeconds;
+			var (buildSeconds, boundsSeconds) = (buildTicks / (double)Stopwatch.Frequency, boundsTicks / (double)Stopwatch.Frequency);
 			sw.Restart();
 			Parallel.ForEach( list, r => Build( r.V, r.P, r.I, r.VB, r.IB, r.IC, config, mapTriangles: false ) );
 			var all = sw.Elapsed.TotalSeconds;
-			line( FormattableString.Invariant( $"| {config} | {meshlets:N0} | {triangles / (double)Math.Max( meshlets, 1 ):0.0} | {one:0.00} | {all:0.00} | {one * 1e9 / Math.Max( triangles, 1 ):0} | {meshlets * 48 / 1048576.0:0.0} | yes: no extra index memory |" ) );
+			line( FormattableString.Invariant( $"| {config} | {meshlets:N0} | {triangles / (double)Math.Max( meshlets, 1 ):0.0} | {one:0.00} | {all:0.00} | {one * 1e9 / Math.Max( triangles, 1 ):0} | {buildSeconds:0.00} | {boundsSeconds:0.00} | {meshlets * 32 / 1048576.0:0.0} |" ) );
 		}
 	}
 }
