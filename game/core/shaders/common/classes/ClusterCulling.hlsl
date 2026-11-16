@@ -48,16 +48,26 @@ struct Cluster
 {
     static float SliceToDepth( float slice ) { return exp( ( slice - ClusterZParams.y ) / ClusterZParams.x ); }
     static float DepthToSlice( float depth ) { return ClusterZParams.x * log( depth ) + ClusterZParams.y; }
-    static uint Capacity( ClusterItemType type ) { return uint( ClusterCapacitiesVec[uint( type )] ); }
+    // A grid constant (a whole number below 2^24) as an integer, as uint( value ), from its bits with integer
+    // instructions: the float conversion is a vector instruction, and the compiler held its result in a vector register
+    // from the first query to the last
+    static uint Constant( float value )
+    {
+        uint bits = asuint( value );
+        uint exponent = ( bits >> 23 ) & 0xFF;
+        return exponent < 127 ? 0 : ( ( bits & 0x7FFFFF ) | 0x800000 ) >> ( 150 - exponent );
+    }
+
+    static uint Capacity( ClusterItemType type ) { return Constant( ClusterCapacitiesVec[uint( type )] ); }
 
     // Where a cluster's count of a type is in ClusterItemCounts: the type's section, then the cluster
-    static uint CountSlot( ClusterItemType type, uint flatIndex ) { return uint( type ) * uint( ClusterCounts.w ) + flatIndex; }
+    static uint CountSlot( ClusterItemType type, uint flatIndex ) { return uint( type ) * Constant( ClusterCounts.w ) + flatIndex; }
 
     // Where a cluster's items of a type start in ClusterItemIndices: the sections before the type's, then the
     // cluster's capacity-sized run
     static uint IndexBase( ClusterItemType type, uint flatIndex )
     {
-        uint total = uint( ClusterCounts.w );
+        uint total = Constant( ClusterCounts.w );
         uint section = 0;
         if ( type != ClusterItemType_Light ) section += total * Capacity( ClusterItemType_Light );
         if ( type == ClusterItemType_Decal ) section += total * Capacity( ClusterItemType_EnvMap );
@@ -84,17 +94,10 @@ struct Cluster
         
         // Perspective: SV_Position.w = 1/viewDepth, so depth = 1/w.
         // Ortho: SV_Position.w is always 1.0, so un-project clip-space Z instead.
-        // Uniform branch = free
-        float depth;
-        if ( g_matViewToProjection[3].w != 0 )
-        {
-            float4 vViewPos = mul( g_matProjectionToView, float4( 0.0, 0.0, positionSs.z, 1.0 ) );
-            depth = -( vViewPos.z / vViewPos.w );
-        }
-        else
-        {
-            depth = 1.0 / positionSs.w;
-        }
+        // Both, then a select, not a branch: in branches, the compiler can't share one shader's several calls, so the
+        // coordinate's pieces stayed live from the first query (decals) to the last
+        float4 vViewPos = mul( g_matProjectionToView, float4( 0.0, 0.0, positionSs.z, 1.0 ) );
+        float depth = g_matViewToProjection[3].w != 0 ? -( vViewPos.z / vViewPos.w ) : 1.0 / positionSs.w;
 
         depth = clamp( depth, ClusterZParams.z, ClusterZParams.w );
         uint3 d = max( uint3( ClusterCounts.xyz ), 1 );
