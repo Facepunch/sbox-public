@@ -69,6 +69,8 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 	/// </summary>
 	internal override void Prepare( RenderWorld world, ViewPass pass, TransformBuffer transforms )
 	{
+		using var zone = Zones.AggregatePrepare.Start();
+
 		// The frame's transforms, whose instance ids a GPU-driven draw reads on the CPU (the same buffer for every view)
 		this.transforms = transforms;
 
@@ -219,7 +221,7 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 			context.BufferBarrier( buffer, GpuStage.Transfer, GpuAccess.TransferWrite, GpuStage.DrawIndirect, GpuAccess.IndirectCommandRead );
 
 		// Every view's resident lists culled at once, before any view draws
-		CullResident( context );
+		using ( Zones.ResidentCull.Start() ) CullResident( context );
 	}
 
 	/// <summary>
@@ -285,6 +287,7 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 	/// </summary>
 	internal override void Draw( GpuContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
 	{
+		using var zone = Zones.GpuDrivenDraw.Start();
 		var state = view.State<Batches>( this );
 		var batches = state.OneRun ? default : CollectionsMarshal.AsSpan( state.List ).Slice( first, count );
 

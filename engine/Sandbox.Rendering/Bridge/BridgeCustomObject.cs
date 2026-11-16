@@ -22,8 +22,8 @@ internal sealed class BridgeCustomObject : CustomObject
 	{
 		if ( !Source.IsValid() ) return;
 
-		// On Borealis.Gpu: through the engine's graphics context into Borealis's list, in colour layers (not shadows or the
-		// depth prepass yet)
+		// On Borealis.Gpu: through the engine's graphics context into Borealis's list, in colour layers, and into depth alone
+		// in shadow maps and the depth prepass, with the layer's mode and the shadow view's depth bias
 		if ( MirrorContent.Gpu is not null )
 		{
 			// The overlay layers draw after post processing, where native draws them (the camera's output)
@@ -34,7 +34,13 @@ internal sealed class BridgeCustomObject : CustomObject
 			}
 
 			var layerType = (SceneLayerType)layer.LayerType;
-			if ( view.IsShadow || layer.Depth || layerType is not (SceneLayerType.Opaque or SceneLayerType.Translucent) ) return;
+			if ( layer.Depth || view.IsShadow )
+			{
+				DrawDepthOnGpu( context, view, layer, Source.RenderInternal );
+				return;
+			}
+
+			if ( layerType is not (SceneLayerType.Opaque or SceneLayerType.Translucent) ) return;
 			BorealisGpuCustomDraw.Draw( context, layerType, view.View, Source.RenderInternal );
 			return;
 		}
@@ -44,6 +50,16 @@ internal sealed class BridgeCustomObject : CustomObject
 		{
 			Source.RenderInternal();
 		}
+	}
+
+	/// <summary>
+	/// A custom or dynamic object's <paramref name="draw"/> on Borealis.Gpu in a depth layer (a shadow map, the depth prepass):
+	/// into the bound depth alone, in the layer's mode, with a shadow view's depth bias, as the layer's meshes draw.
+	/// </summary>
+	internal static void DrawDepthOnGpu( GpuContext context, ViewPass view, MeshLayer layer, Action draw )
+	{
+		var shadow = layer.LayerType == MeshLayerType.Shadow;
+		BorealisGpuCustomDraw.Draw( context, (SceneLayerType)layer.LayerType, view.View, draw, layer.ShaderMode, shadow ? view.DepthBias : 0, shadow ? view.SlopeScaledDepthBias : 0 );
 	}
 
 	/// <summary>
