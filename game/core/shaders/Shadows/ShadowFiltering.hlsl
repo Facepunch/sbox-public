@@ -108,11 +108,13 @@ float SampleShadowTent( ShadowPCFInput i, uint nAxisTaps )
     const float flTaps = float( nAxisTaps );
 
     float2 vGridPosition = i.ShadowPos.xy / flGrid - 0.5;
-    float2 vBase = floor( vGridPosition ) - ( flTaps - 1.0 );
     float2 vPhase = frac( vGridPosition );
 
     // Two taps of a row at a time, their fetches in flight together, in loops. Fully unrolled, the driver grouped every
-    // fetch with its coordinates and weights, the peak of the lit shaders' registers. Same taps, same order
+    // fetch with its coordinates and weights, the peak of the lit shaders' registers. Same taps, same order, and the same
+    // rounding as unrolled: a tap's whole-texel offsets come from integers, as the constants they were, so the compiler
+    // can't regroup the sums that round
+    float2 vFloor = floor( vGridPosition );
     float flVisibility = 0.0;
     [loop]
     for ( uint y = 0; y < nAxisTaps; y++ )
@@ -127,10 +129,11 @@ float SampleShadowTent( ShadowPCFInput i, uint nAxisTaps )
                 if ( x >= nAxisTaps )
                     break;
 
-                float2 k = 2.0 * float2( x, y );
-                float2 w0 = flTaps - abs( k - ( flTaps - 1.0 ) - vPhase );
-                float2 w1 = flTaps - abs( k - ( flTaps - 2.0 ) - vPhase );
-                float2 vUV = ( vBase + k + w1 / ( w0 + w1 ) + 0.5 ) * flGrid;
+                // k - ( taps - 1 ) and k - ( taps - 2 ), k twice the tap's index
+                int2 c0 = 2 * int2( x, y ) + 1 - int( nAxisTaps );
+                float2 w0 = flTaps - abs( float2( c0 ) - vPhase );
+                float2 w1 = flTaps - abs( float2( c0 + 1 ) - vPhase );
+                float2 vUV = ( ( vFloor + float2( 2 * c0 + 1 ) * 0.5 ) + w1 / ( w0 + w1 ) ) * flGrid;
                 flVisibility += ( w0.x + w1.x ) * ( w0.y + w1.y ) * i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vUV, flCompareDepth );
             }
         }
