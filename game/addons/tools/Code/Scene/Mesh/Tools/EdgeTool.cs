@@ -78,6 +78,8 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 				SelectEdgeLoop();
 		}
 
+		UpdateMoveMode();
+
 		var edges = SelectedMeshElements;
 
 		DrawSelectedElements();

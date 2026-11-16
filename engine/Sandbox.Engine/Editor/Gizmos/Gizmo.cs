@@ -38,7 +38,7 @@ public static partial class Gizmo
 
 	public static SceneCamera Camera
 	{
-		get => Active.Input.Camera;
+		get => Active.IsPicking ? Active.current.Input.Camera : Active.Input.Camera;
 	}
 
 	public static bool IsHovered => HasHovered && Active.current.HoveredPath == Path;
@@ -56,7 +56,7 @@ public static partial class Gizmo
 
 	public static bool HasClicked => Active.current.Click;
 
-	public static bool HasMouseFocus => Active.Input.IsHovered;
+	public static bool HasMouseFocus => Active.current.Input.IsHovered;
 
 	internal static void BeginInstance( Instance instance )
 	{
@@ -83,9 +83,9 @@ public static partial class Gizmo
 		// If already selected - can deselect if holding down Ctrl
 		if ( allowUnselect && Active.current.Input.Modifiers.Contains( KeyboardModifiers.Ctrl ) )
 		{
-			if ( Active.builder.SelectedPath?.Contains( Path ) ?? false )
+			if ( Active.current.SelectedPath?.Contains( Path ) ?? false )
 			{
-				Active.builder.SelectedPath = Active.builder.SelectedPath.Remove( Path );
+				Active.current.SelectedPath = Active.current.SelectedPath.Remove( Path );
 				return;
 			}
 
@@ -99,11 +99,11 @@ public static partial class Gizmo
 		// If we're not multi selecting, clear the current selection
 		if ( !allowMultiSelect || (!Active.current.Input.Modifiers.Contains( KeyboardModifiers.Ctrl ) && !Active.current.Input.Modifiers.Contains( KeyboardModifiers.Shift )) )
 		{
-			Active.builder.SelectedPath = null;
+			Active.current.SelectedPath = null;
 			Active.Selection.Clear();
 		}
 
-		Active.builder.SelectedPath ??= ImmutableHashSet<string>.Empty;
+		Active.current.SelectedPath ??= ImmutableHashSet<string>.Empty;
 		if ( !string.IsNullOrWhiteSpace( Active.current.HoveredPath ) )
 		{
 
@@ -113,7 +113,7 @@ public static partial class Gizmo
 			}
 			else
 			{
-				Active.builder.SelectedPath = Active.builder.SelectedPath.Add( Active.current.HoveredPath );
+				Active.current.SelectedPath = Active.current.SelectedPath.Add( Active.current.HoveredPath );
 			}
 		}
 	}
@@ -227,7 +227,7 @@ public static partial class Gizmo
 		if ( GetPositionOnPlane( position, planeNormal, CurrentRay ) is not Vector3 a )
 			return Vector3.Zero;
 
-		if ( GetPositionOnPlane( position, planeNormal, PreviousRay ) is not Vector3 b )
+		if ( GetPositionOnPlane( position, planeNormal, Pressed.This && WasLeftMousePressed ? Pressed.Ray : PreviousRay ) is not Vector3 b )
 			return Vector3.Zero;
 
 		return (a - b) * Transform.Scale;
@@ -277,7 +277,7 @@ public static partial class Gizmo
 		var plane = new Plane( position, planeNormal );
 
 		var a = plane.Trace( CurrentRay.ToLocal( Transform ), true );
-		var b = plane.Trace( PreviousRay.ToLocal( Transform ), true );
+		var b = plane.Trace( (Pressed.This && WasLeftMousePressed ? Pressed.Ray : PreviousRay).ToLocal( Transform ), true );
 
 		if ( a == null ) return 0.0f;
 		if ( b == null ) return 0.0f;
@@ -291,12 +291,12 @@ public static partial class Gizmo
 	/// <summary>
 	/// The current cursor position, in screen space
 	/// </summary>
-	public static Vector2 CursorPosition => Active.previous.Input.CursorPosition;
+	public static Vector2 CursorPosition => Active.current.Input.CursorPosition;
 
 	/// <summary>
 	/// The delta of cursor movement between this frame and last, in screen space
 	/// </summary>
-	public static Vector2 CursorMoveDelta => Active.current.Input.CursorPosition - CursorPosition;
+	public static Vector2 CursorMoveDelta => CursorPosition - Active.previous.Input.CursorPosition;
 
 	/// <summary>
 	/// The delta of cursor movement between last press and now, in screen space.
@@ -313,9 +313,9 @@ public static partial class Gizmo
 	public static bool IsShiftPressed => KeyboardModifiers.Contains( KeyboardModifiers.Shift );
 	public static bool IsAltPressed => KeyboardModifiers.Contains( KeyboardModifiers.Alt );
 
-	public static bool WasLeftMouseReleased => Active.previous.Input.LeftMouse && !IsLeftMouseDown;
+	public static bool WasLeftMouseReleased => Active.MouseReleased;
 	public static bool IsLeftMouseDown => Active.current.Input.LeftMouse;
-	public static bool WasLeftMousePressed => IsLeftMouseDown && !Active.previous.Input.LeftMouse;
+	public static bool WasLeftMousePressed => Active.MousePressed;
 
 	public static bool WasRightMouseReleased => Active.previous.Input.RightMouse && !IsRightMouseDown;
 	public static bool IsRightMouseDown => Active.current.Input.RightMouse;

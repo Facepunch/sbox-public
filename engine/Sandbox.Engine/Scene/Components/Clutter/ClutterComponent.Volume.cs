@@ -238,16 +238,15 @@ public sealed partial class ClutterComponent
 		using ( Gizmo.Scope( "volume" ) )
 		{
 			Gizmo.Draw.Color = Color.Green.WithAlpha( 0.3f );
-			Gizmo.Draw.LineBBox( Bounds );
-
-			Gizmo.Draw.Color = Color.Green.WithAlpha( 0.05f );
-
-			if ( Gizmo.Control.BoundingBox( "bounds", Bounds, out var newBounds ) )
+			if ( Gizmo.Control.UpdateBoundingBox( "bounds", Bounds, out var newBounds ) )
 			{
 				_boundsUndoScope ??= Scene.Editor?.UndoScope( "Resize Clutter Bounds" ).WithComponentChanges( this ).Push();
 
 				Bounds = newBounds;
 			}
+			Gizmo.Draw.LineBBox( Bounds );
+			Gizmo.Draw.Color = Color.Green.WithAlpha( 0.05f );
+			Gizmo.Draw.BoundingBox( "bounds", Bounds );
 		}
 	}
 }

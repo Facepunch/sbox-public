@@ -38,7 +38,7 @@ public abstract class MoveMode
 		_globalSpace = tool.GlobalSpace;
 		_workPlane = WorkPlane.Current;
 
-		if ( _dirty )
+		if ( _dirty || Gizmo.WasLeftMousePressed )
 		{
 			OnBegin( tool );
 
@@ -47,6 +47,11 @@ public abstract class MoveMode
 
 		UpdateGizmoFromCursor();
 		OnUpdate( tool );
+		if ( tool.DragStarted && Gizmo.WasLeftMouseReleased )
+		{
+			tool.EndDrag();
+			_dirty = true;
+		}
 	}
 
 	protected void UpdateGizmoFromCursor()

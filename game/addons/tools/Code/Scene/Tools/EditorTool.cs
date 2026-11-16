@@ -54,7 +54,7 @@ public class EditorTool : IDisposable
 	/// Create a trace that traces against the render meshes but not the physics world, using the current mouse cursor
 	/// </summary>
 	[JsonIgnore]
-	public SceneTrace MeshTrace => Trace.UseRenderMeshes( true, EditorPreferences.BackfaceSelection )
+	public SceneTrace MeshTrace => Scene.Trace.Ray( Gizmo.Hitbox.Ray, Gizmo.RayDepth ).UseRenderMeshes( true, EditorPreferences.BackfaceSelection )
 										.WithoutTags( "hidden" )
 										.UsePhysicsWorld( false );
 

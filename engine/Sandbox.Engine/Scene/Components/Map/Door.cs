@@ -224,13 +224,15 @@ public sealed class Door : Component, Component.IPressable
 		{
 			Gizmo.Hitbox.DepthBias = 0.1f;
 
-			if ( Gizmo.Control.Position( "pivot", 0, out var newPivot ) )
+			if ( Gizmo.Control.UpdatePosition( "pivot", 0, out var newPivot ) )
 			{
 				if ( Pivot is not null )
 				{
 					Pivot.LocalPosition += newPivot;
+					Gizmo.Transform = Gizmo.Transform.ToWorld( new Transform( newPivot ) );
 				}
 			}
+			Gizmo.Draw.Position( "pivot" );
 		}
 
 		var delta2 = MathF.Sin( RealTime.Now * 2.0f ).Remap( -1, 1 );

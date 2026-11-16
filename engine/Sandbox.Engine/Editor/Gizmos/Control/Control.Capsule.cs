@@ -1,95 +1,60 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 public static partial class Gizmo
 {
 	public sealed partial class GizmoControls
 	{
-		public bool Capsule( string name, Capsule capsule, out Capsule outCapsule, Color color )
+		public bool UpdateCapsule( string name, Capsule capsule, out Capsule outCapsule )
 		{
 			outCapsule = capsule;
-
-			var centerA = capsule.CenterA;
-			var centerB = capsule.CenterB;
-
-			var diff = centerB - centerA;
-			if ( diff.IsNearZeroLength )
-				return false;
-
-			var rot = Rotation.LookAt( diff );
-			var localCameraRot = Transform.RotationToLocal( Camera.Rotation );
-
-			Draw.LineThickness = 4.0f;
-			Draw.Color = color;
-
-			var movement = 0.0f;
-			var radius = outCapsule.Radius;
-
-			Vector3 topCenter = 0.0f;
-			Vector3 bottomCenter = 0.0f;
-
-			using ( Scope( name ) )
+			var diff = capsule.CenterB - capsule.CenterA;
+			if ( diff.IsNearZeroLength ) return false;
+			var rotation = Rotation.LookAt( diff );
+			using var scope = Scope( name );
+			using ( Scope( "radiusCapsuleA", new Transform( capsule.CenterA, rotation ) ) )
 			{
-				Draw.IgnoreDepth = true;
-
-				using ( Scope( "radiusCapsuleA", new Transform( centerA, rot ) ) )
-				{
-					using ( Hitbox.LineScope() )
-					{
-						var delta = GetMouseDistanceDelta( 0, Rotation.FromAxis( localCameraRot.Forward, 0 ).Forward );
-
-						if ( Pressed.This )
-						{
-							movement += delta;
-						}
-
-						Draw.LineCircle( 0, radius );
-					}
-				}
-
-				using ( Scope( "radiusCapsuleB", new Transform( centerB, rot ) ) )
-				{
-					using ( Hitbox.LineScope() )
-					{
-						var delta = GetMouseDistanceDelta( 0, Rotation.FromAxis( localCameraRot.Forward, 0 ).Forward );
-
-						if ( Pressed.This )
-						{
-							movement += delta;
-						}
-
-						Draw.LineCircle( 0, radius );
-					}
-				}
-
-				using ( Scope( "captop", new Transform( centerB, rot ) ) )
-				{
-					Draw.Color = Colors.Up;
-
-					if ( Arrow( "toparrow", Vector3.Forward, out var dist, axisOffset: Vector3.Forward.z * radius, length: 5.0f, head: "cone", girth: 6.0f ) )
-					{
-						topCenter += diff.Normal * dist;
-					}
-				}
-
-				using ( Scope( "capbottom", new Transform( centerA, rot ) ) )
-				{
-					Draw.Color = Colors.Up;
-
-					if ( Arrow( "bottomarrow", Vector3.Backward, out var dist, axisOffset: Vector3.Backward.z * radius, length: 5.0f, head: "cone", girth: 6.0f ) )
-					{
-						bottomCenter -= diff.Normal * dist;
-					}
-				}
-
-				if ( movement == 0.0f && topCenter == 0.0f && bottomCenter == 0.0f )
-					return false;
-
-				outCapsule.CenterA = centerA + bottomCenter;
-				outCapsule.CenterB = centerB + topCenter;
-				outCapsule.Radius = radius + movement;
-
-				return true;
+				if ( Pressed.This ) outCapsule.Radius += GetMouseDistanceDelta( 0, Vector3.Forward );
 			}
+			using ( Scope( "radiusCapsuleB", new Transform( capsule.CenterB, rotation ) ) )
+			{
+				if ( Pressed.This ) outCapsule.Radius += GetMouseDistanceDelta( 0, Vector3.Forward );
+			}
+			using ( Scope( "captop", new Transform( capsule.CenterB, rotation ) ) )
+			{
+				if ( UpdateArrow( "toparrow", Vector3.Forward, out var distance, axisOffset: 0 ) )
+					outCapsule.CenterB += diff.Normal * distance;
+			}
+			using ( Scope( "capbottom", new Transform( capsule.CenterA, rotation ) ) )
+			{
+				if ( UpdateArrow( "bottomarrow", Vector3.Backward, out var distance, axisOffset: 0 ) )
+					outCapsule.CenterA -= diff.Normal * distance;
+			}
+			return outCapsule.CenterA != capsule.CenterA || outCapsule.CenterB != capsule.CenterB || outCapsule.Radius != capsule.Radius;
+		}
+	}
+
+	public sealed partial class GizmoDraw
+	{
+		public void Capsule( string name, Capsule capsule, Color color )
+		{
+			var diff = capsule.CenterB - capsule.CenterA;
+			if ( diff.IsNearZeroLength ) return;
+			var rotation = Rotation.LookAt( diff );
+			using var scope = Scope( name );
+			IgnoreDepth = true;
+			LineThickness = 4;
+			Color = color;
+			using ( Scope( "radiusCapsuleA", new Transform( capsule.CenterA, rotation ) ) )
+			using ( Hitbox.LineScope() )
+				LineCircle( 0, capsule.Radius );
+			using ( Scope( "radiusCapsuleB", new Transform( capsule.CenterB, rotation ) ) )
+			using ( Hitbox.LineScope() )
+				LineCircle( 0, capsule.Radius );
+			Color = Colors.Up;
+			using ( Scope( "captop", new Transform( capsule.CenterB, rotation ) ) )
+				Arrow( "toparrow", Vector3.Forward, axisOffset: 0, length: 5 );
+			using ( Scope( "capbottom", new Transform( capsule.CenterA, rotation ) ) )
+				Arrow( "bottomarrow", Vector3.Backward, axisOffset: 0, length: 5 );
 		}
 	}
 }

@@ -403,6 +403,13 @@ public partial class SceneViewportWidget : Widget
 
 		base.OnMousePress( e );
 
+		if ( e.LeftMouseButton && Renderer.LocalRect.IsInside( Renderer.FromScreen( e.ScreenPosition ) ) )
+		{
+			hasMouseInput = true;
+			mouseWasPressed = true;
+			framesAfterRelease = 0;
+		}
+
 		if ( e.Button == MouseButtons.Right )
 		{
 			initialMousePosition = e.LocalPosition;
@@ -834,7 +841,7 @@ public partial class SceneViewportWidget : Widget
 		if ( !Gizmo.Settings.Selection ) return;
 
 		// Trace models in the scene, hover the hit one
-		var tr = session.Scene.Trace.Ray( Gizmo.CurrentRay, Gizmo.RayDepth )
+		var tr = session.Scene.Trace.Ray( Gizmo.WasLeftMousePressed ? Gizmo.Pressed.Ray : Gizmo.CurrentRay, Gizmo.RayDepth )
 					.UseRenderMeshes( true )
 					.UsePhysicsWorld( false )
 					.WithoutTags( "hidden" )

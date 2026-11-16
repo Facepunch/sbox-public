@@ -253,7 +253,7 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 				_startBox = box;
 			}
 
-			if ( Gizmo.Control.BoundingBox( "Resize", box, out var outBox ) )
+			if ( Gizmo.Control.UpdateBoundingBox( "Resize", box, out var outBox, out var resizePressed, out _ ) )
 			{
 				if ( !_resizeDragging )
 				{
@@ -282,12 +282,13 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 				BuildPreview();
 			}
-			else if ( _resizeDragging && !Gizmo.IsLeftMouseDown )
+			if ( _resizeDragging && (resizePressed && Gizmo.WasLeftMouseReleased || !Gizmo.Pressed.Any) )
 			{
 				_resizeDragging = false;
 
 				PushUndo( "Resize Block", _resizeBefore, _box );
 			}
+			Gizmo.Draw.BoundingBox( "Resize", box );
 
 			using ( Gizmo.Scope( "Bounds" ) )
 			{

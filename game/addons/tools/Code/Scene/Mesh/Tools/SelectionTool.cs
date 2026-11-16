@@ -131,6 +131,7 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 	public void UpdateDrag()
 	{
 		OnUpdateDrag();
+		Pivot.Update();
 	}
 
 	public void EndDrag()
@@ -698,9 +699,6 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	{
 		GlobalSpace = Gizmo.Settings.GlobalSpace;
 
-		Pivot.Update();
-		UpdateMoveMode();
-
 		if ( !IsBoxSelecting )
 		{
 			EndBoxSelectUndoScope();
@@ -731,21 +729,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 			_invertSelection = false;
 		}
 
-		if ( _meshSelectionDirty )
-		{
-			var previous = _vertexSelection.ToArray();
-
-			CalculateSelectionVertices();
-
-			// Undo restores the selection, firing add and remove for the same elements.
-			// That isn't a change, so the pivot stays where it is.
-			if ( !_vertexSelection.SetEquals( previous ) )
-				Pivot.Reset();
-		}
-
 		HandleGlobalMaterialOperations();
-
-		UpdateMeshRenderFlags();
 	}
 
 	/// <summary>
@@ -808,8 +792,23 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		}
 	}
 
-	void UpdateMoveMode()
+	protected void UpdateMoveMode()
 	{
+		if ( _meshSelectionDirty )
+		{
+			var previous = _vertexSelection.ToArray();
+
+			CalculateSelectionVertices();
+
+			// Undo restores the selection, firing add and remove for the same elements.
+			// That isn't a change, so the pivot stays where it is.
+			if ( !_vertexSelection.SetEquals( previous ) )
+				Pivot.Reset();
+		}
+
+		Pivot.Update();
+		UpdateMeshRenderFlags();
+
 		if ( !HasMoveMode ) return;
 		if ( Tool is null ) return;
 		if ( Tool.MoveMode is null ) return;
@@ -1291,9 +1290,10 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		if ( !ShouldLockTexture() )
 		{
-			foreach ( var mesh in _transformVertices.Select( x => x.Key.Component.Mesh ).Distinct() )
+			foreach ( var component in _transformVertices.Keys.Select( x => x.Component ).Distinct() )
 			{
-				mesh.ComputeFaceTextureCoordinatesFromParameters();
+				component.Mesh.ComputeFaceTextureCoordinatesFromParameters();
+				component.RebuildMesh();
 			}
 
 			return;
@@ -1318,6 +1318,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 			if ( faces.Count > 0 )
 				mesh.ComputeFaceTextureParametersFromCoordinates( faces );
+			group.Key.RebuildMesh();
 		}
 	}
 

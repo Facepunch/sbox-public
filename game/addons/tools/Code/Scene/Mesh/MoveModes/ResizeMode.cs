@@ -30,17 +30,19 @@ public sealed class ResizeMode : MoveMode
 			Gizmo.Hitbox.DepthBias = 0.01f;
 			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
-			if ( !Gizmo.Control.BoundingBox( "resize", _box, out var outBox, out _, out var resizeAxis ) )
-				return;
-
-			_box = outBox;
-
-			if ( snapTarget.HasValue )
-				ApplyVertexSnap( ref _box, resizeAxis, _basis.Inverse * snapTarget.Value );
-
-			tool.StartDrag();
-			ResizeBBox( tool, _startBox, _box, _basis );
-			tool.UpdateDrag();
+			if ( Gizmo.Control.UpdateBoundingBox( "resize", _box, out var outBox, out _, out var resizeAxis ) )
+			{
+				_box = outBox;
+				if ( snapTarget.HasValue )
+					ApplyVertexSnap( ref _box, resizeAxis, _basis.Inverse * snapTarget.Value );
+				if ( tool.DragStarted || _box != _startBox )
+				{
+					tool.StartDrag();
+					ResizeBBox( tool, _startBox, _box, _basis );
+					tool.UpdateDrag();
+				}
+			}
+			Gizmo.Draw.BoundingBox( "resize", _box );
 		}
 	}
 

@@ -222,6 +222,8 @@ public partial class FindReplaceMaterialTool : SelectionTool<MeshFace>
 		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection && !IsLassoSelecting )
 			UpdateSelection( hoverFace );
 
+		UpdateMoveMode();
+
 		_faceObject.Init( Graphics.PrimitiveType.Triangles );
 
 		if ( hoverFace.IsValid() )

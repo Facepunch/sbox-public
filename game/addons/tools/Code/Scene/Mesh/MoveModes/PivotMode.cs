@@ -69,7 +69,7 @@ public sealed class PivotMode : MoveMode
 		var origin = tool.Pivot.Position;
 
 		// Make sure our unsnapped pivot is set to the snapped pivot when not dragging.
-		if ( !Gizmo.Pressed.Any )
+		if ( Gizmo.WasLeftMousePressed || !Gizmo.Pressed.Any )
 		{
 			_unsnappedPivot = origin;
 			_moveDelta = default;
@@ -79,14 +79,14 @@ public sealed class PivotMode : MoveMode
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
-			DrawPivotMarker( origin );
-
-			if ( !Gizmo.Control.Position( "position", Vector3.Zero, out var delta, _basis ) )
-				return;
-
-			_moveDelta += delta;
-
-			Install( tool, tool.SnapTranslation( _unsnappedPivot, _moveDelta, _basis ) );
+			if ( Gizmo.Control.UpdatePosition( "position", Vector3.Zero, out var delta, _basis ) )
+			{
+				_moveDelta += delta;
+				Install( tool, tool.SnapTranslation( _unsnappedPivot, _moveDelta, _basis ) );
+			}
+			Gizmo.Transform = new Transform( tool.Pivot.Position );
+			DrawPivotMarker( tool.Pivot.Position );
+			Gizmo.Draw.Position( "position", _basis );
 		}
 	}
 

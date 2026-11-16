@@ -31,6 +31,38 @@ public class SceneRenderingWidget : Frame
 
 	public bool EnableEngineOverlays { get; set; } = false;
 
+	protected override void OnMousePress( MouseEvent e )
+	{
+		QueueGizmoPointerEvent( e, true );
+		base.OnMousePress( e );
+	}
+
+	protected override void OnMouseReleased( MouseEvent e )
+	{
+		QueueGizmoPointerEvent( e, false );
+		base.OnMouseReleased( e );
+	}
+
+	protected override void OnBlur( FocusChangeReason reason )
+	{
+		GizmoInstance.CancelPointerInput();
+		base.OnBlur( reason );
+	}
+
+	void QueueGizmoPointerEvent( MouseEvent e, bool pressed )
+	{
+		if ( !e.LeftMouseButton || GetSceneCamera() is not { } camera ) return;
+		var input = GizmoInstance.Input;
+		input.Camera = camera;
+		input.CursorPosition = e.LocalPosition;
+		input.CursorRay = camera.GetRay( e.LocalPosition, Size );
+		input.Modifiers = e.KeyboardModifiers;
+		input.IsHovered = LocalRect.IsInside( e.LocalPosition );
+		input.LeftMouse = pressed;
+		input.DoubleClick = e.IsDoubleClick;
+		GizmoInstance.QueuePointerEvent( input );
+	}
+
 	// Track if we've locked this widget's size for recording
 	private bool _sizeLockedForRecording;
 	private Vector2 _savedMinSize;
@@ -182,7 +214,12 @@ public class SceneRenderingWidget : Frame
 		var camera = GetSceneCamera();
 		if ( camera is null ) return;
 
+		var component = Camera.IsValid() ? Camera : Scene.Camera;
+		component.UpdateSceneCameraTransform( camera );
+
 		UpdateGizmoInputs( ref GizmoInstance.Input, camera, hasMouseFocus );
+		if ( Gizmo.Active == GizmoInstance )
+			GizmoInstance.RefreshInput();
 	}
 
 	void Render()
@@ -194,9 +231,11 @@ public class SceneRenderingWidget : Frame
 
 		using ( Scene.PushScope() )
 		{
+			UpdateGizmoInputs();
 			using ( GizmoInstance.PushScope() )
 			{
 				PreFrame();
+				Gizmo.Draw.End();
 				RenderScene();
 			}
 		}
@@ -221,6 +260,9 @@ public class SceneRenderingWidget : Frame
 
 		if ( !hasMouseFocus )
 		{
+			GizmoInstance.CancelPointerInput();
+			input.LeftMouse = false;
+			input.RightMouse = false;
 			input.CursorRay = new Ray();
 			return;
 		}
@@ -232,11 +274,6 @@ public class SceneRenderingWidget : Frame
 		input.CursorPosition -= ScreenPosition;
 		input.CursorRay = camera.GetRay( input.CursorPosition, Size );
 
-		if ( !input.IsHovered )
-		{
-			input.LeftMouse = false;
-			input.RightMouse = false;
-		}
 	}
 
 	private SceneCamera GetSceneCamera()

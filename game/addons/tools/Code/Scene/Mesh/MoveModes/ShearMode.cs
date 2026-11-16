@@ -90,11 +90,6 @@ public sealed class ShearMode : MoveMode
 					_axisDelta[id] = 0f;
 				}
 
-				if ( !tool.DragStarted )
-				{
-					tool.StartDrag();
-				}
-
 				var delta = Gizmo.GetMouseDelta( position, constraintAxis );
 				var distance = Vector3.Dot( delta, shearAxis );
 
@@ -104,8 +99,12 @@ public sealed class ShearMode : MoveMode
 
 					var snappedShear = SnapShear( _axisDelta[id] );
 
-					ApplyShear( tool, constraintAxis, shearAxis, snappedShear );
-					tool.UpdateDrag();
+					if ( tool.DragStarted || snappedShear != 0 )
+					{
+						tool.StartDrag();
+						ApplyShear( tool, constraintAxis, shearAxis, snappedShear );
+						tool.UpdateDrag();
+					}
 				}
 			}
 		}

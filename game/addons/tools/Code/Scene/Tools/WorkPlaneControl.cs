@@ -79,7 +79,7 @@ sealed class WorkPlaneControl
 		if ( Gizmo.HasMouseFocus )
 			_waitForRelease = Gizmo.IsLeftMouseDown;
 		var frame = session.WorkPlane;
-		if ( !Gizmo.Pressed.Any && (!_dragging || _dragCamera == Gizmo.Camera) )
+		if ( (Gizmo.WasLeftMousePressed || !Gizmo.Pressed.Any) && (!_dragging || _dragCamera == Gizmo.Camera) )
 		{
 			if ( _dragging )
 				session.SetWorkPlane( frame );
@@ -101,14 +101,14 @@ sealed class WorkPlaneControl
 			Gizmo.Hitbox.DepthBias = 0.01f;
 			if ( Mode != EditMode.Move )
 			{
-				if ( Gizmo.Control.Rotate( "Rotate", Rotation.Identity, out var rotation ) )
+				if ( Gizmo.Control.UpdateRotation( "Rotate", Rotation.Identity, out var rotation ) )
 				{
 					session.SetWorkPlane( new Transform( _start.Position, _start.Rotation * Gizmo.Snap( rotation ) ), true );
 					_dragging = true;
 					_dragCamera = Gizmo.Camera;
 				}
 			}
-			else if ( Gizmo.Control.Position( "Move", Vector3.Zero, out var delta, Rotation.Identity ) )
+			else if ( Gizmo.Control.UpdatePosition( "Move", Vector3.Zero, out var delta, Rotation.Identity ) )
 			{
 				_movement += delta;
 				var position = _start.PointToWorld( Gizmo.Snap( _movement, _movement ) );
@@ -116,6 +116,11 @@ sealed class WorkPlaneControl
 				_dragging = true;
 				_dragCamera = Gizmo.Camera;
 			}
+			Gizmo.Transform = session.WorkPlane;
+			if ( Mode == EditMode.Move )
+				Gizmo.Draw.Position( "Move", Rotation.Identity );
+			else
+				Gizmo.Draw.Rotate( "Rotate" );
 		}
 
 		return true;

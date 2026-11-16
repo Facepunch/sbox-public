@@ -50,6 +50,7 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 				SelectAllVertices();
 		}
 
+		UpdateMoveMode();
 		DrawSelectedElements();
 
 		if ( ShowSelectionBounds )

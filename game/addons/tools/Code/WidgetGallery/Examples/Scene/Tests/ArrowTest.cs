@@ -14,10 +14,11 @@ internal class ArrowSimple : ISceneTest
 	public void Frame()
 	{
 		Gizmo.Draw.Color = Gizmo.Colors.Green;
-		if ( Gizmo.Control.Arrow( "my-arrow", Vector3.Up, out var distance ) )
+		if ( Gizmo.Control.UpdateArrow( "my-arrow", Vector3.Up, out var distance ) )
 		{
 			someNumber += distance;
 		}
+		Gizmo.Draw.Arrow( "my-arrow", Vector3.Up );
 
 		Gizmo.Draw.Color = Color.Black;
 		Gizmo.Draw.Text( $"Value: {someNumber:n0}", new Transform( Vector3.Down * 10.0f ) );
@@ -33,12 +34,13 @@ internal class ArrowStretch : ISceneTest
 	public void Frame()
 	{
 		Gizmo.Draw.Color = Gizmo.Colors.Red;
-		if ( Gizmo.Control.Arrow( "my-arrow", Vector3.Up, out var distance, length: 10.0f + someNumber ) )
+		if ( Gizmo.Control.UpdateArrow( "my-arrow", Vector3.Up, out var distance ) )
 		{
 			someNumber += distance;
 		}
 
 		someNumber = someNumber.Clamp( 0, 50 );
+		Gizmo.Draw.Arrow( "my-arrow", Vector3.Up, length: 10.0f + someNumber );
 
 		Gizmo.Draw.Color = Color.Black;
 		Gizmo.Draw.Text( $"Value: {someNumber:n0}", new Transform( Vector3.Down * 10.0f ) );
@@ -55,12 +57,13 @@ internal class ArrowMove : ISceneTest
 	public void Frame()
 	{
 		Gizmo.Draw.Color = Gizmo.Colors.Green;
-		if ( Gizmo.Control.Arrow( "my-arrow", Vector3.Up, out var distance, axisOffset: someNumber, length: 20.0f ) )
+		if ( Gizmo.Control.UpdateArrow( "my-arrow", Vector3.Up, out var distance, axisOffset: someNumber ) )
 		{
 			someNumber += distance;
 		}
 
 		someNumber = someNumber.Clamp( 0, 50 );
+		Gizmo.Draw.Arrow( "my-arrow", Vector3.Up, axisOffset: someNumber, length: 20.0f );
 
 		Gizmo.Draw.Color = Color.Black;
 		Gizmo.Draw.Text( $"Value: {someNumber:n0}", new Transform( Vector3.Down * 10.0f ) );

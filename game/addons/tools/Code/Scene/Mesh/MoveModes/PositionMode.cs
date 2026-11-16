@@ -94,7 +94,7 @@ public sealed class PositionMode : MoveMode
 			Gizmo.Hitbox.DepthBias = 0.01f;
 			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
-			if ( Gizmo.Control.Position( "position", Vector3.Zero, out var delta, _basis ) )
+			if ( Gizmo.Control.UpdatePosition( "position", Vector3.Zero, out var delta, _basis ) )
 			{
 				if ( _moveDelta == Vector3.Zero )
 				{
@@ -159,10 +159,15 @@ public sealed class PositionMode : MoveMode
 
 				moveDelta -= _origin;
 
-				tool.StartDrag();
-				tool.Translate( moveDelta );
-				tool.UpdateDrag();
+				if ( tool.DragStarted || moveDelta != Vector3.Zero )
+				{
+					tool.StartDrag();
+					tool.Translate( moveDelta );
+					tool.UpdateDrag();
+				}
 			}
+			Gizmo.Transform = new Transform( tool.Pivot.Position );
+			Gizmo.Draw.Position( "position", _basis );
 		}
 
 		if ( Gizmo.Pressed.Any && _moveDelta != Vector3.Zero )

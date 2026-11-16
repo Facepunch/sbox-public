@@ -27,7 +27,7 @@ public class ScaleEditorTool : EditorTool
 		var positions = nonSceneGos.Select( x => x.WorldPosition ).ToArray();
 		var centroid = positions.Aggregate( Vector3.Zero, ( sum, p ) => sum + p ) / positions.Length;
 
-		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
+		if ( Gizmo.WasLeftMousePressed || (!Gizmo.Pressed.Any && Gizmo.HasMouseFocus) )
 		{
 			startState.Clear();
 			scaleDelta = default;
@@ -47,7 +47,7 @@ public class ScaleEditorTool : EditorTool
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
-			if ( Gizmo.Control.Scale( "scale", Vector3.Zero, out var delta, handleRotation ) )
+			if ( Gizmo.Control.UpdateScale( "scale", Vector3.Zero, out var delta, handleRotation ) )
 			{
 				scaleDelta += delta / 0.01f;
 
@@ -93,6 +93,12 @@ public class ScaleEditorTool : EditorTool
 					if ( scaleAsGroup ) go.DispatchEdited( nameof( GameObject.LocalPosition ) );
 				}
 			}
+			Gizmo.Draw.Scale( "scale", handleRotation );
+		}
+		if ( Gizmo.WasLeftMouseReleased )
+		{
+			undoScope?.Dispose();
+			undoScope = null;
 		}
 	}
 

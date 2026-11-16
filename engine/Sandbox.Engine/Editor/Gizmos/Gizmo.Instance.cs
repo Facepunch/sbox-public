@@ -24,7 +24,7 @@ public static partial class Gizmo
 	/// active state whenever needed.
 	/// </summary>
 	[Expose]
-	public class Instance : IDisposable
+	public partial class Instance : IDisposable
 	{
 		/// <summary>
 		/// If true, we'll draw some debug information
@@ -80,7 +80,6 @@ public static partial class Gizmo
 
 		internal Frame current;
 		internal Frame previous;
-		internal Frame builder;
 		internal Frame pressed;
 
 		/// <summary>
@@ -138,6 +137,10 @@ public static partial class Gizmo
 		public void Clear()
 		{
 			storage.Clear();
+			hitShapes.Clear();
+			displayedHitShapes.Clear();
+			pointerEvents.Clear();
+			ClearPress();
 		}
 
 
@@ -150,12 +153,6 @@ public static partial class Gizmo
 
 		FastTimer timer;
 
-		/// <summary>
-		/// To handle multiple viewports, so we keep track of which viewport is being pressed.
-		/// </summary>
-		private static string activePressedPath;
-		private bool ownsActivePress;
-
 		public Instance()
 		{
 			Entries = new();
@@ -167,6 +164,7 @@ public static partial class Gizmo
 		/// </summary>
 		public void Dispose()
 		{
+			Clear();
 			_world?.Delete();
 			_world = null;
 			Pool?.Clear();
@@ -190,6 +188,7 @@ public static partial class Gizmo
 
 			Start();
 			Sandbox.Gizmo.BeginInstance( this );
+			RefreshInput();
 
 			unsafe
 			{
@@ -215,18 +214,21 @@ public static partial class Gizmo
 			Entries.Clear();
 
 			previous = current;
-			current = builder;
+			current.Input = Input;
+			current.Click = false;
+			(hitShapes, displayedHitShapes) = (displayedHitShapes, hitShapes);
+			hitShapes.Clear();
+			eventsProcessed = false;
+			MousePressed = false;
+			MouseReleased = false;
+			HasReleaseInput = false;
 
 			lineScope = default;
-			builder = default;
-			builder.HitDistance = float.MaxValue;
-			builder.Input = Input;
 
 			scope.HitDepthBias = 1.0f;
 
 			Hitbox.Debug = DebugHitboxes;
 
-			MouseUpdate();
 		}
 
 		void DrawDebug()
@@ -254,6 +256,8 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 		/// </summary>
 		void End()
 		{
+			if ( pressOwner == this && (MouseReleased || (captureHasShape && !hitShapes.Any( x => x.Path == current.PressedPath ))) )
+				ClearPress();
 			foreach ( var entry in Pool )
 			{
 				if ( entry.Value is SceneObject so )
@@ -267,65 +271,6 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 
 			// don't force the world to exist just to flush deletes
 			_world?.DeletePendingObjects();
-		}
-
-		void MouseUpdate()
-		{
-			if ( !current.Input.IsHovered )
-			{
-				if ( ownsActivePress )
-				{
-					// Keep path alive in builder so Pressed.Any stays true until we regain hover and detect the actual release.
-					builder.PressedPath = current.PressedPath;
-				}
-				else if ( !string.IsNullOrEmpty( activePressedPath ) )
-				{
-					// Mirror the owning instance's path so Pressed.Any correctly returns true across all views.
-					builder.PressedPath = activePressedPath;
-				}
-
-				return;
-			}
-
-			// If we release the mouse outside of the viewport we pressed on, clear the stale press state.
-			if ( ownsActivePress && !current.Input.LeftMouse && !previous.Input.LeftMouse )
-			{
-				ownsActivePress = false;
-				activePressedPath = default;
-			}
-
-			//
-			// left mouse button just clicked
-			//
-			if ( previous.Input.LeftMouse == false && current.Input.LeftMouse == true )
-			{
-				current.PressedPath = current.HoveredPath;
-				activePressedPath = current.HoveredPath;
-				ownsActivePress = true;
-				pressed = current;
-			}
-
-			//
-			// left mouse button just released
-			//
-			if ( previous.Input.LeftMouse == true && current.Input.LeftMouse == false )
-			{
-				ownsActivePress = false;
-				activePressedPath = default;
-
-				if ( current.HoveredPath == current.PressedPath )
-				{
-					current.Click = true;
-				}
-			}
-
-			if ( current.Input.LeftMouse )
-			{
-				current.HoveredPath = current.PressedPath;
-				builder.PressedPath = current.PressedPath;
-			}
-
-			builder.SelectedPath = current.SelectedPath;
 		}
 
 		/// <summary>
@@ -377,7 +322,6 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 		{
 			current.Input.CursorPosition = position;
 			previous.Input.CursorPosition = position;
-			builder.Input.CursorPosition = position;
 		}
 	}
 

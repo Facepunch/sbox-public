@@ -99,6 +99,8 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 				SelectContiguousFaces();
 		}
 
+		UpdateMoveMode();
+
 		_faceObject.Init( Graphics.PrimitiveType.Triangles );
 
 		if ( _hoverFace.IsValid() )
