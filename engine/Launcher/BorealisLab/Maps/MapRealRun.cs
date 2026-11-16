@@ -30,13 +30,14 @@ internal static class MapRealRun
 	/// A way of drawing it: recording on one thread or several, material objects or binding by reflection, whether static
 	/// geometry casts sun shadows, and whether aggregates draw GPU-driven (<c>-gpudriven</c>).
 	/// </summary>
-	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false, bool CpuCulling = false, bool NoCompaction = false, bool FullVertices = false, bool Visibility = false, bool FreezeFar = false, bool? FarCache = null, bool NoTiles = false, bool NoFrameBufferMips = false );
+	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false, bool CpuCulling = false, bool NoCompaction = false, bool FullVertices = false, bool Visibility = false, bool FreezeFar = false, bool? FarCache = null, bool NoTiles = false, bool NoFrameBufferMips = false, bool NoContactShadows = false );
 
 	static readonly Variant[] Variants =
 	[
 		new( "real-serial", false, true, false ),
 		new( "real-parallel", true, true, false ),
 		new( "real-parallel-nofbmips", true, true, false, NoFrameBufferMips: true ),
+		new( "real-parallel-nocontact", true, true, false, NoContactShadows: true ),
 		new( "real-reflection", false, false, false ),
 		new( "real-serial-shadows", false, true, true ),
 		new( "real-parallel-shadows", true, true, true ),
@@ -104,6 +105,8 @@ internal static class MapRealRun
 		global::Borealis.Shadows.ShadowMapper.TexelSizedCascades = !Args.Has( "-no-texel-cascades" );
 		var farCache = Args.Has( "-far-cache" ) || (global::Borealis.Shadows.ShadowMapper.FarCascadeCache && !Args.Has( "-no-far-cache" ));
 		var cascadeTiles = global::Borealis.Shadows.ShadowMapper.CascadeTiles && !Args.Has( "-no-cascade-tiles" );
+		// The map's sun's contact shadows, which the -nocontact variants turn off
+		var sunContactShadows = map.World.Lighting.SunContactShadows;
 		if ( Args.Int( "-cascade-resolution", 0 ) is > 0 and var cascadeResolution ) RenderHost.Current.Shadows.MaxCascadeResolution = cascadeResolution;
 		if ( Args.Int( "-cascade-cull-texels", 0 ) is > 0 and var cullTexels ) global::Borealis.Culling.SizeCull.CascadeTexels = cullTexels;
 		if ( !Args.Has( "-noprobes" ) ) map.CaptureProbes();
@@ -244,6 +247,7 @@ internal static class MapRealRun
 				map.Backend.PositionStreams = !variant.FullVertices;
 				map.Backend.GpuDrivenVisibility = variant.Visibility;
 				map.Backend.FrameBufferCopyMips = !variant.NoFrameBufferMips;
+				map.World.Lighting.SunContactShadows = sunContactShadows && !variant.NoContactShadows;
 				map.SetCastShadows( variant.Shadows );
 				global::Borealis.Shadows.ShadowMapper.FreezeFarCascade = variant.FreezeFar || Args.Has( "-freeze-far-cascade" );
 				global::Borealis.Shadows.ShadowMapper.ForgetFrozenFar();
@@ -351,6 +355,7 @@ internal static class MapRealRun
 				map.System.ParallelRecording = Args.Has( "-capture-parallel" );
 				map.Backend.MaterialObjects = true;
 				map.Backend.FrameBufferCopyMips = true;
+				map.World.Lighting.SunContactShadows = sunContactShadows;
 				// -capture-shadows: with static geometry casting sun shadows, so GPU-driven shadow views are compared too
 				map.SetCastShadows( Args.Has( "-capture-shadows" ) );
 				global::Borealis.Shadows.ShadowMapper.FarCascadeCache = farCache;
