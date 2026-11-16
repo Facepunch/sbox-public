@@ -184,6 +184,31 @@ public sealed class ShaderDrawer : IDisposable
 	/// </summary>
 	public (BufferHandle Buffer, long Offset) InstanceIds { get; set; }
 
+	/// <summary>
+	/// The material draws of its shader take their features (<c>F_*</c>, which pick the variant), constants and textures from,
+	/// as native binds a material's mode: what a <c>Graphics</c> draw with a material that has a compiled file reads. Null (the
+	/// default) draws the shader with its defaults. Draws of another shader ignore it.
+	/// </summary>
+	internal BackendMaterial Material { get; set; }
+
+	BackendMaterial MaterialOf( ShaderFile shader ) => Material is { } material && ReferenceEquals( material.Shader, shader ) ? material : null;
+
+	/// <summary>A material's texture for a material variable, when it's ready to sample and the shape the shader expects.</summary>
+	Binding MaterialTexture( BackendMaterial material, in ShaderResource resource )
+	{
+		var expected = resource.Dimension switch
+		{
+			SpirvImageDimension.Cube => TextureDimension.TextureCube,
+			SpirvImageDimension.CubeArray => TextureDimension.TextureCubeArray,
+			SpirvImageDimension.Texture3D => TextureDimension.Texture3D,
+			SpirvImageDimension.Texture2DArray => TextureDimension.Texture2DArray,
+			_ => TextureDimension.Texture2D,
+		};
+
+		if ( !material.Textures.TryGetValue( resource.Variable.Name, out var texture ) || texture.Dimension != expected || texture.Samples > 1 ) return defaults.For( resource );
+		return Binding.Sampled( resource.Binding, texture.Handle, resource.Variable.RenderStateId == 1 && gpu.InfoOf( texture.Handle ).Format.HasSrgb() );
+	}
+
 	// Material objects key their pipelines by layout object: a layout with instance ids is another one, so it has a key of its own
 	readonly Dictionary<VertexStreamLayout, object> idsLayouts = new();
 	readonly object noLayoutIds = new();
@@ -227,10 +252,13 @@ public sealed class ShaderDrawer : IDisposable
 	public ShaderVariant Variant( ShaderFile shader, ShaderAttributes attributes, string mode = null )
 	{
 		mode ??= shader.Modes[0].Name;
-		var key = (shader, mode, attributes.ComboKey( shader ));
+		var features = MaterialOf( shader )?.Features ?? [];
+		var combos = attributes.ComboKey( shader );
+		if ( features.Length > 0 ) combos = string.Concat( combos, "|", string.Join( ',', features ) );
+		var key = (shader, mode, combos);
 		if ( variants.TryGetValue( key, out var variant ) ) return variant;
 
-		variant = shaders.Variant( shader, mode, [], attributes.GetCombo, name => attributes.Get( name ) is float[] { Length: > 0 } f ? (int)f[0] : null );
+		variant = shaders.Variant( shader, mode, features, attributes.GetCombo, name => attributes.Get( name ) is float[] { Length: > 0 } f ? (int)f[0] : null );
 		variants[key] = variant;
 		return variant;
 	}
@@ -502,9 +530,13 @@ public sealed class ShaderDrawer : IDisposable
 		return pipeline;
 	}
 
-	/// <summary>The binding a reflected resource gets from a draw's attribute value, or its placeholder.</summary>
+	/// <summary>
+	/// The binding a reflected resource gets from a draw's attribute value, or for a material variable the material's
+	/// texture (<see cref="Material"/>), or its placeholder.
+	/// </summary>
 	Binding Resource( in ShaderResource resource, object value ) => resource.Kind switch
 	{
+		ShaderResourceKind.Texture when resource.Variable?.Source == VariableSource.Material && Material is { } material => MaterialTexture( material, resource ),
 		ShaderResourceKind.Buffer when value is BufferHandle buffer => Binding.Storage( resource.Binding, buffer ),
 		ShaderResourceKind.Texture when value is TextureHandle texture => Binding.Sampled( resource.Binding, texture, resource.Variable.RenderStateId == 1 && gpu.InfoOf( texture ).Format.HasSrgb() ),
 		ShaderResourceKind.Texture when value is TextureViewHandle view => Binding.Sampled( resource.Binding, view ),
@@ -549,16 +581,19 @@ public sealed class ShaderDrawer : IDisposable
 	}
 
 	/// <summary>A stage's material constants for a draw: the viewport, texture sizes and attributes over the shader's defaults.</summary>
-	void WriteConstants( Span<byte> data, ShaderStage stage, ShaderAttributes attributes, System.Numerics.Vector4 viewport )
+	internal void WriteConstants( Span<byte> data, ShaderStage stage, ShaderAttributes attributes, System.Numerics.Vector4 viewport )
 	{
+		var material = Material;
 		stage.WriteMaterialConstants( data, variable => variable.Source switch
 		{
+			VariableSource.Material or VariableSource.MaterialAndExpression => material?.Value( variable.Name ),
+			VariableSource.ShaderVersion => material is null ? null : [material.ShaderVersion],
 			VariableSource.Viewport => [viewport.X, viewport.Y, viewport.Z, viewport.W],
 			VariableSource.InvViewportSize => [1 / viewport.Z, 1 / viewport.W],
 			VariableSource.Attribute => attributes.Get( variable.Attribute ) as float[],
 			VariableSource.TextureDimensions or VariableSource.InvTextureDimensions or VariableSource.TextureDimensionsLog2 => TextureSize( stage, variable, attributes ),
 			_ => null,
-		} );
+		}, material?.Features ?? default );
 	}
 
 	/// <summary>

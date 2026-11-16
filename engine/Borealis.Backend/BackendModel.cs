@@ -395,8 +395,12 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		return Create( device, ModelFile.Read( data, device.Content.TryRead ), meshGroups, materialGroup );
 	}
 
-	/// <summary>Make the mesh Borealis draws from a model already read (see <see cref="Load"/>).</summary>
-	public static RenderMesh Create( BackendDevice device, ModelFile file, ulong? meshGroups = null, int materialGroup = 0 )
+	/// <summary>
+	/// Make the mesh Borealis draws from a model already read (see <see cref="Load"/>). <paramref name="drawFastPath"/> takes
+	/// each draw's depth fast path from its own flag (<c>m_bUseShadowFastPath</c>) as well as its material, as native's mesh
+	/// system sets it for a model made at run time (a water surface, which moves its vertices in its vertex shader, has it off).
+	/// </summary>
+	public static RenderMesh Create( BackendDevice device, ModelFile file, ulong? meshGroups = null, int materialGroup = 0, bool drawFastPath = false )
 	{
 		var geometry = new BackendModel( device, file );
 		var mask = meshGroups ?? file.DefaultMeshGroupMask;
@@ -416,7 +420,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 					var material = device.LoadMaterial( file.MaterialFor( call.Material, materialGroup ) );
 					var translucent = RenderMesh.IsTranslucent( material );
 					var alphaTest = RenderMesh.IsAlphaTest( material );
-					var fastPath = material is { ShadowFastPath: true } && !translucent && !alphaTest;
+					var fastPath = material is { ShadowFastPath: true } && !translucent && !alphaTest && (!drawFastPath || (call.Flags & MeshDrawFlags.ShadowFastPath) != 0);
 					Vector3? tint = call.Tint == System.Numerics.Vector3.One ? null : new Vector3( call.Tint.X, call.Tint.Y, call.Tint.Z );
 					var lightmapped = (call.Flags & MeshDrawFlags.BakedLightingFromLightmap) != 0;
 					list.Add( new RenderMesh.Draw( m, d, call.StartIndex, call.IndexCount, call.VertexCount, (int)call.Primitive, material, translucent, alphaTest, fastPath, lightmapped, tint, call.UvDensity ) );

@@ -28,6 +28,12 @@ public class RenderAttributeShadowTest
 		CollectionAssert.AreEqual( new[] { 3f, 4f }, target.Managed.GetFloats( "Offset" ) );
 		Assert.AreEqual( 1, target.Managed.GetCombo( "D_GRID" ) );
 
+		// The copy says when it changed, so what reads it converts it again only then
+		var version = source.Shadow.Version;
+		source.Set( "Height", 3.0f );
+		Assert.AreNotEqual( version, source.Shadow.Version );
+		CollectionAssert.AreEqual( new[] { 3f }, source.Shadow.GetFloats( "Height" ) );
+
 		// Without the copy a native set has nothing to give a managed one
 		var plain = new RenderAttributes();
 		plain.Set( "Height", 2.5f );

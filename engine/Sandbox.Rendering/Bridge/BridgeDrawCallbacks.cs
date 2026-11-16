@@ -18,6 +18,15 @@ internal sealed class BridgeDrawCallbacks : DrawCallbacks
 	{
 		if ( !Source.IsValid() ) return;
 
+		// On Borealis.Gpu: through the engine's graphics context into Borealis's list, as custom objects draw
+		if ( MirrorContent.Gpu is not null )
+		{
+			var layerType = (SceneLayerType)layer.LayerType;
+			if ( view.IsShadow || layer.Depth || layerType is not (SceneLayerType.Opaque or SceneLayerType.Translucent) ) return;
+			BorealisGpuCustomDraw.Draw( context, layerType, view.View, after ? Source.ExecuteAfter : Source.ExecuteBefore );
+			return;
+		}
+
 		var graphicsView = BridgeCustomObject.ViewFor( context, view, layer, null );
 		using ( new Graphics.Scope( context.NativeContext(), graphicsView ) )
 		{

@@ -34,9 +34,9 @@ public partial class SceneObject : IHandle
 
 			_attributes = new RenderAttributes( native.GetAttributesPtrForModify() );
 
-			// On a backend that lowers attributes itself, a custom or dynamic object merges its attributes into the managed set it
-			// draws with, so they keep a managed copy
-			if ( this is SceneCustomObject or SceneDynamicObject && RenderBackend.Default is not Source2RenderBackend ) _attributes.KeepManagedCopy();
+			// A backend that lowers attributes itself reads them from a managed copy: a custom or dynamic object merges them
+			// into the set it draws with, and a model's draws read them as its object attributes
+			if ( RenderBackend.Default is not Source2RenderBackend ) _attributes.KeepManagedCopy();
 
 			NotifyChanged( Rendering.SceneObjectChange.Attributes );
 			return _attributes;

@@ -17,8 +17,8 @@ public partial class RenderAttributes
 
 	/// <summary>
 	/// A managed copy of a native set's values, kept when the process draws on a backend that lowers attributes itself
-	/// (<see cref="KeepManagedCopy"/>): a custom object's, which it merges into the attributes it draws with under
-	/// <c>-borealisgpu</c>. Null otherwise, and always for a set that is <see cref="Managed"/>.
+	/// (<see cref="KeepManagedCopy"/>): a scene object's under <c>-borealisgpu</c>, which a custom object merges into the
+	/// attributes it draws with and a model's draws read as its object attributes. Null otherwise, and always for a set that is <see cref="Managed"/>.
 	/// </summary>
 	internal ManagedRenderAttributes Shadow { get; private set; }
 
@@ -75,16 +75,29 @@ internal sealed class ManagedRenderAttributes
 	/// <summary>Every combo by token.</summary>
 	public IReadOnlyDictionary<uint, int> Combos => combos;
 
-	public void Set( StringToken k, params float[] value ) => values[k.Value] = value;
+	/// <summary>Changes whenever a value or combo is set or cleared, for a reader that converts them only when they change.</summary>
+	public int Version { get; private set; }
+
+	public void Set( StringToken k, params float[] value )
+	{
+		values[k.Value] = value;
+		Version++;
+	}
+
 	public void SetObject( StringToken k, object value )
 	{
 		if ( value is null ) values.Remove( k.Value );
 		else values[k.Value] = value;
+		Version++;
 	}
 
-	public void Set( StringToken k, in Matrix value ) => values[k.Value] = MemoryMarshal.Cast<Matrix, float>( new ReadOnlySpan<Matrix>( in value ) ).ToArray();
+	public void Set( StringToken k, in Matrix value ) => Set( k, MemoryMarshal.Cast<Matrix, float>( new ReadOnlySpan<Matrix>( in value ) ).ToArray() );
 
-	public void SetCombo( StringToken k, int value ) => combos[k.Value] = value;
+	public void SetCombo( StringToken k, int value )
+	{
+		combos[k.Value] = value;
+		Version++;
+	}
 
 	public object Get( StringToken k ) => values.GetValueOrDefault( k.Value );
 	public int? GetCombo( StringToken k ) => combos.TryGetValue( k.Value, out var value ) ? value : null;
@@ -95,6 +108,7 @@ internal sealed class ManagedRenderAttributes
 	{
 		values.Clear();
 		combos.Clear();
+		Version++;
 	}
 
 	/// <summary>Copy every value and combo into <paramref name="other"/>, replacing those of the same token.</summary>
@@ -102,5 +116,6 @@ internal sealed class ManagedRenderAttributes
 	{
 		foreach ( var (k, v) in values ) other.values[k] = v;
 		foreach ( var (k, v) in combos ) other.combos[k] = v;
+		other.Version++;
 	}
 }
