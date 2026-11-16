@@ -422,7 +422,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 
 		var ext = System.IO.Path.GetExtension( uri.AbsolutePath ).TrimStart( '.' ).ToLower();
 
-		native.Play( url, ext );
+		native.Play( url, ext, Http.IsLocalAllowed );
 	}
 
 	/// <summary>
@@ -449,7 +449,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 		if ( string.IsNullOrWhiteSpace( path ) )
 			return;
 
-		native.Play( path, ext );
+		native.Play( path, ext, false );
 	}
 
 	/// <summary>
