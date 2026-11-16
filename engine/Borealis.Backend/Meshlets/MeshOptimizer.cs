@@ -5,7 +5,8 @@ namespace Borealis.Backend.Meshlets;
 
 /// <summary>
 /// meshoptimizer's C API, from the engine's <c>meshopt</c> shared library (<c>src/meshopt</c>: <c>meshopt.dll</c>,
-/// <c>libmeshopt.so</c> in <c>game/bin/&lt;platform&gt;</c>). Only what meshlet building calls.
+/// <c>libmeshopt.so</c> in <c>game/bin/&lt;platform&gt;</c>): meshlet building and simplification. The library is built
+/// without its asserts (a failed one would hang the process on an abort dialog), so callers check their inputs.
 /// </summary>
 internal static unsafe partial class MeshOptimizer
 {
@@ -60,6 +61,42 @@ internal static unsafe partial class MeshOptimizer
 			yield return EngineFolders.NativeIn( Path.Combine( dir.FullName, "game" ) );
 		}
 	}
+
+	/// <summary>meshoptimizer's <c>meshopt_Simplify*</c> options.</summary>
+	[Flags]
+	public enum SimplifyOptions : uint
+	{
+		None = 0,
+
+		/// <summary>Keep the vertices on the mesh's border where they are: a range that meets another stays joined.</summary>
+		LockBorder = 1 << 0,
+		Sparse = 1 << 1,
+		ErrorAbsolute = 1 << 2,
+		Prune = 1 << 3,
+		Regularize = 1 << 4,
+		Permissive = 1 << 5,
+		RegularizeLight = 1 << 6,
+	}
+
+	/// <summary>
+	/// <c>meshopt_simplify</c>: indices at most <paramref name="targetIndexCount"/> long into <paramref name="destination"/>
+	/// (which holds <paramref name="indexCount"/>), stopping at <paramref name="targetError"/> (relative to the mesh's extent
+	/// unless <see cref="SimplifyOptions.ErrorAbsolute"/>); returns how many it wrote. Callers check their inputs: the library
+	/// is built without its asserts.
+	/// </summary>
+	[LibraryImport( LibraryName, EntryPoint = "meshopt_simplify" )]
+	public static partial nuint Simplify( uint* destination, uint* indices, nuint indexCount, float* vertexPositions, nuint vertexCount, nuint vertexPositionsStride,
+		nuint targetIndexCount, float targetError, SimplifyOptions options, float* resultError );
+
+	/// <summary><c>meshopt_simplifyWithAttributes</c>: as <see cref="Simplify"/>, with attributes weighed into the error and vertices locked.</summary>
+	[LibraryImport( LibraryName, EntryPoint = "meshopt_simplifyWithAttributes" )]
+	public static partial nuint SimplifyWithAttributes( uint* destination, uint* indices, nuint indexCount, float* vertexPositions, nuint vertexCount, nuint vertexPositionsStride,
+		float* vertexAttributes, nuint vertexAttributesStride, float* attributeWeights, nuint attributeCount, byte* vertexLock, nuint targetIndexCount, float targetError,
+		SimplifyOptions options, float* resultError );
+
+	/// <summary><c>meshopt_simplifyScale</c>: the mesh's extent, which relative errors are fractions of.</summary>
+	[LibraryImport( LibraryName, EntryPoint = "meshopt_simplifyScale" )]
+	public static partial float SimplifyScale( float* vertexPositions, nuint vertexCount, nuint vertexPositionsStride );
 
 	[LibraryImport( LibraryName, EntryPoint = "meshopt_buildMeshletsBound" )]
 	public static partial nuint BuildMeshletsBound( nuint indexCount, nuint maxVertices, nuint maxTriangles );
