@@ -909,6 +909,37 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// The engine's drawing (a custom or dynamic object's <c>Graphics.Draw</c>) draws a material's <c>.shader</c>: where a
+	/// surface stands in for that shader in the scene, <see cref="BackendDevice.ShaderMaterial"/> is still the
+	/// <c>.shader</c> material with its textures. Without them its draws read black textures and come out unlit.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "materials/dev/red.vmat" )]
+	[DataRow( "materials/default/vertex_color.vmat" )]
+	public void ConvertedMaterialsKeepTheirShaderMaterial( string path )
+	{
+		Compiler();
+		var previousHost = RenderHost.Current;
+		try
+		{
+			using var backend = new BackendDevice( Device );
+			backend.Surfaces.ConvertShaders = true;
+			RenderHost.Current = new BackendRenderHost( backend );
+			if ( ((GpuDevice)backend).LoadMaterial( path ) is not SurfaceMaterial ) Assert.Inconclusive( $"{path} isn't a surface" );
+
+			var material = backend.ShaderMaterial( path );
+			Assert.IsNotNull( material, "the .shader material behind the surface" );
+			Assert.IsNotNull( material.Shader );
+			Assert.IsTrue( material.Textures.Count > 0, $"{path}'s textures" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A surface's render state: the struct's attributes are every material's defaults, [RenderState] fields change them
 	/// per material (in field order), the generated class carries both, and a material resolves its state from its record.
 	/// </summary>
