@@ -955,7 +955,7 @@ internal sealed partial class BackendContext : GpuContext
 	};
 
 	/// <summary>
-	/// An attribute as floats, for constants: numbers, bools and vectors.
+	/// An attribute as floats, for constants: numbers, bools, vectors and matrices (in the order view constants hold them).
 	/// </summary>
 	static float[] Floats( object value ) => value switch
 	{
@@ -968,6 +968,7 @@ internal sealed partial class BackendContext : GpuContext
 		Vector4 v => [v.x, v.y, v.z, v.w],
 		Color c => [c.r, c.g, c.b, c.a],
 		Vector2Int v => [v.x, v.y],
+		Matrix m => [m.M11, m.M12, m.M13, m.M14, m.M21, m.M22, m.M23, m.M24, m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44],
 		_ => null,
 	};
 
