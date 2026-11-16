@@ -1194,6 +1194,14 @@ internal sealed partial class BackendContext : GpuContext
 
 		CopyTexture( bound.Color, frameBufferCopy, 1 );
 		var viewport = frameBufferCopyViewport;
+
+		// Its mips for blurred refraction, then readable by the draws after it: they bind only what's readable
+		if ( frameBufferCopy is BackendTexture copy )
+		{
+			if ( device.FrameBufferCopyMips ) GenerateFrameBufferCopyMips( copy, viewport );
+			Transition( copy, ImageLayout.ShaderRead );
+		}
+
 		attributes.Set( FrameBufferCopyTexture, frameBufferCopy );
 		attributes.Set( FrameBufferCopyRectangle, new Vector4( 0, 0, viewport.Width / frameBufferCopy.Width, viewport.Height / frameBufferCopy.Height ) );
 	}
