@@ -352,33 +352,6 @@ public static partial class Graphics
 		/// <summary>The standalone attributes, or null inside a scene view.</summary>
 		internal RenderAttributes Attributes => _attributes;
 
-		/// <summary>
-		/// A render block over a managed frame (<see cref="ManagedView"/>): <paramref name="context"/> is recording it, and
-		/// its own attributes are the block's, as a native view's are - draws fall back to them for what they don't set.
-		/// The view's targets are bound.
-		/// </summary>
-		internal Scope( IRenderContext context, ManagedView view )
-		{
-			_previous = _state;
-			_state = new RenderState
-			{
-				active = true,
-				renderContext = context,
-				view = view,
-				layerType = view.LayerType,
-				colorFormat = view.ColorFormat,
-				msaaLevel = view.Msaa,
-				cameraTransform = new Transform( view.Frustum.GetCameraPosition(), view.Frustum.GetCameraAngles() ),
-				computeQueue = view.ComputeQueue,
-				backend = Source2RenderBackend.Instance,
-			};
-
-			_state.attributes = ObjectPool<RenderAttributes>.Get();
-			_state.attributes.Set( context.GetAttributesPtrForModify() );
-
-			view.Bind( context );
-		}
-
 		public Scope( in ManagedRenderSetup_t setup )
 		{
 			_previous = _state;

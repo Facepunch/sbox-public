@@ -137,12 +137,6 @@ internal sealed class Source2RenderBackend : RenderBackend
 
 	public override unsafe void DrawModel( Model model, ReadOnlySpan<Transform> transforms, int? lodLevel, RenderAttributes attributes )
 	{
-		if ( Graphics.CurrentManagedView is not null )
-		{
-			Graphics.ManagedView.DrawModelInstanced( Context, model, transforms, lodLevel ?? 0, attributes );
-			return;
-		}
-
 		fixed ( Transform* pTransforms = transforms )
 		{
 			if ( lodLevel is int lod )

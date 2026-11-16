@@ -6,7 +6,8 @@ namespace Sandbox.BorealisLab;
 /// component sets its scene camera's auto exposure, as in a game. On Source 2 that camera's native tonemap system runs as
 /// a camera's stages run it (its frame update, then <c>RenderTools.RenderAutoExposure</c> over the frame); on a
 /// Borealis.Gpu device its managed port runs (<see cref="TonemapSystem.GpuExposure"/>, counting with occlusion queries),
-/// over the same HDR frames: Sun Shadows from Source 2, bright for the first half and a tenth as bright for the second.
+/// over the same HDR frames: Sun Shadows rendered by Borealis on Borealis.Gpu, bright for the first half and a tenth as
+/// bright for the second.
 /// Both advance <c>-step</c> seconds a frame: native's frame update is called with that time rather than real time, as
 /// <c>RenderTools.TonemapFrameUpdate</c> passes. With no step the component's rate is 0, which adapts at once. Writes
 /// <c>results.md</c>; exits 1 when a frame's exposure differs by more than <c>-tolerance</c> (default 0 with a step,
@@ -39,8 +40,8 @@ internal static class ExposureParity
 		System.IO.Directory.CreateDirectory( folder );
 
 		using var gpu = BorealisGpuRenderBackend.Create( Args.Has( "-validation" ), m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ) );
-		var (bright, dark) = PostParity.ExposureFrames( backend, folder );
-		backend.Phase( "Sun Shadows on Source 2" );
+		var (bright, dark) = PostParity.ExposureFrames( gpu, folder );
+		backend.Phase( "Sun Shadows on Borealis.Gpu" );
 
 		// The camera's settings come from the engine's tonemapping component, at its defaults but for the rate
 		PostParity.EnsureTypeLibrary();

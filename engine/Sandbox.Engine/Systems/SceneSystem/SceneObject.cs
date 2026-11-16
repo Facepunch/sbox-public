@@ -187,7 +187,7 @@ public partial class SceneObject : IHandle
 	/// <summary>
 	/// Native moved the children with this one (<c>SceneObject_MirrorTransformToChildSceneObjectsRelative</c>, for
 	/// <c>CHILD_SCENEOBJECT_INHERIT_TRANSFORM</c>), and theirs with them: read each one's transform back, and say it changed, as
-	/// its own setter would - or what's cached here, and the managed renderer's copy (<c>r_managed_scene</c>), stay where they were.
+	/// its own setter would - or what's cached here, and Borealis's copy (<c>-borealisgpu</c>), stay where they were.
 	/// </summary>
 	void MoveChildren()
 	{

@@ -1,20 +1,23 @@
 using Borealis;
-using Borealis.Gpu.Source2;
 using Sandbox.Rendering;
 using ViewConstants = Borealis.Gpu.ViewConstants;
 
 namespace Sandbox.BorealisLab;
 
 /// <summary>
-/// <c>-post-parity folder [-case a,b] [-tolerance N] [-validation]</c>: renders the Sun Shadows preset through Borealis on
-/// Source 2's device, then runs the engine's post processing over that HDR frame twice - on Source 2's device and on a
-/// Borealis.Gpu device through the engine's own <see cref="BorealisGpuRenderBackend"/> - and compares the pixels. Each case
+/// <c>-post-parity folder [-case a,b] [-tolerance N] [-validation]</c>: renders the Sun Shadows preset through Borealis on a
+/// Borealis.Gpu device, then runs the engine's post processing over that HDR frame twice - on Source 2's device, over a copy
+/// read back from it, and on the Borealis.Gpu device through the engine's own <see cref="BorealisGpuRenderBackend"/> - and
+/// compares the pixels. Each case
 /// records the command list its post process component records (<c>BasePostProcess.Blit</c>, a frame grab, and
 /// <c>Bloom</c>'s compute chain), into a copy of the frame. Each case writes <c>native.png</c>, <c>borealis.png</c> and
 /// <c>diff.png</c> (differences x16, after encoding to 8-bit sRGB) to a folder of its own, and the folder gets
 /// <c>results.md</c>. Exits 1 when a case differs by more than <c>-tolerance</c> (default 2), threw, or validation
 /// reported errors. With <c>-components</c> the Borealis.Gpu side runs the engine's own post process components (built
-/// with Borealis.Gpu as the device recorded for, so their attributes are managed) against the same Source 2 reference.
+/// with Borealis.Gpu as the device recorded for, so their attributes are managed) against the same Source 2 reference. With
+/// <c>-scene-gpu</c> the Borealis.Gpu side runs over the scene's own frame, with its depth and view constants, and the cases
+/// that read the scene's depth run too; those drawn in a native view of their own (<c>InView</c>) have their own depth on
+/// Source 2, and the rest, which would read it from the frame, aren't run, since Source 2 has no copy of it.
 /// <para>
 /// Stage 3 of moving the engine's rendering onto Borealis.Gpu (docs/managed/borealis-gpu-path.md). Auto exposure isn't here:
 /// it's native's (<c>RenderTools.RenderAutoExposure</c>) and has no Borealis.Gpu form yet, so tonemapping runs with its
@@ -708,9 +711,10 @@ internal static class PostParity
 		var only = Args.String( "-case" );
 		var cases = Cases.Where( c => only is null || only.Split( ',' ).Contains( c.Name ) ).ToArray();
 
-		// What reads the view's depth runs over the scene drawn on each device, which has its depth
-		foreach ( var test in cases.Where( c => c.NeedsDepth && !sceneOnGpu ) ) Console.WriteLine( $"{test.Name}: not run, it reads the scene's depth (-scene-gpu)" );
-		cases = cases.Where( c => !c.NeedsDepth || sceneOnGpu ).ToArray();
+		// What reads the view's depth runs over the scene's frame, which has its depth, and on Source 2 in a view of its own
+		static bool Runs( Case c ) => !c.NeedsDepth || (sceneOnGpu && c.InView);
+		foreach ( var test in cases.Where( c => !Runs( c ) ) ) Console.WriteLine( $"{test.Name}: not run, it reads the scene's depth{(sceneOnGpu ? ", which Source 2 has no copy of" : " (-scene-gpu)")}" );
+		cases = cases.Where( Runs ).ToArray();
 		var tolerance = Args.Int( "-tolerance", 2 );
 		folder = System.IO.Path.GetFullPath( folder );
 		System.IO.Directory.CreateDirectory( folder );
@@ -718,11 +722,15 @@ internal static class PostParity
 		using var gpu = BorealisGpuRenderBackend.Create( Args.Has( "-validation" ), m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ) );
 		backend.Phase( $"Borealis.Gpu device ({gpu.Device.Adapter.Name})" );
 
-		// The frame the post stack starts from, made after the Borealis.Gpu device so its texture keeps its pixels for it
-		using var frame = SunShadows( backend, folder );
-		backend.Phase( "Sun Shadows on Source 2" );
-		gpuScene = sceneOnGpu ? new GpuScene( gpu ) : null;
-		if ( sceneOnGpu ) backend.Phase( "Sun Shadows on Borealis.Gpu" );
+		// The frame the post stack starts from, on Borealis.Gpu, and a copy of it on Source 2
+		gpuScene = new GpuScene( gpu );
+		using var frame = FrameTexture( ReadFrame( gpu ), System.IO.Path.Combine( folder, "frame.png" ), sceneOnGpu ? 1 : 2.5f );
+		backend.Phase( "Sun Shadows on Borealis.Gpu" );
+		if ( !sceneOnGpu )
+		{
+			gpuScene.Dispose();
+			gpuScene = null;
+		}
 
 		var rows = new List<string>();
 		var failed = 0;
@@ -750,7 +758,7 @@ internal static class PostParity
 			"",
 			summary,
 			"",
-			"Each case runs a post process's command list over Borealis's Sun Shadows frame on Source 2's device, then on a Borealis.Gpu device through `BorealisGpuRenderBackend`.",
+			"Each case runs a post process's command list over Borealis's Sun Shadows frame on Source 2's device, then on the Borealis.Gpu device it was rendered on, through `BorealisGpuRenderBackend`.",
 			"",
 			"| Case | Covers | Max channel difference (8-bit sRGB) | Pixels over the tolerance | |",
 			"|---|---|---|---|---|",
@@ -761,10 +769,6 @@ internal static class PostParity
 		// The components' scene and what scenes make for the process (particle lighting's texture)
 		gpuScene?.Dispose();
 		gpuScene = null;
-		source2Target?.Dispose();
-		source2Renderer?.Dispose();
-		source2Target = null;
-		source2Renderer = null;
 		dofTiles?.Dispose();
 		dofArguments?.Dispose();
 		source2Chain?.Dispose();
@@ -785,52 +789,30 @@ internal static class PostParity
 		return failed == 0 && errors == 0 ? 0 : 1;
 	}
 
-	// Sun Shadows on Source 2, kept for its depth, which the reference binds with the frame when the scene is on Borealis.Gpu
-	static RenderSystem source2Renderer;
+	// The view the scene was drawn from, which the native views draw their cases from
 	static RenderView labView;
-	static ViewTarget source2Target;
 
 	/// <summary>
-	/// Sun Shadows rendered by Borealis on Source 2 as two RGBA16F textures of its pixels, for auto exposure: highlights pushed
-	/// past 1 as the post stack gets it, and a tenth as bright (<c>frame-dark.png</c>). Make them after the Borealis.Gpu device,
-	/// so they keep their pixels for it.
+	/// Sun Shadows rendered by Borealis on Borealis.Gpu as two RGBA16F textures of its pixels, for auto exposure: highlights
+	/// pushed past 1 as the post stack gets it, and a tenth as bright (<c>frame-dark.png</c>).
 	/// </summary>
-	internal static (Texture Bright, Texture Dark) ExposureFrames( Source2Backend backend, string folder )
+	internal static (Texture Bright, Texture Dark) ExposureFrames( BorealisGpuRenderBackend gpu, string folder )
 	{
-		var bright = SunShadows( backend, folder );
-		var halves = new ushort[Width * Height * 4];
-		source2Target.Resolved.Engine().GetPixels( (0, 0, Width, Height), 0, 0, halves.AsSpan(), ImageFormat.RGBA16161616F );
+		using var scene = new GpuScene( gpu );
+		gpuScene = scene;
+		var halves = ReadFrame( gpu );
+		gpuScene = null;
+
+		var bright = FrameTexture( (ushort[])halves.Clone(), System.IO.Path.Combine( folder, "frame.png" ), 2.5f );
 		var dark = FrameTexture( halves, System.IO.Path.Combine( folder, "frame-dark.png" ), 0.1f );
-		source2Target.Dispose();
-		source2Renderer.Dispose();
-		source2Target = null;
-		source2Renderer = null;
 		return (bright, dark);
 	}
 
-	/// <summary>Sun Shadows rendered by Borealis on Source 2, as an RGBA16F texture of its pixels.</summary>
-	static Texture SunShadows( Source2Backend backend, string folder )
+	/// <summary>The scene's colour, read back from Borealis.Gpu as RGBA16F halves.</summary>
+	static ushort[] ReadFrame( BorealisGpuRenderBackend gpu )
 	{
-		var lab = LabWorld.Build( LabPresets.Find( "Sun Shadows" ), backend.Content );
-		var view = new RenderView { Name = "Post parity", ClearColor = new Color( 0.08f, 0.09f, 0.11f ), Viewport = new Rect( 0, 0, Width, Height ) };
-		lab.Aim( view, LabWorld.DefaultPitch, LabWorld.DefaultYaw, lab.DefaultDistance );
-		labView = view;
-		focalDistance = lab.DefaultDistance;
-		focusRange = lab.DefaultDistance * 0.5f;
-		var renderer = source2Renderer = new RenderSystem();
-		var target = source2Target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Post parity" );
-
-		for ( var i = 0; i < 10; i++ )
-		{
-			backend.BeginFrame();
-			renderer.Render( lab.World, view, target );
-			backend.EndFrame();
-		}
-
-		backend.Flush();
-		var halves = new ushort[Width * Height * 4];
-		target.Resolved.Engine().GetPixels( (0, 0, Width, Height), 0, 0, halves.AsSpan(), ImageFormat.RGBA16161616F );
-		return FrameTexture( halves, System.IO.Path.Combine( folder, "frame.png" ), sceneOnGpu ? 1 : 2.5f );
+		gpu.WaitIdle();
+		return Read( gpuScene.Frame.Color, gpu );
 	}
 
 	/// <summary>
@@ -860,9 +842,13 @@ internal static class PostParity
 
 				// Made once the host is the Borealis.Gpu device's, which it records its frames with
 				renderer = new RenderSystem { ParallelRecording = false };
-				var lab = LabWorld.Build( LabPresets.Find( "Sun Shadows" ), new BackendLabContent( device ) );
+				using var content = new BackendLabContent( device );
+				var lab = LabWorld.Build( LabPresets.Find( "Sun Shadows" ), content );
 				var view = new RenderView { Name = "Post parity", ClearColor = new Color( 0.08f, 0.09f, 0.11f ), Viewport = new Rect( 0, 0, Width, Height ) };
 				lab.Aim( view, LabWorld.DefaultPitch, LabWorld.DefaultYaw, lab.DefaultDistance );
+				labView = view;
+				focalDistance = lab.DefaultDistance;
+				focusRange = lab.DefaultDistance * 0.5f;
 				target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Post parity" );
 
 				for ( var i = 0; i < 10; i++ )
@@ -878,7 +864,6 @@ internal static class PostParity
 			}
 			finally
 			{
-				// The lab's own frames go on through Source 2's host
 				RenderHost.Current = previous;
 			}
 		}
@@ -998,7 +983,7 @@ internal static class PostParity
 
 		// The engine's components when asked and the case has them, else the copies of their command lists
 		caseColor = target;
-		caseDepth = onFrame ? gpuScene.Frame.Depth : gpuScene is not null ? source2Target.Depth.Engine() : null;
+		caseDepth = onFrame ? gpuScene.Frame.Depth : null;
 
 		// The reference's view depth chain, which the Borealis.Gpu frame builds for itself
 		if ( reference && caseDepth is not null )
@@ -1010,8 +995,7 @@ internal static class PostParity
 		if ( lists is null ) test.Record( cl );
 
 		// On the GPU scene's frame: a block from the frame, which binds the view's constants itself, over a copy of its colour
-		// made on the GPU, with its depth. Source 2 then binds its own Sun Shadows depth with the copy, as a view would (its
-		// blocks without a view take no depth target, so it's bound on the context)
+		// made on the GPU, with its depth
 		using ( onFrame ? gpuScene.Frame.Begin() : Graphics.Scope.CreateOn( device ) )
 		{
 			Graphics.RenderTarget = RenderTarget.From( target, onFrame ? gpuScene.Frame.Depth : null );

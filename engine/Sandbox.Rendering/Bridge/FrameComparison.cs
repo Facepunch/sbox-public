@@ -3,7 +3,7 @@ using System.Linq;
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// Pixel parity checks for SceneLab and <c>r_managed_scene_compare</c>.
+/// Pixel comparisons and PNGs for SceneLab's captures.
 /// </summary>
 internal static class FrameComparison
 {
@@ -101,14 +101,6 @@ internal static class FrameComparison
 		var linear = Math.Clamp( (float)BitConverter.UInt16BitsToHalf( half ), 0, 1 );
 		var gamma = linear <= 0.0031308f ? linear * 12.92f : 1.055f * MathF.Pow( linear, 1.0f / 2.4f ) - 0.055f;
 		return (byte)MathF.Round( gamma * 255 );
-	}
-
-	/// <summary>
-	/// Read resolved colour as sRGB, encoding float targets and reading 8-bit targets directly.
-	/// </summary>
-	public static Color32[] ReadTarget( ViewTarget target )
-	{
-		return target.Resolved.Format.IsFloat() ? ReadLinear( target.Resolved.Engine() ) : target.Resolved.Engine().GetPixels();
 	}
 
 	/// <summary>

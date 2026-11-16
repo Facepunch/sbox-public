@@ -143,7 +143,7 @@ internal sealed class VertexLayout : IEquatable<VertexLayout>
 /// <remarks>
 /// Skinned meshes are given their skinning as native's model gives it (<c>RenderTools.GetModelMeshSkinning</c>): bones,
 /// inverse bind poses, the model bone each is and the bind pose. Borealis then poses them by bones, in the vertex shader
-/// with one weight and by compute skinning into the vertex cache with more, as it does on Source 2's device. Morphs
+/// with one weight and by compute skinning into the vertex cache with more, as native does. Morphs
 /// aren't applied.
 /// </remarks>
 public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
@@ -347,7 +347,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	VertexCacheDraw? ISkinnedGeometry.VertexCacheFor( int mesh, int drawCall ) => vertexCacheDraws[mesh][drawCall];
 
 	/// <summary>
-	/// What native's model gives Borealis to skin a mesh with (<c>Source2Mesh.ReadMeshSkin</c>): its bones' inverse bind poses
+	/// What native's model gives Borealis to skin a mesh with (<c>RenderTools.GetModelMeshSkinning</c>): its bones' inverse bind poses
 	/// and the model bones they are, its weights per vertex and its vertices across its buffers. Null when it isn't skinned,
 	/// or has no bone table, as native writes nothing for a mesh without one.
 	/// </summary>

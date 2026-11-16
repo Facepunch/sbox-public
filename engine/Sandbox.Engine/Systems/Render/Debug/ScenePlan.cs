@@ -70,7 +70,7 @@ internal static partial class DebugOverlay
 				Box( painter, waiting, Background );
 				Cell( painter, "Frame plan", Text,
 					new Rect( waiting.Left + Pad, waiting.Top + Pad, InnerWidth, 18 ), weight: 700 );
-				Cell( painter, "Waiting for managed rendering. Enable r_managed_scene 1.", Muted,
+				Cell( painter, "Waiting for Borealis. Launch with -borealisgpu.", Muted,
 					new Rect( waiting.Left + Pad, waiting.Top + 27, InnerWidth, 18 ), size: 10 );
 				pos.y = waiting.Bottom + PanelGap;
 				return;

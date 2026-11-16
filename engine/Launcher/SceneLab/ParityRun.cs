@@ -1,21 +1,17 @@
-using Borealis;
-using Sandbox.Rendering.Bridge;
-
 namespace Sandbox.SceneLab;
 
 /// <summary>
-/// <c>-parity</c>: presets compared with native one after another in this process - every preset, or those named
-/// (<c>-parity "Box;Sky"</c>, semicolons because names have commas) - with a table of results at the end and exit code 1
-/// on any failure. Each preset compares as <c>-capture -native</c> does: at the capture frame, and a GameObject preset
-/// again after its change. A preset marked <see cref="SceneLabScene.Isolated"/> (or all, with <c>-isolated</c>) gets two
-/// passes from fresh loads: native alone, then managed alone, compared against native's frames - so the renderers never
-/// share the camera's effect history. Frames go to <c>-parity-out</c> (<c>screenshots/scenelab/parity</c>).
-/// <c>-save-native name</c> copies each native frame into that folder under it; <c>-compare-native name</c> compares each,
-/// pixel for pixel, with the ones saved there - native against itself across a change.
+/// <c>-parity</c>: presets captured natively one after another in this process - every preset, or those named
+/// (<c>-parity "Heavy Scene;Decals"</c>, semicolons because names have commas) - with a table of results at the end and exit
+/// code 1 on any failure. Each preset captures as <c>-capture</c> does: at the capture frame, and again after its change. A
+/// preset marked <see cref="SceneLabScene.Isolated"/> (or all, with <c>-isolated</c>) loads fresh, after the render target
+/// pool has forgotten the last preset's effect history. Frames go to <c>-parity-out</c> (<c>screenshots/scenelab/parity</c>).
+/// <c>-save-native name</c> copies each frame into that folder under it; <c>-compare-native name</c> compares each, pixel for
+/// pixel, with the ones saved there - native against itself across a change.
 /// </summary>
 internal sealed class ParityRun
 {
-	readonly record struct Job( SceneLabScene Scene, bool NativePass );
+	readonly record struct Job( SceneLabScene Scene );
 
 	// A preset that hasn't finished in this long - a map that never loads - is reported and skipped
 	static readonly double TimeoutSeconds = Args.Float( "-parity-timeout", 180 );
@@ -47,11 +43,7 @@ internal sealed class ParityRun
 			? SceneLabScene.Presets
 			: sceneNames.Split( ';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ).Select( Find ).Where( x => x is not null ).ToArray();
 
-		foreach ( var scene in presets )
-		{
-			if ( IsolatedScene( scene ) ) jobs.Add( new Job( scene, NativePass: true ) );
-			jobs.Add( new Job( scene, NativePass: false ) );
-		}
+		foreach ( var scene in presets ) jobs.Add( new Job( scene ) );
 	}
 
 	static SceneLabScene Find( string name )
@@ -61,17 +53,17 @@ internal sealed class ParityRun
 		return scene;
 	}
 
-	static bool IsolatedScene( SceneLabScene scene ) => scene.IsGame && (scene.Isolated || Args.Has( "-isolated" ));
+	static bool IsolatedScene( SceneLabScene scene ) => scene.Isolated || Args.Has( "-isolated" );
 
 	Job Current => jobs[index];
 
 	/// <summary>
-	/// The capture path for the preset being compared.
+	/// The capture path for the preset being captured.
 	/// </summary>
 	public string CapturePath => System.IO.Path.Combine( Folder, $"{FileName( Current.Scene.Name )}.png" );
 
 	/// <summary>
-	/// Whether the preset being compared is compared isolated: this job is one of its two passes.
+	/// Whether the preset being captured is captured isolated.
 	/// </summary>
 	public bool Isolated => IsolatedScene( Current.Scene );
 
@@ -111,18 +103,9 @@ internal sealed class ParityRun
 	}
 
 	/// <summary>
-	/// A compare's result for the preset being compared. An isolated preset's native pass only saves frames.
+	/// A capture's result for the preset being captured.
 	/// </summary>
-	public void Report( string text, FrameComparison.Parity? parity )
-	{
-		if ( Current.NativePass ) return;
-
-		// The figures, without the bridge's description of the frame
-		var figures = System.Text.RegularExpressions.Regex.Match( text ?? "", "parity (OK|FAILED)[^|]*" );
-		Report( figures.Success ? figures.Value.Trim() : text, failed: parity is not { Matches: true } );
-	}
-
-	void Report( string text, bool failed )
+	public void Report( string text, bool failed )
 	{
 		var name = Current.Scene.Name;
 		if ( results.Count == 0 || results[^1].Scene != name ) results.Add( (name, new List<string>(), false) );
@@ -133,19 +116,19 @@ internal sealed class ParityRun
 	}
 
 	/// <summary>
-	/// The preset's compares are done: check its native frames, then load the next. False when there are no more.
+	/// The preset's captures are done: check its frames, then load the next. False when there are no more.
 	/// </summary>
 	public bool Advance( SceneLabWindow window )
 	{
-		if ( index >= 0 && index < jobs.Count && !Current.NativePass ) CheckNative();
+		if ( index >= 0 && index < jobs.Count ) CheckNative();
 
 		if ( ++index >= jobs.Count ) return false;
 
-		// A preset's first pass starts clean, so a frame from an earlier run can't stand in for one this run didn't write
+		// A preset starts clean, so a frame from an earlier run can't stand in for one this run didn't write
 		var job = Current;
-		if ( job.NativePass || !IsolatedScene( job.Scene ) ) DeleteFrames( job.Scene );
+		DeleteFrames( job.Scene );
 
-		// An isolated pass waits for the pool to forget the last scene's targets
+		// An isolated preset waits for the pool to forget the last scene's targets
 		if ( IsolatedScene( job.Scene ) )
 		{
 			window.Unload();
@@ -162,12 +145,11 @@ internal sealed class ParityRun
 	bool Begin( SceneLabWindow window )
 	{
 		var job = Current;
-		Log.Info( $"Parity: {job.Scene.Name}{(Isolated ? job.NativePass ? " (isolated, native)" : " (isolated, managed)" : "")} - {index + 1} of {jobs.Count}" );
+		Log.Info( $"Parity: {job.Scene.Name}{(Isolated ? " (isolated)" : "")} - {index + 1} of {jobs.Count}" );
 		jobTime.Restart();
 
 		try
 		{
-			window.Renderer = job.NativePass ? SceneLabWindow.RendererKind.Native : SceneLabWindow.RendererKind.Managed;
 			window.StartCapture( job.Scene );
 			return true;
 		}

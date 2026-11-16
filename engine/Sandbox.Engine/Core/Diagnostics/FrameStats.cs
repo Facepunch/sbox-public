@@ -63,7 +63,7 @@ public struct FrameStats
 	}
 
 	/// <summary>
-	/// Add what the managed scene renderer drew (<c>r_managed_scene</c>), which native's counters don't see: its objects,
+	/// Add what Borealis drew (<c>-borealisgpu</c>), which native's counters don't see: its objects,
 	/// draws, triangles, views and size culling.
 	/// </summary>
 	internal void AddManaged( in Rendering.ManagedFrameCounters managed )

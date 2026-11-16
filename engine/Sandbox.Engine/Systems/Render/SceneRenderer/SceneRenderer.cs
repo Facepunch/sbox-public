@@ -5,7 +5,7 @@ namespace Sandbox.Rendering;
 /// <summary>
 /// One way of rendering a scene camera's view: native's scene system (<see cref="NativeSceneRenderer"/>) or Borealis
 /// (Sandbox.Rendering's bridge, registered at startup). Every path that renders a scene ends in one of
-/// <see cref="SceneCamera"/>'s entry points, which forward here, so <c>r_managed_scene</c> switches them all at once.
+/// <see cref="SceneCamera"/>'s entry points, which forward here, so the process's renderer takes them all.
 /// See docs/managed/render-paths.md.
 /// </summary>
 internal interface ISceneRenderer
@@ -48,7 +48,7 @@ internal interface ISceneRenderer
 	void Forget( SceneWorld world );
 
 	/// <summary>
-	/// Free every GPU resource held: at engine shutdown, before native goes, and when the switch moves away from it.
+	/// Free every GPU resource held: at engine shutdown, before native goes.
 	/// </summary>
 	void Shutdown();
 
@@ -59,9 +59,8 @@ internal interface ISceneRenderer
 }
 
 /// <summary>
-/// Which <see cref="ISceneRenderer"/> renders scenes. <c>r_managed_scene</c> is read once a frame, at the top of the frame's
-/// output (<see cref="BeginFrame"/>), so a frame never mixes renderers. Tools that compare the two ask for
-/// <see cref="Native"/> by name.
+/// Which <see cref="ISceneRenderer"/> renders scenes: Borealis in a process drawing on Borealis.Gpu (<c>-borealisgpu</c>),
+/// native's scene system in any other. Tools that need native's ask for <see cref="Native"/> by name.
 /// </summary>
 internal static class SceneRenderer
 {
@@ -71,26 +70,22 @@ internal static class SceneRenderer
 	public static ISceneRenderer Native { get; } = new NativeSceneRenderer();
 
 	/// <summary>
-	/// Borealis, through the GameObject bridge. Set by Sandbox.Rendering when the app system installs it.
+	/// Borealis, through the GameObject bridge, on Borealis.Gpu. Set by Sandbox.Rendering when the app system installs it.
 	/// </summary>
 	public static ISceneRenderer Borealis { get; set; }
 
 	/// <summary>
-	/// What renders this frame: Borealis while <c>r_managed_scene</c> is on and it's installed, native otherwise.
+	/// What renders this frame: Borealis on a Borealis.Gpu device when it's installed, native otherwise.
 	/// </summary>
 	public static ISceneRenderer Current { get; private set; } = Native;
 
 	/// <summary>
-	/// Read the switch, at the top of the frame's output. Moving off Borealis frees what it holds. A process drawing on
-	/// Borealis.Gpu (<c>-borealisgpu</c>) always renders through Borealis: Source 2's renderer has no device to draw on there.
+	/// Pick the renderer, at the top of the frame's output. A process drawing on Borealis.Gpu renders through Borealis: Source 2's
+	/// renderer has no device to draw on there.
 	/// </summary>
 	internal static void BeginFrame()
 	{
-		var managed = ManagedSceneRendering.Enabled || RenderBackend.Default is BorealisGpuRenderBackend;
-		var next = managed && Borealis is not null ? Borealis : Native;
-		if ( Current != next && Current != Native ) Current.Shutdown();
-
-		Current = next;
+		Current = ManagedSceneRendering.Enabled && Borealis is not null ? Borealis : Native;
 	}
 
 	/// <summary>
@@ -112,9 +107,12 @@ internal static class SceneRenderer
 	}
 
 	/// <summary>
-	/// Called at startup, before anything renders, whichever renderer the switch will pick.
+	/// Called at startup, before anything renders.
 	/// </summary>
-	internal static void WarmUp() => Borealis?.WarmUp();
+	internal static void WarmUp()
+	{
+		if ( ManagedSceneRendering.Enabled ) Borealis?.WarmUp();
+	}
 
 	/// <summary>
 	/// Called at engine shutdown, while native is still there.

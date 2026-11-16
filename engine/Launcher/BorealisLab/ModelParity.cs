@@ -1,7 +1,6 @@
 using Borealis;
 using Borealis.Backend;
 using Borealis.Gpu;
-using Borealis.Gpu.Source2;
 using Borealis.Source2;
 using Borealis.Source2.Models;
 using GpuDevice = Borealis.Gpu.Device;
@@ -9,15 +8,14 @@ using GpuDevice = Borealis.Gpu.Device;
 namespace Sandbox.BorealisLab;
 
 /// <summary>
-/// <c>-model-parity folder [-model path [-distance d] [-aim a]] [-mesh-groups mask] [-tolerance N] [-validation]</c>: renders s&amp;box models
-/// with Borealis twice in one process - on Source 2's device, with the engine's own model loading, and on a Borealis.Gpu
-/// device of its own, with the model read by <see cref="ModelFile"/> - from the same camera under the same sun, and
-/// compares the pixels. Each case writes <c>native.png</c>, <c>borealis.png</c> and <c>diff.png</c> (differences x8) to a
-/// folder of its own, and the run exits 1 when any case's mean channel difference is over <c>-tolerance</c> (default 1,
-/// in 8-bit steps) or validation reported errors.
+/// <c>-model-parity folder [-model path [-distance d] [-aim a]] [-mesh-groups mask] [-validation]</c>: checks s&amp;box models
+/// read by <see cref="ModelFile"/> against the engine's own model loading - vertex, triangle and draw counts, LOD count and
+/// switch distances, bounds and draw materials as <c>Model.MeshInfo</c> reports them, each draw's vertices, and bones and
+/// their bind pose - and renders each on a Borealis.Gpu device of its own under a sun, posed and morphed as the case says,
+/// into <c>borealis.png</c> in a folder of its own. The run exits 1 when the reader differs from the engine or validation
+/// reported errors.
 /// <para>
-/// It also checks the reader against the engine: vertex, triangle and draw counts, LOD count and switch distances,
-/// bounds and draw materials, as <c>Model.MeshInfo</c> reports them, and bones and their bind pose. By default it runs a
+/// By default it runs a
 /// set of cases covering a dev box, a prop with several materials and LODs (near and far), body groups, the skinned
 /// citizen in its bind pose, and the human posed by native's animation system from a few sequences (the same bones given
 /// to both devices), one of them dressed.
@@ -75,15 +73,6 @@ internal static class ModelParity
 		return names.Length == 0 ? [] : Enumerable.Range( 0, count ).Select( i => (names[i * 7 % names.Length], 0.5f + 0.5f * ((i * 3) % 5) / 4.0f) ).DistinctBy( x => x.Item1 ).ToArray();
 	}
 
-	/// <summary>
-	/// A native model's morphs as Borealis on Source 2's device queues them (<c>SceneModelMorphs</c>): native evaluates the
-	/// scene model's flex controllers for each mesh.
-	/// </summary>
-	sealed class NativeMorphs( SceneModel source ) : IMorphSource
-	{
-		public int Queue( GpuMesh mesh, int modelMesh ) => source.IsValid() ? NativeEngine.RenderTools.QueueModelMeshMorph( source, mesh.Native(), modelMesh ) : -1;
-	}
-
 	/// <summary>A posed body's world bones and bounds, and each clothing model's bones following it.</summary>
 	sealed record Pose( Transform[] Body, Transform[][] Clothing, BBox Bounds );
 
@@ -93,7 +82,6 @@ internal static class ModelParity
 			? [new Case( System.IO.Path.GetFileNameWithoutExtension( single ), single, ulong.TryParse( Args.String( "-mesh-groups" ), out var mask ) ? mask : null, Number( "-distance", 1 ), Aim: Number( "-aim", 0.5f ) )]
 			: Cases;
 
-		var tolerance = double.TryParse( Args.String( "-tolerance" ), System.Globalization.CultureInfo.InvariantCulture, out var t ) ? t : 1.0;
 		folder = System.IO.Path.GetFullPath( folder );
 
 		using var gpu = GpuDevice.Create( new DeviceOptions { ApplicationName = "Borealis Lab model parity", Validation = Args.Has( "-validation" ), Presentation = false, Message = m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ) } );
@@ -105,7 +93,7 @@ internal static class ModelParity
 		var lines = new List<string>();
 		foreach ( var test in cases )
 		{
-			var (line, ok) = RunCase( backend, device, test, System.IO.Path.Combine( folder, test.Name ), tolerance );
+			var (line, ok) = RunCase( backend, device, test, System.IO.Path.Combine( folder, test.Name ) );
 			lines.Add( line );
 			Log.Info( line );
 			Console.WriteLine( line );
@@ -114,13 +102,13 @@ internal static class ModelParity
 
 		gpu.WaitIdle();
 
-		var summary = $"Model parity: {cases.Length - failed} of {cases.Length} cases within {tolerance:F2} mean difference ({folder}); Borealis.Gpu validation errors {gpu.ValidationErrors}";
+		var summary = $"Model parity: {cases.Length - failed} of {cases.Length} cases read as the engine loads them ({folder}); Borealis.Gpu validation errors {gpu.ValidationErrors}";
 		Log.Info( summary );
 		Console.WriteLine( summary );
 		return failed == 0 && gpu.ValidationErrors == 0 ? 0 : 1;
 	}
 
-	static (string Line, bool Ok) RunCase( Source2Backend backend, BackendDevice device, Case test, string folder, double tolerance )
+	static (string Line, bool Ok) RunCase( Source2Backend backend, BackendDevice device, Case test, string folder )
 	{
 		var model = Model.Load( test.Path );
 		if ( model is null || model.IsError ) return ($"{test.Name}: {test.Path} didn't load on Source 2", false);
@@ -137,28 +125,15 @@ internal static class ModelParity
 			mismatches.AddRange( Compare( clothes, clothesFile ).Select( x => $"{System.IO.Path.GetFileNameWithoutExtension( path )}: {x}" ) );
 		}
 
-		// Posed by native's animation system: both devices get the same bones
+		// Posed by native's animation system
 		var pose = test.Sequence is null ? null : Posed( model, test.Sequence, test.Time, clothing.Select( x => x.Model ).ToArray() );
 
-		// Morphs: a native scene model with the controllers set, never drawn, which native evaluates for Source 2's device;
-		// the same controllers by name for Borealis.Gpu's
+		// Morphs: the controllers by name
 		var weights = MorphWeights( model, test.Morphs );
-		SceneWorld morphWorld = null;
-		IMorphSource nativeMorphs = null;
-		if ( weights.Length > 0 )
-		{
-			morphWorld = new SceneWorld();
-			var face = new SceneModel( morphWorld, model, Transform.Zero ) { UseAnimGraph = false, PlaybackRate = 0 };
-			// At once: the collection's own Set fades them in, and the scene model is never updated again
-			foreach ( var (name, weight) in weights ) face.Morphs.Set( name, weight, 0 );
-			face.Update( 0 );
-			nativeMorphs = new NativeMorphs( face );
-		}
-
 		var gpuMorphs = new BackendMorphs( device );
 		foreach ( var (name, weight) in weights ) gpuMorphs.Set( name, weight );
 
-		// The same world and camera on both devices: the model at the origin, a sun from the side, the default ambient
+		// The model at the origin, a sun from the side, the default ambient
 		Shot MakeWorld( RenderMesh mesh, RenderMesh[] clothes, IMorphSource morphs )
 		{
 			var world = new RenderWorld();
@@ -191,18 +166,6 @@ internal static class ModelParity
 			return new Shot( world, view );
 		}
 
-		// Source 2: the engine's model, as BorealisLab's scenes draw it
-		// (Source2Mesh draws every mesh; body groups are applied per object, here the case's or the model's default ones)
-		var nativeMesh = WithMeshGroups( Source2Mesh.FromModel( model ), model, test.MeshGroups ?? file.DefaultMeshGroupMask );
-		var nativeClothes = clothing.Select( x => WithMeshGroups( Source2Mesh.FromModel( x.Model ), x.Model, x.File.DefaultMeshGroupMask ) ).ToArray();
-		var native = Render( MakeWorld( nativeMesh, nativeClothes, nativeMorphs ), backend.ReadPixels, backend.BeginFrame, backend.EndFrame );
-		backend.Phase( $"{test.Name}: Source 2" );
-		if ( morphWorld is not null )
-		{
-			morphWorld.Delete();
-			SceneWorld.FlushQueuedDeletes();
-		}
-
 		// Borealis.Gpu: the model read by Borealis.Source2
 		var previous = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( device );
@@ -220,36 +183,14 @@ internal static class ModelParity
 
 		backend.Phase( $"{test.Name}: Borealis.Gpu" );
 
-		// Compare
-		var diff = new Color32[native.Length];
-		long total = 0;
-		int maxDiff = 0, over = 0;
-		for ( int i = 0; i < native.Length; i++ )
-		{
-			var a = native[i];
-			var b = borealis[i];
-			var dr = Math.Abs( a.r - b.r );
-			var dg = Math.Abs( a.g - b.g );
-			var db = Math.Abs( a.b - b.b );
-			total += dr + dg + db;
-			var d = Math.Max( dr, Math.Max( dg, db ) );
-			maxDiff = Math.Max( maxDiff, d );
-			if ( d > 8 ) over++;
-			var v = (byte)Math.Min( 255, d * 8 );
-			diff[i] = new Color32( v, v, v, 255 );
-		}
-
-		var mean = total / (3.0 * native.Length);
 		System.IO.Directory.CreateDirectory( folder );
-		Source2Backend.SavePng( native, Width, Height, System.IO.Path.Combine( folder, "native.png" ) );
 		Source2Backend.SavePng( borealis, Width, Height, System.IO.Path.Combine( folder, "borealis.png" ) );
-		Source2Backend.SavePng( diff, Width, Height, System.IO.Path.Combine( folder, "diff.png" ) );
 
 		var info = model.MeshInfo;
-		var ok = mean <= tolerance && mismatches.Count == 0;
+		var ok = mismatches.Count == 0;
 		var posed = (test.Sequence is null ? "" : $" posed {test.Sequence} at {test.Time:F2}{(clothing.Length > 0 ? $", {clothing.Length} clothing models" : "")}")
 			+ (weights.Length > 0 ? $" morphs {string.Join( ", ", weights.Select( x => $"{x.Name} {x.Weight:F2}" ) )}" : "");
-		var line = $"{test.Name}: {test.Path}{(test.MeshGroups is { } m ? $" mesh groups {m}" : "")}{posed}: mean difference {mean:F3}, max {maxDiff}, {over} pixels over 8; "
+		var line = $"{test.Name}: {test.Path}{(test.MeshGroups is { } m ? $" mesh groups {m}" : "")}{posed}: "
 			+ $"engine {info.TotalVertices} vertices, {info.TotalTriangles} triangles, {info.TotalDrawCalls} draws, {info.LodCount} LODs, bounds {model.Bounds.Mins} {model.Bounds.Maxs}"
 			+ $"; {comparedDraws} draws' vertices compared; materials as surfaces so far: {string.Join( ", ", device.Surfaces.ConvertedPaths.Select( System.IO.Path.GetFileNameWithoutExtension ) )}"
 			+ (mismatches.Count == 0 ? "; reader matches" : $"; reader differs: {string.Join( "; ", mismatches )}")
@@ -329,23 +270,6 @@ internal static class ModelParity
 		}
 
 		return readback( target );
-	}
-
-	/// <summary>Hide the draws of meshes outside <paramref name="mask"/>, as body groups do.</summary>
-	static RenderMesh WithMeshGroups( RenderMesh mesh, Model model, ulong mask )
-	{
-		var states = new List<RenderMesh.DrawState>();
-		var meshes = model.MeshInfo.Meshes;
-		for ( int lod = 0; lod < mesh.LodCount; lod++ )
-		{
-			foreach ( var draw in mesh.DrawsForLod( lod ) )
-			{
-				if ( (meshes[draw.Mesh].MeshGroupMask & mask) != 0 ) continue;
-				states.Add( new RenderMesh.DrawState( draw.Mesh, draw.DrawCall, draw.Material, Visible: false, draw.Translucent, draw.ShadowFastPath ) );
-			}
-		}
-
-		return mesh.WithDraws( states.ToArray() );
 	}
 
 	/// <summary>What the reader says against what the engine reports.</summary>
@@ -469,7 +393,7 @@ internal static class ModelParity
 			errors.Add( $"mesh {mesh} draw {draw} of {engineIndices.Length} indices: {positions} positions, {uvs} uvs, {normals} normals, {tangents} tangents differ (first engine tangent {engine[engineIndices[0]].Tangent})" );
 	}
 
-	/// <summary>A Borealis.Gpu target's colour as 8-bit sRGB, encoded as <see cref="Source2Backend.ReadPixels"/> encodes.</summary>
+	/// <summary>A Borealis.Gpu target's colour as 8-bit sRGB, encoded as a window's final blit encodes a float frame.</summary>
 	internal static Color32[] ReadBack( BackendDevice device, ViewTarget target, int width = Width, int height = Height )
 	{
 		var gpu = device.Gpu;
