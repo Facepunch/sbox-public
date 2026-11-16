@@ -59,6 +59,46 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 		constants = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
 		System.Runtime.InteropServices.MemoryMarshal.Write( constants, in viewConstants );
+
+		// Made here, outside any block: materials can't be made while drawing
+		if ( Multisampled ) depthResolve ??= Material.FromShader( "shaders/depthresolve.shader" );
+	}
+
+	static Material depthResolve;
+	Texture resolvedDepth, resolveScratch;
+	RenderAttributes resolveAttributes;
+
+	/// <summary>
+	/// The frame's depth with one sample, in the block being recorded: <see cref="Depth"/>, or for a multisampled frame its
+	/// first sample written into a depth of its own (<c>depthresolve.shader</c>, as native resolves depth), for drawing depth
+	/// tested over a single-sampled output. Leaves no target bound that the caller should keep.
+	/// </summary>
+	public Texture ResolvedDepth()
+	{
+		if ( Depth is null || !Multisampled ) return Depth;
+		if ( depthResolve is null ) return null;
+
+		if ( resolvedDepth is null || resolvedDepth.Width != Depth.Width || resolvedDepth.Height != Depth.Height )
+		{
+			resolvedDepth?.Dispose();
+			resolveScratch?.Dispose();
+			resolvedDepth = Texture.CreateRenderTarget().WithSize( Depth.Width, Depth.Height ).WithDepthFormat().Create( "Borealis.Gpu frame resolved depth" );
+			// The resolve writes depth alone; the engine's drawing always has a colour target
+			resolveScratch = Texture.CreateRenderTarget().WithSize( Depth.Width, Depth.Height ).WithFormat( ImageFormat.RGBA8888 ).Create( "Borealis.Gpu depth resolve scratch" );
+		}
+
+		resolveAttributes ??= RenderAttributes.CreateManaged();
+		resolveAttributes.Set( "SourceDepth", Depth );
+		resolveAttributes.SetCombo( "D_MSAA", 1 );
+		resolveAttributes.SetCombo( "D_UPSCALE", 0 );
+		resolveAttributes.Set( "DownsampleFactor", 1 );
+
+		using var target = RenderTarget.From( resolveScratch, resolvedDepth );
+		backend.BindRenderTarget( target );
+		Graphics.Viewport = new Rect( 0, 0, Depth.Width, Depth.Height );
+		Graphics.Clear( global::Color.Transparent, false, true, true );
+		Graphics.Blit( depthResolve, resolveAttributes );
+		return resolvedDepth;
 	}
 
 	byte[] outputConstants = [];
@@ -276,6 +316,8 @@ internal sealed class BorealisGpuFrame : IDisposable
 		stageColor?.Dispose();
 		stageDepth?.Dispose();
 		stageChain?.Dispose();
-		Color = Depth = DepthChain = stageColor = stageDepth = stageChain = null;
+		resolvedDepth?.Dispose();
+		resolveScratch?.Dispose();
+		Color = Depth = DepthChain = stageColor = stageDepth = stageChain = resolvedDepth = resolveScratch = null;
 	}
 }

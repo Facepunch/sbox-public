@@ -818,6 +818,9 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 	ShaderAttributes Lower( RenderAttributes attributes )
 	{
 		lowered.Clear();
+
+		// A native set that keeps a managed copy (a custom or dynamic object's) draws with the copy
+		if ( attributes?.Managed is null && attributes?.ShadowSet is { } copy ) attributes = copy;
 		if ( attributes?.Managed is null )
 			throw new NotSupportedException( "Native render attributes can't be drawn with on Borealis.Gpu" );
 
