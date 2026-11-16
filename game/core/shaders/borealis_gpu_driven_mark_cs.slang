@@ -40,35 +40,47 @@ cbuffer BorealisGpuDrivenMark_t
 	uint g_nMarkPad3;
 };
 
+// Sets the lanes' bits, one atomic per distinct mask word in the wave: neighbouring pixels mostly name the same
+// triangle, and an atomic each serialises them on that word
+void MarkBits( bool bMark, uint nBit )
+{
+	uint nWord = nBit >> 5;
+	while ( bMark )
+	{
+		if ( nWord == WaveReadLaneFirst( nWord ) )
+		{
+			uint nBits = WaveActiveBitOr( 1u << ( nBit & 31 ) );
+			if ( WaveIsFirstLane() )
+				g_Mask.InterlockedOr( nWord * 4, nBits );
+			bMark = false;
+		}
+	}
+}
+
 // Every distinct id of a pixel's samples sets its bit: the first vertex's bit + 1, 0 for nothing
 [numthreads( 8, 8, 1 )]
 [shader( "compute" )] void MainCs( uint3 vThreadId : SV_DispatchThreadID )
 {
-	if ( vThreadId.x >= g_nMarkWidth || vThreadId.y >= g_nMarkHeight )
-		return;
+	bool bInside = vThreadId.x < g_nMarkWidth && vThreadId.y < g_nMarkHeight;
+	int2 vPixel = int2( min( vThreadId.xy, uint2( g_nMarkWidth, g_nMarkHeight ) - 1 ) );
 
 	uint ids[8];
 	uint nSamples = min( g_nMarkSamples, 8u );
 	for ( uint s = 0; s < nSamples; s++ )
 	{
 		#if D_MSAA
-			uint v = g_tIds.Load( int2( vThreadId.xy ), s );
+			uint v = g_tIds.Load( vPixel, s );
 		#else
-			uint v = g_tIds.Load( int3( vThreadId.xy, 0 ) );
+			uint v = g_tIds.Load( int3( vPixel, 0 ) );
 		#endif
 
 		ids[s] = v;
 		bool bSeen = v == 0;
 		for ( uint j = 0; j < s; j++ )
 			bSeen = bSeen || ids[j] == v;
-		if ( bSeen )
-			continue;
 
 		uint nBit = v - 1;
-		if ( nBit >= g_nMarkBits )
-			continue;
-
-		g_Mask.InterlockedOr( ( nBit >> 5 ) * 4, 1u << ( nBit & 31 ) );
+		MarkBits( bInside && !bSeen && nBit < g_nMarkBits, nBit );
 	}
 }
 
