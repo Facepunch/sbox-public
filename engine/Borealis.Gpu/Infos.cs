@@ -262,6 +262,28 @@ public struct GraphicsPipelineInfo
 	/// <summary>Specialization constants for the pixel shader; null for none.</summary>
 	public SpecializationConstant[] FragmentConstants;
 
+	/// <summary>
+	/// A mesh shader in place of the vertex shader and vertex input (<see cref="DeviceCapabilities.MeshShaders"/>): drawn with
+	/// <see cref="CommandList.DrawMeshTasksIndirect"/>; <see cref="VertexShader"/>, <see cref="VertexBuffers"/>,
+	/// <see cref="Attributes"/> and <see cref="Topology"/> are unused then.
+	/// </summary>
+	public ShaderHandle MeshShader;
+
+	/// <summary>The mesh shader's entry point; null for <c>main</c>.</summary>
+	public string MeshEntry;
+
+	/// <summary>Specialization constants for the mesh shader; null for none.</summary>
+	public SpecializationConstant[] MeshConstants;
+
+	/// <summary>The task shader that launches the mesh shader's groups, or none (with a mesh shader only).</summary>
+	public ShaderHandle TaskShader;
+
+	/// <summary>The task shader's entry point; null for <c>main</c>.</summary>
+	public string TaskEntry;
+
+	/// <summary>Specialization constants for the task shader; null for none.</summary>
+	public SpecializationConstant[] TaskConstants;
+
 	/// <summary>Layouts of descriptor sets 0 to 3; missing or default ones are empty. Set 4 is always the bindless set.</summary>
 	public BindingLayoutHandle[] Sets;
 

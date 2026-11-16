@@ -10,9 +10,11 @@ public sealed partial class SlangCompiler
 {
 	/// <summary>
 	/// Compile one stage of a pass module (<see cref="PassModule"/>) with these combo values (and any other defines, such
-	/// as a mode's combos): its entry point (<c>MainVs</c>, <c>MainPs</c> or <c>MainCs</c>) with the values as defines, as
-	/// vfx compiles a combo. Pixel resources go in set 1, as for every other shader. Kept in <see cref="CacheFolder"/> per
-	/// stage and values. Throws <see cref="ShaderCompileException"/> on errors.
+	/// as a mode's combos): its entry point (<c>MainVs</c>, <c>MainPs</c>, <c>MainCs</c>, or <c>MainTs</c> and <c>MainMs</c>)
+	/// with the values as defines, as vfx compiles a combo. Pixel resources go in set 1, as for every other shader; task
+	/// and mesh resources in set 0, as the vertex stage's. A mesh stage's positions aren't flipped as a vertex stage's
+	/// are: it negates y itself. Kept in <see cref="CacheFolder"/> per stage and values. Throws
+	/// <see cref="ShaderCompileException"/> on errors.
 	/// </summary>
 	public CompiledPassStage CompilePass( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> values )
 	{
@@ -51,7 +53,7 @@ public sealed partial class SlangCompiler
 		var result = new CompiledPassStage
 		{
 			Stage = compiled,
-			ThreadGroupSize = stage == StageKind.Compute ? LocalSize( compiled.Spirv ) : (0, 0, 0),
+			ThreadGroupSize = stage is StageKind.Compute or StageKind.Task or StageKind.Mesh ? LocalSize( compiled.Spirv ) : (0, 0, 0),
 			Dependencies = dependencies,
 			Milliseconds = clock.Elapsed.TotalMilliseconds,
 		};

@@ -319,7 +319,7 @@ internal sealed class MaterialLayout
 		ImmediateBytes = immediateBytes;
 
 		var attributeConstants = new List<(ShaderStage, ShaderVariable[])>();
-		foreach ( var stage in immediate ? [] : new[] { variant.Vertex, variant.Pixel, variant.Compute } )
+		foreach ( var stage in immediate ? [] : new[] { variant.Vertex, variant.Pixel, variant.Compute, variant.Task, variant.Mesh } )
 		{
 			if ( stage is null ) continue;
 			var variables = new List<ShaderVariable>();
@@ -376,8 +376,8 @@ internal sealed class MaterialLayout
 		_ => false,
 	};
 
-	/// <summary>The stage whose material constants a set holds, as <see cref="BackendContext"/> binds them.</summary>
-	public ShaderStage StageOf( int set ) => set == ShaderAbi.FragmentSet ? Variant.Pixel : Variant.Compute ?? Variant.Vertex;
+	/// <summary>The stage whose material constants a set holds, as <see cref="BackendContext"/> binds them (a mesh stage's in set 0 where there's no vertex stage).</summary>
+	public ShaderStage StageOf( int set ) => set == ShaderAbi.FragmentSet ? Variant.Pixel : Variant.Compute ?? Variant.Vertex ?? Variant.Mesh;
 }
 
 /// <summary>A persistent set an object made, and the last frame anything bound it.</summary>

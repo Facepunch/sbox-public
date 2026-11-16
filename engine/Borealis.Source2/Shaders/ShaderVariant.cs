@@ -25,6 +25,15 @@ public sealed class ShaderVariant
 	/// <summary>The compute stage, for compute shaders.</summary>
 	public ShaderStage Compute { get; }
 
+	/// <summary>A module's task stage, or null: it launches <see cref="Mesh"/>'s groups.</summary>
+	public ShaderStage Task { get; }
+
+	/// <summary>
+	/// A module's mesh stage, or null: drawn in place of <see cref="Vertex"/> and vertex input on a device with mesh
+	/// shaders (<see cref="MeshPipelineInfo"/>).
+	/// </summary>
+	public ShaderStage Mesh { get; }
+
 	/// <summary>Layouts of sets 0 to 3; default where a set is empty. Set 4 is the device's bindless set.</summary>
 	public BindingLayoutHandle[] Sets { get; } = new BindingLayoutHandle[ShaderAbi.BindlessSet];
 
@@ -46,7 +55,7 @@ public sealed class ShaderVariant
 	/// </summary>
 	public PrimitiveExpansion Expansion => Vertex?.Expansion ?? default;
 
-	internal ShaderVariant( ShaderLibrary library, ShaderFile shader, ShaderMode mode, ShaderStage vertex, ShaderStage pixel, ShaderStage compute, bool fromModule = false )
+	internal ShaderVariant( ShaderLibrary library, ShaderFile shader, ShaderMode mode, ShaderStage vertex, ShaderStage pixel, ShaderStage compute, bool fromModule = false, ShaderStage task = null, ShaderStage mesh = null )
 	{
 		FromModule = fromModule;
 		Shader = shader;
@@ -54,16 +63,20 @@ public sealed class ShaderVariant
 		Vertex = vertex;
 		Pixel = pixel;
 		Compute = compute;
+		Task = task;
+		Mesh = mesh;
 
 		// Bindings, each from the SPIR-V and given its meaning by the stage's variables
 		var resources = new List<ShaderResource>();
-		foreach ( var stage in new[] { vertex, pixel, compute } )
+		foreach ( var stage in new[] { vertex, pixel, compute, task, mesh } )
 		{
 			if ( stage?.Bytecode is null ) continue;
 			var flags = stage.Type switch
 			{
 				ShaderProgramType.Vertex => ShaderStages.Vertex,
 				ShaderProgramType.Pixel => ShaderStages.Fragment,
+				ShaderProgramType.Task => ShaderStages.Task,
+				ShaderProgramType.Mesh => ShaderStages.Mesh,
 				_ => ShaderStages.Compute,
 			};
 
@@ -123,9 +136,9 @@ public sealed class ShaderVariant
 		var depthOnly = Pixel?.Bytecode is null;
 		return new GraphicsPipelineInfo
 		{
-			VertexShader = Vertex.Module,
-			VertexEntry = Vertex.Bytecode.EntryPoint( ShaderProgramType.Vertex ),
-			VertexConstants = Vertex.Constants,
+			VertexShader = Vertex?.Module ?? default,
+			VertexEntry = Vertex?.Bytecode?.EntryPoint( ShaderProgramType.Vertex ),
+			VertexConstants = Vertex?.Constants,
 			FragmentShader = depthOnly ? default : Pixel.Module,
 			FragmentEntry = depthOnly ? null : Pixel.Bytecode.EntryPoint( ShaderProgramType.Pixel ),
 			FragmentConstants = depthOnly ? null : Pixel.Constants,
@@ -153,6 +166,30 @@ public sealed class ShaderVariant
 			Samples = samples,
 			Name = name ?? $"{Shader.Name} {Mode?.Name}",
 		};
+	}
+
+	/// <summary>
+	/// A graphics pipeline description that draws with <see cref="Mesh"/> (and <see cref="Task"/>, when there is one) in
+	/// place of the vertex stage and vertex input, into targets of these formats; null when it has no mesh stage.
+	/// </summary>
+	public GraphicsPipelineInfo? MeshPipelineInfo( Format[] colors, Format depth, int samples, bool depthBias, string name )
+	{
+		if ( Mesh?.Bytecode is null ) return null;
+		var info = PipelineInfo( [], [], colors, depth, samples, depthBias, name );
+		info.VertexShader = default;
+		info.VertexEntry = null;
+		info.VertexConstants = null;
+		info.MeshShader = Mesh.Module;
+		info.MeshEntry = Mesh.Bytecode.EntryPoint( ShaderProgramType.Mesh );
+		info.MeshConstants = Mesh.Constants;
+		if ( Task?.Bytecode is not null )
+		{
+			info.TaskShader = Task.Module;
+			info.TaskEntry = Task.Bytecode.EntryPoint( ShaderProgramType.Task );
+			info.TaskConstants = Task.Constants;
+		}
+
+		return info;
 	}
 
 	/// <inheritdoc/>

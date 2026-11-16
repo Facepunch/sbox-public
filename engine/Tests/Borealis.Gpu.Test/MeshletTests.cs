@@ -1,6 +1,7 @@
 using Borealis.Backend;
 using Borealis.Backend.Meshlets;
 using Borealis.Source2;
+using Sandbox.ShaderCompiler;
 using System.IO;
 using V3 = System.Numerics.Vector3;
 
@@ -115,5 +116,33 @@ public class MeshletTests
 		Assert.AreEqual( new MeshletConfig( 32, 32 ), MeshletConfig.Parse( "32x32" ) );
 		Assert.AreEqual( MeshletConfig.Default, MeshletConfig.Parse( null ) );
 		Assert.AreEqual( MeshletConfig.Default, MeshletConfig.Parse( "64x125" ) );
+	}
+
+	/// <summary>
+	/// borealis_meshlet_ids's module has task, mesh and pixel stages and no vertex stage, and each compiles with Slang: the
+	/// task stage 64 threads a group, the mesh stage 128 (a thread per triangle of a 124-triangle meshlet); and the
+	/// compute modules beside it compile.
+	/// </summary>
+	[TestMethod]
+	public void MeshletIdsModuleCompiles()
+	{
+		var core = ContentFiles.FindGame().Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "borealis_meshlet_ids.slang" ) ) );
+		if ( core is null ) Assert.Inconclusive( "No borealis_meshlet_ids.slang" );
+		var shaders = Path.Combine( core, "shaders" );
+		var module = PassModule.Read( Path.Combine( shaders, "borealis_meshlet_ids.slang" ), [shaders] );
+		Assert.IsTrue( module.Has( StageKind.Task ), "task stage" );
+		Assert.IsTrue( module.Has( StageKind.Mesh ), "mesh stage" );
+		Assert.IsTrue( module.Has( StageKind.Pixel ), "pixel stage" );
+		Assert.IsFalse( module.Has( StageKind.Vertex ), "no vertex stage" );
+
+		var compiler = new SlangCompiler( EngineFolders.NativeIn( Path.GetDirectoryName( core ) ), [shaders] );
+		var none = new Dictionary<string, int>();
+		Assert.AreEqual( (64, 1, 1), compiler.CompilePass( module, StageKind.Task, none ).ThreadGroupSize );
+		Assert.AreEqual( (128, 1, 1), compiler.CompilePass( module, StageKind.Mesh, none ).ThreadGroupSize );
+		Assert.IsTrue( compiler.CompilePass( module, StageKind.Pixel, none ).Stage.Spirv.Length > 0 );
+
+		// The culls that fill its task runs, and the compactions that read its kept lists, as well
+		foreach ( var name in new[] { "borealis_meshlet_cull_cs", "borealis_gpu_driven_cull_cs", "borealis_resident_cull_cs", "borealis_gpu_driven_compact_cs" } )
+			Assert.IsTrue( compiler.CompilePass( PassModule.Read( Path.Combine( shaders, name + ".slang" ), [shaders] ), StageKind.Compute, none ).Stage.Spirv.Length > 0, name );
 	}
 }

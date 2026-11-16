@@ -423,7 +423,7 @@ public sealed class ShaderLibrary : IDisposable
 		}
 
 		ShaderStage Stage( ModuleStage stage ) => stage is null ? null : new ShaderStage( this, shader, stage );
-		var variant = new ShaderVariant( this, shader, mode, Stage( program.Vertex ), Stage( program.Pixel ), Stage( program.Compute ), fromModule: true );
+		var variant = new ShaderVariant( this, shader, mode, Stage( program.Vertex ), Stage( program.Pixel ), Stage( program.Compute ), fromModule: true, task: Stage( program.Task ), mesh: Stage( program.Mesh ) );
 		lock ( moduleVariants ) return moduleVariants.TryAdd( key, variant ) ? variant : moduleVariants[key];
 	}
 
