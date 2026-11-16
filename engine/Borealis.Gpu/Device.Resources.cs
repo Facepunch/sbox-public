@@ -784,6 +784,7 @@ public sealed unsafe partial class Device
 			pDynamicState = &dynamic,
 			layout = layout,
 			basePipelineIndex = -1,
+			flags = shaderStatistics ? CaptureStatistics : 0,
 		};
 
 		ulong pipeline;
@@ -791,6 +792,7 @@ public sealed unsafe partial class Device
 		Vk.vkCreateGraphicsPipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateGraphicsPipelines ({info.Name})" );
 		CountPipeline( started );
 		SetName( VkObjectType.Pipeline, pipeline, info.Name );
+		if ( shaderStatistics ) KeepStatistics( pipeline, info.Name );
 
 		var (index, generation) = Pipelines.Add( new PipelineRecord { Pipeline = pipeline, Layout = layout, BindPoint = Vulkan.Vk.BindPointGraphics } );
 		return new PipelineHandle( index, generation );
@@ -817,6 +819,7 @@ public sealed unsafe partial class Device
 			},
 			layout = layout,
 			basePipelineIndex = -1,
+			flags = shaderStatistics ? CaptureStatistics : 0,
 		};
 
 		ulong pipeline;
@@ -824,6 +827,7 @@ public sealed unsafe partial class Device
 		Vk.vkCreateComputePipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateComputePipelines ({info.Name})" );
 		CountPipeline( started );
 		SetName( VkObjectType.Pipeline, pipeline, info.Name );
+		if ( shaderStatistics ) KeepStatistics( pipeline, info.Name );
 
 		var (index, generation) = Pipelines.Add( new PipelineRecord { Pipeline = pipeline, Layout = layout, BindPoint = Vulkan.Vk.BindPointCompute } );
 		return new PipelineHandle( index, generation );

@@ -289,6 +289,10 @@ internal sealed unsafe class VkDeviceApi
 	/// <summary>VK_EXT_device_fault, when the device was made with it; null otherwise.</summary>
 	public delegate* unmanaged< nint, VkDeviceFaultCountsEXT*, VkDeviceFaultInfoEXT*, VkResult > vkGetDeviceFaultInfoEXT;
 
+	/// <summary>VK_KHR_pipeline_executable_properties, when the device was made with it; null otherwise.</summary>
+	public delegate* unmanaged< nint, VkPipelineInfoKHR*, uint*, VkPipelineExecutablePropertiesKHR*, VkResult > vkGetPipelineExecutablePropertiesKHR;
+	public delegate* unmanaged< nint, VkPipelineExecutableInfoKHR*, uint*, VkPipelineExecutableStatisticKHR*, VkResult > vkGetPipelineExecutableStatisticsKHR;
+
 	public VkDeviceApi( VkInstanceApi instance, nint device )
 	{
 		Device = device;
@@ -409,5 +413,7 @@ internal sealed unsafe class VkDeviceApi
 		vkCmdEndQuery = (delegate* unmanaged< nint, ulong, uint, void >)Need( "vkCmdEndQuery" );
 		vkCmdWriteBufferMarkerAMD = (delegate* unmanaged< nint, uint, ulong, ulong, uint, void >)Get( "vkCmdWriteBufferMarkerAMD" );
 		vkGetDeviceFaultInfoEXT = (delegate* unmanaged< nint, VkDeviceFaultCountsEXT*, VkDeviceFaultInfoEXT*, VkResult >)Get( "vkGetDeviceFaultInfoEXT" );
+		vkGetPipelineExecutablePropertiesKHR = (delegate* unmanaged< nint, VkPipelineInfoKHR*, uint*, VkPipelineExecutablePropertiesKHR*, VkResult >)Get( "vkGetPipelineExecutablePropertiesKHR" );
+		vkGetPipelineExecutableStatisticsKHR = (delegate* unmanaged< nint, VkPipelineExecutableInfoKHR*, uint*, VkPipelineExecutableStatisticKHR*, VkResult >)Get( "vkGetPipelineExecutableStatisticsKHR" );
 	}
 }

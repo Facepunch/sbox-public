@@ -1388,4 +1388,52 @@ internal unsafe struct VkDeviceFaultInfoEXT
 	public void* pVendorBinaryData;
 }
 
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint pipelineExecutableInfo;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPipelineInfoKHR
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public ulong pipeline;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPipelineExecutablePropertiesKHR
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint stages;
+	public fixed byte name[256];
+	public fixed byte description[256];
+	public uint subgroupSize;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPipelineExecutableInfoKHR
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public ulong pipeline;
+	public uint executableIndex;
+}
+
+/// <summary>A statistic: its format is 0 (bool32), 1 (int64), 2 (uint64) or 3 (float64), its value the union's 8 bytes.</summary>
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPipelineExecutableStatisticKHR
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public fixed byte name[256];
+	public fixed byte description[256];
+	public int format;
+	public ulong value;
+}
+
 #pragma warning restore CS0649

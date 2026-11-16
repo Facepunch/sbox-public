@@ -32,6 +32,12 @@ public sealed class DeviceOptions
 	/// </summary>
 	public bool ProgressMarkers { get; init; }
 
+	/// <summary>
+	/// Keep the driver's statistics for each pipeline's shaders (VK_KHR_pipeline_executable_properties, when the device
+	/// has it): registers, spills, wave size and the like, in <see cref="Device.ShaderStatistics"/>. For measuring.
+	/// </summary>
+	public bool ShaderStatistics { get; init; }
+
 	/// <summary>Frames the CPU may record ahead of the GPU.</summary>
 	public int FramesInFlight { get; init; } = 2;
 
