@@ -585,7 +585,7 @@ internal sealed partial class BackendContext
 			// per chunk of each)
 			var arguments = MemoryMarshal.Cast<byte, uint>( data.Slice( listedOffset, 16 ) );
 			arguments[0] = 0;
-			arguments[1] = meshlets ? MeshletChunks : 1u;
+			arguments[1] = 1;
 			arguments[2] = 1;
 		}
 		var batchRecords = MemoryMarshal.Cast<byte, uint>( data.Slice( CullViewBytes, batchCount * CullBatchBytes ) );
@@ -999,15 +999,15 @@ internal sealed partial class BackendContext
 	/// </summary>
 	bool MeshletStampsReady( BackendDevice.VisibilityView visibility ) => visibility is { MeshletStampsCleared: true } && device.MeshletStore is not null;
 
-	/// <summary>Groups of <c>borealis_meshlet_cull_cs</c> per listed fragment: chunks of 1024 of its meshlets, up to 4096.</summary>
+	/// <summary>Chunks of 1024 meshlets a listed fragment has at most (4096 meshlets), each with a compacted slot of its own.</summary>
 	internal const uint MeshletChunks = 4;
 
 	/// <summary>
-	/// <c>borealis_meshlet_cull_cs</c> over a prepass's listed fragments, a group per chunk of each (an indirect dispatch,
-	/// counted up by its culling): each tests its meshlets against the view and draws the kept ones from room of its own in
-	/// the view's prepass compacted buffer, writing the instance record, command and ids fragment word (or the fragment
-	/// whole, or nothing), stamps what a fragment of one chunk drew for its forward compaction and leaves a copy job per
-	/// kept meshlet; then a copy dispatch, four jobs a group, copies their indices there.
+	/// <c>borealis_meshlet_cull_cs</c> over a prepass's listed fragments, a group each (an indirect dispatch, counted up by
+	/// its culling): each tests its meshlets against the view a chunk at a time and draws the kept ones from room of the
+	/// chunk's own in the view's prepass compacted buffer, writing the instance record, command and ids fragment word (or
+	/// the fragment whole, or nothing), stamps what a fragment of one chunk drew for its forward compaction and leaves a copy
+	/// job per kept meshlet; then a copy dispatch, a group per job, copies their indices there.
 	/// </summary>
 	void DispatchMeshlets( in GpuDrivenCull cull, in CulledRegion region, BackendDevice.VisibilityView visibility, int samples, bool culledHere )
 	{
@@ -1055,8 +1055,8 @@ internal sealed partial class BackendContext
 
 		// No copy jobs yet: after an earlier call's copy read them
 		r.List.Barrier( PipelineStage.ComputeShader | PipelineStage.DrawIndirect, MemoryAccess.ShaderRead | MemoryAccess.IndirectRead, PipelineStage.Transfer, MemoryAccess.TransferWrite );
-		r.List.FillBuffer( visibility.MeshletJobs, 0, 0, 32 );
-		r.List.FillBuffer( visibility.MeshletJobs, 1, 20, 8 );
+		r.List.FillBuffer( visibility.MeshletJobs, 0, 0, 16 );
+		r.List.FillBuffer( visibility.MeshletJobs, 1, 4, 8 );
 		r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 
 		// After the culling that listed them, in this list or the setup's: test and place, then copy
@@ -1067,7 +1067,7 @@ internal sealed partial class BackendContext
 		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.ComputeShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 		constants.Pass = 1;
 		Bind();
-		cullDrawer.DispatchIndirect( r.List, device.MeshletCullShader, meshletAttributes, visibility.MeshletJobs, 16 );
+		cullDrawer.DispatchIndirect( r.List, device.MeshletCullShader, meshletAttributes, visibility.MeshletJobs, 0 );
 		r.List.Marker( "end GPU-driven meshlets" );
 		timer?.End( r.List, scope );
 	}

@@ -482,7 +482,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			{
 				if ( !meshletStoreTried )
 				{
-					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads ) : null;
+					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) : null;
 					if ( meshletStore is not null ) gpuDrivenTables.Meshlets = meshletStore;
 					Volatile.Write( ref meshletStoreTried, true );
 				}
@@ -1294,9 +1294,20 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	ShaderFile meshletShader;
 	bool meshletShaderLoaded;
 
+	/// <summary>
+	/// Where built meshlets are kept between runs: <c>game/.source2/borealismeshlets</c> beside the engine's other caches;
+	/// none with <c>-no-meshlet-cache</c> or no engine content.
+	/// </summary>
+	string MeshletCacheFolder()
+	{
+		if ( HasSwitch( "-no-meshlet-cache" ) ) return null;
+		var core = Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "sbox", "pass.slangh" ) ) );
+		return core is null ? null : Path.Combine( Path.GetDirectoryName( core ), ".source2", "borealismeshlets" );
+	}
+
 	/// <summary>What meshlets have been built, for reports.</summary>
 	public string MeshletReport => meshletStore is not { } s ? (Meshlets ? "meshlets: none (meshopt not found or no GPU-driven geometry)" : "meshlets: off")
-		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles, built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time; pass module {(MeshletCullShader is null ? "missing" : "drawing")}";
+		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles, built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); pass module {(MeshletCullShader is null ? "missing" : "drawing")}";
 
 	/// <summary>
 	/// Debug only (<c>borealislab -capture-visibility</c>): GPU-driven forward passes also replay their multi-draws into this
@@ -1364,7 +1375,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		/// </summary>
 		public BufferHandle MeshletStamps;
 
-		/// <summary>The meshlet pass's copy jobs: a count, the copy dispatch's arguments, then a job per kept meshlet.</summary>
+		/// <summary>The meshlet pass's copy jobs: their count (also the copy dispatch's group count), 1, 1, then a job per kept meshlet.</summary>
 		public BufferHandle MeshletJobs;
 		public bool MeshletStampsCleared;
 		public bool StampsCleared;
@@ -1408,7 +1419,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		{
 			if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
 			state.MeshletStamps = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 16L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet stamps" } );
-			state.MeshletJobs = Gpu.CreateBuffer( new BufferInfo { Size = 32 + MeshletJobCapacity * 16L, Usage = BufferUsage.Storage | BufferUsage.Indirect | BufferUsage.CopyDestination, Name = "Borealis meshlet copy jobs" } );
+			state.MeshletJobs = Gpu.CreateBuffer( new BufferInfo { Size = 16 + MeshletJobCapacity * 16L, Usage = BufferUsage.Storage | BufferUsage.Indirect | BufferUsage.CopyDestination, Name = "Borealis meshlet copy jobs" } );
 			visibilityBuffers.Add( state.MeshletJobs );
 			var buffer = Gpu.CreateBuffer( new BufferInfo { Size = PrepassCompactedIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles" } );
 			visibilityBuffers.Add( state.MeshletStamps );

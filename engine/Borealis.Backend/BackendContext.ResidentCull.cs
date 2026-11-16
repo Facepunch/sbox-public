@@ -343,7 +343,7 @@ internal sealed partial class BackendContext
 			{
 				var arguments = MemoryMarshal.Cast<byte, uint>( region.Slice( layout.Listed, 16 ) );
 				arguments[0] = 0;
-				arguments[1] = meshlets ? MeshletChunks : 1u;
+				arguments[1] = 1;
 				arguments[2] = 1;
 			}
 

@@ -85,8 +85,9 @@ internal sealed class MeshletStore : IDisposable
 	/// <summary>Ranges asked for, built, published and refused; meshlets and triangles published; build time on the workers.</summary>
 	public long Requested, Built, Published, Refused, Meshlets, Triangles, BuildTicks;
 
-	public MeshletStore( Device gpu, MeshletConfig config, int threads )
+	public MeshletStore( Device gpu, MeshletConfig config, int threads, string cacheFolder = null )
 	{
+		CacheFolder = cacheFolder;
 		this.gpu = gpu;
 		Config = config;
 		workers = new SemaphoreSlim( Math.Max( threads, 1 ) );
@@ -168,8 +169,27 @@ internal sealed class MeshletStore : IDisposable
 			var s = entry.Source;
 			var count = (int)entry.Range.IndexCount;
 			var indices = new uint[count];
-			for ( int k = 0; k < count; k++ ) indices[k] = s.Indices[s.IndexBase + k];
-			var set = MeshletBuilder.Build( indices, v => Position( s, v ), s.VertexBase, Config );
+			uint min = uint.MaxValue, max = 0;
+			for ( int k = 0; k < count; k++ )
+			{
+				var index = s.Indices[s.IndexBase + k];
+				indices[k] = index;
+				min = Math.Min( min, index );
+				max = Math.Max( max, index );
+			}
+
+			// Its vertices' positions, from the lowest index it uses; with its indices and the config, the cache's key
+			var positions = new V3[max - min + 1];
+			for ( int v = 0; v < positions.Length; v++ ) positions[v] = Position( s, s.VertexBase + (int)min + v );
+			var key = CacheFolder is null ? null : Key( indices, positions );
+			var set = key is null ? null : ReadCached( key );
+			if ( set is not null ) Interlocked.Increment( ref CacheHits );
+			else
+			{
+				set = MeshletBuilder.Build( indices, v => positions[v - s.VertexBase - (int)min], s.VertexBase, Config );
+				if ( key is not null && set is not null ) WriteCached( key, set );
+			}
+
 			Interlocked.Add( ref BuildTicks, Stopwatch.GetTimestamp() - started );
 			entry.Set = set is not null && set.Meshlets.Length <= MaxRunMeshlets ? set : null;
 			built.Enqueue( entry );
@@ -202,6 +222,75 @@ internal sealed class MeshletStore : IDisposable
 		var (ibIndex, ibOffset) = c.IndexBuffer;
 		var ib = m.IndexBuffers[ibIndex];
 		return new Source( indexPage, format, ib, ibOffset / ib.Size, vb, position, vbOffset / vb.Stride );
+	}
+
+	/// <summary>
+	/// Where built ranges are kept between runs (<c>game/.source2/borealismeshlets</c>), by a hash of the config, the range's
+	/// indices and its vertices' positions; null to build every time.
+	/// </summary>
+	public string CacheFolder { get; init; }
+
+	/// <summary>Ranges read from the cache.</summary>
+	public long CacheHits;
+
+	const uint CacheMagic = 0x4C48534D, CacheVersion = 1;
+
+	string Key( uint[] indices, V3[] positions )
+	{
+		using var hash = System.Security.Cryptography.IncrementalHash.CreateHash( System.Security.Cryptography.HashAlgorithmName.SHA256 );
+		Span<int> head = [(int)CacheVersion, Config.MaxVertices, Config.MaxTriangles, indices.Length, positions.Length];
+		hash.AppendData( MemoryMarshal.AsBytes( head ) );
+		hash.AppendData( MemoryMarshal.AsBytes( indices.AsSpan() ) );
+		hash.AppendData( MemoryMarshal.AsBytes( positions.AsSpan() ) );
+		return Convert.ToHexString( hash.GetHashAndReset() );
+	}
+
+	string CachePath( string key ) => System.IO.Path.Combine( CacheFolder, key[..2], key + ".bin" );
+
+	MeshletSet ReadCached( string key )
+	{
+		try
+		{
+			var path = CachePath( key );
+			if ( !System.IO.File.Exists( path ) ) return null;
+			var bytes = System.IO.File.ReadAllBytes( path );
+			var head = MemoryMarshal.Cast<byte, uint>( bytes.AsSpan( 0, 16 ) );
+			if ( head[0] != CacheMagic || head[1] != CacheVersion ) return null;
+			var (indexCount, meshletCount) = ((int)head[2], (int)head[3]);
+			if ( bytes.Length != 16 + indexCount * 4 + meshletCount * MeshletSet.RecordBytes ) return null;
+			return new MeshletSet
+			{
+				Indices = MemoryMarshal.Cast<byte, uint>( bytes.AsSpan( 16, indexCount * 4 ) ).ToArray(),
+				Meshlets = MemoryMarshal.Cast<byte, MeshletRecord>( bytes.AsSpan( 16 + indexCount * 4 ) ).ToArray(),
+			};
+		}
+		catch ( System.IO.IOException )
+		{
+			return null;
+		}
+	}
+
+	void WriteCached( string key, MeshletSet set )
+	{
+		try
+		{
+			var path = CachePath( key );
+			System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( path ) );
+			var temp = path + "." + Environment.CurrentManagedThreadId + ".tmp";
+			using ( var file = System.IO.File.Create( temp ) )
+			{
+				Span<uint> head = [CacheMagic, CacheVersion, (uint)set.Indices.Length, (uint)set.Meshlets.Length];
+				file.Write( MemoryMarshal.AsBytes( head ) );
+				file.Write( MemoryMarshal.AsBytes( set.Indices.AsSpan() ) );
+				file.Write( MemoryMarshal.AsBytes( set.Meshlets.AsSpan() ) );
+			}
+
+			System.IO.File.Move( temp, path, overwrite: true );
+		}
+		catch ( Exception e ) when ( e is System.IO.IOException or UnauthorizedAccessException )
+		{
+			// A cache that can't be written builds again next time
+		}
 	}
 
 	static V3 Position( Source s, int vertex )

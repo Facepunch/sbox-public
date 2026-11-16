@@ -2,7 +2,7 @@
 // reflection is what the backend's struct is checked against): meshlets draw only where pass modules do.
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
-// HEADER: Description = "Borealis meshlet culling: a group per chunk of each fragment a depth prepass listed tests its meshlets against the view and draws those that can reach a sample from compacted indices.";
+// HEADER: Description = "Borealis meshlet culling: a group per fragment a depth prepass listed tests its meshlets against the view and draws those that can reach a sample from compacted indices.";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // MODES: Default();
@@ -44,7 +44,7 @@ cbuffer BorealisMeshletCull_t
 	uint g_nMeshletCapacity;		// indices g_Compacted holds
 	uint g_nMeshletFragmentWords;	// g_Frame byte offset of instance 0's fragment word for the ids (wraps), or None
 	uint g_nMeshletSamples;			// the depth target's samples: 1 or 4 cull meshlets between samples, others don't
-	uint g_nMeshletPass;			// 0: test and place (a group per chunk of each listed fragment), 1: copy (a group per four jobs)
+	uint g_nMeshletPass;			// 0: test and place (a group per listed fragment), 1: copy (a group per job)
 	uint g_nMeshletFrame;			// this frame's stamp
 	float4 g_nMeshletViewport;		// width and height in pixels, and the copy jobs g_MeshletJobs holds
 	float4 g_nMeshletClipX;			// world to clip: x, y, z, w = dot( row, float4( world, 1 ) ), y before the vertex shaders negate it
@@ -55,7 +55,7 @@ cbuffer BorealisMeshletCull_t
 
 static const uint None = 0xffffffffu;
 
-// Meshlets a group takes of a fragment: a fragment's chunks are the dispatch's second dimension (ResidentRecords' 4)
+// Meshlets a group takes of a fragment at a time: at most four chunks a fragment (BackendContext.MeshletChunks)
 static const uint ChunkMeshlets = 1024;
 
 uint LoadIndex( ByteAddressBuffer page, uint nIndex, bool b32 )
@@ -151,37 +151,39 @@ bool Culled( float3 vCenter, float3 vExtents, float3x4 mTransform )
 	return bFront && ( g_nMeshletSamples == 1 || g_nMeshletSamples == 4 ) && !HoldsSample( vMin, vMax );
 }
 
-// The kept meshlets of a group's chunk: first triangle << 8 | triangles, and where each one's triangles start
+// The kept meshlets of the chunk a group is on: first triangle << 8 | triangles
 groupshared uint gs_Kept[ChunkMeshlets];
 groupshared uint gs_Count;
 groupshared uint gs_Triangles;
 groupshared uint gs_At;
 groupshared uint gs_Jobs;
-groupshared uint gs_Scan[256];
+groupshared uint gs_Scan[64];
 
-// The copy pass: a 64-lane quarter of a group per job, each job one kept meshlet's indices (destination, source,
-// indices, page slot with bit 31 for 32-bit indices), after the header (job count; dispatch arguments)
-void Copy( uint nGroup, uint nThread )
+// Below this share of a fragment's triangles culled, copying the rest costs more than drawing them: it draws whole
+static const float WholeKept = 0.7;
+
+// The copy pass: a group per job, each job one kept meshlet's indices (destination, source, indices, page slot with bit 31
+// for 32-bit indices), after the header (job count, which is also the dispatch's group count, then 1, 1)
+void Copy( uint nJob, uint nThread )
 {
-	uint nJob = nGroup * 4 + nThread / 64;
-	if ( nJob >= min( g_MeshletJobs.Load( 0 ), uint( g_nMeshletViewport.z ) ) )
+	if ( nJob >= uint( g_nMeshletViewport.z ) )
 		return;
 
-	uint4 vJob = g_MeshletJobs.Load4( 32 + nJob * 16 );
-	ByteAddressBuffer page = g_bindless_VertexBuffers[ NonUniformResourceIndex( vJob.w & 0x7fffffffu ) ];
+	uint4 vJob = g_MeshletJobs.Load4( 16 + nJob * 16 );
+	ByteAddressBuffer page = g_bindless_VertexBuffers[ vJob.w & 0x7fffffffu ];
 	bool b32 = ( vJob.w & 0x80000000u ) != 0;
-	for ( uint i = nThread & 63; i < vJob.z; i += 64 )
+	for ( uint i = nThread; i < vJob.z; i += 64 )
 		g_Compacted.Store( ( vJob.x + i ) * 4, LoadIndex( page, vJob.y + i, b32 ) );
 }
 
-// Group ( fragment, chunk ) of the listed fragments: tests the chunk's meshlets and draws those that can reach a sample
-// from room of its own in the compacted indices, from the bucket's compacted multi-draw (MeshletChunks slots a fragment),
-// leaving a copy job per kept meshlet for the copy pass. A fragment of one chunk draws whole from its page when every
-// meshlet is kept, or when there's no room, and stamps what it drew for its forward compaction; of several chunks, the
-// first without room draws the fragment whole, once.
+// A group per listed fragment, its meshlets in chunks of ChunkMeshlets: tests each chunk's meshlets and draws those that
+// can reach a sample from room of the chunk's own in the compacted indices, from the bucket's compacted multi-draw
+// (MeshletChunks slots a fragment), leaving a copy job per kept meshlet for the copy pass. A fragment of one chunk draws
+// whole from its page when most of its triangles are kept, or when there's no room, and stamps what it drew for its
+// forward compaction; of several chunks, the first without room draws the fragment whole, once.
 // A listed entry: transform, draw record, the vertices' first bit for the ids, its multi-draw, its bucket's compacted
-// multi-draw, the word its chunks take to draw it whole (zeroed by the culling), unused, its visibility fragment or None
-[numthreads( 256, 1, 1 )]
+// multi-draw, two words zeroed by the culling, its visibility fragment or None
+[numthreads( 64, 1, 1 )]
 [shader( "compute" )] void MainCs( uint3 vGroupId : SV_GroupID, uint nThread : SV_GroupIndex )
 {
 	if ( g_nMeshletPass == 1 )
@@ -194,134 +196,129 @@ void Copy( uint nGroup, uint nThread )
 	uint nDrawRecord = g_Frame.Load( nEntry + 4 );
 	uint4 vRun = g_bindless_VertexBuffers[ g_nMeshletRunTable ].Load4( nDrawRecord * 16 );
 	uint nMeshlets = min( vRun.z, 4 * ChunkMeshlets );
-	uint nChunk = vGroupId.y * ChunkMeshlets;
-	if ( nChunk >= nMeshlets )
-		return;
-
 	bool bOneChunk = nMeshlets <= ChunkMeshlets;
-	uint nChunkMeshlets = min( nMeshlets - nChunk, ChunkMeshlets );
 	ByteAddressBuffer meshlets = g_bindless_VertexBuffers[ vRun.x ];
 	uint nTransform = g_Frame.Load( nEntry );
 	float3x4 mTransform = g_TransformData[ nTransform ].transform;
-
-	if ( nThread == 0 )
-	{
-		gs_Count = 0;
-		gs_Triangles = 0;
-	}
-	GroupMemoryBarrierWithGroupSync();
-
-	// Each meshlet tested once; a kept one joins the list
-	for ( uint m = nThread; m < nChunkMeshlets; m += 256 )
-	{
-		uint nAt = ( vRun.y + nChunk + m ) * 32;
-		uint4 r0 = meshlets.Load4( nAt );
-		uint4 r1 = meshlets.Load4( nAt + 16 );
-		if ( !Culled( asfloat( r0.xyz ), asfloat( r1.xyz ), mTransform ) )
-		{
-			uint nSlot;
-			InterlockedAdd( gs_Count, 1, nSlot );
-			gs_Kept[nSlot] = r0.w << 8 | ( r1.w & 0xff );
-			InterlockedAdd( gs_Triangles, r1.w );
-		}
-	}
-
-	GroupMemoryBarrierWithGroupSync();
-	uint nKeptMeshlets = gs_Count;
-	uint nKept = gs_Triangles;
-
 	uint nVertexBase = g_Frame.Load( nEntry + 8 );
 	uint nFragment = g_Frame.Load( nEntry + 28 );
 	uint4 vDraw = g_bindless_VertexBuffers[ g_nMeshletDraws ].Load4( nDrawRecord * 32 + 16 );
-	if ( nKept == 0 )
-	{
-		if ( bOneChunk && nThread == 0 && nFragment != None )
-			g_MeshletStamps.Store4( nFragment * 16, uint4( g_nMeshletFrame, None, 0, 0 ) );
-		return;
-	}
+	uint4 vDrawHead = g_bindless_VertexBuffers[ g_nMeshletDraws ].Load4( nDrawRecord * 32 );
+	uint nPage = vDraw.w | ( ( vDrawHead.w & 2 ) != 0 ? 0x80000000u : 0 );
+	bool bWhole = false;
 
-	if ( nThread == 0 )
+	for ( uint nChunk = 0; nChunk < nMeshlets && !bWhole; nChunk += ChunkMeshlets )
 	{
-		// Room for its kept triangles and a copy job per kept meshlet; else whole
-		uint nStart = None;
-		uint nJobs = None;
-		if ( !bOneChunk || nKeptMeshlets < nChunkMeshlets )
+		uint nChunkMeshlets = min( nMeshlets - nChunk, ChunkMeshlets );
+		if ( nThread == 0 )
 		{
-			uint nJobCapacity = uint( g_nMeshletViewport.z );
-			g_MeshletJobs.InterlockedAdd( 0, nKeptMeshlets, nJobs );
-			if ( nJobs + nKeptMeshlets > nJobCapacity )
-				nJobs = None;
-			else
-			{
-				// The copy dispatch's groups: four jobs each
-				g_MeshletJobs.InterlockedMax( 16, ( nJobs + nKeptMeshlets + 3 ) / 4 );
+			gs_Count = 0;
+			gs_Triangles = 0;
+		}
+		GroupMemoryBarrierWithGroupSync();
 
-				// A buffer made this frame starts its cursor wherever: whole draws until its first clear
-				g_Compacted.InterlockedAdd( 0, nKept * 3, nStart );
-				if ( nStart < 4 || nStart >= g_nMeshletCapacity || nKept * 3 > g_nMeshletCapacity - nStart )
-					nStart = None;
+		// Each meshlet tested once; a kept one joins the list
+		for ( uint m = nThread; m < nChunkMeshlets; m += 64 )
+		{
+			uint nAt = ( vRun.y + nChunk + m ) * 32;
+			uint4 r0 = meshlets.Load4( nAt );
+			uint4 r1 = meshlets.Load4( nAt + 16 );
+			if ( !Culled( asfloat( r0.xyz ), asfloat( r1.xyz ), mTransform ) )
+			{
+				uint nSlot;
+				InterlockedAdd( gs_Count, 1, nSlot );
+				gs_Kept[nSlot] = r0.w << 8 | ( r1.w & 0xff );
+				InterlockedAdd( gs_Triangles, r1.w );
 			}
 		}
 
-		gs_At = nStart;
-		gs_Jobs = nJobs;
-		if ( nStart != None )
+		GroupMemoryBarrierWithGroupSync();
+		uint nKeptMeshlets = gs_Count;
+		uint nKept = gs_Triangles;
+		if ( nKept == 0 )
 		{
-			WriteDraw( TakeSlot( g_Frame.Load( nEntry + 16 ) ), nTransform, nDrawRecord, nVertexBase, nKept * 3, nStart, vDraw.z );
-			if ( bOneChunk && nFragment != None )
-				g_MeshletStamps.Store4( nFragment * 16, uint4( g_nMeshletFrame, nStart, nKept, 0 ) );
+			if ( bOneChunk && nThread == 0 && nFragment != None )
+				g_MeshletStamps.Store4( nFragment * 16, uint4( g_nMeshletFrame, None, 0, 0 ) );
+			GroupMemoryBarrierWithGroupSync();
+			continue;
 		}
-		else
+
+		if ( nThread == 0 )
 		{
-			uint nWas = 0;
-			if ( !bOneChunk )
-				g_Frame.InterlockedExchange( nEntry + 20, 1, nWas );
-			if ( nWas == 0 )
+			// Room for its kept triangles and a copy job per kept meshlet; else whole
+			uint nStart = None;
+			uint nJobs = None;
+			if ( !bOneChunk || float( nKept ) < WholeKept * float( vDraw.y / 3 ) )
+			{
+				g_MeshletJobs.InterlockedAdd( 0, nKeptMeshlets, nJobs );
+				if ( nJobs + nKeptMeshlets > uint( g_nMeshletViewport.z ) )
+					nJobs = None;
+				else
+				{
+					// A buffer made this frame starts its cursor wherever: whole draws until its first clear
+					g_Compacted.InterlockedAdd( 0, nKept * 3, nStart );
+					if ( nStart < 4 || nStart >= g_nMeshletCapacity || nKept * 3 > g_nMeshletCapacity - nStart )
+						nStart = None;
+				}
+			}
+
+			gs_At = nStart;
+			gs_Jobs = nJobs;
+			if ( nStart != None )
+			{
+				WriteDraw( TakeSlot( g_Frame.Load( nEntry + 16 ) ), nTransform, nDrawRecord, nVertexBase, nKept * 3, nStart, vDraw.z );
+				if ( bOneChunk && nFragment != None )
+					g_MeshletStamps.Store4( nFragment * 16, uint4( g_nMeshletFrame, nStart, nKept, 0 ) );
+			}
+			else
+			{
+				// Whole, once a fragment: a chunk without room ends its fragment's chunks
 				WriteDraw( TakeSlot( g_Frame.Load( nEntry + 12 ) ), nTransform, nDrawRecord, nVertexBase, vDraw.y, vDraw.x, vDraw.z );
-			if ( bOneChunk && nKeptMeshlets == nChunkMeshlets && nFragment != None )
-				g_MeshletStamps.Store4( nFragment * 16, uint4( g_nMeshletFrame, None, nKept, 0 ) );
+				if ( bOneChunk && nFragment != None )
+					g_MeshletStamps.Store4( nFragment * 16, uint4( g_nMeshletFrame, None, vDraw.y / 3, 0 ) );
+			}
 		}
-	}
 
-	GroupMemoryBarrierWithGroupSync();
-	uint nAt = gs_At;
-	uint nJobs = gs_Jobs;
-
-	// Jobs it took but has no room for copy nothing
-	if ( nAt == None )
-	{
-		for ( uint k = nThread; nJobs != None && k < nKeptMeshlets; k += 256 )
-			g_MeshletJobs.Store4( 32 + ( nJobs + k ) * 16, uint4( 0, 0, 0, 0 ) );
-		return;
-	}
-
-	// Each kept meshlet's job: where its triangles go among the kept ones' (an exclusive scan of their counts, 256 at a time)
-	uint4 vDrawHead = g_bindless_VertexBuffers[ g_nMeshletDraws ].Load4( nDrawRecord * 32 );
-	uint nPage = vDraw.w | ( ( vDrawHead.w & 2 ) != 0 ? 0x80000000u : 0 );
-	uint nRunning = 0;
-	for ( uint c = 0; c < nKeptMeshlets; c += 256 )
-	{
-		uint nKeptAt = c + nThread < nKeptMeshlets ? gs_Kept[c + nThread] : 0;
-		uint nValue = nKeptAt & 0xff;
-		gs_Scan[nThread] = nValue;
 		GroupMemoryBarrierWithGroupSync();
-		[unroll]
-		for ( uint d = 1; d < 256; d <<= 1 )
+		uint nAt = gs_At;
+		uint nJobs = gs_Jobs;
+		if ( nAt == None )
 		{
-			uint nAdd = nThread >= d ? gs_Scan[nThread - d] : 0;
+			// Jobs it took but has no room for copy nothing; its earlier chunks' kept meshlets are drawn twice, which the
+			// depth test makes harmless
+			for ( uint k = nThread; nJobs != None && k < nKeptMeshlets; k += 64 )
+				g_MeshletJobs.Store4( 16 + ( nJobs + k ) * 16, uint4( 0, 0, 0, 0 ) );
+			bWhole = true;
 			GroupMemoryBarrierWithGroupSync();
-			gs_Scan[nThread] += nAdd;
-			GroupMemoryBarrierWithGroupSync();
+			continue;
 		}
 
-		if ( c + nThread < nKeptMeshlets )
+		// Each kept meshlet's job: where its triangles go among the kept ones' (an exclusive scan of their counts)
+		uint nRunning = 0;
+		for ( uint c = 0; c < nKeptMeshlets; c += 64 )
 		{
-			uint nStartAt = nRunning + gs_Scan[nThread] - nValue;
-			g_MeshletJobs.Store4( 32 + ( nJobs + c + nThread ) * 16, uint4( nAt + nStartAt * 3, vDraw.x + ( nKeptAt >> 8 ) * 3, nValue * 3, nPage ) );
-		}
+			uint nKeptAt = c + nThread < nKeptMeshlets ? gs_Kept[c + nThread] : 0;
+			uint nValue = nKeptAt & 0xff;
+			gs_Scan[nThread] = nValue;
+			GroupMemoryBarrierWithGroupSync();
+			[unroll]
+			for ( uint d = 1; d < 64; d <<= 1 )
+			{
+				uint nAdd = nThread >= d ? gs_Scan[nThread - d] : 0;
+				GroupMemoryBarrierWithGroupSync();
+				gs_Scan[nThread] += nAdd;
+				GroupMemoryBarrierWithGroupSync();
+			}
 
-		nRunning += gs_Scan[255];
-		GroupMemoryBarrierWithGroupSync();
+			if ( c + nThread < nKeptMeshlets )
+			{
+				uint nStartAt = nRunning + gs_Scan[nThread] - nValue;
+				g_MeshletJobs.Store4( 16 + ( nJobs + c + nThread ) * 16, uint4( nAt + nStartAt * 3, vDraw.x + ( nKeptAt >> 8 ) * 3, nValue * 3, nPage ) );
+			}
+
+			nRunning += gs_Scan[63];
+			GroupMemoryBarrierWithGroupSync();
+		}
 	}
 }
 
