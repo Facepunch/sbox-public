@@ -16,12 +16,12 @@ internal sealed class ShadowLayer : MeshLayer
 		LayerType = MeshLayerType.Shadow;
 	}
 
-	public override bool IsNeeded( RenderFrame frame ) => frame.System.ShadowMaps.Passes.Length > 0;
+	public override bool IsNeeded( RenderFrame frame ) => frame.System.ShadowMaps.Drawn.Length > 0;
 
 	// Custom shadow casters may run arbitrary command lists, so keep those behind the compute join.
 	public override FrameResources Reads( RenderFrame frame )
 	{
-		foreach ( var pass in frame.System.ShadowMaps.Passes )
+		foreach ( var pass in frame.System.ShadowMaps.Drawn )
 			if ( !frame.System.CanRecordOffMainThread( pass, this ) ) return FrameResources.Untracked;
 
 		return FrameResources.None;
@@ -31,7 +31,7 @@ internal sealed class ShadowLayer : MeshLayer
 
 	public override void AddWork( FrameRecorder recorder, RenderFrame frame )
 	{
-		foreach ( var pass in frame.System.ShadowMaps.Passes )
+		foreach ( var pass in frame.System.ShadowMaps.Drawn )
 			recorder.AddWork( frame, pass, this );
 	}
 
@@ -50,7 +50,7 @@ internal sealed class ShadowsReadyLayer : RenderLayer
 {
 	public ShadowsReadyLayer() : base( "Shadows Ready" ) { }
 
-	public override bool IsNeeded( RenderFrame frame ) => frame.System.ShadowMaps.Passes.Length > 0;
+	public override bool IsNeeded( RenderFrame frame ) => frame.System.ShadowMaps.Drawn.Length > 0;
 	public override FrameResources Reads( RenderFrame frame ) => FrameResources.ShadowMaps;
 
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )

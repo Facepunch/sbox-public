@@ -67,6 +67,37 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	public ReadOnlySpan<ViewPass> Passes => CollectionsMarshal.AsSpan( passes );
 
 	/// <summary>
+	/// The <see cref="Passes"/> the frame draws, after <see cref="PreparePasses"/>: all but the cascade views that would leave
+	/// their maps as they are (<see cref="KeepUnchangedCascades"/>).
+	/// </summary>
+	public ReadOnlySpan<ViewPass> Drawn => CollectionsMarshal.AsSpan( drawn );
+
+	readonly List<ViewPass> drawn = new();
+
+	/// <summary>
+	/// What a cascade's map holds after the view that last drew it, and the map's version its tiles were made from.
+	/// </summary>
+	struct CascadeContents
+	{
+		public ShadowMap Map;
+
+		/// <summary>
+		/// The view drew no casters: the map holds only what it started from, a clear or <see cref="Source"/> copied in.
+		/// </summary>
+		public bool Plain;
+		public ShadowMap Source;
+		public ulong SourceVersion;
+		public Vector2Int Offset;
+
+		public ulong TilesVersion;
+	}
+
+	readonly CascadeContents[] cascadeContents = new CascadeContents[MaxCascades];
+
+	// The cascades whose views were left out this frame, a bit each
+	uint keptCascades;
+
+	/// <summary>
 	/// The sun's constants, cascades and all, for <c>DirectionalLightCB</c>.
 	/// </summary>
 	public ref readonly GPUDirectionalLight Directional => ref mapper.DirectionalLightData;
@@ -81,6 +112,8 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		this.main = main;
 		this.featureCount = featureCount;
 		passes.Clear();
+		drawn.Clear();
+		keptCascades = 0;
 		mapper.InFlight = true;
 
 		var view = main.View;
@@ -108,7 +141,13 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// <summary>
 	/// The frame was never submitted: forget that its shadow maps were drawn, so they're drawn again.
 	/// </summary>
-	public void Abandon() => mapper.Abandon();
+	public void Abandon()
+	{
+		mapper.Abandon();
+
+		// Nor did its cascade views or tiles
+		Array.Clear( cascadeContents );
+	}
 
 	/// <summary>
 	/// The frame was submitted: its shadow maps are drawn, for the views after it.
@@ -142,8 +181,61 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		foreach ( var pass in Passes )
 			system.Prepare( world, pass, transforms );
 
+		KeepUnchangedCascades();
+
 		this.world = null;
 		this.main = null;
+	}
+
+	/// <summary>
+	/// Leave out the cascade views that would leave their maps as they are: ones that draw no casters, into a map that holds
+	/// just the clear or the copy of an unchanged cache they'd start from. Their tiles stay too (<see cref="MarkCascades"/>).
+	/// Every other view is drawn, and its map's version moves on.
+	/// </summary>
+	void KeepUnchangedCascades()
+	{
+		drawn.Clear();
+		keptCascades = 0;
+		var cascades = mapper.Cascades;
+		foreach ( var pass in passes )
+		{
+			var cascade = -1;
+			for ( int i = 0; i < cascades.Length; i++ )
+			{
+				if ( cascades[i] == pass.TargetMap ) { cascade = i; break; }
+			}
+
+			if ( cascade >= 0 && Keeps( ref cascadeContents[cascade], pass ) )
+			{
+				keptCascades |= 1u << cascade;
+				continue;
+			}
+
+			pass.TargetMap.Version++;
+			drawn.Add( pass );
+		}
+	}
+
+	/// <summary>
+	/// Whether the cascade's map already holds what <paramref name="pass"/> would leave in it; if not, it's what the view will.
+	/// </summary>
+	bool Keeps( ref CascadeContents held, ViewPass pass )
+	{
+		var map = pass.TargetMap;
+		var source = pass.CachedStatic;
+
+		// A whole clear or copy with nothing drawn on top. Resident lists draw what the visible lists don't show
+		var plain = pass.Blank is null && pass.TargetSlice == 0 && !HasCasters( pass ) && !system.DrawsResident( pass );
+		if ( plain && held.Map == map && held.Plain && held.Source == source
+			&& (source is null || (held.SourceVersion == source.Version && held.Offset == pass.CacheOffset)) )
+			return true;
+
+		if ( held.Map != map ) held = new CascadeContents { Map = map };
+		held.Plain = plain;
+		held.Source = source;
+		held.SourceVersion = source?.Version ?? 0;
+		held.Offset = pass.CacheOffset;
+		return false;
 	}
 
 	/// <summary>
@@ -367,7 +459,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			mapper.DirectionalLightData.ShadowMaskTextureIndex = (uint)contactShadowMask.BindlessIndex;
 
 		targets.Clear();
-		foreach ( var pass in Passes )
+		foreach ( var pass in Drawn )
 		{
 			pass.Target = pass.TargetMap.Texture;
 			if ( targets.Count == 0 || targets[^1] != pass.Target )
@@ -427,7 +519,15 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		uint drawn = 0, empty = 0;
 		for ( int i = 0; i < cascades.Length; i++ )
 		{
-			foreach ( var pass in Passes )
+			// A kept cascade is as its view last left it: empty when that only cleared it
+			if ( (keptCascades & (1u << i)) != 0 )
+			{
+				drawn |= 1u << i;
+				if ( cascadeContents[i].Source is null ) empty |= 1u << i;
+				continue;
+			}
+
+			foreach ( var pass in Drawn )
 			{
 				if ( pass.TargetMap != cascades[i] ) continue;
 				drawn |= 1u << i;
@@ -447,11 +547,21 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			var desc = TextureDesc.Target( side * MaxCascades, side, TextureFormat.RG3232F ) with { Storage = true };
 			tilesRaw = RenderHost.Current.Device.CreateTexture( desc, "Borealis cascade tiles (raw)" );
 			tiles = RenderHost.Current.Device.CreateTexture( desc, "Borealis cascade tiles" );
+			for ( int i = 0; i < cascadeContents.Length; i++ ) cascadeContents[i].TilesVersion = 0;
 		}
 
-		tileCascades = drawn & ~empty;
+		// Tiles are made again only for a map that changed since they were
+		var lit = drawn & ~empty;
+		for ( int i = 0; i < cascades.Length; i++ )
+		{
+			ref var held = ref cascadeContents[i];
+			if ( (lit & (1u << i)) == 0 || (held.Map == cascades[i] && held.TilesVersion == cascades[i].Version) ) continue;
+			tileCascades |= 1u << i;
+			if ( held.Map == cascades[i] ) held.TilesVersion = cascades[i].Version;
+		}
+
 		if ( tileCascades != 0 ) WarmUp();
-		sun.SetCascadeFlags( empty, tileCascades != 0 ? tiles.BindlessIndex : 0 );
+		sun.SetCascadeFlags( empty, lit != 0 ? tiles.BindlessIndex : 0 );
 	}
 
 	static bool HasCasters( ViewPass pass )
@@ -551,7 +661,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		}
 
 		var rendered = false;
-		foreach ( var pass in Passes )
+		foreach ( var pass in Drawn )
 			rendered |= pass.TargetMap == map;
 
 		report.ShadowMaps.Add( new ShadowMapInfo

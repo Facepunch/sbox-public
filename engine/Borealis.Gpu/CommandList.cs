@@ -969,7 +969,7 @@ public sealed unsafe class CommandList
 
 	/// <summary>
 	/// Copy tightly packed rows from a buffer into a region of one mip and layer of a texture in
-	/// <see cref="ImageLayout.CopyDestination"/>.
+	/// <see cref="ImageLayout.CopyDestination"/>: every slice of a volume's mip, one after another.
 	/// </summary>
 	public void CopyBufferToTexture( BufferHandle source, long offset, TextureHandle texture, int mip, int layer, int width, int height, int x = 0, int y = 0 )
 	{
@@ -981,14 +981,18 @@ public sealed unsafe class CommandList
 			bufferOffset = (ulong)offset,
 			imageSubresource = new VkImageSubresourceLayers { aspectMask = record.Aspect & ~Vulkan.Vk.AspectStencil, mipLevel = (uint)mip, baseArrayLayer = (uint)layer, layerCount = 1 },
 			imageOffset = new VkOffset3D { x = x, y = y },
-			imageExtent = new VkExtent3D { width = (uint)width, height = (uint)height, depth = 1 },
+			imageExtent = new VkExtent3D { width = (uint)width, height = (uint)height, depth = (uint)VolumeDepth( in record.Info, mip ) },
 		};
 
 		vk.vkCmdCopyBufferToImage( Handle, device.Get( source ).Buffer, record.Image, VkImageLayout.TransferDstOptimal, 1, &region );
 	}
 
+	/// <summary>A mip's depth: its slices for a volume, else 1.</summary>
+	static int VolumeDepth( in TextureInfo info, int mip ) => info.Dimension == TextureDimension.Texture3D ? Math.Max( info.Depth >> mip, 1 ) : 1;
+
 	/// <summary>
-	/// Copy one mip and layer of a texture in <see cref="ImageLayout.CopySource"/> into a buffer as tightly packed rows.
+	/// Copy one mip and layer of a texture in <see cref="ImageLayout.CopySource"/> into a buffer as tightly packed rows:
+	/// every slice of a volume's mip, one after another.
 	/// </summary>
 	public void CopyTextureToBuffer( TextureHandle texture, int mip, int layer, BufferHandle destination, long offset = 0 )
 	{
@@ -999,7 +1003,7 @@ public sealed unsafe class CommandList
 		{
 			bufferOffset = (ulong)offset,
 			imageSubresource = new VkImageSubresourceLayers { aspectMask = record.Aspect & ~Vulkan.Vk.AspectStencil, mipLevel = (uint)mip, baseArrayLayer = (uint)layer, layerCount = 1 },
-			imageExtent = new VkExtent3D { width = (uint)Math.Max( record.Info.Width >> mip, 1 ), height = (uint)Math.Max( record.Info.Height >> mip, 1 ), depth = 1 },
+			imageExtent = new VkExtent3D { width = (uint)Math.Max( record.Info.Width >> mip, 1 ), height = (uint)Math.Max( record.Info.Height >> mip, 1 ), depth = (uint)VolumeDepth( in record.Info, mip ) },
 		};
 
 		vk.vkCmdCopyImageToBuffer( Handle, record.Image, VkImageLayout.TransferSrcOptimal, device.Get( destination ).Buffer, 1, &region );
