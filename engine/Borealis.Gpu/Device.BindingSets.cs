@@ -88,6 +88,32 @@ public sealed unsafe partial class Device
 		DefaultViewSet = CreateBindingSet( ViewSetLayout, bindings );
 	}
 
+	/// <summary>
+	/// The resources bindless slots that hold nothing point at (<see cref="BindlessTable.SetDefaults"/>): a transparent black
+	/// 1x1 texture and storage texture, a point sampler and a zeroed buffer of the device's own.
+	/// </summary>
+	void CreateBindlessDefaults()
+	{
+		const int bufferSize = 256;
+		var texture = CreateTexture( TextureInfo.Texture2D( 1, 1, Format.RGBA8Unorm, name: "Bindless default texture" ) );
+		WriteTexture( texture, stackalloc byte[4] );
+
+		var storageInfo = TextureInfo.Texture2D( 1, 1, Format.RGBA8Unorm, name: "Bindless default storage texture" );
+		storageInfo.Usage = TextureUsage.Storage | TextureUsage.CopyDestination;
+		var storage = CreateTexture( storageInfo );
+		var list = BeginCommandList( QueueType.Graphics, "Bindless defaults" );
+		list.Barrier( new TextureBarrier { Texture = storage, OldLayout = ImageLayout.Undefined, NewLayout = ImageLayout.CopyDestination, SourceStage = PipelineStage.AllCommands, SourceAccess = MemoryAccess.None, DestinationStage = PipelineStage.Transfer, DestinationAccess = MemoryAccess.TransferWrite, MipCount = 1, LayerCount = 1 } );
+		list.ClearTexture( storage );
+		list.Barrier( new TextureBarrier { Texture = storage, OldLayout = ImageLayout.CopyDestination, NewLayout = ImageLayout.General, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.AllCommands, DestinationAccess = MemoryAccess.ShaderRead, MipCount = 1, LayerCount = 1 } );
+		SubmitAndRecycle( list );
+
+		var sampler = CreateSampler( SamplerInfo.Point() );
+		var buffer = CreateBuffer( new BufferInfo { Size = bufferSize, Usage = BufferUsage.Storage, Name = "Bindless default buffer" } );
+		WriteBuffer( buffer, new byte[bufferSize] );
+
+		Bindless.SetDefaults( Get( texture ).View, Get( storage ).StorageView, Get( sampler ).Sampler, Get( buffer ).Buffer, bufferSize );
+	}
+
 	ulong AllocatePersistentSet( ulong setLayout )
 	{
 		for ( int attempt = 0; ; attempt++ )

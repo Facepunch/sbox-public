@@ -9,6 +9,9 @@ namespace Borealis.Gpu;
 /// Every binding is partially bound and update-after-bind; a freed slot is reused only once the device has finished
 /// the frames that could read it (the device defers removals). Texture slots 0 and 1 are never handed out: s&amp;box's
 /// shaders read a texture index of 0 as none (an image-less UI box, a disabled pipeline texture), as native's table does.
+/// Once <see cref="SetDefaults"/> has run, a slot that holds nothing (slots 0 and 1, and every slot once it's freed) points
+/// at the device's default of its kind, as native points freed slots at its error texture: a draw that reads an index it
+/// was never given reads zeros, never a descriptor that was never written or whose resource is gone.
 /// </summary>
 internal sealed unsafe class BindlessTable : IDisposable
 {
@@ -27,6 +30,11 @@ internal sealed unsafe class BindlessTable : IDisposable
 
 	public ulong SetLayout { get; }
 	public ulong Set { get; }
+
+	readonly bool buffersUpdateAfterBind;
+
+	// What a slot that holds nothing points at (SetDefaults), or 0 before it's run
+	ulong defaultTexture, defaultStorage, defaultSampler, defaultBuffer, defaultBufferSize;
 
 	/// <summary>
 	/// Hands out slots from <paramref name="first"/>: never-used ones first, then freed ones.
@@ -58,6 +66,7 @@ internal sealed unsafe class BindlessTable : IDisposable
 	{
 		this.device = device;
 		vk = device.Vk;
+		buffersUpdateAfterBind = storageBufferUpdateAfterBind;
 		textures = new SlotAllocator( textureCount, 2, "texture", first: 2 );
 		samplers = new SlotAllocator( samplerCount, 1, "sampler" );
 		storage = new SlotAllocator( storageCount, 1, "storage texture" );
@@ -146,7 +155,20 @@ internal sealed unsafe class BindlessTable : IDisposable
 		return slot;
 	}
 
-	public void RemoveTexture( int slot ) => textures.Release( slot );
+	public void RemoveTexture( int slot )
+	{
+		WriteDefaultTexture( slot );
+		textures.Release( slot );
+	}
+
+	/// <summary>Point a texture slot pair at the default texture.</summary>
+	void WriteDefaultTexture( int slot )
+	{
+		if ( defaultTexture == 0 ) return;
+		var info = new VkDescriptorImageInfo { imageView = defaultTexture, imageLayout = VkImageLayout.ReadOnlyOptimal };
+		Write( ShaderAbi.BindlessTextures, (uint)slot, VkDescriptorType.SampledImage, &info, null );
+		Write( ShaderAbi.BindlessTextures, (uint)slot + 1, VkDescriptorType.SampledImage, &info, null );
+	}
 
 	public int AddStorage( ulong view )
 	{
@@ -156,7 +178,16 @@ internal sealed unsafe class BindlessTable : IDisposable
 		return slot;
 	}
 
-	public void RemoveStorage( int slot ) => storage.Release( slot );
+	public void RemoveStorage( int slot )
+	{
+		if ( defaultStorage != 0 )
+		{
+			var info = new VkDescriptorImageInfo { imageView = defaultStorage, imageLayout = VkImageLayout.General };
+			Write( ShaderAbi.BindlessStorageTextures, (uint)slot, VkDescriptorType.StorageImage, &info, null );
+		}
+
+		storage.Release( slot );
+	}
 
 	public int AddSampler( ulong sampler )
 	{
@@ -166,7 +197,16 @@ internal sealed unsafe class BindlessTable : IDisposable
 		return slot;
 	}
 
-	public void RemoveSampler( int slot ) => samplers.Release( slot );
+	public void RemoveSampler( int slot )
+	{
+		if ( defaultSampler != 0 )
+		{
+			var info = new VkDescriptorImageInfo { sampler = defaultSampler };
+			Write( ShaderAbi.BindlessSamplers, (uint)slot, VkDescriptorType.Sampler, &info, null );
+		}
+
+		samplers.Release( slot );
+	}
 
 	/// <summary>
 	/// Add a range of a storage buffer to the raw buffer array (binding 63) and return its slot. Without
@@ -180,7 +220,34 @@ internal sealed unsafe class BindlessTable : IDisposable
 		return slot;
 	}
 
-	public void RemoveBuffer( int slot ) => buffers.Release( slot );
+	public void RemoveBuffer( int slot )
+	{
+		// Without update-after-bind for storage buffers the slot can't be written while other work uses the table
+		if ( defaultBuffer != 0 && buffersUpdateAfterBind )
+		{
+			var info = new VkDescriptorBufferInfo { buffer = defaultBuffer, range = defaultBufferSize };
+			Write( ShaderAbi.BindlessBuffers, (uint)slot, VkDescriptorType.StorageBuffer, null, &info );
+		}
+
+		buffers.Release( slot );
+	}
+
+	/// <summary>
+	/// What slots that hold nothing point at from now on: a sampled view (in <see cref="ImageLayout.ShaderRead"/>), a
+	/// storage view (in <see cref="ImageLayout.General"/>), a sampler and a storage buffer. Texture slots 0 and 1 and the
+	/// vertex cache and pipeline texture buffers are pointed at them now. Before any work is submitted.
+	/// </summary>
+	public void SetDefaults( ulong texture, ulong storageView, ulong sampler, ulong buffer, ulong bufferSize )
+	{
+		defaultTexture = texture;
+		defaultStorage = storageView;
+		defaultSampler = sampler;
+		defaultBuffer = buffer;
+		defaultBufferSize = bufferSize;
+		WriteDefaultTexture( 0 );
+		SetBuffer( ShaderAbi.BindlessVertexCache, buffer, bufferSize );
+		SetBuffer( ShaderAbi.BindlessPipelineTextures, buffer, bufferSize );
+	}
 
 	/// <summary>
 	/// Point binding 49 (vertex cache) or 60 (pipeline texture indices) at a buffer. Only between frames: these aren't
@@ -191,6 +258,9 @@ internal sealed unsafe class BindlessTable : IDisposable
 		var info = new VkDescriptorBufferInfo { buffer = buffer, range = size == 0 ? Vulkan.Vk.WholeSize : size };
 		Write( (uint)binding, 0, VkDescriptorType.StorageBuffer, null, &info );
 	}
+
+	/// <summary>Stop pointing freed slots at the defaults: the device is going, and they go with it.</summary>
+	public void ForgetDefaults() => defaultTexture = defaultStorage = defaultSampler = defaultBuffer = 0;
 
 	public void Dispose()
 	{

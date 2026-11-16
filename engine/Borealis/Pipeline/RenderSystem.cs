@@ -167,7 +167,44 @@ public sealed partial class RenderSystem : IDisposable
 	}
 
 	/// <summary>
-	/// HDR intermediate matching swap-chain size and MSAA, with D32FS8 depth (<c>intermediate_color_stereo_rt</c>).
+	/// The depth format its views draw into: 32-bit float (reverse-Z), with an 8-bit stencil once something it drew needed
+	/// one (<see cref="GpuMaterial.NeedsStencil"/>), or always on a device that can't tell (<see cref="GpuDevice.KnowsStencilUse"/>).
+	/// A view whose prepared draws need a stencil gets it before it records (<see cref="GiveStencil"/>) and keeps it, so
+	/// nothing is made again from frame to frame.
+	/// </summary>
+	internal TextureFormat DepthFormat => stencil || StencilAlways || RenderHost.Current.Device is not { KnowsStencilUse: true } ? TextureFormat.D32FS8 : TextureFormat.D32;
+
+	/// <summary><c>-depth-stencil</c>: every view's depth has a stencil from the start, as before, for comparisons.</summary>
+	internal static readonly bool StencilAlways = Array.Exists( Environment.GetCommandLineArgs(), a => a.Equals( "-depth-stencil", StringComparison.OrdinalIgnoreCase ) );
+
+	// Something this system drew needed a stencil: its views' depth keeps one from then on
+	bool stencil;
+
+	/// <summary>
+	/// Before the frame records: if its prepared draws (its own or its 3D skybox's) need a stencil, the depth it draws into
+	/// gets one, made again once if it has none, and keeps it. A depth the caller owns (<see cref="ViewTarget"/> over its
+	/// textures) is left as it is.
+	/// </summary>
+	void GiveStencil( RenderFrame skyFrame )
+	{
+		if ( RenderHost.Current.Device is not { KnowsStencilUse: true } ) return;
+		if ( !stencil && (meshes.WantsStencil( mainPass ) || (skyFrame is not null && skybox.meshes.WantsStencil( skyFrame.MainPass ))) ) stencil = true;
+		if ( !stencil || frame.Output.Target is not { } target || target.Depth?.Format.HasStencil() != false ) return;
+
+		// A flipped view draws with the view's depth through a target of its own
+		if ( target == flipTarget && flipSource is { } source )
+		{
+			if ( !source.GiveStencil() ) return;
+			flipTarget = new ViewTarget( flipTarget.Color, source.Depth, flipResolved );
+			frame.Output = frame.Output with { Target = flipTarget };
+			return;
+		}
+
+		target.GiveStencil();
+	}
+
+	/// <summary>
+	/// HDR intermediate matching swap-chain size and MSAA, with depth of <see cref="DepthFormat"/> (<c>intermediate_color_stereo_rt</c>).
 	/// </summary>
 	ViewTarget SwapChainTarget( GpuSwapChain swapChain, Vector2 size )
 	{
@@ -178,7 +215,7 @@ public sealed partial class RenderSystem : IDisposable
 
 		// The device retains resources used by in-flight frames.
 		swapChainTarget?.Dispose();
-		swapChainTarget = ViewTarget.Create( pixels, samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Borealis swap chain" );
+		swapChainTarget = ViewTarget.Create( pixels, samples, TextureFormat.RGBA16161616F, DepthFormat, "Borealis swap chain" );
 		return swapChainTarget;
 	}
 
@@ -195,7 +232,7 @@ public sealed partial class RenderSystem : IDisposable
 		if ( textureTarget is null || textureTarget.Size != size || textureTarget.Samples != samples )
 		{
 			textureTarget?.Dispose();
-			textureTarget = ViewTarget.Create( size, samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Borealis output" );
+			textureTarget = ViewTarget.Create( size, samples, TextureFormat.RGBA16161616F, DepthFormat, "Borealis output" );
 		}
 
 		// Final stages use MSAA scratch, resolved after all drawing.
@@ -222,7 +259,7 @@ public sealed partial class RenderSystem : IDisposable
 
 	// What a flipped view draws into before it's mirrored into its output (RenderOutput.FlipInto)
 	GpuTexture flipColor, flipResolved;
-	ViewTarget flipTarget;
+	ViewTarget flipTarget, flipSource;
 
 	/// <summary>
 	/// The colour a flipped view draws into, made again when the size, format or sample count changes.
@@ -250,6 +287,7 @@ public sealed partial class RenderSystem : IDisposable
 	{
 		var color = FlipColor( target.Size, target.Color.Format, target.Samples );
 		if ( flipTarget is null || flipTarget.Depth != target.Depth ) flipTarget = new ViewTarget( color, target.Depth, flipResolved );
+		flipSource = target;
 		return RenderOutput.ForTarget( flipTarget ) with { FlipInto = target.Resolved, FlipX = view.FlipX, FlipY = view.FlipY };
 	}
 
@@ -320,6 +358,7 @@ public sealed partial class RenderSystem : IDisposable
 
 		// Plan first: serial recording shares the frame context with skybox setup.
 		var skyFrame = frame.Skybox;
+		GiveStencil( skyFrame );
 		recorder ??= new FrameRecorder();
 		var host = RenderHost.Current;
 		recorder.Plan( frame, ParallelRecording, host.AsyncCompute );

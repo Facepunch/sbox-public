@@ -434,6 +434,7 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 			Volatile.Write( ref gpuDrivenVariants, new() );
 			Load( shader, file, textures );
 			needsLightProbe = 0;
+			Volatile.Write( ref needsStencil, -1 );
 			loads++;
 		}
 
@@ -442,6 +443,41 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 
 	/// <summary>Moves on with every <see cref="Reload"/>, so a variant made from what was loaded before isn't kept.</summary>
 	int loads;
+
+	/// <summary>The library its device's draws take its variants from, which <see cref="NeedsStencil"/> reads.</summary>
+	internal ShaderLibrary Library { get; set; }
+
+	int needsStencil = -1;
+
+	/// <summary>
+	/// Whether its forward or depth variant (no dynamic combos set, as the scene's meshes mostly draw it) needs a stencil:
+	/// <see cref="ShaderPipelineState.NeedsStencil"/>. Read once, then kept until it's loaded again.
+	/// </summary>
+	public override bool NeedsStencil
+	{
+		get
+		{
+			var known = Volatile.Read( ref needsStencil );
+			if ( known >= 0 ) return known != 0;
+			if ( Library is not { } library || Shader is null ) return false;
+
+			var needs = false;
+			foreach ( var mode in (ReadOnlySpan<string>)["Forward", "Depth"] )
+			{
+				try
+				{
+					needs |= Variant( library, mode, mode, static _ => null, static _ => null )?.State.NeedsStencil == true;
+				}
+				catch ( System.IO.InvalidDataException )
+				{
+					// A mode whose combo wasn't compiled doesn't draw
+				}
+			}
+
+			Volatile.Write( ref needsStencil, needs ? 1 : 0 );
+			return needs;
+		}
+	}
 
 	/// <summary>A variant for a mode and dynamic combo values, made once.</summary>
 	public ShaderVariant Variant( ShaderLibrary library, string mode, string key, Func<string, int?> combos, Func<string, int?> attributes )

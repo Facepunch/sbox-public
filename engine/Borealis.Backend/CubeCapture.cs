@@ -56,8 +56,8 @@ public sealed class CubeCapture : IDisposable
 		this.size = size;
 		for ( int i = 0; i < faces.Length; i++ ) faces[i] = new RenderSystem { ParallelRecording = false };
 
-		// The bridge asks for D24S8, which devices without it (AMD) make D32S8: ask for that
-		target = ViewTarget.Create( new Vector2Int( size, size ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Cube capture face" );
+		// Depth without a stencil, which a face whose draws need one gets before it records (RenderSystem.DepthFormat)
+		target = ViewTarget.Create( new Vector2Int( size, size ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32, "Cube capture face" );
 		staging = gpu.CreateBuffer( new BufferInfo { Size = 6L * size * size * 8, Usage = BufferUsage.CopySource, Name = "Cube capture faces" } );
 		red = gpu.CreateBuffer( new BufferInfo { Size = (long)size * size * 8, Usage = BufferUsage.CopySource, Name = "Cube capture red" } );
 		gpu.WriteBuffer( red, RedFace( size ) );

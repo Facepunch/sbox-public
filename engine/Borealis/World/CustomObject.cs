@@ -23,6 +23,12 @@ public abstract class CustomObject : RenderObject
 	public bool WantsFrameBufferCopy { get; set; }
 
 	/// <summary>
+	/// Whether what it draws needs a stencil in the view's depth (<see cref="GpuMaterial.NeedsStencil"/>), as far as its
+	/// owner knows before it records. A view drawing it gets a depth target with stencil.
+	/// </summary>
+	public bool NeedsStencil { get; set; }
+
+	/// <summary>
 	/// Draw an opaque one in the depth prepass too, as native's prepass does (<c>DepthNormalPrepassLayer</c>); off for
 	/// <c>NoZPrepass</c>.
 	/// </summary>

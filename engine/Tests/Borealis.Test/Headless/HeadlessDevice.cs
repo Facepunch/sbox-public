@@ -104,6 +104,11 @@ internal sealed class HeadlessDevice : GpuDevice
 
 	internal override bool DrawsAggregatesGpuDriven => ResidentAggregates;
 
+	/// <summary>Whether views draw into depth without a stencil until a material needs one (<see cref="GpuDevice.KnowsStencilUse"/>).</summary>
+	public bool StencilUse { get; set; }
+
+	internal override bool KnowsStencilUse => StencilUse;
+
 	internal override bool CullsAggregatesGpuDriven => ResidentAggregates;
 
 	internal override bool DrawsAggregatesResident => ResidentAggregates;

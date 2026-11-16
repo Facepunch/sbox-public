@@ -62,6 +62,10 @@ struct PS_INPUT
 	float4 vThisVertPosPs		: TEXCOORD3;
 	float3 vPositionWs			: TEXCOORD2;
 
+	// Across the line in pixels: x from its centre (the quad's edges are half a pixel past the line's), y the line's half
+	// thickness. Linear in screen space, so the pixel shader fades the edge over one pixel
+	noperspective float2 vAcross	: TEXCOORD4;
+
 	// VS only
 	#if ( ( PROGRAM == VFX_PROGRAM_VS ) || ( PROGRAM == VFX_PROGRAM_GS ) )
 		float4 vPositionPs		: SV_Position;
@@ -122,7 +126,10 @@ GS
 
 	void FillPsOutputStruct( inout PS_INPUT o, GS_INPUT i[2], int nVertId, float flExtrudeDirectionSign, float2 vLineNormal2D )
 	{
-		o.vPositionPs.xy += flExtrudeDirectionSign * i[ nVertId ].flLineThickness * vLineNormal2D.xy * o.vPositionPs.w;
+		// Half a pixel wider each side than the line, for its antialiased edge
+		float flHalfWidth = i[ nVertId ].flLineThickness + 0.5;
+		o.vPositionPs.xy += flExtrudeDirectionSign * flHalfWidth * vLineNormal2D.xy * o.vPositionPs.w;
+		o.vAcross = float2( flExtrudeDirectionSign * flHalfWidth, i[ nVertId ].flLineThickness );
 		o.vNormalWs.xyz = i[ nVertId ].vNormalWs.xyz;
 		o.vColor.rgba = i[ nVertId ].vColor.rgba;
 
@@ -231,6 +238,13 @@ PS
 		float4 vColor : SV_Target0;
 	};
 
+	// How much of the pixel the line covers: 1 inside, 0 half a pixel past its edge, a one-pixel ramp centred on the edge
+	// (as Hud/line.shader's analytical antialiasing), so lines are smooth without multisampling and keep their thickness
+	float LineCoverage( float2 vAcross )
+	{
+		return saturate( vAcross.y + 0.5 - abs( vAcross.x ) );
+	}
+
 	bool RejectDottedLinePixel( PS_INPUT i )
 	{
 		float flGapDist = 0;
@@ -276,6 +290,7 @@ PS
 
 		PS_OUTPUT o;
 		o.vColor = i.vColor * g_tint;
+		o.vColor.a *= LineCoverage( i.vAcross );
 		return o;
 	}
 }

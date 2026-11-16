@@ -20,6 +20,9 @@ internal sealed partial class MeshRenderFeature
 		if ( obj.Mesh is not { } model || obj.IsSkinned || obj.MorphSource is not null ) return false;
 		if ( obj.Attributes is not null || obj.AttributesFrom is not null || obj.Callbacks is not null || obj.LayerMatch != LayerMatch.None ) return false;
 		if ( obj.Tint.a < 1 || !obj.DepthPrepass || !obj.DrawsOpaque || obj.Overlay || obj.Bloom || obj.Decal || obj.AfterUI || (obj.WantsFrameBufferCopy && NoGpuDrivenReaders) ) return false;
+
+		// What needs a stencil is prepared, so its view's depth gets one (MeshRenderFeature.WantsStencil)
+		if ( obj.WantsStencil ) return false;
 		if ( !UseMeshMaterials || model.LodCount > MaxResidentLods || model.SwitchDistances.Length > Gpu.GpuContext.ResidentMeshes.MaxSwitchDistances ) return false;
 		if ( depthOnlyMaterial is not null && !device.TakesResident( depthOnlyMaterial ) ) return false;
 

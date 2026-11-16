@@ -138,7 +138,7 @@ internal static class CrowdRun
 		RenderHost.Current = new BackendRenderHost( device );
 		var animationWorld = new SceneWorld();
 		var system = new RenderSystem();
-		var target = ViewTarget.Create( new Vector2Int( width, height ), samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Crowd" );
+		var target = ViewTarget.Create( new Vector2Int( width, height ), samples, TextureFormat.RGBA16161616F, system.DepthFormat, "Crowd" );
 
 		try
 		{

@@ -632,6 +632,10 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// </summary>
 	static void ApplyCustom( SceneObject sceneObject, CustomObject custom, SceneObjectChange change )
 	{
+		// A dynamic object's material is known before it draws (gizmos, the debug overlay): whether it needs a stencil, so the
+		// view's depth has one before the frame records. Other custom objects pick their materials as they draw
+		if ( custom is BridgeDynamicObject dynamic && RenderBackend.Default is BorealisGpuRenderBackend gpu ) custom.NeedsStencil = gpu.NeedsStencil( dynamic.Source.ManagedMaterial );
+
 		const SceneObjectChange Placement = SceneObjectChange.Transform | SceneObjectChange.Bounds;
 		if ( (change & Placement) != 0 )
 		{

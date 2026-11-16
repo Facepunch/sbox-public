@@ -7,6 +7,7 @@ namespace Borealis;
 public sealed class ViewTarget : IDisposable
 {
 	readonly bool owned;
+	readonly string name;
 
 	/// <summary>
 	/// Colour target, multisampled when <see cref="Samples"/> exceeds one.
@@ -46,8 +47,9 @@ public sealed class ViewTarget : IDisposable
 	{
 	}
 
-	ViewTarget( GpuTexture color, GpuTexture depth, GpuTexture resolved, bool owned )
+	ViewTarget( GpuTexture color, GpuTexture depth, GpuTexture resolved, bool owned, string name = null )
 	{
+		this.name = name;
 		ArgumentNullException.ThrowIfNull( color );
 		ArgumentNullException.ThrowIfNull( depth );
 
@@ -86,7 +88,21 @@ public sealed class ViewTarget : IDisposable
 		if ( colorTexture.Samples > 1 )
 			resolved = device.CreateTexture( TextureDesc.Target( size.x, size.y, color ), $"{name} resolved" );
 
-		return new ViewTarget( colorTexture, depthTexture, resolved, true );
+		return new ViewTarget( colorTexture, depthTexture, resolved, true, name );
+	}
+
+	/// <summary>
+	/// Give an owned target's depth an 8-bit stencil (D32FS8), its size and samples as they were: what a view whose draws need
+	/// a stencil draws into (<see cref="RenderSystem.DepthFormat"/>). False when it has one already or the caller owns it.
+	/// </summary>
+	internal bool GiveStencil()
+	{
+		if ( !owned || Depth is not { } old || old.Format.HasStencil() ) return false;
+
+		// The device retains resources used by in-flight frames.
+		Depth = RenderHost.Current.Device.CreateTexture( TextureDesc.Target( Size.x, Size.y, TextureFormat.D32FS8, Samples ), $"{name ?? "Borealis"} depth" );
+		old.Dispose();
+		return true;
 	}
 
 	/// <summary>
