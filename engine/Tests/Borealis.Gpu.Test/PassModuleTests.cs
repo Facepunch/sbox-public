@@ -423,9 +423,22 @@ public class PassModuleTests : GpuTest
 		Assert.IsTrue( Needs( "shaders/postprocess/ObjectHighlight/ObjectHighlight.shader" ), "the highlight's inside pass writes one" );
 	}
 
-	/// <summary>Each module's variants against its compiled shader's: the same bindings, constants, inputs and render state.</summary>
+	/// <summary>
+	/// Each module's variant in each mode, its dynamic combos at their first values, against its compiled shader's: the same
+	/// bindings, constants, inputs and render state.
+	/// </summary>
 	[TestMethod]
-	public void PassModulesMatchTheirShaders()
+	public void PassModulesMatchTheirShaders() => CompareModules( firstCombos: true );
+
+	/// <summary>
+	/// The rest of each module's variants: each value of each dynamic combo with the others at their first, as
+	/// <see cref="PassModulesMatchTheirShaders"/> compares them. Several times the compiles, so slow.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( "Slow" )]
+	public void PassModuleCombosMatchTheirShaders() => CompareModules( firstCombos: false );
+
+	void CompareModules( bool firstCombos )
 	{
 		var modules = Modules();
 		if ( modules.Count == 0 ) Assert.Inconclusive( "No pass modules" );
@@ -447,7 +460,7 @@ public class PassModuleTests : GpuTest
 			foreach ( var mode in shader.Modes )
 			{
 				if ( !string.IsNullOrEmpty( mode.Fallback ) ) continue;
-				foreach ( var combos in ComboSets( shader ) )
+				foreach ( var combos in firstCombos ? ComboSets( shader ).Take( 1 ) : ComboSets( shader ).Skip( 1 ) )
 				{
 					int? Combo( string name ) => combos.TryGetValue( name, out var v ) ? v : null;
 					ShaderVariant classic;

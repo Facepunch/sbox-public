@@ -43,6 +43,12 @@ internal sealed partial class SpatialTree
 	public int NodeCount => nodeCount;
 
 	/// <summary>
+	/// Counts up whenever a leaf is added, removed, moved to another place in the tree or given another item: marks made of
+	/// the tree (<see cref="Mark"/>) are good while it hasn't moved.
+	/// </summary>
+	public int Version { get; private set; }
+
+	/// <summary>
 	/// Longest path from the root to a leaf.
 	/// </summary>
 	public int Height => root == Null ? 0 : nodes[root].Height;
@@ -138,7 +144,52 @@ internal sealed partial class SpatialTree
 	/// <summary>
 	/// Update a leaf's item after world-index renumbering.
 	/// </summary>
-	public void SetItem( int leaf, int item ) => nodes[leaf].Item = item;
+	public void SetItem( int leaf, int item )
+	{
+		nodes[leaf].Item = item;
+		Version++;
+	}
+
+	[ThreadStatic] static int[] s_markStack;
+
+	/// <summary>
+	/// By node, whether its subtree has a leaf whose item <paramref name="leftOut"/> keeps (zero, or past its end), for a query
+	/// that leaves the rest out (<see cref="QueryClassified{T}(ref T, List{int}, out int, bool[])"/>).
+	/// </summary>
+	public void Mark( ReadOnlySpan<byte> leftOut, ref bool[] kept )
+	{
+		if ( kept.Length < nodes.Length ) kept = new bool[nodes.Length];
+		if ( root == Null ) return;
+
+		var stack = s_markStack;
+		var capacity = 2 * (Height + 2);
+		if ( stack is null || stack.Length < capacity ) s_markStack = stack = new int[Math.Max( 64, capacity )];
+
+		// Children before their parent: an entry's low bit says its children are done
+		var count = 1;
+		stack[0] = root << 1;
+		while ( count > 0 )
+		{
+			var entry = stack[--count];
+			var index = entry >> 1;
+			ref readonly var node = ref nodes[index];
+			if ( node.IsLeaf )
+			{
+				kept[index] = (uint)node.Item >= (uint)leftOut.Length || leftOut[node.Item] == 0;
+				continue;
+			}
+
+			if ( (entry & 1) != 0 )
+			{
+				kept[index] = kept[node.Child1] || kept[node.Child2];
+				continue;
+			}
+
+			stack[count++] = index << 1 | 1;
+			stack[count++] = node.Child1 << 1;
+			stack[count++] = node.Child2 << 1;
+		}
+	}
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	static bool Contains( in Vector3 outerMin, in Vector3 outerMax, in Vector3 min, in Vector3 max ) =>
@@ -154,6 +205,7 @@ internal sealed partial class SpatialTree
 
 	void InsertLeaf( int leaf )
 	{
+		Version++;
 		if ( root == Null )
 		{
 			root = leaf;
@@ -223,6 +275,7 @@ internal sealed partial class SpatialTree
 
 	void RemoveLeaf( int leaf )
 	{
+		Version++;
 		if ( leaf == root )
 		{
 			root = Null;

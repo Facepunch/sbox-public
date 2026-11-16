@@ -302,6 +302,16 @@ internal sealed partial class AggregateRenderFeature
 	}
 
 	/// <summary>
+	/// For the main view's collect, the frame's transforms begun: by world index, the aggregates and meshes its resident list
+	/// draws, which the collect leaves out; null when it draws none.
+	/// </summary>
+	internal bool[] CollectHolds( RenderWorld world, ViewPass pass, TransformBuffer transforms )
+	{
+		PrepareResident( world, pass, transforms );
+		return pass.State<Batches>( this ).Resident is { DeviceCount: > 0 } list ? list.Holds : null;
+	}
+
+	/// <summary>
 	/// For the mesh feature, before it prepares a view: by world index, the meshes the view's resident list draws, which it
 	/// then leaves out; null when the list holds none.
 	/// </summary>
@@ -419,9 +429,121 @@ internal sealed partial class AggregateRenderFeature
 			return;
 		}
 
+		MarkMembers( world );
 		if ( changed ) DropResidentLists();
 		else if ( settling ) DropSettledLists();
 		else if ( allKept ) KeepQuiet( world, transforms, firstInstance );
+	}
+
+	/// <summary>
+	/// By world index, after each frame's refresh: the aggregates and meshes the resident lists draw (<see cref="MemberKept"/>),
+	/// whether each casts shadows and is static. A shadow view with a resident list draws every kept one its static filter
+	/// and tag classes take, so its culling leaves them out (<see cref="LeaveResidentOut"/>).
+	/// </summary>
+	internal byte[] ResidentMembers => memberFlags;
+
+	internal const byte MemberKept = 1, MemberCasts = 2, MemberStatic = 4;
+	byte[] memberFlags = [];
+
+	/// <summary>Whether a view with this filter takes a kept member's casting, as the culling's own tests would (settling aside).</summary>
+	internal static bool TakesMember( byte flags, StaticFilter filter ) => (flags & MemberCasts) != 0 && filter switch
+	{
+		StaticFilter.OnlyStatic => (flags & MemberStatic) != 0,
+		StaticFilter.NoStatic or StaticFilter.SettledNoStatic => (flags & MemberStatic) == 0,
+		_ => true,
+	};
+
+	void MarkMembers( RenderWorld world )
+	{
+		memberVersion++;
+		if ( memberFlags.Length < world.Count ) memberFlags = new byte[Math.Max( world.Count, memberFlags.Length * 2 )];
+		else Array.Clear( memberFlags );
+
+		for ( int m = 0; m < memberCount; m++ )
+		{
+			ref readonly var member = ref members[m];
+			if ( member.FirstSlot < 0 ) continue;
+			memberFlags[member.Index] = (byte)(MemberKept | (CastsShadow( member.Aggregate ) ? MemberCasts : 0) | (member.IsStatic ? MemberStatic : 0));
+		}
+
+		for ( int m = 0; m < meshMemberCount; m++ )
+		{
+			ref readonly var member = ref meshMembers[m];
+			if ( member.Slot < 0 ) continue;
+			memberFlags[member.Index] = (byte)(MemberKept | (Meshes.CastsShadow( member.Mesh ) ? MemberCasts : 0) | (member.Mesh.IsStatic ? MemberStatic : 0));
+		}
+	}
+
+	/// <summary>
+	/// Before the shadow views' culls start: each view's resident list, and for a view that has one, the members it leaves out of
+	/// its culling (<see cref="ViewPass.ResidentMembers"/>). Not for what's drawn over the far cascade's cache, which counts the
+	/// casters it takes. Off for the tests' comparisons.
+	/// </summary>
+	internal void LeaveResidentOut( RenderWorld world, ReadOnlySpan<ViewPass> passes, TransformBuffer transforms )
+	{
+		if ( !ShadowsLeaveResidentOut ) return;
+		foreach ( var pass in passes )
+		{
+			if ( pass.StaticFilter == StaticFilter.Unsettled ) continue;
+			PrepareResident( world, pass, transforms );
+			if ( pass.State<Batches>( this ).Resident is not { } list ) continue;
+			pass.ResidentMembers = memberFlags;
+
+			// Its query leaves the members out too, so it can't tell which of its list's casters are in its frustum: a list with
+			// any counts as having casters
+			pass.ResidentInView = list.DeviceCount > 0;
+			var tree = pass.StaticFilter is StaticFilter.NoStatic or StaticFilter.SettledNoStatic ? world.DynamicTree : world.Tree;
+			pass.TreeKept = TreeKept( tree, memberFlags, memberFlags, memberVersion );
+		}
+	}
+
+	internal static bool ShadowsLeaveResidentOut { get; set; } = true;
+
+	/// <summary>
+	/// For the main view's collect, after <see cref="CollectHolds"/>: the world tree's node marks leaving out what its resident
+	/// list holds, or null when it holds none.
+	/// </summary>
+	internal bool[] CollectTreeKept( RenderWorld world, ViewPass pass )
+	{
+		if ( pass.State<Batches>( this ).Resident is not { DeviceCount: > 0 } list ) return null;
+		return TreeKept( world.Tree, MemoryMarshal.Cast<bool, byte>( list.Holds.AsSpan() ), list, list.Version );
+	}
+
+	/// <summary>A tree's node marks for leaving out a source's objects, at the tree's and the source's versions then.</summary>
+	sealed class TreeMarks
+	{
+		public Culling.SpatialTree Tree;
+		public int TreeVersion;
+		public object Source;
+		public int SourceVersion;
+		public bool[] Kept = [];
+	}
+
+	readonly TreeMarks[] treeMarks = [new(), new(), new(), new()];
+	int nextMarks;
+
+	/// <summary>Bumped each time the members are marked again (<see cref="MarkMembers"/>).</summary>
+	int memberVersion;
+
+	/// <summary>
+	/// A tree's node marks for leaving out what <paramref name="leftOut"/> holds (<see cref="Culling.SpatialTree.Mark"/>), made again
+	/// only when the tree or the source has changed since: the members after a refresh that looked, a main list when it's
+	/// made again.
+	/// </summary>
+	bool[] TreeKept( Culling.SpatialTree tree, ReadOnlySpan<byte> leftOut, object source, int sourceVersion )
+	{
+		foreach ( var marks in treeMarks )
+		{
+			if ( ReferenceEquals( marks.Tree, tree ) && marks.TreeVersion == tree.Version && ReferenceEquals( marks.Source, source ) && marks.SourceVersion == sourceVersion ) return marks.Kept;
+		}
+
+		var made = treeMarks[nextMarks++ % treeMarks.Length];
+		tree.Mark( leftOut, ref made.Kept );
+		made.Tree = tree;
+		made.TreeVersion = tree.Version;
+		made.Source = source;
+		made.SourceVersion = sourceVersion;
+		return made.Kept;
 	}
 
 	/// <summary>

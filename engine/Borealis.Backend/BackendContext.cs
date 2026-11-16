@@ -331,11 +331,13 @@ internal sealed partial class BackendContext : GpuContext
 	/// Hand the list this context records into to another recorder on the device (the engine's drawing, in a camera's
 	/// stage) to record into next, in order: what's open is closed and pending clears are done. Textures are where
 	/// <see cref="LendLayout"/> says; tell this context where the other left them with <see cref="SetLayout"/>, then
-	/// <see cref="Reclaim"/> it.
+	/// <see cref="Reclaim"/> it. The frame's view set is bound on it, so what's drawn there lights in the view: a segment's
+	/// list of its own binds it only with its first mesh, and custom objects' segments may have none.
 	/// </summary>
 	internal CommandList Lend()
 	{
 		CloseScope();
+		BindViewSet( List );
 		return List;
 	}
 
