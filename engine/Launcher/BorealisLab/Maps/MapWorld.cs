@@ -102,7 +102,7 @@ internal sealed partial class MapWorld : IDisposable
 		if ( Directory.Exists( packageShaders ) && Directory.GetFiles( packageShaders, "*.slang" ).Length > 0 ) _ = Backend.Surfaces.Mount( packageShaders );
 
 		previousHost = RenderHost.Current;
-		RenderHost.Current = new BackendRenderHost( Backend );
+		RenderHost.Current = new LabBackendRenderHost( Backend );
 		System = new RenderSystem { ParallelRecording = false };
 
 		World.Lighting.SunDirection = new Vector3( -0.55f, -0.45f, -0.5f ).Normal;
