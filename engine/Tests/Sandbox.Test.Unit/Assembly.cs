@@ -18,5 +18,17 @@ public class TestInit
 	{
 		// Managed-only setup - keep anything native out of here.
 		Application.IsUnitTest = true;
+
+		// Anything here that reaches Borealis sees no device, as in a process drawing on Source 2's. Borealis's own tests are
+		// in Borealis.Test, on a headless device.
+		Borealis.RenderHost.Current = new UnitTestRenderHost();
 	}
+}
+
+/// <summary>
+/// Borealis's default host with no device, as s&amp;box's is without <c>-borealisgpu</c>.
+/// </summary>
+internal sealed class UnitTestRenderHost : Borealis.RenderHost
+{
+	public override Borealis.GpuDevice Device => null;
 }
