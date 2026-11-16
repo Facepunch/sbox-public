@@ -761,7 +761,7 @@ public sealed partial class RenderSystem : IDisposable
 
 		// Lights first: shadow views are chosen from them. The shadow views then cull on workers while the main view's
 		// other features prepare here - culling only reads what preparing doesn't write
-		lightBinner.Prepare( world, mainPass, transforms );
+		using ( Zones.LightPrepare.Start() ) lightBinner.Prepare( world, mainPass, transforms );
 		shadows.Select( world, mainPass, lightBinner, features.Count, Shadows, isSkybox );
 		var shadowCull = shadows.BeginCull();
 		try
@@ -783,10 +783,10 @@ public sealed partial class RenderSystem : IDisposable
 		Occlusion.Previous = OcclusionHistory.EarlyDepth;
 		Occlusion.RejectEarly = OcclusionHistory.RejectsEarly;
 
-		shadows.PreparePasses( transforms );
+		using ( Zones.ShadowPrepare.Start() ) shadows.PreparePasses( transforms );
 
 		// Skyboxes use their own system and view.
-		PrepareSkybox( world, view );
+		using ( Zones.SkyboxPrepare.Start() ) PrepareSkybox( world, view );
 	}
 
 	internal void Prepare( RenderWorld world, ViewPass view, TransformBuffer transforms )
@@ -797,6 +797,11 @@ public sealed partial class RenderSystem : IDisposable
 			features[i].Prepare( world, view, transforms );
 		}
 	}
+
+	/// <summary>
+	/// Whether a prepared view draws from a resident list, besides what its visible lists hold.
+	/// </summary>
+	internal bool DrawsResident( ViewPass view ) => aggregates.DrawsResident( view );
 
 	/// <summary>
 	/// Release owned GPU resources. The device retains those used by in-flight frames.

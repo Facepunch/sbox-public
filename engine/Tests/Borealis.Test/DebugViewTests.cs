@@ -148,10 +148,12 @@ public class DebugViewTests
 			Assert.IsTrue( maps.All( m => m.Resolution > 0 && m.Texture is not null ) );
 
 			// Every map drawn this frame but the far cascade's cache, after the cascades, which the first frame drew and this
-			// one kept
+			// one kept, and the cascades whose maps already held what this frame would leave in them
 			var cacheIndex = (int)system.ShadowMaps.Directional.CascadeCount;
 			Assert.IsTrue( maps.Single( m => m.Kind == ShadowMapKind.Cascade && m.Index == cacheIndex ) is { Rendered: false }, "the far cascade's cache, kept" );
-			Assert.IsTrue( maps.Where( m => !(m.Kind == ShadowMapKind.Cascade && m.Index == cacheIndex) ).All( m => m.Rendered ) );
+			Assert.IsTrue( maps.Where( m => m.Kind != ShadowMapKind.Cascade ).All( m => m.Rendered ) );
+			var drawn = system.ShadowMaps.Drawn.ToArray().Select( p => p.Target ).ToHashSet();
+			Assert.IsTrue( maps.All( m => m.Rendered == drawn.Contains( m.Texture ) ) );
 
 			// Inside the view, and none over another
 			foreach ( var map in maps )

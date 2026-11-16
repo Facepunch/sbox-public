@@ -331,6 +331,67 @@ public class GraphicsContextTests : GpuTest
 	}
 
 	/// <summary>
+	/// Drawing into depth alone at a slice, as a custom object draws into a shadow map on Borealis.Gpu: with the mode
+	/// <c>Depth</c> asked for, vertex_color draws its Depth mode (depth_only.shader) into layer 1 of a two-layer depth, a
+	/// shader with no Depth mode (ui_filter) doesn't draw, layer 0 stays cleared, and the depth bias moves what the draw after
+	/// it writes by that many of the depth's units.
+	/// </summary>
+	[TestMethod]
+	public void DepthAloneDrawsItsModeIntoTheSlice()
+	{
+		var color = library.Load( "shaders/vertex_color.shader" );
+		if ( color is null || library.Load( "shaders/depth_only.shader" ) is null ) Assert.Inconclusive( "vertex_color or depth_only isn't compiled" );
+
+		var list = Device.BeginCommandList( QueueType.Graphics, "Depth alone" );
+		var context = new GraphicsContext( Device, drawer, list );
+		var info = TextureInfo.RenderTarget( Size, Size, Format.D32Float, name: "Shadow slices" );
+		info.Layers = 2;
+		info.Dimension = TextureDimension.Texture2DArray;
+		var depth = Device.CreateTexture( info );
+		list.Barrier( TextureBarrier.Transition( depth, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.None, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		list.ClearTexture( depth, depth: 0, stencil: 0 );
+		context.Track( depth, ImageLayout.CopyDestination );
+
+		// World space is clip space: x and y -1 to 1 across the target
+		var view = new Borealis.Gpu.ViewConstants { InvViewportSize = new Vector2( 1.0f / Size, 1.0f / Size ), ViewportSize = new Vector2( Size, Size ), CameraDirWs = new Vector3( 0, 0, 1 ), CameraUpDirWs = new Vector3( 0, 1, 0 ) };
+		System.Runtime.CompilerServices.Unsafe.As<Matrix, Matrix4x4>( ref view.WorldToProjection ) = Matrix4x4.Identity;
+		var viewBytes = new byte[Borealis.Gpu.ViewConstants.NativeSize];
+		System.Runtime.InteropServices.MemoryMarshal.Write( viewBytes, in view );
+		var attributes = new ShaderAttributes();
+		attributes.SetData( "PerViewConstantBuffer_t", viewBytes );
+
+		// A quad over the left half at depth 0.5, then over the right half with a constant bias of 1000
+		static EngineVertex V( float x, float y ) => new() { Position = new( x, y, 0.5f ), Color = 0xFFFFFFFF };
+		EngineVertex[] left = [V( -1, -1 ), V( 0, -1 ), V( -1, 1 ), V( 0, 1 )];
+		EngineVertex[] right = [V( 0, -1 ), V( 1, -1 ), V( 0, 1 ), V( 1, 1 )];
+
+		context.SetTarget( default, depth, false, 1 );
+		context.Mode = "Depth";
+		Assert.IsTrue( context.DrawVertices( color, attributes, System.Runtime.InteropServices.MemoryMarshal.AsBytes( left.AsSpan() ), VertexStreamLayout.EngineVertex, 4, PrimitiveTopology.TriangleStrip ), "vertex_color draws its Depth mode" );
+		Assert.IsFalse( context.DrawQuad( library.Load( "shaders/ui_filter.shader" ), Composite( depth, 0, 0 ), new Vector4( 0, 0, Size, Size ), 0xFFFFFFFF ), "ui_filter has no Depth mode" );
+		drawer.DepthBias = (1000, 0);
+		Assert.IsTrue( context.DrawVertices( color, attributes, System.Runtime.InteropServices.MemoryMarshal.AsBytes( right.AsSpan() ), VertexStreamLayout.EngineVertex, 4, PrimitiveTopology.TriangleStrip ) );
+		drawer.DepthBias = default;
+
+		var slice0 = Device.CreateBuffer( new BufferInfo { Size = Size * Size * 4, Memory = MemoryLocation.Readback, Name = "Slice 0" } );
+		var slice1 = Device.CreateBuffer( new BufferInfo { Size = Size * Size * 4, Memory = MemoryLocation.Readback, Name = "Slice 1" } );
+		context.CopyToBuffer( depth, slice0, 0, 0 );
+		context.CopyToBuffer( depth, slice1, 0, 1 );
+		Device.Wait( Device.Submit( list ) );
+
+		var first = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>( Device.Map( slice0 )[..(Size * Size * 4)] ).ToArray();
+		var second = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>( Device.Map( slice1 )[..(Size * Size * 4)] ).ToArray();
+		Assert.IsTrue( first.All( d => d == 0 ), $"slice 0 holds {first.Max()}, drawn into" );
+		Assert.AreEqual( 0.5f, second[32 * Size + 16], "the left half, unbiased" );
+
+		// A constant bias of 1000 in a float depth near 0.5 (exponent -1) is 1000 * 2^-24
+		var biased = second[32 * Size + 48];
+		Assert.AreEqual( 0.5f + 1000 * MathF.Pow( 2, -24 ), biased, 1e-6f, $"the right half, biased: {biased}" );
+		Device.Destroy( depth );
+		context.Release();
+	}
+
+	/// <summary>
 	/// ui_filter's attributes for drawing <paramref name="texture"/> unfiltered at (<paramref name="x"/>,
 	/// <paramref name="y"/>), as <c>Painter.CompositeLayer</c> sets them for a layer in gamma space.
 	/// </summary>

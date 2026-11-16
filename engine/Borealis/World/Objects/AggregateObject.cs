@@ -86,6 +86,7 @@ internal sealed class AggregateObject : RenderObject
 
 		TransformsGeneration = -1;
 		LocalBounds = bounds;
+		World?.ObjectChanged( this );
 	}
 
 	/// <summary>
@@ -141,12 +142,30 @@ internal sealed class AggregateObject : RenderObject
 	/// <summary>
 	/// Lit from lightmaps in forward passes; the bridge supplies <see cref="LightmapAttributes"/>.
 	/// </summary>
-	public bool Lightmapped { get; set; }
+	public bool Lightmapped
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			World?.ObjectChanged( this );
+		}
+	}
 
 	/// <summary>
 	/// Lightmap textures and constants (<c>CAggregateSceneObjectDesc::SetBakedLightingAttributes</c>).
 	/// </summary>
-	internal ShaderParameters LightmapAttributes { get; set; }
+	internal ShaderParameters LightmapAttributes
+	{
+		get;
+		set
+		{
+			if ( ReferenceEquals( field, value ) ) return;
+			field = value;
+			World?.ObjectChanged( this );
+		}
+	}
 
 	/// <summary>
 	/// Where this frame's instance ids for the fragments start: fragment i's transform is the id at this plus i.

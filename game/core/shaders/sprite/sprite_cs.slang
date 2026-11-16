@@ -150,7 +150,15 @@
 
 		bool isValid = i < SpriteCount;
 
-		SpriteData sprite = SpriteBuffer[i];
+		// The last group's spare threads read and write nothing past the buffers' ends: Borealis.Gpu's device doesn't make
+		// out-of-bounds accesses defined (no robust buffer access), as Source 2's does
+		uint spriteCapacity, distanceCapacity, outCapacity, stride;
+		SpriteBuffer.GetDimensions( spriteCapacity, stride );
+		DistanceBuffer.GetDimensions( distanceCapacity, stride );
+		SpriteBufferOut.GetDimensions( outCapacity, stride );
+
+		SpriteData sprite = (SpriteData)0;
+		if ( i < spriteCapacity ) sprite = SpriteBuffer[i];
 		float3 cameraAxis = g_vCameraDirWs;
 		float3 cameraUp = g_vCameraUpDirWs;
 
@@ -165,10 +173,10 @@
 				sprite.Rotation.z += ToDegrees * atan2( ss.x, ss.y ) + sprite.RotationOffset;
 			}
 
-			DistanceBuffer[i] = CalculateDistance(sprite.Position);
-			SpriteBufferOut[i] = sprite;
+			if ( i < distanceCapacity ) DistanceBuffer[i] = CalculateDistance(sprite.Position);
+			if ( i < outCapacity ) SpriteBufferOut[i] = sprite;
 		}
-		else
+		else if ( i < distanceCapacity )
 		{
 			DistanceBuffer[i] = FLT_MAX;
 		}
@@ -245,8 +253,8 @@
 
 					b.Position = pos;
 					// We fill distance buffer for sorting
-					DistanceBuffer[writeLocation] = CalculateDistance(b.Position);
-					SpriteBufferOut[writeLocation] = b;
+					if ( writeLocation < distanceCapacity ) DistanceBuffer[writeLocation] = CalculateDistance(b.Position);
+					if ( writeLocation < outCapacity ) SpriteBufferOut[writeLocation] = b;
 
 					index++;
 				}
@@ -257,9 +265,9 @@
 
 				// Fil distance buffer for sorting
 				writeLocation = writeOffset + index;
-				DistanceBuffer[writeLocation] = CalculateDistance(b.Position);
+				if ( writeLocation < distanceCapacity ) DistanceBuffer[writeLocation] = CalculateDistance(b.Position);
 
-				SpriteBufferOut[writeLocation] = b;
+				if ( writeLocation < outCapacity ) SpriteBufferOut[writeLocation] = b;
 
 				index++;
 			}

@@ -36,17 +36,20 @@ public class EntityLumpTests
 		Assert.AreEqual( 0.5f, e.Float( "BakeLightIndexScale" ), "keys are found whatever their case" );
 		Assert.AreEqual( new System.Numerics.Vector4( 241, 236, 213, 255 ), e.Color( "color" ) );
 		Assert.AreEqual( 512, e.Float( "range" ), "a key stored with its name" );
+		Assert.AreEqual( 808657659, e.Int( "handshake" ), "a whole number past a float's precision reads exactly" );
+		Assert.AreEqual( 37, e.Int( "bakelightindex" ), "and one stored as a string" );
+		Assert.AreEqual( -1, e.Int( "missing", -1 ) );
 		Assert.IsNull( e["missing"] );
 	}
 
 	/// <summary>
-	/// One entity's key values as compiled: version 1, two keys by hash and three more, then one key with its name.
+	/// One entity's key values as compiled: version 1, two keys by hash and four more, then one key with its name.
 	/// </summary>
 	static byte[] EntityBlob()
 	{
 		using var w = new BinaryWriter( new MemoryStream() );
 		w.Write( 1u );
-		w.Write( 5u );
+		w.Write( 6u );
 		w.Write( 1u );
 
 		w.Write( MapEntity.Hash( "classname" ) );
@@ -66,6 +69,10 @@ public class EntityLumpTests
 		w.Write( MapEntity.Hash( "bakelightindexscale" ) );
 		w.Write( 1u );
 		w.Write( 0.5f );
+
+		w.Write( MapEntity.Hash( "handshake" ) );
+		w.Write( 5u );
+		w.Write( 808657659 );
 
 		w.Write( MapEntity.Hash( "color" ) );
 		w.Write( 9u );

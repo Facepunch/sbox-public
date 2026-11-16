@@ -10,9 +10,16 @@ internal static class Zones
 	public static readonly Zone Collect = new( "Borealis Collect", Color.Cyan );
 	public static readonly Zone Prepare = new( "Borealis Prepare", Color.Green );
 	public static readonly Zone MeshPrepare = new( "Borealis Mesh Prepare", Color.Green );
+	public static readonly Zone AggregatePrepare = new( "Borealis Aggregate Prepare", Color.Green );
+	public static readonly Zone ResidentRefresh = new( "Borealis Resident Refresh", Color.Green );
+	public static readonly Zone LightPrepare = new( "Borealis Light Prepare", Color.Green );
+	public static readonly Zone ShadowPrepare = new( "Borealis Shadow Prepare", Color.Green );
+	public static readonly Zone SkyboxPrepare = new( "Borealis Skybox Prepare", Color.Green );
 	public static readonly Zone ShadowCull = new( "Borealis Shadow Cull", Color.Yellow );
 	public static readonly Zone Setup = new( "Borealis Setup", Color.Orange );
+	public static readonly Zone ResidentCull = new( "Borealis Resident Cull", Color.Orange );
 	public static readonly Zone Record = new( "Borealis Record", Color.Red );
+	public static readonly Zone GpuDrivenDraw = new( "Borealis GPU-driven Draw", Color.Red );
 	public static readonly Zone Segment = new( "Borealis Segment", Color.Magenta );
 	public static readonly Zone RecordWait = new( "Borealis Record Wait", Color.Gray );
 	public static readonly Zone Submit = new( "Borealis Submit", Color.Blue );

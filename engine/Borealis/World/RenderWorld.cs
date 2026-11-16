@@ -20,6 +20,7 @@ public sealed class RenderWorld
 	int[] _treeLeaves = new int[InitialCapacity];
 	int[] _drawVersions = new int[InitialCapacity];
 	int[] _entryVersions = new int[InitialCapacity];
+	long[] _changedAt = new long[InitialCapacity];
 
 	/// <summary>
 	/// Spatial index of size-culled objects.
@@ -119,7 +120,31 @@ public sealed class RenderWorld
 	/// </summary>
 	internal void DrawChanged( RenderObject obj )
 	{
-		if ( obj.Index >= 0 ) _drawVersions[obj.Index] = NextDrawVersion();
+		if ( obj.Index < 0 ) return;
+		_drawVersions[obj.Index] = NextDrawVersion();
+		Changed( obj.Index );
+	}
+
+	/// <summary>
+	/// Counts up at every change to an object in place: how it draws, what its transform entry holds, how it casts, its
+	/// lightmap or fragments (<see cref="ChangedAt"/>). Adding and removing objects counts <see cref="Structure"/> instead.
+	/// </summary>
+	internal long Changes { get; private set; }
+
+	/// <summary>
+	/// By index, <see cref="Changes"/> at each object's last change: what keeps something of some objects between frames looks
+	/// at only those, and at none while <see cref="Changes"/> hasn't moved.
+	/// </summary>
+	internal ReadOnlySpan<long> ChangedAt => _changedAt.AsSpan( 0, Count );
+
+	void Changed( int index ) => _changedAt[index] = ++Changes;
+
+	/// <summary>
+	/// Note a change to an object that moves neither of its versions: an aggregate's lightmap or fragments.
+	/// </summary>
+	internal void ObjectChanged( RenderObject obj )
+	{
+		if ( obj.Index >= 0 ) Changed( obj.Index );
 	}
 
 	/// <summary>
@@ -134,7 +159,9 @@ public sealed class RenderWorld
 	/// </summary>
 	internal void EntryChanged( RenderObject obj )
 	{
-		if ( obj.Index >= 0 ) _entryVersions[obj.Index]++;
+		if ( obj.Index < 0 ) return;
+		_entryVersions[obj.Index]++;
+		Changed( obj.Index );
 	}
 
 	/// <summary>
@@ -170,6 +197,7 @@ public sealed class RenderWorld
 			Array.Resize( ref _treeLeaves, capacity );
 			Array.Resize( ref _drawVersions, capacity );
 			Array.Resize( ref _entryVersions, capacity );
+			Array.Resize( ref _changedAt, capacity );
 			Array.Resize( ref _dynamicTreeLeaves, capacity );
 			Array.Resize( ref _movedStamps, capacity );
 			Array.Resize( ref _settleMoves, capacity );
@@ -220,6 +248,7 @@ public sealed class RenderWorld
 			_settleMoves[index] = _settleMoves[last];
 			_drawVersions[index] = NextDrawVersion();
 			_entryVersions[index] = _entryVersions[last] + 1;
+			Changed( index );
 			moved.Index = index;
 
 			if ( _treeLeaves[index] >= 0 ) Tree.SetItem( _treeLeaves[index], index );
@@ -252,6 +281,7 @@ public sealed class RenderWorld
 		var matrix = ToMatrix( obj.Transform );
 		_localToWorld[index] = matrix;
 		_entryVersions[index]++;
+		Changed( index );
 
 		// Transform centre/extents to avoid eight corner transforms.
 		var local = obj.LocalBounds;
@@ -306,7 +336,9 @@ public sealed class RenderWorld
 	/// </summary>
 	internal void StaticCasterChanged( RenderObject obj )
 	{
-		if ( obj.Index >= 0 && CastsShadows( obj ) ) StaticChanges.Add( _boundsCenters[obj.Index], _boundsExtents[obj.Index] );
+		if ( obj.Index < 0 ) return;
+		Changed( obj.Index );
+		if ( CastsShadows( obj ) ) StaticChanges.Add( _boundsCenters[obj.Index], _boundsExtents[obj.Index] );
 	}
 
 	/// <summary>
@@ -338,6 +370,7 @@ public sealed class RenderWorld
 		if ( wasSettled && _settleMoves[index] < byte.MaxValue ) _settleMoves[index]++;
 		var restless = _settleMoves[index] >= Shadows.SettledCasters.MaxSettles ? Shadows.SettledCasters.Restless : 0;
 		_movedStamps[index] = Shadows.SettledCasters.Now | restless;
+		Changed( index );
 	}
 
 	/// <summary>

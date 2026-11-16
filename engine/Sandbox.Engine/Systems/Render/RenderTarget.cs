@@ -123,6 +123,16 @@ public sealed partial class RenderTarget : IDisposable
 		};
 	}
 
+	/// <summary>
+	/// A render target of a depth texture alone, with no colour: what a shadow map or a depth prepass draws into.
+	/// </summary>
+	internal static RenderTarget FromDepth( Texture depth )
+	{
+		ArgumentNullException.ThrowIfNull( depth );
+		if ( !depth.IsRenderTarget ) throw new ArgumentException( "Texture was not created as a render target (Texture.CreateRenderTarget)", nameof( depth ) );
+		return new RenderTarget { DepthTarget = depth, Width = depth.Width, Height = depth.Height };
+	}
+
 	// Can't use operator overloads because of the implicit conversion
 	internal Rendering.SceneViewRenderTargetHandle ToColorHandle( ISceneView view )
 	{
