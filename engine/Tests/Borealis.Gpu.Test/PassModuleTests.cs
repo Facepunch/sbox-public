@@ -393,6 +393,7 @@ public class PassModuleTests : GpuTest
 			TestContext.WriteLine( $"{what}: {rightHalf} pixels in the right half, {left} in the left" );
 			Assert.AreEqual( 0, left, $"every corner {what}: nothing in the left half" );
 			Assert.IsTrue( rightHalf > 300, $"round the whole triangle {what} ({rightHalf} pixels)" );
+			Assert.AreEqual( 0, Pixel( pixels, Size, 48, 32 ).A, $"a band round its edges, not the triangle filled {what}" );
 		}
 
 		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
