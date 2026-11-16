@@ -13,6 +13,9 @@
 #include "common/classes/Bindless.hlsl"
 #include "common/classes/Depth.hlsl"
 
+// Normals.hlsl's index, unread here: kept so the pass modules' globals lie where their .shaders' do
+int NormalsTextureIndex < Attribute("NormalsTextureIndex"); Default(-1); >;
+
 // The opaque pass's target, multisampled as the view (D_MSAA_NORMALS): its first sample, as the trace read the
 // depth-normals G-buffer's
 #if D_MSAA_NORMALS
