@@ -578,8 +578,9 @@ internal sealed partial class BackendContext
 		var compactWritten = totalFragments + (plan?.CompactUsed ?? 0);
 		var record = plan is not null ? plan.BatchRecords.Length / (CullBatchBytes / 4) : 0;
 
-		// A resident prefix's buckets come first: what a plan checks of them, and where their records and multi-draws end
-		var checks = plan is null && prefixBuckets > 0 && cull.Plan is not null && UsesPlans && compact ? new (GpuMaterial, ShaderParameters, ShaderVariant, int, int)[prefixBuckets] : null;
+		// A resident prefix's buckets come first: what a plan checks of them, and where their records and multi-draws end. A
+		// call that keeps its order has a slot per fragment, the same each frame, so its plan holds them as they are
+		var checks = plan is null && prefixBuckets > 0 && cull.Plan is not null && UsesPlans && (compact || cull.KeepsOrder) ?new (GpuMaterial, ShaderParameters, ShaderVariant, int, int)[prefixBuckets] : null;
 		var (prefixRecords, prefixWritten, prefixCompact, prefixRuns) = (0, 0, 0, 0);
 		try
 		{
@@ -957,7 +958,7 @@ internal sealed partial class BackendContext
 	(bool Compact, (BackendMaterial Ids, ShaderFile Mark, ShaderFile Compact) Shaders, BackendDevice.VisibilityView Visibility, bool Ids, bool Lists) CullState( in GpuDrivenCull cull )
 	{
 		var r = recording;
-		var compact = device.GpuDrivenCompaction && device.SupportsDrawIndirectCount;
+		var compact = !cull.KeepsOrder && device.GpuDrivenCompaction && device.SupportsDrawIndirectCount;
 		var shaders = compact && device.GpuDrivenVisibility && cull.View is not null && (cull.Ids || cull.Visibility) ? device.GpuDrivenVisibilityShaders : default;
 		var visibility = shaders.Mark is not null && shaders.Compact is not null && r.Depth is not null ? device.VisibilityFor( cull.View, Gpu.InfoOf( r.Depth.Handle ) ) : null;
 		var ready = visibility is not null && visibility.ClearedFrame == device.GpuDrivenFrame;
@@ -968,7 +969,7 @@ internal sealed partial class BackendContext
 	GpuDrivenPlan.CallKey PlanKey( StringToken shaderMode, in GpuDrivenCull cull, Format color, Format depth, int samples )
 	{
 		var (_, _, visibility, ids, lists) = CullState( cull );
-		return new GpuDrivenPlan.CallKey( shaderMode.Value, color, depth, samples, recording.Color is null, ids, lists, visibility is not null, device.PositionStreams );
+		return new GpuDrivenPlan.CallKey( shaderMode.Value, color, depth, samples, recording.Color is null, ids, lists, visibility is not null, device.PositionStreams, cull.KeepsOrder );
 	}
 
 	/// <summary>
@@ -985,8 +986,8 @@ internal sealed partial class BackendContext
 
 		var key = PlanKey( shaderMode, cull, color, depth, samples );
 
-		// What the next frame's resident cull culls for this view
-		if ( device.GpuDrivenResidentCull && cull.View is not null ) device.ResidentCulls.Seen( cull.View, cull.Plan, key, device.GpuDrivenFrame );
+		// What the next frame's resident cull culls for this view; a call that keeps its order culls itself
+		if ( device.GpuDrivenResidentCull && cull.View is not null && !cull.KeepsOrder ) device.ResidentCulls.Seen( cull.View, cull.Plan, key, device.GpuDrivenFrame );
 
 		var plans = device.PlansFor( cull.Plan );
 		var plan = plans.Find( key, cull.PlanVersion, prefix.Length );

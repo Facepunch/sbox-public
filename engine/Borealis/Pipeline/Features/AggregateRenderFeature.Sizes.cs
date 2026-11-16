@@ -38,7 +38,7 @@ internal sealed partial class AggregateRenderFeature
 		if ( !pass.IsShadow && ReferenceEquals( pass.View, pass.Root ) && sizedGeneration != argGeneration && argGeneration % SizeEveryFrames == 0 )
 		{
 			sizedGeneration = argGeneration;
-			var meshes = resident is { MeshGroups.Count: > 0 } && Meshes is not null ? pass.Visible( Meshes ) : null;
+			var meshes = resident is not null && (resident.MeshGroups.Count > 0 || resident.Overlays.Count > 0) && Meshes is not null ? pass.Visible( Meshes ) : null;
 			sizes.Start( world, pass, visible, meshes, resident?.Holds, pass.ResidentHolds is not null ? resident : null );
 		}
 
@@ -166,6 +166,11 @@ internal sealed class AggregateSizes : ITextureSizeSource
 		{
 			var heldMeshes = 0;
 			foreach ( var group in held.MeshGroups ) heldMeshes += group.Members.Length;
+			foreach ( var order in held.Overlays )
+			{
+				foreach ( var group in order.Groups ) heldMeshes += group.Members.Length;
+			}
+
 			if ( meshes.Length < meshCount + heldMeshes )
 			{
 				Array.Resize( ref meshes, meshCount + heldMeshes );
@@ -173,17 +178,10 @@ internal sealed class AggregateSizes : ITextureSizeSource
 				Array.Resize( ref meshExtents, meshCount + heldMeshes );
 			}
 
-			foreach ( var group in held.MeshGroups )
+			foreach ( var group in held.MeshGroups ) AddHeld( group, objects, objectCenters, objectExtents );
+			foreach ( var order in held.Overlays )
 			{
-				foreach ( var mesh in group.Members )
-				{
-					var index = mesh.Index;
-					if ( index < 0 || index >= objects.Length ) continue;
-					meshes[meshCount] = mesh;
-					meshCenters[meshCount] = objectCenters[index];
-					meshExtents[meshCount] = objectExtents[index];
-					meshCount++;
-				}
+				foreach ( var group in order.Groups ) AddHeld( group, objects, objectCenters, objectExtents );
 			}
 		}
 
@@ -195,6 +193,19 @@ internal sealed class AggregateSizes : ITextureSizeSource
 		camera = pass.View.Position;
 		running = Task.Run( Size );
 		StartMs += Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
+	}
+
+	void AddHeld( AggregateRenderFeature.MeshGroup group, ReadOnlySpan<RenderObject> objects, ReadOnlySpan<Vector3> objectCenters, ReadOnlySpan<Vector3> objectExtents )
+	{
+		foreach ( var mesh in group.Members )
+		{
+			var index = mesh.Index;
+			if ( index < 0 || index >= objects.Length ) continue;
+			meshes[meshCount] = mesh;
+			meshCenters[meshCount] = objectCenters[index];
+			meshExtents[meshCount] = objectExtents[index];
+			meshCount++;
+		}
 	}
 
 	// On a worker: each aggregate's size as the CPU's cull works it out, the largest per material

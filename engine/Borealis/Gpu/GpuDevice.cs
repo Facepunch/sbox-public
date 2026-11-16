@@ -98,6 +98,12 @@ public abstract class GpuDevice
 	internal virtual bool DrawsMeshesResident => false;
 
 	/// <summary>
+	/// Whether, drawing meshes resident, a map's static overlays join main views' lists too, a list per render order culled
+	/// on the GPU with its order kept (<see cref="Gpu.GpuContext.GpuDrivenCull.KeepsOrder"/>), and views don't prepare them.
+	/// </summary>
+	internal virtual bool DrawsOverlaysResident => false;
+
+	/// <summary>
 	/// Whether, drawing aggregates resident, the sun's far cascade cache and what's drawn over it take resident lists of the
 	/// casters that aren't static too, which the GPU takes by when each last moved (<see cref="Gpu.GpuContext.ResidentFilter"/>).
 	/// </summary>
@@ -108,6 +114,12 @@ public abstract class GpuDevice
 	/// variants): a draw the device leaves would go undrawn, so a mesh with one isn't made resident.
 	/// </summary>
 	internal virtual bool TakesResident( GpuMaterial material ) => false;
+
+	/// <summary>
+	/// Whether a static overlay's draws with this material draw GPU-driven in the forward pass, blended or not: a resident
+	/// overlay's draw the device leaves would go undrawn, and a view's own that it leaves draws after its render order's call.
+	/// </summary>
+	internal virtual bool TakesOverlay( GpuMaterial material ) => false;
 
 	/// <summary>
 	/// What GPU-driven drawing buckets these object attributes by, leaving out what each draw's lighting record holds (its
