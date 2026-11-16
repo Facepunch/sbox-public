@@ -225,28 +225,14 @@ void WriteDraw( uint nSlot, uint nTransform, uint nDraw, uint nIndexCount, uint 
 }
 
 // A batch record's sixth word with this bit: its bucket's meshlets are drawn with task and mesh shaders, from the task run
-// the rest names (its first slot and count; then its task groups, a group per TaskSlots slots, after a 1; then a run of
-// 1 and 1, which make the task groups a task draw's arguments)
+// the rest names (its first slot and count, then a run of 1 and 1, which make the count a task draw's arguments)
 static const uint TaskRun = 0x80000000u;
-
-// Slots of a task run a task group of borealis_meshlet_ids takes
-static const uint TaskSlots = 16;
 
 // The next slot of multi-draw nRun
 uint TakeSlot( uint nRun )
 {
 	uint nIndex;
 	g_Frame.InterlockedAdd( g_nCullRuns + nRun * 8 + 4, 1, nIndex );
-	return g_Frame.Load( g_nCullRuns + nRun * 8 ) + nIndex;
-}
-
-// A slot of a task run, counting a task group for each TaskSlots slots
-uint TakeTaskSlot( uint nRun )
-{
-	uint nIndex;
-	g_Frame.InterlockedAdd( g_nCullRuns + nRun * 8 + 4, 1, nIndex );
-	if ( nIndex % TaskSlots == 0 )
-		g_Frame.InterlockedAdd( g_nCullRuns + nRun * 8 + 12, 1 );
 	return g_Frame.Load( g_nCullRuns + nRun * 8 ) + nIndex;
 }
 
@@ -415,12 +401,12 @@ uint TakeTaskSlot( uint nRun )
 
 				// A prepass that culls meshlets: an ids fragment whose draw has meshlets is listed for the meshlet pass
 				// (borealis_meshlet_cull_cs), which draws those that can reach a sample; or, in a bucket drawn with task and
-				// mesh shaders (its sixth word's top bit), takes a slot of the bucket's task run, which task groups of
-				// borealis_meshlet_ids take TaskSlots at a time
+				// mesh shaders (its sixth word's top bit), takes a slot of the bucket's task run, a task group of
+				// borealis_meshlet_ids each
 				bool bMeshlets = !bListed && ( vVisibility.z & 1 ) != 0 && g_nCullMeshletRuns != None && g_bindless_VertexBuffers[ g_nCullMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u;
 				if ( bMeshlets && ( vVisibility.y & TaskRun ) != 0 )
 				{
-					uint nSlot = TakeTaskSlot( vVisibility.y & ~TaskRun );
+					uint nSlot = TakeSlot( vVisibility.y & ~TaskRun );
 					g_Frame.Store2( g_nCullInstances + nSlot * 8, uint2( nTransform, nDrawRecord ) );
 					g_Frame.Store( g_nCullFragmentWords + ( g_nCullFirstInstance + nSlot ) * 4, nFragment != None ? nVertexBase : None );
 					g_Frame.Store( g_nCullCommands + nSlot * 20, nFragment );
