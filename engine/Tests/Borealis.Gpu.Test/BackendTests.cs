@@ -147,6 +147,40 @@ public class BackendTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// A segment's list lent to the engine's drawing (a custom object's segment, which may draw no mesh before it) has the
+	/// frame's view set bound, so lit shaders drawn there read the view's lights, sun and ambient, not the placeholders.
+	/// </summary>
+	[TestMethod]
+	public void LentSegmentsBindTheViewSet()
+	{
+		using var backend = new Borealis.Backend.BackendDevice( Device );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new Borealis.Backend.BackendRenderHost( backend );
+		try
+		{
+			using var frame = new Borealis.Backend.BackendContext( backend, null );
+			using var segment = new Borealis.Backend.BackendContext( backend, frame );
+
+			Device.BeginFrame();
+			frame.Begin();
+			frame.WriteViewSet();
+			var viewSet = frame.Lend().BoundViewSet;
+			Assert.AreNotEqual( 0ul, viewSet, "the frame binds its view set" );
+
+			segment.BeginSegment( frame, null );
+			Assert.AreEqual( viewSet, segment.Lend().BoundViewSet, "the segment's lent list binds the frame's view set" );
+
+			frame.Submit();
+			segment.SubmitNext();
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
 	/// <summary>Half-float RGBA to 8-bit sRGB, for looking at.</summary>
 	static byte[] ToRgba8( byte[] halfs, int width, int height )
 	{

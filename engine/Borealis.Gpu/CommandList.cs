@@ -100,6 +100,9 @@ public sealed unsafe class CommandList
 	// The view set (ShaderAbi.ViewSet), bound beside the bindless set
 	ulong viewSet;
 
+	/// <summary>The view set the draws that follow bind (<see cref="SetViewSet"/>); 0 for the device's placeholders.</summary>
+	internal ulong BoundViewSet => viewSet;
+
 	// Transient descriptor sets and upload memory, recycled with the frame
 	readonly List<ulong> descriptorPools = new();
 	int descriptorPool;

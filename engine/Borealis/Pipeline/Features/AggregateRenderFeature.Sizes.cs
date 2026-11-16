@@ -38,8 +38,8 @@ internal sealed partial class AggregateRenderFeature
 		if ( !pass.IsShadow && ReferenceEquals( pass.View, pass.Root ) && sizedGeneration != argGeneration && argGeneration % SizeEveryFrames == 0 )
 		{
 			sizedGeneration = argGeneration;
-			var meshes = resident is { MeshGroups.Count: > 0 } && Meshes is not null ? pass.Visible( Meshes ) : null;
-			sizes.Start( world, pass, visible, meshes, resident?.Holds );
+			var meshes = resident is not null && (resident.MeshGroups.Count > 0 || resident.Overlays.Count > 0) && Meshes is not null ? pass.Visible( Meshes ) : null;
+			sizes.Start( world, pass, visible, meshes, resident?.Holds, pass.ResidentHolds is not null ? resident : null );
 		}
 
 		return 0;
@@ -69,6 +69,9 @@ internal sealed class AggregateSizes : ITextureSizeSource
 	MeshObject[] meshes = [];
 	Vector3[] meshCenters = [], meshExtents = [];
 	int meshCount;
+
+	// From these on, aggregates and meshes of a resident list the collect left out: the worker culls them as it would have
+	int firstHeld, firstHeldMesh;
 	float tanHalfFov, screenWidth;
 	ViewFrustum frustum;
 	SizeCull sizeCull;
@@ -94,9 +97,10 @@ internal sealed class AggregateSizes : ITextureSizeSource
 
 	/// <summary>
 	/// Copy the view and its visible aggregates and size them on a worker; nothing while the last sizing runs. The main
-	/// thread's part.
+	/// thread's part. With <paramref name="held"/>, the view's resident list whose aggregates and meshes the collect left
+	/// out: all of them, which the worker culls itself.
 	/// </summary>
-	public void Start( RenderWorld world, ViewPass pass, List<int> visible, List<int> meshesVisible = null, bool[] holds = null )
+	public void Start( RenderWorld world, ViewPass pass, List<int> visible, List<int> meshesVisible = null, bool[] holds = null, AggregateRenderFeature.ResidentList held = null )
 	{
 		if ( running is { IsCompleted: false } ) return;
 		var start = Stopwatch.GetTimestamp();
@@ -104,11 +108,12 @@ internal sealed class AggregateSizes : ITextureSizeSource
 		var objects = world.Objects;
 		var objectCenters = world.BoundsCenter;
 		var objectExtents = world.BoundsExtents;
-		if ( aggregates.Length < visible.Count )
+		var wanted = visible.Count + (held?.Batches.Count ?? 0);
+		if ( aggregates.Length < wanted )
 		{
-			aggregates = new AggregateObject[visible.Count];
-			centers = new Vector3[visible.Count];
-			extents = new Vector3[visible.Count];
+			aggregates = new AggregateObject[wanted];
+			centers = new Vector3[wanted];
+			extents = new Vector3[wanted];
 		}
 
 		count = 0;
@@ -119,6 +124,20 @@ internal sealed class AggregateSizes : ITextureSizeSource
 			centers[count] = objectCenters[index];
 			extents[count] = objectExtents[index];
 			count++;
+		}
+
+		firstHeld = count;
+		if ( held is not null )
+		{
+			foreach ( var batch in held.Batches )
+			{
+				var index = batch.Aggregate.Index;
+				if ( index < 0 || index >= objects.Length ) continue;
+				aggregates[count] = batch.Aggregate;
+				centers[count] = objectCenters[index];
+				extents[count] = objectExtents[index];
+				count++;
+			}
 		}
 
 		// The resident meshes it sees, which no view prepares
@@ -142,6 +161,30 @@ internal sealed class AggregateSizes : ITextureSizeSource
 			}
 		}
 
+		firstHeldMesh = meshCount;
+		if ( held is not null )
+		{
+			var heldMeshes = 0;
+			foreach ( var group in held.MeshGroups ) heldMeshes += group.Members.Length;
+			foreach ( var order in held.Overlays )
+			{
+				foreach ( var group in order.Groups ) heldMeshes += group.Members.Length;
+			}
+
+			if ( meshes.Length < meshCount + heldMeshes )
+			{
+				Array.Resize( ref meshes, meshCount + heldMeshes );
+				Array.Resize( ref meshCenters, meshCount + heldMeshes );
+				Array.Resize( ref meshExtents, meshCount + heldMeshes );
+			}
+
+			foreach ( var group in held.MeshGroups ) AddHeld( group, objects, objectCenters, objectExtents );
+			foreach ( var order in held.Overlays )
+			{
+				foreach ( var group in order.Groups ) AddHeld( group, objects, objectCenters, objectExtents );
+			}
+		}
+
 		tanHalfFov = MathF.Tan( pass.Root.FieldOfView.DegreeToRadian() * 0.5f );
 		screenWidth = pass.Root.Viewport.Width;
 		frustum = pass.View.Frustum;
@@ -150,6 +193,19 @@ internal sealed class AggregateSizes : ITextureSizeSource
 		camera = pass.View.Position;
 		running = Task.Run( Size );
 		StartMs += Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
+	}
+
+	void AddHeld( AggregateRenderFeature.MeshGroup group, ReadOnlySpan<RenderObject> objects, ReadOnlySpan<Vector3> objectCenters, ReadOnlySpan<Vector3> objectExtents )
+	{
+		foreach ( var mesh in group.Members )
+		{
+			var index = mesh.Index;
+			if ( index < 0 || index >= objects.Length ) continue;
+			meshes[meshCount] = mesh;
+			meshCenters[meshCount] = objectCenters[index];
+			meshExtents[meshCount] = objectExtents[index];
+			meshCount++;
+		}
 	}
 
 	// On a worker: each aggregate's size as the CPU's cull works it out, the largest per material
@@ -162,6 +218,7 @@ internal sealed class AggregateSizes : ITextureSizeSource
 		{
 			var aggregate = aggregates[a];
 			aggregates[a] = null;
+			if ( a >= firstHeld && (!frustum.Intersects( centers[a], extents[a] ) || sizeCull.Culls( centers[a], extents[a] )) ) continue;
 			var draws = aggregate.Mesh.DrawsForLod( 0 );
 			if ( draws.Length == 0 || draws[0].Material is not { } material ) continue;
 
@@ -185,6 +242,7 @@ internal sealed class AggregateSizes : ITextureSizeSource
 		{
 			var mesh = meshes[m];
 			meshes[m] = null;
+			if ( m >= firstHeldMesh && (!frustum.Intersects( meshCenters[m], meshExtents[m] ) || sizeCull.Culls( meshCenters[m], meshExtents[m] )) ) continue;
 			if ( mesh.Mesh is not { } model ) continue;
 
 			var lod = MeshRenderFeature.ChooseLod( mesh, meshCenters[m], camera, tanHalfFov, screenWidth );

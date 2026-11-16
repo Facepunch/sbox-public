@@ -207,6 +207,15 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal override bool DrawsMeshesResident => GpuDrivenResidentMeshes && DrawsAggregatesResident && DrawsMeshesGpuDriven;
 
 	/// <summary>
+	/// Make a map's static overlays resident with the meshes: a list per render order, culled on the GPU with its order kept.
+	/// On by default with <see cref="GpuDrivenResidentMeshes"/> and <see cref="GpuDrivenOverlays"/>; <c>-no-resident-overlays</c>
+	/// turns it off, and views then prepare them.
+	/// </summary>
+	public bool GpuDrivenResidentOverlays { get; set; } = !HasSwitch( "-no-resident-overlays" );
+
+	internal override bool DrawsOverlaysResident => GpuDrivenResidentOverlays && DrawsMeshesResident && DrawsOverlaysGpuDriven;
+
+	/// <summary>
 	/// Give the sun's far cascade cache and what's drawn over it resident lists of the casters that aren't static too, which
 	/// the GPU takes by when each last moved (<see cref="GpuContext.ResidentFilter"/>). On by default with
 	/// <see cref="GpuDrivenResident"/>; <c>-no-resident-settled</c> turns it off, and those views draw their static casters
@@ -280,6 +289,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		SurfaceMaterial surface => !surface.RenderState.DrawsTranslucent && surface.RenderState.DepthWrite && surface.RenderState.DepthTest && Surfaces.For( surface ) is { } program
 			&& program.GpuDrivenPass( false, surface.RenderState.AlphaTest, false ) is not null && program.GpuDrivenPass( true, surface.RenderState.AlphaTest, false ) is not null,
+		BackendMaterial { Shader: { } shader } => Shaders.GpuDriven( shader ) is not null,
+		_ => false,
+	};
+
+	internal override bool TakesOverlay( GpuMaterial material ) => material switch
+	{
+		SurfaceMaterial surface => Surfaces.For( surface ) is { } program && program.GpuDrivenPass( false, surface.RenderState.AlphaTest, false, surface.RenderState.DrawsTranslucent ) is not null
+			&& program.GpuDrivenPass( false, surface.RenderState.AlphaTest, true, surface.RenderState.DrawsTranslucent ) is not null,
 		BackendMaterial { Shader: { } shader } => Shaders.GpuDriven( shader ) is not null,
 		_ => false,
 	};
@@ -911,6 +928,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			if ( sharedMaterials.TryGetValue( path, out var material ) ) return material;
 			return sharedMaterials[path] = Converted( path ) ?? Material( path, null );
 		}
+	}
+
+	/// <summary>
+	/// A compiled material as its <c>.shader</c> draws it, with its shader, values and textures: <see cref="LoadMaterial(string)"/>'s,
+	/// or where a surface stands in for its shader in the scene, the surface's fallback. What the engine's drawing
+	/// (<see cref="ShaderDrawer.Material"/>) takes, as it draws the <c>.shader</c>. Null when it can't be read.
+	/// </summary>
+	internal BackendMaterial ShaderMaterial( string path )
+	{
+		var loaded = LoadMaterial( path );
+		var material = (loaded as SurfaceMaterial)?.Fallback as BackendMaterial ?? loaded as BackendMaterial;
+		return material?.Shader is null ? null : material;
 	}
 
 	/// <summary>

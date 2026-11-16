@@ -566,6 +566,9 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 	static bool HasCasters( ViewPass pass )
 	{
+		// Casters its resident list draws, which its culling left out
+		if ( pass.ResidentInView ) return true;
+
 		foreach ( var list in pass.VisibleByFeature )
 		{
 			if ( list.Count > 0 ) return true;

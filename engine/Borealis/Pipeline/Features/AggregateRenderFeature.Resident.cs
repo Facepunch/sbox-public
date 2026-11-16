@@ -13,6 +13,8 @@ namespace Borealis.Features;
 /// (<see cref="GpuContext.ResidentFilter"/>). Aggregates a list doesn't hold go the view's own way. Resident static meshes
 /// (<see cref="GpuDevice.DrawsMeshesResident"/>) join the lists in groups of one model drawn alike, a batch per LOD and draw,
 /// which the GPU culls and picks LODs for (<see cref="GpuContext.ResidentMeshes"/>); the mesh feature doesn't prepare them.
+/// A map's static overlays (<see cref="GpuDevice.DrawsOverlaysResident"/>) join main views' lists as a list per render order,
+/// in the order the mesh feature would draw them, which the GPU culls keeping that order (<see cref="OverlayOrder"/>).
 /// </summary>
 internal sealed partial class AggregateRenderFeature
 {
@@ -51,6 +53,30 @@ internal sealed partial class AggregateRenderFeature
 
 		/// <summary>Per depth kind, whether <see cref="Device"/> holds its mesh groups' batches, which no frame changes.</summary>
 		public readonly bool[] DeviceMeshes = new bool[4];
+
+		/// <summary>A main view's static overlays: a list per render order whose every overlay is resident, lowest first.</summary>
+		public readonly List<OverlayOrder> Overlays = new();
+
+		/// <summary>Whether it draws anything the views would otherwise collect and prepare.</summary>
+		public bool HoldsAny => DeviceCount > 0 || Overlays.Count > 0;
+	}
+
+	/// <summary>
+	/// One render order's resident static overlays, in the order the mesh feature sorts them (<see cref="MeshRenderFeature.ResidentOverlayKey"/>),
+	/// in groups of neighbours that share a bin (model, override, lightmap and probe) as its runs would, and their batches, a
+	/// batch per group and draw. The overlay layer draws it as one call that keeps its order
+	/// (<see cref="GpuContext.GpuDrivenCull.KeepsOrder"/>). The same object, with the same batches, while its list is.
+	/// </summary>
+	internal sealed class OverlayOrder
+	{
+		public int RenderOrder;
+		public int Version;
+		public readonly List<MeshGroup> Groups = new();
+		public GpuContext.GpuDrivenBatch[] Device = [];
+
+		/// <summary>Triangles and overlays of all its batches, for the stats.</summary>
+		public long Triangles;
+		public int Fragments;
 	}
 
 	/// <summary>What a resident aggregate was when its lists were made: any change makes them again.</summary>
@@ -95,6 +121,9 @@ internal sealed partial class AggregateRenderFeature
 		public ulong Moved;
 		public ShaderParameters Probe;
 
+		/// <summary>A static overlay: it goes in main views' overlay lists (<see cref="OverlayOrder"/>), not their mesh groups.</summary>
+		public bool Overlay;
+
 		/// <summary>Its kept transform slot, or -1 while it has none: then it isn't resident.</summary>
 		public int Slot;
 	}
@@ -118,7 +147,7 @@ internal sealed partial class AggregateRenderFeature
 	/// attributes hold but their lighting records (<see cref="GpuDevice.LightingFreeKey"/>), so meshes lit differently
 	/// share a group. The group keeps its owner while its meshes are the same.
 	/// </summary>
-	readonly record struct MeshGroupKey( ResidentCasters Casters, uint Mask, RenderMesh Mesh, GpuMaterial Override, long? Lightmap, long? Probe );
+	readonly record struct MeshGroupKey( ResidentCasters Casters, uint Mask, RenderMesh Mesh, GpuMaterial Override, long? Lightmap, long? Probe, int Order = 0, int First = -1 );
 
 	/// <summary>A group's owner and the list version that last drew it: one no list of the last version drew is let go.</summary>
 	sealed class MeshOwner
@@ -195,9 +224,11 @@ internal sealed partial class AggregateRenderFeature
 	/// A resident mesh group's draw the device left (from any recording thread): its meshes go the views' own way from the
 	/// next frame, and miss this one.
 	/// </summary>
-	void ResidentMeshesLeft( ResidentList list, GpuContext.ResidentMeshes owner )
+	void ResidentMeshesLeft( ResidentList list, GpuContext.ResidentMeshes owner ) => MeshesLeft( list.MeshGroups, owner );
+
+	void MeshesLeft( List<MeshGroup> groups, GpuContext.ResidentMeshes owner )
 	{
-		foreach ( var group in list.MeshGroups )
+		foreach ( var group in groups )
 		{
 			if ( !ReferenceEquals( group.Owner, owner ) ) continue;
 			lock ( meshesLeft )
@@ -274,7 +305,7 @@ internal sealed partial class AggregateRenderFeature
 	/// <summary>
 	/// Whether a prepared view draws anything from a resident list, which its visible lists don't show.
 	/// </summary>
-	internal bool DrawsResident( ViewPass pass ) => pass.State<Batches>( this ).Resident is { } list && (list.Batches.Count > 0 || list.MeshGroups.Count > 0);
+	internal bool DrawsResident( ViewPass pass ) => pass.State<Batches>( this ).Resident is { } list && (list.Batches.Count > 0 || list.MeshGroups.Count > 0 || list.Overlays.Count > 0);
 
 	GpuContext.GpuDrivenCull[] residentCulls = [];
 
@@ -302,14 +333,35 @@ internal sealed partial class AggregateRenderFeature
 	}
 
 	/// <summary>
+	/// For the main view's collect, the frame's transforms begun: by world index, the aggregates and meshes its resident list
+	/// draws, which the collect leaves out; null when it draws none.
+	/// </summary>
+	internal bool[] CollectHolds( RenderWorld world, ViewPass pass, TransformBuffer transforms )
+	{
+		PrepareResident( world, pass, transforms );
+		return pass.State<Batches>( this ).Resident is { HoldsAny: true } list ? list.Holds : null;
+	}
+
+	/// <summary>
 	/// For the mesh feature, before it prepares a view: by world index, the meshes the view's resident list draws, which it
 	/// then leaves out; null when the list holds none.
 	/// </summary>
 	internal bool[] ResidentMeshHolds( RenderWorld world, ViewPass pass, TransformBuffer transforms )
 	{
 		PrepareResident( world, pass, transforms );
-		return pass.State<Batches>( this ).Resident is { MeshGroups.Count: > 0 } list ? list.Holds : null;
+		return pass.State<Batches>( this ).Resident is { } list && (list.MeshGroups.Count > 0 || list.Overlays.Count > 0) ? list.Holds : null;
 	}
+
+	/// <summary>A prepared main view's resident static overlays, a list per render order, lowest first; null or empty for none.</summary>
+	internal List<OverlayOrder> ResidentOverlays( ViewPass pass ) => pass.IsShadow ? null : pass.State<Batches>( this ).Resident?.Overlays;
+
+	/// <summary>
+	/// A view drew static overlays of its own in a render order its list holds, which only a change the lists haven't seen
+	/// yet does (an overlay that wasn't one): the next frame finds the resident objects again.
+	/// </summary>
+	internal void OverlaysStale() => overlaysStale = true;
+
+	volatile bool overlaysStale;
 
 	/// <summary>
 	/// Once a frame, before any view prepares: look for added and removed aggregates and changes to how each draws, put
@@ -319,9 +371,11 @@ internal sealed partial class AggregateRenderFeature
 	void RefreshResident( RenderWorld world, TransformBuffer transforms )
 	{
 		var meshesWanted = MeshesResident();
+		var overlaysWanted = meshesWanted && OverlaysResident();
 		var settled = meshesWanted && Settle( world, transforms.Generation );
 		var volumesKey = meshesWanted && world.LightProbeVolumes.Count > 0 ? LightProbeVolume.Key( world.LightProbeVolumes ) : 0;
-		if ( !ReferenceEquals( world, residentWorld ) || world.Structure != residentStructure || meshesWanted != residentMeshes || volumesKey != residentVolumesKey || meshesLeftChanged || settled ) Rescan( world );
+		if ( !ReferenceEquals( world, residentWorld ) || world.Structure != residentStructure || meshesWanted != residentMeshes || overlaysWanted != residentOverlays || volumesKey != residentVolumesKey
+			|| meshesLeftChanged || overlaysStale || settled ) Rescan( world );
 
 		// Their arguments, first in the frame's, so each keeps its place
 		if ( args.Length < residentArgCount ) Array.Resize( ref args, Math.Max( residentArgCount, args.Length * 2 ) );
@@ -419,9 +473,121 @@ internal sealed partial class AggregateRenderFeature
 			return;
 		}
 
+		MarkMembers( world );
 		if ( changed ) DropResidentLists();
 		else if ( settling ) DropSettledLists();
 		else if ( allKept ) KeepQuiet( world, transforms, firstInstance );
+	}
+
+	/// <summary>
+	/// By world index, after each frame's refresh: the aggregates and meshes the resident lists draw (<see cref="MemberKept"/>),
+	/// whether each casts shadows and is static. A shadow view with a resident list draws every kept one its static filter
+	/// and tag classes take, so its culling leaves them out (<see cref="LeaveResidentOut"/>).
+	/// </summary>
+	internal byte[] ResidentMembers => memberFlags;
+
+	internal const byte MemberKept = 1, MemberCasts = 2, MemberStatic = 4;
+	byte[] memberFlags = [];
+
+	/// <summary>Whether a view with this filter takes a kept member's casting, as the culling's own tests would (settling aside).</summary>
+	internal static bool TakesMember( byte flags, StaticFilter filter ) => (flags & MemberCasts) != 0 && filter switch
+	{
+		StaticFilter.OnlyStatic => (flags & MemberStatic) != 0,
+		StaticFilter.NoStatic or StaticFilter.SettledNoStatic => (flags & MemberStatic) == 0,
+		_ => true,
+	};
+
+	void MarkMembers( RenderWorld world )
+	{
+		memberVersion++;
+		if ( memberFlags.Length < world.Count ) memberFlags = new byte[Math.Max( world.Count, memberFlags.Length * 2 )];
+		else Array.Clear( memberFlags );
+
+		for ( int m = 0; m < memberCount; m++ )
+		{
+			ref readonly var member = ref members[m];
+			if ( member.FirstSlot < 0 ) continue;
+			memberFlags[member.Index] = (byte)(MemberKept | (CastsShadow( member.Aggregate ) ? MemberCasts : 0) | (member.IsStatic ? MemberStatic : 0));
+		}
+
+		for ( int m = 0; m < meshMemberCount; m++ )
+		{
+			ref readonly var member = ref meshMembers[m];
+			if ( member.Slot < 0 ) continue;
+			memberFlags[member.Index] = (byte)(MemberKept | (Meshes.CastsShadow( member.Mesh ) ? MemberCasts : 0) | (member.Mesh.IsStatic ? MemberStatic : 0));
+		}
+	}
+
+	/// <summary>
+	/// Before the shadow views' culls start: each view's resident list, and for a view that has one, the members it leaves out of
+	/// its culling (<see cref="ViewPass.ResidentMembers"/>). Not for what's drawn over the far cascade's cache, which counts the
+	/// casters it takes. Off for the tests' comparisons.
+	/// </summary>
+	internal void LeaveResidentOut( RenderWorld world, ReadOnlySpan<ViewPass> passes, TransformBuffer transforms )
+	{
+		if ( !ShadowsLeaveResidentOut ) return;
+		foreach ( var pass in passes )
+		{
+			if ( pass.StaticFilter == StaticFilter.Unsettled ) continue;
+			PrepareResident( world, pass, transforms );
+			if ( pass.State<Batches>( this ).Resident is not { } list ) continue;
+			pass.ResidentMembers = memberFlags;
+
+			// Its query leaves the members out too, so it can't tell which of its list's casters are in its frustum: a list with
+			// any counts as having casters
+			pass.ResidentInView = list.DeviceCount > 0;
+			var tree = pass.StaticFilter is StaticFilter.NoStatic or StaticFilter.SettledNoStatic ? world.DynamicTree : world.Tree;
+			pass.TreeKept = TreeKept( tree, memberFlags, memberFlags, memberVersion );
+		}
+	}
+
+	internal static bool ShadowsLeaveResidentOut { get; set; } = true;
+
+	/// <summary>
+	/// For the main view's collect, after <see cref="CollectHolds"/>: the world tree's node marks leaving out what its resident
+	/// list holds, or null when it holds none.
+	/// </summary>
+	internal bool[] CollectTreeKept( RenderWorld world, ViewPass pass )
+	{
+		if ( pass.State<Batches>( this ).Resident is not { HoldsAny: true } list ) return null;
+		return TreeKept( world.Tree, MemoryMarshal.Cast<bool, byte>( list.Holds.AsSpan() ), list, list.Version );
+	}
+
+	/// <summary>A tree's node marks for leaving out a source's objects, at the tree's and the source's versions then.</summary>
+	sealed class TreeMarks
+	{
+		public Culling.SpatialTree Tree;
+		public int TreeVersion;
+		public object Source;
+		public int SourceVersion;
+		public bool[] Kept = [];
+	}
+
+	readonly TreeMarks[] treeMarks = [new(), new(), new(), new()];
+	int nextMarks;
+
+	/// <summary>Bumped each time the members are marked again (<see cref="MarkMembers"/>).</summary>
+	int memberVersion;
+
+	/// <summary>
+	/// A tree's node marks for leaving out what <paramref name="leftOut"/> holds (<see cref="Culling.SpatialTree.Mark"/>), made again
+	/// only when the tree or the source has changed since: the members after a refresh that looked, a main list when it's
+	/// made again.
+	/// </summary>
+	bool[] TreeKept( Culling.SpatialTree tree, ReadOnlySpan<byte> leftOut, object source, int sourceVersion )
+	{
+		foreach ( var marks in treeMarks )
+		{
+			if ( ReferenceEquals( marks.Tree, tree ) && marks.TreeVersion == tree.Version && ReferenceEquals( marks.Source, source ) && marks.SourceVersion == sourceVersion ) return marks.Kept;
+		}
+
+		var made = treeMarks[nextMarks++ % treeMarks.Length];
+		tree.Mark( leftOut, ref made.Kept );
+		made.Tree = tree;
+		made.TreeVersion = tree.Version;
+		made.Source = source;
+		made.SourceVersion = sourceVersion;
+		return made.Kept;
 	}
 
 	/// <summary>
@@ -638,6 +804,20 @@ internal sealed partial class AggregateRenderFeature
 	/// <summary>Whether meshes may be resident now: the device draws them so, and no debug view tints them per frame.</summary>
 	bool MeshesResident() => Meshes is { DebugViews: DebugViews.None, UseMeshMaterials: true } && RenderHost.Current?.Device is { DrawsMeshesResident: true };
 
+	/// <summary>Whether static overlays may be resident now, with the meshes (<see cref="GpuDevice.DrawsOverlaysResident"/>).</summary>
+	static bool OverlaysResident() => RenderHost.Current?.Device is { DrawsOverlaysResident: true };
+
+	/// <summary>Whether <see cref="Rescan"/> made static overlays resident.</summary>
+	bool residentOverlays;
+
+	/// <summary>
+	/// Static overlays that aren't resident (not candidates, moving, left by the device, or of no class), by world index and
+	/// tag class (-1 for none): a main view's list leaves out every render order one of them is drawn in, which the view
+	/// then draws all of itself; but for one that draws the classic way after its order's call anyway (<see cref="MeshRenderFeature.OverlayDrawnAfter"/>),
+	/// which the view draws after the list.
+	/// </summary>
+	readonly List<(int Index, int Class, bool After)> overlayBlockers = new();
+
 	/// <summary>Find every aggregate of the world again, its tag class and its arguments' place.</summary>
 	void Rescan( RenderWorld world )
 	{
@@ -649,7 +829,10 @@ internal sealed partial class AggregateRenderFeature
 		residentArgCount = 0;
 		residentClasses.Clear();
 		residentMeshes = MeshesResident();
+		residentOverlays = residentMeshes && OverlaysResident();
+		overlayBlockers.Clear();
 		meshesLeftChanged = false;
+		overlaysStale = false;
 		var volumes = world.LightProbeVolumes;
 		residentVolumesKey = residentMeshes && volumes.Count > 0 ? LightProbeVolume.Key( volumes ) : 0;
 
@@ -712,24 +895,46 @@ internal sealed partial class AggregateRenderFeature
 			if ( candidates.Length < objects.Length ) Array.Resize( ref candidates, Math.Max( objects.Length, candidates.Length * 2 ) );
 			for ( int i = 0; i < objects.Length; i++ )
 			{
-				if ( objects[i] is not MeshObject mesh || restless.ContainsKey( mesh ) ) continue;
+				if ( objects[i] is not MeshObject mesh ) continue;
+
+				// A static overlay that isn't resident keeps its render order out of the lists
+				var overlay = mesh.LayerMatch == LayerMatch.StaticOverlay;
+				if ( overlay && !residentOverlays ) continue;
+				if ( restless.ContainsKey( mesh ) )
+				{
+					if ( overlay ) BlockOverlay( mesh, i );
+					continue;
+				}
 
 				ref var known = ref candidates[i];
 				if ( !ReferenceEquals( known.Mesh, mesh ) || known.DrawVersion != drawVersions[i] || known.EntryVersion != entryVersions[i] || known.Volumes != residentVolumesKey )
 				{
 					known = default;
 					ResidentCandidatesChecked++;
-					if ( !Meshes.ResidentCandidate( mesh, device ) ) continue;
+					if ( !(overlay ? Meshes.ResidentOverlayCandidate( mesh, device ) : Meshes.ResidentCandidate( mesh, device )) )
+					{
+						if ( overlay ) BlockOverlay( mesh, i, Meshes.OverlayDrawnAfter( mesh, device ) );
+						continue;
+					}
+
 					known = (mesh, drawVersions[i], entryVersions[i], residentVolumesKey, MeshRenderFeature.ResidentProbe( mesh, volumes, residentVolumesKey, centers[i], extents[i] ));
 				}
 
 				lock ( meshesLeft )
 				{
-					if ( meshesLeft.Count > 0 && meshesLeft.Contains( mesh ) ) continue;
+					if ( meshesLeft.Count > 0 && meshesLeft.Contains( mesh ) )
+					{
+						if ( overlay ) BlockOverlay( mesh, i );
+						continue;
+					}
 				}
 
 				var cls = ClassOf( new ClassKey( mesh.Tags, mesh.IsWorld, mesh.SubWorld, mesh.HiddenInCaptures, false ) );
-				if ( cls < 0 ) continue;
+				if ( cls < 0 )
+				{
+					if ( overlay ) overlayBlockers.Add( (i, -1, false) );
+					continue;
+				}
 
 				if ( meshMemberCount == meshMembers.Length ) Array.Resize( ref meshMembers, Math.Max( 64, meshMembers.Length * 2 ) );
 				meshMembers[meshMemberCount++] = new MeshMember
@@ -741,6 +946,7 @@ internal sealed partial class AggregateRenderFeature
 					Class = cls,
 					Moved = world.MovedStamps[i],
 					Probe = known.Probe,
+					Overlay = overlay,
 					Slot = -1,
 				};
 			}
@@ -748,6 +954,8 @@ internal sealed partial class AggregateRenderFeature
 
 		DropResidentLists();
 	}
+
+	void BlockOverlay( MeshObject mesh, int index, bool after = false ) => overlayBlockers.Add( (index, ClassOf( new ClassKey( mesh.Tags, mesh.IsWorld, mesh.SubWorld, mesh.HiddenInCaptures, false ) ), after) );
 
 	int ClassOf( in ClassKey key )
 	{
@@ -879,6 +1087,7 @@ internal sealed partial class AggregateRenderFeature
 		}
 
 		if ( meshMemberCount > 0 ) AddMeshGroups( list, casters, mask, shadow );
+		if ( meshMemberCount > 0 && !shadow && residentOverlays ) AddOverlays( list, mask );
 		residentLists[(casters, mask)] = list;
 		ResidentListsMade++;
 		return list;
@@ -896,7 +1105,7 @@ internal sealed partial class AggregateRenderFeature
 		{
 			ref readonly var member = ref meshMembers[m];
 			var obj = member.Mesh;
-			if ( member.Slot < 0 || (mask & 1u << member.Class) == 0 ) continue;
+			if ( member.Slot < 0 || member.Overlay || (mask & 1u << member.Class) == 0 ) continue;
 			if ( shadow ? !(obj.CastShadows && TakesCaster( casters, obj.IsStatic )) : !obj.GameLayers ) continue;
 			list.ReadsFrameBuffer |= !shadow && obj.WantsFrameBufferCopy;
 
@@ -973,6 +1182,133 @@ internal sealed partial class AggregateRenderFeature
 		}
 	}
 
+	/// <summary>
+	/// A main view's resident static overlays: per render order, in the mesh feature's sort order
+	/// (<see cref="MeshRenderFeature.ResidentOverlayKey"/>), only where every overlay the view draws of that order is resident,
+	/// so a render order is drawn all from its list or all the view's own way.
+	/// </summary>
+	void AddOverlays( ResidentList list, uint mask )
+	{
+		var objects = residentWorld.Objects;
+		HashSet<int> blocked = null;
+		foreach ( var (index, cls, after) in overlayBlockers )
+		{
+			if ( index >= objects.Length || objects[index] is not MeshObject { GameLayers: true, LayerMatch: LayerMatch.StaticOverlay } blocker ) continue;
+			if ( cls >= 0 && (mask & 1u << cls) == 0 ) continue;
+
+			// One with callbacks records on the main thread: the view draws every overlay itself
+			if ( blocker.Callbacks is not null ) return;
+			if ( !after ) (blocked ??= new()).Add( blocker.RenderOrder );
+		}
+
+		var entries = new List<(ulong Key, int Member)>();
+		for ( int m = 0; m < meshMemberCount; m++ )
+		{
+			ref readonly var member = ref meshMembers[m];
+			var obj = member.Mesh;
+			if ( !member.Overlay || (mask & 1u << member.Class) == 0 || !obj.GameLayers ) continue;
+			if ( member.Slot < 0 )
+			{
+				(blocked ??= new()).Add( obj.RenderOrder );
+				continue;
+			}
+
+			entries.Add( (MeshRenderFeature.ResidentOverlayKey( obj, member.Probe, member.Index ), m) );
+		}
+
+		entries.Sort( static ( a, b ) => a.Key != b.Key ? a.Key.CompareTo( b.Key ) : a.Member.CompareTo( b.Member ) );
+		for ( int i = 0; i < entries.Count; )
+		{
+			var end = i + 1;
+			while ( end < entries.Count && entries[end].Key >> 32 == entries[i].Key >> 32 ) end++;
+			var order = (int)(uint)(entries[i].Key >> 32) ^ int.MinValue;
+			if ( blocked is null || !blocked.Contains( order ) ) list.Overlays.Add( OverlayOrderOf( list, mask, order, CollectionsMarshal.AsSpan( entries )[i..end] ) );
+			i = end;
+		}
+	}
+
+	/// <summary>
+	/// One render order's overlays as a list: groups of neighbours in one bin, as the mesh feature's runs, each a group of
+	/// resident meshes whose owner is kept while its meshes are the same.
+	/// </summary>
+	OverlayOrder OverlayOrderOf( ResidentList list, uint mask, int renderOrder, ReadOnlySpan<(ulong Key, int Member)> entries )
+	{
+		var device = RenderHost.Current?.Device;
+		var centers = residentWorld.BoundsCenter;
+		var extents = residentWorld.BoundsExtents;
+		var order = new OverlayOrder { RenderOrder = renderOrder, Version = residentVersion };
+		var deviceCount = 0;
+		for ( int g = 0; g < entries.Length; )
+		{
+			ref readonly var first = ref meshMembers[entries[g].Member];
+			var obj = first.Mesh;
+			var end = g + 1;
+			while ( end < entries.Length && SameOverlayBin( first, meshMembers[entries[end].Member] ) ) end++;
+
+			var count = end - g;
+			var groupCenters = new Vector3[count];
+			var groupExtents = new Vector3[count];
+			var slots = new int[count];
+			var scales = new float[count];
+			var objects = new MeshObject[count];
+			for ( int i = 0; i < count; i++ )
+			{
+				ref readonly var member = ref meshMembers[entries[g + i].Member];
+				groupCenters[i] = centers[member.Index];
+				groupExtents[i] = extents[member.Index];
+				slots[i] = member.Slot;
+				var scale = member.Mesh.Transform.Scale;
+				scales[i] = MathF.Max( MathF.Abs( scale.x ), MathF.Max( MathF.Abs( scale.y ), MathF.Abs( scale.z ) ) );
+				objects[i] = member.Mesh;
+				list.Holds[member.Index] = true;
+			}
+
+			var lightmap = obj.LightmapAttributes is null ? (long?)null : device?.LightingFreeKey( obj.LightmapAttributes ) ?? 0;
+			var probe = first.Probe is null ? (long?)null : device?.LightingFreeKey( first.Probe ) ?? 0;
+			var key = new MeshGroupKey( ResidentCasters.Main, mask, obj.Mesh, obj.MaterialOverride, lightmap, probe, renderOrder, first.Index );
+			meshOwners.TryGetValue( key, out var kept );
+			var owner = kept?.Owner;
+			if ( owner is null || !owner.Slots.AsSpan().SequenceEqual( slots ) || !owner.Centers.AsSpan().SequenceEqual( groupCenters )
+				|| !owner.Extents.AsSpan().SequenceEqual( groupExtents ) || !owner.LodScales.AsSpan().SequenceEqual( scales ) )
+			{
+				if ( owner is not null ) ReleaseOwner( owner );
+				owner = new GpuContext.ResidentMeshes( obj.Mesh, groupCenters, groupExtents, slots, scales );
+				meshOwners[key] = kept = new MeshOwner { Owner = owner };
+			}
+
+			kept.Version = residentVersion;
+			order.Groups.Add( new MeshGroup
+			{
+				Members = objects,
+				Mesh = obj.Mesh,
+				Override = obj.MaterialOverride,
+				OverrideBlends = obj.MaterialOverride is not null && (obj.OverrideTranslucent || obj.OverrideAlphaTest),
+				Lightmap = obj.LightmapAttributes,
+				Probe = first.Probe,
+				Owner = owner,
+			} );
+
+			deviceCount += obj.Mesh.DrawsForLod( 0 ).Length;
+			order.Triangles += (long)obj.Mesh.TrianglesForLod( 0 ) * count;
+			order.Fragments += count;
+			g = end;
+		}
+
+		// Made once: they name no frame's instances, and only the overlay layer draws them
+		order.Device = new GpuContext.GpuDrivenBatch[deviceCount];
+		MeshDeviceBatches( order.Groups, false, false, order.Device );
+		return order;
+	}
+
+	/// <summary>Whether two resident overlays share a bin, as the mesh feature's runs need (<see cref="MeshRenderFeature.Bin"/>).</summary>
+	static bool SameOverlayBin( in MeshMember a, in MeshMember b )
+	{
+		var x = a.Mesh;
+		var y = b.Mesh;
+		return ReferenceEquals( x.Mesh, y.Mesh ) && ReferenceEquals( x.MaterialOverride, y.MaterialOverride ) && ReferenceEquals( x.LightmapAttributes, y.LightmapAttributes )
+			&& ReferenceEquals( a.Probe, b.Probe ) && (x.MaterialOverride is null || (x.OverrideTranslucent || x.OverrideAlphaTest) == (y.OverrideTranslucent || y.OverrideAlphaTest));
+	}
+
 	static bool AllSame( ShaderParameters[] attributes )
 	{
 		for ( int i = 1; i < attributes.Length; i++ )
@@ -995,11 +1331,11 @@ internal sealed partial class AggregateRenderFeature
 		return true;
 	}
 
-	/// <summary>A list's mesh groups as the device takes them for a depth kind: a batch per group, LOD and draw.</summary>
-	void MeshDeviceBatches( ResidentList list, bool depth, bool forceDepthOnly, Span<GpuContext.GpuDrivenBatch> made )
+	/// <summary>Mesh groups as the device takes them for a depth kind: a batch per group, LOD and draw.</summary>
+	void MeshDeviceBatches( List<MeshGroup> groups, bool depth, bool forceDepthOnly, Span<GpuContext.GpuDrivenBatch> made )
 	{
 		var at = 0;
-		foreach ( var group in list.MeshGroups )
+		foreach ( var group in groups )
 		{
 			var mesh = group.Mesh;
 			var owner = group.Owner;
@@ -1067,7 +1403,7 @@ internal sealed partial class AggregateRenderFeature
 			}
 
 			// Mesh groups' batches name no frame's instances: made once
-			if ( !list.DeviceMeshes[kind] ) MeshDeviceBatches( list, depth, forceDepthOnly, made.AsSpan( batches.Length, list.DeviceCount - batches.Length ) );
+			if ( !list.DeviceMeshes[kind] ) MeshDeviceBatches( list.MeshGroups, depth, forceDepthOnly, made.AsSpan( batches.Length, list.DeviceCount - batches.Length ) );
 			list.DeviceMeshes[kind] = true;
 			list.DeviceGeneration[kind] = argGeneration;
 			return made.AsSpan( 0, list.DeviceCount );
