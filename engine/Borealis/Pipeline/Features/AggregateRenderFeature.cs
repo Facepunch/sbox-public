@@ -85,7 +85,7 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 		// path, without testing or sizing them one by one; a worker sizes them, and resident meshes, for texture streaming
 		// (AggregateRenderFeature.Sizes.cs)
 		var gpuCulls = state.OneRun && RenderHost.Current.Device.CullsAggregatesGpuDriven;
-		var gpuCulledSize = gpuCulls && (visible.Count > 0 || state.Resident is { MeshGroups.Count: > 0 }) ? GpuCulledSize( pass, world, visible, state.Resident ) : 0;
+		var gpuCulledSize = gpuCulls && (visible.Count > 0 || state.Resident is not null) ? GpuCulledSize( pass, world, visible, state.Resident ) : 0;
 		if ( visible.Count == 0 ) return;
 
 		var objects = world.Objects;
