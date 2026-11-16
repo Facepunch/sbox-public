@@ -1091,8 +1091,10 @@ internal sealed partial class BackendContext
 
 		// No copy jobs yet: after an earlier call's copy read them
 		r.List.Barrier( PipelineStage.ComputeShader | PipelineStage.DrawIndirect, MemoryAccess.ShaderRead | MemoryAccess.IndirectRead, PipelineStage.Transfer, MemoryAccess.TransferWrite );
-		r.List.FillBuffer( visibility.MeshletJobs, 0, 0, 16 );
+		// Header 0, 1, 1, 0, written without overlap so the fills need no barrier between them
+		r.List.FillBuffer( visibility.MeshletJobs, 0, 0, 4 );
 		r.List.FillBuffer( visibility.MeshletJobs, 1, 4, 8 );
+		r.List.FillBuffer( visibility.MeshletJobs, 0, 12, 4 );
 		r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 
 		// After the culling that listed them, in this list or the setup's: test and place, then copy
