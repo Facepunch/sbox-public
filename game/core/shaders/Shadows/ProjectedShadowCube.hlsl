@@ -118,11 +118,21 @@ struct ProjectedShadowCube
 		sideVector *= shadow.InvShadowMapRes * filterScale;
 		upVector *= shadow.InvShadowMapRes * filterScale;
 
-		int cubeFaceIndex = GetCubemapFace( lightDirectionN );
-		float4x4 shadowViewProj = shadow.ShadowViewProjectionMatrices[cubeFaceIndex];
+		// Transform the Light-relative position into shadow space (The light shadow view is pre-translated wrt the main view).
+		// The wave's faces one at a time, each wave-uniform, so the face's matrix is scalar: read per lane, its sixteen
+		// floats were a peak of the lit shaders' registers
+		int laneFace = GetCubemapFace( lightDirectionN );
+		float4 shadowPosition = 0.0f;
+		[loop]
+		for ( ;; )
+		{
+			int cubeFaceIndex = WaveReadLaneFirst( laneFace );
+			if ( cubeFaceIndex != laneFace )
+				continue;
 
-		// Transform the Light-relative position into shadow space (The light shadow view is pre-translated wrt the main view)
-		float4 shadowPosition = mul( float4( worldPosition, 1 ), shadowViewProj );
+			shadowPosition = mul( float4( worldPosition, 1 ), shadow.ShadowViewProjectionMatrices[cubeFaceIndex] );
+			break;
+		}
 
 		float compareDistance = shadowPosition.z / shadowPosition.w;
 
@@ -142,16 +152,22 @@ struct ProjectedShadowCube
 			uint nTaps = UserShadowFilterQuality == 1 ? 4 : UserShadowFilterQuality == 2 ? 6 : 8;
 			float flRadius = UserShadowFilterQuality == 1 ? 3.5355 : UserShadowFilterQuality == 2 ? 3.0209 : 2.8811;
 
+			// Two taps at a time, their fetches in flight together, the pairs a loop. Fully unrolled, the driver grouped
+			// every fetch with its coordinates, a peak of the lit shaders' registers
 			ShadowDisk disk = ShadowDisk::Start( 0.0, nTaps );
-			[unroll]
-			for ( uint i = 0; i < nTaps; ++i )
+			[loop]
+			for ( uint p = 0; p < nTaps; p += 2 )
 			{
-				float2 offset = disk.Next( i ) * flRadius;
-				float3 samplePos = lightDirectionN + sideVector * offset.x + upVector * offset.y;
-				shadowVisibility += shadowMapTextureCube.SampleCmpLevelZero(
-					ShadowDepthPCFSampler,
-					samplePos,
-					compareDistance );
+				[unroll]
+				for ( uint j = 0; j < 2; ++j )
+				{
+					float2 offset = disk.Next( p + j ) * flRadius;
+					float3 samplePos = lightDirectionN + sideVector * offset.x + upVector * offset.y;
+					shadowVisibility += shadowMapTextureCube.SampleCmpLevelZero(
+						ShadowDepthPCFSampler,
+						samplePos,
+						compareDistance );
+				}
 			}
 			shadowVisibility /= nTaps;
 		}
