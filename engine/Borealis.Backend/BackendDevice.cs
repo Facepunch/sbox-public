@@ -1564,8 +1564,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 }
 
 /// <summary>
-/// A <see cref="RenderHost"/> rendering through a <see cref="BackendDevice"/>, with the passes it can't run yet off:
-/// occlusion culling, contact shadows and async compute, which need engine compute shaders.
+/// A <see cref="RenderHost"/> rendering through a <see cref="BackendDevice"/>, with async compute off: it has one queue.
 /// </summary>
 public class BackendRenderHost( BackendDevice device ) : RenderHost
 {
@@ -1574,9 +1573,6 @@ public class BackendRenderHost( BackendDevice device ) : RenderHost
 
 	/// <inheritdoc/>
 	public override bool AsyncCompute => false;
-
-	/// <inheritdoc/>
-	public override bool ContactShadows => false;
 
 	/// <summary>
 	/// The debug views drawn into the frame (none by default): the labs' <c>-debug-views</c>.
