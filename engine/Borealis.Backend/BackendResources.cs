@@ -641,13 +641,13 @@ public sealed class BackendMesh : GpuMesh, IBackendGeometry
 		new( VertexSemantic.Tangent, 0, VertexFormat.Float4, 32 ),
 	] );
 
-	BackendMesh( BufferHandle vertices, BufferHandle indices, IndexFormat format, string name, PooledGeometry? pooled )
+	BackendMesh( BufferHandle vertices, BufferHandle indices, IndexFormat format, string name, PooledGeometry? pooled, VertexLayout layout = null )
 	{
 		Vertices = vertices;
 		Indices = indices;
 		IndexFormat = format;
 		this.name = name;
-		geometry = new DrawGeometry( vertices, 0, indices, 0, format, 0, Layout, UncompressedTangentFrame: true, pooled );
+		geometry = new DrawGeometry( vertices, 0, indices, 0, format, 0, layout ?? Layout, UncompressedTangentFrame: true, pooled );
 	}
 
 	DrawGeometry IBackendGeometry.For( int mesh, int drawCall ) => geometry;
@@ -704,6 +704,28 @@ public sealed class BackendMesh : GpuMesh, IBackendGeometry
 		var geometry = new BackendMesh( vertexBuffer, indexBuffer, IndexFormat.UInt32, name, pooled );
 		var draw = new RenderMesh.Draw( 0, 0, 0, indices.Length, data.Length, 0, material );
 		return new RenderMesh( geometry, new BBox( mins, maxs ), [[draw]] );
+	}
+
+	/// <summary>
+	/// A one-draw mesh of triangles from vertices of a layout of their own (<paramref name="layout"/>: uncompressed normals
+	/// and tangents, streams a shader reads by semantic) and 32-bit indices, drawn with <paramref name="material"/> within
+	/// <paramref name="bounds"/>: a mesh made in code that <see cref="MeshVertex"/> can't describe, such as a water body's
+	/// clipmap. It isn't kept in the GPU-driven pages.
+	/// </summary>
+	internal static RenderMesh Create<T>( BackendDevice device, ReadOnlySpan<T> vertices, VertexLayout layout, ReadOnlySpan<uint> indices, BBox bounds, GpuMaterial material, string name ) where T : unmanaged
+	{
+		ArgumentOutOfRangeException.ThrowIfZero( vertices.Length );
+		ArgumentOutOfRangeException.ThrowIfZero( indices.Length );
+
+		var gpu = device.Gpu;
+		var vertexBuffer = gpu.CreateBuffer( new BufferInfo { Size = vertices.Length * (long)Marshal.SizeOf<T>(), Usage = BufferUsage.Vertex, Name = $"{name} vertices" } );
+		var indexBuffer = gpu.CreateBuffer( new BufferInfo { Size = indices.Length * 4L, Usage = BufferUsage.Index, Name = $"{name} indices" } );
+		gpu.WriteBuffer( vertexBuffer, vertices );
+		gpu.WriteBuffer( indexBuffer, indices );
+
+		var geometry = new BackendMesh( vertexBuffer, indexBuffer, IndexFormat.UInt32, name, null, layout );
+		var draw = new RenderMesh.Draw( 0, 0, 0, indices.Length, vertices.Length, 0, material );
+		return new RenderMesh( geometry, bounds, [[draw]] );
 	}
 
 	/// <summary>

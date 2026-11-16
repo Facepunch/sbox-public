@@ -44,20 +44,35 @@ struct ClusterRange
     uint Item;      // The wave's current item
 };
 
+// The last cluster index a shader took, and where (Cluster::Index)
+static uint s_nClusterIndex = 0;
+static uint4 s_vClusterIndexPosition = 0;
+static bool s_bClusterIndexTaken = false;
+
 struct Cluster
 {
     static float SliceToDepth( float slice ) { return exp( ( slice - ClusterZParams.y ) / ClusterZParams.x ); }
     static float DepthToSlice( float depth ) { return ClusterZParams.x * log( depth ) + ClusterZParams.y; }
-    static uint Capacity( ClusterItemType type ) { return uint( ClusterCapacitiesVec[uint( type )] ); }
+    // A grid constant (a whole number below 2^24) as an integer, as uint( value ), from its bits with integer
+    // instructions: the float conversion is a vector instruction, and the compiler held its result in a vector register
+    // from the first query to the last
+    static uint Constant( float value )
+    {
+        uint bits = asuint( value );
+        uint exponent = ( bits >> 23 ) & 0xFF;
+        return exponent < 127 ? 0 : ( ( bits & 0x7FFFFF ) | 0x800000 ) >> ( 150 - exponent );
+    }
+
+    static uint Capacity( ClusterItemType type ) { return Constant( ClusterCapacitiesVec[uint( type )] ); }
 
     // Where a cluster's count of a type is in ClusterItemCounts: the type's section, then the cluster
-    static uint CountSlot( ClusterItemType type, uint flatIndex ) { return uint( type ) * uint( ClusterCounts.w ) + flatIndex; }
+    static uint CountSlot( ClusterItemType type, uint flatIndex ) { return uint( type ) * Constant( ClusterCounts.w ) + flatIndex; }
 
     // Where a cluster's items of a type start in ClusterItemIndices: the sections before the type's, then the
     // cluster's capacity-sized run
     static uint IndexBase( ClusterItemType type, uint flatIndex )
     {
-        uint total = uint( ClusterCounts.w );
+        uint total = Constant( ClusterCounts.w );
         uint section = 0;
         if ( type != ClusterItemType_Light ) section += total * Capacity( ClusterItemType_Light );
         if ( type == ClusterItemType_Decal ) section += total * Capacity( ClusterItemType_EnvMap );
@@ -70,9 +85,21 @@ struct Cluster
         return coord.x + d.x * ( coord.y + d.y * coord.z );
     }
 
-    // The flattened cluster a pixel falls in. A shader that queries more than one item type should take this once
-    // and pass it to each query: otherwise the pieces of the coordinate stay live from the first query to the last
+    // The flattened cluster a pixel falls in. A shader's later calls at the same position return the first call's index:
+    // otherwise the pieces of the coordinate stay live from the first query (decals) to the last
     static uint Index( float4 positionSs )
+    {
+        if ( s_bClusterIndexTaken && all( s_vClusterIndexPosition == asuint( positionSs ) ) )
+            return s_nClusterIndex;
+
+        uint index = ComputeIndex( positionSs );
+        s_bClusterIndexTaken = true;
+        s_vClusterIndexPosition = asuint( positionSs );
+        s_nClusterIndex = index;
+        return index;
+    }
+
+    static uint ComputeIndex( float4 positionSs )
     {
         // Snap positionSs to the top-left pixel of the 2x2 quad to avoid cluster divergence
         // Todo: Z still diverges within the quad and cant derive it without reading from neighbour lanes

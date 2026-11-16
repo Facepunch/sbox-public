@@ -126,7 +126,7 @@ public struct Eyeball : ILayeredSurface
 		m = l.Surface;
 
 		// The cornea and sclera, wrapped diffuse about the geometric normal, lit a tenth of a unit out along it
-		LightLayer cornea;
+		LightLayer cornea = {};
 		cornea.Normal = m.Normal;
 		cornea.DiffuseNormal = i.Normal;
 		cornea.Roughness = float2( 0.05, 0.05 );
