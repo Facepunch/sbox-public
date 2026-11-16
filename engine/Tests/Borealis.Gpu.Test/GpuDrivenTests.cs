@@ -1193,6 +1193,101 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// Resident static overlays (<see cref="BackendDevice.GpuDrivenResidentOverlays"/>): coplanar overlapping overlays of two
+	/// materials in render orders 0 and 1, and one out of view, draw from lists culled on the GPU with their order kept, so the
+	/// same overlay wins each pixel as when the view prepares them; render order 2's overlay with object attributes, which
+	/// would draw after its order's call anyway, draws after its list; render order 3, which holds an overlay with two LODs,
+	/// isn't listed and the view draws all of it; and a frame like the last makes no plan.
+	/// </summary>
+	[TestMethod]
+	public void ResidentOverlaysKeepTheirOrder()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Resident overlay test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 0;
+
+			// Boxes whose tops are coplanar and overlap, so which one wins a pixel is the order they draw in
+			RenderMesh[] meshes = [ObjectAttributeTests.BoxMesh( backend, backend.CreateMaterial( "Overlay red", new Color( 0.9f, 0.2f, 0.2f ) ) ), ObjectAttributeTests.BoxMesh( backend, backend.CreateMaterial( "Overlay green", new Color( 0.2f, 0.9f, 0.2f ) ) )];
+			var overlays = new List<MeshObject>();
+			for ( int i = 0; i < 12; i++ )
+			{
+				var overlay = new MeshObject( meshes[i % 3 == 0 ? 1 : 0], new Transform( new Vector3( i % 6 * 30 - 75, i / 6 * 40 - 20, 0 ) ) ) { LayerMatch = LayerMatch.StaticOverlay, RenderOrder = i / 6 };
+				world.Add( overlay );
+				overlays.Add( overlay );
+			}
+
+			// Out of view, between the others in their order
+			world.Add( new MeshObject( meshes[1], new Transform( new Vector3( 0, 3000, 0 ) ) ) { LayerMatch = LayerMatch.StaticOverlay } );
+
+			// Render order 2 holds one the GPU-driven path doesn't take, which draws after the list; render order 3 one with LODs,
+			// which isn't resident: the view draws that order itself
+			var attributes = backend.CreateParameters();
+			world.Add( new MeshObject( meshes[0], new Transform( new Vector3( 20, 60, 10 ) ) ) { LayerMatch = LayerMatch.StaticOverlay, RenderOrder = 2, Attributes = attributes } );
+			world.Add( new MeshObject( meshes[1], new Transform( new Vector3( -20, 60, 10 ) ) ) { LayerMatch = LayerMatch.StaticOverlay, RenderOrder = 2 } );
+			var draws = meshes[1].Draws.ToArray();
+			var twoLods = new RenderMesh( meshes[1].Geometry, meshes[1].Bounds, [draws, draws], [0, 3000] );
+			world.Add( new MeshObject( twoLods, new Transform( new Vector3( 40, -60, 20 ) ) ) { LayerMatch = LayerMatch.StaticOverlay, RenderOrder = 3 } );
+			world.Add( new MeshObject( meshes[0], new Transform( new Vector3( -40, -60, 20 ) ) ) { LayerMatch = LayerMatch.StaticOverlay, RenderOrder = 3 } );
+
+			var view = new RenderView { Name = "Resident overlays", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -250, -200, 350 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			byte[] Frame( bool resident )
+			{
+				backend.GpuDrivenResidentOverlays = resident;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			var aggregates = system.GetFeature<Borealis.Features.AggregateRenderFeature>();
+			var meshFeature = system.GetFeature<Borealis.Features.MeshRenderFeature>();
+			Frame( false );
+			var own = Frame( false );
+			byte[] resident = null;
+			for ( int i = 0; i < 4 && aggregates.ResidentOverlays( system.MainPass ) is not { Count: > 0 }; i++ ) resident = Frame( true );
+			resident = Frame( true );
+
+			var listed = aggregates.ResidentOverlays( system.MainPass );
+			CollectionAssert.AreEqual( new[] { 0, 1, 2 }, listed.Select( o => o.RenderOrder ).ToArray(), "render orders 0 to 2 are listed, 3 isn't" );
+			var orders = meshFeature.RunsFor( system.MainPass ).OverlayOrders;
+			CollectionAssert.AreEqual( new[] { 2, 3, 3 }, orders.ToArray(), "the view prepared render order 2's overlay with attributes and both of render order 3's" );
+			Assert.AreEqual( 0, Different( own, resident ), "resident overlays draw what the view's own do" );
+
+			var builds = backend.GpuDrivenPlanBuilds;
+			CollectionAssert.AreEqual( resident, Frame( true ), "and the next frame the same" );
+			Assert.AreEqual( builds, backend.GpuDrivenPlanBuilds, "a frame like the last makes no plan" );
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A depth-only bucket (its depth pass strips the pixel shader) that draws its ids with its variant's pixel shader has a
 	/// pixel material record for it: an alpha-tested generic material on boxes whose draws aren't flagged alpha-tested read
 	/// texture slots from record 0 there, another material's words, which lost the device. (Its ids pass alpha-tests where

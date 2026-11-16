@@ -21,6 +21,7 @@ internal static class Zones
 	public static readonly Zone ResidentCull = new( "Borealis Resident Cull", Color.Orange );
 	public static readonly Zone Record = new( "Borealis Record", Color.Red );
 	public static readonly Zone GpuDrivenDraw = new( "Borealis GPU-driven Draw", Color.Red );
+	public static readonly Zone OverlayDraw = new( "Borealis Overlay Draw", Color.Red );
 	public static readonly Zone Segment = new( "Borealis Segment", Color.Magenta );
 	public static readonly Zone RecordWait = new( "Borealis Record Wait", Color.Gray );
 	public static readonly Zone Submit = new( "Borealis Submit", Color.Blue );
