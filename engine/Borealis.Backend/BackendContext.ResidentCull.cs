@@ -73,9 +73,10 @@ internal sealed partial class BackendContext
 
 	/// <summary>
 	/// A view record: the six planes, camera and size threshold, flags (shadow and its resident filter, whether resident
-	/// meshes skip the size test, the filter's settled and restless stamps), LOD camera and LOD width (160 bytes).
+	/// meshes skip the size test, the filter's settled and restless stamps), LOD camera and LOD width, and how fragments
+	/// pick generated levels (<see cref="LodMode"/>) (160 bytes).
 	/// </summary>
-	static void WriteCullView( in GpuDrivenCull cull, Span<byte> bytes )
+	void WriteCullView( in GpuDrivenCull cull, Span<byte> bytes )
 	{
 		var view = MemoryMarshal.Cast<byte, float>( bytes[..CullViewBytes] );
 		Span<Vector4> planes = [cull.Left, cull.Right, cull.Bottom, cull.Top, cull.Near, cull.Far, cull.CameraAndThreshold];
@@ -98,7 +99,25 @@ internal sealed partial class BackendContext
 		view[35] = cull.LodCamera.w;
 		view[36] = cull.LodWidth;
 		viewWords[37] = cull.LodTexels ? 1u : 0u;
-		viewWords[38] = viewWords[39] = 0;
+		(viewWords[38], view[39]) = LodMode( cull );
+		System.Threading.Interlocked.Increment( ref device.LodModes[viewWords[38] & 3] );
+	}
+
+	/// <summary>
+	/// How a view's culls pick fragments' generated levels (<c>PickLod</c>): 0 not at all, 1 by distance, 2 by texels, 3 by
+	/// distance with each fragment's level kept in the view's slice (bits 8-15) of <see cref="Lods.LodStore.State"/>; and
+	/// the error's units: pixels per unit at distance 1, or texels per unit, over <see cref="BackendDevice.LodPixels"/>.
+	/// Every call of a view picks the same way, so its prepass and forward draw the same triangles.
+	/// </summary>
+	(uint Mode, float Scale) LodMode( in GpuDrivenCull cull )
+	{
+		if ( !cull.GeneratedLods || device.LodStore is null ) return (0, 0);
+		var limit = device.LodPixels;
+		if ( cull.LodTexels ) return cull.LodWidth > 0 ? (2u, cull.LodWidth / limit) : (0, 0);
+		if ( !(cull.LodCamera.w > 0) || !(cull.LodWidth > 0) ) return (0, 0);
+		var scale = cull.LodWidth * 0.5f / (cull.LodCamera.w * limit);
+		var slice = cull.View is not null && device.ExistingVisibility( cull.View ) is not null ? device.LodStore.SliceFor( cull.View ) : -1;
+		return (slice >= 0 ? 3u | (uint)slice << 8 : 1u, scale);
 	}
 
 	/// <summary>
@@ -369,6 +388,7 @@ internal sealed partial class BackendContext
 		}
 
 		var slots = tables.Slots;
+		var lodTable = device.LodStore?.Table ?? (-1, 0u);
 		residentConstants ??= new byte[Marshal.SizeOf<ResidentCullConstants>()];
 		MemoryMarshal.Write( residentConstants, new ResidentCullConstants
 		{
@@ -381,6 +401,8 @@ internal sealed partial class BackendContext
 			Frame = frame,
 			FrameSlot = (uint)slot,
 			MeshletRuns = device.MeshletStore is { } store ? (uint)store.RunSlot : uint.MaxValue,
+			LodTable = lodTable.Slot >= 0 ? (uint)lodTable.Slot : uint.MaxValue,
+			LodCount = lodTable.Records,
 		} );
 		DispatchResidentShader( shader, buffer, visibility?.Stamps ?? default, (int)entries );
 		device.CountResidentCull( residentItems.Count, group.Count, entries );
@@ -409,6 +431,7 @@ internal sealed partial class BackendContext
 
 	const string FrameAttribute = "BorealisCullFrame";
 	const string StampsAttribute = "BorealisCullStamps";
+	const string LevelsAttribute = "BorealisCullLevels";
 	const string ConstantsAttribute = "BorealisResidentCull_t";
 	ShaderFile residentShader;
 	ShaderVariant residentVariant;
@@ -424,6 +447,7 @@ internal sealed partial class BackendContext
 	{
 		cullDrawer ??= new ShaderDrawer( device );
 		residentAttributes ??= new ShaderAttributes();
+		var levels = device.LodStore?.State ?? default;
 		if ( !ReferenceEquals( residentShader, shader ) )
 		{
 			residentShader = shader;
@@ -438,6 +462,7 @@ internal sealed partial class BackendContext
 			residentAttributes.Clear();
 			residentAttributes.Set( FrameAttribute, frameBuffer );
 			if ( stamps.IsValid ) residentAttributes.Set( StampsAttribute, stamps );
+			if ( levels.IsValid ) residentAttributes.Set( LevelsAttribute, levels );
 			residentAttributes.SetData( ConstantsAttribute, residentConstants );
 			cullDrawer.Dispatch( recording.List, shader, residentAttributes, threads, 1, 1 );
 			return;
@@ -472,6 +497,7 @@ internal sealed partial class BackendContext
 				}
 				else if ( resource.Kind == ShaderResourceKind.Buffer && name == FrameAttribute ) bindings[count++] = Binding.Storage( resource.Binding, frameBuffer );
 				else if ( resource.Kind == ShaderResourceKind.Buffer && name == StampsAttribute && stamps.IsValid ) bindings[count++] = Binding.Storage( resource.Binding, stamps );
+				else if ( resource.Kind == ShaderResourceKind.Buffer && name == LevelsAttribute && levels.IsValid ) bindings[count++] = Binding.Storage( resource.Binding, levels );
 				else bindings[count++] = device.Defaults.For( resource );
 			}
 

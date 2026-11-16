@@ -42,6 +42,9 @@ CS
 	RWByteAddressBuffer g_Mask < Attribute( "BorealisCullMask" ); >;
 	RWByteAddressBuffer g_Compacted < Attribute( "BorealisCullCompacted" ); >;
 
+	// The module also keeps generated LODs' levels per view (borealis_gpu_driven_cull_cs.slang): declared here for its bindings
+	RWByteAddressBuffer g_Levels < Attribute( "BorealisCullLevels" ); >;
+
 	cbuffer BorealisGpuDrivenCull_t
 	{
 		uint g_nCullInput;			// byte offset of the view record, then a batch record each
@@ -54,12 +57,12 @@ CS
 		uint g_nCullRuns;			// byte offset of the multi-draws: first command slot and visible count each, or 0 to keep every slot
 		uint g_nCullFrame;			// this frame's stamp
 		uint g_nCullVisibility;		// bindless slot of each visibility fragment's first triangle bit
-		uint g_nCullPad0;			// the compacted indices' cursor is g_Compacted's first word (borealis_gpu_driven_compact_cs)
+		uint g_nCullLodTable;		// generated LODs are picked where the pass module runs
 		uint g_nCullCapacity;		// indices g_Compacted holds
 		uint g_nCullFragmentWords;	// g_Frame byte offset of instance 0's fragment word, for the id prepass (wraps)
 		uint g_nCullListed;			// byte offset of the fragments forward compacts: dispatch arguments, then 32 bytes each
 		uint g_nCullMeshletRuns;	// meshlets are culled where the pass module runs
-		uint g_nCullPad2;
+		uint g_nCullLodCount;
 	};
 
 	static const uint None = 0xffffffffu;
@@ -154,6 +157,10 @@ CS
 		uint nBatch = vGroupId.x;
 		if ( nBatch >= g_nCullBatches )
 			return;
+
+		// Never true (a slot or None): keeps the levels' binding, which the module uses
+		if ( g_nCullLodTable == 0xfffffffeu )
+			g_Levels.Store( 0, g_Levels.Load( 0 ) );
 
 		// View record (160 bytes): six planes, the camera and the squared size threshold, then whether it's a shadow view
 		float4 vPlanes[6];

@@ -435,6 +435,12 @@ internal abstract class GpuContext : IDisposable
 		public bool LodTexels;
 
 		/// <summary>
+		/// Whether aggregates draw at generated levels in this view, picked by error at <see cref="LodCamera"/> (a view that's
+		/// its own root, as the 3D skybox isn't) or, with <see cref="LodTexels"/>, by texels.
+		/// </summary>
+		public bool GeneratedLods;
+
+		/// <summary>
 		/// Which of its resident list's casters it keeps by when each last moved, against the stamps the far cascade's cache was
 		/// drawn at (<see cref="StampWord"/>, as <see cref="Shadows.SettledCasters.SettledBy"/> compares them). The view's own
 		/// batches are kept.

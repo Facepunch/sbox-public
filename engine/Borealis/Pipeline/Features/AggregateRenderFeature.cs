@@ -500,6 +500,7 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 			LodCamera = texels ? default : new Vector4( root.Position, MathF.Tan( root.FieldOfView.DegreeToRadian() * 0.5f ) ),
 			LodWidth = texels ? view.LodTexelsPerUnit : root.Viewport.Width,
 			LodTexels = texels,
+			GeneratedLods = texels || !view.IsShadow && !view.View.Capture && ReferenceEquals( view.View, root ),
 			Left = frustum.Plane( 0 ),
 			Right = frustum.Plane( 1 ),
 			Bottom = frustum.Plane( 2 ),

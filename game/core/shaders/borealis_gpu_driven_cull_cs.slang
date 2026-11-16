@@ -33,6 +33,9 @@ RWByteAddressBuffer g_Stamps < Attribute( "BorealisCullStamps" ); >;
 RWByteAddressBuffer g_Mask < Attribute( "BorealisCullMask" ); >;
 RWByteAddressBuffer g_Compacted < Attribute( "BorealisCullCompacted" ); >;
 
+// Generated LODs: the counters of level changes, then the levels views keep, a byte per visibility fragment
+RWByteAddressBuffer g_Levels < Attribute( "BorealisCullLevels" ); >;
+
 cbuffer BorealisGpuDrivenCull_t
 {
 	uint g_nCullInput;			// byte offset of the view record, then a batch record each
@@ -45,12 +48,12 @@ cbuffer BorealisGpuDrivenCull_t
 	uint g_nCullRuns;			// byte offset of the multi-draws: first command slot and visible count each, or 0 to keep every slot
 	uint g_nCullFrame;			// this frame's stamp
 	uint g_nCullVisibility;		// bindless slot of each visibility fragment's first triangle bit
-	uint g_nCullPad0;			// the compacted indices' cursor is g_Compacted's first word (borealis_gpu_driven_compact_cs)
+	uint g_nCullLodTable;		// bindless slot of the generated LOD table (128 bytes per draw record), or None
 	uint g_nCullCapacity;		// indices g_Compacted holds
 	uint g_nCullFragmentWords;	// g_Frame byte offset of instance 0's fragment word, for the id prepass (wraps)
 	uint g_nCullListed;			// byte offset of the fragments forward compacts: dispatch arguments, then 32 bytes each
 	uint g_nCullMeshletRuns;		// a prepass that culls meshlets: bindless slot of the meshlet runs (16 bytes per draw record); else None
-	uint g_nCullPad2;
+	uint g_nCullLodCount;		// draw records the LOD table covers
 };
 
 static const uint None = 0xffffffffu;
@@ -106,6 +109,96 @@ bool TakesMoved( uint nFilter, uint nMoved, uint nSettled, uint nRestless )
 	if ( nFilter == 2 )
 		return !bStatic && bSettled;
 	return !bStatic && !bSettled;
+}
+
+// Generated LODs (Borealis.Backend/Lods/LodStore.cs, docs/managed/borealis-gpu-driven.md "Generated LODs"). A draw record's LOD
+// record, 128 bytes in the LOD table: its level count, a word unused and each level's error (a fraction of the fragment's
+// bounds' half diagonal); then 16 bytes per level: first index, index count, draw record and a word unused
+static const float LodHysteresis = 0.75;
+static const uint LodStateHeader = 64;
+static const uint LodSliceFragments = 524288;
+
+// The coarsest level whose error, in the view's units, is at most flLimit (level 0 has none)
+uint LodUnder( float flLimit, float flUnits, uint nLevels, float4 vErrors, float2 vMore )
+{
+	uint nLevel = 0;
+	nLevel = nLevels > 0 && vErrors.x * flUnits <= flLimit ? 1 : nLevel;
+	nLevel = nLevels > 1 && vErrors.y * flUnits <= flLimit ? 2 : nLevel;
+	nLevel = nLevels > 2 && vErrors.z * flUnits <= flLimit ? 3 : nLevel;
+	nLevel = nLevels > 3 && vErrors.w * flUnits <= flLimit ? 4 : nLevel;
+	nLevel = nLevels > 4 && vMore.x * flUnits <= flLimit ? 5 : nLevel;
+	nLevel = nLevels > 5 && vMore.y * flUnits <= flLimit ? 6 : nLevel;
+	return nLevel;
+}
+
+// A fragment's level in a view, by the view's LOD mode (view record word 38: 0 none, 1 by distance, 2 by texels, 3 by
+// distance with the level kept per visibility fragment, its view's slice in bits 8-15) and units (word 39: pixels per unit at
+// distance 1, or texels per unit, over the limit). Mode 1 takes the coarsest level under LodHysteresis of the limit. Mode 3
+// keeps a fragment's level until its error goes over the limit, and goes coarser only to a level under LodHysteresis of it,
+// so a still camera changes none and a slowly moving one changes each once; the prepass and forward of a view read and
+// write the same byte, and every call picks the same (picking again from what one wrote changes nothing)
+uint PickLod( uint nMode, float flScale, float3 vEye, float3 vCenter, float3 vExtents, uint nLevels, float4 vErrors, float2 vMore, uint nFragment )
+{
+	uint nKind = nMode & 0xff;
+	if ( nKind == 0 || nLevels == 0 )
+		return 0;
+
+	// The error's units: per unit of error, pixels at the bounds' nearest point (never inside them), or texels
+	float flUnits = length( vExtents ) * flScale;
+	if ( nKind == 2 )
+		return LodUnder( 1.0, flUnits, nLevels, vErrors, vMore );
+
+	float flDistance = length( max( abs( vCenter - vEye ) - vExtents, 0.0 ) );
+	if ( !( flDistance > 0 ) )
+		return 0;
+	flUnits /= flDistance;
+	uint nFresh = LodUnder( LodHysteresis, flUnits, nLevels, vErrors, vMore );
+	if ( nKind != 3 || nFragment >= LodSliceFragments )
+		return nFresh;
+
+	// The level kept: a byte per fragment (bits 0-3 the level, 4 its last change was to a coarser one, 5 it has changed)
+	uint nAddress = LodStateHeader + ( nMode >> 8 ) * LodSliceFragments + nFragment;
+	uint nWordAt = nAddress & ~3u;
+	uint nShift = ( nAddress & 3u ) * 8;
+	uint nWord = g_Levels.Load( nWordAt );
+	uint nState = ( nWord >> nShift ) & 0xff;
+	uint nKept = min( nState & 15, nLevels );
+	float flKept = 0;
+	flKept = nKept == 1 ? vErrors.x : flKept;
+	flKept = nKept == 2 ? vErrors.y : flKept;
+	flKept = nKept == 3 ? vErrors.z : flKept;
+	flKept = nKept == 4 ? vErrors.w : flKept;
+	flKept = nKept == 5 ? vMore.x : flKept;
+	flKept = nKept == 6 ? vMore.y : flKept;
+	uint nLevel = flKept * flUnits > 1.0 ? LodUnder( 1.0, flUnits, nLevels, vErrors, vMore ) : max( nKept, nFresh );
+	if ( nLevel == ( nState & 15 ) )
+		return nLevel;
+
+	// Changed: written with a compare-exchange (the word's other bytes are other fragments'), and counted for the shimmer check
+	bool bCoarser = nLevel > ( nState & 15 );
+	uint nNew = nLevel | ( bCoarser ? 16u : 0u ) | 32u;
+	bool bReversal = ( nState & 32 ) != 0 && ( ( nState & 16 ) != 0 ) != bCoarser;
+	for ( uint nTry = 0; nTry < 16; nTry++ )
+	{
+		uint nOriginal;
+		g_Levels.InterlockedCompareExchange( nWordAt, nWord, ( nWord & ~( 0xffu << nShift ) ) | ( nNew << nShift ), nOriginal );
+		if ( nOriginal == nWord )
+		{
+			uint nCount;
+			g_Levels.InterlockedAdd( 0, 1, nCount );
+			if ( bReversal )
+				g_Levels.InterlockedAdd( 4, 1, nCount );
+			g_Levels.InterlockedAdd( bCoarser ? 8 : 12, 1, nCount );
+			break;
+		}
+
+		// Another fragment's byte changed under it, or another call wrote this one's level first
+		nWord = nOriginal;
+		if ( ( ( nWord >> nShift ) & 15 ) == nLevel )
+			break;
+	}
+
+	return nLevel;
 }
 
 // One index of a draw, from its index page (16 or 32 bits)
@@ -261,6 +354,18 @@ uint TakeSlot( uint nRun )
 
 				nTransform = vBatch.z + ( b.w & 0x7fffffffu );
 				nDrawRecord = a.w;
+
+				// Its generated level in this view (view words 38 and 39): that level's draw record from here on
+				if ( bVisible && g_nCullLodTable != None && nDrawRecord < g_nCullLodCount )
+				{
+					ByteAddressBuffer lods = g_bindless_VertexBuffers[ g_nCullLodTable ];
+					uint4 h0 = lods.Load4( nDrawRecord * 128 );
+					uint4 h1 = lods.Load4( nDrawRecord * 128 + 16 );
+					uint nLevels = min( h0.x, 6u );
+					uint nLevel = PickLod( vLod.z, asfloat( vLod.w ), vLodCamera.xyz, vCenter, vExtents, nLevels, asfloat( uint4( h0.zw, h1.xy ) ), asfloat( h1.zw ), vVisibility.x != None ? vVisibility.x + i : None );
+					if ( nLevel > 0 )
+						nDrawRecord = lods.Load( nDrawRecord * 128 + 32 + ( nLevel - 1 ) * 16 + 8 );
+				}
 			}
 
 			if ( nFilter != 0 && vVisibility.y != None && !TakesMoved( nFilter, g_Frame.Load( vVisibility.y + i * 4 ), vViewFlags.z, vViewFlags.w ) )

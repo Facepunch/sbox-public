@@ -32,6 +32,9 @@ RWByteAddressBuffer g_Frame < Attribute( "BorealisCullFrame" ); >;
 // forward view in the next dispatch
 RWByteAddressBuffer g_Stamps < Attribute( "BorealisCullStamps" ); >;
 
+// Generated LODs: the counters of level changes, then the levels views keep, a byte per visibility fragment
+RWByteAddressBuffer g_Levels < Attribute( "BorealisCullLevels" ); >;
+
 cbuffer BorealisResidentCull_t
 {
 	uint g_nResidentItems;		// byte offset of the items, 32 bytes each (ResidentCullItem)
@@ -46,6 +49,10 @@ cbuffer BorealisResidentCull_t
 	uint g_nResidentExpandMap;	// its entry map
 	uint g_nResidentExpandHeaders;	// its batches' headers
 	uint g_nResidentMeshletRuns;	// bindless slot of the meshlet runs (16 bytes per draw record), or None
+	uint g_nResidentLodTable;		// bindless slot of the generated LOD table (128 bytes per draw record), or None
+	uint g_nResidentLodCount;		// draw records the LOD table covers
+	uint g_nResidentPad0;
+	uint g_nResidentPad1;
 };
 
 static const uint None = 0xffffffffu;
@@ -101,6 +108,96 @@ uint MeshLod( uint4 vHeader0, uint4 vHeader1, float3 vCenter, float flScale, flo
 	}
 
 	return min( nLod, nLods - 1 );
+}
+
+// Generated LODs (Borealis.Backend/Lods/LodStore.cs, docs/managed/borealis-gpu-driven.md "Generated LODs"). A draw record's LOD
+// record, 128 bytes in the LOD table: its level count, a word unused and each level's error (a fraction of the fragment's
+// bounds' half diagonal); then 16 bytes per level: first index, index count, draw record and a word unused
+static const float LodHysteresis = 0.75;
+static const uint LodStateHeader = 64;
+static const uint LodSliceFragments = 524288;
+
+// The coarsest level whose error, in the view's units, is at most flLimit (level 0 has none)
+uint LodUnder( float flLimit, float flUnits, uint nLevels, float4 vErrors, float2 vMore )
+{
+	uint nLevel = 0;
+	nLevel = nLevels > 0 && vErrors.x * flUnits <= flLimit ? 1 : nLevel;
+	nLevel = nLevels > 1 && vErrors.y * flUnits <= flLimit ? 2 : nLevel;
+	nLevel = nLevels > 2 && vErrors.z * flUnits <= flLimit ? 3 : nLevel;
+	nLevel = nLevels > 3 && vErrors.w * flUnits <= flLimit ? 4 : nLevel;
+	nLevel = nLevels > 4 && vMore.x * flUnits <= flLimit ? 5 : nLevel;
+	nLevel = nLevels > 5 && vMore.y * flUnits <= flLimit ? 6 : nLevel;
+	return nLevel;
+}
+
+// A fragment's level in a view, by the view's LOD mode (view record word 38: 0 none, 1 by distance, 2 by texels, 3 by
+// distance with the level kept per visibility fragment, its view's slice in bits 8-15) and units (word 39: pixels per unit at
+// distance 1, or texels per unit, over the limit). Mode 1 takes the coarsest level under LodHysteresis of the limit. Mode 3
+// keeps a fragment's level until its error goes over the limit, and goes coarser only to a level under LodHysteresis of it,
+// so a still camera changes none and a slowly moving one changes each once; the prepass and forward of a view read and
+// write the same byte, and every call picks the same (picking again from what one wrote changes nothing)
+uint PickLod( uint nMode, float flScale, float3 vEye, float3 vCenter, float3 vExtents, uint nLevels, float4 vErrors, float2 vMore, uint nFragment )
+{
+	uint nKind = nMode & 0xff;
+	if ( nKind == 0 || nLevels == 0 )
+		return 0;
+
+	// The error's units: per unit of error, pixels at the bounds' nearest point (never inside them), or texels
+	float flUnits = length( vExtents ) * flScale;
+	if ( nKind == 2 )
+		return LodUnder( 1.0, flUnits, nLevels, vErrors, vMore );
+
+	float flDistance = length( max( abs( vCenter - vEye ) - vExtents, 0.0 ) );
+	if ( !( flDistance > 0 ) )
+		return 0;
+	flUnits /= flDistance;
+	uint nFresh = LodUnder( LodHysteresis, flUnits, nLevels, vErrors, vMore );
+	if ( nKind != 3 || nFragment >= LodSliceFragments )
+		return nFresh;
+
+	// The level kept: a byte per fragment (bits 0-3 the level, 4 its last change was to a coarser one, 5 it has changed)
+	uint nAddress = LodStateHeader + ( nMode >> 8 ) * LodSliceFragments + nFragment;
+	uint nWordAt = nAddress & ~3u;
+	uint nShift = ( nAddress & 3u ) * 8;
+	uint nWord = g_Levels.Load( nWordAt );
+	uint nState = ( nWord >> nShift ) & 0xff;
+	uint nKept = min( nState & 15, nLevels );
+	float flKept = 0;
+	flKept = nKept == 1 ? vErrors.x : flKept;
+	flKept = nKept == 2 ? vErrors.y : flKept;
+	flKept = nKept == 3 ? vErrors.z : flKept;
+	flKept = nKept == 4 ? vErrors.w : flKept;
+	flKept = nKept == 5 ? vMore.x : flKept;
+	flKept = nKept == 6 ? vMore.y : flKept;
+	uint nLevel = flKept * flUnits > 1.0 ? LodUnder( 1.0, flUnits, nLevels, vErrors, vMore ) : max( nKept, nFresh );
+	if ( nLevel == ( nState & 15 ) )
+		return nLevel;
+
+	// Changed: written with a compare-exchange (the word's other bytes are other fragments'), and counted for the shimmer check
+	bool bCoarser = nLevel > ( nState & 15 );
+	uint nNew = nLevel | ( bCoarser ? 16u : 0u ) | 32u;
+	bool bReversal = ( nState & 32 ) != 0 && ( ( nState & 16 ) != 0 ) != bCoarser;
+	for ( uint nTry = 0; nTry < 16; nTry++ )
+	{
+		uint nOriginal;
+		g_Levels.InterlockedCompareExchange( nWordAt, nWord, ( nWord & ~( 0xffu << nShift ) ) | ( nNew << nShift ), nOriginal );
+		if ( nOriginal == nWord )
+		{
+			uint nCount;
+			g_Levels.InterlockedAdd( 0, 1, nCount );
+			if ( bReversal )
+				g_Levels.InterlockedAdd( 4, 1, nCount );
+			g_Levels.InterlockedAdd( bCoarser ? 8 : 12, 1, nCount );
+			break;
+		}
+
+		// Another fragment's byte changed under it, or another call wrote this one's level first
+		nWord = nOriginal;
+		if ( ( ( nWord >> nShift ) & 15 ) == nLevel )
+			break;
+	}
+
+	return nLevel;
 }
 
 // A lane's place in what a counter at nCounter (the same for the whole wave) counts: one atomic a wave instead of one a
@@ -292,6 +389,21 @@ void Expand( uint n )
 	uint nVertexBase = vVisibility.w != None ? vVisibility.w + i * nStride : None;
 	float flRadiusSquared = dot( vExtents, vExtents );
 
+	// A fragment's generated levels (resident meshes have their own LODs), read once for every view
+	uint nLevels = 0;
+	float4 vLodErrors = 0;
+	float2 vLodMore = 0;
+	uint nLodAt = nDrawRecord * 128;
+	if ( bActive && !bMeshes && g_nResidentLodTable != None && nDrawRecord < g_nResidentLodCount )
+	{
+		ByteAddressBuffer lods = g_bindless_VertexBuffers[ g_nResidentLodTable ];
+		uint4 h0 = lods.Load4( nLodAt );
+		uint4 h1 = lods.Load4( nLodAt + 16 );
+		nLevels = min( h0.x, 6u );
+		vLodErrors = asfloat( uint4( h0.zw, h1.xy ) );
+		vLodMore = asfloat( h1.zw );
+	}
+
 	// Each view in turn, the same for the whole group: its 32-byte record (view record, instance records, commands,
 	// multi-draws; first instance, fragment words, listed fragments, flags), then the 160-byte view record (six planes, the
 	// camera and squared size threshold, whether it's a shadow view (bit 0) and its resident filter (bits 1-2), whether
@@ -333,6 +445,21 @@ void Expand( uint n )
 			bKept = MeshLod( vHeader0, vHeader1, vCenter, flLodScale, vLodCamera, asfloat( vLod.x ), vLod.y != 0 ) == nBatchLod;
 		}
 
+		// A fragment's generated level in this view (view words 38 and 39): its draw record and range from here on
+		uint nViewDraw = nDrawRecord;
+		uint2 vViewRange = vDraw.xy;
+		if ( bKept && nLevels > 0 )
+		{
+			uint4 vLodView = frame.Load4( vView.x + 144 );
+			uint nLevel = PickLod( vLodView.z, asfloat( vLodView.w ), asfloat( frame.Load4( vView.x + 128 ) ).xyz, vCenter, vExtents, nLevels, vLodErrors, vLodMore, nFragment );
+			if ( nLevel > 0 )
+			{
+				uint4 vLevel = g_bindless_VertexBuffers[ g_nResidentLodTable ].Load4( nLodAt + 32 + ( nLevel - 1 ) * 16 );
+				nViewDraw = vLevel.z;
+				vViewRange = vLevel.xy;
+			}
+		}
+
 		// Forward over a fragment its prepass view draws ids for this frame: listed for the compaction pass. The prepass
 		// keeps it as this view does; a view whose flags say so knows from the entry that it draws ids for it, and the rest
 		// read the stamps the prepass's culling wrote in an earlier dispatch
@@ -345,7 +472,7 @@ void Expand( uint n )
 		// A prepass that culls meshlets (view flag 4): a fragment of an ids bucket whose draw has meshlets is listed for the
 		// meshlet pass, which draws those that can reach a sample (borealis_meshlet_cull_cs); its stamp is written here
 		bool bMeshlets = bKept && !bListed && ( vViewOut.w & 4 ) != 0 && ( vVisibility.z & 1 ) != 0 && g_nResidentMeshletRuns != None
-			&& g_bindless_VertexBuffers[ g_nResidentMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u;
+			&& g_bindless_VertexBuffers[ g_nResidentMeshletRuns ].Load( nViewDraw * 16 + 8 ) - 1 < 4096u;
 
 		// In a bucket drawn with task and mesh shaders (the sixth word's top bit), it takes a slot of the bucket's task run
 		// instead, a task group of borealis_meshlet_ids each
@@ -357,7 +484,7 @@ void Expand( uint n )
 		{
 			uint nListed = vViewOut.z + 16 + nAt * 32;
 			g_Frame.Store( nListed, nTransform );
-			g_Frame.Store( nListed + 4, nDrawRecord );
+			g_Frame.Store( nListed + 4, nViewDraw );
 			g_Frame.Store( nListed + 8, bMeshlets ? ( nFragment != None ? nVertexBase : None ) : nVertexBase + vDraw.z );
 			g_Frame.Store( nListed + 12, vBatch.w );
 			g_Frame.Store( nListed + 16, vVisibility.y );
@@ -376,7 +503,7 @@ void Expand( uint n )
 		uint nSlot = WaveTakeSlot( bDrawn || bTask, vView.w, bTask ? vVisibility.y & ~TaskRun : vBatch.w, frame );
 		if ( bTask )
 		{
-			g_Frame.Store2( vView.y + nSlot * 8, uint2( nTransform, nDrawRecord ) );
+			g_Frame.Store2( vView.y + nSlot * 8, uint2( nTransform, nViewDraw ) );
 			g_Frame.Store( vViewOut.y + ( vViewOut.x + nSlot ) * 4, nFragment != None ? nVertexBase : None );
 			g_Frame.Store( vView.z + nSlot * 20, nFragment );
 		}
@@ -384,12 +511,12 @@ void Expand( uint n )
 		if ( bDrawn )
 		{
 			g_Frame.Store( vView.y + nSlot * 8, nTransform );
-			g_Frame.Store( vView.y + nSlot * 8 + 4, nDrawRecord );
+			g_Frame.Store( vView.y + nSlot * 8 + 4, nViewDraw );
 
 			uint nCommand = vView.z + nSlot * 20;
-			g_Frame.Store( nCommand, vDraw.y );
+			g_Frame.Store( nCommand, vViewRange.y );
 			g_Frame.Store( nCommand + 4, 1 );
-			g_Frame.Store( nCommand + 8, vDraw.x );
+			g_Frame.Store( nCommand + 8, vViewRange.x );
 			g_Frame.Store( nCommand + 12, vDraw.z );
 			g_Frame.Store( nCommand + 16, vViewOut.x + nSlot );
 
