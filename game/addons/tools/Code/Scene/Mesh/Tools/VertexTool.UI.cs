@@ -108,7 +108,7 @@ partial class VertexTool
 					var row = new Widget { Layout = Layout.Row() };
 					row.Layout.Spacing = 4;
 
-					_connectButton = CreateButton( "Connect", "meshtools/vertex_tools/connect.png", "mesh.connect", Connect, true, row.Layout );
+					_connectButton = CreateButton( "Connect Vertex Path", "meshtools/vertex_tools/connect.png", "mesh.connect", Connect, true, row.Layout );
 					_connectToolTip = _connectButton.ToolTip;
 					RefreshConnectButton();
 
@@ -144,10 +144,6 @@ partial class VertexTool
 			_distanceControl?.Enabled = _tool.MergeRangeMode == MergeRange.Fixed;
 		}
 
-		/// <summary>
-		/// The sidebar is only rebuilt when the tool or the selection changes, so operations that edit a
-		/// mesh without touching the selection have to re-check the connect button themselves.
-		/// </summary>
 		private void RefreshConnectButton()
 		{
 			if ( !_connectButton.IsValid() )
@@ -192,19 +188,19 @@ partial class VertexTool
 		{
 			using var scope = SceneEditorSession.Scope();
 
-			var pairs = BuildConnectPairs();
-			if ( pairs.Count == 0 )
+			var paths = BuildConnectPaths();
+			if ( paths.Count == 0 )
 				return;
 
-			using ( SceneEditorSession.Active.UndoScope( "Connect Vertices" )
+			using ( SceneEditorSession.Active.UndoScope( "Connect Vertex Path" )
 				.WithComponentChanges( _components )
 				.Push() )
 			{
 				var changed = new HashSet<PolygonMesh>();
 
-				foreach ( var (mesh, hVertexA, hVertexB) in pairs )
+				foreach ( var (mesh, vertices) in paths )
 				{
-					if ( mesh.ConnectVertices( hVertexA, hVertexB, out _ ) )
+					if ( mesh.ConnectVertexPath( vertices ) )
 						changed.Add( mesh );
 				}
 
@@ -215,51 +211,21 @@ partial class VertexTool
 			RefreshConnectButton();
 		}
 
-		/// <summary>
-		/// For every selected vertex, pair it with the next selected vertex found walking around each
-		/// face it belongs to. These are the edges a connect would try to create.
-		/// </summary>
-		private List<(PolygonMesh Mesh, VertexHandle A, VertexHandle B)> BuildConnectPairs()
+		private List<(PolygonMesh Mesh, VertexHandle[] Vertices)> BuildConnectPaths()
 		{
-			var pairs = new List<(PolygonMesh, VertexHandle, VertexHandle)>();
+			var paths = new List<(PolygonMesh, VertexHandle[])>();
 
 			foreach ( var group in _vertexGroups )
 			{
 				if ( !group.Key.IsValid() )
 					continue;
 
-				var mesh = group.Key.Mesh;
-
-				// Handles are only meaningful within their own mesh, so match against this group alone.
-				var selected = group.Select( x => x.Handle ).ToHashSet();
-
-				foreach ( var hVertex in group )
-				{
-					if ( !mesh.GetFacesConnectedToVertex( hVertex.Handle, out var connectedFaces ) )
-						continue;
-
-					foreach ( var hFace in connectedFaces )
-					{
-						var hFaceVertex = mesh.FindFaceVertexConnectedToVertex( hVertex.Handle, hFace );
-						var hNextFaceVertex = mesh.GetNextVertexInFace( hFaceVertex );
-
-						while ( hNextFaceVertex != hFaceVertex )
-						{
-							var hNextVertex = mesh.GetVertexConnectedToFaceVertex( hNextFaceVertex );
-
-							if ( selected.Contains( hNextVertex ) )
-							{
-								pairs.Add( (mesh, hVertex.Handle, hNextVertex) );
-								break;
-							}
-
-							hNextFaceVertex = mesh.GetNextVertexInFace( hNextFaceVertex );
-						}
-					}
-				}
+				var vertices = group.Select( vertex => vertex.Handle ).ToArray();
+				if ( vertices.Length > 1 )
+					paths.Add( (group.Key.Mesh, vertices) );
 			}
 
-			return pairs;
+			return paths;
 		}
 
 		/// <summary>
@@ -270,17 +236,16 @@ partial class VertexTool
 			if ( _vertices.Length < 2 )
 				return "Select at least two vertices.";
 
-			var pairs = BuildConnectPairs();
-			if ( pairs.Count == 0 )
-				return DescribeConnectFailure( PolygonMesh.ConnectVerticesResult.NoSharedFace );
+			var paths = BuildConnectPaths();
+			if ( paths.Count == 0 )
+				return "Select at least two vertices on the same mesh.";
 
 			var failure = PolygonMesh.ConnectVerticesResult.Success;
 
-			foreach ( var (mesh, hVertexA, hVertexB) in pairs )
+			foreach ( var (mesh, vertices) in paths )
 			{
-				var result = mesh.CanConnectVertices( hVertexA, hVertexB );
+				var result = mesh.CanConnectVertexPath( vertices );
 
-				// Connect is happy as long as a single pair works.
 				if ( result == PolygonMesh.ConnectVerticesResult.Success )
 					return null;
 
@@ -293,9 +258,9 @@ partial class VertexTool
 
 		private static string DescribeConnectFailure( PolygonMesh.ConnectVerticesResult result ) => result switch
 		{
-			PolygonMesh.ConnectVerticesResult.AlreadyConnected => "The selected vertices are already connected by an edge.",
+			PolygonMesh.ConnectVerticesResult.AlreadyConnected => "The selected vertices are already connected by a path.",
 			PolygonMesh.ConnectVerticesResult.BothVerticesInternal => "Both vertices are inside a face. At least one of them has to be on the edge of a face.",
-			PolygonMesh.ConnectVerticesResult.NoSharedFace => "The selected vertices aren't on the same face, so there's no face to split. Connecting them would leave an edge with no face attached.",
+			PolygonMesh.ConnectVerticesResult.NoSharedFace => "There isn't a continuous face path between the selected vertices.",
 			PolygonMesh.ConnectVerticesResult.OutsideFace => "The new edge would fall outside the face. This happens when a face is concave.",
 			_ => "The selected vertices can't be connected.",
 		};
