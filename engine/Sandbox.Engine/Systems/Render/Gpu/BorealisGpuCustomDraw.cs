@@ -25,35 +25,47 @@ internal static class BorealisGpuCustomDraw
 	/// <summary>
 	/// Run <paramref name="draw"/> (a custom object's <c>RenderSceneObject</c>) into the list <paramref name="context"/> is
 	/// recording, on what it has bound, as <paramref name="layerType"/> from <paramref name="camera"/>. False when there's
-	/// nothing to draw into: no Borealis.Gpu backend, no colour target, or no view constants. Not in a view rendered while
+	/// nothing to draw into: no Borealis.Gpu backend, no target, or no view constants. Not in a view rendered while
 	/// the engine draws in another frame (a water body's refraction, from its command list): the graphics context is that
 	/// frame's.
 	/// </summary>
-	public static bool Draw( GpuContext context, SceneLayerType layerType, RenderView camera, Action draw )
+	/// <remarks>
+	/// With depth bound alone (a shadow map's slice, the depth prepass) it draws into that depth, its materials in
+	/// <paramref name="shaderMode"/> (those without it don't draw, as native skips them) with the rasterizer depth bias
+	/// <paramref name="depthBias"/> and <paramref name="slopeScaledDepthBias"/>, as native's shadow layers draw custom objects.
+	/// </remarks>
+	public static bool Draw( GpuContext context, SceneLayerType layerType, RenderView camera, Action draw, StringToken shaderMode = default, int depthBias = 0, float slopeScaledDepthBias = 0 )
 	{
 		ThreadSafe.AssertIsMainThread();
 		if ( !Enabled || Graphics.IsActive ) return false;
 		if ( RenderBackend.Default is not BorealisGpuRenderBackend backend || context is not BackendContext ) return false;
 
 		var target = context.Bound;
-		if ( target.Color is null || (target.Attributes as BackendParameters)?.Get( ViewConstantsName ) is not byte[] constants ) return false;
+		var depthAlone = target.Color is null;
+		if ( depthAlone && target.Depth is null ) return false;
+		if ( (target.Attributes as BackendParameters)?.Get( ViewConstantsName ) is not byte[] constants ) return false;
 
 		frame ??= new BorealisGpuFrame( backend );
 		view ??= new BorealisGpuView( backend );
 		view.LayerType = layerType;
+		view.ShaderMode = shaderMode;
 		var viewport = target.Viewport;
 		var aspect = viewport.Height > 0 ? viewport.Width / viewport.Height : 1;
 		view.SetCamera( camera.Position, camera.Rotation, camera.FieldOfView, camera.ZNear, camera.ZFar, aspect, camera.Orthographic, camera.OrthoSize );
 		// The object's transform, as its run bound it (MeshRenderFeature binds instance ids before a custom object renders)
 		var (transforms, ids, offset) = ((BackendContext)context).LentInstances;
 		backend.LendInstances( transforms, ids, offset );
+		backend.DrawMode = shaderMode.Value == 0 ? null : StringToken.GetValue( shaderMode.Value );
+		backend.DepthBias = depthAlone ? (depthBias, slopeScaledDepthBias) : default;
 		try
 		{
-			frame.RunInFrame( target, constants, view, first: false, draw );
+			frame.RunInFrame( target, constants, view, first: false, draw, depthAlone );
 		}
 		finally
 		{
 			backend.LendInstances( default, default, 0 );
+			backend.DrawMode = null;
+			backend.DepthBias = default;
 		}
 
 		context.RestoreBound();
