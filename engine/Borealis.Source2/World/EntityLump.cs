@@ -94,11 +94,11 @@ public sealed class MapEntity
 	public int Int( string key, int fallback = 0 ) => this[key] switch
 	{
 		int i => i,
-		uint u => unchecked( (int)u ),
-		long l => unchecked( (int)l ),
-		ulong ul => unchecked( (int)ul ),
+		uint u => unchecked((int)u),
+		long l => unchecked((int)l),
+		ulong ul => unchecked((int)ul),
 		double d => (int)d,
-		string s when long.TryParse( s, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var l ) => unchecked( (int)l ),
+		string s when long.TryParse( s, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var l ) => unchecked((int)l),
 		null => fallback,
 		_ => (int)Float( key, fallback ),
 	};
