@@ -1,5 +1,6 @@
 // screen_space_reflections_classify_cs.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules"). Roughness is the opaque pass's from last
+// frame (common/classes/ForwardNormals.hlsl), as Borealis draws no depth-normals prepass.
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "";
@@ -15,12 +16,13 @@
 #include "system.fxc" // This should always be the first include in COMMON
 #include "common.fxc"
 
+// Whether the opaque pass's normals target (common/classes/ForwardNormals.hlsl) is multisampled, as the view
 DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( PC ) );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
     #include "math_general.fxc"
-    #include "common/classes/Normals.hlsl"
+    #include "common/classes/ForwardNormals.hlsl"
 
     static const uint TILE_COORD_MASK = 0xFFFFu;
     static const uint TILE_COORD_SHIFT = 16u;

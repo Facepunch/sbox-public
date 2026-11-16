@@ -40,6 +40,13 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 	/// <summary>The layer of <see cref="Target"/>'s depth drawn to, when it has no colour: a shadow map's slice.</summary>
 	public int DepthSlice;
 
+	/// <summary>
+	/// What a block on the view reports as its multisampling (<see cref="Graphics.IdealMsaaLevel"/>, the MSAA combos command
+	/// lists ask for): none, as a block draws into resolved targets, except where a stage reads the frame's multisampled
+	/// targets (screen-space reflections' trace, the opaque pass's normals).
+	/// </summary>
+	public MultisampleAmount Msaa = MultisampleAmount.MultisampleNone;
+
 	/// <summary>The camera, as the view's frustum: set it up with <see cref="SetCamera(SceneCamera, Vector2)"/>.</summary>
 	public CFrustum Frustum { get; } = CFrustum.Create();
 

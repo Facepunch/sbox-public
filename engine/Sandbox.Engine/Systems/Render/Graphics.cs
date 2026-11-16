@@ -309,8 +309,8 @@ public static partial class Graphics
 
 				var managed = backend.BeginBlock();
 				var block = new Scope { _previous = _state, standalone = true, _attributes = managed, _backend = backend };
-				// Its targets are single-sampled (a Borealis.Gpu frame hands over its resolved colour)
-				_state = new RenderState { active = true, attributes = managed, backend = backend, msaaLevel = MultisampleAmount.MultisampleNone };
+				// Its targets are single-sampled (a Borealis.Gpu frame hands over its resolved colour), unless the view says
+				_state = new RenderState { active = true, attributes = managed, backend = backend, msaaLevel = view?.Msaa ?? MultisampleAmount.MultisampleNone };
 				if ( view is not null )
 				{
 					_state.view = view;

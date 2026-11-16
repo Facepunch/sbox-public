@@ -102,6 +102,7 @@ public sealed class GraphicsContext
 		foreach ( var key in mipViews.Keys.Where( k => k.Texture == texture ).ToArray() )
 		{
 			gpu.Destroy( mipViews[key] );
+			viewMips.Remove( mipViews[key] );
 			mipViews.Remove( key );
 		}
 	}
@@ -370,19 +371,51 @@ public sealed class GraphicsContext
 		EndScope();
 		Transition( Target, ImageLayout.CopySource );
 
+		// A multisampled target is resolved first, into a texture of its own size and format (blits take one sample)
+		var source = Target;
+		var info = gpu.InfoOf( Target );
+		if ( info.Samples > 1 )
+		{
+			if ( !resolvedTarget.IsValid || gpu.InfoOf( resolvedTarget ) is var kept && (kept.Width != info.Width || kept.Height != info.Height || kept.Format != info.Format) )
+			{
+				if ( resolvedTarget.IsValid )
+				{
+					owned.Remove( resolvedTarget );
+					layouts.Remove( resolvedTarget );
+					gpu.Destroy( resolvedTarget );
+				}
+
+				resolvedTarget = gpu.CreateTexture( TextureInfo.RenderTarget( info.Width, info.Height, info.Format, name: "Resolved target" ) );
+				layouts[resolvedTarget] = ImageLayout.Undefined;
+				owned.Add( resolvedTarget );
+			}
+
+			TransitionForWrite( resolvedTarget, ImageLayout.CopyDestination );
+			List.ResolveTexture( Target, resolvedTarget );
+			Transition( resolvedTarget, ImageLayout.CopySource );
+			source = resolvedTarget;
+		}
+
 		// A destination already in CopyDestination (cleared, or copied into) still needs its last write finished first
 		TransitionForWrite( destination, ImageLayout.CopyDestination );
-		List.Blit( Target, ((int)Viewport.X, (int)Viewport.Y, width, height), destination, (0, 0, width, height), Filter.Nearest );
+		List.Blit( source, ((int)Viewport.X, (int)Viewport.Y, width, height), destination, (0, 0, width, height), Filter.Nearest );
 	}
+
+	// A multisampled target's colour resolved for CopyTarget
+	TextureHandle resolvedTarget;
 
 	/// <summary>
 	/// Run a compute shader outside any rendering scope. Textures it's given whole are put in
-	/// <see cref="ImageLayout.General"/>, which it may both read and write.
+	/// <see cref="ImageLayout.General"/>, which it may both read and write. A texture it's given a mip of (a view) is put in
+	/// General too, with the mips it samples in <see cref="ImageLayout.ShaderRead"/> for the dispatch, as sampled views are
+	/// bound, and back in General after it (screen-space reflections read one mip of a texture and write another).
 	/// </summary>
 	public bool Dispatch( ShaderFile shader, ShaderAttributes attributes, int x, int y, int z )
 	{
 		PrepareDispatch( shader, attributes );
-		return drawer.Dispatch( List, shader, attributes, x, y, z );
+		var done = drawer.Dispatch( List, shader, attributes, x, y, z );
+		EndDispatch();
+		return done;
 	}
 
 	/// <summary>
@@ -392,7 +425,9 @@ public sealed class GraphicsContext
 	public bool DispatchIndirect( ShaderFile shader, ShaderAttributes attributes, BufferHandle arguments, long offset )
 	{
 		PrepareDispatch( shader, attributes );
-		return drawer.DispatchIndirect( List, shader, attributes, arguments, offset );
+		var done = drawer.DispatchIndirect( List, shader, attributes, arguments, offset );
+		EndDispatch();
+		return done;
 	}
 
 	void PrepareDispatch( ShaderFile shader, ShaderAttributes attributes )
@@ -409,7 +444,18 @@ public sealed class GraphicsContext
 
 		foreach ( var resource in variant?.Resources ?? [] )
 		{
-			if ( resource.Name is null || attributes.Get( resource.Name ) is not TextureHandle texture ) continue;
+			if ( resource.Name is null ) continue;
+			var value = attributes.Get( resource.Name );
+
+			// A mip: its texture in General, a sampled one's mip read for the dispatch
+			if ( value is TextureViewHandle view && viewMips.TryGetValue( view, out var mip ) )
+			{
+				dispatchLayouts[mip.Texture] = ImageLayout.General;
+				if ( resource.Kind == ShaderResourceKind.Texture ) sampledMips.Add( mip );
+				continue;
+			}
+
+			if ( value is not TextureHandle texture ) continue;
 			if ( resource.Kind == ShaderResourceKind.StorageTexture ) dispatchLayouts[texture] = ImageLayout.General;
 			else if ( resource.Kind == ShaderResourceKind.Texture && dispatchLayouts[texture] != ImageLayout.General ) dispatchLayouts[texture] = ImageLayout.ShaderRead;
 		}
@@ -420,8 +466,21 @@ public sealed class GraphicsContext
 			if ( layout != ImageLayout.ShaderRead ) dispatched.Add( texture );
 		}
 
+		foreach ( var (texture, mip) in sampledMips ) List.Barrier( MipBarrier( texture, mip, ImageLayout.General, ImageLayout.ShaderRead ) );
 		dispatchLayouts.Clear();
 	}
+
+	/// <summary>The mips a dispatch sampled back in General with the rest of their textures.</summary>
+	void EndDispatch()
+	{
+		foreach ( var (texture, mip) in sampledMips ) List.Barrier( MipBarrier( texture, mip, ImageLayout.ShaderRead, ImageLayout.General ) );
+		sampledMips.Clear();
+	}
+
+	readonly List<(TextureHandle Texture, int Mip)> sampledMips = new();
+
+	// Which texture and mip each mip view is of (MipView)
+	readonly Dictionary<TextureViewHandle, (TextureHandle Texture, int Mip)> viewMips = new();
 
 	readonly Dictionary<TextureHandle, ImageLayout> dispatchLayouts = new();
 
@@ -700,6 +759,7 @@ public sealed class GraphicsContext
 		if ( quadIndices.IsValid ) gpu.Destroy( quadIndices );
 		if ( identityTransform.IsValid ) gpu.Destroy( identityTransform );
 		mipViews.Clear();
+		viewMips.Clear();
 		owned.Clear();
 		quadIndices = default;
 		identityTransform = default;
@@ -732,6 +792,7 @@ public sealed class GraphicsContext
 		if ( mipViews.TryGetValue( (texture, mip), out var view ) ) return view;
 		view = gpu.CreateView( texture, new TextureViewInfo { Dimension = TextureDimension.Texture2D, BaseMip = mip, MipCount = 1, LayerCount = 1 } );
 		mipViews[(texture, mip)] = view;
+		viewMips[view] = (texture, mip);
 		return view;
 	}
 

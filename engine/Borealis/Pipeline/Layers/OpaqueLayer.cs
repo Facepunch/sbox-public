@@ -2,7 +2,8 @@ namespace Borealis;
 
 /// <summary>
 /// Draws opaque then faded geometry (<c>AddOpaqueLayers</c>).
-/// The first segment clears colour, plus depth if no prepass ran.
+/// The first segment clears colour, plus depth if no prepass ran. While the frame traces screen-space reflections, its
+/// surfaces also write their normal and roughness into <see cref="RenderFrame.Normals"/>, cleared with colour.
 /// </summary>
 internal sealed class OpaqueLayer : MeshLayer
 {
@@ -17,7 +18,7 @@ internal sealed class OpaqueLayer : MeshLayer
 
 	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )
 	{
-		frame.BindFrame( rc );
+		frame.BindFrame( rc, normals: true );
 
 		// The main frame already cleared the skybox target.
 		if ( start && !frame.IsSkybox ) rc.Clear( frame.Clear, clearDepth: !frame.System.DepthPrepass );

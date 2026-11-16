@@ -25,6 +25,7 @@ static bool s_SurfaceBackfaceTransmission = false;
 #endif
 #include "sbox/engine.slangh"
 #undef Material
+#include "sbox/forward_normals.slangh"
 
 import sbox.surface;
 
@@ -220,6 +221,22 @@ Texture2D SurfaceOpacityTexture()
 /// Whether the pixel is on a front face, set by the pixel entry: only a two-sided material's draws rasterize back faces.
 static bool s_SurfaceFrontFace = true;
 
+/// What the opaque forward entries write at target 1 for screen-space reflections (sbox/forward_normals.slangh), kept by
+/// SurfaceKeepNormals while the pipeline has that target; nothing written stays zero.
+static uint s_SurfaceNormals = 0;
+
+/// Keep the shaded normal and roughness for target 1.
+void SurfaceKeepNormals( float3 normal, float roughness )
+{
+	if ( kForwardNormalsOutput ) s_SurfaceNormals = ForwardNormalsPack( normal, roughness );
+}
+
+/// An opaque forward entry's outputs: the lit colour, and the normal and roughness kept for reflections.
+ForwardOutput SurfaceForwardOut( float4 color )
+{
+	return ForwardOut( color, s_SurfaceNormals );
+}
+
 /// What a raster pass hands Evaluate. A combiner surface's back face has its normal turned to the viewer, as complex.shader
 /// does for materials that render back faces; other surfaces keep the face's own, as common/pixel.hlsl's shaders do (their
 /// FrontFace says which side is seen). The tangents stay as they are.
@@ -305,6 +322,7 @@ float4 SurfaceShade( PixelInput i, Material s, uint opacityTexture, bool alphaTe
 #else
 	// Before the decals, so their loop doesn't hold the derivatives it comes from
 	TakeShadowReceiverNormal( i.vPositionWithOffsetWs.xyz );
+	SurfaceKeepNormals( s.Normal, s.Roughness );
 	float4 color = ShadingModelStandard::Shade( i, ToClassicMaterial( i, s ) );
 #endif
 	if ( spread ) color.a *= s.Coverage;
@@ -417,6 +435,8 @@ float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool
 	s_SurfaceBackfaceTransmission = s.BackfaceTransmission;
 	CombinerInput f = ShadingModelStandard::MaterialToCombinerInput( m );
 	f.vRoughness = m.Roughness.xx;   // the final combiner adjusts it by the geometric normal itself
+	// After the decals, as the depth-normals pass wrote the combiner's
+	SurfaceKeepNormals( f.vNormalWs.xyz, f.vRoughness.x );
 	f.flAmbientOcclusionDirectDiffuse = s.AmbientOcclusionDirectDiffuse;
 	f.flAmbientOcclusionDirectSpecular = s.AmbientOcclusionDirectSpecular;
 	f.vDiffuseColor *= s.DiffuseScale;
@@ -563,6 +583,7 @@ float4 SurfaceForwardLayered<S : ILayeredSurface, let AlphaTest : bool>( PixelIn
 	SurfaceLayerLighting lighting = SurfaceLayerLighting::Make( i, input );
 	Material s;
 	float3 lit = surface.Shade( input, lighting, s );
+	SurfaceKeepNormals( s.Normal, s.Roughness );
 
 	s_SurfaceOpacityTexture = opacityTexture;
 	bool spread = AlphaTest && g_nMSAASampleCount > 1;
