@@ -74,6 +74,7 @@ public partial class RenderAttributes
 	public void Clear()
 	{
 		Managed?.Clear();
+		Shadow?.Clear();
 		if ( !attributes.IsValid ) return;
 		attributes.Clear( true, true );
 		ClearUsedTextures();
@@ -82,6 +83,7 @@ public partial class RenderAttributes
 	internal void Clear( bool freeMemory )
 	{
 		Managed?.Clear();
+		Shadow?.Clear();
 		if ( !attributes.IsValid ) return;
 		attributes.Clear( freeMemory, true );
 		ClearUsedTextures();
@@ -89,20 +91,23 @@ public partial class RenderAttributes
 
 	public void SetCombo( in StringToken k, in int value )
 	{
-		if ( !attributes.IsValid ) { Managed?.SetCombo( k, value ); return; }
+		(Managed ?? Shadow)?.SetCombo( k, value );
+		if ( !attributes.IsValid ) return;
 		attributes.SetComboValue( k, (byte)value );
 	}
 
 	[Obsolete( "Please use SetComboEnum" )]
 	public void SetCombo( in string k, in Enum value )
 	{
-		if ( !attributes.IsValid ) { Managed?.SetCombo( k, (byte)(int)(object)value ); return; }
+		(Managed ?? Shadow)?.SetCombo( k, (byte)(int)(object)value );
+		if ( !attributes.IsValid ) return;
 		attributes.SetComboValue( k, (byte)(int)(object)value );
 	}
 
 	public void SetComboEnum<T>( in StringToken k, in T value ) where T : unmanaged, Enum
 	{
-		if ( !attributes.IsValid ) { Managed?.SetCombo( k, (byte)value.AsInt() ); return; }
+		(Managed ?? Shadow)?.SetCombo( k, (byte)value.AsInt() );
+		if ( !attributes.IsValid ) return;
 		attributes.SetComboValue( k, (byte)value.AsInt() );
 	}
 
@@ -146,31 +151,36 @@ public partial class RenderAttributes
 
 	public void Set( in StringToken k, in int value )
 	{
-		if ( !attributes.IsValid ) { Managed?.Set( k, value ); return; }
+		(Managed ?? Shadow)?.Set( k, value );
+		if ( !attributes.IsValid ) return;
 		attributes.SetIntValue( k, value );
 	}
 
 	public void Set( in StringToken k, in uint value )
 	{
-		if ( !attributes.IsValid ) { Managed?.Set( k, value ); return; }
+		(Managed ?? Shadow)?.Set( k, value );
+		if ( !attributes.IsValid ) return;
 		attributes.SetIntValue( k, unchecked((int)value) );
 	}
 
 	public void Set( in StringToken k, in Vector2Int value )
 	{
-		if ( !attributes.IsValid ) { Managed?.Set( k, value.x, value.y ); return; }
+		(Managed ?? Shadow)?.Set( k, value.x, value.y );
+		if ( !attributes.IsValid ) return;
 		attributes.SetIntVector4DValue( k, value.x, value.y, 0, 0 );
 	}
 
 	public void Set( in StringToken k, in Vector3Int value )
 	{
-		if ( !attributes.IsValid ) { Managed?.Set( k, value.x, value.y, value.z ); return; }
+		(Managed ?? Shadow)?.Set( k, value.x, value.y, value.z );
+		if ( !attributes.IsValid ) return;
 		attributes.SetIntVector4DValue( k, value.x, value.y, value.z, 0 );
 	}
 
 	public void Set( in StringToken k, in Texture value, in int mip = -1 )
 	{
-		if ( !attributes.IsValid ) { Managed?.SetObject( k, value is null ? null : new ManagedRenderAttributes.TextureValue( value, mip ) ); return; }
+		(Managed ?? Shadow)?.SetObject( k, value is null ? null : new ManagedRenderAttributes.TextureValue( value, mip ) );
+		if ( !attributes.IsValid ) return;
 
 		var native = value?.native ?? default;
 		Set( k, native, mip );
@@ -180,7 +190,8 @@ public partial class RenderAttributes
 
 	public void Set( in StringToken k, in SamplerState value )
 	{
-		if ( !attributes.IsValid ) { Managed?.SetObject( k, value ); return; }
+		(Managed ?? Shadow)?.SetObject( k, value );
+		if ( !attributes.IsValid ) return;
 
 		attributes.SetSamplerValue( k, new( value ) );
 	}
@@ -193,30 +204,35 @@ public partial class RenderAttributes
 
 	public void Set( in StringToken k, in float value )
 	{
-		if ( !attributes.IsValid ) { Managed?.Set( k, value ); return; }
+		(Managed ?? Shadow)?.Set( k, value );
+		if ( !attributes.IsValid ) return;
 		attributes.SetFloatValue( k, value );
 	}
 	public void Set( in StringToken k, in double value )
 	{
-		if ( !attributes.IsValid ) { Managed?.Set( k, (float)value ); return; }
+		(Managed ?? Shadow)?.Set( k, (float)value );
+		if ( !attributes.IsValid ) return;
 		attributes.SetFloatValue( k, (float)value );
 	}
 
 	public void Set( in StringToken k, in string value )
 	{
-		if ( !attributes.IsValid ) { Managed?.SetObject( k, value ); return; }
+		(Managed ?? Shadow)?.SetObject( k, value );
+		if ( !attributes.IsValid ) return;
 		attributes.SetStringValue( k, value );
 	}
 
 	public void Set( in StringToken k, in bool value )
 	{
-		if ( !attributes.IsValid ) { Managed?.Set( k, value ? 1f : 0f ); return; }
+		(Managed ?? Shadow)?.Set( k, value ? 1f : 0f );
+		if ( !attributes.IsValid ) return;
 		attributes.SetBoolValue( k, value );
 	}
 
 	public void Set( in StringToken k, in Vector4 value )
 	{
-		if ( !attributes.IsValid ) { Managed?.Set( k, value.x, value.y, value.z, value.w ); return; }
+		(Managed ?? Shadow)?.Set( k, value.x, value.y, value.z, value.w );
+		if ( !attributes.IsValid ) return;
 		attributes.SetVector4DValue( k, value );
 	}
 
@@ -227,19 +243,22 @@ public partial class RenderAttributes
 
 	public void Set( in StringToken k, in Vector3 value )
 	{
-		if ( !attributes.IsValid ) { Managed?.Set( k, value.x, value.y, value.z ); return; }
+		(Managed ?? Shadow)?.Set( k, value.x, value.y, value.z );
+		if ( !attributes.IsValid ) return;
 		attributes.SetVectorValue( k, value );
 	}
 
 	public void Set( in StringToken k, in Vector2 value )
 	{
-		if ( !attributes.IsValid ) { Managed?.Set( k, value.x, value.y ); return; }
+		(Managed ?? Shadow)?.Set( k, value.x, value.y );
+		if ( !attributes.IsValid ) return;
 		attributes.SetVector2DValue( k, value );
 	}
 
 	public void Set( in StringToken k, in GpuBuffer value )
 	{
-		if ( !attributes.IsValid ) { Managed?.SetObject( k, value ); return; }
+		(Managed ?? Shadow)?.SetObject( k, value );
+		if ( !attributes.IsValid ) return;
 		attributes.SetBufferValue( k, value is not null ? value.native : default );
 	}
 
@@ -258,6 +277,7 @@ public partial class RenderAttributes
 			Managed.SetObject( k, MemoryMarshal.AsBytes( value ).ToArray() );
 			return;
 		}
+		Shadow?.SetObject( k, MemoryMarshal.AsBytes( value ).ToArray() );
 		fixed ( T* ptr = value )
 			RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)ptr, actualSize );
 	}
@@ -270,11 +290,8 @@ public partial class RenderAttributes
 		if ( !SandboxedUnsafe.IsAcceptablePod<T>() )
 			throw new ArgumentException( $"{nameof( T )} must be a POD type" );
 
-		if ( !attributes.IsValid )
-		{
-			Managed?.SetObject( k, MemoryMarshal.AsBytes( new ReadOnlySpan<T>( in value ) ).ToArray() );
-			return;
-		}
+		(Managed ?? Shadow)?.SetObject( k, MemoryMarshal.AsBytes( new ReadOnlySpan<T>( in value ) ).ToArray() );
+		if ( !attributes.IsValid ) return;
 		int actualSize = Unsafe.SizeOf<T>();
 		if ( actualSize <= 0 ) return;
 		RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)(&value), actualSize );
@@ -389,16 +406,17 @@ public partial class RenderAttributes
 
 	public void Set( in StringToken k, in Matrix value )
 	{
-		if ( !attributes.IsValid ) { Managed?.Set( k, value ); return; }
+		(Managed ?? Shadow)?.Set( k, value );
+		if ( !attributes.IsValid ) return;
 		attributes.SetVMatrixValue( k, value );
 	}
 
 	internal void MergeTo( RenderAttributes renderAttributes )
 	{
 		if ( renderAttributes is null ) throw new ArgumentNullException( nameof( renderAttributes ) );
-		if ( Managed is not null && renderAttributes.Managed is not null )
+		if ( (Managed ?? Shadow) is { } source && renderAttributes.Managed is not null )
 		{
-			Managed.MergeTo( renderAttributes.Managed );
+			source.MergeTo( renderAttributes.Managed );
 			return;
 		}
 		if ( !attributes.IsValid || !renderAttributes.attributes.IsValid ) return;

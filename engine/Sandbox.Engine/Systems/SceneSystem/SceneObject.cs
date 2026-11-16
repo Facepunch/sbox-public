@@ -33,6 +33,11 @@ public partial class SceneObject : IHandle
 			if ( _attributes is not null ) return _attributes;
 
 			_attributes = new RenderAttributes( native.GetAttributesPtrForModify() );
+
+			// On a backend that lowers attributes itself, a custom object merges its attributes into the managed set it draws
+			// with, so they keep a managed copy
+			if ( this is SceneCustomObject && RenderBackend.Default is not Source2RenderBackend ) _attributes.KeepManagedCopy();
+
 			NotifyChanged( Rendering.SceneObjectChange.Attributes );
 			return _attributes;
 		}
