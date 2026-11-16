@@ -324,6 +324,51 @@ float3 GetTransmissiveThickness( const FinalCombinerInput_t f, const BinnedLight
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
+// The receiver normal of the camera-relative position (ComputeShadowReceiverNormal), taken early by a caller that does
+// heavy work before lighting (a surface's decals): otherwise the screen-space derivatives it comes from stay live until
+// the light loops. Kept with the position it was taken at, as the sun's shadow is.
+static float3 s_vShadowReceiverNormalWithOffsetWs = 0;
+static uint3 s_vShadowReceiverNormalPosition = 0;
+static bool s_bShadowReceiverNormalTaken = false;
+
+void TakeShadowReceiverNormal( float3 vPositionWithOffsetWs )
+{
+	s_bShadowReceiverNormalTaken = true;
+	s_vShadowReceiverNormalPosition = asuint( vPositionWithOffsetWs );
+	s_vShadowReceiverNormalWithOffsetWs = ComputeShadowReceiverNormal( vPositionWithOffsetWs );
+}
+
+float3 ShadowReceiverNormalWithOffset( float3 vPositionWithOffsetWs )
+{
+	if ( s_bShadowReceiverNormalTaken && all( s_vShadowReceiverNormalPosition == asuint( vPositionWithOffsetWs ) ) )
+		return s_vShadowReceiverNormalWithOffsetWs;
+	return ComputeShadowReceiverNormal( vPositionWithOffsetWs );
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
+// The sun's cascade shadow at the pixel, taken once in uniform control flow before the light loops and read by every light
+// that is the sun: its filter inside the per-light loops was the peak of the lit shaders' registers. Kept with the position
+// it was taken at, so a caller that lights several positions (one per layer) takes it again for each.
+static float s_flSunShadow = 1.0;
+static uint3 s_vSunShadowPosition = 0;
+static bool s_bSunShadowTaken = false;
+
+void PrepareSunShadow( const FinalCombinerInput_t f, float3 vReceiverNormalWs, bool bBaked )
+{
+	if ( s_bSunShadowTaken && all( s_vSunShadowPosition == asuint( f.vPositionWithOffsetWs.xyz ) ) )
+		return;
+
+	s_bSunShadowTaken = true;
+	s_vSunShadowPosition = asuint( f.vPositionWithOffsetWs.xyz );
+	s_flSunShadow = 1.0;
+
+	// The baked light loop shades the sun, else the directional fast path, when it's on
+	[branch]
+	if ( g_DirectionalLightCascadeCount > 0 && ( bBaked || g_DirectionalLightEnabled ) )
+		s_flSunShadow = DirectionalLightShadow::GetVisibilityWithOffset( f.vPositionWithOffsetWs.xyz, vReceiverNormalWs, f.vPositionSs );
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
 void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiverNormalWs, const BinnedLight lightData, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive, bool bBaked = false, bool bModulators = false )
 {
 	const float2 vDiffuseExponent = ( ( 1.0 - f.vRoughness.xy ) * 0.8 ) + 0.6; // 0.8 and 0.6 are magic numbers;
@@ -398,10 +443,10 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 		#endif
 	}
 
-	// Directional lights use their own CSM shadow path
+	// Directional lights use their own CSM shadow path, taken before the light loops (PrepareSunShadow)
 	if ( lightData.Type == LightType::LightTypeDirectional && g_DirectionalLightCascadeCount > 0 )
 	{
-		flShadowScalar = DirectionalLightShadow::GetVisibilityWithOffset( f.vPositionWithOffsetWs.xyz, vReceiverNormalWs, f.vPositionSs );
+		flShadowScalar = s_flSunShadow;
 	}
 
 	#if ( !S_TRANSMISSIVE && !defined( SURFACE_LIGHT_HOOK ) )
@@ -470,10 +515,10 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, float3 vReceiverNorm
 
 	float flShadowScalar = 1.0f;
 
-	// Only sample shadows if cascades exist
+	// Only sample shadows if cascades exist (taken by PrepareSunShadow)
 	if ( g_DirectionalLightCascadeCount > 0 )
 	{
-		flShadowScalar = DirectionalLightShadow::GetVisibilityWithOffset( f.vPositionWithOffsetWs.xyz, vReceiverNormalWs, f.vPositionSs );
+		flShadowScalar = s_flSunShadow;
 	}
 
 	float3 vTransmissiveThickness = 1.0f;
@@ -523,7 +568,13 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	// Receiver normal for the shadow normal offset. It comes from screen-space derivatives, which are only
 	// defined in uniform control flow: take it once here, never inside the per-light loop below, where the
 	// lanes of a quad diverge whenever neighbouring pixels sit in different clusters.
-	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWithOffsetWs.xyz );
+	const float3 vReceiverNormalWs = ShadowReceiverNormalWithOffset( f.vPositionWithOffsetWs.xyz );
+
+	// The sun's shadow, before any loop. The baked light loop shades the sun with the receiver normal it takes from the
+	// absolute position, so a baked surface takes it with that one
+	const bool bBaked = LightmappedLight::UsesLightmaps() || ProbeLight::UsesProbes();
+	const float3 vBakedReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWs.xyz );
+	PrepareSunShadow( f, bBaked ? vBakedReceiverNormalWs : vReceiverNormalWs, bBaked );
 
 	// Directional light fast path — skip for baked surfaces since they get the
 	// directional light through the indexed baked light loop with per-texel strength
@@ -611,11 +662,19 @@ void ComputeBakedLighting( inout LightingTerms_t o, const FinalCombinerInput_t f
 	// Derivatives must be evaluated before the per-light branch diverges.
 	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWs.xyz );
 
-	// Slots this lane still has to add, a bit each
+	// The sun's shadow, unless ComputeDirectLighting took it here already
+	PrepareSunShadow( f, vReceiverNormalWs, true );
+
+	// Slots this lane still has to add, a bit each, and their light indices (each 0-255, from 8-bit texels) a byte each:
+	// one register through the loop instead of four
 	uint nPending = 0;
+	uint nIndices = 0;
 	[unroll]
 	for ( uint j = 0; j < 4; j++ )
+	{
 		nPending |= ( vLightStrengths[j] > 0.0001 ) ? ( 1u << j ) : 0u;
+		nIndices |= ( uint( vLightIndices[j] ) & 0xFF ) << ( 8 * j );
+	}
 
 	// Walk the wave's baked lights lowest index first, as ClusterForEach walks a cluster's, so each light's data is
 	// the same for the whole wave and loads once into scalar registers instead of per lane
@@ -626,7 +685,7 @@ void ComputeBakedLighting( inout LightingTerms_t o, const FinalCombinerInput_t f
 		for ( uint j = 0; j < 4; j++ )
 		{
 			if ( nPending & ( 1u << j ) )
-				nLaneLowest = min( nLaneLowest, uint( vLightIndices[j] ) );
+				nLaneLowest = min( nLaneLowest, ( nIndices >> ( 8 * j ) ) & 0xFF );
 		}
 
 		const uint nLight = WaveActiveMin( nLaneLowest );
@@ -638,7 +697,7 @@ void ComputeBakedLighting( inout LightingTerms_t o, const FinalCombinerInput_t f
 		[unroll]
 		for ( uint k = 0; k < 4; k++ )
 		{
-			if ( ( nPending & ( 1u << k ) ) && uint( vLightIndices[k] ) == nLight )
+			if ( ( nPending & ( 1u << k ) ) && ( ( nIndices >> ( 8 * k ) ) & 0xFF ) == nLight )
 			{
 				flStrength += vLightStrengths[k];
 				nPending &= ~( 1u << k );

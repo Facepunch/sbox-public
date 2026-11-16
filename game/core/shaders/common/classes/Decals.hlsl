@@ -99,6 +99,8 @@ void ParallaxOcclusion_Grad(
 	float heightFromTexture = 1.0f - heightTexture.SampleGrad( heightSampler, currentTextureCoords, uv_dx, uv_dy ).r;
 
 	int nStepIndex = 0;
+	// A loop, not unrolled: unrolled, its 32 steps were most of a lit shader's decal code
+	[loop]
 	while ( heightFromTexture > curLayerHeight && nStepIndex < NumParallaxOcclusionSteps )
 	{
 		curLayerHeight += NumParallaxOcclusionStepsRCP;

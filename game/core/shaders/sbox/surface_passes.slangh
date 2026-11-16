@@ -286,6 +286,8 @@ float4 SurfaceShade( PixelInput i, Material s, uint opacityTexture, bool alphaTe
 	AdjustAlphaToCoverage( m );
 	float4 color = DepthNormals::Output( m.Normal, m.Roughness, m.Opacity );
 #else
+	// Before the decals, so their loop doesn't hold the derivatives it comes from
+	TakeShadowReceiverNormal( i.vPositionWithOffsetWs.xyz );
 	float4 color = ShadingModelStandard::Shade( i, ToClassicMaterial( i, s ) );
 #endif
 	if ( spread ) color.a *= s.Coverage;
@@ -372,6 +374,8 @@ float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool
 
 	ClassicMaterial m = ToClassicMaterial( i, s );
 #if ( !S_MODE_DEPTH )
+	// The light loops' receiver normal before the decals, so their loop doesn't hold the derivatives it comes from
+	TakeShadowReceiverNormal( i.vPositionWithOffsetWs.xyz );
 	// Not in the depth pass, which writes nothing but alpha to coverage: decals don't change opacity
 	Decals::Apply( m.WorldPosition, m );
 #endif
