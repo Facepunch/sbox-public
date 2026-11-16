@@ -471,7 +471,8 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		{
 			var info = TextureInfo.RenderTarget( texture.Width, texture.Height, FormatOf( texture.ImageFormat ), name: $"Engine target {texture.Width}x{texture.Height}" );
 			info.Mips = Math.Max( texture.Mips, 1 );
-			info.Usage |= TextureUsage.Storage;
+			var depth = info.Format.IsDepth();
+			if ( !depth ) info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
 
 			// A target made with pixels - an image whose mips Source 2 generates, or one made for compute - starts with them
@@ -482,7 +483,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 			else
 			{
 				context.Track( handle, ImageLayout.Undefined );
-				if ( texture.InitialColor is { } clear ) ClearNow( handle, clear );
+				if ( !depth && texture.InitialColor is { } clear ) ClearNow( handle, clear );
 			}
 		}
 		else if ( FromFile( texture ) is { } file )
@@ -730,10 +731,18 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 		gpu.Submit( clear );
 	}
 
-	// An A8 target is one channel written and read as red (ambient occlusion's result), as its R8 image holds it
-	static GpuFormat FormatOf( ImageFormat format ) => format is not ImageFormat.I8 && DataFormatOf( format ) is var mapped && mapped != GpuFormat.Unknown
-		? mapped
-		: throw new NotSupportedException( $"Render target format {format} on Borealis.Gpu" );
+	const string UncompressedTangentFrame = "UncompressedTangentFrame";
+
+	// An A8 target is one channel written and read as red (ambient occlusion's result), as its R8 image holds it. Depth with
+	// stencil is 32-bit float depth, as the frame's depth is
+	static GpuFormat FormatOf( ImageFormat format ) => format switch
+	{
+		ImageFormat.D24S8 or ImageFormat.LINEAR_D24S8 or ImageFormat.D24FS8 or ImageFormat.D32FS8 => GpuFormat.D32FloatS8Uint,
+		ImageFormat.D32 or ImageFormat.D24X8 => GpuFormat.D32Float,
+		_ => format is not ImageFormat.I8 && DataFormatOf( format ) is var mapped && mapped != GpuFormat.Unknown
+			? mapped
+			: throw new NotSupportedException( $"Render target format {format} on Borealis.Gpu" ),
+	};
 
 	/// <summary>
 	/// A buffer's backing. One made while recording for another device starts with what Source 2's copy holds.
@@ -812,6 +821,9 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 	ShaderAttributes Lower( RenderAttributes attributes )
 	{
 		lowered.Clear();
+
+		// A native set that keeps a managed copy (a custom or dynamic object's) draws with the copy
+		if ( attributes?.Managed is null && attributes?.ShadowSet is { } copy ) attributes = copy;
 		if ( attributes?.Managed is null )
 			throw new NotSupportedException( "Native render attributes can't be drawn with on Borealis.Gpu" );
 
@@ -920,6 +932,7 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 	{
 		_ = Recording;
 		if ( clearColor ) context.Clear( new Num.Vector4( color.r, color.g, color.b, color.a ) );
+		if ( clearDepth || clearStencil ) context.ClearDepth();
 	}
 
 	public override void ClearTexture( Texture texture, Color color )
@@ -950,7 +963,10 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 
 		var shader = Prepare( material );
 		var bytes = new ReadOnlySpan<byte>( (void*)vertices, vertexSize * vertexCount );
-		context.DrawVertices( shader, Lower( attributes ), bytes, VertexStreamLayout.EngineVertex, vertexCount, Topology( primitiveType ) );
+		// CPU vertices hold plain normals and tangents, as a native view tells its draws (UncompressedTangentFrame)
+		var lowered = Lower( attributes );
+		if ( lowered.Get( UncompressedTangentFrame ) is null ) lowered.Set( UncompressedTangentFrame, 1.0f );
+		context.DrawVertices( shader, lowered, bytes, VertexStreamLayout.EngineVertex, vertexCount, Topology( primitiveType ) );
 	}
 
 	public override bool SetRenderState( Material material, RenderAttributes attributes, Type vertexType )

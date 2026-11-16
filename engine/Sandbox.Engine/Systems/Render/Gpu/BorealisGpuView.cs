@@ -59,6 +59,24 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 		Graphics.Viewport = Viewport;
 	}
 
+	/// <summary>
+	/// Bind the view's colour with <paramref name="depth"/> (null for the view's own targets), keeping its sRGB writes and
+	/// viewport: what draws depth tested over the output (overlays) draw with.
+	/// </summary>
+	public void BindDepth( Texture depth )
+	{
+		if ( depth is null || Target?.ColorTarget is null )
+		{
+			Bind();
+			return;
+		}
+
+		using var withDepth = RenderTarget.From( Target.ColorTarget, depth );
+		if ( backend is BorealisGpuRenderBackend gpu ) gpu.BindRenderTarget( withDepth, SrgbWrite );
+		else backend.BindRenderTarget( withDepth );
+		Graphics.Viewport = Viewport;
+	}
+
 	// A stage with no colour target (after the depth prepass) binds none: what it draws are dispatches
 	void BindOwn()
 	{

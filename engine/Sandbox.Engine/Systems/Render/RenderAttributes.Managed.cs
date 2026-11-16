@@ -30,6 +30,14 @@ public partial class RenderAttributes
 		if ( Managed is null ) Shadow ??= new ManagedRenderAttributes();
 	}
 
+	/// <summary>
+	/// <see cref="Shadow"/> as an attribute set of its own, to draw with on a backend that lowers attributes itself (a dynamic
+	/// object's on Borealis.Gpu). Null without a managed copy.
+	/// </summary>
+	internal RenderAttributes ShadowSet => Shadow is null ? null : shadowSet ??= new RenderAttributes( Shadow );
+
+	RenderAttributes shadowSet;
+
 	RenderAttributes( ManagedRenderAttributes managed )
 	{
 		Managed = managed;

@@ -27,8 +27,11 @@ internal static class PostParity
 
 	/// <summary>
 	/// A case: what a component would record, with its values on the command list's attributes.
+	/// With <paramref name="InView"/>, Source 2's reference runs the command list inside a native view of its own (a
+	/// <see cref="SceneCustomObject"/> drawn by a <see cref="SceneCamera"/> from the scene's camera, over a grey clear) rather
+	/// than in a block outside a view, which leaves what these shaders read unbound.
 	/// </summary>
-	sealed record Case( string Name, string Covers, Action<CommandList> Record, string NotCompared = null, Action<GameObject> Components = null, bool NeedsDepth = false, Func<ViewConstants, ViewConstants> View = null );
+	sealed record Case( string Name, string Covers, Action<CommandList> Record, string NotCompared = null, Action<GameObject> Components = null, bool NeedsDepth = false, Func<ViewConstants, ViewConstants> View = null, bool InView = false );
 
 	/// <summary>Run the engine's post process components (<c>-components</c>) rather than the copies of their command lists.</summary>
 	static bool components;
@@ -322,6 +325,261 @@ internal static class PostParity
 		cl.Blit( Shader( "shaders/postprocess/pp_pixelate.shader" ) );
 	}
 
+	//
+	// Shaders whose .shader has a geometry stage, drawn with Graphics.Draw over a grey clear from the scene's camera: Source 2
+	// runs their geometry stages in a native view of their own, Borealis.Gpu their pass modules' vertex stages, which expand
+	// the primitives themselves
+	//
+
+	/// <summary>How far along the scene's focus the cases draw.</summary>
+	const float StageScale = 0.5f;
+
+	static readonly Color Grey = new( 0.18f, 0.18f, 0.2f );
+
+	/// <summary>The command list runs inside Source 2's native view, on its targets.</summary>
+	static bool inNativeView;
+
+	/// <summary>The depth and stencil the cases draw with on Borealis.Gpu, as the native view has its own.</summary>
+	static Texture caseStencil;
+
+	static (Vector3 Center, Vector3 Right, Vector3 Up) Stage()
+	{
+		var c = gpuScene.Constants;
+		var forward = (Vector3)c.CameraDirWs;
+		var up = (Vector3)c.CameraUpDirWs;
+		return ((Vector3)c.CameraPositionWs + forward * (focalDistance * StageScale), Vector3.Cross( forward, up ).Normal, up);
+	}
+
+	/// <summary>
+	/// The case's target cleared to a flat grey, with a depth and stencil of its own cleared too (the scene's depth isn't
+	/// bound, so nothing hides the draws): on Borealis.Gpu the case's colour and <see cref="caseStencil"/>, in Source 2's
+	/// native view its own targets.
+	/// </summary>
+	static void ClearToGrey()
+	{
+		if ( !inNativeView )
+		{
+			if ( caseStencil is null || caseStencil.Width != caseColor.Width || caseStencil.Height != caseColor.Height )
+			{
+				caseStencil?.Dispose();
+				caseStencil = Texture.CreateRenderTarget().WithSize( caseColor.Width, caseColor.Height ).WithDepthFormat().Create( "Post parity case depth" );
+			}
+
+			Graphics.RenderTarget = RenderTarget.From( caseColor, caseStencil );
+		}
+
+		Graphics.Clear( Grey, true, true, true );
+	}
+
+	/// <summary>Clear the target to a flat grey, then draw <paramref name="vertices"/> with <paramref name="material"/>.</summary>
+	static void DrawOnGrey( CommandList cl, Material material, Graphics.PrimitiveType type, Vertex[] vertices, string mode = null )
+	{
+		cl.AddAction( ClearToGrey );
+		DrawVertices( cl, material, type, vertices, mode );
+	}
+
+	/// <summary>
+	/// Draw CPU vertices as <c>Graphics.Draw</c> does, with the transform at the frame's first slot (the identity). Borealis.Gpu
+	/// takes the engine's <see cref="Vertex"/>; Source 2 is given the same vertices with an instance transform id (TEXCOORD13,
+	/// 0), which these shaders index the view's transform buffer with. A material whose shader has only another
+	/// <paramref name="mode"/> (<c>ToolsUtil</c>, which only tools views' layers draw) draws natively in that mode.
+	/// </summary>
+	static void DrawVertices( CommandList cl, Material material, Graphics.PrimitiveType type, Vertex[] vertices, string mode = null ) => cl.AddAction( () =>
+	{
+		if ( Graphics.Backend is BorealisGpuRenderBackend )
+		{
+			Graphics.Draw( vertices.AsSpan(), vertices.Length, material, null, type );
+			return;
+		}
+
+		var reference = vertices.Select( v => new ReferenceVertex { Position = v.Position, Color = v.Color, Normal = v.Normal, TexCoord0 = v.TexCoord0, TexCoord1 = v.TexCoord1, Tangent = v.Tangent } ).ToArray();
+		if ( mode is null ) Graphics.Draw<ReferenceVertex>( reference.AsSpan(), reference.Length, material, null, type );
+		else DrawInMode( material, mode, type, reference );
+	} );
+
+	/// <summary>Source 2's <c>Graphics.Draw</c> of <paramref name="vertices"/> with the material's <paramref name="mode"/>.</summary>
+	static unsafe void DrawInMode( Material material, string mode, Graphics.PrimitiveType type, ReferenceVertex[] vertices )
+	{
+		var layout = VertexLayout.Get( typeof( ReferenceVertex ) );
+		if ( !NativeEngine.RenderTools.SetRenderState( Graphics.Context, Graphics.Attributes.Get(), material.native.GetMode( mode ), layout, Graphics.Stats ) ) return;
+		fixed ( ReferenceVertex* data = vertices )
+			NativeEngine.RenderTools.Draw( Graphics.Context, (NativeEngine.RenderPrimitiveType)type, layout, (IntPtr)data, vertices.Length, IntPtr.Zero, 0, Graphics.Stats );
+	}
+
+	/// <summary>The engine's <see cref="Vertex"/> with an instance transform id, for the Source 2 reference.</summary>
+	[System.Runtime.InteropServices.StructLayout( System.Runtime.InteropServices.LayoutKind.Sequential )]
+	struct ReferenceVertex
+	{
+		[VertexLayout.Position] public Vector3 Position;
+		[VertexLayout.Color] public Color32 Color;
+		[VertexLayout.Normal] public Vector3 Normal;
+		[VertexLayout.TexCoord( 0 )] public Vector4 TexCoord0;
+		[VertexLayout.TexCoord( 1 )] public Vector4 TexCoord1;
+		[VertexLayout.Tangent] public Vector4 Tangent;
+		[VertexLayout.TexCoord( 13 )] public int InstanceTransform;
+	}
+
+	static Color32 Hue( float t ) => new Color( 0.5f + 0.5f * MathF.Cos( t * MathF.Tau ), 0.5f + 0.5f * MathF.Cos( (t - 1 / 3f) * MathF.Tau ), 0.5f + 0.5f * MathF.Cos( (t - 2 / 3f) * MathF.Tau ) ).ToColor32();
+
+	/// <summary>A star of lines round the centre, each end its own colour, some reaching towards and away from the camera.</summary>
+	static Vertex[] Star( int count, float radius )
+	{
+		var (center, right, up) = Stage();
+		var forward = Vector3.Cross( up, right );
+		var vertices = new Vertex[count * 2];
+		for ( int i = 0; i < count; i++ )
+		{
+			var a = i * MathF.Tau / count;
+			var inner = center + (right * MathF.Cos( a ) + up * MathF.Sin( a )) * radius * 0.2f;
+			var outer = center + (right * MathF.Cos( a ) + up * MathF.Sin( a )) * radius + forward * (radius * 0.5f * MathF.Sin( a * 3 ));
+			vertices[i * 2] = new Vertex( inner, Hue( i / (float)count ) ) { Normal = up };
+			vertices[i * 2 + 1] = new Vertex( outer, Hue( i / (float)count + 0.5f ) ) { Normal = right };
+		}
+
+		return vertices;
+	}
+
+	/// <summary>A zigzag below the centre, as a strip.</summary>
+	static Vertex[] Zigzag( int count, float width )
+	{
+		var (center, right, up) = Stage();
+		var vertices = new Vertex[count];
+		for ( int i = 0; i < count; i++ ) vertices[i] = new Vertex( center + right * (width * (i / (float)(count - 1) - 0.5f)) - up * (width * 0.35f + ((i & 1) != 0 ? width * 0.08f : 0)), Hue( i / (float)count ) );
+		return vertices;
+	}
+
+	/// <summary>A grid of points round the centre, each made by <paramref name="point"/>.</summary>
+	static Vertex[] Points( int columns, int rows, float spacing, Func<int, Vector3, Vertex> point )
+	{
+		var (center, right, up) = Stage();
+		var vertices = new Vertex[columns * rows];
+		for ( int y = 0; y < rows; y++ )
+		{
+			for ( int x = 0; x < columns; x++ )
+			{
+				var i = y * columns + x;
+				vertices[i] = point( i, center + right * ((x - (columns - 1) * 0.5f) * spacing) + up * ((y - (rows - 1) * 0.5f) * spacing) );
+			}
+		}
+
+		return vertices;
+	}
+
+	/// <summary>A sphere round the centre as a triangle list, with normals, tangents and uvs.</summary>
+	static Vertex[] Sphere( float radius, int slices, int stacks )
+	{
+		var (center, _, _) = Stage();
+		Vertex At( int slice, int stack )
+		{
+			var u = slice / (float)slices;
+			var v = stack / (float)stacks;
+			var theta = u * MathF.Tau;
+			var phi = v * MathF.PI;
+			var normal = new Vector3( MathF.Sin( phi ) * MathF.Cos( theta ), MathF.Sin( phi ) * MathF.Sin( theta ), MathF.Cos( phi ) );
+			var tangent = new Vector3( -MathF.Sin( theta ), MathF.Cos( theta ), 0 );
+			return new Vertex( center + normal * radius, normal, tangent, new Vector4( u, v, 0, 0 ) );
+		}
+
+		var vertices = new List<Vertex>();
+		for ( int stack = 0; stack < stacks; stack++ )
+		{
+			for ( int slice = 0; slice < slices; slice++ )
+			{
+				vertices.AddRange( [At( slice, stack ), At( slice + 1, stack ), At( slice + 1, stack + 1 )] );
+				vertices.AddRange( [At( slice, stack ), At( slice + 1, stack + 1 ), At( slice, stack + 1 )] );
+			}
+		}
+
+		return [.. vertices];
+	}
+
+	static Material GizmoLine => Material.Load( "materials/gizmo/line.vmat" );
+
+	/// <summary>Gizmo lines (gizmo_line): a list 3 pixels thick, depth tested, and a dashed strip a pixel thick over everything.</summary>
+	static void GizmoLines( CommandList cl )
+	{
+		cl.Attributes.Set( "LineThickness", 3.0f );
+		DrawOnGrey( cl, GizmoLine, Graphics.PrimitiveType.Lines, Star( 24, 60 * StageScale ) );
+		cl.Attributes.Set( "LineThickness", 1.0f );
+		cl.Attributes.Set( "PatternType", 1.0f );
+		cl.Attributes.SetCombo( "D_NO_ZTEST", 1 );
+		DrawVertices( cl, GizmoLine, Graphics.PrimitiveType.LineStrip, Zigzag( 16, 160 * StageScale ) );
+		cl.Attributes.Set( "PatternType", 0.0f );
+		cl.Attributes.SetCombo( "D_NO_ZTEST", 0 );
+	}
+
+	/// <summary>
+	/// Gizmo sprites (gizmo_sprite): screen-sized and world-sized points, some rotated, textured, each a little further than
+	/// the last, so which hides which doesn't come down to rounding.
+	/// </summary>
+	static void GizmoSprites( CommandList cl )
+	{
+		cl.Attributes.Set( "TextureColor", Texture.White );
+		var (_, right, up) = Stage();
+		var away = Vector3.Cross( up, right ) * StageScale;
+		DrawOnGrey( cl, Material.FromShader( "shaders/gizmo/gizmo_sprite.shader" ), Graphics.PrimitiveType.Points, Points( 6, 4, 24 * StageScale, ( i, p ) =>
+			new Vertex( p + away * i, new Vector4( (i & 1) != 0 ? 12 + i : (12 + i) * StageScale, (i & 1) != 0 ? 12 + i : (12 + i) * StageScale, (i & 1) != 0 ? 0 : 1, i * 0.3f ), Hue( i / 24f ) ) ) );
+	}
+
+	/// <summary>
+	/// Tool sprites (tools_sprite at its defaults: Borealis.Gpu draws a material with its shader's, not its own): points of
+	/// the uniform size, then the same with a border.
+	/// </summary>
+	static void ToolSprites( CommandList cl )
+	{
+		var material = Material.FromShader( "shaders/tools_sprite.shader" );
+		cl.Attributes.Set( "UniformPointSize", 9.0f );
+		DrawOnGrey( cl, material, Graphics.PrimitiveType.Points, Points( 6, 2, 24 * StageScale, ( i, p ) => new Vertex( p + new Vector3( 0, 0, 20 * StageScale ), Hue( i / 12f ) ) ) );
+		cl.Attributes.SetCombo( "D_BORDER", 1 );
+		cl.Attributes.Set( "BorderWidthPx", 2.0f );
+		DrawVertices( cl, material, Graphics.PrimitiveType.Points, Points( 6, 2, 24 * StageScale, ( i, p ) => new Vertex( p - new Vector3( 0, 0, 20 * StageScale ), Hue( i / 12f + 0.5f ) ) ) );
+		cl.Attributes.SetCombo( "D_BORDER", 0 );
+	}
+
+	/// <summary>Thick tool wireframe lines (tools_wireframe with D_THICK_LINES), shaded, depth biased.</summary>
+	static void ThickWireframe( CommandList cl )
+	{
+		cl.Attributes.SetCombo( "D_THICK_LINES", 1 );
+		cl.Attributes.SetCombo( "D_DEPTH_BIAS", 1 );
+		cl.Attributes.Set( "g_LineThickness", 4.0f );
+		DrawOnGrey( cl, Material.FromShader( "shaders/tools_wireframe.shader" ), Graphics.PrimitiveType.Lines, Star( 16, 60 * StageScale ) );
+		cl.Attributes.SetCombo( "D_THICK_LINES", 0 );
+		cl.Attributes.SetCombo( "D_DEPTH_BIAS", 0 );
+	}
+
+	/// <summary>
+	/// Normals (tools_visualize_tangent_frame) of a sphere's triangles, and of a smaller one beside it, drawn as native's tools
+	/// views draw them (its <c>ToolsUtil</c> mode).
+	/// </summary>
+	static void TangentFrames( CommandList cl )
+	{
+		var material = Material.Load( "materials/tools/show_normals.vmat" );
+		var sphere = Sphere( 30 * StageScale, 12, 8 );
+		cl.Attributes.Set( "g_flVectorLength", 10.0f );
+		DrawOnGrey( cl, material, Graphics.PrimitiveType.Triangles, sphere, "ToolsUtil" );
+		var moved = Sphere( 18 * StageScale, 10, 6 ).Select( v => v with { Position = v.Position + Stage().Right * (70 * StageScale) } ).ToArray();
+		DrawVertices( cl, material, Graphics.PrimitiveType.Triangles, moved, "ToolsUtil" );
+	}
+
+	/// <summary>A highlight (ObjectHighlight): a sphere's inside pass, then its outline, as the Highlight component draws them.</summary>
+	static void Highlight( CommandList cl )
+	{
+		var material = Material.FromShader( "shaders/postprocess/objecthighlight/objecthighlight.shader" );
+		var sphere = Sphere( 30 * StageScale, 12, 8 );
+		cl.AddAction( ClearToGrey );
+		cl.Attributes.GrabFrameTexture( "ColorTexture" );
+		cl.Attributes.SetCombo( "D_OUTLINE_PASS", 0 );
+		cl.Attributes.Set( "Color", new Color( 0.2f, 0.6f, 1.0f, 0.3f ) );
+		cl.Attributes.Set( "ObscuredColor", new Color( 1.0f, 0.4f, 0.1f, 0.3f ) );
+		DrawVertices( cl, material, Graphics.PrimitiveType.Triangles, sphere );
+		cl.Attributes.SetCombo( "D_OUTLINE_PASS", 1 );
+		cl.Attributes.Set( "Color", new Color( 0.2f, 0.8f, 1.0f, 1.0f ) );
+		cl.Attributes.Set( "ObscuredColor", new Color( 1.0f, 0.6f, 0.1f, 1.0f ) );
+		cl.Attributes.Set( "LineWidth", 0.5f );
+		DrawVertices( cl, material, Graphics.PrimitiveType.Triangles, sphere );
+		cl.Attributes.SetCombo( "D_OUTLINE_PASS", 0 );
+	}
+
 	static readonly Case[] Cases =
 	[
 		new( "copy", "the frame copied into the target, nothing else", _ => { } ),
@@ -352,6 +610,12 @@ internal static class PostParity
 			} ),
 		new( "motionblur", "motion blur: depth through the view's depth chain, reprojected into a previous frame 20 units to the side", MotionBlur, NeedsDepth: true, View: Moved,
 			Components: go => go.Components.Create<global::Sandbox.MotionBlur>() ),
+		new( "gizmo-lines", "gizmo_line: a thick line list depth tested, a dashed strip over everything", GizmoLines, NeedsDepth: true, InView: true ),
+		new( "gizmo-sprites", "gizmo_sprite: points as screen- and world-sized sprites, rotated, textured", GizmoSprites, NeedsDepth: true, InView: true ),
+		new( "tool-sprites", "tools_sprite: uniform-sized points, with a border", ToolSprites, NeedsDepth: true, InView: true ),
+		new( "thick-wireframe", "tools_wireframe with D_THICK_LINES: lines four pixels thick, depth biased", ThickWireframe, NeedsDepth: true, InView: true ),
+		new( "tangent-frames", "tools_visualize_tangent_frame: two spheres' normals", TangentFrames, "tangents and bitangents: show_tangent_space.vmat's F_SHOW_TANGENTS is a material feature, and Borealis.Gpu draws a material as its shader", NeedsDepth: true, InView: true ),
+		new( "highlight", "ObjectHighlight: a sphere's inside pass and outline", Highlight, NeedsDepth: true, InView: true ),
 		new( "stack", "bloom, vignette, tonemapping, sharpen, film grain, chromatic aberration, colour adjustments, in their stages' order", cl =>
 		{
 			Bloom( cl );
@@ -505,6 +769,8 @@ internal static class PostParity
 		dofArguments?.Dispose();
 		source2Chain?.Dispose();
 		dofTiles = null;
+		caseStencil?.Dispose();
+		caseStencil = null;
 		dofArguments = null;
 		source2Chain = null;
 
@@ -521,6 +787,7 @@ internal static class PostParity
 
 	// Sun Shadows on Source 2, kept for its depth, which the reference binds with the frame when the scene is on Borealis.Gpu
 	static RenderSystem source2Renderer;
+	static RenderView labView;
 	static ViewTarget source2Target;
 
 	/// <summary>
@@ -547,6 +814,7 @@ internal static class PostParity
 		var lab = LabWorld.Build( LabPresets.Find( "Sun Shadows" ), backend.Content );
 		var view = new RenderView { Name = "Post parity", ClearColor = new Color( 0.08f, 0.09f, 0.11f ), Viewport = new Rect( 0, 0, Width, Height ) };
 		lab.Aim( view, LabWorld.DefaultPitch, LabWorld.DefaultYaw, lab.DefaultDistance );
+		labView = view;
 		focalDistance = lab.DefaultDistance;
 		focusRange = lab.DefaultDistance * 0.5f;
 		var renderer = source2Renderer = new RenderSystem();
@@ -653,7 +921,7 @@ internal static class PostParity
 		// The reference is always the copies of the command lists on Source 2: the components' own attributes are drawn
 		// with as they are, and Source 2 doesn't layer a block's over them outside a view, so in this block they'd miss the
 		// frame grab and view constants there
-		var native = Apply( RenderBackend.Default, frame, test, reference: true );
+		var native = test.InView ? InNativeView( backend, test ) : Apply( RenderBackend.Default, frame, test, reference: true );
 		g_pRenderDevice.Flush();
 		var nativePixels = Read( native, null );
 		native.Dispose();
@@ -758,6 +1026,59 @@ internal static class PostParity
 		}
 
 		if ( onFrame ) gpuScene.Frame.End();
+		return target;
+	}
+
+	/// <summary>
+	/// The case's command list run by Source 2 inside a native view: a scene world holding one custom object that runs it,
+	/// drawn by a native camera where the scene's camera is, over a grey clear, without MSAA or post processing.
+	/// </summary>
+	static Texture InNativeView( Source2Backend backend, Case test )
+	{
+		// The layers of native's pipeline, which the app system installs and this lab otherwise doesn't need
+		RenderPipeline.Current ??= (INativeRenderPipeline)Activator.CreateInstance( Type.GetType( "Sandbox.Rendering.Pipeline.NativeRenderPipeline, Sandbox.Rendering", true ), nonPublic: true );
+
+		var world = new SceneWorld();
+		var camera = new SceneCamera( "Post parity native view" )
+		{
+			World = world,
+			Position = labView.Position,
+			Rotation = labView.Rotation,
+			FieldOfView = labView.FieldOfView,
+			ZNear = labView.ZNear,
+			ZFar = labView.ZFar,
+			BackgroundColor = Grey,
+			ClearFlags = ClearFlags.All,
+			EnablePostProcessing = false,
+			AllowCmaa2 = false,
+		};
+		camera.Attributes.Set( "msaa", (int)NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_NONE );
+
+		var cl = new CommandList( test.Name );
+		cl.Attributes.Set( "BlueNoise", Texture.Load( "textures/dev/blue_noise_256.vtex" ) );
+		test.Record( cl );
+		_ = new SceneCustomObject( world )
+		{
+			RenderOverride = _ =>
+			{
+				inNativeView = true;
+				try { cl.Execute(); }
+				finally { inNativeView = false; }
+			}
+		};
+
+		var target = Texture.CreateRenderTarget().WithSize( Width, Height ).WithFormat( ImageFormat.RGBA16161616F ).Create( "Post parity native view" );
+		// Queued: native renders it with the next frame's views
+		SceneRenderer.Native.RenderToTexture( camera, target, null, default );
+		for ( var i = 0; i < 2; i++ )
+		{
+			backend.BeginFrame();
+			backend.EndFrame();
+		}
+		backend.Flush();
+
+		camera.Dispose();
+		world.Delete();
 		return target;
 	}
 
