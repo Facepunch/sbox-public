@@ -274,8 +274,8 @@ public class PassModuleTests : GpuTest
 	/// <summary>
 	/// ObjectHighlight's outline drawn from a model's vertices laid out one triangle after another (what Borealis.Gpu draws a
 	/// highlighted model with): each corner of the expanded triangle reads its own place in the vertex cache (the skinned
-	/// citizen's path, <c>TEXCOORD15</c> held again as <c>TEXCOORD3</c>) and its own bone, not the first corner's. With a
-	/// line width of nothing the outline is the triangle itself.
+	/// citizen's path, <c>TEXCOORD15</c> held again as <c>TEXCOORD3</c>) and its own bone, not the first corner's. With no
+	/// stencil the outline is a band two pixels round each of the triangle's edges.
 	/// </summary>
 	[TestMethod]
 	public void HighlightOutlineCornersReadTheirOwnVertices()
@@ -359,7 +359,8 @@ public class PassModuleTests : GpuTest
 			attributes.SetCombo( "D_CS_VERTEX_ANIMATION", cache );
 			attributes.Set( "Color", 1, 1, 1, 1 );
 			attributes.Set( "ObscuredColor", 1, 1, 1, 1 );
-			attributes.Set( "LineWidth", 0.0f );
+			// Two pixels: LineWidth / 64 of the normalized inverse viewport size, in projection space
+			attributes.Set( "LineWidth", 2.0f * 64 * MathF.Sqrt( 2 ) / Size );
 
 			var color = Device.CreateTexture( TextureInfo.RenderTarget( Size, Size, Format.RGBA8Unorm, name: name ) );
 			var list = Device.BeginCommandList( QueueType.Graphics, name );
@@ -388,10 +389,10 @@ public class PassModuleTests : GpuTest
 				}
 			}
 
-			// The triangle covers about 0.5 * 19.2 * 38.4 = 369 pixels
+			// The triangle's edges, about 19 + 2 * 40 pixels long, with a band of 2.5 pixels each side round them
 			TestContext.WriteLine( $"{what}: {rightHalf} pixels in the right half, {left} in the left" );
 			Assert.AreEqual( 0, left, $"every corner {what}: nothing in the left half" );
-			Assert.IsTrue( rightHalf is > 300 and < 440, $"the whole triangle {what} ({rightHalf} pixels)" );
+			Assert.IsTrue( rightHalf > 300, $"round the whole triangle {what} ({rightHalf} pixels)" );
 		}
 
 		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
