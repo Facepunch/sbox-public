@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// Incremental <see cref="SceneWorld"/> mirror for <c>r_managed_scene</c>.
+/// Incremental <see cref="SceneWorld"/> mirror for Borealis (<c>-borealisgpu</c>).
 /// Queues object changes from any thread and applies changed fields before rendering.
 /// Object attributes are read when a view draws the object, as their values change in place without notifications.
 /// </summary>
@@ -286,58 +286,16 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 	readonly Dictionary<SceneLightProbe, Borealis.LightProbeVolume> lightProbes = new();
 
-	readonly Dictionary<ulong, SharedLightmap> lightmaps = new();
-	readonly Dictionary<RenderAttributes, ulong> lightmapKeys = new( ReferenceEqualityComparer.Instance );
-
-	sealed class SharedLightmap
-	{
-		public RenderAttributes Attributes;
-		public int Users;
-	}
-
 	/// <summary>
-	/// Reference-counted lightmap attributes shared by lighting key to preserve material batching.
-	/// Remove on last use to prevent reuse after map unload.
-	/// </summary>
-	RenderAttributes AcquireLightmap( SceneObject sceneObject )
-	{
-		var key = SceneNative.LightmapKey( sceneObject );
-		if ( key == 0 ) return null;
-
-		if ( !lightmaps.TryGetValue( key, out var shared ) )
-		{
-			var attributes = SceneNative.CreateLightmapAttributes( sceneObject );
-			if ( attributes is null ) return null;
-
-			shared = new SharedLightmap { Attributes = attributes };
-			lightmaps[key] = shared;
-			lightmapKeys[attributes] = key;
-		}
-
-		shared.Users++;
-		return shared.Attributes;
-	}
-
-	/// <summary>
-	/// The world lightmaps a lightmapped object draws with: native's, shared per lightmap set (<see cref="AcquireLightmap"/>);
-	/// on Borealis.Gpu, those of the map its model is in (<c>maps/construct_25/worldnodes/...</c>), read from the map's world
-	/// file. Null for an object without lightmaps.
+	/// The world lightmaps a lightmapped object draws with: those of the map its model is in
+	/// (<c>maps/construct_25/worldnodes/...</c>), read from the map's world file. Null for an object without lightmaps.
 	/// </summary>
 	ShaderParameters LightmapFor( SceneObject sceneObject, Model model )
 	{
-		if ( MirrorContent.Gpu is not { } gpu ) return MirrorContent.Parameters( AcquireLightmap( sceneObject ) );
+		if ( MirrorContent.Gpu is not { } gpu ) return null;
 		if ( SceneNative.LightmapKey( sceneObject ) == 0 || model?.ResourcePath is not { } path || !path.StartsWith( "maps/", StringComparison.OrdinalIgnoreCase ) ) return null;
 		var end = path.IndexOf( '/', 5 );
 		return end > 5 ? gpu.MapLightmapParameters( path[..end] ) : null;
-	}
-
-	void ReleaseLightmap( RenderAttributes attributes )
-	{
-		if ( attributes is null || !lightmapKeys.TryGetValue( attributes, out var key ) || !lightmaps.TryGetValue( key, out var shared ) ) return;
-		if ( --shared.Users > 0 ) return;
-
-		lightmaps.Remove( key );
-		lightmapKeys.Remove( attributes );
 	}
 
 	/// <summary>
@@ -355,15 +313,13 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 		SceneNative.ReadLightProbeVolume( probe, volume );
 		volume.Handshake = probe.Handshake;
-		if ( MirrorContent.Gpu is { } gpu )
-		{
-			// On Borealis.Gpu: its constants made here, over its textures read by path, once they've loaded
-			var texture = TextureFor( probe.ProbeTexture, probe, SceneObjectChange.Settings );
-			var indices = TextureFor( probe.IndicesTexture, probe, SceneObjectChange.Settings );
-			var scalars = TextureFor( probe.ScalarsTexture, probe, SceneObjectChange.Settings );
-			if ( !TexturesWaiting( probe ) ) volume.Attributes = gpu.LightProbeVolumeParameters( texture, indices, scalars, probe.Transform, volume.BoxMins, volume.BoxMaxs );
-		}
-		else volume.Attributes = MirrorContent.Parameters( SceneNative.CreateLightProbeAttributes( probe ) );
+		if ( MirrorContent.Gpu is not { } gpu ) return;
+
+		// Its constants made here, over its textures read by path, once they've loaded
+		var texture = TextureFor( probe.ProbeTexture, probe, SceneObjectChange.Settings );
+		var indices = TextureFor( probe.IndicesTexture, probe, SceneObjectChange.Settings );
+		var scalars = TextureFor( probe.ScalarsTexture, probe, SceneObjectChange.Settings );
+		if ( !TexturesWaiting( probe ) ) volume.Attributes = gpu.LightProbeVolumeParameters( texture, indices, scalars, probe.Transform, volume.BoxMins, volume.BoxMaxs );
 	}
 
 	/// <summary>
@@ -424,13 +380,11 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			attributed.Remove( mesh );
 			mesh.AttributesFrom = null;
 			sharing.Remove( mesh );
-			ReleaseLightmap( mesh.LightmapAttributes.Engine() );
 			mesh.LightmapAttributes = null;
 		}
 		else if ( obj is AggregateObject aggregate )
 		{
 			Release( aggregate.Mesh );
-			ReleaseLightmap( aggregate.LightmapAttributes.Engine() );
 			aggregate.LightmapAttributes = null;
 		}
 
@@ -465,7 +419,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 				meshChanged = true;
 
 				// Shared world lightmap attributes.
-				ReleaseLightmap( mesh.LightmapAttributes.Engine() );
 				mesh.LightmapAttributes = drawn is { HasLightmappedDraws: true } ? LightmapFor( sceneObject, sceneObject.Model ) : null;
 			}
 		}
@@ -531,8 +484,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			if ( meshChanged || (change & SceneObjectChange.Model) != 0 )
 			{
 				mesh.MorphSource = model.Model is not { MorphCount: > 0 } ? null
-					: MirrorContent.Gpu is { } gpu ? (mesh.MorphSource is GpuSceneModelMorphs gpuMorphs && gpuMorphs.Source == model ? gpuMorphs : new GpuSceneModelMorphs( model, gpu ))
-					: mesh.MorphSource is SceneModelMorphs morphs && morphs.Source == model ? morphs : new SceneModelMorphs( model );
+					: MirrorContent.Gpu is not { } gpu ? null
+					: mesh.MorphSource is GpuSceneModelMorphs gpuMorphs && gpuMorphs.Source == model ? gpuMorphs : new GpuSceneModelMorphs( model, gpu );
 			}
 
 			// Native bounds include deformation padding.
@@ -589,7 +542,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 		if ( (change & SceneObjectChange.Added) != 0 && aggregate.Lightmapped )
 		{
-			ReleaseLightmap( aggregate.LightmapAttributes.Engine() );
 			aggregate.LightmapAttributes = LightmapFor( sceneObject, SceneNative.AggregateModel( sceneObject, out _ ) );
 		}
 	}
@@ -1001,7 +953,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 					text.Append( $"; {light.Kind} light at {light.Transform.Position} colour {light.Color} radius {light.Radius} attenuation {light.Attenuation} shadows {light.CastShadows}{(light.Baked ? $" baked{(light.MixedShadows ? " with mixed shadows" : "")}" : "")}{(light.BakeIndex >= 0 ? $" bake index {light.BakeIndex}" : "")}{(light.NativePacked is null ? "" : " (native packed)")}" );
 					break;
 				case EnvMapObject envMap:
-					text.Append( $"; probe {(envMap.Cubemap is not { } cube ? "(none)" : cube.Engine()?.ResourcePath ?? $"{cube.Width}px {cube.Format} (made at runtime)")} box {envMap.ProjectionBounds} priority {envMap.Priority} tint {envMap.Tint}" );
+					text.Append( $"; probe {(envMap.Cubemap is not { } cube ? "(none)" : $"{cube.Width}px {cube.Format}")} box {envMap.ProjectionBounds} priority {envMap.Priority} tint {envMap.Tint}" );
 					break;
 			}
 		}

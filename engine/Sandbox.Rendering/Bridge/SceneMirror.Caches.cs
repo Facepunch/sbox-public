@@ -5,23 +5,22 @@ namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
 /// What a <see cref="SceneMirror"/> holds besides its objects: meshes made from models, their draw-state variants, shared
-/// lightmap and attribute sets, and deleted objects kept to the end of their frame. Counted for watching that none of it
-/// grows for the life of a session (<see cref="SceneBridge.CachesFor"/>).
+/// attribute sets, and deleted objects kept to the end of their frame. Counted for watching that none of it grows for the
+/// life of a session (<see cref="SceneBridge.CachesFor"/>).
 /// </summary>
-internal readonly record struct MirrorCacheCounts( int Objects, int Meshes, int FailedMeshes, int Variants, int IdleMeshes, int Lightmaps, int LightmapKeys,
+internal readonly record struct MirrorCacheCounts( int Objects, int Meshes, int FailedMeshes, int Variants, int IdleMeshes,
 	int Attributed, int Sharing, int Shareable, int Deleted, long Built, long Evicted, long Reloaded )
 {
 	public override string ToString()
-		=> $"{Objects} objects, {Meshes} meshes ({FailedMeshes} failed), {Variants} variants, {IdleMeshes} idle; lightmaps {Lightmaps}/{LightmapKeys}; attributes {Attributed} tracked, {Sharing} sharing, {Shareable} shareable; {Deleted} deleted; built {Built}, evicted {Evicted}, reloaded {Reloaded}";
+		=> $"{Objects} objects, {Meshes} meshes ({FailedMeshes} failed), {Variants} variants, {IdleMeshes} idle; attributes {Attributed} tracked, {Sharing} sharing, {Shareable} shareable; {Deleted} deleted; built {Built}, evicted {Evicted}, reloaded {Reloaded}";
 }
 
 /// <summary>
 /// The mirror's mesh cache. Each model's <see cref="RenderMesh"/> is made once, and each effective draw state of it (body
 /// groups, material group, overrides) once more as a variant, shared by every object in that state so they instance.
 /// Objects hold what they draw (<see cref="Hold"/>, <see cref="Release"/>); what none holds is idle, and dropped once it has
-/// been idle for <see cref="IdleFrames"/>. A model or material reloaded since its mesh was made drops the mesh, and the
-/// objects drawing it make it again (<see cref="CheckReloads"/>). A material no cached mesh draws any more has the constant
-/// buffers Borealis's binds kept for it forgotten (<see cref="CountMaterials"/>).
+/// been idle for <see cref="IdleFrames"/>. A model reloaded since its mesh was made drops the mesh, and the objects drawing
+/// it make it again (<see cref="CheckReloads"/>).
 /// </summary>
 internal sealed partial class SceneMirror
 {
@@ -49,11 +48,6 @@ internal sealed partial class SceneMirror
 
 		public ulong IdleSince;
 		public bool Queued, Dropped;
-
-		/// <summary>
-		/// Its draws' materials' revisions added up when it was made: they only go up, so a reloaded material changes the sum.
-		/// </summary>
-		public int MaterialRevisions;
 	}
 
 	sealed class CachedModel : CachedMesh
@@ -81,15 +75,6 @@ internal sealed partial class SceneMirror
 	int variantCount;
 	ulong nextSweep;
 
-	// How many cached meshes draw each material, and one mesh's materials while counting them
-	readonly Dictionary<GpuMaterial, int> materialMeshes = new( ReferenceEqualityComparer.Instance );
-	readonly HashSet<GpuMaterial> meshMaterials = new( ReferenceEqualityComparer.Instance );
-
-	/// <summary>Materials the cached meshes draw.</summary>
-	internal int MaterialsDrawn => materialMeshes.Count;
-
-	/// <summary>Materials no cached mesh draws any more, whose kept constant buffers were forgotten.</summary>
-	internal long MaterialsForgotten { get; private set; }
 	int seenReloads = Resource.Reloads;
 	long built, evicted, reloaded;
 
@@ -105,7 +90,7 @@ internal sealed partial class SceneMirror
 
 			var failed = models.Count( x => x.Value.Mesh is null );
 			var unused = idle.Count( x => x.Users == 0 && !x.Dropped );
-			return new MirrorCacheCounts( objects.Count, models.Count - failed, failed, variantCount, unused, lightmaps.Count, lightmapKeys.Count,
+			return new MirrorCacheCounts( objects.Count, models.Count - failed, failed, variantCount, unused,
 				attributed.Count, sharing.Count, shareable.Count, deleted + lingering.Count, built, evicted, reloaded );
 		}
 	}
@@ -139,10 +124,9 @@ internal sealed partial class SceneMirror
 			mesh = null;
 		}
 
-		cached = new CachedModel { Model = model, Mesh = mesh, Revision = model.Revision, MaterialRevisions = MaterialRevisions( mesh ) };
+		cached = new CachedModel { Model = model, Mesh = mesh, Revision = model.Revision };
 		models[model] = cached;
 		if ( mesh is not null ) held[mesh] = cached;
-		CountMaterials( mesh, 1 );
 		built++;
 
 		// Idle until something holds it
@@ -182,9 +166,7 @@ internal sealed partial class SceneMirror
 		// States that change nothing draw the model's own mesh, and go with it
 		if ( variant.Mesh == mesh ) return mesh;
 
-		variant.MaterialRevisions = MaterialRevisions( variant.Mesh );
 		held[variant.Mesh] = variant;
-		CountMaterials( variant.Mesh, 1 );
 		model.Users++;
 		built++;
 		Idle( variant );
@@ -263,7 +245,6 @@ internal sealed partial class SceneMirror
 		{
 			case CachedVariant variant:
 				held.Remove( variant.Mesh );
-				CountMaterials( variant.Mesh, -1 );
 				var candidates = variant.Model.Variants[variant.Hash];
 				candidates.Remove( variant );
 				if ( candidates.Count == 0 ) variant.Model.Variants.Remove( variant.Hash );
@@ -274,7 +255,6 @@ internal sealed partial class SceneMirror
 			case CachedModel model:
 				if ( model.Mesh is not null ) held.Remove( model.Mesh );
 				if ( models.GetValueOrDefault( model.Model ) == model ) models.Remove( model.Model );
-				CountMaterials( model.Mesh, -1 );
 
 				foreach ( var (_, list) in model.Variants )
 				{
@@ -284,48 +264,12 @@ internal sealed partial class SceneMirror
 						variantCount--;
 						if ( variant.Mesh == model.Mesh ) continue;
 						held.Remove( variant.Mesh );
-						CountMaterials( variant.Mesh, -1 );
 					}
 				}
 
 				model.Variants.Clear();
 				break;
 		}
-	}
-
-	/// <summary>
-	/// Count a mesh the cache makes (1) or drops (-1) against each material it draws. Once no cached mesh draws a material,
-	/// the constant buffers Borealis's binds kept for its layers are forgotten (<see cref="SceneNative.ForgetKeptConstants"/>):
-	/// they go with the mirror's use of a material rather than with the material, which may wait for the GC. Only meshes
-	/// being made or dropped come here, never a frame's draws.
-	/// </summary>
-	void CountMaterials( RenderMesh mesh, int delta )
-	{
-		if ( mesh is null ) return;
-
-		for ( int lod = 0; lod < mesh.LodCount; lod++ )
-		{
-			foreach ( var draw in mesh.DrawsForLod( lod ) )
-			{
-				if ( draw.Material is { } material ) meshMaterials.Add( material );
-			}
-		}
-
-		foreach ( var material in meshMaterials )
-		{
-			var count = materialMeshes.GetValueOrDefault( material ) + delta;
-			if ( count > 0 )
-			{
-				materialMeshes[material] = count;
-				continue;
-			}
-
-			materialMeshes.Remove( material );
-			SceneNative.ForgetKeptConstants( material );
-			MaterialsForgotten++;
-		}
-
-		meshMaterials.Clear();
 	}
 
 	// Reload scratch: meshes dropped, models without geometry dropped, and aggregates to make again
@@ -471,32 +415,5 @@ internal sealed partial class SceneMirror
 		remake.Clear();
 	}
 
-	bool IsStale( CachedModel cached )
-	{
-		if ( cached.Revision != cached.Model.Revision || cached.MaterialRevisions != MaterialRevisions( cached.Mesh ) ) return true;
-
-		foreach ( var (_, list) in cached.Variants )
-		{
-			foreach ( var variant in list )
-			{
-				if ( variant.Mesh != cached.Mesh && variant.MaterialRevisions != MaterialRevisions( variant.Mesh ) ) return true;
-			}
-		}
-
-		return false;
-	}
-
-	static int MaterialRevisions( RenderMesh mesh )
-	{
-		if ( mesh is null ) return 0;
-
-		var sum = 0;
-		for ( int lod = 0; lod < mesh.LodCount; lod++ )
-		{
-			foreach ( var draw in mesh.DrawsForLod( lod ) )
-				sum += draw.Material.Engine()?.Revision ?? 0;
-		}
-
-		return sum;
-	}
+	static bool IsStale( CachedModel cached ) => cached.Revision != cached.Model.Revision;
 }
