@@ -40,21 +40,29 @@ cbuffer BorealisGpuDrivenMark_t
 	uint g_nMarkPad3;
 };
 
-// Sets the lanes' bits, one atomic per distinct mask word in the wave: neighbouring pixels mostly name the same
-// triangle, and an atomic each serialises them on that word
+// Sets the lanes' bits. Neighbouring pixels mostly name the same triangle, and an atomic each serialises them on its
+// mask word, so the wave's lowest words go first with one atomic each; lanes with a word beyond those take their own.
+// Called by the whole wave: the wave operations stay in uniform control flow.
 void MarkBits( bool bMark, uint nBit )
 {
-	uint nWord = nBit >> 5;
-	while ( bMark )
+	uint nWord = bMark ? nBit >> 5 : 0xffffffffu;
+	uint nMine = 1u << ( nBit & 31 );
+	[unroll] for ( uint nRound = 0; nRound < 4; nRound++ )
 	{
-		if ( nWord == WaveReadLaneFirst( nWord ) )
-		{
-			uint nBits = WaveActiveBitOr( 1u << ( nBit & 31 ) );
-			if ( WaveIsFirstLane() )
-				g_Mask.InterlockedOr( nWord * 4, nBits );
-			bMark = false;
-		}
+		uint nLowest = WaveActiveMin( nWord );
+		if ( nLowest == 0xffffffffu )
+			break;   // uniform: the wave has nothing left
+
+		bool bLowest = nWord == nLowest;
+		uint nBits = WaveActiveBitOr( bLowest ? nMine : 0u );
+		if ( WaveIsFirstLane() )
+			g_Mask.InterlockedOr( nLowest * 4, nBits );
+		if ( bLowest )
+			nWord = 0xffffffffu;
 	}
+
+	if ( nWord != 0xffffffffu )
+		g_Mask.InterlockedOr( nWord * 4, nMine );
 }
 
 // Every distinct id of a pixel's samples sets its bit: the first vertex's bit + 1, 0 for nothing
