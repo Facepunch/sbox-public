@@ -266,6 +266,30 @@ internal static class PlanarReflections
 	}
 
 	/// <summary>
+	/// <see cref="Publish(CRenderAttributes, in Reflection, in ViewData)"/> into attributes with a managed store, for a view on a
+	/// Borealis.Gpu device.
+	/// </summary>
+	internal static void Publish( RenderAttributes attributes, in Reflection reflection, in ViewData data )
+	{
+		if ( !data.IsValid )
+			return;
+
+		System.Threading.Interlocked.Increment( ref _captureCount );
+		LastSharedCount = reflection.Shared;
+		LastPlane = reflection.Plane;
+
+		var target = reflection.Target;
+		attributes.Set( "PlanarReflectionTexture", target.ColorTarget );
+		attributes.Set( "PlanarReflectionDepthTexture", target.DepthTarget );
+		attributes.Set( "PlanarReflectionProjectionToView", data.ProjectionToView );
+		attributes.Set( "PlanarReflectionDepthUvScaleBias", data.DepthUvScaleBias );
+		attributes.Set( "PlanarReflectionViewport", data.Viewport );
+		attributes.Set( "PlanarReflectionDepthRange", data.DepthRange );
+		attributes.Set( "PlanarReflectionPlane", new Vector4( reflection.Plane.Normal, reflection.Plane.Distance ) );
+		attributes.Set( "HasPlanarReflection", true );
+	}
+
+	/// <summary>
 	/// Whether the plane lies on the anchor's, facing the same way, within an inch.
 	/// </summary>
 	static bool Coplanar( SceneReflectionPlane.State anchor, SceneReflectionPlane.State plane )

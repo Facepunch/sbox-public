@@ -165,6 +165,9 @@ internal sealed partial class SceneBridge
 		exposure?.FrameUpdate( RealTime.NowDouble );
 		state.View.ToneMapScalar = exposure?.Scale ?? 1.0f;
 
+		// Its planar reflection first, with its exposure: it depends on nothing in the frame
+		RenderPlanarReflectionOnGpu( camera, mirror, state, setup );
+
 		var targetSize = new Vector2Int( (int)size.x, (int)size.y );
 		samples = Math.Max( samples, 1 );
 		if ( state.GpuTarget is null || state.GpuTarget.Size != targetSize || state.GpuTarget.Samples != samples )
@@ -205,6 +208,104 @@ internal sealed partial class SceneBridge
 
 		frame.End();
 		return frame;
+	}
+
+	/// <summary>
+	/// Render a child of the frame being drawn (a command list's <c>DrawView</c>, a water body's <c>DrawRefraction</c>) on the
+	/// Borealis.Gpu device, as <see cref="RenderChild"/> does on Source 2's: prepared, recorded and submitted now, so it reaches
+	/// the GPU before the parent's lists. It draws into targets of its own the engine texture's size and format, which
+	/// Borealis's draws then read in place of <paramref name="target"/> (and <paramref name="depthTarget"/>), through
+	/// <see cref="MirrorContent.SetCapture"/>. It takes the parent's exposure. The engine draws nothing in it: the graphics
+	/// context is the parent's (custom objects, dynamic objects and command lists aren't drawn, nor the camera's stages).
+	/// </summary>
+	bool RenderChildOnGpu( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out CameraState state )
+		=> RenderOnGpu( camera, setup, target, depthTarget, rendering.View.ToneMapScalar, out state );
+
+	/// <summary>
+	/// Render a view on the Borealis.Gpu device into targets of its own for <paramref name="target"/> and
+	/// <paramref name="depthTarget"/> (<see cref="RenderChildOnGpu"/>), with <paramref name="toneMapScalar"/> as its exposure.
+	/// </summary>
+	bool RenderOnGpu( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, float toneMapScalar, out CameraState state )
+	{
+		state = null;
+		if ( target.Width < 1 || target.Height < 1 ) return false;
+
+		(var mirror, state) = Prepare( camera, setup, target.Size, updateExposure: false );
+		state.View.ToneMapScalar = toneMapScalar;
+
+		var size = new Vector2Int( target.Width, target.Height );
+		var format = Source2Formats.From( target.ImageFormat );
+		if ( format == TextureFormat.Unknown ) format = TextureFormat.RGBA8888;
+		using var drawing = new Drawing( this, state );
+
+		// An 8-bit texture gets the frame blended in HDR first, as a texture render on Source 2's device
+		if ( !format.IsFloat() )
+		{
+			if ( state.GpuOutput is not { } output || output.Size != size || output.Format != format )
+			{
+				state.GpuOutput?.Dispose();
+				state.GpuOutput = output = RenderHost.Current.Device.CreateTexture( TextureDesc.Target( size.x, size.y, format ), "Borealis.Gpu child view" );
+			}
+
+			state.System.Render( mirror.World, state.View, output, 1, null );
+			MirrorContent.Gpu.MakeReadable( output );
+			MirrorContent.SetCapture( target, output );
+			return true;
+		}
+
+		// A float one renders straight into its colour, multisampled as the caller's depth is
+		var samples = depthTarget is null ? 1 : Source2Formats.Samples( depthTarget.MultisampleType );
+		if ( state.GpuTarget is not { } drawn || drawn.Size != size || drawn.Samples != samples || drawn.Color.Format != format )
+		{
+			state.GpuTarget?.Dispose();
+			state.GpuTarget = drawn = ViewTarget.Create( size, samples, format, TextureFormat.D32FS8, "Borealis.Gpu child view" );
+		}
+
+		state.System.Render( mirror.World, state.View, drawn, null );
+
+		// What reads them samples them
+		var gpu = MirrorContent.Gpu;
+		gpu.MakeReadable( drawn.Resolved );
+		MirrorContent.SetCapture( target, drawn.Resolved );
+		if ( depthTarget is not null )
+		{
+			gpu.MakeReadable( drawn.Depth );
+			MirrorContent.SetCapture( depthTarget, drawn.Depth );
+		}
+		return true;
+	}
+
+	/// <summary>
+	/// A top-level view's planar reflection on the Borealis.Gpu device, as <see cref="RenderPlanarReflection"/> renders one on
+	/// Source 2's: into targets of its own that the view's attributes name for the planes' materials, with the view's exposure.
+	/// </summary>
+	void RenderPlanarReflectionOnGpu( SceneCamera camera, SceneMirror mirror, CameraState state, in ViewSetup setup )
+	{
+		var view = state.View;
+		view.ViewAttributes = null;
+		if ( setup.Reflection || view.Orthographic || camera.World is null ) return;
+
+		var eye = new Transform( view.Position, view.Rotation );
+		var viewport = view.Viewport;
+		var aspect = viewport.Height > 0 ? viewport.Width / viewport.Height : 1;
+		var frustum = state.PlanarFrustum ??= new PlanarFrustum();
+		frustum.Of( view );
+		if ( !PlanarReflections.Plan( camera, eye, view.FieldOfView, aspect, view.ZNear, view.ZFar, viewport.Size, new Visibility( frustum ), out var planned ) )
+			return;
+
+		var reflection = CommandList.ReflectionView( eye, view.FieldOfView, aspect, view.ZNear, view.ZFar, planned.Plane, planned.Setup );
+		var target = planned.Target;
+		camera.ConfigureView( reflection );
+		var rendered = RenderOnGpu( camera, reflection, target.ColorTarget, target.DepthTarget, view.ToneMapScalar, out var reflected );
+
+		// The reflection's prepare set the world's 3D skybox up for its view
+		SyncSkybox( mirror, camera, setup );
+		if ( !rendered ) return;
+
+		var attributes = state.GpuViewAttributes ??= RenderAttributes.CreateManaged();
+		attributes.Clear();
+		PlanarReflections.Publish( attributes, planned, ViewDataFor( reflected, target.ColorTarget ) );
+		view.ViewAttributes = MirrorContent.ViewParameters( attributes, ref state.GpuViewParameters );
 	}
 
 	// The view of the scene the output is drawing, whose overlays wait for it
