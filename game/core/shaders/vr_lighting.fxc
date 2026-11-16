@@ -930,10 +930,11 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			if( flDistance + max( flEdgeFeathering, 0.0f ) < 0.0 )
 				continue;
 
+			// The box projection before the probe-space normal, so the normal isn't held through it
+			float3 vParallaxReflectionCubemapLocal = CalcParallaxReflectionCubemapLocal( vPositionWs, vNormalWs, vAnisotropy, flRetroReflectivity, vTangentUWs, vTangentVWs, index );
+
 			// Cube lookups are in probe space, realtime probes are mirrored so the world normal can't be used directly
 			const float3 vNormalCubemapLocal = normalize( mul( float4( vNormalWs.xyz, 0.0f ), EnvMapWorldToLocal( index ) ).xyz );
-
-			float3 vParallaxReflectionCubemapLocal = CalcParallaxReflectionCubemapLocal( vPositionWs, vNormalWs, vAnisotropy, flRetroReflectivity, vTangentUWs, vTangentVWs, index );
 
 			//---------------------------------------------------------------------------------------------------------------------------------------------------------
 			// Specular Environment Maps
@@ -982,10 +983,11 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			vCubeMapTexel_Specular = lerp( vCubeMapTexel_Specular, vCubeMapTexel, 1.0 - flDistAccumulated );
 
 			//---------------------------------------------------------------------------------------------------------------------------------------------------------
-			// Diffuse IBL
+			// Diffuse IBL, which only a surface without baked lighting adds: the lookup inside the branch, not ahead of it
 			//---------------------------------------------------------------------------------------------------------------------------------------------------------
+			[branch]
+			if ( !bHasBakedLighting )
 			{
-				const float3 vPositionCubemapLocal 		= mul( float4( vPositionWs.xyz, 1.0f ), EnvMapWorldToLocal( index ) ).xyz;
 				const float3 vReflectionCubemapLocal 	= vNormalCubemapLocal;
 
                 // Sam: Avoid using parallax for diffuse IBLs, it's causing issues with non-uniform scaled envmaps for minimal gains
@@ -1006,8 +1008,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 				}
 				#endif
 
-				if( !bHasBakedLighting )
-					vCubeMapTexel_Diffuse = lerp( vCubeMapTexel_Diffuse, vCubeMapTexelDiffuse, 1.0 - flDistAccumulated );
+				vCubeMapTexel_Diffuse = lerp( vCubeMapTexel_Diffuse, vCubeMapTexelDiffuse, 1.0 - flDistAccumulated );
 			}
 
 			//---------------------------------------------------------------------------------------------------------------------------------------------------------
