@@ -146,6 +146,7 @@ internal static class MapRealRun
 		// one view's layer keep one rendering scope (BackendDevice.CarryScopes)
 		map.Backend.ExactBarriers = !Args.Has( "-full-barriers" );
 		map.Backend.CarryScopes = Args.Has( "-carry-scopes" );
+		map.Backend.LayoutPlans = !Args.Has( "-no-layout-plans" );
 
 		// -fixed-time S: shader time S seconds every frame, so captures from separate runs can be compared pixel for pixel
 		if ( Args.String( "-fixed-time" ) is { } fixedTime && float.TryParse( fixedTime, System.Globalization.CultureInfo.InvariantCulture, out var seconds ) ) map.Time = seconds;
