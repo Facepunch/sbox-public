@@ -1,8 +1,8 @@
 namespace Sandbox.Lab;
 
 /// <summary>
-/// A lab preset: a grid of one model, and optionally a floor with lights over it, a probe, a sky or fog. SceneLab and
-/// BorealisLab both build it into a <see cref="Borealis.RenderWorld"/> through <see cref="LabWorld"/>.
+/// A lab preset: a grid of one model, and optionally a floor with lights over it, a probe, a sky or fog. BorealisLab
+/// builds it into a <see cref="Borealis.RenderWorld"/> through <see cref="LabWorld"/>.
 /// </summary>
 internal record LabPreset
 {
@@ -126,9 +126,8 @@ internal record LabPreset
 }
 
 /// <summary>
-/// The lab presets: worlds built straight from a <see cref="LabPreset"/>, with no GameObject scene. SceneLab lists them
-/// among its own presets and compares them with native; BorealisLab renders them alone and checks them against its
-/// approved images.
+/// The lab presets: worlds built straight from a <see cref="LabPreset"/>, with no GameObject scene. BorealisLab renders them
+/// and checks them against its approved images.
 /// </summary>
 internal static class LabPresets
 {
@@ -184,7 +183,7 @@ internal static class LabPresets
 		// A model whose LODs are different shapes, so LOD choices can be seen and compared with native
 		new() { Name = "LOD Test", Group = "Basics", Models = [LodTestModel.Path], Grid = 40 },
 
-		// Big enough to measure - see SceneLab's -benchmark switch
+		// Big enough to measure
 		new() { Name = "10k Boxes", Group = "Stress", Grid = 100 },
 		new() { Name = "50k Mixed", Group = "Stress", Models = ["models/dev/box.vmdl", "models/dev/sphere.vmdl"], Grid = 224 },
 		new() { Name = "10k Boxes, 256 Lights", Group = "Stress", Grid = 100, Lights = 256, LightRadius = 0.05f },

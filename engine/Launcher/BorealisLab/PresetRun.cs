@@ -1,10 +1,16 @@
 using Borealis;
+using Borealis.Backend;
+using Borealis.Gpu;
+using Borealis.Sdl;
+using GpuDevice = Borealis.Gpu.Device;
 
 namespace Sandbox.BorealisLab;
 
 /// <summary>
-/// Lab presets (<see cref="LabPresets"/>) through Borealis alone: one in a window, or captures of one or more into a
-/// texture, each read back and saved, and with <c>-golden-truth</c> checked against Borealis's approved images.
+/// Lab presets (<see cref="LabPresets"/>) through Borealis on a Borealis.Gpu device of its own, with content Borealis.Source2
+/// reads (<see cref="BackendLabContent"/>): one in a window, or captures of one or more into a texture, each read back and
+/// saved, and with <c>-golden-truth</c> checked against Borealis's approved images. The engine is up beside it for posing
+/// and for models made in code.
 /// </summary>
 internal static class PresetRun
 {
@@ -48,9 +54,6 @@ internal static class PresetRun
 			return Window( backend, preset, width, height );
 		}
 
-		// Golden truth images need the same mips every run: textures load whole, rather than streaming in over real time
-		if ( GoldenTruthRun.Enabled ) backend.PreloadTextures();
-
 		// -msaa N: the capture's samples, 1, 2, 4 or 8
 		var samples = Args.Int( "-msaa", 1 ) is var msaa && msaa is 2 or 4 or 8 ? msaa : 1;
 
@@ -61,6 +64,17 @@ internal static class PresetRun
 		var captureFrame = Math.Max( 1, Args.Int( "-capture-frame", 10 ) );
 		var single = Args.String( "-capture" );
 		var folder = System.IO.Path.GetFullPath( Args.String( "-out" ) ?? System.IO.Path.Combine( Environment.CurrentDirectory, "screenshots", "borealislab" ) );
+
+		// Validation with -vulkan_enable_validation, as the render tests ask for it, or -validation
+		var validation = Args.Has( "-vulkan_enable_validation" ) || Args.Has( "-validation" );
+		using var gpu = GpuDevice.Create( new DeviceOptions { ApplicationName = "Borealis Lab", Validation = validation, Presentation = false, Message = Message } );
+		using var device = new BackendDevice( gpu );
+		GoldenTruthRun.Adapter = gpu.Adapter.Name;
+		if ( validation ) GoldenTruthRun.ValidationLayer();
+		backend.Phase( $"Borealis.Gpu device ({gpu.Adapter.Name})" );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( device );
+		using var content = new BackendLabContent( device );
 
 		var results = new List<(string Name, bool Passed, string Text)>();
 		foreach ( var (name, preset) in presets )
@@ -79,7 +93,7 @@ internal static class PresetRun
 
 			try
 			{
-				Capture( backend, preset, width, height, samples, captureFrame, path );
+				Capture( backend, device, content, preset, width, height, samples, captureFrame, path );
 			}
 			catch ( Exception e )
 			{
@@ -99,6 +113,9 @@ internal static class PresetRun
 			}
 		}
 
+		gpu.WaitIdle();
+		RenderHost.Current = previousHost;
+
 		// Validation messages from the last preset's teardown
 		if ( GoldenTruthRun.Enabled && !GoldenTruthRun.Finish() ) results.Add( ("(teardown)", false, "validation messages after the last check") );
 
@@ -115,14 +132,25 @@ internal static class PresetRun
 	}
 
 	/// <summary>
+	/// A Borealis.Gpu device's messages: warnings and errors to the log, and validation's to the golden truth check.
+	/// </summary>
+	static void Message( DeviceMessage m )
+	{
+		if ( m.Severity < MessageSeverity.Warning ) return;
+		var text = $"Borealis.Gpu: {m.Severity} {m.Id}: {m.Text}";
+		Log.Warning( text );
+		if ( m.Severity == MessageSeverity.Error || m.Text.Contains( "Validation", StringComparison.OrdinalIgnoreCase ) ) GoldenTruthRun.Validation( text );
+	}
+
+	/// <summary>
 	/// Render <paramref name="captureFrame"/> frames of the preset into a texture, with a fresh renderer and world, and
 	/// save the last, resolved when it's multisampled. The lights stay where they start, so the frame is repeatable.
 	/// </summary>
-	static void Capture( Source2Backend backend, LabPreset preset, int width, int height, int samples, int captureFrame, string path )
+	static void Capture( Source2Backend backend, BackendDevice device, BackendLabContent content, LabPreset preset, int width, int height, int samples, int captureFrame, string path )
 	{
-		var lab = LabWorld.Build( preset, backend.Content );
+		var lab = LabWorld.Build( preset, content );
 		var view = NewView( lab, width, height );
-		var renderer = new RenderSystem();
+		var renderer = new RenderSystem { ParallelRecording = false };
 
 		// The formats a window's frame is drawn in before it's copied to the swap chain, so a capture sees what a window shows
 		var target = ViewTarget.Create( new Vector2Int( width, height ), samples, TextureFormat.RGBA16161616F, renderer.DepthFormat, "Borealis Lab" );
@@ -133,18 +161,20 @@ internal static class PresetRun
 			for ( var frame = 1; frame <= captureFrame; frame++ )
 			{
 				backend.BeginFrame();
+				device.BeginFrame();
+				RenderHost.Current.NextFrame();
 				renderer.Render( lab.World, view, target );
 				backend.EndFrame();
 			}
 
-			Source2Backend.SavePng( backend.ReadPixels( target ), width, height, path );
+			Source2Backend.SavePng( ModelParity.ReadBack( device, target, width, height ), width, height, path );
 			backend.Phase( $"{preset.Name}: {captureFrame} frames, captured to {path}" );
 			Log.Info( $"Borealis Lab: {preset.Name}: {renderer.Stats}" );
 		}
 		finally
 		{
 			// The GPU may still be reading what's about to be freed
-			backend.Flush();
+			device.Gpu.WaitIdle();
 			target.Dispose();
 			renderer.Dispose();
 		}
@@ -155,54 +185,74 @@ internal static class PresetRun
 	/// </summary>
 	static int Window( Source2Backend backend, LabPreset preset, int width, int height )
 	{
-		var lab = LabWorld.Build( preset, backend.Content );
+		using var window = new SdlWindow( new SdlWindowOptions { Title = $"Borealis Lab - {preset.Name}", Width = width, Height = height } );
+		using var gpu = GpuDevice.Create( new DeviceOptions { ApplicationName = "Borealis Lab", Validation = Args.Has( "-validation" ), InstanceExtensions = Sdl.VulkanInstanceExtensions, Message = Message } );
+		var (clientWidth, clientHeight) = window.PixelSize;
+		using var swapChain = gpu.CreateSwapChain( new SwapChainInfo
+		{
+			Surface = SurfaceSource.Custom( window.CreateVulkanSurface ),
+			Width = clientWidth,
+			Height = clientHeight,
+			PresentMode = Args.Has( "-novsync" ) ? PresentMode.Immediate : PresentMode.Fifo,
+		} );
+
+		using var device = new BackendDevice( gpu );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( device );
+		using var content = new BackendLabContent( device );
+		var lab = LabWorld.Build( preset, content );
 		var view = NewView( lab, width, height );
 		var renderer = new RenderSystem();
-		var window = backend.CreateWindow( $"Borealis Lab - {preset.Name}", width, height, vsync: !Args.Has( "-novsync" ) );
+		var target = ViewTarget.Create( new Vector2Int( clientWidth, clientHeight ), 1, TextureFormat.RGBA16161616F, renderer.DepthFormat, "Borealis Lab" );
 		backend.Phase( "Scene and window" );
 
 		var frames = Args.Int( "-frames", 0 );
 		var frameTimes = new List<double>();
-		var title = new BorealisGpuTitle( "Source 2" );
+		var title = new BorealisGpuTitle();
 		var titleName = $"Borealis Lab: {preset.Name}";
-		Action<string> setTitle = window.SetTitle;
+		Action<string> setTitle = text => window.Title = text;
 
-		for ( var frame = 1; ; frame++ )
+		try
 		{
-			var start = System.Diagnostics.Stopwatch.GetTimestamp();
-			backend.BeginFrame();
-
-			window.Poll();
-			if ( window.Closed ) break;
-
-			var size = window.Size;
-			if ( size.x >= 1 && size.y >= 1 )
+			for ( var frame = 1; !window.CloseRequested; frame++ )
 			{
+				var start = System.Diagnostics.Stopwatch.GetTimestamp();
+				Maps.MapRun.Pump( window );
+				backend.BeginFrame();
+				device.BeginFrame();
+				if ( !swapChain.Acquire( out var image ) ) image = default;
+
 				if ( preset.Orbit ) lab.MoveLights( RealTime.Now );
-				view.Viewport = new Rect( 0, 0, size.x, size.y );
-				renderer.Render( lab.World, view, window.SwapChain, size );
-				title.Frame( titleName, Sandbox.Rendering.ManagedFrameCounters.From( renderer.Stats ), null, null, view.Position, setTitle );
+				RenderHost.Current.NextFrame();
+				renderer.Render( lab.World, view, target );
+
+				var copy = gpu.BeginCommandList( QueueType.Graphics, "Borealis Lab to window" );
+				if ( image.IsValid ) CrowdRun.CopyTo( gpu, copy, target, image );
+				gpu.Submit( copy, swapChain: image.IsValid ? swapChain : null );
+				if ( image.IsValid ) swapChain.Present();
+				title.Frame( titleName, Sandbox.Rendering.ManagedFrameCounters.From( renderer.Stats ), null, device, view.Position, setTitle );
+				backend.EndFrame();
+
+				if ( frame == 1 ) backend.Phase( "First frame" );
+				else frameTimes.Add( System.Diagnostics.Stopwatch.GetElapsedTime( start ).TotalMilliseconds );
+
+				if ( frames > 0 && frame >= frames ) break;
 			}
 
-			backend.EndFrame();
-			window.Present();
-
-			if ( frame == 1 ) backend.Phase( "First frame" );
-			else frameTimes.Add( System.Diagnostics.Stopwatch.GetElapsedTime( start ).TotalMilliseconds );
-
-			if ( frames > 0 && frame >= frames ) break;
+			var summary = $"Borealis Lab: {string.Join( ", ", backend.Phases.Select( x => $"{x.Name} {x.Ms}ms" ) )}";
+			if ( frameTimes.Count > 0 ) summary += $"; {frameTimes.Count} more frames, median {frameTimes.Order().ElementAt( frameTimes.Count / 2 ):F2}ms";
+			Log.Info( summary );
+			Console.WriteLine( summary );
+			Log.Info( $"Borealis Lab: {renderer.Stats}" );
+			return gpu.ValidationErrors > 0 ? 1 : 0;
 		}
-
-		var summary = $"Borealis Lab: {string.Join( ", ", backend.Phases.Select( x => $"{x.Name} {x.Ms}ms" ) )}";
-		if ( frameTimes.Count > 0 ) summary += $"; {frameTimes.Count} more frames, median {frameTimes.Order().ElementAt( frameTimes.Count / 2 ):F2}ms";
-		Log.Info( summary );
-		Console.WriteLine( summary );
-		Log.Info( $"Borealis Lab: {renderer.Stats}" );
-
-		backend.Flush();
-		window.Dispose();
-		renderer.Dispose();
-		return 0;
+		finally
+		{
+			gpu.WaitIdle();
+			target.Dispose();
+			renderer.Dispose();
+			RenderHost.Current = previousHost;
+		}
 	}
 
 	static RenderView NewView( LabWorld lab, int width, int height )

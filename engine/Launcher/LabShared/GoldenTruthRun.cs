@@ -5,8 +5,7 @@ using System.Text.RegularExpressions;
 namespace Sandbox.Lab;
 
 /// <summary>
-/// <c>-golden-truth folder</c>, in SceneLab and BorealisLab: check each capture against approved (golden truth) images
-/// instead of native. The golden
+/// <c>-golden-truth folder</c>, in BorealisLab: check each capture against approved (golden truth) images. The golden
 /// truth images live in a bucket per platform, API and device, one per preset,
 /// <c>folder/Windows.Vulkan/Lavapipe/AllShadows.png</c>, with optional alternates (<c>AllShadows.variant2.png</c>, ...)
 /// for renderers whose output differs between machines; a capture passes when it matches any of them. What counts as a
@@ -72,9 +71,28 @@ internal static class GoldenTruthRun
 	}
 
 	/// <summary>
-	/// The adapter's name, e.g. <c>llvmpipe (LLVM 21.1.0, 256 bits)</c>.
+	/// The adapter's name, e.g. <c>llvmpipe (LLVM 21.1.0, 256 bits)</c>: the Borealis.Gpu device's (<see cref="Adapter"/>), or
+	/// Source 2's.
 	/// </summary>
-	static string Gpu => NativeEngine.RenderDeviceManager.GetAdapterName();
+	static string Gpu => Adapter ?? NativeEngine.RenderDeviceManager.GetAdapterName();
+
+	/// <summary>
+	/// The adapter of the Borealis.Gpu device the captures render on, or null when they render on Source 2's.
+	/// </summary>
+	public static string Adapter { get; set; }
+
+	/// <summary>
+	/// A Borealis.Gpu device has its validation layer on: a run that validated nothing mustn't pass as one that found nothing.
+	/// </summary>
+	public static void ValidationLayer() => validationLayer = true;
+
+	/// <summary>
+	/// A validation message from a Borealis.Gpu device, which the next check answers for.
+	/// </summary>
+	public static void Validation( string message )
+	{
+		lock ( validationMessages ) validationMessages.Add( message );
+	}
 
 	/// <summary>
 	/// The vector instruction sets a CPU rasterizer picks its code paths from, so they say which variant a run matches.

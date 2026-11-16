@@ -3,8 +3,9 @@ using Borealis;
 namespace Sandbox.BorealisLab;
 
 /// <summary>
-/// Borealis Lab: Borealis rendering a lab preset's <see cref="RenderWorld"/> with nothing else of the engine running. Shows it in
-/// a window, or renders presets into a texture, reads them back, saves them and exits (<see cref="PresetRun"/>).
+/// Borealis Lab: Borealis rendering a lab preset's <see cref="RenderWorld"/> on a Borealis.Gpu device of its own, with the
+/// engine up beside it only for posing and models made in code. Shows it in a window, or renders presets into a texture, reads
+/// them back, saves them and exits (<see cref="PresetRun"/>).
 ///
 /// Arguments:
 /// <list type="bullet">
@@ -24,7 +25,7 @@ namespace Sandbox.BorealisLab;
 /// <item><c>-ui-parity folder</c> - draw a card of UI through Source 2 and through a Borealis.Gpu device, compare and exit (<see cref="UiParity"/>).</item>
 /// <item><c>-post-parity folder</c> - run post processing over Sun Shadows on Source 2 and on a Borealis.Gpu device, compare and exit (<see cref="PostParity"/>).</item>
 /// <item><c>-exposure-parity folder</c> - run auto exposure over Sun Shadows with native's tonemap system and with its port on a Borealis.Gpu device, compare and exit (<see cref="ExposureParity"/>).</item>
-/// <item><c>-model-parity folder</c> - render s&amp;box models with Borealis on Source 2's device and on a Borealis.Gpu device, compare and exit (<see cref="ModelParity"/>).</item>
+/// <item><c>-model-parity folder</c> - check s&amp;box models read by Borealis.Source2 against the engine's loading, render each on a Borealis.Gpu device and exit (<see cref="ModelParity"/>).</item>
 /// <item><c>-surface-parity folder</c> - draw one material as a .shader, a Slang surface and a raw Slang module on a Borealis.Gpu device, compare and exit (<see cref="SurfaceParity"/>).</item>
 /// <item><c>-convert-passes a,b|all</c> - write a pass module beside each named non-material shader and compile it (<see cref="PassConversion"/>).</item>
 /// <item><c>-crowd</c> - SceneLab's Crowd Near, animated, on a Borealis.Gpu device in a window, timed (<see cref="CrowdRun"/>).</item>
