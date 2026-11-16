@@ -1,7 +1,4 @@
 using System;
-using Borealis;
-using Borealis.Gpu;
-using Borealis.Gpu.Source2;
 
 namespace EngineTests;
 
@@ -86,17 +83,10 @@ public class DownsampleSpdTest
 		using var source = Texture.Create( width, height, ImageFormat.R32F ).WithData<float>( depth ).Finish();
 		using var chain = Sandbox.Rendering.Pipeline.SharedPasses.DepthChainTarget( width, height );
 
-		// Borealis's fuses the resolve off the async compute queue; native's pipeline can resolve first on the graphics queue
-		if ( fuseResolve )
+		// Fused into the first dispatch, or resolved first on the graphics queue
+		using ( Graphics.Scope.Create() )
 		{
-			Record( context => SharedPasses.BuildDepthChain( context, Source2Texture.From( source ), Source2Texture.From( chain.DepthTarget ), false, width, height ) );
-		}
-		else
-		{
-			using ( Graphics.Scope.Create() )
-			{
-				Sandbox.Rendering.Pipeline.SharedPasses.BuildDepthChain( Graphics.Context, source, chain.DepthTarget, false, width, height, fuseResolve: false );
-			}
+			Sandbox.Rendering.Pipeline.SharedPasses.BuildDepthChain( Graphics.Context, source, chain.DepthTarget, false, width, height, fuseResolve: fuseResolve );
 		}
 
 		AssertChain( chain.DepthTarget, depth.Select( d => new Vector2( d, d ) ).ToArray(), width, height, Graphics.DownsampleMethod.MinMax );
@@ -120,7 +110,10 @@ public class DownsampleSpdTest
 		using var source = Texture.Create( width, height, ImageFormat.R32F ).WithData<float>( depth ).Finish();
 		using var chain = Sandbox.Rendering.Pipeline.SharedPasses.DepthChainTarget( quarterWidth, quarterHeight );
 
-		Record( context => SharedPasses.BuildDepthChain( context, Source2Texture.From( source ), Source2Texture.From( chain.DepthTarget ), false, width, height, DepthResolveMode.ConservativeQuarter ) );
+		using ( Graphics.Scope.Create() )
+		{
+			Sandbox.Rendering.Pipeline.SharedPasses.BuildDepthChain( Graphics.Context, source, chain.DepthTarget, false, width, height, Borealis.Gpu.DepthResolveMode.ConservativeQuarter );
+		}
 
 		// Edge blocks only cover the texels that exist
 		var expected = new Vector2[quarterWidth * quarterHeight];
@@ -138,17 +131,6 @@ public class DownsampleSpdTest
 		}
 
 		AssertChain( chain.DepthTarget, expected, quarterWidth, quarterHeight, Graphics.DownsampleMethod.MinMax );
-	}
-
-	/// <summary>
-	/// Record into a Borealis context of its own and submit it.
-	/// </summary>
-	static void Record( Action<GpuContext> record )
-	{
-		using var context = RenderHost.Current.Device.CreateContext();
-		context.Begin();
-		record( context );
-		context.SubmitNext();
 	}
 
 	static void RequireVulkan()

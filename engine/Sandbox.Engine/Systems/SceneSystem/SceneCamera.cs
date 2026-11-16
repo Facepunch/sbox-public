@@ -935,8 +935,8 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// </summary>
 	internal ViewSetup MainView => new() { ViewHash = HashCode.Combine( this ) };
 
-	// Every scene render ends in one of these. They render through whichever renderer r_managed_scene picked this frame
-	// (SceneRenderer.Current); tools that compare the two pass one by name.
+	// Every scene render ends in one of these. They render through the frame's renderer
+	// (SceneRenderer.Current); tools that need native's pass it by name.
 
 	internal void AddToRenderList( SwapChainHandle_t swapChain, Vector2? size ) => AddToRenderList( SceneRenderer.Current, swapChain, size );
 
@@ -957,10 +957,10 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		=> ChildRenderer.RenderToTexture( this, target, depthTarget, parent, config, name, out viewData );
 
 	/// <summary>
-	/// What renders a view into a texture: the renderer of the frame being drawn, which renders it as a child view of that frame
-	/// (a command list's <c>DrawView</c>, water's refraction), or this frame's renderer outside one.
+	/// What renders a view into a texture: this frame's renderer, which renders one asked for inside a frame of its own as a
+	/// child view of it (a command list's <c>DrawView</c>, water's refraction).
 	/// </summary>
-	static ISceneRenderer ChildRenderer => Graphics.CurrentManagedView?.Renderer ?? SceneRenderer.Current;
+	static ISceneRenderer ChildRenderer => SceneRenderer.Current;
 
 	internal void RenderToBitmap( Bitmap bitmap, in ViewSetup config = default ) => SceneRenderer.Current.RenderToBitmap( this, bitmap, config );
 

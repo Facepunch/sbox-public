@@ -14,9 +14,6 @@ public static class Launcher
 {
 	public static int Main()
 	{
-		// Before the engine starts, so validation messages from creating the device count too
-		if ( Lab.GoldenTruthRun.Enabled ) Lab.GoldenTruthRun.WatchValidation();
-
 		new SceneLab.SceneLabAppSystem().Run();
 		return Environment.ExitCode;
 	}

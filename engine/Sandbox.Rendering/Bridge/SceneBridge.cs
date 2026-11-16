@@ -1,18 +1,14 @@
 using NativeEngine;
-using System.Linq;
-using System.Runtime.InteropServices;
 using Sandbox.Rendering;
-using Sandbox.VR;
 
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// Borealis behind the engine's scene renderer seam (<see cref="ISceneRenderer"/>, <c>r_managed_scene</c>): one world mirror per
-/// scene world and a render system per camera view. Registered at startup (<see cref="EngineHooks"/>);
-/// <see cref="CameraStages"/> runs camera effects and UI at native hook points. What Borealis doesn't do yet goes to
-/// <see cref="SceneRenderer.Native"/> from here (<see cref="NotYetInBorealis"/>, <see cref="NotYetOnSwapChain"/>).
+/// Borealis behind the engine's scene renderer seam (<see cref="ISceneRenderer"/>) in a process drawing on Borealis.Gpu
+/// (<c>-borealisgpu</c>): one world mirror per scene world and a render system per camera view. Registered at startup
+/// (<see cref="EngineHooks"/>). A camera's frame on the device is in <c>SceneBridge.Gpu.cs</c>.
 /// </summary>
-internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
+internal sealed partial class SceneBridge : ISceneRenderer
 {
 	/// <summary>
 	/// Strongly owned world/view state requires explicit disposal of native resources.
@@ -34,42 +30,26 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	{
 		public readonly RenderSystem System = new();
 		public readonly RenderView View = new();
-		public readonly CameraStages Stages = new();
 		public readonly SceneObjectDrawer Drawer;
 		public readonly WeakReference<SceneCamera> Camera;
-		public ViewTarget TextureTarget;
 
 		public CameraState( SceneCamera camera )
 		{
 			Camera = new WeakReference<SceneCamera>( camera );
 
-			// Route stage and custom-object Graphics.Render calls.
+			// Routes stage and custom-object Graphics.Render calls.
 			Drawer = new SceneObjectDrawer( System );
-			Stages.RenderSceneObject = Drawer.Render;
 		}
 
 		/// <summary>
 		/// How long the last frame's mirror sync took (<see cref="RenderStats.SyncMs"/>).
 		/// </summary>
 		public double SyncMs;
-		public Texture TextureTargetColor;
-		public Texture TextureTargetCallerDepth;
-		public Texture TextureTargetDepth;
-
-		/// <summary>
-		/// The view's own attributes (<see cref="RenderView.ViewAttributes"/>): its planar reflection.
-		/// </summary>
-		public RenderAttributes ViewAttributes;
 
 		/// <summary>
 		/// The frustum the view's planar reflection planes are tested against.
 		/// </summary>
 		public PlanarFrustum PlanarFrustum;
-
-		/// <summary>
-		/// A face of cube captures (<see cref="RenderView.Capture"/>), shared by every capture's camera.
-		/// </summary>
-		public bool IsCapture;
 
 		/// <summary>
 		/// Whether this view's frame is being rendered now: a child view asked for while it draws can't be this view again.
@@ -82,44 +62,37 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		public bool IsOrphaned => !Camera.TryGetTarget( out var camera ) || camera.IsDisposed;
 
 		/// <summary>
-		/// On a Borealis.Gpu device (<c>-borealisgpu</c>): what the camera's frame renders into, and that frame handed to the
-		/// engine's drawing on the device for its stages (<see cref="RenderInto"/>).
+		/// What the camera's frame renders into, and that frame handed to the engine's drawing on the device for its stages
+		/// (<see cref="RenderInto"/>).
 		/// </summary>
 		public ViewTarget GpuTarget;
 		public BorealisGpuFrame GpuFrame;
 		public GpuCameraStages GpuStages;
 
 		/// <summary>
-		/// What a child view on a Borealis.Gpu device draws into for an 8-bit texture (<see cref="RenderChildOnGpu"/>); a float
-		/// one draws into <see cref="GpuTarget"/>.
+		/// What a child view draws into for an 8-bit texture (<see cref="RenderChildOnGpu"/>); a float one draws into
+		/// <see cref="GpuTarget"/>.
 		/// </summary>
 		public GpuTexture GpuOutput;
 
 		/// <summary>
-		/// A top-level view's own attributes on a Borealis.Gpu device (its planar reflection), and what Borealis reads them as.
+		/// A top-level view's own attributes (its planar reflection), and what Borealis reads them as.
 		/// </summary>
 		public RenderAttributes GpuViewAttributes;
 		public ShaderParameters GpuViewParameters;
 
 		/// <summary>
-		/// Release owned resources; colour targets and caller depth remain the caller's.
+		/// Release owned resources.
 		/// </summary>
 		public void Dispose()
 		{
 			System.Dispose();
-			Stages.Dispose();
-			Drawer.Dispose();
-			TextureTargetDepth?.Dispose();
-			TextureTargetDepth = null;
-			TextureTarget = null;
 			GpuFrame?.Dispose();
 			GpuFrame = null;
 			GpuTarget?.Dispose();
 			GpuTarget = null;
 			GpuOutput?.Dispose();
 			GpuOutput = null;
-			TextureTargetColor = null;
-			TextureTargetCallerDepth = null;
 		}
 	}
 
@@ -237,23 +210,13 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	}
 
 	/// <summary>
-	/// Release all resources: before native shutdown, or when <c>r_managed_scene</c> goes off.
+	/// Release all resources, before native shutdown.
 	/// </summary>
 	public void Shutdown()
 	{
 		foreach ( var (_, state) in views )
 			state.Dispose();
 		views.Clear();
-
-		for ( int i = 0; i < captureFaces.Length; i++ )
-		{
-			captureFaces[i]?.Dispose();
-			captureFaces[i] = null;
-		}
-
-		captureColor?.Dispose();
-		captureDepth?.Dispose();
-		captureColor = captureDepth = null;
 
 		foreach ( var (_, extra) in extras )
 			extra.Mirror.Dispose();
@@ -284,8 +247,8 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	}
 
 	/// <summary>
-	/// What a view needs that Borealis doesn't do yet, or null when it can render it. Those views render natively, so the switch
-	/// still covers every path, and each is a gap listed in docs/managed/render-paths.md.
+	/// What a view needs that Borealis doesn't do yet, or null when it can render it. Each is a gap listed in
+	/// docs/managed/render-paths.md.
 	/// </summary>
 	internal static string NotYetInBorealis( SceneCamera camera, in ViewSetup setup )
 	{
@@ -295,30 +258,9 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	}
 
 	/// <summary>
-	/// A reflection asked for outside one of our frames: native's planar reflections, which its pipeline sets up for a native
-	/// view while it builds the view's layers. Borealis renders its own frames' reflections (<c>DrawReflection</c>) as their
-	/// children.
+	/// Sync the world and prepare the camera's view.
 	/// </summary>
-	bool NativeReflection( in ViewSetup setup ) => setup.Reflection && !(Graphics.IsActive && DrawingOurs);
-
-	/// <summary>
-	/// What a swap chain render needs that Borealis doesn't do yet, or null.
-	/// </summary>
-	static string NotYetOnSwapChain( SceneCamera camera )
-	{
-		// Not yet in Borealis: VR's eyes (per-eye projection and clip bounds, stereo targets, the compositor submit)
-		if ( VRSystem.IsActive && camera.TargetEye != StereoTargetEye.None ) return "VR";
-
-		// Upscalers aren't in Borealis yet either, but an upscaled game window stays here: Borealis renders it at full resolution,
-		// so the switch flips the main view too (the owner's call, 2026-11-09)
-
-		return null;
-	}
-
-	/// <summary>
-	/// Sync the world and prepare camera, target and stages, optionally advancing exposure.
-	/// </summary>
-	(SceneMirror Mirror, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size, bool updateExposure = true, CameraState given = null )
+	(SceneMirror Mirror, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size )
 	{
 		// A child view prepares while its parent's frame records, on workers too, from the mirrors the parent synced: it
 		// changes no world anyone's drawing (an unseen world's mirror is new, and synced once)
@@ -333,65 +275,20 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		if ( parent is null || !mirror.HasSynced ) mirror.Sync( camera );
 		SyncSkybox( mirror, camera, setup );
 
-		var state = given ?? StateFor( camera, setup.ViewHash );
+		var state = StateFor( camera, setup.ViewHash );
 		state.Drawer.Mirror = mirror;
 		state.View.SubWorlds = SyncExtraWorlds( mirror, camera, setup, state.Drawer.ExtraMirrors );
 		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( syncStart ).TotalMilliseconds;
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters { SyncMs = state.SyncMs } );
 		FillView( state.View, camera, setup, size );
-		state.View.Capture = state.IsCapture;
 
 		// A child view takes its parent's render time unless it has its own, as native's child views do
-		// (CSceneSystem::AddDynamicView), and its parent's camera has had its exposure this frame
-		if ( parent is not null )
-		{
-			state.View.Time ??= parent.View.Time;
-			if ( parent.Stages.Camera == camera ) updateExposure = false;
-		}
+		// (CSceneSystem::AddDynamicView)
+		if ( parent is not null ) state.View.Time ??= parent.View.Time;
 
-		state.Stages.Renderer = this;
-		state.Stages.IsChild = parent is not null;
-		state.View.ToneMapScalar = state.Stages.BeginFrame( camera, state.View, setup, updateExposure );
-
-		// A top-level view's planar reflection renders first, since it depends on nothing in the view's frame. Not yet on a
-		// Borealis.Gpu device: it renders into engine textures through Source 2's
-		if ( parent is null && MirrorContent.Gpu is null ) RenderPlanarReflection( camera, mirror, state, setup );
-		else if ( parent is null ) state.View.ViewAttributes = null;
+		// A top-level view's planar reflection is its camera frame's (RenderPlanarReflectionOnGpu)
+		else state.View.ViewAttributes = null;
 		return (mirror, state);
-	}
-
-	/// <summary>
-	/// Render a top-level view's planar reflection, as native's pipeline does for its views (<see cref="PlanarReflections"/>): the
-	/// plane covering the most of its screen, mirrored, as a reflection view of its own, submitted before the view, and published
-	/// in the view's own attributes for the water on that plane. Reflections and orthographic views have none.
-	/// </summary>
-	void RenderPlanarReflection( SceneCamera camera, SceneMirror mirror, CameraState state, in ViewSetup setup )
-	{
-		// The frame's attributes start empty, so without one published HasPlanarReflection is off
-		var view = state.View;
-		view.ViewAttributes = null;
-		if ( setup.Reflection || view.Orthographic || camera.World is null ) return;
-
-		var eye = new Transform( view.Position, view.Rotation );
-		var viewport = view.Viewport;
-		var aspect = viewport.Height > 0 ? viewport.Width / viewport.Height : 1;
-		var frustum = state.PlanarFrustum ??= new PlanarFrustum();
-		frustum.Of( view );
-		if ( !PlanarReflections.Plan( camera, eye, view.FieldOfView, aspect, view.ZNear, view.ZFar, viewport.Size, new Visibility( frustum ), out var planned ) )
-			return;
-
-		var reflection = CommandList.ReflectionView( eye, view.FieldOfView, aspect, view.ZNear, view.ZFar, planned.Plane, planned.Setup );
-		var target = planned.Target;
-		camera.ConfigureView( reflection );
-		var rendered = RenderToTexture( camera, reflection, target.ColorTarget, target.DepthTarget, out var reflected, updateExposure: false );
-
-		// The reflection's prepare set the world's 3D skybox up for its view
-		SyncSkybox( mirror, camera, setup );
-		if ( !rendered ) return;
-
-		var attributes = state.ViewAttributes ??= new RenderAttributes();
-		PlanarReflections.Publish( attributes.Get(), planned, ViewDataFor( reflected, target.ColorTarget ) );
-		view.ViewAttributes = MirrorContent.Parameters( attributes );
 	}
 
 	/// <summary>
@@ -439,8 +336,7 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	CameraState rendering;
 
 	/// <summary>
-	/// How many child views deep the frame being drawn on this thread is, for what's kept per thread while one draws
-	/// (<see cref="BridgeCustomObject"/>'s views, <see cref="CameraStages"/>' saved attributes).
+	/// How many child views deep the frame being drawn on this thread is.
 	/// </summary>
 	[ThreadStatic] internal static int ChildDepth;
 
@@ -519,7 +415,7 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 				if ( !warnedSubWorlds )
 				{
 					warnedSubWorlds = true;
-					Log.Warning( $"r_managed_scene: a world is drawn with more than {RenderWorld.MaxSubWorlds} extra worlds; the rest aren't drawn" );
+					Log.Warning( $"Borealis: a world is drawn with more than {RenderWorld.MaxSubWorlds} extra worlds; the rest aren't drawn" );
 				}
 
 				return 0;
@@ -576,7 +472,6 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		view.ZNear = setup.ZNear ?? camera.ZNear;
 		view.ZFar = setup.ZFar ?? camera.ZFar;
 		view.ClearColor = setup.ClearColor ?? camera.BackgroundColor;
-		view.CameraAttributes = MirrorContent.Parameters( camera.Attributes );
 		view.Fog = camera.ResolveFog( setup ).ToBorealis();
 
 		// mat_toolsvis overrides camera debug mode (CameraRenderer.Configure).
@@ -653,125 +548,65 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 	public void Render( SceneCamera camera, SwapChainHandle_t swapChain, Vector2? size, in ViewSetup setup )
 	{
-		// A game window on Borealis.Gpu (-borealisgpu) has no Source 2 swap chain: the camera draws into the window's frame
+		// A game window on Borealis.Gpu has no Source 2 swap chain: the camera draws into the window's frame
 		if ( swapChain.self == default && BorealisGpuWindow.Drawing is { } window )
 		{
 			RenderInto( window, camera, size, setup );
 			return;
 		}
 
-		// A camera that only draws UI has no scene: native's UI-only path draws its panels, outside the seam
-		if ( camera.UIOnly || NotYetOnSwapChain( camera ) is not null || NotYetInBorealis( camera, setup ) is not null )
-		{
-			SceneRenderer.Native.Render( camera, swapChain, size, setup );
-			return;
-		}
-
-		if ( swapChain.self == default ) return;
-
-		var info = g_pRenderDevice.GetSwapChainInfo( swapChain );
-		var renderSize = size ?? new Vector2( info.m_DisplayMode.m_nWidth, info.m_DisplayMode.m_nHeight );
-		if ( renderSize.x < 1 || renderSize.y < 1 ) return;
-
-		// As native's swap chain render: the camera's size, and the world's map streaming (OnPreRender)
-		camera.OnPreRender( renderSize );
-		var (mirror, state) = Prepare( camera, setup, renderSize );
-		using ( new Drawing( this, state ) )
-			state.System.Render( mirror.World, state.View, new GpuSwapChain( swapChain ), renderSize, state.Stages );
-
-		// Native's swap chain render adds DefaultGameUI to the camera's view with engine overlays (CCameraRenderer::Render,
-		// AddOverlaysToView): here it's a native view of its own, after the frame
-		if ( setup.EnableDebugOverlays ?? camera.EnableEngineOverlays )
-			CCameraRenderer.RenderDefaultGameUI( swapChain );
+		// Anything else presents on Source 2's device
+		SceneRenderer.Native.Render( camera, swapChain, size, setup );
 	}
 
 	/// <summary>
-	/// Whether the process draws on Borealis.Gpu (<c>-borealisgpu</c>): what renders into an engine texture there that isn't a
-	/// window's camera, a texture render between blocks (<see cref="RenderIntoTexture"/>) or a child of one of our frames
-	/// (<see cref="RenderChildOnGpu"/>) - cube captures, a render inside another block or with a depth target of the caller's
-	/// outside a frame - isn't there yet, and does nothing; drawn on Source 2's device it would never reach the texture's copy
-	/// on Borealis.Gpu.
+	/// The process's Borealis.Gpu device, or null in a process drawing on Source 2's, where nothing renders through Borealis.
 	/// </summary>
-	static bool OnBorealisGpu => RenderBackend.Default is BorealisGpuRenderBackend;
+	static BorealisGpuRenderBackend Gpu => RenderBackend.Default as BorealisGpuRenderBackend;
 
+	/// <summary>
+	/// A texture render: between blocks on Borealis.Gpu's device (<see cref="RenderIntoTexture"/>), or inside one of our frames
+	/// as its child (<see cref="RenderChildOnGpu"/>). Anything else - inside another block, or with a depth target of the
+	/// caller's outside a frame - isn't on Borealis.Gpu yet, and does nothing.
+	/// </summary>
 	public void RenderToTexture( SceneCamera camera, Texture target, Vector2? size, in ViewSetup setup )
 	{
-		if ( target is null || target.native.IsNull ) return;
+		if ( target is null || target.native.IsNull || Gpu is not { } gpu ) return;
 
-		// On Borealis.Gpu, between blocks, on its device
-		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu && !Graphics.IsActive )
+		if ( !Graphics.IsActive )
 		{
 			RenderIntoTexture( gpu, camera, target, size ?? target.Size, setup );
 			return;
 		}
 
-		// On Borealis.Gpu, inside one of our frames (a command list's view), as its child on the device
-		if ( OnBorealisGpu && Graphics.IsActive && rendering is not null )
+		// Inside one of our frames (a command list's view), as its child on the device
+		if ( rendering is not null )
 		{
 			camera.ConfigureView( setup );
 			RenderChild( camera, setup, target, null, out _ );
-			return;
 		}
-
-		// The rest of Borealis.Gpu's texture renders aren't there yet: drawn natively they'd never reach its copy (OnBorealisGpu)
-		if ( OnBorealisGpu ) return;
-
-		// Inside a frame (a command list's DrawView, a stage) the view is the frame's child: ours renders it in its own frame,
-		// before what samples it; native's, or a standalone render block, render it natively
-		if ( (Graphics.IsActive && !DrawingOurs) || NotYetInBorealis( camera, setup ) is not null || NativeReflection( setup ) )
-		{
-			SceneRenderer.Native.RenderToTexture( camera, target, size, setup );
-			return;
-		}
-
-		var renderSize = size ?? target.Size;
-		if ( renderSize.x <= 0 || renderSize.y <= 0 ) return;
-
-		// As native's texture render: the world's map streaming, without touching the camera's size
-		camera.ConfigureView( setup );
-		if ( Graphics.IsActive ) RenderChild( camera, setup, target, null, out _ );
-		else RenderToTexture( camera, setup, target, null, out _ );
 	}
-
-	/// <summary>
-	/// Whether the frame being drawn is one this bridge is rendering, so a view asked for in it is its child.
-	/// </summary>
-	bool DrawingOurs => rendering is not null && Graphics.CurrentManagedView?.Renderer == this;
 
 	public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, ISceneView parent, in ViewSetup setup, string name, out ViewData viewData )
 	{
-		// On Borealis.Gpu, between blocks, a texture with no depth of the caller's renders on its device
-		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu && !Graphics.IsActive && parent == default && depthTarget is null && target is { native.IsNull: false } )
+		viewData = default;
+		if ( Gpu is not { } gpu ) return false;
+
+		// Between blocks, a texture with no depth of the caller's renders on the device
+		if ( !Graphics.IsActive && parent == default && depthTarget is null && target is { native.IsNull: false } )
 		{
-			viewData = default;
 			RenderIntoTexture( gpu, camera, target, target.Size, setup );
 			return true;
 		}
 
-		// On Borealis.Gpu, inside one of our frames (a command list's view, water's refraction), as its child on the device
-		if ( OnBorealisGpu && Graphics.IsActive && rendering is not null )
+		// Inside one of our frames (a command list's view, water's refraction), as its child on the device
+		if ( Graphics.IsActive && rendering is not null )
 		{
 			camera.ConfigureView( setup );
 			return RenderChild( camera, setup, target, depthTarget, out viewData );
 		}
 
-		if ( OnBorealisGpu )
-		{
-			viewData = default;
-			return false;
-		}
-
-		// A native parent's child view (see above), and a caller's depth target that Borealis can't draw into with the colour
-		// target directly, render natively
-		if ( parent != default || (Graphics.IsActive && !DrawingOurs) || NotYetInBorealis( camera, setup ) is not null || NativeReflection( setup ) || !CanDrawInto( target, depthTarget ) )
-			return SceneRenderer.Native.RenderToTexture( camera, target, depthTarget, parent, setup, name, out viewData );
-
-		camera.ConfigureView( setup );
-		if ( Graphics.IsActive ) return RenderChild( camera, setup, target, depthTarget, out viewData );
-
-		// Only a child view's sampler reads the view's projection back; a top-level view has none to give
-		viewData = default;
-		return RenderToTexture( camera, setup, target, depthTarget, out _ );
+		return false;
 	}
 
 	/// <summary>
@@ -793,8 +628,7 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		CameraState state;
 		try
 		{
-			var rendered = OnBorealisGpu ? RenderChildOnGpu( camera, setup, target, depthTarget, out state ) : RenderToTexture( camera, setup, target, depthTarget, out state );
-			if ( !rendered ) return false;
+			if ( !RenderChildOnGpu( camera, setup, target, depthTarget, out state ) ) return false;
 		}
 		finally
 		{
@@ -825,145 +659,18 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	}
 
 	/// <summary>
-	/// A caller's depth target is drawn into with the colour directly, so the colour must be a float target with its sample count.
+	/// A bitmap render: the pixels come back to the CPU, so Source 2's device draws them.
 	/// </summary>
-	static bool CanDrawInto( Texture target, Texture depthTarget )
-	{
-		if ( target is null || target.native.IsNull ) return false;
-		if ( depthTarget is null ) return true;
-
-		return Source2Formats.From( target.ImageFormat ).IsFloat() && Source2Texture.From( target ).Samples == Source2Texture.From( depthTarget ).Samples;
-	}
-
-	bool RenderToTexture( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out CameraState state, bool updateExposure = true, CameraState given = null )
-	{
-		state = null;
-		if ( target.Width < 1 || target.Height < 1 ) return false;
-
-		(var mirror, state) = Prepare( camera, setup, target.Size, updateExposure, given );
-		using var drawing = new Drawing( this, state );
-
-		// Non-float outputs need HDR blending before the copy.
-		if ( depthTarget is null && !Source2Formats.From( target.ImageFormat ).IsFloat() )
-		{
-			state.System.Render( mirror.World, state.View, Source2Texture.From( target ), 1, state.Stages );
-			return true;
-		}
-
-		// Float outputs render directly, with the caller's depth or one of our own.
-		if ( state.TextureTargetColor != target || state.TextureTargetCallerDepth != depthTarget )
-		{
-			state.TextureTargetDepth?.Dispose();
-			state.TextureTargetDepth = null;
-
-			var depth = depthTarget ?? (state.TextureTargetDepth = Texture.CreateRenderTarget().WithSize( target.Width, target.Height ).WithFormat( ImageFormat.D24S8 ).Create( "r_managed_scene depth" ));
-			state.TextureTarget = new ViewTarget( Source2Texture.From( target ), Source2Texture.From( depth ) );
-			state.TextureTargetColor = target;
-			state.TextureTargetCallerDepth = depthTarget;
-		}
-
-		state.System.Render( mirror.World, state.View, state.TextureTarget, state.Stages );
-		return true;
-	}
-
 	public void RenderToBitmap( SceneCamera camera, Bitmap bitmap, in ViewSetup setup )
 	{
-		if ( !bitmap.IsValid() ) return;
-		if ( bitmap.Width <= 1 || bitmap.Height <= 1 ) return;
-
-		// Native only ever writes 8-bit pixels, whatever the bitmap holds; a float bitmap keeps what it gets now
-		// On Borealis.Gpu too: the pixels come back to the CPU, so Source 2's device can draw them
-		if ( bitmap.BytesPerPixel != 4 || NotYetInBorealis( camera, setup ) is not null || OnBorealisGpu )
-		{
-			SceneRenderer.Native.RenderToBitmap( camera, bitmap, setup );
-			return;
-		}
-
-		camera.OnPreRender( bitmap.Size );
-		var pixels = RenderPixels( camera, setup, bitmap.Size, updateExposure: true, out _, out _, out _ );
-
-		unsafe
-		{
-			MemoryMarshal.AsBytes( pixels.AsSpan() ).CopyTo( new Span<byte>( bitmap.GetPointer(), bitmap.ByteCount ) );
-		}
+		SceneRenderer.Native.RenderToBitmap( camera, bitmap, setup );
 	}
 
 	/// <summary>
-	/// The six faces cube captures render with, each a render system of its own, shared by every capture: a probe's camera is
-	/// new for each capture, and six render systems made for each would cost more than the capture.
-	/// </summary>
-	readonly CameraState[] captureFaces = new CameraState[6];
-
-	/// <summary>
-	/// What a face renders into before it's copied into its cube's slice.
-	/// </summary>
-	Texture captureColor, captureDepth;
-
-	/// <summary>
-	/// Render a cube capture (an envmap probe, a DDGI probe): six 90-degree faces, each a Borealis frame of its own submitted in
-	/// face order, as native's six face views (<c>CCameraRenderer::RenderToCubeTexture</c>). Each face's frame ends by copying it
-	/// into its slice of the cube, and the last then runs <paramref name="afterFaces"/>. A camera with stage hooks of its own
-	/// gets the face so far in its slice before each stage, as native's face draws straight into it. A capture asked for
-	/// inside a frame renders natively.
+	/// A cube capture (an envmap probe, a DDGI probe) isn't on Borealis.Gpu yet, and does nothing.
 	/// </summary>
 	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null )
 	{
-		if ( cube is null || cube.native.IsNull || OnBorealisGpu ) return;
-
-		if ( Graphics.IsActive || NotYetInBorealis( camera, setup ) is not null )
-		{
-			SceneRenderer.Native.RenderToCube( camera, cube, setup, afterFaces );
-			return;
-		}
-
-		if ( cube.Depth != 6 ) throw new Exception( "Expected a texture with 6 depth slices for RenderToCubeTexture" );
-
-		var size = cube.Size;
-		if ( size.x <= 0 || size.y <= 0 ) return;
-
-		camera.OnPreRender( size );
-
-		if ( captureColor is null || captureColor.Size != size || captureColor.ImageFormat != cube.ImageFormat )
-		{
-			captureColor?.Dispose();
-			captureDepth?.Dispose();
-			captureColor = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( cube.ImageFormat ).Create( "r_managed_scene cube face" );
-			captureDepth = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( ImageFormat.D24S8 ).Create( "r_managed_scene cube face depth" );
-		}
-
-		// A float face renders straight into its colour with our depth; another goes through HDR first
-		var depth = Source2Formats.From( cube.ImageFormat ).IsFloat() ? captureDepth : null;
-		for ( int i = 0; i < captureFaces.Length; i++ )
-		{
-			var face = setup;
-			face.Transform = new Transform( camera.Position, camera.Rotation * SceneCamera.CubeRotations[i] );
-			face.FieldOfView = 90;
-			face.EnableUI = false;
-
-			var state = captureFaces[i] ??= new CameraState( camera ) { IsCapture = true };
-			state.Camera.SetTarget( camera );
-			state.Stages.Capture = new CameraStages.CubeFace( cube, i, i == captureFaces.Length - 1 ? afterFaces : null );
-			try
-			{
-				RenderToTexture( camera, face, captureColor, depth, out _, updateExposure: false, given: state );
-			}
-			finally
-			{
-				state.Stages.Capture = default;
-			}
-		}
-	}
-
-	/// <summary>
-	/// Last managed-frame statistics for a camera's view, or null before its first render.
-	/// </summary>
-	internal RenderStats? StatsFor( SceneCamera camera, in ViewSetup setup )
-	{
-		if ( !views.TryGetValue( new ViewKey( camera._cameraId, setup.ViewHash ), out var state ) ) return null;
-
-		var stats = state.System.Stats;
-		stats.SyncMs = state.SyncMs;
-		return stats;
 	}
 
 	/// <summary>
@@ -973,103 +680,5 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	{
 		if ( !views.TryGetValue( new ViewKey( camera._cameraId, setup.ViewHash ), out var state ) ) return null;
 		return state.Drawer.Mirror?.Caches;
-	}
-
-	/// <summary>
-	/// The last <c>Compare</c>'s result.
-	/// </summary>
-	internal FrameComparison.Parity? LastParity { get; set; }
-
-	public string Compare( CameraComponent camera, string folder ) => Compare( camera, folder, null );
-
-	/// <summary>
-	/// The camera rendered natively into an 8-bit bitmap, effects and UI included - the compare's reference. Without
-	/// <paramref name="prepare"/>, the caller already ran this frame's <c>PreCameraRender</c> and <c>InitializeRendering</c>.
-	/// Native by name, whatever <c>r_managed_scene</c> says.
-	/// </summary>
-	internal static Color32[] RenderNative( CameraComponent camera, Vector2Int size, bool prepare = true )
-	{
-		using var bitmap = new Bitmap( size.x, size.y );
-		using ( camera.Scene.Push() )
-		{
-			if ( prepare )
-			{
-				camera.Scene.PreCameraRender();
-				camera.InitializeRendering();
-			}
-
-			camera.SceneCamera.OnPreRender( bitmap.Size );
-			SceneRenderer.Native.RenderToBitmap( camera.SceneCamera, bitmap, default );
-		}
-
-		return bitmap.GetPixels32();
-	}
-
-	/// <summary>
-	/// The camera's main view rendered by this renderer into an 8-bit texture at the swap chain's MSAA, as native renders a
-	/// bitmap (<c>CCameraRenderer::RenderToLayer</c>) - the compare's managed frame.
-	/// </summary>
-	internal Color32[] RenderManaged( CameraComponent camera, Vector2Int size, bool updateExposure ) => RenderManaged( camera.SceneCamera, size, updateExposure );
-
-	/// <inheritdoc cref="RenderManaged(CameraComponent, Vector2Int, bool)"/>
-	internal Color32[] RenderManaged( SceneCamera camera, Vector2Int size, bool updateExposure )
-	{
-		camera.OnPreRender( size );
-		return RenderPixels( camera, camera.MainView, size, updateExposure, out _, out _, out _ );
-	}
-
-	Color32[] RenderPixels( SceneCamera camera, in ViewSetup setup, Vector2Int size, bool updateExposure, out SceneMirror mirror, out CameraState state, out MultisampleAmount msaa )
-	{
-		using var output = Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( ImageFormat.RGBA8888 ).Create( "r_managed_scene bitmap" );
-		(mirror, state) = Prepare( camera, setup, size, updateExposure );
-
-		// Native flips a texture render's copy, never a bitmap's (CCameraRenderer::RenderToBitmap)
-		state.View.FlipX = state.View.FlipY = false;
-		msaa = ((RenderMultisampleType)CSceneSystem.GetMainSwapChainMultisampleType()).FromEngine();
-		using ( new Drawing( this, state ) )
-			state.System.Render( mirror.World, state.View, Source2Texture.From( output ), Source2Formats.Samples( msaa.ToEngine() ), state.Stages );
-		return output.GetPixels();
-	}
-
-	/// <summary>
-	/// Compare frames using an optional filename override.
-	/// </summary>
-	internal string Compare( CameraComponent camera, string folder, string fileName )
-	{
-		var size = new Vector2Int( 1280, 720 );
-		var name = fileName ?? new string( (camera.GameObject?.Name ?? "camera").Where( char.IsLetterOrDigit ).ToArray() ).ToLowerInvariant();
-		var managedPath = System.IO.Path.Combine( folder, $"{name}.png" );
-
-		// Native reference includes camera effects and UI; the managed frame reuses native's exposure update
-		var native = RenderNative( camera, size );
-		camera.SceneCamera.OnPreRender( size );
-		// The mirror and camera state are the bridge's, kept per world and camera, not made for this call
-#pragma warning disable CA2000 // Dispose objects before losing scope
-		var managed = RenderPixels( camera.SceneCamera, camera.SceneCamera.MainView, size, updateExposure: false, out var mirror, out var state, out var msaa );
-#pragma warning restore CA2000 // Dispose objects before losing scope
-
-		var parity = FrameComparison.Compare( managed, native );
-		LastParity = parity;
-		FrameComparison.SavePng( managed, size.x, size.y, managedPath );
-		FrameComparison.SavePng( native, size.x, size.y, System.IO.Path.ChangeExtension( managedPath, ".native.png" ) );
-		FrameComparison.SavePng( FrameComparison.Difference( managed, native ), size.x, size.y, System.IO.Path.ChangeExtension( managedPath, ".diff.png" ) );
-
-		var unsupported = mirror.Unsupported.Count == 0 ? "none"
-			: string.Join( ", ", mirror.Unsupported.OrderByDescending( x => x.Value ).Select( x => $"{x.Value} {x.Key}" ) );
-		var stats = state.System.Stats;
-		Log.Info( $"r_managed_scene_compare: mirrored {mirror.Describe()}" );
-
-		var skybox = "";
-		if ( mirror.World.Skybox3D is { } sky && state.System.SkyboxStats is { } skyStats )
-		{
-			foreach ( var (_, candidate) in mirrors )
-			{
-				if ( candidate.World == sky.World ) Log.Info( $"r_managed_scene_compare: 3D skybox (origin {sky.Origin}, scale {sky.Scale}) mirrored {candidate.Describe()}" );
-			}
-
-			skybox = $" (3D skybox: {skyStats.ObjectsVisible}/{sky.World.Count} objects in {skyStats.Draws} draws, scale {sky.Scale})";
-		}
-
-		return $"{parity} | camera at {state.View.Position} angles {state.View.Rotation.Angles()} fov {state.View.FieldOfView:0.#}, {msaa} | {stats.ObjectsVisible}/{mirror.World.Count} objects drawn{skybox} in {stats.Draws} draws ({stats.DepthDraws} depth, {stats.TranslucentDraws} translucent), {stats.CustomDraws} custom draws, {stats.Lights} lights, exposure {state.View.ToneMapScalar:0.###} | not drawn by the managed renderer: {unsupported} | frames in {folder}";
 	}
 }

@@ -8,16 +8,14 @@ namespace Sandbox.Rendering;
 internal sealed class SboxRenderHost : RenderHost
 {
 	/// <summary>
-	/// The process's Borealis.Gpu device under <c>-borealisgpu</c>, where Source 2's draws nothing: its renderer services, which
-	/// the engine's drawing on that device shares.
+	/// The process's Borealis.Gpu device under <c>-borealisgpu</c>: its renderer services, which the engine's drawing on that
+	/// device shares. Null in a process drawing on Source 2's, where nothing renders through Borealis.
 	/// </summary>
-	static GpuDevice BorealisGpu => RenderBackend.Default is BorealisGpuRenderBackend backend ? backend.Services : null;
-
-	public override GpuDevice Device => BorealisGpu ?? Source2Device.Instance;
+	public override GpuDevice Device => RenderBackend.Default is BorealisGpuRenderBackend backend ? backend.Services : null;
 
 	// What a Borealis.Gpu device doesn't do yet: async compute (Borealis.Backend's BackendRenderHost), occlusion culling's debug
-	// output and native's GPU profiler
-	public override bool AsyncCompute => BorealisGpu is null && ManagedSceneRendering.AsyncCompute;
+	// output and GPU timings
+	public override bool AsyncCompute => false;
 
 	public override ulong FrameCount => Application.FrameCount;
 
@@ -31,15 +29,11 @@ internal sealed class SboxRenderHost : RenderHost
 
 	public override Borealis.OcclusionDebugView OcclusionDebugView => (Borealis.OcclusionDebugView)OcclusionDebug.View;
 
-	internal override OcclusionDebugOutput CreateOcclusionDebug() => BorealisGpu is null ? new Source2OcclusionDebug() : null;
-
 	public override Borealis.OcclusionEarlyCull OcclusionEarlyCull => (Borealis.OcclusionEarlyCull)OcclusionDebug.EarlyCull;
 
 	public override bool OcclusionFrozen => OcclusionDebug.Freeze;
 
 	public override int OcclusionFreezes => OcclusionDebug.Freezes;
-
-	public override bool GpuTimings => BorealisGpu is null && Sandbox.Diagnostics.GpuProfilerStats.Enabled;
 
 	public override unsafe bool ProfilesZones => PerformanceTrace.__N.PerformanceTrace_BeginEvent != null;
 

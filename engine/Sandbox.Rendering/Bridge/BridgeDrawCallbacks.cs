@@ -18,21 +18,10 @@ internal sealed class BridgeDrawCallbacks : DrawCallbacks
 	{
 		if ( !Source.IsValid() ) return;
 
-		// On Borealis.Gpu: through the engine's graphics context into Borealis's list, as custom objects draw
-		if ( MirrorContent.Gpu is not null )
-		{
-			var layerType = (SceneLayerType)layer.LayerType;
-			if ( view.IsShadow || layer.Depth || layerType is not (SceneLayerType.Opaque or SceneLayerType.Translucent) ) return;
-			RenderOnGpu( context, layerType, view.View, after );
-			return;
-		}
-
-		var graphicsView = BridgeCustomObject.ViewFor( context, view, layer, null );
-		using ( new Graphics.Scope( context.NativeContext(), graphicsView ) )
-		{
-			if ( after ) Source.ExecuteAfter();
-			else Source.ExecuteBefore();
-		}
+		// Through the engine's graphics context into Borealis's list, as custom objects draw
+		var layerType = (SceneLayerType)layer.LayerType;
+		if ( view.IsShadow || layer.Depth || layerType is not (SceneLayerType.Opaque or SceneLayerType.Translucent) ) return;
+		RenderOnGpu( context, layerType, view.View, after );
 	}
 
 	// What the block's attributes held before a command list ran, and the context it ran for; callbacks run on the main thread
@@ -43,7 +32,7 @@ internal sealed class BridgeDrawCallbacks : DrawCallbacks
 
 	/// <summary>
 	/// The command list in a block on the list <paramref name="context"/> records, then what it set on the block's attributes
-	/// set on the context's own, for the object's draws after it: on Source 2 a command list writes the layer context's
+	/// set on the context's own, for the object's draws after it, as native's command lists write the layer context's
 	/// attributes, which those draws read (a water body's refraction texture and viewport).
 	/// </summary>
 	void RenderOnGpu( GpuContext context, SceneLayerType layerType, RenderView camera, bool after )

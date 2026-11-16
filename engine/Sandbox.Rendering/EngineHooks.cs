@@ -6,7 +6,7 @@ namespace Sandbox.Rendering;
 
 /// <summary>
 /// What this assembly gives the engine, installed by the app system at startup: Borealis's host, the layers of native's
-/// rendering pipeline, and Borealis behind the scene renderer seam (<c>r_managed_scene</c>).
+/// rendering pipeline, and Borealis behind the scene renderer seam (<c>-borealisgpu</c>).
 /// </summary>
 internal static class EngineHooks
 {

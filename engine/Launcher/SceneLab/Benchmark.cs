@@ -4,13 +4,13 @@ using System.Text;
 namespace Sandbox.SceneLab;
 
 /// <summary>
-/// <c>-benchmark</c>: every scene rendered by the managed renderer, then by native, with vsync off -
-/// a warm-up, then a measured run - and a table of what each cost. <c>-benchmark "10k Boxes;50k Mixed"</c> (semicolons, because scene names have commas)
-/// picks the scenes.
+/// <c>-benchmark</c>: every scene rendered by native's scene system, with vsync off - a warm-up, then a measured run - and a
+/// table of what each cost. <c>-benchmark "Heavy Scene;Crowd Near"</c> (semicolons, because scene names have commas) picks
+/// the scenes.
 /// </summary>
 internal sealed class Benchmark
 {
-	static readonly string[] DefaultScenes = ["256 Lights", "10k Boxes", "50k Mixed", "10k Boxes, 256 Lights", "10k Boxes, 64 Shadowed Lights", "10k Boxes, 64 Still Shadowed Lights"];
+	static readonly string[] DefaultScenes = ["Heavy Scene", "Dynamic", "Crowd Near", "Night Interior"];
 
 	// Long enough for the JIT to have tiered the hot paths up - measuring tier 0 code made a
 	// run look several times slower than the same scene measured later
@@ -18,8 +18,7 @@ internal sealed class Benchmark
 	const double WarmupSeconds = 3;
 
 	// After loading a scene, longer, counted from its first ready frame: pipelines and streamed textures are still arriving
-	// for a while, and a map's first run measured them - Construct's managed run had p99 frames of 15 ms that the same
-	// renderer, measured after native, didn't
+	// for a while, and a map's first run measured them
 	const double LoadWarmupSeconds = 10;
 	double warmupSeconds;
 	readonly int measureFrames = Math.Max( 60, Args.Int( "-benchmark-frames", 600 ) );
@@ -27,18 +26,14 @@ internal sealed class Benchmark
 	// A scripted preset measures its whole script, unless -benchmark-frames says otherwise
 	int MeasureFrames( SceneLabScene scene ) => !Args.Has( "-benchmark-frames" ) && scene.BenchmarkFrames is { } frames ? frames : measureFrames;
 
-	readonly record struct Run( SceneLabScene Scene, SceneLabWindow.RendererKind Renderer, bool Prepass = true, bool Target = false, bool Occlusion = false )
+	readonly record struct Run( SceneLabScene Scene, bool Occlusion = false )
 	{
-		public string Name => Occlusion ? $"{Kind}, occlusion culled" : Kind;
-
-		string Kind => Renderer != SceneLabWindow.RendererKind.Managed ? Renderer.ToString()
-			: Target ? $"Managed, texture{(Args.Int( "-msaa", 1 ) > 1 ? $" {Args.Int( "-msaa", 1 )}x MSAA" : "")}"
-			: Prepass ? "Managed" : "Managed, no prepass";
+		public string Name => Occlusion ? "Native, occlusion culled" : "Native";
 	}
-	readonly record struct Result( Run Run, int Objects, double Occluded, FrameTimer.Summary Summary, int Gen0, int Gen1, int Gen2, Breakdown Managed, NativeCounts Native, List<(string Path, double Ms)> Gpu );
+	readonly record struct Result( Run Run, int Objects, double Occluded, FrameTimer.Summary Summary, int Gen0, int Gen1, int Gen2, NativeCounts Native, List<(string Path, double Ms)> Gpu );
 
-	// -gpuprofile: GPU time by layer, from the engine's GPU profiler - native's layers, and the managed renderer's layers
-	// through its perf markers. Collecting it allocates, so the other columns of a profiled run aren't comparable.
+	// -gpuprofile: GPU time by layer, from the engine's GPU profiler. Collecting it allocates, so the other columns of a
+	// profiled run aren't comparable.
 	readonly bool gpuProfile = Args.Has( "-gpuprofile" );
 	readonly Dictionary<string, double> gpuSums = new();
 
@@ -94,23 +89,7 @@ internal sealed class Benchmark
 	NativeCounts AverageNative( int n ) => new( nativeSums[0] / n, nativeSums[1] / n, nativeSums[2] / n, nativeSums[3] / n, nativeSums[4] / n, nativeSums[5] / n, nativeSums[6] / n, nativeSums[7] / n, nativeSums[8] / n, nativeSums[9] / n, nativeSums[10] / n, nativeSums[11] / n );
 
 	/// <summary>
-	/// The managed renderer's main thread per frame, section by section (<c>RenderStats</c>), averaged over a run.
-	/// </summary>
-	readonly record struct Breakdown( double Collect, double Prepare, double Setup, double Record, double Workers, double Stages, double Submit, double Draws, double ShadowDraws, double Wait, double Sync, double Prepass, double DepthDraws );
-
-	double[] sums = new double[13];
-
-	void Accumulate( Borealis.RenderStats s )
-	{
-		sums[0] += s.CollectMs; sums[1] += s.PrepareMs; sums[2] += s.SetupMs; sums[3] += s.RecordMs; sums[4] += s.WorkerRecordMs;
-		sums[5] += s.StagesMs; sums[6] += s.SubmitMs; sums[7] += s.Draws + s.DepthDraws; sums[8] += s.ShadowDraws; sums[9] += s.RecordWaitMs; sums[10] += s.SyncMs;
-		sums[11] += s.PrepassRecordMs; sums[12] += s.DepthDraws;
-	}
-
-	Breakdown Average( int n ) => new( sums[0] / n, sums[1] / n, sums[2] / n, sums[3] / n, sums[4] / n, sums[5] / n, sums[6] / n, sums[7] / n, sums[8] / n, sums[9] / n, sums[10] / n, sums[11] / n, sums[12] / n );
-
-	/// <summary>
-	/// Objects occlusion culled per frame, from delayed GPU readbacks: native counts once per material, managed once per object.
+	/// Draws occlusion culled per frame, from delayed GPU readbacks: native counts once per material.
 	/// </summary>
 	double occludedSum;
 
@@ -124,8 +103,7 @@ internal sealed class Benchmark
 
 	/// <summary>
 	/// Our assemblies in this process that were built without optimisation, or empty. A Debug build - what a bare
-	/// <c>dotnet build</c> or <c>dotnet test</c> leaves in bin/managed - measures the build, not the renderer: Borealis's
-	/// Prepare took four times as long in one.
+	/// <c>dotnet build</c> or <c>dotnet test</c> leaves in bin/managed - measures the build, not the renderer.
 	/// </summary>
 	static string UnoptimisedAssemblies()
 	{
@@ -164,13 +142,7 @@ internal sealed class Benchmark
 				continue;
 			}
 
-			Add( scene, new Run( scene, SceneLabWindow.RendererKind.Managed ) );
-			// Without a prepass: the lab's own renderer only, since a GameObject scene renders through the bridge's
-			if ( !scene.IsGame ) Add( scene, new Run( scene, SceneLabWindow.RendererKind.Managed, Prepass: false ) );
-
-			// Into a ViewTarget, the way a camera with a render target draws, when -target asks for it
-			if ( Args.Has( "-target" ) ) Add( scene, new Run( scene, SceneLabWindow.RendererKind.Managed, Target: true ) );
-			Add( scene, new Run( scene, SceneLabWindow.RendererKind.Native ) );
+			Add( scene, new Run( scene ) );
 		}
 	}
 
@@ -179,14 +151,9 @@ internal sealed class Benchmark
 	/// </summary>
 	void Add( SceneLabScene scene, Run run )
 	{
-		// -benchmark-renderer managed|native: one renderer's runs only, to tell whose a long run's growth is
-		if ( Args.String( "-benchmark-renderer" ) is { Length: > 0 } only && !run.Renderer.ToString().Equals( only, StringComparison.OrdinalIgnoreCase ) )
-			return;
-
 		if ( !scene.CompareOcclusion )
 		{
-			var culling = run.Renderer == SceneLabWindow.RendererKind.Managed ? ManagedSceneRendering.Occlusion && run.Prepass : RenderPipeline.OcclusionCulling;
-			runs.Add( run with { Occlusion = culling } );
+			runs.Add( run with { Occlusion = RenderPipeline.OcclusionCulling } );
 			return;
 		}
 
@@ -216,7 +183,6 @@ internal sealed class Benchmark
 			gen1 = GC.CollectionCount( 1 );
 			gen2 = GC.CollectionCount( 2 );
 			measured = 0;
-			Array.Clear( sums );
 			Array.Clear( nativeSums );
 			gpuSums.Clear();
 			occludedSum = 0;
@@ -224,25 +190,16 @@ internal sealed class Benchmark
 		}
 
 		var run = runs[index];
-		if ( run.Renderer == SceneLabWindow.RendererKind.Managed )
-		{
-			Accumulate( window.ManagedStats );
-			occludedSum += window.ManagedStats.ObjectsOcclusionCulled;
-		}
-		else
-		{
-			AccumulateNative();
-			occludedSum += RenderPipeline.GetOcclusionCulled();
-		}
+		AccumulateNative();
+		occludedSum += RenderPipeline.GetOcclusionCulled();
 
 		AccumulateGpu();
 		if ( ++measured < MeasureFrames( run.Scene ) ) return false;
 
 		var result = new Result( run, window.ObjectCount, occludedSum / measured, timer.Summarise(),
-			GC.CollectionCount( 0 ) - gen0, GC.CollectionCount( 1 ) - gen1, GC.CollectionCount( 2 ) - gen2, Average( measured ), AverageNative( measured ), AverageGpu( measured ) );
+			GC.CollectionCount( 0 ) - gen0, GC.CollectionCount( 1 ) - gen1, GC.CollectionCount( 2 ) - gen2, AverageNative( measured ), AverageGpu( measured ) );
 		results.Add( result );
-		// What texture streaming holds now, which a renderer's binds decide: compare renderers in processes of their own
-		// (-benchmark-renderer), since they share the pool
+		// What texture streaming holds now
 		g_pRenderDevice.GetTexturePoolStats( out var poolUsed, out _, out _ );
 		Log.Info( $"Benchmark: {result.Run.Scene.Name} / {result.Run.Name}: {result.Summary}, GCs {result.Gen0}/{result.Gen1}/{result.Gen2}, texture pool {poolUsed / (1024 * 1024)} MiB" );
 
@@ -266,12 +223,7 @@ internal sealed class Benchmark
 			warmupSeconds = LoadWarmupSeconds;
 		}
 
-		window.Renderer = run.Renderer;
-		window.DepthPrepass = run.Prepass;
-		window.RenderToTexture = run.Target;
-
-		if ( run.Renderer == SceneLabWindow.RendererKind.Managed ) ManagedSceneRendering.Occlusion = run.Occlusion;
-		else RenderPipeline.OcclusionCulling = run.Occlusion;
+		RenderPipeline.OcclusionCulling = run.Occlusion;
 
 		frames = 0;
 		measured = -1;
@@ -308,25 +260,12 @@ internal sealed class Benchmark
 		}
 
 		md.AppendLine();
-		md.AppendLine( "Managed main thread by section, ms per frame:" );
-		md.AppendLine();
-		md.AppendLine( "| Scene | Renderer | Bridge sync | Collect | Prepare | Setup | Record (wall) | Record wait | Workers (sum) | Prepass record (sum) | Stages | Submit | Draws | Depth draws | Shadow draws |" );
-		md.AppendLine( "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|" );
-		foreach ( var r in results )
-		{
-			if ( r.Run.Renderer != SceneLabWindow.RendererKind.Managed ) continue;
-			var b = r.Managed;
-			md.AppendLine( $"| {r.Run.Scene.Name} | {r.Run.Name} | {b.Sync:0.000} | {b.Collect:0.000} | {b.Prepare:0.000} | {b.Setup:0.000} | {b.Record:0.000} | {b.Wait:0.000} | {b.Workers:0.000} | {b.Prepass:0.000} | {b.Stages:0.000} | {b.Submit:0.000} | {b.Draws:0} | {b.DepthDraws:0} | {b.ShadowDraws:0} |" );
-		}
-
-		md.AppendLine();
 		md.AppendLine( "Native scenesystem counters, per frame:" );
 		md.AppendLine();
 		md.AppendLine( "| Scene | Draw calls | Batch draws | Objects tested | Objects passing | Material changes | Shadow material changes | Views | Display lists | Material sets | Similar sets | Texture-only sets | Material computes |" );
 		md.AppendLine( "|---|---|---|---|---|---|---|---|---|---|---|---|---|" );
 		foreach ( var r in results )
 		{
-			if ( r.Run.Renderer != SceneLabWindow.RendererKind.Native ) continue;
 			var n = r.Native;
 			md.AppendLine( $"| {r.Run.Scene.Name} | {n.DrawCalls:0} | {n.BatchDraws:0} | {n.ObjectsTested:0} | {n.ObjectsPassing:0} | {n.MaterialChanges:0} | {n.MaterialChangesShadow:0} | {n.Views:0.#} | {n.DisplayLists:0.#} | {n.MaterialSets:0} | {n.SimilarSets:0} | {n.TextureOnlySets:0} | {n.MaterialComputes:0} |" );
 		}

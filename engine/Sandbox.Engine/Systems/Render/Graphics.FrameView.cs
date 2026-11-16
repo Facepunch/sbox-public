@@ -5,9 +5,9 @@ namespace Sandbox;
 public static partial class Graphics
 {
 	/// <summary>
-	/// The frame a render block draws into: a native scene view and layer (<see cref="NativeFrameView"/>), or a frame the
-	/// managed scene renderer draws (<see cref="ManagedView"/>). <see cref="Graphics"/>, command lists, post processing and
-	/// UI ask it what they'd otherwise ask a native view or layer, so neither renderer has to look like the other. A
+	/// The frame a render block draws into: a native scene view and layer (<see cref="NativeFrameView"/>), or a frame Borealis
+	/// draws on Borealis.Gpu. <see cref="Graphics"/>, command lists, post processing and UI ask it what they'd otherwise ask a
+	/// native view or layer, so neither renderer has to look like the other. A
 	/// standalone block (<see cref="Scope.Create"/>) has none.
 	/// </summary>
 	internal interface IFrameView
@@ -180,11 +180,6 @@ public static partial class Graphics
 	/// The frame, for what only a view can answer - which a standalone render block has none of.
 	/// </summary>
 	static IFrameView View => _state.view ?? throw new InvalidOperationException( "A standalone render block has no view." );
-
-	/// <summary>
-	/// The managed frame being drawn, or null in a native view.
-	/// </summary>
-	internal static ManagedView CurrentManagedView => _state.view as ManagedView;
 
 	/// <summary>
 	/// The native layer being drawn, or null outside a native view - for native calls that take one.

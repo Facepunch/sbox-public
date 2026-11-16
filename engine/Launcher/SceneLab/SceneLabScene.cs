@@ -1,41 +1,35 @@
 namespace Sandbox.SceneLab;
 
 /// <summary>
-/// What a Scene Lab scene is made of: a lab preset's grid of one model, with optionally a floor with lights over it
-/// (<see cref="LabPreset"/>, shared with BorealisLab), or a GameObject scene.
+/// A Scene Lab scene: a GameObject scene built from engine components and assets, rendered by native's scene system.
 /// </summary>
-internal sealed record SceneLabScene : LabPreset
+internal sealed record SceneLabScene
 {
-	public SceneLabScene()
-	{
-	}
+	public string Name { get; init; }
 
 	/// <summary>
-	/// A lab preset, which builds its world straight from these settings (<see cref="LabWorld"/>).
+	/// The Scene menu's submenu it's in.
 	/// </summary>
-	public SceneLabScene( LabPreset preset ) : base( preset )
-	{
-	}
+	public string Group { get; init; } = "Basics";
 
 	/// <summary>
-	/// Builds a GameObject scene instead of a grid, drawn through the managed renderer's GameObject bridge - for what only
-	/// exists as components (<see cref="GameScenes"/>). The other settings don't apply to it.
+	/// Builds the GameObject scene (<see cref="GameScenes"/>).
 	/// </summary>
 	public Func<Scene> Game { get; init; }
 
 	/// <summary>
-	/// Changes a <see cref="Game"/> scene through its components, for a second compare - proving the change arrives.
+	/// Changes the scene through its components, for a second capture - proving the change arrives.
 	/// </summary>
 	public Action<Scene> ChangeGame { get; init; }
 
 	/// <summary>
-	/// Check rendered behavior after a compare. Return an error to fail the capture even when both renderers agree.
+	/// Check rendered behavior after a capture. Return an error to fail the capture.
 	/// </summary>
 	public Func<Scene, string> ValidateGame { get; init; }
 
 	/// <summary>
-	/// A world the compare adds to the camera's extra worlds (<c>SceneCamera.Worlds</c>), which a camera component clears every
-	/// frame: the compare renders a <c>SceneCamera</c> set up from the scene's camera, with it added, through both renderers.
+	/// A world the capture adds to the camera's extra worlds (<c>SceneCamera.Worlds</c>), which a camera component clears every
+	/// frame: the capture renders a <c>SceneCamera</c> set up from the scene's camera, with it added.
 	/// </summary>
 	public Func<Scene, SceneWorld> ExtraWorld { get; init; }
 
@@ -46,25 +40,24 @@ internal sealed record SceneLabScene : LabPreset
 	public Action<Scene> Frame { get; init; }
 
 	/// <summary>
-	/// Runs every frame on a <see cref="Game"/> scene before its cameras render, with the renderer this pass compares: for cube
-	/// captures a preset renders itself (an envmap probe's), so each renderer's frame samples its own.
+	/// Runs every frame on a <see cref="Game"/> scene before its cameras render, with the renderer to use: for cube captures a
+	/// preset renders itself (an envmap probe's).
 	/// </summary>
 	public Action<Scene, Rendering.ISceneRenderer> Capture { get; init; }
 
 	/// <summary>
-	/// A cube an isolated capture reads back too, comparing each face with native's (<c>name.face0.png</c> to <c>face5</c>).
+	/// A cube an isolated capture reads back too (<c>name.face0.native.png</c> to <c>face5</c>).
 	/// </summary>
 	public Func<Scene, Texture> CaptureFaces { get; init; }
 
 	/// <summary>
-	/// Float textures an isolated capture reads back too, comparing their texels with native's: a volume's, or a single-channel
-	/// cube's faces (a DDGI probe's depth).
+	/// Float textures an isolated capture reads back too: a volume's, or a single-channel cube's faces (a DDGI probe's depth).
 	/// </summary>
 	public Func<Scene, Texture[]> CaptureVolumes { get; init; }
 
 	/// <summary>
 	/// The view setup a <see cref="Game"/> scene's render target camera renders with, rather than none: for presets that
-	/// compare what a <see cref="Rendering.ViewSetup"/> does.
+	/// show what a <see cref="Rendering.ViewSetup"/> does.
 	/// </summary>
 	public Func<CameraComponent, Rendering.ViewSetup> TargetSetup { get; init; }
 
@@ -75,27 +68,19 @@ internal sealed record SceneLabScene : LabPreset
 	public Func<Scene, bool> Ready { get; init; }
 
 	/// <summary>
-	/// A <see cref="Game"/> scene's camera also renders natively every frame, into a texture no one sees, while the managed
-	/// renderer draws the window - for effects that carry frames forward, like volumetric fog's history, so native's has run as
-	/// many frames as the managed one's when they're compared. Not while benchmarking, so the managed numbers are its own.
-	/// </summary>
-	public bool NativeAlongside { get; init; }
-
-	/// <summary>
-	/// Compare each renderer from a fresh scene load: effects such as AO and SSR keep history on the camera,
-	/// so reusing the scene would mix the renderers' frames. The built-in <c>-parity</c> runner automatically
-	/// performs isolated native and managed passes for this preset.
+	/// Capture from a fresh scene load, the camera rendered once on a capture frame: effects such as AO and SSR keep history
+	/// on the camera, which a second render in the frame would advance.
 	/// </summary>
 	public bool Isolated { get; init; }
 
 	/// <summary>
-	/// The benchmark measures it with occlusion culling off and then on, through each renderer.
+	/// The benchmark measures it with occlusion culling off and then on.
 	/// </summary>
 	public bool CompareOcclusion { get; init; }
 
 	/// <summary>
 	/// Puts a scripted <see cref="Game"/> scene back to its first frame. The benchmark calls it as it starts measuring, so
-	/// every renderer measures the same frames whatever the warm-up took.
+	/// every run measures the same frames whatever the warm-up took.
 	/// </summary>
 	public Action<Scene> Rewind { get; init; }
 
@@ -105,43 +90,16 @@ internal sealed record SceneLabScene : LabPreset
 	public int? BenchmarkFrames { get; init; }
 
 	/// <summary>
-	/// The frame a capture compares at, when not the default (<c>-capture-frame</c> overrides it): one where the script has
-	/// got going.
+	/// The frame a capture saves, when not the default (<c>-capture-frame</c> overrides it): one where the script has got
+	/// going.
 	/// </summary>
 	public int? CaptureFrame { get; init; }
 
 	/// <summary>
-	/// A label to log the bridge mirror's cache counts under after a frame of a <see cref="Game"/> scene drawn through it
-	/// (<c>SceneBridge.CachesFor</c>), or null for none this frame: so a scene can show them staying bounded.
-	/// </summary>
-	public Func<Scene, string> ReportMirror { get; init; }
-
-	public bool IsGame => Game is not null;
-
-	/// <summary>
-	/// The Scene menu's presets, in order: the lab presets (<see cref="LabPresets"/>) and the GameObject scenes.
+	/// The Scene menu's presets, in order.
 	/// </summary>
 	public static readonly SceneLabScene[] Presets =
 	[
-		Lab( "Box" ),
-		Lab( "Box Grid" ),
-		Lab( "Spheres" ),
-		Lab( "Point Lights" ),
-		Lab( "Spot Light" ),
-		Lab( "Point Lights and Spot" ),
-		Lab( "256 Lights" ),
-		Lab( "256 Overlapping Lights" ),
-
-		Lab( "Sun Shadows" ),
-		Lab( "Spot Shadow" ),
-		Lab( "Static Spot Shadow" ),
-		Lab( "Point Shadows" ),
-		Lab( "All Shadows" ),
-
-		Lab( "Reflections" ),
-		Lab( "Gradient Fog" ),
-		Lab( "Cubemap Fog" ),
-		Lab( "Legacy Combined Fog" ),
 		new() { Name = "Better Fog Distance", Group = "Environment", Game = GameScenes.BetterFogDistance, ChangeGame = GameScenes.DisableBetterFog },
 		new() { Name = "Better Fog Height", Group = "Environment", Game = GameScenes.BetterFogHeight, ChangeGame = GameScenes.DisableBetterFog },
 		new() { Name = "Better Fog Height Only", Group = "Environment", Game = GameScenes.BetterFogHeightOnly, ChangeGame = GameScenes.ReverseBetterFogHeight },
@@ -161,26 +119,6 @@ internal sealed record SceneLabScene : LabPreset
 		new() { Name = "Better Fog Lines", Group = "Environment", Game = GameScenes.BetterFogLines, ChangeGame = GameScenes.DisableBetterFog },
 		new() { Name = "Better Fog Water", Group = "Environment", Game = GameScenes.BetterFogWater, ChangeGame = GameScenes.DisableBetterFog },
 		new() { Name = "Better Fog Text", Group = "Environment", Game = GameScenes.BetterFogText, ChangeGame = GameScenes.DisableBetterFog },
-		Lab( "Image Based Ambient" ),
-		Lab( "Sky" ),
-
-		Lab( "Translucency" ),
-		Lab( "Faded Shadows" ),
-
-		Lab( "Citizens" ),
-
-		Lab( "LOD Test" ),
-
-		Lab( "10k Boxes" ),
-		Lab( "50k Mixed" ),
-		Lab( "10k Boxes, 256 Lights" ),
-		Lab( "10k Boxes, 64 Shadowed Lights" ),
-		Lab( "10k Boxes, 64 Still Shadowed Lights" ),
-		Lab( "50k LOD Test" ),
-		Lab( "100 Citizens" ),
-
-		// GameObject scenes, through the managed renderer's GameObject bridge (r_managed_scene) - see GameScenes
-		new() { Name = "GameObject Bridge", Group = "GameObject", Game = BridgeScene.Create, ChangeGame = BridgeScene.Change },
 		new() { Name = "Post Processing", Group = "Post Processing", Game = GameScenes.PostProcessing, ChangeGame = GameScenes.ChangePostProcessing },
 		new() { Name = "Depth of Field", Group = "Post Processing", Game = GameScenes.DepthOfField },
 		new() { Name = "Auto Exposure", Group = "Post Processing", Game = GameScenes.AutoExposure },
@@ -198,7 +136,7 @@ internal sealed record SceneLabScene : LabPreset
 		new() { Name = "EnvMaps and Decals", Group = "Stress", Game = GameScenes.EnvMapsAndDecals },
 		new() { Name = "Tools View", Group = "Tools", Game = GameScenes.ToolsView, ChangeGame = GameScenes.ChangeToolsView },
 		new() { Name = "Debug Views", Group = "Tools", Game = GameScenes.DebugViews, ChangeGame = GameScenes.ChangeDebugViews },
-		new() { Name = "Volumetric Fog", Group = "Effects", Game = GameScenes.VolumetricFog, ChangeGame = GameScenes.ChangeVolumetricFog, NativeAlongside = true },
+		new() { Name = "Volumetric Fog", Group = "Effects", Game = GameScenes.VolumetricFog, ChangeGame = GameScenes.ChangeVolumetricFog },
 		new() { Name = "Dense Smoke", Group = "Effects", Game = GameScenes.DenseSmoke },
 		new() { Name = "Contact Shadows", Group = "Shadows", Game = GameScenes.ContactShadows, ChangeGame = GameScenes.ChangeContactShadows },
 		new() { Name = "Decal Geometry", Group = "Effects", Game = GameScenes.DecalGeometry, ChangeGame = GameScenes.ChangeDecalGeometry },
@@ -246,8 +184,6 @@ internal sealed record SceneLabScene : LabPreset
 		new() { Name = "Viewmodel Depth", Group = "Effects", Game = GameScenes.ViewmodelDepth, ChangeGame = GameScenes.ChangeViewmodel },
 		new() { Name = "Bloom Objects", Group = "Post Processing", Game = GameScenes.BloomObjects, ChangeGame = GameScenes.ChangeBloomObjects },
 		new() { Name = "Dynamic", Group = "Stress", Game = DynamicScene.Build, Frame = DynamicScene.Animate },
-		new() { Name = "Mirror Churn", Group = "Stress", Game = MirrorChurnScene.Build, Frame = MirrorChurnScene.Step, Rewind = MirrorChurnScene.Rewind,
-			BenchmarkFrames = MirrorChurnScene.Frames, CaptureFrame = MirrorChurnScene.CaptureFrame, ReportMirror = MirrorChurnScene.Report, Isolated = true },
 		new() { Name = "Heavy Scene", Group = "Stress", Game = HeavyScene.Build, Frame = HeavyScene.Animate },
 		new() { Name = "Heavy Scene AO", Group = "Stress", Game = HeavyScene.BuildWithOcclusion, Frame = HeavyScene.Animate, Isolated = true },
 		new() { Name = "Heavy Scene AO SSR", Group = "Stress", Game = HeavyScene.BuildWithReflectionsAndOcclusion, Frame = HeavyScene.Animate, Isolated = true },
@@ -258,7 +194,7 @@ internal sealed record SceneLabScene : LabPreset
 		new() { Name = "Flatgrass Props", Group = "Maps", Game = MapScenes.FlatgrassProps, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Construct Skyline", Group = "Maps", Game = MapScenes.ConstructSkyline, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Construct Overview", Group = "Maps", Game = MapScenes.ConstructOverview, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
-		new() { Name = "Construct Skyline Fog", Group = "Maps", Game = MapScenes.ConstructSkylineFog, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded, NativeAlongside = true },
+		new() { Name = "Construct Skyline Fog", Group = "Maps", Game = MapScenes.ConstructSkylineFog, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 
 		// Scenarios: game-like scenes measured as a whole, scripted by frame count so each run sees the same frames (Scenarios)
 		new() { Name = "Firefight", Group = Scenarios.Group, Game = FirefightScene.Build, Frame = FirefightScene.Fight, Ready = FirefightScene.Ready, Rewind = FirefightScene.Rewind,
@@ -273,32 +209,6 @@ internal sealed record SceneLabScene : LabPreset
 		new() { Name = "Night Interior", Group = Scenarios.Group, Game = NightInteriorScene.Build, Frame = NightInteriorScene.Walk, Rewind = NightInteriorScene.Rewind,
 			BenchmarkFrames = NightInteriorScene.Frames, CaptureFrame = 150 },
 		new() { Name = "Smoke and Glass", Group = Scenarios.Group, Game = SmokeAndGlassScene.Build, Frame = SmokeAndGlassScene.Animate, Rewind = SmokeAndGlassScene.Rewind,
-			NativeAlongside = true, CaptureFrame = 300 },
+			CaptureFrame = 300 },
 	];
-
-	static SceneLabScene Lab( string name ) => new( LabPresets.Find( name ) ?? throw new ArgumentException( $"No lab preset {name}" ) );
-
-	/// <summary>
-	/// The scene described by the command line, or null if it doesn't describe one.
-	/// </summary>
-	public static SceneLabScene FromCommandLine()
-	{
-		string[] switches = ["-model", "-grid", "-lights", "-lightradius", "-spot", "-sun", "-lightshadows", "-floor"];
-		if ( !switches.Any( Args.Has ) ) return null;
-
-		var scene = new SceneLabScene
-		{
-			Name = "Command Line",
-			Models = [Args.String( "-model" ) ?? "models/dev/box.vmdl"],
-			Grid = Math.Max( 1, Args.Int( "-grid", 1 ) ),
-			Lights = Math.Max( 0, Args.Int( "-lights", 0 ) ),
-			LightRadius = Args.Float( "-lightradius", 0.4f ),
-			Spot = Args.Has( "-spot" ),
-			Sun = Args.Float( "-sun", 0.1f ),
-			LightShadows = Args.Has( "-lightshadows" ),
-			Floor = Args.Has( "-floor" ),
-		};
-
-		return scene;
-	}
 }
