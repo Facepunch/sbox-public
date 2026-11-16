@@ -925,7 +925,10 @@ internal sealed class BorealisGpuRenderBackend : RenderBackend, IDisposable
 
 		var shader = Require( material );
 		var bytes = new ReadOnlySpan<byte>( (void*)vertices, vertexSize * vertexCount );
-		context.DrawVertices( shader, Lower( attributes ), bytes, VertexStreamLayout.EngineVertex, vertexCount, Topology( primitiveType ) );
+		// CPU vertices hold plain normals and tangents, as a native view tells its draws (UncompressedTangentFrame)
+		var lowered = Lower( attributes );
+		if ( lowered.Get( UncompressedTangentFrame ) is null ) lowered.Set( UncompressedTangentFrame, 1.0f );
+		context.DrawVertices( shader, lowered, bytes, VertexStreamLayout.EngineVertex, vertexCount, Topology( primitiveType ) );
 	}
 
 	public override bool SetRenderState( Material material, RenderAttributes attributes, Type vertexType )
