@@ -42,6 +42,9 @@ CS
 	RWByteAddressBuffer g_Mask < Attribute( "BorealisCullMask" ); >;
 	RWByteAddressBuffer g_Compacted < Attribute( "BorealisCullCompacted" ); >;
 
+	// The module also keeps generated LODs' levels per view (borealis_gpu_driven_cull_cs.slang): declared here for its bindings
+	RWByteAddressBuffer g_Levels < Attribute( "BorealisCullLevels" ); >;
+
 	cbuffer BorealisGpuDrivenCull_t
 	{
 		uint g_nCullInput;			// byte offset of the view record, then a batch record each
@@ -154,6 +157,10 @@ CS
 		uint nBatch = vGroupId.x;
 		if ( nBatch >= g_nCullBatches )
 			return;
+
+		// Never true (a slot or None): keeps the levels' binding, which the module uses
+		if ( g_nCullLodTable == 0xfffffffeu )
+			g_Levels.Store( 0, g_Levels.Load( 0 ) );
 
 		// View record (160 bytes): six planes, the camera and the squared size threshold, then whether it's a shadow view
 		float4 vPlanes[6];
