@@ -25,9 +25,9 @@ internal static unsafe class LabTracy
 		public int Active;
 	}
 
-	static delegate* unmanaged<SourceLocation*, int, ZoneContext> zoneBegin;
-	static delegate* unmanaged<ZoneContext, void> zoneEnd;
-	static delegate* unmanaged<IntPtr, void> frameMark;
+	static delegate* unmanaged< SourceLocation*, int, ZoneContext > zoneBegin;
+	static delegate* unmanaged< ZoneContext, void > zoneEnd;
+	static delegate* unmanaged< IntPtr, void > frameMark;
 
 	/// <summary>Whether the profiler started.</summary>
 	public static bool Enabled { get; private set; }
@@ -52,10 +52,10 @@ internal static unsafe class LabTracy
 			return;
 		}
 
-		var startup = (delegate* unmanaged<void>)NativeLibrary.GetExport( tier0, "___tracy_startup_profiler" );
-		zoneBegin = (delegate* unmanaged<SourceLocation*, int, ZoneContext>)NativeLibrary.GetExport( tier0, "___tracy_emit_zone_begin" );
-		zoneEnd = (delegate* unmanaged<ZoneContext, void>)NativeLibrary.GetExport( tier0, "___tracy_emit_zone_end" );
-		frameMark = (delegate* unmanaged<IntPtr, void>)NativeLibrary.GetExport( tier0, "___tracy_emit_frame_mark" );
+		var startup = (delegate* unmanaged< void >)NativeLibrary.GetExport( tier0, "___tracy_startup_profiler" );
+		zoneBegin = (delegate* unmanaged< SourceLocation*, int, ZoneContext >)NativeLibrary.GetExport( tier0, "___tracy_emit_zone_begin" );
+		zoneEnd = (delegate* unmanaged< ZoneContext, void >)NativeLibrary.GetExport( tier0, "___tracy_emit_zone_end" );
+		frameMark = (delegate* unmanaged< IntPtr, void >)NativeLibrary.GetExport( tier0, "___tracy_emit_frame_mark" );
 		startup();
 		Enabled = true;
 	}
