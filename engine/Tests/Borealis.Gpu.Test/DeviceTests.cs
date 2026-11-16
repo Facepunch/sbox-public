@@ -17,6 +17,42 @@ public class DeviceTests : GpuTest
 	TextureHandle Target( int width, int height ) => Device.CreateTexture( TextureInfo.RenderTarget( width, height, Format.RGBA8Unorm, name: "Target" ) );
 
 	/// <summary>
+	/// Binding a slot again with the bindings it last wrote binds that set again; other bindings write another, as does
+	/// everything with the reuse off.
+	/// </summary>
+	[TestMethod]
+	public void SameBindingsReuseTheirSet()
+	{
+		var layout = Device.CreateBindingLayout( [new BindingSlot( 0, BindingType.UniformBuffer, ShaderStages.Vertex )] );
+		var list = Device.BeginCommandList();
+		var first = list.AllocateUpload( 256 );
+		var (firstBuffer, firstOffset) = (first.Buffer, first.Offset);
+		var second = list.AllocateUpload( 256 );
+		var (secondBuffer, secondOffset) = (second.Buffer, second.Offset);
+
+		list.SetBindings( 0, layout, [Binding.Uniform( 0, firstBuffer, firstOffset, 256 )] );
+		list.SetBindings( 0, layout, [Binding.Uniform( 0, firstBuffer, firstOffset, 256 )] );
+		Assert.AreEqual( 1, list.TransientSetsWritten, "the same bindings" );
+
+		list.SetBindings( 0, layout, [Binding.Uniform( 0, secondBuffer, secondOffset, 256 )] );
+		list.SetBindings( 0, layout, [Binding.Uniform( 0, secondBuffer, secondOffset, 256 )] );
+		Assert.AreEqual( 2, list.TransientSetsWritten, "other bindings, then those again" );
+
+		Device.ReusesTransientSets = false;
+		try
+		{
+			list.SetBindings( 0, layout, [Binding.Uniform( 0, secondBuffer, secondOffset, 256 )] );
+			Assert.AreEqual( 3, list.TransientSetsWritten, "reuse off" );
+		}
+		finally
+		{
+			Device.ReusesTransientSets = true;
+		}
+
+		Device.Wait( Device.Submit( list ) );
+	}
+
+	/// <summary>
 	/// A cleared target reads back as exactly the clear colour.
 	/// </summary>
 	[TestMethod]

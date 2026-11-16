@@ -213,6 +213,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public bool GpuDrivenResidentOverlays { get; set; } = !HasSwitch( "-no-resident-overlays" );
 
+	/// <summary>
+	/// Resolve what a surface stage binds from the pass once per pass state, and only what objects' attributes set for each
+	/// draw, so its draws bind the same set (<see cref="Device.ReusesTransientSets"/>); <c>-no-pass-bindings</c> turns both off.
+	/// </summary>
+	public bool SurfacePassBindings
+	{
+		get => surfacePassBindings;
+		set => Gpu.ReusesTransientSets = surfacePassBindings = value;
+	}
+
+	bool surfacePassBindings = true;
+
 	internal override bool DrawsOverlaysResident => GpuDrivenResidentOverlays && DrawsMeshesResident && DrawsOverlaysGpuDriven;
 
 	/// <summary>
@@ -432,6 +444,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public BackendDevice( Device gpu, ContentFiles content = null )
 	{
 		Gpu = gpu;
+		SurfacePassBindings = !HasSwitch( "-no-pass-bindings" );
 		Content = content ?? ContentFiles.FindGame();
 		Shaders = new ShaderLibrary( gpu, Content );
 		Passes = new PassModules( this );
