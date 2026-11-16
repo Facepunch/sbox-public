@@ -221,6 +221,12 @@ internal partial class NetworkSystem
 
 		var type = msg.Data.Read<InternalMessageType>();
 
+		// Until the host has let a connection in (password, privacy), it only takes handshake messages
+		var unadmitted = IsHost && !msg.Source.IsHost && msg.Source.State < Connection.ChannelState.Welcome;
+		if ( unadmitted && type is not (InternalMessageType.HeartbeatPing or InternalMessageType.HeartbeatPong
+			or InternalMessageType.Packed or InternalMessageType.Request or InternalMessageType.Response) )
+			return;
+
 		// Leaving host: only acknowledgements matter now, relayed ones included
 		if ( _isHandingOff && type is not (InternalMessageType.Packed or InternalMessageType.Multicast) )
 			return;
@@ -321,6 +327,9 @@ internal partial class NetworkSystem
 				msg.Source.OnResponse( responseTo, obj );
 				return;
 			}
+
+			if ( unadmitted && obj is not (UserInfo or RestartHandshakeMsg) )
+				return;
 
 			if ( typeMessageHandlers.TryGetValue( obj.GetType(), out var h ) )
 			{

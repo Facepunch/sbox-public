@@ -93,7 +93,16 @@ public class LargeNetworkFilesTests
 		Assert.AreEqual( 0, Request( "assets/public.bin", isHost: false ).Length );
 	}
 
-	byte[] Request( string path, bool isHost = true )
+	/// <summary>
+	/// A connection that hasn't passed the join check only gets handshake messages through.
+	/// </summary>
+	[TestMethod]
+	public void UnadmittedConnectionsAreIgnored()
+	{
+		Assert.ThrowsException<TimeoutException>( () => Request( "assets/public.bin", state: Connection.ChannelState.LoadingServerInformation ) );
+	}
+
+	byte[] Request( string path, bool isHost = true, Connection.ChannelState state = Connection.ChannelState.Connected )
 	{
 		return AsyncPump.RunSynchronously( async () =>
 		{
@@ -103,7 +112,7 @@ public class LargeNetworkFilesTests
 			typeof( NetworkSystem ).GetProperty( nameof( NetworkSystem.IsHost ) ).SetValue( system, isHost );
 			using var game = new TestGameNetworkSystem { NetworkSystem = system };
 			downloads.NetworkInitialize( game );
-			var connection = new CaptureConnection { System = system, RemoteIsHost = !isHost };
+			var connection = new CaptureConnection { System = system, RemoteIsHost = !isHost, State = state };
 			var requestId = Guid.NewGuid();
 			var request = ByteStream.Create( 256 );
 			try
