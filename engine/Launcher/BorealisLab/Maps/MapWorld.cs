@@ -126,6 +126,7 @@ internal sealed partial class MapWorld : IDisposable
 			LoadSkybox( reference, sky );
 		}
 
+		if ( entities ) AddEnvMapProbes( level );
 	}
 
 	readonly Stopwatch timer;
@@ -576,8 +577,19 @@ internal sealed partial class MapWorld : IDisposable
 		view.ToolsVisMode = ToolsVisMode;
 
 		RenderHost.Current.NextFrame();
-		System.Render( World, view, Target );
+		System.Render( World, view, Target, CameraStages );
 	}
+
+	/// <summary>
+	/// A game camera's stages with no commands in them, as SceneLab's camera has: the frame is a camera's, so the sun's
+	/// contact shadows draw as the game draws them.
+	/// </summary>
+	sealed class EmptyCameraStages : IRenderStages
+	{
+		public void Render( RenderStage stage, in StageTarget target ) { }
+	}
+
+	static readonly EmptyCameraStages CameraStages = new();
 
 	/// <summary>The resolved colour and the layout Borealis left it in.</summary>
 	public (TextureHandle Texture, ImageLayout Layout) Output => BackendDevice.Unwrap( Target.Samples > 1 ? Target.Resolved : Target.Color );

@@ -30,12 +30,14 @@ internal static class MapRealRun
 	/// A way of drawing it: recording on one thread or several, material objects or binding by reflection, whether static
 	/// geometry casts sun shadows, and whether aggregates draw GPU-driven (<c>-gpudriven</c>).
 	/// </summary>
-	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false, bool CpuCulling = false, bool NoCompaction = false, bool FullVertices = false, bool Visibility = false, bool FreezeFar = false, bool? FarCache = null, bool NoTiles = false );
+	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false, bool CpuCulling = false, bool NoCompaction = false, bool FullVertices = false, bool Visibility = false, bool FreezeFar = false, bool? FarCache = null, bool NoTiles = false, bool NoFrameBufferMips = false, bool NoContactShadows = false );
 
 	static readonly Variant[] Variants =
 	[
 		new( "real-serial", false, true, false ),
 		new( "real-parallel", true, true, false ),
+		new( "real-parallel-nofbmips", true, true, false, NoFrameBufferMips: true ),
+		new( "real-parallel-nocontact", true, true, false, NoContactShadows: true ),
 		new( "real-reflection", false, false, false ),
 		new( "real-serial-shadows", false, true, true ),
 		new( "real-parallel-shadows", true, true, true ),
@@ -103,8 +105,11 @@ internal static class MapRealRun
 		global::Borealis.Shadows.ShadowMapper.TexelSizedCascades = !Args.Has( "-no-texel-cascades" );
 		var farCache = Args.Has( "-far-cache" ) || (global::Borealis.Shadows.ShadowMapper.FarCascadeCache && !Args.Has( "-no-far-cache" ));
 		var cascadeTiles = global::Borealis.Shadows.ShadowMapper.CascadeTiles && !Args.Has( "-no-cascade-tiles" );
+		// The map's sun's contact shadows, which the -nocontact variants turn off
+		var sunContactShadows = map.World.Lighting.SunContactShadows;
 		if ( Args.Int( "-cascade-resolution", 0 ) is > 0 and var cascadeResolution ) RenderHost.Current.Shadows.MaxCascadeResolution = cascadeResolution;
 		if ( Args.Int( "-cascade-cull-texels", 0 ) is > 0 and var cullTexels ) global::Borealis.Culling.SizeCull.CascadeTexels = cullTexels;
+		if ( !Args.Has( "-noprobes" ) ) map.CaptureProbes();
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		Console.WriteLine( $"Loaded in {load.Elapsed.TotalSeconds:0.0} s; {map.Problems.Count} problems" );
 		if ( map.Backend.Surfaces.ConvertedMaterials > 0 ) Console.WriteLine( $"  {map.Backend.Surfaces.ConvertedMaterials} materials drawn as surfaces" );
@@ -241,6 +246,8 @@ internal static class MapRealRun
 				map.Backend.GpuDrivenCompaction = !variant.NoCompaction;
 				map.Backend.PositionStreams = !variant.FullVertices;
 				map.Backend.GpuDrivenVisibility = variant.Visibility;
+				map.Backend.FrameBufferCopyMips = !variant.NoFrameBufferMips;
+				map.World.Lighting.SunContactShadows = sunContactShadows && !variant.NoContactShadows;
 				map.SetCastShadows( variant.Shadows );
 				global::Borealis.Shadows.ShadowMapper.FreezeFarCascade = variant.FreezeFar || Args.Has( "-freeze-far-cascade" );
 				global::Borealis.Shadows.ShadowMapper.ForgetFrozenFar();
@@ -347,6 +354,8 @@ internal static class MapRealRun
 				// -capture-parallel: captured recording on workers, as the threaded runs are
 				map.System.ParallelRecording = Args.Has( "-capture-parallel" );
 				map.Backend.MaterialObjects = true;
+				map.Backend.FrameBufferCopyMips = true;
+				map.World.Lighting.SunContactShadows = sunContactShadows;
 				// -capture-shadows: with static geometry casting sun shadows, so GPU-driven shadow views are compared too
 				map.SetCastShadows( Args.Has( "-capture-shadows" ) );
 				global::Borealis.Shadows.ShadowMapper.FarCascadeCache = farCache;
@@ -460,6 +469,23 @@ internal static class MapRealRun
 					Console.WriteLine( $"Saved {capturePath}" );
 				}
 
+				// -capture-times from,to,step: the frame at each shader time in the range, to find the time another capture was taken at
+				if ( Args.String( "-capture-times" )?.Split( ',' ).Select( v => float.Parse( v, System.Globalization.CultureInfo.InvariantCulture ) ).ToArray() is [var from, var to, var by] && by > 0 )
+				{
+					var kept = map.Time;
+					for ( var at = from; at <= to + by * 0.5f; at += by )
+					{
+						map.Time = at;
+						for ( int i = 0; i < 3; i++ ) RenderFrame( view );
+						gpu.WaitIdle();
+						var (timed, timedLayout) = map.Output;
+						Capture.Save( gpu, timed, timedLayout, Path.ChangeExtension( path, null ) + FormattableString.Invariant( $"-t{at:0.00}.png" ) );
+						BackendDevice.SetLayout( map.Target.Samples > 1 ? map.Target.Resolved : map.Target.Color, ImageLayout.CopySource );
+					}
+
+					map.Time = kept;
+				}
+
 				var (texture, layout) = map.Output;
 
 				// -vis 10,2: the same frame in the shaders' debug views
@@ -489,7 +515,7 @@ internal static class MapRealRun
 		var md = new StringBuilder();
 		md.AppendLine( $"Borealis Lab -map {options.Ident} -real, {DateTime.Now:yyyy-MM-dd HH:mm}, {gpu.Adapter.Name}, {options.Width}x{options.Height} {options.Samples}x MSAA, vsync off, {options.Frames} measured frames per run (medians, ms)" );
 		md.AppendLine();
-		md.AppendLine( $"Baked lighting: {map.LightmapTextures} lightmaps for {map.LightmappedObjects} objects and aggregates, {map.ProbeVolumes} probe volumes for {map.ProbeObjects} objects; {map.Lights} lights ({map.BakedLights} baked); 3D skybox {(map.SkyWorld is null ? "none" : "loaded")}; occlusion culling {(RenderHost.Current.OcclusionCulling ? "on" : "off")}" );
+		md.AppendLine( $"Baked lighting: {map.LightmapTextures} lightmaps for {map.LightmappedObjects} objects and aggregates, {map.ProbeVolumes} probe volumes for {map.ProbeObjects} objects; {map.EnvMapProbesCaptured} of {map.EnvMapProbes} envmap probes captured; {map.Lights} lights ({map.BakedLights} baked); 3D skybox {(map.SkyWorld is null ? "none" : "loaded")}; occlusion culling {(RenderHost.Current.OcclusionCulling ? "on" : "off")}" );
 		md.AppendLine();
 		md.AppendLine( $"GPU-driven tables: {map.Backend.GpuDrivenReport}" );
 		md.AppendLine();

@@ -25,12 +25,14 @@ internal static class BorealisGpuCustomDraw
 	/// <summary>
 	/// Run <paramref name="draw"/> (a custom object's <c>RenderSceneObject</c>) into the list <paramref name="context"/> is
 	/// recording, on what it has bound, as <paramref name="layerType"/> from <paramref name="camera"/>. False when there's
-	/// nothing to draw into: no Borealis.Gpu backend, no colour target, or no view constants.
+	/// nothing to draw into: no Borealis.Gpu backend, no colour target, or no view constants. Not in a view rendered while
+	/// the engine draws in another frame (a water body's refraction, from its command list): the graphics context is that
+	/// frame's.
 	/// </summary>
 	public static bool Draw( GpuContext context, SceneLayerType layerType, RenderView camera, Action draw )
 	{
 		ThreadSafe.AssertIsMainThread();
-		if ( !Enabled ) return false;
+		if ( !Enabled || Graphics.IsActive ) return false;
 		if ( RenderBackend.Default is not BorealisGpuRenderBackend backend || context is not BackendContext ) return false;
 
 		var target = context.Bound;
@@ -86,7 +88,8 @@ internal static class BorealisGpuCustomDraw
 	public static bool DeferOverlay( GpuContext context, RenderView camera, bool withDepth, SceneObject sceneObject )
 	{
 		ThreadSafe.AssertIsMainThread();
-		if ( !Enabled ) return false;
+		// A view rendered inside another frame has no output of its own to draw them on
+		if ( !Enabled || Graphics.IsActive ) return false;
 		if ( RenderBackend.Default is not BorealisGpuRenderBackend || context is not BackendContext backendContext ) return false;
 
 		// With the depth range the frame drew into (the main view keeps the near end for the 3D skybox), so depth tests compare

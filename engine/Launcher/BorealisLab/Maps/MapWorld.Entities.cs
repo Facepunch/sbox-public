@@ -136,6 +136,10 @@ internal sealed partial class MapWorld
 		lighting.SunColor = new Color( color.r, color.g, color.b );
 		lighting.SunDirection = rotation.Forward;
 
+		// As MapInstance makes the sun into a DirectionalLight: shadow hardness 0.5, and contact shadows, on by default, in the scene
+		lighting.SunShadowHardness = 0.5f;
+		lighting.SunContactShadows = scene;
+
 		// The scene's ambient light: the directional light's sky colour times its intensity, alpha from the colour
 		// (MapInstance, then Scene's ambient sum). A skybox world is loaded into a scene world of its own, without it
 		if ( scene )

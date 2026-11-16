@@ -341,6 +341,20 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
+	/// A quad covering clip space at depth 0.5, with <c>Graphics.Blit</c>'s uvs: what full-screen draws draw
+	/// (<see cref="BackendContext.DrawFullscreen"/>).
+	/// </summary>
+	internal RenderMesh FullscreenQuad => fullscreenQuad ??= BackendMesh.Create( this,
+		[
+			new MeshVertex( new Vector3( -1, -1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 0, 1 ) ),
+			new MeshVertex( new Vector3( 1, -1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 1, 1 ) ),
+			new MeshVertex( new Vector3( -1, 1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 0, 0 ) ),
+			new MeshVertex( new Vector3( 1, 1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 1, 0 ) ),
+		], [0, 1, 2, 2, 1, 3], null, "Fullscreen quad" );
+
+	RenderMesh fullscreenQuad;
+
+	/// <summary>
 	/// When set, the next frame context to begin a list of its own resets timestamps <c>Index</c> and <c>Index + 1</c> of
 	/// <c>Queries</c> and writes the first at the start of its list, so a frame's GPU time can be read from there to a
 	/// timestamp the caller writes after it; cleared once used. For benchmarks.
@@ -365,6 +379,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// barrier's given stages) rather than every stage and access. Off for comparisons.
 	/// </summary>
 	internal bool ExactBarriers { get; set; } = true;
+
+	/// <summary>
+	/// The frame buffer copy gets native's depth-aware mask and blurred mips (<c>BackendContext.GenerateFrameBufferCopyMips</c>).
+	/// Off for comparisons.
+	/// </summary>
+	internal bool FrameBufferCopyMips { get; set; } = true;
 
 	/// <summary>
 	/// A layer's draws split over lists recorded apart keep one rendering scope on the GPU: each list suspends its last scope
@@ -642,6 +662,21 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		list.ClearTexture( t.Handle, new System.Numerics.Vector4( color.r, color.g, color.b, color.a ) );
 		list.Barrier( TextureBarrier.Transition( t.Handle, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
 		Gpu.Wait( Gpu.Submit( list ) );
+		t.Layout = ImageLayout.ShaderRead;
+	}
+
+	/// <summary>
+	/// Move a target a frame drew into to where shaders sample it, in a list of its own that reaches the GPU before anything
+	/// submitted after: a view rendered for another's draws to read (a water body's refraction).
+	/// </summary>
+	public void MakeReadable( GpuTexture texture )
+	{
+		if ( texture is not BackendTexture t || t.Layout == ImageLayout.ShaderRead ) return;
+
+		var list = Gpu.BeginCommandList( QueueType.Graphics, "Borealis readable" );
+		list.Barrier( TextureBarrier.Transition( t.Handle, t.Layout, ImageLayout.ShaderRead, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
+		if ( BatchSubmits ) Gpu.SubmitLater( list );
+		else Gpu.Submit( list );
 		t.Layout = ImageLayout.ShaderRead;
 	}
 
@@ -1558,8 +1593,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 }
 
 /// <summary>
-/// A <see cref="RenderHost"/> rendering through a <see cref="BackendDevice"/>, with the passes it can't run yet off:
-/// occlusion culling, contact shadows and async compute, which need engine compute shaders.
+/// A <see cref="RenderHost"/> rendering through a <see cref="BackendDevice"/>, with async compute off: it has one queue.
 /// </summary>
 public class BackendRenderHost( BackendDevice device ) : RenderHost
 {
@@ -1568,9 +1602,6 @@ public class BackendRenderHost( BackendDevice device ) : RenderHost
 
 	/// <inheritdoc/>
 	public override bool AsyncCompute => false;
-
-	/// <inheritdoc/>
-	public override bool ContactShadows => false;
 
 	/// <summary>
 	/// The debug views drawn into the frame (none by default): the labs' <c>-debug-views</c>.
