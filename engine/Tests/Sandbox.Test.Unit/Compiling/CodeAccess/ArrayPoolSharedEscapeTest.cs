@@ -35,4 +35,21 @@ public class ArrayPoolSharedEscapeTest
 
 		Assert.AreEqual( 0, result.Denied.Count, $"Control must pass: {result}" );
 	}
+
+	// A copy of the handler keeps its rented array after the original returns it
+	[TestMethod]
+	public void InterpolationHandler_Is_Rejected()
+	{
+		var result = Verify( "using System.Runtime.CompilerServices; public static class P { public static string M() { var h = new DefaultInterpolatedStringHandler( 0, 0 ); var c = h; h.ToStringAndClear(); return c.ToString(); } }" );
+
+		Assert.IsTrue( result.Denied.Any( x => x.Contains( "DefaultInterpolatedStringHandler" ) ), $"Expected a handler access error: {result}" );
+	}
+
+	[TestMethod]
+	public void StringInterpolation_Is_Allowed()
+	{
+		var result = Verify( "public static class P { public static string M( int x ) => $\"v{x}\"; }" );
+
+		Assert.AreEqual( 0, result.Denied.Count, $"Control must pass: {result}" );
+	}
 }
