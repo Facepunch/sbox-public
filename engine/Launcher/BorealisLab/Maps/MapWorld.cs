@@ -329,12 +329,14 @@ internal sealed partial class MapWorld : IDisposable
 				BoxMaxs = new Vector3( maxs.X, maxs.Y, maxs.Z ),
 				LightGroups = [0],
 				Attributes = attributes,
+				Handshake = group.Key,
 			} );
 			ProbeVolumes++;
 
 			foreach ( var (obj, _, _, _) in group )
 			{
 				obj.NeedsLightProbe = true;
+				obj.LightProbeHandshake = group.Key;
 				ProbeObjects++;
 			}
 		}

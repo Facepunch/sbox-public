@@ -87,6 +87,22 @@ public sealed class MapEntity
 		_ => fallback,
 	};
 
+	/// <summary>
+	/// A key's value as a whole number, exactly where it's stored as one (a light probe volume's <c>handshake</c> is past
+	/// what a float holds), or <paramref name="fallback"/>.
+	/// </summary>
+	public int Int( string key, int fallback = 0 ) => this[key] switch
+	{
+		int i => i,
+		uint u => unchecked( (int)u ),
+		long l => unchecked( (int)l ),
+		ulong ul => unchecked( (int)ul ),
+		double d => (int)d,
+		string s when long.TryParse( s, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var l ) => unchecked( (int)l ),
+		null => fallback,
+		_ => (int)Float( key, fallback ),
+	};
+
 	/// <summary>A key's value as a bool: true, or a non-zero number.</summary>
 	public bool Bool( string key, bool fallback = false ) => this[key] switch
 	{
