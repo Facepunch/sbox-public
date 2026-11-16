@@ -168,12 +168,13 @@ public sealed partial class PlayerController : Component
 	bool _duckInput;
 	float _duckInputElapsed;
 	internal bool IsDuckTransition { get; private set; }
+	internal bool IsUnducking => IsDuckTransition && !_duckInput;
 	float CurrentDuckDuration => MathF.Max( 0, _duckInput ? DuckDuration : UnduckDuration );
 	internal float DuckInputFraction
 	{
 		get
 		{
-			if ( !IsDuckTransition || !IsOnGround ) return IsDucking ? 1 : 0;
+			if ( !IsDuckTransition || !IsOnGround || Mode is not Movement.MoveModeWalk ) return IsDucking ? 1 : 0;
 			var duration = CurrentDuckDuration;
 			if ( duration <= 0 ) return _duckInput ? 1 : 0;
 			var t = (_duckInputElapsed / duration).Clamp( 0, 1 );
@@ -186,14 +187,17 @@ public sealed partial class PlayerController : Component
 	{
 		if ( wantsDuck != _duckInput )
 		{
+			var fraction = IsDuckTransition && CurrentDuckDuration > 0
+				? (_duckInputElapsed / CurrentDuckDuration).Clamp( 0, 1 )
+				: 1f;
 			_duckInput = wantsDuck;
-			_duckInputElapsed = 0;
+			_duckInputElapsed = (1 - fraction) * CurrentDuckDuration;
 		}
 		else _duckInputElapsed += Time.Delta;
 
-		IsDuckTransition = wantsDuck != IsDucking;
+		IsDuckTransition |= wantsDuck != IsDucking;
 		if ( !IsDuckTransition ) return;
-		if ( !wantsDuck && !CanUnduck( out _ ) )
+		if ( !wantsDuck && IsDucking && !CanUnduck( out _ ) )
 		{
 			_duckInputElapsed = 0;
 			IsDuckTransition = false;
@@ -202,7 +206,7 @@ public sealed partial class PlayerController : Component
 		var duration = CurrentDuckDuration;
 		if ( Mode is Movement.MoveModeWalk && IsOnGround && duration > 0 && _duckInputElapsed <= duration ) return;
 		UpdateDucking( wantsDuck );
-		IsDuckTransition = wantsDuck != IsDucking;
+		IsDuckTransition = false;
 	}
 
 	bool CanUnduck( out Vector3 newPosition )

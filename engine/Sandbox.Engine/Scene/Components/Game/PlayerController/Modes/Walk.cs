@@ -149,7 +149,7 @@ public partial class MoveModeWalk : MoveMode
 			body.Velocity = Controller.WithVertical( body.Velocity,
 				MovementMath.StartGravity( body.Velocity.Dot( up ), gravity, body.GravityScale, Time.Delta ) );
 
-		if ( jumpRequested && !(Controller.IsDucking && Controller.IsDuckTransition)
+		if ( jumpRequested && !(Controller.IsDucking && Controller.IsUnducking)
 			&& (Controller.IsOnGround || Controller.CanCoyoteJump) )
 		{
 			ApplyJumpMomentum();
@@ -257,16 +257,5 @@ public partial class MoveModeWalk : MoveMode
 		eyes = eyes.Angles() with { pitch = 0 };
 
 		return base.UpdateMove( eyes, input );
-	}
-
-	public override Transform CalculateEyeTransform()
-	{
-		var transform = base.CalculateEyeTransform();
-		if ( Controller.IsDuckTransition && Controller.IsOnGround )
-		{
-			var height = Controller.BodyHeight - (Controller.BodyHeight - Controller.DuckedHeight) * Controller.DuckInputFraction;
-			transform.Position = Controller.WorldPosition + Controller.UpDirection * (height - Controller.EyeDistanceFromTop);
-		}
-		return transform;
 	}
 }
