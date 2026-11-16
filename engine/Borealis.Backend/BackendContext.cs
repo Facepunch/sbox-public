@@ -43,6 +43,7 @@ internal sealed partial class BackendContext : GpuContext
 		/// start) and where it leaves it. Null for a frame's list, which moves the textures' own layouts.
 		/// </summary>
 		public Dictionary<BackendTexture, (ImageLayout First, ImageLayout Current)> Layouts;
+		readonly Dictionary<BackendTexture, (ImageLayout First, ImageLayout Current)> layouts = new();
 		public readonly List<(BufferHandle Buffer, int Bytes, GpuReadback Callback)> Readbacks = new();
 
 		/// <summary>The list's own scope in <see cref="BackendDevice.PassTimer"/>, -1 if it's not timed.</summary>
@@ -50,6 +51,23 @@ internal sealed partial class BackendContext : GpuContext
 
 		/// <summary>The timed scope counting statistics in this list, -1 if none: they don't nest.</summary>
 		public int Counting = -1;
+
+		/// <summary>Start again on a new list: a context keeps one session and reuses it every frame.</summary>
+		public void Reset( CommandList list, bool ownLayouts )
+		{
+			List = list;
+			Rendering = false;
+			Color = Depth = null;
+			Slice = 0;
+			Srgb = false;
+			Pipeline = default;
+			Binder = Active = null;
+			BindVersion = -1;
+			layouts.Clear();
+			Layouts = ownLayouts ? layouts : null;
+			Readbacks.Clear();
+			TimerScope = Counting = -1;
+		}
 	}
 
 	static readonly StringToken ViewConstantsName = new( "PerViewConstantBuffer_t" );
@@ -72,6 +90,16 @@ internal sealed partial class BackendContext : GpuContext
 	// Carrying a rendering scope across lists (CarryRendering): the first scope may resume the list before's, and scopes
 	// suspend for the next list to resume
 	bool resumeFirst, suspendScopes;
+
+	// This context's own session, reused each time it records a list of its own
+	Session session;
+
+	// The layout plan (PlanLayouts): where each texture this context's list used was when the list began, the last time the
+	// frame had this shape. A list recorded beside others starts from these, moving textures in the list itself, rather than
+	// leaving the moves to a fix-up list at submission.
+	readonly Dictionary<BackendTexture, ImageLayout> plannedLayouts = new();
+	int planShape;
+	bool planned;
 
 	public BackendContext( BackendDevice device, BackendContext frame )
 	{
@@ -139,8 +167,10 @@ internal sealed partial class BackendContext : GpuContext
 		}
 		else
 		{
+			// A segment with a list of its own may record while others do: its layouts are its own until it's submitted
 			var queue = AsyncCompute && Gpu.Capabilities.AsyncCompute ? QueueType.Compute : QueueType.Graphics;
-			recording = new Session { List = Gpu.BeginCommandList( queue, frame is null ? "Borealis frame" : "Borealis segment" ) };
+			recording = session ??= new Session();
+			recording.Reset( Gpu.BeginCommandList( queue, frame is null ? "Borealis frame" : "Borealis segment" ), ownLayouts: frame is not null );
 			if ( frame is null && device.FrameStartTimestamp is { } stamp )
 			{
 				device.FrameStartTimestamp = null;
@@ -153,9 +183,6 @@ internal sealed partial class BackendContext : GpuContext
 				if ( frame is null ) timer.ResetIn( recording.List );
 				recording.TimerScope = timer.Begin( recording.List, recording.List.Name, PassTimer.ScopeKind.List );
 			}
-
-			// A segment with a list of its own may record while others do: its layouts are its own until it's submitted
-			if ( frame is not null ) recording.Layouts = new();
 		}
 
 		wait = signal = default;
@@ -163,6 +190,7 @@ internal sealed partial class BackendContext : GpuContext
 		bound = default;
 		clearColor = clearDepth = false;
 		resumeFirst = suspendScopes = false;
+		planned = false;
 		viewConstants = null;
 		passStateCount = 0;
 		if ( frame is null ) viewSetWritten = false;
@@ -192,7 +220,7 @@ internal sealed partial class BackendContext : GpuContext
 			if ( recording.Active is { } last && last != this && last.recording == recording ) last.FlushClears();
 			CloseScope();
 			device.PassTimer?.End( recording.List, recording.TimerScope );
-			if ( recording.Layouts is { Count: > 0 } ) SubmitLayoutFixUps( recording );
+			if ( recording.Layouts is not null ) SubmitLayoutFixUps( recording );
 			Span<SyncPoint> waits = stackalloc SyncPoint[1];
 			var waitCount = 0;
 			if ( wait.Handle != IntPtr.Zero ) waits[waitCount++] = device.PointOf( wait );
@@ -215,16 +243,42 @@ internal sealed partial class BackendContext : GpuContext
 		suspendScopes = carry && intoNext;
 	}
 
+	internal override void PlanLayouts( int shape )
+	{
+		if ( borrowed || recording?.Layouts is null ) return;
+
+		// Another shape of frame: what the lists before leave where is learnt again at submission
+		if ( shape != planShape || !device.LayoutPlans ) plannedLayouts.Clear();
+		planShape = shape;
+		planned = device.LayoutPlans;
+	}
+
+	/// <summary>
+	/// The layout the plan says <paramref name="texture"/> is in when this list begins, for a list recorded beside others
+	/// that hasn't used it yet: where the lists before left it the last time the frame had this shape.
+	/// </summary>
+	bool PlannedLayout( BackendTexture texture, out ImageLayout layout )
+	{
+		layout = default;
+		return planned && plannedLayouts.TryGetValue( texture, out layout );
+	}
+
 	/// <summary>
 	/// Before a segment's own list: move every texture it used from where the lists submitted before left it to what
-	/// this one needs at its start, then remember where this one leaves it. Called in submission order.
+	/// this one needs at its start, then remember where this one leaves it. Called in submission order. A planned list
+	/// (<see cref="PlanLayouts"/>) moved its textures itself from where the plan said they'd be, so it needs no fix-ups
+	/// while the plan holds; where they were is the plan for the next frame of this shape.
 	/// </summary>
 	void SubmitLayoutFixUps( Session session )
 	{
+		if ( planned ) plannedLayouts.Clear();
+
 		CommandList fixUps = null;
 		var timed = -1;
 		foreach ( var (texture, (first, current)) in session.Layouts )
 		{
+			if ( planned && texture.Layout != ImageLayout.Undefined ) plannedLayouts[texture] = texture.Layout;
+
 			if ( texture.Layout != first )
 			{
 				if ( fixUps is null )
@@ -254,12 +308,23 @@ internal sealed partial class BackendContext : GpuContext
 
 	/// <summary>
 	/// The layout a texture is in at this point of the recording: where this list's own use left it, else where the
-	/// lists before left it.
+	/// lists before leave it (as planned, for a list recorded beside others).
 	/// </summary>
 	internal ImageLayout LayoutOf( BackendTexture texture )
 	{
 		if ( recording?.Layouts is { } local && local.TryGetValue( texture, out var known ) ) return known.Current;
-		return texture.Layout;
+		return PlannedLayout( texture, out var planned ) ? planned : texture.Layout;
+	}
+
+	/// <summary>
+	/// A list recorded beside others using <paramref name="texture"/> for the first time: what it records from. Planned, it's
+	/// where the lists before leave it; else nothing's known, and the list needs it in <paramref name="start"/> at its start.
+	/// </summary>
+	(ImageLayout First, ImageLayout Current) FirstUse( Dictionary<BackendTexture, (ImageLayout First, ImageLayout Current)> local, BackendTexture texture, ImageLayout start )
+	{
+		var known = PlannedLayout( texture, out var planned ) ? (planned, planned) : (start, start);
+		local[texture] = known;
+		return known;
 	}
 
 	/// <summary>
@@ -284,14 +349,13 @@ internal sealed partial class BackendContext : GpuContext
 	{
 		if ( recording?.Layouts is not { } local ) return texture.Layout;
 		if ( local.TryGetValue( texture, out var known ) ) return known.Current;
-		local[texture] = (start, start);
-		return start;
+		return FirstUse( local, texture, start ).Current;
 	}
 
 	/// <summary>Where another recorder left <paramref name="texture"/> in the list it was lent (<see cref="Lend"/>).</summary>
 	internal void SetLayout( BackendTexture texture, ImageLayout layout )
 	{
-		if ( recording?.Layouts is { } local ) local[texture] = (local.TryGetValue( texture, out var known ) ? known.First : texture.Layout, layout);
+		if ( recording?.Layouts is { } local ) local[texture] = (local.TryGetValue( texture, out var known ) ? known.First : PlannedLayout( texture, out var planned ) ? planned : texture.Layout, layout);
 		else texture.Layout = layout;
 	}
 
@@ -338,6 +402,8 @@ internal sealed partial class BackendContext : GpuContext
 	{
 		if ( viewSet.IsValid ) Gpu.Destroy( viewSet );
 		viewSet = default;
+		plannedLayouts.Clear();
+		session = null;
 	}
 
 	//
@@ -581,19 +647,27 @@ internal sealed partial class BackendContext : GpuContext
 	{
 		if ( texture is null ) return;
 
-		// A list recorded beside others: its first use of a texture is what it needs, moved there before it's submitted
+		// A list recorded beside others: its first use of a texture is what it needs, moved there before it's submitted,
+		// unless the plan says where the lists before leave it
 		var local = recording.Layouts;
 		var known = default( (ImageLayout First, ImageLayout Current) );
 		if ( local is not null && !local.TryGetValue( texture, out known ) )
 		{
-			local[texture] = (layout, layout);
-			return;
+			if ( !PlannedLayout( texture, out var planned ) )
+			{
+				local[texture] = (layout, layout);
+				return;
+			}
+
+			local[texture] = known = (planned, planned);
 		}
 
 		var from = local is null ? texture.Layout : known.Current;
 		if ( from == layout && !always ) return;
 		if ( recording.Rendering ) CloseScope();
 
+		// A barrier can't sit between a suspended scope and its resumption: this list's scopes begin anew
+		resumeFirst = false;
 		recording.List.Barrier( LayoutBarrier( texture.Handle, from, layout ) );
 		if ( local is null ) texture.Layout = layout;
 		else local[texture] = (known.First, layout);
