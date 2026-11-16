@@ -12,4 +12,5 @@ for s in triangle mesh; do
 	"$DXC" $FLAGS -T ps_6_6 -E MainPs -Fo $s.ps.spv $s.hlsl
 done
 "$DXC" $FLAGS -T cs_6_6 -E MainCs -Fo pattern.cs.spv pattern.hlsl
+"$DXC" $FLAGS -T cs_6_6 -E MainCs -Fo slots.cs.spv slots.hlsl
 echo Compiled
