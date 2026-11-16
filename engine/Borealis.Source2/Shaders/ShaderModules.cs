@@ -33,12 +33,18 @@ public sealed class ModuleProgram
 	/// <summary>The compute stage, or null.</summary>
 	public ModuleStage Compute { get; init; }
 
+	/// <summary>The task stage, or null: with <see cref="Mesh"/>, in place of <see cref="Vertex"/> where the device has mesh shaders.</summary>
+	public ModuleStage Task { get; init; }
+
+	/// <summary>The mesh stage, or null.</summary>
+	public ModuleStage Mesh { get; init; }
+
 	/// <summary>Identifies the stages and the values compiled in: variants with the same key are the same.</summary>
 	public string Key { get; init; }
 }
 
 /// <summary>
-/// One stage compiled from a module: its SPIR-V (entry point named by stage, <c>MainVs</c>, <c>MainPs</c>, <c>MainCs</c>) and
+/// One stage compiled from a module: its SPIR-V (entry point named by stage, <c>MainVs</c>, <c>MainPs</c>, <c>MainCs</c>, <c>MainTs</c>, <c>MainMs</c>) and
 /// what each binding is, as a compiled program's tables say it for a shader file's stages.
 /// </summary>
 public sealed class ModuleStage
@@ -55,7 +61,7 @@ public sealed class ModuleStage
 	/// <summary>Each vertex input location's semantic, <c>usage &lt;&lt; 4 | index</c> (<see cref="ShaderBytecode.AttributeMap"/>).</summary>
 	public byte[] AttributeMap { get; init; } = [];
 
-	/// <summary>A compute stage's thread group size.</summary>
+	/// <summary>A compute, task or mesh stage's thread group size.</summary>
 	public (int X, int Y, int Z) ThreadGroupSize { get; init; }
 
 	/// <summary>Specialization constants to make its pipelines with.</summary>

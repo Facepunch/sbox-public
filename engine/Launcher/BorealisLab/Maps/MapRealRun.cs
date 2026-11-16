@@ -345,11 +345,16 @@ internal static class MapRealRun
 				var line = $"{view.Name,-9} {variant.Name,-22} collect {M( f => f.Collect ),6:0.000} prepare {M( f => f.Prepare ),6:0.000} setup {M( f => f.Setup ),6:0.000} record {M( f => f.Record ),6:0.000} (workers {M( f => f.WorkerRecord ):0.000}, prepass {M( f => f.Prepass ):0.000}) submit {M( f => f.Submit ),6:0.000} render {M( f => f.Render ),6:0.000} copy {M( f => f.Copy ),5:0.000} wait {M( f => f.Wait ),6:0.000} frame {Percentile( frameTimes, 0.5 ),6:0.000} gpu {M( f => f.Gpu ),6:0.000}  "
 					+ $"{stats.Draws}+{stats.DepthDraws} depth+{stats.ShadowDraws} shadow draws ({stats.TranslucentDraws} translucent, {stats.Instances} instances), {stats.ObjectsVisible} objects visible, {stats.Triangles / 1e6:0.00}M tris; {modelDraws} model draws, {binds} binds, {objectChanges} object changes, {fragmentDraws} fragment draws ({nsBind:0} ns a bind, {nsObjectChange:0} ns an object change, {nsRepeat:0} ns a repeat draw, timed), {setsPerFrame:0.0} sets written/frame, {gcs} GCs; {countsLine}; {gpuDrivenLine}{(map.System.SkyboxStats is { } sky ? $"3D skybox {sky.Draws}+{sky.DepthDraws} depth draws of {sky.ObjectsVisible} visible objects of {sky.Objects} ({sky.ObjectsFrustumCulled} frustum culled, {sky.ObjectsSizeCulled} size culled, {sky.ObjectsTagCulled} tag culled, {sky.ObjectsOcclusionCulled} occlusion culled)" : "no 3D skybox drawn")}; draws that recorded nothing: {failed}";
 				Console.WriteLine( line );
+				Console.WriteLine( map.Backend.MeshletReport );
 				lines.Add( line );
 				csv.AppendLine( FormattableString.Invariant( $"{view.Name},{variant.Name},{variant.Parallel},{variant.MaterialObjects},{variant.Shadows},{frames.Count},{M( f => f.Wait ):0.0000},{M( f => f.Render ):0.0000},{M( f => f.Collect ):0.0000},{M( f => f.Prepare ):0.0000},{M( f => f.Setup ):0.0000},{M( f => f.Record ):0.0000},{M( f => f.WorkerRecord ):0.0000},{M( f => f.Stages ):0.0000},{M( f => f.Submit ):0.0000},{M( f => f.Copy ):0.0000},{cpu:0.0000},{Percentile( frameTimes, 0.5 ):0.0000},{Percentile( frameTimes, 0.95 ):0.0000},{M( f => f.Gpu ):0.0000},{stats.Draws},{stats.DepthDraws},{stats.ShadowDraws},{stats.TranslucentDraws},{stats.Instances},{stats.ObjectsVisible},{stats.Triangles},{modelDraws},{binds},{fragmentDraws},{nsBind:0},{nsRepeat:0},{setsPerFrame:0.0},{gcs},{objectChanges},{nsObjectChange:0},{failedDraws},{Mean( f => f.Render + f.Copy ):0.0000},{frameTimes.DefaultIfEmpty( double.NaN ).Average():0.0000},{Mean( f => f.Gpu ):0.0000},{M( f => f.Prepass ):0.0000},{(variant.GpuDriven ? (variant.MaterialBuckets ? "materials" : "onebucket") : "classic")},{t.GpuDrivenBatches / Counted},{t.GpuDrivenBuckets / Counted},{t.GpuDrivenMultiDraws / Counted},{counts.Lists:0.00},{counts.Scopes:0.00},{counts.Resumed:0.00},{counts.Barriers:0.00},{counts.Full:0.00},{counts.FixUps:0.00},{counts.Pairings:0.00}" ) );
 			}
 
 			if ( bindingReport.Length == 0 ) bindingReport = DescribeBindings( map.Backend );
+
+			// -meshlet-census folder: what culling meshlets would take out of the view's prepass (MeshletCensus)
+			if ( Args.String( "-meshlet-census" ) is { } meshletCensus )
+				MeshletCensus.Run( map, view, options.Width, options.Height, options.Samples, Path.Combine( Path.GetFullPath( meshletCensus ), view.Name ), () => RenderFrame( view ) );
 
 			if ( options.Captures is not null )
 			{

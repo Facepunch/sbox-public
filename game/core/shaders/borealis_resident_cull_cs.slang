@@ -45,7 +45,7 @@ cbuffer BorealisResidentCull_t
 	uint g_nResidentExpand;		// not 0: expand one plan's entries (g_Frame is its records), writing its entry records here
 	uint g_nResidentExpandMap;	// its entry map
 	uint g_nResidentExpandHeaders;	// its batches' headers
-	uint g_nResidentPad0;
+	uint g_nResidentMeshletRuns;	// bindless slot of the meshlet runs (16 bytes per draw record), or None
 };
 
 static const uint None = 0xffffffffu;
@@ -113,6 +113,10 @@ uint WaveAppend( bool bTake, uint nCounter )
 		g_Frame.InterlockedAdd( nCounter, nCount, nBase );
 	return WaveReadLaneFirst( nBase ) + WavePrefixCountBits( bTake );
 }
+
+// A batch record's sixth word with this bit: its bucket's meshlets are drawn with task and mesh shaders, from the task run
+// the rest names (its first slot and count, then a run of 1 and 1, which make the count a task draw's arguments)
+static const uint TaskRun = 0x80000000u;
 
 // The next slot of multi-draw nRun (multi-draws at nRuns: first slot and count each) for each lane that takes one: lanes of
 // the same multi-draw share one atomic. A wave's entries are a few batches', so it meets few multi-draws. Every lane calls it
@@ -338,20 +342,45 @@ void Expand( uint n )
 		else if ( bListed )
 			bListed = g_Stamps.Load( nFragment * 4 ) == g_nResidentFrame;
 
-		uint nAt = WaveAppend( bListed, vViewOut.z );
-		if ( bListed )
+		// A prepass that culls meshlets (view flag 4): a fragment of an ids bucket whose draw has meshlets is listed for the
+		// meshlet pass, which draws those that can reach a sample (borealis_meshlet_cull_cs); its stamp is written here
+		bool bMeshlets = bKept && !bListed && ( vViewOut.w & 4 ) != 0 && ( vVisibility.z & 1 ) != 0 && g_nResidentMeshletRuns != None
+			&& g_bindless_VertexBuffers[ g_nResidentMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u;
+
+		// In a bucket drawn with task and mesh shaders (the sixth word's top bit), it takes a slot of the bucket's task run
+		// instead, a task group of borealis_meshlet_ids each
+		bool bTask = bMeshlets && ( vVisibility.y & TaskRun ) != 0;
+		bMeshlets = bMeshlets && !bTask;
+
+		uint nAt = WaveAppend( bListed || bMeshlets, vViewOut.z );
+		if ( bListed || bMeshlets )
 		{
 			uint nListed = vViewOut.z + 16 + nAt * 32;
 			g_Frame.Store( nListed, nTransform );
 			g_Frame.Store( nListed + 4, nDrawRecord );
-			g_Frame.Store( nListed + 8, nVertexBase + vDraw.z );
+			g_Frame.Store( nListed + 8, bMeshlets ? ( nFragment != None ? nVertexBase : None ) : nVertexBase + vDraw.z );
 			g_Frame.Store( nListed + 12, vBatch.w );
 			g_Frame.Store( nListed + 16, vVisibility.y );
+
+			// The meshlet pass's kept triangles and room (zeroed), and the visibility fragment forward's compaction checks
+			g_Frame.Store( nListed + 20, 0 );
+			g_Frame.Store( nListed + 24, 0 );
+			g_Frame.Store( nListed + 28, nFragment );
 		}
 
-		// The next slot of its multi-draw in this view
-		bool bDrawn = bKept && !bListed;
-		uint nSlot = WaveTakeSlot( bDrawn, vView.w, vBatch.w, frame );
+		if ( ( bMeshlets || bTask ) && nFragment != None && ( vViewOut.w & 2 ) != 0 )
+			g_Stamps.Store( nFragment * 4, g_nResidentFrame );
+
+		// The next slot of its multi-draw (or task run) in this view
+		bool bDrawn = bKept && !bListed && !bMeshlets && !bTask;
+		uint nSlot = WaveTakeSlot( bDrawn || bTask, vView.w, bTask ? vVisibility.y & ~TaskRun : vBatch.w, frame );
+		if ( bTask )
+		{
+			g_Frame.Store2( vView.y + nSlot * 8, uint2( nTransform, nDrawRecord ) );
+			g_Frame.Store( vViewOut.y + ( vViewOut.x + nSlot ) * 4, nFragment != None ? nVertexBase : None );
+			g_Frame.Store( vView.z + nSlot * 20, nFragment );
+		}
+
 		if ( bDrawn )
 		{
 			g_Frame.Store( vView.y + nSlot * 8, nTransform );

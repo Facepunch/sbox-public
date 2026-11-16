@@ -58,7 +58,7 @@ CS
 		uint g_nCullCapacity;		// indices g_Compacted holds
 		uint g_nCullFragmentWords;	// g_Frame byte offset of instance 0's fragment word, for the id prepass (wraps)
 		uint g_nCullListed;			// byte offset of the fragments forward compacts: dispatch arguments, then 32 bytes each
-		uint g_nCullPad1;
+		uint g_nCullMeshletRuns;	// meshlets are culled where the pass module runs
 		uint g_nCullPad2;
 	};
 

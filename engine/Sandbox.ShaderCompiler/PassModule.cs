@@ -36,7 +36,7 @@ public sealed partial class PassModule
 
 		// Each stage's lines, its includes' with them: what declares its combos, features and entry point
 		var lines = new Dictionary<StageKind, List<string>>();
-		foreach ( var stage in new[] { StageKind.Vertex, StageKind.Pixel, StageKind.Compute } ) lines[stage] = PassPreprocessor.ActiveLines( path, text, ProgramValues( stage ), Include );
+		foreach ( var stage in new[] { StageKind.Vertex, StageKind.Pixel, StageKind.Compute, StageKind.Task, StageKind.Mesh } ) lines[stage] = PassPreprocessor.ActiveLines( path, text, ProgramValues( stage ), Include );
 
 		var features = new List<PassCombo>();
 		foreach ( var line in lines.Values.SelectMany( l => l ) )
@@ -121,7 +121,7 @@ public sealed partial class PassModule
 		return null;
 	}
 
-	/// <summary>Whether it has an entry point for the stage (<c>MainVs</c>, <c>MainPs</c>, <c>MainCs</c>).</summary>
+	/// <summary>Whether it has an entry point for the stage (<c>MainVs</c>, <c>MainPs</c>, <c>MainCs</c>, <c>MainTs</c>, <c>MainMs</c>).</summary>
 	public bool Has( StageKind stage ) => stages.Contains( stage );
 
 	/// <summary>
@@ -165,7 +165,7 @@ public sealed partial class PassModule
 	}
 
 	/// <summary>The entry point a stage compiles.</summary>
-	public static string Entry( StageKind stage ) => stage switch { StageKind.Vertex => "MainVs", StageKind.Compute => "MainCs", _ => "MainPs" };
+	public static string Entry( StageKind stage ) => stage switch { StageKind.Vertex => "MainVs", StageKind.Compute => "MainCs", StageKind.Task => "MainTs", StageKind.Mesh => "MainMs", _ => "MainPs" };
 
 	/// <summary>
 	/// The render states the pixel stage sets with these combo and feature values, in order: each state's name and its
@@ -210,7 +210,7 @@ public sealed partial class PassModule
 	/// <summary>What every stage's preprocessing starts with: <c>PROGRAM</c> and vfx's program numbers.</summary>
 	internal static Dictionary<string, int> ProgramValues( StageKind stage ) => new( StringComparer.Ordinal )
 	{
-		["PROGRAM"] = stage switch { StageKind.Vertex => 1, StageKind.Compute => 6, _ => 2 },
+		["PROGRAM"] = stage switch { StageKind.Vertex => 1, StageKind.Compute => 6, StageKind.Task => 9, StageKind.Mesh => 10, _ => 2 },
 		["VFX_PROGRAM_VS"] = 1,
 		["VFX_PROGRAM_PS"] = 2,
 		["VFX_PROGRAM_GS"] = 3,
@@ -219,6 +219,8 @@ public sealed partial class PassModule
 		["VFX_PROGRAM_CS"] = 6,
 		["VFX_PROGRAM_RS"] = 7,
 		["VFX_PROGRAM_RTX"] = 8,
+		["VFX_PROGRAM_TS"] = 9,
+		["VFX_PROGRAM_MS"] = 10,
 	};
 
 	static (int, int) Range( string text )
@@ -247,6 +249,8 @@ public sealed partial class PassModule
 	{
 		StageKind.Vertex => VertexEntry(),
 		StageKind.Compute => ComputeEntry(),
+		StageKind.Task => TaskEntry(),
+		StageKind.Mesh => MeshEntry(),
 		_ => PixelEntry(),
 	};
 
@@ -255,6 +259,8 @@ public sealed partial class PassModule
 	{
 		StageKind.Vertex => VertexDefinition(),
 		StageKind.Compute => ComputeDefinition(),
+		StageKind.Task => TaskDefinition(),
+		StageKind.Mesh => MeshDefinition(),
 		_ => PixelDefinition(),
 	};
 
@@ -266,6 +272,12 @@ public sealed partial class PassModule
 
 	[GeneratedRegex( @"^\s*(?:\[[^\]]*\]\s*)*[A-Za-z_][\w<>:]*\s+MainCs\s*\([^;]*$" )]
 	private static partial Regex ComputeDefinition();
+
+	[GeneratedRegex( @"^\s*(?:\[[^\]]*\]\s*)*[A-Za-z_][\w<>:]*\s+MainTs\s*\([^;]*$" )]
+	private static partial Regex TaskDefinition();
+
+	[GeneratedRegex( @"^\s*(?:\[[^\]]*\]\s*)*[A-Za-z_][\w<>:]*\s+MainMs\s*\([^;]*$" )]
+	private static partial Regex MeshDefinition();
 
 	/// <summary>
 	/// The module's own lines a stage's compile sees with these values, includes left out: what its globals' annotations
@@ -286,6 +298,12 @@ public sealed partial class PassModule
 
 	[GeneratedRegex( @"\[\s*shader\s*\(\s*""compute""\s*\)\s*\]" )]
 	private static partial Regex ComputeEntry();
+
+	[GeneratedRegex( @"\[\s*shader\s*\(\s*""amplification""\s*\)\s*\]" )]
+	private static partial Regex TaskEntry();
+
+	[GeneratedRegex( @"\[\s*shader\s*\(\s*""mesh""\s*\)\s*\]" )]
+	private static partial Regex MeshEntry();
 }
 
 /// <summary>A combo or feature: its name, range, whether it's static, and the feature a static combo follows.</summary>
