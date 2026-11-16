@@ -41,6 +41,9 @@ CS
 	// forward view in the next dispatch
 	RWByteAddressBuffer g_Stamps < Attribute( "BorealisCullStamps" ); >;
 
+	// The module also keeps generated LODs' levels per view (borealis_resident_cull_cs.slang): declared here for its bindings
+	RWByteAddressBuffer g_Levels < Attribute( "BorealisCullLevels" ); >;
+
 	cbuffer BorealisResidentCull_t
 	{
 		uint g_nResidentItems;		// byte offset of the items, 32 bytes each (ResidentCullItem)
@@ -55,6 +58,10 @@ CS
 		uint g_nResidentExpandMap;	// its entry map
 		uint g_nResidentExpandHeaders;	// its batches' headers
 		uint g_nResidentMeshletRuns;	// bindless slot of the meshlet runs; meshlets are culled where the pass module runs
+		uint g_nResidentLodTable;		// generated LODs are picked where the pass module runs
+		uint g_nResidentLodCount;
+		uint g_nResidentPad0;
+		uint g_nResidentPad1;
 	};
 
 	static const uint None = 0xffffffffu;
@@ -209,6 +216,10 @@ CS
 	[numthreads( 64, 1, 1 )]
 	void MainCs( uint3 vGroupId : SV_GroupID, uint nThread : SV_GroupIndex )
 	{
+		// Never true (a slot or None): keeps the levels' binding, which the module uses
+		if ( g_nResidentLodTable == 0xfffffffeu )
+			g_Levels.Store( 0, g_Levels.Load( 0 ) );
+
 		if ( g_nResidentExpand != 0 )
 		{
 			Expand( vGroupId.x * 64 + nThread );

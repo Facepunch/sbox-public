@@ -41,10 +41,11 @@ internal sealed partial class BackendContext
 		public uint FirstInstance, Fragments, Draws, Runs;
 
 		/// <summary>
-		/// The frame's stamp; unused; pads; the compacted buffer's indices; the fragment words' and the listed fragments' byte
-		/// offsets; a prepass that culls meshlets: the meshlet run table's bindless slot, else none.
+		/// The frame's stamp; unused; the generated LOD table's bindless slot (none without one); the compacted buffer's
+		/// indices; the fragment words' and the listed fragments' byte offsets; a prepass that culls meshlets: the meshlet run
+		/// table's bindless slot, else none; the draw records the LOD table covers.
 		/// </summary>
-		public uint Frame, Visibility, Pad0, Capacity, FragmentWords, Listed, MeshletRuns, Pad2;
+		public uint Frame, Visibility, LodTable, Capacity, FragmentWords, Listed, MeshletRuns, LodCount;
 	}
 
 	/// <summary><c>borealis_meshlet_cull_cs</c>'s <c>BorealisMeshletCull_t</c> (<see cref="HandFilledConstants"/>).</summary>
@@ -779,11 +780,13 @@ internal sealed partial class BackendContext
 							var used = positions && ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ? pooled with { GeometryRecord = pooled.PositionsRecord } : pooled;
 							var (vertexMaterial, pixelMaterial) = Records( tables, bucket, material, geometry.UncompressedTangentFrame, vertexAttributes, pixelAttributes );
 							var fragmentRecords = tables.FragmentsOf( aggregate, used.GeometryRecord, vertexMaterial, pixelMaterial, flags, fragmentCount,
-								(Tables: tables, Aggregate: aggregate, Pooled: used, Vertex: vertexMaterial, Pixel: pixelMaterial, Flags: flags, Meshlets: device.MeshletStore, Model: batch.Mesh.Geometry as BackendModel, batch.Draw.Mesh, batch.Draw.DrawCall),
+								(Tables: tables, Aggregate: aggregate, Pooled: used, Vertex: vertexMaterial, Pixel: pixelMaterial, Flags: flags, Meshlets: device.MeshletStore, Model: batch.Mesh.Geometry as BackendModel, batch.Draw.Mesh, batch.Draw.DrawCall,
+									Lods: device.LodStore, Color: r.Color is not null && !bucket.DepthOnly),
 								static ( s, bytes ) =>
 								{
 									WriteFragments( s.Tables, s.Aggregate, s.Pooled, s.Vertex, s.Pixel, s.Flags, bytes );
 									if ( s.Meshlets is not null && s.Model is not null ) RequestMeshlets( s.Meshlets, s.Aggregate, s.Pooled, s.Model, s.Mesh, s.DrawCall );
+									if ( s.Lods is not null && s.Model is not null ) RequestLods( s.Lods, s.Aggregate, s.Pooled, s.Model, s.Mesh, s.DrawCall, s.Color );
 								} );
 							var (first, firstVertex) = visible ? tables.Visibility( aggregate, fragmentCount, pooled.VertexCount ) : (GpuDrivenTables.NoVisibility, GpuDrivenTables.NoVisibility);
 							kept = new GpuDrivenRecordMemo.Slot
@@ -918,6 +921,8 @@ internal sealed partial class BackendContext
 		cullDrawer ??= new ShaderDrawer( device );
 		cullAttributes ??= new ShaderAttributes();
 		cullConstants ??= new byte[Marshal.SizeOf<GpuDrivenCullConstants>()];
+		var lods = device.LodStore;
+		var lodTable = lods?.Table ?? (-1, 0u);
 		MemoryMarshal.Write( cullConstants, new GpuDrivenCullConstants
 		{
 			Input = (uint)frameOffset,
@@ -933,9 +938,12 @@ internal sealed partial class BackendContext
 			FragmentWords = (uint)(frameOffset + fragmentOffset) - firstInstance * 4,
 			Listed = lists || meshlets ? (uint)(frameOffset + listedOffset) : 0,
 			MeshletRuns = meshlets || lists && MeshletStampsReady( visibility ) ? (uint)device.MeshletStore.RunSlot : uint.MaxValue,
+			LodTable = lodTable.Slot >= 0 ? (uint)lodTable.Slot : uint.MaxValue,
+			LodCount = lodTable.Records,
 		} );
 		cullAttributes.Clear();
 		cullAttributes.Set( "BorealisCullFrame", frameBuffer );
+		if ( lods is not null ) cullAttributes.Set( "BorealisCullLevels", lods.State );
 		if ( visibility is not null )
 		{
 			cullAttributes.Set( "BorealisCullStamps", visibility.Stamps );
@@ -1697,6 +1705,21 @@ internal sealed partial class BackendContext
 			var arg = fragment.Args;
 			var range = new Meshlets.MeshletStore.Range( pooled.IndexPageSlot, pooled.FirstIndex + arg.FirstIndex, arg.IndexCount, arg.BaseVertex );
 			store.Request( range, source with { IndexBase = source.IndexBase + (int)arg.FirstIndex, VertexBase = source.VertexBase + arg.BaseVertex } );
+		}
+	}
+
+	/// <summary>
+	/// Ask for the generated levels of each of an aggregate's fragments' index ranges, built off the frame
+	/// (<see cref="Lods.LodStore"/>); <paramref name="color"/> for a colour pass's records, which publish them.
+	/// </summary>
+	static void RequestLods( Lods.LodStore store, AggregateObject aggregate, PooledGeometry pooled, BackendModel model, int mesh, int drawCall, bool color )
+	{
+		if ( Meshlets.MeshletStore.SourceOf( model, mesh, drawCall, pooled.IndexPage, pooled.IndexFormat ) is not { } source ) return;
+		foreach ( ref readonly var fragment in aggregate.Fragments )
+		{
+			var arg = fragment.Args;
+			var range = new Meshlets.MeshletStore.Range( pooled.IndexPageSlot, pooled.FirstIndex + arg.FirstIndex, arg.IndexCount, arg.BaseVertex );
+			store.Request( range, source with { IndexBase = source.IndexBase + (int)arg.FirstIndex, VertexBase = source.VertexBase + arg.BaseVertex }, color );
 		}
 	}
 
