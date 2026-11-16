@@ -34,6 +34,12 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 	/// <summary>The kind of layer the stage is, which drawing code may check.</summary>
 	public SceneLayerType LayerType = SceneLayerType.Translucent;
 
+	/// <summary>The layer's shader mode (<c>Depth</c> in a shadow map or the depth prepass), or none for each shader's first.</summary>
+	public StringToken ShaderMode;
+
+	/// <summary>The layer of <see cref="Target"/>'s depth drawn to, when it has no colour: a shadow map's slice.</summary>
+	public int DepthSlice;
+
 	/// <summary>The camera, as the view's frustum: set it up with <see cref="SetCamera(SceneCamera, Vector2)"/>.</summary>
 	public CFrustum Frustum { get; } = CFrustum.Create();
 
@@ -77,11 +83,12 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 		Graphics.Viewport = Viewport;
 	}
 
-	// A stage with no colour target (after the depth prepass) binds none: what it draws are dispatches
+	// A stage with no targets (after the depth prepass) binds none: what it draws are dispatches. One of depth alone (a
+	// custom object in a shadow map or the prepass) draws into that depth
 	void BindOwn()
 	{
-		if ( Target?.ColorTarget is null ) return;
-		if ( backend is BorealisGpuRenderBackend gpu ) gpu.BindRenderTarget( Target, SrgbWrite );
+		if ( Target is null || (Target.ColorTarget is null && Target.DepthTarget is null) ) return;
+		if ( backend is BorealisGpuRenderBackend gpu ) gpu.BindRenderTarget( Target, SrgbWrite, Target.ColorTarget is null ? DepthSlice : 0 );
 		else backend.BindRenderTarget( Target );
 	}
 
@@ -106,7 +113,7 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 
 	IMaterialMode Graphics.IFrameView.ModeFor( Material material ) => material.native.GetMode();
 
-	StringToken Graphics.IFrameView.DrawShaderMode => default;
+	StringToken Graphics.IFrameView.DrawShaderMode => ShaderMode;
 
 	void Graphics.IFrameView.SetupLighting( SceneObject obj, RenderAttributes attributes ) { }
 

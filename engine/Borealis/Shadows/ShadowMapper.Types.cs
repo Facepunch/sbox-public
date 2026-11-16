@@ -287,6 +287,11 @@ internal sealed class ShadowMap : IDisposable
 
 	public bool HasTexture => texture is not null;
 
+	/// <summary>
+	/// Moves on each time a shadow view draws into it, so a copy of it can tell whether it changed.
+	/// </summary>
+	public ulong Version { get; set; }
+
 	public GpuTexture Texture => texture ??= RenderHost.Current.Device.CreateTexture( TextureDesc.Target( Resolution, Resolution, Format ) with { Cube = IsCube },
 		IsCube ? "Shadow Cube" : $"ShadowPool_{Resolution}" );
 

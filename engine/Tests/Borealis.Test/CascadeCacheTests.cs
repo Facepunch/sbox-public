@@ -2,7 +2,9 @@ using Borealis;
 using Borealis.Culling;
 using Borealis.Features;
 using Borealis.Shadows;
+using BorealisTests.Headless;
 using System;
+using System.Collections.Generic;
 using static BorealisTests.TestScenes;
 
 namespace BorealisTests;
@@ -206,6 +208,76 @@ public class CascadeCacheTests
 		CollectAndPrepare( system, world, view );
 		Assert.IsTrue( FarView( system ).Visible( mesh ).Contains( box.Index ), "moved: on top again" );
 		Assert.IsTrue( far.CellsDrawn > 0, "and its old place drawn again" );
+	}
+
+	/// <summary>
+	/// A cascade view that would leave its map as it is, drawing no casters over a clear or over the copy of an unchanged
+	/// cache, is left out of the frame, and so are its tiles. A caster, the frame after one and a changed cache draw it again.
+	/// The sun's constants read the same either way.
+	/// </summary>
+	[TestMethod]
+	public void UnchangedCascadesAreKept()
+	{
+		var world = SunWorld();
+		var view = LookingDownX();
+		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var system = new RenderSystem();
+		var mesh = new RenderMesh( new HeadlessMesh( "box" ), UnitBox, [[new RenderMesh.Draw( 0, 0, 0, 36, 24, 0, null )]] );
+
+		List<GpuCommand> Frame()
+		{
+			using var frame = HeadlessRenderHost.Headless.Capture();
+			RenderHost.Current.NextFrame();
+			system.Render( world, view, target );
+			return frame.Commands.ToList();
+		}
+
+		static ViewPass[] Cascades( ReadOnlySpan<ViewPass> passes ) => passes.ToArray().Where( p => p.View.Name.StartsWith( "CSM Cascade" ) ).ToArray();
+		static int Tiles( List<GpuCommand> commands ) => commands.Count( c => c.Op == GpuOp.Dispatch && c.Material?.Name == "shaders/borealis_shadow_tiles_cs.shader" );
+		int IntoCascades( List<GpuCommand> commands )
+		{
+			var maps = Cascades( system.ShadowMaps.Passes ).Select( p => p.TargetMap.Texture ).ToHashSet();
+			return commands.Count( c => (c.Op == GpuOp.Clear && maps.Contains( c.Depth )) || (c.Op == GpuOp.CopyTexture && maps.Contains( c.Texture )) );
+		}
+
+		var commands = Frame();
+		var cascades = Cascades( system.ShadowMaps.Passes ).Length;
+		Assert.IsTrue( cascades > 1 );
+		Assert.AreEqual( cascades, Cascades( system.ShadowMaps.Drawn ).Length, "drawn the first time" );
+		Assert.IsTrue( IntoCascades( commands ) > 0, "cleared and copied into" );
+		Assert.IsTrue( Tiles( commands ) > 0, "with the far cascade's tiles" );
+		var flags = system.ShadowMaps.Directional.Flags;
+
+		commands = Frame();
+		Assert.AreEqual( cascades, Cascades( system.ShadowMaps.Passes ).Length, "the views are chosen as before" );
+		Assert.AreEqual( 0, Cascades( system.ShadowMaps.Drawn ).Length, "but none is drawn" );
+		Assert.AreEqual( 0, IntoCascades( commands ), "no clear and no copy" );
+		Assert.AreEqual( 0, Tiles( commands ), "and no tiles" );
+		Assert.AreEqual( flags, system.ShadowMaps.Directional.Flags, "the same empty cascades and tiles" );
+
+		// A caster that moves, in the nearest cascade
+		var caster = new MeshObject( mesh, new Transform( new Vector3( 40, 0, 0 ) ) ) { LocalBounds = new BBox( new Vector3( -20 ), new Vector3( 20 ) ) };
+		world.Add( caster );
+		commands = Frame();
+		Assert.IsTrue( Cascades( system.ShadowMaps.Drawn ).Any( p => p.View.Name == "CSM Cascade 0" ), "a caster draws the cascade" );
+		Assert.IsTrue( Tiles( commands ) > 0, "and its tiles" );
+
+		world.Remove( caster );
+		Frame();
+		Assert.IsTrue( Cascades( system.ShadowMaps.Drawn ).Any( p => p.View.Name == "CSM Cascade 0" ), "the frame after clears it again" );
+
+		Frame();
+		commands = Frame();
+		Assert.AreEqual( 0, Cascades( system.ShadowMaps.Drawn ).Length, "then it's kept" );
+		Assert.AreEqual( 0, Tiles( commands ) );
+		Assert.AreEqual( flags, system.ShadowMaps.Directional.Flags );
+
+		// A static caster changes the far cascade's cache, which is copied in again
+		world.Add( new MeshObject( mesh, new Transform( new Vector3( 100, 0, 0 ) ) ) { LocalBounds = new BBox( new Vector3( -20 ), new Vector3( 20 ) ), IsStatic = true } );
+		commands = Frame();
+		Assert.IsTrue( CacheViews( system ).Length > 0, "the cache drew it" );
+		Assert.IsTrue( system.ShadowMaps.Drawn.ToArray().Contains( FarView( system ) ), "so the far cascade is copied again" );
+		Assert.IsTrue( Tiles( commands ) > 0, "and its tiles made again" );
 	}
 
 	/// <summary>

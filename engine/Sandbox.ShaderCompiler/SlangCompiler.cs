@@ -356,22 +356,22 @@ public sealed partial class SlangCompiler
 
 		// The record offset (and on GPU-driven passes the draw) reaches the pixel stage flat, so per lane: shaded with it as
 		// it is, every record field and texture slot would be read per lane, and each texture sample would loop over the
-		// slots in the wave. A wave whose lanes all have one value (most: a draw covers many quads) shades with it
-		// wave-uniform instead; others shade per lane as before. The branch is uniform, so derivatives and implicit-lod
-		// sampling are as they were (a loop over the wave's values would sample in divergent control flow, where a driver
-		// may take the lod another way).
-		static string WaveUniform( string key, Func<bool, string> body ) =>
-			$"uint first = WaveReadLaneFirst( {key} ); [branch] if ( WaveActiveAllTrue( first == {key} ) ) {{ {body( true )} }} else {{ first = {key}; {body( false )} }}";
+		// slots in the wave. The wave shades its distinct values one at a time instead, each wave-uniform. A quad's lanes
+		// share a primitive, so a value; its helper lanes, which wave operations may leave out, take the turn from the
+		// quad's other lanes, so derivatives stay whole. A wave holds at most 64 distinct values.
+		static string ForEachInWave( string key, string body ) =>
+			$"[loop] for ( uint n = 0; n < 64; n++ ) {{ uint first = WaveReadLaneFirst( {key} ); uint turn = first == {key} ? 1u : 0u; " +
+			$"turn |= QuadReadAcrossX( turn ) | QuadReadAcrossY( turn ) | QuadReadAcrossDiagonal( turn ); if ( turn != 0 ) {{ {body} break; }} }}";
 
 		// Every pixel entry takes the facing, so a two-sided material's back faces shade with the normal turned to the viewer
 		string Pixel( string entry, bool alphaTest ) => Shaded( entry, alphaTest ) +
-			$"[shader( \"pixel\" )] float4 {entry}( {output} i, bool front : SV_IsFrontFace ) : SV_Target0 {{ s_SurfaceFrontFace = front; float4 color = 0; {WaveUniform( "i.MaterialOffset", _ => $"{output} w = i; w.MaterialOffset = first; color = Shaded{entry}( w );" )} return color; }}\n";
+			$"[shader( \"pixel\" )] float4 {entry}( {output} i, bool front : SV_IsFrontFace ) : SV_Target0 {{ s_SurfaceFrontFace = front; float4 color = 0; {ForEachInWave( "i.MaterialOffset", $"{output} w = i; w.MaterialOffset = first; color = Shaded{entry}( w );" )} return color; }}\n";
 
 		// GPU-driven: the draw's lighting record first; the alpha-tested depth pass also writes the visibility id (the vertex
 		// bit + 1) at target 1, which the visibility pass's prepass reads and other passes have no target for. A draw has
-		// one material record, so the draw is the value that decides
+		// one material record, so the draw is the value the wave goes through
 		string GpuDrivenShade( string entry, string result ) =>
-			WaveUniform( "v.Draw", uniform => $"SurfaceFetchLighting( first ); {output} i = v.o; {(uniform ? "i.MaterialOffset = WaveReadLaneFirst( i.MaterialOffset ); " : "")}{result} = Shaded{entry}( i );" );
+			ForEachInWave( "v.Draw", $"SurfaceFetchLighting( first ); {output} i = v.o; i.MaterialOffset = WaveReadLaneFirst( i.MaterialOffset ); {result} = Shaded{entry}( i );" );
 		string GpuDrivenPixel( string entry, bool alphaTest, bool ids ) => Shaded( entry, alphaTest ) + (ids
 			? $"[shader( \"pixel\" )] SurfaceIdsOutput {entry}( SurfaceGpuDrivenVertexOutput v, bool front : SV_IsFrontFace ) {{ s_SurfaceFrontFace = front; SurfaceIdsOutput o; o.Color = 0; {GpuDrivenShade( entry, "o.Color" )} o.Id = v.VertexBit + 1; return o; }}\n"
 			: $"[shader( \"pixel\" )] float4 {entry}( SurfaceGpuDrivenVertexOutput v, bool front : SV_IsFrontFace ) : SV_Target0 {{ s_SurfaceFrontFace = front; float4 color = 0; {GpuDrivenShade( entry, "color" )} return color; }}\n");
