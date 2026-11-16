@@ -47,6 +47,9 @@ public sealed class DeviceOptions
 	/// <summary>Frames the CPU may record ahead of the GPU.</summary>
 	public int FramesInFlight { get; init; } = 2;
 
+	/// <summary>Enable task and mesh shaders (VK_EXT_mesh_shader) where the device has them; off leaves them out.</summary>
+	public bool MeshShaders { get; init; } = true;
+
 	/// <summary>Part of the adapter's name to prefer, or null for the first discrete GPU.</summary>
 	public string PreferredAdapter { get; init; }
 
@@ -179,4 +182,10 @@ public sealed class DeviceCapabilities
 
 	/// <summary>How many storage textures the bindless table holds.</summary>
 	public int BindlessStorageTextures { get; init; }
+
+	/// <summary>
+	/// Whether pipelines can have task and mesh shaders (VK_EXT_mesh_shader) in place of vertex input and a vertex shader,
+	/// drawn with <see cref="CommandList.DrawMeshTasksIndirect"/>.
+	/// </summary>
+	public bool MeshShaders { get; init; }
 }

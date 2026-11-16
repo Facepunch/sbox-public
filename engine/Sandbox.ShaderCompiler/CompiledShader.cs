@@ -102,6 +102,10 @@ public enum StageKind
 	Pixel,
 	/// <summary>Compute: a pass module's <c>MainCs</c>.</summary>
 	Compute,
+	/// <summary>Task (amplification): a pass module's <c>MainTs</c>, which launches its mesh groups.</summary>
+	Task,
+	/// <summary>Mesh: a pass module's <c>MainMs</c>, which emits vertices and primitives in place of a vertex stage.</summary>
+	Mesh,
 }
 
 /// <summary>One entry point compiled: its SPIR-V and what it binds.</summary>

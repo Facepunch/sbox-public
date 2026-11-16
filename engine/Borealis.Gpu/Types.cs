@@ -215,6 +215,12 @@ public enum ShaderStages
 	/// <summary>Compute shaders.</summary>
 	Compute = 0x20,
 
+	/// <summary>Task shaders (<see cref="DeviceCapabilities.MeshShaders"/>).</summary>
+	Task = 0x40,
+
+	/// <summary>Mesh shaders (<see cref="DeviceCapabilities.MeshShaders"/>).</summary>
+	Mesh = 0x80,
+
 	/// <summary>Every graphics stage.</summary>
 	AllGraphics = 0x1F,
 
@@ -492,6 +498,10 @@ public enum PipelineStage : ulong
 	AllCommands = 0x10000,
 	/// <summary>Vertex and every other pre-rasterisation shader.</summary>
 	PreRasterizationShaders = 0x4000000000,
+	/// <summary>Task shaders.</summary>
+	TaskShader = 0x80000,
+	/// <summary>Mesh shaders.</summary>
+	MeshShader = 0x100000,
 }
 
 /// <summary>

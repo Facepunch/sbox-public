@@ -325,6 +325,8 @@ public sealed class ShaderBytecode
 		ShaderProgramType.Hull => "MainHs",
 		ShaderProgramType.Domain => "MainDs",
 		ShaderProgramType.Compute => "MainCs",
+		ShaderProgramType.Task => "MainTs",
+		ShaderProgramType.Mesh => "MainMs",
 		_ => "main",
 	};
 }

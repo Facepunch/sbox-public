@@ -56,7 +56,9 @@ public sealed partial class SlangCompiler
 	static Dictionary<string, string> Defines( StageKind stage ) => new()
 	{
 		["SHADER_MODEL"] = "60",
-		["PROGRAM"] = stage switch { StageKind.Vertex => "1", StageKind.Compute => "6", _ => "2" },
+		["PROGRAM"] = stage switch { StageKind.Vertex => "1", StageKind.Compute => "6", StageKind.Task => "9", StageKind.Mesh => "10", _ => "2" },
+		["VFX_PROGRAM_TS"] = "9",
+		["VFX_PROGRAM_MS"] = "10",
 		["D3D"] = "1",
 		["VULKAN"] = "1",
 		["DXC"] = "1",

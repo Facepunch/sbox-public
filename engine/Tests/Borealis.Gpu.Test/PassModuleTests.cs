@@ -483,6 +483,9 @@ public class PassModuleTests : GpuTest
 						continue;
 					}
 
+					// A module drawn with task and mesh stages has no .shader counterpart: its .shader only names it
+					if ( module.Mesh is not null ) continue;
+
 					compared++;
 					differences.AddRange( Compare( classic, module ).Select( d => $"{where}: {d}" ) );
 
