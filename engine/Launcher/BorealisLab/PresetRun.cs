@@ -125,7 +125,7 @@ internal static class PresetRun
 		var renderer = new RenderSystem();
 
 		// The formats a window's frame is drawn in before it's copied to the swap chain, so a capture sees what a window shows
-		var target = ViewTarget.Create( new Vector2Int( width, height ), samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Borealis Lab" );
+		var target = ViewTarget.Create( new Vector2Int( width, height ), samples, TextureFormat.RGBA16161616F, renderer.DepthFormat, "Borealis Lab" );
 		backend.Phase( $"{preset.Name}: scene" );
 
 		try

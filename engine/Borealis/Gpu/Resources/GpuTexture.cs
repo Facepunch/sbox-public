@@ -79,6 +79,9 @@ public static class TextureFormats
 	/// </summary>
 	public static bool IsDepth( this TextureFormat format ) => format is TextureFormat.D16 or TextureFormat.D32 or TextureFormat.D24S8 or TextureFormat.D32FS8;
 
+	/// <summary>Whether a depth format has a stencil.</summary>
+	public static bool HasStencil( this TextureFormat format ) => format is TextureFormat.D24S8 or TextureFormat.D32FS8;
+
 	/// <summary>
 	/// Linear float formats, which bypass sRGB encoding (<c>ImageLoader::IsFloatFormat</c>).
 	/// </summary>
