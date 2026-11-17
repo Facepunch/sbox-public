@@ -114,6 +114,8 @@ internal enum VkFormat
 {
 	Undefined = 0,
 	R8Unorm = 9,
+	R8Uint = 13,
+	R8Sint = 14,
 	R8G8Unorm = 16,
 	R8G8B8A8Unorm = 37,
 	R8G8B8A8Snorm = 38,

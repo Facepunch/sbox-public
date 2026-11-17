@@ -113,6 +113,62 @@ public sealed class VertexStreamLayout( int stride, params VertexField[] fields 
 }
 
 /// <summary>
+/// What a <see cref="ShaderDrawer"/> draw reads and how many: vertices of <see cref="Layout"/> from a buffer (or none, every
+/// input reading the default stream), indices from a buffer or none, and the counts either here or in an indirect
+/// arguments buffer, as the engine's <c>Graphics.Draw</c>, <c>DrawIndexed</c> and their indirect forms take them.
+/// </summary>
+public struct GeometryDraw
+{
+	/// <summary>The vertex buffer, read from <see cref="VertexOffset"/> bytes; none reads the default stream.</summary>
+	public BufferHandle Vertices;
+
+	/// <summary>Bytes into <see cref="Vertices"/> its vertex 0 is.</summary>
+	public long VertexOffset;
+
+	/// <summary>The vertices' layout; needed with <see cref="Vertices"/>.</summary>
+	public VertexStreamLayout Layout;
+
+	/// <summary>The index buffer, read from <see cref="IndexOffset"/> bytes; none draws vertices in order.</summary>
+	public BufferHandle Indices;
+
+	/// <summary>Bytes into <see cref="Indices"/> its index 0 is.</summary>
+	public long IndexOffset;
+
+	/// <summary>16- or 32-bit indices.</summary>
+	public IndexFormat IndexFormat;
+
+	/// <summary>What the vertices make.</summary>
+	public PrimitiveTopology Topology;
+
+	/// <summary>Vertices (or indices) per instance, from <see cref="First"/>.</summary>
+	public int Count;
+
+	/// <summary>The first vertex, or index.</summary>
+	public int First;
+
+	/// <summary>Added to each index.</summary>
+	public int BaseVertex;
+
+	/// <summary>Instances; 0 draws one.</summary>
+	public int Instances;
+
+	/// <summary>
+	/// Arguments the counts are read from instead (four 32-bit values a draw, five indexed), <see cref="Stride"/> bytes
+	/// apart from <see cref="ArgumentsOffset"/>, <see cref="DrawCount"/> of them.
+	/// </summary>
+	public BufferHandle Arguments;
+
+	/// <summary>Bytes into <see cref="Arguments"/> the first draw's are.</summary>
+	public long ArgumentsOffset;
+
+	/// <summary>Draws read from <see cref="Arguments"/>.</summary>
+	public int DrawCount;
+
+	/// <summary>Bytes between draws' arguments; 0 packs them.</summary>
+	public int Stride;
+}
+
+/// <summary>
 /// Draws and dispatches with one of s&amp;box's compiled shaders and no material, binding every resource the shader
 /// reflects by the name the engine sets it under, the way the engine's <c>Graphics</c> draws bind render attributes:
 /// what a <c>Graphics</c> or <c>CommandList</c> draw (UI, post processing, debug drawing) lowers to on Borealis.Gpu.
@@ -354,6 +410,48 @@ public sealed class ShaderDrawer : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	/// Draw <paramref name="draw"/>'s geometry inside the list's open rendering scope. A variant that expands primitives
+	/// draws only vertices from a buffer, unindexed, one instance, with the counts here: false for the rest. The rest is as
+	/// <see cref="Draw(CommandList, ShaderFile, ShaderAttributes, Format, Format, int, BufferHandle, long, VertexStreamLayout, int, PrimitiveTopology, System.Numerics.Vector4, string)"/>.
+	/// </summary>
+	public bool Draw( CommandList list, ShaderFile shader, ShaderAttributes attributes, Format color, Format depth, int samples, in GeometryDraw draw, System.Numerics.Vector4 viewport, string mode = null )
+	{
+		var variant = Variant( shader, attributes, mode );
+		if ( variant?.Vertex?.Bytecode is null ) return false;
+
+		var layout = draw.Vertices.IsValid ? draw.Layout : null;
+		var indirect = draw.Arguments.IsValid;
+		var indexed = draw.Indices.IsValid;
+		if ( variant.Expansion.Expands )
+		{
+			if ( layout is null || indexed || indirect || draw.Instances > 1 ) return false;
+			return Draw( list, shader, attributes, color, depth, samples, draw.Vertices, draw.VertexOffset + (long)draw.First * layout.Stride, layout, draw.Count, draw.Topology, viewport, mode );
+		}
+
+		var ids = BindForDraw( list, variant, attributes, color, depth, samples, layout, draw.Topology, viewport );
+		if ( layout is null )
+		{
+			list.SetVertexBuffer( 0, defaults.VertexDefaults );
+			if ( ids ) list.SetVertexBuffer( 1, InstanceIds.Buffer, InstanceIds.Offset );
+		}
+		else
+		{
+			list.SetVertexBuffer( 0, draw.Vertices, draw.VertexOffset );
+			list.SetVertexBuffer( 1, defaults.VertexDefaults );
+			if ( ids ) list.SetVertexBuffer( 2, InstanceIds.Buffer, InstanceIds.Offset );
+		}
+
+		if ( indexed ) list.SetIndexBuffer( draw.Indices, draw.IndexFormat, draw.IndexOffset );
+
+		var instances = Math.Max( draw.Instances, 1 );
+		if ( indirect && indexed ) list.DrawIndexedIndirect( draw.Arguments, draw.ArgumentsOffset, draw.DrawCount, draw.Stride > 0 ? draw.Stride : 20 );
+		else if ( indirect ) list.DrawIndirect( draw.Arguments, draw.ArgumentsOffset, draw.DrawCount, draw.Stride > 0 ? draw.Stride : 16 );
+		else if ( indexed ) list.DrawIndexed( draw.Count, instances, draw.First, draw.BaseVertex );
+		else list.Draw( draw.Count, instances, draw.First );
+		return true;
+	}
+
 	// Bind a draw's pipeline and resources; true when it reads the lent instance ids, which the caller binds after its streams
 	bool BindForDraw( CommandList list, ShaderVariant variant, ShaderAttributes attributes, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, System.Numerics.Vector4 viewport )
 	{
@@ -531,7 +629,7 @@ public sealed class ShaderDrawer : IDisposable
 		{
 			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input =>
 				ids && IsInstanceId( input ) ? new VertexAttribute( 0, 2, VertexFormat.UInt, 0 )
-				: layout.Find( input ) is { } field && SameKind( field, input ) ? new VertexAttribute( 0, 0, field.Format, field.Offset ) : null, defaultBuffer: 1 );
+				: layout.Find( input ) is { } field && SameKind( field, input ) ? new VertexAttribute( 0, 0, Signed( field.Format, input ), field.Offset ) : null, defaultBuffer: 1 );
 			info = variant.PipelineInfo( ids ? [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 ), idsStream] : [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias, null );
 		}
 
@@ -545,7 +643,15 @@ public sealed class ShaderDrawer : IDisposable
 	// A field the shader reads as the other kind (integers as floats, or the other way round) reads the default stream, as a
 	// model's draws do (BackendDevice.Pipeline)
 	static bool SameKind( in VertexField field, in VertexInput input )
-		=> (field.Format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt4) == (input.Kind != SpirvScalar.Float);
+		=> (field.Format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt4 or VertexFormat.Int or VertexFormat.UByte or VertexFormat.Byte) == (input.Kind != SpirvScalar.Float);
+
+	// A 32-bit integer field takes the signedness the shader reads it with: the bits are the same
+	static VertexFormat Signed( VertexFormat format, in VertexInput input ) => format switch
+	{
+		VertexFormat.UInt when input.Kind == SpirvScalar.Int => VertexFormat.Int,
+		VertexFormat.Int when input.Kind == SpirvScalar.UInt => VertexFormat.UInt,
+		_ => format,
+	};
 
 	/// <summary>
 	/// The binding a reflected resource gets from a draw's attribute value, or for a material variable the material's
@@ -559,8 +665,23 @@ public sealed class ShaderDrawer : IDisposable
 		ShaderResourceKind.Texture when value is TextureViewHandle view => Binding.Sampled( resource.Binding, view ),
 		ShaderResourceKind.StorageTexture when value is TextureHandle texture => Binding.StorageTexture( resource.Binding, texture ),
 		ShaderResourceKind.StorageTexture when value is TextureViewHandle view => Binding.StorageTexture( resource.Binding, view ),
+		ShaderResourceKind.Counter when value is BufferHandle counter => Binding.Storage( resource.Binding, counter ),
 		_ => defaults.For( resource ),
 	};
+
+	/// <summary>
+	/// The attribute value a resource binds: the one set under its name, or for a buffer's hidden counter, under the counter's
+	/// name (<see cref="ShaderResource.CounterName"/>).
+	/// </summary>
+	object Value( in ShaderResource resource, ShaderAttributes attributes )
+	{
+		if ( resource.Name is not { } name ) return null;
+		if ( resource.Kind != ShaderResourceKind.Counter ) return attributes.Get( name );
+		if ( !counterNames.TryGetValue( name, out var counter ) ) counterNames[name] = counter = ShaderResource.CounterName( name );
+		return attributes.Get( counter );
+	}
+
+	readonly Dictionary<string, string> counterNames = new();
 
 	void Bind( CommandList list, ShaderVariant variant, ShaderAttributes attributes, System.Numerics.Vector4 viewport )
 	{
@@ -576,7 +697,7 @@ public sealed class ShaderDrawer : IDisposable
 				if ( count == bindings.Length ) throw new InvalidOperationException( $"{variant} binds more than {bindings.Length} resources in set {set}" );
 
 				var stage = set == ShaderAbi.FragmentSet ? variant.Pixel : variant.Compute ?? variant.Vertex;
-				var value = resource.Name is null ? null : attributes.Get( resource.Name );
+				var value = Value( resource, attributes );
 				bindings[count++] = resource.Kind switch
 				{
 					ShaderResourceKind.MaterialConstants => Constants( list, stage, resource.Binding, attributes, viewport ),
@@ -660,7 +781,7 @@ public sealed class ShaderDrawer : IDisposable
 		public override Binding Resolve( in ShaderResource resource, ShaderStage stage, bool dynamic, out uint dynamicOffset )
 		{
 			dynamicOffset = 0;
-			var value = resource.Name is null ? null : Attributes.Get( resource.Name );
+			var value = drawer.Value( resource, Attributes );
 			switch ( resource.Kind )
 			{
 				case ShaderResourceKind.MaterialConstants:

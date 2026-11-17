@@ -66,12 +66,52 @@ public sealed class ShaderLibrary : IDisposable
 		}
 	}
 
+	readonly Dictionary<string, byte[]> added = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// A shader compiled while running (the engine's <c>Shader.CompileAsync</c>, a hotloaded <c>.shader</c>), by the path its
+	/// materials name, from its compiled bytes: it replaces whatever was loaded or added under that path, so later lookups
+	/// and variants draw the new one. False when these bytes are already the ones there. Throws as
+	/// <see cref="ShaderFile.Read"/> does for bytes that aren't a shader this engine reads.
+	/// </summary>
+	public bool Add( string path, byte[] compiled )
+	{
+		ArgumentNullException.ThrowIfNull( compiled );
+		var key = path.Replace( '\\', '/' );
+		if ( key.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) key = key[..^2];
+		var hash = System.Security.Cryptography.SHA256.HashData( compiled );
+		lock ( files )
+		{
+			if ( added.TryGetValue( key, out var known ) && known.AsSpan().SequenceEqual( hash ) ) return false;
+		}
+
+		var shader = ShaderFile.Read( compiled, key );
+		lock ( files )
+		{
+			files[key] = shader;
+			added[key] = hash;
+		}
+
+		return true;
+	}
+
 	(ShaderFile Shader, bool Found) LoadUncached( string key )
 	{
 		// A bare name (downsample_spd), as the engine's Material.FromShader takes one, is a shader under shaders/
 		var full = Files.Find( key );
-		if ( full is null && !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) full = Files.Find( $"shaders/{key}.shader" );
-		return full is null ? (null, false) : (LoadOrUpgrade( full ), true);
+		var bare = !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase );
+		if ( full is null && bare ) full = Files.Find( $"shaders/{key}.shader" );
+		if ( full is not null ) return (LoadOrUpgrade( full ), true);
+
+		// No compiled file: a shader with only a Slang module, where its .shader_c would be
+		if ( Modules is not { } modules ) return (null, false);
+		foreach ( var root in Files.Roots )
+		{
+			var compiled = Path.Combine( root, (bare ? $"shaders/{key}.shader" : key).TrimStart( '/' ) + "_c" );
+			if ( modules.Describe( Path.GetFullPath( compiled ) ) is { } described ) return (described, true);
+		}
+
+		return (null, false);
 	}
 
 	/// <summary>
@@ -111,9 +151,49 @@ public sealed class ShaderLibrary : IDisposable
 		}
 		catch ( ShaderOutdatedException outdated )
 		{
+			// Its stages from a module made from the source embedded in it, compiled here: nothing recompiles the file
+			if ( Modules is { } modules )
+			{
+				ShaderFile old = null;
+				try
+				{
+					old = ShaderFile.LoadOutdated( path );
+				}
+				catch ( InvalidDataException )
+				{
+				}
+
+				if ( old is not null && modules.Has( old ) ) return old;
+			}
+
 			if ( Upgrader is null || string.IsNullOrEmpty( UpgradeCache ) ) return NotLoaded( path, $"{outdated.Message}, and nothing here recompiles shaders (no ShaderCompiler)" );
 		}
 
+		return Upgraded( path );
+	}
+
+	readonly Dictionary<ShaderFile, Lazy<ShaderFile>> upgradedOf = new( ReferenceEqualityComparer.Instance );
+
+	/// <summary>
+	/// An outdated shader drawn from its embedded source whose module didn't compile: recompiled through
+	/// <see cref="Upgrader"/> after all, once; null when that can't be had either.
+	/// </summary>
+	ShaderFile UpgradedOf( ShaderFile shader )
+	{
+		Lazy<ShaderFile> upgrade;
+		lock ( upgradedOf )
+		{
+			if ( !upgradedOf.TryGetValue( shader, out upgrade ) ) upgradedOf[shader] = upgrade = new( () => Upgrader is null || string.IsNullOrEmpty( UpgradeCache ) || !File.Exists( shader.Name )
+				? NotLoaded( shader.Name, $"{shader.Outdated}, its embedded source doesn't compile here and nothing here recompiles shaders (no ShaderCompiler)" )
+				: Upgraded( shader.Name ) );
+		}
+
+		return upgrade.Value;
+	}
+
+	/// <summary>An outdated shader file recompiled through <see cref="Upgrader"/> into <see cref="UpgradeCache"/>, or null.</summary>
+	ShaderFile Upgraded( string path )
+	{
 		// By name and contents, so a changed package shader recompiles
 		var hash = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( path ) ), 0, 8 );
 		var version = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( UpgraderVersion ) ), 0, 4 );
@@ -126,6 +206,7 @@ public sealed class ShaderLibrary : IDisposable
 			bool written;
 			try
 			{
+				Directory.CreateDirectory( UpgradeCache );
 				written = Upgrader( path, upgraded ) && File.Exists( upgraded );
 			}
 			catch ( Exception )
@@ -346,6 +427,14 @@ public sealed class ShaderLibrary : IDisposable
 		// A shader with a module draws from it; one whose module doesn't compile draws from its programs
 		if ( !gpuDriven && Modules is { } modules && modules.Has( shader ) && modules.Compile( shader, drawMode, features, dynamicCombos, attributes ) is { } compiled )
 			return ModuleVariant( shader, drawMode, compiled );
+
+		// An outdated shader's programs follow other bindings: one whose embedded source didn't compile here (or with modules
+		// off) is recompiled through the ShaderCompiler after all. Its GPU-driven variant is compiled from its file as any is
+		if ( shader.Outdated is not null && !gpuDriven )
+			return UpgradedOf( shader ) is { } upgraded ? Variant( upgraded, mode, features, dynamicCombos, attributes ) : null;
+
+		// A shader with only a module has no programs to fall back to (modules off, or its module doesn't compile)
+		if ( shader.ModuleOnly ) return null;
 
 		if ( gpuDriven )
 		{

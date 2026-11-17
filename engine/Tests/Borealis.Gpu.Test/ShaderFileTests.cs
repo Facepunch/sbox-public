@@ -279,6 +279,36 @@ public class ShaderDrawTests : GpuTest
 		Assert.AreNotSame( first, library.Variant( shader, "Forward", features ), "unshared, each request makes its own" );
 	}
 
+	/// <summary>
+	/// A shader compiled while running (the engine's Shader.CompileAsync) isn't under the content folders: added by name with
+	/// its bytes it loads by that name, the same bytes again change nothing, and new bytes replace it, also over a shader
+	/// that was loaded from a file.
+	/// </summary>
+	[TestMethod]
+	public void CompiledShadersAddByName()
+	{
+		using var library = new ShaderLibrary( Device, ShaderFileTests.Files );
+		Assert.IsNull( library.Load( "compiled/anonymous/1.shader" ), "nothing is there before it's added" );
+
+		var basic = ShaderFileTests.Files.Read( "shaders/ui_basic.shader" );
+		Assert.IsTrue( library.Add( "compiled/anonymous/1.shader", basic ) );
+		var added = library.Load( "compiled/anonymous/1.shader" );
+		Assert.IsNotNull( added );
+		Assert.AreSame( added, library.Load( "compiled\\anonymous\\1.shader_c" ), "found by the path in either form" );
+		Assert.IsFalse( library.Add( "compiled/anonymous/1.shader", basic ), "the same bytes again" );
+		Assert.AreSame( added, library.Load( "compiled/anonymous/1.shader" ) );
+
+		var depth = ShaderFileTests.Files.Read( "shaders/depth_only.shader" );
+		Assert.IsTrue( library.Add( "compiled/anonymous/1.shader", depth ) );
+		Assert.AreEqual( "Depth", library.Load( "compiled/anonymous/1.shader" ).Modes.Single().Name, "new bytes replace it" );
+
+		// A hotloaded .shader over the one its file loaded
+		var loaded = library.Load( "shaders/ui_basic.shader" );
+		Assert.IsTrue( library.Add( "shaders/ui_basic.shader", depth ) );
+		Assert.AreNotSame( loaded, library.Load( "shaders/ui_basic.shader" ) );
+		Assert.AreEqual( "Depth", library.Load( "shaders/ui_basic.shader" ).Modes.Single().Name );
+	}
+
 	static Vector4 Half4( byte[] pixels, int x, int y )
 	{
 		var i = (y * Size + x) * 8;

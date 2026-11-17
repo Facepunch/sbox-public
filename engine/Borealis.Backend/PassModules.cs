@@ -19,6 +19,7 @@ public sealed class PassModules : IShaderModules
 	readonly Dictionary<string, (DateTime Time, long Checked, PassModule Module)> modules = new( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<string, (ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots)> stages = new( StringComparer.Ordinal );
 	readonly HashSet<string> reported = new( StringComparer.Ordinal );
+	readonly Dictionary<string, ShaderCompileException> failed = new( StringComparer.Ordinal );
 	SlangCompiler compiler;
 
 	internal PassModules( BackendDevice device ) => this.device = device;
@@ -60,7 +61,13 @@ public sealed class PassModules : IShaderModules
 	/// </summary>
 	public PassModule ModuleOf( ShaderFile shader )
 	{
-		var name = shader.Name;
+		return shader.Outdated is not null ? EmbeddedModule( shader ) : ModuleBeside( shader.Name );
+	}
+
+	/// <summary>The pass module beside a compiled file's path (<c>x.slang</c> for <c>x.shader_c</c>), or null.</summary>
+	PassModule ModuleBeside( string compiledPath )
+	{
+		var name = compiledPath;
 		if ( name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) name = name[..^2];
 		var path = Path.ChangeExtension( name, ".slang" );
 
@@ -90,6 +97,109 @@ public sealed class PassModules : IShaderModules
 			modules[path] = (info.LastWriteTimeUtc, now, module);
 			return module;
 		}
+	}
+
+	/// <inheritdoc/>
+	public ShaderFile Describe( string compiledPath )
+	{
+		if ( ModuleBeside( compiledPath ) is not { } module ) return null;
+
+		var features = module.Features.Select( ( f, i ) => new ShaderCombo { Name = f.Name, Min = f.Min, Max = f.Max, FeatureIndex = i, Strings = [] } ).ToArray();
+		ShaderCombo Combo( PassCombo c, bool isStatic ) => new()
+		{
+			Name = c.Name,
+			Min = c.Min,
+			Max = c.Max,
+			// Static combos that follow a feature take its value; the rest are the mode's (S_MODE_*) or the system's
+			FeatureIndex = c.Feature is null ? -1 : module.Features.ToList().FindIndex( f => f.Name == c.Feature ),
+			Source = isStatic && c.Feature is null && !c.Name.StartsWith( "S_MODE_", StringComparison.Ordinal ) ? 1 : 0,
+			Strings = [],
+		};
+
+		var programs = new List<(ShaderProgramType, ShaderCombo[], ShaderCombo[])>();
+		foreach ( var (kind, type) in new[] { (StageKind.Vertex, ShaderProgramType.Vertex), (StageKind.Pixel, ShaderProgramType.Pixel), (StageKind.Compute, ShaderProgramType.Compute) } )
+		{
+			if ( !module.Has( kind ) ) continue;
+			var combos = module.Combos( kind );
+			programs.Add( (type, combos.Where( c => c.Static ).Select( c => Combo( c, true ) ).ToArray(), combos.Where( c => !c.Static ).Select( c => Combo( c, false ) ).ToArray()) );
+		}
+
+		return ShaderFile.FromModule( compiledPath, Modes( module.Text ), features, programs );
+	}
+
+	/// <summary>
+	/// A module's modes, from the <c>// MODES:</c> lines its <c>.shader</c>'s MODES block became (<c>Depth( S_MODE_DEPTH );</c>
+	/// sets that combo, <c>ToolsWireframe( "tools_wireframe.shader" );</c> names a fallback); <c>Default</c> without any.
+	/// </summary>
+	internal static IReadOnlyList<ShaderMode> Modes( string text )
+	{
+		var modes = new List<ShaderMode>();
+		foreach ( System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches( text, @"^[ \t]*//[ \t]*MODES:[ \t]*(?<name>\w+)[ \t]*\((?<args>[^)]*)\)", System.Text.RegularExpressions.RegexOptions.Multiline ) )
+		{
+			var fallback = "";
+			var settings = new List<(string, int)>();
+			foreach ( var argument in m.Groups["args"].Value.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ) )
+			{
+				if ( argument.StartsWith( '"' ) ) fallback = argument.Trim( '"' );
+				else settings.Add( (argument, 1) );
+			}
+
+			modes.Add( new ShaderMode { Name = m.Groups["name"].Value, Fallback = fallback, Settings = [.. settings] } );
+		}
+
+		return modes.Count > 0 ? modes : [new ShaderMode { Name = "Default", Fallback = "", Settings = [] }];
+	}
+
+	readonly System.Runtime.CompilerServices.ConditionalWeakTable<ShaderFile, System.Runtime.CompilerServices.StrongBox<PassModule>> embedded = new();
+
+	/// <summary>
+	/// Whether a shader an older engine compiled (<see cref="ShaderFile.Outdated"/>, a package's) draws from a module made
+	/// from the source embedded in it (on), compiled here like any module, rather than being recompiled through the
+	/// ShaderCompiler (<see cref="ShaderLibrary.Upgrader"/>), which it falls back to when the module doesn't compile.
+	/// <c>-no-embedded-modules</c> turns it off, for comparisons.
+	/// </summary>
+	public bool FromEmbeddedSource { get; set; } = !Environment.GetCommandLineArgs().Any( a => a.Equals( "-no-embedded-modules", StringComparison.OrdinalIgnoreCase ) );
+
+	/// <summary>
+	/// Where modules made from shaders' embedded source are written, by name and contents, for the compiler to read and
+	/// for looking at; <c>game/.source2/borealisembedded</c> unless set before the first.
+	/// </summary>
+	public string EmbeddedFolder { get; set; }
+
+	/// <summary>
+	/// The module for an outdated shader's embedded source (<see cref="PassConverter.FromEmbedded"/>), made once per shader;
+	/// null when it has none, or it's of a kind modules don't draw (a geometry stage).
+	/// </summary>
+	PassModule EmbeddedModule( ShaderFile shader )
+	{
+		if ( !FromEmbeddedSource || shader.EmbeddedSource is not { } source || PassConverter.RefuseEmbedded( source ) is not null ) return null;
+		return embedded.GetValue( shader, s => new( MakeEmbedded( s, source ) ) ).Value;
+	}
+
+	PassModule MakeEmbedded( ShaderFile shader, IReadOnlyDictionary<string, string> source )
+	{
+		// A package's file is name.hash.shader_c
+		var stem = System.Text.RegularExpressions.Regex.Replace( Path.GetFileName( shader.Name ).Split( '.' )[0], "[^a-zA-Z0-9_]", "_" );
+		var features = (shader.Features?.StaticCombos ?? []).Select( c => (c.Name, c.Min, c.Max) );
+		var text = PassConverter.FromEmbedded( source, features, stem );
+		var hash = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( text ) ), 0, 8 ).ToLowerInvariant();
+		var folder = EmbeddedFolder ?? Path.Combine( Path.GetDirectoryName( Core ), ".source2", "borealisembedded" );
+		var path = Path.Combine( folder, $"{stem}.{hash}.slang" );
+
+		try
+		{
+			Directory.CreateDirectory( folder );
+			if ( !File.Exists( path ) ) File.WriteAllText( path, text );
+		}
+		catch ( IOException )
+		{
+			// Another process is writing the same module
+		}
+		catch ( UnauthorizedAccessException )
+		{
+		}
+
+		return PassModule.FromText( path, text, [Path.Combine( Core, "shaders" )] );
 	}
 
 	/// <inheritdoc/>
@@ -197,7 +307,7 @@ public sealed class PassModules : IShaderModules
 		{
 			bool first;
 			lock ( reported ) first = reported.Add( $"{module.Path}|{e.Errors}" );
-			if ( first ) Error?.Invoke( $"{Path.GetFileName( module.Path )} doesn't compile, so {Path.GetFileName( shader.Name )} draws from its compiled programs: {e.Errors}" );
+			if ( first ) Error?.Invoke( $"{Path.GetFileName( module.Path )} doesn't compile, so {Path.GetFileName( shader.Name )} {(shader.Outdated is null ? "draws from its compiled programs" : "is recompiled through the ShaderCompiler")}: {e.Errors}" );
 			return null;
 		}
 	}
@@ -210,11 +320,29 @@ public sealed class PassModules : IShaderModules
 	{
 		var key = $"{module.Path}|{module.Text.GetHashCode()}|{kind}|{string.Join( ';', values.OrderBy( v => v.Key, StringComparer.Ordinal ).Select( v => $"{v.Key}={v.Value}" ) )}";
 		(ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots) entry;
-		lock ( stages ) stages.TryGetValue( key, out entry );
+		ShaderCompileException failure;
+		lock ( stages )
+		{
+			stages.TryGetValue( key, out entry );
+			failed.TryGetValue( key, out failure );
+		}
+
+		// Not compiled again each time it's asked for: a changed module is another key
+		if ( failure is not null ) throw failure;
 		if ( entry.Stage is null )
 		{
 			using var zone = Zones.ShaderCompile.Start();
-			var compiled = Compiler().CompilePass( module, kind, values );
+			CompiledPassStage compiled;
+			try
+			{
+				compiled = Compiler().CompilePass( module, kind, values );
+			}
+			catch ( ShaderCompileException e )
+			{
+				lock ( stages ) failed[key] = e;
+				throw;
+			}
+
 			entry = (Describe( shader, kind, compiled, key ), compiled.Stage.Specializations);
 			lock ( stages ) stages[key] = entry;
 			StagesCompiled++;
@@ -279,7 +407,13 @@ public sealed class PassModules : IShaderModules
 					continue;
 				case BindingKind.Buffer:
 				case BindingKind.MaterialRecords:
-					// An append buffer's counter is named nothing (SlangCompiler.CompilePass), as in a compiled program's tables
+					// An append buffer's counter (X.counter, SlangCompiler.AppendBuffers) names no variable but its buffer's
+					if ( b.Variable.EndsWith( CounterSuffix, StringComparison.Ordinal ) )
+					{
+						resources.Add( new ModuleResource( b.Set, b.Binding, null, CounterOf: b.Variable[..^CounterSuffix.Length] ) );
+						continue;
+					}
+
 					resources.Add( new ModuleResource( b.Set, b.Binding, b.Variable.Length == 0 ? null : Variable( b, VariableType.StructuredBuffer, RegisterType.Uav ) ) );
 					continue;
 				case BindingKind.StorageTexture:
@@ -362,6 +496,8 @@ public sealed class PassModules : IShaderModules
 
 	/// <summary>Usages in <c>SemanticUsageVulkan_t</c> order.</summary>
 	static readonly string[] Usages = ["POSITION", "BLENDWEIGHT", "BLENDINDICES", "NORMAL", "PSIZE", "TEXCOORD", "TANGENT", "BINORMAL", "POSITIONT", "COLOR"];
+
+	const string CounterSuffix = ".counter";
 
 	static ShaderVariable Variable( ShaderBinding b, VariableType type, RegisterType register ) => new()
 	{

@@ -879,6 +879,13 @@ public sealed unsafe class CommandList
 		vk.vkCmdDrawIndexed( Handle, (uint)indexCount, (uint)instanceCount, (uint)firstIndex, vertexOffset, (uint)firstInstance );
 	}
 
+	/// <summary>Draw vertices with arguments from a buffer: <paramref name="count"/> draws, <paramref name="stride"/> bytes apart.</summary>
+	public void DrawIndirect( BufferHandle arguments, long offset, int count, int stride = 16 )
+	{
+		BeforeDraw();
+		vk.vkCmdDrawIndirect( Handle, device.Get( arguments ).Buffer, (ulong)offset, (uint)count, (uint)stride );
+	}
+
 	/// <summary>Draw indexed vertices with arguments from a buffer: <paramref name="count"/> draws, <paramref name="stride"/> bytes apart.</summary>
 	public void DrawIndexedIndirect( BufferHandle arguments, long offset, int count, int stride = 20 )
 	{
@@ -1077,6 +1084,26 @@ public sealed unsafe class CommandList
 			srcSubresource = new VkImageSubresourceLayers { aspectMask = src.Aspect, mipLevel = (uint)mip, layerCount = (uint)layers },
 			dstSubresource = new VkImageSubresourceLayers { aspectMask = dst.Aspect, mipLevel = (uint)mip, layerCount = (uint)layers },
 			extent = new VkExtent3D { width = (uint)Math.Max( src.Info.Width >> mip, 1 ), height = (uint)Math.Max( src.Info.Height >> mip, 1 ), depth = 1 },
+		};
+
+		vk.vkCmdCopyImage( Handle, src.Image, VkImageLayout.TransferSrcOptimal, dst.Image, VkImageLayout.TransferDstOptimal, 1, &region );
+	}
+
+	/// <summary>
+	/// Copy one mip and layer of a texture into a mip and layer of another of the same format and size there, from
+	/// <see cref="ImageLayout.CopySource"/> to <see cref="ImageLayout.CopyDestination"/>.
+	/// </summary>
+	public void CopyTextureSubresource( TextureHandle source, int sourceMip, int sourceLayer, TextureHandle destination, int destinationMip, int destinationLayer )
+	{
+		OutsideRendering();
+		FlushBarriers();
+		ref var src = ref device.Get( source );
+		ref var dst = ref device.Get( destination );
+		var region = new VkImageCopy
+		{
+			srcSubresource = new VkImageSubresourceLayers { aspectMask = src.Aspect, mipLevel = (uint)sourceMip, baseArrayLayer = (uint)sourceLayer, layerCount = 1 },
+			dstSubresource = new VkImageSubresourceLayers { aspectMask = dst.Aspect, mipLevel = (uint)destinationMip, baseArrayLayer = (uint)destinationLayer, layerCount = 1 },
+			extent = new VkExtent3D { width = (uint)Math.Max( src.Info.Width >> sourceMip, 1 ), height = (uint)Math.Max( src.Info.Height >> sourceMip, 1 ), depth = 1 },
 		};
 
 		vk.vkCmdCopyImage( Handle, src.Image, VkImageLayout.TransferSrcOptimal, dst.Image, VkImageLayout.TransferDstOptimal, 1, &region );
