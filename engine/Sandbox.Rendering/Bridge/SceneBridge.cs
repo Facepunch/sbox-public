@@ -570,9 +570,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	static BorealisGpuRenderBackend Gpu => RenderBackend.Default as BorealisGpuRenderBackend;
 
 	/// <summary>
-	/// A texture render: between blocks on Borealis.Gpu's device (<see cref="RenderIntoTexture"/>), or inside one of our frames
-	/// as its child (<see cref="RenderChildOnGpu"/>). Anything else - inside another block, or with a depth target of the
-	/// caller's outside a frame - isn't on Borealis.Gpu yet, and does nothing.
+	/// A texture render: between blocks on Borealis.Gpu's device (<see cref="RenderIntoTexture"/>), inside one of our frames as
+	/// its child (<see cref="RenderChildOnGpu"/>), or inside another block as a child copied into the texture there
+	/// (<see cref="RenderInBlock"/>).
 	/// </summary>
 	public void RenderToTexture( SceneCamera camera, Texture target, Vector2? size, in ViewSetup setup )
 	{
@@ -589,7 +589,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		{
 			camera.ConfigureView( setup );
 			RenderChild( camera, setup, target, null, out _ );
+			return;
 		}
+
+		RenderInBlock( gpu, camera, setup, target, null, out _ );
 	}
 
 	public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, ISceneView parent, in ViewSetup setup, string name, out ViewData viewData )
@@ -611,7 +614,14 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			return RenderChild( camera, setup, target, depthTarget, out viewData );
 		}
 
-		return false;
+		if ( target is null || target.native.IsNull ) return false;
+
+		// Inside another block, as a child copied into the caller's textures there
+		if ( Graphics.IsActive ) return RenderInBlock( gpu, camera, setup, target, depthTarget, out viewData );
+
+		// With a depth target of the caller's outside a frame, the same in a block of its own
+		using ( Graphics.Scope.CreateOn( gpu ) )
+			return RenderInBlock( gpu, camera, setup, target, depthTarget, out viewData );
 	}
 
 	/// <summary>
