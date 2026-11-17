@@ -41,6 +41,9 @@ public sealed unsafe class CommandList
 	internal readonly nint Handle;
 	internal SyncPoint Submitted;
 
+	/// <summary>The frame (<see cref="Device.FrameNumber"/>) it began in.</summary>
+	internal ulong Frame;
+
 	/// <summary>Its progress marker slot (<see cref="DeviceOptions.ProgressMarkers"/>), -1 without.</summary>
 	internal int MarkerSlot = -1;
 
@@ -58,6 +61,10 @@ public sealed unsafe class CommandList
 	int draws, pipelines, setBinds, scopes, barriers, fullBarriers, resumed;
 
 	bool recording;
+
+	/// <summary>Whether it has begun and not yet been submitted.</summary>
+	internal bool IsRecording => recording;
+
 	bool rendering;
 	bool labelled;
 
