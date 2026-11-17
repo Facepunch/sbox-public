@@ -13,6 +13,9 @@ internal sealed class BridgeCustomObject : CustomObject
 		Source = source;
 	}
 
+	// The source's draw as a delegate, made once rather than every draw
+	Action render;
+
 	internal override void Render( GpuContext context, ViewPass view, MeshLayer layer )
 	{
 		if ( !Source.IsValid() ) return;
@@ -28,12 +31,12 @@ internal sealed class BridgeCustomObject : CustomObject
 		var layerType = (SceneLayerType)layer.LayerType;
 		if ( layer.Depth || view.IsShadow )
 		{
-			DrawDepthOnGpu( context, view, layer, Source.RenderInternal );
+			DrawDepthOnGpu( context, view, layer, render ??= Source.RenderInternal );
 			return;
 		}
 
 		if ( layerType is not (SceneLayerType.Opaque or SceneLayerType.Translucent) ) return;
-		BorealisGpuCustomDraw.Draw( context, layerType, view.View, Source.RenderInternal );
+		BorealisGpuCustomDraw.Draw( context, layerType, view.View, render ??= Source.RenderInternal );
 	}
 
 	/// <summary>
