@@ -33,7 +33,8 @@ public partial class EnvmapProbe
 		if ( ct.IsCancellationRequested )
 			return;
 
-		RenderCubemap( tex, CubemapRendering.GGXFilterType.Quality, RenderExcludeTags );
+		// Saved from Source 2's copy where its device is kept (the editor): native renders it
+		RenderCubemap( tex, CubemapRendering.GGXFilterType.Quality, RenderExcludeTags, Graphics.HasSource2Device ? Rendering.SceneRenderer.Native : null );
 
 		if ( ct.IsCancellationRequested )
 			return;
