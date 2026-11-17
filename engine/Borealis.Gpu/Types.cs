@@ -206,9 +206,6 @@ public enum ShaderStages
 	/// <summary>Vertex shaders.</summary>
 	Vertex = 0x1,
 
-	/// <summary>Geometry shaders.</summary>
-	Geometry = 0x8,
-
 	/// <summary>Pixel shaders.</summary>
 	Fragment = 0x10,
 

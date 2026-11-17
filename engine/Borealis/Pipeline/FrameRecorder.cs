@@ -681,6 +681,7 @@ internal sealed partial class FrameRecorder : IDisposable
 
 	void RecordSegment( int slot )
 	{
+		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		using var zone = Zones.Segment.Start();
 		ref var segment = ref segments[slot];
 		var start = Stopwatch.GetTimestamp();

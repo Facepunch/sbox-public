@@ -30,6 +30,22 @@ internal sealed class MemoryBlock
 
 	public ulong Used;
 
+	/// <summary>The allocator's frame when it last became empty (<see cref="MemoryAllocator.Trim"/>).</summary>
+	public ulong EmptySince;
+
+	/// <summary>Whether <see cref="TryAllocate"/> would find room, without taking it.</summary>
+	public bool Fits( ulong size, ulong alignment )
+	{
+		for ( int i = 0; i < Free.Count; i++ )
+		{
+			var (start, length) = Free[i];
+			var aligned = (start + alignment - 1) / alignment * alignment;
+			if ( length >= aligned - start + size ) return true;
+		}
+
+		return false;
+	}
+
 	public bool TryAllocate( ulong size, ulong alignment, out ulong offset )
 	{
 		for ( int i = 0; i < Free.Count; i++ )
@@ -79,7 +95,9 @@ internal sealed class MemoryBlock
 
 /// <summary>
 /// Suballocates device memory: blocks per memory type, separately for buffers and images so
-/// <c>bufferImageGranularity</c> never matters, and dedicated allocations for anything big.
+/// <c>bufferImageGranularity</c> never matters, and dedicated allocations for anything big. An allocation goes into the
+/// fullest block it fits in, so lightly used blocks drain and go back to the driver once empty: at once while another
+/// empty block of their kind is kept, the last one after <see cref="SpareFrames"/> frames (<see cref="Trim"/>).
 /// </summary>
 internal sealed unsafe class MemoryAllocator : IDisposable
 {
@@ -89,6 +107,16 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	readonly ulong blockSize;
 	readonly List<MemoryBlock> blocks = new();
 	readonly object allocationLock = new();
+	ulong frame;
+
+	/// <summary>Frames an empty block is kept for in case its kind is needed again, before it's freed.</summary>
+	public const ulong SpareFrames = 300;
+
+	/// <summary>Size of the shared blocks; allocations over a quarter of it get their own.</summary>
+	public ulong BlockSize => blockSize;
+
+	/// <summary>The device's memory types and heaps.</summary>
+	public VkPhysicalDeviceMemoryProperties MemoryProperties => properties;
 
 	/// <summary>Bytes allocated from the driver.</summary>
 	public ulong Reserved { get; private set; }
@@ -96,21 +124,18 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// <summary>Bytes handed out.</summary>
 	public ulong Used { get; private set; }
 
+	/// <summary>Allocations made so far, for telling whether any happen per frame.</summary>
+	public long Allocations { get; private set; }
+
 	public MemoryAllocator( VkDeviceApi vk, in VkPhysicalDeviceMemoryProperties properties, bool integrated )
 	{
 		this.vk = vk;
 		this.properties = properties;
 		this.integrated = integrated;
 
-		// Smaller blocks where the biggest device-local heap is small (integrated GPUs, the Deck's carve-out)
-		ulong largest = 0;
-		for ( int i = 0; i < properties.memoryHeapCount; i++ )
-		{
-			var heap = properties.Heap( i );
-			if ( (heap.flags & Vk.HeapDeviceLocal) != 0 ) largest = Math.Max( largest, heap.size );
-		}
-
-		blockSize = largest >= 2ul << 30 ? 64ul << 20 : 16ul << 20;
+		// Small blocks: a part-used block holds back at most this much, and one emptied by a level or play mode goes back
+		// to the driver
+		blockSize = 16ul << 20;
 	}
 
 	/// <summary>
@@ -203,6 +228,8 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 		lock ( allocationLock )
 		{
+			Allocations++;
+
 			// Anything over a quarter of a block gets its own allocation
 			if ( size > blockSize / 4 )
 			{
@@ -213,13 +240,19 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 				return new Allocation( dedicated, dedicatedOffset, size );
 			}
 
+			// The fullest block with room, so the emptier ones drain
+			MemoryBlock best = null;
 			foreach ( var block in blocks )
 			{
 				if ( block.Dedicated || block.TypeIndex != type || block.Images != image ) continue;
-				if ( !block.TryAllocate( size, alignment, out var offset ) ) continue;
+				if ( best is not null && block.Used <= best.Used ) continue;
+				if ( block.Fits( size, alignment ) ) best = block;
+			}
 
+			if ( best is not null && best.TryAllocate( size, alignment, out var offset ) )
+			{
 				Used += size;
-				return new Allocation( block, offset, size );
+				return new Allocation( best, offset, size );
 			}
 
 			var fresh = NewBlock( type, blockSize, image );
@@ -240,10 +273,30 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			block.Release( allocation.Offset, allocation.Size );
 			Used -= allocation.Size;
 
-			// Dedicated blocks go at once; shared ones once empty, keeping one spare per type
+			// Dedicated blocks go at once; shared ones once empty, keeping one spare per type for a while (Trim)
 			if ( block.Dedicated || (block.Used == 0 && HasSpare( block )) )
 			{
 				blocks.Remove( block );
+				FreeBlock( block );
+			}
+			else if ( block.Used == 0 ) block.EmptySince = frame;
+		}
+	}
+
+	/// <summary>
+	/// Move on to <paramref name="newFrame"/>: free the empty blocks kept as spares for <see cref="SpareFrames"/> frames.
+	/// Once per frame; allocates nothing.
+	/// </summary>
+	public void Trim( ulong newFrame )
+	{
+		lock ( allocationLock )
+		{
+			frame = newFrame;
+			for ( int i = blocks.Count - 1; i >= 0; i-- )
+			{
+				var block = blocks[i];
+				if ( block.Dedicated || block.Used != 0 || frame - block.EmptySince < SpareFrames ) continue;
+				blocks.RemoveAt( i );
 				FreeBlock( block );
 			}
 		}

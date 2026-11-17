@@ -176,6 +176,7 @@ public sealed unsafe partial class Device
 
 		CollectGarbage();
 		TrimUploadPages();
+		Allocator.Trim( FrameNumber );
 	}
 
 	/// <summary>Lists carried into the frame after the one they began in, for the tests.</summary>

@@ -23,6 +23,11 @@ internal sealed partial class BackendContext
 	/// <summary>Single-mip views made for parameterised dispatches, one a texture and mip.</summary>
 	static readonly ConditionalWeakTable<BackendTexture, Dictionary<int, TextureViewHandle>> mipViews = new();
 
+	// One dispatch's attributes and the textures it writes and reads, reused from dispatch to dispatch
+	ShaderAttributes dispatchAttributes;
+	readonly HashSet<BackendTexture> dispatchWritten = new(), dispatchSampled = new();
+	readonly List<(BackendTexture Texture, int Mip)> dispatchSampledMips = new();
+
 	public override void Dispatch( GpuMaterial computeShader, ShaderParameters parameters, int x, int y, int z )
 	{
 		if ( recording is null || computeShader is not BackendMaterial { Shader: { } shader } ) return;
@@ -38,7 +43,9 @@ internal sealed partial class BackendContext
 		var drawer = drawers.GetValue( device, static d => new ShaderDrawer( d ) { MaterialObjects = false } );
 		lock ( drawer )
 		{
-			var attributes = new ShaderAttributes();
+			// Kept on the context and emptied for each dispatch: dispatches allocate nothing in steady state
+			var attributes = dispatchAttributes ??= new ShaderAttributes();
+			attributes.Clear();
 			foreach ( var combo in program.DynamicCombos )
 			{
 				var token = Token( combo.Name );
@@ -55,9 +62,12 @@ internal sealed partial class BackendContext
 			}
 
 			CloseScope();
-			var written = new HashSet<BackendTexture>();
-			var sampled = new HashSet<BackendTexture>();
-			var sampledMips = new List<(BackendTexture Texture, int Mip)>();
+			var written = dispatchWritten;
+			var sampled = dispatchSampled;
+			var sampledMips = dispatchSampledMips;
+			written.Clear();
+			sampled.Clear();
+			sampledMips.Clear();
 			foreach ( var resource in variant.Resources )
 			{
 				if ( resource.Name is not { } name ) continue;
