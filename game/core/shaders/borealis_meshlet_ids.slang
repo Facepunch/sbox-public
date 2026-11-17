@@ -198,7 +198,6 @@ groupshared uint gs_RoundCount;
 #if ( PROGRAM == VFX_PROGRAM_MS )
 #include "instancing.fxc"
 #include "borealis_gpu_driven.fxc"
-#include "borealis_meshlet.fxc"
 
 // The meshlet builder's limits this stage takes (64x124 and smaller; BackendDevice.MeshletTasks)
 static const uint MaxVertices = 64;
@@ -209,58 +208,12 @@ static const uint MaxTriangles = 128;
 // and its vertices (index values in the draw's index size) start there in bytes, and its vertex count
 static const uint LocalRecordsAt = 131072 * 32;
 
-// Each vertex's outcodes and pixel position, for its triangles' culls
-groupshared uint gs_Code[MaxVertices];
-groupshared float2 gs_Pixel[MaxVertices];
-
-struct MeshletPrimitive
-{
-	bool bCull : SV_CullPrimitive;
-};
-
-// A vertex's outcodes (outside x-, x+, y-, y+, z-, z+; 64: w <= 0, the hardware clips it). Positions as they're output
-// (y negated)
-uint VertexCode( float4 p )
-{
-	uint n = ( p.x < -p.w ? 1u : 0u ) | ( p.x > p.w ? 2u : 0u ) | ( p.y < -p.w ? 4u : 0u ) | ( p.y > p.w ? 8u : 0u ) | ( p.z < 0 ? 16u : 0u ) | ( p.z > p.w ? 32u : 0u );
-	return n | ( p.w <= 0 ? 64u : 0u );
-}
-
-// Whether a triangle can't reach a sample, as the hardware would find (a vertex shader's triangles are culled so before
-// they reach the rasterizer; a mesh shader's aren't): wholly outside a clip plane, facing a way the pipeline culls, or in
-// front of the camera with no sample of the grid inside its screen bounds
-bool TriangleCulled( uint3 v )
-{
-	uint a = gs_Code[v.x], b = gs_Code[v.y], c = gs_Code[v.z];
-	if ( ( a & b & c & 63u ) != 0 )
-		return true;
-
-	// Through the camera plane: the hardware clips it
-	if ( ( ( a | b | c ) & 64u ) != 0 )
-		return false;
-
-	// Framebuffer coordinates (y down); counter-clockwise there is front facing, a negative cross product. A sliver whose
-	// facing rounding could flip goes to the hardware
-	float2 pa = gs_Pixel[v.x], pb = gs_Pixel[v.y], pc = gs_Pixel[v.z];
-	float flCross = ( pb.x - pa.x ) * ( pc.y - pa.y ) - ( pc.x - pa.x ) * ( pb.y - pa.y );
-	if ( g_MeshletTask.nCullMode == 2 && flCross > 1.0 / 256 )
-		return true;
-	if ( g_MeshletTask.nCullMode == 1 && flCross < -1.0 / 256 )
-		return true;
-
-	// No sample inside its bounds, widened by the hardware's subpixel step
-	uint nSamples = g_MeshletTask.nSamples;
-	float2 vMin = min( pa, min( pb, pc ) ) - 1.0 / 128;
-	float2 vMax = max( pa, max( pb, pc ) ) + 1.0 / 128;
-	return ( nSamples == 1 || nSamples == 4 ) && !MeshletHoldsSample( nSamples, vMin, vMax );
-}
-
 // A group per kept meshlet: a lane per vertex of its list, positioned and with its bit as borealis_gpu_driven_ids's vertex
 // shader does, and a lane per triangle, its corners in their order (so the first is the provoking vertex, as in the index
-// buffer), flagged culled when it can't reach a sample
+// buffer). The triangles that can't reach a sample go to the hardware, which culls them for less than a test here costs
 [numthreads( 128, 1, 1 )]
 [outputtopology( "triangle" )]
-[shader( "mesh" )] void MainMs( uint3 vGroupId : SV_GroupID, uint nThread : SV_GroupIndex, in payload MeshletPayload payload, out vertices PS_INPUT vertices[MaxVertices], out indices uint3 triangles[MaxTriangles], out primitives MeshletPrimitive primitives[MaxTriangles] )
+[shader( "mesh" )] void MainMs( uint3 vGroupId : SV_GroupID, uint nThread : SV_GroupIndex, in payload MeshletPayload payload, out vertices PS_INPUT vertices[MaxVertices], out indices uint3 triangles[MaxTriangles] )
 {
 	// The group's records are the same for every lane: read once, as scalars (WaveReadLaneFirst tells the compiler so)
 	uint nInstance = WaveReadLaneFirst( payload.nInstance );
@@ -300,27 +253,17 @@ bool TriangleCulled( uint3 v )
 		o.vPositionPs.y = -o.vPositionPs.y;
 		o.nVertexBit = BorealisGpuDrivenVertexBit( nInstance, nVertex );
 		vertices[nThread] = o;
-		gs_Code[nThread] = VertexCode( o.vPositionPs );
-		gs_Pixel[nThread] = ( o.vPositionPs.xy / o.vPositionPs.w * 0.5 + 0.5 ) * g_MeshletTask.vViewport;
 	}
 
-	uint3 vCorners = 0;
 	if ( nThread < nTriangles )
 	{
 		uint nPacked = data.Load( vLocal.y + nThread * 4 );
-		vCorners = uint3( nPacked & 0xff, ( nPacked >> 8 ) & 0xff, ( nPacked >> 16 ) & 0xff );
-	}
+		triangles[nThread] = uint3( nPacked & 0xff, ( nPacked >> 8 ) & 0xff, ( nPacked >> 16 ) & 0xff );
 
-	GroupMemoryBarrierWithGroupSync();
-	if ( nThread < nTriangles )
-	{
-		triangles[nThread] = vCorners;
-		primitives[nThread].bCull = TriangleCulled( vCorners );
+		// Each triangle's number among its draw's, for forward's compaction, where the task group made room
+		if ( payload.nListed != None && vGroupId.x < MaxListed )
+			g_MeshletStamps.Store( ( payload.nListed + payload.nTrianglesAt[vGroupId.x] + nThread ) * 4, nFirstTriangle + nThread );
 	}
-
-	// Each triangle's number among its draw's, for forward's compaction, where the task group made room
-	if ( payload.nListed != None && vGroupId.x < MaxListed && nThread < nTriangles )
-		g_MeshletStamps.Store( ( payload.nListed + payload.nTrianglesAt[vGroupId.x] + nThread ) * 4, nFirstTriangle + nThread );
 }
 
 #endif // MS
