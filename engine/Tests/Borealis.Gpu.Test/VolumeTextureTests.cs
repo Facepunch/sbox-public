@@ -46,6 +46,40 @@ public class VolumeTextureTests : GpuTest
 	}
 
 	/// <summary>
+	/// A volume larger than an upload page (128x128x72 RGBA8, 4.7 MB), which goes up a page's worth of slices at a time,
+	/// reads back whole: the first group of slices, and the shorter last one, each land at their own depth.
+	/// </summary>
+	[TestMethod]
+	public void VolumeLargerThanAPageUploadsEverySlice()
+	{
+		const int Size = 128, Depth = 72;
+		var texture = Device.CreateTexture( new TextureInfo
+		{
+			Width = Size,
+			Height = Size,
+			Depth = Depth,
+			Layers = 1,
+			Mips = 1,
+			Samples = 1,
+			Dimension = TextureDimension.Texture3D,
+			Format = Format.RGBA8Unorm,
+			Usage = TextureUsage.Sampled | TextureUsage.CopyDestination | TextureUsage.CopySource,
+			Name = "Large volume",
+		} );
+
+		const int Slice = Size * Size * 4;
+		var data = new byte[Slice * Depth];
+		for ( int i = 0; i < data.Length; i++ ) data[i] = (byte)(i / Slice * 3 + (i >> 2) % 251);
+		Device.WriteTexture( texture, data );
+
+		var read = ReadVolume( texture, 0, data.Length );
+		for ( int z = 0; z < Depth; z++ )
+			Assert.IsTrue( data.AsSpan( z * Slice, Slice ).SequenceEqual( read.AsSpan( z * Slice, Slice ) ), $"slice {z}" );
+
+		Device.Destroy( texture );
+	}
+
+	/// <summary>
 	/// A volume made through Borealis.Backend with initial pixels (the opaque black 2x2x2 fog fallback is one) holds them in
 	/// every slice, ready to sample. Before, a volume's initial data was dropped and the texture left undefined.
 	/// </summary>
