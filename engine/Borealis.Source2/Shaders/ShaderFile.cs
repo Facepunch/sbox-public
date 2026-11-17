@@ -49,11 +49,56 @@ public sealed class ShaderFile
 	/// <summary>A program, or null.</summary>
 	public ShaderProgram this[ShaderProgramType type] => Programs[(int)type];
 
-	ShaderFile( string name, byte[] data )
+	/// <summary>
+	/// Why its programs can't be drawn as they are (an older engine compiled them for other bindings), or null. Only
+	/// <see cref="LoadOutdated"/> and <see cref="ReadOutdated"/> read such a file: its modes, features, combos and variables
+	/// are as written, and its stages can be compiled again from <see cref="EmbeddedSource"/>.
+	/// </summary>
+	public string Outdated { get; }
+
+	readonly Lazy<IReadOnlyDictionary<string, string>> embeddedSource;
+
+	/// <summary>
+	/// The source the compiler embedded for each program (a package's shader; core shaders have none), by program name
+	/// (<c>VFX_PROGRAM_VS</c>, <c>VFX_PROGRAM_PS</c>, <c>VFX_PROGRAM_CS</c>, ...): the <c>.shader</c>'s text with the other
+	/// programs' blocks blanked, its own includes expanded and the engine's kept. Null when there's none.
+	/// </summary>
+	public IReadOnlyDictionary<string, string> EmbeddedSource => embeddedSource.Value;
+
+	/// <summary>
+	/// Whether there's no compiled file: a shader with only a Slang module (<see cref="FromModule"/>), whose stages only its
+	/// module can make.
+	/// </summary>
+	public bool ModuleOnly { get; }
+
+	ShaderFile( string name, IReadOnlyList<ShaderMode> modes, ShaderCombo[] features, IEnumerable<(ShaderProgramType Type, ShaderCombo[] Static, ShaderCombo[] Dynamic)> programs )
+	{
+		Name = name;
+		Modes = modes;
+		ModuleOnly = true;
+		embeddedSource = new( () => null );
+		Programs[(int)ShaderProgramType.Features] = new ShaderProgram( this, ShaderProgramType.Features, features, [] );
+		foreach ( var (type, statics, dynamics) in programs ) Programs[(int)type] = new ShaderProgram( this, type, statics, dynamics );
+	}
+
+	/// <summary>
+	/// A shader with only a Slang module, no <c>.shader_c</c>: what its module declares (modes, features, each stage's static
+	/// and dynamic combos), as a compiled file would say it, for <see cref="ShaderLibrary"/> to find it by and its module to
+	/// draw. Vertex, pixel and compute programs only (a module's task and mesh stages have none). See
+	/// docs/managed/pass-modules.md.
+	/// </summary>
+	public static ShaderFile FromModule( string name, IReadOnlyList<ShaderMode> modes, ShaderCombo[] features, IEnumerable<(ShaderProgramType Type, ShaderCombo[] Static, ShaderCombo[] Dynamic)> programs ) => new( name, modes, features, programs );
+
+	ShaderFile( string name, byte[] data, bool outdated = false )
 	{
 		Name = name;
 		var resource = ResourceFile.Read( data );
-		if ( resource.ResourceVersion < ResourceVersion ) throw new ShaderOutdatedException( $"{name}: shader resource version {resource.ResourceVersion}, the engine needs {ResourceVersion}" );
+		embeddedSource = new( () => ReadEmbeddedSource( resource ) );
+		if ( resource.ResourceVersion < ResourceVersion )
+		{
+			Outdated = $"{name}: shader resource version {resource.ResourceVersion}, the engine needs {ResourceVersion}";
+			if ( !outdated ) throw new ShaderOutdatedException( Outdated );
+		}
 
 		// The header and programs are in SPRV; resourcecompiler's files had them in DATA
 		var (block, size) = resource.Has( "SPRV" ) && resource.Find( "SPRV" ).Size > 0 ? resource.Find( "SPRV" ) : resource.Find( "DATA" );
@@ -74,7 +119,12 @@ public sealed class ShaderFile
 			var vcs = reader.Int();
 			if ( vcs < MinVcsVersion || vcs > MaxVcsVersion ) throw new InvalidDataException( $"{name}: VCS version {vcs}, can read {MinVcsVersion}..{MaxVcsVersion}" );
 			var abi = reader.Int();
-			if ( abi != AbiVersion ) throw new ShaderOutdatedException( $"{name}: shader ABI epoch {abi}, expected {AbiVersion}; it needs recompiling" );
+			if ( abi != AbiVersion )
+			{
+				Outdated ??= $"{name}: shader ABI epoch {abi}, expected {AbiVersion}; it needs recompiling";
+				if ( !outdated ) throw new ShaderOutdatedException( Outdated );
+			}
+
 			VcsVersion = vcs;
 
 			var serialized = reader.UInt();
@@ -110,6 +160,38 @@ public sealed class ShaderFile
 
 	/// <summary>Read a <c>.shader_c</c> from disk.</summary>
 	public static ShaderFile Load( string path ) => new( path, File.ReadAllBytes( path ) );
+
+	/// <summary>
+	/// Read a shader as <see cref="Read"/> does, also one an older engine compiled (<see cref="Outdated"/>), whose programs
+	/// mustn't be drawn.
+	/// </summary>
+	public static ShaderFile ReadOutdated( byte[] data, string name = null ) => new( name ?? "shader", data, outdated: true );
+
+	/// <summary>Read a <c>.shader_c</c> from disk as <see cref="ReadOutdated"/> does.</summary>
+	public static ShaderFile LoadOutdated( string path ) => new( path, File.ReadAllBytes( path ), outdated: true );
+
+	sealed class EmbeddedPrograms
+	{
+		public Dictionary<string, string> Programs { get; set; }
+	}
+
+	// The HLSL block: the compiler's JSON, { "Programs": { "VFX_PROGRAM_VS": "...", ... } }
+	static IReadOnlyDictionary<string, string> ReadEmbeddedSource( ResourceFile resource )
+	{
+		if ( !resource.Has( "HLSL" ) ) return null;
+		var block = resource.Block( "HLSL" );
+		if ( block.IsEmpty ) return null;
+
+		try
+		{
+			var programs = System.Text.Json.JsonSerializer.Deserialize<EmbeddedPrograms>( block )?.Programs;
+			return programs is { Count: > 0 } ? programs : null;
+		}
+		catch ( System.Text.Json.JsonException )
+		{
+			return null;
+		}
+	}
 
 	/// <summary>A mode by name (case-insensitive), or null.</summary>
 	public ShaderMode Mode( string name )

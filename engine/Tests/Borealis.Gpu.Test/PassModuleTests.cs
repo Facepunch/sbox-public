@@ -457,6 +457,9 @@ public class PassModuleTests : GpuTest
 				continue;
 			}
 
+			// Borealis's own passes have no .shader: nothing to compare with
+			if ( shader.ModuleOnly ) continue;
+
 			foreach ( var mode in shader.Modes )
 			{
 				if ( !string.IsNullOrEmpty( mode.Fallback ) ) continue;
@@ -515,7 +518,7 @@ public class PassModuleTests : GpuTest
 	}
 
 	/// <summary>Every dynamic combo at its first value, then each value of each combo with the rest at their first.</summary>
-	static IEnumerable<Dictionary<string, int>> ComboSets( ShaderFile shader )
+	internal static IEnumerable<Dictionary<string, int>> ComboSets( ShaderFile shader )
 	{
 		var combos = new List<ShaderCombo>();
 		foreach ( var type in new[] { ShaderProgramType.Vertex, ShaderProgramType.Pixel, ShaderProgramType.Compute } )
@@ -535,7 +538,8 @@ public class PassModuleTests : GpuTest
 		}
 	}
 
-	static IEnumerable<string> Compare( ShaderVariant classic, ShaderVariant module )
+	/// <summary>How a module's variant differs from a compiled shader's: bindings, constants, inputs and render state.</summary>
+	internal static IEnumerable<string> Compare( ShaderVariant classic, ShaderVariant module )
 	{
 		foreach ( var (name, a, b) in new[] { ("vertex", classic.Vertex, module.Vertex), ("pixel", classic.Pixel, module.Pixel), ("compute", classic.Compute, module.Compute) } )
 		{

@@ -19,6 +19,13 @@ public interface IShaderModules
 	/// compile: then the shader's own programs draw it.
 	/// </summary>
 	ModuleProgram Compile( ShaderFile shader, ShaderMode mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos, Func<string, int?> attributes );
+
+	/// <summary>
+	/// A shader with no compiled file but a module where it would be (<paramref name="compiledPath"/>, the
+	/// <c>.shader_c</c>'s full path): what the module declares (<see cref="ShaderFile.FromModule"/>), or null when there's
+	/// no module there.
+	/// </summary>
+	ShaderFile Describe( string compiledPath );
 }
 
 /// <summary>A shader's stages from its module, for one mode and combo values.</summary>

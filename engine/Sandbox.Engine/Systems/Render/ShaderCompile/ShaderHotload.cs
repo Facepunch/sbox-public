@@ -78,6 +78,11 @@ internal static class ShaderHotload
 			if ( result.Skipped )
 				return;
 
+			// A device of its own (Borealis.Gpu) keeps what it loaded until it's given the new file
+			var compiledPath = absolutePath + "_c";
+			if ( RenderBackend.TakesCompiledShaders && (result.CompiledShader ?? (System.IO.File.Exists( compiledPath ) ? await System.IO.File.ReadAllBytesAsync( compiledPath ) : null)) is { } compiled )
+				RenderBackend.ShaderCompiledEverywhere( relativePath, compiled );
+
 			// Not ConsoleSystem.Run, game code can't run native commands
 			ConVarSystem.RunSingle( $"mat_reloadshaders \"{relativePath}\"" );
 			log.Info( $"Compiled {relativePath} in {timer.ElapsedMilliSeconds:n0}ms" );
