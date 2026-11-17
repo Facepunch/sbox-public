@@ -193,9 +193,6 @@ internal sealed class BorealisGpuWindow : IDisposable
 		}
 	}
 
-	// Whether a lost device's recent submissions were logged: once per process
-	static bool deviceLostReported;
-
 	/// <summary>
 	/// Present the image <see cref="EndFrame"/> drew. False when no frame was drawn since the last.
 	/// </summary>
@@ -206,15 +203,10 @@ internal sealed class BorealisGpuWindow : IDisposable
 		{
 			swapChain.Present();
 		}
-		catch ( GpuException e ) when ( e.Message.Contains( "DeviceLost" ) )
+		catch ( GpuException e ) when ( e.IsDeviceLost )
 		{
-			// Once: what was in flight, to find the submission the GPU stopped on
-			if ( !deviceLostReported )
-			{
-				deviceLostReported = true;
-				Log.Error( $"Borealis.Gpu device lost. Recent submissions: {backend.Device.DescribeRecentSubmissions()}" );
-			}
-
+			// Said once, with what the GPU was doing when it was lost, and the process exits as native's does
+			BorealisGpuDeviceLost.Check( backend.Device );
 			throw;
 		}
 

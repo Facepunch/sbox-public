@@ -105,6 +105,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		if ( !followsFrames || frame == Application.FrameCount ) return;
 		frame = Application.FrameCount;
+		BorealisGpuDeviceLost.Check( gpu );
 		SubmitUploads();
 		FreeModelGeometry();
 		services.BeginFrame();

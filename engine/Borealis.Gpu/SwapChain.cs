@@ -276,9 +276,10 @@ public sealed unsafe class SwapChain : IDisposable
 			if ( outOfDate || swapchain == 0 || images.Length == 0 ) Resize( Width, Height );
 			if ( images.Length == 0 ) return false;
 
+			device.ThrowIfLost( "vkAcquireNextImageKHR" );
 			acquireSlot = device.FrameSlot;
 			uint index;
-			var result = vk.vkAcquireNextImageKHR( vk.Device, swapchain, ulong.MaxValue, acquireSemaphores[acquireSlot], 0, &index );
+			var result = AcquireNext( &index );
 
 			if ( result == VkResult.ErrorOutOfDate )
 			{
@@ -287,7 +288,7 @@ public sealed unsafe class SwapChain : IDisposable
 			}
 
 			if ( result == VkResult.Suboptimal ) outOfDate = true;
-			else result.Check( "vkAcquireNextImageKHR" );
+			else device.Check( result, "vkAcquireNextImageKHR" );
 
 			imageIndex = index;
 			Current = image = images[index];
@@ -323,7 +324,28 @@ public sealed unsafe class SwapChain : IDisposable
 
 		Current = default;
 		if ( result is VkResult.ErrorOutOfDate or VkResult.Suboptimal ) outOfDate = true;
-		else result.Check( "vkQueuePresentKHR" );
+		else device.Check( result, "vkQueuePresentKHR" );
+	}
+
+	/// <summary>
+	/// <c>vkAcquireNextImageKHR</c> in slices rather than with no timeout: an image that never comes back (the GPU stopped)
+	/// takes the device as lost after <see cref="Device.HangSeconds"/> instead of holding the thread forever.
+	/// </summary>
+	VkResult AcquireNext( uint* index )
+	{
+		var start = System.Diagnostics.Stopwatch.GetTimestamp();
+		while ( true )
+		{
+			var result = vk.vkAcquireNextImageKHR( vk.Device, swapchain, 500_000_000, acquireSemaphores[acquireSlot], 0, index );
+			if ( result is not (VkResult.Timeout or VkResult.NotReady) ) return result;
+
+			var waited = System.Diagnostics.Stopwatch.GetElapsedTime( start ).TotalSeconds;
+			if ( waited >= device.HangSeconds )
+			{
+				device.MarkLost( $"No swap chain image came back in {waited:F0} s" );
+				return VkResult.ErrorDeviceLost;
+			}
+		}
 	}
 
 	/// <summary>
