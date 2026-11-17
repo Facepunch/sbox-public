@@ -73,7 +73,11 @@ internal sealed class PassTimer : IDisposable
 	/// <summary>Whether scopes count pipeline statistics too.</summary>
 	public bool Statistics => statistics is not null;
 
-	/// <summary>Start timing frame <paramref name="frame"/>, in the slot of the frame <see cref="Slots"/> before.</summary>
+	/// <summary>
+	/// Start timing frame <paramref name="frame"/>, in the slot of the frame <see cref="Slots"/> before, whose work the GPU
+	/// has finished. Its queries are reset here on the CPU where the device can (lists then reach the GPU in any order),
+	/// else in the first list that asks (<see cref="ResetIn"/>).
+	/// </summary>
 	public void BeginFrame( long frame )
 	{
 		slot = (int)(frame % Slots);
@@ -81,10 +85,20 @@ internal sealed class PassTimer : IDisposable
 		usedTimestamps[slot] = 0;
 		usedQueries[slot] = 0;
 		frames[slot] = frame;
+		if ( gpu.Capabilities.HostQueryReset )
+		{
+			timestamps.ResetOnHost( slot * PerSlot, PerSlot );
+			statistics?.ResetOnHost( slot * PerSlot / 2, PerSlot / 2 );
+			return;
+		}
+
 		Volatile.Write( ref resetPending, 1 );
 	}
 
-	/// <summary>Reset the frame's queries in the first list that asks, before anything writes them. Outside rendering.</summary>
+	/// <summary>
+	/// Without resets on the CPU: reset the frame's queries in the first list that asks, before anything writes them.
+	/// Outside rendering.
+	/// </summary>
 	internal void ResetIn( CommandList list )
 	{
 		if ( slot < 0 || Interlocked.Exchange( ref resetPending, 0 ) == 0 ) return;
