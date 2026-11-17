@@ -23,9 +23,10 @@ internal sealed partial class SceneBridge
 	/// (<c>CCameraRenderer::RenderToCubeTexture</c>): mip 0 cleared to red, then six 90-degree faces of the camera's view, each
 	/// a Borealis frame of its own (<see cref="RenderView.Capture"/>, exposure 1, no stages) copied into its slice as it
 	/// finishes, so later faces see the earlier ones; then <c>CubemapRendering</c>'s filter at the quality it was made with.
-	/// The cube is the engine texture's capture (<see cref="MirrorContent.CaptureCube"/>), which probes draw with. A capture
-	/// asked for inside a render block isn't on Borealis.Gpu yet, nor a camera with stage hooks of its own (the DDGI bake's),
-	/// nor work after the faces other than the filter. With Source 2's device kept (the editor) the capture is native's, which
+	/// The cube is the engine texture's capture (<see cref="MirrorContent.CaptureCube"/>), which probes draw with. Its faces submit
+	/// lists of their own, so a capture asked for inside a render block or one of our frames renders the same way, before what
+	/// the block records. A camera with stage hooks of its own (the DDGI bake's) isn't on Borealis.Gpu yet, nor work after
+	/// the faces other than the filter. With Source 2's device kept (the editor) the capture is native's, which
 	/// bakes read back.
 	/// </summary>
 	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null )
@@ -38,7 +39,7 @@ internal sealed partial class SceneBridge
 			SceneRenderer.Native.RenderToCube( camera, cube, setup, afterFaces );
 			return;
 		}
-		if ( Graphics.IsActive || rendering is not null || NotYetInBorealis( camera, setup ) is not null ) return;
+		if ( NotYetInBorealis( camera, setup ) is not null ) return;
 
 		// The DDGI bake reads each face from its stage hooks, which captures here don't run
 		if ( camera.OnRenderStageHook is not null ) return;
