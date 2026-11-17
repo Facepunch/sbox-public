@@ -95,6 +95,7 @@ internal sealed class PassTimer : IDisposable
 	/// <summary>
 	/// Start a scope in <paramref name="list"/>; -1 when the frame's run out. With <paramref name="count"/>, statistics
 	/// too, which need the list outside rendering or in the scope it ends in, and no other counting scope open in it.
+	/// The scope belongs to the frame it began in, even if the next frame begins before it ends.
 	/// </summary>
 	public int Begin( CommandList list, string name, ScopeKind kind, bool count = true )
 	{
@@ -114,35 +115,43 @@ internal sealed class PassTimer : IDisposable
 		lock ( scopes[slot] )
 		{
 			scopes[slot].Add( new Scope( name, kind, begin, -1, query, Recorded.Of( list ), default ) );
-			return scopes[slot].Count - 1;
+			return slot * PerSlot + scopes[slot].Count - 1;
 		}
 	}
 
 	/// <summary>Whether a scope <see cref="Begin"/> started counts statistics.</summary>
 	public bool Counts( int scope )
 	{
-		if ( scope < 0 || slot < 0 ) return false;
-		lock ( scopes[slot] ) return scopes[slot][scope].Query >= 0;
+		if ( scope < 0 ) return false;
+		var (at, index) = (scope / PerSlot, scope % PerSlot);
+		lock ( scopes[at] ) return index < scopes[at].Count && scopes[at][index].Query >= 0;
 	}
 
 	/// <summary>End a scope <see cref="Begin"/> started, in the same list.</summary>
 	public void End( CommandList list, int scope )
 	{
-		if ( scope < 0 || slot < 0 ) return;
+		if ( scope < 0 ) return;
+
+		// In the slot of the frame it began in
+		var (at, index) = (scope / PerSlot, scope % PerSlot);
 		Scope s;
-		lock ( scopes[slot] ) s = scopes[slot][scope];
+		lock ( scopes[at] )
+		{
+			if ( index >= scopes[at].Count ) return;
+			s = scopes[at][index];
+		}
 
 		// Out of timestamps: still end the query, which began
-		var end = Interlocked.Increment( ref usedTimestamps[slot] ) - 1;
+		var end = Interlocked.Increment( ref usedTimestamps[at] ) - 1;
 		if ( end >= PerSlot )
 		{
-			if ( s.Query >= 0 ) list.EndQuery( statistics, slot * PerSlot / 2 + s.Query );
+			if ( s.Query >= 0 ) list.EndQuery( statistics, at * PerSlot / 2 + s.Query );
 			return;
 		}
 
-		if ( s.Query >= 0 ) list.EndQuery( statistics, slot * PerSlot / 2 + s.Query );
-		list.WriteTimestamp( timestamps, slot * PerSlot + end, PipelineStage.AllCommands );
-		lock ( scopes[slot] ) scopes[slot][scope] = s with { End = end, Recorded = Recorded.Of( list ).Since( s.Before ) };
+		if ( s.Query >= 0 ) list.EndQuery( statistics, at * PerSlot / 2 + s.Query );
+		list.WriteTimestamp( timestamps, at * PerSlot + end, PipelineStage.AllCommands );
+		lock ( scopes[at] ) scopes[at][index] = s with { End = end, Recorded = Recorded.Of( list ).Since( s.Before ) };
 	}
 
 	/// <summary>
