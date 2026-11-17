@@ -540,8 +540,10 @@ internal sealed class StandardPipeline
 		if ( depthOnly ) flags |= LayerFlags.IsDepthRenderingPass;
 		else if ( overlay ) flags |= LayerFlags.DiscardColorBuffers;
 
-		// With fewer, larger objects we favor GPU perf over CPU perf by using fullsort
+		// With fewer, larger objects we favor GPU perf over CPU perf by using fullsort. The rest sort across recording
+		// threads: otherwise each thread instances its own share, and a mesh is drawn once per thread
 		if ( cullPercent > 0 ) flags |= LayerFlags.NeedsFullSort;
+		else if ( !overlay ) flags |= LayerFlags.SortAcrossPartitions;
 
 		var layer = NativeLayers.Add( view, name, viewport, DepthMode, normals, depth, RenderColorSpace.RENDER_SRGB, flags );
 		layer.LayerEnum = SceneLayerType.DepthPrepass;
