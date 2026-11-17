@@ -375,6 +375,12 @@ float4 SurfaceForward<S : ISurface, let AlphaTest : bool>( PixelInput i, S surfa
 float4 SurfaceForwardSunLit<S : ISunLitSurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
 {
 	SurfaceInput input = MakeSurfaceInput( i );
+#if ( !S_MODE_DEPTH )
+	// The sun's shadow before the material: its cascade filter is then the peak of few registers, not of the material's
+	float sunVisibility = 1;
+	if ( g_DirectionalLightEnabled )
+		sunVisibility = DirectionalLightShadow::GetVisibilityWithOffset( i.vPositionWithOffsetWs.xyz, i.vPositionSs );
+#endif
 	Material s = surface.Evaluate( input );
 #if ( !S_MODE_DEPTH )
 	if ( g_DirectionalLightEnabled )
@@ -386,7 +392,7 @@ float4 SurfaceForwardSunLit<S : ISunLitSurface, let AlphaTest : bool>( PixelInpu
 		if ( LightModulators::Active() )
 			sun.Color *= LightModulators::EvaluateSun( input.Position, sun.Direction );
 		sun.Attenuation = 1;
-		sun.Visibility = DirectionalLightShadow::GetVisibilityWithOffset( i.vPositionWithOffsetWs.xyz, i.vPositionSs );
+		sun.Visibility = sunVisibility;
 		sun.Sun = true;
 		s.Emission += surface.Light( s, input, sun );
 	}
