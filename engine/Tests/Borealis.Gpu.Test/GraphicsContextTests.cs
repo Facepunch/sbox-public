@@ -530,6 +530,43 @@ public class GraphicsContextTests : GpuTest
 		Device.Destroy( grabbed );
 	}
 
+	/// <summary>
+	/// Multisampled depth grabbed into a single-sampled texture, as <c>Graphics.GrabDepthTexture</c> into a target without
+	/// the frame's samples: resolved whole, sample zero, and validation (synchronisation included) stays clean. A texture
+	/// smaller than the depth isn't resolved into.
+	/// </summary>
+	[TestMethod]
+	public void MultisampledDepthResolvesIntoOneSample()
+	{
+		var list = Device.BeginCommandList( QueueType.Graphics, "Depth resolve" );
+		var context = new GraphicsContext( Device, drawer, list );
+		var depth = Device.CreateTexture( TextureInfo.RenderTarget( Size, Size, Format.D32Float, samples: 4, name: "Multisampled depth" ) );
+		var grabbed = Device.CreateTexture( TextureInfo.RenderTarget( Size, Size, Format.D32Float, name: "Grabbed depth" ) );
+		var small = Device.CreateTexture( TextureInfo.RenderTarget( 16, 16, Format.D32Float, name: "Too small" ) );
+		var main = Device.CreateTexture( TextureInfo.RenderTarget( Size, Size, Format.RGBA8Unorm, samples: 4, name: "Main" ) );
+		list.Barrier( TextureBarrier.Transition( depth, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.None, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		list.ClearTexture( depth, default, 0.25f );
+		context.Track( depth, ImageLayout.CopyDestination );
+		context.Track( grabbed, ImageLayout.Undefined );
+		context.Track( small, ImageLayout.Undefined );
+		context.Track( main, ImageLayout.Undefined );
+		context.SetTarget( main, depth );
+		Assert.IsFalse( context.CopyDepth( small ), "a texture smaller than the depth" );
+		Assert.IsTrue( context.CopyDepth( grabbed ) );
+
+		var readback = Device.CreateBuffer( new BufferInfo { Size = Size * Size * 4, Memory = MemoryLocation.Readback, Name = "Depth" } );
+		context.CopyToBuffer( grabbed, readback );
+		context.Finish();
+		Device.Wait( Device.Submit( list ) );
+
+		var depths = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>( Device.Map( readback )[..(Size * Size * 4)] ).ToArray();
+		Assert.IsTrue( depths.All( d => d == 0.25f ), "the resolved depth is the multisampled one's" );
+
+		context.Release();
+		Device.Destroy( readback );
+		foreach ( var texture in (TextureHandle[])[depth, grabbed, small, main] ) Device.Destroy( texture );
+	}
+
 	/// <summary>A 64-square black main target and a 16-square layer to composite, cleared, with the main one bound.</summary>
 	static (TextureHandle Main, TextureHandle Layer) Targets( GraphicsContext context )
 	{

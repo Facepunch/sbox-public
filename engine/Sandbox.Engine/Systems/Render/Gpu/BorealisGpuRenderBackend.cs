@@ -155,8 +155,11 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	bool followsFrames;
 	ulong frame;
 
-	/// <summary>Each engine frame is a device frame: starting one waits for the frame before last, then recycles what it used.</summary>
-	void FollowFrame()
+	/// <summary>
+	/// Each engine frame is a device frame: starting one waits for the frame before last, then recycles what it used. Called
+	/// before anything records in an engine frame: a block, an acquire, a scene render (which can come before either).
+	/// </summary>
+	internal void FollowFrame()
 	{
 		// Never inside a Borealis frame's recording (a block it lends): its lists would be left in the frame before
 		if ( !followsFrames || frame == Application.FrameCount || lendNext is not null ) return;
@@ -166,16 +169,51 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		FreeModelGeometry();
 		FreeCollectedBackings();
 		services.BeginFrame();
+		TimeFrame();
 		if ( frame % PipelineCacheSaveFrames == 0 ) SavePipelineCacheInBackground();
 	}
 
+	// The GPU's busy time per device frame: a pass timer over every list (Borealis's and the engine's blocks), read back
+	// once the GPU is past the frame. Someone else's timer (a lab's, a probe's) replaces it while it's set.
+	Borealis.Backend.PassTimer busyTimer;
+	readonly List<Borealis.Backend.PassTimer.Timing> busyTimings = new();
+
 	/// <summary>
-	/// Start this engine frame's device frame now, if it hasn't started: call before recording a Borealis frame. One begun
-	/// first (a cube capture at the start of the frame) would otherwise see the device frame turn over in the middle of its
-	/// recording, at the first engine call that follows frames (a custom object's lent block, an upload), and its lists would
-	/// be recycled with the frame before while the GPU still runs them.
+	/// The GPU's busy time in a recent device frame, in milliseconds: every list's execution added up, the engine's blocks
+	/// and Borealis's frames, without the time the GPU waited between them. Null without timestamps. As native's GPU frame time.
 	/// </summary>
-	internal void StartFrame() => FollowFrame();
+	public double? GpuBusyMs { get; private set; }
+
+	/// <summary>Which device frame <see cref="GpuBusyMs"/> was (the engine frame it followed).</summary>
+	public ulong GpuBusyFrame { get; private set; }
+
+	void TimeFrame()
+	{
+		if ( busyTimer is null )
+		{
+			if ( services.PassTimer is not null || !gpu.Capabilities.Timestamps ) return;
+			busyTimer = new Borealis.Backend.PassTimer( gpu );
+		}
+
+		services.PassTimer ??= busyTimer;
+		if ( services.PassTimer != busyTimer ) return;
+
+		// The frame before last is done (starting this frame waited for it); older ones are read once
+		var done = (long)frame - (Borealis.Backend.PassTimer.Slots - 1);
+		if ( done > 0 && busyTimer.TryRead( done, busyTimings ) )
+		{
+			var busy = 0.0;
+			foreach ( var timing in busyTimings )
+			{
+				if ( timing.Kind == Borealis.Backend.PassTimer.ScopeKind.List ) busy += timing.Ms;
+			}
+
+			GpuBusyMs = busy;
+			GpuBusyFrame = (ulong)done;
+		}
+
+		busyTimer.BeginFrame( (long)frame );
+	}
 
 	/// <summary>Frames between background saves of the pipeline cache.</summary>
 	const ulong PipelineCacheSaveFrames = 900;
@@ -617,19 +655,32 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 	}
 
+	/// <summary>A render target's samples as its multisampling asks: what Vulkan has (6x is 4x, 16x is 8x).</summary>
+	static int SamplesOf( NativeEngine.RenderMultisampleType type ) => type switch
+	{
+		NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_2X => 2,
+		NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_4X or NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_6X => 4,
+		NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_8X or NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_16X => 8,
+		_ => 1,
+	};
+
 	TextureHandle Make( Texture texture )
 	{
 		TextureHandle handle;
 		if ( texture.IsRenderTarget )
 		{
-			var info = TextureInfo.RenderTarget( texture.Width, texture.Height, FormatOf( texture.ImageFormat ), name: $"Engine target {texture.Width}x{texture.Height}" );
-			info.Mips = Math.Max( texture.Mips, 1 );
+			// Its samples (a multisampled one is still sampled, as Texture2DMS) and an array's layers, as it was made
+			var samples = SamplesOf( texture.MultisampleType );
+			var info = TextureInfo.RenderTarget( texture.Width, texture.Height, FormatOf( texture.ImageFormat ), samples, $"Engine target {texture.Width}x{texture.Height}" );
+			info.Usage |= TextureUsage.Sampled;
+			info.Mips = samples > 1 ? 1 : Math.Max( texture.Mips, 1 );
+			if ( texture.Desc is { IsArray: true, IsCube: false } desc ) info.Layers = Math.Max( (int)desc.m_nDepth, 1 );
 			var depth = info.Format.IsDepth();
-			if ( !depth ) info.Usage |= TextureUsage.Storage;
+			if ( !depth && samples == 1 ) info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
 
 			// A target made with pixels - an image whose mips Source 2 generates, or one made for compute - starts with them
-			if ( (InitialPixels( texture, info.Format ) ?? (RawPixels( texture ) is { } raw && raw.Format == info.Format ? raw.Data : null)) is { } pixels )
+			if ( samples == 1 && info.Layers == 1 && (InitialPixels( texture, info.Format ) ?? (RawPixels( texture ) is { } raw && raw.Format == info.Format ? raw.Data : null)) is { } pixels )
 			{
 				Upload( handle, info, pixels, ImageLayout.Undefined );
 			}
@@ -821,9 +872,14 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>The Borealis.Gpu form of an uncompressed engine format, or Unknown.</summary>
 	static GpuFormat DataFormatOf( ImageFormat format ) => format switch
 	{
-		ImageFormat.RGBA8888 => GpuFormat.RGBA8Unorm,
-		ImageFormat.BGRA8888 => GpuFormat.BGRA8Unorm,
-		ImageFormat.A8 or ImageFormat.I8 => GpuFormat.R8Unorm,
+		ImageFormat.RGBA8888 or ImageFormat.RGBX8888 or ImageFormat.RGBA8888_LINEAR or ImageFormat.LINEAR_RGBA8888 => GpuFormat.RGBA8Unorm,
+		ImageFormat.BGRA8888 or ImageFormat.BGRX8888 or ImageFormat.BGRA8888_LINEAR or ImageFormat.BGRX8888_LINEAR or ImageFormat.LINEAR_BGRA8888 or ImageFormat.LINEAR_BGRX8888 => GpuFormat.BGRA8Unorm,
+		ImageFormat.A8 or ImageFormat.I8 or ImageFormat.LINEAR_I8 => GpuFormat.R8Unorm,
+		ImageFormat.IA88 => GpuFormat.RG8Unorm,
+		ImageFormat.RGBA16161616 or ImageFormat.LINEAR_RGBA16161616 => GpuFormat.RGBA16Unorm,
+		ImageFormat.BGRA1010102 => GpuFormat.BGR10A2Unorm,
+		ImageFormat.RG3232 => GpuFormat.RG32Uint,
+		ImageFormat.RGBA32323232 => GpuFormat.RGBA32Uint,
 		ImageFormat.R32F => GpuFormat.R32Float,
 		ImageFormat.RG3232F => GpuFormat.RG32Float,
 		ImageFormat.RGBA32323232F => GpuFormat.RGBA32Float,
@@ -1025,6 +1081,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		ImageFormat.D24S8 or ImageFormat.LINEAR_D24S8 or ImageFormat.D24FS8 or ImageFormat.D32FS8 => GpuFormat.D32FloatS8Uint,
 		ImageFormat.D32 or ImageFormat.D24X8 => GpuFormat.D32Float,
+		ImageFormat.D16 => GpuFormat.D16Unorm,
 		_ => format is not ImageFormat.I8 && DataFormatOf( format ) is var mapped && mapped != GpuFormat.Unknown
 			? mapped
 			: throw new NotSupportedException( $"Render target format {format} on Borealis.Gpu" ),
@@ -1173,7 +1230,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>
 	/// The shader a draw with <paramref name="material"/> draws with, and the material's compiled file as the drawer's
 	/// material (<see cref="ShaderDrawer.Material"/>: its features, constants and textures), as native binds a material's mode.
-	/// A material made or changed in code (a copy) has no file to read and draws with its shader's defaults.
+	/// A copy reads its original's file and a material made in code its shader's defaults (<see cref="Material.MadeFromShader"/>),
+	/// with what code set on it (<see cref="Material.SetInCode"/>) over them.
 	/// </summary>
 	ShaderFile Prepare( Material material )
 	{
@@ -1188,18 +1246,81 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>Draw with materials' compiled values (the default); off draws their shaders' defaults, for comparisons.</summary>
 	internal static bool MaterialValues { get; set; } = true;
 
-	readonly ConditionalWeakTable<Material, Backing<BackendMaterial>> materialFiles = new();
+	// A material's file as the drawer takes it, and with what code set on it, the version of those sets it has
+	sealed class MaterialBacking
+	{
+		public BackendMaterial File;
+		public int Version;
+	}
+
+	readonly ConditionalWeakTable<Material, MaterialBacking> materialFiles = new();
 
 	BackendMaterial MaterialFile( Material material )
 	{
 		if ( material is null ) return null;
-		if ( materialFiles.TryGetValue( material, out var known ) ) return known.Handle;
+		if ( materialFiles.TryGetValue( material, out var known ) )
+		{
+			// Code set more on it since: its own copy of the file takes the new values
+			if ( known.Version != material.SetInCodeVersion && known.File is not null && material.SetInCode is { } changed )
+			{
+				var (values, textures) = LowerSetInCode( changed );
+				services.SetOnMaterial( known.File, values, textures );
+				known.Version = material.SetInCodeVersion;
+			}
 
-		var path = material.ResourcePath;
-		// As the .shader draws it, also where a surface stands in for its shader in the scene
-		var file = !material.IsCopy && !string.IsNullOrEmpty( path ) && files.Find( path ) is not null ? services.ShaderMaterial( path ) : null;
-		materialFiles.Add( material, new Backing<BackendMaterial>( file ) );
+			return known.File;
+		}
+
+		// A copy's path is its original's file (FilePath); as the .shader draws it, also where a surface stands in for its shader in
+		// the scene. One with values set in code is a file of its own with them over the file's; one made in code from a shader
+		// is that shader's defaults with them over
+		var path = material.FilePath;
+		BackendMaterial file = null;
+		if ( material.MadeFromShader is { } shader )
+		{
+			file = services.CreateMaterial( material.Name ?? path ?? shader, ShaderPath( shader ) ) as BackendMaterial;
+			if ( file?.Shader is null ) file = null;
+			else if ( material.SetInCode is { Count: > 0 } set )
+			{
+				var (values, textures) = LowerSetInCode( set );
+				services.SetOnMaterial( file, values, textures );
+			}
+		}
+		else if ( !string.IsNullOrEmpty( path ) && files.Find( path ) is not null )
+		{
+			if ( material.SetInCode is { Count: > 0 } set )
+			{
+				var (values, textures) = LowerSetInCode( set );
+				file = services.LoadMaterial( path, values, textures, $"{path} (set in code)" ) as BackendMaterial;
+			}
+			else file = services.ShaderMaterial( path );
+		}
+
+		materialFiles.Add( material, new MaterialBacking { File = file, Version = material.SetInCodeVersion } );
 		return file;
+	}
+
+	/// <summary>A shader as a material names it (<c>complex.shader</c>, or with its folder), as its compiled file's path.</summary>
+	static string ShaderPath( string shader )
+	{
+		shader = shader.Replace( '\\', '/' );
+		if ( shader.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) shader = shader[..^2];
+		if ( !shader.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) shader += ".shader";
+		return shader.Contains( '/' ) ? shader : $"shaders/{shader}";
+	}
+
+	/// <summary>Values set on a material in code as shader variables: vectors, and textures as this device's.</summary>
+	(Dictionary<string, float[]> Values, Dictionary<string, Borealis.GpuTexture> Textures) LowerSetInCode( IReadOnlyDictionary<string, object> set )
+	{
+		var values = new Dictionary<string, float[]>( StringComparer.OrdinalIgnoreCase );
+		var textures = new Dictionary<string, Borealis.GpuTexture>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var (name, value) in set )
+		{
+			if ( value is Vector4 v ) values[name] = [v.x, v.y, v.z, v.w];
+			else if ( value is Texture { IsValid: true } texture ) textures[name] = BorealisViewOf( texture );
+		}
+
+		return (values, textures);
 	}
 
 	/// <summary>Called on the main thread with no block open: work that runs at once on Source 2's device gets a block of its own.</summary>
@@ -1742,6 +1863,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		GpuFormat.RGBA8Unorm => ImageFormat.RGBA8888,
 		GpuFormat.BGRA8Unorm => ImageFormat.BGRA8888,
 		GpuFormat.R8Unorm => ImageFormat.I8,
+		GpuFormat.RG8Unorm => ImageFormat.IA88,
+		GpuFormat.BGR10A2Unorm => ImageFormat.BGRA1010102,
+		GpuFormat.RG32Uint => ImageFormat.RG3232,
+		GpuFormat.RGBA32Uint => ImageFormat.RGBA32323232,
 		GpuFormat.RGBA16Float => ImageFormat.RGBA16161616F,
 		GpuFormat.RGBA16Unorm => ImageFormat.RGBA16161616,
 		GpuFormat.RG16Float => ImageFormat.RG1616F,
@@ -1826,6 +1951,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			errorTexture = default;
 		}
 		DestroyModelGeometry();
+		if ( services.PassTimer == busyTimer ) services.PassTimer = null;
+		busyTimer?.Dispose();
+		busyTimer = null;
 		gpu.Destroy( pipelineTextures );
 		foreach ( var package in mapVpks ) package.Dispose();
 		mapVpks.Clear();

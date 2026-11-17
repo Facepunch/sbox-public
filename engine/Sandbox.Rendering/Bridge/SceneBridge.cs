@@ -272,9 +272,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		var parent = rendering;
 		if ( parent is null )
 		{
-			// A top-level view, on the main thread: the engine frame's device frame starts now if it hasn't, not in the
-			// middle of this view's recording (BorealisGpuRenderBackend.StartFrame)
-			Gpu?.StartFrame();
+			// A top-level view, on the main thread (a scene panel before the window acquires, a cube capture first in the frame):
+			// the engine frame's device frame starts now if it hasn't, not in the middle of this view's recording
+			Gpu?.FollowFrame();
 			FreeInvalid();
 		}
 
