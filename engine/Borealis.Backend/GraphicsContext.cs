@@ -746,6 +746,42 @@ public sealed class GraphicsContext
 		List.CopyTexture( source, destination, mip, 1 );
 	}
 
+	/// <summary>
+	/// Copy mip <paramref name="sourceMip"/>, layer <paramref name="sourceLayer"/> of <paramref name="source"/> into mip
+	/// <paramref name="destinationMip"/>, layer <paramref name="destinationLayer"/> of <paramref name="destination"/>, the
+	/// same size and format there, as <c>Graphics.CopyTexture</c> does between mips and slices. Both are left in the copy's
+	/// layouts, tracked.
+	/// </summary>
+	public void CopyTexture( TextureHandle source, int sourceMip, int sourceLayer, TextureHandle destination, int destinationMip, int destinationLayer )
+	{
+		EndScope();
+		Transition( source, ImageLayout.CopySource );
+		TransitionForWrite( destination, ImageLayout.CopyDestination );
+		List.CopyTextureSubresource( source, sourceMip, sourceLayer, destination, destinationMip, destinationLayer );
+	}
+
+	/// <summary>
+	/// Copy the viewport's part of the bound depth into <paramref name="destination"/> from its corner, as
+	/// <c>Graphics.GrabDepthTexture</c> resolves the depth into a texture of its own. Both have the same format and samples:
+	/// false otherwise (multisampled depth into a single-sampled texture), and nothing is copied.
+	/// </summary>
+	public bool CopyDepth( TextureHandle destination )
+	{
+		if ( !Depth.IsValid ) throw new InvalidOperationException( "No depth is bound." );
+		var from = gpu.InfoOf( Depth );
+		var to = gpu.InfoOf( destination );
+		if ( from.Format != to.Format || from.Samples != to.Samples ) return false;
+
+		int x = (int)Viewport.X, y = (int)Viewport.Y;
+		var width = Math.Min( (int)Viewport.Z, Math.Min( from.Width - x, to.Width ) );
+		var height = Math.Min( (int)Viewport.W, Math.Min( from.Height - y, to.Height ) );
+		EndScope();
+		Transition( Depth, ImageLayout.CopySource );
+		TransitionForWrite( destination, ImageLayout.CopyDestination );
+		List.CopyTextureRegion( Depth, destination, x, y, 0, 0, width, height );
+		return true;
+	}
+
 	/// <summary>A single mip of a texture as a view, made once, for binding one mip (sampled or as storage).</summary>
 	public TextureViewHandle View( TextureHandle texture, int mip ) => MipView( texture, mip );
 

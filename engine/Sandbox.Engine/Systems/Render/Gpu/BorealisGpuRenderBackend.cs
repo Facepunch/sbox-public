@@ -1140,8 +1140,18 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	public override void CopyTexture( Texture source, Texture destination, int sourceMip, int sourceSlice, int destinationMip, int destinationSlice )
 	{
 		_ = Recording;
-		if ( sourceMip != destinationMip || sourceSlice != 0 || destinationSlice != 0 ) throw Unsupported( "Texture copies between mips or slices" );
-		context.CopyTexture( TextureOf( source ), TextureOf( destination ), sourceMip );
+		var from = TextureOf( source );
+		var to = TextureOf( destination );
+		if ( sourceMip == destinationMip && sourceSlice == 0 && destinationSlice == 0 )
+		{
+			context.CopyTexture( from, to, sourceMip );
+			return;
+		}
+
+		// Engine textures' copies here are made with one layer
+		if ( sourceSlice >= Math.Max( gpu.InfoOf( from ).Layers, 1 ) || destinationSlice >= Math.Max( gpu.InfoOf( to ).Layers, 1 ) )
+			throw new NotSupportedException( "Copies between array slices on Borealis.Gpu: engine textures are made with one layer there" );
+		context.CopyTexture( from, sourceMip, sourceSlice, to, destinationMip, destinationSlice );
 	}
 
 	public override void ResolveColor( Texture destination, Rect viewport )
@@ -1153,7 +1163,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		context.Viewport = saved;
 	}
 
-	public override void ResolveDepth( Texture destination, Rect viewport ) => throw Unsupported( "Depth" );
+	/// <summary>
+	/// Copy the viewport's part of the bound depth into <paramref name="destination"/>, as native resolves it. Multisampled depth
+	/// into a single-sampled texture isn't done yet.
+	/// </summary>
+	public override void ResolveDepth( Texture destination, Rect viewport )
+	{
+		_ = Recording;
+		var saved = context.Viewport;
+		SetViewport( viewport );
+		var copied = context.CopyDepth( TextureOf( destination ) );
+		context.Viewport = saved;
+		if ( !copied ) throw new NotSupportedException( "Resolving multisampled depth on Borealis.Gpu" );
+	}
 
 	public override void GenerateMipMaps( Texture texture, Graphics.DownsampleMethod method, int initialMip )
 	{
@@ -1306,8 +1328,6 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		SubmittedReadbacks( uploadReadbacks, gpu.Submit( uploads ) );
 		uploads = null;
 	}
-
-	static NotSupportedException Unsupported( string what ) => new( $"{what} aren't on Borealis.Gpu yet (docs/managed/borealis-gpu-path.md)" );
 
 	//
 	// Readback

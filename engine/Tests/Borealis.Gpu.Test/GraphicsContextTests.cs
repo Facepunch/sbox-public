@@ -484,6 +484,52 @@ public class GraphicsContextTests : GpuTest
 		Device.Destroy( arguments );
 	}
 
+	/// <summary>
+	/// A texture's mip 0 copied into another's mip 1 (the same size there), as <c>Graphics.CopyTexture</c> copies between
+	/// mips; and the bound depth's viewport copied into a texture of its own, as <c>Graphics.GrabDepthTexture</c> resolves it.
+	/// </summary>
+	[TestMethod]
+	public void CopiesBetweenMipsAndOfDepth()
+	{
+		var list = Device.BeginCommandList( QueueType.Graphics, "Copies" );
+		var context = new GraphicsContext( Device, drawer, list );
+		var source = context.CreateTarget( 8, 8, Format.RGBA8Unorm, name: "Source" );
+		var destination = context.CreateTarget( 16, 16, Format.RGBA8Unorm, mips: 2, name: "Destination" );
+		context.ClearTexture( source, new Vector4( 1, 0, 0, 1 ) );
+		context.ClearTexture( destination, new Vector4( 0, 0, 1, 1 ) );
+		context.CopyTexture( source, 0, 0, destination, 1, 0 );
+
+		// Depth cleared to a quarter, copied from a viewport part way in
+		var depth = Device.CreateTexture( TextureInfo.RenderTarget( Size, Size, Format.D32Float, name: "Depth" ) );
+		var grabbed = Device.CreateTexture( TextureInfo.RenderTarget( 16, 16, Format.D32Float, name: "Grabbed depth" ) );
+		list.Barrier( TextureBarrier.Transition( depth, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.None, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		list.ClearTexture( depth, default, 0.25f );
+		context.Track( depth, ImageLayout.CopyDestination );
+		context.Track( grabbed, ImageLayout.Undefined );
+		var main = context.CreateTarget( Size, Size, Format.RGBA8Unorm, name: "Main" );
+		context.SetTarget( main, depth );
+		context.Viewport = new Vector4( 8, 8, 16, 16 );
+		Assert.IsTrue( context.CopyDepth( grabbed ) );
+
+		var mipReadback = Device.CreateBuffer( new BufferInfo { Size = 8 * 8 * 4, Memory = MemoryLocation.Readback, Name = "Mip" } );
+		var depthReadback = Device.CreateBuffer( new BufferInfo { Size = 16 * 16 * 4, Memory = MemoryLocation.Readback, Name = "Depth" } );
+		context.CopyToBuffer( destination, mipReadback, 1 );
+		context.CopyToBuffer( grabbed, depthReadback );
+		context.Finish();
+		Device.Wait( Device.Submit( list ) );
+
+		var mip = Device.Map( mipReadback )[..(8 * 8 * 4)].ToArray();
+		Assert.AreEqual( ((byte)255, (byte)0, (byte)0, (byte)255), Pixel( mip, 8, 5, 5 ), "mip 1 has the source's pixels" );
+		var depths = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>( Device.Map( depthReadback )[..(16 * 16 * 4)] ).ToArray();
+		Assert.IsTrue( depths.All( d => d == 0.25f ), "the grabbed depth is the bound depth's" );
+
+		context.Release();
+		Device.Destroy( mipReadback );
+		Device.Destroy( depthReadback );
+		Device.Destroy( depth );
+		Device.Destroy( grabbed );
+	}
+
 	/// <summary>A 64-square black main target and a 16-square layer to composite, cleared, with the main one bound.</summary>
 	static (TextureHandle Main, TextureHandle Layer) Targets( GraphicsContext context )
 	{

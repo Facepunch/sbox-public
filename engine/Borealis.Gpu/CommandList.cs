@@ -1090,6 +1090,26 @@ public sealed unsafe class CommandList
 	}
 
 	/// <summary>
+	/// Copy one mip and layer of a texture into a mip and layer of another of the same format and size there, from
+	/// <see cref="ImageLayout.CopySource"/> to <see cref="ImageLayout.CopyDestination"/>.
+	/// </summary>
+	public void CopyTextureSubresource( TextureHandle source, int sourceMip, int sourceLayer, TextureHandle destination, int destinationMip, int destinationLayer )
+	{
+		OutsideRendering();
+		FlushBarriers();
+		ref var src = ref device.Get( source );
+		ref var dst = ref device.Get( destination );
+		var region = new VkImageCopy
+		{
+			srcSubresource = new VkImageSubresourceLayers { aspectMask = src.Aspect, mipLevel = (uint)sourceMip, baseArrayLayer = (uint)sourceLayer, layerCount = 1 },
+			dstSubresource = new VkImageSubresourceLayers { aspectMask = dst.Aspect, mipLevel = (uint)destinationMip, baseArrayLayer = (uint)destinationLayer, layerCount = 1 },
+			extent = new VkExtent3D { width = (uint)Math.Max( src.Info.Width >> sourceMip, 1 ), height = (uint)Math.Max( src.Info.Height >> sourceMip, 1 ), depth = 1 },
+		};
+
+		vk.vkCmdCopyImage( Handle, src.Image, VkImageLayout.TransferSrcOptimal, dst.Image, VkImageLayout.TransferDstOptimal, 1, &region );
+	}
+
+	/// <summary>
 	/// Copy a rectangle of mip 0, layer 0 between textures of the same format, from <see cref="ImageLayout.CopySource"/> to
 	/// <see cref="ImageLayout.CopyDestination"/>.
 	/// </summary>
