@@ -214,6 +214,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		if ( list is not null ) throw new InvalidOperationException( "A Borealis.Gpu block is already recording." );
 
 		FollowFrame();
+		WriteWorkerUpdates();
 		SubmitUploads();
 		lent = lendNext is not null;
 		list = lendNext ?? gpu.BeginCommandList( QueueType.Graphics, "Graphics block" );
@@ -781,8 +782,28 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		var size = width * height * info.Format.BytesPerBlock();
 		if ( data.Length < size ) return false;
 
+		// From a worker (an animated texture decodes and updates its frames on the thread pool): written at the start of the
+		// next block, so nothing records into the main thread's lists from another thread
+		if ( !ThreadSafe.IsMainThread )
+		{
+			workerUpdates.Enqueue( (texture, data[..size].ToArray(), x, y, width, height) );
+			return true;
+		}
+
 		Upload( backing.Handle, info, data[..size], context.LayoutOf( backing.Handle ), x, y, width, height );
 		return true;
+	}
+
+	readonly System.Collections.Concurrent.ConcurrentQueue<(Texture Texture, byte[] Data, int X, int Y, int Width, int Height)> workerUpdates = new();
+
+	/// <summary>Write the texture updates workers asked for since the last block, before a block starts recording.</summary>
+	void WriteWorkerUpdates()
+	{
+		while ( workerUpdates.TryDequeue( out var update ) )
+		{
+			if ( !textures.TryGetValue( update.Texture, out var backing ) ) continue;
+			Upload( backing.Handle, gpu.InfoOf( backing.Handle ), update.Data, context.LayoutOf( backing.Handle ), update.X, update.Y, update.Width, update.Height );
+		}
 	}
 
 	static TextureBarrier MipBarrier( TextureHandle texture, int mip, ImageLayout from, ImageLayout to ) => new()
