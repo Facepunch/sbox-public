@@ -512,7 +512,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			{
 				if ( !meshletStoreTried )
 				{
-					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) : null;
+					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) { LocalData = MeshletTasks && Gpu.Capabilities.MeshShaders } : null;
 					if ( meshletStore is not null ) gpuDrivenTables.Meshlets = meshletStore;
 					Volatile.Write( ref meshletStoreTried, true );
 				}
@@ -1487,8 +1487,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// Whether prepass meshlets are culled and drawn with task and mesh shaders (<c>borealis_meshlet_ids</c>) where the
 	/// device has them, in place of the compute pass, its index copies and indexed draws. Off by default: it costs more GPU
-	/// time than the compute pass on the Steam Deck and saves none on the PC (docs/managed/borealis-gpu-driven.md,
-	/// "Meshlets"); <c>-mesh-shaders</c> turns it on. Set it before drawing.
+	/// time than the compute pass on the Steam Deck and on the PC (docs/managed/borealis-gpu-driven.md, "Meshlets");
+	/// <c>-mesh-shaders</c> turns it on. Set it before drawing.
 	/// </summary>
 	public bool MeshletTasks { get; set; } = HasSwitch( "-mesh-shaders" );
 

@@ -53,6 +53,126 @@ public class BorealisGpuTexturesTest
 	}
 
 	/// <summary>
+	/// A texture's pixels read back from the device's copy (what <see cref="Texture.GetPixels(int)"/> reads when the
+	/// device is the process's): a rectangle, converted to the format asked for, at a place in a bigger image.
+	/// </summary>
+	[TestMethod]
+	public unsafe void ReadsPixelsBackFromTheCopy()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		const int size = 16;
+		using var texture = Texture.Create( size, size, ImageFormat.RGBA8888 ).WithData( Pixels( size, size, ( x, y ) => new Color32( (byte)x, (byte)y, 0, 255 ) ) ).Finish();
+
+		// 3x2 pixels from (4, 5), as BGRA, into an 8 pixel wide image at (1, 1)
+		var image = new byte[8 * 4 * 4];
+		fixed ( byte* data = image )
+		{
+			Assert.IsTrue( borealis.ReadPixels( texture, new NativeRect( 4, 5, 3, 2 ), 0, 0, new NativeRect( 1, 1, 3, 2 ), (IntPtr)data, ImageFormat.BGRA8888, 8 * 4 ) );
+		}
+
+		byte[] At( int x, int y ) => image.AsSpan( (y * 8 + x) * 4, 4 ).ToArray();
+		CollectionAssert.AreEqual( new byte[] { 0, 5, 4, 255 }, At( 1, 1 ), "the rectangle's first pixel, as BGRA" );
+		CollectionAssert.AreEqual( new byte[] { 0, 6, 6, 255 }, At( 3, 2 ), "its last" );
+		CollectionAssert.AreEqual( new byte[4], At( 0, 0 ), "outside the rectangle, untouched" );
+		Assert.AreEqual( 0, borealis.CopiedFromSource2, "nothing was read back from Source 2" );
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	/// <summary>
+	/// With the device the process's, reading a texture back - at once or asynchronously - reads the device's copy.
+	/// </summary>
+	[TestMethod]
+	public void TextureReadsGoToTheProcessDevice()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		RenderBackend.SetDefault( borealis );
+		try
+		{
+			const int size = 8;
+			using var texture = Texture.Create( size, size, ImageFormat.RGBA8888 ).WithData( Pixels( size, size, ( x, y ) => new Color32( (byte)(x * 10), (byte)(y * 10), 7, 255 ) ) ).Finish();
+
+			Assert.AreEqual( new Color32( 30, 50, 7, 255 ), texture.GetPixels()[5 * size + 3] );
+			Assert.AreEqual( new Color32( 70, 10, 7, 255 ), texture.GetPixel( 7, 1 ) );
+
+			Color32[] read = null;
+			using var done = new System.Threading.ManualResetEventSlim();
+			texture.GetPixelsAsync( pixels => { read = pixels.ToArray(); done.Set(); } );
+			Assert.IsTrue( done.Wait( 10000 ), "the asynchronous read called back" );
+			Assert.AreEqual( size * size, read.Length );
+			Assert.AreEqual( new Color32( 30, 50, 7, 255 ), read[5 * size + 3] );
+		}
+		finally
+		{
+			RenderBackend.SetDefault( null );
+		}
+
+		Assert.AreEqual( 0, borealis.CopiedFromSource2, "nothing was read back from Source 2" );
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	/// <summary>
+	/// A texture read from a material, with no path of its own (a sky's cubemap), is the material's texture as Borealis's
+	/// draws read it, not a copy of Source 2's pixels.
+	/// </summary>
+	[TestMethod]
+	public void MaterialTexturesAreTheMaterials()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		var material = Material.Load( "materials/skybox/skybox_day_01.vmat" );
+		var texture = material.GetTexture( "g_tSkyTexture" );
+		Assert.IsNotNull( texture );
+
+		var expected = (Borealis.Backend.BackendTexture)borealis.Services.MaterialTexture( material.ResourcePath, "g_tSkyTexture" );
+		Assert.IsNotNull( expected );
+		Assert.AreEqual( expected.Handle, borealis.TextureOf( texture ) );
+		Assert.AreEqual( 0, borealis.CopiedFromSource2, "nothing was read back from Source 2" );
+	}
+
+	/// <summary>
+	/// Without Source 2's device (the game under -borealisgpu), a GPU buffer is the process's device's alone: no Source 2
+	/// buffer is made, it reads back from the device, and it's valid until disposed.
+	/// </summary>
+	[TestMethod]
+	public void BuffersWithoutSource2DeviceAreTheDevices()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		var hadDevice = Graphics.HasSource2Device;
+		RenderBackend.SetDefault( borealis );
+		Graphics.HasSource2Device = false;
+		try
+		{
+			var buffer = new GpuBuffer<uint>( 4 );
+			Assert.IsTrue( buffer.IsValid );
+			Assert.AreEqual( IntPtr.Zero, (IntPtr)buffer.native, "no Source 2 buffer" );
+
+			buffer.SetData( new uint[] { 1, 2, 3, 4 } );
+			Assert.AreEqual( 1, borealis.UploadsRecorded, "the write went to the device's backing" );
+
+			var read = new uint[3];
+			buffer.GetData( read, 1, 3 );
+			CollectionAssert.AreEqual( new uint[] { 2, 3, 4 }, read, "read back from the device's backing" );
+
+			buffer.Dispose();
+			Assert.IsFalse( buffer.IsValid );
+		}
+		finally
+		{
+			Graphics.HasSource2Device = hadDevice;
+			RenderBackend.SetDefault( null );
+		}
+
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	/// <summary>
 	/// Starting the device's next frame starts the renderer services' too, so GPU-driven drawing's per-frame memory comes
 	/// back rather than growing until the bindless table runs out of slots.
 	/// </summary>
