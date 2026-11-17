@@ -486,15 +486,16 @@ public sealed class ShaderLibrary : IDisposable
 	}
 
 	/// <summary>
-	/// A static and dynamic combo of one of <paramref name="shader"/>'s programs for a mode and feature values. Throws if the
+	/// A static and dynamic combo of one of <paramref name="shader"/>'s programs for a mode and feature values; with
+	/// <paramref name="statesOnly"/>, without their shaders (<see cref="ShaderProgram.LoadComboStates"/>). Throws if the
 	/// static combo was never compiled.
 	/// </summary>
-	static (StaticCombo Static, DynamicCombo Dynamic) Combos( ShaderFile shader, ShaderMode drawMode, ShaderProgram program, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos )
+	static (StaticCombo Static, DynamicCombo Dynamic) Combos( ShaderFile shader, ShaderMode drawMode, ShaderProgram program, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos, bool statesOnly = false )
 	{
 		var staticId = shader.StaticComboId( program, drawMode, features );
 		if ( !program.HasCombo( staticId ) ) staticId = Allowed( shader, drawMode, program, features, staticId );
 		if ( !program.HasCombo( staticId ) ) throw new InvalidDataException( $"{shader.Name}: {program.Type} static combo {staticId} for mode {drawMode.Name} wasn't compiled (skipped by its rules)" );
-		var combo = program.LoadCombo( staticId );
+		var combo = statesOnly ? program.LoadComboStates( staticId ) : program.LoadCombo( staticId );
 
 		var dynamicId = ShaderFile.DynamicComboId( program, dynamicCombos, features );
 		var dynamic = combo.Dynamic( dynamicId ) ?? combo.Dynamic( 0 ) ?? throw new InvalidDataException( $"{shader.Name}: {program.Type} has no dynamic combo {dynamicId}" );
@@ -524,9 +525,10 @@ public sealed class ShaderLibrary : IDisposable
 	/// <summary>
 	/// The render state of <see cref="Variant(ShaderFile, string, ReadOnlySpan{int}, Func{string, int?}, Func{string, int?}, bool)"/>'s
 	/// variant for <paramref name="mode"/> with these feature values and no dynamic combos set (<see cref="ShaderVariant.State"/>),
-	/// read without making it: no shader modules, layouts or reflection, and no module compile where the shader's module
-	/// gives its render states (<see cref="IShaderModules.PixelRenderStates"/>). Null when the shader has no such mode.
-	/// Throws as the variant does when the combo was never compiled.
+	/// read without making it: no shaders read (the shared modules they reference stay compressed), no shader modules,
+	/// layouts or reflection, and no module compile where the shader's module gives its render states
+	/// (<see cref="IShaderModules.PixelRenderStates"/>). Null when the shader has no such mode. Throws as the variant does
+	/// when the combo was never compiled.
 	/// </summary>
 	public ShaderPipelineState PixelState( ShaderFile shader, string mode, ReadOnlySpan<int> features )
 	{
@@ -549,7 +551,7 @@ public sealed class ShaderLibrary : IDisposable
 
 		var program = shader[ShaderProgramType.Pixel];
 		if ( program is null ) return ShaderPipelineState.Resolve( null );
-		var (combo, dynamic) = Combos( shader, drawMode, program, features, null );
+		var (combo, dynamic) = Combos( shader, drawMode, program, features, null, statesOnly: true );
 		return ShaderStage.PixelState( program, combo, dynamic, features );
 	}
 
