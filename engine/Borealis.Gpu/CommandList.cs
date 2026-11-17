@@ -599,6 +599,14 @@ public sealed unsafe class CommandList
 
 			depthAttachment.clearValue.depth = depth.ClearDepth;
 			depthAttachment.clearValue.stencil = depth.ClearStencil;
+
+			// Sample zero is the one mode every device resolves depth and stencil with
+			if ( depth.ResolveTarget.IsValid )
+			{
+				depthAttachment.resolveMode = Vulkan.Vk.ResolveModeSampleZero;
+				depthAttachment.resolveImageView = device.AttachmentView( depth.ResolveTarget, 0, 0, false );
+				depthAttachment.resolveImageLayout = VkImageLayout.DepthStencilAttachmentOptimal;
+			}
 		}
 
 		if ( width == 0 ) throw new ArgumentException( "Rendering needs a colour or depth target" );
