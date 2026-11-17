@@ -563,7 +563,7 @@ internal sealed partial class BackendContext
 		// The visibility-driven forward pass: the view's ids and lists, compacting only
 		var (compact, shaders, visibility, ids, lists) = CullState( cull );
 		var meshlets = compact && MeshletsFor( cull, ids );
-		var meshTasks = meshlets && MeshTasksFor( cull, ids ) && device.PrepassCompactedFor( visibility ).IsValid && visibility.MeshletKept;
+		var meshTasks = meshlets && MeshTasksNow( cull, compact, ids, visibility );
 		var listing = lists || meshlets;
 
 		// One region: the view, the batches, the multi-draws (first slot and visible count, when compacting; a run of
@@ -1167,9 +1167,18 @@ internal sealed partial class BackendContext
 	/// <summary>A GPU-culled call's kind, for its plan: what decides its buckets and records besides the batches.</summary>
 	GpuDrivenPlan.CallKey PlanKey( StringToken shaderMode, in GpuDrivenCull cull, Format color, Format depth, int samples )
 	{
-		var (_, _, visibility, ids, lists) = CullState( cull );
-		return new GpuDrivenPlan.CallKey( shaderMode.Value, color, depth, samples, recording.Color is null, ids, lists, visibility is not null, device.PositionStreams, cull.KeepsOrder, MeshletsFor( cull, ids ), MeshTasksFor( cull, ids ) );
+		var (compact, _, visibility, ids, lists) = CullState( cull );
+		return new GpuDrivenPlan.CallKey( shaderMode.Value, color, depth, samples, recording.Color is null, ids, lists, visibility is not null, device.PositionStreams, cull.KeepsOrder, MeshletsFor( cull, ids ), MeshTasksNow( cull, compact, ids, visibility ) );
 	}
+
+	/// <summary>
+	/// Whether this call's id buckets draw kept meshlets with task and mesh shaders, as <see cref="DrawGpuCulled"/> decides it:
+	/// the device's paths, and this view's prepass compacted and meshlets kept. A plan is only for calls that decided the same,
+	/// since its task runs have no index page: a view without them (a cube capture's face, before its first frame) drew them as
+	/// index runs.
+	/// </summary>
+	bool MeshTasksNow( in GpuDrivenCull cull, bool compact, bool ids, BackendDevice.VisibilityView visibility )
+		=> compact && MeshTasksFor( cull, ids ) && visibility is not null && device.PrepassCompactedFor( visibility ).IsValid && visibility.MeshletKept;
 
 	/// <summary>
 	/// The plan an earlier call of this kind made of a resident list's <paramref name="prefix"/> (<see cref="GpuDrivenPlan"/>),
@@ -1884,6 +1893,11 @@ internal sealed partial class BackendContext
 		return made;
 	}
 
+	/// <summary>GPU-driven runs skipped for having no index page (<see cref="DrawRun"/>); none is expected.</summary>
+	internal static int PagelessRunsSkipped => pagelessRuns;
+
+	static int pagelessRuns;
+
 	/// <summary>
 	/// One multi-draw: the bucket's pipeline and sets (bound once, through any of its materials' material object: a
 	/// GPU-driven variant binds no material resources), the page's indices, and its run of commands: all of them, or as
@@ -1892,6 +1906,14 @@ internal sealed partial class BackendContext
 	void DrawRun( ref bool bound, GpuDrivenBucket bucket, Format color, Format depth, int samples, int depthBias, float slopeScaledDepthBias, PassResolver resolver,
 		BufferHandle page, IndexFormat format, BufferHandle commands, long offset, int count, long countOffset = -1 )
 	{
+		// A run with no index page (a task run, if a plan's runs ever reach a call that doesn't draw tasks) has nothing to draw
+		// here: throwing would leave the list half recorded
+		if ( !page.IsValid )
+		{
+			System.Threading.Interlocked.Increment( ref pagelessRuns );
+			return;
+		}
+
 		var r = recording;
 		var censusBefore = Census ? PassTimer.Recorded.Of( r.List ) : default;
 		if ( !bound && bucket.Surface is not null )
