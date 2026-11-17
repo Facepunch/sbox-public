@@ -54,6 +54,19 @@ public sealed class PassModules : IShaderModules
 	/// </summary>
 	public string CacheFolder { get; set; }
 
+	/// <summary>
+	/// Whether compiles read the build's offline compile of each source (<see cref="SlangOutput"/>) first; set before the
+	/// first compile. Off, for tests of compiling itself, and with <c>-no-offline-shaders</c> to compare against run-time
+	/// compiles.
+	/// </summary>
+	public bool UseOffline { get; set; } = !Environment.GetCommandLineArgs().Any( a => a.Equals( "-no-offline-shaders", StringComparison.OrdinalIgnoreCase ) );
+
+	/// <summary>
+	/// Told of each Slang compile here at run time, which the build's offline compile didn't cover: hotload, game code's
+	/// shaders, package shaders. The console's output unless set.
+	/// </summary>
+	public Action<string> Info { get; set; } = message => Console.WriteLine( message );
+
 	/// <summary>The engine's core content folder: the one with <c>shaders/sbox/pass.slangh</c>.</summary>
 	string Core => core ??= device.Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "sbox", "pass.slangh" ) ) ) ?? device.Content.Roots.FirstOrDefault()
 		?? throw new InvalidOperationException( "No content folder to find the engine's shaders in" );
@@ -68,6 +81,8 @@ public sealed class PassModules : IShaderModules
 		return compiler = new SlangCompiler( EngineFolders.NativeIn( game ), [Path.Combine( Core, "shaders" )] )
 		{
 			CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealispasses" ),
+			UseOffline = UseOffline,
+			Compiling = what => Info?.Invoke( $"Borealis.Gpu: compiling {what} with Slang at run time (no offline compile)" ),
 		};
 	}
 

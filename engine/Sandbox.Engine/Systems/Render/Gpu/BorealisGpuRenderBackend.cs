@@ -165,6 +165,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		services = new BackendDevice( gpu, files );
 		services.Shaders.Unloaded = message => Log.Warning( $"Borealis.Gpu: {message}" );
 		services.Passes.Error = message => Log.Warning( $"Borealis.Gpu: {message}" );
+		services.Passes.Info = message => Log.Info( message );
+		services.Surfaces.Info = message => Log.Info( message );
 		drawer = new ShaderDrawer( services );
 		context = new GraphicsContext( gpu, drawer, null );
 
