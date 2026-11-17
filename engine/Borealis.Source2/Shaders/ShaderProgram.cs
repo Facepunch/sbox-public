@@ -35,6 +35,12 @@ public sealed class ShaderProgram
 	/// <summary>Dynamic combos, in id order.</summary>
 	public ShaderCombo[] DynamicCombos { get; }
 
+	/// <summary>
+	/// The rules over its static combos: the features program's are the shader's feature rules (<c>FeatureRule</c>), which
+	/// a material's feature values go through (<see cref="ShaderRule.Apply"/>).
+	/// </summary>
+	public ShaderRule[] StaticRules { get; } = [];
+
 	/// <summary>Every variable the program can read; <see cref="VariableBinding.Variable"/> indexes it.</summary>
 	public ShaderVariable[] Variables { get; }
 
@@ -66,7 +72,7 @@ public sealed class ShaderProgram
 		reader.Int();
 
 		StaticCombos = ReadCombos( reader, vcs );
-		SkipRules( reader );
+		StaticRules = ReadRules( reader );
 		DynamicCombos = ReadCombos( reader, vcs );
 		SkipRules( reader );
 
@@ -236,6 +242,29 @@ public sealed class ShaderProgram
 	{
 		var count = reader.Count( 1000 );
 		reader.Skip( count * (4 + 4 + 16 + 16 * 4 * 3 + 256) );
+	}
+
+	// CVfxRule as written: the rule and its type, each argument's type (a byte), index and value, the rule's extra data
+	// (AllowN's allowed count and argument count, Requires' required count and argument count), and its error text
+	static ShaderRule[] ReadRules( ByteReader reader )
+	{
+		var rules = new ShaderRule[reader.Count( 1000 )];
+		for ( int i = 0; i < rules.Length; i++ )
+		{
+			var rule = (ShaderRuleKind)reader.Int();
+			var type = (ShaderRuleType)reader.Int();
+			var argTypes = reader.Bytes( 16 );
+			var indices = new int[16];
+			var values = new int[16];
+			var extra = new int[16];
+			for ( int a = 0; a < 16; a++ ) indices[a] = reader.Int();
+			for ( int a = 0; a < 16; a++ ) values[a] = reader.Int();
+			for ( int a = 0; a < 16; a++ ) extra[a] = reader.Int();
+			reader.Skip( 256 );
+			rules[i] = new ShaderRule( rule, type, Array.ConvertAll( argTypes, t => (ShaderRuleType)t ), indices, values, extra );
+		}
+
+		return rules;
 	}
 
 	static ShaderVariable ReadVariable( ByteReader reader, int vcs )
