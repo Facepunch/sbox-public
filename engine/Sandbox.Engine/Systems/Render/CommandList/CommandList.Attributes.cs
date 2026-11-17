@@ -237,6 +237,9 @@ public sealed partial class CommandList
 			list.AddEntry( &Execute, new Entry { Token = token, Object2 = data, Object4 = this } );
 		}
 
+		// What a managed block draws into: the target it bound, else its view's own (a Borealis.Gpu camera's stage)
+		static RenderTarget BoundTarget() => Graphics.RenderTarget ?? (Graphics.CurrentView as BorealisGpuView)?.Target;
+
 		/// <summary>
 		/// Set a special value
 		/// </summary>
@@ -251,10 +254,10 @@ public sealed partial class CommandList
 							var attrAccess = (AttributeAccess)entry.Object4;
 
 							// A block on a device of its own (a Borealis.Gpu frame's, or a camera's stage in one) draws into its
-							// bound target, which has no native handle
+							// bound target, which has no native handle: the one it set, else its view's
 							if ( attrAccess.attributes.IsManaged )
 							{
-								attrAccess.attributes.Set( entry.Token, Graphics.RenderTarget?.ColorTarget );
+								attrAccess.attributes.Set( entry.Token, BoundTarget()?.ColorTarget );
 								return;
 							}
 
@@ -274,7 +277,7 @@ public sealed partial class CommandList
 
 							if ( attrAccess.attributes.IsManaged )
 							{
-								attrAccess.attributes.Set( entry.Token, Graphics.RenderTarget?.DepthTarget );
+								attrAccess.attributes.Set( entry.Token, BoundTarget()?.DepthTarget );
 								return;
 							}
 

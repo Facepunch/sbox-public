@@ -70,21 +70,26 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 		// Made here, outside any block: materials can't be made while drawing
 		if ( Multisampled ) depthResolve ??= Material.FromShader( "shaders/depthresolve.shader" );
+		depthResolved = false;
 	}
 
 	static Material depthResolve;
 	Texture resolvedDepth, resolveScratch;
 	RenderAttributes resolveAttributes;
 
+	// The multisampled depth was resolved for this frame already (the depth doesn't change after the scene)
+	bool depthResolved;
+
 	/// <summary>
 	/// The frame's depth with one sample, in the block being recorded: <see cref="Depth"/>, or for a multisampled frame its
-	/// first sample written into a depth of its own (<c>depthresolve.shader</c>, as native resolves depth), for drawing depth
-	/// tested over a single-sampled output. Leaves no target bound that the caller should keep.
+	/// first sample written into a depth of its own (<c>depthresolve.shader</c>, as native resolves depth), once a frame, for
+	/// drawing depth tested over a single-sampled target. Leaves no target bound that the caller should keep.
 	/// </summary>
 	public Texture ResolvedDepth()
 	{
 		if ( Depth is null || !Multisampled ) return Depth;
 		if ( depthResolve is null ) return null;
+		if ( depthResolved && resolvedDepth is not null ) return resolvedDepth;
 
 		if ( resolvedDepth is null || resolvedDepth.Width != Depth.Width || resolvedDepth.Height != Depth.Height )
 		{
@@ -106,6 +111,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		Graphics.Viewport = new Rect( 0, 0, Depth.Width, Depth.Height );
 		Graphics.Clear( global::Color.Transparent, false, true, true );
 		Graphics.Blit( depthResolve, resolveAttributes );
+		depthResolved = true;
 		return resolvedDepth;
 	}
 
@@ -314,13 +320,20 @@ internal sealed class BorealisGpuFrame : IDisposable
 	/// </summary>
 	public Graphics.Scope Begin( BorealisGpuView view )
 	{
-		// A multisampled frame hands over its resolved colour: its depth keeps its samples, so it isn't bound with it, and
-		// what reads depth reads the chain built from it
 		frameTarget = Multisampled ? RenderTarget.From( Color ) : RenderTarget.From( Color, Depth );
 		if ( view is not null ) view.Target = frameTarget;
 		var scope = Graphics.Scope.CreateOnView( backend, view );
 		try
 		{
+			// A multisampled frame hands over its resolved colour, and its depth resolved to one sample to go with it: what the
+			// stages draw is depth tested against the scene, and what reads the bound depth (depth of field's
+			// RenderValue.DepthTarget, depth grabs) reads it. The view chain is built from every sample
+			if ( Multisampled && ResolvedDepth() is { } resolved )
+			{
+				frameTarget = RenderTarget.From( Color, resolved );
+				if ( view is not null ) view.Target = frameTarget;
+			}
+
 			if ( view is null ) Graphics.RenderTarget = frameTarget;
 			else view.Bind();
 
