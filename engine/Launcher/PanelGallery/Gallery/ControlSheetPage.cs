@@ -1,18 +1,31 @@
 namespace Sandbox.PanelGallery;
 
 /// <summary>
-/// Every control on one page, each once - a control sheet built from a property of each editable
-/// type, then only the controls a sheet never makes - so a styling pass can be judged in one place.
+/// Every control on one page - a control sheet built from a property of each editable type, the
+/// Form that lays controls out by hand, then only the controls neither makes - so a styling pass
+/// can be judged in one place.
 /// </summary>
 public class ControlSheetPage : GalleryPage
 {
 	readonly Sandbox.UI.Label _output;
 	readonly ControlSheetTarget _target = new();
 
-	public ControlSheetPage() : base( "Control Sheet", "Every control, each once. The sheet builds a row for each property type the UI can edit; below it are the controls a sheet never makes." )
+	public ControlSheetPage() : base( "Control Sheet", "Every control. The sheet builds a row for each property type the UI can edit, the form places the same controls by hand, and below are the controls neither makes." )
 	{
 		var row = Case( "Control sheet", column: true );
 		row.AddChild( new Sandbox.UI.ControlSheet { Target = _target } );
+
+		// A form is titled rows of controls placed by hand - its label column lines up with the sheet's
+		row = Case( "Form", column: true );
+		var form = new Sandbox.UI.Form();
+		form.AddHeader( "Transform", "open_with" );
+		form.AddRow( "Position", new Sandbox.UI.VectorControl { Property = _target.Property( nameof( ControlSheetTarget.Position ) ) } );
+		form.AddRow( "Scale", new Sandbox.UI.NumberEntry { Property = _target.Property( nameof( ControlSheetTarget.Scale ) ) } );
+		form.AddHeader( "Appearance", "palette" );
+		form.AddRow( "Colour", new Sandbox.UI.ColorControl { Property = _target.Property( nameof( ControlSheetTarget.Colour ) ) } );
+		form.AddRow( "Shading", new Sandbox.UI.EnumControl { Property = _target.Property( nameof( ControlSheetTarget.Shading ) ) } );
+		form.AddRow( "Enabled", new Sandbox.UI.SwitchControl { Property = _target.Property( nameof( ControlSheetTarget.Enabled ) ) } );
+		row.AddChild( form );
 
 		row = Case( "Buttons" );
 		row.AddChild( new Sandbox.UI.Button( "Primary", "add_box", "primarybutton", () => Clicked( "primary" ) ) );
@@ -101,4 +114,9 @@ public class ControlSheetTarget
 	[Group( "Shadows" )] public float ShadowBias { get; set; } = 0.01f;
 
 	[Group( "Folded", StartFolded = true ), TextArea] public string Notes { get; set; } = "This group starts folded.";
+
+	/// <summary>
+	/// A property of this object, for binding a control to by hand.
+	/// </summary>
+	public SerializedProperty Property( string name ) => Game.TypeLibrary.GetSerializedObject( this ).GetProperty( name );
 }
