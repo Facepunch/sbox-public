@@ -145,6 +145,7 @@ public sealed unsafe partial class Device
 	public void BeginFrame()
 	{
 		var carried = CarryRecording();
+		RememberEvent( "frame starts:", (long)FrameNumber + 1 );
 
 		Flush();
 		frame.Graphics = graphicsQueue.Submitted;
@@ -449,6 +450,19 @@ public sealed unsafe partial class Device
 	/// <summary>The latest submissions a loss report lists, after those around the first not finished.</summary>
 	const int RecentSubmissionsShown = 48;
 
+	/// <summary>
+	/// Note something that isn't a submission among them (an acquire, a present, a frame starting), for loss reports: it's
+	/// listed after the submissions made before it. <paramref name="what"/> is a constant, so nothing is made each frame.
+	/// </summary>
+	internal void RememberEvent( string what, long detail )
+	{
+		lock ( recentSubmissions )
+		{
+			recentSubmissions[recentNext] = (QueueType.Graphics, graphicsQueue.Submitted, what, -2, Stopwatch.GetTimestamp(), (int)detail);
+			recentNext = (recentNext + 1) % recentSubmissions.Length;
+		}
+	}
+
 	void Remember( DeviceQueue queue, ulong value, CommandList list, int heldBefore )
 	{
 		lock ( recentSubmissions )
@@ -518,6 +532,12 @@ public sealed unsafe partial class Device
 				}
 
 				skipped = false;
+				if ( held == -2 )
+				{
+					text.Append( $"\n  {name} {markers}, after {queue} {value} ({Stopwatch.GetElapsedTime( ticks, now ).TotalMilliseconds:F0} ms ago)" );
+					continue;
+				}
+
 				var done = seen.GetValueOrDefault( queue ) >= value ? "done" : "not seen done";
 				text.Append( $"\n  {queue} {value} {name} ({(held < 0 ? "held" : $"with {held} held")}, {Stopwatch.GetElapsedTime( ticks, now ).TotalMilliseconds:F0} ms ago) {done}{DescribeMarkers( markers )}" );
 			}
