@@ -135,6 +135,7 @@ public sealed partial class GraphBuilder
 		internal readonly List<Node> States = new();
 		internal readonly List<Node> StateEntryConditions = new();
 		internal readonly List<(int From, int To, Node TransitionNode, Node Condition, bool CanBeForced)> Transitions = new();
+		private readonly Dictionary<Node, State> transitionTargets = new();
 		private readonly GraphBuilder builder;
 		internal StateMachineBuilder( GraphBuilder builder )
 		{
@@ -402,6 +403,7 @@ public sealed partial class GraphBuilder
 				definition.m_boneMaskBlendInTimePercentage = settings.BoneMaskBlendPercentage;
 				return definition;
 			} );
+			transitionTargets.Add( transition, target );
 			return transition;
 		}
 
@@ -420,6 +422,10 @@ public sealed partial class GraphBuilder
 			ValidateState( from, nameof( from ) );
 			ValidateState( to, nameof( to ) );
 			builder.RequirePose( transition, nameof( transition ) );
+			if ( !transitionTargets.TryGetValue( transition, out var target ) || !ReferenceEquals( target, to ) )
+				throw new ArgumentException( "The transition must be created by this state machine for the route's target state.", nameof( transition ) );
+			if ( ReferenceEquals( from, to ) )
+				throw new ArgumentException( "A transition must connect different states.", nameof( to ) );
 			builder.Require( settings.Condition, NodeKind.Bool );
 			Transitions.Add( (from.Index, to.Index, transition, settings.Condition, settings.CanBeForced) );
 		}
