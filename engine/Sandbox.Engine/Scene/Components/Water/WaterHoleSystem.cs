@@ -3,7 +3,8 @@ namespace Sandbox;
 /// <summary>
 /// Indexes a scene's active <see cref="WaterHole"/>s for point queries: swimming, buoyancy, splashes and underwater
 /// effects. Rebuilt on the first query after a hole moves, resizes, or is enabled or disabled. It collects the holes
-/// itself, so a system recreated by a reload starts complete.
+/// itself, so a system recreated by a reload starts complete. The same index goes to shaders as scene attributes,
+/// for caustics to skip holes.
 /// </summary>
 internal sealed class WaterHoleSystem : GameObjectSystem<WaterHoleSystem>
 {
@@ -14,9 +15,14 @@ internal sealed class WaterHoleSystem : GameObjectSystem<WaterHoleSystem>
 	BBox[] _bounds = [];
 	Vector4[] _rects = [];
 	bool _dirty = true;
+	bool _uploaded;
+	GpuBuffer<WaterHole.Data> _boxBuffer;
+	GpuBuffer<uint> _startBuffer;
+	GpuBuffer<uint> _indexBuffer;
 
 	public WaterHoleSystem( Scene scene ) : base( scene )
 	{
+		Listen( Stage.PrepareRender, 100, Upload, "Water holes" );
 	}
 
 	/// <summary>
@@ -39,6 +45,7 @@ internal sealed class WaterHoleSystem : GameObjectSystem<WaterHoleSystem>
 			return;
 
 		_dirty = false;
+		_uploaded = false;
 		_active.Clear();
 		Scene.GetAll( _active );
 		if ( _holes.Length < _active.Count )
@@ -94,8 +101,60 @@ internal sealed class WaterHoleSystem : GameObjectSystem<WaterHoleSystem>
 		}
 	}
 
+	/// <summary>
+	/// Send the index to shaders when it changed since the last upload.
+	/// </summary>
+	void Upload()
+	{
+		if ( !Graphics.IsAvailable )
+			return;
+
+		Refresh();
+		if ( _uploaded )
+			return;
+
+		_uploaded = true;
+		var attributes = Scene.RenderAttributes;
+		attributes.Set( "WaterHoleSceneCount", Count );
+		if ( Count == 0 )
+		{
+			ClearAttributes();
+			return;
+		}
+
+		Fill( ref _boxBuffer, _data.AsSpan( 0, Count ), "WaterHoleSceneBoxes" );
+		Fill( ref _startBuffer, _grid.Starts.AsSpan( 0, _grid.StartCount ), "WaterHoleSceneStarts" );
+		Fill( ref _indexBuffer, _grid.Indices.AsSpan( 0, _grid.IndexCount ), "WaterHoleSceneIndices" );
+		attributes.Set( "WaterHoleSceneInverseCell", _grid.InverseCell );
+		attributes.Set( "WaterHoleSceneMask", _grid.Mask );
+
+		void Fill<T>( ref GpuBuffer<T> buffer, ReadOnlySpan<T> values, string name ) where T : unmanaged
+		{
+			if ( buffer is null || buffer.ElementCount < values.Length )
+			{
+				buffer?.Dispose();
+				buffer = new GpuBuffer<T>( Math.Max( 64, values.Length * 2 ), debugName: name );
+			}
+			buffer.SetData( values );
+			attributes.Set( name, buffer );
+		}
+	}
+
+	void ClearAttributes()
+	{
+		var attributes = Scene.RenderAttributes;
+		attributes.Set( "WaterHoleSceneCount", 0 );
+		attributes.Set( "WaterHoleSceneBoxes", (GpuBuffer)null );
+		attributes.Set( "WaterHoleSceneStarts", (GpuBuffer)null );
+		attributes.Set( "WaterHoleSceneIndices", (GpuBuffer)null );
+	}
+
 	public override void Dispose()
 	{
+		ClearAttributes();
+		_boxBuffer?.Dispose();
+		_startBuffer?.Dispose();
+		_indexBuffer?.Dispose();
 		Array.Clear( _holes );
 		Count = 0;
 		base.Dispose();
