@@ -187,6 +187,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>Which device frame <see cref="GpuBusyMs"/> was (the engine frame it followed).</summary>
 	public ulong GpuBusyFrame { get; private set; }
 
+	/// <summary>Frames between reads of <see cref="GpuBusyMs"/>.</summary>
+	const int BusyReadFrames = 8;
+
 	void TimeFrame()
 	{
 		if ( busyTimer is null )
@@ -198,9 +201,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		services.PassTimer ??= busyTimer;
 		if ( services.PassTimer != busyTimer ) return;
 
-		// The frame before last is done (starting this frame waited for it); older ones are read once
+		// The frame before last is done (starting this frame waited for it); older ones are read once. Every
+		// BusyReadFrames frames: reading the queries back costs ~60 us, and the stats don't need every frame
 		var done = (long)frame - (Borealis.Backend.PassTimer.Slots - 1);
-		if ( done > 0 && busyTimer.TryRead( done, busyTimings ) )
+		if ( done > 0 && done % BusyReadFrames == 0 && busyTimer.TryRead( done, busyTimings ) )
 		{
 			var busy = 0.0;
 			foreach ( var timing in busyTimings )

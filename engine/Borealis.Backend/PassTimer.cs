@@ -168,9 +168,15 @@ internal sealed class PassTimer : IDisposable
 		lock ( scopes[at] ) scopes[at][index] = s with { End = end, Recorded = Recorded.Of( list ).Since( s.Before ) };
 	}
 
+	// What TryRead reads into, kept so reading a frame allocates nothing (the game reads one every frame)
+	readonly ulong[] readTicks = new ulong[PerSlot];
+	readonly List<Scope> readScopes = new( 64 );
+	PipelineCounts[] readCounts = [];
+
 	/// <summary>
 	/// Read frame <paramref name="frame"/>'s scopes into <paramref name="into"/>, in the order they began on the GPU; false
-	/// if the GPU hasn't finished them or the frame's slot has been reused.
+	/// if the GPU hasn't finished them or the frame's slot has been reused. One caller at a time; allocates nothing once
+	/// <paramref name="into"/> has grown.
 	/// </summary>
 	public bool TryRead( long frame, List<Timing> into )
 	{
@@ -178,50 +184,35 @@ internal sealed class PassTimer : IDisposable
 		var s = (int)(frame % Slots);
 		if ( frames[s] != frame ) return false;
 
-		lock ( readGate )
-		{
-			// Into arrays kept for reading, so a frame read allocates nothing
-			var list = readScopes;
-			list.Clear();
-			lock ( scopes[s] ) list.AddRange( scopes[s] );
-			var used = Math.Min( usedTimestamps[s], PerSlot );
-			if ( used == 0 ) return true;
+		readScopes.Clear();
+		lock ( scopes[s] ) readScopes.AddRange( scopes[s] );
+		var used = Math.Min( usedTimestamps[s], PerSlot );
+		if ( used == 0 ) return true;
 
-			var ticks = readTicks.AsSpan( 0, used );
-			if ( !timestamps.TryRead( s * PerSlot, ticks ) ) return false;
+		var ticks = readTicks.AsSpan( 0, used );
+		if ( !timestamps.TryRead( s * PerSlot, ticks ) ) return false;
 
-			var counts = readCounts.AsSpan( 0, Math.Min( usedQueries[s], PerSlot / 2 ) );
-			if ( statistics is not null && !statistics.TryRead( s * PerSlot / 2, counts ) ) return false;
-
-			Read( list, ticks, counts, into );
-			return true;
-		}
-	}
-
-	readonly object readGate = new();
-	readonly List<Scope> readScopes = new();
-	readonly ulong[] readTicks = new ulong[PerSlot];
-	readonly PipelineCounts[] readCounts = new PipelineCounts[PerSlot / 2];
-
-	void Read( List<Scope> list, ReadOnlySpan<ulong> ticks, ReadOnlySpan<PipelineCounts> counts, List<Timing> into )
-	{
-		var used = ticks.Length;
+		var queries = Math.Min( usedQueries[s], PerSlot / 2 );
+		if ( readCounts.Length < queries ) readCounts = new PipelineCounts[PerSlot / 2];
+		var counts = readCounts.AsSpan( 0, queries );
+		if ( statistics is not null && !statistics.TryRead( s * PerSlot / 2, counts ) ) return false;
 
 		var origin = ulong.MaxValue;
-		foreach ( var scope in list )
+		foreach ( var scope in readScopes )
 		{
 			if ( scope.End >= 0 && scope.Begin < used ) origin = Math.Min( origin, ticks[scope.Begin] );
 		}
 
 		var period = gpu.Capabilities.TimestampPeriod / 1e6;
-		foreach ( var scope in list )
+		foreach ( var scope in readScopes )
 		{
 			if ( scope.End < 0 || scope.End >= used ) continue;
 			var c = scope.Query >= 0 && scope.Query < counts.Length ? counts[scope.Query] : default;
 			into.Add( new Timing( scope.Name, scope.Kind, (ticks[scope.Begin] - origin) * period, (ticks[scope.End] - origin) * period, c, scope.Recorded ) );
 		}
 
-		into.Sort( static ( a, b ) => a.Start.CompareTo( b.Start ) );
+		into.Sort( ( a, b ) => a.Start.CompareTo( b.Start ) );
+		return true;
 	}
 
 	public void Dispose()
