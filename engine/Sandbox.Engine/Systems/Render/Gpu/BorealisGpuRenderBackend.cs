@@ -44,7 +44,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	readonly ConditionalWeakTable<Texture, Backing<TextureHandle>> textures = new();
 	readonly ConditionalWeakTable<GpuBuffer, Backing<BufferHandle>> buffers = new();
-	readonly Dictionary<TextureHandle, Texture> textureOwners = new();
+	// Backings made here (not borrowed): destroyed when their texture is released, or collected without being released
+	readonly HashSet<TextureHandle> textureOwners = new();
+
+	// Owned backings whose texture or buffer was collected without being released (their finalizers), freed at the next frame
+	readonly System.Collections.Concurrent.ConcurrentQueue<TextureHandle> collectedTextures = new();
+	readonly System.Collections.Concurrent.ConcurrentQueue<BufferHandle> collectedBuffers = new();
+
+	/// <summary>Owned backings freed after their texture or buffer was collected without being released, for soaks and tests.</summary>
+	internal int CollectedBackingsFreed { get; private set; }
 	readonly HashSet<BufferHandle> ownedBuffers = new();
 	readonly Dictionary<SamplerState, (SamplerHandle Sampler, int Index)> samplers = new();
 	readonly Dictionary<string, ShaderFile> shaders = new( StringComparer.OrdinalIgnoreCase );
@@ -64,6 +72,37 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	sealed class Backing<T>( T handle )
 	{
 		public T Handle = handle;
+
+		/// <summary>
+		/// Set for a backing made here: where its handle goes when its engine resource is collected without being released (a
+		/// GpuBuffer's or Texture's finalizer doesn't reach this backend), so the device memory goes with it.
+		/// </summary>
+		public System.Collections.Concurrent.ConcurrentQueue<T> Collected;
+
+		~Backing() => Collected?.Enqueue( Handle );
+	}
+
+	/// <summary>Free owned backings whose engine textures and buffers were collected without being released.</summary>
+	void FreeCollectedBackings()
+	{
+		while ( collectedBuffers.TryDequeue( out var buffer ) )
+		{
+			if ( !ownedBuffers.Remove( buffer ) ) continue;
+			gpu.Destroy( buffer );
+			CollectedBackingsFreed++;
+		}
+
+		if ( collectedTextures.IsEmpty ) return;
+		lock ( textureOwners )
+		{
+			while ( collectedTextures.TryDequeue( out var texture ) )
+			{
+				if ( !textureOwners.Remove( texture ) ) continue;
+				context.Forget( texture );
+				gpu.Destroy( texture );
+				CollectedBackingsFreed++;
+			}
+		}
 	}
 
 	/// <summary>
@@ -124,6 +163,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		BorealisGpuDeviceLost.Check( gpu );
 		SubmitUploads();
 		FreeModelGeometry();
+		FreeCollectedBackings();
 		services.BeginFrame();
 		if ( frame % PipelineCacheSaveFrames == 0 ) SavePipelineCacheInBackground();
 	}
@@ -475,6 +515,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 				{
 					textures.Remove( texture );
 					context.Forget( backing.Handle );
+					backing.Collected = null;
 
 					// A borrowed backing (a Borealis frame's target) stays its owner's
 					if ( textureOwners.Remove( backing.Handle ) ) gpu.Destroy( backing.Handle );
@@ -487,6 +528,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 				SubmitUploads();
 				ForgetCounter( buffer );
 				buffers.Remove( buffer );
+				backing.Collected = null;
 				ownedBuffers.Remove( backing.Handle );
 				gpu.Destroy( backing.Handle );
 				break;
@@ -616,8 +658,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			handle = Unreadable( texture );
 		}
 
-		textures.Add( texture, new Backing<TextureHandle>( handle ) );
-		textureOwners[handle] = texture;
+		textures.Add( texture, new Backing<TextureHandle>( handle ) { Collected = collectedTextures } );
+		textureOwners.Add( handle );
 		return handle;
 	}
 
@@ -979,7 +1021,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			Name = "Engine buffer",
 		} );
 
-		buffers.Add( buffer, new Backing<BufferHandle>( handle ) );
+		buffers.Add( buffer, new Backing<BufferHandle>( handle ) { Collected = collectedBuffers } );
 		ownedBuffers.Add( handle );
 
 		if ( buffer.Origin != this )
@@ -1725,7 +1767,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		gpu.WaitIdle();
 		DestroyReadbacks();
 
-		foreach ( var handle in textureOwners.Keys )
+		foreach ( var handle in textureOwners )
 		{
 			context.Forget( handle );
 			gpu.Destroy( handle );
