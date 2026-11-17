@@ -545,6 +545,34 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A pass module keeps what it preprocessed per combo values only while the includes it read are unchanged: an edited
+	/// include's render states are read again (hotload).
+	/// </summary>
+	[TestMethod]
+	public void PassModuleRereadsAnEditedInclude()
+	{
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-pass-include-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var include = Path.Combine( folder, "states.slangh" );
+			File.WriteAllText( include, "RenderState( DepthBias, 4 );\n" );
+			var path = Path.Combine( folder, "edited.slang" );
+			var module = PassModule.FromText( path, "#include \"states.slangh\"\n[shader( \"pixel\" )] float4 MainPs() : SV_Target0 { return 1; }\n", [folder] );
+			var values = new Dictionary<string, int>();
+			CollectionAssert.AreEqual( new[] { ("DepthBias", "4") }, module.RenderStates( values ).ToArray() );
+			CollectionAssert.AreEqual( new[] { ("DepthBias", "4") }, module.RenderStates( values ).ToArray(), "kept" );
+
+			File.WriteAllText( include, "RenderState( DepthBias, 16 );\n// longer\n" );
+			CollectionAssert.AreEqual( new[] { ("DepthBias", "16") }, module.RenderStates( values ).ToArray(), "the edited include is read again" );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// Pass modules compiled in the background: a variant asked for while its stages compile is its shader's compiled
 	/// programs' and the drawer doesn't keep it; once they're done it's the module's, kept.
 	/// </summary>

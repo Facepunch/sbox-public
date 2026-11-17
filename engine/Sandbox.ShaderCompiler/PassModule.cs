@@ -123,16 +123,27 @@ public sealed partial class PassModule
 
 	/// <summary>
 	/// The preprocessed lines for these values, includes and all, made once per values: a draw asks for a variant's entry,
-	/// render states and expansion in turn, and preprocessing a module with its includes takes milliseconds. Kept with this
-	/// module; a changed module is read again as a new one.
+	/// render states and expansion in turn, and preprocessing a module with its includes takes milliseconds. Kept while every
+	/// include they read hashes the same (an edited include preprocesses again); a changed module is read again as a new one.
 	/// </summary>
 	List<string> Lines( Dictionary<string, int> all )
 	{
 		var key = string.Join( ';', all.OrderBy( v => v.Key, StringComparer.Ordinal ).Select( v => $"{v.Key}={v.Value}" ) );
-		return lines.GetOrAdd( key, _ => PassPreprocessor.ActiveLines( Path, Text, all, Include ) );
+		if ( lines.TryGetValue( key, out var known ) && known.Includes.TrueForAll( i => PassCache.FileHash( i.Path ) == i.Hash ) ) return known.Lines;
+
+		var read = new List<(string Path, string Hash)>();
+		var made = PassPreprocessor.ActiveLines( Path, Text, all, ( from, name ) =>
+		{
+			var found = Include( from, name );
+			if ( found is { } f ) read.Add( (f.Path, PassCache.FileHash( f.Path )) );
+			return found;
+		} );
+
+		lines[key] = (made, read);
+		return made;
 	}
 
-	readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<string>> lines = new( StringComparer.Ordinal );
+	readonly System.Collections.Concurrent.ConcurrentDictionary<string, (List<string> Lines, List<(string Path, string Hash)> Includes)> lines = new( StringComparer.Ordinal );
 
 	/// <summary>Whether it has an entry point for the stage (<c>MainVs</c>, <c>MainPs</c>, <c>MainCs</c>, <c>MainTs</c>, <c>MainMs</c>).</summary>
 	public bool Has( StageKind stage ) => stages.Contains( stage );
