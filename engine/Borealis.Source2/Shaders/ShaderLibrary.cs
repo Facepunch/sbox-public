@@ -185,23 +185,51 @@ public sealed class ShaderLibrary : IDisposable
 		return Upgraded( path );
 	}
 
-	readonly Dictionary<ShaderFile, Lazy<ShaderFile>> upgradedOf = new( ReferenceEqualityComparer.Instance );
+	readonly Dictionary<ShaderFile, Task<ShaderFile>> upgradedOf = new( ReferenceEqualityComparer.Instance );
+
+	/// <summary>
+	/// Whether <see cref="UpgradedOf"/>'s recompiles run on a worker, the shader drawing nothing meanwhile (the game's), rather
+	/// than on the thread that first draws it: a package shader's took 9 s on the main thread.
+	/// </summary>
+	public bool UpgradeInBackground { get; set; }
 
 	/// <summary>
 	/// An outdated shader drawn from its embedded source whose module didn't compile: recompiled through
-	/// <see cref="Upgrader"/> after all, once; null when that can't be had either.
+	/// <see cref="Upgrader"/> after all, once; null when that can't be had either, or with <paramref name="pending"/> while it's
+	/// recompiling in the background (<see cref="UpgradeInBackground"/>).
 	/// </summary>
-	ShaderFile UpgradedOf( ShaderFile shader )
+	ShaderFile UpgradedOf( ShaderFile shader, out bool pending )
 	{
-		Lazy<ShaderFile> upgrade;
+		Task<ShaderFile> upgrade;
+		var made = false;
 		lock ( upgradedOf )
 		{
-			if ( !upgradedOf.TryGetValue( shader, out upgrade ) ) upgradedOf[shader] = upgrade = new( () => Upgrader is null || string.IsNullOrEmpty( UpgradeCache ) || !File.Exists( shader.Name )
-				? NotLoaded( shader.Name, $"{shader.Outdated}, its embedded source doesn't compile here and nothing here recompiles shaders (no ShaderCompiler)" )
-				: Upgraded( shader.Name ) );
+			if ( !upgradedOf.TryGetValue( shader, out upgrade ) )
+			{
+				upgradedOf[shader] = upgrade = new Task<ShaderFile>( () => Upgrader is null || string.IsNullOrEmpty( UpgradeCache ) || !File.Exists( shader.Name )
+					? NotLoaded( shader.Name, $"{shader.Outdated}, its embedded source doesn't compile here and nothing here recompiles shaders (no ShaderCompiler)" )
+					: Upgraded( shader.Name ) );
+				made = true;
+			}
 		}
 
-		return upgrade.Value;
+		// Run outside the lock: a recompile takes seconds, and other shaders' are asked for meanwhile
+		if ( made )
+		{
+			if ( UpgradeInBackground ) upgrade.Start();
+			else upgrade.RunSynchronously();
+		}
+
+		pending = UpgradeInBackground && !upgrade.IsCompleted;
+		return pending ? null : upgrade.GetAwaiter().GetResult();
+	}
+
+	/// <summary>Wait for every recompile started in the background (<see cref="UpgradeInBackground"/>). For tests and tools.</summary>
+	public void WaitForUpgrades()
+	{
+		Task<ShaderFile>[] running;
+		lock ( upgradedOf ) running = [.. upgradedOf.Values];
+		Task.WaitAll( running );
 	}
 
 	/// <summary>An outdated shader file recompiled through <see cref="Upgrader"/> into <see cref="UpgradeCache"/>, or null.</summary>
@@ -458,7 +486,13 @@ public sealed class ShaderLibrary : IDisposable
 		// An outdated shader's programs follow other bindings: one whose embedded source didn't compile here (or with modules
 		// off) is recompiled through the ShaderCompiler after all. Its GPU-driven variant is compiled from its file as any is
 		if ( shader.Outdated is not null && !gpuDriven )
-			return UpgradedOf( shader ) is { } upgraded ? Variant( upgraded, mode, features, dynamicCombos, attributes ) : ErrorVariant( dynamicCombos, attributes );
+		{
+			// Nothing drawn while it recompiles in the background, and not kept: it's asked again. One that won't load draws
+			// the error shader
+			var upgraded = UpgradedOf( shader, out var upgrading );
+			if ( upgrading ) pending = true;
+			return upgraded is not null ? Variant( upgraded, mode, features, dynamicCombos, attributes ) : upgrading ? null : ErrorVariant( dynamicCombos, attributes );
+		}
 
 		// A shader with only a module has no programs to fall back to (modules off, or its module doesn't compile)
 		if ( shader.ModuleOnly ) return null;
@@ -547,14 +581,21 @@ public sealed class ShaderLibrary : IDisposable
 	/// (<see cref="IShaderModules.PixelRenderStates"/>). Null when the shader has no such mode. Throws as the variant does
 	/// when the combo was never compiled.
 	/// </summary>
-	public ShaderPipelineState PixelState( ShaderFile shader, string mode, ReadOnlySpan<int> features )
+	public ShaderPipelineState PixelState( ShaderFile shader, string mode, ReadOnlySpan<int> features ) => PixelState( shader, mode, features, out _ );
+
+	/// <summary>
+	/// <see cref="PixelState(ShaderFile, string, ReadOnlySpan{int})"/>, saying with <paramref name="pending"/> that the shader
+	/// is still recompiling in the background (<see cref="UpgradeInBackground"/>): null then, and asked again later.
+	/// </summary>
+	public ShaderPipelineState PixelState( ShaderFile shader, string mode, ReadOnlySpan<int> features, out bool pending )
 	{
+		pending = false;
 		var drawMode = shader.Mode( mode );
 		if ( drawMode is null ) return null;
 		if ( !string.IsNullOrEmpty( drawMode.Fallback ) )
 		{
 			var fallback = Load( drawMode.Fallback.Contains( '/' ) ? drawMode.Fallback : $"shaders/{drawMode.Fallback}" );
-			return fallback is null ? null : PixelState( fallback, mode, [] );
+			return fallback is null ? null : PixelState( fallback, mode, [], out pending );
 		}
 
 		if ( Modules is { } modules && modules.Has( shader ) )
@@ -563,7 +604,7 @@ public sealed class ShaderLibrary : IDisposable
 			return Variant( shader, mode, features )?.State;
 		}
 
-		if ( shader.Outdated is not null ) return UpgradedOf( shader ) is { } upgraded ? PixelState( upgraded, mode, features ) : null;
+		if ( shader.Outdated is not null ) return UpgradedOf( shader, out pending ) is { } upgraded ? PixelState( upgraded, mode, features, out pending ) : null;
 		if ( shader.ModuleOnly ) return null;
 
 		var program = shader[ShaderProgramType.Pixel];
@@ -573,10 +614,16 @@ public sealed class ShaderLibrary : IDisposable
 	}
 
 	/// <summary>
-	/// Whether <see cref="PixelState"/>'s state needs a stencil (<see cref="ShaderPipelineState.NeedsStencil"/>). Throws as
-	/// <see cref="PixelState"/> does.
+	/// Whether <see cref="PixelState(ShaderFile, string, ReadOnlySpan{int})"/>'s state needs a stencil
+	/// (<see cref="ShaderPipelineState.NeedsStencil"/>). Throws as it does.
 	/// </summary>
-	public bool NeedsStencil( ShaderFile shader, string mode, ReadOnlySpan<int> features ) => PixelState( shader, mode, features )?.NeedsStencil == true;
+	public bool NeedsStencil( ShaderFile shader, string mode, ReadOnlySpan<int> features ) => NeedsStencil( shader, mode, features, out _ );
+
+	/// <summary>
+	/// <see cref="NeedsStencil(ShaderFile, string, ReadOnlySpan{int})"/>, false with <paramref name="pending"/> while the shader
+	/// recompiles in the background: the answer isn't known yet.
+	/// </summary>
+	public bool NeedsStencil( ShaderFile shader, string mode, ReadOnlySpan<int> features, out bool pending ) => PixelState( shader, mode, features, out pending )?.NeedsStencil == true;
 
 	/// <summary>
 	/// Where shaders that have source modules are compiled from (pass modules: docs/managed/shader-format-replacement.md);

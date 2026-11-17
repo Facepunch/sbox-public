@@ -155,6 +155,7 @@ internal sealed class BorealisGpuWindow : IDisposable
 	/// </summary>
 	public bool BeginFrame( Color background )
 	{
+		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		if ( target is null ) return false;
 		backend.BeforeAcquire( swapChain );
 		if ( !swapChain.Acquire( out _ ) ) return false;
@@ -199,6 +200,7 @@ internal sealed class BorealisGpuWindow : IDisposable
 	/// </summary>
 	public void EndFrame( Action draw, bool screenshots = true )
 	{
+		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		try
 		{
 			overlay ??= new BorealisGpuView( backend );
@@ -224,6 +226,7 @@ internal sealed class BorealisGpuWindow : IDisposable
 	/// </summary>
 	public bool PresentFrame()
 	{
+		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		if ( !swapChain.Current.IsValid ) return false;
 		try
 		{

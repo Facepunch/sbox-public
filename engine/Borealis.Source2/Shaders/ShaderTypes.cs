@@ -202,6 +202,14 @@ public sealed class ShaderVariable
 	/// <summary>Its compiled expression, for expression sources.</summary>
 	public byte[] Expression { get; init; }
 
+	/// <summary>
+	/// The <see cref="AttributeIds"/> id of the name it binds by: its attribute, else its own name (a material value's). Made
+	/// on first use and kept.
+	/// </summary>
+	public int BindingId => bindingId >= 0 ? bindingId : bindingId = AttributeIds.Of( string.IsNullOrEmpty( Attribute ) ? Name ?? "" : Attribute );
+
+	int bindingId = -1;
+
 	/// <summary>Whether it's a texture of some dimension.</summary>
 	public bool IsTexture => Type is VariableType.Texture1D or VariableType.Texture2D or VariableType.Texture3D or VariableType.TextureCube
 		or VariableType.TextureCubeArray or VariableType.Texture2DArray or VariableType.Texture1DArray or VariableType.Texture3DArray;

@@ -49,6 +49,17 @@ public partial class RenderAttributes
 	internal static RenderAttributes CreateManaged() => new( new ManagedRenderAttributes() );
 
 	/// <summary>
+	/// A constant buffer's bytes as <see cref="SetData{T}(in StringToken, T[])"/> sets them, without the copy on a managed set:
+	/// the caller keeps <paramref name="data"/> unchanged while the set is drawn with (a Borealis.Gpu frame's view constants,
+	/// which live as long as its block). A native set takes a copy as usual.
+	/// </summary>
+	internal void SetDataShared( in StringToken k, byte[] data )
+	{
+		if ( Managed is not null ) Managed.SetObject( k, data );
+		else SetData( k, data );
+	}
+
+	/// <summary>
 	/// An attribute set for the device being recorded for (<see cref="Graphics.SetRecordingBackend"/>, else the
 	/// process's): native on Source 2's, as <c>new RenderAttributes()</c> makes, managed on another, so a recording for
 	/// that device (a post process's command list under <c>-borealisgpu</c>) can draw with it.
