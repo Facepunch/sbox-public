@@ -660,6 +660,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Shaders.UpgradeCache = Path.Combine( game, ".source2", "borealisshaderupgrade" );
 		Shaders.UpgraderVersion = $"{File.GetLastWriteTimeUtc( compiler ).Ticks}";
 		Shaders.Upgrader = ( source, output ) => RunShaderCompiler( compiler, game, ["--recompile", source, "-q", "--out", output] );
+
+		// In the game, on a worker: its materials draw nothing until it's done, rather than the frame waiting seconds for it
+		Shaders.UpgradeInBackground = SurfaceShaders.CompileInBackgroundByDefault;
 	}
 
 	static bool RunShaderCompiler( string compiler, string workingDirectory, string[] arguments )

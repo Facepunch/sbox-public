@@ -486,14 +486,15 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 
 	/// <summary>
 	/// Whether <see cref="NeedsStencil"/> makes the forward and depth variants to read their state, as it did, rather than
-	/// reading the state alone (<see cref="ShaderLibrary.PixelState"/>). For comparisons.
+	/// reading the state alone (<see cref="ShaderLibrary.PixelState(ShaderFile, string, ReadOnlySpan{int})"/>). For comparisons.
 	/// </summary>
 	public static bool StencilFromVariants { get; set; }
 
 	/// <summary>
 	/// Whether its forward or depth variant (no dynamic combos set, as the scene's meshes mostly draw it) needs a stencil:
 	/// <see cref="ShaderPipelineState.NeedsStencil"/>, read from the shader without making the variants
-	/// (<see cref="ShaderLibrary.NeedsStencil"/>). Read once, then kept until it's loaded again.
+	/// (<see cref="ShaderLibrary.NeedsStencil(ShaderFile, string, ReadOnlySpan{int}, out bool)"/>). Read once, then kept until
+	/// it's loaded again; not kept while its shader recompiles in the background.
 	/// </summary>
 	public override bool NeedsStencil
 	{
@@ -508,12 +509,20 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 			lock ( variantsGate ) (shader, features) = (Shader, Features);
 
 			var needs = false;
+			var pending = false;
 			using var zone = Zones.StencilCheck.Start();
 			foreach ( var mode in StencilModes )
 			{
 				try
 				{
-					needs |= StencilFromVariants ? Variant( library, mode, mode, static _ => null, static _ => null )?.State.NeedsStencil == true : library.NeedsStencil( shader, mode, features );
+					if ( StencilFromVariants )
+					{
+						needs |= Variant( library, mode, mode, static _ => null, static _ => null )?.State.NeedsStencil == true;
+						continue;
+					}
+
+					needs |= library.NeedsStencil( shader, mode, features, out var upgrading );
+					pending |= upgrading;
 				}
 				catch ( System.IO.InvalidDataException )
 				{
@@ -521,7 +530,7 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 				}
 			}
 
-			Volatile.Write( ref needsStencil, needs ? 1 : 0 );
+			if ( !pending ) Volatile.Write( ref needsStencil, needs ? 1 : 0 );
 			return needs;
 		}
 	}
