@@ -164,6 +164,11 @@ public sealed unsafe partial class Device : IDisposable
 		{
 			PhysicalDevice = ChooseAdapter( options.PreferredAdapter, out var properties );
 			Limits = properties.limits;
+			VkPhysicalDeviceMemoryProperties memory;
+			Instance.vkGetPhysicalDeviceMemoryProperties( PhysicalDevice, &memory );
+			ulong deviceLocal = 0;
+			for ( int i = 0; i < memory.memoryHeapCount; i++ )
+				if ( (memory.Heap( i ).flags & Vulkan.Vk.HeapDeviceLocal) != 0 ) deviceLocal += memory.Heap( i ).size;
 			Adapter = new AdapterInfo
 			{
 				Name = Utf8( properties.deviceName, 256 ),
@@ -173,6 +178,8 @@ public sealed unsafe partial class Device : IDisposable
 				Integrated = properties.deviceType == 1,
 				Software = properties.deviceType == 4,
 				ApiVersion = $"{Vulkan.Vk.ApiMajor( properties.apiVersion )}.{Vulkan.Vk.ApiMinor( properties.apiVersion )}.{Vulkan.Vk.ApiPatch( properties.apiVersion )}",
+				DriverVersion = AdapterInfo.DecodeDriverVersion( properties.vendorID, properties.driverVersion ),
+				DeviceLocalBytes = deviceLocal,
 			};
 
 			if ( Limits.maxBoundDescriptorSets < ShaderAbi.SetCount )
@@ -189,8 +196,6 @@ public sealed unsafe partial class Device : IDisposable
 			var properties2 = new VkPhysicalDeviceProperties2 { sType = VkStructureType.PhysicalDeviceProperties2, pNext = &indexing };
 			Instance.vkGetPhysicalDeviceProperties2( PhysicalDevice, &properties2 );
 
-			VkPhysicalDeviceMemoryProperties memory;
-			Instance.vkGetPhysicalDeviceMemoryProperties( PhysicalDevice, &memory );
 			Allocator = new MemoryAllocator( Vk, memory, Adapter.Integrated );
 
 			var bindlessTextures = (int)Math.Min( 65536u, Math.Min( indexing.maxDescriptorSetUpdateAfterBindSampledImages, indexing.maxPerStageDescriptorUpdateAfterBindSampledImages ) / 2 * 2 );
