@@ -13,6 +13,16 @@ public class SceneRenderingWidget : Frame
 	internal SwapChainHandle_t SwapChain;
 	bool renderingStopped;
 
+	// With -borealisgpu: the widget presents on Borealis.Gpu, a swap chain on its native window, in place of Source 2's
+	// (docs/managed/borealis-gpu-path.md, the editor)
+	BorealisGpuWindow borealis;
+
+	/// <summary>Whether the widget draws and presents on Borealis.Gpu.</summary>
+	internal bool OnBorealisGpu => borealis is not null;
+
+	/// <summary>The texture the widget's last frame on Borealis.Gpu was drawn into, as it was presented. Null on Source 2.</summary>
+	internal Texture BorealisGpuTarget => borealis?.Target;
+
 	/// <summary>
 	/// The active scene that we're rendering
 	/// </summary>
@@ -48,7 +58,12 @@ public class SceneRenderingWidget : Frame
 		// SwapChain, the Qt paint path serves no purpose and can be suppressed entirely.
 		OnPaintOverride = () => true;
 
-		SwapChain = WidgetUtil.CreateSwapChain( _widget, RenderSettings.Instance.AntiAliasQuality.ToEngine() );
+		var aa = RenderSettings.Instance.AntiAliasQuality.ToEngine();
+		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu )
+			borealis = BorealisGpuWindow.FromNativeWindow( gpu, _widget.winId(), Size * DpiScale, vsync: false );
+
+		if ( borealis is not null ) borealis.Samples = SampleCount( aa );
+		else SwapChain = WidgetUtil.CreateSwapChain( _widget, aa );
 		RenderSettings.Instance.OnVideoSettingsChanged += HandleVideoChanged;
 
 		FocusMode = FocusMode.Click; // If we're focused we're probably accepting input, don't let tab blur us
@@ -63,6 +78,18 @@ public class SceneRenderingWidget : Frame
 	}
 
 	internal override void NativeDestroying() => ReleaseSwapChain();
+
+	internal override void OnWinIdChanged()
+	{
+		base.OnWinIdChanged();
+		if ( borealis is null || renderingStopped ) return;
+
+		// Qt gave the widget a new native window (it was docked or undocked): the swap chain moves to it
+		var samples = borealis.Samples;
+		borealis.Dispose();
+		borealis = BorealisGpuWindow.FromNativeWindow( (BorealisGpuRenderBackend)RenderBackend.Default, _widget.winId(), Size * DpiScale, vsync: false );
+		if ( borealis is not null ) borealis.Samples = samples;
+	}
 
 	internal static void ShutdownRendering()
 	{
@@ -79,6 +106,10 @@ public class SceneRenderingWidget : Frame
 			GameMode.ClearPlayMode();
 
 		RenderSettings.Instance.OnVideoSettingsChanged -= HandleVideoChanged;
+
+		// Destroying the swap chain waits for the device: the native window is still alive
+		borealis?.Dispose();
+		borealis = null;
 
 		if ( SwapChain == default ) return;
 		// Finish outstanding rendering while the native window is still alive.
@@ -121,7 +152,7 @@ public class SceneRenderingWidget : Frame
 		if ( !this.IsValid() )
 			return;
 
-		if ( SwapChain == default ) return;
+		if ( SwapChain == default && borealis is null ) return;
 
 		var sceneCamera = GetSceneCamera();
 		if ( sceneCamera is not null )
@@ -189,6 +220,12 @@ public class SceneRenderingWidget : Frame
 		if ( !Scene.IsValid() ) return;
 		if ( !Visible ) return;
 
+		if ( borealis is not null )
+		{
+			RenderOnBorealisGpu();
+			return;
+		}
+
 		if ( SwapChain == default ) return;
 
 		using ( Scene.PushScope() )
@@ -209,6 +246,46 @@ public class SceneRenderingWidget : Frame
 
 		g_pRenderDevice.Present( SwapChain );
 	}
+
+	/// <summary>
+	/// A frame on Borealis.Gpu, as the game window draws one: the camera (or the scene's) draws into the widget's target
+	/// (<see cref="BorealisGpuWindow.Drawing"/>), then the play widget's overlay, in the block that copies it into the
+	/// acquired image, which is presented straight after. A widget with no pixels draws nothing.
+	/// </summary>
+	void RenderOnBorealisGpu()
+	{
+		using var _ = FrameTiming.Scope();
+		if ( !borealis.Update( Size * DpiScale ) ) return;
+
+		var play = GameMode.IsPlayWidget( this );
+		using ( Scene.PushScope() )
+		{
+			using ( GizmoInstance.PushScope() )
+			{
+				PreFrame();
+				if ( !borealis.BeginFrame( Color.Black ) ) return;
+
+				try
+				{
+					RenderScene();
+				}
+				finally
+				{
+					borealis.EndFrame( play ? Graphics.RenderOverlay : NoOverlay, screenshots: play );
+				}
+			}
+		}
+
+		borealis.PresentFrame();
+	}
+
+	static readonly Action NoOverlay = () => { };
+
+	// Where a widget's frame on Borealis.Gpu goes, in the dev tools' timings
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings FrameTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu widget" );
+
+	/// <summary>Samples per pixel the widget's scenes render with on Borealis.Gpu: the setting, as the device allows it.</summary>
+	static int SampleCount( NativeEngine.RenderMultisampleType multisample ) => Graphics.RenderMultiSampleToNum( NativeEngine.RenderDeviceManager.GetBestMultisampleType( multisample ) );
 
 	private void UpdateGizmoInputs( ref Gizmo.Inputs input, SceneCamera camera, bool hasMouseFocus )
 	{
@@ -275,6 +352,12 @@ public class SceneRenderingWidget : Frame
 	{
 		if ( renderingStopped ) return;
 		var aa = RenderSettings.Instance.AntiAliasQuality.ToEngine();
+
+		if ( borealis is not null )
+		{
+			borealis.Samples = SampleCount( aa );
+			return;
+		}
 
 		if ( SwapChain == default )
 		{

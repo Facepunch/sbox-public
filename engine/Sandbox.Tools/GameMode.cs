@@ -45,7 +45,7 @@ public static class GameMode
 
 		// The play widget is where the game renders, so make it the main window: flip the existing
 		// m_bIsMainWindow flag so GetGPUFrameTimeMS reports the running game's GPU frame time.
-		g_pRenderDevice.SetSwapChainIsMainWindow( widget.SwapChain, true );
+		if ( widget.SwapChain != default ) g_pRenderDevice.SetSwapChainIsMainWindow( widget.SwapChain, true );
 
 		_inPlay = widget;
 
@@ -83,7 +83,7 @@ public static class GameMode
 		_playWindow = default;
 		PlayWindow = default;
 
-		g_pRenderDevice.SetSwapChainIsMainWindow( widget.SwapChain, false );
+		if ( widget.SwapChain != default ) g_pRenderDevice.SetSwapChainIsMainWindow( widget.SwapChain, false );
 	}
 
 	/// <summary>
