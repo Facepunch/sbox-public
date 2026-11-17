@@ -55,7 +55,7 @@ public partial class RenderAttributes
 	/// </summary>
 	internal void SetDataShared( in StringToken k, byte[] data )
 	{
-		if ( Managed is not null ) Managed.SetObject( k, data );
+		if ( Managed is not null ) Managed.SetShared( k, data );
 		else SetData( k, data );
 	}
 
@@ -70,63 +70,222 @@ public partial class RenderAttributes
 /// <summary>
 /// Render attribute values by token, as a backend that lowers them itself reads them: numbers and vectors as floats
 /// (a matrix as 16, in memory order: M11, M12 ... M44), textures with a mip, buffers, samplers, constant buffer bytes,
-/// and combos.
+/// and combos. Setting a value again reuses its array (and a cleared value's), so a set filled every frame allocates
+/// nothing in steady state: readers read the values they're handed before they're set again, and keep none.
 /// </summary>
 internal sealed class ManagedRenderAttributes
 {
 	/// <summary>A texture and the mip bound (-1 for all).</summary>
 	public readonly record struct TextureValue( Texture Texture, int Mip );
 
-	readonly Dictionary<uint, object> values = new();
-	readonly Dictionary<uint, int> combos = new();
+	/// <summary>A value or combo and the <see cref="Version"/> it was last set at.</summary>
+	public struct Entry<T>
+	{
+		public T Value;
+		public int Stamp;
+	}
+
+	readonly Dictionary<uint, Entry<object>> values = new();
+	readonly Dictionary<uint, Entry<int>> combos = new();
+
+	// Arrays and texture boxes that cleared or replaced values left, by token, reused when the token is set again; boxes
+	// (which hold their texture) only until the next clear
+	readonly Dictionary<uint, object> spare = new();
+
+	// Constant buffer bytes set without a copy (SetShared): the caller's, never written or reused here
+	readonly HashSet<uint> borrowed = new();
 
 	/// <summary>Every value by token: <c>float[]</c>, <see cref="TextureValue"/>, <see cref="GpuBuffer"/>, <c>SamplerState</c>, <c>byte[]</c> or a string.</summary>
-	public IReadOnlyDictionary<uint, object> Values => values;
+	public Entries<object> Values => new( values, int.MinValue );
 
 	/// <summary>Every combo by token.</summary>
-	public IReadOnlyDictionary<uint, int> Combos => combos;
+	public Entries<int> Combos => new( combos, int.MinValue );
+
+	/// <summary>The values set after <see cref="Version"/> was <paramref name="version"/>.</summary>
+	public Entries<object> ValuesSince( int version ) => new( values, version );
+
+	/// <summary>The combos set after <see cref="Version"/> was <paramref name="version"/>.</summary>
+	public Entries<int> CombosSince( int version ) => new( combos, version );
 
 	/// <summary>Changes whenever a value or combo is set or cleared, for a reader that converts them only when they change.</summary>
 	public int Version { get; private set; }
 
-	public void Set( StringToken k, params float[] value )
+	public void Set( StringToken k, params ReadOnlySpan<float> value )
 	{
-		values[k.Value] = value;
-		Version++;
+		var array = Array<float>( k.Value, value.Length );
+		value.CopyTo( array );
+		Put( k.Value, array, ++Version );
+		Own( k.Value );
+	}
+
+	public void Set( StringToken k, in Matrix value ) => Set( k, MemoryMarshal.Cast<Matrix, float>( new ReadOnlySpan<Matrix>( in value ) ) );
+
+	/// <summary>A constant buffer's bytes, copied.</summary>
+	public void SetBytes( StringToken k, ReadOnlySpan<byte> data )
+	{
+		var array = Array<byte>( k.Value, data.Length );
+		data.CopyTo( array );
+		Put( k.Value, array, ++Version );
+		Own( k.Value );
+	}
+
+	/// <summary>A constant buffer's bytes without a copy: the caller keeps them unchanged while the set is drawn with.</summary>
+	public void SetShared( StringToken k, byte[] data )
+	{
+		Put( k.Value, data, ++Version );
+		borrowed.Add( k.Value );
+	}
+
+	/// <summary>A texture and mip; null clears it. The same texture and mip as before keeps the value boxed then.</summary>
+	public void SetTexture( StringToken k, Texture texture, int mip )
+	{
+		if ( texture is null )
+		{
+			SetObject( k, null );
+			return;
+		}
+
+		var value = new TextureValue( texture, mip );
+		object boxed;
+		if ( values.TryGetValue( k.Value, out var current ) && current.Value is TextureValue now && now == value ) boxed = current.Value;
+		else if ( spare.Remove( k.Value, out var old ) && old is TextureValue left && left == value ) boxed = old;
+		else boxed = value;
+
+		Put( k.Value, boxed, ++Version );
+		Own( k.Value );
 	}
 
 	public void SetObject( StringToken k, object value )
 	{
-		if ( value is null ) values.Remove( k.Value );
-		else values[k.Value] = value;
-		Version++;
-	}
+		if ( value is null )
+		{
+			if ( values.Remove( k.Value, out var old ) ) Keep( k.Value, old.Value );
+			Own( k.Value );
+			Version++;
+			return;
+		}
 
-	public void Set( StringToken k, in Matrix value ) => Set( k, MemoryMarshal.Cast<Matrix, float>( new ReadOnlySpan<Matrix>( in value ) ).ToArray() );
+		Put( k.Value, value, ++Version );
+
+		// Bytes from outside stay the caller's
+		if ( value is byte[] ) borrowed.Add( k.Value );
+		else Own( k.Value );
+	}
 
 	public void SetCombo( StringToken k, int value )
 	{
-		combos[k.Value] = value;
-		Version++;
+		combos[k.Value] = new Entry<int> { Value = value, Stamp = ++Version };
 	}
 
-	public object Get( StringToken k ) => values.GetValueOrDefault( k.Value );
-	public int? GetCombo( StringToken k ) => combos.TryGetValue( k.Value, out var value ) ? value : null;
+	public object Get( StringToken k ) => values.TryGetValue( k.Value, out var entry ) ? entry.Value : null;
+	public int? GetCombo( StringToken k ) => combos.TryGetValue( k.Value, out var entry ) ? entry.Value : null;
 
-	public float[] GetFloats( StringToken k ) => values.GetValueOrDefault( k.Value ) as float[];
+	public float[] GetFloats( StringToken k ) => Get( k ) as float[];
 
 	public void Clear()
 	{
+		// Boxes left at the last clear and not taken since go, so they don't keep their textures
+		foreach ( var (k, old) in spare )
+		{
+			if ( old is TextureValue ) spare.Remove( k );
+		}
+
+		foreach ( var (k, entry) in values ) Keep( k, entry.Value );
 		values.Clear();
 		combos.Clear();
+		borrowed.Clear();
 		Version++;
 	}
 
 	/// <summary>Copy every value and combo into <paramref name="other"/>, replacing those of the same token.</summary>
 	public void MergeTo( ManagedRenderAttributes other )
 	{
-		foreach ( var (k, v) in values ) other.values[k] = v;
-		foreach ( var (k, v) in combos ) other.combos[k] = v;
-		other.Version++;
+		if ( ReferenceEquals( other, this ) ) return;
+
+		var stamp = ++other.Version;
+		foreach ( var (k, entry) in values )
+		{
+			// Arrays go into the other set's own, so setting them again here doesn't change them there
+			switch ( entry.Value )
+			{
+				case float[] floats:
+					other.Put( k, other.Copy( k, floats ), stamp );
+					other.Own( k );
+					break;
+				case byte[] bytes when borrowed.Contains( k ):
+					other.Put( k, bytes, stamp );
+					other.borrowed.Add( k );
+					break;
+				case byte[] bytes:
+					other.Put( k, other.Copy( k, bytes ), stamp );
+					other.Own( k );
+					break;
+				default:
+					other.Put( k, entry.Value, stamp );
+					other.Own( k );
+					break;
+			}
+		}
+
+		foreach ( var (k, entry) in combos ) other.combos[k] = new Entry<int> { Value = entry.Value, Stamp = stamp };
+	}
+
+	T[] Copy<T>( uint k, T[] source )
+	{
+		var array = Array<T>( k, source.Length );
+		source.AsSpan().CopyTo( array );
+		return array;
+	}
+
+	// An array of this length for k's value that only this set holds: its value's, else one a cleared value left, else new
+	T[] Array<T>( uint k, int length )
+	{
+		if ( values.TryGetValue( k, out var current ) && current.Value is T[] array && array.Length == length && Owns( k, array ) ) return array;
+		if ( spare.Remove( k, out var old ) && old is T[] kept && kept.Length == length ) return kept;
+		return length == 0 ? [] : new T[length];
+	}
+
+	void Put( uint k, object value, int stamp )
+	{
+		ref var entry = ref CollectionsMarshal.GetValueRefOrAddDefault( values, k, out var existed );
+		if ( existed && !ReferenceEquals( entry.Value, value ) ) Keep( k, entry.Value );
+		entry.Value = value;
+		entry.Stamp = stamp;
+	}
+
+	// A value this set made (numbers' and copied bytes' arrays, texture boxes) waits to be reused for its token
+	void Keep( uint k, object old )
+	{
+		if ( old is float[] or TextureValue || (old is byte[] && !borrowed.Contains( k )) ) spare[k] = old;
+	}
+
+	bool Owns( uint k, object value ) => value is not byte[] || !borrowed.Contains( k );
+
+	void Own( uint k )
+	{
+		if ( borrowed.Count > 0 ) borrowed.Remove( k );
+	}
+
+	/// <summary>Values or combos by token, those set after a version, enumerated without allocating.</summary>
+	public readonly struct Entries<T>( Dictionary<uint, Entry<T>> map, int since )
+	{
+		public Enumerator GetEnumerator() => new( map.GetEnumerator(), since );
+
+		public struct Enumerator( Dictionary<uint, Entry<T>>.Enumerator inner, int since )
+		{
+			Dictionary<uint, Entry<T>>.Enumerator inner = inner;
+
+			public KeyValuePair<uint, T> Current => new( inner.Current.Key, inner.Current.Value.Value );
+
+			public bool MoveNext()
+			{
+				while ( inner.MoveNext() )
+				{
+					if ( inner.Current.Value.Stamp > since ) return true;
+				}
+
+				return false;
+			}
+		}
 	}
 }

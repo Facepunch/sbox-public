@@ -22,6 +22,48 @@ public sealed class ShaderAttributes
 	/// <summary>Constants: a number, a vector or a matrix, as floats.</summary>
 	public void Set( string name, params float[] value ) => Put( AttributeIds.Of( name ), value );
 
+	/// <summary>
+	/// A single number: kept in a one-float array this set owns for the name and reuses, so setting numbers every draw
+	/// allocates nothing. The array holds the latest value set; read it before setting the name again.
+	/// </summary>
+	public void Set( string name, float value ) => Owned( name, 1 )[0] = value;
+
+	/// <summary>A two-component vector, kept as <see cref="Set(string, float)"/> keeps a number.</summary>
+	public void Set( string name, float x, float y )
+	{
+		var array = Owned( name, 2 );
+		(array[0], array[1]) = (x, y);
+	}
+
+	/// <summary>A three-component vector, kept as <see cref="Set(string, float)"/> keeps a number.</summary>
+	public void Set( string name, float x, float y, float z )
+	{
+		var array = Owned( name, 3 );
+		(array[0], array[1], array[2]) = (x, y, z);
+	}
+
+	/// <summary>A four-component vector, kept as <see cref="Set(string, float)"/> keeps a number.</summary>
+	public void Set( string name, float x, float y, float z, float w )
+	{
+		var array = Owned( name, 4 );
+		(array[0], array[1], array[2], array[3]) = (x, y, z, w);
+	}
+
+	// Arrays of 1-4 floats this set owns, by component count and attribute id, reused for every set of the name
+	readonly float[][][] owned = [[], [], [], []];
+
+	bool Owns( int id, float[] array ) => owned[array.Length - 1] is var arrays && id < arrays.Length && ReferenceEquals( arrays[id], array );
+
+	float[] Owned( string name, int components )
+	{
+		var id = AttributeIds.Of( name );
+		ref var arrays = ref owned[components - 1];
+		if ( id >= arrays.Length ) Array.Resize( ref arrays, Math.Max( Math.Max( arrays.Length * 2, 64 ), AttributeIds.Count ) );
+		var array = arrays[id] ??= new float[components];
+		Put( id, array );
+		return array;
+	}
+
 	/// <summary>A structured or byte-address buffer.</summary>
 	public void Set( string name, BufferHandle buffer ) => Put( AttributeIds.Of( name ), Box( bufferBoxes, buffer ) );
 
@@ -71,12 +113,34 @@ public sealed class ShaderAttributes
 	/// <summary>A combo's value, or null when it wasn't set.</summary>
 	public int? GetCombo( string name ) => combos.TryGetValue( name, out var value ) ? value : null;
 
-	/// <summary>Every value set, by name.</summary>
-	public IEnumerable<KeyValuePair<string, object>> Values
+	/// <summary>Every value set, by name, in the order first set: a foreach over it allocates nothing.</summary>
+	public SetValues Values => new( this );
+
+	/// <summary>The values of a <see cref="ShaderAttributes"/>, enumerated without allocating.</summary>
+	public readonly struct SetValues( ShaderAttributes attributes ) : IEnumerable<KeyValuePair<string, object>>
 	{
-		get
+		/// <summary>An enumerator over the values, by name.</summary>
+		public Enumerator GetEnumerator() => new( attributes );
+		IEnumerator<KeyValuePair<string, object>> IEnumerable<KeyValuePair<string, object>>.GetEnumerator() => GetEnumerator();
+		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+		/// <summary>Goes through the values in the order first set.</summary>
+		public struct Enumerator( ShaderAttributes attributes ) : IEnumerator<KeyValuePair<string, object>>
 		{
-			for ( int i = 0; i < set.Count; i++ ) yield return new( AttributeIds.NameOf( set[i] ), slots[set[i]] );
+			int index = -1;
+
+			/// <summary>The value and its name.</summary>
+			public readonly KeyValuePair<string, object> Current => new( AttributeIds.NameOf( attributes.set[index] ), attributes.slots[attributes.set[index]] );
+			readonly object System.Collections.IEnumerator.Current => Current;
+
+			/// <summary>On to the next value.</summary>
+			public bool MoveNext() => ++index < attributes.set.Count;
+
+			/// <summary>Back to before the first value.</summary>
+			public void Reset() => index = -1;
+
+			/// <summary>Nothing to release.</summary>
+			public readonly void Dispose() { }
 		}
 	}
 
@@ -114,7 +178,8 @@ public sealed class ShaderAttributes
 	/// <summary>Add <paramref name="other"/>'s values and combos, replacing any of the same name.</summary>
 	public void Merge( ShaderAttributes other )
 	{
-		foreach ( var id in other.set ) Put( id, other.slots[id] );
+		// Arrays the other set reuses for its numbers are copied: setting them there again mustn't change this set
+		foreach ( var id in other.set ) Put( id, other.slots[id] is float[] { Length: >= 1 and <= 4 } floats && other.Owns( id, floats ) ? (float[])floats.Clone() : other.slots[id] );
 		foreach ( var (name, value) in other.combos ) combos[name] = value;
 	}
 
@@ -802,7 +867,7 @@ public sealed class ShaderDrawer : IDisposable
 			if ( !variant.Sets[set].IsValid ) continue;
 
 			var count = 0;
-			foreach ( var resource in variant.Resources )
+			foreach ( var resource in variant.ResourceSpan )
 			{
 				if ( resource.Set != set ) continue;
 				if ( count == bindings.Length ) throw new InvalidOperationException( $"{variant} binds more than {bindings.Length} resources in set {set}" );

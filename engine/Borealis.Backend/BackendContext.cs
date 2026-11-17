@@ -1051,6 +1051,49 @@ internal sealed partial class BackendContext : GpuContext
 	/// <summary>
 	/// An attribute as floats, for constants: numbers, bools, vectors and matrices (in the order view constants hold them).
 	/// </summary>
+	/// <summary>
+	/// <see cref="Floats"/> into an array this thread reuses for the count, so reading attributes every pass allocates
+	/// nothing: the caller reads it before its next call.
+	/// </summary>
+	internal static float[] ScratchFloats( object value )
+	{
+		switch ( value )
+		{
+			case int i: return Scratch( 1, i );
+			case uint u: return Scratch( 1, u );
+			case float f: return Scratch( 1, f );
+			case bool b: return Scratch( 1, b ? 1 : 0 );
+			case Vector2 v: return Scratch( 2, v.x, v.y );
+			case Vector3 v: return Scratch( 3, v.x, v.y, v.z );
+			case Vector4 v: return Scratch( 4, v.x, v.y, v.z, v.w );
+			case Color c: return Scratch( 4, c.r, c.g, c.b, c.a );
+			case Vector2Int v: return Scratch( 2, v.x, v.y );
+			case Matrix m:
+				var a = Scratch( 16 );
+				(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]) = (m.M11, m.M12, m.M13, m.M14, m.M21, m.M22, m.M23, m.M24);
+				(a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15]) = (m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44);
+				return a;
+			default: return Floats( value );
+		}
+	}
+
+	[ThreadStatic] static float[][] scratchFloats;
+
+	static float[] Scratch( int count, float x = 0, float y = 0, float z = 0, float w = 0 )
+	{
+		scratchFloats ??= new float[17][];
+		var array = scratchFloats[count] ??= new float[count];
+		if ( count <= 4 )
+		{
+			array[0] = x;
+			if ( count > 1 ) array[1] = y;
+			if ( count > 2 ) array[2] = z;
+			if ( count > 3 ) array[3] = w;
+		}
+
+		return array;
+	}
+
 	static float[] Floats( object value ) => value switch
 	{
 		int i => [i],
@@ -1082,7 +1125,7 @@ internal sealed partial class BackendContext : GpuContext
 			if ( set == ShaderAbi.FragmentSet && depthOnly ) continue;
 
 			var count = 0;
-			foreach ( var resource in variant.Resources )
+			foreach ( var resource in variant.ResourceSpan )
 			{
 				if ( resource.Set != set ) continue;
 				if ( count == bindings.Length ) throw new InvalidOperationException( $"{variant} binds more than {bindings.Length} resources in set {set}" );

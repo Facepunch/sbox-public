@@ -83,6 +83,19 @@ public class DeviceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A dispatch of a negative count or past the device's group limit throws before it's recorded: Vulkan would read a
+	/// negative count as billions of groups and keep the GPU busy until the device is lost.
+	/// </summary>
+	[TestMethod]
+	public void DispatchOutsideTheGroupRangeThrows()
+	{
+		var list = Device.BeginCommandList();
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => list.Dispatch( -1 ) );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => list.Dispatch( 1, int.MaxValue ) );
+		Device.Wait( Device.Submit( list ) );
+	}
+
+	/// <summary>
 	/// A cleared target reads back as exactly the clear colour.
 	/// </summary>
 	[TestMethod]
