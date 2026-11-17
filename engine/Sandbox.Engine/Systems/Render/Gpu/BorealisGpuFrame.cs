@@ -20,6 +20,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 {
 	static readonly StringToken ViewConstantsName = new( "PerViewConstantBuffer_t" );
 	static readonly StringToken DepthChainName = new( "DepthChainDownsample" );
+	static readonly StringToken FogVolumeName = new( "FogVolume" );
 	static readonly StringToken DepthChainPrevFrameName = new( "DepthChainDownsamplePrevFrame" );
 	static readonly StringToken NormalsName = new( "NormalsGBuffer" );
 
@@ -148,7 +149,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 	}
 
 	// A stage's targets inside the frame (RunStage): engine textures kept from frame to frame, borrowed for each stage
-	Texture stageColor, stageDepth, stageChain, stageNormals;
+	Texture stageColor, stageDepth, stageChain, stageNormals, stageFog;
 
 	/// <summary>
 	/// Draw a camera's stage inside Borealis's frame while it records it (<c>AfterDepthPrepass</c>, <c>AfterOpaque</c>,
@@ -198,6 +199,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 		var chain = Borrow( ref stageChain, ((BackendParameters)target.Attributes).Get( DepthChainName ) as GpuTexture, ImageFormat.RG3232F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
 		var normals = Borrow( ref stageNormals, target.Normals, ImageFormat.RGBA1010102, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
 
+		// The frame's volumetric fog (or opaque black without it), which the view constants tell forward shaders to read
+		var fog = Borrow( ref stageFog, ((BackendParameters)target.Attributes).Get( FogVolumeName ) as GpuTexture, ImageFormat.RGBA16161616F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
+
 		view.Target = color.Engine is null ? null : RenderTarget.From( color.Engine, depth.Engine );
 		view.DepthSlice = 0;
 
@@ -221,6 +225,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			}
 
 			if ( normals.Engine is not null ) attributes.Set( NormalsName, normals.Engine );
+			if ( fog.Engine is not null ) attributes.Set( FogVolumeName, fog.Engine );
 
 			attributes.Set( "BlueNoise", Texture.Load( "textures/dev/blue_noise_256.vtex" ) );
 			attributes.Set( "QuarterResEffectsBloomInputTexture", Texture.Black );
@@ -229,7 +234,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		finally
 		{
 			// Back to the frame, where the block left them, and no longer the engine's to track
-			foreach ( var (engine, gpu) in (ReadOnlySpan<(Texture, BackendTexture)>)[color, depth, chain, normals] )
+			foreach ( var (engine, gpu) in (ReadOnlySpan<(Texture, BackendTexture)>)[color, depth, chain, normals, fog] )
 			{
 				if ( engine is null ) continue;
 				context.SetLayout( gpu, backend.LayoutOf( engine ) );
