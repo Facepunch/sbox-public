@@ -135,26 +135,8 @@ public sealed class SurfaceShaders : IDisposable
 			string path = null;
 			try
 			{
-				var shaders = CoreShaders();
-				if ( surface is not null )
-				{
-					path = new[] { shaders }.Concat( device.Content.Roots.Select( r => Path.Combine( r, "shaders" ) ) ).Select( f => Path.Combine( f, surface ) ).FirstOrDefault( File.Exists );
-					if ( path is not null ) Watch( Path.GetDirectoryName( path ) );
-				}
-				else if ( File.Exists( Path.Combine( shaders, key + ".shader" ) ) )
-				{
-					var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( shaders, key + ".shader" ) ), key, include => File.Exists( Path.Combine( shaders, include ) ) ? File.ReadAllText( Path.Combine( shaders, include ) ) : null );
-					if ( result.Source is null ) Error?.Invoke( $"{key}.shader: not converted ({string.Join( "; ", result.Notes )})" );
-					else
-					{
-						// Written to the cache, only when it changed, so its compile is cached too
-						var folder = Path.Combine( Compiler().CacheFolder, "converted" );
-						Directory.CreateDirectory( folder );
-						path = Path.Combine( folder, key + ".slang" );
-						var text = result.Source.Replace( "\n", "\r\n" );
-						if ( !File.Exists( path ) || File.ReadAllText( path ) != text ) File.WriteAllText( path, text );
-					}
-				}
+				path = DefaultSurfaceFile( key, surface, CoreShaders(), device.Content.Roots, Path.Combine( Compiler().CacheFolder, "converted" ), Error );
+				if ( surface is not null && path is not null ) Watch( Path.GetDirectoryName( path ) );
 			}
 			catch ( InvalidOperationException e )
 			{
@@ -164,6 +146,38 @@ public sealed class SurfaceShaders : IDisposable
 			return defaultPaths[key] = path;
 		}
 	}
+
+	/// <summary>
+	/// The file of the surface <paramref name="surface"/> drawing the core shader <paramref name="key"/> by default: beside it in
+	/// <paramref name="shaders"/>, else in a content root's shaders; for a null surface, the core <c>.shader</c> converted
+	/// (<see cref="ShaderConverter"/>) and written to <paramref name="converted"/> when it changed. Null when there's none.
+	/// </summary>
+	internal static string DefaultSurfaceFile( string key, string surface, string shaders, IEnumerable<string> roots, string converted, Action<string> error )
+	{
+		if ( surface is not null ) return new[] { shaders }.Concat( roots.Select( r => Path.Combine( r, "shaders" ) ) ).Select( f => Path.Combine( f, surface ) ).FirstOrDefault( File.Exists );
+		if ( !File.Exists( Path.Combine( shaders, key + ".shader" ) ) ) return null;
+
+		var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( shaders, key + ".shader" ) ), key, include => File.Exists( Path.Combine( shaders, include ) ) ? File.ReadAllText( Path.Combine( shaders, include ) ) : null );
+		if ( result.Source is null )
+		{
+			error?.Invoke( $"{key}.shader: not converted ({string.Join( "; ", result.Notes )})" );
+			return null;
+		}
+
+		// Written only when it changed, so its compile is cached too
+		Directory.CreateDirectory( converted );
+		var path = Path.Combine( converted, key + ".slang" );
+		var text = result.Source.Replace( "\n", "\r\n" );
+		if ( !File.Exists( path ) || File.ReadAllText( path ) != text ) File.WriteAllText( path, text );
+		return path;
+	}
+
+	/// <summary>
+	/// Every surface the core shaders' materials are drawn with by default, the converted ones written to
+	/// <paramref name="converted"/>: what the build compiles offline (<see cref="OfflineShaders"/>).
+	/// </summary>
+	internal static List<string> DefaultSurfaceFiles( string shaders, IEnumerable<string> roots, string converted, Action<string> error ) =>
+		DefaultSurfaces.Select( s => DefaultSurfaceFile( s.Key, s.Value, shaders, roots, converted, error ) ).Where( p => p is not null ).Distinct( StringComparer.OrdinalIgnoreCase ).ToList();
 
 	/// <summary>
 	/// A material of the surface in <paramref name="file"/> filled the way a converted <c>.vmat</c> is (see
@@ -319,6 +333,8 @@ public sealed class SurfaceShaders : IDisposable
 			return compiler = new SlangCompiler( EngineFolders.NativeIn( game ), [shaders] )
 			{
 				CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealissurfaces" ),
+				UseOffline = UseOffline,
+				Compiling = what => Info?.Invoke( $"Borealis.Gpu: compiling {what} with Slang at run time (no offline compile)" ),
 			};
 		}
 	}
@@ -336,6 +352,19 @@ public sealed class SurfaceShaders : IDisposable
 	/// unless set before the first compile.
 	/// </summary>
 	public string CacheFolder { get; set; }
+
+	/// <summary>
+	/// Whether compiles read the build's offline compile of each source (<see cref="SlangOutput"/>) first; set before the
+	/// first compile. Off, for tests of compiling itself, and with <c>-no-offline-shaders</c> to compare against run-time
+	/// compiles.
+	/// </summary>
+	public bool UseOffline { get; set; } = !Environment.GetCommandLineArgs().Any( a => a.Equals( "-no-offline-shaders", StringComparison.OrdinalIgnoreCase ) );
+
+	/// <summary>
+	/// Told of each Slang compile here at run time, which the build's offline compile didn't cover: hotload, game code's
+	/// shaders, package shaders. The console's output unless set.
+	/// </summary>
+	public Action<string> Info { get; set; } = message => Console.WriteLine( message );
 
 	readonly List<FileSystemWatcher> watchers = new();
 	readonly List<SurfaceProgram> retired = new();
