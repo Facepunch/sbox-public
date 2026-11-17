@@ -81,6 +81,12 @@ internal sealed class BorealisGpuWindow : IDisposable
 	/// <summary>Where the last camera that drew into the window was, for the title's stats (<see cref="BorealisGpuTitle"/>).</summary>
 	public Vector3? CameraPosition { get; set; }
 
+	/// <summary>
+	/// The window whose GPU time the frame stats report where there's no game window (the editor): its play widget's, else
+	/// its biggest scene view's. Set by the editor each frame.
+	/// </summary>
+	public static BorealisGpuWindow Timed { get; set; }
+
 	/// <summary>Which frame <see cref="GpuFrameMs"/> was, counting from this window's first.</summary>
 	public ulong GpuFrameNumber { get; private set; }
 
@@ -293,6 +299,7 @@ internal sealed class BorealisGpuWindow : IDisposable
 
 	public void Dispose()
 	{
+		if ( Timed == this ) Timed = null;
 		backend.Forget( swapChain );
 		swapChain.Dispose();
 		sdl?.Dispose();
