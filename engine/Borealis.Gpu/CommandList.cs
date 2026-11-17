@@ -879,6 +879,13 @@ public sealed unsafe class CommandList
 		vk.vkCmdDrawIndexed( Handle, (uint)indexCount, (uint)instanceCount, (uint)firstIndex, vertexOffset, (uint)firstInstance );
 	}
 
+	/// <summary>Draw vertices with arguments from a buffer: <paramref name="count"/> draws, <paramref name="stride"/> bytes apart.</summary>
+	public void DrawIndirect( BufferHandle arguments, long offset, int count, int stride = 16 )
+	{
+		BeforeDraw();
+		vk.vkCmdDrawIndirect( Handle, device.Get( arguments ).Buffer, (ulong)offset, (uint)count, (uint)stride );
+	}
+
 	/// <summary>Draw indexed vertices with arguments from a buffer: <paramref name="count"/> draws, <paramref name="stride"/> bytes apart.</summary>
 	public void DrawIndexedIndirect( BufferHandle arguments, long offset, int count, int stride = 20 )
 	{

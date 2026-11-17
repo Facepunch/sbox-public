@@ -392,6 +392,112 @@ public class GraphicsContextTests : GpuTest
 	}
 
 	/// <summary>
+	/// An indexed draw with its counts in an arguments buffer, as <c>Graphics.DrawIndexedInstancedIndirect</c> takes them: 16-bit
+	/// indices bound part way into their buffer, the second draw's arguments (the first's would draw the other quad) picking a
+	/// first index and base vertex of their own.
+	/// </summary>
+	[TestMethod]
+	public void IndirectDrawReads16BitIndicesAndItsArguments()
+	{
+		var list = Device.BeginCommandList( QueueType.Graphics, "Indirect" );
+		var context = new GraphicsContext( Device, drawer, list );
+		var (main, layer) = Targets( context );
+
+		static EngineVertex V( float x, float y, float u, float v ) => new() { Position = new( x, y, 0 ), Color = 0xFFFFFFFF, TexCoord0 = new( u, v, 0, 0 ) };
+		EngineVertex[] vertices = [V( 40, 40, 0, 0 ), V( 56, 40, 1, 0 ), V( 40, 56, 0, 1 ), V( 56, 56, 1, 1 ), V( 16, 8, 0, 0 ), V( 32, 8, 1, 0 ), V( 16, 24, 0, 1 ), V( 32, 24, 1, 1 )];
+		var vertexBuffer = Device.CreateBuffer( new BufferInfo { Size = 76 * vertices.Length, Usage = BufferUsage.Vertex, Name = "Vertices" } );
+		var indexBuffer = Device.CreateBuffer( new BufferInfo { Size = 16 * 2, Usage = BufferUsage.Index, Name = "Indices" } );
+		var arguments = Device.CreateBuffer( new BufferInfo { Size = 40, Usage = BufferUsage.Indirect, Name = "Arguments" } );
+		Device.WriteBuffer<EngineVertex>( vertexBuffer, vertices );
+		Device.WriteBuffer<ushort>( indexBuffer, [9, 9, 9, 9, 0, 1, 2, 2, 1, 3, 9, 9, 9, 9, 9, 9] );
+
+		// Index count, instances, first index, base vertex, first instance: the first draw's would draw the quad at 40, 40
+		Device.WriteBuffer<int>( arguments, [6, 1, 0, 0, 0, 6, 1, 2, 4, 0] );
+
+		Assert.IsTrue( context.Draw( library.Load( "shaders/ui_filter.shader" ), Composite( layer, 16, 8 ), new GeometryDraw
+		{
+			Vertices = vertexBuffer,
+			Layout = VertexStreamLayout.EngineVertex,
+			Indices = indexBuffer,
+			IndexOffset = 4,
+			IndexFormat = IndexFormat.UInt16,
+			Topology = PrimitiveTopology.TriangleList,
+			Arguments = arguments,
+			ArgumentsOffset = 20,
+			DrawCount = 1,
+		} ) );
+
+		var pixels = Finish( context, main );
+		Save( pixels, Size, Size, "graphics-indirect" );
+		Near( (64, 128, 191, 255), Pixel( pixels, Size, 20, 12 ), "inside the drawn quad" );
+		Assert.AreEqual( ((byte)0, (byte)0, (byte)0, (byte)255), Pixel( pixels, Size, 48, 48 ), "where the first draw's quad would be" );
+		context.Release();
+		Device.Destroy( vertexBuffer );
+		Device.Destroy( indexBuffer );
+		Device.Destroy( arguments );
+	}
+
+	/// <summary>
+	/// Vertices of a layout of their own (position, a two-float uv, a float colour, 36 bytes apart, from a byte offset), drawn
+	/// unindexed as <c>Graphics.Draw( GpuBuffer&lt;T&gt; )</c> does, once with its counts here from a first vertex and once with
+	/// them in an arguments buffer: both quads land.
+	/// </summary>
+	[TestMethod]
+	public void VertexBufferDrawsReadTheirLayout()
+	{
+		var list = Device.BeginCommandList( QueueType.Graphics, "Vertex buffer" );
+		var context = new GraphicsContext( Device, drawer, list );
+		var (main, layer) = Targets( context );
+
+		var layout = new VertexStreamLayout( 36,
+			new VertexField( VertexSemantic.Position, 0, VertexFormat.Float3, 0 ),
+			new VertexField( VertexSemantic.TexCoord, 0, VertexFormat.Float2, 12 ),
+			new VertexField( VertexSemantic.Color, 0, VertexFormat.Float4, 20 ) );
+
+		static float[] Quad( float x, float y ) =>
+		[
+			x, y, 0, 0, 0, 1, 1, 1, 1, x + 16, y, 0, 1, 0, 1, 1, 1, 1, x, y + 16, 0, 0, 1, 1, 1, 1, 1,
+			x, y + 16, 0, 0, 1, 1, 1, 1, 1, x + 16, y, 0, 1, 0, 1, 1, 1, 1, x + 16, y + 16, 0, 1, 1, 1, 1, 1, 1,
+		];
+
+		// A float of padding first, then a quad that isn't drawn, then the two that are
+		float[] floats = [0, .. Quad( 0, 40 ), .. Quad( 16, 8 ), .. Quad( 40, 40 )];
+		var vertexBuffer = Device.CreateBuffer( new BufferInfo { Size = floats.Length * 4, Usage = BufferUsage.Vertex, Name = "Vertices" } );
+		var arguments = Device.CreateBuffer( new BufferInfo { Size = 16, Usage = BufferUsage.Indirect, Name = "Arguments" } );
+		Device.WriteBuffer<float>( vertexBuffer, floats );
+
+		// Vertex count, instances, first vertex, first instance
+		Device.WriteBuffer<int>( arguments, [6, 1, 12, 0] );
+
+		var shader = library.Load( "shaders/ui_filter.shader" );
+		var draw = new GeometryDraw { Vertices = vertexBuffer, VertexOffset = 4, Layout = layout, Topology = PrimitiveTopology.TriangleList, First = 6, Count = 6 };
+		Assert.IsTrue( context.Draw( shader, Composite( layer, 16, 8 ), draw ) );
+		Assert.IsTrue( context.Draw( shader, Composite( layer, 40, 40 ), draw with { Arguments = arguments, DrawCount = 1 } ) );
+
+		var pixels = Finish( context, main );
+		Save( pixels, Size, Size, "graphics-vertex-buffer" );
+		Near( (64, 128, 191, 255), Pixel( pixels, Size, 20, 12 ), "the quad drawn from its first vertex" );
+		Near( (64, 128, 191, 255), Pixel( pixels, Size, 48, 48 ), "the quad drawn from its arguments" );
+		Assert.AreEqual( ((byte)0, (byte)0, (byte)0, (byte)255), Pixel( pixels, Size, 8, 48 ), "the quad before them" );
+		context.Release();
+		Device.Destroy( vertexBuffer );
+		Device.Destroy( arguments );
+	}
+
+	/// <summary>A 64-square black main target and a 16-square layer to composite, cleared, with the main one bound.</summary>
+	static (TextureHandle Main, TextureHandle Layer) Targets( GraphicsContext context )
+	{
+		var main = context.CreateTarget( Size, Size, Format.RGBA8Unorm, name: "Main" );
+		var layer = context.CreateTarget( 16, 16, Format.RGBA8Unorm, name: "Layer" );
+		context.SetTarget( main );
+		context.Clear( new Vector4( 0, 0, 0, 1 ) );
+		context.SetTarget( layer );
+		context.Clear( new Vector4( 0.25f, 0.5f, 0.75f, 1 ) );
+		context.SetTarget( main );
+		return (main, layer);
+	}
+
+	/// <summary>
 	/// ui_filter's attributes for drawing <paramref name="texture"/> unfiltered at (<paramref name="x"/>,
 	/// <paramref name="y"/>), as <c>Painter.CompositeLayer</c> sets them for a layer in gamma space.
 	/// </summary>

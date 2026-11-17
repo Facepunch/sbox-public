@@ -289,6 +289,20 @@ public sealed class GraphicsContext
 	}
 
 	/// <summary>
+	/// Draw <paramref name="draw"/>'s geometry into the target (<see cref="ShaderDrawer.Draw(CommandList, ShaderFile, ShaderAttributes, Format, Format, int, in GeometryDraw, Num.Vector4, string)"/>):
+	/// what the engine's vertex-buffer, indexed and indirect draws lower to. With the identity transform unless the draw
+	/// sets its own, as <see cref="DrawVertices"/>.
+	/// </summary>
+	public bool Draw( ShaderFile shader, ShaderAttributes attributes, in GeometryDraw draw )
+	{
+		if ( !ModeOf( shader, out var mode ) ) return false;
+		var depth = BeginScope( shader, attributes, mode );
+		Draws++;
+		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
+		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, draw, Viewport, mode );
+	}
+
+	/// <summary>
 	/// The mode a draw of <paramref name="shader"/> draws: its first (null) when no <see cref="Mode"/> is asked for, else that
 	/// mode's name as the shader spells it. False when the shader has no such mode, and the draw is skipped.
 	/// </summary>
