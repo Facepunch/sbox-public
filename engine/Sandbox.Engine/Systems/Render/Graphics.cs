@@ -56,6 +56,8 @@ public static partial class Graphics
 			_borealisGpu.Services.Surfaces.Warm();
 			_borealisGpu.Services.Passes.Warm();
 			RenderBackend.SetDefault( _borealisGpu );
+			var adapter = _borealisGpu.Device.Adapter;
+			SystemInfo.SetBorealisGpu( adapter.Name, adapter.DriverVersion, adapter.DeviceLocalBytes, adapter.Integrated );
 			Log.Info( $"Rendering on Borealis.Gpu ({_borealisGpu.Device.Adapter.Name}){(validation ? ", validation on" : "")}; memory: {_borealisGpu.Device.DescribeMemory()}" );
 		}
 
