@@ -21,6 +21,36 @@ public static partial class Gizmo
 		static Material SpriteMaterial => field ??= Material.Load( "materials/gizmo/sprite.vmat" );
 		static Material GridMaterial => field ??= Material.Load( "materials/gizmo/grid.vmat" );
 
+		/// <summary>
+		/// Largest section count kept in <see cref="UnitCircle"/>; bigger ones are built per call so arbitrary segment counts can't grow the cache
+		/// </summary>
+		const int MaxCachedCircleSections = 128;
+
+		static readonly Vector2[][] _unitCircles = new Vector2[MaxCachedCircleSections + 1][];
+
+		/// <summary>
+		/// (sin, cos) of <c>i / sections</c> of a full turn for i in 0..sections, so spheres don't do trig per vertex every frame
+		/// </summary>
+		static Vector2[] UnitCircle( int sections )
+		{
+			if ( sections > MaxCachedCircleSections )
+				return BuildUnitCircle( sections );
+
+			return _unitCircles[sections] ??= BuildUnitCircle( sections );
+		}
+
+		static Vector2[] BuildUnitCircle( int sections )
+		{
+			var circle = new Vector2[sections + 1];
+			for ( int i = 0; i <= sections; i++ )
+			{
+				var f = (float)i / sections * MathF.PI * 2;
+				circle[i] = new Vector2( MathF.Sin( f ), MathF.Cos( f ) );
+			}
+
+			return circle;
+		}
+
 		internal GizmoDraw()
 		{
 
@@ -114,11 +144,19 @@ public static partial class Gizmo
 		/// <summary>
 		/// Draw a model
 		/// </summary>
-		public SceneModel Model( Model model, Transform localTransform )
+		public SceneModel Model( Model model, Transform localTransform ) => Model( model, localTransform, false );
+
+		/// <summary>
+		/// Draw a model, choosing whether it casts shadows
+		/// </summary>
+		internal SceneModel Model( Model model, Transform localTransform, bool castShadows )
 		{
 			var tx = Transform.ToWorld( localTransform );
-			var so = Active.FindOrCreate<SceneModel>( $"{model.Name}", () => new SceneModel( World, model, tx ) );
-			so.Flags.CastShadows = false;
+			var so = Active.FindOrCreate( model.Name ?? "", (World, model, tx), static s => new SceneModel( s.World, s.model, s.tx ) );
+
+			if ( so.Flags.CastShadows != castShadows )
+				so.Flags.CastShadows = castShadows;
+
 			so.Model = model;
 			so.ColorTint = Color;
 			so.Transform = tx;

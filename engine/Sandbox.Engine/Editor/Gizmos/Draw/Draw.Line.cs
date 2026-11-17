@@ -133,6 +133,12 @@ public static partial class Gizmo
 		{
 			var so = VertexObject( Graphics.PrimitiveType.Lines, LineMaterial );
 
+			if ( rings < 1 )
+				return;
+
+			var around = UnitCircle( rings );
+			var down = UnitCircle( rings * 2 );
+
 			++rings;
 
 			var vertices = ArrayPool<Vector3>.Shared.Rent( rings * rings );
@@ -144,12 +150,7 @@ public static partial class Gizmo
 			{
 				for ( j = 0; j < rings; ++j )
 				{
-					float u = j / (float)(rings - 1);
-					float v = i / (float)(rings - 1);
-					float t = 2.0f * MathF.PI * u;
-					float p = MathF.PI * v;
-
-					vertices[nOutVert] = new( sphere.Center.x + (sphere.Radius * MathF.Sin( p ) * MathF.Cos( t )), sphere.Center.y + (sphere.Radius * MathF.Sin( p ) * MathF.Sin( t )), sphere.Center.z + (sphere.Radius * MathF.Cos( p )) );
+					vertices[nOutVert] = new( sphere.Center.x + (sphere.Radius * down[i].x * around[j].y), sphere.Center.y + (sphere.Radius * down[i].x * around[j].x), sphere.Center.z + (sphere.Radius * down[i].y) );
 					++nOutVert;
 				}
 			}

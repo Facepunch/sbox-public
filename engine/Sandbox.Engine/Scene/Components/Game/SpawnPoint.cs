@@ -11,19 +11,18 @@
 public sealed class SpawnPoint : Component
 {
 	[Property] public Color Color { get; set; } = "#E3510D";
+
+	Model _gizmoModel;
+
 	protected override void DrawGizmos()
 	{
 		base.DrawGizmos();
 
-		var spawnpointModel = Model.Load( "models/dev/playerstart_tint.vmdl" );
+		var spawnpointModel = _gizmoModel ??= Model.Load( "models/dev/playerstart_tint.vmdl" );
 
 		Gizmo.Hitbox.Model( spawnpointModel );
 		Gizmo.Draw.Color = Color.WithAlpha( (Gizmo.IsHovered || Gizmo.IsSelected) ? 0.7f : 0.5f );
-		var so = Gizmo.Draw.Model( spawnpointModel );
-		if ( so is not null )
-		{
-			so.Flags.CastShadows = true;
-		}
+		Gizmo.Draw.Model( spawnpointModel, global::Transform.Zero, castShadows: true );
 	}
 
 }

@@ -1,4 +1,3 @@
-using Sandbox.Utility;
 using System.Collections.Immutable;
 
 namespace Sandbox;
@@ -120,52 +119,52 @@ public static partial class Gizmo
 
 	/// <summary>
 	/// Create a new scope - any changes to colors and transforms will be stored
-	/// and reverted when exiting the scope.
+	/// and reverted when exiting the scope. Dispose it once; it's pooled and reused by later scopes.
 	/// </summary>
 	public static IDisposable Scope( string path, Transform tx )
 	{
 		var scope = BlankScope();
 
 		Transform = Transform.ToWorld( tx );
-		Path = $"{Path}/{path}";
+		Path = Active.ChildPath( Path, path );
 
 		return scope;
 	}
 
 	/// <summary>
 	/// Create a new scope - any changes to colors and transforms will be stored
-	/// and reverted when exiting the scope.
+	/// and reverted when exiting the scope. Dispose it once; it's pooled and reused by later scopes.
 	/// </summary>
 	public static IDisposable Scope( string path, Vector3 position ) => Scope( path, new Transform( position ) );
 
 	/// <summary>
 	/// Create a new scope - any changes to colors and transforms will be stored
-	/// and reverted when exiting the scope.
+	/// and reverted when exiting the scope. Dispose it once; it's pooled and reused by later scopes.
 	/// </summary>
 	public static IDisposable Scope( string path, Vector3 position, Rotation rotation, float scale = 1.0f ) => Scope( path, new Transform( position, rotation, scale ) );
 
 	/// <summary>
 	/// Create a new scope - any changes to colors and transforms will be stored
-	/// and reverted when exiting the scope.
+	/// and reverted when exiting the scope. Dispose it once; it's pooled and reused by later scopes.
 	/// </summary>
 	public static IDisposable Scope( string path = null )
 	{
 		if ( path == null )
 		{
 			var c = Active.scope.Create++;
-			path = $"Scope{c}";
+			path = Active.NumberedName( "Scope", c );
 		}
 
 		var scope = BlankScope();
 
-		Path = $"{Path}/{path}";
+		Path = Active.ChildPath( Path, path );
 
 		return scope;
 	}
 
 	/// <summary>
 	/// Create a new scope - any changes to colors and transforms will be stored
-	/// and reverted when exiting the scope.
+	/// and reverted when exiting the scope. Dispose it once; it's pooled and reused by later scopes.
 	/// </summary>
 	public static IDisposable ObjectScope<T>( T obj, Transform tx )
 	{
@@ -174,30 +173,62 @@ public static partial class Gizmo
 		var scope = BlankScope();
 
 		Transform = Transform.ToWorld( tx );
-		Path = $"object-{obj.GetHashCode()}";
+		Path = Active.NumberedName( "object-", obj.GetHashCode() );
 		Object = obj;
 
 		return scope;
 	}
 
-	internal static DisposeAction<ScopeState> BlankScope()
+	/// <summary>
+	/// <c>{prefix}{id}</c>, cached so scope names built every frame don't allocate
+	/// </summary>
+	internal static string NumberedName( string prefix, int id ) => Active.NumberedName( prefix, id );
+
+	static ScopeRestorer BlankScope()
 	{
 		// no scope, lets just ignore it all
 		if ( Active is null )
-			return default;
+			return ScopeRestorer.None;
 
-		var previousState = Active.scope;
+		var scope = ScopeRestorer.Open( Active.scope );
 
 		Active.scope.Create = 0;
 
-		unsafe
-		{
-			static void RestoreScope( ScopeState previousState )
-			{
-				Active.scope = previousState;
-			}
+		return scope;
+	}
 
-			return new DisposeAction<ScopeState>( &RestoreScope, previousState );
+	/// <summary>
+	/// Restores the previous scope state. Pooled; dispose once, since a disposed restorer can be reused by the next scope.
+	/// </summary>
+	sealed class ScopeRestorer : IDisposable
+	{
+		public static readonly ScopeRestorer None = new();
+
+		static readonly Stack<ScopeRestorer> Free = new();
+
+		ScopeState _previous;
+		bool _open;
+
+		public static ScopeRestorer Open( in ScopeState previous )
+		{
+			if ( !Free.TryPop( out var restorer ) )
+				restorer = new ScopeRestorer();
+
+			restorer._previous = previous;
+			restorer._open = true;
+			return restorer;
+		}
+
+		public void Dispose()
+		{
+			if ( !_open )
+				return;
+
+			_open = false;
+			Active.scope = _previous;
+
+			_previous = default;
+			Free.Push( this );
 		}
 	}
 
