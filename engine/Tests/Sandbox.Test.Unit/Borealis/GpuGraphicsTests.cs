@@ -13,6 +13,7 @@ namespace BorealisTests;
 [TestClass]
 public class GpuGraphicsTests
 {
+#pragma warning disable CS0649 // laid out, never set
 	struct LineVertex
 	{
 		[VertexLayout.Position] public Vector3 Position;
@@ -30,6 +31,7 @@ public class GpuGraphicsTests
 		[VertexLayout.TexCoord] public Color32 Tint;
 		[VertexLayout.BlendIndices] public byte Bone;
 	}
+#pragma warning restore CS0649
 
 	/// <summary>
 	/// A vertex type's fields in order, packed, by their attributes' semantics; unnumbered ones take the first free index;
