@@ -23,6 +23,9 @@ public partial class Model
 	/// </summary>
 	public unsafe Vertex[] GetVertices()
 	{
+		// On Borealis.Gpu Source 2's buffers hold nothing to read back: the compiled file's geometry
+		if ( FileGeometry() is { } file ) return ModelFileGeometry.Vertices( file );
+
 		int numVertices = MeshGlue.GetModelNumVertices( native );
 		if ( numVertices == 0 )
 			return null;
@@ -42,6 +45,8 @@ public partial class Model
 	/// </summary>
 	public unsafe uint[] GetIndices()
 	{
+		if ( FileGeometry() is { } file ) return ModelFileGeometry.Indices( file );
+
 		int numIndices = MeshGlue.GetModelNumIndices( native );
 		if ( numIndices == 0 )
 			return null;
