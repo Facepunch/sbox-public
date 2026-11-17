@@ -72,6 +72,9 @@ public sealed partial class Material : Resource
 		{
 			copy.anonymousShader = anonymousShader;
 			copy.IsCopy = true;
+			copy.FilePath = FilePath;
+			copy.SetInCode = SetInCode;
+			copy.SetInCodeVersion = SetInCodeVersion;
 		}
 
 		return copy;
@@ -81,6 +84,15 @@ public sealed partial class Material : Resource
 	/// Made by <see cref="CreateCopy"/>: nothing shares it unless handed on, so what made it can free it (<see cref="ReleaseCopy"/>).
 	/// </summary>
 	internal bool IsCopy { get; private set; }
+
+	/// <summary>The compiled file this material reads, a copy's being its original's.</summary>
+	internal string FilePath
+	{
+		get => filePath ?? ResourcePath;
+		private set => filePath = value;
+	}
+
+	string filePath;
 
 	bool releaseQueued;
 

@@ -66,6 +66,7 @@ public partial class Material
 	{
 		native.Set( param, value );
 		native.SetEdited( true );
+		RememberSet( param, value );
 		return true;
 	}
 
@@ -88,8 +89,31 @@ public partial class Material
 		native.Set( param, texture.native );
 
 		native.SetEdited( true );
+		RememberSet( param, texture );
 		return true;
 	}
+
+	/// <summary>
+	/// What code set on this material (<see cref="Set(string, Vector4)"/>, <see cref="Set(string, Texture)"/>) by parameter:
+	/// <see cref="Vector4"/> or <see cref="Texture"/> values, for devices that read the material's file and apply these over
+	/// it. Replaced whole on each set, so a reader on another thread sees one version. Null until something's set.
+	/// </summary>
+	internal IReadOnlyDictionary<string, object> SetInCode { get; private set; }
+
+	/// <summary>Moves on with every <see cref="SetInCode"/> change.</summary>
+	internal int SetInCodeVersion { get; private set; }
+
+	void RememberSet( string param, object value )
+	{
+		var values = SetInCode is null ? new Dictionary<string, object>( StringComparer.OrdinalIgnoreCase ) : new Dictionary<string, object>( SetInCode, StringComparer.OrdinalIgnoreCase );
+		values[param] = value;
+		SetInCode = values;
+		SetInCodeVersion++;
+		SetInCodeChanged?.Invoke( this );
+	}
+
+	/// <summary>Told when code sets a value on a material (<see cref="SetInCode"/>): a device's copy of it follows.</summary>
+	internal static Action<Material> SetInCodeChanged;
 
 	/// <summary>
 	/// Overrides/Sets an color within the material as a color value within the material
