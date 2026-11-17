@@ -194,7 +194,7 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 		if ( nOwned * 2 < nTriangles )
 		{
 			g_Compacted.InterlockedAdd( 0, nOwned * 3, nStart );
-			if ( nStart + nOwned * 3 > g_nCullCapacity )
+			if ( nStart < 4 || nStart >= g_nCullCapacity || nOwned * 3 > g_nCullCapacity - nStart )
 				nStart = None;
 		}
 
