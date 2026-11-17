@@ -13,30 +13,34 @@ namespace Sandbox.ShaderCompiler;
 internal static class CompileCache
 {
 	/// <summary>Raised with any change to what an entry holds or how it's keyed.</summary>
-	const int Format = 1;
+	const int Format = 2;
 
 	static readonly JsonSerializerOptions Options = new() { IncludeFields = false, WriteIndented = false };
 	static readonly Dictionary<string, string> identities = new( StringComparer.OrdinalIgnoreCase );
 
-	/// <summary>The compiler's identity: this assembly's build, the Slang it drives and the optimizer after it.</summary>
-	static string Identity( string slangDirectory )
+	/// <summary>
+	/// The compiler's identity: <see cref="SlangCompiler.Version"/> (what this assembly makes of a source), the Slang it
+	/// drives (its loader and compiler libraries' contents) and the optimizer after it. Not this assembly's build, so an
+	/// engine build, or a Debug build beside a Release one, keeps every entry whose inputs didn't change.
+	/// </summary>
+	public static string Identity( string slangDirectory )
 	{
 		lock ( identities )
 		{
 			if ( identities.TryGetValue( slangDirectory, out var known ) ) return known;
-			var slang = Path.Combine( slangDirectory, OperatingSystem.IsWindows() ? "slang.dll" : "libslang.so" );
-			var slangHash = File.Exists( slang ) ? Convert.ToHexString( SHA256.HashData( File.ReadAllBytes( slang ) ) ) : "none";
-			return identities[slangDirectory] = $"{Format}:{typeof( CompileCache ).Assembly.ManifestModule.ModuleVersionId}:{slangHash}:{SpirvOptimizer.Identity( slangDirectory )}";
+			var libraries = OperatingSystem.IsWindows() ? new[] { "slang.dll", "slang-compiler.dll" } : ["libslang.so", "libslang-compiler.so"];
+			var hashes = libraries.Select( l => Path.Combine( slangDirectory, l ) ).Select( l => File.Exists( l ) ? Convert.ToHexString( SHA256.HashData( File.ReadAllBytes( l ) ) )[..16] : "none" );
+			return identities[slangDirectory] = $"{SlangCompiler.Version}:{string.Join( ':', hashes )}:{SpirvOptimizer.Identity( slangDirectory )}";
 		}
 	}
 
 	static string Hash( string text ) => Convert.ToHexString( SHA256.HashData( Encoding.UTF8.GetBytes( text ) ) );
 
 	/// <summary>The file an entry for <paramref name="path"/> lives in, and its key; <paramref name="context"/> is the compiler's search paths.</summary>
-	static (string File, string Prefix, string Key) Place( string folder, string context, string slangDirectory, ShaderTier tier, string path, string text )
+	static (string File, string Prefix, string Key) Place( string folder, string context, string slangDirectory, ShaderTier tier, string path, string text, bool layout )
 	{
-		var key = Hash( $"{Identity( slangDirectory )}|{context}|{tier}|{path.ToLowerInvariant()}|{text}" );
-		var prefix = $"{Path.GetFileNameWithoutExtension( path )}.{Hash( path.ToLowerInvariant() )[..8].ToLowerInvariant()}.";
+		var key = Hash( $"{Format}|{Identity( slangDirectory )}|{context}|{tier}|{path.ToLowerInvariant()}|{layout}|{text}" );
+		var prefix = $"{Path.GetFileNameWithoutExtension( path )}.{(layout ? "layout." : "")}{Hash( path.ToLowerInvariant() )[..8].ToLowerInvariant()}.";
 		return (Path.Combine( folder, prefix + key[..16].ToLowerInvariant() + ".json" ), prefix, key);
 	}
 
@@ -49,10 +53,13 @@ internal static class CompileCache
 		public Dictionary<string, int[]> Passes { get; set; }
 	}
 
-	/// <summary>The cached compile of <paramref name="path"/>, or null.</summary>
-	public static CompiledShader Load( string folder, string context, string slangDirectory, ShaderTier tier, string path, string text )
+	/// <summary>
+	/// The cached compile of <paramref name="path"/>, or null. With <paramref name="layout"/>, its small entry of the name
+	/// and material layout alone (no passes), which every compile writes too.
+	/// </summary>
+	public static CompiledShader Load( string folder, string context, string slangDirectory, ShaderTier tier, string path, string text, bool layout = false )
 	{
-		var (file, _, key) = Place( folder, context, slangDirectory, tier, path, text );
+		var (file, _, key) = Place( folder, context, slangDirectory, tier, path, text, layout );
 		if ( !File.Exists( file ) ) return null;
 
 		try
@@ -64,7 +71,7 @@ internal static class CompileCache
 			// Every file it read must read the same now
 			foreach ( var (dependency, hash) in entry.Dependencies )
 			{
-				if ( !File.Exists( dependency ) || Hash( File.ReadAllText( dependency ) ) != hash ) return null;
+				if ( PassCache.FileHash( dependency ) != hash ) return null;
 			}
 
 			var passes = new Dictionary<string, CompiledPass>();
@@ -92,10 +99,14 @@ internal static class CompileCache
 		}
 	}
 
-	/// <summary>Keep <paramref name="shader"/>, compiled from <paramref name="text"/>, replacing older entries for its file.</summary>
-	public static void Save( string folder, string context, string slangDirectory, string path, string text, CompiledShader shader )
+	/// <summary>
+	/// Keep <paramref name="shader"/>, compiled from <paramref name="text"/>, replacing older entries for its file, and its
+	/// layout entry (<see cref="Load"/>); with <paramref name="layout"/>, only that.
+	/// </summary>
+	public static void Save( string folder, string context, string slangDirectory, string path, string text, CompiledShader shader, bool layout = false )
 	{
-		var (file, prefix, key) = Place( folder, context, slangDirectory, shader.Tier, path, text );
+		if ( !layout ) Save( folder, context, slangDirectory, path, text, shader, true );
+		var (file, prefix, key) = Place( folder, context, slangDirectory, shader.Tier, path, text, layout );
 		try
 		{
 			// Stages shared between passes stay shared
@@ -116,8 +127,8 @@ internal static class CompileCache
 			var entry = new Entry
 			{
 				Key = key,
-				Dependencies = shader.Dependencies.ToDictionary( d => d, d => Hash( File.ReadAllText( d ) ), StringComparer.OrdinalIgnoreCase ),
-				Passes = shader.Passes.ToDictionary( p => p.Key, p => new[] { Index( p.Value.Vertex ), Index( p.Value.Pixel ) } ),
+				Dependencies = shader.Dependencies.ToDictionary( d => d, PassCache.FileHash, StringComparer.OrdinalIgnoreCase ),
+				Passes = layout ? new Dictionary<string, int[]>() : shader.Passes.ToDictionary( p => p.Key, p => new[] { Index( p.Value.Vertex ), Index( p.Value.Pixel ) } ),
 				Stages = stages,
 				Shader = new CompiledShader
 				{

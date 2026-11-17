@@ -3,6 +3,8 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
+using Sandbox.ShaderCompiler.Slang;
 
 namespace Sandbox.ShaderCompiler;
 
@@ -16,40 +18,38 @@ public sealed partial class SlangCompiler
 	/// are: it negates y itself. Kept in <see cref="CacheFolder"/> per stage and values. Throws
 	/// <see cref="ShaderCompileException"/> on errors.
 	/// </summary>
-	public CompiledPassStage CompilePass( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> values )
+	public CompiledPassStage CompilePass( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> values ) => Wait( CompilePassAsync( module, stage, values ) );
+
+	/// <summary>
+	/// <see cref="CompilePass"/> on a compile thread: from the cache at once when it's there. <paramref name="background"/>
+	/// work (warming) waits behind compiles something waits for.
+	/// </summary>
+	public Task<CompiledPassStage> CompilePassAsync( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> values, bool background = false )
 	{
 		var defines = new SortedDictionary<string, string>( StringComparer.Ordinal );
 		foreach ( var (name, value) in values ) defines[name] = value.ToString( System.Globalization.CultureInfo.InvariantCulture );
 
 		var key = $"{slangDirectory}|{string.Join( ';', searchPaths )}|{stage}|{module.Path.ToLowerInvariant()}|{string.Join( ';', defines.Select( d => $"{d.Key}={d.Value}" ) )}";
-		if ( CacheFolder is not null && PassCache.Load( CacheFolder, slangDirectory, key, module ) is { } cached ) return cached;
-
-		var clock = Stopwatch.StartNew();
-		var directory = Path.GetDirectoryName( module.Path );
-		CompiledStage compiled;
-		List<string> dependencies;
-		lock ( compileLock )
+		if ( CacheFolder is not null )
 		{
-			readFiles = new( StringComparer.OrdinalIgnoreCase ) { module.Path };
-			using var request = Request( stage, [directory], defines );
-			var source = VfxIncludes.Rewrite( module.Text, request.Annotations );
-
-			// A global declared in several #if branches (a texture read as sRGB with one combo) takes the active branch's annotations
-			VfxIncludes.Rewrite( module.ActiveText( stage, values ), request.Annotations, module.Text );
-
-			request.AddSource( module.Path, source );
-			var entry = PassModule.Entry( stage );
-			request.AddEntryPoint( entry, stage );
-			request.Compile( module.Path );
-
-			var spirv = request.Code() ?? throw new ShaderCompileException( module.Path, $"{entry}: Slang returned no code. {request.Diagnostics}" );
-			spirv = SpirvOptimizer.Optimize( slangDirectory, spirv, out _ );
-			if ( stage == StageKind.Pixel ) spirv = Spirv.MoveSet( spirv, 0, 1 );
-			compiled = StageReflection.Describe( stage, entry, spirv, request.ReflectionJson(), request.Annotations );
-			compiled = AppendBuffers( compiled, request.Annotations );
-			dependencies = readFiles.Order( StringComparer.OrdinalIgnoreCase ).ToList();
+			using ( Zone( CompilePhase.CacheLoad ) )
+			{
+				if ( PassCache.Load( CacheFolder, slangDirectory, key, module ) is { } cached )
+				{
+					System.Threading.Interlocked.Increment( ref cachedStages );
+					return Task.FromResult( cached );
+				}
+			}
 		}
 
+		return SlangWorkers.Run( () => CompilePassStage( module, stage, values, defines, key ), !background );
+	}
+
+	CompiledPassStage CompilePassStage( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> values, IReadOnlyDictionary<string, string> defines, string key )
+	{
+		using var zone = Zone( CompilePhase.PassStage );
+		var clock = Stopwatch.StartNew();
+		var (compiled, dependencies) = CompilePassNow( module, stage, values, defines );
 		var result = new CompiledPassStage
 		{
 			Stage = compiled,
@@ -58,8 +58,37 @@ public sealed partial class SlangCompiler
 			Milliseconds = clock.Elapsed.TotalMilliseconds,
 		};
 
-		if ( CacheFolder is not null ) PassCache.Save( CacheFolder, slangDirectory, key, module, result );
+		if ( CacheFolder is not null )
+		{
+			using ( Zone( CompilePhase.CacheSave ) ) PassCache.Save( CacheFolder, slangDirectory, key, module, result );
+		}
+
 		return result;
+	}
+
+	(CompiledStage, List<string>) CompilePassNow( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> values, IReadOnlyDictionary<string, string> defines )
+	{
+		using var zone = Zone( CompilePhase.Stage );
+		System.Threading.Interlocked.Increment( ref stages );
+		var directory = Path.GetDirectoryName( module.Path );
+		var read = new ReadFiles( module.Path );
+		using var request = Request( stage, [directory], read, defines );
+		var source = VfxIncludes.Rewrite( module.Text, request.Annotations );
+
+		// A global declared in several #if branches (a texture read as sRGB with one combo) takes the active branch's annotations
+		VfxIncludes.Rewrite( module.ActiveText( stage, values ), request.Annotations, module.Text );
+
+		request.AddSource( module.Path, source );
+		var entry = PassModule.Entry( stage );
+		request.AddEntryPoint( entry, stage );
+		request.Compile( module.Path );
+
+		var spirv = request.Code() ?? throw new ShaderCompileException( module.Path, $"{entry}: Slang returned no code. {request.Diagnostics}" );
+		using ( Zone( CompilePhase.Optimize ) ) spirv = SpirvOptimizer.Optimize( slangDirectory, spirv, out _ );
+		if ( stage == StageKind.Pixel ) spirv = Spirv.MoveSet( spirv, 0, 1 );
+		CompiledStage compiled;
+		using ( Zone( CompilePhase.Describe ) ) compiled = StageReflection.Describe( stage, entry, spirv, request.ReflectionJson(), request.Annotations );
+		return (AppendBuffers( compiled, request.Annotations ), read.Sorted());
 	}
 
 	/// <summary>
@@ -136,9 +165,8 @@ public sealed class CompiledPassStage
 /// </summary>
 internal static class PassCache
 {
-	const int Format = 1;
+	const int Format = 2;
 	static readonly JsonSerializerOptions Options = new() { IncludeFields = false, WriteIndented = false };
-	static readonly Dictionary<string, string> identities = new( StringComparer.OrdinalIgnoreCase );
 	static readonly Dictionary<string, (DateTime Time, long Length, string Hash)> fileHashes = new( StringComparer.OrdinalIgnoreCase );
 
 	sealed class Entry
@@ -151,19 +179,8 @@ internal static class PassCache
 
 	static string Hash( string text ) => Convert.ToHexString( SHA256.HashData( Encoding.UTF8.GetBytes( text ) ) );
 
-	static string Identity( string slangDirectory )
-	{
-		lock ( identities )
-		{
-			if ( identities.TryGetValue( slangDirectory, out var known ) ) return known;
-			var slang = Path.Combine( slangDirectory, OperatingSystem.IsWindows() ? "slang.dll" : "libslang.so" );
-			var slangHash = File.Exists( slang ) ? Convert.ToHexString( SHA256.HashData( File.ReadAllBytes( slang ) ) ) : "none";
-			return identities[slangDirectory] = $"{Format}:{typeof( PassCache ).Assembly.ManifestModule.ModuleVersionId}:{slangHash}:{SpirvOptimizer.Identity( slangDirectory )}";
-		}
-	}
-
-	/// <summary>A file's hash, read again only when its time or length changed.</summary>
-	static string FileHash( string path )
+	/// <summary>A file's hash, read again only when its time or length changed; null when it's gone.</summary>
+	internal static string FileHash( string path )
 	{
 		var info = new FileInfo( path );
 		if ( !info.Exists ) return null;
@@ -179,7 +196,7 @@ internal static class PassCache
 
 	static (string File, string Key) Place( string folder, string slangDirectory, string key, PassModule module )
 	{
-		var full = Hash( $"{Identity( slangDirectory )}|{key}|{module.Text}" );
+		var full = Hash( $"{Format}|{CompileCache.Identity( slangDirectory )}|{key}|{module.Text}" );
 		return (Path.Combine( folder, $"{Path.GetFileNameWithoutExtension( module.Path )}.{Hash( key )[..16].ToLowerInvariant()}.json" ), full);
 	}
 
