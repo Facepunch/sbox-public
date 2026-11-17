@@ -636,7 +636,7 @@ public sealed class ShaderDrawer : IDisposable
 
 		info.Topology = topology;
 		if ( sets is not null ) info.Sets = sets;
-		pipeline = gpu.CreateGraphicsPipeline( info );
+		using ( Zones.PipelineCreate.Start() ) pipeline = gpu.CreateGraphicsPipeline( info );
 		if ( sets is null ) pipelines[key] = pipeline;
 		return pipeline;
 	}

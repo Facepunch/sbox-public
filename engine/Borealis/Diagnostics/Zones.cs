@@ -36,7 +36,8 @@ internal static class Zones
 	public static readonly Zone CubeCapture = new( "Borealis Cube Capture", Color.Blue );
 	public static readonly Zone SurfaceCompile = new( "Borealis Surface Compile", Color.Orange );
 	public static readonly Zone PassCompile = new( "Borealis Pass Module Compile", Color.Orange );
-	public static readonly Zone ShaderWarm = new( "Borealis Shader Warm", Color.Orange );
+	public static readonly Zone PipelineCreate = new( "Borealis Pipeline Create", Color.Orange );
+	public static readonly Zone VariantLoad = new( "Borealis Variant Load", Color.Orange );
 
 	/// <summary>Sandbox.ShaderCompiler's phases (<c>CompilePhase</c>), by value.</summary>
 	public static readonly Zone[] Slang =

@@ -491,7 +491,9 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 
 		// Made outside the lock: making one loads the shader's combos and reads the attributes, which take locks of their own.
 		// Not kept while its module compiles: its programs draw until then
-		var variant = library.Variant( shader, mode, features, combos, attributes, false, out var pending );
+		ShaderVariant variant;
+		bool pending;
+		using ( Zones.VariantLoad.Start() ) variant = library.Variant( shader, mode, features, combos, attributes, false, out pending );
 		return pending ? variant : Keep( ref variants, key, variant, loaded );
 	}
 
