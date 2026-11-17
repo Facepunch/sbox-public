@@ -116,6 +116,12 @@ public abstract class GpuDevice
 	internal virtual bool TakesResident( GpuMaterial material ) => false;
 
 	/// <summary>
+	/// Raised each time a program the device was compiling in the background becomes ready: what <see cref="TakesResident"/>
+	/// and <see cref="TakesOverlay"/> said of its materials meanwhile is looked at again.
+	/// </summary>
+	internal virtual int ProgramsVersion => 0;
+
+	/// <summary>
 	/// Whether a static overlay's draws with this material draw GPU-driven in the forward pass, blended or not: a resident
 	/// overlay's draw the device leaves would go undrawn, and a view's own that it leaves draws after its render order's call.
 	/// </summary>

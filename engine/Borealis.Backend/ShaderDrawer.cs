@@ -314,8 +314,9 @@ public sealed class ShaderDrawer : IDisposable
 		var key = (shader, mode, combos);
 		if ( variants.TryGetValue( key, out var variant ) ) return variant;
 
-		variant = shaders.Variant( shader, mode, features, attributes.GetCombo, name => attributes.Get( name ) is float[] { Length: > 0 } f ? (int)f[0] : null );
-		variants[key] = variant;
+		// Not kept while its module compiles: its programs draw until then
+		variant = shaders.Variant( shader, mode, features, attributes.GetCombo, name => attributes.Get( name ) is float[] { Length: > 0 } f ? (int)f[0] : null, false, out var pending );
+		if ( !pending ) variants[key] = variant;
 		return variant;
 	}
 

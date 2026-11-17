@@ -287,6 +287,58 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// The caches are keyed on what a compile reads and the compiler's <see cref="SlangCompiler.Version"/>, not on this
+	/// assembly's build: an engine build, or a Debug build beside a Release one, keeps them.
+	/// </summary>
+	[TestMethod]
+	public void CacheKeyIsNotTheAssemblysBuild()
+	{
+		var bin = EngineFolders.NativeIn( Path.GetDirectoryName( Core ) );
+		var identity = CompileCache.Identity( bin );
+		StringAssert.StartsWith( identity, $"{SlangCompiler.Version}:" );
+		Assert.IsFalse( identity.Contains( typeof( SlangCompiler ).Assembly.ManifestModule.ModuleVersionId.ToString(), StringComparison.OrdinalIgnoreCase ) );
+	}
+
+	/// <summary>
+	/// What the compiler generates for fixed inputs is as it was when <see cref="SlangCompiler.Version"/> was last raised: a
+	/// change to it must raise the version, or caches would keep shaders compiled the old way.
+	/// </summary>
+	[TestMethod]
+	public void GeneratedCodeNeedsAVersion()
+	{
+		var fingerprint = SlangCompiler.Fingerprint();
+		Assert.AreEqual( SlangCompiler.GeneratedFingerprint, fingerprint, $"What SlangCompiler generates changed: raise SlangCompiler.Version and set GeneratedFingerprint to \"{fingerprint}\"" );
+	}
+
+	/// <summary>
+	/// Surfaces compiled at once from several threads (their stages on the compile threads together) come out as each does
+	/// alone.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( "Slow" )]
+	public void ParallelCompilesMatchSerialOnes()
+	{
+		Compiler();
+		var bin = EngineFolders.NativeIn( Path.GetDirectoryName( Core ) );
+		var files = new[] { Path.Combine( Surfaces, "rock.slang" ), Path.Combine( Core, "shaders", "glass.slang" ), Path.Combine( Surfaces, "rock_raw.slang" ) };
+		var compiler = new SlangCompiler( bin, [Path.Combine( Core, "shaders" )] );
+		CompiledShader Compile( string file ) => file.EndsWith( "_raw.slang", StringComparison.Ordinal ) ? compiler.CompileRaw( file ) : compiler.CompileSurface( file );
+		var alone = files.Select( Compile ).ToArray();
+		var together = files.AsParallel().AsOrdered().WithDegreeOfParallelism( files.Length ).Select( Compile ).ToArray();
+		for ( int i = 0; i < files.Length; i++ )
+		{
+			CollectionAssert.AreEquivalent( alone[i].Passes.Keys.ToArray(), together[i].Passes.Keys.ToArray(), files[i] );
+			foreach ( var (name, pass) in alone[i].Passes )
+			{
+				CollectionAssert.AreEqual( pass.Vertex.Spirv, together[i].Pass( name ).Vertex.Spirv, $"{files[i]} {name}" );
+				if ( pass.Pixel is not null ) CollectionAssert.AreEqual( pass.Pixel.Spirv, together[i].Pass( name ).Pixel.Spirv, $"{files[i]} {name}" );
+			}
+
+			CollectionAssert.AreEqual( alone[i].Dependencies.ToArray(), together[i].Dependencies.ToArray(), files[i] );
+		}
+	}
+
+	/// <summary>
 	/// The alpha-tested depth pass writes nothing but coverage: it skips the decals (which don't change opacity), for the
 	/// plain shading model and the final combiner alike, so neither reads the decal buffer.
 	/// </summary>
@@ -439,6 +491,96 @@ public class SurfaceTests : GpuTest
 			var after = backend.Surfaces.Compile( "hot_rock.slang" );
 			Assert.AreNotSame( before, after );
 			Assert.IsFalse( after.FromCache );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
+	/// Surfaces compiled in the background: a material's first draw finds no program and starts its compile instead of
+	/// waiting for it (its draws go to the .shader it stands in for meanwhile); its layout comes alone at once; once the
+	/// compile is done the program is there, and the device says so (<see cref="GpuDevice.ProgramsVersion"/>).
+	/// </summary>
+	[TestMethod]
+	[TestCategory( "Slow" )]
+	public void SurfacesCompileInTheBackground()
+	{
+		Compiler();
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-surface-background-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			using var backend = new BackendDevice( Device );
+			backend.Surfaces.CacheFolder = Path.Combine( folder, "cache" );
+			backend.Surfaces.AddFolder( Surfaces );
+			backend.Surfaces.CompileInBackground = true;
+
+			var layout = backend.Surfaces.Layout( "rock_lit.slang" );
+			Assert.IsNotNull( layout );
+			Assert.AreEqual( 0, layout.Passes.Count, "the layout comes alone" );
+
+			using var material = new Rock();
+			var version = backend.ProgramsVersion;
+			var clock = System.Diagnostics.Stopwatch.StartNew();
+			Assert.IsNull( backend.Surfaces.For( material ), "a draw doesn't wait for the compile" );
+			Assert.IsTrue( clock.Elapsed.TotalSeconds < 1, $"the first draw took {clock.Elapsed.TotalSeconds:F1} s" );
+			Assert.IsTrue( backend.Surfaces.Compiling >= 1 );
+
+			Assert.IsTrue( backend.Surfaces.WaitForCompiles( TimeSpan.FromMinutes( 2 ) ), "the compiles didn't finish" );
+			Assert.AreEqual( 0, backend.Surfaces.Compiling );
+			Assert.IsTrue( backend.ProgramsVersion > version );
+			var program = backend.Surfaces.For( material );
+			Assert.IsNotNull( program );
+			Assert.IsNotNull( program.Pass( ShaderPasses.Forward ) );
+			Assert.AreSame( program, backend.Surfaces.For( material ) );
+			Assert.AreEqual( layout.Material.Size, backend.Surfaces.Layout( "rock_lit.slang" ).Material.Size, "the program's layout is the one reflected alone" );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
+	/// Pass modules compiled in the background: a variant asked for while its stages compile is its shader's compiled
+	/// programs' and the drawer doesn't keep it; once they're done it's the module's, kept.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( "Slow" )]
+	public void PassModulesCompileInTheBackground()
+	{
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-pass-background-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			using var backend = new BackendDevice( Device );
+			backend.Passes.CacheFolder = Path.Combine( folder, "cache" );
+			backend.Passes.CompileInBackground = true;
+			var errors = new List<string>();
+			backend.Passes.Error = errors.Add;
+			using var drawer = new ShaderDrawer( backend );
+			var shader = backend.Shaders.Load( "shaders/clutter_cull_cs.shader" );
+			if ( shader is null ) Assert.Inconclusive( "clutter_cull_cs isn't compiled" );
+
+			var clock = System.Diagnostics.Stopwatch.StartNew();
+			var first = drawer.Variant( shader, new ShaderAttributes() );
+			Assert.IsTrue( clock.Elapsed.TotalSeconds < 1, $"the first ask took {clock.Elapsed.TotalSeconds:F1} s" );
+			Assert.IsTrue( first is { FromModule: false }, "its programs draw while the module compiles" );
+			Assert.AreEqual( 1, backend.Passes.PendingAsks );
+
+			Borealis.Source2.Shaders.ShaderVariant module = null;
+			while ( clock.Elapsed.TotalSeconds < 120 )
+			{
+				module = drawer.Variant( shader, new ShaderAttributes() );
+				if ( module.FromModule ) break;
+				System.Threading.Thread.Sleep( 50 );
+			}
+
+			Assert.IsTrue( module is { FromModule: true }, $"the module's variant never came: {string.Join( "; ", errors )}" );
+			Assert.AreSame( module, drawer.Variant( shader, new ShaderAttributes() ), "kept once it's the module's" );
+			Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
 		}
 		finally
 		{
