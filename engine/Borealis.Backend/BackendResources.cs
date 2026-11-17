@@ -489,9 +489,12 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 		int loaded;
 		lock ( variantsGate ) (shader, features, loaded) = (Shader, Features, loads);
 
-		// Made outside the lock: making one loads the shader's combos and reads the attributes, which take locks of their own
-		var variant = library.Variant( shader, mode, features, combos, attributes );
-		return Keep( ref variants, key, variant, loaded );
+		// Made outside the lock: making one loads the shader's combos and reads the attributes, which take locks of their own.
+		// Not kept while its module compiles: its programs draw until then
+		ShaderVariant variant;
+		bool pending;
+		using ( Zones.VariantLoad.Start() ) variant = library.Variant( shader, mode, features, combos, attributes, false, out pending );
+		return pending ? variant : Keep( ref variants, key, variant, loaded );
 	}
 
 	Dictionary<string, ShaderVariant> gpuDrivenVariants = new();

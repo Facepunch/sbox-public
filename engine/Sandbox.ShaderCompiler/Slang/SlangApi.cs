@@ -17,7 +17,8 @@ internal static unsafe class SlangApi
 
 	static readonly object loadLock = new();
 	static IntPtr library;
-	static IntPtr session;
+	static readonly Stack<IntPtr> idle = new();
+	static int sessions;
 
 	public static delegate* unmanaged< byte*, IntPtr > CreateSession;
 	public static delegate* unmanaged< IntPtr, IntPtr > CreateCompileRequest;
@@ -62,12 +63,59 @@ internal static unsafe class SlangApi
 	public static delegate* unmanaged< IntPtr, uint, float*, int > UserAttributeGetArgumentValueFloat;
 	public static delegate* unmanaged< IntPtr, uint, nuint*, byte* > UserAttributeGetArgumentValueString;
 
-	/// <summary>The global session, made on first use from <c>slang.dll</c> in <paramref name="directory"/>.</summary>
-	public static IntPtr Session( string directory )
+	/// <summary>
+	/// Most global sessions made at once: each compiles on one thread at a time (Slang's sessions aren't thread-safe), so
+	/// this many compiles run in parallel. Each holds Slang's core module.
+	/// </summary>
+	public static int MaxSessions { get; } = Math.Clamp( Environment.ProcessorCount / 2, 1, 8 );
+
+	/// <summary>
+	/// A global session of <c>slang.dll</c> in <paramref name="directory"/> (loaded on first use) for this thread alone until
+	/// it's given back with <see cref="Return"/>: an idle one, or a new one while fewer than <see cref="MaxSessions"/> exist,
+	/// else the next one given back.
+	/// </summary>
+	public static IntPtr Rent( string directory )
+	{
+		Load( directory );
+		lock ( idle )
+		{
+			while ( true )
+			{
+				if ( idle.Count > 0 ) return idle.Pop();
+				if ( sessions < MaxSessions ) break;
+				System.Threading.Monitor.Wait( idle );
+			}
+
+			sessions++;
+		}
+
+		var made = CreateSession( null );
+		if ( made != IntPtr.Zero ) return made;
+		lock ( idle )
+		{
+			sessions--;
+			System.Threading.Monitor.Pulse( idle );
+		}
+
+		throw new InvalidOperationException( "Slang didn't create a session" );
+	}
+
+	/// <summary>Give back a session <see cref="Rent"/> gave, for the next compile.</summary>
+	public static void Return( IntPtr session )
+	{
+		lock ( idle )
+		{
+			idle.Push( session );
+			System.Threading.Monitor.Pulse( idle );
+		}
+	}
+
+	/// <summary>Load <c>slang.dll</c> from <paramref name="directory"/>, once.</summary>
+	static void Load( string directory )
 	{
 		lock ( loadLock )
 		{
-			if ( session != IntPtr.Zero ) return session;
+			if ( library != IntPtr.Zero ) return;
 
 			var name = OperatingSystem.IsWindows() ? "slang.dll" : OperatingSystem.IsMacOS() ? "libslang.dylib" : "libslang.so";
 			var path = Path.Combine( directory, name );
@@ -116,10 +164,6 @@ internal static unsafe class SlangApi
 			UserAttributeGetArgumentValueInt = (delegate* unmanaged< IntPtr, uint, int*, int >)Export( "spReflectionUserAttribute_GetArgumentValueInt" );
 			UserAttributeGetArgumentValueFloat = (delegate* unmanaged< IntPtr, uint, float*, int >)Export( "spReflectionUserAttribute_GetArgumentValueFloat" );
 			UserAttributeGetArgumentValueString = (delegate* unmanaged< IntPtr, uint, nuint*, byte* >)Export( "spReflectionUserAttribute_GetArgumentValueString" );
-
-			session = CreateSession( null );
-			if ( session == IntPtr.Zero ) throw new InvalidOperationException( "Slang didn't create a session" );
-			return session;
 		}
 	}
 
