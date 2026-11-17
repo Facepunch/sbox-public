@@ -604,6 +604,13 @@ public sealed unsafe partial class Device
 	// The list this thread's writes go into while it defers them, or null
 	CommandList DeferredUploads() => deferringDevice == this ? deferredList ??= BeginCommandList( QueueType.Graphics, "Deferred uploads" ) : null;
 
+	/// <summary>
+	/// The list this thread's writes go into in a <see cref="DeferUploads"/> scope (begun on first use), or null outside one:
+	/// for other loading work (a new texture's clear) to go with them rather than in a submission of its own. Transfers only:
+	/// the scope ends it with a barrier from transfers to everything after.
+	/// </summary>
+	public CommandList DeferredList => DeferredUploads();
+
 	long deferredBytes;
 
 	/// <summary>Bytes written in <see cref="DeferUploads"/> scopes so far, for capping how much a frame uploads.</summary>

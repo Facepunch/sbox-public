@@ -825,14 +825,20 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public override void Clear( GpuTexture texture, Color color )
 	{
 		var t = (BackendTexture)texture;
-		var list = Gpu.BeginCommandList( QueueType.Graphics, "Clear texture" );
+
+		// In a DeferUploads scope (the mirror applying a frame's changes: a map's capture cubes, made at once), with the
+		// scope's list rather than a list each
+		var deferred = Gpu.DeferredList;
+		var list = deferred ?? Gpu.BeginCommandList( QueueType.Graphics, "Clear texture" );
 		list.Barrier( TextureBarrier.Transition( t.Handle, t.Layout, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
 		list.ClearTexture( t.Handle, new System.Numerics.Vector4( color.r, color.g, color.b, color.a ) );
 		list.Barrier( TextureBarrier.Transition( t.Handle, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
+		t.Layout = ImageLayout.ShaderRead;
+		if ( deferred is not null ) return;
+
 		// In order with what's submitted after it, as MakeReadable: not waited for, which held the main thread for the GPU
 		if ( BatchSubmits ) Gpu.SubmitLater( list );
 		else Gpu.Submit( list );
-		t.Layout = ImageLayout.ShaderRead;
 	}
 
 	/// <summary>
