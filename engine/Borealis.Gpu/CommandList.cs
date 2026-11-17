@@ -402,6 +402,26 @@ public sealed unsafe class CommandList
 		var mips = barrier.MipCount > 0 ? (uint)barrier.MipCount : Vulkan.Vk.RemainingMipLevels;
 		var layers = barrier.LayerCount > 0 ? (uint)barrier.LayerCount : Vulkan.Vk.RemainingArrayLayers;
 
+		// Barriers in one batch aren't ordered among themselves: a second move of an image already moving joins the first
+		// (from where the first started to where this one ends) when they cover the same subresources, else waits for it
+		for ( int i = 0; i < imageBarrierCount; i++ )
+		{
+			ref var pending = ref imageBarriers[i];
+			if ( pending.image != record.Image ) continue;
+
+			var range = pending.subresourceRange;
+			if ( range.baseMipLevel == (uint)barrier.BaseMip && range.levelCount == mips && range.baseArrayLayer == (uint)barrier.BaseLayer && range.layerCount == layers && pending.newLayout == barrier.OldLayout.ToVk() )
+			{
+				pending.newLayout = barrier.NewLayout.ToVk();
+				pending.dstStageMask = (ulong)barrier.DestinationStage;
+				pending.dstAccessMask = (ulong)barrier.DestinationAccess;
+				return;
+			}
+
+			FlushBarriers();
+			break;
+		}
+
 		if ( imageBarrierCount == imageBarriers.Length ) Array.Resize( ref imageBarriers, imageBarriers.Length * 2 );
 		imageBarriers[imageBarrierCount++] = new VkImageMemoryBarrier2
 		{
