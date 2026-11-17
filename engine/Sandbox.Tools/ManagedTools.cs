@@ -95,6 +95,10 @@ internal static class ManagedTools
 
 	static bool _wasActiveWindow;
 
+	static readonly Sandbox.Utility.Superluminal _asyncTasks = new( "Tools Async Tasks", "#6f8fce" );
+	static readonly Sandbox.Utility.Superluminal _toolFrame = new( "Tools tool.frame", "#6f8fce" );
+	static readonly Sandbox.Utility.Superluminal _thumbnails = new( "Tools Thumbnails", "#6f8fce" );
+
 	public static void RunFrame()
 	{
 		Application.StartFrame();
@@ -113,15 +117,18 @@ internal static class ManagedTools
 			EditorEvent.Run( "refresh" );
 		}
 
-		EngineLoop.RunAsyncTasks();
+		using ( _asyncTasks.Start() )
+			EngineLoop.RunAsyncTasks();
 
 		using ( Performance.Scope( "Tool Binds" ) )
 		{
 			BindSystem.Tick();
 		}
 
-		EditorEvent.Run( "tool.frame" );
-		AssetThumbnail.Frame();
+		using ( _toolFrame.Start() )
+			EditorEvent.Run( "tool.frame" );
+		using ( _thumbnails.Start() )
+			AssetThumbnail.Frame();
 	}
 
 	public static void Shutdown()

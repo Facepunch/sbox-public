@@ -187,6 +187,22 @@ public class PassModuleTests : GpuTest
 	}
 
 	/// <summary>
+	/// A shader with a geometry stage draws nothing from its compiled programs (its module compiling, failing, or modules
+	/// off): their vertex stage alone would draw points as points, which Vulkan rejects without a written PointSize.
+	/// </summary>
+	[TestMethod]
+	public void GeometryStageProgramsDontDraw()
+	{
+		using var backend = new BackendDevice( Device );
+		var sprite = backend.Shaders.Load( "shaders/gizmo/gizmo_sprite.shader" );
+		if ( sprite?[ShaderProgramType.Geometry] is null ) Assert.Inconclusive( "gizmo_sprite isn't compiled with its geometry stage" );
+
+		Assert.IsNotNull( backend.Shaders.Variant( sprite, sprite.Modes[0].Name, [] ), "its module's variant" );
+		backend.Shaders.Modules = null;
+		Assert.IsNull( backend.Shaders.Variant( sprite, sprite.Modes[0].Name, [] ), "no variant from its programs" );
+	}
+
+	/// <summary>
 	/// A material's compiled values reach the constants of draws of its shader (<see cref="ShaderDrawer.Material"/>), as
 	/// native binds a material's mode: gizmo_line's <c>g_DepthBiasAmount</c>, a material variable, is the material's, and the
 	/// shader's default without one.
@@ -448,6 +464,9 @@ public class PassModuleTests : GpuTest
 		backend.Passes.Error = e => errors.Add( e );
 		var differences = new List<string>();
 		var compared = 0;
+
+		// Shaders with a geometry stage compare their programs' vertex and pixel stages too
+		backend.Shaders.GeometryPrograms = true;
 		foreach ( var path in modules )
 		{
 			var shader = backend.Shaders.Load( path );
