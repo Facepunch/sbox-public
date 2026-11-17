@@ -185,6 +185,29 @@ PS
 	// A WaterBody draws the surface twice, the underside with flipped winding, so each draw shows one side.
 	RenderState( CullMode, BACK );
 
+	// Matches WaterHole.Data: rows mapping a world position into a hole's box, which spans -1 to 1 on each axis.
+	struct WaterHoleData
+	{
+		float4 X;
+		float4 Y;
+		float4 Z;
+	};
+	StructuredBuffer<WaterHoleData> WaterHoles < Attribute( "WaterHoles" ); >;
+	int WaterHoleCount < Attribute( "WaterHoleCount" ); Default( 0 ); >;
+
+	bool InWaterHole( float3 position )
+	{
+		for ( int index = 0; index < WaterHoleCount; index++ )
+		{
+			WaterHoleData hole = WaterHoles[index];
+			float3 box = float3( dot( hole.X.xyz, position ) + hole.X.w, dot( hole.Y.xyz, position ) + hole.Y.w,
+				dot( hole.Z.xyz, position ) + hole.Z.w );
+			if ( all( abs( box ) <= 1 ) )
+				return true;
+		}
+		return false;
+	}
+
 	bool HasRefractionTexture < Attribute( "HasRefractionTexture" ); Default( 0 ); >;
 	bool HasPlanarReflection < Attribute( "HasPlanarReflection" ); Default( 0 ); >;
 	bool ReflectionEnabled < Attribute( "ReflectionEnabled" ); Default( 1 ); >;
@@ -266,6 +289,8 @@ PS
 		m.Normal = underwater ? -normal : normal;
 		m.Roughness = max( 0.001, g_fRoughness );
 		float4 overlay = SampleWaterOverlays( point, normal, m.Roughness );
+		// Discard after the derivatives above, so pixels beside a hole keep their quad's neighbours.
+		clip( InWaterHole( m.WorldPosition ) ? -1 : 1 );
 		if ( DepthNormals::WantsDepthNormals() )
 			return DepthNormals::Output( m.Normal, m.Roughness, 1 );
 

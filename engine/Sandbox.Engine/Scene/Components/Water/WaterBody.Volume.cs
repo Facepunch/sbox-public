@@ -98,6 +98,9 @@ public sealed partial class WaterBody
 		if ( !Clip( SampleHeight( start ) - start.z, SampleHeight( end ) - end.z )
 			|| !Clip( start.z + WorldDepth, end.z + WorldDepth ) )
 			return 0;
+		// A hole around the middle of the wet span leaves the character dry.
+		if ( WaterHole.Cuts( Scene, Vector3.Lerp( foot, head, (from + to) * 0.5f ) ) )
+			return 0;
 		return MathF.Max( 0, to - from );
 
 		bool Clip( float a, float b )
@@ -128,8 +131,14 @@ public sealed partial class WaterBody
 	}
 
 
-	internal bool InFootprint( Vector3 position )
+	/// <summary>
+	/// Whether a position lies within the surface's horizontal extent and outside every <see cref="WaterHole"/>,
+	/// except holes on <paramref name="owner"/> or its descendants.
+	/// </summary>
+	internal bool InFootprint( Vector3 position, GameObject owner = null )
 	{
+		if ( WaterHole.Cuts( Scene, position, owner ) )
+			return false;
 		if ( Ocean )
 			return true;
 
