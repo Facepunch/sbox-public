@@ -1,0 +1,184 @@
+using Borealis.Source2.Models;
+using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
+
+namespace Sandbox;
+
+public partial class Model
+{
+	// A file model's compiled geometry, read once, for its vertex and index reads on Borealis.Gpu
+	static readonly ConditionalWeakTable<Model, ModelFile> fileGeometry = new();
+
+	/// <summary>
+	/// On Borealis.Gpu (<c>-borealisgpu</c>) Source 2's render system is the empty one: a file model's buffers are only
+	/// descriptions there, with nothing to read back. Its geometry comes from its compiled file instead, as Borealis.Gpu
+	/// draws it. Null with Source 2's device, for a model made in code (its buffers keep their contents) or one with no file.
+	/// </summary>
+	ModelFile FileGeometry()
+	{
+		if ( Graphics.HasSource2Device || IsProcedural || Graphics.BorealisGpuContent is not { } content ) return null;
+		var path = ResourcePath;
+		if ( string.IsNullOrEmpty( path ) ) return null;
+		if ( fileGeometry.TryGetValue( this, out var known ) ) return known;
+
+		ModelFile file;
+		try
+		{
+			file = content.TryRead( path ) is { } data ? ModelFile.Read( data, content.TryRead ) : null;
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Reading {path}'s geometry: {e.Message}" );
+			file = null;
+		}
+
+		if ( file is not null ) fileGeometry.AddOrUpdate( this, file );
+		return file;
+	}
+}
+
+/// <summary>
+/// A compiled model's geometry as <see cref="Model.GetVertices"/> and <see cref="Model.GetIndices"/> return it, read the way
+/// native's <c>MeshGlue</c> reads its buffers back: LOD 0's meshes, every vertex buffer in turn; position, normal, tangent,
+/// colour and two texture coordinates decoded from whatever formats they're stored in; untouched fields zero and colour white.
+/// </summary>
+internal static class ModelFileGeometry
+{
+	static IEnumerable<ModelMesh> Lod0( ModelFile file ) => file.Meshes.Where( m => (m.LodMask & 1) != 0 );
+
+	public static Vertex[] Vertices( ModelFile file )
+	{
+		var count = Lod0( file ).Sum( m => m.VertexBuffers.Sum( b => b.Count ) );
+		if ( count == 0 ) return null;
+
+		var vertices = new Vertex[count];
+		var at = 0;
+		foreach ( var mesh in Lod0( file ) )
+		{
+			foreach ( var buffer in mesh.VertexBuffers )
+			{
+				Read( buffer, vertices.AsSpan( at, buffer.Count ) );
+				at += buffer.Count;
+			}
+		}
+
+		return vertices;
+	}
+
+	public static uint[] Indices( ModelFile file )
+	{
+		var count = Lod0( file ).Sum( m => m.IndexBuffers.Sum( b => b.Count ) );
+		if ( count == 0 ) return null;
+
+		// As native: each index buffer's indices offset by the vertices of the vertex buffers before the one it pairs with
+		var indices = new uint[count];
+		var at = 0;
+		uint startVertex = 0;
+		foreach ( var mesh in Lod0( file ) )
+		{
+			for ( int b = 0; b < mesh.IndexBuffers.Count; b++ )
+			{
+				var buffer = mesh.IndexBuffers[b];
+				for ( int i = 0; i < buffer.Count; i++ ) indices[at++] = startVertex + buffer[i];
+				if ( b < mesh.VertexBuffers.Count ) startVertex += (uint)mesh.VertexBuffers[b].Count;
+			}
+		}
+
+		return indices;
+	}
+
+	/// <summary>Decode one vertex buffer's fields into <paramref name="vertices"/>, as native's <c>ReadVertexStream</c> does.</summary>
+	static void Read( MeshVertexBuffer buffer, Span<Vertex> vertices )
+	{
+		VertexField? position = null, normal = null, tangent = null, color = null, uv0 = null, uv1 = null;
+		foreach ( var field in buffer.Fields )
+		{
+			switch ( field.Semantic.ToUpperInvariant() )
+			{
+				case "POSITION": position = field; break;
+				case "NORMAL": normal = field; break;
+				case "TANGENT": tangent = field; break;
+				case "COLOR": color = field; break;
+				case "TEXCOORD" when TwoComponents( field.Format ):
+					// The lowest semantic index is the first coordinate, the next lowest the second
+					if ( uv0 is null || field.SemanticIndex < uv0.Value.SemanticIndex )
+					{
+						if ( uv0 is not null && (uv1 is null || uv1.Value.SemanticIndex > uv0.Value.SemanticIndex) ) uv1 = uv0;
+						uv0 = field;
+					}
+					else if ( uv1 is null || field.SemanticIndex < uv1.Value.SemanticIndex )
+					{
+						uv1 = field;
+					}
+
+					break;
+			}
+		}
+
+		for ( int v = 0; v < vertices.Length; v++ )
+		{
+			var data = buffer.Data.AsSpan( v * buffer.Stride, buffer.Stride );
+			ref var vertex = ref vertices[v];
+			vertex.Color = Color32.White;
+
+			if ( position is { } p ) vertex.Position = Vector3Of( p.Read( data[p.Offset..] ) );
+			if ( tangent is { } t ) vertex.Tangent = t.Read( data[t.Offset..] );
+
+			if ( normal is { } n )
+			{
+				var packed = BinaryPrimitives.ReadUInt32LittleEndian( data[n.Offset..] );
+				switch ( n.Format )
+				{
+					case ColorFormat.R8G8B8A8_UNORM:
+						{
+							var (nrm, tan) = TangentFrame.UnpackLegacy( packed );
+							vertex.Normal = nrm;
+							vertex.Tangent = tan;
+							break;
+						}
+					case ColorFormat.R10G10B10A2_UNORM:
+						{
+							var (nrm, tan) = TangentFrame.UnpackOctDiamond( packed );
+							vertex.Normal = nrm;
+							vertex.Tangent = tan;
+							break;
+						}
+					default:
+						vertex.Normal = Vector3Of( n.Read( data[n.Offset..] ) );
+						break;
+				}
+			}
+
+			if ( color is { } c )
+			{
+				if ( c.Format == ColorFormat.R8G8B8A8_UNORM ) vertex.Color = new Color32( data[c.Offset], data[c.Offset + 1], data[c.Offset + 2], data[c.Offset + 3] );
+				else
+				{
+					var value = c.Read( data[c.Offset..] );
+					vertex.Color = new Color32( Byte( value.X ), Byte( value.Y ), Byte( value.Z ), Byte( value.W ) );
+				}
+			}
+
+			if ( uv0 is { } u0 ) vertex.TexCoord0 = TexCoord( u0, data );
+			if ( uv1 is { } u1 ) vertex.TexCoord1 = TexCoord( u1, data );
+		}
+	}
+
+	static bool TwoComponents( ColorFormat format ) => format is ColorFormat.R32G32_FLOAT or ColorFormat.R16G16_FLOAT or ColorFormat.R16G16_UNORM or ColorFormat.R16G16_SNORM or ColorFormat.R16G16_UINT or ColorFormat.R16G16_SINT or ColorFormat.R32G32_UINT or ColorFormat.R32G32_SINT;
+
+	// Native's ReadTexcoord: half or unorm pairs, else two floats
+	static Vector4 TexCoord( VertexField field, ReadOnlySpan<byte> data )
+	{
+		var at = data[field.Offset..];
+		return field.Format switch
+		{
+			ColorFormat.R16G16_FLOAT => new Vector4( (float)BinaryPrimitives.ReadHalfLittleEndian( at ), (float)BinaryPrimitives.ReadHalfLittleEndian( at[2..] ), 0, 0 ),
+			ColorFormat.R16G16_UNORM => new Vector4( BinaryPrimitives.ReadUInt16LittleEndian( at ) / 65535f, BinaryPrimitives.ReadUInt16LittleEndian( at[2..] ) / 65535f, 0, 0 ),
+			_ => new Vector4( BinaryPrimitives.ReadSingleLittleEndian( at ), BinaryPrimitives.ReadSingleLittleEndian( at[4..] ), 0, 0 ),
+		};
+	}
+
+	static byte Byte( float unit ) => (byte)Math.Clamp( unit * 255f + 0.5f, 0, 255 );
+
+	static Vector3 Vector3Of( System.Numerics.Vector4 v ) => new( v.X, v.Y, v.Z );
+}
