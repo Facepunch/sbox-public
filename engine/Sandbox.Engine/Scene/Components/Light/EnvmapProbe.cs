@@ -500,7 +500,7 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 		RenderCubemap( _dynamicTexture, CubemapRendering.GGXFilterType.Fast, RenderExcludeTags );
 	}
 
-	internal void RenderCubemap( Texture target, CubemapRendering.GGXFilterType filterType, TagSet excludeTags = null )
+	internal void RenderCubemap( Texture target, CubemapRendering.GGXFilterType filterType, TagSet excludeTags = null, Rendering.ISceneRenderer renderer = null )
 	{
 		if ( target is null )
 			return;
@@ -509,7 +509,7 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 
 		if ( target.UAVAccess )
 		{
-			CubemapRendering.Render( Scene.SceneWorld, target, WorldTransform.WithScale( 1 ), ZNear.Clamp( 1, ZFar ), ZFar.Clamp( ZNear, 1024 * 16 ), filterType, excludeTags );
+			CubemapRendering.Render( Scene.SceneWorld, target, WorldTransform.WithScale( 1 ), ZNear.Clamp( 1, ZFar ), ZFar.Clamp( ZNear, 1024 * 16 ), filterType, excludeTags, renderer );
 		}
 
 		// Just finished rendering, signal to component that we're done

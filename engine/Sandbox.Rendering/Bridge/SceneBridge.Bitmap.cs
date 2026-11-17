@@ -14,18 +14,12 @@ internal sealed partial class SceneBridge
 	/// render (<see cref="RenderIntoTexture"/>) into an 8-bit target the bitmap's size, unflipped, then read back and written
 	/// into the bitmap, waiting for the GPU as native does. What it draws loads before it renders, as native's does, rather
 	/// than asynchronously as the game window's models do. Inside a render block it renders as a child view does, without the
-	/// camera's stages (<see cref="RenderBitmapInBlock"/>). With Source 2's device kept (the editor) the render is native's.
+	/// camera's stages (<see cref="RenderBitmapInBlock"/>). With Source 2's device kept (the editor) it renders here too:
+	/// nothing presents on Source 2's device, so its scene system has no frame size to render a bitmap at.
 	/// </summary>
 	public void RenderToBitmap( SceneCamera camera, Bitmap bitmap, in ViewSetup setup )
 	{
 		if ( !bitmap.IsValid() || Gpu is not { } gpu ) return;
-
-		// With Source 2's device kept (the editor's thumbnails and previews), its render
-		if ( Graphics.HasSource2Device )
-		{
-			SceneRenderer.Native.RenderToBitmap( camera, bitmap, setup );
-			return;
-		}
 
 		var size = bitmap.Size;
 		if ( size.x <= 1 || size.y <= 1 ) return;

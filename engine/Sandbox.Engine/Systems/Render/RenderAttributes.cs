@@ -40,6 +40,9 @@ public partial class RenderAttributes
 	{
 		manuallyAllocated = true;
 		attributes = CRenderAttributes.Create();
+
+		// A backend that lowers attributes itself (Borealis.Gpu) draws and dispatches with a managed copy of what's set
+		if ( RenderBackend.Default is not Source2RenderBackend ) KeepManagedCopy();
 	}
 
 	internal RenderAttributes( CRenderAttributes attr )
