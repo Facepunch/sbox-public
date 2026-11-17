@@ -19,6 +19,7 @@ public sealed class PassModules : IShaderModules
 	readonly Dictionary<string, (DateTime Time, long Checked, PassModule Module)> modules = new( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<string, (ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots)> stages = new( StringComparer.Ordinal );
 	readonly HashSet<string> reported = new( StringComparer.Ordinal );
+	readonly Dictionary<string, ShaderCompileException> failed = new( StringComparer.Ordinal );
 	SlangCompiler compiler;
 
 	internal PassModules( BackendDevice device ) => this.device = device;
@@ -60,6 +61,8 @@ public sealed class PassModules : IShaderModules
 	/// </summary>
 	public PassModule ModuleOf( ShaderFile shader )
 	{
+		if ( shader.Outdated is not null ) return EmbeddedModule( shader );
+
 		var name = shader.Name;
 		if ( name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) name = name[..^2];
 		var path = Path.ChangeExtension( name, ".slang" );
@@ -90,6 +93,58 @@ public sealed class PassModules : IShaderModules
 			modules[path] = (info.LastWriteTimeUtc, now, module);
 			return module;
 		}
+	}
+
+	readonly System.Runtime.CompilerServices.ConditionalWeakTable<ShaderFile, System.Runtime.CompilerServices.StrongBox<PassModule>> embedded = new();
+
+	/// <summary>
+	/// Whether a shader an older engine compiled (<see cref="ShaderFile.Outdated"/>, a package's) draws from a module made
+	/// from the source embedded in it (on), compiled here like any module, rather than being recompiled through the
+	/// ShaderCompiler (<see cref="ShaderLibrary.Upgrader"/>), which it falls back to when the module doesn't compile.
+	/// <c>-no-embedded-modules</c> turns it off, for comparisons.
+	/// </summary>
+	public bool FromEmbeddedSource { get; set; } = !Environment.GetCommandLineArgs().Any( a => a.Equals( "-no-embedded-modules", StringComparison.OrdinalIgnoreCase ) );
+
+	/// <summary>
+	/// Where modules made from shaders' embedded source are written, by name and contents, for the compiler to read and
+	/// for looking at; <c>game/.source2/borealisembedded</c> unless set before the first.
+	/// </summary>
+	public string EmbeddedFolder { get; set; }
+
+	/// <summary>
+	/// The module for an outdated shader's embedded source (<see cref="PassConverter.FromEmbedded"/>), made once per shader;
+	/// null when it has none, or it's of a kind modules don't draw (a geometry stage).
+	/// </summary>
+	PassModule EmbeddedModule( ShaderFile shader )
+	{
+		if ( !FromEmbeddedSource || shader.EmbeddedSource is not { } source || PassConverter.RefuseEmbedded( source ) is not null ) return null;
+		return embedded.GetValue( shader, s => new( MakeEmbedded( s, source ) ) ).Value;
+	}
+
+	PassModule MakeEmbedded( ShaderFile shader, IReadOnlyDictionary<string, string> source )
+	{
+		// A package's file is name.hash.shader_c
+		var stem = System.Text.RegularExpressions.Regex.Replace( Path.GetFileName( shader.Name ).Split( '.' )[0], "[^a-zA-Z0-9_]", "_" );
+		var features = (shader.Features?.StaticCombos ?? []).Select( c => (c.Name, c.Min, c.Max) );
+		var text = PassConverter.FromEmbedded( source, features, stem );
+		var hash = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( text ) ), 0, 8 ).ToLowerInvariant();
+		var folder = EmbeddedFolder ?? Path.Combine( Path.GetDirectoryName( Core ), ".source2", "borealisembedded" );
+		var path = Path.Combine( folder, $"{stem}.{hash}.slang" );
+
+		try
+		{
+			Directory.CreateDirectory( folder );
+			if ( !File.Exists( path ) ) File.WriteAllText( path, text );
+		}
+		catch ( IOException )
+		{
+			// Another process is writing the same module
+		}
+		catch ( UnauthorizedAccessException )
+		{
+		}
+
+		return PassModule.FromText( path, text, [Path.Combine( Core, "shaders" )] );
 	}
 
 	/// <inheritdoc/>
@@ -197,7 +252,7 @@ public sealed class PassModules : IShaderModules
 		{
 			bool first;
 			lock ( reported ) first = reported.Add( $"{module.Path}|{e.Errors}" );
-			if ( first ) Error?.Invoke( $"{Path.GetFileName( module.Path )} doesn't compile, so {Path.GetFileName( shader.Name )} draws from its compiled programs: {e.Errors}" );
+			if ( first ) Error?.Invoke( $"{Path.GetFileName( module.Path )} doesn't compile, so {Path.GetFileName( shader.Name )} {(shader.Outdated is null ? "draws from its compiled programs" : "is recompiled through the ShaderCompiler")}: {e.Errors}" );
 			return null;
 		}
 	}
@@ -210,10 +265,28 @@ public sealed class PassModules : IShaderModules
 	{
 		var key = $"{module.Path}|{module.Text.GetHashCode()}|{kind}|{string.Join( ';', values.OrderBy( v => v.Key, StringComparer.Ordinal ).Select( v => $"{v.Key}={v.Value}" ) )}";
 		(ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots) entry;
-		lock ( stages ) stages.TryGetValue( key, out entry );
+		ShaderCompileException failure;
+		lock ( stages )
+		{
+			stages.TryGetValue( key, out entry );
+			failed.TryGetValue( key, out failure );
+		}
+
+		// Not compiled again each time it's asked for: a changed module is another key
+		if ( failure is not null ) throw failure;
 		if ( entry.Stage is null )
 		{
-			var compiled = Compiler().CompilePass( module, kind, values );
+			CompiledPassStage compiled;
+			try
+			{
+				compiled = Compiler().CompilePass( module, kind, values );
+			}
+			catch ( ShaderCompileException e )
+			{
+				lock ( stages ) failed[key] = e;
+				throw;
+			}
+
 			entry = (Describe( shader, kind, compiled, key ), compiled.Stage.Specializations);
 			lock ( stages ) stages[key] = entry;
 			StagesCompiled++;
