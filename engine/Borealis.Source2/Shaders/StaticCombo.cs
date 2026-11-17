@@ -34,7 +34,11 @@ public sealed class StaticCombo
 	/// <summary>The dynamic combos that were compiled.</summary>
 	public DynamicCombo[] DynamicCombos { get; }
 
-	internal StaticCombo( ShaderProgram program, ulong id, byte[] blob )
+	/// <summary>
+	/// Read a static combo's data; without <paramref name="shaders"/>, every dynamic combo's shader is left null (nothing
+	/// decompressed or read for them), for reading only its variables and render states.
+	/// </summary>
+	internal StaticCombo( ShaderProgram program, ulong id, byte[] blob, bool shaders = true )
 	{
 		Program = program;
 		Id = id;
@@ -103,19 +107,19 @@ public sealed class StaticCombo
 		reader.Byte();
 
 		var shaderStart = reader.Position;
-		var shaders = new ShaderBytecode[reader.Int()];
-		var shaderOffsets = new int[shaders.Length];
+		var bytecode = new ShaderBytecode[reader.Int()];
+		var shaderOffsets = new int[bytecode.Length];
 		reader.Byte();
-		for ( int i = 0; i < shaders.Length; i++ )
+		for ( int i = 0; i < bytecode.Length; i++ )
 		{
 			shaderOffsets[i] = reader.Position - shaderStart;
 			var size = reader.Int();
 			var bytes = reader.Span( size );
 			reader.Skip( 16 );
-			shaders[i] = size == 0 ? null : ShaderBytecode.Read( program, bytes.ToArray() );
+			bytecode[i] = size == 0 || !shaders ? null : ShaderBytecode.Read( program, bytes.ToArray() );
 		}
 
-		Shaders = shaders;
+		Shaders = bytecode;
 
 		var dynamic = new DynamicCombo[reader.Int()];
 		dynamicById = new DynamicCombo[program.DynamicComboCount];
@@ -133,7 +137,7 @@ public sealed class StaticCombo
 			dynamic[i] = new DynamicCombo
 			{
 				Id = (ulong)dynamicId,
-				Shader = shaders[shader],
+				Shader = bytecode[shader],
 				Variables = index < variables.Length ? variables[index] : [],
 				ConstantBuffer = index < buffers.Length && buffers[index].Slot != 255 ? buffers[index] : (-1, -1),
 				InputSignature = index < signatures.Length && signatures[index] >= 0 ? program.InputSignatures[signatures[index]] : null,
