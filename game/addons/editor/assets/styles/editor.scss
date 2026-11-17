@@ -574,6 +574,12 @@ ControlSheet > .body { font-size: 12px; }
 // In an OS popup window the compositor rounds and borders the window itself - our own
 // radius and border would double up inside its clip
 .os-popup .dropdown, .os-popup .dropdown-options { border-radius: 0; border: none; }
+
+// The colour picker's popup is the same surface as a dropdown's list, not the game's tinted panel.
+// It opens in a window of its own, outside .editor-window, so it brings the editor's font with it.
+.popup-panel.color-popup { background-color: $field; color: $text; font-family: Poppins; font-size: 12px; border: 1px solid $field-line; border-radius: 4px; box-shadow: 0 8px 24px rgba( #000, 0.5 ); }
+.os-popup .popup-panel.color-popup { border: none; border-radius: 0; box-shadow: none; }
+
 // Dropdown menus flow vertically through their items.
 .dropdown,
 // DropDown's option list - a menu of its own, one row per option
@@ -864,6 +870,7 @@ ControlSheet > .body { font-size: 12px; }
 .style-light .switchcontrol:hover .switch-label { color: $l-text; }
 
 .style-light .dropdown, .style-light .dropdown-options { background-color: $l-raised; border-color: $l-line; color: $l-text; }
+.style-light .popup-panel.color-popup { background-color: $l-raised; border-color: $l-line; color: $l-text; }
 .style-light .dropdown .separator { background-color: $l-line; }
 
 .style-light .empty .icon { color: $l-line; }
