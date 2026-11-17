@@ -50,6 +50,9 @@ internal sealed partial class SceneBridge
 		var size = cube.Width;
 		if ( size <= 0 || MirrorContent.CaptureCube( cube ) is not { } target ) return;
 
+		// Captures run first in the engine's frame: its device frame starts before the faces record, not inside one
+		Gpu.FollowFrame();
+
 		int? filter = null;
 		if ( afterFaces is not null )
 		{

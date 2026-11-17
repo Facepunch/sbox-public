@@ -139,14 +139,19 @@ public sealed unsafe partial class Device
 
 	/// <summary>
 	/// Close the current frame and start the next: wait until the GPU has finished the frame that last used this slot,
-	/// then recycle its command lists, upload space and descriptor sets, and free what's been destroyed since.
+	/// then recycle its command lists, upload space and descriptor sets, and free what's been destroyed since. A list of the
+	/// closing frame still recording goes with the next frame instead, once (see <see cref="CarryRecording"/>).
 	/// </summary>
 	public void BeginFrame()
 	{
+		var carried = CarryRecording();
+
 		Flush();
 		frame.Graphics = graphicsQueue.Submitted;
 		frame.Compute = computeQueue.Submitted;
-		TagDestroyed();
+
+		// What was destroyed waits for the carried lists' frame as well: they may use it
+		if ( carried is null ) TagDestroyed();
 
 		FrameNumber++;
 		frame = frames[FrameSlot];
@@ -159,6 +164,7 @@ public sealed unsafe partial class Device
 		{
 			recycle = [.. frame.Lists];
 			frame.Lists.Clear();
+			if ( carried is not null ) frame.Lists.AddRange( carried );
 		}
 
 		foreach ( var list in recycle )
@@ -169,6 +175,42 @@ public sealed unsafe partial class Device
 
 		CollectGarbage();
 		TrimUploadPages();
+	}
+
+	/// <summary>Lists carried into the frame after the one they began in, for the tests.</summary>
+	internal int ListsCarried { get; private set; }
+
+	bool warnedCarried;
+
+	/// <summary>
+	/// Take the closing frame's lists that began in it and are still recording: one begun before something closed the
+	/// frame in the middle of its recording is submitted in the next frame, so it's recycled with that one. Recycled with
+	/// its own, its command buffer and upload pages would be reused while the GPU may still be running it. A list still
+	/// recording a frame later was never submitted, and is recycled as before.
+	/// </summary>
+	List<CommandList> CarryRecording()
+	{
+		List<CommandList> carried = null;
+		lock ( frame.Lists )
+		{
+			for ( int i = 0; i < frame.Lists.Count; i++ )
+			{
+				var list = frame.Lists[i];
+				if ( !list.IsRecording || list.Frame != FrameNumber ) continue;
+				(carried ??= new()).Add( list );
+				frame.Lists.RemoveAt( i-- );
+			}
+		}
+
+		if ( carried is null ) return null;
+		ListsCarried += carried.Count;
+		if ( !warnedCarried )
+		{
+			warnedCarried = true;
+			message?.Invoke( new DeviceMessage( MessageSeverity.Warning, "Borealis.Gpu.ListCarried", $"Frame {FrameNumber} closed while '{carried[0].Name}' was recording; it goes with the next frame. Start frames before recording into them." ) );
+		}
+
+		return carried;
 	}
 
 	/// <summary>Free upload pages kept for later lists however few frames use: about 32 MiB.</summary>
@@ -206,6 +248,7 @@ public sealed unsafe partial class Device
 		if ( !freeLists[(int)queue].TryTake( out var list ) ) list = new CommandList( this, QueueFor( queue ), queue );
 
 		lock ( frame.Lists ) frame.Lists.Add( list );
+		list.Frame = FrameNumber;
 		list.Begin( name );
 		return list;
 	}

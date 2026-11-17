@@ -161,7 +161,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// </summary>
 	internal void FollowFrame()
 	{
-		if ( !followsFrames || frame == Application.FrameCount ) return;
+		// Never inside a Borealis frame's recording (a block it lends): its lists would be left in the frame before
+		if ( !followsFrames || frame == Application.FrameCount || lendNext is not null ) return;
 		frame = Application.FrameCount;
 		BorealisGpuDeviceLost.Check( gpu );
 		SubmitUploads();
