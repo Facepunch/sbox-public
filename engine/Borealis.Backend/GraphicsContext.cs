@@ -585,18 +585,6 @@ public sealed class GraphicsContext
 		return grab;
 	}
 
-	// The attributes of this context's own passes (mips, the depth chain), emptied and reused for each: none overlaps another
-	ShaderAttributes passAttributes;
-
-	ShaderAttributes PassAttributes()
-	{
-		passAttributes ??= new ShaderAttributes();
-		passAttributes.Clear();
-		return passAttributes;
-	}
-
-	static readonly string[] MipNames = ["Mip0", "Mip1", "Mip2", "Mip3", "Mip4", "Mip5", "Mip6"];
-
 	/// <summary>
 	/// Fill mips 1 and down of <paramref name="texture"/> from mip 0 with <c>downsample_cs.shader</c>, one dispatch per mip,
 	/// as <c>Graphics.GenerateMipMaps</c> does for its gaussian methods (<paramref name="method"/> is
@@ -610,7 +598,7 @@ public sealed class GraphicsContext
 		EndScope();
 		Transition( texture, ImageLayout.General );
 
-		var attributes = PassAttributes();
+		var attributes = new ShaderAttributes();
 		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", method );
 		for ( int i = initialMip; i < info.Mips - 1; i++ )
 		{
@@ -668,7 +656,7 @@ public sealed class GraphicsContext
 		EndScope();
 		Transition( texture, ImageLayout.General );
 
-		var attributes = PassAttributes();
+		var attributes = new ShaderAttributes();
 		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", method );
 		attributes.SetCombo( "D_FUSED_DEPTH", 0 );
 		var lastMip = Math.Min( info.Mips - 1, System.Numerics.BitOperations.Log2( (uint)Math.Min( info.Width, info.Height ) ) );
@@ -680,7 +668,7 @@ public sealed class GraphicsContext
 			// The source mip is read, the rest written; mips past the count are never written, so the last one fills them
 			List.Barrier( MipBarrier( texture, source, ImageLayout.General, ImageLayout.ShaderRead ) );
 			attributes.Set( "Mip0", MipView( texture, source ) );
-			for ( int i = 1; i <= 6; i++ ) attributes.Set( MipNames[i], MipView( texture, source + Math.Min( i, mipCount ) ) );
+			for ( int i = 1; i <= 6; i++ ) attributes.Set( $"Mip{i}", MipView( texture, source + Math.Min( i, mipCount ) ) );
 			attributes.Set( "SourceSize", width, height );
 			attributes.Set( "MipCount", mipCount );
 			if ( !drawer.Dispatch( List, spd, attributes, (width + 63) / 64 * 256, (height + 63) / 64, 1 ) ) throw new InvalidOperationException( $"{spd.Name} didn't dispatch" );
@@ -706,7 +694,7 @@ public sealed class GraphicsContext
 		Transition( depth, ImageLayout.ShaderRead );
 		Transition( chain, ImageLayout.General );
 
-		var attributes = PassAttributes();
+		var attributes = new ShaderAttributes();
 		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", 5 );
 		// A multisampled depth gives its first sample, as native's depth resolve does
 		attributes.SetCombo( "D_MSAA", gpu.InfoOf( depth ).Samples > 1 ? 1 : 0 );
@@ -720,7 +708,7 @@ public sealed class GraphicsContext
 			attributes.SetCombo( "D_FUSED_DEPTH", fused ? 1 : 0 );
 			if ( fused ) attributes.Set( "Mip0Out", MipView( chain, source ) );
 			else List.Barrier( MipBarrier( chain, source, ImageLayout.General, ImageLayout.ShaderRead ) );
-			for ( int i = fused ? 1 : 0; i <= 6; i++ ) attributes.Set( MipNames[i], MipView( chain, source + Math.Min( i, mipCount ) ) );
+			for ( int i = fused ? 1 : 0; i <= 6; i++ ) attributes.Set( $"Mip{i}", MipView( chain, source + Math.Min( i, mipCount ) ) );
 			attributes.Set( "SourceSize", width, height );
 			attributes.Set( "MipCount", mipCount );
 			if ( !drawer.Dispatch( List, spd, attributes, (width + 63) / 64 * 256, (height + 63) / 64, 1 ) ) throw new InvalidOperationException( $"{spd.Name} didn't dispatch" );

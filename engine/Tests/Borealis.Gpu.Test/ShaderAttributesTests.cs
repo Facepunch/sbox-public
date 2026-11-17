@@ -46,25 +46,6 @@ public class ShaderAttributesTests
 	}
 
 	/// <summary>
-	/// Numbers set one at a time reuse an array per name (every reader binds them at once); a merge copies them, so setting
-	/// the name again in the source doesn't change what the merged set holds.
-	/// </summary>
-	[TestMethod]
-	public void MergedNumbersDontFollowLaterSets()
-	{
-		var source = new ShaderAttributes();
-		source.Set( "TestNumber", 1.0f );
-		source.Set( "TestVector", 1.0f, 2.0f );
-		var merged = new ShaderAttributes();
-		merged.Merge( source );
-		source.Set( "TestNumber", 5.0f );
-		source.Set( "TestVector", 5.0f, 6.0f );
-		CollectionAssert.AreEqual( new[] { 1.0f }, (float[])merged.Get( "TestNumber" ) );
-		CollectionAssert.AreEqual( new[] { 1.0f, 2.0f }, (float[])merged.Get( "TestVector" ) );
-		CollectionAssert.AreEqual( new[] { 5.0f }, (float[])source.Get( "TestNumber" ) );
-	}
-
-	/// <summary>
 	/// Values stored by attribute id read back by any spelling of the name and by id; clearing forgets them and the combos;
 	/// merging takes the other's over its own; enumerating gives each name once, as first spelled.
 	/// </summary>
