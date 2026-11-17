@@ -20,6 +20,19 @@ public sealed unsafe partial class Device : IDisposable
 	internal readonly MemoryAllocator Allocator;
 	internal readonly VkPhysicalDeviceLimits Limits;
 
+	// The most work groups a dispatch may ask for in each dimension
+	readonly (uint X, uint Y, uint Z) maxGroups;
+
+	/// <summary>
+	/// Throw for a dispatch of a negative count (which Vulkan reads as billions of groups) or more groups than the device
+	/// allows: either keeps the GPU busy until the device is lost, taking every other process on the GPU with it.
+	/// </summary>
+	internal void CheckGroupCounts( int x, int y, int z )
+	{
+		if ( x < 0 || y < 0 || z < 0 || (uint)x > maxGroups.X || (uint)y > maxGroups.Y || (uint)z > maxGroups.Z )
+			throw new ArgumentOutOfRangeException( nameof( x ), $"A dispatch of {x} x {y} x {z} groups is outside the device's range ({maxGroups.X} x {maxGroups.Y} x {maxGroups.Z})" );
+	}
+
 	readonly ulong messenger;
 	readonly GCHandle self;
 	readonly Action<DeviceMessage> message;
@@ -164,6 +177,7 @@ public sealed unsafe partial class Device : IDisposable
 		{
 			PhysicalDevice = ChooseAdapter( options.PreferredAdapter, out var properties );
 			Limits = properties.limits;
+			maxGroups = (properties.limits.maxComputeWorkGroupCount[0], properties.limits.maxComputeWorkGroupCount[1], properties.limits.maxComputeWorkGroupCount[2]);
 			VkPhysicalDeviceMemoryProperties memory;
 			Instance.vkGetPhysicalDeviceMemoryProperties( PhysicalDevice, &memory );
 			ulong deviceLocal = 0;
