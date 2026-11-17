@@ -117,7 +117,7 @@ public sealed class ShaderLibrary : IDisposable
 	/// <summary>
 	/// Recompiles a shader an older engine compiled (<see cref="ShaderOutdatedException"/>, a package's) from the source
 	/// embedded in it: given its compiled file and where to write the new one, true once written. Null recompiles
-	/// nothing, and such a shader doesn't load: its materials draw nothing rather than read bindings that moved.
+	/// nothing, and such a shader doesn't load: its materials draw the error shader rather than read bindings that moved.
 	/// </summary>
 	public Func<string, string, bool> Upgrader { get; set; }
 
@@ -129,17 +129,30 @@ public sealed class ShaderLibrary : IDisposable
 
 	/// <summary>
 	/// Told once for each shader that won't load (one an older engine compiled that nothing recompiles, or whose recompile
-	/// failed), with why: its materials draw nothing.
+	/// failed), with why: its materials draw the error shader, as native's do.
 	/// </summary>
 	public Action<string> Unloaded { get; set; }
 
 	readonly HashSet<string> unloaded = new( StringComparer.OrdinalIgnoreCase );
 
+	/// <summary>
+	/// What a material whose shader won't load draws with, as native's material system draws it: the error shader, in its one
+	/// mode (it stands in for every mode). Null without one.
+	/// </summary>
+	ShaderVariant ErrorVariant( Func<string, int?> dynamicCombos, Func<string, int?> attributes )
+	{
+		if ( Load( ErrorShader ) is not { Outdated: null } error || error.Modes.Count == 0 ) return null;
+		return Variant( error, error.Modes[0].Name, [], dynamicCombos, attributes );
+	}
+
+	/// <summary>The shader native's material system falls back to.</summary>
+	public const string ErrorShader = "shaders/error.shader";
+
 	ShaderFile NotLoaded( string path, string why )
 	{
 		bool first;
 		lock ( unloaded ) first = unloaded.Add( path );
-		if ( first ) Unloaded?.Invoke( $"{path} won't load, so its materials draw nothing: {why}" );
+		if ( first ) Unloaded?.Invoke( $"{path} won't load, so its materials draw the error shader: {why}" );
 		return null;
 	}
 
@@ -445,7 +458,7 @@ public sealed class ShaderLibrary : IDisposable
 		// An outdated shader's programs follow other bindings: one whose embedded source didn't compile here (or with modules
 		// off) is recompiled through the ShaderCompiler after all. Its GPU-driven variant is compiled from its file as any is
 		if ( shader.Outdated is not null && !gpuDriven )
-			return UpgradedOf( shader ) is { } upgraded ? Variant( upgraded, mode, features, dynamicCombos, attributes ) : null;
+			return UpgradedOf( shader ) is { } upgraded ? Variant( upgraded, mode, features, dynamicCombos, attributes ) : ErrorVariant( dynamicCombos, attributes );
 
 		// A shader with only a module has no programs to fall back to (modules off, or its module doesn't compile)
 		if ( shader.ModuleOnly ) return null;
