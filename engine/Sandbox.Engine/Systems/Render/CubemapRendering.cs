@@ -1,4 +1,5 @@
 using Sandbox.Rendering;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox;
 
@@ -86,8 +87,18 @@ internal static class CubemapRendering
 		var filter = new CommandList( "Cubemap.Filter" );
 		filter.InsertList( FilterDownsample( cubemapTexture ) );
 		filter.InsertList( FilterGGX( cubemapTexture, filterType ) );
+		filters.AddOrUpdate( filter, new StrongBox<GGXFilterType>( filterType ) );
 		return filter;
 	}
+
+	// What each filter Filter made filters with
+	static readonly ConditionalWeakTable<CommandList, StrongBox<GGXFilterType>> filters = new();
+
+	/// <summary>
+	/// The quality <paramref name="list"/> filters with, if it's a filter <see cref="Filter"/> made: a renderer that filters
+	/// cubes its own way (Borealis on Borealis.Gpu) runs that instead of the list.
+	/// </summary>
+	internal static GGXFilterType? FilterOf( CommandList list ) => list is not null && filters.TryGetValue( list, out var type ) ? type.Value : null;
 
 	/// <summary>
 	/// Downsamples a cubemap texture to generate its mip chain.

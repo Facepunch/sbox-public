@@ -79,7 +79,10 @@ internal static class MirrorContent
 
 		// A view rendered for it on this device (a water body's refraction) drew into Borealis's own texture (a render
 		// target's path is its name, with no file behind it)
-		if ( captures.TryGetValue( texture, out var capture ) && capture.Texture is { IsValid: true } drawn ) return drawn;
+		if ( captures.TryGetValue( texture, out var capture ) && capture.Texture is { IsValid: true } drawn && !capture.Owned ) return drawn;
+
+		// A cube made at run time for compute to write (a realtime probe's) is what cube captures draw into
+		if ( texture.Depth == 6 && texture.UAVAccess ) return CaptureCube( texture );
 
 		var path = texture.ResourcePath;
 		if ( !string.IsNullOrEmpty( path ) ) return gpu.LoadTexture( path );
@@ -93,9 +96,54 @@ internal static class MirrorContent
 	sealed class Capture
 	{
 		public GpuTexture Texture;
+
+		/// <summary>Whether <see cref="Texture"/> is this capture's own (a cube's), freed once the engine texture is gone.</summary>
+		public bool Owned;
+
+		~Capture()
+		{
+			if ( Owned && Texture is not null ) freedCaptures.Enqueue( Texture );
+		}
 	}
 
 	static readonly ConditionalWeakTable<Texture, Capture> captures = new();
+	static readonly System.Collections.Concurrent.ConcurrentQueue<GpuTexture> freedCaptures = new();
+
+	/// <summary>
+	/// The Borealis.Gpu cube that cube captures of <paramref name="texture"/> (an engine cube made at run time, a realtime
+	/// probe's) draw into, and that what reads the engine texture reads: made the first time either asks, as the engine made
+	/// it (size, format, mips), black until captured, and made again if the engine texture's shape changes. Null without a
+	/// device, or for a texture that isn't a square cube in a format Borealis.Gpu has.
+	/// </summary>
+	public static GpuTexture CaptureCube( Texture texture )
+	{
+		if ( Gpu is not { } gpu || texture is null || texture.Depth != 6 || texture.Width != texture.Height || texture.Width < 1 ) return null;
+
+		while ( freedCaptures.TryDequeue( out var freed ) ) freed.Dispose();
+
+		var format = Source2Formats.From( texture.ImageFormat );
+		var mips = Math.Max( texture.Mips, 1 );
+		var capture = captures.GetOrCreateValue( texture );
+		if ( capture.Owned && capture.Texture is { IsValid: true, IsCube: true } made && made.Width == texture.Width && made.Format == format && made.Mips == mips ) return made;
+		if ( format == TextureFormat.Unknown ) return null;
+
+		if ( capture.Owned ) capture.Texture?.Dispose();
+		capture.Texture = gpu.CreateTexture( new TextureDesc
+		{
+			Width = texture.Width,
+			Height = texture.Height,
+			Depth = 1,
+			Format = format,
+			Samples = 1,
+			Mips = mips,
+			Cube = true,
+			RenderTarget = true,
+			Storage = true,
+		}, $"Cube capture {texture.Width}px" );
+		capture.Owned = true;
+		gpu.Clear( capture.Texture, Color.Transparent );
+		return capture.Texture;
+	}
 
 	/// <summary>
 	/// Note that a view rendered for <paramref name="texture"/> (an engine render target a command list's view asked for) drew
