@@ -313,17 +313,10 @@ public sealed class ShaderStage
 
 				case RegisterType.RenderState:
 					renderStates.Add( (variable.RenderStateId, variable) );
-
-					// A render state given by an expression of the material's features (complex.shader's CullMode from
-					// F_RENDER_BACKFACES), evaluated as native's material layer does when it's constant for the material
-					if ( variable.Source is VariableSource.Expression or VariableSource.MaterialAndExpression && variable.Expression is { } code )
+					if ( EvaluateRenderState( variable, ref expressions, combo, dynamic, features ) is { } evaluated )
 					{
-						expressions ??= ExpressionContext( combo, dynamic, features );
-						if ( ShaderExpression.TryEvaluate( code, expressions, out var evaluated ) )
-						{
-							evaluatedRenderStates[variable] = evaluated.X;
-							ExpressionStates += $"r{variable.RenderStateId}={evaluated.X};";
-						}
+						evaluatedRenderStates[variable] = evaluated;
+						ExpressionStates += $"r{variable.RenderStateId}={evaluated};";
 					}
 
 					break;
@@ -489,6 +482,39 @@ public sealed class ShaderStage
 
 	/// <summary>Render-state variables given by expressions that evaluated for this material, with their values.</summary>
 	internal IReadOnlyDictionary<ShaderVariable, float> EvaluatedRenderStates { get; }
+
+	/// <summary>
+	/// A render state given by an expression of the material's features (complex.shader's CullMode from
+	/// F_RENDER_BACKFACES), evaluated as native's material layer does when it's constant for the material; null for a
+	/// literal, or an expression that doesn't evaluate.
+	/// </summary>
+	static float? EvaluateRenderState( ShaderVariable variable, ref ShaderExpressionContext expressions, StaticCombo combo, DynamicCombo dynamic, ReadOnlySpan<int> features )
+	{
+		if ( variable.Source is not (VariableSource.Expression or VariableSource.MaterialAndExpression) || variable.Expression is not { } code ) return null;
+		expressions ??= ExpressionContext( combo, dynamic, features );
+		return ShaderExpression.TryEvaluate( code, expressions, out var evaluated ) ? evaluated.X : null;
+	}
+
+	/// <summary>
+	/// The render state a pixel stage of these combos would have (<see cref="ShaderVariant.State"/>), without making the
+	/// stage: no shader module, no reflection.
+	/// </summary>
+	internal static ShaderPipelineState PixelState( ShaderProgram program, StaticCombo combo, DynamicCombo dynamic, ReadOnlySpan<int> features )
+	{
+		ShaderExpressionContext expressions = null;
+		List<(int, ShaderVariable)> renderStates = null;
+		Dictionary<ShaderVariable, float> evaluated = null;
+		foreach ( var binding in dynamic.Variables )
+		{
+			var variable = program.Variables[binding.Variable];
+			if ( variable.Register != RegisterType.RenderState ) continue;
+			(renderStates ??= new()).Add( (variable.RenderStateId, variable) );
+			if ( EvaluateRenderState( variable, ref expressions, combo, dynamic, features ) is { } value )
+				(evaluated ??= new( ReferenceEqualityComparer.Instance ))[variable] = value;
+		}
+
+		return ShaderPipelineState.Resolve( dynamic.RenderState, renderStates, evaluated );
+	}
 
 	/// <summary>
 	/// What a render-state expression reads: the material's feature values, and this stage's static and dynamic combo
@@ -746,15 +772,20 @@ public sealed class ShaderPipelineState
 		return !passesOnZero || Writes( face.Pass ) || Writes( face.Fail ) || Writes( face.DepthFail );
 	}
 
-	internal static ShaderPipelineState Resolve( ShaderStage pixel )
+	internal static ShaderPipelineState Resolve( ShaderStage pixel ) => Resolve( pixel?.Dynamic.RenderState, pixel?.RenderStates, pixel?.EvaluatedRenderStates );
+
+	/// <summary>
+	/// A pixel stage's state from its dynamic combo's fixed state (null: every part dynamic), its render-state variables and
+	/// the values of those given by expressions that evaluated.
+	/// </summary>
+	internal static ShaderPipelineState Resolve( ShaderRenderState fixedState, IReadOnlyList<(int State, ShaderVariable Variable)> renderStates, IReadOnlyDictionary<ShaderVariable, float> evaluatedStates )
 	{
-		var fixedState = pixel?.Dynamic.RenderState;
 		var rasterizer = fixedState?.Rasterizer ?? RasterizerDesc.Default;
 		var depthStencil = fixedState?.DepthStencil ?? DepthStencilDesc.Default;
 		var blend = fixedState?.Blend?.Clone() ?? BlendDesc.Default;
 		var stencilReference = 0;
 
-		foreach ( var (state, variable) in pixel?.RenderStates ?? [] )
+		foreach ( var (state, variable) in renderStates ?? [] )
 		{
 			// Literals, and expressions of the material's features that evaluated (truncated, as native's are)
 			int value;
@@ -764,7 +795,7 @@ public sealed class ShaderPipelineState
 				value = variable.IntDefault[0];
 				floatValue = variable.FloatDefault[0];
 			}
-			else if ( pixel.EvaluatedRenderStates.TryGetValue( variable, out var evaluated ) )
+			else if ( evaluatedStates is not null && evaluatedStates.TryGetValue( variable, out var evaluated ) )
 			{
 				value = (int)evaluated;
 				floatValue = evaluated;

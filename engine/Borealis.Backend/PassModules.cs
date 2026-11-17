@@ -287,40 +287,15 @@ public sealed class PassModules : IShaderModules
 			if ( used.Add( Path.GetFileNameWithoutExtension( module.Path ) ) && LogUse ) Console.WriteLine( $"Borealis.Gpu: {Path.GetFileName( module.Path )} draws {Path.GetFileName( shader.Name )}" );
 		}
 
-		// Features by name, for static combos that follow them and render states that read them
-		var featureValues = new Dictionary<string, int>( StringComparer.Ordinal );
-		foreach ( var feature in module.Features )
-		{
-			var index = shader.FeatureIndex( feature.Name );
-			featureValues[feature.Name] = index >= 0 && index < features.Length ? features[index] : feature.Min;
-		}
-
-		var settings = new Dictionary<string, int>( StringComparer.Ordinal );
-		foreach ( var (combo, value) in mode.Settings ?? [] ) settings[combo] = value;
+		var featureValues = FeatureValues( module, shader, features );
+		var settings = Settings( mode );
 
 		var waiting = false;
 		ModuleStage Stage( StageKind kind, out Dictionary<string, int> values, bool start = false )
 		{
 			values = null;
 			if ( !module.Has( kind ) ) return null;
-			values = new Dictionary<string, int>( settings, StringComparer.Ordinal );
-			foreach ( var combo in module.Combos( kind ) )
-			{
-				int value;
-				if ( settings.TryGetValue( combo.Name, out var set ) ) value = set;
-				else if ( combo.Static ) value = combo.Feature is not null && featureValues.TryGetValue( combo.Feature, out var f ) ? f : combo.Min;
-				else value = dynamicCombos?.Invoke( combo.Name ) ?? combo.Min;
-				values[combo.Name] = Math.Clamp( value, combo.Min, combo.Max );
-			}
-
-			// Combo values the rules forbid weren't compiled by vfx: those draw the first dynamic combo, as a compiled program's lookup does
-			if ( !module.Allows( kind, values ) )
-			{
-				foreach ( var combo in module.Combos( kind ) )
-				{
-					if ( !combo.Static && !settings.ContainsKey( combo.Name ) ) values[combo.Name] = combo.Min;
-				}
-			}
+			values = StageValues( module, kind, settings, featureValues, dynamicCombos );
 
 			// No entry point with these values (a depth pass without a pixel shader): a stage with no code, for the render states
 			if ( !module.Has( kind, values ) ) return kind == StageKind.Pixel ? new ModuleStage { Type = ShaderProgramType.Pixel, Name = $"{Path.GetFileName( module.Path )} pixel (none)" } : null;
@@ -374,6 +349,65 @@ public sealed class PassModules : IShaderModules
 			if ( first ) Error?.Invoke( $"{Path.GetFileName( module.Path )} doesn't compile, so {Path.GetFileName( shader.Name )} {(shader.Outdated is null ? "draws from its compiled programs" : "is recompiled through the ShaderCompiler")}: {e.Errors}" );
 			return null;
 		}
+	}
+
+	/// <inheritdoc/>
+	public IReadOnlyList<(int State, ShaderVariable Variable)> PixelRenderStates( ShaderFile shader, ShaderMode mode, ReadOnlySpan<int> features )
+	{
+		var module = ModuleOf( shader );
+		if ( module is null ) return null;
+		if ( !module.Has( StageKind.Pixel ) ) return [];
+
+		var featureValues = FeatureValues( module, shader, features );
+		var values = StageValues( module, StageKind.Pixel, Settings( mode ), featureValues, null );
+		foreach ( var (name, value) in featureValues ) values[name] = value;
+		return Literals( module.RenderStates( values ) );
+	}
+
+	/// <summary>A module's features by name, for static combos that follow them and render states that read them.</summary>
+	static Dictionary<string, int> FeatureValues( PassModule module, ShaderFile shader, ReadOnlySpan<int> features )
+	{
+		var values = new Dictionary<string, int>( StringComparer.Ordinal );
+		foreach ( var feature in module.Features )
+		{
+			var index = shader.FeatureIndex( feature.Name );
+			values[feature.Name] = index >= 0 && index < features.Length ? features[index] : feature.Min;
+		}
+
+		return values;
+	}
+
+	/// <summary>The combo values a mode sets (<c>S_MODE_*</c>).</summary>
+	static Dictionary<string, int> Settings( ShaderMode mode )
+	{
+		var settings = new Dictionary<string, int>( StringComparer.Ordinal );
+		foreach ( var (combo, value) in mode.Settings ?? [] ) settings[combo] = value;
+		return settings;
+	}
+
+	/// <summary>A stage's combo values: the mode's settings, static combos from features, dynamic ones as asked.</summary>
+	static Dictionary<string, int> StageValues( PassModule module, StageKind kind, Dictionary<string, int> settings, Dictionary<string, int> featureValues, Func<string, int?> dynamicCombos )
+	{
+		var values = new Dictionary<string, int>( settings, StringComparer.Ordinal );
+		foreach ( var combo in module.Combos( kind ) )
+		{
+			int value;
+			if ( settings.TryGetValue( combo.Name, out var set ) ) value = set;
+			else if ( combo.Static ) value = combo.Feature is not null && featureValues.TryGetValue( combo.Feature, out var f ) ? f : combo.Min;
+			else value = dynamicCombos?.Invoke( combo.Name ) ?? combo.Min;
+			values[combo.Name] = Math.Clamp( value, combo.Min, combo.Max );
+		}
+
+		// Combo values the rules forbid weren't compiled by vfx: those draw the first dynamic combo, as a compiled program's lookup does
+		if ( !module.Allows( kind, values ) )
+		{
+			foreach ( var combo in module.Combos( kind ) )
+			{
+				if ( !combo.Static && !settings.ContainsKey( combo.Name ) ) values[combo.Name] = combo.Min;
+			}
+		}
+
+		return values;
 	}
 
 	static string Key( IReadOnlyList<(int State, ShaderVariable Variable)> states ) => states is null ? "" : string.Join( ',', states.Select( s => $"{s.State}={s.Variable.FloatDefault[0]}" ) );
@@ -470,7 +504,10 @@ public sealed class PassModules : IShaderModules
 		return Copy( entry.Stage, constants: constants );
 	}
 
-	static ModuleStage WithRenderStates( ModuleStage stage, IReadOnlyList<(string State, string Value)> states )
+	static ModuleStage WithRenderStates( ModuleStage stage, IReadOnlyList<(string State, string Value)> states ) => Copy( stage, renderStates: Literals( states ) );
+
+	/// <summary>A module's render states as the literal variables a stage carries.</summary>
+	static List<(int State, ShaderVariable Variable)> Literals( IReadOnlyList<(string State, string Value)> states )
 	{
 		var literals = new List<(int, ShaderVariable)>();
 		foreach ( var (state, value) in states )
@@ -478,7 +515,7 @@ public sealed class PassModules : IShaderModules
 			if ( RenderStateNames.TryParse( state, value, out var id, out var variable ) ) literals.Add( (id, variable) );
 		}
 
-		return Copy( stage, renderStates: literals );
+		return literals;
 	}
 
 	static ModuleStage Copy( ModuleStage stage, SpecializationConstant[] constants = null, IReadOnlyList<(int, ShaderVariable)> renderStates = null, PrimitiveExpansion? expansion = null ) => new()

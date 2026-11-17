@@ -22,6 +22,13 @@ public interface IShaderModules
 	ModuleProgram Compile( ShaderFile shader, ShaderMode mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos, Func<string, int?> attributes );
 
 	/// <summary>
+	/// The render states <see cref="Compile"/>'s pixel stage carries for these feature values with every dynamic combo at its
+	/// first value (<see cref="ModuleStage.RenderStates"/>), read from the module without compiling it; null when it can't
+	/// say, and the stages are compiled for them.
+	/// </summary>
+	IReadOnlyList<(int State, ShaderVariable Variable)> PixelRenderStates( ShaderFile shader, ShaderMode mode, ReadOnlySpan<int> features ) => null;
+
+	/// <summary>
 	/// A shader with no compiled file but a module where it would be (<paramref name="compiledPath"/>, the
 	/// <c>.shader_c</c>'s full path): what the module declares (<see cref="ShaderFile.FromModule"/>), or null when there's
 	/// no module there.
