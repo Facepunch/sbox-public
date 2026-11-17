@@ -180,6 +180,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// </summary>
 	public void Sync( SceneCamera camera, bool skyboxView = false )
 	{
+		using var zone = Borealis.Zones.MirrorSync.Start();
 		HasSynced = true;
 
 		// A reload queues the objects drawing what it changed, and so does a model finishing loading

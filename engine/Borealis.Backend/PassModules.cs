@@ -78,15 +78,32 @@ public sealed class PassModules : IShaderModules
 
 	SlangCompiler Compiler()
 	{
-		if ( compiler is not null ) return compiler;
-		var game = Path.GetDirectoryName( Core );
-		CompileZones.Install();
-		return compiler = new SlangCompiler( EngineFolders.NativeIn( game ), [Path.Combine( Core, "shaders" )] )
+		lock ( reported )
 		{
-			CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealispasses" ),
-			UseOffline = UseOffline,
-			Compiling = what => Info?.Invoke( $"Borealis.Gpu: compiling {what} with Slang at run time (no offline compile)" ),
-		};
+			if ( compiler is not null ) return compiler;
+			var game = Path.GetDirectoryName( Core );
+			CompileZones.Install();
+			return compiler = new SlangCompiler( EngineFolders.NativeIn( game ), [Path.Combine( Core, "shaders" )] )
+			{
+				CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealispasses" ),
+				UseOffline = UseOffline,
+				Compiling = what => Info?.Invoke( $"Borealis.Gpu: compiling {what} with Slang at run time (no offline compile)" ),
+			};
+		}
+	}
+
+	/// <summary>
+	/// Read every core pass module on a worker (each parse is milliseconds of regexes and preprocessing), so the first
+	/// frames that draw their shaders find them read: the game's device does at start.
+	/// </summary>
+	public System.Threading.Tasks.Task Warm()
+	{
+		var shaders = Path.Combine( Core, "shaders" );
+		return System.Threading.Tasks.Task.Run( () =>
+		{
+			using var zone = Zones.PassModulesRead.Start();
+			foreach ( var file in Directory.GetFiles( shaders, "*.slang", SearchOption.AllDirectories ) ) ModuleBeside( Path.ChangeExtension( file, ".shader_c" ) );
+		} );
 	}
 
 	/// <summary>
@@ -103,7 +120,7 @@ public sealed class PassModules : IShaderModules
 	{
 		var name = compiledPath;
 		if ( name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) name = name[..^2];
-		var path = Path.ChangeExtension( name, ".slang" );
+		var path = Path.GetFullPath( Path.ChangeExtension( name, ".slang" ) );
 
 		var now = Environment.TickCount64;
 		lock ( modules )
@@ -125,12 +142,13 @@ public sealed class PassModules : IShaderModules
 				modules[path] = known with { Checked = now };
 				return known.Module;
 			}
-
-			var text = File.ReadAllText( path );
-			var module = text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) ? PassModule.FromText( info.FullName, text, [Path.Combine( Core, "shaders" )] ) : null;
-			modules[path] = (info.LastWriteTimeUtc, now, module);
-			return module;
 		}
+
+		// Read outside the lock: a worker reading ahead (Warm) holds no one up
+		var text = File.ReadAllText( path );
+		var module = text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) ? PassModule.FromText( info.FullName, text, [Path.Combine( Core, "shaders" )] ) : null;
+		lock ( modules ) modules[path] = (info.LastWriteTimeUtc, now, module);
+		return module;
 	}
 
 	/// <inheritdoc/>
