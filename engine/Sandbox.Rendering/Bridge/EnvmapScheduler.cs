@@ -35,9 +35,10 @@ internal sealed class EnvmapScheduler( SceneBridge bridge )
 	public void Run( Scene scene )
 	{
 		// Behind a loading screen nothing's on screen, and a probe's OnLoad waits for its first capture: every dirty probe
-		// is needed, one a frame as native
+		// is needed, one a frame as native. So it is without a camera to see from: none, or one not enabled yet (or any
+		// more), whose scene camera isn't made
 		var camera = scene.Camera;
-		if ( !Enabled || camera is null || (IGameInstance.Current?.IsLoading ?? false) )
+		if ( !Enabled || camera is not { IsValid: true, SceneCamera: not null } || (IGameInstance.Current?.IsLoading ?? false) )
 		{
 			foreach ( var envmap in scene.EnvmapProbes() )
 			{
@@ -53,7 +54,7 @@ internal sealed class EnvmapScheduler( SceneBridge bridge )
 		if ( credit <= 0 ) return;
 
 		// A capture spread over frames goes on before another starts: its faces wait in the targets the next would draw into
-		if ( bridge.CaptureSpread )
+		if ( bridge is { CaptureSpread: true } )
 		{
 			var ms = (float)bridge.ContinueSpreadCapture( credit );
 			credit -= ms;
@@ -102,14 +103,14 @@ internal sealed class EnvmapScheduler( SceneBridge bridge )
 	void Capture( EnvmapProbe envmap, bool spread = false )
 	{
 		var start = System.Diagnostics.Stopwatch.GetTimestamp();
-		bridge.SpreadCaptureMs = spread && SpreadFaces ? Math.Max( credit, 0 ) : -1;
+		if ( bridge is not null ) bridge.SpreadCaptureMs = spread && SpreadFaces ? Math.Max( credit, 0 ) : -1;
 		try
 		{
 			envmap.RenderCubemap();
 		}
 		finally
 		{
-			bridge.SpreadCaptureMs = -1;
+			if ( bridge is not null ) bridge.SpreadCaptureMs = -1;
 		}
 
 		var ms = (float)System.Diagnostics.Stopwatch.GetElapsedTime( start ).TotalMilliseconds;

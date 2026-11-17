@@ -55,4 +55,26 @@ public class EnvmapSchedulerTests
 		Assert.AreSame( middle, scheduler.Pick( scene, camera ), "a first capture before a refresh" );
 		Assert.IsTrue( behind.Dirty, "the unseen probe is left dirty" );
 	}
+
+	/// <summary>
+	/// The scene's camera without a scene camera (not made yet, or already disposed) has nothing to see from: the scheduler
+	/// captures in native's order rather than asking it for a frustum. Before, it threw every frame (Mouse Fishing).
+	/// </summary>
+	[TestMethod]
+	public void CameraWithoutASceneCameraCapturesInNativeOrder()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var camera = scene.CreateObject().Components.Create<CameraComponent>();
+		Assert.AreSame( camera, scene.Camera );
+
+		// As a camera between being destroyed and leaving the scene's index has it, or one not awake yet
+		var field = typeof( CameraComponent ).GetField( "sceneCamera", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance );
+		camera.SceneCamera.Dispose();
+		field.SetValue( camera, null );
+
+		Probe( scene, new Vector3( 500, 0, 0 ) );
+		new EnvmapScheduler( null ).Run( scene );
+	}
 }
