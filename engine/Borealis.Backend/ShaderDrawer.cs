@@ -68,6 +68,29 @@ public sealed class ShaderAttributes
 
 		return key.ToString();
 	}
+
+	/// <summary>
+	/// <see cref="ComboKey"/> without building it: the shader's dynamic combos' values in turn, a byte each, for a shader of
+	/// at most eight whose values fit. False otherwise, and the caller keys by <see cref="ComboKey"/>.
+	/// </summary>
+	internal bool ComboBits( ShaderFile shader, out ulong bits )
+	{
+		bits = 0;
+		var shift = 0;
+		foreach ( var type in (ReadOnlySpan<ShaderProgramType>)[ShaderProgramType.Vertex, ShaderProgramType.Pixel, ShaderProgramType.Compute] )
+		{
+			foreach ( var combo in shader[type]?.DynamicCombos ?? [] )
+			{
+				if ( shift == 64 ) return false;
+				var value = combos.Count == 0 ? 0 : GetCombo( combo.Name ) ?? 0;
+				if ( (uint)value > byte.MaxValue ) return false;
+				bits |= (ulong)value << shift;
+				shift += 8;
+			}
+		}
+
+		return true;
+	}
 }
 
 /// <summary>
@@ -187,6 +210,10 @@ public sealed class ShaderDrawer : IDisposable
 	readonly ShaderLibrary shaders;
 	readonly ShaderDefaults defaults;
 	readonly Dictionary<(ShaderFile Shader, string Mode, string Combos), ShaderVariant> variants = new();
+
+	// Variants by their combos' values packed (ShaderAttributes.ComboBits) and the material's features array, built with no
+	// strings: what most draws find theirs by
+	readonly Dictionary<(ShaderFile Shader, string Mode, int[] Features, ulong Combos), ShaderVariant> packedVariants = new();
 	readonly Dictionary<(ShaderVariant Variant, Format Color, Format Depth, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology, bool Ids), PipelineHandle> pipelines = new();
 	readonly Dictionary<ShaderVariant, PipelineHandle> computePipelines = new();
 	MaterialObjectCache cache;
@@ -309,6 +336,24 @@ public sealed class ShaderDrawer : IDisposable
 	{
 		mode ??= shader.Modes[0].Name;
 		var features = MaterialOf( shader )?.Features ?? [];
+		if ( attributes.ComboBits( shader, out var bits ) )
+		{
+			var packed = (shader, mode, features, bits);
+			if ( packedVariants.TryGetValue( packed, out var found ) ) return found;
+			found = VariantByName( shader, attributes, mode, features );
+			if ( found is not null && !pendingVariant ) packedVariants[packed] = found;
+			return found;
+		}
+
+		return VariantByName( shader, attributes, mode, features );
+	}
+
+	// Whether the last VariantByName's variant was one whose module is still compiling
+	bool pendingVariant;
+
+	ShaderVariant VariantByName( ShaderFile shader, ShaderAttributes attributes, string mode, int[] features )
+	{
+		pendingVariant = false;
 		var combos = attributes.ComboKey( shader );
 		if ( features.Length > 0 ) combos = string.Concat( combos, "|", string.Join( ',', features ) );
 		var key = (shader, mode, combos);
@@ -316,6 +361,7 @@ public sealed class ShaderDrawer : IDisposable
 
 		// Not kept while its module compiles: its programs draw until then
 		variant = shaders.Variant( shader, mode, features, attributes.GetCombo, name => attributes.Get( name ) is float[] { Length: > 0 } f ? (int)f[0] : null, false, out var pending );
+		pendingVariant = pending;
 		if ( !pending ) variants[key] = variant;
 		return variant;
 	}
