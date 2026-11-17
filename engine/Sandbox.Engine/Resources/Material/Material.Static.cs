@@ -32,7 +32,9 @@ public sealed partial class Material : Resource
 		// Prevent reentrency
 		if ( Graphics.IsActive ) throw new System.Exception( "Material.Create cannot be called during rendering." );
 
-		return FromNative( MaterialSystem2.CreateRawMaterial( materialName, shader, anonymous ) );
+		var material = FromNative( MaterialSystem2.CreateRawMaterial( materialName, shader, anonymous ) );
+		if ( material is not null ) material.MadeFromShader = shader;
+		return material;
 	}
 
 	/// <summary>
