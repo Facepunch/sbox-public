@@ -193,6 +193,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 		FollowFrame();
 		SubmitUploads();
+		PollReadbacks();
 		lent = lendNext is not null;
 		list = lendNext ?? gpu.BeginCommandList( QueueType.Graphics, "Graphics block" );
 		lendNext = null;
@@ -282,7 +283,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		try
 		{
 			context.FinishReadable();
-			if ( !lent ) gpu.Submit( list, default, presentTo );
+			SubmittedReadbacks( blockReadbacks, lent ? default : gpu.Submit( list, default, presentTo ) );
 		}
 		finally
 		{
@@ -440,9 +441,14 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			case GpuBuffer buffer when buffers.TryGetValue( buffer, out var backing ):
 				// Writes waiting for the next block may name it: submit them first, so it's freed after they've run
 				SubmitUploads();
+				ForgetCounter( buffer );
 				buffers.Remove( buffer );
 				ownedBuffers.Remove( backing.Handle );
 				gpu.Destroy( backing.Handle );
+				break;
+
+			case GpuBuffer buffer:
+				ForgetCounter( buffer );
 				break;
 		}
 	}
@@ -871,7 +877,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 					lowered.Set( name, context.View( TextureOf( texture ), mip ) );
 					break;
 				case GpuBuffer buffer:
-					lowered.Set( name, BufferOf( buffer ) );
+					LowerBuffer( name, buffer );
 					break;
 				case byte[] data:
 					lowered.SetData( name, data );
@@ -1297,15 +1303,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		if ( uploads is null ) return;
 		uploads.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
-		gpu.Submit( uploads );
+		SubmittedReadbacks( uploadReadbacks, gpu.Submit( uploads ) );
 		uploads = null;
 	}
-
-	public override void ReadBufferAsync( GpuBuffer buffer, AsyncGPUReadback.BufferReadDelegate callback, int offset, int size ) => throw Unsupported( "Buffer readback" );
-	public override void CopyBuffer( GpuBuffer source, GpuBuffer destination, uint sourceOffset, uint destinationOffset, uint size ) => throw Unsupported( "Buffer copies" );
-	public override void FillBuffer( GpuBuffer buffer, uint value ) => throw Unsupported( "Buffer fills" );
-	public override void CopyStructureCount( GpuBuffer source, GpuBuffer destination, uint destinationOffset ) => throw Unsupported( "Structure counts" );
-	public override void SetStructureCount( GpuBuffer buffer, uint value ) => throw Unsupported( "Structure counts" );
 
 	static NotSupportedException Unsupported( string what ) => new( $"{what} aren't on Borealis.Gpu yet (docs/managed/borealis-gpu-path.md)" );
 
@@ -1375,6 +1375,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		SubmitUploads();
 		services.BeginFrame();
+		PollReadbacks();
 	}
 
 	/// <summary>The renderer services' frame, which every device frame moves on: GPU-driven drawing recycles its per-frame memory by it.</summary>
@@ -1385,6 +1386,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		Unregister( this );
 		SubmitUploads();
 		gpu.WaitIdle();
+		DestroyReadbacks();
 
 		foreach ( var handle in textureOwners.Keys )
 		{
