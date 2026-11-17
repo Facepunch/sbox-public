@@ -8,13 +8,16 @@ namespace Sandbox.Rendering.Bridge;
 /// every frame, seen or not; a map's 141 probes cost Borealis frames of 80-230 ms each after a load.
 /// See basalt-status designs/slangcompile.md ("On-demand envmap captures").
 /// </summary>
-internal sealed class EnvmapScheduler
+internal sealed class EnvmapScheduler( SceneBridge bridge )
 {
 	/// <summary>Milliseconds of capturing each frame earns; a capture runs while there's credit, its cost taken off.</summary>
 	public static float BudgetMs { get; set; } = 4;
 
 	/// <summary>Off: native's order (the first dirty probe every frame, seen or not). For comparisons.</summary>
 	public static bool Enabled { get; set; } = true;
+
+	/// <summary>Whether a capture's faces spread over frames within the budget (on), rather than all six in its first frame.</summary>
+	public static bool SpreadFaces { get; set; } = true;
 
 	// Probes captured at least once: their later captures (bounces, refreshes) wait behind first ones
 	readonly ConditionalWeakTable<EnvmapProbe, object> captured = new();
@@ -49,6 +52,24 @@ internal sealed class EnvmapScheduler
 		credit = Math.Min( credit + BudgetMs, Math.Max( BudgetMs, lastCost * 2 ) );
 		if ( credit <= 0 ) return;
 
+		// A capture spread over frames goes on before another starts: its faces wait in the targets the next would draw into
+		if ( bridge.CaptureSpread )
+		{
+			var ms = (float)bridge.ContinueSpreadCapture( credit );
+			credit -= ms;
+			CaptureMs += ms;
+			return;
+		}
+
+		if ( Pick( scene, camera ) is { } best ) Capture( best, spread: true );
+	}
+
+	/// <summary>
+	/// The dirty probe <paramref name="camera"/> needs most: of those whose influence its frustum touches, the largest on
+	/// screen, a first capture counting four times a refresh; null when it sees none.
+	/// </summary>
+	internal EnvmapProbe Pick( Scene scene, CameraComponent camera )
+	{
 		var frustum = camera.GetFrustum();
 		var eye = camera.WorldPosition;
 		EnvmapProbe best = null;
@@ -72,13 +93,25 @@ internal sealed class EnvmapScheduler
 			bestScore = score;
 		}
 
-		if ( best is not null ) Capture( best );
+		return best;
 	}
 
-	void Capture( EnvmapProbe envmap )
+	/// <summary>Count <paramref name="envmap"/> as captured: its next capture is a refresh. For tests.</summary>
+	internal void MarkCaptured( EnvmapProbe envmap ) => captured.AddOrUpdate( envmap, null );
+
+	void Capture( EnvmapProbe envmap, bool spread = false )
 	{
 		var start = System.Diagnostics.Stopwatch.GetTimestamp();
-		envmap.RenderCubemap();
+		bridge.SpreadCaptureMs = spread && SpreadFaces ? Math.Max( credit, 0 ) : -1;
+		try
+		{
+			envmap.RenderCubemap();
+		}
+		finally
+		{
+			bridge.SpreadCaptureMs = -1;
+		}
+
 		var ms = (float)System.Diagnostics.Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
 		captured.AddOrUpdate( envmap, null );
 		lastCost = ms;
