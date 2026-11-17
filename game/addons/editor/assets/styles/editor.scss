@@ -600,9 +600,10 @@ ControlSheet > .body { font-size: 12px; }
 	flex-shrink: 0;
 	min-width: 160px;
 	padding: 6px;
-	border-radius: 8px;
-	background-color: $raised;
-	border: 1px solid $raised;
+	// The same corners Windows gives a popup window, so a list looks the same in a window or not
+	border-radius: 4px;
+	background-color: $field;
+	border: 1px solid $field-line;
 	color: $text;
 	font-family: Poppins;
 	font-size: 12px;
@@ -653,6 +654,19 @@ ControlSheet > .body { font-size: 12px; }
 .dropdown-options > .button.active:hover { background-color: $accent; }
 .dropdown-options > .button > .button-right-column { flex-grow: 1; align-items: flex-start; }
 .dropdown .separator { height: 1px; margin: 5px 4px; background-color: $line; }
+
+// Menus are the same list as a dropdown's: the same surface, 26px rows, the accent under the
+// pointer. Rows only - a menu bar's own titles keep their look.
+.editor-window .menulist, .os-popup .menulist { padding: 4px; border-radius: 4px; background-color: $field; border: 1px solid $field-line; box-shadow: none; color: $text; font-family: Poppins; font-size: 12px; }
+.os-popup .menulist { border-radius: 0; border: none; }
+.editor-window .menulist > .menu, .os-popup .menulist > .menu { height: 26px; padding: 0 8px 0 0; border-radius: 3px; }
+.editor-window .menulist > .menu.active, .editor-window .menulist > .menu.open,
+.os-popup .menulist > .menu.active, .os-popup .menulist > .menu.open { background-color: $accent; color: #fff; }
+.editor-window .menulist > .menu:active, .os-popup .menulist > .menu:active { background-color: $accent-active; color: #fff; }
+.editor-window .menulist > .menu > .gutter > .icon, .os-popup .menulist > .menu > .gutter > .icon { opacity: 1; }
+.editor-window .menulist > .menu.disabled.active, .os-popup .menulist > .menu.disabled.active { background-color: transparent; color: $text; }
+.editor-window .menulist > .menu.separator, .editor-window .menulist > .menu.separator.active,
+.os-popup .menulist > .menu.separator, .os-popup .menulist > .menu.separator.active { height: 1px; margin: 5px 4px; background-color: $line; }
 
 //
 // Toolbars - the control owns layout and input; the editor owns its appearance.
@@ -882,6 +896,8 @@ ControlSheet > .body { font-size: 12px; }
 .style-light .dropdown, .style-light .dropdown-options { background-color: $l-raised; border-color: $l-line; color: $l-text; }
 .style-light .popup-panel.color-popup { background-color: $l-raised; border-color: $l-line; color: $l-text; }
 .style-light .dropdown .separator { background-color: $l-line; }
+.style-light .menulist { background-color: $l-raised; border-color: $l-line; color: $l-text; }
+.style-light .menulist > .menu.separator, .style-light .menulist > .menu.separator.active { background-color: $l-line; }
 
 .style-light .empty .icon { color: $l-line; }
 .style-light .empty .title { color: $l-text-muted; }
