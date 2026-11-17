@@ -29,7 +29,8 @@
 	border-radius: 3px;
 	overflow: hidden;
 	.curve-body > .curve-canvas { background-color: $surface; color: #79c9a0; }
-	> .toolbar { padding: 2px 6px; min-height: 30px; }
+	// Flat inside its popup: no second band of grey for the toolbar
+	> .toolbar { padding: 2px 6px; min-height: 30px; background-color: transparent; border-bottom: 1px solid $line; }
 	.curve-inspector { padding: 12px; gap: 12px; background-color: $ground; border-left: 1px solid $line; }
 	.curve-inspector-title { color: $text-muted; font-size: 11px; font-weight: 600; margin-bottom: 4px; }
 	.curve-key-field { gap: 4px; }
@@ -40,14 +41,22 @@
 	.curve-inspector > .button:hover { background-color: $raised-hover; }
 	.curve-inspector > .curve-tangent-mode { justify-content: space-between; }
 	.curve-inspector > .toolbar-separator { margin: 0px; }
-	.curve-presets { padding: 6px 10px; align-items: center; gap: 4px; flex-wrap: wrap; }
-	.curve-preset { width: 54px; height: 30px; padding: 0px; background-color: $raised; color: #79c9a0; border-radius: 2px; }
-	.curve-preset:hover, .curve-preset:focus { background-color: $raised-hover; color: #79c9a0; }
+	.curve-presets { padding: 6px 8px; align-items: center; gap: 4px; flex-wrap: wrap; border-top: 1px solid $line; }
+	.curve-preset { width: 54px; height: 30px; padding: 0px; align-items: center; justify-content: center; background-color: rgba( #fff, 0.04 ); border: 1px solid rgba( #fff, 0.07 ); color: #79c9a0; border-radius: 4px; }
+	.curve-preset:hover, .curve-preset:focus { background-color: rgba( #fff, 0.06 ); border-color: rgba( #fff, 0.14 ); color: #79c9a0; }
 }
-.editor-window .curve-editor-popup, .os-popup .curve-editor-popup { padding: 6px; background-color: $surface; border: 1px solid $line; border-radius: 4px; }
-.editor-window.style-light .curve-editor-popup { background-color: $l-surface; border-color: $l-line; }
 .editor-window .curvecontrol { width: 100%; min-width: 0; color: #79c9a0; }
+// One surface: the title bar, the editor's toolbar, the graph and the presets sit flat on it, split
+// by lines. It opens in a window of its own, outside .editor-window, so it brings the editor's font.
+.editor-window .curve-editor-popup, .os-popup .curve-editor-popup { padding: 0; background-color: $surface; border: 1px solid $line; border-radius: 4px; font-family: Poppins; font-size: 12px; color: $text; }
+.os-popup .curve-editor-popup { border: none; border-radius: 0; }
+.curve-editor-popup > .toolbar { padding: 4px 4px 4px 12px; min-height: 34px; background-color: transparent; border-bottom: 1px solid $line; }
+.curve-editor-popup > .toolbar > .label { font-weight: 600; color: $text; }
+.curve-editor-popup > .curveeditor { border-radius: 0; }
 .editor-window.style-light .curvecontrol { color: #237a51; }
+.editor-window.style-light .curve-editor-popup { background-color: $l-surface; border-color: $l-line; color: $l-text; }
+.editor-window.style-light .curve-editor-popup > .toolbar { border-color: $l-line; }
+.editor-window.style-light .curve-editor-popup > .toolbar > .label { color: $l-text; }
 .editor-window.style-light .curveeditor
 {
 	background-color: $l-surface;
@@ -56,7 +65,8 @@
 	.curve-key-field > .textentry, .curve-inspector > .button { background-color: $l-surface; }
 	.curve-key-field > .label, .curve-inspector-title { color: $l-text-muted; }
 	.curve-inspector > .button:hover { background-color: $l-raised-hover; }
-	.curve-preset { background-color: $l-surface; color: $l-text-muted; }
+	> .toolbar, .curve-presets { border-color: $l-line; }
+	.curve-preset { background-color: $l-surface; border-color: $l-line; color: $l-text-muted; }
 	.curve-preset:hover, .curve-preset:focus { color: #237a51; }
 }
 
