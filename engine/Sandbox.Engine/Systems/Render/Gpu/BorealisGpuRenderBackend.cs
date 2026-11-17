@@ -1176,6 +1176,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	string Name( uint token ) => names.TryGetValue( token, out var name ) ? name : StringToken.GetValue( token );
 
+	// Attribute ids by token, so lowering a draw's attributes hashes no names
+	readonly Dictionary<uint, int> attributeIds = new();
+
+	int AttributeId( uint token, string name )
+	{
+		if ( attributeIds.TryGetValue( token, out var id ) ) return id;
+		return attributeIds[token] = AttributeIds.Of( name );
+	}
+
 	/// <summary>Lower managed attributes into what <see cref="ShaderDrawer"/> binds by name.</summary>
 	ShaderAttributes Lower( RenderAttributes attributes )
 	{
@@ -1202,19 +1211,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			switch ( value )
 			{
 				case float[] floats:
-					lowered.Set( name, floats );
+					lowered.SetById( AttributeId( token, name ), floats );
 					break;
 				case ManagedRenderAttributes.TextureValue { Texture: { } texture, Mip: < 0 }:
-					lowered.Set( name, TextureOf( texture ) );
+					lowered.SetById( AttributeId( token, name ), TextureOf( texture ) );
 					break;
 				case ManagedRenderAttributes.TextureValue { Texture: { } texture, Mip: var mip }:
-					lowered.Set( name, context.View( TextureOf( texture ), mip ) );
+					lowered.SetById( AttributeId( token, name ), context.View( TextureOf( texture ), mip ) );
 					break;
 				case GpuBuffer buffer:
 					LowerBuffer( name, buffer );
 					break;
 				case byte[] data:
-					lowered.SetData( name, data );
+					lowered.SetById( AttributeId( token, name ), data );
 					break;
 			}
 		}

@@ -11,47 +11,88 @@ namespace Borealis.Backend;
 /// </summary>
 public sealed class ShaderAttributes
 {
-	readonly Dictionary<string, object> values = new( StringComparer.OrdinalIgnoreCase );
+	// Values by attribute id (AttributeIds): a slot holds a value while its stamp is the current generation, so clearing is
+	// moving the generation on. The ids set this generation, in order, for enumerating
+	object[] slots = new object[64];
+	int[] stamps = new int[64];
+	int generation = 1;
+	readonly List<int> set = new();
 	readonly Dictionary<string, int> combos = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>Constants: a number, a vector or a matrix, as floats.</summary>
-	public void Set( string name, params float[] value ) => values[name] = value;
+	public void Set( string name, params float[] value ) => Put( AttributeIds.Of( name ), value );
 
 	/// <summary>A structured or byte-address buffer.</summary>
-	public void Set( string name, BufferHandle buffer ) => values[name] = buffer;
+	public void Set( string name, BufferHandle buffer ) => Put( AttributeIds.Of( name ), buffer );
 
 	/// <summary>A texture's default view. Sampled, it has to be in <see cref="ImageLayout.ShaderRead"/>.</summary>
-	public void Set( string name, TextureHandle texture ) => values[name] = texture;
+	public void Set( string name, TextureHandle texture ) => Put( AttributeIds.Of( name ), texture );
 
 	/// <summary>Another view of a texture: one mip, say. Its layout is the caller's to arrange.</summary>
-	public void Set( string name, TextureViewHandle view ) => values[name] = view;
+	public void Set( string name, TextureViewHandle view ) => Put( AttributeIds.Of( name ), view );
 
 	/// <summary>A constant buffer's bytes.</summary>
-	public void SetData( string name, byte[] data ) => values[name] = data;
+	public void SetData( string name, byte[] data ) => Put( AttributeIds.Of( name ), data );
 
 	/// <summary>A dynamic combo (<c>D_*</c>).</summary>
 	public void SetCombo( string name, int value ) => combos[name] = value;
 
+	/// <summary>A value of one of the kinds above under an <see cref="AttributeIds"/> id, for callers that keep the ids.</summary>
+	internal void SetById( int id, object value ) => Put( id, value );
+
 	/// <summary>The value set under a name, or null.</summary>
-	public object Get( string name ) => values.GetValueOrDefault( name );
+	public object Get( string name ) => Get( AttributeIds.Of( name ) );
+
+	/// <summary>The value set under an <see cref="AttributeIds"/> id, or null.</summary>
+	public object Get( int id ) => (uint)id < (uint)stamps.Length && stamps[id] == generation ? slots[id] : null;
 
 	/// <summary>A combo's value, or null when it wasn't set.</summary>
 	public int? GetCombo( string name ) => combos.TryGetValue( name, out var value ) ? value : null;
 
 	/// <summary>Every value set, by name.</summary>
-	public IEnumerable<KeyValuePair<string, object>> Values => values;
+	public IEnumerable<KeyValuePair<string, object>> Values
+	{
+		get
+		{
+			for ( int i = 0; i < set.Count; i++ ) yield return new( AttributeIds.NameOf( set[i] ), slots[set[i]] );
+		}
+	}
+
+	void Put( int id, object value )
+	{
+		if ( id >= stamps.Length )
+		{
+			var size = Math.Max( stamps.Length * 2, AttributeIds.Count );
+			Array.Resize( ref slots, size );
+			Array.Resize( ref stamps, size );
+		}
+
+		if ( stamps[id] != generation )
+		{
+			stamps[id] = generation;
+			set.Add( id );
+		}
+
+		slots[id] = value;
+	}
 
 	/// <summary>Forget everything.</summary>
 	public void Clear()
 	{
-		values.Clear();
+		foreach ( var id in set ) slots[id] = null;
+		set.Clear();
 		combos.Clear();
+		if ( ++generation == int.MaxValue )
+		{
+			Array.Clear( stamps );
+			generation = 1;
+		}
 	}
 
 	/// <summary>Add <paramref name="other"/>'s values and combos, replacing any of the same name.</summary>
 	public void Merge( ShaderAttributes other )
 	{
-		foreach ( var (name, value) in other.values ) values[name] = value;
+		foreach ( var id in other.set ) Put( id, other.slots[id] );
 		foreach ( var (name, value) in other.combos ) combos[name] = value;
 	}
 
@@ -722,8 +763,9 @@ public sealed class ShaderDrawer : IDisposable
 	/// </summary>
 	object Value( in ShaderResource resource, ShaderAttributes attributes )
 	{
-		if ( resource.Name is not { } name ) return null;
-		if ( resource.Kind != ShaderResourceKind.Counter ) return attributes.Get( name );
+		if ( resource.Variable is not { } variable ) return null;
+		if ( resource.Kind != ShaderResourceKind.Counter ) return attributes.Get( variable.BindingId );
+		var name = resource.Name;
 		if ( !counterNames.TryGetValue( name, out var counter ) ) counterNames[name] = counter = ShaderResource.CounterName( name );
 		return attributes.Get( counter );
 	}
@@ -765,20 +807,92 @@ public sealed class ShaderDrawer : IDisposable
 		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
 	}
 
-	/// <summary>A stage's material constants for a draw: the viewport, texture sizes and attributes over the shader's defaults.</summary>
+	/// <summary>
+	/// A stage's material constants for a draw: the viewport, texture sizes and attributes over the material's values and the
+	/// shader's defaults. What doesn't change from draw to draw (the material's values, features and defaults) is written once
+	/// per stage and material version (<see cref="ConstantPlan"/>) and copied; only the draw's own variables are written.
+	/// </summary>
 	internal void WriteConstants( Span<byte> data, ShaderStage stage, ShaderAttributes attributes, System.Numerics.Vector4 viewport )
 	{
 		var material = Material;
-		stage.WriteMaterialConstants( data, variable => variable.Source switch
+		var plan = PlanFor( stage, material );
+		plan.Base.AsSpan( 0, Math.Min( plan.Base.Length, data.Length ) ).CopyTo( data );
+		if ( data.Length > plan.Base.Length ) data[plan.Base.Length..].Clear();
+
+		var features = material?.Features ?? default;
+		foreach ( var index in plan.PerDraw )
+		{
+			var variable = stage.MaterialConstants[index].Variable;
+			float[] given;
+			switch ( variable.Source )
+			{
+				case VariableSource.Viewport:
+					given = scratch4;
+					(given[0], given[1], given[2], given[3]) = (viewport.X, viewport.Y, viewport.Z, viewport.W);
+					break;
+				case VariableSource.InvViewportSize:
+					given = scratch2;
+					(given[0], given[1]) = (1 / viewport.Z, 1 / viewport.W);
+					break;
+				case VariableSource.Attribute:
+					given = string.IsNullOrEmpty( variable.Attribute ) ? null : attributes.Get( variable.BindingId ) as float[];
+					break;
+				default:
+					given = TextureSize( stage, variable, attributes );
+					break;
+			}
+
+			stage.WriteMaterialConstant( data, index, given, features );
+		}
+	}
+
+	readonly float[] scratch4 = new float[4], scratch2 = new float[2];
+
+	/// <summary>
+	/// A stage's material constants with a material, apart from the draw's own variables (<see cref="PerDraw"/>, left at their
+	/// defaults in <see cref="Base"/>), for one version of the material.
+	/// </summary>
+	sealed class ConstantPlan
+	{
+		public byte[] Base;
+		public int[] PerDraw;
+		public int Version;
+		public int[] Features;
+	}
+
+	static bool DrawnPerDraw( VariableSource source ) => source is VariableSource.Viewport or VariableSource.InvViewportSize or VariableSource.Attribute
+		or VariableSource.TextureDimensions or VariableSource.InvTextureDimensions or VariableSource.TextureDimensionsLog2;
+
+	// Plans by stage, for no material and for each material (kept as long as the material is)
+	readonly Dictionary<ShaderStage, ConstantPlan> plainPlans = new();
+	readonly System.Runtime.CompilerServices.ConditionalWeakTable<BackendMaterial, Dictionary<ShaderStage, ConstantPlan>> materialPlans = new();
+
+	ConstantPlan PlanFor( ShaderStage stage, BackendMaterial material )
+	{
+		var plans = material is null ? plainPlans : materialPlans.GetOrCreateValue( material );
+		var version = material?.Version ?? 0;
+		var features = material?.Features;
+		if ( plans.TryGetValue( stage, out var plan ) && plan.Version == version && ReferenceEquals( plan.Features, features ) ) return plan;
+
+		plan ??= new ConstantPlan();
+		plan.Version = version;
+		plan.Features = features;
+		plan.Base = new byte[stage.MaterialBuffer.Size];
+		var perDraw = new List<int>();
+		for ( int i = 0; i < stage.MaterialConstants.Count; i++ )
+		{
+			if ( DrawnPerDraw( stage.MaterialConstants[i].Variable.Source ) ) perDraw.Add( i );
+		}
+
+		plan.PerDraw = [.. perDraw];
+		stage.WriteMaterialConstants( plan.Base, variable => variable.Source switch
 		{
 			VariableSource.Material or VariableSource.MaterialAndExpression => material?.Value( variable.Name ),
 			VariableSource.ShaderVersion => material is null ? null : [material.ShaderVersion],
-			VariableSource.Viewport => [viewport.X, viewport.Y, viewport.Z, viewport.W],
-			VariableSource.InvViewportSize => [1 / viewport.Z, 1 / viewport.W],
-			VariableSource.Attribute => attributes.Get( variable.Attribute ) as float[],
-			VariableSource.TextureDimensions or VariableSource.InvTextureDimensions or VariableSource.TextureDimensionsLog2 => TextureSize( stage, variable, attributes ),
 			_ => null,
-		}, material?.Features ?? default );
+		}, features ?? default );
+		plans[stage] = plan;
+		return plan;
 	}
 
 	/// <summary>

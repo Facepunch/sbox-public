@@ -429,37 +429,44 @@ public sealed class ShaderStage
 	public void WriteMaterialConstants( Span<byte> buffer, Func<ShaderVariable, float[]> values = null, ReadOnlySpan<int> features = default )
 	{
 		buffer.Clear();
-		foreach ( var (variable, offset) in MaterialConstants )
+		for ( int index = 0; index < MaterialConstants.Count; index++ )
+			WriteMaterialConstant( buffer, index, values?.Invoke( MaterialConstants[index].Variable ), features );
+	}
+
+	/// <summary>
+	/// Write one of <see cref="MaterialConstants"/> into <paramref name="buffer"/>, as <see cref="WriteMaterialConstants"/>
+	/// writes each: <paramref name="given"/>, else the feature's value or the variable's default.
+	/// </summary>
+	public void WriteMaterialConstant( Span<byte> buffer, int index, float[] given, ReadOnlySpan<int> features = default )
+	{
+		var (variable, offset) = MaterialConstants[index];
+		var components = Components( variable.Type );
+		if ( components == 0 || offset + components * 4 > buffer.Length ) return;
+
+		if ( given is null && variable.Source is VariableSource.FeatureToInt or VariableSource.FeatureToBool or VariableSource.FeatureToFloat )
 		{
-			var components = Components( variable.Type );
-			if ( components == 0 || offset + components * 4 > buffer.Length ) continue;
+			var feature = Program.Shader.FeatureIndex( variable.Name );
+			given = [feature >= 0 && feature < features.Length ? features[feature] : 0];
+		}
 
-			var given = values?.Invoke( variable );
-			if ( given is null && variable.Source is VariableSource.FeatureToInt or VariableSource.FeatureToBool or VariableSource.FeatureToFloat )
+		var integer = variable.Type is >= VariableType.Int and <= VariableType.Bool4;
+
+		// A matrix nothing sets is identity, as native's material parameters default it (CMaterialShaderParams): world text
+		// sets neither of ui/vertex.hlsl's LayerMat and TransformMat
+		var matrix = components > 4;
+		for ( int i = 0; i < components; i++ )
+		{
+			var target = buffer[(offset + i * 4)..];
+			if ( integer )
 			{
-				var feature = Program.Shader.FeatureIndex( variable.Name );
-				given = [feature >= 0 && feature < features.Length ? features[feature] : 0];
+				var value = given is not null ? (i < given.Length ? (int)MathF.Round( given[i] ) : 0) : i < 4 ? variable.IntDefault[i] : 0;
+				if ( variable.Type >= VariableType.Bool ) value = value != 0 ? 1 : 0;
+				System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian( target, value );
 			}
-
-			var integer = variable.Type is >= VariableType.Int and <= VariableType.Bool4;
-
-			// A matrix nothing sets is identity, as native's material parameters default it (CMaterialShaderParams): world text
-			// sets neither of ui/vertex.hlsl's LayerMat and TransformMat
-			var matrix = components > 4;
-			for ( int i = 0; i < components; i++ )
+			else
 			{
-				var target = buffer[(offset + i * 4)..];
-				if ( integer )
-				{
-					var value = given is not null ? (i < given.Length ? (int)MathF.Round( given[i] ) : 0) : i < 4 ? variable.IntDefault[i] : 0;
-					if ( variable.Type >= VariableType.Bool ) value = value != 0 ? 1 : 0;
-					System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian( target, value );
-				}
-				else
-				{
-					var value = given is not null ? (i < given.Length ? given[i] : 0) : matrix ? (i % 5 == 0 ? 1 : 0) : i < 4 ? variable.FloatDefault[i] : 0;
-					System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian( target, value );
-				}
+				var value = given is not null ? (i < given.Length ? given[i] : 0) : matrix ? (i % 5 == 0 ? 1 : 0) : i < 4 ? variable.FloatDefault[i] : 0;
+				System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian( target, value );
 			}
 		}
 	}
