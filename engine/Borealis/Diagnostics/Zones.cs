@@ -34,6 +34,7 @@ internal static class Zones
 	public static readonly Zone LodBuild = new( "Borealis LOD Build", Color.Yellow );
 	public static readonly Zone LodUpload = new( "Borealis LOD Upload", Color.Yellow );
 	public static readonly Zone ShaderCompile = new( "Borealis Shader Compile", Color.Orange );
+	public static readonly Zone CubeCapture = new( "Borealis Cube Capture", Color.Blue );
 }
 
 /// <summary>
