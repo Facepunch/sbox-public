@@ -97,16 +97,11 @@ public static partial class PerformanceStats
 		frameTimer.Restart();
 
 		// On Borealis.Gpu (-borealisgpu) Source 2's device draws nothing: the game window times its frames itself
-		if ( Engine.GameWindow.Current?.BorealisGpuFrameMs is { } borealisGpu )
+		if ( RenderBackend.Default is BorealisGpuRenderBackend { GpuBusyMs: { } busy } borealisGpu )
 		{
-			GpuFrametime = (float)borealisGpu.Ms;
-			GpuFrameNumber = (uint)borealisGpu.Frame;
-		}
-		else if ( BorealisGpuWindow.Timed is { GpuFrameMs: { } widgetMs } widget )
-		{
-			// The editor's widgets on Borealis.Gpu time their own frames: the play widget's, else the biggest scene view's
-			GpuFrametime = (float)widgetMs;
-			GpuFrameNumber = (uint)widget.GpuFrameNumber;
+			// The GPU's busy time in a recent frame, every window's and block's work added up, as native's
+			GpuFrametime = (float)busy;
+			GpuFrameNumber = (uint)borealisGpu.GpuBusyFrame;
 		}
 		else if ( g_pRenderDevice.GetGPUFrameTimeMS( IntPtr.Zero, out float gpuFrametime, out uint gpuFrameNo ) )
 		{
