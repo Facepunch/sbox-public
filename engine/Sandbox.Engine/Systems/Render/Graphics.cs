@@ -54,6 +54,7 @@ public static partial class Graphics
 			_borealisGpu.Services.StreamTextures = _borealisGpu.Services.AsyncModels && !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nostream" );
 			if ( Sandbox.Utility.CommandLine.GetSwitchInt( "-borealisgpu-texturebudget", 0 ) is > 0 and var budget ) _borealisGpu.Services.TextureBudgetBytes = (long)budget << 20;
 			_borealisGpu.Services.Surfaces.Warm();
+			_borealisGpu.Services.Passes.Warm();
 			RenderBackend.SetDefault( _borealisGpu );
 			Log.Info( $"Rendering on Borealis.Gpu ({_borealisGpu.Device.Adapter.Name}){(validation ? ", validation on" : "")}; memory: {_borealisGpu.Device.DescribeMemory()}" );
 		}

@@ -40,6 +40,8 @@ internal static class Zones
 	public static readonly Zone VariantLoad = new( "Borealis Variant Load", Color.Orange );
 	public static readonly Zone ModelMake = new( "Borealis Model Make", Color.Green );
 	public static readonly Zone ModelRead = new( "Borealis Model Read", Color.Green );
+	public static readonly Zone PassModulesRead = new( "Borealis Pass Modules Read", Color.Orange );
+	public static readonly Zone MirrorSync = new( "Borealis Mirror Sync", Color.Cyan );
 
 	/// <summary>Sandbox.ShaderCompiler's phases (<c>CompilePhase</c>), by value.</summary>
 	public static readonly Zone[] Slang =

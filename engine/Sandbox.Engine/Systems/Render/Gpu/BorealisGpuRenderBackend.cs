@@ -506,10 +506,11 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		var sky = System.IO.Path.Combine( System.IO.Path.GetDirectoryName( vpk ), System.IO.Path.GetFileNameWithoutExtension( vpk ) + "_sky.vpk" );
 		if ( System.IO.File.Exists( sky ) && mapPackages.Add( sky ) ) AddPackage( sky );
 
-		// The map's lightmaps (and its 3D skybox's), read from its world file now rather than on the frame that first draws it
+		// The map's lightmaps (and its 3D skybox's), read and decoded on a worker while the map loads, not on the frame that
+		// first draws it
 		var map = System.IO.Path.GetFileNameWithoutExtension( vpk );
-		services.MapLightmapParameters( $"maps/{map}" );
-		if ( System.IO.File.Exists( sky ) ) services.MapLightmapParameters( $"maps/{map}_sky" );
+		services.ReadMapLightmapsAhead( $"maps/{map}" );
+		if ( System.IO.File.Exists( sky ) ) services.ReadMapLightmapsAhead( $"maps/{map}_sky" );
 
 		// The process's video memory as the map's world is made (both devices: Source 2 still loads the map's lightmaps)
 		Log.Info( $"Borealis.Gpu memory at {System.IO.Path.GetFileName( vpk )}: {gpu.DescribeMemory()}{(services.DescribeStreaming() is { } streaming ? $"; {streaming}" : "")}" );

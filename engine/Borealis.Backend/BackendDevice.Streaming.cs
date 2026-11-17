@@ -78,8 +78,23 @@ public sealed partial class BackendDevice
 		}
 	}
 
-	/// <summary>Main thread time each frame may spend making models whose files have been read (<see cref="LoadModelAsync"/>).</summary>
+	/// <summary>
+	/// Main thread time each frame may spend making models whose files have been read (<see cref="LoadModelAsync"/>), at
+	/// least: while frames are slower (a map loading), up to <see cref="LoadBudgetShare"/> of the last one.
+	/// </summary>
 	public double LoadBudgetMs { get; set; } = 6;
+
+	/// <summary>
+	/// The share of the last frame's time the next may spend making models, up to <see cref="LoadBudgetMaxMs"/>, when that's
+	/// more than <see cref="LoadBudgetMs"/>; the upload budget grows with it. A map's models arrive while its first frames are
+	/// slow anyway, and a fast frame's budget would spread them over many seconds.
+	/// </summary>
+	public double LoadBudgetShare { get; set; } = 0.25;
+
+	/// <summary>The most main thread time a frame spends making models, however slow the last one was.</summary>
+	public double LoadBudgetMaxMs { get; set; } = 32;
+
+	long lastFrameStart, lastFrameTicks;
 
 	/// <summary>
 	/// Bytes of buffers and textures each frame may upload for what <see cref="LoadModelAsync"/> and
@@ -97,6 +112,14 @@ public sealed partial class BackendDevice
 	/// compares frames waits until it's false.
 	/// </summary>
 	public bool LoadingModels => ModelReadsPending > 0 || pendingFrame + 2 > loadFrame;
+
+	/// <summary>The time between the last two frames' starts, for the load budget.</summary>
+	void TimeFrame()
+	{
+		var now = Stopwatch.GetTimestamp();
+		lastFrameTicks = lastFrameStart == 0 ? 0 : now - lastFrameStart;
+		lastFrameStart = now;
+	}
 
 	ulong pendingFrame;
 
@@ -145,8 +168,9 @@ public sealed partial class BackendDevice
 		if ( budgetFrame != loadFrame )
 		{
 			budgetFrame = loadFrame;
-			budgetEnd = now + (long)(LoadBudgetMs * Stopwatch.Frequency / 1000);
-			budgetBytes = Gpu.DeferredUploadBytes + LoadUploadBytes;
+			var scale = Math.Clamp( LoadBudgetShare * lastFrameTicks * 1000.0 / Stopwatch.Frequency / LoadBudgetMs, 1.0, Math.Max( LoadBudgetMaxMs / LoadBudgetMs, 1.0 ) );
+			budgetEnd = now + (long)(LoadBudgetMs * scale * Stopwatch.Frequency / 1000);
+			budgetBytes = Gpu.DeferredUploadBytes + (long)(LoadUploadBytes * scale);
 		}
 
 		return now <= budgetEnd && Gpu.DeferredUploadBytes < budgetBytes;
