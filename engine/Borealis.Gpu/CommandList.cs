@@ -1041,6 +1041,26 @@ public sealed unsafe class CommandList
 	public void UpdateTexture( TextureHandle texture, ReadOnlySpan<byte> data, int mip, int layer, int width, int height, int x = 0, int y = 0 )
 	{
 		OutsideRendering();
+
+		// A volume larger than an upload page goes a page's worth of whole slices at a time, through recycled pages, rather
+		// than through an upload buffer of its own made (and its memory allocated) for it
+		ref var record = ref device.Get( texture );
+		var depth = VolumeDepth( in record.Info, mip );
+		if ( data.Length > PageSize && depth > 1 && data.Length % depth == 0 )
+		{
+			var slice = data.Length / depth;
+			var perChunk = (int)Math.Max( PageSize / slice, 1 );
+			for ( int z = 0; z < depth; z += perChunk )
+			{
+				var slices = Math.Min( perChunk, depth - z );
+				var chunk = AllocateUpload( slice * slices, 16 );
+				data.Slice( z * slice, slice * slices ).CopyTo( chunk.Data );
+				CopyBufferToTexture( chunk.Buffer, chunk.Offset, texture, mip, layer, width, height, x, y, z, slices );
+			}
+
+			return;
+		}
+
 		var allocation = AllocateUpload( data.Length, 16 );
 		data.CopyTo( allocation.Data );
 		CopyBufferToTexture( allocation.Buffer, allocation.Offset, texture, mip, layer, width, height, x, y );
@@ -1059,7 +1079,14 @@ public sealed unsafe class CommandList
 	/// Copy tightly packed rows from a buffer into a region of one mip and layer of a texture in
 	/// <see cref="ImageLayout.CopyDestination"/>: every slice of a volume's mip, one after another.
 	/// </summary>
-	public void CopyBufferToTexture( BufferHandle source, long offset, TextureHandle texture, int mip, int layer, int width, int height, int x = 0, int y = 0 )
+	public void CopyBufferToTexture( BufferHandle source, long offset, TextureHandle texture, int mip, int layer, int width, int height, int x = 0, int y = 0 ) =>
+		CopyBufferToTexture( source, offset, texture, mip, layer, width, height, x, y, 0, -1 );
+
+	/// <summary>
+	/// <see cref="CopyBufferToTexture(BufferHandle, long, TextureHandle, int, int, int, int, int, int)"/> into
+	/// <paramref name="slices"/> slices of a volume's mip from slice <paramref name="z"/> (-1: every slice).
+	/// </summary>
+	public void CopyBufferToTexture( BufferHandle source, long offset, TextureHandle texture, int mip, int layer, int width, int height, int x, int y, int z, int slices )
 	{
 		OutsideRendering();
 		FlushBarriers();
@@ -1068,8 +1095,8 @@ public sealed unsafe class CommandList
 		{
 			bufferOffset = (ulong)offset,
 			imageSubresource = new VkImageSubresourceLayers { aspectMask = record.Aspect & ~Vulkan.Vk.AspectStencil, mipLevel = (uint)mip, baseArrayLayer = (uint)layer, layerCount = 1 },
-			imageOffset = new VkOffset3D { x = x, y = y },
-			imageExtent = new VkExtent3D { width = (uint)width, height = (uint)height, depth = (uint)VolumeDepth( in record.Info, mip ) },
+			imageOffset = new VkOffset3D { x = x, y = y, z = z },
+			imageExtent = new VkExtent3D { width = (uint)width, height = (uint)height, depth = (uint)(slices < 0 ? VolumeDepth( in record.Info, mip ) : slices) },
 		};
 
 		vk.vkCmdCopyBufferToImage( Handle, device.Get( source ).Buffer, record.Image, VkImageLayout.TransferDstOptimal, 1, &region );
