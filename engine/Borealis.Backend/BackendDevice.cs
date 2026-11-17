@@ -1945,6 +1945,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		lodStore?.BeginFrame();
 		GpuDrivenFrame++;
 		loadFrame++;
+		TimeFrame();
 		Poll();
 
 		// Streamed textures' new images, written now, ahead of the frame's work
