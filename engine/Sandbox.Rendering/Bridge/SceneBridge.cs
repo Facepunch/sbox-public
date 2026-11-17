@@ -270,14 +270,14 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		// A child view prepares while its parent's frame records, on workers too, from the mirrors the parent synced: it
 		// changes no world anyone's drawing (an unseen world's mirror is new, and synced once)
 		var parent = rendering;
-		if ( parent is null ) FreeInvalid();
+		if ( parent is null && !captureSynced ) FreeInvalid();
 
 		// Borealis traces screen-space reflections as the graphics settings leave them (r_ssr_downsample_ratio)
 		Borealis.ScreenSpaceReflectionsLayer.Enabled = ScreenSpaceReflectionsPass.IsEnabled;
 
 		var syncStart = System.Diagnostics.Stopwatch.GetTimestamp();
 		var mirror = MirrorFor( camera.World );
-		if ( parent is null || !mirror.HasSynced ) mirror.Sync( camera );
+		if ( (parent is null && !captureSynced) || !mirror.HasSynced ) mirror.Sync( camera );
 		SyncSkybox( mirror, camera, setup );
 
 		var state = given ?? StateFor( camera, setup.ViewHash );
@@ -433,8 +433,8 @@ internal sealed partial class SceneBridge : ISceneRenderer
 
 		extra.LastFrame = Application.FrameCount;
 
-		// A child view's extra worlds were synced by its parent, or another view this frame
-		if ( rendering is null || !extra.Mirror.HasSynced ) extra.Mirror.Sync( camera );
+		// A child view's extra worlds were synced by its parent, or another view this frame; a capture's later faces by its first
+		if ( (rendering is null && !captureSynced) || !extra.Mirror.HasSynced ) extra.Mirror.Sync( camera );
 		drawn.Add( extra.Mirror );
 		return SubWorldBit( extra.Mirror.SubWorld );
 	}
