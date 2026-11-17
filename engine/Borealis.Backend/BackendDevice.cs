@@ -1794,10 +1794,43 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			state.MeshletStampsAttribute = new GpuBuffer( new BackendBuffer( this, state.MeshletStamps, stampBytes, "Borealis meshlet stamps" ), (int)(stampBytes / 4), 4 );
 #pragma warning restore CA2000
 			visibilityBuffers.Add( buffer );
+			ClearMadeAfterClear( state, compacted: false, prepass: buffer );
 			state.PrepassCompacted = buffer;
 			return buffer;
 		}
 	}
+
+	/// <summary>
+	/// Clear a view's visibility buffers made after this frame cleared the view's (<c>BackendContext.BeginGpuDrivenView</c>)
+	/// as that clear would have: this frame's calls go on to use them, and their cursors and stamps would hold whatever the
+	/// memory last held (a target that grew, a child view drawn at another size inside a cube capture, a prepass's meshlet
+	/// buffers made at its first use). In a list of its own, submitted now, ahead of the lists recording with them.
+	/// </summary>
+	void ClearMadeAfterClear( VisibilityView state, bool compacted, BufferHandle prepass )
+	{
+		if ( state.ClearedFrame != GpuDrivenFrame ) return;
+
+		var list = Gpu.BeginCommandList( QueueType.Graphics, "Borealis visibility made mid-frame" );
+		if ( compacted )
+		{
+			foreach ( var buffer in state.Compacted ) list.FillBuffer( buffer, VisibilityView.CompactedCursorIndices, 0, 4 );
+		}
+
+		if ( prepass.IsValid )
+		{
+			list.FillBuffer( prepass, VisibilityView.CompactedCursorIndices, 0, 4 );
+			list.FillBuffer( state.PrepassCompacted16, VisibilityView.CompactedCursorIndices, 0, 4 );
+			list.FillBuffer( state.MeshletStamps, 0 );
+			state.MeshletStampsCleared = true;
+		}
+
+		list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
+		Gpu.Submit( list );
+		VisibilityClearedMidFrame++;
+	}
+
+	/// <summary>Views' visibility buffers made after their frame's clear and cleared when made, for the tests.</summary>
+	public int VisibilityClearedMidFrame { get; private set; }
 
 	readonly ConditionalWeakTable<object, VisibilityView> visibilityViews = new();
 	readonly List<BufferHandle> visibilityBuffers = new();
@@ -1899,6 +1932,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				}
 
 				state.CompactedCapacity = compacted;
+				ClearMadeAfterClear( state, compacted: true, prepass: default );
 			}
 
 			if ( depth.Width != 0 && (state.Width != depth.Width || state.Height != depth.Height || state.Samples != depth.Samples) )
