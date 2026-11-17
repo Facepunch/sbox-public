@@ -14,6 +14,7 @@ namespace Sandbox.ShaderCompiler;
 /// </summary>
 internal sealed unsafe class SlangRequest : IDisposable
 {
+	readonly IntPtr session;
 	readonly IntPtr handle;
 	readonly SlangFileSystem files;
 	readonly Func<string, string, string> rewrite;
@@ -23,16 +24,48 @@ internal sealed unsafe class SlangRequest : IDisposable
 	public Dictionary<string, Annotations> Annotations { get; } = new( StringComparer.Ordinal );
 
 	/// <summary>
-	/// A request on <paramref name="session"/> searching <paramref name="searchPaths"/>. <paramref name="rewrite"/> gets
-	/// each file's path and text and returns what Slang compiles.
+	/// A request on a session of the Slang in <paramref name="slangDirectory"/>, its own until disposed (<see cref="SlangApi.Rent"/>),
+	/// searching <paramref name="searchPaths"/>. <paramref name="rewrite"/> gets each file's path and text and returns what
+	/// Slang compiles.
 	/// </summary>
-	public SlangRequest( IntPtr session, IReadOnlyList<string> searchPaths, IReadOnlyDictionary<string, string> defines, bool vertex, bool optimizeAfter, Func<string, string, string> rewrite )
+	public SlangRequest( string slangDirectory, IReadOnlyList<string> searchPaths, IReadOnlyDictionary<string, string> defines, bool vertex, bool optimizeAfter, Func<string, string, string> rewrite )
 	{
 		this.rewrite = rewrite;
+		using ( SlangCompiler.Zone( CompilePhase.Session ) ) session = SlangApi.Rent( slangDirectory );
 		handle = SlangApi.CreateCompileRequest( session );
 		files = new SlangFileSystem( Load );
 		SlangApi.SetFileSystem( handle, files.Pointer );
+		try
+		{
+			Options( searchPaths, defines, vertex, optimizeAfter );
+		}
+		catch
+		{
+			Dispose();
+			throw;
+		}
+	}
 
+	void Options( IReadOnlyList<string> searchPaths, IReadOnlyDictionary<string, string> defines, bool vertex, bool optimizeAfter )
+	{
+		var encoded = Arguments( searchPaths, defines, vertex, optimizeAfter ).Select( a => Marshal.StringToCoTaskMemUTF8( a ) ).ToArray();
+		try
+		{
+			fixed ( IntPtr* pointers = encoded )
+			{
+				if ( SlangApi.ProcessCommandLineArguments( handle, (byte**)pointers, encoded.Length ) < 0 )
+					throw new ShaderCompileException( null, $"Slang rejected the compile options: {Diagnostics}" );
+			}
+		}
+		finally
+		{
+			foreach ( var p in encoded ) Marshal.FreeCoTaskMem( p );
+		}
+	}
+
+	/// <summary>The command line every request gets: vfx's options, then the search paths and defines.</summary>
+	internal static List<string> Arguments( IReadOnlyList<string> searchPaths, IReadOnlyDictionary<string, string> defines, bool vertex, bool optimizeAfter )
+	{
 		var args = new List<string>
 		{
 			"-target", "spirv", "-profile", "spirv_1_5",
@@ -54,20 +87,7 @@ internal sealed unsafe class SlangRequest : IDisposable
 		if ( vertex ) args.Add( "-fvk-invert-y" );
 		foreach ( var path in searchPaths ) args.AddRange( ["-I", path] );
 		foreach ( var (name, value) in defines ) args.Add( $"-D{name}={value}" );
-
-		var encoded = args.Select( a => Marshal.StringToCoTaskMemUTF8( a ) ).ToArray();
-		try
-		{
-			fixed ( IntPtr* pointers = encoded )
-			{
-				if ( SlangApi.ProcessCommandLineArguments( handle, (byte**)pointers, encoded.Length ) < 0 )
-					throw new ShaderCompileException( null, $"Slang rejected the compile options: {Diagnostics}" );
-			}
-		}
-		finally
-		{
-			foreach ( var p in encoded ) Marshal.FreeCoTaskMem( p );
-		}
+		return args;
 	}
 
 	string Load( string path )
@@ -107,6 +127,7 @@ internal sealed unsafe class SlangRequest : IDisposable
 	/// <summary>Compile; throws <see cref="ShaderCompileException"/> with Slang's diagnostics on failure.</summary>
 	public void Compile( string path )
 	{
+		using var zone = SlangCompiler.Zone( CompilePhase.Slang );
 		if ( SlangApi.Compile( handle ) < 0 ) throw new ShaderCompileException( path, Diagnostics );
 	}
 
@@ -137,6 +158,7 @@ internal sealed unsafe class SlangRequest : IDisposable
 	{
 		SlangApi.DestroyCompileRequest( handle );
 		files.Dispose();
+		SlangApi.Return( session );
 	}
 }
 

@@ -3,6 +3,7 @@ using Borealis.Source2.Shaders;
 using Sandbox.ShaderCompiler;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Borealis.Backend;
 
@@ -15,8 +16,13 @@ public sealed class SurfaceShaders : IDisposable
 {
 	readonly BackendDevice device;
 	readonly Dictionary<string, SurfaceProgram> programs = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, Task<SurfaceProgram>> compiling = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, CompiledShader> layouts = new( StringComparer.OrdinalIgnoreCase );
 	readonly List<string> folders = new();
 	SlangCompiler compiler;
+	readonly Dictionary<string, List<string>> changedWhileCompiling = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, CompilePriority> priorities = new( StringComparer.OrdinalIgnoreCase );
+	bool disposed;
 
 	internal SurfaceShaders( BackendDevice device )
 	{
@@ -231,6 +237,66 @@ public sealed class SurfaceShaders : IDisposable
 	public Action<string> Error { get; set; } = message => Console.Error.WriteLine( message );
 
 	/// <summary>
+	/// Compile surfaces on the compile threads while their materials draw as the <c>.shader</c> they stand in for (the
+	/// game's, unless <c>-wait-for-shaders</c>), or where first drawn, waiting (off, the default): for tests and pictures
+	/// that must not depend on when a compile finishes. Read by each device as it's made (<see cref="CompileInBackground"/>).
+	/// </summary>
+	public static bool CompileInBackgroundByDefault { get; set; }
+
+	/// <summary>Whether this device's draws wait for a surface to compile; from <see cref="CompileInBackgroundByDefault"/>.</summary>
+	public bool CompileInBackground { get; set; } = CompileInBackgroundByDefault;
+
+	/// <summary>Raised each time a program compiled in the background is ready, so what passed over its materials looks again.</summary>
+	public int ReadyVersion => System.Threading.Volatile.Read( ref readyVersion );
+
+	int readyVersion;
+
+	/// <summary>Surfaces compiling now, for reports and tests.</summary>
+	public int Compiling
+	{
+		get
+		{
+			lock ( programs ) return compiling.Count;
+		}
+	}
+
+	/// <summary>
+	/// Wait until no surface is compiling (one that starts meanwhile too), for tests and captures that need every material
+	/// drawn as its surface; false if <paramref name="timeout"/> passed first.
+	/// </summary>
+	public bool WaitForCompiles( TimeSpan timeout )
+	{
+		var clock = System.Diagnostics.Stopwatch.StartNew();
+		while ( true )
+		{
+			Task[] running;
+			lock ( programs ) running = [.. compiling.Values];
+			if ( running.Length == 0 ) return true;
+			var left = timeout - clock.Elapsed;
+			if ( left <= TimeSpan.Zero || !Task.WaitAll( running, left ) ) return false;
+		}
+	}
+
+	/// <summary>
+	/// Start compiling, in the background, every surface the core shaders' materials are drawn with by default
+	/// (<see cref="ConvertShaders"/>), so a map's first draws find them ready or nearly so. Does nothing when the surfaces are
+	/// compiled where first drawn instead.
+	/// </summary>
+	public void Warm()
+	{
+		if ( !ConvertShaders || !CompileInBackground ) return;
+		foreach ( var (key, surface) in DefaultSurfaces )
+		{
+			if ( NotConvertedByDefault.Contains( key ) || DefaultSurface( key, surface ) is not { } found ) continue;
+			var path = Key( found );
+			lock ( programs )
+			{
+				if ( !programs.ContainsKey( path ) && !compiling.ContainsKey( path ) ) compiling[path] = Start( path, background: true );
+			}
+		}
+	}
+
+	/// <summary>
 	/// Whether the pixel stage reads a material's record at the offset the vertex stage passes on (on, the default: what
 	/// one GPU-driven bucket per pipeline needs) or at the draw's own (off: uniform per draw, for buckets split by
 	/// material). A specialization constant: both forms are compiled into every surface.
@@ -243,14 +309,18 @@ public sealed class SurfaceShaders : IDisposable
 	/// <summary>The engine's Slang and core shaders, beside the content's <c>core</c> folder.</summary>
 	SlangCompiler Compiler()
 	{
-		if ( compiler is not null ) return compiler;
-		var shaders = CoreShaders();
-		var game = Path.GetDirectoryName( Path.GetDirectoryName( shaders ) );
-		Watch( shaders );
-		return compiler = new SlangCompiler( EngineFolders.NativeIn( game ), [shaders] )
+		lock ( folders )
 		{
-			CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealissurfaces" ),
-		};
+			if ( compiler is not null ) return compiler;
+			var shaders = CoreShaders();
+			var game = Path.GetDirectoryName( Path.GetDirectoryName( shaders ) );
+			Watch( shaders );
+			CompileZones.Install();
+			return compiler = new SlangCompiler( EngineFolders.NativeIn( game ), [shaders] )
+			{
+				CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealissurfaces" ),
+			};
+		}
 	}
 
 	/// <summary>The engine's core shaders: in the content root with the surface library (a map's own package comes first in its content).</summary>
@@ -300,6 +370,13 @@ public sealed class SurfaceShaders : IDisposable
 		path = Path.GetFullPath( path );
 		lock ( programs )
 		{
+			// A compile in flight may have read what was there before: it looks when it's done (Start)
+			foreach ( var changes in changedWhileCompiling.Values ) changes.Add( path );
+			foreach ( var (file, layout) in layouts.ToArray() )
+			{
+				if ( layout is null || layout.Dependencies.Contains( path, StringComparer.OrdinalIgnoreCase ) ) layouts.Remove( file );
+			}
+
 			foreach ( var (file, program) in programs.ToArray() )
 			{
 				if ( program is null )
@@ -328,23 +405,70 @@ public sealed class SurfaceShaders : IDisposable
 		AddFolder( folder );
 		Watch( folder );
 		var files = Directory.Exists( folder ) ? Directory.GetFiles( folder, "*.slang" ) : [];
-		return System.Threading.Tasks.Task.Run( () =>
+		Task<SurfaceProgram>[] started;
+		lock ( programs )
 		{
-			foreach ( var file in files ) Program( Path.GetFileName( file ) );
-		} );
+			started = files.Select( f => Path.GetFileName( f ) ).Where( f => !programs.ContainsKey( f ) ).Select( f => compiling.TryGetValue( f, out var running ) ? running : compiling[f] = Start( f, background: true ) ).ToArray();
+		}
+
+		return Task.WhenAll( started );
 	}
 
-	/// <summary>Compile a shader by file name (or path) and keep it; null, after reporting, when it doesn't compile.</summary>
+	/// <summary>Compile a shader by file name (or path) and keep it, waiting for it; null, after reporting, when it doesn't compile.</summary>
 	public CompiledShader Compile( string file ) => Program( file )?.Compiled;
 
-	/// <summary>A material's program, compiled on first use; null when it can't draw.</summary>
+	/// <summary>
+	/// A shader's name and material layout (no passes), for loading its materials: its program's when it's compiled, else
+	/// reflected alone (from the cache when it's there) while the program compiles in the background. Null, after
+	/// reporting, when it doesn't reflect. Waits for the program instead when surfaces compile where first drawn.
+	/// </summary>
+	internal CompiledShader Layout( string file )
+	{
+		if ( !CompileInBackground ) return Compile( file );
+		file = Key( file );
+		lock ( programs )
+		{
+			if ( programs.TryGetValue( file, out var known ) ) return known?.Compiled;
+			if ( layouts.TryGetValue( file, out var layout ) ) return layout;
+		}
+
+		var path = Find( file );
+		if ( path is null ) return Compile( file );
+
+		CompiledShader reflected = null;
+		try
+		{
+			using ( Zones.SurfaceCompile.Start() ) reflected = Compiler().ReflectAsync( path ).GetAwaiter().GetResult();
+		}
+		catch ( ShaderCompileException e )
+		{
+			Error?.Invoke( $"{file}: {e.Errors}" );
+		}
+
+		lock ( programs )
+		{
+			layouts[file] = reflected;
+			if ( reflected is not null && !programs.ContainsKey( file ) && !compiling.ContainsKey( file ) ) compiling[file] = Start( file, background: false );
+			Hurry( file );
+		}
+
+		return reflected;
+	}
+
+	/// <summary>
+	/// A material's program, compiled on first use; null when it can't draw, and while it compiles in the background (the
+	/// material then draws as the <c>.shader</c> it stands in for, or not at all).
+	/// </summary>
 	internal SurfaceProgram For( SurfaceMaterial material )
 	{
 		// Kept on the material once found: draws ask for it every frame
-		if ( material.Program is { Stale: false } known && ReferenceEquals( known.Device, device ) ) return known;
+		var known = material.Program;
+		if ( known is { Stale: false } && ReferenceEquals( known.Device, device ) ) return known;
 
-		var program = Program( material.Shader );
-		if ( program is null ) return null;
+		var program = CompileInBackground ? Ready( material.Shader ) : Program( material.Shader );
+
+		// One a hotload dropped draws on while its source compiles again: it stays alive until the device is disposed
+		if ( program is null ) return known is not null && ReferenceEquals( known.Device, device ) && IsCompiling( material.Shader ) ? known : null;
 		if ( program.LayoutHash != material.LayoutHash || program.Compiled.Material.Size != material.RecordSize )
 		{
 			if ( program.Mismatched.Add( material.GetType() ) ) Error?.Invoke( $"{material.Shader}: {material.GetType().Name} was generated for another layout of {program.Compiled.Material.Type}; regenerate it" );
@@ -355,14 +479,69 @@ public sealed class SurfaceShaders : IDisposable
 		return program;
 	}
 
+	/// <summary>A shader's file: <paramref name="file"/> itself when it's a path, else the first of <see cref="Folders"/> that has it.</summary>
+	string Find( string file )
+	{
+		if ( File.Exists( file ) ) return file;
+		lock ( programs ) return folders.Select( f => Path.Combine( f, file ) ).FirstOrDefault( File.Exists );
+	}
+
+	/// <summary>Programs are kept by full path, or by file name for one found in <see cref="Folders"/>.</summary>
+	static string Key( string file ) => Path.IsPathRooted( file ) ? Path.GetFullPath( file ) : file;
+
+	bool IsCompiling( string file )
+	{
+		lock ( programs ) return compiling.ContainsKey( Key( file ) );
+	}
+
+	/// <summary>A shader's program, compiled now if it isn't, or waited for if it's compiling: null when it doesn't compile.</summary>
 	SurfaceProgram Program( string file )
 	{
+		file = Key( file );
+		Task<SurfaceProgram> task;
 		lock ( programs )
 		{
 			if ( programs.TryGetValue( file, out var known ) ) return known;
+			if ( !compiling.TryGetValue( file, out task ) ) compiling[file] = task = Start( file, background: false );
+			Hurry( file );
+		}
 
-			var path = File.Exists( file ) ? file : folders.Select( f => Path.Combine( f, file ) ).FirstOrDefault( File.Exists );
+		using ( Zones.SurfaceCompile.Start() ) return task.GetAwaiter().GetResult();
+	}
+
+	/// <summary>A shader's program if it's ready (null when it doesn't compile); null while it compiles, which this starts.</summary>
+	SurfaceProgram Ready( string file )
+	{
+		file = Key( file );
+		lock ( programs )
+		{
+			if ( programs.TryGetValue( file, out var known ) ) return known;
+			if ( !compiling.ContainsKey( file ) ) compiling[file] = Start( file, background: false );
+			Hurry( file );
+			return null;
+		}
+	}
+
+	/// <summary>A compile warming in the background that a draw now waits for goes ahead of the other background work. Under the programs lock.</summary>
+	void Hurry( string file )
+	{
+		if ( priorities.TryGetValue( file, out var priority ) ) priority.Urgent = true;
+	}
+
+	/// <summary>
+	/// Compile a shader on the compile threads and make its program; kept in <see cref="programs"/> when done, unless a
+	/// file it read changed meanwhile (<see cref="Changed"/>): then it's dropped, and the next draw starts again. Called
+	/// under the programs lock.
+	/// </summary>
+	Task<SurfaceProgram> Start( string file, bool background )
+	{
+		changedWhileCompiling[file] = new List<string>();
+		var priority = priorities[file] = background ? CompilePriority.Background() : new CompilePriority { Urgent = true };
+		var compiler = Compiler();
+		return Task.Run( async () =>
+		{
 			SurfaceProgram program = null;
+			var path = Find( file );
 			if ( path is null )
 			{
 				Error?.Invoke( $"{file}: no such shader in {string.Join( ", ", folders )}" );
@@ -371,8 +550,8 @@ public sealed class SurfaceShaders : IDisposable
 			{
 				try
 				{
-					var raw = System.Text.RegularExpressions.Regex.IsMatch( File.ReadAllText( path ), @"\[\s*shader\s*\(" );
-					var compiled = raw ? Compiler().CompileRaw( path ) : Compiler().CompileSurface( path );
+					var raw = SlangCompiler.IsRaw( File.ReadAllText( path ) );
+					var compiled = await (raw ? compiler.CompileRawAsync( path, priority ) : compiler.CompileSurfaceAsync( path, priority )).ConfigureAwait( false );
 					program = new SurfaceProgram( device, compiled );
 					if ( compiled.GpuDrivenError is { } gpuDrivenError ) Error?.Invoke( $"{file}: no GPU-driven passes, its draws go the classic way: {gpuDrivenError}" );
 				}
@@ -380,20 +559,60 @@ public sealed class SurfaceShaders : IDisposable
 				{
 					Error?.Invoke( $"{file}: {e.Errors}" );
 				}
+				catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException or InvalidOperationException or GpuException )
+				{
+					// Draws go on without it, as for a compile error
+					Error?.Invoke( $"{file}: {e.Message}" );
+				}
 			}
 
-			programs[file] = program;
+			lock ( programs )
+			{
+				compiling.Remove( file );
+				priorities.Remove( file );
+				var changes = changedWhileCompiling.Remove( file, out var changed ) ? changed : [];
+
+				// One that failed tries again after any change, as Changed has it
+				var stale = program is null ? changes.Count > 0 : changes.Exists( c => program.Compiled.Dependencies.Contains( c, StringComparer.OrdinalIgnoreCase ) );
+				if ( disposed || stale )
+				{
+					if ( program is not null ) retired.Add( program );
+					program = null;
+				}
+				else
+				{
+					programs[file] = program;
+				}
+			}
+
+			System.Threading.Interlocked.Increment( ref readyVersion );
 			return program;
-		}
+		} );
 	}
 
-	/// <summary>Destroy what was made.</summary>
+	/// <summary>Destroy what was made, once the compiles in flight are done.</summary>
 	public void Dispose()
 	{
 		lock ( watchers )
 		{
 			foreach ( var watcher in watchers ) watcher.Dispose();
 			watchers.Clear();
+		}
+
+		Task[] running;
+		lock ( programs )
+		{
+			disposed = true;
+			running = [.. compiling.Values];
+		}
+
+		try
+		{
+			Task.WaitAll( running );
+		}
+		catch ( AggregateException )
+		{
+			// Each one's failure was reported
 		}
 
 		lock ( programs )
@@ -608,7 +827,7 @@ internal sealed class SurfaceProgram : IDisposable
 				return unspecialized;
 			}
 
-			pipeline = device.Gpu.CreateGraphicsPipeline( Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, ids, opaqueFade, depthEqual, normals ) );
+			using ( Zones.PipelineCreate.Start() ) pipeline = device.Gpu.CreateGraphicsPipeline( Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, ids, opaqueFade, depthEqual, normals ) );
 			pipelines[key] = pipeline;
 			return pipeline;
 		}

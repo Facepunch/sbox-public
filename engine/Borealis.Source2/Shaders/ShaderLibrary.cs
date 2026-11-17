@@ -415,18 +415,32 @@ public sealed class ShaderLibrary : IDisposable
 	/// shader's GPU-driven file (a mode's fallback shader's too); null when there's none.
 	/// </summary>
 	public ShaderVariant Variant( ShaderFile shader, string mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos = null, Func<string, int?> attributes = null, bool gpuDriven = false )
+		=> Variant( shader, mode, features, dynamicCombos, attributes, gpuDriven, out _ );
+
+	/// <summary>
+	/// <see cref="Variant(ShaderFile, string, ReadOnlySpan{int}, Func{string, int?}, Func{string, int?}, bool)"/>, saying
+	/// with <paramref name="pending"/> that the shader's module is still compiling (<see cref="ModuleProgram.Pending"/>):
+	/// the variant is then its compiled programs', or null when it has none, and isn't the one to keep.
+	/// </summary>
+	public ShaderVariant Variant( ShaderFile shader, string mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos, Func<string, int?> attributes, bool gpuDriven, out bool pending )
 	{
+		pending = false;
 		var drawMode = shader.Mode( mode );
 		if ( drawMode is null ) return null;
 		if ( !string.IsNullOrEmpty( drawMode.Fallback ) )
 		{
 			var fallback = Load( drawMode.Fallback.Contains( '/' ) ? drawMode.Fallback : $"shaders/{drawMode.Fallback}" );
-			return fallback is null ? null : Variant( fallback, mode, [], dynamicCombos, attributes, gpuDriven );
+			return fallback is null ? null : Variant( fallback, mode, [], dynamicCombos, attributes, gpuDriven, out pending );
 		}
 
-		// A shader with a module draws from it; one whose module doesn't compile draws from its programs
+		// A shader with a module draws from it; one whose module doesn't compile draws from its programs, and so does one
+		// whose module is compiling in the background (one with no programs to draw from draws nothing meanwhile)
 		if ( !gpuDriven && Modules is { } modules && modules.Has( shader ) && modules.Compile( shader, drawMode, features, dynamicCombos, attributes ) is { } compiled )
-			return ModuleVariant( shader, drawMode, compiled );
+		{
+			if ( !ReferenceEquals( compiled, ModuleProgram.Pending ) ) return ModuleVariant( shader, drawMode, compiled );
+			pending = true;
+			if ( shader.Outdated is not null || shader.ModuleOnly ) return null;
+		}
 
 		// An outdated shader's programs follow other bindings: one whose embedded source didn't compile here (or with modules
 		// off) is recompiled through the ShaderCompiler after all. Its GPU-driven variant is compiled from its file as any is
