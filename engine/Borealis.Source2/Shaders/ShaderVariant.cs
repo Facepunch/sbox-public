@@ -205,6 +205,9 @@ public sealed class ShaderStage
 	readonly Dictionary<(int Set, int Register), SamplerInfo> samplers = new();
 	readonly Dictionary<(int Set, int Binding), int> named = new();
 
+	// Hidden counters' bindings, to the index of their buffer's variable
+	readonly Dictionary<(int Set, int Binding), int> counters = new();
+
 	/// <summary>Which stage.</summary>
 	public ShaderProgramType Type { get; }
 
@@ -339,6 +342,17 @@ public sealed class ShaderStage
 			}
 		}
 
+		// Append and consume buffers' hidden counters: u registers, in the set of the buffer they count
+		foreach ( var (buffer, counter) in Bytecode?.HiddenCounters ?? [] )
+		{
+			foreach ( var ((set, at), index) in named )
+			{
+				if ( at != ShaderAbi.Storage( buffer ) || variables[index].Register != RegisterType.Uav ) continue;
+				counters[(set, ShaderAbi.Storage( counter ))] = index;
+				break;
+			}
+		}
+
 		// MaxAniso only counts with an anisotropic filter, as in D3D: a point or bilinear filter given beside MaxAniso( 8 )
 		// (TextureFiltering with F_TEXTURE_FILTERING set) samples without anisotropy, whichever state came first
 		foreach ( var key in new List<(int Set, int Register)>( samplers.Keys ) )
@@ -375,6 +389,13 @@ public sealed class ShaderStage
 			named[(resource.Set, resource.Binding)] = all.Count;
 			all.Add( resource.Variable );
 			if ( resource.Sampler is { } sampler ) samplers[(resource.Set, resource.Binding - ShaderAbi.SamplerBase)] = sampler;
+		}
+
+		foreach ( var resource in stage.Resources )
+		{
+			if ( resource.CounterOf is not { } buffer ) continue;
+			var index = all.FindIndex( v => v.Name == buffer );
+			if ( index >= 0 ) counters[(resource.Set, resource.Binding)] = index;
 		}
 
 		foreach ( var (variable, _) in stage.GlobalMembers ) all.Add( variable );
@@ -574,6 +595,9 @@ public sealed class ShaderStage
 		if ( binding.Type == BindingType.UniformBuffer && MaterialBuffer.Set == binding.Set && MaterialBuffer.Binding == binding.Binding && !GpuDriven )
 			return resource with { Kind = ShaderResourceKind.MaterialConstants };
 
+		if ( binding.Type == BindingType.StorageBuffer && counters.TryGetValue( (binding.Set, binding.Binding), out var buffer ) )
+			return resource with { Kind = ShaderResourceKind.Counter, Variable = variables[buffer] };
+
 		if ( !named.TryGetValue( (binding.Set, binding.Binding), out var index ) ) return resource;
 
 		var variable = variables[index];
@@ -611,6 +635,11 @@ public enum ShaderResourceKind
 	StorageTexture,
 	/// <summary>A sampler made from the shader's sampler states (<see cref="ShaderResource.Sampler"/>).</summary>
 	Sampler,
+	/// <summary>
+	/// The hidden counter of an append, consume or counter buffer: <see cref="ShaderResource.Variable"/> is that buffer's, and
+	/// the counter binds under <see cref="ShaderResource.CounterName"/>.
+	/// </summary>
+	Counter,
 }
 
 /// <summary>
@@ -622,6 +651,12 @@ public readonly record struct ShaderResource( int Set, int Binding, BindingType 
 {
 	/// <summary>The name the engine binds it by: the attribute, or the variable's own name for material values.</summary>
 	public string Name => Variable is null ? null : string.IsNullOrEmpty( Variable.Attribute ) ? Variable.Name : Variable.Attribute;
+
+	/// <summary>The name a buffer's hidden counter is bound by: the buffer's, with <see cref="CounterSuffix"/>.</summary>
+	public static string CounterName( string buffer ) => buffer + CounterSuffix;
+
+	/// <summary>What a buffer's name takes for its hidden counter (<see cref="ShaderResourceKind.Counter"/>).</summary>
+	public const string CounterSuffix = "@counter";
 
 	/// <inheritdoc/>
 	public override string ToString() => $"{Set}.{Binding} {Kind} {Type} {Name}";

@@ -278,7 +278,13 @@ public sealed class PassModules : IShaderModules
 					continue;
 				case BindingKind.Buffer:
 				case BindingKind.MaterialRecords:
-					// An append buffer's counter is named nothing (SlangCompiler.CompilePass), as in a compiled program's tables
+					// An append buffer's counter (X.counter, SlangCompiler.AppendBuffers) names no variable but its buffer's
+					if ( b.Variable.EndsWith( CounterSuffix, StringComparison.Ordinal ) )
+					{
+						resources.Add( new ModuleResource( b.Set, b.Binding, null, CounterOf: b.Variable[..^CounterSuffix.Length] ) );
+						continue;
+					}
+
 					resources.Add( new ModuleResource( b.Set, b.Binding, b.Variable.Length == 0 ? null : Variable( b, VariableType.StructuredBuffer, RegisterType.Uav ) ) );
 					continue;
 				case BindingKind.StorageTexture:
@@ -361,6 +367,8 @@ public sealed class PassModules : IShaderModules
 
 	/// <summary>Usages in <c>SemanticUsageVulkan_t</c> order.</summary>
 	static readonly string[] Usages = ["POSITION", "BLENDWEIGHT", "BLENDINDICES", "NORMAL", "PSIZE", "TEXCOORD", "TANGENT", "BINORMAL", "POSITIONT", "COLOR"];
+
+	const string CounterSuffix = ".counter";
 
 	static ShaderVariable Variable( ShaderBinding b, VariableType type, RegisterType register ) => new()
 	{

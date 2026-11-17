@@ -102,6 +102,8 @@ public static class VertexLayout
 	/// </summary>
 	internal static void FreeAll()
 	{
+		BorealisGpuRenderBackend.ForgetVertexLayouts();
+
 		foreach ( var key in entries.Keys )
 		{
 			if ( entries.TryRemove( key, out var value ) )

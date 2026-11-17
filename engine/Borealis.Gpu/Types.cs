@@ -376,6 +376,12 @@ public enum VertexFormat
 	UInt1010102Norm,
 	/// <summary>Two 16-bit unsigned values read as 0..1 (lightmap uvs).</summary>
 	UShort2Norm,
+	/// <summary>One 32-bit signed integer.</summary>
+	Int,
+	/// <summary>One unsigned byte read as an integer.</summary>
+	UByte,
+	/// <summary>One signed byte read as an integer.</summary>
+	Byte,
 }
 
 /// <summary>

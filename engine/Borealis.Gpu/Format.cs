@@ -229,6 +229,9 @@ public static class Formats
 		VertexFormat.UInt4 => VkFormat.R32G32B32A32Uint,
 		VertexFormat.UInt1010102Norm => VkFormat.A2B10G10R10UnormPack32,
 		VertexFormat.UShort2Norm => VkFormat.R16G16Unorm,
+		VertexFormat.Int => VkFormat.R32Sint,
+		VertexFormat.UByte => VkFormat.R8Uint,
+		VertexFormat.Byte => VkFormat.R8Sint,
 		_ => VkFormat.Undefined,
 	};
 
