@@ -359,6 +359,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// </summary>
 	void CullPasses()
 	{
+		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		var count = passes.Count;
 		if ( count == 0 ) return;
 

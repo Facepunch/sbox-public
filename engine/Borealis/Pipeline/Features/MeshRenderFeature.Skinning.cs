@@ -202,6 +202,7 @@ internal sealed partial class MeshRenderFeature
 
 	void RecordSkinningOnWorker()
 	{
+		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		var recording = GpuContext.Recording;
 		try
 		{
