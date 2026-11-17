@@ -592,19 +592,32 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 	}
 
+	/// <summary>A render target's samples as its multisampling asks: what Vulkan has (6x is 4x, 16x is 8x).</summary>
+	static int SamplesOf( NativeEngine.RenderMultisampleType type ) => type switch
+	{
+		NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_2X => 2,
+		NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_4X or NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_6X => 4,
+		NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_8X or NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_16X => 8,
+		_ => 1,
+	};
+
 	TextureHandle Make( Texture texture )
 	{
 		TextureHandle handle;
 		if ( texture.IsRenderTarget )
 		{
-			var info = TextureInfo.RenderTarget( texture.Width, texture.Height, FormatOf( texture.ImageFormat ), name: $"Engine target {texture.Width}x{texture.Height}" );
-			info.Mips = Math.Max( texture.Mips, 1 );
+			// Its samples (a multisampled one is still sampled, as Texture2DMS) and an array's layers, as it was made
+			var samples = SamplesOf( texture.MultisampleType );
+			var info = TextureInfo.RenderTarget( texture.Width, texture.Height, FormatOf( texture.ImageFormat ), samples, $"Engine target {texture.Width}x{texture.Height}" );
+			info.Usage |= TextureUsage.Sampled;
+			info.Mips = samples > 1 ? 1 : Math.Max( texture.Mips, 1 );
+			if ( texture.Desc is { IsArray: true, IsCube: false } desc ) info.Layers = Math.Max( (int)desc.m_nDepth, 1 );
 			var depth = info.Format.IsDepth();
-			if ( !depth ) info.Usage |= TextureUsage.Storage;
+			if ( !depth && samples == 1 ) info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
 
 			// A target made with pixels - an image whose mips Source 2 generates, or one made for compute - starts with them
-			if ( (InitialPixels( texture, info.Format ) ?? (RawPixels( texture ) is { } raw && raw.Format == info.Format ? raw.Data : null)) is { } pixels )
+			if ( samples == 1 && info.Layers == 1 && (InitialPixels( texture, info.Format ) ?? (RawPixels( texture ) is { } raw && raw.Format == info.Format ? raw.Data : null)) is { } pixels )
 			{
 				Upload( handle, info, pixels, ImageLayout.Undefined );
 			}
@@ -796,9 +809,14 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>The Borealis.Gpu form of an uncompressed engine format, or Unknown.</summary>
 	static GpuFormat DataFormatOf( ImageFormat format ) => format switch
 	{
-		ImageFormat.RGBA8888 => GpuFormat.RGBA8Unorm,
-		ImageFormat.BGRA8888 => GpuFormat.BGRA8Unorm,
-		ImageFormat.A8 or ImageFormat.I8 => GpuFormat.R8Unorm,
+		ImageFormat.RGBA8888 or ImageFormat.RGBX8888 or ImageFormat.RGBA8888_LINEAR or ImageFormat.LINEAR_RGBA8888 => GpuFormat.RGBA8Unorm,
+		ImageFormat.BGRA8888 or ImageFormat.BGRX8888 or ImageFormat.BGRA8888_LINEAR or ImageFormat.BGRX8888_LINEAR or ImageFormat.LINEAR_BGRA8888 or ImageFormat.LINEAR_BGRX8888 => GpuFormat.BGRA8Unorm,
+		ImageFormat.A8 or ImageFormat.I8 or ImageFormat.LINEAR_I8 => GpuFormat.R8Unorm,
+		ImageFormat.IA88 => GpuFormat.RG8Unorm,
+		ImageFormat.RGBA16161616 or ImageFormat.LINEAR_RGBA16161616 => GpuFormat.RGBA16Unorm,
+		ImageFormat.BGRA1010102 => GpuFormat.BGR10A2Unorm,
+		ImageFormat.RG3232 => GpuFormat.RG32Uint,
+		ImageFormat.RGBA32323232 => GpuFormat.RGBA32Uint,
 		ImageFormat.R32F => GpuFormat.R32Float,
 		ImageFormat.RG3232F => GpuFormat.RG32Float,
 		ImageFormat.RGBA32323232F => GpuFormat.RGBA32Float,
@@ -1000,6 +1018,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		ImageFormat.D24S8 or ImageFormat.LINEAR_D24S8 or ImageFormat.D24FS8 or ImageFormat.D32FS8 => GpuFormat.D32FloatS8Uint,
 		ImageFormat.D32 or ImageFormat.D24X8 => GpuFormat.D32Float,
+		ImageFormat.D16 => GpuFormat.D16Unorm,
 		_ => format is not ImageFormat.I8 && DataFormatOf( format ) is var mapped && mapped != GpuFormat.Unknown
 			? mapped
 			: throw new NotSupportedException( $"Render target format {format} on Borealis.Gpu" ),
@@ -1712,6 +1731,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		GpuFormat.RGBA8Unorm => ImageFormat.RGBA8888,
 		GpuFormat.BGRA8Unorm => ImageFormat.BGRA8888,
 		GpuFormat.R8Unorm => ImageFormat.I8,
+		GpuFormat.RG8Unorm => ImageFormat.IA88,
+		GpuFormat.BGR10A2Unorm => ImageFormat.BGRA1010102,
+		GpuFormat.RG32Uint => ImageFormat.RG3232,
+		GpuFormat.RGBA32Uint => ImageFormat.RGBA32323232,
 		GpuFormat.RGBA16Float => ImageFormat.RGBA16161616F,
 		GpuFormat.RGBA16Unorm => ImageFormat.RGBA16161616,
 		GpuFormat.RG16Float => ImageFormat.RG1616F,
