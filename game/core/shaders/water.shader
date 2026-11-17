@@ -193,19 +193,38 @@ PS
 		float4 Z;
 	};
 	StructuredBuffer<WaterHoleData> WaterHoles < Attribute( "WaterHoles" ); >;
+	// WaterHoleGrid: holes binned by their footprints on the surface plane into square cells, hashed into buckets.
+	// Bucket b holds WaterHoleIndices[WaterHoleStarts[b] .. WaterHoleStarts[b + 1]); the bucket after the last
+	// holds footprints too large to bin, which every pixel tests.
+	StructuredBuffer<uint> WaterHoleStarts < Attribute( "WaterHoleStarts" ); >;
+	StructuredBuffer<uint> WaterHoleIndices < Attribute( "WaterHoleIndices" ); >;
 	int WaterHoleCount < Attribute( "WaterHoleCount" ); Default( 0 ); >;
+	float WaterHoleGridInverseCell < Attribute( "WaterHoleGridInverseCell" ); >;
+	int WaterHoleGridMask < Attribute( "WaterHoleGridMask" ); >;
 
-	bool InWaterHole( float3 position )
+	bool InWaterHoleBucket( float3 position, uint bucket )
 	{
-		for ( int index = 0; index < WaterHoleCount; index++ )
+		uint end = WaterHoleStarts[bucket + 1];
+		for ( uint k = WaterHoleStarts[bucket]; k < end; k++ )
 		{
-			WaterHoleData hole = WaterHoles[index];
+			WaterHoleData hole = WaterHoles[WaterHoleIndices[k]];
 			float3 box = float3( dot( hole.X.xyz, position ) + hole.X.w, dot( hole.Y.xyz, position ) + hole.Y.w,
 				dot( hole.Z.xyz, position ) + hole.Z.w );
 			if ( all( abs( box ) <= 1 ) )
 				return true;
 		}
 		return false;
+	}
+
+	bool InWaterHole( float3 position )
+	{
+		if ( WaterHoleCount <= 0 )
+			return false;
+
+		// Matches WaterHoleGrid.Bucket.
+		int2 cell = (int2)clamp( floor( WaterLocal( position ).xy * WaterHoleGridInverseCell ), -1e9, 1e9 );
+		uint bucket = ( asuint( cell.x ) * 73856093u ^ asuint( cell.y ) * 19349663u ) & (uint)WaterHoleGridMask;
+		return InWaterHoleBucket( position, bucket ) || InWaterHoleBucket( position, (uint)WaterHoleGridMask + 1 );
 	}
 
 	bool HasRefractionTexture < Attribute( "HasRefractionTexture" ); Default( 0 ); >;

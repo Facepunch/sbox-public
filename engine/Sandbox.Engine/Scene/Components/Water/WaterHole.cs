@@ -13,10 +13,17 @@ public sealed class WaterHole : Component, Component.ExecuteInEditor
 	/// The dry region, in local space.
 	/// </summary>
 	[Property]
-	public BBox Bounds { get; set; } = BBox.FromPositionAndSize( 0, 256 );
+	public BBox Bounds
+	{
+		get;
+		set
+		{
+			field = value;
+			MarkDirty();
+		}
+	} = BBox.FromPositionAndSize( 0, 256 );
 
 	IDisposable _boundsUndoScope;
-	static readonly List<WaterHole> _queries = [];
 
 	/// <summary>
 	/// Three rows mapping a world position into the box, which spans -1 to 1 on each axis.
@@ -27,6 +34,10 @@ public sealed class WaterHole : Component, Component.ExecuteInEditor
 		internal Vector4 X;
 		internal Vector4 Y;
 		internal Vector4 Z;
+
+		internal readonly bool Contains( Vector3 p ) => MathF.Abs( Vector3.Dot( new Vector3( X.x, X.y, X.z ), p ) + X.w ) <= 1
+			&& MathF.Abs( Vector3.Dot( new Vector3( Y.x, Y.y, Y.z ), p ) + Y.w ) <= 1
+			&& MathF.Abs( Vector3.Dot( new Vector3( Z.x, Z.y, Z.z ), p ) + Z.w ) <= 1;
 	}
 
 	/// <summary>
@@ -45,21 +56,7 @@ public sealed class WaterHole : Component, Component.ExecuteInEditor
 	/// descendants are ignored, so a body keeps the buoyancy of its own dry hull.
 	/// </summary>
 	internal static bool Cuts( Scene scene, Vector3 position, GameObject owner = null )
-	{
-		bool cut = false;
-		_queries.Clear();
-		scene.GetAll( _queries );
-		foreach ( var hole in _queries )
-		{
-			if ( !hole.Active || (owner.IsValid() && hole.GameObject.IsAncestor( owner )) || !hole.Contains( position ) )
-				continue;
-
-			cut = true;
-			break;
-		}
-		_queries.Clear();
-		return cut;
-	}
+		=> scene.GetSystem<WaterHoleSystem>()?.Cuts( position, owner ) ?? false;
 
 	internal Data GetData()
 	{
@@ -81,11 +78,22 @@ public sealed class WaterHole : Component, Component.ExecuteInEditor
 		}
 	}
 
+	protected override void OnEnabled()
+	{
+		MarkDirty();
+		// Raised for parent moves and interpolation too.
+		Transform.OnTransformChanged += MarkDirty;
+	}
+
 	protected override void OnDisabled()
 	{
+		Transform.OnTransformChanged -= MarkDirty;
+		MarkDirty();
 		_boundsUndoScope?.Dispose();
 		_boundsUndoScope = null;
 	}
+
+	void MarkDirty() => Scene?.GetSystem<WaterHoleSystem>()?.MarkDirty();
 
 	protected override void DrawGizmos()
 	{
