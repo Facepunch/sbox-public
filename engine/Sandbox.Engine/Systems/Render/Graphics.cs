@@ -285,6 +285,13 @@ public static partial class Graphics
 	}
 
 
+	/// <summary>
+	/// The most multisampling up to <paramref name="wanted"/> the device renders with: Borealis.Gpu's answer when it's the
+	/// device, else Source 2's.
+	/// </summary>
+	internal static RenderMultisampleType BestMultisampleType( RenderMultisampleType wanted )
+		=> RenderBackend.Default is BorealisGpuRenderBackend borealis ? borealis.BestMultisampleType( wanted ) : RenderDeviceManager.GetBestMultisampleType( wanted );
+
 	internal static int RenderMultiSampleToNum( RenderMultisampleType msaaLevel )
 	{
 		switch ( msaaLevel )
