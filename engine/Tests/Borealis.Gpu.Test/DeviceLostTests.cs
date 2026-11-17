@@ -4,7 +4,8 @@ namespace BorealisGpuTests;
 
 /// <summary>
 /// A device that's lost, or a wait for something the GPU will never reach, doesn't hold the CPU: waits return or throw,
-/// submissions say the device is lost, and the device still disposes.
+/// submissions say the device is lost, and the device still disposes. A binding that would put an empty view in front of
+/// the GPU throws instead.
 /// </summary>
 [TestClass]
 [DoNotParallelize]
@@ -20,6 +21,22 @@ public class DeviceLostTests : GpuTest
 		Device.Wait( point );
 
 		Assert.ThrowsException<InvalidOperationException>( () => Device.Wait( new SyncPoint( QueueType.Graphics, point.Value + 5 ) ) );
+	}
+
+	/// <summary>
+	/// Binding a texture as storage when it has no storage view throws, rather than writing an empty descriptor the GPU would
+	/// read or write through (undefined without the null descriptor feature; a write can fault and lose the device).
+	/// </summary>
+	[TestMethod]
+	public void StorageBindingOfASampledOnlyTextureThrows()
+	{
+		var texture = Device.CreateTexture( TextureInfo.Texture2D( 4, 4, Format.RGBA8Unorm, name: "Sampled only" ) );
+		var layout = Device.CreateBindingLayout( [new BindingSlot( 0, BindingType.StorageTexture, ShaderStages.Compute )] );
+		var list = Device.BeginCommandList( QueueType.Graphics, "Storage binding" );
+
+		var thrown = Assert.ThrowsException<ArgumentException>( () => list.SetBindings( 0, layout, [Binding.StorageTexture( 0, texture )] ) );
+		StringAssert.Contains( thrown.Message, "Sampled only" );
+		Device.Wait( Device.Submit( list ) );
 	}
 
 	/// <summary>
