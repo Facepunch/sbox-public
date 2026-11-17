@@ -205,8 +205,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 		view.Target = color.Engine is null ? null : RenderTarget.From( color.Engine, depth.Engine );
 		view.DepthSlice = 0;
 
-		// The trace reads the multisampled normals as the view's (D_MSAA_NORMALS from the block's multisampling)
-		view.Msaa = normals.Gpu is { Samples: > 1 } multisampled ? multisampled.Samples switch { 2 => MultisampleAmount.Multisample2x, 8 => MultisampleAmount.Multisample8x, _ => MultisampleAmount.Multisample4x } : MultisampleAmount.MultisampleNone;
+		// The block's multisampling (the MSAA combos) is its targets': a stage before the resolve reads and draws into the
+		// frame's multisampled colour and depth (depth of field's D_MSAA), and the trace its multisampled normals (D_MSAA_NORMALS)
+		view.Msaa = (color.Gpu ?? normals.Gpu ?? depth.Gpu) is { Samples: > 1 } multisampled ? multisampled.Samples switch { 2 => MultisampleAmount.Multisample2x, 8 => MultisampleAmount.Multisample8x, _ => MultisampleAmount.Multisample4x } : MultisampleAmount.MultisampleNone;
 		view.Viewport = target.Viewport;
 		backend.LendNextBlock( list );
 		backend.DepthRange = target.MaxZ > target.MinZ ? (target.MinZ, target.MaxZ) : (0, 1);
