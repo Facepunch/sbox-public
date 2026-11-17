@@ -133,10 +133,14 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 
 	private Texture CreateVolumeTexture( Vector3Int size, ImageFormat format, string name )
 	{
-		return Texture.CreateVolume( size.x, size.y, size.z, format )
+		var texture = Texture.CreateVolume( size.x, size.y, size.z, format )
 			.WithName( name )
 			.WithUAVBinding()
 			.Finish();
+
+		// Written by the native captures' hooks where Source 2's device is kept (the editor): read back from there
+		texture.PixelsOnSource2 = Graphics.HasSource2Device;
+		return texture;
 	}
 
 	/// <summary>

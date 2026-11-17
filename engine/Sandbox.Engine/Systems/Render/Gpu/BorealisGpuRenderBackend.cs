@@ -1552,6 +1552,11 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// </summary>
 	public override unsafe bool ReadPixels( Texture texture, NativeRect source, int slice, int mip, NativeRect destination, IntPtr data, ImageFormat format, int stride )
 	{
+		// With Source 2's device kept (the editor): what native drew (a bake's captures) is read from its copy, and so are
+		// volumes, which aren't read back here (a DDGI bake's relocation, made on the CPU)
+		if ( Graphics.HasSource2Device && (texture.PixelsOnSource2 || (texture.Depth > 1 && !texture.Desc.IsCube)) )
+			return base.ReadPixels( texture, source, slice, mip, destination, data, format, stride );
+
 		if ( list is not null ) return false;
 		if ( source.w != destination.w || source.h != destination.h || source.w <= 0 || source.h <= 0 ) return false;
 
