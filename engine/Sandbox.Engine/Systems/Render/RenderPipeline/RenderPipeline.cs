@@ -237,14 +237,30 @@ internal static class RenderPipeline
 		return Current;
 	}
 
-	internal static void AddLayersToView( CRenderPipelineSetup setup ) => Get()?.AddLayersToView( setup );
+	// Native's views read Source 2's indices and buffers, also beside another device (Graphics.RecordOnSource2)
+	internal static void AddLayersToView( CRenderPipelineSetup setup )
+	{
+		using var _ = Graphics.RecordOnSource2();
+		Get()?.AddLayersToView( setup );
+	}
 
-	internal static void AddSkybox3DLayersToView( CRenderPipelineSetup setup ) => Get()?.AddSkybox3DLayersToView( setup );
+	internal static void AddSkybox3DLayersToView( CRenderPipelineSetup setup )
+	{
+		using var _ = Graphics.RecordOnSource2();
+		Get()?.AddSkybox3DLayersToView( setup );
+	}
 
-	internal static void OnSceneViewSubmitted( ISceneView view ) => Current?.OnSceneViewSubmitted( view );
+	internal static void OnSceneViewSubmitted( ISceneView view )
+	{
+		using var _ = Graphics.RecordOnSource2();
+		Current?.OnSceneViewSubmitted( view );
+	}
 
 	internal static ISceneLayer AddUIHook( string name, Stage stage, ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle color )
-		=> Get()?.AddUIHook( name, stage, view, viewport, color ) ?? default;
+	{
+		using var _ = Graphics.RecordOnSource2();
+		return Get()?.AddUIHook( name, stage, view, viewport, color ) ?? default;
+	}
 
 	internal static void WarmUp() => Current?.WarmUp();
 

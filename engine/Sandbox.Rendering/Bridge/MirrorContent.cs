@@ -66,7 +66,8 @@ internal static class MirrorContent
 	}
 
 	/// <summary>
-	/// A material as its compiled file (a copy's being its original's), with what code set on it over the file
+	/// A material as its compiled file (a copy's being its original's), or as its shader for one made in code
+	/// (<see cref="Sandbox.Material.MadeFromShader"/>), with what code set on it over that
 	/// (<see cref="Sandbox.Material.SetInCode"/>: a screen's render target a game sets on its copy of the screen material),
 	/// which follows later sets (<see cref="Follow"/>).
 	/// </summary>
@@ -76,7 +77,9 @@ internal static class MirrorContent
 
 		var path = material?.FilePath;
 		if ( string.IsNullOrEmpty( path ) ) return null;
-		if ( material.SetInCode is not { Count: > 0 } set ) return gpu.LoadMaterial( path );
+		var shader = material.MadeFromShader;
+		var set = material.SetInCode;
+		if ( shader is null && set is not { Count: > 0 } ) return gpu.LoadMaterial( path );
 
 		var made = setMaterials.GetOrCreateValue( material );
 		lock ( made )
@@ -85,12 +88,29 @@ internal static class MirrorContent
 			{
 				Sandbox.Material.SetInCodeChanged ??= Follow;
 				var (values, textures) = Lower( set );
-				made.Material = gpu.LoadMaterial( path, values, textures, $"{path} (set in code)" );
+
+				// Made in code from a shader: the shader's defaults, then what's set
+				if ( shader is not null )
+				{
+					made.Material = gpu.CreateMaterial( path, ShaderPath( shader ) );
+					gpu.SetOnMaterial( made.Material, values, textures );
+				}
+				else made.Material = gpu.LoadMaterial( path, values, textures, $"{path} (set in code)" );
+
 				made.Version = material.SetInCodeVersion;
 			}
 
 			return made.Material;
 		}
+	}
+
+	/// <summary>A shader as a material names it (<c>complex.shader</c>, or with its folder), as its compiled file's path.</summary>
+	static string ShaderPath( string shader )
+	{
+		shader = shader.Replace( '\\', '/' );
+		if ( shader.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) shader = shader[..^2];
+		if ( !shader.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) shader += ".shader";
+		return shader.Contains( '/' ) ? shader : $"shaders/{shader}";
 	}
 
 	/// <summary>A material whose values set in code changed: its copy here takes them, if it has one.</summary>
@@ -112,7 +132,7 @@ internal static class MirrorContent
 	{
 		var values = new Dictionary<string, float[]>( StringComparer.OrdinalIgnoreCase );
 		var textures = new Dictionary<string, GpuTexture>( StringComparer.OrdinalIgnoreCase );
-		foreach ( var (name, value) in set )
+		foreach ( var (name, value) in set ?? new Dictionary<string, object>() )
 		{
 			if ( value is Vector4 v ) values[name] = [v.x, v.y, v.z, v.w];
 			else if ( value is Sandbox.Texture t && Texture( t ) is { } texture ) textures[name] = texture;

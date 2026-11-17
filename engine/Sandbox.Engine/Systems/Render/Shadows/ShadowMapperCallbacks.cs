@@ -49,15 +49,36 @@ internal static class ShadowMapperCallbacks
 		foreach ( var mapper in ShadowMappers.Values ) mapper.DisposeBuffers();
 	}
 
-	internal static void InitForView( IntPtr handle, ISceneView sceneView ) => Get( handle ).InitForView( sceneView );
+	// Native's views read Source 2's indices and buffers, also beside another device (Graphics.RecordOnSource2)
+	internal static void InitForView( IntPtr handle, ISceneView sceneView )
+	{
+		using var _ = Graphics.RecordOnSource2();
+		Get( handle ).InitForView( sceneView );
+	}
+
 	internal static void SetShaderAttributes( IntPtr handle, CRenderAttributes renderAttr )
 	{
+		using var _ = Graphics.RecordOnSource2();
 		Get( handle ).SetShaderAttributes( renderAttr );
 	}
 
-	internal static void UploadToGPU( IntPtr handle ) => Get( handle ).UploadToGPU();
-	internal static uint FindOrCreateShadowMaps( IntPtr handle, SceneLight sceneObject, ISceneView view, float flScreenSize ) => Get( handle ).FindOrCreateShadowMaps( sceneObject, view, flScreenSize );
-	internal static int DoDirectionalLight( IntPtr handle, SceneLight sceneObject, ISceneView view ) => Get( handle ).DoDirectionalLight( sceneObject, view );
+	internal static void UploadToGPU( IntPtr handle )
+	{
+		using var _ = Graphics.RecordOnSource2();
+		Get( handle ).UploadToGPU();
+	}
+
+	internal static uint FindOrCreateShadowMaps( IntPtr handle, SceneLight sceneObject, ISceneView view, float flScreenSize )
+	{
+		using var _ = Graphics.RecordOnSource2();
+		return Get( handle ).FindOrCreateShadowMaps( sceneObject, view, flScreenSize );
+	}
+
+	internal static int DoDirectionalLight( IntPtr handle, SceneLight sceneObject, ISceneView view )
+	{
+		using var _ = Graphics.RecordOnSource2();
+		return Get( handle ).DoDirectionalLight( sceneObject, view );
+	}
 
 	/// <summary>
 	/// Run light command lists for the current Graphics view (after depth).

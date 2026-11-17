@@ -14,6 +14,14 @@ internal static class ScreenCaptureUtility
 	/// </summary>
 	internal static void CaptureFrame()
 	{
+		// A Borealis.Gpu window's frame: recorded from the bound target before the border is drawn; screenshots come from
+		// the finished frame (BorealisGpuWindow.EndFrame)
+		if ( Graphics.Backend is BorealisGpuRenderBackend gpu )
+		{
+			if ( ScreenRecorder.IsRecording() && BorealisGpuWindow.Drawing?.Target is { } frame ) ScreenRecorder.RecordVideoFrame( gpu, frame );
+			return;
+		}
+
 		var colorTarget = Graphics.GetColorTarget( out var owned );
 
 		if ( colorTarget.IsNull )
