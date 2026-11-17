@@ -1053,6 +1053,8 @@ internal sealed class RenderContext : IDisposable
 	/// </summary>
 	internal bool DrawDynamicObject( SceneDynamicObject sceneObject, StringToken shaderMode ) => RenderTools.DrawDynamicSceneObject( context, sceneObject, shaderMode );
 
+	internal bool DrawBufferObject( SceneMeshObject sceneObject, StringToken shaderMode ) => RenderTools.DrawBufferSceneObject( context, sceneObject, shaderMode, drawAttributes );
+
 	/// <summary>
 	/// Bind instance IDs at <paramref name="firstInstance"/> (<c>CSceneSystem::BindTransformSlot</c>).
 	/// </summary>

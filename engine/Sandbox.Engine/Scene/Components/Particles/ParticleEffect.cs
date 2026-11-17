@@ -149,6 +149,10 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	[Property, Feature( "Rotation" ), Title( "Initial Roll" )]
 	public ParticleFloat InitialRoll { get; set; } = 0.0f;
 
+	/// <summary>Pitch, yaw and roll angular velocity in degrees per second, integrated over the particle's life.</summary>
+	[Property, Feature( "Rotation" )]
+	public ParticleVector3 AngularVelocity { get; set; }
+
 	/// <summary>
 	/// Enables or disables color application for particles.
 	/// </summary>
@@ -537,6 +541,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	bool _parentMoved;
 	Transform _worldTx;
 	Vector3 _worldForce;
+	bool _spin;
 
 	internal void UpdateParticle( int index )
 	{
@@ -690,6 +695,12 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		if ( ApplyRotation )
 		{
+			if ( _spin )
+			{
+				var spin = AngularVelocity.Evaluate( p, 6283 ) * timeScale;
+				p.StartAngles += new Angles( spin.x, spin.y, spin.z );
+			}
+
 			p.Angles.pitch = p.StartAngles.pitch + Pitch.Evaluate( p, 2363 );
 			p.Angles.yaw = p.StartAngles.yaw + Yaw.Evaluate( p, 8762 );
 			p.Angles.roll = p.StartAngles.roll + Roll.Evaluate( p, 3675 );
@@ -795,6 +806,8 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		if ( ForceSpace == SimulationSpace.Local )
 			_worldForce = _worldTx.Rotation * ForceDirection;
+
+		_spin = !AngularVelocity.IsNearlyZero();
 
 		Vector3 lastPos = lastTransform.Position;
 		Transform deltaTransform = _worldTx.ToLocal( lastTransform );

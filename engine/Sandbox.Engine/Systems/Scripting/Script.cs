@@ -3,6 +3,7 @@ namespace Sandbox;
 /// <summary>
 /// A reusable script created by <see cref="Game.Scripting"/>. Arguments expire after each invocation;
 /// local variables are fresh each run. Use sequentially on the owning context's thread.
+/// Async functions must use durable state: clearing temporary invocation arguments invalidates suspended work using them.
 /// </summary>
 [Expose]
 public sealed partial class Script
@@ -114,7 +115,9 @@ public sealed partial class Script
 			{
 				try
 				{
-					value = _instance.ReturnValue.Get<T>();
+					value = typeof( T ) == typeof( object )
+						? (T)_instance.ReturnValue.ToObject()
+						: _instance.ReturnValue.Get<T>();
 				}
 				catch ( Exception exception )
 				{

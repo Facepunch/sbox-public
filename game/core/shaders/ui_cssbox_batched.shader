@@ -823,7 +823,7 @@ PS
 			bgTint.a = saturate( bgTint.a );
 
 			float2 vOffset = inst.BackgroundRect.xy / bgSize;
-			float2 vUV = -vOffset + ( i.vTexCoord.xy * ( boxSize / bgSize ) );
+			float2 vUV = -vOffset + ( saturate( i.vTexCoord.xy ) * ( boxSize / bgSize ) );
 
 			float4 vImage;
 			int bgRepeat = inst.GetBackgroundRepeat();

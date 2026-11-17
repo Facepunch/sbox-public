@@ -3,6 +3,10 @@ using System;
 
 namespace Sandbox
 {
+	/// <summary>
+	/// Configures and creates an array of texture slices.
+	/// </summary>
+	[Expose]
 	public struct TextureArrayBuilder
 	{
 		internal TextureBuilder config = new();

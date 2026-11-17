@@ -12,12 +12,20 @@ public static partial class AssetSystem
 	/// </summary>
 	internal static bool TryManagedCompile( IResourceCompilerContext context ) => ContentCompilerHost.CompileOnMainThread( () => ManagedCompile( context ) );
 
+	/// <summary>
+	/// A compile asked for while the editor's content build holds the roots: whether the build let go of them.
+	/// </summary>
+	internal static bool YieldContentBuild() => EditorContentBuild.Yield();
+
 	static async Task<bool> ManagedCompile( IResourceCompilerContext _context )
 	{
 		using var context = new ResourceCompileContextImp( _context );
 
 		var filename = context.AbsolutePath;
 		var extension = System.IO.Path.GetExtension( filename ).Trim( '.' );
+
+		if ( AssetType.Find( extension )?.IsUncompiled == true )
+			return false;
 
 		// Do we have a specific compiler? These register the source extensions they
 		// handle themselves ([ResourceIdentity("wav")] etc), so check before the
@@ -46,7 +54,9 @@ public static partial class AssetSystem
 	/// </summary>
 	internal static bool IsGameResource( string extension )
 	{
-		var set = _gameResourceExtensions ??= EditorTypeLibrary.GetAttributes<AssetTypeAttribute>().Select( x => x.Extension ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+		var set = _gameResourceExtensions ??= EditorTypeLibrary.GetAttributes<AssetTypeAttribute>()
+			.Where( x => !x.IsUncompiled && x.TargetType.IsAssignableTo( typeof( GameResource ) ) )
+			.Select( x => x.Extension ).ToHashSet( StringComparer.OrdinalIgnoreCase );
 		return set.Contains( extension );
 	}
 

@@ -155,10 +155,6 @@ internal static partial class PackageManager
 			item.Delete();
 			ActivePackages.Remove( item );
 		}
-
-		// Workshop updates wait for their package to be unmounted
-		if ( unmounted.Any( x => x.Package is { InstallsFromWorkshop: true } ) )
-			Services.Ugc.OnPackagesUnmounted();
 	}
 
 	internal static void UnmountAll()

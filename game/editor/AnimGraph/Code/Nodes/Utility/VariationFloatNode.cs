@@ -25,7 +25,7 @@ public class VariationFloatNode : VariationDataNode<VariationFloatNode.Data>
 
 	public override Color PrimaryColor => Color.Parse( "#c678dd" ).Value;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{

@@ -2,6 +2,10 @@
 
 namespace Sandbox.UI;
 
+/// <summary>
+/// A stylesheet loaded from mounted files or parsed from text, for use with <see cref="Panel.StyleSheet"/>.
+/// </summary>
+[Expose]
 public class StyleSheet
 {
 	public static List<StyleSheet> Loaded => AllLoaded.Where( x => ReferenceEquals( x?.Context, GlobalContext.Game ) ).ToList();

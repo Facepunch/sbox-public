@@ -17,16 +17,23 @@ public static class EditorScene
 	}
 
 	public static Gizmo.SceneSettings GizmoSettings { get; private set; } = new Gizmo.SceneSettings();
+	static CookieContainer _settingsCookie;
 
 	public static SelectionSystem Selection => SceneEditorSession.Active?.Selection;
 
 	public static void RestoreState()
 	{
-		var package = Project.Current.Package;
+		_settingsCookie = ProjectCookie;
 		if ( ProjectCookie?.Get<Gizmo.SceneSettings>( $"gizmo.settings", null ) is Gizmo.SceneSettings savedSettings )
 		{
 			GizmoSettings = savedSettings;
 		}
+	}
+
+	internal static void SaveState()
+	{
+		if ( ReferenceEquals( _settingsCookie, ProjectCookie ) )
+			_settingsCookie.Set( "gizmo.settings", GizmoSettings );
 	}
 
 	[Shortcut( "editor.new", "CTRL+N" )]

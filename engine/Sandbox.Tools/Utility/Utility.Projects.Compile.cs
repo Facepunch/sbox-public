@@ -16,6 +16,12 @@ public static partial class EditorUtility
 		/// </summary>
 		internal static async Task<CompilerOutput[]> Compile( Project project, Compiler.Configuration compilerSettings, Action<string> logOutput )
 		{
+			if ( !project.CanPublishCode() )
+			{
+				logOutput?.Invoke( "This project publishes assets and .csx scripts only. C# and Razor code in Code will not be published." );
+				return [];
+			}
+
 			bool isGame = project.Config.Type == "game";
 			var codePath = project.GetCodePath();
 

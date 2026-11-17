@@ -387,6 +387,9 @@ public abstract partial class Asset
 	/// <returns>The loaded <see cref="Resource"/> instance of given type, or null on failure.</returns>
 	public Resource LoadResource( Type resourceType )
 	{
+		if ( AssetType.IsUncompiled )
+			return Resource.Load( resourceType, Path );
+
 		if ( resourceType.IsAssignableTo( typeof( GameResource ) ) )
 		{
 			if ( TryLoadGameResource( resourceType, out var o ) )

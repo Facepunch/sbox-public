@@ -9,8 +9,8 @@ ShopCard
 	flex-shrink: 0;
 	overflow: hidden;
 	border-radius: $platform-radius;
-	background-color: #161c28;
-	background-image: linear-gradient( to bottom, #283144, #151a25 );
+	background-color: #161a24;
+	background-image: $platform-card-fill;
 	transition: transform 0.15s ease-out;
 
 	&:hover
@@ -102,7 +102,7 @@ ShopCard
 		// How long a feature's got - solid once it's going soon
 		&.leaving
 		{
-			background-color: rgba( 8, 12, 22, 0.8 );
+			background-color: rgba( 10, 11, 15, 0.8 );
 			color: $shop-amber;
 
 			&.soon

@@ -113,7 +113,10 @@ sealed class SceneCompileToolbar : Widget
 		if ( _session.Error is not null )
 			return ("Cannot compile", _session.Error, Theme.Yellow);
 
-		return ("Ready to compile", "Compile geometry into .scene_c. Changed source recompiles normally; an unchanged save keeps the bake.", Theme.TextLight);
+		if ( _session.IsCompiled )
+			return ("Compiled", "The saved bake matches this scene's source. Compile again after changing referenced prefabs or models.", Theme.Green);
+
+		return ("Not compiled", "Use Compile Scene to bake geometry. Source changes require compiling again.", Theme.Yellow);
 	}
 
 	void UpdateControls()

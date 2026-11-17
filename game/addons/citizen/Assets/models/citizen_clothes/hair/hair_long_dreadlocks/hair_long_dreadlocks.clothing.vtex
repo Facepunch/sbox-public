@@ -1,0 +1,9 @@
+{
+  "$compiler": "texture",
+  "$source": "imagefile",
+  "data": {
+    "FilePath": "models/citizen_clothes/hair/hair_long_dreadlocks/hair_long_dreadlocks.clothing.png",
+    "Lossless": true
+  },
+  "compiled": null
+}

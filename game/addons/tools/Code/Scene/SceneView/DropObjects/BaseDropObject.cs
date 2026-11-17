@@ -149,9 +149,11 @@ public abstract class BaseDropObject
 		if ( snap )
 		{
 			var spacing = settings.GridSpacing;
-			var localPos = rot.Inverse * pos;
+			var frame = WorkPlane.Current;
+			var basis = WorkPlane.IsActive ? frame.Rotation : rot;
+			var localPos = basis.Inverse * (pos - frame.Position);
 			localPos = localPos.SnapToGrid( spacing, true, true, false );
-			pos = rot * localPos;
+			pos = frame.Position + basis * localPos;
 		}
 
 		return new Transform( pos, rot, Scale );

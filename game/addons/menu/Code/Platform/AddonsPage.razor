@@ -1,0 +1,214 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@page "/platform/addons"
+@inherits Panel
+
+<root>
+    <div class="side">
+        <div class="above"></div>
+        <label class="heading">Addons</label>
+        <div class="rail" @ref="rail">
+            @foreach ( var (key, title, icon) in Sources )
+            {
+                <div class="tab @(source != key ? "" : addonType is null ? "on" : "open")" onclick=@( () => ChangeSource( key ) )>
+                    <i>@icon</i><label>@title</label>
+                </div>
+
+                @if ( source == key )
+                {
+                    @foreach ( var type in PlatformMenu.AddonTypes )
+                    {
+                        <div class="tab type @(addonType == type ? "on" : "")" onclick=@( () => ChangeType( type ) )>
+                            <label>@type</label>
+                        </div>
+                    }
+                }
+            }
+        </div>
+    </div>
+
+    <div class="panel">
+        <PanelHead Title=@Heading Icon="extension" Art=@PlatformMenu.Art Back=@Back
+                   Search="Search addons for this game" OnSearch=@Typed>
+            <Tools>
+                <div class="tool" tooltip="Refresh" onclick=@Search><i>refresh</i></div>
+                <div class="tool" tooltip="Open Workshop" onclick=@OpenWorkshop><i>open_in_new</i></div>
+            </Tools>
+        </PanelHead>
+
+        <div class="body">
+            @if ( error is not null )
+            {
+                <div class="empty error"><i>error</i><label>@error</label><div class="button" onclick=@Search>Retry</div></div>
+            }
+            else if ( loading && found.Count == 0 )
+            {
+                <div class="empty"><Spinner /></div>
+            }
+            else if ( found.Count == 0 )
+            {
+                <div class="empty"><i>extension</i><label>@EmptyText</label></div>
+            }
+            else
+            {
+                <VirtualGrid @ref="grid" class="grid" Items=@found ItemSize=@(new Vector2( 140, 174 )) OnLastCell=@( () => { _ = More(); } )>
+                    <Item Context="item">
+                        @if ( item is WorkshopItemDetails addon )
+                        {
+                            <AddonCard Item=@addon GameIdent=@loadedFor OnChanged=@Changed />
+                        }
+                    </Item>
+                </VirtualGrid>
+            }
+        </div>
+
+    </div>
+</root>
+
+@code
+{
+    static readonly (string Key, string Title, string Icon)[] Sources =
+    [
+        ("subscribed", "Subscribed", "subscriptions"),
+        ("trending", "Trending", "trending_up"),
+        ("rated", "Top rated", "thumb_up"),
+        ("newest", "Latest uploads", "schedule"),
+        ("followed", "Followed", "how_to_reg"),
+        ("favourites", "Favourites", "favorite"),
+        ("mine", "My uploads", "upload"),
+        ("downloaded", "Downloaded", "download"),
+    ];
+
+    string source = "subscribed";
+
+    /// <summary>
+    /// The one of the game's addon types it's narrowed to, or null for all of them
+    /// </summary>
+    string addonType;
+    string query;
+    string typed;
+    string loadedFor;
+    string error;
+    bool loading;
+    RealTimeSince sinceTyped;
+    List<WorkshopItemDetails> found = new();
+    WorkshopItemSearch pages;
+    VirtualGrid grid;
+    Panel rail;
+
+    /// <summary>
+    /// The rail scrolls if a game has more types than fit - faded where there's more of it
+    /// </summary>
+    readonly ScrollFade railFade = new( 32 );
+
+    string Heading => addonType is null ? Sources.First( x => x.Key == source ).Title : $"{Sources.First( x => x.Key == source ).Title} · {addonType}";
+    string EmptyText => !string.IsNullOrEmpty( query ) ? "No addons match this search for this game." : source switch
+    {
+        "subscribed" => "You haven't subscribed to any addons for this game yet.",
+        "followed" => "Creators you follow haven't made addons for this game yet.",
+        _ => "No addons for this game yet.",
+    };
+
+    void Back() => FrontPages.Of( this )?.GoBack();
+
+    void OpenWorkshop() => MenuUtility.OpenUrl( $"https://steamcommunity.com/workshop/browse/?appid=590830&requiredtags%5B%5D=addon&requiredtags%5B%5D={Uri.EscapeDataString( $"target_ident:{loadedFor}" )}" );
+
+    /// <summary>
+    /// A source on its own shows all of its addons - its types open up under it
+    /// </summary>
+    void ChangeSource( string value )
+    {
+        source = value;
+        addonType = null;
+        Search();
+    }
+
+    void ChangeType( string value )
+    {
+        addonType = value;
+        Search();
+    }
+
+    void Typed( string value )
+    {
+        typed = value?.Trim();
+        sinceTyped = 0;
+    }
+
+    void Search()
+    {
+        if ( string.IsNullOrEmpty( loadedFor ) ) return;
+
+        query = typed;
+        pages = MenuUtility.SearchWorkshopAddons( loadedFor, query, source, addonType );
+        found = new();
+        error = null;
+        loading = false;
+        if ( grid.IsValid() ) grid.ScrollOffset = Vector2.Zero;
+        _ = More();
+    }
+
+    async Task More()
+    {
+        if ( loading || pages is not { HasMore: true } search ) return;
+        loading = true;
+
+        try
+        {
+            var items = await search.NextAsync();
+            if ( search != pages || !IsValid ) return;
+
+            var ids = found.Select( x => x.Id ).ToHashSet();
+            found.AddRange( items.Where( x => ids.Add( x.Id ) ) );
+        }
+        catch ( Exception e )
+        {
+            if ( search != pages || !IsValid ) return;
+            Log.Warning( e, "Couldn't load Workshop addons" );
+            error = "Couldn't load addons. Please try again.";
+        }
+        finally
+        {
+            if ( search == pages && IsValid )
+            {
+                loading = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    void Changed()
+    {
+        if ( source == "subscribed" )
+        {
+            found.RemoveAll( x => !MenuUtility.IsSubscribed( x.Id ) );
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Refresh when the selected game changes and debounce searches while typing.
+    /// </summary>
+    public override void Tick()
+    {
+        base.Tick();
+        railFade.Apply( rail );
+
+        if ( loadedFor != PlatformMenu.Ident )
+        {
+            loadedFor = PlatformMenu.Ident;
+            addonType = null;
+            Search();
+        }
+        else if ( typed != query && sinceTyped > 0.35f )
+        {
+            Search();
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( loadedFor, source, addonType, string.Join( ",", PlatformMenu.AddonTypes ), found.Count, loading, error );
+}

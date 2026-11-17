@@ -6,6 +6,7 @@ namespace Sandbox;
 /// <summary>
 /// Access screen dimension etc.
 /// </summary>
+[Expose]
 public static class Screen
 {
 	static readonly float? forcedDpi = ReadForcedDpi();

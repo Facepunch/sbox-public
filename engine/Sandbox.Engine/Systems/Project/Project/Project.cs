@@ -475,4 +475,9 @@ public sealed partial class Project
 	{
 		return Config.Type == "library";
 	}
+
+	/// <summary>
+	/// Whether this project can publish compiled gameplay code alongside its assets.
+	/// </summary>
+	public bool CanPublishCode() => Config.Type is "game" or "library";
 }

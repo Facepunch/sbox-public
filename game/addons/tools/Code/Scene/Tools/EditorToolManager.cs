@@ -17,6 +17,7 @@ public class EditorToolManager
 	public bool IsCurrentViewFocused { get; private set; }
 
 	public EditorTool CurrentSubTool => CurrentTool?.CurrentTool;
+	internal WorkPlaneControl WorkPlane { get; } = new();
 	public List<EditorTool> ComponentTools { get; private set; } = new List<EditorTool>();
 
 	private SceneEditorSession _session;
@@ -31,7 +32,7 @@ public class EditorToolManager
 
 	}
 
-	internal void Frame( CameraComponent camera, SceneEditorSession session, bool isFocused )
+	internal bool Frame( CameraComponent camera, SceneEditorSession session, bool isFocused, Widget viewport )
 	{
 		CurrentSession = session;
 		UpdateTool( CurrentModeName );
@@ -39,6 +40,12 @@ public class EditorToolManager
 		UpdateSelection();
 
 		IsCurrentViewFocused = isFocused;
+
+		if ( WorkPlane.Frame( session, viewport ) )
+		{
+			Gizmo.Settings.Selection = false;
+			return true;
+		}
 
 		if ( CurrentTool is not null )
 		{
@@ -63,6 +70,7 @@ public class EditorToolManager
 			Gizmo.Settings.Selection = true;
 		}
 
+		return false;
 	}
 
 	private string currentMode;
@@ -73,6 +81,7 @@ public class EditorToolManager
 		if ( currentMode == editMode )
 			return;
 
+		WorkPlane.Finish();
 		currentMode = editMode;
 
 		// So that we update the sub tool immediately after updating the parent tool
@@ -104,6 +113,7 @@ public class EditorToolManager
 		if ( currentSubMode == editMode ) return;
 		if ( CurrentTool is not { } parentTool ) return;
 
+		WorkPlane.Finish();
 		currentSubMode = editMode;
 
 		parentTool.CurrentTool = parentTool.Tools.FirstOrDefault( x => editMode == x.GetType().Name )
@@ -212,6 +222,7 @@ public class EditorToolManager
 
 	public void DisposeAll()
 	{
+		WorkPlane.Finish();
 		previousHash = -1;
 		currentMode = null;
 		currentSubMode = null;

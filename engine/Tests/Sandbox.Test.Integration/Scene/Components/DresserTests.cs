@@ -19,6 +19,39 @@ public class DresserTests
 		body.GameObject.Children.SingleOrDefault( x => !x.IsDestroyed && x.Name == "citizen_deforms" );
 
 	/// <summary>
+	/// Legacy deformation APIs do not create a Dresser, retain writes or add deformation objects.
+	/// </summary>
+	[TestMethod]
+	public void LegacyDeformsHaveNoEffect()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var body = CreateBody( scene );
+		var outfit = new ClothingContainer { NeckSize = 1, WaistSize = 1, ChestSize = 1, HeadShape = 1, NoseSize = 1, ChinSize = 1 };
+
+#pragma warning disable CS0618 // Exercise the compatibility stubs.
+		Assert.IsNull( outfit.ApplyDeforms( body ) );
+		Assert.IsNull( Dresser.Find( body ) );
+
+		var dresser = Dresser.GetOrCreate( body );
+		dresser.NeckSize = 1;
+		dresser.WaistSize = 1;
+		dresser.ChestSize = 1;
+		dresser.HeadShape = 1;
+		dresser.NoseSize = 1;
+		dresser.ChinSize = 1;
+		CollectionAssert.AreEqual( new[] { 0f, 0.5f, 0.5f, 0.5f, 0f, 0f },
+			new[] { dresser.NeckSize, dresser.WaistSize, dresser.ChestSize, dresser.HeadShape, dresser.NoseSize, dresser.ChinSize } );
+
+		dresser.UpdateAppearance( outfit );
+		CollectionAssert.AreEqual( new[] { 0f, 0.5f, 0.5f, 0.5f, 0f, 0f },
+			new[] { dresser.NeckSize, dresser.WaistSize, dresser.ChestSize, dresser.HeadShape, dresser.NoseSize, dresser.ChinSize } );
+#pragma warning restore CS0618
+
+		Assert.IsFalse( body.GetComponentsInChildren<ModelDeformer>( true ).Any() );
+	}
+
+	/// <summary>
 	/// Explicit outfit requests remain supported on remote bodies through both public APIs.
 	/// </summary>
 	[TestMethod]
@@ -125,7 +158,6 @@ public class DresserTests
 		Assert.IsNull( LegacyDeforms( body ), "Human appearance updates must not create Citizen deformation prefabs" );
 		Assert.IsFalse( body.GameObject.Children.Any( x => x.Tags.Has( "clothing" ) ) );
 		Assert.AreEqual( 0.9f, body.Attributes.GetFloat( "skin_age" ) );
-		Assert.AreEqual( 0.8f, dresser.NeckSize );
 		Assert.AreEqual( 0.7f, dresser.EyeColor );
 	}
 
@@ -179,7 +211,6 @@ public class DresserTests
 		Assert.AreSame( clothing, body.GameObject.Children.Single( x => !x.IsDestroyed && x.Tags.Has( "clothing" ) ) );
 		Assert.AreEqual( 0.8f, body.Attributes.GetFloat( "skin_age" ) );
 		Assert.AreEqual( Color.Blue, clothing.GetComponent<SkinnedModelRenderer>().Tint );
-		Assert.AreEqual( 0.7f, dresser.NeckSize );
 		Assert.AreEqual( 0.65f, dresser.EyeColor );
 	}
 
@@ -198,7 +229,6 @@ public class DresserTests
 		await dresser.ApplyAsync( new ClothingContainer { EyeColor = 0.1f, NeckSize = 0.2f, Age = 0.3f } );
 
 		Assert.AreEqual( 0.8f, dresser.EyeColor );
-		Assert.AreEqual( 0.9f, dresser.NeckSize );
 		Assert.AreEqual( 0.7f, body.Attributes.GetFloat( "skin_age" ) );
 		Assert.IsFalse( dresser.IsDressing );
 	}
@@ -214,7 +244,7 @@ public class DresserTests
 		var first = CreateBody( scene );
 		var second = CreateBody( scene );
 		var dresser = Dresser.GetOrCreate( first );
-		dresser.NeckSize = 0.8f;
+		dresser.EyeColor = 0.8f;
 		Assert.IsTrue( first.ModelChanged?.GetInvocationList().Any( x => x.Target == dresser ) ?? false );
 
 		dresser.BodyTarget = second;
@@ -224,7 +254,7 @@ public class DresserTests
 		Assert.IsFalse( first.ModelChanged?.GetInvocationList().Any( x => x.Target == dresser ) ?? false );
 		Assert.IsTrue( second.ModelChanged?.GetInvocationList().Any( x => x.Target == dresser ) ?? false );
 		Assert.IsNull( LegacyDeforms( second ), "Retargeting to Human must not create Citizen deformation prefabs" );
-		Assert.AreEqual( 0.8f, dresser.NeckSize );
+		Assert.AreEqual( 0.8f, dresser.EyeColor );
 	}
 
 	/// <summary>
@@ -293,7 +323,6 @@ public class DresserTests
 		Assert.AreSame( dresser, Dresser.GetOrCreate( body ) );
 		Assert.AreEqual( 1, body.GetComponents<Dresser>( true ).Count() );
 		Assert.AreEqual( 0.8f, dresser.EyeColor );
-		Assert.AreEqual( 0.7f, dresser.NeckSize );
 		Assert.AreEqual( 1f, dresser.ManualHeight );
 		Assert.AreEqual( 1f, dresser.ManualAge );
 	}

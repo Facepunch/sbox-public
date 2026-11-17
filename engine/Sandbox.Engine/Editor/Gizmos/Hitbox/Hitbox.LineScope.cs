@@ -8,9 +8,6 @@ public static partial class Gizmo
 	{
 		public bool Enabled { get; set; }
 		public string LinePath { get; set; }
-
-		internal Ray LocalRay { get; set; }
-		internal Ray Ray { get; set; }
 	}
 
 	public sealed partial class GizmoHitbox
@@ -47,14 +44,9 @@ public static partial class Gizmo
 		{
 			if ( !Active.lineScope.Enabled )
 				return;
+			if ( Record( new( HitShapeType.Line, p0, p1, thickness ) ) ) return;
 
-			// cache the transformed ray, don't need to do this every test
-			if ( Active.lineScope.Ray != CurrentRay )
-			{
-				Active.lineScope.LocalRay = CurrentRay.ToLocal( Transform );
-			}
-
-			var ray = Active.lineScope.LocalRay;
+			var ray = LocalRay;
 
 			var line = new Line( p0, p1 );
 

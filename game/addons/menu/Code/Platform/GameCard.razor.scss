@@ -87,13 +87,11 @@ GameCard
 		height: 16px;
 	}
 
-	.spacer
-	{
-		flex-grow: 1;
-	}
-
+	// Growing to push what's after it to the right
 	.stars
 	{
+		flex-grow: 1;
+
 		i
 		{
 			font-size: 14px;

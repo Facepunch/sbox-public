@@ -5,7 +5,10 @@ using System.Threading;
 
 namespace Sandbox.Rendering;
 
-
+/// <summary>
+/// Records rendering commands for deferred playback on the render thread.
+/// </summary>
+[Expose]
 public sealed unsafe partial class CommandList
 {
 	readonly Lock _lock = new Lock();

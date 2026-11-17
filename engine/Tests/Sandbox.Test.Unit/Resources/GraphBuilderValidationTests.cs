@@ -7,6 +7,18 @@ namespace ResourceTests;
 public class GraphBuilderValidationTests
 {
 	[TestMethod]
+	public void EmptyAnimationIdentitiesAreRejectedWithoutNativeInterop()
+	{
+		var builder = Graph.Builder;
+		foreach ( var path in new[] { null, "", " \t" } )
+		{
+			Assert.ThrowsException<ArgumentException>( () => builder.Clip( new ResourceId { Guid = Guid.Empty, Path = path } ) );
+			Assert.ThrowsException<ArgumentException>( () => builder.Clip( new ResourceId { Path = path } ) );
+			Assert.ThrowsException<ArgumentException>( () => builder.ReferencedGraph( new ResourceId { Guid = Guid.Empty, Path = path } ) );
+		}
+	}
+
+	[TestMethod]
 	public void BlendSpaceRejectsRangeOutsideSources()
 	{
 		var builder = Graph.Builder;

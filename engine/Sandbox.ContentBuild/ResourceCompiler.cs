@@ -37,6 +37,17 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	public Func<string, string, string, string, IReadOnlyList<string>, bool> InProcess { get; init; }
 
 	/// <summary>
+	/// With <see cref="InProcess"/>, the jobs that run in a worker instead: mode and source to whether one does.
+	/// </summary>
+	public Func<string, string, bool> InWorker { get; init; }
+
+	/// <summary>
+	/// Sources whose last job lost every worker it ran on (a compiler that crashed or ran out of memory), each until a
+	/// compile of it succeeds. Compilers can share one.
+	/// </summary>
+	public ConcurrentDictionary<string, bool> Lost { get; init; } = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
 	/// Worker processes started.
 	/// </summary>
 	public int Launches => launches;
@@ -115,7 +126,7 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	public void Published( IReadOnlyList<string> paths )
 	{
 		// The editor reloads what it has loaded as it's published
-		if ( InProcess is not null ) return;
+		if ( executable is null ) return;
 
 		lock ( gate )
 		{
@@ -153,6 +164,7 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 
 		var answer = Run( job.Mounts, job.CompilerArgs, mode, job.Source, job.Staging, report, token );
 		if ( answer is null || token.IsCancellationRequested ) return Failed( "cancelled" );
+		if ( answer.Outcome == CompilerWorker.Outcome.Succeeded && job.Mode == JobMode.Compile ) Lost.TryRemove( job.Source, out _ );
 		if ( answer.Outcome is not (CompilerWorker.Outcome.Succeeded or CompilerWorker.Outcome.Failed) ) return Failed( $"contentworker {answer.Reason}\n{answer.Log}" );
 
 		// What the job logged on its thread
@@ -176,7 +188,7 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	/// </summary>
 	CompilerWorker.Answer Run( IReadOnlyList<(string Mod, string Path)> mounted, IReadOnlyList<string> compilerArgs, string mode, string source, string staging, string report, CancellationToken token )
 	{
-		if ( InProcess is not null )
+		if ( InProcess is not null && InWorker?.Invoke( mode, source ) != true )
 			return token.IsCancellationRequested ? null : new( InProcess( mode, source, staging, report, compilerArgs ) ? CompilerWorker.Outcome.Succeeded : CompilerWorker.Outcome.Failed, null, "" );
 
 		for ( var attempt = 0; ; attempt++ )
@@ -220,6 +232,8 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 				continue;
 			}
 
+			// One that never got ready isn't the job's doing
+			if ( alone && answer.Outcome == CompilerWorker.Outcome.Lost && worker.Started && !token.IsCancellationRequested ) Lost[source] = true;
 			if ( answer.Outcome != CompilerWorker.Outcome.Lost || token.IsCancellationRequested || alone || !worker.Started ) return answer;
 
 			Clear( staging );
@@ -303,17 +317,17 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	}
 
 	/// <summary>
-	/// Every worker goes (a build has none busy once it returns), all at once: each takes seconds to shut its engine
-	/// down. The compiler can be used again afterwards and starts new ones.
+	/// Every idle worker goes (a build has none busy once it returns), all at once: each takes seconds to shut its engine
+	/// down. One a later build's job took meanwhile stays. The compiler can be used again afterwards and starts new ones.
 	/// </summary>
 	public void Finished()
 	{
-		List<CompilerWorker> all;
+		List<CompilerWorker> idle;
 		lock ( gate )
 		{
-			all = [.. workers];
-			workers.Clear();
+			idle = workers.Where( x => x.Busy == 0 ).ToList();
+			workers.RemoveAll( idle.Contains );
 		}
-		Parallel.ForEach( all, worker => worker.Stop() );
+		Parallel.ForEach( idle, worker => worker.Stop() );
 	}
 }

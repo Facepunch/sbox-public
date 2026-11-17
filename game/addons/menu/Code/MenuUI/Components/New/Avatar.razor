@@ -41,16 +41,6 @@
         return "online";
     }
 
-    void OpenUserProfile()
-    {
-        Game.Overlay.ShowPlayer(UserId);
-    }
-
-    public void JoinGame()
-    {
-        MenuUtility.JoinFriendGame(new Friend(UserId));
-    }
-
     FriendCard popup;
 
     protected override void OnMouseUp(MousePanelEvent e)

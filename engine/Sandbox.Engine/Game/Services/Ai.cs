@@ -7,6 +7,7 @@ namespace Sandbox.Services;
 /// <summary>
 /// AI conversation responses and request errors authenticated with the current game session.
 /// </summary>
+[Expose]
 public static partial class Ai
 {
 	/// <summary>

@@ -17,8 +17,15 @@ public class InternalReferencedGraphNode : VariationDataNode<InternalReferencedG
 	public sealed class Data : VariationDataNode.VariationData
 	{
 		/// <summary> Path of the animgraph asset to run. </summary>
-		[Property, ResourceType( "ag" )]
-		public string GraphPath { get; set; } = "";
+		[Property, ResourceType( "ag" ), JsonIgnore]
+		public string GraphPath
+		{
+			get => GraphReference.ResolvePath() ?? "";
+			set => GraphReference = ResourceId.FromPath( value );
+		}
+
+		[Hide, JsonPropertyName( "GraphPath" )]
+		public ResourceId GraphReference { get; set; }
 
 		/// <summary> Variation of that asset to run. Blank runs its default variation. </summary>
 		[Property]
@@ -71,7 +78,8 @@ public class InternalReferencedGraphNode : VariationDataNode<InternalReferencedG
 			return fallback ?? compiler.ReferencePose();
 		}
 
-		return compiler.Builder.ReferencedGraph( Variation.GetResourcePath( data.GraphPath, data.GraphVariation ), fallback );
+		var variation = string.IsNullOrWhiteSpace( data.GraphVariation ) || data.GraphVariation == Variation.DefaultVariationID ? "" : data.GraphVariation;
+		return compiler.Builder.ReferencedGraph( data.GraphReference, fallback, variation );
 	}
 
 }

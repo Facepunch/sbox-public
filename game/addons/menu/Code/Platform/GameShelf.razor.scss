@@ -3,6 +3,7 @@
 // Laid out by the ShelfPanel it's on. The gap's GameShelf.HeaderGap.
 GameShelf
 {
+	@include platform-16x9;
 	flex-direction: column;
 	flex-shrink: 0;
 	gap: 18px;

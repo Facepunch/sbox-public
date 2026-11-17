@@ -155,6 +155,13 @@ public static class MountUtility
 
 	static async Task<bool> GenerateMapThumb( ResourceLoader sceneLoader )
 	{
+		var fs = sceneLoader.Mount.ThumbsFileSystem;
+		if ( fs is null )
+		{
+			Log.Error( $"Mount '{sceneLoader.Mount.Ident}' has nowhere to write thumbs" );
+			return false;
+		}
+
 		SceneFile sceneFile = null;
 		var scene = Scene.CreateEditorScene();
 
@@ -193,16 +200,10 @@ public static class MountUtility
 				bytes = bitmap.ToPng();
 			}
 
-			var path = EngineFileSystem.Root.GetFullPath( "/" );
-			if ( string.IsNullOrWhiteSpace( path ) ) return false;
+			var path = $"{sceneLoader.RelativePath}.png";
+			fs.WriteAllBytes( path, bytes );
 
-			path += $"/mount/{sceneLoader._mount.Ident}/assets/thumbs/{sceneLoader._mount.Ident}/{System.IO.Path.GetDirectoryName( sceneLoader.RelativePath )}/";
-			System.IO.Directory.CreateDirectory( path );
-
-			path += System.IO.Path.GetFileName( sceneLoader.RelativePath ).WithExtension( ".png" );
-			System.IO.File.WriteAllBytes( path, bytes );
-
-			Log.Info( $"Written {path}" );
+			Log.Info( $"Written {fs.GetFullPath( path )}" );
 		}
 		catch ( Exception ex )
 		{

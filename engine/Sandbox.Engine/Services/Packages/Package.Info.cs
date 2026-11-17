@@ -34,6 +34,17 @@ public readonly struct PackageInfo
 	public bool IsStreamerGame => _package?.GetMeta( "UsesStreamerFeatures", false ) ?? false;
 
 	/// <summary>
+	/// Can players load Workshop addons made for this game? Defaults to true.
+	/// </summary>
+	public bool AllowsAddons => _package?.GetMeta( "AllowAddons", true ) ?? true;
+
+	/// <summary>
+	/// The kinds of addon this game has, like "Weapons" or "Tools". Addons pick theirs as Workshop tags and the menu
+	/// filters by them. Empty if the game doesn't say.
+	/// </summary>
+	public string[] AddonTypes => _package?.GetMeta<string[]>( "AddonTypes", null ) ?? [];
+
+	/// <summary>
 	/// Should the pause menu show the player list button? Defaults to true.
 	/// </summary>
 	public bool ShowsPlayerList => _package?.GetValue( "ShowPlayerList", true ) ?? true;

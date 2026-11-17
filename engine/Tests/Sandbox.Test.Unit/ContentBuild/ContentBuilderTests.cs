@@ -227,6 +227,25 @@ public class ContentBuilderTests
 		CollectionAssert.AreEquivalent( expected, report.Jobs.ToArray(), $"Jobs: {string.Join( ", ", report.Jobs )}\n{report.Log}" );
 
 	[TestMethod]
+	public void StagingDirectoriesAreReusedAcrossJobs()
+	{
+		using var fx = new Fixture();
+		for ( var i = 0; i < 40; i++ )
+		{
+			fx.Write( $"t{i}.vtex", "red" );
+			fx.Write( $"m{i}.vmat", $"reads *t{i}.vtex" );
+		}
+
+		var staging = new ConcurrentDictionary<string, byte>( StringComparer.OrdinalIgnoreCase );
+		fx.Compiler.During = job => staging.TryAdd( job.Staging, 0 );
+		var report = fx.Build( maxJobs: 2 );
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		Assert.AreEqual( 80, report.Jobs.Count );
+		Assert.IsTrue( staging.Count <= 4, $"{staging.Count} staging directories for 80 jobs" );
+	}
+
+	[TestMethod]
 	public void ShippedMountsNeedNoSourcesOrBuildStateAndProjectOverridesWin()
 	{
 		using var fx = new Fixture();
@@ -1075,6 +1094,22 @@ public class ContentBuilderTests
 
 		Assert.IsTrue( report.Success, report.Log.ToString() );
 		Assert.AreEqual( 2, fx.Compiler.MaxConcurrent );
+	}
+
+	[TestMethod]
+	public void RefusedJobsStillRunOneAtATime()
+	{
+		using var fx = new Fixture();
+		for ( var i = 0; i < 4; i++ ) fx.Write( $"t{i}.vtex", "sleep 50" );
+
+		var asked = 0;
+		var request = new BuildRequest { Roots = [new ContentRoot( "unit", fx.Root, fx.State )], MaxJobs = 4, CanStartJob = () => { asked++; return false; } };
+		var report = ContentBuilder.Build( request, fx.Compiler );
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		Assert.AreEqual( 4, report.Jobs.Count );
+		Assert.AreEqual( 1, fx.Compiler.MaxConcurrent );
+		Assert.IsTrue( asked > 0 );
 	}
 
 	[TestMethod]

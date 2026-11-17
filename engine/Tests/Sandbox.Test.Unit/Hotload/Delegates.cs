@@ -23,27 +23,27 @@ namespace HotloadTests
 		/// Test lambdas declared in a non-swapped assembly. These should be preserved.
 		/// </summary>
 		[TestMethod]
-		public void NonSwapped1()
+		public void NonSwappedLambda()
 		{
 			var testString = "";
 
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Before::TestClass1.Instance.ActionSimple = () => testString = "Action Simple!";
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Before::BasicMembersClass.Instance.ActionSimple = () => testString = "Action Simple!";
 
-			Assert.IsNotNull( Before::TestClass1.Instance.ActionSimple );
-			Assert.IsNull( After::TestClass1.Instance );
+			Assert.IsNotNull( Before::BasicMembersClass.Instance.ActionSimple );
+			Assert.IsNull( After::BasicMembersClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( Before::TestClass1.Instance.ActionSimple );
-			Assert.IsNotNull( After::TestClass1.Instance.ActionSimple );
+			Assert.IsNotNull( Before::BasicMembersClass.Instance.ActionSimple );
+			Assert.IsNotNull( After::BasicMembersClass.Instance.ActionSimple );
 
 			// Delegate was created in a non-hotloaded assembly, so should be the same instance after
-			Assert.AreEqual( Before::TestClass1.Instance.ActionSimple, After::TestClass1.Instance.ActionSimple );
+			Assert.AreEqual( Before::BasicMembersClass.Instance.ActionSimple, After::BasicMembersClass.Instance.ActionSimple );
 
 			Assert.AreEqual( "", testString );
 
-			After::TestClass1.Instance.ActionSimple();
+			After::BasicMembersClass.Instance.ActionSimple();
 
 			Assert.AreEqual( "Action Simple!", testString );
 		}
@@ -52,54 +52,54 @@ namespace HotloadTests
 		/// Test a lambda declared in a swapped assembly that involves a compiler-generated display class.
 		/// </summary>
 		[TestMethod]
-		public void DisplayClass1()
+		public void CapturingLambda()
 		{
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Before::TestClass1.Instance.ActionSimple = Before::TestClass1.Instance.CreateAction1( 50 );
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Before::BasicMembersClass.Instance.ActionSimple = Before::BasicMembersClass.Instance.CreateAction1( 50 );
 
-			Assert.IsNotNull( Before::TestClass1.Instance.ActionSimple );
+			Assert.IsNotNull( Before::BasicMembersClass.Instance.ActionSimple );
 
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntField );
-			Assert.IsNull( After::TestClass1.Instance );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntField );
+			Assert.IsNull( After::BasicMembersClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntField );
-			Assert.AreEqual( 0, After::TestClass1.Instance.IntField );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntField );
+			Assert.AreEqual( 0, After::BasicMembersClass.Instance.IntField );
 
-			Assert.IsNotNull( After::TestClass1.Instance.ActionSimple );
+			Assert.IsNotNull( After::BasicMembersClass.Instance.ActionSimple );
 
-			After::TestClass1.Instance.ActionSimple();
+			After::BasicMembersClass.Instance.ActionSimple();
 
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntField );
-			Assert.AreEqual( 50, After::TestClass1.Instance.IntField );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntField );
+			Assert.AreEqual( 50, After::BasicMembersClass.Instance.IntField );
 		}
 
 		/// <summary>
-		/// Same as <see cref="DisplayClass1"/>, but with a body that references a static method.
+		/// Same as <see cref="CapturingLambda"/>, but with a body that references a static method.
 		/// </summary>
 		[TestMethod]
-		public void DisplayClass2()
+		public void CapturingLambdaCallingStatic()
 		{
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Before::TestClass1.Instance.ActionSimple = Before::TestClass1.Instance.CreateAction2( 10 );
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Before::BasicMembersClass.Instance.ActionSimple = Before::BasicMembersClass.Instance.CreateAction2( 10 );
 
-			Assert.IsNotNull( Before::TestClass1.Instance.ActionSimple );
+			Assert.IsNotNull( Before::BasicMembersClass.Instance.ActionSimple );
 
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntField );
-			Assert.IsNull( After::TestClass1.Instance );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntField );
+			Assert.IsNull( After::BasicMembersClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntField );
-			Assert.AreEqual( 0, After::TestClass1.Instance.IntField );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntField );
+			Assert.AreEqual( 0, After::BasicMembersClass.Instance.IntField );
 
-			Assert.IsNotNull( After::TestClass1.Instance.ActionSimple );
+			Assert.IsNotNull( After::BasicMembersClass.Instance.ActionSimple );
 
-			After::TestClass1.Instance.ActionSimple();
+			After::BasicMembersClass.Instance.ActionSimple();
 
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntField );
-			Assert.AreEqual( 12, After::TestClass1.Instance.IntField );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntField );
+			Assert.AreEqual( 12, After::BasicMembersClass.Instance.IntField );
 		}
 
 		/// <summary>
@@ -107,23 +107,23 @@ namespace HotloadTests
 		/// the delegate with one that throws an exception explaining that the definition is gone.
 		/// </summary>
 		[TestMethod]
-		public void RemovedDeclaration1()
+		public void RemovedLambda()
 		{
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Before::TestClass1.Instance.ActionSimple = Before::TestClass1.Instance.CreateAction3( 10 );
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Before::BasicMembersClass.Instance.ActionSimple = Before::BasicMembersClass.Instance.CreateAction3( 10 );
 
-			Assert.IsNotNull( Before::TestClass1.Instance.ActionSimple );
+			Assert.IsNotNull( Before::BasicMembersClass.Instance.ActionSimple );
 
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntField );
-			Assert.IsNull( After::TestClass1.Instance );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntField );
+			Assert.IsNull( After::BasicMembersClass.Instance );
 
 			var result = Hotload( true );
 
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntField );
-			Assert.AreEqual( 0, After::TestClass1.Instance.IntField );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntField );
+			Assert.AreEqual( 0, After::BasicMembersClass.Instance.IntField );
 
 			// TODO: maybe we can emit a valid version of the old method body
-			Assert.ThrowsException<NotImplementedException>( After::TestClass1.Instance.ActionSimple );
+			Assert.ThrowsException<NotImplementedException>( After::BasicMembersClass.Instance.ActionSimple );
 
 			Assert.AreEqual( 1, result.Warnings.Count() );
 		}
@@ -132,130 +132,130 @@ namespace HotloadTests
 		/// Tests lambdas declared in a removed scope method. This should throw when trying to call the lambda.
 		/// </summary>
 		[TestMethod]
-		public void RemovedDeclaration2()
+		public void RemovedScopeMethod()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
-			Before::TestClass17.Instance.RemovedMethod();
+			Before::LambdaScopeClass.Instance.RemovedMethod();
 
-			Assert.AreEqual( 0, Before::TestClass17.Instance.Func() );
-			Assert.AreEqual( 1, Before::TestClass17.Instance.Func() );
+			Assert.AreEqual( 0, Before::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 1, Before::LambdaScopeClass.Instance.Func() );
 
 			var result = Hotload();
 
 			Assert.AreEqual( 1, result.Warnings.Count() );
-			Assert.ThrowsException<NotImplementedException>( () => After::TestClass17.Instance.Func() );
+			Assert.ThrowsException<NotImplementedException>( () => After::LambdaScopeClass.Instance.Func() );
 		}
 
 		/// <summary>
 		/// Tests lambdas defined dynamically, for example created by DelegateUpgrader.CreateErrorDelegate().
 		/// </summary>
 		[TestMethod]
-		public void Dynamic1()
+		public void CompiledExpressionDelegate()
 		{
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Before::TestClass1.Instance.ActionSimple = Before::TestClass1.Instance.CreateDynamic();
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Before::BasicMembersClass.Instance.ActionSimple = Before::BasicMembersClass.Instance.CreateDynamic();
 
-			Assert.ThrowsException<NotImplementedException>( () => Before::TestClass1.Instance.ActionSimple() );
+			Assert.ThrowsException<NotImplementedException>( () => Before::BasicMembersClass.Instance.ActionSimple() );
 
 			var result = Hotload( true );
 
-			Assert.ThrowsException<NotImplementedException>( () => After::TestClass1.Instance.ActionSimple() );
+			Assert.ThrowsException<NotImplementedException>( () => After::BasicMembersClass.Instance.ActionSimple() );
 		}
 
 		/// <summary>
 		/// Tests lambdas capturing other lambdas.
 		/// </summary>
 		[TestMethod]
-		public void Nested1()
+		public void LambdaCapturingLambda()
 		{
-			Before::TestClass1.Instance = new Before::TestClass1();
-			Before::TestClass2.Instance = new Before::TestClass2();
-			var inner = Before::TestClass1.Instance.CreateAction4( 10, 20 );
+			Before::BasicMembersClass.Instance = new Before::BasicMembersClass();
+			Before::NestedActionClass.Instance = new Before::NestedActionClass();
+			var inner = Before::BasicMembersClass.Instance.CreateAction4( 10, 20 );
 
-			Before::TestClass1.Instance.ActionSimple = Before::TestClass2.Instance.CreateAction1( inner );
-			Before::TestClass2.Instance.ActionSimple = Before::TestClass1.Instance.ActionSimple;
+			Before::BasicMembersClass.Instance.ActionSimple = Before::NestedActionClass.Instance.CreateAction1( inner );
+			Before::NestedActionClass.Instance.ActionSimple = Before::BasicMembersClass.Instance.ActionSimple;
 
-			Assert.IsNotNull( Before::TestClass1.Instance.ActionSimple );
-			Assert.IsNotNull( Before::TestClass2.Instance.ActionSimple );
+			Assert.IsNotNull( Before::BasicMembersClass.Instance.ActionSimple );
+			Assert.IsNotNull( Before::NestedActionClass.Instance.ActionSimple );
 
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntField );
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntProperty );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntField );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntProperty );
 
-			Assert.IsNull( After::TestClass1.Instance );
-			Assert.IsNull( After::TestClass2.Instance );
+			Assert.IsNull( After::BasicMembersClass.Instance );
+			Assert.IsNull( After::NestedActionClass.Instance );
 
 			Hotload();
 
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntField );
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntProperty );
-			Assert.AreEqual( 0, After::TestClass1.Instance.IntField );
-			Assert.AreEqual( 0, After::TestClass1.Instance.IntProperty );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntField );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntProperty );
+			Assert.AreEqual( 0, After::BasicMembersClass.Instance.IntField );
+			Assert.AreEqual( 0, After::BasicMembersClass.Instance.IntProperty );
 
-			Assert.IsNotNull( After::TestClass1.Instance.ActionSimple );
-			Assert.IsNotNull( After::TestClass2.Instance.ActionSimple );
+			Assert.IsNotNull( After::BasicMembersClass.Instance.ActionSimple );
+			Assert.IsNotNull( After::NestedActionClass.Instance.ActionSimple );
 
-			Assert.AreEqual( After::TestClass1.Instance.ActionSimple, After::TestClass2.Instance.ActionSimple );
+			Assert.AreEqual( After::BasicMembersClass.Instance.ActionSimple, After::NestedActionClass.Instance.ActionSimple );
 
-			After::TestClass2.Instance.ActionSimple();
+			After::NestedActionClass.Instance.ActionSimple();
 
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntField );
-			Assert.AreEqual( 0, Before::TestClass1.Instance.IntProperty );
-			Assert.AreEqual( 10, After::TestClass1.Instance.IntField );
-			Assert.AreEqual( 20, After::TestClass1.Instance.IntProperty );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntField );
+			Assert.AreEqual( 0, Before::BasicMembersClass.Instance.IntProperty );
+			Assert.AreEqual( 10, After::BasicMembersClass.Instance.IntField );
+			Assert.AreEqual( 20, After::BasicMembersClass.Instance.IntProperty );
 		}
 
 		/// <summary>
 		/// Testing another case for nested lambdas.
 		/// </summary>
 		[TestMethod]
-		public void Nested2()
+		public void CtorLambdaCapturingLambda()
 		{
-			Before::TestClass2.Instance = new Before::TestClass2();
-			Before::TestClass3.Instance = new Before::TestClass3( 2, 3 );
+			Before::NestedActionClass.Instance = new Before::NestedActionClass();
+			Before::CtorCaptureClass.Instance = new Before::CtorCaptureClass( 2, 3 );
 
-			Assert.IsNotNull( Before::TestClass2.Instance.ActionSimple );
+			Assert.IsNotNull( Before::NestedActionClass.Instance.ActionSimple );
 
-			Assert.AreEqual( 0, Before::TestClass3.Instance.IntField );
-			Assert.AreEqual( 0, Before::TestClass3.Instance.IntProperty );
+			Assert.AreEqual( 0, Before::CtorCaptureClass.Instance.IntField );
+			Assert.AreEqual( 0, Before::CtorCaptureClass.Instance.IntProperty );
 
-			Assert.IsNull( After::TestClass2.Instance );
-			Assert.IsNull( After::TestClass3.Instance );
+			Assert.IsNull( After::NestedActionClass.Instance );
+			Assert.IsNull( After::CtorCaptureClass.Instance );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass2.Instance.ActionSimple );
+			Assert.IsNotNull( After::NestedActionClass.Instance.ActionSimple );
 
-			Assert.AreEqual( 0, Before::TestClass3.Instance.IntField );
-			Assert.AreEqual( 0, Before::TestClass3.Instance.IntProperty );
-			Assert.AreEqual( 0, After::TestClass3.Instance.IntField );
-			Assert.AreEqual( 0, After::TestClass3.Instance.IntProperty );
+			Assert.AreEqual( 0, Before::CtorCaptureClass.Instance.IntField );
+			Assert.AreEqual( 0, Before::CtorCaptureClass.Instance.IntProperty );
+			Assert.AreEqual( 0, After::CtorCaptureClass.Instance.IntField );
+			Assert.AreEqual( 0, After::CtorCaptureClass.Instance.IntProperty );
 
-			After::TestClass2.Instance.ActionSimple();
+			After::NestedActionClass.Instance.ActionSimple();
 
-			Assert.AreEqual( 0, Before::TestClass3.Instance.IntField );
-			Assert.AreEqual( 0, Before::TestClass3.Instance.IntProperty );
-			Assert.AreEqual( 2, After::TestClass3.Instance.IntField );
-			Assert.AreEqual( 3, After::TestClass3.Instance.IntProperty );
+			Assert.AreEqual( 0, Before::CtorCaptureClass.Instance.IntField );
+			Assert.AreEqual( 0, Before::CtorCaptureClass.Instance.IntProperty );
+			Assert.AreEqual( 2, After::CtorCaptureClass.Instance.IntField );
+			Assert.AreEqual( 3, After::CtorCaptureClass.Instance.IntProperty );
 		}
 
 		/// <summary>
 		/// Tests another more complex nested lambda case.
 		/// </summary>
 		[TestMethod]
-		public void Nested3()
+		public void LambdaInsideLambda()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
-			Before::TestClass17.Instance.LambdaInLambda();
+			Before::LambdaScopeClass.Instance.LambdaInLambda();
 
-			Assert.AreEqual( 0, Before::TestClass17.Instance.Func() );
-			Assert.AreEqual( 1, Before::TestClass17.Instance.Func() );
+			Assert.AreEqual( 0, Before::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 1, Before::LambdaScopeClass.Instance.Func() );
 
 			Hotload();
 
-			Assert.AreEqual( 7, After::TestClass17.Instance.Func() );
-			Assert.AreEqual( 25, After::TestClass17.Instance.Func() );
+			Assert.AreEqual( 7, After::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 25, After::LambdaScopeClass.Instance.Func() );
 		}
 
 		/// <summary>
@@ -263,59 +263,59 @@ namespace HotloadTests
 		/// a local value.
 		/// </summary>
 		[TestMethod]
-		public void CaptureTypeChange1()
+		public void CaptureDropsThis()
 		{
-			Before::TestClass6.Instance = new Before::TestClass6();
+			Before::CaptureChangeClass.Instance = new Before::CaptureChangeClass();
 
-			Before::TestClass6.Instance.IntField = 5;
-			Before::TestClass6.Instance.Delegate = Before::TestClass6.Instance.Foo( 10 );
+			Before::CaptureChangeClass.Instance.IntField = 5;
+			Before::CaptureChangeClass.Instance.Delegate = Before::CaptureChangeClass.Instance.Foo( 10 );
 
-			Assert.AreEqual( 15, Before::TestClass6.Instance.Delegate() );
+			Assert.AreEqual( 15, Before::CaptureChangeClass.Instance.Delegate() );
 
 			Hotload();
 
-			Assert.AreEqual( 10, After::TestClass6.Instance.Delegate() );
+			Assert.AreEqual( 10, After::CaptureChangeClass.Instance.Delegate() );
 		}
 
 		/// <summary>
-		/// Tests a lambda that goes from a capturing local values to non-capturing.
+		/// Tests a lambda that goes from capturing a local value and <c>this</c> to capturing only <c>this</c>.
 		/// </summary>
 		[TestMethod]
-		public void CaptureTypeChange2()
+		public void CaptureDropsLocal()
 		{
-			Before::TestClass6.Instance = new Before::TestClass6();
+			Before::CaptureChangeClass.Instance = new Before::CaptureChangeClass();
 
-			Before::TestClass6.Instance.IntField = 20;
-			Before::TestClass6.Instance.Delegate = Before::TestClass6.Instance.Bar( 6 );
+			Before::CaptureChangeClass.Instance.IntField = 20;
+			Before::CaptureChangeClass.Instance.Delegate = Before::CaptureChangeClass.Instance.Bar( 6 );
 
-			Assert.AreEqual( 26, Before::TestClass6.Instance.Delegate() );
+			Assert.AreEqual( 26, Before::CaptureChangeClass.Instance.Delegate() );
 
 			Hotload();
 
-			Assert.AreEqual( 20, After::TestClass6.Instance.Delegate() );
+			Assert.AreEqual( 20, After::CaptureChangeClass.Instance.Delegate() );
 		}
 
 		/// <summary>
 		/// Tests a lambda changing argument type(s).
 		/// </summary>
 		[TestMethod]
-		public void SignatureChange1()
+		public void LambdaParameterTypeChanged()
 		{
-			Before::TestClass32.Instance = new Before::TestClass32();
+			Before::SignatureChangeClass.Instance = new Before::SignatureChangeClass();
 
-			Before::TestClass32.Instance.AssignDelegate();
+			Before::SignatureChangeClass.Instance.AssignDelegate();
 
-			Assert.IsNotNull( Before::TestClass32.Instance.Delegate );
-			Assert.IsNull( After::TestClass32.Instance );
+			Assert.IsNotNull( Before::SignatureChangeClass.Instance.Delegate );
+			Assert.IsNull( After::SignatureChangeClass.Instance );
 
 			var result = Hotload();
 
-			Assert.IsTrue( result.Warnings.Any( x => x.Path?.ToString().Contains( "TestClass32" ) ?? false ) );
+			Assert.IsTrue( result.Warnings.Any( x => x.Path?.ToString().Contains( "SignatureChangeClass" ) ?? false ) );
 			Assert.ThrowsException<NotImplementedException>( () =>
 			{
 				try
 				{
-					After::TestClass32.Instance.Delegate.DynamicInvoke( 1 );
+					After::SignatureChangeClass.Instance.Delegate.DynamicInvoke( 1 );
 				}
 				catch ( TargetInvocationException e )
 				{
@@ -325,488 +325,489 @@ namespace HotloadTests
 		}
 
 		/// <summary>
-		/// Tests a simple multicast delegate.
+		/// Tests a multicast delegate combining a field initializer lambda and a static method group.
 		/// </summary>
 		[TestMethod]
-		public void Multicast1()
+		public void MulticastLambdaAndMethodGroup()
 		{
-			Before::TestClass10.Instance = new Before::TestClass10();
+			Before::MulticastClass.Instance = new Before::MulticastClass();
 
-			Assert.IsNull( After::TestClass10.Instance );
+			Assert.IsNull( After::MulticastClass.Instance );
 
-			Assert.AreEqual( false, Before::TestClass10.Bool1 );
-			Assert.AreEqual( false, Before::TestClass10.Bool2 );
+			Assert.AreEqual( false, Before::MulticastClass.Bool1 );
+			Assert.AreEqual( false, Before::MulticastClass.Bool2 );
 
-			Assert.AreEqual( false, After::TestClass10.Bool1 );
-			Assert.AreEqual( false, After::TestClass10.Bool2 );
+			Assert.AreEqual( false, After::MulticastClass.Bool1 );
+			Assert.AreEqual( false, After::MulticastClass.Bool2 );
 
 			Hotload();
 
-			Assert.AreEqual( false, After::TestClass10.Bool1 );
-			Assert.AreEqual( false, After::TestClass10.Bool2 );
+			Assert.AreEqual( false, After::MulticastClass.Bool1 );
+			Assert.AreEqual( false, After::MulticastClass.Bool2 );
 
-			After::TestClass10.Instance.Action( After::TestClass10.Instance );
+			After::MulticastClass.Instance.Action( After::MulticastClass.Instance );
 
-			Assert.AreEqual( true, After::TestClass10.Bool1 );
-			Assert.AreEqual( true, After::TestClass10.Bool2 );
+			Assert.AreEqual( true, After::MulticastClass.Bool1 );
+			Assert.AreEqual( true, After::MulticastClass.Bool2 );
 		}
 
 		/// <summary>
 		/// Tests a lambda defined in a non-swapped assembly that captures a swapped method.
 		/// </summary>
 		[TestMethod]
-		public void ExternalNested1()
+		public void NonSwappedLambdaCapturingMethodGroup()
 		{
-			Before::TestClass11.Instance = new Before::TestClass11();
+			Before::MethodGroupClass.Instance = new Before::MethodGroupClass();
 
-			Action action = Before::TestClass11.Instance.TestMethod;
+			Action action = Before::MethodGroupClass.Instance.TestMethod;
 
-			Assert.IsNull( After::TestClass11.Instance );
+			Assert.IsNull( After::MethodGroupClass.Instance );
 
-			Before::TestClass11.Instance.Action = () => action();
+			Before::MethodGroupClass.Instance.Action = () => action();
 
 			Hotload();
 
-			Assert.AreEqual( 0, Before::TestClass11.Instance.IntValue );
-			Assert.AreEqual( 0, After::TestClass11.Instance.IntValue );
+			Assert.AreEqual( 0, Before::MethodGroupClass.Instance.IntValue );
+			Assert.AreEqual( 0, After::MethodGroupClass.Instance.IntValue );
 
-			After::TestClass11.Instance.Action();
+			After::MethodGroupClass.Instance.Action();
 
-			Assert.AreEqual( 0, Before::TestClass11.Instance.IntValue );
-			Assert.AreEqual( 2, After::TestClass11.Instance.IntValue );
+			Assert.AreEqual( 0, Before::MethodGroupClass.Instance.IntValue );
+			Assert.AreEqual( 2, After::MethodGroupClass.Instance.IntValue );
 		}
 
 		/// <summary>
 		/// Tests lambdas declared in a scope method with an ambiguous name.
 		/// </summary>
 		[TestMethod]
-		public void SameNameScope1()
+		public void OverloadedScopeMethods()
 		{
-			Before::TestClass16.Instance = new Before::TestClass16();
+			Before::SameNameMethodClass.Instance = new Before::SameNameMethodClass();
 
-			Before::TestClass16.Instance.SameNameMethod();
-			Before::TestClass16.Instance.SameNameMethod( 0 );
+			Before::SameNameMethodClass.Instance.SameNameMethod();
+			Before::SameNameMethodClass.Instance.SameNameMethod( 0 );
 
 			Hotload();
 
-			Assert.AreEqual( 0, Before::TestClass16.Instance.IntField );
-			Assert.AreEqual( 0, After::TestClass16.Instance.IntField );
+			Assert.AreEqual( 0, Before::SameNameMethodClass.Instance.IntField );
+			Assert.AreEqual( 0, After::SameNameMethodClass.Instance.IntField );
 
-			After::TestClass16.Instance.Action1();
+			After::SameNameMethodClass.Instance.Action1();
 
-			Assert.AreEqual( 0, Before::TestClass16.Instance.IntField );
-			Assert.AreEqual( 1, After::TestClass16.Instance.IntField );
+			Assert.AreEqual( 0, Before::SameNameMethodClass.Instance.IntField );
+			Assert.AreEqual( 1, After::SameNameMethodClass.Instance.IntField );
 
-			After::TestClass16.Instance.Action2();
+			After::SameNameMethodClass.Instance.Action2();
 
-			Assert.AreEqual( 0, Before::TestClass16.Instance.IntField );
-			Assert.AreEqual( 2, After::TestClass16.Instance.IntField );
+			Assert.AreEqual( 0, Before::SameNameMethodClass.Instance.IntField );
+			Assert.AreEqual( 2, After::SameNameMethodClass.Instance.IntField );
 		}
 
 		/// <summary>
 		/// Tests lambdas declared in a scope method implemented as a generator state machine.
 		/// </summary>
 		[TestMethod]
-		public void StateMachineScope1()
+		public void IteratorScope()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
-			var array = Before::TestClass17.Instance.GeneratorMethod().ToArray();
+			var array = Before::LambdaScopeClass.Instance.GeneratorMethod().ToArray();
 
-			Assert.AreEqual( 0, Before::TestClass17.Instance.Func() );
-			Assert.AreEqual( 1, Before::TestClass17.Instance.Func() );
+			Assert.AreEqual( 0, Before::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 1, Before::LambdaScopeClass.Instance.Func() );
 
 			Hotload();
 
-			Assert.AreEqual( 2, After::TestClass17.Instance.Func() );
-			Assert.AreEqual( 3, After::TestClass17.Instance.Func() );
+			Assert.AreEqual( 2, After::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 3, After::LambdaScopeClass.Instance.Func() );
 		}
 
 		/// <summary>
 		/// Tests lambdas declared in a scope method implemented as an async state machine.
 		/// </summary>
 		[TestMethod]
-		public void StateMachineScope2()
+		public void AsyncScope()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
-			Before::TestClass17.Instance.AsyncMethod().Wait();
+			Before::LambdaScopeClass.Instance.AsyncMethod().Wait();
 
-			Assert.AreEqual( 0, Before::TestClass17.Instance.Func() );
-			Assert.AreEqual( 1, Before::TestClass17.Instance.Func() );
+			Assert.AreEqual( 0, Before::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 1, Before::LambdaScopeClass.Instance.Func() );
 
 			Hotload();
 
-			Assert.AreEqual( 2, After::TestClass17.Instance.Func() );
-			Assert.AreEqual( 3, After::TestClass17.Instance.Func() );
+			Assert.AreEqual( 2, After::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 3, After::LambdaScopeClass.Instance.Func() );
 		}
 
 		/// <summary>
 		/// Tests lambdas declared in a scope method involving complex parameter types.
 		/// </summary>
 		[TestMethod]
-		public void ComplexParamScope1()
+		public void TupleArrayParamScope()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
-			Before::TestClass17.Instance.ComplexParameterMethod( null );
+			Before::LambdaScopeClass.Instance.ComplexParameterMethod( null );
 
-			Assert.AreEqual( 0, Before::TestClass17.Instance.Func() );
-			Assert.AreEqual( 1, Before::TestClass17.Instance.Func() );
+			Assert.AreEqual( 0, Before::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 1, Before::LambdaScopeClass.Instance.Func() );
 
 			Hotload();
 
-			Assert.AreEqual( 2, After::TestClass17.Instance.Func() );
-			Assert.AreEqual( 3, After::TestClass17.Instance.Func() );
+			Assert.AreEqual( 2, After::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 3, After::LambdaScopeClass.Instance.Func() );
 		}
 
 		/// <summary>
 		/// Tests lambdas declared in a scope method involving a multi-dimensional array parameter.
 		/// </summary>
 		[TestMethod]
-		public void ComplexParamScope2()
+		public void MultiDimArrayParamScope()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
-			Before::TestClass17.Instance.MultiDimArrayMethod( null );
+			Before::LambdaScopeClass.Instance.MultiDimArrayMethod( null );
 
-			Assert.AreEqual( 0, Before::TestClass17.Instance.Func() );
-			Assert.AreEqual( 1, Before::TestClass17.Instance.Func() );
+			Assert.AreEqual( 0, Before::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 1, Before::LambdaScopeClass.Instance.Func() );
 
 			Hotload();
 
-			Assert.AreEqual( 2, After::TestClass17.Instance.Func() );
-			Assert.AreEqual( 3, After::TestClass17.Instance.Func() );
+			Assert.AreEqual( 2, After::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 3, After::LambdaScopeClass.Instance.Func() );
 		}
 
 		/// <summary>
 		/// Tests lambdas declared in a scope method involving a ref parameter.
 		/// </summary>
 		[TestMethod]
-		public void ComplexParamScope3()
+		public void RefParamScope()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
 			var foo = 0;
 
-			Before::TestClass17.Instance.ByRefMethod( ref foo );
+			Before::LambdaScopeClass.Instance.ByRefMethod( ref foo );
 
-			Assert.AreEqual( 0, Before::TestClass17.Instance.Func() );
-			Assert.AreEqual( 1, Before::TestClass17.Instance.Func() );
+			Assert.AreEqual( 0, Before::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 1, Before::LambdaScopeClass.Instance.Func() );
 
 			Hotload();
 
-			Assert.AreEqual( 2, After::TestClass17.Instance.Func() );
-			Assert.AreEqual( 3, After::TestClass17.Instance.Func() );
+			Assert.AreEqual( 2, After::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 3, After::LambdaScopeClass.Instance.Func() );
 		}
 
 		/// <summary>
 		/// Tests lambdas declared in a scope method involving a namespaceless parameter type.
 		/// </summary>
 		[TestMethod]
-		public void ComplexParamScope4()
+		public void NoNamespaceParamScope()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
-			Before::TestClass17.Instance.NoNamespaceTypeMethod( new Before::TestClass1 { IntField = 7 } );
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
+			Before::LambdaScopeClass.Instance.NoNamespaceTypeMethod( new Before::BasicMembersClass { IntField = 7 } );
 
-			Assert.AreEqual( 7, Before::TestClass17.Instance.Func() );
-			Assert.AreEqual( 8, Before::TestClass17.Instance.Func() );
+			Assert.AreEqual( 7, Before::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 8, Before::LambdaScopeClass.Instance.Func() );
 
 			Hotload();
 
-			Assert.AreEqual( 9, After::TestClass17.Instance.Func() );
-			Assert.AreEqual( 10, After::TestClass17.Instance.Func() );
+			Assert.AreEqual( 9, After::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 10, After::LambdaScopeClass.Instance.Func() );
 		}
 
 		/// <summary>
 		/// Tests lambdas declared in a generic scope method.
 		/// </summary>
 		[TestMethod]
-		public void GenericScope1()
+		public void GenericMethodScope()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
-			Before::TestClass17.Instance.GenericMethod<bool>( false );
+			Before::LambdaScopeClass.Instance.GenericMethod<bool>( false );
 
-			Assert.AreEqual( 0, Before::TestClass17.Instance.Func() );
-			Assert.AreEqual( 1, Before::TestClass17.Instance.Func() );
+			Assert.AreEqual( 0, Before::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 1, Before::LambdaScopeClass.Instance.Func() );
 
 			Hotload();
 
-			Assert.AreEqual( 2, After::TestClass17.Instance.Func() );
-			Assert.AreEqual( 3, After::TestClass17.Instance.Func() );
+			Assert.AreEqual( 2, After::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 3, After::LambdaScopeClass.Instance.Func() );
 		}
 
 		/// <summary>
 		/// Tests generic lambdas declared in a generic scope method.
 		/// </summary>
 		[TestMethod]
-		public void GenericScope2()
+		public void GenericMethodScopeCapturingGenerics()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
-			Assert.IsNull( Before::TestClass17.Instance.FuncTarget );
+			Assert.IsNull( Before::LambdaScopeClass.Instance.FuncTarget );
 
-			Before::TestClass17.Instance.GenericMethod( x => x, 81 );
+			Before::LambdaScopeClass.Instance.GenericMethod( x => x, 81 );
 
-			Assert.AreEqual( 81, Before::TestClass17.Instance.Func() );
+			Assert.AreEqual( 81, Before::LambdaScopeClass.Instance.Func() );
 
 			Hotload();
 
-			Assert.AreEqual( 81, After::TestClass17.Instance.Func() );
+			Assert.AreEqual( 81, After::LambdaScopeClass.Instance.Func() );
 		}
 
 		/// <summary>
 		/// Tests generic lambdas declared in a non-swapped generic scope method, but with swapped type parameters.
 		/// </summary>
 		[TestMethod]
-		public void GenericScope3()
+		public void NonSwappedGenericMethodScope()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
-			Before::TestClass17.Instance.ExternalGenericMethod( Before::TestClass17.Instance, Before::TestClass17.Instance );
+			Before::LambdaScopeClass.Instance.ExternalGenericMethod( Before::LambdaScopeClass.Instance, Before::LambdaScopeClass.Instance );
 
-			Assert.IsNotNull( Before::TestClass17.Instance.Func );
+			Assert.IsNotNull( Before::LambdaScopeClass.Instance.Func );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass17.Instance.Func );
-			Assert.AreEqual( 1, After::TestClass17.Instance.Func() );
+			Assert.IsNotNull( After::LambdaScopeClass.Instance.Func );
+			Assert.AreEqual( 1, After::LambdaScopeClass.Instance.Func() );
 		}
 
 		[TestMethod]
-		public void GenericScope4()
+		public void GenericTypeScope()
 		{
-			Assert.IsNull( Before::TestClass22A.Lambda );
-			Assert.IsNull( After::TestClass22A.Lambda );
+			Assert.IsNull( Before::GenericLambdaClass.Lambda );
+			Assert.IsNull( After::GenericLambdaClass.Lambda );
 
-			Before::TestClass22B<string>.LambdaScopeMethod( 3 );
+			Before::GenericScopeClass<string>.LambdaScopeMethod( 3 );
 
-			Assert.IsNotNull( Before::TestClass22A.Lambda );
+			Assert.IsNotNull( Before::GenericLambdaClass.Lambda );
 
-			Assert.AreEqual( "Str", Before::TestClass22A.Lambda() );
+			Assert.AreEqual( "Str", Before::GenericLambdaClass.Lambda() );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass22A.Lambda );
+			Assert.IsNotNull( After::GenericLambdaClass.Lambda );
 
-			Assert.AreEqual( "Str", After::TestClass22A.Lambda() );
+			Assert.AreEqual( "Str", After::GenericLambdaClass.Lambda() );
 
-			Assert.AreNotEqual( Before::TestClass22A.Lambda, After::TestClass22A.Lambda );
+			Assert.AreNotEqual( Before::GenericLambdaClass.Lambda, After::GenericLambdaClass.Lambda );
 		}
 
 		[TestMethod]
-		public void GenericScope5()
+		public void GenericMethodInGenericTypeScope()
 		{
-			Assert.IsNull( Before::TestClass22A.Lambda );
-			Assert.IsNull( After::TestClass22A.Lambda );
+			Assert.IsNull( Before::GenericLambdaClass.Lambda );
+			Assert.IsNull( After::GenericLambdaClass.Lambda );
 
-			Before::TestClass22B<string>.GenericLambdaScopeMethod1<int>( 3 );
+			Before::GenericScopeClass<string>.GenericLambdaScopeMethod1<int>( 3 );
 
-			Assert.IsNotNull( Before::TestClass22A.Lambda );
+			Assert.IsNotNull( Before::GenericLambdaClass.Lambda );
 
-			Assert.AreEqual( "StrInt", Before::TestClass22A.Lambda() );
+			Assert.AreEqual( "StrInt", Before::GenericLambdaClass.Lambda() );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass22A.Lambda );
+			Assert.IsNotNull( After::GenericLambdaClass.Lambda );
 
-			Assert.AreEqual( "StrInt", After::TestClass22A.Lambda() );
+			Assert.AreEqual( "StrInt", After::GenericLambdaClass.Lambda() );
 
-			Assert.AreNotEqual( Before::TestClass22A.Lambda, After::TestClass22A.Lambda );
+			Assert.AreNotEqual( Before::GenericLambdaClass.Lambda, After::GenericLambdaClass.Lambda );
 		}
 
 		[TestMethod]
-		public void GenericScope6()
+		public void ShadowedTypeParameterScope()
 		{
-			Assert.IsNull( Before::TestClass22A.Lambda );
-			Assert.IsNull( After::TestClass22A.Lambda );
+			Assert.IsNull( Before::GenericLambdaClass.Lambda );
+			Assert.IsNull( After::GenericLambdaClass.Lambda );
 
-			Before::TestClass22B<string>.GenericLambdaScopeMethod2<int>( 3 );
+			Before::GenericScopeClass<string>.GenericLambdaScopeMethod2<int>( 3 );
 
-			Assert.IsNotNull( Before::TestClass22A.Lambda );
+			Assert.IsNotNull( Before::GenericLambdaClass.Lambda );
 
-			Assert.AreEqual( "Int", Before::TestClass22A.Lambda() );
+			Assert.AreEqual( "Int", Before::GenericLambdaClass.Lambda() );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass22A.Lambda );
+			Assert.IsNotNull( After::GenericLambdaClass.Lambda );
 
-			Assert.AreEqual( "Int", After::TestClass22A.Lambda() );
+			Assert.AreEqual( "Int", After::GenericLambdaClass.Lambda() );
 
-			Assert.AreNotEqual( Before::TestClass22A.Lambda, After::TestClass22A.Lambda );
+			Assert.AreNotEqual( Before::GenericLambdaClass.Lambda, After::GenericLambdaClass.Lambda );
 		}
 
 		/// <summary>
 		/// Tests lambdas declared in a static scope method.
 		/// </summary>
 		[TestMethod]
-		public void StaticScope1()
+		public void StaticMethodScope()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
-			Before::TestClass17.StaticMethod();
+			Before::LambdaScopeClass.StaticMethod();
 
-			Assert.AreEqual( 0, Before::TestClass17.Instance.Func() );
-			Assert.AreEqual( 1, Before::TestClass17.Instance.Func() );
+			Assert.AreEqual( 0, Before::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 1, Before::LambdaScopeClass.Instance.Func() );
 
 			Hotload();
 
-			Assert.AreEqual( 2, After::TestClass17.Instance.Func() );
-			Assert.AreEqual( 3, After::TestClass17.Instance.Func() );
+			Assert.AreEqual( 2, After::LambdaScopeClass.Instance.Func() );
+			Assert.AreEqual( 3, After::LambdaScopeClass.Instance.Func() );
 		}
 
 		/// <summary>
-		/// Tests lambdas implemented inside nested methods.
+		/// Tests a lambda returned from a local function, capturing only that function's parameter.
 		/// </summary>
 		[TestMethod]
-		public void NestedScopeMethod1()
+		public void LambdaInLocalFunction()
 		{
-			Before::TestClass25.Instance = new Before::TestClass25();
+			Before::NestedScopeClass.Instance = new Before::NestedScopeClass();
 
-			Before::TestClass25.Instance.ScopeMethod1();
+			Before::NestedScopeClass.Instance.ScopeMethod1();
 
-			Assert.AreEqual( 4, Before::TestClass25.Instance.Func1() );
+			Assert.AreEqual( 4, Before::NestedScopeClass.Instance.Func1() );
 
 			Hotload();
 
-			Assert.AreEqual( 4, After::TestClass25.Instance.Func1() );
+			Assert.AreEqual( 4, After::NestedScopeClass.Instance.Func1() );
 		}
 
 		/// <summary>
-		/// Tests lambdas implemented inside nested methods.
+		/// Tests a lambda returned from a local function, capturing both that function's parameter
+		/// and a parameter of the enclosing method.
 		/// </summary>
 		[TestMethod]
-		public void NestedScopeMethod2()
+		public void LambdaInLocalFunctionCapturingOuter()
 		{
-			Before::TestClass25.Instance = new Before::TestClass25();
+			Before::NestedScopeClass.Instance = new Before::NestedScopeClass();
 
-			Before::TestClass25.Instance.ScopeMethod2( 1 );
+			Before::NestedScopeClass.Instance.ScopeMethod2( 1 );
 
-			Assert.AreEqual( 5, Before::TestClass25.Instance.Func2() );
+			Assert.AreEqual( 5, Before::NestedScopeClass.Instance.Func2() );
 
 			Hotload();
 
-			Assert.AreEqual( 5, After::TestClass25.Instance.Func2() );
+			Assert.AreEqual( 5, After::NestedScopeClass.Instance.Func2() );
 		}
 
 		/// <summary>
-		/// Tests lambdas declared in an instance constructor scope.
+		/// Tests lambdas declared in a static constructor scope.
 		/// </summary>
 		[TestMethod]
-		public void CtorScope1()
+		public void StaticCtorLambda()
 		{
-			Assert.AreEqual( 1, Before::TestClass18.Func() );
+			Assert.AreEqual( 1, Before::StaticCtorClass.Func() );
 
 			Hotload();
 
-			Assert.AreEqual( 1, After::TestClass18.Func() );
+			Assert.AreEqual( 1, After::StaticCtorClass.Func() );
 		}
 
 		/// <summary>
-		/// Another test for lambdas declared in an instance constructor scope.
+		/// Tests an event handler lambda subscribed in a static constructor.
 		/// </summary>
 		[TestMethod]
-		public void CtorScope2()
+		public void StaticCtorEventHandler()
 		{
-			Before::TestClass18.Counter = 0;
-			Before::TestClass18.InvokeEvent();
+			Before::StaticCtorClass.Counter = 0;
+			Before::StaticCtorClass.InvokeEvent();
 
-			Assert.AreEqual( 1, Before::TestClass18.Counter );
+			Assert.AreEqual( 1, Before::StaticCtorClass.Counter );
 
-			Before::TestClass18.InvokeEvent();
+			Before::StaticCtorClass.InvokeEvent();
 
-			Assert.AreEqual( 2, Before::TestClass18.Counter );
+			Assert.AreEqual( 2, Before::StaticCtorClass.Counter );
 
 			Hotload();
 
-			After::TestClass18.InvokeEvent();
+			After::StaticCtorClass.InvokeEvent();
 
-			Assert.AreEqual( 3, After::TestClass18.Counter );
+			Assert.AreEqual( 3, After::StaticCtorClass.Counter );
 
-			After::TestClass18.InvokeEvent();
+			After::StaticCtorClass.InvokeEvent();
 
-			Assert.AreEqual( 4, After::TestClass18.Counter );
+			Assert.AreEqual( 4, After::StaticCtorClass.Counter );
 		}
 
 		/// <summary>
-		/// Tests lambdas involving a named method declared within another method.
+		/// Tests a lambda calling a local function that captures a local variable.
 		/// </summary>
 		[TestMethod]
-		public void LocalMethod1()
+		public void LambdaCallingLocalFunction()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
-			Assert.IsNull( Before::TestClass17.Instance.FuncTarget );
+			Assert.IsNull( Before::LambdaScopeClass.Instance.FuncTarget );
 
-			Before::TestClass17.Instance.NestedMethod1();
+			Before::LambdaScopeClass.Instance.NestedMethod1();
 
-			Assert.IsNotNull( Before::TestClass17.Instance.FuncTarget );
+			Assert.IsNotNull( Before::LambdaScopeClass.Instance.FuncTarget );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass17.Instance.FuncTarget );
+			Assert.IsNotNull( After::LambdaScopeClass.Instance.FuncTarget );
 		}
 
 		/// <summary>
-		/// Tests lambdas involving a named method declared within another method.
+		/// Tests a lambda calling a local function that only uses <c>this</c>.
 		/// </summary>
 		[TestMethod]
-		public void LocalMethod2()
+		public void LambdaCallingLocalFunctionUsingThis()
 		{
-			Before::TestClass17.Instance = new Before::TestClass17();
+			Before::LambdaScopeClass.Instance = new Before::LambdaScopeClass();
 
-			Assert.IsNull( Before::TestClass17.Instance.FuncTarget );
+			Assert.IsNull( Before::LambdaScopeClass.Instance.FuncTarget );
 
-			Before::TestClass17.Instance.NestedMethod2();
+			Before::LambdaScopeClass.Instance.NestedMethod2();
 
-			Assert.IsNotNull( Before::TestClass17.Instance.FuncTarget );
+			Assert.IsNotNull( Before::LambdaScopeClass.Instance.FuncTarget );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass17.Instance.FuncTarget );
+			Assert.IsNotNull( After::LambdaScopeClass.Instance.FuncTarget );
 		}
 
 		/// <summary>
 		/// Odd case that was causing a stack overflow.
 		/// </summary>
 		[TestMethod]
-		public void GenericStructParam1()
+		public void InParamGenericStruct()
 		{
-			Before::TestClass30.Instance = new Before::TestClass30();
+			Before::GenericStructParamClass.Instance = new Before::GenericStructParamClass();
 
-			Assert.IsNull( After::TestClass30.Instance );
+			Assert.IsNull( After::GenericStructParamClass.Instance );
 
-			Before::TestClass30.Instance.StoreDelegate();
+			Before::GenericStructParamClass.Instance.StoreDelegate();
 
-			Assert.IsNotNull( Before::TestClass30.Instance.Delegate );
+			Assert.IsNotNull( Before::GenericStructParamClass.Instance.Delegate );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass30.Instance.Delegate );
+			Assert.IsNotNull( After::GenericStructParamClass.Instance.Delegate );
 
-			After::TestClass30.Instance.Delegate.DynamicInvoke( new After::TestClass30.ValueChangedEvent<string>( "Hello", "World " ) );
+			After::GenericStructParamClass.Instance.Delegate.DynamicInvoke( new After::GenericStructParamClass.ValueChangedEvent<string>( "Hello", "World " ) );
 		}
 
 		/// <summary>
 		/// Static lambda methods should try to hotload if unchanged.
 		/// </summary>
 		[TestMethod]
-		public void StaticAnonymous1()
+		public void StaticLambdaInGenericMethod()
 		{
-			Before::TestClass31.Instance = new Before::TestClass31();
+			Before::StaticLambdaClass.Instance = new Before::StaticLambdaClass();
 
-			Assert.IsNull( After::TestClass31.Instance );
+			Assert.IsNull( After::StaticLambdaClass.Instance );
 
-			Before::TestClass31.CreateFunc<string>();
+			Before::StaticLambdaClass.CreateFunc<string>();
 
-			Assert.IsNotNull( Before::TestClass31.Instance.Func );
+			Assert.IsNotNull( Before::StaticLambdaClass.Instance.Func );
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass31.Instance.Func );
+			Assert.IsNotNull( After::StaticLambdaClass.Instance.Func );
 
-			Assert.AreEqual( 22, After::TestClass31.Instance.Func( 21 ) );
+			Assert.AreEqual( 22, After::StaticLambdaClass.Instance.Func( 21 ) );
 		}
 
 		private Func<Task> CreateHelloWorldGraph( string message = "World" )
@@ -828,15 +829,15 @@ namespace HotloadTests
 		[TestMethod]
 		public async Task SimpleActionGraph()
 		{
-			Before::TestClass37.Instance = new() { Func = CreateHelloWorldGraph() };
+			Before::ActionGraphClass.Instance = new() { Func = CreateHelloWorldGraph() };
 
-			await Before::TestClass37.Instance.Func();
+			await Before::ActionGraphClass.Instance.Func();
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass37.Instance?.Func );
+			Assert.IsNotNull( After::ActionGraphClass.Instance?.Func );
 
-			await After::TestClass37.Instance.Func();
+			await After::ActionGraphClass.Instance.Func();
 		}
 
 		/// <summary>
@@ -845,22 +846,22 @@ namespace HotloadTests
 		[TestMethod]
 		public async Task MulticastActionGraph()
 		{
-			Before::TestClass37.Instance = new();
-			Before::TestClass37.Instance.Func += CreateHelloWorldGraph( "A" );
-			Before::TestClass37.Instance.Func += CreateHelloWorldGraph( "B" );
-			Before::TestClass37.Instance.Func += CreateHelloWorldGraph( "C" );
+			Before::ActionGraphClass.Instance = new();
+			Before::ActionGraphClass.Instance.Func += CreateHelloWorldGraph( "A" );
+			Before::ActionGraphClass.Instance.Func += CreateHelloWorldGraph( "B" );
+			Before::ActionGraphClass.Instance.Func += CreateHelloWorldGraph( "C" );
 
-			Assert.AreEqual( 3, Before::TestClass37.Instance.Func.GetInvocationList().Length );
+			Assert.AreEqual( 3, Before::ActionGraphClass.Instance.Func.GetInvocationList().Length );
 
-			await Before::TestClass37.Instance.Func();
+			await Before::ActionGraphClass.Instance.Func();
 
 			Hotload();
 
-			Assert.IsNotNull( After::TestClass37.Instance?.Func );
+			Assert.IsNotNull( After::ActionGraphClass.Instance?.Func );
 
-			Assert.AreEqual( 3, After::TestClass37.Instance.Func.GetInvocationList().Length );
+			Assert.AreEqual( 3, After::ActionGraphClass.Instance.Func.GetInvocationList().Length );
 
-			await After::TestClass37.Instance.Func();
+			await After::ActionGraphClass.Instance.Func();
 		}
 
 		/// <summary>
@@ -870,14 +871,14 @@ namespace HotloadTests
 		[TestMethod]
 		public void DerivedTargetTypeRemoved()
 		{
-			new Before::TestClass45.RemovedType().Populate();
+			new Before::DerivedTargetClass.RemovedType().Populate();
 
-			Assert.IsNotNull( Before::TestClass45.Instance );
+			Assert.IsNotNull( Before::DerivedTargetClass.Instance );
 
 			var result = Hotload();
 
-			Assert.IsNotNull( After::TestClass45.Instance );
-			Assert.ThrowsException<NotImplementedException>( After::TestClass45.Instance );
+			Assert.IsNotNull( After::DerivedTargetClass.Instance );
+			Assert.ThrowsException<NotImplementedException>( After::DerivedTargetClass.Instance );
 		}
 	}
 }

@@ -7,6 +7,9 @@ using System.Linq;
 
 namespace Sandbox;
 
+// Hotload resolves through this while it walks static fields. Upgrading it swaps in empty caches that are
+// only refilled at the end of the swap, so anything resolved during the hotload isn't found.
+[SkipHotload]
 sealed class PackageAssemblyResolver : IAssemblyResolver
 {
 	static readonly ConcurrentDictionary<AssemblyNameReference, AssemblyDefinition> GlobalAssemblyCache = new( AssemblyNameComparer.Instance );

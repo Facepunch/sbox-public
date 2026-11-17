@@ -41,8 +41,6 @@ public class EditorMainWindow : DockWindow, IUndoSystemProvider
 			return false;
 		}
 
-		ProjectCookie?.Set( $"gizmo.settings", EditorScene.GizmoSettings );
-
 		return true;
 	}
 

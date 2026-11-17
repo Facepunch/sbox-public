@@ -1,4 +1,4 @@
-@import "/Platform/_platform.scss";
+﻿@import "/Platform/_platform.scss";
 
 // 12px wider than the screen's edges, padded back in - so a card lifted under the mouse on the end of a row isn't cut
 // off by the clipping below
@@ -7,7 +7,7 @@ ShelfPanel
 	position: absolute;
 	left: 52px;
 	right: 52px;
-	bottom: 96px;
+	bottom: 80px;
 	flex-direction: column;
 	pointer-events: none;
 
@@ -20,6 +20,19 @@ ShelfPanel
 		.content
 		{
 			padding-bottom: 0;
+		}
+	}
+
+	// The whole screen over the dock (ShelfPage.EdgeToEdge) - right up to its edges and its top
+	&.edge-to-edge
+	{
+		left: 0;
+		right: 0;
+		bottom: $platform-dock-height;
+
+		.content
+		{
+			padding: 0;
 		}
 	}
 
@@ -40,7 +53,7 @@ ShelfPanel
 			pointer-events: all;
 		}
 
-		// Only its page's own panels take the pointer (IShelfPage.ClicksThrough)
+		// Only its page's own panels take the pointer (ShelfPage.ClicksThrough)
 		&.open.clicks-through
 		{
 			pointer-events: none;
@@ -66,6 +79,38 @@ ShelfPanel
 		flex-shrink: 0;
 		// Round the rows for a lifted card - GameShelf.CollapsedHeight counts the bottom
 		padding: 0 12px 12px 12px;
+	}
+
+	// A modal on the shelf (ModalShelf) - its panel in the middle, the shelf's blur behind it rather than its own
+	ModalShelf
+	{
+		height: 100%;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+
+		> .modal
+		{
+			position: relative;
+			width: 100%;
+			height: 100%;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			background-color: transparent;
+			backdrop-filter: none;
+			pointer-events: none;
+
+			> *
+			{
+				pointer-events: all;
+			}
+
+			> .modal-background
+			{
+				display: none;
+			}
+		}
 	}
 
 	.game-rows

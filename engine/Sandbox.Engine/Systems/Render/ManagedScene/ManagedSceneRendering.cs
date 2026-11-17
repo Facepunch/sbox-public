@@ -102,6 +102,7 @@ internal static partial class ManagedSceneRendering
 		if ( pendingCompare is not null ) RunPendingCompare( camera );
 
 		if ( !Enabled ) return false;
+		if ( camera.SceneCamera.Attributes.GetBool( "ToolsWireframe" ) ) return false;
 
 		// Stereo cameras stay native
 		if ( VR.VRSystem.IsActive && camera.TargetEye != StereoTargetEye.None ) return false;

@@ -14,7 +14,7 @@
     back to its menu.
 *@
 <root class="@(Paused ? "paused" : "") @(OffHome ? "paging" : "")">
-
+	<div class="inner">
     @if ( ShownTitle is { } title )
     {
         <div class="header">
@@ -75,7 +75,7 @@
             <FrontPages class="pages" @ref="Pages" />
         }
     }
-
+	</div>
 </root>
 
 @code
@@ -156,10 +156,15 @@
             Resume();
     }
 
+    /// <summary>
+    /// Back to its menu - in the editor, out of play mode
+    /// </summary>
     void Leave() => MenuHelpers.ConfirmLeave( () =>
     {
         Resume();
-        Game.ReturnToMenu();
+
+        if ( Application.IsEditor ) Game.Close();
+        else Game.ReturnToMenu();
     } );
 
     public override void Tick()

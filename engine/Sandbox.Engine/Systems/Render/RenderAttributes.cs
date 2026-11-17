@@ -16,6 +16,7 @@ namespace Sandbox;
 /// <seealso cref="Graphics.DrawModel(Model, Transform, RenderAttributes)"/>
 /// <seealso cref="ComputeShader.DispatchWithAttributes(RenderAttributes, int, int, int)"/>
 /// </summary>
+[Expose]
 public partial class RenderAttributes
 {
 	private CRenderAttributes attributes;

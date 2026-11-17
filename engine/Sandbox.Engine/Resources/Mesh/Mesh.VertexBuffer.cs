@@ -18,6 +18,10 @@ namespace NativeEngine
 
 namespace Sandbox
 {
+	/// <summary>
+	/// The semantic meaning of a vertex attribute.
+	/// </summary>
+	[Expose]
 	public enum VertexAttributeType
 	{
 		Position,
@@ -29,6 +33,10 @@ namespace Sandbox
 		BlendWeights,
 	}
 
+	/// <summary>
+	/// The numeric storage format of each vertex attribute component.
+	/// </summary>
+	[Expose]
 	public enum VertexAttributeFormat : uint
 	{
 		Float32,
@@ -41,6 +49,10 @@ namespace Sandbox
 		UInt8,
 	}
 
+	/// <summary>
+	/// Describes a vertex attribute's semantic, storage format and component count.
+	/// </summary>
+	[Expose]
 	public struct VertexAttribute
 	{
 		public VertexAttribute( VertexAttributeType type, VertexAttributeFormat format, int components = 3, int semanticIndex = 0 )

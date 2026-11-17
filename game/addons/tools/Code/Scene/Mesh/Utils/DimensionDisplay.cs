@@ -24,8 +24,9 @@ public static class DimensionDisplay
 
 		var cameraPos = Gizmo.LocalCameraTransform.Position;
 		var boxCenter = box.Center;
+		var viewDirection = Gizmo.LocalCameraTransform.Rotation.Forward.Abs();
 
-		if ( box.Size.x > 0.01f )
+		if ( box.Size.x > 0.01f && (!Gizmo.Camera.Ortho || viewDirection.x < 0.999f) )
 		{
 			var useMaxY = (cameraPos.y - boxCenter.y) > 0;
 			var useMaxZ = (cameraPos.z - boxCenter.z) > 0;
@@ -42,7 +43,7 @@ public static class DimensionDisplay
 			Gizmo.Draw.Line( lineStart, lineEnd );
 		}
 
-		if ( box.Size.y > 0.01f )
+		if ( box.Size.y > 0.01f && (!Gizmo.Camera.Ortho || viewDirection.y < 0.999f) )
 		{
 			var useMaxX = (cameraPos.x - boxCenter.x) > 0;
 			var useMaxZ = (cameraPos.z - boxCenter.z) > 0;
@@ -59,7 +60,7 @@ public static class DimensionDisplay
 			Gizmo.Draw.Line( lineStart, lineEnd );
 		}
 
-		if ( box.Size.z > 0.01f )
+		if ( box.Size.z > 0.01f && (!Gizmo.Camera.Ortho || viewDirection.z < 0.999f) )
 		{
 			var useMaxX = (cameraPos.x - boxCenter.x) > 0;
 			var useMaxY = (cameraPos.y - boxCenter.y) > 0;

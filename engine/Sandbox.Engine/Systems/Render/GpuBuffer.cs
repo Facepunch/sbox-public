@@ -63,6 +63,7 @@ namespace Sandbox;
 ///
 /// <seealso cref="ComputeShader"/>
 /// <seealso cref="RenderAttributes.Set(in StringToken, in GpuBuffer)"/>
+[Expose]
 public partial class GpuBuffer : IValid, IDisposable
 {
 	internal RenderBufferHandle_t native;

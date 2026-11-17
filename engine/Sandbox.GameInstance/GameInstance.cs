@@ -121,6 +121,7 @@ internal class GameInstance : IGameInstance
 		Game.Resources.Clear();
 
 		Sandbox.Engine.Shaders.GameShaders.Shutdown();
+		GameInstanceDll.Current.WorkshopItems.Clear();
 
 		if ( activePackage != null && !Application.IsStandalone )
 		{
@@ -330,13 +331,34 @@ internal class GameInstance : IGameInstance
 
 		LoadProjectSettings();
 
-		// If the host is a developer session, we don't want to load all game resources yet. This will be
-		// done via the network tables.
-		if ( !IsDeveloperHost )
+		// Clients wait for the host's scripts before deserializing resources that may use their types.
+		// Developer sessions also receive their resources through the network tables.
+		if ( !IsDeveloperHost && !Networking.IsClient )
 		{
 			Log.Trace( $"Loading GameResources" );
 
 			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
+		}
+
+		// Scan the game and map first so each addon runs once and can override their content.
+		// The host chooses the addons; joining clients install the same Workshop IDs.
+		if ( flags.Contains( GameLoadingFlags.Host ) && Package.TypeName == "game" && Package.Info.AllowsAddons )
+		{
+			LoadingScreen.Title = "Loading Workshop Addons";
+			Workshop.Item[] addons = [];
+			try
+			{
+				addons = await Workshop.GetEnabledAddonsAsync( Application.GameIdent, token );
+			}
+			catch ( Exception e ) when ( e is not OperationCanceledException )
+			{
+				Log.Warning( e, $"Couldn't query Workshop addons: {e.Message}" );
+			}
+
+			foreach ( var addon in addons )
+			{
+				await GameInstanceDll.Current.WorkshopItems.LoadAsync( addon.Id, Workshop.ItemType.Addon, token );
+			}
 		}
 
 		// Dedicated servers install packages that GameResources reference as they load, wait

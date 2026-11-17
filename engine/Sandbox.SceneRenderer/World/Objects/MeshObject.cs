@@ -58,11 +58,6 @@ public sealed class MeshObject : RenderObject
 	public bool WantsFrameBufferCopy { get; set; }
 
 	/// <summary>
-	/// Per-object attributes override view attributes and prevent instancing (<c>CBaseSceneObjectDesc</c>).
-	/// </summary>
-	public RenderAttributes Attributes { get; set; }
-
-	/// <summary>
 	/// Forward-only lightmap attributes below object attributes (<c>SetBakedLightingAttributes</c>).
 	/// Supplied by the bridge; prevents instancing.
 	/// </summary>

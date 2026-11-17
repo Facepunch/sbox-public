@@ -61,7 +61,7 @@ Layer0
 	TextureNormal "models/citizen_clothes/hair/legacy_hair/textures/straight_hair/hair_01_normal.png"
 
 	//---- Roughness ----
-	g_flRoughnessScaleFactor "0.059"
+	g_flRoughnessScaleFactor "0.099"
 	TextureRoughness "models/citizen_clothes/hair/legacy_hair/Textures/straight_hair/hair_02_rough.png"
 
 	//---- Texture Coordinates ----

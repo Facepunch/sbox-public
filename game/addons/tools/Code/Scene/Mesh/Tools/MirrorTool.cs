@@ -165,10 +165,13 @@ public partial class MirrorTool( string tool ) : EditorTool
 
 	static Vector3 SnapToPlaneGrid( Vector3 point, Vector3 planeNormal )
 	{
+		var frame = WorkPlane.Current;
+		point = frame.PointToLocal( point );
+		planeNormal = frame.NormalToLocal( planeNormal );
 		var rotation = Rotation.LookAt( planeNormal );
 		var local = point * rotation.Inverse;
 		local = Gizmo.Snap( local, new Vector3( 0, 1, 1 ) );
-		return local * rotation;
+		return frame.PointToWorld( local * rotation );
 	}
 
 	void UpdateMirrorPlane()
@@ -345,6 +348,10 @@ public partial class MirrorTool( string tool ) : EditorTool
 
 		if ( Gizmo.IsLeftMouseDown && !Gizmo.WasLeftMousePressed && _hitPlane is { } locked )
 			return PlaneTrace( locked );
+
+		if ( WorkPlane.IsActive )
+			return PlaneTrace( new Plane( WorkPlane.Current.Position,
+				Gizmo.Camera.Ortho ? -Gizmo.Camera.Rotation.Forward : WorkPlane.Current.Rotation.Up ) );
 
 		var tr = MeshTrace.Run();
 		if ( tr.Hit )

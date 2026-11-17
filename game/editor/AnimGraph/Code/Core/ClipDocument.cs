@@ -11,8 +11,8 @@ public sealed class ClipDocument : IAnimationDocument
 	[Property, Hide, ResourceType( "vmdl" ), Description( "Optional preview model. Leave empty to use the skeleton's preview model." )]
 	public string PreviewModel
 	{
-		get => ReadString( PreviewModelKey );
-		set => _root[PreviewModelKey] = value ?? "";
+		get => ReadResource( PreviewModelKey );
+		set => _root[PreviewModelKey] = ResourceReference.Write( ResourceId.FromPath( value ) );
 	}
 
 	[Property, Group( "Import" ), Title( "Animation File" ), FilePath( Extension = "fbx,dmx,smd" ), Description( "Choose a project animation, drag in a file, or browse for an FBX, DMX or SMD file on your computer." ), HideIf( nameof( UseMorphFrame ), true )]
@@ -25,8 +25,8 @@ public sealed class ClipDocument : IAnimationDocument
 	[Property, Group( "Import" ), Title( "Skeleton" ), ResourceType( "skel" )]
 	public string SkeletonName
 	{
-		get => ReadString( SkeletonKey );
-		set => _root[SkeletonKey] = AssetSystem.FindByPath( value )?.Path ?? value ?? "";
+		get => ReadResource( SkeletonKey );
+		set => _root[SkeletonKey] = ResourceReference.Write( ResourceId.FromPath( AssetSystem.FindByPath( value )?.Path ?? value ) );
 	}
 
 	[Property, Group( "Import Settings", StartFolded = true ), Editor( "animgraph.take" ), HideIf( nameof( HasSingleTake ), true ), Description( "Which animation to import when the source file contains several takes." )]
@@ -34,6 +34,13 @@ public sealed class ClipDocument : IAnimationDocument
 	{
 		get => ReadInt( TakeKey, 0 );
 		set => _root[TakeKey] = Math.Max( value, 0 );
+	}
+
+	[Property, Group( "Import Settings", StartFolded = true ), HideIf( nameof( UseMorphFrame ), true ), Description( "Reverse the animation after trimming the source frames." )]
+	public bool Reverse
+	{
+		get => ReadBool( ReverseKey, false );
+		set => _root[ReverseKey] = value;
 	}
 
 	[Property, Group( "Import Settings", StartFolded = true ), WideMode, Editor( "animgraph.frame-range" ), ShowIf( nameof( HasSourceFrames ), true ), HideIf( nameof( UseMorphFrame ), true ),
@@ -510,6 +517,7 @@ public sealed class ClipDocument : IAnimationDocument
 	private bool HasAdditive => AdditiveType != AdditiveMode.None;
 
 	private string ReadString( string key ) => _root[key] is JsonValue value && value.TryGetValue( out string text ) ? text : string.Empty;
+	private string ReadResource( string key ) => _root[key] is { } value ? ResourceReference.Read( value ).ResolvePath() ?? "" : "";
 	private int ReadInt( string key, int fallback ) => _root[key] is JsonValue value && value.TryGetValue( out int number ) ? number : fallback;
 	private float ReadFloat( string key, float fallback ) => _root[key] is JsonValue value && value.TryGetValue( out float number ) ? number : fallback;
 	private bool ReadBool( string key, bool fallback ) => _root[key] is JsonValue value && value.TryGetValue( out bool flag ) ? flag : fallback;
@@ -632,6 +640,13 @@ public sealed class ClipDocument : IAnimationDocument
 		{
 			get => ReadString( NameKey );
 			set => Json[NameKey] = value ?? string.Empty;
+		}
+
+		[Property, Title( "Fire During Transitions" ), Description( "Fire from non-active branches and below the normal 50% blend-weight threshold, including Blend1D/2D inputs. Different clips can each fire their event." )]
+		public bool FireDuringTransitions
+		{
+			get => Json["m_fireDuringTransitions"]?.GetValue<bool>() ?? false;
+			set => Json["m_fireDuringTransitions"] = value;
 		}
 
 		private JsonNode ReadData( string key ) => Json["m_eventData"]?[key];
@@ -783,6 +798,7 @@ public sealed class ClipDocument : IAnimationDocument
 		try
 		{
 			var document = new ClipDocument { FilePath = filePath, _root = root };
+			UpdateResourceReferences( root );
 			document.RebuildTracks();
 			document._savedState = document.CreateSnapshot();
 
@@ -870,6 +886,7 @@ public sealed class ClipDocument : IAnimationDocument
 				CopyMember( _root, document, key );
 		}
 
+		UpdateResourceReferences( document, _savedState );
 		if ( !Kv3Document.Write( FilePath, document ) )
 			return false;
 
@@ -881,6 +898,7 @@ public sealed class ClipDocument : IAnimationDocument
 	{
 		UpdateMorphFrameWeights();
 		UpdateMotionExtractionFrames();
+		UpdateResourceReferences( _root );
 		filePath = System.IO.Path.GetFullPath( filePath );
 		System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( filePath ) );
 		if ( !Kv3Document.Write( filePath, _root, overwrite: false ) )
@@ -909,6 +927,40 @@ public sealed class ClipDocument : IAnimationDocument
 		else
 			target.Remove( key );
 	}
+
+	private static void UpdateResourceReferences( JsonObject document, JsonObject previous = null )
+	{
+		foreach ( var key in new[] { SkeletonKey, PreviewModelKey } )
+		{
+			if ( document[key] is { } value )
+				document[key] = UpdateResourceReference( value, previous?[key] );
+		}
+
+		if ( document[SecondaryAnimationsKey] is JsonArray animations )
+		{
+			var previousAnimations = previous?[SecondaryAnimationsKey] as JsonArray;
+			for ( var i = 0; i < animations.Count; i++ )
+			{
+				var path = Sandbox.Json.FromNode<ResourceId>( animations[i] ).Path;
+				var known = previousAnimations?.FirstOrDefault( value => SameResourcePath( Sandbox.Json.FromNode<ResourceId>( value ).Path, path ) );
+				animations[i] = UpdateResourceReference( animations[i], known );
+			}
+		}
+	}
+
+	private static JsonNode UpdateResourceReference( JsonNode value, JsonNode previous )
+	{
+		var id = Sandbox.Json.FromNode<ResourceId>( value );
+		var known = Sandbox.Json.FromNode<ResourceId>( previous );
+		// The disk document can still contain a legacy path whose resource moved while this editor was open.
+		if ( id.Guid is null && known.Guid is not null && !string.IsNullOrWhiteSpace( id.Path ) && SameResourcePath( id.Path, known.Path ) )
+			return ResourceReference.Write( known );
+
+		return ResourceReference.Write( ResourceReference.Read( value ) );
+	}
+
+	private static bool SameResourcePath( string left, string right )
+		=> string.Equals( left?.Replace( '\\', '/' ), right?.Replace( '\\', '/' ), StringComparison.OrdinalIgnoreCase );
 
 	public Track AddTrack( string eventClass )
 	{
@@ -977,7 +1029,7 @@ public sealed class ClipDocument : IAnimationDocument
 	[SkipHotload]
 	private static readonly string[] ImportKeys =
 	[
-		SourceFilenameKey, SkeletonKey, TakeKey, StartFrameKey, EndFrameKey, ImportScaleKey, ImportFrameRateKey, DurationOverrideKey, DisableInterpolationKey,
+		SourceFilenameKey, SkeletonKey, TakeKey, ReverseKey, StartFrameKey, EndFrameKey, ImportScaleKey, ImportFrameRateKey, DurationOverrideKey, DisableInterpolationKey,
 		SmoothLoopKey, SmoothLoopFramesFromStartKey, SmoothLoopFramesFromEndKey,
 		StartLoopFrameKey, LinearDeltaKey, LinearDeltaSplineKey, MorphFrameWeightsKey,
 		AlignmentReferenceKey, AlignmentReferenceTakeKey, AlignmentBoneKey, AlignmentFrameModeKey, AlignmentFrameKey,
@@ -991,13 +1043,15 @@ public sealed class ClipDocument : IAnimationDocument
 	private static readonly string[] EditableKeys =
 	[
 		.. ImportKeys,
-		PreviewModelKey, TracksKey, AdditiveTypeKey, AdditiveModelSpaceKey, AdditiveBaseFileKey, AdditiveBaseTakeKey,
+		PreviewModelKey, SecondaryAnimationsKey, TracksKey, AdditiveTypeKey, AdditiveModelSpaceKey, AdditiveBaseFileKey, AdditiveBaseTakeKey,
 		AdditiveBaseStartFrameKey, AdditiveBaseEndFrameKey, AdditiveBaseFrameKey
 	];
 	private const string PreviewModelKey = "m_previewModel";
 	private const string SkeletonKey = "m_animationSkeletonName";
+	private const string SecondaryAnimationsKey = "m_secondaryAnimations";
 	private const string SourceFilenameKey = "m_sourceFilename";
 	private const string TakeKey = "m_nTake";
+	private const string ReverseKey = "m_bReverse";
 	private const string StartFrameKey = "m_nStartFrame";
 	private const string EndFrameKey = "m_nEndFrame";
 	private const string ImportScaleKey = "m_flImportScale";

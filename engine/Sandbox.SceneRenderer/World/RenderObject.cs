@@ -11,6 +11,11 @@ public abstract class RenderObject
 	public RenderWorld World { get; internal set; }
 
 	/// <summary>
+	/// Per-object shader attributes, overriding the view's attributes.
+	/// </summary>
+	public RenderAttributes Attributes { get; set; }
+
+	/// <summary>
 	/// Slot in the world's dense arrays. Changes when another object is removed.
 	/// </summary>
 	internal int Index { get; set; } = -1;
@@ -142,4 +147,10 @@ public enum LayerMatch : byte
 	/// Unsupported match: draws nowhere, including shadows.
 	/// </summary>
 	Unsupported,
+
+	/// <summary>Ordered tool geometry after post processing.</summary>
+	ToolOverlay,
+
+	/// <summary>Ordered screen-space tool geometry after post processing.</summary>
+	ToolScreenOverlay,
 }

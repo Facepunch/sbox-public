@@ -50,9 +50,12 @@ internal sealed class VolumetricFog : IDisposable
 		public fixed float BoxWorldToVolume[MaxVolumes * 16];
 		public fixed uint WidthHeightDepth[4];
 		public Vector4 OoWidthHeightDepth;
+		public fixed int FroxelMin[4];
+		public fixed int FroxelMax[4];
 	}
 
 	Constants constants;
+	Vector3Int litFroxels;
 	IntPtr constantBuffer;
 	Texture lighting, fogVolume;
 	readonly Texture[] accumulated = new Texture[2];
@@ -234,7 +237,9 @@ internal sealed class VolumetricFog : IDisposable
 		for ( int pass = 0; pass < 2; pass++ )
 		{
 			attributes.SetCombo( PassCombo, pass );
-			rc.Dispatch( computeShader, Width, Height, 1 );
+			// Lighting is a thread per froxel the volumes cover, integrating a thread per column
+			if ( pass == 1 ) rc.Dispatch( computeShader, Width, Height, 1 );
+			else if ( litFroxels.x > 0 && litFroxels.y > 0 && litFroxels.z > 0 ) rc.Dispatch( computeShader, litFroxels.x, litFroxels.y, litFroxels.z );
 		}
 
 		attributes.SetCombo( PassCombo, 0 );
@@ -286,8 +291,27 @@ internal sealed class VolumetricFog : IDisposable
 		constants.IndirectBBOffset = new( -(boxMin * bbScale), 0.0f );
 		constants.VolumeScaleShiftNearFar = new( 1.0f / Depth, 0.0f, near, clipRange );
 
-		// The volumes the view sees, in the world's order
+		// The volumes the view sees, in the world's order, and the froxels they cover
 		var count = 0;
+		var dx = (ray1 - ray0) / Width;
+		var dy = (ray2 - ray0) / Height;
+		var froxelMin = new Vector3( float.MaxValue );
+		var froxelMax = new Vector3( -float.MaxValue );
+
+		// A world box's corners in froxels, through the froxel rays and the fog's square root slices; one behind the near plane could be anywhere
+		void GrowFroxels( Vector3 worldMin, Vector3 worldMax )
+		{
+			for ( int c = 0; c < 8; c++ )
+			{
+				var point = new Vector3( (c & 1) != 0 ? worldMax.x : worldMin.x, (c & 2) != 0 ? worldMax.y : worldMin.y, (c & 4) != 0 ? worldMax.z : worldMin.z ) - camera;
+				var depth = Vector3.Dot( point, forward );
+				var ray = point / depth - ray0;
+				var behind = depth < near;
+				var froxel = behind ? new Vector3( Width, Height, 0 ) : new Vector3( Vector3.Dot( ray, dx ) / dx.LengthSquared, Vector3.Dot( ray, dy ) / dy.LengthSquared, MathF.Sqrt( (depth - near) / clipRange ) * Depth );
+				froxelMin = Vector3.Min( froxelMin, behind ? Vector3.Zero : froxel );
+				froxelMax = Vector3.Max( froxelMax, froxel );
+			}
+		}
 		var frustum = view.Frustum;
 		fixed ( Constants* c = &constants )
 			for ( int i = 0; i < volumes.Count && count < MaxVolumes; i++ )
@@ -306,8 +330,19 @@ internal sealed class VolumetricFog : IDisposable
 				Set4( c->BoxColorExponent, count, new( color.r, color.g, color.b, volume.Exponent ) );
 				*(Matrix*)(c->BoxWorldToVolume + count * 16) = worldToVolume;
 				count++;
+
+				GrowFroxels( worldMin, worldMax );
 			}
 		constants.NumFogVolumeBoundingBoxes[0] = count;
+
+		// One froxel wider each way for the TAA neighbourhood, two further back for the depth jitter. With no volumes min ends past max: nothing's lit
+		constants.FroxelMin[0] = Froxel( MathF.Floor( froxelMin.x ) - 1, Width );
+		constants.FroxelMin[1] = Froxel( MathF.Floor( froxelMin.y ) - 1, Height );
+		constants.FroxelMin[2] = Froxel( MathF.Floor( froxelMin.z ) - 1, Depth );
+		constants.FroxelMax[0] = Froxel( MathF.Ceiling( froxelMax.x ) + 1, Width );
+		constants.FroxelMax[1] = Froxel( MathF.Ceiling( froxelMax.y ) + 1, Height );
+		constants.FroxelMax[2] = Froxel( MathF.Ceiling( froxelMax.z ) + 2, Depth );
+		litFroxels = new( constants.FroxelMax[0] - constants.FroxelMin[0], constants.FroxelMax[1] - constants.FroxelMin[1], constants.FroxelMax[2] - constants.FroxelMin[2] );
 
 		var fadeStart = fadeInStart < 0.0f ? fadeInEnd + fadeInStart : fadeInStart;
 		if ( fadeInEnd > 0.0f && fadeStart < fadeInEnd )
@@ -328,6 +363,8 @@ internal sealed class VolumetricFog : IDisposable
 	}
 
 	static unsafe void Set4( float* array, int index, Vector4 value ) => *(Vector4*)(array + index * 4) = value;
+
+	static int Froxel( float froxel, int size ) => (int)Math.Clamp( froxel, 0, size );
 
 	/// <summary>
 	/// <c>CalculateBounds</c>: the box around every volume's corners in the world, which a baked fog texture covers.

@@ -1,0 +1,9 @@
+{
+  "$compiler": "texture",
+  "$source": "imagefile",
+  "data": {
+    "FilePath": "models/citizen_clothes/hat/tactical_helmet/tactical_helmet_army.clothing.png",
+    "Lossless": true
+  },
+  "compiled": null
+}

@@ -90,9 +90,21 @@ struct Cluster
             depth = 1.0 / positionSs.w;
         }
 
+        return Index( uv, depth );
+    }
+
+    // The flattened cluster at a viewport uv and view depth
+    static uint Index( float2 uv, float depth )
+    {
         depth = clamp( depth, ClusterZParams.z, ClusterZParams.w );
         uint3 d = max( uint3( ClusterCounts.xyz ), 1 );
         return Flatten( clamp( uint3( uv * d.xy, DepthToSlice( depth ) ), 0, d - 1 ) );
+    }
+
+    // The cluster at a viewport uv and view depth, for callers without a screen position
+    static ClusterRange Query( ClusterItemType type, float2 uv, float depth )
+    {
+        return Query( type, Index( uv, depth ) );
     }
 
     static ClusterRange Query( ClusterItemType type, float4 positionSs )

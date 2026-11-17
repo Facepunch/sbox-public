@@ -37,6 +37,7 @@ public struct NetDictionaryChangeEvent<TKey, TValue>
 /// </code>
 /// </para>
 /// </summary>
+[Expose]
 public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkReliable, INetworkProperty, IDisposable, IDictionary, IDictionary<TKey, TValue>, IReadOnlyDictionary<TKey, TValue>
 {
 	/// <summary>

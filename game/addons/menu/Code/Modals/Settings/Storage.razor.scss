@@ -2,7 +2,7 @@
 
 SettingsView .scroll.custom Storage
 {
-	.page-content { padding: 36px 32px; }
+	.page-content { padding: 20px 24px; }
 
 	.storage-content
 	{
@@ -11,7 +11,7 @@ SettingsView .scroll.custom Storage
 		align-self: center;
 		flex-direction: column;
 		flex-shrink: 0;
-		gap: 28px;
+		gap: 18px;
 		color: $platform-text;
 
 		> * { flex-shrink: 0; }
@@ -21,10 +21,10 @@ SettingsView .scroll.custom Storage
 	{
 		width: 100%;
 		flex-direction: column;
-		gap: 12px;
+		gap: 8px;
 	}
 
-	.storage-overview { gap: 18px; margin-bottom: 4px; }
+	.storage-overview { gap: 12px; margin-bottom: 0; }
 
 	.storage-overview-heading
 	{
@@ -54,15 +54,15 @@ SettingsView .scroll.custom Storage
 		margin-left: auto;
 	}
 
-	.storage-value { font-size: 30px; font-weight: 600; white-space: nowrap; }
-	.storage-heading { font-size: 17px; font-weight: 500; }
-	.storage-secondary { font-size: 14px; color: $platform-muted; }
-	.storage-footnote { font-size: 13px; color: $platform-faint; padding: 0 4px; }
+	.storage-value { font-size: 26px; font-weight: 600; white-space: nowrap; }
+	.storage-heading { font-size: 15px; font-weight: 500; }
+	.storage-secondary { font-size: 13px; color: $platform-muted; }
+	.storage-footnote { font-size: 12px; color: $platform-faint; padding: 0 4px; }
 
 	.storage-usage-bar
 	{
 		width: 100%;
-		height: 22px;
+		height: 14px;
 		flex-shrink: 0;
 		gap: 1px;
 		border-radius: $platform-radius;
@@ -85,8 +85,34 @@ SettingsView .scroll.custom Storage
 		gap: 12px;
 	}
 
-	.storage-overview-footer { margin-top: -10px; }
-	.storage-section-title { font-size: 16px; font-weight: 500; padding-left: 4px; }
+	.storage-overview-footer { margin-top: -6px; }
+	.storage-section-heading.end { justify-content: flex-end; }
+
+	// What each colour in the bar is, and how much
+	.storage-legend
+	{
+		flex-wrap: wrap;
+		gap: 6px 18px;
+	}
+
+	.storage-legend-entry
+	{
+		align-items: center;
+		gap: 6px;
+		font-size: 13px;
+
+		.storage-secondary { font-family: Inter; font-variant-numeric: tabular-nums; }
+	}
+
+	.storage-legend-dot
+	{
+		width: 8px;
+		height: 8px;
+		border-radius: 4px;
+	}
+
+	.cache { background-color: #647082; }
+	.storage-section-title { font-size: 15px; font-weight: 500; padding-left: 4px; }
 
 	.storage-group
 	{
@@ -96,36 +122,27 @@ SettingsView .scroll.custom Storage
 		overflow: hidden;
 	}
 
-	.storage-recommendation
+	.storage-heading-side
 	{
-		padding: 22px;
 		align-items: center;
-		flex-wrap: wrap;
-		gap: 16px;
+		gap: 12px;
 	}
 
-	.storage-cleanup-icon
+	// Asking before the cache's unused content goes - one row, its answer on the right
+	.storage-confirmation
 	{
-		@include platform-tile( 24px, 40px );
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+		padding: 12px 16px;
 	}
 
 	.storage-recommendation-copy
 	{
 		flex-direction: column;
 		flex-grow: 1;
-		flex-basis: 320px;
-		gap: 5px;
+		gap: 3px;
 	}
-
-	.storage-confirmation
-	{
-		flex-direction: column;
-		gap: 12px;
-		padding: 20px 22px;
-		border-top: 1px solid $platform-hairline;
-	}
-
-	.storage-confirmation-actions { justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
 	.button.storage-action
 	{
@@ -155,15 +172,19 @@ SettingsView .scroll.custom Storage
 	{
 		@include platform-table;
 		flex-shrink: 0;
+		// Clear of the note under it
+		margin-bottom: 8px;
 
+		// As tall as its rows - the page scrolls it, not a scroll of its own as well
 		> tbody
 		{
 			flex-grow: 0;
+			overflow: visible;
 			scrollbar-gutter: auto;
 
 			> tr
 			{
-				height: 44px;
+				height: 34px;
 				border-radius: 0;
 			}
 		}
@@ -186,6 +207,96 @@ SettingsView .scroll.custom Storage
 
 	// Inter, as the tables' other numbers are
 	.storage-type-size { font-family: Inter; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; color: $platform-text; }
+
+	// A kind's items - a row each, its picture beside its name
+	.workshop-table > tbody > tr { height: 40px; cursor: pointer; }
+
+	.workshop-thumb
+	{
+		width: 28px;
+		height: 28px;
+		flex-shrink: 0;
+		border-radius: $platform-radius;
+		background-size: cover;
+		background-position: center;
+		background-color: rgba( 6, 9, 16, 0.5 );
+	}
+
+	// Its tick box, over its picture - shown on hover, and on every row while anything's ticked
+	.workshop-thumb
+	{
+		position: relative;
+		overflow: hidden;
+		cursor: pointer;
+
+		.workshop-tick
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: 100%;
+			height: 100%;
+			align-items: center;
+			justify-content: center;
+			border-radius: $platform-radius;
+			border: 2px solid rgba( white, 0.7 );
+			background-color: rgba( 6, 9, 16, 0.55 );
+			opacity: 0;
+			transition: opacity 0.1s ease;
+
+			i { font-size: 18px; color: transparent; }
+		}
+
+		&:hover .workshop-tick { opacity: 1; }
+	}
+
+	.workshop-table.selecting .workshop-tick { opacity: 1; }
+
+	.workshop-table > tbody > tr.selected
+	{
+		background-color: rgba( $platform-selected, 0.1 );
+
+		.workshop-tick
+		{
+			opacity: 1;
+			border-color: $platform-selected;
+			background-color: rgba( $platform-selected, 0.85 );
+
+			i { color: white; }
+		}
+	}
+
+	.workshop-selection
+	{
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 10px;
+	}
+
+	.workshop-name { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+
+	.button.workshop-remove
+	{
+		@include platform-text-button( 28px, 12.5px, 15px );
+		flex-shrink: 0;
+		padding: 0 12px;
+		white-space: nowrap;
+	}
+
+	// Each kind's total - a row to click into
+	.workshop-kinds > tbody > tr
+	{
+		cursor: pointer;
+
+		&.none { opacity: 0.5; }
+	}
+
+	.workshop-chevron { font-size: 18px; color: $platform-muted; }
+
+	.workshop-kind-game { background-color: #608bc1; }
+	.workshop-kind-map { background-color: #bd9666; }
+	.workshop-kind-addon { background-color: #9180bf; }
 
 	.storage-empty { @include platform-empty; padding: 32px 20px; }
 	.storage-error { align-items: center; gap: 12px; padding: 16px 20px; border-radius: $platform-radius; background-color: rgba( $platform-danger, 0.08 ); color: $platform-danger; }

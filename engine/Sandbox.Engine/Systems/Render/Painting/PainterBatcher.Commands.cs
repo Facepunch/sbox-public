@@ -256,11 +256,19 @@ internal partial class PainterBatcher
 		DrawCalls++;
 	}
 
-	void Append( in UICssBoxBatched.BoxInstance instance, BlendMode blendMode )
+	/// <summary>
+	/// Sets the blend mode for the instances appended next, ending the batch if it changes.
+	/// </summary>
+	void SetBlendMode( BlendMode blendMode )
 	{
 		if ( _blendMode != blendMode ) FlushBatch();
 		_blendMode = blendMode;
 		if ( _hash.Layers > 0 ) _hash.Extra += HashCode.Combine( (int)blendMode, Count ); // The blend mode is a per-batch combo, not instance data
+	}
+
+	void Append( in UICssBoxBatched.BoxInstance instance, BlendMode blendMode )
+	{
+		SetBlendMode( blendMode );
 		Add( instance );
 		TrackBackdropWrite( instance );
 	}

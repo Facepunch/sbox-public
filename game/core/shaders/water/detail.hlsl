@@ -9,6 +9,7 @@ Texture2D g_tDetailNormal < Channel( RGB, Box( DetailNormal ), Linear ); OutputF
 // animates the layers with DetailTime, its own clock keeping the phase when the speed changes.
 float DetailScale < Default( 376.988 ); Range( 1, 4096 ); UiGroup( "Detail,20/20" ); >;
 float DetailSpeed < Default( 0.607 ); Range( 0, 10 ); UiGroup( "Detail,20/30" ); >;
+FloatAttribute( DetailSpeed, DetailSpeed );
 float DetailStrength < Default( 0.156 ); Range( 0, 4 ); UiGroup( "Detail,20/40" ); >;
 float DetailTime < Attribute( "DetailTime" ); Default( 0 ); >;
 SamplerState TextureFiltering < Filter( ANISOTROPIC ); MaxAniso( 8 ); >;

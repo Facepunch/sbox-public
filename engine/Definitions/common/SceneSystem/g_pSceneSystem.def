@@ -75,6 +75,11 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
     void DeleteSceneObject( CSceneObject pObj );
     void DeleteSceneObjectAtFrameEnd( CSceneObject pObj );
 
+	inline CSceneObject CreateSceneObjectFromBuffers( ISceneWorld world, VertexBufferHandle_t vertices, IndexBufferHandle_t indices, IMaterial material, int vertexCount, int indexCount, BBox bounds, RenderPrimitiveType primitiveType )
+	{
+		return g_pSceneSystem->CreateSceneObjectFromBuffers( world, vertices, indices, material, vertexCount, indexCount, bounds.m_vMinBounds, bounds.m_vMaxBounds, primitiveType, nullptr, true );
+	}
+
     CSceneSkyBoxObject CreateSkyBox( IMaterial skyMaterial, ISceneWorld world );
     CDecalSceneObject CreateDecal( ISceneWorld world );
 

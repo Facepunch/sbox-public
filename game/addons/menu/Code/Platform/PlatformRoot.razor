@@ -1,4 +1,4 @@
-@using System;
+﻿@using System;
 @using System.Linq;
 @using Sandbox;
 @using Sandbox.UI;
@@ -43,13 +43,17 @@
 
     @if ( SettingsPage is not null && !PlatformMenu.IsSwitching )
     {
-        <PlatformSettings Category=@SettingsPage OnClose=@CloseSettings />
+        <PlatformSettings @ref="SettingsPanel" Category=@SettingsPage OnClose=@CloseSettings />
     }
 
     <div class="catcher @(ClicksOff ? "on" : "")" onclick=@ClickedOff></div>
 
-    <FriendsPanel @ref="FriendsSide" Open=@(FriendsOpen && !PlatformMenu.IsSwitching) />
-    <RewardsPanel @ref="RewardsSide" Open=@(RewardsOpen && !PlatformMenu.IsSwitching) />
+	<div class="side-area">
+		<div class="inner">
+			<FriendsPanel @ref="FriendsSide" Open=@(FriendsOpen && !PlatformMenu.IsSwitching) />
+			<RewardsPanel @ref="RewardsSide" Open=@(RewardsOpen && !PlatformMenu.IsSwitching) />
+		</div>
+	</div>
 
     <Dock @ref="DockPanel" />
 
@@ -68,7 +72,14 @@
 
     ShelfPanel Shelves;
 
+    PlatformSettings SettingsPanel;
+
     public string Shelf => Shelves.IsValid() ? Shelves.Url : null;
+
+    /// <summary>
+    /// The modal up on the shelf, if it's one (ShowModal)
+    /// </summary>
+    public MenuProject.Modals.BaseModal ShelfModal => Shelves.IsValid() ? Shelves.Modal : null;
 
     public Package ShownPackage { get; private set; }
 
@@ -82,11 +93,9 @@
     {
         get
         {
+            if ( Application.IsEditor ) return Paused || Shelf is not null || SettingsPage is not null;
             if ( PlatformMenu.IsSwitching ) return true;
             if ( LoadingScreen.IsVisible ) return false;
-
-            // Under the avatar editor, which is a scene of its own
-            if ( MenuHelpers.InAvatarEditor ) return false;
 
             return PlatformMenu.CanSwitch || Paused || Shelf is not null || SettingsPage is not null;
         }
@@ -138,7 +147,8 @@
             return;
         }
 
-        if ( side == SidePanel.Rewards && !CanDressUp ) return;
+        // Not while your drop's being opened
+        if ( side == SidePanel.Rewards && (!CanDressUp || Shelf == PlatformShelf.Unbox) ) return;
 
         PutAwaySide();
         Side = side;
@@ -205,11 +215,24 @@
 
         if ( Shelf is not null )
         {
+            if ( Shelves.Modal is { } modal && modal.Back() ) return;
+
             if ( Shelves.CurrentPanel is GameDetailShelf page && page.BackPage() ) return;
 
             if ( Shelves.CurrentPanel is AvatarShelf avatar && avatar.BackOut() ) return;
 
-            if ( !Shelves.Back() ) Shelves.Close();
+            if ( Shelves.Back() ) return;
+
+            // Opened from settings - back to them
+            if ( backToSettings is { } category )
+            {
+                // Let go first - putting the page away would forget where in settings it came from
+                backToSettings = null;
+                ToggleSettings( category );
+                return;
+            }
+
+            Shelves.Close();
             return;
         }
 
@@ -220,7 +243,40 @@
         Paused = !Paused;
     }
 
-    public void Resume() => Paused = false;
+    public void Resume()
+    {
+        Paused = false;
+        pausedForModal = false;
+    }
+
+    /// <summary>
+    /// Paused for a modal, not by Escape - it goes with the modal
+    /// </summary>
+    bool pausedForModal;
+
+    /// <summary>
+    /// A modal's come up in a game being played - the platform comes up under it, paused with the dock, so there's a way
+    /// out of the game straight from it. Back to the game once it's gone.
+    /// </summary>
+    public void PauseForModal()
+    {
+        if ( PlatformMenu.CanSwitch || Paused ) return;
+
+        Paused = true;
+        pausedForModal = true;
+    }
+
+    /// <summary>
+    /// The modal it was paused for is gone - and nothing else is up in its place
+    /// </summary>
+    void TickModalPause()
+    {
+        if ( !pausedForModal ) return;
+        if ( !Paused ) { pausedForModal = false; return; }
+        if ( Shelf is not null || SettingsPage is not null || (ModalSystem.Instance?.HasOverlayModalsOpen ?? false) ) return;
+
+        Resume();
+    }
 
     /// <summary>
     /// A press anywhere on the menu folds the party window back into the dock - and still goes to what was pressed.
@@ -252,25 +308,34 @@
 
     public static bool CanDressUp => PlatformMenu.CanSwitch;
 
-    static bool CanShow( string url ) => url != PlatformShelf.Avatar || CanDressUp;
+    /// <summary>
+    /// Your avatar and your drop's opening are only for a menu - not over a game being played
+    /// </summary>
+    static bool CanShow( string url ) => (url != PlatformShelf.Avatar && url != PlatformShelf.Unbox) || CanDressUp;
 
     public void ToggleShelf( string url )
     {
         if ( !CanShow( url ) ) return;
 
-        var up = Shelf == url;
-        PutAway();
+        LeaveSettings( () =>
+        {
+            var up = Shelf == url;
+            PutAway();
 
-        if ( up ) Shelves?.Close();
-        else Shelves?.Show( url, fromDock: true );
+            if ( up ) Shelves?.Close();
+            else Shelves?.Show( url, fromDock: true );
+        } );
     }
 
     public void OpenShelf( string url )
     {
         if ( Shelf == url || !CanShow( url ) ) return;
 
-        PutAway();
-        Shelves?.Show( url, fromDock: true );
+        LeaveSettings( () =>
+        {
+            PutAway();
+            Shelves?.Show( url, fromDock: true );
+        } );
     }
 
     /// <summary>
@@ -278,8 +343,11 @@
     /// </summary>
     public void Browse( string query, Storage.SortOrder? sort = null )
     {
-        PutAway();
-        Shelves?.Show( PlatformShelf.BrowseFor( query, sort ) );
+        LeaveSettings( () =>
+        {
+            PutAway();
+            Shelves?.Show( PlatformShelf.BrowseFor( query, sort ) );
+        } );
     }
 
     /// <summary>
@@ -288,25 +356,81 @@
     public void ToggleSettings( string category = "" )
     {
         var page = SettingsPage is not null && string.IsNullOrEmpty( category ) ? null : category ?? "";
+
+        // Only putting it away asks - another category keeps what's edited
+        if ( page is null )
+        {
+            LeaveSettings( () =>
+            {
+                PutAway();
+                Shelves?.Close();
+            } );
+            return;
+        }
+
         PutAway();
         Shelves?.Close();
         SettingsPage = page;
+        PauseForModal();
     }
 
-    public void CloseSettings() => SettingsPage = null;
+    public void CloseSettings() => LeaveSettings( () => SettingsPage = null );
 
-    public void CloseAll()
+    /// <summary>
+    /// Everything put away - then <paramref name="then"/>, once settings has let go of anything unsaved
+    /// </summary>
+    public void CloseAll( Action then = null ) => LeaveSettings( () =>
     {
         Shelves?.Close();
         SettingsPage = null;
         Side = SidePanel.None;
+        then?.Invoke();
+    } );
+
+    /// <summary>
+    /// Settings going with edits that aren't saved asks first - then <paramref name="then"/>, once they're let go.
+    /// Straight to it when settings isn't up or has nothing unsaved.
+    /// </summary>
+    void LeaveSettings( Action then )
+    {
+        if ( SettingsPage is null || !SettingsPanel.IsValid() || !SettingsPanel.IsDirty || ModalSystem.Instance is not { } modals )
+        {
+            then();
+            return;
+        }
+
+        modals.Open( new MenuProject.Modals.QuestionModal
+        {
+            Color = Color.Parse( "#ff5d6a" ) ?? Color.Red,
+            Title = "#menu.settings.unsaved_changes",
+            Message = "#menu.settings.unsaved_changes_will_be_lost",
+            ConfirmText = "#menu.settings.discard_changes",
+            ConfirmIcon = "delete",
+            CancelText = "#menu.settings.keep_editing",
+            OnConfirm = () =>
+            {
+                SettingsPage = null;
+                then();
+            }
+        } );
     }
 
     void PutAway()
     {
         PutAwaySide();
         SettingsPage = null;
+
+        if ( backToSettings is not null )
+        {
+            backToSettings = null;
+            MenuProject.Settings.Storage.ReturnKind = null;
+        }
     }
+
+    /// <summary>
+    /// The settings category a page was opened from (Storage's Workshop items) - escaping the page goes back to it
+    /// </summary>
+    string backToSettings;
 
     /// <summary>
     /// Whatever shelf or settings is under it stays.
@@ -334,16 +458,57 @@
     {
         if ( string.IsNullOrEmpty( ident ) ) return;
 
-        ShownPackage = package;
-        PutAway();
-        Shelves?.Show( PlatformShelf.Game( ident, page ) );
+        var from = SettingsPage is null ? null : SettingsPanel.IsValid() ? SettingsPanel.CurrentCategory : SettingsPage;
+
+        LeaveSettings( () =>
+        {
+            ShownPackage = package;
+            PutAway();
+            Shelves?.Show( PlatformShelf.Game( ident, page ) );
+            backToSettings = from;
+        } );
+
+        PauseForModal();
     }
 
+    /// <summary>
+    /// A modal up out of the dock, as a page of the shelf - back goes to the shelf it was opened from, if one was up
+    /// </summary>
+    public void ShowModal( MenuProject.Modals.BaseModal modal )
+    {
+        LeaveSettings( () =>
+        {
+            PutAway();
+            Shelves?.Show( ModalShelf.UrlFor( modal ) );
+        } );
+
+        PauseForModal();
+    }
+
+    /// <summary>
+    /// <paramref name="modal"/>'s done - back to what it was opened from, or the shelf put away
+    /// </summary>
+    public void CloseModal( MenuProject.Modals.BaseModal modal )
+    {
+        if ( modal is null || !Shelves.IsValid() || Shelves.Modal != modal ) return;
+        if ( !Shelves.Back() ) Shelves.Close();
+    }
+
+    /// <summary>
+    /// A game picked - switched to, or its page if it's the one the platform's on already
+    /// </summary>
     public void Picked( Package package )
     {
-        Shelves?.Close();
+        if ( package is null ) return;
 
-        if ( package is null || PlatformMenu.IsCurrent( package ) ) return;
+        // Its page rather than going to it - the one on already, or in the editor, where games aren't switched
+        if ( PlatformMenu.IsCurrent( package ) || !PlatformMenu.CanChangeGame )
+        {
+            ShowGame( package );
+            return;
+        }
+
+        Shelves?.Close();
 
         SwitchWhenLeft( () => PlatformMenu.SwitchTo( package ) );
     }
@@ -353,9 +518,21 @@
     /// </summary>
     public void Picked( WorkshopItemDetails item )
     {
-        Shelves?.Close();
+        if ( item is null ) return;
 
-        if ( item is null || item.Id == PlatformMenu.CurrentId ) return;
+        if ( item.Id == PlatformMenu.CurrentId )
+        {
+            ShowGame( item.KeyValues.GetValueOrDefault( "package" ) ?? PlatformMenu.Ident, PlatformMenu.Current );
+            return;
+        }
+
+        if ( !PlatformMenu.CanChangeGame )
+        {
+            ShowGame( item.KeyValues.GetValueOrDefault( "package" ) );
+            return;
+        }
+
+        Shelves?.Close();
 
         SwitchWhenLeft( () => PlatformMenu.SwitchTo( item.Id ) );
     }
@@ -382,11 +559,11 @@
     {
         base.Tick();
 
-        MenuHelpers.TickAvatarEditor();
-
         // Started or back on its menu since - not paused any more
         if ( Paused && PlatformMenu.CanSwitch )
-            Paused = false;
+            Resume();
+
+        TickModalPause();
 
         // A game started under the avatar shelf - it goes, it's only for a menu
         if ( Shelf is { } shelf && !CanShow( shelf ) )

@@ -201,7 +201,7 @@ public static class SceneEditorMenus
 		{
 			foreach ( var go in gos )
 			{
-				go.WorldPosition = go.WorldPosition.SnapToGrid( gridSpacing );
+				go.WorldPosition = WorkPlane.Snap( WorkPlane.Current, go.WorldPosition, gridSpacing );
 			}
 		}
 

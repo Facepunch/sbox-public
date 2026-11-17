@@ -42,11 +42,8 @@ FriendsListModal
 		{
 			position: absolute;
 		}
-	}
 
-	// Off the platform's dock, like a shelf - everything round it still pressable, nothing closing it but the dock
-	&.anchored.on-platform
-	{
+		// Off the dock, like a shelf - everything round it still pressable, nothing closing it but the dock
 		pointer-events: none;
 
 		.modal-background

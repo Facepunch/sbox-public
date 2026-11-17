@@ -1,14 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading;
 
 namespace Editor;
 
-public sealed class SceneCompileSession
+public sealed class SceneCompileSession : AssetSystem.IEventListener
 {
 	public static SceneCompileSession Current { get; } = new();
+
+	static readonly ConditionalWeakTable<Asset, SourceStatus> SourceStatuses = new();
+	sealed record SourceStatus( string Path,
+		(long Length, DateTime Modified) Source, (long Length, DateTime Modified) Binary, (long Length, DateTime Modified) Bake,
+		DateTime Generations, bool IsCompiled );
 
 	SceneCompiler.Sources _sources;
 	SceneCompilerSettings _settings = new();
@@ -37,6 +43,7 @@ public sealed class SceneCompileSession
 	public bool Running { get; private set; }
 	public bool Cancelling => Running && _cancel.IsCancellationRequested;
 	public bool HasResult { get; private set; }
+	public bool IsCompiled { get; private set; }
 	public string Status => Cancelling ? "Cancelling" : _status;
 	string _status = "";
 	public float Fraction { get; private set; }
@@ -81,6 +88,38 @@ public sealed class SceneCompileSession
 	}
 
 	SceneCompileSession() => EditorEvent.Register( this );
+
+	public static bool HasCurrentBake( Asset asset )
+	{
+		var path = asset?.GetSourceFile( true );
+		if ( string.IsNullOrEmpty( path ) )
+			return false;
+
+		var source = FileStamp( path );
+		var binary = FileStamp( path + "_d" );
+		var bakePath = SceneResourceCompiler.GetBakePath( path );
+		var bake = FileStamp( bakePath );
+		var generations = Directory.GetLastWriteTimeUtc( Path.Combine( Path.GetDirectoryName( bakePath ), "compiled" ) );
+		if ( SourceStatuses.TryGetValue( asset, out var cached ) && cached.Path == path
+			&& cached.Source == source && cached.Binary == binary && cached.Bake == bake && cached.Generations == generations )
+			return cached.IsCompiled;
+
+		var status = new SourceStatus( path, source, binary, bake, generations, SceneResourceCompiler.IsBakeCurrent( path ) );
+		SourceStatuses.AddOrUpdate( asset, status );
+		return status.IsCompiled;
+	}
+
+	static (long Length, DateTime Modified) FileStamp( string path )
+	{
+		var file = new FileInfo( path );
+		return file.Exists ? (file.Length, file.LastWriteTimeUtc) : (-1, default);
+	}
+
+	void AssetSystem.IEventListener.OnAssetChanged( Asset asset )
+	{
+		if ( !Running && asset.Path == _path )
+			Refresh();
+	}
 
 	[EditorEvent.Frame]
 	void FollowActiveScene()
@@ -142,6 +181,7 @@ public sealed class SceneCompileSession
 		_playing = Game.IsPlaying;
 		_sources = null;
 		_scanError = null;
+		IsCompiled = false;
 		if ( Game.IsPlaying || editor is not { IsPrefabSession: false } || !scene.IsValid() )
 		{
 			_scanError = Game.IsPlaying ? "Stop playing before compiling." : "Open a scene to compile.";
@@ -151,6 +191,7 @@ public sealed class SceneCompileSession
 		try
 		{
 			_sources = SceneCompiler.Scan( scene, out _scanError );
+			IsCompiled = !_unsaved && HasCurrentBake( _sources?.Asset );
 		}
 		catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException )
 		{
@@ -190,6 +231,7 @@ public sealed class SceneCompileSession
 			Line( $"{Report.MeshCount} meshes, {Report.PropCount} props to compile" );
 			Cancel.ThrowIfCancellationRequested();
 			var summary = await SceneCompiler.Compile( _sources, _settings, this );
+			IsCompiled = true;
 			Finish( "Done", summary );
 		}
 		catch ( OperationCanceledException )

@@ -39,6 +39,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	public void Bootstrap()
 	{
 		Current = this;
+		Sandbox.WorkshopItems.Current = WorkshopItems;
 
 		GlobalContext.Current.Reset();
 		GlobalContext.Current.LocalAssembly = GetType().Assembly;
@@ -80,6 +81,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		PackageLoader?.Dispose();
 		PackageLoader = new PackageLoader( "GameMenu", typeof( GameInstanceDll ).Assembly );
+		GlobalContext.Current.ReplaceScriptAssembly = PackageLoader.ReplaceScriptAssembly;
 		PackageLoader.HotloadWatch( Game.GameAssembly ); // Sandbox.Game is per instance
 		PackageLoader.OnAfterHotload = OnAfterHotload;
 
@@ -91,7 +93,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		ResetEnvironment();
 		Networking.StartThread();
 
-		if ( !Application.IsStandalone )
+		if ( !Application.IsStandalone && !Application.IsEditor )
 		{
 			await Mounting.MountConfig.Mount();
 		}
@@ -163,17 +165,20 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			PackageLoader = null;
 
 			PackageLoader = new PackageLoader( "GameMenu", typeof( GameInstanceDll ).Assembly );
+			GlobalContext.Current.ReplaceScriptAssembly = PackageLoader.ReplaceScriptAssembly;
 			PackageLoader.HotloadWatch( Game.GameAssembly ); // Sandbox.Game is per instance
 			PackageLoader.OnAfterHotload = OnAfterHotload;
 		}
 
 		if ( !menuResourcesCurrent ) ResourceLoader.Clear();
+		WorkshopItems.Clear();
 
 		if ( DidMountNetworkedFiles )
 		{
 			EngineFileSystem.Mounted.UnMount( NetworkedLargeFiles.Files );
 			EngineFileSystem.Mounted.UnMount( NetworkedSmallFiles.Files );
 			EngineFileSystem.ProjectSettings.UnMount( NetworkedConfigFiles.Files );
+			Game.Language.FileSystem.UnMount( NetworkedLangFiles.Files );
 			DidMountNetworkedFiles = false;
 		}
 
@@ -184,6 +189,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		AssemblyEnroller = null;
 
 		CodeArchiveTable.Reset();
+		ScriptTable.Reset();
+		NetworkScriptsReady = false;
+		DidLoadNetworkedResources = false;
 		NetworkedSmallFiles.Reset();
 		NetworkedConfigFiles.Reset();
 		NetworkedLangFiles.Reset();
@@ -557,6 +565,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		// Run any pending queue'd mainthread tasks here
 		// so they're in the same scene scope
 		MainThread.RunQueues();
+		GlobalContext.Current.TickScripting();
 	}
 
 	private void RunGameFrame( Scene activeScene )

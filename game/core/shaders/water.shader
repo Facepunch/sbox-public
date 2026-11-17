@@ -195,7 +195,7 @@ PS
 	// Lit colour, and how much of it covers the captured scene behind: zero transmits it, one is opaque.
 	float3 SurfaceColor < UiType( Color ); Default3( 0.01, 0.171, 0.262 ); UiGroup( "Surface,10/10" ); >;
 	float Opacity < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Surface,10/20" ); >;
-	float g_fRoughness < Default( 0.02 ); Range( 0, 1 ); UiGroup( "Surface,10/30" ); >;
+	float g_fRoughness < Default( 0 ); Range( 0, 1 ); UiGroup( "Surface,10/30" ); >;
 
 	// The same, seen from below.
 	float3 UndersideColor < UiType( Color ); Default3( 0.01, 0.171, 0.262 ); UiGroup( "Underside,50/10" ); >;
@@ -214,25 +214,36 @@ PS
 	float WaterFogDepthCurve < Default( 0.5 ); Range( 0.1, 4 ); UiGroup( "Through-Surface Fog,35/30" ); >;
 	bool WaterFogDistance < Default( 0 ); UiGroup( "Through-Surface Fog,35/40" ); >;
 	float WaterFogAttenuationDistance < Default( 128 ); Range( 1, 4096 ); UiGroup( "Through-Surface Fog,35/50" ); >;
+	// Retain CPU-only parameters in compiled materials, even though no GPU instruction reads them.
+	Float3Attribute( WaterFogColor, WaterFogColor );
+	FloatAttribute( WaterFogStart, WaterFogDepthRange.x );
+	FloatAttribute( WaterFogEnd, WaterFogDepthRange.y );
+	FloatAttribute( WaterFogDepthCurve, WaterFogDepthCurve );
+	BoolAttribute( WaterFogDistance, WaterFogDistance );
+	FloatAttribute( WaterFogAttenuationDistance, WaterFogAttenuationDistance );
 
 	// Caustics the WaterBody projects onto what's below, animated with the detail normals. Only the CPU reads them;
 	// the texture attribute keeps the texture in the compiled material.
 	CreateInputTexture2D( Caustics, Linear, 8, "", "", "Caustics,40/10", Default3( 1, 1, 1 ) );
-	Texture2D g_tCaustics < Channel( RGB, Box( Caustics ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+	// The projector uses alpha as coverage; RGB-only packing would leave it at zero.
+	Texture2D g_tCaustics < Channel( RGBA, Box( Caustics ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
 	TextureAttribute( WaterCaustics, g_tCaustics );
 	float CausticsIntensity < Default( 1 ); Range( 0, 8 ); UiGroup( "Caustics,40/15" ); >;
-	float CausticsBrightness < Default( 4 ); Range( 0, 16 ); UiGroup( "Caustics,40/20" ); >;
+	float CausticsBrightness < Default( 1 ); Range( 0, 16 ); UiGroup( "Caustics,40/20" ); >;
 	float CausticsContrast < Default( 1 ); Range( 0, 8 ); UiGroup( "Caustics,40/30" ); >;
+	float CausticsScale < Default( 1 ); Range( 0.01, 16 ); UiGroup( "Caustics,40/35" ); >;
+	FloatAttribute( CausticsIntensity, CausticsIntensity );
+	FloatAttribute( CausticsBrightness, CausticsBrightness );
+	FloatAttribute( CausticsContrast, CausticsContrast );
+	FloatAttribute( CausticsScale, CausticsScale );
 
 	#include "water/lighting.hlsl"
 
-	// Exact dielectric Fresnel, including the critical angle and total internal reflection from below.
-	float WaterFresnel( float cosine, bool underwater )
+	// Exact dielectric Fresnel for the surface viewed from air.
+	float WaterFresnel( float cosine )
 	{
-		float eta = underwater ? 1.333 : 1 / 1.333;
+		float eta = 1 / 1.333;
 		float sinTransmitted2 = eta * eta * (1 - cosine * cosine);
-		if ( sinTransmitted2 >= 1 )
-			return 1;
 		float transmitted = sqrt( 1 - sinTransmitted2 );
 		float rs = (eta * cosine - transmitted) / max( eta * cosine + transmitted, 0.0001 );
 		float rp = (eta * transmitted - cosine) / max( eta * transmitted + cosine, 0.0001 );
@@ -259,11 +270,8 @@ PS
 			return DepthNormals::Output( m.Normal, m.Roughness, 1 );
 
 		float2 uv = CalculateViewportUv( i.vPositionSs.xy );
-		float4 undersideReflection = 0;
-		if ( underwater && ReflectionEnabled )
-			undersideReflection = DynamicReflections::Sample( i.vPositionSs.xy - g_vViewportOffset, sqrt( saturate( m.Roughness ) ) );
-		float fresnel = WaterFresnel( saturate( dot( m.Normal, view ) ), underwater );
-		float reflectedCoverage = ReflectionEnabled ? fresnel * (underwater ? saturate( undersideReflection.a ) : 1) : 0;
+		float fresnel = !underwater && ReflectionEnabled ? WaterFresnel( saturate( dot( m.Normal, view ) ) ) : 0;
+		float reflectedCoverage = fresnel;
 		float transmission = HasRefractionTexture ? 1 - saturate( underwater ? UndersideOpacity : Opacity ) : 0;
 		float3 refraction = 0;
 		if ( HasRefractionTexture )
@@ -286,14 +294,13 @@ PS
 		float3 capturedReflection = 0;
 		float captureWeight = 0;
 		float3 reflection = 0;
-		if ( ReflectionEnabled )
+		if ( !underwater && ReflectionEnabled )
 		{
 			// Planar water whose view rendered no reflection for its plane, because another plane covers more of
 			// the screen or this one too little, uses screen-space reflections like any other water.
-			if ( underwater || ReflectionMode != REFLECTION_MODE_PLANAR || !WaterHasPlanarReflection() )
+			if ( ReflectionMode != REFLECTION_MODE_PLANAR || !WaterHasPlanarReflection() )
 			{
-				float4 screen = underwater ? undersideReflection
-					: DynamicReflections::Sample( i.vPositionSs.xy - g_vViewportOffset, sqrt( saturate( m.Roughness ) ) );
+				float4 screen = DynamicReflections::Sample( i.vPositionSs.xy - g_vViewportOffset, sqrt( saturate( m.Roughness ) ) );
 				captureWeight = saturate( screen.a );
 				capturedReflection = screen.rgb * captureWeight;
 			}
@@ -308,7 +315,7 @@ PS
 				}
 			}
 			reflection = capturedReflection;
-			if ( !underwater && captureWeight < 1 )
+			if ( captureWeight < 1 )
 				reflection += SampleWaterEnvironment( m, view, m.Normal, m.Roughness ) * (1 - captureWeight);
 		}
 		return WaterShade( m, lightingInput, reflection, capturedReflection, captureWeight, fresnel, transmitted, transmittedCoverage, underwater );

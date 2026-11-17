@@ -135,6 +135,10 @@ static class StartupLoadProject
 		Project.Current.LastOpened = DateTime.Now;
 		project.Active = true;
 
+		// defer this until after we've loaded the project, so if we're opening a mount addon we don't do it twice
+		Sandbox.Mounting.Directory.LoadSources();
+		await EditorUtility.Projects.WaitForCompiles();
+
 		Step( "Initializing asset system" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Init AssetSystem" ) )
 		{

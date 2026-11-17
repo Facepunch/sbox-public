@@ -1,0 +1,94 @@
+@import "/Platform/_platform.scss";
+
+// The sidebar and panel layout are shared with CreateGamePage and ServersPage.
+AddonsPage
+{
+	@include platform-side;
+
+	// Just this page: where platform-side puts the heading and rail, but a game's types under the selected source can
+	// make the rail longer than there's room for - then the space above the heading gives way and both push up. The
+	// heading's in line rather than placed, so it goes up with the rail, and as tall as the gap platform-side leaves
+	// between them (31.5vh to 38vh).
+	.side
+	{
+		padding-top: 0;
+		padding-bottom: 24px;
+	}
+
+	.side > .above
+	{
+		height: 31.5vh;
+		min-height: 10vh;
+		flex-shrink: 1;
+	}
+
+	.side > .heading
+	{
+		position: relative;
+		top: 0;
+		height: 6.5vh;
+		flex-shrink: 0;
+	}
+
+	// Only once it's as far up as it goes does it give way too - it scrolls, faded where there's more (railFade)
+	.side > .rail
+	{
+		flex-shrink: 0.001;
+		min-height: 0;
+		overflow-y: scroll;
+	}
+
+	// The selected source while one of its types is picked - lit, not filled
+	.rail .tab.open
+	{
+		i, label
+		{
+			color: $platform-selected;
+		}
+
+		label
+		{
+			font-weight: 700;
+		}
+	}
+
+	// The game's addon types, nested under the selected source
+	.rail .tab.type
+	{
+		padding: 4px 14px 4px 40px;
+
+		label
+		{
+			font-size: 13px;
+			color: $platform-muted;
+		}
+
+		&.on label
+		{
+			color: $platform-selected-text;
+		}
+	}
+
+	> .panel > .body
+	{
+		padding: 12px;
+
+		.empty
+		{
+			@include platform-shelf-empty;
+		}
+
+		.grid
+		{
+			flex-grow: 1;
+			min-height: 0;
+		}
+	}
+
+	.button
+	{
+		@include platform-button( 30px );
+		padding: 0 12px;
+		font-size: 12px;
+	}
+}

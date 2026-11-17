@@ -115,6 +115,10 @@ internal static class NativeLayers
 				LayerFlags.NeverRemove | LayerFlags.NeedsPerViewLightingConstants | LayerFlags.CountArtistTriangles );
 			opaque.LayerEnum = SceneLayerType.Opaque;
 			if ( occlusionCulled ) opaque.m_nLayerFlags |= LayerFlags.OcclusionCulled;
+
+			// Otherwise each recording thread instances its own share, and a mesh is drawn once per thread
+			opaque.m_nLayerFlags |= LayerFlags.SortAcrossPartitions;
+
 			opaque.DisableReflectionsAndRefractionsForObjectsInThisLayer( true );
 			opaque.AddObjectFlagsRequiredMask( SceneObjectFlags.IsOpaque );
 			opaque.AddObjectFlagsExcludedMask( SceneObjectFlags.IsLight | SceneObjectFlags.ExcludeGameLayer );

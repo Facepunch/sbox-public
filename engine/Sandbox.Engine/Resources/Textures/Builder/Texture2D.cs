@@ -3,7 +3,11 @@ using System.Runtime.InteropServices;
 
 namespace Sandbox
 {
-	public struct Texture2DBuilder
+	/// <summary>
+	/// Configures and creates a two-dimensional texture.
+	/// </summary>
+	[Expose]
+	public partial struct Texture2DBuilder
 	{
 		internal TextureBuilder config = new();
 		internal int Width { set => config._config.m_nWidth = (short)value; }
@@ -17,6 +21,7 @@ namespace Sandbox
 		internal int _dataLength = 0;
 		internal IntPtr _dataPtr = IntPtr.Zero;
 		internal bool _asAnonymous = true;
+		private Sequence[] _sequences;
 
 		internal bool HasData
 		{
@@ -249,6 +254,9 @@ namespace Sandbox
 					throw new Exception( $"{_dataLength} is wrong for this texture! {memoryRequiredForTexture:n0} bytes are required (or {memoryRequiredForTextureWithMips:n0} with mips)! You sent {_dataLength:n0} bytes!" );
 				}
 			}
+
+			if ( _sequences is not null )
+				return FinishWithSequences();
 
 			if ( _dataPtr != IntPtr.Zero )
 			{

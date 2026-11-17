@@ -20,10 +20,9 @@ public partial class PartyDeck : Panel
 	public static PartyDeck Instance { get; private set; }
 
 	/// <summary>
-	/// On the platform menu as wide as the friends list off the dock (FriendsListModal.MinWidth), so the two read as one set
+	/// As wide as the friends list off the dock (FriendsListModal.MinWidth), so the two read as one set
 	/// </summary>
 	const float WindowWidth = 384;
-	const string PositionCookie = "party.window.position";
 
 	/// <summary>
 	/// The floating window owned and configured by this party view.
@@ -31,9 +30,6 @@ public partial class PartyDeck : Panel
 	public FloatingWindow Window { get; private set; }
 
 	float? cornerBottom;
-	FloatingWindow positionedWindow;
-	Vector2? savedWindowPosition;
-	Vector2? lastWindowPosition;
 	bool windowVisible;
 
 	/// <summary>
@@ -44,12 +40,7 @@ public partial class PartyDeck : Panel
 		Instance = this;
 	}
 
-	bool InParty => !LoadingView.IsVisible && (Draft is not null || PartyView.Exists && (InMainMenu || PausePage is not null || OnPlatform && ShownOnPlatform));
-
-	/// <summary>
-	/// The platform menu's up rather than the main menu - the party's brought up from its dock, and pinned over it
-	/// </summary>
-	internal static bool OnPlatform => Platform.PlatformMenu.Enabled;
+	bool InParty => !LoadingView.IsVisible && (Draft is not null || PartyView.Exists && ShownOnPlatform);
 
 	/// <summary>
 	/// Brought up from the platform menu's dock - its party button toggles it
@@ -61,22 +52,10 @@ public partial class PartyDeck : Panel
 	/// </summary>
 	internal static Panel PlatformAnchor { get; set; }
 
-	static bool InMainMenu => !Game.InGame && MainMenu.Instance.IsValid() && MainMenu.Instance.Active;
-
-	/// <summary>
-	/// In a game, the pause menu while it's up - the deck lives in it, over its shade. Not while it's
-	/// hidden back in the game, or on its way out.
-	/// </summary>
-	static Panel PausePage => Modals.PauseMenuModal.PauseModal.Open is { IsDeleting: false } pause ? pause : null;
-
 	void UpdateWindow()
 	{
 		if ( windowVisible && !InParty )
-		{
-			SaveWindowPosition();
-			positionedWindow = null;
 			sizedHeight = 0;
-		}
 		windowVisible = InParty;
 
 		Current = InParty ? this : null;
@@ -84,20 +63,15 @@ public partial class PartyDeck : Panel
 		var leaving = Children.Any( x => x is FloatingWindow { IsDeleting: true } );
 		Style.Display = InParty || leaving ? DisplayMode.Flex : DisplayMode.None;
 
-		// On the platform menu it's unseen till it's pinned over the dock, then fades up into place - not a frame of
-		// it wherever it was before
-		if ( Window.IsValid() )
-		{
-			Window.SetClass( "on-platform", OnPlatform );
-			if ( !InParty ) Window.SetClass( "pinned", false );
-		}
+		// Unseen till it's pinned over the dock, then fades up into place - not a frame of it wherever it was before
+		if ( Window.IsValid() && !InParty )
+			Window.SetClass( "pinned", false );
 
-		Rehome();
 		EaseHeight();
 
 		if ( InParty && Window.IsValid() && !Window.IsMinimized && !Window.IsAnimating )
 		{
-			PositionWindow();
+			PinOverDock();
 		}
 
 		KeepToastsClear();
@@ -125,58 +99,6 @@ public partial class PartyDeck : Panel
 
 		sizedHeight = next;
 		Sizer.Style.Height = Length.Pixels( sizedHeight );
-	}
-
-	void Rehome()
-	{
-		// Keep the window on the same input surface while it is moving.
-		if ( Window is { IsDragging: true } or { IsAnimating: true } ) return;
-
-		var page = !Game.InGame && MainMenu.Instance.IsValid() ? MainMenu.Instance.Panel?.FindPopupPanel() : PausePage;
-		var home = InParty && page.IsValid() ? page : MenuOverlay.Instance;
-		if ( !home.IsValid() || Parent == home ) return;
-
-		Parent = home;
-		StateHasChanged();
-	}
-
-	void PositionWindow()
-	{
-		if ( OnPlatform )
-		{
-			PinOverDock();
-			return;
-		}
-
-		if ( positionedWindow != Window )
-		{
-			positionedWindow = Window;
-			savedWindowPosition = Game.Cookies.Get<Vector2?>( PositionCookie, null );
-			lastWindowPosition = null;
-		}
-
-		var page = MainMenu.Instance?.Panel;
-		var pageScale = page.IsValid() ? page.ScaleToScreen : ScaleToScreen;
-		var bounds = FindRootPanel().Box.Rect;
-		var height = Window.Box.Rect.Height;
-		var width = Math.Min( WindowWidth * pageScale, bounds.Width );
-		Window.Style.Width = width * Window.ScaleFromScreen;
-		if ( bounds.Width <= 0 || bounds.Height <= 0 || height <= 0 ) return;
-
-		var position = Window.Box.Rect.Position;
-		if ( !Window.HasBeenDragged )
-		{
-			position = savedWindowPosition is { } saved && float.IsFinite( saved.x ) && float.IsFinite( saved.y )
-				? bounds.Position + saved * bounds.Size
-				: bounds.Center - new Vector2( width, height ) * 0.5f;
-			position = new Vector2(
-				Math.Clamp( position.x, bounds.Left, Math.Max( bounds.Left, bounds.Right - width ) ),
-				Math.Clamp( position.y, bounds.Top, Math.Max( bounds.Top, bounds.Bottom - height ) ) );
-			Window.MoveTo( position );
-		}
-
-		// Store a fraction of the viewport so the position survives resolution changes.
-		lastWindowPosition = (position - bounds.Position) / bounds.Size;
 	}
 
 	/// <summary>
@@ -241,23 +163,6 @@ public partial class PartyDeck : Panel
 		Window.Style.Transform = transform;
 	}
 
-	void SaveWindowPosition()
-	{
-		// Where the dock puts it isn't where it goes on the main menu
-		if ( OnPlatform ) return;
-		if ( lastWindowPosition is null ) return;
-
-		// Keep the last expanded position when closing a minimized or hidden window.
-		if ( Window.IsValid() && Window == positionedWindow && Window.IsVisible && !Window.IsMinimized && !Window.IsAnimating && Window.HasBeenDragged )
-		{
-			var bounds = FindRootPanel().Box.Rect;
-			if ( bounds.Width > 0 && bounds.Height > 0 )
-				lastWindowPosition = (Window.Box.Rect.Position - bounds.Position) / bounds.Size;
-		}
-
-		Game.Cookies.Set( PositionCookie, lastWindowPosition.Value );
-	}
-
 	void KeepToastsClear()
 	{
 		var corner = MenuOverlay.Instance?.NotificationCorner;
@@ -284,7 +189,6 @@ public partial class PartyDeck : Panel
 	/// </summary>
 	public override void OnDeleted()
 	{
-		SaveWindowPosition();
 		Draft?.Cancel();
 
 		if ( Current == this ) Current = null;

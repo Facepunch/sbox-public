@@ -1,0 +1,9 @@
+{
+  "$compiler": "texture",
+  "$source": "imagefile",
+  "data": {
+    "FilePath": "models/citizen_clothes/jumper/sleeveless_jumper/sleeveless_jumper_grey.clothing.png",
+    "Lossless": true
+  },
+  "compiled": null
+}

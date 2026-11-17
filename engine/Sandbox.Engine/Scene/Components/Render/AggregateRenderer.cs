@@ -24,7 +24,7 @@ public readonly record struct AggregateFragmentInfo( BBox Bounds )
 [Title( "Aggregate Renderer" )]
 [Category( "Rendering" )]
 [Icon( "dynamic_feed" )]
-public sealed class AggregateRenderer : Component, Component.ExecuteInEditor, IHasModel
+public sealed class AggregateRenderer : Renderer, Component.ExecuteInEditor, IHasModel
 {
 	public static int MaxFragments => SceneAggregateObject.MaxFragments;
 
@@ -92,6 +92,7 @@ public sealed class AggregateRenderer : Component, Component.ExecuteInEditor, IH
 	protected override void OnDisabled()
 	{
 		Transform.OnTransformChanged -= Rebuild;
+		BackupRenderAttributes( _aggregate?.Attributes );
 		_aggregate?.Delete();
 		_aggregate = null;
 	}
@@ -105,6 +106,7 @@ public sealed class AggregateRenderer : Component, Component.ExecuteInEditor, IH
 
 	void Rebuild()
 	{
+		BackupRenderAttributes( _aggregate?.Attributes );
 		_aggregate?.Delete();
 		_aggregate = null;
 
@@ -143,6 +145,13 @@ public sealed class AggregateRenderer : Component, Component.ExecuteInEditor, IH
 
 		_aggregate.Tags.SetFrom( Tags );
 		_aggregate.ColorTint = Tint;
+		OnSceneObjectCreated( _aggregate );
+		RenderOptions.Apply( _aggregate );
+	}
+
+	protected override void OnRenderOptionsChanged()
+	{
+		if ( _aggregate.IsValid() ) RenderOptions.Apply( _aggregate );
 	}
 
 	/// <summary>

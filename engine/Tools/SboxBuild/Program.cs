@@ -33,6 +33,7 @@ internal class Program
 		AddNvPatchCommand( rootCommand );
 		AddSignBinariesCommand( rootCommand );
 		AddBuildAddonsCommand( rootCommand );
+		AddBuildMountCommand( rootCommand );
 		AddUploadSymbolsCommand( rootCommand );
 		AddUploadDocsCommand( rootCommand );
 		AddSentryReleaseCommand( rootCommand );
@@ -316,6 +317,25 @@ internal class Program
 	{
 		var cmd = new Command( "build-addons", "Build addons and menu" );
 		cmd.SetHandler( () => { Environment.ExitCode = (int)new BuildAddons().Run(); } );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddBuildMountCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "build-mount", "Compile mount addons into game/mounts/ " );
+		var projectOption = new Option<string[]>( "--project",
+			description: "Mount .sbproj(s) to build.",
+			getDefaultValue: () => [] )
+		{ AllowMultipleArgumentsPerToken = true };
+		var outOption = new Option<string>( "--out",
+			description: "Directory to put each mount's folder in. Defaults to game/mounts/",
+			getDefaultValue: () => null );
+		cmd.AddOption( projectOption );
+		cmd.AddOption( outOption );
+		cmd.SetHandler( ( string[] projects, string output ) =>
+		{
+			Environment.ExitCode = (int)new BuildMount( projects, output ).Run();
+		}, projectOption, outOption );
 		rootCommand.Add( cmd );
 	}
 

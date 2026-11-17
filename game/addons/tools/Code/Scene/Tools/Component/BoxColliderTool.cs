@@ -22,7 +22,7 @@ public class BoxColliderTool : EditorTool<BoxCollider>
 
 		using ( Gizmo.Scope( "Box Collider Editor", boxCollider.WorldTransform ) )
 		{
-			if ( Gizmo.Control.BoundingBox( "Bounds", currentBox, out var newBox ) )
+			if ( Gizmo.Control.UpdateBoundingBox( "Bounds", currentBox, out var newBox ) )
 			{
 				_componentUndoScope ??= SceneEditorSession.Active.UndoScope( "Resize Box Collider" )
 					.WithComponentChanges( boxCollider ).Push();
@@ -30,6 +30,7 @@ public class BoxColliderTool : EditorTool<BoxCollider>
 				boxCollider.Center = newBox.Center;
 				boxCollider.Scale = newBox.Size;
 			}
+			Gizmo.Draw.BoundingBox( "Bounds", BBox.FromPositionAndSize( boxCollider.Center, boxCollider.Scale ) );
 		}
 	}
 }

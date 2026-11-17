@@ -348,7 +348,10 @@ public static partial class Gizmo
 			if ( spacing == default ) spacing = new Vector2( 32, 32 );
 			var so = VertexObject( Graphics.PrimitiveType.Triangles, GridMaterial );
 
-			so.Attributes.Set( "GridOrigin", center );
+			so.Attributes.Set( "GridOrigin", Transform.PointToWorld( center ) );
+			so.Attributes.Set( "GridForward", Transform.Rotation.Forward * Transform.Scale.x );
+			so.Attributes.Set( "GridLeft", Transform.Rotation.Left * Transform.Scale.y );
+			so.Attributes.Set( "GridUp", Transform.Rotation.Up * Transform.Scale.z );
 			so.Attributes.Set( "GridAxis", (int)axis );
 			so.Attributes.Set( "GridScale", spacing );
 			so.Attributes.Set( "MinorLineWidth", minorLineWidth );

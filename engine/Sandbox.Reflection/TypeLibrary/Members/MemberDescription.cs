@@ -15,6 +15,12 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 	internal DisplayInfo displayInfo;
 
 	/// <summary>
+	/// Whether this member has a real CLR reflection handle that can be embedded in
+	/// compiled expressions. Logical members must use their virtual reflection accessors.
+	/// </summary>
+	internal bool IsRuntimeMember => MemberInfo?.GetType().Assembly == typeof( Type ).Assembly;
+
+	/// <summary>
 	/// The type that we're a member of
 	/// </summary>
 	public TypeDescription TypeDescription { get; protected set; }

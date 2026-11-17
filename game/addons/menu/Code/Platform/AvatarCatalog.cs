@@ -35,7 +35,10 @@ public static class AvatarCatalog
 
 		foreach ( var clothing in ResourceLibrary.GetAll<Clothing>() )
 		{
-			if ( !clothing.ResourcePath.StartsWith( "models/citizen_clothes/" ) ) continue;
+			// Built-in player models live alongside their model assets in Default Content.
+			if ( !clothing.ResourcePath.StartsWith( "models/citizen_clothes/" )
+				&& !(clothing.ReplacesBody && clothing.ResourcePath.StartsWith( "models/player/" )) )
+				continue;
 
 			all.Add( clothing );
 		}
@@ -83,7 +86,7 @@ public static class AvatarCatalog
 		clothing.SteamItemDefinitionId is { } id ? Inventory.Items.Count( x => x.DefinitionId == id ) : 0;
 
 	public static Inventory.ItemDefinition Definition( Clothing clothing ) =>
-		clothing.SteamItemDefinitionId is { } id ? Inventory.Definitions.FirstOrDefault( x => x.Id == id ) : null;
+		clothing.SteamItemDefinitionId is { } id ? Inventory.FindDefinition( id ) : null;
 
 	static Dictionary<string, Inventory.ItemDefinition> fromWorkshop;
 	static int fromWorkshopWith = -1;

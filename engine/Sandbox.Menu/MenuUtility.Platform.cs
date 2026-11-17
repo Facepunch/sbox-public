@@ -5,13 +5,6 @@ namespace Sandbox;
 public static partial class MenuUtility
 {
 	/// <summary>
-	/// The platform menu - s&amp;box opens on a game's own menu, with a dock to switch games - instead of the main menu.
-	/// Changed, the menu restarts onto the other one (MenuDll).
-	/// </summary>
-	[MenuConVar( "menu_platform", Help = "Use the platform menu - games open on their own menu, with a dock to switch games. Switches straight away.", Saved = true )]
-	public static bool PlatformMenu { get; set; }
-
-	/// <summary>
 	/// The part of the screen that's the game's (<see cref="Screen.SafeArea"/>) - what the platform menu leaves clear,
 	/// its dock over a game's own menu. Null gives it the whole screen again.
 	/// </summary>
@@ -53,8 +46,7 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
-	/// The first couple of dozen games on the Workshop in <paramref name="sort"/>'s order - just the ones that can be
-	/// played here, through <see cref="FetchWorkshopGameAsync"/>
+	/// The first couple of dozen games on the Workshop in <paramref name="sort"/>'s order.
 	/// </summary>
 	public static async Task<WorkshopItemDetails[]> FindWorkshopGamesAsync( Sandbox.Storage.SortOrder sort )
 	{
@@ -73,7 +65,7 @@ public static partial class MenuUtility
 	/// Games on the Workshop, a page at a time - for a list that loads more as it's
 	/// scrolled. With <paramref name="mine"/>, just what you've published - friends only and private too.
 	/// </summary>
-	public static WorkshopGameSearch SearchWorkshopGames( string search = null, Sandbox.Storage.SortOrder? sort = null, IEnumerable<string> tags = null, bool mine = false )
+	public static WorkshopItemSearch SearchWorkshopGames( string search = null, Sandbox.Storage.SortOrder? sort = null, IEnumerable<string> tags = null, bool mine = false )
 	{
 		var query = new Workshop.Query( search ).WithType( Workshop.ItemType.Game );
 
@@ -86,7 +78,7 @@ public static partial class MenuUtility
 		if ( sort is { } order )
 			query.WithSort( WorkshopSort( order ) );
 
-		return new WorkshopGameSearch( query );
+		return new WorkshopItemSearch( query );
 	}
 
 	static Workshop.SortOrder WorkshopSort( Sandbox.Storage.SortOrder sort ) => sort switch
@@ -104,7 +96,7 @@ public static partial class MenuUtility
 	/// Maps on the Workshop, a page at a time - for a list that loads more as it's scrolled. With
 	/// <paramref name="subscribed"/>, just the ones you're subscribed to.
 	/// </summary>
-	public static WorkshopGameSearch SearchWorkshopMaps( string search = null, Sandbox.Storage.SortOrder? sort = null, bool subscribed = false )
+	public static WorkshopItemSearch SearchWorkshopMaps( string search = null, Sandbox.Storage.SortOrder? sort = null, bool subscribed = false )
 	{
 		var query = new Workshop.Query( search ).WithType( Workshop.ItemType.Map );
 
@@ -114,7 +106,7 @@ public static partial class MenuUtility
 		if ( sort is { } order )
 			query.WithSort( WorkshopSort( order ) );
 
-		return new WorkshopGameSearch( query );
+		return new WorkshopItemSearch( query );
 	}
 
 	/// <summary>
@@ -141,28 +133,28 @@ public static partial class MenuUtility
 		var featured = await Package.FindAsync( "type:game in:facepunch.featured-games", count );
 		var ids = await Task.WhenAll( (featured?.Packages ?? []).Select( GetWorkshopIdAsync ) );
 
-		return await DetailsOfGamesAsync( await FetchWorkshopItemsInOrderAsync( ids.Where( x => x != 0 ).Distinct().ToArray() ) );
+		return await DetailsOfItemsAsync( await FetchWorkshopItemsInOrderAsync( ids.Where( x => x != 0 ).Distinct().ToArray() ) );
 	}
 
 	/// <summary>
 	/// Your Workshop games - the ones in <paramref name="recent"/> first, in that order, then everything else installed
-	/// here. Just the ones that can be played here, through <see cref="FetchWorkshopGameAsync"/>.
+	/// here.
 	/// </summary>
 	public static async Task<WorkshopItemDetails[]> FindYourWorkshopGamesAsync( IReadOnlyCollection<ulong> recent )
 	{
 		var played = await FetchWorkshopItemsInOrderAsync( recent );
 		var installed = await new Workshop.Query().WithType( Workshop.ItemType.Game ).WithInstalled().RunAsync();
 
-		return await DetailsOfGamesAsync( played.Concat( installed?.Items ?? [] ) );
+		return await DetailsOfItemsAsync( played.Concat( installed?.Items ?? [] ) );
 	}
 
 	/// <summary>
-	/// The games you've favourited on the Workshop - just the ones that can be played here
+	/// The games you've favourited on the Workshop.
 	/// </summary>
 	public static async Task<WorkshopItemDetails[]> FindFavouriteWorkshopGamesAsync()
 	{
 		var favourites = await new Workshop.Query().WithType( Workshop.ItemType.Game ).WithFavourited().RunAsync();
-		return await DetailsOfGamesAsync( favourites?.Items ?? [] );
+		return await DetailsOfItemsAsync( favourites?.Items ?? [] );
 	}
 
 	/// <summary>
@@ -177,13 +169,13 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
-	/// The details of the ones of these that are games that can be played here, once each - who made them asked of Steam
+	/// The details of Workshop items, once each, with their creators' names requested from Steam.
 	/// </summary>
-	internal static async Task<WorkshopItemDetails[]> DetailsOfGamesAsync( IEnumerable<Workshop.Item> items )
+	internal static async Task<WorkshopItemDetails[]> DetailsOfItemsAsync( IEnumerable<Workshop.Item> items )
 	{
-		var games = items.Where( x => x?.PackageIdent is not null ).DistinctBy( x => x.Id ).ToArray();
+		var uniqueItems = items.Where( x => x is not null ).DistinctBy( x => x.Id ).ToArray();
 
-		await RequestOwnerNamesAsync( games );
-		return games.Select( WorkshopItemDetails.From ).ToArray();
+		await RequestOwnerNamesAsync( uniqueItems );
+		return uniqueItems.Select( WorkshopItemDetails.From ).ToArray();
 	}
 }

@@ -580,7 +580,7 @@ internal static partial class DevTools
 			if ( vram > 0.8f )
 			{
 				issues.Add( new Issue( vram > 0.95f ? Severity.Bad : Severity.Warning, "Video memory",
-					$"{DevToolsFormat.BytesOf( GpuProfilerStats.VideoMemoryUsed, GpuProfilerStats.VideoMemoryBudget )} ({vram * 100:0}%)", "memory" ) );
+					$"{DevToolsFormat.BytesOf( GpuProfilerStats.VideoMemoryUsed, GpuProfilerStats.VideoMemoryBudget )} ({vram * 100:0}%)", "vram" ) );
 			}
 		}
 
@@ -650,10 +650,10 @@ internal static partial class DevTools
 		var pool = Ratio( f.TexturePoolUsedBytes, f.TexturePoolLimitBytes );
 		if ( pool >= TexturePoolWarn )
 			into.Add( new( pool >= TexturePoolBad ? Severity.Bad : Severity.Warning, "Texture pool",
-				$"{pool * 100:0}% used, {DevToolsFormat.BytesOf( f.TexturePoolUsedBytes, f.TexturePoolLimitBytes )}, streaming drops mips when it's full", "memory" ) );
+				$"{pool * 100:0}% used, {DevToolsFormat.BytesOf( f.TexturePoolUsedBytes, f.TexturePoolLimitBytes )}, streaming drops mips when it's full", "vram" ) );
 
 		if ( f.PendingStreamingRequests > StreamingWarn )
-			into.Add( new( Severity.Info, "Streaming backlog", $"{f.PendingStreamingRequests:N0} pending", "memory" ) );
+			into.Add( new( Severity.Info, "Streaming backlog", $"{f.PendingStreamingRequests:N0} pending", "vram" ) );
 
 		// Debug settings that change what renders, easy to forget about
 		if ( OcclusionDebug.Freeze )

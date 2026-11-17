@@ -75,7 +75,7 @@ PartySettings
 		margin-top: 2px;
 	}
 
-	.settings-row, .game-row
+	.settings-row
 	{
 		align-items: center;
 		gap: 8px;
@@ -104,72 +104,13 @@ PartySettings
 		min-height: 32px;
 	}
 
-	.game-choice
-	{
-		@include platform-text-button( 40px, 12.5px, 20px );
-
-		flex-grow: 1;
-		flex-shrink: 1;
-		min-width: 0;
-		justify-content: flex-start;
-		padding: 5px 8px;
-		gap: 8px;
-
-		.icon
-		{
-			flex-shrink: 0;
-		}
-
-		.button-right-column
-		{
-			flex-grow: 1;
-			min-width: 0;
-		}
-	}
-
-	.game-action
-	{
-		@include platform-tool( 32px );
-
-		width: 32px;
-		padding: 0;
-	}
-
-	.game-choice > .icon-texture
-	{
-		width: 28px;
-		height: 28px;
-		flex-shrink: 0;
-		border-radius: 4px;
-		object-fit: cover;
-	}
-
-	.game-choice .button-text, .party-name
+	.party-name
 	{
 		flex-grow: 1;
 		min-width: 0;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-	}
-
-	.game-setup-summary
-	{
-		@include platform-surface;
-		gap: 8px;
-		padding: 12px;
-
-		> div { align-items: center; gap: 8px; }
-		icon { font-family: "Material Icons"; color: $platform-muted; font-size: 16px; flex-shrink: 0; }
-		label { flex-shrink: 1; }
-	}
-
-	.configure-game
-	{
-		@include platform-text-button( 30px, 12.5px, 15px );
-		padding: 0 12px;
-		justify-content: center;
-		margin-top: 4px;
 	}
 
 	.settings-error { color: $platform-danger; }

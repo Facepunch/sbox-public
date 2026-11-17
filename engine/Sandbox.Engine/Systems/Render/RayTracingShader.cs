@@ -99,7 +99,6 @@ internal class RayTracingShader
 		if ( !indirectBuffer.Usage.Contains( GpuBuffer.UsageFlags.IndirectDrawArguments ) )
 			throw new ArgumentException( $"Buffer must have the required usage flag '{GpuBuffer.UsageFlags.IndirectDrawArguments}'", nameof( indirectBuffer ) );
 
-		// Use RenderTools.TraceRaysIndirect when it becomes available, for now use the material mode directly
 		var mode = RayTracingMaterial.native.GetMode();
 		RenderTools.TraceRaysIndirect( Graphics.Context, attributes.Get(), mode, indirectBuffer.native, indirectElementOffset * 12 );
 	}

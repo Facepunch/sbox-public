@@ -87,6 +87,7 @@ internal partial class NetworkSystem
 	void StartHandshake( Connection channel )
 	{
 		channel.HandshakeId = Guid.NewGuid();
+		var gameWorkshopId = Application.GamePackage is { InstallsFromWorkshop: true } game ? game.WorkshopId : 0;
 
 		var hello = new ServerInfo
 		{
@@ -96,7 +97,8 @@ internal partial class NetworkSystem
 			MapName = Networking.MapName,
 			EngineVersion = 234,
 			GamePackage = Application.GamePackage?.GetIdent( false, true ) ?? Application.GameIdent ?? "",
-			GameWorkshopVersion = Application.GamePackage is { InstallsFromWorkshop: true } game ? Workshop.GetInstalledVersion( game.WorkshopId ) : 0,
+			GameWorkshopId = gameWorkshopId,
+			GameWorkshopVersion = gameWorkshopId != 0 ? Workshop.GetInstalledVersion( gameWorkshopId ) : 0,
 			Map = Application.Map,
 			Host = new ChannelInfo { Id = Connection.Local.Id },
 			HostSteamId = Connection.Local.SteamId,

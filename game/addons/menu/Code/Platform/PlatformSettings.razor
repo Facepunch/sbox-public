@@ -26,14 +26,39 @@
 
     SettingsView View;
 
+    /// <summary>
+    /// Edited and not saved yet - lost when it goes
+    /// </summary>
+    public bool IsDirty => View?.Catalog.IsDirty ?? false;
+
+    /// <summary>
+    /// The category it's on now - not just the one it opened on
+    /// </summary>
+    public string CurrentCategory => View?.Category ?? Category;
+
+    readonly ScrollFade rowsFade = new( 32 );
+
     public override void Tick()
     {
         base.Tick();
 
-        var body = View?.Children.FirstOrDefault( x => x.HasClass( "body" ) );
-
         // Its rows fading off under the bar and over the buttons when there's more of them than fits, as the platform's
-        // lists do
-        ScrollFade.Apply( body?.Children.FirstOrDefault( x => x.HasClass( "scroll" ) ), 32 );
+        // lists do. A page with its own markup (Key Binds, Storage) scrolls its own content, not the box it's in.
+        var scroll = ChildWithClass( ChildWithClass( View, "body" ), "scroll" );
+        if ( scroll is not null && scroll.HasClass( "custom" ) && scroll.ChildrenCount > 0 )
+            scroll = ChildWithClass( scroll.GetChild( 0 ), "page-content" ) ?? scroll;
+
+        rowsFade.Apply( scroll );
+    }
+
+    // By index - it's every frame, and walking Children allocates
+    static Panel ChildWithClass( Panel panel, string name )
+    {
+        for ( var i = 0; i < (panel?.ChildrenCount ?? 0); i++ )
+        {
+            if ( panel.GetChild( i ) is { } child && child.HasClass( name ) ) return child;
+        }
+
+        return null;
     }
 }

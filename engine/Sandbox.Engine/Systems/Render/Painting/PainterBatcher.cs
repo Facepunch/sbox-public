@@ -197,7 +197,7 @@ internal partial class PainterBatcher
 		attributes.Set( "LayerMat", target.LayerMatrix );
 		if ( target.GammaOutput.HasValue ) attributes.Set( "UIGammaOutput", target.GammaOutput.Value );
 		attributes.SetCombo( "D_POLYGON_POINTS", _polygonPointTable.Count > 0 ? 1 : 0 );
-		foreach ( var table in _tables ) table.Upload( _frameIndex, attributes );
+		foreach ( var table in _tables ) table.Bind( _frameIndex, attributes );
 		GpuFontGlyphCache.Bind( attributes );
 		attributes.Set( "InstanceOffset", offset );
 		attributes.SetCombo( "D_BLENDMODE", (int)_blendMode );
@@ -209,8 +209,16 @@ internal partial class PainterBatcher
 	internal void BindScissor( CommandList.AttributeAccess attributes, int index )
 	{
 		if ( Graphics.IsAvailable )
-			_scissorTable.Upload( _frameIndex, attributes );
+			_scissorTable.Bind( _frameIndex, attributes );
 		attributes.Set( "PainterScissorIndex", index );
+	}
+
+	/// <summary>
+	/// Writes everything recorded draws read into the GPU tables. Called when painting ends, before the commands can run.
+	/// </summary>
+	internal void UploadTables()
+	{
+		foreach ( var table in _tables ) table.Upload();
 	}
 
 	internal sealed class HashState { internal int Layers, Ordinal, Extra; }
@@ -221,19 +229,23 @@ internal partial class PainterBatcher
 		int Sum { get; }
 		HashState Hash { set; }
 		void Clear();
-		void Upload( int frame, CommandList.AttributeAccess attributes );
+		void Bind( int frame, CommandList.AttributeAccess attributes );
+		void Upload();
 		void Dispose();
 	}
 
 	/// <summary>
-	/// A table of shader instances that grows through a frame and is mirrored into a GPU buffer when a draw needs it.
-	/// Only entries added since the last upload are written.
+	/// A table of shader instances that grows through a frame and is mirrored into a GPU buffer for the draws that read it.
+	/// Draws only bind the buffer; the entries are written once painting ends, in as few uploads as possible.
 	/// </summary>
 	internal class GpuTable<T>( string attribute ) : IGpuTable where T : unmanaged
 	{
 		readonly List<T> _items = [];
 		readonly GpuBuffer<T>[] _buffers = new GpuBuffer<T>[FrameCount];
 		int _uploaded;
+
+		// The buffer recorded draws read, which entries since _uploaded still have to be written to
+		GpuBuffer<T> _bound;
 
 		internal IReadOnlyList<T> Items => _items;
 		internal int Count => _items.Count;
@@ -283,23 +295,37 @@ internal partial class PainterBatcher
 		{
 			_items.Clear();
 			_uploaded = 0;
+			_bound = null;
 		}
 
-		public void Upload( int frame, CommandList.AttributeAccess attributes )
+		public void Bind( int frame, CommandList.AttributeAccess attributes )
 		{
 			if ( _items.Count == 0 ) return;
 
-			var buffer = EnsureBuffer( ref _buffers[frame], _items.Count, out bool grew );
-			if ( grew ) _uploaded = 0;
-
-			int count = _items.Count - _uploaded;
-			if ( count > 0 )
+			ref var buffer = ref _buffers[frame];
+			if ( buffer is null || buffer.ElementCount < _items.Count )
 			{
-				buffer.SetData<T>( CollectionsMarshal.AsSpan( _items ).Slice( _uploaded, count ), _uploaded );
-				_uploaded = _items.Count;
+				// Draws already recorded read the old buffer, so it gets what fits before being replaced.
+				// Don't Dispose it here — may be called off the main thread. It's cleaned up by the GC finalizer.
+				Upload();
+				buffer = new GpuBuffer<T>( GetBufferCapacity<T>( _items.Count ) );
+				_uploaded = 0;
 			}
 
+			_bound = buffer;
 			attributes.Set( attribute, (GpuBuffer)buffer );
+		}
+
+		public void Upload()
+		{
+			if ( _bound is null ) return;
+
+			int end = Math.Min( _items.Count, _bound.ElementCount );
+			if ( end > _uploaded )
+			{
+				_bound.SetData<T>( CollectionsMarshal.AsSpan( _items )[_uploaded..end], _uploaded );
+				_uploaded = end;
+			}
 		}
 
 		public void Dispose()
@@ -309,6 +335,7 @@ internal partial class PainterBatcher
 				_buffers[i]?.Dispose();
 				_buffers[i] = null; // painting again makes new ones
 			}
+			_bound = null;
 		}
 	}
 
@@ -359,20 +386,6 @@ internal partial class PainterBatcher
 		if ( required < 0 || required > maximum )
 			throw new InvalidOperationException( $"The UI {typeof( T ).Name} table exceeds the GPU buffer's 32-bit byte capacity." );
 		return (int)Math.Min( maximum, Math.Max( 64u, BitOperations.RoundUpToPowerOf2( (uint)required ) ) );
-	}
-
-	static GpuBuffer<T> EnsureBuffer<T>( ref GpuBuffer<T> buffer, int capacity, out bool wasReplaced ) where T : unmanaged
-	{
-		wasReplaced = false;
-		if ( buffer == null || buffer.ElementCount < capacity )
-		{
-			// Don't Dispose here — may be called off the main thread.
-			// Old buffer is dereferenced and cleaned up by GC finalizer.
-			int size = GetBufferCapacity<T>( capacity );
-			buffer = new GpuBuffer<T>( size );
-			wasReplaced = true;
-		}
-		return buffer;
 	}
 
 	static void EnsureQuadIndexBuffer()

@@ -366,7 +366,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 
 	public override Rotation CalculateSelectionBasis()
 	{
-		if ( GlobalSpace ) return Rotation.Identity;
+		if ( GlobalSpace ) return WorkPlane.Current.Rotation;
 
 		var mesh = _objects.FirstOrDefault();
 		return mesh.IsValid() ? mesh.WorldRotation : Rotation.Identity;

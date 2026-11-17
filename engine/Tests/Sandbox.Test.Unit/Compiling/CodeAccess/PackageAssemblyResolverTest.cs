@@ -119,7 +119,7 @@ public class PackageAssemblyResolverTest
 		resolver.Dispose();
 	}
 
-	static byte[] Compile( string assemblyName, string source, params MetadataReference[] additionalReferences )
+	internal static byte[] Compile( string assemblyName, string source, params MetadataReference[] additionalReferences )
 	{
 		var references = new List<MetadataReference>( FrameworkReferences.All.Values );
 		references.AddRange( additionalReferences );

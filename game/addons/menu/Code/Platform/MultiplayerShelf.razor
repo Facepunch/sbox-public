@@ -9,8 +9,7 @@
 @using Chat = MenuProject.Multiplayer.GlobalChatService;
 @namespace MenuProject.Platform
 @page "/shelf/multiplayer"
-@inherits Panel
-@implements IShelfPage
+@inherits ShelfPage
 
 @*
     Finding people to play with, all at once rather than in tabs.
@@ -249,10 +248,10 @@
     /// </summary>
     static readonly int[] SkeletonWidths = [60, 46, 72, 54, 66, 40];
 
-    bool IShelfPage.ToDock => true;
+    public override bool ToDock => true;
 
     // Pulled in to the middle - a click either side of its columns goes through to put it away
-    bool IShelfPage.ClicksThrough => true;
+    public override bool ClicksThrough => true;
 
     /// <summary>
     /// A game being played - how many on how many servers, and how many of those are on another version (outdated)
@@ -450,10 +449,12 @@
         _ = PartyService.Join( id );
     }
 
-    public override void Tick()
-    {
-        base.Tick();
+    readonly ScrollFade partiesFade = new();
+    readonly ScrollFade messagesFade = new();
+    readonly ScrollFade gameRowsFade = new();
 
+    protected override void TickShown()
+    {
         // In chat while it's up - out as soon as it's put away, not when it's finished sliding down
         if ( Shown != chatOpen )
         {
@@ -462,9 +463,9 @@
             else Chat.Close();
         }
 
-        ScrollFade.Apply( PartiesBody );
-        ScrollFade.Apply( Messages );
-        ScrollFade.Apply( GameRows );
+        partiesFade.Apply( PartiesBody );
+        messagesFade.Apply( Messages );
+        gameRowsFade.Apply( GameRows );
 
         // Chat's messages stop over its message box, however many lines that's grown to
         if ( Composer.IsValid() && ChatBody is { } chat && chat.IsValid() )
@@ -536,9 +537,18 @@
         base.OnDeleted();
     }
 
-    protected override int BuildHash() => HashCode.Combine(
+    // Out of chat as soon as another page is up
+    protected override void OnHidden()
+    {
+        if ( !chatOpen ) return;
+
+        chatOpen = false;
+        Chat.Close();
+    }
+
+    protected override int ShownHash() => HashCode.Combine(
         HashCode.Combine( scoped, flat, search, hideEmpty, hideFull, hideLocked, hideOutdated, Table?.Selected?.LobbyId ),
         HashCode.Combine( loaded, refreshing, error, lobbies, MenuHelpers.FriendsPlaying.Key, filtersOpen ),
-        HashCode.Combine( partiesLoaded, string.Join( ",", parties.Select( x => $"{x.Id}{x.Members}{x.GameTitle}" ) ), PartyService.Busy, PartyService.Error, PartyRoom.Current?.Id, MenuHelpers.HasAuthority ),
+        HashCode.Combine( partiesLoaded, MenuHelpers.HashOf( parties, static x => (x.Id, x.Members, x.GameTitle) ), PartyService.Busy, PartyService.Error, PartyRoom.Current?.Id, MenuHelpers.HasAuthority ),
         HashCode.Combine( Chat.Revision, Chat.Connecting, Chat.Error, Chat.Channel?.MemberCount, ChatLines.Count, Chat.CanInviteParty ) );
 }

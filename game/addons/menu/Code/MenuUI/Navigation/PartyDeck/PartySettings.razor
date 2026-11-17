@@ -48,36 +48,7 @@
 		}
 	</div>
 
-	@* On the platform menu the party plays the game you're on - picked with the game switcher, not here *@
-	@if ( !PartyDeck.OnPlatform )
-	{
-		<div class="game-row">
-			<Button class="game-choice" Text="@(HasGame ? SelectedGameTitle : CanEdit ? "#menu.party.choose_game" : "#menu.party.no_game_selected")" IconTexture=@GameThumbnail Icon="@(GameBusy ? "hourglass_empty" : "sports_esports")" disabled=@(!CanEdit || GameBusy) onclick=@ChooseGame tooltip="@(CanEdit ? "#menu.party.choose_game" : SelectedGameTitle)" />
-			@if ( HasGame && CanEdit )
-			{
-				<Button class="game-action" disabled=@GameBusy onclick=@ClearGame tooltip="#menu.party.clear_game_choice" Icon="close" />
-			}
-		</div>
-	}
-
-	@if ( !PartyDeck.OnPlatform && CanShowGameSettings )
-	{
-		<div class="game-setup-summary">
-			@if ( GameSummary is { } summary )
-			{
-				@if ( summary.NeedsMap )
-				{
-					<div><icon>map</icon><label>@summary.MapTitle</label></div>
-				}
-				<div><icon>@summary.PrivacyIcon</icon><label>@($"{summary.PrivacyTitle} · {summary.MaxPlayers} server slots")</label></div>
-			}
-			else
-			{
-				<label>#menu.party.game_setup_hasn_t_been_saved_yet</label>
-			}
-			<Button class="configure-game" Icon="tune" Text="@(CanEdit ? "#menu.party.configure_game" : "#menu.party.view_game_setup")" disabled=@(Draft?.Creating == true) onclick=@ConfigureGame />
-		</div>
-	}
+	@* The party plays the game you're on - picked with the game switcher, not here *@
 
 	@if ( GameTooSmall )
 	{
@@ -130,7 +101,7 @@
 		}
 	}
 
-	protected override int BuildHash() => HashCode.Combine( Name, Error, PartyView.Name, CanEdit, Draft, Draft?.Creating, Draft?.IsPublic, HashCode.Combine( MaxMembers, MemberCount, SelectedGameIdent, SelectedGameTitle, SelectedPackage, GameBusy, GameSummary, GameSummary?.MapTitle ) );
+	protected override int BuildHash() => HashCode.Combine( Name, Error, PartyView.Name, CanEdit, Draft, Draft?.Creating, Draft?.IsPublic, HashCode.Combine( MaxMembers, MemberCount, SelectedGameIdent, SelectedPackage, GameBusy ) );
 
 	/// <summary>
 	/// Refresh the localized privacy summary when translations change.

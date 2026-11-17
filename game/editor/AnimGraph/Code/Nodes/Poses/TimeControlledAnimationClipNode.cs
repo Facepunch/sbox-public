@@ -15,8 +15,15 @@ public class TimeControlledAnimationClipNode : VariationDataNode<TimeControlledA
 	/// </summary>
 	public sealed class Data : VariationDataNode.VariationData
 	{
-		[Property, Title( "Animation" ), ResourceType( "anim" )]
-		public string AnimationName { get; set; } = "";
+		[Property, Title( "Animation" ), ResourceType( "anim" ), JsonIgnore]
+		public string AnimationName
+		{
+			get => AnimationReference.ResolvePath() ?? "";
+			set => AnimationReference = ResourceId.FromPath( value );
+		}
+
+		[Hide, JsonPropertyName( "AnimationName" )]
+		public ResourceId AnimationReference { get; set; }
 
 		public override VisualState GetVisualState()
 		{
@@ -61,7 +68,7 @@ public class TimeControlledAnimationClipNode : VariationDataNode<TimeControlledA
 
 	public override Color PrimaryColor => Theme.Green;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{
@@ -94,7 +101,7 @@ public class TimeControlledAnimationClipNode : VariationDataNode<TimeControlledA
 		var graphEvents = GraphEvents?.Where( id => !string.IsNullOrWhiteSpace( id ) ) ?? [];
 
 		return compiler.Builder.TimeControlledClip(
-			data.AnimationName,
+			data.AnimationReference,
 			time,
 			new GraphBuilder.TimeControlledClipSettings
 			{

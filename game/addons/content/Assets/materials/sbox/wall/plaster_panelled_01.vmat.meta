@@ -21,6 +21,7 @@
       "Metadata": {
         "SingleAssetSource": "materials/sbox/wall/plaster_panelled_01.vmat"
       }
-    }
+    },
+    "HammerAutoPackageReferences": null
   }
 }

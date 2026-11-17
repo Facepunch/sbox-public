@@ -1,153 +1,84 @@
-﻿using System;
-
 namespace Sandbox;
 
 public static partial class Gizmo
 {
 	public sealed partial class GizmoControls
 	{
-		/// <summary>
-		/// A front left up position movement widget. If widget was moved then will return true and out will return the new position.
-		/// </summary>
-		public bool Scale( string name, float value, out float outValue )
+		public bool UpdateScale( string name, float value, out float outValue )
 		{
-			using var scaler = PushFixedScale();
-
-			var screenScale = 1.0f;
-			var localRotation = Transform.Rotation;
-			outValue = value;
-
-			using ( Sandbox.Gizmo.Scope( name ) )
-			{
-				float movement = 0.0f;
-				Sandbox.Gizmo.Draw.IgnoreDepth = true;
-
-				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Up;
-				if ( Arrow( "up", Vector3.Up, out var xdist, head: "box" ) )
-				{
-					movement += xdist;
-				}
-
-				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Left;
-				if ( Arrow( "left", Vector3.Left, out var ydist, head: "box" ) )
-				{
-					movement += ydist;
-				}
-
-				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Forward;
-				if ( Arrow( "forward", Vector3.Forward, out var zdist, head: "box" ) )
-				{
-					movement += zdist;
-				}
-
-				if ( movement == 0.0f )
-				{
-					return false;
-				}
-
-				outValue += movement * screenScale * 0.01f;
-				return true;
-
-			}
+			var changed = UpdateScale( name, Vector3.Zero, out var delta, squareSize: 0 );
+			outValue = value + delta.x + delta.y + delta.z;
+			return changed;
 		}
 
-		/// <summary>
-		/// A front left up position movement widget. If widget was moved then will return true and out will return the new position.
-		/// </summary>
-		public bool Scale( string name, Vector3 value, out Vector3 outValue, Rotation? axisRotation = null, float squareSize = 3.0f )
+		public bool UpdateScale( string name, Vector3 value, out Vector3 outValue, Rotation? axisRotation = null, float squareSize = 3 )
 		{
 			using var scaler = PushFixedScale();
-
-			var screenScale = 1.0f;
-			var localRotation = Transform.Rotation;
-			var axis = axisRotation ?? Rotation.Identity;
-			outValue = value;
-
-			using var x = Sandbox.Gizmo.Scope( name, Vector3.Zero, axis );
-
-			if ( Settings.GlobalSpace )
+			using var scope = Scope( name, Vector3.Zero, axisRotation ?? Rotation.Identity );
+			if ( Settings.GlobalSpace && axisRotation is null )
 				Transform = Transform.WithRotation( Rotation.Identity );
+			using var inner = Scope( name );
 
-			using ( Sandbox.Gizmo.Scope( name ) )
+			Vector3 movement = Vector3.Zero;
+			if ( UpdateArrow( "up", Vector3.Up, out var up ) ) movement += Vector3.Up * up;
+			if ( UpdateArrow( "left", Vector3.Left, out var left ) ) movement += Vector3.Left * left;
+			if ( UpdateArrow( "forward", Vector3.Forward, out var forward ) ) movement += Vector3.Forward * forward;
+
+			if ( squareSize > 0 )
 			{
-				Vector3 movement = 0.0f;
-				Sandbox.Gizmo.Draw.IgnoreDepth = true;
-
-				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Up;
-				if ( Arrow( "up", Vector3.Up, out var xdist, head: "box" ) )
+				using var squares = Scope( "squares" );
+				var offset = squareSize * 3;
+				using ( Scope() )
 				{
-					movement += xdist * Vector3.Up;
+					if ( UpdateDragBox( "center", Rotation.Identity, out var delta ) ) movement += delta;
 				}
-
-				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Left;
-				if ( Arrow( "left", Vector3.Left, out var ydist, head: "box" ) )
+				using ( Scope() )
 				{
-					movement += ydist * Vector3.Left;
+					Transform = Transform.ToWorld( new Transform( (Vector3.Up + Vector3.Left) * offset ) );
+					if ( UpdateDragSquare( "left-up", Rotation.LookAt( Vector3.Backward, Vector3.Up ), out var delta ) ) movement += delta;
 				}
-
-				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Forward;
-				if ( Arrow( "forward", Vector3.Forward, out var zdist, head: "box" ) )
+				using ( Scope() )
 				{
-					movement += zdist * Vector3.Forward;
+					Transform = Transform.ToWorld( new Transform( (Vector3.Forward + Vector3.Left) * offset ) );
+					if ( UpdateDragSquare( "forward-left", Rotation.LookAt( Vector3.Up, Vector3.Forward ), out var delta ) ) movement += delta;
 				}
-
-				if ( squareSize > 0 )
+				using ( Scope() )
 				{
-					float squareOffset = squareSize * 3.0f;
-					using var scope = Sandbox.Gizmo.Scope( "squares" );
-					Hitbox.DepthBias *= 0.8f;
-
-					using ( Sandbox.Gizmo.Scope() )
-					{
-						Sandbox.Gizmo.Transform = Sandbox.Gizmo.Transform.ToWorld( new Transform( Vector3.Zero ) );
-						Sandbox.Gizmo.Draw.Color = Color.White;
-						if ( DragBox( "center", squareSize, Rotation.Identity, out var moved ) )
-						{
-							movement += moved;
-						}
-					}
-
-					using ( Sandbox.Gizmo.Scope() )
-					{
-						Sandbox.Gizmo.Transform = Sandbox.Gizmo.Transform.ToWorld( new Transform( Vector3.Up * squareOffset + Vector3.Left * squareOffset ) );
-						Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Up;
-						if ( DragSquare( "left-up", squareSize, Rotation.LookAt( Vector3.Backward, Vector3.Up ), out var moved ) )
-						{
-							movement += moved;
-						}
-					}
-
-					using ( Sandbox.Gizmo.Scope() )
-					{
-						Sandbox.Gizmo.Transform = Sandbox.Gizmo.Transform.ToWorld( new Transform( Vector3.Forward * squareOffset + Vector3.Left * squareOffset ) );
-						Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Left;
-						if ( DragSquare( "forward-left", squareSize, Rotation.LookAt( Vector3.Up, Vector3.Forward ), out var moved ) )
-						{
-							movement += moved;
-						}
-					}
-
-					using ( Sandbox.Gizmo.Scope() )
-					{
-						Sandbox.Gizmo.Transform = Sandbox.Gizmo.Transform.ToWorld( new Transform( Vector3.Forward * squareOffset + Vector3.Up * squareOffset ) );
-						Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Forward;
-						if ( DragSquare( "forward-up", squareSize, Rotation.LookAt( Vector3.Left, Vector3.Down ), out var moved ) )
-						{
-							movement += moved;
-						}
-					}
+					Transform = Transform.ToWorld( new Transform( (Vector3.Forward + Vector3.Up) * offset ) );
+					if ( UpdateDragSquare( "forward-up", Rotation.LookAt( Vector3.Left, Vector3.Down ), out var delta ) ) movement += delta;
 				}
-
-				if ( movement == 0.0f )
-				{
-					return false;
-				}
-
-				outValue += movement * screenScale * 0.01f;
-				return true;
-
 			}
-		}
 
+			outValue = value + movement * 0.01f;
+			return movement != Vector3.Zero;
+		}
+	}
+
+	public sealed partial class GizmoDraw
+	{
+		public void Scale( string name, Rotation? axisRotation = null, float squareSize = 3 )
+		{
+			using var scaler = GizmoControls.PushFixedScale();
+			using var scope = Scope( name, Vector3.Zero, axisRotation ?? Rotation.Identity );
+			if ( Settings.GlobalSpace && axisRotation is null )
+				Transform = Transform.WithRotation( Rotation.Identity );
+			using var inner = Scope( name );
+			IgnoreDepth = true;
+			Color = Colors.Up;
+			Arrow( "up", Vector3.Up, head: "box" );
+			Color = Colors.Left;
+			Arrow( "left", Vector3.Left, head: "box" );
+			Color = Colors.Forward;
+			Arrow( "forward", Vector3.Forward, head: "box" );
+			if ( squareSize <= 0 ) return;
+			using var squares = Scope( "squares" );
+			Hitbox.DepthBias *= 0.8f;
+			using ( Scope() )
+			{
+				Color = Color.White;
+				DragBox( "center", squareSize, Rotation.Identity );
+			}
+			DrawAxisSquares( squareSize );
+		}
 	}
 }

@@ -15,8 +15,8 @@ public sealed class CommentNode : Node, ICommentNode
 	[Hide, Browsable( false )]
 	public Vector2 Size { get; set; }
 
-	[Property]
-	public string Title { get; set; } = "Untitled";
+	[Hide, Browsable( false )]
+	public override string Title { get; set; } = "Untitled";
 
 	[Property, TextArea]
 	public string Description { get; set; } = "";
@@ -28,13 +28,13 @@ public sealed class CommentNode : Node, ICommentNode
 	public int Layer { get; set; } = 5;
 
 	[JsonIgnore, Hide, Browsable( false )]
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{
 			var info = TypeDisplayInfo;
 
-			info.Name = Title;
+			info.Name = "Untitled";
 			info.Description = Description;
 
 			return info;
