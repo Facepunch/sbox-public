@@ -146,7 +146,8 @@ public sealed class PassModules : IShaderModules
 
 		// Read outside the lock: a worker reading ahead (Warm) holds no one up
 		var text = File.ReadAllText( path );
-		var module = text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) ? PassModule.FromText( info.FullName, text, [Path.Combine( Core, "shaders" )] ) : null;
+		var module = text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) ? Kept( PassModule.FromText( info.FullName, text, [Path.Combine( Core, "shaders" )] ) ) : null;
+		module?.ReadDerived();
 		lock ( modules ) modules[path] = (info.LastWriteTimeUtc, now, module);
 		return module;
 	}
@@ -251,7 +252,17 @@ public sealed class PassModules : IShaderModules
 		{
 		}
 
-		return PassModule.FromText( path, text, [Path.Combine( Core, "shaders" )] );
+		return Kept( PassModule.FromText( path, text, [Path.Combine( Core, "shaders" )] ) );
+	}
+
+	/// <summary>
+	/// A module made here, keeping what's read from its preprocessed lines beside the compiled stages
+	/// (<see cref="PassModule.DerivedCacheFolder"/>).
+	/// </summary>
+	PassModule Kept( PassModule module )
+	{
+		module.DerivedCacheFolder = Path.Combine( CacheFolder ?? Path.Combine( Path.GetDirectoryName( Core ), ".source2", "borealispasses" ), "derived" );
+		return module;
 	}
 
 	/// <inheritdoc/>
