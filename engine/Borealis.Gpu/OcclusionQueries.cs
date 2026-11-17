@@ -58,5 +58,5 @@ public sealed unsafe class OcclusionQueries : IDisposable
 public sealed partial class Device
 {
 	/// <summary>Make a pool of <paramref name="count"/> occlusion queries.</summary>
-	public OcclusionQueries CreateOcclusionQueries( int count ) => new( this, count );
+	public OcclusionQueries CreateOcclusionQueries( int count ) => KeepQueries( new OcclusionQueries( this, count ) );
 }

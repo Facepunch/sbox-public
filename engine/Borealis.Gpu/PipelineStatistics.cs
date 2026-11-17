@@ -77,5 +77,5 @@ public sealed unsafe class PipelineStatistics : IDisposable
 public sealed partial class Device
 {
 	/// <summary>Make a pool of <paramref name="count"/> pipeline statistics queries.</summary>
-	public PipelineStatistics CreatePipelineStatistics( int count ) => new( this, count );
+	public PipelineStatistics CreatePipelineStatistics( int count ) => KeepQueries( new PipelineStatistics( this, count ) );
 }

@@ -57,5 +57,29 @@ public sealed partial class Device
 	/// Make a pool of <paramref name="count"/> timestamps, where <see cref="DeviceCapabilities.Timestamps"/> says the
 	/// graphics queue writes them.
 	/// </summary>
-	public TimestampQueries CreateTimestamps( int count ) => new( this, count );
+	public TimestampQueries CreateTimestamps( int count ) => KeepQueries( new TimestampQueries( this, count ) );
+
+	// Query pools still alive, destroyed with the device if their owners haven't: an owner disposed after the device (a
+	// window closed after the renderer shut down) finds its pool gone rather than destroying it on a destroyed device
+	readonly List<WeakReference<IDisposable>> queryPools = new();
+
+	T KeepQueries<T>( T pool ) where T : class, IDisposable
+	{
+		lock ( queryPools )
+		{
+			queryPools.RemoveAll( p => !p.TryGetTarget( out _ ) );
+			queryPools.Add( new WeakReference<IDisposable>( pool ) );
+		}
+
+		return pool;
+	}
+
+	void DestroyQueryPools()
+	{
+		lock ( queryPools )
+		{
+			foreach ( var pool in queryPools ) if ( pool.TryGetTarget( out var alive ) ) alive.Dispose();
+			queryPools.Clear();
+		}
+	}
 }

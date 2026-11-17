@@ -680,6 +680,7 @@ public sealed unsafe partial class Device : IDisposable
 		DestroyFrames();
 		CollectGarbage( force: true );
 		DestroyAllResources();
+		DestroyQueryPools();
 		Bindless.Dispose();
 		SavePipelineCache();
 		DestroyPipelineCache();
