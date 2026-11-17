@@ -63,6 +63,28 @@ public class SurfaceTests : GpuTest
 		Assert.AreEqual( Filter.Linear, sampler.MipFilter );
 	}
 
+	/// <summary>
+	/// A shader's own shorthand for annotations (macros a package's expanded includes define, as vfx's preprocessor expands
+	/// them) reads as what it stands for; macros that aren't annotations are left alone.
+	/// </summary>
+	[TestMethod]
+	public void VfxIncludesExpandAnnotationMacros()
+	{
+		var annotations = new Dictionary<string, Annotations>();
+		VfxIncludes.Rewrite( "#define SrgbRead(bArg) string _SrgbRead = #bArg\n"
+			+ "#define SRGB SrgbRead(true)\n"
+			+ "#define Address(arg) AddressU(arg); AddressV(arg); AddressW(arg)\n"
+			+ "#define TINT 3\n"
+			+ "Texture2D Frame < Attribute(\"Frame\"); SRGB; > ;\n"
+			+ "SamplerState S < Filter(BILINEAR); Address(CLAMP); > ;\n", annotations );
+
+		Assert.IsTrue( annotations["Frame"].SrgbRead );
+		Assert.AreEqual( "Frame", annotations["Frame"].Attribute );
+		Assert.AreEqual( "CLAMP", annotations["S"].AddressU );
+		Assert.AreEqual( "CLAMP", annotations["S"].AddressW );
+		Assert.AreEqual( "BILINEAR", annotations["S"].Filter );
+	}
+
 	/// <summary>Texture2D fields of [Material] structs become bindless slots; other Texture2Ds and lines stay.</summary>
 	[TestMethod]
 	public void MaterialStructTexturesBecomeSlots()

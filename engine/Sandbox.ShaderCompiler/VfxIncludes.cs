@@ -71,14 +71,56 @@ internal static partial class VfxIncludes
 			return $"{m.Groups["lead"].Value}[vk::constant_id( {SpecializationId( name )} )] const {type} {name} = {literal};";
 		} );
 
+		var macros = AnnotationMacros( text );
 		foreach ( Match m in Annotated().Matches( text ) )
 		{
 			var name = m.Groups["call"].Success ? m.Groups["call"].Value : m.Groups["name"].Value;
-			var parsed = Parse( m.Groups["annotations"].Value );
+			var parsed = Parse( ExpandMacros( m.Groups["annotations"].Value, macros ) );
 			if ( parsed is not null ) annotations[name] = parsed;
 		}
 
 		return text;
+	}
+
+	// "#define SRGB SrgbRead( true )", "#define Address( a ) AddressU( a ); AddressV( a ); AddressW( a )"
+	[GeneratedRegex( @"^[ \t]*#[ \t]*define[ \t]+(?<name>\w+)(?:\((?<arg>[ \t\w]*)\))?[ \t]+(?<body>[^\n]*?)[ \t]*$", RegexOptions.Multiline )]
+	private static partial Regex Define();
+
+	static readonly HashSet<string> annotationKeys = ["Attribute", "Default", "Default2", "Default3", "Default4", "SrgbRead", "Filter", "AddressU", "AddressV", "AddressW", "MaxAniso", "ComparisonFunc"];
+
+	/// <summary>
+	/// The file's macros that stand for annotations (a shader's own shorthand, such as <c>SRGB</c> or <c>Address( CLAMP )</c>,
+	/// which vfx's preprocessor expands before it reads them): bodies made of annotations alone, by name.
+	/// </summary>
+	static Dictionary<string, (string Argument, string Body)> AnnotationMacros( string text )
+	{
+		var macros = new Dictionary<string, (string, string)>( StringComparer.Ordinal );
+		if ( !text.Contains( "#define", StringComparison.Ordinal ) ) return macros;
+		foreach ( Match m in Define().Matches( text ) )
+		{
+			var body = m.Groups["body"].Value;
+			if ( body.Contains( '=' ) || body.Contains( '#' ) || annotationKeys.Contains( m.Groups["name"].Value ) ) continue;
+			var entries = Entry().Matches( body );
+			if ( entries.Count == 0 || entries.Any( e => !annotationKeys.Contains( e.Groups[1].Value ) ) ) continue;
+			macros[m.Groups["name"].Value] = (m.Groups["arg"].Success ? m.Groups["arg"].Value.Trim() : null, body);
+		}
+
+		return macros;
+	}
+
+	/// <summary>An annotation block with the annotation macros in it expanded.</summary>
+	static string ExpandMacros( string block, Dictionary<string, (string Argument, string Body)> macros )
+	{
+		if ( macros.Count == 0 ) return block;
+		foreach ( var (name, (argument, body)) in macros )
+		{
+			if ( !block.Contains( name, StringComparison.Ordinal ) ) continue;
+			block = argument is null
+				? Regex.Replace( block, $@"\b{name}\b(?!\s*\()", body )
+				: Regex.Replace( block, $@"\b{name}\s*\(([^()]*)\)", m => argument.Length == 0 ? body : Regex.Replace( body, $@"\b{argument}\b", m.Groups[1].Value.Trim() ) );
+		}
+
+		return block;
 	}
 
 	/// <summary>One annotation block; null when it says nothing reflection needs.</summary>
