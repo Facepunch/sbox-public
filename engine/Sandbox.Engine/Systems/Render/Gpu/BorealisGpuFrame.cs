@@ -65,7 +65,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		Color = Engine( Color, color, target.Size, ImageFormat.RGBA16161616F, depth: false );
 		Depth = target.Depth is null ? null : Engine( Depth, target.Depth, target.Size, ImageFormat.D32FS8, depth: true );
 
-		constants = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
+		if ( constants.Length != System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>() ) constants = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
 		System.Runtime.InteropServices.MemoryMarshal.Write( constants, in viewConstants );
 
 		// Made here, outside any block: materials can't be made while drawing
@@ -136,7 +136,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 		if ( outputConstants.Length != constants.Length ) outputConstants = new byte[constants.Length];
 		System.Runtime.InteropServices.MemoryMarshal.Write( outputConstants, in c );
-		Graphics.Attributes.SetData( ViewConstantsName, outputConstants.AsSpan() );
+		Graphics.Attributes.SetDataShared( ViewConstantsName, outputConstants );
 	}
 
 	/// <summary>An engine texture of the target's size whose backing on the device is <paramref name="gpu"/>.</summary>
@@ -230,7 +230,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			if ( first ) backend.ClearPipelineTextures();
 
 			var attributes = Graphics.Attributes;
-			attributes.SetData( ViewConstantsName, viewConstants.AsSpan() );
+			attributes.SetDataShared( ViewConstantsName, viewConstants );
 			if ( chain.Engine is not null )
 			{
 				attributes.Set( DepthChainName, chain.Engine );
@@ -291,7 +291,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		{
 			using var scope = Graphics.Scope.CreateOnView( backend, view );
 			view.Bind();
-			Graphics.Attributes.SetData( ViewConstantsName, viewConstants.AsSpan() );
+			Graphics.Attributes.SetDataShared( ViewConstantsName, viewConstants );
 			draw();
 		}
 		finally
@@ -338,7 +338,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			else view.Bind();
 
 			var attributes = Graphics.Attributes;
-			attributes.SetData( ViewConstantsName, constants.AsSpan() );
+			attributes.SetDataShared( ViewConstantsName, constants );
 
 			// What reads the view's depth through Depth::Get; the previous frame's aliases it, as Borealis's does
 			if ( Depth is not null )

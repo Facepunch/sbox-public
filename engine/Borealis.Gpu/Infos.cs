@@ -115,7 +115,7 @@ public struct TextureViewInfo
 /// <summary>
 /// A sampler to create (<see cref="Device.CreateSampler"/>).
 /// </summary>
-public struct SamplerInfo
+public struct SamplerInfo : IEquatable<SamplerInfo>
 {
 	/// <summary>Filtering when minified, magnified and between mips.</summary>
 	public Filter MinFilter, MagFilter, MipFilter;
@@ -158,6 +158,17 @@ public struct SamplerInfo
 		MaxAnisotropy = 1,
 		MaxLod = 1000,
 	};
+
+	/// <summary>Field by field: a dictionary of samplers looks one up without boxing.</summary>
+	public readonly bool Equals( SamplerInfo other ) => MinFilter == other.MinFilter && MagFilter == other.MagFilter && MipFilter == other.MipFilter
+		&& AddressU == other.AddressU && AddressV == other.AddressV && AddressW == other.AddressW && MaxAnisotropy == other.MaxAnisotropy
+		&& Compare == other.Compare && MinLod == other.MinLod && MaxLod == other.MaxLod && MipBias == other.MipBias;
+
+	/// <inheritdoc/>
+	public override readonly bool Equals( object obj ) => obj is SamplerInfo other && Equals( other );
+
+	/// <inheritdoc/>
+	public override readonly int GetHashCode() => HashCode.Combine( HashCode.Combine( MinFilter, MagFilter, MipFilter, AddressU, AddressV, AddressW ), MaxAnisotropy, Compare, MinLod, MaxLod, MipBias );
 }
 
 /// <summary>
