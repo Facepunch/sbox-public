@@ -223,6 +223,8 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		extras.Clear();
 
 		ShutdownCaptures();
+		bitmapTarget?.Dispose();
+		bitmapTarget = null;
 
 		foreach ( var (_, mirror) in mirrors )
 			mirror.Dispose();
@@ -659,14 +661,6 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			DepthRange = new Vector2( state.System.DepthMin, state.System.DepthMax ),
 			DepthUvScaleBias = new Vector4( view.FlipX ? -1 : 1, view.FlipY ? -1 : 1, view.FlipX ? 1 : 0, view.FlipY ? 1 : 0 ),
 		};
-	}
-
-	/// <summary>
-	/// A bitmap render: the pixels come back to the CPU, so Source 2's device draws them.
-	/// </summary>
-	public void RenderToBitmap( SceneCamera camera, Bitmap bitmap, in ViewSetup setup )
-	{
-		SceneRenderer.Native.RenderToBitmap( camera, bitmap, setup );
 	}
 
 	/// <summary>
