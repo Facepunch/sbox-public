@@ -151,8 +151,9 @@ internal sealed class MorphAtlas( BackendDevice device )
 			generated = true;
 			Place();
 
-			// Six vertices a rectangle (two triangles, as native's quads index them), every rectangle of every weighted morph
-			var vertices = new List<Vertex>();
+			// Six vertices a rectangle (two triangles, as native's quads index them), every rectangle of every weighted morph;
+			// the list is kept from frame to frame, as faces morph every frame
+			vertices.Clear();
 			var positions = Build( vertices, normals: false );
 			var normalsStart = vertices.Count;
 			Build( vertices, normals: true );
@@ -181,6 +182,9 @@ internal sealed class MorphAtlas( BackendDevice device )
 			return true;
 		}
 	}
+
+	// The composite vertices of the last generation (under the queue's lock)
+	readonly List<Vertex> vertices = new();
 
 	/// <summary>The composite shader (<c>SCENESYSTEMMAT_MORPH_MATERIAL</c>).</summary>
 	const string Shader = "shaders/morph_composite.shader";
