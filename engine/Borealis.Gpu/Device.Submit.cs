@@ -443,8 +443,11 @@ public sealed unsafe partial class Device
 	}
 
 	// The last lists submitted, for what was in flight when the device is lost (DescribeRecentSubmissions)
-	readonly (QueueType Queue, ulong Value, string Name, int HeldBefore, long Ticks, int Markers)[] recentSubmissions = new (QueueType, ulong, string, int, long, int)[48];
+	readonly (QueueType Queue, ulong Value, string Name, int HeldBefore, long Ticks, int Markers)[] recentSubmissions = new (QueueType, ulong, string, int, long, int)[1024];
 	int recentNext;
+
+	/// <summary>The latest submissions a loss report lists, after those around the first not finished.</summary>
+	const int RecentSubmissionsShown = 48;
 
 	void Remember( DeviceQueue queue, ulong value, CommandList list, int heldBefore )
 	{
@@ -499,11 +502,22 @@ public sealed unsafe partial class Device
 
 		lock ( recentSubmissions )
 		{
+			// The submissions around the first the GPU hadn't finished (where a hang or fault usually is), then the latest
 			var now = Stopwatch.GetTimestamp();
+			var skipped = false;
 			for ( int i = 0; i < recentSubmissions.Length; i++ )
 			{
 				var (queue, value, name, held, ticks, markers) = recentSubmissions[(recentNext + i) % recentSubmissions.Length];
 				if ( name is null && value == 0 ) continue;
+				var completed = seen.GetValueOrDefault( queue );
+				if ( i < recentSubmissions.Length - RecentSubmissionsShown && (value + 4 <= completed || value > completed + 16) )
+				{
+					if ( !skipped ) text.Append( "\n  ..." );
+					skipped = true;
+					continue;
+				}
+
+				skipped = false;
 				var done = seen.GetValueOrDefault( queue ) >= value ? "done" : "not seen done";
 				text.Append( $"\n  {queue} {value} {name} ({(held < 0 ? "held" : $"with {held} held")}, {Stopwatch.GetElapsedTime( ticks, now ).TotalMilliseconds:F0} ms ago) {done}{DescribeMarkers( markers )}" );
 			}
