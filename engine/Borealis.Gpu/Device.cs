@@ -678,9 +678,9 @@ public sealed unsafe partial class Device : IDisposable
 		// Nothing reads the table any more, and the defaults are about to go with everything else
 		Bindless.ForgetDefaults();
 		DestroyFrames();
+		DestroyQueryPools();
 		CollectGarbage( force: true );
 		DestroyAllResources();
-		DestroyQueryPools();
 		Bindless.Dispose();
 		SavePipelineCache();
 		DestroyPipelineCache();

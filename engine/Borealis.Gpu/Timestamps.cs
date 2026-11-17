@@ -42,12 +42,13 @@ public sealed unsafe class TimestampQueries : IDisposable
 		}
 	}
 
-	/// <summary>Destroy the pool; the GPU must be done with it.</summary>
+	/// <summary>Destroy the pool once the GPU is done with the work recorded so far, as resources are.</summary>
 	public void Dispose()
 	{
 		if ( Pool == 0 ) return;
-		device.Vk.vkDestroyQueryPool( device.Vk.Device, Pool, null );
+		var pool = Pool;
 		Pool = 0;
+		device.DestroyQueryPool( pool );
 	}
 }
 
@@ -73,6 +74,9 @@ public sealed partial class Device
 
 		return pool;
 	}
+
+	/// <summary>Destroy a query pool once the GPU is done with the work recorded so far.</summary>
+	internal unsafe void DestroyQueryPool( ulong pool ) => Defer( () => Vk.vkDestroyQueryPool( Vk.Device, pool, null ) );
 
 	void DestroyQueryPools()
 	{
