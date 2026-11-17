@@ -49,13 +49,6 @@ namespace Sandbox.UI
 					position: absolute;
 					right: 8px;
 				}
-
-				&.open
-				{
-					border-bottom-left-radius: 1px;
-					border-bottom-right-radius: 1px;
-					transition: border-radius 0.2s ease-out;
-				}
 			}
 
 			select
@@ -216,9 +209,9 @@ namespace Sandbox.UI
 		/// </summary>
 		public override void Open()
 		{
-			Popup = new Popup( this, Popup.PositionMode.BelowStretch, 0.0f );
+			Popup = new Popup( this, Popup.PositionMode.BelowStretch, 4.0f );
 			Popup.CloseWhenParentIsHidden = true;
-			Popup.AddClass( "flat-top" );
+			Popup.AddClass( "flat-top dropdown-options" );
 
 			if ( BuildOptions != null )
 			{

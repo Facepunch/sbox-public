@@ -521,9 +521,11 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 
 // In an OS popup window the compositor rounds and borders the window itself - our own
 // radius and border would double up inside its clip
-.os-popup .dropdown { border-radius: 0; border: none; }
+.os-popup .dropdown, .os-popup .dropdown-options { border-radius: 0; border: none; }
 // Dropdown menus flow vertically through their items.
-.dropdown
+.dropdown,
+// DropDown's option list - a menu of its own, one row per option
+.dropdown-options
 {
 	flex-direction: column;
 	align-items: stretch;
@@ -540,20 +542,25 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 	transition: background-color 0.12s ease-out, border-color 0.12s ease-out;
 }
 
-.dropdown:hover { background-color: $raised-hover; }
-.dropdown:focus { border-color: $accent; }
-
 // The icon belongs beside the text, not above it
-.dropdown > iconpanel { font-size: 15px; margin-right: 8px; color: $text-muted; }
+// The icon takes the text's colour - the chevron alone stays muted
+.dropdown > iconpanel { font-size: 15px; margin-right: 8px; }
 .dropdown .dropdown_indicator { color: $text-muted; font-size: 16px; margin: 0; }
 
 // The DropDown control shares the class with menus, but reads like a text box: icon, then the
 // text from the left, chevron on the right
-.button.popupbutton.dropdown { flex-direction: row; align-items: center; justify-content: flex-start; min-width: 0; padding: 0 32px 0 12px; }
+.button.popupbutton.dropdown { flex-direction: row; align-items: center; justify-content: flex-start; min-width: 0; padding: 0 28px 0 8px; }
+// Open: the field keeps its corners, the list hangs a few pixels under it
+.button.popupbutton.dropdown.open { border-radius: 4px; }
+
+// DropDown's list: rows the height of a field, their icons and text lined up with the field's
+.dropdown-options { padding: 4px; min-width: 0; }
+.dropdown-options > .button { height: 26px; padding: 0 5px; border-radius: 3px; }
 .button.popupbutton.dropdown > .button-right-column { flex-grow: 1; min-width: 0; align-items: flex-start; }
 .button.popupbutton.dropdown .button-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.dropdown .row
+.dropdown .row,
+.dropdown-options > .button
 {
 	flex-direction: row;
 	align-items: center;
@@ -563,14 +570,20 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 	border-radius: 6px;
 	// Menus grow to their widest item rather than wrapping it
 	white-space: nowrap;
+	font-weight: normal;
 	pointer-events: all;
 	cursor: pointer;
 	transition: background-color 0.1s ease-out;
 }
 
-.dropdown .row:hover { background-color: $accent; color: #fff; }
-.dropdown .row:active { background-color: $accent-active; color: #fff; }
-.dropdown .row .icon { font-size: 14px; margin-right: 8px; }
+.dropdown .row:hover, .dropdown-options > .button:hover { background-color: $accent; color: #fff; }
+.dropdown .row:active, .dropdown-options > .button:active { background-color: $accent-active; color: #fff; }
+// A fixed icon column, so every option's text starts at the same place whatever its glyph's width
+.dropdown .row .icon, .dropdown-options > .button > .icon { flex-shrink: 0; width: 16px; font-size: 14px; text-align: center; overflow: hidden; margin-right: 8px; }
+// The option already chosen, and the one the arrow keys are on
+.dropdown-options > .button.active { background-color: rgba( $accent, 0.18 ); color: #fff; }
+.dropdown-options > .button.active:hover { background-color: $accent; }
+.dropdown-options > .button > .button-right-column { flex-grow: 1; align-items: flex-start; }
 .dropdown .separator { height: 1px; margin: 5px 4px; background-color: $line; }
 
 //
@@ -800,7 +813,7 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 .style-light .switchcontrol .switch-label { color: $l-text-muted; }
 .style-light .switchcontrol:hover .switch-label { color: $l-text; }
 
-.style-light .dropdown { background-color: $l-raised; border-color: $l-line; color: $l-text; }
+.style-light .dropdown, .style-light .dropdown-options { background-color: $l-raised; border-color: $l-line; color: $l-text; }
 .style-light .dropdown .separator { background-color: $l-line; }
 
 .style-light .empty .icon { color: $l-line; }
