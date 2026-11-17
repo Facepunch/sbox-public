@@ -21,10 +21,10 @@ public sealed partial class SlangCompiler
 	public CompiledPassStage CompilePass( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> values ) => Wait( CompilePassAsync( module, stage, values ) );
 
 	/// <summary>
-	/// <see cref="CompilePass"/> on a compile thread: from the cache at once when it's there. <paramref name="background"/>
-	/// work (warming) waits behind compiles something waits for.
+	/// <see cref="CompilePass"/> on a compile thread: from the cache at once when it's there. <paramref name="priority"/>
+	/// (null: urgent) orders it among the other compiles.
 	/// </summary>
-	public Task<CompiledPassStage> CompilePassAsync( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> values, bool background = false )
+	public Task<CompiledPassStage> CompilePassAsync( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> values, CompilePriority priority = null )
 	{
 		var defines = new SortedDictionary<string, string>( StringComparer.Ordinal );
 		foreach ( var (name, value) in values ) defines[name] = value.ToString( System.Globalization.CultureInfo.InvariantCulture );
@@ -42,7 +42,7 @@ public sealed partial class SlangCompiler
 			}
 		}
 
-		return SlangWorkers.Run( () => CompilePassStage( module, stage, values, defines, key ), !background );
+		return SlangWorkers.Run( () => CompilePassStage( module, stage, values, defines, key ), priority );
 	}
 
 	CompiledPassStage CompilePassStage( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> values, IReadOnlyDictionary<string, string> defines, string key )

@@ -6,16 +6,16 @@ namespace Sandbox.ShaderCompiler.Slang;
 /// <summary>
 /// The threads Slang compiles on: one per session (<see cref="SlangApi.MaxSessions"/>), below normal priority so a game's
 /// own threads come first, made on first use. Each job is one Slang request; a job never waits for another, so callers
-/// can wait for their jobs from any thread. Urgent jobs (a compile something waits for) run before background ones (warming).
+/// can wait for their jobs from any thread. Urgent jobs (a compile something waits for, <see cref="CompilePriority"/>)
+/// run before background ones (warming), oldest first.
 /// </summary>
 internal static class SlangWorkers
 {
-	static readonly Queue<Action> urgent = new();
-	static readonly Queue<Action> background = new();
+	static readonly List<(Action Job, CompilePriority Priority)> queue = new();
 	static int threads, waiting;
 
-	/// <summary>Run <paramref name="job"/> on a compile thread.</summary>
-	public static Task<T> Run<T>( Func<T> job, bool urgentJob = true )
+	/// <summary>Run <paramref name="job"/> on a compile thread, in the order <paramref name="priority"/> (null: urgent) puts it.</summary>
+	public static Task<T> Run<T>( Func<T> job, CompilePriority priority )
 	{
 		var done = new TaskCompletionSource<T>( TaskCreationOptions.RunContinuationsAsynchronously );
 		Enqueue( () =>
@@ -28,22 +28,17 @@ internal static class SlangWorkers
 			{
 				done.SetException( e );
 			}
-		}, urgentJob );
+		}, priority );
 		return done.Task;
 	}
 
-	/// <summary>Whether the current thread is a compile thread.</summary>
-	public static bool OnWorker => onWorker;
-
-	[ThreadStatic] static bool onWorker;
-
-	static void Enqueue( Action job, bool urgentJob )
+	static void Enqueue( Action job, CompilePriority priority )
 	{
 		var start = false;
-		lock ( urgent )
+		lock ( queue )
 		{
-			(urgentJob ? urgent : background).Enqueue( job );
-			if ( waiting > 0 ) Monitor.Pulse( urgent );
+			queue.Add( (job, priority) );
+			if ( waiting > 0 ) Monitor.Pulse( queue );
 			else if ( threads < SlangApi.MaxSessions )
 			{
 				threads++;
@@ -56,20 +51,22 @@ internal static class SlangWorkers
 
 	static void Work()
 	{
-		onWorker = true;
 		while ( true )
 		{
 			Action job;
-			lock ( urgent )
+			lock ( queue )
 			{
-				while ( urgent.Count == 0 && background.Count == 0 )
+				while ( queue.Count == 0 )
 				{
 					waiting++;
-					Monitor.Wait( urgent );
+					Monitor.Wait( queue );
 					waiting--;
 				}
 
-				job = urgent.Count > 0 ? urgent.Dequeue() : background.Dequeue();
+				var next = queue.FindIndex( q => q.Priority is null || q.Priority.Urgent );
+				if ( next < 0 ) next = 0;
+				job = queue[next].Job;
+				queue.RemoveAt( next );
 			}
 
 			job();

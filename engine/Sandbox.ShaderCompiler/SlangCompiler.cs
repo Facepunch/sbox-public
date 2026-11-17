@@ -197,7 +197,7 @@ public sealed partial class SlangCompiler
 	/// the cache's layout entry when it's there, else one Slang request on a compile thread. For loading materials while
 	/// the stages compile. Faults with <see cref="ShaderCompileException"/> where the compile would.
 	/// </summary>
-	public Task<CompiledShader> ReflectAsync( string path, bool background = false )
+	public Task<CompiledShader> ReflectAsync( string path, CompilePriority priority = null )
 	{
 		path = Path.GetFullPath( path );
 		var text = File.ReadAllText( path );
@@ -223,7 +223,7 @@ public sealed partial class SlangCompiler
 			var read = new ReadFiles( path );
 			var layout = Reflected( path, source, name, tier, read );
 			return new CompiledShader { Name = name, Tier = tier, Path = path, Material = layout, Passes = new Dictionary<string, CompiledPass>(), Dependencies = read.Sorted() };
-		}, !background );
+		}, priority );
 	}
 
 	/// <summary>Defines vfx gives every program, which the core includes test.</summary>
@@ -271,12 +271,12 @@ public sealed partial class SlangCompiler
 	public CompiledShader CompileSurface( string path ) => Wait( CompileSurfaceAsync( path ) );
 
 	/// <summary>
-	/// <see cref="CompileSurface"/> on the compile threads, with its stages in parallel; <paramref name="background"/> work
-	/// (warming) waits behind compiles something waits for. Faults with <see cref="ShaderCompileException"/> on errors.
+	/// <see cref="CompileSurface"/> on the compile threads, with its stages in parallel; <paramref name="priority"/> (null: urgent)
+	/// orders it among the other compiles. Faults with <see cref="ShaderCompileException"/> on errors.
 	/// </summary>
-	public Task<CompiledShader> CompileSurfaceAsync( string path, bool background = false ) => Cached( path, ShaderTier.Surface, p => CompileSurfaceNow( p, background ) );
+	public Task<CompiledShader> CompileSurfaceAsync( string path, CompilePriority priority = null ) => Cached( path, ShaderTier.Surface, p => CompileSurfaceNow( p, priority ) );
 
-	async Task<CompiledShader> CompileSurfaceNow( string path, bool background )
+	async Task<CompiledShader> CompileSurfaceNow( string path, CompilePriority priority )
 	{
 		Interlocked.Increment( ref surfaces );
 		var clock = Stopwatch.StartNew();
@@ -290,7 +290,7 @@ public sealed partial class SlangCompiler
 
 		{
 			var read = new ReadFiles( path );
-			var layout = await SlangWorkers.Run( () => Reflected( path, source, material.Name, ShaderTier.Surface, read ), !background ).ConfigureAwait( false );
+			var layout = await SlangWorkers.Run( () => Reflected( path, source, material.Name, ShaderTier.Surface, read ), priority ).ConfigureAwait( false );
 			var interpolatedDisplaces = material.Interfaces.Contains( "IInterpolatedVertexSurface" );
 			var displaces = interpolatedDisplaces || material.Interfaces.Contains( "IVertexSurface" );
 			var lit = material.Interfaces.Contains( "ILitSurface" );
@@ -324,7 +324,7 @@ public sealed partial class SlangCompiler
 			// Every stage at once, each a request on its own compile thread; the GPU-driven vertex stages once the classic ones
 			// they're generated from are done. All are waited for before anything is thrown, the first failure in this order
 			Task<CompiledStage> Entry( string text, string name, StageKind stage, IReadOnlyDictionary<string, string> defines = null ) =>
-				SlangWorkers.Run( () => CompileEntry( instancePath, text, name, stage, directory, read, defines ), !background );
+				SlangWorkers.Run( () => CompileEntry( instancePath, text, name, stage, directory, read, defines ), priority );
 			var vertexJob = Entry( instance, "MainVs", StageKind.Vertex );
 			var vertexLightmappedJob = Entry( instance, "MainVs", StageKind.Vertex, Lightmapped );
 			var forwardJob = Entry( instance, "ForwardPs", StageKind.Pixel );
@@ -412,9 +412,9 @@ public sealed partial class SlangCompiler
 	public CompiledShader CompileRaw( string path ) => Wait( CompileRawAsync( path ) );
 
 	/// <summary><see cref="CompileRaw"/> on the compile threads, as <see cref="CompileSurfaceAsync"/>.</summary>
-	public Task<CompiledShader> CompileRawAsync( string path, bool background = false ) => Cached( path, ShaderTier.Raw, p => CompileRawNow( p, background ) );
+	public Task<CompiledShader> CompileRawAsync( string path, CompilePriority priority = null ) => Cached( path, ShaderTier.Raw, p => CompileRawNow( p, priority ) );
 
-	async Task<CompiledShader> CompileRawNow( string path, bool background )
+	async Task<CompiledShader> CompileRawNow( string path, CompilePriority priority )
 	{
 		Interlocked.Increment( ref surfaces );
 		var clock = Stopwatch.StartNew();
@@ -429,10 +429,10 @@ public sealed partial class SlangCompiler
 		var directory = Path.GetDirectoryName( path );
 		{
 			var read = new ReadFiles( path );
-			var layoutJob = declared.Count == 1 ? SlangWorkers.Run( () => Reflected( path, source, declared[0].Name, ShaderTier.Raw, read ), !background ) : Task.FromResult( MaterialLayout.Create( "", [] ) );
-			var vertexJob = SlangWorkers.Run( () => CompileEntry( path, source, "MainVs", StageKind.Vertex, directory, read ), !background );
-			var forwardJob = SlangWorkers.Run( () => CompileEntry( path, source, "MainPs", StageKind.Pixel, directory, read ), !background );
-			var depthJob = Has( "DepthPs", "pixel" ) ? SlangWorkers.Run( () => CompileEntry( path, source, "DepthPs", StageKind.Pixel, directory, read ), !background ) : null;
+			var layoutJob = declared.Count == 1 ? SlangWorkers.Run( () => Reflected( path, source, declared[0].Name, ShaderTier.Raw, read ), priority ) : Task.FromResult( MaterialLayout.Create( "", [] ) );
+			var vertexJob = SlangWorkers.Run( () => CompileEntry( path, source, "MainVs", StageKind.Vertex, directory, read ), priority );
+			var forwardJob = SlangWorkers.Run( () => CompileEntry( path, source, "MainPs", StageKind.Pixel, directory, read ), priority );
+			var depthJob = Has( "DepthPs", "pixel" ) ? SlangWorkers.Run( () => CompileEntry( path, source, "DepthPs", StageKind.Pixel, directory, read ), priority ) : null;
 			await Settled( depthJob is null ? [layoutJob, vertexJob, forwardJob] : [layoutJob, vertexJob, forwardJob, depthJob] ).ConfigureAwait( false );
 
 			var layout = layoutJob.GetAwaiter().GetResult();

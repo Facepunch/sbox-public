@@ -21,6 +21,7 @@ public sealed class SurfaceShaders : IDisposable
 	readonly List<string> folders = new();
 	SlangCompiler compiler;
 	readonly Dictionary<string, List<string>> changedWhileCompiling = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, CompilePriority> priorities = new( StringComparer.OrdinalIgnoreCase );
 	bool disposed;
 
 	internal SurfaceShaders( BackendDevice device )
@@ -448,6 +449,7 @@ public sealed class SurfaceShaders : IDisposable
 		{
 			layouts[file] = reflected;
 			if ( reflected is not null && !programs.ContainsKey( file ) && !compiling.ContainsKey( file ) ) compiling[file] = Start( file, background: false );
+			Hurry( file );
 		}
 
 		return reflected;
@@ -501,6 +503,7 @@ public sealed class SurfaceShaders : IDisposable
 		{
 			if ( programs.TryGetValue( file, out var known ) ) return known;
 			if ( !compiling.TryGetValue( file, out task ) ) compiling[file] = task = Start( file, background: false );
+			Hurry( file );
 		}
 
 		using ( Zones.SurfaceCompile.Start() ) return task.GetAwaiter().GetResult();
@@ -514,8 +517,15 @@ public sealed class SurfaceShaders : IDisposable
 		{
 			if ( programs.TryGetValue( file, out var known ) ) return known;
 			if ( !compiling.ContainsKey( file ) ) compiling[file] = Start( file, background: false );
+			Hurry( file );
 			return null;
 		}
+	}
+
+	/// <summary>A compile warming in the background that a draw now waits for goes ahead of the other background work. Under the programs lock.</summary>
+	void Hurry( string file )
+	{
+		if ( priorities.TryGetValue( file, out var priority ) ) priority.Urgent = true;
 	}
 
 	/// <summary>
@@ -526,6 +536,7 @@ public sealed class SurfaceShaders : IDisposable
 	Task<SurfaceProgram> Start( string file, bool background )
 	{
 		changedWhileCompiling[file] = new List<string>();
+		var priority = priorities[file] = background ? CompilePriority.Background() : new CompilePriority { Urgent = true };
 		var compiler = Compiler();
 		return Task.Run( async () =>
 		{
@@ -540,7 +551,7 @@ public sealed class SurfaceShaders : IDisposable
 				try
 				{
 					var raw = SlangCompiler.IsRaw( File.ReadAllText( path ) );
-					var compiled = await (raw ? compiler.CompileRawAsync( path, background ) : compiler.CompileSurfaceAsync( path, background )).ConfigureAwait( false );
+					var compiled = await (raw ? compiler.CompileRawAsync( path, priority ) : compiler.CompileSurfaceAsync( path, priority )).ConfigureAwait( false );
 					program = new SurfaceProgram( device, compiled );
 					if ( compiled.GpuDrivenError is { } gpuDrivenError ) Error?.Invoke( $"{file}: no GPU-driven passes, its draws go the classic way: {gpuDrivenError}" );
 				}
@@ -558,6 +569,7 @@ public sealed class SurfaceShaders : IDisposable
 			lock ( programs )
 			{
 				compiling.Remove( file );
+				priorities.Remove( file );
 				var changes = changedWhileCompiling.Remove( file, out var changed ) ? changed : [];
 
 				// One that failed tries again after any change, as Changed has it
@@ -815,7 +827,7 @@ internal sealed class SurfaceProgram : IDisposable
 				return unspecialized;
 			}
 
-			pipeline = device.Gpu.CreateGraphicsPipeline( Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, ids, opaqueFade, depthEqual, normals ) );
+			using ( Zones.PipelineCreate.Start() ) pipeline = device.Gpu.CreateGraphicsPipeline( Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, ids, opaqueFade, depthEqual, normals ) );
 			pipelines[key] = pipeline;
 			return pipeline;
 		}
