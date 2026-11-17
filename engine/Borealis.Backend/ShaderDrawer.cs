@@ -113,12 +113,34 @@ public sealed class ShaderAttributes
 	/// <summary>A combo's value, or null when it wasn't set.</summary>
 	public int? GetCombo( string name ) => combos.TryGetValue( name, out var value ) ? value : null;
 
-	/// <summary>Every value set, by name.</summary>
-	public IEnumerable<KeyValuePair<string, object>> Values
+	/// <summary>Every value set, by name, in the order first set: a foreach over it allocates nothing.</summary>
+	public SetValues Values => new( this );
+
+	/// <summary>The values of a <see cref="ShaderAttributes"/>, enumerated without allocating.</summary>
+	public readonly struct SetValues( ShaderAttributes attributes ) : IEnumerable<KeyValuePair<string, object>>
 	{
-		get
+		/// <summary>An enumerator over the values, by name.</summary>
+		public Enumerator GetEnumerator() => new( attributes );
+		IEnumerator<KeyValuePair<string, object>> IEnumerable<KeyValuePair<string, object>>.GetEnumerator() => GetEnumerator();
+		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+		/// <summary>Goes through the values in the order first set.</summary>
+		public struct Enumerator( ShaderAttributes attributes ) : IEnumerator<KeyValuePair<string, object>>
 		{
-			for ( int i = 0; i < set.Count; i++ ) yield return new( AttributeIds.NameOf( set[i] ), slots[set[i]] );
+			int index = -1;
+
+			/// <summary>The value and its name.</summary>
+			public readonly KeyValuePair<string, object> Current => new( AttributeIds.NameOf( attributes.set[index] ), attributes.slots[attributes.set[index]] );
+			readonly object System.Collections.IEnumerator.Current => Current;
+
+			/// <summary>On to the next value.</summary>
+			public bool MoveNext() => ++index < attributes.set.Count;
+
+			/// <summary>Back to before the first value.</summary>
+			public void Reset() => index = -1;
+
+			/// <summary>Nothing to release.</summary>
+			public readonly void Dispose() { }
 		}
 	}
 
@@ -845,7 +867,7 @@ public sealed class ShaderDrawer : IDisposable
 			if ( !variant.Sets[set].IsValid ) continue;
 
 			var count = 0;
-			foreach ( var resource in variant.Resources )
+			foreach ( var resource in variant.ResourceSpan )
 			{
 				if ( resource.Set != set ) continue;
 				if ( count == bindings.Length ) throw new InvalidOperationException( $"{variant} binds more than {bindings.Length} resources in set {set}" );

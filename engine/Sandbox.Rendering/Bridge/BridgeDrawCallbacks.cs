@@ -24,9 +24,7 @@ internal sealed class BridgeDrawCallbacks : DrawCallbacks
 		RenderOnGpu( context, layerType, view.View, after );
 	}
 
-	// What the block's attributes held before a command list ran, and the context it ran for; callbacks run on the main thread
-	static readonly Dictionary<uint, object> valuesBefore = new();
-	static readonly Dictionary<uint, int> combosBefore = new();
+	// The context a command list ran for; callbacks run on the main thread
 	static GpuContext running;
 	Action runBefore, runAfter;
 
@@ -59,12 +57,8 @@ internal sealed class BridgeDrawCallbacks : DrawCallbacks
 			return;
 		}
 
-		valuesBefore.Clear();
-		combosBefore.Clear();
-		foreach ( var (token, value) in attributes.Values ) valuesBefore[token] = value;
-		foreach ( var (token, value) in attributes.Combos ) combosBefore[token] = value;
-
+		var before = attributes.Version;
 		commands();
-		if ( running is { } context ) MirrorContent.SetChanged( attributes, valuesBefore, combosBefore, context.Attributes );
+		if ( running is { } context ) MirrorContent.SetChanged( attributes, before, context.Attributes );
 	}
 }

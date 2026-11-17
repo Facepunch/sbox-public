@@ -281,7 +281,7 @@ internal sealed class MaterialLayout
 		var dynamicMaterial = new bool[Sets.Length];
 		if ( immediate )
 		{
-			foreach ( var r in variant.Resources )
+			foreach ( var r in variant.ResourceSpan )
 			{
 				if ( r.Kind != ShaderResourceKind.MaterialConstants || budget == 0 ) continue;
 				dynamicMaterial[r.Set] = true;
@@ -297,7 +297,7 @@ internal sealed class MaterialLayout
 			var resources = new List<ShaderResource>();
 			var slots = new List<BindingSlot>();
 			var dynamicIndex = new List<int>();
-			foreach ( var r in variant.Resources )
+			foreach ( var r in variant.ResourceSpan )
 			{
 				if ( r.Set != set ) continue;
 				resources.Add( r );

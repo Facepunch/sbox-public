@@ -166,11 +166,16 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	readonly Dictionary<byte[], uint> lightingRecords = new( LightingComparer.Instance );
 
-	sealed class LightingComparer : IEqualityComparer<byte[]>
+	// By contents, also looked up by a span (a record built on the stack), so finding a known record allocates nothing
+	sealed class LightingComparer : IEqualityComparer<byte[]>, IAlternateEqualityComparer<ReadOnlySpan<byte>, byte[]>
 	{
 		public static readonly LightingComparer Instance = new();
 		public bool Equals( byte[] a, byte[] b ) => a.AsSpan().SequenceEqual( b );
-		public int GetHashCode( byte[] bytes )
+		public int GetHashCode( byte[] bytes ) => GetHashCode( bytes.AsSpan() );
+		public bool Equals( ReadOnlySpan<byte> a, byte[] b ) => a.SequenceEqual( b );
+		public byte[] Create( ReadOnlySpan<byte> bytes ) => bytes.ToArray();
+
+		public int GetHashCode( ReadOnlySpan<byte> bytes )
 		{
 			var hash = new HashCode();
 			hash.AddBytes( bytes );
@@ -186,12 +191,14 @@ internal sealed class GpuDrivenTables : IDisposable
 	public uint Lighting( byte[] baked, byte[] probe )
 	{
 		if ( baked is null && probe is null ) return 0;
-		var record = new byte[LightingStride];
+		Span<byte> record = stackalloc byte[LightingStride];
+		record.Clear();
 		baked?.AsSpan( 0, Math.Min( baked.Length, 48 ) ).CopyTo( record );
-		probe?.AsSpan( 0, Math.Min( probe.Length, 112 ) ).CopyTo( record.AsSpan( 48 ) );
+		probe?.AsSpan( 0, Math.Min( probe.Length, 112 ) ).CopyTo( record[48..] );
 		lock ( lightingRecords )
 		{
-			if ( !lightingRecords.TryGetValue( record, out var index ) ) lightingRecords[record] = index = lighting.Append( record ) / 16;
+			var known = lightingRecords.GetAlternateLookup<ReadOnlySpan<byte>>();
+			if ( !known.TryGetValue( record, out var index ) ) known[record] = index = lighting.Append( record ) / 16;
 			return index;
 		}
 	}

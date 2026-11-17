@@ -955,6 +955,7 @@ public sealed unsafe class CommandList
 	/// <summary>Run the bound compute pipeline over a grid of thread groups.</summary>
 	public void Dispatch( int x, int y = 1, int z = 1 )
 	{
+		device.CheckGroupCounts( x, y, z );
 		OutsideRendering();
 		FlushBarriers();
 		FlushBindings( Vulkan.Vk.BindPointCompute );

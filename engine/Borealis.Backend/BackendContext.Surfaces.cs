@@ -31,6 +31,22 @@ internal sealed partial class BackendContext
 
 	static readonly StringToken SkyboxCombo = new( "D_SKYBOX" );
 
+	// A pass's skinned or lightmapped variant's name, without joining the strings every draw
+	static string Named( string pass, string suffix ) => (pass, suffix) switch
+	{
+		(ShaderPasses.Depth, ShaderPasses.Skinned ) => ShaderPasses.Depth + ShaderPasses.Skinned,
+		(ShaderPasses.Depth, ShaderPasses.Lightmapped ) => ShaderPasses.Depth + ShaderPasses.Lightmapped,
+		(ShaderPasses.DepthAlphaTest, ShaderPasses.Skinned ) => ShaderPasses.DepthAlphaTest + ShaderPasses.Skinned,
+		(ShaderPasses.DepthAlphaTest, ShaderPasses.Lightmapped ) => ShaderPasses.DepthAlphaTest + ShaderPasses.Lightmapped,
+		(ShaderPasses.Forward, ShaderPasses.Skinned ) => ShaderPasses.Forward + ShaderPasses.Skinned,
+		(ShaderPasses.Forward, ShaderPasses.Lightmapped ) => ShaderPasses.Forward + ShaderPasses.Lightmapped,
+		(ForwardAlphaTestPass, ShaderPasses.Skinned ) => ForwardAlphaTestPass + ShaderPasses.Skinned,
+		(ForwardAlphaTestPass, ShaderPasses.Lightmapped ) => ForwardAlphaTestPass + ShaderPasses.Lightmapped,
+		(ForwardTranslucentPass, ShaderPasses.Skinned ) => ForwardTranslucentPass + ShaderPasses.Skinned,
+		(ForwardTranslucentPass, ShaderPasses.Lightmapped ) => ForwardTranslucentPass + ShaderPasses.Lightmapped,
+		_ => pass + suffix,
+	};
+
 	bool DrawSurface( SurfaceMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, in IndirectDraws indirect )
 	{
 		if ( mesh.Geometry is not IBackendGeometry source ) return false;
@@ -69,8 +85,8 @@ internal sealed partial class BackendContext
 		// object's draws (D_BAKED_LIGHTING_FROM_LIGHTMAP) pass the mesh's lightmap uv on. One-weight skinned draws need neither:
 		// the engine's vertex stage skins them from the transform buffer's bones
 		var vertexCache = cacheDraw is not null;
-		var pass = vertexCache ? program.Pass( name + ShaderPasses.Skinned )
-			: (LookupCombo( LightmapCombo ) is > 0 ? program.Pass( name + ShaderPasses.Lightmapped ) : null) ?? program.Pass( name );
+		var pass = vertexCache ? program.Pass( Named( name, ShaderPasses.Skinned ) )
+			: (LookupCombo( LightmapCombo ) is > 0 ? program.Pass( Named( name, ShaderPasses.Lightmapped ) ) : null) ?? program.Pass( name );
 
 		if ( pass is null ) return false;
 

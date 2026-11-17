@@ -68,7 +68,7 @@ internal sealed partial class BackendContext
 			written.Clear();
 			sampled.Clear();
 			sampledMips.Clear();
-			foreach ( var resource in variant.Resources )
+			foreach ( var resource in variant.ResourceSpan )
 			{
 				if ( resource.Name is not { } name ) continue;
 				var storage = resource.Kind == ShaderResourceKind.StorageTexture;
