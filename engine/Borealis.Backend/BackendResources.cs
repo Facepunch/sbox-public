@@ -49,6 +49,7 @@ internal sealed class BackendTexture : GpuTexture
 		var old = Handle;
 		Handle = image;
 		Layout = ImageLayout.ShaderRead;
+		BackendContext.ForgetMipViews( this, device.Gpu );
 		device.Gpu.Destroy( old );
 	}
 
@@ -77,6 +78,7 @@ internal sealed class BackendTexture : GpuTexture
 	{
 		if ( disposed ) return;
 		disposed = true;
+		BackendContext.ForgetMipViews( this, device.Gpu );
 		device.Gpu.Destroy( Handle );
 	}
 
