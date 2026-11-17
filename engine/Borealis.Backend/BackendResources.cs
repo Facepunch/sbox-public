@@ -457,6 +457,9 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 			if ( index >= 0 ) features[index] = value;
 		}
 
+		// The shader's feature rules, as native applies them to a material's values: Allow1( F_CLOTH_SHADING, F_METALNESS_TEXTURE )
+		// keeps cloth when a material sets both (Needlestack's gloves)
+		if ( shader?.Features is { } program ) ShaderRule.Apply( program.StaticRules, ShaderRuleType.Feature, features );
 		return features;
 	}
 

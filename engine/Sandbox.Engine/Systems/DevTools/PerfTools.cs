@@ -52,6 +52,7 @@ internal static class PerfTools
 				ProcessMiB = MiB( PerformanceStats.ApproximateProcessMemoryUsage ),
 				VideoMemory = VideoMemory(),
 				AllocatedMiBPerSecond = MiB( second.ByteAlloc ),
+				RendererAllocatedBytesLastFrame = PerformanceStats.RendererBytesAllocated,
 				GcPauseMsLastSecond = Round( TimeSpan.FromTicks( second.GcPause ).TotalMilliseconds ),
 				GcLastSecond = new { Gen0 = second.Gc0, Gen1 = second.Gc1, Gen2 = second.Gc2 },
 			},

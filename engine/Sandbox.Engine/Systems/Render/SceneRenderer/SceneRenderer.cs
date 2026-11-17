@@ -56,6 +56,28 @@ internal interface ISceneRenderer
 	/// Make what it renders with now, on the main thread at startup, so the first frames render as the rest do.
 	/// </summary>
 	void WarmUp();
+
+	/// <summary>
+	/// Whether envmap probes wait to capture this frame (<see cref="Scene.RenderEnvmaps"/>): the renderer is still making a
+	/// just-loaded scene's models, so a capture would be slow and miss them.
+	/// </summary>
+	bool HoldsCaptures => false;
+
+	/// <summary>
+	/// Capture the envmap probes <paramref name="scene"/> needs this frame (<see cref="Scene.RenderEnvmaps"/>). Native's:
+	/// the first dirty one, every frame, seen or not.
+	/// </summary>
+	void RenderEnvmaps( Scene scene )
+	{
+		// One a frame: several in one frame balloon transform buffers and descriptor sets in complex scenes
+		foreach ( var envmap in scene.EnvmapProbes() )
+		{
+			if ( !envmap.Dirty ) continue;
+
+			envmap.RenderCubemap();
+			break;
+		}
+	}
 }
 
 /// <summary>

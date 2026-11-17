@@ -343,13 +343,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 		else blockTimer = -1;
 
-		return blockAttributes = RenderAttributes.CreateManaged();
+		// One set for every block, emptied as each starts: blocks don't overlap
+		reusedBlockAttributes ??= RenderAttributes.CreateManaged();
+		reusedBlockAttributes.Clear();
+		return blockAttributes = reusedBlockAttributes;
 	}
 
 	int blockTimer = -1;
 
 	// The block's attributes, which a draw's own are layered over, as Source 2's contexts layer them
-	RenderAttributes blockAttributes;
+	RenderAttributes blockAttributes, reusedBlockAttributes;
 
 	/// <summary>
 	/// Record the next block into <paramref name="list"/>, which another recorder on the device is part way through (Borealis's
@@ -1180,6 +1183,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	string Name( uint token ) => names.TryGetValue( token, out var name ) ? name : StringToken.GetValue( token );
 
+	// Attribute ids by token, so lowering a draw's attributes hashes no names
+	readonly Dictionary<uint, int> attributeIds = new();
+
+	int AttributeId( uint token, string name )
+	{
+		if ( attributeIds.TryGetValue( token, out var id ) ) return id;
+		return attributeIds[token] = AttributeIds.Of( name );
+	}
+
 	/// <summary>Lower managed attributes into what <see cref="ShaderDrawer"/> binds by name.</summary>
 	ShaderAttributes Lower( RenderAttributes attributes )
 	{
@@ -1206,19 +1218,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			switch ( value )
 			{
 				case float[] floats:
-					lowered.Set( name, floats );
+					lowered.SetById( AttributeId( token, name ), floats );
 					break;
 				case ManagedRenderAttributes.TextureValue { Texture: { } texture, Mip: < 0 }:
-					lowered.Set( name, TextureOf( texture ) );
+					lowered.SetById( AttributeId( token, name ), TextureOf( texture ) );
 					break;
 				case ManagedRenderAttributes.TextureValue { Texture: { } texture, Mip: var mip }:
-					lowered.Set( name, context.View( TextureOf( texture ), mip ) );
+					lowered.SetById( AttributeId( token, name ), context.View( TextureOf( texture ), mip ) );
 					break;
 				case GpuBuffer buffer:
 					LowerBuffer( name, buffer );
 					break;
 				case byte[] data:
-					lowered.SetData( name, data );
+					lowered.SetById( AttributeId( token, name ), data );
 					break;
 			}
 		}
@@ -1282,7 +1294,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		BackendMaterial file = null;
 		if ( material.MadeFromShader is { } shader )
 		{
-			file = services.CreateMaterial( material.Name ?? path ?? shader, ShaderPath( shader ) ) as BackendMaterial;
+			// The shader draws with it (a package's shader compiled at run time is only known by its draw's name), so its
+			// values reach the draw: Unicycle Frenzy's speed lines set their intensity to 0 at rest
+			file = (ShaderOf( material ) is { } drawn ? services.CreateMaterial( material.Name ?? path ?? shader, drawn ) : services.CreateMaterial( material.Name ?? path ?? shader, ShaderPath( shader ) )) as BackendMaterial;
 			if ( file?.Shader is null ) file = null;
 			else if ( material.SetInCode is { Count: > 0 } set )
 			{

@@ -37,6 +37,7 @@ internal sealed partial class SceneBridge
 	/// </summary>
 	void RenderInto( BorealisGpuWindow window, SceneCamera camera, Vector2? size, in ViewSetup setup )
 	{
+		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		var renderSize = size ?? window.Size;
 		if ( renderSize.x < 1 || renderSize.y < 1 ) return;
 
@@ -74,6 +75,7 @@ internal sealed partial class SceneBridge
 	/// </summary>
 	void RenderIntoTexture( BorealisGpuRenderBackend backend, SceneCamera camera, Texture target, Vector2 size, in ViewSetup setup )
 	{
+		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		if ( size.x < 1 || size.y < 1 || NotYetInBorealis( camera, setup ) is not null ) return;
 
 		camera.ConfigureView( setup );
@@ -231,6 +233,7 @@ internal sealed partial class SceneBridge
 	/// </summary>
 	bool RenderOnGpu( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, float toneMapScalar, out CameraState state )
 	{
+		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		state = null;
 		if ( target.Width < 1 || target.Height < 1 ) return false;
 

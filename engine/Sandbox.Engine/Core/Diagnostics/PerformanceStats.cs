@@ -40,6 +40,12 @@ public static partial class PerformanceStats
 	public static long BytesAllocated { get; internal set; }
 
 	/// <summary>
+	/// The managed bytes the renderer allocated in the last frame, on every thread it runs on (Borealis's camera frames on
+	/// the main thread, its recording and culling jobs on workers): none in steady state.
+	/// </summary>
+	internal static long RendererBytesAllocated { get; set; }
+
+	/// <summary>
 	/// Number of generation 0 (fastest) garbage collections were done in the last frame.
 	/// </summary>
 	public static int Gen0Collections { get; internal set; }
@@ -111,6 +117,7 @@ public static partial class PerformanceStats
 
 		var allocatedBytes = AppDomain.CurrentDomain.MonitoringTotalAllocatedMemorySize;
 		PerformanceStats.BytesAllocated = allocatedBytes - _prevAllocatedBytes;
+		PerformanceStats.RendererBytesAllocated = Borealis.RendererAllocations.TakeFrame();
 		_prevAllocatedBytes = allocatedBytes;
 
 		var pauseTicks = GC.GetTotalPauseDuration().Ticks;

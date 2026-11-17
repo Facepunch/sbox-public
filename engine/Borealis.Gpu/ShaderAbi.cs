@@ -16,9 +16,6 @@ public static class ShaderAbi
 	/// <summary>Pixel shader resources.</summary>
 	public const int FragmentSet = 1;
 
-	/// <summary>Geometry shader resources.</summary>
-	public const int GeometrySet = 2;
-
 	/// <summary>The ray tracing set (<c>RaytracingDescriptorSet</c>, <c>Slot 0</c>); empty here.</summary>
 	public const int RaytracingSet = 3;
 

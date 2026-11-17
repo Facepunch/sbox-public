@@ -237,6 +237,54 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// </summary>
 	public void WarmUp() => RenderSystem.WarmUp();
 
+	/// <summary>Which envmap probes capture, and when: those the camera sees, within a budget.</summary>
+	internal EnvmapScheduler Envmaps { get; } = new();
+
+	/// <inheritdoc/>
+	public void RenderEnvmaps( Scene scene ) => Envmaps.Run( scene );
+
+	/// <summary>
+	/// Whether envmap captures wait while Borealis.Gpu makes a loaded scene's models (on). For comparisons.
+	/// </summary>
+	internal static bool HoldCapturesWhileLoading { get; set; } = true;
+
+	/// <summary>The longest captures wait for models, so a scene that keeps loading them still gets its probes.</summary>
+	const long MaxCaptureHoldMs = 8000;
+
+	long captureHeldSince;
+
+	/// <summary>Pending mirror changes that mean a scene has just loaded rather than changing as it plays.</summary>
+	const int LoadedSceneChanges = 256;
+
+	/// <summary>
+	/// While a world's mirror has a loaded scene's objects still to apply, or models load
+	/// (<see cref="Borealis.Backend.BackendDevice.LoadingModels"/>), up to <see cref="MaxCaptureHoldMs"/>: a probe captured
+	/// then misses them, and each of its faces rescans what it draws as they arrive, which made the frames after a map load
+	/// several times native's.
+	/// </summary>
+	public bool HoldsCaptures
+	{
+		get
+		{
+			var loading = MirrorContent.Gpu is { LoadingModels: true };
+			foreach ( var (_, mirror) in mirrors )
+			{
+				if ( loading ) break;
+				loading = mirror.PendingChanges >= LoadedSceneChanges;
+			}
+
+			if ( !HoldCapturesWhileLoading || !loading )
+			{
+				captureHeldSince = 0;
+				return false;
+			}
+
+			var now = Environment.TickCount64;
+			if ( captureHeldSince == 0 ) captureHeldSince = now;
+			return now - captureHeldSince < MaxCaptureHoldMs;
+		}
+	}
+
 	SceneMirror MirrorFor( SceneWorld world )
 	{
 		if ( !mirrors.TryGetValue( world, out var mirror ) ) mirrors[world] = mirror = new SceneMirror( world );

@@ -315,6 +315,7 @@ public sealed partial class RenderSystem : IDisposable
 
 	void Render( RenderWorld world, RenderView view, in RenderOutput output, IRenderStages stages = null )
 	{
+		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		ArgumentNullException.ThrowIfNull( world );
 		ArgumentNullException.ThrowIfNull( view );
 

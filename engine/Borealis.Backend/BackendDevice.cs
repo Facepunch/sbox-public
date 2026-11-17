@@ -1115,7 +1115,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		if ( tier.ConversionFor( file.Shader ) is not { } surface || tier.Layout( surface ) is not { } compiled ) return null;
 		if ( !ConvertedMaterial.Accepts( compiled, file ) || tier.ConvertMaterial?.Invoke( path ) == false ) return null;
 		tier.CountConverted( path );
-		var converted = ConvertedMaterial.Create( compiled, file, path, MaterialTextureFile );
+		var converted = ConvertedMaterial.Create( compiled, WithFeatureRules( file ), path, MaterialTextureFile );
 
 		// The .shader material, for draws the surface can't make
 		converted.SetFallback( fallback );
@@ -1123,6 +1123,27 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		// Its scene attributes (overlay, NoZPrepass, ...) are the .shader material's: that material without textures
 		converted.SetAttributes( () => new BackendMaterial( path, Shaders.Load( file.Shader ), file, null ) );
 		return converted;
+	}
+
+	/// <summary>
+	/// <paramref name="file"/> with its feature values (<c>F_*</c>) through its shader's feature rules, as native applies them
+	/// and the <c>.shader</c> material reads them (<see cref="BackendMaterial.FeatureValues"/>): a surface standing in for the shader
+	/// takes the same features. The file itself when the rules change nothing.
+	/// </summary>
+	MaterialFile WithFeatureRules( MaterialFile file )
+	{
+		if ( Shaders.Load( file.Shader ) is not { Features.StaticRules.Length: > 0 } shader ) return file;
+		var features = BackendMaterial.FeatureValues( shader, file );
+		Dictionary<string, int> ints = null;
+		foreach ( var (name, value) in file.Ints )
+		{
+			var index = shader.FeatureIndex( name );
+			if ( index < 0 || features[index] == value ) continue;
+			ints ??= new Dictionary<string, int>( file.Ints, StringComparer.OrdinalIgnoreCase );
+			ints[name] = features[index];
+		}
+
+		return ints is null ? file : new MaterialFile { Name = file.Name, Shader = file.Shader, Ints = ints, Floats = file.Floats, Vectors = file.Vectors, Textures = file.Textures, IntAttributes = file.IntAttributes, ShaderVersion = file.ShaderVersion };
 	}
 
 	/// <summary>
@@ -1150,6 +1171,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <inheritdoc/>
 	public override GpuMaterial CreateMaterial( string name, string shaderPath ) => Track( new BackendMaterial( name, Shaders.Load( shaderPath ), null, null ) );
+
+	/// <summary>A material of <paramref name="shader"/>'s defaults, values set on it later: one made in code from a shader.</summary>
+	public GpuMaterial CreateMaterial( string name, ShaderFile shader ) => Track( new BackendMaterial( name, shader, null, null ) );
 
 	/// <summary>
 	/// A lit material of one colour, for meshes made with <see cref="BackendMesh.Create"/>:
