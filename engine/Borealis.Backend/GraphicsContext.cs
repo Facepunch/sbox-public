@@ -458,7 +458,7 @@ public sealed class GraphicsContext
 			if ( value is TextureHandle texture ) dispatchLayouts[texture] = ImageLayout.Undefined;
 		}
 
-		foreach ( var resource in variant?.Resources ?? [] )
+		foreach ( var resource in variant is null ? default : variant.ResourceSpan )
 		{
 			if ( resource.Name is null ) continue;
 			var value = attributes.Get( resource.Name );
@@ -994,7 +994,7 @@ public sealed class GraphicsContext
 	/// <summary>Whether a variant binds the texture set under <paramref name="name"/>.</summary>
 	static bool Reads( ShaderVariant variant, string name )
 	{
-		foreach ( var resource in variant?.Resources ?? [] )
+		foreach ( var resource in variant is null ? default : variant.ResourceSpan )
 		{
 			if ( resource.Kind is ShaderResourceKind.Texture or ShaderResourceKind.StorageTexture && string.Equals( resource.Name, name, StringComparison.OrdinalIgnoreCase ) ) return true;
 		}

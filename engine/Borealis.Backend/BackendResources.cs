@@ -154,9 +154,23 @@ internal sealed class BackendParameters : ShaderParameters
 	{
 		lock ( gate )
 		{
-			values.Set( name.Value, value );
+			Replace( name.Value, value );
 			version++;
 		}
+	}
+
+	// Each constant buffer's previous bytes by name, written the next time it's set, so setting one allocates nothing: a
+	// reader on another thread that took the current bytes still reads them whole. Every byte array set here is this
+	// set's own (SetData's, or MergeTo's copy). Under gate
+	readonly Dictionary<uint, byte[]> spareBytes = new();
+
+	byte[] TakeBytes( uint name, int size ) => spareBytes.Remove( name, out var spare ) && spare.Length == size ? spare : new byte[size];
+
+	// Set a value, keeping the bytes it replaces to write next time. Hold gate
+	void Replace( uint name, object value )
+	{
+		if ( values.TryGet( name, out var old ) && old is byte[] previous && !ReferenceEquals( previous, value ) ) spareBytes[name] = previous;
+		values.Set( name, value );
 	}
 
 	public override void Set( StringToken name, int value ) => Store( name, value );
@@ -173,9 +187,15 @@ internal sealed class BackendParameters : ShaderParameters
 
 	public override void SetData<T>( StringToken name, in T value )
 	{
-		var bytes = new byte[Marshal.SizeOf<T>()];
-		MemoryMarshal.Write( bytes, in value );
-		Store( name, bytes );
+		var size = Marshal.SizeOf<T>();
+		lock ( gate )
+		{
+			var bytes = TakeBytes( name.Value, size );
+			bytes.AsSpan( Math.Min( System.Runtime.CompilerServices.Unsafe.SizeOf<T>(), size ) ).Clear();
+			MemoryMarshal.Write( bytes, in value );
+			Replace( name.Value, bytes );
+			version++;
+		}
 	}
 
 	/// <summary>Combo values boxed once: combos are small numbers.</summary>
@@ -292,19 +312,46 @@ internal sealed class BackendParameters : ShaderParameters
 		var into = (BackendParameters)target;
 		if ( ReferenceEquals( into, this ) ) return;
 
-		List<(uint Key, object Value)> copiedValues;
-		List<(uint Key, object Value)> copiedCombos;
+		// Taken under this set's lock, then set under the other's, so the two are never held at once
+		var copiedValues = mergeValues ??= new();
+		var copiedCombos = mergeCombos ??= new();
 		lock ( gate )
 		{
-			copiedValues = Sorted( values );
-			copiedCombos = Sorted( combos );
+			Entries( values, copiedValues );
+			Entries( combos, copiedCombos );
 		}
 
 		lock ( into.gate )
 		{
-			foreach ( var (key, value) in copiedValues ) into.values.Set( key, value );
+			foreach ( var (key, value) in copiedValues )
+			{
+				// Bytes are copied into the other set's own, as it writes its bytes in place
+				if ( value is byte[] bytes )
+				{
+					var copy = into.TakeBytes( key, bytes.Length );
+					bytes.CopyTo( copy, 0 );
+					into.Replace( key, copy );
+				}
+				else into.Replace( key, value );
+			}
+
 			foreach ( var (key, value) in copiedCombos ) into.combos.Set( key, value );
 			into.version++;
+		}
+
+		copiedValues.Clear();
+		copiedCombos.Clear();
+	}
+
+	[ThreadStatic] static List<(uint Key, object Value)> mergeValues, mergeCombos;
+
+	/// <summary>A map's entries into <paramref name="into"/>, cleared first. Hold the gate.</summary>
+	static void Entries( AttributeMap map, List<(uint Key, object Value)> into )
+	{
+		into.Clear();
+		for ( int i = 0; i < map.Slots; i++ )
+		{
+			if ( map.At( i, out var key, out var value ) ) into.Add( (key, value) );
 		}
 	}
 
@@ -312,6 +359,12 @@ internal sealed class BackendParameters : ShaderParameters
 	{
 		lock ( gate )
 		{
+			// Bytes stay for the next time their names are set
+			for ( int i = 0; i < values.Slots; i++ )
+			{
+				if ( values.At( i, out var key, out var value ) && value is byte[] bytes ) spareBytes[key] = bytes;
+			}
+
 			values.Clear();
 			combos.Clear();
 			version++;

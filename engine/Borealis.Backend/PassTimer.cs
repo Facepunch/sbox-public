@@ -178,17 +178,34 @@ internal sealed class PassTimer : IDisposable
 		var s = (int)(frame % Slots);
 		if ( frames[s] != frame ) return false;
 
-		Scope[] list;
-		lock ( scopes[s] ) list = [.. scopes[s]];
-		var used = Math.Min( usedTimestamps[s], PerSlot );
-		if ( used == 0 ) return true;
+		lock ( readGate )
+		{
+			// Into arrays kept for reading, so a frame read allocates nothing
+			var list = readScopes;
+			list.Clear();
+			lock ( scopes[s] ) list.AddRange( scopes[s] );
+			var used = Math.Min( usedTimestamps[s], PerSlot );
+			if ( used == 0 ) return true;
 
-		var ticks = new ulong[used];
-		if ( !timestamps.TryRead( s * PerSlot, ticks ) ) return false;
+			var ticks = readTicks.AsSpan( 0, used );
+			if ( !timestamps.TryRead( s * PerSlot, ticks ) ) return false;
 
-		var queries = Math.Min( usedQueries[s], PerSlot / 2 );
-		var counts = new PipelineCounts[queries];
-		if ( statistics is not null && !statistics.TryRead( s * PerSlot / 2, counts ) ) return false;
+			var counts = readCounts.AsSpan( 0, Math.Min( usedQueries[s], PerSlot / 2 ) );
+			if ( statistics is not null && !statistics.TryRead( s * PerSlot / 2, counts ) ) return false;
+
+			Read( list, ticks, counts, into );
+			return true;
+		}
+	}
+
+	readonly object readGate = new();
+	readonly List<Scope> readScopes = new();
+	readonly ulong[] readTicks = new ulong[PerSlot];
+	readonly PipelineCounts[] readCounts = new PipelineCounts[PerSlot / 2];
+
+	void Read( List<Scope> list, ReadOnlySpan<ulong> ticks, ReadOnlySpan<PipelineCounts> counts, List<Timing> into )
+	{
+		var used = ticks.Length;
 
 		var origin = ulong.MaxValue;
 		foreach ( var scope in list )
@@ -204,8 +221,7 @@ internal sealed class PassTimer : IDisposable
 			into.Add( new Timing( scope.Name, scope.Kind, (ticks[scope.Begin] - origin) * period, (ticks[scope.End] - origin) * period, c, scope.Recorded ) );
 		}
 
-		into.Sort( ( a, b ) => a.Start.CompareTo( b.Start ) );
-		return true;
+		into.Sort( static ( a, b ) => a.Start.CompareTo( b.Start ) );
 	}
 
 	public void Dispose()

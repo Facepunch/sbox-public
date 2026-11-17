@@ -182,7 +182,7 @@ public partial class RenderAttributes
 
 	public void Set( in StringToken k, in Texture value, in int mip = -1 )
 	{
-		(Managed ?? Shadow)?.SetObject( k, value is null ? null : new ManagedRenderAttributes.TextureValue( value, mip ) );
+		(Managed ?? Shadow)?.SetTexture( k, value, mip );
 		if ( !attributes.IsValid ) return;
 
 		var native = value?.native ?? default;
@@ -277,10 +277,10 @@ public partial class RenderAttributes
 		if ( actualSize <= 0 ) return;
 		if ( Managed is not null )
 		{
-			Managed.SetObject( k, MemoryMarshal.AsBytes( value ).ToArray() );
+			Managed.SetBytes( k, MemoryMarshal.AsBytes( value ) );
 			return;
 		}
-		Shadow?.SetObject( k, MemoryMarshal.AsBytes( value ).ToArray() );
+		Shadow?.SetBytes( k, MemoryMarshal.AsBytes( value ) );
 		fixed ( T* ptr = value )
 			RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)ptr, actualSize );
 	}
@@ -293,7 +293,7 @@ public partial class RenderAttributes
 		if ( !SandboxedUnsafe.IsAcceptablePod<T>() )
 			throw new ArgumentException( $"{nameof( T )} must be a POD type" );
 
-		(Managed ?? Shadow)?.SetObject( k, MemoryMarshal.AsBytes( new ReadOnlySpan<T>( in value ) ).ToArray() );
+		(Managed ?? Shadow)?.SetBytes( k, MemoryMarshal.AsBytes( new ReadOnlySpan<T>( in value ) ) );
 		if ( !attributes.IsValid ) return;
 		int actualSize = Unsafe.SizeOf<T>();
 		if ( actualSize <= 0 ) return;
