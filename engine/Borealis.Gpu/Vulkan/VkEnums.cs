@@ -87,6 +87,7 @@ internal enum VkStructureType
 	ImageViewUsageCreateInfo = 1000117002,
 	DescriptorSetLayoutBindingFlagsCreateInfo = 1000161000,
 	PhysicalDeviceDescriptorIndexingProperties = 1000161002,
+	PhysicalDeviceSubgroupProperties = 1000094000,
 	SemaphoreTypeCreateInfo = 1000207002,
 	SemaphoreWaitInfo = 1000207004,
 	PhysicalDeviceMemoryBudgetPropertiesExt = 1000237000,

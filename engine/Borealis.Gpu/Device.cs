@@ -184,7 +184,8 @@ public sealed unsafe partial class Device : IDisposable
 			graphicsQueue = new DeviceQueue( this, Vk, queueFamilies[0], QueueType.Graphics );
 			computeQueue = computeFamily ? new DeviceQueue( this, Vk, queueFamilies[1], QueueType.Compute ) : graphicsQueue;
 
-			var indexing = new VkPhysicalDeviceDescriptorIndexingProperties { sType = VkStructureType.PhysicalDeviceDescriptorIndexingProperties };
+			var subgroups = new VkPhysicalDeviceSubgroupProperties { sType = VkStructureType.PhysicalDeviceSubgroupProperties };
+			var indexing = new VkPhysicalDeviceDescriptorIndexingProperties { sType = VkStructureType.PhysicalDeviceDescriptorIndexingProperties, pNext = &subgroups };
 			var properties2 = new VkPhysicalDeviceProperties2 { sType = VkStructureType.PhysicalDeviceProperties2, pNext = &indexing };
 			Instance.vkGetPhysicalDeviceProperties2( PhysicalDevice, &properties2 );
 
@@ -215,6 +216,8 @@ public sealed unsafe partial class Device : IDisposable
 				BindlessSamplers = bindlessSamplers,
 				BindlessStorageTextures = bindlessStorage,
 				MeshShaders = features.meshShaders,
+				// VK_SHADER_STAGE_VERTEX_BIT, and the vote (2) and ballot (8) operations wave-uniform vertex code uses
+				VertexWaveOps = (subgroups.supportedStages & 1) != 0 && (subgroups.supportedOperations & 0xA) == 0xA,
 			};
 
 			Bindless = new BindlessTable( this, bindlessTextures, bindlessSamplers, bindlessStorage, features.storageBufferUpdateAfterBind );

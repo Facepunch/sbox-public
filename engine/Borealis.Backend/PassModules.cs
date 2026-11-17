@@ -24,6 +24,9 @@ public sealed class PassModules : IShaderModules
 
 	internal PassModules( BackendDevice device ) => this.device = device;
 
+	/// <summary>Defined (1) for vertex stages on devices without wave operations there (<see cref="DeviceCapabilities.VertexWaveOps"/>).</summary>
+	internal const string NoVertexWaves = "BOREALIS_NO_VERTEX_WAVES";
+
 	/// <summary>
 	/// Told once for each module and combo values that don't compile, with the compiler's messages; the console's error
 	/// stream unless set.
@@ -274,6 +277,10 @@ public sealed class PassModules : IShaderModules
 
 			// No entry point with these values (a depth pass without a pixel shader): a stage with no code, for the render states
 			if ( !module.Has( kind, values ) ) return kind == StageKind.Pixel ? new ModuleStage { Type = ShaderProgramType.Pixel, Name = $"{Path.GetFileName( module.Path )} pixel (none)" } : null;
+
+			// A device without wave operations in vertex shaders (Lavapipe) rejects vertex modules that use them: modules
+			// leave them out where this is set
+			if ( kind == StageKind.Vertex && !device.Gpu.Capabilities.VertexWaveOps ) values[NoVertexWaves] = 1;
 			return Compiled( shader, module, kind, values, attributes );
 		}
 

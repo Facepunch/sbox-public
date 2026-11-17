@@ -188,4 +188,10 @@ public sealed class DeviceCapabilities
 	/// drawn with <see cref="CommandList.DrawMeshTasksIndirect"/>.
 	/// </summary>
 	public bool MeshShaders { get; init; }
+
+	/// <summary>
+	/// Whether vertex shaders can use wave (subgroup) vote and ballot operations. Most GPUs can; Lavapipe and some mobile
+	/// GPUs only have them in fragment, compute, task and mesh shaders, and reject vertex modules that use them.
+	/// </summary>
+	public bool VertexWaveOps { get; init; }
 }
