@@ -148,6 +148,10 @@ internal sealed class BorealisGpuFrame : IDisposable
 		return existing;
 	}
 
+	// The blue noise every stage binds, loaded once: Texture.Load builds its path each call, for every custom object a frame
+	static Texture blueNoise;
+	static Texture BlueNoise => blueNoise is { IsValid: true } ? blueNoise : blueNoise = Texture.Load( "textures/dev/blue_noise_256.vtex" );
+
 	// A stage's targets inside the frame (RunStage): engine textures kept from frame to frame, borrowed for each stage
 	Texture stageColor, stageDepth, stageChain, stageNormals, stageFog;
 
@@ -228,7 +232,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			if ( normals.Engine is not null ) attributes.Set( NormalsName, normals.Engine );
 			if ( fog.Engine is not null ) attributes.Set( FogVolumeName, fog.Engine );
 
-			attributes.Set( "BlueNoise", Texture.Load( "textures/dev/blue_noise_256.vtex" ) );
+			attributes.Set( "BlueNoise", BlueNoise );
 			attributes.Set( "QuarterResEffectsBloomInputTexture", Texture.Black );
 			draw();
 		}
@@ -329,7 +333,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 				attributes.Set( DepthChainPrevFrameName, DepthChain );
 			}
 
-			attributes.Set( "BlueNoise", Texture.Load( "textures/dev/blue_noise_256.vtex" ) );
+			attributes.Set( "BlueNoise", BlueNoise );
 			attributes.Set( "QuarterResEffectsBloomInputTexture", Texture.Black );
 			return scope;
 		}
