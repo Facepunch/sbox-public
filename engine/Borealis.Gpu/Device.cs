@@ -405,9 +405,11 @@ public sealed unsafe partial class Device : IDisposable
 		var e11 = new VkPhysicalDeviceVulkan11Features { sType = VkStructureType.PhysicalDeviceVulkan11Features, pNext = &e12 };
 		var features = new VkPhysicalDeviceFeatures2 { sType = VkStructureType.PhysicalDeviceFeatures2, pNext = &e11 };
 
+		// GeometryShader isn't for geometry stages (Borealis has none): SPIR-V's Geometry capability covers pixel shaders that
+		// read SV_PrimitiveID, as quad_overdraw_ps.fxc does in sky and tools_shading_complexity
 		ReadOnlySpan<VkFeature> core =
 		[
-			VkFeature.FullDrawIndexUint32, VkFeature.ImageCubeArray, VkFeature.IndependentBlend, VkFeature.SampleRateShading,
+			VkFeature.FullDrawIndexUint32, VkFeature.ImageCubeArray, VkFeature.IndependentBlend, VkFeature.GeometryShader, VkFeature.SampleRateShading,
 			VkFeature.MultiDrawIndirect, VkFeature.DrawIndirectFirstInstance, VkFeature.DepthClamp, VkFeature.DepthBiasClamp,
 			VkFeature.FillModeNonSolid, VkFeature.SamplerAnisotropy, VkFeature.TextureCompressionBc, VkFeature.OcclusionQueryPrecise, VkFeature.PipelineStatisticsQuery, VkFeature.FragmentStoresAndAtomics,
 			VkFeature.ShaderImageGatherExtended, VkFeature.ShaderStorageImageExtendedFormats, VkFeature.ShaderStorageImageReadWithoutFormat,
