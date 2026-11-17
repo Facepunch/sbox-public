@@ -1124,9 +1124,25 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	}
 
 	/// <summary>The compiled shader a material draws with (its shader, without material values).</summary>
+	// The "shader" each material names, read again only when its shader may have changed: reading it from native makes a string
+	sealed class ShaderName
+	{
+		public string Path;
+		public int ShaderVersion = -1, SetVersion = -1;
+	}
+
+	readonly ConditionalWeakTable<Material, ShaderName> shaderNames = new();
+
 	ShaderFile ShaderOf( Material material )
 	{
-		var path = material.native.GetString( "shader", "" );
+		var name = shaderNames.GetOrCreateValue( material );
+		if ( name.ShaderVersion != material.ShaderVersion || name.SetVersion != material.SetInCodeVersion )
+		{
+			name.Path = material.native.GetString( "shader", "" );
+			(name.ShaderVersion, name.SetVersion) = (material.ShaderVersion, material.SetInCodeVersion);
+		}
+
+		var path = name.Path;
 		if ( string.IsNullOrEmpty( path ) ) return null;
 		if ( shaders.TryGetValue( path, out var shader ) ) return shader;
 

@@ -1,5 +1,6 @@
 using Borealis.Gpu;
 using Borealis.Source2.Shaders;
+using System.Runtime.CompilerServices;
 
 namespace Borealis.Backend;
 
@@ -476,6 +477,11 @@ public sealed class ShaderDrawer : IDisposable
 		return VariantByName( shader, attributes, mode, features );
 	}
 
+	// A material's feature values as a variant key's part, made once per array (materials keep theirs)
+	readonly ConditionalWeakTable<int[], string> featureKeys = new();
+
+	string FeaturesKey( int[] features ) => featureKeys.GetValue( features, static f => string.Join( ',', f ) );
+
 	// Whether the last VariantByName's variant was one whose module is still compiling
 	bool pendingVariant;
 
@@ -483,7 +489,7 @@ public sealed class ShaderDrawer : IDisposable
 	{
 		pendingVariant = false;
 		var combos = attributes.ComboKey( shader );
-		if ( features.Length > 0 ) combos = string.Concat( combos, "|", string.Join( ',', features ) );
+		if ( features.Length > 0 ) combos = string.Concat( combos, "|", FeaturesKey( features ) );
 		var key = (shader, mode, combos);
 		if ( variants.TryGetValue( key, out var variant ) ) return variant;
 
