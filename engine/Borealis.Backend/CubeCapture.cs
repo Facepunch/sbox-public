@@ -6,10 +6,11 @@ namespace Borealis.Backend;
 /// <summary>
 /// Renders environment map probes on Borealis.Gpu as the engine renders a realtime <c>EnvmapProbe</c>
 /// (<c>CubemapRendering.Render</c> through <c>SceneBridge.RenderToCube</c>): mip 0 cleared to red, six 90-degree faces, each
-/// a Borealis frame of its own (<see cref="RenderView.Capture"/>, no MSAA, an RGBA16F colour and a D32S8 depth target the
-/// size of the cube) copied into its slice as it finishes, so later faces see the earlier ones; then
-/// <c>envmap_filtering_cs</c>'s downsample (each mip from mip 0) and its fast GGX filter, run twice, as
-/// <c>CubemapRendering.Filter</c> runs them.
+/// a Borealis frame of its own (<see cref="RenderView.Capture"/>, no MSAA, an RGBA16F colour and a depth target the size of
+/// the cube) copied into its slice as it finishes, so later faces see the earlier ones; then <c>envmap_filtering_cs</c>'s
+/// downsample (each mip from mip 0) and its GGX filter, run twice, as <c>CubemapRendering.Filter</c> runs them. The faces
+/// are this capture's own views of a world (<see cref="Render(RenderWorld, Vector3, Rotation, float, float, GpuTexture, RenderView)"/>)
+/// or the caller's (<see cref="Render(GpuTexture, Action{int, ViewTarget}, int?)"/>: the engine's cube cameras).
 /// </summary>
 /// <remarks>
 /// Native's GGX pass samples the cube it writes. Here it samples a copy of it taken before each pass, so each pass reads
@@ -54,8 +55,6 @@ public sealed class CubeCapture : IDisposable
 		this.device = device;
 		gpu = device.Gpu;
 		this.size = size;
-		for ( int i = 0; i < faces.Length; i++ ) faces[i] = new RenderSystem { ParallelRecording = false };
-
 		// Depth without a stencil, which a face whose draws need one gets before it records (RenderSystem.DepthFormat)
 		target = ViewTarget.Create( new Vector2Int( size, size ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32, "Cube capture face" );
 		staging = gpu.CreateBuffer( new BufferInfo { Size = 6L * size * size * 8, Usage = BufferUsage.CopySource, Name = "Cube capture faces" } );
@@ -69,6 +68,9 @@ public sealed class CubeCapture : IDisposable
 
 	/// <summary>Whether the filter shader is built; without it captures have no rough mips.</summary>
 	public bool CanFilter => filter is not null;
+
+	/// <summary>The cubes this capture makes, in pixels.</summary>
+	public int Size => size;
 
 	/// <summary>
 	/// A cube to capture into, as <c>EnvmapProbe</c> makes one: RGBA16F, <see cref="Mips"/> mips, writable by compute,
@@ -101,11 +103,6 @@ public sealed class CubeCapture : IDisposable
 	/// </summary>
 	public void Render( RenderWorld world, Vector3 position, Rotation rotation, float zNear, float zFar, GpuTexture cube, RenderView setup = null )
 	{
-		var destination = (BackendTexture)cube;
-		if ( destination.Width != size ) throw new ArgumentException( $"The cube is {destination.Width} wide; this capture makes {size}", nameof( cube ) );
-
-		ClearMip0( destination );
-
 		view.Position = position;
 		view.ZNear = zNear;
 		view.ZFar = zFar;
@@ -113,14 +110,32 @@ public sealed class CubeCapture : IDisposable
 		view.Fog = setup?.Fog;
 		view.GradientFog = setup?.GradientFog;
 		view.Time = setup?.Time;
-		for ( int i = 0; i < faces.Length; i++ )
+		Render( cube, ( i, target ) =>
 		{
 			view.Rotation = rotation * FaceRotations[i];
-			faces[i].Render( world, view, target );
+			(faces[i] ??= new RenderSystem { ParallelRecording = false }).Render( world, view, target );
+		}, 0 );
+	}
+
+	/// <summary>
+	/// Capture into <paramref name="cube"/> (made by <see cref="CreateCube"/> at this capture's size) with faces the caller
+	/// renders: <paramref name="renderFace"/> draws face <c>i</c> (turned as <c>SceneCamera.CubeRotations[i]</c> turns the
+	/// camera) into the target it's given, and submits it. Then the filter at <paramref name="filterQuality"/>
+	/// (<c>CubemapRendering.GGXFilterType</c>: 0 fast, 1 quality), or none when it's null.
+	/// </summary>
+	public void Render( GpuTexture cube, Action<int, ViewTarget> renderFace, int? filterQuality )
+	{
+		var destination = (BackendTexture)cube;
+		if ( destination.Width != size ) throw new ArgumentException( $"The cube is {destination.Width} wide; this capture makes {size}", nameof( cube ) );
+
+		ClearMip0( destination );
+		for ( int i = 0; i < 6; i++ )
+		{
+			renderFace( i, target );
 			CopyFace( i, destination );
 		}
 
-		Filter( destination );
+		if ( filterQuality is { } quality ) Filter( destination, quality );
 	}
 
 	/// <summary>
@@ -165,9 +180,10 @@ public sealed class CubeCapture : IDisposable
 	}
 
 	/// <summary>
-	/// <c>CubemapRendering.FilterDownsample</c> then <c>FilterGGX</c> (fast, twice), leaving the cube readable.
+	/// <c>CubemapRendering.FilterDownsample</c> then <c>FilterGGX</c> (twice) at <paramref name="quality"/>, leaving the cube
+	/// readable.
 	/// </summary>
-	void Filter( BackendTexture cube )
+	void Filter( BackendTexture cube, int quality )
 	{
 		if ( filter is null ) return;
 
@@ -195,7 +211,7 @@ public sealed class CubeCapture : IDisposable
 		attributes.Clear();
 		attributes.Set( "Source", filterSource.Handle );
 		for ( int i = 1; i < Mips; i++ ) attributes.Set( $"Destination{i}", mips[i] );
-		attributes.SetCombo( "D_QUALITY", 0 );
+		attributes.SetCombo( "D_QUALITY", quality );
 		attributes.SetCombo( "D_PASS", 1 );
 		attributes.Set( "BaseResolution", size );
 		for ( int pass = 0; pass < 2; pass++ )
@@ -247,7 +263,7 @@ public sealed class CubeCapture : IDisposable
 	public void Dispose()
 	{
 		gpu.WaitIdle();
-		foreach ( var face in faces ) face.Dispose();
+		foreach ( var face in faces ) face?.Dispose();
 		target.Dispose();
 		filterSource.Dispose();
 		gpu.Destroy( staging );
