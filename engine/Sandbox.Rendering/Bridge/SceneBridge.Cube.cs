@@ -81,7 +81,12 @@ internal sealed partial class SceneBridge
 			// frame gain nothing from workers
 			var state = captureFaces[i] ??= new CameraState( camera ) { System = { ParallelRecording = false } };
 			state.Camera.SetTarget( camera );
-			var (mirror, prepared) = Prepare( camera, face, new Vector2( size, size ), state );
+			// What the sync loads (a map's textures and lightmaps at the first capture after a load) written with the face's
+			// submission rather than each submitted and waited for
+			SceneMirror mirror;
+			CameraState prepared;
+			using ( device.Gpu.DeferUploads() )
+				(mirror, prepared) = Prepare( camera, face, new Vector2( size, size ), state );
 			prepared.View.Capture = true;
 			prepared.View.ToneMapScalar = 1;
 			using ( new Drawing( this, prepared ) )
