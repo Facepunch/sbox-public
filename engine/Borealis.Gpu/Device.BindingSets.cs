@@ -197,6 +197,7 @@ public sealed unsafe partial class Device
 				case BindingType.SampledTexture:
 					{
 						var view = binding.View.IsValid ? Get( binding.View ).View : binding.Srgb ? Get( binding.Texture ).SrgbView : Get( binding.Texture ).View;
+						if ( view == 0 ) throw NoView( binding, "sampled" );
 						var imageLayout = binding.Layout == ImageLayout.Undefined ? VkImageLayout.ReadOnlyOptimal : binding.Layout.ToVk();
 						images[i] = new VkDescriptorImageInfo { imageView = view, imageLayout = imageLayout };
 						writes[i].descriptorType = VkDescriptorType.SampledImage;
@@ -207,6 +208,7 @@ public sealed unsafe partial class Device
 				case BindingType.StorageTexture:
 					{
 						var view = binding.View.IsValid ? Get( binding.View ).View : Get( binding.Texture ).StorageView;
+						if ( view == 0 ) throw NoView( binding, "storage" );
 						images[i] = new VkDescriptorImageInfo { imageView = view, imageLayout = VkImageLayout.General };
 						writes[i].descriptorType = VkDescriptorType.StorageImage;
 						writes[i].pImageInfo = &images[i];
@@ -223,4 +225,8 @@ public sealed unsafe partial class Device
 
 		Vk.vkUpdateDescriptorSets( Vk.Device, (uint)bindings.Length, writes, 0, null );
 	}
+
+	// Without the null descriptor feature an empty view is undefined behaviour on the GPU (a write through one can fault): the
+	// binding is refused on the CPU instead
+	ArgumentException NoView( in Binding binding, string kind ) => new( $"Binding {binding.Slot}: {Get( binding.Texture ).Info.Name ?? "a texture"} has no {kind} view (made without {(kind == "storage" ? "TextureUsage.Storage" : "TextureUsage.Sampled")})" );
 }

@@ -53,7 +53,7 @@ public class SceneCustomObject : SceneObject
 		}
 		catch ( System.Exception e )
 		{
-			Log.Error( e );
+			if ( BorealisGpuErrors.ShouldLog( e ) ) Log.Error( e );
 		}
 	}
 

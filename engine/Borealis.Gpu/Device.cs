@@ -184,7 +184,8 @@ public sealed unsafe partial class Device : IDisposable
 			graphicsQueue = new DeviceQueue( this, Vk, queueFamilies[0], QueueType.Graphics );
 			computeQueue = computeFamily ? new DeviceQueue( this, Vk, queueFamilies[1], QueueType.Compute ) : graphicsQueue;
 
-			var indexing = new VkPhysicalDeviceDescriptorIndexingProperties { sType = VkStructureType.PhysicalDeviceDescriptorIndexingProperties };
+			var subgroups = new VkPhysicalDeviceSubgroupProperties { sType = VkStructureType.PhysicalDeviceSubgroupProperties };
+			var indexing = new VkPhysicalDeviceDescriptorIndexingProperties { sType = VkStructureType.PhysicalDeviceDescriptorIndexingProperties, pNext = &subgroups };
 			var properties2 = new VkPhysicalDeviceProperties2 { sType = VkStructureType.PhysicalDeviceProperties2, pNext = &indexing };
 			Instance.vkGetPhysicalDeviceProperties2( PhysicalDevice, &properties2 );
 
@@ -215,6 +216,8 @@ public sealed unsafe partial class Device : IDisposable
 				BindlessSamplers = bindlessSamplers,
 				BindlessStorageTextures = bindlessStorage,
 				MeshShaders = features.meshShaders,
+				// VK_SHADER_STAGE_VERTEX_BIT, and the vote (2) and ballot (8) operations wave-uniform vertex code uses
+				VertexWaveOps = (subgroups.supportedStages & 1) != 0 && (subgroups.supportedOperations & 0xA) == 0xA,
 			};
 
 			Bindless = new BindlessTable( this, bindlessTextures, bindlessSamplers, bindlessStorage, features.storageBufferUpdateAfterBind );
@@ -647,7 +650,19 @@ public sealed unsafe partial class Device : IDisposable
 	public void WaitIdle()
 	{
 		Flush();
-		Vk.vkDeviceWaitIdle( Vk.Device ).Check( "vkDeviceWaitIdle" );
+		WaitFlushed();
+	}
+
+	/// <summary>
+	/// Wait for what reached the GPU, each queue's timeline first so a GPU that stopped is noticed
+	/// (<see cref="HangSeconds"/>) rather than waited for forever. Nothing when the device is lost.
+	/// </summary>
+	void WaitFlushed()
+	{
+		if ( IsLost ) return;
+		graphicsQueue.Wait( Volatile.Read( ref graphicsQueue.Flushed ) );
+		if ( computeQueue != graphicsQueue ) computeQueue.Wait( Volatile.Read( ref computeQueue.Flushed ) );
+		if ( !IsLost ) Check( Vk.vkDeviceWaitIdle( Vk.Device ), "vkDeviceWaitIdle" );
 	}
 
 	/// <summary>
@@ -658,12 +673,15 @@ public sealed unsafe partial class Device : IDisposable
 		if ( disposed ) return;
 		disposed = true;
 
-		Vk.vkDeviceWaitIdle( Vk.Device );
+		// Bounded: a GPU that stopped mustn't hold the process at exit
+		try { WaitFlushed(); }
+		catch ( GpuException ) { }
 		foreach ( var swapChain in swapChains.ToArray() ) swapChain.Dispose();
 
 		// Nothing reads the table any more, and the defaults are about to go with everything else
 		Bindless.ForgetDefaults();
 		DestroyFrames();
+		DestroyQueryPools();
 		CollectGarbage( force: true );
 		DestroyAllResources();
 		Bindless.Dispose();

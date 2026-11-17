@@ -512,7 +512,7 @@ public sealed unsafe partial class CommandList
 			}
 			catch ( System.Exception e )
 			{
-				Log.Warning( e, $"Error when executing CommandList {_debugName}" );
+				if ( BorealisGpuErrors.ShouldLog( e ) ) Log.Warning( e, $"Error when executing CommandList {_debugName}" );
 			}
 			finally
 			{

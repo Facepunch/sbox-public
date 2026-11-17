@@ -147,6 +147,20 @@ internal sealed partial class BackendContext
 		}
 	}
 
+	/// <summary>
+	/// Destroy the mip views compute made of a texture's image: when the texture goes or takes another image. They were kept
+	/// for good before, one set per texture ever dispatched over.
+	/// </summary>
+	internal static void ForgetMipViews( BackendTexture texture, Device gpu )
+	{
+		if ( !mipViews.TryGetValue( texture, out var views ) ) return;
+		lock ( views )
+		{
+			foreach ( var view in views.Values ) gpu.Destroy( view );
+			views.Clear();
+		}
+	}
+
 	TextureViewHandle MipView( BackendTexture texture, int mip )
 	{
 		var views = mipViews.GetValue( texture, static _ => new Dictionary<int, TextureViewHandle>() );

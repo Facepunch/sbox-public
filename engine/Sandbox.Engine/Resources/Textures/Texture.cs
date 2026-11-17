@@ -118,8 +118,11 @@ public partial class Texture : Resource, IDisposable
 		{
 			if ( gotdesc ) return _desc;
 
+			// No description at all (a texture that fell back to the error texture on Source 2's empty render system): an
+			// empty one, which reads as a failed load, rather than a null dereference
+			ref var desc = ref g_pRenderDevice.GetOnDiskTextureDesc( native );
+			_desc = System.Runtime.CompilerServices.Unsafe.IsNullRef( ref desc ) ? default : desc;
 			gotdesc = true;
-			_desc = g_pRenderDevice.GetOnDiskTextureDesc( native );
 			return _desc;
 		}
 	}

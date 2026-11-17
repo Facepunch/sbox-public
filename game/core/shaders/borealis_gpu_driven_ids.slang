@@ -49,12 +49,15 @@ PS_INPUT IdsVertex( uint nVertex, uint nInstance )
 }
 
 // A wave's vertices are mostly one instance's: then the instance, draw, geometry and transform records are read once
-// for the wave, and only the position per vertex
+// for the wave, and only the position per vertex. Devices without wave operations in vertex shaders (Lavapipe) read them
+// per vertex
 [shader( "vertex" )] PS_INPUT MainVs( uint nVertex : SV_VulkanVertexID, uint nInstance : SV_VulkanInstanceID )
 {
+#if !defined( BOREALIS_NO_VERTEX_WAVES ) || !BOREALIS_NO_VERTEX_WAVES
 	uint nFirst = WaveReadLaneFirst( nInstance );
 	if ( WaveActiveAllTrue( nInstance == nFirst ) )
 		return IdsVertex( nVertex, nFirst );
+#endif
 
 	return IdsVertex( nVertex, nInstance );
 }

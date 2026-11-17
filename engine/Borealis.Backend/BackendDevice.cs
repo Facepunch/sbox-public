@@ -1622,6 +1622,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>A view's visibility resources: its ids target, triangle mask, fragment stamps and compacted indices.</summary>
 	internal sealed class VisibilityView
 	{
+		/// <summary>Where it goes once its view has gone (its finalizer): the device frees its resources at the next frame.</summary>
+		public System.Collections.Concurrent.ConcurrentQueue<VisibilityView> Retire;
+
+		~VisibilityView() => Retire?.Enqueue( this );
+
+		/// <summary>Every buffer it made.</summary>
+		public IEnumerable<BufferHandle> Buffers() => [Mask, Stamps, .. Compacted, PrepassCompacted, PrepassCompacted16, MeshletStamps, MeshletJobs];
+
 		public TextureHandle Ids, Scratch;
 		public int Width, Height, Samples;
 		public BufferHandle Mask, Stamps;
@@ -1726,6 +1734,34 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	readonly List<BufferHandle> visibilityBuffers = new();
 	readonly List<TextureHandle> visibilityTextures = new();
 
+	// Views that have gone (a camera's renders after its scene unloaded): their visibility resources, freed at the next frame
+	readonly System.Collections.Concurrent.ConcurrentQueue<VisibilityView> retiredVisibility = new();
+
+	/// <summary>Views' visibility resources freed after their views went, for soaks and tests.</summary>
+	public int VisibilityViewsFreed { get; private set; }
+
+	void FreeRetiredVisibility()
+	{
+		if ( retiredVisibility.IsEmpty ) return;
+		lock ( visibilityViews )
+		{
+			while ( retiredVisibility.TryDequeue( out var gone ) )
+			{
+				foreach ( var buffer in gone.Buffers() )
+				{
+					if ( buffer.IsValid && visibilityBuffers.Remove( buffer ) ) Gpu.Destroy( buffer );
+				}
+
+				foreach ( var texture in (TextureHandle[])[gone.Ids, gone.Scratch] )
+				{
+					if ( texture.IsValid && visibilityTextures.Remove( texture ) ) Gpu.Destroy( texture );
+				}
+
+				VisibilityViewsFreed++;
+			}
+		}
+	}
+
 	/// <summary>A view's visibility resources, made the first time and remade when its depth target changes size.</summary>
 	internal VisibilityView VisibilityFor( object view, TextureInfo depth )
 	{
@@ -1734,7 +1770,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		lock ( visibilityViews )
 		{
-			var state = visibilityViews.GetValue( view, static _ => new VisibilityView() );
+			var state = visibilityViews.GetValue( view, _ => new VisibilityView { Retire = retiredVisibility } );
 			if ( !state.Mask.IsValid )
 			{
 				// Copied out only for the debug figure
@@ -1971,6 +2007,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public void BeginFrame()
 	{
 		Gpu.BeginFrame();
+		FreeRetiredVisibility();
 		gpuDrivenTables?.BeginFrame();
 		meshletStore?.BeginFrame();
 		lodStore?.BeginFrame();
