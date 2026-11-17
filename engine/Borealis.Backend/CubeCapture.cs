@@ -128,6 +128,7 @@ public sealed class CubeCapture : IDisposable
 		var destination = (BackendTexture)cube;
 		if ( destination.Width != size ) throw new ArgumentException( $"The cube is {destination.Width} wide; this capture makes {size}", nameof( cube ) );
 
+		using var zone = Zones.CubeCapture.Start();
 		ClearMip0( destination );
 		for ( int i = 0; i < 6; i++ )
 		{
