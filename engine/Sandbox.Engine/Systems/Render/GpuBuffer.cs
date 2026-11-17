@@ -82,7 +82,13 @@ public partial class GpuBuffer : IValid, IDisposable
 	/// </summary>
 	public UsageFlags Usage { get; private set; }
 
-	public bool IsValid => native != IntPtr.Zero;
+	public bool IsValid => native != IntPtr.Zero || deviceOnly;
+
+	/// <summary>
+	/// Made without Source 2's device (<see cref="Graphics.HasSource2Device"/>): only <see cref="RenderBackend.Default"/>'s
+	/// backing holds it, and this stays valid until disposed.
+	/// </summary>
+	bool deviceOnly;
 
 	/// <summary>
 	/// The device that was being recorded for when this was made: another device's backing starts with what Source 2's
@@ -155,8 +161,11 @@ public partial class GpuBuffer : IValid, IDisposable
 		}
 
 		// Semistatic lets GPU & CPU write to it
-		// There are other types we could potentially expose
-		native = g_pRenderDevice.CreateGPUBuffer( RenderBufferType.RENDER_BUFFER_TYPE_SEMISTATIC, bufferDesc, nativeFlags, debugName );
+		// There are other types we could potentially expose. Without Source 2's device the default device's backing is all.
+		if ( RenderBackend.Default is Source2RenderBackend || Graphics.HasSource2Device )
+			native = g_pRenderDevice.CreateGPUBuffer( RenderBufferType.RENDER_BUFFER_TYPE_SEMISTATIC, bufferDesc, nativeFlags, debugName );
+		else
+			deviceOnly = true;
 
 		ElementCount = elementCount;
 		ElementSize = elementSize;
@@ -178,6 +187,7 @@ public partial class GpuBuffer : IValid, IDisposable
 
 	void Dispose( bool disposing )
 	{
+		deviceOnly = false;
 		if ( native == IntPtr.Zero )
 			return;
 
@@ -201,7 +211,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	/// <param name="data">A Span of type T which the GPU buffer's contents will be copied into.</param>
 	public void GetData<T>( Span<T> data ) where T : unmanaged
 	{
-		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
+		ObjectDisposedException.ThrowIf( !IsValid, this );
 
 		GetData( data, 0, data.Length );
 	}
@@ -217,7 +227,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	/// <param name="count">The number of elements to retrieve from the GPU buffer. This count is also in terms of elements, not bytes.</param>
 	public void GetData<T>( Span<T> data, int start, int count ) where T : unmanaged
 	{
-		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
+		ObjectDisposedException.ThrowIf( !IsValid, this );
 
 		if ( count <= 0 || count > data.Length )
 			throw new ArgumentOutOfRangeException( nameof( count ) );
@@ -232,6 +242,12 @@ public partial class GpuBuffer : IValid, IDisposable
 
 	private unsafe void GetDataInternal( Span<byte> data, uint startInBytes, uint countInBytes )
 	{
+		if ( deviceOnly )
+		{
+			RenderBackend.Default.ReadBuffer( this, data[..(int)countInBytes], (int)startInBytes );
+			return;
+		}
+
 		fixed ( byte* dataPtr = data )
 		{
 			g_pRenderDevice.ReadBuffer( native, startInBytes, (IntPtr)dataPtr, countInBytes );
@@ -249,7 +265,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	/// <param name="callback">Callback that receives the data when the read operation completes.</param>
 	public void GetDataAsync<T>( Action<ReadOnlySpan<T>> callback ) where T : unmanaged
 	{
-		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
+		ObjectDisposedException.ThrowIf( !IsValid, this );
 
 		GetDataAsync( callback, 0, ElementCount );
 	}
@@ -267,7 +283,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	/// <param name="count">The number of elements to retrieve from the GPU buffer. This count is also in terms of elements, not bytes.</param>
 	public void GetDataAsync<T>( Action<ReadOnlySpan<T>> callback, int start, int count ) where T : unmanaged
 	{
-		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
+		ObjectDisposedException.ThrowIf( !IsValid, this );
 
 		if ( count <= 0 ) throw new ArgumentOutOfRangeException( nameof( count ) );
 
@@ -295,7 +311,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	/// <param name="elementOffset">The offset in terms of elements (not bytes) at which to start uploading data (default is 0).</param>
 	public void SetData<T>( ReadOnlySpan<T> data, int elementOffset = 0 ) where T : unmanaged
 	{
-		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
+		ObjectDisposedException.ThrowIf( !IsValid, this );
 
 		if ( !SandboxedUnsafe.IsAcceptablePod( typeof( T ) ) )
 			throw new InvalidOperationException( $"{typeof( T )} is not allowed in GPU buffers" );
@@ -336,8 +352,8 @@ public partial class GpuBuffer : IValid, IDisposable
 	/// </summary>
 	public void CopyStructureCount( GpuBuffer destBuffer, int destBufferOffset = 0 )
 	{
-		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
-		ObjectDisposedException.ThrowIf( destBuffer.native == IntPtr.Zero, destBuffer );
+		ObjectDisposedException.ThrowIf( !IsValid, this );
+		ObjectDisposedException.ThrowIf( !destBuffer.IsValid, destBuffer );
 
 		if ( !Usage.HasFlag( UsageFlags.Append ) && !Usage.HasFlag( UsageFlags.Structured ) )
 			throw new InvalidOperationException( $"GpuBuffer must be created with UsageFlags.Append or UsageFlags.Structured to CopyStructureCount." );
@@ -352,7 +368,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	/// <param name="value">The uint32 value to fill with. Defaults to zero.</param>
 	public void Clear( uint value = 0 )
 	{
-		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
+		ObjectDisposedException.ThrowIf( !IsValid, this );
 
 		Graphics.Backend.FillBuffer( this, value );
 	}
@@ -362,7 +378,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	/// </summary>
 	public void SetCounterValue( uint counterValue )
 	{
-		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
+		ObjectDisposedException.ThrowIf( !IsValid, this );
 
 		if ( !Usage.HasFlag( UsageFlags.Append ) && !Usage.HasFlag( UsageFlags.Structured ) ) throw new InvalidOperationException( $"GpuBuffer must be created with UsageFlags.Append or UsageFlags.Structured to SetCounterValue." );
 
@@ -412,8 +428,8 @@ public class GpuBuffer<T> : GpuBuffer where T : unmanaged
 	/// </summary>
 	public void CopyTo( GpuBuffer<T> dst, int srcElementOffset, int destElementOffset, int elementCount )
 	{
-		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
-		ObjectDisposedException.ThrowIf( dst.native == IntPtr.Zero, dst );
+		ObjectDisposedException.ThrowIf( !IsValid, this );
+		ObjectDisposedException.ThrowIf( !dst.IsValid, dst );
 
 		ArgumentOutOfRangeException.ThrowIfNegative( elementCount );
 

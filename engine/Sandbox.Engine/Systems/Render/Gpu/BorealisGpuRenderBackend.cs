@@ -476,12 +476,20 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>
 	/// A texture's backing. A render target is made to match, cleared as Source 2 clears a new one. Anything else comes
 	/// from its compiled file through Borealis.Source2, or from the pixels it was made with, as RGBA8; failing both (a
-	/// texture changed since, or made before this device), from mip 0 of Source 2's copy.
+	/// texture changed since, or made before this device), from mip 0 of Source 2's copy. A material's texture with no
+	/// path of its own (a sky's cubemap) is the material's, as Borealis's draws read it.
 	/// </summary>
 	internal TextureHandle TextureOf( Texture texture )
 	{
 		ArgumentNullException.ThrowIfNull( texture );
 		if ( textures.TryGetValue( texture, out var backing ) ) return backing.Handle;
+
+		// Looked up each time rather than kept: streaming swaps its image
+		if ( MaterialTextureOf( texture ) is { } material ) return material.Handle;
+
+		// No description: a texture that failed to load, which Source 2 draws with its error texture (and without its
+		// device has no description of at all)
+		if ( texture.Width <= 0 || texture.Height <= 0 ) return ErrorTexture();
 
 		TextureHandle handle;
 		if ( texture.IsRenderTarget )
@@ -542,6 +550,43 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		textures.Add( texture, new Backing<TextureHandle>( handle ) );
 		textureOwners[handle] = texture;
 		return handle;
+	}
+
+	TextureHandle errorTexture;
+
+	/// <summary>Source 2's error texture: a 32x32 magenta and black checkerboard of 4 pixel squares.</summary>
+	TextureHandle ErrorTexture()
+	{
+		if ( errorTexture.IsValid ) return errorTexture;
+
+		const int size = 32;
+		var pixels = new byte[size * size * 4];
+		for ( int y = 0; y < size; y++ )
+		{
+			for ( int x = 0; x < size; x++ )
+			{
+				var magenta = ((x & 4) ^ (y & 4)) != 0;
+				pixels[(y * size + x) * 4] = magenta ? (byte)255 : (byte)0;
+				pixels[(y * size + x) * 4 + 2] = magenta ? (byte)255 : (byte)0;
+				pixels[(y * size + x) * 4 + 3] = 255;
+			}
+		}
+
+		var info = TextureInfo.Texture2D( size, size, GpuFormat.RGBA8Unorm, name: "Engine error texture" );
+		errorTexture = gpu.CreateTexture( info );
+		Upload( errorTexture, info, pixels, ImageLayout.Undefined );
+		return errorTexture;
+	}
+
+	/// <summary>
+	/// The material's own texture for one read from a material (<see cref="Material.GetTexture"/>) with no path of its
+	/// own, or null.
+	/// </summary>
+	BackendTexture MaterialTextureOf( Texture texture )
+	{
+		if ( !string.IsNullOrEmpty( texture.ResourcePath ) ) return null;
+		if ( !Texture.MaterialOrigins.TryGetValue( texture, out var origin ) || origin is not Texture.MaterialOrigin o ) return null;
+		return services.MaterialTexture( o.Material, o.Parameter ) as BackendTexture;
 	}
 
 	/// <summary>A texture loaded from a compiled <c>.vtex</c>, read from that file.</summary>
@@ -618,10 +663,13 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		_ => GpuFormat.Unknown,
 	};
 
-	byte[] CopyFromSource2( Texture texture )
+	unsafe byte[] CopyFromSource2( Texture texture )
 	{
 		CopiedFromSource2++;
-		return MemoryMarshal.AsBytes( texture.GetPixels().AsSpan() ).ToArray();
+		var pixels = new byte[texture.Width * texture.Height * 4];
+		var rect = new NativeRect( 0, 0, texture.Width, texture.Height );
+		fixed ( byte* data = pixels ) Source2RenderBackend.Instance.ReadPixels( texture, rect, 0, 0, rect, (IntPtr)data, ImageFormat.RGBA8888, 0 );
+		return pixels;
 	}
 
 	/// <summary>
@@ -1272,6 +1320,30 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	}
 
 	public override void ReadBufferAsync( GpuBuffer buffer, AsyncGPUReadback.BufferReadDelegate callback, int offset, int size ) => throw Unsupported( "Buffer readback" );
+
+	/// <summary>Read a buffer's backing, after everything submitted so far. Not inside a block, which hasn't been submitted.</summary>
+	public override void ReadBuffer( GpuBuffer buffer, Span<byte> data, int offset )
+	{
+		if ( list is not null ) throw Unsupported( "Buffer reads inside a render block" );
+		if ( data.IsEmpty ) return;
+
+		var handle = BufferOf( buffer );
+		SubmitUploads();
+		var readback = gpu.CreateBuffer( new BufferInfo { Size = data.Length, Memory = MemoryLocation.Readback, Name = "Readback" } );
+		try
+		{
+			var copy = gpu.BeginCommandList( QueueType.Graphics, "Readback" );
+			copy.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferRead );
+			copy.CopyBuffer( handle, offset, readback, 0, data.Length );
+			copy.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.Host, MemoryAccess.HostRead );
+			gpu.Wait( gpu.Submit( copy ) );
+			gpu.Map( readback )[..data.Length].CopyTo( data );
+		}
+		finally
+		{
+			gpu.Destroy( readback );
+		}
+	}
 	public override void CopyBuffer( GpuBuffer source, GpuBuffer destination, uint sourceOffset, uint destinationOffset, uint size ) => throw Unsupported( "Buffer copies" );
 	public override void FillBuffer( GpuBuffer buffer, uint value ) => throw Unsupported( "Buffer fills" );
 	public override void CopyStructureCount( GpuBuffer source, GpuBuffer destination, uint destinationOffset ) => throw Unsupported( "Structure counts" );
@@ -1307,6 +1379,89 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			gpu.Destroy( readback );
 		}
 	}
+
+	/// <summary>
+	/// A rectangle of a texture's backing (one mip and array layer), after everything submitted so far, converted on the
+	/// CPU into the engine format asked for. Copies of the same size only, not depth or 3D textures, and not inside a
+	/// block, which hasn't been submitted.
+	/// </summary>
+	public override unsafe bool ReadPixels( Texture texture, NativeRect source, int slice, int mip, NativeRect destination, IntPtr data, ImageFormat format, int stride )
+	{
+		if ( list is not null ) return false;
+		if ( source.w != destination.w || source.h != destination.h || source.w <= 0 || source.h <= 0 ) return false;
+
+		var handle = TextureOf( texture );
+		var info = gpu.InfoOf( handle );
+		if ( mip < 0 || mip >= info.Mips || slice < 0 || slice >= Math.Max( info.Layers, 1 ) || info.Format.IsDepth() || info.Dimension == TextureDimension.Texture3D ) return false;
+		if ( ImageFormatOf( info.Format ) is not { } from ) return false;
+
+		int width = Math.Max( info.Width >> mip, 1 ), height = Math.Max( info.Height >> mip, 1 );
+		if ( source.x < 0 || source.y < 0 || source.x + source.w > width || source.y + source.h > height ) return false;
+
+		var pixel = NativeEngine.ImageLoader.GetMemRequired( 1, 1, 1, 1, format );
+		if ( pixel <= 0 ) return false;
+		stride = stride > 0 ? stride : destination.w * pixel;
+
+		var size = info.Format.RowPitch( width ) * info.Format.Rows( height );
+		var readback = gpu.CreateBuffer( new BufferInfo { Size = size, Memory = MemoryLocation.Readback, Name = "Readback" } );
+		var converted = new byte[width * height * pixel];
+		try
+		{
+			SubmitUploads();
+			var copy = gpu.BeginCommandList( QueueType.Graphics, "Readback" );
+			context.Begin( copy );
+			context.CopyToBuffer( handle, readback, mip, slice );
+			context.Finish();
+			gpu.Wait( gpu.Submit( copy ) );
+
+			var bytes = gpu.Map( readback );
+			fixed ( byte* src = bytes )
+			fixed ( byte* dst = converted )
+			{
+				if ( !NativeEngine.ImageLoader.ConvertImageFormat( (IntPtr)src, from, (IntPtr)dst, format, width, height, 0, width * pixel ) ) return false;
+			}
+		}
+		finally
+		{
+			gpu.Destroy( readback );
+		}
+
+		var row = source.w * pixel;
+		for ( int y = 0; y < source.h; y++ )
+		{
+			var line = converted.AsSpan( ((source.y + y) * width + source.x) * pixel, row );
+			line.CopyTo( new Span<byte>( (byte*)data + (long)(destination.y + y) * stride + (long)destination.x * pixel, row ) );
+		}
+
+		return true;
+	}
+
+	/// <summary>The engine form of a backing's format, for converting what's read back, or null.</summary>
+	static ImageFormat? ImageFormatOf( GpuFormat format ) => format.Linear() switch
+	{
+		GpuFormat.RGBA8Unorm => ImageFormat.RGBA8888,
+		GpuFormat.BGRA8Unorm => ImageFormat.BGRA8888,
+		GpuFormat.R8Unorm => ImageFormat.I8,
+		GpuFormat.RGBA16Float => ImageFormat.RGBA16161616F,
+		GpuFormat.RGBA16Unorm => ImageFormat.RGBA16161616,
+		GpuFormat.RG16Float => ImageFormat.RG1616F,
+		GpuFormat.R16Float => ImageFormat.R16F,
+		GpuFormat.R16Unorm => ImageFormat.R16,
+		GpuFormat.RG16Unorm => ImageFormat.RG1616,
+		GpuFormat.R32Float => ImageFormat.R32F,
+		GpuFormat.RG32Float => ImageFormat.RG3232F,
+		GpuFormat.RGBA32Float => ImageFormat.RGBA32323232F,
+		GpuFormat.R32Uint => ImageFormat.R32_UINT,
+		GpuFormat.RGB10A2Unorm => ImageFormat.RGBA1010102,
+		GpuFormat.RG11B10Float => ImageFormat.R11G11B10F,
+		GpuFormat.BC1Unorm => ImageFormat.DXT1,
+		GpuFormat.BC3Unorm => ImageFormat.DXT5,
+		GpuFormat.BC4Unorm => ImageFormat.ATI1N,
+		GpuFormat.BC5Unorm => ImageFormat.ATI2N,
+		GpuFormat.BC6HUfloat => ImageFormat.BC6H,
+		GpuFormat.BC7Unorm => ImageFormat.BC7,
+		_ => null,
+	};
 
 	/// <summary>
 	/// Mip 0 of an RGBA8 texture's backing, after everything submitted so far: what the device drew into it.
@@ -1362,6 +1517,12 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			gpu.Destroy( handle );
 		}
 		foreach ( var handle in ownedBuffers ) gpu.Destroy( handle );
+		if ( errorTexture.IsValid )
+		{
+			context.Forget( errorTexture );
+			gpu.Destroy( errorTexture );
+			errorTexture = default;
+		}
 		foreach ( var (_, geometry) in models )
 		{
 			if ( geometry.Vertices.IsValid ) gpu.Destroy( geometry.Vertices );
