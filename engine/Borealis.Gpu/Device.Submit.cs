@@ -159,6 +159,31 @@ public sealed unsafe partial class Device
 		}
 
 		CollectGarbage();
+		TrimUploadPages();
+	}
+
+	/// <summary>Free upload pages kept for later lists however few frames use: about 32 MiB.</summary>
+	internal const int KeptFreeUploadPages = 8;
+
+	/// <summary>Frames a free upload page has to go unused before it's freed.</summary>
+	internal const ulong UploadPageIdleFrames = 300;
+
+	int freePagesLow = int.MaxValue;
+	ulong trimFrom;
+
+	/// <summary>
+	/// Free upload pages that stayed unused for <see cref="UploadPageIdleFrames"/> frames, past
+	/// <see cref="KeptFreeUploadPages"/>: a load's uploads take hundreds of pages (Construct's held 1.4 GB of mapped memory
+	/// from then on), steady frames a few.
+	/// </summary>
+	void TrimUploadPages()
+	{
+		freePagesLow = Math.Min( freePagesLow, FreePages.Count );
+		if ( FrameNumber - trimFrom < UploadPageIdleFrames ) return;
+
+		for ( int i = KeptFreeUploadPages; i < freePagesLow && FreePages.TryTake( out var page ); i++ ) Destroy( page.Buffer );
+		freePagesLow = int.MaxValue;
+		trimFrom = FrameNumber;
 	}
 
 	/// <summary>
