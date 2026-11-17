@@ -987,26 +987,14 @@ internal partial class SurfaceWindow : IDisposable, IPanelWindow
 
 	/// <summary>
 	/// The icon in the title bar and on the taskbar button. The OS scales it, so 32 or 64 pixels
-	/// square is plenty; it's copied, so the bitmap can go afterwards.
+	/// square is plenty; it's copied, so the bitmap can go afterwards. Does nothing on macOS: windows
+	/// there have no icon and SDL would replace the app's Dock icon, which <see cref="SdlWindow"/> sets.
 	/// </summary>
 	public void SetIcon( Bitmap icon )
 	{
-		if ( Handle == IntPtr.Zero || icon is null ) return;
+		if ( icon is null || OperatingSystem.IsMacOS() ) return;
 
-		var pixels = icon.GetPixels32();
-
-		unsafe
-		{
-			fixed ( Color32* p = pixels )
-			{
-				// SDL_PIXELFORMAT_RGBA32 is byte-ordered RGBA on either endian.
-				var format = Sdl.PixelFormatRgba32;
-				var surface = Sdl.CreateSurfaceFrom( icon.Width, icon.Height, format, (IntPtr)p, icon.Width * 4 );
-				if ( surface == IntPtr.Zero ) return;
-				try { Sdl.SetWindowIcon( Handle, surface ); }
-				finally { Sdl.DestroySurface( surface ); }
-			}
-		}
+		Window?.SetIcon( icon );
 	}
 
 	/// <summary>
