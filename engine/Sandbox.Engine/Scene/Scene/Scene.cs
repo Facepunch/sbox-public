@@ -391,6 +391,9 @@ public partial class Scene : GameObject
 			return;
 		}
 
+		// The renderer is still making a loaded scene's models: they'd be missing from the capture, and every face would wait on them
+		if ( Rendering.SceneRenderer.Current.HoldsCaptures ) return;
+
 		// We pre-render envmaps, we dont need to render them parallelly in a frame anymore, this can cause transform buffers and descriptor sets to balloon in complex scenes and cause crashes.
 		foreach ( var envmap in Query<EnvmapProbe>() )
 		{
