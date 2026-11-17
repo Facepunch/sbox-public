@@ -186,7 +186,7 @@ internal partial class ShadowMapper
 			if ( !ContactShadows.Enabled || mapper.View.IsReflection || light is not SceneLight sceneLight || !sceneLight.ContactShadows )
 				return 0;
 
-			return sceneLight.GetShadowMask( mapper.SceneView ) is { } mask ? (uint)IndexOf( mask ) : 0;
+			return sceneLight.GetShadowMask( mapper.SceneView ) is { } mask ? (uint)mask.Index : 0;
 		}
 	}
 }

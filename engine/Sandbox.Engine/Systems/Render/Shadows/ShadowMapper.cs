@@ -124,21 +124,15 @@ internal partial class ShadowMapper
 	{
 		var projected = CollectionsMarshal.AsSpan( GPUProjectedShadows );
 		for ( int i = 0; i < projected.Length; i++ )
-			projected[i].ShadowMapTextureIndex = IndexOf( ProjectedShadowMaps[i].Texture );
+			projected[i].ShadowMapTextureIndex = ProjectedShadowMaps[i].Texture.Index;
 
 		var cubes = CollectionsMarshal.AsSpan( GPUProjectedCubeShadows );
 		for ( int i = 0; i < cubes.Length; i++ )
-			cubes[i].ShadowMapTextureCubeIndex = (uint)IndexOf( ProjectedCubeShadowMaps[i].Texture );
+			cubes[i].ShadowMapTextureCubeIndex = (uint)ProjectedCubeShadowMaps[i].Texture.Index;
 
 		for ( int i = 0; i < CascadeShadowMapCount; i++ )
-			GPUDirectionalLightData.ShadowMapIndex[i] = IndexOf( CascadeShadowMaps[i].Texture );
+			GPUDirectionalLightData.ShadowMapIndex[i] = CascadeShadowMaps[i].Texture.Index;
 	}
-
-	/// <summary>
-	/// A texture's bindless index on Source 2's device, which native views read: also in a process that draws on another
-	/// (the editor's native tools beside Borealis.Gpu), where <see cref="Texture.Index"/> outside a view is that device's.
-	/// </summary>
-	internal static int IndexOf( Texture texture ) => Source2RenderBackend.Instance.TextureIndex( texture );
 
 	/// <summary>
 	/// This view's spot light shadows, as the <c>ProjectedShadows</c> buffer holds them.
