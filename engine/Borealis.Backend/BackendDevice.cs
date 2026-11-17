@@ -990,6 +990,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
+	/// Whether <see cref="MapLightmapParameters"/> waits for each lightmap write, as it did, rather than deferring them into
+	/// the frame's submission. For comparisons.
+	/// </summary>
+	internal static bool WaitForLightmapUploads { get; set; }
+
+	/// <summary>
 	/// The lightmaps of the map in <paramref name="folder"/> (<c>maps/construct_25</c>), from its world file
 	/// (<see cref="LightmapParameters"/>), read once (ahead on a worker, when <see cref="ReadMapLightmapsAhead"/> was asked);
 	/// null without lightmaps or a readable world.
@@ -1007,7 +1013,11 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			try
 			{
 				var world = Borealis.Source2.World.WorldFile.Load( Content, $"{folder}/world.vwrld" );
-				made = LightmapParameters( world.Lightmaps, world.LightmapUvScale );
+
+				// Their mips and slices written with the frame's next submission, not each waited for
+				using ( Zones.MapLightmaps.Start() )
+				using ( WaitForLightmapUploads ? default : Gpu.DeferUploads() )
+					made = LightmapParameters( world.Lightmaps, world.LightmapUvScale );
 			}
 			catch ( Exception e ) when ( e is IOException or InvalidDataException or KeyNotFoundException )
 			{

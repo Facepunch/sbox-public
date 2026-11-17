@@ -39,6 +39,7 @@ internal static class Zones
 	public static readonly Zone PipelineCreate = new( "Borealis Pipeline Create", Color.Orange );
 	public static readonly Zone VariantLoad = new( "Borealis Variant Load", Color.Orange );
 	public static readonly Zone StencilCheck = new( "Borealis Stencil Check", Color.Orange );
+	public static readonly Zone MapLightmaps = new( "Borealis Map Lightmaps", Color.Green );
 	public static readonly Zone ModelMake = new( "Borealis Model Make", Color.Green );
 	public static readonly Zone ModelRead = new( "Borealis Model Read", Color.Green );
 	public static readonly Zone PassModulesRead = new( "Borealis Pass Modules Read", Color.Orange );
