@@ -187,4 +187,48 @@ public class BorealisGpuTexturesTest
 		borealis.NextFrame();
 		Assert.AreEqual( before + 2, borealis.ServicesFrame );
 	}
+
+	/// <summary>
+	/// A compute shader dispatched with its own attributes outside any render block (gizmo text rendered while it lays out)
+	/// runs at once in a block of its own, as Source 2's device runs one, with what was set on its attributes.
+	/// </summary>
+	[TestMethod]
+	public unsafe void ComputeOutsideABlockRunsAtOnce()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		// The process's device, as under -borealisgpu: shaders made now keep their attributes for it
+		RenderBackend.SetDefault( borealis );
+		try
+		{
+			// A 4x4 checkerboard of black and white; the second mip starts as its box filter, grey
+			using var texture = Texture.Create( 4, 4, ImageFormat.RGBA8888 ).WithMips( 2 ).WithUAVBinding()
+				.WithData( Pixels( 4, 4, ( x, y ) => ((x + y) & 1) == 0 ? new Color32( 0, 0, 0, 255 ) : new Color32( 255, 255, 255, 255 ) ) ).Finish();
+
+			var downsample = new ComputeShader( "downsample_cs" );
+			downsample.Attributes.SetCombo( "D_DOWNSAMPLE_METHOD", (int)Graphics.DownsampleMethod.Max );
+			downsample.Attributes.Set( "MipLevel0", texture, 0 );
+			downsample.Attributes.Set( "MipLevel1", texture, 1 );
+			downsample.Attributes.Set( "TextureSize", new Vector2( 2, 2 ) );
+			downsample.Attributes.Set( "InvTextureSize", new Vector2( 0.5f, 0.5f ) );
+
+			Assert.IsFalse( Graphics.IsActive );
+			downsample.Dispatch( 2, 2, 1 );
+
+			var mip = new byte[2 * 2 * 4];
+			fixed ( byte* data = mip )
+			{
+				Assert.IsTrue( borealis.ReadPixels( texture, new NativeRect( 0, 0, 2, 2 ), 0, 1, new NativeRect( 0, 0, 2, 2 ), (IntPtr)data, ImageFormat.RGBA8888, 2 * 4 ) );
+			}
+
+			Assert.IsTrue( mip.All( v => v == 255 ), "the second mip is the max of the first's: white, not the grey it started as" );
+		}
+		finally
+		{
+			RenderBackend.SetDefault( null );
+		}
+
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
 }

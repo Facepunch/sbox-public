@@ -31,12 +31,38 @@ internal sealed class BorealisGpuWindow : IDisposable
 		var (width, height) = sdl.PixelSize;
 		swapChain = backend.CreateSwapChain( SurfaceOf( sdl.NativeWindow ), Math.Max( width, 1 ), Math.Max( height, 1 ), vsync );
 		Size = new Vector2( width, height );
+		timestamps = CreateTimestamps( backend, out timestampMs );
+	}
 
-		if ( backend.Device.Capabilities.Timestamps )
-		{
-			timestamps = backend.Device.CreateTimestamps( 2 * TimedFrames );
-			timestampMs = backend.Device.Capabilities.TimestampPeriod / 1e6;
-		}
+	BorealisGpuWindow( BorealisGpuRenderBackend backend, SurfaceSource surface, Vector2 pixelSize, bool vsync )
+	{
+		this.backend = backend;
+		swapChain = backend.CreateSwapChain( surface, Math.Max( (int)pixelSize.x, 1 ), Math.Max( (int)pixelSize.y, 1 ), vsync );
+		Size = pixelSize;
+		timestamps = CreateTimestamps( backend, out timestampMs );
+	}
+
+	/// <summary>
+	/// A window that isn't SDL's, by its window system handle: an editor widget's native window (a Win32 <c>HWND</c>), which
+	/// its owner keeps owning. Null where Borealis.Gpu doesn't present to these yet: anywhere but Windows.
+	/// </summary>
+	public static BorealisGpuWindow FromNativeWindow( BorealisGpuRenderBackend backend, IntPtr window, Vector2 pixelSize, bool vsync )
+	{
+		if ( !OperatingSystem.IsWindows() || window == IntPtr.Zero ) return null;
+		return new BorealisGpuWindow( backend, SurfaceSource.Win32( GetWindowLongPtrW( window, GWLP_HINSTANCE ), window ), pixelSize, vsync );
+	}
+
+	const int GWLP_HINSTANCE = -6;
+
+	[System.Runtime.InteropServices.DllImport( "user32.dll" )]
+	static extern IntPtr GetWindowLongPtrW( IntPtr window, int index );
+
+	static TimestampQueries CreateTimestamps( BorealisGpuRenderBackend backend, out double timestampMs )
+	{
+		timestampMs = 0;
+		if ( !backend.Device.Capabilities.Timestamps ) return null;
+		timestampMs = backend.Device.Capabilities.TimestampPeriod / 1e6;
+		return backend.Device.CreateTimestamps( 2 * TimedFrames );
 	}
 
 	// A frame's GPU time: timestamps at the start of its first block and after the copy into the image, a pair for each of
@@ -169,9 +195,9 @@ internal sealed class BorealisGpuWindow : IDisposable
 	/// <summary>
 	/// Finish the frame <see cref="BeginFrame"/> started: <paramref name="draw"/> (the overlay) last, over the whole window
 	/// and writing gamma-encoded output as UI does, in the block that copies the target into the acquired image. Present it
-	/// with <see cref="PresentFrame"/>.
+	/// with <see cref="PresentFrame"/>. With <paramref name="screenshots"/> the screenshots asked for are taken from it.
 	/// </summary>
-	public void EndFrame( Action draw )
+	public void EndFrame( Action draw, bool screenshots = true )
 	{
 		try
 		{
@@ -185,7 +211,7 @@ internal sealed class BorealisGpuWindow : IDisposable
 			}, present: true );
 
 			// The frame as it's presented, for screenshots asked for during it
-			ScreenshotService.ProcessFrame( backend, target );
+			if ( screenshots ) ScreenshotService.ProcessFrame( backend, target );
 		}
 		finally
 		{
@@ -269,7 +295,7 @@ internal sealed class BorealisGpuWindow : IDisposable
 	{
 		backend.Forget( swapChain );
 		swapChain.Dispose();
-		sdl.Dispose();
+		sdl?.Dispose();
 		timestamps?.Dispose();
 		ReleaseTarget();
 		overlay?.Dispose();
