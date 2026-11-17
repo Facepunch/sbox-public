@@ -66,6 +66,7 @@ internal sealed partial class LightBinnerFeature
 	const uint DiffuseEnabled = 0x2;
 	const uint SpecularEnabled = 0x4;
 	const uint TransmissiveEnabled = 0x8;
+	internal const uint LightCookieEnabled = 0x40;
 
 	/// <summary>
 	/// Screen size from world-AABB radius (<c>CFrustum::ComputeScreenSize</c>): sqrt(3) times reach for point lights.

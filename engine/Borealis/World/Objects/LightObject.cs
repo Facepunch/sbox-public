@@ -110,6 +110,12 @@ public sealed class LightObject : RenderObject
 	internal Features.LightBinnerFeature.GpuLight? NativePacked { get; set; }
 
 	/// <summary>
+	/// Spot lights: the texture projected along the beam, sampled by its bindless index on the device that draws the frame
+	/// (native's packing holds Source 2's), or null for none.
+	/// </summary>
+	public GpuTexture Cookie { get; set; }
+
+	/// <summary>
 	/// Spot lights: angle from the axis, in degrees, where the light starts to fade.
 	/// </summary>
 	public float ConeInner { get; set; } = 15;
