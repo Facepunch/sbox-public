@@ -138,9 +138,10 @@ internal sealed partial class BackendContext
 						var key = (resource.Name, resource.Kind, resource.Dimension, resource.Variable?.RenderStateId ?? 0);
 						if ( !resources.TryGetValue( key, out var found ) )
 						{
+							// A hidden counter binds its placeholder here, as before counters were told apart
 							found = resource.Kind == ShaderResourceKind.Buffer
 								? context.attributes.Get( Token( resource.Name ) ) is GpuBuffer { Resource: BackendBuffer buffer } ? Binding.Storage( resource.Binding, buffer.Handle ) : device.Defaults.For( resource )
-								: context.AttributeTexture( resource );
+								: resource.Kind == ShaderResourceKind.Counter ? device.Defaults.For( resource ) : context.AttributeTexture( resource );
 							resources[key] = found;
 						}
 

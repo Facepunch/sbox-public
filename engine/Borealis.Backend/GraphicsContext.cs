@@ -511,6 +511,39 @@ public sealed class GraphicsContext
 	}
 
 	/// <summary>
+	/// Copy <paramref name="size"/> bytes between buffers in order with the rest of the list: after every write before it,
+	/// visible to everything after it.
+	/// </summary>
+	public void CopyBuffer( BufferHandle source, long sourceOffset, BufferHandle destination, long destinationOffset, long size )
+	{
+		MemoryBarrier();
+		List.CopyBuffer( source, sourceOffset, destination, destinationOffset, size );
+		MemoryBarrier();
+	}
+
+	/// <summary>
+	/// Fill <paramref name="size"/> bytes of a buffer from <paramref name="offset"/> (a multiple of 4) with a repeated 32-bit
+	/// value, in order with the rest of the list as <see cref="CopyBuffer"/> is.
+	/// </summary>
+	public void FillBuffer( BufferHandle buffer, uint value, long offset, long size )
+	{
+		MemoryBarrier();
+		List.FillBuffer( buffer, value, offset, size );
+		MemoryBarrier();
+	}
+
+	/// <summary>
+	/// Copy <paramref name="size"/> bytes of <paramref name="source"/> into the start of <paramref name="readback"/> (a
+	/// <see cref="MemoryLocation.Readback"/> buffer) after every write before it, visible to the host once the list has finished.
+	/// </summary>
+	public void CopyToReadback( BufferHandle source, long offset, BufferHandle readback, long size )
+	{
+		MemoryBarrier();
+		List.CopyBuffer( source, offset, readback, 0, size );
+		List.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+	}
+
+	/// <summary>
 	/// Write timestamp <paramref name="index"/> of <paramref name="queries"/> once the work recorded so far reaches
 	/// <paramref name="stage"/>, resetting <paramref name="reset"/> timestamps from it first (each is reset before it's
 	/// written again).

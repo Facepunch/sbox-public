@@ -370,7 +370,7 @@ internal sealed class MaterialLayout
 
 	static bool IsPassBinding( in ShaderResource resource, bool immediate ) => resource.Kind switch
 	{
-		ShaderResourceKind.ConstantBuffer or ShaderResourceKind.Buffer => true,
+		ShaderResourceKind.ConstantBuffer or ShaderResourceKind.Buffer or ShaderResourceKind.Counter => true,
 		ShaderResourceKind.Texture => immediate || resource.Variable.Source != VariableSource.Material,
 		ShaderResourceKind.MaterialConstants or ShaderResourceKind.StorageTexture => immediate,
 		_ => false,

@@ -665,8 +665,23 @@ public sealed class ShaderDrawer : IDisposable
 		ShaderResourceKind.Texture when value is TextureViewHandle view => Binding.Sampled( resource.Binding, view ),
 		ShaderResourceKind.StorageTexture when value is TextureHandle texture => Binding.StorageTexture( resource.Binding, texture ),
 		ShaderResourceKind.StorageTexture when value is TextureViewHandle view => Binding.StorageTexture( resource.Binding, view ),
+		ShaderResourceKind.Counter when value is BufferHandle counter => Binding.Storage( resource.Binding, counter ),
 		_ => defaults.For( resource ),
 	};
+
+	/// <summary>
+	/// The attribute value a resource binds: the one set under its name, or for a buffer's hidden counter, under the counter's
+	/// name (<see cref="ShaderResource.CounterName"/>).
+	/// </summary>
+	object Value( in ShaderResource resource, ShaderAttributes attributes )
+	{
+		if ( resource.Name is not { } name ) return null;
+		if ( resource.Kind != ShaderResourceKind.Counter ) return attributes.Get( name );
+		if ( !counterNames.TryGetValue( name, out var counter ) ) counterNames[name] = counter = ShaderResource.CounterName( name );
+		return attributes.Get( counter );
+	}
+
+	readonly Dictionary<string, string> counterNames = new();
 
 	void Bind( CommandList list, ShaderVariant variant, ShaderAttributes attributes, System.Numerics.Vector4 viewport )
 	{
@@ -682,7 +697,7 @@ public sealed class ShaderDrawer : IDisposable
 				if ( count == bindings.Length ) throw new InvalidOperationException( $"{variant} binds more than {bindings.Length} resources in set {set}" );
 
 				var stage = set == ShaderAbi.FragmentSet ? variant.Pixel : variant.Compute ?? variant.Vertex;
-				var value = resource.Name is null ? null : attributes.Get( resource.Name );
+				var value = Value( resource, attributes );
 				bindings[count++] = resource.Kind switch
 				{
 					ShaderResourceKind.MaterialConstants => Constants( list, stage, resource.Binding, attributes, viewport ),
@@ -766,7 +781,7 @@ public sealed class ShaderDrawer : IDisposable
 		public override Binding Resolve( in ShaderResource resource, ShaderStage stage, bool dynamic, out uint dynamicOffset )
 		{
 			dynamicOffset = 0;
-			var value = resource.Name is null ? null : Attributes.Get( resource.Name );
+			var value = drawer.Value( resource, Attributes );
 			switch ( resource.Kind )
 			{
 				case ShaderResourceKind.MaterialConstants:

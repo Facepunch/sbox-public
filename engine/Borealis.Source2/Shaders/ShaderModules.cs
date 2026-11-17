@@ -173,6 +173,7 @@ public readonly record struct PrimitiveExpansion( ExpandedPrimitive From, int Ve
 
 /// <summary>
 /// A binding of a module stage: where it is and the variable that names it (<see cref="ShaderVariable.Attribute"/> or its
-/// name, with <see cref="ShaderVariable.RenderStateId"/> 1 for a texture read as sRGB); a sampler's state.
+/// name, with <see cref="ShaderVariable.RenderStateId"/> 1 for a texture read as sRGB); a sampler's state. An append or
+/// consume buffer's hidden counter names no variable and gives its buffer's variable name as <see cref="CounterOf"/>.
 /// </summary>
-public readonly record struct ModuleResource( int Set, int Binding, ShaderVariable Variable, SamplerInfo? Sampler = null );
+public readonly record struct ModuleResource( int Set, int Binding, ShaderVariable Variable, SamplerInfo? Sampler = null, string CounterOf = null );

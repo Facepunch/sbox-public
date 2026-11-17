@@ -64,7 +64,7 @@ public sealed partial class SlangCompiler
 
 	/// <summary>
 	/// An append or consume buffer is two bindings in SPIR-V, <c>X.elements</c> and <c>X.counter</c>: the elements bind as
-	/// <c>X</c> did, with its annotations; the counter is named nothing, as vfx's tables leave it.
+	/// <c>X</c> did, with its annotations; the counter keeps its name, which says whose it is, and no annotations.
 	/// </summary>
 	static CompiledStage AppendBuffers( CompiledStage stage, IReadOnlyDictionary<string, Annotations> annotations )
 	{
@@ -78,7 +78,7 @@ public sealed partial class SlangCompiler
 				return b with { Variable = name, Annotations = annotations.GetValueOrDefault( name ) };
 			}
 
-			return b.Variable.EndsWith( ".counter", StringComparison.Ordinal ) ? b with { Variable = "", Annotations = null } : b;
+			return b.Variable.EndsWith( ".counter", StringComparison.Ordinal ) ? b with { Annotations = null } : b;
 		} ).ToList();
 
 		return new CompiledStage
