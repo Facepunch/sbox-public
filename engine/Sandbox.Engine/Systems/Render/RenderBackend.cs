@@ -49,6 +49,20 @@ internal abstract class RenderBackend
 	/// <summary>Forget what this device holds for an engine texture or buffer that's being disposed.</summary>
 	public virtual void Release( object resource ) { }
 
+	/// <summary>
+	/// Read a rectangle of one mip and slice of a texture, as this device holds it, into <paramref name="data"/> as
+	/// <paramref name="format"/> at <paramref name="destination"/>, rows <paramref name="stride"/> bytes apart (0 packs
+	/// them). Waits for the GPU. False when it can't.
+	/// </summary>
+	public virtual bool ReadPixels( Texture texture, NativeRect source, int slice, int mip, NativeRect destination, IntPtr data, ImageFormat format, int stride )
+		=> g_pRenderDevice.ReadTexturePixels( texture.native, ref source, slice, mip, ref destination, data, format, stride );
+
+	/// <summary>
+	/// Read bytes of a buffer only this device holds (<see cref="Graphics.HasSource2Device"/>) from a byte offset, once the
+	/// GPU has written them. Waits for the GPU.
+	/// </summary>
+	public virtual void ReadBuffer( GpuBuffer buffer, Span<byte> data, int offset ) => throw new NotSupportedException( $"{GetType().Name} can't read buffers back." );
+
 	static readonly List<RenderBackend> others = new();
 
 	/// <summary>Devices other than <see cref="Default"/> that hold backings, to release them from.</summary>

@@ -39,8 +39,12 @@ public partial class Texture
 		if ( !string.IsNullOrWhiteSpace( name ) )
 			result?.RegisterWeakResourceId( name );
 
-		// Another device makes its copy from these rather than reading Source 2's back
-		if ( result is not null && (RenderBackend.Default is not Source2RenderBackend || RenderBackend.OthersExist) )
+		if ( result is not null )
+			result.CreatedMultisample = config.m_nMultisampleType;
+
+		// Another device makes its copy from these rather than reading Source 2's back (with -borealisgpu, from before
+		// the device is made too: without Source 2's device there's nothing to read back)
+		if ( result is not null && (RenderBackend.Default is not Source2RenderBackend || RenderBackend.OthersExist || Graphics.BorealisGpuRequested) )
 		{
 			result.InitialPixels = data != IntPtr.Zero && dataSize > 0 ? new ReadOnlySpan<byte>( (void*)data, dataSize ).ToArray() : null;
 			result.InitialColor = builder._initialColor ?? Color.Transparent;
