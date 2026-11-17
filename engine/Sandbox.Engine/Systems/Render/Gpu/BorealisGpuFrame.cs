@@ -21,6 +21,12 @@ internal sealed class BorealisGpuFrame : IDisposable
 	static readonly StringToken ViewConstantsName = new( "PerViewConstantBuffer_t" );
 	static readonly StringToken DepthChainName = new( "DepthChainDownsample" );
 	static readonly StringToken FogVolumeName = new( "FogVolume" );
+	static readonly StringToken BlueNoiseName = new( "BlueNoise" );
+	static readonly StringToken BloomInputName = new( "QuarterResEffectsBloomInputTexture" );
+
+	// Every block on the frame binds it: looked up once, again only if it was let go
+	static Texture blueNoise;
+	static Texture BlueNoise => blueNoise is { IsValid: true } known ? known : blueNoise = Texture.Load( "textures/dev/blue_noise_256.vtex" );
 	static readonly StringToken DepthChainPrevFrameName = new( "DepthChainDownsamplePrevFrame" );
 	static readonly StringToken NormalsName = new( "NormalsGBuffer" );
 
@@ -228,8 +234,8 @@ internal sealed class BorealisGpuFrame : IDisposable
 			if ( normals.Engine is not null ) attributes.Set( NormalsName, normals.Engine );
 			if ( fog.Engine is not null ) attributes.Set( FogVolumeName, fog.Engine );
 
-			attributes.Set( "BlueNoise", Texture.Load( "textures/dev/blue_noise_256.vtex" ) );
-			attributes.Set( "QuarterResEffectsBloomInputTexture", Texture.Black );
+			attributes.Set( BlueNoiseName, BlueNoise );
+			attributes.Set( BloomInputName, Texture.Black );
 			draw();
 		}
 		finally
@@ -329,8 +335,8 @@ internal sealed class BorealisGpuFrame : IDisposable
 				attributes.Set( DepthChainPrevFrameName, DepthChain );
 			}
 
-			attributes.Set( "BlueNoise", Texture.Load( "textures/dev/blue_noise_256.vtex" ) );
-			attributes.Set( "QuarterResEffectsBloomInputTexture", Texture.Black );
+			attributes.Set( BlueNoiseName, BlueNoise );
+			attributes.Set( BloomInputName, Texture.Black );
 			return scope;
 		}
 		catch

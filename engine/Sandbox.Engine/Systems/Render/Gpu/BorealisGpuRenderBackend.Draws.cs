@@ -198,8 +198,7 @@ internal sealed partial class BorealisGpuRenderBackend
 			if ( draw.IndexCount < 3 || draw.Mesh >= meshes.Length || draw.DrawCall >= meshes[draw.Mesh].DrawCalls.Length ) continue;
 			var geometry = ((IBackendGeometry)file).For( draw.Mesh, draw.DrawCall );
 
-			// A vertex-cache layout reads a skinned object's streams; drawn here, a model is in its bind pose
-			if ( geometry.Layout.VertexCache ) continue;
+			// A skinned mesh, one skinned into the vertex cache too, draws its own streams here: its bind pose, as native's does
 
 			// Native's base vertex is where its arguments start: the buffer is bound that far before Borealis's
 			var native = meshes[draw.Mesh].DrawCalls[draw.DrawCall];
