@@ -283,8 +283,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		context.Begin( list );
 		pendingShader = null;
 		pendingAttributes = null;
+
+		// Timed with Borealis's lists when a pass timer is on (diagnostics): the engine's own blocks, not lent ones
+		if ( !lent && services.PassTimer is { } timer )
+		{
+			timer.ResetIn( list );
+			blockTimer = timer.Begin( list, "Engine block", Borealis.Backend.PassTimer.ScopeKind.List );
+		}
+		else blockTimer = -1;
+
 		return blockAttributes = RenderAttributes.CreateManaged();
 	}
+
+	int blockTimer = -1;
 
 	// The block's attributes, which a draw's own are layered over, as Source 2's contexts layer them
 	RenderAttributes blockAttributes;
@@ -365,6 +376,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		try
 		{
 			context.FinishReadable();
+			if ( blockTimer >= 0 ) services.PassTimer?.End( list, blockTimer );
+			blockTimer = -1;
 			SubmittedReadbacks( blockReadbacks, lent ? default : gpu.Submit( list, default, presentTo ) );
 		}
 		finally
