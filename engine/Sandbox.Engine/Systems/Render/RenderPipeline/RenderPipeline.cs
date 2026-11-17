@@ -241,7 +241,43 @@ internal static class RenderPipeline
 	internal static void AddLayersToView( CRenderPipelineSetup setup )
 	{
 		using var _ = Graphics.RecordOnSource2();
+		CountToolView();
 		Get()?.AddLayersToView( setup );
+	}
+
+	// Views of native's own (a tool's) drawn lately: the frame the last one was set up, not counting captures
+	static ulong lastToolViewFrame;
+	static int capturing;
+
+	/// <summary>Frames after its last view that native counts as still drawing views of its own.</summary>
+	const ulong ToolViewFrames = 60;
+
+	/// <summary>
+	/// Whether native has drawn views of its own in the last <see cref="ToolViewFrames"/> frames, other than captures: in a
+	/// process drawing on another device with Source 2's kept (the editor), a native tool's (Hammer's) is open.
+	/// </summary>
+	internal static bool ToolViewsDrawn => lastToolViewFrame != 0 && Application.FrameCount - lastToolViewFrame < ToolViewFrames;
+
+	/// <summary>Moves on each time native starts drawing views of its own again (<see cref="ToolViewsDrawn"/> turns true).</summary>
+	internal static int ToolViewsStarted { get; private set; }
+
+	/// <summary>Views set up until disposed are a capture's (a cube's faces), not a tool's.</summary>
+	internal static CaptureScope Capturing()
+	{
+		Interlocked.Increment( ref capturing );
+		return default;
+	}
+
+	internal readonly struct CaptureScope : IDisposable
+	{
+		public void Dispose() => Interlocked.Decrement( ref capturing );
+	}
+
+	static void CountToolView()
+	{
+		if ( Volatile.Read( ref capturing ) > 0 ) return;
+		if ( !ToolViewsDrawn ) ToolViewsStarted++;
+		lastToolViewFrame = Application.FrameCount;
 	}
 
 	internal static void AddSkybox3DLayersToView( CRenderPipelineSetup setup )

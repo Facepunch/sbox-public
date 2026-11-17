@@ -165,6 +165,9 @@ internal sealed class NativeSceneRenderer : ISceneRenderer
 		setup.Configure( camera, config );
 		setup.Native.EnableUI = false;
 
+		// Its views are a capture's, not a native tool's (RenderPipeline.ToolViewsDrawn)
+		using var capture = RenderPipeline.Capturing();
+
 		// All six faces share one scene submission and one bindless descriptor set.
 		// Join an existing frame bracket when the caller already has one open.
 		bool ownsBatch = !CSceneSystem.IsRenderingViews();
