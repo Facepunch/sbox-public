@@ -237,6 +237,12 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// </summary>
 	public void WarmUp() => RenderSystem.WarmUp();
 
+	/// <summary>Which envmap probes capture, and when: those the camera sees, within a budget.</summary>
+	internal EnvmapScheduler Envmaps { get; } = new();
+
+	/// <inheritdoc/>
+	public void RenderEnvmaps( Scene scene ) => Envmaps.Run( scene );
+
 	/// <summary>
 	/// Whether envmap captures wait while Borealis.Gpu makes a loaded scene's models (on). For comparisons.
 	/// </summary>
