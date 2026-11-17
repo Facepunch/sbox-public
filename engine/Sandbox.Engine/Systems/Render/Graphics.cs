@@ -41,6 +41,10 @@ public static partial class Graphics
 			var markers = !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nomarkers" );
 			// The device's pipeline cache in game/.source2/borealispipelines, apart from native's, unless -borealisgpu-nopipelinecache
 			var pipelineCache = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nopipelinecache" ) ? null : System.IO.Path.Combine( EngineFileSystem.Root.GetFullPath( "/" ), ".source2", "borealispipelines" );
+
+			// Slang surfaces compile on workers while their materials draw as their .shader, and the engine's start warming at
+			// once, unless -wait-for-shaders (draws wait for each, as tests and captures do)
+			Borealis.Backend.SurfaceShaders.CompileInBackgroundByDefault = !Sandbox.Utility.CommandLine.HasSwitch( "-wait-for-shaders" );
 			_borealisGpu = BorealisGpuRenderBackend.Create( validation, m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true, markers: markers, pipelineCacheFolder: pipelineCache );
 
 			// Models load in the background, as Source 2 streams them, unless -borealisgpu-syncload
@@ -49,6 +53,7 @@ public static partial class Graphics
 			// Material textures stream with them, tails first, unless -borealisgpu-nostream; -borealisgpu-texturebudget <MiB> caps them
 			_borealisGpu.Services.StreamTextures = _borealisGpu.Services.AsyncModels && !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nostream" );
 			if ( Sandbox.Utility.CommandLine.GetSwitchInt( "-borealisgpu-texturebudget", 0 ) is > 0 and var budget ) _borealisGpu.Services.TextureBudgetBytes = (long)budget << 20;
+			_borealisGpu.Services.Surfaces.Warm();
 			RenderBackend.SetDefault( _borealisGpu );
 			Log.Info( $"Rendering on Borealis.Gpu ({_borealisGpu.Device.Adapter.Name}){(validation ? ", validation on" : "")}; memory: {_borealisGpu.Device.DescribeMemory()}" );
 		}

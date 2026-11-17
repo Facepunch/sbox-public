@@ -33,8 +33,27 @@ internal static class Zones
 	public static readonly Zone MeshletCull = new( "Borealis Meshlet Cull", Color.Yellow );
 	public static readonly Zone LodBuild = new( "Borealis LOD Build", Color.Yellow );
 	public static readonly Zone LodUpload = new( "Borealis LOD Upload", Color.Yellow );
-	public static readonly Zone ShaderCompile = new( "Borealis Shader Compile", Color.Orange );
 	public static readonly Zone CubeCapture = new( "Borealis Cube Capture", Color.Blue );
+	public static readonly Zone SurfaceCompile = new( "Borealis Surface Compile", Color.Orange );
+	public static readonly Zone PassCompile = new( "Borealis Pass Module Compile", Color.Orange );
+	public static readonly Zone PipelineCreate = new( "Borealis Pipeline Create", Color.Orange );
+	public static readonly Zone VariantLoad = new( "Borealis Variant Load", Color.Orange );
+
+	/// <summary>Sandbox.ShaderCompiler's phases (<c>CompilePhase</c>), by value.</summary>
+	public static readonly Zone[] Slang =
+	[
+		new( "Slang Surface", Color.Yellow ),
+		new( "Slang Pass Stage", Color.Yellow ),
+		new( "Slang Reflect", Color.Yellow ),
+		new( "Slang Stage", Color.Yellow ),
+		new( "Slang Compile", Color.Yellow ),
+		new( "Slang Optimize", Color.Yellow ),
+		new( "Slang Describe", Color.Yellow ),
+		new( "Slang Session Wait", Color.Gray ),
+		new( "Slang Stages Wait", Color.Gray ),
+		new( "Slang Cache Load", Color.Gray ),
+		new( "Slang Cache Save", Color.Gray ),
+	];
 }
 
 /// <summary>

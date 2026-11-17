@@ -297,6 +297,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		}
 	}
 
+	internal override int ProgramsVersion => surfaces?.ReadyVersion ?? 0;
+
 	internal override bool TakesResident( GpuMaterial material ) => material switch
 	{
 		SurfaceMaterial surface => !surface.RenderState.DrawsTranslucent && surface.RenderState.DepthWrite && surface.RenderState.DepthTest && Surfaces.For( surface ) is { } program
@@ -1059,7 +1061,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	ConvertedMaterial Converted( string path, MaterialFile file, Func<BackendMaterial> fallback )
 	{
 		var tier = Surfaces;
-		if ( tier.ConversionFor( file.Shader ) is not { } surface || tier.Compile( surface ) is not { } compiled ) return null;
+		if ( tier.ConversionFor( file.Shader ) is not { } surface || tier.Layout( surface ) is not { } compiled ) return null;
 		if ( !ConvertedMaterial.Accepts( compiled, file ) || tier.ConvertMaterial?.Invoke( path ) == false ) return null;
 		tier.CountConverted( path );
 		var converted = ConvertedMaterial.Create( compiled, file, path, MaterialTextureFile );
@@ -1116,6 +1118,37 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, string name = null )
 		=> Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
+
+	/// <summary>
+	/// A compiled material with <paramref name="values"/> and <paramref name="textures"/> (shader variables by name, such as
+	/// <c>g_tColor</c>) over its own: a material a game copied and changed in code. Textures that aren't this device's are
+	/// left as the file has them.
+	/// </summary>
+	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures, string name = null )
+	{
+		var material = Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
+		SetOn( material, null, textures );
+		return material;
+	}
+
+	/// <summary>
+	/// Set <paramref name="values"/> and <paramref name="textures"/> on a material made by
+	/// <see cref="LoadMaterial(string, IReadOnlyDictionary{string, float[]}, IReadOnlyDictionary{string, GpuTexture}, string)"/>,
+	/// as code changed them: what draws with it draws with them from its next draw.
+	/// </summary>
+	public void SetOnMaterial( GpuMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
+	{
+		if ( material is BackendMaterial own ) SetOn( own, values, textures );
+	}
+
+	static void SetOn( BackendMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
+	{
+		foreach ( var (variable, value) in values ?? new Dictionary<string, float[]>() ) material.Set( variable, value );
+		foreach ( var (variable, texture) in textures ?? new Dictionary<string, GpuTexture>() )
+		{
+			if ( texture is BackendTexture own ) material.SetTexture( variable, own );
+		}
+	}
 
 	/// <summary>A material file, or null when it can't be read (KV3 with binary blobs isn't yet), so it draws nothing.</summary>
 	static MaterialFile ReadMaterial( byte[] data )
@@ -1235,7 +1268,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				info.FragmentConstants = null;
 			}
 
-			pipeline = Gpu.CreateGraphicsPipeline( info );
+			using ( Zones.PipelineCreate.Start() ) pipeline = Gpu.CreateGraphicsPipeline( info );
 			pipelines[key] = pipeline;
 			if ( DumpPixelShaders is { } dump && info.FragmentShader.IsValid ) DumpPixelShader( dump, variant, info.FragmentConstants, materialPerDraw );
 			return pipeline;

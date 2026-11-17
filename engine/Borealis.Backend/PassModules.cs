@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Borealis.Gpu;
 using Borealis.Source2.Shaders;
 using Sandbox.ShaderCompiler;
@@ -20,6 +21,7 @@ public sealed class PassModules : IShaderModules
 	readonly Dictionary<string, (ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots)> stages = new( StringComparer.Ordinal );
 	readonly HashSet<string> reported = new( StringComparer.Ordinal );
 	readonly Dictionary<string, ShaderCompileException> failed = new( StringComparer.Ordinal );
+	readonly Dictionary<string, Task<CompiledPassStage>> running = new( StringComparer.Ordinal );
 	SlangCompiler compiler;
 
 	internal PassModules( BackendDevice device ) => this.device = device;
@@ -37,6 +39,19 @@ public sealed class PassModules : IShaderModules
 	public int StagesCompiled { get; private set; }
 
 	/// <summary>
+	/// Whether a variant whose stages are still compiling draws from its shader's compiled programs meanwhile (nothing, for a
+	/// shader made from embedded source; a module-only shader's, and Borealis's own passes', are waited for), as with
+	/// <c>-no-slang-passes</c>, instead of waiting for them; from <see cref="SurfaceShaders.CompileInBackgroundByDefault"/> as
+	/// the device is made.
+	/// </summary>
+	public bool CompileInBackground { get; set; } = SurfaceShaders.CompileInBackgroundByDefault;
+
+	/// <summary>Variants asked for while their stages compiled in the background, for reports and tests.</summary>
+	public int PendingAsks => pendingAsks;
+
+	int pendingAsks;
+
+	/// <summary>
 	/// Where compiled stages are kept between runs; <c>game/.source2/borealispasses</c> beside the engine's own caches unless
 	/// set before the first compile.
 	/// </summary>
@@ -52,6 +67,7 @@ public sealed class PassModules : IShaderModules
 	{
 		if ( compiler is not null ) return compiler;
 		var game = Path.GetDirectoryName( Core );
+		CompileZones.Install();
 		return compiler = new SlangCompiler( EngineFolders.NativeIn( game ), [Path.Combine( Core, "shaders" )] )
 		{
 			CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealispasses" ),
@@ -252,7 +268,8 @@ public sealed class PassModules : IShaderModules
 		var settings = new Dictionary<string, int>( StringComparer.Ordinal );
 		foreach ( var (combo, value) in mode.Settings ?? [] ) settings[combo] = value;
 
-		ModuleStage Stage( StageKind kind, out Dictionary<string, int> values )
+		var waiting = false;
+		ModuleStage Stage( StageKind kind, out Dictionary<string, int> values, bool start = false )
 		{
 			values = null;
 			if ( !module.Has( kind ) ) return null;
@@ -281,11 +298,25 @@ public sealed class PassModules : IShaderModules
 			// A device without wave operations in vertex shaders (Lavapipe) rejects vertex modules that use them: modules
 			// leave them out where this is set
 			if ( kind == StageKind.Vertex && !device.Gpu.Capabilities.VertexWaveOps ) values[NoVertexWaves] = 1;
+			if ( start )
+			{
+				waiting |= Start( module, kind, values ) is { IsCompleted: false };
+				return null;
+			}
+
 			return Compiled( shader, module, kind, values, attributes );
 		}
 
 		try
 		{
+			// Every stage it needs compiles at once, on the compile threads; then each is waited for in turn, or, in the
+			// background, none is: the shader's programs draw until they're done
+			foreach ( var kind in Kinds ) Stage( kind, out _, start: true );
+			if ( waiting && CompileInBackground && !shader.ModuleOnly && !Borealis( module ) )
+			{
+				System.Threading.Interlocked.Increment( ref pendingAsks );
+				return ModuleProgram.Pending;
+			}
 			var vertex = Stage( StageKind.Vertex, out var vertexValues );
 			if ( vertex?.Spirv is not null && module.Expansion( vertexValues ) is { } expansion )
 				vertex = Copy( vertex, expansion: PrimitiveExpansion.Parse( expansion.From, expansion.Vertices, expansion.Topology ) );
@@ -323,9 +354,34 @@ public sealed class PassModules : IShaderModules
 
 	static string Key( ModuleStage stage ) => stage is null ? "|" : string.Join( ',', stage.Constants.Select( c => $"{c.Id}={c.Value}" ) ) + "|";
 
+	static readonly StageKind[] Kinds = [StageKind.Vertex, StageKind.Pixel, StageKind.Compute, StageKind.Task, StageKind.Mesh];
+
+	/// <summary>
+	/// Borealis's own passes (<c>borealis_*</c>: GPU-driven culling, ids, shadow tiles): waited for even in the background,
+	/// since the draws that follow read exactly what they write, and their compiled programs may be older than the module.
+	/// </summary>
+	static bool Borealis( PassModule module ) => Path.GetFileName( module.Path ).StartsWith( "borealis_", StringComparison.OrdinalIgnoreCase );
+
+	static string StageKey( PassModule module, StageKind kind, Dictionary<string, int> values ) =>
+		$"{module.Path}|{module.Text.GetHashCode()}|{kind}|{string.Join( ';', values.OrderBy( v => v.Key, StringComparer.Ordinal ).Select( v => $"{v.Key}={v.Value}" ) )}";
+
+	/// <summary>Start compiling a stage on the compile threads unless it's compiled, failed or compiling; its task.</summary>
+	Task<CompiledPassStage> Start( PassModule module, StageKind kind, Dictionary<string, int> values )
+	{
+		var key = StageKey( module, kind, values );
+		lock ( stages )
+		{
+			if ( stages.ContainsKey( key ) || failed.ContainsKey( key ) ) return null;
+			if ( running.TryGetValue( key, out var known ) ) return known;
+		}
+
+		var task = Compiler().CompilePassAsync( module, kind, values );
+		lock ( stages ) return running.TryAdd( key, task ) ? task : running[key];
+	}
+
 	ModuleStage Compiled( ShaderFile shader, PassModule module, StageKind kind, Dictionary<string, int> values, Func<string, int?> attributes )
 	{
-		var key = $"{module.Path}|{module.Text.GetHashCode()}|{kind}|{string.Join( ';', values.OrderBy( v => v.Key, StringComparer.Ordinal ).Select( v => $"{v.Key}={v.Value}" ) )}";
+		var key = StageKey( module, kind, values );
 		(ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots) entry;
 		ShaderCompileException failure;
 		lock ( stages )
@@ -338,21 +394,46 @@ public sealed class PassModules : IShaderModules
 		if ( failure is not null ) throw failure;
 		if ( entry.Stage is null )
 		{
-			using var zone = Zones.ShaderCompile.Start();
-			CompiledPassStage compiled;
+			var task = Start( module, kind, values );
+			CompiledPassStage compiled = null;
 			try
 			{
-				compiled = Compiler().CompilePass( module, kind, values );
+				if ( task is not null )
+				{
+					using ( Zones.PassCompile.Start() ) compiled = task.GetAwaiter().GetResult();
+				}
 			}
 			catch ( ShaderCompileException e )
 			{
-				lock ( stages ) failed[key] = e;
+				lock ( stages )
+				{
+					failed[key] = e;
+					running.Remove( key );
+				}
+
 				throw;
 			}
 
-			entry = (Describe( shader, kind, compiled, key ), compiled.Stage.Specializations);
-			lock ( stages ) stages[key] = entry;
-			StagesCompiled++;
+			lock ( stages )
+			{
+				running.Remove( key );
+				if ( compiled is null )
+				{
+					// Another caller recorded it meanwhile
+					if ( failed.TryGetValue( key, out failure ) ) throw failure;
+					entry = stages[key];
+				}
+				else if ( stages.TryGetValue( key, out var made ) )
+				{
+					entry = made;
+				}
+				else
+				{
+					entry = (Describe( shader, kind, compiled, key ), compiled.Stage.Specializations);
+					stages[key] = entry;
+					StagesCompiled++;
+				}
+			}
 		}
 
 		// Specialization constants (SpecializedConstant() globals) take their attributes' values, as for compiled programs

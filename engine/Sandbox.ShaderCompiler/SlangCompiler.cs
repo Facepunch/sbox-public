@@ -2,9 +2,48 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using Sandbox.ShaderCompiler.Slang;
 
 namespace Sandbox.ShaderCompiler;
+
+/// <summary>What a compile is doing, for <see cref="SlangCompiler.Profile"/>.</summary>
+public enum CompilePhase
+{
+	/// <summary>A surface or raw module, all its stages.</summary>
+	Surface,
+
+	/// <summary>One stage of a pass module.</summary>
+	PassStage,
+
+	/// <summary>A surface's material struct, reflected.</summary>
+	Reflect,
+
+	/// <summary>One stage's request: Slang, the optimizer and reflection.</summary>
+	Stage,
+
+	/// <summary>Slang compiling a request.</summary>
+	Slang,
+
+	/// <summary>The SPIR-V optimizer.</summary>
+	Optimize,
+
+	/// <summary>Reading a stage's bindings and inputs.</summary>
+	Describe,
+
+	/// <summary>Waiting for a Slang session.</summary>
+	Session,
+
+	/// <summary>Waiting for a surface's stages on the compile threads.</summary>
+	Wait,
+
+	/// <summary>Looking for a compiled shader in the disk cache.</summary>
+	CacheLoad,
+
+	/// <summary>Writing a compiled shader to the disk cache.</summary>
+	CacheSave,
+}
 
 /// <summary>
 /// Compiles new-tier shaders with the engine's Slang. A surface (<c>[Material]</c> struct implementing <c>ISurface</c>)
@@ -14,8 +53,6 @@ namespace Sandbox.ShaderCompiler;
 /// </summary>
 public sealed partial class SlangCompiler
 {
-	static readonly object compileLock = new();
-
 	readonly string slangDirectory;
 	readonly List<string> searchPaths;
 
@@ -30,26 +67,163 @@ public sealed partial class SlangCompiler
 	}
 
 	/// <summary>
-	/// Where compiled shaders are kept between runs (null: nowhere). An entry is used only while the compiler (this
-	/// assembly's build and its Slang), the search paths, the source and every file the compile read are as they were.
+	/// Where compiled shaders are kept between runs (null: nowhere). An entry is used only while the compiler
+	/// (<see cref="Version"/>, its Slang and optimizer), the search paths, the source and every file the compile read are
+	/// as they were.
 	/// </summary>
 	public string CacheFolder { get; init; }
 
-	/// <summary>Every file the current compile has read, for its <see cref="CompiledShader.Dependencies"/>.</summary>
-	HashSet<string> readFiles;
+	/// <summary>
+	/// What this compiler makes of a source, for the caches' keys in place of this assembly's build, so a build that
+	/// changes nothing here keeps every compiled shader. Raise it with any change to what a compile emits: the options,
+	/// defines and passes, the generated instance and GPU-driven files, the source rewrites, reflection. A change to the
+	/// generated text alone fails <c>GeneratedCodeNeedsAVersion</c> until <see cref="GeneratedFingerprint"/> is updated here too.
+	/// </summary>
+	public const int Version = 1;
 
-	CompiledShader Cached( string path, ShaderTier tier, Func<string, CompiledShader> compile )
+	/// <summary>The <see cref="Fingerprint"/> of the generated code <see cref="Version"/> was raised for.</summary>
+	internal const string GeneratedFingerprint = "391A71CFBB3F8497";
+
+	/// <summary>
+	/// A hash of what the compiler generates for fixed inputs (the Slang command lines, instance and GPU-driven files and
+	/// source rewrites), to catch a change to them made without raising <see cref="Version"/>.
+	/// </summary>
+	internal static string Fingerprint()
+	{
+		var text = new StringBuilder();
+		Dictionary<string, string>[] sets = [null, AlphaTested, Translucent, Lightmapped, VertexAnimation, GpuDriven, AlphaTestedDepth, With( GpuDriven, Lightmapped )];
+		foreach ( var stage in Enum.GetValues<StageKind>() )
+		{
+			foreach ( var set in sets )
+			{
+				var defines = Defines( stage );
+				foreach ( var (name, value) in set ?? [] ) defines[name] = value;
+				text.AppendJoin( ' ', SlangRequest.Arguments( ["include"], defines, stage == StageKind.Vertex, true ) ).Append( '\n' );
+			}
+		}
+
+		MaterialField[] features = [new( "Feature", MaterialFieldKind.Bool, 1, 0, [0], null, null, null, false ), new( "Count", MaterialFieldKind.UInt, 1, 4, [0], null, null, null, false )];
+		for ( int flags = 0; flags < 1 << 10; flags++ )
+		{
+			bool Flag( int bit ) => (flags & (1 << bit)) != 0;
+			text.Append( InstanceFile( "module", "Material", Flag( 0 ), Flag( 1 ), Flag( 2 ) ? "Opacity" : null, Flag( 3 ), Flag( 4 ), Flag( 5 ), Flag( 6 ), Flag( 7 ) ? [("A", "1")] : null, Flag( 8 ) ? features : null, Flag( 9 ) ) );
+		}
+
+		VertexInputSlot[] inputs = [new( 0, "POSITION", 0, ScalarKind.Float, 3 ) { Field = "i.vPositionOs" }, new( 1, "TEXCOORD", 13, ScalarKind.UInt, 1 ) { Field = "i.nInstance" }, new( 2, "BLENDINDICES", 0, ScalarKind.UInt, 4 ) { Field = "i.vIndices" }];
+		foreach ( var (displaces, interpolated) in new[] { (false, false), (true, false), (false, true), (true, true) } ) text.Append( GpuDrivenVertex( "Material", displaces, interpolated, inputs ) );
+
+		const string sample = "ExternalDescriptorSet g_viewSet Slot 2;\nfloat3 Tint < Attribute( \"Tint\" ); Default3( 1, 1, 1 ); >;\n"
+			+ "CreateTexture2D( g_tColor ) < Attribute( \"Color\" ); SrgbRead( true ); Filter( MIN_MAG_MIP_LINEAR ); >;\n"
+			+ "[Material] public struct Material : ISurface { [Default( 1, 1, 1 )] float3 Tint; Texture2D Color; float4 Shade( SurfaceInput i ) { return 1; } };\n";
+		text.Append( VfxIncludes.Rewrite( sample, new() ) ).Append( MaterialSource.Rewrite( sample, out _ ) );
+		return Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( Encoding.UTF8.GetBytes( text.ToString() ) ) )[..16];
+	}
+
+	/// <summary>
+	/// Opened on the thread doing each phase of a compile and disposed when it ends, for a profiler (the engine's Tracy
+	/// zones); null for none.
+	/// </summary>
+	public static Func<CompilePhase, IDisposable> Profile { get; set; }
+
+	internal static IDisposable Zone( CompilePhase phase ) => Profile?.Invoke( phase );
+
+	/// <summary>Compiles in this process so far, by kind, from the compiler or from its cache, for reports and tests.</summary>
+	public static (int Surfaces, int Stages, int CachedSurfaces, int CachedStages) Counts => (surfaces, stages, cachedSurfaces, cachedStages);
+
+	static int surfaces, stages, cachedSurfaces, cachedStages;
+
+	/// <summary>
+	/// The result of <paramref name="task"/>, waited for in a <see cref="CompilePhase.Wait"/> zone: the synchronous form of
+	/// each compile. Its continuations never need the waiting thread.
+	/// </summary>
+	static T Wait<T>( Task<T> task )
+	{
+		if ( !task.IsCompleted )
+		{
+			using ( Zone( CompilePhase.Wait ) ) ((IAsyncResult)task).AsyncWaitHandle.WaitOne();
+		}
+
+		return task.GetAwaiter().GetResult();
+	}
+
+	/// <summary>A task that completes when all of <paramref name="tasks"/> have, without throwing their exceptions.</summary>
+	static Task Settled( Task[] tasks ) => Task.WhenAll( tasks ).ContinueWith( static _ => { }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default );
+
+	/// <summary>A file read set safe to add to from several compile threads at once.</summary>
+	sealed class ReadFiles( string first )
+	{
+		readonly HashSet<string> files = new( StringComparer.OrdinalIgnoreCase ) { first };
+
+		public void Add( string path )
+		{
+			lock ( files ) files.Add( path );
+		}
+
+		public List<string> Sorted()
+		{
+			lock ( files ) return files.Order( StringComparer.OrdinalIgnoreCase ).ToList();
+		}
+	}
+
+	async Task<CompiledShader> Cached( string path, ShaderTier tier, Func<string, Task<CompiledShader>> compile )
 	{
 		path = Path.GetFullPath( path );
-		if ( CacheFolder is null ) return compile( path );
+		if ( CacheFolder is null ) return await compile( path ).ConfigureAwait( false );
 
 		var text = File.ReadAllText( path );
 		var context = $"{slangDirectory}|{string.Join( ';', searchPaths )}";
-		if ( CompileCache.Load( CacheFolder, context, slangDirectory, tier, path, text ) is { } cached ) return cached;
+		using ( Zone( CompilePhase.CacheLoad ) )
+		{
+			if ( CompileCache.Load( CacheFolder, context, slangDirectory, tier, path, text ) is { } cached )
+			{
+				Interlocked.Increment( ref cachedSurfaces );
+				return cached;
+			}
+		}
 
-		var compiled = compile( path );
-		CompileCache.Save( CacheFolder, context, slangDirectory, path, text, compiled );
+		var compiled = await compile( path ).ConfigureAwait( false );
+		using ( Zone( CompilePhase.CacheSave ) ) CompileCache.Save( CacheFolder, context, slangDirectory, path, text, compiled );
 		return compiled;
+	}
+
+	/// <summary>Whether a module's text is a raw module's (it declares <c>[shader( ... )]</c> entry points) rather than a surface's.</summary>
+	public static bool IsRaw( string text ) => RawEntry().IsMatch( text );
+
+	[GeneratedRegex( @"\[\s*shader\s*\(" )]
+	private static partial Regex RawEntry();
+
+	/// <summary>
+	/// A surface's or raw module's name and material layout as its compile gives them, without its stages (no passes): from
+	/// the cache's layout entry when it's there, else one Slang request on a compile thread. For loading materials while
+	/// the stages compile. Faults with <see cref="ShaderCompileException"/> where the compile would.
+	/// </summary>
+	public Task<CompiledShader> ReflectAsync( string path, CompilePriority priority = null )
+	{
+		path = Path.GetFullPath( path );
+		var text = File.ReadAllText( path );
+		var tier = IsRaw( text ) ? ShaderTier.Raw : ShaderTier.Surface;
+		var context = $"{slangDirectory}|{string.Join( ';', searchPaths )}";
+		if ( CacheFolder is not null )
+		{
+			using ( Zone( CompilePhase.CacheLoad ) )
+			{
+				if ( CompileCache.Load( CacheFolder, context, slangDirectory, tier, path, text, layout: true ) is { } cached ) return Task.FromResult( cached );
+			}
+		}
+
+		var source = MaterialSource.Rewrite( text, out var declared );
+		if ( tier == ShaderTier.Surface ? declared.Count != 1 : declared.Count > 1 )
+			return Task.FromException<CompiledShader>( new ShaderCompileException( path, $"A {(tier == ShaderTier.Surface ? "surface" : "raw")} module declares {(tier == ShaderTier.Surface ? "one" : "at most one")} [Material] struct; this one declares {declared.Count}" ) );
+
+		var name = declared.Count == 1 ? declared[0].Name : Path.GetFileNameWithoutExtension( path );
+		if ( declared.Count == 0 ) return Task.FromResult( new CompiledShader { Name = name, Tier = tier, Path = path, Material = MaterialLayout.Create( "", [] ), Passes = new Dictionary<string, CompiledPass>(), Dependencies = [path] } );
+
+		return SlangWorkers.Run( () =>
+		{
+			var read = new ReadFiles( path );
+			var layout = Reflected( path, source, name, tier, read );
+			return new CompiledShader { Name = name, Tier = tier, Path = path, Material = layout, Passes = new Dictionary<string, CompiledPass>(), Dependencies = read.Sorted() };
+		}, priority );
 	}
 
 	/// <summary>Defines vfx gives every program, which the core includes test.</summary>
@@ -76,15 +250,14 @@ public sealed partial class SlangCompiler
 		return VfxIncludes.Rewrite( text, annotations );
 	}
 
-	SlangRequest Request( StageKind stage, IReadOnlyList<string> extraSearchPaths, IReadOnlyDictionary<string, string> extraDefines = null )
+	SlangRequest Request( StageKind stage, IReadOnlyList<string> extraSearchPaths, ReadFiles read, IReadOnlyDictionary<string, string> extraDefines = null )
 	{
-		var session = SlangApi.Session( slangDirectory );
 		Dictionary<string, Annotations> annotations = null;
 		var defines = Defines( stage );
 		foreach ( var (name, value) in extraDefines ?? new Dictionary<string, string>() ) defines[name] = value;
-		var request = new SlangRequest( session, [.. extraSearchPaths, .. searchPaths], defines, stage == StageKind.Vertex, SpirvOptimizer.Available( slangDirectory ), ( path, text ) =>
+		var request = new SlangRequest( slangDirectory, [.. extraSearchPaths, .. searchPaths], defines, stage == StageKind.Vertex, SpirvOptimizer.Available( slangDirectory ), ( path, text ) =>
 		{
-			readFiles?.Add( Path.GetFullPath( path ) );
+			read?.Add( Path.GetFullPath( path ) );
 			return Rewrite( path, text, annotations );
 		} );
 		annotations = request.Annotations;
@@ -95,10 +268,17 @@ public sealed partial class SlangCompiler
 	/// Compile a surface: the module at <paramref name="path"/> with one <c>[Material]</c> struct implementing
 	/// <c>ISurface</c>. Throws <see cref="ShaderCompileException"/> with Slang's messages on errors.
 	/// </summary>
-	public CompiledShader CompileSurface( string path ) => Cached( path, ShaderTier.Surface, CompileSurfaceNow );
+	public CompiledShader CompileSurface( string path ) => Wait( CompileSurfaceAsync( path ) );
 
-	CompiledShader CompileSurfaceNow( string path )
+	/// <summary>
+	/// <see cref="CompileSurface"/> on the compile threads, with its stages in parallel; <paramref name="priority"/> (null: urgent)
+	/// orders it among the other compiles. Faults with <see cref="ShaderCompileException"/> on errors.
+	/// </summary>
+	public Task<CompiledShader> CompileSurfaceAsync( string path, CompilePriority priority = null ) => Cached( path, ShaderTier.Surface, p => CompileSurfaceNow( p, priority ) );
+
+	async Task<CompiledShader> CompileSurfaceNow( string path, CompilePriority priority )
 	{
+		Interlocked.Increment( ref surfaces );
 		var clock = Stopwatch.StartNew();
 		var source = MaterialSource.Rewrite( File.ReadAllText( path ), out var declared );
 		if ( declared.Count != 1 ) throw new ShaderCompileException( path, $"A surface module declares one [Material] struct; this one declares {declared.Count}" );
@@ -108,10 +288,9 @@ public sealed partial class SlangCompiler
 		var module = Path.GetFileNameWithoutExtension( path );
 		if ( !ModuleName().IsMatch( module ) ) throw new ShaderCompileException( path, $"{module} isn't a valid module name: name surface files like identifiers" );
 
-		lock ( compileLock )
 		{
-			readFiles = new( StringComparer.OrdinalIgnoreCase ) { path };
-			var layout = ReflectMaterial( path, source, material.Name, directory );
+			var read = new ReadFiles( path );
+			var layout = await SlangWorkers.Run( () => Reflected( path, source, material.Name, ShaderTier.Surface, read ), priority ).ConfigureAwait( false );
 			var interpolatedDisplaces = material.Interfaces.Contains( "IInterpolatedVertexSurface" );
 			var displaces = interpolatedDisplaces || material.Interfaces.Contains( "IVertexSurface" );
 			var lit = material.Interfaces.Contains( "ILitSurface" );
@@ -142,15 +321,39 @@ public sealed partial class SlangCompiler
 			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit, composite, combiner, defines, layout.Features, layered );
 			var instancePath = Path.Combine( directory, $"{module}.instance.slang" );
 
-			var vertex = CompileEntry( instancePath, instance, "MainVs", StageKind.Vertex, directory );
-			var vertexLightmapped = CompileEntry( instancePath, instance, "MainVs", StageKind.Vertex, directory, Lightmapped );
-			var forward = CompileEntry( instancePath, instance, "ForwardPs", StageKind.Pixel, directory );
-			var forwardAlphaTest = CompileEntry( instancePath, instance, "ForwardAlphaTestPs", StageKind.Pixel, directory, AlphaTested );
-			var depthAlphaTest = CompileEntry( instancePath, instance, "DepthAlphaTestPs", StageKind.Pixel, directory, AlphaTestedDepth );
-			var forwardTranslucent = CompileEntry( instancePath, instance, "ForwardTranslucentPs", StageKind.Pixel, directory, Translucent );
-			var depthVertex = CompileEntry( instancePath, instance, "DepthVs", StageKind.Vertex, directory );
-			var vertexSkinned = CompileEntry( instancePath, instance, "MainVs", StageKind.Vertex, directory, VertexAnimation );
-			var depthVertexSkinned = CompileEntry( instancePath, instance, "DepthVs", StageKind.Vertex, directory, VertexAnimation );
+			// Every stage at once, each a request on its own compile thread; the GPU-driven vertex stages once the classic ones
+			// they're generated from are done. All are waited for before anything is thrown, the first failure in this order
+			Task<CompiledStage> Entry( string text, string name, StageKind stage, IReadOnlyDictionary<string, string> defines = null ) =>
+				SlangWorkers.Run( () => CompileEntry( instancePath, text, name, stage, directory, read, defines ), priority );
+			var vertexJob = Entry( instance, "MainVs", StageKind.Vertex );
+			var vertexLightmappedJob = Entry( instance, "MainVs", StageKind.Vertex, Lightmapped );
+			var forwardJob = Entry( instance, "ForwardPs", StageKind.Pixel );
+			var forwardAlphaTestJob = Entry( instance, "ForwardAlphaTestPs", StageKind.Pixel, AlphaTested );
+			var depthAlphaTestJob = Entry( instance, "DepthAlphaTestPs", StageKind.Pixel, AlphaTestedDepth );
+			var forwardTranslucentJob = Entry( instance, "ForwardTranslucentPs", StageKind.Pixel, Translucent );
+			var depthVertexJob = Entry( instance, "DepthVs", StageKind.Vertex );
+			var vertexSkinnedJob = Entry( instance, "MainVs", StageKind.Vertex, VertexAnimation );
+			var depthVertexSkinnedJob = Entry( instance, "DepthVs", StageKind.Vertex, VertexAnimation );
+			var gpuForwardJob = Entry( instance, "ForwardPsGpuDriven", StageKind.Pixel, GpuDriven );
+			var gpuForwardAlphaTestJob = Entry( instance, "ForwardAlphaTestPsGpuDriven", StageKind.Pixel, With( GpuDriven, AlphaTested ) );
+			var gpuDepthAlphaTestJob = Entry( instance, "DepthAlphaTestPsGpuDriven", StageKind.Pixel, With( GpuDriven, AlphaTestedDepth ) );
+			var gpuForwardTranslucentJob = Entry( instance, "ForwardTranslucentPsGpuDriven", StageKind.Pixel, With( GpuDriven, Translucent ) );
+			Task<CompiledStage> GpuVertex( Task<CompiledStage> classic, IReadOnlyDictionary<string, string> defines ) => classic.ContinueWith( done =>
+				done.IsCompletedSuccessfully ? Entry( instance + GpuDrivenVertex( material.Name, displaces, interpolated, done.Result.Inputs ), "MainVsGpuDriven", StageKind.Vertex, defines ) : done, TaskScheduler.Default ).Unwrap();
+			var gpuVertexJob = GpuVertex( vertexJob, GpuDriven );
+			var gpuVertexLightmappedJob = GpuVertex( vertexLightmappedJob, With( GpuDriven, Lightmapped ) );
+			await Settled( [vertexJob, vertexLightmappedJob, forwardJob, forwardAlphaTestJob, depthAlphaTestJob, forwardTranslucentJob, depthVertexJob, vertexSkinnedJob, depthVertexSkinnedJob,
+				gpuForwardJob, gpuForwardAlphaTestJob, gpuDepthAlphaTestJob, gpuForwardTranslucentJob, gpuVertexJob, gpuVertexLightmappedJob] ).ConfigureAwait( false );
+
+			var vertex = vertexJob.GetAwaiter().GetResult();
+			var vertexLightmapped = vertexLightmappedJob.GetAwaiter().GetResult();
+			var forward = forwardJob.GetAwaiter().GetResult();
+			var forwardAlphaTest = forwardAlphaTestJob.GetAwaiter().GetResult();
+			var depthAlphaTest = depthAlphaTestJob.GetAwaiter().GetResult();
+			var forwardTranslucent = forwardTranslucentJob.GetAwaiter().GetResult();
+			var depthVertex = depthVertexJob.GetAwaiter().GetResult();
+			var vertexSkinned = vertexSkinnedJob.GetAwaiter().GetResult();
+			var depthVertexSkinned = depthVertexSkinnedJob.GetAwaiter().GetResult();
 
 			// Each pass twice: as compiled, and with the vertex stage that passes on the mesh's lightmap uv
 			var passes = new Dictionary<string, CompiledPass>();
@@ -169,12 +372,12 @@ public sealed partial class SlangCompiler
 			// whose GPU-driven compile fails draws the classic way
 			try
 			{
-				var gpuVertex = CompileEntry( instancePath, instance + GpuDrivenVertex( material.Name, displaces, interpolated, vertex.Inputs ), "MainVsGpuDriven", StageKind.Vertex, directory, GpuDriven );
-				var gpuVertexLightmapped = CompileEntry( instancePath, instance + GpuDrivenVertex( material.Name, displaces, interpolated, vertexLightmapped.Inputs ), "MainVsGpuDriven", StageKind.Vertex, directory, With( GpuDriven, Lightmapped ) );
-				var gpuForward = CompileEntry( instancePath, instance, "ForwardPsGpuDriven", StageKind.Pixel, directory, GpuDriven );
-				var gpuForwardAlphaTest = CompileEntry( instancePath, instance, "ForwardAlphaTestPsGpuDriven", StageKind.Pixel, directory, With( GpuDriven, AlphaTested ) );
-				var gpuDepthAlphaTest = CompileEntry( instancePath, instance, "DepthAlphaTestPsGpuDriven", StageKind.Pixel, directory, With( GpuDriven, AlphaTestedDepth ) );
-				var gpuForwardTranslucent = CompileEntry( instancePath, instance, "ForwardTranslucentPsGpuDriven", StageKind.Pixel, directory, With( GpuDriven, Translucent ) );
+				var gpuVertex = gpuVertexJob.GetAwaiter().GetResult();
+				var gpuVertexLightmapped = gpuVertexLightmappedJob.GetAwaiter().GetResult();
+				var gpuForward = gpuForwardJob.GetAwaiter().GetResult();
+				var gpuForwardAlphaTest = gpuForwardAlphaTestJob.GetAwaiter().GetResult();
+				var gpuDepthAlphaTest = gpuDepthAlphaTestJob.GetAwaiter().GetResult();
+				var gpuForwardTranslucent = gpuForwardTranslucentJob.GetAwaiter().GetResult();
 				foreach ( var (v, suffix) in new[] { (gpuVertex, ShaderPasses.GpuDriven), (gpuVertexLightmapped, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped) } )
 				{
 					foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, gpuForward), (ShaderPasses.Forward + "AlphaTest", gpuForwardAlphaTest), (ShaderPasses.Forward + "Translucent", gpuForwardTranslucent), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, gpuDepthAlphaTest) } )
@@ -196,7 +399,7 @@ public sealed partial class SlangCompiler
 				GpuDrivenError = gpuDrivenError,
 				Generated = instance,
 				Milliseconds = clock.Elapsed.TotalMilliseconds,
-				Dependencies = readFiles.Order( StringComparer.OrdinalIgnoreCase ).ToList(),
+				Dependencies = read.Sorted(),
 			};
 		}
 	}
@@ -206,10 +409,14 @@ public sealed partial class SlangCompiler
 	/// <c>MainVs</c> alone the depth pass, and <c>DepthPs</c>, when there is one, the alpha-tested depth pass. Its
 	/// parameters are a <c>[Material]</c> struct read with <c>LoadMaterial&lt;T&gt;()</c>, as surfaces' are.
 	/// </summary>
-	public CompiledShader CompileRaw( string path ) => Cached( path, ShaderTier.Raw, CompileRawNow );
+	public CompiledShader CompileRaw( string path ) => Wait( CompileRawAsync( path ) );
 
-	CompiledShader CompileRawNow( string path )
+	/// <summary><see cref="CompileRaw"/> on the compile threads, as <see cref="CompileSurfaceAsync"/>.</summary>
+	public Task<CompiledShader> CompileRawAsync( string path, CompilePriority priority = null ) => Cached( path, ShaderTier.Raw, p => CompileRawNow( p, priority ) );
+
+	async Task<CompiledShader> CompileRawNow( string path, CompilePriority priority )
 	{
+		Interlocked.Increment( ref surfaces );
 		var clock = Stopwatch.StartNew();
 		var original = File.ReadAllText( path );
 		var source = MaterialSource.Rewrite( original, out var declared );
@@ -220,20 +427,25 @@ public sealed partial class SlangCompiler
 		if ( !Has( "MainVs", "vertex" ) || !Has( "MainPs", "pixel" ) ) throw new ShaderCompileException( path, "A raw module has [shader(\"vertex\")] MainVs and [shader(\"pixel\")] MainPs" );
 
 		var directory = Path.GetDirectoryName( path );
-		lock ( compileLock )
 		{
-			readFiles = new( StringComparer.OrdinalIgnoreCase ) { path };
-			var layout = declared.Count == 1 ? ReflectMaterial( path, source, declared[0].Name, directory ) : MaterialLayout.Create( "", [] );
-			var vertex = CompileEntry( path, source, "MainVs", StageKind.Vertex, directory );
-			var forward = CompileEntry( path, source, "MainPs", StageKind.Pixel, directory );
+			var read = new ReadFiles( path );
+			var layoutJob = declared.Count == 1 ? SlangWorkers.Run( () => Reflected( path, source, declared[0].Name, ShaderTier.Raw, read ), priority ) : Task.FromResult( MaterialLayout.Create( "", [] ) );
+			var vertexJob = SlangWorkers.Run( () => CompileEntry( path, source, "MainVs", StageKind.Vertex, directory, read ), priority );
+			var forwardJob = SlangWorkers.Run( () => CompileEntry( path, source, "MainPs", StageKind.Pixel, directory, read ), priority );
+			var depthJob = Has( "DepthPs", "pixel" ) ? SlangWorkers.Run( () => CompileEntry( path, source, "DepthPs", StageKind.Pixel, directory, read ), priority ) : null;
+			await Settled( depthJob is null ? [layoutJob, vertexJob, forwardJob] : [layoutJob, vertexJob, forwardJob, depthJob] ).ConfigureAwait( false );
+
+			var layout = layoutJob.GetAwaiter().GetResult();
+			var vertex = vertexJob.GetAwaiter().GetResult();
+			var forward = forwardJob.GetAwaiter().GetResult();
 			var passes = new Dictionary<string, CompiledPass>
 			{
 				[ShaderPasses.Forward] = new() { Name = ShaderPasses.Forward, Vertex = vertex, Pixel = forward },
 				[ShaderPasses.Depth] = new() { Name = ShaderPasses.Depth, Vertex = vertex },
 			};
 
-			if ( Has( "DepthPs", "pixel" ) )
-				passes[ShaderPasses.DepthAlphaTest] = new() { Name = ShaderPasses.DepthAlphaTest, Vertex = vertex, Pixel = CompileEntry( path, source, "DepthPs", StageKind.Pixel, directory ) };
+			if ( depthJob is not null )
+				passes[ShaderPasses.DepthAlphaTest] = new() { Name = ShaderPasses.DepthAlphaTest, Vertex = vertex, Pixel = depthJob.GetAwaiter().GetResult() };
 
 			return new CompiledShader
 			{
@@ -243,7 +455,7 @@ public sealed partial class SlangCompiler
 				Material = layout,
 				Passes = passes,
 				Milliseconds = clock.Elapsed.TotalMilliseconds,
-				Dependencies = readFiles.Order( StringComparer.OrdinalIgnoreCase ).ToList(),
+				Dependencies = read.Sorted(),
 			};
 		}
 	}
@@ -276,10 +488,25 @@ public sealed partial class SlangCompiler
 	[GeneratedRegex( @"\[\s*shader\s*\(\s*""(?<stage>\w+)""\s*\)\s*\][^(]*?\b(?<name>\w+)\s*\(" )]
 	private static partial Regex EntryPoints();
 
-	/// <summary>Phase 1: the module alone, to reflect its <c>[Material]</c> struct's fields.</summary>
-	MaterialLayout ReflectMaterial( string path, string source, string type, string directory )
+	/// <summary>
+	/// <see cref="ReflectMaterial"/> as a compile's first step, its layout entry written at once (<see cref="ReflectAsync"/>),
+	/// so a material that loads while the stages compile has its layout without a request of its own.
+	/// </summary>
+	MaterialLayout Reflected( string path, string source, string type, ShaderTier tier, ReadFiles read )
 	{
-		using var request = Request( StageKind.Pixel, [directory] );
+		var layout = ReflectMaterial( path, source, type, Path.GetDirectoryName( path ), read );
+		if ( CacheFolder is null ) return layout;
+
+		var shader = new CompiledShader { Name = type, Tier = tier, Path = path, Material = layout, Passes = new Dictionary<string, CompiledPass>(), Dependencies = read.Sorted() };
+		using ( Zone( CompilePhase.CacheSave ) ) CompileCache.Save( CacheFolder, $"{slangDirectory}|{string.Join( ';', searchPaths )}", slangDirectory, path, File.ReadAllText( path ), shader, layout: true );
+		return layout;
+	}
+
+	/// <summary>Phase 1: the module alone, to reflect its <c>[Material]</c> struct's fields.</summary>
+	MaterialLayout ReflectMaterial( string path, string source, string type, string directory, ReadFiles read )
+	{
+		using var zone = Zone( CompilePhase.Reflect );
+		using var request = Request( StageKind.Pixel, [directory], read );
 		request.AddSource( path, source );
 		request.SkipCodegen();
 		request.Compile( path );
@@ -317,20 +544,22 @@ public sealed partial class SlangCompiler
 	/// <summary>The alpha-tested depth pass also in Depth mode: Shade returns the coverage before lighting.</summary>
 	static readonly Dictionary<string, string> AlphaTestedDepth = new() { ["S_ALPHA_TEST"] = "1", ["S_MODE_DEPTH"] = "1" };
 
-	CompiledStage CompileEntry( string path, string source, string entry, StageKind stage, string directory, IReadOnlyDictionary<string, string> defines = null )
+	CompiledStage CompileEntry( string path, string source, string entry, StageKind stage, string directory, ReadFiles read, IReadOnlyDictionary<string, string> defines = null )
 	{
-		using var request = Request( stage, [directory], defines );
+		using var zone = Zone( CompilePhase.Stage );
+		Interlocked.Increment( ref stages );
+		using var request = Request( stage, [directory], read, defines );
 		request.AddSource( path, source );
 		request.AddEntryPoint( entry, stage );
 		request.Compile( path );
 
 		var spirv = request.Code() ?? throw new ShaderCompileException( path, $"{entry}: Slang returned no code. {request.Diagnostics}" );
-		spirv = SpirvOptimizer.Optimize( slangDirectory, spirv, out _ );
+		using ( Zone( CompilePhase.Optimize ) ) spirv = SpirvOptimizer.Optimize( slangDirectory, spirv, out _ );
 
 		// The pixel stage's own resources go in set 1, as vfx puts them, so the two stages' bindings never collide
 		if ( stage == StageKind.Pixel ) spirv = Spirv.MoveSet( spirv, 0, 1 );
 
-		return StageReflection.Describe( stage, entry, spirv, request.ReflectionJson(), request.Annotations );
+		using ( Zone( CompilePhase.Describe ) ) return StageReflection.Describe( stage, entry, spirv, request.ReflectionJson(), request.Annotations );
 	}
 
 	/// <summary>

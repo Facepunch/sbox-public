@@ -16,7 +16,8 @@ public interface IShaderModules
 	/// <summary>
 	/// The stages that draw <paramref name="mode"/> of <paramref name="shader"/> with these feature values (by the shader
 	/// file's feature index), dynamic combos and attributes (specialization constants), or null when its module doesn't
-	/// compile: then the shader's own programs draw it.
+	/// compile: then the shader's own programs draw it. <see cref="ModuleProgram.Pending"/> while they compile in the
+	/// background: its programs draw meanwhile, and it's asked again.
 	/// </summary>
 	ModuleProgram Compile( ShaderFile shader, ShaderMode mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos, Func<string, int?> attributes );
 
@@ -31,6 +32,9 @@ public interface IShaderModules
 /// <summary>A shader's stages from its module, for one mode and combo values.</summary>
 public sealed class ModuleProgram
 {
+	/// <summary>Stages still compiling in the background (<see cref="IShaderModules.Compile"/>).</summary>
+	public static ModuleProgram Pending { get; } = new() { Key = "pending" };
+
 	/// <summary>The vertex stage, or null.</summary>
 	public ModuleStage Vertex { get; init; }
 

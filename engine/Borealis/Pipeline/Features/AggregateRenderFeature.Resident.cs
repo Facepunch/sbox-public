@@ -172,6 +172,7 @@ internal sealed partial class AggregateRenderFeature
 	RenderWorld residentWorld;
 	int residentStructure = -1;
 	int residentVersion;
+	int residentPrograms;
 
 	/// <summary>The last list version any list was made in: owners none of its lists drew are let go.</summary>
 	int listedVersion;
@@ -374,8 +375,15 @@ internal sealed partial class AggregateRenderFeature
 		var overlaysWanted = meshesWanted && OverlaysResident();
 		var settled = meshesWanted && Settle( world, transforms.Generation );
 		var volumesKey = meshesWanted && world.LightProbeVolumes.Count > 0 ? LightProbeVolume.Key( world.LightProbeVolumes ) : 0;
+
+		// A material's program compiled in the background since: meshes it kept from being resident may be now
+		var programs = meshesWanted ? RenderHost.Current?.Device?.ProgramsVersion ?? 0 : 0;
 		if ( !ReferenceEquals( world, residentWorld ) || world.Structure != residentStructure || meshesWanted != residentMeshes || overlaysWanted != residentOverlays || volumesKey != residentVolumesKey
-			|| meshesLeftChanged || overlaysStale || settled ) Rescan( world );
+			|| meshesLeftChanged || overlaysStale || settled || programs != residentPrograms )
+		{
+			residentPrograms = programs;
+			Rescan( world );
+		}
 
 		// Their arguments, first in the frame's, so each keeps its place
 		if ( args.Length < residentArgCount ) Array.Resize( ref args, Math.Max( residentArgCount, args.Length * 2 ) );

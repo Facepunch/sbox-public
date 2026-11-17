@@ -1177,6 +1177,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		return file;
 	}
 
+	/// <summary>Called on the main thread with no block open: work that runs at once on Source 2's device gets a block of its own.</summary>
+	bool OutsideBlock => list is null && !Graphics.IsActive && ThreadSafe.IsMainThread;
+
 	GpuCommandList Recording => list ?? throw new InvalidOperationException( "Borealis.Gpu draws need a render block (Graphics.Scope.CreateOn)." );
 
 	//
@@ -1452,6 +1455,13 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	public override void Dispatch( Material computeMaterial, RenderAttributes attributes, int threadsX, int threadsY, int threadsZ )
 	{
+		if ( OutsideBlock )
+		{
+			// Outside a render block a dispatch runs now, as on Source 2's device: in a block of its own (gizmo text from layout)
+			using ( Graphics.Scope.CreateOn( this ) ) Dispatch( computeMaterial, attributes, threadsX, threadsY, threadsZ );
+			return;
+		}
+
 		_ = Recording;
 		drawer.Material = null;
 		if ( !context.Dispatch( Require( computeMaterial ), Lower( attributes ), threadsX, threadsY, threadsZ ) )
@@ -1460,6 +1470,12 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	public override void DispatchIndirect( Material computeMaterial, RenderAttributes attributes, GpuBuffer indirectBuffer, uint bufferOffset )
 	{
+		if ( OutsideBlock )
+		{
+			using ( Graphics.Scope.CreateOn( this ) ) DispatchIndirect( computeMaterial, attributes, indirectBuffer, bufferOffset );
+			return;
+		}
+
 		_ = Recording;
 		drawer.Material = null;
 		if ( !context.DispatchIndirect( Require( computeMaterial ), Lower( attributes ), BufferOf( indirectBuffer ), bufferOffset ) )
