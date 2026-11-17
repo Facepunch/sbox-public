@@ -126,6 +126,19 @@ public sealed class AdapterInfo
 	/// <summary>The Vulkan version it supports, as major.minor.patch.</summary>
 	public string ApiVersion { get; init; }
 
+	/// <summary>The driver's version, decoded as Source 2 reports it.</summary>
+	public string DriverVersion { get; init; }
+
+	/// <summary>The size of its device-local memory heaps together, in bytes.</summary>
+	public ulong DeviceLocalBytes { get; init; }
+
+	/// <summary>
+	/// A Vulkan driver version as Source 2 writes it: NVIDIA packs 10.8.8.6 bits, everyone else 10.10.12.
+	/// </summary>
+	public static string DecodeDriverVersion( uint vendorId, uint driverVersion ) => vendorId == 0x10DE
+		? $"{(driverVersion >> 22) & 0x3ff}.{(driverVersion >> 14) & 0xff}.{(driverVersion >> 6) & 0xff}.{driverVersion & 0x3f}"
+		: $"{driverVersion >> 22}.{(driverVersion >> 12) & 0x3ff}.{driverVersion & 0xfff}";
+
 	/// <inheritdoc/>
 	public override string ToString() => $"{Name} (Vulkan {ApiVersion})";
 }

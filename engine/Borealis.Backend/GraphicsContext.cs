@@ -99,10 +99,12 @@ public sealed class GraphicsContext
 	{
 		layouts.Remove( texture );
 		dispatched.Remove( texture );
-		foreach ( var key in mipViews.Keys.Where( k => k.Texture == texture ).ToArray() )
+		// Removing while enumerating is allowed; this runs for every texture a block releases, so it allocates nothing
+		foreach ( var (key, view) in mipViews )
 		{
-			gpu.Destroy( mipViews[key] );
-			viewMips.Remove( mipViews[key] );
+			if ( key.Texture != texture ) continue;
+			gpu.Destroy( view );
+			viewMips.Remove( view );
 			mipViews.Remove( key );
 		}
 	}
@@ -846,8 +848,14 @@ public sealed class GraphicsContext
 	public void FinishReadable()
 	{
 		EndScope();
-		foreach ( var texture in layouts.Keys.ToArray() ) Transition( texture, ImageLayout.ShaderRead );
+		finishing.Clear();
+		finishing.AddRange( layouts.Keys );
+		foreach ( var texture in finishing ) Transition( texture, ImageLayout.ShaderRead );
+		finishing.Clear();
 	}
+
+	// FinishReadable's textures: Transition writes the layouts it walks, every block
+	readonly List<TextureHandle> finishing = new();
 
 	/// <summary>Destroy the textures this context created.</summary>
 	public void Release()
