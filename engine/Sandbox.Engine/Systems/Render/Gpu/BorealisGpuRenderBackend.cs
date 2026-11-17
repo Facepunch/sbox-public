@@ -20,8 +20,9 @@ namespace Sandbox;
 /// record into one of the device's command lists through Borealis.Backend's <see cref="GraphicsContext"/>, which tracks
 /// layouts and opens rendering scopes itself, and draw with the engine's compiled shaders through
 /// <see cref="ShaderDrawer"/>, bound by attribute name from managed attributes. What <c>Painter.Begin( Texture )</c>
-/// needs runs here: CPU-vertex and instanced draws, clears, render targets, frame grabs, gaussian mips and compute; and
-/// models drawn by instance count (the terrain clipmap); a mirrored scene object drawn again (<see cref="DrawObject"/>).
+/// needs runs here: CPU-vertex and instanced draws, clears, render targets, frame grabs, gaussian mips and compute; draws
+/// from vertex and index buffers, direct or indirect, and models drawn with transforms, an instance count or indirect
+/// arguments (BorealisGpuRenderBackend.Draws.cs); a mirrored scene object drawn again (<see cref="DrawObject"/>).
 /// The rest throws <see cref="NotSupportedException"/> (docs/managed/borealis-gpu-path.md).
 /// </summary>
 /// <remarks>
@@ -133,11 +134,34 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		} );
 	}
 
+	/// <summary>
+	/// Where the game's or the menu's mounted files have a compiled file on disk: a game package's models, materials,
+	/// textures and shaders, which are named by their hash in the download cache.
+	/// </summary>
+	static string MountedFile( string path )
+	{
+		foreach ( var context in (Sandbox.Engine.GlobalContext[])[Sandbox.Engine.GlobalContext.Game, Sandbox.Engine.GlobalContext.Menu] )
+		{
+			if ( context?.FileMount is not { } mount ) continue;
+			try
+			{
+				if ( mount.FileExists( path ) && mount.GetFullPath( path ) is { } full ) return full;
+			}
+			catch ( System.IO.IOException )
+			{
+				// A package mounting or unmounting while a worker looks: not found this time
+			}
+		}
+
+		return null;
+	}
+
 	BorealisGpuRenderBackend( GpuDevice gpu, bool ownsDevice )
 	{
 		this.gpu = gpu;
 		this.ownsDevice = ownsDevice;
 		files = ContentFiles.FindGame();
+		files.Resolve = MountedFile;
 		services = new BackendDevice( gpu, files );
 		services.Shaders.Unloaded = message => Log.Warning( $"Borealis.Gpu: {message}" );
 		services.Passes.Error = message => Log.Warning( $"Borealis.Gpu: {message}" );
@@ -191,7 +215,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		if ( list is not null ) throw new InvalidOperationException( "A Borealis.Gpu block is already recording." );
 
 		FollowFrame();
+		WriteWorkerUpdates();
 		SubmitUploads();
+		PollReadbacks();
 		lent = lendNext is not null;
 		list = lendNext ?? gpu.BeginCommandList( QueueType.Graphics, "Graphics block" );
 		lendNext = null;
@@ -281,7 +307,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		try
 		{
 			context.FinishReadable();
-			if ( !lent ) gpu.Submit( list, default, presentTo );
+			SubmittedReadbacks( blockReadbacks, lent ? default : gpu.Submit( list, default, presentTo ) );
 		}
 		finally
 		{
@@ -290,6 +316,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			presentTo = null;
 			pendingAttributes = null;
 			pendingMaterial = null;
+			pendingLayout = null;
 			blockAttributes = null;
 			drawer.Material = null;
 		}
@@ -428,19 +455,28 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		switch ( resource )
 		{
 			case Texture texture when textures.TryGetValue( texture, out var backing ):
-				textures.Remove( texture );
-				context.Forget( backing.Handle );
+				lock ( textureOwners )
+				{
+					textures.Remove( texture );
+					context.Forget( backing.Handle );
 
-				// A borrowed backing (a Borealis frame's target) stays its owner's
-				if ( textureOwners.Remove( backing.Handle ) ) gpu.Destroy( backing.Handle );
+					// A borrowed backing (a Borealis frame's target) stays its owner's
+					if ( textureOwners.Remove( backing.Handle ) ) gpu.Destroy( backing.Handle );
+				}
+
 				break;
 
 			case GpuBuffer buffer when buffers.TryGetValue( buffer, out var backing ):
 				// Writes waiting for the next block may name it: submit them first, so it's freed after they've run
 				SubmitUploads();
+				ForgetCounter( buffer );
 				buffers.Remove( buffer );
 				ownedBuffers.Remove( backing.Handle );
 				gpu.Destroy( backing.Handle );
+				break;
+
+			case GpuBuffer buffer:
+				ForgetCounter( buffer );
 				break;
 		}
 	}
@@ -487,10 +523,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		// Looked up each time rather than kept: streaming swaps its image
 		if ( MaterialTextureOf( texture ) is { } material ) return material.Handle;
 
-		// No description: a texture that failed to load, which Source 2 draws with its error texture (and without its
-		// device has no description of at all)
-		if ( texture.Width <= 0 || texture.Height <= 0 ) return ErrorTexture();
+		// Made once, under a lock: a sprite batch's workers ask for their sprites' indices (Texture.Index) in parallel
+		// while the main thread waits for them
+		lock ( textureOwners )
+		{
+			// No description: a texture that failed to load, which Source 2 draws with its error texture (and without its
+			// device has no description of at all)
+			if ( texture.Width <= 0 || texture.Height <= 0 ) return ErrorTexture();
+			return textures.TryGetValue( texture, out backing ) ? backing.Handle : Make( texture );
+		}
+	}
 
+	TextureHandle Make( Texture texture )
+	{
 		TextureHandle handle;
 		if ( texture.IsRenderTarget )
 		{
@@ -540,11 +585,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			context.Track( handle, ImageLayout.Undefined );
 			ClearNow( handle, Color.Transparent );
 		}
-		else
+		else if ( TryCopyFromSource2( texture ) is { } copy )
 		{
 			var info = TextureInfo.Texture2D( texture.Width, texture.Height, GpuFormat.RGBA8Unorm, name: $"Engine image {texture.Width}x{texture.Height}" );
 			handle = gpu.CreateTexture( info );
-			Upload( handle, info, CopyFromSource2( texture ), ImageLayout.Undefined );
+			Upload( handle, info, copy, ImageLayout.Undefined );
+		}
+		else
+		{
+			handle = Unreadable( texture );
 		}
 
 		textures.Add( texture, new Backing<TextureHandle>( handle ) );
@@ -663,13 +712,35 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		_ => GpuFormat.Unknown,
 	};
 
-	unsafe byte[] CopyFromSource2( Texture texture )
+	/// <summary>Mip 0 of Source 2's copy as RGBA8, or null when Source 2 can't read it back.</summary>
+	unsafe byte[] TryCopyFromSource2( Texture texture )
 	{
-		CopiedFromSource2++;
-		var pixels = new byte[texture.Width * texture.Height * 4];
-		var rect = new NativeRect( 0, 0, texture.Width, texture.Height );
-		fixed ( byte* data = pixels ) Source2RenderBackend.Instance.ReadPixels( texture, rect, 0, 0, rect, (IntPtr)data, ImageFormat.RGBA8888, 0 );
-		return pixels;
+		try
+		{
+			var pixels = new byte[texture.Width * texture.Height * 4];
+			var rect = new NativeRect( 0, 0, texture.Width, texture.Height );
+			fixed ( byte* data = pixels ) Source2RenderBackend.Instance.ReadPixels( texture, rect, 0, 0, rect, (IntPtr)data, ImageFormat.RGBA8888, 0 );
+			CopiedFromSource2++;
+			return pixels;
+		}
+		catch ( Exception )
+		{
+			// A readback Source 2 can't do
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// A texture with nothing to make it from (pixels Source 2 can't read back): one transparent pixel, kept
+	/// as its backing so it isn't made again each time it's asked for, and said once.
+	/// </summary>
+	TextureHandle Unreadable( Texture texture )
+	{
+		Log.Warning( $"Borealis.Gpu: {(string.IsNullOrEmpty( texture.ResourcePath ) ? $"a {texture.Width}x{texture.Height} {texture.ImageFormat} texture" : texture.ResourcePath)} has nothing to read, so it draws transparent" );
+		var handle = gpu.CreateTexture( TextureInfo.Texture2D( 1, 1, GpuFormat.RGBA8Unorm, name: "Engine image without pixels" ) );
+		context.Track( handle, ImageLayout.Undefined );
+		ClearNow( handle, Color.Transparent );
+		return handle;
 	}
 
 	/// <summary>
@@ -761,8 +832,28 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		var size = width * height * info.Format.BytesPerBlock();
 		if ( data.Length < size ) return false;
 
+		// From a worker (an animated texture decodes and updates its frames on the thread pool): written at the start of the
+		// next block, so nothing records into the main thread's lists from another thread
+		if ( !ThreadSafe.IsMainThread )
+		{
+			workerUpdates.Enqueue( (texture, data[..size].ToArray(), x, y, width, height) );
+			return true;
+		}
+
 		Upload( backing.Handle, info, data[..size], context.LayoutOf( backing.Handle ), x, y, width, height );
 		return true;
+	}
+
+	readonly System.Collections.Concurrent.ConcurrentQueue<(Texture Texture, byte[] Data, int X, int Y, int Width, int Height)> workerUpdates = new();
+
+	/// <summary>Write the texture updates workers asked for since the last block, before a block starts recording.</summary>
+	void WriteWorkerUpdates()
+	{
+		while ( workerUpdates.TryDequeue( out var update ) )
+		{
+			if ( !textures.TryGetValue( update.Texture, out var backing ) ) continue;
+			Upload( backing.Handle, gpu.InfoOf( backing.Handle ), update.Data, context.LayoutOf( backing.Handle ), update.X, update.Y, update.Width, update.Height );
+		}
 	}
 
 	static TextureBarrier MipBarrier( TextureHandle texture, int mip, ImageLayout from, ImageLayout to ) => new()
@@ -862,6 +953,22 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	ShaderFile Shader( string path ) => shaders.TryGetValue( path, out var shader ) ? shader : shaders[path] = AddNames( drawer.Shaders.Load( path ) );
 
+	/// <summary>
+	/// A shader compiled while running isn't under this device's content (the engine links it into GAME, or keeps an
+	/// anonymous one in memory): take its bytes by the name its materials give, and forget what materials resolved to before.
+	/// </summary>
+	public override void ShaderCompiled( string path, byte[] compiled )
+	{
+		try
+		{
+			if ( services.Shaders.Add( path, compiled ) ) shaders.Clear();
+		}
+		catch ( Exception e ) when ( e is System.IO.InvalidDataException or System.IO.IOException )
+		{
+			Log.Warning( $"Borealis.Gpu: {path} compiled, but doesn't load here: {e.Message}" );
+		}
+	}
+
 	/// <summary>Learn the attribute and combo names a shader reads, so tokens can be turned back into them.</summary>
 	ShaderFile AddNames( ShaderFile shader )
 	{
@@ -917,7 +1024,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 					lowered.Set( name, context.View( TextureOf( texture ), mip ) );
 					break;
 				case GpuBuffer buffer:
-					lowered.Set( name, BufferOf( buffer ) );
+					LowerBuffer( name, buffer );
 					break;
 				case byte[] data:
 					lowered.SetData( name, data );
@@ -1029,47 +1136,120 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	public override unsafe void DrawVertices( Type vertexType, int vertexSize, IntPtr vertices, int vertexCount, IntPtr indices, int indexCount, Material material, RenderAttributes attributes, Graphics.PrimitiveType primitiveType )
 	{
 		_ = Recording;
-		if ( vertexType != typeof( Vertex ) ) throw new NotSupportedException( $"Vertices of {vertexType} on Borealis.Gpu" );
-		if ( indices != IntPtr.Zero ) throw new NotSupportedException( "Indexed CPU vertices on Borealis.Gpu" );
+		var layout = LayoutOf( vertexType );
+		if ( layout.Stride > vertexSize ) throw new ArgumentException( $"{vertexType} vertex layout is larger than the vertex type" );
 
 		var shader = Prepare( material );
 		var bytes = new ReadOnlySpan<byte>( (void*)vertices, vertexSize * vertexCount );
 		// CPU vertices hold plain normals and tangents, as a native view tells its draws (UncompressedTangentFrame)
 		var lowered = Lower( attributes );
 		if ( lowered.Get( UncompressedTangentFrame ) is null ) lowered.Set( UncompressedTangentFrame, 1.0f );
-		context.DrawVertices( shader, lowered, bytes, VertexStreamLayout.EngineVertex, vertexCount, Topology( primitiveType ) );
+		if ( indices == IntPtr.Zero )
+		{
+			context.DrawVertices( shader, lowered, bytes, layout, vertexCount, Topology( primitiveType ) );
+			return;
+		}
+
+		// Indexed: the vertices and 16-bit indices in this frame's upload memory
+		var vertexUpload = list.AllocateUpload( bytes.Length, 16 );
+		bytes.CopyTo( vertexUpload.Data );
+		var indexBytes = new ReadOnlySpan<byte>( (void*)indices, indexCount * sizeof( ushort ) );
+		var indexUpload = list.AllocateUpload( indexBytes.Length, 16 );
+		indexBytes.CopyTo( indexUpload.Data );
+		context.Draw( shader, lowered, new GeometryDraw
+		{
+			Vertices = vertexUpload.Buffer,
+			VertexOffset = vertexUpload.Offset,
+			Layout = layout,
+			Indices = indexUpload.Buffer,
+			IndexOffset = indexUpload.Offset,
+			IndexFormat = IndexFormat.UInt16,
+			Topology = Topology( primitiveType ),
+			Count = indexCount,
+		} );
 	}
 
 	public override bool SetRenderState( Material material, RenderAttributes attributes, Type vertexType )
 	{
 		_ = Recording;
-		if ( vertexType is not null ) throw new NotSupportedException( $"Vertex buffers of {vertexType} on Borealis.Gpu" );
-
+		pendingLayout = vertexType is null ? null : LayoutOf( vertexType );
 		pendingMaterial = material;
 		pendingShader = Prepare( material );
 		pendingAttributes = attributes;
 		return true;
 	}
 
-	public override void DrawIndexedInstanced( GpuBuffer indexBuffer, Graphics.PrimitiveType primitiveType, int instanceCount )
+	public override void DrawIndexedInstanced( GpuBuffer indexBuffer, Graphics.PrimitiveType primitiveType, int instanceCount ) => DrawPending( new GeometryDraw
 	{
-		if ( primitiveType != Graphics.PrimitiveType.Triangles ) throw new NotSupportedException( $"Instanced {primitiveType} on Borealis.Gpu" );
-		if ( indexBuffer.ElementSize != sizeof( uint ) ) throw new NotSupportedException( "16-bit index buffers on Borealis.Gpu" );
+		Indices = BufferOf( indexBuffer ),
+		IndexFormat = IndexFormatOf( indexBuffer ),
+		Topology = Topology( primitiveType ),
+		Count = indexBuffer.ElementCount,
+		Instances = instanceCount,
+	} );
 
-		Prepare( pendingMaterial );
-		context.DrawIndexedInstanced( pendingShader, Lower( pendingAttributes ), BufferOf( indexBuffer ), indexBuffer.ElementCount, instanceCount );
-	}
+	public override void Draw( GpuBuffer vertexBuffer, Graphics.PrimitiveType primitiveType, int startVertex, int vertexCount ) => DrawPending( new GeometryDraw
+	{
+		Vertices = BufferOf( vertexBuffer ),
+		Layout = pendingLayout,
+		Topology = Topology( primitiveType ),
+		First = startVertex,
+		Count = vertexCount,
+	} );
 
-	public override void Draw( GpuBuffer vertexBuffer, Graphics.PrimitiveType primitiveType, int startVertex, int vertexCount ) => throw Unsupported( "Vertex buffer draws" );
-	public override void DrawIndexed( GpuBuffer vertexBuffer, GpuBuffer indexBuffer, Graphics.PrimitiveType primitiveType, int startIndex, int indexCount ) => throw Unsupported( "Vertex buffer draws" );
-	public override void DrawInstancedIndirect( GpuBuffer vertexBuffer, Graphics.PrimitiveType primitiveType, GpuBuffer indirectBuffer, uint bufferOffset, uint drawCount, uint stride ) => throw Unsupported( "Indirect draws" );
-	public override void DrawIndexedInstancedIndirect( GpuBuffer vertexBuffer, GpuBuffer indexBuffer, Graphics.PrimitiveType primitiveType, GpuBuffer indirectBuffer, uint bufferOffset, uint drawCount, uint stride ) => throw Unsupported( "Indirect draws" );
+	public override void DrawIndexed( GpuBuffer vertexBuffer, GpuBuffer indexBuffer, Graphics.PrimitiveType primitiveType, int startIndex, int indexCount ) => DrawPending( new GeometryDraw
+	{
+		Vertices = BufferOf( vertexBuffer ),
+		Layout = pendingLayout,
+		Indices = BufferOf( indexBuffer ),
+		IndexFormat = IndexFormatOf( indexBuffer ),
+		Topology = Topology( primitiveType ),
+		First = startIndex,
+		Count = indexCount,
+	} );
+
+	public override void DrawInstancedIndirect( GpuBuffer vertexBuffer, Graphics.PrimitiveType primitiveType, GpuBuffer indirectBuffer, uint bufferOffset, uint drawCount, uint stride ) => DrawPending( new GeometryDraw
+	{
+		Vertices = vertexBuffer is null ? default : BufferOf( vertexBuffer ),
+		Layout = vertexBuffer is null ? null : pendingLayout,
+		Topology = Topology( primitiveType ),
+		Arguments = BufferOf( indirectBuffer ),
+		ArgumentsOffset = bufferOffset,
+		DrawCount = (int)drawCount,
+		Stride = (int)stride,
+	} );
+
+	public override void DrawIndexedInstancedIndirect( GpuBuffer vertexBuffer, GpuBuffer indexBuffer, Graphics.PrimitiveType primitiveType, GpuBuffer indirectBuffer, uint bufferOffset, uint drawCount, uint stride ) => DrawPending( new GeometryDraw
+	{
+		Vertices = vertexBuffer is null ? default : BufferOf( vertexBuffer ),
+		Layout = vertexBuffer is null ? null : pendingLayout,
+		Indices = BufferOf( indexBuffer ),
+		IndexFormat = IndexFormatOf( indexBuffer ),
+		Topology = Topology( primitiveType ),
+		Arguments = BufferOf( indirectBuffer ),
+		ArgumentsOffset = bufferOffset,
+		DrawCount = (int)drawCount,
+		Stride = (int)stride,
+	} );
 
 	//
 	// Models
 	//
 
-	public override void DrawModel( Model model, ReadOnlySpan<Transform> transforms, int? lodLevel, RenderAttributes attributes ) => throw Unsupported( "Model draws with transforms" );
+	/// <summary>
+	/// A model at a LOD (0 with none), an instance per transform: the transforms written as native writes them into the
+	/// frame's transform buffer, which the model's shaders read through their instance ids.
+	/// </summary>
+	public override void DrawModel( Model model, ReadOnlySpan<Transform> transforms, int? lodLevel, RenderAttributes attributes )
+	{
+		_ = Recording;
+		if ( transforms.IsEmpty ) return;
+		var geometry = GeometryOf( model, lodLevel ?? 0 );
+		if ( geometry.Draws.Length == 0 ) return;
+
+		var (buffer, ids) = UploadTransforms( transforms );
+		DrawModelGeometry( geometry, attributes, transforms.Length, transforms: buffer, ids: ids );
+	}
 
 	/// <summary>
 	/// <paramref name="count"/> instances of each of the model's LOD 0 draw calls, every mesh group, with its material's
@@ -1078,72 +1258,27 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	public override void DrawModel( Model model, int count, RenderAttributes attributes )
 	{
 		_ = Recording;
-		var geometry = GeometryOf( model );
-		foreach ( var draw in geometry.Draws )
-			context.DrawIndexed( Prepare( draw.Material ), Lower( attributes ), geometry.Vertices, VertexStreamLayout.EngineVertex, geometry.Indices, draw.FirstIndex, draw.IndexCount, draw.BaseVertex, count );
+		DrawModelGeometry( GeometryOf( model, 0 ), attributes, count );
+	}
+
+	/// <summary>The model's LOD 0 draw calls, each drawn with its indirect arguments, its shaders reading <c>SV_InstanceID</c>.</summary>
+	public override void DrawModelIndirect( Model model, GpuBuffer arguments, int argumentsOffset, RenderAttributes attributes )
+	{
+		_ = Recording;
+		DrawModelGeometry( GeometryOf( model, 0 ), attributes, 1, BufferOf( arguments ), argumentsOffset );
 	}
 
 	/// <summary>
-	/// A model's LOD 0 geometry on this device: every draw call's vertices (as the engine's <see cref="Vertex"/>) and 32-bit
-	/// indices, read back from Source 2's buffers once, which covers models made at run time. Freed after the model is.
+	/// The model's draw calls at a LOD, each drawn with its indirect arguments, instance i reading transform i of
+	/// <paramref name="transforms"/> as <c>g_TransformBuffer</c>.
 	/// </summary>
-	sealed class ModelGeometry
+	public override void DrawModelIndirect( Model model, GpuBuffer transforms, GpuBuffer arguments, int argumentsOffset, int lodLevel, RenderAttributes attributes )
 	{
-		public BufferHandle Vertices, Indices;
-		public (Material Material, int FirstIndex, int IndexCount, int BaseVertex)[] Draws = [];
-		public System.Collections.Concurrent.ConcurrentQueue<BufferHandle> FreeQueue;
-
-		~ModelGeometry()
-		{
-			if ( Vertices.IsValid ) FreeQueue.Enqueue( Vertices );
-			if ( Indices.IsValid ) FreeQueue.Enqueue( Indices );
-		}
+		_ = Recording;
+		var geometry = GeometryOf( model, lodLevel );
+		if ( geometry.Draws.Length == 0 ) return;
+		DrawModelGeometry( geometry, attributes, 1, BufferOf( arguments ), argumentsOffset, BufferOf( transforms ), InstanceIds( 0, transforms.ElementCount ) );
 	}
-
-	readonly ConditionalWeakTable<Model, ModelGeometry> models = new();
-	readonly System.Collections.Concurrent.ConcurrentQueue<BufferHandle> freedModelBuffers = new();
-
-	ModelGeometry GeometryOf( Model model )
-	{
-		if ( models.TryGetValue( model, out var geometry ) ) return geometry;
-
-		var vertices = new List<Vertex>();
-		var indices = new List<uint>();
-		var draws = new List<(Material, int, int, int)>();
-		var meshes = model.MeshInfo.Meshes;
-		for ( int mesh = 0; mesh < meshes.Length; mesh++ )
-		{
-			if ( (meshes[mesh].LodMask & 1) == 0 ) continue;
-			for ( int call = 0; call < meshes[mesh].DrawCalls.Length; call++ )
-			{
-				var info = meshes[mesh].DrawCalls[call];
-				if ( info.Indices < 3 || !model.TryReadDrawCall( mesh, call, out var v, out var i, out _ ) ) continue;
-				draws.Add( (info.Material, indices.Count, i.Length, vertices.Count) );
-				vertices.AddRange( v );
-				indices.AddRange( i );
-			}
-		}
-
-		geometry = new ModelGeometry { FreeQueue = freedModelBuffers, Draws = [.. draws] };
-		if ( indices.Count > 0 )
-		{
-			geometry.Vertices = gpu.CreateBuffer( new BufferInfo { Size = (long)vertices.Count * Unsafe.SizeOf<Vertex>(), Usage = BufferUsage.Vertex | BufferUsage.CopyDestination, Name = $"Model {model.Name}" } );
-			geometry.Indices = gpu.CreateBuffer( new BufferInfo { Size = (long)indices.Count * sizeof( uint ), Usage = BufferUsage.Index | BufferUsage.CopyDestination, Name = $"Model {model.Name} indices" } );
-			gpu.WriteBuffer( geometry.Vertices, MemoryMarshal.AsBytes( CollectionsMarshal.AsSpan( vertices ) ) );
-			gpu.WriteBuffer<uint>( geometry.Indices, CollectionsMarshal.AsSpan( indices ) );
-		}
-
-		models.Add( model, geometry );
-		return geometry;
-	}
-
-	/// <summary>Free the geometry of models that have gone (the GPU is done with it before it's destroyed).</summary>
-	void FreeModelGeometry()
-	{
-		while ( freedModelBuffers.TryDequeue( out var handle ) ) gpu.Destroy( handle );
-	}
-	public override void DrawModelIndirect( Model model, GpuBuffer arguments, int argumentsOffset, RenderAttributes attributes ) => throw Unsupported( "Model draws" );
-	public override void DrawModelIndirect( Model model, GpuBuffer transforms, GpuBuffer arguments, int argumentsOffset, int lodLevel, RenderAttributes attributes ) => throw Unsupported( "Model draws" );
 
 	//
 	// Copies, grabs and mips
@@ -1152,8 +1287,18 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	public override void CopyTexture( Texture source, Texture destination, int sourceMip, int sourceSlice, int destinationMip, int destinationSlice )
 	{
 		_ = Recording;
-		if ( sourceMip != destinationMip || sourceSlice != 0 || destinationSlice != 0 ) throw Unsupported( "Texture copies between mips or slices" );
-		context.CopyTexture( TextureOf( source ), TextureOf( destination ), sourceMip );
+		var from = TextureOf( source );
+		var to = TextureOf( destination );
+		if ( sourceMip == destinationMip && sourceSlice == 0 && destinationSlice == 0 )
+		{
+			context.CopyTexture( from, to, sourceMip );
+			return;
+		}
+
+		// Engine textures' copies here are made with one layer
+		if ( sourceSlice >= Math.Max( gpu.InfoOf( from ).Layers, 1 ) || destinationSlice >= Math.Max( gpu.InfoOf( to ).Layers, 1 ) )
+			throw new NotSupportedException( "Copies between array slices on Borealis.Gpu: engine textures are made with one layer there" );
+		context.CopyTexture( from, sourceMip, sourceSlice, to, destinationMip, destinationSlice );
 	}
 
 	public override void ResolveColor( Texture destination, Rect viewport )
@@ -1165,7 +1310,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		context.Viewport = saved;
 	}
 
-	public override void ResolveDepth( Texture destination, Rect viewport ) => throw Unsupported( "Depth" );
+	/// <summary>
+	/// Copy the viewport's part of the bound depth into <paramref name="destination"/>, as native resolves it. Multisampled depth
+	/// into a single-sampled texture isn't done yet.
+	/// </summary>
+	public override void ResolveDepth( Texture destination, Rect viewport )
+	{
+		_ = Recording;
+		var saved = context.Viewport;
+		SetViewport( viewport );
+		var copied = context.CopyDepth( TextureOf( destination ) );
+		context.Viewport = saved;
+		if ( !copied ) throw new NotSupportedException( "Resolving multisampled depth on Borealis.Gpu" );
+	}
 
 	public override void GenerateMipMaps( Texture texture, Graphics.DownsampleMethod method, int initialMip )
 	{
@@ -1315,16 +1472,14 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		if ( uploads is null ) return;
 		uploads.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
-		gpu.Submit( uploads );
+		SubmittedReadbacks( uploadReadbacks, gpu.Submit( uploads ) );
 		uploads = null;
 	}
-
-	public override void ReadBufferAsync( GpuBuffer buffer, AsyncGPUReadback.BufferReadDelegate callback, int offset, int size ) => throw Unsupported( "Buffer readback" );
 
 	/// <summary>Read a buffer's backing, after everything submitted so far. Not inside a block, which hasn't been submitted.</summary>
 	public override void ReadBuffer( GpuBuffer buffer, Span<byte> data, int offset )
 	{
-		if ( list is not null ) throw Unsupported( "Buffer reads inside a render block" );
+		if ( list is not null ) throw new NotSupportedException( "Buffer reads inside a render block on Borealis.Gpu" );
 		if ( data.IsEmpty ) return;
 
 		var handle = BufferOf( buffer );
@@ -1344,12 +1499,6 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			gpu.Destroy( readback );
 		}
 	}
-	public override void CopyBuffer( GpuBuffer source, GpuBuffer destination, uint sourceOffset, uint destinationOffset, uint size ) => throw Unsupported( "Buffer copies" );
-	public override void FillBuffer( GpuBuffer buffer, uint value ) => throw Unsupported( "Buffer fills" );
-	public override void CopyStructureCount( GpuBuffer source, GpuBuffer destination, uint destinationOffset ) => throw Unsupported( "Structure counts" );
-	public override void SetStructureCount( GpuBuffer buffer, uint value ) => throw Unsupported( "Structure counts" );
-
-	static NotSupportedException Unsupported( string what ) => new( $"{what} aren't on Borealis.Gpu yet (docs/managed/borealis-gpu-path.md)" );
 
 	//
 	// Readback
@@ -1500,6 +1649,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		SubmitUploads();
 		services.BeginFrame();
+		PollReadbacks();
 	}
 
 	/// <summary>The renderer services' frame, which every device frame moves on: GPU-driven drawing recycles its per-frame memory by it.</summary>
@@ -1510,6 +1660,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		Unregister( this );
 		SubmitUploads();
 		gpu.WaitIdle();
+		DestroyReadbacks();
 
 		foreach ( var handle in textureOwners.Keys )
 		{
@@ -1523,14 +1674,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			gpu.Destroy( errorTexture );
 			errorTexture = default;
 		}
-		foreach ( var (_, geometry) in models )
-		{
-			if ( geometry.Vertices.IsValid ) gpu.Destroy( geometry.Vertices );
-			if ( geometry.Indices.IsValid ) gpu.Destroy( geometry.Indices );
-			geometry.Vertices = geometry.Indices = default;
-		}
-		models.Clear();
-		FreeModelGeometry();
+		DestroyModelGeometry();
 		gpu.Destroy( pipelineTextures );
 		foreach ( var package in mapVpks ) package.Dispose();
 		mapVpks.Clear();

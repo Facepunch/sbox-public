@@ -35,7 +35,7 @@ public sealed partial class SlangCompiler
 			var source = VfxIncludes.Rewrite( module.Text, request.Annotations );
 
 			// A global declared in several #if branches (a texture read as sRGB with one combo) takes the active branch's annotations
-			VfxIncludes.Rewrite( module.ActiveText( stage, values ), request.Annotations );
+			VfxIncludes.Rewrite( module.ActiveText( stage, values ), request.Annotations, module.Text );
 
 			request.AddSource( module.Path, source );
 			var entry = PassModule.Entry( stage );
@@ -64,7 +64,7 @@ public sealed partial class SlangCompiler
 
 	/// <summary>
 	/// An append or consume buffer is two bindings in SPIR-V, <c>X.elements</c> and <c>X.counter</c>: the elements bind as
-	/// <c>X</c> did, with its annotations; the counter is named nothing, as vfx's tables leave it.
+	/// <c>X</c> did, with its annotations; the counter keeps its name, which says whose it is, and no annotations.
 	/// </summary>
 	static CompiledStage AppendBuffers( CompiledStage stage, IReadOnlyDictionary<string, Annotations> annotations )
 	{
@@ -78,7 +78,7 @@ public sealed partial class SlangCompiler
 				return b with { Variable = name, Annotations = annotations.GetValueOrDefault( name ) };
 			}
 
-			return b.Variable.EndsWith( ".counter", StringComparison.Ordinal ) ? b with { Variable = "", Annotations = null } : b;
+			return b.Variable.EndsWith( ".counter", StringComparison.Ordinal ) ? b with { Annotations = null } : b;
 		} ).ToList();
 
 		return new CompiledStage

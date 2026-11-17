@@ -80,6 +80,29 @@ internal abstract class RenderBackend
 	internal static bool OthersExist => others.Count > 0;
 
 	/// <summary>
+	/// A shader was compiled while running (<see cref="Shader.CompileAsync(string, string, System.Threading.CancellationToken)"/>,
+	/// a hotloaded <c>.shader</c>): take its compiled file under the path its materials name, replacing what this device had
+	/// for it. Source 2 loads it through vfx itself.
+	/// </summary>
+	public virtual void ShaderCompiled( string path, byte[] compiled ) { }
+
+	/// <summary>Whether any device needs <see cref="ShaderCompiled"/>: one that isn't Source 2's.</summary>
+	internal static bool TakesCompiledShaders => Default is not Source2RenderBackend || others.Count > 0;
+
+	/// <summary>Give a shader compiled while running to every device (<see cref="ShaderCompiled"/>).</summary>
+	internal static void ShaderCompiledEverywhere( string path, byte[] compiled )
+	{
+		Default.ShaderCompiled( path, compiled );
+		lock ( others )
+		{
+			foreach ( var backend in others )
+			{
+				if ( backend != Default ) backend.ShaderCompiled( path, compiled );
+			}
+		}
+	}
+
+	/// <summary>
 	/// An engine texture's pixels changed on Source 2's device: take the same bytes into this device's copy, if it has one.
 	/// False when it can't, and the copy is released instead (made again from Source 2's pixels when next used).
 	/// </summary>

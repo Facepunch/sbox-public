@@ -289,6 +289,20 @@ public sealed class GraphicsContext
 	}
 
 	/// <summary>
+	/// Draw <paramref name="draw"/>'s geometry into the target (<see cref="ShaderDrawer.Draw(CommandList, ShaderFile, ShaderAttributes, Format, Format, int, in GeometryDraw, Num.Vector4, string)"/>):
+	/// what the engine's vertex-buffer, indexed and indirect draws lower to. With the identity transform unless the draw
+	/// sets its own, as <see cref="DrawVertices"/>.
+	/// </summary>
+	public bool Draw( ShaderFile shader, ShaderAttributes attributes, in GeometryDraw draw )
+	{
+		if ( !ModeOf( shader, out var mode ) ) return false;
+		var depth = BeginScope( shader, attributes, mode );
+		Draws++;
+		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
+		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, draw, Viewport, mode );
+	}
+
+	/// <summary>
 	/// The mode a draw of <paramref name="shader"/> draws: its first (null) when no <see cref="Mode"/> is asked for, else that
 	/// mode's name as the shader spells it. False when the shader has no such mode, and the draw is skipped.
 	/// </summary>
@@ -497,6 +511,39 @@ public sealed class GraphicsContext
 	}
 
 	/// <summary>
+	/// Copy <paramref name="size"/> bytes between buffers in order with the rest of the list: after every write before it,
+	/// visible to everything after it.
+	/// </summary>
+	public void CopyBuffer( BufferHandle source, long sourceOffset, BufferHandle destination, long destinationOffset, long size )
+	{
+		MemoryBarrier();
+		List.CopyBuffer( source, sourceOffset, destination, destinationOffset, size );
+		MemoryBarrier();
+	}
+
+	/// <summary>
+	/// Fill <paramref name="size"/> bytes of a buffer from <paramref name="offset"/> (a multiple of 4) with a repeated 32-bit
+	/// value, in order with the rest of the list as <see cref="CopyBuffer"/> is.
+	/// </summary>
+	public void FillBuffer( BufferHandle buffer, uint value, long offset, long size )
+	{
+		MemoryBarrier();
+		List.FillBuffer( buffer, value, offset, size );
+		MemoryBarrier();
+	}
+
+	/// <summary>
+	/// Copy <paramref name="size"/> bytes of <paramref name="source"/> into the start of <paramref name="readback"/> (a
+	/// <see cref="MemoryLocation.Readback"/> buffer) after every write before it, visible to the host once the list has finished.
+	/// </summary>
+	public void CopyToReadback( BufferHandle source, long offset, BufferHandle readback, long size )
+	{
+		MemoryBarrier();
+		List.CopyBuffer( source, offset, readback, 0, size );
+		List.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+	}
+
+	/// <summary>
 	/// Write timestamp <paramref name="index"/> of <paramref name="queries"/> once the work recorded so far reaches
 	/// <paramref name="stage"/>, resetting <paramref name="reset"/> timestamps from it first (each is reset before it's
 	/// written again).
@@ -697,6 +744,42 @@ public sealed class GraphicsContext
 		Transition( source, ImageLayout.CopySource );
 		TransitionForWrite( destination, ImageLayout.CopyDestination );
 		List.CopyTexture( source, destination, mip, 1 );
+	}
+
+	/// <summary>
+	/// Copy mip <paramref name="sourceMip"/>, layer <paramref name="sourceLayer"/> of <paramref name="source"/> into mip
+	/// <paramref name="destinationMip"/>, layer <paramref name="destinationLayer"/> of <paramref name="destination"/>, the
+	/// same size and format there, as <c>Graphics.CopyTexture</c> does between mips and slices. Both are left in the copy's
+	/// layouts, tracked.
+	/// </summary>
+	public void CopyTexture( TextureHandle source, int sourceMip, int sourceLayer, TextureHandle destination, int destinationMip, int destinationLayer )
+	{
+		EndScope();
+		Transition( source, ImageLayout.CopySource );
+		TransitionForWrite( destination, ImageLayout.CopyDestination );
+		List.CopyTextureSubresource( source, sourceMip, sourceLayer, destination, destinationMip, destinationLayer );
+	}
+
+	/// <summary>
+	/// Copy the viewport's part of the bound depth into <paramref name="destination"/> from its corner, as
+	/// <c>Graphics.GrabDepthTexture</c> resolves the depth into a texture of its own. Both have the same format and samples:
+	/// false otherwise (multisampled depth into a single-sampled texture), and nothing is copied.
+	/// </summary>
+	public bool CopyDepth( TextureHandle destination )
+	{
+		if ( !Depth.IsValid ) throw new InvalidOperationException( "No depth is bound." );
+		var from = gpu.InfoOf( Depth );
+		var to = gpu.InfoOf( destination );
+		if ( from.Format != to.Format || from.Samples != to.Samples ) return false;
+
+		int x = (int)Viewport.X, y = (int)Viewport.Y;
+		var width = Math.Min( (int)Viewport.Z, Math.Min( from.Width - x, to.Width ) );
+		var height = Math.Min( (int)Viewport.W, Math.Min( from.Height - y, to.Height ) );
+		EndScope();
+		Transition( Depth, ImageLayout.CopySource );
+		TransitionForWrite( destination, ImageLayout.CopyDestination );
+		List.CopyTextureRegion( Depth, destination, x, y, 0, 0, width, height );
+		return true;
 	}
 
 	/// <summary>A single mip of a texture as a view, made once, for binding one mip (sampled or as storage).</summary>

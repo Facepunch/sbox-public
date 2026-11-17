@@ -230,6 +230,12 @@ public sealed class ShaderBytecode
 	/// <summary>A required subgroup size, or 0.</summary>
 	public int RequiredSubgroupSize { get; private init; }
 
+	/// <summary>
+	/// Append and consume buffers' hidden counters (<c>HiddenUAVCounter_t</c>): the <c>u</c> register of the buffer each
+	/// counts, and the counter's own <c>u</c> register, in the buffer's set.
+	/// </summary>
+	public (int Buffer, int Counter)[] HiddenCounters { get; private init; } = [];
+
 	/// <summary>The shared module a reference resolved to, so modules can be made once per shared module.</summary>
 	public ShaderBytecode Shared { get; private set; }
 
@@ -257,7 +263,10 @@ public sealed class ShaderBytecode
 		// Reflection masks: SPIR-V reflection gives the same and more, so they're skipped
 		reader.Skip( 2 + 2 + 2 + 8 + 2 + 16 + 16 + 2 + 2 + 16 );
 		reader.Skip( reader.Short() * 4 );
-		reader.Skip( reader.Short() * 2 );
+
+		// Hidden UAV counters (HiddenUAVCounter_t): the u register of the buffer each counts, and the counter's own
+		var counters = new (int Buffer, int Counter)[reader.Short()];
+		for ( int i = 0; i < counters.Length; i++ ) counters[i] = (reader.Byte(), reader.Byte());
 		var threads = (reader.Int(), reader.Int(), reader.Int());
 		reader.Skip( reader.Short() * 96 );
 		var bits = reader.UShort();
@@ -281,6 +290,7 @@ public sealed class ShaderBytecode
 			Constants = own,
 			ThreadGroupSize = threads,
 			RequiredSubgroupSize = subgroup,
+			HiddenCounters = counters,
 		};
 
 		module.Shared = module;
@@ -311,6 +321,7 @@ public sealed class ShaderBytecode
 		Constants = constants,
 		ThreadGroupSize = ThreadGroupSize,
 		RequiredSubgroupSize = RequiredSubgroupSize,
+		HiddenCounters = HiddenCounters,
 		Shared = Shared,
 	};
 

@@ -76,6 +76,45 @@ public static partial class PassConverter
 		return Regex.Replace( result.Replace( "\r\n", "\n" ), @"\n{3,}", "\n\n" );
 	}
 
+	/// <summary>
+	/// Why a compiled shader's embedded source (each program's text, by <c>VFX_PROGRAM_*</c> name) isn't converted by
+	/// <see cref="FromEmbedded"/>, or null when it is.
+	/// </summary>
+	public static string RefuseEmbedded( IReadOnlyDictionary<string, string> programs )
+	{
+		if ( programs is null || programs.Count == 0 ) return "it has no embedded source";
+		if ( programs.Keys.Any( p => p is "VFX_PROGRAM_GS" or "VFX_PROGRAM_HS" or "VFX_PROGRAM_DS" ) ) return "it has a geometry or tessellation stage, which Borealis.Gpu doesn't draw";
+		if ( !programs.ContainsKey( "VFX_PROGRAM_PS" ) && !programs.ContainsKey( "VFX_PROGRAM_CS" ) ) return "it has no pixel or compute stage";
+		return null;
+	}
+
+	/// <summary>
+	/// The pass module for a compiled shader's embedded source: each program's text (the <c>.shader</c> with the other
+	/// programs' blocks blanked, its own includes expanded, as the compiler embeds it in a package's <c>.shader_c</c>) in
+	/// its <c>#if ( PROGRAM == ... )</c> with <c>[shader]</c> on its entry point, and the shader's features (from the
+	/// compiled file: the FEATURES block isn't in any program's text) declared first, so static combos that follow them
+	/// get their ranges.
+	/// </summary>
+	public static string FromEmbedded( IReadOnlyDictionary<string, string> programs, IEnumerable<(string Name, int Min, int Max)> features, string name )
+	{
+		var text = new StringBuilder();
+		text.Append( "// " ).Append( name ).Append( " from the source embedded in its compiled file, as a pass module (docs/managed/pass-modules.md)\n" );
+		text.Append( "#include \"sbox/pass.slangh\"\n" );
+		foreach ( var (feature, min, max) in features ?? [] ) text.Append( "Feature( " ).Append( feature ).Append( ", " ).Append( min ).Append( ".." ).Append( max ).Append( ", \"\" );\n" );
+
+		foreach ( var (key, program) in new[] { ("VFX_PROGRAM_VS", "VS"), ("VFX_PROGRAM_PS", "PS"), ("VFX_PROGRAM_CS", "CS") } )
+		{
+			if ( !programs.TryGetValue( key, out var source ) ) continue;
+			text.Append( "\n#if ( PROGRAM == " ).Append( key ).Append( " )\n" );
+			// #line names the .shader, which isn't here: includes are found from the module's folder, and the lines stay
+			var body = LineDirective().Replace( source.Replace( "\r\n", "\n" ), "" );
+			text.Append( Entries( body, program ) );
+			text.Append( "\n#endif // " ).Append( program ).Append( '\n' );
+		}
+
+		return text.ToString();
+	}
+
 	/// <summary><c>[shader( "stage" )]</c> before each definition of the program's entry point.</summary>
 	static string Entries( string body, string program )
 	{
@@ -135,6 +174,9 @@ public static partial class PassConverter
 
 	[GeneratedRegex( @"(?<=^|\n)[ \t]*(?<name>[A-Z]+)[ \t]*\n?[ \t]*\{", RegexOptions.Singleline )]
 	private static partial Regex BlockStart();
+
+	[GeneratedRegex( @"^[ \t]*#[ \t]*line\b[^\n]*", RegexOptions.Multiline )]
+	private static partial Regex LineDirective();
 
 	/// <summary>The end of the line starting at <paramref name="i"/>, past any block comment it opens.</summary>
 	static int SkipLine( string text, int i )

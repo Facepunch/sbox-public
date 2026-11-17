@@ -163,6 +163,32 @@ public sealed class ShaderProgram
 		DynamicComboCount = 1;
 	}
 
+	/// <summary>
+	/// A program a shader with only a module declares (<see cref="ShaderFile.FromModule"/>): its combos, no variables and no
+	/// compiled static combos. Strides are set here, in order.
+	/// </summary>
+	internal ShaderProgram( ShaderFile shader, ShaderProgramType type, ShaderCombo[] staticCombos, ShaderCombo[] dynamicCombos )
+		: this( shader, type, Array.Empty<ShaderVariable>(), Array.Empty<ConstantBufferLayout>() )
+	{
+		StaticCombos = WithStrides( staticCombos );
+		DynamicCombos = WithStrides( dynamicCombos );
+		var count = 1L;
+		foreach ( var combo in DynamicCombos ) count *= combo.Count;
+		DynamicComboCount = (int)count;
+	}
+
+	static ShaderCombo[] WithStrides( ShaderCombo[] combos )
+	{
+		ulong stride = 1;
+		foreach ( var combo in combos )
+		{
+			combo.Stride = stride;
+			stride *= (ulong)combo.Count;
+		}
+
+		return combos;
+	}
+
 	static ShaderCombo[] ReadCombos( ByteReader reader, int vcs )
 	{
 		var combos = new ShaderCombo[reader.Count( 1000 )];
