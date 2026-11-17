@@ -65,6 +65,15 @@ internal sealed unsafe class DeviceQueue : IDisposable
 
 			ulong value;
 			device.Check( vk.vkGetSemaphoreCounterValue( vk.Device, Timeline, &value ), "vkGetSemaphoreCounterValue" );
+
+			// Past anything submitted: the driver signalled everything pending because the device is lost, before any call
+			// returned VK_ERROR_DEVICE_LOST. Nothing may be submitted after it (a signal below the timeline's value is invalid)
+			if ( value > Submitted )
+			{
+				device.MarkLost( $"The {Type} timeline jumped to {value} past the {Submitted} submitted", byDriver: true );
+				return Submitted;
+			}
+
 			if ( value > Volatile.Read( ref completed ) ) Volatile.Write( ref completed, value );
 			return value;
 		}

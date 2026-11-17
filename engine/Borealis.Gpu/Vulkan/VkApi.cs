@@ -236,6 +236,7 @@ internal sealed unsafe class VkDeviceApi
 	public readonly delegate* unmanaged< nint, VkSemaphoreCreateInfo*, void*, ulong*, VkResult > vkCreateSemaphore;
 	public readonly delegate* unmanaged< nint, ulong, void*, void > vkDestroySemaphore;
 	public readonly delegate* unmanaged< nint, VkSemaphoreWaitInfo*, ulong, VkResult > vkWaitSemaphores;
+	public readonly delegate* unmanaged< nint, VkSemaphoreSignalInfo*, VkResult > vkSignalSemaphore;
 	public readonly delegate* unmanaged< nint, ulong, ulong*, VkResult > vkGetSemaphoreCounterValue;
 
 	public readonly delegate* unmanaged< nint, VkQueryPoolCreateInfo*, void*, ulong*, VkResult > vkCreateQueryPool;
@@ -370,6 +371,7 @@ internal sealed unsafe class VkDeviceApi
 		vkCreateSemaphore = (delegate* unmanaged< nint, VkSemaphoreCreateInfo*, void*, ulong*, VkResult >)Need( "vkCreateSemaphore" );
 		vkDestroySemaphore = (delegate* unmanaged< nint, ulong, void*, void >)Need( "vkDestroySemaphore" );
 		vkWaitSemaphores = (delegate* unmanaged< nint, VkSemaphoreWaitInfo*, ulong, VkResult >)Need( "vkWaitSemaphores" );
+		vkSignalSemaphore = (delegate* unmanaged< nint, VkSemaphoreSignalInfo*, VkResult >)Need( "vkSignalSemaphore" );
 		vkGetSemaphoreCounterValue = (delegate* unmanaged< nint, ulong, ulong*, VkResult >)Need( "vkGetSemaphoreCounterValue" );
 
 		vkCreateQueryPool = (delegate* unmanaged< nint, VkQueryPoolCreateInfo*, void*, ulong*, VkResult >)Need( "vkCreateQueryPool" );

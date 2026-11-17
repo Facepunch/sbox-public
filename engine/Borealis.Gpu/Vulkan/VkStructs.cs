@@ -1064,6 +1064,15 @@ internal unsafe struct VkSemaphoreTypeCreateInfo
 }
 
 [StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkSemaphoreSignalInfo
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public ulong semaphore;
+	public ulong value;
+}
+
+[StructLayout( LayoutKind.Sequential )]
 internal unsafe struct VkSemaphoreWaitInfo
 {
 	public VkStructureType sType;
