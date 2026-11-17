@@ -369,7 +369,9 @@ internal partial class PainterBatcher
 			// Don't Dispose here — may be called off the main thread.
 			// Old buffer is dereferenced and cleaned up by GC finalizer.
 			int size = GetBufferCapacity<T>( capacity );
-			buffer = new GpuBuffer<T>( size );
+
+			// The UI draws these on the device it records on; Source 2's copy (kept by the editor) is never read
+			buffer = new GpuBuffer<T>( size ) { CopiesToSource2 = false };
 			wasReplaced = true;
 		}
 		return buffer;
