@@ -26,8 +26,6 @@ internal sealed partial class GameWindow : IDisposable
 	// With -borealisgpu: the window's swap chain on Borealis.Gpu, in place of Source 2's (docs/managed/borealis-gpu-path.md, stage 5)
 	BorealisGpuWindow borealis;
 
-	/// <summary>On Borealis.Gpu, the GPU time of a recent frame and which (<see cref="BorealisGpuWindow.GpuFrameMs"/>).</summary>
-	internal (double Ms, ulong Frame)? BorealisGpuFrameMs => borealis?.GpuFrameMs is { } ms ? (ms, borealis.GpuFrameNumber) : null;
 
 	internal IntPtr Handle => window.Handle;
 
