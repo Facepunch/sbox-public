@@ -73,6 +73,7 @@ public sealed partial class Material : Resource
 			copy.anonymousShader = anonymousShader;
 			copy.IsCopy = true;
 			copy.FilePath = FilePath;
+			copy.MadeFromShader = MadeFromShader;
 			copy.SetInCode = SetInCode;
 			copy.SetInCodeVersion = SetInCodeVersion;
 		}
@@ -93,6 +94,12 @@ public sealed partial class Material : Resource
 	}
 
 	string filePath;
+
+	/// <summary>
+	/// The shader a material made in code has (<see cref="Create(string, string, bool)"/>), with no file of its own; null for one
+	/// read from a file.
+	/// </summary>
+	internal string MadeFromShader { get; private set; }
 
 	bool releaseQueued;
 
