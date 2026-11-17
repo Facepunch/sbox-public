@@ -83,6 +83,11 @@ public class SurfaceTests : GpuTest
 		Assert.AreEqual( "CLAMP", annotations["S"].AddressU );
 		Assert.AreEqual( "CLAMP", annotations["S"].AddressW );
 		Assert.AreEqual( "BILINEAR", annotations["S"].Filter );
+
+		// A module's active lines, read again per compile, have no #defines: the macros come from its whole text
+		var macros = "#define SRGB SrgbRead(true)\n";
+		VfxIncludes.Rewrite( "Texture2D Next < Attribute(\"Next\"); SRGB; > ;\n", annotations, macros );
+		Assert.IsTrue( annotations["Next"].SrgbRead );
 	}
 
 	/// <summary>Texture2D fields of [Material] structs become bindless slots; other Texture2Ds and lines stay.</summary>

@@ -35,7 +35,7 @@ public sealed partial class SlangCompiler
 			var source = VfxIncludes.Rewrite( module.Text, request.Annotations );
 
 			// A global declared in several #if branches (a texture read as sRGB with one combo) takes the active branch's annotations
-			VfxIncludes.Rewrite( module.ActiveText( stage, values ), request.Annotations );
+			VfxIncludes.Rewrite( module.ActiveText( stage, values ), request.Annotations, module.Text );
 
 			request.AddSource( module.Path, source );
 			var entry = PassModule.Entry( stage );

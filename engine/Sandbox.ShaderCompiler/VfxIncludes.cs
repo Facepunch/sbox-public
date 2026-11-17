@@ -47,8 +47,11 @@ internal static partial class VfxIncludes
 		lock ( specializationIds ) return specializationIds.FirstOrDefault( p => p.Value == id ).Key;
 	}
 
-	/// <summary>Rewrite one included file's text and add its annotations to <paramref name="annotations"/>.</summary>
-	public static string Rewrite( string text, Dictionary<string, Annotations> annotations )
+	/// <summary>
+	/// Rewrite one included file's text and add its annotations to <paramref name="annotations"/>, with the annotation macros
+	/// <paramref name="macroText"/> defines (the text itself unless given: a module's active lines have no <c>#define</c>s).
+	/// </summary>
+	public static string Rewrite( string text, Dictionary<string, Annotations> annotations, string macroText = null )
 	{
 		text = ExternalSet().Replace( text, m => $"#define {m.Groups[1].Value} {3 + int.Parse( m.Groups[2].Value, CultureInfo.InvariantCulture )}" );
 
@@ -71,7 +74,7 @@ internal static partial class VfxIncludes
 			return $"{m.Groups["lead"].Value}[vk::constant_id( {SpecializationId( name )} )] const {type} {name} = {literal};";
 		} );
 
-		var macros = AnnotationMacros( text );
+		var macros = AnnotationMacros( macroText ?? text );
 		foreach ( Match m in Annotated().Matches( text ) )
 		{
 			var name = m.Groups["call"].Success ? m.Groups["call"].Value : m.Groups["name"].Value;
