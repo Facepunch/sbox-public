@@ -446,6 +446,7 @@ public class PassModuleTests : GpuTest
 			{
 				try
 				{
+					library.NeedsStencil( shader, mode.Name, [] );
 					read.Add( ($"{path} {mode.Name}", shader, mode.Name, library.PixelState( shader, mode.Name, [] ), false) );
 				}
 				catch ( InvalidDataException )
@@ -487,6 +488,7 @@ public class PassModuleTests : GpuTest
 			CollectionAssert.AreEqual( expected.Blend, state.Blend, $"{what} blend" );
 			Assert.AreEqual( expected.AlphaToCoverage, state.AlphaToCoverage, $"{what} alpha to coverage" );
 			Assert.AreEqual( expected.NeedsStencil, state.NeedsStencil, $"{what} needs a stencil" );
+			Assert.AreEqual( expected.NeedsStencil, library.NeedsStencil( shader, mode, [] ), $"{what} needs a stencil, read the short way" );
 		}
 	}
 

@@ -475,7 +475,7 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 		{
 			try
 			{
-				library.PixelState( shader, mode, features );
+				library.NeedsStencil( shader, mode, features );
 			}
 			catch ( Exception e ) when ( e is System.IO.InvalidDataException or KeyNotFoundException )
 			{
@@ -492,8 +492,8 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 
 	/// <summary>
 	/// Whether its forward or depth variant (no dynamic combos set, as the scene's meshes mostly draw it) needs a stencil:
-	/// <see cref="ShaderPipelineState.NeedsStencil"/>, read from the shader without making the variants. Read once, then
-	/// kept until it's loaded again.
+	/// <see cref="ShaderPipelineState.NeedsStencil"/>, read from the shader without making the variants
+	/// (<see cref="ShaderLibrary.NeedsStencil"/>). Read once, then kept until it's loaded again.
 	/// </summary>
 	public override bool NeedsStencil
 	{
@@ -513,8 +513,7 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 			{
 				try
 				{
-					var state = StencilFromVariants ? Variant( library, mode, mode, static _ => null, static _ => null )?.State : library.PixelState( shader, mode, features );
-					needs |= state?.NeedsStencil == true;
+					needs |= StencilFromVariants ? Variant( library, mode, mode, static _ => null, static _ => null )?.State.NeedsStencil == true : library.NeedsStencil( shader, mode, features );
 				}
 				catch ( System.IO.InvalidDataException )
 				{

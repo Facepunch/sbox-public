@@ -556,6 +556,12 @@ public sealed class ShaderLibrary : IDisposable
 	}
 
 	/// <summary>
+	/// Whether <see cref="PixelState"/>'s state needs a stencil (<see cref="ShaderPipelineState.NeedsStencil"/>). Throws as
+	/// <see cref="PixelState"/> does.
+	/// </summary>
+	public bool NeedsStencil( ShaderFile shader, string mode, ReadOnlySpan<int> features ) => PixelState( shader, mode, features )?.NeedsStencil == true;
+
+	/// <summary>
 	/// Where shaders that have source modules are compiled from (pass modules: docs/managed/shader-format-replacement.md);
 	/// null draws every shader from its compiled programs.
 	/// </summary>
