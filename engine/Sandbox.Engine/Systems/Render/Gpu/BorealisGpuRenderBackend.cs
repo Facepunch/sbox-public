@@ -165,7 +165,50 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		FreeModelGeometry();
 		FreeCollectedBackings();
 		services.BeginFrame();
+		TimeFrame();
 		if ( frame % PipelineCacheSaveFrames == 0 ) SavePipelineCacheInBackground();
+	}
+
+	// The GPU's busy time per device frame: a pass timer over every list (Borealis's and the engine's blocks), read back
+	// once the GPU is past the frame. Someone else's timer (a lab's, a probe's) replaces it while it's set.
+	Borealis.Backend.PassTimer busyTimer;
+	readonly List<Borealis.Backend.PassTimer.Timing> busyTimings = new();
+
+	/// <summary>
+	/// The GPU's busy time in a recent device frame, in milliseconds: every list's execution added up, the engine's blocks
+	/// and Borealis's frames, without the time the GPU waited between them. Null without timestamps. As native's GPU frame time.
+	/// </summary>
+	public double? GpuBusyMs { get; private set; }
+
+	/// <summary>Which device frame <see cref="GpuBusyMs"/> was (the engine frame it followed).</summary>
+	public ulong GpuBusyFrame { get; private set; }
+
+	void TimeFrame()
+	{
+		if ( busyTimer is null )
+		{
+			if ( services.PassTimer is not null || !gpu.Capabilities.Timestamps ) return;
+			busyTimer = new Borealis.Backend.PassTimer( gpu );
+		}
+
+		services.PassTimer ??= busyTimer;
+		if ( services.PassTimer != busyTimer ) return;
+
+		// The frame before last is done (starting this frame waited for it); older ones are read once
+		var done = (long)frame - (Borealis.Backend.PassTimer.Slots - 1);
+		if ( done > 0 && busyTimer.TryRead( done, busyTimings ) )
+		{
+			var busy = 0.0;
+			foreach ( var timing in busyTimings )
+			{
+				if ( timing.Kind == Borealis.Backend.PassTimer.ScopeKind.List ) busy += timing.Ms;
+			}
+
+			GpuBusyMs = busy;
+			GpuBusyFrame = (ulong)done;
+		}
+
+		busyTimer.BeginFrame( (long)frame );
 	}
 
 	/// <summary>Frames between background saves of the pipeline cache.</summary>
@@ -1816,6 +1859,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			errorTexture = default;
 		}
 		DestroyModelGeometry();
+		if ( services.PassTimer == busyTimer ) services.PassTimer = null;
+		busyTimer?.Dispose();
+		busyTimer = null;
 		gpu.Destroy( pipelineTextures );
 		foreach ( var package in mapVpks ) package.Dispose();
 		mapVpks.Clear();
