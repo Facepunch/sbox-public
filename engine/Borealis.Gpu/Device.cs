@@ -564,6 +564,8 @@ public sealed unsafe partial class Device : IDisposable
 				: $"{kind}: heap {heap.size >> 20} MiB" );
 		}
 
+		// Video memory ran out and device allocations went to system memory (MemoryAllocator.SystemFallbackBytes)
+		if ( Allocator.SystemFallbackBytes > 0 ) heaps.Add( $"{Allocator.SystemFallbackBytes >> 20} MiB of device allocations in system memory" );
 		return string.Join( ", ", heaps );
 	}
 

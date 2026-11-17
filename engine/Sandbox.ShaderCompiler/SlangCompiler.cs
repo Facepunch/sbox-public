@@ -127,6 +127,16 @@ public sealed partial class SlangCompiler
 
 	internal static IDisposable Zone( CompilePhase phase ) => Profile?.Invoke( phase );
 
+	/// <summary>
+	/// How many requests compile at once, one Slang session each: half the cores, at most 8, unless set before the first
+	/// compile (an offline compile uses every core).
+	/// </summary>
+	public static int CompileThreads
+	{
+		get => SlangApi.MaxSessions;
+		set => SlangApi.MaxSessions = Math.Max( value, 1 );
+	}
+
 	/// <summary>Compiles in this process so far, by kind, from the compiler or from its cache, for reports and tests.</summary>
 	public static (int Surfaces, int Stages, int CachedSurfaces, int CachedStages) Counts => (surfaces, stages, cachedSurfaces, cachedStages);
 
@@ -165,24 +175,50 @@ public sealed partial class SlangCompiler
 		}
 	}
 
+	/// <summary>
+	/// Whether compiles read a source's offline compile (<see cref="SlangOutput"/>: <c>name.slang_c</c> beside it, or in the
+	/// first search path for a source made at run time) before <see cref="CacheFolder"/>.
+	/// </summary>
+	public bool UseOffline { get; init; } = true;
+
+	/// <summary>
+	/// Told what's about to compile with Slang here, not read from an offline compile or the cache: a surface's or raw
+	/// module's path, or a pass module's file, stage and combo values. For logging run-time compiles.
+	/// </summary>
+	public Action<string> Compiling { get; init; }
+
+	/// <summary>The offline compiles of the source at <paramref name="path"/> that exist.</summary>
+	IReadOnlyList<SlangOutput> Offline( string path )
+	{
+		if ( !UseOffline ) return [];
+		var beside = SlangOutput.At( SlangOutput.PathOf( path ) );
+		var shipped = searchPaths.Count > 0 ? SlangOutput.At( SlangOutput.PathOf( Path.Combine( searchPaths[0], Path.GetFileName( path ) ) ) ) : null;
+		return beside is null ? (shipped is null ? [] : [shipped]) : shipped is null || ReferenceEquals( shipped, beside ) ? [beside] : [beside, shipped];
+	}
+
+	/// <summary>Where a compile of the module at <paramref name="path"/> found what it read, for naming it in cache entries.</summary>
+	DependencyPaths Paths( string path ) => new( searchPaths, Path.GetDirectoryName( Path.GetFullPath( path ) ) );
+
+	/// <summary>Told of every cache entry made or found, while an offline compile is made (<see cref="CompileOfflineAsync"/>).</summary>
+	Action<string, byte[], List<(string Name, string Hash)>> saved;
+
 	async Task<CompiledShader> Cached( string path, ShaderTier tier, Func<string, Task<CompiledShader>> compile )
 	{
 		path = Path.GetFullPath( path );
-		if ( CacheFolder is null ) return await compile( path ).ConfigureAwait( false );
-
 		var text = File.ReadAllText( path );
-		var context = $"{slangDirectory}|{string.Join( ';', searchPaths )}";
 		using ( Zone( CompilePhase.CacheLoad ) )
 		{
-			if ( CompileCache.Load( CacheFolder, context, slangDirectory, tier, path, text ) is { } cached )
+			if ( CompileCache.Load( CacheFolder, Offline( path ), Paths( path ), slangDirectory, tier, path, text ) is { } cached )
 			{
 				Interlocked.Increment( ref cachedSurfaces );
+				if ( saved is not null ) CompileCache.Save( null, Paths( path ), slangDirectory, path, text, cached, saved: saved );
 				return cached;
 			}
 		}
 
+		Compiling?.Invoke( path );
 		var compiled = await compile( path ).ConfigureAwait( false );
-		using ( Zone( CompilePhase.CacheSave ) ) CompileCache.Save( CacheFolder, context, slangDirectory, path, text, compiled );
+		using ( Zone( CompilePhase.CacheSave ) ) CompileCache.Save( CacheFolder, Paths( path ), slangDirectory, path, text, compiled, saved: saved );
 		return compiled;
 	}
 
@@ -202,13 +238,9 @@ public sealed partial class SlangCompiler
 		path = Path.GetFullPath( path );
 		var text = File.ReadAllText( path );
 		var tier = IsRaw( text ) ? ShaderTier.Raw : ShaderTier.Surface;
-		var context = $"{slangDirectory}|{string.Join( ';', searchPaths )}";
-		if ( CacheFolder is not null )
+		using ( Zone( CompilePhase.CacheLoad ) )
 		{
-			using ( Zone( CompilePhase.CacheLoad ) )
-			{
-				if ( CompileCache.Load( CacheFolder, context, slangDirectory, tier, path, text, layout: true ) is { } cached ) return Task.FromResult( cached );
-			}
+			if ( CompileCache.Load( CacheFolder, Offline( path ), Paths( path ), slangDirectory, tier, path, text, layout: true ) is { } cached ) return Task.FromResult( cached );
 		}
 
 		var source = MaterialSource.Rewrite( text, out var declared );
@@ -498,7 +530,7 @@ public sealed partial class SlangCompiler
 		if ( CacheFolder is null ) return layout;
 
 		var shader = new CompiledShader { Name = type, Tier = tier, Path = path, Material = layout, Passes = new Dictionary<string, CompiledPass>(), Dependencies = read.Sorted() };
-		using ( Zone( CompilePhase.CacheSave ) ) CompileCache.Save( CacheFolder, $"{slangDirectory}|{string.Join( ';', searchPaths )}", slangDirectory, path, File.ReadAllText( path ), shader, layout: true );
+		using ( Zone( CompilePhase.CacheSave ) ) CompileCache.Save( CacheFolder, Paths( path ), slangDirectory, path, File.ReadAllText( path ), shader, layout: true );
 		return layout;
 	}
 

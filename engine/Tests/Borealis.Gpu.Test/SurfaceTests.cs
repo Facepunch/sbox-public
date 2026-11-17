@@ -515,6 +515,7 @@ public class SurfaceTests : GpuTest
 			using var backend = new BackendDevice( Device );
 			backend.Surfaces.CacheFolder = Path.Combine( folder, "cache" );
 			backend.Surfaces.AddFolder( Surfaces );
+			backend.Surfaces.UseOffline = false;
 			backend.Surfaces.CompileInBackground = true;
 
 			var layout = backend.Surfaces.Layout( "rock_lit.slang" );
@@ -557,6 +558,7 @@ public class SurfaceTests : GpuTest
 		{
 			using var backend = new BackendDevice( Device );
 			backend.Passes.CacheFolder = Path.Combine( folder, "cache" );
+			backend.Passes.UseOffline = false;
 			backend.Passes.CompileInBackground = true;
 			var errors = new List<string>();
 			backend.Passes.Error = errors.Add;
@@ -581,6 +583,63 @@ public class SurfaceTests : GpuTest
 			Assert.IsTrue( module is { FromModule: true }, $"the module's variant never came: {string.Join( "; ", errors )}" );
 			Assert.AreSame( module, drawer.Variant( shader, new ShaderAttributes() ), "kept once it's the module's" );
 			Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
+	/// Offline compiles (<see cref="SlangOutput"/>): a surface and a pass module compiled offline are read, not compiled, by
+	/// another compiler with an empty cache, the same SPIR-V, wherever the files they read are; not with offline compiles
+	/// off, nor once the source changes. An unchanged source isn't compiled offline again.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( "Slow" )]
+	public void OfflineCompilesServeTheGame()
+	{
+		Compiler();
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-offline-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var bin = EngineFolders.NativeIn( Path.GetDirectoryName( Core ) );
+			var shaders = Path.Combine( Core, "shaders" );
+			var module = Path.Combine( folder, "offline_rock.slang" );
+			File.WriteAllText( module, File.ReadAllText( Path.Combine( Surfaces, "rock.slang" ) ).Replace( "public struct Rock", "public struct OfflineRock", StringComparison.Ordinal ) );
+			var pass = PassModule.Read( Path.Combine( shaders, "depthresolve.slang" ), [shaders] );
+			var log = new List<string>();
+			var offline = new SlangCompiler( bin, [folder, shaders] ) { CacheFolder = Path.Combine( folder, "cache1" ), UseOffline = false };
+			Assert.AreEqual( OfflineResult.Compiled, offline.CompileOfflineAsync( module, log: log.Add ).GetAwaiter().GetResult(), string.Join( "\n", log ) );
+			Assert.AreEqual( OfflineResult.Compiled, offline.CompileOfflineAsync( pass.Path, Path.Combine( folder, "depthresolve.slang_c" ), log.Add ).GetAwaiter().GetResult(), string.Join( "\n", log ) );
+			Assert.AreEqual( OfflineResult.UpToDate, offline.CompileOfflineAsync( module ).GetAwaiter().GetResult() );
+			Assert.IsTrue( File.Exists( SlangOutput.PathOf( module ) ) );
+
+			var compiled = offline.CompileSurface( module );
+			var compiling = new List<string>();
+			var game = new SlangCompiler( bin, [folder, shaders] ) { CacheFolder = Path.Combine( folder, "cache2" ), Compiling = compiling.Add };
+			var read = game.CompileSurface( module );
+			Assert.IsTrue( read.Offline, "the surface came from its offline compile" );
+			foreach ( var (name, p) in compiled.Passes )
+			{
+				CollectionAssert.AreEqual( p.Vertex.Spirv, read.Pass( name ).Vertex.Spirv, name );
+				if ( p.Pixel is not null ) CollectionAssert.AreEqual( p.Pixel.Spirv, read.Pass( name ).Pixel.Spirv, name );
+			}
+
+			Assert.IsTrue( read.Dependencies.Any( d => d.EndsWith( "vr_lighting.fxc", StringComparison.OrdinalIgnoreCase ) ), "the files it read, found again" );
+			var values = pass.Combos( StageKind.Pixel ).ToDictionary( c => c.Name, c => c.Min );
+			Assert.IsTrue( game.CompilePass( pass, StageKind.Pixel, values ).Offline, "the pass stage came from its offline compile" );
+			Assert.AreEqual( 0, compiling.Count, string.Join( "; ", compiling ) );
+
+			var off = new SlangCompiler( bin, [folder, shaders] ) { CacheFolder = Path.Combine( folder, "cache3" ), UseOffline = false };
+			Assert.IsFalse( off.CompileSurface( module ).Offline );
+
+			File.AppendAllText( module, "\n// changed\n" );
+			var changed = new SlangCompiler( bin, [folder, shaders] ) { CacheFolder = Path.Combine( folder, "cache4" ), Compiling = compiling.Add };
+			Assert.IsFalse( changed.CompileSurface( module ).Offline, "a changed module compiles again" );
+			Assert.AreEqual( 1, compiling.Count, "and says so" );
+			Assert.AreEqual( OfflineResult.Compiled, offline.CompileOfflineAsync( module ).GetAwaiter().GetResult() );
 		}
 		finally
 		{

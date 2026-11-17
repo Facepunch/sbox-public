@@ -128,6 +128,7 @@ public sealed partial class BackendDevice
 		}
 
 		// Its buffers and textures written with the frame's next submission, not each waited for
+		using ( Zones.ModelMake.Start() )
 		using ( Gpu.DeferUploads() )
 			made = read.IsCompletedSuccessfully && read.Result is { } file ? BackendModel.Create( this, file, meshGroups ) : null;
 		streamedModels[(path, meshGroups)] = made;
@@ -208,6 +209,7 @@ public sealed partial class BackendDevice
 		{
 			try
 			{
+				using var zone = Zones.ModelRead.Start();
 				return ReadModelAhead( path );
 			}
 			finally

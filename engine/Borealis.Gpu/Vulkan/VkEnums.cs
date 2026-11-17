@@ -90,6 +90,7 @@ internal enum VkStructureType
 	PhysicalDeviceSubgroupProperties = 1000094000,
 	SemaphoreTypeCreateInfo = 1000207002,
 	SemaphoreWaitInfo = 1000207004,
+	SemaphoreSignalInfo = 1000207005,
 	PhysicalDeviceMemoryBudgetPropertiesExt = 1000237000,
 	ValidationFeaturesExt = 1000247000,
 	MemoryBarrier2 = 1000314000,
