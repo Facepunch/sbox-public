@@ -829,7 +829,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		list.Barrier( TextureBarrier.Transition( t.Handle, t.Layout, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
 		list.ClearTexture( t.Handle, new System.Numerics.Vector4( color.r, color.g, color.b, color.a ) );
 		list.Barrier( TextureBarrier.Transition( t.Handle, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
-		Gpu.Wait( Gpu.Submit( list ) );
+		// In order with what's submitted after it, as MakeReadable: not waited for, which held the main thread for the GPU
+		if ( BatchSubmits ) Gpu.SubmitLater( list );
+		else Gpu.Submit( list );
 		t.Layout = ImageLayout.ShaderRead;
 	}
 
@@ -960,14 +962,44 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	readonly Dictionary<string, ShaderParameters> mapLightmaps = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, System.Threading.Tasks.Task> lightmapReads = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// Read the lightmaps of the map in <paramref name="folder"/> on a worker (its world file, each texture read and
+	/// decoded), so <see cref="MapLightmapParameters"/> only makes them: a map's are large, and decoding them held up its load.
+	/// </summary>
+	public void ReadMapLightmapsAhead( string folder )
+	{
+		if ( string.IsNullOrEmpty( folder ) ) return;
+		lock ( mapLightmaps )
+		{
+			if ( mapLightmaps.ContainsKey( folder ) || lightmapReads.ContainsKey( folder ) ) return;
+			lightmapReads[folder] = System.Threading.Tasks.Task.Run( () =>
+			{
+				try
+				{
+					var world = Borealis.Source2.World.WorldFile.Load( Content, $"{folder}/world.vwrld" );
+					System.Threading.Tasks.Parallel.ForEach( world.Lightmaps, path => ReadTextureAhead( path ) );
+				}
+				catch ( Exception e ) when ( e is IOException or InvalidDataException or KeyNotFoundException )
+				{
+					// Read where they're made, which reports it
+				}
+			} );
+		}
+	}
 
 	/// <summary>
 	/// The lightmaps of the map in <paramref name="folder"/> (<c>maps/construct_25</c>), from its world file
-	/// (<see cref="LightmapParameters"/>), read once; null without lightmaps or a readable world.
+	/// (<see cref="LightmapParameters"/>), read once (ahead on a worker, when <see cref="ReadMapLightmapsAhead"/> was asked);
+	/// null without lightmaps or a readable world.
 	/// </summary>
 	public ShaderParameters MapLightmapParameters( string folder )
 	{
 		if ( string.IsNullOrEmpty( folder ) ) return null;
+		System.Threading.Tasks.Task reading;
+		lock ( mapLightmaps ) lightmapReads.TryGetValue( folder, out reading );
+		reading?.Wait();
 		lock ( mapLightmaps )
 		{
 			if ( mapLightmaps.TryGetValue( folder, out var cached ) ) return cached;
