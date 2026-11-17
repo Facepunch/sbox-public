@@ -61,9 +61,13 @@ public sealed class PassModules : IShaderModules
 	/// </summary>
 	public PassModule ModuleOf( ShaderFile shader )
 	{
-		if ( shader.Outdated is not null ) return EmbeddedModule( shader );
+		return shader.Outdated is not null ? EmbeddedModule( shader ) : ModuleBeside( shader.Name );
+	}
 
-		var name = shader.Name;
+	/// <summary>The pass module beside a compiled file's path (<c>x.slang</c> for <c>x.shader_c</c>), or null.</summary>
+	PassModule ModuleBeside( string compiledPath )
+	{
+		var name = compiledPath;
 		if ( name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) name = name[..^2];
 		var path = Path.ChangeExtension( name, ".slang" );
 
@@ -93,6 +97,57 @@ public sealed class PassModules : IShaderModules
 			modules[path] = (info.LastWriteTimeUtc, now, module);
 			return module;
 		}
+	}
+
+	/// <inheritdoc/>
+	public ShaderFile Describe( string compiledPath )
+	{
+		if ( ModuleBeside( compiledPath ) is not { } module ) return null;
+
+		var features = module.Features.Select( ( f, i ) => new ShaderCombo { Name = f.Name, Min = f.Min, Max = f.Max, FeatureIndex = i, Strings = [] } ).ToArray();
+		ShaderCombo Combo( PassCombo c, bool isStatic ) => new()
+		{
+			Name = c.Name,
+			Min = c.Min,
+			Max = c.Max,
+			// Static combos that follow a feature take its value; the rest are the mode's (S_MODE_*) or the system's
+			FeatureIndex = c.Feature is null ? -1 : module.Features.ToList().FindIndex( f => f.Name == c.Feature ),
+			Source = isStatic && c.Feature is null && !c.Name.StartsWith( "S_MODE_", StringComparison.Ordinal ) ? 1 : 0,
+			Strings = [],
+		};
+
+		var programs = new List<(ShaderProgramType, ShaderCombo[], ShaderCombo[])>();
+		foreach ( var (kind, type) in new[] { (StageKind.Vertex, ShaderProgramType.Vertex), (StageKind.Pixel, ShaderProgramType.Pixel), (StageKind.Compute, ShaderProgramType.Compute) } )
+		{
+			if ( !module.Has( kind ) ) continue;
+			var combos = module.Combos( kind );
+			programs.Add( (type, combos.Where( c => c.Static ).Select( c => Combo( c, true ) ).ToArray(), combos.Where( c => !c.Static ).Select( c => Combo( c, false ) ).ToArray()) );
+		}
+
+		return ShaderFile.FromModule( compiledPath, Modes( module.Text ), features, programs );
+	}
+
+	/// <summary>
+	/// A module's modes, from the <c>// MODES:</c> lines its <c>.shader</c>'s MODES block became (<c>Depth( S_MODE_DEPTH );</c>
+	/// sets that combo, <c>ToolsWireframe( "tools_wireframe.shader" );</c> names a fallback); <c>Default</c> without any.
+	/// </summary>
+	internal static IReadOnlyList<ShaderMode> Modes( string text )
+	{
+		var modes = new List<ShaderMode>();
+		foreach ( System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches( text, @"^[ \t]*//[ \t]*MODES:[ \t]*(?<name>\w+)[ \t]*\((?<args>[^)]*)\)", System.Text.RegularExpressions.RegexOptions.Multiline ) )
+		{
+			var fallback = "";
+			var settings = new List<(string, int)>();
+			foreach ( var argument in m.Groups["args"].Value.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ) )
+			{
+				if ( argument.StartsWith( '"' ) ) fallback = argument.Trim( '"' );
+				else settings.Add( (argument, 1) );
+			}
+
+			modes.Add( new ShaderMode { Name = m.Groups["name"].Value, Fallback = fallback, Settings = [.. settings] } );
+		}
+
+		return modes.Count > 0 ? modes : [new ShaderMode { Name = "Default", Fallback = "", Settings = [] }];
 	}
 
 	readonly System.Runtime.CompilerServices.ConditionalWeakTable<ShaderFile, System.Runtime.CompilerServices.StrongBox<PassModule>> embedded = new();

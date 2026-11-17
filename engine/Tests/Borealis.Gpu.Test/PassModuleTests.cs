@@ -457,6 +457,9 @@ public class PassModuleTests : GpuTest
 				continue;
 			}
 
+			// Borealis's own passes have no .shader: nothing to compare with
+			if ( shader.ModuleOnly ) continue;
+
 			foreach ( var mode in shader.Modes )
 			{
 				if ( !string.IsNullOrEmpty( mode.Fallback ) ) continue;

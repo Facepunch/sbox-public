@@ -99,8 +99,19 @@ public sealed class ShaderLibrary : IDisposable
 	{
 		// A bare name (downsample_spd), as the engine's Material.FromShader takes one, is a shader under shaders/
 		var full = Files.Find( key );
-		if ( full is null && !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) full = Files.Find( $"shaders/{key}.shader" );
-		return full is null ? (null, false) : (LoadOrUpgrade( full ), true);
+		var bare = !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase );
+		if ( full is null && bare ) full = Files.Find( $"shaders/{key}.shader" );
+		if ( full is not null ) return (LoadOrUpgrade( full ), true);
+
+		// No compiled file: a shader with only a Slang module, where its .shader_c would be
+		if ( Modules is not { } modules ) return (null, false);
+		foreach ( var root in Files.Roots )
+		{
+			var compiled = Path.Combine( root, (bare ? $"shaders/{key}.shader" : key).TrimStart( '/' ) + "_c" );
+			if ( modules.Describe( Path.GetFullPath( compiled ) ) is { } described ) return (described, true);
+		}
+
+		return (null, false);
 	}
 
 	/// <summary>
@@ -421,6 +432,9 @@ public sealed class ShaderLibrary : IDisposable
 		// off) is recompiled through the ShaderCompiler after all. Its GPU-driven variant is compiled from its file as any is
 		if ( shader.Outdated is not null && !gpuDriven )
 			return UpgradedOf( shader ) is { } upgraded ? Variant( upgraded, mode, features, dynamicCombos, attributes ) : null;
+
+		// A shader with only a module has no programs to fall back to (modules off, or its module doesn't compile)
+		if ( shader.ModuleOnly ) return null;
 
 		if ( gpuDriven )
 		{

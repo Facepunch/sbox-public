@@ -65,6 +65,30 @@ public sealed class ShaderFile
 	/// </summary>
 	public IReadOnlyDictionary<string, string> EmbeddedSource => embeddedSource.Value;
 
+	/// <summary>
+	/// Whether there's no compiled file: a shader with only a Slang module (<see cref="FromModule"/>), whose stages only its
+	/// module can make.
+	/// </summary>
+	public bool ModuleOnly { get; }
+
+	ShaderFile( string name, IReadOnlyList<ShaderMode> modes, ShaderCombo[] features, IEnumerable<(ShaderProgramType Type, ShaderCombo[] Static, ShaderCombo[] Dynamic)> programs )
+	{
+		Name = name;
+		Modes = modes;
+		ModuleOnly = true;
+		embeddedSource = new( () => null );
+		Programs[(int)ShaderProgramType.Features] = new ShaderProgram( this, ShaderProgramType.Features, features, [] );
+		foreach ( var (type, statics, dynamics) in programs ) Programs[(int)type] = new ShaderProgram( this, type, statics, dynamics );
+	}
+
+	/// <summary>
+	/// A shader with only a Slang module, no <c>.shader_c</c>: what its module declares (modes, features, each stage's static
+	/// and dynamic combos), as a compiled file would say it, for <see cref="ShaderLibrary"/> to find it by and its module to
+	/// draw. Vertex, pixel and compute programs only (a module's task and mesh stages have none). See
+	/// docs/managed/pass-modules.md.
+	/// </summary>
+	public static ShaderFile FromModule( string name, IReadOnlyList<ShaderMode> modes, ShaderCombo[] features, IEnumerable<(ShaderProgramType Type, ShaderCombo[] Static, ShaderCombo[] Dynamic)> programs ) => new( name, modes, features, programs );
+
 	ShaderFile( string name, byte[] data, bool outdated = false )
 	{
 		Name = name;

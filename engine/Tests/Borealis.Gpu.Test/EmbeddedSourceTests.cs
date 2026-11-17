@@ -105,6 +105,44 @@ public class EmbeddedSourceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A shader with a Slang module and no compiled file at all: it loads by its path from what the module declares (its
+	/// MODES lines, combos) and draws from the module, the variant the same as pp_vignette's own; with modules off it has
+	/// nothing to draw.
+	/// </summary>
+	[TestMethod]
+	public void ShaderWithOnlyAModuleLoads()
+	{
+		var folder = Folder();
+		try
+		{
+			using var backend = Backend( folder, out var current );
+			var errors = new List<string>();
+			backend.Passes.Error = errors.Add;
+			File.Copy( Path.ChangeExtension( Source(), ".slang" ), Path.Combine( folder, "shaders", "moduleonly_vignette.slang" ) );
+
+			var shader = backend.Shaders.Load( "shaders/moduleonly_vignette.shader" );
+			Assert.IsNotNull( shader, "found by its module" );
+			Assert.IsTrue( shader.ModuleOnly );
+			CollectionAssert.AreEqual( new[] { "Default", "Forward" }, shader.Modes.Select( m => m.Name ).ToArray() );
+			Assert.AreSame( shader, backend.Shaders.Load( "shaders/moduleonly_vignette.shader" ) );
+
+			var module = backend.Shaders.Variant( shader, "Default", [] );
+			Assert.IsTrue( module is { FromModule: true } );
+			Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+			var differences = PassModuleTests.Compare( Classic( backend, current ), module ).ToList();
+			Assert.AreEqual( 0, differences.Count, string.Join( "\n", differences ) );
+
+			Assert.IsNull( backend.Shaders.Load( "shaders/moduleonly_missing.shader" ), "no module, no shader" );
+			backend.SlangPasses = false;
+			Assert.IsNull( backend.Shaders.Variant( shader, "Forward", [] ), "nothing to draw without its module" );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// Every package shader in <c>PACKAGE_SHADERS</c> (a folder of outdated <c>.shader_c</c>) against its recompiled copy
 	/// of the same file name in <c>PACKAGE_UPGRADED</c>: whether its embedded source compiles, and how its variants differ,
 	/// each mode at its first combos and no features. The report goes to <c>PACKAGE_REPORT</c>. Inconclusive without them.
