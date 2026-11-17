@@ -187,4 +187,28 @@ public class BorealisGpuTexturesTest
 		borealis.NextFrame();
 		Assert.AreEqual( before + 2, borealis.ServicesFrame );
 	}
+
+	/// <summary>
+	/// A volume's copy is a 3D texture with every slice, and storage when it was made for compute. It was a 2D texture before,
+	/// so a compute shader's storage binding of it had no view and its sampled binding the wrong shape.
+	/// </summary>
+	[TestMethod]
+	public void VolumesAreThreeDimensional()
+	{
+		// A device of its own: the volumes are made from their descriptions, whatever Source 2's device is
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		using var storage = Texture.CreateVolume( 8, 4, 6, ImageFormat.R11G11B10F ).WithUAVBinding().WithName( "test storage volume" ).Finish();
+		var info = borealis.Device.InfoOf( borealis.TextureOf( storage ) );
+		Assert.AreEqual( Borealis.Gpu.TextureDimension.Texture3D, info.Dimension );
+		Assert.AreEqual( (8, 4, 6), (info.Width, info.Height, info.Depth) );
+		Assert.AreEqual( Borealis.Gpu.Format.RG11B10Float, info.Format );
+		Assert.IsTrue( info.Usage.HasFlag( Borealis.Gpu.TextureUsage.Storage ), "made for compute" );
+
+		using var filled = Texture.CreateVolume( 1, 1, 1 ).WithData( [255, 255, 255, 255] ).WithName( "test filled volume" ).Finish();
+		var filledInfo = borealis.Device.InfoOf( borealis.TextureOf( filled ) );
+		Assert.AreEqual( Borealis.Gpu.TextureDimension.Texture3D, filledInfo.Dimension );
+		Assert.AreEqual( Borealis.Gpu.Format.RGBA8Unorm, filledInfo.Format );
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
 }

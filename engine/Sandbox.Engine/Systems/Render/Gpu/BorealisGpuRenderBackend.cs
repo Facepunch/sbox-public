@@ -516,6 +516,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		{
 			handle = file;
 		}
+		else if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_VOLUME_TEXTURE ) )
+		{
+			handle = VolumeOf( texture );
+		}
 		else if ( InitialPixels( texture, GpuFormat.RGBA8Unorm ) is { } pixels )
 		{
 			// With its mips, as Source 2 generates them from the first
@@ -550,6 +554,45 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 		textures.Add( texture, new Backing<TextureHandle>( handle ) );
 		textureOwners[handle] = texture;
+		return handle;
+	}
+
+	/// <summary>
+	/// A volume (<see cref="Texture.CreateVolume"/>) as a 3D texture in its own format, storage when made for compute, with the
+	/// pixels it was made with, or cleared. As a 2D texture, a compute shader's storage binding of it had no view and its
+	/// sampled binding the wrong shape.
+	/// </summary>
+	TextureHandle VolumeOf( Texture texture )
+	{
+		var format = DataFormatOf( texture.ImageFormat );
+		var known = format != GpuFormat.Unknown;
+		var info = new TextureInfo
+		{
+			Width = texture.Width,
+			Height = texture.Height,
+			Depth = Math.Max( texture.Depth, 1 ),
+			Layers = 1,
+			Mips = 1,
+			Samples = 1,
+			Dimension = TextureDimension.Texture3D,
+			Format = known ? format : GpuFormat.RGBA8Unorm,
+			Usage = TextureUsage.Sampled | TextureUsage.CopyDestination | TextureUsage.CopySource,
+			Name = $"Engine volume {texture.Width}x{texture.Height}x{texture.Depth}",
+		};
+		if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) ) info.Usage |= TextureUsage.Storage;
+
+		var handle = gpu.CreateTexture( info );
+		var size = (long)info.Width * info.Height * info.Depth * info.Format.BytesPerBlock();
+		if ( known && texture.InitialPixels is { } data && data.Length >= size )
+		{
+			Upload( handle, info, data.AsSpan( 0, (int)size ), ImageLayout.Undefined );
+		}
+		else
+		{
+			context.Track( handle, ImageLayout.Undefined );
+			ClearNow( handle, Color.Transparent );
+		}
+
 		return handle;
 	}
 
@@ -747,19 +790,23 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>
 	/// A texture updated on Source 2's device: its copy here takes the same bytes, recorded where uploads go, rather than
 	/// being dropped and copied back from Source 2's pixels. Mips past the first are filled again from it. False when the
-	/// copy is in another format than the data, or the update is of a 3D texture.
+	/// copy is in another format than the data, or the update is of part of a 3D texture's slices.
 	/// </summary>
 	public override bool Update( Texture texture, ReadOnlySpan<byte> data, int x, int y, int z, int width, int height, int depth )
 	{
 		if ( !textures.TryGetValue( texture, out var backing ) ) return true;
-		if ( z != 0 || depth > 1 ) return false;
 
 		var info = gpu.InfoOf( backing.Handle );
 		if ( DataFormatOf( texture.ImageFormat ) != info.Format ) return false;
 
+		// A volume takes every slice at once (CommandList.CopyBufferToTexture), so only an update of all of them
+		var slices = info.Dimension == TextureDimension.Texture3D ? info.Depth : 1;
+		if ( z != 0 || (depth > 1 && depth != slices) ) return false;
+
 		width = width > 0 ? width : info.Width;
 		height = height > 0 ? height : info.Height;
-		var size = width * height * info.Format.BytesPerBlock();
+		if ( slices > 1 && (x != 0 || y != 0 || width != info.Width || height != info.Height) ) return false;
+		var size = width * height * slices * info.Format.BytesPerBlock();
 		if ( data.Length < size ) return false;
 
 		Upload( backing.Handle, info, data[..size], context.LayoutOf( backing.Handle ), x, y, width, height );
