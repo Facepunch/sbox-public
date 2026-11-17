@@ -934,7 +934,7 @@ internal sealed partial class BackendContext
 			Draws = (uint)slots.Draws,
 			Runs = compact ? (uint)(frameOffset + runsOffset) : 0,
 			Frame = device.GpuDrivenFrame,
-			Capacity = BackendDevice.VisibilityCompactedIndices,
+			Capacity = visibility is { CompactedCapacity: > 0 } ? (uint)visibility.CompactedCapacity : BackendDevice.VisibilityCompactedIndices,
 			FragmentWords = (uint)(frameOffset + fragmentOffset) - firstInstance * 4,
 			Listed = lists || meshlets ? (uint)(frameOffset + listedOffset) : 0,
 			MeshletRuns = meshlets || lists && MeshletStampsReady( visibility ) ? (uint)device.MeshletStore.RunSlot : uint.MaxValue,
@@ -1066,7 +1066,7 @@ internal sealed partial class BackendContext
 			Runs = (uint)(region.Offset + region.Runs),
 			Draws = (uint)device.GpuDrivenTables.Slots.Draws,
 			RunTable = (uint)device.MeshletStore.RunSlot,
-			Capacity = BackendDevice.PrepassCompactedIndices,
+			Capacity = visibility is { PrepassCapacity: > 0 } ? (uint)visibility.PrepassCapacity : BackendDevice.PrepassCompactedIndices,
 			FragmentWords = (uint)(region.Offset + region.FragmentWords) - region.FirstInstance * 4,
 			Samples = (uint)samples,
 			Frame = device.GpuDrivenFrame,
@@ -1621,7 +1621,7 @@ internal sealed partial class BackendContext
 					Commands = (uint)(frameOffset + commandOffset),
 					Frame = device.GpuDrivenFrame,
 					KeptAt = BackendDevice.MeshletKeptAt,
-					KeptCapacity = BackendDevice.MeshletKeptCapacity,
+					KeptCapacity = visibility.KeptCapacity,
 					CullMode = (uint)((bucket.Variant ?? idsShaderVariant).State.Cull),
 				} );
 				r.List.DrawMeshTasksIndirect( frameBuffer, frameOffset + runsOffset + i * 8 + 4 );

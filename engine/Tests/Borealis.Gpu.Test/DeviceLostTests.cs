@@ -70,4 +70,29 @@ public class DeviceLostTests : GpuTest
 		var errors = TakeValidationErrors();
 		CollectionAssert.AreEqual( new[] { "Borealis.Gpu.DeviceLost" }, errors, string.Join( ", ", errors ) );
 	}
+
+	/// <summary>
+	/// A timeline past everything submitted (what a driver signals once the device is lost, before any call says so) takes the
+	/// device as lost, so nothing is submitted after it: a signal below the timeline's value is invalid.
+	/// </summary>
+	[TestMethod]
+	[Timeout( 30_000 )]
+	public unsafe void TimelinePastSubmittedMeansLost()
+	{
+		Device.Wait( Device.Submit( Device.BeginCommandList( QueueType.Graphics, "First" ) ) );
+
+		// A held list takes the next value without reaching the GPU, so the timeline is read again
+		var held = Device.SubmitLater( Device.BeginCommandList( QueueType.Graphics, "Held" ) );
+		var queue = Device.QueueFor( QueueType.Graphics );
+		var info = new Borealis.Gpu.Vulkan.VkSemaphoreSignalInfo { sType = Borealis.Gpu.Vulkan.VkStructureType.SemaphoreSignalInfo, semaphore = queue.Timeline, value = queue.Submitted + 1000 };
+		Assert.AreEqual( 0, (int)Device.Vk.vkSignalSemaphore( Device.Vk.Device, &info ) );
+
+		Assert.IsTrue( Device.IsComplete( held ) );
+		Assert.IsTrue( Device.IsLost );
+		StringAssert.Contains( Device.LostReport, "jumped" );
+		Assert.ThrowsException<GpuException>( () => Device.Submit( Device.BeginCommandList( QueueType.Graphics, "After" ) ) );
+
+		// The fault report is read as after a real loss, which validation reports here, where the device isn't
+		CollectionAssert.Contains( TakeValidationErrors(), "Borealis.Gpu.DeviceLost" );
+	}
 }

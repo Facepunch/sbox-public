@@ -163,9 +163,41 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		return best;
 	}
 
+	/// <summary>
+	/// Device allocations made in system memory because video memory ran out (<c>VK_ERROR_OUT_OF_DEVICE_MEMORY</c>): slower
+	/// to read on the GPU, but the load goes on rather than failing.
+	/// </summary>
+	public long SystemFallbackBytes { get; private set; }
+
 	public Allocation Allocate( in VkMemoryRequirements requirements, MemoryLocation location, bool image )
 	{
-		var type = FindType( requirements.memoryTypeBits, location );
+		try
+		{
+			return Allocate( requirements, location, image, FindType( requirements.memoryTypeBits, location ) );
+		}
+		catch ( GpuException e ) when ( e.Result == (int)VkResult.ErrorOutOfDeviceMemory && location == MemoryLocation.Device && FallbackType( requirements.memoryTypeBits ) is { } fallback )
+		{
+			var allocation = Allocate( requirements, location, image, fallback );
+			lock ( allocationLock ) SystemFallbackBytes += (long)allocation.Size;
+			return allocation;
+		}
+	}
+
+	/// <summary>A memory type among <paramref name="typeBits"/> that isn't video memory, for when video memory is full.</summary>
+	int? FallbackType( uint typeBits )
+	{
+		for ( int i = 0; i < properties.memoryTypeCount; i++ )
+		{
+			if ( (typeBits & (1u << i)) == 0 ) continue;
+			var flags = properties.Type( i ).propertyFlags;
+			if ( (flags & Vk.MemoryDeviceLocal) == 0 && (flags & Vk.MemoryLazilyAllocated) == 0 ) return i;
+		}
+
+		return null;
+	}
+
+	Allocation Allocate( in VkMemoryRequirements requirements, MemoryLocation location, bool image, int type )
+	{
 		var size = requirements.size;
 		var alignment = Math.Max( requirements.alignment, 1 );
 
