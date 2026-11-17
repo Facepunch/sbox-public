@@ -814,6 +814,22 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	ShaderFile Shader( string path ) => shaders.TryGetValue( path, out var shader ) ? shader : shaders[path] = AddNames( drawer.Shaders.Load( path ) );
 
+	/// <summary>
+	/// A shader compiled while running isn't under this device's content (the engine links it into GAME, or keeps an
+	/// anonymous one in memory): take its bytes by the name its materials give, and forget what materials resolved to before.
+	/// </summary>
+	public override void ShaderCompiled( string path, byte[] compiled )
+	{
+		try
+		{
+			if ( services.Shaders.Add( path, compiled ) ) shaders.Clear();
+		}
+		catch ( Exception e ) when ( e is System.IO.InvalidDataException or System.IO.IOException )
+		{
+			Log.Warning( $"Borealis.Gpu: {path} compiled, but doesn't load here: {e.Message}" );
+		}
+	}
+
 	/// <summary>Learn the attribute and combo names a shader reads, so tokens can be turned back into them.</summary>
 	ShaderFile AddNames( ShaderFile shader )
 	{

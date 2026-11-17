@@ -66,6 +66,35 @@ public sealed class ShaderLibrary : IDisposable
 		}
 	}
 
+	readonly Dictionary<string, byte[]> added = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// A shader compiled while running (the engine's <c>Shader.CompileAsync</c>, a hotloaded <c>.shader</c>), by the path its
+	/// materials name, from its compiled bytes: it replaces whatever was loaded or added under that path, so later lookups
+	/// and variants draw the new one. False when these bytes are already the ones there. Throws as
+	/// <see cref="ShaderFile.Read"/> does for bytes that aren't a shader this engine reads.
+	/// </summary>
+	public bool Add( string path, byte[] compiled )
+	{
+		ArgumentNullException.ThrowIfNull( compiled );
+		var key = path.Replace( '\\', '/' );
+		if ( key.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) key = key[..^2];
+		var hash = System.Security.Cryptography.SHA256.HashData( compiled );
+		lock ( files )
+		{
+			if ( added.TryGetValue( key, out var known ) && known.AsSpan().SequenceEqual( hash ) ) return false;
+		}
+
+		var shader = ShaderFile.Read( compiled, key );
+		lock ( files )
+		{
+			files[key] = shader;
+			added[key] = hash;
+		}
+
+		return true;
+	}
+
 	(ShaderFile Shader, bool Found) LoadUncached( string key )
 	{
 		// A bare name (downsample_spd), as the engine's Material.FromShader takes one, is a shader under shaders/

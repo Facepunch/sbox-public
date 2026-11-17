@@ -92,6 +92,10 @@ internal static class GameShaders
 				ConVarSystem.RunSingle( $"mat_reloadshaders \"{resourceName}\"" );
 			}
 
+			// A device of its own (Borealis.Gpu) doesn't read GAME's links: it takes the bytes
+			if ( RenderBackend.TakesCompiledShaders )
+				RenderBackend.ShaderCompiledEverywhere( resourceName, result.CompiledShader ?? await File.ReadAllBytesAsync( cachePath + "_c", cancel ) );
+
 			return true;
 		} );
 
@@ -137,6 +141,9 @@ internal static class GameShaders
 
 		if ( !Graphics.IsAvailable )
 			return null;
+
+		if ( RenderBackend.TakesCompiledShaders )
+			RenderBackend.ShaderCompiledEverywhere( resourceName, compiled );
 
 		var shader = Shader.FromNative( CreateNative( resourceName, compiled ), resourceName );
 		if ( shader is null )
