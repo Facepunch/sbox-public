@@ -10,11 +10,15 @@ namespace Borealis.Source2.Materials;
 /// A compiled texture (<c>.vtex_c</c>): the 40-byte <c>VTEX_Header_t</c> in its <c>DATA</c> block, and mips after the
 /// resource's header, smallest first, each mip's slices (cube faces, array layers) in order. Mips may be LZ4 or
 /// Zstandard compressed one by one (<c>VTEX_EXTRA_DATA_COMPRESSED_MIP_SIZE</c>, sizes listed largest mip first; a mip
-/// whose stored size is its full size is stored raw). See <c>src/public/rendersystem/vtex_file_format.h</c>.
+/// whose stored size is its full size is stored raw). A <c>PNG_RGBA8888</c> texture (an image file compiled as is) holds a
+/// PNG file there instead, read as 8-bit RGBA. See <c>src/public/rendersystem/vtex_file_format.h</c>.
 /// </summary>
 public sealed class TextureFile
 {
 	const int FlagCube = 0x10, FlagVolume = 0x20, FlagArray = 0x40;
+
+	// VTEX_Format_t's PNG_RGBA8888 and PNG_DXT5: a PNG file in place of the mips
+	const int PngRgba8888 = 16, PngDxt5 = 18;
 
 	/// <summary>Size of mip 0.</summary>
 	public int Width { get; private init; }
@@ -34,7 +38,7 @@ public sealed class TextureFile
 	/// <summary><c>VTEX_Format_t</c>.</summary>
 	public int SourceFormat { get; private init; }
 
-	/// <summary>The Borealis.Gpu format, or <see cref="Format.Unknown"/> for ones it has no form of (JPEG, PNG, ETC).</summary>
+	/// <summary>The Borealis.Gpu format, or <see cref="Format.Unknown"/> for ones it has no form of (JPEG, ETC).</summary>
 	public Format Format { get; private init; }
 
 	/// <summary>Its shape.</summary>
@@ -83,7 +87,14 @@ public sealed class TextureFile
 		top = Math.Clamp( top < 0 ? header.TailTop : top, 0, header.Mips - 1 );
 
 		var mipData = new byte[header.Mips][];
-		if ( header.GpuFormat != Format.Unknown )
+		if ( header.Png )
+		{
+			var (width, height, rgba) = Png.Decode( data.AsSpan( header.HeaderBytes ) );
+			if ( width != header.Width || height != header.Height ) throw new InvalidDataException( $"Texture's PNG is {width}x{height}, not {header.Width}x{header.Height}" );
+			mipData[0] = rgba;
+			top = 0;
+		}
+		else if ( header.GpuFormat != Format.Unknown )
 		{
 			var position = header.HeaderBytes;
 			for ( int mip = header.Mips - 1; mip >= top; mip-- )
@@ -128,6 +139,7 @@ public sealed class TextureFile
 
 		var header = new Header( prefix );
 		if ( header.GpuFormat == Format.Unknown ) return header.HeaderBytes;
+		if ( header.Png ) return prefix.Length <= header.HeaderBytes ? header.HeaderBytes + 8 : header.HeaderBytes + Png.Length( prefix.AsSpan( header.HeaderBytes ) );
 		top = Math.Clamp( top < 0 ? header.TailTop : top, 0, header.Mips - 1 );
 		long bytes = header.HeaderBytes;
 		for ( int mip = top; mip < header.Mips; mip++ ) bytes += header.Stored[mip];
@@ -138,7 +150,7 @@ public sealed class TextureFile
 	readonly struct Header
 	{
 		public readonly int Width, Height, Depth, SourceFormat, Mips, Slices, Compression, HeaderBytes, TailTop;
-		public readonly bool Cube, Array, Volume;
+		public readonly bool Cube, Array, Volume, Png;
 		public readonly Format GpuFormat;
 		public readonly int[] Stored;
 
@@ -156,6 +168,7 @@ public sealed class TextureFile
 			Depth = header.UShort();
 			SourceFormat = header.Byte();
 			Mips = Math.Max( (int)header.Byte(), 1 );
+			Png = SourceFormat is PngRgba8888 or PngDxt5;
 			header.Int();
 			var extraStart = header.Position;
 			var extraOffset = header.Int();
@@ -165,7 +178,10 @@ public sealed class TextureFile
 			Array = (flags & FlagArray) != 0;
 			Volume = (flags & FlagVolume) != 0;
 			Slices = (Array ? Math.Max( Depth, 1 ) : 1) * (Cube ? 6 : 1);
-			GpuFormat = FormatOf( SourceFormat );
+			GpuFormat = Png ? Format.RGBA8Unorm : FormatOf( SourceFormat );
+
+			// The PNG is the first mip alone
+			if ( Png ) Mips = 1;
 
 			// Compressed mip sizes, if any
 			uint[] compressedSizes = null;
@@ -185,7 +201,7 @@ public sealed class TextureFile
 
 			Stored = new int[Mips];
 			TailTop = Mips - 1;
-			if ( GpuFormat == Format.Unknown ) return;
+			if ( GpuFormat == Format.Unknown || Png ) return;
 
 			long tail = 0;
 			for ( int mip = Mips - 1; mip >= 0; mip-- )
