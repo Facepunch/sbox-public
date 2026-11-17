@@ -67,7 +67,7 @@ internal static unsafe class SlangApi
 	/// Most global sessions made at once: each compiles on one thread at a time (Slang's sessions aren't thread-safe), so
 	/// this many compiles run in parallel. Each holds Slang's core module.
 	/// </summary>
-	public static int MaxSessions { get; } = Math.Clamp( Environment.ProcessorCount / 2, 1, 8 );
+	public static int MaxSessions { get; set; } = Math.Clamp( Environment.ProcessorCount / 2, 1, 8 );
 
 	/// <summary>
 	/// A global session of <c>slang.dll</c> in <paramref name="directory"/> (loaded on first use) for this thread alone until

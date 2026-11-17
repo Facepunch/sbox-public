@@ -13,6 +13,11 @@ public static partial class Program
 	[STAThread]
 	public static int Main( string[] args )
 	{
+		// Slang: every surface, raw module and pass module under the shaders folders compiled offline into name.slang_c beside
+		// it (Borealis.Backend.OfflineShaders), only those whose inputs changed. Needs no engine
+		if ( args.Any( x => x.Equals( "-slang", StringComparison.OrdinalIgnoreCase ) ) )
+			return Borealis.Backend.OfflineShaders.CompileAll( System.IO.Directory.GetCurrentDirectory(), Console.WriteLine ) == 0 ? 0 : 1;
+
 		var options = new ShaderCompileOptions();
 		// Exact matches - substring matching meant any other flag containing these letters (e.g. -slang) turned them on
 		options.ForceRecompile = args.Any( x => x == "-f" );

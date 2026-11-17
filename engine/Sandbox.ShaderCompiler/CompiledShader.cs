@@ -36,6 +36,9 @@ public sealed class CompiledShader
 	/// <summary>Whether it came from the compiler's disk cache (<see cref="SlangCompiler.CacheFolder"/>).</summary>
 	public bool FromCache { get; init; }
 
+	/// <summary>Whether it came from its source's offline compile (<see cref="SlangOutput"/>), which build-shaders makes.</summary>
+	public bool Offline { get; init; }
+
 	/// <summary>A pass, or null when the shader doesn't have it.</summary>
 	public CompiledPass Pass( string name ) => Passes.TryGetValue( name, out var pass ) ? pass : null;
 }
