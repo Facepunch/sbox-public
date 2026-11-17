@@ -178,9 +178,13 @@ public partial class Texture : Resource, IDisposable
 	{
 		get
 		{
-			return native.IsValid ? g_pRenderDevice.GetTextureMultisampleType( native ) : RenderMultisampleType.RENDER_MULTISAMPLE_NONE;
+			if ( !native.IsValid ) return RenderMultisampleType.RENDER_MULTISAMPLE_NONE;
+			return Graphics.HasSource2Device ? g_pRenderDevice.GetTextureMultisampleType( native ) : CreatedMultisample;
 		}
 	}
+
+	/// <summary>What the texture was made with, for answering without Source 2's device (<see cref="Graphics.HasSource2Device"/>).</summary>
+	internal RenderMultisampleType CreatedMultisample { get; set; }
 
 	internal override void Destroy()
 	{
@@ -340,7 +344,7 @@ public partial class Texture : Resource, IDisposable
 		g_pRenderDevice.MarkTextureUsed( native, requiredMipSize );
 	}
 
-	internal bool IsRenderTarget => g_pRenderDevice.IsTextureRenderTarget( native );
+	internal bool IsRenderTarget => Graphics.HasSource2Device ? g_pRenderDevice.IsTextureRenderTarget( native ) : Desc.m_nFlags.Contains( RuntimeTextureSpecificationFlags.TSPEC_RENDER_TARGET );
 
 	/// <summary>
 	/// Mark this texture as loading, create a texture in a task, replace this texture with it, mark it as loaded.

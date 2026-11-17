@@ -88,7 +88,7 @@ public partial class Texture
 				else
 				{
 					var rect = new NativeRect( 0, 0, width, height );
-					if ( !g_pRenderDevice.ReadTexturePixels( native, ref rect, 0, mip, ref rect, (IntPtr)pData, outputFormat, 0 ) )
+					if ( !RenderBackend.Default.ReadPixels( this, rect, 0, mip, rect, (IntPtr)pData, outputFormat, 0 ) )
 					{
 						bitmap.Dispose();
 						return null;
@@ -232,7 +232,7 @@ public partial class Texture
 
 		fixed ( T* dataPtr = dstData )
 		{
-			if ( !g_pRenderDevice.ReadTexturePixels( native, ref nativeSrcRect, slice, mip, ref nativeDstRect, (IntPtr)dataPtr, dstFormat, dstStrideBytes ) )
+			if ( !RenderBackend.Default.ReadPixels( this, nativeSrcRect, slice, mip, nativeDstRect, (IntPtr)dataPtr, dstFormat, dstStrideBytes ) )
 				throw new Exception( "Unable to read texture pixels" );
 		}
 	}
@@ -301,7 +301,7 @@ public partial class Texture
 
 		fixed ( T* dataPtr = dstData )
 		{
-			if ( !g_pRenderDevice.ReadTexturePixels( native, ref nativeSrcRect, slice, mip, ref nativeDstRect, (IntPtr)dataPtr, dstFormat, (int)strideBytes ) )
+			if ( !RenderBackend.Default.ReadPixels( this, nativeSrcRect, slice, mip, nativeDstRect, (IntPtr)dataPtr, dstFormat, (int)strideBytes ) )
 				throw new Exception( "Unable to read texture pixels" );
 		}
 	}
@@ -382,7 +382,7 @@ public partial class Texture
 
 		fixed ( Color32* dataPtr = data )
 		{
-			if ( !g_pRenderDevice.ReadTexturePixels( native, ref source, 0, mip, ref dest, (IntPtr)dataPtr, ImageFormat.RGBA8888, 0 ) )
+			if ( !RenderBackend.Default.ReadPixels( this, source, 0, mip, dest, (IntPtr)dataPtr, ImageFormat.RGBA8888, 0 ) )
 				return Color.Red;
 		}
 
@@ -414,7 +414,7 @@ public partial class Texture
 
 		fixed ( Color32* dataPtr = data )
 		{
-			if ( !g_pRenderDevice.ReadTexturePixels( native, ref source, (int)z, mip, ref dest, (IntPtr)dataPtr, ImageFormat.RGBA8888, 0 ) )
+			if ( !RenderBackend.Default.ReadPixels( this, source, (int)z, mip, dest, (IntPtr)dataPtr, ImageFormat.RGBA8888, 0 ) )
 				return Color.Red;
 		}
 
