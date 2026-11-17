@@ -1,5 +1,6 @@
 // screen_space_reflections_cs.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules"). Normals and roughness are the opaque
+// pass's from last frame (common/classes/ForwardNormals.hlsl), as Borealis draws no depth-normals prepass.
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Cone-traced screen space reflections";
@@ -21,13 +22,14 @@
 #define PASS_BILATERAL_UPSCALE 2
 
 DynamicCombo( D_PASS, 1..2, Sys( PC ) );
+// Whether the opaque pass's normals target (common/classes/ForwardNormals.hlsl) is multisampled, as the view
 DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( PC ) );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
     #include "common/classes/Depth.hlsl"
+    #include "common/classes/ForwardNormals.hlsl"
     #include "common/classes/ScreenSpaceTrace.hlsl"
-    #include "common/classes/Normals.hlsl"
     #include "common/classes/Motion.hlsl"
 
     int                    PreviousFrameColorIndex < Attribute( "PreviousFrameColorIndex" ); >;

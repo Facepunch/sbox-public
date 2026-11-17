@@ -638,13 +638,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		{
 			InitializeRendering();
 
-			var warmingCompare = Rendering.ManagedSceneRendering.BeforeCameraRender( this );
-			var renderer = Rendering.SceneRenderer.Current;
-			RenderWith( renderer, swapChain, CustomSize ?? size );
-
-			// r_managed_scene_compare: native renders over Borealis's frame while the compare warms up
-			if ( warmingCompare && renderer != Rendering.SceneRenderer.Native )
-				RenderWith( Rendering.SceneRenderer.Native, swapChain, CustomSize ?? size );
+			RenderWith( Rendering.SceneRenderer.Current, swapChain, CustomSize ?? size );
 		}
 	}
 

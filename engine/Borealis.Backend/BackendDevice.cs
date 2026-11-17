@@ -512,7 +512,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			{
 				if ( !meshletStoreTried )
 				{
-					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) : null;
+					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) { LocalData = MeshletTasks && Gpu.Capabilities.MeshShaders } : null;
 					if ( meshletStore is not null ) gpuDrivenTables.Meshlets = meshletStore;
 					Volatile.Write( ref meshletStoreTried, true );
 				}
@@ -717,8 +717,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		var format = Map( desc.Format );
 		var samples = Math.Max( desc.Samples, 1 );
 		var usage = TextureUsage.CopySource | TextureUsage.CopyDestination;
-		// Multisampled targets aren't sampled, except depth: a frame's depth chain reads it (D_MSAA), as Source 2's targets allow
-		if ( samples == 1 || format.IsDepth() ) usage |= TextureUsage.Sampled;
+		// Multisampled targets aren't sampled, except depth (a frame's depth chain reads it, D_MSAA, as Source 2's targets
+		// allow) and those that ask (the opaque pass's normals, which reflections read)
+		if ( samples == 1 || format.IsDepth() || desc.SampledMultisampled ) usage |= TextureUsage.Sampled;
 		if ( desc.RenderTarget ) usage |= format.IsDepth() ? TextureUsage.DepthTarget : TextureUsage.ColorTarget;
 		if ( desc.Storage ) usage |= TextureUsage.Storage;
 
@@ -1170,11 +1171,13 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// made once. Mesh vertices are stream 0, instance ids stream 1 (<c>TEXCOORD13</c>), and inputs the mesh lacks, or
 	/// has as integers where the shader wants floats (or the other way round), read the default stream 2, as native's
 	/// input layouts do for streams a mesh doesn't have. A vertex-cache layout reads vertex ids from streams 2 and 3 and
-	/// the default stream from 4.
+	/// the default stream from 4. With <paramref name="normals"/>, the opaque pass's normals target follows colour, unwritten
+	/// (<see cref="AddNormalsTarget"/>).
 	/// </summary>
-	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false, bool ids = false, ShaderVariant stateFrom = null )
+	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false, bool ids = false, ShaderVariant stateFrom = null, bool normals = false )
 	{
-		var key = new PipelineKey( variant, layout, ids ? IdsColorKey : color, depth, samples, depthOnly, sets, materialPerDraw, stateFrom );
+		normals &= color != Format.Unknown && !ids;
+		var key = new PipelineKey( variant, layout, ids ? IdsColorKey : color, depth, samples, depthOnly, sets, materialPerDraw, stateFrom, normals );
 		lock ( pipelines )
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
@@ -1203,6 +1206,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			// A module with task and mesh stages draws with them, and no vertex input
 			var info = variant.Mesh is not null && Gpu.Capabilities.MeshShaders ? variant.MeshPipelineInfo( colors, depth, samples, depthBias, name ).Value : variant.PipelineInfo( streams, attributes, colors, depth, samples, depthBias, name );
 			if ( ids ) info.Blend = [BlendState.Opaque, BlendState.Opaque];
+			if ( normals ) AddNormalsTarget( ref info, !depthOnly && WritesNormals( variant ) );
 			if ( sets is not null ) info.Sets = sets;
 
 			// borealis_gpu_driven_ids drawing another variant's depth: that variant's culling, depth and stencil
@@ -1295,7 +1299,35 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal static readonly string DumpSurfaceShaders = Environment.GetEnvironmentVariable( "BOREALIS_DUMP_SURFACE_SHADERS" );
 
-	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false, ShaderVariant StateFrom = null );
+	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false, ShaderVariant StateFrom = null, bool Normals = false );
+
+	/// <summary>
+	/// <c>kForwardNormalsOutput</c> in sbox/forward_normals.slangh: a pixel stage that has it writes the opaque pass's normals
+	/// and roughness at target 1 while it's set.
+	/// </summary>
+	internal const uint NormalsOutputId = 121;
+
+	/// <summary>
+	/// Add the opaque pass's normals target (<see cref="NormalsFormat"/>) after a pipeline's colour targets: written with
+	/// <paramref name="writes"/> (an opaque forward pass whose pixel stage has <see cref="NormalsOutputId"/>, which this sets),
+	/// left as it is otherwise. Each colour target keeps its blend.
+	/// </summary>
+	internal static void AddNormalsTarget( ref GraphicsPipelineInfo info, bool writes )
+	{
+		var colors = info.ColorFormats ?? [];
+		var blend = new BlendState[colors.Length + 1];
+		for ( int i = 0; i < colors.Length; i++ ) blend[i] = info.Blend is { Length: > 0 } b ? b[Math.Min( i, b.Length - 1 )] : BlendState.Opaque;
+		blend[^1] = writes ? BlendState.Opaque : BlendState.NoWrites;
+		info.ColorFormats = [.. colors, NormalsFormat];
+		info.Blend = blend;
+		if ( writes ) info.FragmentConstants = [.. (info.FragmentConstants ?? []).Where( c => c.Id != NormalsOutputId ), new SpecializationConstant( NormalsOutputId, 1 )];
+	}
+
+	/// <summary>
+	/// Whether a variant's pixel stage writes the opaque pass's normals: a Slang pass module's that includes
+	/// sbox/forward_normals.slangh (water), whose SPIR-V has <see cref="NormalsOutputId"/>. Compiled programs have none.
+	/// </summary>
+	static bool WritesNormals( ShaderVariant variant ) => variant.Pixel?.Reflection?.SpecializationIds?.Contains( NormalsOutputId ) == true;
 
 	/// <summary><c>BOREALIS_GPU_DRIVEN_MATERIAL_PER_DRAW_ID</c>: set, a GPU-driven pixel shader reads <c>g_nBorealisPixelMaterial</c>.</summary>
 	const uint GpuDrivenMaterialPerDrawConstant = 120;
@@ -1330,6 +1362,15 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>Its materials read their shaders' stencil state (<see cref="BackendMaterial.NeedsStencil"/>).</summary>
 	internal override bool KnowsStencilUse => true;
+
+	/// <summary>
+	/// Surfaces' opaque forward passes write their normal and roughness into the pass's second target when it has one
+	/// (<see cref="NormalsFormat"/>); every other pipeline drawn there leaves it as it is.
+	/// </summary>
+	internal override bool WritesForwardNormals => true;
+
+	/// <summary>The opaque pass's normals target (<see cref="ScreenSpaceReflectionsLayer.NormalsFormat"/>).</summary>
+	internal const Format NormalsFormat = Format.RGB10A2Unorm;
 
 	/// <summary>
 	/// Draw a map's static overlays GPU-driven (on by default; <c>-no-gpudriven-overlays</c> turns it off): those of one
@@ -1446,8 +1487,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// Whether prepass meshlets are culled and drawn with task and mesh shaders (<c>borealis_meshlet_ids</c>) where the
 	/// device has them, in place of the compute pass, its index copies and indexed draws. Off by default: it costs more GPU
-	/// time than the compute pass on the Steam Deck and saves none on the PC (docs/managed/borealis-gpu-driven.md,
-	/// "Meshlets"); <c>-mesh-shaders</c> turns it on. Set it before drawing.
+	/// time than the compute pass on the Steam Deck and on the PC (docs/managed/borealis-gpu-driven.md, "Meshlets");
+	/// <c>-mesh-shaders</c> turns it on. Set it before drawing.
 	/// </summary>
 	public bool MeshletTasks { get; set; } = HasSwitch( "-mesh-shaders" );
 

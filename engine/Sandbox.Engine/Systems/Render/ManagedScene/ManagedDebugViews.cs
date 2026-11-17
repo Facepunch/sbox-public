@@ -1,7 +1,7 @@
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// The managed scene renderer's own debug views, which only draw while it renders the camera (<c>r_managed_scene 1</c>):
+/// The managed scene renderer's own debug views, which only draw while it renders the camera (<c>-borealisgpu</c>):
 /// LOD colours, cull reasons and the shadow map viewer. Its host reads these, and gives back what each frame found for
 /// <see cref="DebugOverlay.ManagedViews"/> to label. See docs/managed/borealis.md, <i>Debug views</i>.
 /// </summary>

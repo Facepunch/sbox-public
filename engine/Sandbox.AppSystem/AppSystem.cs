@@ -62,8 +62,8 @@ public class AppSystem
 	}
 
 	/// <summary>
-	/// Native's rendering pipeline gets its layers from Sandbox.Rendering, which also renders cameras through Borealis when
-	/// <c>r_managed_scene</c> is on. It references the engine, so it's registered with it here.
+	/// Native's rendering pipeline gets its layers from Sandbox.Rendering, which also renders cameras through Borealis on a
+	/// Borealis.Gpu device (<c>-borealisgpu</c>). It references the engine, so it's registered with it here.
 	/// </summary>
 	protected static void InstallRenderers()
 	{
@@ -286,7 +286,7 @@ public class AppSystem
 		RenderPipeline.Shutdown();
 		ShadowMapperCallbacks.Shutdown();
 
-		// So may the managed scene renderer, if r_managed_scene loaded it
+		// So may Borealis, on a Borealis.Gpu device
 		Rendering.SceneRenderer.Shutdown();
 
 		// Destroy all cached render targets immediately — must happen before

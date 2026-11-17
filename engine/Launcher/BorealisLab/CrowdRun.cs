@@ -435,7 +435,7 @@ internal static class CrowdRun
 	}
 
 	/// <summary>Copy the resolved colour into a swap chain image, left ready to present.</summary>
-	static void CopyTo( GpuDevice gpu, CommandList list, ViewTarget target, TextureHandle image )
+	internal static void CopyTo( GpuDevice gpu, CommandList list, ViewTarget target, TextureHandle image )
 	{
 		var resolved = target.Samples > 1 ? target.Resolved : target.Color;
 		var (texture, layout) = BackendDevice.Unwrap( resolved );

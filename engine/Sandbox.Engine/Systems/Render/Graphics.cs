@@ -17,12 +17,24 @@ public static partial class Graphics
 	/// </summary>
 	public static bool IsAvailable { get; private set; }
 
+	/// <summary>
+	/// Whether Source 2's render device is a real one. Without it (its empty render system) Source 2 makes no GPU
+	/// resources: its textures, buffers and meshes are descriptions, and what draws is <see cref="RenderBackend.Default"/>.
+	/// </summary>
+	internal static bool HasSource2Device { get; set; }
+
+	/// <summary>Whether the process draws on a Borealis.Gpu device of its own (<c>-borealisgpu</c>).</summary>
+	internal static readonly bool BorealisGpuRequested = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu" );
+
 	internal static void Initialize()
 	{
-		IsAvailable = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
+		// With -borealisgpu the process renders even on Source 2's empty render device: Borealis.Gpu draws
+		var borealisGpu = BorealisGpuRequested;
+		HasSource2Device = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
+		IsAvailable = HasSource2Device || borealisGpu;
 
 		// -borealisgpu: the process draws on a Borealis.Gpu device of its own (docs/managed/borealis-gpu-path.md, stage 2)
-		if ( IsAvailable && Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu" ) && RenderBackend.Default is Source2RenderBackend )
+		if ( IsAvailable && borealisGpu && RenderBackend.Default is Source2RenderBackend )
 		{
 			var validation = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-validation" );
 			// Progress markers for the device-loss report, unless -borealisgpu-nomarkers
@@ -309,8 +321,8 @@ public static partial class Graphics
 
 				var managed = backend.BeginBlock();
 				var block = new Scope { _previous = _state, standalone = true, _attributes = managed, _backend = backend };
-				// Its targets are single-sampled (a Borealis.Gpu frame hands over its resolved colour)
-				_state = new RenderState { active = true, attributes = managed, backend = backend, msaaLevel = MultisampleAmount.MultisampleNone };
+				// Its targets are single-sampled (a Borealis.Gpu frame hands over its resolved colour), unless the view says
+				_state = new RenderState { active = true, attributes = managed, backend = backend, msaaLevel = view?.Msaa ?? MultisampleAmount.MultisampleNone };
 				if ( view is not null )
 				{
 					_state.view = view;
@@ -351,33 +363,6 @@ public static partial class Graphics
 
 		/// <summary>The standalone attributes, or null inside a scene view.</summary>
 		internal RenderAttributes Attributes => _attributes;
-
-		/// <summary>
-		/// A render block over a managed frame (<see cref="ManagedView"/>): <paramref name="context"/> is recording it, and
-		/// its own attributes are the block's, as a native view's are - draws fall back to them for what they don't set.
-		/// The view's targets are bound.
-		/// </summary>
-		internal Scope( IRenderContext context, ManagedView view )
-		{
-			_previous = _state;
-			_state = new RenderState
-			{
-				active = true,
-				renderContext = context,
-				view = view,
-				layerType = view.LayerType,
-				colorFormat = view.ColorFormat,
-				msaaLevel = view.Msaa,
-				cameraTransform = new Transform( view.Frustum.GetCameraPosition(), view.Frustum.GetCameraAngles() ),
-				computeQueue = view.ComputeQueue,
-				backend = Source2RenderBackend.Instance,
-			};
-
-			_state.attributes = ObjectPool<RenderAttributes>.Get();
-			_state.attributes.Set( context.GetAttributesPtrForModify() );
-
-			view.Bind( context );
-		}
 
 		public Scope( in ManagedRenderSetup_t setup )
 		{

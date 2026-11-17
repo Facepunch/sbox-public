@@ -38,14 +38,14 @@ internal sealed class NativeOcclusionCull : IDisposable
 	RenderViewport viewport;
 	bool msaaInput;
 	Matrix worldToProjection;
-	OcclusionHistory history;
+	NativeOcclusionHistory history;
 	OcclusionDebugTarget debug;
 	bool rejectEarly;
 
 	// What the late and early culls test against. Frozen, the late cull tests against the frozen depth rather than building
 	// its own
-	OcclusionDepth current;
-	OcclusionDepth previous;
+	NativeOcclusionDepth current;
+	NativeOcclusionDepth previous;
 	bool frozen;
 
 	public NativeOcclusionCull()
@@ -62,15 +62,15 @@ internal sealed class NativeOcclusionCull : IDisposable
 	/// <summary>
 	/// The camera's history, or null if there's no camera or another view already claimed it this frame.
 	/// </summary>
-	public static OcclusionHistory HistoryFor( SceneCamera camera )
+	public static NativeOcclusionHistory HistoryFor( SceneCamera camera )
 	{
 		if ( camera is null ) return null;
 
-		var history = (OcclusionHistory)(camera.OcclusionHistory ??= new OcclusionHistory());
+		var history = (NativeOcclusionHistory)(camera.OcclusionHistory ??= new NativeOcclusionHistory());
 		return history.Claim( Application.FrameCount ) ? history : null;
 	}
 
-	public void Setup( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle sourceDepth, bool msaaInput, OcclusionHistory history )
+	public void Setup( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle sourceDepth, bool msaaInput, NativeOcclusionHistory history )
 	{
 		this.viewport = viewport;
 		this.msaaInput = msaaInput;
@@ -89,16 +89,16 @@ internal sealed class NativeOcclusionCull : IDisposable
 		// Transposed, since the shader does mul( M, pos )
 		worldToProjection = view.GetFrustum().GetReverseZViewProjTranspose();
 
-		history?.BeginFrame( true, viewport.Rect );
+		history?.BeginFrame( viewport.Rect );
 		previous = history?.EarlyDepth ?? default;
 		rejectEarly = history is { RejectsEarly: true };
-		debug = (history?.Debug as Source2OcclusionDebug)?.Target;
+		debug = history?.Debug;
 		frozen = history is { IsFrozen: true };
 
 		var depthRange = new Vector2( viewport.MinZ, viewport.MaxZ );
-		var size = OcclusionDepth.QuarterSize( viewport.Rect );
-		var scratch = Source2Texture.From( SharedPasses.DepthChainTarget( size.x, size.y ).DepthTarget );
-		current = history?.LateDepth( viewport.Rect, depthRange, worldToProjection, scratch ) ?? OcclusionDepth.Quarter( scratch, viewport.Rect, depthRange, worldToProjection );
+		var size = NativeOcclusionDepth.QuarterSize( viewport.Rect );
+		var scratch = SharedPasses.DepthChainTarget( size.x, size.y ).DepthTarget;
+		current = history?.LateDepth( viewport.Rect, depthRange, worldToProjection, scratch ) ?? NativeOcclusionDepth.Quarter( scratch, viewport.Rect, depthRange, worldToProjection );
 
 		view.SetOcclusionCull( instances.native, runs.native, args.native, culledIds.native, stats.native, dispatchArgs.native, capacity, RenderPipeline.AggregateMode );
 	}
@@ -153,7 +153,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 		if ( !earlyPass && !frozen )
 		{
 			// Our SourceDepth comes from the scene render target system
-			SharedPasses.BuildDepthChain( Graphics.Context, null, current.Chain.Engine(), msaaInput, (int)viewport.Rect.Width, (int)viewport.Rect.Height, DepthResolveMode.ConservativeQuarter );
+			SharedPasses.BuildDepthChain( Graphics.Context, null, current.Chain, msaaInput, (int)viewport.Rect.Width, (int)viewport.Rect.Height, DepthResolveMode.ConservativeQuarter );
 			history?.KeepFrozen( current );
 		}
 
@@ -165,7 +165,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 		attributes.Set( "OcclusionStats", stats );
 
 		// The early pass never reads the current depth, but something has to be bound
-		OcclusionDepth.Bind( Source2Parameters.From( attributes ), earlyPass ? previous : current, previous );
+		NativeOcclusionDepth.Bind( attributes, earlyPass ? previous : current, previous );
 		OcclusionDebugTarget.Bind( attributes, debug, worldToProjection );
 
 		// Native runs each have a single phase and their own arguments, so there's no stride
@@ -200,7 +200,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 		context.BufferBarrierTransition( args.native, ComputeStage, DrawIndirect, Write, RenderBarrierAccessFlags_t.IndirectCommandReadBit );
 		context.BufferBarrierTransition( culledIds.native, ComputeStage, VertexInput, Write, RenderBarrierAccessFlags_t.VertexAttributeReadBit );
 
-		if ( !earlyPass ) debug?.Resolve( Graphics.Context, current.Chain.Engine(), native: true, frozen );
+		if ( !earlyPass ) debug?.Resolve( Graphics.Context, current.Chain, native: true, frozen );
 	}
 
 	void ReadStats()

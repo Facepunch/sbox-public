@@ -98,6 +98,52 @@ public class MeshletTests
 		}
 	}
 
+	/// <summary>
+	/// A meshlet's local data, for the mesh shaders: its vertex list holds each of its distinct index values once, in the
+	/// order its triangles first use them, and each triangle's local corners name its own corners in their order.
+	/// </summary>
+	[TestMethod]
+	public void LocalListsNameEachTrianglesCorners()
+	{
+		UseEngineLibrary();
+		const uint First = 300;
+		var (indices, positions) = Grid( 40, First );
+		V3 Position( int vertex ) => positions[vertex - (int)First];
+
+		foreach ( var config in new[] { MeshletConfig.Default, new MeshletConfig( 32, 32 ) } )
+		{
+			var set = MeshletBuilder.Build( indices, Position, 0, config );
+			var local = set.Local();
+			Assert.AreEqual( set.Triangles, local.Triangles.Length );
+			var next = 0;
+			for ( int m = 0; m < set.Meshlets.Length; m++ )
+			{
+				var meshlet = set.Meshlets[m];
+				Assert.AreEqual( next, local.FirstVertex[m] );
+				var list = local.Vertices.AsSpan( local.FirstVertex[m], local.VertexCount[m] ).ToArray();
+				Assert.IsTrue( list.Length <= config.MaxVertices );
+
+				var order = new List<uint>();
+				for ( uint t = meshlet.FirstTriangle; t < meshlet.FirstTriangle + meshlet.TriangleCount; t++ )
+				{
+					for ( int c = 0; c < 3; c++ )
+					{
+						var index = set.Indices[t * 3 + c];
+						if ( !order.Contains( index ) ) order.Add( index );
+						var corner = (int)((local.Triangles[t] >> (c * 8)) & 0xff);
+						Assert.IsTrue( corner < list.Length );
+						Assert.AreEqual( index, list[corner], $"triangle {t} corner {c}" );
+					}
+				}
+
+				CollectionAssert.AreEqual( order, list );
+				next += list.Length;
+			}
+
+			Assert.AreEqual( next, local.Vertices.Length );
+		}
+	}
+
 	/// <summary>meshoptimizer is built without its asserts: a call it would assert on throws here instead of reaching it.</summary>
 	[TestMethod]
 	public void BadInputsThrowBeforeTheLibrary()

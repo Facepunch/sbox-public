@@ -29,6 +29,9 @@ internal sealed partial class BackendContext : GpuContext
 		public CommandList List;
 		public bool Rendering;
 		public BackendTexture Color, Depth;
+
+		/// <summary>The scope's second colour target, the opaque pass's normals and roughness (<see cref="StageTarget.Normals"/>).</summary>
+		public BackendTexture Normals;
 		public int Slice;
 		public bool Srgb;
 		public PipelineHandle Pipeline;
@@ -503,7 +506,7 @@ internal sealed partial class BackendContext : GpuContext
 
 	public override void Bind( in StageTarget target )
 	{
-		if ( boundValid && target.Color == bound.Color && target.Depth == bound.Depth && target.DepthSlice == bound.DepthSlice && target.SrgbWrite == bound.SrgbWrite )
+		if ( boundValid && target.Color == bound.Color && target.Depth == bound.Depth && target.Normals == bound.Normals && target.DepthSlice == bound.DepthSlice && target.SrgbWrite == bound.SrgbWrite )
 		{
 			bound = target;
 			ApplyViewport();
@@ -532,7 +535,7 @@ internal sealed partial class BackendContext : GpuContext
 	bool ScopeMatches()
 	{
 		var r = recording;
-		return r.Rendering && r.Color == bound.Color && r.Depth == bound.Depth && r.Slice == bound.DepthSlice && r.Srgb == bound.SrgbWrite;
+		return r.Rendering && r.Color == bound.Color && r.Depth == bound.Depth && r.Normals == bound.Normals && r.Slice == bound.DepthSlice && r.Srgb == bound.SrgbWrite;
 	}
 
 	/// <summary>
@@ -550,10 +553,13 @@ internal sealed partial class BackendContext : GpuContext
 		var depth = bound.Depth as BackendTexture;
 		if ( color is null && depth is null ) return false;
 
+		// The opaque pass's normals go beside colour only
+		var normals = color is null ? null : bound.Normals as BackendTexture;
 		if ( color is not null ) Transition( color, ImageLayout.ColorTarget );
+		if ( normals is not null ) Transition( normals, ImageLayout.ColorTarget );
 		if ( depth is not null ) Transition( depth, ImageLayout.DepthTarget );
 
-		Span<ColorTarget> colors = stackalloc ColorTarget[1];
+		Span<ColorTarget> colors = stackalloc ColorTarget[2];
 		var colorCount = 0;
 		if ( color is not null )
 		{
@@ -564,6 +570,17 @@ internal sealed partial class BackendContext : GpuContext
 				Load = clearColor ? LoadOp.Clear : LoadOp.Load,
 				Store = StoreOp.Store,
 				ClearColor = new System.Numerics.Vector4( clearValue.r, clearValue.g, clearValue.b, clearValue.a ),
+			};
+		}
+
+		// Cleared with colour, to nothing written
+		if ( normals is not null )
+		{
+			colors[colorCount++] = new ColorTarget
+			{
+				Texture = normals.Handle,
+				Load = clearColor ? LoadOp.Clear : LoadOp.Load,
+				Store = StoreOp.Store,
 			};
 		}
 
@@ -584,6 +601,7 @@ internal sealed partial class BackendContext : GpuContext
 		r.Rendering = true;
 		r.Color = color;
 		r.Depth = depth;
+		r.Normals = normals;
 		r.Slice = bound.DepthSlice;
 		r.Srgb = bound.SrgbWrite;
 		r.Pipeline = default;
@@ -910,7 +928,7 @@ internal sealed partial class BackendContext : GpuContext
 		var noColor = stripPixelShader || r.Color is null;
 		var depthOnly = StripsPixelShader( m, noColor, stripPixelShader );
 		var geometry = DepthGeometry( GeometryFor( source, draw ), variant, depthOnly );
-		var pipeline = device.Pipeline( variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly );
+		var pipeline = device.Pipeline( variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, normals: !noColor && r.Normals is not null );
 
 		if ( r.Pipeline != pipeline )
 		{
