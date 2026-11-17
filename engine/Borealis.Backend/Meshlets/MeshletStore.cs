@@ -36,12 +36,28 @@ internal sealed class MeshletStore : IDisposable
 	/// <summary>Bytes of a run in the run table: page slot, first, count, first's index among every meshlet.</summary>
 	public const int RunBytes = 16;
 
+	/// <summary>
+	/// Bytes of a meshlet's local record, after a page's <see cref="PageRecords"/> records when <see cref="LocalData"/> is on:
+	/// its data page's bindless slot, where its triangles and its vertices start there (bytes), and its vertex count.
+	/// </summary>
+	public const int LocalRecordBytes = 16;
+
+	/// <summary>Bytes of a data page, which holds ranges' local triangles and vertices (a range's in one page).</summary>
+	public const int DataPageBytes = 32 << 20;
+
 	/// <summary>Frames a rewrite waits before its runs are written: frames in flight may read the range's old order.</summary>
 	const int PublishDelay = 4;
 
 	readonly Device gpu;
 
 	public MeshletConfig Config { get; }
+
+	/// <summary>
+	/// Whether each meshlet also gets its own vertex list and triangles in local numbers (<see cref="MeshletSet.Local"/>), for
+	/// the mesh shaders: a local record per meshlet after a page's records and the lists in data pages. Set before the first
+	/// request.
+	/// </summary>
+	public bool LocalData { get; init; }
 
 	/// <summary>Bytes a frame uploads at most (indices and records); the rest waits for the next frame.</summary>
 	public long FrameUploadBytes { get; set; } = 16 << 20;
@@ -54,6 +70,7 @@ internal sealed class MeshletStore : IDisposable
 		public Source Source;
 		public State State;
 		public MeshletSet Set;
+		public MeshletLocal Local;
 		public long UploadedFrame;
 		public uint PageSlot, First, Count, Global;
 		public readonly List<uint> Draws = new();
@@ -74,6 +91,10 @@ internal sealed class MeshletStore : IDisposable
 	readonly List<BufferHandle> pages = new();
 	BufferHandle page;
 	int pageSlot = -1, pageUsed = PageRecords;
+	readonly List<BufferHandle> dataPages = new();
+	BufferHandle dataPage;
+	int dataSlot = -1;
+	long dataUsed = DataPageBytes;
 	long frame;
 
 	// The run table: 8 bytes per draw record
@@ -192,6 +213,7 @@ internal sealed class MeshletStore : IDisposable
 
 			Interlocked.Add( ref BuildTicks, Stopwatch.GetTimestamp() - started );
 			entry.Set = set is not null && set.Meshlets.Length <= MaxRunMeshlets ? set : null;
+			if ( LocalData && entry.Set is not null ) entry.Local = entry.Set.Local();
 			built.Enqueue( entry );
 		}
 		catch ( Exception e )
@@ -340,6 +362,7 @@ internal sealed class MeshletStore : IDisposable
 				Triangles += entry.Set.Triangles;
 				if ( entry.Source.Format == IndexFormat.UInt16 ) Triangles16 += entry.Set.Triangles;
 				entry.Set = null;
+				entry.Local = null;
 				entry.Source = null;
 				uploaded.RemoveAt( i );
 			}
@@ -385,7 +408,8 @@ internal sealed class MeshletStore : IDisposable
 			// Its records, in a page with room for all of them
 			if ( pageUsed + set.Meshlets.Length > PageRecords )
 			{
-				page = gpu.CreateBuffer( new BufferInfo { Size = PageRecords * MeshletSet.RecordBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = "Borealis meshlet page" } );
+				var size = PageRecords * (long)(MeshletSet.RecordBytes + (LocalData ? LocalRecordBytes : 0));
+				page = gpu.CreateBuffer( new BufferInfo { Size = size, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = "Borealis meshlet page" } );
 				lock ( gate ) pages.Add( page );
 				pageSlot = gpu.BindlessIndex( page );
 				pageUsed = 0;
@@ -393,6 +417,7 @@ internal sealed class MeshletStore : IDisposable
 
 			list.UpdateBuffer<MeshletRecord>( page, set.Meshlets, pageUsed * (long)MeshletSet.RecordBytes );
 			bytes += set.Meshlets.Length * (long)MeshletSet.RecordBytes;
+			if ( entry.Local is { } local ) bytes += UploadLocal( list, set, local, s.Format == IndexFormat.UInt32 );
 
 			lock ( gate )
 			{
@@ -411,6 +436,48 @@ internal sealed class MeshletStore : IDisposable
 		if ( list is null ) return;
 		list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.IndexRead | MemoryAccess.ShaderRead );
 		gpu.Submit( list );
+	}
+
+	/// <summary>
+	/// A range's local triangles and vertices into a data page with room for them (vertices in the range's index size), and
+	/// each meshlet's local record after its page's records. Bytes uploaded.
+	/// </summary>
+	long UploadLocal( CommandList list, MeshletSet set, MeshletLocal local, bool wide )
+	{
+		var triangleBytes = local.Triangles.Length * 4L;
+		var vertexBytes = (local.Vertices.Length * (wide ? 4L : 2L) + 3) & ~3L;
+		if ( dataUsed + triangleBytes + vertexBytes > DataPageBytes )
+		{
+			dataPage = gpu.CreateBuffer( new BufferInfo { Size = DataPageBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = "Borealis meshlet data page" } );
+			dataPages.Add( dataPage );
+			dataSlot = gpu.BindlessIndex( dataPage );
+			dataUsed = 0;
+		}
+
+		var trianglesAt = dataUsed;
+		var verticesAt = dataUsed + triangleBytes;
+		list.UpdateBuffer<uint>( dataPage, local.Triangles, trianglesAt );
+		if ( wide ) list.UpdateBuffer<uint>( dataPage, local.Vertices, verticesAt );
+		else
+		{
+			var narrow = new ushort[(int)(vertexBytes / 2)];
+			for ( int k = 0; k < local.Vertices.Length; k++ ) narrow[k] = (ushort)local.Vertices[k];
+			list.UpdateBuffer<ushort>( dataPage, narrow, verticesAt );
+		}
+
+		dataUsed += triangleBytes + vertexBytes;
+
+		var records = new uint[set.Meshlets.Length * 4];
+		for ( int m = 0; m < set.Meshlets.Length; m++ )
+		{
+			records[m * 4] = (uint)dataSlot;
+			records[m * 4 + 1] = (uint)(trianglesAt + set.Meshlets[m].FirstTriangle * 4L);
+			records[m * 4 + 2] = (uint)(verticesAt + local.FirstVertex[m] * (wide ? 4L : 2L));
+			records[m * 4 + 3] = (uint)local.VertexCount[m];
+		}
+
+		list.UpdateBuffer<uint>( page, records, PageRecords * (long)MeshletSet.RecordBytes + pageUsed * (long)LocalRecordBytes );
+		return triangleBytes + vertexBytes + records.Length * 4L;
 	}
 
 	void WriteRun( uint draw, Entry entry )
@@ -458,6 +525,8 @@ internal sealed class MeshletStore : IDisposable
 	{
 		foreach ( var p in pages ) gpu.Destroy( p );
 		pages.Clear();
+		foreach ( var p in dataPages ) gpu.Destroy( p );
+		dataPages.Clear();
 		if ( runs.IsValid ) gpu.Destroy( runs );
 		foreach ( var r in retiredRuns ) gpu.Destroy( r );
 		retiredRuns.Clear();
