@@ -169,6 +169,9 @@ public sealed class DeviceCapabilities
 	/// <summary>Whether pipeline statistics queries (<see cref="PipelineStatistics"/>) can be made.</summary>
 	public bool PipelineStatistics { get; init; }
 
+	/// <summary>Whether queries can be reset on the CPU (<see cref="TimestampQueries.ResetOnHost"/>), not only in a command list.</summary>
+	public bool HostQueryReset { get; init; }
+
 	/// <summary>Nanoseconds per timestamp tick.</summary>
 	public float TimestampPeriod { get; init; }
 

@@ -35,4 +35,32 @@ public class PassTimerTests : GpuTest
 		Assert.IsTrue( timer.TryRead( 2, timings ) );
 		Assert.AreEqual( 0, timings.Count );
 	}
+
+	/// <summary>
+	/// A frame's queries are reset as it begins, so a list that reaches the GPU before the one that would have reset them
+	/// writes reset queries (validation fails the test otherwise).
+	/// </summary>
+	[TestMethod]
+	public void ListsTimeInAnyOrder()
+	{
+		if ( !Device.Capabilities.Timestamps || !Device.Capabilities.HostQueryReset ) Assert.Inconclusive( "No timestamps or host query resets on this device" );
+
+		using var timer = new PassTimer( Device );
+		timer.BeginFrame( 1 );
+		var first = Device.BeginCommandList( QueueType.Graphics, "Recorded first" );
+		timer.ResetIn( first );
+		var firstScope = timer.Begin( first, "First", PassTimer.ScopeKind.List );
+		var second = Device.BeginCommandList( QueueType.Graphics, "Recorded second" );
+		var secondScope = timer.Begin( second, "Second", PassTimer.ScopeKind.List );
+		timer.End( second, secondScope );
+		timer.End( first, firstScope );
+
+		Device.Submit( second );
+		Device.Submit( first );
+		Device.WaitIdle();
+
+		var timings = new List<PassTimer.Timing>();
+		Assert.IsTrue( timer.TryRead( 1, timings ) );
+		Assert.AreEqual( 2, timings.Count );
+	}
 }

@@ -546,13 +546,16 @@ public class SurfaceTests : GpuTest
 
 	/// <summary>
 	/// A pass module keeps what it preprocessed per combo values only while the includes it read are unchanged: an edited
-	/// include's render states are read again (hotload).
+	/// include's render states are read again (hotload), once its check interval has passed (none here).
 	/// </summary>
 	[TestMethod]
+	[DoNotParallelize]
 	public void PassModuleRereadsAnEditedInclude()
 	{
 		var folder = Path.Combine( Path.GetTempPath(), "borealis-pass-include-test-" + Guid.NewGuid().ToString( "N" ) );
 		Directory.CreateDirectory( folder );
+		var interval = PassModule.IncludeCheckMs;
+		PassModule.IncludeCheckMs = 0;
 		try
 		{
 			var include = Path.Combine( folder, "states.slangh" );
@@ -568,6 +571,7 @@ public class SurfaceTests : GpuTest
 		}
 		finally
 		{
+			PassModule.IncludeCheckMs = interval;
 			Directory.Delete( folder, true );
 		}
 	}
