@@ -1906,8 +1906,8 @@ internal sealed partial class BackendContext
 			var cache = device.MaterialCache;
 			var perDraw = bucket.PixelMaterial != 0;
 			var layout = perDraw ? device.PulledLayoutMaterialPerDraw : device.PulledLayout;
-			var key = new MaterialObjectCache.Key( bucket.Material, bucket.Variant, layout, bucket.NoColor ? Format.Unknown : color, depth, samples, bucket.DepthOnly, true );
-			var materialObject = cache.Get( key, immediate: false, (device, layout, key, perDraw), static ( s, l ) => s.device.Pipeline( s.key.Variant, s.layout, s.key.Color, s.key.Depth, s.key.Samples, s.key.DepthOnly, l.Sets, s.perDraw ) );
+			var key = new MaterialObjectCache.Key( bucket.Material, bucket.Variant, layout, bucket.NoColor ? Format.Unknown : color, depth, samples, bucket.DepthOnly, true, Normals: !bucket.NoColor && color != Format.Unknown && r.Normals is not null );
+			var materialObject = cache.Get( key, immediate: false, (device, layout, key, perDraw), static ( s, l ) => s.device.Pipeline( s.key.Variant, s.layout, s.key.Color, s.key.Depth, s.key.Samples, s.key.DepthOnly, l.Sets, s.perDraw, normals: s.key.Normals ) );
 			resolver.LayerEpoch = layerEpoch;
 			materialObject.Bind( r.List, ref r.Pipeline, passEpoch, resolver );
 			if ( bucket.NoColor ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );

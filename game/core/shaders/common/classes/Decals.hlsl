@@ -120,6 +120,75 @@ void ParallaxOcclusion_Grad(
 	inoutUV += finalTextureCoords - uv;
 }
 
+// A decal's rotation, as QuaternionToMatrix. A decal's are the same for the whole wave (ClusterForEach), but there is no
+// scalar float maths: computed in vector registers, they are read back to scalar ones, so none are held. Each use takes
+// its own from the quaternion read again, which keeps the compiler from sharing one and holding it between them
+float3x3 DecalRotation( float4 quat )
+{
+	float3x3 rot = QuaternionToMatrix( WaveReadLaneFirst( quat ) );
+	rot[0] = WaveReadLaneFirst( rot[0] );
+	rot[1] = WaveReadLaneFirst( rot[1] );
+	rot[2] = WaveReadLaneFirst( rot[2] );
+	return rot;
+}
+
+// A decal's sheet frames, as Sheet::Blended takes them before the decal's UV: frame 0 and 1 as offset and size, and the
+// blend between them. A decal's sheet data and sequence are the wave's own (ClusterForEach) and the time is the frame's,
+// so every lookup is the same for the whole wave, and what's worked out from them is read back to scalar registers as
+// it's made, rather than four lookups held in vector ones at once. (The compiler drops a read of a lookup itself.) Same
+// lookups and the same sums as SampleSheetData
+bool DecalSheetFrames( float4 data, float sequence, float time, out float4 frame0, out float4 frame1, out float blend )
+{
+	frame0 = float4( 0, 0, 1, 1 );
+	frame1 = float4( 0, 0, 1, 1 );
+	blend = 0;
+
+	if ( data.w == 0 )
+		return false;
+
+	SheetDataSamplerParams_t params;
+	params.m_flSheetTextureBaseV = data.x;
+	params.m_flOOSheetTextureWidth = 1.0f / data.y;
+	params.m_flOOSheetTextureHeight = data.z;
+	params.m_flSheetTextureWidth = data.y;
+	params.m_flSheetSequenceCount = data.w;
+	params.m_flSequenceAnimationTimescale = 1.0f;
+	params.m_flSequenceIndex = fmod( sequence, data.w );
+	params.m_flSequenceAnimationTime = time;
+
+	float flV = SheetTextureVCoord( params );
+	float flClamp = WaveReadLaneFirst( g_SheetTexture.SampleLevel( g_sPointWrap, float2( 0, flV ), 0 ).z );
+
+	float flSequenceIndexingTime = 1.0 * params.m_flSheetTextureWidth * 0.5 * params.m_flSequenceAnimationTime * params.m_flSequenceAnimationTimescale;
+	float flFractionalFrameIndex = frac( flSequenceIndexingTime );
+	float flTexFrameIndex = 2.0 * floor( flSequenceIndexingTime );
+	if ( flClamp > 0 )
+		flTexFrameIndex = min( params.m_flSheetTextureWidth - 2, flTexFrameIndex );
+	else
+		flTexFrameIndex = fmod( flTexFrameIndex, params.m_flSheetTextureWidth );
+	flTexFrameIndex = flTexFrameIndex * params.m_flOOSheetTextureWidth;
+
+	float2 vControl = WaveReadLaneFirst( g_SheetTexture.SampleLevel( g_sPointWrap, float2( flTexFrameIndex, flV ), 0 ).xw );
+	blend = WaveReadLaneFirst( lerp( vControl.x, vControl.y, flFractionalFrameIndex ) );
+
+	float4 vCrop = WaveReadLaneFirst( g_SheetTexture.SampleLevel( g_sPointWrap, float2( flTexFrameIndex + params.m_flOOSheetTextureWidth, flV + params.m_flOOSheetTextureHeight ), 0 ) );
+	float2 vCroppedSize = WaveReadLaneFirst( vCrop.zw - vCrop.xy );
+
+	float4 vBounds = WaveReadLaneFirst( g_SheetTexture.SampleLevel( g_sPointWrap, float2( flTexFrameIndex, flV + params.m_flOOSheetTextureHeight ), 0 ) );
+	float2 vUncroppedSize = ( vBounds.zw - vBounds.xy ) / vCroppedSize.xy;
+	vBounds.xy -= vCrop.xy * vUncroppedSize.xy;
+	vBounds.zw = vBounds.xy + vUncroppedSize.xy;
+	frame0 = WaveReadLaneFirst( float4( vBounds.xy, vBounds.zw - vBounds.xy ) );
+
+	vBounds = WaveReadLaneFirst( g_SheetTexture.SampleLevel( g_sPointWrap, float2( flTexFrameIndex, flV + 2.0 * params.m_flOOSheetTextureHeight ), 0 ) );
+	vUncroppedSize = ( vBounds.zw - vBounds.xy ) / vCroppedSize.xy;
+	vBounds.xy -= vCrop.xy * vUncroppedSize.xy;
+	vBounds.zw = vBounds.xy + vUncroppedSize.xy;
+	frame1 = WaveReadLaneFirst( float4( vBounds.xy, vBounds.zw - vBounds.xy ) );
+
+	return true;
+}
+
 struct Decals
 {
 	static bool Resolve(
@@ -161,17 +230,6 @@ struct Decals
 
 			if ( color > 0 )
 			{
-				float4 colorTint = UnpackColor( decal.ColorTint );
-				if ( exp == 0 )
-				{
-					colorTint.rgb = 0.0;
-				}
-				else
-				{
-					float3 signedRGB = colorTint.rgb * 255.0 - 128.0;
-					colorTint.rgb = signedRGB * exp2( float( exp ) - 128.0 - 7.0 );
-				}
-
 				float colorMix = 1.0f;
 				uint blendMode = 0;
 				float4 decal_albedo = float4( 0, 0, 0, 0 );
@@ -198,9 +256,7 @@ struct Decals
 						// get the heightmap texture 2D from bindless and sample it 
 						Texture2D tHeightmap = Bindless::GetTexture2D( asDynamicUniform( UniformIndex( heightIdx ) ) );
 	
-						// maybe there's a way to do it wih the quat directly, but i don't fucking know
-						float3x3 rot = QuaternionToMatrix(decal.Quat);
-
+						float3x3 rot = DecalRotation( decal.Quat );
 						ParallaxOcclusion_Grad(
 							decalUV,
 							normalize(g_vCameraPositionWs - worldPosition),
@@ -231,10 +287,12 @@ struct Decals
 
 					if ( sequence != 0xFFFFFF )
 					{
-						float2 a;
-						float2 b;
+						// As Sheet::Blended
+						float4 frame0, frame1;
 						float blend;
-						Sheet::Blended( sheetData, sequence, g_flTime, decalUV, a, b, blend );
+						DecalSheetFrames( sheetData, sequence, g_flTime, frame0, frame1, blend );
+						float2 a = frame0.xy + ( decalUV * frame0.zw );
+						float2 b = frame1.xy + ( decalUV * frame1.zw );
 
 						decal_albedo = texture.SampleGrad( textureSampler, a.xy, gradUV.xy, gradUV.zw );
 
@@ -261,6 +319,18 @@ struct Decals
 					decal_albedo = texture.SampleGrad( g_sTrilinearClamp, decalUV.xy, gradUV.xy, gradUV.zw );
 				}
 
+				// The tint where it's used, rather than held through the samples above
+				float4 colorTint = UnpackColor( decal.ColorTint );
+				if ( exp == 0 )
+				{
+					colorTint.rgb = 0.0;
+				}
+				else
+				{
+					float3 signedRGB = colorTint.rgb * 255.0 - 128.0;
+					colorTint.rgb = signedRGB * exp2( float( exp ) - 128.0 - 7.0 );
+				}
+
 				decal_albedo *= colorTint;
 				if ( blendMode == 0 )
 					decal_albedo.rgb *= decalAttenuation;
@@ -277,10 +347,11 @@ struct Decals
 				// blend everything else in from the color transparency
 				if ( normal > 0 )
 				{
+					// The rotation before the lookup: worked out after it, its nine values were made while the lookup was held
+					float3x3 rot = DecalRotation( decal.Quat );
 					SamplerState textureSampler = Bindless::GetSampler( asDynamicUniform( samplerIndex ) );
 					float3 normalts = DecodeNormal( Bindless::GetTexture2D( asDynamicUniform( UniformIndex( normal ) ) ).SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw ).xyz );
 
-					float3x3 rot = QuaternionToMatrix(decal.Quat);
 					float3 normal = TransformNormal( normalts, -rot[0], -rot[1], -rot[2] );
 
 					material.Normal = normalize( lerp( material.Normal, normal, decal_albedo.a ) );

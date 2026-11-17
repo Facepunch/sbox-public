@@ -4,7 +4,7 @@ namespace Sandbox.Lab;
 
 /// <summary>
 /// Where a <see cref="LabWorld"/> gets its meshes, materials and textures, so the world building needs nothing but
-/// Borealis. <see cref="Source2LabContent"/> loads them through the engine.
+/// Borealis. BorealisLab's <c>BackendLabContent</c> reads them on a Borealis.Gpu device.
 /// </summary>
 internal interface ILabContent
 {
@@ -35,7 +35,7 @@ internal interface ILabContent
 
 /// <summary>
 /// A <see cref="LabPreset"/> built into a <see cref="RenderWorld"/>: the grid, probes, sky and fog, the floor and lights,
-/// and where the camera looks from. SceneLab and BorealisLab build the same world from the same preset.
+/// and where the camera looks from. BorealisLab builds it.
 /// </summary>
 internal sealed class LabWorld
 {

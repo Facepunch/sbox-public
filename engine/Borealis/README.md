@@ -1,16 +1,18 @@
 # Borealis
 
 A C# scene renderer for s&box, intended to replace the native scenesystem's world rendering.
-It manages render objects, visibility, lighting and frame execution while using the engine's existing
-materials, shaders and graphics backend.
+It manages render objects, visibility, lighting and frame execution, and draws through a device its host supplies
+(`GpuDevice`, `GpuContext`). In s&box that is [Borealis.Backend](../Borealis.Backend/) on Borealis.Gpu, Borealis's own
+Vulkan backend, with the game's own compiled shaders, materials and textures.
 
 Borealis knows nothing about GameObject scenes, cameras or native's scene views. s&box connects to it from
 [Sandbox.Rendering](../Sandbox.Rendering/README.md), which mirrors scenes into Borealis and also holds the layers of
 native's own rendering pipeline. Keep it that way: code that needs `SceneObject`, `SceneWorld` or `ISceneView` goes there.
 
-The renderer is experimental. To use it for GameObject scenes, enable `r_managed_scene 1`.
-It is disabled by default. [SceneLab](../Launcher/SceneLab/) runs the managed and native renderers
-against the same scenes for visual comparison and performance testing.
+The renderer is experimental. A process launched with `-borealisgpu` draws on Borealis.Gpu and renders every
+GameObject scene through Borealis; any other process renders through native's scene system.
+[BorealisLab](../Launcher/BorealisLab/) runs Borealis on its own Borealis.Gpu device, for captures, render tests and
+benchmarks.
 
 This README covers the project structure and development workflow. The
 [renderer reference](../../docs/managed/borealis.md) contains the implementation details,
@@ -36,9 +38,8 @@ body groups, tags, per-object attributes and camera settings.
 part of a world into a frame. Features prepare and draw different kinds of objects; layers specify the
 steps of the frame. `FrameRecorder` decides which layers are needed and records their work for submission.
 
-Rendering uses a dedicated native `IRenderContext`, rather than native `ISceneSystem`, `ISceneView` or
-`ISceneLayer` objects. The renderer still relies on shared engine services, including the material
-system, shader code, shadow-map policy and skinning vertex cache.
+Rendering records through the host's `GpuDevice` and `GpuContext`, not native `ISceneSystem`, `ISceneView` or
+`ISceneLayer` objects. The renderer still shares engine code with native's: shader sources and the shadow-map policy.
 
 ### Source layout
 
@@ -53,7 +54,7 @@ system, shader code, shadow-map policy and skinning vertex cache.
 | [Pipeline/Layers](Pipeline/Layers/) | Render passes and their resource dependencies. |
 | [Pipeline/Shadows](Pipeline/Shadows/) | Integration with the engine's shared `ShadowMapper`. |
 | [Pipeline/Fog](Pipeline/Fog/) | Volumetric fog lighting, temporal accumulation and integration. |
-| [Gpu](Gpu/) | Native rendering access, GPU uploads, transform buffers and shader constants. |
+| [Gpu](Gpu/) | The device abstraction (`GpuDevice`, `GpuContext`), GPU uploads, transform buffers and shader constants. |
 | [Diagnostics](Diagnostics/) | Frame comparison, rendering statistics and profiler instrumentation. |
 
 Folders describe responsibilities; they do not all introduce namespaces. Public types use
@@ -66,8 +67,7 @@ layout used for bones and transform buffers.
 
 ### How a frame runs
 
-`RenderSystem.Render( world, view, target )` renders into a `ViewTarget`. The internal swap-chain
-overload is used by the engine and SceneLab.
+`RenderSystem.Render( world, view, target )` renders into a `ViewTarget`.
 
 1. **Collect:** query the spatial tree, test exact bounds and screen size, then group visible objects by feature.
 2. **Prepare:** choose LODs, sort draw runs, pack lights and write transform data. The shadow system requests
@@ -85,8 +85,8 @@ can do useful work for the current frame.
 Large frames record work in parallel. Each recording segment has its own native context, created on
 the thread that records it. Shadow culling is also parallelized. Camera stages and custom-object work
 that requires the main thread stay there. Small frames avoid the overhead of parallel recording.
-With `r_managed_async_compute` (enabled by default), depth-chain, contact-shadow and AO work can overlap
-shadow-map rendering. Borealis draws no normals G-buffer: AO rebuilds normals from depth, and SSR is off.
+When the host allows async compute (`RenderHost.AsyncCompute`), depth-chain, contact-shadow and AO work can overlap
+shadow-map rendering; s&box's host (`SboxRenderHost`) turns it off. Borealis draws no normals G-buffer: AO rebuilds normals from depth, and SSR is off.
 
 Declare each pass's inputs, outputs and compute capability. The pipeline itself stays a plain list:
 
@@ -125,7 +125,7 @@ that already exist before the batch. Early camera effects stay at their normal s
 
 ### Connections to the rest of the engine
 
-- [ManagedScene](../Sandbox.Engine/Systems/Render/ManagedScene/) owns the convars, scene-change notifications
+- [ManagedScene](../Sandbox.Engine/Systems/Render/ManagedScene/) owns the `-borealisgpu` check, the convars, scene-change notifications
   and shutdown integration. The app system registers Sandbox.Rendering's bridge with the engine at startup
   ([EngineHooks.cs](../Sandbox.Rendering/EngineHooks.cs)).
 - [ShadowMapper](../Sandbox.Engine/Systems/Render/Shadows/) supplies shared shadow allocation, caching
@@ -134,13 +134,13 @@ that already exist before the batch. Early camera effects stay at their normal s
   custom drawing operate on either renderer. Use the `Graphics` abstraction rather than assuming a
   native scene view or layer exists.
 - [RenderTools.def](../Definitions/engine/Render/RenderTools.def) exposes native helpers implemented in
-  [rendertools.cpp](../../src/engine2/sbox/rendertools.cpp).
+  [rendertools.cpp](../../src/engine2/sbox/rendertools.cpp), which the bridge uses to read native draw and light state.
 - [Gpu/SharedPasses.cs](Gpu/SharedPasses.cs) holds the depth chain, quarter depth and bloom and refraction
-  targets, which this renderer and native's pipeline both use.
+  targets, built from the same shaders as native's pipeline's own (`Sandbox.Rendering/Pipeline/SharedPasses.cs`).
 
 ## Building and testing
 
-Run these commands from the repository root. Close SceneLab before building because it locks the
+Run these commands from the repository root. Close BorealisLab and SceneLab before building because they lock the
 assemblies in `game/bin/managed`. See the [build guide](../../docs/architecture/build-system.md) for
 initial setup and native build options.
 
@@ -157,69 +157,46 @@ nothing of the engine. They cover culling, object storage, transforms, GPU layou
 layer selection, allocation behavior, and the order and queues of a whole frame's work. Tests that prepare frames use
 `[DoNotParallelize]` because `ShadowMapper` and `Application.FrameCount` contain shared static state.
 
-Visual changes require a parity sweep and inspection of the captured images. A passing comparison
-alone cannot show that a feature rendered correctly: both renderers might have drawn nothing or used
-the same missing asset. A new feature needs a SceneLab preset and a matching native reference.
-Disable the feature once to confirm the comparison detects its absence.
+Visual changes require inspecting captured images. A passing comparison alone cannot show that a feature rendered
+correctly: both sides might have drawn nothing or used the same missing asset. Disable the feature once to confirm the
+comparison detects its absence.
 
-### Visual comparison
+### Visual checks
 
-With a game loaded, run these commands in the console:
+BorealisLab's render tests capture the lab presets on a Borealis.Gpu device and check them against Borealis's approved
+images in `engine/Tests/GoldenTruth/Borealis` (`-golden-truth`). `SboxBuild borealis-render-tests` runs the core suite;
+`-golden-truth-update` writes a capture as the approved image. See [borealis-host.md](../../docs/managed/borealis-host.md)
+for the switches and output.
 
-```text
-r_managed_scene 1
-r_managed_scene_compare 120
-```
+Against native, compare a game launched with `-borealisgpu` with the same game launched without it. BorealisLab's
+`-post-parity` and `-exposure-parity` check post processing and auto exposure against Source 2's passes, and
+`-model-parity` checks Borealis.Source2's model reader against the engine's loading.
 
-The comparison waits 120 camera renders, then captures the next camera through both renderers.
-Results go to the console and images to `game/screenshots/managed_scene/`. Allow the scene to finish
-loading before comparing.
-
-In SceneLab, use **View > Compare With Native** for the current scene. To run a preset sweep, launch
-the built-in runner directly from `game/`:
-
-```text
-bin/managed/scenelab.exe -parity
-bin/managed/scenelab.exe -parity "Sun Shadows;Reflections" -zoom 0.3
-```
-
-The sweep writes its results and captures to `game/screenshots/scenelab/parity/`, and exits with code 1
-if any comparison fails. Use `-parity-out <folder>` to choose another output location.
-
-- `<scene>.png`: the managed frame.
-- `<scene>.native.png`: the native frame.
-- `<scene>.diff.png`: the managed frame dimmed, with differences highlighted in red.
-
-Effects with shared or temporal state need isolated comparisons. Use `-parity -isolated` for those checks;
-AO and SSR presets already request isolation. Test scene changes as well as initial rendering, and
-check representative games when changing the bridge.
-
-Changes to the shared shadow mapper also require a native-to-native comparison. Run
+Changes to the shared shadow mapper also need a native-to-native comparison. Run
 `bin/managed/scenelab.exe -parity -save-native before` from `game/`, make the change, then run
 `bin/managed/scenelab.exe -parity -compare-native before`.
 For deterministic presets, those frames should be byte-identical.
 
 ### Performance and frame inspection
 
-From `game/`, run:
+From `game/`, compare Borealis.Gpu against native on the same map:
 
 ```powershell
-bin/managed/scenelab.exe -scene "All Shadows"
-bin/managed/scenelab.exe -benchmark "10k Boxes;50k Mixed" -novsync
+bin/managed/borealislab.exe -construct -real
+bin/managed/scenelab.exe -benchmark "Construct Overview"
 ```
 
-Benchmark results go to `game/screenshots/scenelab/benchmark.md`. Warm up maps before measuring so asset
-loading, JIT compilation and shader compilation do not dominate the result. Include scene switching
+`-construct -real` times Construct's frames on Borealis.Gpu, recorded on one thread and on several. Warm up maps before
+measuring so asset loading, JIT compilation and shader compilation do not dominate the result. Include scene switching
 when testing resource lifetime.
 
-Use `overlay_scene_plan 1` in a game, or **View > Frame Plan** in SceneLab, to see active layers,
-resource dependencies, recording segments and timings. Level `2` also shows skipped layers.
+The frame plan on the dev tools' Rendering tab (`DebugOverlay.ScenePlan`) shows active layers, resource dependencies,
+recording segments and timings.
 Borealis's own debug views - LOD colours, cull reasons and a shadow map viewer (`r_managed_debug_lod`, `r_managed_debug_cull`,
-`r_managed_debug_shadows`, or SceneLab's View menu) - are in [Diagnostics/DebugViews.cs](Diagnostics/DebugViews.cs) and the
+`r_managed_debug_shadows`, under `-borealisgpu`) - are in [Diagnostics/DebugViews.cs](Diagnostics/DebugViews.cs) and the
 renderer reference's *Debug views*.
 Tracy zones are defined in [Diagnostics/Zones.cs](Diagnostics/Zones.cs); they cover collection,
-preparation, setup, recording, worker waits and submission. SceneLab's `-serialrecording` switch helps
-compare serial and parallel execution.
+preparation, setup, recording, worker waits and submission.
 
 ## Development conventions
 
@@ -245,17 +222,16 @@ the implementation can be checked against its source.
 
 ### GPU resources and interoperability
 
-Keep native rendering calls in `Gpu/RenderContext`. Add new native helpers through `rendertools` and
-the `.def` bindings, then regenerate with `tools/BuildBindings.bat`. Never hand-edit generated interop.
-Native changes require a native build; shader changes require shader compilation before parity testing.
+Borealis reaches the GPU only through `GpuDevice` and `GpuContext`; what a device does with them is Borealis.Backend's.
+Native helpers the bridge needs go through `rendertools` and the `.def` bindings, regenerated with
+`tools/BuildBindings.bat`. Never hand-edit generated interop. Native changes require a native build; shader changes
+require shader compilation before testing.
 
-Dispose owned GPU resources before native shutdown. Cached materials returned by `Material.FromShader`
-are shared; only destroy materials created and owned by the caller. Context state changes must go
-through `RenderContext` helpers so cached material bindings are invalidated correctly.
+Dispose owned GPU resources before shutdown. Materials returned by `GpuDevice.MaterialFromShader` are shared; only
+destroy materials created and owned by the caller.
 
-GPU structs must match the native and shader layouts, including packing and matrix conventions.
-Check those layouts when updating native dependencies. Skinning uses the engine's shared vertex cache;
-morph and vertex-cache preparation needed by this renderer must complete before its draw submission.
+GPU structs must match the shader layouts, including packing and matrix conventions. Skinning writes the device's
+vertex cache (`GpuContext.AllocateVertexCache`); morph and vertex-cache preparation must complete before draw submission.
 
 ### C# style
 
@@ -278,7 +254,7 @@ members (`CS1591` is an error here), and give internal types a summary explainin
 2. Add its preparation and drawing in `Pipeline/Features/`, using the `RenderFeature` contract.
    Include shadow support and the main-thread recording requirement where applicable.
 3. Register the feature in `RenderSystem`. Registration order matters; light binning runs first.
-4. Add bridge synchronization in Sandbox.Rendering where needed, a SceneLab preset, and its native equivalent in `NativeScene`.
+4. Add bridge synchronization in Sandbox.Rendering where needed, and a lab preset (`LabPresets`) for BorealisLab's captures.
 
 ### Add a layer
 
@@ -309,7 +285,7 @@ The [renderer reference](../../docs/managed/borealis.md) records detailed invest
 color space, shadow behavior, skinning, material binding, bridge synchronization and parallel recording.
 
 Remaining work includes moving more camera effects into this renderer, threading main-view collection
-and preparation, and reducing native per-draw overhead. Known gaps include morphs on meshes without a
+and preparation, and reducing per-draw overhead. Known gaps include morphs on meshes without a
 skeleton, glass shadow dithering differences, layer-specific attribute overrides and DDGI parity with
 baked test data. An intermittent native shutdown crash has also been observed in 256-light scenes;
 it still needs a native stack trace.

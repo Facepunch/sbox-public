@@ -354,6 +354,7 @@ public sealed partial class RenderSystem : IDisposable
 		// Acquire the mask before setup writes its index to sun constants.
 		_ = Layers;
 		frame.ContactShadowMask = contactShadows?.MaskFor( frame );
+		frame.Normals = reflections?.NormalsFor( frame );
 		if ( frame.Output.FlipInto is not null ) OutputFlipLayer.WarmUp();
 
 		// Plan first: serial recording shares the frame context with skybox setup.

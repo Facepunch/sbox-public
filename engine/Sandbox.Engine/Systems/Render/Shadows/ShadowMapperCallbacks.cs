@@ -66,7 +66,7 @@ internal static class ShadowMapperCallbacks
 	{
 		var view = Graphics.SceneView;
 
-		// A managed frame (r_managed_scene) has no native view to draw them for
+		// A Borealis frame has no native view to draw them for
 		if ( view.IsNull ) return;
 
 		foreach ( var sm in GetMappers() )

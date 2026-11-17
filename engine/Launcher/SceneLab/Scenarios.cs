@@ -33,7 +33,7 @@ internal static class Scenarios
 		if ( random.Next( 3 ) == 0 ) paths.Add( Pick( random, Hats ) );
 		if ( random.Next( 5 ) == 0 ) paths.Add( Pick( random, Extras ) );
 
-		return BridgeScene.Outfit( paths );
+		return Outfits.Outfit( paths );
 	}
 
 	static string Pick( Random random, string[] list ) => list[random.Next( list.Length )];
@@ -105,7 +105,7 @@ internal static class Scenarios
 		var body = go.Components.Create<SkinnedModelRenderer>();
 		body.Model = Model.Load( "models/citizen_human/human.vmdl" );
 		body.UseAnimGraph = true;
-		BridgeScene.Dress( RandomOutfit( random ), body );
+		Outfits.Dress( RandomOutfit( random ), body );
 		Set( body, "b_grounded", true );
 		Set( body, "variation_seed", random.Next( 100000 ) );
 		return body;

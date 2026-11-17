@@ -6,29 +6,28 @@ using System.Runtime.InteropServices;
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// An engine resource as what the mirror's world draws with on the device Borealis renders on (<see cref="RenderHost.Device"/>).
-/// On Source 2's device it's the resource's native handle, wrapped. On a Borealis.Gpu device (<c>-borealisgpu</c>) it's the
-/// compiled file Borealis.Source2 reads by the resource's path: what was made at run time (procedural models, materials and
-/// textures made in code) and attributes have no file: models made at run time are read back from Source 2 (see
-/// <see cref="RuntimeMesh"/>), attributes come from their managed copy (<see cref="ObjectParameters"/>), and the rest are
-/// null there.
+/// An engine resource as what the mirror's world draws with on the Borealis.Gpu device Borealis renders on
+/// (<see cref="RenderHost.Device"/>, <c>-borealisgpu</c>): the compiled file Borealis.Source2 reads by the resource's path.
+/// What was made at run time (procedural models, materials and textures made in code) and attributes have no file: models
+/// made at run time are read back from Source 2 (see <see cref="RuntimeMesh"/>), attributes come from their managed copy
+/// (<see cref="ObjectParameters"/>), and the rest are null. Without a Borealis.Gpu device everything is null.
 /// </summary>
 internal static class MirrorContent
 {
-	/// <summary>The Borealis.Gpu device Borealis renders on, or null when it's Source 2's.</summary>
-	public static BackendDevice Gpu => RenderHost.Current.Device as BackendDevice;
+	/// <summary>The Borealis.Gpu device Borealis renders on, or null in a process drawing on Source 2's.</summary>
+	public static BackendDevice Gpu => RenderHost.Current?.Device as BackendDevice;
 
 	/// <summary>A model's mesh, every mesh group in it (an object's draws hide those it doesn't draw).</summary>
 	public static RenderMesh Mesh( Model model ) => Mesh( model, out _ );
 
 	/// <summary>
-	/// A model's mesh; on a Borealis.Gpu device loading asynchronously (<see cref="BackendDevice.AsyncModels"/>) null with
-	/// <paramref name="pending"/> set while it loads.
+	/// A model's mesh; loading asynchronously (<see cref="BackendDevice.AsyncModels"/>) null with <paramref name="pending"/>
+	/// set while it loads.
 	/// </summary>
 	public static RenderMesh Mesh( Model model, out bool pending )
 	{
 		pending = false;
-		if ( Gpu is not { } gpu ) return Source2Mesh.FromModel( model );
+		if ( Gpu is not { } gpu ) return null;
 
 		if ( model is { IsProcedural: true } ) return RuntimeMesh( model, gpu );
 		var path = model?.ResourcePath;
@@ -40,7 +39,7 @@ internal static class MirrorContent
 	static readonly System.Collections.Concurrent.ConcurrentQueue<BackendModel> freedModels = new();
 
 	/// <summary>
-	/// A model made at run time (no file to read), on a Borealis.Gpu device: saved as a compiled model in memory
+	/// A model made at run time (no file to read): saved as a compiled model in memory
 	/// (<c>Model.SaveToVmdl</c>, its buffers read back from Source 2 as they are) and read as a model file is, its materials by
 	/// path. Its buffers are freed once the engine's model is gone.
 	/// </summary>
@@ -68,7 +67,7 @@ internal static class MirrorContent
 
 	public static GpuMaterial Material( Material material )
 	{
-		if ( Gpu is not { } gpu ) return Source2Material.From( material );
+		if ( Gpu is not { } gpu ) return null;
 
 		var path = material?.ResourcePath;
 		return string.IsNullOrEmpty( path ) ? null : gpu.LoadMaterial( path );
@@ -76,9 +75,7 @@ internal static class MirrorContent
 
 	public static GpuTexture Texture( Texture texture )
 	{
-		if ( Gpu is not { } gpu ) return Source2Texture.From( texture );
-
-		if ( texture is null ) return null;
+		if ( Gpu is not { } gpu || texture is null ) return null;
 
 		// A view rendered for it on this device (a water body's refraction) drew into Borealis's own texture (a render
 		// target's path is its name, with no file behind it)
@@ -101,9 +98,8 @@ internal static class MirrorContent
 	static readonly ConditionalWeakTable<Texture, Capture> captures = new();
 
 	/// <summary>
-	/// Note that a view rendered on a Borealis.Gpu device for <paramref name="texture"/> (an engine render target a command
-	/// list's view asked for) drew into <paramref name="drawn"/>, a texture of Borealis's: what Borealis's draws read for the
-	/// engine texture from then on.
+	/// Note that a view rendered for <paramref name="texture"/> (an engine render target a command list's view asked for) drew
+	/// into <paramref name="drawn"/>, a texture of Borealis's: what Borealis's draws read for the engine texture from then on.
 	/// </summary>
 	public static void SetCapture( Texture texture, GpuTexture drawn ) => captures.GetOrCreateValue( texture ).Texture = drawn;
 
@@ -129,7 +125,7 @@ internal static class MirrorContent
 
 	/// <summary>
 	/// A view's own attributes with a managed store (a planar reflection published for it) written into
-	/// <paramref name="parameters"/> on a Borealis.Gpu device, made the first time: what was there before is cleared.
+	/// <paramref name="parameters"/>, made the first time: what was there before is cleared.
 	/// </summary>
 	public static ShaderParameters ViewParameters( RenderAttributes attributes, ref ShaderParameters parameters )
 	{
@@ -156,14 +152,13 @@ internal static class MirrorContent
 	}
 
 	/// <summary>
-	/// An object's attributes as its draws read them: native's on Source 2's device; on a Borealis.Gpu device, its managed copy
-	/// (<c>RenderAttributes.Shadow</c>) converted, again only when it changed. Numbers, vectors, matrices, combos and textures
-	/// with a file carry over; buffers, samplers and constant buffers don't yet.
+	/// An object's attributes as its draws read them: its managed copy (<c>RenderAttributes.Shadow</c>) converted, again only
+	/// when it changed. Numbers, vectors, matrices, combos and textures with a file carry over; buffers, samplers and constant
+	/// buffers don't yet.
 	/// </summary>
 	public static ShaderParameters ObjectParameters( RenderAttributes attributes )
 	{
-		if ( Gpu is not { } gpu ) return Source2Parameters.From( attributes );
-		if ( attributes?.Shadow is not { } shadow ) return null;
+		if ( Gpu is not { } gpu || attributes?.Shadow is not { } shadow ) return null;
 
 		var converted = convertedAttributes.GetOrCreateValue( shadow );
 		if ( converted.Parameters is not null && converted.Version == shadow.Version ) return converted.Parameters;
@@ -184,7 +179,4 @@ internal static class MirrorContent
 	}
 
 	static readonly ConditionalWeakTable<ManagedRenderAttributes, ConvertedAttributes> convertedAttributes = new();
-
-	/// <summary>Attributes, which only Source 2's device reads.</summary>
-	public static ShaderParameters Parameters( RenderAttributes attributes ) => Gpu is null ? Source2Parameters.From( attributes ) : null;
 }

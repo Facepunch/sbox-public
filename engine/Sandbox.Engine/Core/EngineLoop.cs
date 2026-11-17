@@ -341,7 +341,7 @@ internal static class EngineLoop
 
 		using var _outputScope = _clientOutput.Start();
 
-		// r_managed_scene, read once, so a frame never mixes renderers
+		// The frame's scene renderer, picked once, so a frame never mixes renderers
 		Rendering.SceneRenderer.BeginFrame();
 
 		// Choose g_flTime before rendering, independently of temporary menu and preview scene scopes.
@@ -353,9 +353,6 @@ internal static class EngineLoop
 
 		// Flush envmaps in their own view scope before we do any view rendering
 		Scene.RenderAllEnvmaps();
-
-		// r_managed_scene_compare renders to a bitmap, which has to happen before any views are rendering
-		Rendering.ManagedSceneRendering.BeforeRenderingViews();
 
 		// UI windows own their own swap chains, they're not part of anyone's view
 		Sandbox.UI.PanelWindows.FrameAll();

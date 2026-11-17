@@ -1,0 +1,43 @@
+// The opaque pass's normals and roughness for Borealis's screen-space reflections, written beside colour at target 1 while
+// they're on: surfaces' opaque forward entries (sbox/surface_passes.slangh) and lit pass modules that include this
+// (water.slang). A pipeline made for an opaque pass with that target switches it on (kForwardNormalsOutput, which the
+// backend finds in the stage's SPIR-V); off, the write is a constant zero to no target and the stage keeps its registers.
+// The reflections' trace decodes it (common/classes/ForwardNormals.hlsl).
+#ifndef SBOX_FORWARD_NORMALS_SLANGH
+#define SBOX_FORWARD_NORMALS_SLANGH
+
+[vk::constant_id( 121 )] const bool kForwardNormalsOutput = false;
+
+/// The world-space normal octahedrally encoded in red and green, roughness in blue, alpha 1 where a surface wrote it
+/// (RGB10A2), packed into one word as the target stores it: it's taken before lighting and held across it, where every
+/// register counts.
+uint ForwardNormalsPack( float3 normal, float roughness )
+{
+	float3 n = normal / max( abs( normal.x ) + abs( normal.y ) + abs( normal.z ), 1e-6 );
+	float2 o = n.z >= 0 ? n.xy : ( 1.0 - abs( n.yx ) ) * float2( n.x >= 0 ? 1.0 : -1.0, n.y >= 0 ? 1.0 : -1.0 );
+	uint3 q = uint3( round( saturate( float3( o * 0.5 + 0.5, roughness ) ) * 1023.0 ) );
+	return q.x | ( q.y << 10 ) | ( q.z << 20 ) | ( 3u << 30 );
+}
+
+/// A packed word as the target's channels.
+float4 ForwardNormalsUnpack( uint packed )
+{
+	return float4( uint4( packed, packed >> 10, packed >> 20, packed >> 30 ) & uint4( 1023, 1023, 1023, 3 ) ) / float4( 1023.0, 1023.0, 1023.0, 3.0 );
+}
+
+/// An opaque forward pixel stage's outputs: the lit colour, and the normal and roughness kept for reflections.
+struct ForwardOutput
+{
+	float4 Color : SV_Target0;
+	float4 Normals : SV_Target1;
+};
+
+ForwardOutput ForwardOut( float4 color, uint normals )
+{
+	ForwardOutput o;
+	o.Color = color;
+	o.Normals = kForwardNormalsOutput ? ForwardNormalsUnpack( normals ) : 0;
+	return o;
+}
+
+#endif

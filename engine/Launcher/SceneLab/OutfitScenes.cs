@@ -247,7 +247,7 @@ internal static class OutfitScenes
 			foreach ( var citizen in closeUp ? CloseUpCitizens : Citizens )
 			{
 				var body = scene.Directory.FindByName( CitizenName( citizen.Name ) ).First().Components.Get<SkinnedModelRenderer>();
-				BridgeScene.Dress( outfit, body );
+				Outfits.Dress( outfit, body );
 
 				foreach ( var item in body.GameObject.Children.Select( x => x.Components.Get<SkinnedModelRenderer>() ).Where( x => x?.BoneMergeTarget == body ) )
 					item.DeformationMode = !citizen.DeformCostume ? SkinnedModelRenderer.DeformationModeType.None

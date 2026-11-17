@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Borealis.Backend;
 
 /// <summary>
-/// Skinning on Borealis.Gpu, as native's <c>RenderTools</c> skins for Borealis on Source 2's device: compute skinning
+/// Skinning on Borealis.Gpu, as native's <c>RenderTools</c> skins: compute skinning
 /// (<c>skinning_cs</c>) writes a skinned mesh's instances into the device's vertex cache with the same attributes and
 /// instance constants (<c>DispatchModelMeshSkinning</c>), and vertex-cache draws read them back through the vertex ids
 /// native binds (<c>BindModelDrawCallVertexIds</c>). One-weight meshes skin in the vertex shader, from the transform

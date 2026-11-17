@@ -1,9 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<!--
-		A standalone window driving Borealis, the way PanelGallery drives the panel UI.
-		Boots the minimal engine (PanelAppSystem) and renders straight into its own swap chain -
-		nothing here goes through the native scenesystem.
+		A standalone window rendering GameObject scenes with native's scene system, to measure and capture it.
+		Boots the minimal engine (PanelAppSystem) and draws the scene's camera into its own swap chain.
 	-->
 
 	<PropertyGroup>

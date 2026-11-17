@@ -215,6 +215,7 @@ float CausticsBrightness < Default( 4 ); Range( 0, 16 ); UiGroup( "Caustics,40/2
 float CausticsContrast < Default( 1 ); Range( 0, 8 ); UiGroup( "Caustics,40/30" ); >;
 
 #include "water/lighting.hlsl"
+#include "sbox/forward_normals.slangh"
 
 // Exact dielectric Fresnel, including the critical angle and total internal reflection from below.
 float WaterFresnel( float cosine, bool underwater )
@@ -229,7 +230,9 @@ float WaterFresnel( float cosine, bool underwater )
 	return saturate( (rs * rs + rp * rp) * 0.5 );
 }
 
-[shader( "pixel" )] float4 MainPs( PixelInput i ) : SV_Target0
+// The opaque pass also keeps the water's normal and roughness for screen-space reflections, which it reads back at its own
+// pixels (DynamicReflections), as native's depth-normals prepass wrote them
+[shader( "pixel" )] ForwardOutput MainPs( PixelInput i )
 {
 	Material m = Material::Init( i );
 	bool underwater = i.waterUnderside > 0.5;
@@ -247,8 +250,9 @@ float WaterFresnel( float cosine, bool underwater )
 	// The depth pass's normals, with nothing after them compiled: the .shader's early return leaves the colour pass's
 	// bindings dead, which vfx's optimizer removes and Slang's doesn't (the overlays it keeps, as vfx does)
 #if ( S_MODE_DEPTH )
-	return DepthNormals::Output( m.Normal, m.Roughness, 1 );
+	return ForwardOut( DepthNormals::Output( m.Normal, m.Roughness, 1 ), 0 );
 #else
+	uint normals = ForwardNormalsPack( m.Normal, m.Roughness );
 	float3 view = WaterSurfaceToEye( m.WorldPosition );
 	float2 distortion = Vector3WsToVs( normal - SurfaceNormal ).xy * float2( 0.1, -0.1 );
 
@@ -305,7 +309,7 @@ float WaterFresnel( float cosine, bool underwater )
 		if ( !underwater && captureWeight < 1 )
 			reflection += SampleWaterEnvironment( m, view, m.Normal, m.Roughness ) * (1 - captureWeight);
 	}
-	return WaterShade( m, lightingInput, reflection, capturedReflection, captureWeight, fresnel, transmitted, transmittedCoverage, underwater );
+	return ForwardOut( WaterShade( m, lightingInput, reflection, capturedReflection, captureWeight, fresnel, transmitted, transmittedCoverage, underwater ), normals );
 #endif
 }
 
