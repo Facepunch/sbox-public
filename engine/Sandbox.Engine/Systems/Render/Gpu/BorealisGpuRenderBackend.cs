@@ -339,13 +339,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 		else blockTimer = -1;
 
-		return blockAttributes = RenderAttributes.CreateManaged();
+		// One set for every block, emptied as each starts: blocks don't overlap
+		reusedBlockAttributes ??= RenderAttributes.CreateManaged();
+		reusedBlockAttributes.Clear();
+		return blockAttributes = reusedBlockAttributes;
 	}
 
 	int blockTimer = -1;
 
 	// The block's attributes, which a draw's own are layered over, as Source 2's contexts layer them
-	RenderAttributes blockAttributes;
+	RenderAttributes blockAttributes, reusedBlockAttributes;
 
 	/// <summary>
 	/// Record the next block into <paramref name="list"/>, which another recorder on the device is part way through (Borealis's

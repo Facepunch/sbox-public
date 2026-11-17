@@ -13,8 +13,8 @@ public sealed class ShaderAttributes
 {
 	// Values by attribute id (AttributeIds): a slot holds a value while its stamp is the current generation, so clearing is
 	// moving the generation on. The ids set this generation, in order, for enumerating
-	object[] slots = new object[64];
-	int[] stamps = new int[64];
+	object[] slots = [];
+	int[] stamps = [];
 	int generation = 1;
 	readonly List<int> set = new();
 	readonly Dictionary<string, int> combos = new( StringComparer.OrdinalIgnoreCase );
@@ -23,13 +23,13 @@ public sealed class ShaderAttributes
 	public void Set( string name, params float[] value ) => Put( AttributeIds.Of( name ), value );
 
 	/// <summary>A structured or byte-address buffer.</summary>
-	public void Set( string name, BufferHandle buffer ) => Put( AttributeIds.Of( name ), buffer );
+	public void Set( string name, BufferHandle buffer ) => Put( AttributeIds.Of( name ), Box( bufferBoxes, buffer ) );
 
 	/// <summary>A texture's default view. Sampled, it has to be in <see cref="ImageLayout.ShaderRead"/>.</summary>
-	public void Set( string name, TextureHandle texture ) => Put( AttributeIds.Of( name ), texture );
+	public void Set( string name, TextureHandle texture ) => Put( AttributeIds.Of( name ), Box( textureBoxes, texture ) );
 
 	/// <summary>Another view of a texture: one mip, say. Its layout is the caller's to arrange.</summary>
-	public void Set( string name, TextureViewHandle view ) => Put( AttributeIds.Of( name ), view );
+	public void Set( string name, TextureViewHandle view ) => Put( AttributeIds.Of( name ), Box( viewBoxes, view ) );
 
 	/// <summary>A constant buffer's bytes.</summary>
 	public void SetData( string name, byte[] data ) => Put( AttributeIds.Of( name ), data );
@@ -39,6 +39,28 @@ public sealed class ShaderAttributes
 
 	/// <summary>A value of one of the kinds above under an <see cref="AttributeIds"/> id, for callers that keep the ids.</summary>
 	internal void SetById( int id, object value ) => Put( id, value );
+
+	/// <inheritdoc cref="SetById(int, object)"/>
+	internal void SetById( int id, TextureHandle texture ) => Put( id, Box( textureBoxes, texture ) );
+
+	/// <inheritdoc cref="SetById(int, object)"/>
+	internal void SetById( int id, TextureViewHandle view ) => Put( id, Box( viewBoxes, view ) );
+
+	/// <inheritdoc cref="SetById(int, object)"/>
+	internal void SetById( int id, BufferHandle buffer ) => Put( id, Box( bufferBoxes, buffer ) );
+
+	// Handles stored as objects, boxed once and kept: a set that is filled every draw (the engine's lowered attributes)
+	// boxes nothing in steady state. Forgotten wholesale if they pile up (handles of freed resources)
+	readonly Dictionary<TextureHandle, object> textureBoxes = new();
+	readonly Dictionary<TextureViewHandle, object> viewBoxes = new();
+	readonly Dictionary<BufferHandle, object> bufferBoxes = new();
+
+	static object Box<T>( Dictionary<T, object> boxes, T value ) where T : struct
+	{
+		if ( boxes.TryGetValue( value, out var boxed ) ) return boxed;
+		if ( boxes.Count >= 4096 ) boxes.Clear();
+		return boxes[value] = value;
+	}
 
 	/// <summary>The value set under a name, or null.</summary>
 	public object Get( string name ) => Get( AttributeIds.Of( name ) );
@@ -62,7 +84,7 @@ public sealed class ShaderAttributes
 	{
 		if ( id >= stamps.Length )
 		{
-			var size = Math.Max( stamps.Length * 2, AttributeIds.Count );
+			var size = Math.Max( Math.Max( stamps.Length * 2, 64 ), AttributeIds.Count );
 			Array.Resize( ref slots, size );
 			Array.Resize( ref stamps, size );
 		}
@@ -846,7 +868,7 @@ public sealed class ShaderDrawer : IDisposable
 		}
 	}
 
-	readonly float[] scratch4 = new float[4], scratch2 = new float[2];
+	readonly float[] scratch4 = new float[4], scratch2 = new float[2], scratch1 = new float[1];
 
 	/// <summary>
 	/// A stage's material constants with a material, apart from the draw's own variables (<see cref="PerDraw"/>, left at their
@@ -874,23 +896,35 @@ public sealed class ShaderDrawer : IDisposable
 		var features = material?.Features;
 		if ( plans.TryGetValue( stage, out var plan ) && plan.Version == version && ReferenceEquals( plan.Features, features ) ) return plan;
 
-		plan ??= new ConstantPlan();
-		plan.Version = version;
-		plan.Features = features;
-		plan.Base = new byte[stage.MaterialBuffer.Size];
-		var perDraw = new List<int>();
-		for ( int i = 0; i < stage.MaterialConstants.Count; i++ )
+		// A material whose values change every frame writes its plan again in place: no new arrays
+		if ( plan is null )
 		{
-			if ( DrawnPerDraw( stage.MaterialConstants[i].Variable.Source ) ) perDraw.Add( i );
+			plan = new ConstantPlan { Base = new byte[stage.MaterialBuffer.Size] };
+			var perDraw = new List<int>();
+			for ( int i = 0; i < stage.MaterialConstants.Count; i++ )
+			{
+				if ( DrawnPerDraw( stage.MaterialConstants[i].Variable.Source ) ) perDraw.Add( i );
+			}
+
+			plan.PerDraw = [.. perDraw];
 		}
 
-		plan.PerDraw = [.. perDraw];
-		stage.WriteMaterialConstants( plan.Base, variable => variable.Source switch
+		plan.Version = version;
+		plan.Features = features;
+		plan.Base.AsSpan().Clear();
+		for ( int i = 0; i < stage.MaterialConstants.Count; i++ )
 		{
-			VariableSource.Material or VariableSource.MaterialAndExpression => material?.Value( variable.Name ),
-			VariableSource.ShaderVersion => material is null ? null : [material.ShaderVersion],
-			_ => null,
-		}, features ?? default );
+			var variable = stage.MaterialConstants[i].Variable;
+			float[] given = null;
+			if ( variable.Source is VariableSource.Material or VariableSource.MaterialAndExpression ) given = material?.Value( variable.Name );
+			else if ( variable.Source == VariableSource.ShaderVersion && material is not null )
+			{
+				given = scratch1;
+				given[0] = material.ShaderVersion;
+			}
+
+			stage.WriteMaterialConstant( plan.Base, i, given, features ?? default );
+		}
 		plans[stage] = plan;
 		return plan;
 	}
