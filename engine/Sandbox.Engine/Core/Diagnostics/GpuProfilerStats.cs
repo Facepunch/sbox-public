@@ -113,6 +113,14 @@ public static class GpuProfilerStats
 		}
 
 		_frame++;
+
+		// On Borealis.Gpu, its own lists and passes (the busy-time pass timer's)
+		if ( RenderBackend.Default is BorealisGpuRenderBackend borealis )
+		{
+			UpdateFromBorealis( borealis );
+			return;
+		}
+
 		_rows.Clear();
 		_paths = null;
 
@@ -148,25 +156,110 @@ public static class GpuProfilerStats
 			if ( !row.Measured )
 				continue;
 
-			var duration = row.Duration;
-
-			if ( _samples.TryGetValue( row.StableId, out var sample ) )
-			{
-				sample.Smoothed = MathX.LerpTo( sample.Smoothed, duration, Time.Delta );
-				sample.Max = duration > sample.Max ? duration : MathX.LerpTo( sample.Max, duration, Time.Delta * 0.25f );
-			}
-			else
-			{
-				sample.Smoothed = duration;
-				sample.Max = duration;
-			}
-
-			sample.LastSeenFrame = _frame;
-			_samples[row.StableId] = sample;
+			AddSample( row.StableId, row.Duration, Time.Delta );
 		}
 
 		PruneSamples();
 		BusyMs = GraphicsBusy();
+	}
+
+	static void AddSample( uint stableId, float duration, float delta )
+	{
+		if ( _samples.TryGetValue( stableId, out var sample ) )
+		{
+			sample.Smoothed = MathX.LerpTo( sample.Smoothed, duration, delta );
+			sample.Max = duration > sample.Max ? duration : MathX.LerpTo( sample.Max, duration, delta * 0.25f );
+		}
+		else
+		{
+			sample.Smoothed = duration;
+			sample.Max = duration;
+		}
+
+		sample.LastSeenFrame = _frame;
+		_samples[stableId] = sample;
+	}
+
+	/// <summary>A timed GPU scope of another device's frame: a command list, or a pass or other work inside one.</summary>
+	internal readonly record struct GpuScope( string Name, bool List, double Start, double End )
+	{
+		public double Ms => End - Start;
+	}
+
+	static ulong _borealisFrame;
+	static RealTimeSince _sinceBorealisFrame;
+	static readonly List<GpuScope> _borealisScopes = new();
+	static readonly List<int> _borealisOpen = new();
+	static readonly Dictionary<string, int> _borealisSeen = new();
+
+	/// <summary>
+	/// Rows from Borealis.Gpu's last read frame (<see cref="BuildRows"/>). Kept between reads (one every few frames), so the
+	/// rows and their smoothing only move when a new frame was read.
+	/// </summary>
+	static void UpdateFromBorealis( BorealisGpuRenderBackend borealis )
+	{
+		Renderer = "borealis";
+		var frame = borealis.GpuBusyFrame;
+		if ( frame == _borealisFrame )
+		{
+			// Keep the rows' samples from being pruned while no new frame is read
+			foreach ( var row in _rows )
+			{
+				if ( !_samples.TryGetValue( row.StableId, out var sample ) ) continue;
+				sample.LastSeenFrame = _frame;
+				_samples[row.StableId] = sample;
+			}
+
+			return;
+		}
+
+		var delta = (float)_sinceBorealisFrame;
+		_sinceBorealisFrame = 0;
+		_borealisFrame = frame;
+		FrameId = frame;
+		_paths = null;
+
+		_borealisScopes.Clear();
+		foreach ( var timing in borealis.GpuBusyTimings )
+			_borealisScopes.Add( new GpuScope( timing.Name, timing.Kind == Borealis.Backend.PassTimer.ScopeKind.List, timing.Start, timing.End ) );
+
+		BuildRows( _borealisScopes, _rows, _borealisOpen, _borealisSeen );
+
+		float busy = 0;
+		for ( int i = 0; i < _rows.Count; i++ )
+		{
+			AddSample( _rows[i].StableId, _rows[i].Duration, delta );
+			if ( _rows[i].Parent < 0 ) busy += _rows[i].Duration;
+		}
+
+		PruneSamples();
+		BusyMs = busy;
+	}
+
+	/// <summary>
+	/// Rows for <paramref name="scopes"/> in the order they began on the GPU: lists at the top, each pass under the list or
+	/// pass it ran inside. A name repeated in a frame (each view's prepass) gets an id per occurrence. Sorts
+	/// <paramref name="scopes"/>; <paramref name="open"/> and <paramref name="seen"/> are scratch. Allocates nothing once they've grown.
+	/// </summary>
+	internal static void BuildRows( List<GpuScope> scopes, List<Row> rows, List<int> open, Dictionary<string, int> seen )
+	{
+		// Outer scopes first where they start together: lists, then the longer scope
+		scopes.Sort( static ( a, b ) => a.Start != b.Start ? a.Start.CompareTo( b.Start ) : a.List != b.List ? (a.List ? -1 : 1) : b.End.CompareTo( a.End ) );
+
+		rows.Clear();
+		open.Clear();
+		seen.Clear();
+		foreach ( var scope in scopes )
+		{
+			while ( open.Count > 0 && scopes[open[^1]].End <= scope.Start ) open.RemoveAt( open.Count - 1 );
+			var parent = open.Count > 0 ? open[^1] : -1;
+
+			seen.TryGetValue( scope.Name, out var count );
+			seen[scope.Name] = count + 1;
+
+			rows.Add( new Row { Name = scope.Name, Parent = parent, StableId = (uint)HashCode.Combine( scope.Name, count, scope.List ), Measured = true, Duration = (float)scope.Ms } );
+			open.Add( rows.Count - 1 );
+		}
 	}
 
 	/// <summary>
