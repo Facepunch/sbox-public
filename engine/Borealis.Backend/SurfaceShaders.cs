@@ -826,7 +826,15 @@ internal sealed class SurfaceProgram : IDisposable
 			normals &= color != Format.Unknown && !ids;
 			var key = (pass, layout, color, depth, samples, constantsKey, ids, opaqueFade, state, depthEqual, specialized?.Key ?? 0, normals);
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
+			return MakePipeline( key, pass, layout, color, depth, samples, vertexConstants, pixelConstants, constantsKey, state, ids, opaqueFade, depthEqual, specialized, normals );
+		}
+	}
 
+	// Pipeline's miss, apart so the hit (every draw) doesn't allocate the background build's closure. Under the pipelines' lock
+	PipelineHandle MakePipeline( (PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, ulong Features, bool Normals) key, PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, bool ids, bool opaqueFade, bool depthEqual, SurfaceFeatures specialized, bool normals )
+	{
+		PipelineHandle pipeline;
+		{
 			if ( specialized is not null )
 			{
 				var info = Info( pass, layout, color, depth, samples, vertexConstants, [.. pixelConstants ?? [], .. specialized.Constants], state, ids, opaqueFade, depthEqual, normals );

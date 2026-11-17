@@ -68,6 +68,30 @@ public sealed class ShaderAttributes
 
 		return key.ToString();
 	}
+
+	/// <summary>
+	/// The same key as <see cref="ComboKey"/> as one number, each dynamic combo's value a digit in its range, without
+	/// allocating; false when a value is outside its combo's range or the ranges don't fit in 64 bits.
+	/// </summary>
+	internal bool TryPackCombos( ShaderFile shader, out ulong packed )
+	{
+		packed = 0;
+		ulong scale = 1;
+		foreach ( var type in (ReadOnlySpan<ShaderProgramType>)[ShaderProgramType.Vertex, ShaderProgramType.Pixel, ShaderProgramType.Compute] )
+		{
+			foreach ( var combo in shader[type]?.DynamicCombos ?? [] )
+			{
+				var value = combos.TryGetValue( combo.Name, out var set ) ? set : 0;
+				if ( combo.Min < 0 || value < 0 || value > combo.Max ) return false;
+				var range = (ulong)combo.Max + 1;
+				if ( scale > ulong.MaxValue / range ) return false;
+				packed += (ulong)value * scale;
+				scale *= range;
+			}
+		}
+
+		return true;
+	}
 }
 
 /// <summary>
@@ -186,7 +210,7 @@ public sealed class ShaderDrawer : IDisposable
 	readonly Device gpu;
 	readonly ShaderLibrary shaders;
 	readonly ShaderDefaults defaults;
-	readonly Dictionary<(ShaderFile Shader, string Mode, string Combos), ShaderVariant> variants = new();
+	readonly Dictionary<(ShaderFile Shader, string Mode, ulong Packed, string Combos), ShaderVariant> variants = new();
 	readonly Dictionary<(ShaderVariant Variant, Format Color, Format Depth, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology, bool Ids), PipelineHandle> pipelines = new();
 	readonly Dictionary<ShaderVariant, PipelineHandle> computePipelines = new();
 	MaterialObjectCache cache;
@@ -309,9 +333,18 @@ public sealed class ShaderDrawer : IDisposable
 	{
 		mode ??= shader.Modes[0].Name;
 		var features = MaterialOf( shader )?.Features ?? [];
-		var combos = attributes.ComboKey( shader );
-		if ( features.Length > 0 ) combos = string.Concat( combos, "|", string.Join( ',', features ) );
-		var key = (shader, mode, combos);
+
+		// Combos packed into a number where they fit and there are no features (nearly every draw and dispatch), so looking
+		// the variant up allocates nothing; else their text
+		string combos = null;
+		if ( features.Length > 0 || !attributes.TryPackCombos( shader, out var packed ) )
+		{
+			packed = 0;
+			combos = attributes.ComboKey( shader );
+			if ( features.Length > 0 ) combos = string.Concat( combos, "|", string.Join( ',', features ) );
+		}
+
+		var key = (shader, mode, packed, combos);
 		if ( variants.TryGetValue( key, out var variant ) ) return variant;
 
 		// Not kept while its module compiles: its programs draw until then
