@@ -155,8 +155,11 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	bool followsFrames;
 	ulong frame;
 
-	/// <summary>Each engine frame is a device frame: starting one waits for the frame before last, then recycles what it used.</summary>
-	void FollowFrame()
+	/// <summary>
+	/// Each engine frame is a device frame: starting one waits for the frame before last, then recycles what it used. Called
+	/// before anything records in an engine frame: a block, an acquire, a scene render (which can come before either).
+	/// </summary>
+	internal void FollowFrame()
 	{
 		if ( !followsFrames || frame == Application.FrameCount ) return;
 		frame = Application.FrameCount;

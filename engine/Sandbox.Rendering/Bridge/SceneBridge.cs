@@ -272,6 +272,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		var parent = rendering;
 		if ( parent is null ) FreeInvalid();
 
+		// A scene panel renders before the window's frame acquires: the device frame starts here then, not mid-recording
+		if ( parent is null && RenderBackend.Default is BorealisGpuRenderBackend gpu ) gpu.FollowFrame();
+
 		// Borealis traces screen-space reflections as the graphics settings leave them (r_ssr_downsample_ratio)
 		Borealis.ScreenSpaceReflectionsLayer.Enabled = ScreenSpaceReflectionsPass.IsEnabled;
 
