@@ -121,6 +121,19 @@ public sealed partial class PassModule
 		return null;
 	}
 
+	/// <summary>
+	/// The preprocessed lines for these values, includes and all, made once per values: a draw asks for a variant's entry,
+	/// render states and expansion in turn, and preprocessing a module with its includes takes milliseconds. Kept with this
+	/// module; a changed module is read again as a new one.
+	/// </summary>
+	List<string> Lines( Dictionary<string, int> all )
+	{
+		var key = string.Join( ';', all.OrderBy( v => v.Key, StringComparer.Ordinal ).Select( v => $"{v.Key}={v.Value}" ) );
+		return lines.GetOrAdd( key, _ => PassPreprocessor.ActiveLines( Path, Text, all, Include ) );
+	}
+
+	readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<string>> lines = new( StringComparer.Ordinal );
+
 	/// <summary>Whether it has an entry point for the stage (<c>MainVs</c>, <c>MainPs</c>, <c>MainCs</c>, <c>MainTs</c>, <c>MainMs</c>).</summary>
 	public bool Has( StageKind stage ) => stages.Contains( stage );
 
@@ -133,7 +146,7 @@ public sealed partial class PassModule
 		if ( !Has( stage ) ) return false;
 		var all = ProgramValues( stage );
 		foreach ( var (name, value) in values ) all[name] = value;
-		foreach ( var line in PassPreprocessor.ActiveLines( Path, Text, all, Include ) )
+		foreach ( var line in Lines( all ) )
 		{
 			var comment = line.IndexOf( "//", StringComparison.Ordinal );
 			var code = comment >= 0 ? line[..comment] : line;
@@ -178,7 +191,7 @@ public sealed partial class PassModule
 		foreach ( var (name, value) in values ) all[name] = value;
 
 		var states = new List<(string, string)>();
-		foreach ( var line in PassPreprocessor.ActiveLines( Path, Text, all, Include ) )
+		foreach ( var line in Lines( all ) )
 		{
 			var m = RenderStateLine().Match( line );
 			if ( !m.Success ) continue;
@@ -198,7 +211,7 @@ public sealed partial class PassModule
 		var all = ProgramValues( StageKind.Vertex );
 		foreach ( var (name, value) in values ) all[name] = value;
 
-		foreach ( var line in PassPreprocessor.ActiveLines( Path, Text, all, Include ) )
+		foreach ( var line in Lines( all ) )
 		{
 			var m = ExpansionLine().Match( line );
 			if ( m.Success ) return (m.Groups["from"].Value, int.Parse( m.Groups["vertices"].Value, CultureInfo.InvariantCulture ), m.Groups["topology"].Value);
