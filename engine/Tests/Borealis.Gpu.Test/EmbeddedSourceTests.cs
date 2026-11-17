@@ -155,6 +155,39 @@ public class EmbeddedSourceTests : GpuTest
 	}
 
 	/// <summary>
+	/// An outdated shader that neither its embedded source nor the recompile can bring back draws the error shader, as
+	/// native's material system draws a material whose shader won't load (Mouse Fishing's toon characters), not nothing.
+	/// </summary>
+	[TestMethod]
+	public void OutdatedShaderThatWontLoadDrawsTheErrorShader()
+	{
+		var folder = Folder();
+		try
+		{
+			using var backend = Backend( folder, out var current );
+			backend.Passes.Error = _ => { };
+			var unloaded = new List<string>();
+			backend.Shaders.Unloaded = unloaded.Add;
+			backend.Shaders.UpgradeCache = Path.Combine( folder, "upgraded" );
+			backend.Shaders.Upgrader = ( _, _ ) => false;
+
+			var broken = Embedded( File.ReadAllText( Source() ).Replace( "return lerp(", "return lerpp(" ) );
+			Write( folder, Outdated( current, broken ), "package_unloadable" );
+			var shader = backend.Shaders.Load( "shaders/package_unloadable.shader" );
+			Assert.IsNotNull( shader?.Outdated );
+
+			var variant = backend.Shaders.Variant( shader, "Default", [] );
+			Assert.IsNotNull( variant, $"draws something ({string.Join( "; ", unloaded )})" );
+			StringAssert.Contains( variant.Shader.Name, "error" );
+			Assert.AreEqual( 1, unloaded.Count, "said once" );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// A shader with a Slang module and no compiled file at all: it loads by its path from what the module declares (its
 	/// MODES lines, combos) and draws from the module, the variant the same as pp_vignette's own; with modules off it has
 	/// nothing to draw.
