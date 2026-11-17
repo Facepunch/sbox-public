@@ -342,6 +342,11 @@ public partial class GpuBuffer : IValid, IDisposable
 		fixed ( byte* dataPtr = data )
 		{
 			Graphics.Backend.SetBufferData( this, (IntPtr)dataPtr, data.Length, elementOffset );
+
+			// With Source 2's device kept beside another (the editor), a write outside a block keeps Source 2's copy current
+			// too: native's views read it (a native tool's, a bake's captures)
+			if ( Graphics.HasSource2Device && !Graphics.IsActive && Graphics.Backend is not Source2RenderBackend && native != IntPtr.Zero )
+				Source2RenderBackend.Instance.SetBufferData( this, (IntPtr)dataPtr, data.Length, elementOffset );
 		}
 	}
 
