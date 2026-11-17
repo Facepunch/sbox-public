@@ -65,7 +65,8 @@ internal sealed class BackendTexture : GpuTexture
 	public override TextureFormat Format => desc.Format;
 	public override int Samples => Math.Max( desc.Samples, 1 );
 	public override bool IsCube => desc.Cube;
-	public override bool IsArray => false;
+	// What its image is, which a bindless read has to sample it as: a cube loaded from an array file is a cube array
+	public override bool IsArray => !disposed && device.Gpu.InfoOf( Handle ).Dimension is TextureDimension.TextureCubeArray or TextureDimension.Texture2DArray;
 	public override bool IsValid => !disposed;
 	public override int BindlessIndex => disposed ? device.MissingTextureViewIndex( false ) : Math.Max( device.Gpu.BindlessIndex( Handle ), 0 );
 	public override Vector4 SheetData => default;
