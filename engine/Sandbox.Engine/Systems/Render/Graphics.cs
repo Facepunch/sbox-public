@@ -17,12 +17,24 @@ public static partial class Graphics
 	/// </summary>
 	public static bool IsAvailable { get; private set; }
 
+	/// <summary>
+	/// Whether Source 2's render device is a real one. Without it (its empty render system) Source 2 makes no GPU
+	/// resources: its textures, buffers and meshes are descriptions, and what draws is <see cref="RenderBackend.Default"/>.
+	/// </summary>
+	internal static bool HasSource2Device { get; set; }
+
+	/// <summary>Whether the process draws on a Borealis.Gpu device of its own (<c>-borealisgpu</c>).</summary>
+	internal static readonly bool BorealisGpuRequested = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu" );
+
 	internal static void Initialize()
 	{
-		IsAvailable = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
+		// With -borealisgpu the process renders even on Source 2's empty render device: Borealis.Gpu draws
+		var borealisGpu = BorealisGpuRequested;
+		HasSource2Device = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
+		IsAvailable = HasSource2Device || borealisGpu;
 
 		// -borealisgpu: the process draws on a Borealis.Gpu device of its own (docs/managed/borealis-gpu-path.md, stage 2)
-		if ( IsAvailable && Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu" ) && RenderBackend.Default is Source2RenderBackend )
+		if ( IsAvailable && borealisGpu && RenderBackend.Default is Source2RenderBackend )
 		{
 			var validation = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-validation" );
 			// Progress markers for the device-loss report, unless -borealisgpu-nomarkers
