@@ -337,6 +337,14 @@ public sealed class SurfaceShaders : IDisposable
 	/// <summary>Compile a shader by file name (or path) and keep it; null, after reporting, when it doesn't compile.</summary>
 	public CompiledShader Compile( string file ) => Program( file )?.Compiled;
 
+	// A surface or raw Slang file, in a profiler zone: compiles happen on first sight, on whichever thread draws
+	CompiledShader CompileFile( string path )
+	{
+		using var zone = Zones.ShaderCompile.Start();
+		var raw = System.Text.RegularExpressions.Regex.IsMatch( File.ReadAllText( path ), @"\[\s*shader\s*\(" );
+		return raw ? Compiler().CompileRaw( path ) : Compiler().CompileSurface( path );
+	}
+
 	/// <summary>A material's program, compiled on first use; null when it can't draw.</summary>
 	internal SurfaceProgram For( SurfaceMaterial material )
 	{
@@ -371,8 +379,7 @@ public sealed class SurfaceShaders : IDisposable
 			{
 				try
 				{
-					var raw = System.Text.RegularExpressions.Regex.IsMatch( File.ReadAllText( path ), @"\[\s*shader\s*\(" );
-					var compiled = raw ? Compiler().CompileRaw( path ) : Compiler().CompileSurface( path );
+					var compiled = CompileFile( path );
 					program = new SurfaceProgram( device, compiled );
 					if ( compiled.GpuDrivenError is { } gpuDrivenError ) Error?.Invoke( $"{file}: no GPU-driven passes, its draws go the classic way: {gpuDrivenError}" );
 				}

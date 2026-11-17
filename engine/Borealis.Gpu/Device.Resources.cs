@@ -557,7 +557,7 @@ public sealed unsafe partial class Device
 		{
 			var info = new VkShaderModuleCreateInfo { sType = VkStructureType.ShaderModuleCreateInfo, codeSize = (nuint)spirv.Length, pCode = (uint*)code };
 			ulong module;
-			Vk.vkCreateShaderModule( Vk.Device, &info, null, &module ).Check( $"vkCreateShaderModule ({name})" );
+			using ( Zone( ZoneShaderModule ) ) Vk.vkCreateShaderModule( Vk.Device, &info, null, &module ).Check( $"vkCreateShaderModule ({name})" );
 			SetName( VkObjectType.ShaderModule, module, name );
 
 			var (index, generation) = Shaders.Add( new ShaderRecord { Module = module } );
@@ -790,7 +790,7 @@ public sealed unsafe partial class Device
 
 		ulong pipeline;
 		var started = System.Diagnostics.Stopwatch.GetTimestamp();
-		Vk.vkCreateGraphicsPipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateGraphicsPipelines ({info.Name})" );
+		using ( Zone( ZonePipeline ) ) Vk.vkCreateGraphicsPipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateGraphicsPipelines ({info.Name})" );
 		CountPipeline( started );
 		SetName( VkObjectType.Pipeline, pipeline, info.Name );
 		if ( shaderStatistics ) KeepStatistics( pipeline, info.Name );
@@ -825,7 +825,7 @@ public sealed unsafe partial class Device
 
 		ulong pipeline;
 		var started = System.Diagnostics.Stopwatch.GetTimestamp();
-		Vk.vkCreateComputePipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateComputePipelines ({info.Name})" );
+		using ( Zone( ZonePipeline ) ) Vk.vkCreateComputePipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateComputePipelines ({info.Name})" );
 		CountPipeline( started );
 		SetName( VkObjectType.Pipeline, pipeline, info.Name );
 		if ( shaderStatistics ) KeepStatistics( pipeline, info.Name );

@@ -88,7 +88,22 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			Message = message,
 		} );
 
+		gpu.Profiler = new TraceZones();
 		return new BorealisGpuRenderBackend( gpu, ownsDevice: true ) { followsFrames = frames };
+	}
+
+	/// <summary>The device's own zones (pipeline and shader module creation) in the engine's profiler, while it records.</summary>
+	sealed class TraceZones : IDeviceProfiler
+	{
+		public unsafe void BeginZone( nint name, uint color )
+		{
+			if ( NativeEngine.PerformanceTrace.__N.PerformanceTrace_BeginEvent != null ) NativeEngine.PerformanceTrace.BeginEvent( name, null, color, null, 0, null );
+		}
+
+		public unsafe void EndZone()
+		{
+			if ( NativeEngine.PerformanceTrace.__N.PerformanceTrace_BeginEvent != null ) NativeEngine.PerformanceTrace.EndEvent();
+		}
 	}
 
 	/// <summary>A device beside Source 2's, logging its messages, for comparing the two in one process.</summary>

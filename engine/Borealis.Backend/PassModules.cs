@@ -213,6 +213,7 @@ public sealed class PassModules : IShaderModules
 		lock ( stages ) stages.TryGetValue( key, out entry );
 		if ( entry.Stage is null )
 		{
+			using var zone = Zones.ShaderCompile.Start();
 			var compiled = Compiler().CompilePass( module, kind, values );
 			entry = (Describe( shader, kind, compiled, key ), compiled.Stage.Specializations);
 			lock ( stages ) stages[key] = entry;
