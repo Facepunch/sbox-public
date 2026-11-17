@@ -49,16 +49,6 @@ internal static class SceneNative
 	public static ulong LightmapKey( SceneObject sceneObject ) => RenderTools.GetSceneObjectLightmapKey( sceneObject );
 
 	/// <summary>
-	/// Create lightmap attributes, or null without lightmaps (<c>RenderTools.SetSceneObjectLightmapAttributes</c>).
-	/// </summary>
-	public static RenderAttributes CreateLightmapAttributes( SceneObject sceneObject )
-	{
-		var attributes = new RenderAttributes();
-		// Its finalizer frees the native side
-		return RenderTools.SetSceneObjectLightmapAttributes( sceneObject, attributes.Get() ) ? attributes : null;
-	}
-
-	/// <summary>
 	/// Read native probe bounds, priority and light groups (<c>RenderTools.GetLightProbeVolume</c>).
 	/// </summary>
 	public static unsafe void ReadLightProbeVolume( SceneObject lightProbeVolume, Borealis.LightProbeVolume into )
@@ -71,16 +61,6 @@ internal static class SceneNative
 		into.BoxMaxs = maxs;
 		into.RenderPriority = priority;
 		into.LightGroups = new ReadOnlySpan<uint>( groups, Math.Clamp( count, 0, 8 ) ).ToArray();
-	}
-
-	/// <summary>
-	/// Create probe constants and baked-lighting attributes, or null without constants (<c>RenderTools.SetLightProbeVolumeAttributes</c>).
-	/// </summary>
-	public static RenderAttributes CreateLightProbeAttributes( SceneObject lightProbeVolume )
-	{
-		var attributes = new RenderAttributes();
-		// Its finalizer frees the native side
-		return RenderTools.SetLightProbeVolumeAttributes( lightProbeVolume, attributes.Get() ) ? attributes : null;
 	}
 
 	/// <summary>
@@ -137,34 +117,5 @@ internal static class SceneNative
 		}
 
 		return fragments;
-	}
-
-	/// <summary>
-	/// Draw dynamic vertices with the transform slot already bound (<c>RenderTools.DrawDynamicSceneObject</c>).
-	/// Returns false when empty.
-	/// </summary>
-	public static bool DrawDynamicObject( GpuContext context, SceneDynamicObject sceneObject, StringToken shaderMode ) => RenderTools.DrawDynamicSceneObject( context.NativeContext(), sceneObject, shaderMode );
-
-	/// <summary>
-	/// Forget the constant buffers Borealis's binds kept for a material's layers (<c>IMaterialSystem2::ForgetCachedConstantBuffers</c>),
-	/// at the end of the frame, when no bind is recording. A bind of it after makes them again. Nothing on a Borealis.Gpu
-	/// device, whose materials aren't native's, or for a material already freed, whose layers took theirs with them.
-	/// </summary>
-	public static void ForgetKeptConstants( GpuMaterial material )
-	{
-		if ( material.Engine() is not { } engine ) return;
-
-		// Frame end disposes it
-#pragma warning disable CA2000 // Dispose objects before losing scope
-		EngineLoop.DisposeAtFrameEnd( new KeptConstantsForget( engine ) );
-#pragma warning restore CA2000
-	}
-
-	sealed class KeptConstantsForget( Material material ) : IDisposable
-	{
-		public void Dispose()
-		{
-			if ( material.IsValid ) material.native.ForgetCachedConstantBuffers();
-		}
 	}
 }

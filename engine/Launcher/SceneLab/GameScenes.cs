@@ -1,10 +1,9 @@
 namespace Sandbox.SceneLab;
 
 /// <summary>
-/// The GameObject scenes in the Scene menu: what the managed renderer draws through its GameObject bridge
-/// (<c>r_managed_scene</c>) that only exists as components - post processing, UI, particles, decals. Each is built from
-/// engine components and core and citizen assets, compared with native the way <c>r_managed_scene_compare</c> does, and
-/// where it has a <c>Change</c>, compared again after changing it through its components.
+/// The GameObject scenes in the Scene menu: what only exists as components - post processing, UI, particles, decals. Each
+/// is built from engine components and core and citizen assets, captured natively, and where it has a <c>Change</c>,
+/// captured again after changing it through its components.
 ///
 /// They share a stage (<see cref="Stage"/>): a camera, the sun with sky light, the default sky and a floor.
 /// </summary>
@@ -1354,7 +1353,7 @@ internal static partial class GameScenes
 	internal static SkinnedModelRenderer DressedCitizen( string name, Vector3 position )
 	{
 		var body = Citizen( name, position );
-		BridgeScene.Dress( BridgeScene.Outfit( BridgeScene.Outfits ), body );
+		Outfits.Dress( Outfits.Outfit( Outfits.Default ), body );
 		return body;
 	}
 

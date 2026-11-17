@@ -22,8 +22,8 @@ public sealed partial class SceneWorld : IHandle
 	internal HashSet<SceneLight> InternalSceneLights { get; } = new();
 
 	/// <summary>
-	/// Told about every change to this world's scene objects - the managed scene renderer's mirror of it, when
-	/// <c>r_managed_scene</c> is on. Null otherwise.
+	/// Told about every change to this world's scene objects - Borealis's mirror of it, in a process drawing on
+	/// Borealis.Gpu (<c>-borealisgpu</c>). Null otherwise.
 	/// </summary>
 	internal Rendering.ISceneObjectListener ChangeListener { get; set; }
 

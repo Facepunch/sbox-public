@@ -3,7 +3,7 @@ using Sandbox.Rendering;
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// A camera rendering into a game window on Borealis.Gpu (<c>-borealisgpu</c>, docs/managed/borealis-gpu-path.md stage 5).
+/// A camera's frame on Borealis.Gpu (<c>-borealisgpu</c>): into a game window, an engine texture, or as a child of another.
 /// </summary>
 internal sealed partial class SceneBridge
 {
@@ -215,9 +215,9 @@ internal sealed partial class SceneBridge
 	}
 
 	/// <summary>
-	/// Render a child of the frame being drawn (a command list's <c>DrawView</c>, a water body's <c>DrawRefraction</c>) on the
-	/// Borealis.Gpu device, as <see cref="RenderChild"/> does on Source 2's: prepared, recorded and submitted now, so it reaches
-	/// the GPU before the parent's lists. It draws into targets of its own the engine texture's size and format, which
+	/// Render a child of the frame being drawn (a command list's <c>DrawView</c>, a water body's <c>DrawRefraction</c>) for
+	/// <see cref="RenderChild"/>: prepared, recorded and submitted now, so it reaches the GPU before the parent's lists. It draws
+	/// into targets of its own the engine texture's size and format, which
 	/// Borealis's draws then read in place of <paramref name="target"/> (and <paramref name="depthTarget"/>), through
 	/// <see cref="MirrorContent.SetCapture"/>. It takes the parent's exposure. The engine draws nothing in it: the graphics
 	/// context is the parent's (custom objects, dynamic objects and command lists aren't drawn, nor the camera's stages).
@@ -234,7 +234,7 @@ internal sealed partial class SceneBridge
 		state = null;
 		if ( target.Width < 1 || target.Height < 1 ) return false;
 
-		(var mirror, state) = Prepare( camera, setup, target.Size, updateExposure: false );
+		(var mirror, state) = Prepare( camera, setup, target.Size );
 		state.View.ToneMapScalar = toneMapScalar;
 
 		var size = new Vector2Int( target.Width, target.Height );
@@ -280,8 +280,10 @@ internal sealed partial class SceneBridge
 	}
 
 	/// <summary>
-	/// A top-level view's planar reflection on the Borealis.Gpu device, as <see cref="RenderPlanarReflection"/> renders one on
-	/// Source 2's: into targets of its own that the view's attributes name for the planes' materials, with the view's exposure.
+	/// A top-level view's planar reflection, as native's pipeline renders one for its views (<see cref="PlanarReflections"/>): the
+	/// plane covering the most of its screen, mirrored, as a reflection view of its own, rendered before the view into targets
+	/// of its own that the view's attributes name for the planes' materials, with the view's exposure. Reflections and
+	/// orthographic views have none.
 	/// </summary>
 	void RenderPlanarReflectionOnGpu( SceneCamera camera, SceneMirror mirror, CameraState state, in ViewSetup setup )
 	{

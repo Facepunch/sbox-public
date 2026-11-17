@@ -1,14 +1,12 @@
-using Borealis;
 using Sandbox.Rendering;
 using Sandbox.Rendering.Bridge;
 
 namespace Sandbox.SceneLab;
 
 /// <summary>
-/// GameObject scenes (<see cref="SceneLabScene.Game"/>): ticked every frame, their main camera orbited like the grid's
-/// view, and drawn by the managed renderer's GameObject bridge - the path <c>r_managed_scene</c> takes in a game - or by
-/// native. A capture compares the two as <c>r_managed_scene_compare</c> does, then changes the scene and compares again
-/// when it has a <see cref="SceneLabScene.ChangeGame"/>.
+/// GameObject scenes (<see cref="SceneLabScene.Game"/>): ticked every frame, their main camera orbited, and drawn by native's
+/// scene system. A capture saves the camera's frame (<c>name.native.png</c>), then changes the scene and captures again when it
+/// has a <see cref="SceneLabScene.ChangeGame"/>.
 /// </summary>
 internal sealed partial class SceneLabWindow
 {
@@ -33,16 +31,11 @@ internal sealed partial class SceneLabWindow
 	CameraComponent[] targetCameras = [];
 
 	/// <summary>
-	/// <c>-isolated</c>: capture a GameObject scene through the chosen renderer alone, for effects whose history belongs to
-	/// the camera - AO, SSR - which a compare in one process mixes, the two renderers reading what the other wrote. Each
-	/// capture frame renders the camera once, into a readback target instead of the swap chain; the native run saves
-	/// <c>name.native.png</c>, and the managed run compares against it. The built-in <c>-parity -isolated</c> runner
-	/// performs both passes from fresh scene loads.
+	/// <c>-isolated</c>: capture a GameObject scene's camera alone, for effects whose history belongs to the camera - AO, SSR -
+	/// which a second render of the camera in the frame would advance. Each capture frame renders the camera once, into a
+	/// readback target instead of the swap chain. The built-in <c>-parity</c> runner captures such presets from fresh loads.
 	/// </summary>
 	bool isolated => Args.Has( "-isolated" ) || parity?.Isolated == true;
-
-	// The last game compare's result, for the parity run
-	FrameComparison.Parity? lastParity;
 
 	// The frame an isolated capture rendered this frame, if it did
 	Color32[] isolatedPixels;
@@ -113,7 +106,6 @@ internal sealed partial class SceneLabWindow
 	bool LoadGame( SceneLabScene scene )
 	{
 		UnloadGame();
-		if ( !scene.IsGame ) return false;
 
 		game = WithGameUI( scene.Game );
 		gameChangedFrame = 0;
@@ -165,13 +157,8 @@ internal sealed partial class SceneLabWindow
 		}
 	}
 
-	// What a NativeAlongside scene's camera renders into natively
-	Texture nativeAlongside;
-
 	void UnloadGame()
 	{
-		nativeAlongside?.Dispose();
-		nativeAlongside = null;
 		extraWorldsCamera?.Dispose();
 		extraWorldsCamera = null;
 		game?.Destroy();
@@ -211,15 +198,13 @@ internal sealed partial class SceneLabWindow
 		{
 			game.PreCameraRender();
 
-			// Each renderer by name, whatever r_managed_scene says: these are the A/B
-			Scene.Capture?.Invoke( game, Renderer == RendererKind.Managed ? (gameBridge ??= new SceneBridge()) : SceneRenderer.Native );
+			// Native's renderer by name: a panel app's frame doesn't pick one
+			Scene.Capture?.Invoke( game, SceneRenderer.Native );
 
 			foreach ( var target in targetCameras )
 			{
 				target.InitializeRendering();
-				// Each renderer by name, whatever r_managed_scene says: these are the A/B
-				ISceneRenderer renderer = Renderer == RendererKind.Managed ? (gameBridge ??= new SceneBridge()) : SceneRenderer.Native;
-				renderer.RenderToTexture( target.SceneCamera, target.RenderTarget, target.RenderTarget.Size, Scene.TargetSetup?.Invoke( target ) ?? default );
+				SceneRenderer.Native.RenderToTexture( target.SceneCamera, target.RenderTarget, target.RenderTarget.Size, Scene.TargetSetup?.Invoke( target ) ?? default );
 			}
 
 			camera.InitializeRendering();
@@ -227,28 +212,9 @@ internal sealed partial class SceneLabWindow
 			if ( isolatedCapture )
 			{
 				isolatedSize = new Vector2Int( (int)size.x, (int)size.y );
-				isolatedPixels = Renderer == RendererKind.Managed
-					? (gameBridge ??= new SceneBridge()).RenderManaged( camera, isolatedSize, updateExposure: true )
-					: SceneBridge.RenderNative( camera, isolatedSize, prepare: false );
+				isolatedPixels = RenderBitmap( camera.SceneCamera, isolatedSize, default );
 				isolatedFaces = Scene.CaptureFaces?.Invoke( game ) is { } cube ? ReadFaces( cube ) : null;
 				isolatedVolumes = Scene.CaptureVolumes?.Invoke( game ) is { } volumes ? ReadVolumes( volumes ) : null;
-			}
-			else if ( Renderer == RendererKind.Managed )
-			{
-				camera.SceneCamera.AddToRenderList( gameBridge ??= new SceneBridge(), swapChain, size );
-
-				// The same camera natively too, where native's history has to keep pace (SceneLabScene.NativeAlongside) - but not
-				// while benchmarking, where it would put native's frame into the managed one's numbers
-				if ( Scene.NativeAlongside && benchmark is null )
-				{
-					if ( nativeAlongside is null || nativeAlongside.Size != size )
-					{
-						nativeAlongside?.Dispose();
-						nativeAlongside = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( ImageFormat.RGBA16161616F ).Create( "Scene Lab native alongside" );
-					}
-
-					SceneRenderer.Native.RenderToTexture( camera.SceneCamera, nativeAlongside, size, default );
-				}
 			}
 			else
 			{
@@ -261,9 +227,6 @@ internal sealed partial class SceneLabWindow
 		// Frames count from when the scene is ready, so a capture waits for what it's loading
 		if ( Scene.Ready is { } ready && !ready( game ) ) return;
 		frame++;
-
-		if ( Renderer == RendererKind.Managed && Scene.ReportMirror?.Invoke( game ) is { } label && gameBridge?.CachesFor( camera.SceneCamera, camera.SceneCamera.MainView ) is { } caches )
-			Log.Info( $"Scene Lab: {Scene.Name}, {label}: mirror holds {caches}" );
 
 		if ( benchmark is not null )
 		{
@@ -278,14 +241,14 @@ internal sealed partial class SceneLabWindow
 
 		UpdateStats();
 
-		if ( compareRequested is not null )
+		if ( captureRequested is not null )
 		{
-			var folder = compareRequested;
-			compareRequested = null;
-			ShowMessage( CompareGame( folder, FileName( Scene.Name ) ) );
+			var folder = captureRequested;
+			captureRequested = null;
+			ShowMessage( CaptureGame( folder, FileName( Scene.Name ) ).Result );
 		}
 
-		// A capture compares at the capture frame, then when the scene changes itself, again a few frames after changing
+		// A capture at the capture frame, then when the scene changes itself, again a few frames after changing
 		if ( CapturePath is null ) return;
 
 		var captureFolder = System.IO.Path.GetDirectoryName( System.IO.Path.GetFullPath( CapturePath ) );
@@ -293,12 +256,9 @@ internal sealed partial class SceneLabWindow
 
 		if ( frame == GameCaptureFrame )
 		{
-			var result = isolated ? CaptureIsolated( captureFolder, captureName ) : CompareGame( captureFolder, captureName );
+			var (result, failed) = isolated ? CaptureIsolated( captureFolder, captureName ) : CaptureGame( captureFolder, captureName );
 			Log.Info( $"Scene Lab: {Scene.Name}: {result}" );
-			CapturePlan( CapturePath );
-			if ( !isolated && Renderer == RendererKind.Managed && DebugOverlay.ManagedViews.Showing )
-				CaptureDebugViews( ReadSwapChain( swapChain, size ), (int)size.x, (int)size.y, CapturePath );
-			parity?.Report( result, lastParity );
+			parity?.Report( result, failed );
 
 			if ( Scene.ChangeGame is { } change )
 			{
@@ -311,213 +271,84 @@ internal sealed partial class SceneLabWindow
 		}
 		else if ( frame == gameChangedFrame )
 		{
-			var result = isolated ? CaptureIsolated( captureFolder, $"{captureName}_changed" ) : CompareGame( captureFolder, $"{captureName}_changed" );
+			var (result, failed) = isolated ? CaptureIsolated( captureFolder, $"{captureName}_changed" ) : CaptureGame( captureFolder, $"{captureName}_changed" );
 			Log.Info( $"Scene Lab: {Scene.Name}, changed: {result}" );
-			parity?.Report( result, lastParity );
+			parity?.Report( result, failed );
 			CaptureDone();
 		}
 	}
 
 	/// <summary>
-	/// Compare the scene's main camera through both renderers, saving the frames in <paramref name="folder"/>.
+	/// The scene's main camera rendered natively into an 8-bit bitmap, effects and UI included, saved in <paramref name="folder"/>
+	/// as <c>name.native.png</c>; or a camera set up from it with the scene's extra world added
+	/// (<see cref="SceneLabScene.ExtraWorld"/>), which the camera component clears every frame. Fails on what the preset's
+	/// <see cref="SceneLabScene.ValidateGame"/> finds.
 	/// </summary>
-	string CompareGame( string folder, string name )
+	(string Result, bool Failed) CaptureGame( string folder, string name )
 	{
 		System.IO.Directory.CreateDirectory( folder );
-		gameBridge ??= new SceneBridge();
+		var size = new Vector2Int( 1280, 720 );
+		var path = System.IO.Path.Combine( folder, $"{name}.native.png" );
 
-		string result;
+		Color32[] pixels;
 		using ( game.Push() )
 		{
-			result = Scene.ExtraWorld is { } extraWorld ? CompareWithExtraWorld( extraWorld( game ), folder, name ) : gameBridge.Compare( game.Camera, folder, name );
+			game.PreCameraRender();
+			var camera = game.Camera;
+			if ( Scene.ExtraWorld is { } extraWorld )
+			{
+				extraWorldsCamera ??= new SceneCamera( "Scene Lab extra worlds" );
+				camera.UpdateSceneCamera( extraWorldsCamera );
+				extraWorldsCamera.Worlds.Add( extraWorld( game ) );
+				pixels = RenderBitmap( extraWorldsCamera, size, extraWorldsCamera.MainView );
+			}
+			else
+			{
+				camera.InitializeRendering();
+				pixels = RenderBitmap( camera.SceneCamera, size, default );
+			}
 		}
 
-		lastParity = gameBridge.LastParity;
+		FrameComparison.SavePng( pixels, size.x, size.y, path );
 		if ( Scene.ValidateGame?.Invoke( game ) is { } error )
 		{
-			lastParity = null;
 			Environment.ExitCode = 2;
-			return $"FAILED: {error}";
+			return ($"FAILED: {error}", true);
 		}
-		if ( gameBridge.LastParity is { Matches: false } ) Environment.ExitCode = 2;
-		return result;
+
+		return ($"native frame to {path}", false);
 	}
 
-	// The camera an ExtraWorld scene compares through
+	// The camera an ExtraWorld scene captures through
 	SceneCamera extraWorldsCamera;
 
 	/// <summary>
-	/// Compare a camera set up from the scene's, with <paramref name="extraWorld"/> among its extra worlds, through both
-	/// renderers into 8-bit frames as the bridge's compare does: native first, then managed reusing native's exposure update.
+	/// A camera rendered natively into an 8-bit bitmap, as a game's screenshot is.
 	/// </summary>
-	string CompareWithExtraWorld( SceneWorld extraWorld, string folder, string name )
+	static Color32[] RenderBitmap( SceneCamera camera, Vector2Int size, in ViewSetup setup )
 	{
-		var size = new Vector2Int( 1280, 720 );
-		var camera = game.Camera;
-		extraWorldsCamera ??= new SceneCamera( "Scene Lab extra worlds" );
-
-		game.PreCameraRender();
-		camera.UpdateSceneCamera( extraWorldsCamera );
-		extraWorldsCamera.Worlds.Add( extraWorld );
-
 		using var bitmap = new Bitmap( size.x, size.y );
-		extraWorldsCamera.OnPreRender( bitmap.Size );
-		SceneRenderer.Native.RenderToBitmap( extraWorldsCamera, bitmap, extraWorldsCamera.MainView );
-		var native = bitmap.GetPixels32();
-		var managed = gameBridge.RenderManaged( extraWorldsCamera, size, updateExposure: false );
-
-		var parity = FrameComparison.Compare( managed, native );
-		var managedPath = System.IO.Path.Combine( folder, $"{name}.png" );
-		FrameComparison.SavePng( managed, size.x, size.y, managedPath );
-		FrameComparison.SavePng( native, size.x, size.y, System.IO.Path.ChangeExtension( managedPath, ".native.png" ) );
-		FrameComparison.SavePng( FrameComparison.Difference( managed, native ), size.x, size.y, System.IO.Path.ChangeExtension( managedPath, ".diff.png" ) );
-		gameBridge.LastParity = parity;
-
-		var stats = gameBridge.StatsFor( extraWorldsCamera, extraWorldsCamera.MainView );
-		return $"{parity} | extra worlds: {extraWorld.SceneObjects.Count} objects, debug world {game.DebugSceneWorld?.SceneObjects.Count ?? 0} | {stats?.ObjectsVisible} objects drawn in {stats?.Draws} draws, {stats?.CustomDraws} custom draws | frames in {folder}";
+		camera.OnPreRender( bitmap.Size );
+		SceneRenderer.Native.RenderToBitmap( camera, bitmap, setup );
+		return bitmap.GetPixels32();
 	}
 
 	/// <summary>
-	/// Save this frame's isolated capture: native's as <c>name.native.png</c>, managed's as <c>name.png</c>, compared with
-	/// native's when the native run saved it.
+	/// Save this frame's isolated capture as <c>name.native.png</c>, with the preset's cube faces and volumes beside it.
 	/// </summary>
-	string CaptureIsolated( string folder, string name )
+	(string Result, bool Failed) CaptureIsolated( string folder, string name )
 	{
-		lastParity = null;
-		if ( isolatedPixels is not { } pixels ) return "no isolated frame rendered";
+		if ( isolatedPixels is not { } pixels ) return ("no isolated frame rendered", true);
 
 		System.IO.Directory.CreateDirectory( folder );
-		var (width, height) = (isolatedSize.x, isolatedSize.y);
-		var managedPath = System.IO.Path.Combine( folder, $"{name}.png" );
 		var nativePath = System.IO.Path.Combine( folder, $"{name}.native.png" );
-
-		if ( Renderer != RendererKind.Managed )
-		{
-			FrameComparison.SavePng( pixels, width, height, nativePath );
-			for ( int i = 0; i < (isolatedFaces?.Length ?? 0); i++ )
-				FrameComparison.SavePng( isolatedFaces[i], isolatedFaceSize, isolatedFaceSize, System.IO.Path.Combine( folder, $"{name}.face{i}.native.png" ) );
-			for ( int i = 0; i < (isolatedVolumes?.Length ?? 0); i++ )
-				System.IO.File.WriteAllBytes( System.IO.Path.Combine( folder, $"{name}.volume{i}.native.f32" ), System.Runtime.InteropServices.MemoryMarshal.AsBytes( isolatedVolumes[i].AsSpan() ).ToArray() );
-			return $"isolated native frame to {nativePath}";
-		}
-
-		FrameComparison.SavePng( pixels, width, height, managedPath );
-		if ( !System.IO.File.Exists( nativePath ) ) return $"isolated managed frame to {managedPath}, no native frame to compare";
-
-		using var reference = Bitmap.CreateFromBytes( System.IO.File.ReadAllBytes( nativePath ) );
-		var native = reference.GetPixels32();
-		var result = FrameComparison.Compare( pixels, native );
-		if ( native.Length == pixels.Length ) FrameComparison.SavePng( FrameComparison.Difference( pixels, native ), width, height, System.IO.Path.Combine( folder, $"{name}.diff.png" ) );
-		lastParity = result;
-		if ( !result.Matches ) Environment.ExitCode = 2;
-		var readbacks = $"{CompareFaces( folder, name )}{CompareVolumes( folder, name )}";
-
-		// A readback that fails fails the preset, whatever the frame did
-		if ( result.Matches && lastParity is { Matches: false } ) return $"parity FAILED: a readback differs | {result} | isolated{readbacks}";
-		return $"{result} | isolated{readbacks}";
-	}
-
-	/// <summary>
-	/// Compare each volume texture's texels with native's: the mean difference over the mean of native's values, which fails
-	/// the capture over 0.1%.
-	/// </summary>
-	string CompareVolumes( string folder, string name )
-	{
-		if ( isolatedVolumes is not { } volumes ) return "";
-
-		var text = new System.Text.StringBuilder( " | volumes:" );
-		for ( int i = 0; i < volumes.Length; i++ )
-		{
-			var nativePath = System.IO.Path.Combine( folder, $"{name}.volume{i}.native.f32" );
-			if ( !System.IO.File.Exists( nativePath ) ) return $"{text} no native volumes to compare";
-
-			var native = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector4>( System.IO.File.ReadAllBytes( nativePath ) );
-			var mine = volumes[i];
-			System.IO.File.WriteAllBytes( System.IO.Path.Combine( folder, $"{name}.volume{i}.f32" ), System.Runtime.InteropServices.MemoryMarshal.AsBytes( mine.AsSpan() ).ToArray() );
-			if ( native.Length != mine.Length ) return $"{text} {i}: sizes differ";
-
-			double difference = 0, magnitude = 0, largest = 0;
-			for ( int t = 0; t < mine.Length; t++ )
-			{
-				var d = mine[t] - native[t];
-				var absolute = Math.Abs( d.x ) + Math.Abs( d.y ) + Math.Abs( d.z ) + Math.Abs( d.w );
-				difference += absolute;
-				largest = Math.Max( largest, absolute );
-				magnitude += Math.Abs( native[t].x ) + Math.Abs( native[t].y ) + Math.Abs( native[t].z ) + Math.Abs( native[t].w );
-			}
-
-			var relative = magnitude > 0 ? difference / magnitude : difference;
-			text.Append( $" {i}: {relative * 100:0.000}% of native's mean, largest texel {largest:0.###}" );
-			if ( relative > 0.001 )
-			{
-				text.Append( " FAILED" );
-				lastParity = lastParity is { } frame ? frame with { Different = frame.Compared } : null;
-				Environment.ExitCode = 2;
-			}
-		}
-
-		return text.ToString();
-	}
-
-	/// <summary>
-	/// Save the captured cube's faces, and compare each with native's: a face that fails fails the capture.
-	/// </summary>
-	string CompareFaces( string folder, string name )
-	{
-		if ( isolatedFaces is not { } faces ) return "";
-
-		var text = new System.Text.StringBuilder( " | cube faces:" );
-		for ( int i = 0; i < faces.Length; i++ )
-		{
-			var size = isolatedFaceSize;
-			FrameComparison.SavePng( faces[i], size, size, System.IO.Path.Combine( folder, $"{name}.face{i}.png" ) );
-			var nativePath = System.IO.Path.Combine( folder, $"{name}.face{i}.native.png" );
-			if ( !System.IO.File.Exists( nativePath ) ) return $"{text} no native faces to compare";
-
-			using var reference = Bitmap.CreateFromBytes( System.IO.File.ReadAllBytes( nativePath ) );
-			var face = FrameComparison.Compare( faces[i], reference.GetPixels32() );
-			text.Append( $" {i}: {face.MeanDifference:0.00}/255, {face.Different} off" );
-			if ( !face.Matches )
-			{
-				text.Append( " FAILED" );
-				if ( lastParity is { Matches: true } ) lastParity = face;
-				Environment.ExitCode = 2;
-			}
-		}
-
-		return text.ToString();
+		FrameComparison.SavePng( pixels, isolatedSize.x, isolatedSize.y, nativePath );
+		for ( int i = 0; i < (isolatedFaces?.Length ?? 0); i++ )
+			FrameComparison.SavePng( isolatedFaces[i], isolatedFaceSize, isolatedFaceSize, System.IO.Path.Combine( folder, $"{name}.face{i}.native.png" ) );
+		for ( int i = 0; i < (isolatedVolumes?.Length ?? 0); i++ )
+			System.IO.File.WriteAllBytes( System.IO.Path.Combine( folder, $"{name}.volume{i}.native.f32" ), System.Runtime.InteropServices.MemoryMarshal.AsBytes( isolatedVolumes[i].AsSpan() ).ToArray() );
+		return ($"isolated native frame to {nativePath}", false);
 	}
 
 	static string FileName( string name ) => new string( name.Where( char.IsLetterOrDigit ).ToArray() ).ToLowerInvariant();
-
-	/// <summary>
-	/// The managed renderer's numbers for the game camera's last frame.
-	/// </summary>
-	Borealis.RenderStats? GameStats()
-	{
-		if ( game?.Camera is not { } camera || gameBridge?.StatsFor( camera.SceneCamera, camera.SceneCamera.MainView ) is not { } stats ) return null;
-
-		// Each render target camera is a render of its own, and the first to render a frame syncs its changes: the frame's
-		// numbers are all of them
-		foreach ( var target in targetCameras )
-		{
-			if ( gameBridge.StatsFor( target.SceneCamera, default ) is not { } more ) continue;
-
-			stats.SyncMs += more.SyncMs;
-			stats.CollectMs += more.CollectMs;
-			stats.PrepareMs += more.PrepareMs;
-			stats.SetupMs += more.SetupMs;
-			stats.RecordMs += more.RecordMs;
-			stats.RecordWaitMs += more.RecordWaitMs;
-			stats.WorkerRecordMs += more.WorkerRecordMs;
-			stats.PrepassRecordMs += more.PrepassRecordMs;
-			stats.StagesMs += more.StagesMs;
-			stats.SubmitMs += more.SubmitMs;
-			stats.Draws += more.Draws;
-			stats.DepthDraws += more.DepthDraws;
-			stats.ShadowDraws += more.ShadowDraws;
-		}
-
-		return stats;
-	}
 }

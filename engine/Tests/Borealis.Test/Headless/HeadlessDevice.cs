@@ -109,6 +109,11 @@ internal sealed class HeadlessDevice : GpuDevice
 
 	internal override bool KnowsStencilUse => StencilUse;
 
+	/// <summary>Whether its opaque pass writes normals and roughness for reflections (<see cref="GpuDevice.WritesForwardNormals"/>).</summary>
+	public bool ForwardNormals { get; set; }
+
+	internal override bool WritesForwardNormals => ForwardNormals;
+
 	internal override bool CullsAggregatesGpuDriven => ResidentAggregates;
 
 	internal override bool DrawsAggregatesResident => ResidentAggregates;
