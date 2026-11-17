@@ -118,6 +118,50 @@ public class TextureStreamingTests : GpuTest
 		Device.WaitIdle();
 	}
 
+	/// <summary>
+	/// A file that gives its tail but not its finer mips (cut short after the tail was read) is read for them once, not again
+	/// every frame: the texture keeps its tail.
+	/// </summary>
+	[TestMethod]
+	public void UnreadableMipsAreNotReadEveryFrame()
+	{
+		var path = StreamingTextures( 1 )[0];
+		var game = ContentFiles.FindGame();
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-stream-{Guid.NewGuid():N}" );
+		var copy = Path.Combine( folder, path + "_c" );
+		Directory.CreateDirectory( Path.GetDirectoryName( copy ) );
+		File.Copy( game.Find( path ), copy );
+		try
+		{
+			using var backend = new BackendDevice( Device, new ContentFiles( [folder, .. game.Roots] ) ) { StreamTextures = true };
+			var texture = (BackendTexture)backend.MaterialTextureFile( path );
+			var stream = texture.Stream;
+			Assert.IsNotNull( stream );
+
+			// Only the tail's bytes are left
+			var tailBytes = TextureFile.PrefixNeeded( File.ReadAllBytes( copy ), TextureFile.Tail );
+			using ( var file = new FileStream( copy, FileMode.Open ) ) file.SetLength( tailBytes );
+			Assert.IsNull( TextureStreamer.ReadMips( backend.Content, path, 0 ) );
+
+			using var material = new BackendMaterial( "streamed", null, null, new( StringComparer.OrdinalIgnoreCase ) { ["g_tColor"] = texture } );
+			for ( int frame = 0; frame < 60; frame++ )
+			{
+				backend.AskTextures( material, TextureSizes.All );
+				backend.BeginFrame();
+				Thread.Sleep( 2 );
+			}
+
+			Assert.AreEqual( stream.TailTop, stream.ResidentTop );
+			Assert.IsTrue( backend.Streamer.BuildsStarted <= stream.TailTop, $"{backend.Streamer.BuildsStarted} builds for {stream.TailTop} mips above the tail" );
+			Assert.IsTrue( backend.Streamer.ReadFailures >= 1 );
+			Device.WaitIdle();
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
 	/// <summary>A draw asking for a size wants the coarsest mip at least that large, and its tail for nothing.</summary>
 	[TestMethod]
 	public void AskedSizeWantsTheCoarsestMipThatCoversIt()

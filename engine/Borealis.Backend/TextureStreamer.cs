@@ -54,6 +54,15 @@ internal sealed class StreamedTexture
 	/// <summary>A build in flight for it, or null.</summary>
 	public TextureStreamer.Build Building { get; set; }
 
+	/// <summary>
+	/// The coarsest mip a build couldn't read its file from, or -1: builds from it or finer aren't tried again, so a file
+	/// that can't be read isn't read every frame.
+	/// </summary>
+	public int Unreadable { get; set; } = -1;
+
+	/// <summary>The finest mip a build may start from: what it wants, coarser than any it couldn't read.</summary>
+	public int Reachable => Math.Max( Wanted, Unreadable + 1 );
+
 	/// <summary>The finest mip it wants: what was asked for lately, or its tail.</summary>
 	public int Wanted => Pinned ? 0 : Math.Min( Math.Min( Asked, AskedBefore ), TailTop );
 
@@ -321,6 +330,7 @@ internal sealed class TextureStreamer
 			var texture = build.Texture;
 			if ( !texture.Texture.IsValid || !build.Read.IsCompletedSuccessfully || build.Read.Result is not { } file || file.TopMip != build.Top )
 			{
+				if ( texture.Texture.IsValid ) Failed( texture, build.Top );
 				Drop( build, i-- );
 				continue;
 			}
@@ -352,6 +362,23 @@ internal sealed class TextureStreamer
 			builds.RemoveAt( i-- );
 		}
 	}
+
+	// A texture whose file couldn't give mips from top: not tried from there or finer again, said once
+	void Failed( StreamedTexture texture, int top )
+	{
+		texture.Unreadable = Math.Max( texture.Unreadable, top );
+		ReadFailures++;
+		if ( !reportedUnreadable.Add( texture.Path ) ) return;
+		Console.Error.WriteLine( $"Borealis.Gpu: streaming {texture.Path}: its file can't give mips from {top}; it keeps the mips it has" );
+	}
+
+	readonly HashSet<string> reportedUnreadable = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>Builds whose file couldn't be read so far.</summary>
+	public int ReadFailures { get; private set; }
+
+	/// <summary>Builds started so far.</summary>
+	public int BuildsStarted { get; private set; }
 
 	void Drop( Build build, int index )
 	{
@@ -426,7 +453,7 @@ internal sealed class TextureStreamer
 		candidates.Clear();
 		foreach ( var texture in textures )
 		{
-			if ( texture.Building is null && texture.Wanted < texture.ResidentTop ) candidates.Add( texture );
+			if ( texture.Building is null && texture.Reachable < texture.ResidentTop ) candidates.Add( texture );
 		}
 
 		var waiting = 0;
@@ -434,19 +461,19 @@ internal sealed class TextureStreamer
 		{
 			candidates.Sort( static ( a, b ) =>
 			{
-				var shortfall = (b.ResidentTop - b.Wanted).CompareTo( a.ResidentTop - a.Wanted );
+				var shortfall = (b.ResidentTop - b.Reachable).CompareTo( a.ResidentTop - a.Reachable );
 				return shortfall != 0 ? shortfall : b.LastAsked.CompareTo( a.LastAsked );
 			} );
 
 			foreach ( var texture in candidates )
 			{
-				var grow = texture.BytesFrom( texture.Wanted ) - texture.ResidentBytes;
+				var grow = texture.BytesFrom( texture.Reachable ) - texture.ResidentBytes;
 				if ( grow > available ) continue;
 				waiting++;
 				if ( builds.Count >= MaxBuilds ) continue;
 				available -= grow;
 				startedSinceMemory += grow;
-				StartBuild( texture, texture.Wanted );
+				StartBuild( texture, texture.Reachable );
 			}
 		}
 
@@ -458,6 +485,7 @@ internal sealed class TextureStreamer
 		var content = device.Content;
 		var path = texture.Path;
 		var build = new Build { Texture = texture, Top = top };
+		BuildsStarted++;
 		build.Read = Task.Run( () => ReadMips( content, path, top ) );
 		texture.Building = build;
 		builds.Add( build );
