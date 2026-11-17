@@ -666,7 +666,9 @@ public sealed unsafe partial class Device
 		var attributes = info.Attributes ?? [];
 		var vkBuffers = stackalloc VkVertexInputBindingDescription[Math.Max( buffers.Length, 1 )];
 		var vkAttributes = stackalloc VkVertexInputAttributeDescription[Math.Max( attributes.Length, 1 )];
-		for ( int i = 0; i < buffers.Length; i++ ) vkBuffers[i] = new VkVertexInputBindingDescription { binding = (uint)i, stride = (uint)buffers[i].Stride, inputRate = (int)buffers[i].StepRate };
+		// A stride of 0 (a constant stream, like the default one) reads the same element whatever the index, per vertex or per
+		// instance; it's made per instance so GPU-assisted validation doesn't count every vertex index past its one element
+		for ( int i = 0; i < buffers.Length; i++ ) vkBuffers[i] = new VkVertexInputBindingDescription { binding = (uint)i, stride = (uint)buffers[i].Stride, inputRate = buffers[i].Stride == 0 ? (int)VertexStepRate.Instance : (int)buffers[i].StepRate };
 		for ( int i = 0; i < attributes.Length; i++ )
 		{
 			vkAttributes[i] = new VkVertexInputAttributeDescription { location = (uint)attributes[i].Location, binding = (uint)attributes[i].Buffer, format = attributes[i].Format.ToVk(), offset = (uint)attributes[i].Offset };
