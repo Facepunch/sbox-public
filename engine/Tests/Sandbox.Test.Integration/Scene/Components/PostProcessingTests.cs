@@ -623,6 +623,43 @@ public class PostProcessingComponentTest
 	}
 
 	/// <summary>
+	/// Disabling DepthOfField disposes its tile buffers while the camera still holds this frame's layer (until its next
+	/// build): the layer's command list is emptied with them, so the frame doesn't run it against disposed buffers.
+	/// </summary>
+	[TestMethod]
+	public void DisabledDepthOfFieldLeavesNothingQueued()
+	{
+		var oldEnable = PostProcessSystem.EnablePostProcess;
+		var oldDofQuality = DepthOfField.Quality;
+		PostProcessSystem.EnablePostProcess = true;
+		DepthOfField.Quality = 3;
+
+		try
+		{
+			var scene = new Scene();
+			using var sceneScope = scene.Push();
+
+			var camGo = scene.CreateObject();
+			var cam = camGo.Components.Create<CameraComponent>();
+			var dof = camGo.Components.Create<DepthOfField>();
+			scene.GameTick();
+
+			var layer = FindLayer( cam, Stage.AfterTransparent, "Dof" );
+			Assert.IsNotNull( layer );
+			Assert.IsTrue( layer.CommandList.GetCheckpoint() > 0, "the layer's list holds this frame's commands" );
+
+			dof.Enabled = false;
+			Assert.AreSame( layer, FindLayer( cam, Stage.AfterTransparent, "Dof" ), "the camera keeps the layer until its next build" );
+			Assert.AreEqual( 0, layer.CommandList.GetCheckpoint(), "nothing left to run against the disposed buffers" );
+		}
+		finally
+		{
+			PostProcessSystem.EnablePostProcess = oldEnable;
+			DepthOfField.Quality = oldDofQuality;
+		}
+	}
+
+	/// <summary>
 	/// The compute-based effects also register through the same pipeline at their pinned
 	/// stages: AmbientOcclusion right after the depth prepass, DepthOfField after
 	/// transparents, Bloom before post process and ColorGrading after. Tonemapping both

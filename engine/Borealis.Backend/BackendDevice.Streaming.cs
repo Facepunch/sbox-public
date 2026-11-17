@@ -267,8 +267,9 @@ public sealed partial class BackendDevice
 		if ( Content.TryRead( path ) is not { } data || ReadMaterial( data ) is not { } file ) return;
 		readMaterials.TryAdd( path, file );
 
-		// Its shader too: the first load of one reads a large file, and a package's may recompile
-		if ( !string.IsNullOrEmpty( file.Shader ) ) Shaders.Load( file.Shader );
+		// Its shader too: the first load of one reads a large file, and a package's may recompile; and the render state its
+		// stencil check reads (a pass module's preprocessed lines)
+		if ( !string.IsNullOrEmpty( file.Shader ) ) BackendMaterial.ReadStencilAhead( Shaders, Shaders.Load( file.Shader ), file );
 		foreach ( var (_, texture) in file.Textures ) ReadTextureAhead( texture, tail: StreamTextures );
 	}
 

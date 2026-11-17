@@ -458,37 +458,17 @@ public sealed class ShaderLibrary : IDisposable
 			if ( drawMode is null ) return null;
 		}
 
+		// A shader with a geometry stage draws only from its module, whose vertex stage makes the primitives instead: its
+		// programs' vertex stage alone would draw what it's given (points as points), so it draws nothing until then
+		if ( shader[ShaderProgramType.Geometry] is not null && !GeometryPrograms ) return null;
+
 		ShaderStage Stage( ShaderProgramType type, ReadOnlySpan<int> features )
 		{
 			var program = shader[type];
 			if ( program is null ) return null;
 
-			var staticId = shader.StaticComboId( program, drawMode, features );
-			if ( !program.HasCombo( staticId ) ) staticId = Allowed( program, features, staticId );
-			if ( !program.HasCombo( staticId ) ) throw new InvalidDataException( $"{shader.Name}: {type} static combo {staticId} for mode {mode} wasn't compiled (skipped by its rules)" );
-			var combo = program.LoadCombo( staticId );
-
-			var dynamicId = ShaderFile.DynamicComboId( program, dynamicCombos, features );
-			var dynamic = combo.Dynamic( dynamicId ) ?? combo.Dynamic( 0 ) ?? throw new InvalidDataException( $"{shader.Name}: {type} has no dynamic combo {dynamicId}" );
+			var (combo, dynamic) = Combos( shader, drawMode, program, features, dynamicCombos );
 			return new ShaderStage( this, type, program, combo, dynamic, attributes, features );
-		}
-
-		// A combo its rules skip (eyeball.shader's Allow1( S_MODE_DEPTH, S_SPECULAR_CUBE_MAP ) in Depth mode): the feature
-		// combos the rules forbid there taken back to 0, the last first, as the rule leaves only one of them set
-		ulong Allowed( ShaderProgram program, ReadOnlySpan<int> features, ulong id )
-		{
-			var values = features.ToArray();
-			var combos = program.StaticCombos;
-			for ( int c = combos.Length - 1; c >= 0; c-- )
-			{
-				var feature = combos[c].FeatureIndex;
-				if ( combos[c].Source != 0 || feature < 0 || feature >= values.Length || values[feature] == 0 ) continue;
-				values[feature] = 0;
-				var allowed = shader.StaticComboId( program, drawMode, values );
-				if ( program.HasCombo( allowed ) ) return allowed;
-			}
-
-			return id;
 		}
 
 		var vertex = Stage( ShaderProgramType.Vertex, features );
@@ -510,10 +490,92 @@ public sealed class ShaderLibrary : IDisposable
 	}
 
 	/// <summary>
+	/// A static and dynamic combo of one of <paramref name="shader"/>'s programs for a mode and feature values; with
+	/// <paramref name="statesOnly"/>, without their shaders (<see cref="ShaderProgram.LoadComboStates"/>). Throws if the
+	/// static combo was never compiled.
+	/// </summary>
+	static (StaticCombo Static, DynamicCombo Dynamic) Combos( ShaderFile shader, ShaderMode drawMode, ShaderProgram program, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos, bool statesOnly = false )
+	{
+		var staticId = shader.StaticComboId( program, drawMode, features );
+		if ( !program.HasCombo( staticId ) ) staticId = Allowed( shader, drawMode, program, features, staticId );
+		if ( !program.HasCombo( staticId ) ) throw new InvalidDataException( $"{shader.Name}: {program.Type} static combo {staticId} for mode {drawMode.Name} wasn't compiled (skipped by its rules)" );
+		var combo = statesOnly ? program.LoadComboStates( staticId ) : program.LoadCombo( staticId );
+
+		var dynamicId = ShaderFile.DynamicComboId( program, dynamicCombos, features );
+		var dynamic = combo.Dynamic( dynamicId ) ?? combo.Dynamic( 0 ) ?? throw new InvalidDataException( $"{shader.Name}: {program.Type} has no dynamic combo {dynamicId}" );
+		return (combo, dynamic);
+	}
+
+	/// <summary>
+	/// A combo its rules skip (eyeball.shader's Allow1( S_MODE_DEPTH, S_SPECULAR_CUBE_MAP ) in Depth mode): the feature
+	/// combos the rules forbid there taken back to 0, the last first, as the rule leaves only one of them set.
+	/// </summary>
+	static ulong Allowed( ShaderFile shader, ShaderMode drawMode, ShaderProgram program, ReadOnlySpan<int> features, ulong id )
+	{
+		var values = features.ToArray();
+		var combos = program.StaticCombos;
+		for ( int c = combos.Length - 1; c >= 0; c-- )
+		{
+			var feature = combos[c].FeatureIndex;
+			if ( combos[c].Source != 0 || feature < 0 || feature >= values.Length || values[feature] == 0 ) continue;
+			values[feature] = 0;
+			var allowed = shader.StaticComboId( program, drawMode, values );
+			if ( program.HasCombo( allowed ) ) return allowed;
+		}
+
+		return id;
+	}
+
+	/// <summary>
+	/// The render state of <see cref="Variant(ShaderFile, string, ReadOnlySpan{int}, Func{string, int?}, Func{string, int?}, bool)"/>'s
+	/// variant for <paramref name="mode"/> with these feature values and no dynamic combos set (<see cref="ShaderVariant.State"/>),
+	/// read without making it: no shaders read (the shared modules they reference stay compressed), no shader modules,
+	/// layouts or reflection, and no module compile where the shader's module gives its render states
+	/// (<see cref="IShaderModules.PixelRenderStates"/>). Null when the shader has no such mode. Throws as the variant does
+	/// when the combo was never compiled.
+	/// </summary>
+	public ShaderPipelineState PixelState( ShaderFile shader, string mode, ReadOnlySpan<int> features )
+	{
+		var drawMode = shader.Mode( mode );
+		if ( drawMode is null ) return null;
+		if ( !string.IsNullOrEmpty( drawMode.Fallback ) )
+		{
+			var fallback = Load( drawMode.Fallback.Contains( '/' ) ? drawMode.Fallback : $"shaders/{drawMode.Fallback}" );
+			return fallback is null ? null : PixelState( fallback, mode, [] );
+		}
+
+		if ( Modules is { } modules && modules.Has( shader ) )
+		{
+			if ( modules.PixelRenderStates( shader, drawMode, features ) is { } states ) return ShaderPipelineState.Resolve( null, states, null );
+			return Variant( shader, mode, features )?.State;
+		}
+
+		if ( shader.Outdated is not null ) return UpgradedOf( shader ) is { } upgraded ? PixelState( upgraded, mode, features ) : null;
+		if ( shader.ModuleOnly ) return null;
+
+		var program = shader[ShaderProgramType.Pixel];
+		if ( program is null ) return ShaderPipelineState.Resolve( null );
+		var (combo, dynamic) = Combos( shader, drawMode, program, features, null, statesOnly: true );
+		return ShaderStage.PixelState( program, combo, dynamic, features );
+	}
+
+	/// <summary>
+	/// Whether <see cref="PixelState"/>'s state needs a stencil (<see cref="ShaderPipelineState.NeedsStencil"/>). Throws as
+	/// <see cref="PixelState"/> does.
+	/// </summary>
+	public bool NeedsStencil( ShaderFile shader, string mode, ReadOnlySpan<int> features ) => PixelState( shader, mode, features )?.NeedsStencil == true;
+
+	/// <summary>
 	/// Where shaders that have source modules are compiled from (pass modules: docs/managed/shader-format-replacement.md);
 	/// null draws every shader from its compiled programs.
 	/// </summary>
 	public IShaderModules Modules { get; set; }
+
+	/// <summary>
+	/// Whether a shader with a geometry stage gives variants from its programs (their vertex and pixel stages, without it),
+	/// for comparing them with its module's; off, it draws only from its module.
+	/// </summary>
+	public bool GeometryPrograms { get; set; }
 
 	readonly Dictionary<string, ShaderVariant> moduleVariants = new( StringComparer.Ordinal );
 

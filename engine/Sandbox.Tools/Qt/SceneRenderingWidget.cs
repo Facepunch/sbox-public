@@ -370,18 +370,11 @@ public class SceneRenderingWidget : Frame
 
 	internal static void RenderAll()
 	{
-		SceneRenderingWidget timed = null;
 		foreach ( var widget in All )
 		{
 			if ( !widget.Visible ) continue;
 
 			widget.Render();
-
-			// The frame stats' GPU time on Borealis.Gpu: the play widget's, else the biggest scene view's
-			if ( widget.borealis is null ) continue;
-			if ( timed is null || GameMode.IsPlayWidget( widget ) || (!GameMode.IsPlayWidget( timed ) && widget.Size.LengthSquared > timed.Size.LengthSquared) ) timed = widget;
 		}
-
-		if ( timed is not null ) BorealisGpuWindow.Timed = timed.borealis;
 	}
 }

@@ -47,6 +47,9 @@ internal class ToolsDll : IToolsDll
 		Mixer.ResetToDefault();
 
 		EditorShortcuts.RegisterShortcuts();
+
+		// A lost Borealis.Gpu device saves copies of unsaved scenes before the editor exits
+		BorealisGpuDeviceLost.SaveRecoveryCopies = SceneRecovery.SaveCopies;
 	}
 
 	/// <summary>

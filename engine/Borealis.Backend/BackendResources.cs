@@ -347,12 +347,7 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 		Textures = textures ?? new( StringComparer.OrdinalIgnoreCase );
 		Streamed();
 
-		Features = new int[shader?.Features?.StaticCombos.Length ?? 0];
-		foreach ( var (parameter, value) in file?.Ints ?? new Dictionary<string, int>() )
-		{
-			var index = shader?.FeatureIndex( parameter ) ?? -1;
-			if ( index >= 0 ) Features[index] = value;
-		}
+		Features = FeatureValues( shader, file );
 
 		SpecializationAttributes = shader is null ? [] : new[] { ShaderProgramType.Vertex, ShaderProgramType.Pixel, ShaderProgramType.Compute }
 			.SelectMany( t => shader[t]?.Variables ?? [] )
@@ -452,9 +447,53 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 
 	int needsStencil = -1;
 
+	/// <summary>A material's feature values (<c>F_*</c>) by the shader's feature index, from its file.</summary>
+	internal static int[] FeatureValues( ShaderFile shader, MaterialFile file )
+	{
+		var features = new int[shader?.Features?.StaticCombos.Length ?? 0];
+		foreach ( var (parameter, value) in file?.Ints ?? new Dictionary<string, int>() )
+		{
+			var index = shader?.FeatureIndex( parameter ) ?? -1;
+			if ( index >= 0 ) features[index] = value;
+		}
+
+		return features;
+	}
+
+	/// <summary>The modes <see cref="NeedsStencil"/> reads.</summary>
+	internal static readonly string[] StencilModes = ["Forward", "Depth"];
+
+	/// <summary>
+	/// Read what <see cref="NeedsStencil"/> will for a material of <paramref name="shader"/> and <paramref name="file"/>, on a
+	/// worker while it loads, so the first read on the main thread finds a pass module's lines preprocessed.
+	/// </summary>
+	internal static void ReadStencilAhead( ShaderLibrary library, ShaderFile shader, MaterialFile file )
+	{
+		if ( shader is null || StencilFromVariants ) return;
+		var features = FeatureValues( shader, file );
+		foreach ( var mode in StencilModes )
+		{
+			try
+			{
+				library.NeedsStencil( shader, mode, features );
+			}
+			catch ( Exception e ) when ( e is System.IO.InvalidDataException or KeyNotFoundException )
+			{
+				// Read again on the main thread, which skips it the same way
+			}
+		}
+	}
+
+	/// <summary>
+	/// Whether <see cref="NeedsStencil"/> makes the forward and depth variants to read their state, as it did, rather than
+	/// reading the state alone (<see cref="ShaderLibrary.PixelState"/>). For comparisons.
+	/// </summary>
+	public static bool StencilFromVariants { get; set; }
+
 	/// <summary>
 	/// Whether its forward or depth variant (no dynamic combos set, as the scene's meshes mostly draw it) needs a stencil:
-	/// <see cref="ShaderPipelineState.NeedsStencil"/>. Read once, then kept until it's loaded again.
+	/// <see cref="ShaderPipelineState.NeedsStencil"/>, read from the shader without making the variants
+	/// (<see cref="ShaderLibrary.NeedsStencil"/>). Read once, then kept until it's loaded again.
 	/// </summary>
 	public override bool NeedsStencil
 	{
@@ -464,12 +503,17 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 			if ( known >= 0 ) return known != 0;
 			if ( Library is not { } library || Shader is null ) return false;
 
+			ShaderFile shader;
+			int[] features;
+			lock ( variantsGate ) (shader, features) = (Shader, Features);
+
 			var needs = false;
-			foreach ( var mode in (ReadOnlySpan<string>)["Forward", "Depth"] )
+			using var zone = Zones.StencilCheck.Start();
+			foreach ( var mode in StencilModes )
 			{
 				try
 				{
-					needs |= Variant( library, mode, mode, static _ => null, static _ => null )?.State.NeedsStencil == true;
+					needs |= StencilFromVariants ? Variant( library, mode, mode, static _ => null, static _ => null )?.State.NeedsStencil == true : library.NeedsStencil( shader, mode, features );
 				}
 				catch ( System.IO.InvalidDataException )
 				{

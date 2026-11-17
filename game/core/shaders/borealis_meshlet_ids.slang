@@ -195,7 +195,7 @@ groupshared uint gs_RoundCount;
 		if ( bListed )
 		{
 			g_MeshletStamps.InterlockedAdd( g_MeshletTask.nKeptAt, nKeptTriangles, nListAt );
-			if ( nListAt + nKeptTriangles > g_MeshletTask.nKeptCapacity )
+			if ( nListAt >= g_MeshletTask.nKeptCapacity || nKeptTriangles > g_MeshletTask.nKeptCapacity - nListAt )
 				nListAt = None;
 		}
 
