@@ -261,9 +261,12 @@ public sealed class PassModules : IShaderModules
 	/// </summary>
 	PassModule Kept( PassModule module )
 	{
-		module.DerivedCacheFolder = Path.Combine( CacheFolder ?? Path.Combine( Path.GetDirectoryName( Core ), ".source2", "borealispasses" ), "derived" );
+		if ( KeepDerivedReads ) module.DerivedCacheFolder = Path.Combine( CacheFolder ?? Path.Combine( Path.GetDirectoryName( Core ), ".source2", "borealispasses" ), "derived" );
 		return module;
 	}
+
+	/// <summary>Whether modules keep their reads between runs; off with <c>-no-derived-reads</c>, for comparisons.</summary>
+	public static bool KeepDerivedReads { get; set; } = !Environment.GetCommandLineArgs().Any( a => a.Equals( "-no-derived-reads", StringComparison.OrdinalIgnoreCase ) );
 
 	/// <inheritdoc/>
 	public bool Has( ShaderFile shader ) => !Skipped( shader ) && ModuleOf( shader ) is not null;
