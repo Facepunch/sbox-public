@@ -49,6 +49,12 @@ public sealed class ContentFiles
 	}
 
 	/// <summary>
+	/// Asked after the folders: where the host's own file system has a compiled file on disk, or null. A game package's
+	/// files are named by their hash on disk, so only the host knows where its paths are.
+	/// </summary>
+	public Func<string, string> Resolve { get; set; }
+
+	/// <summary>
 	/// The full path of a resource's compiled file (<c>_c</c> appended unless it's there), or null.
 	/// </summary>
 	public string Find( string path )
@@ -63,7 +69,7 @@ public sealed class ContentFiles
 			if ( File.Exists( full ) ) return full;
 		}
 
-		return null;
+		return Resolve?.Invoke( path ) is { } resolved && File.Exists( resolved ) ? resolved : null;
 	}
 
 	/// <summary>A compiled resource's bytes; throws if it isn't anywhere.</summary>
