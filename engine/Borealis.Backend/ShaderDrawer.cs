@@ -52,6 +52,8 @@ public sealed class ShaderAttributes
 	// Arrays of 1-4 floats this set owns, by component count and attribute id, reused for every set of the name
 	readonly float[][][] owned = [[], [], [], []];
 
+	bool Owns( int id, float[] array ) => owned[array.Length - 1] is var arrays && id < arrays.Length && ReferenceEquals( arrays[id], array );
+
 	float[] Owned( string name, int components )
 	{
 		var id = AttributeIds.Of( name );
@@ -154,7 +156,8 @@ public sealed class ShaderAttributes
 	/// <summary>Add <paramref name="other"/>'s values and combos, replacing any of the same name.</summary>
 	public void Merge( ShaderAttributes other )
 	{
-		foreach ( var id in other.set ) Put( id, other.slots[id] );
+		// Arrays the other set reuses for its numbers are copied: setting them there again mustn't change this set
+		foreach ( var id in other.set ) Put( id, other.slots[id] is float[] { Length: >= 1 and <= 4 } floats && other.Owns( id, floats ) ? (float[])floats.Clone() : other.slots[id] );
 		foreach ( var (name, value) in other.combos ) combos[name] = value;
 	}
 
