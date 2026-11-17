@@ -64,4 +64,42 @@ public class ViewLifetimeTests : GpuTest
 		Assert.IsTrue( again.Ready && again.Mask.IsValid, "made again when the view draws again" );
 		GC.KeepAlive( view );
 	}
+
+	/// <summary>
+	/// Visibility buffers made after the frame cleared the view's (its target grew: a child view drawn at another size inside
+	/// a cube capture; its prepass's meshlet buffers, made at their first use) are cleared as that clear would have, before
+	/// the frame's calls use them: otherwise their cursors hold whatever the memory last held, and compaction writes past
+	/// the buffer. Made before the frame's clear, they're left to it.
+	/// </summary>
+	[TestMethod]
+	public void BuffersMadeAfterTheFramesClearAreCleared()
+	{
+		using var backend = new BackendDevice( Device );
+		backend.BeginFrame();
+		var view = new object();
+		var state = backend.VisibilityFor( view, TextureInfo.RenderTarget( 64, 32, Format.D32Float ) );
+		Assert.AreEqual( 0, backend.VisibilityClearedMidFrame, "a new view's first frame draws without its set" );
+
+		// Not cleared this frame yet: the frame's clear covers what's made now
+		backend.BeginFrame();
+		backend.VisibilityFor( view, TextureInfo.RenderTarget( 256, 256, Format.D32Float ) );
+		Assert.AreEqual( 0, backend.VisibilityClearedMidFrame, "grown before the frame's clear" );
+
+		// Cleared this frame (BeginGpuDrivenView), then grown and its prepass buffers made
+		state.ClearedFrame = backend.GpuDrivenFrame;
+		var capacity = state.CompactedCapacity;
+		backend.VisibilityFor( view, TextureInfo.RenderTarget( 1024, 512, Format.D32Float ) );
+		Assert.IsTrue( state.CompactedCapacity > capacity, "the compacted buffers grew" );
+		Assert.AreEqual( 1, backend.VisibilityClearedMidFrame, "the grown buffers' cursors were set" );
+
+		Assert.IsTrue( backend.PrepassCompactedFor( state ).IsValid );
+		Assert.AreEqual( 2, backend.VisibilityClearedMidFrame, "the prepass buffers' cursors and stamps were cleared" );
+		Assert.IsTrue( state.MeshletStampsCleared );
+
+		// Smaller again: nothing made
+		backend.VisibilityFor( view, TextureInfo.RenderTarget( 64, 32, Format.D32Float ) );
+		Assert.AreEqual( 2, backend.VisibilityClearedMidFrame );
+		Device.WaitIdle();
+		GC.KeepAlive( view );
+	}
 }

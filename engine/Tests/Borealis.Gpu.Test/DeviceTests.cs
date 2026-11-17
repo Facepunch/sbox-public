@@ -163,6 +163,42 @@ public class DeviceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A list still recording when its frame closes (a capture whose recording started a frame) goes with the next frame,
+	/// which it's submitted in: recycled with its own frame's slot, its command buffer and upload data would be reused under
+	/// it. Once that slot comes round again it still records, submits and uploads what it was given.
+	/// </summary>
+	[TestMethod]
+	public void ListRecordingAcrossAFrameGoesWithTheNext()
+	{
+		var readback = Device.CreateBuffer( new BufferInfo { Size = 1024, Memory = MemoryLocation.Readback, Name = "Readback" } );
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = 1024, Usage = BufferUsage.Storage, Name = "Written across frames" } );
+		var others = Device.CreateBuffer( new BufferInfo { Size = 1024, Usage = BufferUsage.Storage, Name = "Written meanwhile" } );
+		var data = Enumerable.Range( 0, 256 ).Select( i => (uint)(i * 7 + 1) ).ToArray();
+
+		Device.BeginFrame();
+		var carried = Device.ListsCarried;
+		var list = Device.BeginCommandList( name: "Across frames" );
+		list.UpdateBuffer<uint>( buffer, data );
+
+		// Round to the slot it began in, with other lists' uploads in between
+		for ( int i = 0; i < Device.FramesInFlight; i++ )
+		{
+			Device.BeginFrame();
+			var other = Device.BeginCommandList();
+			other.UpdateBuffer<uint>( others, new uint[256] );
+			Device.Submit( other );
+		}
+
+		Assert.AreEqual( carried + 1, Device.ListsCarried, "carried once, into the frame after its own" );
+		list.Barrier( new BufferBarrier { Buffer = buffer, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Transfer, DestinationAccess = MemoryAccess.TransferRead } );
+		list.CopyBuffer( buffer, 0, readback, 0, 1024 );
+		list.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+		Device.Wait( Device.Submit( list ) );
+
+		CollectionAssert.AreEqual( data, MemoryMarshal.Cast<byte, uint>( Device.Map( readback ) ).ToArray() );
+	}
+
+	/// <summary>
 	/// The validation layer is really checking: a copy into a buffer with no barrier after a fill of it is a write-after-write
 	/// hazard, and gets reported. (Every other test passes only if nothing is reported.)
 	/// </summary>

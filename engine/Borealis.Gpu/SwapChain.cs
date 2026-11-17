@@ -292,6 +292,7 @@ public sealed unsafe class SwapChain : IDisposable
 
 			imageIndex = index;
 			Current = image = images[index];
+			device.RememberEvent( "acquired image, slot*16+image:", acquireSlot * 16 + index );
 			return true;
 		}
 
@@ -322,6 +323,7 @@ public sealed unsafe class SwapChain : IDisposable
 		VkResult result;
 		lock ( queue.SubmitLock ) result = vk.vkQueuePresentKHR( queue.Handle, &present );
 
+		device.RememberEvent( "presented image, result*16+image:", (int)result * 16 + index );
 		Current = default;
 		if ( result is VkResult.ErrorOutOfDate or VkResult.Suboptimal ) outOfDate = true;
 		else device.Check( result, "vkQueuePresentKHR" );

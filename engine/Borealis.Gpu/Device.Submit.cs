@@ -139,14 +139,20 @@ public sealed unsafe partial class Device
 
 	/// <summary>
 	/// Close the current frame and start the next: wait until the GPU has finished the frame that last used this slot,
-	/// then recycle its command lists, upload space and descriptor sets, and free what's been destroyed since.
+	/// then recycle its command lists, upload space and descriptor sets, and free what's been destroyed since. A list of the
+	/// closing frame still recording goes with the next frame instead, once (see <see cref="CarryRecording"/>).
 	/// </summary>
 	public void BeginFrame()
 	{
+		var carried = CarryRecording();
+		RememberEvent( "frame starts:", (long)FrameNumber + 1 );
+
 		Flush();
 		frame.Graphics = graphicsQueue.Submitted;
 		frame.Compute = computeQueue.Submitted;
-		TagDestroyed();
+
+		// What was destroyed waits for the carried lists' frame as well: they may use it
+		if ( carried is null ) TagDestroyed();
 
 		FrameNumber++;
 		frame = frames[FrameSlot];
@@ -159,6 +165,7 @@ public sealed unsafe partial class Device
 		{
 			recycle = [.. frame.Lists];
 			frame.Lists.Clear();
+			if ( carried is not null ) frame.Lists.AddRange( carried );
 		}
 
 		foreach ( var list in recycle )
@@ -169,6 +176,42 @@ public sealed unsafe partial class Device
 
 		CollectGarbage();
 		TrimUploadPages();
+	}
+
+	/// <summary>Lists carried into the frame after the one they began in, for the tests.</summary>
+	internal int ListsCarried { get; private set; }
+
+	bool warnedCarried;
+
+	/// <summary>
+	/// Take the closing frame's lists that began in it and are still recording: one begun before something closed the
+	/// frame in the middle of its recording is submitted in the next frame, so it's recycled with that one. Recycled with
+	/// its own, its command buffer and upload pages would be reused while the GPU may still be running it. A list still
+	/// recording a frame later was never submitted, and is recycled as before.
+	/// </summary>
+	List<CommandList> CarryRecording()
+	{
+		List<CommandList> carried = null;
+		lock ( frame.Lists )
+		{
+			for ( int i = 0; i < frame.Lists.Count; i++ )
+			{
+				var list = frame.Lists[i];
+				if ( !list.IsRecording || list.Frame != FrameNumber ) continue;
+				(carried ??= new()).Add( list );
+				frame.Lists.RemoveAt( i-- );
+			}
+		}
+
+		if ( carried is null ) return null;
+		ListsCarried += carried.Count;
+		if ( !warnedCarried )
+		{
+			warnedCarried = true;
+			message?.Invoke( new DeviceMessage( MessageSeverity.Warning, "Borealis.Gpu.ListCarried", $"Frame {FrameNumber} closed while '{carried[0].Name}' was recording; it goes with the next frame. Start frames before recording into them." ) );
+		}
+
+		return carried;
 	}
 
 	/// <summary>Free upload pages kept for later lists however few frames use: about 32 MiB.</summary>
@@ -206,6 +249,7 @@ public sealed unsafe partial class Device
 		if ( !freeLists[(int)queue].TryTake( out var list ) ) list = new CommandList( this, QueueFor( queue ), queue );
 
 		lock ( frame.Lists ) frame.Lists.Add( list );
+		list.Frame = FrameNumber;
 		list.Begin( name );
 		return list;
 	}
@@ -400,8 +444,24 @@ public sealed unsafe partial class Device
 	}
 
 	// The last lists submitted, for what was in flight when the device is lost (DescribeRecentSubmissions)
-	readonly (QueueType Queue, ulong Value, string Name, int HeldBefore, long Ticks, int Markers)[] recentSubmissions = new (QueueType, ulong, string, int, long, int)[48];
+	readonly (QueueType Queue, ulong Value, string Name, int HeldBefore, long Ticks, int Markers)[] recentSubmissions = new (QueueType, ulong, string, int, long, int)[1024];
 	int recentNext;
+
+	/// <summary>The latest submissions a loss report lists, after those around the first not finished.</summary>
+	const int RecentSubmissionsShown = 48;
+
+	/// <summary>
+	/// Note something that isn't a submission among them (an acquire, a present, a frame starting), for loss reports: it's
+	/// listed after the submissions made before it. <paramref name="what"/> is a constant, so nothing is made each frame.
+	/// </summary>
+	internal void RememberEvent( string what, long detail )
+	{
+		lock ( recentSubmissions )
+		{
+			recentSubmissions[recentNext] = (QueueType.Graphics, graphicsQueue.Submitted, what, -2, Stopwatch.GetTimestamp(), (int)detail);
+			recentNext = (recentNext + 1) % recentSubmissions.Length;
+		}
+	}
 
 	void Remember( DeviceQueue queue, ulong value, CommandList list, int heldBefore )
 	{
@@ -456,11 +516,28 @@ public sealed unsafe partial class Device
 
 		lock ( recentSubmissions )
 		{
+			// The submissions around the first the GPU hadn't finished (where a hang or fault usually is), then the latest
 			var now = Stopwatch.GetTimestamp();
+			var skipped = false;
 			for ( int i = 0; i < recentSubmissions.Length; i++ )
 			{
 				var (queue, value, name, held, ticks, markers) = recentSubmissions[(recentNext + i) % recentSubmissions.Length];
 				if ( name is null && value == 0 ) continue;
+				var completed = seen.GetValueOrDefault( queue );
+				if ( i < recentSubmissions.Length - RecentSubmissionsShown && (value + 4 <= completed || value > completed + 16) )
+				{
+					if ( !skipped ) text.Append( "\n  ..." );
+					skipped = true;
+					continue;
+				}
+
+				skipped = false;
+				if ( held == -2 )
+				{
+					text.Append( $"\n  {name} {markers}, after {queue} {value} ({Stopwatch.GetElapsedTime( ticks, now ).TotalMilliseconds:F0} ms ago)" );
+					continue;
+				}
+
 				var done = seen.GetValueOrDefault( queue ) >= value ? "done" : "not seen done";
 				text.Append( $"\n  {queue} {value} {name} ({(held < 0 ? "held" : $"with {held} held")}, {Stopwatch.GetElapsedTime( ticks, now ).TotalMilliseconds:F0} ms ago) {done}{DescribeMarkers( markers )}" );
 			}

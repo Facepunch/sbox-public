@@ -270,7 +270,13 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		// A child view prepares while its parent's frame records, on workers too, from the mirrors the parent synced: it
 		// changes no world anyone's drawing (an unseen world's mirror is new, and synced once)
 		var parent = rendering;
-		if ( parent is null ) FreeInvalid();
+		if ( parent is null )
+		{
+			// A top-level view, on the main thread (a scene panel before the window acquires, a cube capture first in the frame):
+			// the engine frame's device frame starts now if it hasn't, not in the middle of this view's recording
+			Gpu?.FollowFrame();
+			FreeInvalid();
+		}
 
 		// Borealis traces screen-space reflections as the graphics settings leave them (r_ssr_downsample_ratio)
 		Borealis.ScreenSpaceReflectionsLayer.Enabled = ScreenSpaceReflectionsPass.IsEnabled;

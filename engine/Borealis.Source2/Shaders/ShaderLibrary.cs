@@ -458,6 +458,10 @@ public sealed class ShaderLibrary : IDisposable
 			if ( drawMode is null ) return null;
 		}
 
+		// A shader with a geometry stage draws only from its module, whose vertex stage makes the primitives instead: its
+		// programs' vertex stage alone would draw what it's given (points as points), so it draws nothing until then
+		if ( shader[ShaderProgramType.Geometry] is not null && !GeometryPrograms ) return null;
+
 		ShaderStage Stage( ShaderProgramType type, ReadOnlySpan<int> features )
 		{
 			var program = shader[type];
@@ -566,6 +570,12 @@ public sealed class ShaderLibrary : IDisposable
 	/// null draws every shader from its compiled programs.
 	/// </summary>
 	public IShaderModules Modules { get; set; }
+
+	/// <summary>
+	/// Whether a shader with a geometry stage gives variants from its programs (their vertex and pixel stages, without it),
+	/// for comparing them with its module's; off, it draws only from its module.
+	/// </summary>
+	public bool GeometryPrograms { get; set; }
 
 	readonly Dictionary<string, ShaderVariant> moduleVariants = new( StringComparer.Ordinal );
 
