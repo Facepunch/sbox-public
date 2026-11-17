@@ -65,13 +65,89 @@ internal static class MirrorContent
 		}
 	}
 
+	/// <summary>
+	/// A material as its compiled file (a copy's being its original's), or as its shader for one made in code
+	/// (<see cref="Sandbox.Material.MadeFromShader"/>), with what code set on it over that
+	/// (<see cref="Sandbox.Material.SetInCode"/>: a screen's render target a game sets on its copy of the screen material),
+	/// which follows later sets (<see cref="Follow"/>).
+	/// </summary>
 	public static GpuMaterial Material( Material material )
 	{
 		if ( Gpu is not { } gpu ) return null;
 
-		var path = material?.ResourcePath;
-		return string.IsNullOrEmpty( path ) ? null : gpu.LoadMaterial( path );
+		var path = material?.FilePath;
+		if ( string.IsNullOrEmpty( path ) ) return null;
+		var shader = material.MadeFromShader;
+		var set = material.SetInCode;
+		if ( shader is null && set is not { Count: > 0 } ) return gpu.LoadMaterial( path );
+
+		var made = setMaterials.GetOrCreateValue( material );
+		lock ( made )
+		{
+			if ( made.Material is null )
+			{
+				Sandbox.Material.SetInCodeChanged ??= Follow;
+				var (values, textures) = Lower( set );
+
+				// Made in code from a shader: the shader's defaults, then what's set
+				if ( shader is not null )
+				{
+					made.Material = gpu.CreateMaterial( path, ShaderPath( shader ) );
+					gpu.SetOnMaterial( made.Material, values, textures );
+				}
+				else made.Material = gpu.LoadMaterial( path, values, textures, $"{path} (set in code)" );
+
+				made.Version = material.SetInCodeVersion;
+			}
+
+			return made.Material;
+		}
 	}
+
+	/// <summary>A shader as a material names it (<c>complex.shader</c>, or with its folder), as its compiled file's path.</summary>
+	static string ShaderPath( string shader )
+	{
+		shader = shader.Replace( '\\', '/' );
+		if ( shader.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) shader = shader[..^2];
+		if ( !shader.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) shader += ".shader";
+		return shader.Contains( '/' ) ? shader : $"shaders/{shader}";
+	}
+
+	/// <summary>A material whose values set in code changed: its copy here takes them, if it has one.</summary>
+	static void Follow( Sandbox.Material material )
+	{
+		if ( Gpu is not { } gpu || !setMaterials.TryGetValue( material, out var made ) || material.SetInCode is not { } set ) return;
+
+		lock ( made )
+		{
+			if ( made.Material is null || made.Version == material.SetInCodeVersion ) return;
+			var (values, textures) = Lower( set );
+			gpu.SetOnMaterial( made.Material, values, textures );
+			made.Version = material.SetInCodeVersion;
+		}
+	}
+
+	/// <summary>Values set in code as shader variables: vectors, and textures Borealis.Gpu has.</summary>
+	static (Dictionary<string, float[]> Values, Dictionary<string, GpuTexture> Textures) Lower( IReadOnlyDictionary<string, object> set )
+	{
+		var values = new Dictionary<string, float[]>( StringComparer.OrdinalIgnoreCase );
+		var textures = new Dictionary<string, GpuTexture>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var (name, value) in set ?? new Dictionary<string, object>() )
+		{
+			if ( value is Vector4 v ) values[name] = [v.x, v.y, v.z, v.w];
+			else if ( value is Sandbox.Texture t && Texture( t ) is { } texture ) textures[name] = texture;
+		}
+
+		return (values, textures);
+	}
+
+	sealed class SetMaterial
+	{
+		public GpuMaterial Material;
+		public int Version;
+	}
+
+	static readonly ConditionalWeakTable<Sandbox.Material, SetMaterial> setMaterials = new();
 
 	public static GpuTexture Texture( Texture texture )
 	{
@@ -84,13 +160,19 @@ internal static class MirrorContent
 		// A cube made at run time for compute to write (a realtime probe's) is what cube captures draw into
 		if ( texture.Depth == 6 && texture.UAVAccess ) return CaptureCube( texture );
 
+		// A 2D render target (a screen a game draws into) is the engine's copy on the device: its path is only its name
+		var engine = RenderBackend.Default as BorealisGpuRenderBackend;
+		if ( engine is not null && texture.Depth == 1 && !texture.native.IsNull && texture.IsRenderTarget ) return engine.BorealisViewOf( texture );
+
 		var path = texture.ResourcePath;
 		if ( !string.IsNullOrEmpty( path ) ) return gpu.LoadTexture( path );
 
 		// A material's texture (a sky's cubemap for fog and sky lighting) is the material's, read by its path
-		return Sandbox.Texture.MaterialOrigins.TryGetValue( texture, out var origin ) && origin is Sandbox.Texture.MaterialOrigin o
-			? gpu.MaterialTexture( o.Material, o.Parameter )
-			: null;
+		if ( Sandbox.Texture.MaterialOrigins.TryGetValue( texture, out var origin ) && origin is Sandbox.Texture.MaterialOrigin o )
+			return gpu.MaterialTexture( o.Material, o.Parameter );
+
+		// Any other 2D texture made at run time (a render target a game draws a screen into) is the engine's copy on the device
+		return engine is not null && !texture.native.IsNull && texture.Depth == 1 ? engine.BorealisViewOf( texture ) : null;
 	}
 
 	sealed class Capture

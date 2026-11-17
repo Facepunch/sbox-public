@@ -42,8 +42,8 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 
 	/// <summary>
 	/// What a block on the view reports as its multisampling (<see cref="Graphics.IdealMsaaLevel"/>, the MSAA combos command
-	/// lists ask for): none, as a block draws into resolved targets, except where a stage reads the frame's multisampled
-	/// targets (screen-space reflections' trace, the opaque pass's normals).
+	/// lists ask for): the samples of the frame's targets the stage draws into or reads, multisampled before the resolve
+	/// (depth of field reads colour and depth so, screen-space reflections' trace the opaque pass's normals), else none.
 	/// </summary>
 	public MultisampleAmount Msaa = MultisampleAmount.MultisampleNone;
 

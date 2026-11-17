@@ -81,6 +81,12 @@ internal sealed class BorealisGpuWindow : IDisposable
 	/// <summary>Where the last camera that drew into the window was, for the title's stats (<see cref="BorealisGpuTitle"/>).</summary>
 	public Vector3? CameraPosition { get; set; }
 
+	/// <summary>
+	/// The window whose GPU time the frame stats report where there's no game window (the editor): its play widget's, else
+	/// its biggest scene view's. Set by the editor each frame.
+	/// </summary>
+	public static BorealisGpuWindow Timed { get; set; }
+
 	/// <summary>Which frame <see cref="GpuFrameMs"/> was, counting from this window's first.</summary>
 	public ulong GpuFrameNumber { get; private set; }
 
@@ -219,9 +225,6 @@ internal sealed class BorealisGpuWindow : IDisposable
 		}
 	}
 
-	// Whether a lost device's recent submissions were logged: once per process
-	static bool deviceLostReported;
-
 	/// <summary>
 	/// Present the image <see cref="EndFrame"/> drew. False when no frame was drawn since the last.
 	/// </summary>
@@ -232,15 +235,10 @@ internal sealed class BorealisGpuWindow : IDisposable
 		{
 			swapChain.Present();
 		}
-		catch ( GpuException e ) when ( e.Message.Contains( "DeviceLost" ) )
+		catch ( GpuException e ) when ( e.IsDeviceLost )
 		{
-			// Once: what was in flight, to find the submission the GPU stopped on
-			if ( !deviceLostReported )
-			{
-				deviceLostReported = true;
-				Log.Error( $"Borealis.Gpu device lost. Recent submissions: {backend.Device.DescribeRecentSubmissions()}" );
-			}
-
+			// Said once, with what the GPU was doing when it was lost, and the process exits as native's does
+			BorealisGpuDeviceLost.Check( backend.Device );
 			throw;
 		}
 
@@ -293,6 +291,7 @@ internal sealed class BorealisGpuWindow : IDisposable
 
 	public void Dispose()
 	{
+		if ( Timed == this ) Timed = null;
 		backend.Forget( swapChain );
 		swapChain.Dispose();
 		sdl?.Dispose();

@@ -250,8 +250,9 @@ public sealed partial class CommandList
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
 
-							// A block with no view on a device of its own (a Borealis.Gpu frame's) draws into its bound target
-							if ( Graphics.CurrentView is null && attrAccess.attributes.IsManaged )
+							// A block on a device of its own (a Borealis.Gpu frame's, or a camera's stage in one) draws into its
+							// bound target, which has no native handle
+							if ( attrAccess.attributes.IsManaged )
 							{
 								attrAccess.attributes.Set( entry.Token, Graphics.RenderTarget?.ColorTarget );
 								return;
@@ -271,7 +272,7 @@ public sealed partial class CommandList
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
 
-							if ( Graphics.CurrentView is null && attrAccess.attributes.IsManaged )
+							if ( attrAccess.attributes.IsManaged )
 							{
 								attrAccess.attributes.Set( entry.Token, Graphics.RenderTarget?.DepthTarget );
 								return;

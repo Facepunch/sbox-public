@@ -177,6 +177,7 @@ internal sealed class VolumetricFog : IDisposable
 		accumulated[1]?.Dispose();
 		fogVolume?.Dispose();
 		lighting = fogVolume = accumulated[0] = accumulated[1] = null;
+		parameters = null;
 
 		if ( constantBuffer != IntPtr.Zero ) GpuContext.DestroyConstantBuffer( constantBuffer );
 		constantBuffer = IntPtr.Zero;
@@ -215,32 +216,35 @@ internal sealed class VolumetricFog : IDisposable
 
 		SetupConstants( view, volumes );
 
-		var attributes = rc.Attributes;
+		// Its own parameters over the context's (the view's lights, shadows, depth chain): a dispatch given them binds the
+		// froxels it writes as storage, which one with the context's alone binds as their placeholder (it writes nothing)
+		var parameters = this.parameters ??= RenderHost.Current.Device.CreateParameters();
 
 		// volume_fog_jitter_offset_random is on: a random blue noise offset each frame
-		attributes.Set( JitterOffsetName, Random.Shared.Next( 0, 128 ) );
+		parameters.Set( JitterOffsetName, Random.Shared.Next( 0, 128 ) );
 		// Too big for a dynamic buffer: its own, as native's fog has (m_hFogLightingConstantBuffer)
 		rc.SetConstantBuffer( ConstantBufferName, constantBuffer, constants );
-		attributes.SetCombo( BakedFogCombo, bakedTexture is not null ? 1 : 0 );
-		attributes.SetCombo( IblIndirectCombo, 1 );
+		parameters.SetCombo( BakedFogCombo, bakedTexture is not null ? 1 : 0 );
+		parameters.SetCombo( IblIndirectCombo, 1 );
 
-		attributes.Set( InBakedFogName, bakedTexture ?? OpaqueBlack );
-		attributes.Set( InLightingName, lighting );
-		attributes.Set( InAccumulationName, accumulated[frameOffset] );
-		attributes.Set( OutLightingName, lighting );
-		attributes.Set( OutAccumulationName, accumulated[frameOffset ^ 1] );
-		attributes.Set( OutScatteringName, fogVolume );
+		parameters.Set( InBakedFogName, bakedTexture ?? OpaqueBlack );
+		parameters.Set( InLightingName, lighting );
+		parameters.Set( InAccumulationName, accumulated[frameOffset] );
+		parameters.Set( OutLightingName, lighting );
+		parameters.Set( OutAccumulationName, accumulated[frameOffset ^ 1] );
+		parameters.Set( OutScatteringName, fogVolume );
 
 		for ( int pass = 0; pass < 2; pass++ )
 		{
-			attributes.SetCombo( PassCombo, pass );
-			rc.Dispatch( computeShader, Width, Height, 1 );
+			parameters.SetCombo( PassCombo, pass );
+			rc.Dispatch( computeShader, parameters, Width, Height, 1 );
 		}
 
-		attributes.SetCombo( PassCombo, 0 );
-		attributes.SetCombo( BakedFogCombo, 0 );
-		attributes.SetCombo( IblIndirectCombo, 0 );
+		// What the next frame's draws read, sampled
+		rc.BarrierComputeToPixelShaderRead( fogVolume );
 	}
+
+	ShaderParameters parameters;
 
 	/// <summary>
 	/// Fill froxel rays, reprojection, depth slices, fade and up to 128 visible volumes (<c>SetupConstantBuffer</c>).

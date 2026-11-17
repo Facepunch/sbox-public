@@ -69,6 +69,7 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 	Texture _dynamicTexture;
 	int _bouncesLeft;
 	int _queuedFrames;
+	int _toolViews;
 	float _queuedTime;
 
 	public bool Dirty;
@@ -449,6 +450,14 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 		// Update counters
 		_queuedFrames++;
 		_queuedTime += Time.Delta;
+
+		// Drawn on another device with Source 2's kept (the editor): capture again when a native tool starts drawing, so its
+		// views have the probe too (natively captured only while they're drawn)
+		if ( Graphics.HasSource2Device && RenderBackend.Default is not Source2RenderBackend && _toolViews != Rendering.RenderPipeline.ToolViewsStarted )
+		{
+			_toolViews = Rendering.RenderPipeline.ToolViewsStarted;
+			if ( Rendering.RenderPipeline.ToolViewsDrawn ) Dirty = true;
+		}
 
 		if ( !IsReadyToUpdate() )
 			return;

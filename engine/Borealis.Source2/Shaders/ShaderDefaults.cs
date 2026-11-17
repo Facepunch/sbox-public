@@ -13,6 +13,7 @@ public sealed class ShaderDefaults : IDisposable
 {
 	readonly Device gpu;
 	readonly Dictionary<SpirvImageDimension, TextureHandle> textures = new();
+	readonly Dictionary<SpirvImageDimension, TextureHandle> storageTextures = new();
 	readonly Dictionary<SamplerInfo, SamplerHandle> samplers = new();
 
 	/// <summary>Bytes of zeros the zeroed storage buffer holds.</summary>
@@ -86,6 +87,45 @@ public sealed class ShaderDefaults : IDisposable
 		}
 	}
 
+	/// <summary>
+	/// A 1x1 texture of a dimension for a storage binding nothing fills, made on first use and kept in
+	/// <see cref="ImageLayout.General"/>. Apart from <see cref="Texture"/>'s: a shader writing through it mustn't change the
+	/// black that sampled bindings read, and those are kept readable rather than general.
+	/// </summary>
+	public TextureHandle StorageTexture( SpirvImageDimension dimension )
+	{
+		dimension = dimension switch
+		{
+			SpirvImageDimension.Texture1D or SpirvImageDimension.Rect or SpirvImageDimension.None => SpirvImageDimension.Texture2D,
+			_ => dimension,
+		};
+
+		lock ( storageTextures )
+		{
+			if ( storageTextures.TryGetValue( dimension, out var texture ) ) return texture;
+
+			var info = TextureInfo.Texture2D( 1, 1, Format.RGBA8Unorm, name: $"Default storage {dimension}" );
+			info.Usage |= TextureUsage.Storage;
+			info.Dimension = dimension switch
+			{
+				SpirvImageDimension.Texture2DArray => TextureDimension.Texture2DArray,
+				SpirvImageDimension.Cube => TextureDimension.TextureCube,
+				SpirvImageDimension.CubeArray => TextureDimension.TextureCubeArray,
+				SpirvImageDimension.Texture3D => TextureDimension.Texture3D,
+				_ => TextureDimension.Texture2D,
+			};
+
+			texture = gpu.CreateTexture( info );
+			var list = gpu.BeginCommandList( QueueType.Graphics, "Default storage texture" );
+			list.Barrier( TextureBarrier.Transition( texture, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+			list.ClearTexture( texture );
+			list.Barrier( TextureBarrier.Transition( texture, ImageLayout.CopyDestination, ImageLayout.General, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite ) );
+			gpu.Wait( gpu.Submit( list ) );
+			storageTextures[dimension] = texture;
+			return texture;
+		}
+	}
+
 	/// <summary>A sampler, made once per distinct description.</summary>
 	public SamplerHandle Sampler( in SamplerInfo info )
 	{
@@ -106,7 +146,7 @@ public sealed class ShaderDefaults : IDisposable
 		BindingType.UniformBuffer => Binding.Uniform( resource.Binding, Uniform, 0, UniformSize ),
 		BindingType.StorageBuffer => Binding.Storage( resource.Binding, Storage ),
 		BindingType.Sampler => Binding.SamplerState( resource.Binding, Sampler( resource.Sampler ) ),
-		BindingType.StorageTexture => Binding.StorageTexture( resource.Binding, Texture( resource.Dimension ) ),
+		BindingType.StorageTexture => Binding.StorageTexture( resource.Binding, StorageTexture( resource.Dimension ) ),
 		_ => Binding.Sampled( resource.Binding, Texture( resource.Dimension ) ),
 	};
 
@@ -155,6 +195,12 @@ public sealed class ShaderDefaults : IDisposable
 		{
 			foreach ( var texture in textures.Values ) gpu.Destroy( texture );
 			textures.Clear();
+		}
+
+		lock ( storageTextures )
+		{
+			foreach ( var texture in storageTextures.Values ) gpu.Destroy( texture );
+			storageTextures.Clear();
 		}
 
 		lock ( samplers )

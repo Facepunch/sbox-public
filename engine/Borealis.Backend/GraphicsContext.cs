@@ -762,15 +762,30 @@ public sealed class GraphicsContext
 
 	/// <summary>
 	/// Copy the viewport's part of the bound depth into <paramref name="destination"/> from its corner, as
-	/// <c>Graphics.GrabDepthTexture</c> resolves the depth into a texture of its own. Both have the same format and samples:
-	/// false otherwise (multisampled depth into a single-sampled texture), and nothing is copied.
+	/// <c>Graphics.GrabDepthTexture</c> resolves the depth into a texture of its own. Both have the same format; multisampled
+	/// depth into a single-sampled texture at least its size is resolved whole (sample zero, the viewport aside). False
+	/// otherwise, and nothing is copied.
 	/// </summary>
 	public bool CopyDepth( TextureHandle destination )
 	{
 		if ( !Depth.IsValid ) throw new InvalidOperationException( "No depth is bound." );
 		var from = gpu.InfoOf( Depth );
 		var to = gpu.InfoOf( destination );
-		if ( from.Format != to.Format || from.Samples != to.Samples ) return false;
+		if ( from.Format != to.Format ) return false;
+
+		// Multisampled into one sample: resolved as a scope on the depth ends (sample zero), the whole of it
+		if ( from.Samples > 1 && to.Samples <= 1 )
+		{
+			if ( to.Width < from.Width || to.Height < from.Height ) return false;
+			EndScope();
+			Transition( Depth, ImageLayout.DepthTarget );
+			TransitionForWrite( destination, ImageLayout.DepthTarget );
+			List.BeginRendering( [], new DepthTarget { Texture = Depth, Load = LoadOp.Load, Store = StoreOp.Store, ResolveTarget = destination } );
+			List.EndRendering();
+			return true;
+		}
+
+		if ( from.Samples != to.Samples ) return false;
 
 		int x = (int)Viewport.X, y = (int)Viewport.Y;
 		var width = Math.Min( (int)Viewport.Z, Math.Min( from.Width - x, to.Width ) );

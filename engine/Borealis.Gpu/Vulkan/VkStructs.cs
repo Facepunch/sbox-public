@@ -230,6 +230,17 @@ internal unsafe struct VkPhysicalDeviceProperties2
 }
 
 [StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDeviceSubgroupProperties
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint subgroupSize;
+	public uint supportedStages;
+	public uint supportedOperations;
+	public uint quadOperationsInAllStages;
+}
+
+[StructLayout( LayoutKind.Sequential )]
 internal unsafe struct VkPhysicalDeviceDescriptorIndexingProperties
 {
 	public VkStructureType sType;
@@ -1050,6 +1061,15 @@ internal unsafe struct VkSemaphoreTypeCreateInfo
 	public void* pNext;
 	public int semaphoreType;
 	public ulong initialValue;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkSemaphoreSignalInfo
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public ulong semaphore;
+	public ulong value;
 }
 
 [StructLayout( LayoutKind.Sequential )]

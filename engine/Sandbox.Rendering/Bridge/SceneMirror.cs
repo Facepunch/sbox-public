@@ -565,11 +565,20 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 				light.ConeInner = spot.ConeInner;
 				light.ConeOuter = spot.ConeOuter;
 			}
+
+			light.Cookie = sceneLight is SceneSpotLight ? MirrorContent.Texture( sceneLight.LightCookie ) : null;
 		}
 
 		// Pack native light descriptions; map attenuation/falloff/baking may bypass managed properties (Light.LegacyLightData).
 		if ( (change & (SceneObjectChange.Settings | SceneObjectChange.Transform)) != 0 && SceneNative.PackSceneLight( sceneLight, out var packed, out var flags, out var bakeIndex ) )
 		{
+			// Native's cookie index is Source 2's bindless slot: on Borealis.Gpu the binner sets the device's own from the texture
+			if ( MirrorContent.Gpu is not null && (packed.Flags & Borealis.Features.LightBinnerFeature.LightCookieEnabled) != 0 )
+			{
+				packed.Flags &= ~Borealis.Features.LightBinnerFeature.LightCookieEnabled;
+				packed.LightCookieTextureIndex = 0xFFFFFFFF;
+			}
+
 			light.NativePacked = packed;
 			light.Baked = (flags & LightTypeFlagsBaked) != 0;
 			light.MixedShadows = (flags & LightTypeFlagsMixedShadows) != 0;

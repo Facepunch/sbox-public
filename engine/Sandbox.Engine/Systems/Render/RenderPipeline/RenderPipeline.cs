@@ -237,14 +237,66 @@ internal static class RenderPipeline
 		return Current;
 	}
 
-	internal static void AddLayersToView( CRenderPipelineSetup setup ) => Get()?.AddLayersToView( setup );
+	// Native's views read Source 2's indices and buffers, also beside another device (Graphics.RecordOnSource2)
+	internal static void AddLayersToView( CRenderPipelineSetup setup )
+	{
+		using var _ = Graphics.RecordOnSource2();
+		CountToolView();
+		Get()?.AddLayersToView( setup );
+	}
 
-	internal static void AddSkybox3DLayersToView( CRenderPipelineSetup setup ) => Get()?.AddSkybox3DLayersToView( setup );
+	// Views of native's own (a tool's) drawn lately: the frame the last one was set up, not counting captures
+	static ulong lastToolViewFrame;
+	static int capturing;
 
-	internal static void OnSceneViewSubmitted( ISceneView view ) => Current?.OnSceneViewSubmitted( view );
+	/// <summary>Frames after its last view that native counts as still drawing views of its own.</summary>
+	const ulong ToolViewFrames = 60;
+
+	/// <summary>
+	/// Whether native has drawn views of its own in the last <see cref="ToolViewFrames"/> frames, other than captures: in a
+	/// process drawing on another device with Source 2's kept (the editor), a native tool's (Hammer's) is open.
+	/// </summary>
+	internal static bool ToolViewsDrawn => lastToolViewFrame != 0 && Application.FrameCount - lastToolViewFrame < ToolViewFrames;
+
+	/// <summary>Moves on each time native starts drawing views of its own again (<see cref="ToolViewsDrawn"/> turns true).</summary>
+	internal static int ToolViewsStarted { get; private set; }
+
+	/// <summary>Views set up until disposed are a capture's (a cube's faces), not a tool's.</summary>
+	internal static CaptureScope Capturing()
+	{
+		Interlocked.Increment( ref capturing );
+		return default;
+	}
+
+	internal readonly struct CaptureScope : IDisposable
+	{
+		public void Dispose() => Interlocked.Decrement( ref capturing );
+	}
+
+	static void CountToolView()
+	{
+		if ( Volatile.Read( ref capturing ) > 0 ) return;
+		if ( !ToolViewsDrawn ) ToolViewsStarted++;
+		lastToolViewFrame = Application.FrameCount;
+	}
+
+	internal static void AddSkybox3DLayersToView( CRenderPipelineSetup setup )
+	{
+		using var _ = Graphics.RecordOnSource2();
+		Get()?.AddSkybox3DLayersToView( setup );
+	}
+
+	internal static void OnSceneViewSubmitted( ISceneView view )
+	{
+		using var _ = Graphics.RecordOnSource2();
+		Current?.OnSceneViewSubmitted( view );
+	}
 
 	internal static ISceneLayer AddUIHook( string name, Stage stage, ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle color )
-		=> Get()?.AddUIHook( name, stage, view, viewport, color ) ?? default;
+	{
+		using var _ = Graphics.RecordOnSource2();
+		return Get()?.AddUIHook( name, stage, view, viewport, color ) ?? default;
+	}
 
 	internal static void WarmUp() => Current?.WarmUp();
 

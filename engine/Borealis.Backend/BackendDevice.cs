@@ -1161,6 +1161,37 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, string name = null )
 		=> Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
 
+	/// <summary>
+	/// A compiled material with <paramref name="values"/> and <paramref name="textures"/> (shader variables by name, such as
+	/// <c>g_tColor</c>) over its own: a material a game copied and changed in code. Textures that aren't this device's are
+	/// left as the file has them.
+	/// </summary>
+	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures, string name = null )
+	{
+		var material = Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
+		SetOn( material, null, textures );
+		return material;
+	}
+
+	/// <summary>
+	/// Set <paramref name="values"/> and <paramref name="textures"/> on a material made by
+	/// <see cref="LoadMaterial(string, IReadOnlyDictionary{string, float[]}, IReadOnlyDictionary{string, GpuTexture}, string)"/>,
+	/// as code changed them: what draws with it draws with them from its next draw.
+	/// </summary>
+	public void SetOnMaterial( GpuMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
+	{
+		if ( material is BackendMaterial own ) SetOn( own, values, textures );
+	}
+
+	static void SetOn( BackendMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
+	{
+		foreach ( var (variable, value) in values ?? new Dictionary<string, float[]>() ) material.Set( variable, value );
+		foreach ( var (variable, texture) in textures ?? new Dictionary<string, GpuTexture>() )
+		{
+			if ( texture is BackendTexture own ) material.SetTexture( variable, own );
+		}
+	}
+
 	/// <summary>A material file, or null when it can't be read (KV3 with binary blobs isn't yet), so it draws nothing.</summary>
 	static MaterialFile ReadMaterial( byte[] data )
 	{
@@ -1633,6 +1664,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>A view's visibility resources: its ids target, triangle mask, fragment stamps and compacted indices.</summary>
 	internal sealed class VisibilityView
 	{
+		/// <summary>Where it goes once its view has gone (its finalizer): the device frees its resources at the next frame.</summary>
+		public System.Collections.Concurrent.ConcurrentQueue<VisibilityView> Retire;
+
+		~VisibilityView() => Retire?.Enqueue( this );
+
+		/// <summary>Every buffer it made.</summary>
+		public IEnumerable<BufferHandle> Buffers() => [Mask, Stamps, .. Compacted, PrepassCompacted, PrepassCompacted16, MeshletStamps, MeshletJobs];
+
 		public TextureHandle Ids, Scratch;
 		public int Width, Height, Samples;
 		public BufferHandle Mask, Stamps;
@@ -1672,6 +1711,22 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		public volatile bool Ready;
 
 		/// <summary>
+		/// Indices each of <see cref="Compacted"/> holds, cursor included: room for a triangle per sample of the view's depth
+		/// target (only triangles a sample shows are compacted), at most <see cref="VisibilityCompactedIndices"/>.
+		/// </summary>
+		public int CompactedCapacity;
+
+		/// <summary>
+		/// Indices <see cref="PrepassCompacted"/> holds and kept triangles <see cref="MeshletStamps"/> has room for: less for
+		/// small views (cube capture faces); a fragment that doesn't fit draws whole.
+		/// </summary>
+		public int PrepassCapacity;
+		public uint KeptCapacity;
+
+		/// <summary>Every texture it made.</summary>
+		public IEnumerable<TextureHandle> Textures() => [Ids, Scratch];
+
+		/// <summary>
 		/// Indices at the start of each compacted buffer that hold its cursor instead: every call compacting into the view
 		/// this frame takes its triangles' range from it on the GPU, so calls recorded on different workers reserve nothing.
 		/// </summary>
@@ -1703,6 +1758,24 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>Kept triangles a view's prepass writes in a frame; a fragment without room is scanned whole.</summary>
 	internal const uint MeshletKeptCapacity = 6 << 20;
 
+	/// <summary>Samples (pixels times samples) under which a view is small (a cube capture face) and gets smaller prepass buffers.</summary>
+	internal const long SmallViewSamples = 1 << 20;
+
+	/// <summary>Prepass indices and kept triangles a small view has room for.</summary>
+	internal const int SmallPrepassIndices = 2 << 20;
+	internal const uint SmallKeptCapacity = 1 << 20;
+
+	/// <summary>Indices a view's compacted buffers need for its depth target (<see cref="VisibilityView.CompactedCapacity"/>).</summary>
+	internal static int CompactedIndicesFor( in TextureInfo depth )
+	{
+		if ( depth.Width == 0 ) return VisibilityCompactedIndices;
+		var samples = (long)depth.Width * depth.Height * Math.Max( depth.Samples, 1 );
+		return (int)Math.Clamp( 3 * samples + VisibilityView.CompactedCursorIndices, 1 << 16, VisibilityCompactedIndices );
+	}
+
+	/// <summary>GPU-driven frames a view's visibility resources stay made without being used; then they're freed.</summary>
+	internal const uint IdleVisibilityFrames = 600;
+
 	/// <summary>
 	/// A view's prepass compacted buffer (<see cref="VisibilityView.PrepassCompacted"/>), with its meshlet stamps, made the
 	/// first time.
@@ -1713,15 +1786,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		lock ( visibilityViews )
 		{
 			if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
-			// Room for task shaders' kept triangles only where they draw
+			// Room for task shaders' kept triangles only where they draw; less for small views
+			var small = state.Width > 0 && (long)state.Width * state.Height * Math.Max( state.Samples, 1 ) < SmallViewSamples;
+			state.PrepassCapacity = small ? SmallPrepassIndices : PrepassCompactedIndices;
+			state.KeptCapacity = small ? SmallKeptCapacity : MeshletKeptCapacity;
 			state.MeshletKept = MeshletIds is not null;
-			var stampBytes = state.MeshletKept ? MeshletKeptAt + 4 + MeshletKeptCapacity * 4L : MeshletKeptAt;
+			var stampBytes = state.MeshletKept ? MeshletKeptAt + 4 + state.KeptCapacity * 4L : MeshletKeptAt;
 			state.MeshletStamps = Gpu.CreateBuffer( new BufferInfo { Size = stampBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet stamps" } );
 			state.MeshletJobs = Gpu.CreateBuffer( new BufferInfo { Size = 16 + MeshletJobCapacity * 16L, Usage = BufferUsage.Storage | BufferUsage.Indirect | BufferUsage.CopyDestination, Name = "Borealis meshlet copy jobs" } );
 			visibilityBuffers.Add( state.MeshletJobs );
-			state.PrepassCompacted16 = Gpu.CreateBuffer( new BufferInfo { Size = PrepassCompactedIndices * 2L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles 16" } );
+			state.PrepassCompacted16 = Gpu.CreateBuffer( new BufferInfo { Size = state.PrepassCapacity * 2L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles 16" } );
 			visibilityBuffers.Add( state.PrepassCompacted16 );
-			var buffer = Gpu.CreateBuffer( new BufferInfo { Size = PrepassCompactedIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles" } );
+			var buffer = Gpu.CreateBuffer( new BufferInfo { Size = state.PrepassCapacity * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles" } );
 			visibilityBuffers.Add( state.MeshletStamps );
 			// Freed with the view's other buffers (visibilityBuffers), not through the wrapper
 #pragma warning disable CA2000
@@ -1737,6 +1813,71 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	readonly List<BufferHandle> visibilityBuffers = new();
 	readonly List<TextureHandle> visibilityTextures = new();
 
+	// Views that have gone (a camera's renders after its scene unloaded): their visibility resources, freed at the next frame
+	readonly System.Collections.Concurrent.ConcurrentQueue<VisibilityView> retiredVisibility = new();
+
+	/// <summary>Views' visibility resources freed after their views went, for soaks and tests.</summary>
+	public int VisibilityViewsFreed { get; private set; }
+
+	/// <summary>Views' visibility resources freed after the views went unused, for soaks and tests.</summary>
+	public int VisibilityViewsIdled { get; private set; }
+
+	/// <summary>
+	/// Free the visibility resources of views unused for <see cref="IdleVisibilityFrames"/> (a capture's faces between
+	/// captures, a camera that stopped drawing): they're made again if the view draws again.
+	/// </summary>
+	void FreeIdleVisibility()
+	{
+		lock ( visibilityViews )
+		{
+			foreach ( var (_, state) in visibilityViews )
+			{
+				if ( !state.Ready || GpuDrivenFrame - state.ClearedFrame < IdleVisibilityFrames ) continue;
+				FreeVisibility( state );
+				VisibilityViewsIdled++;
+			}
+		}
+	}
+
+	// A view's visibility resources, destroyed once the GPU is done with them; the state is made again when next asked for.
+	// Under the visibility lock
+	void FreeVisibility( VisibilityView state )
+	{
+		foreach ( var buffer in state.Buffers() )
+		{
+			if ( buffer.IsValid && visibilityBuffers.Remove( buffer ) ) Gpu.Destroy( buffer );
+		}
+
+		foreach ( var texture in state.Textures() )
+		{
+			if ( texture.IsValid && visibilityTextures.Remove( texture ) ) Gpu.Destroy( texture );
+		}
+
+		state.Ready = false;
+		state.Mask = state.Stamps = state.PrepassCompacted = state.PrepassCompacted16 = state.MeshletStamps = state.MeshletJobs = default;
+		state.Compacted.AsSpan().Clear();
+		state.Ids = state.Scratch = default;
+		state.MeshletStampsAttribute = null;
+		state.Width = state.Height = state.Samples = 0;
+		state.CompactedCapacity = state.PrepassCapacity = 0;
+		state.KeptCapacity = 0;
+		state.StampsCleared = state.MeshletStampsCleared = false;
+		state.ClearedFrame = 0;
+	}
+
+	void FreeRetiredVisibility()
+	{
+		if ( retiredVisibility.IsEmpty ) return;
+		lock ( visibilityViews )
+		{
+			while ( retiredVisibility.TryDequeue( out var gone ) )
+			{
+				FreeVisibility( gone );
+				VisibilityViewsFreed++;
+			}
+		}
+	}
+
 	/// <summary>A view's visibility resources, made the first time and remade when its depth target changes size.</summary>
 	internal VisibilityView VisibilityFor( object view, TextureInfo depth )
 	{
@@ -1745,21 +1886,29 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		lock ( visibilityViews )
 		{
-			var state = visibilityViews.GetValue( view, static _ => new VisibilityView() );
+			var state = visibilityViews.GetValue( view, _ => new VisibilityView { Retire = retiredVisibility } );
 			if ( !state.Mask.IsValid )
 			{
 				// Copied out only for the debug figure
 				var figure = Figure is not null;
 				state.Mask = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityBits / 8, Usage = BufferUsage.Storage | BufferUsage.CopyDestination | (figure ? BufferUsage.CopySource : 0), Name = "Borealis visibility mask" } );
 				state.Stamps = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 4L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis visibility stamps" } );
+				visibilityBuffers.Add( state.Mask );
+				visibilityBuffers.Add( state.Stamps );
+			}
+
+			// Room for every sample's triangle: made with the view, and made again when its target grows past it
+			var compacted = CompactedIndicesFor( depth );
+			if ( !state.Compacted[0].IsValid || compacted > state.CompactedCapacity )
+			{
 				for ( int i = 0; i < state.Compacted.Length; i++ )
 				{
-					state.Compacted[i] = Gpu.CreateBuffer( new BufferInfo { Size = VisibilityCompactedIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis visibility triangles" } );
+					if ( state.Compacted[i].IsValid && visibilityBuffers.Remove( state.Compacted[i] ) ) Gpu.Destroy( state.Compacted[i] );
+					state.Compacted[i] = Gpu.CreateBuffer( new BufferInfo { Size = compacted * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis visibility triangles" } );
 					visibilityBuffers.Add( state.Compacted[i] );
 				}
 
-				visibilityBuffers.Add( state.Mask );
-				visibilityBuffers.Add( state.Stamps );
+				state.CompactedCapacity = compacted;
 			}
 
 			if ( depth.Width != 0 && (state.Width != depth.Width || state.Height != depth.Height || state.Samples != depth.Samples) )
@@ -1982,6 +2131,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public void BeginFrame()
 	{
 		Gpu.BeginFrame();
+		FreeRetiredVisibility();
+		if ( GpuDrivenFrame % 60 == 0 ) FreeIdleVisibility();
 		gpuDrivenTables?.BeginFrame();
 		meshletStore?.BeginFrame();
 		lodStore?.BeginFrame();

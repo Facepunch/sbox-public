@@ -502,6 +502,12 @@ public struct DepthTarget
 	public bool ReadOnly;
 
 	/// <summary>
+	/// A single-sample texture of the same format to resolve depth and stencil into at the end (sample zero), in
+	/// <see cref="ImageLayout.DepthTarget"/>; none for no resolve.
+	/// </summary>
+	public TextureHandle ResolveTarget;
+
+	/// <summary>
 	/// Draw to <paramref name="texture"/>'s depth, clearing it to <paramref name="clear"/> first or loading it.
 	/// </summary>
 	public static DepthTarget Of( TextureHandle texture, float? clear = null ) => new()

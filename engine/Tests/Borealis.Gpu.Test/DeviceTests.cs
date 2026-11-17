@@ -53,6 +53,36 @@ public class DeviceTests : GpuTest
 	}
 
 	/// <summary>
+	/// Two moves of one image with nothing recorded between (a block leaving its target readable, and the next drawing into
+	/// it again) are one barrier, from where the first started to where the second ends: barriers in one call aren't ordered
+	/// among themselves, so apart they'd race (synchronisation validation's write-after-write). A move of another image
+	/// stays its own.
+	/// </summary>
+	[TestMethod]
+	public void MovesOfOneImageInABatchJoin()
+	{
+		var target = Target( 64, 32 );
+		var other = Target( 64, 32 );
+		var list = Device.BeginCommandList();
+		list.Barrier( TextureBarrier.Transition( target, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.TopOfPipe, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+		list.Barrier( TextureBarrier.Transition( other, ImageLayout.Undefined, ImageLayout.ShaderRead, PipelineStage.TopOfPipe, MemoryAccess.None, PipelineStage.FragmentShader, MemoryAccess.ShaderRead ) );
+		list.BeginRendering( [ColorTarget.Of( target, new Vector4( 1, 0, 0, 1 ) )] );
+		list.EndRendering();
+
+		var before = list.Counts.Barriers;
+		list.Barrier( TextureBarrier.Transition( target, ImageLayout.ColorTarget, ImageLayout.ShaderRead, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite, PipelineStage.FragmentShader, MemoryAccess.ShaderRead ) );
+		list.Barrier( TextureBarrier.Transition( other, ImageLayout.ShaderRead, ImageLayout.ColorTarget, PipelineStage.FragmentShader, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+		list.Barrier( TextureBarrier.Transition( target, ImageLayout.ShaderRead, ImageLayout.ColorTarget, PipelineStage.FragmentShader, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetRead | MemoryAccess.ColorTargetWrite ) );
+		list.BeginRendering( [ColorTarget.Of( target, new Vector4( 0, 1, 0, 1 ) ), ColorTarget.Of( other, new Vector4( 0, 0, 1, 1 ) )] );
+		list.EndRendering();
+		Assert.AreEqual( before + 1, list.Counts.Barriers, "one call for the batch" );
+		Device.Wait( Device.Submit( list ) );
+
+		Assert.AreEqual( ((byte)0, (byte)255, (byte)0, (byte)255), Pixel( ReadBack( target, ImageLayout.ColorTarget ), 64, 10, 10 ) );
+		Assert.AreEqual( ((byte)0, (byte)0, (byte)255, (byte)255), Pixel( ReadBack( other, ImageLayout.ColorTarget ), 64, 10, 10 ) );
+	}
+
+	/// <summary>
 	/// A cleared target reads back as exactly the clear colour.
 	/// </summary>
 	[TestMethod]

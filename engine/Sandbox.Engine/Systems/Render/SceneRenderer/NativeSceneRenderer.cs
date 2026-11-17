@@ -155,12 +155,18 @@ internal sealed class NativeSceneRenderer : ISceneRenderer
 
 		camera.OnPreRender( renderSize );
 
+		// Its faces are Source 2's even where the process draws on another device (an editor bake): read back from there
+		if ( RenderBackend.Default is not Source2RenderBackend ) texture.PixelsOnSource2 = true;
+
 		//
 		// Adds the views to the scene system
 		//
 		using var setup = new CameraRenderer( "RenderToCubeTexture", camera._cameraId );
 		setup.Configure( camera, config );
 		setup.Native.EnableUI = false;
+
+		// Its views are a capture's, not a native tool's (RenderPipeline.ToolViewsDrawn)
+		using var capture = RenderPipeline.Capturing();
 
 		// All six faces share one scene submission and one bindless descriptor set.
 		// Join an existing frame bracket when the caller already has one open.

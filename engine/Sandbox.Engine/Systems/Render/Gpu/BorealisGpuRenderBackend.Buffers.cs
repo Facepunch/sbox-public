@@ -77,7 +77,7 @@ internal sealed partial class BorealisGpuRenderBackend
 
 		var handle = gpu.CreateBuffer( new BufferInfo { Size = 16, Usage = BufferUsage.Storage | BufferUsage.CopySource | BufferUsage.CopyDestination, Name = "Engine buffer counter" } );
 		gpu.WriteBuffer<uint>( handle, [0, 0, 0, 0] );
-		counters.Add( buffer, new Backing<BufferHandle>( handle ) );
+		counters.Add( buffer, new Backing<BufferHandle>( handle ) { Collected = collectedBuffers } );
 		ownedBuffers.Add( handle );
 		return handle;
 	}
@@ -104,6 +104,7 @@ internal sealed partial class BorealisGpuRenderBackend
 	{
 		if ( !counters.TryGetValue( buffer, out var backing ) ) return;
 		counters.Remove( buffer );
+		backing.Collected = null;
 		ownedBuffers.Remove( backing.Handle );
 		gpu.Destroy( backing.Handle );
 	}
@@ -136,6 +137,9 @@ internal sealed partial class BorealisGpuRenderBackend
 		// The submission it's in, once known; a lent block's isn't until its lender submits, after the device frame it was in
 		public SyncPoint Done;
 		public ulong Frame;
+
+		// Where the buffer goes once its callback is done with it, to be used again; null frees it
+		public System.Collections.Concurrent.ConcurrentQueue<BufferHandle> ReturnTo;
 	}
 
 	// Recorded in the block being recorded, or in the uploads, and not yet submitted
@@ -213,7 +217,7 @@ internal sealed partial class BorealisGpuRenderBackend
 
 			pendingReadbacks.RemoveAt( i-- );
 			var data = (nint)Unsafe.AsPointer( ref gpu.Map( readback.Buffer )[0] );
-			var queue = readBuffers;
+			var queue = readback.ReturnTo ?? readBuffers;
 			System.Threading.Tasks.Task.Run( () =>
 			{
 				try
