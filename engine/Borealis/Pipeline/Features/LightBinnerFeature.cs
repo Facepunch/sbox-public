@@ -135,7 +135,14 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 			EnsureLightCapacity( Count + 1 );
 			packedObjects[Count] = light;
 			packedScreenSize[Count] = span.Length < 2 ? ComputeScreenSize( light, extents[span[i]], view ) : -sortKeys[i].Size;
-			lights[Count++] = light.NativePacked ?? Pack( light );
+			lights[Count] = light.NativePacked ?? Pack( light );
+			if ( light.Cookie is { } cookie )
+			{
+				lights[Count].LightCookieTextureIndex = Borealis.Gpu.GpuContext.BindlessIndex( cookie );
+				lights[Count].Flags |= LightCookieEnabled;
+			}
+
+			Count++;
 		}
 	}
 
