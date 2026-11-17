@@ -158,7 +158,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>Each engine frame is a device frame: starting one waits for the frame before last, then recycles what it used.</summary>
 	void FollowFrame()
 	{
-		if ( !followsFrames || frame == Application.FrameCount ) return;
+		// Never inside a Borealis frame's recording (a block it lends): its lists would be left in the frame before
+		if ( !followsFrames || frame == Application.FrameCount || lendNext is not null ) return;
 		frame = Application.FrameCount;
 		BorealisGpuDeviceLost.Check( gpu );
 		SubmitUploads();
@@ -167,6 +168,14 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		services.BeginFrame();
 		if ( frame % PipelineCacheSaveFrames == 0 ) SavePipelineCacheInBackground();
 	}
+
+	/// <summary>
+	/// Start this engine frame's device frame now, if it hasn't started: call before recording a Borealis frame. One begun
+	/// first (a cube capture at the start of the frame) would otherwise see the device frame turn over in the middle of its
+	/// recording, at the first engine call that follows frames (a custom object's lent block, an upload), and its lists would
+	/// be recycled with the frame before while the GPU still runs them.
+	/// </summary>
+	internal void StartFrame() => FollowFrame();
 
 	/// <summary>Frames between background saves of the pipeline cache.</summary>
 	const ulong PipelineCacheSaveFrames = 900;
