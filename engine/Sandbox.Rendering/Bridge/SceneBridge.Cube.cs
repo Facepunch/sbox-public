@@ -19,12 +19,6 @@ internal sealed partial class SceneBridge
 	bool warnedAfterFaces;
 
 	/// <summary>
-	/// Set while a capture's later faces prepare: the first face synced the mirrors, and nothing runs between faces to change
-	/// the scene, so they draw what it synced.
-	/// </summary>
-	bool captureSynced;
-
-	/// <summary>
 	/// A cube capture (an envmap probe) on the Borealis.Gpu device, as native's six face views
 	/// (<c>CCameraRenderer::RenderToCubeTexture</c>): mip 0 cleared to red, then six 90-degree faces of the camera's view, each
 	/// a Borealis frame of its own (<see cref="RenderView.Capture"/>, exposure 1, no stages) copied into its slice as it
@@ -73,31 +67,23 @@ internal sealed partial class SceneBridge
 		if ( !cubeCaptures.TryGetValue( size, out var capture ) ) cubeCaptures[size] = capture = new CubeCapture( device, size );
 		if ( filter is not null && !capture.CanFilter ) filter = null;
 
-		try
-		{
-			capture.Render( target, RenderFace, filter );
-		}
-		finally
-		{
-			captureSynced = false;
-		}
-
-		void RenderFace( int i, ViewTarget faceTarget )
+		capture.Render( target, ( i, faceTarget ) =>
 		{
 			var face = view;
 			face.Transform = new Transform( camera.Position, camera.Rotation * SceneCamera.CubeRotations[i] );
 			face.FieldOfView = 90;
 			face.EnableUI = false;
 
-			var state = captureFaces[i] ??= new CameraState( camera );
+			// Recorded on this thread, as the lab's captures are: a face is a small frame, and six back to back in one engine
+			// frame gain nothing from workers
+			var state = captureFaces[i] ??= new CameraState( camera ) { System = { ParallelRecording = false } };
 			state.Camera.SetTarget( camera );
 			var (mirror, prepared) = Prepare( camera, face, new Vector2( size, size ), state );
-			captureSynced = true;
 			prepared.View.Capture = true;
 			prepared.View.ToneMapScalar = 1;
 			using ( new Drawing( this, prepared ) )
 				prepared.System.Render( mirror.World, prepared.View, faceTarget, null );
-		}
+		}, filter );
 	}
 
 	/// <summary>Free the capture faces and their copies and filters.</summary>
