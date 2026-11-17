@@ -155,6 +155,9 @@ internal sealed class NativeSceneRenderer : ISceneRenderer
 
 		camera.OnPreRender( renderSize );
 
+		// Its faces are Source 2's even where the process draws on another device (an editor bake): read back from there
+		if ( RenderBackend.Default is not Source2RenderBackend ) texture.PixelsOnSource2 = true;
+
 		//
 		// Adds the views to the scene system
 		//

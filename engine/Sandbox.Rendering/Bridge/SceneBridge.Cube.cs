@@ -26,19 +26,20 @@ internal sealed partial class SceneBridge
 	/// The cube is the engine texture's capture (<see cref="MirrorContent.CaptureCube"/>), which probes draw with. Its faces submit
 	/// lists of their own, so a capture asked for inside a render block or one of our frames renders the same way, before what
 	/// the block records. A camera with stage hooks of its own (the DDGI bake's) isn't on Borealis.Gpu yet, nor work after
-	/// the faces other than the filter. With Source 2's device kept (the editor) a realtime probe captures here, for the
-	/// views Borealis draws; a bake asks for native's by name (<see cref="SceneRenderer.Native"/>) and reads it back, and so
-	/// does a camera with stage hooks (the DDGI bake).
+	/// the faces other than the filter. With Source 2's device kept (the editor) a realtime probe captures natively too,
+	/// for the native tools' views (Hammer's), then here for the views Borealis draws; a bake asks for native's by name
+	/// (<see cref="SceneRenderer.Native"/>) and reads it back, and a camera with stage hooks (the DDGI bake) captures natively only.
 	/// </summary>
 	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null )
 	{
 		if ( cube is null || Gpu is null || MirrorContent.Gpu is not { } device ) return;
 
-		// With Source 2's device kept (the editor), the DDGI bake's captures are native's: it reads each face from its hooks
-		if ( Graphics.HasSource2Device && camera.OnRenderStageHook is not null )
+		// With Source 2's device kept (the editor), native's capture for its own views (Hammer's), and the DDGI bake's only:
+		// it reads each face from its hooks
+		if ( Graphics.HasSource2Device )
 		{
 			SceneRenderer.Native.RenderToCube( camera, cube, setup, afterFaces );
-			return;
+			if ( camera.OnRenderStageHook is not null ) return;
 		}
 		if ( NotYetInBorealis( camera, setup ) is not null ) return;
 

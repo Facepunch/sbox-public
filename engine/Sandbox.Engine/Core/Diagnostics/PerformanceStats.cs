@@ -102,6 +102,12 @@ public static partial class PerformanceStats
 			GpuFrametime = (float)borealisGpu.Ms;
 			GpuFrameNumber = (uint)borealisGpu.Frame;
 		}
+		else if ( BorealisGpuWindow.Timed is { GpuFrameMs: { } widgetMs } widget )
+		{
+			// The editor's widgets on Borealis.Gpu time their own frames: the play widget's, else the biggest scene view's
+			GpuFrametime = (float)widgetMs;
+			GpuFrameNumber = (uint)widget.GpuFrameNumber;
+		}
 		else if ( g_pRenderDevice.GetGPUFrameTimeMS( IntPtr.Zero, out float gpuFrametime, out uint gpuFrameNo ) )
 		{
 			GpuFrametime = gpuFrametime;
