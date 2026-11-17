@@ -49,6 +49,7 @@ internal class ServerPackages
 				return activePackage.FileSystem;
 
 			IsDownloading = true;
+			IsErrored = false;
 			try
 			{
 				package = await Package.Fetch( ident, false );
@@ -109,7 +110,9 @@ internal class ServerPackages
 					return;
 
 				LoadingScreen.Title = $"Loading {package?.Title ?? ident}";
-				await ResourceLoader.LoadAllGameResourceAsync( activePackage.FileSystem, token, sourcePackage: activePackage.Package );
+				// Addon resources are part of the game's content, not individual cloud assets.
+				var sourcePackage = string.Equals( activePackage.Package.TypeName, "addon", StringComparison.OrdinalIgnoreCase ) ? null : activePackage.Package;
+				await ResourceLoader.LoadAllGameResourceAsync( activePackage.FileSystem, token, sourcePackage: sourcePackage );
 				FontManager.Instance.LoadAll( activePackage.FileSystem );
 				resourcesLoaded = true;
 			}
@@ -190,7 +193,10 @@ internal class ServerPackages
 		}
 	}
 
-	internal async Task InstallAll()
+	/// <summary>
+	/// Install required server packages, returning false if any remote package fails to mount.
+	/// </summary>
+	internal async Task<bool> InstallAll()
 	{
 		// Conna: let's make a copy here incase the entries table is modified during
 		// the installation. This could happen if a new package is added from
@@ -218,9 +224,19 @@ internal class ServerPackages
 			await ClientInstallPackage( p.Value, reloadResources: false );
 		} );
 
+		foreach ( var ident in entries.Keys )
+		{
+			if ( ident.StartsWith( "local." ) ) continue;
+			if ( Get( ident ) is { IsMounted: true, IsErrored: false, activePackage.FileSystem: not null } ) continue;
+
+			Log.Warning( $"Failed to install required server package: {ident}" );
+			return false;
+		}
+
 		NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
 
 		Log.Info( $"Installation Complete ({sw.Elapsed.TotalSeconds:0.00}s)" );
+		return true;
 	}
 
 	/// <summary>
@@ -280,15 +296,6 @@ internal class ServerPackages
 		}
 
 		return mismatched;
-	}
-
-	/// <summary>
-	/// Why we can't join a server whose versions of these workshop items are different to ours
-	/// </summary>
-	internal static string MismatchMessage( IEnumerable<Workshop.Item> items )
-	{
-		var names = items.Select( x => x.Title ?? $"Workshop item {x.Id}" );
-		return $"You can't join this server because its version of {string.Join( ", ", names )} is different from yours. One of you has an older version - the server needs to update, or yours does.";
 	}
 
 	/// <inheritdoc cref="AddRequirement(string, bool)"/>

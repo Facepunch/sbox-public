@@ -45,6 +45,9 @@ native class Steam.Ugc.CUgcUpdate as NativeEngine.CUgcUpdate
 
     bool Submit( string changeNote );
 
+    ulong ChangeDependency( ulong dependency, bool add );
+    static int GetDependencyResult( ulong call, bool add );
+
     float GetProgressPercent();
     ulong GetBytesProcessed();
     ulong GetBytesTotal();

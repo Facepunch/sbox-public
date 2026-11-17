@@ -150,6 +150,9 @@ public partial class ProjectPublisher
 
 		IEnumerable<string> AllCodePaths( Project project )
 		{
+			if ( !project.CanPublishCode() )
+				yield break;
+
 			if ( project.HasCodePath() )
 				yield return project.GetCodePath();
 

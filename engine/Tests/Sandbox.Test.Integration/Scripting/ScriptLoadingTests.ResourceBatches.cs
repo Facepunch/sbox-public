@@ -47,8 +47,13 @@ public partial class ScriptLoadingTests
 	/// Invalid source keeps its accepted definitions while unrelated valid edits publish and run.
 	/// </summary>
 	[TestMethod]
-	public void ResourceBatchIsolatesRejectedReplacement()
+	[DataRow( false )]
+	[DataRow( true )]
+	public void ResourceBatchIsolatesRejectedReplacement( bool networking )
 	{
+		if ( networking )
+			files.WriteAllText( "net.csx", "class NetworkMarker : Component { [Sync] public int Value { get; set; } }" );
+
 		files.WriteAllText( "a.csx", "class ResourceAccepted { public int Read() { return 3; } }" );
 		files.WriteAllText( "b.csx", "[Global] int ResourceValue = 0; ResourceValue = 1;" );
 		ResourceLoader.LoadAllGameResource( files );

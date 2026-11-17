@@ -83,7 +83,8 @@ public sealed partial class ScriptSystem
 		{
 			Resolver = _resolver,
 			CacheCapacity = CacheCapacity,
-			GlobalStaticTypes = [typeof( Internal.GlobalGameNamespace )]
+			GlobalStaticTypes = [typeof( Internal.GlobalGameNamespace )],
+			ExtensionTypes = [typeof( SandboxSystemExtensions ), typeof( Enumerable ), typeof( MathX ), typeof( SandboxGameExtensions )]
 		} );
 		Globals = new( this );
 		_runtime.SetStore( "global", Globals.Instance );
@@ -91,8 +92,9 @@ public sealed partial class ScriptSystem
 		{
 			Name = "Sandbox.Game.Scripts",
 			ReuseUnchangedAssembly = true,
+			CanReuseAssembly = CanReuseAssembly,
 			DeclarationAttributes = DeclarationAttributes,
-			DeclarationAttributesKey = metadata => (metadata.FilePath, metadata.Line, metadata.Summary),
+			DeclarationAttributesKey = declaration => DeclarationAttributesKey( declaration ),
 			FieldInitializerAttribute = typeof( Upgraders.InitializedByAttribute ).GetConstructor( [typeof( string )] ),
 			ValidateTypes = ValidateTypes,
 			AssemblyChanged = ReplaceAssembly

@@ -37,7 +37,7 @@ public sealed partial class ScriptSystem
 	/// Reconciles the complete named-file set in one publication. Changed files are added or replaced;
 	/// omitted files and their declarations are removed. Unchanged files retain their execution state.
 	/// File identities are case-sensitive and must be nonblank. Sources are compiled independently, preserving
-	/// their locations and per-file size limits. Do not mix named-file ownership with Load's anonymous chunks.
+	/// their locations. Do not mix named-file ownership with Load's anonymous chunks.
 	/// Changed files run their top-level statements in ordinal filename order after all definitions publish.
 	/// Startup side effects are not transactional; inspect Published and RequiresReload when Success is false.
 	/// Clients receiving the host's scripts cannot replace the file set locally.
@@ -106,18 +106,24 @@ public sealed partial class ScriptSystem
 		var revision = Module.Revision;
 		try
 		{
+			var compiled = snapshot.Count == _namedFiles.Count && snapshot.All( pair => _namedFiles.TryGetValue( pair.Key, out var previous ) && previous == pair.Value )
+				? _compiledFiles : GenerateFiles( snapshot );
 			var changes = new List<Breen.ScriptFileChange>();
 			var changedPaths = new List<string>();
-			foreach ( var (path, source) in snapshot.OrderBy( x => x.Key, StringComparer.Ordinal ) )
+			foreach ( var (path, source) in compiled.OrderBy( x => x.Key, StringComparer.Ordinal ) )
 			{
-				var exists = _namedFiles.TryGetValue( path, out var previous );
+				var exists = _compiledFiles.TryGetValue( path, out var previous );
 				if ( exists && previous == source && restart?.Contains( path ) != true ) continue;
 				var document = Breen.ScriptDocument.Parse( source, path );
 				changes.Add( exists ? Breen.ScriptFileChange.Replace( document ) : Breen.ScriptFileChange.Add( document ) );
-				changedPaths.Add( path );
+				if ( snapshot.TryGetValue( path, out var authored ) && (!_namedFiles.TryGetValue( path, out var oldSource )
+					|| authored != oldSource || restart?.Contains( path ) == true) )
+				{
+					changedPaths.Add( path );
+				}
 			}
 
-			foreach ( var path in _namedFiles.Keys.Except( snapshot.Keys ) )
+			foreach ( var path in _compiledFiles.Keys.Except( compiled.Keys ) )
 			{
 				changes.Add( Breen.ScriptFileChange.Remove( path ) );
 			}
@@ -126,7 +132,9 @@ public sealed partial class ScriptSystem
 			{
 				Module.StopWarmup();
 				Module.SetStartupStore( "local", new() );
+				_publishingGeneratedFiles = true;
 				var publication = Module.ApplyBatch( changes );
+				_compiledFiles = compiled;
 				_namedFiles = snapshot;
 				PublishNetworkFiles( sendUpdates: true );
 				foreach ( var change in changes ) _fileStartupErrors.Remove( change.FileId );
@@ -138,11 +146,19 @@ public sealed partial class ScriptSystem
 				WarmMethods();
 			}
 		}
+		catch ( FilePreparationException exception )
+		{
+			_fileLoadError = exception.Error;
+		}
 		catch ( Exception exception ) when ( exception is not OutOfMemoryException )
 		{
 			var frame = Breen.ScriptStackTrace.GetFrames( exception ).FirstOrDefault();
 			_fileLoadError = new( exception is Breen.ScriptException fault ? fault.Code : "SCR_LOAD", exception.Message,
 				frame?.Span.Start ?? 0, frame?.Span.Length ?? 0, frame?.FilePath ?? "", frame?.Line ?? 0, frame?.Column ?? 0 );
+		}
+		finally
+		{
+			_publishingGeneratedFiles = false;
 		}
 
 		var diagnostics = Diagnostics;

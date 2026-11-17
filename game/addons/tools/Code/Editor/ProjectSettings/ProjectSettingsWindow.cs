@@ -182,6 +182,7 @@ internal sealed class ProjectSettingsWindow : Window
 		{
 			AddCategoryToList( typeof( PublishingCategory ), "Project" );
 			AddCategoryToList( typeof( GameCategory ), "Project" );
+			AddCategoryToList( typeof( AddonsCategory ), "Project" );
 			AddCategoryToList( typeof( StandaloneCategory ), "Project" );
 			AddCategoryToList( typeof( SystemsPage ), "Systems" );
 

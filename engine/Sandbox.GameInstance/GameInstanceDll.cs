@@ -39,6 +39,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	public void Bootstrap()
 	{
 		Current = this;
+		Sandbox.WorkshopItems.Current = WorkshopItems;
 
 		GlobalContext.Current.Reset();
 		GlobalContext.Current.LocalAssembly = GetType().Assembly;
@@ -170,6 +171,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		}
 
 		if ( !menuResourcesCurrent ) ResourceLoader.Clear();
+		WorkshopItems.Clear();
 
 		if ( DidMountNetworkedFiles )
 		{

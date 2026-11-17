@@ -8,6 +8,31 @@ namespace ScriptingTests;
 public partial class ScriptLoadingTests
 {
 	/// <summary>
+	/// Mapped path and line edits refresh source navigation even when the physical declaration does not move.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "other.csx", 10 )]
+	[DataRow( "first.csx", 20 )]
+	public void LineDirectivesInvalidatePublishedSourceLocations( string mappedPath, int mappedLine )
+	{
+		const string declaration = "public class MappedScript { public int Read() { return 1; } }";
+		var loaded = Game.Scripting.LoadFile( "mapped.csx", "#line 10 \"first.csx\"\n" + declaration );
+		Assert.IsTrue( loaded.Success, string.Join( "\n", loaded.Diagnostics ) );
+		var previousType = Game.TypeLibrary.GetType( "MappedScript" ).TargetType;
+
+		loaded = Game.Scripting.LoadFile( "mapped.csx", $"#line {mappedLine} \"{mappedPath}\"\n" + declaration );
+		Assert.IsTrue( loaded.Success, string.Join( "\n", loaded.Diagnostics ) );
+		var type = Game.TypeLibrary.GetType( "MappedScript" ).TargetType;
+		Assert.AreNotSame( previousType, type );
+		var location = type.GetCustomAttribute<SourceLocationAttribute>();
+		Assert.AreEqual( mappedPath, location.Path );
+		Assert.AreEqual( mappedLine, location.Line );
+		location = type.GetMethod( "Read" ).GetCustomAttribute<SourceLocationAttribute>();
+		Assert.AreEqual( mappedPath, location.Path );
+		Assert.AreEqual( mappedLine, location.Line );
+	}
+
+	/// <summary>
 	/// Method-only edits update real component callbacks while retaining CLR identities, field values and host roots.
 	/// Moving a declaration still replaces its assembly so source-location metadata and native migration stay correct.
 	/// </summary>

@@ -97,6 +97,10 @@ public static class PlatformMenu
 
 	public static int MaxPlayers => (CurrentId != 0 ? Details?.GetMeta( "MaxPlayers", 1 ) : Current?.Info.MaxPlayers) ?? 1;
 
+	public static bool AllowsAddons => (CurrentId != 0 ? Details?.GetMeta( "AllowAddons", true ) : Current?.Info.AllowsAddons) ?? true;
+
+	public static string[] AddonTypes => (CurrentId != 0 ? Details?.GetMeta<string[]>( "AddonTypes", null ) : Current?.Info.AddonTypes) ?? [];
+
 	public static bool IsDedicatedServerOnly => string.Equals( LaunchMode, "dedicatedserveronly", StringComparison.OrdinalIgnoreCase );
 
 	/// <summary>

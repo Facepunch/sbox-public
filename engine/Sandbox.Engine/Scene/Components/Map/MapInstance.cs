@@ -139,10 +139,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	/// </summary>
 	public void UnloadMap()
 	{
-		if ( loadedMapPkg is not null )
-		{
-			ServerPackages.Current?.RemoveRequirement( loadedMapPkg );
-		}
+		loadedMapPkg?.RemoveMountRequirement();
 
 		loadedMapName = null;
 		loadedMapPkg = null;
@@ -293,8 +290,14 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 				var fs = await package.MountAsync();
 
-				if ( !IsValid || fs is null )
+				if ( fs is null )
 					return false;
+
+				if ( !IsValid || token.IsCancellationRequested )
+				{
+					package.RemoveMountRequirement();
+					return false;
+				}
 
 				loadedMapPkg = package;
 				mapFileName = package.PrimaryAsset;

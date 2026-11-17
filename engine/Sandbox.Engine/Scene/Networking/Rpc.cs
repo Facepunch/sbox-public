@@ -94,6 +94,10 @@ public enum NetPermission
 	OwnerOnly
 }
 
+/// <summary>
+/// Provides RPC caller information and controls which connections receive calls.
+/// </summary>
+[Expose]
 public static partial class Rpc
 {
 	/// <summary>

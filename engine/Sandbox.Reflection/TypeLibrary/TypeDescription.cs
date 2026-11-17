@@ -187,11 +187,12 @@ public sealed class TypeDescription : ISourceLineProvider
 	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Assembly, string> AssemblyNames = new();
 
 	/// <summary>
-	/// Allows registered primitives to format using the current culture and an optional format string.
+	/// Allows registered primitives and dates to format using the current culture and an optional format string.
 	/// </summary>
 	static bool IsPrimitiveToString( MethodInfo method )
 	{
-		if ( method.DeclaringType is not { IsPrimitive: true } type || !TypeLibrary.IsIntrinsicType( type ) )
+		var type = method.DeclaringType;
+		if ( type is null || (!type.IsPrimitive && type != typeof( DateTime )) || !TypeLibrary.IsIntrinsicType( type ) )
 		{
 			return false;
 		}
@@ -201,7 +202,10 @@ public sealed class TypeDescription : ISourceLineProvider
 			|| (parameters.Length == 1 && parameters[0].ParameterType == typeof( string ));
 	}
 
-	static bool ShouldExposeMember( MemberInfo member, Internal.TypeLibrary lib, TypeDescription source )
+	/// <summary>
+	/// Applies the catalog's member policy, including constructors supplied separately by consumers.
+	/// </summary>
+	internal bool ShouldExposeMember( MemberInfo member )
 	{
 		// |               |  public  | protected | private |
 		// |---------------|---------|-----------|---------|
@@ -253,16 +257,16 @@ public sealed class TypeDescription : ISourceLineProvider
 		// get the derived type here. What if that type isn't in the library yet? I'll tell you
 		// what, we just fucked up. That's what.
 		//
-		if ( source.TargetType.Assembly == assembly )
+		if ( TargetType.Assembly == assembly )
 		{
 			// This is a dynamic assembly, allow anything
-			if ( source.IsDynamicAssembly )
+			if ( IsDynamicAssembly )
 				return true;
 		}
 		else
 		{
 			// this assembly is dynamic, allow anything
-			var dt = lib.GetType( member.DeclaringType );
+			var dt = library.GetType( member.DeclaringType );
 			if ( dt is not null && dt.IsDynamicAssembly ) return true;
 		}
 
@@ -320,7 +324,7 @@ public sealed class TypeDescription : ISourceLineProvider
 			if ( !isSystemType && field.IsFamily ) return true;
 		}
 
-		return lib.ShouldExposePrivateMember?.Invoke( member ) ?? false;
+		return library.ShouldExposePrivateMember?.Invoke( member ) ?? false;
 	}
 
 	internal static TypeDescription Create( TypeLibrary typeLibrary, Type type, bool dynamicAssembly, TypeDescription target )
@@ -366,7 +370,7 @@ public sealed class TypeDescription : ISourceLineProvider
 		_parameterlessFactoryResolved = false;
 
 		var members = type.GetMembers( BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static )
-								.Where( x => ShouldExposeMember( x, library, this ) )
+								.Where( ShouldExposeMember )
 								.ToList();
 
 

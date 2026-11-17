@@ -6,6 +6,7 @@ namespace Sandbox;
 /// <summary>
 /// For accessing assets from the cloud - from code
 /// </summary>
+[Expose]
 public static partial class Cloud
 {
 	static CaseInsensitiveDictionary<string> cached = new();

@@ -12,6 +12,7 @@ namespace Sandbox;
 /// <summary>
 /// A convenience JSON helper that handles <see cref="Resource"/> types for you.
 /// </summary>
+[Expose]
 public static partial class Json
 {
 	internal static JsonSerializerOptions options

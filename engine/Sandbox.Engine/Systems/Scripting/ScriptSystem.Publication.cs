@@ -1,6 +1,10 @@
 using Sandbox.Internal;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox;
 
@@ -9,16 +13,52 @@ public sealed partial class ScriptSystem
 	private readonly HashSet<TypeLibrary> _libraries = new();
 	private Assembly _assembly;
 	private bool _publishingAssembly;
+	[SkipHotload] private static readonly ConditionalWeakTable<Breen.ScriptDocument, CompilationUnitSyntax> DeclarationTrees = new();
+
+	/// <summary>
+	/// Generated delegate caches belong to one publication. Require ordinary hotload to reset them,
+	/// including when an edit only changes another file in the module.
+	/// </summary>
+	private static bool CanReuseAssembly( Assembly assembly ) => !assembly.GetTypes()
+		.SelectMany( type => type.GetFields( BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly ) )
+		.Any( field => typeof( Delegate ).IsAssignableFrom( field.FieldType ) && field.IsDefined( typeof( SkipHotloadAttribute ), false ) );
+
+	/// <summary>
+	/// Reuses the declaration's syntax for emitted metadata and its assembly-reuse key.
+	/// </summary>
+	private static CompilationUnitSyntax GetDeclarationTree( Breen.ScriptDeclarationMetadata declaration ) =>
+		DeclarationTrees.GetValue( declaration.Document, document =>
+			(CompilationUnitSyntax)CSharpSyntaxTree.ParseText( document.Source,
+				new CSharpParseOptions( kind: Microsoft.CodeAnalysis.SourceCodeKind.Script ), document.FilePath ).GetRoot() );
+
+	/// <summary>
+	/// Includes mapped source coordinates so changing a line directive refreshes published navigation metadata.
+	/// </summary>
+	private static (string Path, int Line, string Summary) DeclarationAttributesKey( Breen.ScriptDeclarationMetadata declaration )
+	{
+		var location = GetDeclarationTree( declaration ).SyntaxTree.GetMappedLineSpan( new TextSpan( declaration.Span.Start, declaration.Span.Length ) );
+		return (location.Path, location.StartLinePosition.Line + 1, declaration.Summary);
+	}
 
 	/// <summary>
 	/// Emits source navigation and documentation into the same CLR metadata as authored attributes.
 	/// </summary>
 	private static IEnumerable<CustomAttributeBuilder> DeclarationAttributes( Breen.ScriptDeclarationMetadata declaration )
 	{
-		yield return new CustomAttributeBuilder( typeof( SourceLocationAttribute ).GetConstructor( [typeof( string ), typeof( int )] ),
-			[declaration.FilePath, declaration.Line] );
+		var root = GetDeclarationTree( declaration );
+		var span = new TextSpan( declaration.Span.Start, declaration.Span.Length );
+		var member = root.FindNode( span ) as MemberDeclarationSyntax;
+		var metadata = DeclarationAttributesKey( declaration );
+		var attributes = member?.AttributeLists.SelectMany( list => list.Attributes )
+			.Select( attribute => attribute.Name.ToString().Replace( "global::", "", StringComparison.Ordinal ) ).ToArray() ?? [];
+		if ( !attributes.Any( name => name is "Sandbox.Internal.SourceLocation" or "Sandbox.Internal.SourceLocationAttribute" ) )
+		{
+			yield return new CustomAttributeBuilder( typeof( SourceLocationAttribute ).GetConstructor( [typeof( string ), typeof( int )] ),
+				[metadata.Path, metadata.Line] );
+		}
 
-		if ( declaration.Summary is { } summary )
+		if ( declaration.Summary is { } summary && !attributes.Any( name => name is "Description" or "DescriptionAttribute"
+			or "Sandbox.Description" or "Sandbox.DescriptionAttribute" ) )
 		{
 			yield return new CustomAttributeBuilder( typeof( DescriptionAttribute ).GetConstructor( [typeof( string )] ), [summary] );
 		}
@@ -57,6 +97,7 @@ public sealed partial class ScriptSystem
 				{
 					if ( attribute.AttributeType.IsDefined( typeof( CodeGeneratorAttribute ), true ) )
 					{
+						if ( (_publishingGeneratedFiles || _namedFiles.Count > 0) && TypeLibraryScriptResolver.IsNetworkingAttribute( attribute.AttributeType ) ) continue;
 						throw new NotSupportedException( $"[{attribute.AttributeType.Name}] requires C# code generation and is not supported on script declarations. Use a native component base for this contract." );
 					}
 				}

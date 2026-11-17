@@ -47,6 +47,51 @@ public class ScriptTypeLibraryTests
 		Assert.AreEqual( expected, actual );
 	}
 
+	/// <summary>
+	/// Registered extension providers support null receivers, generic LINQ callbacks and game utilities.
+	/// </summary>
+	[DataTestMethod]
+	[DataRow( "GameObject target = null; return target.IsValid() ? 1 : 0;", 0 )]
+	[DataRow( "return new Random(1234).Int(5, 5);", 5 )]
+	[DataRow( "float value = 1.25f; return value.FloorToInt();", 1 )]
+	[DataRow( "var values = new List<int> { 3, 1, 2 }; return values.Where(x => x > 1).FirstOrDefault();", 3 )]
+	// Breen currently needs explicit type arguments when a generic type is inferred from a lambda's return value.
+	[DataRow( "var values = new List<int> { 3, 1, 2 }; return values.OrderBy<int, int>(x => x).FirstOrDefault();", 1 )]
+	[DataRow( "return Enumerable.Range(1, 3).Sum();", 6 )]
+	[DataRow( "return glyphSize.ToPixels();", 32 )]
+	[DataRow( "return \"123\".ToInt();", 123 )]
+	public void ScriptsCanCallExtensionMethods( string source, int expected )
+	{
+		var script = Game.Scripting.CreateScript( source );
+		if ( script.HasArgument( "glyphSize" ) )
+		{
+			script.SetArgument( "glyphSize", InputGlyphSize.Small );
+		}
+
+		var actual = script.RunAndReturn<int>();
+		Assert.IsNull( script.LastError, script.LastError?.ToString() );
+		Assert.AreEqual( expected, actual );
+	}
+
+	/// <summary>
+	/// Host callbacks share the script budget even if a helper catches their exceptions.
+	/// </summary>
+	[DataTestMethod]
+	[DataRow( "Sandbox.SandboxSystemExtensions.InvokeWithWarning(() => { while (true) {} }); return 42;" )]
+	[DataRow( "return Enumerable.Range(0, 1000).Where(x => true).Count();" )]
+	[DataRow( "Enumerable.Range(0, 1000).ForEachTaskAsync(x => completed, 8); return 42;" )]
+	public void ExtensionCallbacksPreserveInstructionLimits( string source )
+	{
+		var script = Game.Scripting.CreateScript( source );
+		if ( script.HasArgument( "completed" ) )
+		{
+			script.SetArgument( "completed", System.Threading.Tasks.Task.CompletedTask );
+		}
+
+		Assert.IsFalse( script.Run( instructionLimit: 100 ) );
+		Assert.AreEqual( "SCR_BUDGET", script.LastError?.Code, script.LastError?.ToString() );
+	}
+
 	GlobalContext previous;
 	GlobalContext previousGame;
 

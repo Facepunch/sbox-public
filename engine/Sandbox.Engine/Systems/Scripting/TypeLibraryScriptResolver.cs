@@ -35,16 +35,19 @@ internal sealed partial class TypeLibraryScriptResolver( TypeLibrary library ) :
 	private bool IsIncoming( Type type ) => type is not null && incomingAssemblies.Contains( type.Assembly );
 
 	/// <summary>
-	/// Allows registered component bases to expose their normal protected extension points.
+	/// Allows registered bases to expose their normal protected extension points.
 	/// </summary>
 	public void GetBaseMembers( Type type, List<MemberInfo> members )
 	{
 		var description = library.GetType( type );
-		if ( (description is null && !IsIncoming( type )) || !type.IsAssignableTo( typeof( Component ) ) )
+		if ( description is null && !IsIncoming( type ) )
 			return;
 
+		members.AddRange( GetGeneratedBaseMethods( type ) );
+
 		members.AddRange( type.GetConstructors( BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance )
-			.Where( constructor => (constructor.IsPublic || constructor.IsFamily) && constructor.GetParameters().Length == 0 ) );
+			.Where( constructor => (constructor.IsPublic || constructor.IsFamily) && constructor.GetParameters().Length == 0 )
+			.Where( IsExposedConstructor ) );
 
 		// Public properties already arrive through GetMembers. Only add protected-only properties here,
 		// otherwise live module metadata contains duplicate entries for the same inherited property.
@@ -77,6 +80,16 @@ internal sealed partial class TypeLibraryScriptResolver( TypeLibrary library ) :
 	/// Resolves registered CLR and C# names, including nested types relative to their registered outer type.
 	/// </summary>
 	public Type ResolveType( string name )
+	{
+		if ( ResolveGeneratedType( name ) is { } generated ) return generated;
+
+		// Networking attributes must use the same C# names as code generation.
+		// A catalog alias could otherwise attach the attribute without generating its wrapper.
+		var type = ResolveCatalogType( name );
+		return IsNetworkingAttribute( type ) ? null : type;
+	}
+
+	private Type ResolveCatalogType( string name )
 	{
 		var catalog = library.GetTypes( (Type)null );
 		var names = GetTypeNames( catalog );
@@ -126,10 +139,14 @@ internal sealed partial class TypeLibraryScriptResolver( TypeLibrary library ) :
 			return owner;
 		}
 
-		// Async and catch declarations need these types, but their members and constructors
+		// Callback, async and catch declarations need these types, but their members and constructors
 		// still require catalog approval. In particular, naming Exception must not expose TargetSite.
 		return name switch
 		{
+			"Action" or "System.Action" => typeof( Action ),
+			"Action`1" or "System.Action`1" => typeof( Action<> ),
+			"Func`1" or "System.Func`1" => typeof( Func<> ),
+			"Func`2" or "System.Func`2" => typeof( Func<,> ),
 			"Exception" or "System.Exception" => typeof( Exception ),
 			"Task" or "System.Threading.Tasks.Task" => typeof( Task ),
 			"Task`1" or "System.Threading.Tasks.Task`1" => typeof( Task<> ),
@@ -211,6 +228,20 @@ internal sealed partial class TypeLibraryScriptResolver( TypeLibrary library ) :
 	/// </summary>
 	public void GetMembers( Type type, List<MemberInfo> members )
 	{
+		GetGeneratedMembers( type, members );
+		// These are callback contracts, not reflected runtime APIs. Grant only closed, safe Invoke
+		// signatures without registering Delegate's reflection members or pointer constructors.
+		var definition = type.IsConstructedGenericType ? type.GetGenericTypeDefinition() : type;
+		if ( !type.ContainsGenericParameters && (definition == typeof( Action ) || definition == typeof( Action<> )
+			|| definition == typeof( Func<> ) || definition == typeof( Func<,> )) )
+		{
+			var invoke = type.GetMethod( nameof( Action.Invoke ) );
+			if ( IsScriptSafe( invoke ) && !members.Contains( invoke ) )
+			{
+				members.Add( invoke );
+			}
+		}
+
 		// TypeLibrary omits common object methods to keep discovery tidy. Scripts can use them
 		// on every receiver, including unregistered return types and incoming hotload types.
 		var objectMethods = type.GetMethods( BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.FlattenHierarchy )
@@ -227,6 +258,7 @@ internal sealed partial class TypeLibraryScriptResolver( TypeLibrary library ) :
 
 		var directMembers = GetExposedMembers( contract ).Where( IsPublicMember )
 			.Concat( objectMethods ).Select( MemberKey ).ToHashSet();
+		var interfaceProperties = new HashSet<(MethodInfo Getter, MethodInfo Setter)>();
 		foreach ( var owner in type.GetInterfaces().Prepend( contract ) )
 		{
 			foreach ( var member in GetExposedMembers( owner ).Where( IsPublicMember ) )
@@ -248,6 +280,15 @@ internal sealed partial class TypeLibraryScriptResolver( TypeLibrary library ) :
 
 				if ( IsScriptSafe( info ) && !members.Contains( info ) )
 				{
+					// ICollection<T> and IReadOnlyCollection<T> can expose the same Count implementation.
+					// Keep distinct explicit implementations, but don't offer the same property twice.
+					if ( owner.IsInterface && !type.IsInterface && !type.ContainsGenericParameters && info is PropertyInfo property )
+					{
+						var implementation = GetInterfacePropertyImplementation( type, owner, property );
+						if ( implementation != default && !interfaceProperties.Add( implementation ) )
+							continue;
+					}
+
 					members.Add( info );
 				}
 			}
@@ -261,11 +302,46 @@ internal sealed partial class TypeLibraryScriptResolver( TypeLibrary library ) :
 			}
 		}
 
-		// TypeDescription.Create exposes public constructors on registered types too.
+		// Constructors are not stored in TypeDescription.Members, but still require its member approval.
 		if ( !type.IsByRefLike && (IsIncoming( type ) || library.GetType( type ) is not null) )
 		{
-			members.AddRange( type.GetConstructors().Where( IsScriptSafe ) );
+			members.AddRange( type.GetConstructors().Where( IsExposedConstructor ) );
 		}
+	}
+
+	/// <summary>
+	/// Applies catalog approval and script signature safety to direct and base constructor calls.
+	/// Incoming user types retain their constructors before catalog registration during hotload.
+	/// </summary>
+	private bool IsExposedConstructor( ConstructorInfo constructor ) => IsScriptSafe( constructor )
+		&& (IsIncoming( constructor.DeclaringType )
+			|| library.GetType( constructor.DeclaringType )?.ShouldExposeMember( constructor ) == true);
+
+	/// <summary>
+	/// Identifies shared interface property implementations without exposing their concrete accessors.
+	/// Arrays implement generic collection counts through their length and do not provide interface maps.
+	/// </summary>
+	private static (MethodInfo Getter, MethodInfo Setter) GetInterfacePropertyImplementation( Type type, Type owner, PropertyInfo property )
+	{
+		if ( type.IsArray )
+		{
+			if ( property.Name == "Count" && owner.IsConstructedGenericType
+				&& (owner.GetGenericTypeDefinition() == typeof( ICollection<> ) || owner.GetGenericTypeDefinition() == typeof( IReadOnlyCollection<> )) )
+			{
+				return (typeof( Array ).GetProperty( nameof( Array.Length ) ).GetMethod, null);
+			}
+
+			return default;
+		}
+
+		var map = type.GetInterfaceMap( owner );
+		MethodInfo Target( MethodInfo accessor )
+		{
+			var index = Array.IndexOf( map.InterfaceMethods, accessor );
+			return index < 0 ? null : map.TargetMethods[index];
+		}
+
+		return (Target( property.GetMethod ), Target( property.SetMethod ));
 	}
 
 	/// <summary>
@@ -326,6 +402,8 @@ internal sealed partial class TypeLibraryScriptResolver( TypeLibrary library ) :
 	// Breen can reuse argument temporaries, so nothing may hand a script a ref that outlives the call.
 	static bool IsScriptSafe( MemberInfo member ) => member switch
 	{
+		// Scripts must await native work instead of blocking the thread that completes it.
+		MethodInfo method when method.DeclaringType == typeof( TaskSource ) && method.Name is nameof( TaskSource.WaitAll ) or nameof( TaskSource.WaitAny ) => false,
 		MethodBase method => (method is not MethodInfo info || !IsRefLike( info.ReturnType ))
 			&& method.GetParameters().All( p => !IsRefStruct( p.ParameterType ) ),
 		PropertyInfo property => !IsRefLike( property.PropertyType )

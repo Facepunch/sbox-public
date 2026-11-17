@@ -62,6 +62,28 @@ internal static partial class Ugc
 		public void SetMetaData( string metadata ) => native.SetMetadata( metadata );
 		public void SetVisibility( Storage.Visibility value ) => native.SetVisibility( (int)value );
 
+		/// <summary>
+		/// Add or remove a required Workshop item, throwing if Steam rejects the change.
+		/// </summary>
+		internal async Task ChangeDependency( ulong dependency, bool add )
+		{
+			var call = native.ChangeDependency( dependency, add );
+			if ( call == 0 )
+				throw new InvalidOperationException( "Couldn't start the Workshop dependency update." );
+
+			int result;
+			while ( (result = NativeEngine.CUgcUpdate.GetDependencyResult( call, add )) == 0 )
+			{
+				await Task.Delay( 50 );
+			}
+
+			if ( result != (int)Steamworks.Result.OK )
+				throw new InvalidOperationException( $"Couldn't {(add ? "add" : "remove")} Workshop dependency {dependency} on item {ItemId}: {(Steamworks.Result)result}." );
+		}
+
+		/// <summary>
+		/// Submit the item update and wait for Steam's result.
+		/// </summary>
 		public async Task<bool> Submit( string changeNotes = "" )
 		{
 			if ( !native.Submit( changeNotes ) )

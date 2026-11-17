@@ -26,6 +26,10 @@
                     <div class="item" onclick=@FindMultiplayer><label>@(IsDedicatedServerOnly ? "Find a Server" : "Find Multiplayer Game")</label></div>
                 }
 
+                @if ( PlatformMenu.AllowsAddons )
+                {
+                    <div class="item" onclick=@( () => FrontPages.Of( this )?.Navigate( FrontPages.Addons ) )><label>Addons</label></div>
+                }
                 <div class="item" onclick=@( () => ModalSystem.Instance?.Settings() )><label>Options</label></div>
             </div>
         </div>

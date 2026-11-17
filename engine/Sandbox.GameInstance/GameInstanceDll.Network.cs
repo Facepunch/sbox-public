@@ -19,6 +19,7 @@ internal partial class GameInstanceDll
 	private bool NetworkScriptsReady;
 
 	internal readonly ServerPackages ServerPackages = new();
+	internal readonly WorkshopItems WorkshopItems = new();
 
 	/// <summary>
 	/// The config table is used to send config (like physics config, input config) to the client.
@@ -61,6 +62,7 @@ internal partial class GameInstanceDll
 		NetworkScriptsReady = false;
 		// Downloads continue in the background; joining clients wait for their readiness updates.
 		_ = ServerPackages.OnBecameHost();
+		_ = WorkshopItems.OnBecameHost();
 		ReplicatedConvars.OnBecameHost();
 	}
 
@@ -224,6 +226,18 @@ internal partial class GameInstanceDll
 				_ = ServerPackages.ClientInstallPackage( entry, reloadResources: false );
 			}
 		};
+		system.InstallTable( WorkshopItems.StringTable );
+		WorkshopItems.StringTable.OnChangeOrAdd = entry =>
+		{
+			if ( NetworkScriptsReady && entry.Read<WorkshopItems.ItemInfo>().ResourcesReady )
+			{
+				SyncContext.RunBlocking( WorkshopItems.InstallAsync( entry, loadResources: true ) );
+			}
+			else
+			{
+				_ = WorkshopItems.InstallAsync( entry );
+			}
+		};
 		Game.Scripting.InitializeNetworking( ScriptTable, system.IsClient );
 		system.InstallTable( ScriptTable );
 		ScriptTable.PostNetworkUpdate = () =>
@@ -233,6 +247,7 @@ internal partial class GameInstanceDll
 				// As with code archives, later scene messages must wait for the declarations they use.
 				// Package downloads can still finish through the async and Steam callbacks pumped here.
 				SyncContext.RunBlocking( ServerPackages.WaitForDownloads() );
+				SyncContext.RunBlocking( WorkshopItems.WaitForDownloadsAsync() );
 				LoadNetworkScripts();
 			}
 		};
@@ -320,7 +335,17 @@ internal partial class GameInstanceDll
 		// Load configs from network tables
 		UpdateConfigFromNetworkTable();
 
-		await ServerPackages.InstallAll();
+		if ( !await ServerPackages.InstallAll() )
+		{
+			Disconnect( "Failed to download or load a required server package. Check the log for details." );
+			return false;
+		}
+
+		if ( !await WorkshopItems.InstallAllAsync() )
+		{
+			Disconnect( "Failed to download or load a required Workshop item. Check the log for details." );
+			return false;
+		}
 
 		// Prevent a blank title between the last package install and the download queue start.
 		if ( string.IsNullOrWhiteSpace( LoadingScreen.Title ) )
@@ -331,7 +356,7 @@ internal partial class GameInstanceDll
 		// Requirements can arrive during either download above. Their entry callbacks start installation;
 		// wait for both ends to finish before applying the latest script snapshot without another yield.
 		while ( ServerPackages.StringTable.Entries.Values.Any( entry =>
-			!entry.Read<ServerPackages.PackageInfo>().ResourcesReady || ServerPackages.Get( entry.Name )?.IsDownloading == true ) )
+			!entry.Read<ServerPackages.PackageInfo>().ResourcesReady || ServerPackages.Get( entry.Name )?.IsDownloading == true ) || WorkshopItems.HasPending )
 		{
 			if ( system.IsDisconnected )
 				return false;
@@ -346,11 +371,23 @@ internal partial class GameInstanceDll
 			return false;
 		}
 
+		if ( WorkshopItems.HasFailures )
+		{
+			Disconnect( "Failed to install Workshop items. Check the log for details." );
+			return false;
+		}
+
 		// Like Garry's Mod's map check - if the server's files are different, we can't play with what it has
 		var mismatched = ServerPackages.GetMismatchedWorkshopItems();
 		if ( mismatched.Count > 0 )
 		{
-			Disconnect( ServerPackages.MismatchMessage( mismatched ) );
+			Disconnect( Workshop.GetVersionMismatchMessage( mismatched.Select( item => item.Title ?? $"Workshop item {item.Id}" ) ) );
+			return false;
+		}
+
+		if ( WorkshopItems.GetVersionMismatch() is { } workshopMismatch )
+		{
+			Disconnect( workshopMismatch );
 			return false;
 		}
 
@@ -359,6 +396,7 @@ internal partial class GameInstanceDll
 		if ( NetworkScriptsReady )
 		{
 			await ServerPackages.LoadResources();
+			await WorkshopItems.LoadResourcesAsync();
 		}
 
 		return NetworkScriptsReady;

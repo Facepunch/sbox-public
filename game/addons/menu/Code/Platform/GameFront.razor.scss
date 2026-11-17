@@ -144,7 +144,7 @@ GameFront
 
 	// Down past the front's bottom to where the shelves' panels stop, clear of the dock - the front's 120px off the bottom
 	// of the screen, they're 64px ($platform-above-dock)
-	.pages > CreateGamePage > .panel, .pages > ServersPage > .panel, .pages > MapsPage > .panel
+	.pages > CreateGamePage > .panel, .pages > ServersPage > .panel, .pages > MapsPage > .panel, .pages > AddonsPage > .panel
 	{
 		margin-bottom: -56px;
 	}

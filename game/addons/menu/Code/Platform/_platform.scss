@@ -1435,7 +1435,7 @@ $screen-w-16x9: 1920px;
 
 	// The pages it goes on to - faded in the first time. Each is a panel of its own (the platform-panel mixin) over the
 	// art: a bar with the way back, what it is and its tools, then what's on it.
-	& > CreateGamePage, & > ServersPage, & > MapsPage
+	& > CreateGamePage, & > ServersPage, & > MapsPage, & > AddonsPage
 	{
 		pointer-events: all;
 

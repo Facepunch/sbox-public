@@ -75,6 +75,22 @@ public class ScriptAnalysisTests
 		Assert.ThrowsException<ArgumentOutOfRangeException>( () => analysis.GetToken( source.Length + 1 ) );
 	}
 
+	/// <summary>
+	/// Documentation comments reach the editor as complete comment spans, including their delimiters.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "/// <summary>Green documentation.</summary>\n" )]
+	[DataRow( "/** <summary>Green documentation.</summary> */" )]
+	public void DocumentationCommentsAreHighlightable( string comment )
+	{
+		var analysis = GlobalContext.Current.Scripting.Analyze( comment + "public class Example {}" );
+		for ( var offset = 0; offset < comment.Length; offset++ )
+		{
+			Assert.AreEqual( Script.TokenKind.Comment, analysis.GetToken( offset )?.Kind, $"Offset {offset}" );
+		}
+		Assert.AreEqual( Script.TokenKind.Keyword, analysis.GetToken( comment.Length )?.Kind );
+	}
+
 	[TestMethod]
 	public void TypeAndMemberCompletionsHaveExactReplacementRanges()
 	{

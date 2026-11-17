@@ -4,19 +4,19 @@ public partial class ScriptControl
 {
 	/// <summary>
 	/// Immutable colors for a ScriptControl. Create a theme or copy one with a with expression,
-	/// then assign it to ScriptControl.Theme. Unspecified colors use the default dark palette.
+	/// then assign it to ScriptControl.Theme. Unspecified colors use the Visual Studio dark palette.
 	/// </summary>
 	public sealed record ThemeDefinition
 	{
 		/// <summary>
-		/// The shared default dark palette.
+		/// The shared Visual Studio dark palette.
 		/// </summary>
 		public static ThemeDefinition Default { get; } = new();
 
 		/// <summary>
 		/// Default code text and punctuation.
 		/// </summary>
-		public Color Foreground { get; init; } = Color.Parse( "#d4d4d4" ).Value;
+		public Color Foreground { get; init; } = Color.Parse( "#dcdcdc" ).Value;
 
 		/// <summary>
 		/// Language keywords.
@@ -31,17 +31,17 @@ public partial class ScriptControl
 		/// <summary>
 		/// String and character literals.
 		/// </summary>
-		public Color String { get; init; } = Color.Parse( "#ce9178" ).Value;
+		public Color String { get; init; } = Color.Parse( "#d69d85" ).Value;
 
 		/// <summary>
 		/// Comments.
 		/// </summary>
-		public Color Comment { get; init; } = Color.Parse( "#6a9955" ).Value;
+		public Color Comment { get; init; } = Color.Parse( "#608b4e" ).Value;
 
 		/// <summary>
 		/// Identifiers without a more specific symbol kind.
 		/// </summary>
-		public Color Identifier { get; init; } = Color.Parse( "#9cdcfe" ).Value;
+		public Color Identifier { get; init; } = Color.Parse( "#dcdcdc" ).Value;
 
 		/// <summary>
 		/// Type names and type completion icons.
@@ -66,7 +66,7 @@ public partial class ScriptControl
 		/// <summary>
 		/// Current line background.
 		/// </summary>
-		public Color CurrentLine { get; init; } = Color.Parse( "#282828" ).Value;
+		public Color CurrentLine { get; init; } = Color.Parse( "#272727" ).Value;
 
 		/// <summary>
 		/// Error squiggles.
@@ -81,7 +81,7 @@ public partial class ScriptControl
 		/// <summary>
 		/// Line numbers outside the current line.
 		/// </summary>
-		public Color LineNumber { get; init; } = Color.Parse( "#858585" ).Value;
+		public Color LineNumber { get; init; } = Color.Parse( "#8a8a8a" ).Value;
 
 		/// <summary>
 		/// The current line number.

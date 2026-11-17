@@ -87,6 +87,11 @@ internal static partial class Workshop
 		public DateTimeOffset Updated { get; init; }
 
 		public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+
+		/// <summary>
+		/// Required Workshop items. Null if Steam couldn't return the dependency list.
+		/// </summary>
+		public IReadOnlyList<ulong> Children { get; init; }
 		public IReadOnlyDictionary<string, string> KeyValues { get; init; } = new Dictionary<string, string>();
 
 		/// <summary>

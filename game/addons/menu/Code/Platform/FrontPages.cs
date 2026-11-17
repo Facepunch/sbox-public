@@ -7,9 +7,9 @@ namespace MenuProject.Platform;
 
 /// <summary>
 /// The default front's pages under the game's name - its menu (<see cref="FrontHome"/>), setting up a new game
-/// (<see cref="CreateGamePage"/>), picking its map (<see cref="MapsPage"/>) and its servers (<see cref="ServersPage"/>).
-/// One fades out and the next fades in (GameFront's stylesheet). Also up on its own, in a modal on the shelf
-/// (<see cref="SetupModal"/>), to set up a game a game asked for or to pick a map.
+/// (<see cref="CreateGamePage"/>), picking its map (<see cref="MapsPage"/>), its servers (<see cref="ServersPage"/>)
+/// and its addons (<see cref="AddonsPage"/>). One fades out and the next fades in (GameFront's stylesheet).
+/// Also up on its own, in a modal on the shelf (<see cref="SetupModal"/>), to set up a game a game asked for or to pick a map.
 /// </summary>
 public class FrontPages : NavigationHost
 {
@@ -17,6 +17,11 @@ public class FrontPages : NavigationHost
 	public const string Create = "/platform/create";
 	public const string Servers = "/platform/servers";
 	public const string Maps = "/platform/maps";
+
+	/// <summary>
+	/// Browse and manage addons for the selected game.
+	/// </summary>
+	public const string Addons = "/platform/addons";
 
 	public bool OffHome => CurrentUrl is not null && CurrentUrl != Home;
 

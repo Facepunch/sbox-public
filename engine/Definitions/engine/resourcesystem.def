@@ -5,6 +5,11 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 {
 	void ReloadSymlinkedResidentResources();
 	void UpdateSimple();
+	inline bool HandlesResource( string name )
+	{
+		return g_pResourceSystem->GetTypeManager( DeduceResourceTypeFromResourceName( name ) ) != nullptr;
+	}
+
 	inline ITexture LoadTexture( string name )
 	{
 		return g_pResourceSystem->BlockingLoadResourceByName< RESOURCE_TYPE_TEXTURE >( CResourceName( name ), "Managed LoadTexture" );

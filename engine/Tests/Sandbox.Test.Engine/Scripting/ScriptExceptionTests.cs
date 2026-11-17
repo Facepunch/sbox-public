@@ -47,14 +47,13 @@ public class ScriptExceptionTests
 		Assert.IsTrue( script.Compile(), script.LastError?.ToString() );
 		Assert.AreEqual( 7, script.RunAndReturn<int>(), script.LastError?.ToString() );
 		Assert.IsNull( script.LastError );
-		Assert.IsNull( Game.TypeLibrary.GetType( typeof( Exception ) ) );
+		Assert.IsNotNull( Game.TypeLibrary.GetType( typeof( Exception ) ) );
 	}
 
 	/// <summary>
-	/// Resolving a catch type does not grant access to constructors or unapproved exception members.
+	/// Exception diagnostics do not grant access to reflective exception members.
 	/// </summary>
 	[TestMethod]
-	[DataRow( "return new System.Exception();" )]
 	[DataRow( "return failure.TargetSite;" )]
 	[DataRow( "return failure.GetType();" )]
 	public void ExceptionMembersStillRequireApproval( string source )

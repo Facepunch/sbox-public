@@ -108,7 +108,7 @@ internal static partial class Ugc
 		removed.Remove( id );
 
 		// In use - what's mounted is what we've got, Steam rewriting files we're using breaks things
-		if ( item.IsInstalled && IsMounted( id ) )
+		if ( item.IsInstalled && WorkshopFileSystem.IsInUse( id ) )
 			return item.InstallFolder;
 
 		var downloaded = false;
@@ -181,20 +181,12 @@ internal static partial class Ugc
 	}
 
 	/// <summary>
-	/// Is this item's content mounted by a package right now? Steam mustn't rewrite it while it is.
-	/// </summary>
-	static bool IsMounted( ulong id )
-	{
-		return PackageManager.ActivePackages.Any( x => x.Package is { InstallsFromWorkshop: true } p && p.WorkshopId == id );
-	}
-
-	/// <summary>
 	/// Download the latest version of this item - unless it's mounted, Steam rewriting files we're using
 	/// breaks things. It's picked up again once it isn't, see <see cref="OnPackagesUnmounted"/>.
 	/// </summary>
 	static void StartUpdate( ulong id )
 	{
-		if ( !IsMounted( id ) )
+		if ( !WorkshopFileSystem.IsInUse( id ) )
 			RequestDownload( id );
 	}
 

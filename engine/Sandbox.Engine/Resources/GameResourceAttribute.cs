@@ -8,6 +8,7 @@ namespace Sandbox;
 /// from <see cref="GameResource"/>; uncompiled assets receive their source through Resource.OnLoaded.
 /// </summary>
 [AttributeUsage( AttributeTargets.Class )]
+[Expose]
 public class AssetTypeAttribute : System.Attribute, ITypeAttribute, IUninheritable
 {
 	/// <summary>

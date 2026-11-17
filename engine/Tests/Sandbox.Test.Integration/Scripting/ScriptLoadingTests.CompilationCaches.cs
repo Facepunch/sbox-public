@@ -4,6 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
+using System.Threading;
 
 namespace ScriptingTests;
 
@@ -20,6 +23,47 @@ public partial class ScriptLoadingTests
 	}
 
 	private Script cachedCommand;
+
+	/// <summary>
+	/// Stopping JSON warmup waits for metadata already being created, so it cannot refill a cleared hotload cache.
+	/// </summary>
+	[TestMethod]
+	public void StoppingJsonWarmUpWaitsForInFlightMetadata()
+	{
+		Json.StopWarmUp();
+		using var entered = new ManualResetEventSlim();
+		using var release = new ManualResetEventSlim();
+		using var finished = new ManualResetEventSlim();
+		var resolver = new DefaultJsonTypeInfoResolver();
+		resolver.Modifiers.Add( typeInfo =>
+		{
+			// PopulateReflectionCache resolves string on the calling thread before starting its worker.
+			if ( typeInfo.Type == typeof( string ) ) return;
+
+			entered.Set();
+			if ( release.Wait( TimeSpan.FromSeconds( 10 ) ) )
+			{
+				finished.Set();
+			}
+		} );
+		context.JsonSerializerOptions = new JsonSerializerOptions { TypeInfoResolver = resolver };
+
+		try
+		{
+			Json.PopulateReflectionCache( Game.TypeLibrary );
+			Assert.IsTrue( entered.Wait( TimeSpan.FromSeconds( 10 ) ), "JSON warmup did not start creating metadata." );
+			using var cancellation = Json.WarmUpCts.Token.Register( release.Set );
+
+			Json.StopWarmUp();
+
+			Assert.IsTrue( finished.IsSet, "JSON warmup returned before its in-flight metadata creation finished." );
+		}
+		finally
+		{
+			release.Set();
+			Json.StopWarmUp();
+		}
+	}
 
 	/// <summary>
 	/// An unrelated assembly reload must not rewrite generated compiler delegates into throwing stubs.

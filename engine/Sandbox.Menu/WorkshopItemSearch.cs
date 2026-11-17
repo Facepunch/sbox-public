@@ -1,15 +1,14 @@
 namespace Sandbox;
 
 /// <summary>
-/// A search of the Workshop's games, a page at a time - from <see cref="MenuUtility.SearchWorkshopGames"/> - or its maps,
-/// from <see cref="MenuUtility.SearchWorkshopMaps"/>. Just the ones that can be played here.
+/// A paged search of Workshop games, maps or addons.
 /// </summary>
-public sealed class WorkshopGameSearch
+public sealed class WorkshopItemSearch
 {
 	readonly Workshop.Query query;
 	Workshop.QueryResult page;
 
-	internal WorkshopGameSearch( Workshop.Query query )
+	internal WorkshopItemSearch( Workshop.Query query )
 	{
 		this.query = query;
 	}
@@ -20,7 +19,7 @@ public sealed class WorkshopGameSearch
 	public bool HasMore { get; private set; } = true;
 
 	/// <summary>
-	/// The next page - none once there aren't any more, or the Workshop couldn't be asked
+	/// The next page's items - none once there aren't any more, or the Workshop couldn't be asked.
 	/// </summary>
 	public async Task<WorkshopItemDetails[]> NextAsync()
 	{
@@ -29,6 +28,6 @@ public sealed class WorkshopGameSearch
 		page = page is null ? await query.RunAsync() : await page.GetNextResults();
 		HasMore = page?.HasMoreResults() ?? false;
 
-		return await MenuUtility.DetailsOfGamesAsync( page?.Items ?? [] );
+		return await MenuUtility.DetailsOfItemsAsync( page?.Items ?? [] );
 	}
 }
