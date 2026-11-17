@@ -309,6 +309,23 @@ public sealed class ShaderProgram
 	}
 
 	/// <summary>
+	/// Static combo <paramref name="id"/>'s variables and render states without its shaders (each <see cref="DynamicCombo.Shader"/>
+	/// null): the shared modules they reference aren't decompressed. The loaded combo when there is one; not cached otherwise.
+	/// Throws if rules skipped it.
+	/// </summary>
+	public StaticCombo LoadComboStates( ulong id )
+	{
+		lock ( combos )
+		{
+			if ( combos.TryGetValue( id, out var cached ) ) return cached;
+		}
+
+		var index = Array.BinarySearch( comboIds, id );
+		if ( index < 0 ) throw new KeyNotFoundException( $"{Shader.Name}: {Type} has no static combo {id}" );
+		return new StaticCombo( this, id, Decompress( data, start + (int)comboOffsets[index], Type == ShaderProgramType.Features ), shaders: false );
+	}
+
+	/// <summary>
 	/// <c>CVfxStaticComboData::Decompress</c>: <c>-compression, size, compressed size</c>, then the data.
 	/// </summary>
 	static byte[] Decompress( byte[] data, int offset, bool features )

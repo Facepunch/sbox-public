@@ -440,6 +440,75 @@ public class PassModuleTests : GpuTest
 	}
 
 	/// <summary>
+	/// A shader's render state read without making its variant (<see cref="ShaderLibrary.PixelState"/>, which a material's
+	/// stencil check reads) is its variant's in every mode, for shaders drawn from their compiled programs (complex) and from
+	/// modules (the rest), and reading it compiles and makes nothing.
+	/// </summary>
+	[TestMethod]
+	public void PixelStateMatchesTheVariantWithoutMakingIt()
+	{
+		string[] paths = ["shaders/complex.shader", "shaders/gizmo/gizmo_line.shader", "shaders/tools_solid.shader", "shaders/glass.shader", "shaders/postprocess/ObjectHighlight/ObjectHighlight.shader"];
+		using var backend = new BackendDevice( Device );
+		var library = backend.Shaders;
+		var modules = (PassModules)library.Modules;
+		var (variantsBefore, stagesBefore) = (library.VariantCount, modules.StagesCompiled);
+
+		var read = new List<(string What, ShaderFile Shader, string Mode, ShaderPipelineState State, bool Throws)>();
+		foreach ( var path in paths )
+		{
+			var shader = library.Load( path );
+			if ( shader is null ) Assert.Inconclusive( $"{path} isn't compiled" );
+			foreach ( var mode in shader.Modes )
+			{
+				try
+				{
+					library.NeedsStencil( shader, mode.Name, [] );
+					read.Add( ($"{path} {mode.Name}", shader, mode.Name, library.PixelState( shader, mode.Name, [] ), false) );
+				}
+				catch ( InvalidDataException )
+				{
+					read.Add( ($"{path} {mode.Name}", shader, mode.Name, null, true) );
+				}
+			}
+		}
+
+		Assert.AreEqual( variantsBefore, library.VariantCount, "no variants made" );
+		Assert.AreEqual( stagesBefore, modules.StagesCompiled, "no module stages compiled" );
+
+		foreach ( var (what, shader, mode, state, throws) in read )
+		{
+			ShaderPipelineState expected;
+			try
+			{
+				expected = library.Variant( shader, mode, [] )?.State;
+			}
+			catch ( InvalidDataException )
+			{
+				Assert.IsTrue( throws, $"{what}: the variant throws, so does its state" );
+				continue;
+			}
+
+			Assert.IsFalse( throws, $"{what}: the state throws, the variant doesn't" );
+			Assert.AreEqual( expected is null, state is null, $"{what}: both or neither" );
+			if ( expected is null ) continue;
+			Assert.AreEqual( expected.Cull, state.Cull, $"{what} cull" );
+			Assert.AreEqual( expected.DepthTest, state.DepthTest, $"{what} depth test" );
+			Assert.AreEqual( expected.DepthWrite, state.DepthWrite, $"{what} depth write" );
+			Assert.AreEqual( expected.DepthCompare, state.DepthCompare, $"{what} depth compare" );
+			Assert.AreEqual( expected.StencilTest, state.StencilTest, $"{what} stencil test" );
+			Assert.AreEqual( expected.StencilFront, state.StencilFront, $"{what} stencil front" );
+			Assert.AreEqual( expected.StencilBack, state.StencilBack, $"{what} stencil back" );
+			Assert.AreEqual( expected.StencilReadMask, state.StencilReadMask, $"{what} stencil read mask" );
+			Assert.AreEqual( expected.StencilWriteMask, state.StencilWriteMask, $"{what} stencil write mask" );
+			Assert.AreEqual( expected.StencilReference, state.StencilReference, $"{what} stencil reference" );
+			CollectionAssert.AreEqual( expected.Blend, state.Blend, $"{what} blend" );
+			Assert.AreEqual( expected.AlphaToCoverage, state.AlphaToCoverage, $"{what} alpha to coverage" );
+			Assert.AreEqual( expected.NeedsStencil, state.NeedsStencil, $"{what} needs a stencil" );
+			Assert.AreEqual( expected.NeedsStencil, library.NeedsStencil( shader, mode, [] ), $"{what} needs a stencil, read the short way" );
+		}
+	}
+
+	/// <summary>
 	/// Each module's variant in each mode, its dynamic combos at their first values, against its compiled shader's: the same
 	/// bindings, constants, inputs and render state.
 	/// </summary>

@@ -825,14 +825,20 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public override void Clear( GpuTexture texture, Color color )
 	{
 		var t = (BackendTexture)texture;
-		var list = Gpu.BeginCommandList( QueueType.Graphics, "Clear texture" );
+
+		// In a DeferUploads scope (the mirror applying a frame's changes: a map's capture cubes, made at once), with the
+		// scope's list rather than a list each
+		var deferred = Gpu.DeferredList;
+		var list = deferred ?? Gpu.BeginCommandList( QueueType.Graphics, "Clear texture" );
 		list.Barrier( TextureBarrier.Transition( t.Handle, t.Layout, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
 		list.ClearTexture( t.Handle, new System.Numerics.Vector4( color.r, color.g, color.b, color.a ) );
 		list.Barrier( TextureBarrier.Transition( t.Handle, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
+		t.Layout = ImageLayout.ShaderRead;
+		if ( deferred is not null ) return;
+
 		// In order with what's submitted after it, as MakeReadable: not waited for, which held the main thread for the GPU
 		if ( BatchSubmits ) Gpu.SubmitLater( list );
 		else Gpu.Submit( list );
-		t.Layout = ImageLayout.ShaderRead;
 	}
 
 	/// <summary>
@@ -990,6 +996,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
+	/// Whether <see cref="MapLightmapParameters"/> waits for each lightmap write, as it did, rather than deferring them into
+	/// the frame's submission. For comparisons.
+	/// </summary>
+	internal static bool WaitForLightmapUploads { get; set; }
+
+	/// <summary>
 	/// The lightmaps of the map in <paramref name="folder"/> (<c>maps/construct_25</c>), from its world file
 	/// (<see cref="LightmapParameters"/>), read once (ahead on a worker, when <see cref="ReadMapLightmapsAhead"/> was asked);
 	/// null without lightmaps or a readable world.
@@ -1007,7 +1019,11 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			try
 			{
 				var world = Borealis.Source2.World.WorldFile.Load( Content, $"{folder}/world.vwrld" );
-				made = LightmapParameters( world.Lightmaps, world.LightmapUvScale );
+
+				// Their mips and slices written with the frame's next submission, not each waited for
+				using ( Zones.MapLightmaps.Start() )
+				using ( WaitForLightmapUploads ? default : Gpu.DeferUploads() )
+					made = LightmapParameters( world.Lightmaps, world.LightmapUvScale );
 			}
 			catch ( Exception e ) when ( e is IOException or InvalidDataException or KeyNotFoundException )
 			{

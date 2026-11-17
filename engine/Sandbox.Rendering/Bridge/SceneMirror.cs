@@ -175,6 +175,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// </summary>
 	public bool HasSynced { get; private set; }
 
+	/// <summary>Whether <see cref="Sync"/> defers what applying changes writes into one list (on). For comparisons.</summary>
+	internal static bool DeferApplyUploads { get; set; } = true;
+
 	/// <summary>
 	/// Apply what changed since the last sync, for a camera about to render the world.
 	/// </summary>
@@ -201,8 +204,13 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			lingering.RemoveAt( i );
 		}
 
-		foreach ( var (sceneObject, change) in applying )
-			Apply( sceneObject, change, frame );
+		// What applying the changes writes to the device (models, textures, new capture cubes' clears) goes in one list with
+		// the frame's next submission, not a submission each
+		using ( MirrorContent.Gpu is { } gpu && DeferApplyUploads ? gpu.Gpu.DeferUploads() : default )
+		{
+			foreach ( var (sceneObject, change) in applying )
+				Apply( sceneObject, change, frame );
+		}
 
 		applying.Clear();
 
