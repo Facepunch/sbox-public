@@ -149,11 +149,34 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		} );
 	}
 
+	/// <summary>
+	/// Where the game's or the menu's mounted files have a compiled file on disk: a game package's models, materials,
+	/// textures and shaders, which are named by their hash in the download cache.
+	/// </summary>
+	static string MountedFile( string path )
+	{
+		foreach ( var context in (Sandbox.Engine.GlobalContext[])[Sandbox.Engine.GlobalContext.Game, Sandbox.Engine.GlobalContext.Menu] )
+		{
+			if ( context?.FileMount is not { } mount ) continue;
+			try
+			{
+				if ( mount.FileExists( path ) && mount.GetFullPath( path ) is { } full ) return full;
+			}
+			catch ( System.IO.IOException )
+			{
+				// A package mounting or unmounting while a worker looks: not found this time
+			}
+		}
+
+		return null;
+	}
+
 	BorealisGpuRenderBackend( GpuDevice gpu, bool ownsDevice )
 	{
 		this.gpu = gpu;
 		this.ownsDevice = ownsDevice;
 		files = ContentFiles.FindGame();
+		files.Resolve = MountedFile;
 		services = new BackendDevice( gpu, files );
 		services.Shaders.Unloaded = message => Log.Warning( $"Borealis.Gpu: {message}" );
 		services.Passes.Error = message => Log.Warning( $"Borealis.Gpu: {message}" );
@@ -207,6 +230,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		if ( list is not null ) throw new InvalidOperationException( "A Borealis.Gpu block is already recording." );
 
 		FollowFrame();
+		WriteWorkerUpdates();
 		SubmitUploads();
 		lent = lendNext is not null;
 		list = lendNext ?? gpu.BeginCommandList( QueueType.Graphics, "Graphics block" );
@@ -444,11 +468,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		switch ( resource )
 		{
 			case Texture texture when textures.TryGetValue( texture, out var backing ):
-				textures.Remove( texture );
-				context.Forget( backing.Handle );
+				lock ( textureOwners )
+				{
+					textures.Remove( texture );
+					context.Forget( backing.Handle );
 
-				// A borrowed backing (a Borealis frame's target) stays its owner's
-				if ( textureOwners.Remove( backing.Handle ) ) gpu.Destroy( backing.Handle );
+					// A borrowed backing (a Borealis frame's target) stays its owner's
+					if ( textureOwners.Remove( backing.Handle ) ) gpu.Destroy( backing.Handle );
+				}
+
 				break;
 
 			case GpuBuffer buffer when buffers.TryGetValue( buffer, out var backing ):
@@ -503,10 +531,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		// Looked up each time rather than kept: streaming swaps its image
 		if ( MaterialTextureOf( texture ) is { } material ) return material.Handle;
 
-		// No description: a texture that failed to load, which Source 2 draws with its error texture (and without its
-		// device has no description of at all)
-		if ( texture.Width <= 0 || texture.Height <= 0 ) return ErrorTexture();
+		// Made once, under a lock: a sprite batch's workers ask for their sprites' indices (Texture.Index) in parallel
+		// while the main thread waits for them
+		lock ( textureOwners )
+		{
+			// No description: a texture that failed to load, which Source 2 draws with its error texture (and without its
+			// device has no description of at all)
+			if ( texture.Width <= 0 || texture.Height <= 0 ) return ErrorTexture();
+			return textures.TryGetValue( texture, out backing ) ? backing.Handle : Make( texture );
+		}
+	}
 
+	TextureHandle Make( Texture texture )
+	{
 		TextureHandle handle;
 		if ( texture.IsRenderTarget )
 		{
@@ -560,11 +597,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			context.Track( handle, ImageLayout.Undefined );
 			ClearNow( handle, Color.Transparent );
 		}
-		else
+		else if ( TryCopyFromSource2( texture ) is { } copy )
 		{
 			var info = TextureInfo.Texture2D( texture.Width, texture.Height, GpuFormat.RGBA8Unorm, name: $"Engine image {texture.Width}x{texture.Height}" );
 			handle = gpu.CreateTexture( info );
-			Upload( handle, info, CopyFromSource2( texture ), ImageLayout.Undefined );
+			Upload( handle, info, copy, ImageLayout.Undefined );
+		}
+		else
+		{
+			handle = Unreadable( texture );
 		}
 
 		textures.Add( texture, new Backing<TextureHandle>( handle ) );
@@ -722,13 +763,35 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		_ => GpuFormat.Unknown,
 	};
 
-	unsafe byte[] CopyFromSource2( Texture texture )
+	/// <summary>Mip 0 of Source 2's copy as RGBA8, or null when Source 2 can't read it back.</summary>
+	unsafe byte[] TryCopyFromSource2( Texture texture )
 	{
-		CopiedFromSource2++;
-		var pixels = new byte[texture.Width * texture.Height * 4];
-		var rect = new NativeRect( 0, 0, texture.Width, texture.Height );
-		fixed ( byte* data = pixels ) Source2RenderBackend.Instance.ReadPixels( texture, rect, 0, 0, rect, (IntPtr)data, ImageFormat.RGBA8888, 0 );
-		return pixels;
+		try
+		{
+			var pixels = new byte[texture.Width * texture.Height * 4];
+			var rect = new NativeRect( 0, 0, texture.Width, texture.Height );
+			fixed ( byte* data = pixels ) Source2RenderBackend.Instance.ReadPixels( texture, rect, 0, 0, rect, (IntPtr)data, ImageFormat.RGBA8888, 0 );
+			CopiedFromSource2++;
+			return pixels;
+		}
+		catch ( Exception )
+		{
+			// A readback Source 2 can't do
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// A texture with nothing to make it from (pixels Source 2 can't read back): one transparent pixel, kept
+	/// as its backing so it isn't made again each time it's asked for, and said once.
+	/// </summary>
+	TextureHandle Unreadable( Texture texture )
+	{
+		Log.Warning( $"Borealis.Gpu: {(string.IsNullOrEmpty( texture.ResourcePath ) ? $"a {texture.Width}x{texture.Height} {texture.ImageFormat} texture" : texture.ResourcePath)} has nothing to read, so it draws transparent" );
+		var handle = gpu.CreateTexture( TextureInfo.Texture2D( 1, 1, GpuFormat.RGBA8Unorm, name: "Engine image without pixels" ) );
+		context.Track( handle, ImageLayout.Undefined );
+		ClearNow( handle, Color.Transparent );
+		return handle;
 	}
 
 	/// <summary>
@@ -824,8 +887,28 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		var size = width * height * slices * info.Format.BytesPerBlock();
 		if ( data.Length < size ) return false;
 
+		// From a worker (an animated texture decodes and updates its frames on the thread pool): written at the start of the
+		// next block, so nothing records into the main thread's lists from another thread
+		if ( !ThreadSafe.IsMainThread )
+		{
+			workerUpdates.Enqueue( (texture, data[..size].ToArray(), x, y, width, height) );
+			return true;
+		}
+
 		Upload( backing.Handle, info, data[..size], context.LayoutOf( backing.Handle ), x, y, width, height );
 		return true;
+	}
+
+	readonly System.Collections.Concurrent.ConcurrentQueue<(Texture Texture, byte[] Data, int X, int Y, int Width, int Height)> workerUpdates = new();
+
+	/// <summary>Write the texture updates workers asked for since the last block, before a block starts recording.</summary>
+	void WriteWorkerUpdates()
+	{
+		while ( workerUpdates.TryDequeue( out var update ) )
+		{
+			if ( !textures.TryGetValue( update.Texture, out var backing ) ) continue;
+			Upload( backing.Handle, gpu.InfoOf( backing.Handle ), update.Data, context.LayoutOf( backing.Handle ), update.X, update.Y, update.Width, update.Height );
+		}
 	}
 
 	static TextureBarrier MipBarrier( TextureHandle texture, int mip, ImageLayout from, ImageLayout to ) => new()
