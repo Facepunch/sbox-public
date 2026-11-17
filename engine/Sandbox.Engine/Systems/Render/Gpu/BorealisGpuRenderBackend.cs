@@ -176,7 +176,13 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	// The GPU's busy time per device frame: a pass timer over every list (Borealis's and the engine's blocks), read back
 	// once the GPU is past the frame. Someone else's timer (a lab's, a probe's) replaces it while it's set.
 	Borealis.Backend.PassTimer busyTimer;
-	readonly List<Borealis.Backend.PassTimer.Timing> busyTimings = new();
+	List<Borealis.Backend.PassTimer.Timing> busyTimings = new(), publishedTimings = new();
+
+	/// <summary>
+	/// The lists and passes of the device frame <see cref="GpuBusyFrame"/>, in the order they began on the GPU: what the
+	/// dev tools' GPU passes show (<see cref="Sandbox.Diagnostics.GpuProfilerStats"/>). Replaced as a later frame is read.
+	/// </summary>
+	internal IReadOnlyList<Borealis.Backend.PassTimer.Timing> GpuBusyTimings => publishedTimings;
 
 	/// <summary>
 	/// The GPU's busy time in a recent device frame, in milliseconds: every list's execution added up, the engine's blocks
@@ -214,6 +220,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 			GpuBusyMs = busy;
 			GpuBusyFrame = (ulong)done;
+			(busyTimings, publishedTimings) = (publishedTimings, busyTimings);
 		}
 
 		busyTimer.BeginFrame( (long)frame );
