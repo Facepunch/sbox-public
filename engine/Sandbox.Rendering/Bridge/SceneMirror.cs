@@ -50,6 +50,15 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	Dictionary<SceneObject, SceneObjectChange> pending = new();
 	Dictionary<SceneObject, SceneObjectChange> applying = new();
 
+	/// <summary>Changes reported since the last <see cref="Sync"/>: a scene that just loaded has thousands.</summary>
+	public int PendingChanges
+	{
+		get
+		{
+			lock ( gate ) return pending.Count;
+		}
+	}
+
 	bool sunDirty = true;
 
 	const SceneObjectChange Everything = (SceneObjectChange)~0 & ~SceneObjectChange.Removed & ~SceneObjectChange.Deleted;
