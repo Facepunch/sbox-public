@@ -211,6 +211,7 @@ public sealed unsafe partial class Device : IDisposable
 				Timestamps = Limits.timestampComputeAndGraphics != 0,
 				PreciseOcclusion = features.preciseOcclusion,
 				PipelineStatistics = features.pipelineStatistics,
+				HostQueryReset = features.hostQueryReset,
 				TimestampPeriod = Limits.timestampPeriod,
 				MaxTextureSize = (int)Limits.maxImageDimension2D,
 				ColorSampleCounts = (int)Limits.framebufferColorSampleCounts,
@@ -261,6 +262,7 @@ public sealed unsafe partial class Device : IDisposable
 		public bool anisotropy { get; init; }
 		public bool preciseOcclusion { get; init; }
 		public bool pipelineStatistics { get; init; }
+		public bool hostQueryReset { get; init; }
 		public bool storageBufferUpdateAfterBind { get; init; }
 		public bool meshShaders { get; init; }
 	}
@@ -451,6 +453,7 @@ public sealed unsafe partial class Device : IDisposable
 			anisotropy = features.features.values[(int)VkFeature.SamplerAnisotropy] != 0,
 			preciseOcclusion = features.features.values[(int)VkFeature.OcclusionQueryPrecise] != 0,
 			pipelineStatistics = features.features.values[(int)VkFeature.PipelineStatisticsQuery] != 0,
+			hostQueryReset = e12.values[VkPhysicalDeviceVulkan12Features.HostQueryReset] != 0,
 			storageBufferUpdateAfterBind = e12.values[VkPhysicalDeviceVulkan12Features.DescriptorBindingStorageBufferUpdateAfterBind] != 0,
 		};
 

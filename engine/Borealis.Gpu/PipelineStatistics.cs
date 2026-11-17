@@ -65,6 +65,17 @@ public sealed unsafe class PipelineStatistics : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	/// Reset queries <paramref name="first"/> to <paramref name="first"/> + <paramref name="count"/> on the CPU at once,
+	/// where <see cref="DeviceCapabilities.HostQueryReset"/> says it can: nothing submitted may still be counting them.
+	/// </summary>
+	public void ResetOnHost( int first, int count )
+	{
+		if ( first < 0 || count < 0 || first + count > Count ) throw new ArgumentOutOfRangeException( nameof( first ) );
+		if ( !device.Capabilities.HostQueryReset ) throw new InvalidOperationException( "The device can't reset queries on the CPU" );
+		device.Vk.vkResetQueryPool( device.Vk.Device, Pool, (uint)first, (uint)count );
+	}
+
 	/// <summary>Destroy the pool once the GPU is done with the work recorded so far, as resources are.</summary>
 	public void Dispose()
 	{

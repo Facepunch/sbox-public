@@ -1290,7 +1290,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		BackendMaterial file = null;
 		if ( material.MadeFromShader is { } shader )
 		{
-			file = services.CreateMaterial( material.Name ?? path ?? shader, ShaderPath( shader ) ) as BackendMaterial;
+			// The shader draws with it (a package's shader compiled at run time is only known by its draw's name), so its
+			// values reach the draw: Unicycle Frenzy's speed lines set their intensity to 0 at rest
+			file = (ShaderOf( material ) is { } drawn ? services.CreateMaterial( material.Name ?? path ?? shader, drawn ) : services.CreateMaterial( material.Name ?? path ?? shader, ShaderPath( shader ) )) as BackendMaterial;
 			if ( file?.Shader is null ) file = null;
 			else if ( material.SetInCode is { Count: > 0 } set )
 			{

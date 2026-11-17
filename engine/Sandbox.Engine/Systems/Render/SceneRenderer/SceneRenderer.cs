@@ -56,6 +56,12 @@ internal interface ISceneRenderer
 	/// Make what it renders with now, on the main thread at startup, so the first frames render as the rest do.
 	/// </summary>
 	void WarmUp();
+
+	/// <summary>
+	/// Whether envmap probes wait to capture this frame (<see cref="Scene.RenderEnvmaps"/>): the renderer is still making a
+	/// just-loaded scene's models, so a capture would be slow and miss them.
+	/// </summary>
+	bool HoldsCaptures => false;
 }
 
 /// <summary>

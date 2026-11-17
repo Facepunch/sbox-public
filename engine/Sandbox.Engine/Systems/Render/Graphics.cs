@@ -71,6 +71,9 @@ public static partial class Graphics
 	// The process's Borealis.Gpu device, with -borealisgpu
 	static BorealisGpuRenderBackend _borealisGpu;
 
+	/// <summary>The compiled content the process's Borealis.Gpu device reads, or null without one.</summary>
+	internal static Borealis.Source2.ContentFiles BorealisGpuContent => _borealisGpu?.Services.Content;
+
 	internal static void Shutdown()
 	{
 		Cmaa2Renderer.Shutdown();

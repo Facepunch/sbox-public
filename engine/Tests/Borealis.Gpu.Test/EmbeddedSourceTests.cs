@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace BorealisGpuTests;
 
@@ -100,6 +101,55 @@ public class EmbeddedSourceTests : GpuTest
 		}
 		finally
 		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
+	/// In the background (the game's), that recompile runs on a worker: the thread that draws the shader gets nothing and is
+	/// told it's pending, rather than waiting (a package shader's took 9 s on the main thread); once it's done the recompiled
+	/// file draws. Before, the first draw waited for the ShaderCompiler.
+	/// </summary>
+	[TestMethod]
+	public void OutdatedShaderRecompilesOffTheDrawingThread()
+	{
+		var folder = Folder();
+		using var release = new ManualResetEventSlim();
+		try
+		{
+			using var backend = Backend( folder, out var current );
+			backend.Passes.Error = _ => { };
+			var recompiled = 0;
+			backend.Shaders.UpgradeCache = Path.Combine( folder, "upgraded" );
+			backend.Shaders.UpgradeInBackground = true;
+			backend.Shaders.Upgrader = ( _, output ) =>
+			{
+				Assert.IsTrue( release.Wait( TimeSpan.FromSeconds( 30 ) ), "released" );
+				Interlocked.Increment( ref recompiled );
+				File.WriteAllBytes( output, current );
+				return true;
+			};
+
+			var broken = Embedded( File.ReadAllText( Source() ).Replace( "return lerp(", "return lerpp(" ) );
+			Write( folder, Outdated( current, broken ), "package_slow" );
+			var shader = backend.Shaders.Load( "shaders/package_slow.shader" );
+			Assert.IsNotNull( shader?.Outdated );
+
+			var watch = System.Diagnostics.Stopwatch.StartNew();
+			Assert.IsNull( backend.Shaders.Variant( shader, "Default", [], null, null, false, out var pending ), "nothing while it recompiles" );
+			Assert.IsTrue( pending, "pending, so it isn't kept" );
+			Assert.IsTrue( watch.Elapsed < TimeSpan.FromSeconds( 10 ), "didn't wait for the recompile" );
+
+			release.Set();
+			backend.Shaders.WaitForUpgrades();
+			var variant = backend.Shaders.Variant( shader, "Default", [], null, null, false, out pending );
+			Assert.IsFalse( pending );
+			Assert.IsTrue( variant is { FromModule: false }, "drawn from the recompiled file" );
+			Assert.AreEqual( 1, recompiled );
+		}
+		finally
+		{
+			release.Set();
 			Directory.Delete( folder, true );
 		}
 	}

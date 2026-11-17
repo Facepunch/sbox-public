@@ -103,8 +103,28 @@ public sealed partial class PassModule
 	(string Path, string Text)? Include( string from, string name )
 	{
 		name = name.Replace( '\\', '/' );
+		var here = System.IO.Path.GetDirectoryName( from );
+
+		// Found within the last check interval: its text as read then, without looking at the disk again
+		if ( resolved.TryGetValue( (here, name), out var hit ) && Environment.TickCount64 - hit.At < IncludeCheckMs )
+		{
+			lock ( includes )
+			{
+				if ( includes.TryGetValue( hit.Full, out var cached ) ) return (hit.Full, cached.Text);
+			}
+		}
+
+		var found = FindInclude( here, name );
+		if ( found is { } f ) resolved[(here, name)] = (f.Path, Environment.TickCount64);
+		return found;
+	}
+
+	readonly System.Collections.Concurrent.ConcurrentDictionary<(string Here, string Name), (string Full, long At)> resolved = new();
+
+	(string Path, string Text)? FindInclude( string here, string name )
+	{
 		var folders = new List<string>();
-		if ( System.IO.Path.GetDirectoryName( from ) is { Length: > 0 } here ) folders.Add( here );
+		if ( here is { Length: > 0 } ) folders.Add( here );
 		folders.AddRange( searchPaths );
 		foreach ( var folder in folders )
 		{
@@ -126,10 +146,32 @@ public sealed partial class PassModule
 	/// render states and expansion in turn, and preprocessing a module with its includes takes milliseconds. Kept while every
 	/// include they read hashes the same (an edited include preprocesses again); a changed module is read again as a new one.
 	/// </summary>
-	List<string> Lines( Dictionary<string, int> all )
+	List<string> Lines( Dictionary<string, int> all ) => Preprocess( all ).Lines;
+
+	/// <summary>
+	/// How long a module trusts what it preprocessed before checking the includes it read again (each check reads every
+	/// include's time): edits show within this long. For tests that edit an include and ask again at once.
+	/// </summary>
+	internal static long IncludeCheckMs { get; set; } = 1000;
+
+	/// <summary>
+	/// <see cref="Lines"/>' entry for these values, with what's been read from its lines (<see cref="Preprocessed.Read"/>):
+	/// the entry point, render states and expansion are asked for each draw's variant, and scanning every line each time cost
+	/// as much as the preprocessing.
+	/// </summary>
+	Preprocessed Preprocess( Dictionary<string, int> all )
 	{
 		var key = string.Join( ';', all.OrderBy( v => v.Key, StringComparer.Ordinal ).Select( v => $"{v.Key}={v.Value}" ) );
-		if ( lines.TryGetValue( key, out var known ) && known.Includes.TrueForAll( i => PassCache.FileHash( i.Path ) == i.Hash ) ) return known.Lines;
+		if ( lines.TryGetValue( key, out var known ) )
+		{
+			var now = Environment.TickCount64;
+			if ( now - System.Threading.Volatile.Read( ref known.CheckedAt ) < IncludeCheckMs ) return known;
+			if ( known.Includes.TrueForAll( i => PassCache.FileHash( i.Path ) == i.Hash ) )
+			{
+				System.Threading.Volatile.Write( ref known.CheckedAt, now );
+				return known;
+			}
+		}
 
 		var read = new List<(string Path, string Hash)>();
 		var made = PassPreprocessor.ActiveLines( Path, Text, all, ( from, name ) =>
@@ -139,11 +181,23 @@ public sealed partial class PassModule
 			return found;
 		} );
 
-		lines[key] = (made, read);
-		return made;
+		return lines[key] = new Preprocessed( made, read );
 	}
 
-	readonly System.Collections.Concurrent.ConcurrentDictionary<string, (List<string> Lines, List<(string Path, string Hash)> Includes)> lines = new( StringComparer.Ordinal );
+	/// <summary>A module's lines for some values, the includes they read, and what's been read from them.</summary>
+	sealed class Preprocessed( List<string> lines, List<(string Path, string Hash)> includes )
+	{
+		public List<string> Lines { get; } = lines;
+		public List<(string Path, string Hash)> Includes { get; } = includes;
+		public long CheckedAt = Environment.TickCount64;
+
+		readonly System.Collections.Concurrent.ConcurrentDictionary<string, object> read = new( StringComparer.Ordinal );
+
+		/// <summary>Something read from the lines (a stage's entry, the render states), read once.</summary>
+		public T Read<T>( string what, Func<List<string>, T> reading ) => (T)read.GetOrAdd( what, _ => reading( Lines ) );
+	}
+
+	readonly System.Collections.Concurrent.ConcurrentDictionary<string, Preprocessed> lines = new( StringComparer.Ordinal );
 
 	/// <summary>Whether it has an entry point for the stage (<c>MainVs</c>, <c>MainPs</c>, <c>MainCs</c>, <c>MainTs</c>, <c>MainMs</c>).</summary>
 	public bool Has( StageKind stage ) => stages.Contains( stage );
@@ -157,14 +211,17 @@ public sealed partial class PassModule
 		if ( !Has( stage ) ) return false;
 		var all = ProgramValues( stage );
 		foreach ( var (name, value) in values ) all[name] = value;
-		foreach ( var line in Lines( all ) )
+		return Preprocess( all ).Read( $"entry {stage}", lines =>
 		{
-			var comment = line.IndexOf( "//", StringComparison.Ordinal );
-			var code = comment >= 0 ? line[..comment] : line;
-			if ( EntryLine( stage ).IsMatch( code ) || EntryDefinition( stage ).IsMatch( code ) ) return true;
-		}
+			foreach ( var line in lines )
+			{
+				var comment = line.IndexOf( "//", StringComparison.Ordinal );
+				var code = comment >= 0 ? line[..comment] : line;
+				if ( EntryLine( stage ).IsMatch( code ) || EntryDefinition( stage ).IsMatch( code ) ) return true;
+			}
 
-		return false;
+			return false;
+		} );
 	}
 
 	/// <summary>The combos a stage's code declares: those of its own block and the common code.</summary>
@@ -201,15 +258,18 @@ public sealed partial class PassModule
 		var all = ProgramValues( StageKind.Pixel );
 		foreach ( var (name, value) in values ) all[name] = value;
 
-		var states = new List<(string, string)>();
-		foreach ( var line in Lines( all ) )
+		return Preprocess( all ).Read<IReadOnlyList<(string, string)>>( "render states", lines =>
 		{
-			var m = RenderStateLine().Match( line );
-			if ( !m.Success ) continue;
-			if ( PassPreprocessor.Evaluate( m.Groups["value"].Value, all ) is { } value ) states.Add( (m.Groups["state"].Value, value) );
-		}
+			var states = new List<(string, string)>();
+			foreach ( var line in lines )
+			{
+				var m = RenderStateLine().Match( line );
+				if ( !m.Success ) continue;
+				if ( PassPreprocessor.Evaluate( m.Groups["value"].Value, all ) is { } value ) states.Add( (m.Groups["state"].Value, value) );
+			}
 
-		return states;
+			return states;
+		} );
 	}
 
 	/// <summary>
@@ -222,13 +282,16 @@ public sealed partial class PassModule
 		var all = ProgramValues( StageKind.Vertex );
 		foreach ( var (name, value) in values ) all[name] = value;
 
-		foreach ( var line in Lines( all ) )
+		return Preprocess( all ).Read<(string, int, string)?>( "expansion", lines =>
 		{
-			var m = ExpansionLine().Match( line );
-			if ( m.Success ) return (m.Groups["from"].Value, int.Parse( m.Groups["vertices"].Value, CultureInfo.InvariantCulture ), m.Groups["topology"].Value);
-		}
+			foreach ( var line in lines )
+			{
+				var m = ExpansionLine().Match( line );
+				if ( m.Success ) return (m.Groups["from"].Value, int.Parse( m.Groups["vertices"].Value, CultureInfo.InvariantCulture ), m.Groups["topology"].Value);
+			}
 
-		return null;
+			return null;
+		} );
 	}
 
 	/// <summary>What every stage's preprocessing starts with: <c>PROGRAM</c> and vfx's program numbers.</summary>
@@ -359,29 +422,36 @@ internal static class PassPreprocessor
 		// (this branch is active, some branch of this #if was taken, the enclosing block is active)
 		var stack = new Stack<(bool Active, bool Taken, bool Parent)>();
 		var active = true;
-		var all = text.Replace( "\r\n", "\n" ).Split( '\n' );
+		var all = Split( text );
 		for ( int i = 0; i < all.Length; i++ )
 		{
 			var line = all[i];
 			while ( line.EndsWith( '\\' ) && i + 1 < all.Length ) line = line[..^1] + all[++i];
 
-			var trimmed = line.TrimStart();
-			if ( !trimmed.StartsWith( '#' ) )
+			var trimmed = line.AsSpan().TrimStart();
+			if ( trimmed.IsEmpty || trimmed[0] != '#' )
 			{
 				if ( active ) lines.Add( line );
 				continue;
 			}
 
 			var directive = trimmed[1..].TrimStart();
-			var word = new string( directive.TakeWhile( char.IsLetter ).ToArray() );
-			var rest = StripComment( directive[word.Length..] ).Trim();
+			var length = 0;
+			while ( length < directive.Length && char.IsLetter( directive[length] ) ) length++;
+			var word = directive[..length].ToString();
+
+			// Inside an inactive block only what nests or ends it counts
+			if ( !active && word is not ("if" or "ifdef" or "ifndef" or "elif" or "else" or "endif") ) continue;
+
+			var rest = StripComment( directive[length..].ToString() ).Trim();
 			switch ( word )
 			{
 				case "if":
 				case "ifdef":
 				case "ifndef":
 					{
-						var condition = word switch
+						// Inside an inactive block it's never taken, so it isn't evaluated
+						var condition = active && word switch
 						{
 							"ifdef" => defines.ContainsKey( rest ),
 							"ifndef" => !defines.ContainsKey( rest ),
@@ -395,7 +465,7 @@ internal static class PassPreprocessor
 					{
 						if ( stack.Count == 0 ) break;
 						var top = stack.Pop();
-						var condition = !top.Taken && Truth( rest, defines );
+						var condition = top.Parent && !top.Taken && Truth( rest, defines );
 						stack.Push( (top.Parent && condition, top.Taken || condition, top.Parent) );
 						active = top.Parent && condition;
 						break;
@@ -433,6 +503,11 @@ internal static class PassPreprocessor
 			}
 		}
 	}
+
+	// Each text's lines, split once: a module's includes are preprocessed again for every combo values it's asked with
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<string, string[]> splits = new();
+
+	static string[] Split( string text ) => splits.GetValue( text, static t => t.Replace( "\r\n", "\n" ).Split( '\n' ) );
 
 	static string StripComment( string text )
 	{
