@@ -39,7 +39,7 @@ public sealed class CubeCapture : IDisposable
 	readonly Device gpu;
 	readonly int size;
 	readonly RenderSystem[] faces = new RenderSystem[6];
-	readonly ViewTarget target;
+	readonly ViewTarget[] targets = new ViewTarget[6];
 	readonly BufferHandle staging, red;
 	readonly BackendTexture filterSource;
 	readonly ShaderFile filter;
@@ -56,7 +56,6 @@ public sealed class CubeCapture : IDisposable
 		gpu = device.Gpu;
 		this.size = size;
 		// Depth without a stencil, which a face whose draws need one gets before it records (RenderSystem.DepthFormat)
-		target = ViewTarget.Create( new Vector2Int( size, size ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32, "Cube capture face" );
 		staging = gpu.CreateBuffer( new BufferInfo { Size = 6L * size * size * 8, Usage = BufferUsage.CopySource, Name = "Cube capture faces" } );
 		red = gpu.CreateBuffer( new BufferInfo { Size = (long)size * size * 8, Usage = BufferUsage.CopySource, Name = "Cube capture red" } );
 		gpu.WriteBuffer( red, RedFace( size ) );
@@ -132,8 +131,10 @@ public sealed class CubeCapture : IDisposable
 		ClearMip0( destination );
 		for ( int i = 0; i < 6; i++ )
 		{
+			// A target of its own per face: a face's render system finds its target as its last frame left it
+			var target = targets[i] ??= ViewTarget.Create( new Vector2Int( size, size ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32, $"Cube capture face {i}" );
 			renderFace( i, target );
-			CopyFace( i, destination );
+			CopyFace( i, target, destination );
 		}
 
 		if ( filterQuality is { } quality ) Filter( destination, quality );
@@ -163,8 +164,11 @@ public sealed class CubeCapture : IDisposable
 		return face;
 	}
 
-	/// <summary>The finished face into mip 0 of its slice, through the staging buffer.</summary>
-	void CopyFace( int face, BackendTexture cube )
+	/// <summary>
+	/// The finished face into mip 0 of its slice, through the staging buffer, the face's colour left in the layout its frame
+	/// left it in, as its render system expects to find it next time.
+	/// </summary>
+	void CopyFace( int face, ViewTarget target, BackendTexture cube )
 	{
 		var (color, layout) = BackendDevice.Unwrap( target.Color );
 		var offset = (long)face * size * size * 8;
@@ -176,8 +180,10 @@ public sealed class CubeCapture : IDisposable
 		list.Barrier( Mip( cube.Handle, 0, 1, ImageLayout.ShaderRead, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, face ) );
 		list.CopyBufferToTexture( staging, offset, cube.Handle, 0, face, size, size );
 		list.Barrier( Mip( cube.Handle, 0, 1, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.ShaderRead, face ) );
+		if ( layout != ImageLayout.CopySource && layout != ImageLayout.Undefined )
+			list.Barrier( TextureBarrier.Transition( color, ImageLayout.CopySource, layout, PipelineStage.Transfer, MemoryAccess.TransferRead, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite ) );
 		gpu.Submit( list );
-		BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+		BackendDevice.SetLayout( target.Color, layout == ImageLayout.Undefined ? ImageLayout.CopySource : layout );
 	}
 
 	/// <summary>
@@ -265,7 +271,7 @@ public sealed class CubeCapture : IDisposable
 	{
 		gpu.WaitIdle();
 		foreach ( var face in faces ) face?.Dispose();
-		target.Dispose();
+		foreach ( var target in targets ) target?.Dispose();
 		filterSource.Dispose();
 		gpu.Destroy( staging );
 		gpu.Destroy( red );

@@ -29,18 +29,18 @@ public sealed partial class SlangCompiler
 		var defines = new SortedDictionary<string, string>( StringComparer.Ordinal );
 		foreach ( var (name, value) in values ) defines[name] = value.ToString( System.Globalization.CultureInfo.InvariantCulture );
 
-		var key = $"{slangDirectory}|{string.Join( ';', searchPaths )}|{stage}|{module.Path.ToLowerInvariant()}|{string.Join( ';', defines.Select( d => $"{d.Key}={d.Value}" ) )}";
-		if ( CacheFolder is not null )
+		var key = $"{stage}|{Path.GetFileName( module.Path ).ToLowerInvariant()}|{string.Join( ';', defines.Select( d => $"{d.Key}={d.Value}" ) )}";
+		using ( Zone( CompilePhase.CacheLoad ) )
 		{
-			using ( Zone( CompilePhase.CacheLoad ) )
+			if ( PassCache.Load( CacheFolder, Offline( module.Path ), Paths( module.Path ), slangDirectory, key, module ) is { } cached )
 			{
-				if ( PassCache.Load( CacheFolder, slangDirectory, key, module ) is { } cached )
-				{
-					System.Threading.Interlocked.Increment( ref cachedStages );
-					return Task.FromResult( cached );
-				}
+				System.Threading.Interlocked.Increment( ref cachedStages );
+				if ( saved is { } collect && PassCache.Entry( Paths( module.Path ), slangDirectory, key, module, cached ) is var (entryKey, bytes, dependencies) ) collect( entryKey, bytes, dependencies );
+				return Task.FromResult( cached );
 			}
 		}
+
+		Compiling?.Invoke( $"{Path.GetFileName( module.Path )} {stage} {string.Join( ' ', defines.Select( d => $"{d.Key}={d.Value}" ) )}" );
 
 		return SlangWorkers.Run( () => CompilePassStage( module, stage, values, defines, key ), priority );
 	}
@@ -58,9 +58,9 @@ public sealed partial class SlangCompiler
 			Milliseconds = clock.Elapsed.TotalMilliseconds,
 		};
 
-		if ( CacheFolder is not null )
+		if ( CacheFolder is not null || saved is not null )
 		{
-			using ( Zone( CompilePhase.CacheSave ) ) PassCache.Save( CacheFolder, slangDirectory, key, module, result );
+			using ( Zone( CompilePhase.CacheSave ) ) PassCache.Save( CacheFolder, Paths( module.Path ), slangDirectory, key, module, result, saved );
 		}
 
 		return result;
@@ -157,6 +157,9 @@ public sealed class CompiledPassStage
 
 	/// <summary>Whether it came from the compiler's disk cache.</summary>
 	public bool FromCache { get; init; }
+
+	/// <summary>Whether it came from its module's offline compile (<see cref="SlangOutput"/>), which build-shaders makes.</summary>
+	public bool Offline { get; init; }
 }
 
 /// <summary>
@@ -165,19 +168,8 @@ public sealed class CompiledPassStage
 /// </summary>
 internal static class PassCache
 {
-	const int Format = 2;
-	static readonly JsonSerializerOptions Options = new() { IncludeFields = false, WriteIndented = false };
+	const int Format = 3;
 	static readonly Dictionary<string, (DateTime Time, long Length, string Hash)> fileHashes = new( StringComparer.OrdinalIgnoreCase );
-
-	sealed class Entry
-	{
-		public string Key { get; set; }
-		public Dictionary<string, string> Dependencies { get; set; }
-		public CompiledStage Stage { get; set; }
-		public int[] Threads { get; set; }
-	}
-
-	static string Hash( string text ) => Convert.ToHexString( SHA256.HashData( Encoding.UTF8.GetBytes( text ) ) );
 
 	/// <summary>A file's hash, read again only when its time or length changed; null when it's gone.</summary>
 	internal static string FileHash( string path )
@@ -189,66 +181,59 @@ internal static class PassCache
 			if ( fileHashes.TryGetValue( path, out var known ) && known.Time == info.LastWriteTimeUtc && known.Length == info.Length ) return known.Hash;
 		}
 
-		var hash = Hash( File.ReadAllText( path ) );
+		var hash = CompileCache.Hash( File.ReadAllText( path ) );
 		lock ( fileHashes ) fileHashes[path] = (info.LastWriteTimeUtc, info.Length, hash);
 		return hash;
 	}
 
-	static (string File, string Key) Place( string folder, string slangDirectory, string key, PassModule module )
-	{
-		var full = Hash( $"{Format}|{CompileCache.Identity( slangDirectory )}|{key}|{module.Text}" );
-		return (Path.Combine( folder, $"{Path.GetFileNameWithoutExtension( module.Path )}.{Hash( key )[..16].ToLowerInvariant()}.json" ), full);
-	}
+	/// <summary>An entry's key: the compiler, the stage, module file name and values (<paramref name="key"/>), and the module's text.</summary>
+	static string Key( string slangDirectory, string key, PassModule module ) => CompileCache.Hash( $"{Format}|{CompileCache.Identity( slangDirectory )}|{key}|{module.Text}" );
 
-	public static CompiledPassStage Load( string folder, string slangDirectory, string key, PassModule module )
+	static string Place( string folder, string key, PassModule module ) =>
+		Path.Combine( folder, $"{Path.GetFileNameWithoutExtension( module.Path )}.{CompileCache.Hash( $"{Path.GetFullPath( module.Path ).ToLowerInvariant()}|{key}" )[..16].ToLowerInvariant()}.bin" );
+
+	public static CompiledPassStage Load( string folder, IReadOnlyList<SlangOutput> offline, DependencyPaths paths, string slangDirectory, string key, PassModule module )
 	{
-		var (file, full) = Place( folder, slangDirectory, key, module );
-		if ( !File.Exists( file ) ) return null;
-		try
+		var full = Key( slangDirectory, key, module );
+		CompiledPassStage Read( ReadOnlySpan<byte> bytes, bool fromOffline ) => ShaderCacheFile.TryRead( bytes, fromOffline ? "" : full, paths.Resolve, ( r, dependencies ) => ShaderBinary.ReadPassStage( r, dependencies, fromOffline ), out var stage ) ? stage : null;
+		foreach ( var output in offline )
 		{
-			var clock = Stopwatch.StartNew();
-			var entry = JsonSerializer.Deserialize<Entry>( File.ReadAllText( file ), Options );
-			if ( entry?.Key != full || entry.Stage is null || entry.Threads is not { Length: 3 } ) return null;
-			foreach ( var (dependency, hash) in entry.Dependencies )
+			if ( output.TryGet( full, out var bytes ) && Read( bytes.Span, true ) is { } compiled ) return compiled;
+		}
+
+		if ( folder is not null )
+		{
+			var file = Place( folder, key, module );
+			try
 			{
-				if ( FileHash( dependency ) != hash ) return null;
+				if ( File.Exists( file ) && Read( File.ReadAllBytes( file ), false ) is { } cached ) return cached;
 			}
-
-			return new CompiledPassStage
+			catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
 			{
-				Stage = entry.Stage,
-				ThreadGroupSize = (entry.Threads[0], entry.Threads[1], entry.Threads[2]),
-				Dependencies = [.. entry.Dependencies.Keys],
-				Milliseconds = clock.Elapsed.TotalMilliseconds,
-				FromCache = true,
-			};
+			}
 		}
-		catch ( Exception e ) when ( e is JsonException or IOException or NotSupportedException or InvalidOperationException )
-		{
-			return null;
-		}
+
+		return null;
 	}
 
-	public static void Save( string folder, string slangDirectory, string key, PassModule module, CompiledPassStage stage )
+	/// <summary>An entry for <paramref name="stage"/>: its key, bytes and the files it read as named there, or null when it read a file <paramref name="paths"/> can't name.</summary>
+	public static (string Key, byte[] Bytes, List<(string Name, string Hash)> Dependencies)? Entry( DependencyPaths paths, string slangDirectory, string key, PassModule module, CompiledPassStage stage )
 	{
-		var (file, full) = Place( folder, slangDirectory, key, module );
-		try
+		var dependencies = new List<(string, string)>();
+		foreach ( var dependency in stage.Dependencies )
 		{
-			var entry = new Entry
-			{
-				Key = full,
-				Dependencies = stage.Dependencies.ToDictionary( d => d, FileHash, StringComparer.OrdinalIgnoreCase ),
-				Stage = stage.Stage,
-				Threads = [stage.ThreadGroupSize.X, stage.ThreadGroupSize.Y, stage.ThreadGroupSize.Z],
-			};
+			if ( paths.Name( dependency ) is not { } name ) return null;
+			dependencies.Add( (name, FileHash( dependency )) );
+		}
 
-			Directory.CreateDirectory( folder );
-			var temporary = file + ".tmp";
-			File.WriteAllText( temporary, JsonSerializer.Serialize( entry, Options ) );
-			File.Move( temporary, file, overwrite: true );
-		}
-		catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
-		{
-		}
+		var full = Key( slangDirectory, key, module );
+		return (full, ShaderCacheFile.Write( full, dependencies, w => ShaderBinary.WritePassStage( w, stage ) ), dependencies);
+	}
+
+	public static void Save( string folder, DependencyPaths paths, string slangDirectory, string key, PassModule module, CompiledPassStage stage, Action<string, byte[], List<(string Name, string Hash)>> saved = null )
+	{
+		if ( Entry( paths, slangDirectory, key, module, stage ) is not var (full, bytes, dependencies) ) return;
+		saved?.Invoke( full, bytes, dependencies );
+		if ( folder is not null ) ShaderCacheFile.Save( Place( folder, key, module ), bytes );
 	}
 }

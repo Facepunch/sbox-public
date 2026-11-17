@@ -12,6 +12,7 @@ namespace Borealis.Gpu;
 internal sealed unsafe class DeviceQueue : IDisposable
 {
 	readonly VkDeviceApi vk;
+	readonly Device device;
 	public readonly nint Handle;
 	public readonly uint Family;
 	public readonly QueueType Type;
@@ -36,6 +37,7 @@ internal sealed unsafe class DeviceQueue : IDisposable
 	public DeviceQueue( Device device, VkDeviceApi vk, uint family, QueueType type )
 	{
 		this.vk = vk;
+		this.device = device;
 		Family = family;
 		Type = type;
 
@@ -51,15 +53,27 @@ internal sealed unsafe class DeviceQueue : IDisposable
 		device.SetName( VkObjectType.Semaphore, semaphore, $"{type} timeline" );
 	}
 
-	/// <summary>The value the GPU has reached.</summary>
+	/// <summary>The value the GPU has reached; everything submitted once the device is lost.</summary>
 	public ulong Completed
 	{
 		get
 		{
 			if ( Volatile.Read( ref completed ) >= Submitted ) return completed;
 
+			// Nothing more will finish on a lost device: what was submitted counts as done, so its resources can be freed
+			if ( device.IsLost ) return Submitted;
+
 			ulong value;
-			vk.vkGetSemaphoreCounterValue( vk.Device, Timeline, &value ).Check( "vkGetSemaphoreCounterValue" );
+			device.Check( vk.vkGetSemaphoreCounterValue( vk.Device, Timeline, &value ), "vkGetSemaphoreCounterValue" );
+
+			// Past anything submitted: the driver signalled everything pending because the device is lost, before any call
+			// returned VK_ERROR_DEVICE_LOST. Nothing may be submitted after it (a signal below the timeline's value is invalid)
+			if ( value > Submitted )
+			{
+				device.MarkLost( $"The {Type} timeline jumped to {value} past the {Submitted} submitted", byDriver: true );
+				return Submitted;
+			}
+
 			if ( value > Volatile.Read( ref completed ) ) Volatile.Write( ref completed, value );
 			return value;
 		}
@@ -71,13 +85,18 @@ internal sealed unsafe class DeviceQueue : IDisposable
 	/// <summary>Take the next value for a submission. Call with <see cref="SubmitLock"/> held.</summary>
 	public ulong Next() => ++submitted;
 
+	/// <summary>
+	/// Wait on the CPU until the GPU reaches <paramref name="value"/>, which must have been submitted. Returns at once when the
+	/// device is lost, and takes it as lost if the GPU stops getting anywhere (<see cref="Device.HangSeconds"/>).
+	/// </summary>
 	public void Wait( ulong value )
 	{
-		if ( value == 0 || Completed >= value ) return;
+		if ( value == 0 || device.IsLost || Completed >= value ) return;
 
-		var semaphore = Timeline;
-		var info = new VkSemaphoreWaitInfo { sType = VkStructureType.SemaphoreWaitInfo, semaphoreCount = 1, pSemaphores = &semaphore, pValues = &value };
-		vk.vkWaitSemaphores( vk.Device, &info, ulong.MaxValue ).Check( "vkWaitSemaphores" );
+		// A value nothing will signal would be waited for forever
+		if ( value > Volatile.Read( ref Flushed ) ) throw new InvalidOperationException( $"{Type} {value} hasn't been submitted to the GPU (flushed {Volatile.Read( ref Flushed )}, submitted {Submitted})" );
+
+		device.WaitForTimeline( this, value );
 	}
 
 	public void Dispose() => vk.vkDestroySemaphore( vk.Device, Timeline, null );
@@ -149,6 +168,31 @@ public sealed unsafe partial class Device
 		}
 
 		CollectGarbage();
+		TrimUploadPages();
+	}
+
+	/// <summary>Free upload pages kept for later lists however few frames use: about 32 MiB.</summary>
+	internal const int KeptFreeUploadPages = 8;
+
+	/// <summary>Frames a free upload page has to go unused before it's freed.</summary>
+	internal const ulong UploadPageIdleFrames = 300;
+
+	int freePagesLow = int.MaxValue;
+	ulong trimFrom;
+
+	/// <summary>
+	/// Free upload pages that stayed unused for <see cref="UploadPageIdleFrames"/> frames, past
+	/// <see cref="KeptFreeUploadPages"/>: a load's uploads take hundreds of pages (Construct's held 1.4 GB of mapped memory
+	/// from then on), steady frames a few.
+	/// </summary>
+	void TrimUploadPages()
+	{
+		freePagesLow = Math.Min( freePagesLow, FreePages.Count );
+		if ( FrameNumber - trimFrom < UploadPageIdleFrames ) return;
+
+		for ( int i = KeptFreeUploadPages; i < freePagesLow && FreePages.TryTake( out var page ); i++ ) Destroy( page.Buffer );
+		freePagesLow = int.MaxValue;
+		trimFrom = FrameNumber;
 	}
 
 	/// <summary>
@@ -174,6 +218,7 @@ public sealed unsafe partial class Device
 	public SyncPoint Submit( CommandList list, ReadOnlySpan<SyncPoint> waits = default, SwapChain swapChain = null )
 	{
 		list.End();
+		ThrowIfLost( "vkQueueSubmit2" );
 
 		var queue = QueueFor( list.Queue );
 		var waitInfos = stackalloc VkSemaphoreSubmitInfo[waits.Length + 1];
@@ -231,7 +276,7 @@ public sealed unsafe partial class Device
 				pSignalSemaphoreInfos = signals,
 			};
 
-			Vk.vkQueueSubmit2( queue.Handle, 1, &submit, 0 ).Check( "vkQueueSubmit2" );
+			Check( Vk.vkQueueSubmit2( queue.Handle, 1, &submit, 0 ), "vkQueueSubmit2" );
 			Interlocked.Increment( ref submissions );
 			queue.Pending.Clear();
 			Volatile.Write( ref queue.Flushed, value );
@@ -316,6 +361,15 @@ public sealed unsafe partial class Device
 	{
 		if ( queue.Pending.Count == 0 ) return;
 
+		// Nothing reaches a lost device: what was held is dropped, its lists recycled with their frame
+		if ( IsLost )
+		{
+			queue.Pending.Clear();
+			queue.Suspended = null;
+			Volatile.Write( ref queue.Flushed, queue.Submitted );
+			return;
+		}
+
 		// A scope the last list left suspended ends in this submission
 		if ( queue.Suspended is { } open )
 		{
@@ -339,7 +393,7 @@ public sealed unsafe partial class Device
 			pSignalSemaphoreInfos = &signal,
 		};
 
-		Vk.vkQueueSubmit2( queue.Handle, 1, &submit, 0 ).Check( "vkQueueSubmit2" );
+		Check( Vk.vkQueueSubmit2( queue.Handle, 1, &submit, 0 ), "vkQueueSubmit2" );
 		Interlocked.Increment( ref submissions );
 		queue.Pending.Clear();
 		Volatile.Write( ref queue.Flushed, value );
@@ -395,7 +449,7 @@ public sealed unsafe partial class Device
 		{
 			seen[queue.Type] = queue.CompletedSeen;
 			string now;
-			try { now = queue.Completed.ToString(); } catch ( GpuException ) { now = "unknown"; }
+			try { now = IsLost ? "unknown" : queue.Completed.ToString(); } catch ( GpuException ) { now = "unknown"; }
 			text.Append( $"{queue.Type} queue: submitted {queue.Submitted}, flushed {Volatile.Read( ref queue.Flushed )}, completed {seen[queue.Type]} when last read, {now} read now; " );
 			if ( computeQueue == graphicsQueue ) break;
 		}
@@ -421,6 +475,13 @@ public sealed unsafe partial class Device
 		if ( !faultReports || Vk.vkGetDeviceFaultInfoEXT == null )
 		{
 			text.Append( "no device fault report; " );
+			return;
+		}
+
+		// The driver only has a report once it has said the device is lost
+		if ( !driverLost )
+		{
+			text.Append( "no device fault report (the driver hasn't said the device is lost); " );
 			return;
 		}
 

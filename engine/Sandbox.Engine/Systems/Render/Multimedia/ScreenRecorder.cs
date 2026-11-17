@@ -81,90 +81,117 @@ internal static class ScreenRecorder
 
 		if ( _videoWriter == null )
 		{
-			try
-			{
-				var desc = g_pRenderDevice.GetOnDiskTextureDesc( nativeTexture );
+			var desc = g_pRenderDevice.GetOnDiskTextureDesc( nativeTexture );
+			if ( !StartWriter( desc.m_nWidth, desc.m_nHeight ) ) return;
+		}
 
-				_videoWriter = new VideoWriter( _filename, new VideoWriter.Config
-				{
-					Width = desc.m_nWidth,
-					Height = desc.m_nHeight,
-					FrameRate = VideoFrameRate,
-					Bitrate = VideoBitRate,
-					Codec = VideoCodec,
-					Container = VideoWriter.Container.MP4,
-					Preset = VideoWriter.EncodingPreset.Fast,
-					AudioCodec = AudioCodec
-				} );
-			}
-			catch ( Exception ex )
+		renderContext.ReadTextureAsync( nativeTexture, ( pData, format, mipLevel, width, height, _ ) => OnFrame( pData, width, height ) );
+	}
+
+	/// <summary>
+	/// Captures a video frame from a Borealis.Gpu window's frame (RGBA8), read back from the device without waiting: recorded
+	/// at this point of the block being recorded (before the recording border is drawn), handed back on a worker once the
+	/// GPU has done it. Frames before the next one's due time aren't read at all.
+	/// </summary>
+	internal static void RecordVideoFrame( BorealisGpuRenderBackend backend, Texture frame )
+	{
+		if ( !_isRecording || frame is null ) return;
+		if ( _videoWriter == null && !StartWriter( frame.Width, frame.Height ) ) return;
+
+		// Native reads every frame and drops the early ones on arrival; reading one costs a copy here, so skip it now
+		if ( !_firstFrame && _recordingTimer < _nextCaptureTime ) return;
+
+		var width = frame.Width;
+		var height = frame.Height;
+		backend.ReadTextureAsync( frame, pData => OnFrame( pData, width, height ) );
+	}
+
+	/// <summary>The writer for frames of this size; false (recording stopped) when it can't start.</summary>
+	static bool StartWriter( int width, int height )
+	{
+		try
+		{
+			_videoWriter = new VideoWriter( _filename, new VideoWriter.Config
 			{
-				Log.Warning( $"Failed to start video recording: {ex.Message}" );
-				_isRecording = false;
-				return;
+				Width = width,
+				Height = height,
+				FrameRate = VideoFrameRate,
+				Bitrate = VideoBitRate,
+				Codec = VideoCodec,
+				Container = VideoWriter.Container.MP4,
+				Preset = VideoWriter.EncodingPreset.Fast,
+				AudioCodec = AudioCodec
+			} );
+			return true;
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( $"Failed to start video recording: {ex.Message}" );
+			_isRecording = false;
+			return false;
+		}
+	}
+
+	/// <summary>A frame read back: written when it's due, its size matching the writer's.</summary>
+	static void OnFrame( Span<byte> pData, int width, int height )
+	{
+		if ( !_isRecording || _videoWriter == null ) return;
+
+		// Capture timestamp early to get an accurate timestamp
+		// need to lock as multiple threads may call this in parallel
+		float timestamp;
+		var frameInterval = 1.0f / VideoFrameRate;
+		lock ( _timerLockObj )
+		{
+			if ( _firstFrame )
+			{
+				_recordingTimer = 0;
+				_nextCaptureTime = frameInterval;
+				_firstFrame = false;
+				timestamp = 0;
+			}
+			else
+			{
+				var now = (float)_recordingTimer;
+
+				// Skip frames that arrive before the next scheduled frame time
+				if ( now < _nextCaptureTime )
+					return;
+
+				timestamp = now;
+
+				// Schedule the next frame (additive to prevent drift)
+				_nextCaptureTime += frameInterval;
 			}
 		}
 
-		renderContext.ReadTextureAsync( nativeTexture, ( pData, format, mipLevel, width, height, _ ) =>
-		{
-			if ( !_isRecording || _videoWriter == null ) return;
-
-			// Capture timestamp early to get an accurate timestamp
-			// need to lock as multiple threads may call this in parallel
-			float timestamp;
-			var frameInterval = 1.0f / VideoFrameRate;
-			lock ( _timerLockObj )
-			{
-				if ( _firstFrame )
-				{
-					_recordingTimer = 0;
-					_nextCaptureTime = frameInterval;
-					_firstFrame = false;
-					timestamp = 0;
-				}
-				else
-				{
-					var now = (float)_recordingTimer;
-
-					// Skip frames that arrive before the next scheduled frame time
-					if ( now < _nextCaptureTime )
-						return;
-
-					timestamp = now;
-
-					// Schedule the next frame (additive to prevent drift)
-					_nextCaptureTime += frameInterval;
-				}
-			}
-
 #if WIN
-			// Blit cursor directly onto the image data
-			if ( Mouse.Active )
+		// Blit cursor directly onto the image data
+		if ( Mouse.Active )
+		{
+			unsafe
 			{
-				unsafe
+				fixed ( byte* dataPtr = pData )
 				{
-					fixed ( byte* dataPtr = pData )
-					{
-						BlitCursor( dataPtr, width, height, width * 4 );
-					}
+					BlitCursor( dataPtr, width, height, width * 4 );
 				}
 			}
+		}
 #endif
 
-			// Due to thread races:
-			// Writer may be null very briefly during shutdown, instead of adding complex locks just handle the exception.
-			try
+		// Due to thread races:
+		// Writer may be null very briefly during shutdown, instead of adding complex locks just handle the exception.
+		try
+		{
+			// Skip frames with mismatched resolution (can happen during resize or with ScenePanels)
+			if ( width == _videoWriter.Width && height == _videoWriter.Height )
 			{
-				// Skip frames with mismatched resolution (can happen during resize or with ScenePanels)
-				if ( width == _videoWriter.Width && height == _videoWriter.Height )
-				{
-					_videoWriter.AddFrame( pData, TimeSpan.FromSeconds( timestamp ) );
-				}
+				_videoWriter.AddFrame( pData, TimeSpan.FromSeconds( timestamp ) );
 			}
-			catch ( NullReferenceException )
-			{
-			}
-		} );
+		}
+		catch ( NullReferenceException )
+		{
+		}
 	}
 
 	/// <summary>

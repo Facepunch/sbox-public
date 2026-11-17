@@ -425,7 +425,7 @@ internal sealed partial class BackendContext
 				return Binding.SamplerState( b.Binding, sampler );
 
 			case BindingKind.StorageTexture:
-				return Binding.StorageTexture( b.Binding, defaults.Texture( Dimension( b.Shape ) ) );
+				return Binding.StorageTexture( b.Binding, defaults.StorageTexture( Dimension( b.Shape ) ) );
 
 			default:
 				{

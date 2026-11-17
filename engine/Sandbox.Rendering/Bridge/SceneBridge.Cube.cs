@@ -74,7 +74,9 @@ internal sealed partial class SceneBridge
 			face.FieldOfView = 90;
 			face.EnableUI = false;
 
-			var state = captureFaces[i] ??= new CameraState( camera );
+			// Recorded on this thread, as the lab's captures are: a face is a small frame, and six back to back in one engine
+			// frame gain nothing from workers
+			var state = captureFaces[i] ??= new CameraState( camera ) { System = { ParallelRecording = false } };
 			state.Camera.SetTarget( camera );
 			var (mirror, prepared) = Prepare( camera, face, new Vector2( size, size ), state );
 			prepared.View.Capture = true;
