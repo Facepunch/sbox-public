@@ -222,6 +222,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			extra.Mirror.Dispose();
 		extras.Clear();
 
+		ShutdownCaptures();
+		bitmapTarget?.Dispose();
+		bitmapTarget = null;
+
 		foreach ( var (_, mirror) in mirrors )
 			mirror.Dispose();
 		mirrors.Clear();
@@ -258,9 +262,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	}
 
 	/// <summary>
-	/// Sync the world and prepare the camera's view.
+	/// Sync the world and prepare the camera's view, in <paramref name="given"/> (a cube capture's face) rather than the
+	/// camera view's own state when one is given.
 	/// </summary>
-	(SceneMirror Mirror, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size )
+	(SceneMirror Mirror, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size, CameraState given = null )
 	{
 		// A child view prepares while its parent's frame records, on workers too, from the mirrors the parent synced: it
 		// changes no world anyone's drawing (an unseen world's mirror is new, and synced once)
@@ -275,7 +280,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		if ( parent is null || !mirror.HasSynced ) mirror.Sync( camera );
 		SyncSkybox( mirror, camera, setup );
 
-		var state = StateFor( camera, setup.ViewHash );
+		var state = given ?? StateFor( camera, setup.ViewHash );
 		state.Drawer.Mirror = mirror;
 		state.View.SubWorlds = SyncExtraWorlds( mirror, camera, setup, state.Drawer.ExtraMirrors );
 		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( syncStart ).TotalMilliseconds;
@@ -656,21 +661,6 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			DepthRange = new Vector2( state.System.DepthMin, state.System.DepthMax ),
 			DepthUvScaleBias = new Vector4( view.FlipX ? -1 : 1, view.FlipY ? -1 : 1, view.FlipX ? 1 : 0, view.FlipY ? 1 : 0 ),
 		};
-	}
-
-	/// <summary>
-	/// A bitmap render: the pixels come back to the CPU, so Source 2's device draws them.
-	/// </summary>
-	public void RenderToBitmap( SceneCamera camera, Bitmap bitmap, in ViewSetup setup )
-	{
-		SceneRenderer.Native.RenderToBitmap( camera, bitmap, setup );
-	}
-
-	/// <summary>
-	/// A cube capture (an envmap probe, a DDGI probe) isn't on Borealis.Gpu yet, and does nothing.
-	/// </summary>
-	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null )
-	{
 	}
 
 	/// <summary>
