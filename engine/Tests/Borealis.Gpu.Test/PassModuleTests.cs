@@ -440,7 +440,7 @@ public class PassModuleTests : GpuTest
 	}
 
 	/// <summary>
-	/// A shader's render state read without making its variant (<see cref="ShaderLibrary.PixelState"/>, which a material's
+	/// A shader's render state read without making its variant (<see cref="ShaderLibrary.PixelState(ShaderFile, string, ReadOnlySpan{int})"/>, which a material's
 	/// stencil check reads) is its variant's in every mode, for shaders drawn from their compiled programs (complex) and from
 	/// modules (the rest), and reading it compiles and makes nothing.
 	/// </summary>
