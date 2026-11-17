@@ -20,28 +20,27 @@ namespace Sandbox.UI;
 [StyleSheet.Inline( "numberentry", Styles )]
 public partial class NumberEntry : TextEntry
 {
-	// The letter in front of a property's number sits in a chip - a handle you drag to scrub,
-	// like the editor's. Tinted with the number's colour, stronger while hovered.
+	// The letter in front of a property's number is a handle you drag to scrub, like the
+	// editor's. Plain text in the number's colour, brighter while hovered, ruled off from the value.
 	const string Styles = """
 		NumberEntry.prefixed > .prefix-label
 		{
 			flex-shrink: 0;
 			align-self: center;
-			width: 24px;
-			height: 24px;
-			margin-left: -7px;
+			min-width: 10px;
+			padding-right: 8px;
 			margin-right: 8px;
-			border-radius: 5px;
+			border-right: 1px solid #ffffff14;
 			font-weight: 600;
 			text-align: center;
 			justify-content: center;
 			align-items: center;
+			opacity: 0.85;
 		}
 
-		NumberEntry.is-float > .prefix-label { color: #B0E24D; background-color: #B0E24D1a; }
-		NumberEntry.is-float:hover > .prefix-label { background-color: #B0E24D33; }
-		NumberEntry.is-int > .prefix-label { color: #3273EB; background-color: #3273EB1a; }
-		NumberEntry.is-int:hover > .prefix-label { background-color: #3273EB33; }
+		NumberEntry.prefixed:hover > .prefix-label { opacity: 1; }
+		NumberEntry.is-float > .prefix-label { color: #B0E24D; }
+		NumberEntry.is-int > .prefix-label { color: #3273EB; }
 		""";
 
 	public NumberEntry()

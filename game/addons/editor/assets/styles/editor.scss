@@ -44,13 +44,10 @@
 	.curve-preset { width: 54px; height: 30px; padding: 0px; background-color: $raised; color: #79c9a0; border-radius: 2px; }
 	.curve-preset:hover, .curve-preset:focus { background-color: $raised-hover; color: #79c9a0; }
 }
-.editor-window .curvecontrol { width: 100%; min-width: 0; height: 32px; background-color: $raised; border: 1px solid transparent; border-radius: 4px; color: #79c9a0; }
-.editor-window .curvecontrol:hover { background-color: $raised-hover; }
-.editor-window .curvecontrol:focus { border-color: $accent; }
 .editor-window .curve-editor-popup, .os-popup .curve-editor-popup { padding: 6px; background-color: $surface; border: 1px solid $line; border-radius: 4px; }
-.editor-window.style-light .curvecontrol { background-color: $l-raised; color: #237a51; }
-.editor-window.style-light .curvecontrol:hover { background-color: $l-raised-hover; }
 .editor-window.style-light .curve-editor-popup { background-color: $l-surface; border-color: $l-line; }
+.editor-window .curvecontrol { width: 100%; min-width: 0; color: #79c9a0; }
+.editor-window.style-light .curvecontrol { color: #237a51; }
 .editor-window.style-light .curveeditor
 {
 	background-color: $l-surface;
@@ -253,12 +250,12 @@
 //
 .iconbutton
 {
-	width: 34px;
-	height: 34px;
+	width: 32px;
+	height: 32px;
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
-	border-radius: 8px;
+	border-radius: 4px;
 	background-color: $raised;
 	border: 1px solid $line;
 	color: $text-muted;
@@ -276,9 +273,9 @@
 	flex-shrink: 0;
 	flex-direction: row;
 	align-items: center;
-	height: 34px;
+	height: 32px;
 	padding: 0 14px;
-	border-radius: 8px;
+	border-radius: 4px;
 	background-color: $accent;
 	color: #fff;
 	font-weight: 600;
@@ -298,13 +295,13 @@
 
 .flatbutton
 {
-	height: 34px;
+	height: 32px;
 	padding: 0 16px;
 	flex-direction: row;
 	align-items: center;
-	border-radius: 8px;
-	background-color: transparent;
-	border: 1px solid $line;
+	border-radius: 4px;
+	background-color: rgba( #fff, 0.04 );
+	border: 1px solid rgba( #fff, 0.07 );
 	color: $text;
 	font-size: 11px;
 	font-weight: 600;
@@ -320,7 +317,7 @@
 }
 
 .flatbutton.disabled { background-color: $raised; color: $text-muted; pointer-events: none; }
-.flatbutton:hover { background-color: $raised; }
+.flatbutton:hover { background-color: rgba( #fff, 0.07 ); border-color: rgba( #fff, 0.14 ); }
 .flatbutton:active { background-color: $ground; transform: scale( 0.97 ); }
 .flatbutton .icon { font-size: 15px; margin-right: 6px; }
 
@@ -329,28 +326,74 @@
 .primarybutton:focus { outline: 2px solid #fff; }
 
 //
+// Fields - every value control is the same compact box: 26px, 4px corners, a faint fill.
+// The line brightens under the mouse; with the keyboard in it the box sinks darker and its
+// line brightens further - no accent, the caret already says where typing goes.
+//
+.textentry,
+.button.popupbutton.dropdown,
+.buttongroup,
+.editor-window .colorcontrol,
+.editor-window .curvecontrol,
+ControlSheetRow > .right .slidercontrol.property
+{
+	height: 26px;
+	border-radius: 4px;
+	// Translucent, so the box lifts the same amount off a page, a dock or a popup
+	background-color: rgba( #fff, 0.04 );
+	border: 1px solid rgba( #fff, 0.07 );
+	transition: border-color 0.12s ease-out, background-color 0.12s ease-out;
+}
+
+.textentry:hover,
+.button.popupbutton.dropdown:hover,
+.buttongroup:hover,
+.editor-window .colorcontrol:hover,
+.editor-window .curvecontrol:hover,
+ControlSheetRow > .right .slidercontrol.property:hover { background-color: rgba( #fff, 0.06 ); border-color: rgba( #fff, 0.14 ); }
+
+// Only somewhere you type sinks; a dropdown or curve being open or focused keeps its fill
+.textentry:focus { background-color: rgba( #000, 0.25 ); border-color: rgba( #fff, 0.22 ); }
+
+.button.popupbutton.dropdown:focus,
+.button.popupbutton.dropdown.open,
+.editor-window .curvecontrol:focus { background-color: rgba( #fff, 0.06 ); border-color: rgba( #fff, 0.22 ); }
+
+.style-light .textentry,
+.style-light .button.popupbutton.dropdown,
+.style-light .buttongroup,
+.editor-window.style-light .colorcontrol,
+.editor-window.style-light .curvecontrol,
+.style-light ControlSheetRow > .right .slidercontrol.property { background-color: $l-surface; border-color: $l-line; }
+
+.style-light .textentry:hover,
+.style-light .button.popupbutton.dropdown:hover,
+.style-light .buttongroup:hover,
+.editor-window.style-light .colorcontrol:hover,
+.editor-window.style-light .curvecontrol:hover,
+.style-light ControlSheetRow > .right .slidercontrol.property:hover { background-color: $l-surface; border-color: rgba( $l-text-muted, 0.5 ); }
+
+.style-light .textentry:focus,
+.style-light .button.popupbutton.dropdown:focus,
+.style-light .button.popupbutton.dropdown.open,
+.editor-window.style-light .curvecontrol:focus { background-color: $l-surface; border-color: $l-text-faint; }
+
+//
 // Text inputs
 //
 .textentry
 {
-	height: 34px;
-	padding: 0 11px;
+	padding: 0 8px;
 	flex-direction: row;
 	align-items: center;
-	border-radius: 8px;
-	background-color: $raised;
-	border: 1px solid $raised;
 	pointer-events: all;
 	overflow: hidden;
 	white-space: nowrap;
-	transition: border-color 0.12s ease-out;
 }
 
-.textentry:focus { border-color: $accent; }
-
-// Read only still reads as text you can select, just not as somewhere to type
-.textentry.readonly { background-color: $surface; border-color: $line; }
-.textentry.readonly:focus { border-color: $line; }
+// Read only still reads as text you can select, just not as somewhere to type - no fill
+.textentry.readonly, .textentry.readonly:hover { background-color: transparent; border-color: rgba( #fff, 0.07 ); }
+.textentry.readonly:focus { border-color: rgba( #fff, 0.07 ); }
 .textentry iconpanel { font-size: 14px; color: $text-faint; }
 .textentry .content-label { color: $text; align-self: center; }
 .textentry .content-label.placeholder { color: $text-faint; }
@@ -361,9 +404,15 @@ NumberEntry > .content-label
 	min-width: 0;
 }
 
-// A property slider is one box like an entry, with its chip, track and value inside
-ControlSheetRow > .right .slidercontrol.property { height: 34px; background-color: $raised; border: 1px solid $raised; }
-.style-light ControlSheetRow > .right .slidercontrol.property { background-color: $l-raised; border-color: $l-raised; }
+// The colour field: a small swatch, then the hex text sitting in the box borderless
+.editor-window .colorcontrol { padding: 3px; gap: 2px; }
+.editor-window .colorcontrol > .colorswatch { width: 24px; border-radius: 2px; }
+.editor-window .colorcontrol > .colortextentry { height: 100%; padding: 0 6px; background-color: transparent; border-width: 0; }
+
+// Values in a property sheet read at the same size as everywhere else in the editor, with a
+// little air between the boxes
+ControlSheet > .body { font-size: 12px; }
+.editor-window .controlgroup > .body { gap: 4px; }
 
 // Property sheet group headers: small uppercase titles with room above them, a nested group's
 // in quieter mixed case
@@ -402,10 +451,7 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 {
 	flex-direction: row;
 	flex-shrink: 0;
-	border-radius: 8px;
 	overflow: hidden;
-	border: 1px solid $line;
-	background-color: $raised;
 	pointer-events: all;
 }
 
@@ -414,18 +460,21 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 	flex-direction: row;
 	align-items: center;
 	justify-content: center;
-	height: 32px;
-	padding: 0 14px;
+	// Inside the group's 1px border, so the whole control is the 26px of every other field
+	height: 24px;
+	padding: 0 12px;
+	// Icon and text apart; an icon on its own isn't pushed off centre
+	gap: 6px;
 	color: $text-muted;
 	font-size: 12px;
-	font-weight: 600;
+	font-weight: 500;
 	cursor: pointer;
 	transition: background-color 0.12s ease-out, color 0.12s ease-out;
 }
 
-.buttongroup .button:hover { background-color: $raised-hover; color: $text; }
+.buttongroup .button:hover { background-color: $raised; color: $text; }
 .buttongroup .button.active { background-color: $accent; color: #ffffff; }
-.buttongroup .button .icon { font-size: 15px; }
+.buttongroup .button .icon { font-size: 14px; }
 
 //
 // Form - a column of titled rows, which is what most property editors are
@@ -450,17 +499,20 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 {
 	flex-direction: row;
 	align-items: center;
-	margin-bottom: 6px;
+	margin-bottom: 4px;
 	flex-shrink: 0;
 }
 
+// The same label column as a control sheet row, so a form and a sheet line up
 .field > .label
 {
-	width: 110px;
+	width: 150px;
 	flex-shrink: 0;
-	padding-right: 12px;
+	padding: 0 12px 0 6px;
 	color: $text-muted;
 }
+.editor-window ControlSheetRow > .left > .title { font-size: 12px; color: $text-muted; }
+.editor-window.style-light ControlSheetRow > .left > .title { color: $l-text-muted; }
 
 .field .field-control { flex-grow: 1; flex-direction: row; align-items: center; }
 
@@ -780,21 +832,19 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 .style-light .titlebar .windowbutton:active { background-color: $l-raised-hover; }
 .style-light .navitem:active { background-color: $l-raised-hover; }
 
-.style-light .flatbutton { border-color: $l-line; color: $l-text; }
+.style-light .flatbutton { background-color: $l-surface; border-color: $l-line; color: $l-text; }
 .style-light .flatbutton:hover { background-color: $l-raised; }
 .style-light .primarybutton.disabled,
 .style-light .flatbutton.disabled { background-color: $l-raised; color: $l-text-muted; }
 .style-light .primarybutton:focus { outline-color: $accent; }
 
-.style-light .textentry { background-color: $l-raised; border-color: $l-raised; }
-.style-light .textentry:focus { border-color: $accent; }
+.style-light .textentry.readonly, .style-light .textentry.readonly:hover { background-color: transparent; border-color: $l-line; }
 .style-light .textentry iconpanel { color: $l-text-faint; }
 .style-light .textentry .content-label { color: $l-text; }
 .style-light .textentry .content-label.placeholder { color: $l-text-muted; opacity: 1; }
 
-.style-light .buttongroup { background-color: $l-raised; border-color: $l-line; }
 .style-light .buttongroup .button { color: $l-text-muted; }
-.style-light .buttongroup .button:hover { background-color: $l-raised-hover; color: $l-text; }
+.style-light .buttongroup .button:hover { background-color: $l-raised; color: $l-text; }
 .style-light .buttongroup .button.active { background-color: $accent; color: #ffffff; }
 
 .style-light .form .field-header { color: $l-text-faint; }
