@@ -602,12 +602,23 @@ internal static partial class DevTools
 			if ( ping > 150 )
 				issues.Add( new Issue( ping > 300 ? Severity.Bad : Severity.Warning, "Ping", $"{ping} ms to host", "network" ) );
 
-			if ( host.Stats.ConnectionQuality is > 0 and < 0.8f )
-				issues.Add( new Issue( Severity.Warning, "Connection quality", $"{host.Stats.ConnectionQuality * 100:0}%", "network" ) );
+			var quality = host.Stats.ConnectionQuality;
+			if ( QualitySeverity( quality ) is { } qualitySeverity )
+				issues.Add( new Issue( qualitySeverity, "Connection quality", $"{quality * 100:0}% of packets delivered", "network" ) );
 		}
 
 		issues.Sort( static ( a, b ) => b.Severity.CompareTo( a.Severity ) );
 	}
+
+	/// <summary>
+	/// Connection quality judged the same way as the Packet Loss warning icon.
+	/// </summary>
+	internal static Severity? QualitySeverity( float quality ) => DebugOverlay.Warnings.Quality( quality ) switch
+	{
+		WarningLevel.Critical => Severity.Bad,
+		WarningLevel.Warning => Severity.Warning,
+		_ => null
+	};
 
 	// Where a rendering number starts to be worth a look. Rules of thumb carried over from the old frame stats overlay.
 	const double DrawCallsWarn = 3000, DrawCallsBad = 5000;
