@@ -34,9 +34,10 @@ internal sealed class BorealisGpuWindow : IDisposable
 		timestamps = CreateTimestamps( backend, out timestampMs );
 	}
 
-	BorealisGpuWindow( BorealisGpuRenderBackend backend, SurfaceSource surface, Vector2 pixelSize, bool vsync )
+	BorealisGpuWindow( BorealisGpuRenderBackend backend, SurfaceSource surface, IntPtr nativeWindow, Vector2 pixelSize, bool vsync )
 	{
 		this.backend = backend;
+		NativeWindow = nativeWindow;
 		swapChain = backend.CreateSwapChain( surface, Math.Max( (int)pixelSize.x, 1 ), Math.Max( (int)pixelSize.y, 1 ), vsync );
 		Size = pixelSize;
 		timestamps = CreateTimestamps( backend, out timestampMs );
@@ -49,8 +50,28 @@ internal sealed class BorealisGpuWindow : IDisposable
 	public static BorealisGpuWindow FromNativeWindow( BorealisGpuRenderBackend backend, IntPtr window, Vector2 pixelSize, bool vsync )
 	{
 		if ( !OperatingSystem.IsWindows() || window == IntPtr.Zero ) return null;
-		return new BorealisGpuWindow( backend, SurfaceSource.Win32( GetWindowLongPtrW( window, GWLP_HINSTANCE ), window ), pixelSize, vsync );
+		return new BorealisGpuWindow( backend, SurfaceSource.Win32( GetWindowLongPtrW( window, GWLP_HINSTANCE ), window ), window, pixelSize, vsync );
 	}
+
+	/// <summary>
+	/// <see cref="FromNativeWindow"/> for a widget whose native window changed, its old one disposed first: null, with a
+	/// warning, when the window can't be presented to, rather than failing the frame that moves it.
+	/// </summary>
+	public static BorealisGpuWindow MoveToNativeWindow( BorealisGpuRenderBackend backend, IntPtr window, Vector2 pixelSize )
+	{
+		try
+		{
+			return FromNativeWindow( backend, window, pixelSize, vsync: false );
+		}
+		catch ( GpuException e ) when ( !e.IsDeviceLost )
+		{
+			Log.Warning( $"Borealis.Gpu: no swap chain on a widget's new native window: {e.Message}" );
+			return null;
+		}
+	}
+
+	/// <summary>The window system handle it presents to, made by <see cref="FromNativeWindow"/>; zero on an SDL window.</summary>
+	public IntPtr NativeWindow { get; }
 
 	const int GWLP_HINSTANCE = -6;
 
