@@ -220,6 +220,7 @@ public sealed unsafe partial class Device
 	{
 		var layout = PipelineLayout( info.Sets );
 		if ( info.MeshShader.IsValid && !Capabilities.MeshShaders ) throw new InvalidOperationException( $"{info.Name}: the device has no mesh shaders" );
+		if ( info.SkipUntilReady && !(UsesLibraries( info ) && PartsReady( info, layout )) ) return Defer( info, layout );
 
 		ulong pipeline;
 		LinkedParts parts = null;
@@ -888,6 +889,7 @@ public sealed unsafe partial class Device
 	/// <summary>At shutdown, after the pipelines: every part still alive.</summary>
 	void DestroyParts( List<PipelineRecord> pipelines )
 	{
+		StopBuilding();
 		StopOptimising();
 		var alive = new HashSet<PipelinePart>();
 		foreach ( var cache in (ReadOnlySpan<Dictionary<PartKey, PipelinePart>>)[vertexInputParts, preRasterizationParts, fragmentParts, outputParts] )

@@ -728,6 +728,7 @@ public sealed unsafe partial class Device : IDisposable
 		// Bounded: a GPU that stopped mustn't hold the process at exit
 		try { WaitFlushed(); }
 		catch ( GpuException ) { }
+		StopBuilding();
 		StopOptimising();
 		foreach ( var swapChain in swapChains.ToArray() ) swapChain.Dispose();
 

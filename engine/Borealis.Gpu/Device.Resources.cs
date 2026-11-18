@@ -96,6 +96,9 @@ internal struct PipelineRecord
 
 	/// <summary>Its optimised link has replaced the fast one.</summary>
 	public bool Optimised;
+
+	/// <summary>Workers are making it (<see cref="GraphicsPipelineInfo.SkipUntilReady"/>): <see cref="Pipeline"/> is 0 until then.</summary>
+	public bool Pending;
 }
 
 public sealed unsafe partial class Device
@@ -941,7 +944,7 @@ public sealed unsafe partial class Device
 		lock ( partLock ) record = Pipelines.Remove( pipeline.Index, pipeline.Generation );
 		Defer( () =>
 		{
-			Vk.vkDestroyPipeline( Vk.Device, record.Pipeline, null );
+			if ( record.Pipeline != 0 ) Vk.vkDestroyPipeline( Vk.Device, record.Pipeline, null );
 			if ( record.Parts is { } parts ) ReleaseParts( parts );
 		} );
 	}
@@ -950,7 +953,11 @@ public sealed unsafe partial class Device
 	{
 		DestroyBindingSetPools();
 		var pipelines = Pipelines.All();
-		foreach ( var record in pipelines ) Vk.vkDestroyPipeline( Vk.Device, record.Pipeline, null );
+		foreach ( var record in pipelines )
+		{
+			if ( record.Pipeline != 0 ) Vk.vkDestroyPipeline( Vk.Device, record.Pipeline, null );
+		}
+
 		DestroyParts( pipelines );
 		foreach ( var record in Shaders.All() ) Vk.vkDestroyShaderModule( Vk.Device, record.Module, null );
 		foreach ( var record in Layouts.All() ) Vk.vkDestroyDescriptorSetLayout( Vk.Device, record.SetLayout, null );

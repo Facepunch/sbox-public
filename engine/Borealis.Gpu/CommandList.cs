@@ -114,6 +114,10 @@ public sealed unsafe class CommandList
 	/// <summary>Transient sets written since the list began, for tests.</summary>
 	internal int TransientSetsWritten { get; private set; }
 
+	// The bound graphics pipeline isn't made yet: draws are skipped
+	bool skippingDraws;
+	int skippedDraws;
+
 	// The dynamic render state last set (RenderStateBits), and whether any has been since the list began
 	ulong renderState;
 	bool renderStateSet;
@@ -163,6 +167,8 @@ public sealed unsafe class CommandList
 		Array.Clear( setOffsetCounts );
 		viewSet = 0;
 		renderStateSet = false;
+		skippingDraws = false;
+		skippedDraws = 0;
 		Submitted = default;
 		draws = pipelines = setBinds = scopes = barriers = fullBarriers = resumed = 0;
 		acted = suspending = suspended = false;
@@ -713,10 +719,21 @@ public sealed unsafe class CommandList
 		if ( record.BindPoint == Vulkan.Vk.BindPointCompute ) OutsideRendering();
 		FlushBarriers();
 
-		vk.vkCmdBindPipeline( Handle, record.BindPoint, Volatile.Read( ref record.Pipeline ) );
-		pipelines++;
+		// One workers are still making (GraphicsPipelineInfo.SkipUntilReady): its draws are skipped until another is bound
+		var vkPipeline = Volatile.Read( ref record.Pipeline );
 		lastLayout = record.Layout;
-		if ( record.BindPoint == Vulkan.Vk.BindPointGraphics && (!renderStateSet || record.RenderState != renderState) ) SetRenderState( record.RenderState );
+		if ( vkPipeline == 0 )
+		{
+			if ( record.BindPoint == Vulkan.Vk.BindPointCompute ) throw new InvalidOperationException( "Compute pipelines are always made whole" );
+			skippingDraws = true;
+		}
+		else
+		{
+			if ( record.BindPoint == Vulkan.Vk.BindPointGraphics ) skippingDraws = false;
+			vk.vkCmdBindPipeline( Handle, record.BindPoint, vkPipeline );
+			pipelines++;
+			if ( record.BindPoint == Vulkan.Vk.BindPointGraphics && (!renderStateSet || record.RenderState != renderState) ) SetRenderState( record.RenderState );
+		}
 
 		if ( layouts[record.BindPoint] != record.Layout )
 		{
@@ -925,46 +942,58 @@ public sealed unsafe class CommandList
 	// Work
 	//
 
-	void BeforeDraw()
+	/// <summary>Get ready for a draw; false when it's skipped, its pipeline not made yet.</summary>
+	bool BeforeDraw()
 	{
 		Recording();
 		if ( !rendering ) throw new InvalidOperationException( "Draws happen while rendering: call BeginRendering first" );
+		if ( skippingDraws )
+		{
+			skippedDraws++;
+			device.CountSkippedDraw();
+			return false;
+		}
+
 		FlushBindings( Vulkan.Vk.BindPointGraphics );
 		draws++;
+		return true;
 	}
+
+	/// <summary>Draws skipped since the list began because their pipeline wasn't made yet.</summary>
+	public int SkippedDraws => skippedDraws;
 
 	/// <summary>Draw vertices.</summary>
 	public void Draw( int vertexCount, int instanceCount = 1, int firstVertex = 0, int firstInstance = 0 )
 	{
-		BeforeDraw();
+		if ( !BeforeDraw() ) return;
 		vk.vkCmdDraw( Handle, (uint)vertexCount, (uint)instanceCount, (uint)firstVertex, (uint)firstInstance );
 	}
 
 	/// <summary>Draw indexed vertices.</summary>
 	public void DrawIndexed( int indexCount, int instanceCount = 1, int firstIndex = 0, int vertexOffset = 0, int firstInstance = 0 )
 	{
-		BeforeDraw();
+		if ( !BeforeDraw() ) return;
 		vk.vkCmdDrawIndexed( Handle, (uint)indexCount, (uint)instanceCount, (uint)firstIndex, vertexOffset, (uint)firstInstance );
 	}
 
 	/// <summary>Draw vertices with arguments from a buffer: <paramref name="count"/> draws, <paramref name="stride"/> bytes apart.</summary>
 	public void DrawIndirect( BufferHandle arguments, long offset, int count, int stride = 16 )
 	{
-		BeforeDraw();
+		if ( !BeforeDraw() ) return;
 		vk.vkCmdDrawIndirect( Handle, device.Get( arguments ).Buffer, (ulong)offset, (uint)count, (uint)stride );
 	}
 
 	/// <summary>Draw indexed vertices with arguments from a buffer: <paramref name="count"/> draws, <paramref name="stride"/> bytes apart.</summary>
 	public void DrawIndexedIndirect( BufferHandle arguments, long offset, int count, int stride = 20 )
 	{
-		BeforeDraw();
+		if ( !BeforeDraw() ) return;
 		vk.vkCmdDrawIndexedIndirect( Handle, device.Get( arguments ).Buffer, (ulong)offset, (uint)count, (uint)stride );
 	}
 
 	/// <summary>Draw indexed vertices with arguments and a draw count from buffers, at most <paramref name="maxCount"/> draws.</summary>
 	public void DrawIndexedIndirectCount( BufferHandle arguments, long offset, BufferHandle countBuffer, long countOffset, int maxCount, int stride = 20 )
 	{
-		BeforeDraw();
+		if ( !BeforeDraw() ) return;
 		vk.vkCmdDrawIndexedIndirectCount( Handle, device.Get( arguments ).Buffer, (ulong)offset, device.Get( countBuffer ).Buffer, (ulong)countOffset, (uint)maxCount, (uint)stride );
 	}
 
@@ -974,14 +1003,14 @@ public sealed unsafe class CommandList
 	/// </summary>
 	public void DrawMeshTasksIndirect( BufferHandle arguments, long offset, int count = 1, int stride = 12 )
 	{
-		BeforeDraw();
+		if ( !BeforeDraw() ) return;
 		vk.vkCmdDrawMeshTasksIndirectEXT( Handle, device.Get( arguments ).Buffer, (ulong)offset, (uint)count, (uint)stride );
 	}
 
 	/// <summary>Draw task grids with the bound task and mesh pipeline, with the count from a buffer, at most <paramref name="maxCount"/>.</summary>
 	public void DrawMeshTasksIndirectCount( BufferHandle arguments, long offset, BufferHandle countBuffer, long countOffset, int maxCount, int stride = 12 )
 	{
-		BeforeDraw();
+		if ( !BeforeDraw() ) return;
 		vk.vkCmdDrawMeshTasksIndirectCountEXT( Handle, device.Get( arguments ).Buffer, (ulong)offset, device.Get( countBuffer ).Buffer, (ulong)countOffset, (uint)maxCount, (uint)stride );
 	}
 
