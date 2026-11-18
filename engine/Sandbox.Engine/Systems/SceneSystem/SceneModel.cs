@@ -29,6 +29,7 @@ public sealed partial class SceneModel : SceneObject
 
 			MeshSystem.CreateSceneObject( model.native, transform, "AnimatableSceneObjectDesc", flags, typeFlags, sceneWorld, 0x1 );
 			StartResolvingDraws( model );
+			FlagsAtCreation( model, flags );
 
 			if ( !animNative.IsValid )
 			{
@@ -226,9 +227,16 @@ public sealed partial class SceneModel : SceneObject
 	/// </summary>
 	public void SetBodyGroup( string name, int value )
 	{
-		animNative.SetBodyGroup( name, value );
-		MeshGroupsChangedNatively();
-		NotifyChanged( Rendering.SceneObjectChange.Material );
+		// CSceneObject::SetBodyGroup: the part's meshes out of the mask, the chosen one's in (the first for a choice past the
+		// last). A part the model doesn't have changes nothing
+		if ( Model is not { } model || model.native.IsNull ) return;
+		var part = model.native.GetBodyPartForName( name );
+		if ( part < 0 || part >= model.Parts.Count ) return;
+
+		var parts = model.Parts.All[part];
+		if ( value >= parts.Choices.Count ) value = 0;
+		var chosen = value >= 0 && value < parts.Choices.Count ? parts.Choices[value].Mask : 0;
+		MeshGroupMask = (MeshGroupMask & ~parts.Mask) | chosen;
 	}
 
 	/// <summary>

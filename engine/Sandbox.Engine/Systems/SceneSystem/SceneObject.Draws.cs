@@ -29,6 +29,10 @@ public partial class SceneObject
 	// The override list (CSceneObjectExtraData_t::m_materialOverrideList), in order: an attribute 0 entry overrides everything
 	List<(uint Attribute, int Value, Material Material)> _overrideList;
 
+	// Per index overrides (CSceneObjectExtraData_t::m_materialIndexOverrides), by the model's material index (Model.Materials);
+	// null where an index has none
+	List<Material> _indexOverrides;
+
 	ulong? _meshGroupMask;
 
 	static readonly StringToken TranslucentName = new( "translucent" );
@@ -38,9 +42,6 @@ public partial class SceneObject
 
 	// RENDERMESH_DRAW_FLAGS_USE_SHADOW_FAST_PATH, _HAS_BAKED_LIGHTING_FROM_LIGHTMAP, and IModel.GetDrawCallFlags' alpha blended bit
 	const int ShadowFastPathFlag = 0x1, LightmapFlag = 0x20, AlphaBlendedFlag = unchecked((int)0x80000000);
-
-	/// <summary>Native changed the mesh groups (a body group set through the animation object): read them again when next asked.</summary>
-	internal void MeshGroupsChangedNatively() => _meshGroupMask = null;
 
 	/// <summary>Start working out draws in managed code, for an object managed code just made from <paramref name="model"/>.</summary>
 	internal void StartResolvingDraws( Model model )
@@ -66,6 +67,15 @@ public partial class SceneObject
 		public Material[][] Groups;
 		public Dictionary<string, int> DefaultIndex;
 
+		/// <summary>
+		/// The meshes' translucency together, as <c>CMeshSystem::CreateMeshInstanceChain</c> combines each mesh's compiled type:
+		/// any partly blended mesh, or opaque and blended meshes together, make it partly blended.
+		/// </summary>
+		public TranslucencyType Translucency;
+
+		/// <summary>Per scene object of a mesh (a mesh instance), in draw order: its mesh group mask and local bounds.</summary>
+		public (ulong MeshGroupMask, BBox Bounds)[] Instances;
+
 		static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Model, ModelDraws> cache = new();
 
 		public static ModelDraws For( Model model ) => cache.GetValue( model, Read );
@@ -74,12 +84,21 @@ public partial class SceneObject
 		{
 			var native = model.native;
 			var draws = new List<Draw>();
+			var instances = new List<(ulong, BBox)>();
+			var translucency = (TranslucencyType)(-1);
 			for ( int m = 0; m < native.GetNumMeshes(); m++ )
 			{
+				native.GetMeshInfo( m, out _, out _, out _, out _, out var meshTranslucency, out _, out _ );
+				var type = (TranslucencyType)meshTranslucency;
+				if ( (int)translucency == -1 ) translucency = type;
+				else if ( type == TranslucencyType.Partial || (type != translucency) ) translucency = TranslucencyType.Partial;
+
 				var mask = native.GetMeshGroupMaskForMesh( m );
 				var index = 0;
 				for ( int s = 0; s < native.GetNumSceneObjects( m ); s++ )
 				{
+					native.GetSceneObjectBounds( m, s, out var mins, out var maxs );
+					instances.Add( (mask, new BBox( mins, maxs )) );
 					for ( int d = 0; d < native.GetNumDrawCalls( m, s ); d++ )
 						draws.Add( new Draw( m, index++, s, d, mask, Material.FromNative( native.GetMaterial( m, s, d ) ) ) );
 				}
@@ -101,7 +120,14 @@ public partial class SceneObject
 				}
 			}
 
-			return new ModelDraws { Draws = draws.ToArray(), Groups = groups, DefaultIndex = defaults };
+			return new ModelDraws
+			{
+				Draws = draws.ToArray(),
+				Groups = groups,
+				DefaultIndex = defaults,
+				Translucency = (int)translucency == -1 ? TranslucencyType.Opaque : translucency,
+				Instances = instances.ToArray(),
+			};
 		}
 	}
 
@@ -127,12 +153,16 @@ public partial class SceneObject
 		FlagsRecomputed();
 	}
 
-	/// <summary>A material group (<c>CMeshInstance_Imp::ApplyMaterialGroupOverride</c>): each draw's default replaced by the group's.</summary>
-	void ApplyMaterialGroup( string name )
+	/// <summary>
+	/// A material group (<c>CMeshInstance_Imp::ApplyMaterialGroupOverride</c>): each draw's default replaced by the group's.
+	/// False for a group the model doesn't have, which native ignores.
+	/// </summary>
+	bool ApplyMaterialGroup( string name )
 	{
-		if ( !ResolvesDraws || Model is not { } model ) return;
+		if ( Model is not { } model ) return false;
 		var group = model.GetMaterialGroupIndex( name );
-		if ( group < 0 ) return;
+		if ( group < 0 ) return false;
+		if ( !ResolvesDraws ) return true;
 
 		var draws = ModelDraws.For( model );
 		var materials = DrawMaterials( draws );
@@ -160,6 +190,7 @@ public partial class SceneObject
 		}
 
 		FlagsRecomputed();
+		return true;
 	}
 
 	/// <summary>A draw's material in a material group (<c>CModel::GetMaterialReplacementForGroup</c>), or null.</summary>
@@ -181,9 +212,35 @@ public partial class SceneObject
 		FlagsRecomputed();
 	}
 
+	/// <summary>A per index override (<c>CSceneObject::SetMaterialOverrideByIndex</c>): null for none.</summary>
+	void SetIndexOverride( int index, Material material )
+	{
+		if ( index < 0 ) return;
+		_indexOverrides ??= new();
+		while ( _indexOverrides.Count <= index ) _indexOverrides.Add( null );
+		_indexOverrides[index] = material;
+		FlagsRecomputed();
+	}
+
 	void FlagsRecomputed()
 	{
 		_flagsWithOverrides = _overrideList is { Count: > 0 };
+	}
+
+	/// <summary>
+	/// The per index override for a draw's material (<c>GetMaterialOverride( pLayer, pMaterial )</c>): the entry at the material's
+	/// index in the model's materials (<c>CModel::GetMaterialIndex</c>), or null.
+	/// </summary>
+	Material IndexOverride( Model model, Material material )
+	{
+		if ( material is null || _indexOverrides is not { Count: > 0 } ) return null;
+		var materials = model.Materials;
+		for ( int i = 0; i < materials.Length && i < _indexOverrides.Count; i++ )
+		{
+			if ( ReferenceEquals( materials[i], material ) ) return _indexOverrides[i];
+		}
+
+		return null;
 	}
 
 	/// <summary>
@@ -230,7 +287,8 @@ public partial class SceneObject
 			}
 
 			var lightmapped = (flags & LightmapFlag) != 0;
-			into.Add( new SceneObjectDraw( draw.Mesh, draw.DrawCall, whole ?? ListOverride( material ) ?? material, (draw.MeshGroupMask & mask) != 0, translucent, fastPath, lightmapped ) );
+			var drawn = whole ?? IndexOverride( model, material ) ?? ListOverride( material ) ?? material;
+			into.Add( new SceneObjectDraw( draw.Mesh, draw.DrawCall, drawn, (draw.MeshGroupMask & mask) != 0, translucent, fastPath, lightmapped ) );
 		}
 	}
 
