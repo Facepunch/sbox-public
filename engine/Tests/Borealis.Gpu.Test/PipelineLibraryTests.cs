@@ -387,6 +387,39 @@ public class PipelineLibraryTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// The part manifest keeps its lines in the order the last run first linked them, which is the order the next run
+	/// makes them: a first frame's parts come first.
+	/// </summary>
+	[TestMethod]
+	public void PartManifestReplaysInLastRunsOrder()
+	{
+		var file = Path.Combine( Path.GetTempPath(), $"borealis-part-order-{Environment.ProcessId}-{Guid.NewGuid():n}.txt" );
+		static string Output( Format format ) => PipelinePartManifest.Write( PipelineParts.FragmentOutput, new GraphicsPipelineInfo { ColorFormats = [format], Samples = 1 }, 0, null );
+		var (a, b, c) = (Output( Format.RGBA8Unorm ), Output( Format.RGBA16Float ), Output( Format.R32Uint ));
+		try
+		{
+			var first = new PipelinePartManifest( file );
+			first.Use( a, 0 );
+			first.Use( b, 0 );
+			first.Use( c, 0 );
+			Assert.IsTrue( first.Save() );
+
+			var second = new PipelinePartManifest( file );
+			CollectionAssert.AreEqual( new[] { a, b, c }, second.TakeUnshaded().OrderBy( e => e.Rank ).Select( e => e.Line ).ToArray() );
+			second.Use( c, 0 );
+			second.Use( a, 0 );
+			Assert.IsTrue( second.Save() );
+
+			var third = new PipelinePartManifest( file );
+			CollectionAssert.AreEqual( new[] { c, a, b }, third.TakeUnshaded().OrderBy( e => e.Rank ).Select( e => e.Line ).ToArray(), "this run's first links first, then the rest" );
+		}
+		finally
+		{
+			File.Delete( file );
+		}
+	}
+
 	static byte[] Render( Device device, SampleScene scene, TextureHandle target )
 	{
 		var list = device.BeginCommandList( QueueType.Graphics, "Scene" );

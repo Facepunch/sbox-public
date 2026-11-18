@@ -10,7 +10,8 @@ namespace Borealis.Gpu;
 /// constants, binding layouts' slots (and wireframe and depth clamp for pre-rasterisation); vertex input by its buffers,
 /// attributes and topology; output by its formats, blending, samples and alpha to coverage. The next run makes them on the
 /// builder threads as soon as they can be made: vertex input and output parts when the device is made, shader parts when a
-/// module with that SPIR-V is made. The file outlives the driver's cache, which a driver update empties. A part is recorded
+/// module with that SPIR-V is made; in the order the last run first linked them, so a first frame's parts come first.
+/// Lines are kept in that order: this run's first links first, then the rest as they were. The file outlives the driver's cache, which a driver update empties. A part is recorded
 /// the first time a pipeline links it in a run (never per frame); a line that doesn't read, or whose part fails to make,
 /// is dropped, as is one no run has used in <see cref="MaxAge"/> runs; nothing about the file can fail a load.
 /// </summary>
@@ -25,7 +26,7 @@ internal sealed class PipelinePartManifest
 	public const int MaxAge = 64;
 
 	/// <summary>A line read back: which part, the shader it's made from (zero for none) and the line, to drop it.</summary>
-	public readonly record struct Entry( PipelineParts Kind, UInt128 Shader, string Line );
+	public readonly record struct Entry( PipelineParts Kind, UInt128 Shader, string Line, int Rank );
 
 	readonly string path;
 	readonly object gate = new();
@@ -37,6 +38,9 @@ internal sealed class PipelinePartManifest
 	readonly List<Entry> unshaded = new();
 	readonly HashSet<UInt128> recordedShaders = new();
 	bool dirty;
+
+	// Lines in the order this run first linked their parts
+	readonly List<string> linked = new();
 
 	/// <summary>Lines read from the file, queued to be made, dropped, and recorded this run.</summary>
 	public int Loaded, Queued, Dropped, Recorded;
@@ -57,7 +61,7 @@ internal sealed class PipelinePartManifest
 				var tab = text.IndexOf( '\t' );
 				if ( tab <= 0 || !int.TryParse( text.AsSpan( 0, tab ), NumberStyles.None, CultureInfo.InvariantCulture, out var used ) || used > last ) continue;
 				var line = text[(tab + 1)..];
-				if ( run - used > MaxAge || lines.Count >= MaxEntries || lines.ContainsKey( line ) || Describe( line ) is not { } entry )
+				if ( run - used > MaxAge || lines.Count >= MaxEntries || lines.ContainsKey( line ) || Describe( line, lines.Count ) is not { } entry )
 				{
 					// Unread or stale: written back without it
 					dirty = true;
@@ -127,12 +131,14 @@ internal sealed class PipelinePartManifest
 			{
 				if ( used == run ) return;
 				lines[line] = run;
+				linked.Add( line );
 				dirty = true;
 				return;
 			}
 
 			if ( lines.Count >= MaxEntries ) return;
 			lines[line] = run;
+			linked.Add( line );
 			dirty = true;
 			Recorded++;
 		}
@@ -144,6 +150,7 @@ internal sealed class PipelinePartManifest
 		lock ( gate )
 		{
 			if ( !lines.Remove( line ) ) return;
+			linked.Remove( line );
 			dirty = true;
 			Dropped++;
 		}
@@ -157,7 +164,11 @@ internal sealed class PipelinePartManifest
 		{
 			if ( !dirty ) return false;
 			snapshot = new List<string>( lines.Count + 1 ) { $"{Header}\t{run.ToString( CultureInfo.InvariantCulture )}" };
-			foreach ( var (line, used) in lines ) snapshot.Add( $"{used.ToString( CultureInfo.InvariantCulture )}\t{line}" );
+			foreach ( var line in linked ) snapshot.Add( $"{run.ToString( CultureInfo.InvariantCulture )}\t{line}" );
+			foreach ( var (line, used) in lines )
+			{
+				if ( used != run ) snapshot.Add( $"{used.ToString( CultureInfo.InvariantCulture )}\t{line}" );
+			}
 			dirty = false;
 		}
 
@@ -266,9 +277,9 @@ internal sealed class PipelinePartManifest
 	}
 
 	/// <summary>What a line names, or null when it doesn't read.</summary>
-	static Entry? Describe( string line )
+	static Entry? Describe( string line, int rank )
 	{
-		if ( Read( line, out var kind, out var shader, out _, out _ ) ) return new Entry( kind, shader, line );
+		if ( Read( line, out var kind, out var shader, out _, out _ ) ) return new Entry( kind, shader, line, rank );
 		return null;
 	}
 

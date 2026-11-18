@@ -18,7 +18,8 @@ public sealed unsafe partial class Device
 	// What a draw is waiting for goes first, then parts a run linked before (the part manifest), then guesses; all are made
 	// by the builder threads. A part queued from the manifest carries its line, dropped if the part fails to make
 	readonly Queue<(PipelineHandle Handle, GraphicsPipelineInfo Info, ulong Layout, ulong Frame, long Requested)> buildQueue = new();
-	readonly Queue<(GraphicsPipelineInfo Info, PipelineParts Parts, string Line)> prepareQueue = new(), speculativeQueue = new();
+	readonly PriorityQueue<(GraphicsPipelineInfo Info, PipelineParts Parts, string Line), int> prepareQueue = new();
+	readonly Queue<(GraphicsPipelineInfo Info, PipelineParts Parts, string Line)> speculativeQueue = new();
 
 	// A skipped pipeline's fragment part, made by another builder alongside the rest of it: goes before everything
 	readonly Queue<(GraphicsPipelineInfo Info, PipelineParts Parts, string Line)> urgentQueue = new();
@@ -116,15 +117,17 @@ public sealed unsafe partial class Device
 	/// (<see cref="PreparePipelineParts"/> makes them on the calling thread). <paramref name="speculative"/> parts (a guess
 	/// at what draws will ask for) go after the part manifest's. Does nothing without pipeline libraries.
 	/// </summary>
-	public void QueuePipelineParts( in GraphicsPipelineInfo info, PipelineParts parts = PipelineParts.All, bool speculative = false ) => Queue( info, parts, null, speculative );
+	public void QueuePipelineParts( in GraphicsPipelineInfo info, PipelineParts parts = PipelineParts.All, bool speculative = false ) => Queue( info, parts, null, speculative, int.MaxValue );
 
-	void Queue( in GraphicsPipelineInfo info, PipelineParts parts, string line, bool speculative )
+	// The manifest's parts by rank: the order the last run first linked them
+	void Queue( in GraphicsPipelineInfo info, PipelineParts parts, string line, bool speculative, int rank )
 	{
 		if ( !UsesLibraries( info ) ) return;
 		lock ( buildQueue )
 		{
 			if ( stopBuilding ) return;
-			(speculative ? speculativeQueue : prepareQueue).Enqueue( (info, parts, line) );
+			if ( speculative ) speculativeQueue.Enqueue( (info, parts, line) );
+			else prepareQueue.Enqueue( (info, parts, line), rank );
 			StartBuilders();
 			Monitor.Pulse( buildQueue );
 		}
@@ -189,7 +192,7 @@ public sealed unsafe partial class Device
 		if ( kind == PipelineParts.FragmentShader ) info.FragmentShader = shader;
 		if ( slots is not null ) info.Sets = ManifestSets( slots );
 		info.Name = $"part manifest ({kind})";
-		Queue( info, kind, entry.Line, speculative: false );
+		Queue( info, kind, entry.Line, speculative: false, entry.Rank );
 	}
 
 	BindingLayoutHandle[] ManifestSets( BindingSlot[][] slots )
@@ -225,15 +228,18 @@ public sealed unsafe partial class Device
 		return true;
 	}
 
+	static readonly ThreadPriority builderPriority = Environment.GetEnvironmentVariable( "BOREALIS_BUILDER_PRIORITY" ) == "below" ? ThreadPriority.BelowNormal : ThreadPriority.Normal;
+
 	// Under the build queue's lock
 	void StartBuilders()
 	{
 		if ( builders is not null ) return;
-		// All but two logical processors, below normal priority: the frame never waits for them, so they take what it leaves
+		// All but two logical processors, at normal priority: below it, a loading map's threads starve them while draws wait
+		// (BOREALIS_BUILDER_PRIORITY=below, to compare)
 		builders = new Thread[int.TryParse( Environment.GetEnvironmentVariable( "BOREALIS_BUILDERS" ), out var count ) && count > 0 ? count : Math.Clamp( Environment.ProcessorCount - 2, 2, 12 )];
 		for ( int i = 0; i < builders.Length; i++ )
 		{
-			builders[i] = new Thread( Build ) { IsBackground = true, Priority = ThreadPriority.BelowNormal, Name = $"Borealis.Gpu pipeline builder {i}" };
+			builders[i] = new Thread( Build ) { IsBackground = true, Priority = builderPriority, Name = $"Borealis.Gpu pipeline builder {i}" };
 			builders[i].Start();
 		}
 	}
@@ -251,7 +257,7 @@ public sealed unsafe partial class Device
 				if ( stopBuilding ) return;
 				var urgent = urgentQueue.TryDequeue( out prepare );
 				isJob = !urgent && buildQueue.TryDequeue( out job );
-				if ( !urgent && !isJob && !prepareQueue.TryDequeue( out prepare ) ) prepare = speculativeQueue.Dequeue();
+				if ( !urgent && !isJob && !prepareQueue.TryDequeue( out prepare, out _ ) ) prepare = speculativeQueue.Dequeue();
 				building++;
 			}
 
