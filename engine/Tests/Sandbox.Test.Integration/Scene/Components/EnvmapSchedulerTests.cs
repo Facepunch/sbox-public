@@ -77,4 +77,37 @@ public class EnvmapSchedulerTests
 		Probe( scene, new Vector3( 500, 0, 0 ) );
 		new EnvmapScheduler( null ).Run( scene );
 	}
+
+	sealed class ChangeRecorder : Sandbox.Rendering.ISceneObjectListener
+	{
+		public readonly System.Collections.Generic.List<(SceneObject, Sandbox.Rendering.SceneObjectChange)> Changes = new();
+		public void OnChanged( SceneObject sceneObject, Sandbox.Rendering.SceneObjectChange change ) => Changes.Add( (sceneObject, change) );
+	}
+
+	/// <summary>
+	/// A probe's scene object tells the world's listener (Borealis's mirror) when its texture or settings change, as when
+	/// a realtime probe makes its cube anew once a native tool draws. Before, only its creation did: the mirror kept the
+	/// old cube, freed with the old texture, and the probe reflected black.
+	/// </summary>
+	[TestMethod]
+	public void CubemapChangesReachTheListener()
+	{
+		var world = new SceneWorld();
+		var recorder = new ChangeRecorder();
+		world.ChangeListener = recorder;
+		var cubemap = new SceneCubemap( world, null, BBox.FromPositionAndSize( 0, 200 ) );
+
+		recorder.Changes.Clear();
+		cubemap.TintColor = Color.Red;
+		Assert.IsTrue( recorder.Changes.Contains( (cubemap, Sandbox.Rendering.SceneObjectChange.Settings) ), "a setting" );
+
+		recorder.Changes.Clear();
+		using var texture = Texture.CreateCube( 16, 16 ).WithUAVBinding().WithMips( 1 ).WithFormat( ImageFormat.RGBA16161616F ).Finish();
+		cubemap.Texture = texture;
+		Assert.IsTrue( recorder.Changes.Contains( (cubemap, Sandbox.Rendering.SceneObjectChange.Settings) ), "its texture" );
+
+		world.ChangeListener = null;
+		cubemap.Delete();
+		world.Delete();
+	}
 }

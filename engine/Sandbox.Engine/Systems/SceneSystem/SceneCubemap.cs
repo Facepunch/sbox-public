@@ -151,6 +151,9 @@ public sealed class SceneCubemap : SceneLight
 		envMap.CalculateNormalizationSH();
 		CSceneSystem.MarkEnvironmentMapObjectUpdated( this );
 		RequiresUpdate = true;
+
+		// Renderers mirroring the scene read the texture and settings again (a probe's texture made anew)
+		NotifyChanged( Rendering.SceneObjectChange.Settings );
 	}
 
 	internal override void OnNativeInit( CSceneObject ptr )
