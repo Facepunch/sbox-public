@@ -857,7 +857,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	{
 		ref readonly var draw = ref bin.Mesh.DrawsForLod( bin.Lod )[drawIndex];
 		var material = bin.Override ?? draw.Material;
-		var depthOnly = bin.Override is null && draw.ShadowFastPath;
+		var depthOnly = bin.Override is null && (draw.ShadowFastPath || material is { DepthOnlyNow: true });
 
 		var similarity = bin.Override is null ? bin.Mesh.SimilarityForDraw( bin.Lod, drawIndex ) : 0;
 		similarity ^= similarity >> 24 ^ similarity >> 48;
@@ -1476,7 +1476,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			return material;
 		}
 
-		if ( depth && draw.ShadowFastPath && depthOnlyMaterial is not null ) return depthOnlyMaterial;
+		if ( depth && (draw.ShadowFastPath || draw.Material is { DepthOnlyNow: true }) && depthOnlyMaterial is not null ) return depthOnlyMaterial;
 
 		stripPixelShader = depth && !draw.Translucent && !draw.AlphaTest;
 		return draw.Material ?? defaultMaterial;

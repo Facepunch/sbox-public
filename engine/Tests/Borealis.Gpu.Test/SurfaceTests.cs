@@ -198,6 +198,40 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A surface material's depth draws take the shared depth-only material once its program is known not to move vertices,
+	/// while it draws opaque, one-sided and without alpha test; before its program is found it draws its own, and lists
+	/// made once from it are made again.
+	/// </summary>
+	[TestMethod]
+	public void OpaqueSurfacesDrawDepthOnlyOnceTheirProgramIsKnown()
+	{
+		var compiled = Compiler().CompileSurface( Path.Combine( Surfaces, "rock.slang" ) );
+		using var backend = new BackendDevice( Device );
+		using var program = new SurfaceProgram( backend, compiled );
+		Assert.IsFalse( program.Displaces );
+
+		using var rock = new Rock();
+		Assert.IsFalse( rock.DepthOnlyNow, "no program yet" );
+		Assert.IsTrue( rock.DepthOnlyPending );
+
+		rock.Program = program;
+		Assert.IsTrue( rock.DepthOnlyNow );
+		Assert.IsFalse( rock.DepthOnlyPending );
+
+		rock.AlphaTest = true;
+		Assert.IsFalse( rock.DepthOnlyNow, "alpha tested" );
+		rock.AlphaTest = false;
+
+		rock.TwoSided = true;
+		Assert.IsFalse( rock.DepthOnlyNow, "two-sided" );
+		rock.TwoSided = false;
+
+		program.Stale = true;
+		Assert.IsFalse( rock.DepthOnlyNow, "dropped by a hotload" );
+		Assert.IsTrue( rock.DepthOnlyPending );
+	}
+
+	/// <summary>
 	/// Every pass comes again for lightmapped draws, with the vertex stage that reads the mesh's lightmap uv (TEXCOORD3);
 	/// the plain one doesn't read it.
 	/// </summary>
