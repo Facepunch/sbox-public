@@ -583,7 +583,7 @@ internal static class MapRealRun
 		Console.WriteLine( bindingReport );
 		var (allPipelines, allPipelineMs) = gpu.PipelineCreation;
 		Console.WriteLine( $"Pipelines made in the whole run: {allPipelines}, {allPipelineMs:0.0} ms" );
-		if ( gpu.Capabilities.PipelineLibraries ) Console.WriteLine( $"Pipeline libraries in the whole run: {gpu.PipelineLibraryCreation}" );
+		if ( gpu.Capabilities.PipelineLibraries ) Console.WriteLine( $"Pipeline libraries in the whole run: {gpu.PipelineLibraryCreation}; guessed parts {gpu.PartGuesses.Made}, {gpu.PartGuesses.Used} linked, {gpu.PartGuesses.Wasted} wasted" );
 		Console.WriteLine( $"Pipelines made while their draws were skipped: {gpu.DeferredPipelines}" );
 		gpu.WaitIdle();
 		if ( censusFolder is not null ) File.WriteAllText( Path.Combine( censusFolder, "census.md" ), censusReport.ToString() );

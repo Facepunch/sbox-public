@@ -456,7 +456,7 @@ public sealed unsafe partial class Device
 		{
 			(PipelineHandle Handle, GraphicsPipelineInfo Info, ulong Layout, ulong Frame, long Requested) job = default;
 			(GraphicsPipelineInfo Info, PipelineParts Parts, string Line) prepare = default;
-			bool isJob, ahead;
+			bool isJob, ahead, guess = false;
 			lock ( buildQueue )
 			{
 				// Parts made ahead never take the last builders: a draw's pipeline asked for meanwhile starts at once
@@ -465,7 +465,12 @@ public sealed unsafe partial class Device
 				var urgent = urgentQueue.TryDequeue( out prepare );
 				isJob = !urgent && buildQueue.TryDequeue( out job );
 				ahead = !urgent && !isJob;
-				if ( ahead && !prepareQueue.TryDequeue( out prepare, out _ ) ) prepare = speculativeQueue.Dequeue();
+				if ( ahead && !prepareQueue.TryDequeue( out prepare, out _ ) )
+				{
+					prepare = speculativeQueue.Dequeue();
+					guess = true;
+				}
+
 				building++;
 				if ( ahead ) buildingAhead++;
 			}
@@ -474,7 +479,7 @@ public sealed unsafe partial class Device
 			{
 				if ( isJob ) MakeDeferred( job.Handle, job.Info, job.Layout, job.Frame, job.Requested );
 				else if ( prepare.Parts == PipelinePartManifest.Compute ) MakeComputeAhead( prepare.Info, prepare.Line );
-				else PreparePipelineParts( prepare.Info, prepare.Parts );
+				else PrepareParts( prepare.Info, prepare.Parts, guess );
 			}
 			catch ( Exception e ) when ( e is GpuException or InvalidOperationException or ArgumentException )
 			{
