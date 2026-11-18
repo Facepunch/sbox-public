@@ -1851,10 +1851,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// colour, before tonemapping) in the block being recorded, as <c>RenderTools.RenderAutoExposure</c> does on Source 2.
 	/// The bound colour target sets the size counted in and isn't drawn to.
 	/// </summary>
-	internal void CountExposure( AutoExposure exposure, Texture color, Rect viewport )
+	internal void CountExposure( AutoExposure exposure, Texture color, Rect viewport, bool multisampled = false )
 	{
 		_ = Recording;
-		exposure.Draw( context, Shader( "shaders/tonemap_query.shader" ), TextureOf( color ), (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height );
+		exposure.Draw( context, Shader( "shaders/tonemap_query.shader" ), TextureOf( color ), (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height, multisampled );
 	}
 
 	//

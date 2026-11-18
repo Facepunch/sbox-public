@@ -504,7 +504,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 	/// <see cref="Begin()"/> before tonemapping, as a camera's stages do on Source 2. The exposure it moves to
 	/// (<see cref="AutoExposure.FrameUpdate"/>, before the scene) is the next frames' <c>ToneMapScalar</c>.
 	/// </summary>
-	public void CountExposure( AutoExposure exposure ) => backend.CountExposure( exposure, SceneColor, new Rect( 0, 0, SceneColor.Width, SceneColor.Height ) );
+	public void CountExposure( AutoExposure exposure ) => backend.CountExposure( exposure, SceneColor, new Rect( 0, 0, SceneColor.Width, SceneColor.Height ), target is { Samples: > 1 } );
 
 	/// <summary>
 	/// In the block from <see cref="Begin(BorealisGpuView)"/>, once an upscaler has written <paramref name="color"/> and
