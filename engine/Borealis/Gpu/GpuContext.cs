@@ -284,8 +284,13 @@ internal abstract class GpuContext : IDisposable
 	/// and the rest differ from it only in their lighting records, <see cref="GpuDevice.LightingFreeKey"/>). An aggregate in a
 	/// resident list of casters whose settling decides (<see cref="GpuDrivenCull.Filter"/>) has its <paramref name="Moved"/>
 	/// word (<see cref="MovedWord"/>) for every fragment; <see cref="MovedNone"/> keeps it in every view.
+	/// A <paramref name="Skinned"/> mesh draw's instances are its members' base entries (<see cref="TransformBuffer.AddSkinned"/>);
+	/// with <paramref name="VertexCache"/> it draws their skinned vertices from the vertex cache (<c>D_CS_VERTEX_ANIMATION</c>), else
+	/// each vertex is skinned by its bone in the vertex shader. Either way its vertices aren't where its mesh's bounds say.
+	/// <paramref name="OwnAttributes"/> are a mesh draw's own object attributes, which <paramref name="ObjectAttributes"/> (its
+	/// lighting) go under as <see cref="SetObjectAttributes"/> layers them: batches with different sets don't share a bucket.
 	/// </summary>
-	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner, bool Instances = false, int TextureSize = TextureSizes.All, int Lod = 0, ShaderParameters[] MeshLighting = null, uint Moved = MovedNone );
+	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner, bool Instances = false, int TextureSize = TextureSizes.All, int Lod = 0, ShaderParameters[] MeshLighting = null, uint Moved = MovedNone, bool Skinned = false, bool VertexCache = false, ShaderParameters OwnAttributes = null );
 
 	/// <summary>A moved word for a static caster, or for none: kept by every filter that keeps static casters.</summary>
 	internal const uint MovedNone = uint.MaxValue;

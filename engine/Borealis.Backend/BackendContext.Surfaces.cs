@@ -139,15 +139,16 @@ internal sealed partial class BackendContext
 	/// the classic way, when the surface has no GPU-driven passes or the mode isn't one a surface draws. Blended and
 	/// overlay surfaces come here only where the scene draws such materials GPU-driven (a render order's static overlays,
 	/// glass), as .shader materials do; a surface that writes no depth, or draws in the translucent layer, has no depth
-	/// passes of its own.
+	/// passes of its own. A skinned batch (<paramref name="skinned"/>) draws in buckets of its own, under its own object
+	/// attributes (<paramref name="own"/>), with the pass that reads the vertex cache when it does (<paramref name="vertexCache"/>).
 	/// </summary>
-	GpuDrivenBucket SurfaceBucket( SurfaceMaterial material, StringToken shaderMode, bool noColor, ShaderParameters attributes, long key )
+	GpuDrivenBucket SurfaceBucket( SurfaceMaterial material, StringToken shaderMode, bool noColor, ShaderParameters attributes, long key, bool skinned = false, bool vertexCache = false, ShaderParameters own = null )
 	{
 		var state = material.RenderState;
 		if ( noColor && (!state.DepthWrite || state.Translucent) ) return null;
 		if ( !noColor && shaderMode.Value != ForwardMode.Value ) return null;
 		if ( device.Surfaces.For( material ) is not { } program ) return null;
-		if ( program.GpuDrivenPass( noColor, state.AlphaTest, LookupCombo( LightmapCombo ) is > 0, state.DrawsTranslucent ) is not { } pass ) return null;
+		if ( program.GpuDrivenPass( noColor, state.AlphaTest, LookupCombo( LightmapCombo ) is > 0, state.DrawsTranslucent, vertexCache ) is not { } pass ) return null;
 
 		// Buckets split by the materials' features where a pixel stage reads them, each drawn with a pipeline specialised for them
 		var depthOnly = pass.Pass.Pixel is null;
@@ -155,7 +156,8 @@ internal sealed partial class BackendContext
 		for ( int i = openBucket; i < gpuDrivenBucketCount; i++ )
 		{
 			var bucket = gpuDrivenBuckets[i];
-			if ( ReferenceEquals( bucket.Surface, pass ) && bucket.AttributesKey == key && bucket.NoColor == noColor && bucket.SurfaceState == state && ReferenceEquals( bucket.SurfaceFeatures, features ) ) return bucket;
+			if ( ReferenceEquals( bucket.Surface, pass ) && bucket.AttributesKey == key && bucket.NoColor == noColor && bucket.SurfaceState == state && ReferenceEquals( bucket.SurfaceFeatures, features )
+				&& bucket.Skinned == skinned && ReferenceEquals( bucket.Own, own ) ) return bucket;
 		}
 
 		if ( gpuDrivenBucketCount == gpuDrivenBuckets.Count ) gpuDrivenBuckets.Add( new GpuDrivenBucket() );
@@ -176,6 +178,8 @@ internal sealed partial class BackendContext
 		made.Batches.Clear();
 		made.Commands = 0;
 		made.Ids = false;
+		made.Skinned = skinned;
+		made.Own = own;
 		made.Fragments = 0;
 		return made;
 	}
