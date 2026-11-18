@@ -225,6 +225,7 @@ internal static class MapRealRun
 		}
 
 		if ( firstFrames.Count > 0 ) Console.WriteLine( $"First frames: {string.Join( ", ", firstFrames )}" );
+		Console.WriteLine( map.Backend.PipelineManifestReport );
 
 		// Meshlets and generated LODs build on workers after load (and levels' meshlets after their levels), asked for as draws
 		// find their GPU-driven variants, which package shaders compile on workers: the timed frames start once none has been

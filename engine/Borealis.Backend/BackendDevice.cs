@@ -127,6 +127,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	SurfaceShaders surfaces;
 
+	/// <summary>Write the surface pipeline manifest beside the pipeline cache if it changed (<see cref="SurfacePipelineManifest"/>).</summary>
+	internal bool SavePipelineManifest() => surfaces?.Manifest?.Save() ?? false;
+
+	/// <summary>What the surface pipeline manifest held and did, for reports.</summary>
+	internal string PipelineManifestReport => surfaces?.Manifest is not { } m ? "surface pipeline manifest: off" : $"surface pipeline manifest: {m.Loaded} read, {m.Replayed} made ahead, {m.Dropped} dropped, {m.Recorded} recorded";
+
 	/// <summary>
 	/// Keep static models' geometry in GPU-driven pages as they load (<see cref="GpuDrivenTables"/>), so
 	/// <see cref="GpuDriven"/> can draw them; the classic path draws from the same pages. Set before loading models; on
