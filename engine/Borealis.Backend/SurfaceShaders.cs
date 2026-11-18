@@ -149,6 +149,7 @@ public sealed class SurfaceShaders : IDisposable
 		["water_simple"] = null,
 		["terrain"] = "terrain_surface.slang",
 		["water"] = "water_surface.slang",
+		["surface_test_rock"] = null,
 	};
 
 	/// <summary>
