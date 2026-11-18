@@ -89,6 +89,11 @@ managed static class Editor.MapEditor.MapViewRender
 {
 	void OnPreRender( CMapView mapView, ISceneView sceneView );
 	bool TraceManagedGizmos( CMapView mapView, Vector2 vecPoint2D, ref asref NativeHammer.HitInfo_t hitInfo );
+
+	// Draw the view's frame on Borealis.Gpu (-hammer-borealisgpu): request is a ToolSceneManagedRender_t
+	void RenderManaged( CMapView mapView, void* request );
+	// The native window a view presented in from managed code is going, or Source 2 is about to draw in it
+	void ReleaseManaged( void* window );
 }
 
 native class CToolCamera as NativeHammer.CToolCamera
