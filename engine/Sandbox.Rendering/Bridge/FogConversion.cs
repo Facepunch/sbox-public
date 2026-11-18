@@ -5,9 +5,10 @@ namespace Sandbox.Rendering.Bridge;
 /// </summary>
 internal static class FogConversion
 {
-	public static FogSettings? ToBorealis( this FogSetup? fog ) => fog is { } f ? f.ToBorealis() : null;
+	public static FogSettings? ToBorealis( this FogSetup? fog, Func<Texture, GpuTexture> texture = null ) => fog is { } f ? f.ToBorealis( texture ) : null;
 
-	public static FogSettings ToBorealis( this in FogSetup fog ) => new()
+	/// <remarks><paramref name="texture"/> finds its sky textures (a world's, which it holds), else <see cref="MirrorContent.Texture"/>.</remarks>
+	public static FogSettings ToBorealis( this in FogSetup fog, Func<Texture, GpuTexture> texture = null ) => new()
 	{
 		Enabled = fog.Enabled,
 		DistanceEnabled = fog.DistanceEnabled,
@@ -34,7 +35,7 @@ internal static class FogConversion
 		MaximumOpacity = fog.MaximumOpacity,
 		SkyAffect = fog.SkyAffect,
 		MaxDistance = fog.MaxDistance,
-		SkyTexture = MirrorContent.Texture( fog.SkyTexture ),
+		SkyTexture = texture is null ? MirrorContent.Texture( fog.SkyTexture ) : texture( fog.SkyTexture ),
 		SkyEncoding = (Borealis.FogSkyEncoding)fog.SkyEncoding,
 		SkyContribution = fog.SkyContribution,
 		SkyBlur = fog.SkyBlur,
@@ -48,7 +49,7 @@ internal static class FogConversion
 		SunFadeDistance = fog.SunFadeDistance,
 		SunSaturation = fog.SunSaturation,
 		SkyRotation = fog.SkyRotation,
-		HeightSkyTexture = MirrorContent.Texture( fog.HeightSkyTexture ),
+		HeightSkyTexture = texture is null ? MirrorContent.Texture( fog.HeightSkyTexture ) : texture( fog.HeightSkyTexture ),
 		HeightSkyEncoding = (Borealis.FogSkyEncoding)fog.HeightSkyEncoding,
 		HeightSkyContribution = fog.HeightSkyContribution,
 		HeightSkyBlur = fog.HeightSkyBlur,

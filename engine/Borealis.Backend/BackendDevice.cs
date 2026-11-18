@@ -1195,9 +1195,23 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public override GpuTexture SheetMetadata => sheetMetadata;
 
 	/// <summary>A compiled material's texture for a shader variable (<c>g_tSkyTexture</c>), or null.</summary>
-	public GpuTexture MaterialTexture( string material, string variable )
+	public GpuTexture MaterialTexture( string material, string variable ) => MaterialTexture( LoadMaterial( material ), variable );
+
+	/// <summary>
+	/// <see cref="MaterialTexture(string, string)"/> without pinning a material that's loaded already (a world's mirror holds
+	/// it, its sky's): what's drawn outside the worlds borrows it, and it goes with the world. Loaded here otherwise.
+	/// </summary>
+	public GpuTexture LoadedMaterialTexture( string material, string variable )
 	{
-		if ( LoadMaterial( material ) is not BackendMaterial m || !m.Textures.TryGetValue( variable, out var texture ) ) return null;
+		GpuMaterial loaded;
+		lock ( sharedMaterials ) sharedMaterials.TryGetValue( material, out loaded );
+		return loaded is not null ? MaterialTexture( loaded, variable ) : MaterialTexture( material, variable );
+	}
+
+	/// <summary>A material's texture for a shader variable, or null (<see cref="MaterialTexture(string, string)"/>).</summary>
+	public GpuTexture MaterialTexture( GpuMaterial material, string variable )
+	{
+		if ( material is not BackendMaterial m || !m.Textures.TryGetValue( variable, out var texture ) ) return null;
 
 		// Used outside the material's draws, which are what ask for its mips
 		if ( texture.Stream is { } stream ) stream.Pinned = true;
@@ -1259,7 +1273,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>A model's draw's material (<see cref="LoadMaterial(string)"/>), held by the model until <see cref="ReleaseModelMaterial"/>.</summary>
-	internal GpuMaterial ModelMaterial( string path )
+	public GpuMaterial ModelMaterial( string path )
 	{
 		if ( string.IsNullOrEmpty( path ) ) return LoadMaterial( path );
 		lock ( sharedMaterials )
@@ -1282,26 +1296,40 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		}
 	}
 
-	/// <summary>A freed model no longer draws with the material at <paramref name="path"/>: unheld and unpinned, it goes, and its textures nothing else holds.</summary>
-	internal void ReleaseModelMaterial( string path )
+	/// <summary>A material a holder already holds (<see cref="ModelMaterial"/>), found again without counting it twice.</summary>
+	public GpuMaterial HeldMaterial( string path )
 	{
-		if ( string.IsNullOrEmpty( path ) ) return;
-		List<string> textures;
 		lock ( sharedMaterials )
 		{
-			if ( !materialLives.TryGetValue( path, out var life ) || life.Holders == 0 ) return;
-			if ( --life.Holders > 0 || life.Pinned ) return;
-			materialLives.Remove( path );
-			sharedMaterials.Remove( path );
-			textures = life.Textures;
-			MaterialsFreed++;
+			if ( sharedMaterials.TryGetValue( path, out var material ) ) return material;
 		}
 
-		if ( textures is null ) return;
+		return ModelMaterial( path );
+	}
+
+	/// <summary>A texture by path (as <see cref="LoadTexture"/> loads it), held by the caller until <see cref="ReleaseTexture"/> rather than pinned.</summary>
+	public GpuTexture HoldTexture( string path ) => LoadOnce( path, streamed: false, hold: true );
+
+	/// <summary>A texture a holder already holds (<see cref="HoldTexture"/>), found again without counting it twice.</summary>
+	public GpuTexture HeldTexture( string path )
+	{
+		lock ( loadedTextures )
+		{
+			if ( loadedTextures.TryGetValue( path, out var texture ) ) return texture;
+		}
+
+		return HoldTexture( path );
+	}
+
+	/// <summary>A holder of the texture at <paramref name="path"/> (<see cref="HoldTexture"/>) lets it go: held by nothing and unpinned, it's freed.</summary>
+	public void ReleaseTexture( string path ) => ReleaseTextures( [path] );
+
+	void ReleaseTextures( IEnumerable<string> paths )
+	{
 		List<GpuTexture> freed = null;
 		lock ( loadedTextures )
 		{
-			foreach ( var texture in textures )
+			foreach ( var texture in paths )
 			{
 				if ( !textureLives.TryGetValue( texture, out var life ) || life.Holders == 0 ) continue;
 				if ( --life.Holders > 0 || life.Pinned ) continue;
@@ -1315,6 +1343,24 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			texture?.Dispose();
 			TexturesFreed++;
 		}
+	}
+
+	/// <summary>A freed model no longer draws with the material at <paramref name="path"/>: unheld and unpinned, it goes, and its textures nothing else holds.</summary>
+	public void ReleaseModelMaterial( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return;
+		List<string> textures;
+		lock ( sharedMaterials )
+		{
+			if ( !materialLives.TryGetValue( path, out var life ) || life.Holders == 0 ) return;
+			if ( --life.Holders > 0 || life.Pinned ) return;
+			materialLives.Remove( path );
+			sharedMaterials.Remove( path );
+			textures = life.Textures;
+			MaterialsFreed++;
+		}
+
+		if ( textures is not null ) ReleaseTextures( textures );
 	}
 
 	/// <summary>

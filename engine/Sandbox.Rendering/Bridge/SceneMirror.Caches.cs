@@ -148,7 +148,7 @@ internal sealed partial class SceneMirror
 	{
 		if ( model?.Mesh is not { } mesh ) return null;
 
-		SceneNative.ReadSceneObjectDraws( sceneObject, drawStates );
+		SceneNative.ReadSceneObjectDraws( sceneObject, drawStates, MaterialResolver );
 		if ( drawStates.Count == 0 ) return mesh;
 
 		// Compare hash matches against scratch data; allocate only for new variants.
