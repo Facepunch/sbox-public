@@ -330,7 +330,9 @@ internal static class ToolSceneViews
 	/// </summary>
 	internal sealed unsafe class ToolOverlays : IDisposable
 	{
-		readonly SceneCustomObject lit, unlit;
+		readonly SceneCustomObject lit, unlit, noDepth;
+
+		enum Pass { Lit, Unlit, NoDepth }
 
 		struct Batch
 		{
@@ -339,7 +341,7 @@ internal static class ToolSceneViews
 			public int Count;
 			public Graphics.PrimitiveType Primitive;
 			public float LineThickness;
-			public bool Lit;
+			public Pass Pass;
 		}
 
 		readonly List<Batch> batches = new();
@@ -347,17 +349,24 @@ internal static class ToolSceneViews
 		int vertexCount;
 		readonly Dictionary<IntPtr, Material> materials = new();
 		readonly RenderAttributes attributes = new();
+		readonly RenderAttributes noDepthAttributes = new();
 
 		public ToolOverlays( SceneWorld world )
 		{
-			lit = new SceneCustomObject( world ) { RenderOverride = _ => Draw( true ) };
+			lit = new SceneCustomObject( world ) { RenderOverride = _ => Draw( Pass.Lit ) };
 			lit.Flags.IsOpaque = true;
 			lit.Flags.IsTranslucent = false;
 			lit.Flags.CastShadows = false;
-			unlit = new SceneCustomObject( world ) { RenderOverride = _ => Draw( false ) };
+			unlit = new SceneCustomObject( world ) { RenderOverride = _ => Draw( Pass.Unlit ) };
 			unlit.Flags.IsOpaque = false;
 			unlit.Flags.IsTranslucent = true;
 			unlit.Flags.CastShadows = false;
+
+			// The no-Z tool layers, over everything, as gizmos that ignore depth draw
+			noDepth = new SceneCustomObject( world ) { RenderOverride = _ => Draw( Pass.NoDepth ) };
+			noDepth.Flags.CastShadows = false;
+			noDepth.RenderLayer = SceneRenderLayer.OverlayWithoutDepth;
+			noDepthAttributes.SetCombo( "D_NO_ZTEST", 1 );
 		}
 
 		public void BeginFrame()
@@ -366,8 +375,12 @@ internal static class ToolSceneViews
 			vertexCount = 0;
 		}
 
-		// Tool layers drawn before post processing, lit with the scene: ToolRenderingLayer_t up to TRANSLUCENT
+		// ToolRenderingLayer_t: up to TRANSLUCENT drawn before post processing, lit with the scene; from UNLIT_OPAQUE_NOZ on
+		// (the no-Z, overlay and screen-space layers) without depth
 		const int LastLitToolLayer = 3;
+		const int FirstNoDepthToolLayer = 8;
+
+		static Pass PassOf( int toolLayer ) => toolLayer >= FirstNoDepthToolLayer ? Pass.NoDepth : toolLayer <= LastLitToolLayer ? Pass.Lit : Pass.Unlit;
 
 		/// <summary>
 		/// Copy out the overlay geometry of <paramref name="world"/>'s objects.
@@ -405,7 +418,7 @@ internal static class ToolSceneViews
 							Count = count,
 							Primitive = geometry.VertsPerPrimitive switch { 1 => Graphics.PrimitiveType.Points, 2 => Graphics.PrimitiveType.Lines, _ => Graphics.PrimitiveType.Triangles },
 							LineThickness = geometry.LineThickness,
-							Lit = geometry.ToolLayer <= LastLitToolLayer,
+							Pass = PassOf( geometry.ToolLayer ),
 						} );
 						vertexCount += count;
 					}
@@ -425,7 +438,7 @@ internal static class ToolSceneViews
 			return material;
 		}
 
-		void Draw( bool drawLit )
+		void Draw( Pass pass )
 		{
 			if ( vertexCount == 0 ) return;
 
@@ -433,11 +446,12 @@ internal static class ToolSceneViews
 			{
 				foreach ( var batch in batches )
 				{
-					if ( batch.Lit != drawLit ) continue;
+					if ( batch.Pass != pass ) continue;
 
-					attributes.Set( "g_LineThickness", batch.LineThickness );
-					attributes.Set( "UncompressedTangentFrame", true );
-					Graphics.DrawInternal( all + batch.Start, batch.Count, null, 0, batch.Material, attributes, batch.Primitive );
+					var drawAttributes = pass == Pass.NoDepth ? noDepthAttributes : attributes;
+					drawAttributes.Set( "g_LineThickness", batch.LineThickness );
+					drawAttributes.Set( "UncompressedTangentFrame", true );
+					Graphics.DrawInternal( all + batch.Start, batch.Count, null, 0, batch.Material, drawAttributes, batch.Primitive );
 				}
 			}
 		}
@@ -446,6 +460,7 @@ internal static class ToolSceneViews
 		{
 			lit.Delete();
 			unlit.Delete();
+			noDepth.Delete();
 			materials.Clear();
 		}
 	}
@@ -465,8 +480,12 @@ internal static class ToolSceneViews
 		readonly HashSet<SceneLight> seen = new();
 		readonly List<SceneLight> gone = new();
 
+		SceneLight sunSource;
+		SceneDirectionalLight sun;
+
 		public void BeginFrame()
 		{
+			sunSource = null;
 			seen.Clear();
 			seenSkies.Clear();
 		}
@@ -491,11 +510,17 @@ internal static class ToolSceneViews
 					var kind = (ShadowLightType)light.lightNative.GetLightType();
 					if ( kind is not (ShadowLightType.Point or ShadowLightType.Spot or ShadowLightType.Directional) ) continue;
 
+					// One sun, the last directional light the worlds have, as native's light binner keeps the last it meets
+					if ( kind == ShadowLightType.Directional )
+					{
+						sunSource = light;
+						continue;
+					}
+
 					if ( !proxies.TryGetValue( light, out var proxy ) || !proxy.IsValid() )
 					{
 						proxy = kind switch
 						{
-							ShadowLightType.Directional => new SceneDirectionalLight( World, Rotation.Identity, light.LightColor ),
 							ShadowLightType.Spot => new SceneSpotLight( World, light.Position, light.LightColor ),
 							_ => new ScenePointLight( World, light.Position, light.Radius, light.LightColor ),
 						};
@@ -561,6 +586,17 @@ internal static class ToolSceneViews
 		/// </summary>
 		public void EndFrame()
 		{
+			if ( sunSource is not null )
+			{
+				if ( !sun.IsValid() ) sun = new SceneDirectionalLight( World, Rotation.Identity, sunSource.LightColor );
+				Copy( sunSource, sun );
+			}
+			else if ( sun.IsValid() )
+			{
+				sun.Delete();
+				sun = null;
+			}
+
 			foreach ( var (light, proxy) in proxies )
 			{
 				if ( !seen.Contains( light ) ) gone.Add( light );
@@ -594,6 +630,8 @@ internal static class ToolSceneViews
 			proxies.Clear();
 			foreach ( var proxy in skies.Values ) proxy.Delete();
 			skies.Clear();
+			if ( sun.IsValid() ) sun.Delete();
+			sun = null;
 			World.Delete();
 		}
 	}
