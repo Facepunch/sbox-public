@@ -46,6 +46,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		/// </summary>
 		public double SyncMs;
 
+		/// <summary>When it was last prepared (<see cref="System.Diagnostics.Stopwatch"/> ticks): one idle for <see cref="ViewIdleSeconds"/> is freed.</summary>
+		public long LastUsed;
+
 		/// <summary>
 		/// The frustum the view's planar reflection planes are tested against.
 		/// </summary>
@@ -152,6 +155,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// </summary>
 	const ulong ExtraWorldIdleFrames = 120;
 
+	/// <summary>Seconds a view (or the cube capture faces) can go without being drawn before its resources are freed.</summary>
+	internal static double ViewIdleSeconds { get; set; } = 10;
+
 	// Reused sweep buffers avoid per-frame allocations.
 	readonly List<ViewKey> invalidViews = new();
 	readonly List<SceneWorld> invalidWorlds = new();
@@ -186,10 +192,15 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// </summary>
 	void FreeInvalid()
 	{
+		// A view not drawn for a while (its camera's scene unloaded but not collected yet, a render-to-texture that stopped)
+		// gives back its render system's targets, shadow maps and light lists; drawn again, it's made again
+		var idleSince = System.Diagnostics.Stopwatch.GetTimestamp() - (long)(ViewIdleSeconds * System.Diagnostics.Stopwatch.Frequency);
 		foreach ( var (key, state) in views )
 		{
-			if ( state.IsOrphaned ) invalidViews.Add( key );
+			if ( state.IsOrphaned || (!state.Rendering && state.LastUsed < idleSince) ) invalidViews.Add( key );
 		}
+
+		FreeIdleCaptures( idleSince );
 
 		foreach ( var (world, _) in mirrors )
 		{
@@ -337,6 +348,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		SyncSkybox( mirror, camera, setup );
 
 		var state = given ?? StateFor( camera, setup.ViewHash );
+		state.LastUsed = System.Diagnostics.Stopwatch.GetTimestamp();
 		state.Drawer.Mirror = mirror;
 		state.View.SubWorlds = SyncExtraWorlds( mirror, camera, setup, state.Drawer.ExtraMirrors );
 		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( syncStart ).TotalMilliseconds;

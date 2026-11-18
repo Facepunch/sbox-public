@@ -159,6 +159,7 @@ internal sealed partial class SceneBridge
 		// Recorded on this thread, as the lab's captures are: a face is a small frame, and six back to back in one engine
 		// frame gain nothing from workers
 		var state = captureFaces[i] ??= new CameraState( camera ) { System = { ParallelRecording = false } };
+		lastCaptureFace = System.Diagnostics.Stopwatch.GetTimestamp();
 		state.Camera.SetTarget( camera );
 		// What the sync loads (a map's textures and lightmaps at the first capture after a load) written with the face's
 		// submission rather than each submitted and waited for
@@ -173,6 +174,24 @@ internal sealed partial class SceneBridge
 	}
 
 	/// <summary>Free the capture faces and their copies and filters.</summary>
+	// When a capture last rendered a face (Stopwatch ticks), for freeing the faces' systems once captures stop
+	long lastCaptureFace;
+
+	/// <summary>The capture faces' render systems and targets, once no capture has drawn a face since <paramref name="idleSince"/>.</summary>
+	void FreeIdleCaptures( long idleSince )
+	{
+		if ( spread is not null || lastCaptureFace == 0 || lastCaptureFace >= idleSince ) return;
+		lastCaptureFace = 0;
+		for ( int i = 0; i < captureFaces.Length; i++ )
+		{
+			captureFaces[i]?.Dispose();
+			captureFaces[i] = null;
+		}
+
+		foreach ( var (_, capture) in cubeCaptures ) capture.Dispose();
+		cubeCaptures.Clear();
+	}
+
 	void ShutdownCaptures()
 	{
 		spread?.Camera.Dispose();
