@@ -872,6 +872,21 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		t.Layout = ImageLayout.ShaderRead;
 	}
 
+	/// <summary>
+	/// Someone else's buffer on this device (the engine's copy of a game's buffer) as a <see cref="GpuBuffer"/> draws can
+	/// bind by attribute. Disposing it leaves the buffer alone; its owner keeps it alive while it's bound.
+	/// </summary>
+	public GpuBuffer BorrowBuffer( BufferHandle handle, int elementCount, int elementSize, string name )
+	{
+		var size = Math.Max( (long)elementCount * elementSize, 16 );
+#pragma warning disable CA2000 // Returned, and disposing it frees nothing
+		return new GpuBuffer( new BackendBuffer( this, handle, size, name, owned: false ), Math.Max( elementCount, 1 ), Math.Max( elementSize, 1 ) );
+#pragma warning restore CA2000
+	}
+
+	/// <summary>Whether <paramref name="buffer"/> is bound as <paramref name="handle"/>.</summary>
+	public static bool Binds( GpuBuffer buffer, BufferHandle handle ) => buffer?.Resource is BackendBuffer backing && backing.Handle.Equals( handle );
+
 	/// <inheritdoc/>
 	public override IDisposable CreateBuffer( int elementCount, int elementSize, GpuBuffer.UsageFlags usage, string name )
 	{

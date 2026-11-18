@@ -87,9 +87,10 @@ internal sealed class BackendTexture : GpuTexture
 }
 
 /// <summary>
-/// A <see cref="GpuBuffer"/>'s device side: a <see cref="Borealis.Gpu"/> buffer in video memory.
+/// A <see cref="GpuBuffer"/>'s device side: a <see cref="Borealis.Gpu"/> buffer in video memory. A borrowed one
+/// (<paramref name="owned"/> false) is someone else's buffer, which disposing leaves alone.
 /// </summary>
-internal sealed class BackendBuffer( BackendDevice device, BufferHandle handle, long size, string name ) : IDisposable
+internal sealed class BackendBuffer( BackendDevice device, BufferHandle handle, long size, string name, bool owned = true ) : IDisposable
 {
 	public BufferHandle Handle { get; } = handle;
 	public long Size { get; } = size;
@@ -98,7 +99,7 @@ internal sealed class BackendBuffer( BackendDevice device, BufferHandle handle, 
 
 	public void Dispose()
 	{
-		if ( disposed ) return;
+		if ( disposed || !owned ) return;
 		disposed = true;
 		device.Gpu.Destroy( Handle );
 	}
