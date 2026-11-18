@@ -956,7 +956,9 @@ internal sealed class SurfaceProgram : IDisposable
 
 					try
 					{
-						device.Gpu.QueuePipelineParts( info, parts, speculative: true );
+						// GPU-driven passes first (most of what a map draws), then skinned ones, then the rest, across programs
+						var order = pass.Pass.Name.Contains( ShaderPasses.GpuDriven, StringComparison.Ordinal ) ? 0 : pass.Pass.Name.Contains( ShaderPasses.Skinned, StringComparison.Ordinal ) ? 1 : 2;
+						device.Gpu.QueuePipelineParts( info, parts, speculative: true, order );
 					}
 					catch ( Exception e ) when ( e is GpuException or ArgumentException or InvalidOperationException )
 					{

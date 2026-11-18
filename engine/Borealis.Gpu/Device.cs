@@ -729,6 +729,8 @@ public sealed unsafe partial class Device : IDisposable
 		// Bounded: a GPU that stopped mustn't hold the process at exit
 		try { WaitFlushed(); }
 		catch ( GpuException ) { }
+		try { spirvLoad?.Wait(); }
+		catch ( AggregateException ) { }
 		StopBuilding();
 		StopOptimising();
 		foreach ( var swapChain in swapChains.ToArray() ) swapChain.Dispose();
@@ -741,6 +743,7 @@ public sealed unsafe partial class Device : IDisposable
 		DestroyAllResources();
 		Bindless.Dispose();
 		SavePipelineCache();
+		PruneSpirv();
 		DestroyPipelineCache();
 		graphicsQueue.Dispose();
 		if ( computeQueue != graphicsQueue ) computeQueue.Dispose();

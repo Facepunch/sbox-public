@@ -624,7 +624,11 @@ public sealed unsafe partial class Device
 			var hash = pipelineLibraries ? SpirvHash( spirv ) : 0;
 			var (index, generation) = Shaders.Add( new ShaderRecord { Module = module, Hash = hash } );
 			var handle = new ShaderHandle( index, generation );
-			if ( pipelineLibraries ) ShaderMade( handle, hash );
+			if ( pipelineLibraries )
+			{
+				KeepSpirv( hash, spirv );
+				ShaderMade( handle, hash );
+			}
 			return handle;
 		}
 	}
@@ -706,8 +710,45 @@ public sealed unsafe partial class Device
 	/// </summary>
 	public PipelineHandle CreateComputePipeline( in ComputePipelineInfo info )
 	{
-		using var strings = new NativeStrings();
 		var layout = PipelineLayout( info.Sets );
+		var started = System.Diagnostics.Stopwatch.GetTimestamp();
+
+		// Made ahead from the part manifest (a builder making it now is waited for), else made here and recorded
+		var line = ComputeLine( info );
+		var pipeline = line is null ? 0 : TakeComputeAhead( line );
+		if ( pipeline == 0 )
+		{
+			using ( Zone( ZonePipeline ) ) pipeline = MakeCompute( info, layout );
+			Interlocked.Add( ref computeTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
+			Interlocked.Increment( ref computeMade );
+		}
+
+		CountPipeline( started );
+		if ( line is not null ) partManifest.Use( line, ShaderHash( info.Shader ) );
+		SetName( VkObjectType.Pipeline, pipeline, info.Name );
+		if ( shaderStatistics ) KeepStatistics( pipeline, info.Name );
+
+		var (index, generation) = Pipelines.Add( new PipelineRecord { Pipeline = pipeline, Layout = layout, BindPoint = Vulkan.Vk.BindPointCompute } );
+		return new PipelineHandle( index, generation );
+	}
+
+	ulong MakeCompute( in ComputePipelineInfo info, ulong layout )
+	{
+		// A shader isn't destroyed while a pipeline is made from it on another thread (Destroy( ShaderHandle ) waits)
+		shaderUse.EnterReadLock();
+		try
+		{
+			return MakeComputeWithShader( info, layout );
+		}
+		finally
+		{
+			shaderUse.ExitReadLock();
+		}
+	}
+
+	ulong MakeComputeWithShader( in ComputePipelineInfo info, ulong layout )
+	{
+		using var strings = new NativeStrings();
 		VkSpecializationInfo specialization;
 		var create = new VkComputePipelineCreateInfo
 		{
@@ -726,16 +767,8 @@ public sealed unsafe partial class Device
 		};
 
 		ulong pipeline;
-		var started = System.Diagnostics.Stopwatch.GetTimestamp();
-		using ( Zone( ZonePipeline ) ) Vk.vkCreateComputePipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateComputePipelines ({info.Name})" );
-		CountPipeline( started );
-		Interlocked.Add( ref computeTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
-		Interlocked.Increment( ref computeMade );
-		SetName( VkObjectType.Pipeline, pipeline, info.Name );
-		if ( shaderStatistics ) KeepStatistics( pipeline, info.Name );
-
-		var (index, generation) = Pipelines.Add( new PipelineRecord { Pipeline = pipeline, Layout = layout, BindPoint = Vulkan.Vk.BindPointCompute } );
-		return new PipelineHandle( index, generation );
+		Vk.vkCreateComputePipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateComputePipelines ({info.Name})" );
+		return pipeline;
 	}
 
 	/// <summary>

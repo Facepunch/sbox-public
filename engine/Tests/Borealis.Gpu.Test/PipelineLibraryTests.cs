@@ -322,11 +322,17 @@ public class PipelineLibraryTests : GpuTest
 
 			var file = Path.Combine( folder, "pipeline-parts.txt" );
 			Assert.IsTrue( File.Exists( file ) );
+			Assert.AreEqual( 2, Directory.GetFiles( Path.Combine( folder, "spirv" ), "*.spv" ).Length, "the vertex and pixel shaders' SPIR-V" );
 			File.AppendAllLines( file, ["1\tP\tnot a hash", "garbage", "1\tO\t999.1\t1\t1\t0"] );
 
 			using ( var device = Open() )
 			{
 				Assert.AreEqual( 4, device.PartManifest.Loaded, "the four parts; the lines that don't read are dropped" );
+
+				// From the SPIR-V kept beside the manifest: before any module of the program is made
+				var clock = System.Diagnostics.Stopwatch.StartNew();
+				while ( device.PipelineLibraryCreation.Parts < 4 && clock.Elapsed < TimeSpan.FromSeconds( 60 ) ) System.Threading.Thread.Sleep( 10 );
+				Assert.AreEqual( 4, device.PipelineLibraryCreation.Parts, "made from the kept SPIR-V, before the program's modules" );
 				var info = Info( device );
 				Assert.IsTrue( device.PartsRecorded( info.VertexShader ) && device.PartsRecorded( info.FragmentShader ) );
 				Assert.IsTrue( device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );
@@ -421,6 +427,51 @@ public class PipelineLibraryTests : GpuTest
 		{
 			File.Delete( file );
 		}
+	}
+
+	/// <summary>
+	/// Compute pipelines go in the part manifest too: the next run makes one on a builder as its module is made, and
+	/// creating it then takes that pipeline instead of making another.
+	/// </summary>
+	[TestMethod]
+	public void PartManifestMakesComputePipelinesAhead()
+	{
+		RequireLibraries();
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-compute-manifest-{Environment.ProcessId}-{Guid.NewGuid():n}" );
+		var errors = new List<string>();
+		Device Open() => Device.Create( new DeviceOptions
+		{
+			Presentation = false,
+			Validation = true,
+			PipelineCacheFolder = folder,
+			PipelinePartManifest = true,
+			Message = m => { if ( m.Severity == MessageSeverity.Error ) lock ( errors ) errors.Add( $"{m.Id}: {m.Text}" ); },
+		} );
+
+		try
+		{
+			using ( var device = Open() )
+			{
+				device.Destroy( device.CreateComputePipeline( new ComputePipelineInfo { Shader = device.CreateShader( Load( "pattern.cs.spv" ), "pattern" ), Entry = "MainCs" } ) );
+				Assert.AreEqual( 1, device.PartManifest.Recorded );
+			}
+
+			using ( var device = Open() )
+			{
+				var shader = device.CreateShader( Load( "pattern.cs.spv" ), "pattern" );
+				Assert.IsTrue( device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );
+				Assert.AreEqual( 1, device.ComputePipelineCreation.Made, "made ahead as its module was made" );
+				var pipeline = device.CreateComputePipeline( new ComputePipelineInfo { Shader = shader, Entry = "MainCs" } );
+				Assert.AreEqual( 1, device.ComputePipelineCreation.Made, "creating it took the one made ahead" );
+				device.Destroy( pipeline );
+			}
+		}
+		finally
+		{
+			Directory.Delete( folder, recursive: true );
+		}
+
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
 	}
 
 	static byte[] Render( Device device, SampleScene scene, TextureHandle target )
