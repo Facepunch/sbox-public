@@ -1043,8 +1043,8 @@ public class GpuDrivenTests : GpuTest
 
 	/// <summary>
 	/// A page all of whose meshes have gone (their models freed) is freed at a frame's start, with the records keyed by its
-	/// slot, so a page that takes the slot later doesn't find them; one that still holds a mesh, and the page being filled,
-	/// stay.
+	/// slot, so a page that takes the slot later doesn't find them; one that still holds a mesh stays. The page being filled
+	/// goes too once it's empty (a map unloaded left two 56 MiB index pages behind), and the next mesh starts a new one.
 	/// </summary>
 	[TestMethod]
 	public void PagesWhoseMeshesHaveAllGoneAreFreed()
@@ -1068,13 +1068,19 @@ public class GpuDrivenTests : GpuTest
 		tables.FreeEmptyPages();
 		Assert.AreEqual( 0, tables.PagesFreed );
 
-		// Both gone: freed, its records forgotten; the page being filled stays
+		// Both gone, and the page being filled emptied: both freed, their records forgotten
 		tables.ReleaseRange( slotB, big.Length );
 		tables.ReleaseRange( slotC, 1024 );
 		tables.FreeEmptyPages();
-		Assert.AreEqual( 1, tables.PagesFreed );
-		Assert.AreEqual( bytesBefore - GpuDrivenTables.VertexPageSize, tables.Bytes.Pages );
+		Assert.AreEqual( 2, tables.PagesFreed );
+		Assert.AreEqual( bytesBefore - 2 * GpuDrivenTables.VertexPageSize, tables.Bytes.Pages );
 		Assert.AreNotEqual( record, tables.Geometry( slotA, offsetA, layout, 16 ), "a record for the freed slot is made afresh" );
+
+		// The next mesh starts a new page
+		var (slotD, offsetD) = tables.AddVertices( new byte[1024] );
+		Assert.AreEqual( 0, offsetD );
+		Assert.AreEqual( bytesBefore - GpuDrivenTables.VertexPageSize, tables.Bytes.Pages );
+		tables.ReleaseRange( slotD, 1024 );
 		Device.WaitIdle();
 	}
 

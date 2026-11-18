@@ -231,7 +231,7 @@ public sealed unsafe partial class Device
 			Allocation memory;
 			try
 			{
-				memory = Allocator.Allocate( requirements, info.Memory, image: false, info.Content );
+				memory = Allocator.Allocate( requirements, info.Memory, image: false, content: info.Content );
 				Vk.vkBindBufferMemory( Vk.Device, buffer, memory.Memory, memory.Offset ).Check( "vkBindBufferMemory" );
 			}
 			catch

@@ -56,7 +56,12 @@ internal static class MirrorContent
 	{
 		pending = false;
 		while ( freedModels.TryDequeue( out var freed ) ) freed.Free();
-		if ( runtimeMeshes.TryGetValue( model, out var known ) ) return known.Mesh;
+		if ( runtimeMeshes.TryGetValue( model, out var known ) )
+		{
+			// Freed after no world held it for a while (BackendDevice.TrackModel): made again
+			if ( known.Mesh.Geometry is not BackendModel { Freed: true } ) return known.Mesh;
+			runtimeMeshes.Remove( model );
+		}
 
 		// Every mesh: a model built in code has no default mesh groups (native draws them all)
 		RenderMesh mesh;
@@ -70,6 +75,7 @@ internal static class MirrorContent
 		else mesh = BackendModel.Create( gpu, ModelFile.Read( model.SaveToVmdl(), gpu.Content.TryRead ), meshGroups: ulong.MaxValue, drawFastPath: true );
 
 		runtimeMeshes.AddOrUpdate( model, new RuntimeModel( mesh ) );
+		gpu.TrackModel( mesh );
 		return mesh;
 	}
 
@@ -225,6 +231,32 @@ internal static class MirrorContent
 	{
 		while ( freedCaptures.TryDequeue( out var freed ) ) freed.Dispose();
 		while ( freedModels.TryDequeue( out var model ) ) model.Free();
+
+		// Released cubes a few frames on, once worlds have dropped the probes that drew with them
+		collectFrames++;
+		while ( releasedCaptures.TryPeek( out var released ) && collectFrames - released.Frame >= ReleasedCaptureFrames )
+		{
+			releasedCaptures.TryDequeue( out _ );
+			released.Texture.Dispose();
+		}
+	}
+
+	// Cubes of engine textures that were disposed (ReleaseCapture), with the FreeCollected call they were released at
+	static readonly System.Collections.Concurrent.ConcurrentQueue<(GpuTexture Texture, long Frame)> releasedCaptures = new();
+	static long collectFrames;
+	const int ReleasedCaptureFrames = 3;
+
+	/// <summary>
+	/// An engine texture was disposed (a realtime probe's cube, as its component goes): the cube made for it is freed a few
+	/// frames on (<see cref="FreeCollected"/>), and a capture asked for it later makes another.
+	/// </summary>
+	public static void ReleaseCapture( Texture texture )
+	{
+		if ( texture is null || !captures.TryGetValue( texture, out var capture ) ) return;
+		captures.Remove( texture );
+		if ( capture.Owned && capture.Texture is not null ) releasedCaptures.Enqueue( (capture.Texture, collectFrames) );
+		capture.Owned = false;
+		capture.Texture = null;
 	}
 
 	/// <summary>Whether an engine texture is a cube made at run time for compute to write (a realtime probe's), which <see cref="CaptureCube"/> captures into.</summary>
