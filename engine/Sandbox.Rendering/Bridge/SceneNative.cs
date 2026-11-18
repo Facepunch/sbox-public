@@ -10,7 +10,8 @@ internal static class SceneNative
 	/// <summary>
 	/// Replace the list with native per-object draws. Refresh on model/material changes, not every frame.
 	/// </summary>
-	public static unsafe void ReadSceneObjectDraws( SceneObject sceneObject, List<RenderMesh.DrawState> into )
+	/// <remarks><paramref name="material"/> finds each draw's material (a world's, which it holds), else <see cref="MirrorContent.Material"/>.</remarks>
+	public static unsafe void ReadSceneObjectDraws( SceneObject sceneObject, List<RenderMesh.DrawState> into, Func<Material, GpuMaterial> material = null )
 	{
 		into.Clear();
 
@@ -20,16 +21,17 @@ internal static class SceneNative
 		for ( int i = 0; ; i++ )
 		{
 			int mesh = -1, drawCall = 0, flags = 0;
-			var material = RenderTools.GetSceneObjectDraw( sceneObject, i, (IntPtr)(&mesh), (IntPtr)(&drawCall), (IntPtr)(&flags) );
+			var native = RenderTools.GetSceneObjectDraw( sceneObject, i, (IntPtr)(&mesh), (IntPtr)(&drawCall), (IntPtr)(&flags) );
 			if ( mesh < 0 ) return;
 
-			into.Add( new RenderMesh.DrawState( mesh, drawCall, MirrorContent.Material( Material.FromNative( material ) ), (flags & Visible) != 0, (flags & AlphaBlended) != 0, (flags & ShadowFastPath) != 0, (flags & Lightmap) != 0 ) );
+			var drawn = Material.FromNative( native );
+			into.Add( new RenderMesh.DrawState( mesh, drawCall, material is null ? MirrorContent.Material( drawn ) : material( drawn ), (flags & Visible) != 0, (flags & AlphaBlended) != 0, (flags & ShadowFastPath) != 0, (flags & Lightmap) != 0 ) );
 		}
 	}
 
 	/// <summary>
 	/// Pack native light data, flags and bake index (-1 if absent), excluding shadows (<c>RenderTools.PackSceneLight</c>).
-	/// Returns false without a native light.
+	/// Returns false without a native light. Only the tests use it now, as the reference <see cref="LightPacking"/> matches.
 	/// </summary>
 	public static unsafe bool PackSceneLight( SceneLight light, out LightBinnerFeature.GpuLight packed, out uint flags, out int bakeIndex )
 	{

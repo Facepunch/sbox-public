@@ -57,6 +57,7 @@ native static class RenderTools as NativeEngine.RenderTools
 	void GetMaterialBindCounts( void* pBind, CastTo[int*] void* pFull, CastTo[int*] void* pSimilar );
 	ulong GetMaterialSimilarityKey( IMaterial material );
 	int PackSceneLight( CSceneLightObject light, void* pOut, CastTo[int*] void* pBakeLightIndex );
+	bool ReadSceneLightDescription( CSceneLightObject light, void* pOut );
 	bool SetSceneObjectLightmapAttributes( CSceneObject sceneObject, CRenderAttributes attributes );
 	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, StringToken nShaderMode, IModel hModel, RenderBufferHandle_t hDrawArgBuffer, int nBufferOffset, CRenderAttributes attributes );
 	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, StringToken nShaderMode, IModel hModel, CastTo[CTransformUnaligned*] void* transforms, int numTransforms, CRenderAttributes attributes, int nLodLevel );

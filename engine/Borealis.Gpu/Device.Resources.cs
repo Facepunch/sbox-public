@@ -231,7 +231,7 @@ public sealed unsafe partial class Device
 			Allocation memory;
 			try
 			{
-				memory = Allocator.Allocate( requirements, info.Memory, image: false );
+				memory = Allocator.Allocate( requirements, info.Memory, image: false, info.Content );
 				Vk.vkBindBufferMemory( Vk.Device, buffer, memory.Memory, memory.Offset ).Check( "vkBindBufferMemory" );
 			}
 			catch
@@ -328,7 +328,7 @@ public sealed unsafe partial class Device
 			try
 			{
 				var target = (desc.Usage & (TextureUsage.ColorTarget | TextureUsage.DepthTarget | TextureUsage.Storage)) != 0;
-				memory = Allocator.Allocate( requirements, MemoryLocation.Device, image: true, target );
+				memory = Allocator.Allocate( requirements, MemoryLocation.Device, image: true, target, desc.Content );
 				Vk.vkBindImageMemory( Vk.Device, image, memory.Memory, memory.Offset ).Check( "vkBindImageMemory" );
 			}
 			catch
@@ -546,6 +546,18 @@ public sealed unsafe partial class Device
 
 	/// <summary>Whether a handle names a texture that hasn't been destroyed.</summary>
 	public bool IsAlive( TextureHandle texture ) => Textures.IsAlive( texture.Index, texture.Generation );
+
+	/// <summary>
+	/// Whether <paramref name="texture"/>'s memory is in a shared block less than <paramref name="fullness"/> used: what an
+	/// unload left behind keeps such blocks from going back, and a texture that can be made again elsewhere (a streamed
+	/// one's next image) lets them drain.
+	/// </summary>
+	public bool InSparseBlock( TextureHandle texture, double fullness )
+	{
+		if ( !IsAlive( texture ) ) return false;
+		var block = Get( texture ).Memory.Block;
+		return block is { Dedicated: false } && block.Used < block.Size * fullness;
+	}
 
 	/// <summary>
 	/// A sampled texture's index in the bindless table (<c>Bindless::GetTexture2D</c> and friends); its sRGB view is at

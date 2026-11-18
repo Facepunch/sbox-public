@@ -399,6 +399,27 @@ internal sealed class MeshletStore : IDisposable
 	}
 
 	/// <summary>
+	/// Forget the ranges in the index page at <paramref name="slot"/>, whose meshes have all gone (the page is being freed,
+	/// and its slot may name another page later); false while one is being built or uploaded, to be asked again next frame.
+	/// Their meshlet records stay where they are: nothing draws them any more.
+	/// </summary>
+	public bool TryForgetPage( int slot )
+	{
+		lock ( gate )
+		{
+			foreach ( var (range, entry) in entries )
+			{
+				if ( range.PageSlot == slot && entry.State is State.Building or State.Built or State.Uploaded ) return false;
+			}
+
+			foreach ( var range in entries.Keys.Where( r => r.PageSlot == slot ).ToList() ) entries.Remove( range );
+			foreach ( var range in waitingDraws.Keys.Where( r => r.PageSlot == slot ).ToList() ) waitingDraws.Remove( range );
+			pageRanges.Remove( slot );
+			return true;
+		}
+	}
+
+	/// <summary>
 	/// At a frame's start, on the thread that records it: publish rewrites old enough to be safe, then upload built ranges
 	/// within the frame's budget, in a list of its own submitted ahead of the frame's.
 	/// </summary>

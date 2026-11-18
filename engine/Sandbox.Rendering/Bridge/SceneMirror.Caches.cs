@@ -107,7 +107,7 @@ internal sealed partial class SceneMirror
 		RenderMesh mesh;
 		try
 		{
-			mesh = MirrorContent.Mesh( model, out var pending );
+			mesh = MirrorContent.Mesh( model, out var pending, pin: false );
 
 			// Still loading on Borealis.Gpu: nothing is cached, and what draws it is asked again once it's read (CheckLoaded)
 			if ( pending )
@@ -126,7 +126,13 @@ internal sealed partial class SceneMirror
 
 		cached = new CachedModel { Model = model, Mesh = mesh, Revision = model.Revision };
 		models[model] = cached;
-		if ( mesh is not null ) held[mesh] = cached;
+		if ( mesh is not null )
+		{
+			held[mesh] = cached;
+
+			// Held while it's cached here: a model no world caches is freed after a while (BackendDevice.ReleaseModel)
+			MirrorContent.Gpu?.HoldModel( mesh );
+		}
 		built++;
 
 		// Idle until something holds it
@@ -142,7 +148,7 @@ internal sealed partial class SceneMirror
 	{
 		if ( model?.Mesh is not { } mesh ) return null;
 
-		SceneNative.ReadSceneObjectDraws( sceneObject, drawStates );
+		SceneNative.ReadSceneObjectDraws( sceneObject, drawStates, MaterialResolver );
 		if ( drawStates.Count == 0 ) return mesh;
 
 		// Compare hash matches against scratch data; allocate only for new variants.
@@ -253,7 +259,12 @@ internal sealed partial class SceneMirror
 				break;
 
 			case CachedModel model:
-				if ( model.Mesh is not null ) held.Remove( model.Mesh );
+				if ( model.Mesh is not null )
+				{
+					held.Remove( model.Mesh );
+					MirrorContent.Gpu?.ReleaseModel( model.Mesh );
+				}
+
 				if ( models.GetValueOrDefault( model.Model ) == model ) models.Remove( model.Model );
 
 				foreach ( var (_, list) in model.Variants )

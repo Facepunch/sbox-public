@@ -1,5 +1,5 @@
-// gizmo_grid.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// gizmo_grid: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 //
 // An anti-aliased grid shader with major & axis lines.
 // Based on https://bgolus.medium.com/the-best-darn-grid-shader-yet-727f9278b9d8#3e73
@@ -9,11 +9,11 @@
 // HEADER: CompileTargets = ( IS_SM_50 && ( PC || VULKAN ) );
 // HEADER: Description = "Grid";
 
-// MODES: Default();
-// MODES: Forward();
-// MODES: Depth();
-
 #include "sbox/pass.slangh"
+
+Mode( Default );
+Mode( Forward );
+Mode( Depth );
 
     // Opt out of stupid shit
     #define CUSTOM_MATERIAL_INPUTS

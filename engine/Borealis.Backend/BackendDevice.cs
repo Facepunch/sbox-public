@@ -263,6 +263,44 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>Calls drawn from the resident cull, and its dispatches, items, views and entries, for tests and reports.</summary>
 	internal long ResidentCullCalls, ResidentCullDispatches, ResidentCullItems, ResidentCullViews, ResidentCullEntries, ResidentCullListsFromIds;
 
+	/// <summary>Prepass calls culled in two phases (<see cref="HiZOcclusion"/>), and those that tested against a Hi-Z.</summary>
+	internal long HiZCalls, HiZTested;
+
+	readonly List<(uint Frame, BufferHandle Buffer, long Offset)> hizCounts = new();
+
+	/// <summary>A two-phase call's candidates' arguments, whose counts <see cref="HiZCounts"/> reads once its frame is done.</summary>
+	internal void CountHiZ( BufferHandle buffer, long offset, bool tested )
+	{
+		System.Threading.Interlocked.Increment( ref HiZCalls );
+		if ( tested ) System.Threading.Interlocked.Increment( ref HiZTested );
+		lock ( hizCounts )
+		{
+			if ( hizCounts.Count > 0 && hizCounts[0].Frame != GpuDrivenFrame ) hizCounts.Clear();
+			hizCounts.Add( (GpuDrivenFrame, buffer, offset) );
+		}
+	}
+
+	/// <summary>
+	/// The last GPU-driven frame's two-phase calls' candidates (fragments its prepasses left for the second phase) and how many
+	/// of them the Hi-Z culled, read from the frame's regions: only once the GPU is done with it, before the next frame.
+	/// </summary>
+	internal (long Candidates, long Occluded) HiZCounts()
+	{
+		var (candidates, occluded) = (0L, 0L);
+		lock ( hizCounts )
+		{
+			foreach ( var (frame, buffer, offset) in hizCounts )
+			{
+				if ( frame != GpuDrivenFrame ) continue;
+				var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( Gpu.Map( buffer ).Slice( (int)offset, 32 ) );
+				candidates += words[3];
+				occluded += words[4];
+			}
+		}
+
+		return (candidates, occluded);
+	}
+
 	internal void CountResidentCull( int items, int views, long entries )
 	{
 		System.Threading.Interlocked.Increment( ref ResidentCullDispatches );
@@ -508,6 +546,19 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// than the triangles it saves in SS2 and Construct); <c>-shadow-meshlets</c> turns it on, with <see cref="Meshlets"/>.
 	/// </summary>
 	public bool ShadowMeshlets { get; set; } = HasSwitch( "-shadow-meshlets" );
+
+	/// <summary>
+	/// Two-phase Hi-Z occlusion in GPU-driven depth prepasses that draw ids (docs/managed/borealis-gpu-driven.md, "Hi-Z
+	/// occlusion"): the fragments forward found visible last frame draw first, a Hi-Z is built from their depth, and the rest
+	/// draw only where they pass it. Off by default (an experiment); <c>-hiz-occlusion</c> turns it on.
+	/// </summary>
+	public bool HiZOcclusion { get; set; } = HasSwitch( "-hiz-occlusion" );
+
+	/// <summary>
+	/// Fragments under which a prepass call draws in one phase with <see cref="HiZOcclusion"/>: a Hi-Z build and a second ids
+	/// pass cost more than a call this small (the 3D skybox's) can save.
+	/// </summary>
+	internal int HiZMinFragments { get; set; } = 2048;
 
 	/// <summary>Threads building meshlets at once: a quarter of the cores, so the frame keeps the rest.</summary>
 	public static int MeshletThreads { get; set; } = Math.Max( 1, Environment.ProcessorCount / 4 );
@@ -779,12 +830,25 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// A material's texture: with <see cref="StreamTextures"/>, its tail first, and the mips its draws ask for streamed
 	/// in later; otherwise as <see cref="LoadTexture(string)"/> loads it.
 	/// </summary>
-	internal GpuTexture MaterialTextureFile( string path ) => LoadOnce( path, streamed: StreamTextures );
+	internal GpuTexture MaterialTextureFile( string path )
+	{
+		var texture = LoadOnce( path, streamed: StreamTextures, hold: collectingTextures is not null );
+		collectingTextures?.Add( path );
+		return texture;
+	}
 
-	GpuTexture LoadOnce( string path, bool streamed )
+	GpuTexture LoadOnce( string path, bool streamed, bool hold = false )
 	{
 		lock ( loadedTextures )
 		{
+			// Held by the material being made for a model's draws (ModelMaterial), else pinned for good
+			if ( !string.IsNullOrEmpty( path ) )
+			{
+				if ( !textureLives.TryGetValue( path, out var life ) ) textureLives[path] = life = new ContentLife();
+				if ( hold ) life.Holders++;
+				else life.Pinned = true;
+			}
+
 			if ( loadedTextures.TryGetValue( path, out var texture ) )
 			{
 				// Asked for whole by something that doesn't ask for mips
@@ -1096,6 +1160,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			foreach ( var path in paths )
 			{
 				if ( loadedTextures.TryGetValue( path, out var texture ) && loadedTextures.Remove( path ) ) textures.Add( texture );
+				textureLives.Remove( path );
 			}
 
 			// The rest of the map's own textures read by path: its light probe volumes, hundreds of MiB on a big map
@@ -1103,6 +1168,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			foreach ( var path in loadedTextures.Keys.Where( p => p.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) ).ToList() )
 			{
 				if ( loadedTextures.Remove( path, out var texture ) ) textures.Add( texture );
+				textureLives.Remove( path );
 			}
 		}
 
@@ -1129,9 +1195,23 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public override GpuTexture SheetMetadata => sheetMetadata;
 
 	/// <summary>A compiled material's texture for a shader variable (<c>g_tSkyTexture</c>), or null.</summary>
-	public GpuTexture MaterialTexture( string material, string variable )
+	public GpuTexture MaterialTexture( string material, string variable ) => MaterialTexture( LoadMaterial( material ), variable );
+
+	/// <summary>
+	/// <see cref="MaterialTexture(string, string)"/> without pinning a material that's loaded already (a world's mirror holds
+	/// it, its sky's): what's drawn outside the worlds borrows it, and it goes with the world. Loaded here otherwise.
+	/// </summary>
+	public GpuTexture LoadedMaterialTexture( string material, string variable )
 	{
-		if ( LoadMaterial( material ) is not BackendMaterial m || !m.Textures.TryGetValue( variable, out var texture ) ) return null;
+		GpuMaterial loaded;
+		lock ( sharedMaterials ) sharedMaterials.TryGetValue( material, out loaded );
+		return loaded is not null ? MaterialTexture( loaded, variable ) : MaterialTexture( material, variable );
+	}
+
+	/// <summary>A material's texture for a shader variable, or null (<see cref="MaterialTexture(string, string)"/>).</summary>
+	public GpuTexture MaterialTexture( GpuMaterial material, string variable )
+	{
+		if ( material is not BackendMaterial m || !m.Textures.TryGetValue( variable, out var texture ) ) return null;
 
 		// Used outside the material's draws, which are what ask for its mips
 		if ( texture.Stream is { } stream ) stream.Pinned = true;
@@ -1146,9 +1226,141 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		lock ( sharedMaterials )
 		{
+			// Asked for by something other than a model's draws: kept for good
+			LifeOf( path ).Pinned = true;
 			if ( sharedMaterials.TryGetValue( path, out var material ) ) return material;
 			return sharedMaterials[path] = Converted( path ) ?? Material( path, null );
 		}
+	}
+
+	//
+	// Material and texture lifetimes: a model's draws hold their materials (ModelMaterial), and a material made for them holds
+	// the textures it read by path; once a freed model's materials are held by nothing they go, and textures nothing holds
+	// with them. What's asked for any other way (LoadMaterial, LoadTexture, a material made elsewhere) is pinned and stays.
+	//
+
+	sealed class ContentLife
+	{
+		public int Holders;
+		public bool Pinned;
+		public List<string> Textures;
+	}
+
+	readonly Dictionary<string, ContentLife> materialLives = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, ContentLife> textureLives = new( StringComparer.OrdinalIgnoreCase );
+
+	// The textures a material being made for a model reads by path (MaterialTextureFile), on the thread making it
+	[ThreadStatic] static List<string> collectingTextures;
+
+	// Under sharedMaterials' lock
+	ContentLife LifeOf( string path )
+	{
+		if ( !materialLives.TryGetValue( path, out var life ) ) materialLives[path] = life = new ContentLife();
+		return life;
+	}
+
+	/// <summary>Materials and textures freed after nothing held them, for soaks and tests.</summary>
+	public int MaterialsFreed { get; private set; }
+
+	/// <inheritdoc cref="TexturesFreed"/>
+	public int TexturesFreed { get; private set; }
+
+	// Under loadedTextures' lock: asked for by something other than a model's material, so it stays
+	void PinTexture( string path )
+	{
+		if ( !textureLives.TryGetValue( path, out var life ) ) textureLives[path] = life = new ContentLife();
+		life.Pinned = true;
+	}
+
+	/// <summary>A model's draw's material (<see cref="LoadMaterial(string)"/>), held by the model until <see cref="ReleaseModelMaterial"/>.</summary>
+	public GpuMaterial ModelMaterial( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return LoadMaterial( path );
+		lock ( sharedMaterials )
+		{
+			var life = LifeOf( path );
+			life.Holders++;
+			if ( sharedMaterials.TryGetValue( path, out var material ) ) return material;
+
+			// The textures it reads by path are held by it
+			var outer = collectingTextures;
+			collectingTextures = life.Textures ??= new List<string>();
+			try
+			{
+				return sharedMaterials[path] = Converted( path ) ?? Material( path, null );
+			}
+			finally
+			{
+				collectingTextures = outer;
+			}
+		}
+	}
+
+	/// <summary>A material a holder already holds (<see cref="ModelMaterial"/>), found again without counting it twice.</summary>
+	public GpuMaterial HeldMaterial( string path )
+	{
+		lock ( sharedMaterials )
+		{
+			if ( sharedMaterials.TryGetValue( path, out var material ) ) return material;
+		}
+
+		return ModelMaterial( path );
+	}
+
+	/// <summary>A texture by path (as <see cref="LoadTexture"/> loads it), held by the caller until <see cref="ReleaseTexture"/> rather than pinned.</summary>
+	public GpuTexture HoldTexture( string path ) => LoadOnce( path, streamed: false, hold: true );
+
+	/// <summary>A texture a holder already holds (<see cref="HoldTexture"/>), found again without counting it twice.</summary>
+	public GpuTexture HeldTexture( string path )
+	{
+		lock ( loadedTextures )
+		{
+			if ( loadedTextures.TryGetValue( path, out var texture ) ) return texture;
+		}
+
+		return HoldTexture( path );
+	}
+
+	/// <summary>A holder of the texture at <paramref name="path"/> (<see cref="HoldTexture"/>) lets it go: held by nothing and unpinned, it's freed.</summary>
+	public void ReleaseTexture( string path ) => ReleaseTextures( [path] );
+
+	void ReleaseTextures( IEnumerable<string> paths )
+	{
+		List<GpuTexture> freed = null;
+		lock ( loadedTextures )
+		{
+			foreach ( var texture in paths )
+			{
+				if ( !textureLives.TryGetValue( texture, out var life ) || life.Holders == 0 ) continue;
+				if ( --life.Holders > 0 || life.Pinned ) continue;
+				textureLives.Remove( texture );
+				if ( loadedTextures.Remove( texture, out var loaded ) ) (freed ??= new()).Add( loaded );
+			}
+		}
+
+		foreach ( var texture in freed ?? [] )
+		{
+			texture?.Dispose();
+			TexturesFreed++;
+		}
+	}
+
+	/// <summary>A freed model no longer draws with the material at <paramref name="path"/>: unheld and unpinned, it goes, and its textures nothing else holds.</summary>
+	public void ReleaseModelMaterial( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return;
+		List<string> textures;
+		lock ( sharedMaterials )
+		{
+			if ( !materialLives.TryGetValue( path, out var life ) || life.Holders == 0 ) return;
+			if ( --life.Holders > 0 || life.Pinned ) return;
+			materialLives.Remove( path );
+			sharedMaterials.Remove( path );
+			textures = life.Textures;
+			MaterialsFreed++;
+		}
+
+		if ( textures is not null ) ReleaseTextures( textures );
 	}
 
 	/// <summary>
@@ -1669,6 +1881,33 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	bool meshletShaderLoaded;
 
 	/// <summary>
+	/// <c>borealis_hiz_cs</c>, which builds a prepass's Hi-Z and culls its second phase, when its pass module draws: null with
+	/// <see cref="SlangPasses"/> off or the module missing, and prepasses draw in one phase.
+	/// </summary>
+	internal ShaderFile HiZShader
+	{
+		get
+		{
+			if ( !SlangPasses ) return null;
+			if ( Volatile.Read( ref hizShaderLoaded ) ) return hizShader;
+			lock ( visibilityViews )
+			{
+				if ( !hizShaderLoaded )
+				{
+					var shader = Shaders.Load( "shaders/borealis_hiz_cs.shader" );
+					hizShader = shader is not null && Passes.ModuleOf( shader ) is not null ? shader : null;
+					Volatile.Write( ref hizShaderLoaded, true );
+				}
+
+				return hizShader;
+			}
+		}
+	}
+
+	ShaderFile hizShader;
+	bool hizShaderLoaded;
+
+	/// <summary>
 	/// Whether prepass meshlets are culled and drawn with task and mesh shaders (<c>borealis_meshlet_ids</c>) where the
 	/// device has them, in place of the compute pass, its index copies and indexed draws. Off by default: it costs more GPU
 	/// time than the compute pass on the Steam Deck and on the PC (docs/managed/borealis-gpu-driven.md, "Meshlets");
@@ -1779,7 +2018,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		~VisibilityView() => Retire?.Enqueue( this );
 
 		/// <summary>Every buffer it made.</summary>
-		public IEnumerable<BufferHandle> Buffers() => [Mask, Stamps, .. Compacted, PrepassCompacted, PrepassCompacted16, MeshletStamps, MeshletJobs];
+		public IEnumerable<BufferHandle> Buffers() => [Mask, Stamps, .. Compacted, PrepassCompacted, PrepassCompacted16, MeshletStamps, MeshletJobs, .. HiZVisible, HiZ];
 
 		public TextureHandle Ids, Scratch;
 		public int Width, Height, Samples;
@@ -1831,6 +2070,28 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		/// </summary>
 		public int PrepassCapacity;
 		public uint KeptCapacity;
+
+		/// <summary>
+		/// Two-phase Hi-Z occlusion (<see cref="HiZOcclusion"/>): a bit per visibility fragment, set by forward's compaction
+		/// where a fragment has a triangle that owns a sample, in <see cref="HiZVisible"/>[<see cref="HiZCurrent"/>]; the
+		/// prepass reads the other, last frame's. Made by <see cref="HiZBuffersFor"/>.
+		/// </summary>
+		public readonly BufferHandle[] HiZVisible = new BufferHandle[2];
+		public int HiZCurrent;
+
+		/// <summary>Whether forward wrote this frame's bits (the next frame reads them), and whether the bits read this frame are a frame's.</summary>
+		public bool HiZWrote, HiZReadValid;
+
+		/// <summary>
+		/// The Hi-Z: the farthest depth (reverse-Z: least) of each 4x4 pixels' samples at level 0, then each level half the last
+		/// (rounded up) of the farthest of 2x2, down to 2 texels a side, one after another as floats.
+		/// </summary>
+		public BufferHandle HiZ;
+		public int HiZWidth, HiZHeight, HiZLevels;
+
+		/// <summary>The frame and command list that built <see cref="HiZ"/> last: later calls of the view in the list use it.</summary>
+		public uint HiZBuiltFrame;
+		public object HiZBuiltBy;
 
 		/// <summary>Every texture it made.</summary>
 		public IEnumerable<TextureHandle> Textures() => [Ids, Scratch];
@@ -1929,6 +2190,48 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>GPU-driven frames a view's visibility resources stay made without being used; then they're freed.</summary>
 	internal const uint IdleVisibilityFrames = 600;
+
+	/// <summary>Hi-Z level 0's size for a depth target this size: a texel per 4x4 pixels.</summary>
+	internal static (int Width, int Height, int Levels, int Texels) HiZLayout( int width, int height )
+	{
+		var (w, h) = ((width + 3) / 4, (height + 3) / 4);
+		var (levels, texels) = (1, w * h);
+		for ( var (x, y) = (w, h); (x > 2 || y > 2) && levels < 16; levels++ )
+		{
+			(x, y) = ((x + 1) / 2, (y + 1) / 2);
+			texels += x * y;
+		}
+
+		return (w, h, levels, texels);
+	}
+
+	/// <summary>
+	/// A view's Hi-Z buffers (<see cref="VisibilityView.HiZVisible"/>, <see cref="VisibilityView.HiZ"/>), made the first time
+	/// and the Hi-Z again when the view's size changed. On the frame's context, before its calls (<c>BeginGpuDrivenView</c>),
+	/// which clears them. Whether they're new.
+	/// </summary>
+	internal bool HiZBuffersFor( VisibilityView state )
+	{
+		var layout = HiZLayout( state.Width, state.Height );
+		if ( state.HiZVisible[0].IsValid && state.HiZ.IsValid && state.HiZWidth == layout.Width && state.HiZHeight == layout.Height ) return false;
+		lock ( visibilityViews )
+		{
+			var made = false;
+			for ( int i = 0; i < state.HiZVisible.Length; i++ )
+			{
+				if ( state.HiZVisible[i].IsValid ) continue;
+				state.HiZVisible[i] = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments / 8, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis Hi-Z visible fragments" } );
+				visibilityBuffers.Add( state.HiZVisible[i] );
+				made = true;
+			}
+
+			if ( state.HiZ.IsValid && visibilityBuffers.Remove( state.HiZ ) ) Gpu.Destroy( state.HiZ );
+			state.HiZ = Gpu.CreateBuffer( new BufferInfo { Size = Math.Max( layout.Texels, 1 ) * 4L, Usage = BufferUsage.Storage, Name = "Borealis Hi-Z" } );
+			visibilityBuffers.Add( state.HiZ );
+			(state.HiZWidth, state.HiZHeight, state.HiZLevels) = (layout.Width, layout.Height, layout.Levels);
+			return made;
+		}
+	}
 
 	/// <summary>
 	/// A view's prepass compacted buffer (<see cref="VisibilityView.PrepassCompacted"/>), with its meshlet stamps, made the
@@ -2058,7 +2361,11 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		}
 
 		state.Ready = false;
-		state.Mask = state.Stamps = state.PrepassCompacted = state.PrepassCompacted16 = state.MeshletStamps = state.MeshletJobs = default;
+		state.Mask = state.Stamps = state.PrepassCompacted = state.PrepassCompacted16 = state.MeshletStamps = state.MeshletJobs = state.HiZ = default;
+		state.HiZVisible.AsSpan().Clear();
+		state.HiZWidth = state.HiZHeight = state.HiZLevels = 0;
+		state.HiZWrote = state.HiZReadValid = false;
+		(state.HiZBuiltFrame, state.HiZBuiltBy) = (0, null);
 		state.Compacted.AsSpan().Clear();
 		state.Ids = state.Scratch = default;
 		state.MeshletStampsAttribute = null;
@@ -2427,6 +2734,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Gpu.BeginFrame();
 		FreeRetiredVisibility();
 		if ( GpuDrivenFrame % 60 == 0 ) FreeIdleVisibility();
+		FreeUnheldModels();
 		gpuDrivenTables?.BeginFrame();
 		meshletStore?.BeginFrame();
 		lodStore?.BeginFrame();

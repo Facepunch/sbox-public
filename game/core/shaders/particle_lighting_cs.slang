@@ -1,12 +1,12 @@
-// particle_lighting_cs.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// particle_lighting_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 // Lights lit sprites per froxel, 4x4x2 to a light cluster, in the clusters around them (ParticleLightingSystem)
 // HEADER: DevShader = true;
 // HEADER: Description = "Lights particles per froxel in the light clusters around them";
 
-// MODES: Default();
-
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 #define FORCE_BILINEAR_PCF_SHADOWS_ONLY
 #define COMPUTE_SHADER

@@ -8,6 +8,10 @@ public sealed class SceneFogVolume : IValid
 	uint? ID { get; set; }
 	SceneWorld World { get; set; }
 
+	// Whether native's world lists it too (SceneObject.WritesNative); otherwise ID is one of ours
+	bool inNative;
+	static uint nextManagedId;
+
 	Transform transform;
 
 	/// <summary>
@@ -107,7 +111,7 @@ public sealed class SceneFogVolume : IValid
 
 		if ( ID.HasValue )
 		{
-			NativeEngine.CSceneSystem.RemoveVolumetricFogVolume( World, ID.Value );
+			if ( inNative ) NativeEngine.CSceneSystem.RemoveVolumetricFogVolume( World, ID.Value );
 			World.RemoveFogVolume( this );
 			ID = default;
 		}
@@ -120,9 +124,18 @@ public sealed class SceneFogVolume : IValid
 
 		if ( ID.HasValue )
 		{
-			NativeEngine.CSceneSystem.RemoveVolumetricFogVolume( World, ID.Value );
+			if ( inNative ) NativeEngine.CSceneSystem.RemoveVolumetricFogVolume( World, ID.Value );
 			World.RemoveFogVolume( this );
 			ID = default;
+		}
+
+		// Borealis reads the world's list; native's only matters while something reads it
+		inNative = SceneObject.WritesNative;
+		if ( !inNative )
+		{
+			ID = ++nextManagedId;
+			World.AddFogVolume( this );
+			return;
 		}
 
 		var mat = Matrix.CreateRotation( Transform.Rotation ) * Matrix.CreateTranslation( Transform.Position );

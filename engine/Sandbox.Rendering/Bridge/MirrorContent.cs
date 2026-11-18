@@ -24,7 +24,13 @@ internal static class MirrorContent
 	/// A model's mesh; loading asynchronously (<see cref="BackendDevice.AsyncModels"/>) null with <paramref name="pending"/>
 	/// set while it loads.
 	/// </summary>
-	public static RenderMesh Mesh( Model model, out bool pending )
+	public static RenderMesh Mesh( Model model, out bool pending ) => Mesh( model, out pending, pin: true );
+
+	/// <summary>
+	/// <see cref="Mesh(Model, out bool)"/>; without <paramref name="pin"/> a model loaded from its file is held by the caller
+	/// (<see cref="BackendDevice.HoldModel"/>) and freed a while after the last holder lets it go.
+	/// </summary>
+	public static RenderMesh Mesh( Model model, out bool pending, bool pin )
 	{
 		pending = false;
 		if ( Gpu is not { } gpu ) return null;
@@ -32,7 +38,7 @@ internal static class MirrorContent
 		if ( model is { IsProcedural: true } ) return RuntimeMesh( model, gpu, out pending );
 		var path = model?.ResourcePath;
 		if ( string.IsNullOrEmpty( path ) ) return null;
-		return gpu.AsyncModels ? gpu.LoadModelAsync( path, ulong.MaxValue, out pending ) : gpu.LoadModel( path, ulong.MaxValue );
+		return gpu.AsyncModels ? gpu.LoadModelAsync( path, ulong.MaxValue, out pending, pin ) : gpu.LoadModel( path, ulong.MaxValue );
 	}
 
 	static readonly ConditionalWeakTable<Model, RuntimeModel> runtimeMeshes = new();
@@ -187,7 +193,7 @@ internal static class MirrorContent
 
 		// A material's texture (a sky's cubemap for fog and sky lighting) is the material's, read by its path
 		if ( Sandbox.Texture.MaterialOrigins.TryGetValue( texture, out var origin ) && origin is Sandbox.Texture.MaterialOrigin o )
-			return gpu.MaterialTexture( o.Material, o.Parameter );
+			return gpu.LoadedMaterialTexture( o.Material, o.Parameter );
 
 		// Any other 2D texture made at run time (a render target a game draws a screen into) is the engine's copy on the device
 		return engine is not null && !texture.native.IsNull && texture.Depth == 1 ? engine.BorealisViewOf( texture ) : null;
@@ -208,6 +214,16 @@ internal static class MirrorContent
 
 	static readonly ConditionalWeakTable<Texture, Capture> captures = new();
 	static readonly System.Collections.Concurrent.ConcurrentQueue<GpuTexture> freedCaptures = new();
+
+	/// <summary>
+	/// Free what the engine's resources took on the device once they were collected (capture cubes, run-time models' buffers),
+	/// whether or not anything asks for another: a map's realtime probes' cubes outlived it in the menu.
+	/// </summary>
+	public static void FreeCollected()
+	{
+		while ( freedCaptures.TryDequeue( out var freed ) ) freed.Dispose();
+		while ( freedModels.TryDequeue( out var model ) ) model.Free();
+	}
 
 	/// <summary>Whether an engine texture is a cube made at run time for compute to write (a realtime probe's), which <see cref="CaptureCube"/> captures into.</summary>
 	public static bool IsCaptureCube( Texture texture ) => texture is not null && texture.Depth == 6 && texture.UAVAccess;

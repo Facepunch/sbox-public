@@ -1,5 +1,5 @@
-// tools_selection_stencil_copy.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// tools_selection_stencil_copy: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 //===================== Copyright (c) Valve Corporation. All Rights Reserved. ======================
 //
 //==================================================================================================
@@ -9,9 +9,10 @@
 // HEADER: Description = "Shader used to write solid colors based on stencil results";
 
 //--------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 //--------------------------------------------------------------------------------------------------
 //Feature( F_COLOR_CHANNEL, 0..3 ( 0="Red", 1="Green", 2="Blue", 3="Alpha" ), "Color channel" );

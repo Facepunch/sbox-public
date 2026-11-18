@@ -45,10 +45,10 @@ public sealed partial class SceneWorld
 				{
 					var included = !filterInclusion;
 					var excluded = false;
-					var tagCount = sky.native.GetTagCount();
-					for ( int tagIndex = 0; tagIndex < tagCount; tagIndex++ )
+					var tags = sky.TagTokens;
+					for ( int tagIndex = 0; tagIndex < tags.Count; tagIndex++ )
 					{
-						var tag = sky.native.GetTagAt( tagIndex );
+						var tag = tags[tagIndex];
 						if ( filterExclusion && exclude.Contains( tag ) )
 						{
 							excluded = true;
