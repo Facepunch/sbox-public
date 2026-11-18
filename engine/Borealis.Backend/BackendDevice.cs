@@ -1056,8 +1056,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public int MapLightmapsReleased { get; private set; }
 
 	/// <summary>
-	/// A world that drew the map in <paramref name="folder"/>'s lightmaps has gone. When it was the last, the lightmaps are
-	/// destroyed (once the GPU is done with them) and read again if a world draws the map again: a map's are hundreds of MiB.
+	/// A world that drew the map in <paramref name="folder"/>'s lightmaps has gone. When it was the last, the lightmaps and the
+	/// map's other textures read by path (its light probe volumes) are destroyed (once the GPU is done with them) and read again
+	/// if a world draws the map again: a map's are hundreds of MiB.
 	/// </summary>
 	public void ReleaseMapLightmaps( string folder )
 	{
@@ -1082,6 +1083,13 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			foreach ( var path in paths )
 			{
 				if ( loadedTextures.TryGetValue( path, out var texture ) && loadedTextures.Remove( path ) ) textures.Add( texture );
+			}
+
+			// The rest of the map's own textures read by path: its light probe volumes, hundreds of MiB on a big map
+			var prefix = folder + "/";
+			foreach ( var path in loadedTextures.Keys.Where( p => p.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) ).ToList() )
+			{
+				if ( loadedTextures.Remove( path, out var texture ) ) textures.Add( texture );
 			}
 		}
 
