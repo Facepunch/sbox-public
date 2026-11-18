@@ -313,6 +313,51 @@ public class StandaloneModuleTests : GpuTest
 	}
 
 	/// <summary>
+	/// A shader its module describes has no compiled variables, so the names values set by token (<c>StringToken.Literal</c>)
+	/// are turned back into are the module's (<see cref="PassModules.BindingNames"/>): every name depth_only's <c>.shader_c</c>
+	/// variables and combos give, less a .vmat's input textures.
+	/// </summary>
+	[TestMethod]
+	public void ModuleNamesCoverTheCompiledNames()
+	{
+		using var backend = new BackendDevice( Device );
+		var module = backend.Shaders.Load( DepthOnly );
+		var compiledPath = backend.Content.Find( DepthOnly ) ?? throw new AssertInconclusiveException( "depth_only.shader isn't compiled" );
+		var compiled = ShaderFile.Load( compiledPath );
+		var names = backend.Passes.BindingNames( module );
+		Assert.IsTrue( names.Contains( "D_OPAQUE_FADE" ) );
+		var missing = compiled.Programs.Where( p => p is not null )
+			.SelectMany( p => p.Variables.Where( v => v.Register != RegisterType.InputTexture ).SelectMany( v => new[] { v.Name, v.Attribute } ).Concat( p.DynamicCombos.Select( c => c.Name ) ) )
+			.Where( n => !string.IsNullOrEmpty( n ) && n != "DefaultSamplerState" && !names.Contains( n ) ).Distinct().ToList();
+		Assert.AreEqual( 0, missing.Count, string.Join( ' ', missing ) );
+	}
+
+	/// <summary>
+	/// A mode that names no combo sets its own where the module has one (<c>Mode( Depth );</c> sets <c>S_MODE_DEPTH</c>), as vfx
+	/// does; a mode's combo no mode sets is left out of the description, as vfx leaves it out.
+	/// </summary>
+	[TestMethod]
+	public void DepthModeSetsItsCombo()
+	{
+		var folder = Path.Combine( Path.GetTempPath(), "standalone-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			File.WriteAllText( Path.Combine( folder, "x.slang" ), "#include \"sbox/pass.slangh\"\nMode( Forward );\nMode( Depth );\nStaticCombo( S_MODE_DEPTH, 0..1, Sys( ALL ) );\nStaticCombo( S_MODE_TOOLS_WIREFRAME, 0..1, Sys( ALL ) );\n"
+				+ "#if ( PROGRAM == VFX_PROGRAM_PS )\n[shader( \"pixel\" )] float4 MainPs() : SV_Target0 { return 0; }\n#endif\n" );
+			using var backend = new BackendDevice( Device );
+			var shader = backend.Passes.Describe( Path.Combine( folder, "x.shader_c" ) );
+			Assert.AreEqual( ("S_MODE_DEPTH", 1), shader.Mode( "Depth" ).Settings.Single() );
+			Assert.AreEqual( 0, shader.Mode( "Forward" ).Settings.Length );
+			CollectionAssert.AreEqual( new[] { "S_MODE_DEPTH" }, shader[ShaderProgramType.Pixel].StaticCombos.Select( c => c.Name ).ToArray(), "a mode's combo no mode sets is left out" );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// <see cref="PassModuleTests.Compare"/>'s differences less where things are numbered: the module includes less than the
 	/// <c>.shader</c> (no vr_lighting.fxc), so its <c>$Globals</c> members sit at other offsets and Slang numbers its textures
 	/// and the GPU-driven tables' buffer differently. Each binds by name and each stage's own offsets fill its constants, so

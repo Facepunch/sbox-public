@@ -29,7 +29,7 @@ internal static class SceneNative
 
 	/// <summary>
 	/// Pack native light data, flags and bake index (-1 if absent), excluding shadows (<c>RenderTools.PackSceneLight</c>).
-	/// Returns false without a native light.
+	/// Returns false without a native light. Only the tests use it now, as the reference <see cref="LightPacking"/> matches.
 	/// </summary>
 	public static unsafe bool PackSceneLight( SceneLight light, out LightBinnerFeature.GpuLight packed, out uint flags, out int bakeIndex )
 	{

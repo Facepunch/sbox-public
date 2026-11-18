@@ -157,6 +157,12 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	readonly VertexCacheDraw?[][] vertexCacheDraws;
 	readonly List<BufferHandle> buffers = new();
 
+	// Its vertices and indices in the GPU-driven pages (slot, bytes), given back when it's freed
+	readonly List<(int Slot, int Bytes)> pageRanges = new();
+
+	// The materials its draws hold (BackendDevice.ModelMaterial), let go when it's freed
+	readonly List<string> materialPaths = new();
+
 	/// <summary>Whether this is the first ask for a draw's meshlets: a shadow view asks for a static mesh draw's once.</summary>
 	internal bool FirstMeshletRequest( int mesh, int call )
 		=> (uint)mesh < (uint)meshletRequested.Length && (uint)call < (uint)meshletRequested[mesh].Length && System.Threading.Interlocked.Exchange( ref meshletRequested[mesh][call], 1 ) == 0;
@@ -221,6 +227,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 				if ( tables is not null )
 				{
 					var (page, slot, first) = tables.AddIndices( source.Data, format );
+					pageRanges.Add( (slot, source.Data.Length) );
 					indexBuffers[i] = (page, first * (long)source.Size, format, page, slot, first);
 					continue;
 				}
@@ -311,6 +318,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		if ( tables is not null )
 		{
 			var (page, offset, slot) = tables.AddVertexStream( data );
+			pageRanges.Add( (slot, data.Length) );
 			return (page, offset, layout, source.CompressedTangentFrame, slot);
 		}
 
@@ -350,7 +358,12 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		}
 
 		System.Threading.Interlocked.Add( ref device.PositionStreamBytes, data.Length );
-		if ( tables is not null ) return tables.AddVertexStream( data );
+		if ( tables is not null )
+		{
+			var placed = tables.AddVertexStream( data );
+			pageRanges.Add( (placed.Slot, data.Length) );
+			return placed;
+		}
 
 		var buffer = gpu.CreateBuffer( new BufferInfo { Size = data.Length, Usage = BufferUsage.Vertex, Name = name } );
 		gpu.WriteBuffer( buffer, data );
@@ -435,7 +448,9 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 				for ( int d = 0; d < mesh.DrawCalls.Count; d++ )
 				{
 					var call = mesh.DrawCalls[d];
-					var material = device.LoadMaterial( file.MaterialFor( call.Material, materialGroup ) );
+					var materialPath = file.MaterialFor( call.Material, materialGroup );
+					var material = device.ModelMaterial( materialPath );
+					geometry.materialPaths.Add( materialPath );
 					var translucent = RenderMesh.IsTranslucent( material );
 					var alphaTest = RenderMesh.IsAlphaTest( material );
 					var fastPath = material is { ShadowFastPath: true } && !translucent && !alphaTest && (!drawFastPath || (call.Flags & MeshDrawFlags.ShadowFastPath) != 0);
@@ -464,5 +479,13 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	{
 		foreach ( var buffer in buffers ) device.Gpu.Destroy( buffer );
 		buffers.Clear();
+		if ( device.GpuDrivenTables is { } tables )
+		{
+			foreach ( var (slot, bytes) in pageRanges ) tables.ReleaseRange( slot, bytes );
+		}
+
+		pageRanges.Clear();
+		foreach ( var path in materialPaths ) device.ReleaseModelMaterial( path );
+		materialPaths.Clear();
 	}
 }

@@ -1,7 +1,11 @@
 using Borealis.Gpu.Vulkan;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Borealis.Gpu;
+
+/// <summary>The part manifest's lines read, parts queued from it, lines dropped and parts recorded (<see cref="Device.PartManifest"/>).</summary>
+public readonly record struct PartManifestStats( int Loaded, int Queued, int Dropped, int Recorded );
 
 /// <summary>Pipelines made on workers while their draws were skipped (<see cref="Device.DeferredPipelines"/>).</summary>
 public readonly record struct DeferredPipelineStats( int Made, int Pending, int Failed, double AverageMs, double MaxMs, double AverageFrames, long SkippedDraws, long FramesWithSkips );
@@ -12,9 +16,17 @@ public readonly record struct DeferredPipelineStats( int Made, int Pending, int 
 /// </summary>
 public sealed unsafe partial class Device
 {
-	// What a draw is waiting for goes before parts made ahead; both are made by the builder threads
+	// What a draw is waiting for goes first, then parts a run linked before (the part manifest), then guesses; all are made
+	// by the builder threads. A part queued from the manifest carries its line, dropped if the part fails to make
 	readonly Queue<(PipelineHandle Handle, GraphicsPipelineInfo Info, ulong Layout, ulong Frame, long Requested)> buildQueue = new();
-	readonly Queue<(GraphicsPipelineInfo Info, PipelineParts Parts)> prepareQueue = new();
+	readonly PriorityQueue<(GraphicsPipelineInfo Info, PipelineParts Parts, string Line), int> prepareQueue = new();
+	readonly PriorityQueue<(GraphicsPipelineInfo Info, PipelineParts Parts, string Line), int> speculativeQueue = new();
+
+	// A skipped pipeline's fragment part, made by another builder alongside the rest of it: goes before everything
+	readonly Queue<(GraphicsPipelineInfo Info, PipelineParts Parts, string Line)> urgentQueue = new();
+
+	/// <summary>Whether a skipped pipeline's fragment part is made on a builder of its own (<c>BOREALIS_SPLIT_PARTS=0</c> turns it off, to compare).</summary>
+	static readonly bool splitParts = Environment.GetEnvironmentVariable( "BOREALIS_SPLIT_PARTS" ) != "0";
 	Thread[] builders;
 	int building;
 	bool stopBuilding;
@@ -91,6 +103,8 @@ public sealed unsafe partial class Device
 		var handle = new PipelineHandle( index, generation );
 		lock ( buildQueue )
 		{
+			// Its fragment part, the slowest, on another builder while this one makes the others; the link waits for it
+			if ( splitParts && UsesLibraries( info ) && info.FragmentShader.IsValid ) urgentQueue.Enqueue( (info, PipelineParts.FragmentShader, null) );
 			buildQueue.Enqueue( (handle, info, layout, FrameNumber, System.Diagnostics.Stopwatch.GetTimestamp()) );
 			StartBuilders();
 			Monitor.Pulse( buildQueue );
@@ -101,18 +115,302 @@ public sealed unsafe partial class Device
 
 	/// <summary>
 	/// Make a pipeline's parts on the builder threads, after any pipeline a draw is waiting for
-	/// (<see cref="PreparePipelineParts"/> makes them on the calling thread). Does nothing without pipeline libraries.
+	/// (<see cref="PreparePipelineParts"/> makes them on the calling thread). <paramref name="speculative"/> parts (a guess
+	/// at what draws will ask for) go after the part manifest's, the lowest <paramref name="order"/> first. Does nothing
+	/// without pipeline libraries.
 	/// </summary>
-	public void QueuePipelineParts( in GraphicsPipelineInfo info, PipelineParts parts = PipelineParts.All )
+	public void QueuePipelineParts( in GraphicsPipelineInfo info, PipelineParts parts = PipelineParts.All, bool speculative = false, int order = int.MaxValue ) => Queue( info, parts, null, speculative, order );
+
+	// The manifest's parts by rank: the order the last run first linked them
+	void Queue( in GraphicsPipelineInfo info, PipelineParts parts, string line, bool speculative, int rank )
 	{
 		if ( !UsesLibraries( info ) ) return;
 		lock ( buildQueue )
 		{
 			if ( stopBuilding ) return;
-			prepareQueue.Enqueue( (info, parts) );
+			if ( speculative ) speculativeQueue.Enqueue( (info, parts, line), rank );
+			else prepareQueue.Enqueue( (info, parts, line), rank );
 			StartBuilders();
 			Monitor.Pulse( buildQueue );
 		}
+	}
+
+	//
+	// The part manifest (PipelinePartManifest): parts linked in earlier runs, made on the builder threads as soon as they can be
+	//
+
+	PipelinePartManifest partManifest;
+
+	// Binding layouts made for the manifest's parts, by what their slots are, kept until the device goes
+	readonly Dictionary<string, BindingLayoutHandle> manifestLayouts = new();
+
+	/// <summary>
+	/// The part manifest (<c>pipeline-parts.txt</c> beside the pipeline cache): lines read from it, parts queued from it,
+	/// lines dropped (their part failed) and parts recorded this run. Zero without pipeline libraries or a cache folder.
+	/// </summary>
+	public PartManifestStats PartManifest
+	{
+		get
+		{
+			var m = partManifest;
+			return m is null ? default : new PartManifestStats( m.Loaded, m.Queued, m.Dropped, m.Recorded );
+		}
+	}
+
+	/// <summary>Whether the device keeps a part manifest (<see cref="DeviceOptions.PipelinePartManifest"/>, with pipeline libraries and a cache folder).</summary>
+	public bool PartManifestEnabled => partManifest is not null;
+
+	/// <summary>
+	/// Whether the part manifest has parts made from this shader's SPIR-V from an earlier run: they are queued as its module
+	/// is made, so guessing its parts ahead is only extra work. Parts linked this run don't count: a first run guesses on.
+	/// </summary>
+	public bool PartsRecorded( ShaderHandle shader ) => partManifest is { } m && shader.IsValid && m.Has( ShaderHash( shader ) );
+
+	void LoadPartManifest( DeviceOptions options )
+	{
+		if ( !pipelineLibraries || !options.PipelinePartManifest || options.PipelineCacheFolder is not { } folder ) return;
+		partManifest = new PipelinePartManifest( System.IO.Path.Combine( folder, "pipeline-parts.txt" ) );
+		spirvFolder = System.IO.Path.Combine( folder, "spirv" );
+
+		// Vertex input and output parts need no shader: made now, before any draw
+		foreach ( var entry in partManifest.TakeUnshaded() ) QueueRecorded( entry, default );
+
+		// Shader parts from the SPIR-V kept beside the manifest, in the order the last run first needed them, so a first
+		// frame's parts don't wait for its program to compile or its variant to be made: the program's own module finds them
+		// by SPIR-V. On a worker, so making the device doesn't wait for the files
+		var shaders = partManifest.ShadersByRank();
+		if ( shaders.Count > 0 ) spirvLoad = Task.Run( () => LoadRecordedSpirv( shaders ) );
+	}
+
+	// SPIR-V of shaders the manifest has parts of, by hash (spirv/<hash>.spv beside it), and the modules made from it
+	string spirvFolder;
+	Task spirvLoad;
+	readonly HashSet<UInt128> spirvKept = new();
+
+	string SpirvPath( UInt128 hash ) => System.IO.Path.Combine( spirvFolder, $"{hash:x32}.spv" );
+
+	void LoadRecordedSpirv( List<UInt128> shaders )
+	{
+		foreach ( var hash in shaders )
+		{
+			if ( disposed ) return;
+			lock ( partLock )
+			{
+				// The program's own module came first
+				if ( modulesAlive.ContainsKey( hash ) ) continue;
+			}
+
+			byte[] spirv;
+			try
+			{
+				spirv = System.IO.File.ReadAllBytes( SpirvPath( hash ) );
+			}
+			catch ( Exception e ) when ( e is System.IO.IOException or UnauthorizedAccessException )
+			{
+				continue;
+			}
+
+			try
+			{
+				// A damaged file isn't the SPIR-V it's named by: dropped
+				if ( spirv.Length < 20 || spirv.Length % 4 != 0 || SpirvHash( spirv ) != hash ) throw new ArgumentException( "damaged" );
+				CreateShader( spirv, $"part manifest {(ulong)(hash >> 64):x16}" );
+			}
+			catch ( Exception e ) when ( e is ArgumentException or GpuException )
+			{
+				TryDelete( SpirvPath( hash ) );
+			}
+		}
+	}
+
+	/// <summary>A module was made with pipeline libraries and a manifest: its SPIR-V is kept beside the manifest, once.</summary>
+	void KeepSpirv( UInt128 hash, ReadOnlySpan<byte> spirv )
+	{
+		if ( partManifest is null ) return;
+		lock ( spirvKept )
+		{
+			if ( !spirvKept.Add( hash ) ) return;
+		}
+
+		var path = SpirvPath( hash );
+		if ( System.IO.File.Exists( path ) ) return;
+		var bytes = spirv.ToArray();
+		lock ( moduleDestroys )
+		{
+			moduleDestroys.Add( Task.Run( () =>
+			{
+				var temporary = $"{path}.{Environment.ProcessId}.tmp";
+				try
+				{
+					System.IO.Directory.CreateDirectory( spirvFolder );
+					System.IO.File.WriteAllBytes( temporary, bytes );
+					System.IO.File.Move( temporary, path, overwrite: true );
+				}
+				catch ( Exception e ) when ( e is System.IO.IOException or UnauthorizedAccessException )
+				{
+					TryDelete( temporary );
+				}
+			} ) );
+		}
+	}
+
+	/// <summary>At shutdown: SPIR-V files no manifest line names any more go.</summary>
+	void PruneSpirv()
+	{
+		if ( partManifest is null || !System.IO.Directory.Exists( spirvFolder ) ) return;
+		var named = partManifest.Shaders();
+		try
+		{
+			foreach ( var file in System.IO.Directory.EnumerateFiles( spirvFolder, "*.spv" ) )
+			{
+				var name = System.IO.Path.GetFileNameWithoutExtension( file );
+				if ( !UInt128.TryParse( name, System.Globalization.NumberStyles.AllowHexSpecifier, null, out var hash ) || !named.Contains( hash ) ) TryDelete( file );
+			}
+		}
+		catch ( Exception e ) when ( e is System.IO.IOException or UnauthorizedAccessException )
+		{
+			// Tried again next time
+		}
+	}
+
+	static void TryDelete( string path )
+	{
+		try
+		{
+			System.IO.File.Delete( path );
+		}
+		catch ( Exception e ) when ( e is System.IO.IOException or UnauthorizedAccessException )
+		{
+			// Left for the next prune
+		}
+	}
+
+	/// <summary>The manifest's parts made from a shader with this SPIR-V, queued for the builder threads with this module.</summary>
+	void QueueRecordedParts( ShaderHandle shader, UInt128 hash )
+	{
+		if ( partManifest?.Take( hash ) is not { } entries ) return;
+		foreach ( var entry in entries ) QueueRecorded( entry, shader );
+	}
+
+	void QueueRecorded( PipelinePartManifest.Entry entry, ShaderHandle shader )
+	{
+		if ( !PipelinePartManifest.Read( entry.Line, out var kind, out _, out var info, out var slots ) )
+		{
+			partManifest.Drop( entry.Line );
+			return;
+		}
+
+		if ( kind is PipelineParts.PreRasterization or PipelinePartManifest.Compute ) info.VertexShader = shader;
+		if ( kind == PipelineParts.FragmentShader ) info.FragmentShader = shader;
+		if ( slots is not null ) info.Sets = ManifestSets( slots );
+		info.Name = $"part manifest ({kind})";
+		Queue( info, kind, entry.Line, speculative: false, entry.Rank );
+	}
+
+	//
+	// Compute pipelines from the manifest: made whole on a builder, kept by their line until CreateComputePipeline asks
+	//
+
+	sealed class ComputeAhead
+	{
+		public ulong Pipeline;
+		public bool Ready;
+	}
+
+	readonly Dictionary<string, ComputeAhead> computeAhead = new();
+
+	// Lines CreateComputePipeline made itself this run: a builder that hadn't started one leaves it
+	readonly HashSet<string> computeMadeHere = new();
+
+	/// <summary>The manifest line for a compute pipeline, or null without a manifest (or when a set's layout went).</summary>
+	string ComputeLine( in ComputePipelineInfo info )
+	{
+		if ( partManifest is null || shaderStatistics ) return null;
+		try
+		{
+			return PipelinePartManifest.WriteCompute( info, ShaderHash( info.Shader ), SlotsOf( info.Sets ) );
+		}
+		catch ( ArgumentException )
+		{
+			return null;
+		}
+	}
+
+	/// <summary>The pipeline a builder made ahead for this line (waiting if it's being made), or 0 to make it here.</summary>
+	ulong TakeComputeAhead( string line )
+	{
+		lock ( computeAhead )
+		{
+			if ( !computeAhead.TryGetValue( line, out var ahead ) )
+			{
+				computeMadeHere.Add( line );
+				return 0;
+			}
+
+			while ( !ahead.Ready ) Monitor.Wait( computeAhead );
+			computeAhead.Remove( line );
+			if ( ahead.Pipeline == 0 ) computeMadeHere.Add( line );
+			return ahead.Pipeline;
+		}
+	}
+
+	void MakeComputeAhead( in GraphicsPipelineInfo recorded, string line )
+	{
+		var ahead = new ComputeAhead();
+		lock ( computeAhead )
+		{
+			if ( computeMadeHere.Contains( line ) || !computeAhead.TryAdd( line, ahead ) ) return;
+		}
+
+		var info = new ComputePipelineInfo { Shader = recorded.VertexShader, Entry = recorded.VertexEntry, Constants = recorded.VertexConstants, Sets = recorded.Sets, Name = recorded.Name };
+		ulong pipeline = 0;
+		var started = System.Diagnostics.Stopwatch.GetTimestamp();
+		try
+		{
+			using ( Zone( ZonePipeline ) ) pipeline = MakeCompute( info, PipelineLayout( info.Sets ) );
+			Interlocked.Add( ref computeTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
+			Interlocked.Increment( ref computeMade );
+		}
+		finally
+		{
+			// A failure leaves 0: the pipeline is made where asked, which reports it
+			lock ( computeAhead )
+			{
+				ahead.Pipeline = pipeline;
+				ahead.Ready = true;
+				Monitor.PulseAll( computeAhead );
+			}
+		}
+	}
+
+	/// <summary>At shutdown: compute pipelines made ahead that nothing asked for.</summary>
+	void DestroyComputeAhead()
+	{
+		lock ( computeAhead )
+		{
+			foreach ( var ahead in computeAhead.Values )
+			{
+				if ( ahead.Pipeline != 0 ) Vk.vkDestroyPipeline( Vk.Device, ahead.Pipeline, null );
+			}
+
+			computeAhead.Clear();
+		}
+	}
+
+	BindingLayoutHandle[] ManifestSets( BindingSlot[][] slots )
+	{
+		var sets = new BindingLayoutHandle[slots.Length];
+		lock ( manifestLayouts )
+		{
+			for ( int s = 0; s < slots.Length; s++ )
+			{
+				if ( slots[s].Length == 0 ) continue;
+				var key = string.Join( ';', slots[s] );
+				if ( !manifestLayouts.TryGetValue( key, out sets[s] ) ) manifestLayouts[key] = sets[s] = CreateBindingLayout( slots[s] );
+			}
+		}
+
+		return sets;
 	}
 
 	/// <summary>Wait until nothing is queued or being made on the builder threads, or the timeout passes. For tests and measuring.</summary>
@@ -121,7 +419,7 @@ public sealed unsafe partial class Device
 		var deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
 		lock ( buildQueue )
 		{
-			while ( buildQueue.Count + prepareQueue.Count + building > 0 )
+			while ( urgentQueue.Count + buildQueue.Count + prepareQueue.Count + speculativeQueue.Count + building > 0 )
 			{
 				var left = deadline - Environment.TickCount64;
 				if ( left <= 0 ) return false;
@@ -132,14 +430,22 @@ public sealed unsafe partial class Device
 		return true;
 	}
 
+	// Builders making parts ahead (the manifest's, guesses), and how many are kept for what draws wait for
+	int buildingAhead;
+	const int ReservedBuilders = 2;
+
+	static readonly ThreadPriority builderPriority = Environment.GetEnvironmentVariable( "BOREALIS_BUILDER_PRIORITY" ) == "below" ? ThreadPriority.BelowNormal : ThreadPriority.Normal;
+
 	// Under the build queue's lock
 	void StartBuilders()
 	{
 		if ( builders is not null ) return;
-		builders = new Thread[Math.Clamp( Environment.ProcessorCount / 2, 2, 6 )];
+		// All but two logical processors, at normal priority: below it, a loading map's threads starve them while draws wait
+		// (BOREALIS_BUILDER_PRIORITY=below, to compare)
+		builders = new Thread[int.TryParse( Environment.GetEnvironmentVariable( "BOREALIS_BUILDERS" ), out var count ) && count > 0 ? count : Math.Clamp( Environment.ProcessorCount - 2, 2, 12 )];
 		for ( int i = 0; i < builders.Length; i++ )
 		{
-			builders[i] = new Thread( Build ) { IsBackground = true, Name = $"Borealis.Gpu pipeline builder {i}" };
+			builders[i] = new Thread( Build ) { IsBackground = true, Priority = builderPriority, Name = $"Borealis.Gpu pipeline builder {i}" };
 			builders[i].Start();
 		}
 	}
@@ -149,33 +455,40 @@ public sealed unsafe partial class Device
 		while ( true )
 		{
 			(PipelineHandle Handle, GraphicsPipelineInfo Info, ulong Layout, ulong Frame, long Requested) job = default;
-			(GraphicsPipelineInfo Info, PipelineParts Parts) prepare = default;
-			bool isJob;
+			(GraphicsPipelineInfo Info, PipelineParts Parts, string Line) prepare = default;
+			bool isJob, ahead;
 			lock ( buildQueue )
 			{
-				while ( buildQueue.Count == 0 && prepareQueue.Count == 0 && !stopBuilding ) Monitor.Wait( buildQueue );
+				// Parts made ahead never take the last builders: a draw's pipeline asked for meanwhile starts at once
+				while ( urgentQueue.Count == 0 && buildQueue.Count == 0 && (prepareQueue.Count == 0 && speculativeQueue.Count == 0 || buildingAhead >= Math.Max( builders.Length - ReservedBuilders, 1 )) && !stopBuilding ) Monitor.Wait( buildQueue );
 				if ( stopBuilding ) return;
-				isJob = buildQueue.TryDequeue( out job );
-				if ( !isJob ) prepare = prepareQueue.Dequeue();
+				var urgent = urgentQueue.TryDequeue( out prepare );
+				isJob = !urgent && buildQueue.TryDequeue( out job );
+				ahead = !urgent && !isJob;
+				if ( ahead && !prepareQueue.TryDequeue( out prepare, out _ ) ) prepare = speculativeQueue.Dequeue();
 				building++;
+				if ( ahead ) buildingAhead++;
 			}
 
 			try
 			{
 				if ( isJob ) MakeDeferred( job.Handle, job.Info, job.Layout, job.Frame, job.Requested );
+				else if ( prepare.Parts == PipelinePartManifest.Compute ) MakeComputeAhead( prepare.Info, prepare.Line );
 				else PreparePipelineParts( prepare.Info, prepare.Parts );
 			}
 			catch ( Exception e ) when ( e is GpuException or InvalidOperationException or ArgumentException )
 			{
-				// A part made ahead that fails is made again, and reported, by the pipeline that needs it; a pipeline that fails
-				// stays unready and its draws skipped
+				// A part made ahead that fails is made again, and reported, by the pipeline that needs it (and a manifest's line
+				// for it dropped; not when its shader went meanwhile); a pipeline that fails stays unready and its draws skipped
 				if ( isJob ) Interlocked.Increment( ref deferredFailed );
+				else if ( e is GpuException && prepare.Line is { } line ) partManifest?.Drop( line );
 			}
 			finally
 			{
 				lock ( buildQueue )
 				{
 					building--;
+					if ( ahead ) buildingAhead--;
 					Monitor.PulseAll( buildQueue );
 				}
 			}
@@ -259,9 +572,12 @@ public sealed unsafe partial class Device
 		foreach ( var thread in threads ?? [] ) thread.Join();
 		lock ( buildQueue )
 		{
+			urgentQueue.Clear();
 			buildQueue.Clear();
 			prepareQueue.Clear();
+			speculativeQueue.Clear();
 			building = 0;
+			buildingAhead = 0;
 			Monitor.PulseAll( buildQueue );
 		}
 	}

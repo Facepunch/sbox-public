@@ -75,6 +75,9 @@ internal struct SamplerRecord
 internal struct ShaderRecord
 {
 	public ulong Module;
+
+	/// <summary>Its SPIR-V's hash, with pipeline libraries: parts are keyed and recorded by it.</summary>
+	public UInt128 Hash;
 }
 
 internal struct LayoutRecord
@@ -128,6 +131,49 @@ public sealed unsafe partial class Device
 	readonly Dictionary<(ulong, ulong, ulong, ulong), ulong> pipelineLayouts = new();
 	readonly Dictionary<ulong, (ulong, ulong, ulong, ulong)> pipelineLayoutSets = new();
 	readonly List<ulong> retiredPipelineLayouts = new();
+
+	// What each pipeline layout's sets 0 to 3 hold (their slots), so parts made with identically defined layouts are shared
+	readonly Dictionary<ulong, UInt128> pipelineLayoutHashes = new();
+
+	/// <summary>The hash of what a pipeline layout's sets hold (<see cref="SetsHash"/>).</summary>
+	internal UInt128 LayoutHash( ulong pipelineLayout )
+	{
+		lock ( pipelineLayouts ) return pipelineLayoutHashes[pipelineLayout];
+	}
+
+	/// <summary>The slots of sets 0 to 3, a missing set as an empty one.</summary>
+	internal BindingSlot[][] SlotsOf( BindingLayoutHandle[] sets )
+	{
+		var slots = new BindingSlot[ShaderAbi.BindlessSet][];
+		for ( int s = 0; s < slots.Length; s++ ) slots[s] = sets is not null && s < sets.Length && sets[s].IsValid ? Get( sets[s] ).Slots : [];
+		return slots;
+	}
+
+	UInt128 SetsHash( BindingLayoutHandle[] sets )
+	{
+		var key = new PartKeyWriter( 0 );
+		foreach ( var set in SlotsOf( sets ) )
+		{
+			key.Add( set.Length );
+			foreach ( var slot in set )
+			{
+				key.Add( slot.Binding );
+				key.Add( (int)slot.Type );
+				key.Add( (int)slot.Stages );
+				key.Add( slot.Count );
+			}
+		}
+
+		return key.Hash();
+	}
+
+	static UInt128 SpirvHash( ReadOnlySpan<byte> spirv )
+	{
+		Span<byte> digest = stackalloc byte[32];
+		System.Security.Cryptography.SHA256.HashData( spirv, digest );
+		var hash = new UInt128( System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian( digest ), System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian( digest[8..] ) );
+		return hash == 0 ? 1 : hash;
+	}
 
 	/// <summary>The set layouts of sets 0 to 3 a pipeline layout was made from.</summary>
 	internal (ulong, ulong, ulong, ulong) SetLayoutsOf( ulong pipelineLayout )
@@ -185,7 +231,7 @@ public sealed unsafe partial class Device
 			Allocation memory;
 			try
 			{
-				memory = Allocator.Allocate( requirements, info.Memory, image: false );
+				memory = Allocator.Allocate( requirements, info.Memory, image: false, info.Content );
 				Vk.vkBindBufferMemory( Vk.Device, buffer, memory.Memory, memory.Offset ).Check( "vkBindBufferMemory" );
 			}
 			catch
@@ -282,7 +328,7 @@ public sealed unsafe partial class Device
 			try
 			{
 				var target = (desc.Usage & (TextureUsage.ColorTarget | TextureUsage.DepthTarget | TextureUsage.Storage)) != 0;
-				memory = Allocator.Allocate( requirements, MemoryLocation.Device, image: true, target );
+				memory = Allocator.Allocate( requirements, MemoryLocation.Device, image: true, target, desc.Content );
 				Vk.vkBindImageMemory( Vk.Device, image, memory.Memory, memory.Offset ).Check( "vkBindImageMemory" );
 			}
 			catch
@@ -575,8 +621,15 @@ public sealed unsafe partial class Device
 			using ( Zone( ZoneShaderModule ) ) Vk.vkCreateShaderModule( Vk.Device, &info, null, &module ).Check( $"vkCreateShaderModule ({name})" );
 			SetName( VkObjectType.ShaderModule, module, name );
 
-			var (index, generation) = Shaders.Add( new ShaderRecord { Module = module } );
-			return new ShaderHandle( index, generation );
+			var hash = pipelineLibraries ? SpirvHash( spirv ) : 0;
+			var (index, generation) = Shaders.Add( new ShaderRecord { Module = module, Hash = hash } );
+			var handle = new ShaderHandle( index, generation );
+			if ( pipelineLibraries )
+			{
+				KeepSpirv( hash, spirv );
+				ShaderMade( handle, hash );
+			}
+			return handle;
 		}
 	}
 
@@ -647,6 +700,7 @@ public sealed unsafe partial class Device
 			Vk.vkCreatePipelineLayout( Vk.Device, &info, null, &layout ).Check( "vkCreatePipelineLayout" );
 			pipelineLayouts[key] = layout;
 			pipelineLayoutSets[layout] = key;
+			pipelineLayoutHashes[layout] = SetsHash( sets );
 			return layout;
 		}
 	}
@@ -656,8 +710,45 @@ public sealed unsafe partial class Device
 	/// </summary>
 	public PipelineHandle CreateComputePipeline( in ComputePipelineInfo info )
 	{
-		using var strings = new NativeStrings();
 		var layout = PipelineLayout( info.Sets );
+		var started = System.Diagnostics.Stopwatch.GetTimestamp();
+
+		// Made ahead from the part manifest (a builder making it now is waited for), else made here and recorded
+		var line = ComputeLine( info );
+		var pipeline = line is null ? 0 : TakeComputeAhead( line );
+		if ( pipeline == 0 )
+		{
+			using ( Zone( ZonePipeline ) ) pipeline = MakeCompute( info, layout );
+			Interlocked.Add( ref computeTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
+			Interlocked.Increment( ref computeMade );
+		}
+
+		CountPipeline( started );
+		if ( line is not null ) partManifest.Use( line, ShaderHash( info.Shader ) );
+		SetName( VkObjectType.Pipeline, pipeline, info.Name );
+		if ( shaderStatistics ) KeepStatistics( pipeline, info.Name );
+
+		var (index, generation) = Pipelines.Add( new PipelineRecord { Pipeline = pipeline, Layout = layout, BindPoint = Vulkan.Vk.BindPointCompute } );
+		return new PipelineHandle( index, generation );
+	}
+
+	ulong MakeCompute( in ComputePipelineInfo info, ulong layout )
+	{
+		// A shader isn't destroyed while a pipeline is made from it on another thread (Destroy( ShaderHandle ) waits)
+		shaderUse.EnterReadLock();
+		try
+		{
+			return MakeComputeWithShader( info, layout );
+		}
+		finally
+		{
+			shaderUse.ExitReadLock();
+		}
+	}
+
+	ulong MakeComputeWithShader( in ComputePipelineInfo info, ulong layout )
+	{
+		using var strings = new NativeStrings();
 		VkSpecializationInfo specialization;
 		var create = new VkComputePipelineCreateInfo
 		{
@@ -676,16 +767,8 @@ public sealed unsafe partial class Device
 		};
 
 		ulong pipeline;
-		var started = System.Diagnostics.Stopwatch.GetTimestamp();
-		using ( Zone( ZonePipeline ) ) Vk.vkCreateComputePipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateComputePipelines ({info.Name})" );
-		CountPipeline( started );
-		Interlocked.Add( ref computeTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
-		Interlocked.Increment( ref computeMade );
-		SetName( VkObjectType.Pipeline, pipeline, info.Name );
-		if ( shaderStatistics ) KeepStatistics( pipeline, info.Name );
-
-		var (index, generation) = Pipelines.Add( new PipelineRecord { Pipeline = pipeline, Layout = layout, BindPoint = Vulkan.Vk.BindPointCompute } );
-		return new PipelineHandle( index, generation );
+		Vk.vkCreateComputePipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateComputePipelines ({info.Name})" );
+		return pipeline;
 	}
 
 	/// <summary>
@@ -742,6 +825,17 @@ public sealed unsafe partial class Device
 
 			pipelineCache = cache;
 		}
+
+		savedSize = CacheSize();
+	}
+
+	// The cache's size when loaded or last saved: pipelines made from it (the part manifest's at load, say) don't grow it
+	nuint savedSize;
+
+	nuint CacheSize()
+	{
+		nuint size;
+		return Vk.vkGetPipelineCacheData( Vk.Device, pipelineCache, &size, null ) == VkResult.Success ? size : 0;
 	}
 
 	string pipelineCachePath;
@@ -774,11 +868,22 @@ public sealed unsafe partial class Device
 	public bool SavePipelineCache()
 	{
 		if ( pipelineCachePath is null || pipelineCache == 0 ) return false;
+		partManifest?.Save();
 
 		// Parts and optimised links go into the cache too, the latter on background threads after their pipelines were made
 		var made = Volatile.Read( ref pipelinesMade ) + Volatile.Read( ref partsMade ) + Volatile.Read( ref optimisedMade );
 		if ( made == Volatile.Read( ref pipelinesSaved ) ) return false;
-		if ( !PipelineCacheFile.Save( pipelineCachePath, GetPipelineCacheData() ) ) return false;
+
+		// Made from what the cache had: nothing new
+		var data = GetPipelineCacheData();
+		if ( (nuint)data.Length == savedSize )
+		{
+			Volatile.Write( ref pipelinesSaved, made );
+			return false;
+		}
+
+		if ( !PipelineCacheFile.Save( pipelineCachePath, data ) ) return false;
+		savedSize = (nuint)data.Length;
 		Volatile.Write( ref pipelinesSaved, made );
 		return true;
 	}
@@ -948,7 +1053,7 @@ public sealed unsafe partial class Device
 			} ) );
 		}
 
-		DropParts( shader );
+		DropParts( record.Hash );
 	}
 
 	/// <summary>Destroy a binding layout once the GPU is done with it.</summary>
