@@ -271,13 +271,18 @@ public partial class SceneObject : IHandle
 		set => Bounds = value.Transform( Transform );
 	}
 
+	// Kept here once read from native (what native code made the object with) or set: native still gets visibility, which
+	// render-mesh traces skip hidden objects by, and the tint only while something reads it (WritesNative)
+	bool? _renderingEnabled;
+	Color? _tint;
+
 	/// <summary>
 	/// Whether this scene object should render or not.
 	/// </summary>
 	public bool RenderingEnabled
 	{
-		get => native.IsRenderingEnabled();
-		set { native.SetRenderingEnabled( value ); NotifyChanged( Rendering.SceneObjectChange.Visibility ); }
+		get => _renderingEnabled ??= native.IsRenderingEnabled();
+		set { native.SetRenderingEnabled( value ); _renderingEnabled = value; NotifyChanged( Rendering.SceneObjectChange.Visibility ); }
 	}
 
 	/// <summary>
@@ -285,8 +290,25 @@ public partial class SceneObject : IHandle
 	/// </summary>
 	public Color ColorTint
 	{
-		get => native.GetTintRGBA();
-		set { native.SetTintRGBA( value ); NotifyChanged( Rendering.SceneObjectChange.Tint ); }
+		get => _tint ??= native.GetTintRGBA();
+		set
+		{
+			if ( native.IsNull ) Sandbox.Interop.ThrowNullSelf( "CSceneObject", "SetTintRGBA" );
+			_tint = NativeTint( value );
+			if ( WritesNative ) native.SetTintRGBA( value );
+			NotifyChanged( Rendering.SceneObjectChange.Tint );
+		}
+	}
+
+	/// <summary>
+	/// A tint as native's <c>CSceneObject::SetTintRGBA</c> keeps it and <c>GetTintRGBA</c> gives it back: colour channels as
+	/// bytes (the value times 255, cut to a byte as native's conversion cuts it, read back times 1/255 as native's build
+	/// computes the division), alpha clamped to 0 to 1.
+	/// </summary>
+	internal static Color NativeTint( Color tint )
+	{
+		static float Channel( float value ) => unchecked((byte)(int)(value * 255.0f)) * (1.0f / 255.0f);
+		return new Color( Channel( tint.r ), Channel( tint.g ), Channel( tint.b ), Math.Clamp( tint.a, 0.0f, 1.0f ) );
 	}
 
 	/// <summary>
