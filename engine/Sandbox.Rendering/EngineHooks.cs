@@ -18,5 +18,8 @@ internal static class EngineHooks
 		RenderHost.Current = new SboxRenderHost();
 		RenderPipeline.Current ??= new NativeRenderPipeline();
 		SceneRenderer.Borealis ??= new SceneBridge();
+
+		// What the engine reads for a realtime probe's cube is the capture Borealis draws it into, on the same device
+		BorealisGpuRenderBackend.RenderedInto ??= ( backend, texture ) => MirrorContent.IsCaptureCube( texture ) && MirrorContent.Gpu == backend.Services ? MirrorContent.CaptureCube( texture ) : null;
 	}
 }
