@@ -29,14 +29,22 @@ public partial class SceneObject : IHandle
 		get
 		{
 			if ( native.IsNull ) return null;
-			// FIXME: What really sucks with this is it allocates CSceneObject::m_pExtraData even if we're only reading
 			if ( _attributes is not null ) return _attributes;
 
-			_attributes = new RenderAttributes( native.GetAttributesPtrForModify() );
+			if ( !WritesNative )
+			{
+				// Nothing reads native's: the set is managed only (Borealis reads it), and native's is never made
+				_attributes = RenderAttributes.CreateManaged();
+			}
+			else
+			{
+				// FIXME: What really sucks with this is it allocates CSceneObject::m_pExtraData even if we're only reading
+				_attributes = new RenderAttributes( native.GetAttributesPtrForModify() );
 
-			// A backend that lowers attributes itself reads them from a managed copy: a custom or dynamic object merges them
-			// into the set it draws with, and a model's draws read them as its object attributes
-			if ( RenderBackend.Default is not Source2RenderBackend ) _attributes.KeepManagedCopy();
+				// A backend that lowers attributes itself reads them from a managed copy: a custom or dynamic object merges them
+				// into the set it draws with, and a model's draws read them as its object attributes
+				if ( RenderBackend.Default is not Source2RenderBackend ) _attributes.KeepManagedCopy();
+			}
 
 			NotifyChanged( Rendering.SceneObjectChange.Attributes );
 			return _attributes;
@@ -99,6 +107,20 @@ public partial class SceneObject : IHandle
 	{
 		if ( native.IsValid )
 		{
+			// Children go with it, and it leaves its parent, as native's CSceneSystem::DeleteSceneObject does
+			if ( _children is not null )
+			{
+				foreach ( var child in _children.ToArray() )
+				{
+					child._parent = null;
+					child.Delete();
+				}
+
+				_children = null;
+			}
+
+			_parent?.RemoveChild( this );
+
 			NotifyChanged( Rendering.SceneObjectChange.Deleted );
 			CSceneSystem.DeleteSceneObjectAtFrameEnd( this );
 			native = IntPtr.Zero; // avoid double delete etc
@@ -135,7 +157,9 @@ public partial class SceneObject : IHandle
 
 		if ( _attributes != null )
 		{
-			_attributes.Set( default );
+			// What a renderer copied stops matching anything (Borealis shares sets of equal values between objects)
+			_attributes.ManagedValues?.Clear();
+			if ( !_attributes.IsManaged ) _attributes.Set( default );
 			_attributes = null;
 		}
 
@@ -169,43 +193,40 @@ public partial class SceneObject : IHandle
 			if ( _transformSet && _transform == value )
 				return;
 
+			var previous = _children is null ? default : Transform;
 			_transformSet = true;
 			_transform = value;
 			TransformVersion++;
 			native.SetTransform( value );
 			NotifyChanged( Rendering.SceneObjectChange.Transform );
 			OnTransformChanged( value );
-			MoveChildren();
+			MoveChildren( previous, value );
 		}
 	}
 
 	/// <summary>
-	/// Children added with <see cref="AddChild"/>, which native moves with this one.
+	/// Children added with <see cref="AddChild"/>, which move with this one. Kept here only: native's twins aren't linked.
 	/// </summary>
 	List<SceneObject> _children;
+	SceneObject _parent;
 
 	/// <summary>
-	/// Native moved the children with this one (<c>SceneObject_MirrorTransformToChildSceneObjectsRelative</c>, for
-	/// <c>CHILD_SCENEOBJECT_INHERIT_TRANSFORM</c>), and theirs with them: read each one's transform back, and say it changed, as
-	/// its own setter would - or what's cached here, and Borealis's copy (<c>-borealisgpu</c>), stay where they were.
+	/// Move the children with this one, as native's <c>SceneObject_MirrorTransformToChildSceneObjectsRelative</c> moves them
+	/// (<c>CHILD_SCENEOBJECT_INHERIT_TRANSFORM</c>): each one's transform taken out of this one's old one (<c>InverseTR</c>, an
+	/// inverse for a uniform scale) and put into the new one. Each child's setter moves its own children.
 	/// </summary>
-	void MoveChildren()
+	void MoveChildren( in Transform previous, in Transform now )
 	{
-		if ( _children is null ) return;
+		if ( _children is null || _children.Count == 0 ) return;
 
-		foreach ( var child in _children )
+		// A zero scale has no inverse: native's leaves the scale out then, as this does by not moving them
+		if ( !System.Numerics.Matrix4x4.Invert( Matrix.FromTransform( previous ), out var inverse ) ) return;
+		var move = inverse * (System.Numerics.Matrix4x4)Matrix.FromTransform( now );
+
+		foreach ( var child in _children.ToArray() )
 		{
 			if ( !child.IsValid() ) continue;
-
-			var moved = child.native.GetCTransform();
-			if ( child._transformSet && child._transform == moved ) continue;
-
-			child._transformSet = true;
-			child._transform = moved;
-			child.TransformVersion++;
-			child.NotifyChanged( Rendering.SceneObjectChange.Transform );
-			child.OnTransformChanged( moved );
-			child.MoveChildren();
+			child.Transform = ((Matrix)((System.Numerics.Matrix4x4)Matrix.FromTransform( child.Transform ) * move)).ExtractTransform();
 		}
 	}
 
@@ -326,7 +347,7 @@ public partial class SceneObject : IHandle
 	/// <summary>
 	/// Movement parent of this scene object, if any.
 	/// </summary>
-	public SceneObject Parent => native.GetParent();
+	public SceneObject Parent => _parent;
 
 	/// <summary>
 	/// Add a named child scene object to this one. The child scene object will have its parent set.
@@ -336,10 +357,10 @@ public partial class SceneObject : IHandle
 	/// </remarks>
 	public void AddChild( string name, SceneObject child )
 	{
-		if ( !child.IsValid() )
+		if ( !child.IsValid() || child._parent is not null )
 			return;
 
-		native.AddChildObject( name, child, 0x02 );
+		child._parent = this;
 		(_children ??= new()).Add( child );
 	}
 
@@ -348,11 +369,11 @@ public partial class SceneObject : IHandle
 	/// </summary>
 	public void RemoveChild( SceneObject child )
 	{
-		if ( !child.IsValid() )
+		if ( !child.IsValid() || child._parent != this )
 			return;
 
-		native.RemoveChild( child );
-		_children?.Remove( child );
+		child._parent = null;
+		_children.Remove( child );
 	}
 
 	/// <summary>
@@ -395,14 +416,20 @@ public partial class SceneObject : IHandle
 		set { native.ResetMeshGroups( value ); NotifyChanged( Rendering.SceneObjectChange.Material ); }
 	}
 
+	int? _lod;
+
 	/// <summary>
-	/// Override current LOD level, -1 to disable.
+	/// Override current LOD level, -1 to disable. Kept here as native keeps it (<c>CSceneObject::SetLOD</c>: anything outside
+	/// 0 to 7 disables it), or read once from native for an object native code made; native gets it while something reads it.
 	/// </summary>
 	internal int LodOverride
 	{
+		get => _lod ??= native.IsNull ? -1 : native.GetCurrentLODLevel();
 		set
 		{
-			native.SetLOD( value );
+			if ( native.IsNull ) Sandbox.Interop.ThrowNullSelf( "CSceneObject", "SetLOD" );
+			_lod = value is < 0 or > 7 ? -1 : value;
+			if ( WritesNative ) native.SetLOD( value );
 			NotifyChanged( Rendering.SceneObjectChange.Settings );
 		}
 	}

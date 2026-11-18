@@ -36,6 +36,12 @@ public partial class RenderAttributes
 	/// </summary>
 	internal RenderAttributes ShadowSet => Shadow is null ? null : shadowSet ??= new RenderAttributes( Shadow );
 
+	/// <summary>The values a backend that lowers attributes itself reads: a managed set's own, or a native set's copy. Null for a native set without one.</summary>
+	internal ManagedRenderAttributes ManagedValues => Managed ?? Shadow;
+
+	/// <summary>This set if it's managed, else <see cref="ShadowSet"/>: the set to draw with on a backend that lowers attributes itself.</summary>
+	internal RenderAttributes ManagedSet => Managed is not null ? this : ShadowSet;
+
 	RenderAttributes shadowSet;
 
 	RenderAttributes( ManagedRenderAttributes managed )
@@ -181,6 +187,38 @@ internal sealed class ManagedRenderAttributes
 		// Bytes from outside stay the caller's
 		if ( value is byte[] ) borrowed.Add( k.Value );
 		else Own( k.Value );
+	}
+
+	/// <summary>Whether nothing is set.</summary>
+	public bool IsEmpty => values.Count == 0 && combos.Count == 0;
+
+	/// <summary>
+	/// Whether <paramref name="other"/> holds the same values and combos, as <c>CRenderAttributes::AreEqual</c> compares two
+	/// sets: numbers and bytes by value, textures, buffers and samplers by what they are.
+	/// </summary>
+	public bool SameValues( ManagedRenderAttributes other )
+	{
+		if ( ReferenceEquals( this, other ) ) return true;
+		if ( other is null || values.Count != other.values.Count || combos.Count != other.combos.Count ) return false;
+
+		foreach ( var (k, entry) in combos )
+		{
+			if ( !other.combos.TryGetValue( k, out var theirs ) || theirs.Value != entry.Value ) return false;
+		}
+
+		foreach ( var (k, entry) in values )
+		{
+			if ( !other.values.TryGetValue( k, out var theirs ) ) return false;
+			var same = (entry.Value, theirs.Value) switch
+			{
+				(float[] a, float[] b ) => a.AsSpan().SequenceEqual( b ),
+				(byte[] a, byte[] b ) => a.AsSpan().SequenceEqual( b ),
+				var (a, b) => Equals( a, b ),
+			};
+			if ( !same ) return false;
+		}
+
+		return true;
 	}
 
 	public void SetCombo( StringToken k, int value )

@@ -360,7 +360,7 @@ internal static class MirrorContent
 	/// </summary>
 	public static ShaderParameters ObjectParameters( RenderAttributes attributes )
 	{
-		if ( Gpu is not { } gpu || attributes?.Shadow is not { } shadow ) return null;
+		if ( Gpu is not { } gpu || attributes?.ManagedValues is not { } shadow ) return null;
 
 		var converted = convertedAttributes.GetOrCreateValue( shadow );
 		if ( converted.Parameters is not null && converted.Version == shadow.Version ) return converted.Parameters;
