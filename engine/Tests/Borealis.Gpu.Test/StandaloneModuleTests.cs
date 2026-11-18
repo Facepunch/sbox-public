@@ -194,6 +194,9 @@ public class StandaloneModuleTests : GpuTest
 		using var backend = new BackendDevice( Device );
 		var errors = new List<string>();
 		backend.Passes.Error = errors.Add;
+
+		// Shaders with a geometry stage compare their programs' vertex and pixel stages too
+		backend.Shaders.GeometryPrograms = true;
 		var core = backend.Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "sbox", "pass.slangh" ) ) ) ?? throw new AssertInconclusiveException( "No core shaders" );
 		var differences = new List<string>();
 		var described = 0;
@@ -226,6 +229,16 @@ public class StandaloneModuleTests : GpuTest
 			described++;
 			var before = differences.Count;
 			differences.AddRange( Describe( compiled, module, passModule.Has( StageKind.Mesh ) ).Select( d => $"{path}: {d}" ) );
+
+			// Code sets values by token (StringToken.Literal) and the game's backend turns tokens back into names from the shader:
+			// every name the compiled file's variables and combos give, the module's binding names give too. Not a .vmat's input
+			// textures (TextureColor: the material compile's, never drawn) or vfx's own default sampler, which nothing sets
+			var names = backend.Passes.BindingNames( module );
+			var missing = compiled.Programs.Where( p => p is not null )
+				.SelectMany( p => p.Variables.Where( v => v.Register != RegisterType.InputTexture ).SelectMany( v => new[] { v.Name, v.Attribute } ).Concat( p.DynamicCombos.Select( c => c.Name ) ) )
+				.Where( n => !string.IsNullOrEmpty( n ) && n != "DefaultSamplerState" && !names.Contains( n ) ).Distinct().Order( StringComparer.Ordinal ).ToList();
+			if ( missing.Count > 0 ) differences.Add( $"{path}: names not among the module's binding names: {string.Join( ' ', missing )}" );
+
 			if ( differences.Count > before ) continue;
 
 			foreach ( var mode in compiled.Modes )
@@ -249,6 +262,8 @@ public class StandaloneModuleTests : GpuTest
 					{
 						backend.SlangPasses = true;
 					}
+
+					if ( classic is null ) continue;
 
 					var fromModule = backend.Shaders.Variant( module, mode.Name, [], Combo );
 					if ( fromModule is not { FromModule: true } )
@@ -277,7 +292,8 @@ public class StandaloneModuleTests : GpuTest
 	/// </summary>
 	static IEnumerable<string> Describe( ShaderFile compiled, ShaderFile module, bool meshStages )
 	{
-		static string Mode( ShaderMode m ) => $"{m.Name}({m.Fallback}{string.Concat( m.Settings.Select( s => $",{s.Combo}={s.Value}" ) )})";
+		// Mode names are looked up ignoring case (vfx names Depth() DEPTH when it sets S_MODE_DEPTH)
+		static string Mode( ShaderMode m ) => $"{m.Name.ToUpperInvariant()}({m.Fallback}{string.Concat( m.Settings.Select( s => $",{s.Combo}={s.Value}" ) )})";
 		var modes = string.Join( ' ', compiled.Modes.Select( Mode ) );
 		var moduleModes = string.Join( ' ', module.Modes.Select( Mode ) );
 		if ( modes != moduleModes ) yield return $"modes {modes} vs {moduleModes}";
