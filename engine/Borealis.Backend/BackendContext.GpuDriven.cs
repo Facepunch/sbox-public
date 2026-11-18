@@ -639,10 +639,11 @@ internal sealed partial class BackendContext
 				}
 
 				// Forward's compacted triangles come from this frame's compacted buffer, which turns over each frame, after
-				// this call's own slots
+				// this call's own slots; a meshlet prepass's 16-bit runs from its 16-bit buffer
+				var compacted16 = meshlets ? visibility.PrepassCompacted16 : default;
 				for ( int i = 0; i < cullRuns.Count; i++ )
 				{
-					if ( plan.Compacted[i] ) cullRuns[i] = cullRuns[i] with { Page = compacted, First = cullRuns[i].First - plan.CompactBase + totalFragments };
+					if ( plan.Compacted[i] ) cullRuns[i] = cullRuns[i] with { Page = cullRuns[i].Format == IndexFormat.UInt16 ? compacted16 : compacted, First = cullRuns[i].First - plan.CompactBase + totalFragments };
 				}
 
 				// The ids shader, which this context may not have made yet
@@ -1042,7 +1043,8 @@ internal sealed partial class BackendContext
 	/// Whether a view's meshlet bits can be read: its prepass culled meshlets since its stamps were cleared, so forward's
 	/// compaction scans only the meshlets the prepass kept where it stamped them this frame.
 	/// </summary>
-	bool MeshletStampsReady( BackendDevice.VisibilityView visibility ) => visibility is { MeshletStampsCleared: true } && device.MeshletStore is not null;
+	bool MeshletStampsReady( BackendDevice.VisibilityView visibility ) => visibility is { MeshletStampsCleared: true } && device.MeshletStore is not null
+		&& visibility.PrepassCompacted.IsValid && visibility.PrepassCompacted16.IsValid && visibility.MeshletStamps.IsValid;
 
 	/// <summary>Chunks of 1024 meshlets a listed fragment has at most (4096 meshlets), each with a compacted slot of its own.</summary>
 	internal const uint MeshletChunks = 4;

@@ -1339,10 +1339,14 @@ internal sealed partial class AggregateRenderFeature
 		return true;
 	}
 
-	/// <summary>Mesh groups as the device takes them for a depth kind: a batch per group, LOD and draw.</summary>
-	void MeshDeviceBatches( List<MeshGroup> groups, bool depth, bool forceDepthOnly, Span<GpuContext.GpuDrivenBatch> made )
+	/// <summary>
+	/// Mesh groups as the device takes them for a depth kind: a batch per group, LOD and draw. False while a depth draw's
+	/// material may still change which material draws it (<see cref="GpuMaterial.DepthOnlyPending"/>), to make them again.
+	/// </summary>
+	bool MeshDeviceBatches( List<MeshGroup> groups, bool depth, bool forceDepthOnly, Span<GpuContext.GpuDrivenBatch> made )
 	{
 		var at = 0;
+		var settled = true;
 		foreach ( var group in groups )
 		{
 			var mesh = group.Mesh;
@@ -1353,6 +1357,7 @@ internal sealed partial class AggregateRenderFeature
 				for ( int d = 0; d < draws.Length; d++ )
 				{
 					ref readonly var draw = ref draws[d];
+					if ( depth && group.Override is null && draw.Material is { DepthOnlyPending: true } ) settled = false;
 					var material = Meshes.MaterialFor( group.Override, group.OverrideBlends, draw, depth, forceDepthOnly, out var strip );
 					if ( material is null )
 					{
@@ -1368,6 +1373,8 @@ internal sealed partial class AggregateRenderFeature
 				}
 			}
 		}
+
+		return settled;
 	}
 
 	/// <summary>Whether a shadow view's list of these casters holds an aggregate.</summary>
@@ -1410,9 +1417,8 @@ internal sealed partial class AggregateRenderFeature
 				for ( int i = 0; i < batches.Length; i++ ) made[i] = made[i] with { Moved = moved[i] };
 			}
 
-			// Mesh groups' batches name no frame's instances: made once
-			if ( !list.DeviceMeshes[kind] ) MeshDeviceBatches( list.MeshGroups, depth, forceDepthOnly, made.AsSpan( batches.Length, list.DeviceCount - batches.Length ) );
-			list.DeviceMeshes[kind] = true;
+			// Mesh groups' batches name no frame's instances: made once their materials have settled
+			if ( !list.DeviceMeshes[kind] ) list.DeviceMeshes[kind] = MeshDeviceBatches( list.MeshGroups, depth, forceDepthOnly, made.AsSpan( batches.Length, list.DeviceCount - batches.Length ) );
 			list.DeviceGeneration[kind] = argGeneration;
 			return made.AsSpan( 0, list.DeviceCount );
 		}

@@ -1037,6 +1037,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				using ( Zones.MapLightmaps.Start() )
 				using ( WaitForLightmapUploads ? default : Gpu.DeferUploads() )
 					made = LightmapParameters( world.Lightmaps, world.LightmapUvScale );
+				mapLightmapPaths[folder] = [.. world.Lightmaps];
 			}
 			catch ( Exception e ) when ( e is IOException or InvalidDataException or KeyNotFoundException )
 			{
@@ -1045,6 +1046,62 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 			return mapLightmaps[folder] = made;
 		}
+	}
+
+	// Mirrors drawing each map's lightmaps (HoldMapLightmaps)
+	readonly Dictionary<string, int> mapLightmapHolders = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, string[]> mapLightmapPaths = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>A world drawing the map in <paramref name="folder"/>'s lightmaps; <see cref="ReleaseMapLightmaps"/> when it's gone.</summary>
+	public void HoldMapLightmaps( string folder )
+	{
+		lock ( mapLightmaps ) mapLightmapHolders[folder] = mapLightmapHolders.GetValueOrDefault( folder ) + 1;
+	}
+
+	/// <summary>Map lightmap sets freed once no world drew them, for soaks and tests.</summary>
+	public int MapLightmapsReleased { get; private set; }
+
+	/// <summary>
+	/// A world that drew the map in <paramref name="folder"/>'s lightmaps has gone. When it was the last, the lightmaps and the
+	/// map's other textures read by path (its light probe volumes) are destroyed (once the GPU is done with them) and read again
+	/// if a world draws the map again: a map's are hundreds of MiB.
+	/// </summary>
+	public void ReleaseMapLightmaps( string folder )
+	{
+		string[] paths;
+		lock ( mapLightmaps )
+		{
+			if ( !mapLightmapHolders.TryGetValue( folder, out var holders ) ) return;
+			if ( --holders > 0 )
+			{
+				mapLightmapHolders[folder] = holders;
+				return;
+			}
+
+			mapLightmapHolders.Remove( folder );
+			mapLightmaps.Remove( folder );
+			if ( !mapLightmapPaths.Remove( folder, out paths ) ) return;
+		}
+
+		var textures = new List<GpuTexture>( paths.Length );
+		lock ( loadedTextures )
+		{
+			foreach ( var path in paths )
+			{
+				if ( loadedTextures.TryGetValue( path, out var texture ) && loadedTextures.Remove( path ) ) textures.Add( texture );
+			}
+
+			// The rest of the map's own textures read by path: its light probe volumes, hundreds of MiB on a big map
+			var prefix = folder + "/";
+			foreach ( var path in loadedTextures.Keys.Where( p => p.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) ).ToList() )
+			{
+				if ( loadedTextures.Remove( path, out var texture ) ) textures.Add( texture );
+			}
+		}
+
+		foreach ( var texture in textures ) texture?.Dispose();
+
+		MapLightmapsReleased++;
 	}
 
 	/// <summary>Eight lightmap bindless indices (six used), as two int4s.</summary>
@@ -1744,7 +1801,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		/// <summary>The meshlet pass's copy jobs: their count (also the copy dispatch's group count), 1, 1, then a job per kept meshlet.</summary>
 		public BufferHandle MeshletJobs;
-		public bool MeshletStampsCleared;
+		public volatile bool MeshletStampsCleared;
 		public bool StampsCleared;
 
 		/// <summary>The frame (<see cref="GpuDrivenFrame"/>) its mask was last cleared in, before any call drew ids into it.</summary>
@@ -1827,29 +1884,44 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
 		using var zone = Zones.VisibilityMake.Start();
+
+		// Made without the lock (the driver's allocations take milliseconds, and other views' calls take the lock), then
+		// kept unless another thread made them meanwhile. Room for task shaders' kept triangles only where they draw; less
+		// for small views
+		var small = state.Width > 0 && (long)state.Width * state.Height * Math.Max( state.Samples, 1 ) < SmallViewSamples;
+		var prepassCapacity = small ? SmallPrepassIndices : PrepassCompactedIndices;
+		var keptCapacity = small ? SmallKeptCapacity : MeshletKeptCapacity;
+		var meshletKept = MeshletIds is not null;
+		var stampBytes = meshletKept ? MeshletKeptAt + 4 + keptCapacity * 4L : MeshletKeptAt;
+		var stamps = Gpu.CreateBuffer( new BufferInfo { Size = stampBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet stamps" } );
+		var jobs = Gpu.CreateBuffer( new BufferInfo { Size = 16 + MeshletJobCapacity * 16L, Usage = BufferUsage.Storage | BufferUsage.Indirect | BufferUsage.CopyDestination, Name = "Borealis meshlet copy jobs" } );
+		var compacted16 = Gpu.CreateBuffer( new BufferInfo { Size = prepassCapacity * 2L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles 16" } );
+		var buffer = Gpu.CreateBuffer( new BufferInfo { Size = prepassCapacity * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles" } );
+
 		lock ( visibilityViews )
 		{
-			if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
-			// Room for task shaders' kept triangles only where they draw; less for small views
-			var small = state.Width > 0 && (long)state.Width * state.Height * Math.Max( state.Samples, 1 ) < SmallViewSamples;
-			state.PrepassCapacity = small ? SmallPrepassIndices : PrepassCompactedIndices;
-			state.KeptCapacity = small ? SmallKeptCapacity : MeshletKeptCapacity;
-			state.MeshletKept = MeshletIds is not null;
-			var stampBytes = state.MeshletKept ? MeshletKeptAt + 4 + state.KeptCapacity * 4L : MeshletKeptAt;
-			state.MeshletStamps = Gpu.CreateBuffer( new BufferInfo { Size = stampBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet stamps" } );
-			state.MeshletJobs = Gpu.CreateBuffer( new BufferInfo { Size = 16 + MeshletJobCapacity * 16L, Usage = BufferUsage.Storage | BufferUsage.Indirect | BufferUsage.CopyDestination, Name = "Borealis meshlet copy jobs" } );
-			visibilityBuffers.Add( state.MeshletJobs );
-			state.PrepassCompacted16 = Gpu.CreateBuffer( new BufferInfo { Size = state.PrepassCapacity * 2L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles 16" } );
-			visibilityBuffers.Add( state.PrepassCompacted16 );
-			var buffer = Gpu.CreateBuffer( new BufferInfo { Size = state.PrepassCapacity * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles" } );
-			visibilityBuffers.Add( state.MeshletStamps );
+			if ( state.PrepassCompacted.IsValid )
+			{
+				foreach ( var made in (BufferHandle[])[stamps, jobs, compacted16, buffer] ) Gpu.Destroy( made );
+				return state.PrepassCompacted;
+			}
+
+			(state.PrepassCapacity, state.KeptCapacity, state.MeshletKept) = (prepassCapacity, keptCapacity, meshletKept);
+			(state.MeshletStamps, state.MeshletJobs, state.PrepassCompacted16) = (stamps, jobs, compacted16);
+			visibilityBuffers.Add( jobs );
+			visibilityBuffers.Add( compacted16 );
+			visibilityBuffers.Add( stamps );
+
 			// Freed with the view's other buffers (visibilityBuffers), not through the wrapper
 #pragma warning disable CA2000
-			state.MeshletStampsAttribute = new GpuBuffer( new BackendBuffer( this, state.MeshletStamps, stampBytes, "Borealis meshlet stamps" ), (int)(stampBytes / 4), 4 );
+			state.MeshletStampsAttribute = new GpuBuffer( new BackendBuffer( this, stamps, stampBytes, "Borealis meshlet stamps" ), (int)(stampBytes / 4), 4 );
 #pragma warning restore CA2000
 			visibilityBuffers.Add( buffer );
-			ClearMadeAfterClear( state, compacted: false, prepass: buffer );
+			var cleared = ClearMadeAfterClear( state, compacted: false, prepass: buffer );
 			state.PrepassCompacted = buffer;
+
+			// Said cleared only once every buffer is in place: recording threads read them without the lock once it's set
+			if ( cleared ) state.MeshletStampsCleared = true;
 			return buffer;
 		}
 	}
@@ -1858,11 +1930,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// Clear a view's visibility buffers made after this frame cleared the view's (<c>BackendContext.BeginGpuDrivenView</c>)
 	/// as that clear would have: this frame's calls go on to use them, and their cursors and stamps would hold whatever the
 	/// memory last held (a target that grew, a child view drawn at another size inside a cube capture, a prepass's meshlet
-	/// buffers made at its first use). In a list of its own, submitted now, ahead of the lists recording with them.
+	/// buffers made at its first use). In a list of its own, submitted now, ahead of the lists recording with them. Whether
+	/// it did; the caller marks the meshlet stamps cleared once the view holds every buffer.
 	/// </summary>
-	void ClearMadeAfterClear( VisibilityView state, bool compacted, BufferHandle prepass )
+	bool ClearMadeAfterClear( VisibilityView state, bool compacted, BufferHandle prepass )
 	{
-		if ( state.ClearedFrame != GpuDrivenFrame ) return;
+		if ( state.ClearedFrame != GpuDrivenFrame ) return false;
 
 		var list = Gpu.BeginCommandList( QueueType.Graphics, "Borealis visibility made mid-frame" );
 		if ( compacted )
@@ -1875,12 +1948,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			list.FillBuffer( prepass, VisibilityView.CompactedCursorIndices, 0, 4 );
 			list.FillBuffer( state.PrepassCompacted16, VisibilityView.CompactedCursorIndices, 0, 4 );
 			list.FillBuffer( state.MeshletStamps, 0 );
-			state.MeshletStampsCleared = true;
 		}
 
 		list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
 		Gpu.Submit( list );
 		VisibilityClearedMidFrame++;
+		return true;
 	}
 
 	/// <summary>Views' visibility buffers made after their frame's clear and cleared when made, for the tests.</summary>
@@ -2047,9 +2120,10 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			for ( int i = 0; i < buffers.Length; i++ ) buffers[i] = VisibilityCompacted( compacted );
 			var (scratch, ids) = VisibilityTargets( depth );
 
+			VisibilityView state;
 			lock ( visibilityViews )
 			{
-				var state = visibilityViews.GetValue( view, _ => new VisibilityView { Retire = retiredVisibility } );
+				state = visibilityViews.GetValue( view, _ => new VisibilityView { Retire = retiredVisibility } );
 				if ( state.Ready || state.Mask.IsValid )
 				{
 					// Made meanwhile where it was asked
@@ -2071,6 +2145,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				(state.Width, state.Height, state.Samples) = (depth.Width, depth.Height, depth.Samples);
 				state.Ready = true;
 			}
+
+			// Its meshlet prepass's buffers too, which its first prepass call with meshlets would make
+			if ( meshletStore is not null ) PrepassCompactedFor( state );
 		}
 		catch ( GpuException )
 		{

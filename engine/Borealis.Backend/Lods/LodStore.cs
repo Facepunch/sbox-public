@@ -67,6 +67,54 @@ internal sealed class LodStore : IDisposable
 		public Label Label;
 		public (uint First, uint Count)[] Placed;
 		public readonly List<uint> Draws = new();
+
+		/// <summary>
+		/// Its levels in the range's index size one after another (at <see cref="LevelsAt"/>), written on the build worker
+		/// (<see cref="Stage"/>) for the upload to copy, and each level's indices as the meshlet request wants them.
+		/// </summary>
+		public BufferHandle Staging;
+		public long[] LevelsAt;
+		public byte[][] LevelBytes;
+	}
+
+	/// <summary>
+	/// Whether a built chain a colour pass draws is written on its build worker into a staging buffer of its own (on), so
+	/// the upload on the frame's thread only records copies; off writes it there, narrowing 16-bit indices. For comparisons.
+	/// </summary>
+	public static bool StageOnWorkers { get; set; } = true;
+
+	/// <summary>On the build worker: a chain's levels in the range's index size, in a staging buffer, and their bytes for meshlets.</summary>
+	void Stage( Entry entry )
+	{
+		var wide = entry.Source.Format == IndexFormat.UInt32;
+		var levels = entry.Chain.Levels;
+		var at = new long[levels.Length];
+		long size = 0;
+		for ( int k = 0; k < levels.Length; k++ )
+		{
+			at[k] = size;
+			size += (levels[k].Length * (wide ? 4L : 2L) + 3) & ~3L;
+		}
+
+		var staging = gpu.CreateBuffer( new BufferInfo { Size = Math.Max( size, 4 ), Usage = BufferUsage.CopySource, Memory = MemoryLocation.Upload, Name = "Borealis LOD staging" } );
+		var mapped = gpu.Map( staging );
+		var bytes = new byte[levels.Length][];
+		for ( int k = 0; k < levels.Length; k++ )
+		{
+			var level = levels[k];
+			if ( wide ) MemoryMarshal.AsBytes( level.AsSpan() ).CopyTo( mapped[(int)at[k]..] );
+			else
+			{
+				var narrow = MemoryMarshal.Cast<byte, ushort>( mapped.Slice( (int)at[k], level.Length * 2 ) );
+				for ( int i = 0; i < level.Length; i++ ) narrow[i] = (ushort)level[i];
+			}
+
+			bytes[k] = MemoryMarshal.AsBytes( level.AsSpan() ).ToArray();
+		}
+
+		entry.LevelsAt = at;
+		entry.LevelBytes = bytes;
+		entry.Staging = staging;
 	}
 
 	readonly object gate = new();
@@ -307,6 +355,9 @@ internal sealed class LodStore : IDisposable
 
 			Interlocked.Add( ref BuildTicks, Stopwatch.GetTimestamp() - started );
 			entry.Chain = chain;
+
+			// Staged only for a range a colour pass draws, which uploads soon; others wait without holding upload memory
+			if ( StageOnWorkers && chain is { Levels.Length: > 0 } && Volatile.Read( ref entry.Color ) ) Stage( entry );
 		}
 		catch ( Exception e )
 		{
@@ -321,7 +372,7 @@ internal sealed class LodStore : IDisposable
 	}
 
 	/// <summary>
-	/// A draw record over <paramref name="range"/> (from <see cref="GpuDrivenTables.Draw"/>, under its lock): given the range's
+	/// A draw record over <paramref name="range"/> (from <see cref="GpuDrivenTables.Draw"/>, by the thread that made it): given the range's
 	/// levels now if they're published, else when they are. Draw records of levels themselves keep none.
 	/// </summary>
 	public void RegisterDraw( uint draw, in Range range )
@@ -448,7 +499,8 @@ internal sealed class LodStore : IDisposable
 					break;
 				}
 
-				if ( s.Format == IndexFormat.UInt32 ) list.UpdateBuffer<uint>( page, level, first * 4L );
+				if ( entry.Staging.IsValid ) list.CopyBuffer( entry.Staging, entry.LevelsAt[k], page, first * (long)size, level.Length * (long)size );
+				else if ( s.Format == IndexFormat.UInt32 ) list.UpdateBuffer<uint>( page, level, first * 4L );
 				else
 				{
 					var narrow = new ushort[level.Length];
@@ -458,11 +510,15 @@ internal sealed class LodStore : IDisposable
 
 				placed.Add( (first, (uint)level.Length) );
 				var levelRange = new Range( entry.Range.PageSlot, first, (uint)level.Length, entry.Range.BaseVertex );
-				var bytes = new byte[level.Length * 4];
-				MemoryMarshal.AsBytes( level.AsSpan() ).CopyTo( bytes );
+				var bytes = entry.LevelBytes?[k] ?? MemoryMarshal.AsBytes( level.AsSpan() ).ToArray();
 				(meshletRequests ??= new()).Add( (levelRange, s with { Indices = new MeshIndexBuffer( level.Length, 4, bytes ), IndexBase = 0 }) );
 				LevelTriangles += level.Length / 3;
 			}
+
+			// Freed once the GPU has run the copies
+			if ( entry.Staging.IsValid ) gpu.Destroy( entry.Staging );
+			entry.Staging = default;
+			entry.LevelBytes = null;
 
 			uint[] draws;
 			lock ( gate )
@@ -484,7 +540,7 @@ internal sealed class LodStore : IDisposable
 				else Dropped++;
 			}
 
-			// Outside the lock: making the levels' draw records takes the draw table's, under which draws register here
+			// Outside the lock: making the levels' draw records registers them here
 			foreach ( var draw in draws ) records.Enqueue( (draw, MakeRecord( draw, entry )) );
 		}
 
@@ -688,6 +744,15 @@ internal sealed class LodStore : IDisposable
 
 	public void Dispose()
 	{
+		lock ( gate )
+		{
+			while ( built.TryDequeue( out var entry ) ) ready.Add( entry );
+			foreach ( var entry in ready )
+			{
+				if ( entry.Staging.IsValid ) gpu.Destroy( entry.Staging );
+			}
+		}
+
 		if ( table.IsValid ) gpu.Destroy( table );
 		foreach ( var old in retired ) gpu.Destroy( old );
 		retired.Clear();

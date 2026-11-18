@@ -32,4 +32,9 @@
 		<None Include="..\..\..\game\bin\linuxsteamrt64\libSDL3.so.0" Link="libSDL3.so.0" CopyToOutputDirectory="PreserveNewest" Visible="false" Condition="Exists('..\..\..\game\bin\linuxsteamrt64\libSDL3.so.0')" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<!-- The Vulkan driver s&box ships on macOS: there's usually no Vulkan loader installed there, so without it every GPU test is inconclusive -->
+		<None Include="..\..\..\game\bin\osxarm64\libvulkan_kosmickrisp.dylib" Link="libvulkan_kosmickrisp.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" Condition="Exists('..\..\..\game\bin\osxarm64\libvulkan_kosmickrisp.dylib')" />
+	</ItemGroup>
+
 </Project>

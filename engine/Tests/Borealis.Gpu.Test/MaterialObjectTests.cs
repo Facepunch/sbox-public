@@ -58,6 +58,12 @@ public class MaterialObjectTests : GpuTest
 		using var scene = new BorealisScene( Device ) { GpuDriven = false };
 		scene.Backend.MaterialObjects = true;
 
+		// A warm frame first: a surface's depth draws take the depth-only material once its program is known, which the
+		// first frame finds, so the first frame's objects aren't the steady ones
+		Device.BeginFrame();
+		scene.Render( width, height, 1.0f );
+		Device.WaitIdle();
+
 		Device.BeginFrame();
 		var (texture, layout, color) = scene.Render( width, height, 1.0f );
 		Device.WaitIdle();

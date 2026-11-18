@@ -59,6 +59,12 @@ internal sealed class MeshletStore : IDisposable
 	/// </summary>
 	public bool LocalData { get; init; }
 
+	/// <summary>
+	/// Whether a built range's bytes are written on its build worker into a staging buffer of its own (on), so the upload on
+	/// the frame's thread only records copies; off writes them there (narrowing 16-bit indices too). For comparisons.
+	/// </summary>
+	public static bool StageOnWorkers { get; set; } = true;
+
 	/// <summary>Bytes a frame uploads at most (indices and records); the rest waits for the next frame.</summary>
 	public long FrameUploadBytes { get; set; } = 16 << 20;
 
@@ -71,6 +77,13 @@ internal sealed class MeshletStore : IDisposable
 		public State State;
 		public MeshletSet Set;
 		public MeshletLocal Local;
+
+		/// <summary>
+		/// What its upload copies, written on the build worker (<see cref="Stage"/>) in the range's index size: its indices, its
+		/// records, then its local triangles and vertices; null when the upload writes them itself.
+		/// </summary>
+		public BufferHandle Staging;
+		public long IndexBytes, LocalTrianglesAt, LocalVerticesAt, LocalVertexBytes;
 		public long UploadedFrame;
 		public uint PageSlot, First, Count, Global;
 		public readonly List<uint> Draws = new();
@@ -158,6 +171,48 @@ internal sealed class MeshletStore : IDisposable
 		}
 	}
 
+	/// <summary>
+	/// On the build worker: the bytes a built range's upload copies (<see cref="Entry.Staging"/>), its indices and local
+	/// vertices narrowed to the range's index size.
+	/// </summary>
+	void Stage( Entry entry )
+	{
+		var set = entry.Set;
+		var wide = entry.Source.Format == IndexFormat.UInt32;
+		var indexBytes = (set.Indices.Length * (wide ? 4L : 2L) + 3) & ~3L;
+		var recordBytes = set.Meshlets.Length * (long)MeshletSet.RecordBytes;
+		var local = entry.Local;
+		var triangleBytes = local is null ? 0 : local.Triangles.Length * 4L;
+		var vertexBytes = local is null ? 0 : (local.Vertices.Length * (wide ? 4L : 2L) + 3) & ~3L;
+		var staging = gpu.CreateBuffer( new BufferInfo { Size = Math.Max( indexBytes + recordBytes + triangleBytes + vertexBytes, 4 ), Usage = BufferUsage.CopySource, Memory = MemoryLocation.Upload, Name = "Borealis meshlet staging" } );
+		var mapped = gpu.Map( staging );
+		Write( mapped, set.Indices, wide );
+		MemoryMarshal.AsBytes( set.Meshlets.AsSpan() ).CopyTo( mapped[(int)indexBytes..] );
+		if ( local is not null )
+		{
+			MemoryMarshal.AsBytes( local.Triangles.AsSpan() ).CopyTo( mapped[(int)(indexBytes + recordBytes)..] );
+			Write( mapped[(int)(indexBytes + recordBytes + triangleBytes)..], local.Vertices, wide );
+		}
+
+		entry.Staging = staging;
+		entry.IndexBytes = set.Indices.Length * (wide ? 4L : 2L);
+		entry.LocalTrianglesAt = indexBytes + recordBytes;
+		entry.LocalVerticesAt = indexBytes + recordBytes + triangleBytes;
+		entry.LocalVertexBytes = vertexBytes;
+
+		static void Write( Span<byte> into, uint[] values, bool wide )
+		{
+			if ( wide )
+			{
+				MemoryMarshal.AsBytes( values.AsSpan() ).CopyTo( into );
+				return;
+			}
+
+			var narrow = MemoryMarshal.Cast<byte, ushort>( into[..(values.Length * 2)] );
+			for ( int k = 0; k < values.Length; k++ ) narrow[k] = (ushort)values[k];
+		}
+	}
+
 	bool Claim( in Range range )
 	{
 		if ( !pageRanges.TryGetValue( range.PageSlot, out var list ) ) pageRanges[range.PageSlot] = list = new();
@@ -214,6 +269,7 @@ internal sealed class MeshletStore : IDisposable
 			Interlocked.Add( ref BuildTicks, Stopwatch.GetTimestamp() - started );
 			entry.Set = set is not null && set.Meshlets.Length <= MaxRunMeshlets ? set : null;
 			if ( LocalData && entry.Set is not null ) entry.Local = entry.Set.Local();
+			if ( StageOnWorkers && entry.Set is not null ) Stage( entry );
 			built.Enqueue( entry );
 		}
 		catch ( Exception e )
@@ -392,7 +448,13 @@ internal sealed class MeshletStore : IDisposable
 			// The range's triangles in meshlet order, in the page's index size
 			var s = entry.Source;
 			var range = entry.Range;
-			if ( s.Format == IndexFormat.UInt32 )
+			var staging = entry.Staging;
+			if ( staging.IsValid )
+			{
+				list.CopyBuffer( staging, 0, s.IndexPage, range.FirstIndex * (s.Format == IndexFormat.UInt32 ? 4L : 2L), entry.IndexBytes );
+				bytes += entry.IndexBytes;
+			}
+			else if ( s.Format == IndexFormat.UInt32 )
 			{
 				list.UpdateBuffer<uint>( s.IndexPage, set.Indices, range.FirstIndex * 4L );
 				bytes += set.Indices.Length * 4L;
@@ -415,9 +477,15 @@ internal sealed class MeshletStore : IDisposable
 				pageUsed = 0;
 			}
 
-			list.UpdateBuffer<MeshletRecord>( page, set.Meshlets, pageUsed * (long)MeshletSet.RecordBytes );
-			bytes += set.Meshlets.Length * (long)MeshletSet.RecordBytes;
-			if ( entry.Local is { } local ) bytes += UploadLocal( list, set, local, s.Format == IndexFormat.UInt32 );
+			var recordBytes = set.Meshlets.Length * (long)MeshletSet.RecordBytes;
+			if ( staging.IsValid ) list.CopyBuffer( staging, (entry.IndexBytes + 3) & ~3L, page, pageUsed * (long)MeshletSet.RecordBytes, recordBytes );
+			else list.UpdateBuffer<MeshletRecord>( page, set.Meshlets, pageUsed * (long)MeshletSet.RecordBytes );
+			bytes += recordBytes;
+			if ( entry.Local is { } local ) bytes += UploadLocal( list, set, local, s.Format == IndexFormat.UInt32, entry );
+
+			// Freed once the GPU has run the copies
+			if ( staging.IsValid ) gpu.Destroy( staging );
+			entry.Staging = default;
 
 			lock ( gate )
 			{
@@ -442,7 +510,7 @@ internal sealed class MeshletStore : IDisposable
 	/// A range's local triangles and vertices into a data page with room for them (vertices in the range's index size), and
 	/// each meshlet's local record after its page's records. Bytes uploaded.
 	/// </summary>
-	long UploadLocal( CommandList list, MeshletSet set, MeshletLocal local, bool wide )
+	long UploadLocal( CommandList list, MeshletSet set, MeshletLocal local, bool wide, Entry entry )
 	{
 		var triangleBytes = local.Triangles.Length * 4L;
 		var vertexBytes = (local.Vertices.Length * (wide ? 4L : 2L) + 3) & ~3L;
@@ -456,10 +524,19 @@ internal sealed class MeshletStore : IDisposable
 
 		var trianglesAt = dataUsed;
 		var verticesAt = dataUsed + triangleBytes;
-		list.UpdateBuffer<uint>( dataPage, local.Triangles, trianglesAt );
-		if ( wide ) list.UpdateBuffer<uint>( dataPage, local.Vertices, verticesAt );
+		if ( entry.Staging.IsValid )
+		{
+			if ( triangleBytes > 0 ) list.CopyBuffer( entry.Staging, entry.LocalTrianglesAt, dataPage, trianglesAt, triangleBytes );
+			if ( entry.LocalVertexBytes > 0 ) list.CopyBuffer( entry.Staging, entry.LocalVerticesAt, dataPage, verticesAt, entry.LocalVertexBytes );
+		}
+		else if ( wide )
+		{
+			list.UpdateBuffer<uint>( dataPage, local.Triangles, trianglesAt );
+			list.UpdateBuffer<uint>( dataPage, local.Vertices, verticesAt );
+		}
 		else
 		{
+			list.UpdateBuffer<uint>( dataPage, local.Triangles, trianglesAt );
 			var narrow = new ushort[(int)(vertexBytes / 2)];
 			for ( int k = 0; k < local.Vertices.Length; k++ ) narrow[k] = (ushort)local.Vertices[k];
 			list.UpdateBuffer<ushort>( dataPage, narrow, verticesAt );
@@ -523,6 +600,11 @@ internal sealed class MeshletStore : IDisposable
 
 	public void Dispose()
 	{
+		while ( built.TryDequeue( out var entry ) )
+		{
+			if ( entry.Staging.IsValid ) gpu.Destroy( entry.Staging );
+		}
+
 		foreach ( var p in pages ) gpu.Destroy( p );
 		pages.Clear();
 		foreach ( var p in dataPages ) gpu.Destroy( p );

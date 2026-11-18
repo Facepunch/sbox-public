@@ -745,6 +745,7 @@ internal sealed class SurfaceProgram : IDisposable
 		this.device = device;
 		Compiled = compiled;
 		LayoutHash = MaterialClassWriter.Hash( compiled.Material );
+		Displaces = compiled.Generated is { } generated && (generated.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) || generated.Contains( "SurfaceOutputDisplacedWith", StringComparison.Ordinal ));
 
 		var modules = new Dictionary<CompiledStage, ShaderHandle>();
 		ShaderHandle Module( CompiledStage stage )
@@ -848,7 +849,7 @@ internal sealed class SurfaceProgram : IDisposable
 	/// Whether its vertex stage moves vertices (<c>IVertexSurface</c>, <c>IInterpolatedVertexSurface</c>): when not, its
 	/// positions alone place them.
 	/// </summary>
-	public bool Displaces => Compiled.Generated is { } generated && (generated.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) || generated.Contains( "SurfaceOutputDisplacedWith", StringComparison.Ordinal ));
+	public bool Displaces { get; }
 
 	/// <summary>
 	/// A pipeline for a pass drawing vertices laid out as <paramref name="layout"/> into these formats, with a material's

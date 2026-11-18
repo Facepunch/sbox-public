@@ -277,6 +277,16 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	public override bool ShadowFastPath => false;
 
 	/// <summary>
+	/// Once its program has compiled and doesn't move vertices (<see cref="SurfaceProgram.Displaces"/>), when it draws opaque,
+	/// one-sided, depth tested and written, without alpha test or depth bias: its depth is the shared depth-only material's,
+	/// as native's fast path draws a <c>ShadowFastPath</c> material's.
+	/// </summary>
+	public override bool DepthOnlyNow => Program is { Displaces: false, Stale: false } && RenderState is { Blend: SurfaceBlend.Opaque, DepthWrite: true, DepthTest: true, DepthBias: 0, SlopeDepthBias: 0, TwoSided: false, AlphaTest: false, Translucent: false };
+
+	/// <summary>Until its program is found, or while a hotload has dropped it.</summary>
+	public override bool DepthOnlyPending => Program is null or { Stale: true };
+
+	/// <summary>
 	/// Always: a surface lights through the engine's lighting, which reads a probe volume's baked light and occlusion
 	/// when its object isn't lightmapped, as today's lit shaders declare (<c>NeedsLightProbe</c>,
 	/// <c>UsesBakedLightingFromProbe</c>).

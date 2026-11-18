@@ -641,7 +641,7 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 	GpuMaterial MaterialFor( in RenderMesh.Draw draw, bool depth, bool forceDepthOnly, out bool stripPixelShader )
 	{
 		stripPixelShader = false;
-		if ( depth && (forceDepthOnly || draw.ShadowFastPath) && depthOnlyMaterial is not null ) return depthOnlyMaterial;
+		if ( depth && (forceDepthOnly || draw.ShadowFastPath || draw.Material is { DepthOnlyNow: true }) && depthOnlyMaterial is not null ) return depthOnlyMaterial;
 
 		stripPixelShader = depth && !draw.Translucent && !draw.AlphaTest;
 		return draw.Material;

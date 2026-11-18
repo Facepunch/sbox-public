@@ -51,6 +51,9 @@ internal sealed class StreamedTexture
 	/// <summary>The streamer's frame it was last asked for in.</summary>
 	public uint LastAsked { get; set; }
 
+	/// <summary>When it was last asked for (or added), in <see cref="System.Diagnostics.Stopwatch"/> ticks.</summary>
+	public long LastAskedTime { get; set; }
+
 	/// <summary>A build in flight for it, or null.</summary>
 	public TextureStreamer.Build Building { get; set; }
 
@@ -227,6 +230,16 @@ internal sealed class TextureStreamer
 	/// <summary>Mips given back for room so far.</summary>
 	public int GivenBack { get; private set; }
 
+	/// <summary>
+	/// Seconds a texture nothing asks for keeps mips finer than its tail with room to spare: after that they're given back,
+	/// so what a map streamed in doesn't stay resident once the map has gone. Long enough that turning away from something
+	/// and back doesn't stream it again.
+	/// </summary>
+	public double IdleSeconds { get; set; } = 30;
+
+	/// <summary>Textures shrunk to their tail after going unasked for <see cref="IdleSeconds"/>, for tests and soaks.</summary>
+	public int IdleGivenBack { get; private set; }
+
 	/// <summary>Bytes of an image of a file's mips from <paramref name="top"/>.</summary>
 	public static long Bytes( TextureFile file, int top )
 	{
@@ -261,8 +274,10 @@ internal sealed class TextureStreamer
 		}
 
 		var now = Frame;
+		var updateTime = System.Diagnostics.Stopwatch.GetTimestamp();
 		while ( added.TryDequeue( out var texture ) )
 		{
+			texture.LastAskedTime = updateTime;
 			textures.Add( texture );
 			ResidentBytes += texture.ResidentBytes;
 		}
@@ -275,6 +290,7 @@ internal sealed class TextureStreamer
 				var top = texture.TopFor( size );
 				if ( top < texture.Asked ) texture.Asked = top;
 				texture.LastAsked = now;
+				texture.LastAskedTime = updateTime;
 			}
 		}
 
@@ -289,7 +305,22 @@ internal sealed class TextureStreamer
 		Upload();
 		Measure( now );
 		GiveBack();
+		GiveBackIdle( updateTime );
 		Start();
+	}
+
+	// Textures unasked for IdleSeconds back to their tail, a few builds at a time
+	void GiveBackIdle( long now )
+	{
+		if ( IdleSeconds <= 0 ) return;
+		var idle = (long)(IdleSeconds * System.Diagnostics.Stopwatch.Frequency);
+		foreach ( var texture in textures )
+		{
+			if ( builds.Count >= MaxBuilds ) break;
+			if ( texture.Building is not null || texture.Pinned || texture.ResidentTop >= texture.TailTop || now - texture.LastAskedTime < idle ) continue;
+			StartBuild( texture, texture.TailTop );
+			IdleGivenBack++;
+		}
 	}
 
 	// Textures disposed since
