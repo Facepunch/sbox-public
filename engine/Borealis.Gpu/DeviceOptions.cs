@@ -79,6 +79,18 @@ public sealed class DeviceOptions
 	/// </summary>
 	public IReadOnlyList<string> InstanceExtensions { get; init; }
 
+	/// <summary>
+	/// Instance extensions to enable where the loader has them, and leave out where it doesn't: what a library working on the
+	/// device would like (a vendor upscaler, <see cref="Device.Native"/>).
+	/// </summary>
+	public IReadOnlyList<string> OptionalInstanceExtensions { get; init; }
+
+	/// <summary>
+	/// Device extensions to enable where the device has them, asked for once the adapter is chosen: given the
+	/// <c>VkInstance</c> and <c>VkPhysicalDevice</c>, as a vendor upscaler asks for its own. Null for none.
+	/// </summary>
+	public Func<nint, nint, IReadOnlyList<string>> OptionalDeviceExtensions { get; init; }
+
 	/// <summary>Pipeline cache data saved from <see cref="Device.GetPipelineCacheData"/>, or null.</summary>
 	public byte[] PipelineCacheData { get; init; }
 
