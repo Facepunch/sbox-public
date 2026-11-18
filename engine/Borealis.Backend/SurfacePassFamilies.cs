@@ -1,6 +1,4 @@
-using Borealis.Gpu;
 using Sandbox.ShaderCompiler;
-using System.Linq;
 
 namespace Borealis.Backend;
 
@@ -62,9 +60,6 @@ internal static class SurfacePassNotes
 
 	/// <summary>Every pair.</summary>
 	public const uint All = (1u << (Families * Kinds)) - 1;
-
-	/// <summary>The pairs of static draws (<see cref="SurfaceDrawKinds.Static"/>, <see cref="SurfaceDrawKinds.StaticLightmapped"/>).</summary>
-	public static readonly uint StaticOnly = Pairs( (SurfacePassFamilies)((1 << Families) - 1), SurfaceDrawKinds.Static | SurfaceDrawKinds.StaticLightmapped );
 
 	/// <summary>
 	/// The pairs a material with <paramref name="state"/> drawn as <paramref name="kinds"/> has, its families as
@@ -139,48 +134,5 @@ internal static class SurfacePassNotes
 
 		if ( kind == SurfaceDrawKinds.Skinned ) return program.Pass( name + ShaderPasses.Skinned );
 		return (lightmapped ? program.Pass( name + ShaderPasses.Lightmapped ) : null) ?? program.Pass( name );
-	}
-}
-
-/// <summary>
-/// A view's specialization values as surface pipelines were made in it (<see cref="SurfaceShaders.NoteView"/>): whether
-/// it's the 3D skybox's, whether it has the opaque pass's normals target, and the global attributes' values (shadow filter
-/// quality, DDGI). Guesses are made per view kind, so a skybox's or a reflection's draws find their parts too.
-/// </summary>
-internal sealed class SurfaceView( string key, bool skybox, bool normals, Dictionary<string, int> values )
-{
-	/// <summary>Tells views apart.</summary>
-	public readonly string Key = key;
-
-	public readonly bool Skybox = skybox, Normals = normals;
-
-	/// <summary>Attribute values by attribute, as the view's draws took them.</summary>
-	public readonly Dictionary<string, int> Values = values;
-
-	/// <summary>
-	/// The view a pipeline of <paramref name="pass"/> was made in: what its constants say, by slot. Fading and the material
-	/// offset are the draw's, not the view's, so left out.
-	/// </summary>
-	public static SurfaceView Of( SurfaceProgram.PassObjects pass, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, bool normals )
-	{
-		var values = new Dictionary<string, int>( StringComparer.Ordinal );
-		var skybox = false;
-		Read( pass.Pass.Vertex, vertexConstants );
-		Read( pass.Pass.Pixel, pixelConstants );
-		var key = $"{(skybox ? 's' : '-')}{(normals ? 'n' : '-')}{string.Concat( values.OrderBy( v => v.Key, StringComparer.Ordinal ).Select( v => $";{v.Key}={v.Value}" ) )}";
-		return new SurfaceView( key, skybox, normals, values );
-
-		void Read( CompiledStage stage, SpecializationConstant[] constants )
-		{
-			if ( stage is null || constants is null ) return;
-			foreach ( var constant in constants )
-			{
-				if ( constant.Id == BackendContext.SkyboxId ) skybox |= constant.Value != 0;
-				foreach ( var slot in stage.Specializations )
-				{
-					if ( slot.Id == constant.Id ) values[slot.Attribute] = (int)constant.Value;
-				}
-			}
-		}
 	}
 }

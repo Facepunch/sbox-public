@@ -27,7 +27,7 @@ internal sealed partial class BackendContext
 	static readonly StringToken OpaqueFadeCombo = new( "D_OPAQUE_FADE" );
 
 	/// <summary><c>kSurfaceSkybox</c> in sbox/surface_passes.slangh: the draw is in the 3D skybox's view (<c>D_SKYBOX</c>).</summary>
-	internal const uint SkyboxId = 4;
+	const uint SkyboxId = 4;
 
 	static readonly StringToken SkyboxCombo = new( "D_SKYBOX" );
 
@@ -244,22 +244,21 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
-	/// The specialization constants a stage's draws in <paramref name="view"/> most likely have, as <see cref="SurfaceConstants"/>
-	/// makes them: each slot's value as the view's draws had it, else as draws last looked it up
-	/// (<see cref="SurfaceShaders.SpecializationValues"/>), else its default; in the 3D skybox if the view is, not fading.
-	/// What a program's parts are made ahead with (<see cref="SurfaceProgram.PrepareParts"/>).
+	/// The specialization constants a stage's draws most likely have, as <see cref="SurfaceConstants"/> makes them: each slot's
+	/// value as draws last looked it up (<see cref="SurfaceShaders.SpecializationValues"/>), else its default; not in the 3D
+	/// skybox, not fading. What a program's parts are made ahead with (<see cref="SurfaceProgram.PrepareParts"/>).
 	/// </summary>
-	internal static SpecializationConstant[] LikelySurfaceConstants( CompiledStage stage, bool perPixel, SurfaceView view, IReadOnlyDictionary<string, int> seen )
+	internal static SpecializationConstant[] LikelySurfaceConstants( CompiledStage stage, bool perPixel, IReadOnlyDictionary<string, int> seen )
 	{
 		var constants = new SpecializationConstant[stage.Specializations.Count + 3];
 		for ( int i = 0; i < stage.Specializations.Count; i++ )
 		{
 			var slot = stage.Specializations[i];
-			var value = view.Values.TryGetValue( slot.Attribute, out var inView ) ? inView : seen.TryGetValue( slot.Attribute, out var looked ) ? looked : (int)(slot.Annotations?.Default is { Length: > 0 } d ? d[0] : 0);
+			var value = seen.TryGetValue( slot.Attribute, out var looked ) ? looked : (int)(slot.Annotations?.Default is { Length: > 0 } d ? d[0] : 0);
 			constants[i] = new SpecializationConstant( (uint)slot.Id, (uint)value );
 		}
 
-		constants[^3] = new SpecializationConstant( SkyboxId, view.Skybox ? 1u : 0u );
+		constants[^3] = new SpecializationConstant( SkyboxId, 0 );
 		constants[^2] = new SpecializationConstant( MaterialOffsetPerPixelId, perPixel ? 1u : 0u );
 		constants[^1] = new SpecializationConstant( OpaqueFadeId, 0 );
 		return constants;
