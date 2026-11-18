@@ -100,7 +100,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	static bool WritesDirectly( SceneObject sceneObject ) => !sceneObject.OwnsRenderObject && sceneObject switch
 	{
 		SceneModel or SceneDirectionalLight or SceneLightProbe or SceneSkyBox => false,
-		SceneLight or SceneCubemap or SceneCustomObject or SceneDynamicObject => true,
+		SceneCubemap or SceneCustomObject or SceneDynamicObject => true,
 		_ => sceneObject.GetType() == typeof( SceneObject ) && sceneObject.ResolvesDraws,
 	};
 
@@ -315,10 +315,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 				ApplyMesh( sceneObject, mesh, change );
 				break;
 
-			case LightObject light:
-				ApplyLight( (SceneLight)sceneObject, light, change );
-				break;
-
 			case EnvMapObject envMap:
 				ApplyEnvMap( (SceneCubemap)sceneObject, envMap, change );
 				break;
@@ -409,6 +405,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 
 	GpuTexture ISceneWorldRender.Texture( Texture texture ) => WorldTexture( texture );
 
+	bool ISceneWorldRender.OnDevice => MirrorContent.Gpu is not null;
+
 	GpuTexture ISceneWorldRender.TextureWhenRead( Texture texture, SceneObject waiting, SceneObjectChange change ) => TextureFor( texture, waiting, change );
 
 	/// <summary>A texture this world draws with (its fog's sky), as <see cref="MirrorContent.Texture"/> has it, but a file's held by the world.</summary>
@@ -472,8 +470,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			SceneCubemap => new EnvMapObject( null, default, Transform.Zero ),
 			SceneDirectionalLight => null,
 			SceneSkyBox => null,
-			SceneSpotLight => new LightObject( LightObject.LightKind.Spot, sceneObject.Transform ),
-			ScenePointLight => new LightObject( LightObject.LightKind.Point, sceneObject.Transform ),
 			SceneModel => new MeshObject( null, sceneObject.Transform ),
 			SceneCustomObject custom => new BridgeCustomObject( custom ),
 			SceneDynamicObject dynamic => new BridgeDynamicObject( dynamic ),
@@ -681,50 +677,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			aggregate.LightmapAttributes = LightmapFor( sceneObject, SceneNative.AggregateModel( sceneObject, out _ ) );
 		}
 	}
-
-	void ApplyLight( SceneLight sceneLight, LightObject light, SceneObjectChange change )
-	{
-		if ( (change & SceneObjectChange.Transform) != 0 )
-			light.Transform = sceneLight.Transform;
-
-		if ( (change & SceneObjectChange.Settings) != 0 )
-		{
-			light.Color = sceneLight.LightColor;
-			light.Radius = sceneLight.Radius;
-			light.Attenuation = sceneLight.QuadraticAttenuation;
-			light.CastShadows = sceneLight.ShadowsEnabled;
-			light.ShadowHardness = sceneLight.ShadowHardness;
-
-			if ( sceneLight is SceneSpotLight spot )
-			{
-				light.ConeInner = spot.ConeInner;
-				light.ConeOuter = spot.ConeOuter;
-			}
-
-			light.Cookie = sceneLight is SceneSpotLight ? WorldTexture( sceneLight.LightCookie ) : null;
-		}
-
-		// Pack the light's description (attenuation, falloff and baking from maps included: Light.LegacyLightData)
-		if ( (change & (SceneObjectChange.Settings | SceneObjectChange.Transform)) != 0 && sceneLight.IsValid() )
-		{
-			LightPacking.Pack( sceneLight, out var packed, out var flags, out var bakeIndex );
-
-			// The binner sets the cookie's index on Borealis.Gpu from the texture
-			if ( MirrorContent.Gpu is not null && (packed.Flags & Borealis.Features.LightBinnerFeature.LightCookieEnabled) != 0 )
-			{
-				packed.Flags &= ~Borealis.Features.LightBinnerFeature.LightCookieEnabled;
-				packed.LightCookieTextureIndex = 0xFFFFFFFF;
-			}
-
-			light.NativePacked = packed;
-			light.Baked = (flags & LightTypeFlagsBaked) != 0;
-			light.MixedShadows = (flags & LightTypeFlagsMixedShadows) != 0;
-			light.BakeIndex = bakeIndex;
-		}
-	}
-
-	// LIGHTTYPE_FLAGS in native's lightdesc.h
-	const uint LightTypeFlagsMixedShadows = 16, LightTypeFlagsBaked = 32;
 
 	/// <summary>
 	/// Mirror custom-object placement, culling bounds and flags.
@@ -965,7 +917,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 				lighting.SunBakeIndex = bakeIndex;
 				lighting.SunBaked = bakeIndex >= 0 ? packed : null;
 
-				var baked = (flags & LightTypeFlagsBaked) != 0;
+				var baked = (flags & LightPacking.TypeFlagsBaked) != 0;
 				// A baked sun still renders cascades, without its static casters: native's binner only asks local lights for
 				// mixed shadows (CLightBinnerStandard::AddLight), and volumetric fog is lit by the sun only through them
 				lighting.SunShadowsBaked = baked && !sun.IncludeStaticShadowCasters;

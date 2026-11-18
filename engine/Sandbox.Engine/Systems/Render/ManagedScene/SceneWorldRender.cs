@@ -14,6 +14,11 @@ internal interface ISceneWorldRender
 	Borealis.RenderWorld World { get; }
 
 	/// <summary>
+	/// Whether the world draws on a Borealis.Gpu device.
+	/// </summary>
+	bool OnDevice { get; }
+
+	/// <summary>
 	/// A texture as the world's objects draw with it on the device, held by the world while it lives. Null without one.
 	/// </summary>
 	Borealis.GpuTexture Texture( Texture texture );

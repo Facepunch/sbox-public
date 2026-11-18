@@ -85,7 +85,11 @@ public class SceneMirrorDirectTests
 		try
 		{
 			var decal = new DecalSceneObject( world );
+			var light = new ScenePointLight( world, Vector3.Zero, 100, Color.White );
+			var spot = new SceneSpotLight( world );
 			MirrorType.GetMethod( "Sync", Any ).Invoke( mirror, [camera, false] );
+			Assert.IsInstanceOfType<Borealis.LightObject>( light.RenderObject );
+			Assert.AreEqual( Borealis.LightObject.LightKind.Spot, ((Borealis.LightObject)spot.RenderObject).Kind );
 			var find = MirrorType.GetMethod( "Find", Any );
 			Assert.IsInstanceOfType<Borealis.DecalObject>( decal.RenderObject );
 			Assert.AreSame( decal.RenderObject, find.Invoke( mirror, [decal] ), "the decal's own" );
@@ -94,7 +98,15 @@ public class SceneMirrorDirectTests
 			world.ChangeListener = null;
 			decal.SortOrder = 7;
 			decal.Position = new Vector3( 1, 2, 3 );
+			light.LightColor = Color.Red;
+			light.Radius = 250;
+			spot.ConeOuter = 40;
 			world.ChangeListener = listener;
+
+			var lightObject = (Borealis.LightObject)light.RenderObject;
+			Assert.AreEqual( Color.Red, lightObject.Color );
+			Assert.AreEqual( 250, lightObject.Radius );
+			Assert.AreEqual( 40, ((Borealis.LightObject)spot.RenderObject).ConeOuter );
 
 			var obj = (Borealis.DecalObject)decal.RenderObject;
 			Assert.AreEqual( 7u, obj.SortOrder );

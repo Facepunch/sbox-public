@@ -52,4 +52,8 @@ public sealed class SceneSpotLight : SceneLight
 	{
 
 	}
+
+	internal override bool OwnsRenderObject => true;
+
+	internal override Borealis.RenderObject MakeRenderObject() => new Borealis.LightObject( Borealis.LightObject.LightKind.Spot, Transform );
 }
