@@ -383,6 +383,9 @@ public sealed partial class BackendDevice
 	/// <summary>Whether a model's files have been read for <see cref="LoadModelAsync"/>, so asking again can make it.</summary>
 	public bool ModelRead( string path ) => modelReads.TryGetValue( path, out var read ) && read.IsCompleted;
 
+	/// <summary>A model's file as <see cref="LoadModelAsync"/> reads it, on a worker, shared with it: null where there's none.</summary>
+	public Task<ModelFile> ReadModel( string path ) => modelReads.GetOrAdd( path, StartRead );
+
 	Task<ModelFile> StartRead( string path )
 	{
 		Interlocked.Increment( ref readsPending );
