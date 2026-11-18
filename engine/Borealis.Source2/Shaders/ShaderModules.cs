@@ -34,6 +34,28 @@ public interface IShaderModules
 	/// no module there.
 	/// </summary>
 	ShaderFile Describe( string compiledPath );
+
+	/// <summary>
+	/// A shader whose module is standalone (it declares its modes): what the module declares, even with a compiled file at
+	/// <paramref name="compiledPath"/> (that one is only Source 2's renderer's), or null when the module there isn't one.
+	/// </summary>
+	ShaderFile DescribeStandalone( string compiledPath ) => null;
+
+	/// <summary>Whether a shader's module compiles a GPU-driven form (<c>GpuDrivenVariant</c>) for its GPU-driven buckets.</summary>
+	bool HasGpuDriven( ShaderFile shader ) => false;
+
+	/// <summary>
+	/// <see cref="Compile"/>'s stages in their GPU-driven form (<see cref="ModuleStage.GpuDriven"/>), or null when the module
+	/// has none for these values (its <c>GpuDrivenVariant</c> condition doesn't hold) or doesn't compile: those draws stay
+	/// classic.
+	/// </summary>
+	ModuleProgram CompileGpuDriven( ShaderFile shader, ShaderMode mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos, Func<string, int?> attributes ) => null;
+
+	/// <summary>
+	/// The names a shader's module binds its globals by and its combos (attributes, <c>g_</c> variables, combos), as a compiled
+	/// file's variables say them: what values set by token are matched against. Empty without a module.
+	/// </summary>
+	IReadOnlyCollection<string> BindingNames( ShaderFile shader ) => [];
 }
 
 /// <summary>A shader's stages from its module, for one mode and combo values.</summary>
@@ -102,6 +124,12 @@ public sealed class ModuleStage
 
 	/// <summary>A vertex stage's expansion of the draw's primitives (<c>ExpandPrimitives</c>), or none.</summary>
 	public PrimitiveExpansion Expansion { get; init; }
+
+	/// <summary>
+	/// Whether it's a GPU-driven form (<c>BOREALIS_GPU_DRIVEN</c>), as a shader's GPU-driven file's stages are: vertices pulled
+	/// by index, the draw and vertex bit passed on, ids at target 1.
+	/// </summary>
+	public bool GpuDriven { get; init; }
 }
 
 /// <summary>What a vertex stage that expands primitives takes each instance of its draw from.</summary>

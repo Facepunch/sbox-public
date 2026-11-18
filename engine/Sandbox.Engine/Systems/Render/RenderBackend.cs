@@ -121,6 +121,25 @@ internal abstract class RenderBackend
 		}
 	}
 
+	/// <summary>
+	/// An engine texture was cleared to one colour (<see cref="Texture.Clear"/>): clear this device's copy, if it has one.
+	/// False when it can't, and the copy is released instead (made again from the colour when next used).
+	/// </summary>
+	public virtual bool Cleared( Texture texture, Color color ) => false;
+
+	/// <summary>Clear an engine texture's copies on every other device, releasing those that can't be cleared.</summary>
+	internal static void ClearEverywhere( Texture texture, Color color )
+	{
+		if ( others.Count == 0 ) return;
+		lock ( others )
+		{
+			foreach ( var backend in others )
+			{
+				if ( !backend.Cleared( texture, color ) ) backend.Release( texture );
+			}
+		}
+	}
+
 	/// <summary>Release an engine resource's backings on every other device.</summary>
 	internal static void ReleaseEverywhere( object resource )
 	{

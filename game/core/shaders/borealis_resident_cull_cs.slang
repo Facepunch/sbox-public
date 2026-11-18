@@ -1,13 +1,13 @@
-// borealis_resident_cull_cs.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// borealis_resident_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis resident cull: culls every view's resident batches in one dispatch, a thread per entry looping over the views, and writes their instance records and indirect commands.";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -243,6 +243,37 @@ uint WaveTakeSlot( bool bTake, uint nRuns, uint nRun, ByteAddressBuffer frame )
 	return nSlot;
 }
 
+// Two-phase Hi-Z occlusion (view word 28 bit 3; docs/managed/borealis-gpu-driven.md, "Hi-Z occlusion"), as
+// borealis_gpu_driven_cull_cs defers: an ids fragment (not a forward one) forward didn't see last frame (its bit clear in the
+// bits at bindless slot vViewFlags.z) is left for the second phase, as a 64-byte candidate at byte offset vViewFlags.w (group
+// count, 1, 1, count, occluded; then from byte 32 the candidates, 256 a group). bMeshlets: the view's prepass would list it for the meshlet pass
+bool HiZDeferred( uint4 vViewFlags, uint4 vVisibility, float3 vCenter, float3 vExtents, uint nTransform, uint nDrawRecord, uint3 vDraw, uint nVertexBase, uint nFragment, uint nRun, bool bMeshletView )
+{
+	if ( ( vViewFlags.x & 8 ) == 0 || ( vVisibility.z & 3 ) != 1 || nFragment == None || nVertexBase == None )
+		return false;
+	if ( ( ( g_bindless_VertexBuffers[ vViewFlags.z ].Load( ( nFragment >> 5 ) * 4 ) >> ( nFragment & 31 ) ) & 1 ) != 0 )
+		return false;
+
+	bool bMeshlets = false;
+	if ( bMeshletView && ( vVisibility.z & 12 ) == 0 && g_nResidentMeshletRuns != None && ( vVisibility.y & 0x80000000u ) == 0 )
+		bMeshlets = g_bindless_VertexBuffers[ g_nResidentMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u;
+
+	uint nAt;
+	g_Frame.InterlockedAdd( vViewFlags.w + 12, 1, nAt );
+	if ( ( nAt & 255 ) == 0 )
+	{
+		uint nGroups;
+		g_Frame.InterlockedAdd( vViewFlags.w, 1, nGroups );
+	}
+
+	uint nEntry = vViewFlags.w + 32 + nAt * 64;
+	g_Frame.Store4( nEntry, uint4( asuint( vCenter ), nTransform ) );
+	g_Frame.Store4( nEntry + 16, uint4( asuint( vExtents ), nDrawRecord ) );
+	g_Frame.Store4( nEntry + 32, uint4( vDraw, nVertexBase ) );
+	g_Frame.Store4( nEntry + 48, uint4( nFragment, nRun, vVisibility.y, bMeshlets ? 1u : 0u ) );
+	return true;
+}
+
 // An expand dispatch: entry n of a new plan, whose records are g_Frame. What the cull reads of its fragment or resident
 // mesh and draw, from the fragment and draw tables in host memory, into its entry record (ResidentCullEntryRecord, 48
 // bytes) in video memory: centre and transform slot; extents and draw record; the draw's first index, index count and base
@@ -458,6 +489,13 @@ void Expand( uint n )
 				nViewDraw = vLevel.z;
 				vViewRange = vLevel.xy;
 			}
+		}
+
+		// A prepass's fragment forward didn't see last frame waits for the second phase (two-phase Hi-Z occlusion)
+		if ( bKept )
+		{
+			if ( HiZDeferred( vViewFlags, vVisibility, vCenter, vExtents, nTransform, nViewDraw, uint3( vViewRange, vDraw.z ), nVertexBase, nFragment, vBatch.w, ( vViewOut.w & 4 ) != 0 ) )
+				bKept = false;
 		}
 
 		// Forward over a fragment its prepass view draws ids for this frame: listed for the compaction pass. The prepass

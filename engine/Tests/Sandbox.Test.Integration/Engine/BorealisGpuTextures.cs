@@ -119,6 +119,30 @@ public class BorealisGpuTexturesTest
 	}
 
 	/// <summary>
+	/// <see cref="Texture.Clear"/> clears the device's copy too: one already made is cleared in place, and a render target
+	/// whose copy isn't made yet starts with the colour it was last cleared to, not the one it was made with.
+	/// </summary>
+	[TestMethod]
+	public void ClearsLandInTheCopy()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		const int size = 16;
+		using var image = Texture.Create( size, size, ImageFormat.RGBA8888 ).WithData( Pixels( size, size, ( x, y ) => new Color32( (byte)x, (byte)y, 0, 255 ) ) ).Finish();
+		Assert.AreEqual( new Color32( 5, 7, 0, 255 ), borealis.ReadPixels( image )[7 * size + 5], "the copy has the texture's pixels" );
+
+		image.Clear( Color.Blue );
+		Assert.AreEqual( new Color32( 0, 0, 255, 255 ), borealis.ReadPixels( image )[7 * size + 5], "the copy was cleared" );
+
+		using var target = Texture.CreateRenderTarget().WithSize( size, size ).WithFormat( ImageFormat.RGBA8888 ).WithInitialColor( Color.Red ).Create();
+		target.Clear( Color.Green );
+		Assert.AreEqual( new Color32( 0, 255, 0, 255 ), borealis.ReadPixels( target )[3 * size + 3], "a copy made after the clear has its colour" );
+
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	/// <summary>
 	/// What draws on a Borealis frame through the engine (custom objects, camera stages) get of the view: its lookup tables,
 	/// as Borealis's own draws have them. Without the BRDF lookup a forward shader drawn that way (Mow the Lawn's terrain)
 	/// has no environment reflection.

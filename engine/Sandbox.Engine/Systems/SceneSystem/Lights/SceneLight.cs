@@ -6,7 +6,7 @@ namespace Sandbox;
 /// Base class for light scene objects for use with a <see cref="SceneWorld"/>.
 /// </summary>
 [Expose]
-public class SceneLight : SceneObject
+public partial class SceneLight : SceneObject
 {
 	internal CSceneLightObject lightNative;
 
@@ -20,7 +20,10 @@ public class SceneLight : SceneObject
 	/// </summary>
 	internal void SetModulatorRange( uint offset, uint count )
 	{
-		lightNative.SetLightModulatorRange( offset, count );
+		ref var d = ref Change();
+		d.LightModulatorOffset = offset;
+		d.LightModulatorCount = count;
+		if ( WritesNative ) lightNative.SetLightModulatorRange( offset, count );
 		NotifyChanged( Rendering.SceneObjectChange.Settings );
 	}
 
@@ -32,8 +35,8 @@ public class SceneLight : SceneObject
 	/// </summary>
 	public Color LightColor
 	{
-		get { return lightNative.GetColor(); }
-		set { lightNative.SetColor( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get { return Description.Color; }
+		set { Change().Color = value; Recalculate(); if ( WritesNative ) lightNative.SetColor( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	/// <summary>
@@ -41,10 +44,11 @@ public class SceneLight : SceneObject
 	/// </summary>
 	public float Radius
 	{
-		get { return lightNative.GetRadius(); }
+		get { return Description.Range; }
 		set
 		{
 			if ( Radius == value ) return;
+			Change().Range = value; Recalculate();
 			lightNative.SetRadius( value ); NotifyChanged( Rendering.SceneObjectChange.Settings );
 			BoundsVersion++;
 		}
@@ -55,8 +59,8 @@ public class SceneLight : SceneObject
 	/// </summary>
 	public float ConstantAttenuation
 	{
-		get { return lightNative.GetConstantAttn(); }
-		set { lightNative.SetConstantAttn( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get { return Description.Attenuation0; }
+		set { Change().Attenuation0 = value; Recalculate(); if ( WritesNative ) lightNative.SetConstantAttn( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	/// <summary>
@@ -64,8 +68,8 @@ public class SceneLight : SceneObject
 	/// </summary>
 	public float LinearAttenuation
 	{
-		get { return lightNative.GetLinearAttn(); }
-		set { lightNative.SetLinearAttn( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get { return Description.Attenuation1; }
+		set { Change().Attenuation1 = value; Recalculate(); if ( WritesNative ) lightNative.SetLinearAttn( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	/// <summary>
@@ -74,8 +78,8 @@ public class SceneLight : SceneObject
 	public float QuadraticAttenuation
 	{
 		// Note: to make these numbers sane I'm doing some calculation here
-		get { return lightNative.GetQuadraticAttn() * 10000.0f; }
-		set { lightNative.SetQuadraticAttn( value / 10000.0f ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get { return Description.Attenuation2 * 10000.0f; }
+		set { Change().Attenuation2 = value / 10000.0f; Recalculate(); if ( WritesNative ) lightNative.SetQuadraticAttn( value / 10000.0f ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	/// <summary>
@@ -86,13 +90,21 @@ public class SceneLight : SceneObject
 	{
 		if ( index is < -1 or > 254 )
 			throw new ArgumentOutOfRangeException( nameof( index ) );
-		lightNative.SetBakeLightIndex( index );
-		lightNative.SetBakeLightIndexScale( 1.0f );
-		lightNative.SetUsesIndexedBakedLighting( index >= 0 );
-		var flags = lightNative.GetLightFlags();
-		flags &= ~(16u | 32u);
-		if ( index >= 0 ) flags |= 32u | (mixedShadows ? 16u : 0u);
-		lightNative.SetLightFlags( flags );
+		ref var d = ref Change();
+		d.BakeLightIndex = index;
+		d.BakeLightIndexScale = 1.0f;
+		d.UsesIndexedBakedLighting = index >= 0 ? 1 : 0;
+		d.Flags &= ~(FlagMixedShadows | FlagBaked);
+		if ( index >= 0 ) d.Flags |= FlagBaked | (mixedShadows ? FlagMixedShadows : 0u);
+
+		if ( WritesNative )
+		{
+			lightNative.SetBakeLightIndex( index );
+			lightNative.SetBakeLightIndexScale( 1.0f );
+			lightNative.SetUsesIndexedBakedLighting( index >= 0 );
+			lightNative.SetLightFlags( d.Flags );
+		}
+
 		NotifyChanged( Rendering.SceneObjectChange.Settings );
 	}
 
@@ -101,8 +113,8 @@ public class SceneLight : SceneObject
 	/// </summary>
 	public int ShadowTextureResolution
 	{
-		get { return lightNative.GetShadowTextureResolution(); }
-		set { lightNative.SetShadowTextureResolution( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get { return Description.ShadowWidth; }
+		set { ref var d = ref Change(); d.ShadowWidth = value; d.ShadowHeight = value; if ( WritesNative ) lightNative.SetShadowTextureResolution( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	/// <summary>
@@ -110,8 +122,8 @@ public class SceneLight : SceneObject
 	/// </summary>
 	public bool ShadowsEnabled
 	{
-		get { return lightNative.GetShadows(); }
-		set { lightNative.SetShadows( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get { return Description.CastShadows != 0; }
+		set { Change().CastShadows = value ? 1 : 0; if ( WritesNative ) lightNative.SetShadows( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	private Texture _lightCookie;
@@ -125,7 +137,7 @@ public class SceneLight : SceneObject
 		set
 		{
 			_lightCookie = value;
-			lightNative.SetLightCookie( value == null ? default : value.native ); NotifyChanged( Rendering.SceneObjectChange.Settings );
+			if ( WritesNative ) lightNative.SetLightCookie( value == null ? default : value.native ); NotifyChanged( Rendering.SceneObjectChange.Settings );
 		}
 	}
 
@@ -138,7 +150,8 @@ public class SceneLight : SceneObject
 		set
 		{
 			_renderDiffuse = value;
-			lightNative.SetRenderDiffuse( value ); NotifyChanged( Rendering.SceneObjectChange.Settings );
+			Change().RenderDiffuse = value ? 1 : 0;
+			if ( WritesNative ) lightNative.SetRenderDiffuse( value ); NotifyChanged( Rendering.SceneObjectChange.Settings );
 		}
 	}
 	private bool _renderDiffuse = true;
@@ -152,7 +165,8 @@ public class SceneLight : SceneObject
 		set
 		{
 			_renderSpecular = value;
-			lightNative.SetRenderSpecular( value ); NotifyChanged( Rendering.SceneObjectChange.Settings );
+			Change().RenderSpecular = value ? 1 : 0;
+			if ( WritesNative ) lightNative.SetRenderSpecular( value ); NotifyChanged( Rendering.SceneObjectChange.Settings );
 		}
 	}
 	private bool _renderSpecular = true;
@@ -166,7 +180,8 @@ public class SceneLight : SceneObject
 		set
 		{
 			_renderTransmissive = value;
-			lightNative.SetRenderTransmissive( value ); NotifyChanged( Rendering.SceneObjectChange.Settings );
+			Change().RenderTransmissive = value ? 1 : 0;
+			if ( WritesNative ) lightNative.SetRenderTransmissive( value ); NotifyChanged( Rendering.SceneObjectChange.Settings );
 		}
 	}
 	private bool _renderTransmissive = true;
@@ -188,35 +203,40 @@ public class SceneLight : SceneObject
 
 	public LightShape Shape
 	{
-		get => (LightShape)lightNative.GetLightShape();
-		set { lightNative.SetLightShape( (LightSourceShape_t)value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => (LightShape)Description.Shape;
+		set { Change().Shape = (int)value; Recalculate(); lightNative.SetLightShape( (LightSourceShape_t)value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	public Vector2 ShapeSize
 	{
 		set
 		{
-			lightNative.SetLightSourceDim0( value.x ); NotifyChanged( Rendering.SceneObjectChange.Settings );
-			lightNative.SetLightSourceDim1( value.y ); NotifyChanged( Rendering.SceneObjectChange.Settings );
+			ref var d = ref Change();
+			d.LightSourceDim0 = value.x;
+			d.LightSourceDim1 = value.y;
+			Recalculate();
+			lightNative.SetLightSourceDim0( value.x );
+			lightNative.SetLightSourceDim1( value.y );
+			NotifyChanged( Rendering.SceneObjectChange.Settings );
 		}
 	}
 
 	public FogLightingMode FogLighting
 	{
-		get => (FogLightingMode)lightNative.GetFogLightingMode();
-		set { lightNative.SetFogLightingMode( (int)value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => (FogLightingMode)Description.FogLightingMode;
+		set { Change().FogLightingMode = (int)value; if ( WritesNative ) lightNative.SetFogLightingMode( (int)value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	public float FogStrength
 	{
-		get => lightNative.GetFogContributionStength();
-		set { lightNative.SetFogContributionStength( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => Description.FogContributionStrength;
+		set { Change().FogContributionStrength = value; if ( WritesNative ) lightNative.SetFogContributionStength( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	/// <summary>
 	/// Stupid fucking shit
 	/// </summary>
-	internal Vector3 WorldDirection => lightNative.GetWorldDirection();
+	internal Vector3 WorldDirection => Description.Direction;
 
 	public float ShadowBias
 	{
@@ -274,6 +294,15 @@ public class SceneLight : SceneObject
 	internal override void OnTransformChanged( in Transform tx )
 	{
 		base.OnTransformChanged( tx );
+
+		// As native's SetWorldDirection then SetWorldPosition; both reach native, since its bounds come from them
+		ref var d = ref Change();
+		var forward = tx.Rotation.Forward;
+		if ( d.Type == TypeDirectional ) forward = -forward;
+		d.Direction = NormalizedSafe( forward, new Vector3( 1, 0, 0 ) );
+		d.Up = NormalizedSafe( tx.Rotation.Up, new Vector3( 0, 0, 1 ) );
+		d.Position = tx.Position;
+		Recalculate();
 
 		lightNative.SetWorldDirection( tx.Rotation );
 		lightNative.SetWorldPosition( tx.Position );

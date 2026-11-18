@@ -55,11 +55,18 @@ internal sealed class GpuDrivenTables : IDisposable
 		/// <summary>Where meshes' own data stops: an index page's room for generated levels follows (<see cref="LevelRoom"/>).</summary>
 		public long Limit;
 		public long LevelUsed;
+
+		/// <summary>Bytes of meshes' data still held (<see cref="ReleaseRange"/>): an empty page that's no longer filled goes.</summary>
+		public long Live;
 	}
 
 	Page vertexPage;
 	readonly Dictionary<IndexFormat, Page> indexPages = new();
 	readonly Dictionary<int, Page> indexPagesBySlot = new();
+	readonly Dictionary<int, Page> vertexPagesBySlot = new();
+
+	// Pages whose meshes have all gone, freed once the meshlet and LOD stores have nothing in flight for them (FreeEmptyPages)
+	readonly List<Page> emptyPages = new();
 	long pageBytes, levelBytes;
 
 	/// <summary>
@@ -274,6 +281,8 @@ internal sealed class GpuDrivenTables : IDisposable
 			var offset = page.Used;
 			if ( data.Length > 0 ) gpu.WriteBuffer( page.Buffer, data, offset );
 			page.Used = (offset + data.Length + 15) & ~15;
+			page.Live += (data.Length + 15) & ~15;
+			vertexPagesBySlot[page.Slot] = page;
 			return (page.Slot, offset);
 		}
 	}
@@ -290,6 +299,8 @@ internal sealed class GpuDrivenTables : IDisposable
 			var offset = page.Used;
 			if ( data.Length > 0 ) gpu.WriteBuffer( page.Buffer, data, offset );
 			page.Used = (offset + data.Length + 15) & ~15;
+			page.Live += (data.Length + 15) & ~15;
+			vertexPagesBySlot[page.Slot] = page;
 			return (page.Buffer, offset, page.Slot);
 		}
 	}
@@ -306,7 +317,69 @@ internal sealed class GpuDrivenTables : IDisposable
 			var offset = page.Used;
 			if ( data.Length > 0 ) gpu.WriteBuffer( page.Buffer, data, offset );
 			page.Used = (offset + data.Length + 15) & ~15;
+			page.Live += (data.Length + 15) & ~15;
 			return (page.Buffer, page.Slot, (uint)(offset / (format == IndexFormat.UInt32 ? 4 : 2)));
+		}
+	}
+
+	/// <summary>
+	/// A mesh's <paramref name="bytes"/> of vertices or indices in the page at <paramref name="slot"/> are no longer drawn
+	/// (its model has gone). A page none of whose meshes are left goes once nothing it holds is in flight: the page being
+	/// filled stays. Freed ranges in a page that's still held aren't reused.
+	/// </summary>
+	public void ReleaseRange( int slot, int bytes )
+	{
+		lock ( pagesLock )
+		{
+			if ( !vertexPagesBySlot.TryGetValue( slot, out var page ) && !indexPagesBySlot.TryGetValue( slot, out page ) ) return;
+			page.Live -= (bytes + 15) & ~15;
+			if ( page.Live <= 0 && !IsCurrent( page ) && !emptyPages.Contains( page ) ) emptyPages.Add( page );
+		}
+	}
+
+	bool IsCurrent( Page page ) => page == vertexPage || indexPages.ContainsValue( page );
+
+	/// <summary>Pages freed since the tables were made (<see cref="ReleaseRange"/>), for soaks and tests.</summary>
+	public int PagesFreed { get; private set; }
+
+	/// <summary>
+	/// Free the pages all of whose meshes have gone (<see cref="ReleaseRange"/>), at a frame's start: each once the meshlet
+	/// and LOD stores have no build or upload in flight over it, with the records keyed by its slot, so a page that takes
+	/// the slot later starts afresh. The buffer goes once the GPU is done with it.
+	/// </summary>
+	public void FreeEmptyPages()
+	{
+		if ( emptyPages.Count == 0 ) return;
+		lock ( pagesLock )
+		{
+			for ( int i = emptyPages.Count - 1; i >= 0; i-- )
+			{
+				var page = emptyPages[i];
+				if ( page.Live > 0 || IsCurrent( page ) )
+				{
+					emptyPages.RemoveAt( i );
+					continue;
+				}
+
+				if ( Meshlets is { } meshlets && !meshlets.TryForgetPage( page.Slot ) ) continue;
+				if ( Lods is { } lods && !lods.TryForgetPage( page.Slot ) ) continue;
+				emptyPages.RemoveAt( i );
+
+				var slot = page.Slot;
+				lock ( geometryRecords )
+				{
+					foreach ( var key in geometryRecords.Keys.Where( k => k.Page == slot ).ToList() ) geometryRecords.Remove( key );
+				}
+
+				// Nothing makes a draw over a freed page's slot meanwhile: its meshes have gone
+				foreach ( var key in drawRecords.Keys.Where( k => k.IndexPage == slot ).ToList() ) drawRecords.TryRemove( key, out _ );
+
+				if ( vertexPagesBySlot.Remove( slot ) is false && indexPagesBySlot.Remove( slot, out var index ) ) levelBytes -= index.LevelUsed - index.Limit;
+				owned.Remove( page.Buffer );
+				pageBytes -= page.Size;
+				gpu.Destroy( page.Buffer );
+				PagesFreed++;
+			}
 		}
 	}
 
@@ -320,13 +393,14 @@ internal sealed class GpuDrivenTables : IDisposable
 
 		var limit = Math.Max( pageSize, (bytes + 15) & ~15 );
 		var size = (limit + (long)(limit * Math.Max( room, 0 )) + 15) & ~15L;
-		var buffer = gpu.CreateBuffer( new BufferInfo { Size = size, Usage = usage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = name } );
+		var buffer = gpu.CreateBuffer( new BufferInfo { Size = size, Usage = usage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = name, Content = true } );
 		owned.Add( buffer );
 		pageBytes += size;
 		var page = new Page { Buffer = buffer, Slot = gpu.BindlessIndex( buffer ), Size = size, Limit = limit, LevelUsed = limit };
 
-		// A buffer bigger than a page stands alone; the page being filled stays current
+		// A buffer bigger than a page stands alone; the page being filled stays current, and the one it was goes once empty
 		if ( bytes > pageSize ) return page;
+		if ( current is { Live: <= 0 } && !emptyPages.Contains( current ) ) emptyPages.Add( current );
 		current = page;
 		return page;
 	}
@@ -837,6 +911,21 @@ internal sealed class GpuDrivenTables : IDisposable
 		public int Slot;
 		public long Size;
 		public long Used;
+
+		/// <summary>Turns of its frame slot in a row it wasn't taken from: past <see cref="IdleChunkTurns"/> it's freed.</summary>
+		public int IdleTurns;
+	}
+
+	/// <summary>Turns of its frame slot a frame chunk past a slot's first can go unused before it's freed (a map's busy frames grew them).</summary>
+	internal const int IdleChunkTurns = 200;
+
+	/// <summary>Frame chunks there are, for tests.</summary>
+	internal int FrameChunks
+	{
+		get
+		{
+			lock ( frames ) return frames.Sum( f => f.Count );
+		}
 	}
 
 	const int FrameSlots = 3;
@@ -897,7 +986,20 @@ internal sealed class GpuDrivenTables : IDisposable
 		lock ( frames )
 		{
 			frame = (frame + 1) % FrameSlots;
-			foreach ( var chunk in frames[frame] ) chunk.Used = 0;
+			var chunks = frames[frame];
+			for ( int i = chunks.Count - 1; i >= 0; i-- )
+			{
+				var chunk = chunks[i];
+				chunk.IdleTurns = chunk.Used == 0 ? chunk.IdleTurns + 1 : 0;
+				chunk.Used = 0;
+				if ( i == 0 || chunk.IdleTurns <= IdleChunkTurns ) continue;
+
+				// The frame that last used it is done (FrameSlots back); its buffer goes once the GPU is
+				chunks.RemoveAt( i );
+				lock ( pagesLock ) owned.Remove( chunk.Buffer );
+				gpu.Destroy( chunk.Buffer );
+			}
+
 			Volatile.Write( ref current, frames[frame].Count > 0 ? frames[frame][0] : null );
 		}
 

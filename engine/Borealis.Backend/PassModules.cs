@@ -175,35 +175,67 @@ public sealed class PassModules : IShaderModules
 			Strings = [],
 		};
 
+		// The GPU-driven form's combo is the module's own: only CompileGpuDriven sets it. A mode's combo no mode sets (an
+		// include's S_MODE_DEPTH in a shader without a Depth mode) is always 0, and vfx leaves it out
+		var modes = module.Standalone ? Modes( module.Modes ) : Modes( module.Text );
+
+		// A mode that names no combo sets its own where the module has one (Depth sets S_MODE_DEPTH), as vfx does
+		var statics = new[] { StageKind.Vertex, StageKind.Pixel, StageKind.Compute }.SelectMany( k => module.Combos( k ) ).Where( c => c.Static ).Select( c => c.Name ).ToHashSet( StringComparer.Ordinal );
+		modes = [.. modes.Select( m => m.Settings.Length == 0 && string.IsNullOrEmpty( m.Fallback ) && statics.Contains( $"S_MODE_{m.Name.ToUpperInvariant()}" )
+			? new ShaderMode { Name = m.Name, Fallback = "", Settings = [($"S_MODE_{m.Name.ToUpperInvariant()}", 1)] }
+			: m )];
+		bool Settable( PassCombo c ) => !c.Name.StartsWith( "S_MODE_", StringComparison.Ordinal ) || modes.Any( m => m.Settings.Any( s => s.Combo == c.Name ) );
 		var programs = new List<(ShaderProgramType, ShaderCombo[], ShaderCombo[])>();
 		foreach ( var (kind, type) in new[] { (StageKind.Vertex, ShaderProgramType.Vertex), (StageKind.Pixel, ShaderProgramType.Pixel), (StageKind.Compute, ShaderProgramType.Compute) } )
 		{
 			if ( !module.Has( kind ) ) continue;
 			var combos = module.Combos( kind );
-			programs.Add( (type, combos.Where( c => c.Static ).Select( c => Combo( c, true ) ).ToArray(), combos.Where( c => !c.Static ).Select( c => Combo( c, false ) ).ToArray()) );
+			programs.Add( (type, combos.Where( c => c.Static && Settable( c ) ).Select( c => Combo( c, true ) ).ToArray(), combos.Where( c => !c.Static && c.Name != PassModule.GpuDrivenCombo ).Select( c => Combo( c, false ) ).ToArray()) );
 		}
 
-		return ShaderFile.FromModule( compiledPath, Modes( module.Text ), features, programs );
+		return ShaderFile.FromModule( compiledPath, modes, features, programs );
 	}
+
+	/// <inheritdoc/>
+	public ShaderFile DescribeStandalone( string compiledPath ) =>
+		!(Skip.Count > 0 && Skip.Contains( Path.GetFileName( compiledPath ).Split( '.' )[0] )) && ModuleBeside( compiledPath ) is { Standalone: true } ? Describe( compiledPath ) : null;
+
+	/// <inheritdoc/>
+	public IReadOnlyCollection<string> BindingNames( ShaderFile shader ) => ModuleOf( shader )?.BindingNames() ?? [];
+
+	/// <inheritdoc/>
+	public bool HasGpuDriven( ShaderFile shader ) => !Skipped( shader ) && ModuleOf( shader ) is { } module && module.HasGpuDriven( StageKind.Vertex );
+
+	/// <inheritdoc/>
+	public ModuleProgram CompileGpuDriven( ShaderFile shader, ShaderMode mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos, Func<string, int?> attributes ) =>
+		Compile( shader, mode, features, dynamicCombos, attributes, gpuDriven: true );
 
 	/// <summary>
 	/// A module's modes, from the <c>// MODES:</c> lines its <c>.shader</c>'s MODES block became (<c>Depth( S_MODE_DEPTH );</c>
 	/// sets that combo, <c>ToolsWireframe( "tools_wireframe.shader" );</c> names a fallback); <c>Default</c> without any.
 	/// </summary>
-	internal static IReadOnlyList<ShaderMode> Modes( string text )
+	internal static IReadOnlyList<ShaderMode> Modes( string text ) =>
+		Modes( System.Text.RegularExpressions.Regex.Matches( text, @"^[ \t]*//[ \t]*MODES:[ \t]*(?<name>\w+)[ \t]*\((?<args>[^)]*)\)", System.Text.RegularExpressions.RegexOptions.Multiline )
+			.Select( m => (m.Groups["name"].Value, m.Groups["args"].Value.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries )) ).ToList() );
+
+	/// <summary>
+	/// Modes from their names and arguments (a standalone module's <c>Mode( ... )</c> declarations): a combo name sets that
+	/// combo (<c>S_MODE_DEPTH</c>), a quoted name is a fallback shader; <c>Default</c> without any.
+	/// </summary>
+	internal static IReadOnlyList<ShaderMode> Modes( IReadOnlyList<(string Name, string[] Arguments)> declared )
 	{
 		var modes = new List<ShaderMode>();
-		foreach ( System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches( text, @"^[ \t]*//[ \t]*MODES:[ \t]*(?<name>\w+)[ \t]*\((?<args>[^)]*)\)", System.Text.RegularExpressions.RegexOptions.Multiline ) )
+		foreach ( var (name, arguments) in declared )
 		{
 			var fallback = "";
 			var settings = new List<(string, int)>();
-			foreach ( var argument in m.Groups["args"].Value.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ) )
+			foreach ( var argument in arguments )
 			{
 				if ( argument.StartsWith( '"' ) ) fallback = argument.Trim( '"' );
 				else settings.Add( (argument, 1) );
 			}
 
-			modes.Add( new ShaderMode { Name = m.Groups["name"].Value, Fallback = fallback, Settings = [.. settings] } );
+			modes.Add( new ShaderMode { Name = name, Fallback = fallback, Settings = [.. settings] } );
 		}
 
 		return modes.Count > 0 ? modes : [new ShaderMode { Name = "Default", Fallback = "", Settings = [] }];
@@ -301,10 +333,21 @@ public sealed class PassModules : IShaderModules
 	bool Skipped( ShaderFile shader ) => Skip.Count > 0 && Skip.Contains( Path.GetFileName( shader.Name ).Split( '.' )[0] );
 
 	/// <inheritdoc/>
-	public ModuleProgram Compile( ShaderFile shader, ShaderMode mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos, Func<string, int?> attributes )
+	public ModuleProgram Compile( ShaderFile shader, ShaderMode mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos, Func<string, int?> attributes ) =>
+		Compile( shader, mode, features, dynamicCombos, attributes, gpuDriven: false );
+
+	ModuleProgram Compile( ShaderFile shader, ShaderMode mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos, Func<string, int?> attributes, bool gpuDriven )
 	{
 		var module = ModuleOf( shader );
 		if ( module is null ) return null;
+
+		// Its GPU-driven form needs one for the vertex stage; compute and mesh pipelines have none
+		if ( gpuDriven && (!module.HasGpuDriven( StageKind.Vertex ) || module.Has( StageKind.Compute ) || module.Has( StageKind.Mesh )) ) return null;
+
+		// The GPU-driven form sets its define; a classic variant never does
+		var asked = dynamicCombos;
+		if ( module.HasGpuDriven( StageKind.Vertex ) || module.HasGpuDriven( StageKind.Pixel ) )
+			dynamicCombos = name => name == PassModule.GpuDrivenCombo ? (gpuDriven ? 1 : 0) : asked?.Invoke( name );
 		lock ( used )
 		{
 			if ( used.Add( Path.GetFileNameWithoutExtension( module.Path ) ) && LogUse ) Console.WriteLine( $"Borealis.Gpu: {Path.GetFileName( module.Path )} draws {Path.GetFileName( shader.Name )}" );
@@ -318,7 +361,11 @@ public sealed class PassModules : IShaderModules
 		{
 			values = null;
 			if ( !module.Has( kind ) ) return null;
+			// A GPU-driven form where the stage's condition doesn't hold for the values asked (a skinned draw's) is none at all,
+			// even where other rules would take those values back
+			if ( gpuDriven && module.HasGpuDriven( kind ) && !module.GpuDrivenAllows( kind, AskedValues( module, kind, settings, featureValues, dynamicCombos ) ) ) throw new NoGpuDrivenForm();
 			values = StageValues( module, kind, settings, featureValues, dynamicCombos );
+			if ( gpuDriven && module.HasGpuDriven( kind ) && !module.Allows( kind, values ) ) throw new NoGpuDrivenForm();
 
 			// No entry point with these values (a depth pass without a pixel shader): a stage with no code, for the render states
 			if ( !module.Has( kind, values ) ) return kind == StageKind.Pixel ? new ModuleStage { Type = ShaderProgramType.Pixel, Name = $"{Path.GetFileName( module.Path )} pixel (none)" } : null;
@@ -366,8 +413,12 @@ public sealed class PassModules : IShaderModules
 				Compute = compute,
 				Task = task,
 				Mesh = mesh,
-				Key = $"{module.Text.GetHashCode()}|{vertex?.Name}|{pixel?.Name}|{compute?.Name}|{task?.Name}|{mesh?.Name}|{Key( pixel?.RenderStates )}|{Key( vertex )}{Key( pixel )}{Key( compute )}{Key( task )}{Key( mesh )}",
+				Key = $"{module.Text.GetHashCode()}|{(gpuDriven ? "gpudriven|" : "")}{vertex?.Name}|{pixel?.Name}|{compute?.Name}|{task?.Name}|{mesh?.Name}|{Key( pixel?.RenderStates )}|{Key( vertex )}{Key( pixel )}{Key( compute )}{Key( task )}{Key( mesh )}",
 			};
+		}
+		catch ( NoGpuDrivenForm )
+		{
+			return null;
 		}
 		catch ( ShaderCompileException e )
 		{
@@ -377,6 +428,9 @@ public sealed class PassModules : IShaderModules
 			return null;
 		}
 	}
+
+	/// <summary>Thrown out of a stage's lookup when its GPU-driven form's condition doesn't hold for the values asked.</summary>
+	sealed class NoGpuDrivenForm : Exception;
 
 	/// <inheritdoc/>
 	public IReadOnlyList<(int State, ShaderVariable Variable)> PixelRenderStates( ShaderFile shader, ShaderMode mode, ReadOnlySpan<int> features )
@@ -415,15 +469,7 @@ public sealed class PassModules : IShaderModules
 	/// <summary>A stage's combo values: the mode's settings, static combos from features, dynamic ones as asked.</summary>
 	static Dictionary<string, int> StageValues( PassModule module, StageKind kind, Dictionary<string, int> settings, Dictionary<string, int> featureValues, Func<string, int?> dynamicCombos )
 	{
-		var values = new Dictionary<string, int>( settings, StringComparer.Ordinal );
-		foreach ( var combo in module.Combos( kind ) )
-		{
-			int value;
-			if ( settings.TryGetValue( combo.Name, out var set ) ) value = set;
-			else if ( combo.Static ) value = combo.Feature is not null && featureValues.TryGetValue( combo.Feature, out var f ) ? f : combo.Min;
-			else value = dynamicCombos?.Invoke( combo.Name ) ?? combo.Min;
-			values[combo.Name] = Math.Clamp( value, combo.Min, combo.Max );
-		}
+		var values = AskedValues( module, kind, settings, featureValues, dynamicCombos );
 
 		// Static combos the rules forbid together (tools_wireframe's Allow1( S_MODE_DEPTH, S_TRANSLUCENT ) in Depth mode) weren't
 		// compiled by vfx: the features' combos go back to their first values, the last first, until the rules allow them, as
@@ -439,13 +485,30 @@ public sealed class PassModules : IShaderModules
 			}
 		}
 
-		// Combo values the rules forbid weren't compiled by vfx: those draw the first dynamic combo, as a compiled program's lookup does
+		// Combo values the rules forbid weren't compiled by vfx: those draw the first dynamic combo, as a compiled program's lookup does.
+		// The GPU-driven form's define stays: whether it's allowed is its own rule's, checked by the caller
 		if ( !module.Allows( kind, values ) )
 		{
 			foreach ( var combo in module.Combos( kind ) )
 			{
-				if ( !combo.Static && !settings.ContainsKey( combo.Name ) ) values[combo.Name] = combo.Min;
+				if ( !combo.Static && !settings.ContainsKey( combo.Name ) && combo.Name != PassModule.GpuDrivenCombo ) values[combo.Name] = combo.Min;
 			}
+		}
+
+		return values;
+	}
+
+	/// <summary>A stage's combo values as asked, before its rules: the mode's settings, static combos from features, dynamic ones.</summary>
+	static Dictionary<string, int> AskedValues( PassModule module, StageKind kind, Dictionary<string, int> settings, Dictionary<string, int> featureValues, Func<string, int?> dynamicCombos )
+	{
+		var values = new Dictionary<string, int>( settings, StringComparer.Ordinal );
+		foreach ( var combo in module.Combos( kind ) )
+		{
+			int value;
+			if ( settings.TryGetValue( combo.Name, out var set ) ) value = set;
+			else if ( combo.Static ) value = combo.Feature is not null && featureValues.TryGetValue( combo.Feature, out var f ) ? f : combo.Min;
+			else value = dynamicCombos?.Invoke( combo.Name ) ?? combo.Min;
+			values[combo.Name] = Math.Clamp( value, combo.Min, combo.Max );
 		}
 
 		return values;
@@ -530,7 +593,7 @@ public sealed class PassModules : IShaderModules
 				}
 				else
 				{
-					entry = (Describe( shader, kind, compiled, key ), compiled.Stage.Specializations);
+					entry = (Describe( shader, kind, compiled, key, values.GetValueOrDefault( PassModule.GpuDrivenCombo ) == 1 ), compiled.Stage.Specializations);
 					stages[key] = entry;
 					StagesCompiled++;
 				}
@@ -573,10 +636,11 @@ public sealed class PassModules : IShaderModules
 		GlobalMembers = stage.GlobalMembers,
 		ConstantBuffers = stage.ConstantBuffers,
 		RenderStates = renderStates ?? stage.RenderStates,
+		GpuDriven = stage.GpuDriven,
 	};
 
 	/// <summary>A compiled stage as a shader file's tables would say it: each binding's variable, the <c>$Globals</c> members' sources.</summary>
-	static ModuleStage Describe( ShaderFile shader, StageKind kind, CompiledPassStage compiled, string key )
+	static ModuleStage Describe( ShaderFile shader, StageKind kind, CompiledPassStage compiled, string key, bool gpuDriven )
 	{
 		var stage = compiled.Stage;
 		var resources = new List<ModuleResource>();
@@ -683,6 +747,7 @@ public sealed class PassModules : IShaderModules
 			Globals = globals,
 			GlobalMembers = members,
 			ConstantBuffers = buffers,
+			GpuDriven = gpuDriven,
 		};
 	}
 

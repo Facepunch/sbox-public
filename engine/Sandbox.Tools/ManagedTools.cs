@@ -138,6 +138,7 @@ internal static class ManagedTools
 		// Panel UI windows and their swap chains, before the render device goes away
 		PanelWindow.DisposeAll();
 		SceneRenderingWidget.ShutdownRendering();
+		ToolSceneViews.ShutdownRendering();
 		PanelSurfaceWidget.ShutdownRendering();
 		EngineLoop.DrainFrameEndDisposables();
 
@@ -146,6 +147,18 @@ internal static class ManagedTools
 
 	internal static void NativeHook( string name, IntPtr arg0, IntPtr arg1, IntPtr arg2 )
 	{
+		// Native tool views on Borealis.Gpu, every frame: no reflection
+		switch ( name )
+		{
+			case "RenderToolScene":
+				ToolSceneViews.Render( arg0 );
+				return;
+
+			case "ReleaseToolSceneView":
+				ToolSceneViews.Release( arg0 );
+				return;
+		}
+
 		var method = typeof( ManagedTools ).GetMethod( name, System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic );
 		if ( method == null )
 		{

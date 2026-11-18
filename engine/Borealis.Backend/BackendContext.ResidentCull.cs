@@ -39,6 +39,9 @@ internal sealed partial class BackendContext
 		/// </summary>
 		public bool WritesStamps;
 		public int Taken;
+
+		/// <summary>A prepass culled in two phases (<see cref="BackendDevice.HiZOcclusion"/>): its region has a Hi-Z tail.</summary>
+		public bool HiZ;
 	}
 
 	readonly List<GpuDrivenPlan.CallKey> residentKeys = new();
@@ -58,7 +61,7 @@ internal sealed partial class BackendContext
 	const int ResidentHeaderBytes = 32;
 
 	/// <summary>Bytes of a view's region for a plan, as <see cref="DrawGpuCulled"/> lays out a call's, and its offsets.</summary>
-	static (int Bytes, int Runs, int Listed, int Instances, int FragmentWords, int Commands) ResidentRegion( GpuDrivenPlan plan, bool ids, bool lists )
+	static (int Bytes, int Runs, int Listed, int Instances, int FragmentWords, int Commands, int HiZ) ResidentRegion( GpuDrivenPlan plan, bool ids, bool lists, bool hiz = false )
 	{
 		var fragments = plan.Fragments;
 		var slots = fragments * (plan.Key.Meshlets ? 1 + 2 * (int)MeshletChunks : lists ? 2 : 1);
@@ -68,7 +71,32 @@ internal sealed partial class BackendContext
 		var fragmentWords = instances + slots * GpuDrivenTables.InstanceStride;
 		var commands = (fragmentWords + (ids ? slots * 4 : 0) + 15) & ~15;
 		var bytes = (commands + slots * GpuDrivenTables.CommandStride + 15) & ~15;
-		return (bytes, runs, listed, instances, fragmentWords, commands);
+		var tail = hiz ? bytes : 0;
+		if ( hiz ) bytes += HiZTailBytes( plan.Runs.Length * 8, fragments );
+		return (bytes, runs, listed, instances, fragmentWords, commands, tail);
+	}
+
+	/// <summary>
+	/// Bytes of a region's two-phase Hi-Z tail (<see cref="BackendDevice.HiZOcclusion"/>), at a multiple of 16: the second
+	/// phase's multi-draws (as many as the first's, <paramref name="runBytes"/>), its listed fragments' arguments, then the
+	/// candidates' arguments, their count and the second phase's occluded count (32 bytes) and a 64-byte candidate per fragment.
+	/// </summary>
+	static int HiZTailBytes( int runBytes, int fragments ) => ((runBytes + 15) & ~15) + 48 + fragments * 64;
+
+	/// <summary>
+	/// Write a region's Hi-Z tail at <paramref name="tail"/>: the second phase's multi-draws as the first's <paramref name="runs"/>
+	/// (first slots, zeroed counts), and both arguments with no groups. Its offsets: multi-draws, listed fragments, candidates.
+	/// </summary>
+	static (int Runs2, int Listed2, int Candidates) WriteHiZTail( Span<byte> region, int tail, ReadOnlySpan<uint> runs )
+	{
+		var runs2 = tail;
+		var listed2 = tail + ((runs.Length * 4 + 15) & ~15);
+		var candidates = listed2 + 16;
+		runs.CopyTo( MemoryMarshal.Cast<byte, uint>( region.Slice( runs2, runs.Length * 4 ) ) );
+		var arguments = MemoryMarshal.Cast<byte, uint>( region.Slice( listed2, 48 ) );
+		arguments.Clear();
+		arguments[1] = arguments[2] = arguments[5] = arguments[6] = 1;
+		return (runs2, listed2, candidates);
 	}
 
 	/// <summary>
@@ -76,7 +104,7 @@ internal sealed partial class BackendContext
 	/// meshes skip the size test, the filter's settled and restless stamps), LOD camera and LOD width, and how fragments
 	/// pick generated levels (<see cref="LodMode"/>) (160 bytes).
 	/// </summary>
-	void WriteCullView( in GpuDrivenCull cull, Span<byte> bytes )
+	void WriteCullView( in GpuDrivenCull cull, Span<byte> bytes, uint hizBits = uint.MaxValue, uint hizCandidates = 0 )
 	{
 		var view = MemoryMarshal.Cast<byte, float>( bytes[..CullViewBytes] );
 		Span<Vector4> planes = [cull.Left, cull.Right, cull.Bottom, cull.Top, cull.Near, cull.Far, cull.CameraAndThreshold];
@@ -100,6 +128,14 @@ internal sealed partial class BackendContext
 		view[36] = cull.LodWidth;
 		viewWords[37] = cull.LodTexels ? 1u : 0u;
 		(viewWords[38], view[39]) = LodMode( cull );
+
+		// Two-phase Hi-Z occlusion (bit 3): last frame's visible bits' bindless slot and the candidates' byte offset in the
+		// region's buffer, in the words a resident filter (never with it) uses
+		if ( hizCandidates != 0 )
+		{
+			viewWords[28] |= 8;
+			(viewWords[30], viewWords[31]) = (hizBits, hizCandidates);
+		}
 		System.Threading.Interlocked.Increment( ref device.LodModes[viewWords[38] & 3] );
 	}
 
@@ -195,6 +231,8 @@ internal sealed partial class BackendContext
 				if ( other.FromPrepass && ReferenceEquals( other.View, work.View ) ) work.WritesStamps = false;
 			}
 		}
+
+		foreach ( var work in residentWork ) work.HiZ = !work.Lists && work.Plan.Key.Ids && HiZFor( views[work.ViewIndex], work.Visibility, work.Plan.Fragments );
 
 		if ( residentWork.Count == 0 ) return;
 
@@ -325,7 +363,7 @@ internal sealed partial class BackendContext
 
 		var headerBytes = (residentItems.Count * ResidentItemBytes + group.Count * ResidentViewBytes + 15) & ~15;
 		var bytes = headerBytes;
-		foreach ( var work in group ) bytes += ResidentRegion( work.Plan, work.Plan.Key.Ids, work.Lists || work.Plan.Key.Meshlets ).Bytes;
+		foreach ( var work in group ) bytes += ResidentRegion( work.Plan, work.Plan.Key.Ids, work.Lists || work.Plan.Key.Meshlets, work.HiZ ).Bytes;
 
 		var (buffer, slot, offset) = tables.Allocate( bytes );
 		var data = Gpu.Map( buffer ).Slice( (int)offset, bytes );
@@ -355,14 +393,15 @@ internal sealed partial class BackendContext
 			// shadow views' (it has no visibility)
 			var meshlets = plan.Key.Meshlets && (work.Visibility is not null || !ids);
 			var listing = work.Lists || meshlets;
-			var layout = ResidentRegion( plan, ids, listing );
+			var layout = ResidentRegion( plan, ids, listing, work.HiZ );
 			var region = data.Slice( at, layout.Bytes );
 			var (compacted, compacted16) = meshlets ? MeshletCompacted( work.Visibility ) : work.Visibility is { } own ? (own.Compacted[frame % own.Compacted.Length], default) : default;
 			var regionOffset = offset + at;
-			WriteCullView( views[work.ViewIndex], region );
 
 			var runWords = plan.ResidentRunWords ??= ResidentRunWords( plan );
 			runWords.CopyTo( MemoryMarshal.Cast<byte, uint>( region.Slice( layout.Runs, runWords.Length * 4 ) ) );
+			var hiz = work.HiZ ? WriteHiZTail( region, layout.HiZ, runWords ) : default;
+			WriteCullView( views[work.ViewIndex], region, work.HiZ ? HiZBitsSlot( work.Visibility ) : uint.MaxValue, work.HiZ ? (uint)(regionOffset + hiz.Candidates) : 0 );
 
 			if ( listing )
 			{
@@ -370,10 +409,11 @@ internal sealed partial class BackendContext
 				arguments[0] = 0;
 				arguments[1] = 1;
 				arguments[2] = 1;
+				arguments[3] = 0;
 			}
 
 			var firstInstance = (uint)((regionOffset + layout.Instances) / GpuDrivenTables.InstanceStride);
-			work.Region = new CulledRegion( buffer, slot, regionOffset, layout.Runs, layout.Listed, layout.Instances, layout.FragmentWords, layout.Commands, firstInstance, listing ? compacted : default, meshlets ? compacted16 : default );
+			work.Region = new CulledRegion( buffer, slot, regionOffset, layout.Runs, layout.Listed, layout.Instances, layout.FragmentWords, layout.Commands, firstInstance, listing ? compacted : default, meshlets ? compacted16 : default, hiz.Runs2, hiz.Listed2, hiz.Candidates );
 			viewRecords[w] = new ResidentCullView
 			{
 				View = (uint)regionOffset,

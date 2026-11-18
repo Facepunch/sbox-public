@@ -31,6 +31,45 @@ public class ViewTests
 		Assert.AreEqual( 0.0f, near.y, 1e-5f );
 	}
 
+	/// <summary>
+	/// A temporal upscaler's jitter moves the projection by its offset of clip space, last frame's projection keeps last frame's
+	/// jitter (as <c>CFrustum::SetProjectionJitter</c> moves both), and the constants after the upscale have none, at the
+	/// display size.
+	/// </summary>
+	[TestMethod]
+	public void JitterOffsetsProjectionAndReprojection()
+	{
+		var view = LookingDownX();
+		var point = new Vector3( 100, 20, 10 );
+		var plain = Project( view, point );
+
+		view.Jitter = new Vector2( 0.01f, -0.02f );
+		view.Update();
+		var jittered = Project( view, point );
+		Assert.AreEqual( plain.x + 0.01f, jittered.x, 1e-5f );
+		Assert.AreEqual( plain.y - 0.02f, jittered.y, 1e-5f );
+		Assert.AreEqual( plain.z, jittered.z, 1e-6f, "depth doesn't move" );
+
+		view.Jitter = new Vector2( -0.03f, 0.04f );
+		view.Update();
+		var previous = view.PreviousWorldToProjection.Transform( new Vector4( point, 1 ) );
+		previous /= previous.w;
+		Assert.AreEqual( jittered.x, previous.x, 1e-5f, "last frame's projection keeps last frame's jitter" );
+		Assert.AreEqual( jittered.y, previous.y, 1e-5f );
+
+		var c = new ViewConstants();
+		view.FillConstants( ref c, new Vector2( 1000, 1000 ), 0 );
+		view.FillUpscaledConstants( ref c, new Rect( 0, 0, 2000, 2000 ), new Vector2( 2000, 2000 ) );
+
+		// The view sits at the origin, so its rotation-only world to projection is the whole of it
+		var unjittered = c.WorldToProjection.Transform( new Vector4( point, 1 ) );
+		unjittered /= unjittered.w;
+		Assert.AreEqual( plain.x, unjittered.x, 1e-5f );
+		Assert.AreEqual( plain.y, unjittered.y, 1e-5f );
+		Assert.AreEqual( 2000, c.ViewportSize.x );
+		Assert.AreEqual( 2000, c.RenderTargetSize.y );
+	}
+
 	[TestMethod]
 	public void ProjectionAxes()
 	{

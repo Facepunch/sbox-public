@@ -573,7 +573,7 @@ public class PassModuleTests : GpuTest
 				continue;
 			}
 
-			// Borealis's own passes have no .shader: nothing to compare with
+			// A standalone module describes its shader itself (StandaloneModuleTests compares it with a .shader_c beside it)
 			if ( shader.ModuleOnly ) continue;
 
 			foreach ( var mode in shader.Modes )

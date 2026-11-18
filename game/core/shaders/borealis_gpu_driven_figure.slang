@@ -1,13 +1,13 @@
-// borealis_gpu_driven_figure.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// borealis_gpu_driven_figure: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis GPU-driven debug figure (borealislab -capture-visibility): replays a forward pass's multi-draws with pulled positions, writing a count per fragment, a flat colour per triangle, or edges.";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 

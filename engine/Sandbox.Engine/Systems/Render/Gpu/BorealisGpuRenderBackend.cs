@@ -126,6 +126,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			ProgressMarkers = markers,
 			PipelineCacheFolder = pipelineCacheFolder,
 			Message = message,
+
+			// The process's device takes what DLSS asks for, where the GPU has it (NVIDIA's), as Source 2's device does
+			OptionalInstanceExtensions = frames ? Borealis.Backend.Upscalers.TemporalUpscaler.DlssInstanceExtensions() : null,
+			OptionalDeviceExtensions = frames ? Borealis.Backend.Upscalers.TemporalUpscaler.DlssDeviceExtensions : null,
 		} );
 
 		gpu.Profiler = new TraceZones();
@@ -661,6 +665,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	internal TextureHandle TextureOf( Texture texture )
 	{
 		ArgumentNullException.ThrowIfNull( texture );
+
+		// A realtime probe's cube is captured into a cube of Borealis's: read that, not a copy nothing writes
+		if ( texture.Depth == 6 && RenderedInto?.Invoke( this, texture ) is BackendTexture rendered ) return rendered.Handle;
+
 		if ( textures.TryGetValue( texture, out var backing ) ) return backing.Handle;
 
 		// Looked up each time rather than kept: streaming swaps its image
@@ -676,6 +684,13 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			return textures.TryGetValue( texture, out backing ) ? backing.Handle : Make( texture );
 		}
 	}
+
+	/// <summary>
+	/// The texture of Borealis's on this device that an engine texture is rendered into, read in its place: a realtime probe's
+	/// cube is captured into a cube of Borealis's (<c>MirrorContent.CaptureCube</c>), so what reads the probe's texture
+	/// through the engine reads the capture. Null for any other texture. Set by Sandbox.Rendering.
+	/// </summary>
+	internal static Func<BorealisGpuRenderBackend, Texture, global::Borealis.GpuTexture> RenderedInto { get; set; }
 
 	/// <summary>
 	/// The most multisampling up to <paramref name="wanted"/> this device's colour targets take, as Source 2's
@@ -763,12 +778,13 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 		else if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) && texture.Depth <= 1 && DataFormatOf( texture.ImageFormat ) is var storage && storage != GpuFormat.Unknown )
 		{
-			// Made empty for compute to fill (a terrain's baked normals): its own format, storage, cleared as a new target is
+			// Made empty for compute to fill (a terrain's baked normals): its own format, storage, cleared as a new target is, to
+			// the colour it was made or last cleared with
 			var info = TextureInfo.Texture2D( texture.Width, texture.Height, storage, Math.Max( texture.Mips, 1 ), $"Engine storage {texture.Width}x{texture.Height}" );
 			info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
 			context.Track( handle, ImageLayout.Undefined );
-			ClearNow( handle, Color.Transparent );
+			ClearNow( handle, texture.InitialColor ?? Color.Transparent );
 		}
 		else if ( TryCopyFromSource2( texture ) is { } copy )
 		{
@@ -859,7 +875,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		if ( !string.IsNullOrEmpty( texture.ResourcePath ) ) return null;
 		if ( !Texture.MaterialOrigins.TryGetValue( texture, out var origin ) || origin is not Texture.MaterialOrigin o ) return null;
-		return services.MaterialTexture( o.Material, o.Parameter ) as BackendTexture;
+		return services.LoadedMaterialTexture( o.Material, o.Parameter ) as BackendTexture;
 	}
 
 	/// <summary>A texture loaded from a compiled <c>.vtex</c>, read from that file.</summary>
@@ -1095,6 +1111,22 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	readonly System.Collections.Concurrent.ConcurrentQueue<(Texture Texture, byte[] Data, int X, int Y, int Width, int Height)> workerUpdates = new();
 
+	/// <summary>
+	/// A texture cleared to one colour: its copy here is cleared, in the block being recorded or in a list of its own. From a
+	/// worker, or for a copy a clear can't write (compressed, depth), false: the copy is made again when next used.
+	/// </summary>
+	public override bool Cleared( Texture texture, Color color )
+	{
+		if ( !textures.TryGetValue( texture, out var backing ) ) return true;
+		if ( !ThreadSafe.IsMainThread ) return false;
+
+		var format = gpu.InfoOf( backing.Handle ).Format;
+		if ( format.IsCompressed() || format.IsDepth() ) return false;
+
+		ClearNow( backing.Handle, color );
+		return true;
+	}
+
 	/// <summary>Write the texture updates workers asked for since the last block, before a block starts recording.</summary>
 	void WriteWorkerUpdates()
 	{
@@ -1254,6 +1286,12 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			}
 
 			foreach ( var combo in program.DynamicCombos ) names.TryAdd( new StringToken( combo.Name ).Value, combo.Name );
+		}
+
+		// A shader only its module describes has no compiled variables: the module's names instead
+		if ( shader is { ModuleOnly: true } && drawer.Shaders.Modules is { } modules )
+		{
+			foreach ( var name in modules.BindingNames( shader ) ) names.TryAdd( new StringToken( name ).Value, name );
 		}
 
 		return shader;
