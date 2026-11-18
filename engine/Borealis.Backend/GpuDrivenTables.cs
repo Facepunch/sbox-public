@@ -131,7 +131,8 @@ internal sealed class GpuDrivenTables : IDisposable
 	// Draw and material records are found without a lock by every recording thread, many times a frame (a lock per draw
 	// kept recording threads waiting on each other); added to under a lock of their own
 	readonly System.Collections.Concurrent.ConcurrentDictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage), uint> drawRecords = new();
-	readonly object drawLock = new();
+	// Added to under a lock per stripe of keys: many new records at once (a map's first frames) waited on one lock
+	readonly object[] drawLocks = Enumerable.Range( 0, 16 ).Select( _ => new object() ).ToArray();
 	readonly System.Collections.Concurrent.ConcurrentDictionary<MaterialRecordKey, uint> materialRecords = new();
 
 	/// <summary>A material record: per material and its version, stage, and the attribute values its constants read.</summary>
@@ -404,19 +405,22 @@ internal sealed class GpuDrivenTables : IDisposable
 	{
 		var key = (geometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, indexCount, baseVertex, indexPage);
 		if ( drawRecords.TryGetValue( key, out var known ) ) return known;
-		lock ( drawLock )
+		uint index;
+		lock ( drawLocks[(key.GetHashCode() & int.MaxValue) % drawLocks.Length] )
 		{
 			if ( drawRecords.TryGetValue( key, out var found ) ) return found;
 
 			Span<uint> record = [geometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, indexCount, (uint)baseVertex, (uint)indexPage];
-			var offset = draws.Append( MemoryMarshal.AsBytes( record ) );
-			var index = offset / DrawStride;
-			var range = new Borealis.Backend.Meshlets.MeshletStore.Range( indexPage, firstIndex, indexCount, baseVertex );
-			Meshlets?.RegisterDraw( index, range );
+			index = draws.Append( MemoryMarshal.AsBytes( record ) ) / DrawStride;
 			drawRecords[key] = index;
-			Lods?.RegisterDraw( index, range );
-			return index;
 		}
+
+		// Registered by the thread that made it, outside the stripe's lock: a level's record made while registering takes
+		// another stripe's
+		var range = new Borealis.Backend.Meshlets.MeshletStore.Range( indexPage, firstIndex, indexCount, baseVertex );
+		Meshlets?.RegisterDraw( index, range );
+		Lods?.RegisterDraw( index, range );
+		return index;
 	}
 
 	/// <summary>Where draw records find their ranges' generated levels (<see cref="BackendDevice.GeneratedLods"/>), or null.</summary>
