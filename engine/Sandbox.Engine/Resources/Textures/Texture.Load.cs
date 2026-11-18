@@ -41,6 +41,21 @@ public partial class Texture
 	}
 
 	/// <summary>
+	/// A texture native loaded (takes the strong handle), by its resource name where it has one, so a renderer that reads
+	/// textures by path (Borealis.Gpu) can read it: a map native loads for a tool's preview has its probes' textures so.
+	/// </summary>
+	internal static Texture FromNativeResource( ITexture native )
+	{
+		if ( native.IsNull ) return null;
+
+		var name = RenderTools.GetTextureResourceName( native );
+		if ( string.IsNullOrEmpty( name ) ) return FromNative( native );
+
+		native.DestroyStrongHandle();
+		return Load( name, false );
+	}
+
+	/// <summary>
 	/// Try to load a texture from given filesystem, by filename.
 	/// </summary>
 	[System.Obsolete( "Use Texture.Load or Texture.LoadFromFileSystem" )]
