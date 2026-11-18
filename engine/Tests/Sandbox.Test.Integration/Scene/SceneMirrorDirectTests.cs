@@ -88,6 +88,8 @@ public class SceneMirrorDirectTests
 			var light = new ScenePointLight( world, Vector3.Zero, 100, Color.White );
 			var spot = new SceneSpotLight( world );
 			var cubemap = new SceneCubemap( world, null, new BBox( new Vector3( -10 ), new Vector3( 10 ) ) );
+			var custom = new SceneCustomObject( world );
+			var dynamic = new SceneDynamicObject( world );
 			MirrorType.GetMethod( "Sync", Any ).Invoke( mirror, [camera, false] );
 			Assert.IsInstanceOfType<Borealis.LightObject>( light.RenderObject );
 			Assert.AreEqual( Borealis.LightObject.LightKind.Spot, ((Borealis.LightObject)spot.RenderObject).Kind );
@@ -104,6 +106,8 @@ public class SceneMirrorDirectTests
 			spot.ConeOuter = 40;
 			cubemap.Priority = 3;
 			cubemap.Position = new Vector3( 4, 5, 6 );
+			custom.ColorTint = Color.Green;
+			dynamic.RenderingEnabled = false;
 			world.ChangeListener = listener;
 
 			var lightObject = (Borealis.LightObject)light.RenderObject;
@@ -113,6 +117,8 @@ public class SceneMirrorDirectTests
 			var envMap = (Borealis.EnvMapObject)cubemap.RenderObject;
 			Assert.AreEqual( 3, envMap.Priority );
 			Assert.AreEqual( new Vector3( 4, 5, 6 ), envMap.Transform.Position );
+			Assert.AreEqual( Color.Green, ((Borealis.CustomObject)custom.RenderObject).Tint );
+			Assert.IsFalse( ((Borealis.CustomObject)dynamic.RenderObject).Visible );
 
 			var obj = (Borealis.DecalObject)decal.RenderObject;
 			Assert.AreEqual( 7u, obj.SortOrder );

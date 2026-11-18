@@ -97,12 +97,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	/// nothing from native code (decals, point and spot lights, cubemaps, custom and dynamic objects, and models managed code
 	/// made). Animated objects and those native code made (a map's) wait for the sync, which reads what native has.
 	/// </summary>
-	static bool WritesDirectly( SceneObject sceneObject ) => !sceneObject.OwnsRenderObject && sceneObject switch
-	{
-		SceneModel or SceneDirectionalLight or SceneLightProbe or SceneSkyBox => false,
-		SceneCustomObject or SceneDynamicObject => true,
-		_ => sceneObject.GetType() == typeof( SceneObject ) && sceneObject.ResolvesDraws,
-	};
+	static bool WritesDirectly( SceneObject sceneObject ) => sceneObject.GetType() == typeof( SceneObject ) && sceneObject.ResolvesDraws;
 
 	/// <summary>
 	/// A change, from any thread. One to an object that writes directly (<see cref="WritesDirectly"/>), made on the main thread
@@ -315,10 +310,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 				ApplyMesh( sceneObject, mesh, change );
 				break;
 
-			case CustomObject custom:
-				ApplyCustom( sceneObject, custom, change );
-				break;
-
 			case AggregateObject aggregate:
 				ApplyAggregate( sceneObject, aggregate, change );
 				break;
@@ -466,8 +457,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			SceneDirectionalLight => null,
 			SceneSkyBox => null,
 			SceneModel => new MeshObject( null, sceneObject.Transform ),
-			SceneCustomObject custom => new BridgeCustomObject( custom ),
-			SceneDynamicObject dynamic => new BridgeDynamicObject( dynamic ),
 			SceneAggregateObject => AggregateFor( sceneObject ),
 
 			// A map's world geometry is native aggregates, which have no managed type of their own
@@ -660,7 +649,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		if ( (change & SceneObjectChange.Flags) != 0 )
 		{
 			var flags = sceneObject.Flags;
-			ApplyLayerFlags( aggregate, flags );
+			SceneObject.WriteLayerFlags( aggregate, flags );
 			aggregate.CastShadows = flags.CastShadows;
 			aggregate.IsStatic = flags.IsStatic;
 			aggregate.IsWorld = aggregate.IsStatic || flags.HasFlag( SceneObjectFlags.IsHammerGeometry );
@@ -674,56 +663,13 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	}
 
 	/// <summary>
-	/// Mirror custom-object placement, culling bounds and flags.
-	/// </summary>
-	static void ApplyCustom( SceneObject sceneObject, CustomObject custom, SceneObjectChange change )
-	{
-		// A dynamic object's material is known before it draws (gizmos, the debug overlay): whether it needs a stencil, so the
-		// view's depth has one before the frame records. Other custom objects pick their materials as they draw
-		if ( custom is BridgeDynamicObject dynamic && RenderBackend.Default is BorealisGpuRenderBackend gpu ) custom.NeedsStencil = gpu.NeedsStencil( dynamic.Source.ManagedMaterial );
-
-		const SceneObjectChange Placement = SceneObjectChange.Transform | SceneObjectChange.Bounds;
-		if ( (change & Placement) != 0 )
-		{
-			// Unplaced custom objects may report zero scale; native uses identity.
-			var transform = sceneObject.Transform;
-			custom.Transform = transform == default ? Transform.Zero : transform;
-
-			// Bounds as kept (WorldBounds): SceneObject.Bounds collapses infinity to a point.
-			// Use large finite bounds to keep culling math valid.
-			var bounds = sceneObject.WorldBounds;
-			if ( !float.IsFinite( bounds.Mins.x + bounds.Mins.y + bounds.Mins.z + bounds.Maxs.x + bounds.Maxs.y + bounds.Maxs.z ) || bounds.Size.x > 1e9f )
-				bounds = new BBox( new Vector3( -1e9f ), new Vector3( 1e9f ) );
-
-			custom.LocalBounds = ToLocal( bounds, custom.Transform );
-		}
-
-		const SceneObjectChange State = SceneObjectChange.Tint | SceneObjectChange.Flags | SceneObjectChange.Visibility;
-		if ( (change & State) != 0 )
-		{
-			custom.Tint = sceneObject.ColorTint;
-			custom.IsOpaque = sceneObject.Flags.IsOpaque && !sceneObject.Flags.IsTranslucent;
-			custom.WantsFrameBufferCopy = sceneObject.Flags.WantsFrameBufferCopy;
-			custom.DepthPrepass = !sceneObject.Flags.HasFlag( SceneObjectFlags.NoZPrepass );
-			custom.CastShadows = sceneObject.Flags.CastShadows;
-			custom.Visible = sceneObject.RenderingEnabled;
-			ApplyLayerFlags( custom, sceneObject.Flags );
-			custom.LayerMatch = LayerMatchFor( sceneObject.LayerMatchToken );
-		}
-	}
-
-	static readonly uint StaticOverlayMatch = new StringToken( "StaticOverlayLayer" ).Value;
-	static readonly uint OverlayWithDepthMatch = new StringToken( "OverlayWithDepth" ).Value;
-	static readonly uint OverlayWithoutDepthMatch = new StringToken( "OverlayWithoutDepth" ).Value;
-
-	/// <summary>
 	/// Mirror native blend/prepass flags and layer match (<c>CSceneObject::m_nLayerMatchID</c>).
 	/// MeshRenderFeature owns classification.
 	/// </summary>
 	static void ApplyMeshLayers( SceneObject sceneObject, MeshObject mesh )
 	{
 		var flags = sceneObject.Flags;
-		ApplyLayerFlags( mesh, flags );
+		SceneObject.WriteLayerFlags( mesh, flags );
 		mesh.DrawsOpaque = flags.HasFlag( SceneObjectFlags.IsOpaque );
 		mesh.DrawsTranslucent = flags.HasFlag( SceneObjectFlags.IsTranslucent );
 		mesh.DepthPrepass = !flags.HasFlag( SceneObjectFlags.NoZPrepass );
@@ -734,7 +680,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		mesh.LightGroup = (uint)sceneObject.LightGroup;
 		mesh.LightProbeHandshake = sceneObject.ResolvesDraws ? 0 : SceneNative.LightProbeHandshake( sceneObject );
 
-		mesh.LayerMatch = LayerMatchFor( sceneObject.LayerMatchToken );
+		mesh.LayerMatch = SceneObject.LayerMatchFor( sceneObject.LayerMatchToken );
 		mesh.RenderOrder = mesh.LayerMatch == LayerMatch.StaticOverlay ? sceneObject.RenderOrder : 0;
 	}
 
@@ -757,29 +703,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		return parts.Count == 0 ? "" : $" ({string.Join( ", ", parts )})";
 	}
 
-	/// <summary>
-	/// Translate native layer-match IDs; MeshRenderFeature decides membership.
-	/// </summary>
-	static LayerMatch LayerMatchFor( uint match )
-	{
-		if ( match == 0 ) return LayerMatch.None;
-		if ( match == StaticOverlayMatch ) return LayerMatch.StaticOverlay;
-		if ( match == OverlayWithDepthMatch ) return LayerMatch.OverlayWithDepth;
-		if ( match == OverlayWithoutDepthMatch ) return LayerMatch.OverlayWithoutDepth;
-		return LayerMatch.Unsupported;
-	}
 
-	/// <summary>
-	/// Mirror game, overlay and effect flags from native <c>RenderOptions</c>, and whether cube captures leave it out.
-	/// </summary>
-	static void ApplyLayerFlags( RenderObject obj, SceneObject.SceneObjectFlagAccessor flags )
-	{
-		obj.GameLayers = !flags.HasFlag( SceneObjectFlags.ExcludeGameLayer );
-		obj.Overlay = flags.HasFlag( SceneObjectFlags.GameOverlayLayer );
-		obj.Bloom = flags.HasFlag( SceneObjectFlags.EffectsBloomLayer );
-		obj.AfterUI = flags.HasFlag( SceneObjectFlags.UIOverlayLayer );
-		obj.HiddenInCaptures = flags.HasFlag( SceneObjectFlags.HideInCubemaps );
-	}
 
 	/// <summary>
 	/// The cube a probe reflects. A realtime probe's cube is made when it's first captured (the envmap scheduler captures the
@@ -1052,22 +976,5 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		return tokens.Count == 0 ? [] : [.. tokens];
 	}
 
-	/// <summary>
-	/// A world box in an object's space: the box around its corners taken back through the transform.
-	/// </summary>
-	static BBox ToLocal( BBox world, Transform transform )
-	{
-		var mins = new Vector3( float.MaxValue );
-		var maxs = new Vector3( float.MinValue );
-
-		for ( int i = 0; i < 8; i++ )
-		{
-			var corner = new Vector3( (i & 1) == 0 ? world.Mins.x : world.Maxs.x, (i & 2) == 0 ? world.Mins.y : world.Maxs.y, (i & 4) == 0 ? world.Mins.z : world.Maxs.z );
-			var local = transform.PointToLocal( corner );
-			mins = Vector3.Min( mins, local );
-			maxs = Vector3.Max( maxs, local );
-		}
-
-		return new BBox( mins, maxs );
-	}
+	static BBox ToLocal( BBox world, Transform transform ) => SceneObject.ToLocal( world, transform );
 }

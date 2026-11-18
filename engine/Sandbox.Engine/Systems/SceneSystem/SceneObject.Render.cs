@@ -33,6 +33,88 @@ public partial class SceneObject
 		return tokens.Count == 0 ? [] : [.. tokens];
 	}
 
+	static readonly uint StaticOverlayMatch = new StringToken( "StaticOverlayLayer" ).Value;
+	static readonly uint OverlayWithDepthMatch = new StringToken( "OverlayWithDepth" ).Value;
+	static readonly uint OverlayWithoutDepthMatch = new StringToken( "OverlayWithoutDepth" ).Value;
+
+	/// <summary>
+	/// A layer match (<c>CSceneObject::m_nLayerMatchID</c>) as Borealis knows it; its features decide membership.
+	/// </summary>
+	internal static Borealis.LayerMatch LayerMatchFor( uint match )
+	{
+		if ( match == 0 ) return Borealis.LayerMatch.None;
+		if ( match == StaticOverlayMatch ) return Borealis.LayerMatch.StaticOverlay;
+		if ( match == OverlayWithDepthMatch ) return Borealis.LayerMatch.OverlayWithDepth;
+		if ( match == OverlayWithoutDepthMatch ) return Borealis.LayerMatch.OverlayWithoutDepth;
+		return Borealis.LayerMatch.Unsupported;
+	}
+
+	/// <summary>
+	/// Game, overlay and effect layers from native's <c>RenderOptions</c> flags, and whether cube captures leave it out.
+	/// </summary>
+	internal static void WriteLayerFlags( Borealis.RenderObject obj, SceneObjectFlagAccessor flags )
+	{
+		obj.GameLayers = !flags.HasFlag( Rendering.SceneObjectFlags.ExcludeGameLayer );
+		obj.Overlay = flags.HasFlag( Rendering.SceneObjectFlags.GameOverlayLayer );
+		obj.Bloom = flags.HasFlag( Rendering.SceneObjectFlags.EffectsBloomLayer );
+		obj.AfterUI = flags.HasFlag( Rendering.SceneObjectFlags.UIOverlayLayer );
+		obj.HiddenInCaptures = flags.HasFlag( Rendering.SceneObjectFlags.HideInCubemaps );
+	}
+
+	/// <summary>
+	/// A custom or dynamic object's placement, culling bounds and flags.
+	/// </summary>
+	private protected void WriteCustom( Borealis.CustomObject custom, Rendering.SceneObjectChange change )
+	{
+		const Rendering.SceneObjectChange Placement = Rendering.SceneObjectChange.Transform | Rendering.SceneObjectChange.Bounds;
+		if ( (change & Placement) != 0 )
+		{
+			// Unplaced custom objects may report zero scale; native uses identity.
+			var transform = Transform;
+			custom.Transform = transform == default ? Transform.Zero : transform;
+
+			// Bounds as kept (WorldBounds): Bounds collapses infinity to a point. Large finite bounds keep culling math valid
+			var bounds = WorldBounds;
+			if ( !float.IsFinite( bounds.Mins.x + bounds.Mins.y + bounds.Mins.z + bounds.Maxs.x + bounds.Maxs.y + bounds.Maxs.z ) || bounds.Size.x > 1e9f )
+				bounds = new BBox( new Vector3( -1e9f ), new Vector3( 1e9f ) );
+
+			custom.LocalBounds = ToLocal( bounds, custom.Transform );
+		}
+
+		const Rendering.SceneObjectChange State = Rendering.SceneObjectChange.Tint | Rendering.SceneObjectChange.Flags | Rendering.SceneObjectChange.Visibility;
+		if ( (change & State) != 0 )
+		{
+			var flags = Flags;
+			custom.Tint = ColorTint;
+			custom.IsOpaque = flags.IsOpaque && !flags.IsTranslucent;
+			custom.WantsFrameBufferCopy = flags.WantsFrameBufferCopy;
+			custom.DepthPrepass = !flags.HasFlag( Rendering.SceneObjectFlags.NoZPrepass );
+			custom.CastShadows = flags.CastShadows;
+			custom.Visible = RenderingEnabled;
+			WriteLayerFlags( custom, flags );
+			custom.LayerMatch = LayerMatchFor( LayerMatchToken );
+		}
+	}
+
+	/// <summary>
+	/// A world box in an object's space: the box around its corners taken back through the transform.
+	/// </summary>
+	internal static BBox ToLocal( BBox world, Transform transform )
+	{
+		var mins = new Vector3( float.MaxValue );
+		var maxs = new Vector3( float.MinValue );
+
+		for ( int i = 0; i < 8; i++ )
+		{
+			var corner = new Vector3( (i & 1) == 0 ? world.Mins.x : world.Maxs.x, (i & 2) == 0 ? world.Mins.y : world.Maxs.y, (i & 4) == 0 ? world.Mins.z : world.Maxs.z );
+			var local = transform.PointToLocal( corner );
+			mins = Vector3.Min( mins, local );
+			maxs = Vector3.Max( maxs, local );
+		}
+
+		return new BBox( mins, maxs );
+	}
+
 	/// <summary>
 	/// What waits for its world's renderer even for an object that writes its own render object: coming and going, and its
 	/// attributes being made.

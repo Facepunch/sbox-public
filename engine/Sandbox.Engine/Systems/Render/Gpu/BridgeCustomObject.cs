@@ -1,4 +1,7 @@
-namespace Sandbox.Rendering.Bridge;
+using Borealis;
+using GpuContext = Borealis.Gpu.GpuContext;
+
+namespace Sandbox.Rendering;
 
 /// <summary>
 /// Mirrored custom object, drawn through the engine's graphics context into Borealis's list, shadow views included

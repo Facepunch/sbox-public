@@ -104,5 +104,20 @@ public class SceneDynamicObject : SceneObject
 		ManagedVertices.Clear();
 		ManagedPrimitiveType = type;
 	}
+
+	internal override bool OwnsRenderObject => true;
+
+	internal override Borealis.RenderObject MakeRenderObject() => new Rendering.BridgeDynamicObject( this );
+
+	internal override void WriteRender( Borealis.RenderObject obj, Rendering.SceneObjectChange change, Rendering.ISceneWorldRender render )
+	{
+		base.WriteRender( obj, change, render );
+		if ( obj is not Borealis.CustomObject custom ) return;
+
+		// Its material is known before it draws (gizmos, the debug overlay): whether it needs a stencil, so the view's depth has
+		// one before the frame records. Other custom objects pick their materials as they draw
+		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu ) custom.NeedsStencil = gpu.NeedsStencil( ManagedMaterial );
+		WriteCustom( custom, change );
+	}
 }
 
