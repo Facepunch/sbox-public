@@ -240,5 +240,8 @@ internal sealed partial class BorealisGpuRenderBackend
 		blockReadbacks.Clear();
 		uploadReadbacks.Clear();
 		while ( readBuffers.TryDequeue( out var done ) ) gpu.Destroy( done );
+		if ( pixelReadback.IsValid ) gpu.Destroy( pixelReadback );
+		pixelReadback = default;
+		pixelReadbackSize = 0;
 	}
 }

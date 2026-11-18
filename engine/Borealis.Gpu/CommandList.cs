@@ -1254,7 +1254,14 @@ public sealed unsafe class CommandList
 	/// Scale one texture region into another with filtering, converting formats, from <see cref="ImageLayout.CopySource"/>
 	/// to <see cref="ImageLayout.CopyDestination"/>.
 	/// </summary>
-	public void Blit( TextureHandle source, (int X, int Y, int Width, int Height) from, TextureHandle destination, (int X, int Y, int Width, int Height) to, Filter filter = Filter.Linear, int sourceMip = 0, int destinationMip = 0 )
+	public void Blit( TextureHandle source, (int X, int Y, int Width, int Height) from, TextureHandle destination, (int X, int Y, int Width, int Height) to, Filter filter = Filter.Linear, int sourceMip = 0, int destinationMip = 0 ) =>
+		Blit( source, from, destination, to, filter, sourceMip, destinationMip, 0, 0 );
+
+	/// <summary>
+	/// The blit above, between
+	/// array layers (a cube's faces are six layers each). A volume's whole depth at each mip is blitted.
+	/// </summary>
+	public void Blit( TextureHandle source, (int X, int Y, int Width, int Height) from, TextureHandle destination, (int X, int Y, int Width, int Height) to, Filter filter, int sourceMip, int destinationMip, int sourceLayer, int destinationLayer )
 	{
 		OutsideRendering();
 		FlushBarriers();
@@ -1262,12 +1269,12 @@ public sealed unsafe class CommandList
 		ref var dst = ref device.Get( destination );
 		var region = new VkImageBlit
 		{
-			srcSubresource = new VkImageSubresourceLayers { aspectMask = src.Aspect, mipLevel = (uint)sourceMip, layerCount = 1 },
+			srcSubresource = new VkImageSubresourceLayers { aspectMask = src.Aspect, mipLevel = (uint)sourceMip, baseArrayLayer = (uint)sourceLayer, layerCount = 1 },
 			srcOffset0 = new VkOffset3D { x = from.X, y = from.Y },
-			srcOffset1 = new VkOffset3D { x = from.X + from.Width, y = from.Y + from.Height, z = 1 },
-			dstSubresource = new VkImageSubresourceLayers { aspectMask = dst.Aspect, mipLevel = (uint)destinationMip, layerCount = 1 },
+			srcOffset1 = new VkOffset3D { x = from.X + from.Width, y = from.Y + from.Height, z = VolumeDepth( in src.Info, sourceMip ) },
+			dstSubresource = new VkImageSubresourceLayers { aspectMask = dst.Aspect, mipLevel = (uint)destinationMip, baseArrayLayer = (uint)destinationLayer, layerCount = 1 },
 			dstOffset0 = new VkOffset3D { x = to.X, y = to.Y },
-			dstOffset1 = new VkOffset3D { x = to.X + to.Width, y = to.Y + to.Height, z = 1 },
+			dstOffset1 = new VkOffset3D { x = to.X + to.Width, y = to.Y + to.Height, z = VolumeDepth( in dst.Info, destinationMip ) },
 		};
 
 		vk.vkCmdBlitImage( Handle, src.Image, VkImageLayout.TransferSrcOptimal, dst.Image, VkImageLayout.TransferDstOptimal, 1, &region, (int)filter );

@@ -444,6 +444,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 		finally
 		{
+			// A viewport's depth range set in a block of its own ends with it (a lent frame keeps its own)
+			if ( !lent ) DepthRange = (0, 1);
 			list = null;
 			lent = false;
 			presentTo = null;
@@ -662,6 +664,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		ArgumentNullException.ThrowIfNull( texture );
 
+		// What the device uses is what's in use (Texture.LastUsed): caches and animated textures go by it
+		texture.UsedOnDevice();
+
 		// A realtime probe's cube is captured into a cube of Borealis's: read that, not a copy nothing writes
 		if ( texture.Depth == 6 && RenderedInto?.Invoke( this, texture ) is BackendTexture rendered ) return rendered.Handle;
 
@@ -732,7 +737,11 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			var info = TextureInfo.RenderTarget( texture.Width, texture.Height, FormatOf( texture.ImageFormat ), samples, $"Engine target {texture.Width}x{texture.Height}" );
 			info.Usage |= TextureUsage.Sampled;
 			info.Mips = samples > 1 ? 1 : Math.Max( texture.Mips, 1 );
-			if ( texture.Desc is { IsArray: true, IsCube: false } desc ) info.Layers = Math.Max( (int)desc.m_nDepth, 1 );
+			if ( texture.Desc is { IsArray: true, IsCube: false } desc )
+			{
+				info.Layers = Math.Max( (int)desc.m_nDepth, 1 );
+				info.Dimension = TextureDimension.Texture2DArray;
+			}
 			var depth = info.Format.IsDepth();
 			if ( !depth && samples == 1 ) info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
@@ -741,6 +750,11 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			if ( samples == 1 && info.Layers == 1 && (InitialPixels( texture, info.Format ) ?? (RawPixels( texture ) is { } raw && raw.Format == info.Format ? raw.Data : null)) is { } pixels )
 			{
 				Upload( handle, info, pixels, ImageLayout.Undefined );
+			}
+			else if ( samples == 1 && info.Layers > 1 && texture.InitialPixels is { } data && DataFormatOf( texture.ImageFormat ) == info.Format.Linear() && HoldsEveryMip( info, data ) is { } everyMip )
+			{
+				// An array's every layer
+				Write( handle, info, data, everyMip );
 			}
 			else
 			{
@@ -752,14 +766,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		{
 			handle = file;
 		}
+		else if ( FromData( texture ) is { } data )
+		{
+			handle = data;
+		}
 		else if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_VOLUME_TEXTURE ) )
 		{
 			handle = VolumeOf( texture );
 		}
 		else if ( InitialPixels( texture, GpuFormat.RGBA8Unorm ) is { } pixels )
 		{
-			// With its mips, as Source 2 generates them from the first
+			// With its mips, as Source 2 generates them from the first, and storage when it was made for compute
 			var info = TextureInfo.Texture2D( texture.Width, texture.Height, GpuFormat.RGBA8Unorm, Math.Max( texture.Mips, 1 ), $"Engine image {texture.Width}x{texture.Height}" );
+			if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) ) info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
 			Upload( handle, info, pixels, ImageLayout.Undefined );
 		}
@@ -772,12 +791,12 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			handle = gpu.CreateTexture( info );
 			Upload( handle, info, raw.Data, ImageLayout.Undefined );
 		}
-		else if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) && texture.Depth <= 1 && DataFormatOf( texture.ImageFormat ) is var storage && storage != GpuFormat.Unknown )
+		else if ( (texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) || (!Graphics.HasSource2Device && texture.InitialPixels is null && texture.InitialColor is not null)) && texture.Depth <= 1 && DataFormatOf( texture.ImageFormat ) is var storage && storage != GpuFormat.Unknown )
 		{
-			// Made empty for compute to fill (a terrain's baked normals): its own format, storage, cleared as a new target is, to
-			// the colour it was made or last cleared with
+			// Made empty, for compute to fill (a terrain's baked normals) or made at run time with no pixels and no Source 2 device to copy from: its own format,
+			// storage when made for compute, cleared as a new target is, to the colour it was made or last cleared with
 			var info = TextureInfo.Texture2D( texture.Width, texture.Height, storage, Math.Max( texture.Mips, 1 ), $"Engine storage {texture.Width}x{texture.Height}" );
-			info.Usage |= TextureUsage.Storage;
+			if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) ) info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
 			context.Track( handle, ImageLayout.Undefined );
 			ClearNow( handle, texture.InitialColor ?? Color.Transparent );
@@ -956,6 +975,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>Mip 0 of Source 2's copy as RGBA8, or null when Source 2 can't read it back.</summary>
 	unsafe byte[] TryCopyFromSource2( Texture texture )
 	{
+		// Source 2's empty render system has no pixels to read: its read would hand back zeros as if they were the texture's
+		if ( !Graphics.HasSource2Device ) return null;
+
 		try
 		{
 			var pixels = new byte[texture.Width * texture.Height * 4];
@@ -1037,19 +1059,20 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	/// <summary>
 	/// Fill mips 1 and down of a texture whose mip 0 is in <see cref="ImageLayout.ShaderRead"/> (and the rest in
-	/// <paramref name="rest"/>) by halving each into the next with a linear blit (a box filter), as a texture made with
-	/// only its first mip gets the rest. Leaves it all in <see cref="ImageLayout.ShaderRead"/>.
+	/// <paramref name="rest"/>) by halving each into the next with a linear blit (a box filter), every layer, as a texture
+	/// made with only its first mip gets the rest. Leaves it all in <see cref="ImageLayout.ShaderRead"/>.
 	/// </summary>
 	void FillMips( GpuCommandList mips, TextureHandle handle, in TextureInfo info, ImageLayout rest )
 	{
-		var filter = info.Format is GpuFormat.R32Float or GpuFormat.RG32Float or GpuFormat.RGBA32Float ? Filter.Nearest : Filter.Linear;
+		var filter = info.Format is GpuFormat.R32Float or GpuFormat.RG32Float or GpuFormat.RGBA32Float or GpuFormat.R32Uint or GpuFormat.RG32Uint or GpuFormat.RGBA32Uint ? Filter.Nearest : Filter.Linear;
+		var layers = ArrayLayersOf( info );
 		for ( int i = 1; i < info.Mips; i++ )
 		{
 			int sw = Math.Max( info.Width >> (i - 1), 1 ), sh = Math.Max( info.Height >> (i - 1), 1 );
 			int dw = Math.Max( info.Width >> i, 1 ), dh = Math.Max( info.Height >> i, 1 );
 			mips.Barrier( MipBarrier( handle, i - 1, ImageLayout.ShaderRead, ImageLayout.CopySource ) );
 			mips.Barrier( MipBarrier( handle, i, rest, ImageLayout.CopyDestination ) );
-			mips.Blit( handle, (0, 0, sw, sh), handle, (0, 0, dw, dh), filter, i - 1, i );
+			for ( int layer = 0; layer < layers; layer++ ) mips.Blit( handle, (0, 0, sw, sh), handle, (0, 0, dw, dh), filter, i - 1, i, layer, layer );
 			mips.Barrier( MipBarrier( handle, i - 1, ImageLayout.CopySource, ImageLayout.ShaderRead ) );
 			mips.Barrier( MipBarrier( handle, i, ImageLayout.CopyDestination, ImageLayout.ShaderRead ) );
 		}
@@ -1128,7 +1151,6 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		DestinationAccess = MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite,
 		BaseMip = mip,
 		MipCount = 1,
-		LayerCount = 1,
 	};
 
 	/// <summary>Clear a new target now, in the block being recorded or on its own.</summary>
@@ -1443,10 +1465,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	public override RenderViewport GetViewport()
 	{
 		var v = context.Viewport;
-		return new RenderViewport( new Rect( v.X, v.Y, v.Z, v.W ), 0, 1 );
+		return new RenderViewport( new Rect( v.X, v.Y, v.Z, v.W ), DepthRange.Min, DepthRange.Max );
 	}
 
-	public override void SetViewport( in RenderViewport viewport ) => SetViewport( viewport.Rect );
+	/// <summary>The rectangle, and the depth range draws map to (none given: 0 to 1), as Source 2's viewport has both.</summary>
+	public override void SetViewport( in RenderViewport viewport )
+	{
+		SetViewport( viewport.Rect );
+		DepthRange = viewport.MaxZ > viewport.MinZ ? (viewport.MinZ, viewport.MaxZ) : (0, 1);
+	}
 
 	public override void SetViewport( Rect rect ) => context.Viewport = new Num.Vector4( rect.Left, rect.Top, rect.Width, rect.Height );
 
@@ -1648,6 +1675,13 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	public override void CopyTexture( Texture source, Texture destination, int sourceMip, int sourceSlice, int destinationMip, int destinationSlice )
 	{
+		if ( OutsideBlock )
+		{
+			// Outside a render block a copy runs now, as on Source 2's device: in a block of its own
+			using ( Graphics.Scope.CreateOn( this ) ) CopyTexture( source, destination, sourceMip, sourceSlice, destinationMip, destinationSlice );
+			return;
+		}
+
 		_ = Recording;
 		var from = TextureOf( source );
 		var to = TextureOf( destination );
@@ -1657,9 +1691,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			return;
 		}
 
-		// Engine textures' copies here are made with one layer
-		if ( sourceSlice >= Math.Max( gpu.InfoOf( from ).Layers, 1 ) || destinationSlice >= Math.Max( gpu.InfoOf( to ).Layers, 1 ) )
-			throw new NotSupportedException( "Copies between array slices on Borealis.Gpu: engine textures are made with one layer there" );
+		if ( sourceSlice >= ArrayLayersOf( gpu.InfoOf( from ) ) || destinationSlice >= ArrayLayersOf( gpu.InfoOf( to ) ) )
+			throw new ArgumentOutOfRangeException( nameof( sourceSlice ), "Copies between array slices the textures don't have" );
 		context.CopyTexture( from, sourceMip, sourceSlice, to, destinationMip, destinationSlice );
 	}
 
@@ -1688,6 +1721,12 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	public override void GenerateMipMaps( Texture texture, Graphics.DownsampleMethod method, int initialMip )
 	{
+		if ( OutsideBlock )
+		{
+			using ( Graphics.Scope.CreateOn( this ) ) GenerateMipMaps( texture, method, initialMip );
+			return;
+		}
+
 		_ = Recording;
 		switch ( method )
 		{
@@ -1902,67 +1941,6 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		{
 			gpu.Destroy( readback );
 		}
-	}
-
-	/// <summary>
-	/// A rectangle of a texture's backing (one mip and array layer), after everything submitted so far, converted on the
-	/// CPU into the engine format asked for. Copies of the same size only, not depth or 3D textures, and not inside a
-	/// block, which hasn't been submitted.
-	/// </summary>
-	public override unsafe bool ReadPixels( Texture texture, NativeRect source, int slice, int mip, NativeRect destination, IntPtr data, ImageFormat format, int stride )
-	{
-		// With Source 2's device kept (the editor): what native drew (a bake's captures) is read from its copy, and so are
-		// volumes, which aren't read back here (a DDGI bake's relocation, made on the CPU)
-		if ( Graphics.HasSource2Device && (texture.PixelsOnSource2 || (texture.Depth > 1 && !texture.Desc.IsCube)) )
-			return base.ReadPixels( texture, source, slice, mip, destination, data, format, stride );
-
-		if ( list is not null ) return false;
-		if ( source.w != destination.w || source.h != destination.h || source.w <= 0 || source.h <= 0 ) return false;
-
-		var handle = TextureOf( texture );
-		var info = gpu.InfoOf( handle );
-		if ( mip < 0 || mip >= info.Mips || slice < 0 || slice >= Math.Max( info.Layers, 1 ) || info.Format.IsDepth() || info.Dimension == TextureDimension.Texture3D ) return false;
-		if ( ImageFormatOf( info.Format ) is not { } from ) return false;
-
-		int width = Math.Max( info.Width >> mip, 1 ), height = Math.Max( info.Height >> mip, 1 );
-		if ( source.x < 0 || source.y < 0 || source.x + source.w > width || source.y + source.h > height ) return false;
-
-		var pixel = NativeEngine.ImageLoader.GetMemRequired( 1, 1, 1, 1, format );
-		if ( pixel <= 0 ) return false;
-		stride = stride > 0 ? stride : destination.w * pixel;
-
-		var size = info.Format.RowPitch( width ) * info.Format.Rows( height );
-		var readback = gpu.CreateBuffer( new BufferInfo { Size = size, Memory = MemoryLocation.Readback, Name = "Readback" } );
-		var converted = new byte[width * height * pixel];
-		try
-		{
-			SubmitUploads();
-			var copy = gpu.BeginCommandList( QueueType.Graphics, "Readback" );
-			context.Begin( copy );
-			context.CopyToBuffer( handle, readback, mip, slice );
-			context.Finish();
-			gpu.Wait( gpu.Submit( copy ) );
-
-			var bytes = gpu.Map( readback );
-			fixed ( byte* src = bytes )
-			fixed ( byte* dst = converted )
-			{
-				if ( !NativeEngine.ImageLoader.ConvertImageFormat( (IntPtr)src, from, (IntPtr)dst, format, width, height, 0, width * pixel ) ) return false;
-			}
-		}
-		finally
-		{
-			gpu.Destroy( readback );
-		}
-
-		var row = source.w * pixel;
-		for ( int y = 0; y < source.h; y++ )
-		{
-			var line = converted.AsSpan( ((source.y + y) * width + source.x) * pixel, row );
-			line.CopyTo( new Span<byte>( (byte*)data + (long)(destination.y + y) * stride + (long)destination.x * pixel, row ) );
-		}
-
-		return true;
 	}
 
 	/// <summary>The engine form of a backing's format, for converting what's read back, or null.</summary>
