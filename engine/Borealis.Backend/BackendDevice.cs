@@ -154,7 +154,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public bool GpuDriven { get; set; }
 
 	/// <summary>The GPU-driven tables' records and bytes, for reports.</summary>
-	public string GpuDrivenReport => gpuDrivenTables is not { } t ? "off" : $"{t.Records.Geometry} geometry, {t.Records.Draws} draw and {t.Records.Materials} material records ({t.Bytes.Geometry / 1024} + {t.Bytes.Draws / 1024} + {t.Bytes.Materials / 1024} KiB), {t.Bytes.Pages / (1 << 20)} MiB of pages"
+	public string GpuDrivenReport => gpuDrivenTables is not { } t ? "off" : $"{t.Records.Geometry} geometry, {t.Records.Draws} draw and {t.Records.Materials} material records ({t.Bytes.Geometry / 1024} + {t.Bytes.Draws / 1024} + {t.Bytes.Materials / 1024} KiB), {t.Bytes.Pages / (1 << 20)} MiB of pages; visibility {t.VisibilityUse.Bits / 8 / (1 << 20)} of {GpuDrivenTables.FrameVisibilityBitBase / 8 / (1 << 20)} MiB of owners' vertex bits, {t.VisibilityNoRoom} requests without room, {t.VisibilityRunsAged} runs let go unnamed"
 		+ (GpuDrivenLeftClassic.IsEmpty ? "" : "; aggregate batches left classic (batch draws while timed, shader, mode, why): " + string.Join( ", ", GpuDrivenLeftClassic.OrderByDescending( x => x.Value ).Select( x => $"{x.Value} {x.Key}" ) ));
 
 	/// <summary>While <see cref="TimeDraws"/>, aggregate batches the GPU-driven path left to the classic one, by shader, mode and why.</summary>
@@ -475,7 +475,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public static bool GpuDrivenByDefault { get; set; } = !HasSwitch( "-no-gpudriven" );
 
-	static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
+	internal static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>The value after a switch on the command line, or null.</summary>
 	static string SwitchValue( string name )
