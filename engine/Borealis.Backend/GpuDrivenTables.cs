@@ -484,8 +484,8 @@ internal sealed class GpuDrivenTables : IDisposable
 			// fetch counts attributes by the mask's bits
 			var fields = layout.Fields.Where( f => Semantic( f ) is >= 0 and < 256 and not VertexIdSemantic and not CacheVertexSemantic && Encode( f.Format ) != 0 ).ToArray();
 			var attributes = fields.Select( f => (Semantic: Semantic( f ), Slot: slot, Offset: offset + f.Offset, Format: Encode( f.Format ) | (uint)layout.Stride << 16, Count: count) )
-				.Append( (Semantic: VertexIdSemantic, Slot: ids.Slot, Offset: ids.Offset + firstVertexId * 4L, Format: Encode( VertexFormat.Float ) | 4u << 16, Count: Math.Min( count, max - firstVertexId ) ) )
-				.Append( (Semantic: CacheVertexSemantic, Slot: ids.Slot, Offset: ids.Offset + firstCacheVertex * 4L, Format: Encode( VertexFormat.Float ) | 4u << 16, Count: count ) )
+				.Append( (Semantic: VertexIdSemantic, Slot: ids.Slot, Offset: ids.Offset + firstVertexId * 4L, Format: Encode( VertexFormat.Float ) | 4u << 16, Count: Math.Min( count, max - firstVertexId )) )
+				.Append( (Semantic: CacheVertexSemantic, Slot: ids.Slot, Offset: ids.Offset + firstCacheVertex * 4L, Format: Encode( VertexFormat.Float ) | 4u << 16, Count: count) )
 				.OrderBy( a => a.Semantic ).ToArray();
 
 			var record = new byte[MaskBytes + attributes.Length * 16];
