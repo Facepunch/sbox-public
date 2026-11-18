@@ -48,7 +48,12 @@ public sealed class MorphSet
 	/// <summary>Flex rules by the desc they set, and morphs by the desc that names them (<c>CMorphSet::Initialize</c>).</summary>
 	void Map()
 	{
-		if ( morphsByDesc is not null ) return;
+		// The mapping in a method of its own: its closure would otherwise be made on every call, mapped or not
+		if ( morphsByDesc is null ) MapOnce();
+	}
+
+	void MapOnce()
+	{
 		var rules = new FlexRule[FlexDescs.Count];
 		foreach ( var rule in Rules )
 		{

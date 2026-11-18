@@ -1020,12 +1020,16 @@ public sealed class ShaderDrawer : IDisposable
 
 		var info = gpu.InfoOf( texture );
 		float w = info.Width, h = info.Height, d = Math.Max( info.Depth, 1 ), m = info.Mips;
-		return variable.Source switch
+
+		// Into the drawer's scratch, read before the next constant is written
+		var size = scratch4;
+		(size[0], size[1], size[2], size[3]) = variable.Source switch
 		{
-			VariableSource.InvTextureDimensions => [1 / w, 1 / h, 1 / d, 1 / m],
-			VariableSource.TextureDimensionsLog2 => [MathF.Log2( w ), MathF.Log2( h ), MathF.Log2( d ), m],
-			_ => [w, h, d, m],
+			VariableSource.InvTextureDimensions => (1 / w, 1 / h, 1 / d, 1 / m),
+			VariableSource.TextureDimensionsLog2 => (MathF.Log2( w ), MathF.Log2( h ), MathF.Log2( d ), m),
+			_ => (w, h, d, m),
 		};
+		return size;
 	}
 
 	Binding ConstantBuffer( CommandList list, int binding, byte[] data, ShaderStage stage, string name )

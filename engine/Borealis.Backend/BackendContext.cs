@@ -967,8 +967,11 @@ internal sealed partial class BackendContext : GpuContext
 	/// <summary>Whether a vertex shader reads nothing of these vertices but their positions.</summary>
 	static bool ReadsOnlyPositions( ShaderVariant variant, VertexLayout layout )
 	{
-		foreach ( var input in variant.VertexInputs )
+		// By index: a foreach over the list would allocate its enumerator every draw
+		var inputs = variant.VertexInputs;
+		for ( int i = 0; i < inputs.Count; i++ )
 		{
+			var input = inputs[i];
 			if ( input.Semantic != VertexSemantic.Position && layout.Find( input.Semantic, input.SemanticIndex ) is not null ) return false;
 		}
 
@@ -1067,6 +1070,23 @@ internal sealed partial class BackendContext : GpuContext
 				(a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15]) = (m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44);
 				return a;
 			default: return Floats( value );
+		}
+	}
+
+	/// <summary>
+	/// An attribute's value as floats on <paramref name="into"/>: in the arrays it owns for one to four (<see cref="ShaderAttributes.Set(string, float)"/>),
+	/// so setting it every dispatch allocates nothing; a matrix in an array of its own.
+	/// </summary>
+	static void SetFloats( ShaderAttributes into, string name, object value )
+	{
+		if ( ScratchFloats( value ) is not { } f ) return;
+		switch ( f.Length )
+		{
+			case 1: into.Set( name, f[0] ); break;
+			case 2: into.Set( name, f[0], f[1] ); break;
+			case 3: into.Set( name, f[0], f[1], f[2] ); break;
+			case 4: into.Set( name, f[0], f[1], f[2], f[3] ); break;
+			default: into.Set( name, (float[])f.Clone() ); break;
 		}
 	}
 

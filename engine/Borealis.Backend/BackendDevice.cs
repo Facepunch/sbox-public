@@ -154,7 +154,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public bool GpuDriven { get; set; }
 
 	/// <summary>The GPU-driven tables' records and bytes, for reports.</summary>
-	public string GpuDrivenReport => gpuDrivenTables is not { } t ? "off" : $"{t.Records.Geometry} geometry, {t.Records.Draws} draw and {t.Records.Materials} material records ({t.Bytes.Geometry / 1024} + {t.Bytes.Draws / 1024} + {t.Bytes.Materials / 1024} KiB), {t.Bytes.Pages / (1 << 20)} MiB of pages"
+	public string GpuDrivenReport => gpuDrivenTables is not { } t ? "off" : $"{t.Records.Geometry} geometry, {t.Records.Draws} draw and {t.Records.Materials} material records ({t.Bytes.Geometry / 1024} + {t.Bytes.Draws / 1024} + {t.Bytes.Materials / 1024} KiB), {t.Bytes.Pages / (1 << 20)} MiB of pages; visibility {t.VisibilityUse.Bits / 8 / (1 << 20)} of {GpuDrivenTables.FrameVisibilityBitBase / 8 / (1 << 20)} MiB of owners' vertex bits, {t.VisibilityNoRoom} requests without room, {t.VisibilityRunsAged} runs let go unnamed"
 		+ (GpuDrivenLeftClassic.IsEmpty ? "" : "; aggregate batches left classic (batch draws while timed, shader, mode, why): " + string.Join( ", ", GpuDrivenLeftClassic.OrderByDescending( x => x.Value ).Select( x => $"{x.Value} {x.Key}" ) ));
 
 	/// <summary>While <see cref="TimeDraws"/>, aggregate batches the GPU-driven path left to the classic one, by shader, mode and why.</summary>
@@ -475,7 +475,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public static bool GpuDrivenByDefault { get; set; } = !HasSwitch( "-no-gpudriven" );
 
-	static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
+	internal static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>The value after a switch on the command line, or null.</summary>
 	static string SwitchValue( string name )
@@ -971,7 +971,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	readonly Dictionary<string, ShaderParameters> mapLightmaps = new( StringComparer.OrdinalIgnoreCase );
-	readonly Dictionary<string, System.Threading.Tasks.Task> lightmapReads = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, System.Threading.Tasks.Task<Borealis.Source2.World.WorldFile>> lightmapReads = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
 	/// Read the lightmaps of the map in <paramref name="folder"/> on a worker (its world file, each texture read and
@@ -987,12 +987,15 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			{
 				try
 				{
+					// The world file too, kept for where they're made: parsing it took 100 ms of the first frame after a load
 					var world = Borealis.Source2.World.WorldFile.Load( Content, $"{folder}/world.vwrld" );
 					System.Threading.Tasks.Parallel.ForEach( world.Lightmaps, path => ReadTextureAhead( path ) );
+					return world;
 				}
 				catch ( Exception e ) when ( e is IOException or InvalidDataException or KeyNotFoundException )
 				{
 					// Read where they're made, which reports it
+					return null;
 				}
 			} );
 		}
@@ -1012,16 +1015,17 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public ShaderParameters MapLightmapParameters( string folder )
 	{
 		if ( string.IsNullOrEmpty( folder ) ) return null;
-		System.Threading.Tasks.Task reading;
+		System.Threading.Tasks.Task<Borealis.Source2.World.WorldFile> reading;
 		lock ( mapLightmaps ) lightmapReads.TryGetValue( folder, out reading );
-		reading?.Wait();
+		var read = reading?.GetAwaiter().GetResult();
 		lock ( mapLightmaps )
 		{
 			if ( mapLightmaps.TryGetValue( folder, out var cached ) ) return cached;
+			lightmapReads.Remove( folder );
 			ShaderParameters made = null;
 			try
 			{
-				var world = Borealis.Source2.World.WorldFile.Load( Content, $"{folder}/world.vwrld" );
+				var world = read ?? Borealis.Source2.World.WorldFile.Load( Content, $"{folder}/world.vwrld" );
 
 				// Their mips and slices written with the frame's next submission, not each waited for
 				using ( Zones.MapLightmaps.Start() )

@@ -102,7 +102,13 @@ public sealed class PassModules : IShaderModules
 		return System.Threading.Tasks.Task.Run( () =>
 		{
 			using var zone = Zones.PassModulesRead.Start();
-			foreach ( var file in Directory.GetFiles( shaders, "*.slang", SearchOption.AllDirectories ) ) ModuleBeside( Path.ChangeExtension( file, ".shader_c" ) );
+			foreach ( var file in Directory.GetFiles( shaders, "*.slang", SearchOption.AllDirectories ) )
+			{
+				ModuleBeside( Path.ChangeExtension( file, ".shader_c" ) );
+
+				// Its offline compile too (a megabyte or more, read and indexed once): the first draw of its shader reads stages from it
+				if ( UseOffline ) SlangOutput.At( SlangOutput.PathOf( file ) );
+			}
 		} );
 	}
 
