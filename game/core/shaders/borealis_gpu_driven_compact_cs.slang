@@ -36,6 +36,10 @@ RWByteAddressBuffer g_MeshletStamps < Attribute( "BorealisMeshletStamps" ); >;
 RWByteAddressBuffer g_PrepassCompacted < Attribute( "BorealisMeshletCompacted" ); >;
 RWByteAddressBuffer g_PrepassCompacted16 < Attribute( "BorealisMeshletCompacted16" ); >;
 
+// Two-phase Hi-Z occlusion: a bit per visibility fragment, set where one has a triangle that owns a sample, which the view's
+// next prepass draws first (written where g_nCullVisibility isn't 0)
+RWByteAddressBuffer g_HiZVisible < Attribute( "BorealisHiZVisible" ); >;
+
 cbuffer BorealisGpuDrivenCull_t
 {
 	uint g_nCullInput;
@@ -47,7 +51,7 @@ cbuffer BorealisGpuDrivenCull_t
 	uint g_nCullDraws;			// bindless slot of the draw table
 	uint g_nCullRuns;			// byte offset of the multi-draws: first command slot and count each
 	uint g_nCullFrame;
-	uint g_nCullVisibility;
+	uint g_nCullVisibility;		// not 0: set each listed fragment's bit in g_HiZVisible where it has a triangle that owns a sample
 	uint g_nCullLodTable;		// the culls' (the compacted indices' cursor is g_Compacted's first word, shared by the view's calls)
 	uint g_nCullCapacity;		// indices g_Compacted holds
 	uint g_nCullFragmentWords;
@@ -186,6 +190,13 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 	uint nOwned = gs_Owned;
 	if ( nOwned == 0 )
 		return;
+
+	if ( nThread == 0 && g_nCullVisibility != 0 )
+	{
+		uint nVisible = g_Frame.Load( nEntry + 28 );
+		if ( nVisible != None )
+			g_HiZVisible.InterlockedOr( ( nVisible >> 5 ) * 4, 1u << ( nVisible & 31 ) );
+	}
 
 	// Copied where few own a sample and there's room; else the whole draw
 	if ( nThread == 0 )

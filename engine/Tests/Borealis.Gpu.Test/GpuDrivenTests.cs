@@ -1820,6 +1820,145 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// Two-phase Hi-Z occlusion (<see cref="BackendDevice.HiZOcclusion"/>): trashcans hidden behind a large one aren't drawn
+	/// once forward has seen them hidden (the second phase culls them against the Hi-Z of the first), and a turn of the
+	/// camera that shows them draws them that same frame. Each frame draws the pixels it does without, each call culling its
+	/// own and from the resident cull, with the meshlet pass culling both phases' fragments.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false, false )]
+	[DataRow( true, false )]
+	[DataRow( false, true )]
+	[DataRow( true, true )]
+	public void HiZCullsHiddenFragmentsAndDrawsShownOnes( bool residentCull, bool meshlets )
+	{
+		var core = ContentFiles.FindGame().Roots.FirstOrDefault();
+		if ( core is not null ) Borealis.Backend.Meshlets.MeshOptimizer.Directory = EngineFolders.NativeIn( Path.GetDirectoryName( core ) );
+
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, GpuDrivenResidentCull = residentCull, Meshlets = meshlets, HiZMinFragments = 0 };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		if ( backend.HiZShader is null ) Assert.Inconclusive( "borealis_hiz_cs isn't built, or pass modules are off" );
+		var plane = backend.LoadModel( "models/dev/plane_large.vmdl" );
+		var can = backend.LoadModel( "models/citizen_props/trashcan01.vmdl" );
+		if ( plane is null || can is null ) Assert.Inconclusive( "models/dev/plane_large.vmdl or models/citizen_props/trashcan01.vmdl isn't built" );
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 4, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Hi-Z test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 0;
+
+			AggregateObject Aggregate( RenderMesh model, Color colour, (Vector3 Position, float Scale)[] placed )
+			{
+				var draw = model.DrawsForLod( 0 ).ToArray().MaxBy( d => d.IndexCount ) with { Material = backend.CreateMaterial( $"Hi-Z {colour}", colour ), ShadowFastPath = true };
+				var baseVertex = ((IBackendGeometry)model.Geometry).For( draw.Mesh, draw.DrawCall ).BaseVertex;
+				var fragments = placed.Select( ( p, i ) =>
+				{
+					var transform = new Transform( p.Position, Rotation.FromYaw( i * 50 ), p.Scale );
+					var bounds = model.Bounds.Transform( transform );
+					return new AggregateObject.FragmentDraw
+					{
+						Transform = Matrix3x4.From( transform ),
+						BoundsMin = bounds.Mins,
+						BoundsMax = bounds.Maxs,
+						DrawTint = Vector3.One,
+						Args = new GpuBuffer.IndirectDrawIndexedArguments { IndexCount = (uint)draw.IndexCount, InstanceCount = 1, FirstIndex = (uint)draw.StartIndex, BaseVertex = baseVertex, FirstInstance = (uint)i },
+					};
+				} ).ToArray();
+				return new AggregateObject( new RenderMesh( model.Geometry, model.Bounds, [[draw]] ), fragments ) { IsStatic = true };
+			}
+
+			// A large trashcan in front of five small ones, and one to its side; a ground plane
+			var size = can.Bounds.Size;
+			var wall = 600 / MathF.Max( MathF.Max( size.x, size.y ), 1 );
+			var small = 60 / MathF.Max( MathF.Max( size.x, size.y ), 1 );
+			world.Add( Aggregate( plane, new Color( 0.5f, 0.5f, 0.5f ), [(new Vector3( 300, 0, 0 ), 6000 / MathF.Max( plane.Bounds.Size.x, 1 ))] ) );
+			world.Add( Aggregate( can, new Color( 0.7f, 0.6f, 0.5f ), [(new Vector3( 0, 0, 0 ), wall), (new Vector3( 0, 900, 0 ), wall / 2)] ) );
+			var hidden = Aggregate( can, new Color( 0.3f, 0.7f, 0.4f ), [(new Vector3( 500, -80, 0 ), small), (new Vector3( 500, 0, 0 ), small), (new Vector3( 500, 80, 0 ), small), (new Vector3( 650, -40, 0 ), small), (new Vector3( 650, 40, 0 ), small)] );
+			world.Add( hidden );
+
+			var view = new RenderView { Name = "Hi-Z test", FieldOfView = 70, ZNear = 4, ZFar = 6000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			void Behind()
+			{
+				view.Position = new Vector3( -1200, 0, 120 );
+				view.Rotation = Rotation.LookAt( new Vector3( 1, 0, -0.02f ) );
+			}
+
+			void Beside()
+			{
+				view.Position = new Vector3( 560, -900, 200 );
+				view.Rotation = Rotation.LookAt( new Vector3( 0, 1, -0.2f ) );
+			}
+
+			byte[] Frame( bool hiz )
+			{
+				backend.HiZOcclusion = hiz;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Resolved );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Resolved, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			// The meshlets built and published, so both phases' fragments go through the meshlet pass
+			Behind();
+			for ( int i = 0; i < 300 && (i < 4 || backend.MeshletStore is { Pending: > 0 }); i++ )
+			{
+				Frame( false );
+				if ( backend.MeshletStore is { Pending: > 0 } ) Thread.Sleep( 10 );
+			}
+
+			// Without: from behind the large trashcan, then turned to beside the small ones
+			Frame( false );
+			var behindWithout = Frame( false );
+			var behindAgain = Frame( false );
+			Beside();
+			var besideWithout = Frame( false );
+
+			// With: forward sees the small ones hidden, and the next frames cull them; then the turn shows them at once, and
+			// the turn back hides them again
+			Behind();
+			var tested = backend.HiZTested;
+			for ( int i = 0; i < 3; i++ ) Frame( true );
+			var behindWith = Frame( true );
+			var behindCounts = backend.HiZCounts();
+			Beside();
+			var besideWith = Frame( true );
+			var besideCounts = backend.HiZCounts();
+			Behind();
+			var backWith = Frame( true );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.IsTrue( backend.HiZTested > tested, "prepasses tested candidates against a Hi-Z" );
+			Assert.IsTrue( behindCounts.Occluded >= 5, $"the hidden trashcans were culled (candidates {behindCounts.Candidates}, occluded {behindCounts.Occluded})" );
+			Assert.AreEqual( 0, Different( behindWithout, behindAgain ), "frames without are the same each time" );
+			Assert.IsTrue( Same( behindWithout, behindWith ), $"and the frame is the same ({Differences( behindWithout, behindWith )})" );
+			Assert.IsTrue( besideCounts.Candidates >= 5 && besideCounts.Occluded == 0, $"turned, they were candidates and none was culled: nothing in front of them drew first (candidates {besideCounts.Candidates}, occluded {besideCounts.Occluded})" );
+			Assert.IsTrue( Same( besideWithout, besideWith ), $"the frame that shows them draws them ({Differences( besideWithout, besideWith )})" );
+			Assert.IsTrue( Same( behindWithout, backWith ), $"and turned back, the same again ({Differences( behindWithout, backWith )})" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// Four boxes along x at <paramref name="y"/> and a fifth beyond the far plane, which culling drops, in world space in
 	/// one mesh, and a fragment per box.
 	/// </summary>
@@ -1861,6 +2000,43 @@ public class GpuDrivenTests : GpuTest
 			vertices.Add( new MeshVertex( centre + (n - u + v) * half, n, new Vector2( 0, 0 ) ) );
 			indices.AddRange( [first, first + 1, first + 2, first, first + 2, first + 3] );
 		}
+	}
+
+	/// <summary>
+	/// Whether two RGBA16F frames show the same: no channel differs by more than 0.002 and at most 16 pixels differ at all.
+	/// A prepass drawn in two phases draws its ids in another order, and where two triangles meet at a sample's depth
+	/// the other may win: a few pixels a half-float step apart (4 in <see cref="HiZCullsHiddenFragmentsAndDrawsShownOnes"/>
+	/// with nothing culled), where a fragment culled wrongly or drawn a frame late changes whole pixels.
+	/// </summary>
+	static bool Same( byte[] a, byte[] b )
+	{
+		var (pixels, largest) = (0, 0f);
+		for ( int p = 0; p + 8 <= a.Length; p += 8 )
+		{
+			var most = 0f;
+			for ( int c = 0; c < 4; c++ ) most = MathF.Max( most, MathF.Abs( (float)BitConverter.ToHalf( a, p + c * 2 ) - (float)BitConverter.ToHalf( b, p + c * 2 ) ) );
+			if ( most > 0 ) pixels++;
+			largest = MathF.Max( largest, most );
+		}
+
+		return largest <= 0.002f && pixels <= 16;
+	}
+
+	/// <summary>Where two RGBA16F frames differ: pixels and the largest difference of a channel, and the first few.</summary>
+	static string Differences( byte[] a, byte[] b )
+	{
+		var (pixels, largest, first) = (0, 0f, new List<string>());
+		for ( int p = 0; p + 8 <= a.Length; p += 8 )
+		{
+			var most = 0f;
+			for ( int c = 0; c < 4; c++ ) most = MathF.Max( most, MathF.Abs( (float)BitConverter.ToHalf( a, p + c * 2 ) - (float)BitConverter.ToHalf( b, p + c * 2 ) ) );
+			if ( most == 0 ) continue;
+			pixels++;
+			largest = MathF.Max( largest, most );
+			if ( first.Count < 6 ) first.Add( $"({p / 8 % Width},{p / 8 / Width}) {most:0.####}" );
+		}
+
+		return $"{pixels} pixels, largest {largest:0.####}: {string.Join( ", ", first )}";
 	}
 
 	static int Different( byte[] a, byte[] b )

@@ -22,6 +22,7 @@ internal static class HandFilledConstants
 		new( typeof( BackendContext.GpuDrivenMarkConstants ), "BorealisGpuDrivenMark_t", "g_nMark", ["shaders/borealis_gpu_driven_mark_cs.shader"] ),
 		new( typeof( ResidentCullConstants ), "BorealisResidentCull_t", "g_nResident", ["shaders/borealis_resident_cull_cs.shader"] ),
 		new( typeof( BackendContext.MeshletCullConstants ), "BorealisMeshletCull_t", "g_nMeshlet", ["shaders/borealis_meshlet_cull_cs.shader"] ),
+		new( typeof( BackendContext.HiZConstants ), "BorealisHiZ_t", "g_nHiZ", ["shaders/borealis_hiz_cs.shader"] ),
 	];
 
 	/// <summary>
