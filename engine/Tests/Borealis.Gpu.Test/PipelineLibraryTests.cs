@@ -314,8 +314,10 @@ public class PipelineLibraryTests : GpuTest
 			{
 				device.SkipDrawsUntilReady = false;
 				Assert.AreEqual( 0, device.PartManifest.Loaded );
-				device.CreateGraphicsPipeline( Info( device ) );
+				var first = Info( device );
+				device.CreateGraphicsPipeline( first );
 				Assert.AreEqual( 4, device.PartManifest.Recorded );
+				Assert.IsFalse( device.PartsRecorded( first.VertexShader ), "parts linked this run don't stop guesses" );
 			}
 
 			var file = Path.Combine( folder, "pipeline-parts.txt" );
@@ -326,6 +328,7 @@ public class PipelineLibraryTests : GpuTest
 			{
 				Assert.AreEqual( 4, device.PartManifest.Loaded, "the four parts; the lines that don't read are dropped" );
 				var info = Info( device );
+				Assert.IsTrue( device.PartsRecorded( info.VertexShader ) && device.PartsRecorded( info.FragmentShader ) );
 				Assert.IsTrue( device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );
 				Assert.AreEqual( 4, device.PartManifest.Queued );
 				Assert.AreEqual( 4, device.PipelineLibraryCreation.Parts, "made before any pipeline was asked for" );

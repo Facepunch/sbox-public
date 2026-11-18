@@ -159,8 +159,8 @@ public sealed unsafe partial class Device
 	public bool PartManifestEnabled => partManifest is not null;
 
 	/// <summary>
-	/// Whether the part manifest has parts made from this shader's SPIR-V (from an earlier run, or linked in this one): they
-	/// are queued as its module is made, so guessing its parts ahead is only extra work.
+	/// Whether the part manifest has parts made from this shader's SPIR-V from an earlier run: they are queued as its module
+	/// is made, so guessing its parts ahead is only extra work. Parts linked this run don't count: a first run guesses on.
 	/// </summary>
 	public bool PartsRecorded( ShaderHandle shader ) => partManifest is { } m && shader.IsValid && m.Has( ShaderHash( shader ) );
 

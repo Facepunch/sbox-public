@@ -36,7 +36,7 @@ internal sealed class PipelinePartManifest
 	readonly Dictionary<string, int> lines = new( StringComparer.Ordinal );
 	readonly Dictionary<UInt128, List<Entry>> byShader = new();
 	readonly List<Entry> unshaded = new();
-	readonly HashSet<UInt128> recordedShaders = new();
+	readonly HashSet<UInt128> earlierShaders = new();
 	bool dirty;
 
 	// Lines in the order this run first linked their parts
@@ -74,7 +74,7 @@ internal sealed class PipelinePartManifest
 				{
 					if ( !byShader.TryGetValue( entry.Shader, out var list ) ) byShader[entry.Shader] = list = new();
 					list.Add( entry );
-					recordedShaders.Add( entry.Shader );
+					earlierShaders.Add( entry.Shader );
 				}
 
 				Loaded++;
@@ -86,7 +86,7 @@ internal sealed class PipelinePartManifest
 			lines.Clear();
 			byShader.Clear();
 			unshaded.Clear();
-			recordedShaders.Clear();
+			earlierShaders.Clear();
 			Loaded = 0;
 			run = 1;
 		}
@@ -115,10 +115,10 @@ internal sealed class PipelinePartManifest
 		}
 	}
 
-	/// <summary>Whether parts made from a shader with this SPIR-V hash were recorded, by an earlier run or this one.</summary>
+	/// <summary>Whether an earlier run recorded parts made from a shader with this SPIR-V hash.</summary>
 	public bool Has( UInt128 shader )
 	{
-		lock ( gate ) return recordedShaders.Contains( shader );
+		lock ( gate ) return earlierShaders.Contains( shader );
 	}
 
 	/// <summary>A pipeline linked a part described by <paramref name="line"/> (<see cref="Describe"/>'s form): kept for the next run.</summary>
@@ -126,7 +126,6 @@ internal sealed class PipelinePartManifest
 	{
 		lock ( gate )
 		{
-			if ( shader != 0 ) recordedShaders.Add( shader );
 			if ( lines.TryGetValue( line, out var used ) )
 			{
 				if ( used == run ) return;
