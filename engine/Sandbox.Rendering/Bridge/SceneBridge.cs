@@ -46,6 +46,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		/// </summary>
 		public double SyncMs;
 
+
 		/// <summary>
 		/// The frustum the view's planar reflection planes are tested against.
 		/// </summary>
@@ -159,6 +160,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// </summary>
 	const ulong ExtraWorldIdleFrames = 120;
 
+
 	// Reused sweep buffers avoid per-frame allocations.
 	readonly List<ViewKey> invalidViews = new();
 	readonly List<SceneWorld> invalidWorlds = new();
@@ -206,6 +208,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		{
 			if ( state.IsOrphaned || (!state.Rendering && frame - state.LastFrame > ViewIdleFrames) ) invalidViews.Add( key );
 		}
+
+		FreeIdleCaptures( frame );
+		MirrorContent.FreeCollected();
 
 		foreach ( var (world, _) in mirrors )
 		{

@@ -18,6 +18,9 @@ public struct BufferInfo
 
 	/// <summary>A name for debuggers and validation messages.</summary>
 	public string Name;
+
+	/// <summary>Content a map loads and frees as a whole (its geometry), whose memory is kept apart from long-lived resources'.</summary>
+	public bool Content;
 }
 
 /// <summary>
@@ -51,6 +54,9 @@ public struct TextureInfo
 
 	/// <summary>A name for debuggers and validation messages.</summary>
 	public string Name;
+
+	/// <summary>Content a map loads and frees as a whole (a texture read from a file), whose memory is kept apart from long-lived resources'.</summary>
+	public bool Content;
 
 	/// <summary>
 	/// A sampled 2D texture that's filled by copies.
