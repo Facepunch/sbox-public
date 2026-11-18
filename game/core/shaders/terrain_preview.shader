@@ -12,6 +12,7 @@ MODES
 COMMON
 {
     #include "common/shared.hlsl"
+    #include "terrain/TerrainSeamlessUV.hlsl"
 
     Texture2D g_tBCR < Attribute( "BCR" ); SrgbRead( false ); >;
     Texture2D g_tNHO < Attribute( "NHO" ); SrgbRead( false ); >;
@@ -19,6 +20,8 @@ COMMON
     float g_flUVScale < Attribute( "UVScale" ); Default( 1.0 ); >;
     float g_flNormalStrength < Attribute( "NormalStrength" ); Default( 1.0 ); >;
     float g_flMetalness < Attribute( "Metalness" ); Default( 0.0 ); >;
+    float g_flRoughness < Attribute( "Roughness" ); Default( 1.0 ); >;
+    bool g_bNoTile < Attribute( "NoTile" ); Default( 0 ); >;
 }
 
 struct VertexInput
@@ -50,8 +53,13 @@ PS
 	{
         float2 uv = i.vTextureCoords.xy * g_flUVScale;
 
-        float4 bcr = g_tBCR.Sample( g_sAniso, uv );
-        float4 nho = g_tNHO.Sample( g_sAniso, uv );
+        // Same per-tile shuffle the terrain applies, so No Tiling shows on the preview
+        float2 sampleUV = g_bNoTile ? Terrain_SampleSeamlessUV( uv ) : uv;
+        float2 uvDdx = ddx( uv );
+        float2 uvDdy = ddy( uv );
+
+        float4 bcr = g_tBCR.SampleGrad( g_sAniso, sampleUV, uvDdx, uvDdy );
+        float4 nho = g_tNHO.SampleGrad( g_sAniso, sampleUV, uvDdx, uvDdy );
 
         // Matches how terrain.shader unpacks a terrain material
         float3 normal = ComputeNormalFromRGTexture( nho.rg );
@@ -62,7 +70,7 @@ PS
 
         m.Albedo = SrgbGammaToLinear( bcr.rgb );
         m.Normal = TransformNormal( normal, i.vNormalWs, i.vTangentUWs, i.vTangentVWs );
-        m.Roughness = bcr.a;
+        m.Roughness = bcr.a * g_flRoughness;
         m.Metalness = g_flMetalness;
         m.AmbientOcclusion = nho.a;
         m.TextureCoords = uv;

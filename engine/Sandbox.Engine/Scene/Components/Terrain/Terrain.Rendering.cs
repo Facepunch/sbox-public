@@ -59,7 +59,7 @@ public partial class Terrain
 				NormalStrength = 1.0f,
 				HeightBlendStrength = 1.0f,
 				DisplacementScale = 0.0f,
-				Flags = TerrainFlags.None,
+				Flags = PackFlags( TerrainFlags.None, 1.0f ),
 			};
 		}
 
@@ -164,6 +164,13 @@ public partial class Terrain
 		public float NormalStrength;
 		public float DisplacementScale;
 	}
+
+	/// <summary>
+	/// Roughness rides in bits 8-15 of the flags so the material struct keeps its layout. A size change here
+	/// has to land together with every compiled terrain shader, or they read the buffer at the wrong stride.
+	/// </summary>
+	static TerrainFlags PackFlags( TerrainFlags flags, float roughness )
+		=> flags | (TerrainFlags)((uint)MathF.Round( Math.Clamp( roughness, 0, 1 ) * 255 ) << 8);
 
 	GpuBuffer<GPUTerrain> TerrainBuffer;
 	GpuBuffer<GPUTerrainMaterial> MaterialsBuffer;
@@ -286,7 +293,7 @@ public partial class Terrain
 				NormalStrength = 1.0f / (layer?.NormalStrength ?? 1.0f),
 				HeightBlendStrength = layer?.HeightBlendStrength ?? 1.0f,
 				DisplacementScale = layer?.DisplacementScale ?? 0.0f,
-				Flags = layer?.Flags ?? TerrainFlags.None,
+				Flags = PackFlags( layer?.Flags ?? TerrainFlags.None, layer?.Roughness ?? 1.0f ),
 			};
 		}
 

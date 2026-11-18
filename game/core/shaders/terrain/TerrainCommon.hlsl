@@ -63,6 +63,12 @@ struct TerrainMaterial
     {
         return (flags & flag) != 0;
     }
+
+    // Packed in flags bits 8-15 so the buffer layout doesn't change: an older compiled shader still reads it right
+    float Roughness()
+    {
+        return ( ( flags >> 8 ) & 0xFF ) / 255.0;
+    }
 };
 
 SamplerState g_sBilinearBorder < Filter( BILINEAR ); AddressU( BORDER ); AddressV( BORDER ); >;
@@ -75,8 +81,7 @@ int g_nTerrainCount < Attribute( "TerrainCount" ); Default( 0 ); >;
 StructuredBuffer<TerrainStruct> g_Terrains < Attribute( "Terrain" ); >;
 StructuredBuffer<TerrainMaterial> g_TerrainMaterials < Attribute( "TerrainMaterials" ); >;
 
-float2 Terrain_SampleSeamlessUV( float2 uv );
-float2 Terrain_SampleSeamlessUV( float2 uv, out float2x2 uvAngle );
+#include "terrain/TerrainSeamlessUV.hlsl"
 
 #if PROGRAM == VFX_PROGRAM_PS
     Material Terrain_SplatControlQuad( float2 localPos, float2 localDdx, float2 localDdy, uint4 controlBits, float4 quadWeights );
@@ -452,39 +457,6 @@ float3 Terrain_Normal( Texture2D HeightMap, float2 uv, float maxheight, out floa
 #endif
 
 
-// Get UV with per-tile UV offset to reduce visible tiling
-// Works by offsetting UVs within each tile using a hash of the tile coordinate
-float2 Terrain_SampleSeamlessUV( float2 uv, out float2x2 uvAngle )
-{
-    float2 tileCoord = floor( uv );
-    float2 localUV = frac( uv );
-
-    // Generate random values for this tile
-    float2 hash = frac(tileCoord * float2(443.897f, 441.423f));
-    hash += dot(hash, hash.yx + 19.19f);
-    hash = frac((hash.xx + hash.yx) * hash.xy);
-
-    // Random rotation (0 to 2π)
-    float angle = hash.x * 6.28318530718;
-    float cosA = cos(angle);
-    float sinA = sin(angle);
-    float2x2 rot = float2x2(cosA, -sinA, sinA, cosA);
-
-    // Output rotation matrix 
-    uvAngle = rot;
-
-    // Rotate around center
-    localUV = mul(rot, localUV - 0.5) + 0.5;
-
-    // Apply random offset
-    return tileCoord + frac(localUV + hash);
-}
-
-float2 Terrain_SampleSeamlessUV( float2 uv ) 
-{
-    float2x2 dummy;
-    return Terrain_SampleSeamlessUV( uv, dummy ); 
-}
 
 //
 // Nice box filtered checkboard pattern, useful when you have no textures

@@ -13,17 +13,47 @@ public class TerrainMaterialList : ListView
 		ItemContextMenu = ShowItemContext;
 		ItemSelected = OnItemClicked;
 		ItemActivated = OnItemDoubleClicked;
-		ItemSpacing = 8;
+		ItemSpacing = 4;
 		AcceptDrops = true;
 		SetSizeMode( SizeMode.Expand, SizeMode.Flexible );
 
-		ItemSize = new Vector2( 68, 68 + 20 );
+		ItemSize = new Vector2( 64, ThumbHeight + 4 + LineHeight * 3 + 2 );
 		ItemAlign = Sandbox.UI.Align.FlexStart;
 		Margin = 8;
 
 		Terrain = terrain;
+		Terrain.OnTerrainModified += OnTerrainModified;
 
 		BuildItems();
+	}
+
+	/// <summary>
+	/// Swatches only, for picking a material to paint with. Name, coverage and VRAM go to the tooltip,
+	/// and the list keeps the height its layout gives it.
+	/// </summary>
+	public bool Palette
+	{
+		get;
+		set
+		{
+			field = value;
+			ItemSize = value ? new Vector2( 44, 44 ) : new Vector2( 64, ThumbHeight + 4 + LineHeight * 3 + 2 );
+			Update();
+		}
+	}
+
+	public override void OnDestroyed()
+	{
+		base.OnDestroyed();
+
+		if ( Terrain.IsValid() )
+			Terrain.OnTerrainModified -= OnTerrainModified;
+	}
+
+	void OnTerrainModified( Terrain.SyncFlags flags, RectInt region )
+	{
+		if ( flags.HasFlag( Terrain.SyncFlags.Control ) )
+			_coverageDirty = true;
 	}
 
 	protected override bool OnDragItem( VirtualWidget item )
@@ -42,6 +72,28 @@ public class TerrainMaterialList : ListView
 			return;
 
 		PaintTextureTool.SplatChannel = Terrain.Storage.Materials.IndexOf( material );
+	}
+
+	int _shownChannel = -1;
+
+	/// <summary>
+	/// Keep the selected tile on the material being painted with, whoever changed it (a click here, the Alt + click
+	/// picker, another list), and scroll it into view.
+	/// </summary>
+	[EditorEvent.Frame]
+	void SyncSelection()
+	{
+		if ( !IsValid || Terrain?.Storage?.Materials is not { } materials ) return;
+
+		var channel = PaintTextureTool.SplatChannel;
+		if ( channel == _shownChannel ) return;
+		_shownChannel = channel;
+
+		if ( channel < 0 || channel >= materials.Count ) return;
+
+		var material = materials[channel];
+		SelectItem( material, skipEvents: true );
+		ScrollTo( material );
 	}
 
 	protected void OnItemDoubleClicked( object obj )
@@ -157,6 +209,17 @@ public class TerrainMaterialList : ListView
 			asset?.OpenInEditor();
 		} );
 
+		m.AddOption( "Replace With...", "swap_horiz", () =>
+		{
+			var picker = AssetPicker.Create( null, AssetType.FromExtension( "tmat" ) );
+			picker.OnAssetPicked = x =>
+			{
+				var replacement = x.FirstOrDefault()?.LoadResource<TerrainMaterial>();
+				if ( replacement is not null ) ReplaceMaterial( entry, replacement );
+			};
+			picker.Show();
+		} );
+
 		m.AddOption( "Remove", "delete", () =>
 		{
 			Terrain.Storage.Materials.Remove( entry );
@@ -167,51 +230,348 @@ public class TerrainMaterialList : ListView
 		m.OpenAtCursor();
 	}
 
+	/// <summary>
+	/// Everything painted with <paramref name="from"/> becomes <paramref name="to"/>. A new material takes over the
+	/// slot; one already in the list gets the slot's texels, leaving the old slot unused. Undoable.
+	/// </summary>
+	void ReplaceMaterial( TerrainMaterial from, TerrainMaterial to )
+	{
+		var storage = Terrain.Storage;
+		var slot = storage.Materials.IndexOf( from );
+		if ( slot < 0 || from == to ) return;
+
+		var materialsBefore = storage.Materials.ToList();
+		var controlBefore = storage.ControlMap.ToArray();
+
+		var target = storage.Materials.IndexOf( to );
+		if ( target < 0 )
+		{
+			storage.Materials[slot] = to;
+		}
+		else
+		{
+			var control = storage.ControlMap;
+			for ( int i = 0; i < control.Length; i++ )
+			{
+				var m = new CompactTerrainMaterial( control[i] );
+				if ( m.BaseTextureId != slot && m.OverlayTextureId != slot ) continue;
+				if ( m.BaseTextureId == slot ) m.BaseTextureId = (byte)target;
+				if ( m.OverlayTextureId == slot ) m.OverlayTextureId = (byte)target;
+				control[i] = m.Packed;
+			}
+		}
+
+		var materialsAfter = storage.Materials.ToList();
+		var controlAfter = storage.ControlMap.ToArray();
+		Apply( materialsAfter, controlAfter );
+
+		SceneEditorSession.Active?.UndoSystem.Insert( $"Replace Terrain Material {from.ResourceName}",
+			() => Apply( materialsBefore, controlBefore ),
+			() => Apply( materialsAfter, controlAfter ) );
+	}
+
+	void Apply( List<TerrainMaterial> materials, uint[] control )
+	{
+		if ( !Terrain.IsValid() || Terrain.Storage is null ) return;
+
+		Terrain.Storage.Materials = materials.ToList();
+		control.CopyTo( Terrain.Storage.ControlMap, 0 );
+		Terrain.UpdateMaterialsBuffer();
+		Terrain.ApplyStorageChanges( Terrain.SyncFlags.Control, new RectInt( 0, 0, Terrain.Storage.Resolution, Terrain.Storage.Resolution ) );
+		BuildItems();
+	}
+
+	public enum ViewMode
+	{
+		[Title( "Slot Order" )] Slot,
+		[Title( "Most Used" )] MostUsed,
+		[Title( "Least Used" )] LeastUsed,
+		[Title( "Largest VRAM" )] LargestVram,
+		[Title( "Unused Only" )] UnusedOnly,
+	}
+
+	/// <summary>
+	/// How the list is ordered or filtered. Only changes what's shown: slots, painting and drag reordering use the
+	/// material list itself.
+	/// </summary>
+	public ViewMode View
+	{
+		get;
+		set { field = value; BuildItems(); }
+	}
+
 	public void BuildItems()
 	{
-		SetItems( Terrain.Storage.Materials.Cast<object>() );
+		var materials = Terrain.Storage.Materials;
+		var coverage = GetCoverage();
+		double Used( TerrainMaterial m ) => coverage is not null && materials.IndexOf( m ) is var i and >= 0 && i < coverage.Length ? coverage[i] : 0;
+
+		IEnumerable<TerrainMaterial> items = View switch
+		{
+			ViewMode.MostUsed => materials.OrderByDescending( Used ),
+			ViewMode.LeastUsed => materials.OrderBy( Used ),
+			ViewMode.LargestVram => materials.OrderByDescending( GetVram ),
+			ViewMode.UnusedOnly => materials.Where( m => Used( m ) <= 0 ),
+			_ => materials,
+		};
+
+		SetItems( items.Cast<object>() );
+
+		if ( Summary.IsValid() )
+			Summary.Text = $"{materials.Count} materials, VRAM {materials.Sum( GetVram ) / (1024.0 * 1024.0):0} MB";
 	}
+
+	/// <summary>
+	/// Shows the material count and their total VRAM, refreshed whenever the list is rebuilt.
+	/// </summary>
+	public Label Summary
+	{
+		get;
+		set { field = value; BuildItems(); }
+	}
+
+	const int MinVisibleRows = 2;
+	const int FallbackVisibleRows = 4;
+
+	/// <summary>
+	/// Height of <paramref name="rows"/> rows including margins.
+	/// </summary>
+	float RowsHeight( int rows ) => rows * ItemSize.y + Math.Max( 0, rows - 1 ) * ItemSpacing.y + (Height - CanvasRect.Height);
+
+	/// <summary>
+	/// Take the empty space left at the bottom of the inspector, giving it back when the inspector starts scrolling.
+	/// Never taller than all the items, never shorter than <see cref="MinVisibleRows"/>; past that the list scrolls.
+	/// </summary>
+	[EditorEvent.Frame]
+	void FitHeight()
+	{
+		// A palette sits in a layout that already gives it the space
+		if ( Palette || !IsValid || !Visible || Width <= 0 ) return;
+
+		var perRow = Math.Max( 1, ((CanvasRect.Width + ItemSpacing.x) / (ItemSize.x + ItemSpacing.x)).FloorToInt() );
+		var rows = Math.Max( 1, (Items.Count() + perRow - 1) / perRow );
+		var content = RowsHeight( rows );
+		var minimum = RowsHeight( Math.Min( rows, MinVisibleRows ) );
+
+		float target;
+		Widget scroll = Parent;
+		while ( scroll is not null && scroll is not ScrollArea ) scroll = scroll.Parent;
+
+		if ( scroll is ScrollArea { Canvas: { } canvas } && canvas.Parent is { } viewport )
+		{
+			// Measured from the last child, not the canvas: the canvas stretches to the viewport and toggles size
+			// with the scrollbar, the bottom of the content doesn't
+			var bottom = canvas.Children.Where( c => c.Visible ).Select( c => c.Position.y + c.Height ).DefaultIfEmpty( canvas.Height ).Max();
+			target = Height + (viewport.Height - bottom) - 16;
+		}
+		else
+		{
+			target = RowsHeight( Math.Min( rows, FallbackVisibleRows ) );
+		}
+
+		target = MathF.Ceiling( Math.Clamp( target, minimum, content ) );
+
+		// Each new height relayouts the inspector a frame or more later: wait for it before measuring again,
+		// and ignore small differences so it can't hunt
+		if ( _sinceFit < 0.25f || MathF.Abs( FixedHeight - target ) <= 4 )
+			return;
+
+		FixedHeight = target;
+		_sinceFit = 0;
+	}
+
+	RealTimeSince _sinceFit;
+
+	double[] _coverage;
+	uint[] _coverageSource;
+	bool _coverageDirty;
+	RealTimeSince _coverageAge;
+
+	/// <summary>
+	/// Fraction of the terrain each material slot covers, from the control map: the base gets 1 - blend,
+	/// the overlay gets blend, holes count for nothing. Recomputed at most once a second while painting.
+	/// </summary>
+	double[] GetCoverage()
+	{
+		var storage = Terrain.Storage;
+		if ( storage is null ) return null;
+		// Painting raises OnTerrainModified; resampling or loading replaces the array
+		var stale = _coverageDirty || _coverageSource != storage.ControlMap;
+		if ( _coverage is not null && (!stale || _coverageAge < 1) ) return _coverage;
+
+		var weights = new double[32];
+		long texels = 0;
+		foreach ( var packed in storage.ControlMap )
+		{
+			var m = new CompactTerrainMaterial( packed );
+			if ( m.IsHole ) continue;
+			texels++;
+			var blend = m.BlendFactor / 255.0;
+			weights[m.BaseTextureId] += 1 - blend;
+			weights[m.OverlayTextureId] += blend;
+		}
+
+		for ( int i = 0; i < weights.Length; i++ )
+			weights[i] = texels > 0 ? weights[i] / texels : 0;
+
+		_coverage = weights;
+		_coverageSource = storage.ControlMap;
+		_coverageDirty = false;
+		_coverageAge = 0;
+		return _coverage;
+	}
+
+	readonly Dictionary<TerrainMaterial, (Texture Bcr, Texture Nho, long Bytes)> _vram = [];
+
+	/// <summary>
+	/// GPU memory of the material's two generated textures at full resolution (streaming can hold less).
+	/// Cached until either texture is replaced, e.g. by a recompile.
+	/// </summary>
+	long GetVram( TerrainMaterial material )
+	{
+		if ( _vram.TryGetValue( material, out var cached ) && cached.Bcr == material.BCRTexture && cached.Nho == material.NHOTexture )
+			return cached.Bytes;
+
+		static long Size( Texture texture ) => TextureResidencyInfo.Get( texture ) is { } info ? Math.Max( info.Disk.MemorySize, info.Loaded.MemorySize ) : 0;
+
+		var bytes = Size( material.BCRTexture ) + Size( material.NHOTexture );
+		_vram[material] = (material.BCRTexture, material.NHOTexture, bytes);
+		return bytes;
+	}
+
+	readonly Dictionary<TerrainMaterial, (Texture Source, Pixmap Swatch)> _swatches = [];
+	const int SwatchSize = 64;
+
+	/// <summary>
+	/// The material's base color as a flat square, read back from a small mip of its BCR texture. Works for package
+	/// materials too, which have no local asset thumbnail. Null until the GPU readback lands.
+	/// </summary>
+	Pixmap GetSwatch( TerrainMaterial material )
+	{
+		var texture = material.BCRTexture;
+		if ( texture is null ) return null;
+		if ( _swatches.TryGetValue( material, out var cached ) && cached.Source == texture ) return cached.Swatch;
+
+		_swatches[material] = (texture, null);
+
+		var mip = Math.Clamp( (int)MathF.Log2( Math.Max( texture.Width, texture.Height ) / (float)SwatchSize ), 0, texture.Mips - 1 );
+		var width = Math.Max( 1, texture.Width >> mip );
+		var height = Math.Max( 1, texture.Height >> mip );
+
+		texture.GetPixelsAsync( pixels =>
+		{
+			// Alpha holds roughness, not opacity
+			var bytes = new byte[pixels.Length * 4];
+			for ( int i = 0; i < pixels.Length; i++ )
+			{
+				bytes[i * 4 + 0] = pixels[i].r;
+				bytes[i * 4 + 1] = pixels[i].g;
+				bytes[i * 4 + 2] = pixels[i].b;
+				bytes[i * 4 + 3] = 255;
+			}
+
+			MainThread.Queue( () =>
+			{
+				if ( !IsValid || !_swatches.TryGetValue( material, out var entry ) || entry.Source != texture ) return;
+
+				var swatch = new Pixmap( width, height );
+				swatch.UpdateFromPixels( bytes, width, height, ImageFormat.RGBA8888 );
+				_swatches[material] = (texture, swatch);
+				Update();
+			} );
+		}, mip );
+
+		return null;
+	}
+
+	// Tile layout, top to bottom: square swatch, coverage bar, name, coverage, VRAM
+	const float ThumbHeight = 64;
+	const float LineHeight = 12;
 
 	protected override void PaintItem( VirtualWidget item )
 	{
-		var rect = item.Rect.Shrink( 0, 0, 0, 20 );
-
 		if ( item.Object is not TerrainMaterial material )
 			return;
 
-		var asset = AssetSystem.FindByPath( material.ResourcePath );
-
-		if ( asset is null )
-		{
-			Paint.SetDefaultFont();
-			Paint.SetPen( Color.Red );
-			Paint.DrawText( item.Rect.Shrink( 2 ), "<ERROR>", TextFlag.Center );
-			return;
-		}
+		var r = item.Rect;
+		var side = Palette ? MathF.Min( r.Width, r.Height ) - 4 : MathF.Min( r.Width - 4, ThumbHeight - 4 );
+		var thumb = new Rect( r.Left + (r.Width - side) * 0.5f, r.Top + 2, side, side );
+		var bar = new Rect( r.Left + 2, r.Top + ThumbHeight, r.Width - 4, 3 );
+		Rect Line( int i ) => new( r.Left, bar.Bottom + 1 + i * LineHeight, r.Width, LineHeight );
 
 		if ( item.Selected || Paint.HasMouseOver )
 		{
 			Paint.SetBrush( Theme.Blue.WithAlpha( item.Selected ? 0.5f : 0.2f ) );
 			Paint.ClearPen();
-			Paint.DrawRect( item.Rect, 4 );
+			Paint.DrawRect( r, 4 );
 		}
 
-		if ( item.Object is TerrainMaterial mat )
+		if ( dragOverIndex == Terrain.Storage.Materials.IndexOf( material ) )
 		{
-			var itemIndex = Terrain.Storage.Materials.IndexOf( mat );
-			if ( dragOverIndex == itemIndex )
-			{
-				Paint.SetPen( Theme.TextHighlight, 3f );
-				Paint.DrawRect( item.Rect.Shrink( 1 ), 4 );
-			}
+			Paint.SetPen( Theme.TextHighlight, 3f );
+			Paint.DrawRect( r.Shrink( 1 ), 4 );
 		}
 
-		var pixmap = asset.GetAssetThumb();
-		Paint.Draw( rect.Shrink( 2 ), pixmap );
+		// The lit sphere preview, so roughness and normals read; package materials have no local asset to
+		// render one, and fall back to the flat swatch
+		if ( AssetSystem.FindByPath( material.ResourcePath )?.GetAssetThumb() is { } preview )
+		{
+			Paint.Draw( thumb, preview );
+		}
+		else if ( GetSwatch( material ) is { } swatch )
+		{
+			Paint.Draw( thumb, swatch );
+		}
+		else
+		{
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.ControlBackground.Lighten( 0.3f ) );
+			Paint.DrawRect( thumb, 2 );
+		}
 
-		Paint.SetDefaultFont();
+		// Palette: swatches only, the rest is in the tooltip
+		if ( Palette ) return;
+
+		Paint.SetDefaultFont( 7 );
 		Paint.SetPen( Theme.Text );
-		Paint.DrawText( item.Rect.Shrink( 2 ), material.ResourceName, TextFlag.CenterBottom );
+		Paint.DrawText( Line( 0 ), material.ResourceName, TextFlag.Center );
+
+		var vram = GetVram( material );
+		Paint.SetPen( Theme.TextLight );
+		Paint.DrawText( Line( 2 ), vram > 0 ? $"{vram / (1024.0 * 1024.0):0.#} MB" : "? MB", TextFlag.Center );
+
+		var index = Terrain.Storage.Materials.IndexOf( material );
+		var coverage = GetCoverage();
+		if ( coverage is null || index < 0 || index >= coverage.Length ) return;
+
+		var fraction = coverage[index];
+		Paint.ClearPen();
+		Paint.SetBrush( Color.Black.WithAlpha( 0.6f ) );
+		Paint.DrawRect( bar );
+		Paint.SetBrush( fraction <= 0 ? Theme.Red : Theme.Green );
+		// Relative to the most used material, with a sliver for anything used at all
+		var largest = coverage.Max();
+		var filled = largest > 0 ? Math.Max( fraction / largest, fraction > 0 ? 0.03 : 0 ) : 0;
+		Paint.DrawRect( bar with { Width = bar.Width * (float)filled } );
+
+		// Terrain units are inches
+		var sizeMetres = Terrain.Storage.TerrainSize * 0.0254;
+		var km2 = fraction * sizeMetres * sizeMetres / 1e6;
+		var text = fraction <= 0 ? "unused" : fraction < 0.001 ? $"{km2 * 1e6:N0} m²" : $"{fraction * 100:0.#}% {km2:0.#}km²";
+		Paint.SetPen( fraction <= 0 ? Theme.Red : Theme.TextLight );
+		Paint.DrawText( Line( 1 ), text, TextFlag.Center );
+	}
+
+	protected override string GetTooltip( object obj )
+	{
+		if ( obj is not TerrainMaterial material ) return null;
+
+		var index = Terrain.Storage.Materials.IndexOf( material );
+		var coverage = GetCoverage();
+		var fraction = coverage is not null && index >= 0 && index < coverage.Length ? coverage[index] : 0;
+		var vram = GetVram( material );
+
+		return $"{material.ResourceName}\n{(fraction <= 0 ? "Unused" : $"{fraction * 100:0.##}% of the terrain")}\nVRAM {vram / (1024.0 * 1024.0):0.#} MB";
 	}
 
 	protected override void OnPaint()

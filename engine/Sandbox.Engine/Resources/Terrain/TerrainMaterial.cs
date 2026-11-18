@@ -17,13 +17,44 @@ public enum TerrainFlags : uint
 public class TerrainMaterial : GameResource
 {
 	//
-	// Editor only
+	// Source images, editor only. Grouped with the values that act on them. Roughness, height and AO are
+	// optional: clear them (right-click > Clear) and the compiler fills the channel with white.
 	//
-	[Category( "Source Images" ), ImageAssetPath] public string AlbedoImage { get; set; } = "materials/default/default_color.tga";
-	[Category( "Source Images" ), ImageAssetPath] public string RoughnessImage { get; set; } = "materials/default/default_rough.tga";
-	[Category( "Source Images" ), ImageAssetPath] public string NormalImage { get; set; } = "materials/default/default_normal.tga";
-	[Category( "Source Images" ), ImageAssetPath] public string HeightImage { get; set; } = "materials/default/default_ao.tga";
-	[Category( "Source Images" ), ImageAssetPath, Title( "AO Image" )] public string AOImage { get; set; } = "materials/default/default_ao.tga";
+
+	/// <summary>
+	/// What an optional image falls back to when it's left empty.
+	/// </summary>
+	internal const string UnboundImage = "materials/default/default_ao.tga";
+
+	[Category( "Color" ), Order( 1 ), ImageAssetPath, Title( "Image" ), Description( "The surface color, without lighting or shadows baked in." )]
+	public string AlbedoImage { get; set; } = "materials/default/default_color.tga";
+
+	[Category( "Color" ), Order( 1 ), Range( 0.0f, 1.0f ), Description( "0 for ground, rock and grass. 1 is bare metal: shiny reflections tinted by the color. Values in between rarely look real." )]
+	public float Metalness { get; set; } = 0.0f;
+
+	[Category( "Normal" ), Order( 2 ), ImageAssetPath, Title( "Image" ), Description( "Small bumps and cracks that catch the light, without changing the shape." )]
+	public string NormalImage { get; set; } = "materials/default/default_normal.tga";
+
+	[Category( "Normal" ), Order( 2 ), Range( 0.1f, 10 ), Title( "Strength" ), Description( "How strongly the normal image bends the light. 1 is the image as made." )]
+	public float NormalStrength { get; set; } = 1.0f;
+
+	[Category( "Roughness" ), Order( 3 ), ImageAssetPath, Title( "Image" ), Description( "Optional. Where the surface is matte or glossy. Without one, the value below is used everywhere." )]
+	public string RoughnessImage { get; set; } = "materials/default/default_rough.tga";
+
+	[Category( "Roughness" ), Order( 3 ), Range( 0.0f, 1.0f ), Title( "Value" ), Description( "0 is glossy, like wet ground or ice, with sharp reflections. 1 is fully matte, like dry dirt. Multiplies the image when there is one." )]
+	public float Roughness { get; set; } = 1.0f;
+
+	[Category( "Height" ), Order( 4 ), ImageAssetPath, Title( "Image" ), Description( "Optional. White is high. Lets this material's high parts, like rocks, show through its neighbours where they blend." )]
+	public string HeightImage { get; set; } = "";
+
+	[Category( "Height" ), Order( 4 ), Range( 0.1f, 10 ), Title( "Blend Strength" ), ShowIf( nameof( HasHeightTexture ), true ), Description( "How much the height image wins when blending with other materials. Higher pokes through more." )]
+	public float HeightBlendStrength { get; set; } = 1.0f;
+
+	[Category( "Height" ), Order( 4 ), Range( 0.0f, 10.0f ), Title( "Displacement Scale" ), ShowIf( nameof( HasHeightTexture ), true ), Description( "How far the height image pushes the surface out. 0 keeps it flat." )]
+	public float DisplacementScale { get; set; } = 0.0f;
+
+	[Category( "Ambient Occlusion" ), Order( 5 ), ImageAssetPath, Title( "Image" ), Description( "Optional. Darkens cracks and gaps that light can't reach. White is no darkening." )]
+	public string AOImage { get; set; } = "";
 
 	//
 	// Compiled generated textures
@@ -31,18 +62,13 @@ public class TerrainMaterial : GameResource
 	[JsonIgnore, Hide] public Texture BCRTexture { get; private set; }
 	[JsonIgnore, Hide] public Texture NHOTexture { get; private set; }
 
-	[Category( "Material" ), Title( "UV Scale" )] public float UVScale { get; set; } = 1.0f;
-	[Category( "Material" ), Range( 0.0f, 1.0f )] public float Metalness { get; set; } = 0.0f;
-	[Category( "Material" ), Range( 0.1f, 10 )] public float NormalStrength { get; set; } = 1.0f;
-	[Category( "Material" ), Range( 0.1f, 10 )] public float HeightBlendStrength { get; set; } = 1.0f;
+	[Category( "Tiling" ), Order( 6 ), Title( "UV Scale" ), Description( "How big one repeat of the images is. Higher makes the texture larger and repeat less." )]
+	public float UVScale { get; set; } = 1.0f;
 
 	[JsonIgnore, Hide]
-	public bool HasHeightTexture => !string.IsNullOrEmpty( HeightImage ) && HeightImage != "materials/default/default_ao.tga";
+	public bool HasHeightTexture => !string.IsNullOrEmpty( HeightImage ) && HeightImage != UnboundImage;
 
-	[Category( "Material" ), Range( 0.0f, 10.0f ), Title( "Displacement Scale" ), ShowIf( nameof( HasHeightTexture ), true )]
-	public float DisplacementScale { get; set; } = 0.0f;
-
-	[Category( "Material" ), Title( "No Tiling" )]
+	[Category( "Tiling" ), Order( 6 ), Title( "No Tiling" ), Description( "Randomly rotates and shifts each repeat so the pattern doesn't show across large areas." )]
 	public bool NoTiling { get; set; } = false;
 
 	[JsonIgnore, Hide]
@@ -59,7 +85,8 @@ public class TerrainMaterial : GameResource
 		}
 	}
 
-	[Category( "Misc" )] public Surface Surface { get; set; }
+	[Category( "Misc" ), Order( 7 ), Description( "What the ground is made of for footsteps, impacts and physics." )]
+	public Surface Surface { get; set; }
 
 	void LoadGeneratedTextures()
 	{

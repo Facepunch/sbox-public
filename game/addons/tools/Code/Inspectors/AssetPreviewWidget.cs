@@ -26,6 +26,7 @@ public class AssetPreviewWidget : Widget
 			return;
 		}
 
+		preview.LiveWidget = this;
 		initializing = true;
 		_ = InitAsync();
 	}

@@ -54,7 +54,21 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 			var tlayout = container.Layout.AddColumn();
 			tlayout.Spacing = 8;
 			tlayout.Margin = 16;
-			tlayout.Add( header );
+
+			var headerRow = tlayout.AddRow();
+			headerRow.Spacing = 8;
+			headerRow.Add( header );
+			headerRow.AddStretchCell();
+
+			var summary = new Label( null );
+			summary.SetStyles( $"color: {Theme.TextLight.Hex}" );
+			headerRow.Add( summary );
+			MaterialList.Summary = summary;
+
+			var view = new ComboBox( null );
+			foreach ( var mode in Enum.GetValues<TerrainMaterialList.ViewMode>() )
+				view.AddItem( mode.GetAttributeOfType<TitleAttribute>()?.Value ?? mode.ToString(), onSelected: () => MaterialList.View = mode, selected: mode == MaterialList.View );
+			headerRow.Add( view );
 			tlayout.Add( MaterialList );
 
 			var hlayout = tlayout.AddRow();
