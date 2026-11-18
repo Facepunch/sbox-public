@@ -649,10 +649,12 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			light.Cookie = sceneLight is SceneSpotLight ? MirrorContent.Texture( sceneLight.LightCookie ) : null;
 		}
 
-		// Pack native light descriptions; map attenuation/falloff/baking may bypass managed properties (Light.LegacyLightData).
-		if ( (change & (SceneObjectChange.Settings | SceneObjectChange.Transform)) != 0 && SceneNative.PackSceneLight( sceneLight, out var packed, out var flags, out var bakeIndex ) )
+		// Pack the light's description (attenuation, falloff and baking from maps included: Light.LegacyLightData)
+		if ( (change & (SceneObjectChange.Settings | SceneObjectChange.Transform)) != 0 && sceneLight.IsValid() )
 		{
-			// Native's cookie index is Source 2's bindless slot: on Borealis.Gpu the binner sets the device's own from the texture
+			LightPacking.Pack( sceneLight, out var packed, out var flags, out var bakeIndex );
+
+			// The binner sets the cookie's index on Borealis.Gpu from the texture
 			if ( MirrorContent.Gpu is not null && (packed.Flags & Borealis.Features.LightBinnerFeature.LightCookieEnabled) != 0 )
 			{
 				packed.Flags &= ~Borealis.Features.LightBinnerFeature.LightCookieEnabled;
@@ -934,7 +936,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			if ( sun is not null )
 			{
 				lighting.SunColor = sun.LightColor;
-				// Map suns can have identity transforms; use the native light direction.
+				// Map suns can have identity transforms: their direction is the description's (SceneLight.SetWorldDirection)
 				lighting.SunDirection = -sun.WorldDirection;
 				lighting.SunShadows = sun.ShadowsEnabled;
 				lighting.SunShadowCascades = sun.ShadowCascadeCount;
@@ -943,11 +945,11 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 				lighting.SunShadowBias = sun.ShadowBias;
 
 				// Lightmaps and probes reference the sun by bake index.
-				var packs = SceneNative.PackSceneLight( sun, out var packed, out var flags, out var bakeIndex );
-				lighting.SunBakeIndex = packs ? bakeIndex : -1;
-				lighting.SunBaked = packs && bakeIndex >= 0 ? packed : null;
+				LightPacking.Pack( sun, out var packed, out var flags, out var bakeIndex );
+				lighting.SunBakeIndex = bakeIndex;
+				lighting.SunBaked = bakeIndex >= 0 ? packed : null;
 
-				var baked = packs && (flags & LightTypeFlagsBaked) != 0;
+				var baked = (flags & LightTypeFlagsBaked) != 0;
 				// A baked sun still renders cascades, without its static casters: native's binner only asks local lights for
 				// mixed shadows (CLightBinnerStandard::AddLight), and volumetric fog is lit by the sun only through them
 				lighting.SunShadowsBaked = baked && !sun.IncludeStaticShadowCasters;

@@ -104,36 +104,6 @@ public abstract partial class Light : Component, IColorProvider, ExecuteInEditor
 		public float? QuadraticAttenuation;
 		public float? FallOff;
 		public Texture Cookie;
-
-		public readonly void ApplyTo( CSceneLightObject light )
-		{
-			// The lightbinner gates realtime shadow maps for baked lights on MIXED_SHADOWS, so only
-			// Stationary may set it - Baked gets its shadows from the lightmap.
-			switch ( DirectLight )
-			{
-				case 3: // HAMMER_DIRECT_LIGHT_STATIONARY
-					light.SetLightFlags( light.GetLightFlags() | 16 ); // LIGHTTYPE_FLAGS_MIXED_SHADOWS
-					light.SetLightFlags( light.GetLightFlags() | 32 ); // LIGHTTYPE_FLAGS_BAKED
-					break;
-				case 1: // HAMMER_DIRECT_LIGHT_BAKED
-					light.SetLightFlags( light.GetLightFlags() | 32 ); // LIGHTTYPE_FLAGS_BAKED
-					break;
-			}
-
-			light.SetBakeLightIndex( BakeLightIndex );
-			light.SetBakeLightIndexScale( BakeLightIndexScale );
-			light.SetUsesIndexedBakedLighting( BakedLightIndexing );
-			light.SetFogContributionStength( FogContributionStrength );
-			light.SetRenderDiffuse( RenderDiffuse );
-			light.SetRenderSpecular( RenderSpecular );
-			light.SetFogLightingMode( FogLighting );
-
-			if ( ConstantAttenuation is { } constant ) light.SetConstantAttn( constant );
-			if ( LinearAttenuation is { } linear ) light.SetLinearAttn( linear );
-			if ( QuadraticAttenuation is { } quadratic ) light.SetQuadraticAttn( quadratic );
-			if ( FallOff is { } fallOff ) light.SetFallOff( fallOff );
-			if ( Cookie is not null ) light.SetLightCookie( Cookie.native );
-		}
 	}
 
 	/// <summary>
@@ -440,7 +410,7 @@ public abstract partial class Light : Component, IColorProvider, ExecuteInEditor
 
 			// Advanced map settings not covered by properties - overrides native state set above.
 			if ( LegacyData is { } legacy )
-				legacy.ApplyTo( _sceneObject.lightNative );
+				_sceneObject.ApplyLegacy( legacy );
 
 			if ( BakeLightIndex >= 0 )
 				_sceneObject.SetBakedLightIndex( BakeLightIndex, MixedShadows );
