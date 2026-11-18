@@ -69,4 +69,42 @@ public class SceneMirrorDirectTests
 			world.Delete();
 		}
 	}
+
+	/// <summary>
+	/// The kinds that make and write their own render object (SceneObject.OwnsRenderObject) write a change into it themselves:
+	/// with nothing listening to the world, it still arrives.
+	/// </summary>
+	[TestMethod]
+	public void ObjectsWriteTheirOwnRenderObjects()
+	{
+		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
+
+		var world = new SceneWorld();
+		var camera = new SceneCamera { World = world };
+		var mirror = (System.IDisposable)System.Activator.CreateInstance( MirrorType, [world] );
+		try
+		{
+			var decal = new DecalSceneObject( world );
+			MirrorType.GetMethod( "Sync", Any ).Invoke( mirror, [camera, false] );
+			var find = MirrorType.GetMethod( "Find", Any );
+			Assert.IsInstanceOfType<Borealis.DecalObject>( decal.RenderObject );
+			Assert.AreSame( decal.RenderObject, find.Invoke( mirror, [decal] ), "the decal's own" );
+
+			var listener = world.ChangeListener;
+			world.ChangeListener = null;
+			decal.SortOrder = 7;
+			decal.Position = new Vector3( 1, 2, 3 );
+			world.ChangeListener = listener;
+
+			var obj = (Borealis.DecalObject)decal.RenderObject;
+			Assert.AreEqual( 7u, obj.SortOrder );
+			Assert.AreEqual( new Vector3( 1, 2, 3 ), obj.Transform.Position );
+		}
+		finally
+		{
+			mirror.Dispose();
+			camera.Dispose();
+			world.Delete();
+		}
+	}
 }
