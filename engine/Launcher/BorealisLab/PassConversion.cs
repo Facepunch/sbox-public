@@ -73,7 +73,7 @@ internal static class PassConversion
 	}
 
 	/// <summary>Each stage with its combos at their first values, then each at its last; the first error, or null.</summary>
-	static string Compile( SlangCompiler compiler, PassModule module, out int compiled )
+	internal static string Compile( SlangCompiler compiler, PassModule module, out int compiled )
 	{
 		compiled = 0;
 		foreach ( var stage in new[] { StageKind.Vertex, StageKind.Pixel, StageKind.Compute } )
