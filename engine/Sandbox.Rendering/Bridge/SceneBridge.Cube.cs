@@ -64,39 +64,119 @@ internal sealed partial class SceneBridge
 			}
 		}
 
+		// A capture spread over frames is finished first: its faces wait in the targets this one would draw into
+		ContinueSpreadCapture( double.MaxValue );
+
 		camera.OnPreRender( new Vector2( size, size ) );
 		var view = setup;
 
 		if ( !cubeCaptures.TryGetValue( size, out var capture ) ) cubeCaptures[size] = capture = new CubeCapture( device, size );
 		if ( filter is not null && !capture.CanFilter ) filter = null;
 
-		capture.Render( target, ( i, faceTarget ) =>
+		// The envmap scheduler's: faces while its time lasts, the rest in later frames, the cube keeping its last capture meanwhile
+		if ( SpreadCaptureMs >= 0 )
 		{
-			var face = view;
-			face.Transform = new Transform( camera.Position, camera.Rotation * SceneCamera.CubeRotations[i] );
-			face.FieldOfView = 90;
-			face.EnableUI = false;
+#pragma warning disable CA2000 // Kept by the spread capture, which disposes it when it finishes
+			var copy = new SceneCamera( "Spread cube capture" )
+			{
+				FieldOfView = 90,
+				ZNear = camera.ZNear,
+				ZFar = camera.ZFar,
+				Position = camera.Position,
+				Rotation = camera.Rotation,
+				World = camera.World,
+				ExcludeFromTextureStreaming = camera.ExcludeFromTextureStreaming,
+			};
+			copy.ExcludeTags.SetFrom( camera.ExcludeTags );
+#pragma warning restore CA2000
+			spread = new SpreadCapture( copy, target, capture, view, filter, size );
+			ContinueSpreadCapture( SpreadCaptureMs );
+			return;
+		}
 
-			// Recorded on this thread, as the lab's captures are: a face is a small frame, and six back to back in one engine
-			// frame gain nothing from workers
-			var state = captureFaces[i] ??= new CameraState( camera ) { System = { ParallelRecording = false } };
-			state.Camera.SetTarget( camera );
-			// What the sync loads (a map's textures and lightmaps at the first capture after a load) written with the face's
-			// submission rather than each submitted and waited for
-			SceneMirror mirror;
-			CameraState prepared;
-			using ( device.Gpu.DeferUploads() )
-				(mirror, prepared) = Prepare( camera, face, new Vector2( size, size ), state );
-			prepared.View.Capture = true;
-			prepared.View.ToneMapScalar = 1;
-			using ( new Drawing( this, prepared ) )
-				prepared.System.Render( mirror.World, prepared.View, faceTarget, null );
-		}, filter );
+		capture.Render( target, ( i, faceTarget ) => RenderCaptureFace( device, camera, view, size, i, faceTarget ), filter );
+	}
+
+	/// <summary>
+	/// Set by the envmap scheduler around a capture it starts: spread it over frames, rendering faces for this many
+	/// milliseconds now (at least one) and the rest when it continues (<see cref="ContinueSpreadCapture"/>). Negative: whole now.
+	/// </summary>
+	internal double SpreadCaptureMs { get; set; } = -1;
+
+	/// <summary>A capture spread over frames: a copy of its camera, its cube and the next face to render.</summary>
+	sealed record SpreadCapture( SceneCamera Camera, GpuTexture Target, CubeCapture Capture, ViewSetup View, int? Filter, int Size )
+	{
+		public int Next { get; set; }
+	}
+
+	SpreadCapture spread;
+
+	/// <summary>Whether a capture is spread over frames and not finished.</summary>
+	internal bool CaptureSpread => spread is not null;
+
+	/// <summary>
+	/// Render the spread capture's next faces for up to <paramref name="ms"/> milliseconds (at least one), and once it has all
+	/// six, copy them into its cube and filter it. Its milliseconds.
+	/// </summary>
+	internal double ContinueSpreadCapture( double ms )
+	{
+		if ( spread is not { } s || MirrorContent.Gpu is not { } device ) return 0;
+		if ( !s.Target.IsValid || s.Camera.World is null )
+		{
+			s.Camera.Dispose();
+			spread = null;
+			return 0;
+		}
+
+		var start = System.Diagnostics.Stopwatch.GetTimestamp();
+		Gpu?.FollowFrame();
+		s.Camera.OnPreRender( new Vector2( s.Size, s.Size ) );
+		while ( s.Next < 6 )
+		{
+			s.Capture.RenderFace( s.Next, ( i, faceTarget ) => RenderCaptureFace( device, s.Camera, s.View, s.Size, i, faceTarget ) );
+			s.Next++;
+			if ( System.Diagnostics.Stopwatch.GetElapsedTime( start ).TotalMilliseconds >= ms ) break;
+		}
+
+		if ( s.Next == 6 )
+		{
+			s.Capture.FinishFaces( s.Target, s.Filter );
+			s.Camera.Dispose();
+			spread = null;
+		}
+
+		return System.Diagnostics.Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
+	}
+
+	/// <summary>One face of a capture: the camera's view turned to it, 90 degrees, no UI, into <paramref name="faceTarget"/>.</summary>
+	void RenderCaptureFace( BackendDevice device, SceneCamera camera, ViewSetup view, int size, int i, ViewTarget faceTarget )
+	{
+		var face = view;
+		face.Transform = new Transform( camera.Position, camera.Rotation * SceneCamera.CubeRotations[i] );
+		face.FieldOfView = 90;
+		face.EnableUI = false;
+
+		// Recorded on this thread, as the lab's captures are: a face is a small frame, and six back to back in one engine
+		// frame gain nothing from workers
+		var state = captureFaces[i] ??= new CameraState( camera ) { System = { ParallelRecording = false } };
+		state.Camera.SetTarget( camera );
+		// What the sync loads (a map's textures and lightmaps at the first capture after a load) written with the face's
+		// submission rather than each submitted and waited for
+		SceneMirror mirror;
+		CameraState prepared;
+		using ( device.Gpu.DeferUploads() )
+			(mirror, prepared) = Prepare( camera, face, new Vector2( size, size ), state );
+		prepared.View.Capture = true;
+		prepared.View.ToneMapScalar = 1;
+		using ( new Drawing( this, prepared ) )
+			prepared.System.Render( mirror.World, prepared.View, faceTarget, null );
 	}
 
 	/// <summary>Free the capture faces and their copies and filters.</summary>
 	void ShutdownCaptures()
 	{
+		spread?.Camera.Dispose();
+		spread = null;
 		for ( int i = 0; i < captureFaces.Length; i++ )
 		{
 			captureFaces[i]?.Dispose();

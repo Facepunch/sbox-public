@@ -59,6 +59,7 @@ internal static class Zones
 		new( "Slang Stages Wait", Color.Gray ),
 		new( "Slang Cache Load", Color.Gray ),
 		new( "Slang Cache Save", Color.Gray ),
+		new( "Slang Preprocess", Color.Gray ),
 	];
 }
 

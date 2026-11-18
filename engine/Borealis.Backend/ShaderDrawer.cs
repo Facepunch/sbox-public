@@ -1,5 +1,6 @@
 using Borealis.Gpu;
 using Borealis.Source2.Shaders;
+using System.Runtime.CompilerServices;
 
 namespace Borealis.Backend;
 
@@ -21,6 +22,48 @@ public sealed class ShaderAttributes
 
 	/// <summary>Constants: a number, a vector or a matrix, as floats.</summary>
 	public void Set( string name, params float[] value ) => Put( AttributeIds.Of( name ), value );
+
+	/// <summary>
+	/// A single number: kept in a one-float array this set owns for the name and reuses, so setting numbers every draw
+	/// allocates nothing. The array holds the latest value set; read it before setting the name again.
+	/// </summary>
+	public void Set( string name, float value ) => Owned( name, 1 )[0] = value;
+
+	/// <summary>A two-component vector, kept as <see cref="Set(string, float)"/> keeps a number.</summary>
+	public void Set( string name, float x, float y )
+	{
+		var array = Owned( name, 2 );
+		(array[0], array[1]) = (x, y);
+	}
+
+	/// <summary>A three-component vector, kept as <see cref="Set(string, float)"/> keeps a number.</summary>
+	public void Set( string name, float x, float y, float z )
+	{
+		var array = Owned( name, 3 );
+		(array[0], array[1], array[2]) = (x, y, z);
+	}
+
+	/// <summary>A four-component vector, kept as <see cref="Set(string, float)"/> keeps a number.</summary>
+	public void Set( string name, float x, float y, float z, float w )
+	{
+		var array = Owned( name, 4 );
+		(array[0], array[1], array[2], array[3]) = (x, y, z, w);
+	}
+
+	// Arrays of 1-4 floats this set owns, by component count and attribute id, reused for every set of the name
+	readonly float[][][] owned = [[], [], [], []];
+
+	bool Owns( int id, float[] array ) => owned[array.Length - 1] is var arrays && id < arrays.Length && ReferenceEquals( arrays[id], array );
+
+	float[] Owned( string name, int components )
+	{
+		var id = AttributeIds.Of( name );
+		ref var arrays = ref owned[components - 1];
+		if ( id >= arrays.Length ) Array.Resize( ref arrays, Math.Max( Math.Max( arrays.Length * 2, 64 ), AttributeIds.Count ) );
+		var array = arrays[id] ??= new float[components];
+		Put( id, array );
+		return array;
+	}
 
 	/// <summary>A structured or byte-address buffer.</summary>
 	public void Set( string name, BufferHandle buffer ) => Put( AttributeIds.Of( name ), Box( bufferBoxes, buffer ) );
@@ -71,12 +114,34 @@ public sealed class ShaderAttributes
 	/// <summary>A combo's value, or null when it wasn't set.</summary>
 	public int? GetCombo( string name ) => combos.TryGetValue( name, out var value ) ? value : null;
 
-	/// <summary>Every value set, by name.</summary>
-	public IEnumerable<KeyValuePair<string, object>> Values
+	/// <summary>Every value set, by name, in the order first set: a foreach over it allocates nothing.</summary>
+	public SetValues Values => new( this );
+
+	/// <summary>The values of a <see cref="ShaderAttributes"/>, enumerated without allocating.</summary>
+	public readonly struct SetValues( ShaderAttributes attributes ) : IEnumerable<KeyValuePair<string, object>>
 	{
-		get
+		/// <summary>An enumerator over the values, by name.</summary>
+		public Enumerator GetEnumerator() => new( attributes );
+		IEnumerator<KeyValuePair<string, object>> IEnumerable<KeyValuePair<string, object>>.GetEnumerator() => GetEnumerator();
+		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+		/// <summary>Goes through the values in the order first set.</summary>
+		public struct Enumerator( ShaderAttributes attributes ) : IEnumerator<KeyValuePair<string, object>>
 		{
-			for ( int i = 0; i < set.Count; i++ ) yield return new( AttributeIds.NameOf( set[i] ), slots[set[i]] );
+			int index = -1;
+
+			/// <summary>The value and its name.</summary>
+			public readonly KeyValuePair<string, object> Current => new( AttributeIds.NameOf( attributes.set[index] ), attributes.slots[attributes.set[index]] );
+			readonly object System.Collections.IEnumerator.Current => Current;
+
+			/// <summary>On to the next value.</summary>
+			public bool MoveNext() => ++index < attributes.set.Count;
+
+			/// <summary>Back to before the first value.</summary>
+			public void Reset() => index = -1;
+
+			/// <summary>Nothing to release.</summary>
+			public readonly void Dispose() { }
 		}
 	}
 
@@ -114,7 +179,8 @@ public sealed class ShaderAttributes
 	/// <summary>Add <paramref name="other"/>'s values and combos, replacing any of the same name.</summary>
 	public void Merge( ShaderAttributes other )
 	{
-		foreach ( var id in other.set ) Put( id, other.slots[id] );
+		// Arrays the other set reuses for its numbers are copied: setting them there again mustn't change this set
+		foreach ( var id in other.set ) Put( id, other.slots[id] is float[] { Length: >= 1 and <= 4 } floats && other.Owns( id, floats ) ? (float[])floats.Clone() : other.slots[id] );
 		foreach ( var (name, value) in other.combos ) combos[name] = value;
 	}
 
@@ -136,24 +202,30 @@ public sealed class ShaderAttributes
 	/// <see cref="ComboKey"/> without building it: the shader's dynamic combos' values in turn, a byte each, for a shader of
 	/// at most eight whose values fit. False otherwise, and the caller keys by <see cref="ComboKey"/>.
 	/// </summary>
-	internal bool ComboBits( ShaderFile shader, out ulong bits )
+	internal bool ComboBits( ShaderFile shader, out ulong bits ) => ComboBits( shader, out bits, out var more ) && more == 0 && CombosOf( shader ) <= 8;
+
+	/// <summary>As <see cref="ComboBits(ShaderFile, out ulong)"/> for up to sixteen combos: the first eight in <paramref name="bits"/>, the rest in <paramref name="more"/>.</summary>
+	internal bool ComboBits( ShaderFile shader, out ulong bits, out ulong more )
 	{
-		bits = 0;
+		bits = more = 0;
 		var shift = 0;
 		foreach ( var type in (ReadOnlySpan<ShaderProgramType>)[ShaderProgramType.Vertex, ShaderProgramType.Pixel, ShaderProgramType.Compute] )
 		{
 			foreach ( var combo in shader[type]?.DynamicCombos ?? [] )
 			{
-				if ( shift == 64 ) return false;
+				if ( shift == 128 ) return false;
 				var value = combos.Count == 0 ? 0 : GetCombo( combo.Name ) ?? 0;
 				if ( (uint)value > byte.MaxValue ) return false;
-				bits |= (ulong)value << shift;
+				if ( shift < 64 ) bits |= (ulong)value << shift;
+				else more |= (ulong)value << (shift - 64);
 				shift += 8;
 			}
 		}
 
 		return true;
 	}
+
+	static int CombosOf( ShaderFile shader ) => (shader[ShaderProgramType.Vertex]?.DynamicCombos.Length ?? 0) + (shader[ShaderProgramType.Pixel]?.DynamicCombos.Length ?? 0) + (shader[ShaderProgramType.Compute]?.DynamicCombos.Length ?? 0);
 }
 
 /// <summary>
@@ -276,7 +348,7 @@ public sealed class ShaderDrawer : IDisposable
 
 	// Variants by their combos' values packed (ShaderAttributes.ComboBits) and the material's features array, built with no
 	// strings: what most draws find theirs by
-	readonly Dictionary<(ShaderFile Shader, string Mode, int[] Features, ulong Combos), ShaderVariant> packedVariants = new();
+	readonly Dictionary<(ShaderFile Shader, string Mode, int[] Features, ulong Combos, ulong More), ShaderVariant> packedVariants = new();
 	readonly Dictionary<(ShaderVariant Variant, Format Color, Format Depth, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology, bool Ids), PipelineHandle> pipelines = new();
 	readonly Dictionary<ShaderVariant, PipelineHandle> computePipelines = new();
 	MaterialObjectCache cache;
@@ -399,9 +471,9 @@ public sealed class ShaderDrawer : IDisposable
 	{
 		mode ??= shader.Modes[0].Name;
 		var features = MaterialOf( shader )?.Features ?? [];
-		if ( attributes.ComboBits( shader, out var bits ) )
+		if ( attributes.ComboBits( shader, out var bits, out var more ) )
 		{
-			var packed = (shader, mode, features, bits);
+			var packed = (shader, mode, features, bits, more);
 			if ( packedVariants.TryGetValue( packed, out var found ) ) return found;
 			found = VariantByName( shader, attributes, mode, features );
 			if ( found is not null && !pendingVariant ) packedVariants[packed] = found;
@@ -411,6 +483,11 @@ public sealed class ShaderDrawer : IDisposable
 		return VariantByName( shader, attributes, mode, features );
 	}
 
+	// A material's feature values as a variant key's part, made once per array (materials keep theirs)
+	readonly ConditionalWeakTable<int[], string> featureKeys = new();
+
+	string FeaturesKey( int[] features ) => featureKeys.GetValue( features, static f => string.Join( ',', f ) );
+
 	// Whether the last VariantByName's variant was one whose module is still compiling
 	bool pendingVariant;
 
@@ -418,7 +495,7 @@ public sealed class ShaderDrawer : IDisposable
 	{
 		pendingVariant = false;
 		var combos = attributes.ComboKey( shader );
-		if ( features.Length > 0 ) combos = string.Concat( combos, "|", string.Join( ',', features ) );
+		if ( features.Length > 0 ) combos = string.Concat( combos, "|", FeaturesKey( features ) );
 		var key = (shader, mode, combos);
 		if ( variants.TryGetValue( key, out var variant ) ) return variant;
 
@@ -802,7 +879,7 @@ public sealed class ShaderDrawer : IDisposable
 			if ( !variant.Sets[set].IsValid ) continue;
 
 			var count = 0;
-			foreach ( var resource in variant.Resources )
+			foreach ( var resource in variant.ResourceSpan )
 			{
 				if ( resource.Set != set ) continue;
 				if ( count == bindings.Length ) throw new InvalidOperationException( $"{variant} binds more than {bindings.Length} resources in set {set}" );
@@ -943,12 +1020,16 @@ public sealed class ShaderDrawer : IDisposable
 
 		var info = gpu.InfoOf( texture );
 		float w = info.Width, h = info.Height, d = Math.Max( info.Depth, 1 ), m = info.Mips;
-		return variable.Source switch
+
+		// Into the drawer's scratch, read before the next constant is written
+		var size = scratch4;
+		(size[0], size[1], size[2], size[3]) = variable.Source switch
 		{
-			VariableSource.InvTextureDimensions => [1 / w, 1 / h, 1 / d, 1 / m],
-			VariableSource.TextureDimensionsLog2 => [MathF.Log2( w ), MathF.Log2( h ), MathF.Log2( d ), m],
-			_ => [w, h, d, m],
+			VariableSource.InvTextureDimensions => (1 / w, 1 / h, 1 / d, 1 / m),
+			VariableSource.TextureDimensionsLog2 => (MathF.Log2( w ), MathF.Log2( h ), MathF.Log2( d ), m),
+			_ => (w, h, d, m),
 		};
+		return size;
 	}
 
 	Binding ConstantBuffer( CommandList list, int binding, byte[] data, ShaderStage stage, string name )

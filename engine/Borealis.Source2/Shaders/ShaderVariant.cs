@@ -38,7 +38,12 @@ public sealed class ShaderVariant
 	public BindingLayoutHandle[] Sets { get; } = new BindingLayoutHandle[ShaderAbi.BindlessSet];
 
 	/// <summary>Every binding in sets 0 to 3 and what goes in it.</summary>
-	public IReadOnlyList<ShaderResource> Resources { get; }
+	public IReadOnlyList<ShaderResource> Resources => resources;
+
+	/// <summary><see cref="Resources"/> as a span, to go through without allocating an enumerator.</summary>
+	public ReadOnlySpan<ShaderResource> ResourceSpan => resources;
+
+	readonly ShaderResource[] resources;
 
 	/// <summary>The vertex shader's inputs, by location, with the semantic each reads.</summary>
 	public IReadOnlyList<VertexInput> VertexInputs { get; }
@@ -98,7 +103,7 @@ public sealed class ShaderVariant
 		}
 
 		resources.Sort( ( a, b ) => a.Set != b.Set ? a.Set.CompareTo( b.Set ) : a.Binding.CompareTo( b.Binding ) );
-		Resources = resources;
+		this.resources = [.. resources];
 
 		for ( int set = 0; set < Sets.Length; set++ )
 		{

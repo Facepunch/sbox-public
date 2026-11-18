@@ -238,7 +238,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	public void WarmUp() => RenderSystem.WarmUp();
 
 	/// <summary>Which envmap probes capture, and when: those the camera sees, within a budget.</summary>
-	internal EnvmapScheduler Envmaps { get; } = new();
+	internal EnvmapScheduler Envmaps => envmaps ??= new EnvmapScheduler( this );
+
+	EnvmapScheduler envmaps;
 
 	/// <inheritdoc/>
 	public void RenderEnvmaps( Scene scene ) => Envmaps.Run( scene );

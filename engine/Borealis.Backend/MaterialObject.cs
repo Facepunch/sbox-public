@@ -281,7 +281,7 @@ internal sealed class MaterialLayout
 		var dynamicMaterial = new bool[Sets.Length];
 		if ( immediate )
 		{
-			foreach ( var r in variant.Resources )
+			foreach ( var r in variant.ResourceSpan )
 			{
 				if ( r.Kind != ShaderResourceKind.MaterialConstants || budget == 0 ) continue;
 				dynamicMaterial[r.Set] = true;
@@ -297,7 +297,7 @@ internal sealed class MaterialLayout
 			var resources = new List<ShaderResource>();
 			var slots = new List<BindingSlot>();
 			var dynamicIndex = new List<int>();
-			foreach ( var r in variant.Resources )
+			foreach ( var r in variant.ResourceSpan )
 			{
 				if ( r.Set != set ) continue;
 				resources.Add( r );
@@ -662,25 +662,7 @@ internal sealed class MaterialObject
 		{
 			if ( !constantVariants.TryGetValue( key, out variant ) || variant.Dead )
 			{
-				var offsets = new long[template.Length];
-				var sizes = new int[template.Length];
-				for ( int set = 0; set < template.Length; set++ )
-				{
-					if ( materialSlot[set] < 0 ) continue;
-					var stage = Layout.StageOf( set );
-					sizes[set] = constantSize[set];
-					offsets[set] = cache.AllocateMaterialConstants( constantSize[set], out var data );
-					stage.WriteMaterialConstants( data, variable => variable.Source switch
-					{
-						VariableSource.Material or VariableSource.MaterialAndExpression => Material?.Value( variable.Name ),
-						VariableSource.ShaderVersion => [Material?.ShaderVersion ?? 0],
-						VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => [UncompressedTangentFrame ? 1 : 0],
-						VariableSource.Attribute => (pass.LayerEpoch != 0 ? pass.LayerFloats( variable.Attribute ) : null) ?? pass.Floats( variable.Attribute ),
-						_ => null,
-					}, Material is null ? default : Material.Features );
-				}
-
-				variant = new ConstantVariant( offsets, sizes );
+				variant = MakeConstantVariant( pass );
 				constantVariants[key] = variant;
 			}
 		}
@@ -689,6 +671,30 @@ internal sealed class MaterialObject
 		state.LastConstantsKey = key;
 		state.LastConstants = variant;
 		return variant;
+	}
+
+	// Its own method, so the values callback's closure is made only when a variant is (it captures the pass)
+	ConstantVariant MakeConstantVariant( PassBindings pass )
+	{
+		var offsets = new long[template.Length];
+		var sizes = new int[template.Length];
+		for ( int set = 0; set < template.Length; set++ )
+		{
+			if ( materialSlot[set] < 0 ) continue;
+			var stage = Layout.StageOf( set );
+			sizes[set] = constantSize[set];
+			offsets[set] = cache.AllocateMaterialConstants( constantSize[set], out var data );
+			stage.WriteMaterialConstants( data, variable => variable.Source switch
+			{
+				VariableSource.Material or VariableSource.MaterialAndExpression => Material?.Value( variable.Name ),
+				VariableSource.ShaderVersion => [Material?.ShaderVersion ?? 0],
+				VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => [UncompressedTangentFrame ? 1 : 0],
+				VariableSource.Attribute => (pass.LayerEpoch != 0 ? pass.LayerFloats( variable.Attribute ) : null) ?? pass.Floats( variable.Attribute ),
+				_ => null,
+			}, Material is null ? default : Material.Features );
+		}
+
+		return new ConstantVariant( offsets, sizes );
 	}
 
 	/// <summary>

@@ -234,23 +234,13 @@ internal static class MirrorContent
 	public static void SetCapture( Texture texture, GpuTexture drawn ) => captures.GetOrCreateValue( texture ).Texture = drawn;
 
 	/// <summary>
-	/// Set on <paramref name="into"/> what <paramref name="attributes"/> holds that differs from <paramref name="before"/> and
-	/// <paramref name="beforeCombos"/> (its values and combos taken earlier): what a command list set meanwhile. Numbers,
-	/// vectors, matrices, combos and the textures Borealis can read carry over.
+	/// Set on <paramref name="into"/> what <paramref name="attributes"/> had set after its version was <paramref name="version"/>:
+	/// what a command list set meanwhile. Numbers, vectors, matrices, combos and the textures Borealis can read carry over.
 	/// </summary>
-	public static void SetChanged( ManagedRenderAttributes attributes, Dictionary<uint, object> before, Dictionary<uint, int> beforeCombos, ShaderParameters into )
+	public static void SetChanged( ManagedRenderAttributes attributes, int version, ShaderParameters into )
 	{
-		foreach ( var (token, value) in attributes.Values )
-		{
-			if ( before.TryGetValue( token, out var old ) && ReferenceEquals( old, value ) ) continue;
-			Set( into, new StringToken( token ), value );
-		}
-
-		foreach ( var (token, value) in attributes.Combos )
-		{
-			if ( beforeCombos.TryGetValue( token, out var old ) && old == value ) continue;
-			into.SetCombo( new StringToken( token ), value );
-		}
+		foreach ( var (token, value) in attributes.ValuesSince( version ) ) Set( into, new StringToken( token ), value );
+		foreach ( var (token, value) in attributes.CombosSince( version ) ) into.SetCombo( new StringToken( token ), value );
 	}
 
 	/// <summary>

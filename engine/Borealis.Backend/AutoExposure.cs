@@ -182,7 +182,8 @@ public sealed class AutoExposure : IDisposable
 			new( x1, y0, right, top ),
 		];
 
-		var attributes = new ShaderAttributes();
+		var attributes = drawAttributes;
+		attributes.Clear();
 		attributes.Set( "LuminanceMin", buckets[bucket].Min );
 		attributes.Set( "LuminanceMax", buckets[bucket].Max );
 		attributes.Set( "UseAlphaForAutoExposure", 0.0f );
@@ -192,6 +193,9 @@ public sealed class AutoExposure : IDisposable
 
 		return context.DrawCounted( shader, attributes, MemoryMarshal.AsBytes( vertices ), QueryLayout, 4, PrimitiveTopology.TriangleStrip, queries, bucket );
 	}
+
+	// The count draw's attributes, emptied and set again for each: drawn at once, so one set serves every frame
+	readonly ShaderAttributes drawAttributes = new();
 
 	/// <summary>FLerp: <paramref name="f1"/> at <paramref name="i1"/> to <paramref name="f2"/> at <paramref name="i2"/>.</summary>
 	static float Lerp( float f1, float f2, float i1, float i2, float x ) => f1 + (f2 - f1) * (x - i1) / (i2 - i1);

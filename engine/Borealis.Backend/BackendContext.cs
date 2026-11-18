@@ -967,8 +967,11 @@ internal sealed partial class BackendContext : GpuContext
 	/// <summary>Whether a vertex shader reads nothing of these vertices but their positions.</summary>
 	static bool ReadsOnlyPositions( ShaderVariant variant, VertexLayout layout )
 	{
-		foreach ( var input in variant.VertexInputs )
+		// By index: a foreach over the list would allocate its enumerator every draw
+		var inputs = variant.VertexInputs;
+		for ( int i = 0; i < inputs.Count; i++ )
 		{
+			var input = inputs[i];
 			if ( input.Semantic != VertexSemantic.Position && layout.Find( input.Semantic, input.SemanticIndex ) is not null ) return false;
 		}
 
@@ -1017,17 +1020,10 @@ internal sealed partial class BackendContext : GpuContext
 	/// </summary>
 	ShaderVariant Variant( BackendMaterial material, string mode )
 	{
-		var key = new System.Text.StringBuilder( mode );
-		foreach ( var type in (ReadOnlySpan<ShaderProgramType>)[ShaderProgramType.Vertex, ShaderProgramType.Pixel] )
-		{
-			foreach ( var combo in material.Shader[type]?.DynamicCombos ?? [] )
-			{
-				if ( LookupCombo( Token( combo.Name ) ) is int value && value != 0 ) key.Append( ';' ).Append( combo.Name ).Append( '=' ).Append( value );
-			}
-		}
-
-		AppendSpecialization( key, material );
-		return material.Variant( device.Shaders, mode, key.ToString(), name => LookupCombo( Token( name ) ), name => Integer( Lookup( Token( name ) ) ) );
+		// The key DrawWithMaterialObject uses, made once per values; the lookups made once per context
+		comboLookup ??= name => LookupCombo( Token( name ) );
+		specializationLookup ??= name => Integer( Lookup( Token( name ) ) );
+		return material.Variant( device.Shaders, mode, ComboKeyByValue( material, mode ), comboLookup, specializationLookup );
 	}
 
 	/// <summary>The values of the material's specialization attributes that are set, for its variant key.</summary>
@@ -1051,6 +1047,66 @@ internal sealed partial class BackendContext : GpuContext
 	/// <summary>
 	/// An attribute as floats, for constants: numbers, bools, vectors and matrices (in the order view constants hold them).
 	/// </summary>
+	/// <summary>
+	/// <see cref="Floats"/> into an array this thread reuses for the count, so reading attributes every pass allocates
+	/// nothing: the caller reads it before its next call.
+	/// </summary>
+	internal static float[] ScratchFloats( object value )
+	{
+		switch ( value )
+		{
+			case int i: return Scratch( 1, i );
+			case uint u: return Scratch( 1, u );
+			case float f: return Scratch( 1, f );
+			case bool b: return Scratch( 1, b ? 1 : 0 );
+			case Vector2 v: return Scratch( 2, v.x, v.y );
+			case Vector3 v: return Scratch( 3, v.x, v.y, v.z );
+			case Vector4 v: return Scratch( 4, v.x, v.y, v.z, v.w );
+			case Color c: return Scratch( 4, c.r, c.g, c.b, c.a );
+			case Vector2Int v: return Scratch( 2, v.x, v.y );
+			case Matrix m:
+				var a = Scratch( 16 );
+				(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]) = (m.M11, m.M12, m.M13, m.M14, m.M21, m.M22, m.M23, m.M24);
+				(a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15]) = (m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44);
+				return a;
+			default: return Floats( value );
+		}
+	}
+
+	/// <summary>
+	/// An attribute's value as floats on <paramref name="into"/>: in the arrays it owns for one to four (<see cref="ShaderAttributes.Set(string, float)"/>),
+	/// so setting it every dispatch allocates nothing; a matrix in an array of its own.
+	/// </summary>
+	static void SetFloats( ShaderAttributes into, string name, object value )
+	{
+		if ( ScratchFloats( value ) is not { } f ) return;
+		switch ( f.Length )
+		{
+			case 1: into.Set( name, f[0] ); break;
+			case 2: into.Set( name, f[0], f[1] ); break;
+			case 3: into.Set( name, f[0], f[1], f[2] ); break;
+			case 4: into.Set( name, f[0], f[1], f[2], f[3] ); break;
+			default: into.Set( name, (float[])f.Clone() ); break;
+		}
+	}
+
+	[ThreadStatic] static float[][] scratchFloats;
+
+	static float[] Scratch( int count, float x = 0, float y = 0, float z = 0, float w = 0 )
+	{
+		scratchFloats ??= new float[17][];
+		var array = scratchFloats[count] ??= new float[count];
+		if ( count <= 4 )
+		{
+			array[0] = x;
+			if ( count > 1 ) array[1] = y;
+			if ( count > 2 ) array[2] = z;
+			if ( count > 3 ) array[3] = w;
+		}
+
+		return array;
+	}
+
 	static float[] Floats( object value ) => value switch
 	{
 		int i => [i],
@@ -1082,7 +1138,7 @@ internal sealed partial class BackendContext : GpuContext
 			if ( set == ShaderAbi.FragmentSet && depthOnly ) continue;
 
 			var count = 0;
-			foreach ( var resource in variant.Resources )
+			foreach ( var resource in variant.ResourceSpan )
 			{
 				if ( resource.Set != set ) continue;
 				if ( count == bindings.Length ) throw new InvalidOperationException( $"{variant} binds more than {bindings.Length} resources in set {set}" );

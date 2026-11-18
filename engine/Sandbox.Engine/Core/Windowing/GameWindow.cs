@@ -187,7 +187,7 @@ internal sealed partial class GameWindow : IDisposable
 	}
 
 	/// <summary>Samples per pixel a game window's scenes render with on Borealis.Gpu: the setting, as the device allows it.</summary>
-	static int SampleCount( RenderMultisampleType multisample ) => Graphics.RenderMultiSampleToNum( RenderDeviceManager.GetBestMultisampleType( multisample ) );
+	static int SampleCount( RenderMultisampleType multisample ) => Graphics.RenderMultiSampleToNum( Graphics.BestMultisampleType( multisample ) );
 
 	bool ApplyWindowMode( WindowMode requested )
 	{

@@ -35,6 +35,16 @@ internal sealed class MorphAtlas( BackendDevice device )
 	}
 
 	readonly List<Queued> queued = new();
+
+	// Entries of frames already generated, reused for later ones
+	readonly List<Queued> spareQueued = new();
+
+	static float[] Copy( float[] into, ReadOnlySpan<float> values )
+	{
+		if ( into is null || into.Length != values.Length ) into = values.ToArray();
+		else values.CopyTo( into );
+		return into;
+	}
 	readonly Dictionary<MorphSet, BackendTexture> sources = new();
 	bool generated;
 	BackendTexture texture;
@@ -61,12 +71,25 @@ internal sealed class MorphAtlas( BackendDevice device )
 		{
 			if ( generated )
 			{
+				// Last frame's entries and their arrays are reused for this frame's
+				spareQueued.AddRange( queued );
 				queued.Clear();
 				generated = false;
 			}
 
 			if ( !sources.TryGetValue( set, out var source ) ) sources[set] = source = texturePath is null ? null : device.LoadTexture( texturePath ) as BackendTexture;
-			queued.Add( new Queued { Set = set, Source = source, Weights = weights.ToArray(), Delayed = delayed.ToArray() } );
+			Queued q;
+			if ( spareQueued.Count > 0 )
+			{
+				q = spareQueued[^1];
+				spareQueued.RemoveAt( spareQueued.Count - 1 );
+			}
+			else q = new Queued();
+
+			(q.Set, q.Source, q.X, q.Y, q.W, q.H) = (set, source, 0, 0, 0, 0);
+			q.Weights = Copy( q.Weights, weights );
+			q.Delayed = Copy( q.Delayed, delayed );
+			queued.Add( q );
 			return queued.Count - 1;
 		}
 	}

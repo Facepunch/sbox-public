@@ -387,10 +387,13 @@ public sealed unsafe class CommandList
 		}
 	}
 
+	// Each label's end marker name, made once per label string (labels are mostly constants), so ending one allocates nothing
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<string, string> EndMarkers = new();
+
 	/// <summary>End the region <see cref="BeginLabel"/> started.</summary>
 	public void EndLabel()
 	{
-		if ( MarkerSlot >= 0 ) Marker( openLabels.TryPop( out var label ) ? $"end {label}" : "end" );
+		if ( MarkerSlot >= 0 ) Marker( openLabels.TryPop( out var label ) ? EndMarkers.GetValue( label, static l => $"end {l}" ) : "end" );
 		if ( device.Instance.vkCmdEndDebugUtilsLabelEXT == null ) return;
 		device.Instance.vkCmdEndDebugUtilsLabelEXT( Handle );
 	}
@@ -955,6 +958,7 @@ public sealed unsafe class CommandList
 	/// <summary>Run the bound compute pipeline over a grid of thread groups.</summary>
 	public void Dispatch( int x, int y = 1, int z = 1 )
 	{
+		device.CheckGroupCounts( x, y, z );
 		OutsideRendering();
 		FlushBarriers();
 		FlushBindings( Vulkan.Vk.BindPointCompute );

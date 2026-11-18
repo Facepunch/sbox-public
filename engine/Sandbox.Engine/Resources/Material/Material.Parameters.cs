@@ -32,6 +32,7 @@ public partial class Material
 
 			anonymousShader = null;
 			native.Set( "shader", value?.ResourcePath ?? "invalid" );
+			ShaderVersion++;
 		}
 	}
 
@@ -105,6 +106,9 @@ public partial class Material
 
 	void RememberSet( string param, object value )
 	{
+		// The same value again (a component setting it every frame) changes nothing a device holds
+		if ( SetInCode is not null && SetInCode.TryGetValue( param, out var current ) && Equals( current, value ) ) return;
+
 		var values = SetInCode is null ? new Dictionary<string, object>( StringComparer.OrdinalIgnoreCase ) : new Dictionary<string, object>( SetInCode, StringComparer.OrdinalIgnoreCase );
 		values[param] = value;
 		SetInCode = values;

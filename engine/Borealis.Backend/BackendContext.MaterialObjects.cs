@@ -28,9 +28,9 @@ internal sealed partial class BackendContext
 			resources.Clear();
 		}
 
-		public override float[] Floats( string attribute ) => BackendContext.Floats( context.attributes.Get( Token( attribute ) ) );
+		public override float[] Floats( string attribute ) => ScratchFloats( context.attributes.Get( Token( attribute ) ) );
 
-		public override float[] LayerFloats( string attribute ) => context.LayerValue( Token( attribute ), out _ ) is { } value ? BackendContext.Floats( value ) : null;
+		public override float[] LayerFloats( string attribute ) => context.LayerValue( Token( attribute ), out _ ) is { } value ? ScratchFloats( value ) : null;
 
 		/// <summary>
 		/// What the object's attributes bind for a pass resource: constant buffers copied once a frame per object (at a
@@ -354,6 +354,64 @@ internal sealed partial class BackendContext
 	{
 		if ( comboKeys.TryGetValue( material.Shader, out var cached ) && cached.Epoch == passEpoch && ReferenceEquals( cached.Layer, layerCombos ) && cached.Key.StartsWith( mode, StringComparison.Ordinal ) && (cached.Key.Length == mode.Length || cached.Key[mode.Length] == ';') ) return cached.Key;
 
+		var made = ComboKeyByValue( material, mode );
+		comboKeys[material.Shader] = (passEpoch, layerCombos, made);
+		return made;
+	}
+
+	/// <summary>
+	/// <see cref="ComboKey"/> from the values as they are now: values seen before (another pass, an earlier frame) give the
+	/// key made then, so it isn't built again.
+	/// </summary>
+	string ComboKeyByValue( BackendMaterial material, string mode )
+	{
+		if ( !ComboBits( material, out var combos, out var specialization ) ) return BuildComboKey( material, mode );
+
+		var known = (material.Shader, mode, combos, specialization);
+		if ( !comboKeysByValue.TryGetValue( known, out var key ) )
+		{
+			if ( comboKeysByValue.Count >= 4096 ) comboKeysByValue.Clear();
+			comboKeysByValue[known] = key = BuildComboKey( material, mode );
+		}
+
+		return key;
+	}
+
+	readonly Dictionary<(ShaderFile Shader, string Mode, ulong Combos, ulong Specialization), string> comboKeysByValue = new();
+
+	/// <summary>
+	/// The values <see cref="BuildComboKey"/> reads, a byte each: the shader's dynamic combos, then its specialization
+	/// attributes. False when there are more than eight of either or a value doesn't fit.
+	/// </summary>
+	bool ComboBits( BackendMaterial material, out ulong combos, out ulong specialization )
+	{
+		combos = specialization = 0;
+		var shift = 0;
+		foreach ( var type in (ReadOnlySpan<ShaderProgramType>)[ShaderProgramType.Vertex, ShaderProgramType.Pixel] )
+		{
+			foreach ( var combo in material.Shader[type]?.DynamicCombos ?? [] )
+			{
+				var value = LookupCombo( Token( combo.Name ) ) ?? 0;
+				if ( shift == 64 || (uint)value > byte.MaxValue ) return false;
+				combos |= (ulong)value << shift;
+				shift += 8;
+			}
+		}
+
+		shift = 0;
+		foreach ( var name in material.SpecializationAttributes )
+		{
+			var value = Integer( Lookup( Token( name ) ) ) ?? 0;
+			if ( shift == 64 || (uint)value > byte.MaxValue ) return false;
+			specialization |= (ulong)value << shift;
+			shift += 8;
+		}
+
+		return true;
+	}
+
+	string BuildComboKey( BackendMaterial material, string mode )
+	{
 		var key = new System.Text.StringBuilder( mode );
 		foreach ( var type in (ReadOnlySpan<ShaderProgramType>)[ShaderProgramType.Vertex, ShaderProgramType.Pixel] )
 		{
@@ -364,8 +422,6 @@ internal sealed partial class BackendContext
 		}
 
 		AppendSpecialization( key, material );
-		var made = key.ToString();
-		comboKeys[material.Shader] = (passEpoch, layerCombos, made);
-		return made;
+		return key.ToString();
 	}
 }

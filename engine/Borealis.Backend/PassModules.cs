@@ -102,7 +102,13 @@ public sealed class PassModules : IShaderModules
 		return System.Threading.Tasks.Task.Run( () =>
 		{
 			using var zone = Zones.PassModulesRead.Start();
-			foreach ( var file in Directory.GetFiles( shaders, "*.slang", SearchOption.AllDirectories ) ) ModuleBeside( Path.ChangeExtension( file, ".shader_c" ) );
+			foreach ( var file in Directory.GetFiles( shaders, "*.slang", SearchOption.AllDirectories ) )
+			{
+				ModuleBeside( Path.ChangeExtension( file, ".shader_c" ) );
+
+				// Its offline compile too (a megabyte or more, read and indexed once): the first draw of its shader reads stages from it
+				if ( UseOffline ) SlangOutput.At( SlangOutput.PathOf( file ) );
+			}
 		} );
 	}
 
@@ -146,7 +152,8 @@ public sealed class PassModules : IShaderModules
 
 		// Read outside the lock: a worker reading ahead (Warm) holds no one up
 		var text = File.ReadAllText( path );
-		var module = text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) ? PassModule.FromText( info.FullName, text, [Path.Combine( Core, "shaders" )] ) : null;
+		var module = text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) ? Kept( PassModule.FromText( info.FullName, text, [Path.Combine( Core, "shaders" )] ) ) : null;
+		module?.ReadDerived();
 		lock ( modules ) modules[path] = (info.LastWriteTimeUtc, now, module);
 		return module;
 	}
@@ -251,8 +258,21 @@ public sealed class PassModules : IShaderModules
 		{
 		}
 
-		return PassModule.FromText( path, text, [Path.Combine( Core, "shaders" )] );
+		return Kept( PassModule.FromText( path, text, [Path.Combine( Core, "shaders" )] ) );
 	}
+
+	/// <summary>
+	/// A module made here, keeping what's read from its preprocessed lines beside the compiled stages
+	/// (<see cref="PassModule.DerivedCacheFolder"/>).
+	/// </summary>
+	PassModule Kept( PassModule module )
+	{
+		if ( KeepDerivedReads ) module.DerivedCacheFolder = Path.Combine( CacheFolder ?? Path.Combine( Path.GetDirectoryName( Core ), ".source2", "borealispasses" ), "derived" );
+		return module;
+	}
+
+	/// <summary>Whether modules keep their reads between runs; off with <c>-no-derived-reads</c>, for comparisons.</summary>
+	public static bool KeepDerivedReads { get; set; } = !Environment.GetCommandLineArgs().Any( a => a.Equals( "-no-derived-reads", StringComparison.OrdinalIgnoreCase ) );
 
 	/// <inheritdoc/>
 	public bool Has( ShaderFile shader ) => !Skipped( shader ) && ModuleOf( shader ) is not null;
@@ -403,6 +423,20 @@ public sealed class PassModules : IShaderModules
 			else if ( combo.Static ) value = combo.Feature is not null && featureValues.TryGetValue( combo.Feature, out var f ) ? f : combo.Min;
 			else value = dynamicCombos?.Invoke( combo.Name ) ?? combo.Min;
 			values[combo.Name] = Math.Clamp( value, combo.Min, combo.Max );
+		}
+
+		// Static combos the rules forbid together (tools_wireframe's Allow1( S_MODE_DEPTH, S_TRANSLUCENT ) in Depth mode) weren't
+		// compiled by vfx: the features' combos go back to their first values, the last first, until the rules allow them, as
+		// a compiled program's lookup takes the features back (ShaderLibrary.Allowed). A translucent material's depth pass is
+		// then an opaque one, which writes depth
+		if ( !module.AllowsStatic( kind, values ) )
+		{
+			var combos = module.Combos( kind );
+			for ( int i = combos.Count - 1; i >= 0 && !module.AllowsStatic( kind, values ); i-- )
+			{
+				var combo = combos[i];
+				if ( combo.Static && combo.Feature is not null && !settings.ContainsKey( combo.Name ) ) values[combo.Name] = combo.Min;
+			}
 		}
 
 		// Combo values the rules forbid weren't compiled by vfx: those draw the first dynamic combo, as a compiled program's lookup does
