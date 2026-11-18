@@ -416,6 +416,34 @@ public class PassModuleTests : GpuTest
 	}
 
 	/// <summary>
+	/// A static combo rule takes a feature's combo back as a compiled program's lookup does: tools_wireframe's
+	/// <c>Allow1( S_MODE_DEPTH, S_TRANSLUCENT )</c> makes a translucent material's depth pass the opaque one, which writes depth
+	/// (Project STICK's ink figure, drawn translucent in the opaque layer, keeps the sky off it through that depth).
+	/// </summary>
+	[TestMethod]
+	public void StaticComboRulesTakeFeaturesBack()
+	{
+		const string text = "#include \"sbox/pass.slangh\"\nFeature( F_TRANSLUCENT, 0..1, \"x\" );\nStaticCombo( S_MODE_DEPTH, 0..1, Sys( ALL ) );\nStaticCombo( S_TRANSLUCENT, F_TRANSLUCENT, Sys( ALL ) );\nStaticComboRule( Allow1( S_MODE_DEPTH, S_TRANSLUCENT ) );\n#if ( PROGRAM == VFX_PROGRAM_PS )\n[shader( \"pixel\" )] float4 MainPs() : SV_Target0 { return 0; }\n#endif\n";
+		var module = PassModule.FromText( "x.slang", text );
+		Assert.IsFalse( module.AllowsStatic( StageKind.Pixel, new Dictionary<string, int> { ["S_MODE_DEPTH"] = 1, ["S_TRANSLUCENT"] = 1 } ) );
+		Assert.IsTrue( module.AllowsStatic( StageKind.Pixel, new Dictionary<string, int> { ["S_MODE_DEPTH"] = 1, ["S_TRANSLUCENT"] = 0 } ) );
+		Assert.IsTrue( module.Allows( StageKind.Pixel, new Dictionary<string, int> { ["S_MODE_DEPTH"] = 1, ["S_TRANSLUCENT"] = 1 } ), "a static rule isn't a dynamic one" );
+
+		using var backend = new BackendDevice( Device );
+		var shader = backend.Shaders.Load( "shaders/tools_wireframe.shader" );
+		if ( shader is null ) Assert.Inconclusive( "tools_wireframe isn't compiled" );
+		if ( backend.Shaders.Modules?.Has( shader ) != true ) Assert.Inconclusive( "tools_wireframe has no pass module" );
+		var translucent = new int[shader.Features.StaticCombos.Length];
+		translucent[shader.FeatureIndex( "F_TRANSLUCENT" )] = 1;
+		var depth = backend.Shaders.Variant( shader, "Depth", translucent );
+		Assert.IsNotNull( depth );
+		Assert.IsTrue( depth.State.DepthWrite, "a translucent material's depth pass writes depth" );
+		Assert.IsFalse( depth.State.Translucent, "and doesn't blend" );
+		Assert.IsTrue( backend.Shaders.PixelState( shader, "Depth", translucent ).DepthWrite, "read the short way" );
+		Assert.IsFalse( backend.Shaders.Variant( shader, shader.Modes[0].Name, translucent ).State.DepthWrite, "its colour pass still blends without writing depth" );
+	}
+
+	/// <summary>
 	/// Which shaders' draws need a stencil in the depth they draw into (<see cref="ShaderPipelineState.NeedsStencil"/>): not a
 	/// standard material's (its test passes on zero and it writes nothing), nor gizmo_line's (it writes zero); tools_solid's
 	/// (it writes one) and the highlight's inside pass (it writes one).
