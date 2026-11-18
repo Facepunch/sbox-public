@@ -339,7 +339,11 @@ public sealed partial class BackendDevice
 		if ( string.IsNullOrEmpty( path ) ) return null;
 		lock ( loadedTextures )
 		{
-			if ( loadedTextures.TryGetValue( path, out var loaded ) ) return loaded;
+			if ( loadedTextures.TryGetValue( path, out var loaded ) )
+			{
+				PinTexture( path );
+				return loaded;
+			}
 		}
 
 		var read = textureReads.GetOrAdd( path, StartTextureRead );

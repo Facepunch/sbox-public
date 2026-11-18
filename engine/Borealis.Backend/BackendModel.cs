@@ -157,6 +157,9 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	// Its vertices and indices in the GPU-driven pages (slot, bytes), given back when it's freed
 	readonly List<(int Slot, int Bytes)> pageRanges = new();
 
+	// The materials its draws hold (BackendDevice.ModelMaterial), let go when it's freed
+	readonly List<string> materialPaths = new();
+
 	/// <summary>The model as read.</summary>
 	public ModelFile File { get; }
 
@@ -436,7 +439,9 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 				for ( int d = 0; d < mesh.DrawCalls.Count; d++ )
 				{
 					var call = mesh.DrawCalls[d];
-					var material = device.LoadMaterial( file.MaterialFor( call.Material, materialGroup ) );
+					var materialPath = file.MaterialFor( call.Material, materialGroup );
+					var material = device.ModelMaterial( materialPath );
+					geometry.materialPaths.Add( materialPath );
 					var translucent = RenderMesh.IsTranslucent( material );
 					var alphaTest = RenderMesh.IsAlphaTest( material );
 					var fastPath = material is { ShadowFastPath: true } && !translucent && !alphaTest && (!drawFastPath || (call.Flags & MeshDrawFlags.ShadowFastPath) != 0);
@@ -471,5 +476,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		}
 
 		pageRanges.Clear();
+		foreach ( var path in materialPaths ) device.ReleaseModelMaterial( path );
+		materialPaths.Clear();
 	}
 }

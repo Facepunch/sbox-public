@@ -772,12 +772,25 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// A material's texture: with <see cref="StreamTextures"/>, its tail first, and the mips its draws ask for streamed
 	/// in later; otherwise as <see cref="LoadTexture(string)"/> loads it.
 	/// </summary>
-	internal GpuTexture MaterialTextureFile( string path ) => LoadOnce( path, streamed: StreamTextures );
+	internal GpuTexture MaterialTextureFile( string path )
+	{
+		var texture = LoadOnce( path, streamed: StreamTextures, hold: collectingTextures is not null );
+		collectingTextures?.Add( path );
+		return texture;
+	}
 
-	GpuTexture LoadOnce( string path, bool streamed )
+	GpuTexture LoadOnce( string path, bool streamed, bool hold = false )
 	{
 		lock ( loadedTextures )
 		{
+			// Held by the material being made for a model's draws (ModelMaterial), else pinned for good
+			if ( !string.IsNullOrEmpty( path ) )
+			{
+				if ( !textureLives.TryGetValue( path, out var life ) ) textureLives[path] = life = new ContentLife();
+				if ( hold ) life.Holders++;
+				else life.Pinned = true;
+			}
+
 			if ( loadedTextures.TryGetValue( path, out var texture ) )
 			{
 				// Asked for whole by something that doesn't ask for mips
@@ -1089,6 +1102,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			foreach ( var path in paths )
 			{
 				if ( loadedTextures.TryGetValue( path, out var texture ) && loadedTextures.Remove( path ) ) textures.Add( texture );
+				textureLives.Remove( path );
 			}
 
 			// The rest of the map's own textures read by path: its light probe volumes, hundreds of MiB on a big map
@@ -1096,6 +1110,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			foreach ( var path in loadedTextures.Keys.Where( p => p.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) ).ToList() )
 			{
 				if ( loadedTextures.Remove( path, out var texture ) ) textures.Add( texture );
+				textureLives.Remove( path );
 			}
 		}
 
@@ -1139,8 +1154,108 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		lock ( sharedMaterials )
 		{
+			// Asked for by something other than a model's draws: kept for good
+			LifeOf( path ).Pinned = true;
 			if ( sharedMaterials.TryGetValue( path, out var material ) ) return material;
 			return sharedMaterials[path] = Converted( path ) ?? Material( path, null );
+		}
+	}
+
+	//
+	// Material and texture lifetimes: a model's draws hold their materials (ModelMaterial), and a material made for them holds
+	// the textures it read by path; once a freed model's materials are held by nothing they go, and textures nothing holds
+	// with them. What's asked for any other way (LoadMaterial, LoadTexture, a material made elsewhere) is pinned and stays.
+	//
+
+	sealed class ContentLife
+	{
+		public int Holders;
+		public bool Pinned;
+		public List<string> Textures;
+	}
+
+	readonly Dictionary<string, ContentLife> materialLives = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, ContentLife> textureLives = new( StringComparer.OrdinalIgnoreCase );
+
+	// The textures a material being made for a model reads by path (MaterialTextureFile), on the thread making it
+	[ThreadStatic] static List<string> collectingTextures;
+
+	// Under sharedMaterials' lock
+	ContentLife LifeOf( string path )
+	{
+		if ( !materialLives.TryGetValue( path, out var life ) ) materialLives[path] = life = new ContentLife();
+		return life;
+	}
+
+	/// <summary>Materials and textures freed after nothing held them, for soaks and tests.</summary>
+	public int MaterialsFreed { get; private set; }
+
+	/// <inheritdoc cref="TexturesFreed"/>
+	public int TexturesFreed { get; private set; }
+
+	// Under loadedTextures' lock: asked for by something other than a model's material, so it stays
+	void PinTexture( string path )
+	{
+		if ( !textureLives.TryGetValue( path, out var life ) ) textureLives[path] = life = new ContentLife();
+		life.Pinned = true;
+	}
+
+	/// <summary>A model's draw's material (<see cref="LoadMaterial(string)"/>), held by the model until <see cref="ReleaseModelMaterial"/>.</summary>
+	internal GpuMaterial ModelMaterial( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return LoadMaterial( path );
+		lock ( sharedMaterials )
+		{
+			var life = LifeOf( path );
+			life.Holders++;
+			if ( sharedMaterials.TryGetValue( path, out var material ) ) return material;
+
+			// The textures it reads by path are held by it
+			var outer = collectingTextures;
+			collectingTextures = life.Textures ??= new List<string>();
+			try
+			{
+				return sharedMaterials[path] = Converted( path ) ?? Material( path, null );
+			}
+			finally
+			{
+				collectingTextures = outer;
+			}
+		}
+	}
+
+	/// <summary>A freed model no longer draws with the material at <paramref name="path"/>: unheld and unpinned, it goes, and its textures nothing else holds.</summary>
+	internal void ReleaseModelMaterial( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return;
+		List<string> textures;
+		lock ( sharedMaterials )
+		{
+			if ( !materialLives.TryGetValue( path, out var life ) || life.Holders == 0 ) return;
+			if ( --life.Holders > 0 || life.Pinned ) return;
+			materialLives.Remove( path );
+			sharedMaterials.Remove( path );
+			textures = life.Textures;
+			MaterialsFreed++;
+		}
+
+		if ( textures is null ) return;
+		List<GpuTexture> freed = null;
+		lock ( loadedTextures )
+		{
+			foreach ( var texture in textures )
+			{
+				if ( !textureLives.TryGetValue( texture, out var life ) || life.Holders == 0 ) continue;
+				if ( --life.Holders > 0 || life.Pinned ) continue;
+				textureLives.Remove( texture );
+				if ( loadedTextures.Remove( texture, out var loaded ) ) (freed ??= new()).Add( loaded );
+			}
+		}
+
+		foreach ( var texture in freed ?? [] )
+		{
+			texture?.Dispose();
+			TexturesFreed++;
 		}
 	}
 
