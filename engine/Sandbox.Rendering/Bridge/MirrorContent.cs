@@ -58,6 +58,9 @@ internal static class MirrorContent
 		while ( freedModels.TryDequeue( out var freed ) ) freed.Free();
 		if ( runtimeMeshes.TryGetValue( model, out var known ) )
 		{
+			// It couldn't be read: not again
+			if ( known.Mesh is null ) return null;
+
 			// Freed after no world held it for a while (BackendDevice.TrackModel): made again
 			if ( known.Mesh.Geometry is not BackendModel { Freed: true } ) return known.Mesh;
 			runtimeMeshes.Remove( model );
@@ -67,16 +70,29 @@ internal static class MirrorContent
 		RenderMesh mesh;
 		if ( gpu.AsyncModels )
 		{
-			var read = runtimeReads.GetValue( model, m => gpu.ReadModelAsync( m.SaveToVmdl ) );
+			var read = runtimeReads.GetValue( model, m => gpu.ReadModelAsync( SaveOffThread( m ) ) );
 			mesh = gpu.MakeModel( read, ulong.MaxValue, drawFastPath: true, out pending );
 			if ( pending ) return null;
 			runtimeReads.Remove( model );
+			if ( mesh is null && read.Exception?.GetBaseException() is { } e ) Log.Warning( e, $"Couldn't read run-time model {model.Name}: {e.Message}" );
 		}
 		else mesh = BackendModel.Create( gpu, ModelFile.Read( model.SaveToVmdl(), gpu.Content.TryRead ), meshGroups: ulong.MaxValue, drawFastPath: true );
 
 		runtimeMeshes.AddOrUpdate( model, new RuntimeModel( mesh ) );
-		gpu.TrackModel( mesh );
+		if ( mesh is not null ) gpu.TrackModel( mesh );
 		return mesh;
+	}
+
+	/// <summary>
+	/// What saves a run-time model for a worker to read: its buffers read back on the worker, or here when Source 2's device
+	/// is a real one (the editor), whose read-backs run its frame's queues and belong on the main thread.
+	/// </summary>
+	static Func<byte[]> SaveOffThread( Model model )
+	{
+		if ( !Graphics.HasSource2Device ) return model.SaveToVmdl;
+
+		var bytes = model.SaveToVmdl();
+		return () => bytes;
 	}
 
 	/// <summary>Whether a model loading asynchronously (<see cref="Mesh(Model, out bool)"/>) has been read, so asking again can make it.</summary>
@@ -91,7 +107,7 @@ internal static class MirrorContent
 
 		~RuntimeModel()
 		{
-			if ( Mesh.Geometry is BackendModel geometry ) freedModels.Enqueue( geometry );
+			if ( Mesh?.Geometry is BackendModel geometry ) freedModels.Enqueue( geometry );
 		}
 	}
 
