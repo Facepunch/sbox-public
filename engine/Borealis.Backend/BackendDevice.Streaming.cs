@@ -261,6 +261,8 @@ public sealed partial class BackendDevice
 				ModelsFreed++;
 			}
 
+			// What the models' textures shared memory blocks with is moved out of those left mostly empty
+			if ( freeing.Count > 0 && streamer is { } textures ) textures.CompactSoon();
 			freeing.Clear();
 		}
 

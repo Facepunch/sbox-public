@@ -23,8 +23,11 @@ public static partial class Graphics
 	/// </summary>
 	internal static bool HasSource2Device { get; set; }
 
-	/// <summary>Whether the process draws on a Borealis.Gpu device of its own (<c>-borealisgpu</c>).</summary>
-	internal static readonly bool BorealisGpuRequested = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu" );
+	/// <summary>
+	/// Whether the process draws on a Borealis.Gpu device of its own (<c>-borealisgpu</c>, which the game and the editor add
+	/// themselves: <c>AppSystem.DrawOnBorealisGpu</c>).
+	/// </summary>
+	internal static bool BorealisGpuRequested => Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu" );
 
 	internal static void Initialize()
 	{

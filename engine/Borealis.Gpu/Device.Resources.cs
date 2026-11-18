@@ -548,6 +548,18 @@ public sealed unsafe partial class Device
 	public bool IsAlive( TextureHandle texture ) => Textures.IsAlive( texture.Index, texture.Generation );
 
 	/// <summary>
+	/// Whether <paramref name="texture"/>'s memory is in a shared block less than <paramref name="fullness"/> used: what an
+	/// unload left behind keeps such blocks from going back, and a texture that can be made again elsewhere (a streamed
+	/// one's next image) lets them drain.
+	/// </summary>
+	public bool InSparseBlock( TextureHandle texture, double fullness )
+	{
+		if ( !IsAlive( texture ) ) return false;
+		var block = Get( texture ).Memory.Block;
+		return block is { Dedicated: false } && block.Used < block.Size * fullness;
+	}
+
+	/// <summary>
 	/// A sampled texture's index in the bindless table (<c>Bindless::GetTexture2D</c> and friends); its sRGB view is at
 	/// the next index (<c>GetTexture2DSrgb</c>). -1 if it isn't sampled.
 	/// </summary>

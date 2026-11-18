@@ -374,12 +374,25 @@ public class AppSystem
 		Application.Shutdown();
 	}
 
+	/// <summary>
+	/// Draw on Borealis.Gpu (<c>-borealisgpu</c>) whatever the command line says: the game and the editor do, and there is
+	/// no switch back to Source 2's renderer. Adds the switch to the command line native and managed code read, so call it
+	/// before anything starts.
+	/// </summary>
+	protected static void DrawOnBorealisGpu()
+	{
+		if ( Utility.CommandLine.HasSwitch( "-borealisgpu" ) ) return;
+
+		Utility.CommandLine.CommandLineString = (Utility.CommandLine.CommandLineString ?? System.Environment.CommandLine) + " -borealisgpu";
+		Utility.CommandLine.Parse();
+	}
+
 	protected void InitGame( AppSystemCreateInfo createInfo, string commandLine = null )
 	{
 		Bootstrap.StartStartupClock();
 		InstallRenderers();
 
-		commandLine ??= System.Environment.CommandLine;
+		commandLine ??= Utility.CommandLine.CommandLineString ?? System.Environment.CommandLine;
 		commandLine = commandLine.Replace( ".dll", ".exe" ); // uck
 
 		_appSystem = CMaterialSystem2AppSystemDict.Create( createInfo.ToMaterialSystem2AppSystemDictCreateInfo() );
