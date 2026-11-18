@@ -150,6 +150,8 @@ public class BorealisGpuTexturesTest
 	[TestMethod]
 	public void FrameDrawsGetTheViewsLookupTables()
 	{
+		RequireVulkan();
+
 		var attributes = RenderAttributes.CreateManaged();
 		BorealisGpuFrame.SetViewTextures( attributes );
 
