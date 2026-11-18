@@ -80,4 +80,31 @@ public class MemoryAllocatorTests : GpuTest
 
 		foreach ( var allocation in (Allocation[])[a, b, c, d] ) allocator.Free( allocation );
 	}
+
+	/// <summary>
+	/// A target too big for a small block (a view's colour or depth) gets its own allocation, which goes back to the driver
+	/// as soon as it's freed: in large blocks, targets made and dropped with views and window sizes left them mostly empty
+	/// (the editor held 512 MiB of large image blocks for 246 MiB of images). Small targets still share small blocks.
+	/// </summary>
+	[TestMethod]
+	public void BigTargetsGetTheirOwnAllocation()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false };
+		var big = new VkMemoryRequirements { size = allocator.BlockSize / 2, alignment = 256, memoryTypeBits = ~0u };
+		var small = big with { size = allocator.BlockSize / 8 };
+
+		var target = allocator.Allocate( big, MemoryLocation.Device, image: true, target: true );
+		Assert.IsTrue( target.Block.Dedicated, "a big target is its own allocation" );
+		Assert.AreEqual( big.size, allocator.Reserved );
+		allocator.Free( target );
+		Assert.AreEqual( 0ul, allocator.Reserved, "and goes back to the driver when freed" );
+
+		var smallTarget = allocator.Allocate( small, MemoryLocation.Device, image: true, target: true );
+		Assert.IsFalse( smallTarget.Block.Dedicated, "a small target shares a small block" );
+		var texture = allocator.Allocate( big, MemoryLocation.Device, image: true );
+		Assert.IsTrue( texture.Block.Large, "a big texture that isn't a target shares a large block" );
+
+		allocator.Free( smallTarget );
+		allocator.Free( texture );
+	}
 }

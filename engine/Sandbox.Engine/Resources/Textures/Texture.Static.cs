@@ -52,4 +52,37 @@ public partial class Texture
 
 		return result;
 	}
+
+	/// <summary>
+	/// A render target only Borealis.Gpu draws with or into (a frame's targets handed to the engine's drawing, a widget's
+	/// window target, a bitmap render's target). Where Source 2's device is kept beside Borealis.Gpu (the editor), its image
+	/// on Source 2 is 1x1, never drawn with, rather than a full-size copy nothing uses; the texture describes itself at its
+	/// own size, which is what Borealis.Gpu makes its backing from. Anywhere else this is <see cref="TextureBuilder.Create"/>.
+	/// </summary>
+	internal static Texture CreateOnBorealisGpu( TextureBuilder builder, string name )
+	{
+		if ( !Graphics.HasSource2Device || RenderBackend.Default is not BorealisGpuRenderBackend ) return builder.Create( name );
+
+		var config = builder._config.GetWithFixes();
+		var placeholder = builder;
+		placeholder._config.m_nWidth = 1;
+		placeholder._config.m_nHeight = 1;
+		placeholder._config.m_nNumMipLevels = 1;
+		var texture = placeholder.Create( name );
+		if ( texture is null ) return null;
+
+		var desc = texture.Desc;
+		desc.m_nWidth = config.m_nWidth;
+		desc.m_nHeight = config.m_nHeight;
+		desc.m_nNumMipLevels = config.m_nNumMipLevels;
+		desc.m_nDisplayRectWidth = config.m_nWidth;
+		desc.m_nDisplayRectHeight = config.m_nHeight;
+		texture._desc = desc;
+		texture.gotdesc = true;
+		texture.OnBorealisGpuOnly = true;
+		return texture;
+	}
+
+	/// <summary>Made by <see cref="CreateOnBorealisGpu"/>: Source 2's image of it is a 1x1 placeholder.</summary>
+	internal bool OnBorealisGpuOnly { get; private set; }
 }
