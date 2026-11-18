@@ -150,8 +150,8 @@ internal sealed partial class SceneMirror
 		if ( model?.Mesh is not { } mesh ) return null;
 
 		// Worked out in managed code for an object managed code made; read from native for one native code made (a map's)
-		if ( sceneObject.ResolvesDraws ) SceneNative.ReadManagedDraws( sceneObject, objectDraws, drawStates );
-		else SceneNative.ReadSceneObjectDraws( sceneObject, drawStates );
+		if ( sceneObject.ResolvesDraws ) SceneNative.ReadManagedDraws( sceneObject, objectDraws, drawStates, MaterialResolver );
+		else SceneNative.ReadSceneObjectDraws( sceneObject, drawStates, MaterialResolver );
 		if ( drawStates.Count == 0 ) return mesh;
 
 		// Compare hash matches against scratch data; allocate only for new variants.

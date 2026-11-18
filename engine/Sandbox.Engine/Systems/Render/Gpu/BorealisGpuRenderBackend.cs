@@ -871,7 +871,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		if ( !string.IsNullOrEmpty( texture.ResourcePath ) ) return null;
 		if ( !Texture.MaterialOrigins.TryGetValue( texture, out var origin ) || origin is not Texture.MaterialOrigin o ) return null;
-		return services.MaterialTexture( o.Material, o.Parameter ) as BackendTexture;
+		return services.LoadedMaterialTexture( o.Material, o.Parameter ) as BackendTexture;
 	}
 
 	/// <summary>A texture loaded from a compiled <c>.vtex</c>, read from that file.</summary>
@@ -1260,6 +1260,12 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			}
 
 			foreach ( var combo in program.DynamicCombos ) names.TryAdd( new StringToken( combo.Name ).Value, combo.Name );
+		}
+
+		// A shader only its module describes has no compiled variables: the module's names instead
+		if ( shader is { ModuleOnly: true } && drawer.Shaders.Modules is { } modules )
+		{
+			foreach ( var name in modules.BindingNames( shader ) ) names.TryAdd( new StringToken( name ).Value, name );
 		}
 
 		return shader;

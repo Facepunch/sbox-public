@@ -158,6 +158,9 @@ public sealed class SceneCubemap : SceneLight
 		WriteNative();
 		Calculate();
 		RequiresUpdate = true;
+
+		// Renderers mirroring the scene read the texture and settings again (a probe's texture made anew)
+		NotifyChanged( Rendering.SceneObjectChange.Settings );
 	}
 
 	/// <summary>

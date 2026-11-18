@@ -16,9 +16,13 @@ public class SceneRenderingWidget : Frame
 	// With -borealisgpu: the widget presents on Borealis.Gpu, a swap chain on its native window, in place of Source 2's
 	// (docs/managed/borealis-gpu-path.md, the editor)
 	BorealisGpuWindow borealis;
+	readonly bool presentsOnBorealisGpu;
+
+	// Qt changed the widget's native window id since the last frame (FollowNativeWindow)
+	bool winIdChanged;
 
 	/// <summary>Whether the widget draws and presents on Borealis.Gpu.</summary>
-	internal bool OnBorealisGpu => borealis is not null;
+	internal bool OnBorealisGpu => presentsOnBorealisGpu;
 
 	/// <summary>The texture the widget's last frame on Borealis.Gpu was drawn into, as it was presented. Null on Source 2.</summary>
 	internal Texture BorealisGpuTarget => borealis?.Target;
@@ -62,7 +66,8 @@ public class SceneRenderingWidget : Frame
 		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu )
 			borealis = BorealisGpuWindow.FromNativeWindow( gpu, _widget.winId(), Size * DpiScale, vsync: false );
 
-		if ( borealis is not null ) borealis.Samples = SampleCount( aa );
+		presentsOnBorealisGpu = borealis is not null;
+		if ( presentsOnBorealisGpu ) borealis.Samples = SampleCount( aa );
 		else SwapChain = WidgetUtil.CreateSwapChain( _widget, aa );
 		RenderSettings.Instance.OnVideoSettingsChanged += HandleVideoChanged;
 
@@ -79,16 +84,36 @@ public class SceneRenderingWidget : Frame
 
 	internal override void NativeDestroying() => ReleaseSwapChain();
 
+	/// <summary>
+	/// Qt reset the widget's native window id or gave it one: it was reparented (a widget made without a parent, then put
+	/// in a layout), docked or undocked. The id isn't asked for here: <c>winId()</c> makes the window again while Qt is
+	/// between the two, sending this event again inside this one, and both made a swap chain on the one window. The next
+	/// frame looks (<see cref="FollowNativeWindow"/>).
+	/// </summary>
 	internal override void OnWinIdChanged()
 	{
 		base.OnWinIdChanged();
-		if ( borealis is null || renderingStopped ) return;
+		if ( presentsOnBorealisGpu ) winIdChanged = true;
+	}
 
-		// Qt gave the widget a new native window (it was docked or undocked): the swap chain moves to it
-		var samples = borealis.Samples;
-		borealis.Dispose();
-		borealis = BorealisGpuWindow.FromNativeWindow( (BorealisGpuRenderBackend)RenderBackend.Default, _widget.winId(), Size * DpiScale, vsync: false );
+	/// <summary>
+	/// After Qt changed the widget's native window id: keep the swap chain when the window is still the one it presents
+	/// to (a reparent keeps it), or move it to the new one. False with nothing to present to.
+	/// </summary>
+	bool FollowNativeWindow()
+	{
+		if ( !winIdChanged || renderingStopped ) return borealis is not null;
+		winIdChanged = false;
+
+		var window = _widget.winId();
+		if ( borealis is not null && borealis.NativeWindow == window ) return true;
+
+		var samples = borealis?.Samples ?? SampleCount( RenderSettings.Instance.AntiAliasQuality.ToEngine() );
+		borealis?.Dispose();
+		borealis = null;
+		borealis = BorealisGpuWindow.MoveToNativeWindow( (BorealisGpuRenderBackend)RenderBackend.Default, window, Size * DpiScale );
 		if ( borealis is not null ) borealis.Samples = samples;
+		return borealis is not null;
 	}
 
 	internal static void ShutdownRendering()
@@ -220,9 +245,9 @@ public class SceneRenderingWidget : Frame
 		if ( !Scene.IsValid() ) return;
 		if ( !Visible ) return;
 
-		if ( borealis is not null )
+		if ( presentsOnBorealisGpu )
 		{
-			RenderOnBorealisGpu();
+			if ( FollowNativeWindow() ) RenderOnBorealisGpu();
 			return;
 		}
 
@@ -353,9 +378,9 @@ public class SceneRenderingWidget : Frame
 		if ( renderingStopped ) return;
 		var aa = RenderSettings.Instance.AntiAliasQuality.ToEngine();
 
-		if ( borealis is not null )
+		if ( presentsOnBorealisGpu )
 		{
-			borealis.Samples = SampleCount( aa );
+			if ( borealis is not null ) borealis.Samples = SampleCount( aa );
 			return;
 		}
 

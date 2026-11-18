@@ -193,7 +193,7 @@ internal static class MirrorContent
 
 		// A material's texture (a sky's cubemap for fog and sky lighting) is the material's, read by its path
 		if ( Sandbox.Texture.MaterialOrigins.TryGetValue( texture, out var origin ) && origin is Sandbox.Texture.MaterialOrigin o )
-			return gpu.MaterialTexture( o.Material, o.Parameter );
+			return gpu.LoadedMaterialTexture( o.Material, o.Parameter );
 
 		// Any other 2D texture made at run time (a render target a game draws a screen into) is the engine's copy on the device
 		return engine is not null && !texture.native.IsNull && texture.Depth == 1 ? engine.BorealisViewOf( texture ) : null;

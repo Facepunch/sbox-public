@@ -1,5 +1,5 @@
-// tools_sprite.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// tools_sprite: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 // The .shader's geometry stage makes a quad of each point. Here the vertex stage does it: the draw runs four vertices
 // per point (ExpandPrimitives), with the point as per-instance inputs, and each vertex makes one corner. A point the
 // box test rejects collapses to nothing.
@@ -7,12 +7,12 @@
 // HEADER: DevShader = true;
 // HEADER: Description = "Point rendering for tools";
 
-// MODES: Forward();
-// MODES: Default();
-// MODES: Depth( S_MODE_DEPTH );
-// MODES: ToolsUtil();
-
 #include "sbox/pass.slangh"
+
+Mode( Forward );
+Mode( Default );
+Mode( Depth, S_MODE_DEPTH );
+Mode( ToolsUtil );
 
 Feature( F_TEXTURED, 0..1 );
 Feature( F_ALPHA_TEST, 0..2 ( 0 = "None", 1 = "Separate Alpha (RGB+A)", 2 = "Embedded Alpha (RGBA)" ) );

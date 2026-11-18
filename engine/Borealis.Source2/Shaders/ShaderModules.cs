@@ -50,6 +50,12 @@ public interface IShaderModules
 	/// classic.
 	/// </summary>
 	ModuleProgram CompileGpuDriven( ShaderFile shader, ShaderMode mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos, Func<string, int?> attributes ) => null;
+
+	/// <summary>
+	/// The names a shader's module binds its globals by and its combos (attributes, <c>g_</c> variables, combos), as a compiled
+	/// file's variables say them: what values set by token are matched against. Empty without a module.
+	/// </summary>
+	IReadOnlyCollection<string> BindingNames( ShaderFile shader ) => [];
 }
 
 /// <summary>A shader's stages from its module, for one mode and combo values.</summary>

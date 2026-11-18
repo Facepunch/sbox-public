@@ -66,8 +66,8 @@ public class DecalTests
 			Assert.AreEqual( 7u, native.m_nSortOrder );
 
 			var decal = new Borealis.DecalObject( Transform.Zero );
-			var mirror = System.Type.GetType( "Sandbox.Rendering.Bridge.SceneMirror, Sandbox.Rendering", true );
-			mirror.GetMethod( "ApplyDecal", BindingFlags.Static | BindingFlags.NonPublic ).Invoke( null, [source, decal, SceneObjectChange.Settings] );
+			using var mirror = NewMirror( scene.SceneWorld );
+			mirror.GetType().GetMethod( "ApplyDecal", BindingFlags.Instance | BindingFlags.NonPublic ).Invoke( mirror, [source, decal, SceneObjectChange.Settings] );
 			Assert.AreEqual( Color.Blue, decal.Tint, "the renderer reads the managed settings" );
 			Assert.AreEqual( 9u, decal.SortOrder );
 			Assert.AreEqual( 0.5f, decal.CoverageRange );
@@ -80,6 +80,10 @@ public class DecalTests
 		}
 	}
 
+	/// <summary>A mirror of <paramref name="world"/> (it holds the textures its decals draw with), disposed by the caller.</summary>
+	static System.IDisposable NewMirror( SceneWorld world )
+		=> (System.IDisposable)System.Activator.CreateInstance( System.Type.GetType( "Sandbox.Rendering.Bridge.SceneMirror, Sandbox.Rendering", true ), [world] );
+
 	[TestMethod]
 	public void ManagedRendererMirrorsBlendModeChanges()
 	{
@@ -89,12 +93,12 @@ public class DecalTests
 		{
 			var source = new DecalSceneObject( scene.SceneWorld );
 			var decal = new Borealis.DecalObject( Transform.Zero );
-			var mirror = System.Type.GetType( "Sandbox.Rendering.Bridge.SceneMirror, Sandbox.Rendering", true );
-			var apply = mirror.GetMethod( "ApplyDecal", BindingFlags.Static | BindingFlags.NonPublic );
+			using var mirror = NewMirror( scene.SceneWorld );
+			var apply = mirror.GetType().GetMethod( "ApplyDecal", BindingFlags.Instance | BindingFlags.NonPublic );
 			foreach ( var mode in new[] { DecalBlendMode.Multiply, DecalBlendMode.Additive, DecalBlendMode.Alpha } )
 			{
 				source.BlendMode = mode;
-				apply.Invoke( null, [source, decal, SceneObjectChange.Settings] );
+				apply.Invoke( mirror, [source, decal, SceneObjectChange.Settings] );
 				Assert.AreEqual( (Borealis.DecalBlendMode)mode, decal.BlendMode );
 			}
 			source.Delete();

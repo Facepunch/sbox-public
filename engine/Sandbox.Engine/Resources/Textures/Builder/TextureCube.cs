@@ -220,7 +220,13 @@ public struct TextureCubeBuilder
 	/// <summary>
 	/// Build and create the actual texture
 	/// </summary>
-	public Texture Finish()
+	public Texture Finish() => Build( onBorealisGpu: false );
+
+	/// <summary>
+	/// Build and create it; with <paramref name="onBorealisGpu"/> and no data, as a texture only Borealis.Gpu draws with or
+	/// into (<see cref="Texture.CreateOnBorealisGpu"/>): where Source 2's device is kept beside it, a 1x1 placeholder there.
+	/// </summary>
+	internal Texture Build( bool onBorealisGpu )
 	{
 
 		if ( builder._config.m_nDepth > 1 )
@@ -256,6 +262,11 @@ public struct TextureCubeBuilder
 			{
 				throw new Exception( $"{_dataLength} is too much data to create texture! {memoryRequiredForTexture} bytes are required! You have {_dataLength - memoryRequiredForTexture} extra bytes! Remove them" );
 			}*/
+		}
+
+		if ( onBorealisGpu && !HasData )
+		{
+			return Texture.CreateOnBorealisGpu( builder, _name );
 		}
 
 		if ( _dataPtr != IntPtr.Zero )
