@@ -75,6 +75,12 @@ public partial class Texture : Resource, IDisposable
 	internal byte[] InitialPixels { get; set; }
 	internal Color? InitialColor { get; set; }
 
+	/// <summary>
+	/// Made in code (<see cref="Create(string, bool, TextureBuilder, IntPtr, int)"/>) rather than loaded from a file: its
+	/// name, if it has one, isn't a file another device could read it from.
+	/// </summary>
+	internal bool MadeAtRunTime { get; set; }
+
 	internal void CopyFrom( Texture texture )
 	{
 		if ( !texture.IsValid() )
@@ -82,6 +88,7 @@ public partial class Texture : Resource, IDisposable
 
 		// What other devices made of the old contents is stale
 		RenderBackend.ReleaseEverywhere( this );
+		MadeAtRunTime = texture.MadeAtRunTime;
 		InitialPixels = texture.InitialPixels;
 		InitialColor = texture.InitialColor;
 
