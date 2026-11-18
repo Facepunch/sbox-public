@@ -306,6 +306,7 @@ internal sealed class TextureStreamer
 		Measure( now );
 		GiveBack();
 		GiveBackIdle( updateTime );
+		MoveOutOfSparseBlocks();
 		Start();
 	}
 
@@ -321,6 +322,45 @@ internal sealed class TextureStreamer
 			StartBuild( texture, texture.TailTop );
 			IdleGivenBack++;
 		}
+	}
+
+	/// <summary>
+	/// Make the streamed textures in memory blocks that are mostly empty again elsewhere (<see cref="CompactSoon"/>), so the
+	/// blocks drain and go back to the driver: after a map unloads, its survivors kept them. A pass goes over every texture
+	/// once, a few builds at a time.
+	/// </summary>
+	public void CompactSoon()
+	{
+		// Once what was let go has been destroyed and idle textures have gone back to their tails (IdleSeconds), which
+		// moves their memory too
+		compactAt = 0;
+		compactAfter = System.Diagnostics.Stopwatch.GetTimestamp() + (long)((Math.Max( IdleSeconds, 0 ) + 5) * System.Diagnostics.Stopwatch.Frequency);
+		compacting = true;
+	}
+
+	/// <summary>Streamed textures made again out of mostly empty memory blocks, for soaks and tests.</summary>
+	public int Compacted { get; private set; }
+
+	/// <summary>How full a block has to be for what's in it to stay put when compacting.</summary>
+	const double SparseBlock = 0.25;
+
+	bool compacting;
+	int compactAt;
+	long compactAfter;
+
+	void MoveOutOfSparseBlocks()
+	{
+		if ( !compacting || System.Diagnostics.Stopwatch.GetTimestamp() < compactAfter ) return;
+		var gpu = device.Gpu;
+		for ( ; compactAt < textures.Count && builds.Count < MaxBuilds; compactAt++ )
+		{
+			var texture = textures[compactAt];
+			if ( texture.Building is not null || !texture.Texture.IsValid || !gpu.InSparseBlock( texture.Texture.Handle, SparseBlock ) ) continue;
+			StartBuild( texture, texture.ResidentTop );
+			Compacted++;
+		}
+
+		if ( compactAt >= textures.Count ) compacting = false;
 	}
 
 	// Textures disposed since
