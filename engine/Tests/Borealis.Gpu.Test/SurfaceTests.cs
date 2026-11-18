@@ -545,6 +545,55 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A pass module keeps what it read from its preprocessed lines (<see cref="PassModule.DerivedCacheFolder"/>): the next
+	/// run's module reads the same entry and render states without preprocessing, and one whose include was edited
+	/// preprocesses again. Before, every run preprocessed each module once per combo values.
+	/// </summary>
+	[TestMethod]
+	[DoNotParallelize]
+	public void PassModuleKeepsItsReadsBetweenRuns()
+	{
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-pass-derived-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		var interval = PassModule.IncludeCheckMs;
+		PassModule.IncludeCheckMs = 0;
+		try
+		{
+			var include = Path.Combine( folder, "states.slangh" );
+			File.WriteAllText( include, "RenderState( DepthBias, 4 );\n" );
+			var path = Path.Combine( folder, "kept.slang" );
+			var text = "#include \"states.slangh\"\n[shader( \"pixel\" )] float4 MainPs() : SV_Target0 { return 1; }\n";
+			var cache = Path.Combine( folder, "derived" );
+			PassModule Run()
+			{
+				var module = PassModule.FromText( path, text, [folder] );
+				module.DerivedCacheFolder = cache;
+				return module;
+			}
+
+			var values = new Dictionary<string, int>();
+			var first = Run();
+			CollectionAssert.AreEqual( new[] { ("DepthBias", "4") }, first.RenderStates( values ).ToArray() );
+			Assert.IsTrue( first.Has( StageKind.Pixel, values ) );
+			first.SaveDerived();
+
+			var before = PassModule.Preprocesses;
+			var second = Run();
+			CollectionAssert.AreEqual( new[] { ("DepthBias", "4") }, second.RenderStates( values ).ToArray(), "the kept render states" );
+			Assert.IsTrue( second.Has( StageKind.Pixel, values ), "the kept entry" );
+			Assert.AreEqual( before, PassModule.Preprocesses, "read, not preprocessed" );
+
+			File.WriteAllText( include, "RenderState( DepthBias, 16 );\n// longer\n" );
+			CollectionAssert.AreEqual( new[] { ("DepthBias", "16") }, Run().RenderStates( values ).ToArray(), "an edited include preprocesses again" );
+		}
+		finally
+		{
+			PassModule.IncludeCheckMs = interval;
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// A pass module keeps what it preprocessed per combo values only while the includes it read are unchanged: an edited
 	/// include's render states are read again (hotload), once its check interval has passed (none here).
 	/// </summary>
