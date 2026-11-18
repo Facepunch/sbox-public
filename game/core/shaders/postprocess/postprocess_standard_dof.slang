@@ -1,5 +1,4 @@
-// postprocess_standard_dof: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// postprocess_standard_dof: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 // HEADER: Description = "Depth of Field";
 // HEADER: DevShader = true;
 

@@ -4,7 +4,7 @@ namespace Borealis;
 
 /// <summary>
 /// Box of baked probes (<c>CSceneLightProbeVolumeObject</c>).
-/// Each object selects one volume from all world volumes, including off-screen ones.
+/// Each object selects one volume from all world volumes the view draws, including off-screen ones.
 /// </summary>
 public sealed class LightProbeVolume
 {
@@ -14,18 +14,44 @@ public sealed class LightProbeVolume
 	internal int Version { get; private set; }
 
 	/// <summary>
-	/// Cache key covering volume identity, order and selection revisions.
+	/// Cache key covering the identity, order and selection revisions of the volumes a view with
+	/// <paramref name="subWorlds"/> shows.
 	/// </summary>
-	internal static long Key( List<LightProbeVolume> volumes )
+	internal static long Key( List<LightProbeVolume> volumes, ulong subWorlds = ~0UL )
 	{
 		long key = volumes.Count;
 		for ( int i = 0; i < volumes.Count; i++ )
 		{
 			var volume = volumes[i];
+			if ( !volume.ShownIn( subWorlds ) ) continue;
 			key = key * 1000003 + ((long)RuntimeHelpers.GetHashCode( volume ) << 20 ^ volume.Version);
 		}
 
 		return key;
+	}
+
+	/// <summary>
+	/// 0 for the world's own volume, or the sub-world of another world drawn in this one's views (<see cref="RenderObject.SubWorld"/>),
+	/// whose volumes light only views drawing it, as native's binner takes the volumes of the worlds a view renders.
+	/// </summary>
+	public int SubWorld { get; set { field = value; Version++; } }
+
+	internal bool ShownIn( ulong subWorlds ) => SubWorld == 0 || (subWorlds & (1UL << (SubWorld - 1))) != 0;
+
+	/// <summary>
+	/// Copy another volume's selection data and constants, keeping this one's sub-world: a stand-in for a volume of a world
+	/// another includes (<see cref="RenderWorld.DrawnLightProbeVolumes"/>).
+	/// </summary>
+	internal void CopyFrom( LightProbeVolume other )
+	{
+		Transform = other.Transform;
+		BoxMins = other.BoxMins;
+		BoxMaxs = other.BoxMaxs;
+		Handshake = other.Handshake;
+		RenderPriority = other.RenderPriority;
+		LightGroups = other.LightGroups;
+		Enabled = other.Enabled;
+		Attributes = other.Attributes;
 	}
 
 	/// <summary>
@@ -74,13 +100,13 @@ public sealed class LightProbeVolume
 	/// priority, then distance (<c>ChooseLightProbeVolume</c>, <c>CLightBinner2::ChooseLightProbeVolume</c>). Non-containing
 	/// candidates must touch object bounds. Returns -1 for none.
 	/// </summary>
-	internal static int Choose( List<LightProbeVolume> volumes, Vector3 origin, Vector3 boundsCenter, Vector3 boundsExtents, uint lightGroup, int handshake = 0 )
+	internal static int Choose( List<LightProbeVolume> volumes, Vector3 origin, Vector3 boundsCenter, Vector3 boundsExtents, uint lightGroup, int handshake = 0, ulong subWorlds = ~0UL )
 	{
 		if ( handshake != 0 )
 		{
 			for ( int i = 0; i < volumes.Count; i++ )
 			{
-				if ( volumes[i].Handshake == handshake && volumes[i].Enabled && volumes[i].Attributes is not null ) return i;
+				if ( volumes[i].Handshake == handshake && volumes[i].Enabled && volumes[i].Attributes is not null && volumes[i].ShownIn( subWorlds ) ) return i;
 			}
 		}
 
@@ -94,7 +120,7 @@ public sealed class LightProbeVolume
 		for ( int i = 0; i < volumes.Count; i++ )
 		{
 			var volume = volumes[i];
-			if ( !volume.Enabled || volume.Attributes is null ) continue;
+			if ( !volume.Enabled || volume.Attributes is null || !volume.ShownIn( subWorlds ) ) continue;
 			if ( Array.IndexOf( volume.LightGroups, lightGroup ) < 0 ) continue;
 
 			var mins = volume.BoxMins;

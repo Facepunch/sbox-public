@@ -37,7 +37,8 @@ internal sealed partial class BorealisGpuRenderBackend
 			{
 				Width = info.Width,
 				Height = info.Height,
-				Depth = 1,
+				Depth = info.Dimension == TextureDimension.Texture3D ? info.Depth : 1,
+				Cube = info.Dimension is TextureDimension.TextureCube or TextureDimension.TextureCubeArray,
 				Format = Borealis.Gpu.Source2.Source2Formats.From( texture.ImageFormat ),
 				Samples = Math.Max( info.Samples, 1 ),
 				Mips = Math.Max( info.Mips, 1 ),

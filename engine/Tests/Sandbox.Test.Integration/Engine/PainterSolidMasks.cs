@@ -14,8 +14,7 @@ public class PainterSolidMasksTest
 	[TestMethod]
 	public void TextMaskClipsSolidPolygonButNotSolidLine()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 
 		// A deterministic alpha mask exercises the same path as glyph rasterization.
 		using var mask = Texture.CreateRenderTarget().WithSize( 48, 24 ).Create();

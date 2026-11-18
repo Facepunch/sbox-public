@@ -57,12 +57,16 @@ internal static class BorealisGpuCustomDraw
 		backend.LendInstances( transforms, ids, offset );
 		backend.DrawMode = shaderMode.Value == 0 ? null : StringToken.GetValue( shaderMode.Value );
 		backend.DepthBias = depthAlone ? (depthBias, slopeScaledDepthBias) : default;
+		// A debug view's tools pass (wireframe, overdraw, shader IDs) over the custom object's draws too
+		var drawer = backend.Context.Drawer;
+		drawer.ToolsPass = depthAlone ? ToolsPass.None : context.ToolsPass;
 		try
 		{
 			frame.RunInFrame( target, constants, view, first: false, draw, depthAlone );
 		}
 		finally
 		{
+			drawer.ToolsPass = ToolsPass.None;
 			backend.LendInstances( default, default, 0 );
 			backend.DrawMode = null;
 			backend.DepthBias = default;

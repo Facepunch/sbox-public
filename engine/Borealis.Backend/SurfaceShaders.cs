@@ -916,21 +916,22 @@ internal sealed class SurfaceProgram : IDisposable
 		}
 	}
 
-	readonly PassObjects[] gpuDrivenPasses = new PassObjects[16];
-	readonly bool[] gpuDrivenLooked = new bool[16];
+	readonly PassObjects[] gpuDrivenPasses = new PassObjects[32];
+	readonly bool[] gpuDrivenLooked = new bool[32];
 
 	/// <summary>
-	/// A GPU-driven pass (<c>[Depth|Forward][AlphaTest|Translucent]GpuDriven[Lightmapped]</c>), found once; null when
-	/// there's none. <paramref name="translucent"/> is the colour pass of blended materials (S_TRANSLUCENT).
+	/// A GPU-driven pass (<c>[Depth|Forward][AlphaTest|Translucent]GpuDriven[Lightmapped|Skinned]</c>), found once; null when
+	/// there's none. <paramref name="translucent"/> is the colour pass of blended materials (S_TRANSLUCENT);
+	/// <paramref name="vertexCache"/> draws skinned vertices from the vertex cache, and has no fallback.
 	/// </summary>
-	public PassObjects GpuDrivenPass( bool noColor, bool alphaTest, bool lightmapped, bool translucent = false )
+	public PassObjects GpuDrivenPass( bool noColor, bool alphaTest, bool lightmapped, bool translucent = false, bool vertexCache = false )
 	{
 		translucent &= !noColor;
-		var index = (translucent ? 8 : 0) | (noColor ? 4 : 0) | (alphaTest && !translucent ? 2 : 0) | (lightmapped ? 1 : 0);
+		var index = (vertexCache ? 16 : 0) | (translucent ? 8 : 0) | (noColor ? 4 : 0) | (alphaTest && !translucent ? 2 : 0) | (lightmapped && !vertexCache ? 1 : 0);
 		if ( System.Threading.Volatile.Read( ref gpuDrivenLooked[index] ) ) return gpuDrivenPasses[index];
 
 		var name = (noColor ? (alphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth) : translucent ? ShaderPasses.Forward + "Translucent" : (alphaTest ? ShaderPasses.Forward + "AlphaTest" : ShaderPasses.Forward)) + ShaderPasses.GpuDriven;
-		var found = (lightmapped ? Pass( name + ShaderPasses.Lightmapped ) : null) ?? Pass( name );
+		var found = vertexCache ? Pass( name + ShaderPasses.Skinned ) : (lightmapped ? Pass( name + ShaderPasses.Lightmapped ) : null) ?? Pass( name );
 		gpuDrivenPasses[index] = found;
 		System.Threading.Volatile.Write( ref gpuDrivenLooked[index], true );
 		return found;
@@ -956,12 +957,15 @@ internal sealed class SurfaceProgram : IDisposable
 	/// writes its normal and roughness there (<see cref="WritesNormals"/>), any other leaves it as it is.
 	/// With <paramref name="specialized"/>, the pipeline specialised for those feature values once a worker has made it; the
 	/// unspecialised one until then, so nothing waits for it.
+	/// In a tools pass (<paramref name="tools"/>) a colour pass draws with the engine's pixel stage instead
+	/// (<see cref="ToolsViewStage"/>), unspecialised and not kept for the next run.
 	/// </summary>
-	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, bool ids = false, bool opaqueFade = false, bool depthEqual = false, SurfaceFeatures specialized = null, bool normals = false )
+	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, bool ids = false, bool opaqueFade = false, bool depthEqual = false, SurfaceFeatures specialized = null, bool normals = false, ToolsPass tools = ToolsPass.None )
 	{
 		// Only a pixel stage reads the features
 		if ( !pass.Pixel.IsValid ) specialized = null;
 		normals &= color != Format.Unknown && !ids;
+		if ( tools != ToolsPass.None && color != Format.Unknown && !ids ) return ToolsPipeline( pass, layout, color, depth, samples, vertexConstants, constantsKey, state, opaqueFade, depthEqual, normals, tools );
 		var key = (pass, layout, color, depth, samples, constantsKey, ids, opaqueFade, state, depthEqual, specialized?.Key ?? 0, normals);
 
 		// Never waited for: one a worker is making from the manifest is asked for again here, its draws skipped until made
@@ -970,6 +974,21 @@ internal sealed class SurfaceProgram : IDisposable
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 			return MakePipeline( key, pass, layout, color, depth, samples, vertexConstants, pixelConstants, constantsKey, state, ids, opaqueFade, depthEqual, specialized, normals );
+		}
+	}
+
+	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, bool Normals, ToolsPass Tools), PipelineHandle> toolsPipelines = new();
+
+	PipelineHandle ToolsPipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, ulong constantsKey, SurfaceRenderState state, bool opaqueFade, bool depthEqual, bool normals, ToolsPass tools )
+	{
+		var key = (pass, layout, color, depth, samples, constantsKey, opaqueFade, state, depthEqual, normals, tools);
+		lock ( pipelines )
+		{
+			if ( toolsPipelines.TryGetValue( key, out var made ) ) return made;
+			var info = Info( pass, layout, color, depth, samples, vertexConstants, null, state, false, opaqueFade, depthEqual, normals );
+			ToolsViewStage.Apply( device.Shaders, ref info, tools, ToolsViews.ShaderColor( Compiled.Name ) );
+			using ( Zones.PipelineCreate.Start() ) made = device.Gpu.CreateGraphicsPipeline( info );
+			return toolsPipelines[key] = made;
 		}
 	}
 
@@ -1281,7 +1300,9 @@ internal sealed class SurfaceProgram : IDisposable
 		lock ( pipelines )
 		{
 			foreach ( var pipeline in pipelines.Values ) device.Gpu.Destroy( pipeline );
+			foreach ( var pipeline in toolsPipelines.Values ) device.Gpu.Destroy( pipeline );
 			pipelines.Clear();
+			toolsPipelines.Clear();
 		}
 	}
 }

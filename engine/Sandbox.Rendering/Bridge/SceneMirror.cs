@@ -42,7 +42,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		obj = Find( sceneObject );
 		return obj is not null || undrawn.Contains( sceneObject );
 	}
-	readonly HashSet<SceneDirectionalLight> suns = new();
+
+	// In the order they were added: the last enabled one is the sun
+	readonly List<SceneDirectionalLight> suns = new();
 
 	// Objects with attributes, read when a view draws them (Refresh).
 	readonly Dictionary<MeshObject, RenderAttributes> attributed = new();
@@ -138,6 +140,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		}
 
 		World.ExcludeEverywhere();
+		DisposeMaps();
 		lock ( lightmapFolders )
 		{
 			if ( MirrorContent.Gpu is { } gpu )
@@ -240,6 +243,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		{
 			foreach ( var (sceneObject, change) in applying )
 				Apply( sceneObject, change, frame );
+
+			SyncMaps();
 		}
 
 		applying.Clear();
@@ -440,8 +445,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	/// </summary>
 	RenderObject Add( SceneObject sceneObject )
 	{
-		// Probe volumes belong to the world's lighting list, not its draw list. An extra world's aren't drawn in another's: the
-		// list is the main world's, for every view of it
+		// Probe volumes belong to the world's lighting list, not its draw list. A world that includes this one draws them
+		// through stand-ins with its number (RenderWorld.DrawnLightProbeVolumes), so they light only views drawing it
 		if ( sceneObject is SceneLightProbe probe )
 		{
 			var volume = new Borealis.LightProbeVolume();
@@ -470,7 +475,10 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		else
 		{
 			undrawn.Add( sceneObject );
-			if ( sceneObject is SceneDirectionalLight sun ) suns.Add( sun );
+			if ( sceneObject is SceneDirectionalLight sun )
+			{
+				if ( !suns.Contains( sun ) ) suns.Add( sun );
+			}
 			else if ( sceneObject is not SceneSkyBox ) Count( sceneObject, 1 );
 		}
 
@@ -790,7 +798,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 
 	/// <summary>
 	/// Refresh dirty sun state, per-view sky selection and camera lighting (<c>CameraRenderer.Configure</c>).
-	/// Uses the first enabled sun; native uses the last encountered by its binner.
+	/// Uses the last enabled sun added, as native's binner keeps the last directional light it meets in its light list and
+	/// lights with no other (<c>CLightBinnerStandard::GatherVisibleLights</c>).
 	/// </summary>
 	void SyncLighting( SceneCamera camera, bool skyboxView )
 	{
@@ -801,8 +810,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			sunDirty = false;
 
 			SceneDirectionalLight sun = null;
-			foreach ( var candidate in suns )
+			for ( int i = suns.Count - 1; i >= 0; i-- )
 			{
+				var candidate = suns[i];
 				if ( candidate.IsValid() && candidate.RenderingEnabled )
 				{
 					sun = candidate;
@@ -926,7 +936,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		var lighting = World.Lighting;
 		var text = new System.Text.StringBuilder();
 		var others = suns.Count( x => x.IsValid() && x.RenderingEnabled ) - 1;
-		text.Append( $"sun {lighting.SunColor} towards {lighting.SunDirection} (shadows {lighting.SunShadows}, {lighting.SunShadowCascades} cascades{(others > 0 ? $", {others} more: " + string.Join( ", ", suns.Where( x => x.IsValid() && x.RenderingEnabled ).Skip( 1 ).Select( x => $"{x.LightColor} towards {-x.WorldDirection}" ) ) : "")}), ambient {lighting.AmbientColor}, gradient fog {lighting.GradientFog.Enabled}, cubemap fog {lighting.CubemapFog.Enabled}, volumetric fog {lighting.VolumetricFog.Enabled} with {World.FogVolumes.Count} volumes" );
+		text.Append( $"sun {lighting.SunColor} towards {lighting.SunDirection} (shadows {lighting.SunShadows}, {lighting.SunShadowCascades} cascades{(others > 0 ? $", {others} more: " + string.Join( ", ", suns.Where( x => x.IsValid() && x.RenderingEnabled ).SkipLast( 1 ).Select( x => $"{x.LightColor} towards {-x.WorldDirection}" ) ) : "")}), ambient {lighting.AmbientColor}, gradient fog {lighting.GradientFog.Enabled}, cubemap fog {lighting.CubemapFog.Enabled}, volumetric fog {lighting.VolumetricFog.Enabled} with {World.FogVolumes.Count} volumes" );
 
 		foreach ( var obj in World.Objects )
 		{

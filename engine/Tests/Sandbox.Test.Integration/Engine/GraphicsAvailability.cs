@@ -8,16 +8,17 @@ public class GraphicsAvailabilityTest
 	[TestMethod]
 	public void AvailabilityMatchesInitializedRenderer()
 	{
+		// Source 2's real device, or Borealis.Gpu drawing over its empty one (-borealisgpu)
 		Assert.AreEqual(
-			g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY,
+			g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY || RenderBackend.Default is BorealisGpuRenderBackend,
 			Graphics.IsAvailable );
 	}
 
 	[TestMethod]
 	public void EmptyRendererBuildsPanelSnapshotWithoutGpuBuffers()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY )
-			Assert.Inconclusive( "Requires the empty renderer." );
+		if ( Graphics.IsAvailable )
+			Assert.Inconclusive( "Requires the empty renderer with nothing drawing." );
 
 		var root = new RootPanel { RenderedManually = true, PanelBounds = new Rect( 0, 0, 64, 64 ) };
 		try

@@ -98,6 +98,11 @@ internal abstract class MeshLayer : RenderLayer
 	public bool ForceDepthFastPath { get; protected init; }
 
 	/// <summary>
+	/// Whether its draws take the view's tools pass (<see cref="ToolsViews"/>): the colour layers of the world and its overlays.
+	/// </summary>
+	public bool TakesToolsPass { get; protected init; }
+
+	/// <summary>
 	/// Which occlusion cull result this layer draws with.
 	/// </summary>
 	public OcclusionPhase OcclusionPhase { get; protected init; }

@@ -11,8 +11,7 @@ public class PanelTextureShapeTest
 	[DataRow( "none" )]
 	public void ImageTextureUsesTheSameShapeAsItsBackground( string shape )
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires the Vulkan renderer." );
+		TestGraphics.Require();
 
 		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 200, 200 ) };
 		var image = root.AddChild<Image>();

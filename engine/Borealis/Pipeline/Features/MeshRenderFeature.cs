@@ -468,8 +468,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( keptShadow.Length < lods.Length ) Array.Resize( ref keptShadow, lods.Length );
 		if ( pass.LodTexelsPerUnit > 0 && keptTexel.Length < lods.Length ) Array.Resize( ref keptTexel, lods.Length );
 		if ( classified.Length < visible.Count ) Array.Resize( ref classified, Math.Max( visible.Count, classified.Length * 2 ) );
-		var volumes = world.LightProbeVolumes;
-		var volumesKey = volumes.Count > 0 && !pass.IsShadow ? LightProbeVolume.Key( volumes ) : 0;
+		var volumes = world.DrawnLightProbeVolumes;
+		var volumesKey = volumes.Count > 0 && !pass.IsShadow ? LightProbeVolume.Key( volumes, pass.View.SubWorlds ) : 0;
 
 		// Each object's LOD, probe, lists and sort keys are its own, so a big view classifies across threads
 		classifying = (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey, transforms.Generation, textureSizes);
@@ -544,16 +544,17 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		// Static opaque draws go with the aggregates when the device draws them GPU-driven, as one run (so not while
 		// occlusion culls, which the aggregates' feature then draws batch by batch)
-		if ( Occlusion is null && RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } ) TakeGpuDriven( layers );
+		if ( Occlusion is null && RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } device ) TakeGpuDriven( layers, device.DrawsSkinnedGpuDriven );
 	}
 
 	/// <summary>
 	/// Move the opaque list's draws the GPU-driven path can take into <see cref="RunLists.GpuDriven"/>: static meshes'
 	/// instances with nothing per object but their lighting (no attributes, callbacks, skinning or culled arguments),
 	/// which the aggregates' feature hands the device with its own batches. Frame-buffer readers too: colour layers take
-	/// the frame copy before the call that draws them (<see cref="RunLists.ReadersTaken"/>).
+	/// the frame copy before the call that draws them (<see cref="RunLists.ReadersTaken"/>). With <paramref name="skinned"/>,
+	/// skinned meshes' runs too, morphed and deformed ones included: their instances are their members' base entries.
 	/// </summary>
-	static void TakeGpuDriven( RunLists layers )
+	static void TakeGpuDriven( RunLists layers, bool skinned )
 	{
 		var runs = CollectionsMarshal.AsSpan( layers.Opaque );
 		var items = layers.ItemsByBit[0];
@@ -562,7 +563,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		{
 			var item = items[i];
 			ref readonly var run = ref runs[item.Run];
-			if ( TakesGpuDriven( run ) && !(run.ReadsFrameBuffer && NoGpuDrivenReaders) )
+			if ( TakesGpuDriven( run, skinned ) && !(run.ReadsFrameBuffer && NoGpuDrivenReaders) )
 			{
 				layers.GpuDriven.Add( item );
 				layers.ReadersTaken |= run.ReadsFrameBuffer;
@@ -578,8 +579,14 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary><c>-no-gpudriven-readers</c>: leave frame-buffer readers to the classic path, for comparisons.</summary>
 	internal static readonly bool NoGpuDrivenReaders = Array.Exists( Environment.GetCommandLineArgs(), a => a.Equals( "-no-gpudriven-readers", StringComparison.OrdinalIgnoreCase ) );
 
-	/// <summary>Whether <see cref="TakeGpuDriven"/> takes a run: nothing per object but its lighting.</summary>
-	static bool TakesGpuDriven( in Run run ) => run.Custom is null && run.Callbacks is null && !run.Skinned && !run.Deformed && !run.Morphable && run.CullDraw < 0 && run.Attributes is null;
+	/// <summary>
+	/// Whether <see cref="TakeGpuDriven"/> takes a run: nothing per object but its lighting. With <paramref name="skinned"/>,
+	/// skinned runs too, deformed and morphed ones included, which draw from the vertex cache or skin in the vertex shader there
+	/// as here, with their object attributes (a dresser gives every citizen's renderers some, mostly shared sets): those
+	/// split buckets.
+	/// </summary>
+	static bool TakesGpuDriven( in Run run, bool skinned ) => run.Custom is null && run.Callbacks is null && run.CullDraw < 0
+		&& (skinned && run.Skinned || !run.Skinned && !run.Deformed && !run.Morphable && run.Attributes is null);
 
 	/// <summary>Whether a draw <see cref="TakeGpuDriven"/> took reads the frame buffer.</summary>
 	internal bool ReadsFrameBuffer( ViewPass view, DrawItem item ) => CollectionsMarshal.AsSpan( view.State<RunLists>( this ).Opaque )[item.Run].ReadsFrameBuffer;
@@ -603,8 +610,21 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var lighting = draw.Lightmapped ? (depth ? null : run.Lightmap) : probe;
 		var first = run.FirstInstance + (run.Tinted ? item.Draw * run.Count : 0);
 		var textureSize = TextureSizes.ForDraw( draw.UvDensity, run.TextureScale, run.TextureFallback );
-		return new GpuContext.GpuDrivenBatch( material, run.Mesh, draw, lighting, strip, -1, run.Count, first, (long)(draw.IndexCount / 3) * run.Count, null, Instances: true, TextureSize: textureSize );
+
+		// A skinned run's members' base entries for this draw's mesh, and whether it reads the vertex cache, as DrawItems draws it
+		var vertexCache = false;
+		if ( run.Skinned )
+		{
+			first += run.Mesh.BlockForLod( run.Lod, draw.Mesh ) * run.Count;
+			vertexCache = UsesVertexCache( run, draw );
+		}
+
+		return new GpuContext.GpuDrivenBatch( material, run.Mesh, draw, lighting, strip, -1, run.Count, first, (long)(draw.IndexCount / 3) * run.Count, null, Instances: true, TextureSize: textureSize, Skinned: run.Skinned, VertexCache: vertexCache, OwnAttributes: run.Skinned ? run.Attributes : null );
 	}
+
+	/// <summary>Whether a skinned run's draw reads the vertex cache: its mesh skins by compute, or deformation or morphs force it to.</summary>
+	static bool UsesVertexCache( in Run run, in RenderMesh.Draw draw )
+		=> run.Mesh.SkinFor( draw.Mesh ) is { } skin && (skin.UsesVertexCache || run.Deformed || (run.Morphable && skin.Morphs));
 
 	/// <summary>The view's GPU-driven draws the device left, drawn here as <see cref="DrawItems"/> draws any.</summary>
 	internal void DrawGpuDrivenLeft( GpuContext context, ViewPass view, ReadOnlySpan<DrawItem> items, MeshLayer layer, ref RenderStats stats )
@@ -707,7 +727,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			ShaderParameters probeAttributes = null;
 			if ( !shadow && (keep.Flags & KeptFlags.NeedsProbe) != 0 && volumes.Count > 0 )
 			{
-				var probe = ProbeFor( (MeshObject)objects[index], volumes, volumesKey, centers[index], extents[index] );
+				var probe = ProbeFor( (MeshObject)objects[index], volumes, volumesKey, centers[index], extents[index], pass.View.SubWorlds );
 				probeAttributes = probe >= 0 ? volumes[probe].Attributes : null;
 			}
 			if ( probeAttributes is not null || probes[index] is not null ) probes[index] = probeAttributes;
@@ -908,14 +928,14 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// Reuse the cached probe choice until selection inputs change.
 	/// </summary>
-	internal static int ProbeFor( MeshObject obj, List<LightProbeVolume> volumes, long volumesKey, Vector3 center, Vector3 extents )
+	internal static int ProbeFor( MeshObject obj, List<LightProbeVolume> volumes, long volumesKey, Vector3 center, Vector3 extents, ulong subWorlds )
 	{
 		// From its lighting origin, where it has one (CBaseSceneObjectDesc::GeneratePrimitives, GetLightingOrigin)
 		var origin = obj.LightingOrigin ?? center;
 		if ( obj.ProbeVolumesKey == volumesKey && obj.ProbeCenter.Equals( center ) && obj.ProbeExtents.Equals( extents ) && obj.ProbeOrigin.Equals( origin ) && obj.ProbeLightGroup == obj.LightGroup && obj.ProbeHandshake == obj.LightProbeHandshake )
 			return obj.ProbeChoice;
 
-		obj.ProbeChoice = LightProbeVolume.Choose( volumes, origin, center, extents, obj.LightGroup, obj.LightProbeHandshake );
+		obj.ProbeChoice = LightProbeVolume.Choose( volumes, origin, center, extents, obj.LightGroup, obj.LightProbeHandshake, subWorlds );
 		obj.ProbeOrigin = origin;
 		obj.ProbeCenter = center;
 		obj.ProbeExtents = extents;
@@ -1384,8 +1404,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			if ( run.Skinned )
 			{
 				first += mesh.BlockForLod( run.Lod, draw.Mesh ) * run.Count;
-				// Deformation and morphs force vertex-cache skinning.
-				vertexCache = mesh.SkinFor( draw.Mesh ) is { } drawSkin && (drawSkin.UsesVertexCache || run.Deformed || (run.Morphable && drawSkin.Morphs));
+				vertexCache = UsesVertexCache( run, draw );
 			}
 
 			if ( (vertexCache ? 1 : 0) != vertexAnimation )

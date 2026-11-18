@@ -14,6 +14,7 @@ internal sealed class OpaqueLayer : MeshLayer
 		ShaderMode = ForwardMode;
 		Runs = MeshRuns.Opaque | MeshRuns.OpaqueNoPrepass | MeshRuns.Faded | MeshRuns.OverlayPrepass;
 		OcclusionPhase = OcclusionPhase.Final;
+		TakesToolsPass = true;
 	}
 
 	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )

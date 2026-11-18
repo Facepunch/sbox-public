@@ -56,7 +56,12 @@ internal static class MirrorContent
 	{
 		pending = false;
 		while ( freedModels.TryDequeue( out var freed ) ) freed.Free();
-		if ( runtimeMeshes.TryGetValue( model, out var known ) ) return known.Mesh;
+		if ( runtimeMeshes.TryGetValue( model, out var known ) )
+		{
+			// Freed after no world held it for a while (BackendDevice.TrackModel): made again
+			if ( known.Mesh.Geometry is not BackendModel { Freed: true } ) return known.Mesh;
+			runtimeMeshes.Remove( model );
+		}
 
 		// Every mesh: a model built in code has no default mesh groups (native draws them all)
 		RenderMesh mesh;
@@ -70,6 +75,7 @@ internal static class MirrorContent
 		else mesh = BackendModel.Create( gpu, ModelFile.Read( model.SaveToVmdl(), gpu.Content.TryRead ), meshGroups: ulong.MaxValue, drawFastPath: true );
 
 		runtimeMeshes.AddOrUpdate( model, new RuntimeModel( mesh ) );
+		gpu.TrackModel( mesh );
 		return mesh;
 	}
 
@@ -116,7 +122,9 @@ internal static class MirrorContent
 				// Made in code from a shader: the shader's defaults, then what's set
 				if ( shader is not null )
 				{
-					made.Material = gpu.CreateMaterial( path, ShaderPath( shader ) );
+					// Through the base: BackendDevice's own CreateMaterial( string, Color ) wins overload resolution for a string
+					// (Color converts from one), which made a white complex material
+					made.Material = ((Borealis.GpuDevice)gpu).CreateMaterial( path, ShaderPath( shader ) );
 					gpu.SetOnMaterial( made.Material, values, textures );
 				}
 				else made.Material = gpu.LoadMaterial( path, values, textures, $"{path} (set in code)" );
@@ -223,6 +231,32 @@ internal static class MirrorContent
 	{
 		while ( freedCaptures.TryDequeue( out var freed ) ) freed.Dispose();
 		while ( freedModels.TryDequeue( out var model ) ) model.Free();
+
+		// Released cubes a few frames on, once worlds have dropped the probes that drew with them
+		collectFrames++;
+		while ( releasedCaptures.TryPeek( out var released ) && collectFrames - released.Frame >= ReleasedCaptureFrames )
+		{
+			releasedCaptures.TryDequeue( out _ );
+			released.Texture.Dispose();
+		}
+	}
+
+	// Cubes of engine textures that were disposed (ReleaseCapture), with the FreeCollected call they were released at
+	static readonly System.Collections.Concurrent.ConcurrentQueue<(GpuTexture Texture, long Frame)> releasedCaptures = new();
+	static long collectFrames;
+	const int ReleasedCaptureFrames = 3;
+
+	/// <summary>
+	/// An engine texture was disposed (a realtime probe's cube, as its component goes): the cube made for it is freed a few
+	/// frames on (<see cref="FreeCollected"/>), and a capture asked for it later makes another.
+	/// </summary>
+	public static void ReleaseCapture( Texture texture )
+	{
+		if ( texture is null || !captures.TryGetValue( texture, out var capture ) ) return;
+		captures.Remove( texture );
+		if ( capture.Owned && capture.Texture is not null ) releasedCaptures.Enqueue( (capture.Texture, collectFrames) );
+		capture.Owned = false;
+		capture.Texture = null;
 	}
 
 	/// <summary>Whether an engine texture is a cube made at run time for compute to write (a realtime probe's), which <see cref="CaptureCube"/> captures into.</summary>
@@ -350,13 +384,32 @@ internal static class MirrorContent
 			case float[] { Length: 4 } f: parameters.Set( name, new Vector4( f[0], f[1], f[2], f[3] ) ); break;
 			case float[] { Length: 16 } f: parameters.Set( name, MemoryMarshal.Read<Matrix>( MemoryMarshal.AsBytes( f.AsSpan() ) ) ); break;
 			case ManagedRenderAttributes.TextureValue t when Texture( t.Texture ) is { } texture: parameters.Set( name, texture, t.Mip ); break;
+			case Sandbox.GpuBuffer b when Buffer( b ) is { } buffer: parameters.Set( name, buffer ); break;
 		}
 	}
 
 	/// <summary>
+	/// An engine buffer as draws bind it: the engine's copy on the device (<see cref="BorealisGpuRenderBackend.BufferOf"/>,
+	/// which keeps it while the engine's buffer lives), borrowed, so the wrapper never frees it.
+	/// </summary>
+	public static Borealis.GpuBuffer Buffer( Sandbox.GpuBuffer buffer )
+	{
+		if ( Gpu is not { } gpu || RenderBackend.Default is not BorealisGpuRenderBackend engine || buffer is not { IsValid: true } ) return null;
+
+		var handle = engine.BufferOf( buffer );
+		if ( borrowedBuffers.TryGetValue( buffer, out var known ) && BackendDevice.Binds( known, handle ) ) return known;
+
+		var wrapped = gpu.BorrowBuffer( handle, buffer.ElementCount, buffer.ElementSize, "Engine buffer" );
+		borrowedBuffers.AddOrUpdate( buffer, wrapped );
+		return wrapped;
+	}
+
+	static readonly ConditionalWeakTable<Sandbox.GpuBuffer, Borealis.GpuBuffer> borrowedBuffers = new();
+
+	/// <summary>
 	/// An object's attributes as its draws read them: its managed copy (<c>RenderAttributes.Shadow</c>) converted, again only
-	/// when it changed. Numbers, vectors, matrices, combos and textures with a file carry over; buffers, samplers and constant
-	/// buffers don't yet.
+	/// when it changed. Numbers, vectors, matrices, combos, textures and buffers carry over; samplers and constant buffers
+	/// don't yet.
 	/// </summary>
 	public static ShaderParameters ObjectParameters( RenderAttributes attributes )
 	{

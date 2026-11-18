@@ -54,8 +54,7 @@ public class PainterCssStrokeTest : PainterTestBase
 	[TestMethod]
 	public void TransparentLeftEdgeDoesNotDisableTheOtherEdges()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 		using var target = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
 		using ( var painter = Painter.Begin( target ) )
 		{

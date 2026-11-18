@@ -317,7 +317,7 @@ public class PainterDestinationsTest
 		{
 			scope.Attributes.Set( "UIGammaOutput", true );
 			Graphics.RenderTarget = RenderTarget.From( target );
-			scope.Context.SetViewport( Bounds );
+			Graphics.Viewport = Bounds;
 			commands.Execute();
 		}
 		return target;
@@ -486,7 +486,6 @@ public class PainterDestinationsTest
 
 	static void RequireVulkan()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 	}
 }

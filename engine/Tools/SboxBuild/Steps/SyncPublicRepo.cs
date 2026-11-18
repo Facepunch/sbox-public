@@ -129,7 +129,6 @@ internal class SyncPublicRepo( bool dryRun = false )
 		"game/core/shaders/tools_wireframe.shader",
 		"game/core/shaders/ui.shader",
 		"game/core/shaders/unlit.shader",
-		"game/core/shaders/visualize_quad_overdraw.shader"
 	};
 
 	private static readonly Dictionary<string, string> RepoFilterPathRenames = new()

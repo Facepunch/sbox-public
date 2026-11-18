@@ -91,6 +91,92 @@ public sealed class RenderWorld
 	public List<LightProbeVolume> LightProbeVolumes { get; } = [];
 
 	/// <summary>
+	/// The probe volumes its views choose from: its own (<see cref="LightProbeVolumes"/>), then those of the worlds it includes
+	/// (<see cref="Include"/>) as stand-ins with their number (<see cref="LightProbeVolume.SubWorld"/>), which light only views
+	/// drawing them, as native's binner takes the volumes of every world a view renders. Brought up to date by
+	/// <see cref="RefreshDrawnVolumes"/> before a render.
+	/// </summary>
+	internal List<LightProbeVolume> DrawnLightProbeVolumes => drawnVolumes ?? LightProbeVolumes;
+
+	// The volumes drawn when an included world has some (else null), and for each stand-in the volume it stands for
+	List<LightProbeVolume> drawnVolumes;
+	readonly List<LightProbeVolume> drawnSources = [];
+	readonly Dictionary<LightProbeVolume, (LightProbeVolume StandIn, int Version)> standIns = new( ReferenceEqualityComparer.Instance );
+
+	/// <summary>
+	/// Bring <see cref="DrawnLightProbeVolumes"/> up to date with this world's volumes and its included worlds': stand-ins made
+	/// for new ones and copied again when the volume they stand for changed. Main thread, before a render; nothing's made
+	/// while nothing changes.
+	/// </summary>
+	internal void RefreshDrawnVolumes()
+	{
+		var included = 0;
+		for ( int i = 0; i < this.included.Length; i++ )
+		{
+			if ( this.included[i] is { } other ) included += other.LightProbeVolumes.Count;
+		}
+
+		if ( included == 0 )
+		{
+			drawnVolumes = null;
+			if ( standIns.Count > 0 ) standIns.Clear();
+			return;
+		}
+
+		// The same volumes in the same order keep the list; each stand-in is copied again only when its volume changed
+		var same = drawnSources.Count == LightProbeVolumes.Count + included;
+		var n = 0;
+		foreach ( var own in LightProbeVolumes ) same &= n < drawnSources.Count && ReferenceEquals( drawnSources[n++], own );
+		for ( int i = 0; i < this.included.Length; i++ )
+		{
+			if ( this.included[i] is not { } other ) continue;
+			foreach ( var volume in other.LightProbeVolumes ) same &= n < drawnSources.Count && ReferenceEquals( drawnSources[n++], volume );
+		}
+
+		if ( !same )
+		{
+			drawnVolumes ??= [];
+			drawnVolumes.Clear();
+			drawnSources.Clear();
+			drawnSources.AddRange( LightProbeVolumes );
+			drawnVolumes.AddRange( LightProbeVolumes );
+			for ( int i = 0; i < this.included.Length; i++ )
+			{
+				if ( this.included[i] is not { } other ) continue;
+				foreach ( var volume in other.LightProbeVolumes )
+				{
+					if ( !standIns.TryGetValue( volume, out var standIn ) ) standIns[volume] = standIn = (new LightProbeVolume(), int.MinValue);
+					standIn.StandIn.SubWorld = i + 1;
+					standIns[volume] = standIn;
+					drawnSources.Add( volume );
+					drawnVolumes.Add( standIn.StandIn );
+				}
+			}
+
+			// Stand-ins for volumes that went
+			if ( standIns.Count > drawnSources.Count - LightProbeVolumes.Count )
+			{
+				var gone = new List<LightProbeVolume>();
+				foreach ( var (volume, _) in standIns )
+				{
+					if ( !drawnSources.Contains( volume ) ) gone.Add( volume );
+				}
+
+				foreach ( var volume in gone ) standIns.Remove( volume );
+			}
+		}
+
+		for ( int k = LightProbeVolumes.Count; k < drawnSources.Count; k++ )
+		{
+			var volume = drawnSources[k];
+			var standIn = standIns[volume];
+			if ( standIn.Version == volume.Version ) continue;
+			standIn.StandIn.CopyFrom( volume );
+			standIns[volume] = (standIn.StandIn, volume.Version);
+		}
+	}
+
+	/// <summary>
 	/// Fog volumes in native order, which determines tint in overlaps. Requires enabled volumetric fog.
 	/// </summary>
 	public List<FogVolume> FogVolumes { get; } = [];

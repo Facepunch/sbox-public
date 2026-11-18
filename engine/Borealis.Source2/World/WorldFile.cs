@@ -29,6 +29,10 @@ public sealed class WorldFile
 	/// <summary>The scale from lightmap uvs to the lightmaps (<c>m_vLightmapUvScale</c>); one where it isn't set.</summary>
 	public Vector2 LightmapUvScale { get; init; } = Vector2.One;
 
+	/// <summary>The bounds of every node, or zero for a world without any.</summary>
+	public (Vector3 Mins, Vector3 Maxs) Bounds => Nodes.Count == 0 ? default
+		: (Nodes.Select( x => x.Mins ).Aggregate( Vector3.Min ), Nodes.Select( x => x.Maxs ).Aggregate( Vector3.Max ));
+
 	/// <summary>
 	/// Read a world and its nodes from <paramref name="content"/> (a map's VPK added with
 	/// <see cref="ContentFiles.AddPackage"/>, usually).
@@ -102,6 +106,8 @@ public sealed class WorldNode
 				Layer = index < layers.Length ? (int)layers[index] : 0,
 				LightProbeVolume = (int)Kv.Number( o.Get( "m_nLightProbeVolumePrecomputedHandshake" ) ),
 				OverlayRenderOrder = (int)Kv.Number( o.Get( "m_nOverlayRenderOrder" ) ),
+				LightGroup = (uint)(long)Kv.Number( o.Get( "m_nLightGroup" ) ),
+				LightingOrigin = o.Get( "m_vLightingOrigin" ) is object[] { Length: >= 3 } origin && Kv.Vector3( origin ) is var at && Math.Abs( at.X ) < 1e30f ? at : null,
 			} );
 		}
 
@@ -212,6 +218,66 @@ public sealed record WorldSceneObject
 
 	/// <summary><c>m_nOverlayRenderOrder</c>: an overlay's place among the static overlays (<c>RenderOrder</c>), lowest first.</summary>
 	public int OverlayRenderOrder { get; init; }
+
+	/// <summary><c>m_nLightGroup</c>: the light group's token, or 0 for none.</summary>
+	public uint LightGroup { get; init; }
+
+	/// <summary><c>m_vLightingOrigin</c>: where it's lit from instead of its centre, or null where the compiler wrote none.</summary>
+	public Vector3? LightingOrigin { get; init; }
+
+	/// <summary><see cref="TypeFlags"/> as <c>ObjectTypeFlags_t</c> bits (<see cref="ObjectTypeFlags"/>).</summary>
+	public ObjectTypeFlags Flags => ParseTypeFlags( TypeFlags );
+
+	/// <summary><c>m_nObjectTypeFlags</c> from its number or its flag names.</summary>
+	public static ObjectTypeFlags ParseTypeFlags( string flags )
+	{
+		if ( string.IsNullOrEmpty( flags ) ) return 0;
+		if ( uint.TryParse( flags, out var number ) ) return (ObjectTypeFlags)number;
+
+		uint value = 0;
+		foreach ( var name in flags.Split( ['|', ' ', ','], StringSplitOptions.RemoveEmptyEntries ) )
+		{
+			value |= name switch
+			{
+				"OBJECT_TYPE_IMAGE_LOD" => 0x1u,
+				"OBJECT_TYPE_GEOMETRY_LOD" => 0x2u,
+				"OBJECT_TYPE_DECAL" => 0x4u,
+				"OBJECT_TYPE_MODEL" => 0x8u,
+				"OBJECT_TYPE_BLOCK_LIGHT" => 0x10u,
+				"OBJECT_TYPE_NO_SHADOWS" => 0x20u,
+				"OBJECT_TYPE_WORLDSPACE_TEXURE_BLEND" => 0x40u,
+				"OBJECT_TYPE_DISABLED_IN_LOW_QUALITY" => 0x80u,
+				"OBJECT_TYPE_NO_SUN_SHADOWS" => 0x100u,
+				"OBJECT_TYPE_RENDER_WITH_DYNAMIC" => 0x200u,
+				"OBJECT_TYPE_RENDER_TO_CUBEMAPS" => 0x400u,
+				"OBJECT_TYPE_PRECOMPUTED_VISMEMBERS" => 0x4000u,
+				_ => 0u,
+			};
+		}
+
+		return (ObjectTypeFlags)value;
+	}
+}
+
+/// <summary>A world object's <c>ObjectTypeFlags_t</c>, as the map compiler writes them.</summary>
+[Flags]
+public enum ObjectTypeFlags : uint
+{
+#pragma warning disable CS1591
+	None = 0,
+	ImageLod = 0x1,
+	GeometryLod = 0x2,
+	Decal = 0x4,
+	Model = 0x8,
+	BlockLight = 0x10,
+	NoShadows = 0x20,
+	WorldspaceTextureBlend = 0x40,
+	DisabledInLowQuality = 0x80,
+	NoSunShadows = 0x100,
+	RenderWithDynamic = 0x200,
+	RenderToCubemaps = 0x400,
+	PrecomputedVisMembers = 0x4000,
+#pragma warning restore CS1591
 }
 
 /// <summary>

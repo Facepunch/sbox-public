@@ -11,7 +11,8 @@ namespace Borealis.Source2.Materials;
 /// resource's header, smallest first, each mip's slices (cube faces, array layers) in order. Mips may be LZ4 or
 /// Zstandard compressed one by one (<c>VTEX_EXTRA_DATA_COMPRESSED_MIP_SIZE</c>, sizes listed largest mip first; a mip
 /// whose stored size is its full size is stored raw). A <c>PNG_RGBA8888</c> texture (an image file compiled as is) holds a
-/// PNG file there instead, read as 8-bit RGBA. See <c>src/public/rendersystem/vtex_file_format.h</c>.
+/// PNG file there instead, read as 8-bit RGBA, its other mips made from it as Source 2 makes them on load (a 2x2 box filter).
+/// See <c>src/public/rendersystem/vtex_file_format.h</c>.
 /// </summary>
 public sealed class TextureFile
 {
@@ -92,6 +93,7 @@ public sealed class TextureFile
 			var (width, height, rgba) = Png.Decode( data.AsSpan( header.HeaderBytes ) );
 			if ( width != header.Width || height != header.Height ) throw new InvalidDataException( $"Texture's PNG is {width}x{height}, not {header.Width}x{header.Height}" );
 			mipData[0] = rgba;
+			for ( int mip = 1; mip < header.Mips; mip++ ) mipData[mip] = Halve( mipData[mip - 1], Math.Max( width >> (mip - 1), 1 ), Math.Max( height >> (mip - 1), 1 ) );
 			top = 0;
 		}
 		else if ( header.GpuFormat != Format.Unknown )
@@ -180,8 +182,9 @@ public sealed class TextureFile
 			Slices = (Array ? Math.Max( Depth, 1 ) : 1) * (Cube ? 6 : 1);
 			GpuFormat = Png ? Format.RGBA8Unorm : FormatOf( SourceFormat );
 
-			// The PNG is the first mip alone
-			if ( Png ) Mips = 1;
+			// The PNG is the first mip, the rest made from it (all the way down where the header lists one, as Source 2 mips
+			// it on load); one image only
+			if ( Png ) Mips = Slices > 1 || Volume ? 1 : Mips > 1 ? Mips : System.Numerics.BitOperations.Log2( (uint)Math.Max( Math.Max( Width, Height ), 1 ) ) + 1;
 
 			// Compressed mip sizes, if any
 			uint[] compressedSizes = null;
@@ -221,6 +224,26 @@ public sealed class TextureFile
 			var d = Volume ? Math.Max( Depth >> mip, 1 ) : 1;
 			return GpuFormat.RowPitch( w ) * GpuFormat.Rows( h ) * d * Slices;
 		}
+	}
+
+	/// <summary>The next mip of 8-bit RGBA pixels <paramref name="width"/> by <paramref name="height"/>: each texel the average of up to 2x2.</summary>
+	static byte[] Halve( byte[] pixels, int width, int height )
+	{
+		int w = Math.Max( width >> 1, 1 ), h = Math.Max( height >> 1, 1 );
+		var mip = new byte[w * h * 4];
+		for ( int y = 0; y < h; y++ )
+		{
+			int y0 = Math.Min( y * 2, height - 1 ), y1 = Math.Min( y * 2 + 1, height - 1 );
+			for ( int x = 0; x < w; x++ )
+			{
+				int x0 = Math.Min( x * 2, width - 1 ), x1 = Math.Min( x * 2 + 1, width - 1 );
+				int a = (y0 * width + x0) * 4, b = (y0 * width + x1) * 4, c = (y1 * width + x0) * 4, d = (y1 * width + x1) * 4;
+				for ( int channel = 0; channel < 4; channel++ )
+					mip[(y * w + x) * 4 + channel] = (byte)((pixels[a + channel] + pixels[b + channel] + pixels[c + channel] + pixels[d + channel] + 2) >> 2);
+			}
+		}
+
+		return mip;
 	}
 
 	/// <summary>Read a <c>.vtex_c</c> from disk.</summary>

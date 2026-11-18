@@ -25,8 +25,7 @@ public class PainterPolygonPointsRenderTest
 	[DataRow( 9, 3 )]
 	public void PointsMatchHierarchy( int count, int topology )
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 
 		var points = new Vector2[count];
 		for ( int i = 0; i < count; i++ )

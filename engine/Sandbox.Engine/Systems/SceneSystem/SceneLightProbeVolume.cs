@@ -29,9 +29,9 @@ internal class SceneLightProbe : SceneObject
 			CSceneSystem.CreateLightProbeVolume( sceneWorld );
 		}
 
-		ProbeTexture = texture;
-		IndicesTexture = indicesTexture;
-		ScalarsTexture = scalarsTexture;
+		probeTexture = texture;
+		this.indicesTexture = indicesTexture;
+		this.scalarsTexture = scalarsTexture;
 
 		lightProbeVolume.m_vBoxMins = bounds.Mins;
 		lightProbeVolume.m_vBoxMaxs = bounds.Maxs;
@@ -57,10 +57,15 @@ internal class SceneLightProbe : SceneObject
 		CSceneSystem.MarkLightProbeVolumeObjectUpdated( this );
 	}
 
-	/// <summary>The volume's probe texture and its direct light indices and scalars, as it was made with them.</summary>
-	internal Texture ProbeTexture { get; }
-	internal Texture IndicesTexture { get; }
-	internal Texture ScalarsTexture { get; }
+	readonly Texture probeTexture, indicesTexture, scalarsTexture;
+
+	/// <summary>
+	/// The volume's probe texture and its direct light indices and scalars, as it was made with them, or native's for a volume
+	/// native made (the map a native tool loads for its preview).
+	/// </summary>
+	internal Texture ProbeTexture => probeTexture ?? (lightProbeVolume.IsValid ? Texture.FromNativeResource( lightProbeVolume.m_hLightProbeTexture ) : null);
+	internal Texture IndicesTexture => indicesTexture ?? (lightProbeVolume.IsValid ? Texture.FromNativeResource( lightProbeVolume.m_hLightProbeDirectLightIndicesTexture ) : null);
+	internal Texture ScalarsTexture => scalarsTexture ?? (lightProbeVolume.IsValid ? Texture.FromNativeResource( lightProbeVolume.m_hLightProbeDirectLightScalarsTexture ) : null);
 
 	/// <summary>The handshake objects the map compiler bound to this volume carry (<c>m_nHandshake</c>).</summary>
 	internal int Handshake => lightProbeVolume.IsValid ? lightProbeVolume.m_nHandshake : 0;

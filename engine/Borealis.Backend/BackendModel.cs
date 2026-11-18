@@ -191,10 +191,17 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 			var mesh = file.Meshes[m];
 			var skinned = mesh.IsSkinned;
 
-			// Static meshes also go in the GPU-driven pages, when the device keeps them (skinned ones draw the classic way)
+			// Static meshes also go in the GPU-driven pages, when the device keeps them. Skinned ones keep buffers of their own,
+			// which compute skinning reads from their start, each with a slot in the raw buffer array when the device draws
+			// them GPU-driven (GpuDrivenSkinned), and their indices go in the index pages then
 			var tables = skinned ? null : device.GpuDrivenTables;
+			var indexTables = skinned && device.GpuDrivenSkinned ? device.GpuDrivenTables : tables;
 			var vertexBuffers = new (BufferHandle Buffer, long Offset, VertexLayout Layout, bool Compressed, int PageSlot)[mesh.VertexBuffers.Count];
-			for ( int v = 0; v < vertexBuffers.Length; v++ ) vertexBuffers[v] = Upload( gpu, mesh.VertexBuffers[v], $"{file.Name} {mesh.Name} vertices {v}", skinned, tables );
+			for ( int v = 0; v < vertexBuffers.Length; v++ )
+			{
+				vertexBuffers[v] = Upload( gpu, mesh.VertexBuffers[v], $"{file.Name} {mesh.Name} vertices {v}", skinned, tables );
+				if ( skinned && indexTables is not null ) vertexBuffers[v].PageSlot = gpu.BindlessIndex( vertexBuffers[v].Buffer );
+			}
 
 			// Positions alone, for depth-only draws that read nothing else (skinned meshes draw depth from the vertex cache)
 			var positions = new (BufferHandle Buffer, long Offset, int Slot)[vertexBuffers.Length];
@@ -224,9 +231,9 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 			{
 				var source = mesh.IndexBuffers[i];
 				var format = source.Size == 4 ? IndexFormat.UInt32 : IndexFormat.UInt16;
-				if ( tables is not null )
+				if ( indexTables is not null )
 				{
-					var (page, slot, first) = tables.AddIndices( source.Data, format );
+					var (page, slot, first) = indexTables.AddIndices( source.Data, format );
 					pageRanges.Add( (slot, source.Data.Length) );
 					indexBuffers[i] = (page, first * (long)source.Size, format, page, slot, first);
 					continue;
@@ -256,12 +263,15 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 				var position = positions[vertexIndex];
 				var positionOffset = position.Offset + vertexOffset / Math.Max( vertices.Layout.Stride, 1 ) * PositionStride;
 
+				// A skinned draw's record reads its blend indices, for one-weight skinning in the vertex shader; its draw from
+				// the vertex cache has a record of its own (below). Neither has a positions-only copy: its positions aren't
+				// where they're drawn
 				PooledGeometry? pooled = null;
-				if ( tables is not null && indices.Page.IsValid && vertices.PageSlot >= 0 )
+				var vertexCount = (int)((mesh.VertexBuffers[vertexIndex].Data.Length - vertexOffset) / Math.Max( vertices.Layout.Stride, 1 ));
+				if ( indexTables is not null && indices.Page.IsValid && vertices.PageSlot >= 0 )
 				{
-					var vertexCount = (int)((mesh.VertexBuffers[vertexIndex].Data.Length - vertexOffset) / Math.Max( vertices.Layout.Stride, 1 ));
-					var record = tables.Geometry( vertices.PageSlot, vertices.Offset + vertexOffset, vertices.Layout, vertexCount );
-					var positionsRecord = position.Slot >= 0 ? tables.Geometry( position.Slot, positionOffset, device.Layout( PositionLayout ), vertexCount ) : 0u;
+					var record = indexTables.Geometry( vertices.PageSlot, vertices.Offset + vertexOffset, vertices.Layout, vertexCount );
+					var positionsRecord = position.Slot >= 0 ? indexTables.Geometry( position.Slot, positionOffset, device.Layout( PositionLayout ), vertexCount ) : 0u;
 					var indexSize = indices.Format == IndexFormat.UInt32 ? 4 : 2;
 					pooled = new PooledGeometry( record, indices.Page, indices.PageSlot, indices.PageFirst + (uint)(indexOffset / indexSize), indices.Format, positionsRecord, vertexCount );
 				}
@@ -278,10 +288,15 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 				}
 
 				// From the cache: vertex ids from the draw's first vertex among the mesh's draws, and from its buffer's block
+				// GPU-driven, the same ids through its geometry record (GpuDrivenTables.VertexCacheGeometry)
 				if ( skinned )
 				{
 					var cacheLayout = device.Layout( new VertexLayout( vertices.Layout.Stride, vertices.Layout.Fields, vertexCache: true ) );
-					vertexCacheDraws[m][d] = new VertexCacheDraw( draws[m][d] with { Layout = cacheLayout }, firstVertexId, skinnedBuffers[m][vertexIndex].CacheOffset );
+					var cacheVertex = skinnedBuffers[m][vertexIndex].CacheOffset;
+					var cachePooled = pooled is { } p && indexTables.VertexCacheGeometry( vertices.PageSlot, vertices.Offset + vertexOffset, vertices.Layout, vertexCount, firstVertexId, cacheVertex ) is var cacheRecord and not 0
+						? p with { GeometryRecord = cacheRecord }
+						: (PooledGeometry?)null;
+					vertexCacheDraws[m][d] = new VertexCacheDraw( draws[m][d] with { Layout = cacheLayout, Pooled = cachePooled }, firstVertexId, cacheVertex );
 				}
 
 				firstVertexId += call.VertexCount;
@@ -474,9 +489,13 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		return renderMesh;
 	}
 
-	/// <summary>Free its buffers, once the GPU is done with them; otherwise they go with the device.</summary>
+	/// <summary>Whether <see cref="Free"/> has run: a model made at run time that was freed this way is made again if asked for.</summary>
+	public bool Freed { get; private set; }
+
+	/// <summary>Free its buffers, once the GPU is done with them; otherwise they go with the device. Again does nothing.</summary>
 	public void Free()
 	{
+		Freed = true;
 		foreach ( var buffer in buffers ) device.Gpu.Destroy( buffer );
 		buffers.Clear();
 		if ( device.GpuDrivenTables is { } tables )

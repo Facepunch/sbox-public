@@ -14,8 +14,7 @@ public class PanelDirectDrawingTest
 	[TestInitialize]
 	public void RequireVulkan()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires the Vulkan renderer." );
+		TestGraphics.Require();
 	}
 
 	sealed class ColorPanel : Panel
@@ -420,10 +419,10 @@ public class PanelDirectDrawingTest
 				{
 					var destination = Graphics.RenderTarget;
 					var viewport = new NativeEngine.RenderViewport( new Rect( 4, 4, size - 8, size - 8 ), 0.2f, 0.8f );
-					Graphics.Context.SetViewport( viewport );
+					Graphics.Backend.SetViewport( viewport );
 					root.RenderManual();
 					Assert.AreSame( destination, Graphics.RenderTarget );
-					var restored = Graphics.Context.GetViewport();
+					var restored = Graphics.Backend.GetViewport();
 					Assert.AreEqual( viewport.Rect, restored.Rect );
 					Assert.AreEqual( viewport.MinZ, restored.MinZ );
 					Assert.AreEqual( viewport.MaxZ, restored.MaxZ );
@@ -640,7 +639,7 @@ public class PanelDirectDrawingTest
 		scope.Attributes.Set( "UIGammaOutput", true );
 		scope.Attributes.SetCombo( "D_NO_ZTEST", 1 );
 		Graphics.RenderTarget = RenderTarget.From( target );
-		scope.Context.Clear( Color.Transparent, true, false, false );
+		Graphics.Clear( Color.Transparent, true, false, false );
 		draw();
 	}
 }

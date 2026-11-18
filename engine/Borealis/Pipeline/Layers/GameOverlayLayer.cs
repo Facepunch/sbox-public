@@ -20,6 +20,7 @@ internal class GameOverlayLayer : MeshLayer
 		ShaderMode = ForwardMode;
 		Runs = runs;
 		LayerType = type;
+		TakesToolsPass = true;
 	}
 
 	public override bool IsShared => false;

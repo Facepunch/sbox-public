@@ -129,10 +129,12 @@ internal static class SceneRenderer
 	}
 
 	/// <summary>
-	/// Called at startup, before anything renders.
+	/// Called at startup, before anything renders. Picks the renderer for what renders before the first frame's output
+	/// (startup, and tests that drive frames themselves).
 	/// </summary>
 	internal static void WarmUp()
 	{
+		BeginFrame();
 		if ( ManagedSceneRendering.Enabled ) Borealis?.WarmUp();
 	}
 

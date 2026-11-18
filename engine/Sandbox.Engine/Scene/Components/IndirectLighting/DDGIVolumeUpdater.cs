@@ -72,16 +72,24 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			if ( stage != Stage.AfterTransparent )
 				return;
 
-			// We don't render depth to cubemap, so we copy it manually using a compute shader
+			// We don't render depth to cubemap, so we copy it manually using a compute shader. A face on Borealis.Gpu has its
+			// depth as an engine texture; a native view's is a native one
 			int face = Graphics.CubeFace;
-			var depth = Graphics.GetDepthTarget( out var owned );
-			try
+			if ( Graphics.DepthTexture is { } depthTexture )
 			{
-				CopyDepthToColor( depth, _captureDepth, face );
+				CopyDepthToColor( depthTexture, _captureDepth, face );
 			}
-			finally
+			else
 			{
-				if ( owned && !depth.IsNull ) depth.DestroyStrongHandle();
+				var depth = Graphics.GetDepthTarget( out var owned );
+				try
+				{
+					CopyDepthToColor( depth, _captureDepth, face );
+				}
+				finally
+				{
+					if ( owned && !depth.IsNull ) depth.DestroyStrongHandle();
+				}
 			}
 
 			// Recording order is arbitrary; GPU submission follows the face order.
@@ -103,11 +111,26 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	/// </summary>
 	void CopyDepthToColor( ITexture srcDepth, Texture dstColor, int dstArraySlice )
 	{
+		var attrs = RenderAttributes.Pool.Get();
+		attrs.Set( "SourceDepth", srcDepth );
+		CopyDepthToColor( attrs, dstColor, dstArraySlice );
+	}
+
+	/// <summary>
+	/// <see cref="CopyDepthToColor(ITexture, Texture, int)"/> from an engine texture's depth (a face drawn on Borealis.Gpu).
+	/// </summary>
+	void CopyDepthToColor( Texture srcDepth, Texture dstColor, int dstArraySlice )
+	{
+		var attrs = RenderAttributes.Pool.Get();
+		attrs.Set( "SourceDepth", srcDepth );
+		CopyDepthToColor( attrs, dstColor, dstArraySlice );
+	}
+
+	void CopyDepthToColor( RenderAttributes attrs, Texture dstColor, int dstArraySlice )
+	{
 		var width = dstColor.Width;
 		var height = dstColor.Height;
 
-		var attrs = RenderAttributes.Pool.Get();
-		attrs.Set( "SourceDepth", srcDepth );
 		attrs.Set( "DestTextureArray", dstColor );
 		attrs.Set( "TextureSize", new Vector2Int( width, height ) );
 		attrs.Set( "DestArraySlice", dstArraySlice );
@@ -133,14 +156,10 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 
 	private Texture CreateVolumeTexture( Vector3Int size, ImageFormat format, string name )
 	{
-		var texture = Texture.CreateVolume( size.x, size.y, size.z, format )
+		return Texture.CreateVolume( size.x, size.y, size.z, format )
 			.WithName( name )
 			.WithUAVBinding()
 			.Finish();
-
-		// Written by the native captures' hooks where Source 2's device is kept (the editor): read back from there
-		texture.PixelsOnSource2 = Graphics.HasSource2Device;
-		return texture;
 	}
 
 	/// <summary>
@@ -324,16 +343,17 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		const int cubemapSize = 64;
 		int numMips = (int)MathF.Log2( cubemapSize ) + 1;
 
+		// Captured on Borealis.Gpu, where it draws: Source 2's copy, where its device is kept (the editor), is a placeholder
 		_captureTexture = Texture.CreateCube( cubemapSize, cubemapSize )
 								.WithUAVBinding()
 								.WithMips( numMips )
 								.WithFormat( ImageFormat.RGBA16161616F )
-								.Finish();
+								.Build( onBorealisGpu: true );
 
 		_captureDepth = Texture.CreateCube( cubemapSize, cubemapSize )
 								.WithUAVBinding()
 								.WithFormat( ImageFormat.R32F )
-								.Finish();
+								.Build( onBorealisGpu: true );
 	}
 
 	private void OnRenderFinish( Vector3Int probeIndex )

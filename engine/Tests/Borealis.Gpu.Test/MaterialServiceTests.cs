@@ -16,6 +16,7 @@ public class MaterialServiceTests : GpuTest
 {
 	const int Size = 64;
 
+	BackendDevice backend;
 	ShaderLibrary library;
 	ShaderDefaults defaults;
 	ShaderDrawer drawer;
@@ -23,7 +24,9 @@ public class MaterialServiceTests : GpuTest
 	[TestInitialize]
 	public void CreateDrawer()
 	{
-		library = new ShaderLibrary( Device, ShaderFileTests.Files );
+		// The UI shaders are Slang modules: a backend's library reads them
+		backend = new BackendDevice( Device, ShaderFileTests.Files );
+		library = backend.Shaders;
 		defaults = new ShaderDefaults( Device );
 		drawer = new ShaderDrawer( Device, library, defaults );
 	}
@@ -33,7 +36,7 @@ public class MaterialServiceTests : GpuTest
 	{
 		Device?.WaitIdle();
 		drawer?.Dispose();
-		library?.Dispose();
+		backend?.Dispose();
 		defaults?.Dispose();
 	}
 

@@ -13,8 +13,7 @@ public class PanelBackdropBatchingTest
 	[TestInitialize]
 	public void RequireVulkan()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires the Vulkan renderer." );
+		TestGraphics.Require();
 	}
 
 	sealed class Pattern : Panel
@@ -321,7 +320,7 @@ public class PanelBackdropBatchingTest
 			scope.Attributes.Set( "UIGammaOutput", true );
 			scope.Attributes.SetCombo( "D_NO_ZTEST", 1 );
 			Graphics.RenderTarget = RenderTarget.From( target );
-			scope.Context.Clear( Color.Transparent, true, false, false );
+			Graphics.Clear( Color.Transparent, true, false, false );
 			root.Render();
 		}
 		return target.GetBitmap();

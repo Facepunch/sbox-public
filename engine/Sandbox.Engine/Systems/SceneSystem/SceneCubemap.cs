@@ -138,7 +138,7 @@ public sealed class SceneCubemap : SceneLight
 
 	public Texture Texture
 	{
-		get => managed ? texture : Texture.FromNative( envMap.m_hEnvMapTexture );
+		get => managed ? texture : NativeTexture();
 		set
 		{
 			if ( Texture == value )
@@ -148,6 +148,28 @@ public sealed class SceneCubemap : SceneLight
 			texture = value;
 			RenderDirty();
 		}
+	}
+
+	// A native-made cubemap's texture, by resource name (Texture.FromNativeResource), kept while native's stays the same
+	Texture nativeTexture;
+	IntPtr nativeTextureBinding;
+
+	Texture NativeTexture()
+	{
+		if ( envMap.IsNull ) return null;
+
+		var native = envMap.m_hEnvMapTexture;
+		if ( native.IsNull ) return null;
+
+		var binding = native.GetBindingPtr();
+		if ( binding == nativeTextureBinding && nativeTexture is not null )
+		{
+			native.DestroyStrongHandle();
+			return nativeTexture;
+		}
+
+		nativeTextureBinding = binding;
+		return nativeTexture = Texture.FromNativeResource( native );
 	}
 
 	/// <summary>

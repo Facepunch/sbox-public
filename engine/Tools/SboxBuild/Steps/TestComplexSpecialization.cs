@@ -21,7 +21,7 @@ internal class TestComplexSpecialization
 		var environment = new Dictionary<string, string>
 		{
 			["FACEPUNCH_ENGINE"] = game,
-			["SBOX_TEST_GRAPHICS"] = "1",
+			["SBOX_TEST_GRAPHICS"] = "source2",
 			["SBOX_COMPLEX_SPECIALIZATION_TEST_DIR"] = output,
 			["VFX_SPIRVVALIDATE"] = "0"
 		};

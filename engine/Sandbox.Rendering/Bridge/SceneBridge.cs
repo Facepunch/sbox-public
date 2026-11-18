@@ -550,6 +550,13 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		skybox.Fog = setup.Fog.HasValue ? setup.Fog.ToBorealis( mirror.TextureResolver ) : camera.EnablePostProcessing ? source.ResolveFog( camera ).ToBorealis( mirror.TextureResolver ) : null;
 	}
 
+	/// <summary>A camera's debug view: <c>mat_toolsvis</c> over its own mode, as <c>CameraRenderer.Configure</c> takes them.</summary>
+	internal static int ToolsVisModeOf( SceneCamera camera )
+	{
+		var toolsVis = DebugOverlay.ToolsVisualization.mat_toolsvis;
+		return (int)(toolsVis != SceneCameraDebugMode.Normal ? toolsVis : camera.DebugMode);
+	}
+
 	/// <summary>
 	/// Copy the native camera, including applied modifiers/shake and horizontal FOV, with a view's overrides on top, as
 	/// <c>CameraRenderer.Configure</c> applies them.
@@ -565,10 +572,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		view.ClearColor = setup.ClearColor ?? camera.BackgroundColor;
 		view.Fog = camera.ResolveFog( setup ).ToBorealis( mirror?.TextureResolver );
 
-		// mat_toolsvis overrides camera debug mode (CameraRenderer.Configure).
 		view.ToolsView = camera.ToolsView;
-		var toolsVis = DebugOverlay.ToolsVisualization.mat_toolsvis;
-		view.ToolsVisMode = (int)(toolsVis != SceneCameraDebugMode.Normal ? toolsVis : camera.DebugMode);
+		view.ToolsVisMode = ToolsVisModeOf( camera );
+		view.Wireframe = camera.WireframeMode;
 		// A reflection draws a depth-only prepass, and no shadows unless r.reflections.shadows is on (CameraRenderer.Configure)
 		view.Reflection = setup.Reflection;
 		view.ReflectionShadows = setup.Reflection && CommandList.ReflectionShadows;

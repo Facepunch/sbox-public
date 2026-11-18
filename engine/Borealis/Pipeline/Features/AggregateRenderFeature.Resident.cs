@@ -374,7 +374,7 @@ internal sealed partial class AggregateRenderFeature
 		var meshesWanted = MeshesResident();
 		var overlaysWanted = meshesWanted && OverlaysResident();
 		var settled = meshesWanted && Settle( world, transforms.Generation );
-		var volumesKey = meshesWanted && world.LightProbeVolumes.Count > 0 ? LightProbeVolume.Key( world.LightProbeVolumes ) : 0;
+		var volumesKey = meshesWanted && world.DrawnLightProbeVolumes.Count > 0 ? LightProbeVolume.Key( world.DrawnLightProbeVolumes, 0 ) : 0;
 
 		// A material's program compiled in the background since: meshes it kept from being resident may be now
 		var programs = meshesWanted ? RenderHost.Current?.Device?.ProgramsVersion ?? 0 : 0;
@@ -843,8 +843,8 @@ internal sealed partial class AggregateRenderFeature
 		overlayBlockers.Clear();
 		meshesLeftChanged = false;
 		overlaysStale = false;
-		var volumes = world.LightProbeVolumes;
-		residentVolumesKey = residentMeshes && volumes.Count > 0 ? LightProbeVolume.Key( volumes ) : 0;
+		var volumes = world.DrawnLightProbeVolumes;
+		residentVolumesKey = residentMeshes && volumes.Count > 0 ? LightProbeVolume.Key( volumes, 0 ) : 0;
 
 		var objects = world.Objects;
 		var drawVersions = world.DrawVersions;

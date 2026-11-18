@@ -49,7 +49,9 @@ public class UiShaderTests : GpuTest
 	[TestMethod]
 	public void BatchedBoxesDraw()
 	{
-		using var library = new ShaderLibrary( Device, ShaderFileTests.Files );
+		// ui_cssbox_batched is a Slang module: a backend's library reads it
+		using var backend = new BackendDevice( Device, ShaderFileTests.Files );
+		var library = backend.Shaders;
 		using var defaults = new ShaderDefaults( Device );
 		var shader = library.Load( "shaders/ui_cssbox_batched.shader" );
 		using var drawer = new ShaderDrawer( Device, library, defaults );
