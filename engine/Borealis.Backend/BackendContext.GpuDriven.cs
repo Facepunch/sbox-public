@@ -1976,8 +1976,11 @@ internal sealed partial class BackendContext
 		if ( attributeHashes.TryGetValue( stage, out var known ) && known.PassEpoch == passEpoch && known.LayerEpoch == layerEpoch ) return known.Hash;
 
 		var hash = new HashCode();
-		foreach ( var (variable, _) in stage.MaterialConstants )
+		// By index: a foreach over the list would allocate its enumerator each pass
+		var constants = stage.MaterialConstants;
+		for ( int i = 0; i < constants.Count; i++ )
 		{
+			var variable = constants[i].Variable;
 			if ( variable.Source != VariableSource.Attribute || variable.Attribute == "UncompressedTangentFrame" ) continue;
 			hash.Add( Lookup( Token( variable.Attribute ) ) );
 		}
