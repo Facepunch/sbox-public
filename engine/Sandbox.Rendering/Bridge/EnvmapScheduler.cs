@@ -32,9 +32,10 @@ internal sealed class EnvmapScheduler
 	public void Run( Scene scene )
 	{
 		// Behind a loading screen nothing's on screen, and a probe's OnLoad waits for its first capture: every dirty probe
-		// is needed, one a frame as native
+		// is needed, one a frame as native. So it is without a camera to see from: none, or one not enabled yet (or any
+		// more), whose scene camera isn't made
 		var camera = scene.Camera;
-		if ( !Enabled || camera is null || (IGameInstance.Current?.IsLoading ?? false) )
+		if ( !Enabled || camera is not { IsValid: true, SceneCamera: not null } || (IGameInstance.Current?.IsLoading ?? false) )
 		{
 			foreach ( var envmap in scene.EnvmapProbes() )
 			{

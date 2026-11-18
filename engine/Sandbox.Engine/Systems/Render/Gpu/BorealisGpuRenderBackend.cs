@@ -676,6 +676,31 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 	}
 
+	/// <summary>
+	/// The most multisampling up to <paramref name="wanted"/> this device's colour targets take, as Source 2's
+	/// <c>GetBestMultisampleType</c> answers for its own device: under -borealisgpu Source 2's is the empty render system, which
+	/// has none, so the game window's cameras would render without the multisampling the settings ask for.
+	/// </summary>
+	internal NativeEngine.RenderMultisampleType BestMultisampleType( NativeEngine.RenderMultisampleType wanted ) => BestMultisampleType( wanted, gpu.Capabilities.ColorSampleCounts );
+
+	/// <summary>
+	/// The most multisampling up to <paramref name="wanted"/> whose sample count is in <paramref name="supportedCounts"/> (a bit
+	/// per count, as Vulkan lists them): 2x, 4x or 8x, as render targets draw (<see cref="SamplesOf"/>: 16x draws 8); none
+	/// when there's none.
+	/// </summary>
+	internal static NativeEngine.RenderMultisampleType BestMultisampleType( NativeEngine.RenderMultisampleType wanted, int supportedCounts )
+	{
+		ReadOnlySpan<NativeEngine.RenderMultisampleType> fewer = [NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_8X, NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_4X, NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_2X];
+		var most = Graphics.RenderMultiSampleToNum( wanted );
+		foreach ( var type in fewer )
+		{
+			var samples = Graphics.RenderMultiSampleToNum( type );
+			if ( samples <= most && (supportedCounts & samples) != 0 ) return type;
+		}
+
+		return NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_NONE;
+	}
+
 	/// <summary>A render target's samples as its multisampling asks: what Vulkan has (6x is 4x, 16x is 8x).</summary>
 	static int SamplesOf( NativeEngine.RenderMultisampleType type ) => type switch
 	{
