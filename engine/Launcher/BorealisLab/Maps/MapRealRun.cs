@@ -455,6 +455,39 @@ internal static class MapRealRun
 					continue;
 				}
 
+				// -hiz-sweep N: from the view, N frames turning 15 degrees a frame, then N frames stepping 150 units a frame to its
+				// right, one frame each, without and then with two-phase Hi-Z occlusion: each frame is saved, to compare (what
+				// a turn or a step shows has to draw that same frame)
+				if ( Args.Int( "-hiz-sweep", 0 ) is > 0 and var turns )
+				{
+					map.Backend.GpuDriven = true;
+					map.Backend.GpuDrivenVisibility = true;
+					var look = view.LookAt - view.Position;
+					var right = System.Numerics.Vector3.Normalize( System.Numerics.Vector3.Cross( look, System.Numerics.Vector3.UnitZ ) ) * 150;
+					foreach ( var (hiz, suffix) in new[] { (false, "off"), (true, "on") } )
+					{
+						map.Backend.HiZOcclusion = hiz;
+						for ( int i = 0; i < 5; i++ ) RenderFrame( view );
+						for ( int t = 1; t <= turns * 2; t++ )
+						{
+							var turned = t <= turns
+								? view with { LookAt = view.Position + System.Numerics.Vector3.Transform( look, System.Numerics.Quaternion.CreateFromAxisAngle( System.Numerics.Vector3.UnitZ, t * MathF.PI / 12 ) ) }
+								: view with { Position = view.Position + right * (t - turns), LookAt = view.LookAt + right * (t - turns) };
+							RenderFrame( turned );
+							gpu.WaitIdle();
+							var (swept, sweptLayout) = map.Output;
+							Capture.Save( gpu, swept, sweptLayout, Path.ChangeExtension( path, null ) + $"-hizsweep{t:00}-{suffix}.png" );
+							BackendDevice.SetLayout( map.Target.Samples > 1 ? map.Target.Resolved : map.Target.Color, ImageLayout.CopySource );
+						}
+
+						var (candidates, occluded) = map.Backend.HiZCounts();
+						Console.WriteLine( $"Hi-Z sweep {suffix}: {turns * 2} frames saved; last frame's candidates {candidates}, occluded {occluded}" );
+					}
+
+					map.Backend.HiZOcclusion = false;
+					continue;
+				}
+
 				// -capture-walk N: walk the camera N steps of a sun-cascade cell and a half along its view, 30 frames a step, and at
 				// each step capture the frame as the far cascade's cache has it (strips drawn as it went) and drawn whole again
 				if ( Args.Int( "-capture-walk", 0 ) is > 0 and var steps )
