@@ -735,6 +735,12 @@ public sealed partial class RenderSystem : IDisposable
 	internal void DrawRange( GpuContext rc, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
 	{
 		// A colour layer of a view in a geometric debug view draws every draw with the tools pass (ToolsViews)
+		if ( rc is null )
+		{
+			DrawFeatures( rc, view, layer, first, count, ref stats );
+			return;
+		}
+
 		rc.ToolsPass = layer.TakesToolsPass && !view.IsShadow ? ToolsViews.PassOf( view.View ) : ToolsPass.None;
 		try
 		{
