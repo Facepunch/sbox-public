@@ -1065,12 +1065,8 @@ public sealed unsafe partial class CommandList
 	public void SetGlobal( StringToken token, RenderTargetHandle.ColorIndexRef buffer ) => GlobalAttributes.Set( token, buffer );
 
 	/// <summary>
-	/// Binds the given render target's color texture to a stable, pipeline-level bindless slot
-	/// for this frame. This is how full-screen pipeline resources (ambient occlusion, screen-space
-	/// reflections) are published to the rest of the pipeline: consumers read a fixed descriptor
-	/// binding rather than a per-view render attribute. Because procedural layers build their
-	/// command lists on threaded jobs, writing the result index into the shared frame attributes
-	/// would race - this fixed slot is resolved single-threaded at submit, so it doesn't.
+	/// Publishes the color texture in the current view's pipeline slots.
+	/// Producers fill their slots without changing attributes while other layers record.
 	/// </summary>
 	internal void SetPipelineTexture( PipelineTextureSlot slot, RenderTargetHandle.ColorTextureRef buffer )
 	{
@@ -1082,7 +1078,8 @@ public sealed unsafe partial class CommandList
 				return;
 			}
 
-			NativeEngine.CSceneSystem.SetPipelineTextureIndex( (int)entry.Data1.x, target.ColorTarget.Index );
+			var offset = Graphics.Attributes.GetInt( "PipelineTextureOffset" );
+			NativeEngine.CSceneSystem.SetPipelineTextureIndex( offset, (int)entry.Data1.x, target.ColorTarget.Index );
 		}
 
 		// Dont write out of bounds of the pipeline slots

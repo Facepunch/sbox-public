@@ -197,11 +197,6 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 			((IManagedCamera)Camera).OnRenderStage( stage );
 		}
 
-		// AO and SSR name their results in pipeline texture slots after the prepass, which native uploads at frame end
-		// (UpdateGlobalPerFrameDescriptorBindings) - after this frame is submitted. Upload them here so its forward draws read
-		// this frame's, as native's views do.
-		if ( stage == Stage.AfterDepthPrepass ) CSceneSystem.UploadPipelineTextureIndices( context );
-
 		if ( scratch is not null )
 		{
 			var rect = target.Viewport;

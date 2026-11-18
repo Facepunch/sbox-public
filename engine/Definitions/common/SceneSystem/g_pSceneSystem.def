@@ -196,12 +196,9 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 
 	void BindTransformSlot( IRenderContext pCtx, int nVBSlot, int nTransformSlotIndex );
 
-	// Bind a full-screen texture to a stable, pipeline-level bindless slot for this frame
-	// (used by AO/SSR so shaders read a fixed descriptor binding instead of a racy attribute).
-	void SetPipelineTextureIndex( int nSlot, int nBindlessIndex );
-
-	// Upload the slots as they are now into a context's stream, for a renderer that submits before frame end does
-	void UploadPipelineTextureIndices( IRenderContext pRenderContext );
+	int AllocatePipelineTextureIndices();
+	void SetPipelineTextureIndex( int nViewOffset, int nSlot, int nBindlessIndex );
+	void UpdateGlobalPerFrameDescriptorBindings();
 
 	// Ray Tracing
 	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );
