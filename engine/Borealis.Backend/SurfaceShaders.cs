@@ -397,6 +397,7 @@ public sealed class SurfaceShaders : IDisposable
 	void Changed( string path )
 	{
 		path = Path.GetFullPath( path );
+		SlangCompiler.SourceChanged();
 		lock ( programs )
 		{
 			// A compile in flight may have read what was there before: it looks when it's done (Start)

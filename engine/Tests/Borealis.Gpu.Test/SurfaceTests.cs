@@ -626,6 +626,39 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A cache check trusts a file's last look for <see cref="PassModule.IncludeCheckMs"/>: a variant's stages each check every
+	/// include their compile read, and a map's first frame spent ~100 ms asking the file system. A watcher's change
+	/// (<see cref="SlangCompiler.SourceChanged"/>) looks again at once.
+	/// </summary>
+	[TestMethod]
+	[DoNotParallelize]
+	public void FileHashLooksAtAFileOncePerInterval()
+	{
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-file-hash-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		var interval = PassModule.IncludeCheckMs;
+		PassModule.IncludeCheckMs = 60_000;
+		try
+		{
+			var include = Path.Combine( folder, "looked.slangh" );
+			File.WriteAllText( include, "// one\n" );
+			var first = PassCache.FileHash( include );
+			var looks = PassCache.Looks;
+			for ( int i = 0; i < 100; i++ ) Assert.AreEqual( first, PassCache.FileHash( include ) );
+			Assert.AreEqual( looks, PassCache.Looks, "asked again within the interval" );
+
+			File.WriteAllText( include, "// two, longer\n" );
+			SlangCompiler.SourceChanged();
+			Assert.AreNotEqual( first, PassCache.FileHash( include ), "a watched change is read at once" );
+		}
+		finally
+		{
+			PassModule.IncludeCheckMs = interval;
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// Pass modules compiled in the background: a variant asked for while its stages compile is its shader's compiled
 	/// programs' and the drawer doesn't keep it; once they're done it's the module's, kept.
 	/// </summary>
