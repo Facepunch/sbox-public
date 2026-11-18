@@ -283,6 +283,7 @@ public sealed class TextureFile
 			Format = Format,
 			Usage = TextureUsage.Sampled | TextureUsage.CopyDestination | TextureUsage.CopySource,
 			Name = name,
+			Content = true,
 		} );
 	}
 

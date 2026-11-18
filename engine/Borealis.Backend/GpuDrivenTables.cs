@@ -394,7 +394,7 @@ internal sealed class GpuDrivenTables : IDisposable
 
 		var limit = Math.Max( pageSize, (bytes + 15) & ~15 );
 		var size = (limit + (long)(limit * Math.Max( room, 0 )) + 15) & ~15L;
-		var buffer = gpu.CreateBuffer( new BufferInfo { Size = size, Usage = usage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = name } );
+		var buffer = gpu.CreateBuffer( new BufferInfo { Size = size, Usage = usage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = name, Content = true } );
 		owned.Add( buffer );
 		pageBytes += size;
 		var page = new Page { Buffer = buffer, Slot = gpu.BindlessIndex( buffer ), Size = size, Limit = limit, LevelUsed = limit };

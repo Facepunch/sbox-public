@@ -28,6 +28,9 @@ internal sealed class MemoryBlock
 	/// <summary>Whether it's a large block (<see cref="MemoryAllocator.LargeBlockSize"/>), for allocations too big for the small ones.</summary>
 	public bool Large;
 
+	/// <summary>Whether it holds content (a map's textures and geometry), kept apart from long-lived resources so it drains when the content goes.</summary>
+	public bool Content;
+
 	/// <summary>Free ranges, sorted by offset, never adjacent.</summary>
 	public readonly List<(ulong Offset, ulong Size)> Free = new();
 
@@ -201,15 +204,20 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// </summary>
 	public long SystemFallbackBytes { get; private set; }
 
-	public Allocation Allocate( in VkMemoryRequirements requirements, MemoryLocation location, bool image )
+	/// <remarks>
+	/// <paramref name="content"/> allocations (what a map loads and frees as a whole: its textures and geometry) share blocks
+	/// only with each other: mixed with long-lived resources made meanwhile (a game's targets, tables that grew), those kept
+	/// most blocks of an unloaded map's memory from going back.
+	/// </remarks>
+	public Allocation Allocate( in VkMemoryRequirements requirements, MemoryLocation location, bool image, bool content = false )
 	{
 		try
 		{
-			return Allocate( requirements, location, image, FindType( requirements.memoryTypeBits, location ) );
+			return Allocate( requirements, location, image, FindType( requirements.memoryTypeBits, location ), content );
 		}
 		catch ( GpuException e ) when ( e.Result == (int)VkResult.ErrorOutOfDeviceMemory && location == MemoryLocation.Device && FallbackType( requirements.memoryTypeBits ) is { } fallback )
 		{
-			var allocation = Allocate( requirements, location, image, fallback );
+			var allocation = Allocate( requirements, location, image, fallback, content );
 			lock ( allocationLock ) SystemFallbackBytes += (long)allocation.Size;
 			return allocation;
 		}
@@ -247,13 +255,13 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	public static bool LargeBlocks { get; set; } = true;
 
 	// Kinds (type, images, large) with a block being made ahead
-	readonly HashSet<(int Type, bool Images, bool Large)> makingAhead = new();
+	readonly HashSet<(int Type, bool Images, bool Large, bool Content)> makingAhead = new();
 	bool disposed;
 
 	// The driver's allocations (vkAllocateMemory, which needs no external lock) are made outside the allocator's lock: a big
 	// one takes milliseconds while the driver clears it, and every other thread's allocation waited behind it. A map's
 	// first seconds made hundreds, about 2 ms each, nearly 0.5 s of them on the main thread
-	Allocation Allocate( in VkMemoryRequirements requirements, MemoryLocation location, bool image, int type )
+	Allocation Allocate( in VkMemoryRequirements requirements, MemoryLocation location, bool image, int type, bool content )
 	{
 		var size = requirements.size;
 		var alignment = Math.Max( requirements.alignment, 1 );
@@ -278,18 +286,19 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		lock ( allocationLock )
 		{
 			Allocations++;
-			if ( TryShared( type, image, large, size, alignment ) is { } shared ) return shared;
+			if ( TryShared( type, image, large, content, size, alignment ) is { } shared ) return shared;
 		}
 
 		// A new block, made without the lock; another thread (or the one made ahead) may have added one meanwhile, which is
 		// tried first, and then this one stays as a spare
 		var fresh = NewBlock( type, large ? LargeBlockSize : blockSize, image );
 		fresh.Large = large;
+		fresh.Content = content;
 		lock ( allocationLock )
 		{
 			Add( fresh );
 			fresh.EmptySince = frame;
-			if ( TryShared( type, image, large, size, alignment ) is { } placed ) return placed;
+			if ( TryShared( type, image, large, content, size, alignment ) is { } placed ) return placed;
 			throw new GpuException( "A new memory block couldn't fit an allocation" );
 		}
 	}
@@ -301,11 +310,11 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	void MakeAhead( MemoryBlock taken )
 	{
 		if ( !MakeBlocksAhead || !BlocksAhead || disposed ) return;
-		var kind = (taken.TypeIndex, taken.Images, taken.Large);
+		var kind = (taken.TypeIndex, taken.Images, taken.Large, taken.Content);
 		if ( makingAhead.Contains( kind ) ) return;
 		foreach ( var block in blocks )
 		{
-			if ( !block.Dedicated && block.Used == 0 && block.TypeIndex == kind.TypeIndex && block.Images == kind.Images && block.Large == kind.Large ) return;
+			if ( !block.Dedicated && block.Used == 0 && block.TypeIndex == kind.TypeIndex && block.Images == kind.Images && block.Large == kind.Large && block.Content == kind.Content ) return;
 		}
 
 		makingAhead.Add( kind );
@@ -318,6 +327,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			{
 				block = allocator.NewBlock( kind.TypeIndex, size, kind.Images );
 				block.Large = kind.Large;
+				block.Content = kind.Content;
 			}
 			catch ( GpuException )
 			{
@@ -341,12 +351,12 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	}
 
 	/// <summary>Room in the fullest shared block of its kind with room, so the emptier ones drain; under the lock.</summary>
-	Allocation? TryShared( int type, bool image, bool large, ulong size, ulong alignment )
+	Allocation? TryShared( int type, bool image, bool large, bool content, ulong size, ulong alignment )
 	{
 		MemoryBlock best = null;
 		foreach ( var block in blocks )
 		{
-			if ( block.Dedicated || block.TypeIndex != type || block.Images != image || block.Large != large ) continue;
+			if ( block.Dedicated || block.TypeIndex != type || block.Images != image || block.Large != large || block.Content != content ) continue;
 			if ( best is not null && block.Used <= best.Used ) continue;
 			if ( block.Fits( size, alignment ) ) best = block;
 		}
@@ -400,7 +410,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	{
 		foreach ( var block in blocks )
 		{
-			if ( block != empty && !block.Dedicated && block.TypeIndex == empty.TypeIndex && block.Images == empty.Images && block.Large == empty.Large && block.Used == 0 ) return true;
+			if ( block != empty && !block.Dedicated && block.TypeIndex == empty.TypeIndex && block.Images == empty.Images && block.Large == empty.Large && block.Content == empty.Content && block.Used == 0 ) return true;
 		}
 
 		return false;
