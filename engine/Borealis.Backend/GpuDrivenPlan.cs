@@ -11,14 +11,17 @@ internal sealed class GpuDrivenPlans
 {
 	readonly List<GpuDrivenPlan> plans = new();
 
-	/// <summary>The plan for this kind of call made at <paramref name="version"/> of the list, or null.</summary>
-	public GpuDrivenPlan Find( in GpuDrivenPlan.CallKey key, int version, int batches )
+	/// <summary>
+	/// The plan for this kind of call made at <paramref name="version"/> of the list, or null; one whose records name
+	/// visibility runs only while <see cref="GpuDrivenTables.VisibilityEpoch"/> is the one it was made in.
+	/// </summary>
+	public GpuDrivenPlan Find( in GpuDrivenPlan.CallKey key, int version, int batches, int visibilityEpoch )
 	{
 		lock ( plans )
 		{
 			foreach ( var plan in plans )
 			{
-				if ( plan.Key == key ) return plan.Version == version && plan.Batches == batches ? plan : null;
+				if ( plan.Key == key ) return plan.Version == version && plan.Batches == batches && (plan.VisibilityEpoch == visibilityEpoch || !(key.Ids || key.Lists || key.Visibility)) ? plan : null;
 			}
 
 			return null;
@@ -73,6 +76,9 @@ internal sealed class GpuDrivenPlan
 	public CallKey Key;
 	public int Version;
 	public int Batches;
+
+	/// <summary>The visibility epoch its records' runs were named in (<see cref="GpuDrivenTables.VisibilityEpoch"/>).</summary>
+	public int VisibilityEpoch;
 
 	/// <summary>Its buckets' commands and fragments, its multi-draws' slots, and the compacted slots it uses.</summary>
 	public int Commands, Fragments, Written, CompactUsed;

@@ -1111,6 +1111,41 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// Once room runs out, runs no call names any more are let go (<see cref="GpuDrivenTables.StaleVisibilityFrames"/>) and the
+	/// owner that found no room gets one; a run a call keeps naming stays. Captures used to take a run for every object they
+	/// saw, so a map's main view drew most of its objects without culling for good.
+	/// </summary>
+	[TestMethod]
+	public void StaleVisibilityIsLetGoWhenRoomRunsOut()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		var tables = backend.GpuDrivenTables;
+		var half = (int)(GpuDrivenTables.FrameVisibilityBitBase / 2);
+		var stale = new object();
+		var drawn = new object();
+		var late = new object();
+		Assert.AreNotEqual( GpuDrivenTables.NoVisibility, tables.Visibility( stale, 1, half ).VertexBase, "room for the first owner" );
+		var kept = tables.Visibility( drawn, 1, half );
+		Assert.AreNotEqual( GpuDrivenTables.NoVisibility, kept.VertexBase, "room for the second owner" );
+
+		// Every frame draws the second owner and asks for the third; nothing names the first
+		var epoch = tables.VisibilityEpoch;
+		var frames = 0;
+		while ( tables.Visibility( late, 1, half ).VertexBase == GpuDrivenTables.NoVisibility )
+		{
+			Assert.IsTrue( frames++ < GpuDrivenTables.StaleVisibilityFrames + 10, "room within the stale frames and those in flight" );
+			Assert.AreEqual( kept, tables.Visibility( drawn, 1, half ), "a run that's named stays" );
+			tables.BeginFrame();
+		}
+
+		Assert.IsTrue( frames >= GpuDrivenTables.StaleVisibilityFrames, $"not let go before it's stale ({frames} frames)" );
+		Assert.AreEqual( 1, tables.VisibilityRunsAged, "only the unnamed run let go" );
+		Assert.AreEqual( epoch + 2, tables.VisibilityEpoch, "calls name their runs again when a round starts and when its runs are free" );
+		Assert.AreEqual( kept, tables.Visibility( drawn, 1, half ), "the named run kept its place" );
+		Assert.AreEqual( GpuDrivenTables.NoVisibility, tables.Visibility( stale, 1, half ).VertexBase, "the stale owner looks again and finds no room" );
+	}
+
+	/// <summary>
 	/// Static overlays draw GPU-driven a call per render order (<see cref="BackendDevice.GpuDrivenOverlays"/>): four overlays of
 	/// two materials in render order 0 are one bucket, the one in render order 1 another, nothing draws classic, and where
 	/// they don't overlap the pixels are the classic path's.
