@@ -223,6 +223,9 @@ internal sealed class MapGeometry
 			// baking); a decal draws only in the decal layer
 			obj.IsStatic = (flags & ObjectTypeFlags.RenderWithDynamic) == 0;
 			obj.CastShadows = (flags & ObjectTypeFlags.NoShadows) == 0;
+
+			// Opaque, and translucent too where a draw blends (the mesh system's translucency flags)
+			obj.DrawsTranslucent = HasTranslucentDraws( drawn );
 			if ( (flags & ObjectTypeFlags.BlockLight) != 0 )
 			{
 				obj.IsStatic = true;
@@ -242,7 +245,8 @@ internal sealed class MapGeometry
 			obj.IsWorld = obj.IsStatic || !isModel;
 
 			if ( isModel && source.Tint != System.Numerics.Vector4.One ) obj.Tint = new Color( source.Tint.X, source.Tint.Y, source.Tint.Z, source.Tint.W );
-			if ( source.LodOverride >= 0 ) obj.LodOverride = Math.Min( source.LodOverride, Math.Max( 0, drawn.LodCount - 1 ) );
+			// Clamped to the model's last LOD; a model without LODs takes none (CModel::ComputeMaxLODLevelUsedByModel's -1)
+			if ( source.LodOverride >= 0 ) obj.LodOverride = drawn.LodCount <= 1 ? -1 : Math.Min( source.LodOverride, drawn.LodCount - 1 );
 			if ( source.LightingOrigin is { } origin ) obj.LightingOrigin = new Vector3( origin.X, origin.Y, origin.Z ) + map.Origin;
 			obj.LightGroup = source.LightGroup;
 			obj.LightProbeHandshake = source.LightProbeVolume;
@@ -288,6 +292,19 @@ internal sealed class MapGeometry
 			}
 
 			if ( any && allNoShadows ) obj.CastShadows = false;
+		}
+
+		static bool HasTranslucentDraws( BorealisMesh mesh )
+		{
+			for ( int lod = 0; lod < mesh.LodCount; lod++ )
+			{
+				foreach ( var draw in mesh.DrawsForLod( lod ) )
+				{
+					if ( draw.Translucent ) return true;
+				}
+			}
+
+			return false;
 		}
 
 		/// <summary>A material's attribute as a bool (a number other than zero): a surface answers as the material it stands in for.</summary>
@@ -367,14 +384,21 @@ internal sealed class MapGeometry
 		{
 			if ( variants.TryGetValue( (path, groups, skin), out var made ) ) return made;
 
+			// Each draw's material as the model has it
+			var drawn = new Dictionary<(int, int), GpuMaterial>();
+			for ( int lod = 0; lod < mesh.LodCount; lod++ )
+			{
+				foreach ( var draw in mesh.DrawsForLod( lod ) ) drawn.TryAdd( (draw.Mesh, draw.DrawCall), draw.Material );
+			}
+
 			var states = new List<BorealisMesh.DrawState>();
 			for ( int m = 0; m < file.Meshes.Count; m++ )
 			{
 				var visible = (file.Meshes[m].MeshGroupMask & groups) != 0;
 				for ( int d = 0; d < file.Meshes[m].DrawCalls.Count; d++ )
 				{
+					if ( !drawn.TryGetValue( (m, d), out var material ) ) continue;
 					var call = file.Meshes[m].DrawCalls[d];
-					GpuMaterial material = null;
 					if ( skin != 0 )
 					{
 						var materialPath = file.MaterialFor( call.Material, skin );
@@ -384,8 +408,6 @@ internal sealed class MapGeometry
 							heldMaterials.Add( materialPath );
 						}
 					}
-
-					if ( material is null && visible ) continue;
 
 					var translucent = BorealisMesh.IsTranslucent( material );
 					var fastPath = material is { ShadowFastPath: true } && !translucent && !BorealisMesh.IsAlphaTest( material );
