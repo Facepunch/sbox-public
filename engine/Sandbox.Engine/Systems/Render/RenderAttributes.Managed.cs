@@ -149,11 +149,16 @@ internal sealed class ManagedRenderAttributes
 		object boxed;
 		if ( values.TryGetValue( k.Value, out var current ) && current.Value is TextureValue now && now == value ) boxed = current.Value;
 		else if ( spare.Remove( k.Value, out var old ) && old is TextureValue left && left == value ) boxed = old;
+		else if ( mip < 0 ) boxed = WholeTextures.GetValue( texture, static t => new TextureValue( t, -1 ) );
 		else boxed = value;
 
 		Put( k.Value, boxed, ++Version );
 		Own( k.Value );
 	}
+
+	// Each texture's whole-texture value boxed once and shared by every set (boxes aren't changed), so a set that is new or was
+	// cleared (a pooled command list's) boxes nothing for it
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Texture, object> WholeTextures = new();
 
 	public void SetObject( StringToken k, object value )
 	{

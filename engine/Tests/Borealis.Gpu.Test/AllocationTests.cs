@@ -17,8 +17,8 @@ public class AllocationTests : GpuTest
 {
 	const int WarmFrames = 40, MeasuredFrames = 30;
 
-	// The most any frame may allocate once warm, lowered with each cut until it is 0 (the goal). 2026-11-17: 6-9 KB a frame.
-	const long BudgetPerFrame = 11 * 1024;
+	// The most any frame may allocate once warm, lowered with each cut until it is 0 (the goal). 2026-11-18: 2-6 KB a frame.
+	const long BudgetPerFrame = 8 * 1024;
 
 	[TestMethod]
 	public void SteadyFramesDontAllocate()

@@ -58,7 +58,7 @@ internal sealed partial class BackendContext
 			foreach ( var (variable, _) in variant.Compute.MaterialConstants )
 			{
 				if ( variable.Source != VariableSource.Attribute || string.IsNullOrEmpty( variable.Attribute ) ) continue;
-				if ( Floats( Value( variable.Attribute ) ) is { } floats ) attributes.Set( variable.Attribute, floats );
+				SetFloats( attributes, variable.Attribute, Value( variable.Attribute ) );
 			}
 
 			CloseScope();
