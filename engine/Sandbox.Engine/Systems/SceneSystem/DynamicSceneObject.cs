@@ -35,6 +35,7 @@ public class SceneDynamicObject : SceneObject
 				// Start off with infinite bounds so it will actually get rendered
 				// if the user forgets/doesn't need bounds.
 				native.SetBoundsInfinite();
+				KeepFixedBounds( infinite: true );
 			}
 		}
 	}

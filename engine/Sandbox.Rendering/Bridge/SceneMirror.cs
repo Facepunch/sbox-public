@@ -739,9 +739,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			var transform = sceneObject.Transform;
 			custom.Transform = transform == default ? Transform.Zero : transform;
 
-			// Read native bounds: SceneObject.Bounds collapses infinity to a point.
+			// Bounds as kept (WorldBounds): SceneObject.Bounds collapses infinity to a point.
 			// Use large finite bounds to keep culling math valid.
-			var bounds = sceneObject.native.GetBounds();
+			var bounds = sceneObject.WorldBounds;
 			if ( !float.IsFinite( bounds.Mins.x + bounds.Mins.y + bounds.Mins.z + bounds.Maxs.x + bounds.Maxs.y + bounds.Maxs.z ) || bounds.Size.x > 1e9f )
 				bounds = new BBox( new Vector3( -1e9f ), new Vector3( 1e9f ) );
 

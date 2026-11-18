@@ -73,6 +73,14 @@ native class CModel as NativeEngine.IModel
 		return pMesh->m_sceneObjects[nSceneObject].m_drawCalls.Count();
 	}
 
+	// A mesh's scene object's local bounds (CSceneObjectData), which its mesh instance's bounds are made from
+	inline void GetSceneObjectBounds( int iMesh, int nSceneObject, out Vector3 mins, out Vector3 maxs )
+	{
+		const CRenderMesh *pMesh = self->GetMeshData( iMesh );
+		*mins = pMesh->m_sceneObjects[nSceneObject].m_vMinBounds;
+		*maxs = pMesh->m_sceneObjects[nSceneObject].m_vMaxBounds;
+	}
+
 	inline IMaterial GetMaterial( int iMesh, int nSceneObject, int nDrawCall )
 	{
 		const CRenderMesh *pMesh = self->GetMeshData( iMesh );
