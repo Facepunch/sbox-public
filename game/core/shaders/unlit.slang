@@ -1,5 +1,4 @@
-// unlit.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// unlit: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 //
 // ########     ###    ##    ##  ######   ######## ########  ####          ########     ###    ##    ##  ######   ######## ########  ####
@@ -25,9 +24,10 @@
 // HEADER: Description = "Used to draw UI elements";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 Feature( F_ASPECT_FILL_FROM_CENTER, 0..1, "Aspect Fill" );

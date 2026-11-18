@@ -1,13 +1,13 @@
-// borealis_resident_cull_cs.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// borealis_resident_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis resident cull: culls every view's resident batches in one dispatch, a thread per entry looping over the views, and writes their instance records and indirect commands.";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 

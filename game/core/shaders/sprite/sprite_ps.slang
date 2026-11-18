@@ -1,13 +1,12 @@
-// sprite_ps.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// sprite_ps: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 // HEADER: DevShader = true;
 // HEADER: Description = "Sprite2D rendering";
 
 #include "sbox/pass.slangh"
-#include "common/features.hlsl"
 
-// MODES: Forward();
-// MODES: Depth( S_MODE_DEPTH );
+Mode( Forward );
+Mode( Depth, S_MODE_DEPTH );
+#include "common/features.hlsl"
 
 #if ( D_OPAQUE == 0 )
 	#define S_TRANSLUCENT 1

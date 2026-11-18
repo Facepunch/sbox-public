@@ -148,6 +148,171 @@ public class StandaloneModuleTests : GpuTest
 	}
 
 	/// <summary>
+	/// The converter makes a converted module standalone: each <c>// MODES:</c> line a <c>Mode</c> declaration after the include
+	/// that defines it, trailing comments dropped, and nothing else changed.
+	/// </summary>
+	[TestMethod]
+	public void ConverterMakesModulesStandalone()
+	{
+		const string converted = "// x.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes\r\n// and as the fallback (docs/managed/shader-format-replacement.md, \"Pass modules\").\r\n"
+			+ "// HEADER: Description = \"x\";\r\n\r\n// MODES: Forward();\r\n// MODES: Depth( S_MODE_DEPTH ); // its own depth\r\n// MODES: ToolsShadingComplexity( \"tools_shading_complexity.shader\" );\r\n\r\n#include \"sbox/pass.slangh\"\r\n\r\n#include \"system.fxc\"\r\n";
+		var text = PassConverter.Standalone( converted, "x" );
+		StringAssert.StartsWith( text, "// x: a standalone module" );
+		StringAssert.Contains( text, "#include \"sbox/pass.slangh\"\r\n\r\nMode( Forward );\r\nMode( Depth, S_MODE_DEPTH );\r\nMode( ToolsShadingComplexity, \"tools_shading_complexity.shader\" );\r\n" );
+		StringAssert.Contains( text, "// HEADER: Description = \"x\";" );
+		Assert.IsFalse( text.Contains( "MODES:" ) );
+		Assert.IsFalse( text.Replace( "\r\n", "" ).Contains( '\n' ), "line endings kept" );
+		Assert.AreEqual( text, PassConverter.Standalone( text, "x" ), "standalone already" );
+
+		var module = PassModule.FromText( "x.slang", text );
+		Assert.IsTrue( module.Standalone );
+		var modes = PassModules.Modes( module.Modes );
+		CollectionAssert.AreEqual( new[] { "Forward", "Depth", "ToolsShadingComplexity" }, modes.Select( m => m.Name ).ToArray() );
+		Assert.AreEqual( ("S_MODE_DEPTH", 1), modes[1].Settings.Single() );
+		Assert.AreEqual( "tools_shading_complexity.shader", modes[2].Fallback );
+
+		// No modes but comments: the Default mode
+		var none = PassConverter.Standalone( "// MODES: // nothing here\n#include \"sbox/pass.slangh\"\n", "y" );
+		StringAssert.Contains( none, "Mode( Default );" );
+	}
+
+	/// <summary>
+	/// Each standalone module that still has a <c>.shader_c</c> beside it (Source 2's twin, or the last one built before its
+	/// <c>.shader</c> went) describes the same shader: modes, features and each stage's combos. And its variants in each mode
+	/// bind what the compiled file's do, with the dynamic combos at their first values.
+	/// </summary>
+	[TestMethod]
+	public void StandaloneModulesMatchTheirShaders() => CompareStandalone( firstCombos: true );
+
+	/// <summary><see cref="StandaloneModulesMatchTheirShaders"/> over each value of each dynamic combo in turn.</summary>
+	[TestMethod]
+	[TestCategory( "Slow" )]
+	public void StandaloneModuleCombosMatchTheirShaders() => CompareStandalone( firstCombos: false );
+
+	void CompareStandalone( bool firstCombos )
+	{
+		using var backend = new BackendDevice( Device );
+		var errors = new List<string>();
+		backend.Passes.Error = errors.Add;
+		var core = backend.Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "sbox", "pass.slangh" ) ) ) ?? throw new AssertInconclusiveException( "No core shaders" );
+		var differences = new List<string>();
+		var described = 0;
+		var compared = 0;
+		foreach ( var file in Directory.EnumerateFiles( Path.Combine( core, "shaders" ), "*.slang", SearchOption.AllDirectories ).Order( StringComparer.Ordinal ) )
+		{
+			var compiledPath = Path.ChangeExtension( file, ".shader_c" );
+			if ( !File.Exists( compiledPath ) ) continue;
+			var text = File.ReadAllText( file );
+			if ( !text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) || PassModule.FromText( file, text ) is not { Standalone: true } passModule ) continue;
+
+			var path = Path.GetRelativePath( core, Path.ChangeExtension( file, ".shader" ) ).Replace( '\\', '/' );
+			var module = backend.Shaders.Load( path );
+			if ( module is not { ModuleOnly: true } )
+			{
+				differences.Add( $"{path}: not described by its module" );
+				continue;
+			}
+
+			ShaderFile compiled;
+			try
+			{
+				compiled = ShaderFile.Load( compiledPath );
+			}
+			catch ( InvalidDataException )
+			{
+				continue;
+			}
+
+			described++;
+			var before = differences.Count;
+			differences.AddRange( Describe( compiled, module, passModule.Has( StageKind.Mesh ) ).Select( d => $"{path}: {d}" ) );
+			if ( differences.Count > before ) continue;
+
+			foreach ( var mode in compiled.Modes )
+			{
+				if ( !string.IsNullOrEmpty( mode.Fallback ) ) continue;
+				foreach ( var combos in firstCombos ? PassModuleTests.ComboSets( compiled ).Take( 1 ) : PassModuleTests.ComboSets( compiled ).Skip( 1 ) )
+				{
+					int? Combo( string name ) => combos.TryGetValue( name, out var v ) ? v : null;
+					var where = $"{path} {mode.Name} {string.Join( ' ', combos.Where( c => c.Value != 0 ).Select( c => $"{c.Key}={c.Value}" ) )}";
+					ShaderVariant classic;
+					backend.SlangPasses = false;
+					try
+					{
+						classic = backend.Shaders.Variant( compiled, mode.Name, [], Combo );
+					}
+					catch ( InvalidDataException )
+					{
+						continue;
+					}
+					finally
+					{
+						backend.SlangPasses = true;
+					}
+
+					var fromModule = backend.Shaders.Variant( module, mode.Name, [], Combo );
+					if ( fromModule is not { FromModule: true } )
+					{
+						differences.Add( $"{where}: not drawn from its module" );
+						continue;
+					}
+
+					// A module drawn with task and mesh stages has no .shader counterpart: its .shader only names it
+					if ( fromModule.Mesh is not null ) continue;
+					compared++;
+					differences.AddRange( ByName( PassModuleTests.Compare( classic, fromModule ) ).Select( d => $"{where}: {d}" ) );
+				}
+			}
+		}
+
+		if ( described == 0 ) Assert.Inconclusive( "No standalone module has a .shader_c beside it" );
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
+		Assert.AreEqual( 0, differences.Count, $"{differences.Count} differences over {described} shaders, {compared} variants:\n" + string.Join( "\n", differences.Take( 60 ) ) );
+		TestContext.WriteLine( $"{described} shaders described, {compared} variants compared" );
+	}
+
+	/// <summary>
+	/// How a module's description differs from a compiled file's: modes, features, and each stage's combos. A module drawn
+	/// with task and mesh stages has no vertex stage, where its <c>.shader</c> has one only to name it.
+	/// </summary>
+	static IEnumerable<string> Describe( ShaderFile compiled, ShaderFile module, bool meshStages )
+	{
+		static string Mode( ShaderMode m ) => $"{m.Name}({m.Fallback}{string.Concat( m.Settings.Select( s => $",{s.Combo}={s.Value}" ) )})";
+		var modes = string.Join( ' ', compiled.Modes.Select( Mode ) );
+		var moduleModes = string.Join( ' ', module.Modes.Select( Mode ) );
+		if ( modes != moduleModes ) yield return $"modes {modes} vs {moduleModes}";
+
+		static string Combo( ShaderCombo c ) => $"{c.Name}:{c.Min}..{c.Max}";
+		var features = string.Join( ' ', (compiled.Features?.StaticCombos ?? []).Select( Combo ) );
+		var moduleFeatures = string.Join( ' ', (module.Features?.StaticCombos ?? []).Select( Combo ) );
+		if ( features != moduleFeatures ) yield return $"features {features} vs {moduleFeatures}";
+
+		foreach ( var type in new[] { ShaderProgramType.Vertex, ShaderProgramType.Pixel, ShaderProgramType.Compute } )
+		{
+			var a = compiled[type];
+			var b = module[type];
+			if ( meshStages && type == ShaderProgramType.Vertex && b is null ) continue;
+			if ( (a is null) != (b is null) )
+			{
+				yield return $"{type} program {(a is null ? "only in the module" : "missing from the module")}";
+				continue;
+			}
+
+			if ( a is null ) continue;
+
+			// Static combos: the range, and what sets them (a feature by name, the mode, or the system)
+			static string Static( ShaderFile shader, ShaderCombo c ) => $"{Combo( c )}:{(c.FeatureIndex >= 0 ? shader.Features.StaticCombos[c.FeatureIndex].Name : c.Source == 0 ? "mode" : "system")}";
+			var statics = string.Join( ' ', a.StaticCombos.Select( c => Static( compiled, c ) ).Order( StringComparer.Ordinal ) );
+			var moduleStatics = string.Join( ' ', b.StaticCombos.Select( c => Static( module, c ) ).Order( StringComparer.Ordinal ) );
+			if ( statics != moduleStatics ) yield return $"{type} static combos {statics} vs {moduleStatics}";
+
+			var dynamics = string.Join( ' ', a.DynamicCombos.Select( Combo ).Order( StringComparer.Ordinal ) );
+			var moduleDynamics = string.Join( ' ', b.DynamicCombos.Select( Combo ).Order( StringComparer.Ordinal ) );
+			if ( dynamics != moduleDynamics ) yield return $"{type} dynamic combos {dynamics} vs {moduleDynamics}";
+		}
+	}
+
+	/// <summary>
 	/// <see cref="PassModuleTests.Compare"/>'s differences less where things are numbered: the module includes less than the
 	/// <c>.shader</c> (no vr_lighting.fxc), so its <c>$Globals</c> members sit at other offsets and Slang numbers its textures
 	/// and the GPU-driven tables' buffer differently. Each binds by name and each stage's own offsets fill its constants, so

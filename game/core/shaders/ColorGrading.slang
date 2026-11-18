@@ -1,5 +1,4 @@
-// ColorGrading.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// ColorGrading: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 //
 //  Purpose: Colour grading methods` for post process  'ColorGrading.cs'
 //  Version: 1.0
@@ -12,10 +11,10 @@
 // HEADER: DevShader = true;
   
 
-// MODES: Default();
-// MODES: Forward();
-
 #include "sbox/pass.slangh"
+
+Mode( Default );
+Mode( Forward );
 
  
 

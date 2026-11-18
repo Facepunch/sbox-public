@@ -1,8 +1,8 @@
-// moviemaker_accumulate_cs.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
-// MODES: Default();
+// moviemaker_accumulate_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
     #include "postprocess/shared.hlsl"

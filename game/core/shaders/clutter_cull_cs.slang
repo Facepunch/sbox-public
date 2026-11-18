@@ -1,11 +1,10 @@
-// clutter_cull_cs.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// clutter_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 // HEADER: DevShader = true;
 // HEADER: Description = "Clutter GPU frustum culling";
 
-// MODES: Default();
-
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 #include "system.fxc"
 #include "common.fxc"

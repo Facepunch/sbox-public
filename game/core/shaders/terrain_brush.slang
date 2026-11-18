@@ -1,13 +1,12 @@
-// terrain_brush.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// terrain_brush: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 // HEADER: Description = "Terrain Brush Preview";
 // HEADER: DevShader = true;
 // HEADER: DebugInfo = false;
 
 #include "sbox/pass.slangh"
-    #include "vr_common_features.fxc"
 
-// MODES: Forward();
+Mode( Forward );
+    #include "vr_common_features.fxc"
 
 #include "common/shared.hlsl"
 

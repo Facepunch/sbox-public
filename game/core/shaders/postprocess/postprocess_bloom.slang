@@ -1,12 +1,11 @@
-// postprocess_bloom.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// postprocess_bloom: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 // HEADER: Description = "Bloom post-process shader";
 // HEADER: DevShader = true;
 
-// MODES: Default();
-// MODES: Forward();
-
 #include "sbox/pass.slangh"
+
+Mode( Default );
+Mode( Forward );
 
     #include "postprocess/shared.hlsl"
 

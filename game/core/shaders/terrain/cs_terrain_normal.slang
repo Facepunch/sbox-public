@@ -1,11 +1,10 @@
-// cs_terrain_normal.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// cs_terrain_normal: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 // HEADER: DevShader = true;
 // HEADER: Description = "Bake terrain geometric normal from the heightmap";
 
-// MODES: Default();
-
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 #include "system.fxc" // This should always be the first include in COMMON
 

@@ -1,13 +1,13 @@
-// atmosphere_sky.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// atmosphere_sky: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 // HEADER: DevShader = true;
 // HEADER: Description = "Dynamic Sky Shader";
 // HEADER: Version = 1;
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Forward();
 
 #include "sbox/pass.slangh"
+
+Mode( Forward );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #include "vr_common_features.fxc"

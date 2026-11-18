@@ -1,5 +1,4 @@
-// screen_space_shadows_cs.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// screen_space_shadows_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 //=========================================================================================================
 // Screen Space Shadows (wavefront contact shadows)
 //
@@ -14,9 +13,9 @@
 // HEADER: Description = "Bend Studio screen space contact shadows";
 // HEADER: DevShader = true;
 
-// MODES: Default();
-
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 #include "system.fxc"
 

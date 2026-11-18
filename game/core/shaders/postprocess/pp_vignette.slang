@@ -1,12 +1,11 @@
-// pp_vignette.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// pp_vignette: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 // HEADER: Description = "Vignette shader";
 // HEADER: DevShader = true;
 
-// MODES: Default();
-// MODES: Forward();
-
 #include "sbox/pass.slangh"
+
+Mode( Default );
+Mode( Forward );
 
     #include "postprocess/shared.hlsl"
 

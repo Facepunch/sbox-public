@@ -1,13 +1,12 @@
-// lpv_debug.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// lpv_debug: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 // HEADER: Description = "Light Probe Volume Debugging";
 // HEADER: DevShader = true;
 
 #include "sbox/pass.slangh"
-    #include "common/features.hlsl"
 
-// MODES: Forward();
-// MODES: ToolsShadingComplexity( "tools_shading_complexity.shader" );
+Mode( Forward );
+Mode( ToolsShadingComplexity, "tools_shading_complexity.shader" );
+    #include "common/features.hlsl"
 
     // Probe markers are absent from the scene depth used to calculate SSAO.
     #define AMBIENTOCCLUSION_HLSL
