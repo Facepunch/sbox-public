@@ -675,8 +675,11 @@ internal sealed class GpuDrivenTables : IDisposable
 	public const int FrameVisibilityFragmentBase = MaxVisibilityFragments / 2;
 	public const long FrameVisibilityBitBase = MaxVisibilityBits / 2;
 
-	readonly Dictionary<(int FirstInstance, object Mesh, int ModelMesh, int DrawCall), (uint First, uint VertexBase)> frameVisibility = new();
-	int frameVisibilityFragments;
+	// This frame's mesh draws' visibility, in stripes by key, each with its own lock: every recording thread asks for each
+	// mesh draw it records, and one lock kept them waiting on each other. Their stamps and bits are taken by atomic adds
+	const int FrameVisibilityStripes = 16;
+	readonly Dictionary<(int FirstInstance, object Mesh, int ModelMesh, int DrawCall), (uint First, uint VertexBase)>[] frameVisibility = Enumerable.Range( 0, FrameVisibilityStripes ).Select( _ => new Dictionary<(int, object, int, int), (uint, uint)>() ).ToArray();
+	long frameVisibilityFragments;
 	long frameVisibilityBits;
 
 	/// <summary>
@@ -687,20 +690,24 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// </summary>
 	public (uint First, uint VertexBase) FrameVisibility( (int FirstInstance, object Mesh, int ModelMesh, int DrawCall) key, int instances, int vertices )
 	{
-		lock ( frameVisibility )
+		var stripe = frameVisibility[(key.GetHashCode() & int.MaxValue) % FrameVisibilityStripes];
+		lock ( stripe )
 		{
-			if ( frameVisibility.TryGetValue( key, out var known ) ) return known;
+			if ( stripe.TryGetValue( key, out var known ) ) return known;
 
 			var made = (NoVisibility, NoVisibility);
 			var bits = (long)instances * vertices;
-			if ( vertices > 0 && frameVisibilityFragments + instances <= MaxVisibilityFragments - FrameVisibilityFragmentBase && frameVisibilityBits + bits <= MaxVisibilityBits - FrameVisibilityBitBase )
+			var words = (bits + 31) & ~31L;
+			if ( vertices > 0 )
 			{
-				made = ((uint)(FrameVisibilityFragmentBase + frameVisibilityFragments), (uint)(FrameVisibilityBitBase + frameVisibilityBits));
-				frameVisibilityFragments += instances;
-				frameVisibilityBits += (bits + 31) & ~31L;
+				// Taken even when it doesn't fit: past the end every later draw draws without visibility, as when full
+				var fragmentsEnd = Interlocked.Add( ref frameVisibilityFragments, instances );
+				var bitsEnd = Interlocked.Add( ref frameVisibilityBits, words );
+				if ( fragmentsEnd <= MaxVisibilityFragments - FrameVisibilityFragmentBase && bitsEnd - words + bits <= MaxVisibilityBits - FrameVisibilityBitBase )
+					made = ((uint)(FrameVisibilityFragmentBase + fragmentsEnd - instances), (uint)(FrameVisibilityBitBase + bitsEnd - words));
 			}
 
-			frameVisibility[key] = made;
+			stripe[key] = made;
 			return made;
 		}
 	}
@@ -713,7 +720,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	{
 		get
 		{
-			lock ( frameVisibility ) return frameVisibilityBits;
+			return Math.Min( Volatile.Read( ref frameVisibilityBits ), MaxVisibilityBits - FrameVisibilityBitBase );
 		}
 	}
 	/// <summary>The fragment table's slot in the raw buffer array.</summary>
@@ -813,13 +820,13 @@ internal sealed class GpuDrivenTables : IDisposable
 			Volatile.Write( ref current, frames[frame].Count > 0 ? frames[frame][0] : null );
 		}
 
-		lock ( frameVisibility )
+		foreach ( var stripe in frameVisibility )
 		{
-			frameVisibility.Clear();
-			frameVisibilityFragments = 0;
-			LastFrameVisibilityBits = frameVisibilityBits;
-			frameVisibilityBits = 0;
+			lock ( stripe ) stripe.Clear();
 		}
+
+		LastFrameVisibilityBits = Math.Min( Interlocked.Exchange( ref frameVisibilityBits, 0 ), MaxVisibilityBits - FrameVisibilityBitBase );
+		Interlocked.Exchange( ref frameVisibilityFragments, 0 );
 	}
 
 	/// <summary>
