@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Gas Cylinder",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "gascylinderbase",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/gas_cylinder/gas_cylinder_base.vmdl"
+      }
+    }
+  },
+  "guid": "4bbc0f3a-8c0c-4dfb-819a-797ff5c4fcba"
+}

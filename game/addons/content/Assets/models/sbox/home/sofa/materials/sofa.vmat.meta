@@ -1,0 +1,27 @@
+{
+  "guid": "63a4acaf-dea0-4745-9fd2-59043e6eae99",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Couch",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "couch",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/home/sofa/materials/sofa.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

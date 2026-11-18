@@ -40,8 +40,8 @@
 					{
 						_class = "DefaultMaterialGroup"
 						remaps = [  ]
-						use_global_default = false
-						global_default_material = ""
+						use_global_default = true
+						global_default_material = "models/sbox/bathroom/sink/materials/sink.vmat"
 					},
 				]
 			},
