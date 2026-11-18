@@ -63,6 +63,45 @@ public class RenderAttributeShadowTest
 	}
 
 	/// <summary>
+	/// Equal values compare equal as native's <c>CRenderAttributes::AreEqual</c> compares two sets, whatever order they were
+	/// set in; a value, combo or object apart doesn't. Objects whose sets hold the same values share one when they draw.
+	/// </summary>
+	[TestMethod]
+	public void SameValuesComparesWhatIsSet()
+	{
+		static RenderAttributes Make( float height, int combo, string name )
+		{
+			var set = RenderAttributes.CreateManaged();
+			set.SetCombo( "D_GRID", combo );
+			set.Set( "Height", height );
+			set.Set( "Offset", new Vector2( 3, 4 ) );
+			set.Managed.SetObject( "Name", name );
+			return set;
+		}
+
+		var a = Make( 2.5f, 1, "white" );
+		Assert.IsFalse( a.Managed.IsEmpty );
+		Assert.IsTrue( RenderAttributes.CreateManaged().Managed.IsEmpty );
+
+		var b = RenderAttributes.CreateManaged();
+		b.Managed.SetObject( "Name", "white" );
+		b.Set( "Offset", new Vector2( 3, 4 ) );
+		b.Set( "Height", 2.5f );
+		b.SetCombo( "D_GRID", 1 );
+		Assert.IsTrue( a.Managed.SameValues( b.Managed ) );
+		Assert.IsTrue( b.Managed.SameValues( a.Managed ) );
+
+		Assert.IsFalse( a.Managed.SameValues( Make( 2.6f, 1, "white" ).Managed ) );
+		Assert.IsFalse( a.Managed.SameValues( Make( 2.5f, 0, "white" ).Managed ) );
+		Assert.IsFalse( a.Managed.SameValues( Make( 2.5f, 1, "black" ).Managed ) );
+
+		b.Set( "Extra", 1.0f );
+		Assert.IsFalse( a.Managed.SameValues( b.Managed ), "one more value" );
+		b.Clear();
+		Assert.IsTrue( b.Managed.IsEmpty );
+	}
+
+	/// <summary>
 	/// A managed set filled every frame (a block's, a command list's) reuses its arrays: setting numbers, vectors, matrices,
 	/// and constant bytes again, or after a clear, allocates nothing.
 	/// </summary>

@@ -105,6 +105,38 @@ public class FrameLogTests
 	}
 
 	/// <summary>
+	/// The cluster index list holds as many slots per cluster as the view's lights, envmaps and decals need, rounded up to a
+	/// power of two, rather than every type's maximum: an empty view binds next to nothing, and it grows with the lights.
+	/// </summary>
+	[TestMethod]
+	public void ClusterIndicesAreSizedByTheViewsItems()
+	{
+		const int clusters = 24 * 16 * 48;
+		using var material = new HeadlessMaterial( "box", "complex" );
+		var world = Boxes( material, 3 );
+		using var target = ViewTarget.Create( new Vector2Int( 640, 480 ) );
+		using var system = new RenderSystem();
+
+		var indices = ClusterIndices( Render( system, world, target ) );
+		Assert.AreEqual( 1, indices.ElementCount, "no lights, envmaps or decals: a buffer of one" );
+
+		for ( int i = 0; i < 3; i++ )
+			world.Add( new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( 40, i * 10, 0 ) ) ) { Radius = 50, CastShadows = false } );
+
+		var grown = ClusterIndices( Render( system, world, target ) );
+		Assert.AreEqual( clusters * 4, grown.ElementCount, "three lights take four slots a cluster, not every type's maximum" );
+
+		// Steady while the items fit
+		Assert.AreSame( grown, ClusterIndices( Render( system, world, target ) ) );
+	}
+
+	static GpuBuffer ClusterIndices( FrameCapture frame )
+	{
+		var write = frame.Commands.Single( c => c.Op == GpuOp.WriteViewSet );
+		return (GpuBuffer)((HeadlessParameters)write.Parameters).Get( "ClusterItemIndices" );
+	}
+
+	/// <summary>
 	/// With an async compute queue, the depth chain runs on it: graphics makes depth readable by compute and signals, the
 	/// compute queue waits for that, and a later graphics submission waits for the compute queue before the frame ends.
 	/// Without one, the same work stays on graphics and nothing waits on anything.
