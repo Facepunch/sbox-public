@@ -21,7 +21,7 @@ internal static class ToolSceneViews
 	[StructLayout( LayoutKind.Sequential )]
 	internal unsafe struct Request
 	{
-		public const int Version = 2;
+		public const int Version = 3;
 		public const int MaxWorlds = 16;
 
 		public int RequestVersion;
@@ -47,6 +47,28 @@ internal static class ToolSceneViews
 		/// null, room for vertices. Returns the batch's vertex count, 0 past its last batch.
 		/// </summary>
 		public delegate* unmanaged< IntPtr, int, Geometry*, ToolVertex*, int, int > GetGeometry;
+
+		/// <summary>An object's text (<see cref="Text"/>): object, out text. Returns 1 for a text object, 0 otherwise.</summary>
+		public delegate* unmanaged< IntPtr, Text*, int > GetText;
+
+		/// <summary>The managed handle of the view's world in window pixels (its screen-space renderables), or 0.</summary>
+		public int ScreenSpaceWorld;
+		public int Padding;
+	}
+
+	/// <summary>
+	/// <c>ToolSceneText_t</c> (src/public/toolrenderutils/toolmatsysutils.h): a tool text object's text and where it's laid out.
+	/// </summary>
+	[StructLayout( LayoutKind.Sequential )]
+	internal struct Text
+	{
+		public IntPtr Utf8;
+		public Vector3 World;
+		public Vector2 Mins;
+		public Vector2 Maxs;
+		public float MaxDistance;
+		public Color32 Color;
+		public int InWorld;
 	}
 
 	/// <summary>
@@ -150,7 +172,12 @@ internal static class ToolSceneViews
 		}
 
 		var size = new Vector2( request.Width, request.Height );
-		view.Overlays ??= new ToolOverlays( view.Lights.World );
+		if ( view.Overlays is null )
+		{
+			view.Overlays = new ToolOverlays( view.Lights.World );
+			view.Camera.OnRenderOverlay = view.Overlays.DrawTextAction( view.Camera );
+		}
+
 		Setup( view.Camera, view.Lights, view.Overlays, ref request );
 		request.Handled = 1;
 
@@ -178,7 +205,12 @@ internal static class ToolSceneViews
 
 		bitmapCamera ??= NewCamera( "Tool scene read-back" );
 		bitmapLights ??= new ToolLights();
-		bitmapOverlays ??= new ToolOverlays( bitmapLights.World );
+		if ( bitmapOverlays is null )
+		{
+			bitmapOverlays = new ToolOverlays( bitmapLights.World );
+			bitmapCamera.OnRenderOverlay = bitmapOverlays.DrawTextAction( bitmapCamera );
+		}
+
 		Setup( bitmapCamera, bitmapLights, bitmapOverlays, ref request );
 
 		using var bitmap = new Bitmap( request.Width, request.Height );
@@ -253,9 +285,19 @@ internal static class ToolSceneViews
 			Poll( world );
 			lights.Mirror( world );
 			if ( request.GetGeometry != null ) overlays.Gather( world, request.GetGeometry );
+			if ( request.GetText != null ) overlays.GatherText( world, request.GetText );
 			camera.Worlds.Add( world );
 		}
 		lights.EndFrame();
+
+		// The screen-space world: its lines, triangles and text are in window pixels
+		if ( request.ScreenSpaceWorld != 0 && Sandbox.HandleIndex.Get<SceneWorld>( request.ScreenSpaceWorld ) is { } screenSpace && screenSpace.IsValid() )
+		{
+			Poll( screenSpace );
+			overlays.BeginScreenSpace();
+			if ( request.GetGeometry != null ) overlays.Gather( screenSpace, request.GetGeometry );
+			if ( request.GetText != null ) overlays.GatherText( screenSpace, request.GetText );
+		}
 
 		frame++;
 
@@ -267,6 +309,7 @@ internal static class ToolSceneViews
 		if ( camera.Ortho ) camera.OrthoHeight = request.OrthoHeight;
 		else camera.FieldOfView = request.FovX;
 		camera.BackgroundColor = new Color( request.Background[0], request.Background[1], request.Background[2], request.Background[3] );
+		overlays.PlaceScreenSpace( camera, new Vector2( request.Width, request.Height ) );
 	}
 
 	/// <summary>Frames between re-reading a native-authored object's model and materials.</summary>
@@ -342,6 +385,45 @@ internal static class ToolSceneViews
 			public Graphics.PrimitiveType Primitive;
 			public float LineThickness;
 			public Pass Pass;
+			public Combos Combos;
+			public float PatternType;
+		}
+
+		/// <summary>The tool material combos native draws a vertex list with (<c>s_ToolMaterialAttributes</c>).</summary>
+		[Flags]
+		enum Combos : byte
+		{
+			ThickLines = 1,
+			DepthBias = 2,
+			NoCulling = 4,
+			Shaded = 8,
+			SnapToScreen = 16,
+		}
+
+		static readonly StringToken ThickLinesCombo = "D_THICK_LINES";
+		static readonly StringToken DepthBiasCombo = "D_DEPTH_BIAS";
+		static readonly StringToken NoCullingCombo = "D_NO_CULLING";
+		static readonly StringToken ShadedCombo = "D_SHADED";
+		static readonly StringToken SnapCombo = "D_SNAP_TO_SCREEN_PIXELS";
+		static readonly StringToken PatternTypeName = "PatternType";
+		static readonly StringToken LineThicknessName = "g_LineThickness";
+		static readonly StringToken PointSizeName = "UniformPointSize";
+		static readonly StringToken TangentFrameName = "UncompressedTangentFrame";
+
+		static Combos ReadCombos( IntPtr nativeAttributes, out float patternType )
+		{
+			patternType = 0;
+			if ( nativeAttributes == IntPtr.Zero ) return 0;
+
+			NativeEngine.CRenderAttributes native = nativeAttributes;
+			Combos combos = 0;
+			if ( native.GetComboValue( ThickLinesCombo, 0 ) != 0 ) combos |= Combos.ThickLines;
+			if ( native.GetComboValue( DepthBiasCombo, 0 ) != 0 ) combos |= Combos.DepthBias;
+			if ( native.GetComboValue( NoCullingCombo, 0 ) != 0 ) combos |= Combos.NoCulling;
+			if ( native.GetComboValue( ShadedCombo, 0 ) != 0 ) combos |= Combos.Shaded;
+			if ( native.GetComboValue( SnapCombo, 0 ) != 0 ) combos |= Combos.SnapToScreen;
+			patternType = native.GetFloatValue( PatternTypeName, 0 );
+			return combos;
 		}
 
 		readonly List<Batch> batches = new();
@@ -373,6 +455,38 @@ internal static class ToolSceneViews
 		{
 			batches.Clear();
 			vertexCount = 0;
+			texts.Clear();
+			screenSpaceBatch = -1;
+		}
+
+		// Where the screen-space world's batches start, -1 for none: they're gathered last, and drawn without depth
+		int screenSpaceBatch = -1;
+
+		/// <summary>What's gathered from here on is the screen-space world's, in window pixels with y up from the bottom.</summary>
+		public void BeginScreenSpace() => screenSpaceBatch = batches.Count;
+
+		/// <summary>
+		/// Put the screen-space world's vertices in front of the camera where they cover the pixels native's screen-space view
+		/// draws them at (<c>CToolCamera::GetScreenSpaceFrustum</c>: x right, y up, from the bottom left), so the view's
+		/// camera draws them over the frame. A projection keeps straight lines straight, so each vertex goes alone.
+		/// </summary>
+		public void PlaceScreenSpace( SceneCamera camera, Vector2 size )
+		{
+			if ( screenSpaceBatch < 0 || screenSpaceBatch >= batches.Count ) return;
+
+			var screen = new Vector3( size.x, size.y, 0 );
+			var distance = camera.ZNear * 4;
+			var first = batches[screenSpaceBatch].Start;
+			for ( int i = first; i < vertexCount; i++ )
+			{
+				ref var vertex = ref vertices[i];
+				var ray = camera.GetRay( new Vector2( vertex.Position.x, size.y - vertex.Position.y ), screen );
+				vertex.Position = ray.Position + ray.Forward * distance;
+			}
+
+			var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan( batches );
+			for ( int i = screenSpaceBatch; i < span.Length; i++ )
+				span[i].Pass = Pass.NoDepth;
 		}
 
 		// ToolRenderingLayer_t: up to TRANSLUCENT drawn before post processing, lit with the scene; from UNLIT_OPAQUE_NOZ on
@@ -391,7 +505,7 @@ internal static class ToolSceneViews
 			{
 				foreach ( var sceneObject in world.InternalSceneObjects )
 				{
-					if ( sceneObject.GetType() != typeof( SceneObject ) || sceneObject.native.IsNull || !sceneObject.RenderingEnabled ) continue;
+					if ( !Drawn( sceneObject ) ) continue;
 
 					for ( int batch = 0; ; batch++ )
 					{
@@ -419,12 +533,118 @@ internal static class ToolSceneViews
 							Primitive = geometry.VertsPerPrimitive switch { 1 => Graphics.PrimitiveType.Points, 2 => Graphics.PrimitiveType.Lines, _ => Graphics.PrimitiveType.Triangles },
 							LineThickness = geometry.LineThickness,
 							Pass = PassOf( geometry.ToolLayer ),
+							Combos = ReadCombos( geometry.Attributes, out var patternType ),
+							PatternType = patternType,
 						} );
 						vertexCount += count;
 					}
 				}
 			}
 		}
+
+		struct TextItem
+		{
+			public string Text;
+			public Vector3 World;
+			public Vector2 Mins;
+			public Vector2 Maxs;
+			public float MaxDistance;
+			public Color Color;
+			public bool InWorld;
+		}
+
+		readonly List<TextItem> texts = new();
+
+		// Each text object's last string, made again only when its bytes change
+		readonly Dictionary<IntPtr, (ulong Hash, string Text)> strings = new();
+
+		/// <summary>
+		/// Copy out the text of <paramref name="world"/>'s text objects (joint, hitbox and attachment names; tool labels).
+		/// </summary>
+		public void GatherText( SceneWorld world, delegate* unmanaged< IntPtr, Text*, int > getText )
+		{
+			lock ( world.InternalSceneObjects )
+			{
+				foreach ( var sceneObject in world.InternalSceneObjects )
+				{
+					if ( !Drawn( sceneObject ) ) continue;
+
+					Text text;
+					if ( getText( sceneObject.native, &text ) == 0 || text.Utf8 == IntPtr.Zero ) continue;
+
+					var value = StringFor( sceneObject.native, (byte*)text.Utf8 );
+					if ( value is null ) continue;
+
+					texts.Add( new TextItem
+					{
+						Text = value,
+						World = text.World,
+						Mins = text.Mins,
+						Maxs = text.Maxs,
+						MaxDistance = text.MaxDistance,
+						Color = text.Color.ToColor(),
+						InWorld = text.InWorld != 0,
+					} );
+				}
+			}
+		}
+
+		string StringFor( IntPtr owner, byte* utf8 )
+		{
+			// FNV-1a over the bytes: no string is made while they stay the same
+			ulong hash = 14695981039346656037UL;
+			int length = 0;
+			for ( ; length < 4096 && utf8[length] != 0; length++ )
+				hash = (hash ^ utf8[length]) * 1099511628211UL;
+			if ( length == 0 ) return null;
+
+			if ( strings.TryGetValue( owner, out var known ) && known.Hash == hash ) return known.Text;
+
+			if ( strings.Count > 1024 ) strings.Clear();
+			var text = System.Text.Encoding.UTF8.GetString( utf8, length );
+			strings[owner] = (hash, text);
+			return text;
+		}
+
+		/// <summary>
+		/// What draws the frame's text over a camera's frame, once post processing is done (<see cref="SceneCamera.OnRenderOverlay"/>).
+		/// </summary>
+		public Action DrawTextAction( SceneCamera camera ) => () => DrawText( camera );
+
+		/// <summary>
+		/// Draw the text gathered for the frame over it, in pixels: world-anchored text at its anchor's projection, as the
+		/// scene system's debug text draws (<c>CDebugTextObjectDesc::DrawArray</c>).
+		/// </summary>
+		void DrawText( SceneCamera camera )
+		{
+			foreach ( var text in texts )
+			{
+				var origin = Vector2.Zero;
+				if ( text.InWorld )
+				{
+					if ( !camera.ToScreen( text.World, out var screen ) ) continue;
+					if ( text.MaxDistance > 0 && camera.Position.DistanceSquared( text.World ) > text.MaxDistance * text.MaxDistance ) continue;
+					origin = new Vector2( MathF.Floor( screen.x ), MathF.Floor( screen.y ) );
+				}
+
+				var size = text.Maxs - text.Mins;
+				if ( size.y <= 0 ) continue;
+
+				// Its laid out glyphs' box, a line each; the glyphs are about four fifths of a line
+				var lines = 1;
+				foreach ( var c in text.Text )
+					if ( c == '\n' ) lines++;
+				var line = size.y / lines;
+				Graphics.DrawText( new Rect( origin + text.Mins, size + new Vector2( line, 0 ) ), text.Text, text.Color, "Roboto", line * 0.8f, 600, TextFlag.LeftTop );
+			}
+		}
+
+		/// <summary><c>SCENEOBJECTFLAG_IS_DISABLED</c>: hidden by its owner (a tool helper's <c>SetVisible( false )</c>).</summary>
+		const ulong DisabledFlag = 1UL << 60;
+
+		/// <summary>A native-drawn object native draws this frame.</summary>
+		static bool Drawn( SceneObject sceneObject ) => sceneObject.GetType() == typeof( SceneObject ) && !sceneObject.native.IsNull
+			&& sceneObject.RenderingEnabled && ((ulong)sceneObject.native.GetFlags() & DisabledFlag) == 0;
 
 		Material MaterialFor( IntPtr name )
 		{
@@ -448,9 +668,18 @@ internal static class ToolSceneViews
 				{
 					if ( batch.Pass != pass ) continue;
 
+					// Lines thicker than a pixel (D_THICK_LINES) widen in the vertex stage, four vertices a line; points are quads
+					// of their size (a point cloud's), likewise
 					var drawAttributes = pass == Pass.NoDepth ? noDepthAttributes : attributes;
-					drawAttributes.Set( "g_LineThickness", batch.LineThickness );
-					drawAttributes.Set( "UncompressedTangentFrame", true );
+					drawAttributes.Set( LineThicknessName, batch.LineThickness );
+					drawAttributes.Set( TangentFrameName, true );
+					drawAttributes.SetCombo( ThickLinesCombo, (batch.Combos & Combos.ThickLines) != 0 );
+					drawAttributes.SetCombo( DepthBiasCombo, (batch.Combos & Combos.DepthBias) != 0 );
+					drawAttributes.SetCombo( NoCullingCombo, (batch.Combos & Combos.NoCulling) != 0 );
+					drawAttributes.SetCombo( ShadedCombo, (batch.Combos & Combos.Shaded) != 0 );
+					drawAttributes.SetCombo( SnapCombo, (batch.Combos & Combos.SnapToScreen) != 0 );
+					drawAttributes.Set( PatternTypeName, batch.PatternType );
+					if ( batch.Primitive == Graphics.PrimitiveType.Points ) drawAttributes.Set( PointSizeName, batch.LineThickness );
 					Graphics.DrawInternal( all + batch.Start, batch.Count, null, 0, batch.Material, drawAttributes, batch.Primitive );
 				}
 			}
