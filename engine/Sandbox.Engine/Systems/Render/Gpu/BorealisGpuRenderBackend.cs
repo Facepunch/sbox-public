@@ -859,7 +859,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		if ( !string.IsNullOrEmpty( texture.ResourcePath ) ) return null;
 		if ( !Texture.MaterialOrigins.TryGetValue( texture, out var origin ) || origin is not Texture.MaterialOrigin o ) return null;
-		return services.MaterialTexture( o.Material, o.Parameter ) as BackendTexture;
+		return services.LoadedMaterialTexture( o.Material, o.Parameter ) as BackendTexture;
 	}
 
 	/// <summary>A texture loaded from a compiled <c>.vtex</c>, read from that file.</summary>

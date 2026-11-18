@@ -1146,6 +1146,17 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>A compiled material's texture for a shader variable (<c>g_tSkyTexture</c>), or null.</summary>
 	public GpuTexture MaterialTexture( string material, string variable ) => MaterialTexture( LoadMaterial( material ), variable );
 
+	/// <summary>
+	/// <see cref="MaterialTexture(string, string)"/> without pinning a material that's loaded already (a world's mirror holds
+	/// it, its sky's): what's drawn outside the worlds borrows it, and it goes with the world. Loaded here otherwise.
+	/// </summary>
+	public GpuTexture LoadedMaterialTexture( string material, string variable )
+	{
+		GpuMaterial loaded;
+		lock ( sharedMaterials ) sharedMaterials.TryGetValue( material, out loaded );
+		return loaded is not null ? MaterialTexture( loaded, variable ) : MaterialTexture( material, variable );
+	}
+
 	/// <summary>A material's texture for a shader variable, or null (<see cref="MaterialTexture(string, string)"/>).</summary>
 	public GpuTexture MaterialTexture( GpuMaterial material, string variable )
 	{
