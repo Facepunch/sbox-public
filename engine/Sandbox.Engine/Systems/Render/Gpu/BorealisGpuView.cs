@@ -105,8 +105,13 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 	bool Graphics.IFrameView.PostProcessEnabled => PostProcessEnabled;
 	int Graphics.IFrameView.ToolsVisMode => ToolsVisMode;
 	bool Graphics.IFrameView.IsChildView => false;
-	int Graphics.IFrameView.CubeFace => -1;
-	bool Graphics.IFrameView.IsCapture => false;
+	int Graphics.IFrameView.CubeFace => CubeFace;
+	bool Graphics.IFrameView.IsCapture => Rendering.CaptureFrames.IsCapture( CubeFace, false, false );
+
+	/// <summary>Which face of a cube capture the frame is (a capture camera's stages run on each face), or -1.</summary>
+	public int CubeFace = -1;
+
+	Texture Graphics.IFrameView.DepthTexture => Target?.DepthTarget;
 
 	// Its targets are Borealis.Gpu textures, with no native handle
 	ITexture Graphics.IFrameView.GetColorTarget( out bool owned )
