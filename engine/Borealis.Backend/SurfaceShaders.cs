@@ -88,13 +88,16 @@ public sealed class SurfaceShaders : IDisposable
 		["bark"] = null,
 		["terrain_preview"] = null,
 		["water_simple"] = null,
+		["terrain"] = "terrain_surface.slang",
+		["water"] = "water_surface.slang",
 	};
 
 	/// <summary>
 	/// Core shaders (by name, <c>eyeball</c>) whose materials load as their <c>.shader</c> even with <see cref="ConvertShaders"/>
-	/// on, for comparing one surface against its shader while the others stay surfaces. Read as materials load.
+	/// on, for comparing one surface against its shader while the others stay surfaces. Read as materials load. Starts with
+	/// the names in <c>BOREALIS_SHADER_ROUTE</c> (<c>terrain,water</c>), so a game run can compare them too.
 	/// </summary>
-	public static HashSet<string> NotConvertedByDefault { get; } = new( StringComparer.OrdinalIgnoreCase );
+	public static HashSet<string> NotConvertedByDefault { get; } = new( (Environment.GetEnvironmentVariable( "BOREALIS_SHADER_ROUTE" ) ?? "").Split( ',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ), StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
 	/// Specialise pipelines for each material's features (<see cref="Sandbox.ShaderCompiler.MaterialLayout.Features"/>), built in the background

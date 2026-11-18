@@ -841,6 +841,7 @@ struct SurfaceLighting : ISurfaceLighting
 	float4 ProjectDirection( float3 direction ) { return Position4WsToPs( float4( direction, 0 ) ); }
 	float3 WorldToView( float3 direction ) { return Vector3WsToVs( direction ); }
 	float3 ViewToWorld( float3 direction ) { return Vector3VsToWs( direction ); }
+	float2 ViewportUv() { return CalculateViewportUv( Pixel.vPositionSs.xy ); }
 };
 
 /// Forward, and the alpha-tested depth pass, for a surface that shades itself (IShadedSurface): its Shade returns the lit,

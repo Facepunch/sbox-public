@@ -990,6 +990,46 @@ public class SurfaceTests : GpuTest
 		Assert.IsNull( shaded.GpuDrivenError, shaded.GpuDrivenError );
 	}
 
+	/// <summary>
+	/// terrain_surface.slang (terrain.shader as a surface that owns its vertex stage) compiles: its vertex stage reads the
+	/// meshlet mesh's position alone, every pass clips holes, and the layers sample with the local position's derivatives.
+	/// </summary>
+	[TestMethod]
+	public void TerrainSurfaceCompiles()
+	{
+		var terrain = Compiler().CompileSurface( Path.Combine( Core, "shaders", "terrain_surface.slang" ) );
+		StringAssert.Contains( terrain.Generated, "d.Ddx.LocalPosition = ddx( v.LocalPosition );" );
+		foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Depth } )
+		{
+			var pass = terrain.Pass( name );
+			var inputs = pass.Vertex.Inputs.Select( i => i.Semantic + i.SemanticIndex ).ToArray();
+			Assert.IsTrue( inputs.Contains( "POSITION0" ) && inputs.All( i => i is "POSITION0" or "TEXCOORD13" ), string.Join( ", ", inputs ) );
+			Assert.IsTrue( WritesClipDistance( pass.Vertex.Spirv ), $"{name} doesn't clip holes" );
+			Assert.IsTrue( pass.Vertex.Bindings.Any( b => b.Name == "TerrainMeshlets" ), $"{name} doesn't read the meshlets" );
+		}
+
+		// The grid is the D_GRID combo, a specialization constant in both stages
+		Assert.IsTrue( terrain.Pass( ShaderPasses.Forward ).Pixel.Specializations.Any( s => s.Attribute == "D_GRID" ) );
+	}
+
+	/// <summary>
+	/// water_surface.slang (water.shader as a surface that owns its vertex stage and shades itself) compiles: its vertex stage
+	/// reads the clipmap mesh's cells and levels, its forward pass lights two-sided ([Lighting( "S_DIFFUSE_TWO_SIDED" )])
+	/// and shades itself, and its material takes the .vmat's values by name.
+	/// </summary>
+	[TestMethod]
+	public void WaterSurfaceCompiles()
+	{
+		var water = Compiler().CompileSurface( Path.Combine( Core, "shaders", "water_surface.slang" ) );
+		StringAssert.Contains( water.Generated, "#define S_DIFFUSE_TWO_SIDED 1" );
+		StringAssert.Contains( water.Generated, "SurfaceForwardShaded<SurfaceWithStageShaded<Water, Water>, false>" );
+		StringAssert.Contains( water.Generated, "d.Ddx.Rest = ddx( v.Rest );" );
+		var inputs = water.Pass( ShaderPasses.Forward ).Vertex.Inputs.Select( i => i.Semantic + i.SemanticIndex ).ToArray();
+		foreach ( var semantic in new[] { "TEXCOORD0", "TEXCOORD1" } ) CollectionAssert.Contains( inputs, semantic, string.Join( ", ", inputs ) );
+		Assert.AreEqual( "g_fRoughness", water.Material.Field( "Roughness" ).Source );
+		Assert.IsTrue( water.Pass( ShaderPasses.Forward ).Pixel.Bindings.Any( b => b.Name == "RefractionTexture" ) );
+	}
+
 	/// <summary>Whether SPIR-V declares the ClipDistance capability (OpCapability 32): a stage that writes clip distances.</summary>
 	static bool WritesClipDistance( byte[] spirv )
 	{

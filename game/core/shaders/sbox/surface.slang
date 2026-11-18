@@ -528,6 +528,9 @@ public interface ISurfaceLighting : ILayerLighting
 	float4 ProjectDirection( float3 direction );
 	float3 WorldToView( float3 direction );
 	float3 ViewToWorld( float3 direction );
+
+	/// The pixel's 0..1 position in the view's viewport (for screen-space textures the engine binds: a capture).
+	float2 ViewportUv();
 }
 
 /// Instead of ISurface: a surface that returns its own lit colour. Forward passes call Shade, which lights itself through
