@@ -85,7 +85,7 @@ public sealed partial class SlangCompiler
 	public const int Version = 3;
 
 	/// <summary>The <see cref="Fingerprint"/> of the generated code <see cref="Version"/> was raised for.</summary>
-	internal const string GeneratedFingerprint = "D91ACD26E5E93B42";
+	internal const string GeneratedFingerprint = "E0A8E99736ED5263";
 
 	/// <summary>
 	/// A hash of what the compiler generates for fixed inputs (the Slang command lines, instance and GPU-driven files and
