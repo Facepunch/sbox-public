@@ -1608,7 +1608,7 @@ public class GpuDrivenTests : GpuTest
 
 	/// <summary>
 	/// Shadow views cull meshlets (<see cref="BackendDevice.ShadowMeshlets"/>): static models' largest draws as aggregates (a
-	/// large plane, trashcans scaled up on it), under the sun's two cascades and, apart, round a point light's cube, draw the
+	/// large plane, trashcans scaled up on it) and static meshes (resident trashcans), under the sun's two cascades and, apart, round a point light's cube, draw the
 	/// pixels they do without, each call culling its own, from plans and from the resident cull, while the shadow views
 	/// rasterise fewer triangles.
 	/// </summary>
@@ -1666,6 +1666,11 @@ public class GpuDrivenTests : GpuTest
 			world.Add( Aggregate( plane, new Color( 0.5f, 0.5f, 0.5f ), [(new Vector3( 300, 0, 0 ), 6000 / MathF.Max( plane.Bounds.Size.x, 1 ))] ) );
 			world.Add( Aggregate( can, new Color( 0.7f, 0.6f, 0.5f ), [(light + new Vector3( 0, 0, -300 ), 8), (new Vector3( 900, -500, 0 ), 6), (new Vector3( 1200, 400, 0 ), 6), (new Vector3( -100, 600, 0 ), 5), (new Vector3( 500, 300, 0 ), 4)] ) );
 			if ( pointLight ) world.Add( new LightObject( LightObject.LightKind.Point, new Transform( light ) ) { Radius = 1500, Color = new Color( 40, 40, 40 ) } );
+
+			// Static meshes of the trashcan's draw (resident meshes), whose draws ask for meshlets for the shadow views
+			var canDraw = can.DrawsForLod( 0 ).ToArray().MaxBy( d => d.IndexCount ) with { Material = backend.CreateMaterial( "Shadow meshlets mesh", new Color( 0.4f, 0.6f, 0.7f ) ), ShadowFastPath = true };
+			var canMesh = new RenderMesh( can.Geometry, can.Bounds, [[canDraw]] );
+			foreach ( var at in (Vector3[])[new( 550, 150, 0 ), new( 50, -200, 0 ), new( 700, -150, 0 )] ) world.Add( new MeshObject( canMesh, new Transform( at, Rotation.FromYaw( at.x ), 6 ) ) { IsStatic = true } );
 
 			var view = new RenderView { Name = "Shadow meshlets test", FieldOfView = 70, ZNear = 4, ZFar = 6000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
 			view.Position = new Vector3( -500, -400, 300 );

@@ -671,19 +671,26 @@ internal sealed partial class BackendContext
 
 				// A shadow call's depth-only buckets whose vertex shader reads only positions (as the ids prepass's do): their
 				// meshlets' boxes bound what they draw. Alpha-tested and translucent ones keep their own pass and draw whole
-				// Only aggregates' fragments have meshlets (MeshletStore): a bucket of none draws as before, without a meshlet pass
+				// Its draws' meshlets: aggregates ask for theirs as their records are written, a model's static meshes (instances,
+				// resident meshes) here, once per draw, for shadow views alone. A bucket of neither draws as before, without a
+				// meshlet pass
 				bucket.ShadowMeshlets = meshlets && !ids && bucket.Classic is not null;
-				var aggregates = false;
+				var withMeshlets = false;
 				foreach ( var (_, index) in bucket.Batches )
 				{
 					if ( !bucket.ShadowMeshlets ) break;
 					ref readonly var batch = ref batches[index];
 					var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
 					if ( !ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) bucket.ShadowMeshlets = false;
-					aggregates |= batch.Owner is AggregateObject && !batch.Instances;
+					if ( batch.Owner is AggregateObject && !batch.Instances ) withMeshlets = true;
+					else if ( batch.Mesh.Geometry is BackendModel model && geometry.Pooled is { } pooledMesh )
+					{
+						RequestMeshlets( device.MeshletStore, pooledMesh, model, batch.Draw, geometry.BaseVertex );
+						withMeshlets = true;
+					}
 				}
 
-				bucket.ShadowMeshlets &= aggregates;
+				bucket.ShadowMeshlets &= withMeshlets;
 
 				// Forward's triangles that own a sample, or the prepass's kept meshlets: a multi-draw from the compacted buffer, or
 				// a task run
@@ -1782,6 +1789,18 @@ internal sealed partial class BackendContext
 			var range = new Meshlets.MeshletStore.Range( pooled.IndexPageSlot, pooled.FirstIndex + arg.FirstIndex, arg.IndexCount, arg.BaseVertex );
 			store.Request( range, source with { IndexBase = source.IndexBase + (int)arg.FirstIndex, VertexBase = source.VertexBase + arg.BaseVertex } );
 		}
+	}
+
+	/// <summary>
+	/// Ask for the meshlets of a model's static mesh draw (an instance batch's or resident meshes' draw), once a draw: a shadow
+	/// view culls them (the ids prepass lists only aggregates' fragments).
+	/// </summary>
+	static void RequestMeshlets( Meshlets.MeshletStore store, PooledGeometry pooled, BackendModel model, in RenderMesh.Draw draw, int baseVertex )
+	{
+		if ( !model.FirstMeshletRequest( draw.Mesh, draw.DrawCall ) ) return;
+		if ( Meshlets.MeshletStore.SourceOf( model, draw.Mesh, draw.DrawCall, pooled.IndexPage, pooled.IndexFormat ) is not { } source ) return;
+		var range = new Meshlets.MeshletStore.Range( pooled.IndexPageSlot, pooled.FirstIndex + (uint)draw.StartIndex, (uint)draw.IndexCount, baseVertex );
+		store.Request( range, source with { IndexBase = source.IndexBase + draw.StartIndex, VertexBase = source.VertexBase + baseVertex } );
 	}
 
 	/// <summary>
