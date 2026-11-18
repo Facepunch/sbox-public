@@ -61,7 +61,7 @@ internal sealed partial class BackendContext
 	static (int Bytes, int Runs, int Listed, int Instances, int FragmentWords, int Commands) ResidentRegion( GpuDrivenPlan plan, bool ids, bool lists )
 	{
 		var fragments = plan.Fragments;
-		var slots = fragments * (plan.Key.Meshlets && ids ? 1 + 2 * (int)MeshletChunks : lists ? 2 : 1);
+		var slots = fragments * (plan.Key.Meshlets ? 1 + 2 * (int)MeshletChunks : lists ? 2 : 1);
 		var runs = CullViewBytes;
 		var listed = (runs + plan.Runs.Length * 8 + 15) & ~15;
 		var instances = listed + (lists ? 16 + fragments * 32 : 0);
@@ -351,12 +351,13 @@ internal sealed partial class BackendContext
 
 			items[item].Views++;
 
-			// The view's region, as a call lays out its own
-			var meshlets = plan.Key.Meshlets && work.Visibility is not null;
+			// The view's region, as a call lays out its own: a prepass's meshlets in its view's buffers, a shadow call's in the
+			// shadow views' (it has no visibility)
+			var meshlets = plan.Key.Meshlets && (work.Visibility is not null || !ids);
 			var listing = work.Lists || meshlets;
 			var layout = ResidentRegion( plan, ids, listing );
 			var region = data.Slice( at, layout.Bytes );
-			var compacted = work.Visibility is not { } own ? default : meshlets ? device.PrepassCompactedFor( own ) : own.Compacted[frame % own.Compacted.Length];
+			var (compacted, compacted16) = meshlets ? MeshletCompacted( work.Visibility ) : work.Visibility is { } own ? (own.Compacted[frame % own.Compacted.Length], default) : default;
 			var regionOffset = offset + at;
 			WriteCullView( views[work.ViewIndex], region );
 
@@ -372,7 +373,7 @@ internal sealed partial class BackendContext
 			}
 
 			var firstInstance = (uint)((regionOffset + layout.Instances) / GpuDrivenTables.InstanceStride);
-			work.Region = new CulledRegion( buffer, slot, regionOffset, layout.Runs, layout.Listed, layout.Instances, layout.FragmentWords, layout.Commands, firstInstance, listing ? compacted : default, meshlets ? work.Visibility.PrepassCompacted16 : default );
+			work.Region = new CulledRegion( buffer, slot, regionOffset, layout.Runs, layout.Listed, layout.Instances, layout.FragmentWords, layout.Commands, firstInstance, listing ? compacted : default, meshlets ? compacted16 : default );
 			viewRecords[w] = new ResidentCullView
 			{
 				View = (uint)regionOffset,
