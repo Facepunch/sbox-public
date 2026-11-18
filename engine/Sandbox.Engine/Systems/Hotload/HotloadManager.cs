@@ -241,6 +241,9 @@ internal class HotloadManager : IDisposable
 					info = Hotload.UpdateReferences();
 				}
 
+				foreach ( var scene in Scene.AllLive )
+					scene.RebuildTraceProviders();
+
 				if ( info.NoAction )
 				{
 					eventRecord = null; // don't bother with the event
