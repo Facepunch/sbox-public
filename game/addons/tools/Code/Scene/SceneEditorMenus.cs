@@ -383,6 +383,8 @@ public static class SceneEditorMenus
 	[Shortcut( "editor.clear-selection", "ESC" )]
 	public static void DeselectAll()
 	{
+		if ( SceneViewWidget.Current?.Tools.CurrentTool?.CancelBoxSelection() == true ) return;
+
 		using ( SceneEditorSession.Active.UndoScope( "Deselect All" ).Push() )
 		{
 			EditorScene.Selection.Clear();

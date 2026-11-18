@@ -270,8 +270,13 @@ public partial class GameObject
 
 	void ProcessGizmoSelection( bool clicked )
 	{
+		// Relinquish dragged object clicks before selection, including the release frame.
+		if ( Gizmo.Pressed.This && Gizmo.Pressed.CursorDelta.Length > 10 )
+		{
+			Gizmo.Active.ClearPress( releasePointer: false );
+			return;
+		}
 		if ( clicked ) GizmoSelect();
-		if ( Gizmo.Pressed.This && Gizmo.CursorDragDelta.Length > 10 ) Gizmo.Pressed.ClearPath();
 	}
 
 	void DrawBoneGizmo()
@@ -327,13 +332,27 @@ public partial class GameObject
 	}
 
 	/// <summary>
-	/// Finds the first GameObject in the ancestor chain that we consider a selection base.
+	/// Whether this object overrides selection of its descendants.
 	/// </summary>
+	internal bool IsSelectionBase
+	{
+		get
+		{
+			if ( IsNetworkRoot || IsOutermostPrefabInstanceRoot ) return true;
+			for ( var i = 0; i < Components.Count; ++i )
+			{
+				var type = GlobalContext.Current.TypeLibrary.GetType( Components[i]?.GetType() );
+				if ( type is null ) continue;
+				foreach ( var attribute in type.Attributes )
+					if ( attribute is SelectionBaseAttribute ) return true;
+			}
+			return false;
+		}
+	}
+
 	GameObject FindSelectionBase()
 	{
-		var isSelectionBase = IsNetworkRoot || IsOutermostPrefabInstanceRoot || Components.GetAll().Any( x => GlobalContext.Current.TypeLibrary.GetType( x?.GetType() )?.HasAttribute<SelectionBaseAttribute>() == true );
-
-		if ( isSelectionBase ) return this;
+		if ( IsSelectionBase ) return this;
 
 		if ( Parent.IsValid() ) return Parent.FindSelectionBase();
 

@@ -71,6 +71,104 @@ public class GizmoInputTests
 	}
 
 	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void RelinquishingAClickPreservesThePressCoordinatesForBoxSelection( bool entireGestureBetweenFrames )
+	{
+		using var view = new View();
+		view.Frame( 0, false );
+		view.Pointer( 0, true );
+		if ( entireGestureBetweenFrames ) view.Pointer( 20, false );
+		view.Gizmo.Input = view.Input( 200, !entireGestureBetweenFrames );
+		using ( view.Gizmo.PushScope() )
+		{
+			Assert.IsTrue( Gizmo.Pressed.Any );
+			view.Gizmo.ClearPress( releasePointer: false );
+			Assert.IsFalse( Gizmo.Pressed.Any );
+			Assert.IsFalse( Gizmo.HasClicked );
+			Assert.IsTrue( Gizmo.WasLeftMousePressed );
+			Assert.AreEqual( view.Input( 0, true ).CursorPosition, Gizmo.Pressed.CursorPosition );
+			Assert.AreEqual( view.Input( 0, true ).CursorRay, Gizmo.Pressed.Ray );
+		}
+		Assert.IsFalse( view.Frame( 200, false ) );
+		Assert.AreEqual( Vector3.Zero, view.Position );
+	}
+
+	[TestMethod]
+	public void RelinquishingAClickCancelsItsPendingReleaseAction()
+	{
+		using var view = new View();
+		view.Frame( 0, false );
+		view.Pointer( 0, true );
+		view.Pointer( 0, false );
+		view.Gizmo.Input = view.Input( 0, false );
+		using var instance = view.Gizmo.PushScope();
+		Assert.IsTrue( Gizmo.HasClicked );
+		Gizmo.Pressed.ClearPath();
+		Assert.IsFalse( Gizmo.HasClicked );
+	}
+
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void BackgroundDragsSuppressHoverUntilReleaseRegardlessOfWhereTheyStarted( bool startOverHandle )
+	{
+		using var view = new View();
+		view.Frame( 0, false );
+		var start = startOverHandle ? 0 : 100;
+		view.Pointer( start, true );
+		view.Gizmo.Input = view.Input( start, true );
+		using ( view.Gizmo.PushScope() )
+		{
+			if ( startOverHandle ) view.Gizmo.ClearPress( releasePointer: false );
+			Assert.IsFalse( Gizmo.HasHovered );
+			using var scope = Gizmo.Scope( "tool", Transform.Zero );
+			Gizmo.Draw.DragSquare( "handle", 2, Rotation.Identity );
+		}
+		Assert.IsFalse( view.Frame( 0, true ) );
+		Assert.IsNull( view.Gizmo.current.HoveredPath );
+		Assert.IsNull( view.Gizmo.current.HoveredObject );
+		view.Pointer( 0, false );
+		Assert.IsFalse( view.Frame( 0, false ) );
+		Assert.IsFalse( view.Gizmo.current.Click );
+		Assert.IsNull( view.Gizmo.current.HoveredPath );
+		view.Frame( 0, false );
+		Assert.IsNotNull( view.Gizmo.current.HoveredPath );
+	}
+
+	[TestMethod]
+	public void PublicClearPathReleasesThePointerAndAllowsHoverWhileHeld()
+	{
+		using var view = new View();
+		view.Frame( 0, false );
+		view.Pointer( 0, true );
+		view.Gizmo.Input = view.Input( 100, true );
+		using ( view.Gizmo.PushScope() )
+		{
+			Gizmo.Pressed.ClearPath();
+			using var scope = Gizmo.Scope( "tool", Transform.Zero );
+			Gizmo.Draw.DragSquare( "handle", 2, Rotation.Identity );
+		}
+		Assert.IsFalse( view.Frame( 0, true ) );
+		Assert.IsNotNull( view.Gizmo.current.HoveredPath );
+	}
+
+	[TestMethod]
+	public void PublicClearPathAllowsAnotherViewportToTakeThePointer()
+	{
+		using var first = new View();
+		using var second = new View();
+		first.Frame( 0, false );
+		second.Frame( 0, false );
+		first.Pointer( 0, true );
+		first.Gizmo.Input = first.Input( 0, true );
+		using ( first.Gizmo.PushScope() ) Gizmo.Pressed.ClearPath();
+		second.Pointer( 0, true );
+		Assert.IsTrue( second.Frame( 20, true ) );
+		Assert.AreEqual( 20f, second.Position.y, .001f );
+	}
+
+	[TestMethod]
 	public void MissedPressDoesNotCaptureAfterMovingOntoHandle()
 	{
 		using var view = new View();

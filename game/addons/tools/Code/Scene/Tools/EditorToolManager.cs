@@ -16,6 +16,8 @@ public class EditorToolManager
 
 	public bool IsCurrentViewFocused { get; private set; }
 
+	Widget _focusedViewport;
+
 	public EditorTool CurrentSubTool => CurrentTool?.CurrentTool;
 	internal WorkPlaneControl WorkPlane { get; } = new();
 	public List<EditorTool> ComponentTools { get; private set; } = new List<EditorTool>();
@@ -39,6 +41,14 @@ public class EditorToolManager
 		UpdateSubTool( CurrentSubModeName );
 		UpdateSelection();
 
+		// Sibling viewports share these tools. Only the previously focused view can lose focus.
+		var wasFocused = ReferenceEquals( _focusedViewport, viewport );
+		if ( isFocused != wasFocused )
+		{
+			_focusedViewport = isFocused ? viewport : null;
+			CurrentTool?.CancelBoxSelection();
+			foreach ( var tool in ComponentTools ) tool.CancelBoxSelection();
+		}
 		IsCurrentViewFocused = isFocused;
 
 		if ( WorkPlane.Frame( session, viewport ) )

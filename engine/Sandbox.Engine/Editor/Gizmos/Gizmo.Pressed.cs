@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 partial class Gizmo
 {
@@ -46,9 +46,6 @@ partial class Gizmo
 		/// </summary>
 		public static bool IsActive => Gizmo.IsLeftMouseDown;
 
-		public static void ClearPath()
-		{
-			Active.ClearPress();
-		}
+		public static void ClearPath() => Active.ClearPress();
 	}
 }

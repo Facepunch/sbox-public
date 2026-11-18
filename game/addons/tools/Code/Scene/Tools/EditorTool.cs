@@ -36,6 +36,7 @@ public class EditorTool : IDisposable
 			if ( _currentTool == value )
 				return;
 
+			_currentTool?.CancelBoxSelection();
 			_currentTool?.OnDisabled();
 			_currentTool = value;
 			_currentTool?.OnEnabled();
@@ -129,6 +130,7 @@ public class EditorTool : IDisposable
 				}
 			}
 
+
 			OnUpdate();
 			CurrentTool?.Frame( camera );
 		}
@@ -200,6 +202,7 @@ public class EditorTool : IDisposable
 
 	public virtual void Dispose()
 	{
+		CancelBoxSelection();
 		OnDisabled();
 
 		foreach ( var w in overlayWidgets )
@@ -327,63 +330,71 @@ public class EditorTool : IDisposable
 	/// </summary>
 	public virtual bool HasLassoSelectionMode() => false;
 
-	Ray _ray1;
-	Ray _ray2;
+	Vector2? _boxStart;
 	List<Vector2> _lassoPoints = new();
-	Dictionary<GameObject, BBox> _dragBounds = new();
 
 	protected bool IsBoxSelecting { get; private set; }
 	protected bool IsLassoSelecting { get; private set; }
 
+	internal bool CancelBoxSelection()
+	{
+		var canceled = _boxStart.HasValue || IsBoxSelecting;
+		_boxStart = null;
+		// Suppress the background-click deselection when the canceled drag is released.
+		IsBoxSelecting = canceled;
+		return CurrentTool?.CancelBoxSelection() == true || canceled;
+	}
+
 	private void UpdateBoxSelection()
 	{
-		var ray = Gizmo.CurrentRay;
-
 		if ( Gizmo.WasLeftMousePressed )
 		{
-			_ray1 = ray;
-			_dragBounds.Clear();
-		}
-
-		if ( Gizmo.IsLeftMouseDown && _ray1 != default )
-		{
-			_ray2 = ray;
-		}
-
-		// project to screen position
-		var c1 = Gizmo.Camera.ToScreen( _ray1.Project( 100 ) );
-		var c2 = Gizmo.Camera.ToScreen( _ray2.Project( 100 ) );
-
-		if ( Vector2.Distance( c1, c2 ) < 5 || Gizmo.Pressed.Any )
-		{
+			_boxStart = Gizmo.Pressed.CursorPosition;
 			IsBoxSelecting = false;
+		}
+		if ( !Gizmo.IsLeftMouseDown && !Gizmo.WasLeftMouseReleased )
+		{
+			_boxStart = null;
+			IsBoxSelecting = false;
+		}
+		if ( _boxStart is not { } start ) return;
+		if ( Gizmo.Pressed.Any )
+		{
+			// Object clicks relinquish capture after dragging. Keep the original start for that transition.
+			if ( !Gizmo.IsLeftMouseDown ) _boxStart = null;
+			IsBoxSelecting = false;
+			return;
+		}
 
-			if ( !Gizmo.IsLeftMouseDown )
-			{
-				_ray1 = _ray2 = default;
-			}
-
+		var end = Gizmo.CursorPosition;
+		if ( !start.IsFinite || !end.IsFinite )
+		{
+			_boxStart = null;
+			IsBoxSelecting = false;
+			return;
+		}
+		if ( !IsBoxSelecting && Vector2.Distance( start, end ) < 5 )
+		{
+			if ( !Gizmo.IsLeftMouseDown ) _boxStart = null;
 			return;
 		}
 
 		IsBoxSelecting = true;
+		// Input positions are widget coordinates; the camera and overlays use physical pixels.
+		var dpiScale = MathF.Max( 1.0f, Gizmo.Camera.Attributes.GetFloat( "EditorGizmoDpiScale" ) );
+		var rect = Rect.FromPoints( start, end ) * dpiScale;
+		// A line has no selectable area. Do not construct a degenerate frustum.
+		if ( rect.Width > 0 && rect.Height > 0 )
+			OnBoxSelect( Gizmo.Camera.GetFrustum( rect ), rect, Gizmo.WasLeftMouseReleased );
 
-		var frustum = Gizmo.Camera.GetFrustum( Rect.FromPoints( c1, c2 ) );
-		Rect rect = new Rect( MathF.Min( c1.x, c2.x ), MathF.Min( c1.y, c2.y ), MathF.Abs( c1.x - c2.x ), MathF.Abs( c1.y - c2.y ) );
-
-		OnBoxSelect( frustum, rect, Gizmo.WasLeftMouseReleased );
-
-		// Crystalize the box select
 		if ( Gizmo.WasLeftMouseReleased )
 		{
-			_ray1 = _ray2 = default;
+			_boxStart = null;
 			return;
 		}
 
-		// Paint the selection rectangle
-		{
-			Gizmo.Draw.ScreenRect( rect, Theme.Blue.WithAlpha( 0.1f ), new Vector4( 1.0f ), Theme.Blue, new Vector4( 1.0f ) );
-		}
+		var color = Gizmo.IsCtrlPressed ? (Gizmo.IsShiftPressed ? Theme.Yellow : Theme.Red) : Gizmo.IsShiftPressed ? Theme.Green : Theme.Blue;
+		Gizmo.Draw.ScreenRect( rect, color.WithAlpha( 0.1f ), new Vector4( 1.0f ), color, new Vector4( 1.0f ) );
 	}
 
 	private void UpdateLassoSelection()
@@ -491,16 +502,13 @@ public class EditorTool : IDisposable
 
 	}
 
-	/// <summary>
-	/// GetBounds walks the whole component hierarchy, so cache it for the duration of a drag.
-	/// Nothing can move while the mouse is busy dragging a selection box.
-	/// </summary>
-	protected BBox GetDragBounds( GameObject go )
+	/// <summary>Object selection is committed once on release, like Hammer.</summary>
+	protected void SelectObjectsInBox( Frustum frustum, bool isFinal )
 	{
-		if ( _dragBounds.TryGetValue( go, out var bounds ) )
-			return bounds;
-
-		return _dragBounds[go] = go.GetBounds();
+		if ( !isFinal ) return;
+		var inside = BoxSelection.Find( Scene, frustum, EditorPreferences.BoxSelectIntersecting, Gizmo.Settings.GizmosEnabled );
+		using ( Scene.Editor?.UndoScope( "Box Selection" ).Push() )
+			BoxSelection.Apply( Selection, inside, Gizmo.IsShiftPressed, Gizmo.IsCtrlPressed );
 	}
 
 	/// <summary>

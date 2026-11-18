@@ -125,20 +125,26 @@ public static partial class Gizmo
 				current.PressedPath = null;
 				if ( pressOwner == this ) pressOwner = null;
 			}
-			else if ( pressOwner == this && !MouseReleased )
+			else if ( pressOwner == this && (!MouseReleased || string.IsNullOrEmpty( pressed.PressedPath )) )
 			{
 				current.HoveredPath = current.PressedPath;
 				current.HoveredObject = pressed.HoveredObject;
 			}
 		}
 
-		internal void ClearPress()
+		internal void ClearPress( bool releasePointer = true )
 		{
-			if ( pressOwner == this ) pressOwner = null;
+			if ( releasePointer && pressOwner == this ) pressOwner = null;
 			cancelled = current.Input.LeftMouse;
 			captureHasShape = false;
 			current.PressedPath = null;
-			pressed = default;
+			current.Click = false;
+			if ( !releasePointer )
+			{
+				current.HoveredPath = null;
+				current.HoveredObject = null;
+			}
+			pressed = releasePointer ? default : new Frame { Input = pressed.Input };
 		}
 
 		readonly record struct PickView( SceneCamera Camera, Vector3 Position, Rotation Rotation, Vector2 Size,

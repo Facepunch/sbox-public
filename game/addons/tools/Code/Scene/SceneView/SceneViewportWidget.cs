@@ -840,7 +840,7 @@ public partial class SceneViewportWidget : Widget
 		if ( !Gizmo.Settings.Selection ) return;
 
 		// Trace models in the scene, hover the hit one
-		var tr = session.Scene.Trace.Ray( Gizmo.WasLeftMousePressed ? Gizmo.Pressed.Ray : Gizmo.CurrentRay, Gizmo.RayDepth )
+		var tr = session.Scene.Trace.Ray( Gizmo.Pressed.Any || Gizmo.WasLeftMousePressed ? Gizmo.Pressed.Ray : Gizmo.CurrentRay, Gizmo.RayDepth )
 					.UseRenderMeshes( true )
 					.UsePhysicsWorld( false )
 					.WithoutTags( "hidden" )
@@ -852,6 +852,10 @@ public partial class SceneViewportWidget : Widget
 			{
 				Gizmo.Hitbox.DepthBias = 1;
 				Gizmo.Hitbox.TrySetHovered( tr.Distance );
+
+				// Relinquish object clicks before tools run, including gestures completed between frames.
+				// Transform controls have a different path and retain their capture.
+				if ( Gizmo.Pressed.This && Gizmo.Pressed.CursorDelta.Length > 10 ) BoxSelection.ReleaseObjectClick();
 
 				if ( !Gizmo.IsHovered )
 					return;
