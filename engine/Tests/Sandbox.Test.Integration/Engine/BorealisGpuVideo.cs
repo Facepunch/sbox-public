@@ -17,10 +17,12 @@ public class BorealisGpuVideoTest
 	public void PlanesConvertIntoThePlayersTexture()
 	{
 		using var player = new VideoPlayer();
-		Assert.IsFalse( player.WantsPlanes(), "Source 2's device converts its own frames" );
+		if ( RenderBackend.Default is Source2RenderBackend )
+			Assert.IsFalse( player.WantsPlanes(), "Source 2's device converts its own frames" );
 
 		var messages = new System.Collections.Concurrent.ConcurrentQueue<string>();
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true, message: m => messages.Enqueue( $"{m.Severity} {m.Text}" ) );
+		var previous = RenderBackend.Default;
 		RenderBackend.SetDefault( borealis );
 		try
 		{
@@ -41,7 +43,7 @@ public class BorealisGpuVideoTest
 		}
 		finally
 		{
-			RenderBackend.SetDefault( null );
+			RenderBackend.SetDefault( previous );
 		}
 	}
 

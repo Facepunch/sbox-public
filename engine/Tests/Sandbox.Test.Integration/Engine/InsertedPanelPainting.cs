@@ -8,8 +8,7 @@ public class InsertedPanelPaintingTest
 	[TestMethod]
 	public void InsertedPanelsRefreshTheirBuffersAfterRecordingAgain()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 
 		var bounds = new Rect( 0, 0, 64, 64 );
 		var panels = new CommandList();
@@ -31,7 +30,7 @@ public class InsertedPanelPaintingTest
 				{
 					scope.Attributes.Set( "UIGammaOutput", true );
 					Graphics.RenderTarget = RenderTarget.From( target );
-					scope.Context.SetViewport( bounds );
+					Graphics.Viewport = bounds;
 					frame.Execute();
 				}
 				using var bitmap = target.GetBitmap();

@@ -12,8 +12,7 @@ public class BorealisGpuTexturesTest
 {
 	static void RequireVulkan()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 	}
 
 	static byte[] Pixels( int width, int height, Func<int, int, Color32> color )
@@ -231,6 +230,7 @@ public class BorealisGpuTexturesTest
 		RequireVulkan();
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 
+		var previous = RenderBackend.Default;
 		RenderBackend.SetDefault( borealis );
 		try
 		{
@@ -249,7 +249,7 @@ public class BorealisGpuTexturesTest
 		}
 		finally
 		{
-			RenderBackend.SetDefault( null );
+			RenderBackend.SetDefault( previous );
 		}
 
 		Assert.AreEqual( 0, borealis.CopiedFromSource2, "nothing was read back from Source 2" );
@@ -287,6 +287,7 @@ public class BorealisGpuTexturesTest
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 
 		var hadDevice = Graphics.HasSource2Device;
+		var previous = RenderBackend.Default;
 		RenderBackend.SetDefault( borealis );
 		Graphics.HasSource2Device = false;
 		try
@@ -308,7 +309,7 @@ public class BorealisGpuTexturesTest
 		finally
 		{
 			Graphics.HasSource2Device = hadDevice;
-			RenderBackend.SetDefault( null );
+			RenderBackend.SetDefault( previous );
 		}
 
 		Assert.AreEqual( 0, borealis.ValidationErrors );
@@ -365,6 +366,7 @@ public class BorealisGpuTexturesTest
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 
 		// The process's device, as under -borealisgpu: shaders made now keep their attributes for it
+		var previous = RenderBackend.Default;
 		RenderBackend.SetDefault( borealis );
 		try
 		{
@@ -392,7 +394,7 @@ public class BorealisGpuTexturesTest
 		}
 		finally
 		{
-			RenderBackend.SetDefault( null );
+			RenderBackend.SetDefault( previous );
 		}
 
 		Assert.AreEqual( 0, borealis.ValidationErrors );
