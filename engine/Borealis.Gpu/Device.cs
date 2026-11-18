@@ -101,6 +101,11 @@ public sealed unsafe partial class Device : IDisposable
 			if ( !extensions.Contains( name ) ) extensions.Add( name );
 		}
 
+		foreach ( var name in options.OptionalInstanceExtensions ?? [] )
+		{
+			if ( available.Contains( name ) && !extensions.Contains( name ) ) extensions.Add( name );
+		}
+
 		var layers = new List<string>();
 		if ( options.Validation && InstanceLayers().Contains( "VK_LAYER_KHRONOS_validation" ) )
 		{
@@ -479,6 +484,12 @@ public sealed unsafe partial class Device : IDisposable
 
 		var extensions = new List<string>();
 		if ( options.Presentation && deviceExtensions.Contains( "VK_KHR_swapchain" ) ) extensions.Add( "VK_KHR_swapchain" );
+
+		// What a library working on the device asks for (a vendor upscaler), where the device has it
+		foreach ( var name in options.OptionalDeviceExtensions?.Invoke( Instance.Instance, PhysicalDevice ) ?? [] )
+		{
+			if ( deviceExtensions.Contains( name ) && !extensions.Contains( name ) ) extensions.Add( name );
+		}
 
 		// Device fault reports, for what the GPU was doing when the device is lost
 		var fault = new VkPhysicalDeviceFaultFeaturesEXT { sType = VkStructureType.PhysicalDeviceFaultFeaturesExt };
