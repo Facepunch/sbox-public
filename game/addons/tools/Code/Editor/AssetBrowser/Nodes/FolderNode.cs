@@ -111,7 +111,10 @@ partial class FolderNode : TreeNode<LocalAssetBrowser.Location>
 
 		var drag = new Drag( TreeView );
 		drag.Data.Text = Value.Path;
-		drag.Data.Url = new System.Uri( "file:///" + Value.Path );
+
+		// Aggregate locations (Recents, Everything) aren't disk paths
+		if ( Uri.TryCreate( Value.Path, UriKind.Absolute, out var url ) && url.IsFile )
+			drag.Data.Url = url;
 
 		drag.Execute();
 
