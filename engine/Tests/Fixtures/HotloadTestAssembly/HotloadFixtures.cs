@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -1225,3 +1225,45 @@ public class SerializableClassConverter : JsonConverter<SerializableClass>
 #if TEST_BEFORE
 public class RemovedClass;
 #endif
+
+/// <summary>
+/// An async method suspended across a hotload, its continuation kept where the thread pool would run it.
+/// </summary>
+public class SuspendedAsyncClass
+{
+	[Reset]
+	public static Action Continuation;
+
+	[Reset]
+	public static int Resumed;
+
+	public readonly struct CaptureAwaiter : INotifyCompletion
+	{
+		public bool IsCompleted => false;
+		public void OnCompleted( Action continuation ) => Continuation = continuation;
+		public void GetResult() { }
+		public CaptureAwaiter GetAwaiter() => this;
+	}
+
+#if TEST_BEFORE
+	// Removed in the hotload, as when its author renames or deletes it while it's suspended
+	public static async Task Run()
+	{
+		await new CaptureAwaiter();
+		Resumed++;
+	}
+#endif
+}
+
+/// <summary>
+/// A timer whose callback is removed while it keeps firing.
+/// </summary>
+public class TimerCallbackClass
+{
+	[Reset]
+	public static System.Threading.TimerCallback Callback;
+
+#if TEST_BEFORE
+	public static void Tick( object state ) { }
+#endif
+}

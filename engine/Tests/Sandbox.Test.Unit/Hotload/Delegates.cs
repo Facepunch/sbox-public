@@ -1,4 +1,4 @@
-extern alias After;
+﻿extern alias After;
 extern alias Before;
 
 using System;
@@ -879,6 +879,43 @@ namespace HotloadTests
 
 			Assert.IsNotNull( After::DerivedTargetClass.Instance );
 			Assert.ThrowsException<NotImplementedException>( After::DerivedTargetClass.Instance );
+		}
+
+		/// <summary>
+		/// An async method removed while suspended across a hotload can't resume in the new code. The thread pool runs its
+		/// continuation with nothing to catch an exception, so it must not throw (SBOX-NATIVE-TJ6).
+		/// </summary>
+		[TestMethod]
+		public void SuspendedAsyncContinuation()
+		{
+			_ = Before::SuspendedAsyncClass.Run();
+
+			Assert.IsNotNull( Before::SuspendedAsyncClass.Continuation );
+
+			var result = Hotload( true );
+
+			Assert.AreEqual( 1, result.Warnings.Count() );
+			Assert.IsNotNull( After::SuspendedAsyncClass.Continuation );
+
+			// Dropped: runs without throwing, and the removed method doesn't resume
+			After::SuspendedAsyncClass.Continuation();
+			Assert.AreEqual( 0, After::SuspendedAsyncClass.Resumed );
+		}
+		/// <summary>
+		/// A timer callback removed by a hotload: the thread pool runs it with nothing to catch an exception, so it
+		/// must not throw (SBOX-NATIVE-TJ6).
+		/// </summary>
+		[TestMethod]
+		public void RemovedTimerCallback()
+		{
+			Before::TimerCallbackClass.Callback = Before::TimerCallbackClass.Tick;
+
+			var result = Hotload( true );
+
+			Assert.AreEqual( 1, result.Warnings.Count() );
+			Assert.IsNotNull( After::TimerCallbackClass.Callback );
+
+			After::TimerCallbackClass.Callback( null );
 		}
 	}
 }
