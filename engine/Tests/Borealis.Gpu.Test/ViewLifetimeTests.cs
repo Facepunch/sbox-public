@@ -1,6 +1,7 @@
 using Borealis.Backend;
 using Borealis.Gpu;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace BorealisGpuTests;
 
@@ -101,5 +102,46 @@ public class ViewLifetimeTests : GpuTest
 		Assert.AreEqual( 2, backend.VisibilityClearedMidFrame );
 		Device.WaitIdle();
 		GC.KeepAlive( view );
+	}
+
+	/// <summary>
+	/// A view's prepass buffers made on one thread while another records with the view: once its meshlet stamps say they're
+	/// cleared, every prepass buffer is there. Recording threads read them without the lock, and a call that bound one
+	/// before it was made threw "No buffer (a default handle)" in the middle of its list.
+	/// </summary>
+	[TestMethod]
+	public void PrepassBuffersAreThereOnceMarkedCleared()
+	{
+		using var backend = new BackendDevice( Device );
+		for ( int round = 0; round < 8; round++ )
+		{
+			backend.BeginFrame();
+			var view = new object();
+			var state = backend.VisibilityFor( view, TextureInfo.RenderTarget( 256, 256, Format.D32Float ) );
+			state.ClearedFrame = backend.GpuDrivenFrame;
+
+			var seen = 0;
+			var broken = 0;
+			var done = false;
+			var watcher = new Thread( () =>
+			{
+				while ( !Volatile.Read( ref done ) )
+				{
+					if ( !state.MeshletStampsCleared ) continue;
+					seen++;
+					if ( !state.PrepassCompacted.IsValid || !state.PrepassCompacted16.IsValid || !state.MeshletStamps.IsValid ) broken++;
+				}
+			} );
+			watcher.Start();
+			backend.PrepassCompactedFor( state );
+			Volatile.Write( ref done, true );
+			watcher.Join();
+
+			Assert.IsTrue( state.MeshletStampsCleared );
+			Assert.AreEqual( 0, broken, $"round {round}: cleared before its buffers were made ({seen} reads)" );
+			GC.KeepAlive( view );
+		}
+
+		Device.WaitIdle();
 	}
 }

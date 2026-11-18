@@ -122,6 +122,69 @@ public sealed unsafe partial class Device
 	Frame frame;
 	readonly ConcurrentBag<CommandList>[] freeLists = [new(), new()];
 	internal readonly ConcurrentBag<UploadPage> FreePages = new();
+
+	// Descriptor pools for command lists' transient sets, shared by every list: a list keeps one when its frame retires and
+	// gives the rest back reset, and a recording thread takes one rather than making one (making them cost ~70 ms of
+	// recording in a map's first seconds). When few are left, more are made ahead on a worker
+	readonly ConcurrentBag<ulong> freeDescriptorPools = new();
+	int makingDescriptorPools;
+	const int DescriptorPoolsLow = 8;
+
+	/// <summary>Descriptor pools made for command lists so far, for tests and reports.</summary>
+	public int DescriptorPoolsMade => descriptorPoolsMade;
+
+	int descriptorPoolsMade;
+
+	/// <summary>Descriptor pools made where a recording thread asked, for want of a spare, for tests.</summary>
+	internal int DescriptorPoolsMadeTaking => descriptorPoolsMadeTaking;
+
+	int descriptorPoolsMadeTaking;
+
+	/// <summary>A reset descriptor pool for a command list's transient sets: a spare, else a new one.</summary>
+	internal ulong TakeDescriptorPool()
+	{
+		if ( !freeDescriptorPools.TryTake( out var pool ) )
+		{
+			pool = CreateDescriptorPool();
+			Interlocked.Increment( ref descriptorPoolsMadeTaking );
+		}
+
+		if ( freeDescriptorPools.Count < DescriptorPoolsLow && Interlocked.CompareExchange( ref makingDescriptorPools, 1, 0 ) == 0 )
+		{
+			ThreadPool.UnsafeQueueUserWorkItem( static device =>
+			{
+				try
+				{
+					for ( int i = 0; i < DescriptorPoolsLow; i++ ) device.freeDescriptorPools.Add( device.CreateDescriptorPool() );
+				}
+				finally
+				{
+					Volatile.Write( ref device.makingDescriptorPools, 0 );
+				}
+			}, this, preferLocal: false );
+		}
+
+		return pool;
+	}
+
+	/// <summary>A command list's descriptor pool, reset, back for any list.</summary>
+	internal void ReturnDescriptorPool( ulong pool ) => freeDescriptorPools.Add( pool );
+
+	ulong CreateDescriptorPool()
+	{
+		var sizes = stackalloc VkDescriptorPoolSize[5];
+		sizes[0] = new VkDescriptorPoolSize { type = VkDescriptorType.UniformBuffer, descriptorCount = 1024 };
+		sizes[1] = new VkDescriptorPoolSize { type = VkDescriptorType.StorageBuffer, descriptorCount = 1024 };
+		sizes[2] = new VkDescriptorPoolSize { type = VkDescriptorType.SampledImage, descriptorCount = 1024 };
+		sizes[3] = new VkDescriptorPoolSize { type = VkDescriptorType.StorageImage, descriptorCount = 256 };
+		sizes[4] = new VkDescriptorPoolSize { type = VkDescriptorType.Sampler, descriptorCount = 256 };
+
+		var info = new VkDescriptorPoolCreateInfo { sType = VkStructureType.DescriptorPoolCreateInfo, maxSets = 512, poolSizeCount = 5, pPoolSizes = sizes };
+		ulong descriptorPool;
+		Vk.vkCreateDescriptorPool( Vk.Device, &info, null, &descriptorPool ).Check( "vkCreateDescriptorPool" );
+		Interlocked.Increment( ref descriptorPoolsMade );
+		return descriptorPool;
+	}
 	readonly List<SwapChain> swapChains = new();
 
 	/// <summary>Frames begun so far; the first is 0.</summary>
@@ -834,6 +897,10 @@ public sealed unsafe partial class Device
 		}
 
 		while ( FreePages.TryTake( out var page ) ) Destroy( page.Buffer );
+
+		// Pools being made ahead first
+		while ( Volatile.Read( ref makingDescriptorPools ) != 0 ) Thread.Sleep( 1 );
+		while ( freeDescriptorPools.TryTake( out var pool ) ) Vk.vkDestroyDescriptorPool( Vk.Device, pool, null );
 	}
 }
 

@@ -81,6 +81,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		public RenderAttributes GpuViewAttributes;
 		public ShaderParameters GpuViewParameters;
 
+		/// <summary>The camera's attributes as Borealis reads them, and the version of them last written there.</summary>
+		public ShaderParameters GpuCameraParameters;
+		public int GpuCameraVersion;
+
 		/// <summary>
 		/// Release owned resources.
 		/// </summary>
@@ -342,6 +346,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( syncStart ).TotalMilliseconds;
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters { SyncMs = state.SyncMs } );
 		FillView( state.View, camera, setup, size );
+
+		// The camera's attributes under the view's, as native's camera renderer sets them on its view: what the camera
+		// component and the scene's render attributes set (Rust Legacy lights its models by its time of day there)
+		state.View.CameraAttributes = MirrorContent.CameraParameters( camera.Attributes, ref state.GpuCameraParameters, ref state.GpuCameraVersion );
 
 		// A child view takes its parent's render time unless it has its own, as native's child views do
 		// (CSceneSystem::AddDynamicView)

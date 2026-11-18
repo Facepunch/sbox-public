@@ -50,6 +50,14 @@ public sealed class DeviceOptions
 	/// <summary>Enable task and mesh shaders (VK_EXT_mesh_shader) where the device has them; off leaves them out.</summary>
 	public bool MeshShaders { get; init; } = true;
 
+	/// <summary>
+	/// Link graphics pipelines from parts (VK_EXT_graphics_pipeline_library) where the device links them fast; off makes
+	/// each pipeline whole. See <see cref="DeviceCapabilities.PipelineLibraries"/>. Off by default when the process has the
+	/// <c>-no-pipeline-library</c> switch or <c>BOREALIS_PIPELINE_LIBRARY=0</c>, for comparisons.
+	/// </summary>
+	public bool PipelineLibraries { get; init; } = !Environment.GetCommandLineArgs().Contains( "-no-pipeline-library", StringComparer.OrdinalIgnoreCase )
+		&& Environment.GetEnvironmentVariable( "BOREALIS_PIPELINE_LIBRARY" ) != "0";
+
 	/// <summary>Part of the adapter's name to prefer, or null for the first discrete GPU.</summary>
 	public string PreferredAdapter { get; init; }
 
@@ -204,6 +212,13 @@ public sealed class DeviceCapabilities
 	/// drawn with <see cref="CommandList.DrawMeshTasksIndirect"/>.
 	/// </summary>
 	public bool MeshShaders { get; init; }
+
+	/// <summary>
+	/// Whether graphics pipelines are linked from parts made once each and shared (VK_EXT_graphics_pipeline_library with
+	/// fast linking): creating one is then a fast link, and an optimised link replaces it in the background
+	/// (<see cref="Device.CreateGraphicsPipeline"/>, <see cref="Device.PreparePipelineParts"/>).
+	/// </summary>
+	public bool PipelineLibraries { get; init; }
 
 	/// <summary>
 	/// Whether vertex shaders can use wave (subgroup) vote and ballot operations. Most GPUs can; Lavapipe and some mobile

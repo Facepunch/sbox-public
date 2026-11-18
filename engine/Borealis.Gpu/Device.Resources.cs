@@ -3,6 +3,7 @@ using Borealis.Gpu.Vulkan;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Borealis.Gpu;
 
@@ -87,6 +88,18 @@ internal struct PipelineRecord
 	public ulong Pipeline;
 	public ulong Layout;
 	public int BindPoint;
+
+	/// <summary>A graphics pipeline's dynamic render state (<see cref="RenderStateBits"/>), set when it's bound.</summary>
+	public ulong RenderState;
+
+	/// <summary>The parts it was linked from, or null for a pipeline made whole.</summary>
+	public LinkedParts Parts;
+
+	/// <summary>Its optimised link has replaced the fast one.</summary>
+	public bool Optimised;
+
+	/// <summary>Workers are making it (<see cref="GraphicsPipelineInfo.SkipUntilReady"/>): <see cref="Pipeline"/> is 0 until then.</summary>
+	public bool Pending;
 }
 
 public sealed unsafe partial class Device
@@ -114,6 +127,7 @@ public sealed unsafe partial class Device
 	public BindingSetHandle DefaultViewSet { get; private set; }
 	readonly Dictionary<(ulong, ulong, ulong, ulong), ulong> pipelineLayouts = new();
 	readonly Dictionary<ulong, (ulong, ulong, ulong, ulong)> pipelineLayoutSets = new();
+	readonly List<ulong> retiredPipelineLayouts = new();
 
 	/// <summary>The set layouts of sets 0 to 3 a pipeline layout was made from.</summary>
 	internal (ulong, ulong, ulong, ulong) SetLayoutsOf( ulong pipelineLayout )
@@ -602,6 +616,11 @@ public sealed unsafe partial class Device
 
 	ulong SetLayoutOf( BindingLayoutHandle[] sets, int set ) => sets is not null && set < sets.Length && sets[set].IsValid ? Get( sets[set] ).SetLayout : emptySetLayout;
 
+	/// <summary>
+	/// The pipeline layout of pipelines with these sets. With pipeline libraries, its sets are independent
+	/// (<c>VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT</c>), as libraries' layouts are: on AMD's driver, with the
+	/// extension on, pipelines whose layouts weren't read push constants wrong.
+	/// </summary>
 	ulong PipelineLayout( BindingLayoutHandle[] sets )
 	{
 		if ( sets is { Length: > ShaderAbi.BindlessSet } ) throw new ArgumentException( $"Sets 0 to {ShaderAbi.BindlessSet - 1} are the pipeline's; set {ShaderAbi.BindlessSet} is the bindless table" );
@@ -616,6 +635,7 @@ public sealed unsafe partial class Device
 			var info = new VkPipelineLayoutCreateInfo
 			{
 				sType = VkStructureType.PipelineLayoutCreateInfo,
+				flags = pipelineLibraries ? Vulkan.Vk.PipelineLayoutIndependentSets : 0,
 				setLayoutCount = ShaderAbi.SetCount,
 				pSetLayouts = setLayouts,
 				pushConstantRangeCount = 1,
@@ -628,173 +648,6 @@ public sealed unsafe partial class Device
 			pipelineLayoutSets[layout] = key;
 			return layout;
 		}
-	}
-
-	/// <summary>
-	/// Create a graphics pipeline, through the device's pipeline cache.
-	/// </summary>
-	public PipelineHandle CreateGraphicsPipeline( in GraphicsPipelineInfo info )
-	{
-		using var strings = new NativeStrings();
-		var layout = PipelineLayout( info.Sets );
-
-		var stages = stackalloc VkPipelineShaderStageCreateInfo[3];
-		var specializations = stackalloc VkSpecializationInfo[3];
-		var stageCount = 0u;
-		void Stage( uint stage, ShaderHandle shader, string entry, SpecializationConstant[] constants, VkPipelineShaderStageCreateInfo* stages, VkSpecializationInfo* specializations, NativeStrings strings )
-		{
-			stages[stageCount] = new VkPipelineShaderStageCreateInfo
-			{
-				sType = VkStructureType.PipelineShaderStageCreateInfo,
-				stage = stage,
-				module = Shaders.Get( shader.Index, shader.Generation ).Module,
-				pName = strings.Add( entry ?? "main" ),
-				pSpecializationInfo = Specialize( constants, &specializations[stageCount], strings ),
-			};
-			stageCount++;
-		}
-
-		// A mesh pipeline: task (if any) and mesh shaders, and no vertex input
-		var meshPipeline = info.MeshShader.IsValid;
-		if ( meshPipeline && !Capabilities.MeshShaders ) throw new InvalidOperationException( $"{info.Name}: the device has no mesh shaders" );
-		if ( meshPipeline && info.TaskShader.IsValid ) Stage( Vulkan.Vk.StageTask, info.TaskShader, info.TaskEntry, info.TaskConstants, stages, specializations, strings );
-		if ( meshPipeline ) Stage( Vulkan.Vk.StageMesh, info.MeshShader, info.MeshEntry, info.MeshConstants, stages, specializations, strings );
-		else Stage( Vulkan.Vk.StageVertex, info.VertexShader, info.VertexEntry, info.VertexConstants, stages, specializations, strings );
-		if ( info.FragmentShader.IsValid ) Stage( Vulkan.Vk.StageFragment, info.FragmentShader, info.FragmentEntry, info.FragmentConstants, stages, specializations, strings );
-
-		var buffers = info.VertexBuffers ?? [];
-		var attributes = info.Attributes ?? [];
-		var vkBuffers = stackalloc VkVertexInputBindingDescription[Math.Max( buffers.Length, 1 )];
-		var vkAttributes = stackalloc VkVertexInputAttributeDescription[Math.Max( attributes.Length, 1 )];
-		for ( int i = 0; i < buffers.Length; i++ ) vkBuffers[i] = new VkVertexInputBindingDescription { binding = (uint)i, stride = (uint)buffers[i].Stride, inputRate = (int)buffers[i].StepRate };
-		for ( int i = 0; i < attributes.Length; i++ )
-		{
-			vkAttributes[i] = new VkVertexInputAttributeDescription { location = (uint)attributes[i].Location, binding = (uint)attributes[i].Buffer, format = attributes[i].Format.ToVk(), offset = (uint)attributes[i].Offset };
-		}
-
-		var vertexInput = new VkPipelineVertexInputStateCreateInfo
-		{
-			sType = VkStructureType.PipelineVertexInputStateCreateInfo,
-			vertexBindingDescriptionCount = (uint)buffers.Length,
-			pVertexBindingDescriptions = vkBuffers,
-			vertexAttributeDescriptionCount = (uint)attributes.Length,
-			pVertexAttributeDescriptions = vkAttributes,
-		};
-
-		var inputAssembly = new VkPipelineInputAssemblyStateCreateInfo { sType = VkStructureType.PipelineInputAssemblyStateCreateInfo, topology = (int)info.Topology };
-		var viewport = new VkPipelineViewportStateCreateInfo { sType = VkStructureType.PipelineViewportStateCreateInfo, viewportCount = 1, scissorCount = 1 };
-		var raster = new VkPipelineRasterizationStateCreateInfo
-		{
-			sType = VkStructureType.PipelineRasterizationStateCreateInfo,
-			depthClampEnable = info.DepthClamp ? 1u : 0u,
-			polygonMode = info.Wireframe ? 1 : 0,
-			cullMode = (uint)info.CullMode,
-			frontFace = (int)info.FrontFace,
-			depthBiasEnable = info.DepthBias ? 1u : 0u,
-			lineWidth = 1,
-		};
-
-		var multisample = new VkPipelineMultisampleStateCreateInfo
-		{
-			sType = VkStructureType.PipelineMultisampleStateCreateInfo,
-			rasterizationSamples = (uint)Math.Max( info.Samples, 1 ),
-			alphaToCoverageEnable = info.AlphaToCoverage ? 1u : 0u,
-		};
-
-		static VkStencilOpState Stencil( StencilFace face, byte read, byte write ) => new()
-		{
-			failOp = (int)face.Fail,
-			passOp = (int)face.Pass,
-			depthFailOp = (int)face.DepthFail,
-			compareOp = (int)face.Compare,
-			compareMask = read,
-			writeMask = write,
-		};
-
-		var depthStencil = new VkPipelineDepthStencilStateCreateInfo
-		{
-			sType = VkStructureType.PipelineDepthStencilStateCreateInfo,
-			depthTestEnable = info.DepthTest ? 1u : 0u,
-			depthWriteEnable = info.DepthWrite ? 1u : 0u,
-			depthCompareOp = (int)info.DepthCompare,
-			stencilTestEnable = info.StencilTest ? 1u : 0u,
-			front = Stencil( info.StencilFront, info.StencilReadMask, info.StencilWriteMask ),
-			back = Stencil( info.StencilBack, info.StencilReadMask, info.StencilWriteMask ),
-		};
-
-		var colorFormats = info.ColorFormats ?? [];
-		var vkColorFormats = stackalloc VkFormat[Math.Max( colorFormats.Length, 1 )];
-		var blends = stackalloc VkPipelineColorBlendAttachmentState[Math.Max( colorFormats.Length, 1 )];
-		for ( int i = 0; i < colorFormats.Length; i++ )
-		{
-			vkColorFormats[i] = VkFormatOf( colorFormats[i] );
-			var blend = info.Blend is { Length: > 0 } ? info.Blend[Math.Min( i, info.Blend.Length - 1 )] : BlendState.Opaque;
-			blends[i] = new VkPipelineColorBlendAttachmentState
-			{
-				blendEnable = blend.Enable ? 1u : 0u,
-				srcColorBlendFactor = (int)blend.SourceColor,
-				dstColorBlendFactor = (int)blend.DestinationColor,
-				colorBlendOp = (int)blend.ColorOp,
-				srcAlphaBlendFactor = (int)blend.SourceAlpha,
-				dstAlphaBlendFactor = (int)blend.DestinationAlpha,
-				alphaBlendOp = (int)blend.AlphaOp,
-				colorWriteMask = blend.WriteMask == 0 ? Vulkan.Vk.ColorComponentAll : (uint)blend.WriteMask & Vulkan.Vk.ColorComponentAll,
-			};
-		}
-
-		var colorBlend = new VkPipelineColorBlendStateCreateInfo
-		{
-			sType = VkStructureType.PipelineColorBlendStateCreateInfo,
-			attachmentCount = (uint)colorFormats.Length,
-			pAttachments = blends,
-		};
-
-		var dynamicStates = stackalloc int[4];
-		var dynamicCount = 0u;
-		dynamicStates[dynamicCount++] = Vulkan.Vk.DynamicViewport;
-		dynamicStates[dynamicCount++] = Vulkan.Vk.DynamicScissor;
-		if ( info.DepthBias ) dynamicStates[dynamicCount++] = Vulkan.Vk.DynamicDepthBias;
-		if ( info.StencilTest ) dynamicStates[dynamicCount++] = Vulkan.Vk.DynamicStencilReference;
-		var dynamic = new VkPipelineDynamicStateCreateInfo { sType = VkStructureType.PipelineDynamicStateCreateInfo, dynamicStateCount = dynamicCount, pDynamicStates = dynamicStates };
-
-		var depthFormat = VkFormatOf( info.DepthFormat );
-		var rendering = new VkPipelineRenderingCreateInfo
-		{
-			sType = VkStructureType.PipelineRenderingCreateInfo,
-			colorAttachmentCount = (uint)colorFormats.Length,
-			pColorAttachmentFormats = vkColorFormats,
-			depthAttachmentFormat = depthFormat,
-			stencilAttachmentFormat = info.DepthFormat.HasStencil() ? depthFormat : VkFormat.Undefined,
-		};
-
-		var create = new VkGraphicsPipelineCreateInfo
-		{
-			sType = VkStructureType.GraphicsPipelineCreateInfo,
-			pNext = &rendering,
-			stageCount = stageCount,
-			pStages = stages,
-			pVertexInputState = meshPipeline ? null : &vertexInput,
-			pInputAssemblyState = meshPipeline ? null : &inputAssembly,
-			pViewportState = &viewport,
-			pRasterizationState = &raster,
-			pMultisampleState = &multisample,
-			pDepthStencilState = &depthStencil,
-			pColorBlendState = &colorBlend,
-			pDynamicState = &dynamic,
-			layout = layout,
-			basePipelineIndex = -1,
-			flags = shaderStatistics ? CaptureStatistics : 0,
-		};
-
-		ulong pipeline;
-		var started = System.Diagnostics.Stopwatch.GetTimestamp();
-		using ( Zone( ZonePipeline ) ) Vk.vkCreateGraphicsPipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateGraphicsPipelines ({info.Name})" );
-		CountPipeline( started );
-		SetName( VkObjectType.Pipeline, pipeline, info.Name );
-		if ( shaderStatistics ) KeepStatistics( pipeline, info.Name );
-
-		var (index, generation) = Pipelines.Add( new PipelineRecord { Pipeline = pipeline, Layout = layout, BindPoint = Vulkan.Vk.BindPointGraphics } );
-		return new PipelineHandle( index, generation );
 	}
 
 	/// <summary>
@@ -825,6 +678,8 @@ public sealed unsafe partial class Device
 		var started = System.Diagnostics.Stopwatch.GetTimestamp();
 		using ( Zone( ZonePipeline ) ) Vk.vkCreateComputePipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateComputePipelines ({info.Name})" );
 		CountPipeline( started );
+		Interlocked.Add( ref computeTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
+		Interlocked.Increment( ref computeMade );
 		SetName( VkObjectType.Pipeline, pipeline, info.Name );
 		if ( shaderStatistics ) KeepStatistics( pipeline, info.Name );
 
@@ -889,8 +744,8 @@ public sealed unsafe partial class Device
 	}
 
 	string pipelineCachePath;
-	int pipelinesMade, pipelinesSaved;
-	long pipelineTicks;
+	int pipelinesMade, pipelinesSaved, computeMade;
+	long pipelineTicks, computeTicks;
 
 	/// <summary>Whether the device started from saved pipeline cache data the driver took.</summary>
 	public bool PipelineCacheLoaded { get; private set; }
@@ -900,6 +755,9 @@ public sealed unsafe partial class Device
 
 	/// <summary>Pipelines made so far and the milliseconds spent making them, for start-up and first-use measurements.</summary>
 	public (int Made, double Ms) PipelineCreation => (Volatile.Read( ref pipelinesMade ), Volatile.Read( ref pipelineTicks ) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+
+	/// <summary>The compute pipelines among <see cref="PipelineCreation"/>, and the milliseconds spent making them.</summary>
+	public (int Made, double Ms) ComputePipelineCreation => (Volatile.Read( ref computeMade ), Volatile.Read( ref computeTicks ) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
 
 	void CountPipeline( long started )
 	{
@@ -915,7 +773,9 @@ public sealed unsafe partial class Device
 	public bool SavePipelineCache()
 	{
 		if ( pipelineCachePath is null || pipelineCache == 0 ) return false;
-		var made = Volatile.Read( ref pipelinesMade );
+
+		// Parts and optimised links go into the cache too, the latter on background threads after their pipelines were made
+		var made = Volatile.Read( ref pipelinesMade ) + Volatile.Read( ref partsMade ) + Volatile.Read( ref optimisedMade );
 		if ( made == Volatile.Read( ref pipelinesSaved ) ) return false;
 		if ( !PipelineCacheFile.Save( pipelineCachePath, GetPipelineCacheData() ) ) return false;
 		Volatile.Write( ref pipelinesSaved, made );
@@ -937,7 +797,9 @@ public sealed unsafe partial class Device
 	void DestroyPipelineCache()
 	{
 		foreach ( var layout in pipelineLayouts.Values ) Vk.vkDestroyPipelineLayout( Vk.Device, layout, null );
+		foreach ( var layout in retiredPipelineLayouts ) Vk.vkDestroyPipelineLayout( Vk.Device, layout, null );
 		pipelineLayouts.Clear();
+		retiredPipelineLayouts.Clear();
 		Vk.vkDestroyDescriptorSetLayout( Vk.Device, emptySetLayout, null );
 		Vk.vkDestroyPipelineCache( Vk.Device, pipelineCache, null );
 	}
@@ -1066,28 +928,79 @@ public sealed unsafe partial class Device
 	/// <summary>Destroy a shader module. Pipelines made from it keep working.</summary>
 	public void Destroy( ShaderHandle shader )
 	{
+		// The module goes on a worker once no pipeline is being made from a shader, so the caller never waits for one
 		var record = Shaders.Remove( shader.Index, shader.Generation );
-		Vk.vkDestroyShaderModule( Vk.Device, record.Module, null );
+		lock ( moduleDestroys )
+		{
+			moduleDestroys.RemoveAll( t => t.IsCompleted );
+			moduleDestroys.Add( Task.Run( () =>
+			{
+				shaderUse.EnterWriteLock();
+				try
+				{
+					Vk.vkDestroyShaderModule( Vk.Device, record.Module, null );
+				}
+				finally
+				{
+					shaderUse.ExitWriteLock();
+				}
+			} ) );
+		}
+
+		DropParts( shader );
 	}
 
 	/// <summary>Destroy a binding layout once the GPU is done with it.</summary>
 	public void Destroy( BindingLayoutHandle layout )
 	{
 		var record = Layouts.Remove( layout.Index, layout.Generation );
+
+		// Pipeline layouts made with it leave the cache: the driver may give the next set layout the same handle, and a cached
+		// layout found by it would point at this one once it's gone. They live on, for pipelines made with them, until shutdown
+		lock ( pipelineLayouts )
+		{
+			List<(ulong, ulong, ulong, ulong)> stale = null;
+			foreach ( var key in pipelineLayouts.Keys )
+			{
+				if ( key.Item1 == record.SetLayout || key.Item2 == record.SetLayout || key.Item3 == record.SetLayout || key.Item4 == record.SetLayout ) (stale ??= new()).Add( key );
+			}
+
+			foreach ( var key in stale ?? [] )
+			{
+				retiredPipelineLayouts.Add( pipelineLayouts[key] );
+				pipelineLayouts.Remove( key );
+			}
+		}
+
 		Defer( () => Vk.vkDestroyDescriptorSetLayout( Vk.Device, record.SetLayout, null ) );
 	}
 
 	/// <summary>Destroy a pipeline once the GPU is done with it.</summary>
 	public void Destroy( PipelineHandle pipeline )
 	{
-		var record = Pipelines.Remove( pipeline.Index, pipeline.Generation );
-		Defer( () => Vk.vkDestroyPipeline( Vk.Device, record.Pipeline, null ) );
+		// Under the parts' lock, so an optimised link finishing now either replaces the pipeline first or sees it gone
+		PipelineRecord record;
+		lock ( partLock ) record = Pipelines.Remove( pipeline.Index, pipeline.Generation );
+		Defer( () =>
+		{
+			if ( record.Pipeline != 0 ) Vk.vkDestroyPipeline( Vk.Device, record.Pipeline, null );
+			if ( record.Parts is { } parts ) ReleaseParts( parts );
+		} );
 	}
+
+	readonly List<Task> moduleDestroys = new();
 
 	void DestroyAllResources()
 	{
+		lock ( moduleDestroys ) Task.WaitAll( [.. moduleDestroys] );
 		DestroyBindingSetPools();
-		foreach ( var record in Pipelines.All() ) Vk.vkDestroyPipeline( Vk.Device, record.Pipeline, null );
+		var pipelines = Pipelines.All();
+		foreach ( var record in pipelines )
+		{
+			if ( record.Pipeline != 0 ) Vk.vkDestroyPipeline( Vk.Device, record.Pipeline, null );
+		}
+
+		DestroyParts( pipelines );
 		foreach ( var record in Shaders.All() ) Vk.vkDestroyShaderModule( Vk.Device, record.Module, null );
 		foreach ( var record in Layouts.All() ) Vk.vkDestroyDescriptorSetLayout( Vk.Device, record.SetLayout, null );
 		foreach ( var record in Samplers.All() ) Vk.vkDestroySampler( Vk.Device, record.Sampler, null );

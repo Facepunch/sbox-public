@@ -110,6 +110,12 @@ internal sealed class ManagedRenderAttributes
 	/// <summary>Changes whenever a value or combo is set or cleared, for a reader that converts them only when they change.</summary>
 	public int Version { get; private set; }
 
+	/// <summary>
+	/// The <see cref="Version"/> at which a value or combo last went (a clear, a null object): a reader that copies only what
+	/// changed (<see cref="ValuesSince"/>) copies everything again when this is past its version.
+	/// </summary>
+	public int RemovedAt { get; private set; }
+
 	public void Set( StringToken k, params ReadOnlySpan<float> value )
 	{
 		var array = Array<float>( k.Value, value.Length );
@@ -166,7 +172,7 @@ internal sealed class ManagedRenderAttributes
 		{
 			if ( values.Remove( k.Value, out var old ) ) Keep( k.Value, old.Value );
 			Own( k.Value );
-			Version++;
+			RemovedAt = ++Version;
 			return;
 		}
 
@@ -199,7 +205,7 @@ internal sealed class ManagedRenderAttributes
 		values.Clear();
 		combos.Clear();
 		borrowed.Clear();
-		Version++;
+		RemovedAt = ++Version;
 	}
 
 	/// <summary>Copy every value and combo into <paramref name="other"/>, replacing those of the same token.</summary>
