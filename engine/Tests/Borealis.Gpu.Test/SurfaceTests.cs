@@ -1030,6 +1030,50 @@ public class SurfaceTests : GpuTest
 		Assert.IsTrue( water.Pass( ShaderPasses.Forward ).Pixel.Bindings.Any( b => b.Name == "RefractionTexture" ) );
 	}
 
+	/// <summary>
+	/// water_surface.slang draws the WaterBody's default material as water.shader does: a flat sheet of water (no clipmap,
+	/// no captures) lit by the sun, with its detail normals, Fresnel, 2% reflectance and two-sided diffuse.
+	/// </summary>
+	[TestMethod]
+	public void WaterSurfaceDrawsWaterMaterials()
+	{
+		var previousHost = RenderHost.Current;
+		try
+		{
+			byte[] DrawMaterial( bool convert, out GpuMaterial loaded )
+			{
+				using var backend = new BackendDevice( Device );
+				var errors = new List<string>();
+				backend.Surfaces.Error = errors.Add;
+				backend.Passes.Error = errors.Add;
+				RenderHost.Current = new BackendRenderHost( backend );
+				backend.Surfaces.ConvertShaders = convert;
+				loaded = ((GpuDevice)backend).LoadMaterial( "materials/water/water.vmat" );
+				var corners = new[] { new Vector3( -400, -400, 0 ), new Vector3( 400, -400, 0 ), new Vector3( 400, 400, 0 ), new Vector3( -400, 400, 0 ) };
+				var vertices = corners.Select( c => new MeshVertex( c, Vector3.Up, new Vector2( c.x, c.y ) / 800 + 0.5f ) { Tangent = new Vector4( 1, 0, 0, 1 ) } ).ToArray();
+				var plane = BackendMesh.Create( backend, vertices, [0u, 1u, 2u, 0u, 2u, 3u], loaded, "Water" );
+				var picture = Draw( backend, loaded, model: plane );
+				Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+				return picture;
+			}
+
+			var reference = DrawMaterial( false, out var classic );
+			if ( classic is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( "materials/water/water.vmat isn't compiled" );
+			var converted = DrawMaterial( true, out var surface );
+			Assert.IsInstanceOfType<SurfaceMaterial>( surface, "water.vmat wasn't converted" );
+			SaveRgb( reference, "water-shader" );
+			SaveRgb( converted, "water-surface" );
+			TestContext.WriteLine( $"surface vs shader {Mean( reference, converted ):F3}" );
+			Assert.IsTrue( Bright( reference ) > Width * Height / 12, $"The .shader drew {Bright( reference )} pixels" );
+			Assert.IsTrue( Mean( reference, converted ) < 0.5, $"the water surface differs from water.shader by {Mean( reference, converted ):F3}" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
 	/// <summary>Whether SPIR-V declares the ClipDistance capability (OpCapability 32): a stage that writes clip distances.</summary>
 	static bool WritesClipDistance( byte[] spirv )
 	{
