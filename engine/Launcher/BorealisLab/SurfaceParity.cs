@@ -514,7 +514,7 @@ internal static class SurfaceParity
 	/// <summary>Frames rendered before the one compared (<c>-frames</c>, default 8: shadows and exposure settle).</summary>
 	static int Frames => Math.Max( Args.Int( "-frames", 8 ), 1 );
 
-	static void WaitForPipelines( BackendDevice device )
+	internal static void WaitForPipelines( BackendDevice device )
 	{
 		device.Gpu.WaitForPendingPipelines( TimeSpan.FromSeconds( 120 ) );
 		device.Gpu.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 120 ) );
@@ -525,7 +525,7 @@ internal static class SurfaceParity
 	/// alpha-tested when asked, as a compiled model's are, so depth passes keep the pixel shader that clips. Without
 	/// <paramref name="sun"/> the sun is black, so the point light alone lights the scene.
 	/// </summary>
-	static Color32[] Render( BackendDevice device, GpuMaterial material, bool alphaTest = false, int samples = 1, bool sun = true )
+	internal static Color32[] Render( BackendDevice device, GpuMaterial material, bool alphaTest = false, int samples = 1, bool sun = true )
 	{
 		RenderMesh Flag( RenderMesh mesh ) => alphaTest ? new RenderMesh( mesh.Geometry, mesh.Bounds, [[mesh.DrawsForLod( 0 )[0] with { AlphaTest = true }]] ) : mesh;
 
@@ -560,7 +560,7 @@ internal static class SurfaceParity
 		return ModelParity.ReadBack( device, target, Width, Height );
 	}
 
-	static (double Mean, int Max, int Over, Color32[] Diff) Compare( Color32[] a, Color32[] b )
+	internal static (double Mean, int Max, int Over, Color32[] Diff) Compare( Color32[] a, Color32[] b )
 	{
 		var diff = new Color32[a.Length];
 		long total = 0;
@@ -589,7 +589,7 @@ internal static class SurfaceParity
 		return changed;
 	}
 
-	static void Save( Color32[] pixels, string path )
+	internal static void Save( Color32[] pixels, string path )
 	{
 		var rgba = new byte[pixels.Length * 4];
 		for ( int i = 0; i < pixels.Length; i++ )
