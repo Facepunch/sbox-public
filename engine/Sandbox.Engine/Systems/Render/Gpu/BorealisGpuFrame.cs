@@ -160,8 +160,56 @@ internal sealed class BorealisGpuFrame : IDisposable
 		return existing;
 	}
 
-	// A stage's targets inside the frame (RunStage): engine textures kept from frame to frame, borrowed for each stage
-	Texture stageColor, stageDepth, stageChain, stageNormals, stageFog;
+	// A stage's targets inside the frame (RunStage): engine textures kept from frame to frame, one per Borealis texture and
+	// slot, so borrowing one for a stage leaves the others' backings as they are instead of remaking a backing each stage
+	enum StageSlot { Color, Depth, Chain, Normals, Fog }
+
+	readonly Dictionary<(StageSlot Slot, BackendTexture Texture), Texture> stageTextures = new();
+
+	// Per slot, the Borealis texture borrowed last
+	readonly BackendTexture[] stageLast = new BackendTexture[5];
+
+	// A target per pair of stage textures, made once
+	readonly Dictionary<(Texture Color, Texture Depth), RenderTarget> stageTargets = new();
+
+	/// <summary>
+	/// The engine texture standing for <paramref name="texture"/> in <paramref name="slot"/>, borrowed in <paramref name="layout"/>.
+	/// When a slot moves to another texture, the engine's context stops tracking the one before (it isn't this block's), as
+	/// giving its engine texture a new backing did; textures since disposed lose their engine textures.
+	/// </summary>
+	Texture StageTexture( StageSlot slot, BackendTexture texture, Borealis.Gpu.ImageLayout layout, ImageFormat format, bool depth )
+	{
+		if ( stageLast[(int)slot] is { } last && !ReferenceEquals( last, texture ) ) backend.ForgetBorrowed( last.Handle );
+		stageLast[(int)slot] = texture;
+
+		if ( stageTextures.Count > 8 ) DropDisposedStageTextures();
+		ref var engine = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrAddDefault( stageTextures, (slot, texture), out _ );
+		var before = engine;
+		engine = Engine( engine, texture.Handle, layout, new Vector2Int( texture.Width, texture.Height ), format, depth );
+		if ( before is not null && !ReferenceEquals( before, engine ) ) stageTargets.Clear();
+		return engine;
+	}
+
+	void DropDisposedStageTextures()
+	{
+		var dropped = false;
+		foreach ( var (key, engine) in stageTextures )
+		{
+			if ( key.Texture.IsValid ) continue;
+			stageTextures.Remove( key );
+			engine.Dispose();
+			dropped = true;
+		}
+
+		if ( dropped ) stageTargets.Clear();
+	}
+
+	RenderTarget StageTarget( Texture color, Texture depth )
+	{
+		if ( stageTargets.TryGetValue( (color, depth), out var known ) ) return known;
+		if ( stageTargets.Count > 16 ) stageTargets.Clear();
+		return stageTargets[(color, depth)] = RenderTarget.From( color, depth );
+	}
 
 	/// <summary>
 	/// Draw a camera's stage inside Borealis's frame while it records it (<c>AfterDepthPrepass</c>, <c>AfterOpaque</c>,
@@ -199,22 +247,22 @@ internal sealed class BorealisGpuFrame : IDisposable
 		var list = context.Lend();
 
 		// In a segment recorded beside others, each starts where the stage uses it; the frame moves it there at the list's start
-		(Texture Engine, BackendTexture Gpu) Borrow( ref Texture existing, GpuTexture gpu, ImageFormat format, bool depth, Borealis.Gpu.ImageLayout start )
+		(Texture Engine, BackendTexture Gpu) Borrow( StageSlot slot, GpuTexture gpu, ImageFormat format, bool depth, Borealis.Gpu.ImageLayout start )
 		{
 			if ( gpu is not BackendTexture texture ) return default;
-			existing = Engine( existing, texture.Handle, context.LendLayout( texture, start ), new Vector2Int( texture.Width, texture.Height ), format, depth );
-			return (existing, texture);
+			var engine = StageTexture( slot, texture, context.LendLayout( texture, start ), format, depth );
+			return (engine, texture);
 		}
 
-		var color = Borrow( ref stageColor, target.Color, ImageFormat.RGBA16161616F, depth: false, Borealis.Gpu.ImageLayout.ColorTarget );
-		var depth = Borrow( ref stageDepth, target.Depth, ImageFormat.D32FS8, depth: true, Borealis.Gpu.ImageLayout.DepthTarget );
-		var chain = Borrow( ref stageChain, ((BackendParameters)target.Attributes).Get( DepthChainName ) as GpuTexture, ImageFormat.RG3232F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
-		var normals = Borrow( ref stageNormals, target.Normals, ImageFormat.RGBA1010102, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
+		var color = Borrow( StageSlot.Color, target.Color, ImageFormat.RGBA16161616F, depth: false, Borealis.Gpu.ImageLayout.ColorTarget );
+		var depth = Borrow( StageSlot.Depth, target.Depth, ImageFormat.D32FS8, depth: true, Borealis.Gpu.ImageLayout.DepthTarget );
+		var chain = Borrow( StageSlot.Chain, ((BackendParameters)target.Attributes).Get( DepthChainName ) as GpuTexture, ImageFormat.RG3232F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
+		var normals = Borrow( StageSlot.Normals, target.Normals, ImageFormat.RGBA1010102, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
 
 		// The frame's volumetric fog (or opaque black without it), which the view constants tell forward shaders to read
-		var fog = Borrow( ref stageFog, ((BackendParameters)target.Attributes).Get( FogVolumeName ) as GpuTexture, ImageFormat.RGBA16161616F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
+		var fog = Borrow( StageSlot.Fog, ((BackendParameters)target.Attributes).Get( FogVolumeName ) as GpuTexture, ImageFormat.RGBA16161616F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
 
-		view.Target = color.Engine is null ? null : RenderTarget.From( color.Engine, depth.Engine );
+		view.Target = color.Engine is null ? null : StageTarget( color.Engine, depth.Engine );
 		view.DepthSlice = 0;
 
 		// The block's multisampling (the MSAA combos) is its targets': a stage before the resolve reads and draws into the
@@ -401,13 +449,14 @@ internal sealed class BorealisGpuFrame : IDisposable
 		Color?.Dispose();
 		Depth?.Dispose();
 		DepthChain?.Dispose();
-		stageColor?.Dispose();
-		stageDepth?.Dispose();
-		stageChain?.Dispose();
+		foreach ( var engine in stageTextures.Values ) engine.Dispose();
+		stageTextures.Clear();
+		stageTargets.Clear();
+		Array.Clear( stageLast );
 		resolvedDepth?.Dispose();
 		resolveScratch?.Dispose();
 		foreach ( var (texture, _) in depthAlone.Values ) texture.Dispose();
 		depthAlone.Clear();
-		Color = Depth = DepthChain = stageColor = stageDepth = stageChain = resolvedDepth = resolveScratch = null;
+		Color = Depth = DepthChain = resolvedDepth = resolveScratch = null;
 	}
 }
