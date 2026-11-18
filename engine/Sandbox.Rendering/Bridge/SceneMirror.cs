@@ -100,7 +100,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	static bool WritesDirectly( SceneObject sceneObject ) => !sceneObject.OwnsRenderObject && sceneObject switch
 	{
 		SceneModel or SceneDirectionalLight or SceneLightProbe or SceneSkyBox => false,
-		SceneCubemap or SceneCustomObject or SceneDynamicObject => true,
+		SceneCustomObject or SceneDynamicObject => true,
 		_ => sceneObject.GetType() == typeof( SceneObject ) && sceneObject.ResolvesDraws,
 	};
 
@@ -315,10 +315,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 				ApplyMesh( sceneObject, mesh, change );
 				break;
 
-			case EnvMapObject envMap:
-				ApplyEnvMap( (SceneCubemap)sceneObject, envMap, change );
-				break;
-
 			case CustomObject custom:
 				ApplyCustom( sceneObject, custom, change );
 				break;
@@ -346,7 +342,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	readonly Dictionary<SceneCubemap, Texture> uncaptured = new();
 	int capturesSeen;
 
-	/// <summary>Apply again the probes whose cube a capture has made since the last sync (<see cref="ApplyEnvMap"/>).</summary>
+	/// <summary>Write again the probes whose cube a capture has made since the last sync (<see cref="ProbeCube"/>).</summary>
 	void CheckCaptured()
 	{
 		if ( uncaptured.Count == 0 || capturesSeen == MirrorContent.CaptureCubesMade ) return;
@@ -467,7 +463,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 
 		RenderObject obj = sceneObject.OwnsRenderObject ? sceneObject.MakeRenderObject() : sceneObject switch
 		{
-			SceneCubemap => new EnvMapObject( null, default, Transform.Zero ),
 			SceneDirectionalLight => null,
 			SceneSkyBox => null,
 			SceneModel => new MeshObject( null, sceneObject.Transform ),
@@ -786,33 +781,23 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		obj.HiddenInCaptures = flags.HasFlag( SceneObjectFlags.HideInCubemaps );
 	}
 
-	void ApplyEnvMap( SceneCubemap cubemap, EnvMapObject envMap, SceneObjectChange change )
+	/// <summary>
+	/// The cube a probe reflects. A realtime probe's cube is made when it's first captured (the envmap scheduler captures the
+	/// probes that are seen), not for every probe a map has: it reflects black until then, as a cube cleared for it did.
+	/// </summary>
+	public GpuTexture ProbeCube( SceneCubemap cubemap )
 	{
-		if ( (change & SceneObjectChange.Transform) != 0 )
-			envMap.Transform = cubemap.Transform;
-
-		if ( (change & SceneObjectChange.Settings) != 0 )
+		var texture = cubemap.Texture;
+		if ( LazyCaptureCubes && MirrorContent.IsCaptureCube( texture ) )
 		{
-			// A realtime probe's cube is made when it's first captured (the envmap scheduler captures the probes that are seen),
-			// not for every probe a map has: it reflects black until then, as a cube cleared for it did
-			var texture = cubemap.Texture;
-			if ( LazyCaptureCubes && MirrorContent.IsCaptureCube( texture ) )
-			{
-				envMap.Cubemap = MirrorContent.MadeCaptureCube( texture );
-				if ( envMap.Cubemap is null ) uncaptured[cubemap] = texture;
-				else uncaptured.Remove( cubemap );
-			}
-			else
-			{
-				envMap.Cubemap = TextureFor( texture, cubemap, SceneObjectChange.Settings );
-				uncaptured.Remove( cubemap );
-			}
-
-			envMap.ProjectionBounds = cubemap.ProjectionBounds;
-			envMap.Tint = cubemap.TintColor;
-			envMap.Feathering = cubemap.Feathering;
-			envMap.Priority = cubemap.Priority;
+			var made = MirrorContent.MadeCaptureCube( texture );
+			if ( made is null ) uncaptured[cubemap] = texture;
+			else uncaptured.Remove( cubemap );
+			return made;
 		}
+
+		uncaptured.Remove( cubemap );
+		return TextureFor( texture, cubemap, SceneObjectChange.Settings );
 	}
 
 	/// <summary>

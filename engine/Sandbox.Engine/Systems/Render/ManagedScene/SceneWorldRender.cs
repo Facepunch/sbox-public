@@ -28,4 +28,10 @@ internal interface ISceneWorldRender
 	/// its file, and <paramref name="change"/> is written again once it has.
 	/// </summary>
 	Borealis.GpuTexture TextureWhenRead( Texture texture, SceneObject waiting, SceneObjectChange change );
+
+	/// <summary>
+	/// The cube an environment probe reflects: a realtime probe's capture once something has captured it (null until then, and
+	/// the probe's settings are written again when it has), or its texture's, as <see cref="TextureWhenRead"/>.
+	/// </summary>
+	Borealis.GpuTexture ProbeCube( SceneCubemap cubemap );
 }

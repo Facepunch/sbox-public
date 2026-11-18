@@ -223,4 +223,29 @@ public sealed class SceneCubemap : SceneLight
 	}
 
 	internal bool RequiresUpdate = true;
+
+	internal override bool OwnsRenderObject => true;
+
+	internal override Borealis.RenderObject MakeRenderObject() => new Borealis.EnvMapObject( null, default, Transform.Zero );
+
+	/// <summary>
+	/// Its placement, cube, box and blending, as native's binner packs a <c>CEnvMapSceneObject</c>.
+	/// </summary>
+	internal override void WriteRender( Borealis.RenderObject obj, Rendering.SceneObjectChange change, Rendering.ISceneWorldRender render )
+	{
+		base.WriteRender( obj, change, render );
+		if ( obj is not Borealis.EnvMapObject envMap ) return;
+
+		if ( (change & Rendering.SceneObjectChange.Transform) != 0 )
+			envMap.Transform = Transform;
+
+		if ( (change & Rendering.SceneObjectChange.Settings) != 0 )
+		{
+			envMap.Cubemap = render.ProbeCube( this );
+			envMap.ProjectionBounds = ProjectionBounds;
+			envMap.Tint = TintColor;
+			envMap.Feathering = Feathering;
+			envMap.Priority = Priority;
+		}
+	}
 }
