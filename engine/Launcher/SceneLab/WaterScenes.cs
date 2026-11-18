@@ -86,8 +86,9 @@ internal static class WaterScenes
 
 		if ( hole )
 		{
-			boat.Components.Create<WaterHole>().Bounds = new BBox( new Vector3( -length / 2 + wall, -width / 2 + wall, bottom + wall ),
-				new Vector3( length / 2 - wall, width / 2 - wall, top + 20 ) );
+			// Out to the middle of the walls: an edge on their inner face leaves a dotted waterline on it.
+			boat.Components.Create<WaterHole>().Bounds = new BBox( new Vector3( -length / 2 + wall / 2, -width / 2 + wall / 2, bottom + wall ),
+				new Vector3( length / 2 - wall / 2, width / 2 - wall / 2, top + 20 ) );
 		}
 		return boat;
 

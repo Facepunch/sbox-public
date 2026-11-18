@@ -3,7 +3,8 @@ namespace Sandbox;
 /// <summary>
 /// Removes water inside a box: the surface isn't drawn there, and swimming, underwater effects, splashes and
 /// buoyancy treat the space as dry. Use it for boat hulls, docks or rooms below sea level, and make the box
-/// reach above the highest wave crest. Cuts every water body it overlaps, including oceans.
+/// reach above the highest wave crest and into the walls around it: an edge exactly on a wall's inner face
+/// leaves a dotted waterline there. Cuts every water body it overlaps, including oceans.
 /// A rigidbody that owns the hole, like a boat with a dry hull, still floats.
 /// </summary>
 [Expose, Title( "Water Hole" ), Category( "Rendering" ), Icon( "crop_free" )]
