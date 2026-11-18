@@ -61,12 +61,14 @@ internal static class ToolSceneViews
 	{
 		public BorealisGpuWindow Window;
 		public SceneCamera Camera;
+		public ToolLights Lights = new();
 	}
 
 	static readonly Dictionary<IntPtr, View> views = new();
 
 	// Read-backs share one camera
 	static SceneCamera bitmapCamera;
+	static ToolLights bitmapLights;
 
 	static ulong frame;
 
@@ -113,7 +115,7 @@ internal static class ToolSceneViews
 		}
 
 		var size = new Vector2( request.Width, request.Height );
-		Setup( view.Camera, ref request );
+		Setup( view.Camera, view.Lights, ref request );
 		request.Handled = 1;
 
 		if ( !view.Window.Update( size ) ) return;
@@ -139,7 +141,8 @@ internal static class ToolSceneViews
 		if ( request.Pixels == null || format == PixelFormat.None ) return;
 
 		bitmapCamera ??= NewCamera( "Tool scene read-back" );
-		Setup( bitmapCamera, ref request );
+		bitmapLights ??= new ToolLights();
+		Setup( bitmapCamera, bitmapLights, ref request );
 
 		using var bitmap = new Bitmap( request.Width, request.Height );
 		bitmapCamera.RenderToBitmap( bitmap );
@@ -194,30 +197,26 @@ internal static class ToolSceneViews
 	};
 
 	/// <summary>
-	/// Point a camera at a request's worlds, from its camera.
+	/// Point a camera at a request's worlds, from its camera. Its main world is the view's light stand-ins
+	/// (<see cref="ToolLights"/>); the native worlds are extra worlds of it.
 	/// </summary>
-	static unsafe void Setup( SceneCamera camera, ref Request request )
+	static unsafe void Setup( SceneCamera camera, ToolLights lights, ref Request request )
 	{
 		var count = Math.Min( request.WorldCount, Request.MaxWorlds );
-		SceneWorld main = null;
 		camera.Worlds.Clear();
+		camera.World = null;
+		camera.World = lights.World;
+		lights.BeginFrame();
 		for ( int i = 0; i < count; i++ )
 		{
 			var world = Sandbox.HandleIndex.Get<SceneWorld>( request.Worlds[i] );
 			if ( !world.IsValid() ) continue;
 
 			Poll( world );
-			if ( main is null )
-			{
-				main = world;
-				camera.World = null;
-				camera.World = world;
-			}
-			else
-			{
-				camera.Worlds.Add( world );
-			}
+			lights.Mirror( world );
+			camera.Worlds.Add( world );
 		}
+		lights.EndFrame();
 
 		frame++;
 
@@ -263,6 +262,7 @@ internal static class ToolSceneViews
 
 		view.Window.Dispose();
 		view.Camera.Dispose();
+		view.Lights.Dispose();
 	}
 
 	/// <summary>
@@ -275,5 +275,106 @@ internal static class ToolSceneViews
 
 		bitmapCamera?.Dispose();
 		bitmapCamera = null;
+		bitmapLights?.Dispose();
+		bitmapLights = null;
+	}
+
+	/// <summary>
+	/// Managed stand-ins for the lights native made in a view's worlds (a tool's lighting rig). Native makes them through
+	/// <c>CreateLight</c>, so their managed twins are plain <see cref="SceneLight"/>s, which Borealis doesn't draw: it
+	/// knows a light by its managed type, and a sun only from a main world. Each frame every native light gets a
+	/// <see cref="SceneDirectionalLight"/>, <see cref="ScenePointLight"/> or <see cref="SceneSpotLight"/> in the view's own
+	/// world, the camera's main world, with the native light's settings.
+	/// </summary>
+	internal sealed class ToolLights : IDisposable
+	{
+		public SceneWorld World { get; } = new();
+
+		readonly Dictionary<SceneLight, SceneLight> proxies = new();
+		readonly HashSet<SceneLight> seen = new();
+		readonly List<SceneLight> gone = new();
+
+		public void BeginFrame() => seen.Clear();
+
+		/// <summary>
+		/// Stand-ins for <paramref name="world"/>'s native lights, made or brought up to date.
+		/// </summary>
+		public void Mirror( SceneWorld world )
+		{
+			lock ( world.InternalSceneObjects )
+			{
+				foreach ( var sceneObject in world.InternalSceneObjects )
+				{
+					if ( sceneObject is not SceneLight light || light.GetType() != typeof( SceneLight ) || !light.lightNative.IsValid ) continue;
+
+					var kind = (ShadowLightType)light.lightNative.GetLightType();
+					if ( kind is not (ShadowLightType.Point or ShadowLightType.Spot or ShadowLightType.Directional) ) continue;
+
+					if ( !proxies.TryGetValue( light, out var proxy ) || !proxy.IsValid() )
+					{
+						proxy = kind switch
+						{
+							ShadowLightType.Directional => new SceneDirectionalLight( World, Rotation.Identity, light.LightColor ),
+							ShadowLightType.Spot => new SceneSpotLight( World, light.Position, light.LightColor ),
+							_ => new ScenePointLight( World, light.Position, light.Radius, light.LightColor ),
+						};
+						proxies[light] = proxy;
+					}
+
+					seen.Add( light );
+					Copy( light, proxy );
+				}
+			}
+		}
+
+		static void Copy( SceneLight from, SceneLight to )
+		{
+			// Native's direction is the rotation's forward, negated for a directional light (SetWorldDirection)
+			var direction = from.WorldDirection;
+			if ( to is SceneDirectionalLight ) direction = -direction;
+			var transform = new Transform( from.Position, direction.LengthSquared < 1e-6f ? from.Rotation : Rotation.LookAt( direction ) );
+			if ( to.Transform != transform ) to.Transform = transform;
+			if ( to.LightColor != from.LightColor ) to.LightColor = from.LightColor;
+			if ( to.Radius != from.Radius ) to.Radius = from.Radius;
+			if ( to.ConstantAttenuation != from.ConstantAttenuation ) to.ConstantAttenuation = from.ConstantAttenuation;
+			if ( to.LinearAttenuation != from.LinearAttenuation ) to.LinearAttenuation = from.LinearAttenuation;
+			if ( to.QuadraticAttenuation != from.QuadraticAttenuation ) to.QuadraticAttenuation = from.QuadraticAttenuation;
+			if ( to.ShadowsEnabled != from.ShadowsEnabled ) to.ShadowsEnabled = from.ShadowsEnabled;
+			if ( to.RenderingEnabled != from.RenderingEnabled ) to.RenderingEnabled = from.RenderingEnabled;
+
+			if ( to is SceneSpotLight spot )
+			{
+				var inner = from.lightNative.GetTheta();
+				var outer = from.lightNative.GetPhi();
+				if ( spot.ConeInner != inner ) spot.ConeInner = inner;
+				if ( spot.ConeOuter != outer ) spot.ConeOuter = outer;
+			}
+		}
+
+		/// <summary>
+		/// Delete the stand-ins of native lights no world had this frame.
+		/// </summary>
+		public void EndFrame()
+		{
+			foreach ( var (light, proxy) in proxies )
+			{
+				if ( !seen.Contains( light ) ) gone.Add( light );
+			}
+
+			foreach ( var light in gone )
+			{
+				proxies.Remove( light, out var proxy );
+				proxy?.Delete();
+			}
+
+			gone.Clear();
+		}
+
+		public void Dispose()
+		{
+			foreach ( var proxy in proxies.Values ) proxy.Delete();
+			proxies.Clear();
+			World.Delete();
+		}
 	}
 }
