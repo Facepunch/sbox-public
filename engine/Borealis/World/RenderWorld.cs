@@ -21,6 +21,7 @@ public sealed class RenderWorld
 	int[] _drawVersions = new int[InitialCapacity];
 	int[] _entryVersions = new int[InitialCapacity];
 	long[] _changedAt = new long[InitialCapacity];
+	byte[] _subWorlds = new byte[InitialCapacity];
 
 	/// <summary>
 	/// Spatial index of size-culled objects.
@@ -111,6 +112,13 @@ public sealed class RenderWorld
 	internal ReadOnlySpan<Matrix> LocalToWorld => _localToWorld.AsSpan( 0, Count );
 
 	/// <summary>
+	/// Each object's sub-world here, by index: 0 for the world's own, else the number a view's <see cref="RenderView.SubWorlds"/>
+	/// shows it by - its <see cref="RenderObject.SubWorld"/>, or for another world's object the number <see cref="Include"/> gave
+	/// that world.
+	/// </summary>
+	internal ReadOnlySpan<byte> SubWorlds => _subWorlds.AsSpan( 0, Count );
+
+	/// <summary>
 	/// Each object's draw version, by index: a number no other object or change has had, given again whenever something
 	/// that decides how the object draws changes (<see cref="DrawChanged"/>), and when it moves to another index. What a
 	/// render system keeps of an object between frames is good while the version it was made at is still the object's.
@@ -126,9 +134,10 @@ public sealed class RenderWorld
 	/// </summary>
 	internal void DrawChanged( RenderObject obj )
 	{
-		if ( obj.Index < 0 ) return;
-		_drawVersions[obj.Index] = NextDrawVersion();
-		Changed( obj.Index );
+		var index = obj.IndexIn( this );
+		if ( index < 0 ) return;
+		_drawVersions[index] = NextDrawVersion();
+		Changed( index );
 	}
 
 	/// <summary>
@@ -150,7 +159,8 @@ public sealed class RenderWorld
 	/// </summary>
 	internal void ObjectChanged( RenderObject obj )
 	{
-		if ( obj.Index >= 0 ) Changed( obj.Index );
+		var index = obj.IndexIn( this );
+		if ( index >= 0 ) Changed( index );
 	}
 
 	/// <summary>
@@ -165,9 +175,10 @@ public sealed class RenderWorld
 	/// </summary>
 	internal void EntryChanged( RenderObject obj )
 	{
-		if ( obj.Index < 0 ) return;
-		_entryVersions[obj.Index]++;
-		Changed( obj.Index );
+		var index = obj.IndexIn( this );
+		if ( index < 0 ) return;
+		_entryVersions[index]++;
+		Changed( index );
 	}
 
 	/// <summary>
@@ -183,13 +194,25 @@ public sealed class RenderWorld
 	internal int Structure { get; private set; }
 
 	/// <summary>
-	/// Add an object. An object can be in one world at a time.
+	/// Add an object. An object can be in one world at a time; worlds drawing this one as a sub-world (<see cref="Include"/>)
+	/// hold it too.
 	/// </summary>
 	public void Add( RenderObject obj )
 	{
 		ArgumentNullException.ThrowIfNull( obj );
 		if ( obj.World is not null ) throw new InvalidOperationException( "Render object is already in a world" );
 
+		obj.World = this;
+		Insert( obj, obj.SubWorld );
+		foreach ( var (host, subWorld) in drawnIn ) host.Insert( obj, subWorld );
+	}
+
+	/// <summary>
+	/// Hold an object at the end of the dense arrays: one of this world's own (its <see cref="RenderObject.World"/> is this), or
+	/// one of a world drawn here as sub-world <paramref name="subWorld"/>.
+	/// </summary>
+	void Insert( RenderObject obj, int subWorld )
+	{
 		var type = obj.GetType();
 		if ( !_objectTypes.Contains( type ) ) _objectTypes.Add( type );
 
@@ -204,38 +227,56 @@ public sealed class RenderWorld
 			Array.Resize( ref _drawVersions, capacity );
 			Array.Resize( ref _entryVersions, capacity );
 			Array.Resize( ref _changedAt, capacity );
+			Array.Resize( ref _subWorlds, capacity );
 			Array.Resize( ref _dynamicTreeLeaves, capacity );
 			Array.Resize( ref _movedStamps, capacity );
 			Array.Resize( ref _settleMoves, capacity );
 		}
 
-		obj.World = this;
-		obj.Index = Count++;
+		var index = Count++;
+		if ( ReferenceEquals( obj.World, this ) ) obj.Index = index;
+		else obj.AddHost( this, index );
+
 		Structure++;
 		if ( obj is MeshObject { AttributesFrom: not null } ) AttributeSources++;
-		_objects[obj.Index] = obj;
-		_treeLeaves[obj.Index] = NotAdded;
-		_dynamicTreeLeaves[obj.Index] = NotAdded;
-		_settleMoves[obj.Index] = 0;
-		_drawVersions[obj.Index] = NextDrawVersion();
-		_entryVersions[obj.Index]++;
+		_objects[index] = obj;
+		_subWorlds[index] = (byte)subWorld;
+		_treeLeaves[index] = NotAdded;
+		_dynamicTreeLeaves[index] = NotAdded;
+		_settleMoves[index] = 0;
+		_drawVersions[index] = NextDrawVersion();
+		_entryVersions[index]++;
 		Sync( obj );
 	}
 
 	/// <summary>
-	/// Remove an object. The last object moves into its slot, so indices aren't stable across removes.
+	/// Remove an object, from the worlds drawing this one as a sub-world too. The last object moves into its slot, so indices
+	/// aren't stable across removes.
 	/// </summary>
 	public void Remove( RenderObject obj )
 	{
 		ArgumentNullException.ThrowIfNull( obj );
 		if ( obj.World != this ) return;
 
-		var index = obj.Index;
+		for ( int i = obj.HostCount - 1; i >= 0; i-- ) obj.HostAt( i ).Delete( obj );
+		Delete( obj );
+		obj.World = null;
+		obj.Index = -1;
+	}
+
+	/// <summary>
+	/// Let go of an object held here, the last one moving into its slot.
+	/// </summary>
+	void Delete( RenderObject obj )
+	{
+		var index = obj.IndexIn( this );
+		if ( index < 0 ) return;
+
 		var last = --Count;
 		Structure++;
 
 		if ( obj.IsStatic ) StaticCasterChanged( obj );
-		else if ( IsSettledCaster( obj ) ) SettledChanges.Add( _boundsCenters[index], _boundsExtents[index] );
+		else if ( IsSettledCaster( obj, index ) ) SettledChanges.Add( _boundsCenters[index], _boundsExtents[index] );
 
 		if ( _treeLeaves[index] >= 0 ) Tree.Remove( _treeLeaves[index] );
 		else _unculledObjectIndices.Remove( index );
@@ -248,6 +289,7 @@ public sealed class RenderWorld
 			_boundsCenters[index] = _boundsCenters[last];
 			_boundsExtents[index] = _boundsExtents[last];
 			_localToWorld[index] = _localToWorld[last];
+			_subWorlds[index] = _subWorlds[last];
 			_treeLeaves[index] = _treeLeaves[last];
 			_dynamicTreeLeaves[index] = _dynamicTreeLeaves[last];
 			_movedStamps[index] = _movedStamps[last];
@@ -255,7 +297,7 @@ public sealed class RenderWorld
 			_drawVersions[index] = NextDrawVersion();
 			_entryVersions[index] = _entryVersions[last] + 1;
 			Changed( index );
-			moved.Index = index;
+			moved.SetIndexIn( this, index );
 
 			if ( _treeLeaves[index] >= 0 ) Tree.SetItem( _treeLeaves[index], index );
 			else _unculledObjectIndices[_unculledObjectIndices.IndexOf( last )] = index;
@@ -264,8 +306,88 @@ public sealed class RenderWorld
 
 		_objects[last] = null;
 		if ( obj is MeshObject { AttributesFrom: not null } ) AttributeSources--;
-		obj.World = null;
-		obj.Index = -1;
+		if ( !ReferenceEquals( obj.World, this ) ) obj.RemoveHost( this );
+	}
+
+	/// <summary>
+	/// Set one of this world's own objects' sub-world (<see cref="RenderObject.SubWorld"/>).
+	/// </summary>
+	internal void SetSubWorld( RenderObject obj, int subWorld )
+	{
+		if ( ReferenceEquals( obj.World, this ) && obj.Index >= 0 ) _subWorlds[obj.Index] = (byte)subWorld;
+	}
+
+	// The worlds drawing this one as a sub-world, with the number each gave it, and those this one draws, by number - 1
+	readonly List<(RenderWorld Host, int SubWorld)> drawnIn = [];
+	readonly RenderWorld[] included = new RenderWorld[MaxSubWorlds];
+
+	/// <summary>
+	/// Draw another world's objects in this one's views as a sub-world: this world holds them too (the same objects, kept in
+	/// step as they change, come and go), and views of it show them while their <see cref="RenderView.SubWorlds"/> has the
+	/// number's bit. Returns the number, the one it has already if it's drawn here, or 0 when this world draws
+	/// <see cref="MaxSubWorlds"/> already. Its lighting, probe volumes and fog aren't used: this world's light them.
+	/// </summary>
+	public int Include( RenderWorld other )
+	{
+		ArgumentNullException.ThrowIfNull( other );
+		if ( other == this ) throw new ArgumentException( "A world can't include itself", nameof( other ) );
+
+		var free = -1;
+		for ( int i = 0; i < included.Length; i++ )
+		{
+			if ( included[i] == other ) return i + 1;
+			if ( free < 0 && included[i] is null ) free = i;
+		}
+
+		if ( free < 0 ) return 0;
+		included[free] = other;
+		var subWorld = free + 1;
+		other.drawnIn.Add( (this, subWorld) );
+
+		// Its own objects, not those of worlds it draws
+		foreach ( var obj in other.Objects )
+		{
+			if ( ReferenceEquals( obj.World, other ) ) Insert( obj, subWorld );
+		}
+
+		return subWorld;
+	}
+
+	/// <summary>
+	/// The number <see cref="Include"/> gave another world here, or 0 when it isn't drawn here.
+	/// </summary>
+	public int SubWorldOf( RenderWorld other )
+	{
+		var i = other is null ? -1 : Array.IndexOf( included, other );
+		return i < 0 ? 0 : i + 1;
+	}
+
+	/// <summary>
+	/// Stop drawing a world <see cref="Include"/> drew here: this world lets go of its objects.
+	/// </summary>
+	public void Exclude( RenderWorld other )
+	{
+		var i = other is null ? -1 : Array.IndexOf( included, other );
+		if ( i < 0 ) return;
+
+		included[i] = null;
+		other.drawnIn.Remove( (this, i + 1) );
+		foreach ( var obj in other.Objects )
+		{
+			if ( ReferenceEquals( obj.World, other ) ) Delete( obj );
+		}
+	}
+
+	/// <summary>
+	/// Stop drawing this world in every world that includes it, and every world it includes here (<see cref="Include"/>).
+	/// </summary>
+	public void ExcludeEverywhere()
+	{
+		for ( int i = drawnIn.Count - 1; i >= 0; i-- ) drawnIn[i].Host.Exclude( this );
+		foreach ( var other in included )
+		{
+			if ( other is not null ) Exclude( other );
+		}
 	}
 
 	/// <summary>
@@ -273,14 +395,15 @@ public sealed class RenderWorld
 	/// </summary>
 	internal void Sync( RenderObject obj )
 	{
-		var index = obj.Index;
+		var index = obj.IndexIn( this );
+		if ( index < 0 ) return;
 
 		// A static caster that was already here leaves its old place too
 		var logged = obj.IsStatic && CastsShadows( obj );
 		if ( logged && _treeLeaves[index] != NotAdded ) StaticChanges.Add( _boundsCenters[index], _boundsExtents[index] );
 
 		// So does a settled one, which is drawn every frame again from now
-		var settled = !obj.IsStatic && _treeLeaves[index] != NotAdded && IsSettledCaster( obj );
+		var settled = !obj.IsStatic && _treeLeaves[index] != NotAdded && IsSettledCaster( obj, index );
 		if ( settled ) SettledChanges.Add( _boundsCenters[index], _boundsExtents[index] );
 		Moved( index, settled );
 
@@ -320,7 +443,8 @@ public sealed class RenderWorld
 	/// </summary>
 	internal void SyncDynamic( RenderObject obj )
 	{
-		var index = obj.Index;
+		var index = obj.IndexIn( this );
+		if ( index < 0 ) return;
 		var leaf = _dynamicTreeLeaves[index];
 		var wanted = _treeLeaves[index] >= 0 && !obj.IsStatic;
 
@@ -342,9 +466,10 @@ public sealed class RenderWorld
 	/// </summary>
 	internal void StaticCasterChanged( RenderObject obj )
 	{
-		if ( obj.Index < 0 ) return;
-		Changed( obj.Index );
-		if ( CastsShadows( obj ) ) StaticChanges.Add( _boundsCenters[obj.Index], _boundsExtents[obj.Index] );
+		var index = obj.IndexIn( this );
+		if ( index < 0 ) return;
+		Changed( index );
+		if ( CastsShadows( obj ) ) StaticChanges.Add( _boundsCenters[index], _boundsExtents[index] );
 	}
 
 	/// <summary>
@@ -359,10 +484,11 @@ public sealed class RenderWorld
 			return;
 		}
 
-		if ( obj.Index < 0 ) return;
-		var settled = IsSettledCaster( obj );
-		if ( settled ) SettledChanges.Add( _boundsCenters[obj.Index], _boundsExtents[obj.Index] );
-		Moved( obj.Index, settled );
+		var index = obj.IndexIn( this );
+		if ( index < 0 ) return;
+		var settled = IsSettledCaster( obj, index );
+		if ( settled ) SettledChanges.Add( _boundsCenters[index], _boundsExtents[index] );
+		Moved( index, settled );
 	}
 
 	/// <summary>
@@ -382,7 +508,7 @@ public sealed class RenderWorld
 	/// <summary>
 	/// A caster that isn't static and counts as settled now.
 	/// </summary>
-	bool IsSettledCaster( RenderObject obj ) => Shadows.SettledCasters.Settled( _movedStamps[obj.Index] ) && CastsShadows( obj );
+	bool IsSettledCaster( RenderObject obj, int index ) => Shadows.SettledCasters.Settled( _movedStamps[index] ) && CastsShadows( obj );
 
 	/// <summary>
 	/// Lights, environment maps and decals never draw into shadow maps.

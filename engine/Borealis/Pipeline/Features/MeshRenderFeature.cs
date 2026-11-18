@@ -408,6 +408,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal override void Prepare( RenderWorld world, ViewPass pass, TransformBuffer transforms )
 	{
 		using var zone = Zones.MeshPrepare.Start();
+		preparedWorld = world;
 		var layers = pass.State<RunLists>( this );
 		layers.Clear();
 		if ( !pass.IsShadow ) DropUnusedBins();
@@ -927,12 +928,15 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// The light probe volume attributes an object drew with in the last <see cref="Prepare"/>, for the tests.
 	/// </summary>
-	internal ShaderParameters ProbeFor( RenderObject obj ) => probes[obj.Index];
+	internal ShaderParameters ProbeFor( RenderObject obj ) => probes[obj.IndexIn( preparedWorld )];
 
 	/// <summary>
 	/// The LOD an object drew at in the last <see cref="Prepare"/>, for the tests.
 	/// </summary>
-	internal int LodFor( RenderObject obj ) => lods[obj.Index];
+	internal int LodFor( RenderObject obj ) => lods[obj.IndexIn( preparedWorld )];
+
+	// The world the last Prepare was of, for the tests
+	RenderWorld preparedWorld;
 
 	/// <summary>
 	/// Nearest-first key, reversed for fully translucent objects; ties use world index (<c>CSceneSystem</c> layer sorting).
@@ -1050,17 +1054,17 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			var obj = Unsafe.As<MeshObject>( objects[index] );
 			if ( bin.Skinned )
 			{
-				WriteBones( obj, bin.Lod, matrices[index], keep ? obj.Tint : TintFor( obj, bin.Lod ), transforms );
+				WriteBones( obj, bin.Lod, matrices[index], keep ? obj.Tint : TintFor( obj, bin.Lod, index ), transforms );
 				skinMembers.Add( obj );
 			}
 			else if ( bin.Tinted )
 			{
 				// Its entries now; the ids are written a block per draw when the run ends
-				tintedSlots.Add( transforms.TintedSlotsFor( obj, matrices[index], keep ? obj.Tint : TintFor( obj, bin.Lod ), bin.Mesh ) );
+				tintedSlots.Add( transforms.TintedSlotsFor( obj, matrices[index], keep ? obj.Tint : TintFor( obj, bin.Lod, index ), bin.Mesh ) );
 			}
 			else
 			{
-				var slot = keep ? transforms.KeptSlotFor( index, obj, matrices[index], versions[index] ) : transforms.SlotFor( obj, matrices[index], TintFor( obj, bin.Lod ) );
+				var slot = keep ? transforms.KeptSlotFor( index, obj, matrices[index], versions[index] ) : transforms.SlotFor( obj, matrices[index], TintFor( obj, bin.Lod, index ) );
 				var instance = transforms.AddInstance( slot );
 				occlusion?.AddInstance( slot, centers[index], classified[k].Occludes ? extents[index] : new Vector3( -1 ) );
 				if ( length == 0 ) start = instance;
@@ -1118,14 +1122,14 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// its LOD's colour if it has LODs. Alpha stays the object's, so it fades and blends as it would. A frame writes an object's
 	/// entry once, for the first view, which is the main view.
 	/// </summary>
-	Color TintFor( MeshObject obj, int lod )
+	Color TintFor( MeshObject obj, int lod, int index )
 	{
 		var views = DebugViews;
 		if ( views == DebugViews.None ) return obj.Tint;
 
 		var reasons = tintReasons;
-		if ( reasons is not null && (uint)obj.Index < (uint)reasons.Length && reasons[obj.Index] != 0 )
-			return DebugViewReport.CullColor( (CullReason)reasons[obj.Index] ).WithAlpha( obj.Tint.a );
+		if ( reasons is not null && (uint)index < (uint)reasons.Length && reasons[index] != 0 )
+			return DebugViewReport.CullColor( (CullReason)reasons[index] ).WithAlpha( obj.Tint.a );
 
 		if ( (views & DebugViews.LodColors) != 0 && obj.Mesh.LodCount > 1 )
 			return DebugViewReport.LodColor( lod ).WithAlpha( obj.Tint.a );

@@ -766,6 +766,7 @@ public sealed partial class RenderSystem : IDisposable
 	internal void Prepare( RenderWorld world, RenderView view )
 	{
 		// Begun by the collect when it left resident objects out
+		transforms.World = world;
 		if ( !collectedResident ) transforms.Clear();
 		collectedResident = false;
 

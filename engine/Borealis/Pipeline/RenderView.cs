@@ -199,8 +199,9 @@ public sealed class RenderView
 	public uint[] ExcludeTags { get; set; } = [];
 
 	/// <summary>
-	/// The sub-worlds this view shows, as bits: bit <c>n - 1</c> for <see cref="RenderObject.SubWorld"/> <c>n</c>. A world's own
-	/// objects are always shown. Shadow views show their main view's.
+	/// The sub-worlds this view shows, as bits: bit <c>n - 1</c> for sub-world <c>n</c> (<see cref="RenderObject.SubWorld"/>, or a
+	/// world drawn in this one, <see cref="RenderWorld.Include"/>). A world's own objects are always shown. Shadow views show their
+	/// main view's.
 	/// </summary>
 	public ulong SubWorlds { get; set; }
 
@@ -208,11 +209,21 @@ public sealed class RenderView
 
 	/// <summary>
 	/// Apply the view's sub-worlds, then include/exclude tags, treating world objects as tagged <c>world</c>
-	/// (<c>CSceneSystem</c>, <c>CLightBinnerStandard</c>).
+	/// (<c>CSceneSystem</c>, <c>CLightBinnerStandard</c>). <paramref name="subWorld"/> is the object's in the world drawn
+	/// (<see cref="RenderWorld.SubWorlds"/>).
 	/// </summary>
-	internal bool Shows( RenderObject obj )
+	internal bool Shows( RenderObject obj, int subWorld ) => ShowsSubWorld( subWorld ) && ShowsShown( obj );
+
+	/// <summary>
+	/// <see cref="Shows(RenderObject, int)"/> for an object in its own world.
+	/// </summary>
+	internal bool Shows( RenderObject obj ) => Shows( obj, obj.SubWorld );
+
+	/// <summary>
+	/// <see cref="Shows(RenderObject, int)"/> for an object whose sub-world the view shows.
+	/// </summary>
+	internal bool ShowsShown( RenderObject obj )
 	{
-		if ( !ShowsSubWorld( obj ) ) return false;
 		if ( Capture && (obj.HiddenInCaptures || obj.Overlay) ) return false;
 
 		var render = RenderTags;
@@ -222,7 +233,7 @@ public sealed class RenderView
 		return ShowsTags( obj.Tags, obj.IsWorld );
 	}
 
-	/// <summary>The tag part of <see cref="Shows"/>: whether an object with these tags (a world object, tagged <c>world</c>) passes.</summary>
+	/// <summary>The tag part of <see cref="Shows(RenderObject, int)"/>: whether an object with these tags (a world object, tagged <c>world</c>) passes.</summary>
 	internal bool ShowsTags( uint[] tags, bool isWorld )
 	{
 		var render = RenderTags;
@@ -233,13 +244,9 @@ public sealed class RenderView
 	}
 
 	/// <summary>
-	/// Whether the view shows the object's sub-world: always for the world's own objects.
+	/// Whether the view shows a sub-world: always the world's own objects (0).
 	/// </summary>
-	internal bool ShowsSubWorld( RenderObject obj )
-	{
-		var subWorld = obj.SubWorld;
-		return subWorld == 0 || (SubWorlds & (1UL << (subWorld - 1))) != 0;
-	}
+	internal bool ShowsSubWorld( int subWorld ) => subWorld == 0 || (SubWorlds & (1UL << (subWorld - 1))) != 0;
 
 	static bool Contains( uint[] set, uint tag ) => Array.IndexOf( set, tag ) >= 0;
 

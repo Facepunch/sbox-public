@@ -131,7 +131,7 @@ internal sealed class AggregateSizes : ITextureSizeSource
 		{
 			foreach ( var batch in held.Batches )
 			{
-				var index = batch.Aggregate.Index;
+				var index = batch.Aggregate.IndexIn( world );
 				if ( index < 0 || index >= objects.Length ) continue;
 				aggregates[count] = batch.Aggregate;
 				centers[count] = objectCenters[index];
@@ -178,10 +178,10 @@ internal sealed class AggregateSizes : ITextureSizeSource
 				Array.Resize( ref meshExtents, meshCount + heldMeshes );
 			}
 
-			foreach ( var group in held.MeshGroups ) AddHeld( group, objects, objectCenters, objectExtents );
+			foreach ( var group in held.MeshGroups ) AddHeld( world, group, objects, objectCenters, objectExtents );
 			foreach ( var order in held.Overlays )
 			{
-				foreach ( var group in order.Groups ) AddHeld( group, objects, objectCenters, objectExtents );
+				foreach ( var group in order.Groups ) AddHeld( world, group, objects, objectCenters, objectExtents );
 			}
 		}
 
@@ -195,11 +195,11 @@ internal sealed class AggregateSizes : ITextureSizeSource
 		StartMs += Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
 	}
 
-	void AddHeld( AggregateRenderFeature.MeshGroup group, ReadOnlySpan<RenderObject> objects, ReadOnlySpan<Vector3> objectCenters, ReadOnlySpan<Vector3> objectExtents )
+	void AddHeld( RenderWorld world, AggregateRenderFeature.MeshGroup group, ReadOnlySpan<RenderObject> objects, ReadOnlySpan<Vector3> objectCenters, ReadOnlySpan<Vector3> objectExtents )
 	{
 		foreach ( var mesh in group.Members )
 		{
-			var index = mesh.Index;
+			var index = mesh.IndexIn( world );
 			if ( index < 0 || index >= objects.Length ) continue;
 			meshes[meshCount] = mesh;
 			meshCenters[meshCount] = objectCenters[index];

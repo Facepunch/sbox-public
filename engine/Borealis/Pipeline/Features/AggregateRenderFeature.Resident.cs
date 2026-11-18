@@ -409,7 +409,7 @@ internal sealed partial class AggregateRenderFeature
 			if ( member.DrawVersion != drawVersions[index] || !ReferenceEquals( member.Fragments, aggregate.FragmentsKey ) || member.Visible != aggregate.Visible
 				|| member.GameLayers != aggregate.GameLayers || member.CastShadows != aggregate.CastShadows || member.IsStatic != aggregate.IsStatic
 				|| member.IsWorld != aggregate.IsWorld || member.HiddenInCaptures != aggregate.HiddenInCaptures || member.Overlay != aggregate.Overlay
-				|| member.LayerMatch != aggregate.LayerMatch || !ReferenceEquals( member.Tags, aggregate.Tags ) || member.SubWorld != aggregate.SubWorld
+				|| member.LayerMatch != aggregate.LayerMatch || !ReferenceEquals( member.Tags, aggregate.Tags ) || member.SubWorld != world.SubWorlds[index]
 				|| member.Lightmapped != aggregate.Lightmapped || !ReferenceEquals( member.LightmapAttributes, aggregate.LightmapAttributes ) )
 			{
 				// Rarely: its arguments may have moved too, so look at everything again
@@ -713,7 +713,7 @@ internal sealed partial class AggregateRenderFeature
 		var settled = false;
 		foreach ( var (aggregate, moved) in restlessAggregates )
 		{
-			var gone = !ReferenceEquals( aggregate.World, residentWorld ) || aggregate.Index < 0;
+			var gone = aggregate.IndexIn( residentWorld ) < 0;
 			if ( !gone && frame - moved < SettleFrames ) continue;
 			(done ??= new()).Add( aggregate );
 			settled |= !gone;
@@ -782,13 +782,14 @@ internal sealed partial class AggregateRenderFeature
 		List<MeshObject> done = null;
 		foreach ( var (mesh, (moved, version)) in restless )
 		{
-			if ( !ReferenceEquals( mesh.World, world ) || mesh.Index < 0 )
+			var index = mesh.IndexIn( world );
+			if ( index < 0 )
 			{
 				(done ??= new()).Add( mesh );
 				continue;
 			}
 
-			if ( entryVersions[mesh.Index] != version )
+			if ( entryVersions[index] != version )
 			{
 				(done ??= new()).Add( mesh );
 				continue;
@@ -802,7 +803,8 @@ internal sealed partial class AggregateRenderFeature
 		if ( done is null ) return false;
 		foreach ( var mesh in done )
 		{
-			if ( ReferenceEquals( mesh.World, world ) && mesh.Index >= 0 && entryVersions[mesh.Index] != restless[mesh].Version ) restless[mesh] = (frame, entryVersions[mesh.Index]);
+			var index = mesh.IndexIn( world );
+			if ( index >= 0 && entryVersions[index] != restless[mesh].Version ) restless[mesh] = (frame, entryVersions[index]);
 			else restless.Remove( mesh );
 		}
 
@@ -846,11 +848,12 @@ internal sealed partial class AggregateRenderFeature
 
 		var objects = world.Objects;
 		var drawVersions = world.DrawVersions;
+		var subWorlds = world.SubWorlds;
 		for ( int i = 0; i < objects.Length; i++ )
 		{
 			if ( objects[i] is not AggregateObject aggregate ) continue;
 
-			var key = new ClassKey( aggregate.Tags, aggregate.IsWorld, aggregate.SubWorld, aggregate.HiddenInCaptures, aggregate.Overlay );
+			var key = new ClassKey( aggregate.Tags, aggregate.IsWorld, subWorlds[i], aggregate.HiddenInCaptures, aggregate.Overlay );
 			var cls = ClassOf( key );
 			if ( cls < 0 )
 			{
@@ -880,7 +883,7 @@ internal sealed partial class AggregateRenderFeature
 				Overlay = aggregate.Overlay,
 				LayerMatch = aggregate.LayerMatch,
 				Tags = aggregate.Tags,
-				SubWorld = aggregate.SubWorld,
+				SubWorld = subWorlds[i],
 				Lightmapped = aggregate.Lightmapped,
 				LightmapAttributes = aggregate.LightmapAttributes,
 				Class = cls,
@@ -937,7 +940,7 @@ internal sealed partial class AggregateRenderFeature
 					}
 				}
 
-				var cls = ClassOf( new ClassKey( mesh.Tags, mesh.IsWorld, mesh.SubWorld, mesh.HiddenInCaptures, false ) );
+				var cls = ClassOf( new ClassKey( mesh.Tags, mesh.IsWorld, subWorlds[i], mesh.HiddenInCaptures, false ) );
 				if ( cls < 0 )
 				{
 					if ( overlay ) overlayBlockers.Add( (i, -1, false) );
@@ -963,7 +966,7 @@ internal sealed partial class AggregateRenderFeature
 		DropResidentLists();
 	}
 
-	void BlockOverlay( MeshObject mesh, int index, bool after = false ) => overlayBlockers.Add( (index, ClassOf( new ClassKey( mesh.Tags, mesh.IsWorld, mesh.SubWorld, mesh.HiddenInCaptures, false ) ), after) );
+	void BlockOverlay( MeshObject mesh, int index, bool after = false ) => overlayBlockers.Add( (index, ClassOf( new ClassKey( mesh.Tags, mesh.IsWorld, residentWorld.SubWorlds[index], mesh.HiddenInCaptures, false ) ), after) );
 
 	int ClassOf( in ClassKey key )
 	{
@@ -1088,7 +1091,7 @@ internal sealed partial class AggregateRenderFeature
 			for ( int i = 0; i < list.Moved.Length; i++ )
 			{
 				var aggregate = list.Batches[i].Aggregate;
-				list.Moved[i] = GpuContext.MovedWord( stamps[aggregate.Index], aggregate.IsStatic );
+				list.Moved[i] = GpuContext.MovedWord( stamps[aggregate.IndexIn( residentWorld )], aggregate.IsStatic );
 			}
 
 			SettledListsMade++;
@@ -1388,7 +1391,7 @@ internal sealed partial class AggregateRenderFeature
 		_ => true,
 	};
 
-	/// <summary>Whether a view whose root is <paramref name="root"/> shows an aggregate of this class (<see cref="RenderView.Shows"/>).</summary>
+	/// <summary>Whether a view whose root is <paramref name="root"/> shows an aggregate of this class (<see cref="RenderView.Shows(RenderObject, int)"/>).</summary>
 	static bool RootShows( RenderView root, in ClassKey key )
 	{
 		var subWorld = key.SubWorld;

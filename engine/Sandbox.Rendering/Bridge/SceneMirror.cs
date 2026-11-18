@@ -14,20 +14,10 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	readonly SceneWorld source;
 
 	/// <summary>
-	/// The mirrored world, or for an extra world the main world's it's drawn in.
+	/// The mirrored world: one per scene world. A camera drawing it as an extra world draws it in its main world's
+	/// (<see cref="RenderWorld.Include"/>).
 	/// </summary>
-	public RenderWorld World { get; }
-
-	/// <summary>
-	/// 0 for a main world's mirror. For an extra world's, the sub-world its objects have in <see cref="World"/> (another
-	/// mirror's), which only views drawing it show (<see cref="RenderView.SubWorlds"/>).
-	/// </summary>
-	public int SubWorld { get; }
-
-	/// <summary>
-	/// For a main world's mirror, the sub-worlds of <see cref="World"/> its extra worlds' mirrors hold, as bits.
-	/// </summary>
-	public ulong HostedSubWorlds { get; set; }
+	public RenderWorld World { get; } = new();
 
 	/// <summary>
 	/// Unsupported object counts by type, for comparison reports.
@@ -66,82 +56,15 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// <summary>
 	/// Start mirroring a world: take over its change listener, and queue everything already in it.
 	/// </summary>
-	public SceneMirror( SceneWorld source ) : this( source, new RenderWorld(), 0 )
-	{
-	}
-
-	/// <summary>
-	/// Start mirroring an extra world into <paramref name="host"/>, another mirror's world, as its sub-world
-	/// <paramref name="subWorld"/>: drawn in the same layers and depth by the views that show it, as native draws a camera's
-	/// extra worlds (<c>CCameraRenderer::CreateView</c>, <c>AddWorldToRenderList</c>).
-	/// </summary>
-	public SceneMirror( SceneWorld source, RenderWorld host, int subWorld )
+	public SceneMirror( SceneWorld source )
 	{
 		this.source = source;
-		World = host;
-		SubWorld = subWorld;
 
 		lock ( source.InternalSceneObjects )
 		{
-			Listeners.Add( source, this );
+			source.ChangeListener = this;
 			foreach ( var sceneObject in source.InternalSceneObjects )
 				pending[sceneObject] = SceneObjectChange.Added;
-		}
-	}
-
-	/// <summary>
-	/// A world's change listener when more than one mirror listens: a world drawn by one camera and as another's extra world.
-	/// </summary>
-	sealed class Listeners : ISceneObjectListener
-	{
-		// Replaced, never changed, so changes from other threads can read it without a lock
-		volatile SceneMirror[] mirrors;
-
-		public void OnChanged( SceneObject sceneObject, SceneObjectChange change )
-		{
-			foreach ( var mirror in mirrors ) mirror.OnChanged( sceneObject, change );
-		}
-
-		/// <summary>
-		/// Listen to <paramref name="source"/>, with any mirror listening already.
-		/// </summary>
-		public static void Add( SceneWorld source, SceneMirror mirror )
-		{
-			switch ( source.ChangeListener )
-			{
-				case Listeners many:
-					many.mirrors = [.. many.mirrors, mirror];
-					break;
-
-				case SceneMirror one:
-					source.ChangeListener = new Listeners { mirrors = [one, mirror] };
-					break;
-
-				default:
-					source.ChangeListener = mirror;
-					break;
-			}
-		}
-
-		/// <summary>
-		/// Stop listening to <paramref name="source"/>, leaving any other mirror listening.
-		/// </summary>
-		public static void Remove( SceneWorld source, SceneMirror mirror )
-		{
-			lock ( source.InternalSceneObjects )
-			{
-				if ( source.ChangeListener == mirror )
-				{
-					source.ChangeListener = null;
-					return;
-				}
-
-				if ( source.ChangeListener is not Listeners many ) return;
-
-				var left = many.mirrors.Where( x => x != mirror ).ToArray();
-				if ( left.Length == 1 ) source.ChangeListener = left[0];
-				else many.mirrors = left;
-			}
 		}
 	}
 
@@ -175,8 +98,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// </summary>
 	public void OnChanged( SceneObject sceneObject, SceneObjectChange change )
 	{
-		if ( (change & Queued) == 0 && !syncing && World.Rendering == 0 && ThreadSafe.IsMainThread && WritesDirectly( sceneObject )
-			&& objects.TryGetValue( sceneObject, out var obj ) && obj is not null && sceneObject.IsValid() )
+		if ( (change & Queued) == 0 && !syncing && ThreadSafe.IsMainThread && WritesDirectly( sceneObject )
+			&& objects.TryGetValue( sceneObject, out var obj ) && obj is not null && !obj.InRender && sceneObject.IsValid() )
 		{
 			using ( Borealis.Zones.MirrorDirect.Start() )
 				ApplyTo( sceneObject, obj, change );
@@ -196,12 +119,16 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	readonly List<SceneObject> lingering = new();
 
 	/// <summary>
-	/// Stop listening. A main world's mirror keeps its last state; an extra world's takes its objects out of the world it was
-	/// drawn in.
+	/// Stop listening. The world keeps its last state, but isn't drawn in another's any more, nor another in it.
 	/// </summary>
 	public void Dispose()
 	{
-		Listeners.Remove( source, this );
+		lock ( source.InternalSceneObjects )
+		{
+			if ( source.ChangeListener == this ) source.ChangeListener = null;
+		}
+
+		World.ExcludeEverywhere();
 		lock ( lightmapFolders )
 		{
 			if ( MirrorContent.Gpu is { } gpu )
@@ -236,15 +163,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 			models.Clear();
 		}
-
-		if ( SubWorld == 0 ) return;
-
-		foreach ( var (_, obj) in objects )
-		{
-			if ( obj is not null ) World.Remove( obj );
-		}
-
-		objects.Clear();
 	}
 
 	/// <summary>
@@ -258,14 +176,22 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// <summary>
 	/// Apply what changed since the last sync, for a camera about to render the world.
 	/// </summary>
-	public void Sync( SceneCamera camera, bool skyboxView = false )
+	public void Sync( SceneCamera camera, bool skyboxView = false ) => SyncWith( camera, skyboxView, lighting: true );
+
+	/// <summary>
+	/// Apply what changed to the world's objects since the last sync, for a camera drawing it as an extra world: its lighting
+	/// isn't used, the main world's lights it.
+	/// </summary>
+	public void SyncObjects( SceneCamera camera ) => SyncWith( camera, false, lighting: false );
+
+	void SyncWith( SceneCamera camera, bool skyboxView, bool lighting )
 	{
 		using var zone = Borealis.Zones.MirrorSync.Start();
 		HasSynced = true;
 		syncing = true;
 		try
 		{
-			SyncChanges( camera, skyboxView );
+			SyncChanges( camera, skyboxView, lighting );
 		}
 		finally
 		{
@@ -273,7 +199,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		}
 	}
 
-	void SyncChanges( SceneCamera camera, bool skyboxView )
+	void SyncChanges( SceneCamera camera, bool skyboxView, bool lighting )
 	{
 
 		// A reload queues the objects drawing what it changed, and so does a model finishing loading
@@ -312,7 +238,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		SweepCaches( frame );
 
 		// An extra world's objects are lit by the main world's sun, sky, probe volumes and fog, as native lights the view
-		if ( SubWorld == 0 )
+		if ( lighting )
 		{
 			using ( Borealis.Zones.MirrorLighting.Start() )
 				SyncLighting( camera, skyboxView );
@@ -508,9 +434,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// </summary>
 	RenderObject Add( SceneObject sceneObject )
 	{
-		// Probe volumes belong to the world's lighting list, not its draw list. An extra world's aren't drawn: the list is the
-		// main world's, for every view of it
-		if ( sceneObject is SceneLightProbe probe && SubWorld == 0 )
+		// Probe volumes belong to the world's lighting list, not its draw list. An extra world's aren't drawn in another's: the
+		// list is the main world's, for every view of it
+		if ( sceneObject is SceneLightProbe probe )
 		{
 			var volume = new Borealis.LightProbeVolume();
 			lightProbes[probe] = volume;
@@ -539,11 +465,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 		objects[sceneObject] = obj;
 
-		if ( obj is not null )
-		{
-			obj.SubWorld = SubWorld;
-			World.Add( obj );
-		}
+		if ( obj is not null ) World.Add( obj );
 		else if ( sceneObject is SceneDirectionalLight sun ) suns.Add( sun );
 		else if ( sceneObject is not SceneSkyBox ) Count( sceneObject, 1 );
 
