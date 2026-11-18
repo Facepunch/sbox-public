@@ -1,4 +1,5 @@
 using Borealis.Gpu.Vulkan;
+using System.Threading;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -113,6 +114,10 @@ public sealed unsafe class CommandList
 	/// <summary>Transient sets written since the list began, for tests.</summary>
 	internal int TransientSetsWritten { get; private set; }
 
+	// The dynamic render state last set (RenderStateBits), and whether any has been since the list began
+	ulong renderState;
+	bool renderStateSet;
+
 	// The view set (ShaderAbi.ViewSet), bound beside the bindless set
 	ulong viewSet;
 
@@ -157,6 +162,7 @@ public sealed unsafe class CommandList
 		Array.Clear( setLayouts );
 		Array.Clear( setOffsetCounts );
 		viewSet = 0;
+		renderStateSet = false;
 		Submitted = default;
 		draws = pipelines = setBinds = scopes = barriers = fullBarriers = resumed = 0;
 		acted = suspending = suspended = false;
@@ -707,9 +713,10 @@ public sealed unsafe class CommandList
 		if ( record.BindPoint == Vulkan.Vk.BindPointCompute ) OutsideRendering();
 		FlushBarriers();
 
-		vk.vkCmdBindPipeline( Handle, record.BindPoint, record.Pipeline );
+		vk.vkCmdBindPipeline( Handle, record.BindPoint, Volatile.Read( ref record.Pipeline ) );
 		pipelines++;
 		lastLayout = record.Layout;
+		if ( record.BindPoint == Vulkan.Vk.BindPointGraphics && (!renderStateSet || record.RenderState != renderState) ) SetRenderState( record.RenderState );
 
 		if ( layouts[record.BindPoint] != record.Layout )
 		{
@@ -718,6 +725,29 @@ public sealed unsafe class CommandList
 			dirty[record.BindPoint] = 0x3F;
 		}
 	}
+
+	/// <summary>Set the dynamic render state a graphics pipeline was made with, where it differs from what was set last.</summary>
+	void SetRenderState( ulong state )
+	{
+		var changed = renderStateSet ? state ^ renderState : ulong.MaxValue;
+		renderState = state;
+		renderStateSet = true;
+
+		static int Field( ulong state, int shift, int bits ) => RenderStateBits.Field( state, shift, bits );
+		if ( (changed & RenderStateBits.CullMask) != 0 ) vk.vkCmdSetCullMode( Handle, (uint)Field( state, RenderStateBits.Cull, 2 ) );
+		if ( (changed & RenderStateBits.FrontFaceMask) != 0 ) vk.vkCmdSetFrontFace( Handle, Field( state, RenderStateBits.FrontFace, 1 ) );
+		if ( (changed & RenderStateBits.DepthBiasMask) != 0 ) vk.vkCmdSetDepthBiasEnable( Handle, (uint)Field( state, RenderStateBits.DepthBias, 1 ) );
+		if ( (changed & RenderStateBits.DepthTestMask) != 0 ) vk.vkCmdSetDepthTestEnable( Handle, (uint)Field( state, RenderStateBits.DepthTest, 1 ) );
+		if ( (changed & RenderStateBits.DepthWriteMask) != 0 ) vk.vkCmdSetDepthWriteEnable( Handle, (uint)Field( state, RenderStateBits.DepthWrite, 1 ) );
+		if ( (changed & RenderStateBits.DepthCompareMask) != 0 ) vk.vkCmdSetDepthCompareOp( Handle, Field( state, RenderStateBits.DepthCompare, 3 ) );
+		if ( (changed & RenderStateBits.StencilTestMask) != 0 ) vk.vkCmdSetStencilTestEnable( Handle, (uint)Field( state, RenderStateBits.StencilTest, 1 ) );
+		if ( (changed & RenderStateBits.ReadMaskMask) != 0 ) vk.vkCmdSetStencilCompareMask( Handle, 3, (uint)Field( state, RenderStateBits.ReadMask, 8 ) );
+		if ( (changed & RenderStateBits.WriteMaskMask) != 0 ) vk.vkCmdSetStencilWriteMask( Handle, 3, (uint)Field( state, RenderStateBits.WriteMask, 8 ) );
+		if ( (changed & RenderStateBits.StencilFrontMask) != 0 ) StencilOp( 1, Field( state, RenderStateBits.StencilFront, 12 ) );
+		if ( (changed & RenderStateBits.StencilBackMask) != 0 ) StencilOp( 2, Field( state, RenderStateBits.StencilBack, 12 ) );
+	}
+
+	void StencilOp( uint face, int ops ) => vk.vkCmdSetStencilOp( Handle, face, ops & 7, (ops >> 3) & 7, (ops >> 6) & 7, (ops >> 9) & 7 );
 
 	/// <summary>Bind a vertex buffer to a binding the pipeline reads.</summary>
 	public void SetVertexBuffer( int slot, BufferHandle buffer, long offset = 0 )

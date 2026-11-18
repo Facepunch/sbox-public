@@ -899,6 +899,40 @@ internal unsafe struct VkGraphicsPipelineCreateInfo
 }
 
 [StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkGraphicsPipelineLibraryCreateInfoEXT
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint flags;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPipelineLibraryCreateInfoKHR
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint libraryCount;
+	public ulong* pLibraries;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint graphicsPipelineLibrary;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDeviceGraphicsPipelineLibraryPropertiesEXT
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint graphicsPipelineLibraryFastLinking;
+	public uint graphicsPipelineLibraryIndependentInterpolationDecoration;
+}
+
+[StructLayout( LayoutKind.Sequential )]
 internal unsafe struct VkComputePipelineCreateInfo
 {
 	public VkStructureType sType;

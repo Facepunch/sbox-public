@@ -46,7 +46,11 @@ public sealed unsafe partial class Device : IDisposable
 	/// <summary>What it can do beyond the baseline.</summary>
 	public DeviceCapabilities Capabilities { get; }
 
-	/// <summary>Every shader stage the device has (<c>VkShaderStageFlags</c>): graphics and compute, and task and mesh with <see cref="DeviceCapabilities.MeshShaders"/>.</summary>
+	/// <summary>
+	/// Every shader stage Borealis uses (<c>VkShaderStageFlags</c>): vertex, fragment and compute, and task and mesh with
+	/// <see cref="DeviceCapabilities.MeshShaders"/>. Not tessellation or geometry, which it has none of: push constants
+	/// visible to them as well read wrong on AMD's driver without mesh shaders.
+	/// </summary>
 	internal uint StageAll { get; }
 
 	/// <summary>Frames the CPU may record ahead of the GPU.</summary>
@@ -201,7 +205,7 @@ public sealed unsafe partial class Device : IDisposable
 
 			deviceExtensions = DeviceExtensions( PhysicalDevice );
 			Vk = CreateLogicalDevice( options, out var features, out var computeFamily );
-			StageAll = Vulkan.Vk.StageAllGraphics | Vulkan.Vk.StageCompute | (features.meshShaders ? Vulkan.Vk.StageTask | Vulkan.Vk.StageMesh : 0);
+			StageAll = Vulkan.Vk.StageVertex | Vulkan.Vk.StageFragment | Vulkan.Vk.StageCompute | (features.meshShaders ? Vulkan.Vk.StageTask | Vulkan.Vk.StageMesh : 0);
 			graphicsQueue = new DeviceQueue( this, Vk, queueFamilies[0], QueueType.Graphics );
 			computeQueue = computeFamily ? new DeviceQueue( this, Vk, queueFamilies[1], QueueType.Compute ) : graphicsQueue;
 
@@ -236,6 +240,7 @@ public sealed unsafe partial class Device : IDisposable
 				BindlessSamplers = bindlessSamplers,
 				BindlessStorageTextures = bindlessStorage,
 				MeshShaders = features.meshShaders,
+				PipelineLibraries = pipelineLibraries,
 				// VK_SHADER_STAGE_VERTEX_BIT, and the vote (2) and ballot (8) operations wave-uniform vertex code uses
 				VertexWaveOps = (subgroups.supportedStages & 1) != 0 && (subgroups.supportedOperations & 0xA) == 0xA,
 			};
@@ -522,6 +527,26 @@ public sealed unsafe partial class Device : IDisposable
 			}
 		}
 
+		// Graphics pipeline libraries that link fast: pipelines are linked from parts made ahead (Device.GraphicsPipelines)
+		var library = new VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT { sType = VkStructureType.PhysicalDeviceGraphicsPipelineLibraryFeaturesExt };
+		if ( options.PipelineLibraries && deviceExtensions.Contains( "VK_EXT_graphics_pipeline_library" ) && deviceExtensions.Contains( "VK_KHR_pipeline_library" ) )
+		{
+			var supportedLibrary = new VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT { sType = VkStructureType.PhysicalDeviceGraphicsPipelineLibraryFeaturesExt };
+			var query = new VkPhysicalDeviceFeatures2 { sType = VkStructureType.PhysicalDeviceFeatures2, pNext = &supportedLibrary };
+			Instance.vkGetPhysicalDeviceFeatures2( PhysicalDevice, &query );
+			var libraryProperties = new VkPhysicalDeviceGraphicsPipelineLibraryPropertiesEXT { sType = VkStructureType.PhysicalDeviceGraphicsPipelineLibraryPropertiesExt };
+			var properties = new VkPhysicalDeviceProperties2 { sType = VkStructureType.PhysicalDeviceProperties2, pNext = &libraryProperties };
+			Instance.vkGetPhysicalDeviceProperties2( PhysicalDevice, &properties );
+			if ( supportedLibrary.graphicsPipelineLibrary != 0 && libraryProperties.graphicsPipelineLibraryFastLinking != 0 )
+			{
+				extensions.Add( "VK_KHR_pipeline_library" );
+				extensions.Add( "VK_EXT_graphics_pipeline_library" );
+				library.graphicsPipelineLibrary = 1;
+				library.pNext = e13.pNext;
+				e13.pNext = &library;
+			}
+		}
+
 		using var strings = new NativeStrings();
 		var info = new VkDeviceCreateInfo
 		{
@@ -553,6 +578,7 @@ public sealed unsafe partial class Device : IDisposable
 		memoryBudget = extensions.Contains( "VK_EXT_memory_budget" );
 		bufferMarkers = extensions.Contains( "VK_AMD_buffer_marker" );
 		shaderStatistics = extensions.Contains( "VK_KHR_pipeline_executable_properties" );
+		pipelineLibraries = extensions.Contains( "VK_EXT_graphics_pipeline_library" );
 		enabled = enabled with { meshShaders = extensions.Contains( "VK_EXT_mesh_shader" ) && vk.vkCmdDrawMeshTasksIndirectEXT != null && vk.vkCmdDrawMeshTasksIndirectCountEXT != null };
 		queueFamilies = asyncCompute ? [(uint)graphics, (uint)compute] : [(uint)graphics];
 		return vk;
@@ -702,6 +728,7 @@ public sealed unsafe partial class Device : IDisposable
 		// Bounded: a GPU that stopped mustn't hold the process at exit
 		try { WaitFlushed(); }
 		catch ( GpuException ) { }
+		StopOptimising();
 		foreach ( var swapChain in swapChains.ToArray() ) swapChain.Dispose();
 
 		// Nothing reads the table any more, and the defaults are about to go with everything else
