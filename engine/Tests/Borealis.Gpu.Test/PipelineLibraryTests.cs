@@ -1,4 +1,5 @@
 using Borealis.Gpu;
+using System.IO;
 using BorealisGpuSample;
 
 namespace BorealisGpuTests;
@@ -245,6 +246,181 @@ public class PipelineLibraryTests : GpuTest
 		Device.Destroy( vs );
 		Device.Destroy( ps );
 		StringAssert.Contains( Device.DescribeResources(), " 0 pipelines" );
+	}
+
+	/// <summary>
+	/// A shader part is keyed by its SPIR-V and what its layout's sets hold: a second module of the same SPIR-V with an
+	/// identically defined binding layout links the parts the first made; they go when the last such module does.
+	/// </summary>
+	[TestMethod]
+	public void PartsAreSharedBySpirvAndSetContents()
+	{
+		RequireLibraries();
+		BindingSlot[] slots = [new( 0, BindingType.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment )];
+		var first = Triangle( Shader( "triangle.vs.spv" ), Shader( "triangle.ps.spv" ) );
+		first.Sets = [Device.CreateBindingLayout( slots )];
+		var second = Triangle( Shader( "triangle.vs.spv" ), Shader( "triangle.ps.spv" ) );
+		second.Sets = [Device.CreateBindingLayout( slots )];
+
+		var a = Device.CreateGraphicsPipeline( first );
+		Assert.AreEqual( 4, Device.PipelineLibraryCreation.Parts );
+		var b = Device.CreateGraphicsPipeline( second );
+		Assert.AreEqual( 4, Device.PipelineLibraryCreation.Parts, "the same SPIR-V and set contents: no new parts" );
+		Assert.AreEqual( 4, Device.PartCount );
+
+		Assert.IsTrue( Device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ) );
+		Device.Destroy( a );
+		Device.Destroy( b );
+		for ( int i = 0; i < 4; i++ ) Device.Wait( Device.Submit( Device.BeginCommandList( QueueType.Graphics, "Frame" ) ) );
+		Device.Destroy( first.VertexShader );
+		Device.Destroy( first.FragmentShader );
+		Assert.AreEqual( 4, Device.PartCount, "modules of that SPIR-V are still alive" );
+		Device.Destroy( second.VertexShader );
+		Device.Destroy( second.FragmentShader );
+		Assert.AreEqual( 2, Device.PartCount, "the shader parts went with the last modules" );
+	}
+
+	/// <summary>
+	/// The part manifest: a run records the parts its pipelines linked beside the pipeline cache; the next run makes the
+	/// vertex input and output parts when its device is made and the shader parts as their modules are, so a pipeline asked
+	/// for afterwards is ready at once and makes no part. Lines that don't read are dropped; a damaged file is an empty one.
+	/// </summary>
+	[TestMethod]
+	public void PartManifestMakesPartsBeforeFirstUse()
+	{
+		RequireLibraries();
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-part-manifest-{Environment.ProcessId}-{Guid.NewGuid():n}" );
+		var errors = new List<string>();
+		Device Open() => Device.Create( new DeviceOptions
+		{
+			Presentation = false,
+			Validation = true,
+			PipelineCacheFolder = folder,
+			PipelinePartManifest = true,
+			Message = m => { if ( m.Severity == MessageSeverity.Error ) lock ( errors ) errors.Add( $"{m.Id}: {m.Text}" ); },
+		} );
+
+		GraphicsPipelineInfo Info( Device device )
+		{
+			var info = Triangle( device.CreateShader( Load( "triangle.vs.spv" ), "vs" ), device.CreateShader( Load( "triangle.ps.spv" ), "ps" ) );
+			info.Sets = [device.CreateBindingLayout( [new BindingSlot( 0, BindingType.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment )] )];
+			info.SkipUntilReady = true;
+			return info;
+		}
+
+		try
+		{
+			using ( var device = Open() )
+			{
+				device.SkipDrawsUntilReady = false;
+				Assert.AreEqual( 0, device.PartManifest.Loaded );
+				var first = Info( device );
+				device.CreateGraphicsPipeline( first );
+				Assert.AreEqual( 4, device.PartManifest.Recorded );
+				Assert.IsFalse( device.PartsRecorded( first.VertexShader ), "parts linked this run don't stop guesses" );
+			}
+
+			var file = Path.Combine( folder, "pipeline-parts.txt" );
+			Assert.IsTrue( File.Exists( file ) );
+			File.AppendAllLines( file, ["1\tP\tnot a hash", "garbage", "1\tO\t999.1\t1\t1\t0"] );
+
+			using ( var device = Open() )
+			{
+				Assert.AreEqual( 4, device.PartManifest.Loaded, "the four parts; the lines that don't read are dropped" );
+				var info = Info( device );
+				Assert.IsTrue( device.PartsRecorded( info.VertexShader ) && device.PartsRecorded( info.FragmentShader ) );
+				Assert.IsTrue( device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );
+				Assert.AreEqual( 4, device.PartManifest.Queued );
+				Assert.AreEqual( 4, device.PipelineLibraryCreation.Parts, "made before any pipeline was asked for" );
+
+				device.SkipDrawsUntilReady = true;
+				var pipeline = device.CreateGraphicsPipeline( info );
+				Assert.IsTrue( device.IsReady( pipeline ), "its parts were all made: linked at once" );
+				Assert.AreEqual( 4, device.PipelineLibraryCreation.Parts );
+				Assert.IsTrue( device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ) );
+			}
+
+			Assert.IsFalse( File.ReadAllText( file ).Contains( "garbage" ), "lines that don't read aren't written back" );
+			File.WriteAllText( file, "not a manifest\n\x01\x02" );
+			using ( var device = Open() ) Assert.AreEqual( 0, device.PartManifest.Loaded, "a damaged file is an empty one" );
+		}
+		finally
+		{
+			Directory.Delete( folder, recursive: true );
+		}
+
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
+	}
+
+	/// <summary>
+	/// The module manifest: a run records the modules its variants made; the next run makes them as their compiled file
+	/// loads, before any variant asks, and their recorded parts follow (the part manifest).
+	/// </summary>
+	[TestMethod]
+	public void ModuleManifestMakesVariantModulesAsTheirFileLoads()
+	{
+		RequireLibraries();
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-module-manifest-{Environment.ProcessId}-{Guid.NewGuid():n}" );
+		Device Open() => Device.Create( new DeviceOptions { Presentation = false, PipelineCacheFolder = folder, PipelinePartManifest = true } );
+		try
+		{
+			using ( var device = Open() )
+			using ( var library = new Borealis.Source2.Shaders.ShaderLibrary( device, ShaderFileTests.Files ) )
+			{
+				var shader = library.Load( "shaders/ui_text.shader" );
+				Assert.IsNotNull( library.Variant( shader, "Forward", new int[shader.Features.StaticCombos.Length] ).Vertex.Module );
+				Assert.IsTrue( library.ModuleManifest.Recorded >= 2, "its vertex and pixel modules" );
+				device.SavePipelineCache();
+			}
+
+			using ( var device = Open() )
+			using ( var library = new Borealis.Source2.Shaders.ShaderLibrary( device, ShaderFileTests.Files ) )
+			{
+				var recorded = library.ModuleManifest.Loaded;
+				Assert.IsTrue( recorded >= 2 );
+				library.Load( "shaders/ui_text.shader" );
+				var clock = System.Diagnostics.Stopwatch.StartNew();
+				while ( library.ModuleManifest.Made < recorded && clock.Elapsed < TimeSpan.FromSeconds( 30 ) ) System.Threading.Thread.Sleep( 10 );
+				Assert.AreEqual( recorded, library.ModuleManifest.Made, "made as the file loaded, before any variant" );
+			}
+		}
+		finally
+		{
+			Directory.Delete( folder, recursive: true );
+		}
+	}
+
+	/// <summary>
+	/// The part manifest keeps its lines in the order the last run first linked them, which is the order the next run
+	/// makes them: a first frame's parts come first.
+	/// </summary>
+	[TestMethod]
+	public void PartManifestReplaysInLastRunsOrder()
+	{
+		var file = Path.Combine( Path.GetTempPath(), $"borealis-part-order-{Environment.ProcessId}-{Guid.NewGuid():n}.txt" );
+		static string Output( Format format ) => PipelinePartManifest.Write( PipelineParts.FragmentOutput, new GraphicsPipelineInfo { ColorFormats = [format], Samples = 1 }, 0, null );
+		var (a, b, c) = (Output( Format.RGBA8Unorm ), Output( Format.RGBA16Float ), Output( Format.R32Uint ));
+		try
+		{
+			var first = new PipelinePartManifest( file );
+			first.Use( a, 0 );
+			first.Use( b, 0 );
+			first.Use( c, 0 );
+			Assert.IsTrue( first.Save() );
+
+			var second = new PipelinePartManifest( file );
+			CollectionAssert.AreEqual( new[] { a, b, c }, second.TakeUnshaded().OrderBy( e => e.Rank ).Select( e => e.Line ).ToArray() );
+			second.Use( c, 0 );
+			second.Use( a, 0 );
+			Assert.IsTrue( second.Save() );
+
+			var third = new PipelinePartManifest( file );
+			CollectionAssert.AreEqual( new[] { c, a, b }, third.TakeUnshaded().OrderBy( e => e.Rank ).Select( e => e.Line ).ToArray(), "this run's first links first, then the rest" );
+		}
+		finally
+		{
+			File.Delete( file );
+		}
 	}
 
 	static byte[] Render( Device device, SampleScene scene, TextureHandle target )

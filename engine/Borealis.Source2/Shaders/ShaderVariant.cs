@@ -274,6 +274,7 @@ public sealed class ShaderStage
 		if ( Bytecode is not null )
 		{
 			Module = library.Module( Bytecode, $"{program.Shader.Name} {type}" );
+			library.Remember( program, combo.Id, dynamic.Id );
 			Reflection = library.Reflect( Bytecode );
 		}
 

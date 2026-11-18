@@ -917,17 +917,19 @@ internal sealed class SurfaceProgram : IDisposable
 	}
 
 	/// <summary>
-	/// Make each pass's shader parts on a worker (pre-rasterisation from its vertex stage, fragment from its pixel stage), with
-	/// the specialization constants its draws most likely have, where the device links pipelines from parts
-	/// (<see cref="DeviceCapabilities.PipelineLibraries"/>): a first draw's pipeline is then a fast link. A draw that needs a
-	/// part a worker is making waits for it rather than make it again.
+	/// Queue each pass's shader parts for the device's builder threads (pre-rasterisation from its vertex stage, fragment
+	/// from its pixel stage), with the specialization constants its draws most likely have, where the device links
+	/// pipelines from parts (<see cref="DeviceCapabilities.PipelineLibraries"/>): a first draw's pipeline is then a fast
+	/// link. A guess, so after what draws wait for and the part manifest's parts; a program the manifest has parts of is
+	/// left to it (a pass it has none of wasn't drawn last time). A draw that needs a part a worker is making waits for it
+	/// rather than make it again.
 	/// </summary>
 	public void PrepareParts()
 	{
 		if ( !device.Gpu.Capabilities.PipelineLibraries ) return;
 		lock ( pipelines )
 		{
-			if ( disposed ) return;
+			if ( disposed || passes.Values.Any( p => device.Gpu.PartsRecorded( p.Vertex ) || device.Gpu.PartsRecorded( p.Pixel ) ) ) return;
 			builds.RemoveAll( b => b.IsCompleted );
 			builds.Add( System.Threading.Tasks.Task.Run( () =>
 			{
@@ -937,6 +939,9 @@ internal sealed class SurfaceProgram : IDisposable
 					if ( pass.Pass.Vertex is null || !pass.Vertex.IsValid ) continue;
 					var perPixel = pass.Pass.Name.Contains( ShaderPasses.GpuDriven, StringComparison.Ordinal ) || device.Surfaces.MaterialOffsetPerPixel;
 					var pixel = pass.Pixel.IsValid;
+					var parts = (device.Gpu.PartsRecorded( pass.Vertex ) ? PipelineParts.None : PipelineParts.PreRasterization)
+						| (pixel && !device.Gpu.PartsRecorded( pass.Pixel ) ? PipelineParts.FragmentShader : PipelineParts.None);
+					if ( parts == PipelineParts.None ) continue;
 					var info = new GraphicsPipelineInfo
 					{
 						VertexShader = pass.Vertex,
@@ -951,7 +956,7 @@ internal sealed class SurfaceProgram : IDisposable
 
 					try
 					{
-						using ( Zones.PipelineCreate.Start() ) device.Gpu.PreparePipelineParts( info, PipelineParts.PreRasterization | PipelineParts.FragmentShader );
+						device.Gpu.QueuePipelineParts( info, parts, speculative: true );
 					}
 					catch ( Exception e ) when ( e is GpuException or ArgumentException or InvalidOperationException )
 					{

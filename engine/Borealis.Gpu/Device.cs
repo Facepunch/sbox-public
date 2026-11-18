@@ -253,6 +253,7 @@ public sealed unsafe partial class Device : IDisposable
 			CreateMarkers();
 			CreateDefaultViewSet();
 			CreateBindlessDefaults();
+			LoadPartManifest( options );
 		}
 		catch
 		{
