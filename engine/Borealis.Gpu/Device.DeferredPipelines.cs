@@ -228,6 +228,10 @@ public sealed unsafe partial class Device
 		return true;
 	}
 
+	// Builders making parts ahead (the manifest's, guesses), and how many are kept for what draws wait for
+	int buildingAhead;
+	const int ReservedBuilders = 2;
+
 	static readonly ThreadPriority builderPriority = Environment.GetEnvironmentVariable( "BOREALIS_BUILDER_PRIORITY" ) == "below" ? ThreadPriority.BelowNormal : ThreadPriority.Normal;
 
 	// Under the build queue's lock
@@ -250,15 +254,18 @@ public sealed unsafe partial class Device
 		{
 			(PipelineHandle Handle, GraphicsPipelineInfo Info, ulong Layout, ulong Frame, long Requested) job = default;
 			(GraphicsPipelineInfo Info, PipelineParts Parts, string Line) prepare = default;
-			bool isJob;
+			bool isJob, ahead;
 			lock ( buildQueue )
 			{
-				while ( urgentQueue.Count == 0 && buildQueue.Count == 0 && prepareQueue.Count == 0 && speculativeQueue.Count == 0 && !stopBuilding ) Monitor.Wait( buildQueue );
+				// Parts made ahead never take the last builders: a draw's pipeline asked for meanwhile starts at once
+				while ( urgentQueue.Count == 0 && buildQueue.Count == 0 && (prepareQueue.Count == 0 && speculativeQueue.Count == 0 || buildingAhead >= Math.Max( builders.Length - ReservedBuilders, 1 )) && !stopBuilding ) Monitor.Wait( buildQueue );
 				if ( stopBuilding ) return;
 				var urgent = urgentQueue.TryDequeue( out prepare );
 				isJob = !urgent && buildQueue.TryDequeue( out job );
-				if ( !urgent && !isJob && !prepareQueue.TryDequeue( out prepare, out _ ) ) prepare = speculativeQueue.Dequeue();
+				ahead = !urgent && !isJob;
+				if ( ahead && !prepareQueue.TryDequeue( out prepare, out _ ) ) prepare = speculativeQueue.Dequeue();
 				building++;
+				if ( ahead ) buildingAhead++;
 			}
 
 			try
@@ -278,6 +285,7 @@ public sealed unsafe partial class Device
 				lock ( buildQueue )
 				{
 					building--;
+					if ( ahead ) buildingAhead--;
 					Monitor.PulseAll( buildQueue );
 				}
 			}
@@ -366,6 +374,7 @@ public sealed unsafe partial class Device
 			prepareQueue.Clear();
 			speculativeQueue.Clear();
 			building = 0;
+			buildingAhead = 0;
 			Monitor.PulseAll( buildQueue );
 		}
 	}
