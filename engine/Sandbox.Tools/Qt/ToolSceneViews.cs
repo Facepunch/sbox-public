@@ -466,7 +466,7 @@ internal static class ToolSceneViews
 	}
 
 	/// <summary>
-	/// Managed stand-ins for the lights and skies native made in a view's worlds (a tool's lighting rig and environment). Native makes them through
+	/// Managed stand-ins for the lights, skies and envmaps native made in a view's worlds (a tool's lighting rig and environment). Native makes them through
 	/// <c>CreateLight</c>, so their managed twins are plain <see cref="SceneLight"/>s, which Borealis doesn't draw: it
 	/// knows a light by its managed type, and a sun only from a main world. Each frame every native light gets a
 	/// <see cref="SceneDirectionalLight"/>, <see cref="ScenePointLight"/> or <see cref="SceneSpotLight"/> in the view's own
@@ -480,14 +480,20 @@ internal static class ToolSceneViews
 		readonly HashSet<SceneLight> seen = new();
 		readonly List<SceneLight> gone = new();
 
-		SceneLight sunSource;
 		SceneDirectionalLight sun;
+		readonly List<SceneLight> directionals = new();
+		readonly Dictionary<SceneLight, ScenePointLight> fills = new();
+		readonly List<SceneLight> goneFills = new();
+
+		/// <summary>How far away a directional light that isn't the sun is put, as a point light whose range covers the view.</summary>
+		const float FillDistance = 50000;
 
 		public void BeginFrame()
 		{
-			sunSource = null;
+			directionals.Clear();
 			seen.Clear();
 			seenSkies.Clear();
+			seenCubemaps.Clear();
 		}
 
 		/// <summary>
@@ -505,15 +511,22 @@ internal static class ToolSceneViews
 						continue;
 					}
 
+					if ( sceneObject is SceneCubemap cubemap )
+					{
+						MirrorCubemap( cubemap );
+						continue;
+					}
+
 					if ( sceneObject is not SceneLight light || light.GetType() != typeof( SceneLight ) || !light.lightNative.IsValid ) continue;
 
 					var kind = (ShadowLightType)light.lightNative.GetLightType();
 					if ( kind is not (ShadowLightType.Point or ShadowLightType.Spot or ShadowLightType.Directional) ) continue;
 
-					// One sun, the last directional light the worlds have, as native's light binner keeps the last it meets
+					// One sun, the last directional light the worlds have, as native's light binner keeps the last it meets; the
+					// others still light the view (EndFrame)
 					if ( kind == ShadowLightType.Directional )
 					{
-						sunSource = light;
+						directionals.Add( light );
 						continue;
 					}
 
@@ -553,6 +566,33 @@ internal static class ToolSceneViews
 			if ( proxy.RenderingEnabled != sky.RenderingEnabled ) proxy.RenderingEnabled = sky.RenderingEnabled;
 		}
 
+		/// <summary>
+		/// A stand-in for a native envmap (the tool's environment world's): its cube lights the view's objects only as one of
+		/// the camera's main world.
+		/// </summary>
+		void MirrorCubemap( SceneCubemap cubemap )
+		{
+			seenCubemaps.Add( cubemap );
+			var texture = cubemap.Texture;
+			if ( !cubemaps.TryGetValue( cubemap, out var proxy ) || !proxy.IsValid() || proxy.Texture != texture )
+			{
+				if ( proxy.IsValid() ) proxy.Delete();
+				cubemaps.Remove( cubemap );
+				if ( texture is null || !cubemap.RenderingEnabled ) return;
+
+				proxy = new SceneCubemap( World, texture, cubemap.ProjectionBounds, cubemap.Transform, cubemap.TintColor, cubemap.Feathering, (int)cubemap.Projection );
+				proxy.Priority = cubemap.Priority;
+				cubemaps[cubemap] = proxy;
+			}
+
+			if ( proxy.Transform != cubemap.Transform ) proxy.Transform = cubemap.Transform;
+			if ( proxy.RenderingEnabled != cubemap.RenderingEnabled ) proxy.RenderingEnabled = cubemap.RenderingEnabled;
+		}
+
+		readonly Dictionary<SceneCubemap, SceneCubemap> cubemaps = new();
+		readonly HashSet<SceneCubemap> seenCubemaps = new();
+		readonly List<SceneCubemap> goneCubemaps = new();
+
 		readonly Dictionary<SceneSkyBox, SceneSkyBox> skies = new();
 		readonly HashSet<SceneSkyBox> seenSkies = new();
 		readonly List<SceneSkyBox> goneSkies = new();
@@ -586,6 +626,7 @@ internal static class ToolSceneViews
 		/// </summary>
 		public void EndFrame()
 		{
+			var sunSource = directionals.Count > 0 ? directionals[^1] : null;
 			if ( sunSource is not null )
 			{
 				if ( !sun.IsValid() ) sun = new SceneDirectionalLight( World, Rotation.Identity, sunSource.LightColor );
@@ -596,6 +637,41 @@ internal static class ToolSceneViews
 				sun.Delete();
 				sun = null;
 			}
+
+			// Borealis has one sun: the other directional lights (a tool rig's second light) become distant point lights,
+			// unattenuated over the view, without shadows
+			for ( int i = 0; i < directionals.Count - 1; i++ )
+			{
+				var light = directionals[i];
+				if ( !fills.TryGetValue( light, out var fill ) || !fill.IsValid() )
+				{
+					fill = new ScenePointLight( World, Vector3.Zero, FillDistance * 4, light.LightColor );
+					fills[light] = fill;
+				}
+
+				// Native's direction for a directional light points towards the light (up, for a rig's key light)
+				var position = light.WorldDirection.Normal * FillDistance;
+				if ( fill.Position != position ) fill.Position = position;
+				if ( fill.LightColor != light.LightColor ) fill.LightColor = light.LightColor;
+				if ( fill.ConstantAttenuation != 1 ) fill.ConstantAttenuation = 1;
+				if ( fill.LinearAttenuation != 0 ) fill.LinearAttenuation = 0;
+				if ( fill.QuadraticAttenuation != 0 ) fill.QuadraticAttenuation = 0;
+				if ( fill.ShadowsEnabled ) fill.ShadowsEnabled = false;
+				if ( fill.RenderingEnabled != light.RenderingEnabled ) fill.RenderingEnabled = light.RenderingEnabled;
+			}
+
+			foreach ( var (light, _) in fills )
+			{
+				if ( directionals.IndexOf( light ) is var index && (index < 0 || index == directionals.Count - 1) ) goneFills.Add( light );
+			}
+
+			foreach ( var light in goneFills )
+			{
+				fills.Remove( light, out var fill );
+				fill?.Delete();
+			}
+
+			goneFills.Clear();
 
 			foreach ( var (light, proxy) in proxies )
 			{
@@ -622,6 +698,20 @@ internal static class ToolSceneViews
 			}
 
 			goneSkies.Clear();
+
+			foreach ( var (cubemap, _) in cubemaps )
+			{
+				if ( !seenCubemaps.Contains( cubemap ) ) goneCubemaps.Add( cubemap );
+			}
+
+			foreach ( var cubemap in goneCubemaps )
+			{
+				cubemaps.Remove( cubemap, out var proxy );
+				proxy?.Delete();
+			}
+
+			goneCubemaps.Clear();
+
 		}
 
 		public void Dispose()
@@ -630,8 +720,12 @@ internal static class ToolSceneViews
 			proxies.Clear();
 			foreach ( var proxy in skies.Values ) proxy.Delete();
 			skies.Clear();
+			foreach ( var proxy in cubemaps.Values ) proxy.Delete();
+			cubemaps.Clear();
 			if ( sun.IsValid() ) sun.Delete();
 			sun = null;
+			foreach ( var fill in fills.Values ) fill.Delete();
+			fills.Clear();
 			World.Delete();
 		}
 	}
