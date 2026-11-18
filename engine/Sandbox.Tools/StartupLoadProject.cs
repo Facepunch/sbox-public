@@ -443,6 +443,9 @@ static class StartupLoadProject
 
 	private static void ExportSettings( Project project )
 	{
+		if ( project.Config.Type != "game" )
+			return;
+
 		if ( !FileSystem.ProjectSettings.FileExists( "/Input.config" ) )
 		{
 			if ( !project.Config.TryGetMeta<InputSettings>( "InputSettings", out var meta ) )
