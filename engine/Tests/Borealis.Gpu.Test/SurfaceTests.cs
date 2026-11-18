@@ -198,6 +198,40 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A surface material's depth draws take the shared depth-only material once its program is known not to move vertices,
+	/// while it draws opaque, one-sided and without alpha test; before its program is found it draws its own, and lists
+	/// made once from it are made again.
+	/// </summary>
+	[TestMethod]
+	public void OpaqueSurfacesDrawDepthOnlyOnceTheirProgramIsKnown()
+	{
+		var compiled = Compiler().CompileSurface( Path.Combine( Surfaces, "rock.slang" ) );
+		using var backend = new BackendDevice( Device );
+		using var program = new SurfaceProgram( backend, compiled );
+		Assert.IsFalse( program.Displaces );
+
+		using var rock = new Rock();
+		Assert.IsFalse( rock.DepthOnlyNow, "no program yet" );
+		Assert.IsTrue( rock.DepthOnlyPending );
+
+		rock.Program = program;
+		Assert.IsTrue( rock.DepthOnlyNow );
+		Assert.IsFalse( rock.DepthOnlyPending );
+
+		rock.AlphaTest = true;
+		Assert.IsFalse( rock.DepthOnlyNow, "alpha tested" );
+		rock.AlphaTest = false;
+
+		rock.TwoSided = true;
+		Assert.IsFalse( rock.DepthOnlyNow, "two-sided" );
+		rock.TwoSided = false;
+
+		program.Stale = true;
+		Assert.IsFalse( rock.DepthOnlyNow, "dropped by a hotload" );
+		Assert.IsTrue( rock.DepthOnlyPending );
+	}
+
+	/// <summary>
 	/// The surface pipeline manifest (<see cref="SurfacePipelineManifest"/>): a pipeline a draw made is recorded by what asked
 	/// for it, saved, read back by the next run and made ahead on a worker once the program compiles, so the same request
 	/// finds it made without making another. Lines that don't read, or name a pass the program no longer has, are dropped,
