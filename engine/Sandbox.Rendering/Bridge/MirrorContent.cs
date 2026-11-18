@@ -110,7 +110,9 @@ internal static class MirrorContent
 				// Made in code from a shader: the shader's defaults, then what's set
 				if ( shader is not null )
 				{
-					made.Material = gpu.CreateMaterial( path, ShaderPath( shader ) );
+					// Through the base: BackendDevice's own CreateMaterial( string, Color ) wins overload resolution for a string
+					// (Color converts from one), which made a white complex material
+					made.Material = ((Borealis.GpuDevice)gpu).CreateMaterial( path, ShaderPath( shader ) );
 					gpu.SetOnMaterial( made.Material, values, textures );
 				}
 				else made.Material = gpu.LoadMaterial( path, values, textures, $"{path} (set in code)" );

@@ -135,6 +135,34 @@ public class BorealisGpuTexturesTest
 		}
 	}
 
+	/// <summary>
+	/// A material made in code from a shader (<see cref="Material.Create(string, string, bool)"/>: WildRoute's sky) draws
+	/// on Borealis.Gpu with that shader, not with BackendDevice's one-colour material, which its <c>CreateMaterial( string,
+	/// Color )</c> made when the shader's path bound to it as a colour.
+	/// </summary>
+	[TestMethod]
+	public void MaterialsMadeFromAShaderDrawThatShader()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		var host = Borealis.RenderHost.Current;
+		Borealis.RenderHost.Current = new DeviceHost( borealis.Services );
+		try
+		{
+			var material = Material.Create( "borealis_made_from_sky", "shaders/sky.shader" );
+			var converted = Sandbox.Rendering.Bridge.MirrorContent.Material( material ) as Borealis.Backend.BackendMaterial;
+			Assert.IsNotNull( converted?.Shader );
+			StringAssert.Contains( converted.Shader.Name.Replace( '\\', '/' ), "/sky.shader" );
+		}
+		finally
+		{
+			Borealis.RenderHost.Current = host;
+		}
+
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
 	sealed class DeviceHost( Borealis.GpuDevice device ) : Borealis.RenderHost
 	{
 		public override Borealis.GpuDevice Device => device;
