@@ -129,11 +129,19 @@ public sealed partial class BackendDevice
 	/// spent, it's null with <paramref name="pending"/> set; ask again later. Null without pending when there's no compiled
 	/// model. Call on one thread at a time.
 	/// </summary>
-	public RenderMesh LoadModelAsync( string path, ulong meshGroups, out bool pending )
+	/// <remarks>
+	/// Without <paramref name="pin"/> the caller holds the model it gets (<see cref="HoldModel"/>) and it's freed once nothing
+	/// holds it (<see cref="ReleaseModel"/>), as a world's mirror does. A model loaded pinned once stays.
+	/// </remarks>
+	public RenderMesh LoadModelAsync( string path, ulong meshGroups, out bool pending, bool pin = true )
 	{
 		pending = false;
 		if ( string.IsNullOrEmpty( path ) ) return null;
-		if ( streamedModels.TryGetValue( (path, meshGroups), out var made ) ) return made;
+		if ( streamedModels.TryGetValue( (path, meshGroups), out var made ) )
+		{
+			if ( pin && made is not null ) PinModel( made );
+			return made;
+		}
 
 		var read = modelReads.GetOrAdd( path, StartRead );
 		if ( !read.IsCompleted )
@@ -155,7 +163,108 @@ public sealed partial class BackendDevice
 		using ( Gpu.DeferUploads() )
 			made = read.IsCompletedSuccessfully && read.Result is { } file ? BackendModel.Create( this, file, meshGroups ) : null;
 		streamedModels[(path, meshGroups)] = made;
+		if ( made is not null )
+		{
+			lock ( modelLives ) modelLives[made] = new ModelLife { Key = (path, meshGroups), Pinned = pin };
+		}
+
 		return made;
+	}
+
+	//
+	// Model lifetimes: a model loaded for worlds' mirrors is held by each (HoldModel) and freed a while after the last lets
+	// go (ReleaseModel), its vertices and indices given back to the GPU-driven pages
+	//
+
+	sealed class ModelLife
+	{
+		public (string Path, ulong Groups) Key;
+		public int Holders;
+		public bool Pinned;
+		public long ReleasedAt;
+	}
+
+	readonly Dictionary<RenderMesh, ModelLife> modelLives = new( ReferenceEqualityComparer.Instance );
+	readonly List<ModelLife> unheldModels = new();
+	readonly List<RenderMesh> freeing = new();
+
+	/// <summary>Seconds a model nothing holds is kept, so the same map loaded again soon finds it.</summary>
+	public static double ModelGraceSeconds { get; set; } = 10;
+
+	/// <summary>Models freed after nothing held them, for soaks and tests.</summary>
+	public int ModelsFreed { get; private set; }
+
+	/// <summary>A world draws <paramref name="mesh"/> (loaded unpinned by <see cref="LoadModelAsync"/>).</summary>
+	public void HoldModel( RenderMesh mesh )
+	{
+		if ( mesh is null ) return;
+		lock ( modelLives )
+		{
+			if ( modelLives.TryGetValue( mesh, out var life ) ) life.Holders++;
+		}
+	}
+
+	/// <summary>A world that held <paramref name="mesh"/> no longer draws it: the last one lets it go after <see cref="ModelGraceSeconds"/>.</summary>
+	public void ReleaseModel( RenderMesh mesh )
+	{
+		if ( mesh is null ) return;
+		lock ( modelLives )
+		{
+			if ( !modelLives.TryGetValue( mesh, out var life ) || life.Holders == 0 ) return;
+			if ( --life.Holders > 0 || life.Pinned ) return;
+			life.ReleasedAt = Stopwatch.GetTimestamp();
+			unheldModels.Add( life );
+		}
+	}
+
+	void PinModel( RenderMesh mesh )
+	{
+		lock ( modelLives )
+		{
+			if ( modelLives.TryGetValue( mesh, out var life ) ) life.Pinned = true;
+		}
+	}
+
+	/// <summary>
+	/// At a frame's start: free the models nothing has held for <see cref="ModelGraceSeconds"/> (the next ask loads them
+	/// again), and the GPU-driven pages all of whose meshes have gone.
+	/// </summary>
+	void FreeUnheldModels()
+	{
+		if ( unheldModels.Count > 0 )
+		{
+			var due = Stopwatch.GetTimestamp() - (long)(ModelGraceSeconds * Stopwatch.Frequency);
+			lock ( modelLives )
+			{
+				for ( int i = unheldModels.Count - 1; i >= 0; i-- )
+				{
+					var life = unheldModels[i];
+					if ( life.Holders > 0 || life.Pinned )
+					{
+						unheldModels.RemoveAt( i );
+						continue;
+					}
+
+					if ( life.ReleasedAt > due ) continue;
+					unheldModels.RemoveAt( i );
+					if ( streamedModels.Remove( life.Key, out var mesh ) && mesh is not null )
+					{
+						modelLives.Remove( mesh );
+						freeing.Add( mesh );
+					}
+				}
+			}
+
+			foreach ( var mesh in freeing )
+			{
+				(mesh.Geometry as BackendModel)?.Free();
+				ModelsFreed++;
+			}
+
+			freeing.Clear();
+		}
+
+		gpuDrivenTables?.FreeEmptyPages();
 	}
 
 	/// <summary>

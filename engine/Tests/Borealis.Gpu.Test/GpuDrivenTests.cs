@@ -1042,6 +1042,43 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// A page all of whose meshes have gone (their models freed) is freed at a frame's start, with the records keyed by its
+	/// slot, so a page that takes the slot later doesn't find them; one that still holds a mesh, and the page being filled,
+	/// stay.
+	/// </summary>
+	[TestMethod]
+	public void PagesWhoseMeshesHaveAllGoneAreFreed()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		var tables = backend.GpuDrivenTables;
+		var layout = backend.Layout( new VertexLayout( 12, [new VertexLayout.Field( VertexSemantic.Position, 0, VertexFormat.Float3, 0 )] ) );
+
+		// Two meshes filling a page, then one that starts the next (the current page)
+		var big = new byte[GpuDrivenTables.VertexPageSize / 2];
+		var (slotA, offsetA) = tables.AddVertices( big );
+		var (slotB, _) = tables.AddVertices( big );
+		var (slotC, _) = tables.AddVertices( new byte[1024] );
+		Assert.AreEqual( slotA, slotB );
+		Assert.AreNotEqual( slotA, slotC );
+		var record = tables.Geometry( slotA, offsetA, layout, 16 );
+		var bytesBefore = tables.Bytes.Pages;
+
+		// One mesh gone: the page stays
+		tables.ReleaseRange( slotA, big.Length );
+		tables.FreeEmptyPages();
+		Assert.AreEqual( 0, tables.PagesFreed );
+
+		// Both gone: freed, its records forgotten; the page being filled stays
+		tables.ReleaseRange( slotB, big.Length );
+		tables.ReleaseRange( slotC, 1024 );
+		tables.FreeEmptyPages();
+		Assert.AreEqual( 1, tables.PagesFreed );
+		Assert.AreEqual( bytesBefore - GpuDrivenTables.VertexPageSize, tables.Bytes.Pages );
+		Assert.AreNotEqual( record, tables.Geometry( slotA, offsetA, layout, 16 ), "a record for the freed slot is made afresh" );
+		Device.WaitIdle();
+	}
+
+	/// <summary>
 	/// Draw and lighting records are found without a lock by recording threads (a lock per draw kept them waiting on each
 	/// other): threads asking for the same records at once each get the one record made for each.
 	/// </summary>

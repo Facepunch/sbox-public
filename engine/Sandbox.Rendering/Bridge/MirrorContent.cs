@@ -24,7 +24,13 @@ internal static class MirrorContent
 	/// A model's mesh; loading asynchronously (<see cref="BackendDevice.AsyncModels"/>) null with <paramref name="pending"/>
 	/// set while it loads.
 	/// </summary>
-	public static RenderMesh Mesh( Model model, out bool pending )
+	public static RenderMesh Mesh( Model model, out bool pending ) => Mesh( model, out pending, pin: true );
+
+	/// <summary>
+	/// <see cref="Mesh(Model, out bool)"/>; without <paramref name="pin"/> a model loaded from its file is held by the caller
+	/// (<see cref="BackendDevice.HoldModel"/>) and freed a while after the last holder lets it go.
+	/// </summary>
+	public static RenderMesh Mesh( Model model, out bool pending, bool pin )
 	{
 		pending = false;
 		if ( Gpu is not { } gpu ) return null;
@@ -32,7 +38,7 @@ internal static class MirrorContent
 		if ( model is { IsProcedural: true } ) return RuntimeMesh( model, gpu, out pending );
 		var path = model?.ResourcePath;
 		if ( string.IsNullOrEmpty( path ) ) return null;
-		return gpu.AsyncModels ? gpu.LoadModelAsync( path, ulong.MaxValue, out pending ) : gpu.LoadModel( path, ulong.MaxValue );
+		return gpu.AsyncModels ? gpu.LoadModelAsync( path, ulong.MaxValue, out pending, pin ) : gpu.LoadModel( path, ulong.MaxValue );
 	}
 
 	static readonly ConditionalWeakTable<Model, RuntimeModel> runtimeMeshes = new();

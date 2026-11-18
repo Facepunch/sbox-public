@@ -178,6 +178,17 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 			lightmapFolders.Clear();
 		}
+		// The models this world held go a while after no world does (BackendDevice.ReleaseModel)
+		if ( MirrorContent.Gpu is { } device )
+		{
+			foreach ( var (_, cached) in models )
+			{
+				if ( cached.Mesh is not null && !cached.Dropped ) device.ReleaseModel( cached.Mesh );
+			}
+
+			models.Clear();
+		}
+
 		if ( SubWorld == 0 ) return;
 
 		foreach ( var (_, obj) in objects )

@@ -154,6 +154,9 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	readonly VertexCacheDraw?[][] vertexCacheDraws;
 	readonly List<BufferHandle> buffers = new();
 
+	// Its vertices and indices in the GPU-driven pages (slot, bytes), given back when it's freed
+	readonly List<(int Slot, int Bytes)> pageRanges = new();
+
 	/// <summary>The model as read.</summary>
 	public ModelFile File { get; }
 
@@ -213,6 +216,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 				if ( tables is not null )
 				{
 					var (page, slot, first) = tables.AddIndices( source.Data, format );
+					pageRanges.Add( (slot, source.Data.Length) );
 					indexBuffers[i] = (page, first * (long)source.Size, format, page, slot, first);
 					continue;
 				}
@@ -302,6 +306,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		if ( tables is not null )
 		{
 			var (page, offset, slot) = tables.AddVertexStream( data );
+			pageRanges.Add( (slot, data.Length) );
 			return (page, offset, layout, source.CompressedTangentFrame, slot);
 		}
 
@@ -341,7 +346,12 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		}
 
 		System.Threading.Interlocked.Add( ref device.PositionStreamBytes, data.Length );
-		if ( tables is not null ) return tables.AddVertexStream( data );
+		if ( tables is not null )
+		{
+			var placed = tables.AddVertexStream( data );
+			pageRanges.Add( (placed.Slot, data.Length) );
+			return placed;
+		}
 
 		var buffer = gpu.CreateBuffer( new BufferInfo { Size = data.Length, Usage = BufferUsage.Vertex, Name = name } );
 		gpu.WriteBuffer( buffer, data );
@@ -455,5 +465,11 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	{
 		foreach ( var buffer in buffers ) device.Gpu.Destroy( buffer );
 		buffers.Clear();
+		if ( device.GpuDrivenTables is { } tables )
+		{
+			foreach ( var (slot, bytes) in pageRanges ) tables.ReleaseRange( slot, bytes );
+		}
+
+		pageRanges.Clear();
 	}
 }

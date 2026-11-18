@@ -117,6 +117,27 @@ internal sealed class LodStore : IDisposable
 		entry.Staging = staging;
 	}
 
+	/// <summary>
+	/// Forget the ranges in the index page at <paramref name="slot"/>, whose meshes have all gone (the page is being freed,
+	/// and its slot may name another page later), with their levels; false while one is being built or waits to be placed,
+	/// to be asked again next frame.
+	/// </summary>
+	public bool TryForgetPage( int slot )
+	{
+		lock ( gate )
+		{
+			foreach ( var (range, entry) in entries )
+			{
+				if ( range.PageSlot == slot && entry.State is Phase.Building or Phase.Built ) return false;
+			}
+
+			foreach ( var range in entries.Keys.Where( r => r.PageSlot == slot ).ToList() ) entries.Remove( range );
+			foreach ( var range in waitingDraws.Keys.Where( r => r.PageSlot == slot ).ToList() ) waitingDraws.Remove( range );
+			levelRanges.RemoveWhere( r => r.PageSlot == slot );
+			return true;
+		}
+	}
+
 	readonly object gate = new();
 	readonly Dictionary<Range, Entry> entries = new();
 	readonly Dictionary<Range, List<uint>> waitingDraws = new();

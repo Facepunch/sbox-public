@@ -2373,6 +2373,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Gpu.BeginFrame();
 		FreeRetiredVisibility();
 		if ( GpuDrivenFrame % 60 == 0 ) FreeIdleVisibility();
+		FreeUnheldModels();
 		gpuDrivenTables?.BeginFrame();
 		meshletStore?.BeginFrame();
 		lodStore?.BeginFrame();
