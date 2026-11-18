@@ -1,0 +1,117 @@
+﻿#include "sbox/animationinstance.h"
+
+native class CModelAnimationInstance as NativeEngine.ModelAnimationInstance
+{
+	static NativeEngine.ModelAnimationInstance Create(); [new]
+	void Destroy(); [delete]
+
+	void SetModel( IModel model, Transform modelToWorld );
+	[nogc]
+	void SetTransform( Transform modelToWorld );
+
+	// The pose, read in place: an AnimationPose_t the instance keeps for its whole life
+	[nogc]
+	void* GetPose();
+
+	// The model's render-bone boxes bounds are worked out from (AnimationBoneBox_t each), up to nMax; returns how many it has
+	static int GetRenderBoneBoxes( IModel model, void* pOut, int nMax );
+
+	void InitAnimation();
+	void Update( float dt );
+	void SetBindPose();
+	void MergeFrom( NativeEngine.ModelAnimationInstance parent );
+	void CalculateWorldSpaceBones();
+	void FinishUpdate();
+
+	[nogc]
+	void SetWorldSpaceRenderBoneTransform( int nBoneIndex, Transform tx );
+	[nogc]
+	Transform GetWorldSpaceRenderBoneTransform( int nBoneIndex );
+	Transform GetWorldSpaceRenderBoneTransform( string boneName );
+	[nogc]
+	Transform GetWorldSpaceRenderBonePreviousTransform( int nBoneIndex );
+	Transform GetWorldSpaceRenderBonePreviousTransform( string boneName );
+	[nogc]
+	Transform GetLocalSpaceRenderBoneTransform( int nBoneIndex );
+	Transform GetLocalSpaceRenderBoneTransform( string boneName );
+	[nogc]
+	Transform GetWorldSpaceAnimationTransform( int nBoneIndex );
+	[nogc]
+	void GetWorldSpaceRenderBoneTransforms( int nNumBones, void* pOut );
+	[nogc]
+	void GetWorldSpaceRenderBonePreviousTransforms( int nNumBones, void* pOut );
+	[nogc]
+	int GetClosestBoneIndex( Vector3 vWorldPoint );
+
+	[nogc]
+	Transform GetParentSpaceBone( int index );
+	[nogc]
+	void GetParentSpaceBones( int nNumBones, void* pOut );
+	[nogc]
+	void SetParentSpaceBone( int index, Transform tx );
+
+	void ResetGraphParameters();
+	void SetAnimGraphChangedCallback( SboxAnimGraphChangedCallback callback );
+	void SetAnimGraph( string graphName );
+	void SetAnimGraph( HAnimationGraph hGraph );
+	HAnimationGraph GetAnimGraph();
+
+	void SetAnimGraph2( HAnimGraph2 hGraph );
+	void SetAnimGraph2ControllerCreatedCallback( SboxAnimGraph2ControllerCreatedCallback callback );
+	NativeEngine.AnimationGraph2Controller GetAnimGraph2Controller();
+	float GetAnimGraph2UpdateTimeMs();
+	void SetLowDetailAnimation( bool bLowDetail );
+	bool IsLowDetailAnimation();
+
+	void SBox_SetFlexOverride( StringToken name, float flWeight, float flFadeTime );
+	void SBox_SetFlexOverride( int flexId, float flWeight, float flFadeTime );
+	float SBox_GetFlexOverride( int flexId );
+	float SBox_GetFlexOverride( StringToken name );
+	void SBox_ClearFlexOverride( float flFadeTime );
+	void SBox_ClearFlexOverride( StringToken name, float flFadeTime );
+	void SBox_ClearFlexOverride( int flexId, float flFadeTime );
+
+	void DirectPlayback_PlaySequence( string pSequenceName );
+	void DirectPlayback_PlaySequence( string pSequenceName, Vector3 vTargetPos, float flFacingHeading, float flInterpTime );
+	void DirectPlayback_CancelSequence();
+	float DirectPlayback_GetSequenceCycle();
+	stable string DirectPlayback_GetSequence();
+	void DirectPlayback_SetSequenceStartTime( float flStartTime );
+	float DirectPlayback_GetSequenceDuration();
+
+	bool SBox_GetAttachment( StringToken name, bool worldspace, cref out Transform tx );
+
+	void SetShouldUseAnimGraph( bool bEnabled );
+	bool GetShouldUseAnimGraph();
+
+	stable string GetSequence();
+	void SetSequence( string pSequenceName );
+	float GetSequenceDuration();
+	float GetSequenceCycle();
+	void SetSequenceCycle( float flCycle );
+	void SetSequenceLooping( bool bLooping );
+	bool IsSequenceFinished();
+	void SetSequenceBlending( bool bBlending );
+
+	float GetPlaybackRate();
+	void SetPlaybackRate( float flPlaybackRate );
+
+	int PendingAnimationEvents();
+	void RunAnimationEvents( SboxAnimationEventCallback callback );
+	void DispatchTagEvents( SboxAnimTagEventCallback callback );
+
+	[nogc]
+	void ClearPhysicsBones();
+	[nogc]
+	void SetPhysicsBone( ushort bone, Transform transform );
+	[nogc]
+	bool HasPhysicsBones();
+
+	Transform GetRootMotion();
+
+	[nogc]
+	float GetDeltaTime();
+
+	IAnimParameterInstance GetAnimParameter( string name );
+	IAnimParameterInstance GetAnimParameter( int index );
+}
