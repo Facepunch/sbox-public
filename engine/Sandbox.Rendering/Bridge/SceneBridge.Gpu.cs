@@ -54,7 +54,8 @@ internal sealed partial class SceneBridge
 		gpuView.SetCamera( camera, viewport.Size );
 		gpuView.RenderSceneObject = null;
 
-		var frame = camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup );
+		// The main view outside the tools upscales as the player's settings ask, as native's does
+		var frame = camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup, upscale: !Application.IsEditor && !camera.ToolsView );
 
 		// Made outside any block: materials can't be made while drawing
 		copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
@@ -154,14 +155,31 @@ internal sealed partial class SceneBridge
 	/// <summary>
 	/// The camera's scene rendered by Borealis on the Borealis.Gpu device, then its stages after the scene and its post processing
 	/// over that frame. Null if it couldn't render. With <paramref name="samples"/> over one the scene is multisampled, as the
-	/// game's anti-aliasing setting asks, and the stages get its resolved colour.
+	/// game's anti-aliasing setting asks, and the stages get its resolved colour. With <paramref name="upscale"/> the player's
+	/// upscaler runs (<see cref="BorealisGpuUpscaler"/>): the scene and the stages up to the viewmodel's at the render size, the
+	/// rest at <paramref name="size"/>.
 	/// </summary>
-	BorealisGpuFrame RenderScene( BorealisGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup )
+	BorealisGpuFrame RenderScene( BorealisGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup, bool upscale = false )
 	{
+		// The view's viewport at the display size: the stages inside the scene's frame move it to theirs
+		var display = new Vector2Int( (int)size.x, (int)size.y );
+		var displayViewport = gpuView.Viewport;
+		var upscaler = upscale ? StateFor( camera, setup.ViewHash ).GpuUpscaler ??= new BorealisGpuUpscaler( backend ) : null;
+		var upscaling = upscaler?.Begin( display, allowed: true ) ?? false;
+		if ( upscaling )
+		{
+			size = upscaler.RenderSize;
+			if ( upscaler.SingleSampled ) samples = 1;
+			BorealisGpuUpscaler.Prepare();
+		}
+
 		SceneMirror mirror;
 		CameraState state;
 		using ( PrepareTiming.Scope() )
 			(mirror, state) = Prepare( camera, setup, size );
+
+		// A temporal upscaler's sub-pixel offset this frame, which the view's projection takes; none otherwise
+		state.View.Jitter = upscaling ? upscaler.ClipJitter : Vector2.Zero;
 
 		// Graphics.Render in its stages (a highlight's outline) draws the camera's mirrored objects again
 		gpuView.RenderSceneObject = state.Drawer.RenderOnGpu;
@@ -202,11 +220,17 @@ internal sealed partial class SceneBridge
 		frame.Adopt( state.GpuTarget, state.System.Frame.Constants );
 
 		gpuView.LayerType = SceneLayerType.Translucent;
+		if ( upscaling ) gpuView.Viewport = state.View.Viewport;
+
 		using var _ = PostTiming.Scope();
 		using ( frame.Begin( gpuView ) )
 		{
 			RunStage( camera, Stage.AfterTransparent );
 			RunStage( camera, Stage.AfterViewmodel );
+
+			// Upscaled before post processing, as native's: the stages after draw at the display size, unjittered
+			if ( upscaling ) Upscale( upscaler, frame, state.View, displayViewport );
+
 			RunStage( camera, Stage.BeforePostProcess );
 			if ( exposure is not null ) frame.CountExposure( exposure );
 			RunStage( camera, Stage.Tonemapping );
@@ -214,6 +238,22 @@ internal sealed partial class SceneBridge
 
 		frame.End();
 		return frame;
+	}
+
+	/// <summary>
+	/// The frame upscaled into the display size's <paramref name="displayViewport"/>, in its block: the constants after it are
+	/// the frame's at the display size with the projection unjittered.
+	/// </summary>
+	void Upscale( BorealisGpuUpscaler upscaler, BorealisGpuFrame frame, RenderView view, Rect displayViewport )
+	{
+		var constants = System.Runtime.InteropServices.MemoryMarshal.Read<Borealis.Gpu.ViewConstants>( frame.Constants );
+		var display = upscaler.DisplaySize;
+		view.FillUpscaledConstants( ref constants, displayViewport, new Vector2( display.x, display.y ) );
+
+		// Native's frustum: a horizontal field of view; the upscalers take the vertical one
+		var aspect = view.Viewport.Height > 0 ? view.Viewport.Width / view.Viewport.Height : 1.0f;
+		var verticalFov = 2.0f * MathF.Atan( MathF.Tan( view.FieldOfView.DegreeToRadian() * 0.5f ) / aspect );
+		upscaler.Upscale( frame, gpuView, displayViewport, constants, view.ZNear, verticalFov );
 	}
 
 	/// <summary>

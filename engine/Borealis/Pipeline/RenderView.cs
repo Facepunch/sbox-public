@@ -53,6 +53,13 @@ public sealed class RenderView
 	internal static readonly Vector4 FullClipSpace = new( -1, -1, 1, 1 );
 
 	/// <summary>
+	/// A sub-pixel offset of the projection in clip space (x right, y up), for a temporal upscaler: the frame draws and culls
+	/// with it, and the last frame's projection kept for reprojection has last frame's, as native's
+	/// <c>CFrustum::SetProjectionJitter</c> moves both. Zero for none.
+	/// </summary>
+	internal Vector2 Jitter { get; set; }
+
+	/// <summary>
 	/// Mirror the finished frame left to right as it goes into a texture (<c>ViewSetup.FlipX</c>): native flips only a texture
 	/// render's final copy (<c>CCameraRenderer::RenderToTexture</c>), so depth stays as drawn and a swap chain's frame isn't
 	/// flipped.
@@ -308,11 +315,74 @@ public sealed class RenderView
 		}
 
 		var translation = Matrix.CreateTranslation( -Position );
+		var previousUnjittered = UnjitteredWorldToProjection;
+		UnjitteredViewToProjection = ViewToProjection;
+		UnjitteredWorldToProjection = translation * WorldToViewRotation * ViewToProjection;
+		if ( Jitter != Vector2.Zero ) ViewToProjection *= ClipSpaceOffset( Jitter );
+
 		WorldToProjection = translation * WorldToViewRotation * ViewToProjection;
 		Frustum = ViewFrustum.FromReverseZ( WorldToProjection );
 
 		PreviousWorldToProjection = _updated ? previous : WorldToProjection;
+		PreviousUnjitteredWorldToProjection = _updated ? previousUnjittered : UnjitteredWorldToProjection;
 		_updated = true;
+	}
+
+	/// <summary><see cref="ViewToProjection"/> without <see cref="Jitter"/>.</summary>
+	internal Matrix UnjitteredViewToProjection { get; private set; }
+
+	/// <summary><see cref="WorldToProjection"/> without <see cref="Jitter"/>, and last frame's.</summary>
+	internal Matrix UnjitteredWorldToProjection { get; private set; }
+	internal Matrix PreviousUnjitteredWorldToProjection { get; private set; }
+
+	/// <summary>Moves clip space by <paramref name="offset"/> of w: x' = x + offset.x * w, y' = y + offset.y * w.</summary>
+	internal static Matrix ClipSpaceOffset( Vector2 offset ) => new(
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		offset.x, offset.y, 0, 1 );
+
+	/// <summary>
+	/// Make <paramref name="c"/>, filled for this frame, the constants of what draws after a temporal upscale: the projection
+	/// and reprojection without <see cref="Jitter"/> (native keeps the unjittered frustum for the layers after it), at
+	/// <paramref name="viewport"/> in a target of <paramref name="targetSize"/>.
+	/// </summary>
+	internal void FillUpscaledConstants( ref ViewConstants c, Rect viewport, Vector2 targetSize )
+	{
+		var viewToProjection = UnjitteredViewToProjection;
+		var worldToProjection = WorldToViewRotation * viewToProjection;
+		var projectionToView = viewToProjection.Inverted;
+		c.WorldToProjection = worldToProjection;
+		c.ProjectionToWorld = worldToProjection.Inverted;
+		c.ViewToProjection = viewToProjection;
+		c.ProjectionToView = projectionToView;
+		c.InvProjRow3 = new( projectionToView.M14, projectionToView.M24, projectionToView.M34, projectionToView.M44 );
+
+		c.InvViewportSize = new( 1.0f / viewport.Width, 1.0f / viewport.Height );
+		c.ViewportOffset = new( viewport.Left, viewport.Top );
+		c.ViewportSize = new( viewport.Width, viewport.Height );
+		c.RenderTargetSize = targetSize;
+		c.ViewportToGBufferRatio = new( viewport.Width / targetSize.x, viewport.Height / targetSize.y );
+		c.InvGBufferSize = new( 1.0f / targetSize.x, 1.0f / targetSize.y, 1.0f, 1.0f );
+		c.FrameBufferCopyInvSizeAndUvScale = new( 1.0f / viewport.Width, 1.0f / viewport.Height, 1, 1 );
+		c.MsaaSampleCount = 1;
+
+		var w = 0.5f * viewport.Width;
+		var h = 0.5f * viewport.Height;
+		var screen = new Matrix(
+			w, 0, 0, 0,
+			0, -h, 0, 0,
+			0, 0, 1, 0,
+			w, h, 0, 1 );
+		var viewToWorld = c.WorldToView.Inverted;
+		c.ViewToScreen = viewToProjection * screen;
+		c.CurrFrameViewToPrevFrameProj = viewToWorld * PreviousUnjitteredWorldToProjection * screen;
+		var forwardZ = new Matrix(
+			1, 0, 0, 0,
+			0, 1, 0, 0,
+			0, 0, -1, 0,
+			0, 0, 1, 1 );
+		c.PrevProjectionToWorld = (PreviousUnjitteredWorldToProjection * forwardZ).Inverted;
 	}
 
 	/// <summary>

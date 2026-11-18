@@ -94,6 +94,19 @@ public sealed class GraphicsContext
 	/// <summary>Say which layout a texture is in now, for textures made or used outside this context.</summary>
 	public void Track( TextureHandle texture, ImageLayout layout ) => layouts[texture] = layout;
 
+	/// <summary>
+	/// Before work recorded straight into <see cref="List"/> (a stretch blit, a vendor upscaler through
+	/// <see cref="CommandList.BeginNative"/>): end any rendering scope and move <paramref name="texture"/> to
+	/// <paramref name="layout"/>, where it's tracked after. One the work writes (<paramref name="written"/>) is made readable
+	/// before a later draw samples it, as a dispatch's are.
+	/// </summary>
+	public void PrepareNative( TextureHandle texture, ImageLayout layout, bool written )
+	{
+		EndScope();
+		Transition( texture, layout );
+		if ( written ) dispatched.Add( texture );
+	}
+
 	/// <summary>Stop tracking a texture that's about to be destroyed, and destroy the views made of it.</summary>
 	public void Forget( TextureHandle texture )
 	{

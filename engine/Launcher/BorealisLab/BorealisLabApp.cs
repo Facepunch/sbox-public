@@ -28,6 +28,7 @@ namespace Sandbox.BorealisLab;
 /// <item><c>-model-parity folder</c> - check s&amp;box models read by Borealis.Source2 against the engine's loading, render each on a Borealis.Gpu device and exit (<see cref="ModelParity"/>).</item>
 /// <item><c>-surface-parity folder</c> - draw one material as a .shader, a Slang surface and a raw Slang module on a Borealis.Gpu device, compare and exit (<see cref="SurfaceParity"/>).</item>
 /// <item><c>-convert-passes a,b|all</c> - write a pass module beside each named non-material shader and compile it (<see cref="PassConversion"/>).</item>
+/// <item><c>-package-shaders folder -package-roots "a;b"</c> - sort package shaders by what the converter makes of them (<see cref="PackageShaders"/>).</item>
 /// <item><c>-crowd</c> - SceneLab's Crowd Near, animated, on a Borealis.Gpu device in a window, timed (<see cref="CrowdRun"/>).</item>
 /// <item><c>-map ident</c>, <c>-construct</c> - read a compiled map with Borealis.Source2 and time drawing it on a Borealis.Gpu device, with no Source 2 device (<see cref="Maps.MapRun"/>).</item>
 /// </list>
@@ -48,6 +49,9 @@ internal static class BorealisLabApp
 
 		// Pass modules from today's non-material shaders: nothing of the engine starts
 		if ( PassConversion.Requested ) return PassConversion.Run();
+
+		// Package shaders through the converter: nothing of the engine starts
+		if ( PackageShaders.Requested ) return PackageShaders.Run();
 
 		// Posing skinned presets and models takes the animation system, which only the longer list of native modules starts
 		var presets = PresetRun.Selected();

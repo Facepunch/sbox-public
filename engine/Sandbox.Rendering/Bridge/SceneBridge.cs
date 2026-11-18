@@ -73,6 +73,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		public BorealisGpuFrame GpuFrame;
 		public GpuCameraStages GpuStages;
 
+		/// <summary>The camera's upscaler on Borealis.Gpu, made the first time its frame can upscale.</summary>
+		public BorealisGpuUpscaler GpuUpscaler;
+
 		/// <summary>
 		/// What a child view draws into for an 8-bit texture (<see cref="RenderChildOnGpu"/>); a float one draws into
 		/// <see cref="GpuTarget"/>.
@@ -97,6 +100,8 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			System.Dispose();
 			GpuFrame?.Dispose();
 			GpuFrame = null;
+			GpuUpscaler?.Dispose();
+			GpuUpscaler = null;
 			GpuTarget?.Dispose();
 			GpuTarget = null;
 			GpuOutput?.Dispose();
