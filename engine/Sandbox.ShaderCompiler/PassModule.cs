@@ -162,29 +162,65 @@ public sealed partial class PassModule
 	/// the entry point, render states and expansion are asked for each draw's variant, and scanning every line each time cost
 	/// as much as the preprocessing.
 	/// </summary>
-	Preprocessed Preprocess( Dictionary<string, int> all )
+	Preprocessed Preprocess( Dictionary<string, int> all ) => Preprocess( all, KeyOf( all ) );
+
+	static string KeyOf( Dictionary<string, int> all ) => string.Join( ';', all.OrderBy( v => v.Key, StringComparer.Ordinal ).Select( v => $"{v.Key}={v.Value}" ) );
+
+	/// <summary>Whether an entry's includes are as they were, looked at again at most every <see cref="IncludeCheckMs"/>.</summary>
+	static bool Current( Preprocessed known )
 	{
-		var key = string.Join( ';', all.OrderBy( v => v.Key, StringComparer.Ordinal ).Select( v => $"{v.Key}={v.Value}" ) );
-		if ( lines.TryGetValue( key, out var known ) )
+		var now = Environment.TickCount64;
+		if ( now - System.Threading.Volatile.Read( ref known.CheckedAt ) < IncludeCheckMs ) return true;
+		if ( !known.Includes.TrueForAll( i => PassCache.FileHash( i.Path ) == i.Hash ) ) return false;
+		System.Threading.Volatile.Write( ref known.CheckedAt, now );
+		return true;
+	}
+
+	/// <summary>Modules preprocessed for some values, by any module: for tests that check a read was kept.</summary>
+	internal static int Preprocesses;
+
+	Preprocessed Preprocess( Dictionary<string, int> all, string key )
+	{
+		if ( lines.TryGetValue( key, out var known ) && Current( known ) ) return known;
+
+		System.Threading.Interlocked.Increment( ref Preprocesses );
+		var read = new List<(string Path, string Hash)>();
+		List<string> made;
+		using ( SlangCompiler.Zone( CompilePhase.Preprocess ) )
 		{
-			var now = Environment.TickCount64;
-			if ( now - System.Threading.Volatile.Read( ref known.CheckedAt ) < IncludeCheckMs ) return known;
-			if ( known.Includes.TrueForAll( i => PassCache.FileHash( i.Path ) == i.Hash ) )
+			made = PassPreprocessor.ActiveLines( Path, Text, all, ( from, name ) =>
 			{
-				System.Threading.Volatile.Write( ref known.CheckedAt, now );
-				return known;
-			}
+				var found = Include( from, name );
+				if ( found is { } f ) read.Add( (f.Path, PassCache.FileHash( f.Path )) );
+				return found;
+			} );
 		}
 
-		var read = new List<(string Path, string Hash)>();
-		var made = PassPreprocessor.ActiveLines( Path, Text, all, ( from, name ) =>
-		{
-			var found = Include( from, name );
-			if ( found is { } f ) read.Add( (f.Path, PassCache.FileHash( f.Path )) );
-			return found;
-		} );
-
 		return lines[key] = new Preprocessed( made, read );
+	}
+
+	/// <summary>
+	/// Something read from the lines for these values (a stage's entry, the render states, the expansion): from this run's
+	/// preprocessing, else from <see cref="DerivedCacheFolder"/>'s copy while the includes it read are unchanged, else
+	/// preprocessed and kept in both.
+	/// </summary>
+	T Derived<T>( Dictionary<string, int> all, string what, Func<List<string>, T> reading, Func<T, string> encode, Func<string, T> decode )
+	{
+		var key = KeyOf( all );
+		if ( lines.TryGetValue( key, out var known ) && Current( known ) )
+		{
+			// Preprocessed this run for another read: this one is kept too
+			var read = known.Read( what, reading );
+			if ( KeptRead( key, what ) is null ) KeepRead( key, what, encode( read ), known.Includes );
+			return read;
+		}
+
+		if ( KeptRead( key, what ) is { } text ) return decode( text );
+
+		var made = Preprocess( all, key );
+		var value = made.Read( what, reading );
+		KeepRead( key, what, encode( value ), made.Includes );
+		return value;
 	}
 
 	/// <summary>A module's lines for some values, the includes they read, and what's been read from them.</summary>
@@ -214,7 +250,7 @@ public sealed partial class PassModule
 		if ( !Has( stage ) ) return false;
 		var all = ProgramValues( stage );
 		foreach ( var (name, value) in values ) all[name] = value;
-		return Preprocess( all ).Read( $"entry {stage}", lines =>
+		return Derived( all, $"entry {stage}", lines =>
 		{
 			foreach ( var line in lines )
 			{
@@ -224,7 +260,7 @@ public sealed partial class PassModule
 			}
 
 			return false;
-		} );
+		}, has => has ? "1" : "0", text => text == "1" );
 	}
 
 	/// <summary>The combos a stage's code declares: those of its own block and the common code.</summary>
@@ -269,7 +305,7 @@ public sealed partial class PassModule
 		var all = ProgramValues( StageKind.Pixel );
 		foreach ( var (name, value) in values ) all[name] = value;
 
-		return Preprocess( all ).Read<IReadOnlyList<(string, string)>>( "render states", lines =>
+		return Derived<IReadOnlyList<(string, string)>>( all, "render states", lines =>
 		{
 			var states = new List<(string, string)>();
 			foreach ( var line in lines )
@@ -280,7 +316,8 @@ public sealed partial class PassModule
 			}
 
 			return states;
-		} );
+		}, states => string.Join( '\n', states.Select( s => $"{s.Item1}\t{s.Item2}" ) ),
+			text => text.Length == 0 ? [] : text.Split( '\n' ).Select( line => line.Split( '\t' ) ).Select( p => (p[0], p[1]) ).ToList() );
 	}
 
 	/// <summary>
@@ -293,7 +330,7 @@ public sealed partial class PassModule
 		var all = ProgramValues( StageKind.Vertex );
 		foreach ( var (name, value) in values ) all[name] = value;
 
-		return Preprocess( all ).Read<(string, int, string)?>( "expansion", lines =>
+		return Derived<(string, int, string)?>( all, "expansion", lines =>
 		{
 			foreach ( var line in lines )
 			{
@@ -302,7 +339,8 @@ public sealed partial class PassModule
 			}
 
 			return null;
-		} );
+		}, e => e is { } x ? $"{x.Item1}\t{x.Item2.ToString( CultureInfo.InvariantCulture )}\t{x.Item3}" : "",
+			text => text.Split( '\t' ) is [var from, var vertices, var topology] ? (from, int.Parse( vertices, CultureInfo.InvariantCulture ), topology) : null );
 	}
 
 	/// <summary>What every stage's preprocessing starts with: <c>PROGRAM</c> and vfx's program numbers.</summary>

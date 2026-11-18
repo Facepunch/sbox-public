@@ -354,22 +354,27 @@ internal sealed partial class BackendContext
 	{
 		if ( comboKeys.TryGetValue( material.Shader, out var cached ) && cached.Epoch == passEpoch && ReferenceEquals( cached.Layer, layerCombos ) && cached.Key.StartsWith( mode, StringComparison.Ordinal ) && (cached.Key.Length == mode.Length || cached.Key[mode.Length] == ';') ) return cached.Key;
 
-		// Values seen before (another pass, an earlier frame) give the key made then, so it isn't built again
-		if ( ComboBits( material, out var combos, out var specialization ) )
-		{
-			var known = (material.Shader, mode, combos, specialization);
-			if ( !comboKeysByValue.TryGetValue( known, out var key ) )
-			{
-				if ( comboKeysByValue.Count >= 4096 ) comboKeysByValue.Clear();
-				comboKeysByValue[known] = key = BuildComboKey( material, mode );
-			}
-			comboKeys[material.Shader] = (passEpoch, layerCombos, key);
-			return key;
-		}
-
-		var made = BuildComboKey( material, mode );
+		var made = ComboKeyByValue( material, mode );
 		comboKeys[material.Shader] = (passEpoch, layerCombos, made);
 		return made;
+	}
+
+	/// <summary>
+	/// <see cref="ComboKey"/> from the values as they are now: values seen before (another pass, an earlier frame) give the
+	/// key made then, so it isn't built again.
+	/// </summary>
+	string ComboKeyByValue( BackendMaterial material, string mode )
+	{
+		if ( !ComboBits( material, out var combos, out var specialization ) ) return BuildComboKey( material, mode );
+
+		var known = (material.Shader, mode, combos, specialization);
+		if ( !comboKeysByValue.TryGetValue( known, out var key ) )
+		{
+			if ( comboKeysByValue.Count >= 4096 ) comboKeysByValue.Clear();
+			comboKeysByValue[known] = key = BuildComboKey( material, mode );
+		}
+
+		return key;
 	}
 
 	readonly Dictionary<(ShaderFile Shader, string Mode, ulong Combos, ulong Specialization), string> comboKeysByValue = new();

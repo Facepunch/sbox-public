@@ -638,6 +638,13 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		context.Track( handle, layout );
 	}
 
+	/// <summary>
+	/// Stop tracking a borrowed texture's layout and drop its mip views (<see cref="Borrow"/>), as giving its engine texture
+	/// another backing does: it isn't the block's any more, so finishing a block leaves it alone. Its engine texture keeps
+	/// the backing, tracked again when it's next borrowed.
+	/// </summary>
+	internal void ForgetBorrowed( TextureHandle handle ) => context.Forget( handle );
+
 	/// <summary>The layout an engine texture's backing is in, as the recording left it.</summary>
 	internal ImageLayout LayoutOf( Texture texture ) => textures.TryGetValue( texture, out var backing ) ? context.LayoutOf( backing.Handle ) : ImageLayout.Undefined;
 
@@ -1156,9 +1163,25 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	}
 
 	/// <summary>The compiled shader a material draws with (its shader, without material values).</summary>
+	// The "shader" each material names, read again only when its shader may have changed: reading it from native makes a string
+	sealed class ShaderName
+	{
+		public string Path;
+		public int ShaderVersion = -1, SetVersion = -1;
+	}
+
+	readonly ConditionalWeakTable<Material, ShaderName> shaderNames = new();
+
 	ShaderFile ShaderOf( Material material )
 	{
-		var path = material.native.GetString( "shader", "" );
+		var name = shaderNames.GetOrCreateValue( material );
+		if ( name.ShaderVersion != material.ShaderVersion || name.SetVersion != material.SetInCodeVersion )
+		{
+			name.Path = material.native.GetString( "shader", "" );
+			(name.ShaderVersion, name.SetVersion) = (material.ShaderVersion, material.SetInCodeVersion);
+		}
+
+		var path = name.Path;
 		if ( string.IsNullOrEmpty( path ) ) return null;
 		if ( shaders.TryGetValue( path, out var shader ) ) return shader;
 

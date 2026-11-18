@@ -131,12 +131,36 @@ public sealed class CubeCapture : IDisposable
 		ClearMip0( destination );
 		for ( int i = 0; i < 6; i++ )
 		{
-			// A target of its own per face: a face's render system finds its target as its last frame left it
-			var target = targets[i] ??= ViewTarget.Create( new Vector2Int( size, size ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32, $"Cube capture face {i}" );
+			var target = Target( i );
 			renderFace( i, target );
 			CopyFace( i, target, destination );
 		}
 
+		if ( filterQuality is { } quality ) Filter( destination, quality );
+	}
+
+	// A target of its own per face: a face's render system finds its target as its last frame left it
+	ViewTarget Target( int i ) => targets[i] ??= ViewTarget.Create( new Vector2Int( size, size ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32, $"Cube capture face {i}" );
+
+	/// <summary>
+	/// Render face <paramref name="i"/> into its target and leave it there, for a capture spread over frames: its faces go
+	/// into the cube together (<see cref="FinishFaces"/>), so the cube keeps its last capture until the new one is whole.
+	/// Nothing else may capture at this size until it's finished.
+	/// </summary>
+	public void RenderFace( int i, Action<int, ViewTarget> renderFace )
+	{
+		using var zone = Zones.CubeCapture.Start();
+		renderFace( i, Target( i ) );
+	}
+
+	/// <summary>Copy the six faces <see cref="RenderFace"/> rendered into <paramref name="cube"/>, then filter it as <see cref="Render(GpuTexture, Action{int, ViewTarget}, int?)"/> does.</summary>
+	public void FinishFaces( GpuTexture cube, int? filterQuality )
+	{
+		var destination = (BackendTexture)cube;
+		if ( destination.Width != size ) throw new ArgumentException( $"The cube is {destination.Width} wide; this capture makes {size}", nameof( cube ) );
+
+		using var zone = Zones.CubeCapture.Start();
+		for ( int i = 0; i < 6; i++ ) CopyFace( i, Target( i ), destination );
 		if ( filterQuality is { } quality ) Filter( destination, quality );
 	}
 

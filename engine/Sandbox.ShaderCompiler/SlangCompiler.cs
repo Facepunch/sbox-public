@@ -43,6 +43,9 @@ public enum CompilePhase
 
 	/// <summary>Writing a compiled shader to the disk cache.</summary>
 	CacheSave,
+
+	/// <summary>Preprocessing a pass module for some combo values (what a variant's entry, render states and expansion read).</summary>
+	Preprocess,
 }
 
 /// <summary>
