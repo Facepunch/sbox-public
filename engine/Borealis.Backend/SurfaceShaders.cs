@@ -798,10 +798,10 @@ internal sealed class SurfaceProgram : IDisposable
 	}
 
 	/// <summary>
-	/// Whether its vertex stage moves vertices (<c>IVertexSurface</c>, <c>IInterpolatedVertexSurface</c>): when not, its
-	/// positions alone place them.
+	/// Whether its vertex stage moves vertices (<c>IVertexSurface</c>, <c>IInterpolatedVertexSurface</c>) or is its own
+	/// (<c>IVertexStageSurface</c>): when not, its positions alone place them.
 	/// </summary>
-	public bool Displaces => Compiled.Generated is { } generated && (generated.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) || generated.Contains( "SurfaceOutputDisplacedWith", StringComparison.Ordinal ));
+	public bool Displaces => Compiled.Generated is { } generated && (generated.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) || generated.Contains( "SurfaceOutputDisplacedWith", StringComparison.Ordinal ) || generated.Contains( "SurfaceStageVertex", StringComparison.Ordinal ));
 
 	/// <summary>
 	/// A pipeline for a pass drawing vertices laid out as <paramref name="layout"/> into these formats, with a material's

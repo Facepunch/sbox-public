@@ -787,7 +787,9 @@ public class SurfaceTests : GpuTest
 		Assert.AreEqual( ShaderTier.Raw, raw.Tier );
 		CollectionAssert.AreEqual( rock.Material.Fields.Select( f => (f.Kind, f.Offset) ).ToArray(), raw.Material.Fields.Select( f => (f.Kind, f.Offset) ).ToArray() );
 		var lit = compiler.CompileSurface( Path.Combine( Surfaces, "rock_lit.slang" ) );
-		foreach ( var (shader, file) in new[] { (rock, "rock.g.cs"), (raw, "rock_raw.g.cs"), (lit, "rock_lit.g.cs") } )
+		var stage = compiler.CompileSurface( Path.Combine( Surfaces, "rock_stage.slang" ) );
+		var shaded = compiler.CompileSurface( Path.Combine( Surfaces, "rock_shaded.slang" ) );
+		foreach ( var (shader, file) in new[] { (rock, "rock.g.cs"), (raw, "rock_raw.g.cs"), (lit, "rock_lit.g.cs"), (stage, "rock_stage.g.cs"), (shaded, "rock_shaded.g.cs") } )
 		{
 			var expected = MaterialClassWriter.Write( shader, "Sandbox.BorealisLab.Surfaces" ).Replace( "\r\n", "\n" );
 			var actual = File.ReadAllText( Path.Combine( Surfaces, file ) ).Replace( "\r\n", "\n" );
@@ -935,6 +937,110 @@ public class SurfaceTests : GpuTest
 			// A field set from C# rewrites the record: a blue tint is a different picture
 			surface.Tint = new Vector3( 0.2f, 0.3f, 1 );
 			Assert.IsTrue( Mean( reference, Draw( backend, surface ) ) > 2, "Changing Tint didn't change the picture" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// A surface that owns its vertex stage (rock_stage.slang, IVertexStageSurface): its vertex input is its own struct's,
+	/// read in every pass, with the instance transform; its Varyings' float fields get derivatives and its integer ones
+	/// don't; its clip distance is in the depth stage too; it has no skinned or GPU-driven passes, so it draws classic.
+	/// </summary>
+	[TestMethod]
+	public void VertexStageSurfaceOwnsItsPasses()
+	{
+		var stage = Compiler().CompileSurface( Path.Combine( Surfaces, "rock_stage.slang" ) );
+		Assert.IsNull( stage.GpuDrivenError, stage.GpuDrivenError );
+		StringAssert.Contains( stage.Generated, "SurfaceStageVertex<RockStage>" );
+		StringAssert.Contains( stage.Generated, "#define SURFACE_CLIP_DISTANCES 1" );
+		StringAssert.Contains( stage.Generated, "d.Ddx.Uv = ddx( v.Uv );" );
+		Assert.IsFalse( stage.Generated.Contains( "d.Ddx.Instance", StringComparison.Ordinal ), "an integer field got a derivative" );
+
+		foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Forward + "Translucent", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
+		{
+			foreach ( var suffix in new[] { "", ShaderPasses.Lightmapped } )
+			{
+				var pass = stage.Pass( name + suffix );
+				Assert.IsNotNull( pass, name + suffix );
+				var inputs = pass.Vertex.Inputs.Select( i => i.Semantic + i.SemanticIndex ).ToArray();
+				foreach ( var semantic in new[] { "POSITION0", "TEXCOORD13" } ) CollectionAssert.Contains( inputs, semantic, $"{name}{suffix} doesn't read {semantic}" );
+				Assert.IsTrue( WritesClipDistance( pass.Vertex.Spirv ), $"{name}{suffix}'s vertex stage writes no clip distance" );
+			}
+
+			Assert.IsNull( stage.Pass( name + ShaderPasses.Skinned ), $"{name} has a skinned pass" );
+			Assert.IsNull( stage.Pass( name + ShaderPasses.GpuDriven ), $"{name} has a GPU-driven pass" );
+		}
+
+		// The forward vertex stage reads what the surface's vertex input declares, nothing of the engine's VertexInput
+		var forward = stage.Pass( ShaderPasses.Forward ).Vertex.Inputs.Select( i => i.Semantic + i.SemanticIndex ).ToArray();
+		CollectionAssert.AreEquivalent( new[] { "POSITION0", "NORMAL0", "TEXCOORD0", "TANGENT0", "TEXCOORD13" }, forward, string.Join( ", ", forward ) );
+
+		using var backend = new BackendDevice( Device );
+		using var program = new SurfaceProgram( backend, stage );
+		Assert.IsTrue( program.Displaces );
+		Assert.IsNull( program.GpuDrivenPass( false, false, false ) );
+
+		// A shaded surface (rock_shaded.slang, IShadedSurface) is lit by its own Shade
+		var shaded = Compiler().CompileSurface( Path.Combine( Surfaces, "rock_shaded.slang" ) );
+		StringAssert.Contains( shaded.Generated, "SurfaceForwardShaded<RockShaded, false>" );
+		Assert.IsNull( shaded.GpuDrivenError, shaded.GpuDrivenError );
+	}
+
+	/// <summary>Whether SPIR-V declares the ClipDistance capability (OpCapability 32): a stage that writes clip distances.</summary>
+	static bool WritesClipDistance( byte[] spirv )
+	{
+		for ( int i = 20; i + 8 <= spirv.Length; i += 4 )
+		{
+			if ( BitConverter.ToUInt32( spirv, i ) == 0x00020011u && BitConverter.ToUInt32( spirv, i + 4 ) == 32u ) return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// rock.slang written with a vertex stage of its own (rock_stage.slang: the engine's transform, its uv a Varying read with
+	/// its derivatives) and shading itself (rock_shaded.slang: the engine's lighting and fog) draws as rock.slang does; the
+	/// vertex stage's clip distance cuts the box below its middle.
+	/// </summary>
+	[TestMethod]
+	public void VertexStageAndShadedSurfacesDrawAsTheSurfaceDoes()
+	{
+		Compiler();
+		using var backend = new BackendDevice( Device ) { TimeDraws = true };
+		backend.Surfaces.AddFolder( Surfaces );
+		var errors = new List<string>();
+		backend.Surfaces.Error = errors.Add;
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			var color = backend.LoadTexture( "materials/default/rope_color_png_95bee33c.generated.vtex" );
+			var normal = backend.LoadTexture( "materials/default/rope_normal_png_b8960e44.generated.vtex" );
+			var rma = backend.LoadTexture( "materials/default/rope01_vmat_g_trma_bbf6a2a.generated.vtex" );
+			var tint = new Vector3( 1, 0.8f, 0.6f );
+			using var surface = new Rock { Color = color, Normal = normal, Rma = rma, Tint = tint };
+			using var stage = new RockStage { Color = color, Normal = normal, Rma = rma, Tint = tint };
+			using var shaded = new RockShaded { Color = color, Normal = normal, Rma = rma, Tint = tint };
+
+			var reference = Draw( backend, surface );
+			var fromStage = Draw( backend, stage );
+			var fromShaded = Draw( backend, shaded );
+			stage.ClipHeight = 0;
+			var clipped = Draw( backend, stage );
+			Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+			Assert.AreEqual( 0, backend.DrawTimes.Failed.Count, "Draws failed: " + string.Join( ", ", backend.DrawTimes.Failed.Select( f => $"{f.Key} x{f.Value}" ) ) );
+			SaveRgb( reference, "stage-surface" );
+			SaveRgb( fromStage, "stage-stage" );
+			SaveRgb( fromShaded, "stage-shaded" );
+			SaveRgb( clipped, "stage-clipped" );
+			Assert.IsTrue( Lit( reference ) > Width * Height / 4, "The surface drew too little to compare" );
+			Assert.IsTrue( Mean( reference, fromStage ) < 0.5, $"the own vertex stage differs by {Mean( reference, fromStage ):F3}" );
+			Assert.IsTrue( Mean( reference, fromShaded ) < 0.5, $"the shaded surface differs by {Mean( reference, fromShaded ):F3}" );
+			Assert.IsTrue( Mean( reference, clipped ) > 2, $"the clip distance cut nothing: {Mean( reference, clipped ):F3} from the whole box" );
 		}
 		finally
 		{

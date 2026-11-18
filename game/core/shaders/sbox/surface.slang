@@ -419,3 +419,132 @@ public interface IInterpolatedLayeredSurface
 	Material Evaluate( SurfaceInput i, Varyings v );
 	float3 Shade<L : ILayerLighting>( SurfaceInput i, Varyings v, L lighting, out Material m );
 }
+
+/// What the engine hands an author's own vertex stage (IVertexStageSurface.Vertex).
+public struct VertexStageInput
+{
+	public uint VertexId;            // SV_VertexID
+	public uint InstanceId;          // the instance within the draw (SV_InstanceID): 0 for the first, also in instanced draws
+	public float3x4 ObjectToWorld;   // the draw's object transform (its instance's)
+	public float3 Camera;            // the camera's world position
+	public float3 CameraDirection;   // world, the camera's forward
+	public float3 Wind;              // world: the view's wind direction times its strength
+	public float Time;               // the view's time, in seconds
+}
+
+/// What an author's vertex stage returns: where the vertex is, and the engine's interpolants the pixel stage builds
+/// SurfaceInput from. The engine projects Position itself, so every pass places the vertex the same way.
+public struct SurfaceVertex
+{
+	public float3 Position;                       // world
+	public float3 Normal = float3( 0, 0, 1 );     // world: SurfaceInput.Normal, the geometric normal
+	public float3 TangentU = float3( 1, 0, 0 );   // world
+	public float3 TangentV = float3( 0, 1, 0 );   // world
+	public float2 Uv = 0;
+	public float2 Uv2 = 0;
+	public float4 Color = 1;                      // SurfaceInput.Color
+
+	// With [ClipDistances( n )] on the [Material] struct, the first n are clip distances: the rasterizer cuts the triangle
+	// where one is negative, in every pass (holes, the edge of a heightmap), so no pixel shader discards
+	public float4 ClipDistance = 1;
+}
+
+/// A surface's Varyings' screen-space derivatives at the pixel, taken by the engine in uniform control flow, so they hold
+/// inside branches. Raster passes take them in hardware; integer fields read zero.
+public struct Derivatives<V>
+{
+	public V Ddx;
+	public V Ddy;
+}
+
+/// Instead of ISurface: a surface that owns its vertex stage (terrain's heightmap clipmap, water's waves). VertexInput is a
+/// struct of the mesh's streams it reads, each field with its semantic (`float3 Position : POSITION;`, zeros where a mesh
+/// has none). Vertex places the vertex in world space and returns the engine's interpolants; what else the pixel stage
+/// needs goes in Varyings, a struct of the surface's own interpolants (`nointerpolation` allowed), which Evaluate gets
+/// interpolated with their derivatives. Every pass runs Vertex, depth and shadows too, so they agree; a surface reads
+/// render attributes there as module globals (`float3 Origin < Attribute( "Origin" ); >;`). The engine lights the
+/// Material Evaluate returns, as for any surface. Drawn the classic way, never in GPU-driven buckets.
+public interface IVertexStageSurface
+{
+	associatedtype VertexInput;
+	associatedtype Varyings;
+	SurfaceVertex Vertex( VertexInput v, VertexStageInput s, out Varyings varyings );
+	Material Evaluate( SurfaceInput i, Varyings v, Derivatives<Varyings> d );
+}
+
+/// The engine's lighting at the pixel for a material, as the standard shading model (common/shadingmodel.hlsl) computes it.
+public struct SurfaceLight
+{
+	public float3 Diffuse;              // the lights' diffuse light, before the diffuse colour
+	public float3 IndirectDiffuse;      // lightmaps, probes, the ambient
+	public float3 Specular;             // the lights' specular light, with the specular colour
+	public float3 IndirectSpecular;     // the environment's and screen-space reflections, with the specular colour
+	public float3 DiffuseOcclusion;     // of indirect diffuse light: the scene's and the material's, not applied
+	public float3 SpecularOcclusion;    // of indirect specular light, not applied
+	public float DirectDiffuseOcclusion;    // how far DiffuseOcclusion darkens direct diffuse light (0: not at all)
+	public float DirectSpecularOcclusion;   // how far SpecularOcclusion darkens direct specular light
+	public float3 DiffuseColor;         // what the material was lit with: from its albedo and metalness
+	public float3 SpecularColor;
+	public float2 Roughness;            // the material's, raised by the shading normal's curvature
+
+	/// The standard shading model's sum of these with the material's emission, before fog: what an ISurface draws.
+	public float3 Color( Material m )
+	{
+		float3 diffuse = ( Diffuse * lerp( 1, DiffuseOcclusion, DirectDiffuseOcclusion ) + IndirectDiffuse * DiffuseOcclusion ) * DiffuseColor;
+		float3 specular = Specular * lerp( 1, SpecularOcclusion, DirectSpecularOcclusion ) + IndirectSpecular * SpecularOcclusion;
+		return diffuse + m.Emission + specular;
+	}
+}
+
+/// What the engine hands IShadedSurface.Shade: its lighting, reflections, fog, decals and view at the pixel. Everything is
+/// the engine's, as today's shaders call it; a surface combines the parts itself. ILayerLighting's layers are the final
+/// combiner's lighting for one normal and roughness.
+public interface ISurfaceLighting : ILayerLighting
+{
+	/// Every light, the environment and the probes on a material, as the standard shading model lights it.
+	SurfaceLight LightMaterial( Material m );
+
+	/// The same with a specular colour of the surface's own instead of the one from albedo and metalness (water's 2%).
+	SurfaceLight LightMaterialWithSpecular( Material m, float3 specularColor );
+
+	/// The decals over the pixel applied to the material (colour, normal, roughness, emission), as they apply before
+	/// today's shading.
+	Material ApplyDecals( Material m );
+
+	/// Screen-space reflections at the pixel for a material roughness: colour, and how much of the reflection they found.
+	float4 ScreenReflection( float roughness );
+
+	/// The environment (probes, sky) reflected about a normal at a roughness, before any specular colour.
+	float3 Environment( float3 normal, float roughness );
+
+	/// Whether the view fogs (g_bFogEnabled), and its distance and volumetric fog over a colour at the pixel.
+	bool FogEnabled();
+	float3 Fog( float3 color );
+	float3 VolumetricFog( float3 color );
+
+	/// The view's transforms: a world position to clip space, a world direction to clip space (relative to the camera),
+	/// and directions between world and view space.
+	float4 ProjectPosition( float3 position );
+	float4 ProjectDirection( float3 direction );
+	float3 WorldToView( float3 direction );
+	float3 ViewToWorld( float3 direction );
+}
+
+/// Instead of ISurface: a surface that returns its own lit colour. Forward passes call Shade, which lights itself through
+/// the engine's lighting (the material's, its layers, reflections, the environment) and returns the pixel's final colour,
+/// fogged as it chooses (lighting.Fog); the engine adds only the tools' views and wireframe. m is the Material the engine
+/// still reads: opacity for the alpha test, normal and roughness for screen-space reflections. Depth passes call Evaluate.
+public interface IShadedSurface
+{
+	Material Evaluate( SurfaceInput i );
+	float4 Shade<L : ISurfaceLighting>( SurfaceInput i, L lighting, out Material m );
+}
+
+/// An IShadedSurface for a surface that owns its vertex stage: Shade gets its Varyings and their derivatives. A surface
+/// implements both this and IVertexStageSurface (Slang doesn't match a requirement naming an associated type inherited
+/// from a base interface).
+public interface IShadedVertexStageSurface
+{
+	associatedtype Varyings;
+	float4 Shade<L : ISurfaceLighting>( SurfaceInput i, Varyings v, Derivatives<Varyings> d, L lighting, out Material m );
+}
