@@ -400,6 +400,9 @@ internal static class SurfaceParity
 			device.BeginFrame();
 			RenderHost.Current.NextFrame();
 			system.Render( world, view, target );
+
+			// The pictures compared are whole frames of optimised pipelines: none skipped while workers make it, none fast-linked
+			if ( frame == 0 ) WaitForPipelines( device );
 		}
 
 		return ModelParity.ReadBack( device, target, Width, Height );
@@ -495,6 +498,12 @@ internal static class SurfaceParity
 	/// <summary>Frames rendered before the one compared (<c>-frames</c>, default 8: shadows and exposure settle).</summary>
 	static int Frames => Math.Max( Args.Int( "-frames", 8 ), 1 );
 
+	static void WaitForPipelines( BackendDevice device )
+	{
+		device.Gpu.WaitForPendingPipelines( TimeSpan.FromSeconds( 120 ) );
+		device.Gpu.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 120 ) );
+	}
+
 	/// <summary>
 	/// A ground, a sphere and a box with <paramref name="material"/>, under a sun and a point light; their draws flagged
 	/// alpha-tested when asked, as a compiled model's are, so depth passes keep the pixel shader that clips. Without
@@ -527,6 +536,9 @@ internal static class SurfaceParity
 			device.BeginFrame();
 			RenderHost.Current.NextFrame();
 			system.Render( world, view, target );
+
+			// The pictures compared are whole frames of optimised pipelines: none skipped while workers make it, none fast-linked
+			if ( frame == 0 ) WaitForPipelines( device );
 		}
 
 		return ModelParity.ReadBack( device, target, Width, Height );
