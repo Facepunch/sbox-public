@@ -45,11 +45,22 @@ public class ArrayPoolSharedEscapeTest
 		Assert.IsTrue( result.Denied.Any( x => x.Contains( "DefaultInterpolatedStringHandler" ) ), $"Expected a handler access error: {result}" );
 	}
 
-	[TestMethod]
-	public void StringInterpolation_Is_Allowed()
+	[DataTestMethod]
+	[DataRow( "public static class P { public static string M( int x ) => $\"v{x}\"; }" )]
+	[DataRow( "public static class P { public static string M( int x ) => string.Create( System.Globalization.CultureInfo.InvariantCulture, $\"v{x}\" ); }" )]
+	[DataRow( "public static class P { public static string M( int x ) => string.Create( System.Globalization.CultureInfo.InvariantCulture, stackalloc char[16], $\"v{x}\" ); }" )]
+	public void StringInterpolation_Is_Allowed( string source )
 	{
-		var result = Verify( "public static class P { public static string M( int x ) => $\"v{x}\"; }" );
+		var result = Verify( source );
 
 		Assert.AreEqual( 0, result.Denied.Count, $"Control must pass: {result}" );
+	}
+
+	[TestMethod]
+	public void InterpolationHandler_Passed_By_Name_Is_Rejected()
+	{
+		var result = Verify( "using System.Runtime.CompilerServices; public static class P { public static string M() { var h = new DefaultInterpolatedStringHandler( 0, 0 ); return string.Create( null, ref h ); } }" );
+
+		Assert.IsTrue( result.Denied.Any( x => x.Contains( "DefaultInterpolatedStringHandler" ) ), $"Expected a handler access error: {result}" );
 	}
 }
