@@ -89,7 +89,8 @@ internal sealed partial class NetworkObject
 					SetValue = ( v ) => propertyAndAttribute.Property?.SetValue( instance, v ),
 					Typed = NetworkTable.TypedAccess.Create( instance, propertyAndAttribute.Property ),
 					NeedsQuery = isQuery,
-					DebugName = propertyAndAttribute.DebugName
+					DebugName = propertyAndAttribute.DebugName,
+					Owner = instance
 				};
 
 				dataTable.Register( identity, entry );

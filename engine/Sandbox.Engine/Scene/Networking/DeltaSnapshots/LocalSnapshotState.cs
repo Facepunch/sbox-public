@@ -272,13 +272,16 @@ internal class LocalSnapshotState
 	/// Add from a <see cref="SnapshotValueCache"/> cache. Can optionally choose to add the
 	/// parent <see cref="Guid"/> as a salt when hashing the value.
 	/// </summary>
-	public void AddCached<T>( SnapshotValueCache cache, int slot, in T value, HashFlags hashFlags = HashFlags.Default )
+	/// <returns>Whether the value differs from the one last added to this slot.</returns>
+	public bool AddCached<T>( SnapshotValueCache cache, int slot, in T value, HashFlags hashFlags = HashFlags.Default )
 	{
 		var cached = cache.GetCached( slot, value, out var isEqual );
 
-		if ( isEqual && !_isHashInvalid )
-			return;
+		if ( !isEqual || _isHashInvalid )
+		{
+			AddSerialized( slot, cached, hashFlags );
+		}
 
-		AddSerialized( slot, cached, hashFlags );
+		return !isEqual;
 	}
 }

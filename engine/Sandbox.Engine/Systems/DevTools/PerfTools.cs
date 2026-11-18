@@ -12,7 +12,7 @@ namespace Editor.Mcp;
 /// open. Times are milliseconds, memory is MiB.
 /// </summary>
 [McpToolset( "perf", "Performance numbers from the dev tools (devtools): frame times, what limits the frame rate, CPU scopes, GPU passes, memory and GC, rendering counters, network and UI costs" )]
-internal static class PerfTools
+internal static partial class PerfTools
 {
 	/// <summary>
 	/// How long collectors a tool switched on keep running after it returns, so follow-up calls don't wait to warm up.

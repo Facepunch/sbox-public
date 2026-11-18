@@ -11,7 +11,7 @@ sealed partial class NetworkDebugSystem
 	[ConVar( "net_debug_dormancy_max_labels", ConVarFlags.Protected, Help = "Maximum number of network dormancy labels, nearest visible objects first." )]
 	private static int DebugDormancyMaxLabels { get; set; } = 64;
 
-	private enum DormancyState
+	internal enum DormancyState
 	{
 		RemoteUnknown,
 		AwakeGrace,
@@ -88,7 +88,7 @@ sealed partial class NetworkDebugSystem
 		Gizmo.Draw.ScreenText( _probeStatsText, new Vector2( 10, 30 ), flags: TextFlag.LeftTop );
 	}
 
-	private static DormancyState GetDormancyState( NetworkObject obj )
+	internal static DormancyState GetDormancyState( NetworkObject obj )
 	{
 		// A proxy's local flags cannot tell us whether its remote sender is asleep.
 		if ( obj.IsProxy ) return DormancyState.RemoteUnknown;

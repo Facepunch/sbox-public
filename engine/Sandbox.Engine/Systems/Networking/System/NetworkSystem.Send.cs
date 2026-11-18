@@ -25,7 +25,10 @@ internal partial class NetworkSystem
 		}
 	}
 
-	void SendToRecipients( List<Connection> recipients, ByteStream msg, NetFlags flags )
+	/// <summary>
+	/// Send to recipients already collected, so a filter's predicate isn't run again.
+	/// </summary>
+	internal void SendToRecipients( List<Connection> recipients, ByteStream msg, NetFlags flags )
 	{
 		// Encode once so every recipient gets the same wire bytes without re-compressing per connection.
 		var encoded = Connection.EncodePacket( msg );
@@ -150,5 +153,5 @@ internal partial class NetworkSystem
 	}
 
 	/// <inheritdoc cref="GetFilteredConnections"/>
-	internal void CollectConnections( List<Connection> into, Connection.ChannelState minimumState ) => CollectRecipients( into, minimumState, null );
+	internal void CollectConnections( List<Connection> into, Connection.ChannelState minimumState, Connection.Filter? filter = null ) => CollectRecipients( into, minimumState, filter );
 }

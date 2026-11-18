@@ -97,7 +97,7 @@ public static partial class Rpc
 		try
 		{
 			FinishMessage( ref bs, m, args );
-			SendMessage( ref bs, m, attribute, Connection.Host?.Id ?? Guid.Empty );
+			SendMessage( ref bs, m, attribute, Connection.Host?.Id ?? Guid.Empty, null, args );
 		}
 		finally
 		{

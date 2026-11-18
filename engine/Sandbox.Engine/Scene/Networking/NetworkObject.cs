@@ -2,6 +2,8 @@
 using Sandbox.Network;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
+using NetworkLog = Sandbox.Diagnostics.DevTools.NetworkLog;
+using TransformParts = Sandbox.Diagnostics.DevTools.NetworkLog.TransformParts;
 
 namespace Sandbox;
 
@@ -526,6 +528,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 
 		var msg = GetRefreshMessage();
 		system.Broadcast( msg );
+		NetworkDebugSystem.Current?.Track( "OnObjectRefresh", msg, outbound: true );
 	}
 
 	private struct CullState
@@ -726,7 +729,9 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		if ( !_createMessageConnections.Add( target.Id ) )
 			return;
 
-		target.SendMessage( GetCreateMessage() );
+		var msg = GetCreateMessage();
+		target.SendMessage( msg );
+		NetworkDebugSystem.Current?.Track( "OnObjectCreate", msg, outbound: true, target );
 		MarkDirty();
 	}
 
@@ -795,21 +800,27 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		if ( !IsProxy )
 		{
 			var tx = SampleLocal( system.DeltaSnapshots.SendTime );
+			var parts = TransformParts.None;
 
 			if ( (flags & NetworkFlags.NoPositionSync) == 0 )
-				LocalSnapshotState.AddCached( _snapshotCache, SnapshotPositionSlot, tx.Position, LocalSnapshotState.HashFlags.All );
+				parts |= LocalSnapshotState.AddCached( _snapshotCache, SnapshotPositionSlot, tx.Position, LocalSnapshotState.HashFlags.All ) ? TransformParts.Position : TransformParts.None;
 			else
 				LocalSnapshotState.Remove( SnapshotPositionSlot );
 
 			if ( (flags & NetworkFlags.NoRotationSync) == 0 )
-				LocalSnapshotState.AddCached( _snapshotCache, SnapshotRotationSlot, tx.Rotation, LocalSnapshotState.HashFlags.All );
+				parts |= LocalSnapshotState.AddCached( _snapshotCache, SnapshotRotationSlot, tx.Rotation, LocalSnapshotState.HashFlags.All ) ? TransformParts.Rotation : TransformParts.None;
 			else
 				LocalSnapshotState.Remove( SnapshotRotationSlot );
 
 			if ( (flags & NetworkFlags.NoScaleSync) == 0 )
-				LocalSnapshotState.AddCached( _snapshotCache, SnapshotScaleSlot, tx.Scale, LocalSnapshotState.HashFlags.All );
+				parts |= LocalSnapshotState.AddCached( _snapshotCache, SnapshotScaleSlot, tx.Scale, LocalSnapshotState.HashFlags.All ) ? TransformParts.Scale : TransformParts.None;
 			else
 				LocalSnapshotState.Remove( SnapshotScaleSlot );
+
+			if ( parts != TransformParts.None && NetworkLog.LogsTransforms )
+			{
+				NetworkLog.TransformUpdate( GameObject, tx, parts, TransformBytes( LocalSnapshotState.Lookup, parts, static e => e.Value.Length ), outbound: true, peer: null );
+			}
 
 			LocalSnapshotState.AddCached( _snapshotCache, SnapshotInterpolationSlot, _clearInterpolationFlag );
 			LocalSnapshotState.AddCached( _snapshotCache, SnapshotEnabledSlot, GameObject.Enabled );
@@ -822,6 +833,15 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		_clearInterpolationFlag = false;
 
 		return LocalSnapshotState;
+	}
+
+	static int TransformBytes<T>( Dictionary<int, T> slots, TransformParts parts, Func<T, int> size )
+	{
+		var bytes = 0;
+		if ( (parts & TransformParts.Position) != 0 ) bytes += size( slots[SnapshotPositionSlot] );
+		if ( (parts & TransformParts.Rotation) != 0 ) bytes += size( slots[SnapshotRotationSlot] );
+		if ( (parts & TransformParts.Scale) != 0 ) bytes += size( slots[SnapshotScaleSlot] );
+		return bytes;
 	}
 
 	void IDeltaSnapshot.SendNetworkUpdate( bool queryValues )
@@ -1029,30 +1049,35 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		{
 			snapshot.TryGetValue<bool>( SnapshotInterpolationSlot, out var clearInterpolation );
 
-			var didTransformChange = false;
 			var transform = GameObject.Transform.TargetLocal;
+			var parts = TransformParts.None;
 
 			if ( snapshot.TryGetValue<Vector3>( SnapshotPositionSlot, out var position ) )
 			{
-				didTransformChange = true;
 				transform.Position = position;
+				parts |= TransformParts.Position;
 			}
 
 			if ( snapshot.TryGetValue<Rotation>( SnapshotRotationSlot, out var rotation ) )
 			{
-				didTransformChange = true;
 				transform.Rotation = rotation;
+				parts |= TransformParts.Rotation;
 			}
 
 			if ( snapshot.TryGetValue<Vector3>( SnapshotScaleSlot, out var scale ) )
 			{
-				didTransformChange = true;
 				transform.Scale = scale;
+				parts |= TransformParts.Scale;
 			}
 
-			if ( didTransformChange )
+			if ( parts != TransformParts.None )
 			{
 				GameObject.Transform.FromNetwork( transform, clearInterpolation, snapshot.Time );
+
+				if ( NetworkLog.LogsTransforms )
+				{
+					NetworkLog.TransformUpdate( GameObject, transform, parts, TransformBytes( snapshot.Lookup, parts, static e => e.Value.Length ), outbound: false, source );
+				}
 			}
 			else if ( clearInterpolation )
 			{

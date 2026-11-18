@@ -135,7 +135,7 @@ internal sealed class DevToolsTable : Panel
 	/// <see cref="Bar"/> draws a bar filled to that fraction instead of text; <see cref="Indent"/> pushes the text in,
 	/// for a tree.
 	/// </summary>
-	internal readonly record struct Cell( string Text, string Class = null, Color? Swatch = null, float? Bar = null, float Indent = 0 )
+	internal readonly record struct Cell( string Text, string Class = null, Color? Swatch = null, float? Bar = null, float Indent = 0, string Tooltip = null )
 	{
 		public static implicit operator Cell( string text ) => new( text );
 	}
@@ -152,6 +152,7 @@ internal sealed class DevToolsTable : Panel
 	readonly List<string> _dropped = new();
 	readonly List<RowPanel> _order = new();
 	readonly HashSet<string> _seen = new();
+	readonly Dictionary<Panel, int> _index = new();
 	readonly Label _empty;
 
 	sealed class CellPanel : Panel
@@ -265,6 +266,7 @@ internal sealed class DevToolsTable : Panel
 			}
 
 			panel.Text.Text = cell.Text ?? "";
+			panel.Tooltip = cell.Tooltip;
 			if ( panel.Indent != cell.Indent )
 			{
 				panel.Indent = cell.Indent;
@@ -292,6 +294,11 @@ internal sealed class DevToolsTable : Panel
 	}
 
 	/// <summary>
+	/// Returns a row from the current update, or null.
+	/// </summary>
+	public Panel GetRow( string key ) => _rows.TryGetValue( key, out var row ) && _seen.Contains( key ) ? row : null;
+
+	/// <summary>
 	/// Hide the rows that weren't set this time, and put the rest in the order they were set.
 	/// </summary>
 	public void End( string emptyText = null )
@@ -313,7 +320,8 @@ internal sealed class DevToolsTable : Panel
 			_order[i].SetClass( "last", i == _order.Count - 1 );
 
 		// Keep the children in the order the rows were set, so a re-ranked list shows in its new order
-		var index = new Dictionary<Panel, int>( _order.Count );
+		var index = _index;
+		index.Clear();
 		for ( int i = 0; i < _order.Count; i++ ) index[_order[i]] = i;
 
 		var inOrder = true;

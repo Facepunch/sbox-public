@@ -154,7 +154,7 @@ internal static class DevToolsMenus
 	static bool IsOn( string value ) =>
 		!string.IsNullOrEmpty( value ) && value != "0" && !value.Equals( "false", StringComparison.OrdinalIgnoreCase );
 
-	static Popup Menu( Panel source, Popup.PositionMode position )
+	internal static Popup Menu( Panel source, Popup.PositionMode position )
 	{
 		var menu = new Popup( source, position, 0 );
 		menu.AddClass( "devtools-menu" );
@@ -184,7 +184,7 @@ internal static class DevToolsMenus
 	/// <summary>
 	/// An on and off setting: a check while it's on. Flipping one leaves the menu open, so several can be set in a row.
 	/// </summary>
-	static Panel Toggle( Panel menu, string text, Func<bool> isOn, Action flip )
+	internal static Panel Toggle( Panel menu, string text, Func<bool> isOn, Action flip )
 	{
 		var row = menu.AddChild( new Panel( null, "menu-row" ) );
 		var check = row.AddChild( new Label( "", "menu-check" ) );

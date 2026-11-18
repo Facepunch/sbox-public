@@ -527,6 +527,11 @@ public abstract partial class Connection : BytePack.ISerializer
 	ConnectionInfo Info => FindConnectionInfo( Id ) ?? PreInfo;
 
 	/// <summary>
+	/// Whether this connection has player info. A dedicated server doesn't.
+	/// </summary>
+	internal bool HasInfo => Info is not null;
+
+	/// <summary>
 	/// The connection info before connection is added
 	/// </summary>
 	internal ConnectionInfo PreInfo { get; set; }

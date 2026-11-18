@@ -138,7 +138,10 @@ public abstract partial class GameNetworkSystem : IDisposable
 		return NetworkSystem.GetFilteredConnections( minimumState, filter );
 	}
 
-	internal void CollectConnections( List<Connection> into, Connection.ChannelState minimumState ) => NetworkSystem.CollectConnections( into, minimumState );
+	internal void CollectConnections( List<Connection> into, Connection.ChannelState minimumState, Connection.Filter? filter = null ) => NetworkSystem.CollectConnections( into, minimumState, filter );
+
+	/// <inheritdoc cref="NetworkSystem.SendToRecipients"/>
+	internal void SendToRecipients( List<Connection> recipients, ByteStream msg, NetFlags flags ) => NetworkSystem.SendToRecipients( recipients, msg, flags );
 
 	public void BroadcastRaw( ByteStream msg, Connection.Filter? filter = null )
 	{
