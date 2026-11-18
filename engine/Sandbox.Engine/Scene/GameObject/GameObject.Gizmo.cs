@@ -1,4 +1,4 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 namespace Sandbox;
 
 public partial class GameObject
@@ -6,6 +6,7 @@ public partial class GameObject
 	internal class GameObjectHandle
 	{
 		public Texture Texture { get; set; }
+		public string TextureName { get; set; }
 		public string Icon { get; set; }
 
 		/// <summary>Base color from the <see cref="EditorHandleAttribute"/>, used when there's no color provider.</summary>
@@ -29,59 +30,69 @@ public partial class GameObject
 		}
 	}
 
+	static readonly ReflectionCache<Type, EditorHandleAttribute> _handleAttributes = new(
+		t => GlobalContext.Current.TypeLibrary.GetType( t )?.GetAttributes<EditorHandleAttribute>( true ).FirstOrDefault() );
+
 	GameObjectHandle _handle;
+	GameObjectHandle _cachedHandle;
 	bool handleBuilt;
 	int _handleGen = -1;
+	Gizmo.SceneSettings _handleSettings;
+	List<Component> _gizmoComponents;
 
 	[Obsolete( "Use HasGizmoHandle" )]
 	public bool HasGimzoHandle { get => HasGizmoHandle; private set => HasGizmoHandle = value; }
-	public bool HasGizmoHandle { get; private set; }
+	bool _hasGizmoHandle;
+	public bool HasGizmoHandle
+	{
+		get => _hasGizmoHandle && _handleSettings?.GizmosEnabled == true && _handleGen == Gizmo.GizmoTypeGeneration && IsGizmoVisible;
+		private set => _hasGizmoHandle = value;
+	}
 
 	void BuildGizmoDetails()
 	{
 		// Rebuilt only when the component list changes (ClearInternalCache) or a gizmo type is toggled.
-		if ( handleBuilt && _handleGen == Gizmo.GizmoTypeGeneration )
+		if ( handleBuilt && _handleGen == Gizmo.GizmoTypeGeneration && ReferenceEquals( _handleSettings, Gizmo.Settings ) )
 			return;
 
 		handleBuilt = true;
 		_handleGen = Gizmo.GizmoTypeGeneration;
+		_handleSettings = Gizmo.Settings;
+		_gizmoComponents?.Clear();
 		_handle = null;
 
 		EditorHandleAttribute handles = null;
 
-		foreach ( var c in Components.GetAll() )
+		for ( var i = 0; i < Components.Count; ++i )
 		{
+			var c = Components[i];
 			if ( c is null )
 				continue;
 
-			var typeDesc = GlobalContext.Current.TypeLibrary.GetType( c.GetType() );
-			if ( typeDesc is null )
-				continue;
+			if ( !Gizmo.Settings.IsGizmoEnabled( c.GetType() ) ) continue;
+			if ( c.OverridesDrawGizmos ) (_gizmoComponents ??= new()).Add( c );
+			if ( handles is not null ) continue;
 
-			if ( !Gizmo.Settings.IsGizmoEnabled( typeDesc.TargetType ) )
-				continue;
-
-			foreach ( var attr in typeDesc.GetAttributes<EditorHandleAttribute>( true ) )
-			{
-				handles = attr;
-				break;
-			}
-
-			if ( handles is not null )
-				break;
+			handles = _handleAttributes[c.GetType()];
 		}
 
 		if ( handles is null )
+		{
+			if ( _cachedHandle is not null ) _cachedHandle.ColorProvider = null;
 			return;
+		}
 
-		_handle = new GameObjectHandle();
+		_handle = _cachedHandle ??= new GameObjectHandle();
 		_handle.Icon = handles.Icon;
 		_handle.Color = handles.Color;
-		_handle.ColorProvider = Components.GetAll<Component.IColorProvider>().FirstOrDefault();
+		_handle.ColorProvider = null;
+		for ( var i = 0; i < Components.Count; ++i )
+			if ( Components[i] is Component.IColorProvider provider ) { _handle.ColorProvider = provider; break; }
 
-		if ( !string.IsNullOrWhiteSpace( handles.Texture ) )
+		if ( _handle.TextureName != handles.Texture )
 		{
-			_handle.Texture = Texture.Load( handles.Texture );
+			_handle.TextureName = handles.Texture;
+			_handle.Texture = string.IsNullOrWhiteSpace( handles.Texture ) ? null : Texture.Load( handles.Texture );
 		}
 	}
 
@@ -108,7 +119,7 @@ public partial class GameObject
 		bool selected = Gizmo.IsSelected;
 		bool worldSpace = Gizmo.Settings.WorldSpaceGizmos;
 
-		using ( Gizmo.Scope( "Handle" ) )
+		using ( Gizmo.PushScope( "Handle" ) )
 		{
 			Gizmo.Transform = Gizmo.Transform.WithScale( 1.0f );
 
@@ -160,9 +171,29 @@ public partial class GameObject
 		HasGizmoHandle = true;
 	}
 
-	internal void DrawGizmos()
+	internal void DrawGizmos() => DrawGizmos( false );
+
+	void DrawGizmos( bool active )
 	{
-		if ( !Active ) return;
+		if ( !active && !Active ) return;
+		if ( !Gizmo.Settings.GizmosEnabled )
+		{
+			// Scene-mesh selection is reported directly by the viewport; it needs no scene traversal.
+			if ( this is Scene && Gizmo.Active.current.HoveredObject is GameObject target
+				&& target.Scene == this && target.IsGizmoVisible
+				&& (Gizmo.HasClicked || Gizmo.Pressed.Any) )
+			{
+				using var scope = Gizmo.PushObjectScope( target, target.WorldTransform );
+				target.ProcessGizmoSelection( Gizmo.WasClicked );
+			}
+			return;
+		}
+
+		BuildGizmoDetails();
+		HasGizmoHandle = false;
+		if ( Children.Count == 0 && _handle is null && !HasActiveGizmoComponents() && !Flags.Contains( GameObjectFlags.Bone )
+			&& !ReferenceEquals( Gizmo.Active.current.HoveredObject, this ) ) return;
+
 		var parentTx = Gizmo.Transform;
 
 		var tx = LocalTransform;
@@ -173,60 +204,74 @@ public partial class GameObject
 			tx = parentTx.ToLocal( tx );
 		}
 
-		using ( Gizmo.ObjectScope( this, tx ) )
+		using ( Gizmo.PushObjectScope( this, tx ) )
 		{
+			Gizmo.Active.scope.IsSceneGizmo = true;
+			Gizmo.Active.scope.Component = null;
 			bool clicked = Gizmo.WasClicked;
 
 			if ( Gizmo.Settings.GizmosEnabled )
 			{
 				DrawGizmoHandle( ref clicked );
 
-				// Plain loop rather than Components.ForEach, a lambda capturing clicked allocates per object per frame
-				for ( int i = Components.Count - 1; i >= 0 && i < Components.Count; i-- )
-				{
-					var c = Components[i];
-					if ( c is null || !c.Active )
-						continue;
-
-					if ( !c.OverridesDrawGizmos || c.Flags.Contains( ComponentFlags.Hidden ) || !Gizmo.Settings.IsGizmoEnabled( c.GetType() ) )
-						continue;
-
-					try
+				if ( _gizmoComponents is not null )
+					for ( var i = _gizmoComponents.Count - 1; i >= 0 && i < _gizmoComponents.Count; --i )
 					{
-						using var scope = Gizmo.Scope();
-						c.DrawGizmosInternal();
-						clicked = clicked || Gizmo.WasClicked;
+						var c = _gizmoComponents[i];
+						if ( !c.IsValid() || !c.Active || c.Flags.Contains( ComponentFlags.Hidden ) ) continue;
+						try
+						{
+							using var scope = Gizmo.PushScope();
+							Gizmo.Active.scope.Component = c;
+							c.DrawGizmosInternal();
+							clicked |= Gizmo.WasClicked;
+						}
+						catch ( System.Exception e )
+						{
+							Log.Warning( e, $"Exception when calling DrawGizmos on {c}: {e.Message}" );
+						}
 					}
-					catch ( System.Exception e )
-					{
-						Log.Warning( e, $"Exception when calling DrawGizmos on {c}: {e.Message}" );
-					}
-				}
 			}
 
-			if ( clicked )
-			{
-				GizmoSelect();
-			}
+			ProcessGizmoSelection( clicked );
 
-			//
-			// If we pressed on this, but then moved the mouse a lot, clear the pressed state
-			//
-			if ( Gizmo.Pressed.This && Gizmo.CursorDragDelta.Length > 10 )
+			for ( var i = Children.Count - 1; i >= 0; --i )
 			{
-				Gizmo.Pressed.ClearPath();
+				if ( i >= Children.Count ) continue;
+				var child = Children[i];
+				if ( child is null ) { Children.RemoveAt( i ); continue; }
+				if ( !child.Active || child.Flags.Contains( GameObjectFlags.Hidden ) || child.Tags.Has( "hidden" ) ) continue;
+				try { child.DrawGizmos( true ); }
+				catch ( System.Exception e ) { Log.Warning( e, $"Exception when calling DrawGizmos on {child}" ); }
 			}
-
-			ForEachChild( "DrawGizmos", false, c =>
-			{
-				if ( !c.Flags.Contains( GameObjectFlags.Hidden ) && !c.Tags.Has( "hidden" ) )
-				{
-					c.DrawGizmos();
-				}
-			} );
 
 			DrawBoneGizmo();
 		}
+	}
+
+	internal bool IsGizmoVisible
+	{
+		get
+		{
+			if ( !Active ) return false;
+			for ( var go = this; go is not null; go = go.Parent )
+				if ( go.Flags.Contains( GameObjectFlags.Hidden ) || go.Tags.Has( "hidden" ) ) return false;
+			return true;
+		}
+	}
+
+	bool HasActiveGizmoComponents()
+	{
+		if ( _gizmoComponents is null ) return false;
+		foreach ( var c in _gizmoComponents )
+			if ( c.IsValid() && c.Active && !c.Flags.Contains( ComponentFlags.Hidden ) ) return true;
+		return false;
+	}
+
+	void ProcessGizmoSelection( bool clicked )
+	{
+		if ( clicked ) GizmoSelect();
+		if ( Gizmo.Pressed.This && Gizmo.CursorDragDelta.Length > 10 ) Gizmo.Pressed.ClearPath();
 	}
 
 	void DrawBoneGizmo()
@@ -254,7 +299,7 @@ public partial class GameObject
 		if ( width.AlmostEqual( 0.0f ) )
 			return;
 
-		using ( Gizmo.Scope( "Bone" ) )
+		using ( Gizmo.PushScope( "Bone" ) )
 		{
 			Gizmo.Hitbox.DepthBias *= 0.2f;
 			Gizmo.Draw.IgnoreDepth = true;
@@ -314,7 +359,7 @@ public partial class GameObject
 			}
 		}
 
-		using ( Gizmo.ObjectScope( this, LocalTransform ) )
+		using ( Gizmo.PushObjectScope( this, LocalTransform ) )
 		{
 			using ( Scene.Editor?.UndoScope( $"Select {Name}" ).Push() )
 			{

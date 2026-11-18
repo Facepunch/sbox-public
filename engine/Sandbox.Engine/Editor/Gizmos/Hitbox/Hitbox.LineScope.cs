@@ -1,4 +1,4 @@
-﻿using Sandbox.Utility;
+using Sandbox.Utility;
 
 namespace Sandbox;
 
@@ -10,28 +10,33 @@ public static partial class Gizmo
 		public string LinePath { get; set; }
 	}
 
+	/// <summary>Restores line picking state without boxing the saved state.</summary>
+	internal readonly struct LineScopeHandle : IDisposable
+	{
+		readonly Instance _owner;
+		readonly HitboxLineScope _state;
+
+		internal LineScopeHandle( Instance owner )
+		{
+			_owner = owner;
+			_state = owner.lineScope;
+			owner.lineScope = new() { Enabled = true, LinePath = owner.scope.Path };
+		}
+
+		public void Dispose()
+		{
+			if ( _owner is not null ) _owner.lineScope = _state;
+		}
+	}
+
 	public sealed partial class GizmoHitbox
 	{
 		/// <summary>
 		/// Start a line scope. Any drawn lines should become a hitbox during this scope.
 		/// </summary>
-		public IDisposable LineScope()
-		{
-			var old = Active.lineScope;
+		public IDisposable LineScope() => ScopeLease<LineScopeHandle>.Rent( PushLineScope() );
 
-			Active.lineScope.Enabled = true;
-			Active.lineScope.LinePath = Path;
-
-			unsafe
-			{
-				static void RestoreLineScope( HitboxLineScope old )
-				{
-					Active.lineScope = old;
-				}
-
-				return new DisposeAction<HitboxLineScope>( &RestoreLineScope, old );
-			}
-		}
+		internal LineScopeHandle PushLineScope() => new( Active );
 
 
 

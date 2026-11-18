@@ -235,7 +235,7 @@ public sealed partial class ClutterComponent
 		if ( !Gizmo.IsSelected )
 			return;
 
-		using ( Gizmo.Scope( "volume" ) )
+		using ( Gizmo.PushScope( "volume" ) )
 		{
 			Gizmo.Draw.Color = Color.Green.WithAlpha( 0.3f );
 			if ( Gizmo.Control.UpdateBoundingBox( "bounds", Bounds, out var newBounds ) )

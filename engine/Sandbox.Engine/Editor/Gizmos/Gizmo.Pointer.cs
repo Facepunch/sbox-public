@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace Sandbox;
 
 public static partial class Gizmo
@@ -126,6 +128,7 @@ public static partial class Gizmo
 			else if ( pressOwner == this && !MouseReleased )
 			{
 				current.HoveredPath = current.PressedPath;
+				current.HoveredObject = pressed.HoveredObject;
 			}
 		}
 
@@ -138,12 +141,66 @@ public static partial class Gizmo
 			pressed = default;
 		}
 
+		readonly record struct PickView( SceneCamera Camera, Vector3 Position, Rotation Rotation, Vector2 Size,
+			Rect Rect, float FieldOfView, float OrthoHeight, bool Ortho, float Near, float Far, Matrix? Projection );
+		readonly List<bool> _pickVisibility = new();
+		PickView _pickView;
+		Ray _pickRay;
+		int _hitRevision;
+		int _pickRevision = -1;
+		int _pickSettingsGeneration;
+		bool _pickGizmosEnabled;
+		bool _containsModelHits;
+		Frame _pickResult;
+		internal int PickTraceCount { get; private set; }
+
+		void UpdateHitRevision()
+		{
+			if ( !CollectionsMarshal.AsSpan( hitShapes ).SequenceEqual( CollectionsMarshal.AsSpan( displayedHitShapes ) ) ) _hitRevision++;
+		}
+
+		bool CanPick( in HitShape shape )
+		{
+			if ( !shape.CanInteract ) return false;
+			if ( !shape.IsSceneGizmo ) return true;
+			return Settings.GizmosEnabled && (shape.Object is not GameObject go || go.IsGizmoVisible)
+				&& (shape.Component is not { } c || c.IsValid() && c.Active && !c.Flags.Contains( ComponentFlags.Hidden ) && Settings.IsGizmoEnabled( c.GetType() ));
+		}
+
+		bool CanReusePick( in PickView view )
+		{
+			// Model resources can change their mesh without replacing the managed Model object.
+			if ( _containsModelHits || _pickRevision != _hitRevision || _pickView != view || _pickRay != CurrentRay
+				|| _pickSettingsGeneration != GizmoTypeGeneration || _pickGizmosEnabled != Settings.GizmosEnabled
+				|| _pickVisibility.Count != displayedHitShapes.Count ) return false;
+			for ( var i = 0; i < displayedHitShapes.Count; ++i )
+				if ( _pickVisibility[i] != CanPick( displayedHitShapes[i] ) ) return false;
+			return true;
+		}
+
 		void Pick()
 		{
 			current.HoveredPath = null;
+			current.HoveredObject = null;
 			current.HitDistance = float.MaxValue;
-			if ( !current.Input.IsHovered || current.Input.Camera is null ) return;
+			if ( !current.Input.IsHovered || current.Input.Camera is not { } camera )
+			{
+				_pickResult = default;
+				_pickRevision = -1;
+				return;
+			}
+			var view = new PickView( camera, camera.Position, camera.Rotation, camera.Size, camera.Rect,
+				camera.FieldOfView, camera.OrthoHeight, camera.Ortho, camera.ZNear, camera.ZFar, camera.CustomProjectionMatrix );
+			if ( CanReusePick( view ) )
+			{
+				current.HoveredPath = _pickResult.HoveredPath;
+				current.HoveredObject = _pickResult.HoveredObject;
+				current.HitDistance = _pickResult.HitDistance;
+				return;
+			}
 
+			_pickVisibility.Clear();
+			_containsModelHits = false;
 			using var savedScope = BlankScope();
 			var oldLineScope = lineScope;
 			var debug = Hitbox.Debug;
@@ -153,15 +210,26 @@ public static partial class Gizmo
 			{
 				foreach ( var shape in displayedHitShapes )
 				{
-					if ( !shape.CanInteract ) continue;
+					var visible = CanPick( shape );
+					_pickVisibility.Add( visible );
+					_containsModelHits |= shape.Type == HitShapeType.Model;
+					if ( !visible ) continue;
 					scope.Transform = shape.Transform;
 					scope.Path = shape.Path;
+					scope.Object = shape.Object;
 					scope.HitDepthBias = shape.DepthBias;
 					scope.CanInteract = true;
 					lineScope.Enabled = shape.Type == HitShapeType.Line;
 					lineScope.LinePath = shape.Path;
 					shape.Trace();
+					PickTraceCount++;
 				}
+				_pickResult = current;
+				_pickView = view;
+				_pickRay = CurrentRay;
+				_pickRevision = _hitRevision;
+				_pickSettingsGeneration = GizmoTypeGeneration;
+				_pickGizmosEnabled = Settings.GizmosEnabled;
 			}
 			finally
 			{

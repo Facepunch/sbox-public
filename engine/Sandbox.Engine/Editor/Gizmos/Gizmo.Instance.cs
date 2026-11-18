@@ -1,4 +1,4 @@
-﻿using Sandbox.Hashing;
+using Sandbox.Hashing;
 using Sandbox.Utility;
 using System.Runtime.InteropServices;
 
@@ -88,6 +88,8 @@ public static partial class Gizmo
 		/// active scope.
 		/// </summary>
 		internal ScopeState scope;
+		internal GizmoDraw _renderer;
+		internal GizmoDraw Renderer => _renderer ??= new();
 
 		/// <summary>
 		/// Holds the current hitbox line scope status
@@ -95,14 +97,14 @@ public static partial class Gizmo
 		internal HitboxLineScope lineScope;
 
 		/// <summary>
-		/// The current control mode. This is generally implementation specific. 
+		/// The current control mode. This is generally implementation specific.
 		/// We tend to use "mouse" and "firstperson".
 		/// </summary>
 		public string ControlMode { get; set; }
 
 		/// <summary>
 		/// Some global settings accessible to the gizmos. Your implementation
-		/// generally lets your users set up  these things to their preference, 
+		/// generally lets your users set up  these things to their preference,
 		/// and the gizmos should try to obey them.
 		/// </summary>
 		public Gizmo.SceneSettings Settings { get; set; } = new SceneSettings();
@@ -110,7 +112,7 @@ public static partial class Gizmo
 		Dictionary<string, object> storage { get; } = new Dictionary<string, object>( StringComparer.OrdinalIgnoreCase );
 
 		/// <summary>
-		/// Generic storage for whatever you want to do. 
+		/// Generic storage for whatever you want to do.
 		/// You're responsible for not spamming into this and cleaning up after yourself.
 		/// </summary>
 		public T GetValue<T>( string name )
@@ -122,7 +124,7 @@ public static partial class Gizmo
 		}
 
 		/// <summary>
-		/// Generic storage for whatever you want to do. 
+		/// Generic storage for whatever you want to do.
 		/// You're responsible for not spamming into this and cleaning up after yourself.
 		/// </summary>
 		public void SetValue<T>( string name, T value )
@@ -137,9 +139,14 @@ public static partial class Gizmo
 		public void Clear()
 		{
 			storage.Clear();
+			_paths.Clear();
 			hitShapes.Clear();
 			displayedHitShapes.Clear();
 			pointerEvents.Clear();
+			_pickRevision = -1;
+			_pickVisibility.Clear();
+			_pickResult = default;
+			_pickView = default;
 			ClearPress();
 		}
 
@@ -165,6 +172,8 @@ public static partial class Gizmo
 		public void Dispose()
 		{
 			Clear();
+			_renderer?.Clear();
+			_renderer = null;
 			_world?.Delete();
 			_world = null;
 			Pool?.Clear();
@@ -175,10 +184,10 @@ public static partial class Gizmo
 		/// Push this instance as the global Gizmo state. All Gizmo calls during this scope
 		/// will use this instance.
 		/// </summary>
-		public IDisposable Push() => PushScope();
+		public IDisposable Push() => ScopeLease<DisposeAction<Instance, Instance>>.Rent( PushScope() );
 
 		/// <summary>
-		/// Allocation-free version of <see cref="Push"/>.
+		/// Internal instance scope used by engine call sites.
 		/// </summary>
 		internal DisposeAction<Instance, Instance> PushScope()
 		{
@@ -212,6 +221,7 @@ public static partial class Gizmo
 			Pool = Entries;
 			Entries = p;
 			Entries.Clear();
+			_pathFrame++;
 
 			previous = current;
 			current.Input = Input;
@@ -256,7 +266,9 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 		/// </summary>
 		void End()
 		{
-			if ( pressOwner == this && (MouseReleased || (captureHasShape && !hitShapes.Any( x => x.Path == current.PressedPath ))) )
+			_renderer?.EndFrame();
+			UpdateHitRevision();
+			if ( pressOwner == this && (MouseReleased || (captureHasShape && !HasCapturedShape())) )
 				ClearPress();
 			foreach ( var entry in Pool )
 			{
@@ -268,20 +280,32 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 			}
 
 			Pool.Clear();
+			PrunePaths();
 
 			// don't force the world to exist just to flush deletes
 			_world?.DeletePendingObjects();
+		}
+
+		bool HasCapturedShape()
+		{
+			foreach ( var shape in hitShapes )
+				if ( shape.Path == current.PressedPath ) return true;
+			return false;
 		}
 
 		/// <summary>
 		/// Find a cached version of this sceneobject - if not found, create one
 		/// </summary>
 		internal T FindOrCreate<T>( string key, Func<T> value ) where T : SceneObject
+			=> FindOrCreate( key, value, static ( _, factory ) => factory() );
+
+		internal T FindOrCreate<T, TState>( string key, TState state, Func<SceneWorld, TState, T> factory, bool flushGeometry = true ) where T : SceneObject
 		{
+			if ( flushGeometry ) _renderer?.Flush();
 			Active.scope.Create++;
 
 			var objectKey = new GizmoObjectKey(
-				HashString( Sandbox.Gizmo.Path ),
+				scope.PathHash,
 				Active.scope.Create,
 				HashString( key ),
 				typeof( T ) );
@@ -293,17 +317,14 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 			// Do we have this in our pool (created last frame)
 			// If so, we can re-use it.
 			//
-			if ( Pool.TryGetValue( objectKey, out var obj ) )
-			{
-				Pool.Remove( objectKey );
-			}
+			Pool.Remove( objectKey, out var obj );
 
 			//
 			// If not then create a new one
 			//
 			if ( obj == null )
 			{
-				obj = value();
+				obj = factory( World, state );
 				ObjectsCreated++;
 			}
 

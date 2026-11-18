@@ -1,4 +1,4 @@
-﻿
+
 using System.ComponentModel;
 
 namespace Sandbox;
@@ -70,6 +70,7 @@ public static partial class Gizmo
 			}
 
 			Active.current.HoveredPath = path;
+			Active.current.HoveredObject = Object;
 			Active.current.HitDistance = distance;
 			if ( !Active.IsPicking ) Active.UpdateCapture( reportedHit: true );
 		}
@@ -90,7 +91,7 @@ public static partial class Gizmo
 			var recorded = Record( new( HitShapeType.Sphere, sphere.Center, Size: sphere.Radius ) );
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 				Sandbox.Gizmo.Draw.LineThickness = 1;
 				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Selected.WithAlpha( 0.33f );
 				Sandbox.Gizmo.Draw.LineSphere( sphere );
@@ -112,7 +113,7 @@ public static partial class Gizmo
 
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 				Sandbox.Gizmo.Draw.LineThickness = 1;
 				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Selected.WithAlpha( 0.8f );
 				Sandbox.Gizmo.Draw.LineSphere( sphere );
@@ -127,7 +128,7 @@ public static partial class Gizmo
 			var recorded = Record( new( HitShapeType.Box, bounds.Mins, bounds.Maxs ) );
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 				Sandbox.Gizmo.Draw.LineThickness = 2;
 				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Selected.WithAlpha( 0.33f );
 				Sandbox.Gizmo.Draw.LineBBox( bounds );
@@ -145,7 +146,7 @@ public static partial class Gizmo
 
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 
 				Sandbox.Gizmo.Draw.LineThickness = 2;
 				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Selected.WithAlpha( 0.8f );
@@ -185,7 +186,7 @@ public static partial class Gizmo
 
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 				Sandbox.Gizmo.Draw.LineThickness = 2;
 				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Selected.WithAlpha( 0.33f );
 				Sandbox.Gizmo.Draw.LineBBox( modelBounds );
@@ -206,7 +207,7 @@ public static partial class Gizmo
 
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 
 				Sandbox.Gizmo.Draw.LineThickness = 2;
 				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Selected.WithAlpha( 0.8f );
@@ -244,7 +245,7 @@ public static partial class Gizmo
 
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 
 				Draw.Color = Colors.Selected.WithAlpha( hit ? 0.8f : 0.33f );
 				Draw.Sprite( center, size, Texture.White, false );

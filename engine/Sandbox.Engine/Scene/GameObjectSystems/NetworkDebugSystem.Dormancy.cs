@@ -110,7 +110,7 @@ sealed partial class NetworkDebugSystem
 		var tracking = _dormancyTracking ??= new();
 		var frame = ++tracking.Frame;
 		var now = RealTime.NowDouble;
-		using var scope = Gizmo.Scope();
+		using var scope = Gizmo.PushScope();
 		DrawProbeStats();
 		var camera = Gizmo.Camera;
 		var distance = MathF.Max( 0f, DebugDormancyDistance );
@@ -188,7 +188,7 @@ sealed partial class NetworkDebugSystem
 		};
 		var message = $"{label.Object.GameObject.Name}\n{text} | observed {now - observation.StateSince:0.0}s";
 
-		using ( Gizmo.ObjectScope( label.Object, new Transform( label.Position ) ) )
+		using ( Gizmo.PushObjectScope( label.Object, new Transform( label.Position ) ) )
 		{
 			Gizmo.Draw.Color = color;
 			Gizmo.Draw.Text( message, Transform.Zero, size: 12f );

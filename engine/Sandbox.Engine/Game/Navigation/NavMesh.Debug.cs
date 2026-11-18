@@ -72,9 +72,9 @@ public sealed partial class NavMesh
 
 	private void DebugFlushGeoemtry()
 	{
-		using ( Gizmo.Scope( "Navmesh" ) )
+		using ( Gizmo.PushScope( "Navmesh" ) )
 		{
-			using ( Gizmo.Scope( "Triangles" ) )
+			using ( Gizmo.PushScope( "Triangles" ) )
 			{
 				foreach ( var (color, triangles) in debugTriangles )
 				{
@@ -83,7 +83,7 @@ public sealed partial class NavMesh
 				}
 			}
 
-			using ( Gizmo.Scope( "Lines" ) )
+			using ( Gizmo.PushScope( "Lines" ) )
 			{
 				Gizmo.Draw.LineThickness = 1f;
 				Gizmo.Draw.Color = debugInnerLineColor;

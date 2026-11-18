@@ -20,8 +20,8 @@ public static partial class Gizmo
 
 			var localRotation = Transform.Rotation;
 			var localScale = Transform.UniformScale;
-			using var scope = Scope( name, Vector3.Zero, axisRotation ?? Rotation.Identity );
-			using var scaler = PushFixedScale();
+			using var scope = PushScope( name, Vector3.Zero, axisRotation ?? Rotation.Identity );
+			using var scaler = PushFixedScaleScope();
 			if ( Settings.GlobalSpace && axisRotation is null )
 				Transform = Transform.WithRotation( Rotation.Identity );
 
@@ -32,7 +32,7 @@ public static partial class Gizmo
 
 			if ( squareSize > 0 )
 			{
-				using var squares = Scope( "squares" );
+				using var squares = PushScope( "squares" );
 				var offset = squareSize * 3;
 				if ( centerRaycast is not null )
 				{
@@ -43,17 +43,17 @@ public static partial class Gizmo
 					movement += delta;
 				}
 
-				using ( Scope() )
+				using ( PushScope() )
 				{
 					Transform = Transform.ToWorld( new Transform( (Vector3.Up + Vector3.Left) * offset ) );
 					if ( UpdateDragSquare( "left-up", Rotation.LookAt( Vector3.Backward, Vector3.Up ), out var delta ) ) movement += delta;
 				}
-				using ( Scope() )
+				using ( PushScope() )
 				{
 					Transform = Transform.ToWorld( new Transform( (Vector3.Forward + Vector3.Left) * offset ) );
 					if ( UpdateDragSquare( "forward-left", Rotation.LookAt( Vector3.Up, Vector3.Forward ), out var delta ) ) movement += delta;
 				}
-				using ( Scope() )
+				using ( PushScope() )
 				{
 					Transform = Transform.ToWorld( new Transform( (Vector3.Forward + Vector3.Up) * offset ) );
 					if ( UpdateDragSquare( "forward-up", Rotation.LookAt( Vector3.Left, Vector3.Down ), out var delta ) ) movement += delta;
@@ -71,7 +71,7 @@ public static partial class Gizmo
 		{
 			distance = 0;
 			if ( !IsAxisVisible( axis, cullAngle ) ) return false;
-			using var scope = Scope( name, axis * axisOffset, Rotation.LookAt( axis, Vector3.Up ) );
+			using var scope = PushScope( name, axis * axisOffset, Rotation.LookAt( axis, Vector3.Up ) );
 			if ( !Pressed.This ) return false;
 			Transform = Transform.WithRotation( Rotation.LookAt( Transform.Rotation.Forward, Camera.Rotation.Forward ) );
 			distance = Vector3.Forward.Dot( GetMouseDelta( Vector3.Zero, Vector3.Up ) );
@@ -87,7 +87,7 @@ public static partial class Gizmo
 		public bool UpdateDragCenterRaycast( string name, Func<Vector3?> raycast, out Vector3 movement )
 		{
 			movement = default;
-			using var scope = Scope( name );
+			using var scope = PushScope( name );
 			if ( !Pressed.This || raycast() is not Vector3 hit ) return false;
 			movement = (hit - Transform.Position) * Transform.Rotation.Inverse;
 			return true;
@@ -96,7 +96,7 @@ public static partial class Gizmo
 		public bool UpdateDragBox( string name, Rotation rotation, out Vector3 movement )
 		{
 			movement = default;
-			using var scope = Scope( name, new Transform( 0, rotation ) );
+			using var scope = PushScope( name, new Transform( 0, rotation ) );
 			if ( !Pressed.This ) return false;
 			var cameraRotation = Transform.RotationToLocal( Camera.Rotation );
 			movement = (cameraRotation.Right + cameraRotation.Up).Dot( GetMouseDelta( 0, cameraRotation.Forward ) );
@@ -106,13 +106,15 @@ public static partial class Gizmo
 		public bool UpdateDragSquare( string name, Rotation rotation, out Vector3 movement )
 		{
 			movement = default;
-			using var scope = Scope( name, new Transform( 0, rotation ) );
+			using var scope = PushScope( name, new Transform( 0, rotation ) );
 			if ( !Pressed.This ) return false;
 			movement = GetMouseDelta( 0, Vector3.Forward ) * rotation;
 			return movement != Vector3.Zero;
 		}
 
-		public static IDisposable PushFixedScale( float? scale = null )
+		public static IDisposable PushFixedScale( float? scale = null ) => ScopeLease<ScopeHandle>.Rent( PushFixedScaleScope( scale ) );
+
+		internal static ScopeHandle PushFixedScaleScope( float? scale = null )
 		{
 			scale ??= Settings.GizmoScale;
 			if ( Camera.Ortho )
@@ -128,7 +130,7 @@ public static partial class Gizmo
 				scale *= Camera.Position.Distance( Transform.Position ) * Camera.FieldOfView.DegreeToRadian() * 0.006f;
 			}
 
-			var scope = Scope( "WorldScale" );
+			var scope = PushScope( "WorldScale" );
 			Transform = Transform.WithScale( scale.Value );
 			return scope;
 		}

@@ -1,4 +1,4 @@
-﻿namespace Sandbox.Mapping;
+namespace Sandbox.Mapping;
 
 [EditorHandle( Icon = "door_back" )]
 [Category( "Mapping" ), Icon( "door_back" )]
@@ -220,7 +220,7 @@ public sealed class Door : Component, Component.IPressable
 
 		var pivotPos = Pivot is not null ? Pivot.LocalPosition : Vector3.Zero;
 
-		using ( Gizmo.Scope( "Tool", new Transform( pivotPos ) ) )
+		using ( Gizmo.PushScope( "Tool", new Transform( pivotPos ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.1f;
 

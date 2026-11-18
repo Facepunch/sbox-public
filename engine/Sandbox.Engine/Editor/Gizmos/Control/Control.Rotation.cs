@@ -9,15 +9,15 @@ public static partial class Gizmo
 		/// </summary>
 		public bool UpdateRotation( string name, Rotation value, out Rotation newValue )
 		{
-			using var scaler = Gizmo.GizmoControls.PushFixedScale();
+			using var scaler = Gizmo.GizmoControls.PushFixedScaleScope();
 			newValue = value;
 
 			bool hasValueChanged = false;
 			Rotation delta = Rotation.Identity;
 
-			using ( Sandbox.Gizmo.Scope( name ) )
+			using ( Sandbox.Gizmo.PushScope( name ) )
 			{
-				using ( Sandbox.Gizmo.Scope( "pitch", 0, Rotation.LookAt( Vector3.Left ) ) )
+				using ( Sandbox.Gizmo.PushScope( "pitch", 0, Rotation.LookAt( Vector3.Left ) ) )
 				{
 					if ( UpdateRotationAxis( "pitch", out var angleDelta ) )
 					{
@@ -26,7 +26,7 @@ public static partial class Gizmo
 					}
 				}
 
-				using ( Sandbox.Gizmo.Scope( "yaw", 0, Rotation.LookAt( Vector3.Up ) ) )
+				using ( Sandbox.Gizmo.PushScope( "yaw", 0, Rotation.LookAt( Vector3.Up ) ) )
 				{
 					if ( UpdateRotationAxis( "yaw", out var angleDelta ) )
 					{
@@ -35,7 +35,7 @@ public static partial class Gizmo
 					}
 				}
 
-				using ( Sandbox.Gizmo.Scope( "roll", 0, Rotation.LookAt( Vector3.Forward ) ) )
+				using ( Sandbox.Gizmo.PushScope( "roll", 0, Rotation.LookAt( Vector3.Forward ) ) )
 				{
 					if ( UpdateRotationAxis( "roll", out var angleDelta ) )
 					{
@@ -47,12 +47,12 @@ public static partial class Gizmo
 				float _angleDelta;
 				bool rotateSingle;
 
-				using ( Sandbox.Gizmo.Scope( "view", 0, Gizmo.Transform.Rotation.Inverse * Gizmo.Camera.Rotation ) )
+				using ( Sandbox.Gizmo.PushScope( "view", 0, Gizmo.Transform.Rotation.Inverse * Gizmo.Camera.Rotation ) )
 				{
 					rotateSingle = UpdateRotationAxis( "view", out _angleDelta );
 				}
 
-				using ( Sandbox.Gizmo.Scope( "view", 0, Rotation.Identity ) )
+				using ( Sandbox.Gizmo.PushScope( "view", 0, Rotation.Identity ) )
 				{
 					if ( rotateSingle )
 					{
@@ -72,16 +72,16 @@ public static partial class Gizmo
 		[Obsolete( "Use Rotate( string name, out Rotation outValue ) and WorldRotation = outValue rather than *=" )]
 		public bool Rotate( string name, out Angles outValue )
 		{
-			using var scaler = Gizmo.GizmoControls.PushFixedScale();
+			using var scaler = Gizmo.GizmoControls.PushFixedScaleScope();
 			outValue = default;
 
 			bool hasValueChanged = false;
 
-			using ( Sandbox.Gizmo.Scope( name ) )
+			using ( Sandbox.Gizmo.PushScope( name ) )
 			{
 				Sandbox.Gizmo.Draw.IgnoreDepth = true;
 
-				using ( Sandbox.Gizmo.Scope( "pitch", 0, Rotation.LookAt( Vector3.Left ) ) )
+				using ( Sandbox.Gizmo.PushScope( "pitch", 0, Rotation.LookAt( Vector3.Left ) ) )
 				{
 					if ( RotateSingle( "pitch", Sandbox.Gizmo.Colors.Pitch, out var angleDelta ) )
 					{
@@ -90,7 +90,7 @@ public static partial class Gizmo
 					}
 				}
 
-				using ( Sandbox.Gizmo.Scope( "yaw", 0, Rotation.LookAt( Vector3.Up ) ) )
+				using ( Sandbox.Gizmo.PushScope( "yaw", 0, Rotation.LookAt( Vector3.Up ) ) )
 				{
 					if ( RotateSingle( "yaw", Sandbox.Gizmo.Colors.Yaw, out var angleDelta ) )
 					{
@@ -99,7 +99,7 @@ public static partial class Gizmo
 					}
 				}
 
-				using ( Sandbox.Gizmo.Scope( "roll", 0, Rotation.LookAt( Vector3.Forward ) ) )
+				using ( Sandbox.Gizmo.PushScope( "roll", 0, Rotation.LookAt( Vector3.Forward ) ) )
 				{
 					if ( RotateSingle( "roll", Sandbox.Gizmo.Colors.Roll, out var angleDelta ) )
 					{
@@ -119,7 +119,7 @@ public static partial class Gizmo
 		{
 			angleDelta = 0;
 
-			using var x = Sandbox.Gizmo.Scope( name );
+			using var x = Sandbox.Gizmo.PushScope( name );
 
 			if ( !Pressed.This )
 				return false;
@@ -160,22 +160,22 @@ public static partial class Gizmo
 	{
 		public void Rotate( string name )
 		{
-			using var scaler = GizmoControls.PushFixedScale();
-			using var scope = Scope( name );
+			using var scaler = GizmoControls.PushFixedScaleScope();
+			using var scope = PushScope( name );
 			IgnoreDepth = true;
-			using ( Scope( "pitch", 0, Rotation.LookAt( Vector3.Left ) ) )
+			using ( PushScope( "pitch", 0, Rotation.LookAt( Vector3.Left ) ) )
 				RotationAxis( "pitch", Colors.Pitch );
-			using ( Scope( "yaw", 0, Rotation.LookAt( Vector3.Up ) ) )
+			using ( PushScope( "yaw", 0, Rotation.LookAt( Vector3.Up ) ) )
 				RotationAxis( "yaw", Colors.Yaw );
-			using ( Scope( "roll", 0, Rotation.LookAt( Vector3.Forward ) ) )
+			using ( PushScope( "roll", 0, Rotation.LookAt( Vector3.Forward ) ) )
 				RotationAxis( "roll", Colors.Roll );
-			using ( Scope( "view", 0, Transform.Rotation.Inverse * Camera.Rotation ) )
+			using ( PushScope( "view", 0, Transform.Rotation.Inverse * Camera.Rotation ) )
 				RotationAxis( "view", Color.White, 22, false );
 		}
 
 		public void RotationAxis( string name, Color color, float size = 19, bool useHalfCircle = true )
 		{
-			using var scope = Scope( name );
+			using var scope = PushScope( name );
 			LineThickness = 3;
 			Color = IsHovered ? color : color.Darken( 0.33f );
 			if ( Pressed.Any && !Pressed.This )
@@ -183,7 +183,7 @@ public static partial class Gizmo
 				LineThickness = 2;
 				Color = Color.WithAlphaMultiplied( 0.5f );
 			}
-			using ( Hitbox.LineScope() )
+			using ( Hitbox.PushLineScope() )
 			{
 				if ( Pressed.This || !useHalfCircle )
 					LineCircle( 0, size, sections: 64 );

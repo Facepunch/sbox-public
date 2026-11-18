@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 public static partial class Gizmo
 {
@@ -44,10 +44,8 @@ public static partial class Gizmo
 			}
 		}
 
-		static VertexSceneObject _vertexObject;
-		static string _vertexObjectPath;
-		static Material _vertexObjectMaterial;
-		static Texture _vertexObjectTexture;
+		VertexSceneObject _vertexObject;
+
 
 		/// <summary>
 		/// Ignore depth when drawing, draw on top of everything
@@ -76,9 +74,15 @@ public static partial class Gizmo
 			set => Active.scope.CullBackfaces = value;
 		}
 
-		internal void Start()
+		internal void Start() => Active.Renderer.BeginFrame();
+
+		void BeginFrame()
 		{
-			End();
+			_batchCursor = 0;
+			_batchFrame++;
+			_logicalValid = false;
+			_logicalPath = null;
+			_logicalState = default;
 
 			IgnoreDepth = false;
 			Color = Color.White;
@@ -87,12 +91,19 @@ public static partial class Gizmo
 
 		internal void End()
 		{
+			var renderer = Active.Renderer;
+			renderer.Flush();
+			// The editor submits the camera before disposing the gizmo frame.
+			renderer.HideUnused();
+		}
+
+		internal void Flush()
+		{
 			// Push the vertex buffer to the GPU on end of scope
+			BakeVertices();
 			_vertexObject?.Write();
 
 			_vertexObject = default;
-			_vertexObjectPath = default;
-			_vertexObjectTexture = default;
 		}
 
 		/// <summary>
@@ -114,11 +125,13 @@ public static partial class Gizmo
 		/// <summary>
 		/// Draw a model
 		/// </summary>
-		public SceneModel Model( Model model, Transform localTransform )
+		public SceneModel Model( Model model, Transform localTransform ) => Model( model, localTransform, false );
+
+		internal SceneModel Model( Model model, Transform localTransform, bool castShadows )
 		{
 			var tx = Transform.ToWorld( localTransform );
-			var so = Active.FindOrCreate<SceneModel>( $"{model.Name}", () => new SceneModel( World, model, tx ) );
-			so.Flags.CastShadows = false;
+			var so = Active.FindOrCreate( model.Name, (model, tx), static ( world, state ) => new SceneModel( world, state.model, state.tx ), flushGeometry: false );
+			if ( so.Flags.CastShadows != castShadows ) so.Flags.CastShadows = castShadows;
 			so.Model = model;
 			so.ColorTint = Color;
 			so.Transform = tx;
@@ -295,7 +308,7 @@ public static partial class Gizmo
 		/// </summary>
 		public void Plane( Vector3 position, Vector3 normal )
 		{
-			using var scope = Scope( "plane", new Transform( position, Rotation.LookAt( normal ) ) );
+			using var scope = PushScope( "plane", new Transform( position, Rotation.LookAt( normal ) ) );
 
 			LineThickness = 1.0f;
 
@@ -346,7 +359,7 @@ public static partial class Gizmo
 		public void Grid( Vector3 center, GridAxis axis, Vector2 spacing = default, float opacity = 1.0f, float minorLineWidth = 0.01f, float majorLineWidth = 0.02f )
 		{
 			if ( spacing == default ) spacing = new Vector2( 32, 32 );
-			var so = VertexObject( Graphics.PrimitiveType.Triangles, GridMaterial );
+			var so = VertexObject( Graphics.PrimitiveType.Triangles, GridMaterial, isolated: true );
 
 			so.Attributes.Set( "GridOrigin", Transform.PointToWorld( center ) );
 			so.Attributes.Set( "GridForward", Transform.Rotation.Forward * Transform.Scale.x );

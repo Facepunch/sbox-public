@@ -10,6 +10,9 @@ public static partial class Gizmo
 	{
 		internal Transform Transform { get; init; }
 		internal string Path { get; init; }
+		internal object Object { get; init; }
+		internal Component Component { get; init; }
+		internal bool IsSceneGizmo { get; init; }
 		internal float DepthBias { get; init; }
 		internal bool CanInteract { get; init; }
 
@@ -56,6 +59,9 @@ public static partial class Gizmo
 				{
 					Transform = Gizmo.Transform,
 					Path = path,
+					Object = Gizmo.Object,
+					Component = Active.scope.Component,
+					IsSceneGizmo = Active.scope.IsSceneGizmo,
 					DepthBias = Active.scope.HitDepthBias,
 					CanInteract = Active.scope.CanInteract
 				} );

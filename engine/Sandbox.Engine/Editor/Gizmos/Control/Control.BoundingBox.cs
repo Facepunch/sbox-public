@@ -19,7 +19,7 @@ public static partial class Gizmo
 			outValue = value;
 			outPressed = false;
 			outResizeAxis = default;
-			using var scope = Scope( name );
+			using var scope = PushScope( name );
 			var path = Active.current.PressedPath;
 			if ( path is null || !path.StartsWith( Path ) || (!IsLeftMouseDown && !Active.HasReleaseInput) ) return false;
 			var direction = path.AsSpan( Path.Length ) switch
@@ -73,7 +73,7 @@ public static partial class Gizmo
 	{
 		public void BoundingBox( string name, BBox value )
 		{
-			using var scope = Scope( name, value.Center );
+			using var scope = PushScope( name, value.Center );
 			var halfSize = value.Size * 0.5f;
 			BoxFace( "Forward", Vector3.Forward, halfSize.x, Colors.Forward );
 			BoxFace( "Backward", Vector3.Backward, halfSize.x, Colors.Forward );
@@ -85,8 +85,8 @@ public static partial class Gizmo
 
 		void BoxFace( string name, Vector3 direction, float length, Color color )
 		{
-			using var scope = Scope( name, direction * length, Rotation.LookAt( direction, Vector3.Up ) );
-			using var scaler = GizmoControls.PushFixedScale();
+			using var scope = PushScope( name, direction * length, Rotation.LookAt( direction, Vector3.Up ) );
+			using var scaler = GizmoControls.PushFixedScaleScope();
 			if ( !Pressed.This && length.AlmostEqual( 0 ) ) return;
 			const float radius = 1.3f;
 			var sphereRadius = IsHovered ? radius * 1.25f : radius;

@@ -13,11 +13,11 @@ public static partial class Gizmo
 
 		public bool UpdateScale( string name, Vector3 value, out Vector3 outValue, Rotation? axisRotation = null, float squareSize = 3 )
 		{
-			using var scaler = PushFixedScale();
-			using var scope = Scope( name, Vector3.Zero, axisRotation ?? Rotation.Identity );
+			using var scaler = PushFixedScaleScope();
+			using var scope = PushScope( name, Vector3.Zero, axisRotation ?? Rotation.Identity );
 			if ( Settings.GlobalSpace && axisRotation is null )
 				Transform = Transform.WithRotation( Rotation.Identity );
-			using var inner = Scope( name );
+			using var inner = PushScope( name );
 
 			Vector3 movement = Vector3.Zero;
 			if ( UpdateArrow( "up", Vector3.Up, out var up ) ) movement += Vector3.Up * up;
@@ -26,23 +26,23 @@ public static partial class Gizmo
 
 			if ( squareSize > 0 )
 			{
-				using var squares = Scope( "squares" );
+				using var squares = PushScope( "squares" );
 				var offset = squareSize * 3;
-				using ( Scope() )
+				using ( PushScope() )
 				{
 					if ( UpdateDragBox( "center", Rotation.Identity, out var delta ) ) movement += delta;
 				}
-				using ( Scope() )
+				using ( PushScope() )
 				{
 					Transform = Transform.ToWorld( new Transform( (Vector3.Up + Vector3.Left) * offset ) );
 					if ( UpdateDragSquare( "left-up", Rotation.LookAt( Vector3.Backward, Vector3.Up ), out var delta ) ) movement += delta;
 				}
-				using ( Scope() )
+				using ( PushScope() )
 				{
 					Transform = Transform.ToWorld( new Transform( (Vector3.Forward + Vector3.Left) * offset ) );
 					if ( UpdateDragSquare( "forward-left", Rotation.LookAt( Vector3.Up, Vector3.Forward ), out var delta ) ) movement += delta;
 				}
-				using ( Scope() )
+				using ( PushScope() )
 				{
 					Transform = Transform.ToWorld( new Transform( (Vector3.Forward + Vector3.Up) * offset ) );
 					if ( UpdateDragSquare( "forward-up", Rotation.LookAt( Vector3.Left, Vector3.Down ), out var delta ) ) movement += delta;
@@ -58,11 +58,11 @@ public static partial class Gizmo
 	{
 		public void Scale( string name, Rotation? axisRotation = null, float squareSize = 3 )
 		{
-			using var scaler = GizmoControls.PushFixedScale();
-			using var scope = Scope( name, Vector3.Zero, axisRotation ?? Rotation.Identity );
+			using var scaler = GizmoControls.PushFixedScaleScope();
+			using var scope = PushScope( name, Vector3.Zero, axisRotation ?? Rotation.Identity );
 			if ( Settings.GlobalSpace && axisRotation is null )
 				Transform = Transform.WithRotation( Rotation.Identity );
-			using var inner = Scope( name );
+			using var inner = PushScope( name );
 			IgnoreDepth = true;
 			Color = Colors.Up;
 			Arrow( "up", Vector3.Up, head: "box" );
@@ -71,9 +71,9 @@ public static partial class Gizmo
 			Color = Colors.Forward;
 			Arrow( "forward", Vector3.Forward, head: "box" );
 			if ( squareSize <= 0 ) return;
-			using var squares = Scope( "squares" );
+			using var squares = PushScope( "squares" );
 			Hitbox.DepthBias *= 0.8f;
-			using ( Scope() )
+			using ( PushScope() )
 			{
 				Color = Color.White;
 				DragBox( "center", squareSize, Rotation.Identity );

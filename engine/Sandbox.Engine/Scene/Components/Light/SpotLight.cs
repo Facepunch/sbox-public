@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 /// <summary>
 /// Emits light in a specific direction in a cone shape.
@@ -120,7 +120,7 @@ public class SpotLight : Light
 
 	protected override void DrawGizmos()
 	{
-		using var scope = Gizmo.Scope( $"light-{GetHashCode()}" );
+		using var scope = Gizmo.PushScope( "light" );
 
 		if ( !Gizmo.IsSelected && !Gizmo.IsHovered )
 			return;
