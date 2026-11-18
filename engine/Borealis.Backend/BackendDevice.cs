@@ -1801,7 +1801,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		/// <summary>The meshlet pass's copy jobs: their count (also the copy dispatch's group count), 1, 1, then a job per kept meshlet.</summary>
 		public BufferHandle MeshletJobs;
-		public bool MeshletStampsCleared;
+		public volatile bool MeshletStampsCleared;
 		public bool StampsCleared;
 
 		/// <summary>The frame (<see cref="GpuDrivenFrame"/>) its mask was last cleared in, before any call drew ids into it.</summary>
@@ -1917,8 +1917,11 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			state.MeshletStampsAttribute = new GpuBuffer( new BackendBuffer( this, stamps, stampBytes, "Borealis meshlet stamps" ), (int)(stampBytes / 4), 4 );
 #pragma warning restore CA2000
 			visibilityBuffers.Add( buffer );
-			ClearMadeAfterClear( state, compacted: false, prepass: buffer );
+			var cleared = ClearMadeAfterClear( state, compacted: false, prepass: buffer );
 			state.PrepassCompacted = buffer;
+
+			// Said cleared only once every buffer is in place: recording threads read them without the lock once it's set
+			if ( cleared ) state.MeshletStampsCleared = true;
 			return buffer;
 		}
 	}
@@ -1927,11 +1930,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// Clear a view's visibility buffers made after this frame cleared the view's (<c>BackendContext.BeginGpuDrivenView</c>)
 	/// as that clear would have: this frame's calls go on to use them, and their cursors and stamps would hold whatever the
 	/// memory last held (a target that grew, a child view drawn at another size inside a cube capture, a prepass's meshlet
-	/// buffers made at its first use). In a list of its own, submitted now, ahead of the lists recording with them.
+	/// buffers made at its first use). In a list of its own, submitted now, ahead of the lists recording with them. Whether
+	/// it did; the caller marks the meshlet stamps cleared once the view holds every buffer.
 	/// </summary>
-	void ClearMadeAfterClear( VisibilityView state, bool compacted, BufferHandle prepass )
+	bool ClearMadeAfterClear( VisibilityView state, bool compacted, BufferHandle prepass )
 	{
-		if ( state.ClearedFrame != GpuDrivenFrame ) return;
+		if ( state.ClearedFrame != GpuDrivenFrame ) return false;
 
 		var list = Gpu.BeginCommandList( QueueType.Graphics, "Borealis visibility made mid-frame" );
 		if ( compacted )
@@ -1944,12 +1948,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			list.FillBuffer( prepass, VisibilityView.CompactedCursorIndices, 0, 4 );
 			list.FillBuffer( state.PrepassCompacted16, VisibilityView.CompactedCursorIndices, 0, 4 );
 			list.FillBuffer( state.MeshletStamps, 0 );
-			state.MeshletStampsCleared = true;
 		}
 
 		list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
 		Gpu.Submit( list );
 		VisibilityClearedMidFrame++;
+		return true;
 	}
 
 	/// <summary>Views' visibility buffers made after their frame's clear and cleared when made, for the tests.</summary>
