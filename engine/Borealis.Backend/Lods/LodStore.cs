@@ -64,6 +64,7 @@ internal sealed class LodStore : IDisposable
 		public Phase State;
 		public LodChain Chain;
 		public bool Color;
+		public Label Label;
 		public (uint First, uint Count)[] Placed;
 		public readonly List<uint> Draws = new();
 	}
@@ -175,11 +176,38 @@ internal sealed class LodStore : IDisposable
 	}
 
 	/// <summary>
+	/// What a range draws and where, for reports (<c>borealislab -lod-ranges</c>): its material and its fragment's world
+	/// bounds. Kept only while <see cref="Labelled"/>.
+	/// </summary>
+	public readonly record struct Label( string Material, V3 Center, V3 Extents );
+
+	/// <summary>Whether requests keep their <see cref="Label"/>, for <see cref="Ranges"/>. Set before the first draws.</summary>
+	public bool Labelled { get; set; }
+
+	/// <summary>Every range asked for: its label, triangles, whether it simplified no further, and its levels' triangles and errors once built.</summary>
+	public List<(Label Label, int Triangles, bool Simplest, int[] Levels, float[] Errors)> Ranges()
+	{
+		lock ( gate )
+		{
+			var ranges = new List<(Label, int, bool, int[], float[])>( entries.Count );
+			foreach ( var (range, entry) in entries )
+			{
+				// A published range keeps only its levels' errors and where their indices went
+				var chain = entry.Chain;
+				var levels = entry.Placed is { } placed ? placed.Select( p => (int)(p.Count / 3) ).ToArray() : chain?.Levels.Select( l => l.Length / 3 ).ToArray() ?? [];
+				ranges.Add( (entry.Label, (int)(range.IndexCount / 3), entry.State == Phase.None, levels, chain?.Errors ?? []) );
+			}
+
+			return ranges;
+		}
+	}
+
+	/// <summary>
 	/// Ask for a range's levels: built once, on a worker. They're published once a GPU-driven colour pass draws the range
 	/// too (<paramref name="color"/>): a range drawn the classic way in colour must keep its full triangles in the prepass,
-	/// whose depth the colour pass tests equal against.
+	/// whose depth the colour pass tests equal against. <paramref name="label"/> is kept while <see cref="Labelled"/>.
 	/// </summary>
-	public void Request( in Range range, Source source, bool color )
+	public void Request( in Range range, Source source, bool color, Label label = default )
 	{
 		if ( range.IndexCount / 3 < Config.MinRangeTriangles ) return;
 		lock ( gate )
@@ -190,7 +218,7 @@ internal sealed class LodStore : IDisposable
 				return;
 			}
 
-			var entry = new Entry { Range = range, Source = source, State = Phase.Building, Color = color };
+			var entry = new Entry { Range = range, Source = source, State = Phase.Building, Color = color, Label = Labelled ? label : default };
 			entries[range] = entry;
 			if ( waitingDraws.Remove( range, out var draws ) ) entry.Draws.AddRange( draws );
 			Requested++;

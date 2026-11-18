@@ -1727,11 +1727,14 @@ internal sealed partial class BackendContext
 	static void RequestLods( Lods.LodStore store, AggregateObject aggregate, PooledGeometry pooled, BackendModel model, int mesh, int drawCall, bool color )
 	{
 		if ( Meshlets.MeshletStore.SourceOf( model, mesh, drawCall, pooled.IndexPage, pooled.IndexFormat ) is not { } source ) return;
-		foreach ( ref readonly var fragment in aggregate.Fragments )
+		var material = store.Labelled && (uint)mesh < (uint)model.File.Meshes.Count && (uint)drawCall < (uint)model.File.Meshes[mesh].DrawCalls.Count ? model.File.Meshes[mesh].DrawCalls[drawCall].Material : null;
+		var fragments = aggregate.Fragments;
+		for ( int i = 0; i < fragments.Length; i++ )
 		{
-			var arg = fragment.Args;
+			var arg = fragments[i].Args;
 			var range = new Meshlets.MeshletStore.Range( pooled.IndexPageSlot, pooled.FirstIndex + arg.FirstIndex, arg.IndexCount, arg.BaseVertex );
-			store.Request( range, source with { IndexBase = source.IndexBase + (int)arg.FirstIndex, VertexBase = source.VertexBase + arg.BaseVertex }, color );
+			var label = material is null ? default : new Lods.LodStore.Label( material, aggregate.Centers[i], aggregate.Extents[i] );
+			store.Request( range, source with { IndexBase = source.IndexBase + (int)arg.FirstIndex, VertexBase = source.VertexBase + arg.BaseVertex }, color, label );
 		}
 	}
 
