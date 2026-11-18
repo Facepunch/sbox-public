@@ -112,6 +112,14 @@ internal static class MapRealRun
 		if ( Args.Int( "-cascade-resolution", 0 ) is > 0 and var cascadeResolution ) RenderHost.Current.Shadows.MaxCascadeResolution = cascadeResolution;
 		if ( Args.Int( "-cascade-cull-texels", 0 ) is > 0 and var cullTexels ) global::Borealis.Culling.SizeCull.CascadeTexels = cullTexels;
 		if ( !Args.Has( "-noprobes" ) ) map.CaptureProbes();
+
+		// -extra-sun x,y,z: a second, blue sun travelling that way, with its shadow map, as the sun's is baked if it is
+		if ( Args.String( "-extra-sun" ) is { } extraSun )
+		{
+			var v = extraSun.Split( ',' ).Select( x => float.Parse( x, System.Globalization.CultureInfo.InvariantCulture ) ).ToArray();
+			var lighting = map.World.Lighting;
+			lighting.ExtraSuns.Add( new global::Borealis.ExtraSun { Direction = new Vector3( v[0], v[1], v[2] ).Normal, Color = new Color( 0.3f, 0.5f, 1.2f ), Shadows = true, ShadowsBaked = lighting.SunShadowsBaked } );
+		}
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		Console.WriteLine( $"Loaded in {load.Elapsed.TotalSeconds:0.0} s; {map.Problems.Count} problems" );
 		if ( map.Backend.Surfaces.ConvertedMaterials > 0 ) Console.WriteLine( $"  {map.Backend.Surfaces.ConvertedMaterials} materials drawn as surfaces" );
