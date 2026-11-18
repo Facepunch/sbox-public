@@ -624,7 +624,11 @@ public sealed unsafe partial class Device
 			var hash = pipelineLibraries ? SpirvHash( spirv ) : 0;
 			var (index, generation) = Shaders.Add( new ShaderRecord { Module = module, Hash = hash } );
 			var handle = new ShaderHandle( index, generation );
-			if ( pipelineLibraries ) ShaderMade( handle, hash );
+			if ( pipelineLibraries )
+			{
+				KeepSpirv( hash, spirv );
+				ShaderMade( handle, hash );
+			}
 			return handle;
 		}
 	}

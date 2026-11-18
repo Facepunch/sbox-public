@@ -322,11 +322,17 @@ public class PipelineLibraryTests : GpuTest
 
 			var file = Path.Combine( folder, "pipeline-parts.txt" );
 			Assert.IsTrue( File.Exists( file ) );
+			Assert.AreEqual( 2, Directory.GetFiles( Path.Combine( folder, "spirv" ), "*.spv" ).Length, "the vertex and pixel shaders' SPIR-V" );
 			File.AppendAllLines( file, ["1\tP\tnot a hash", "garbage", "1\tO\t999.1\t1\t1\t0"] );
 
 			using ( var device = Open() )
 			{
 				Assert.AreEqual( 4, device.PartManifest.Loaded, "the four parts; the lines that don't read are dropped" );
+
+				// From the SPIR-V kept beside the manifest: before any module of the program is made
+				var clock = System.Diagnostics.Stopwatch.StartNew();
+				while ( device.PipelineLibraryCreation.Parts < 4 && clock.Elapsed < TimeSpan.FromSeconds( 60 ) ) System.Threading.Thread.Sleep( 10 );
+				Assert.AreEqual( 4, device.PipelineLibraryCreation.Parts, "made from the kept SPIR-V, before the program's modules" );
 				var info = Info( device );
 				Assert.IsTrue( device.PartsRecorded( info.VertexShader ) && device.PartsRecorded( info.FragmentShader ) );
 				Assert.IsTrue( device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );

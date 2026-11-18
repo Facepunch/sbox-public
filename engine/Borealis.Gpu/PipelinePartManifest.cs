@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace Borealis.Gpu;
@@ -127,6 +128,26 @@ internal sealed class PipelinePartManifest
 			Queued += taken.Count;
 			return taken;
 		}
+	}
+
+	/// <summary>The shaders whose parts are still to be made, in the order of their first-needed part.</summary>
+	public List<UInt128> ShadersByRank()
+	{
+		lock ( gate ) return [.. byShader.OrderBy( s => s.Value.Min( e => e.Rank ) ).Select( s => s.Key )];
+	}
+
+	/// <summary>Every shader a kept line names, for pruning their SPIR-V.</summary>
+	public HashSet<UInt128> Shaders()
+	{
+		string[] kept;
+		lock ( gate ) kept = [.. lines.Keys];
+		var shaders = new HashSet<UInt128>();
+		foreach ( var line in kept )
+		{
+			if ( Describe( line, 0 ) is { } entry && entry.Shader != 0 ) shaders.Add( entry.Shader );
+		}
+
+		return shaders;
 	}
 
 	/// <summary>Whether an earlier run recorded parts made from a shader with this SPIR-V hash.</summary>
