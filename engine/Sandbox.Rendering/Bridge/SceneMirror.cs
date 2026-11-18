@@ -196,8 +196,11 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		HasSynced = true;
 
 		// A reload queues the objects drawing what it changed, and so does a model finishing loading
-		CheckReloads();
-		CheckLoaded();
+		using ( Borealis.Zones.MirrorLoaded.Start() )
+		{
+			CheckReloads();
+			CheckLoaded();
+		}
 
 		lock ( gate )
 		{
@@ -215,6 +218,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 		// What applying the changes writes to the device (models, textures, new capture cubes' clears) goes in one list with
 		// the frame's next submission, not a submission each
+		using ( Borealis.Zones.MirrorApply.Start() )
 		using ( MirrorContent.Gpu is { } gpu && DeferApplyUploads ? gpu.Gpu.DeferUploads() : default )
 		{
 			foreach ( var (sceneObject, change) in applying )
@@ -226,7 +230,11 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		SweepCaches( frame );
 
 		// An extra world's objects are lit by the main world's sun, sky, probe volumes and fog, as native lights the view
-		if ( SubWorld == 0 ) SyncLighting( camera, skyboxView );
+		if ( SubWorld == 0 )
+		{
+			using ( Borealis.Zones.MirrorLighting.Start() )
+				SyncLighting( camera, skyboxView );
+		}
 	}
 
 	/// <summary>
@@ -428,7 +436,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		const SceneObjectChange Draws = SceneObjectChange.Model | SceneObjectChange.Material | SceneObjectChange.Visibility;
 		if ( (change & Draws) != 0 )
 		{
-			var drawn = sceneObject.RenderingEnabled ? VariantFor( sceneObject, ModelFor( sceneObject.Model ) ) : null;
+			var drawnModel = sceneObject.Model;
+			var drawn = sceneObject.RenderingEnabled ? VariantFor( sceneObject, ModelFor( drawnModel ) ) : null;
+			if ( drawn is null && drawnModel is not null && loading.Contains( drawnModel ) ) WaitFor( drawnModel, sceneObject );
 			if ( drawn != mesh.Mesh )
 			{
 				Release( mesh.Mesh );
@@ -437,7 +447,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 				meshChanged = true;
 
 				// Shared world lightmap attributes.
-				mesh.LightmapAttributes = drawn is { HasLightmappedDraws: true } ? LightmapFor( sceneObject, sceneObject.Model ) : null;
+				mesh.LightmapAttributes = drawn is { HasLightmappedDraws: true } ? LightmapFor( sceneObject, drawnModel ) : null;
 			}
 		}
 
@@ -529,6 +539,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		if ( ModelFor( model )?.Mesh is not { } mesh )
 		{
 			waiting = model is not null && loading.Contains( model );
+			if ( waiting ) WaitFor( model, sceneObject );
 			return null;
 		}
 

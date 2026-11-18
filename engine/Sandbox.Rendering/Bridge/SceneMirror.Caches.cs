@@ -282,6 +282,17 @@ internal sealed partial class SceneMirror
 	readonly HashSet<Model> loading = new();
 	readonly HashSet<Model> loaded = new();
 
+	// What waits for each loading model: objects drawing it and aggregates made of it (WaitFor). Looking through every
+	// object each time a model loaded cost a map's first seconds ~80 ms of native calls
+	readonly Dictionary<Model, HashSet<SceneObject>> modelWaiters = new();
+
+	/// <summary>Note that <paramref name="sceneObject"/> waits for <paramref name="model"/>, still loading: <see cref="CheckLoaded"/> applies it again.</summary>
+	void WaitFor( Model model, SceneObject sceneObject )
+	{
+		if ( !modelWaiters.TryGetValue( model, out var waiters ) ) modelWaiters[model] = waiters = new();
+		waiters.Add( sceneObject );
+	}
+
 	/// <summary>Models loading asynchronously, which what draws them waits for.</summary>
 	public int ModelsLoading => loading.Count;
 
@@ -339,11 +350,15 @@ internal sealed partial class SceneMirror
 		if ( loaded.Count == 0 ) return;
 		loading.ExceptWith( loaded );
 
-		foreach ( var (sceneObject, obj) in objects )
+		foreach ( var model in loaded )
 		{
-			if ( !sceneObject.IsValid() ) continue;
-			if ( obj is MeshObject { Mesh: null } && sceneObject.Model is { } model && loaded.Contains( model ) ) OnChanged( sceneObject, SceneObjectChange.Model );
-			else if ( obj is null && (sceneObject is SceneAggregateObject || sceneObject.GetType() == typeof( SceneObject )) && SceneNative.AggregateModel( sceneObject, out _ ) is { } aggregate && loaded.Contains( aggregate ) ) remake.Add( sceneObject );
+			if ( !modelWaiters.Remove( model, out var waiters ) ) continue;
+			foreach ( var sceneObject in waiters )
+			{
+				if ( !sceneObject.IsValid() || !objects.TryGetValue( sceneObject, out var obj ) ) continue;
+				if ( obj is MeshObject { Mesh: null } ) OnChanged( sceneObject, SceneObjectChange.Model );
+				else if ( obj is null && (sceneObject is SceneAggregateObject || sceneObject.GetType() == typeof( SceneObject )) ) remake.Add( sceneObject );
+			}
 		}
 
 		foreach ( var sceneObject in remake )
