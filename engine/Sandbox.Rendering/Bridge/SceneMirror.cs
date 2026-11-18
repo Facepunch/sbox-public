@@ -1080,18 +1080,12 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	}
 
 	/// <summary>
-	/// A scene object's tags as string tokens, as native holds them.
+	/// A scene object's tags as string tokens (<see cref="SceneObject.TagTokens"/>).
 	/// </summary>
 	static uint[] TagsOf( SceneObject sceneObject )
 	{
-		var count = sceneObject.native.GetTagCount();
-		if ( count <= 0 ) return [];
-
-		var tags = new uint[count];
-		for ( int i = 0; i < count; i++ )
-			tags[i] = sceneObject.native.GetTagAt( i );
-
-		return tags;
+		var tokens = sceneObject.TagTokens;
+		return tokens.Count == 0 ? [] : [.. tokens];
 	}
 
 	/// <summary>
