@@ -58,6 +58,14 @@ public sealed class DeviceOptions
 	public bool PipelineLibraries { get; init; } = !Environment.GetCommandLineArgs().Contains( "-no-pipeline-library", StringComparer.OrdinalIgnoreCase )
 		&& Environment.GetEnvironmentVariable( "BOREALIS_PIPELINE_LIBRARY" ) != "0";
 
+	/// <summary>
+	/// Keep the pipeline parts pipelines linked in <c>pipeline-parts.txt</c> in <see cref="PipelineCacheFolder"/>, and make
+	/// them on the builder threads in the next run as soon as their shaders' modules are made (vertex input and output parts
+	/// when the device is). On unless <c>-no-part-manifest</c> or <c>BOREALIS_PART_MANIFEST=0</c>. Needs pipeline libraries.
+	/// </summary>
+	public bool PipelinePartManifest { get; init; } = !Environment.GetCommandLineArgs().Contains( "-no-part-manifest", StringComparer.OrdinalIgnoreCase )
+		&& Environment.GetEnvironmentVariable( "BOREALIS_PART_MANIFEST" ) != "0";
+
 	/// <summary>Part of the adapter's name to prefer, or null for the first discrete GPU.</summary>
 	public string PreferredAdapter { get; init; }
 
