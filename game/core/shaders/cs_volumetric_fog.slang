@@ -613,13 +613,17 @@
 	}
 
 	//------------------------------------------------------------------------------------------------------------------------------
-	float2 FetchDepthMinMax( uint2 vPositionSs )
+	float2 FetchDepthMinMax( float2 vPositionSs )
     {
 		// Make it a bit conservative to avoid disocclusion ghosting
 		int lods = 6;
 		
-        // Calculate depth
-        float2 vProjectedDepth = g_tDepthChain.Load( int3( ( vPositionSs.xy / pow(2,lods ) ), lods) ).xy;
+        // Calculate depth. The neighbours of the edge froxels fall outside the chain's mip, whose loads read zero, the far
+        // plane, which would keep those froxels from stopping at the depth: clamp them to the edge texels
+		uint nWidth, nHeight, nMips;
+		g_tDepthChain.GetDimensions( lods, nWidth, nHeight, nMips );
+		int2 vTexel = clamp( int2( floor( vPositionSs / pow( 2, lods ) ) ), 0, int2( nWidth, nHeight ) - 1 );
+        float2 vProjectedDepth = g_tDepthChain.Load( int3( vTexel, lods ) ).xy;
 
         // Convert to view space
         return float2( Depth::Linearize( Depth::Normalize( vProjectedDepth.y ) ), Depth::Linearize( Depth::Normalize( vProjectedDepth.x ) ) );
