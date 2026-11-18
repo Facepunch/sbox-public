@@ -160,7 +160,12 @@ public sealed class ShaderLibrary : IDisposable
 		var full = Files.Find( key );
 		var bare = !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase );
 		if ( full is null && bare ) full = Files.Find( $"shaders/{key}.shader" );
-		if ( full is not null ) return (LoadOrUpgrade( full ), true);
+		if ( full is not null )
+		{
+			// A standalone module describes its shader itself: the compiled file beside it is only Source 2's renderer's
+			if ( Modules?.DescribeStandalone( full ) is { } standalone ) return (standalone, true);
+			return (LoadOrUpgrade( full ), true);
+		}
 
 		// No compiled file: a shader with only a Slang module, where its .shader_c would be
 		if ( Modules is not { } modules ) return (null, false);
@@ -404,6 +409,11 @@ public sealed class ShaderLibrary : IDisposable
 	public ShaderFile GpuDriven( ShaderFile shader )
 	{
 		if ( shader is null ) return null;
+
+		// A shader with only a module has its GPU-driven form there, if any (a .gpudriven.shader_c beside it is Source 2's
+		// compile's, unread like its .shader_c)
+		if ( shader.ModuleOnly ) return Modules?.HasGpuDriven( shader ) == true ? shader : null;
+
 		lock ( gpuDriven )
 		{
 			if ( gpuDriven.TryGetValue( shader, out var cached ) ) return cached;
@@ -554,8 +564,20 @@ public sealed class ShaderLibrary : IDisposable
 			return upgraded is not null ? Variant( upgraded, mode, features, dynamicCombos, attributes ) : upgrading ? null : ErrorVariant( dynamicCombos, attributes );
 		}
 
-		// A shader with only a module has no programs to fall back to (modules off, or its module doesn't compile)
-		if ( shader.ModuleOnly ) return null;
+		// A shader with only a module has no programs to fall back to (modules off, or its module doesn't compile); its
+		// GPU-driven form is the module's
+		if ( shader.ModuleOnly )
+		{
+			if ( !gpuDriven || Modules is not { } own || !own.HasGpuDriven( shader ) ) return null;
+			var form = own.CompileGpuDriven( shader, drawMode, features, dynamicCombos, attributes );
+			if ( ReferenceEquals( form, ModuleProgram.Pending ) )
+			{
+				pending = true;
+				return null;
+			}
+
+			return form is null ? null : ModuleVariant( shader, drawMode, form );
+		}
 
 		if ( gpuDriven )
 		{
