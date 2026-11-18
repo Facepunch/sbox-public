@@ -1820,6 +1820,16 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public bool GpuDrivenMeshes { get; set; } = !HasSwitch( "-no-gpudriven-meshes" );
 
 	/// <summary>
+	/// Skinned meshes' opaque draws join the static meshes' GPU-driven call (docs/managed/borealis-gpu-driven.md, "Skinned
+	/// meshes"): those from the vertex cache through a geometry record that pulls their vertex ids, the rest skinned in the
+	/// vertex shader from their bones. On by default with <see cref="GpuDrivenMeshes"/>; <c>-no-gpudriven-skinned</c> turns
+	/// it off.
+	/// </summary>
+	public bool GpuDrivenSkinned { get; set; } = !HasSwitch( "-no-gpudriven-skinned" );
+
+	internal override bool DrawsSkinnedGpuDriven => GpuDrivenSkinned && DrawsMeshesGpuDriven;
+
+	/// <summary>
 	/// Cull GPU-driven aggregates' fragments on the GPU (<c>borealis_gpu_driven_cull_cs</c>), by the same frustum and size
 	/// tests the CPU makes, from records written once: the CPU writes 16 bytes per aggregate a frame instead of an instance
 	/// record and command per visible fragment. On by default; off writes them on the CPU, to compare.

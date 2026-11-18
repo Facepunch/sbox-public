@@ -142,6 +142,15 @@ internal sealed partial class BackendContext
 		/// <summary>The visibility-driven prepass draws it with ids (<see cref="BackendContext.DrawIds"/>).</summary>
 		public bool Ids;
 
+		/// <summary>
+		/// Its batches are skinned meshes' (<see cref="GpuContext.GpuDrivenBatch.Skinned"/>), whose vertices aren't their bind pose under the
+		/// instance's transform: never drawn from positions alone (the ids shader, shadow meshlets), so never with static ones.
+		/// </summary>
+		public bool Skinned;
+
+		/// <summary>Its batches' own object attributes (<see cref="GpuContext.GpuDrivenBatch.OwnAttributes"/>), one set per bucket; null for none.</summary>
+		public ShaderParameters Own;
+
 		/// <summary>With <see cref="Ids"/>: its variant has no pixel shader, so <c>borealis_gpu_driven_ids</c> draws it.</summary>
 		public bool IdsShader;
 
@@ -188,11 +197,14 @@ internal sealed partial class BackendContext
 	internal override bool GpuDriven => device.DrawsAggregatesGpuDriven;
 
 	/// <summary>Count a batch left to the classic path, for the report (<see cref="BackendDevice.GpuDrivenLeftClassic"/>).</summary>
-	void LeftClassic( ShaderFile shader, object mode, string why )
+	void LeftClassic( ShaderFile shader, object mode, string why ) => LeftClassic( shader.Name, mode, why );
+
+	/// <summary>Count a batch of a shader or surface by name left to the classic path, for the report.</summary>
+	void LeftClassic( string shader, object mode, string why )
 	{
-		if ( Census ) device.Census?.Left( $"{DrawCensus.ShaderName( shader.Name )} {mode} ({why})" );
+		if ( Census ) device.Census?.Left( $"{DrawCensus.ShaderName( shader )} {mode} ({why})" );
 		if ( !device.TimeDraws ) return;
-		device.GpuDrivenLeftClassic.AddOrUpdate( $"{shader.Name} {mode} ({why})", 1, static ( _, n ) => n + 1 );
+		device.GpuDrivenLeftClassic.AddOrUpdate( $"{shader} {mode} ({why})", 1, static ( _, n ) => n + 1 );
 	}
 
 	internal override void DrawGpuDriven( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, ReadOnlySpan<GpuBuffer.IndirectDrawIndexedArguments> args, TransformBuffer transforms, int depthBias, float slopeScaledDepthBias, Span<bool> drawn, in GpuDrivenCull? cull = null )
@@ -268,7 +280,9 @@ internal sealed partial class BackendContext
 
 			// Culled on the GPU when every batch is a whole aggregate whose fragments' transforms are in order
 			var gpuCull = device.GpuDrivenCulling && cull.HasValue && CullShader is not null;
-			ShaderParameters lastAttributes = null;
+			var vertexCache = (attributes.GetCombo( VertexAnimationCombo ) ?? 0) != 0;
+			int? vertexCacheWas = null;
+			ShaderParameters lastAttributes = null, lastOwn = null;
 			var lastAttributesSet = false;
 			var lastLighting = 0u;
 			var lastKey = 0L;
@@ -283,22 +297,23 @@ internal sealed partial class BackendContext
 				// A surface material: its own GPU-driven passes, in buckets of its own (BackendContext.Surfaces.cs)
 				if ( batch.Material is SurfaceMaterial surface )
 				{
-					if ( batch.Mesh?.Geometry is IBackendGeometry surfaceSource && surfaceSource.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled is not null )
+					// A skinned one from the vertex cache with its skinned GPU-driven pass, under its own object attributes
+					if ( batch.Mesh?.Geometry is IBackendGeometry && GeometryOf( batch ).Pooled is not null )
 					{
-						SetObjectAttributes( null, batch.ObjectAttributes );
+						SetObjectAttributes( batch.OwnAttributes, batch.ObjectAttributes );
 						NextPassState( cache );
 						if ( batchLighting.Length < batches.Length ) Array.Resize( ref batchLighting, Math.Max( batches.Length, batchLighting.Length * 2 ) );
-						if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) )
+						if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) || !ReferenceEquals( batch.OwnAttributes, lastOwn ) )
 						{
-							(lastAttributes, lastAttributesSet) = (batch.ObjectAttributes, true);
+							(lastAttributes, lastOwn, lastAttributesSet) = (batch.ObjectAttributes, batch.OwnAttributes, true);
 							lastLighting = tables.Lighting( Lookup( BakedLightingToken ) as byte[], Lookup( ProbeVolumeToken ) as byte[] );
 							lastKey = AttributesKey( batch.ObjectAttributes );
 						}
 
 						batchLighting[i] = lastLighting;
-						if ( SurfaceBucket( surface, shaderMode, batch.StripPixelShader || r.Color is null, batch.ObjectAttributes, lastKey ) is { } surfaceBucket )
+						if ( SurfaceBucket( surface, shaderMode, batch.StripPixelShader || r.Color is null, batch.ObjectAttributes, lastKey, batch.Skinned, batch.VertexCache, batch.OwnAttributes ) is { } surfaceBucket )
 						{
-							surfaceBucket.Batches.Add( (surfaceSource.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled.Value.IndexPageSlot, i) );
+							surfaceBucket.Batches.Add( (GeometryOf( batch ).Pooled.Value.IndexPageSlot, i) );
 							device.Surfaces.CountGpuDriven();
 							surfaceBucket.Commands += batch.Count;
 							totalCommands += batch.Count;
@@ -307,19 +322,30 @@ internal sealed partial class BackendContext
 							surfaceBucket.Fragments += surfaceFragments;
 							totalFragments += surfaceFragments;
 						}
+						else if ( batch.Skinned ) LeftClassic( surface.Name, shaderMode, batch.VertexCache ? "surface, no skinned GPU-driven pass" : "surface, no GPU-driven pass" );
 					}
+					else if ( batch.Skinned ) LeftClassic( surface.Name, shaderMode, batch.VertexCache ? "surface, vertex cache geometry not pooled" : "surface, geometry not pooled" );
 
 					continue;
 				}
 
 				if ( batch.Material is not BackendMaterial { Shader: { } shader } m || batch.Mesh?.Geometry is not IBackendGeometry source ) continue;
-				if ( source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled is null )
+				if ( GeometryOf( batch ).Pooled is null )
 				{
-					LeftClassic( shader, shaderMode, "geometry not pooled" );
+					LeftClassic( shader, shaderMode, batch.VertexCache ? "vertex cache geometry not pooled" : "geometry not pooled" );
 					continue;
 				}
 
-				SetObjectAttributes( null, batch.ObjectAttributes );
+				// A draw from the vertex cache takes the variant its classic draw would, with D_CS_VERTEX_ANIMATION: set only
+				// when it changes (skinned draws come together), and put back as it was after the call
+				if ( batch.VertexCache != vertexCache )
+				{
+					vertexCacheWas ??= attributes.GetCombo( VertexAnimationCombo ) ?? 0;
+					vertexCache = batch.VertexCache;
+					attributes.SetCombo( VertexAnimationCombo, vertexCache ? 1 : 0 );
+				}
+
+				SetObjectAttributes( batch.OwnAttributes, batch.ObjectAttributes );
 				NextPassState( cache );
 				var mode = CachedModeName( shader, shaderMode );
 				if ( mode is null ) continue;
@@ -327,9 +353,9 @@ internal sealed partial class BackendContext
 				// Its lighting constants as the draw would read them (the object's, else the pass's), as a lighting record
 				if ( batchLighting.Length < batches.Length ) Array.Resize( ref batchLighting, Math.Max( batches.Length, batchLighting.Length * 2 ) );
 				// Consecutive batches mostly share their attributes (the world's lightmap, a probe volume): looked up once for them
-				if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) )
+				if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) || !ReferenceEquals( batch.OwnAttributes, lastOwn ) )
 				{
-					(lastAttributes, lastAttributesSet) = (batch.ObjectAttributes, true);
+					(lastAttributes, lastOwn, lastAttributesSet) = (batch.ObjectAttributes, batch.OwnAttributes, true);
 					lastLighting = tables.Lighting( Lookup( BakedLightingToken ) as byte[], Lookup( ProbeVolumeToken ) as byte[] );
 					lastKey = AttributesKey( batch.ObjectAttributes );
 				}
@@ -355,14 +381,14 @@ internal sealed partial class BackendContext
 
 				// One material per bucket where pixels read it, when asked: its record's offset is then the bucket's, uniform
 				var pixelMaterial = 0u;
-				if ( device.GpuDrivenMaterialBuckets && !depthOnly )
+				if ( device.GpuDrivenMaterialBuckets && !depthOnly && batch.OwnAttributes is null )
 				{
-					var uncompressed = source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).UncompressedTangentFrame;
+					var uncompressed = GeometryOf( batch ).UncompressedTangentFrame;
 					pixelMaterial = MaterialRecord( tables, m, variant.Pixel, uncompressed );
 				}
 
-				var bucket = FindBucket( variant, batch.ObjectAttributes, lastKey, depthOnly, noColor, pixelMaterial, m, mode );
-				bucket.Batches.Add( (source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled.Value.IndexPageSlot, i) );
+				var bucket = FindBucket( variant, batch.ObjectAttributes, lastKey, depthOnly, noColor, pixelMaterial, m, mode, batch.Skinned, batch.OwnAttributes );
+				bucket.Batches.Add( (GeometryOf( batch ).Pooled.Value.IndexPageSlot, i) );
 				bucket.Commands += batch.Count;
 				totalCommands += batch.Count;
 
@@ -373,6 +399,7 @@ internal sealed partial class BackendContext
 				totalFragments += fragmentCount;
 			}
 
+			if ( vertexCacheWas is { } was ) attributes.SetCombo( VertexAnimationCombo, was );
 			SetObjectAttributes( null );
 			if ( plan is null && prefix == batches.Length ) prefixBuckets = gpuDrivenBucketCount;
 			if ( gpuDrivenBucketCount == 0 ) return true;
@@ -405,7 +432,7 @@ internal sealed partial class BackendContext
 				var bucket = gpuDrivenBuckets[b];
 
 				// A bucket's one material, where it has one, is an object attribute: another bucket's moves a dynamic offset
-				SetObjectAttributes( bucket.PixelMaterial != 0 ? device.GpuDrivenMaterialParameters( bucket.PixelMaterial ) : null, bucket.Attributes );
+				SetObjectAttributes( bucket.Own ?? (bucket.PixelMaterial != 0 ? device.GpuDrivenMaterialParameters( bucket.PixelMaterial ) : null), bucket.Attributes );
 				NextPassState( cache );
 				resolver.Begin( passEpoch );
 
@@ -425,7 +452,7 @@ internal sealed partial class BackendContext
 					if ( batch.Owner is ResidentMeshes ) continue;
 
 					var material = batch.Material;
-					var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
+					var geometry = GeometryOf( batch );
 					var pooled = geometry.Pooled.Value;
 
 					// Depth only, from the positions-only copy when the vertex shader reads nothing else these vertices have
@@ -511,6 +538,16 @@ internal sealed partial class BackendContext
 				gpuDrivenBuckets = ownBuckets;
 			}
 		}
+	}
+
+	static readonly StringToken VertexAnimationCombo = new( "D_CS_VERTEX_ANIMATION" );
+
+	/// <summary>What a batch draws from: its draw's geometry, or its vertex-cache form for a skinned draw from the cache.</summary>
+	static DrawGeometry GeometryOf( in GpuDrivenBatch batch )
+	{
+		var source = (IBackendGeometry)batch.Mesh.Geometry;
+		if ( batch.VertexCache && source is ISkinnedGeometry skinned && skinned.VertexCacheFor( batch.Draw.Mesh, batch.Draw.DrawCall ) is { } cache ) return cache.Geometry;
+		return source.For( batch.Draw.Mesh, batch.Draw.DrawCall );
 	}
 
 	/// <summary>A batch's fragments: a mesh draw's instances, an aggregate's fragments, or resident meshes.</summary>
@@ -689,14 +726,14 @@ internal sealed partial class BackendContext
 			for ( int b = plan is null ? 0 : prefixBuckets; b < gpuDrivenBucketCount; b++ )
 			{
 				var bucket = gpuDrivenBuckets[b];
-				SetObjectAttributes( null, bucket.Attributes );
+				SetObjectAttributes( bucket.Own, bucket.Attributes );
 				NextPassState( cache );
 
 				// The prepass draws ids with each bucket's own variant, whose pixel shader writes them where it covers; a depth
 				// bucket without one (opaque depth_only) with borealis_gpu_driven_ids, when its vertices need only their positions
 				var ownPixel = bucket.Surface is not null ? bucket.Surface.Pass.Pixel is not null : bucket.Variant.Pixel?.Bytecode is not null && bucket.Variant.Pixel.GpuDriven;
 				if ( ids && !ownPixel && shaders.Ids is not null ) idsShaderVariant ??= Variant( shaders.Ids, "Default" );
-				bucket.IdsShader = ids && !ownPixel && (bucket.Classic is not null || bucket.SurfacePositionsOnly) && shaders.Ids is not null && idsShaderVariant is not null;
+				bucket.IdsShader = ids && !ownPixel && !bucket.Skinned && (bucket.Classic is not null || bucket.SurfacePositionsOnly) && shaders.Ids is not null && idsShaderVariant is not null;
 				bucket.Ids = ids && (ownPixel || bucket.IdsShader);
 				var bucketLists = lists && !bucket.DepthOnly;
 
@@ -705,13 +742,13 @@ internal sealed partial class BackendContext
 				// Its draws' meshlets: aggregates ask for theirs as their records are written, a model's static meshes (instances,
 				// resident meshes) here, once per draw, for shadow views alone. A bucket of neither draws as before, without a
 				// meshlet pass
-				bucket.ShadowMeshlets = meshlets && !ids && bucket.Classic is not null;
+				bucket.ShadowMeshlets = meshlets && !ids && bucket.Classic is not null && !bucket.Skinned;
 				var withMeshlets = false;
 				foreach ( var (_, index) in bucket.Batches )
 				{
 					if ( !bucket.ShadowMeshlets ) break;
 					ref readonly var batch = ref batches[index];
-					var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
+					var geometry = GeometryOf( batch );
 					if ( !ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) bucket.ShadowMeshlets = false;
 					if ( batch.Owner is AggregateObject && !batch.Instances ) withMeshlets = true;
 					else if ( batch.Mesh.Geometry is BackendModel model && geometry.Pooled is { } pooledMesh )
@@ -736,7 +773,7 @@ internal sealed partial class BackendContext
 				{
 					if ( !bucket.IdsShader ) break;
 					ref readonly var batch = ref batches[index];
-					var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
+					var geometry = GeometryOf( batch );
 					if ( bucket.Classic is not null && !ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) bucket.Ids = bucket.IdsShader = false;
 				}
 
@@ -761,7 +798,7 @@ internal sealed partial class BackendContext
 				{
 					ref readonly var batch = ref batches[index];
 					var material = batch.Material;
-					var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
+					var geometry = GeometryOf( batch );
 					var pooled = geometry.Pooled.Value;
 					var flags = (geometry.UncompressedTangentFrame ? 1u : 0u) | (pooled.IndexFormat == IndexFormat.UInt32 ? 2u : 0u) | batchLighting[index] << 8;
 
@@ -1103,7 +1140,7 @@ internal sealed partial class BackendContext
 			if ( run.Bucket != lastBucket )
 			{
 				lastBucket = run.Bucket;
-				SetObjectAttributes( bucket.PixelMaterial != 0 ? device.GpuDrivenMaterialParameters( bucket.PixelMaterial ) : null, bucket.Attributes );
+				SetObjectAttributes( bucket.Own ?? (bucket.PixelMaterial != 0 ? device.GpuDrivenMaterialParameters( bucket.PixelMaterial ) : null), bucket.Attributes );
 				NextPassState( cache );
 				resolver.Begin( passEpoch );
 				bound = false;
@@ -1759,7 +1796,7 @@ internal sealed partial class BackendContext
 				if ( run.Bucket != lastBucket )
 				{
 					lastBucket = run.Bucket;
-					SetObjectAttributes( null, bucket.Attributes );
+					SetObjectAttributes( bucket.Own, bucket.Attributes );
 					NextPassState( cache );
 					resolver.Begin( passEpoch );
 					var layout = FigureLayouts.GetValue( bucket.Variant, static _ => [new object(), new object(), new object(), new object()] )[mode];
@@ -1867,7 +1904,7 @@ internal sealed partial class BackendContext
 					lastBucket = run.Bucket;
 					lastTask = true;
 					attributes.Set( "BorealisMeshletStamps", visibility.MeshletStampsAttribute );
-					SetObjectAttributes( null, bucket.Attributes );
+					SetObjectAttributes( bucket.Own, bucket.Attributes );
 					NextPassState( cache );
 					resolver.Begin( passEpoch );
 					var meshIds = device.MeshletIds;
@@ -1908,7 +1945,7 @@ internal sealed partial class BackendContext
 			{
 				lastBucket = run.Bucket;
 				lastTask = false;
-				SetObjectAttributes( bucket.PixelMaterial != 0 ? device.GpuDrivenMaterialParameters( bucket.PixelMaterial ) : null, bucket.Attributes );
+				SetObjectAttributes( bucket.Own ?? (bucket.PixelMaterial != 0 ? device.GpuDrivenMaterialParameters( bucket.PixelMaterial ) : null), bucket.Attributes );
 				NextPassState( cache );
 				resolver.Begin( passEpoch );
 				MaterialObject materialObject = null;
@@ -2154,13 +2191,13 @@ internal sealed partial class BackendContext
 		&& a.StencilReadMask == b.StencilReadMask && a.StencilWriteMask == b.StencilWriteMask && a.StencilReference == b.StencilReference
 		&& a.AlphaToCoverage == b.AlphaToCoverage && MemoryExtensions.SequenceEqual<BlendState>( a.Blend, b.Blend );
 
-	GpuDrivenBucket FindBucket( ShaderVariant variant, ShaderParameters attributes, long key, bool depthOnly, bool noColor, uint pixelMaterial, BackendMaterial material, string mode )
+	GpuDrivenBucket FindBucket( ShaderVariant variant, ShaderParameters attributes, long key, bool depthOnly, bool noColor, uint pixelMaterial, BackendMaterial material, string mode, bool skinned = false, ShaderParameters own = null )
 	{
 		// Attributes that differ only in their lighting share a bucket: the variants read it from each draw's lighting record
 		for ( int i = openBucket; i < gpuDrivenBucketCount; i++ )
 		{
 			var bucket = gpuDrivenBuckets[i];
-			if ( SameDrawing( bucket.Variant, variant ) && bucket.AttributesKey == key && bucket.DepthOnly == depthOnly && bucket.NoColor == noColor && bucket.PixelMaterial == pixelMaterial ) return bucket;
+			if ( SameDrawing( bucket.Variant, variant ) && bucket.AttributesKey == key && bucket.DepthOnly == depthOnly && bucket.NoColor == noColor && bucket.PixelMaterial == pixelMaterial && bucket.Skinned == skinned && ReferenceEquals( bucket.Own, own ) ) return bucket;
 		}
 
 		if ( gpuDrivenBucketCount == gpuDrivenBuckets.Count ) gpuDrivenBuckets.Add( new GpuDrivenBucket() );
@@ -2181,6 +2218,8 @@ internal sealed partial class BackendContext
 		made.Batches.Clear();
 		made.Commands = 0;
 		made.Ids = false;
+		made.Skinned = skinned;
+		made.Own = own;
 		made.Fragments = 0;
 		return made;
 	}

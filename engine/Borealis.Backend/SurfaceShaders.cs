@@ -916,21 +916,22 @@ internal sealed class SurfaceProgram : IDisposable
 		}
 	}
 
-	readonly PassObjects[] gpuDrivenPasses = new PassObjects[16];
-	readonly bool[] gpuDrivenLooked = new bool[16];
+	readonly PassObjects[] gpuDrivenPasses = new PassObjects[32];
+	readonly bool[] gpuDrivenLooked = new bool[32];
 
 	/// <summary>
-	/// A GPU-driven pass (<c>[Depth|Forward][AlphaTest|Translucent]GpuDriven[Lightmapped]</c>), found once; null when
-	/// there's none. <paramref name="translucent"/> is the colour pass of blended materials (S_TRANSLUCENT).
+	/// A GPU-driven pass (<c>[Depth|Forward][AlphaTest|Translucent]GpuDriven[Lightmapped|Skinned]</c>), found once; null when
+	/// there's none. <paramref name="translucent"/> is the colour pass of blended materials (S_TRANSLUCENT);
+	/// <paramref name="vertexCache"/> draws skinned vertices from the vertex cache, and has no fallback.
 	/// </summary>
-	public PassObjects GpuDrivenPass( bool noColor, bool alphaTest, bool lightmapped, bool translucent = false )
+	public PassObjects GpuDrivenPass( bool noColor, bool alphaTest, bool lightmapped, bool translucent = false, bool vertexCache = false )
 	{
 		translucent &= !noColor;
-		var index = (translucent ? 8 : 0) | (noColor ? 4 : 0) | (alphaTest && !translucent ? 2 : 0) | (lightmapped ? 1 : 0);
+		var index = (vertexCache ? 16 : 0) | (translucent ? 8 : 0) | (noColor ? 4 : 0) | (alphaTest && !translucent ? 2 : 0) | (lightmapped && !vertexCache ? 1 : 0);
 		if ( System.Threading.Volatile.Read( ref gpuDrivenLooked[index] ) ) return gpuDrivenPasses[index];
 
 		var name = (noColor ? (alphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth) : translucent ? ShaderPasses.Forward + "Translucent" : (alphaTest ? ShaderPasses.Forward + "AlphaTest" : ShaderPasses.Forward)) + ShaderPasses.GpuDriven;
-		var found = (lightmapped ? Pass( name + ShaderPasses.Lightmapped ) : null) ?? Pass( name );
+		var found = vertexCache ? Pass( name + ShaderPasses.Skinned ) : (lightmapped ? Pass( name + ShaderPasses.Lightmapped ) : null) ?? Pass( name );
 		gpuDrivenPasses[index] = found;
 		System.Threading.Volatile.Write( ref gpuDrivenLooked[index], true );
 		return found;

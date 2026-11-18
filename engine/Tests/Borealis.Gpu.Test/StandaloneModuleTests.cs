@@ -111,9 +111,9 @@ public class StandaloneModuleTests : GpuTest
 				compared++;
 				differences.AddRange( ByName( PassModuleTests.Compare( classic, fromModule ) ).Select( d => $"{where}: {d}" ) );
 
-				// GPU-driven: only where the vfx variant pulls positions alone (the opaque and fading forms)
+				// GPU-driven: the opaque and fading forms, skinned ones from the vertex cache included, not alpha-tested or translucent
 				var gpuDriven = backend.Shaders.Variant( module, "Depth", moduleFeatures, Combo, null, gpuDriven: true );
-				if ( featureName is not null || combos.GetValueOrDefault( "D_CS_VERTEX_ANIMATION" ) != 0 )
+				if ( featureName is not null )
 				{
 					if ( gpuDriven is not null ) differences.Add( $"{where}: a GPU-driven form where none should be" );
 					continue;
