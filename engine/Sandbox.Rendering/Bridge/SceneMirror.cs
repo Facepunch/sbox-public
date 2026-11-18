@@ -200,6 +200,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		{
 			CheckReloads();
 			CheckLoaded();
+			CheckCaptured();
 		}
 
 		lock ( gate )
@@ -312,6 +313,24 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 	readonly Dictionary<SceneLightProbe, Borealis.LightProbeVolume> lightProbes = new();
 
+	/// <summary>Whether a realtime probe's cube is made when it's first captured (on), not when the probe is mirrored. For comparisons.</summary>
+	internal static bool LazyCaptureCubes { get; set; } = true;
+
+	// Realtime probes whose cube hasn't been made yet (nothing has captured them), with their engine texture
+	readonly Dictionary<SceneCubemap, Texture> uncaptured = new();
+	int capturesSeen;
+
+	/// <summary>Apply again the probes whose cube a capture has made since the last sync (<see cref="ApplyEnvMap"/>).</summary>
+	void CheckCaptured()
+	{
+		if ( uncaptured.Count == 0 || capturesSeen == MirrorContent.CaptureCubesMade ) return;
+		capturesSeen = MirrorContent.CaptureCubesMade;
+		foreach ( var (cubemap, texture) in uncaptured )
+		{
+			if ( MirrorContent.MadeCaptureCube( texture ) is not null ) OnChanged( cubemap, SceneObjectChange.Settings );
+		}
+	}
+
 	/// <summary>
 	/// The world lightmaps a lightmapped object draws with: those of the map its model is in
 	/// (<c>maps/construct_25/worldnodes/...</c>), read from the map's world file. Null for an object without lightmaps.
@@ -414,6 +433,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			aggregate.LightmapAttributes = null;
 		}
 
+		if ( sceneObject is SceneCubemap cubemap ) uncaptured.Remove( cubemap );
 		if ( sceneObject is SceneLightProbe probe && lightProbes.Remove( probe, out var volume ) ) World.LightProbeVolumes.Remove( volume );
 		else if ( obj is not null ) World.Remove( obj );
 		else if ( sceneObject is SceneDirectionalLight sun ) sunDirty |= suns.Remove( sun );
@@ -767,7 +787,21 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 		if ( (change & SceneObjectChange.Settings) != 0 )
 		{
-			envMap.Cubemap = TextureFor( cubemap.Texture, cubemap, SceneObjectChange.Settings );
+			// A realtime probe's cube is made when it's first captured (the envmap scheduler captures the probes that are seen),
+			// not for every probe a map has: it reflects black until then, as a cube cleared for it did
+			var texture = cubemap.Texture;
+			if ( LazyCaptureCubes && MirrorContent.IsCaptureCube( texture ) )
+			{
+				envMap.Cubemap = MirrorContent.MadeCaptureCube( texture );
+				if ( envMap.Cubemap is null ) uncaptured[cubemap] = texture;
+				else uncaptured.Remove( cubemap );
+			}
+			else
+			{
+				envMap.Cubemap = TextureFor( texture, cubemap, SceneObjectChange.Settings );
+				uncaptured.Remove( cubemap );
+			}
+
 			envMap.ProjectionBounds = cubemap.ProjectionBounds;
 			envMap.Tint = cubemap.TintColor;
 			envMap.Feathering = cubemap.Feathering;

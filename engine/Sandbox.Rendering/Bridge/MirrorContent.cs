@@ -158,7 +158,7 @@ internal static class MirrorContent
 		if ( captures.TryGetValue( texture, out var capture ) && capture.Texture is { IsValid: true } drawn && !capture.Owned ) return drawn;
 
 		// A cube made at run time for compute to write (a realtime probe's) is what cube captures draw into
-		if ( texture.Depth == 6 && texture.UAVAccess ) return CaptureCube( texture );
+		if ( IsCaptureCube( texture ) ) return CaptureCube( texture );
 
 		// A 2D render target (a screen a game draws into) is the engine's copy on the device: its path is only its name
 		var engine = RenderBackend.Default as BorealisGpuRenderBackend;
@@ -190,6 +190,15 @@ internal static class MirrorContent
 
 	static readonly ConditionalWeakTable<Texture, Capture> captures = new();
 	static readonly System.Collections.Concurrent.ConcurrentQueue<GpuTexture> freedCaptures = new();
+
+	/// <summary>Whether an engine texture is a cube made at run time for compute to write (a realtime probe's), which <see cref="CaptureCube"/> captures into.</summary>
+	public static bool IsCaptureCube( Texture texture ) => texture is not null && texture.Depth == 6 && texture.UAVAccess;
+
+	/// <summary>The cube <see cref="CaptureCube"/> has made for <paramref name="texture"/>, or null when nothing has captured or drawn it yet.</summary>
+	public static GpuTexture MadeCaptureCube( Texture texture ) => captures.TryGetValue( texture, out var capture ) && capture.Owned && capture.Texture is { IsValid: true } made ? made : null;
+
+	/// <summary>How many cubes <see cref="CaptureCube"/> has made, for what waits for one (<see cref="MadeCaptureCube"/>).</summary>
+	public static int CaptureCubesMade { get; private set; }
 
 	/// <summary>
 	/// The Borealis.Gpu cube that cube captures of <paramref name="texture"/> (an engine cube made at run time, a realtime
@@ -223,6 +232,7 @@ internal static class MirrorContent
 			Storage = true,
 		}, $"Cube capture {texture.Width}px" );
 		capture.Owned = true;
+		CaptureCubesMade++;
 		gpu.Clear( capture.Texture, Color.Transparent );
 		return capture.Texture;
 	}
