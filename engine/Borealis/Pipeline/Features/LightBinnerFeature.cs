@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace Borealis.Features;
@@ -49,6 +50,9 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 
 	// The cluster lists: a section per item type, lights, envmaps then decals (ClusterCulling.hlsl)
 	GpuBuffer<uint> clusterCounts, clusterIndices;
+
+	// Each type's slots per cluster this frame: what the view's items need, rounded up so the index list rarely resizes
+	int lightCapacity, envMapCapacity, decalCapacity;
 
 	/// <summary>
 	/// Lights - and <see cref="EnvMapObject"/>s too, through <see cref="Accepts"/>.
@@ -212,6 +216,7 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 	internal override void Setup( GpuContext context, RenderWorld world, ViewPass pass )
 	{
 		EnsureResources();
+		SizeClusterIndices();
 
 		var view = pass.View;
 
@@ -246,7 +251,7 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 			ZParams = new( logScale, -MathF.Log( near ) * logScale, near, far ),
 			ScreenParams = new( width, height, 1.0f / width, 1.0f / height ),
 
-			Capacities = new( MaxLightsPerCluster, MaxEnvMapsPerCluster, MaxDecalsPerCluster, 0 ),
+			Capacities = new( lightCapacity, envMapCapacity, decalCapacity, 0 ),
 		} );
 
 		// Write-after-read needs only an execution dependency on previous-frame readers: shading, and particle lighting in compute.
@@ -284,7 +289,32 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 		cullingShader ??= RenderHost.Current.Device.MaterialFromShader( "shaders/clustered_light_culling_cs.shader" );
 
 		clusterCounts ??= new GpuBuffer<uint>( ClusterCount * 3, GpuBuffer.UsageFlags.Structured, "Borealis ClusterItemCounts" );
-		clusterIndices ??= new GpuBuffer<uint>( ClusterCount * (MaxLightsPerCluster + MaxEnvMapsPerCluster + MaxDecalsPerCluster), GpuBuffer.UsageFlags.Structured, "Borealis ClusterItemIndices" );
+	}
+
+	/// <summary>
+	/// A type's slots per cluster for <paramref name="count"/> items in the view: no more than the items, rounded up to a
+	/// power of two, capped at the type's maximum.
+	/// </summary>
+	internal static int ClusterCapacity( int count, int max ) => count <= 0 ? 0 : Math.Min( max, (int)BitOperations.RoundUpToPowerOf2( (uint)count ) );
+
+	/// <summary>
+	/// Size the index list by the view's lights, envmaps and decals rather than every type's maximum (11.5 MiB a view).
+	/// It grows as soon as the items need it and shrinks once they need a quarter of it; a replaced buffer lives until
+	/// the frames recorded with it finish.
+	/// </summary>
+	void SizeClusterIndices()
+	{
+		lightCapacity = ClusterCapacity( DynamicCount, MaxLightsPerCluster );
+		envMapCapacity = ClusterCapacity( EnvMapCount, MaxEnvMapsPerCluster );
+		decalCapacity = ClusterCapacity( DecalCount, MaxDecalsPerCluster );
+
+		// One element at least: a buffer can't be empty, and an empty view still binds one
+		var needed = Math.Max( ClusterCount * (lightCapacity + envMapCapacity + decalCapacity), 1 );
+		if ( clusterIndices is not null && clusterIndices.ElementCount >= needed && clusterIndices.ElementCount / 4 < needed ) return;
+
+		clusterIndices?.Dispose();
+		clusterIndices = new GpuBuffer<uint>( needed, GpuBuffer.UsageFlags.Structured, "Borealis ClusterItemIndices" );
+		clusterBuffers = null;
 	}
 
 	internal override void Dispose()

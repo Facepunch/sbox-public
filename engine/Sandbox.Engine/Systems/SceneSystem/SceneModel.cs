@@ -28,6 +28,7 @@ public sealed partial class SceneModel : SceneObject
 			var typeFlags = ESceneObjectTypeFlags.NONE;
 
 			MeshSystem.CreateSceneObject( model.native, transform, "AnimatableSceneObjectDesc", flags, typeFlags, sceneWorld, 0x1 );
+			StartResolvingDraws( model );
 
 			if ( !animNative.IsValid )
 			{
@@ -226,6 +227,7 @@ public sealed partial class SceneModel : SceneObject
 	public void SetBodyGroup( string name, int value )
 	{
 		animNative.SetBodyGroup( name, value );
+		MeshGroupsChangedNatively();
 		NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 

@@ -126,6 +126,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			ProgressMarkers = markers,
 			PipelineCacheFolder = pipelineCacheFolder,
 			Message = message,
+
+			// The process's device takes what DLSS asks for, where the GPU has it (NVIDIA's), as Source 2's device does
+			OptionalInstanceExtensions = frames ? Borealis.Backend.Upscalers.TemporalUpscaler.DlssInstanceExtensions() : null,
+			OptionalDeviceExtensions = frames ? Borealis.Backend.Upscalers.TemporalUpscaler.DlssDeviceExtensions : null,
 		} );
 
 		gpu.Profiler = new TraceZones();

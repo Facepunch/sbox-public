@@ -419,6 +419,35 @@ public sealed unsafe class CommandList
 	}
 
 	//
+	// Recording outside Borealis.Gpu
+	//
+
+	/// <summary>
+	/// The list's Vulkan command buffer, for a library that records into it itself (a vendor upscaler, with
+	/// <see cref="Device.Native"/>): the barriers asked for so far are recorded first, and no rendering scope may be open.
+	/// Call <see cref="EndNative"/> after, so the pipelines and sets it bound aren't taken for the list's own.
+	/// </summary>
+	public nint BeginNative()
+	{
+		OutsideRendering();
+		FlushBarriers();
+		return Handle;
+	}
+
+	/// <summary>
+	/// After <see cref="BeginNative"/>: forget what was bound, so the next draw or dispatch binds its pipeline, every set and
+	/// its render state again.
+	/// </summary>
+	public void EndNative()
+	{
+		Recording();
+		layouts[0] = layouts[1] = 0;
+		dirty[0] = dirty[1] = 0x3F;
+		lastLayout = 0;
+		renderStateSet = false;
+	}
+
+	//
 	// Barriers
 	//
 
