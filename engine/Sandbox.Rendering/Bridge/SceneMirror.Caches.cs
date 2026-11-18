@@ -312,14 +312,26 @@ internal sealed partial class SceneMirror
 
 	/// <summary>
 	/// A texture an object draws with; on Borealis.Gpu loading asynchronously, null while it loads, and the object is applied
-	/// with <paramref name="change"/> again once it's read.
+	/// with <paramref name="change"/> again once it's read. Held by the world (<see cref="SceneMirror.WorldTexture"/>), not
+	/// kept for good: an envmap of the sky's cube kept the sky after its map was unloaded.
 	/// </summary>
 	GpuTexture TextureFor( Texture texture, SceneObject sceneObject, SceneObjectChange change )
 	{
 		if ( MirrorContent.Gpu is not { AsyncModels: true } gpu || string.IsNullOrEmpty( texture?.ResourcePath ) ) return MirrorContent.Texture( texture );
 
-		var loaded = gpu.LoadTextureAsync( texture.ResourcePath, out var pending );
-		if ( pending ) textureWaits.Add( (texture.ResourcePath, sceneObject, change) );
+		var path = texture.ResourcePath;
+		lock ( heldTextures )
+		{
+			if ( heldTextures.Contains( path ) ) return gpu.HeldTexture( path );
+		}
+
+		var loaded = gpu.LoadTextureAsync( path, out var pending, hold: true );
+		if ( pending ) textureWaits.Add( (path, sceneObject, change) );
+		else if ( loaded is not null )
+		{
+			lock ( heldTextures ) heldTextures.Add( path );
+		}
+
 		return loaded;
 	}
 

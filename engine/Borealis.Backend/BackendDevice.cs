@@ -1198,14 +1198,30 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public GpuTexture MaterialTexture( string material, string variable ) => MaterialTexture( LoadMaterial( material ), variable );
 
 	/// <summary>
-	/// <see cref="MaterialTexture(string, string)"/> without pinning a material that's loaded already (a world's mirror holds
-	/// it, its sky's): what's drawn outside the worlds borrows it, and it goes with the world. Loaded here otherwise.
+	/// <see cref="MaterialTexture(string, string)"/> without pinning the material: what's drawn outside the worlds (a water
+	/// body's reflection reading the sky's cubemap) borrows it, and it goes with the worlds that hold it (their sky's). One not
+	/// loaded yet is loaded unheld (<see cref="UnheldMaterial"/>), so the first world to hold it and let go frees it.
 	/// </summary>
 	public GpuTexture LoadedMaterialTexture( string material, string variable )
 	{
 		GpuMaterial loaded;
 		lock ( sharedMaterials ) sharedMaterials.TryGetValue( material, out loaded );
-		return loaded is not null ? MaterialTexture( loaded, variable ) : MaterialTexture( material, variable );
+		return MaterialTexture( loaded ?? UnheldMaterial( material ), variable );
+	}
+
+	/// <summary>
+	/// A material loaded as <see cref="ModelMaterial"/> loads one (its textures held by it), but neither held nor pinned: it
+	/// stays until something holds it (<see cref="ModelMaterial"/>) and lets it go (<see cref="ReleaseModelMaterial"/>).
+	/// </summary>
+	GpuMaterial UnheldMaterial( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return LoadMaterial( path );
+		lock ( sharedMaterials )
+		{
+			var material = ModelMaterial( path );
+			LifeOf( path ).Holders--;
+			return material;
+		}
 	}
 
 	/// <summary>A material's texture for a shader variable, or null (<see cref="MaterialTexture(string, string)"/>).</summary>
