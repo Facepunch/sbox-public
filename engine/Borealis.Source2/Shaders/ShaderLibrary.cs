@@ -104,7 +104,7 @@ public sealed class ShaderLibrary : IDisposable
 		if ( full is not null )
 		{
 			// A standalone module describes its shader itself: the compiled file beside it is only Source 2's renderer's
-			if ( Modules?.DescribeStandalone( Path.GetFullPath( full ) ) is { } standalone ) return (standalone, true);
+			if ( Modules?.DescribeStandalone( full ) is { } standalone ) return (standalone, true);
 			return (LoadOrUpgrade( full ), true);
 		}
 
