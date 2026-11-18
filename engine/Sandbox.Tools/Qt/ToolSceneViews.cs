@@ -387,7 +387,9 @@ internal static class ToolSceneViews
 					if ( vertexCount + count > vertices.Length ) Array.Resize( ref vertices, Math.Max( vertices.Length * 2, vertexCount + count ) );
 					fixed ( ToolVertex* destination = &vertices[vertexCount] )
 					{
-						if ( getGeometry( sceneObject.native, &geometry, destination, count ) != count ) continue;
+						// What it wrote, which can be fewer than it asked room for
+						count = getGeometry( sceneObject.native, &geometry, destination, count );
+						if ( count <= 0 ) continue;
 					}
 
 					batches.Add( new Batch
