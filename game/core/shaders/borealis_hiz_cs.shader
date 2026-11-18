@@ -72,14 +72,17 @@ CS
 		float4 g_nHiZClipW;
 	};
 
-	[numthreads( 64, 1, 1 )]
+	[numthreads( 16, 16, 1 )]
 	void MainCs( uint3 vGroupId : SV_GroupID )
 	{
-		// Keep the constants and buffers: a sum written nowhere a draw reads
-		#if D_MSAA
-			float flDepth = g_tDepth.Load( int2( 0, 0 ), 0 );
-		#else
-			float flDepth = g_tDepth.Load( int3( 0, 0, 0 ) );
+		// Keep the constants and buffers: a sum written nowhere a draw reads. The module reads depth only for D_HIZ_DEPTH
+		float flDepth = 0;
+		#if D_HIZ_DEPTH
+			#if D_MSAA
+				flDepth = g_tDepth.Load( int2( 0, 0 ), 0 );
+			#else
+				flDepth = g_tDepth.Load( int3( 0, 0, 0 ) );
+			#endif
 		#endif
 		if ( g_nHiZPass == 0xffffffffu )
 			g_Frame.Store( 0, asuint( flDepth ) + D_HIZ_DEPTH + g_HiZ.Load( 0 ) + g_Stamps.Load( 0 ) + g_MeshletStamps.Load( 0 ) + g_nHiZWidth + g_nHiZHeight + g_nHiZLevels + g_nHiZSource + g_nHiZDepthWidth + g_nHiZDepthHeight + g_nHiZSamples
