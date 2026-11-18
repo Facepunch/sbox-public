@@ -109,6 +109,8 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 		public static BlitMode WithBackbuffer( Material m, Stage stage, int order = 0, bool mip = false ) => new BlitMode { Material = m, RenderStage = stage, Order = order, WantsBackbuffer = true, WantsBackbufferMips = mip };
 	}
 
+	readonly Dictionary<(CameraComponent Camera, string Name), CommandList> blitLists = new();
+
 	/// <summary>
 	/// Helper to do a blit with the current camera's post process
 	/// </summary>
@@ -116,7 +118,14 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	{
 		if ( !blit.Material.IsValid() ) return;
 
-		CommandList cl = new CommandList( debugName );
+		// A list per camera and name, reset and recorded again each frame, as the effects with lists of their own do
+		var key = (context.Camera, debugName);
+		if ( blitLists.TryGetValue( key, out var cl ) ) cl.Reset();
+		else
+		{
+			if ( blitLists.Count >= 64 ) blitLists.Clear();
+			blitLists[key] = cl = new CommandList( debugName );
+		}
 
 		if ( blit.WantsBackbuffer )
 		{
