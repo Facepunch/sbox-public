@@ -48,6 +48,9 @@ public sealed partial class ScriptSystem
 				library.RemoveAssembly( previous );
 			}
 			_assembly = update.Assembly;
+			// Register the incoming types before the swap, so a static initializer that migration runs
+			// can find its own type in the type library.
+			hotload.Register();
 			replace( previous, _assembly );
 			return hotload;
 		}
@@ -65,12 +68,17 @@ public sealed partial class ScriptSystem
 	internal sealed class AssemblyHotload( ScriptSystem owner ) : IDisposable
 	{
 		private bool _complete;
+		private bool _registered;
 
 		/// <summary>
-		/// Registers the replacement script assembly before scene and editor hotload notifications.
+		/// Registers the replacement script assembly before reference migration, and so before
+		/// scene and editor hotload notifications. Later calls do nothing.
 		/// </summary>
 		internal void Register()
 		{
+			if ( _registered ) return;
+			_registered = true;
+
 			foreach ( var library in owner._libraries )
 			{
 				library.AddAssembly( owner._assembly, true );

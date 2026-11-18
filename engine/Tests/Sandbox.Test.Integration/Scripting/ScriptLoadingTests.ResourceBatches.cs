@@ -67,6 +67,37 @@ public partial class ScriptLoadingTests
 	}
 
 	/// <summary>
+	/// Two related files that are both rejected, then fixed one at a time, end up fully published.
+	/// </summary>
+	[TestMethod]
+	public void ResourceWatcherPublishesFilesFixedOneAtATime()
+	{
+		const string brokenGate = "enum RepairOp { Add, Sub }\n[Title( Missing.Name )] class RepairGate : Component { [Sync] public RepairOp Op { get; set; } }";
+		const string fixedGate = "enum RepairOp { Add, Sub }\nclass RepairGate : Component { [Sync] public RepairOp Op { get; set; } }";
+		const string brokenTool = "class RepairTool : Component { [Rpc.Host( Missing.Flag )] public void Use() { } public int Read( RepairGate gate ) { return (int)gate.Op; } }";
+		const string fixedTool = "class RepairTool : Component { [Rpc.Host] public void Use() { } public int Read( RepairGate gate ) { return (int)gate.Op; } }";
+
+		ResourceLoader.LoadAllGameResource( files );
+		files.WriteAllText( "repair-gate.csx", brokenGate );
+		DispatchResourceChanges( "repair-gate.csx" );
+		files.WriteAllText( "repair-tool.csx", brokenTool );
+		DispatchResourceChanges( "repair-tool.csx" );
+		Assert.IsNull( Game.TypeLibrary.GetType( "RepairGate" ) );
+		Assert.IsNull( Game.TypeLibrary.GetType( "RepairTool" ) );
+
+		files.WriteAllText( "repair-gate.csx", fixedGate );
+		DispatchResourceChanges( "repair-gate.csx" );
+		files.WriteAllText( "repair-tool.csx", fixedTool );
+		DispatchResourceChanges( "repair-tool.csx" );
+
+		Assert.IsFalse( Game.Scripting.RequiresReload );
+		Assert.AreEqual( 0, Game.Scripting.Diagnostics.Count, string.Join( "\n", Game.Scripting.Diagnostics ) );
+		Assert.IsNotNull( Game.TypeLibrary.GetType( "RepairTool" ), "The tool is missing." );
+		Assert.IsNotNull( Game.TypeLibrary.GetType( "RepairGate" ), "The gate is missing." );
+		Assert.IsNotNull( Game.TypeLibrary.GetType( "RepairOp" ), "The gate's enum is missing." );
+	}
+
+	/// <summary>
 	/// Removing a parent and its dependent type in the same watcher notification retires both declarations.
 	/// </summary>
 	[TestMethod]

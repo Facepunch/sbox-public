@@ -32,6 +32,11 @@ public class ScriptResolverRefSafetyTests
 		public int ReadIn( in int value ) => value;
 		public ref int Echo( int[] values ) => ref values[0];
 		public Span<int> Wrap( int[] values ) => values;
+		public Span<int> Slice( in int start ) => default;
+		public Span<int> Trim( Span<int> values ) => values;
+		public Span<int> Buffer => default;
+		public static Span<int> Create( int length ) => new int[length];
+		public Span<int> Hold<T>( T value ) where T : allows ref struct => default;
 	}
 
 	/// <summary>
@@ -73,7 +78,7 @@ public class ScriptResolverRefSafetyTests
 	}
 
 	[TestMethod]
-	public void ByRefReturnsAndRefStructsAreNotExposed()
+	public void ByRefReturnsAndBorrowingRefStructsAreNotExposed()
 	{
 		var members = GetMembers( typeof( RefMembers ) );
 		var constructors = members.OfType<ConstructorInfo>().ToArray();
@@ -84,8 +89,24 @@ public class ScriptResolverRefSafetyTests
 		CollectionAssert.Contains( methods, nameof( RefMembers.Read ) );
 		CollectionAssert.Contains( methods, nameof( RefMembers.ReadIn ) );
 		CollectionAssert.DoesNotContain( methods, nameof( RefMembers.Echo ) );
-		CollectionAssert.DoesNotContain( methods, nameof( RefMembers.Wrap ) );
+		CollectionAssert.DoesNotContain( methods, nameof( RefMembers.Slice ) );
+		CollectionAssert.DoesNotContain( methods, nameof( RefMembers.Trim ) );
+		CollectionAssert.DoesNotContain( methods, nameof( RefMembers.Hold ) );
+		Assert.IsFalse( members.OfType<PropertyInfo>().Any( x => x.Name == nameof( RefMembers.Buffer ) ) );
 		Assert.IsTrue( members.OfType<FieldInfo>().Any( x => x.Name == nameof( RefMembers.Plain ) ) );
+	}
+
+	/// <summary>
+	/// A stack-only value returned by value from ordinary arguments cannot refer to a call temporary,
+	/// so scripts may call the method, whether it is static or on a reference type.
+	/// </summary>
+	[TestMethod]
+	public void DetachedRefStructReturnsAreExposed()
+	{
+		var methods = GetMembers( typeof( RefMembers ) ).OfType<MethodInfo>().Select( x => x.Name ).ToArray();
+
+		CollectionAssert.Contains( methods, nameof( RefMembers.Wrap ) );
+		CollectionAssert.Contains( methods, nameof( RefMembers.Create ) );
 	}
 
 	/// <summary>
@@ -99,7 +120,7 @@ public class ScriptResolverRefSafetyTests
 		var declared = members.Where( member => member.DeclaringType == typeof( RefComponent ) ).ToArray();
 
 		Assert.IsTrue( declared.OfType<ConstructorInfo>().Any() );
-		CollectionAssert.AreEquivalent( new[] { "Read", "ReadIn", "WriteRef" }, declared.OfType<MethodInfo>().Select( method => method.Name ).ToArray() );
+		CollectionAssert.AreEquivalent( new[] { "Read", "ReadIn", "WriteRef", "Wrap" }, declared.OfType<MethodInfo>().Select( method => method.Name ).ToArray() );
 		Assert.IsFalse( declared.OfType<PropertyInfo>().Any() );
 	}
 }

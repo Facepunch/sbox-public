@@ -41,6 +41,11 @@ public sealed partial class ScriptSystem
 			}
 		}
 
+		// Files published while still waiting on a missing type have never been compiled. The module lists
+		// those first and then its most recent chunk error, which is not a waiting file, so leave that out.
+		var waiting = Module.Diagnostics.SkipLast( Module.LastError is null ? 0 : 1 )
+			.Select( diagnostic => diagnostic.ToEngineError().FilePath ).ToHashSet( StringComparer.Ordinal );
+
 		while ( true )
 		{
 			var result = LoadFiles( snapshot, restart );
@@ -61,6 +66,14 @@ public sealed partial class ScriptSystem
 			var rejected = result.Diagnostics.FirstOrDefault( diagnostic => restart.Contains( diagnostic.FilePath ) );
 			if ( rejected is null )
 			{
+				// This batch supplied the type a waiting file needed, and that file then failed its first
+				// compile. Drop it instead of discarding the valid edits it was waiting for. Its source leaves
+				// the module until the file is edited again; the warning logged above is the only trace.
+				if ( _fileLoadError?.FilePath is { } failed && waiting.Remove( failed ) && snapshot.Remove( failed ) )
+				{
+					continue;
+				}
+
 				return;
 			}
 			var path = rejected.FilePath;

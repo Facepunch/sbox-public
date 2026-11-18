@@ -404,6 +404,15 @@ internal sealed partial class TypeLibraryScriptResolver( TypeLibrary library ) :
 	{
 		// Scripts must await native work instead of blocking the thread that completes it.
 		MethodInfo method when method.DeclaringType == typeof( TaskSource ) && method.Name is nameof( TaskSource.WaitAll ) or nameof( TaskSource.WaitAny ) => false,
+		// A stack-only value returned by value cannot refer to a call temporary when the method takes no
+		// by-reference or stack-only arguments and is not called on a value-type receiver. A generic
+		// parameter that allows ref structs counts as stack-only: the result could hold the argument.
+		// Property accessors stay excluded: a stack-only property usually exposes the receiver's own
+		// storage. So do callbacks, whose target is unknown.
+		MethodInfo method when IsRefStruct( method.ReturnType ) && !method.ReturnType.IsByRef
+			=> !method.IsSpecialName && (method.IsStatic || !method.DeclaringType.IsValueType)
+				&& !typeof( Delegate ).IsAssignableFrom( method.DeclaringType )
+				&& method.GetParameters().All( p => !p.ParameterType.IsByRef && !IsRefStruct( p.ParameterType ) && !AllowsRefStruct( p.ParameterType ) ),
 		MethodBase method => (method is not MethodInfo info || !IsRefLike( info.ReturnType ))
 			&& method.GetParameters().All( p => !IsRefStruct( p.ParameterType ) ),
 		PropertyInfo property => !IsRefLike( property.PropertyType )
@@ -415,4 +424,7 @@ internal sealed partial class TypeLibraryScriptResolver( TypeLibrary library ) :
 	static bool IsRefLike( Type type ) => type.IsByRef || IsRefStruct( type );
 
 	static bool IsRefStruct( Type type ) => (type.IsByRef ? type.GetElementType() : type).IsByRefLike;
+
+	static bool AllowsRefStruct( Type type ) => type.IsGenericParameter
+		&& type.GenericParameterAttributes.HasFlag( GenericParameterAttributes.AllowByRefLike );
 }

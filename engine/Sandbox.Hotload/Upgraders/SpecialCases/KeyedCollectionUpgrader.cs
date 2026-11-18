@@ -53,8 +53,18 @@ internal abstract class KeyedCollectionUpgrader<TItem>( Type genericTypeDefiniti
 	{
 		var oldType = oldInstance.GetType();
 		var newType = GetNewType( oldType );
+		var oldComparer = GetComparer( oldInstance );
 
-		if ( GetComparer( oldInstance ) is { } comparer && GetComparerConstructor( oldType ) is not null )
+		// A collection whose type and comparer are unchanged is upgraded in place. A replacement would
+		// stand in for it, empty, until the late queue fills it. Code that runs during the swap, such as
+		// a replaced type's static constructor, would read that empty collection.
+		if ( newType == oldType && (oldComparer is null || ReferenceEquals( GetNewInstance( oldComparer ), oldComparer )) )
+		{
+			newInstance = oldInstance;
+			return true;
+		}
+
+		if ( oldComparer is { } comparer && GetComparerConstructor( oldType ) is not null )
 		{
 			newInstance = Activator.CreateInstance( newType, GetNewInstance( comparer ) )!;
 		}
@@ -123,8 +133,6 @@ internal abstract class KeyedCollectionUpgrader<TItem>( Type genericTypeDefiniti
 		var warnedThreadInterference = false;
 		var warnedKeyCollision = false;
 
-		newWrapped.Clear();
-
 		var oldPath = CurrentPath;
 
 		if ( TracePaths )
@@ -134,11 +142,24 @@ internal abstract class KeyedCollectionUpgrader<TItem>( Type genericTypeDefiniti
 
 		try
 		{
+			// Upgrade every item before emptying the collection. Upgrading an item can create an instance
+			// of a replaced type, which runs that type's static constructor, and that code may read this
+			// very collection. It must find the old contents, not a half-filled table.
+
+			var upgraded = new List<TItem>();
+
 			foreach ( var oldItem in oldItems )
+			{
+				upgraded.Add( GetNewInstance( oldItem ) );
+			}
+
+			newWrapped.Clear();
+
+			foreach ( var upgradedItem in upgraded )
 			{
 				// Keys can never be null, warn if a key became null during this hotload
 
-				if ( GetNewInstance( oldItem ) is not { } newItem || GetKey( newItem ) is not { } newKey )
+				if ( upgradedItem is not { } newItem || GetKey( newItem ) is not { } newKey )
 				{
 					if ( !CurrentDstField.HasAttribute<SuppressNullKeyWarningAttribute>() )
 					{

@@ -776,6 +776,28 @@ namespace HotloadTests
 			Assert.AreEqual( 28, After::DictionaryClass.Instance.Dict1["test"] );
 		}
 
+		/// <summary>
+		/// A collection whose type and comparer are unchanged is upgraded in place. A replacement would
+		/// be empty until the late queue fills it, and code that runs during the swap, such as a replaced
+		/// type's static constructor, would read that empty collection.
+		/// </summary>
+		[TestMethod]
+		public void UnchangedDictionaryKeepsItsInstance()
+		{
+			var dictionary = new Dictionary<string, int>( StringComparer.OrdinalIgnoreCase )
+			{
+				{ "TEST", 28 }
+			};
+
+			Before::DictionaryClass.Instance = new Before::DictionaryClass { Dict1 = dictionary };
+
+			Hotload();
+
+			Assert.AreSame( dictionary, After::DictionaryClass.Instance.Dict1 );
+			Assert.AreEqual( 1, dictionary.Count );
+			Assert.AreEqual( 28, dictionary["test"] );
+		}
+
 		[TestMethod]
 		public void DictionaryComparerSwappedValues()
 		{

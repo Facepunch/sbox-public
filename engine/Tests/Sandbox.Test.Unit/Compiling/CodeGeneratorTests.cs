@@ -78,6 +78,53 @@ public class CodeGeneratorTests
 	}
 
 	/// <summary>
+	/// Script enums keep their documentation as comments: the script compiler accepts no attributes
+	/// on enums or their members. Compiled enums and script classes still receive descriptions.
+	/// </summary>
+	[TestMethod]
+	public async Task ScriptEnumsDoNotReceiveDescriptionAttributes()
+	{
+		const string source = """
+			/// <summary>
+			/// How values combine.
+			/// </summary>
+			public enum {0}
+			{
+				/// <summary>
+				/// Adds them.
+				/// </summary>
+				Add,
+				Subtract
+			}
+			""";
+		var generator = CreateGenerator();
+		generator.AddFile( "Compiled.cs", source.Replace( "{0}", "CompiledMode" ) );
+		generator.AddFile( "Probe.csx", source.Replace( "{0}", "ScriptMode" ) + """
+
+			/// <summary>
+			/// A documented script class.
+			/// </summary>
+			public class Probe : Component
+			{
+				[Sync] public ScriptMode Mode { get; set; }
+			}
+			""" );
+
+		var result = await generator.GenerateAsync();
+		Emit( result );
+
+		var compiled = result.Files.Single( x => x.Path == "Compiled.cs" ).Text;
+		StringAssert.Contains( compiled, "DescriptionAttribute( \"How values combine.\" )" );
+		StringAssert.Contains( compiled, "DescriptionAttribute( \"Adds them.\" )" );
+
+		var script = result.Files.Single( x => x.Path == "Probe.csx" ).Text;
+		Assert.IsFalse( script.Contains( "How values combine.\" )" ), script );
+		Assert.IsFalse( script.Contains( "Adds them.\" )" ), script );
+		StringAssert.Contains( script, "/// How values combine." );
+		StringAssert.Contains( script, "DescriptionAttribute( \"A documented script class.\" )" );
+	}
+
+	/// <summary>
 	/// Generated wrappers remain executable after source is serialized and parsed again.
 	/// </summary>
 	[TestMethod]

@@ -27,6 +27,8 @@ public partial class ScriptLoadingTests
 				[Property] public int ScriptValue { get; set; } = 7;
 				public NativeScriptBase NativePeer { get; set; }
 				public int ReadGeneration() { return NativeGeneration(); }
+				static readonly object Described = Game.TypeLibrary.GetType( "NativeDerivedScript" );
+				public bool DescribedSelf() { return Described != null; }
 			}
 			""";
 		if ( namedFiles )
@@ -101,6 +103,8 @@ public partial class ScriptLoadingTests
 		Assert.AreEqual( 81, description.GetProperty( "ScriptValue" ).GetValue( first ) );
 		Assert.AreEqual( 82, description.GetProperty( "ScriptValue" ).GetValue( second ) );
 		Assert.AreEqual( 2, description.GetMethod( "ReadGeneration" ).InvokeWithReturn<int>( first ) );
+		Assert.IsTrue( description.GetMethod( "DescribedSelf" ).InvokeWithReturn<bool>( first ),
+			"A static initializer must find its own type in the type library after native hotload." );
 		Assert.AreEqual( 103, Game.Scripting.Run<int>( "return NextCaptured();" ),
 			"Native hotload must preserve captured file state without replaying startup." );
 		if ( namedFiles )

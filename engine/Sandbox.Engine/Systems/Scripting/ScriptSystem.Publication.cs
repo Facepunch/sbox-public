@@ -123,13 +123,25 @@ public sealed partial class ScriptSystem
 		_publishingAssembly = true;
 		try
 		{
-			_context.ReplaceScriptAssembly( previous, incoming, () =>
+			// Register the incoming types before the swap. Migration can run a script type's static
+			// initializer, by creating an instance or carrying a static value across, and that
+			// initializer must be able to find its own type in the type library.
+			foreach ( var library in _libraries )
 			{
-				foreach ( var library in _libraries )
-				{
-					library.AddAssembly( incoming, true );
-				}
-			} );
+				library.AddAssembly( incoming, true );
+			}
+
+			// The callback only asks for a strict swap: a failed migration fails the publication.
+			_context.ReplaceScriptAssembly( previous, incoming, () => { } );
+		}
+		catch
+		{
+			foreach ( var library in _libraries )
+			{
+				library.RemoveAssembly( incoming );
+			}
+
+			throw;
 		}
 		finally
 		{
