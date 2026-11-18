@@ -456,15 +456,15 @@ internal static class MapRealRun
 				}
 
 				// -hiz-sweep N: from the view, N frames turning 15 degrees a frame, then N frames stepping 150 units a frame to its
-				// right, one frame each, without and then with two-phase Hi-Z occlusion: each frame is saved, to compare (what
-				// a turn or a step shows has to draw that same frame)
+				// right, one frame each, without, with and again without two-phase Hi-Z occlusion: each frame is saved, to compare
+				// (what a turn or a step shows has to draw that same frame; the two runs without show what moves anyway)
 				if ( Args.Int( "-hiz-sweep", 0 ) is > 0 and var turns )
 				{
 					map.Backend.GpuDriven = true;
 					map.Backend.GpuDrivenVisibility = true;
 					var look = view.LookAt - view.Position;
 					var right = System.Numerics.Vector3.Normalize( System.Numerics.Vector3.Cross( look, System.Numerics.Vector3.UnitZ ) ) * 150;
-					foreach ( var (hiz, suffix) in new[] { (false, "off"), (true, "on") } )
+					foreach ( var (hiz, suffix) in new[] { (false, "off"), (true, "on"), (false, "off2") } )
 					{
 						map.Backend.HiZOcclusion = hiz;
 						for ( int i = 0; i < 5; i++ ) RenderFrame( view );
