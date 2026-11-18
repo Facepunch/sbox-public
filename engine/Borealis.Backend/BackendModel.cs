@@ -322,13 +322,22 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	{
 		if ( source.Find( "POSITION" ) is not { } field || source.Count == 0 ) return (default, 0, -1);
 		var data = new byte[source.Count * PositionStride];
-		var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>( data.AsSpan() );
-		for ( int v = 0; v < source.Count; v++ )
+		if ( field.Format == ColorFormat.R32G32B32_FLOAT && source.Stride >= field.Offset + PositionStride )
 		{
-			var p = source.Read( field, v );
-			floats[v * 3] = p.X;
-			floats[v * 3 + 1] = p.Y;
-			floats[v * 3 + 2] = p.Z;
+			// Float3 positions (nearly every model): copied as they are, without decoding each vertex
+			var from = source.Data.AsSpan();
+			for ( int v = 0; v < source.Count; v++ ) from.Slice( v * source.Stride + field.Offset, PositionStride ).CopyTo( data.AsSpan( v * PositionStride ) );
+		}
+		else
+		{
+			var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>( data.AsSpan() );
+			for ( int v = 0; v < source.Count; v++ )
+			{
+				var p = source.Read( field, v );
+				floats[v * 3] = p.X;
+				floats[v * 3 + 1] = p.Y;
+				floats[v * 3 + 2] = p.Z;
+			}
 		}
 
 		System.Threading.Interlocked.Add( ref device.PositionStreamBytes, data.Length );

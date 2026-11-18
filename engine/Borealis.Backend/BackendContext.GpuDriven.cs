@@ -769,9 +769,10 @@ internal sealed partial class BackendContext
 						ref var kept = ref memoTaken ? ref memo.At( record ) : ref unkept;
 						var version = MaterialVersion( material );
 						var visible = visibility is not null;
+						var epoch = tables.VisibilityEpoch;
 						if ( memoTaken && ReferenceEquals( kept.Material, material ) && kept.Version == version && ReferenceEquals( kept.Stages, stages ) && kept.DepthOnly == bucket.DepthOnly && kept.PixelRecord == pixelRecord
 							&& kept.VertexAttributes == vertexAttributes && kept.PixelAttributes == pixelAttributes && ReferenceEquals( kept.Owner, aggregate ) && kept.Fragments == fragmentCount
-							&& kept.Flags == flags && kept.Pooled == pooled && ReferenceEquals( kept.Layout, geometry.Layout ) && ReferenceEquals( kept.Classic, bucket.Classic ) && kept.Positions == positions && kept.Visibility == visible )
+							&& kept.Flags == flags && kept.Pooled == pooled && ReferenceEquals( kept.Layout, geometry.Layout ) && ReferenceEquals( kept.Classic, bucket.Classic ) && kept.Positions == positions && kept.Visibility == visible && kept.VisibilityEpoch == epoch )
 						{
 							memoHits++;
 						}
@@ -811,6 +812,7 @@ internal sealed partial class BackendContext
 								FragmentRecords = fragmentRecords,
 								VisibilityFirst = first,
 								VertexBase = firstVertex,
+								VisibilityEpoch = epoch,
 							};
 						}
 
@@ -1198,7 +1200,7 @@ internal sealed partial class BackendContext
 		if ( device.GpuDrivenResidentCull && cull.View is not null && !cull.KeepsOrder ) device.ResidentCulls.Seen( cull.View, cull.Plan, key, device.GpuDrivenFrame );
 
 		var plans = device.PlansFor( cull.Plan );
-		var plan = plans.Find( key, cull.PlanVersion, prefix.Length );
+		var plan = plans.Find( key, cull.PlanVersion, prefix.Length, device.GpuDrivenTables.VisibilityEpoch );
 		if ( plan is null ) return null;
 		if ( PlanCurrent( plan, shaderMode ) ) return plan;
 
@@ -1314,6 +1316,7 @@ internal sealed partial class BackendContext
 		{
 			Key = PlanKey( shaderMode, cull, color, depth, samples ),
 			Version = cull.PlanVersion,
+			VisibilityEpoch = device.GpuDrivenTables.VisibilityEpoch,
 			Batches = batches.Length,
 			Commands = commands,
 			Fragments = fragments,
@@ -1724,11 +1727,14 @@ internal sealed partial class BackendContext
 	static void RequestLods( Lods.LodStore store, AggregateObject aggregate, PooledGeometry pooled, BackendModel model, int mesh, int drawCall, bool color )
 	{
 		if ( Meshlets.MeshletStore.SourceOf( model, mesh, drawCall, pooled.IndexPage, pooled.IndexFormat ) is not { } source ) return;
-		foreach ( ref readonly var fragment in aggregate.Fragments )
+		var material = store.Labelled && (uint)mesh < (uint)model.File.Meshes.Count && (uint)drawCall < (uint)model.File.Meshes[mesh].DrawCalls.Count ? model.File.Meshes[mesh].DrawCalls[drawCall].Material : null;
+		var fragments = aggregate.Fragments;
+		for ( int i = 0; i < fragments.Length; i++ )
 		{
-			var arg = fragment.Args;
+			var arg = fragments[i].Args;
 			var range = new Meshlets.MeshletStore.Range( pooled.IndexPageSlot, pooled.FirstIndex + arg.FirstIndex, arg.IndexCount, arg.BaseVertex );
-			store.Request( range, source with { IndexBase = source.IndexBase + (int)arg.FirstIndex, VertexBase = source.VertexBase + arg.BaseVertex }, color );
+			var label = material is null ? default : new Lods.LodStore.Label( material, aggregate.Centers[i], aggregate.Extents[i] );
+			store.Request( range, source with { IndexBase = source.IndexBase + (int)arg.FirstIndex, VertexBase = source.VertexBase + arg.BaseVertex }, color, label );
 		}
 	}
 

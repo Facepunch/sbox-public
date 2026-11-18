@@ -127,6 +127,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	SurfaceShaders surfaces;
 
+	/// <summary>Write the surface pipeline manifest beside the pipeline cache if it changed (<see cref="SurfacePipelineManifest"/>).</summary>
+	internal bool SavePipelineManifest() => surfaces?.Manifest?.Save() ?? false;
+
+	/// <summary>What the surface pipeline manifest held and did, for reports.</summary>
+	internal string PipelineManifestReport => surfaces?.Manifest is not { } m ? "surface pipeline manifest: off" : $"surface pipeline manifest: {m.Loaded} read, {m.Replayed} made ahead, {m.Dropped} dropped, {m.Recorded} recorded";
+
 	/// <summary>
 	/// Keep static models' geometry in GPU-driven pages as they load (<see cref="GpuDrivenTables"/>), so
 	/// <see cref="GpuDriven"/> can draw them; the classic path draws from the same pages. Set before loading models; on
@@ -154,7 +160,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public bool GpuDriven { get; set; }
 
 	/// <summary>The GPU-driven tables' records and bytes, for reports.</summary>
-	public string GpuDrivenReport => gpuDrivenTables is not { } t ? "off" : $"{t.Records.Geometry} geometry, {t.Records.Draws} draw and {t.Records.Materials} material records ({t.Bytes.Geometry / 1024} + {t.Bytes.Draws / 1024} + {t.Bytes.Materials / 1024} KiB), {t.Bytes.Pages / (1 << 20)} MiB of pages"
+	public string GpuDrivenReport => gpuDrivenTables is not { } t ? "off" : $"{t.Records.Geometry} geometry, {t.Records.Draws} draw and {t.Records.Materials} material records ({t.Bytes.Geometry / 1024} + {t.Bytes.Draws / 1024} + {t.Bytes.Materials / 1024} KiB), {t.Bytes.Pages / (1 << 20)} MiB of pages; visibility {t.VisibilityUse.Bits / 8 / (1 << 20)} of {GpuDrivenTables.FrameVisibilityBitBase / 8 / (1 << 20)} MiB of owners' vertex bits, {t.VisibilityNoRoom} requests without room, {t.VisibilityRunsAged} runs let go unnamed"
 		+ (GpuDrivenLeftClassic.IsEmpty ? "" : "; aggregate batches left classic (batch draws while timed, shader, mode, why): " + string.Join( ", ", GpuDrivenLeftClassic.OrderByDescending( x => x.Value ).Select( x => $"{x.Value} {x.Key}" ) ));
 
 	/// <summary>While <see cref="TimeDraws"/>, aggregate batches the GPU-driven path left to the classic one, by shader, mode and why.</summary>
@@ -475,7 +481,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public static bool GpuDrivenByDefault { get; set; } = !HasSwitch( "-no-gpudriven" );
 
-	static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
+	internal static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>The value after a switch on the command line, or null.</summary>
 	static string SwitchValue( string name )
@@ -1820,6 +1826,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal BufferHandle PrepassCompactedFor( VisibilityView state )
 	{
 		if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
+		using var zone = Zones.VisibilityMake.Start();
 		lock ( visibilityViews )
 		{
 			if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
@@ -1948,21 +1955,44 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		}
 	}
 
-	/// <summary>A view's visibility resources, made the first time and remade when its depth target changes size.</summary>
+	/// <summary>
+	/// Whether a view's visibility resources are made on a worker the first time it asks, while loading asynchronously
+	/// (<see cref="AsyncModels"/>; on): its calls draw without visibility until they're ready, as on its first frame, instead
+	/// of a recording thread making them while the frame waits (a map's new views took ~90 ms of the frames after its load).
+	/// Off makes them where asked. For comparisons.
+	/// </summary>
+	internal static bool MakeVisibilityAhead { get; set; } = true;
+
+	// Views whose resources are being made on a worker
+	readonly HashSet<object> visibilityMaking = new( ReferenceEqualityComparer.Instance );
+
+	/// <summary>
+	/// A view's visibility resources, made the first time and remade when its depth target changes size; null while they're
+	/// made on a worker the first time (<see cref="MakeVisibilityAhead"/>).
+	/// </summary>
 	internal VisibilityView VisibilityFor( object view, TextureInfo depth )
 	{
 		// Made already, for a depth target of this size: found without a lock, as every GPU-driven call of the view asks
 		if ( visibilityViews.TryGetValue( view, out var made ) && made.Ready && (depth.Width == 0 || made.Width == depth.Width && made.Height == depth.Height && made.Samples == depth.Samples) ) return made;
 
+		if ( MakeVisibilityAhead && AsyncModels && depth.Width != 0 && (made is null || !made.Ready) )
+		{
+			lock ( visibilityViews )
+			{
+				if ( !visibilityMaking.Add( view ) ) return null;
+			}
+
+			System.Threading.ThreadPool.UnsafeQueueUserWorkItem( static state => state.Device.MakeVisibility( state.View, state.Depth ), (Device: this, View: view, Depth: depth), preferLocal: false );
+			return null;
+		}
+
+		using var zone = Zones.VisibilityMake.Start();
 		lock ( visibilityViews )
 		{
 			var state = visibilityViews.GetValue( view, _ => new VisibilityView { Retire = retiredVisibility } );
 			if ( !state.Mask.IsValid )
 			{
-				// Copied out only for the debug figure
-				var figure = Figure is not null;
-				state.Mask = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityBits / 8, Usage = BufferUsage.Storage | BufferUsage.CopyDestination | (figure ? BufferUsage.CopySource : 0), Name = "Borealis visibility mask" } );
-				state.Stamps = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 4L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis visibility stamps" } );
+				(state.Mask, state.Stamps) = (VisibilityMask(), VisibilityStamps());
 				visibilityBuffers.Add( state.Mask );
 				visibilityBuffers.Add( state.Stamps );
 			}
@@ -1974,7 +2004,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				for ( int i = 0; i < state.Compacted.Length; i++ )
 				{
 					if ( state.Compacted[i].IsValid && visibilityBuffers.Remove( state.Compacted[i] ) ) Gpu.Destroy( state.Compacted[i] );
-					state.Compacted[i] = Gpu.CreateBuffer( new BufferInfo { Size = compacted * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis visibility triangles" } );
+					state.Compacted[i] = VisibilityCompacted( compacted );
 					visibilityBuffers.Add( state.Compacted[i] );
 				}
 
@@ -1991,23 +2021,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 					Gpu.Destroy( old );
 				}
 
-				// Target 0 of the id prepass: the authored output, which only its alpha (to coverage) is wanted from
-				state.Scratch = Gpu.CreateTexture( new TextureInfo { Width = depth.Width, Height = depth.Height, Depth = 1, Layers = 1, Mips = 1, Samples = depth.Samples, Dimension = TextureDimension.Texture2D, Format = Format.R8Unorm, Usage = TextureUsage.ColorTarget, Name = "Borealis visibility scratch" } );
+				(state.Scratch, state.Ids) = VisibilityTargets( depth );
 				visibilityTextures.Add( state.Scratch );
-
-				state.Ids = Gpu.CreateTexture( new TextureInfo
-				{
-					Width = depth.Width,
-					Height = depth.Height,
-					Depth = 1,
-					Layers = 1,
-					Mips = 1,
-					Samples = depth.Samples,
-					Dimension = TextureDimension.Texture2D,
-					Format = Format.R32Uint,
-					Usage = TextureUsage.ColorTarget | TextureUsage.Sampled | (Figure is not null ? TextureUsage.CopySource : 0),
-					Name = "Borealis visibility ids",
-				} );
 				visibilityTextures.Add( state.Ids );
 				(state.Width, state.Height, state.Samples) = (depth.Width, depth.Height, depth.Samples);
 			}
@@ -2015,6 +2030,83 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			state.Ready = true;
 			return state;
 		}
+	}
+
+	/// <summary>
+	/// On a worker, a view's visibility resources made the first time (<see cref="MakeVisibilityAhead"/>), then handed to its
+	/// state under the lock, ready for its next frame.
+	/// </summary>
+	void MakeVisibility( object view, TextureInfo depth )
+	{
+		try
+		{
+			using var zone = Zones.VisibilityMake.Start();
+			var compacted = CompactedIndicesFor( depth );
+			var (mask, stamps) = (VisibilityMask(), VisibilityStamps());
+			var buffers = new BufferHandle[3];
+			for ( int i = 0; i < buffers.Length; i++ ) buffers[i] = VisibilityCompacted( compacted );
+			var (scratch, ids) = VisibilityTargets( depth );
+
+			lock ( visibilityViews )
+			{
+				var state = visibilityViews.GetValue( view, _ => new VisibilityView { Retire = retiredVisibility } );
+				if ( state.Ready || state.Mask.IsValid )
+				{
+					// Made meanwhile where it was asked
+					foreach ( var buffer in (BufferHandle[])[mask, stamps, .. buffers] ) Gpu.Destroy( buffer );
+					Gpu.Destroy( scratch );
+					Gpu.Destroy( ids );
+					return;
+				}
+
+				(state.Mask, state.Stamps) = (mask, stamps);
+				visibilityBuffers.Add( mask );
+				visibilityBuffers.Add( stamps );
+				buffers.CopyTo( state.Compacted, 0 );
+				visibilityBuffers.AddRange( buffers );
+				state.CompactedCapacity = compacted;
+				(state.Scratch, state.Ids) = (scratch, ids);
+				visibilityTextures.Add( scratch );
+				visibilityTextures.Add( ids );
+				(state.Width, state.Height, state.Samples) = (depth.Width, depth.Height, depth.Samples);
+				state.Ready = true;
+			}
+		}
+		catch ( GpuException )
+		{
+			// Out of memory: asked again where it's drawn, which reports it
+		}
+		finally
+		{
+			lock ( visibilityViews ) visibilityMaking.Remove( view );
+		}
+	}
+
+	// The triangle mask: copied out only for the debug figure
+	BufferHandle VisibilityMask() => Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityBits / 8, Usage = BufferUsage.Storage | BufferUsage.CopyDestination | (Figure is not null ? BufferUsage.CopySource : 0), Name = "Borealis visibility mask" } );
+
+	BufferHandle VisibilityStamps() => Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 4L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis visibility stamps" } );
+
+	BufferHandle VisibilityCompacted( int indices ) => Gpu.CreateBuffer( new BufferInfo { Size = indices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis visibility triangles" } );
+
+	// Target 0 of the id prepass (the authored output, which only its alpha to coverage is wanted from) and the ids
+	(TextureHandle Scratch, TextureHandle Ids) VisibilityTargets( in TextureInfo depth )
+	{
+		var scratch = Gpu.CreateTexture( new TextureInfo { Width = depth.Width, Height = depth.Height, Depth = 1, Layers = 1, Mips = 1, Samples = depth.Samples, Dimension = TextureDimension.Texture2D, Format = Format.R8Unorm, Usage = TextureUsage.ColorTarget, Name = "Borealis visibility scratch" } );
+		var ids = Gpu.CreateTexture( new TextureInfo
+		{
+			Width = depth.Width,
+			Height = depth.Height,
+			Depth = 1,
+			Layers = 1,
+			Mips = 1,
+			Samples = depth.Samples,
+			Dimension = TextureDimension.Texture2D,
+			Format = Format.R32Uint,
+			Usage = TextureUsage.ColorTarget | TextureUsage.Sampled | (Figure is not null ? TextureUsage.CopySource : 0),
+			Name = "Borealis visibility ids",
+		} );
+		return (scratch, ids);
 	}
 
 	/// <summary>Async compute isn't wired yet: contexts all record on the graphics queue.</summary>
@@ -2240,6 +2332,17 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public void Dispose()
 	{
+		// Views' visibility being made on workers is finished first
+		while ( true )
+		{
+			lock ( visibilityViews )
+			{
+				if ( visibilityMaking.Count == 0 ) break;
+			}
+
+			System.Threading.Thread.Sleep( 1 );
+		}
+
 		Gpu.WaitIdle();
 		Poll();
 		materialCache?.Dispose();

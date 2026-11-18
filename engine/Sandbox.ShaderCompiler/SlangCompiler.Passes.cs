@@ -169,21 +169,54 @@ public sealed class CompiledPassStage
 internal static class PassCache
 {
 	const int Format = 3;
-	static readonly Dictionary<string, (DateTime Time, long Length, string Hash)> fileHashes = new( StringComparer.OrdinalIgnoreCase );
+	static readonly Dictionary<string, (DateTime Time, long Length, string Hash, long CheckedAt, int Generation)> fileHashes = new( StringComparer.OrdinalIgnoreCase );
+	static int generation;
 
-	/// <summary>A file's hash, read again only when its time or length changed; null when it's gone.</summary>
+	/// <summary>
+	/// A file's hash, read again only when its time or length changed; null when it's gone. Its time is looked at again at
+	/// most every <see cref="PassModule.IncludeCheckMs"/>, and at once after <see cref="Recheck"/>: each stage a variant loads checks
+	/// every file its compile read, and a map's first frame asked the file system thousands of times.
+	/// </summary>
 	internal static string FileHash( string path )
 	{
-		var info = new FileInfo( path );
-		if ( !info.Exists ) return null;
+		var now = Environment.TickCount64;
 		lock ( fileHashes )
 		{
-			if ( fileHashes.TryGetValue( path, out var known ) && known.Time == info.LastWriteTimeUtc && known.Length == info.Length ) return known.Hash;
+			if ( fileHashes.TryGetValue( path, out var known ) && KeepLooks && known.Generation == generation && now - known.CheckedAt < PassModule.IncludeCheckMs ) return known.Hash;
+		}
+
+		System.Threading.Interlocked.Increment( ref Looks );
+		var info = new FileInfo( path );
+		if ( !info.Exists )
+		{
+			lock ( fileHashes ) fileHashes.Remove( path );
+			return null;
+		}
+
+		lock ( fileHashes )
+		{
+			if ( fileHashes.TryGetValue( path, out var known ) && known.Time == info.LastWriteTimeUtc && known.Length == info.Length )
+			{
+				fileHashes[path] = known with { CheckedAt = now, Generation = generation };
+				return known.Hash;
+			}
 		}
 
 		var hash = CompileCache.Hash( File.ReadAllText( path ) );
-		lock ( fileHashes ) fileHashes[path] = (info.LastWriteTimeUtc, info.Length, hash);
+		lock ( fileHashes ) fileHashes[path] = (info.LastWriteTimeUtc, info.Length, hash, now, generation);
 		return hash;
+	}
+
+	/// <summary>Whether <see cref="FileHash"/> trusts its last look for a while (on); off asks each time, for comparisons.</summary>
+	internal static bool KeepLooks { get; set; } = true;
+
+	/// <summary>Times <see cref="FileHash"/> asked the file system, for tests.</summary>
+	internal static int Looks;
+
+	/// <summary>A watched file changed: the next <see cref="FileHash"/> of each file looks at it again.</summary>
+	internal static void Recheck()
+	{
+		lock ( fileHashes ) generation++;
 	}
 
 	/// <summary>An entry's key: the compiler, the stage, module file name and values (<paramref name="key"/>), and the module's text.</summary>

@@ -240,6 +240,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			try
 			{
 				gpu.SavePipelineCache();
+				services.SavePipelineManifest();
 			}
 			finally
 			{

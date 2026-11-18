@@ -29,30 +29,48 @@ internal static class MirrorContent
 		pending = false;
 		if ( Gpu is not { } gpu ) return null;
 
-		if ( model is { IsProcedural: true } ) return RuntimeMesh( model, gpu );
+		if ( model is { IsProcedural: true } ) return RuntimeMesh( model, gpu, out pending );
 		var path = model?.ResourcePath;
 		if ( string.IsNullOrEmpty( path ) ) return null;
 		return gpu.AsyncModels ? gpu.LoadModelAsync( path, ulong.MaxValue, out pending ) : gpu.LoadModel( path, ulong.MaxValue );
 	}
 
 	static readonly ConditionalWeakTable<Model, RuntimeModel> runtimeMeshes = new();
+	static readonly ConditionalWeakTable<Model, System.Threading.Tasks.Task<ModelFile>> runtimeReads = new();
 	static readonly System.Collections.Concurrent.ConcurrentQueue<BackendModel> freedModels = new();
 
 	/// <summary>
 	/// A model made at run time (no file to read): saved as a compiled model in memory
 	/// (<c>Model.SaveToVmdl</c>, its buffers read back from Source 2 as they are) and read as a model file is, its materials by
-	/// path. Its buffers are freed once the engine's model is gone.
+	/// path; loading asynchronously (<see cref="BackendDevice.AsyncModels"/>) that's on a worker, and it's made within the
+	/// frame's load budget, null with <paramref name="pending"/> set until then. Its buffers are freed once the engine's model
+	/// is gone.
 	/// </summary>
-	static RenderMesh RuntimeMesh( Model model, BackendDevice gpu )
+	static RenderMesh RuntimeMesh( Model model, BackendDevice gpu, out bool pending )
 	{
+		pending = false;
 		while ( freedModels.TryDequeue( out var freed ) ) freed.Free();
 		if ( runtimeMeshes.TryGetValue( model, out var known ) ) return known.Mesh;
 
 		// Every mesh: a model built in code has no default mesh groups (native draws them all)
-		var mesh = BackendModel.Create( gpu, ModelFile.Read( model.SaveToVmdl(), gpu.Content.TryRead ), meshGroups: ulong.MaxValue, drawFastPath: true );
+		RenderMesh mesh;
+		if ( gpu.AsyncModels )
+		{
+			var read = runtimeReads.GetValue( model, m => gpu.ReadModelAsync( m.SaveToVmdl ) );
+			mesh = gpu.MakeModel( read, ulong.MaxValue, drawFastPath: true, out pending );
+			if ( pending ) return null;
+			runtimeReads.Remove( model );
+		}
+		else mesh = BackendModel.Create( gpu, ModelFile.Read( model.SaveToVmdl(), gpu.Content.TryRead ), meshGroups: ulong.MaxValue, drawFastPath: true );
+
 		runtimeMeshes.AddOrUpdate( model, new RuntimeModel( mesh ) );
 		return mesh;
 	}
+
+	/// <summary>Whether a model loading asynchronously (<see cref="Mesh(Model, out bool)"/>) has been read, so asking again can make it.</summary>
+	public static bool MeshRead( Model model, BackendDevice gpu ) => model is { IsProcedural: true }
+		? !runtimeReads.TryGetValue( model, out var read ) || read.IsCompleted
+		: gpu.ModelRead( model.ResourcePath );
 
 	/// <summary>A run-time model's mesh, which frees its geometry after the engine's model is collected.</summary>
 	sealed class RuntimeModel( RenderMesh mesh )
@@ -158,7 +176,7 @@ internal static class MirrorContent
 		if ( captures.TryGetValue( texture, out var capture ) && capture.Texture is { IsValid: true } drawn && !capture.Owned ) return drawn;
 
 		// A cube made at run time for compute to write (a realtime probe's) is what cube captures draw into
-		if ( texture.Depth == 6 && texture.UAVAccess ) return CaptureCube( texture );
+		if ( IsCaptureCube( texture ) ) return CaptureCube( texture );
 
 		// A 2D render target (a screen a game draws into) is the engine's copy on the device: its path is only its name
 		var engine = RenderBackend.Default as BorealisGpuRenderBackend;
@@ -190,6 +208,15 @@ internal static class MirrorContent
 
 	static readonly ConditionalWeakTable<Texture, Capture> captures = new();
 	static readonly System.Collections.Concurrent.ConcurrentQueue<GpuTexture> freedCaptures = new();
+
+	/// <summary>Whether an engine texture is a cube made at run time for compute to write (a realtime probe's), which <see cref="CaptureCube"/> captures into.</summary>
+	public static bool IsCaptureCube( Texture texture ) => texture is not null && texture.Depth == 6 && texture.UAVAccess;
+
+	/// <summary>The cube <see cref="CaptureCube"/> has made for <paramref name="texture"/>, or null when nothing has captured or drawn it yet.</summary>
+	public static GpuTexture MadeCaptureCube( Texture texture ) => captures.TryGetValue( texture, out var capture ) && capture.Owned && capture.Texture is { IsValid: true } made ? made : null;
+
+	/// <summary>How many cubes <see cref="CaptureCube"/> has made, for what waits for one (<see cref="MadeCaptureCube"/>).</summary>
+	public static int CaptureCubesMade { get; private set; }
 
 	/// <summary>
 	/// The Borealis.Gpu cube that cube captures of <paramref name="texture"/> (an engine cube made at run time, a realtime
@@ -223,6 +250,7 @@ internal static class MirrorContent
 			Storage = true,
 		}, $"Cube capture {texture.Width}px" );
 		capture.Owned = true;
+		CaptureCubesMade++;
 		gpu.Clear( capture.Texture, Color.Transparent );
 		return capture.Texture;
 	}

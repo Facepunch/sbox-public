@@ -30,6 +30,32 @@ internal sealed class BorealisGpuFrame : IDisposable
 	static readonly StringToken DepthChainPrevFrameName = new( "DepthChainDownsamplePrevFrame" );
 	static readonly StringToken NormalsName = new( "NormalsGBuffer" );
 
+	/// <summary>
+	/// The view's settings the frame's own draws read from its attributes (specialization constants and view-wide values:
+	/// the shadow filter, the tools visualisation, light modulators, DDGI, screen-space effects and normals, a reflection's),
+	/// which custom objects drawn in it read too, as native's layer gives its custom objects the view's attributes.
+	/// </summary>
+	internal static readonly StringToken[] ViewSettings =
+	[
+		"ShadowFilterQuality", "ToolsVisMode", "LightModulatorsDisabled", "LightModulators_Enabled", "DDGI_Enabled",
+		"DisableScreenSpaceEffects", "DisableScreenSpaceShadows", "NormalsTextureIndex", "IsReflection", "ReflectionShadows", "NeedsDepthNormals",
+	];
+
+	/// <summary>Set <see cref="ViewSettings"/> the frame has (<paramref name="frame"/>, its attributes) on <paramref name="into"/>.</summary>
+	internal static void CopyViewSettings( Borealis.ShaderParameters frame, RenderAttributes into )
+	{
+		if ( frame is not BackendParameters parameters ) return;
+		foreach ( var name in ViewSettings )
+		{
+			switch ( parameters.Get( name ) )
+			{
+				case int value: into.Set( name, value ); break;
+				case bool value: into.Set( name, value ); break;
+				case float value: into.Set( name, value ); break;
+			}
+		}
+	}
+
 	readonly BorealisGpuRenderBackend backend;
 	ViewTarget target;
 	byte[] constants = [];
@@ -302,6 +328,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 			var attributes = Graphics.Attributes;
 			attributes.SetDataShared( ViewConstantsName, viewConstants );
+
+			// Under what the block sets: Mow the Lawn's terrain filtered its shadows with none of the frame's filter (hard and dark)
+			CopyViewSettings( target.Attributes, attributes );
 			if ( chain.Engine is not null )
 			{
 				attributes.Set( DepthChainName, chain.Engine );

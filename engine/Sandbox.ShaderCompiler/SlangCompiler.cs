@@ -131,6 +131,12 @@ public sealed partial class SlangCompiler
 	internal static IDisposable Zone( CompilePhase phase ) => Profile?.Invoke( phase );
 
 	/// <summary>
+	/// A shader source changed on disk (a watcher saw it): the next cache check reads every file's time again rather than
+	/// trusting the last look, which is kept for up to <see cref="PassModule.IncludeCheckMs"/>.
+	/// </summary>
+	public static void SourceChanged() => PassCache.Recheck();
+
+	/// <summary>
 	/// How many requests compile at once, one Slang session each: half the cores, at most 8, unless set before the first
 	/// compile (an offline compile uses every core).
 	/// </summary>

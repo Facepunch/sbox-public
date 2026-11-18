@@ -128,8 +128,10 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	readonly Table geometry, draws, materials, fragments, lighting;
 	readonly Dictionary<(int Page, long Offset, VertexLayout Layout, int Count), uint> geometryRecords = new();
-	readonly Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage), uint> drawRecords = new();
-	// Found without a lock by every recording thread, many times a frame; added to under its own lock
+	// Draw and material records are found without a lock by every recording thread, many times a frame (a lock per draw
+	// kept recording threads waiting on each other); added to under a lock of their own
+	readonly System.Collections.Concurrent.ConcurrentDictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage), uint> drawRecords = new();
+	readonly object drawLock = new();
 	readonly System.Collections.Concurrent.ConcurrentDictionary<MaterialRecordKey, uint> materialRecords = new();
 
 	/// <summary>A material record: per material and its version, stage, and the attribute values its constants read.</summary>
@@ -164,7 +166,9 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// </summary>
 	public const int LightingStride = 160;
 
-	readonly Dictionary<byte[], uint> lightingRecords = new( LightingComparer.Instance );
+	// Found without a lock, as draw records are; added to under lightingLock
+	readonly System.Collections.Concurrent.ConcurrentDictionary<byte[], uint> lightingRecords = new( LightingComparer.Instance );
+	readonly object lightingLock = new();
 
 	// By contents, also looked up by a span (a record built on the stack), so finding a known record allocates nothing
 	sealed class LightingComparer : IEqualityComparer<byte[]>, IAlternateEqualityComparer<ReadOnlySpan<byte>, byte[]>
@@ -195,9 +199,10 @@ internal sealed class GpuDrivenTables : IDisposable
 		record.Clear();
 		baked?.AsSpan( 0, Math.Min( baked.Length, 48 ) ).CopyTo( record );
 		probe?.AsSpan( 0, Math.Min( probe.Length, 112 ) ).CopyTo( record[48..] );
-		lock ( lightingRecords )
+		var known = lightingRecords.GetAlternateLookup<ReadOnlySpan<byte>>();
+		if ( known.TryGetValue( record, out var found ) ) return found;
+		lock ( lightingLock )
 		{
-			var known = lightingRecords.GetAlternateLookup<ReadOnlySpan<byte>>();
 			if ( !known.TryGetValue( record, out var index ) ) known[record] = index = lighting.Append( record ) / 16;
 			return index;
 		}
@@ -398,7 +403,8 @@ internal sealed class GpuDrivenTables : IDisposable
 	public uint Draw( uint geometryRecord, uint vertexMaterial, uint pixelMaterial, uint flags, uint firstIndex, uint indexCount, int baseVertex, int indexPage )
 	{
 		var key = (geometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, indexCount, baseVertex, indexPage);
-		lock ( drawRecords )
+		if ( drawRecords.TryGetValue( key, out var known ) ) return known;
+		lock ( drawLock )
 		{
 			if ( drawRecords.TryGetValue( key, out var found ) ) return found;
 
@@ -555,6 +561,10 @@ internal sealed class GpuDrivenTables : IDisposable
 		public long Words;
 		public bool Final;
 		public int Generation;
+
+		/// <summary>The frame a call last named it, and whether it was let go for that (<see cref="AgeVisibility"/>).</summary>
+		public long Named;
+		public bool Aged;
 	}
 
 	readonly ConditionalWeakTable<object, VisibilityRun> visibilityOwners = new();
@@ -575,6 +585,28 @@ internal sealed class GpuDrivenTables : IDisposable
 	internal int VisibilityRunsReleased { get; private set; }
 
 	/// <summary>
+	/// Frames a run may go unnamed once room runs out before it's let go (<see cref="AgeVisibility"/>), and the most to
+	/// wait between rounds that let nothing go.
+	/// </summary>
+	public const int StaleVisibilityFrames = 60, MaxVisibilityAgeWait = 64 * StaleVisibilityFrames;
+
+	/// <summary>Whether runs no call names are let go once room runs out (<see cref="AgeVisibility"/>; <c>-no-visibility-aging</c> turns it off).</summary>
+	public bool AgesVisibility { get; set; } = !BackendDevice.HasSwitch( "-no-visibility-aging" );
+
+	/// <summary>Moves when every call must name its owners' runs again: kept records and plans made before it are stale.</summary>
+	public int VisibilityEpoch => Volatile.Read( ref visibilityEpoch );
+	int visibilityEpoch;
+
+	/// <summary>Whether an owner found no room since the last round; the round's first frame, or -1; when the last ended; the frames until the next may start.</summary>
+	bool visibilityRanOut;
+	long visibilityAgingSince = -1, visibilityAgedAt = -MaxVisibilityAgeWait;
+	long visibilityAgeWait = StaleVisibilityFrames;
+
+	/// <summary>Owners' runs let go for going unnamed, and requests that found no room (once an owner per generation), for reports and the tests.</summary>
+	internal int VisibilityRunsAged { get; private set; }
+	internal int VisibilityNoRoom { get; private set; }
+
+	/// <summary>
 	/// An owner's visibility: the index of its first fragment's stamp (so the prepass's and forward's different buckets name
 	/// the same fragments) and the first of its vertices' bits in the mask, which the ids name. Made once and kept until
 	/// <see cref="ReleaseFragments"/> or the owner is collected; <see cref="NoVisibility"/> for both when there's no room,
@@ -582,18 +614,29 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// </summary>
 	public (uint First, uint VertexBase) Visibility( object owner, int fragments, int vertices )
 	{
-		if ( visibilityOwners.TryGetValue( owner, out var known ) && (known.Final || known.Generation == Volatile.Read( ref visibilityGeneration )) ) return (known.First, known.VertexBase);
+		if ( visibilityOwners.TryGetValue( owner, out var known ) && (known.Final || known.Generation == Volatile.Read( ref visibilityGeneration )) )
+		{
+			Volatile.Write( ref known.Named, Volatile.Read( ref visibilityFrame ) );
+			return (known.First, known.VertexBase);
+		}
 
 		lock ( visibilityOwners )
 		{
-			if ( visibilityOwners.TryGetValue( owner, out known ) && (known.Final || known.Generation == visibilityGeneration) ) return (known.First, known.VertexBase);
+			if ( visibilityOwners.TryGetValue( owner, out known ) && (known.Final || known.Generation == visibilityGeneration) )
+			{
+				known.Named = visibilityFrame;
+				return (known.First, known.VertexBase);
+			}
 
-			var run = new VisibilityRun { Fragments = fragments, Words = (vertices + 31L) / 32, Generation = visibilityGeneration };
+			var run = new VisibilityRun { Fragments = fragments, Words = (vertices + 31L) / 32, Generation = visibilityGeneration, Named = visibilityFrame };
 			if ( fragments <= 0 || vertices <= 0 || fragments > visibilityStamps.Capacity || run.Words > visibilityWords.Capacity ) run.Final = true;
 			else if ( !TryPlace( run ) )
 			{
-				// Owners collected without a release hold runs no frame can draw any more: they're free in a few frames
+				// Owners collected without a release hold runs no frame can draw any more: they're free in a few frames.
+				// Those no call has named for a while go in the next round (AgeVisibility)
 				SweepVisibility();
+				visibilityRanOut = true;
+				VisibilityNoRoom++;
 			}
 
 			visibilityOwners.AddOrUpdate( owner, run );
@@ -631,6 +674,46 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 
 		visibilityRuns.RemoveWhere( run => !live.Contains( run ) );
+	}
+
+	/// <summary>
+	/// Once room has run out, let go of the runs no call names: the epoch moves so every call names its owners' runs again
+	/// (kept records and plans are made again), and <see cref="StaleVisibilityFrames"/> later each run not named since is
+	/// released, its owner looking again if it's drawn again. A round that lets nothing go (every run is drawn) waits twice
+	/// as long for the next. Under the visibility lock, once a frame.
+	/// </summary>
+	void AgeVisibility()
+	{
+		if ( visibilityAgingSince < 0 )
+		{
+			if ( !AgesVisibility || !visibilityRanOut || visibilityFrame - visibilityAgedAt < visibilityAgeWait ) return;
+			visibilityRanOut = false;
+			visibilityAgingSince = visibilityFrame;
+			visibilityEpoch++;
+			return;
+		}
+
+		if ( visibilityFrame - visibilityAgingSince < StaleVisibilityFrames ) return;
+
+		var stale = new List<object>();
+		foreach ( var (owner, run) in visibilityOwners )
+		{
+			if ( run.Named < visibilityAgingSince && visibilityRuns.Contains( run ) ) stale.Add( owner );
+		}
+
+		foreach ( var owner in stale )
+		{
+			if ( !visibilityOwners.TryGetValue( owner, out var run ) ) continue;
+			visibilityOwners.Remove( owner );
+			visibilityRuns.Remove( run );
+			run.Aged = true;
+			releasedVisibility.Add( (visibilityFrame, run) );
+		}
+
+		VisibilityRunsAged += stale.Count;
+		visibilityAgeWait = stale.Count > 0 ? StaleVisibilityFrames : Math.Min( visibilityAgeWait * 2, MaxVisibilityAgeWait );
+		visibilityAgingSince = -1;
+		visibilityAgedAt = visibilityFrame;
 	}
 
 	/// <summary>An owner's visibility run, free for another's once the frames that could still read it are done.</summary>
@@ -736,7 +819,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	{
 		get
 		{
-			lock ( geometryRecords ) lock ( drawRecords ) lock ( materialRecords ) return (geometryRecords.Count, drawRecords.Count, materialRecords.Count);
+			lock ( geometryRecords ) return (geometryRecords.Count, drawRecords.Count, materialRecords.Count);
 		}
 	}
 
@@ -784,6 +867,7 @@ internal sealed class GpuDrivenTables : IDisposable
 			if ( releasedVisibility.Count > 0 )
 			{
 				var kept = 0;
+				var aged = false;
 				for ( int i = 0; i < releasedVisibility.Count; i++ )
 				{
 					var (released, run) = releasedVisibility[i];
@@ -791,13 +875,19 @@ internal sealed class GpuDrivenTables : IDisposable
 					{
 						visibilityStamps.Free( run.First, run.Fragments );
 						visibilityWords.Free( run.VertexBase / 32, run.Words );
+						aged |= run.Aged;
 					}
 					else releasedVisibility[kept++] = (released, run);
 				}
 
 				if ( kept < releasedVisibility.Count ) visibilityGeneration++;
 				releasedVisibility.RemoveRange( kept, releasedVisibility.Count - kept );
+
+				// Records and plans kept while owners found no room name none: made again, they find the room aged runs left
+				if ( aged ) visibilityEpoch++;
 			}
+
+			AgeVisibility();
 		}
 
 		lock ( frames )

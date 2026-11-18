@@ -210,7 +210,7 @@ public sealed unsafe partial class Device : IDisposable
 			var properties2 = new VkPhysicalDeviceProperties2 { sType = VkStructureType.PhysicalDeviceProperties2, pNext = &indexing };
 			Instance.vkGetPhysicalDeviceProperties2( PhysicalDevice, &properties2 );
 
-			Allocator = new MemoryAllocator( Vk, memory, Adapter.Integrated );
+			Allocator = new MemoryAllocator( Vk, memory, Adapter.Integrated ) { Owner = this };
 
 			var bindlessTextures = (int)Math.Min( 65536u, Math.Min( indexing.maxDescriptorSetUpdateAfterBindSampledImages, indexing.maxPerStageDescriptorUpdateAfterBindSampledImages ) / 2 * 2 );
 			var bindlessSamplers = (int)Math.Min( 2048u, Math.Min( indexing.maxDescriptorSetUpdateAfterBindSamplers, indexing.maxPerStageDescriptorUpdateAfterBindSamplers ) );

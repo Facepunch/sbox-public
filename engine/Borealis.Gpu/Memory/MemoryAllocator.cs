@@ -25,6 +25,9 @@ internal sealed class MemoryBlock
 	public bool Dedicated;
 	public bool Images;
 
+	/// <summary>Whether it's a large block (<see cref="MemoryAllocator.LargeBlockSize"/>), for allocations too big for the small ones.</summary>
+	public bool Large;
+
 	/// <summary>Free ranges, sorted by offset, never adjacent.</summary>
 	public readonly List<(ulong Offset, ulong Size)> Free = new();
 
@@ -95,7 +98,8 @@ internal sealed class MemoryBlock
 
 /// <summary>
 /// Suballocates device memory: blocks per memory type, separately for buffers and images so
-/// <c>bufferImageGranularity</c> never matters, and dedicated allocations for anything big. An allocation goes into the
+/// <c>bufferImageGranularity</c> never matters, large blocks for big allocations (<see cref="LargeBlockSize"/>), dedicated
+/// allocations for the biggest, and a spare block of a kind made ahead on a worker once the last is taken. An allocation goes into the
 /// fullest block it fits in, so lightly used blocks drain and go back to the driver once empty: at once while another
 /// empty block of their kind is kept, the last one after <see cref="SpareFrames"/> frames (<see cref="Trim"/>).
 /// </summary>
@@ -108,6 +112,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	readonly List<MemoryBlock> blocks = new();
 	readonly object allocationLock = new();
 	ulong frame;
+
+	/// <summary>The device, for profiler zones around driver allocations; null for none.</summary>
+	internal Device Owner { get; init; }
 
 	/// <summary>Frames an empty block is kept for in case its kind is needed again, before it's freed.</summary>
 	public const ulong SpareFrames = 300;
@@ -221,46 +228,133 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		return null;
 	}
 
+	/// <summary>
+	/// Size of the large blocks, made only once something needs one: allocations over a quarter of a small block and up to
+	/// a quarter of this (a streamed texture's mips, a page of vertices) share them instead of each being the driver's.
+	/// </summary>
+	public const ulong LargeBlockSize = 128ul << 20;
+
+	/// <summary>
+	/// Whether an empty block of a kind is made ahead on a worker once the last one is taken (on), so the next allocation
+	/// that needs a block finds one rather than waiting for the driver. Off makes blocks where they're needed.
+	/// </summary>
+	public bool MakeBlocksAhead { get; init; } = true;
+
+	/// <summary><see cref="MakeBlocksAhead"/> for every allocator, for comparisons.</summary>
+	public static bool BlocksAhead { get; set; } = true;
+
+	/// <summary>Whether big allocations share large blocks (on), or each over a quarter of a small block is its own. For comparisons.</summary>
+	public static bool LargeBlocks { get; set; } = true;
+
+	// Kinds (type, images, large) with a block being made ahead
+	readonly HashSet<(int Type, bool Images, bool Large)> makingAhead = new();
+	bool disposed;
+
+	// The driver's allocations (vkAllocateMemory, which needs no external lock) are made outside the allocator's lock: a big
+	// one takes milliseconds while the driver clears it, and every other thread's allocation waited behind it. A map's
+	// first seconds made hundreds, about 2 ms each, nearly 0.5 s of them on the main thread
 	Allocation Allocate( in VkMemoryRequirements requirements, MemoryLocation location, bool image, int type )
 	{
 		var size = requirements.size;
 		var alignment = Math.Max( requirements.alignment, 1 );
 
+		// Anything over a quarter of a large block gets its own allocation
+		if ( size > (LargeBlocks ? LargeBlockSize : blockSize) / 4 )
+		{
+			var dedicated = NewBlock( type, size, image );
+			dedicated.Dedicated = true;
+			dedicated.TryAllocate( size, alignment, out var dedicatedOffset );
+			lock ( allocationLock )
+			{
+				Allocations++;
+				Add( dedicated );
+				Used += size;
+			}
+
+			return new Allocation( dedicated, dedicatedOffset, size );
+		}
+
+		var large = size > blockSize / 4;
 		lock ( allocationLock )
 		{
 			Allocations++;
-
-			// Anything over a quarter of a block gets its own allocation
-			if ( size > blockSize / 4 )
-			{
-				var dedicated = NewBlock( type, size, image );
-				dedicated.Dedicated = true;
-				dedicated.TryAllocate( size, alignment, out var dedicatedOffset );
-				Used += size;
-				return new Allocation( dedicated, dedicatedOffset, size );
-			}
-
-			// The fullest block with room, so the emptier ones drain
-			MemoryBlock best = null;
-			foreach ( var block in blocks )
-			{
-				if ( block.Dedicated || block.TypeIndex != type || block.Images != image ) continue;
-				if ( best is not null && block.Used <= best.Used ) continue;
-				if ( block.Fits( size, alignment ) ) best = block;
-			}
-
-			if ( best is not null && best.TryAllocate( size, alignment, out var offset ) )
-			{
-				Used += size;
-				return new Allocation( best, offset, size );
-			}
-
-			var fresh = NewBlock( type, blockSize, image );
-			if ( !fresh.TryAllocate( size, alignment, out var freshOffset ) ) throw new GpuException( "A new memory block couldn't fit an allocation" );
-
-			Used += size;
-			return new Allocation( fresh, freshOffset, size );
+			if ( TryShared( type, image, large, size, alignment ) is { } shared ) return shared;
 		}
+
+		// A new block, made without the lock; another thread (or the one made ahead) may have added one meanwhile, which is
+		// tried first, and then this one stays as a spare
+		var fresh = NewBlock( type, large ? LargeBlockSize : blockSize, image );
+		fresh.Large = large;
+		lock ( allocationLock )
+		{
+			Add( fresh );
+			fresh.EmptySince = frame;
+			if ( TryShared( type, image, large, size, alignment ) is { } placed ) return placed;
+			throw new GpuException( "A new memory block couldn't fit an allocation" );
+		}
+	}
+
+	/// <summary>
+	/// After taking room in <paramref name="taken"/>: when no empty block of its kind is left, make one on a worker (one at a
+	/// time per kind). Under the lock.
+	/// </summary>
+	void MakeAhead( MemoryBlock taken )
+	{
+		if ( !MakeBlocksAhead || !BlocksAhead || disposed ) return;
+		var kind = (taken.TypeIndex, taken.Images, taken.Large);
+		if ( makingAhead.Contains( kind ) ) return;
+		foreach ( var block in blocks )
+		{
+			if ( !block.Dedicated && block.Used == 0 && block.TypeIndex == kind.TypeIndex && block.Images == kind.Images && block.Large == kind.Large ) return;
+		}
+
+		makingAhead.Add( kind );
+		var size = kind.Large ? LargeBlockSize : blockSize;
+		System.Threading.ThreadPool.UnsafeQueueUserWorkItem( static state =>
+		{
+			var (allocator, kind, size) = state;
+			MemoryBlock block = null;
+			try
+			{
+				block = allocator.NewBlock( kind.TypeIndex, size, kind.Images );
+				block.Large = kind.Large;
+			}
+			catch ( GpuException )
+			{
+				// Out of memory ahead: the allocation that needs it reports it
+			}
+
+			lock ( allocator.allocationLock )
+			{
+				allocator.makingAhead.Remove( kind );
+				if ( block is null ) return;
+				if ( allocator.disposed )
+				{
+					allocator.FreeBlock( block, counted: false );
+					return;
+				}
+
+				allocator.Add( block );
+				block.EmptySince = allocator.frame;
+			}
+		}, (this, kind, size), preferLocal: false );
+	}
+
+	/// <summary>Room in the fullest shared block of its kind with room, so the emptier ones drain; under the lock.</summary>
+	Allocation? TryShared( int type, bool image, bool large, ulong size, ulong alignment )
+	{
+		MemoryBlock best = null;
+		foreach ( var block in blocks )
+		{
+			if ( block.Dedicated || block.TypeIndex != type || block.Images != image || block.Large != large ) continue;
+			if ( best is not null && block.Used <= best.Used ) continue;
+			if ( block.Fits( size, alignment ) ) best = block;
+		}
+
+		if ( best is null || !best.TryAllocate( size, alignment, out var offset ) ) return null;
+		Used += size;
+		MakeAhead( best );
+		return new Allocation( best, offset, size );
 	}
 
 	public void Free( in Allocation allocation )
@@ -306,12 +400,13 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	{
 		foreach ( var block in blocks )
 		{
-			if ( block != empty && !block.Dedicated && block.TypeIndex == empty.TypeIndex && block.Images == empty.Images && block.Used == 0 ) return true;
+			if ( block != empty && !block.Dedicated && block.TypeIndex == empty.TypeIndex && block.Images == empty.Images && block.Large == empty.Large && block.Used == 0 ) return true;
 		}
 
 		return false;
 	}
 
+	/// <summary>A block from the driver, not yet in <see cref="blocks"/> (<see cref="Add"/>): made without the lock.</summary>
 	MemoryBlock NewBlock( int type, ulong size, bool image )
 	{
 		var info = new VkMemoryAllocateInfo
@@ -322,7 +417,8 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		};
 
 		ulong memory;
-		vk.vkAllocateMemory( vk.Device, &info, null, &memory ).Check( "vkAllocateMemory" );
+		using ( Owner is { } owner ? owner.AllocateMemoryZone() : default )
+			vk.vkAllocateMemory( vk.Device, &info, null, &memory ).Check( "vkAllocateMemory" );
 
 		var block = new MemoryBlock { Memory = memory, Size = size, TypeIndex = type, Images = image };
 		block.Free.Add( (0, size) );
@@ -334,20 +430,37 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			block.Mapped = (nint)mapped;
 		}
 
-		blocks.Add( block );
-		Reserved += size;
 		return block;
 	}
 
-	void FreeBlock( MemoryBlock block )
+	/// <summary>Keep a block made by <see cref="NewBlock"/>; under the lock.</summary>
+	void Add( MemoryBlock block )
+	{
+		blocks.Add( block );
+		Reserved += block.Size;
+	}
+
+	void FreeBlock( MemoryBlock block, bool counted = true )
 	{
 		// Freeing memory unmaps it
 		vk.vkFreeMemory( vk.Device, block.Memory, null );
-		Reserved -= block.Size;
+		if ( counted ) Reserved -= block.Size;
 	}
 
 	public void Dispose()
 	{
+		// Blocks being made ahead finish first: the device must outlive their allocations
+		lock ( allocationLock ) disposed = true;
+		while ( true )
+		{
+			lock ( allocationLock )
+			{
+				if ( makingAhead.Count == 0 ) break;
+			}
+
+			System.Threading.Thread.Sleep( 1 );
+		}
+
 		lock ( allocationLock )
 		{
 			foreach ( var block in blocks ) FreeBlock( block );

@@ -25,6 +25,10 @@ public sealed partial class Device
 
 	static readonly nint ZonePipeline = Marshal.StringToCoTaskMemUTF8( "Borealis.Gpu Create Pipeline" );
 	static readonly nint ZoneShaderModule = Marshal.StringToCoTaskMemUTF8( "Borealis.Gpu Create Shader Module" );
+	static readonly nint ZoneAllocateMemory = Marshal.StringToCoTaskMemUTF8( "Borealis.Gpu Allocate Memory" );
+
+	/// <summary>A zone around a driver memory allocation (<c>vkAllocateMemory</c>), for <see cref="Memory.MemoryAllocator"/>.</summary>
+	internal ZoneScope AllocateMemoryZone() => Zone( ZoneAllocateMemory );
 
 	ZoneScope Zone( nint name )
 	{
@@ -33,7 +37,7 @@ public sealed partial class Device
 		return new ZoneScope( profiler );
 	}
 
-	readonly struct ZoneScope( IDeviceProfiler profiler ) : IDisposable
+	internal readonly struct ZoneScope( IDeviceProfiler profiler ) : IDisposable
 	{
 		public void Dispose() => profiler?.EndZone();
 	}

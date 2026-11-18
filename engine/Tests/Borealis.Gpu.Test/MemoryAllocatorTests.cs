@@ -14,7 +14,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void AllocationsFillTheFullestBlockAndEmptyBlocksGoBack()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false );
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false };
 		var eighth = allocator.BlockSize / 8;
 		var requirements = new VkMemoryRequirements { size = eighth, alignment = 256, memoryTypeBits = ~0u };
 
@@ -41,5 +41,43 @@ public class MemoryAllocatorTests : GpuTest
 
 		foreach ( var allocation in second ) allocator.Free( allocation );
 		allocator.Free( next );
+	}
+
+	/// <summary>
+	/// Allocations over a quarter of a small block share large blocks, made only when one is needed, and only the biggest get
+	/// their own; and once the last empty block of a kind is taken, another is made ahead on a worker, so the next allocation
+	/// that needs one doesn't wait for the driver (a map's first seconds waited ~0.5 s on the main thread).
+	/// </summary>
+	[TestMethod]
+	public void BigAllocationsShareLargeBlocksAndBlocksAreMadeAhead()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false );
+		var small = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
+		var big = small with { size = allocator.BlockSize / 2 };
+		var biggest = small with { size = MemoryAllocator.LargeBlockSize / 2 };
+
+		void WaitFor( ulong reserved, string what )
+		{
+			var clock = System.Diagnostics.Stopwatch.StartNew();
+			while ( allocator.Reserved != reserved && clock.Elapsed.TotalSeconds < 10 ) System.Threading.Thread.Sleep( 5 );
+			Assert.AreEqual( reserved, allocator.Reserved, what );
+		}
+
+		// A small allocation's block, then an empty one made ahead
+		var a = allocator.Allocate( small, MemoryLocation.Device, image: false );
+		WaitFor( 2 * allocator.BlockSize, "a small block and one made ahead" );
+
+		// Two big ones share a large block, and another large block is made ahead
+		var b = allocator.Allocate( big, MemoryLocation.Device, image: false );
+		var c = allocator.Allocate( big, MemoryLocation.Device, image: false );
+		Assert.AreSame( b.Block, c.Block, "big allocations share a large block" );
+		Assert.AreNotSame( a.Block, b.Block );
+		WaitFor( 2 * allocator.BlockSize + 2 * MemoryAllocator.LargeBlockSize, "a large block and one made ahead" );
+
+		// The biggest gets its own
+		var d = allocator.Allocate( biggest, MemoryLocation.Device, image: false );
+		Assert.AreEqual( 2 * allocator.BlockSize + 2 * MemoryAllocator.LargeBlockSize + biggest.size, allocator.Reserved, "the biggest allocation is its own" );
+
+		foreach ( var allocation in (Allocation[])[a, b, c, d] ) allocator.Free( allocation );
 	}
 }

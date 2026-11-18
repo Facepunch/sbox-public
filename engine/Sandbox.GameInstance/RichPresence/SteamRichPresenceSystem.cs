@@ -16,14 +16,19 @@ internal sealed class SteamRichPresenceSystem : IRichPresenceSystem
 		if ( _values.TryGetValue( key, out var oldValue ) && oldValue == value )
 			return;
 
-		Steam.SteamFriends().SetRichPresence( key, value );
+		var friends = Steam.SteamFriends();
+		if ( friends.IsValid )
+			friends.SetRichPresence( key, value );
 
 		_values[key] = value;
 	}
 
 	void Clear()
 	{
-		Steam.SteamFriends().ClearRichPresence();
+		var friends = Steam.SteamFriends();
+		if ( friends.IsValid )
+			friends.ClearRichPresence();
+
 		_values.Clear();
 	}
 
