@@ -1821,25 +1821,37 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
 		using var zone = Zones.VisibilityMake.Start();
+
+		// Made without the lock (the driver's allocations take milliseconds, and other views' calls take the lock), then
+		// kept unless another thread made them meanwhile. Room for task shaders' kept triangles only where they draw; less
+		// for small views
+		var small = state.Width > 0 && (long)state.Width * state.Height * Math.Max( state.Samples, 1 ) < SmallViewSamples;
+		var prepassCapacity = small ? SmallPrepassIndices : PrepassCompactedIndices;
+		var keptCapacity = small ? SmallKeptCapacity : MeshletKeptCapacity;
+		var meshletKept = MeshletIds is not null;
+		var stampBytes = meshletKept ? MeshletKeptAt + 4 + keptCapacity * 4L : MeshletKeptAt;
+		var stamps = Gpu.CreateBuffer( new BufferInfo { Size = stampBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet stamps" } );
+		var jobs = Gpu.CreateBuffer( new BufferInfo { Size = 16 + MeshletJobCapacity * 16L, Usage = BufferUsage.Storage | BufferUsage.Indirect | BufferUsage.CopyDestination, Name = "Borealis meshlet copy jobs" } );
+		var compacted16 = Gpu.CreateBuffer( new BufferInfo { Size = prepassCapacity * 2L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles 16" } );
+		var buffer = Gpu.CreateBuffer( new BufferInfo { Size = prepassCapacity * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles" } );
+
 		lock ( visibilityViews )
 		{
-			if ( state.PrepassCompacted.IsValid ) return state.PrepassCompacted;
-			// Room for task shaders' kept triangles only where they draw; less for small views
-			var small = state.Width > 0 && (long)state.Width * state.Height * Math.Max( state.Samples, 1 ) < SmallViewSamples;
-			state.PrepassCapacity = small ? SmallPrepassIndices : PrepassCompactedIndices;
-			state.KeptCapacity = small ? SmallKeptCapacity : MeshletKeptCapacity;
-			state.MeshletKept = MeshletIds is not null;
-			var stampBytes = state.MeshletKept ? MeshletKeptAt + 4 + state.KeptCapacity * 4L : MeshletKeptAt;
-			state.MeshletStamps = Gpu.CreateBuffer( new BufferInfo { Size = stampBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis meshlet stamps" } );
-			state.MeshletJobs = Gpu.CreateBuffer( new BufferInfo { Size = 16 + MeshletJobCapacity * 16L, Usage = BufferUsage.Storage | BufferUsage.Indirect | BufferUsage.CopyDestination, Name = "Borealis meshlet copy jobs" } );
-			visibilityBuffers.Add( state.MeshletJobs );
-			state.PrepassCompacted16 = Gpu.CreateBuffer( new BufferInfo { Size = state.PrepassCapacity * 2L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles 16" } );
-			visibilityBuffers.Add( state.PrepassCompacted16 );
-			var buffer = Gpu.CreateBuffer( new BufferInfo { Size = state.PrepassCapacity * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis prepass meshlet triangles" } );
-			visibilityBuffers.Add( state.MeshletStamps );
+			if ( state.PrepassCompacted.IsValid )
+			{
+				foreach ( var made in (BufferHandle[])[stamps, jobs, compacted16, buffer] ) Gpu.Destroy( made );
+				return state.PrepassCompacted;
+			}
+
+			(state.PrepassCapacity, state.KeptCapacity, state.MeshletKept) = (prepassCapacity, keptCapacity, meshletKept);
+			(state.MeshletStamps, state.MeshletJobs, state.PrepassCompacted16) = (stamps, jobs, compacted16);
+			visibilityBuffers.Add( jobs );
+			visibilityBuffers.Add( compacted16 );
+			visibilityBuffers.Add( stamps );
+
 			// Freed with the view's other buffers (visibilityBuffers), not through the wrapper
 #pragma warning disable CA2000
-			state.MeshletStampsAttribute = new GpuBuffer( new BackendBuffer( this, state.MeshletStamps, stampBytes, "Borealis meshlet stamps" ), (int)(stampBytes / 4), 4 );
+			state.MeshletStampsAttribute = new GpuBuffer( new BackendBuffer( this, stamps, stampBytes, "Borealis meshlet stamps" ), (int)(stampBytes / 4), 4 );
 #pragma warning restore CA2000
 			visibilityBuffers.Add( buffer );
 			ClearMadeAfterClear( state, compacted: false, prepass: buffer );
@@ -2041,9 +2053,10 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			for ( int i = 0; i < buffers.Length; i++ ) buffers[i] = VisibilityCompacted( compacted );
 			var (scratch, ids) = VisibilityTargets( depth );
 
+			VisibilityView state;
 			lock ( visibilityViews )
 			{
-				var state = visibilityViews.GetValue( view, _ => new VisibilityView { Retire = retiredVisibility } );
+				state = visibilityViews.GetValue( view, _ => new VisibilityView { Retire = retiredVisibility } );
 				if ( state.Ready || state.Mask.IsValid )
 				{
 					// Made meanwhile where it was asked
@@ -2065,6 +2078,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				(state.Width, state.Height, state.Samples) = (depth.Width, depth.Height, depth.Samples);
 				state.Ready = true;
 			}
+
+			// Its meshlet prepass's buffers too, which its first prepass call with meshlets would make
+			if ( meshletStore is not null ) PrepassCompactedFor( state );
 		}
 		catch ( GpuException )
 		{
