@@ -126,6 +126,7 @@ public sealed unsafe partial class Device
 	public BindingSetHandle DefaultViewSet { get; private set; }
 	readonly Dictionary<(ulong, ulong, ulong, ulong), ulong> pipelineLayouts = new();
 	readonly Dictionary<ulong, (ulong, ulong, ulong, ulong)> pipelineLayoutSets = new();
+	readonly List<ulong> retiredPipelineLayouts = new();
 
 	/// <summary>The set layouts of sets 0 to 3 a pipeline layout was made from.</summary>
 	internal (ulong, ulong, ulong, ulong) SetLayoutsOf( ulong pipelineLayout )
@@ -795,7 +796,9 @@ public sealed unsafe partial class Device
 	void DestroyPipelineCache()
 	{
 		foreach ( var layout in pipelineLayouts.Values ) Vk.vkDestroyPipelineLayout( Vk.Device, layout, null );
+		foreach ( var layout in retiredPipelineLayouts ) Vk.vkDestroyPipelineLayout( Vk.Device, layout, null );
 		pipelineLayouts.Clear();
+		retiredPipelineLayouts.Clear();
 		Vk.vkDestroyDescriptorSetLayout( Vk.Device, emptySetLayout, null );
 		Vk.vkDestroyPipelineCache( Vk.Device, pipelineCache, null );
 	}
@@ -933,6 +936,24 @@ public sealed unsafe partial class Device
 	public void Destroy( BindingLayoutHandle layout )
 	{
 		var record = Layouts.Remove( layout.Index, layout.Generation );
+
+		// Pipeline layouts made with it leave the cache: the driver may give the next set layout the same handle, and a cached
+		// layout found by it would point at this one once it's gone. They live on, for pipelines made with them, until shutdown
+		lock ( pipelineLayouts )
+		{
+			List<(ulong, ulong, ulong, ulong)> stale = null;
+			foreach ( var key in pipelineLayouts.Keys )
+			{
+				if ( key.Item1 == record.SetLayout || key.Item2 == record.SetLayout || key.Item3 == record.SetLayout || key.Item4 == record.SetLayout ) (stale ??= new()).Add( key );
+			}
+
+			foreach ( var key in stale ?? [] )
+			{
+				retiredPipelineLayouts.Add( pipelineLayouts[key] );
+				pipelineLayouts.Remove( key );
+			}
+		}
+
 		Defer( () => Vk.vkDestroyDescriptorSetLayout( Vk.Device, record.SetLayout, null ) );
 	}
 
