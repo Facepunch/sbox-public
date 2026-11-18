@@ -981,6 +981,7 @@ public sealed unsafe partial class Device
 	{
 		StopBuilding();
 		StopOptimising();
+		DestroyComputeAhead();
 		var alive = new HashSet<PipelinePart>();
 		foreach ( var cache in (ReadOnlySpan<Dictionary<PartKey, PipelinePart>>)[vertexInputParts, preRasterizationParts, fragmentParts, outputParts] )
 		{

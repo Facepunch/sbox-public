@@ -188,11 +188,101 @@ public sealed unsafe partial class Device
 			return;
 		}
 
-		if ( kind == PipelineParts.PreRasterization ) info.VertexShader = shader;
+		if ( kind is PipelineParts.PreRasterization or PipelinePartManifest.Compute ) info.VertexShader = shader;
 		if ( kind == PipelineParts.FragmentShader ) info.FragmentShader = shader;
 		if ( slots is not null ) info.Sets = ManifestSets( slots );
 		info.Name = $"part manifest ({kind})";
 		Queue( info, kind, entry.Line, speculative: false, entry.Rank );
+	}
+
+	//
+	// Compute pipelines from the manifest: made whole on a builder, kept by their line until CreateComputePipeline asks
+	//
+
+	sealed class ComputeAhead
+	{
+		public ulong Pipeline;
+		public bool Ready;
+	}
+
+	readonly Dictionary<string, ComputeAhead> computeAhead = new();
+
+	// Lines CreateComputePipeline made itself this run: a builder that hadn't started one leaves it
+	readonly HashSet<string> computeMadeHere = new();
+
+	/// <summary>The manifest line for a compute pipeline, or null without a manifest (or when a set's layout went).</summary>
+	string ComputeLine( in ComputePipelineInfo info )
+	{
+		if ( partManifest is null || shaderStatistics ) return null;
+		try
+		{
+			return PipelinePartManifest.WriteCompute( info, ShaderHash( info.Shader ), SlotsOf( info.Sets ) );
+		}
+		catch ( ArgumentException )
+		{
+			return null;
+		}
+	}
+
+	/// <summary>The pipeline a builder made ahead for this line (waiting if it's being made), or 0 to make it here.</summary>
+	ulong TakeComputeAhead( string line )
+	{
+		lock ( computeAhead )
+		{
+			if ( !computeAhead.TryGetValue( line, out var ahead ) )
+			{
+				computeMadeHere.Add( line );
+				return 0;
+			}
+
+			while ( !ahead.Ready ) Monitor.Wait( computeAhead );
+			computeAhead.Remove( line );
+			if ( ahead.Pipeline == 0 ) computeMadeHere.Add( line );
+			return ahead.Pipeline;
+		}
+	}
+
+	void MakeComputeAhead( in GraphicsPipelineInfo recorded, string line )
+	{
+		var ahead = new ComputeAhead();
+		lock ( computeAhead )
+		{
+			if ( computeMadeHere.Contains( line ) || !computeAhead.TryAdd( line, ahead ) ) return;
+		}
+
+		var info = new ComputePipelineInfo { Shader = recorded.VertexShader, Entry = recorded.VertexEntry, Constants = recorded.VertexConstants, Sets = recorded.Sets, Name = recorded.Name };
+		ulong pipeline = 0;
+		var started = System.Diagnostics.Stopwatch.GetTimestamp();
+		try
+		{
+			using ( Zone( ZonePipeline ) ) pipeline = MakeCompute( info, PipelineLayout( info.Sets ) );
+			Interlocked.Add( ref computeTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
+			Interlocked.Increment( ref computeMade );
+		}
+		finally
+		{
+			// A failure leaves 0: the pipeline is made where asked, which reports it
+			lock ( computeAhead )
+			{
+				ahead.Pipeline = pipeline;
+				ahead.Ready = true;
+				Monitor.PulseAll( computeAhead );
+			}
+		}
+	}
+
+	/// <summary>At shutdown: compute pipelines made ahead that nothing asked for.</summary>
+	void DestroyComputeAhead()
+	{
+		lock ( computeAhead )
+		{
+			foreach ( var ahead in computeAhead.Values )
+			{
+				if ( ahead.Pipeline != 0 ) Vk.vkDestroyPipeline( Vk.Device, ahead.Pipeline, null );
+			}
+
+			computeAhead.Clear();
+		}
 	}
 
 	BindingLayoutHandle[] ManifestSets( BindingSlot[][] slots )
@@ -271,6 +361,7 @@ public sealed unsafe partial class Device
 			try
 			{
 				if ( isJob ) MakeDeferred( job.Handle, job.Info, job.Layout, job.Frame, job.Requested );
+				else if ( prepare.Parts == PipelinePartManifest.Compute ) MakeComputeAhead( prepare.Info, prepare.Line );
 				else PreparePipelineParts( prepare.Info, prepare.Parts );
 			}
 			catch ( Exception e ) when ( e is GpuException or InvalidOperationException or ArgumentException )

@@ -423,6 +423,51 @@ public class PipelineLibraryTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// Compute pipelines go in the part manifest too: the next run makes one on a builder as its module is made, and
+	/// creating it then takes that pipeline instead of making another.
+	/// </summary>
+	[TestMethod]
+	public void PartManifestMakesComputePipelinesAhead()
+	{
+		RequireLibraries();
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-compute-manifest-{Environment.ProcessId}-{Guid.NewGuid():n}" );
+		var errors = new List<string>();
+		Device Open() => Device.Create( new DeviceOptions
+		{
+			Presentation = false,
+			Validation = true,
+			PipelineCacheFolder = folder,
+			PipelinePartManifest = true,
+			Message = m => { if ( m.Severity == MessageSeverity.Error ) lock ( errors ) errors.Add( $"{m.Id}: {m.Text}" ); },
+		} );
+
+		try
+		{
+			using ( var device = Open() )
+			{
+				device.Destroy( device.CreateComputePipeline( new ComputePipelineInfo { Shader = device.CreateShader( Load( "pattern.cs.spv" ), "pattern" ), Entry = "MainCs" } ) );
+				Assert.AreEqual( 1, device.PartManifest.Recorded );
+			}
+
+			using ( var device = Open() )
+			{
+				var shader = device.CreateShader( Load( "pattern.cs.spv" ), "pattern" );
+				Assert.IsTrue( device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );
+				Assert.AreEqual( 1, device.ComputePipelineCreation.Made, "made ahead as its module was made" );
+				var pipeline = device.CreateComputePipeline( new ComputePipelineInfo { Shader = shader, Entry = "MainCs" } );
+				Assert.AreEqual( 1, device.ComputePipelineCreation.Made, "creating it took the one made ahead" );
+				device.Destroy( pipeline );
+			}
+		}
+		finally
+		{
+			Directory.Delete( folder, recursive: true );
+		}
+
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
+	}
+
 	static byte[] Render( Device device, SampleScene scene, TextureHandle target )
 	{
 		var list = device.BeginCommandList( QueueType.Graphics, "Scene" );

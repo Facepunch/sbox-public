@@ -28,6 +28,20 @@ internal sealed class PipelinePartManifest
 	/// <summary>A line read back: which part, the shader it's made from (zero for none) and the line, to drop it.</summary>
 	public readonly record struct Entry( PipelineParts Kind, UInt128 Shader, string Line, int Rank );
 
+	/// <summary>A compute pipeline's line (<see cref="WriteCompute"/>): made whole ahead, as compute has no parts.</summary>
+	public const PipelineParts Compute = (PipelineParts)0x100;
+
+	/// <summary>The line for a compute pipeline: its shader's SPIR-V hash, entry, constants and sets' slots.</summary>
+	public static string WriteCompute( in ComputePipelineInfo info, UInt128 shader, BindingSlot[][] sets )
+	{
+		var b = new StringBuilder( 256 );
+		b.Append( 'C' ).Append( '\t' ).Append( shader.ToString( "x32", CultureInfo.InvariantCulture ) ).Append( '\t' ).Append( info.Entry ?? "main" ).Append( '\t' );
+		Constants( b, info.Constants );
+		b.Append( '\t' );
+		Sets( b, sets );
+		return b.ToString();
+	}
+
 	readonly string path;
 	readonly object gate = new();
 	readonly int run;
@@ -302,6 +316,14 @@ internal sealed class PipelinePartManifest
 				info.VertexConstants = vertexConstants;
 				info.Wireframe = wireframe;
 				info.DepthClamp = clamp;
+				return true;
+
+			case "C" when p.Length == 5:
+				// A compute pipeline, its entry and constants carried as the vertex stage's (Device makes a ComputePipelineInfo of them)
+				if ( !Hash( p[1], out shader ) || p[2].Length == 0 || !ReadConstants( p[3], out var computeConstants ) || !ReadSets( p[4], out sets ) ) return false;
+				kind = Compute;
+				info.VertexEntry = p[2];
+				info.VertexConstants = computeConstants;
 				return true;
 
 			case "F" when p.Length == 5:
