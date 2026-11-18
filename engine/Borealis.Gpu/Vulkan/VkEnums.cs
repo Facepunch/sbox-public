@@ -347,6 +347,9 @@ internal static class Vk
 
 	// VkCommandPoolCreateFlagBits, VkCommandBufferUsageFlagBits
 	public const uint CommandPoolTransient = 0x1;
+
+	// VkCommandPoolResetFlagBits
+	public const uint CommandPoolResetReleaseResources = 0x1;
 	public const uint CommandBufferOneTimeSubmit = 0x1;
 
 	// VkPipelineBindPoint
