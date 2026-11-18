@@ -202,24 +202,30 @@ public sealed class ShaderAttributes
 	/// <see cref="ComboKey"/> without building it: the shader's dynamic combos' values in turn, a byte each, for a shader of
 	/// at most eight whose values fit. False otherwise, and the caller keys by <see cref="ComboKey"/>.
 	/// </summary>
-	internal bool ComboBits( ShaderFile shader, out ulong bits )
+	internal bool ComboBits( ShaderFile shader, out ulong bits ) => ComboBits( shader, out bits, out var more ) && more == 0 && CombosOf( shader ) <= 8;
+
+	/// <summary>As <see cref="ComboBits(ShaderFile, out ulong)"/> for up to sixteen combos: the first eight in <paramref name="bits"/>, the rest in <paramref name="more"/>.</summary>
+	internal bool ComboBits( ShaderFile shader, out ulong bits, out ulong more )
 	{
-		bits = 0;
+		bits = more = 0;
 		var shift = 0;
 		foreach ( var type in (ReadOnlySpan<ShaderProgramType>)[ShaderProgramType.Vertex, ShaderProgramType.Pixel, ShaderProgramType.Compute] )
 		{
 			foreach ( var combo in shader[type]?.DynamicCombos ?? [] )
 			{
-				if ( shift == 64 ) return false;
+				if ( shift == 128 ) return false;
 				var value = combos.Count == 0 ? 0 : GetCombo( combo.Name ) ?? 0;
 				if ( (uint)value > byte.MaxValue ) return false;
-				bits |= (ulong)value << shift;
+				if ( shift < 64 ) bits |= (ulong)value << shift;
+				else more |= (ulong)value << (shift - 64);
 				shift += 8;
 			}
 		}
 
 		return true;
 	}
+
+	static int CombosOf( ShaderFile shader ) => (shader[ShaderProgramType.Vertex]?.DynamicCombos.Length ?? 0) + (shader[ShaderProgramType.Pixel]?.DynamicCombos.Length ?? 0) + (shader[ShaderProgramType.Compute]?.DynamicCombos.Length ?? 0);
 }
 
 /// <summary>
@@ -342,7 +348,7 @@ public sealed class ShaderDrawer : IDisposable
 
 	// Variants by their combos' values packed (ShaderAttributes.ComboBits) and the material's features array, built with no
 	// strings: what most draws find theirs by
-	readonly Dictionary<(ShaderFile Shader, string Mode, int[] Features, ulong Combos), ShaderVariant> packedVariants = new();
+	readonly Dictionary<(ShaderFile Shader, string Mode, int[] Features, ulong Combos, ulong More), ShaderVariant> packedVariants = new();
 	readonly Dictionary<(ShaderVariant Variant, Format Color, Format Depth, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology, bool Ids), PipelineHandle> pipelines = new();
 	readonly Dictionary<ShaderVariant, PipelineHandle> computePipelines = new();
 	MaterialObjectCache cache;
@@ -465,9 +471,9 @@ public sealed class ShaderDrawer : IDisposable
 	{
 		mode ??= shader.Modes[0].Name;
 		var features = MaterialOf( shader )?.Features ?? [];
-		if ( attributes.ComboBits( shader, out var bits ) )
+		if ( attributes.ComboBits( shader, out var bits, out var more ) )
 		{
-			var packed = (shader, mode, features, bits);
+			var packed = (shader, mode, features, bits, more);
 			if ( packedVariants.TryGetValue( packed, out var found ) ) return found;
 			found = VariantByName( shader, attributes, mode, features );
 			if ( found is not null && !pendingVariant ) packedVariants[packed] = found;
