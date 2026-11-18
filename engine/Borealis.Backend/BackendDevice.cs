@@ -1566,12 +1566,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// has as integers where the shader wants floats (or the other way round), read the default stream 2, as native's
 	/// input layouts do for streams a mesh doesn't have. A vertex-cache layout reads vertex ids from streams 2 and 3 and
 	/// the default stream from 4. With <paramref name="normals"/>, the opaque pass's normals target follows colour, unwritten
-	/// (<see cref="AddNormalsTarget"/>).
+	/// (<see cref="AddNormalsTarget"/>). In a tools pass (<paramref name="tools"/>) a colour pipeline draws with the engine's
+	/// pixel stage (<see cref="ToolsViewStage"/>).
 	/// </summary>
-	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false, bool ids = false, ShaderVariant stateFrom = null, bool normals = false )
+	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false, bool ids = false, ShaderVariant stateFrom = null, bool normals = false, ToolsPass tools = ToolsPass.None )
 	{
 		normals &= color != Format.Unknown && !ids;
-		var key = new PipelineKey( variant, layout, ids ? IdsColorKey : color, depth, samples, depthOnly, sets, materialPerDraw, stateFrom, normals );
+		if ( ids || color == Format.Unknown ) tools = ToolsPass.None;
+		var key = new PipelineKey( variant, layout, ids ? IdsColorKey : color, depth, samples, depthOnly, sets, materialPerDraw, stateFrom, normals, tools );
 		lock ( pipelines )
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
@@ -1620,6 +1622,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 			// A GPU-driven pixel shader reading its bucket's one material (borealis_gpu_driven.h's specialization constant)
 			if ( materialPerDraw && info.FragmentShader.IsValid ) info.FragmentConstants = [.. info.FragmentConstants ?? [], new SpecializationConstant( GpuDrivenMaterialPerDrawConstant, 1 )];
+
+			if ( tools != ToolsPass.None ) ToolsViewStage.Apply( Shaders, ref info, tools, ToolsViews.ShaderColor( variant.Shader?.Name ) );
 
 			// Stripped pixel shaders: depth passes of opaque materials don't need them (alpha-tested ones keep theirs)
 			if ( depthOnly && color == Format.Unknown )
@@ -1695,7 +1699,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal static readonly string DumpSurfaceShaders = Environment.GetEnvironmentVariable( "BOREALIS_DUMP_SURFACE_SHADERS" );
 
-	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false, ShaderVariant StateFrom = null, bool Normals = false );
+	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false, ShaderVariant StateFrom = null, bool Normals = false, ToolsPass Tools = ToolsPass.None );
 
 	/// <summary>
 	/// <c>kForwardNormalsOutput</c> in sbox/forward_normals.slangh: a pixel stage that has it writes the opaque pass's normals

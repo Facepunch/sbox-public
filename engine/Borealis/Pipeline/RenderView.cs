@@ -100,9 +100,15 @@ public sealed class RenderView
 	public bool ToolsView { get; set; }
 
 	/// <summary>
-	/// Shader debug mode from the camera or <c>mat_toolsvis</c>; 0 uses normal lighting.
+	/// Debug view from the camera or <c>mat_toolsvis</c> (<c>SceneCameraDebugMode</c>, <see cref="ToolsViews"/>); 0 uses normal
+	/// lighting.
 	/// </summary>
 	public int ToolsVisMode { get; set; }
+
+	/// <summary>
+	/// Draw colour passes as lines (the camera's <c>WireframeMode</c>), with the engine's tools pass (<see cref="ToolsViews"/>).
+	/// </summary>
+	public bool Wireframe { get; set; }
 
 
 	/// <summary>
