@@ -24,6 +24,7 @@ public sealed partial class PassModule
 
 	readonly Dictionary<StageKind, IReadOnlyList<PassCombo>> combos = new();
 	readonly Dictionary<StageKind, List<(string Kind, string[] Arguments)>> rules = new();
+	readonly Dictionary<StageKind, List<(string Kind, string[] Arguments)>> staticRules = new();
 	readonly HashSet<StageKind> stages = new();
 
 	readonly IReadOnlyList<string> searchPaths;
@@ -53,11 +54,12 @@ public sealed partial class PassModule
 		{
 			var found = new List<PassCombo>();
 			var stageRules = new List<(string, string[])>();
+			var stageStaticRules = new List<(string, string[])>();
 			foreach ( var line in active )
 			{
 				if ( RuleLine().Match( line ) is { Success: true } rule )
 				{
-					stageRules.Add( (rule.Groups["kind"].Value, rule.Groups["args"].Value.Split( ',', StringSplitOptions.TrimEntries )) );
+					(rule.Groups["static"].Success ? stageStaticRules : stageRules).Add( (rule.Groups["kind"].Value, rule.Groups["args"].Value.Split( ',', StringSplitOptions.TrimEntries )) );
 					continue;
 				}
 
@@ -88,6 +90,7 @@ public sealed partial class PassModule
 
 			combos[stage] = found;
 			rules[stage] = stageRules;
+			staticRules[stage] = stageStaticRules;
 		}
 	}
 
@@ -232,7 +235,15 @@ public sealed partial class PassModule
 	/// of the rest is true) and <c>Allow1( a, b )</c> (at most one is set). vfx compiles no other combination; drawing one
 	/// takes the dynamic combo with every value at its first, as a compiled program's lookup does.
 	/// </summary>
-	public bool Allows( StageKind stage, IReadOnlyDictionary<string, int> values )
+	public bool Allows( StageKind stage, IReadOnlyDictionary<string, int> values ) => Allows( rules, stage, values );
+
+	/// <summary>
+	/// Whether a stage's <c>StaticComboRule</c>s allow these combo values, as <see cref="Allows(StageKind, IReadOnlyDictionary{string, int})"/> reads its dynamic ones:
+	/// tools_wireframe's <c>Allow1( S_MODE_DEPTH, S_TRANSLUCENT )</c> leaves a translucent material's depth pass opaque.
+	/// </summary>
+	public bool AllowsStatic( StageKind stage, IReadOnlyDictionary<string, int> values ) => Allows( staticRules, stage, values );
+
+	static bool Allows( Dictionary<StageKind, List<(string Kind, string[] Arguments)>> rules, StageKind stage, IReadOnlyDictionary<string, int> values )
 	{
 		if ( !rules.TryGetValue( stage, out var list ) ) return true;
 		bool True( string expression ) => PassPreprocessor.Evaluate( expression, values ) is { } v && v != "0";
@@ -320,7 +331,7 @@ public sealed partial class PassModule
 	[GeneratedRegex( @"^\s*(?<kind>Dynamic|Static)Combo(?:FromFeature)?\(\s*(?<name>\w+)\s*,\s*(?<range>[^,)]+?)\s*(?:,\s*(?<feature>F_\w+))?\s*[,)]" )]
 	private static partial Regex ComboLine();
 
-	[GeneratedRegex( @"^\s*DynamicComboRule\(\s*(?<kind>Requires1|Allow1)\(\s*(?<args>.*?)\s*\)\s*\)\s*;" )]
+	[GeneratedRegex( @"^\s*(?:Dynamic|(?<static>Static))ComboRule\(\s*(?<kind>Requires1|Allow1)\(\s*(?<args>.*?)\s*\)\s*\)\s*;" )]
 	private static partial Regex RuleLine();
 
 	[GeneratedRegex( @"^\s*Feature\(\s*(?<name>\w+)\s*,\s*(?<range>\d+\s*\.\.\s*\d+)" )]

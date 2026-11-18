@@ -405,6 +405,20 @@ public sealed class PassModules : IShaderModules
 			values[combo.Name] = Math.Clamp( value, combo.Min, combo.Max );
 		}
 
+		// Static combos the rules forbid together (tools_wireframe's Allow1( S_MODE_DEPTH, S_TRANSLUCENT ) in Depth mode) weren't
+		// compiled by vfx: the features' combos go back to their first values, the last first, until the rules allow them, as
+		// a compiled program's lookup takes the features back (ShaderLibrary.Allowed). A translucent material's depth pass is
+		// then an opaque one, which writes depth
+		if ( !module.AllowsStatic( kind, values ) )
+		{
+			var combos = module.Combos( kind );
+			for ( int i = combos.Count - 1; i >= 0 && !module.AllowsStatic( kind, values ); i-- )
+			{
+				var combo = combos[i];
+				if ( combo.Static && combo.Feature is not null && !settings.ContainsKey( combo.Name ) ) values[combo.Name] = combo.Min;
+			}
+		}
+
 		// Combo values the rules forbid weren't compiled by vfx: those draw the first dynamic combo, as a compiled program's lookup does
 		if ( !module.Allows( kind, values ) )
 		{
