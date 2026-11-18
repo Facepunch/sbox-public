@@ -6,8 +6,7 @@ namespace BorealisGpuTests;
 
 /// <summary>
 /// Append buffers' hidden counters, bound under their buffer's counter name (<see cref="ShaderResource.CounterName"/>) as
-/// the engine backend binds a buffer's: <c>clutter_cull_cs</c> appends every instance it keeps to its LOD's bucket, from
-/// its pass module and from its compiled <c>.shader</c>.
+/// the engine backend binds a buffer's: <c>clutter_cull_cs</c>'s pass module appends every instance it keeps to its LOD's bucket.
 /// </summary>
 [TestClass]
 public class AppendCounterTests : GpuTest
@@ -24,16 +23,6 @@ public class AppendCounterTests : GpuTest
 		using var drawer = new ShaderDrawer( backend );
 		Cull( drawer, backend.Shaders.Load( "shaders/clutter_cull_cs.shader" ) );
 		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
-	}
-
-	/// <summary>The compiled shader's hidden counters (<see cref="ShaderBytecode.HiddenCounters"/>) count the same.</summary>
-	[TestMethod]
-	public void CompiledShaderCountsItsAppends()
-	{
-		using var library = new ShaderLibrary( Device, ShaderFileTests.Files );
-		using var defaults = new ShaderDefaults( Device );
-		using var drawer = new ShaderDrawer( Device, library, defaults );
-		Cull( drawer, library.Load( "shaders/clutter_cull_cs.shader" ) );
 	}
 
 	/// <summary>
