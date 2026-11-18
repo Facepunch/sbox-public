@@ -145,6 +145,60 @@ public class CubeCaptureTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// A capture camera's stages (the DDGI bake's hook) run after each face, in slice order, once that face is in its slice
+	/// and before the next is drawn, with the target the face drew into: the probe's integration after the sixth reads the
+	/// whole cube.
+	/// </summary>
+	[TestMethod]
+	public void AfterFaceSeesItsFaceInTheCube()
+	{
+		using var backend = new BackendDevice( Device );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var capture = new CubeCapture( backend, Size );
+			var world = new RenderWorld();
+			using var system = new RenderSystem { ParallelRecording = false };
+			var view = new RenderView { Name = "Caller face", FieldOfView = 90, Capture = true, Viewport = new Rect( 0, 0, Size, Size ) };
+			var drawn = new ViewTarget[6];
+			void Face( int i, ViewTarget target )
+			{
+				drawn[i] = target;
+				var grey = (i + 1) / 8f;
+				view.ClearColor = new Color( grey, grey, grey, 1 );
+				system.Render( world, view, target );
+			}
+
+			using var cube = CubeCapture.CreateCube( backend, Size, "After face" );
+			var handle = BackendDevice.Unwrap( cube ).Texture;
+			var after = new List<int>();
+			void After( int i, ViewTarget target )
+			{
+				after.Add( i );
+				Assert.AreSame( drawn[i], target, $"face {i}'s stages get the target it drew into" );
+				Device.WaitIdle();
+				var grey = (i + 1) / 8f;
+				var expected = grey <= 0.04045f ? grey / 12.92f : MathF.Pow( (grey + 0.055f) / 1.055f, 2.4f );
+				Assert.AreEqual( expected, Read( handle, 0, i )[0], 0.01f, $"face {i} is in its slice when its stages run" );
+				if ( i < 5 ) Assert.AreEqual( 1f, Read( handle, 0, i + 1 )[0], 0.01f, $"face {i + 1} isn't drawn yet (red)" );
+			}
+
+			backend.BeginFrame();
+			RenderHost.Current.NextFrame();
+			capture.Render( cube, Face, null, After );
+			Device.WaitIdle();
+
+			CollectionAssert.AreEqual( new[] { 0, 1, 2, 3, 4, 5 }, after, "after each face, in slice order" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
 	/// <summary>A cube's mip and face as floats, RGBA.</summary>
 	float[] Read( TextureHandle texture, int mip, int face )
 	{

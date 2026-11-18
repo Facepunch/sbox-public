@@ -25,26 +25,20 @@ internal sealed partial class SceneBridge
 	/// finishes, so later faces see the earlier ones; then <c>CubemapRendering</c>'s filter at the quality it was made with.
 	/// The cube is the engine texture's capture (<see cref="MirrorContent.CaptureCube"/>), which probes draw with. Its faces submit
 	/// lists of their own, so a capture asked for inside a render block or one of our frames renders the same way, before what
-	/// the block records. A camera with stage hooks of its own (the DDGI bake's) isn't on Borealis.Gpu yet, nor work after
-	/// the faces other than the filter. With Source 2's device kept (the editor) a realtime probe also captures natively
-	/// while a native tool's views are drawn (<see cref="RenderPipeline.ToolViewsDrawn"/>), for them; a bake asks for native's
-	/// by name (<see cref="SceneRenderer.Native"/>) and reads it back, and a camera with stage hooks (the DDGI bake) captures natively only.
+	/// the block records. A camera with stage hooks of its own (the DDGI bake's) gets its after-transparent stage once each
+	/// face is in its slice (<see cref="RunCaptureFaceStages"/>); no work after the faces runs other than the filter. With
+	/// Source 2's device kept (the editor) a realtime probe also captures natively while a native tool's views are drawn
+	/// (<see cref="RenderPipeline.ToolViewsDrawn"/>), for them; a cube only Borealis.Gpu has (a bake's) doesn't.
 	/// </summary>
 	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null )
 	{
 		if ( cube is null || Gpu is null || MirrorContent.Gpu is not { } device ) return;
 
-		// With Source 2's device kept (the editor), native's capture for a native tool's views (Hammer's) while one is open,
-		// and the DDGI bake's only: it reads each face from its hooks
-		if ( Graphics.HasSource2Device && (camera.OnRenderStageHook is not null || RenderPipeline.ToolViewsDrawn) )
-		{
+		// With Source 2's device kept (the editor), native's capture too for a native tool's views (Hammer's) while one is open
+		var hooked = camera.OnRenderStageHook is not null;
+		if ( Graphics.HasSource2Device && RenderPipeline.ToolViewsDrawn && !hooked && !cube.OnBorealisGpuOnly )
 			SceneRenderer.Native.RenderToCube( camera, cube, setup, afterFaces );
-			if ( camera.OnRenderStageHook is not null ) return;
-		}
 		if ( NotYetInBorealis( camera, setup ) is not null ) return;
-
-		// The DDGI bake reads each face from its stage hooks, which captures here don't run
-		if ( camera.OnRenderStageHook is not null ) return;
 		if ( cube.Depth != 6 ) throw new Exception( "Expected a texture with 6 depth slices for RenderToCubeTexture" );
 
 		var size = cube.Width;
@@ -74,7 +68,7 @@ internal sealed partial class SceneBridge
 		if ( filter is not null && !capture.CanFilter ) filter = null;
 
 		// The envmap scheduler's: faces while its time lasts, the rest in later frames, the cube keeping its last capture meanwhile
-		if ( SpreadCaptureMs >= 0 )
+		if ( SpreadCaptureMs >= 0 && !hooked )
 		{
 #pragma warning disable CA2000 // Kept by the spread capture, which disposes it when it finishes
 			var copy = new SceneCamera( "Spread cube capture" )
@@ -94,7 +88,44 @@ internal sealed partial class SceneBridge
 			return;
 		}
 
-		capture.Render( target, ( i, faceTarget ) => RenderCaptureFace( device, camera, view, size, i, faceTarget ), filter );
+		capture.Render( target, ( i, faceTarget ) => RenderCaptureFace( device, camera, view, size, i, faceTarget ), filter,
+			hooked ? ( i, faceTarget ) => RunCaptureFaceStages( camera, size, i, faceTarget ) : null );
+	}
+
+	// The engine's drawing on a capture face, for a camera's stages (RunCaptureFaceStages)
+	BorealisGpuFrame captureFrame;
+	BorealisGpuView captureView;
+
+	/// <summary>
+	/// A capture camera's stages on face <paramref name="i"/>, once it's in the cube's slice: its after-transparent stage in a
+	/// block on the face's frame (its colour and depth, its view constants), as native runs a cube face's stages in its view.
+	/// The DDGI bake's hook copies each face's depth (<see cref="Graphics.DepthTexture"/>) and integrates the probe after the
+	/// sixth, which reads the whole cube.
+	/// </summary>
+	void RunCaptureFaceStages( SceneCamera camera, int size, int i, ViewTarget faceTarget )
+	{
+		if ( RenderBackend.Default is not BorealisGpuRenderBackend backend || captureFaces[i] is not { } state ) return;
+
+		var frame = captureFrame ??= new BorealisGpuFrame( backend );
+		var view = captureView ??= new BorealisGpuView( backend );
+		frame.Adopt( faceTarget, state.System.Frame.Constants );
+		view.Viewport = new Rect( 0, 0, size, size );
+		view.SrgbWrite = false;
+		view.PostProcessEnabled = false;
+		view.LayerType = SceneLayerType.Translucent;
+		view.RenderSceneObject = null;
+		view.SetCamera( camera.Position, camera.Rotation * SceneCamera.CubeRotations[i], 90, camera.ZNear, camera.ZFar, 1, false, default );
+		view.CubeFace = i;
+		try
+		{
+			using ( frame.Begin( view ) )
+				RunStage( camera, Stage.AfterTransparent );
+		}
+		finally
+		{
+			view.CubeFace = -1;
+			frame.Release();
+		}
 	}
 
 	/// <summary>
@@ -190,6 +221,15 @@ internal sealed partial class SceneBridge
 
 		foreach ( var (_, capture) in cubeCaptures ) capture.Dispose();
 		cubeCaptures.Clear();
+		FreeCaptureStages();
+	}
+
+	void FreeCaptureStages()
+	{
+		captureFrame?.Dispose();
+		captureFrame = null;
+		captureView?.Dispose();
+		captureView = null;
 	}
 
 	void ShutdownCaptures()
@@ -204,5 +244,6 @@ internal sealed partial class SceneBridge
 
 		foreach ( var (_, capture) in cubeCaptures ) capture.Dispose();
 		cubeCaptures.Clear();
+		FreeCaptureStages();
 	}
 }
