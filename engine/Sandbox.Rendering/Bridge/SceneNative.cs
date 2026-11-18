@@ -28,6 +28,56 @@ internal static class SceneNative
 	}
 
 	/// <summary>
+	/// The draws an object's managed state works out (<see cref="SceneObject.GetDraws"/>), as <see cref="ReadSceneObjectDraws"/>
+	/// gives native's.
+	/// </summary>
+	public static void ReadManagedDraws( SceneObject sceneObject, List<SceneObjectDraw> scratch, List<RenderMesh.DrawState> into )
+	{
+		sceneObject.GetDraws( scratch );
+		into.Clear();
+		foreach ( var draw in scratch )
+			into.Add( new RenderMesh.DrawState( draw.Mesh, draw.DrawCall, MirrorContent.Material( draw.Material ), draw.Visible, draw.Translucent, draw.ShadowFastPath, draw.Lightmapped ) );
+	}
+
+	/// <summary>
+	/// Where an object's managed draws (<see cref="SceneObject.GetDraws"/>) differ from native's (<c>RenderTools.GetSceneObjectDraw</c>),
+	/// one line each; empty when they're the same. For checks.
+	/// </summary>
+	public static unsafe List<string> CompareDraws( SceneObject sceneObject )
+	{
+		var differences = new List<string>();
+		var managed = new List<SceneObjectDraw>();
+		sceneObject.GetDraws( managed );
+
+		const int Visible = 1, AlphaBlended = 2, ShadowFastPath = 4, Lightmap = 8;
+		var count = 0;
+		for ( int i = 0; ; i++ )
+		{
+			int mesh = -1, drawCall = 0, flags = 0;
+			var material = Material.FromNative( RenderTools.GetSceneObjectDraw( sceneObject, i, (IntPtr)(&mesh), (IntPtr)(&drawCall), (IntPtr)(&flags) ) );
+			if ( mesh < 0 ) break;
+			count++;
+
+			var native = new SceneObjectDraw( mesh, drawCall, material, (flags & Visible) != 0, (flags & AlphaBlended) != 0, (flags & ShadowFastPath) != 0, (flags & Lightmap) != 0 );
+			if ( i >= managed.Count )
+			{
+				differences.Add( $"draw {i}: native {Describe( native )}, managed none" );
+				continue;
+			}
+
+			var mine = managed[i];
+			if ( mine.Mesh != native.Mesh || mine.DrawCall != native.DrawCall || mine.Visible != native.Visible || mine.Translucent != native.Translucent
+				|| mine.ShadowFastPath != native.ShadowFastPath || mine.Lightmapped != native.Lightmapped || !string.Equals( mine.Material?.Name, native.Material?.Name, StringComparison.OrdinalIgnoreCase ) )
+				differences.Add( $"draw {i}: native {Describe( native )}, managed {Describe( mine )}" );
+		}
+
+		if ( managed.Count > count ) differences.Add( $"managed has {managed.Count} draws, native {count}" );
+		return differences;
+
+		static string Describe( SceneObjectDraw d ) => $"mesh {d.Mesh} draw {d.DrawCall} {d.Material?.Name ?? "null"}{(d.Visible ? "" : " hidden")}{(d.Translucent ? " translucent" : "")}{(d.ShadowFastPath ? " fast-path" : "")}{(d.Lightmapped ? " lightmapped" : "")}";
+	}
+
+	/// <summary>
 	/// Pack native light data, flags and bake index (-1 if absent), excluding shadows (<c>RenderTools.PackSceneLight</c>).
 	/// Returns false without a native light. Only the tests use it now, as the reference <see cref="LightPacking"/> matches.
 	/// </summary>

@@ -79,6 +79,14 @@ native class CModel as NativeEngine.IModel
 		return pMesh->m_sceneObjects[nSceneObject].m_drawCalls[nDrawCall].GetMaterial();
 	}
 
+	// A draw's RENDERMESH_DRAW_FLAGS_*, with bit 31 set when its material is alpha blended, as the mesh has them now
+	inline int GetDrawCallFlags( int iMesh, int nSceneObject, int nDrawCall )
+	{
+		const CRenderMesh *pMesh = self->GetMeshData( iMesh );
+		const CMaterialDrawDescriptor &draw = pMesh->m_sceneObjects[nSceneObject].m_drawCalls[nDrawCall];
+		return (int)( (uint32)draw.m_nFlags | ( draw.m_bAlphaBlendedMaterial ? 0x80000000u : 0u ) );
+	}
+
 	inline void GetTotalMeshCounts( out int totalVertices, out int totalTriangles, out int totalDrawCalls )
 	{
 		*totalVertices = 0;

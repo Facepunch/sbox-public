@@ -87,6 +87,7 @@ public partial class SceneObject : IHandle
 			var flags = Rendering.SceneObjectFlags.CastShadows | Rendering.SceneObjectFlags.IsLoaded;
 			var typeFlags = ESceneObjectTypeFlags.NONE;
 			MeshSystem.CreateSceneObject( model.native, transform, null, flags, typeFlags, sceneWorld, 0x1 );
+			StartResolvingDraws( model );
 			Tags.RemoveAll();
 			Transform = transform;
 		}
@@ -396,6 +397,9 @@ public partial class SceneObject : IHandle
 			if ( !model.HasRenderMeshes() ) model = Model.Error;
 
 			MeshSystem.ChangeModel( this, model.native );
+
+			// New mesh instances draw the model's materials; the override list and mesh groups stay
+			if ( ResolvesDraws ) StartResolvingDraws( model );
 			NotifyChanged( Rendering.SceneObjectChange.Model );
 
 			OnModelChanged();
@@ -412,8 +416,14 @@ public partial class SceneObject : IHandle
 	/// </summary>
 	public ulong MeshGroupMask
 	{
-		get => native.GetCurrentMeshGroupMask();
-		set { native.ResetMeshGroups( value ); NotifyChanged( Rendering.SceneObjectChange.Material ); }
+		get => _meshGroupMask ??= native.IsNull ? 0 : native.GetCurrentMeshGroupMask();
+		set
+		{
+			if ( native.IsNull ) Sandbox.Interop.ThrowNullSelf( "CSceneObject", "ResetMeshGroups" );
+			native.ResetMeshGroups( value );
+			_meshGroupMask = value;
+			NotifyChanged( Rendering.SceneObjectChange.Material );
+		}
 	}
 
 	int? _lod;
@@ -450,10 +460,12 @@ public partial class SceneObject : IHandle
 		if ( material != null && material.native.IsValid )
 		{
 			native.SetMaterialOverrideForMeshInstances( material.native );
+			OverrideMeshInstances( material );
 			return;
 		}
 
 		native.SetMaterialOverrideForMeshInstances( default );
+		OverrideMeshInstances( null );
 	}
 
 	/// <summary>
@@ -462,6 +474,7 @@ public partial class SceneObject : IHandle
 	public void ClearMaterialOverride()
 	{
 		native.ClearMaterialOverrideList();
+		_overrideList?.Clear();
 		_materialOverride = default;
 		NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
@@ -476,7 +489,9 @@ public partial class SceneObject : IHandle
 	/// <param name="attributeValue">Value of the attribute to test for.</param>
 	public void SetMaterialOverride( Material material, string attributeName, int attributeValue = 1 )
 	{
-		native.SetMaterialOverride( material?.native ?? IntPtr.Zero, attributeName, attributeValue );
+		StringToken attribute = attributeName;
+		native.SetMaterialOverride( material?.native ?? IntPtr.Zero, attribute, attributeValue );
+		SetOverrideEntry( material is { native.IsValid: true } ? material : null, attribute.Value, attributeValue );
 		NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 
@@ -486,6 +501,7 @@ public partial class SceneObject : IHandle
 	public void SetMaterialGroup( string name )
 	{
 		native.SetMaterialGroup( name );
+		ApplyMaterialGroup( name );
 		NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 

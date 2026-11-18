@@ -72,6 +72,7 @@ internal sealed partial class SceneMirror
 	readonly Dictionary<RenderMesh, CachedMesh> held = new( ReferenceEqualityComparer.Instance );
 	readonly List<CachedMesh> idle = new();
 	readonly List<RenderMesh.DrawState> drawStates = new();
+	readonly List<SceneObjectDraw> objectDraws = new();
 	int variantCount;
 	ulong nextSweep;
 
@@ -148,7 +149,9 @@ internal sealed partial class SceneMirror
 	{
 		if ( model?.Mesh is not { } mesh ) return null;
 
-		SceneNative.ReadSceneObjectDraws( sceneObject, drawStates );
+		// Worked out in managed code for an object managed code made; read from native for one native code made (a map's)
+		if ( sceneObject.ResolvesDraws ) SceneNative.ReadManagedDraws( sceneObject, objectDraws, drawStates );
+		else SceneNative.ReadSceneObjectDraws( sceneObject, drawStates );
 		if ( drawStates.Count == 0 ) return mesh;
 
 		// Compare hash matches against scratch data; allocate only for new variants.
