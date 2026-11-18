@@ -77,14 +77,17 @@ public sealed class ContentWorkerAppSystem : ToolAppSystem
 	public bool Compile( string path ) => Editor.ContentCompilerHost.Compile( path );
 
 	/// <summary>
-	/// Compiles the projects the editor has built in, as the editor does, into a folder for workers to load. False if any
-	/// of them didn't compile.
+	/// Compiles the built-in tool and menu projects into a folder for workers to load. False if any of them didn't compile.
 	/// </summary>
 	public static bool CompileBuiltInProjects( string directory )
 	{
 		using var app = new ToolAppSystem();
 
 		SyncContext.RunBlocking( Project.InitializeBuiltIn( false ) );
+
+		// Headless apps skip the menu, but content builds need its resource types and compilers too.
+		Project.AddFromFileBuiltIn( "addons/menu/.sbproj" );
+
 		if ( !SyncContext.RunBlocking( Project.CompileAsync() ) ) return false;
 
 		Directory.CreateDirectory( directory );
