@@ -460,6 +460,7 @@ internal sealed class GpuDrivenTables : IDisposable
 			VertexFormat.UByte4 => Make( 8, 4, 3 ),
 			VertexFormat.UInt => Make( 32, 1, 3 ),
 			VertexFormat.UInt2 => Make( 32, 2, 3 ),
+			VertexFormat.UInt3 => Make( 32, 3, 3 ),
 			VertexFormat.UInt4 => Make( 32, 4, 3 ),
 			VertexFormat.UInt1010102Norm => Make( 10, 4, 1 ),
 			VertexFormat.UShort2Norm => Make( 16, 2, 1 ),

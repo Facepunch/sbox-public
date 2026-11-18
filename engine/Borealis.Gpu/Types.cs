@@ -379,6 +379,8 @@ public enum VertexFormat
 	UByte,
 	/// <summary>One signed byte read as an integer.</summary>
 	Byte,
+	/// <summary>Three 32-bit unsigned integers.</summary>
+	UInt3,
 }
 
 /// <summary>

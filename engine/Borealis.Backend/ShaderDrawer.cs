@@ -830,7 +830,7 @@ public sealed class ShaderDrawer : IDisposable
 	// A field the shader reads as the other kind (integers as floats, or the other way round) reads the default stream, as a
 	// model's draws do (BackendDevice.Pipeline)
 	static bool SameKind( in VertexField field, in VertexInput input )
-		=> (field.Format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt4 or VertexFormat.Int or VertexFormat.UByte or VertexFormat.Byte) == (input.Kind != SpirvScalar.Float);
+		=> field.Format.IsInteger() == (input.Kind != SpirvScalar.Float);
 
 	// A 32-bit integer field takes the signedness the shader reads it with: the bits are the same
 	static VertexFormat Signed( VertexFormat format, in VertexInput input ) => format switch
