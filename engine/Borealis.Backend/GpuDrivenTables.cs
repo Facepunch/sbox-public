@@ -128,8 +128,10 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	readonly Table geometry, draws, materials, fragments, lighting;
 	readonly Dictionary<(int Page, long Offset, VertexLayout Layout, int Count), uint> geometryRecords = new();
-	readonly Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage), uint> drawRecords = new();
-	// Found without a lock by every recording thread, many times a frame; added to under its own lock
+	// Draw and material records are found without a lock by every recording thread, many times a frame (a lock per draw
+	// kept recording threads waiting on each other); added to under a lock of their own
+	readonly System.Collections.Concurrent.ConcurrentDictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage), uint> drawRecords = new();
+	readonly object drawLock = new();
 	readonly System.Collections.Concurrent.ConcurrentDictionary<MaterialRecordKey, uint> materialRecords = new();
 
 	/// <summary>A material record: per material and its version, stage, and the attribute values its constants read.</summary>
@@ -164,7 +166,9 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// </summary>
 	public const int LightingStride = 160;
 
-	readonly Dictionary<byte[], uint> lightingRecords = new( LightingComparer.Instance );
+	// Found without a lock, as draw records are; added to under lightingLock
+	readonly System.Collections.Concurrent.ConcurrentDictionary<byte[], uint> lightingRecords = new( LightingComparer.Instance );
+	readonly object lightingLock = new();
 
 	// By contents, also looked up by a span (a record built on the stack), so finding a known record allocates nothing
 	sealed class LightingComparer : IEqualityComparer<byte[]>, IAlternateEqualityComparer<ReadOnlySpan<byte>, byte[]>
@@ -195,9 +199,10 @@ internal sealed class GpuDrivenTables : IDisposable
 		record.Clear();
 		baked?.AsSpan( 0, Math.Min( baked.Length, 48 ) ).CopyTo( record );
 		probe?.AsSpan( 0, Math.Min( probe.Length, 112 ) ).CopyTo( record[48..] );
-		lock ( lightingRecords )
+		var known = lightingRecords.GetAlternateLookup<ReadOnlySpan<byte>>();
+		if ( known.TryGetValue( record, out var found ) ) return found;
+		lock ( lightingLock )
 		{
-			var known = lightingRecords.GetAlternateLookup<ReadOnlySpan<byte>>();
 			if ( !known.TryGetValue( record, out var index ) ) known[record] = index = lighting.Append( record ) / 16;
 			return index;
 		}
@@ -398,7 +403,8 @@ internal sealed class GpuDrivenTables : IDisposable
 	public uint Draw( uint geometryRecord, uint vertexMaterial, uint pixelMaterial, uint flags, uint firstIndex, uint indexCount, int baseVertex, int indexPage )
 	{
 		var key = (geometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, indexCount, baseVertex, indexPage);
-		lock ( drawRecords )
+		if ( drawRecords.TryGetValue( key, out var known ) ) return known;
+		lock ( drawLock )
 		{
 			if ( drawRecords.TryGetValue( key, out var found ) ) return found;
 
@@ -813,7 +819,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	{
 		get
 		{
-			lock ( geometryRecords ) lock ( drawRecords ) lock ( materialRecords ) return (geometryRecords.Count, drawRecords.Count, materialRecords.Count);
+			lock ( geometryRecords ) return (geometryRecords.Count, drawRecords.Count, materialRecords.Count);
 		}
 	}
 

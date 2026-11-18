@@ -1042,6 +1042,35 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// Draw and lighting records are found without a lock by recording threads (a lock per draw kept them waiting on each
+	/// other): threads asking for the same records at once each get the one record made for each.
+	/// </summary>
+	[TestMethod]
+	public void RecordsFoundAtOnceFromManyThreadsAreMadeOnce()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		var tables = backend.GpuDrivenTables;
+		var before = tables.Records.Draws;
+		const int Keys = 2000, Threads = 8;
+		var draws = new uint[Threads, Keys];
+		var lighting = new uint[Threads, Keys / 10];
+		System.Threading.Tasks.Parallel.For( 0, Threads, t =>
+		{
+			for ( int k = 0; k < Keys; k++ ) draws[t, k] = tables.Draw( 1, 2, 3, 0, (uint)k * 3, 3, 0, 0 );
+			for ( int k = 0; k < Keys / 10; k++ ) lighting[t, k] = tables.Lighting( BitConverter.GetBytes( k + 1 ), null );
+		} );
+
+		Assert.AreEqual( before + Keys, tables.Records.Draws, "one record per key" );
+		for ( int t = 1; t < Threads; t++ )
+		{
+			for ( int k = 0; k < Keys; k++ ) Assert.AreEqual( draws[0, k], draws[t, k] );
+			for ( int k = 0; k < Keys / 10; k++ ) Assert.AreEqual( lighting[0, k], lighting[t, k] );
+		}
+
+		Device.WaitIdle();
+	}
+
+	/// <summary>
 	/// A released owner's visibility (<see cref="GpuDrivenTables.Visibility"/>) is free again once the frames that could read
 	/// it are done, and reused: owners made and let go over and over never run the stamps and vertex bits out. They used to
 	/// be kept for good, so resident groups made again on Construct took every bit and later owners drew without culling.
