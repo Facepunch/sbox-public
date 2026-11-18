@@ -63,6 +63,29 @@ public partial class SceneLight
 		described = true;
 	}
 
+	/// <summary>
+	/// Light as <paramref name="native"/> does, a light native code made and keeps changing (a native tool's, through
+	/// <c>GetLightDescForModify</c>) that managed code only draws: its description read from native again and copied here
+	/// whole (attenuation, falloff, range, cone, shadows), keeping this light's modulators. False when nothing changed.
+	/// </summary>
+	internal bool CopyNativeDescription( SceneLight native )
+	{
+		native.described = false;
+		native.Describe();
+		if ( !native.described ) return false;
+
+		Describe();
+		var copy = native.desc;
+		copy.LightModulatorOffset = desc.LightModulatorOffset;
+		copy.LightModulatorCount = desc.LightModulatorCount;
+		if ( MemoryMarshal.AsBytes( new ReadOnlySpan<LightDescription>( in copy ) ).SequenceEqual( MemoryMarshal.AsBytes( new ReadOnlySpan<LightDescription>( in desc ) ) ) ) return false;
+
+		desc = copy;
+		described = true;
+		NotifyChanged( Rendering.SceneObjectChange.Settings );
+		return true;
+	}
+
 	/// <summary>The description to change: read from native first if it hasn't been.</summary>
 	ref LightDescription Change()
 	{

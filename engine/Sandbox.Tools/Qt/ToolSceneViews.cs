@@ -810,7 +810,9 @@ internal static class ToolSceneViews
 			// Native's direction is the rotation's forward, negated for a directional light (SetWorldDirection)
 			var direction = from.WorldDirection;
 			if ( to is SceneDirectionalLight ) direction = -direction;
-			var transform = new Transform( from.Position, direction.LengthSquared < 1e-6f ? from.Rotation : Rotation.LookAt( direction ) );
+			// A native light keeps its place in its light desc, not its scene object's transform (Hammer's lights, the worklight)
+			var position = from.lightNative.IsValid ? from.lightNative.GetWorldPosition() : from.Position;
+			var transform = new Transform( position, direction.LengthSquared < 1e-6f ? from.Rotation : Rotation.LookAt( direction ) );
 			if ( to.Transform != transform ) to.Transform = transform;
 			if ( to.LightColor != from.LightColor ) to.LightColor = from.LightColor;
 			if ( to.Radius != from.Radius ) to.Radius = from.Radius;
@@ -820,13 +822,9 @@ internal static class ToolSceneViews
 			if ( to.ShadowsEnabled != from.ShadowsEnabled ) to.ShadowsEnabled = from.ShadowsEnabled;
 			if ( to.RenderingEnabled != from.RenderingEnabled ) to.RenderingEnabled = from.RenderingEnabled;
 
-			if ( to is SceneSpotLight spot )
-			{
-				var inner = from.lightNative.GetTheta();
-				var outer = from.lightNative.GetPhi();
-				if ( spot.ConeInner != inner ) spot.ConeInner = inner;
-				if ( spot.ConeOuter != outer ) spot.ConeOuter = outer;
-			}
+			// Then the rest of how native lights it, as native has it now (native changes its lights: a light entity edited,
+			// Hammer's worklight following the camera): falloff, range, attenuation, cone, shadows
+			to.CopyNativeDescription( from );
 		}
 
 		/// <summary>
