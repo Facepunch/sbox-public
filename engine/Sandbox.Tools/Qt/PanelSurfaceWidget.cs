@@ -41,6 +41,8 @@ internal class PanelSurfaceWidget : Frame
 
 	SwapChainHandle_t _swapChain;
 	BorealisGpuWindow _borealis;
+	readonly bool _presentsOnBorealisGpu;
+	bool _winIdChanged;
 	readonly SceneWorld _world;
 	readonly SceneCamera _camera;
 	RealTimeSince _sinceFrame;
@@ -77,7 +79,8 @@ internal class PanelSurfaceWidget : Frame
 
 		// With -borealisgpu the widget presents on Borealis.Gpu, as a panel window does
 		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu ) _borealis = BorealisGpuWindow.FromNativeWindow( gpu, _widget.winId(), Size * DpiScale, vsync: false );
-		if ( _borealis is null ) _swapChain = WidgetUtil.CreateSwapChain( _widget, NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_NONE );
+		_presentsOnBorealisGpu = _borealis is not null;
+		if ( !_presentsOnBorealisGpu ) _swapChain = WidgetUtil.CreateSwapChain( _widget, NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_NONE );
 		All.Add( this );
 	}
 
@@ -89,14 +92,29 @@ internal class PanelSurfaceWidget : Frame
 
 	internal override void NativeDestroying() => ReleaseSwapChain();
 
+	/// <summary>
+	/// Qt reset the widget's native window id or gave it one; the next frame looks, as
+	/// <see cref="SceneRenderingWidget.OnWinIdChanged"/> does.
+	/// </summary>
 	internal override void OnWinIdChanged()
 	{
 		base.OnWinIdChanged();
-		if ( _borealis is null || _stopped ) return;
+		if ( _presentsOnBorealisGpu ) _winIdChanged = true;
+	}
 
-		// Qt gave the widget a new native window (it was docked or undocked): the swap chain moves to it
-		_borealis.Dispose();
-		_borealis = BorealisGpuWindow.FromNativeWindow( (BorealisGpuRenderBackend)RenderBackend.Default, _widget.winId(), Size * DpiScale, vsync: false );
+	/// <summary>Keep the swap chain on the window it presents to, or move it to the widget's new one.</summary>
+	bool FollowNativeWindow()
+	{
+		if ( !_winIdChanged || _stopped ) return _borealis is not null;
+		_winIdChanged = false;
+
+		var window = _widget.winId();
+		if ( _borealis is not null && _borealis.NativeWindow == window ) return true;
+
+		_borealis?.Dispose();
+		_borealis = null;
+		_borealis = BorealisGpuWindow.MoveToNativeWindow( (BorealisGpuRenderBackend)RenderBackend.Default, window, Size * DpiScale );
+		return _borealis is not null;
 	}
 
 	internal override void NativeShutdown()
@@ -144,6 +162,7 @@ internal class PanelSurfaceWidget : Frame
 
 	void Render()
 	{
+		if ( _presentsOnBorealisGpu && !FollowNativeWindow() ) return;
 		if ( _swapChain == default && _borealis is null ) return;
 		if ( MaxFramesPerSecond > 0 && _sinceFrame < 1f / MaxFramesPerSecond ) return;
 		_sinceFrame = 0;
