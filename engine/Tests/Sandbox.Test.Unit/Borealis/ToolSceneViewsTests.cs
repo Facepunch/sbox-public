@@ -17,13 +17,19 @@ public class ToolSceneViewsTests
 	[TestMethod]
 	public void RequestMatchesNativeLayout()
 	{
-		Assert.AreEqual( 168, Marshal.SizeOf<ToolSceneViews.Request>() );
+		Assert.AreEqual( 176, Marshal.SizeOf<ToolSceneViews.Request>() );
 		Assert.AreEqual( 72, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Window ) ) );
 		Assert.AreEqual( 80, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Width ) ) );
 		Assert.AreEqual( 112, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.FovX ) ) );
 		Assert.AreEqual( 132, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Background ) ) );
 		Assert.AreEqual( 152, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Pixels ) ) );
 		Assert.AreEqual( 164, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Handled ) ) );
+		Assert.AreEqual( 168, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.GetGeometry ) ) );
+
+		// ToolSceneGeometry_t and ColoredVertex_t
+		Assert.AreEqual( 32, Marshal.SizeOf<ToolSceneViews.Geometry>() );
+		Assert.AreEqual( 56, Marshal.SizeOf<ToolSceneViews.ToolVertex>() );
+		Assert.AreEqual( 52, (int)Marshal.OffsetOf<ToolSceneViews.ToolVertex>( nameof( ToolSceneViews.ToolVertex.Color ) ) );
 	}
 
 	/// <summary>

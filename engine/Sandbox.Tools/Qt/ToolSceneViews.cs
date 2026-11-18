@@ -21,7 +21,7 @@ internal static class ToolSceneViews
 	[StructLayout( LayoutKind.Sequential )]
 	internal unsafe struct Request
 	{
-		public const int Version = 1;
+		public const int Version = 2;
 		public const int MaxWorlds = 16;
 
 		public int RequestVersion;
@@ -41,6 +41,36 @@ internal static class ToolSceneViews
 		public byte* Pixels;
 		public int PixelFormat;
 		public int Handled;
+
+		/// <summary><c>GetToolSceneObjectGeometry</c>: a tool overlay object's geometry (<see cref="Geometry"/>).</summary>
+		public delegate* unmanaged< IntPtr, Geometry*, ToolVertex*, int, int > GetGeometry;
+	}
+
+	/// <summary>
+	/// <c>ToolSceneGeometry_t</c> (src/public/toolrenderutils/toolmatsysutils.h): a vertex list's draw.
+	/// </summary>
+	[StructLayout( LayoutKind.Sequential )]
+	internal struct Geometry
+	{
+		public int VertsPerPrimitive;
+		public int VertexCount;
+		public int ToolLayer;
+		public float LineThickness;
+		public IntPtr MaterialName;
+		public IntPtr Attributes;
+	}
+
+	/// <summary>
+	/// <c>ColoredVertex_t</c>, the vertex every tool overlay draws with, in native's <c>g_ColoredVertexLayout</c>.
+	/// </summary>
+	[StructLayout( LayoutKind.Sequential )]
+	internal struct ToolVertex
+	{
+		[VertexLayout.Position] public Vector3 Position;
+		[VertexLayout.Normal] public Vector3 Normal;
+		[VertexLayout.TexCoord] public Vector3 TexCoord;
+		[VertexLayout.Tangent] public Vector4 Tangent;
+		[VertexLayout.Color] public Color32 Color;
 	}
 
 	/// <summary>
@@ -62,6 +92,7 @@ internal static class ToolSceneViews
 		public BorealisGpuWindow Window;
 		public SceneCamera Camera;
 		public ToolLights Lights = new();
+		public ToolOverlays Overlays;
 	}
 
 	static readonly Dictionary<IntPtr, View> views = new();
@@ -69,6 +100,7 @@ internal static class ToolSceneViews
 	// Read-backs share one camera
 	static SceneCamera bitmapCamera;
 	static ToolLights bitmapLights;
+	static ToolOverlays bitmapOverlays;
 
 	static ulong frame;
 
@@ -115,7 +147,8 @@ internal static class ToolSceneViews
 		}
 
 		var size = new Vector2( request.Width, request.Height );
-		Setup( view.Camera, view.Lights, ref request );
+		view.Overlays ??= new ToolOverlays( view.Lights.World );
+		Setup( view.Camera, view.Lights, view.Overlays, ref request );
 		request.Handled = 1;
 
 		if ( !view.Window.Update( size ) ) return;
@@ -142,7 +175,8 @@ internal static class ToolSceneViews
 
 		bitmapCamera ??= NewCamera( "Tool scene read-back" );
 		bitmapLights ??= new ToolLights();
-		Setup( bitmapCamera, bitmapLights, ref request );
+		bitmapOverlays ??= new ToolOverlays( bitmapLights.World );
+		Setup( bitmapCamera, bitmapLights, bitmapOverlays, ref request );
 
 		using var bitmap = new Bitmap( request.Width, request.Height );
 		bitmapCamera.RenderToBitmap( bitmap );
@@ -200,13 +234,14 @@ internal static class ToolSceneViews
 	/// Point a camera at a request's worlds, from its camera. Its main world is the view's light stand-ins
 	/// (<see cref="ToolLights"/>); the native worlds are extra worlds of it.
 	/// </summary>
-	static unsafe void Setup( SceneCamera camera, ToolLights lights, ref Request request )
+	static unsafe void Setup( SceneCamera camera, ToolLights lights, ToolOverlays overlays, ref Request request )
 	{
 		var count = Math.Min( request.WorldCount, Request.MaxWorlds );
 		camera.Worlds.Clear();
 		camera.World = null;
 		camera.World = lights.World;
 		lights.BeginFrame();
+		overlays.BeginFrame();
 		for ( int i = 0; i < count; i++ )
 		{
 			var world = Sandbox.HandleIndex.Get<SceneWorld>( request.Worlds[i] );
@@ -214,6 +249,7 @@ internal static class ToolSceneViews
 
 			Poll( world );
 			lights.Mirror( world );
+			if ( request.GetGeometry != null ) overlays.Gather( world, request.GetGeometry );
 			camera.Worlds.Add( world );
 		}
 		lights.EndFrame();
@@ -262,6 +298,7 @@ internal static class ToolSceneViews
 
 		view.Window.Dispose();
 		view.Camera.Dispose();
+		view.Overlays?.Dispose();
 		view.Lights.Dispose();
 	}
 
@@ -275,8 +312,133 @@ internal static class ToolSceneViews
 
 		bitmapCamera?.Dispose();
 		bitmapCamera = null;
+		bitmapOverlays?.Dispose();
+		bitmapOverlays = null;
 		bitmapLights?.Dispose();
 		bitmapLights = null;
+	}
+
+	/// <summary>
+	/// The tool overlays in a view's worlds (the lines, triangles and points <c>CToolRenderContext</c> drew: ground planes,
+	/// grids, handles, gizmos), drawn by two custom objects in the view's own world: lit tool layers with the scene's opaque
+	/// objects, unlit ones with its translucent ones. Native draws them with their own <c>DrawArray</c>, which Borealis
+	/// doesn't run, so each frame their world-space vertices are copied out (<c>GetToolSceneObjectGeometry</c>) and drawn
+	/// with their materials.
+	/// </summary>
+	internal sealed unsafe class ToolOverlays : IDisposable
+	{
+		readonly SceneCustomObject lit, unlit;
+
+		struct Batch
+		{
+			public Material Material;
+			public int Start;
+			public int Count;
+			public Graphics.PrimitiveType Primitive;
+			public float LineThickness;
+			public bool Lit;
+		}
+
+		readonly List<Batch> batches = new();
+		ToolVertex[] vertices = new ToolVertex[4096];
+		int vertexCount;
+		readonly Dictionary<IntPtr, Material> materials = new();
+		readonly RenderAttributes attributes = new();
+
+		public ToolOverlays( SceneWorld world )
+		{
+			lit = new SceneCustomObject( world ) { RenderOverride = _ => Draw( true ) };
+			lit.Flags.IsOpaque = true;
+			lit.Flags.IsTranslucent = false;
+			lit.Flags.CastShadows = false;
+			unlit = new SceneCustomObject( world ) { RenderOverride = _ => Draw( false ) };
+			unlit.Flags.IsOpaque = false;
+			unlit.Flags.IsTranslucent = true;
+			unlit.Flags.CastShadows = false;
+		}
+
+		public void BeginFrame()
+		{
+			batches.Clear();
+			vertexCount = 0;
+		}
+
+		// Tool layers drawn before post processing, lit with the scene: ToolRenderingLayer_t up to TRANSLUCENT
+		const int LastLitToolLayer = 3;
+
+		/// <summary>
+		/// Copy out the overlay geometry of <paramref name="world"/>'s objects.
+		/// </summary>
+		public void Gather( SceneWorld world, delegate* unmanaged< IntPtr, Geometry*, ToolVertex*, int, int > getGeometry )
+		{
+			lock ( world.InternalSceneObjects )
+			{
+				foreach ( var sceneObject in world.InternalSceneObjects )
+				{
+					if ( sceneObject.GetType() != typeof( SceneObject ) || sceneObject.native.IsNull || !sceneObject.RenderingEnabled ) continue;
+
+					Geometry geometry;
+					var count = getGeometry( sceneObject.native, &geometry, null, 0 );
+					if ( count <= 0 || geometry.MaterialName == IntPtr.Zero ) continue;
+
+					var material = MaterialFor( geometry.MaterialName );
+					if ( material is null ) continue;
+
+					if ( vertexCount + count > vertices.Length ) Array.Resize( ref vertices, Math.Max( vertices.Length * 2, vertexCount + count ) );
+					fixed ( ToolVertex* destination = &vertices[vertexCount] )
+					{
+						if ( getGeometry( sceneObject.native, &geometry, destination, count ) != count ) continue;
+					}
+
+					batches.Add( new Batch
+					{
+						Material = material,
+						Start = vertexCount,
+						Count = count,
+						Primitive = geometry.VertsPerPrimitive switch { 1 => Graphics.PrimitiveType.Points, 2 => Graphics.PrimitiveType.Lines, _ => Graphics.PrimitiveType.Triangles },
+						LineThickness = geometry.LineThickness,
+						Lit = geometry.ToolLayer <= LastLitToolLayer,
+					} );
+					vertexCount += count;
+				}
+			}
+		}
+
+		Material MaterialFor( IntPtr name )
+		{
+			if ( materials.TryGetValue( name, out var material ) ) return material;
+
+			// A material the tools made in code may not load from its name, and draws nothing
+			var path = Marshal.PtrToStringUTF8( name );
+			material = string.IsNullOrEmpty( path ) ? null : Material.Load( path );
+			if ( material is not null && material.IsError ) material = null;
+			materials[name] = material;
+			return material;
+		}
+
+		void Draw( bool drawLit )
+		{
+			if ( vertexCount == 0 ) return;
+
+			fixed ( ToolVertex* all = vertices )
+			{
+				foreach ( var batch in batches )
+				{
+					if ( batch.Lit != drawLit ) continue;
+
+					attributes.Set( "g_LineThickness", batch.LineThickness );
+					attributes.Set( "UncompressedTangentFrame", true );
+					Graphics.DrawInternal( all + batch.Start, batch.Count, null, 0, batch.Material, attributes, batch.Primitive );
+				}
+			}
+		}
+
+		public void Dispose()
+		{
+			lit.Delete();
+			unlit.Delete();
+			materials.Clear();
+		}
 	}
 
 	/// <summary>
