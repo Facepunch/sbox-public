@@ -201,6 +201,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		}
 
 		FreeIdleCaptures( idleSince );
+		MirrorContent.FreeCollected();
 
 		foreach ( var (world, _) in mirrors )
 		{

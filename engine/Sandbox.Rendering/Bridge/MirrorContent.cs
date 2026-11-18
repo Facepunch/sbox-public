@@ -215,6 +215,16 @@ internal static class MirrorContent
 	static readonly ConditionalWeakTable<Texture, Capture> captures = new();
 	static readonly System.Collections.Concurrent.ConcurrentQueue<GpuTexture> freedCaptures = new();
 
+	/// <summary>
+	/// Free what the engine's resources took on the device once they were collected (capture cubes, run-time models' buffers),
+	/// whether or not anything asks for another: a map's realtime probes' cubes outlived it in the menu.
+	/// </summary>
+	public static void FreeCollected()
+	{
+		while ( freedCaptures.TryDequeue( out var freed ) ) freed.Dispose();
+		while ( freedModels.TryDequeue( out var model ) ) model.Free();
+	}
+
 	/// <summary>Whether an engine texture is a cube made at run time for compute to write (a realtime probe's), which <see cref="CaptureCube"/> captures into.</summary>
 	public static bool IsCaptureCube( Texture texture ) => texture is not null && texture.Depth == 6 && texture.UAVAccess;
 
