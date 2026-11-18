@@ -59,16 +59,6 @@
 				children = 
 				[
 					{
-						_class = "PhysicsShapeBox"
-						name = "hinge_clamp.001_0"
-						parent_bone = ""
-						surface_prop = "metal"
-						collision_tags = "solid"
-						origin = [ 0.0, 0.0, 34.791962 ]
-						angles = [ 0.0, 0.0, 0.0 ]
-						dimensions = [ 4.434902, 2.472218, 2.100006 ]
-					},
-					{
 						_class = "PhysicsHullFromRender"
 						parent_bone = ""
 						surface_prop = "default"

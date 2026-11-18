@@ -119,36 +119,6 @@
 				children = 
 				[
 					{
-						_class = "PhysicsShapeBox"
-						name = "front_bezel_stile.001_0"
-						parent_bone = ""
-						surface_prop = "metal"
-						collision_tags = "solid"
-						origin = [ 12.278873, 10.841115, 2.990876 ]
-						angles = [ 0.0, 0.0, 0.0 ]
-						dimensions = [ 2.000552, 1.383972, 21.258047 ]
-					},
-					{
-						_class = "PhysicsShapeBox"
-						name = "front_bezel_rail.001_0"
-						parent_bone = ""
-						surface_prop = "metal"
-						collision_tags = "solid"
-						origin = [ 12.278872, 0.0, 12.734148 ]
-						angles = [ -90.0, 89.999992, 0.0 ]
-						dimensions = [ 1.771503, 2.000552, 20.528917 ]
-					},
-					{
-						_class = "PhysicsShapeBox"
-						name = "small_lower_button.001_0"
-						parent_bone = ""
-						surface_prop = "metal"
-						collision_tags = "solid"
-						origin = [ 13.425856, 8.534494, -6.499324 ]
-						angles = [ 0.0, 0.0, 0.0 ]
-						dimensions = [ 0.320088, 1.037979, 0.3543 ]
-					},
-					{
 						_class = "PhysicsHullFile"
 						name = "computer_monitor_01"
 						parent_bone = ""
