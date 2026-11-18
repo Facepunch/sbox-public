@@ -512,8 +512,9 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 			CameraAndThreshold = SizeCull.ForPass( view ).CameraAndThreshold,
 			Shadow = view.IsShadow,
 			View = view,
-			Ids = depth && !view.IsShadow,
-			Visibility = !depth && !view.IsShadow,
+			// Not for captures: a probe's faces would hold visibility runs for all they see, leaving the views that list none
+			Ids = depth && !view.IsShadow && !view.View.Capture,
+			Visibility = !depth && !view.IsShadow && !view.View.Capture,
 			Plan = plan,
 			PlanVersion = planVersion,
 			PlanBatches = planBatches,
