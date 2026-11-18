@@ -121,8 +121,65 @@ public sealed class SurfaceShaders : IDisposable
 			if ( conversions.TryGetValue( key, out var file ) ) return file;
 		}
 
-		if ( !ConvertShaders || NotConvertedByDefault.Contains( key ) ) return null;
-		return DefaultSurfaces.TryGetValue( key, out var surface ) ? DefaultSurface( key, surface ) : null;
+		if ( ConvertShaders && !NotConvertedByDefault.Contains( key ) && DefaultSurfaces.TryGetValue( key, out var surface ) ) return DefaultSurface( key, surface );
+		return ConvertPackages ? PackageSurface( shader ) : null;
+	}
+
+	/// <summary>
+	/// Whether package shaders (a <c>.shader_c</c> an older engine compiled, with its source embedded) draw as the surface
+	/// <see cref="ShaderConverter"/> makes of that source, where it makes one that compiles; their other materials draw as
+	/// before. Off by default (<c>-package-surfaces</c> turns it on). Read by each device as it's made.
+	/// </summary>
+	public static bool ConvertPackagesByDefault { get; set; } = BackendDevice.HasSwitch( "-package-surfaces" );
+
+	/// <summary>Whether this device draws package shaders as surfaces; from <see cref="ConvertPackagesByDefault"/>.</summary>
+	public bool ConvertPackages { get; set; } = ConvertPackagesByDefault;
+
+	readonly Dictionary<string, string> packageSurfaces = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>The surface converted from a package shader's embedded source, made once per shader path; null when there's none.</summary>
+	string PackageSurface( string shader )
+	{
+		lock ( packageSurfaces )
+		{
+			if ( packageSurfaces.TryGetValue( shader, out var known ) ) return known;
+		}
+
+		string path = null;
+		try
+		{
+			var compiled = shader.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ? shader : shader + "_c";
+			if ( device.Content.TryRead( compiled ) is { } data && ShaderFile.ReadOutdated( data, compiled ) is { Outdated: not null } file )
+				path = PackageSurfaceFile( shader, file, Path.Combine( Compiler().CacheFolder, "packages" ) );
+		}
+		catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException )
+		{
+			Error?.Invoke( $"{shader}: not converted ({e.Message})" );
+		}
+
+		lock ( packageSurfaces ) return packageSurfaces[shader] = path;
+	}
+
+	/// <summary>
+	/// What <see cref="ShaderConverter"/> makes of a package shader's embedded source (<see cref="ShaderConverter.FromEmbedded"/>),
+	/// written to <paramref name="folder"/> by name and contents; null when it isn't a material the converter takes.
+	/// </summary>
+	internal static string PackageSurfaceFile( string shader, ShaderFile file, string folder )
+	{
+		var features = (file.Features?.StaticCombos ?? []).Select( c => (c.Name, c.Min, c.Max) );
+		if ( ShaderConverter.FromEmbedded( file.EmbeddedSource, features ) is not { } text ) return null;
+
+		// A module name: the file name as an identifier
+		var stem = System.Text.RegularExpressions.Regex.Replace( Path.GetFileNameWithoutExtension( shader.Replace( '\\', '/' ) ), "[^a-zA-Z0-9_]", "_" );
+		if ( stem.Length == 0 || !char.IsLetter( stem[0] ) ) stem = "s" + stem;
+		var result = ShaderConverter.Convert( text, stem );
+		if ( result.Source is null ) return null;
+
+		var hash = System.Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( result.Source ) ), 0, 6 ).ToLowerInvariant();
+		Directory.CreateDirectory( folder );
+		var path = Path.Combine( folder, $"{stem}_{hash}.slang" );
+		if ( !File.Exists( path ) ) File.WriteAllText( path, result.Source );
+		return path;
 	}
 
 	/// <summary>

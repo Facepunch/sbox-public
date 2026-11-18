@@ -319,6 +319,71 @@ public class EmbeddedSourceTests : GpuTest
 		TestContext.WriteLine( lines[0] );
 	}
 
+	const string Rock = "shaders/surface_test_rock.shader";
+
+	/// <summary>
+	/// A package's material shader made into a <c>.shader</c> again from its embedded source (each program blanked in place)
+	/// converts to the same surface as its own <c>.shader</c> does.
+	/// </summary>
+	[TestMethod]
+	public void EmbeddedSourceConvertsAsItsShaderDoes()
+	{
+		var text = File.ReadAllText( Path.Combine( ShaderFileTests.Files.Roots[0], Rock ) );
+		var compiled = ShaderFile.Read( ShaderFileTests.Files.Read( Rock ), Rock );
+		var features = (compiled.Features?.StaticCombos ?? []).Select( c => (c.Name, c.Min, c.Max) );
+
+		var direct = Sandbox.ShaderCompiler.ShaderConverter.Convert( text, "surface_test_rock" );
+		var shader = Sandbox.ShaderCompiler.ShaderConverter.FromEmbedded( Embedded( text ), features );
+		var embedded = Sandbox.ShaderCompiler.ShaderConverter.Convert( shader, "surface_test_rock" );
+		Assert.IsNotNull( direct.Source, string.Join( "; ", direct.Notes ) );
+		Assert.AreEqual( Normalized( direct.Source ), Normalized( embedded.Source ) );
+
+		static string Normalized( string source ) => Regex.Replace( source, @"\s+", " " ).Trim();
+	}
+
+	/// <summary>
+	/// With package surfaces on, a material of an outdated package shader that the converter takes loads as the surface made
+	/// from its embedded source; off (the default), as its <c>.shader</c>.
+	/// </summary>
+	[TestMethod]
+	public void PackageMaterialShaderLoadsAsASurface()
+	{
+		var folder = Folder();
+		try
+		{
+			using var backend = Backend( folder, out _ );
+			var errors = new List<string>();
+			backend.Surfaces.Error = errors.Add;
+			backend.Surfaces.CacheFolder = Path.Combine( folder, "surfaces" );
+			var rock = ShaderFileTests.Files.Read( Rock );
+			Write( folder, Outdated( rock, Embedded( File.ReadAllText( Path.Combine( ShaderFileTests.Files.Roots[0], Rock ) ) ) ), "package_rock" );
+
+			static Borealis.Source2.Materials.MaterialFile Material( string name ) => new()
+			{
+				Name = name,
+				Shader = "shaders/package_rock.shader",
+				Ints = new Dictionary<string, int>(),
+				Floats = new Dictionary<string, float>(),
+				Vectors = new Dictionary<string, float[]>(),
+				Textures = new Dictionary<string, string>(),
+				IntAttributes = new Dictionary<string, int>(),
+				ShaderVersion = 1,
+			};
+
+			Assert.IsFalse( backend.Surfaces.ConvertPackages, "off by default" );
+			using ( var classic = backend.LoadMaterial( "materials/package_rock_a.vmat", Material( "a" ) ) ) Assert.IsInstanceOfType<BackendMaterial>( classic );
+
+			backend.Surfaces.ConvertPackages = true;
+			using var surface = backend.LoadMaterial( "materials/package_rock_b.vmat", Material( "b" ) );
+			Assert.IsInstanceOfType<SurfaceMaterial>( surface, string.Join( "; ", errors ) );
+			Assert.AreEqual( 1, Directory.GetFiles( Path.Combine( folder, "surfaces", "packages" ), "package_rock_*.slang" ).Length );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
 	static string Refusal( ShaderFile shader ) => Sandbox.ShaderCompiler.PassConverter.RefuseEmbedded( shader.EmbeddedSource ) ?? "no module";
 
 	static string Folder()
