@@ -1174,6 +1174,23 @@ public class SurfaceTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// surface_test_rock.shader's materials load as the surface the converter makes of it, as the other core material shaders'
+	/// do: its conversion is found by default and compiles.
+	/// </summary>
+	[TestMethod]
+	public void SurfaceTestRockConvertsByDefault()
+	{
+		var shaders = Path.Combine( Core, "shaders" );
+		var converted = Path.Combine( Path.GetTempPath(), "borealis-gpu-tests", "converted" );
+		var errors = new List<string>();
+		var file = SurfaceShaders.DefaultSurfaceFiles( shaders, [], converted, errors.Add ).FirstOrDefault( f => Path.GetFileName( f ) == "surface_test_rock.slang" );
+		Assert.IsNotNull( file, "surface_test_rock isn't drawn as a surface by default: " + string.Join( "; ", errors ) );
+		var rock = Compiler().CompileSurface( file );
+		Assert.IsNotNull( rock.Pass( ShaderPasses.Forward )?.Pixel );
+		Assert.IsNotNull( rock.Material.Field( "Color" ) );
+	}
+
 	/// <summary>Whether SPIR-V declares the ClipDistance capability (OpCapability 32): a stage that writes clip distances.</summary>
 	static bool WritesClipDistance( byte[] spirv )
 	{
