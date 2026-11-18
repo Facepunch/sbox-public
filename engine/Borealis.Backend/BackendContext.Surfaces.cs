@@ -266,7 +266,8 @@ internal sealed partial class BackendContext
 
 	/// <summary>
 	/// A stage's specialization constants (<c>SpecializedConstant()</c> globals: <c>ShadowFilterQuality</c>,
-	/// <c>DDGI_Enabled</c>, <c>ToolsVisMode</c>), each from its attribute or its default, as classic variants take them;
+	/// <c>DDGI_Enabled</c>, <c>ToolsVisMode</c>), each from its attribute, else the dynamic combo of that name, else its
+	/// default, as classic variants take them;
 	/// <paramref name="key"/> tells their values apart for the pipeline cache.
 	/// </summary>
 	SpecializationConstant[] SurfaceConstants( CompiledStage stage, out ulong key, bool gpuDriven = false )
@@ -282,7 +283,8 @@ internal sealed partial class BackendContext
 		for ( int i = 0; i < values.Length; i++ )
 		{
 			var slot = stage.Specializations[i];
-			values[i] = Integer( Lookup( info.SpecializationTokens[i] ) ) ?? (int)(slot.Annotations?.Default is { Length: > 0 } d ? d[0] : 0);
+			// An attribute's value, else a dynamic combo of that name (a converted shader's D_GRID), else the default
+			values[i] = Integer( Lookup( info.SpecializationTokens[i] ) ) ?? LookupCombo( info.SpecializationTokens[i] ) ?? (int)(slot.Annotations?.Default is { Length: > 0 } d ? d[0] : 0);
 			key = key * 1000003 + (uint)values[i] + 1;
 		}
 

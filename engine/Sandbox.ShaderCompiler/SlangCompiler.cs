@@ -82,10 +82,10 @@ public sealed partial class SlangCompiler
 	/// defines and passes, the generated instance and GPU-driven files, the source rewrites, reflection. A change to the
 	/// generated text alone fails <c>GeneratedCodeNeedsAVersion</c> until <see cref="GeneratedFingerprint"/> is updated here too.
 	/// </summary>
-	public const int Version = 1;
+	public const int Version = 2;
 
 	/// <summary>The <see cref="Fingerprint"/> of the generated code <see cref="Version"/> was raised for.</summary>
-	internal const string GeneratedFingerprint = "391A71CFBB3F8497";
+	internal const string GeneratedFingerprint = "D91ACD26E5E93B42";
 
 	/// <summary>
 	/// A hash of what the compiler generates for fixed inputs (the Slang command lines, instance and GPU-driven files and
@@ -112,12 +112,17 @@ public sealed partial class SlangCompiler
 			text.Append( InstanceFile( "module", "Material", Flag( 0 ), Flag( 1 ), Flag( 2 ) ? "Opacity" : null, Flag( 3 ), Flag( 4 ), Flag( 5 ), Flag( 6 ), Flag( 7 ) ? [("A", "1")] : null, Flag( 8 ) ? features : null, Flag( 9 ) ) );
 		}
 
+		// Surfaces that own their vertex stage, shade themselves, or both
+		foreach ( var (stage, shaded, clip) in new[] { (true, false, 0), (true, true, 2), (false, true, 0) } )
+			text.Append( InstanceFile( "module", "Material", false, false, "Opacity", stage: stage, shaded: shaded, varyingFields: stage ? ["A", "B"] : null, clipDistances: clip ) );
+
 		VertexInputSlot[] inputs = [new( 0, "POSITION", 0, ScalarKind.Float, 3 ) { Field = "i.vPositionOs" }, new( 1, "TEXCOORD", 13, ScalarKind.UInt, 1 ) { Field = "i.nInstance" }, new( 2, "BLENDINDICES", 0, ScalarKind.UInt, 4 ) { Field = "i.vIndices" }];
 		foreach ( var (displaces, interpolated) in new[] { (false, false), (true, false), (false, true), (true, true) } ) text.Append( GpuDrivenVertex( "Material", displaces, interpolated, inputs ) );
 
 		const string sample = "ExternalDescriptorSet g_viewSet Slot 2;\nfloat3 Tint < Attribute( \"Tint\" ); Default3( 1, 1, 1 ); >;\n"
 			+ "CreateTexture2D( g_tColor ) < Attribute( \"Color\" ); SrgbRead( true ); Filter( MIN_MAG_MIP_LINEAR ); >;\n"
-			+ "[Material] public struct Material : ISurface { [Default( 1, 1, 1 )] float3 Tint; Texture2D Color; float4 Shade( SurfaceInput i ) { return 1; } };\n";
+			+ "[Material] public struct Material : ISurface { [Default( 1, 1, 1 )] float3 Tint; Texture2D Color; float4 Shade( SurfaceInput i ) { return 1; } };\n"
+			+ "struct V\n{\n\tfloat2 A;\n\tnointerpolation uint B;\n};\n[Material] public struct Staged : IVertexStageSurface\n{\n\ttypealias Varyings = V;\n\tfloat X;\n};\n";
 		text.Append( VfxIncludes.Rewrite( sample, new() ) ).Append( MaterialSource.Rewrite( sample, out _ ) );
 		return Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( Encoding.UTF8.GetBytes( text.ToString() ) ) )[..16];
 	}
@@ -331,7 +336,10 @@ public sealed partial class SlangCompiler
 
 		{
 			var read = new ReadFiles( path );
-			var layout = await SlangWorkers.Run( () => Reflected( path, source, material.Name, ShaderTier.Surface, read ), priority ).ConfigureAwait( false );
+			// A surface that owns its vertex stage gets its Varyings' derivatives: their float fields, by reflection
+			var varyingFields = material.Interfaces.Contains( "IVertexStageSurface" ) ? new List<string>() : null;
+			var varyingsType = varyingFields is null ? null : VaryingsAlias().Match( source ) is { Success: true } alias ? alias.Groups["type"].Value : $"{material.Name}.Varyings";
+			var layout = await SlangWorkers.Run( () => Reflected( path, source, material.Name, ShaderTier.Surface, read, varyingsType, varyingFields ), priority ).ConfigureAwait( false );
 			var interpolatedDisplaces = material.Interfaces.Contains( "IInterpolatedVertexSurface" );
 			var displaces = interpolatedDisplaces || material.Interfaces.Contains( "IVertexSurface" );
 			var lit = material.Interfaces.Contains( "ILitSurface" );
@@ -342,8 +350,17 @@ public sealed partial class SlangCompiler
 			var composite = material.Interfaces.Contains( "ICompositeSurface" );
 			var layered = interpolatedLayered || material.Interfaces.Contains( "ILayeredSurface" );
 			var combiner = layered || interpolatedCombiner || material.Interfaces.Contains( "ICombinerSurface" );
-			if ( !displaces && !lit && !interpolated && !sunLit && !composite && !combiner && !material.Interfaces.Contains( "ISurface" ) )
-				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface, ISunLitSurface, ICompositeSurface, ICombinerSurface, IInterpolatedCombinerSurface, ILayeredSurface or IInterpolatedLayeredSurface" );
+			var stage = material.Interfaces.Contains( "IVertexStageSurface" );
+			var stageShaded = material.Interfaces.Contains( "IShadedVertexStageSurface" );
+			var shaded = stageShaded || material.Interfaces.Contains( "IShadedSurface" );
+			if ( !displaces && !lit && !interpolated && !sunLit && !composite && !combiner && !stage && !shaded && !material.Interfaces.Contains( "ISurface" ) )
+				throw new ShaderCompileException( path, $"{material.Name} is a [Material] struct but implements none of ISurface, IInterpolatedSurface, IVertexSurface, ILitSurface, ISunLitSurface, ICompositeSurface, ICombinerSurface, IInterpolatedCombinerSurface, ILayeredSurface, IInterpolatedLayeredSurface, IVertexStageSurface, IShadedSurface or IShadedVertexStageSurface" );
+			if ( stageShaded && !stage )
+				throw new ShaderCompileException( path, $"{material.Name}: an IShadedVertexStageSurface is also an IVertexStageSurface, for its vertex stage" );
+			if ( stage && material.Interfaces.Contains( "IShadedSurface" ) )
+				throw new ShaderCompileException( path, $"{material.Name}: a surface that owns its vertex stage shades itself as an IShadedVertexStageSurface, not an IShadedSurface" );
+			if ( (stage || shaded) && (displaces || lit || interpolated || sunLit || composite || combiner) )
+				throw new ShaderCompileException( path, $"{material.Name}: an IVertexStageSurface or IShadedSurface can't also be an IVertexSurface, IInterpolatedSurface, ILitSurface, ISunLitSurface, ICompositeSurface or a combiner surface" );
 			if ( interpolatedLayered && !material.Interfaces.Contains( "IInterpolatedSurface" ) && !interpolatedDisplaces )
 				throw new ShaderCompileException( path, $"{material.Name}: an IInterpolatedLayeredSurface is also an IInterpolatedSurface or IInterpolatedVertexSurface, for its vertex stage" );
 			if ( layered && interpolated && !interpolatedLayered )
@@ -359,7 +376,11 @@ public sealed partial class SlangCompiler
 
 			var defines = CombinerDefines( source );
 			if ( defines.Count > 0 && !combiner ) throw new ShaderCompileException( path, $"{material.Name}: [Combiner( ... )] is for an ICombinerSurface or IInterpolatedCombinerSurface" );
-			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit, composite, combiner, defines, layout.Features, layered );
+			defines.AddRange( LightingDefines( source ) );
+			var clipDistances = ClipDistances( source );
+			if ( clipDistances is < 0 or > 4 ) throw new ShaderCompileException( path, $"{material.Name}: [ClipDistances( n )] takes 1 to 4" );
+			if ( clipDistances > 0 && !stage ) throw new ShaderCompileException( path, $"{material.Name}: [ClipDistances( n )] is for an IVertexStageSurface" );
+			var instance = InstanceFile( module, material.Name, displaces, lit, layout.Fields.FirstOrDefault( f => f.Opacity )?.Name, interpolated, sunLit, composite, combiner, defines, layout.Features, layered, stage, shaded, varyingFields, clipDistances );
 			var instancePath = Path.Combine( directory, $"{module}.instance.slang" );
 
 			// Every stage at once, each a request on its own compile thread; the GPU-driven vertex stages once the classic ones
@@ -367,24 +388,25 @@ public sealed partial class SlangCompiler
 			Task<CompiledStage> Entry( string text, string name, StageKind stage, IReadOnlyDictionary<string, string> defines = null ) =>
 				SlangWorkers.Run( () => CompileEntry( instancePath, text, name, stage, directory, read, defines ), priority );
 			var vertexJob = Entry( instance, "MainVs", StageKind.Vertex );
-			var vertexLightmappedJob = Entry( instance, "MainVs", StageKind.Vertex, Lightmapped );
+			var vertexLightmappedJob = stage ? vertexJob : Entry( instance, "MainVs", StageKind.Vertex, Lightmapped );
 			var forwardJob = Entry( instance, "ForwardPs", StageKind.Pixel );
 			var forwardAlphaTestJob = Entry( instance, "ForwardAlphaTestPs", StageKind.Pixel, AlphaTested );
 			var depthAlphaTestJob = Entry( instance, "DepthAlphaTestPs", StageKind.Pixel, AlphaTestedDepth );
 			var forwardTranslucentJob = Entry( instance, "ForwardTranslucentPs", StageKind.Pixel, Translucent );
 			var depthVertexJob = Entry( instance, "DepthVs", StageKind.Vertex );
-			var vertexSkinnedJob = Entry( instance, "MainVs", StageKind.Vertex, VertexAnimation );
-			var depthVertexSkinnedJob = Entry( instance, "DepthVs", StageKind.Vertex, VertexAnimation );
-			var gpuForwardJob = Entry( instance, "ForwardPsGpuDriven", StageKind.Pixel, GpuDriven );
-			var gpuForwardAlphaTestJob = Entry( instance, "ForwardAlphaTestPsGpuDriven", StageKind.Pixel, With( GpuDriven, AlphaTested ) );
-			var gpuDepthAlphaTestJob = Entry( instance, "DepthAlphaTestPsGpuDriven", StageKind.Pixel, With( GpuDriven, AlphaTestedDepth ) );
-			var gpuForwardTranslucentJob = Entry( instance, "ForwardTranslucentPsGpuDriven", StageKind.Pixel, With( GpuDriven, Translucent ) );
+			var vertexSkinnedJob = stage ? null : Entry( instance, "MainVs", StageKind.Vertex, VertexAnimation );
+			var depthVertexSkinnedJob = stage ? null : Entry( instance, "DepthVs", StageKind.Vertex, VertexAnimation );
+			var gpuForwardJob = stage ? null : Entry( instance, "ForwardPsGpuDriven", StageKind.Pixel, GpuDriven );
+			var gpuForwardAlphaTestJob = stage ? null : Entry( instance, "ForwardAlphaTestPsGpuDriven", StageKind.Pixel, With( GpuDriven, AlphaTested ) );
+			var gpuDepthAlphaTestJob = stage ? null : Entry( instance, "DepthAlphaTestPsGpuDriven", StageKind.Pixel, With( GpuDriven, AlphaTestedDepth ) );
+			var gpuForwardTranslucentJob = stage ? null : Entry( instance, "ForwardTranslucentPsGpuDriven", StageKind.Pixel, With( GpuDriven, Translucent ) );
 			Task<CompiledStage> GpuVertex( Task<CompiledStage> classic, IReadOnlyDictionary<string, string> defines ) => classic.ContinueWith( done =>
 				done.IsCompletedSuccessfully ? Entry( instance + GpuDrivenVertex( material.Name, displaces, interpolated, done.Result.Inputs ), "MainVsGpuDriven", StageKind.Vertex, defines ) : done, TaskScheduler.Default ).Unwrap();
-			var gpuVertexJob = GpuVertex( vertexJob, GpuDriven );
-			var gpuVertexLightmappedJob = GpuVertex( vertexLightmappedJob, With( GpuDriven, Lightmapped ) );
-			await Settled( [vertexJob, vertexLightmappedJob, forwardJob, forwardAlphaTestJob, depthAlphaTestJob, forwardTranslucentJob, depthVertexJob, vertexSkinnedJob, depthVertexSkinnedJob,
-				gpuForwardJob, gpuForwardAlphaTestJob, gpuDepthAlphaTestJob, gpuForwardTranslucentJob, gpuVertexJob, gpuVertexLightmappedJob] ).ConfigureAwait( false );
+			var gpuVertexJob = stage ? null : GpuVertex( vertexJob, GpuDriven );
+			var gpuVertexLightmappedJob = stage ? null : GpuVertex( vertexLightmappedJob, With( GpuDriven, Lightmapped ) );
+			Task<CompiledStage>[] jobs = [vertexJob, vertexLightmappedJob, forwardJob, forwardAlphaTestJob, depthAlphaTestJob, forwardTranslucentJob, depthVertexJob, vertexSkinnedJob, depthVertexSkinnedJob,
+				gpuForwardJob, gpuForwardAlphaTestJob, gpuDepthAlphaTestJob, gpuForwardTranslucentJob, gpuVertexJob, gpuVertexLightmappedJob];
+			await Settled( [.. jobs.Where( j => j is not null ).Distinct()] ).ConfigureAwait( false );
 
 			var vertex = vertexJob.GetAwaiter().GetResult();
 			var vertexLightmapped = vertexLightmappedJob.GetAwaiter().GetResult();
@@ -393,8 +415,8 @@ public sealed partial class SlangCompiler
 			var depthAlphaTest = depthAlphaTestJob.GetAwaiter().GetResult();
 			var forwardTranslucent = forwardTranslucentJob.GetAwaiter().GetResult();
 			var depthVertex = depthVertexJob.GetAwaiter().GetResult();
-			var vertexSkinned = vertexSkinnedJob.GetAwaiter().GetResult();
-			var depthVertexSkinned = depthVertexSkinnedJob.GetAwaiter().GetResult();
+			var vertexSkinned = vertexSkinnedJob?.GetAwaiter().GetResult();
+			var depthVertexSkinned = depthVertexSkinnedJob?.GetAwaiter().GetResult();
 
 			// Each pass twice: as compiled, and with the vertex stage that passes on the mesh's lightmap uv
 			var passes = new Dictionary<string, CompiledPass>();
@@ -405,29 +427,33 @@ public sealed partial class SlangCompiler
 					passes[name + suffix] = new() { Name = name + suffix, Vertex = name == ShaderPasses.Depth ? depthVertex : v, Pixel = pixel };
 			}
 
-			// And with the vertex stage of skinned draws from the vertex cache, which reads the skinned vertices by vertex id
-			foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, forward), (ShaderPasses.Forward + "AlphaTest", forwardAlphaTest), (ShaderPasses.Forward + "Translucent", forwardTranslucent), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, depthAlphaTest) } )
+			// And with the vertex stage of skinned draws from the vertex cache, which reads the skinned vertices by vertex id. A
+			// surface that owns its vertex stage has neither these nor GPU-driven passes: its draws go the classic way
+			foreach ( var (name, pixel) in stage ? [] : new[] { (ShaderPasses.Forward, forward), (ShaderPasses.Forward + "AlphaTest", forwardAlphaTest), (ShaderPasses.Forward + "Translucent", forwardTranslucent), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, depthAlphaTest) } )
 				passes[name + ShaderPasses.Skinned] = new() { Name = name + ShaderPasses.Skinned, Vertex = name == ShaderPasses.Depth ? depthVertexSkinned : vertexSkinned, Pixel = pixel };
 
 			// The same passes GPU-driven, each with a vertex entry generated from what the classic one reads; a surface
 			// whose GPU-driven compile fails draws the classic way
-			try
+			if ( !stage )
 			{
-				var gpuVertex = gpuVertexJob.GetAwaiter().GetResult();
-				var gpuVertexLightmapped = gpuVertexLightmappedJob.GetAwaiter().GetResult();
-				var gpuForward = gpuForwardJob.GetAwaiter().GetResult();
-				var gpuForwardAlphaTest = gpuForwardAlphaTestJob.GetAwaiter().GetResult();
-				var gpuDepthAlphaTest = gpuDepthAlphaTestJob.GetAwaiter().GetResult();
-				var gpuForwardTranslucent = gpuForwardTranslucentJob.GetAwaiter().GetResult();
-				foreach ( var (v, suffix) in new[] { (gpuVertex, ShaderPasses.GpuDriven), (gpuVertexLightmapped, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped) } )
+				try
 				{
-					foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, gpuForward), (ShaderPasses.Forward + "AlphaTest", gpuForwardAlphaTest), (ShaderPasses.Forward + "Translucent", gpuForwardTranslucent), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, gpuDepthAlphaTest) } )
-						passes[name + suffix] = new() { Name = name + suffix, Vertex = v, Pixel = pixel };
+					var gpuVertex = gpuVertexJob.GetAwaiter().GetResult();
+					var gpuVertexLightmapped = gpuVertexLightmappedJob.GetAwaiter().GetResult();
+					var gpuForward = gpuForwardJob.GetAwaiter().GetResult();
+					var gpuForwardAlphaTest = gpuForwardAlphaTestJob.GetAwaiter().GetResult();
+					var gpuDepthAlphaTest = gpuDepthAlphaTestJob.GetAwaiter().GetResult();
+					var gpuForwardTranslucent = gpuForwardTranslucentJob.GetAwaiter().GetResult();
+					foreach ( var (v, suffix) in new[] { (gpuVertex, ShaderPasses.GpuDriven), (gpuVertexLightmapped, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped) } )
+					{
+						foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, gpuForward), (ShaderPasses.Forward + "AlphaTest", gpuForwardAlphaTest), (ShaderPasses.Forward + "Translucent", gpuForwardTranslucent), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, gpuDepthAlphaTest) } )
+							passes[name + suffix] = new() { Name = name + suffix, Vertex = v, Pixel = pixel };
+					}
 				}
-			}
-			catch ( ShaderCompileException e )
-			{
-				gpuDrivenError = e.Errors;
+				catch ( ShaderCompileException e )
+				{
+					gpuDrivenError = e.Errors;
+				}
 			}
 
 			return new CompiledShader
@@ -523,6 +549,38 @@ public sealed partial class SlangCompiler
 	[GeneratedRegex( @"\bCombiner\s*\(\s*""(?<defines>[^""]*)""\s*\)" )]
 	private static partial Regex CombinerAttribute();
 
+	/// <summary>
+	/// A surface's <c>[Lighting( "A, B = C" )]</c>: defines before the engine's includes, as a .shader's COMMON block sets
+	/// them for its lighting (<c>S_DIFFUSE_TWO_SIDED</c>); a name alone is 1.
+	/// </summary>
+	internal static List<(string Name, string Value)> LightingDefines( string source )
+	{
+		var defines = new List<(string, string)>();
+		foreach ( Match m in LightingAttribute().Matches( source ) )
+		{
+			foreach ( var entry in m.Groups["defines"].Value.Split( ',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ) )
+			{
+				var parts = entry.Split( '=', 2, StringSplitOptions.TrimEntries );
+				defines.Add( (parts[0], parts.Length > 1 ? parts[1] : "1") );
+			}
+		}
+
+		return defines;
+	}
+
+	[GeneratedRegex( @"\bLighting\s*\(\s*""(?<defines>[^""]*)""\s*\)" )]
+	private static partial Regex LightingAttribute();
+
+	/// <summary>A vertex-stage surface's <c>[ClipDistances( n )]</c>: how many clip distances it writes, 0 without one.</summary>
+	internal static int ClipDistances( string source ) => ClipDistancesAttribute().Match( source ) is { Success: true } m ? int.Parse( m.Groups["count"].Value, System.Globalization.CultureInfo.InvariantCulture ) : 0;
+
+	[GeneratedRegex( @"\bClipDistances\s*\(\s*(?<count>-?\d+)\s*\)" )]
+	private static partial Regex ClipDistancesAttribute();
+
+	/// <summary>An IVertexStageSurface's <c>typealias Varyings = X;</c>: the struct its derivatives are taken of.</summary>
+	[GeneratedRegex( @"\btypealias\s+Varyings\s*=\s*(?<type>[\w.]+)\s*;" )]
+	private static partial Regex VaryingsAlias();
+
 	[GeneratedRegex( @"^[A-Za-z_]\w*$" )]
 	private static partial Regex ModuleName();
 
@@ -533,9 +591,9 @@ public sealed partial class SlangCompiler
 	/// <see cref="ReflectMaterial"/> as a compile's first step, its layout entry written at once (<see cref="ReflectAsync"/>),
 	/// so a material that loads while the stages compile has its layout without a request of its own.
 	/// </summary>
-	MaterialLayout Reflected( string path, string source, string type, ShaderTier tier, ReadFiles read )
+	MaterialLayout Reflected( string path, string source, string type, ShaderTier tier, ReadFiles read, string varyingsType = null, List<string> varyingFields = null )
 	{
-		var layout = ReflectMaterial( path, source, type, Path.GetDirectoryName( path ), read );
+		var layout = ReflectMaterial( path, source, type, Path.GetDirectoryName( path ), read, varyingsType, varyingFields );
 		if ( CacheFolder is null ) return layout;
 
 		var shader = new CompiledShader { Name = type, Tier = tier, Path = path, Material = layout, Passes = new Dictionary<string, CompiledPass>(), Dependencies = read.Sorted() };
@@ -544,13 +602,14 @@ public sealed partial class SlangCompiler
 	}
 
 	/// <summary>Phase 1: the module alone, to reflect its <c>[Material]</c> struct's fields.</summary>
-	MaterialLayout ReflectMaterial( string path, string source, string type, string directory, ReadFiles read )
+	MaterialLayout ReflectMaterial( string path, string source, string type, string directory, ReadFiles read, string varyingsType = null, List<string> varyingFields = null )
 	{
 		using var zone = Zone( CompilePhase.Reflect );
 		using var request = Request( StageKind.Pixel, [directory], read );
 		request.AddSource( path, source );
 		request.SkipCodegen();
 		request.Compile( path );
+		if ( varyingsType is not null ) varyingFields?.AddRange( MaterialReflection.FloatFields( request.Reflection, varyingsType, path ) );
 		return MaterialReflection.Read( request.Reflection, type, path );
 	}
 
@@ -614,18 +673,24 @@ public sealed partial class SlangCompiler
 	/// a layered one's (<c>ILayeredSurface</c> or <c>IInterpolatedLayeredSurface</c>, <paramref name="layered"/>) through its own Shade over that lighting.
 	/// Pixel entries read the material's <paramref name="features"/> as specialization constants instead of from the record
 	/// when the pipeline is specialised for its material (<see cref="MaterialLayout.SpecializedId"/>), so its branches fold.
+	/// A surface that owns its vertex stage (<c>IVertexStageSurface</c>, <paramref name="stage"/>) has entries that run its
+	/// Vertex and hand its Evaluate the Varyings with the derivatives of <paramref name="varyingFields"/> (its float fields),
+	/// and writes <paramref name="clipDistances"/> clip distances; one that shades itself (<c>IShadedSurface</c> or
+	/// <c>IShadedVertexStageSurface</c>, <paramref name="shaded"/>) is lit by its own Shade.
 	/// </summary>
-	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false, bool sunLit = false, bool composite = false, bool combiner = false, IReadOnlyList<(string Name, string Value)> combinerDefines = null, IReadOnlyList<MaterialField> features = null, bool layered = false )
+	internal static string InstanceFile( string module, string type, bool displaces, bool lit, string opacityField = null, bool interpolated = false, bool sunLit = false, bool composite = false, bool combiner = false, IReadOnlyList<(string Name, string Value)> combinerDefines = null, IReadOnlyList<MaterialField> features = null, bool layered = false, bool stage = false, bool shaded = false, IReadOnlyList<string> varyingFields = null, int clipDistances = 0 )
 	{
 		var specialize = features is { Count: > 0 } ? " SurfaceSpecialize( m );" : "";
-		var forward = sunLit ? "SurfaceForwardSunLit" : composite ? "SurfaceForwardComposite" : layered ? "SurfaceForwardLayered" : combiner ? "SurfaceForwardCombiner" : "SurfaceForward";
+		var forward = shaded ? "SurfaceForwardShaded" : sunLit ? "SurfaceForwardSunLit" : composite ? "SurfaceForwardComposite" : layered ? "SurfaceForwardLayered" : combiner ? "SurfaceForwardCombiner" : "SurfaceForward";
 		var vertex = displaces ? $"SurfaceVertexDisplaced<{type}>( i )" : "SurfaceVertex( i )";
 		var opacity = opacityField is null ? "0" : $"m.{opacityField}.Slot";
 		var keep = lit ? " s_LitSurface = m;" : "";
-		var output = interpolated ? $"SurfaceVertexOutputWith<SurfaceVaryings<{type}>>" : "SurfaceVertexOutput";
-		var surface = interpolated ? $"{(layered ? "SurfaceWithVaryingsLayered" : combiner ? "SurfaceWithVaryingsCombiner" : "SurfaceWithVaryings")}<{type}>" : type;
-		var wrap = interpolated ? $" {surface} s; s.Surface = m; s.Values = i.Varyings;" : "";
-		var argument = interpolated ? "s" : "m";
+		var output = stage ? $"SurfaceStageOutput<SurfaceStageVaryings<{type}>>" : interpolated ? $"SurfaceVertexOutputWith<SurfaceVaryings<{type}>>" : "SurfaceVertexOutput";
+		var surface = stage ? (shaded ? $"SurfaceWithStageShaded<{type}, {type}>" : $"SurfaceWithStage<{type}>")
+			: interpolated ? $"{(layered ? "SurfaceWithVaryingsLayered" : combiner ? "SurfaceWithVaryingsCombiner" : "SurfaceWithVaryings")}<{type}>" : type;
+		var wrap = stage ? $" {surface} s; s.Surface = m; s.Values = i.Varyings; s.Derivs = SurfaceStageDerivatives( i.Varyings );{(shaded ? " s.Shading = m; s.ShadeValues = i.Varyings; s.ShadeDerivs = s.Derivs;" : "")}"
+			: interpolated ? $" {surface} s; s.Surface = m; s.Values = i.Varyings;" : "";
+		var argument = interpolated || stage ? "s" : "m";
 		string Shade( bool alphaTest ) => $"{type} m = SurfaceRecord<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{specialize}{keep}{wrap} return {forward}<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} );";
 		string Shaded( string entry, bool alphaTest ) => $"float4 Shaded{entry}( {output} i ) {{ {Shade( alphaTest )} }}\n";
 
@@ -661,6 +726,7 @@ public sealed partial class SlangCompiler
 		if ( opacityField is not null ) text.Append( "#define SURFACE_OPACITY_TEXTURE 1\n" );
 		if ( lit ) text.Append( "#define SURFACE_LIGHT_HOOK 1\n" );
 		if ( combiner ) text.Append( "#define SURFACE_FINAL_COMBINER 1\n" );
+		if ( clipDistances > 0 ) text.Append( "#define SURFACE_CLIP_DISTANCES " ).Append( clipDistances ).Append( '\n' );
 		foreach ( var (name, value) in combinerDefines ?? [] ) text.Append( "#define " ).Append( name ).Append( ' ' ).Append( value ).Append( '\n' );
 		text.Append( "#include \"sbox/surface_passes.slangh\"\n" );
 		text.Append( "import " ).Append( module ).Append( ";\n\n" );
@@ -670,13 +736,34 @@ public sealed partial class SlangCompiler
 		text.Append( "struct SurfaceIdsOutput { float4 Color : SV_Target0; uint Id : SV_Target1; };\n" );
 		text.Append( "#endif\n\n" );
 		text.Append( "#if ( PROGRAM == VFX_PROGRAM_VS )\n" );
-		var varyingsInput = interpolated ? $", SurfaceVaryings<{type}> varyings" : "";
-		text.Append( $"[shader( \"vertex\" )] {output} MainVs( VertexInput i{varyingsInput} ) {{ return {VertexStage( type, displaces, interpolated )}; }}\n" );
-		text.Append( "// Opaque depth: the position alone, so its draws can read a positions-only vertex copy\n" );
-		var depthInput = displaces && interpolated ? varyingsInput : "";
-		var depthPosition = displaces && interpolated ? $"{VertexStage( type, displaces, interpolated )}.Pixel" : vertex;
-		text.Append( $"[shader( \"vertex\" )] float4 DepthVs( VertexInput i{depthInput} ) : SV_Position {{ return {depthPosition}.vPositionPs; }}\n" );
+		if ( stage )
+		{
+			// The surface's own vertex stage, in every pass: its vertex input, the instance transform and the ids
+			const string inputs = "uint transform : TEXCOORD13, uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID";
+			text.Append( $"[shader( \"vertex\" )] {output} MainVs( SurfaceStageVertexInput<{type}> v, {inputs} ) {{ return SurfaceStageVertex<{type}>( v, transform, vertexId, instanceId ); }}\n" );
+			text.Append( "// Opaque depth: the same vertex stage's position and clip distances alone\n" );
+			text.Append( $"[shader( \"vertex\" )] SurfaceStageDepthOutput DepthVs( SurfaceStageVertexInput<{type}> v, {inputs} ) {{ return SurfaceStageDepth<{type}>( v, transform, vertexId, instanceId ); }}\n" );
+		}
+		else
+		{
+			var varyingsInput = interpolated ? $", SurfaceVaryings<{type}> varyings" : "";
+			text.Append( $"[shader( \"vertex\" )] {output} MainVs( VertexInput i{varyingsInput} ) {{ return {VertexStage( type, displaces, interpolated )}; }}\n" );
+			text.Append( "// Opaque depth: the position alone, so its draws can read a positions-only vertex copy\n" );
+			var depthInput = displaces && interpolated ? varyingsInput : "";
+			var depthPosition = displaces && interpolated ? $"{VertexStage( type, displaces, interpolated )}.Pixel" : vertex;
+			text.Append( $"[shader( \"vertex\" )] float4 DepthVs( VertexInput i{depthInput} ) : SV_Position {{ return {depthPosition}.vPositionPs; }}\n" );
+		}
+
 		text.Append( "#else\n" );
+		if ( stage )
+		{
+			// The Varyings' derivatives, field by field: the float ones in hardware, the rest zero
+			var varyings = $"SurfaceStageVaryings<{type}>";
+			text.Append( $"Derivatives<{varyings}> SurfaceStageDerivatives( {varyings} v ) {{ Derivatives<{varyings}> d = {{}};" );
+			foreach ( var field in varyingFields ?? [] ) text.Append( $" d.Ddx.{field} = ddx( v.{field} ); d.Ddy.{field} = ddy( v.{field} );" );
+			text.Append( " return d; }\n" );
+		}
+
 		if ( lit )
 		{
 			text.Append( "// The engine's light loop calls SurfaceLight for every light it shades the pixel with\n" );
@@ -692,6 +779,12 @@ public sealed partial class SlangCompiler
 		text.Append( Pixel( "ForwardTranslucentPs", false ) );
 		text.Append( "// Compiled in Depth mode: Shade returns the alpha-tested coverage before lighting\n" );
 		text.Append( Pixel( "DepthAlphaTestPs", true ) );
+		if ( stage )
+		{
+			text.Append( "#endif\n" );
+			return text.ToString();
+		}
+
 		text.Append( "#ifdef SURFACE_GPU_DRIVEN\n" );
 		text.Append( GpuDrivenPixel( "ForwardPsGpuDriven", false, false, normals: true ) );
 		text.Append( GpuDrivenPixel( "ForwardAlphaTestPsGpuDriven", true, false, normals: true ) );
