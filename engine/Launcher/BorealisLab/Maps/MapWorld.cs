@@ -126,7 +126,7 @@ internal sealed partial class MapWorld : IDisposable
 			LoadSkybox( reference, sky );
 		}
 
-		if ( entities ) AddEnvMapProbes( level );
+		if ( entities && !Args.Has( "-noenvprobes" ) ) AddEnvMapProbes( level );
 		// -nowater leaves the scene's water bodies out
 		if ( entities && !Args.Has( "-nowater" ) ) LoadWater( content, map );
 	}
