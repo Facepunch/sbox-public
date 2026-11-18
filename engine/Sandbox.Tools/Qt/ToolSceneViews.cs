@@ -42,8 +42,11 @@ internal static class ToolSceneViews
 		public int PixelFormat;
 		public int Handled;
 
-		/// <summary><c>GetToolSceneObjectGeometry</c>: a tool overlay object's geometry (<see cref="Geometry"/>).</summary>
-		public delegate* unmanaged< IntPtr, Geometry*, ToolVertex*, int, int > GetGeometry;
+		/// <summary>
+		/// A tool overlay object's geometry, batch by batch (<see cref="Geometry"/>): object, batch, out geometry, vertices or
+		/// null, room for vertices. Returns the batch's vertex count, 0 past its last batch.
+		/// </summary>
+		public delegate* unmanaged< IntPtr, int, Geometry*, ToolVertex*, int, int > GetGeometry;
 	}
 
 	/// <summary>
@@ -327,7 +330,9 @@ internal static class ToolSceneViews
 	/// </summary>
 	internal sealed unsafe class ToolOverlays : IDisposable
 	{
-		readonly SceneCustomObject lit, unlit;
+		readonly SceneCustomObject lit, unlit, noDepth;
+
+		enum Pass { Lit, Unlit, NoDepth }
 
 		struct Batch
 		{
@@ -336,7 +341,7 @@ internal static class ToolSceneViews
 			public int Count;
 			public Graphics.PrimitiveType Primitive;
 			public float LineThickness;
-			public bool Lit;
+			public Pass Pass;
 		}
 
 		readonly List<Batch> batches = new();
@@ -344,17 +349,24 @@ internal static class ToolSceneViews
 		int vertexCount;
 		readonly Dictionary<IntPtr, Material> materials = new();
 		readonly RenderAttributes attributes = new();
+		readonly RenderAttributes noDepthAttributes = new();
 
 		public ToolOverlays( SceneWorld world )
 		{
-			lit = new SceneCustomObject( world ) { RenderOverride = _ => Draw( true ) };
+			lit = new SceneCustomObject( world ) { RenderOverride = _ => Draw( Pass.Lit ) };
 			lit.Flags.IsOpaque = true;
 			lit.Flags.IsTranslucent = false;
 			lit.Flags.CastShadows = false;
-			unlit = new SceneCustomObject( world ) { RenderOverride = _ => Draw( false ) };
+			unlit = new SceneCustomObject( world ) { RenderOverride = _ => Draw( Pass.Unlit ) };
 			unlit.Flags.IsOpaque = false;
 			unlit.Flags.IsTranslucent = true;
 			unlit.Flags.CastShadows = false;
+
+			// The no-Z tool layers, over everything, as gizmos that ignore depth draw
+			noDepth = new SceneCustomObject( world ) { RenderOverride = _ => Draw( Pass.NoDepth ) };
+			noDepth.Flags.CastShadows = false;
+			noDepth.RenderLayer = SceneRenderLayer.OverlayWithoutDepth;
+			noDepthAttributes.SetCombo( "D_NO_ZTEST", 1 );
 		}
 
 		public void BeginFrame()
@@ -363,13 +375,17 @@ internal static class ToolSceneViews
 			vertexCount = 0;
 		}
 
-		// Tool layers drawn before post processing, lit with the scene: ToolRenderingLayer_t up to TRANSLUCENT
+		// ToolRenderingLayer_t: up to TRANSLUCENT drawn before post processing, lit with the scene; from UNLIT_OPAQUE_NOZ on
+		// (the no-Z, overlay and screen-space layers) without depth
 		const int LastLitToolLayer = 3;
+		const int FirstNoDepthToolLayer = 8;
+
+		static Pass PassOf( int toolLayer ) => toolLayer >= FirstNoDepthToolLayer ? Pass.NoDepth : toolLayer <= LastLitToolLayer ? Pass.Lit : Pass.Unlit;
 
 		/// <summary>
 		/// Copy out the overlay geometry of <paramref name="world"/>'s objects.
 		/// </summary>
-		public void Gather( SceneWorld world, delegate* unmanaged< IntPtr, Geometry*, ToolVertex*, int, int > getGeometry )
+		public void Gather( SceneWorld world, delegate* unmanaged< IntPtr, int, Geometry*, ToolVertex*, int, int > getGeometry )
 		{
 			lock ( world.InternalSceneObjects )
 			{
@@ -377,31 +393,35 @@ internal static class ToolSceneViews
 				{
 					if ( sceneObject.GetType() != typeof( SceneObject ) || sceneObject.native.IsNull || !sceneObject.RenderingEnabled ) continue;
 
-					Geometry geometry;
-					var count = getGeometry( sceneObject.native, &geometry, null, 0 );
-					if ( count <= 0 || geometry.MaterialName == IntPtr.Zero ) continue;
-
-					var material = MaterialFor( geometry.MaterialName );
-					if ( material is null ) continue;
-
-					if ( vertexCount + count > vertices.Length ) Array.Resize( ref vertices, Math.Max( vertices.Length * 2, vertexCount + count ) );
-					fixed ( ToolVertex* destination = &vertices[vertexCount] )
+					for ( int batch = 0; ; batch++ )
 					{
-						// What it wrote, which can be fewer than it asked room for
-						count = getGeometry( sceneObject.native, &geometry, destination, count );
+						Geometry geometry;
+						var count = getGeometry( sceneObject.native, batch, &geometry, null, 0 );
+						if ( count <= 0 ) break;
+						if ( geometry.MaterialName == IntPtr.Zero ) continue;
+
+						var material = MaterialFor( geometry.MaterialName );
+						if ( material is null ) continue;
+
+						if ( vertexCount + count > vertices.Length ) Array.Resize( ref vertices, Math.Max( vertices.Length * 2, vertexCount + count ) );
+						fixed ( ToolVertex* destination = &vertices[vertexCount] )
+						{
+							// What it wrote, which can be fewer than it asked room for
+							count = getGeometry( sceneObject.native, batch, &geometry, destination, count );
+						}
 						if ( count <= 0 ) continue;
-					}
 
-					batches.Add( new Batch
-					{
-						Material = material,
-						Start = vertexCount,
-						Count = count,
-						Primitive = geometry.VertsPerPrimitive switch { 1 => Graphics.PrimitiveType.Points, 2 => Graphics.PrimitiveType.Lines, _ => Graphics.PrimitiveType.Triangles },
-						LineThickness = geometry.LineThickness,
-						Lit = geometry.ToolLayer <= LastLitToolLayer,
-					} );
-					vertexCount += count;
+						batches.Add( new Batch
+						{
+							Material = material,
+							Start = vertexCount,
+							Count = count,
+							Primitive = geometry.VertsPerPrimitive switch { 1 => Graphics.PrimitiveType.Points, 2 => Graphics.PrimitiveType.Lines, _ => Graphics.PrimitiveType.Triangles },
+							LineThickness = geometry.LineThickness,
+							Pass = PassOf( geometry.ToolLayer ),
+						} );
+						vertexCount += count;
+					}
 				}
 			}
 		}
@@ -418,7 +438,7 @@ internal static class ToolSceneViews
 			return material;
 		}
 
-		void Draw( bool drawLit )
+		void Draw( Pass pass )
 		{
 			if ( vertexCount == 0 ) return;
 
@@ -426,11 +446,12 @@ internal static class ToolSceneViews
 			{
 				foreach ( var batch in batches )
 				{
-					if ( batch.Lit != drawLit ) continue;
+					if ( batch.Pass != pass ) continue;
 
-					attributes.Set( "g_LineThickness", batch.LineThickness );
-					attributes.Set( "UncompressedTangentFrame", true );
-					Graphics.DrawInternal( all + batch.Start, batch.Count, null, 0, batch.Material, attributes, batch.Primitive );
+					var drawAttributes = pass == Pass.NoDepth ? noDepthAttributes : attributes;
+					drawAttributes.Set( "g_LineThickness", batch.LineThickness );
+					drawAttributes.Set( "UncompressedTangentFrame", true );
+					Graphics.DrawInternal( all + batch.Start, batch.Count, null, 0, batch.Material, drawAttributes, batch.Primitive );
 				}
 			}
 		}
@@ -439,12 +460,13 @@ internal static class ToolSceneViews
 		{
 			lit.Delete();
 			unlit.Delete();
+			noDepth.Delete();
 			materials.Clear();
 		}
 	}
 
 	/// <summary>
-	/// Managed stand-ins for the lights native made in a view's worlds (a tool's lighting rig). Native makes them through
+	/// Managed stand-ins for the lights and skies native made in a view's worlds (a tool's lighting rig and environment). Native makes them through
 	/// <c>CreateLight</c>, so their managed twins are plain <see cref="SceneLight"/>s, which Borealis doesn't draw: it
 	/// knows a light by its managed type, and a sun only from a main world. Each frame every native light gets a
 	/// <see cref="SceneDirectionalLight"/>, <see cref="ScenePointLight"/> or <see cref="SceneSpotLight"/> in the view's own
@@ -458,7 +480,15 @@ internal static class ToolSceneViews
 		readonly HashSet<SceneLight> seen = new();
 		readonly List<SceneLight> gone = new();
 
-		public void BeginFrame() => seen.Clear();
+		SceneLight sunSource;
+		SceneDirectionalLight sun;
+
+		public void BeginFrame()
+		{
+			sunSource = null;
+			seen.Clear();
+			seenSkies.Clear();
+		}
 
 		/// <summary>
 		/// Stand-ins for <paramref name="world"/>'s native lights, made or brought up to date.
@@ -469,16 +499,28 @@ internal static class ToolSceneViews
 			{
 				foreach ( var sceneObject in world.InternalSceneObjects )
 				{
+					if ( sceneObject is SceneSkyBox sky )
+					{
+						MirrorSky( sky );
+						continue;
+					}
+
 					if ( sceneObject is not SceneLight light || light.GetType() != typeof( SceneLight ) || !light.lightNative.IsValid ) continue;
 
 					var kind = (ShadowLightType)light.lightNative.GetLightType();
 					if ( kind is not (ShadowLightType.Point or ShadowLightType.Spot or ShadowLightType.Directional) ) continue;
 
+					// One sun, the last directional light the worlds have, as native's light binner keeps the last it meets
+					if ( kind == ShadowLightType.Directional )
+					{
+						sunSource = light;
+						continue;
+					}
+
 					if ( !proxies.TryGetValue( light, out var proxy ) || !proxy.IsValid() )
 					{
 						proxy = kind switch
 						{
-							ShadowLightType.Directional => new SceneDirectionalLight( World, Rotation.Identity, light.LightColor ),
 							ShadowLightType.Spot => new SceneSpotLight( World, light.Position, light.LightColor ),
 							_ => new ScenePointLight( World, light.Position, light.Radius, light.LightColor ),
 						};
@@ -490,6 +532,30 @@ internal static class ToolSceneViews
 				}
 			}
 		}
+
+		/// <summary>
+		/// A stand-in for a native sky (the tool's environment world's): Borealis draws only the main world's sky.
+		/// </summary>
+		void MirrorSky( SceneSkyBox sky )
+		{
+			seenSkies.Add( sky );
+			if ( !skies.TryGetValue( sky, out var proxy ) || !proxy.IsValid() )
+			{
+				var material = sky.Material;
+				if ( material is null ) return;
+
+				proxy = new SceneSkyBox( World, material );
+				skies[sky] = proxy;
+			}
+
+			var tint = sky.SkyTint;
+			if ( proxy.SkyTint != tint ) proxy.SkyTint = tint;
+			if ( proxy.RenderingEnabled != sky.RenderingEnabled ) proxy.RenderingEnabled = sky.RenderingEnabled;
+		}
+
+		readonly Dictionary<SceneSkyBox, SceneSkyBox> skies = new();
+		readonly HashSet<SceneSkyBox> seenSkies = new();
+		readonly List<SceneSkyBox> goneSkies = new();
 
 		static void Copy( SceneLight from, SceneLight to )
 		{
@@ -520,6 +586,17 @@ internal static class ToolSceneViews
 		/// </summary>
 		public void EndFrame()
 		{
+			if ( sunSource is not null )
+			{
+				if ( !sun.IsValid() ) sun = new SceneDirectionalLight( World, Rotation.Identity, sunSource.LightColor );
+				Copy( sunSource, sun );
+			}
+			else if ( sun.IsValid() )
+			{
+				sun.Delete();
+				sun = null;
+			}
+
 			foreach ( var (light, proxy) in proxies )
 			{
 				if ( !seen.Contains( light ) ) gone.Add( light );
@@ -532,12 +609,29 @@ internal static class ToolSceneViews
 			}
 
 			gone.Clear();
+
+			foreach ( var (sky, _) in skies )
+			{
+				if ( !seenSkies.Contains( sky ) ) goneSkies.Add( sky );
+			}
+
+			foreach ( var sky in goneSkies )
+			{
+				skies.Remove( sky, out var proxy );
+				proxy?.Delete();
+			}
+
+			goneSkies.Clear();
 		}
 
 		public void Dispose()
 		{
 			foreach ( var proxy in proxies.Values ) proxy.Delete();
 			proxies.Clear();
+			foreach ( var proxy in skies.Values ) proxy.Delete();
+			skies.Clear();
+			if ( sun.IsValid() ) sun.Delete();
+			sun = null;
 			World.Delete();
 		}
 	}
