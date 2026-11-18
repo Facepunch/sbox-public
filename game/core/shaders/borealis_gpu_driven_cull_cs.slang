@@ -403,7 +403,8 @@ uint TakeSlot( uint nRun )
 				// (borealis_meshlet_cull_cs), which draws those that can reach a sample; or, in a bucket drawn with task and
 				// mesh shaders (its sixth word's top bit), takes a slot of the bucket's task run, a task group of
 				// borealis_meshlet_ids each
-				bool bMeshlets = !bListed && ( vVisibility.z & 1 ) != 0 && g_nCullMeshletRuns != None && g_bindless_VertexBuffers[ g_nCullMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u;
+				// (A depth prepass lists only aggregates' fragments: static meshes' draws have meshlets for shadow views.)
+				bool bMeshlets = !bListed && ( vVisibility.z & 1 ) != 0 && ( bShadow || ( vVisibility.z & 12 ) == 0 ) && g_nCullMeshletRuns != None && g_bindless_VertexBuffers[ g_nCullMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u;
 				if ( bMeshlets && ( vVisibility.y & TaskRun ) != 0 )
 				{
 					uint nSlot = TakeSlot( vVisibility.y & ~TaskRun );

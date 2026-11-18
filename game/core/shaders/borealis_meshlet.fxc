@@ -44,9 +44,9 @@ bool MeshletHoldsSample( uint nSamples, float2 vMin, float2 vMax )
 	return false;
 }
 
-// A meshlet's box (centre and half extents in the mesh's space) under its instance's transform: outside one clip plane,
-// or wholly in front of the near plane with screen bounds that hold no sample
-bool MeshletCulled( MeshletView view, float3 vCenter, float3 vExtents, float3x4 mTransform )
+// A meshlet's box (centre and half extents in the mesh's space) under its instance's transform, outside the view; with
+// bShadow, a shadow view's test (below)
+bool MeshletOutside( MeshletView view, float3 vCenter, float3 vExtents, float3x4 mTransform, bool bShadow )
 {
 	float4 vC = MeshletClip( view, mul( mTransform, float4( vCenter, 1 ) ), 1 );
 	float4 vA0 = MeshletClip( view, float3( mTransform[0][0], mTransform[1][0], mTransform[2][0] ) * vExtents.x, 0 );
@@ -75,10 +75,25 @@ bool MeshletCulled( MeshletView view, float3 vCenter, float3 vExtents, float3x4 
 		vMax = max( vMax, vPixel );
 	}
 
-	if ( nOutLeft == 8 || nOutRight == 8 || nOutBottom == 8 || nOutTop == 8 || nOutFar == 8 || nOutNear == 8 )
+	if ( nOutLeft == 8 || nOutRight == 8 || nOutBottom == 8 || nOutTop == 8 || nOutFar == 8 )
+		return true;
+
+	// A shadow view: its side and far planes only. Casters nearer the light than its near plane still cast where the view
+	// clamps depth, and its culls keep them
+	if ( bShadow )
+		return false;
+
+	if ( nOutNear == 8 )
 		return true;
 
 	return bFront && ( view.nSamples == 1 || view.nSamples == 4 ) && !MeshletHoldsSample( view.nSamples, vMin, vMax );
+}
+
+// A meshlet's box under its instance's transform against a depth prepass's view: outside one clip plane, or wholly in front
+// of the near plane with screen bounds that hold no sample
+bool MeshletCulled( MeshletView view, float3 vCenter, float3 vExtents, float3x4 mTransform )
+{
+	return MeshletOutside( view, vCenter, vExtents, mTransform, false );
 }
 
 #endif // BOREALIS_MESHLET_FXC

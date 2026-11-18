@@ -244,6 +244,10 @@ internal sealed class BackendParameters : ShaderParameters
 	int lightingFreeVersion = -1;
 	long lightingFreeKey;
 
+	// Odd while the two above are written: read without the lock when even and the same before and after (every recording
+	// thread asks for it per run of draws, and the lock kept them waiting on each other)
+	int lightingFreeSequence;
+
 	/// <summary>
 	/// The same for parameters that hold the same values but for their lightmap and light probe volume constants, which GPU-driven variants
 	/// read from a record per draw: draws whose attributes differ only in those share a
@@ -253,8 +257,15 @@ internal sealed class BackendParameters : ShaderParameters
 	{
 		get
 		{
-			// The parent's first, so this lock is never held while taking another
 			var current = Version;
+			var before = Volatile.Read( ref lightingFreeSequence );
+			if ( (before & 1) == 0 )
+			{
+				var (version, key) = (Volatile.Read( ref lightingFreeVersion ), Volatile.Read( ref lightingFreeKey ));
+				if ( version == current && Volatile.Read( ref lightingFreeSequence ) == before ) return key;
+			}
+
+			// The parent's first, so this lock is never held while taking another
 			var parentKey = Parent?.LightingFreeKey;
 			lock ( gate )
 			{
@@ -279,9 +290,12 @@ internal sealed class BackendParameters : ShaderParameters
 				}
 
 				if ( parentKey is { } inherited ) hash.Add( inherited );
-				lightingFreeKey = (long)count << 32 | (uint)hash.ToHashCode();
+				var made = (long)count << 32 | (uint)hash.ToHashCode();
+				Interlocked.Increment( ref lightingFreeSequence );
+				lightingFreeKey = made;
 				lightingFreeVersion = current;
-				return lightingFreeKey;
+				Interlocked.Increment( ref lightingFreeSequence );
+				return made;
 			}
 		}
 	}

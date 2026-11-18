@@ -363,6 +363,13 @@ public struct GraphicsPipelineInfo
 
 	/// <summary>A name for debuggers and validation messages.</summary>
 	public string Name;
+
+	/// <summary>
+	/// Never wait for it: when its parts aren't all made yet, <see cref="Device.CreateGraphicsPipeline"/> returns at once and
+	/// workers make it, and until then a command list skips the draws that use it (<see cref="Device.IsReady"/>). For draws
+	/// that may pop in a frame or two late; not for passes other work depends on.
+	/// </summary>
+	public bool SkipUntilReady;
 }
 
 /// <summary>

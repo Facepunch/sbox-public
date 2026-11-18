@@ -33,6 +33,64 @@ public sealed class ShaderLibrary : IDisposable
 	{
 		this.gpu = gpu;
 		Files = files;
+		if ( gpu.PartManifestEnabled && gpu.PipelineCachePath is { } cache ) moduleManifest = new ShaderModuleManifest( Path.Combine( Path.GetDirectoryName( cache ) ?? ".", "shader-modules.txt" ) );
+	}
+
+	// The modules variants made, so the next run makes them as their files load (ShaderModuleManifest): with the device's
+	// part manifest only, which makes their pipeline parts once they exist
+	readonly ShaderModuleManifest moduleManifest;
+	readonly List<Task> modulesAhead = new();
+
+	/// <summary>Write the module manifest beside the pipeline cache if it changed; false when nothing was written.</summary>
+	public bool SaveModuleManifest() => moduleManifest?.Save() ?? false;
+
+	/// <summary>What the module manifest held and did, for reports: lines read, modules made ahead, lines dropped, modules recorded.</summary>
+	public (int Loaded, int Made, int Dropped, int Recorded) ModuleManifest => moduleManifest is { } m ? (m.Loaded, m.Made, m.Dropped, m.Recorded) : default;
+
+	/// <summary>A variant's stage made its module: kept for the next run (once per module, never per frame).</summary>
+	internal void Remember( ShaderProgram program, ulong staticCombo, ulong dynamicCombo )
+	{
+		if ( moduleManifest is { } m && program.Shader?.Name is { Length: > 0 } file ) m.Use( file, new ShaderModuleManifest.Entry( program.Type, staticCombo, dynamicCombo ) );
+	}
+
+	/// <summary>A compiled file loaded: the modules earlier runs' variants made from it are made now, on a worker.</summary>
+	void MakeRecordedModules( ShaderFile shader )
+	{
+		if ( shader is null || moduleManifest?.Take( shader.Name ) is not { } entries ) return;
+		var task = Task.Run( () =>
+		{
+			foreach ( var entry in entries )
+			{
+				try
+				{
+					var program = shader[entry.Type];
+					var bytecode = program?.LoadCombo( entry.Static ).Dynamic( entry.Dynamic )?.Shader;
+					if ( bytecode is null )
+					{
+						moduleManifest.Drop( shader.Name, entry );
+						continue;
+					}
+
+					Module( bytecode, $"{shader.Name} {entry.Type}" );
+					System.Threading.Interlocked.Increment( ref moduleManifest.Made );
+				}
+				catch ( Exception e ) when ( e is KeyNotFoundException or InvalidDataException or IndexOutOfRangeException )
+				{
+					moduleManifest.Drop( shader.Name, entry );
+				}
+				catch ( Exception e ) when ( e is GpuException or ArgumentException or ObjectDisposedException )
+				{
+					// The device or library went meanwhile
+					return;
+				}
+			}
+		} );
+
+		lock ( modulesAhead )
+		{
+			modulesAhead.RemoveAll( t => t.IsCompleted );
+			modulesAhead.Add( task );
+		}
 	}
 
 	/// <summary>
@@ -58,6 +116,7 @@ public sealed class ShaderLibrary : IDisposable
 				if ( found ) files[key] = shader;
 			}
 
+			MakeRecordedModules( shader );
 			return shader;
 		}
 		finally
@@ -367,6 +426,7 @@ public sealed class ShaderLibrary : IDisposable
 		}
 
 		lock ( gpuDriven ) gpuDriven[shader] = variant;
+		MakeRecordedModules( variant );
 		return variant;
 	}
 
@@ -714,6 +774,10 @@ public sealed class ShaderLibrary : IDisposable
 	/// <summary>Destroy every module and layout made here.</summary>
 	public void Dispose()
 	{
+		Task[] ahead;
+		lock ( modulesAhead ) ahead = [.. modulesAhead];
+		Task.WaitAll( ahead );
+		SaveModuleManifest();
 		lock ( modules )
 		{
 			foreach ( var module in modules.Values ) gpu.Destroy( module );

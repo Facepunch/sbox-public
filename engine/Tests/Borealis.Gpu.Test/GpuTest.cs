@@ -44,6 +44,9 @@ public abstract class GpuTest
 			Assert.Inconclusive( e.Message );
 		}
 
+		// Tests check the pixels of the frames they draw: no draw is skipped for a pipeline workers are still making
+		Device.SkipDrawsUntilReady = false;
+
 		// Casters move into the sun's cached far cascade once they've stayed put for a while of wall-clock time. Tests compare
 		// frames rendered seconds apart (a first frame can take seconds), so in them casters stay where they are: every frame a
 		// test draws has the same cache, whenever it's drawn

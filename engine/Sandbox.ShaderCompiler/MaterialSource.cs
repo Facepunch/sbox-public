@@ -42,7 +42,51 @@ internal static partial class MaterialSource
 		}
 
 		result.Append( text, at, text.Length - at );
-		return result.ToString();
+		return PublicVaryings( result.ToString() );
+	}
+
+	[GeneratedRegex( @"\btypealias\s+Varyings\s*=\s*(?<type>\w+)\s*;" )]
+	private static partial Regex VaryingsAlias();
+
+	/// <summary>
+	/// The struct a surface names as its Varyings (<c>typealias Varyings = X;</c>) with every field public, as a [Material]
+	/// struct's are: the generated entries read them for their derivatives.
+	/// </summary>
+	static string PublicVaryings( string text )
+	{
+		if ( VaryingsAlias().Match( text ) is not { Success: true } alias ) return text;
+		var declaration = new Regex( $@"\bstruct\s+{Regex.Escape( alias.Groups["type"].Value )}\s*\{{" ).Match( text );
+		if ( !declaration.Success ) return text;
+		var open = declaration.Index + declaration.Length - 1;
+		var close = MatchingBrace( text, open );
+		return string.Concat( text.AsSpan( 0, open + 1 ), PublicMembers( text.Substring( open + 1, close - open - 1 ) ), text.AsSpan( close ) );
+	}
+
+	/// <summary>A struct body with each declaration at its own depth made public (interpolation modifiers and semantics kept).</summary>
+	static string PublicMembers( string body )
+	{
+		var lines = body.Split( '\n' );
+		var depth = 0;
+		for ( int i = 0; i < lines.Length; i++ )
+		{
+			var code = lines[i];
+			var comment = code.IndexOf( "//", StringComparison.Ordinal );
+			if ( comment >= 0 ) code = code[..comment];
+			var trimmed = code.Trim();
+			if ( depth == 0 && trimmed.EndsWith( ';' ) && !trimmed.StartsWith( "public ", StringComparison.Ordinal ) && !trimmed.StartsWith( "static ", StringComparison.Ordinal ) && !trimmed.StartsWith( "typealias ", StringComparison.Ordinal ) )
+			{
+				var lead = lines[i].Length - lines[i].TrimStart().Length;
+				lines[i] = lines[i][..lead] + "public " + lines[i][lead..];
+			}
+
+			foreach ( var c in code )
+			{
+				if ( c == '{' ) depth++;
+				else if ( c == '}' ) depth--;
+			}
+		}
+
+		return string.Join( '\n', lines );
 	}
 
 	// A field declaration at the start of a line: optional attributes, a type, a name, an optional initializer
@@ -228,6 +272,29 @@ internal static unsafe class MaterialReflection
 		}
 
 		return state;
+	}
+
+	/// <summary>
+	/// The float scalar and vector fields of the struct <paramref name="type"/> (an IVertexStageSurface's Varyings), whose
+	/// derivatives the passes take.
+	/// </summary>
+	public static List<string> FloatFields( IntPtr reflection, string type, string path )
+	{
+		var name = System.Text.Encoding.UTF8.GetBytes( type + "\0" );
+		IntPtr structType;
+		fixed ( byte* n = name ) structType = SlangApi.FindTypeByName( reflection, n );
+		if ( structType == IntPtr.Zero || SlangApi.TypeGetKind( structType ) != SlangApi.TypeKindStruct )
+			throw new ShaderCompileException( path, $"The Varyings {type} isn't a struct Slang can reflect: name it with typealias Varyings = YourStruct;" );
+
+		var fields = new List<string>();
+		var count = SlangApi.TypeGetFieldCount( structType );
+		for ( uint i = 0; i < count; i++ )
+		{
+			var field = SlangApi.TypeGetFieldByIndex( structType, i );
+			if ( Classify( SlangApi.VariableGetType( field ) ) is (MaterialFieldKind.Float, _ ) ) fields.Add( SlangApi.String( SlangApi.VariableGetName( field ) ) );
+		}
+
+		return fields;
 	}
 
 	static (MaterialFieldKind Kind, int Components)? Classify( IntPtr type )

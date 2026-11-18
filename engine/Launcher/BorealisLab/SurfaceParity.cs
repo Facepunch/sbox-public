@@ -58,7 +58,7 @@ internal static class SurfaceParity
 
 		// Compiled up front, so the times are the compiler's and a failure is reported once
 		var lines = new List<string>();
-		foreach ( var file in new[] { "rock.slang", "rock_raw.slang", "rock_lit.slang", "foliage.slang" } )
+		foreach ( var file in new[] { "rock.slang", "rock_raw.slang", "rock_lit.slang", "rock_stage.slang", "rock_shaded.slang", "foliage.slang" } )
 		{
 			if ( device.Surfaces.Compile( file ) is not { } compiled ) return Fail( $"{file} didn't compile" );
 			lines.Add( $"{file}: {compiled.Tier} {compiled.Material.Type}, {compiled.Passes.Count} passes, record {compiled.Material.Size} bytes, compiled in {compiled.Milliseconds:F0} ms" );
@@ -90,11 +90,15 @@ internal static class SurfaceParity
 			using var surface = new Rock { Color = color, Normal = normal, Rma = rma, Tint = tint, RoughnessScale = roughnessScale, DisplayName = "Rock (surface)" };
 			using var raw = new RockRaw { Color = color, Normal = normal, Rma = rma, Tint = tint, RoughnessScale = roughnessScale, DisplayName = "Rock (raw)" };
 
+			// The same material with a vertex stage of its own (IVertexStageSurface) and shading itself (IShadedSurface)
+			using var stage = new RockStage { Color = color, Normal = normal, Rma = rma, Tint = tint, RoughnessScale = roughnessScale, DisplayName = "Rock (own vertex stage)" };
+			using var shaded = new RockShaded { Color = color, Normal = normal, Rma = rma, Tint = tint, RoughnessScale = roughnessScale, DisplayName = "Rock (shaded)" };
+
 			var reference = Render( device, shader );
 			Save( reference, Path.Combine( folder, "shader.png" ) );
 
 			// The surface twice: its record offset passed on per pixel (the default) and read per draw
-			foreach ( var (name, material, perPixel) in new (string, GpuMaterial, bool)[] { ("surface", surface, true), ("surface-perdraw", surface, false), ("raw", raw, true) } )
+			foreach ( var (name, material, perPixel) in new (string, GpuMaterial, bool)[] { ("surface", surface, true), ("surface-perdraw", surface, false), ("raw", raw, true), ("stage", stage, true), ("shaded", shaded, true) } )
 			{
 				device.Surfaces.MaterialOffsetPerPixel = perPixel;
 				var pixels = Render( device, material );
@@ -107,6 +111,18 @@ internal static class SurfaceParity
 			}
 
 			device.Surfaces.MaterialOffsetPerPixel = true;
+
+			// The own vertex stage's clip distance: everything below 30 units (the ground, the lower halves) is cut, in depth and colour
+			{
+				stage.ClipHeight = 30;
+				var pixels = Render( device, stage );
+				stage.ClipHeight = -100000;
+				Save( pixels, Path.Combine( folder, "stage-clipped.png" ) );
+				var (mean, max, over, _) = Compare( reference, pixels );
+				var ok = over > 1000;
+				if ( !ok ) failed++;
+				lines.Add( $"own vertex stage clipped at 30 units, against .shader: mean difference {mean:F3}, max {max}, {over} pixels changed{(ok ? " (expected)" : " FAIL: the clip distance cut nothing")}" );
+			}
 
 			// The light loop's hook (ILitSurface.Light): with no light term of its own a lit surface draws as Rock does, so
 			// standard lighting is untouched; with one, every light adds to it, the point light alone too
@@ -400,6 +416,9 @@ internal static class SurfaceParity
 			device.BeginFrame();
 			RenderHost.Current.NextFrame();
 			system.Render( world, view, target );
+
+			// The pictures compared are whole frames of optimised pipelines: none skipped while workers make it, none fast-linked
+			if ( frame == 0 ) WaitForPipelines( device );
 		}
 
 		return ModelParity.ReadBack( device, target, Width, Height );
@@ -495,6 +514,12 @@ internal static class SurfaceParity
 	/// <summary>Frames rendered before the one compared (<c>-frames</c>, default 8: shadows and exposure settle).</summary>
 	static int Frames => Math.Max( Args.Int( "-frames", 8 ), 1 );
 
+	static void WaitForPipelines( BackendDevice device )
+	{
+		device.Gpu.WaitForPendingPipelines( TimeSpan.FromSeconds( 120 ) );
+		device.Gpu.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 120 ) );
+	}
+
 	/// <summary>
 	/// A ground, a sphere and a box with <paramref name="material"/>, under a sun and a point light; their draws flagged
 	/// alpha-tested when asked, as a compiled model's are, so depth passes keep the pixel shader that clips. Without
@@ -527,6 +552,9 @@ internal static class SurfaceParity
 			device.BeginFrame();
 			RenderHost.Current.NextFrame();
 			system.Render( world, view, target );
+
+			// The pictures compared are whole frames of optimised pipelines: none skipped while workers make it, none fast-linked
+			if ( frame == 0 ) WaitForPipelines( device );
 		}
 
 		return ModelParity.ReadBack( device, target, Width, Height );

@@ -288,6 +288,44 @@ internal static class MirrorContent
 	}
 
 	/// <summary>
+	/// A camera's attributes (<c>SceneCamera.Attributes</c>: what its component and <c>Scene.RenderAttributes</c> set, a game's
+	/// time of day among them) as its view's camera attributes, as native's camera renderer gives its view them, kept in
+	/// <paramref name="parameters"/> (made the first time) by <see cref="CopyChanged"/>.
+	/// </summary>
+	public static ShaderParameters CameraParameters( RenderAttributes attributes, ref ShaderParameters parameters, ref int version )
+	{
+		if ( Gpu is not { } gpu || (attributes?.Shadow ?? attributes?.Managed) is null ) return null;
+		if ( parameters is null )
+		{
+			parameters = gpu.CreateParameters();
+			version = NeverCopied;
+		}
+
+		CopyChanged( attributes, parameters, ref version );
+		return parameters;
+	}
+
+	/// <summary>The version to start <see cref="CopyChanged"/> from: before anything was set.</summary>
+	public const int NeverCopied = int.MinValue;
+
+	/// <summary>
+	/// Keep <paramref name="into"/> holding what <paramref name="attributes"/> (its managed copy, or its managed values) holds:
+	/// only what was set since <paramref name="version"/>, or everything again when something went since.
+	/// </summary>
+	public static void CopyChanged( RenderAttributes attributes, ShaderParameters into, ref int version )
+	{
+		if ( (attributes?.Shadow ?? attributes?.Managed) is not { } source || source.Version == version ) return;
+		if ( source.RemovedAt > version && version != NeverCopied )
+		{
+			into.Clear();
+			version = NeverCopied;
+		}
+
+		SetChanged( source, version, into );
+		version = source.Version;
+	}
+
+	/// <summary>
 	/// A view's own attributes with a managed store (a planar reflection published for it) written into
 	/// <paramref name="parameters"/>, made the first time: what was there before is cleared.
 	/// </summary>

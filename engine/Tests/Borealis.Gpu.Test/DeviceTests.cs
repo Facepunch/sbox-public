@@ -20,6 +20,32 @@ public class DeviceTests : GpuTest
 	/// Binding a slot again with the bindings it last wrote binds that set again; other bindings write another, as does
 	/// everything with the reuse off.
 	/// </summary>
+	/// <summary>
+	/// Command lists' descriptor pools are the device's spares, given back reset when their frame retires and made ahead on a
+	/// worker when few are left: recording takes one rather than making one (that cost ~70 ms in a map's first seconds).
+	/// </summary>
+	[TestMethod]
+	public void DescriptorPoolsAreSharedAndMadeAhead()
+	{
+		var taken = new List<ulong>();
+		void TakeAndGiveBack( int count )
+		{
+			for ( int i = 0; i < count; i++ ) taken.Add( Device.TakeDescriptorPool() );
+			foreach ( var pool in taken ) Device.ReturnDescriptorPool( pool );
+			taken.Clear();
+		}
+
+		// Warm: the spares made ahead
+		TakeAndGiveBack( 1 );
+		var clock = System.Diagnostics.Stopwatch.StartNew();
+		while ( Device.DescriptorPoolsMade < 8 && clock.Elapsed.TotalSeconds < 10 ) System.Threading.Thread.Sleep( 5 );
+		System.Threading.Thread.Sleep( 50 );
+
+		var madeTaking = Device.DescriptorPoolsMadeTaking;
+		for ( int round = 0; round < 10; round++ ) TakeAndGiveBack( 4 );
+		Assert.AreEqual( madeTaking, Device.DescriptorPoolsMadeTaking, "taken from the spares, not made where asked" );
+	}
+
 	[TestMethod]
 	public void SameBindingsReuseTheirSet()
 	{

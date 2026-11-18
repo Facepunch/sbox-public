@@ -204,20 +204,23 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// </summary>
 	public long SystemFallbackBytes { get; private set; }
 
-	/// <remarks>
+	/// <summary>
+	/// Memory for a buffer or an image. A <paramref name="target"/> (an image the GPU draws or writes into: a view's colour,
+	/// depth and storage targets) over a quarter of a small block gets its own allocation rather than room in a large block:
+	/// targets come and go with views and their sizes, and the holes they left kept large blocks reserved but mostly empty.
 	/// <paramref name="content"/> allocations (what a map loads and frees as a whole: its textures and geometry) share blocks
 	/// only with each other: mixed with long-lived resources made meanwhile (a game's targets, tables that grew), those kept
 	/// most blocks of an unloaded map's memory from going back.
-	/// </remarks>
-	public Allocation Allocate( in VkMemoryRequirements requirements, MemoryLocation location, bool image, bool content = false )
+	/// </summary>
+	public Allocation Allocate( in VkMemoryRequirements requirements, MemoryLocation location, bool image, bool target = false, bool content = false )
 	{
 		try
 		{
-			return Allocate( requirements, location, image, FindType( requirements.memoryTypeBits, location ), content );
+			return Allocate( requirements, location, image, target, FindType( requirements.memoryTypeBits, location ), content );
 		}
 		catch ( GpuException e ) when ( e.Result == (int)VkResult.ErrorOutOfDeviceMemory && location == MemoryLocation.Device && FallbackType( requirements.memoryTypeBits ) is { } fallback )
 		{
-			var allocation = Allocate( requirements, location, image, fallback, content );
+			var allocation = Allocate( requirements, location, image, target, fallback, content );
 			lock ( allocationLock ) SystemFallbackBytes += (long)allocation.Size;
 			return allocation;
 		}
@@ -261,13 +264,13 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	// The driver's allocations (vkAllocateMemory, which needs no external lock) are made outside the allocator's lock: a big
 	// one takes milliseconds while the driver clears it, and every other thread's allocation waited behind it. A map's
 	// first seconds made hundreds, about 2 ms each, nearly 0.5 s of them on the main thread
-	Allocation Allocate( in VkMemoryRequirements requirements, MemoryLocation location, bool image, int type, bool content )
+	Allocation Allocate( in VkMemoryRequirements requirements, MemoryLocation location, bool image, bool target, int type, bool content )
 	{
 		var size = requirements.size;
 		var alignment = Math.Max( requirements.alignment, 1 );
 
-		// Anything over a quarter of a large block gets its own allocation
-		if ( size > (LargeBlocks ? LargeBlockSize : blockSize) / 4 )
+		// Anything over a quarter of a large block gets its own allocation, and so does a target too big for a small block
+		if ( size > (LargeBlocks && !target ? LargeBlockSize : blockSize) / 4 )
 		{
 			var dedicated = NewBlock( type, size, image );
 			dedicated.Dedicated = true;

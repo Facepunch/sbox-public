@@ -46,8 +46,6 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		/// </summary>
 		public double SyncMs;
 
-		/// <summary>When it was last prepared (<see cref="System.Diagnostics.Stopwatch"/> ticks): one idle for <see cref="ViewIdleSeconds"/> is freed.</summary>
-		public long LastUsed;
 
 		/// <summary>
 		/// The frustum the view's planar reflection planes are tested against.
@@ -58,6 +56,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		/// Whether this view's frame is being rendered now: a child view asked for while it draws can't be this view again.
 		/// </summary>
 		public bool Rendering;
+
+		/// <summary>The engine frame this view last rendered in (<see cref="ViewIdleFrames"/>).</summary>
+		public ulong LastFrame;
 
 		/// <summary>
 		/// Whether the camera this is for was disposed or collected without saying so.
@@ -83,6 +84,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		/// </summary>
 		public RenderAttributes GpuViewAttributes;
 		public ShaderParameters GpuViewParameters;
+
+		/// <summary>The camera's attributes as Borealis reads them, and the version of them last written there.</summary>
+		public ShaderParameters GpuCameraParameters;
+		public int GpuCameraVersion;
 
 		/// <summary>
 		/// Release owned resources.
@@ -155,8 +160,6 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// </summary>
 	const ulong ExtraWorldIdleFrames = 120;
 
-	/// <summary>Seconds a view (or the cube capture faces) can go without being drawn before its resources are freed.</summary>
-	internal static double ViewIdleSeconds { get; set; } = 10;
 
 	// Reused sweep buffers avoid per-frame allocations.
 	readonly List<ViewKey> invalidViews = new();
@@ -188,19 +191,25 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	}
 
 	/// <summary>
-	/// Release views whose camera went away, and worlds deleted, without being reported.
+	/// Frames a view keeps its renderer and targets without rendering: an editor widget that isn't shown (the game view
+	/// behind the scene view) or a camera that stopped drawing gives them back, and starts again from nothing (no history,
+	/// shadows drawn again) if it renders later.
+	/// </summary>
+	internal const ulong ViewIdleFrames = 600;
+
+	/// <summary>
+	/// Release views whose camera went away or that haven't rendered for <see cref="ViewIdleFrames"/>, and worlds deleted,
+	/// without being reported.
 	/// </summary>
 	void FreeInvalid()
 	{
-		// A view not drawn for a while (its camera's scene unloaded but not collected yet, a render-to-texture that stopped)
-		// gives back its render system's targets, shadow maps and light lists; drawn again, it's made again
-		var idleSince = System.Diagnostics.Stopwatch.GetTimestamp() - (long)(ViewIdleSeconds * System.Diagnostics.Stopwatch.Frequency);
+		var frame = Application.FrameCount;
 		foreach ( var (key, state) in views )
 		{
-			if ( state.IsOrphaned || (!state.Rendering && state.LastUsed < idleSince) ) invalidViews.Add( key );
+			if ( state.IsOrphaned || (!state.Rendering && frame - state.LastFrame > ViewIdleFrames) ) invalidViews.Add( key );
 		}
 
-		FreeIdleCaptures( idleSince );
+		FreeIdleCaptures( frame );
 		MirrorContent.FreeCollected();
 
 		foreach ( var (world, _) in mirrors )
@@ -212,7 +221,6 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		foreach ( var world in invalidWorlds ) Forget( world );
 		invalidWorlds.Clear();
 
-		var frame = Application.FrameCount;
 		foreach ( var (key, extra) in extras )
 		{
 			if ( !key.Source.IsValid() || frame - extra.LastFrame > ExtraWorldIdleFrames ) invalidExtras.Add( key );
@@ -349,12 +357,16 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		SyncSkybox( mirror, camera, setup );
 
 		var state = given ?? StateFor( camera, setup.ViewHash );
-		state.LastUsed = System.Diagnostics.Stopwatch.GetTimestamp();
+		state.LastFrame = Application.FrameCount;
 		state.Drawer.Mirror = mirror;
 		state.View.SubWorlds = SyncExtraWorlds( mirror, camera, setup, state.Drawer.ExtraMirrors );
 		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( syncStart ).TotalMilliseconds;
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters { SyncMs = state.SyncMs } );
 		FillView( state.View, camera, setup, size );
+
+		// The camera's attributes under the view's, as native's camera renderer sets them on its view: what the camera
+		// component and the scene's render attributes set (Rust Legacy lights its models by its time of day there)
+		state.View.CameraAttributes = MirrorContent.CameraParameters( camera.Attributes, ref state.GpuCameraParameters, ref state.GpuCameraVersion );
 
 		// A child view takes its parent's render time unless it has its own, as native's child views do
 		// (CSceneSystem::AddDynamicView)

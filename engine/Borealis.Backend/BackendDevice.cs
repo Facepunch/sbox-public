@@ -128,7 +128,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	SurfaceShaders surfaces;
 
 	/// <summary>Write the surface pipeline manifest beside the pipeline cache if it changed (<see cref="SurfacePipelineManifest"/>).</summary>
-	internal bool SavePipelineManifest() => surfaces?.Manifest?.Save() ?? false;
+	internal bool SavePipelineManifest() => (surfaces?.Manifest?.Save() ?? false) | Shaders.SaveModuleManifest();
 
 	/// <summary>What the surface pipeline manifest held and did, for reports.</summary>
 	internal string PipelineManifestReport => surfaces?.Manifest is not { } m ? "surface pipeline manifest: off" : $"surface pipeline manifest: {m.Loaded} read, {m.Replayed} made ahead, {m.Dropped} dropped, {m.Recorded} recorded";
@@ -501,6 +501,13 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <c>-no-meshlets</c> turns it off, <c>-meshlets 32x32</c> picks the meshlet size (64x124 by default).
 	/// </summary>
 	public bool Meshlets { get; set; } = !HasSwitch( "-no-meshlets" );
+
+	/// <summary>
+	/// Meshlet culling in GPU-driven shadow views too (docs/managed/borealis-gpu-driven.md, "Meshlets"): their depth-only
+	/// buckets draw only the meshlets inside the view. Off by default (a meshlet pass per shadow call costs more GPU time
+	/// than the triangles it saves in SS2 and Construct); <c>-shadow-meshlets</c> turns it on, with <see cref="Meshlets"/>.
+	/// </summary>
+	public bool ShadowMeshlets { get; set; } = HasSwitch( "-shadow-meshlets" );
 
 	/// <summary>Threads building meshlets at once: a quarter of the cores, so the frame keeps the rest.</summary>
 	public static int MeshletThreads { get; set; } = Math.Max( 1, Environment.ProcessorCount / 4 );
@@ -1525,6 +1532,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				info.FragmentConstants = null;
 			}
 
+			// A draw never waits for it: skipped until workers have made it
+			info.SkipUntilReady = true;
 			using ( Zones.PipelineCreate.Start() ) pipeline = Gpu.CreateGraphicsPipeline( info );
 			pipelines[key] = pipeline;
 			if ( DumpPixelShaders is { } dump && info.FragmentShader.IsValid ) DumpPixelShader( dump, variant, info.FragmentConstants, materialPerDraw );
@@ -1979,6 +1988,51 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>Prepass indices and kept triangles a small view has room for.</summary>
 	internal const int SmallPrepassIndices = 2 << 20;
 	internal const uint SmallKeptCapacity = 1 << 20;
+
+	/// <summary>
+	/// What shadow views' meshlet passes draw from (<see cref="ShadowMeshlets"/>): kept meshlets' indices, 32-bit and 16-bit,
+	/// the copy jobs and a stamps buffer no shadow call writes (its fragments have no visibility). Shared by every shadow call:
+	/// each sets the cursors back before its meshlet pass, after the calls before it drew, so a call has all the room.
+	/// </summary>
+	internal sealed class ShadowMeshletBuffers
+	{
+		public BufferHandle Compacted, Compacted16, Jobs, Stamps;
+		public int Capacity;
+	}
+
+	/// <summary>Indices a shadow call's kept meshlets have room for, in each index size; a fragment past it draws whole.</summary>
+	internal const int ShadowMeshletIndices = 4 << 20;
+
+	ShadowMeshletBuffers shadowMeshletBuffers;
+
+	/// <summary>The shadow views' meshlet buffers (<see cref="ShadowMeshletBuffers"/>), made the first time.</summary>
+	internal ShadowMeshletBuffers ShadowMeshletBuffersNow()
+	{
+		if ( Volatile.Read( ref shadowMeshletBuffers ) is { } known ) return known;
+		using var zone = Zones.VisibilityMake.Start();
+
+		// Made without the lock, as a view's prepass buffers are, and kept unless another thread made them meanwhile
+		var made = new ShadowMeshletBuffers
+		{
+			Capacity = ShadowMeshletIndices,
+			Compacted = Gpu.CreateBuffer( new BufferInfo { Size = ShadowMeshletIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis shadow meshlet triangles" } ),
+			Compacted16 = Gpu.CreateBuffer( new BufferInfo { Size = ShadowMeshletIndices * 2L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis shadow meshlet triangles 16" } ),
+			Jobs = Gpu.CreateBuffer( new BufferInfo { Size = 16 + MeshletJobCapacity * 16L, Usage = BufferUsage.Storage | BufferUsage.Indirect | BufferUsage.CopyDestination, Name = "Borealis shadow meshlet copy jobs" } ),
+			Stamps = Gpu.CreateBuffer( new BufferInfo { Size = 16, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis shadow meshlet stamps" } ),
+		};
+
+		lock ( visibilityViews )
+		{
+			if ( shadowMeshletBuffers is { } other )
+			{
+				foreach ( var buffer in (BufferHandle[])[made.Compacted, made.Compacted16, made.Jobs, made.Stamps] ) Gpu.Destroy( buffer );
+				return other;
+			}
+
+			Volatile.Write( ref shadowMeshletBuffers, made );
+			return made;
+		}
+	}
 
 	/// <summary>Indices a view's compacted buffers need for its depth target (<see cref="VisibilityView.CompactedCapacity"/>).</summary>
 	internal static int CompactedIndicesFor( in TextureInfo depth )
@@ -2548,6 +2602,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		{
 			foreach ( var buffer in visibilityBuffers ) Gpu.Destroy( buffer );
 			foreach ( var texture in visibilityTextures ) Gpu.Destroy( texture );
+			if ( shadowMeshletBuffers is { } shadow )
+			{
+				foreach ( var buffer in (BufferHandle[])[shadow.Compacted, shadow.Compacted16, shadow.Jobs, shadow.Stamps] ) Gpu.Destroy( buffer );
+				shadowMeshletBuffers = null;
+			}
+
 			visibilityBuffers.Clear();
 			visibilityTextures.Clear();
 		}

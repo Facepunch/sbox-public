@@ -150,6 +150,9 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 {
 	readonly BackendDevice device;
 	readonly DrawGeometry[][] draws;
+
+	/// <summary>Per draw, whether its meshlets have been asked for (<see cref="FirstMeshletRequest"/>).</summary>
+	readonly int[][] meshletRequested;
 	readonly SkinnedVertexBuffer[][] skinnedBuffers;
 	readonly VertexCacheDraw?[][] vertexCacheDraws;
 	readonly List<BufferHandle> buffers = new();
@@ -159,6 +162,10 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 
 	// The materials its draws hold (BackendDevice.ModelMaterial), let go when it's freed
 	readonly List<string> materialPaths = new();
+
+	/// <summary>Whether this is the first ask for a draw's meshlets: a shadow view asks for a static mesh draw's once.</summary>
+	internal bool FirstMeshletRequest( int mesh, int call )
+		=> (uint)mesh < (uint)meshletRequested.Length && (uint)call < (uint)meshletRequested[mesh].Length && System.Threading.Interlocked.Exchange( ref meshletRequested[mesh][call], 1 ) == 0;
 
 	/// <summary>The model as read.</summary>
 	public ModelFile File { get; }
@@ -172,6 +179,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		File = file;
 		var gpu = device.Gpu;
 		draws = new DrawGeometry[file.Meshes.Count][];
+		meshletRequested = new int[file.Meshes.Count][];
 		skinnedBuffers = new SkinnedVertexBuffer[file.Meshes.Count][];
 		vertexCacheDraws = new VertexCacheDraw?[file.Meshes.Count][];
 
@@ -231,6 +239,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 			}
 
 			draws[m] = new DrawGeometry[mesh.DrawCalls.Count];
+			meshletRequested[m] = new int[mesh.DrawCalls.Count];
 			vertexCacheDraws[m] = new VertexCacheDraw?[mesh.DrawCalls.Count];
 			var firstVertexId = 0;
 			for ( int d = 0; d < mesh.DrawCalls.Count; d++ )

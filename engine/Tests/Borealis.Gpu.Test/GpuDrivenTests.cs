@@ -1670,6 +1670,156 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// Shadow views cull meshlets (<see cref="BackendDevice.ShadowMeshlets"/>): static models' largest draws as aggregates (a
+	/// large plane, trashcans scaled up on it) and static meshes (resident trashcans), under the sun's two cascades and, apart, round a point light's cube, draw the
+	/// pixels they do without, each call culling its own, from plans and from the resident cull, while the shadow views
+	/// rasterise fewer triangles.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void ShadowViewsDrawOnlyTheMeshletsInside( bool pointLight )
+	{
+		var core = ContentFiles.FindGame().Roots.FirstOrDefault();
+		if ( core is not null ) Borealis.Backend.Meshlets.MeshOptimizer.Directory = EngineFolders.NativeIn( Path.GetDirectoryName( core ) );
+
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var plane = backend.LoadModel( "models/dev/plane_large.vmdl" );
+		var can = backend.LoadModel( "models/citizen_props/trashcan01.vmdl" );
+		if ( plane is null || can is null ) Assert.Inconclusive( "models/dev/plane_large.vmdl or models/citizen_props/trashcan01.vmdl isn't built" );
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Shadow meshlets test" );
+			if ( backend.MeshletStore is null || backend.MeshletCullShader is null ) Assert.Inconclusive( "no meshlets: meshopt or borealis_meshlet_cull_cs is missing" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = pointLight ? Color.Black : new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = pointLight ? 0 : 2;
+
+			// A model's largest draw in a material of the test's, its depth drawn with depth_only (positions alone), as an
+			// aggregate of fragments placed and scaled
+			AggregateObject Aggregate( RenderMesh model, Color colour, (Vector3 Position, float Scale)[] placed )
+			{
+				var draw = model.DrawsForLod( 0 ).ToArray().MaxBy( d => d.IndexCount ) with { Material = backend.CreateMaterial( $"Shadow meshlets {colour}", colour ), ShadowFastPath = true };
+				var baseVertex = ((IBackendGeometry)model.Geometry).For( draw.Mesh, draw.DrawCall ).BaseVertex;
+				var radius = model.Bounds.Size.Length;
+				var fragments = placed.Select( ( p, i ) => new AggregateObject.FragmentDraw
+				{
+					Transform = Matrix3x4.From( new Transform( p.Position, Rotation.FromYaw( i * 50 ), p.Scale ) ),
+					BoundsMin = p.Position - radius * p.Scale,
+					BoundsMax = p.Position + radius * p.Scale,
+					DrawTint = Vector3.One,
+					Args = new GpuBuffer.IndirectDrawIndexedArguments { IndexCount = (uint)draw.IndexCount, InstanceCount = 1, FirstIndex = (uint)draw.StartIndex, BaseVertex = baseVertex, FirstInstance = (uint)i },
+				} ).ToArray();
+				return new AggregateObject( new RenderMesh( model.Geometry, model.Bounds, [[draw]] ), fragments ) { IsStatic = true };
+			}
+
+			var light = new Vector3( 300, 0, 400 );
+			world.Add( Aggregate( plane, new Color( 0.5f, 0.5f, 0.5f ), [(new Vector3( 300, 0, 0 ), 6000 / MathF.Max( plane.Bounds.Size.x, 1 ))] ) );
+			world.Add( Aggregate( can, new Color( 0.7f, 0.6f, 0.5f ), [(light + new Vector3( 0, 0, -300 ), 8), (new Vector3( 900, -500, 0 ), 6), (new Vector3( 1200, 400, 0 ), 6), (new Vector3( -100, 600, 0 ), 5), (new Vector3( 500, 300, 0 ), 4)] ) );
+			if ( pointLight ) world.Add( new LightObject( LightObject.LightKind.Point, new Transform( light ) ) { Radius = 1500, Color = new Color( 40, 40, 40 ) } );
+
+			// Static meshes of the trashcan's draw (resident meshes), whose draws ask for meshlets for the shadow views
+			var canDraw = can.DrawsForLod( 0 ).ToArray().MaxBy( d => d.IndexCount ) with { Material = backend.CreateMaterial( "Shadow meshlets mesh", new Color( 0.4f, 0.6f, 0.7f ) ), ShadowFastPath = true };
+			var canMesh = new RenderMesh( can.Geometry, can.Bounds, [[canDraw]] );
+			foreach ( var at in (Vector3[])[new( 550, 150, 0 ), new( 50, -200, 0 ), new( 700, -150, 0 )] ) world.Add( new MeshObject( canMesh, new Transform( at, Rotation.FromYaw( at.x ), 6 ) ) { IsStatic = true } );
+
+			var view = new RenderView { Name = "Shadow meshlets test", FieldOfView = 70, ZNear = 4, ZFar = 6000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -400, 300 );
+			view.Rotation = Rotation.LookAt( new Vector3( 1000, 450, -400 ) );
+
+			byte[] Frame( bool meshlets, bool residentCull, DrawCensus census = null )
+			{
+				backend.ShadowMeshlets = meshlets;
+				backend.GpuDrivenResidentCull = residentCull;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				backend.Census = census;
+				try
+				{
+					system.Render( world, view, target );
+				}
+				finally
+				{
+					backend.Census = null;
+				}
+
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			// The meshlets built and published
+			for ( int i = 0; i < 300 && (i < 4 || backend.MeshletStore.Pending > 0); i++ )
+			{
+				Frame( false, residentCull: true );
+				if ( backend.MeshletStore.Pending > 0 ) Thread.Sleep( 10 );
+			}
+
+			Assert.AreEqual( 0, backend.MeshletStore.Pending, "the meshlets were built" );
+			Assert.IsTrue( backend.MeshletStore.Published > 0, $"and published: {backend.MeshletReport}" );
+
+			// A census frame (no plans: each call buckets and culls its own): the shadow views' triangles and the pixels
+			var report = "";
+			(long Triangles, long Compacted, byte[] Pixels) Census( bool meshlets )
+			{
+				Frame( meshlets, residentCull: false );
+				var census = new DrawCensus();
+				var pixels = Frame( meshlets, residentCull: false, census: census );
+				census.Resolve( Device );
+				var shadow = census.Draws.Where( d => d.Pass.Contains( pointLight ? "LightObject" : "CSM", StringComparison.Ordinal ) ).ToArray();
+				Assert.IsTrue( shadow.Length > 0 && shadow.All( d => d.Triangles >= 0 ), "the shadow views drew, and their multi-draws were read back" );
+				report += $" {(meshlets ? "with" : "without")}: " + string.Join( "; ", shadow.Select( d => $"{d.Pass} {d.Kind} {d.Triangles}" ) );
+				return (shadow.Sum( d => d.Triangles ), shadow.Where( d => d.Kind?.Contains( "compacted", StringComparison.Ordinal ) == true ).Sum( d => d.Triangles ), pixels);
+			}
+
+			var whole = Census( false );
+			var culled = Census( true );
+
+			// From plans, each call culling its own, then from the resident cull, without and with
+			Frame( false, residentCull: false );
+			var ownWhole = Frame( false, residentCull: false );
+			Frame( true, residentCull: false );
+			var hits = backend.GpuDrivenPlanHits;
+			var ownCulled = Frame( true, residentCull: false );
+			var planned = backend.GpuDrivenPlanHits > hits;
+			for ( int i = 0; i < 3; i++ ) Frame( false, residentCull: true );
+			var residentWhole = Frame( false, residentCull: true );
+			for ( int i = 0; i < 3; i++ ) Frame( true, residentCull: true );
+			var calls = backend.ResidentCullCalls;
+			var residentCulled = Frame( true, residentCull: true );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.IsTrue( culled.Compacted > 0 && culled.Triangles < whole.Triangles * 3 / 4, $"the shadow views drew fewer triangles with meshlets, some from kept meshlets ({culled.Triangles:N0} against {whole.Triangles:N0}):{report}" );
+			Assert.AreEqual( 0, Different( whole.Pixels, ownWhole ), "the frames without draw the same each way" );
+			Assert.AreEqual( 0, Different( whole.Pixels, residentWhole ), "and from the resident cull" );
+			Assert.AreEqual( 0, Different( whole.Pixels, culled.Pixels ), "meshlet-culled shadows draw the same pixels" );
+			Assert.IsTrue( planned, "calls drew from plans" );
+			Assert.AreEqual( 0, Different( ownWhole, ownCulled ), "and from plans" );
+			Assert.IsTrue( backend.ResidentCullCalls > calls, "calls drew from the resident cull" );
+			Assert.AreEqual( 0, Different( residentWhole, residentCulled ), "and from the resident cull" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// Four boxes along x at <paramref name="y"/> and a fifth beyond the far plane, which culling drops, in world space in
 	/// one mesh, and a fragment per box.
 	/// </summary>
