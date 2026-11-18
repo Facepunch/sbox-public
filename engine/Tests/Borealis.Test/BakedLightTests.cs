@@ -186,6 +186,27 @@ public class BakedLightTests
 	}
 
 	/// <summary>
+	/// An extra world's volume (<see cref="LightProbeVolume.SubWorld"/>) lights objects only in views that draw that world, as
+	/// native's binner takes the volumes of the worlds a view renders; the cache key follows what the view shows.
+	/// </summary>
+	[TestMethod]
+	public void ExtraWorldVolumesLightOnlyViewsDrawingThem()
+	{
+		var own = Volume( new Vector3( 500, 0, 0 ), 600 );
+		var extra = Volume( Vector3.Zero, 50, priority: 1 );
+		extra.SubWorld = 2;
+		var volumes = new System.Collections.Generic.List<LightProbeVolume> { own, extra };
+		var small = new Vector3( 1 );
+
+		Assert.AreEqual( 1, LightProbeVolume.Choose( volumes, Vector3.Zero, Vector3.Zero, small, 0, subWorlds: 0b10 ), "drawn: the extra world's" );
+		Assert.AreEqual( 0, LightProbeVolume.Choose( volumes, Vector3.Zero, Vector3.Zero, small, 0, subWorlds: 0b01 ), "not drawn: the world's own" );
+		Assert.AreNotEqual( LightProbeVolume.Key( volumes, 0b10 ), LightProbeVolume.Key( volumes, 0b01 ) );
+
+		extra.Handshake = 5;
+		Assert.AreEqual( 0, LightProbeVolume.Choose( volumes, Vector3.Zero, Vector3.Zero, small, 0, handshake: 5, subWorlds: 0 ), "bound to one not drawn: by position" );
+	}
+
+	/// <summary>
 	/// Only objects that need a probe get one, in the main view, and objects in different volumes draw in different runs.
 	/// </summary>
 	[TestMethod]
