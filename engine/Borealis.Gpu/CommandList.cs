@@ -194,7 +194,15 @@ public sealed unsafe class CommandList
 		}
 
 		vk.vkResetCommandPool( vk.Device, pool, 0 ).Check( "vkResetCommandPool" );
+
+		// One pool stays with the list (most lists use one); the rest go back to the device's spares for any list
 		foreach ( var p in descriptorPools ) vk.vkResetDescriptorPool( vk.Device, p, 0 );
+		for ( int i = descriptorPools.Count - 1; i >= 1; i-- )
+		{
+			device.ReturnDescriptorPool( descriptorPools[i] );
+			descriptorPools.RemoveAt( i );
+		}
+
 		descriptorPool = 0;
 		writtenSets.AsSpan().Clear();
 		TransientSetsWritten = 0;
@@ -815,7 +823,7 @@ public sealed unsafe class CommandList
 	{
 		while ( true )
 		{
-			if ( descriptorPool == descriptorPools.Count ) descriptorPools.Add( CreateDescriptorPool() );
+			if ( descriptorPool == descriptorPools.Count ) descriptorPools.Add( device.TakeDescriptorPool() );
 
 			var allocate = new VkDescriptorSetAllocateInfo { sType = VkStructureType.DescriptorSetAllocateInfo, descriptorPool = descriptorPools[descriptorPool], descriptorSetCount = 1, pSetLayouts = &setLayout };
 			ulong set;
@@ -825,21 +833,6 @@ public sealed unsafe class CommandList
 
 			descriptorPool++;
 		}
-	}
-
-	ulong CreateDescriptorPool()
-	{
-		var sizes = stackalloc VkDescriptorPoolSize[5];
-		sizes[0] = new VkDescriptorPoolSize { type = VkDescriptorType.UniformBuffer, descriptorCount = 1024 };
-		sizes[1] = new VkDescriptorPoolSize { type = VkDescriptorType.StorageBuffer, descriptorCount = 1024 };
-		sizes[2] = new VkDescriptorPoolSize { type = VkDescriptorType.SampledImage, descriptorCount = 1024 };
-		sizes[3] = new VkDescriptorPoolSize { type = VkDescriptorType.StorageImage, descriptorCount = 256 };
-		sizes[4] = new VkDescriptorPoolSize { type = VkDescriptorType.Sampler, descriptorCount = 256 };
-
-		var info = new VkDescriptorPoolCreateInfo { sType = VkStructureType.DescriptorPoolCreateInfo, maxSets = 512, poolSizeCount = 5, pPoolSizes = sizes };
-		ulong descriptorPool;
-		vk.vkCreateDescriptorPool( vk.Device, &info, null, &descriptorPool ).Check( "vkCreateDescriptorPool" );
-		return descriptorPool;
 	}
 
 	void FlushBindings( int bindPoint )

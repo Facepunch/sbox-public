@@ -372,7 +372,7 @@ internal sealed class LodStore : IDisposable
 	}
 
 	/// <summary>
-	/// A draw record over <paramref name="range"/> (from <see cref="GpuDrivenTables.Draw"/>, under its lock): given the range's
+	/// A draw record over <paramref name="range"/> (from <see cref="GpuDrivenTables.Draw"/>, by the thread that made it): given the range's
 	/// levels now if they're published, else when they are. Draw records of levels themselves keep none.
 	/// </summary>
 	public void RegisterDraw( uint draw, in Range range )
@@ -540,7 +540,7 @@ internal sealed class LodStore : IDisposable
 				else Dropped++;
 			}
 
-			// Outside the lock: making the levels' draw records takes the draw table's, under which draws register here
+			// Outside the lock: making the levels' draw records registers them here
 			foreach ( var draw in draws ) records.Enqueue( (draw, MakeRecord( draw, entry )) );
 		}
 
