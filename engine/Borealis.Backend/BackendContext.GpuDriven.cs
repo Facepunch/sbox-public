@@ -671,14 +671,19 @@ internal sealed partial class BackendContext
 
 				// A shadow call's depth-only buckets whose vertex shader reads only positions (as the ids prepass's do): their
 				// meshlets' boxes bound what they draw. Alpha-tested and translucent ones keep their own pass and draw whole
+				// Only aggregates' fragments have meshlets (MeshletStore): a bucket of none draws as before, without a meshlet pass
 				bucket.ShadowMeshlets = meshlets && !ids && bucket.Classic is not null;
+				var aggregates = false;
 				foreach ( var (_, index) in bucket.Batches )
 				{
 					if ( !bucket.ShadowMeshlets ) break;
 					ref readonly var batch = ref batches[index];
 					var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
 					if ( !ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) bucket.ShadowMeshlets = false;
+					aggregates |= batch.Owner is AggregateObject && !batch.Instances;
 				}
+
+				bucket.ShadowMeshlets &= aggregates;
 
 				// Forward's triangles that own a sample, or the prepass's kept meshlets: a multi-draw from the compacted buffer, or
 				// a task run
@@ -932,9 +937,14 @@ internal sealed partial class BackendContext
 		var (firstInstance, compacted) = (region.FirstInstance, region.Compacted);
 		var slots = tables.Slots;
 
+		// Whether a meshlet pass runs: some of the call's id or shadow buckets cull meshlets. A shadow call whose buckets have
+		// none to cull (no aggregates, alpha-tested ones) records nothing more than it did without
+		var (computeMeshlets, taskMeshlets) = meshlets ? MeshletPaths() : (false, false);
+		var meshletPass = computeMeshlets || taskMeshlets;
+
 		// Outside the rendering scope: the culling, the compaction, the meshlet pass and the ids' own rendering scope. A call
 		// the setup culled for that draws no ids, lists or meshlets stays in the scope
-		if ( dispatch || ids || lists || meshlets ) CloseScope( flushClears: false );
+		if ( dispatch || ids || lists || meshletPass ) CloseScope( flushClears: false );
 
 		// Cull and write the commands, then draw them
 		cullDrawer ??= new ShaderDrawer( device );
@@ -979,7 +989,7 @@ internal sealed partial class BackendContext
 		cullAttributes.SetData( "BorealisGpuDrivenCull_t", cullConstants );
 
 		// Another pass of the view this frame may still be drawing from the compacted indices this one writes over
-		if ( lists || meshlets ) r.List.Barrier( PipelineStage.VertexInput, MemoryAccess.IndexRead, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite );
+		if ( lists || meshletPass ) r.List.Barrier( PipelineStage.VertexInput, MemoryAccess.IndexRead, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite );
 		var timer = device.PassTimer;
 		if ( dispatch )
 		{
@@ -1003,12 +1013,11 @@ internal sealed partial class BackendContext
 
 		// The prepass's listed fragments: a group each, which draws its meshlets that can reach a sample (buckets drawn with
 		// task and mesh shaders list none)
-		var (computeMeshlets, taskMeshlets) = meshlets ? MeshletPaths() : (false, false);
 		if ( computeMeshlets ) DispatchMeshlets( cull, region, visibility, samples, dispatch );
 
 		// Only the culling's writes before the draws' reads of them: the draws before it needn't drain
 		var readers = PipelineStage.DrawIndirect | PipelineStage.VertexInput | PipelineStage.VertexShader | (taskMeshlets ? PipelineStage.TaskShader | PipelineStage.MeshShader : 0);
-		if ( dispatch || lists || meshlets ) r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, readers, MemoryAccess.IndirectRead | MemoryAccess.IndexRead | MemoryAccess.ShaderRead );
+		if ( dispatch || lists || meshletPass ) r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, readers, MemoryAccess.IndirectRead | MemoryAccess.IndexRead | MemoryAccess.ShaderRead );
 		r.Pipeline = default;
 		r.Binder = null;
 
