@@ -393,17 +393,45 @@ public class JobDispatcherTest
 		var sum = new long[1];
 		var dispatches = 0;
 
-		// A loaded machine's workers lag behind, holding on to the batches and queue entries of calls that already
-		// joined: the sleep lets them catch up, so each pass measures a warm dispatcher rather than a growing one
+		// A loaded machine's workers can lag whole passes behind, holding on to the batches and queue entries of calls
+		// that already joined: waiting for them first means each pass measures a warm dispatcher rather than a growing one
 		Allocations.AssertSettles( "10 dispatches of 256 items", () =>
 		{
 			for ( int run = 0; run < 10; run++ )
 				JobDispatcher.For( 256, sum, static ( s, i ) => Interlocked.Add( ref s[0], i ) );
 
 			dispatches += 10;
-		}, beforePass: () => Thread.Sleep( 1 ) );
+		}, beforePass: WaitForWorkers );
 
 		Assert.AreEqual( (long)dispatches * (255 * 256 / 2), Interlocked.Read( ref sum[0] ) );
+	}
+
+	/// <summary>
+	/// Wait until every worker has run and let go of everything queued so far. The queue is first in first out, so once
+	/// each worker is holding one of this call's jobs, it has finished every entry queued before them.
+	/// </summary>
+	static void WaitForWorkers()
+	{
+		var workers = Math.Min( JobDispatcher.MaxDegreeOfParallelism - 1, JobDispatcher.Workers.Count );
+		if ( workers <= 0 ) return;
+
+		var gate = new WorkerGate();
+		var handle = JobDispatcher.Begin( workers, gate, static ( g, _ ) =>
+		{
+			Interlocked.Increment( ref g.Arrived );
+			while ( !g.Open ) Thread.Yield();
+		}, itemsPerBatch: 1 );
+
+		var caughtUp = SpinWait.SpinUntil( () => Volatile.Read( ref gate.Arrived ) == workers, 30_000 );
+		gate.Open = true;
+		handle.Join();
+		Assert.IsTrue( caughtUp, $"workers didn't get through their queue in 30s: {gate.Arrived} of {workers} arrived" );
+	}
+
+	sealed class WorkerGate
+	{
+		public int Arrived;
+		public volatile bool Open;
 	}
 
 	[TestMethod]
