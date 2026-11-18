@@ -413,7 +413,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		// Two triangles a face; the sky draws with culling off, so the winding doesn't matter
 		uint[] indices = [0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5, 0, 4, 5, 0, 5, 1, 2, 3, 7, 2, 7, 6, 0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3];
-		return BackendMesh.Create( this, vertices, indices, null, "Sky box" );
+		return BackendMesh.Create( this, vertices, indices, null, "Sky box", pooled: false );
 	}
 
 	/// <summary>
@@ -426,7 +426,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			new MeshVertex( new Vector3( 1, -1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 1, 1 ) ),
 			new MeshVertex( new Vector3( -1, 1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 0, 0 ) ),
 			new MeshVertex( new Vector3( 1, 1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 1, 0 ) ),
-		], [0, 1, 2, 2, 1, 3], null, "Fullscreen quad" );
+		], [0, 1, 2, 2, 1, 3], null, "Fullscreen quad", pooled: false );
 
 	RenderMesh fullscreenQuad;
 

@@ -38,6 +38,9 @@ internal sealed class GpuDrivenTables : IDisposable
 	public const int DrawStride = 32;
 	public const int CommandStride = 20;
 
+	/// <summary>Frames a buffer a table or store grew out of is kept before it's freed: past the frames it was recorded in.</summary>
+	public const ulong RetiredFrames = 4;
+
 	/// <summary>Bytes of a geometry record before its attributes: one bit per semantic.</summary>
 	const int MaskBytes = 32;
 
@@ -71,9 +74,8 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	/// <summary>
 	/// A table in host-visible memory that only grows: records are appended and never change. Growing copies it into a
-	/// bigger buffer with a slot of its own. The old buffer is kept until the tables are disposed: draws recorded earlier
-	/// in the frame being recorded read it at its slot, and a destroy only waits for what's been submitted. It only doubles a
-	/// few times, so that's at most its size again.
+	/// bigger buffer with a slot of its own. The old buffer is kept a few frames (<see cref="FreeRetired"/>): draws recorded
+	/// earlier in the frame being recorded read it at its slot, and a destroy only waits for what's been submitted.
 	/// </summary>
 	sealed class Table( Device gpu, string name, int initial )
 	{
@@ -81,7 +83,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		public int Slot = -1;
 		public long Used;
 		long size;
-		readonly List<BufferHandle> retired = new();
+		readonly List<(BufferHandle Buffer, ulong Frame)> retired = new();
 
 		public uint Append( ReadOnlySpan<byte> record )
 		{
@@ -117,7 +119,7 @@ internal sealed class GpuDrivenTables : IDisposable
 			if ( Buffer.IsValid )
 			{
 				gpu.Map( Buffer )[..(int)Used].CopyTo( gpu.Map( buffer ) );
-				retired.Add( Buffer );
+				retired.Add( (Buffer, gpu.FrameNumber) );
 			}
 
 			Buffer = buffer;
@@ -125,10 +127,25 @@ internal sealed class GpuDrivenTables : IDisposable
 			Slot = gpu.BindlessIndex( buffer );
 		}
 
+		/// <summary>Free the buffers it grew out of <see cref="RetiredFrames"/> frames or more ago: what was recorded with them has been submitted.</summary>
+		public void FreeRetired()
+		{
+			if ( retired.Count == 0 ) return;
+			lock ( this )
+			{
+				for ( int i = retired.Count - 1; i >= 0; i-- )
+				{
+					if ( gpu.FrameNumber - retired[i].Frame < RetiredFrames ) continue;
+					gpu.Destroy( retired[i].Buffer );
+					retired.RemoveAt( i );
+				}
+			}
+		}
+
 		public void Dispose()
 		{
 			if ( Buffer.IsValid ) gpu.Destroy( Buffer );
-			foreach ( var old in retired ) gpu.Destroy( old );
+			foreach ( var (old, _) in retired ) gpu.Destroy( old );
 			retired.Clear();
 		}
 	}
@@ -324,8 +341,8 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	/// <summary>
 	/// A mesh's <paramref name="bytes"/> of vertices or indices in the page at <paramref name="slot"/> are no longer drawn
-	/// (its model has gone). A page none of whose meshes are left goes once nothing it holds is in flight: the page being
-	/// filled stays. Freed ranges in a page that's still held aren't reused.
+	/// (its model has gone). A page none of whose meshes are left goes once nothing it holds is in flight, the page being
+	/// filled too (the next mesh starts a new one). Freed ranges in a page that's still held aren't reused.
 	/// </summary>
 	public void ReleaseRange( int slot, int bytes )
 	{
@@ -333,11 +350,21 @@ internal sealed class GpuDrivenTables : IDisposable
 		{
 			if ( !vertexPagesBySlot.TryGetValue( slot, out var page ) && !indexPagesBySlot.TryGetValue( slot, out page ) ) return;
 			page.Live -= (bytes + 15) & ~15;
-			if ( page.Live <= 0 && !IsCurrent( page ) && !emptyPages.Contains( page ) ) emptyPages.Add( page );
+			if ( page.Live <= 0 && !emptyPages.Contains( page ) ) emptyPages.Add( page );
 		}
 	}
 
-	bool IsCurrent( Page page ) => page == vertexPage || indexPages.ContainsValue( page );
+	/// <summary>Stop filling <paramref name="page"/> if it's the one being filled: the next mesh of its kind starts a new page. Under the pages' lock.</summary>
+	void StopFilling( Page page )
+	{
+		if ( page == vertexPage ) vertexPage = null;
+		foreach ( var (format, current) in indexPages )
+		{
+			if ( current != page ) continue;
+			indexPages.Remove( format );
+			break;
+		}
+	}
 
 	/// <summary>Pages freed since the tables were made (<see cref="ReleaseRange"/>), for soaks and tests.</summary>
 	public int PagesFreed { get; private set; }
@@ -349,18 +376,24 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// </summary>
 	public void FreeEmptyPages()
 	{
+		geometry.FreeRetired();
+		draws.FreeRetired();
+		materials.FreeRetired();
+		fragments.FreeRetired();
+		lighting.FreeRetired();
 		if ( emptyPages.Count == 0 ) return;
 		lock ( pagesLock )
 		{
 			for ( int i = emptyPages.Count - 1; i >= 0; i-- )
 			{
 				var page = emptyPages[i];
-				if ( page.Live > 0 || IsCurrent( page ) )
+				if ( page.Live > 0 )
 				{
 					emptyPages.RemoveAt( i );
 					continue;
 				}
 
+				StopFilling( page );
 				if ( Meshlets is { } meshlets && !meshlets.TryForgetPage( page.Slot ) ) continue;
 				if ( Lods is { } lods && !lods.TryForgetPage( page.Slot ) ) continue;
 				emptyPages.RemoveAt( i );

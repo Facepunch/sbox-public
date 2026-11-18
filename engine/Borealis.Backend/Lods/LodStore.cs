@@ -150,7 +150,8 @@ internal sealed class LodStore : IDisposable
 	BufferHandle table;
 	int tableSlot = -1;
 	long tableRecords;
-	readonly List<BufferHandle> retired = new();
+	// Tables it grew out of, with the frame they were retired in: freed once that frame's lists have been submitted
+	readonly List<(BufferHandle Buffer, long Frame)> retired = new();
 	volatile bool cleared;
 
 	readonly BufferHandle state;
@@ -445,6 +446,12 @@ internal sealed class LodStore : IDisposable
 	{
 		frame++;
 		ReadCounters();
+		for ( int i = retired.Count - 1; i >= 0; i-- )
+		{
+			if ( frame - retired[i].Frame < (long)GpuDrivenTables.RetiredFrames ) continue;
+			gpu.Destroy( retired[i].Buffer );
+			retired.RemoveAt( i );
+		}
 
 		List<Entry> publish = null;
 		long budget = 0;
@@ -602,7 +609,7 @@ internal sealed class LodStore : IDisposable
 			list.CopyBuffer( table, 0, buffer, 0, tableRecords * RecordBytes );
 			list.FillBuffer( buffer, 0, tableRecords * RecordBytes, (size - tableRecords) * RecordBytes );
 			list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite | MemoryAccess.TransferRead );
-			retired.Add( table );
+			retired.Add( (table, frame) );
 		}
 
 		table = buffer;
@@ -775,7 +782,7 @@ internal sealed class LodStore : IDisposable
 		}
 
 		if ( table.IsValid ) gpu.Destroy( table );
-		foreach ( var old in retired ) gpu.Destroy( old );
+		foreach ( var (old, _) in retired ) gpu.Destroy( old );
 		retired.Clear();
 		if ( state.IsValid ) gpu.Destroy( state );
 		foreach ( var buffer in counterRing )
