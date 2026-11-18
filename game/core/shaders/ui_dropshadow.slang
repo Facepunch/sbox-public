@@ -1,4 +1,5 @@
-// ui_dropshadow: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// ui_dropshadow: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 // HEADER: DevShader = true;
 // HEADER: Version = 1;
 

@@ -1,14 +1,14 @@
-// gizmo_sprite.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// gizmo_sprite: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 // The .shader's geometry stage makes a quad of each point. Here the vertex stage does it: the draw runs four vertices
 // per point (ExpandPrimitives), with the point as per-instance inputs, and each vertex makes one corner.
 
 // HEADER: DevShader = true;
 // HEADER: Description = "Sprite rendering for gizmos";
 
-// MODES: Forward();
-
 #include "sbox/pass.slangh"
+
+Mode( Forward );
 
 #include "system.fxc"
 #include "common.fxc"

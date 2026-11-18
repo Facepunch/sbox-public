@@ -1,4 +1,5 @@
-// reactive_mask_debug: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// reactive_mask_debug: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Visualize FSR3 reactive mask as red overlay";

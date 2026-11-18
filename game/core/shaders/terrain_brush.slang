@@ -1,4 +1,5 @@
-// terrain_brush: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// terrain_brush: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 // HEADER: Description = "Terrain Brush Preview";
 // HEADER: DevShader = true;
 // HEADER: DebugInfo = false;

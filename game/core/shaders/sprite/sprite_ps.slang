@@ -1,4 +1,5 @@
-// sprite_ps: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// sprite_ps: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 // HEADER: DevShader = true;
 // HEADER: Description = "Sprite2D rendering";
 
