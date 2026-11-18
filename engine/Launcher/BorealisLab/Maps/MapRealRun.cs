@@ -86,6 +86,8 @@ internal static class MapRealRun
 		using var map = new MapWorld( gpu, folder, core, castShadows: false, aggregatesAsMeshes: Args.Has( "-aggregates-as-meshes" ), bakedLighting: !Args.Has( "-nobaked" ), entities: !Args.Has( "-noentities" ), gpuDriven: gpuDriven );
 		map.SetTarget( options.Width, options.Height, options.Samples );
 		map.System.DepthPrepass = !Args.Has( "-noprepass" );
+		// -lod-ranges: what generated LODs make of each material's ranges (LodRanges)
+		if ( Args.Has( "-lod-ranges" ) && map.Backend.LodStore is { } labelled ) labelled.Labelled = true;
 
 		// -capture-visibility <dir>: the visibility pass's figure instead of timing (debug: needs -msaa 1)
 		var figureFolder = Args.String( "-capture-visibility" );
@@ -241,6 +243,7 @@ internal static class MapRealRun
 		Console.WriteLine( FormattableString.Invariant( $"Built in {building.Elapsed.TotalSeconds:0.0} s after the first frames" ) );
 		Console.WriteLine( map.Backend.MeshletReport );
 		Console.WriteLine( map.Backend.LodReport );
+		if ( Args.Has( "-lod-ranges" ) && map.Backend.LodStore is { } lodStore ) LodRanges.Write( lodStore, map.Backend.LodPixels, options.Width, options.Views, options.Output );
 
 		if ( figure is not null )
 		{
