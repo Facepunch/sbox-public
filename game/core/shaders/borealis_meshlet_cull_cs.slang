@@ -113,6 +113,7 @@ groupshared uint gs_Triangles;
 groupshared uint gs_Padded;
 groupshared uint gs_At;
 groupshared uint gs_Jobs;
+groupshared uint gs_Hole;
 groupshared uint gs_Scan[64];
 
 // Below this share of a fragment's triangles culled, copying the rest costs more than drawing them: it draws whole
@@ -127,6 +128,10 @@ void Copy( uint nJob, uint nThread )
 		return;
 
 	uint4 vJob = g_MeshletJobs.Load4( 16 + nJob * 16 );
+
+	// A meshlet's triangles at most (255, padded), within the compacted buffer: anything else isn't a job this call wrote
+	if ( vJob.z > 768 || vJob.x >= g_nMeshletCapacity || vJob.z + 3 > g_nMeshletCapacity - vJob.x )
+		return;
 	ByteAddressBuffer page = g_bindless_VertexBuffers[ vJob.w & 0x7fffffffu ];
 	if ( ( vJob.w & 0x80000000u ) != 0 )
 	{
@@ -185,6 +190,7 @@ void Copy( uint nJob, uint nThread )
 			gs_Count = 0;
 			gs_Triangles = 0;
 			gs_Padded = 0;
+			gs_Hole = None;
 		}
 		GroupMemoryBarrierWithGroupSync();
 
@@ -225,7 +231,12 @@ void Copy( uint nJob, uint nThread )
 			{
 				g_MeshletJobs.InterlockedAdd( 0, nKeptMeshlets, nJobs );
 				if ( nJobs + nKeptMeshlets > uint( g_nMeshletViewport.z ) )
+				{
+					// No room: the slots it took below the capacity would keep whatever an earlier call left there, and
+					// the copy pass runs every slot up to the count, so they're zeroed (a job of no indices)
+					gs_Hole = nJobs;
 					nJobs = None;
+				}
 				else
 				{
 					// A buffer made this frame starts its cursor wherever: whole draws until its first clear
@@ -259,6 +270,9 @@ void Copy( uint nJob, uint nThread )
 		GroupMemoryBarrierWithGroupSync();
 		uint nAt = gs_At;
 		uint nJobs = gs_Jobs;
+		uint nHole = gs_Hole;
+		for ( uint k = nThread; nHole != None && k < nKeptMeshlets && nHole + k < uint( g_nMeshletViewport.z ); k += 64 )
+			g_MeshletJobs.Store4( 16 + ( nHole + k ) * 16, uint4( 0, 0, 0, 0 ) );
 		if ( nAt == None )
 		{
 			// Jobs it took but has no room for copy nothing; its earlier chunks' kept meshlets are drawn twice, which the
