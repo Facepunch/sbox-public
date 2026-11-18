@@ -522,7 +522,7 @@ public static partial class MenuUtility
 
 		if ( !Application.IsEditor )
 		{
-			Sandbox.Mounting.MountConfig.Save();
+			Sandbox.Mounting.Directory.SaveConfig();
 		}
 	}
 

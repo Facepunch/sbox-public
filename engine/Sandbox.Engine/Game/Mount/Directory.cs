@@ -4,7 +4,7 @@ using System.Reflection;
 
 namespace Sandbox.Mounting;
 
-public static class Directory
+public static partial class Directory
 {
 	static MountHost _system;
 
@@ -19,7 +19,10 @@ public static class Directory
 		// Create system first.
 		var config = new Configuration();
 		config.SteamIntegration = new SteamIntegration();
+		config.IsDedicatedServer = Application.IsDedicatedServer;
 		_system = new MountHost( config );
+
+		LoadConfig();
 
 		if ( !System.IO.Directory.Exists( "mounts/" ) )
 			return;
@@ -200,29 +203,72 @@ public static class Directory
 	}
 
 	/// <summary>
-	/// Get a specific mount by name
+	/// Get a specific mount by ident
 	/// </summary>
-	public static BaseGameMount Get( string name )
+	public static BaseGameMount Get( string ident )
 	{
-		return _system.GetSource( name );
+		return _system.GetSource( ident );
 	}
 
 	/// <summary>
 	/// Mount this game if we can. Returns null if it can't be mounted, or the mount object if it can.
 	/// If we're already mounted, will just return the mount straight away.
 	/// </summary>
-	public static async Task<BaseGameMount> Mount( string name )
+	public static async Task<BaseGameMount> Mount( string ident )
 	{
-		var source = _system.GetSource( name );
+		var source = _system.GetSource( ident );
 		if ( source is null ) return null;
 		if ( source.IsMounted ) return source;
 		if ( source.IsInstalled == false ) return source;
 
-		await SetMountState( name, true );
+		await SetMountState( ident, true );
 
 		if ( !source.IsMounted ) return null;
 
 		return source;
+	}
+
+	[ConCmd( "mount", ConVarFlags.Protected, Help = "Mount a game by ident" )]
+	private static async Task Cmd_Mount( string ident ) => await CmdSetMountState( ident, true );
+
+	[ConCmd( "unmount", ConVarFlags.Protected, Help = "Unmount a game by ident" )]
+	private static async Task Cmd_Unmount( string ident ) => await CmdSetMountState( ident, false );
+
+	private static async Task CmdSetMountState( string ident, bool mount )
+	{
+		var source = _system.GetSource( ident );
+		if ( source is null )
+		{
+			Log.Info( $"Unknown mount '{ident}'" );
+			return;
+		}
+
+		if ( source.IsMounted == mount )
+		{
+			Log.Info( $"{source.Title} is already {(mount ? "mounted" : "unmounted")}!" );
+			return;
+		}
+
+		if ( mount && !source.IsInstalled )
+		{
+			Log.Info( $"{source.Title} is not installed. It must be installed before it can be mounted." );
+			return;
+		}
+
+		await SetMountState( ident, mount );
+
+		if ( !Application.IsEditor )
+		{
+			SaveConfig();
+		}
+
+		if ( source.IsMounted != mount )
+		{
+			Log.Info( $"Failed to {(mount ? "mount" : "unmount")} '{ident}'. See log for details." );
+			return;
+		}
+
+		Log.Info( $"Successfully {(mount ? "mounted" : "unmounted")} {source.Title}" );
 	}
 
 	/// <summary>

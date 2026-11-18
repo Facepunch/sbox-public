@@ -95,7 +95,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		if ( !Application.IsStandalone && !Application.IsEditor )
 		{
-			await Mounting.MountConfig.Mount();
+			await Mounting.Directory.MountFromConfig();
 		}
 	}
 

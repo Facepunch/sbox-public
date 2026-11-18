@@ -94,6 +94,11 @@ public abstract class BaseGameMount
 	internal MountHost _host;
 
 	/// <summary>
+	/// This mount's entry in mounts.json. Set before <see cref="Initialize"/>.
+	/// </summary>
+	internal MountSettings Config { get; set; } = new();
+
+	/// <summary>
 	/// This mount's generated thumbnails, laid out by resource relative path. Null if the mount
 	/// didn't come from a project with a Mounts folder.
 	/// </summary>
@@ -128,7 +133,7 @@ public abstract class BaseGameMount
 	internal void InitializeInternal( MountHost system )
 	{
 		_host = system;
-		Initialize( new InitializeContext( system ) );
+		Initialize( new InitializeContext( system, this ) );
 	}
 
 	/// <summary>

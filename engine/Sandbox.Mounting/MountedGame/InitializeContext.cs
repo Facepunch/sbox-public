@@ -3,10 +3,12 @@
 public ref struct InitializeContext
 {
 	private MountHost system;
+	private BaseGameMount mount;
 
-	internal InitializeContext( MountHost system )
+	internal InitializeContext( MountHost system, BaseGameMount mount )
 	{
 		this.system = system;
+		this.mount = mount;
 	}
 
 	// progress output, error recording etc
@@ -17,10 +19,27 @@ public ref struct InitializeContext
 	}
 
 	/// <summary>
+	/// Dedicated servers have no SteamApps, so the host points each mount at its game install from the config.
+	/// Null if there isn't one or it doesn't exist.
+	/// </summary>
+	readonly string ServerInstallPath
+	{
+		get
+		{
+			var path = mount?.Config?.Path;
+			if ( string.IsNullOrWhiteSpace( path ) ) return null;
+
+			return System.IO.Directory.Exists( path ) ? path : null;
+		}
+	}
+
+	/// <summary>
 	/// Return true if this app is installed on Steam
 	/// </summary>
 	public bool IsAppInstalled( long appid )
 	{
+		if ( system.IsDedicatedServer ) return ServerInstallPath is not null;
+
 		return system.Steam?.IsAppInstalled( appid ) ?? false;
 	}
 
@@ -29,6 +48,9 @@ public ref struct InitializeContext
 	/// </summary>
 	public bool IsDlcInstalled( long appid )
 	{
+		// sure? maybe this should be a settings list
+		if ( system.IsDedicatedServer ) return ServerInstallPath is not null;
+
 		return system.Steam?.IsDlcInstalled( appid ) ?? false;
 	}
 
@@ -41,8 +63,9 @@ public ref struct InitializeContext
 	{
 		if ( !IsAppInstalled( appid ) ) return null;
 
-		// Note: a read-only, rooted filesystem stops writes and directory traversal above the app
-		// root, but it can't hide files within that game's folder (configs, etc.) from a mount.
+		if ( system.IsDedicatedServer )
+			return new LocalFileSystem( ServerInstallPath, makereadonly: true );
+
 		return system.Steam?.GetFileSystem( appid );
 	}
 }
