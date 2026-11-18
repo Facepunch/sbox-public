@@ -344,7 +344,7 @@ internal sealed partial class SceneMirror
 
 		foreach ( var model in loading )
 		{
-			if ( !model.IsValid() || gpu.ModelRead( model.ResourcePath ) ) loaded.Add( model );
+			if ( !model.IsValid() || MirrorContent.MeshRead( model, gpu ) ) loaded.Add( model );
 		}
 
 		if ( loaded.Count == 0 ) return;

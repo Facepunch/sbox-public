@@ -159,6 +159,48 @@ public sealed partial class BackendDevice
 	}
 
 	/// <summary>
+	/// Start reading a model made at run time, which has no file: <paramref name="save"/> makes its compiled bytes
+	/// (<c>Model.SaveToVmdl</c>) on a worker, where they're read with its materials and textures, for <see cref="MakeModel"/>.
+	/// </summary>
+	public Task<ModelFile> ReadModelAsync( Func<byte[]> save )
+	{
+		Interlocked.Increment( ref readsPending );
+		return Task.Run( () =>
+		{
+			try
+			{
+				using var zone = Zones.ModelRead.Start();
+				return ReadModelAhead( save() );
+			}
+			finally
+			{
+				Interlocked.Decrement( ref readsPending );
+			}
+		} );
+	}
+
+	/// <summary>
+	/// A model <see cref="ReadModelAsync"/> read, made as <see cref="LoadModelAsync"/> makes one: null with
+	/// <paramref name="pending"/> set while it's read or once this frame's budget is spent; ask again later. Null without
+	/// pending when it couldn't be read. Call on one thread at a time.
+	/// </summary>
+	public RenderMesh MakeModel( Task<ModelFile> read, ulong meshGroups, bool drawFastPath, out bool pending )
+	{
+		pending = false;
+		if ( !read.IsCompleted || !WithinBudget() )
+		{
+			pending = true;
+			pendingFrame = loadFrame;
+			return null;
+		}
+
+		if ( !read.IsCompletedSuccessfully || read.Result is not { } file ) return null;
+		using ( Zones.ModelMake.Start() )
+		using ( Gpu.DeferUploads() )
+			return BackendModel.Create( this, file, meshGroups, drawFastPath: drawFastPath );
+	}
+
+	/// <summary>
 	/// Whether this frame's <see cref="LoadBudgetMs"/> and <see cref="LoadUploadBytes"/> have room left; they start with the
 	/// first thing made in the frame.
 	/// </summary>
@@ -244,9 +286,10 @@ public sealed partial class BackendDevice
 	}
 
 	// On a worker: the model's file, and its materials' files and textures, read and decoded for the thread that makes them
-	ModelFile ReadModelAhead( string path )
+	ModelFile ReadModelAhead( string path ) => Content.TryRead( path ) is { } data ? ReadModelAhead( data ) : null;
+
+	ModelFile ReadModelAhead( byte[] data )
 	{
-		if ( Content.TryRead( path ) is not { } data ) return null;
 		var file = ModelFile.Read( data, Content.TryRead );
 		foreach ( var mesh in file.Meshes )
 		{
