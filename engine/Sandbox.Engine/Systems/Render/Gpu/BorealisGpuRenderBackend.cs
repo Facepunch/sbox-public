@@ -638,6 +638,13 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		context.Track( handle, layout );
 	}
 
+	/// <summary>
+	/// Stop tracking a borrowed texture's layout and drop its mip views (<see cref="Borrow"/>), as giving its engine texture
+	/// another backing does: it isn't the block's any more, so finishing a block leaves it alone. Its engine texture keeps
+	/// the backing, tracked again when it's next borrowed.
+	/// </summary>
+	internal void ForgetBorrowed( TextureHandle handle ) => context.Forget( handle );
+
 	/// <summary>The layout an engine texture's backing is in, as the recording left it.</summary>
 	internal ImageLayout LayoutOf( Texture texture ) => textures.TryGetValue( texture, out var backing ) ? context.LayoutOf( backing.Handle ) : ImageLayout.Undefined;
 
