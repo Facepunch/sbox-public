@@ -106,6 +106,10 @@ internal enum VkStructureType
 	PipelineExecutableInfoKhr = 1000269003,
 	PipelineExecutableStatisticKhr = 1000269004,
 	PhysicalDeviceMeshShaderFeaturesExt = 1000328000,
+	PipelineLibraryCreateInfoKhr = 1000290000,
+	PhysicalDeviceGraphicsPipelineLibraryFeaturesExt = 1000320000,
+	PhysicalDeviceGraphicsPipelineLibraryPropertiesExt = 1000320001,
+	GraphicsPipelineLibraryCreateInfoExt = 1000320002,
 	PhysicalDeviceFaultFeaturesExt = 1000341000,
 	DeviceFaultCountsExt = 1000341001,
 	DeviceFaultInfoExt = 1000341002,
@@ -370,6 +374,26 @@ internal static class Vk
 	public const int DynamicScissor = 1;
 	public const int DynamicDepthBias = 3;
 	public const int DynamicStencilReference = 8;
+	public const int DynamicStencilCompareMask = 6;
+	public const int DynamicStencilWriteMask = 7;
+	public const int DynamicCullMode = 1000267000;
+	public const int DynamicFrontFace = 1000267001;
+	public const int DynamicDepthTestEnable = 1000267006;
+	public const int DynamicDepthWriteEnable = 1000267007;
+	public const int DynamicDepthCompareOp = 1000267008;
+	public const int DynamicStencilTestEnable = 1000267010;
+	public const int DynamicStencilOp = 1000267011;
+	public const int DynamicDepthBiasEnable = 1000377002;
+
+	// VkPipelineCreateFlagBits, VkGraphicsPipelineLibraryFlagBitsEXT
+	public const uint PipelineCreateLinkTimeOptimization = 0x400;
+	public const uint PipelineCreateLibrary = 0x800;
+	public const uint PipelineCreateRetainLinkTimeOptimizationInfo = 0x00800000;
+	public const uint LibraryVertexInput = 0x1;
+	public const uint LibraryPreRasterization = 0x2;
+	public const uint LibraryFragmentShader = 0x4;
+	public const uint LibraryFragmentOutput = 0x8;
+	public const uint PipelineLayoutIndependentSets = 0x2;
 
 	// VkSemaphoreType
 	public const int SemaphoreBinary = 0;

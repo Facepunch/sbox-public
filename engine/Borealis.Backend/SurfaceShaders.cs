@@ -38,6 +38,27 @@ public sealed class SurfaceShaders : IDisposable
 	/// </summary>
 	internal SurfacePipelineManifest Manifest { get; }
 
+	/// <summary>
+	/// Make each program's pipeline parts ahead as it compiles (<see cref="SurfaceProgram.PrepareParts"/>), where the device
+	/// links pipelines from parts. Off unless <c>-prepare-parts</c>: on Construct it made over three times the parts a
+	/// session links, and the tour's first draws still made theirs (other specialization constants, GPU-driven variants).
+	/// </summary>
+	public bool PrepareParts { get; set; } = BackendDevice.HasSwitch( "-prepare-parts" );
+
+	/// <summary>
+	/// Specialization constants' values by attribute, as draws last looked them up: global settings (shadow filter quality,
+	/// DDGI and the like), the same for every program. What parts made ahead take for them.
+	/// </summary>
+	internal IReadOnlyDictionary<string, int> SpecializationValues => specializationValues;
+
+	readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> specializationValues = new( StringComparer.Ordinal );
+
+	/// <summary>A draw looked a specialization constant up (<see cref="SpecializationValues"/>).</summary>
+	internal void SpecializationLookedUp( string attribute, int value )
+	{
+		if ( !specializationValues.TryGetValue( attribute, out var known ) || known != value ) specializationValues[attribute] = value;
+	}
+
 	/// <summary>Folders searched for shaders by file name, in order.</summary>
 	public IReadOnlyList<string> Folders => folders;
 
@@ -592,6 +613,7 @@ public sealed class SurfaceShaders : IDisposable
 					var compiled = await (raw ? compiler.CompileRawAsync( path, priority ) : compiler.CompileSurfaceAsync( path, priority )).ConfigureAwait( false );
 					program = new SurfaceProgram( device, compiled ) { SourceFile = file };
 					if ( Manifest?.Take( file, program ) is { Count: > 0 } requests ) program.Prewarm( requests );
+					if ( PrepareParts ) program.PrepareParts();
 					if ( compiled.GpuDrivenError is { } gpuDrivenError ) Error?.Invoke( $"{file}: no GPU-driven passes, its draws go the classic way: {gpuDrivenError}" );
 				}
 				catch ( ShaderCompileException e )
@@ -867,6 +889,51 @@ internal sealed class SurfaceProgram : IDisposable
 
 		making.Wait();
 		return Pipeline( pass, layout, color, depth, samples, vertexConstants, pixelConstants, constantsKey, state, ids, opaqueFade, depthEqual, specialized, normals );
+	}
+
+	/// <summary>
+	/// Make each pass's shader parts on a worker (pre-rasterisation from its vertex stage, fragment from its pixel stage), with
+	/// the specialization constants its draws most likely have, where the device links pipelines from parts
+	/// (<see cref="DeviceCapabilities.PipelineLibraries"/>): a first draw's pipeline is then a fast link. A draw that needs a
+	/// part a worker is making waits for it rather than make it again.
+	/// </summary>
+	public void PrepareParts()
+	{
+		if ( !device.Gpu.Capabilities.PipelineLibraries ) return;
+		lock ( pipelines )
+		{
+			if ( disposed ) return;
+			builds.RemoveAll( b => b.IsCompleted );
+			builds.Add( System.Threading.Tasks.Task.Run( () =>
+			{
+				foreach ( var pass in passes.Values )
+				{
+					if ( System.Threading.Volatile.Read( ref disposed ) ) return;
+					var perPixel = pass.Pass.Name.Contains( ShaderPasses.GpuDriven, StringComparison.Ordinal ) || device.Surfaces.MaterialOffsetPerPixel;
+					var pixel = pass.Pixel.IsValid;
+					var info = new GraphicsPipelineInfo
+					{
+						VertexShader = pass.Vertex,
+						VertexEntry = pass.Pass.Vertex.Entry,
+						VertexConstants = BackendContext.LikelySurfaceConstants( pass.Pass.Vertex, perPixel, device.Surfaces.SpecializationValues ),
+						FragmentShader = pixel ? pass.Pixel : default,
+						FragmentEntry = pixel ? pass.Pass.Pixel.Entry : null,
+						FragmentConstants = pixel ? BackendContext.LikelySurfaceConstants( pass.Pass.Pixel, perPixel, device.Surfaces.SpecializationValues ) : null,
+						Sets = pass.Sets,
+						Name = $"{Compiled.Name} {pass.Pass.Name}",
+					};
+
+					try
+					{
+						using ( Zones.PipelineCreate.Start() ) device.Gpu.PreparePipelineParts( info, PipelineParts.PreRasterization | PipelineParts.FragmentShader );
+					}
+					catch ( GpuException )
+					{
+						// Made again by the draw that needs it, which reports it
+					}
+				}
+			} ) );
+		}
 	}
 
 	/// <summary>

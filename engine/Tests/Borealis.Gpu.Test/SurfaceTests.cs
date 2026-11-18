@@ -1937,6 +1937,9 @@ public class SurfaceTests : GpuTest
 			backend.BeginFrame();
 			RenderHost.Current.NextFrame();
 			system.Render( world, view, target );
+
+			// The pictures compared are the optimised links': fast-linked ones may draw some surfaces differently until then
+			if ( frame == 0 ) Assert.IsTrue( Device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ), "the optimised pipeline links finish" );
 		}
 
 		Device.WaitIdle();

@@ -225,6 +225,7 @@ internal static class MapRealRun
 		}
 
 		if ( firstFrames.Count > 0 ) Console.WriteLine( $"First frames: {string.Join( ", ", firstFrames )}" );
+		if ( gpu.Capabilities.PipelineLibraries ) Console.WriteLine( $"Pipeline libraries after the first frames: {gpu.PipelineLibraryCreation}" );
 		Console.WriteLine( map.Backend.PipelineManifestReport );
 
 		// Meshlets and generated LODs build on workers after load (and levels' meshlets after their levels), asked for as draws
@@ -237,7 +238,8 @@ internal static class MapRealRun
 		{
 			MapRun.Pump( window );
 			RenderFrame( options.Views[0] );
-			if ( map.Backend.BuildsPending > 0 || map.Backend.BuildsRequested != asked ) quiet.Restart();
+			// Optimised pipeline links replacing fast ones are background work too
+			if ( map.Backend.BuildsPending > 0 || map.Backend.BuildsRequested != asked || gpu.PipelineLibraryCreation.Pending > 0 ) quiet.Restart();
 			asked = map.Backend.BuildsRequested;
 		}
 
@@ -548,6 +550,7 @@ internal static class MapRealRun
 		Console.WriteLine( bindingReport );
 		var (allPipelines, allPipelineMs) = gpu.PipelineCreation;
 		Console.WriteLine( $"Pipelines made in the whole run: {allPipelines}, {allPipelineMs:0.0} ms" );
+		if ( gpu.Capabilities.PipelineLibraries ) Console.WriteLine( $"Pipeline libraries in the whole run: {gpu.PipelineLibraryCreation}" );
 		gpu.WaitIdle();
 		if ( censusFolder is not null ) File.WriteAllText( Path.Combine( censusFolder, "census.md" ), censusReport.ToString() );
 		Directory.CreateDirectory( options.Output );
