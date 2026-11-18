@@ -327,7 +327,8 @@ public sealed unsafe partial class Device
 
 			try
 			{
-				memory = Allocator.Allocate( requirements, MemoryLocation.Device, image: true );
+				var target = (desc.Usage & (TextureUsage.ColorTarget | TextureUsage.DepthTarget | TextureUsage.Storage)) != 0;
+				memory = Allocator.Allocate( requirements, MemoryLocation.Device, image: true, target );
 				Vk.vkBindImageMemory( Vk.Device, image, memory.Memory, memory.Offset ).Check( "vkBindImageMemory" );
 			}
 			catch
