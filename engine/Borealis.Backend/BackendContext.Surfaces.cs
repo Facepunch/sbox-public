@@ -244,6 +244,25 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
+	/// The specialization constants a stage's draws most likely have, as <see cref="SurfaceConstants"/> makes them: each slot's
+	/// default, not in the 3D skybox, not fading. What a program's parts are made ahead with (<see cref="SurfaceProgram.PrepareParts"/>).
+	/// </summary>
+	internal static SpecializationConstant[] LikelySurfaceConstants( CompiledStage stage, bool perPixel )
+	{
+		var constants = new SpecializationConstant[stage.Specializations.Count + 3];
+		for ( int i = 0; i < stage.Specializations.Count; i++ )
+		{
+			var slot = stage.Specializations[i];
+			constants[i] = new SpecializationConstant( (uint)slot.Id, (uint)(int)(slot.Annotations?.Default is { Length: > 0 } d ? d[0] : 0) );
+		}
+
+		constants[^3] = new SpecializationConstant( SkyboxId, 0 );
+		constants[^2] = new SpecializationConstant( MaterialOffsetPerPixelId, perPixel ? 1u : 0u );
+		constants[^1] = new SpecializationConstant( OpaqueFadeId, 0 );
+		return constants;
+	}
+
+	/// <summary>
 	/// A stage's specialization constants (<c>SpecializedConstant()</c> globals: <c>ShadowFilterQuality</c>,
 	/// <c>DDGI_Enabled</c>, <c>ToolsVisMode</c>), each from its attribute or its default, as classic variants take them;
 	/// <paramref name="key"/> tells their values apart for the pipeline cache.
