@@ -1,13 +1,14 @@
-// borealis_hiz_cs.shader as a pass module: Borealis.Gpu draws this. The .shader only declares its constants (its
-// reflection is what the backend's struct is checked against): two-phase Hi-Z occlusion draws only where pass modules do.
+// borealis_hiz_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). Its
+// reflection is what the backend's constants struct is checked against; it draws only with -hiz-occlusion.
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis two-phase Hi-Z occlusion: builds a prepass's Hi-Z from the depth its first phase drew and culls the second phase's fragments against it.";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #include "system.fxc" // This should always be the first include in COMMON

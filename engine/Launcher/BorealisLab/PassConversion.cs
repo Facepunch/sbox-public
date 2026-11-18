@@ -5,10 +5,12 @@ using Sandbox.ShaderCompiler;
 namespace Sandbox.BorealisLab;
 
 /// <summary>
-/// <c>-convert-passes a,b [-overwrite] [-compile-only]</c>: writes the pass module (<see cref="PassConverter"/>) beside each
-/// named shader (a path under <c>core/shaders</c> without its extension: <c>copytexture</c>,
+/// <c>-convert-passes a,b [-overwrite] [-standalone] [-compile-only]</c>: writes the pass module (<see cref="PassConverter"/>)
+/// beside each named shader (a path under <c>core/shaders</c> without its extension: <c>copytexture</c>,
 /// <c>postprocess/pp_vignette</c>), keeping a module that's there unless <c>-overwrite</c>, then compiles each module's
-/// stages with every combo at its first value and each combo at its last in turn. <c>-compile-only</c> writes nothing.
+/// stages with every combo at its first value and each combo at its last in turn. <c>-standalone</c> writes a standalone
+/// module (its modes declared), or makes one that's there standalone; a module with no <c>.shader</c> left is still
+/// compiled. <c>-compile-only</c> writes nothing.
 /// Prints a line per shader; exits 1 when any doesn't compile. No device and nothing of the engine starts.
 /// </summary>
 internal static class PassConversion
@@ -28,7 +30,7 @@ internal static class PassConversion
 		{
 			var source = Path.Combine( shaders, name + ".shader" );
 			var target = Path.ChangeExtension( source, ".slang" );
-			if ( !File.Exists( source ) && !Args.Has( "-compile-only" ) )
+			if ( !File.Exists( source ) && !Args.Has( "-compile-only" ) && !(Args.Has( "-standalone" ) && File.Exists( target )) )
 			{
 				Console.WriteLine( $"{name}: no {source}" );
 				failed++;
@@ -44,7 +46,15 @@ internal static class PassConversion
 					continue;
 				}
 
-				File.WriteAllText( target, PassConverter.Convert( text, Path.GetFileNameWithoutExtension( source ) ).Replace( "\n", "\r\n" ) );
+				var stem = Path.GetFileNameWithoutExtension( source );
+				File.WriteAllText( target, (Args.Has( "-standalone" ) ? PassConverter.ConvertStandalone( text, stem ) : PassConverter.Convert( text, stem )).Replace( "\n", "\r\n" ) );
+			}
+			else if ( !Args.Has( "-compile-only" ) && Args.Has( "-standalone" ) && File.Exists( target ) )
+			{
+				// A module that's there already: its modes become declarations, nothing else changes
+				var text = File.ReadAllText( target );
+				var standalone = PassConverter.Standalone( text, Path.GetFileNameWithoutExtension( target ) );
+				if ( standalone != text ) File.WriteAllText( target, standalone );
 			}
 
 			if ( !File.Exists( target ) )

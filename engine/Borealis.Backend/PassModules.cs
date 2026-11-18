@@ -175,21 +175,33 @@ public sealed class PassModules : IShaderModules
 			Strings = [],
 		};
 
-		// The GPU-driven form's combo is the module's own: only CompileGpuDriven sets it
+		// The GPU-driven form's combo is the module's own: only CompileGpuDriven sets it. A mode's combo no mode sets (an
+		// include's S_MODE_DEPTH in a shader without a Depth mode) is always 0, and vfx leaves it out
+		var modes = module.Standalone ? Modes( module.Modes ) : Modes( module.Text );
+
+		// A mode that names no combo sets its own where the module has one (Depth sets S_MODE_DEPTH), as vfx does
+		var statics = new[] { StageKind.Vertex, StageKind.Pixel, StageKind.Compute }.SelectMany( k => module.Combos( k ) ).Where( c => c.Static ).Select( c => c.Name ).ToHashSet( StringComparer.Ordinal );
+		modes = [.. modes.Select( m => m.Settings.Length == 0 && string.IsNullOrEmpty( m.Fallback ) && statics.Contains( $"S_MODE_{m.Name.ToUpperInvariant()}" )
+			? new ShaderMode { Name = m.Name, Fallback = "", Settings = [($"S_MODE_{m.Name.ToUpperInvariant()}", 1)] }
+			: m )];
+		bool Settable( PassCombo c ) => !c.Name.StartsWith( "S_MODE_", StringComparison.Ordinal ) || modes.Any( m => m.Settings.Any( s => s.Combo == c.Name ) );
 		var programs = new List<(ShaderProgramType, ShaderCombo[], ShaderCombo[])>();
 		foreach ( var (kind, type) in new[] { (StageKind.Vertex, ShaderProgramType.Vertex), (StageKind.Pixel, ShaderProgramType.Pixel), (StageKind.Compute, ShaderProgramType.Compute) } )
 		{
 			if ( !module.Has( kind ) ) continue;
 			var combos = module.Combos( kind );
-			programs.Add( (type, combos.Where( c => c.Static ).Select( c => Combo( c, true ) ).ToArray(), combos.Where( c => !c.Static && c.Name != PassModule.GpuDrivenCombo ).Select( c => Combo( c, false ) ).ToArray()) );
+			programs.Add( (type, combos.Where( c => c.Static && Settable( c ) ).Select( c => Combo( c, true ) ).ToArray(), combos.Where( c => !c.Static && c.Name != PassModule.GpuDrivenCombo ).Select( c => Combo( c, false ) ).ToArray()) );
 		}
 
-		return ShaderFile.FromModule( compiledPath, module.Standalone ? Modes( module.Modes ) : Modes( module.Text ), features, programs );
+		return ShaderFile.FromModule( compiledPath, modes, features, programs );
 	}
 
 	/// <inheritdoc/>
 	public ShaderFile DescribeStandalone( string compiledPath ) =>
 		!(Skip.Count > 0 && Skip.Contains( Path.GetFileName( compiledPath ).Split( '.' )[0] )) && ModuleBeside( compiledPath ) is { Standalone: true } ? Describe( compiledPath ) : null;
+
+	/// <inheritdoc/>
+	public IReadOnlyCollection<string> BindingNames( ShaderFile shader ) => ModuleOf( shader )?.BindingNames() ?? [];
 
 	/// <inheritdoc/>
 	public bool HasGpuDriven( ShaderFile shader ) => !Skipped( shader ) && ModuleOf( shader ) is { } module && module.HasGpuDriven( StageKind.Vertex );

@@ -1,13 +1,14 @@
-// borealis_meshlet_cull_cs.shader as a pass module: Borealis.Gpu draws this. The .shader only declares its constants (its
-// reflection is what the backend's struct is checked against): meshlets draw only where pass modules do.
+// borealis_meshlet_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). Its
+// reflection is what the backend's constants struct is checked against.
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis meshlet culling: a group per fragment a depth prepass listed tests its meshlets against the view and draws those that can reach a sample from compacted indices.";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #include "system.fxc" // This should always be the first include in COMMON

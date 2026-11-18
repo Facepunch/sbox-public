@@ -156,6 +156,45 @@ public sealed partial class PassModule
 	/// <summary>Read a module from text, reported as <paramref name="path"/>.</summary>
 	public static PassModule FromText( string path, string text, IReadOnlyList<string> searchPaths = null ) => new( path, text, searchPaths );
 
+	IReadOnlyCollection<string> bindingNames;
+
+	/// <summary>
+	/// The names its globals can be bound by: every identifier and <c>Attribute( "Name" )</c> in its text and every file it
+	/// includes (whatever the combos), so each variable, buffer, attribute, sampler state, source and combo. More than a
+	/// variant binds, never less. A <c>.shader_c</c>'s variables say these for a compiled shader; for one only a module
+	/// describes, these are what code that sets values by token (<c>StringToken.Literal</c>) is matched against.
+	/// </summary>
+	public IReadOnlyCollection<string> BindingNames()
+	{
+		if ( bindingNames is { } known ) return known;
+
+		var found = new HashSet<string>( StringComparer.Ordinal );
+		var seen = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		void Scan( string from, string text )
+		{
+			foreach ( Match m in AttributeName().Matches( text ) ) found.Add( m.Groups["name"].Value );
+			foreach ( Match m in Identifier().Matches( text ) ) found.Add( m.Value );
+			foreach ( Match m in IncludeName().Matches( text ) )
+			{
+				if ( Include( from, m.Groups["name"].Value ) is { } include && seen.Add( include.Path ) ) Scan( include.Path, include.Text );
+			}
+		}
+
+		Scan( Path, Text );
+		foreach ( var list in combos.Values ) found.UnionWith( list.Select( c => c.Name ) );
+		found.UnionWith( Features.Select( f => f.Name ) );
+		return bindingNames = found;
+	}
+
+	[GeneratedRegex( @"\bAttribute\(\s*""(?<name>[^""]+)""" )]
+	private static partial Regex AttributeName();
+
+	[GeneratedRegex( @"\b[A-Za-z_]\w+" )]
+	private static partial Regex Identifier();
+
+	[GeneratedRegex( @"^[ \t]*#[ \t]*include[ \t]*""(?<name>[^""]+)""", RegexOptions.Multiline )]
+	private static partial Regex IncludeName();
+
 	static readonly Dictionary<string, (DateTime Time, string Text)> includes = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>An include's path and text, from the including file's folder or the search paths; null when there's none.</summary>

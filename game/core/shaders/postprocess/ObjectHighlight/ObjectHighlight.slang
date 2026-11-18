@@ -1,15 +1,15 @@
-// ObjectHighlight.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// ObjectHighlight: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 // The outside pass draws a quad round each edge of each triangle, the outline's width and half a pixel past it every way,
 // where the .shader's geometry stage draws them: the inside pass's stencil keeps the outline outside the object, and the
 // pixel shader fades it over one pixel from the distance to the edge (OutlineCoverage), so it's smooth at any sample
 // count. Here the vertex stage makes the quads, one strip of 16 vertices per triangle (ExpandPrimitives) joined by
 // repeated vertices, with the triangle's corners as per-instance inputs (the second's semantics 4 up, the third's 8 up).
 
-// MODES: Forward();
-// MODES: Depth(); // It was doing this before, is it correct?
-
 #include "sbox/pass.slangh"
+
+Mode( Forward );
+Mode( Depth );
 
 #include "common/features.hlsl"
 Feature( F_USE_PATTERN, 0..1, "Rendering" );

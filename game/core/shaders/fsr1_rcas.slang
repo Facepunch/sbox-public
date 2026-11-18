@@ -1,5 +1,5 @@
-// fsr1_rcas.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// fsr1_rcas: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 //=================================================================================================
 // FSR1 RCAS (Robust Contrast Adaptive Sharpening) compute pass.
 // Reads the EASU-upscaled image and writes a sharpened final image at the same resolution.
@@ -7,9 +7,9 @@
 // HEADER: DevShader = true;
 // HEADER: Description = "FSR1 RCAS sharpening pass";
 
-// MODES: Default();
-
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 #include "system.fxc"
 

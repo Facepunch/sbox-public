@@ -77,6 +77,60 @@ public static partial class PassConverter
 	}
 
 	/// <summary>
+	/// A standalone module (docs/managed/standalone-modules.md) for <paramref name="shader"/>'s text: <see cref="Convert"/>'s
+	/// module with its MODES as <c>Mode( ... )</c> declarations, so it describes its shader without a <c>.shader_c</c>.
+	/// </summary>
+	public static string ConvertStandalone( string shader, string name ) => Standalone( Convert( shader, name ), name );
+
+	/// <summary>
+	/// A converted pass module made standalone: its <c>// MODES:</c> comment lines (<c>Depth( S_MODE_DEPTH ); // ...</c>) become
+	/// <c>Mode( Depth, S_MODE_DEPTH );</c> declarations after the <c>sbox/pass.slangh</c> include, which defines them, and the
+	/// converter's first lines (which name the <c>.shader</c> as the fallback) say what it is now. Everything else is kept as
+	/// it is; a module that's standalone already comes back unchanged. Line endings are the module's.
+	/// </summary>
+	public static string Standalone( string module, string name )
+	{
+		var crlf = module.Contains( "\r\n", StringComparison.Ordinal );
+		var text = module.Replace( "\r\n", "\n" );
+		if ( StandaloneModeLine().IsMatch( text ) ) return module;
+
+		var modes = new List<string>();
+		text = ModesComment().Replace( text, m =>
+		{
+			var arguments = m.Groups["args"].Value.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
+			modes.Add( arguments.Length == 0 ? $"Mode( {m.Groups["name"].Value} );" : $"Mode( {m.Groups["name"].Value}, {string.Join( ", ", arguments )} );" );
+			return "";
+		} );
+
+		// A MODES block of only comments (or none) is the Default mode
+		if ( modes.Count == 0 ) modes.Add( "Mode( Default );" );
+		text = ModesNote().Replace( text, "" );
+
+		const string include = "#include \"sbox/pass.slangh\"\n";
+		var at = text.IndexOf( include, StringComparison.Ordinal );
+		if ( at < 0 ) throw new FormatException( $"{name}: no #include \"sbox/pass.slangh\"" );
+		text = text.Insert( at + include.Length, "\n" + string.Join( "\n", modes ) + "\n" );
+
+		text = ConverterNote().Replace( text, $"// {name}: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).\n" );
+		text = Regex.Replace( text, @"\n{3,}", "\n\n" );
+		return crlf ? text.Replace( "\n", "\r\n" ) : text;
+	}
+
+	[GeneratedRegex( @"^[ \t]*//[ \t]*MODES:[ \t]*(?<name>\w+)[ \t]*\((?<args>[^)]*)\)[^\n]*\n", RegexOptions.Multiline )]
+	private static partial Regex ModesComment();
+
+	// A MODES block's comment lines that aren't modes
+	[GeneratedRegex( @"^[ \t]*//[ \t]*MODES:[^\n]*\n", RegexOptions.Multiline )]
+	private static partial Regex ModesNote();
+
+	[GeneratedRegex( @"^[ \t]*Mode\(\s*\w+", RegexOptions.Multiline )]
+	private static partial Regex StandaloneModeLine();
+
+	// Convert's first two lines
+	[GeneratedRegex( @"^// \S+\.shader as a pass module: Borealis\.Gpu draws this; the \.shader stays for the other routes\n// and as the fallback \([^\n]*\n" )]
+	private static partial Regex ConverterNote();
+
+	/// <summary>
 	/// Why a compiled shader's embedded source (each program's text, by <c>VFX_PROGRAM_*</c> name) isn't converted by
 	/// <see cref="FromEmbedded"/>, or null when it is.
 	/// </summary>

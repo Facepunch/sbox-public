@@ -1,15 +1,16 @@
-// scene_renderer_attribute_test.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// scene_renderer_attribute_test: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: CompileTargets = ( IS_SM_50 && ( PC || VULKAN ) );
 // HEADER: Description = "Managed scene renderer - test shader tinted by the view's SceneLabTint attribute, which only a scene's or camera's render attributes set.";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Forward();
-// MODES: Depth( "depth_only.shader" );
 
 #include "sbox/pass.slangh"
+
+Mode( Forward );
+Mode( Depth, "depth_only.shader" );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 

@@ -1,5 +1,5 @@
-// gizmo_line.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// gizmo_line: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 // The .shader's geometry stage widens each line into a quad. Here the vertex stage does it: the draw runs four
 // vertices per line (ExpandPrimitives), with the line's two ends as per-instance inputs (the second's semantics 4 up),
 // and each vertex makes one corner of the quad as the geometry stage made it.
@@ -8,10 +8,10 @@
 // HEADER: CompileTargets = ( IS_SM_50 && ( PC || VULKAN ) );
 // HEADER: Description = "Wireframe for tools";
 
-// MODES: Default();
-// MODES: Forward();
-
 #include "sbox/pass.slangh"
+
+Mode( Default );
+Mode( Forward );
 
 Feature( F_NO_ZTEST, 0..1 );
 
