@@ -26,6 +26,31 @@ public sealed partial class PassModule
 	readonly Dictionary<StageKind, List<(string Kind, string[] Arguments)>> rules = new();
 	readonly Dictionary<StageKind, List<(string Kind, string[] Arguments)>> staticRules = new();
 	readonly HashSet<StageKind> stages = new();
+	readonly HashSet<StageKind> gpuDriven = new();
+	readonly Dictionary<StageKind, string> gpuDrivenConditions = new();
+
+	/// <summary>
+	/// The define a stage's GPU-driven form compiles with (<c>GpuDrivenVariant( condition )</c>): a dynamic combo of the stage,
+	/// 0..1, which only the GPU-driven variant sets, and which the stage's rules allow only where the condition holds.
+	/// </summary>
+	public const string GpuDrivenCombo = "BOREALIS_GPU_DRIVEN";
+
+	/// <summary>
+	/// Its modes as it declares them (<c>Mode( Depth, S_MODE_DEPTH );</c>), name and arguments, in order; empty for a module
+	/// converted from a <c>.shader</c>, whose <c>.shader_c</c> names them. A module that declares its modes is standalone: it
+	/// describes its shader, and Borealis.Gpu reads no <c>.shader_c</c> for it.
+	/// </summary>
+	public IReadOnlyList<(string Name, string[] Arguments)> Modes { get; }
+
+	/// <summary>Whether it describes its own shader (<see cref="Modes"/>).</summary>
+	public bool Standalone => Modes.Count > 0;
+
+	/// <summary>Whether the stage has a GPU-driven form (<c>GpuDrivenVariant( condition )</c> in its code).</summary>
+	public bool HasGpuDriven( StageKind stage ) => gpuDriven.Contains( stage );
+
+	/// <summary>Whether the stage's GPU-driven condition holds for these combo values (false without a GPU-driven form).</summary>
+	public bool GpuDrivenAllows( StageKind stage, IReadOnlyDictionary<string, int> values ) =>
+		gpuDrivenConditions.TryGetValue( stage, out var condition ) && PassPreprocessor.Evaluate( condition, values ) is { } v && v != "0";
 
 	readonly IReadOnlyList<string> searchPaths;
 
@@ -50,6 +75,10 @@ public sealed partial class PassModule
 
 		Features = features;
 
+		var modes = new List<(string, string[])>();
+		foreach ( Match m in ModeLine().Matches( text ) ) modes.Add( (m.Groups["name"].Value, m.Groups["args"].Value.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries )) );
+		Modes = modes;
+
 		foreach ( var (stage, active) in lines )
 		{
 			var found = new List<PassCombo>();
@@ -64,6 +93,19 @@ public sealed partial class PassModule
 				}
 
 				// An entry point marked [shader], or one an include defines (UI shaders' MainVs comes from ui/vertex.hlsl)
+				// A GPU-driven form: its define is a combo of the stage, allowed only where the condition holds
+				if ( GpuDrivenLine().Match( line ) is { Success: true } variant )
+				{
+					if ( gpuDriven.Add( stage ) )
+					{
+						gpuDrivenConditions[stage] = variant.Groups["condition"].Value.Trim();
+						found.Add( new PassCombo( GpuDrivenCombo, 0, 1, false, null ) );
+						stageRules.Add( ("Requires1", [GpuDrivenCombo, variant.Groups["condition"].Value.Trim()]) );
+					}
+
+					continue;
+				}
+
 				var comment = line.IndexOf( "//", StringComparison.Ordinal );
 				var code = comment >= 0 ? line[..comment] : line;
 				if ( EntryLine( stage ).IsMatch( code ) || EntryDefinition( stage ).IsMatch( code ) ) stages.Add( stage );
@@ -88,6 +130,20 @@ public sealed partial class PassModule
 				found.Add( new PassCombo( name, min, max, m.Groups["kind"].Value == "Static", feature ) );
 			}
 
+			// An entry only some combos have (depth_only's pixel stage, for alpha test and fading alone): looked for with every
+			// combo at its last value too, since every one at its first leaves it out
+			if ( !stages.Contains( stage ) && found.Count > 0 )
+			{
+				var last = ProgramValues( stage );
+				foreach ( var combo in found ) last[combo.Name] = combo.Max;
+				foreach ( var line in PassPreprocessor.ActiveLines( path, text, last, Include ) )
+				{
+					var comment = line.IndexOf( "//", StringComparison.Ordinal );
+					var code = comment >= 0 ? line[..comment] : line;
+					if ( EntryLine( stage ).IsMatch( code ) || EntryDefinition( stage ).IsMatch( code ) ) stages.Add( stage );
+				}
+			}
+
 			combos[stage] = found;
 			rules[stage] = stageRules;
 			staticRules[stage] = stageStaticRules;
@@ -99,6 +155,45 @@ public sealed partial class PassModule
 
 	/// <summary>Read a module from text, reported as <paramref name="path"/>.</summary>
 	public static PassModule FromText( string path, string text, IReadOnlyList<string> searchPaths = null ) => new( path, text, searchPaths );
+
+	IReadOnlyCollection<string> bindingNames;
+
+	/// <summary>
+	/// The names its globals can be bound by: every identifier and <c>Attribute( "Name" )</c> in its text and every file it
+	/// includes (whatever the combos), so each variable, buffer, attribute, sampler state, source and combo. More than a
+	/// variant binds, never less. A <c>.shader_c</c>'s variables say these for a compiled shader; for one only a module
+	/// describes, these are what code that sets values by token (<c>StringToken.Literal</c>) is matched against.
+	/// </summary>
+	public IReadOnlyCollection<string> BindingNames()
+	{
+		if ( bindingNames is { } known ) return known;
+
+		var found = new HashSet<string>( StringComparer.Ordinal );
+		var seen = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		void Scan( string from, string text )
+		{
+			foreach ( Match m in AttributeName().Matches( text ) ) found.Add( m.Groups["name"].Value );
+			foreach ( Match m in Identifier().Matches( text ) ) found.Add( m.Value );
+			foreach ( Match m in IncludeName().Matches( text ) )
+			{
+				if ( Include( from, m.Groups["name"].Value ) is { } include && seen.Add( include.Path ) ) Scan( include.Path, include.Text );
+			}
+		}
+
+		Scan( Path, Text );
+		foreach ( var list in combos.Values ) found.UnionWith( list.Select( c => c.Name ) );
+		found.UnionWith( Features.Select( f => f.Name ) );
+		return bindingNames = found;
+	}
+
+	[GeneratedRegex( @"\bAttribute\(\s*""(?<name>[^""]+)""" )]
+	private static partial Regex AttributeName();
+
+	[GeneratedRegex( @"\b[A-Za-z_]\w+" )]
+	private static partial Regex Identifier();
+
+	[GeneratedRegex( @"^[ \t]*#[ \t]*include[ \t]*""(?<name>[^""]+)""", RegexOptions.Multiline )]
+	private static partial Regex IncludeName();
 
 	static readonly Dictionary<string, (DateTime Time, string Text)> includes = new( StringComparer.OrdinalIgnoreCase );
 
@@ -377,6 +472,12 @@ public sealed partial class PassModule
 
 	[GeneratedRegex( @"^\s*RenderState\(\s*(?<state>\w+)\s*,\s*(?<value>.*?)\s*\)\s*;" )]
 	private static partial Regex RenderStateLine();
+
+	[GeneratedRegex( @"^\s*GpuDrivenVariant\(\s*(?<condition>.*?)\s*\)\s*;" )]
+	private static partial Regex GpuDrivenLine();
+
+	[GeneratedRegex( @"^[ \t]*Mode\(\s*(?<name>\w+)\s*(?:,(?<args>[^)]*))?\)\s*;", RegexOptions.Multiline )]
+	private static partial Regex ModeLine();
 
 	[GeneratedRegex( @"^\s*ExpandPrimitives\(\s*(?<from>\w+)\s*,\s*(?<vertices>\d+)\s*,\s*(?<topology>\w+)\s*\)\s*;" )]
 	private static partial Regex ExpansionLine();

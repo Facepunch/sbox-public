@@ -1,5 +1,5 @@
-// tools_visualize_tangent_frame.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// tools_visualize_tangent_frame: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 // The .shader's geometry stage draws each triangle corner's normal (or tangent and bitangent) as lines. Here the draw
 // runs two vertices per line for each vertex of the draw (ExpandPrimitives, the vertex as per-instance inputs): the same
 // lines, each drawn once where the geometry stage drew it once per triangle using the vertex.
@@ -7,9 +7,9 @@
 // HEADER: DevShader = true;
 // HEADER: Description = "Debug shader that render normals or tangent space as lines";
 
-// MODES: ToolsUtil( S_MODE_FORWARD );
-
 #include "sbox/pass.slangh"
+
+Mode( ToolsUtil, S_MODE_FORWARD );
 
 Feature( F_SHOW_TANGENTS, 0..1, "General" );
 Feature( F_SHOW_BENT_NORMALS, 0..1, "General" );

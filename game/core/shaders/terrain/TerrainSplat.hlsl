@@ -6,7 +6,10 @@
 #ifndef TERRAIN_SPLAT_H
 #define TERRAIN_SPLAT_H
 
+// TerrainCommon.hlsl includes this file too: skipped when it's the one including us, as Slang refuses a cyclic include
+#ifndef TERRAIN_H
 #include "terrain/TerrainCommon.hlsl"
+#endif
 
 #if PROGRAM == VFX_PROGRAM_PS
 

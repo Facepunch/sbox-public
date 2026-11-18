@@ -7,6 +7,8 @@ public class EditorAppSystem : AppSystem
 {
 	public override void Init()
 	{
+		// The editor's own views; its native tools keep Source 2's device
+		DrawOnBorealisGpu();
 		LoadSteamDll();
 
 		base.Init();

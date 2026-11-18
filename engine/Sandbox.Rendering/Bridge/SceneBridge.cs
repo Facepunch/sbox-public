@@ -46,6 +46,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		/// </summary>
 		public double SyncMs;
 
+
 		/// <summary>
 		/// The frustum the view's planar reflection planes are tested against.
 		/// </summary>
@@ -159,6 +160,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// </summary>
 	const ulong ExtraWorldIdleFrames = 120;
 
+
 	// Reused sweep buffers avoid per-frame allocations.
 	readonly List<ViewKey> invalidViews = new();
 	readonly List<SceneWorld> invalidWorlds = new();
@@ -206,6 +208,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		{
 			if ( state.IsOrphaned || (!state.Rendering && frame - state.LastFrame > ViewIdleFrames) ) invalidViews.Add( key );
 		}
+
+		FreeIdleCaptures( frame );
+		MirrorContent.FreeCollected();
 
 		foreach ( var (world, _) in mirrors )
 		{
@@ -357,7 +362,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		state.View.SubWorlds = SyncExtraWorlds( mirror, camera, setup, state.Drawer.ExtraMirrors );
 		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( syncStart ).TotalMilliseconds;
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters { SyncMs = state.SyncMs } );
-		FillView( state.View, camera, setup, size );
+		FillView( state.View, camera, setup, size, mirror );
 
 		// The camera's attributes under the view's, as native's camera renderer sets them on its view: what the camera
 		// component and the scene's render attributes set (Rust Legacy lights its models by its time of day there)
@@ -537,14 +542,14 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		if ( skybox?.World != skyMirror.World ) skybox = mirror.World.Skybox3D = new Borealis.Skybox3D( skyMirror.World );
 		skybox.Origin = source.Origin;
 		skybox.Scale = source.Scale;
-		skybox.Fog = setup.Fog.HasValue ? setup.Fog.ToBorealis() : camera.EnablePostProcessing ? source.ResolveFog( camera ).ToBorealis() : null;
+		skybox.Fog = setup.Fog.HasValue ? setup.Fog.ToBorealis( mirror.TextureResolver ) : camera.EnablePostProcessing ? source.ResolveFog( camera ).ToBorealis( mirror.TextureResolver ) : null;
 	}
 
 	/// <summary>
 	/// Copy the native camera, including applied modifiers/shake and horizontal FOV, with a view's overrides on top, as
 	/// <c>CameraRenderer.Configure</c> applies them.
 	/// </summary>
-	internal static void FillView( RenderView view, SceneCamera camera, in ViewSetup setup, Vector2 size )
+	internal static void FillView( RenderView view, SceneCamera camera, in ViewSetup setup, Vector2 size, SceneMirror mirror = null )
 	{
 		view.Name = camera.Name;
 		view.Position = setup.Transform?.Position ?? camera.Position;
@@ -553,7 +558,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		view.ZNear = setup.ZNear ?? camera.ZNear;
 		view.ZFar = setup.ZFar ?? camera.ZFar;
 		view.ClearColor = setup.ClearColor ?? camera.BackgroundColor;
-		view.Fog = camera.ResolveFog( setup ).ToBorealis();
+		view.Fog = camera.ResolveFog( setup ).ToBorealis( mirror?.TextureResolver );
 
 		// mat_toolsvis overrides camera debug mode (CameraRenderer.Configure).
 		view.ToolsView = camera.ToolsView;

@@ -1,13 +1,13 @@
-// borealis_gpu_driven_cull_cs.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// borealis_gpu_driven_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis GPU-driven aggregates: culls a layer's fragments by frustum and size and writes their instance records and indirect commands.";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -228,6 +228,38 @@ void WriteDraw( uint nSlot, uint nTransform, uint nDraw, uint nIndexCount, uint 
 // the rest names (its first slot and count, then a run of 1 and 1, which make the count a task draw's arguments)
 static const uint TaskRun = 0x80000000u;
 
+// Two-phase Hi-Z occlusion (view word 28 bit 3; docs/managed/borealis-gpu-driven.md, "Hi-Z occlusion"): an ids fragment
+// forward didn't see last frame (its bit clear in the bits at bindless slot vViewFlags.z) is left for the second phase, as
+// a 64-byte candidate at byte offset vViewFlags.w (group count, 1, 1, count, occluded; then from byte 32 the candidates, 256 a group). Whether it was
+// (not a mesh draw's instances, whose fragments are the frame's). bMeshlets: the first phase would list it for the meshlet pass
+bool HiZDeferred( uint4 vViewFlags, uint4 vVisibility, float3 vCenter, float3 vExtents, uint nTransform, uint nDrawRecord, uint4 vDraw, uint nVertexBase, uint nFragment, uint nRun )
+{
+	if ( ( vViewFlags.x & 8 ) == 0 || ( vVisibility.z & 7 ) != 1 || nFragment == None || nVertexBase == None )
+		return false;
+	if ( ( ( g_bindless_VertexBuffers[ vViewFlags.z ].Load( ( nFragment >> 5 ) * 4 ) >> ( nFragment & 31 ) ) & 1 ) != 0 )
+		return false;
+
+	bool bMeshlets = false;
+	if ( ( vVisibility.z & 12 ) == 0 && g_nCullMeshletRuns != None && ( vVisibility.y & TaskRun ) == 0 )
+		bMeshlets = g_bindless_VertexBuffers[ g_nCullMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u;
+	uint nCompactRun = vVisibility.y;
+
+	uint nAt;
+	g_Frame.InterlockedAdd( vViewFlags.w + 12, 1, nAt );
+	if ( ( nAt & 255 ) == 0 )
+	{
+		uint nGroups;
+		g_Frame.InterlockedAdd( vViewFlags.w, 1, nGroups );
+	}
+
+	uint nEntry = vViewFlags.w + 32 + nAt * 64;
+	g_Frame.Store4( nEntry, uint4( asuint( vCenter ), nTransform ) );
+	g_Frame.Store4( nEntry + 16, uint4( asuint( vExtents ), nDrawRecord ) );
+	g_Frame.Store4( nEntry + 32, uint4( vDraw.xyz, nVertexBase ) );
+	g_Frame.Store4( nEntry + 48, uint4( nFragment, nRun, nCompactRun, bMeshlets ? 1u : 0u ) );
+	return true;
+}
+
 // The next slot of multi-draw nRun
 uint TakeSlot( uint nRun )
 {
@@ -297,6 +329,8 @@ uint TakeSlot( uint nRun )
 		if ( i < vBatch.y )
 		{
 			bool bVisible = true;
+			float3 vBoxCenter = 0;
+			float3 vBoxExtents = 0;
 			uint nTransform;
 			uint nDrawRecord;
 			if ( bInstances )
@@ -312,6 +346,8 @@ uint TakeSlot( uint nRun )
 				uint4 b = fragments.Load4( ( vBatch.x + 1 + i ) * 32 + 16 );
 				float3 vCenter = asfloat( a.xyz );
 				float3 vExtents = asfloat( b.xyz );
+				vBoxCenter = vCenter;
+				vBoxExtents = vExtents;
 
 				[unroll]
 				for ( uint p = 0; p < 6; p++ )
@@ -336,6 +372,8 @@ uint TakeSlot( uint nRun )
 				uint4 b = fragments.Load4( ( vBatch.x + i ) * 32 + 16 );
 				float3 vCenter = asfloat( a.xyz );
 				float3 vExtents = asfloat( b.xyz );
+				vBoxCenter = vCenter;
+				vBoxExtents = vExtents;
 
 				bVisible = !( bShadow && ( b.w & 0x80000000u ) != 0 );
 				[unroll]
@@ -381,7 +419,7 @@ uint TakeSlot( uint nRun )
 				// Without compacting every fragment keeps its slot, with no instance where it's culled
 				WriteDraw( vBatch.w + i, nTransform, nDrawRecord, vDraw.y, bVisible ? 1u : 0u, vDraw.x, vDraw.z );
 			}
-			else if ( bVisible )
+			else if ( bVisible && !HiZDeferred( vViewFlags, vVisibility, vBoxCenter, vBoxExtents, nTransform, nDrawRecord, vDraw, nVertexBase, nFragment, vBatch.w ) )
 			{
 				// Forward over a fragment the prepass drew ids for this frame: listed for the compaction pass
 				bool bListed = false;

@@ -1,5 +1,5 @@
-// tools_solid.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// tools_solid: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -8,13 +8,14 @@
 // HEADER: Description = "Solid/stripes/checkerboard for tools";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
-// MODES: PrepassGBuffer( S_MODE_PREPASS_GBUFFER );				// "Combined"  Thin g-buffer designed to be used with deferred lighting (light pre-pass rendering)
-// MODES: FullDeferredGBuffer( S_MODE_FULL_DEFERRED_GBUFFER );	// Fully sized fat g-buffer designed to be used with deferred rendering
-// MODES: DeferredGather( S_MODE_DEFERRED_GATHER );				// "Combined" deferred gather pass that renders the geomerty again and samples the "Combined" thin g-buffer for some attributes
-// MODES: ToolsUtil();
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
+Mode( PrepassGBuffer, S_MODE_PREPASS_GBUFFER );
+Mode( FullDeferredGBuffer, S_MODE_FULL_DEFERRED_GBUFFER );
+Mode( DeferredGather, S_MODE_DEFERRED_GATHER );
+Mode( ToolsUtil );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 Feature( F_ALPHA_TEST, 0..1 );

@@ -48,4 +48,13 @@
 // and plus 8. Read by the compiler with the vertex stage's combos, as RenderState is with the pixel stage's
 #define ExpandPrimitives( ... )
 
+// A standalone module describes the shader itself, with no .shader_c read for it on Borealis.Gpu (one beside it is only Source
+// 2's renderer's): Mode( Name [, S_MODE_X] [, "fallback.shader"] ); for each mode, in order. See docs/managed/standalone-modules.md
+#define Mode( ... )
+
+// GpuDrivenVariant( condition ): this stage also compiles with BOREALIS_GPU_DRIVEN 1 where the condition holds for its combos,
+// the form GPU-driven buckets draw with (vertices pulled by SV_VulkanVertexID, borealis_gpu_driven.fxc). Read by the compiler
+// with the stage's combos, as RenderState is
+#define GpuDrivenVariant( ... )
+
 #endif

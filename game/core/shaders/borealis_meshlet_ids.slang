@@ -1,13 +1,14 @@
-// borealis_meshlet_ids.shader as a pass module: Borealis.Gpu draws this, on devices with mesh shaders. The .shader only
-// names it (vfx has no task or mesh stages).
+// borealis_meshlet_ids: a standalone module, the whole shader for Borealis.Gpu, drawn on devices with mesh shaders (task and mesh
+// stages; docs/managed/standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis meshlet ids prepass: a task group per listed fragment culls its meshlets as borealis_meshlet_cull_cs does and launches a mesh group per kept meshlet, which draws its triangles' depth and ids as borealis_gpu_driven_ids does.";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #include "system.fxc" // This should always be the first include in COMMON

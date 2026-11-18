@@ -178,6 +178,32 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 			lightmapFolders.Clear();
 		}
+
+		if ( MirrorContent.Gpu is { } held )
+		{
+			lock ( heldMaterials )
+			{
+				foreach ( var path in heldMaterials ) held.ReleaseModelMaterial( path );
+				heldMaterials.Clear();
+			}
+
+			lock ( heldTextures )
+			{
+				foreach ( var path in heldTextures ) held.ReleaseTexture( path );
+				heldTextures.Clear();
+			}
+		}
+		// The models this world held go a while after no world does (BackendDevice.ReleaseModel)
+		if ( MirrorContent.Gpu is { } device )
+		{
+			foreach ( var (_, cached) in models )
+			{
+				if ( cached.Mesh is not null && !cached.Dropped ) device.ReleaseModel( cached.Mesh );
+			}
+
+			models.Clear();
+		}
+
 		if ( SubWorld == 0 ) return;
 
 		foreach ( var (_, obj) in objects )
@@ -363,6 +389,43 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 	// The maps whose lightmaps this world's objects drew with (LightmapFor), released when it goes
 	readonly HashSet<string> lightmapFolders = new( StringComparer.OrdinalIgnoreCase );
+
+	// The file materials and textures this world's sky and fog drew with (WorldMaterial, WorldTexture), held while it lives
+	readonly HashSet<string> heldMaterials = new( StringComparer.OrdinalIgnoreCase );
+	readonly HashSet<string> heldTextures = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary><see cref="WorldMaterial"/>, made once, for what takes a material lookup (objects' draws).</summary>
+	public Func<Material, GpuMaterial> MaterialResolver => materialResolver ??= WorldMaterial;
+	Func<Material, GpuMaterial> materialResolver;
+
+	/// <summary><see cref="WorldTexture"/>, made once, for conversions that take a texture lookup (fog's sky textures).</summary>
+	public Func<Texture, GpuTexture> TextureResolver => textureResolver ??= WorldTexture;
+	Func<Texture, GpuTexture> textureResolver;
+
+	/// <summary>
+	/// A material this world draws with (its sky's), as <see cref="MirrorContent.Material"/> has it, but a file's held by the
+	/// world rather than kept for good: it goes with the world unless something else holds it.
+	/// </summary>
+	public GpuMaterial WorldMaterial( Material material )
+	{
+		if ( MirrorContent.Gpu is not { } gpu || material?.FilePath is not { Length: > 0 } path || material.MadeFromShader is not null || material.SetInCode is { Count: > 0 } ) return MirrorContent.Material( material );
+		lock ( heldMaterials ) return heldMaterials.Add( path ) ? gpu.ModelMaterial( path ) : gpu.HeldMaterial( path );
+	}
+
+	/// <summary>A texture this world draws with (its fog's sky), as <see cref="MirrorContent.Texture"/> has it, but a file's held by the world.</summary>
+	public GpuTexture WorldTexture( Texture texture )
+	{
+		// A material's texture (a sky's cubemap for fog and sky lighting): the material's, held by the world
+		if ( MirrorContent.Gpu is { } device && texture is not null && string.IsNullOrEmpty( texture.ResourcePath ) && Sandbox.Texture.MaterialOrigins.TryGetValue( texture, out var origin ) && origin is Sandbox.Texture.MaterialOrigin o )
+		{
+			GpuMaterial material;
+			lock ( heldMaterials ) material = heldMaterials.Add( o.Material ) ? device.ModelMaterial( o.Material ) : device.HeldMaterial( o.Material );
+			return device.MaterialTexture( material, o.Parameter );
+		}
+
+		if ( MirrorContent.Gpu is not { } gpu || texture is null || texture.IsRenderTarget || MirrorContent.IsCaptureCube( texture ) || texture.ResourcePath is not { Length: > 0 } path ) return MirrorContent.Texture( texture );
+		lock ( heldTextures ) return heldTextures.Add( path ) ? gpu.HoldTexture( path ) : gpu.HeldTexture( path );
+	}
 
 	/// <summary>
 	/// Mirror probe placement and selection data; create attributes once (<c>CLightBinner2::GetLightProbeVolumeData</c>).
@@ -616,7 +679,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		}
 	}
 
-	static void ApplyLight( SceneLight sceneLight, LightObject light, SceneObjectChange change )
+	void ApplyLight( SceneLight sceneLight, LightObject light, SceneObjectChange change )
 	{
 		if ( (change & SceneObjectChange.Transform) != 0 )
 			light.Transform = sceneLight.Transform;
@@ -635,13 +698,15 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 				light.ConeOuter = spot.ConeOuter;
 			}
 
-			light.Cookie = sceneLight is SceneSpotLight ? MirrorContent.Texture( sceneLight.LightCookie ) : null;
+			light.Cookie = sceneLight is SceneSpotLight ? WorldTexture( sceneLight.LightCookie ) : null;
 		}
 
-		// Pack native light descriptions; map attenuation/falloff/baking may bypass managed properties (Light.LegacyLightData).
-		if ( (change & (SceneObjectChange.Settings | SceneObjectChange.Transform)) != 0 && SceneNative.PackSceneLight( sceneLight, out var packed, out var flags, out var bakeIndex ) )
+		// Pack the light's description (attenuation, falloff and baking from maps included: Light.LegacyLightData)
+		if ( (change & (SceneObjectChange.Settings | SceneObjectChange.Transform)) != 0 && sceneLight.IsValid() )
 		{
-			// Native's cookie index is Source 2's bindless slot: on Borealis.Gpu the binner sets the device's own from the texture
+			LightPacking.Pack( sceneLight, out var packed, out var flags, out var bakeIndex );
+
+			// The binner sets the cookie's index on Borealis.Gpu from the texture
 			if ( MirrorContent.Gpu is not null && (packed.Flags & Borealis.Features.LightBinnerFeature.LightCookieEnabled) != 0 )
 			{
 				packed.Flags &= ~Borealis.Features.LightBinnerFeature.LightCookieEnabled;
@@ -771,7 +836,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// <summary>
 	/// A decal's box and everything it projects, as <c>CLightBinnerStandard</c> reads a <c>CDecalSceneObject</c>.
 	/// </summary>
-	static void ApplyDecal( DecalSceneObject source, DecalObject decal, SceneObjectChange change )
+	void ApplyDecal( DecalSceneObject source, DecalObject decal, SceneObjectChange change )
 	{
 		if ( (change & SceneObjectChange.Transform) != 0 )
 			decal.Transform = source.Transform == default ? Transform.Zero : source.Transform;
@@ -781,11 +846,11 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 		if ( (change & SceneObjectChange.Settings) != 0 )
 		{
-			decal.Color = MirrorContent.Texture( source.ColorTexture );
-			decal.Normal = MirrorContent.Texture( source.NormalTexture );
-			decal.RoughnessMetalnessOcclusion = MirrorContent.Texture( source.RMOTexture );
-			decal.Height = MirrorContent.Texture( source.HeightTexture );
-			decal.Emission = MirrorContent.Texture( source.EmissionTexture );
+			decal.Color = WorldTexture( source.ColorTexture );
+			decal.Normal = WorldTexture( source.NormalTexture );
+			decal.RoughnessMetalnessOcclusion = WorldTexture( source.RMOTexture );
+			decal.Height = WorldTexture( source.HeightTexture );
+			decal.Emission = WorldTexture( source.EmissionTexture );
 			decal.Tint = source.Color;
 			decal.SortOrder = source.SortOrder;
 			decal.ExclusionBitMask = source.ExclusionBitMask;
@@ -923,7 +988,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			if ( sun is not null )
 			{
 				lighting.SunColor = sun.LightColor;
-				// Map suns can have identity transforms; use the native light direction.
+				// Map suns can have identity transforms: their direction is the description's (SceneLight.SetWorldDirection)
 				lighting.SunDirection = -sun.WorldDirection;
 				lighting.SunShadows = sun.ShadowsEnabled;
 				lighting.SunShadowCascades = sun.ShadowCascadeCount;
@@ -932,11 +997,11 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 				lighting.SunShadowBias = sun.ShadowBias;
 
 				// Lightmaps and probes reference the sun by bake index.
-				var packs = SceneNative.PackSceneLight( sun, out var packed, out var flags, out var bakeIndex );
-				lighting.SunBakeIndex = packs ? bakeIndex : -1;
-				lighting.SunBaked = packs && bakeIndex >= 0 ? packed : null;
+				LightPacking.Pack( sun, out var packed, out var flags, out var bakeIndex );
+				lighting.SunBakeIndex = bakeIndex;
+				lighting.SunBaked = bakeIndex >= 0 ? packed : null;
 
-				var baked = packs && (flags & LightTypeFlagsBaked) != 0;
+				var baked = (flags & LightTypeFlagsBaked) != 0;
 				// A baked sun still renders cascades, without its static casters: native's binner only asks local lights for
 				// mixed shadows (CLightBinnerStandard::AddLight), and volumetric fog is lit by the sun only through them
 				lighting.SunShadowsBaked = baked && !sun.IncludeStaticShadowCasters;
@@ -956,7 +1021,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		// Sky selection is per view: cameras can exclude different skies without changing the world.
 		// Native's child skybox view does not inherit the parent camera's object-tag filters.
 		var sky = skyboxView ? source.GetSky() : source.GetSky( camera.RenderTags, camera.ExcludeTags );
-		lighting.SkyMaterial = MirrorContent.Material( sky?.Material );
+		lighting.SkyMaterial = WorldMaterial( sky?.Material );
 		if ( sky is not null )
 		{
 			lighting.SkyTint = sky.SkyTint;
@@ -975,7 +1040,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		var from = camera.CubemapFog;
 		var to = lighting.CubemapFog;
 		to.Enabled = from.Enabled;
-		to.Texture = MirrorContent.Texture( from.Texture );
+		to.Texture = WorldTexture( from.Texture );
 		to.StartDistance = from.StartDistance;
 		to.EndDistance = from.EndDistance;
 		to.FalloffExponent = from.FalloffExponent;
@@ -996,7 +1061,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		fogTo.FadeInStart = fogFrom.FadeInStart;
 		fogTo.FadeInEnd = fogFrom.FadeInEnd;
 		fogTo.IndirectStrength = fogFrom.IndirectStrength;
-		fogTo.BakedIndirectTexture = MirrorContent.Texture( fogFrom.BakedIndirectTexture );
+		fogTo.BakedIndirectTexture = WorldTexture( fogFrom.BakedIndirectTexture );
 
 		SyncFogVolumes();
 	}
@@ -1078,18 +1143,12 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	}
 
 	/// <summary>
-	/// A scene object's tags as string tokens, as native holds them.
+	/// A scene object's tags as string tokens (<see cref="SceneObject.TagTokens"/>).
 	/// </summary>
 	static uint[] TagsOf( SceneObject sceneObject )
 	{
-		var count = sceneObject.native.GetTagCount();
-		if ( count <= 0 ) return [];
-
-		var tags = new uint[count];
-		for ( int i = 0; i < count; i++ )
-			tags[i] = sceneObject.native.GetTagAt( i );
-
-		return tags;
+		var tokens = sceneObject.TagTokens;
+		return tokens.Count == 0 ? [] : [.. tokens];
 	}
 
 	/// <summary>

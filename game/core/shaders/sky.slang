@@ -1,5 +1,5 @@
-// sky.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// sky: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -9,10 +9,11 @@
 // HEADER: Version = 8;
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Forward();
-// MODES: ToolsShadingComplexity( S_MODE_TOOLS_SHADING_COMPLEXITY );
 
 #include "sbox/pass.slangh"
+
+Mode( Forward );
+Mode( ToolsShadingComplexity, S_MODE_TOOLS_SHADING_COMPLEXITY );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 Feature( F_LIGHTING_ONLY, 0..1, "Rendering" );

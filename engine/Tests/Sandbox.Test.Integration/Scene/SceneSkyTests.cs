@@ -9,32 +9,54 @@ namespace SceneTests;
 public class SceneSkyTests
 {
 	/// <summary>
-	/// Skies created through native interop must expose their material and subsequent native changes.
+	/// A sky's settings are kept in managed code: one native code made starts with its material and native's defaults, and
+	/// changes reach the native twin only while something in the process reads it (<see cref="SceneObject.WritesNative"/>).
 	/// </summary>
 	[TestMethod]
-	public void MaterialTracksNativeCreationAndChanges()
+	public void SettingsAreManagedAndReachTheNativeTwinOnlyWhenRead()
 	{
 		var world = new SceneWorld();
 		try
 		{
 			var material = Material.Load( "materials/skybox/skybox_day_01.vmat" );
 			var sky = NativeEngine.CSceneSystem.CreateSkyBox( material.native, world );
-			Assert.AreSame( material, sky.Material );
+			var nativeSky = (NativeEngine.CSceneSkyBoxObject)sky.native;
+			Assert.AreSame( material, sky.Material, "a sky native code made starts with its material" );
+			Assert.AreEqual( SceneSkyBox.FogType.Distance, sky.FogParams.FogType, "and native's defaults" );
+			Assert.AreEqual( -25.0f, sky.FogParams.FogMinStart );
 
 			var replacement = material.CreateCopy();
-			var nativeSky = (NativeEngine.CSceneSkyBoxObject)sky.native;
-			nativeSky.SetMaterial( replacement.native );
-			Assert.AreSame( replacement, sky.Material );
-			nativeSky.SetMaterial( default );
-			Assert.IsNull( sky.Material );
+			var fog = new SceneSkyBox.FogParamInfo { FogType = SceneSkyBox.FogType.Angular, FogMinStart = 1, FogMinEnd = 2, FogMaxStart = 3, FogMaxEnd = 4 };
 
+			SceneObject.WritesNativeOverride = true;
+			sky.SkyMaterial = replacement;
+			sky.SkyTint = Color.Red;
+			sky.FogParams = fog;
+			Assert.AreSame( replacement, sky.Material );
+			Assert.AreSame( replacement, Material.FromNative( nativeSky.GetMaterial() ), "written through while read" );
+			Assert.AreEqual( new Vector3( 1, 0, 0 ), nativeSky.GetSkyTint() );
+			Assert.AreEqual( (int)SceneSkyBox.FogType.Angular, nativeSky.GetFogType() );
+			Assert.AreEqual( 3.0f, nativeSky.GetFogMaxStart() );
+
+			SceneObject.WritesNativeOverride = false;
 			sky.SkyMaterial = material;
+			sky.SkyTint = Color.Blue;
+			sky.FogParams = default;
 			Assert.AreSame( material, sky.Material );
+			Assert.AreEqual( Color.Blue, sky.SkyTint );
+			Assert.AreEqual( default, sky.FogParams );
+			Assert.AreSame( replacement, Material.FromNative( nativeSky.GetMaterial() ), "not written while nothing reads it" );
+			Assert.AreEqual( new Vector3( 1, 0, 0 ), nativeSky.GetSkyTint() );
+
+			sky.SkyMaterial = null;
+			Assert.IsNull( sky.Material );
+			sky.SkyMaterial = material;
 			sky.Delete();
 			Assert.IsNull( sky.Material );
 		}
 		finally
 		{
+			SceneObject.WritesNativeOverride = null;
 			world.Delete();
 		}
 	}
@@ -125,7 +147,7 @@ public class SceneSkyTests
 	}
 
 	/// <summary>
-	/// The renderer refreshes sky selection for each camera, including native material changes without notifications.
+	/// The renderer refreshes sky selection for each camera.
 	/// </summary>
 	[TestMethod]
 	public void MirrorRefreshesSkyForEachView()
@@ -151,9 +173,8 @@ public class SceneSkyTests
 			sync.Invoke( mirror, [camera, true] );
 			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SkyTint );
 
-			var nativeSky = (NativeEngine.CSceneSkyBoxObject)last.native;
 			camera.ExcludeTags.RemoveAll();
-			nativeSky.SetMaterial( default );
+			last.SkyMaterial = null;
 			sync.Invoke( mirror, [camera, false] );
 			Assert.IsNull( renderWorld.Lighting.SkyMaterial, "A null material on the newest sky must not reveal an older sky" );
 			first.RenderingEnabled = false;

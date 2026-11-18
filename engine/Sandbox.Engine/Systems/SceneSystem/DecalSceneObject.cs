@@ -6,9 +6,18 @@ namespace Sandbox;
 /// <summary>
 /// A decal. Use the Component.
 /// </summary>
+/// <remarks>
+/// Its settings live here; the native twin gets them only while something reads it (<see cref="SceneObject.WritesNative"/>).
+/// </remarks>
 internal sealed class DecalSceneObject : SceneObject
 {
 	NativeEngine.CDecalSceneObject decalNative;
+
+	Texture colorTexture, normalTexture, rmoTexture, heightTexture, emissionTexture;
+	Vector4 color;
+	uint sortOrder, exclusionBitMask, sequenceIndex;
+	float attenuationAngle, colorMix, emissionEnergy, parallaxStrength, coverageAmount, coverageRange;
+	int samplerIndex;
 
 	public DecalBlendMode BlendMode
 	{
@@ -27,98 +36,98 @@ internal sealed class DecalSceneObject : SceneObject
 
 	public Texture ColorTexture
 	{
-		get => Texture.FromNative( decalNative.m_hColor );
-		set { decalNative.m_hColor = value?.native ?? default; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => colorTexture;
+		set { colorTexture = value; SettingsChanged(); }
 	}
 
 	public Texture NormalTexture
 	{
-		get => Texture.FromNative( decalNative.m_hNormal );
-		set { decalNative.m_hNormal = value?.native ?? default; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => normalTexture;
+		set { normalTexture = value; SettingsChanged(); }
 	}
 
 	public Texture RMOTexture
 	{
-		get => Texture.FromNative( decalNative.m_hRMO );
-		set { decalNative.m_hRMO = value?.native ?? default; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => rmoTexture;
+		set { rmoTexture = value; SettingsChanged(); }
 	}
 
 	public Texture HeightTexture
 	{
-		get => Texture.FromNative( decalNative.m_hHeight );
-		set { decalNative.m_hHeight = value?.native ?? default; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => heightTexture;
+		set { heightTexture = value; SettingsChanged(); }
 	}
 
 	public Color Color
 	{
-		get => decalNative.m_vColorTint;
-		set { decalNative.m_vColorTint = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => color;
+		set { color = value; SettingsChanged(); }
 	}
 
 	public uint SortOrder
 	{
-		get => decalNative.m_nSortOrder;
-		set { decalNative.m_nSortOrder = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => sortOrder;
+		set { sortOrder = value; SettingsChanged(); }
 	}
 
 	public uint ExclusionBitMask
 	{
-		get => decalNative.m_nExclusionBitMask;
-		set { decalNative.m_nExclusionBitMask = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => exclusionBitMask;
+		set { exclusionBitMask = value; SettingsChanged(); }
 	}
 
 	public Texture EmissionTexture
 	{
-		get => Texture.FromNative( decalNative.m_hEmission );
-		set { decalNative.m_hEmission = value?.native ?? default; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => emissionTexture;
+		set { emissionTexture = value; SettingsChanged(); }
 	}
 
 	public float AttenuationAngle
 	{
-		get => decalNative.m_flAttenuationAngle;
-		set { decalNative.m_flAttenuationAngle = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => attenuationAngle;
+		set { attenuationAngle = value; SettingsChanged(); }
 	}
 
 	public float ColorMix
 	{
-		get => decalNative.m_flColorMix;
-		set { decalNative.m_flColorMix = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => colorMix;
+		set { colorMix = value; SettingsChanged(); }
 	}
 
 	public float EmissionEnergy
 	{
-		get => decalNative.m_flEmissionEnergy;
-		set { decalNative.m_flEmissionEnergy = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => emissionEnergy;
+		set { emissionEnergy = value; SettingsChanged(); }
 	}
 
 	public uint SequenceIndex
 	{
-		get => decalNative.m_nSequenceIndex;
-		set { decalNative.m_nSequenceIndex = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => sequenceIndex;
+		set { sequenceIndex = value; SettingsChanged(); }
 	}
 
 	public float ParallaxStrength
 	{
-		get => decalNative.m_flParallaxStrength;
-		set { decalNative.m_flParallaxStrength = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => parallaxStrength;
+		set { parallaxStrength = value; SettingsChanged(); }
 	}
 
 	public int SamplerIndex
 	{
-		get => decalNative.m_nSamplerIndex;
-		set { decalNative.m_nSamplerIndex = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => samplerIndex;
+		set { samplerIndex = value; SettingsChanged(); }
 	}
 
 	public float CoverageAmount
 	{
-		get => decalNative.m_flCoverageAmount;
-		set { decalNative.m_flCoverageAmount = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => coverageAmount;
+		set { coverageAmount = value; SettingsChanged(); }
 	}
 
 	public float CoverageRange
 	{
-		get => decalNative.m_flCoverageRange;
-		set { decalNative.m_flCoverageRange = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get => coverageRange;
+		set { coverageRange = value; SettingsChanged(); }
 	}
 
 	public DecalSceneObject( SceneWorld world )
@@ -131,9 +140,58 @@ internal sealed class DecalSceneObject : SceneObject
 		}
 	}
 
+	void SettingsChanged()
+	{
+		if ( WritesNative && !decalNative.IsNull ) WriteNative();
+		NotifyChanged( Rendering.SceneObjectChange.Settings );
+	}
+
+	/// <summary>The settings, written to the native twin.</summary>
+	void WriteNative()
+	{
+		decalNative.m_hColor = colorTexture?.native ?? default;
+		decalNative.m_hNormal = normalTexture?.native ?? default;
+		decalNative.m_hRMO = rmoTexture?.native ?? default;
+		decalNative.m_hHeight = heightTexture?.native ?? default;
+		decalNative.m_hEmission = emissionTexture?.native ?? default;
+		decalNative.m_vColorTint = color;
+		decalNative.m_nSortOrder = sortOrder;
+		decalNative.m_nExclusionBitMask = exclusionBitMask;
+		decalNative.m_flAttenuationAngle = attenuationAngle;
+		decalNative.m_flColorMix = colorMix;
+		decalNative.m_flEmissionEnergy = emissionEnergy;
+		decalNative.m_nSequenceIndex = sequenceIndex;
+		decalNative.m_flParallaxStrength = parallaxStrength;
+		decalNative.m_nSamplerIndex = samplerIndex;
+		decalNative.m_flCoverageAmount = coverageAmount;
+		decalNative.m_flCoverageRange = coverageRange;
+	}
+
+	/// <summary>The settings a new native twin starts with: native's defaults, or what native code made it with.</summary>
+	void ReadNative()
+	{
+		colorTexture = Texture.FromNative( decalNative.m_hColor );
+		normalTexture = Texture.FromNative( decalNative.m_hNormal );
+		rmoTexture = Texture.FromNative( decalNative.m_hRMO );
+		heightTexture = Texture.FromNative( decalNative.m_hHeight );
+		emissionTexture = Texture.FromNative( decalNative.m_hEmission );
+		color = decalNative.m_vColorTint;
+		sortOrder = decalNative.m_nSortOrder;
+		exclusionBitMask = decalNative.m_nExclusionBitMask;
+		attenuationAngle = decalNative.m_flAttenuationAngle;
+		colorMix = decalNative.m_flColorMix;
+		emissionEnergy = decalNative.m_flEmissionEnergy;
+		sequenceIndex = decalNative.m_nSequenceIndex;
+		parallaxStrength = decalNative.m_flParallaxStrength;
+		samplerIndex = decalNative.m_nSamplerIndex;
+		coverageAmount = decalNative.m_flCoverageAmount;
+		coverageRange = decalNative.m_flCoverageRange;
+	}
+
 	internal override void OnNativeInit( CSceneObject ptr )
 	{
 		decalNative = (NativeEngine.CDecalSceneObject)ptr;
+		ReadNative();
 		base.OnNativeInit( ptr );
 	}
 

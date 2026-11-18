@@ -16,6 +16,16 @@ public sealed class SceneCubemap : SceneLight
 
 	private CEnvMapSceneObject envMap;
 
+	// The settings, once managed code owns them: a cubemap it made, or one native code made (a map's) that it has changed
+	// since. The native twin gets them only while something reads it (SceneObject.WritesNative)
+	bool managed;
+	int priority;
+	ProjectionMode projection;
+	Color tint;
+	float feathering;
+	BBox projectionBounds;
+	Texture texture;
+
 	internal SceneCubemap( HandleCreationData d ) : base( d )
 	{
 	}
@@ -37,86 +47,84 @@ public sealed class SceneCubemap : SceneLight
 			CSceneSystem.CreateEnvMap( sceneWorld, projectionMode );
 		}
 
-		envMap.m_vColor = tint;
-		envMap.m_flFeathering = feathering;
-		envMap.m_vBoxProjectMins = bounds.Mins;
-		envMap.m_vBoxProjectMaxs = bounds.Maxs;
+		TakeOver();
+		this.tint = tint;
+		this.feathering = feathering;
+		projectionBounds = bounds;
+		if ( texture != null && texture.native.IsValid ) this.texture = texture;
+		WriteNative();
 
 		Transform = transform;
-		envMap.CalculateBounds();
+		Calculate();
 
-		if ( texture != null && texture.native.IsValid )
-		{
-			envMap.m_hEnvMapTexture = texture.native;
-			envMap.CalculateRadianceSH();
-			envMap.CalculateNormalizationSH();
-			CSceneSystem.MarkEnvironmentMapObjectUpdated( this );
-			NotifyChanged( Rendering.SceneObjectChange.Settings );
-		}
+		if ( this.texture is not null ) NotifyChanged( Rendering.SceneObjectChange.Settings );
 	}
 
 	public int Priority
 	{
-		get => envMap.m_nRenderPriority;
+		get => managed ? priority : envMap.m_nRenderPriority;
 		set
 		{
 			if ( Priority == value )
 				return;
 
-			envMap.m_nRenderPriority = value;
+			TakeOver();
+			priority = value;
 			RenderDirty();
 		}
 	}
 
 	public ProjectionMode Projection
 	{
-		get => envMap.m_nProjectionMode;
+		get => managed ? projection : envMap.m_nProjectionMode;
 		set
 		{
 			if ( Projection == value )
 				return;
 
-			envMap.m_nProjectionMode = value;
+			TakeOver();
+			projection = value;
 			RenderDirty();
 		}
 	}
 
 	public Color TintColor
 	{
-		get => envMap.m_vColor;
+		get => managed ? tint : envMap.m_vColor;
 		set
 		{
 			if ( TintColor == value )
 				return;
 
-			envMap.m_vColor = value;
+			TakeOver();
+			tint = value;
 			RenderDirty();
 		}
 	}
 
 	public float Feathering
 	{
-		get => envMap.m_flFeathering;
+		get => managed ? feathering : envMap.m_flFeathering;
 		set
 		{
 			if ( Feathering == value )
 				return;
 
-			envMap.m_flFeathering = value;
+			TakeOver();
+			feathering = value;
 			RenderDirty();
 		}
 	}
 	public BBox ProjectionBounds
 	{
-		get => new BBox( envMap.m_vBoxProjectMins, envMap.m_vBoxProjectMaxs );
+		get => managed ? projectionBounds : new BBox( envMap.m_vBoxProjectMins, envMap.m_vBoxProjectMaxs );
 		set
 		{
 			if ( ProjectionBounds == value )
 				return;
 
-			envMap.m_vBoxProjectMins = value.Mins;
-			envMap.m_vBoxProjectMaxs = value.Maxs;
-
+			TakeOver();
+			projectionBounds = value;
 			RenderDirty();
 		}
 	}
@@ -130,13 +138,14 @@ public sealed class SceneCubemap : SceneLight
 
 	public Texture Texture
 	{
-		get => Texture.FromNative( envMap.m_hEnvMapTexture );
+		get => managed ? texture : Texture.FromNative( envMap.m_hEnvMapTexture );
 		set
 		{
 			if ( Texture == value )
 				return;
 
-			envMap.m_hEnvMapTexture = value?.native ?? default;
+			TakeOver();
+			texture = value;
 			RenderDirty();
 		}
 	}
@@ -146,11 +155,55 @@ public sealed class SceneCubemap : SceneLight
 	/// </summary>
 	public void RenderDirty()
 	{
+		WriteNative();
+		Calculate();
+		RequiresUpdate = true;
+	}
+
+	/// <summary>
+	/// Managed code owns the settings from here: take what the native twin has (native's defaults, or what a map set) once.
+	/// </summary>
+	void TakeOver()
+	{
+		if ( managed || envMap.IsNull ) return;
+		priority = envMap.m_nRenderPriority;
+		projection = envMap.m_nProjectionMode;
+		tint = envMap.m_vColor;
+		feathering = envMap.m_flFeathering;
+		projectionBounds = new BBox( envMap.m_vBoxProjectMins, envMap.m_vBoxProjectMaxs );
+		texture = Texture.FromNative( envMap.m_hEnvMapTexture );
+		managed = true;
+	}
+
+	/// <summary>
+	/// The settings, written to the native twin while something reads it. Its projection box always is: the twin's bounds
+	/// come from it (<see cref="Calculate"/>), and bounds are still the native object's.
+	/// </summary>
+	void WriteNative()
+	{
+		if ( !managed || envMap.IsNull ) return;
+		envMap.m_vBoxProjectMins = projectionBounds.Mins;
+		envMap.m_vBoxProjectMaxs = projectionBounds.Maxs;
+		if ( !WritesNative ) return;
+		envMap.m_nRenderPriority = priority;
+		envMap.m_nProjectionMode = projection;
+		envMap.m_vColor = tint;
+		envMap.m_flFeathering = feathering;
+		envMap.m_hEnvMapTexture = texture?.native ?? default;
+	}
+
+	/// <summary>
+	/// The native twin's bounds from its projection box, and, while something reads it, the irradiance it works out from the
+	/// cube (Borealis doesn't use it) and its note to native's light binner.
+	/// </summary>
+	void Calculate()
+	{
+		if ( envMap.IsNull ) return;
 		envMap.CalculateBounds();
+		if ( !WritesNative ) return;
 		envMap.CalculateRadianceSH();
 		envMap.CalculateNormalizationSH();
 		CSceneSystem.MarkEnvironmentMapObjectUpdated( this );
-		RequiresUpdate = true;
 	}
 
 	internal override void OnNativeInit( CSceneObject ptr )

@@ -1,14 +1,15 @@
-// depthresolve.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// depthresolve: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Resolves a depth copy from one texture to another, doesnt care about dest format.";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Forward();
-// MODES: Default();
 
 #include "sbox/pass.slangh"
+
+Mode( Forward );
+Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 

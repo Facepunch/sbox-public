@@ -1,13 +1,13 @@
-// borealis_gpu_driven_ids.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// borealis_gpu_driven_ids: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis GPU-driven depth prepass that also writes ids, for depth draws without a pixel shader: depth_only's depth, and each sample's triangle by its first vertex at target 1, for the visibility-driven forward pass. The pipeline takes culling, depth and stencil from the variant it stands in for.";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 

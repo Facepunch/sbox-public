@@ -64,6 +64,11 @@ public sealed class SceneCullingBox : IValid
 	}
 
 	internal uint _boxId;
+
+	// Whether native's world has the box (SceneObject.WritesNative); otherwise _boxId is one of ours. Borealis doesn't cull
+	// by these boxes yet.
+	bool inNative;
+	static uint nextManagedId;
 	internal Transform _transform;
 	internal Vector3 _size;
 	internal CullMode _mode;
@@ -92,7 +97,7 @@ public sealed class SceneCullingBox : IValid
 		if ( !IsValid )
 			return;
 
-		CSceneSystem.RemoveCullingBox( World, _boxId );
+		if ( inNative ) CSceneSystem.RemoveCullingBox( World, _boxId );
 
 		_boxId = 0;
 		_transform = default;
@@ -109,9 +114,16 @@ public sealed class SceneCullingBox : IValid
 
 		if ( _boxId != 0 )
 		{
-			CSceneSystem.RemoveCullingBox( World, _boxId );
+			if ( inNative ) CSceneSystem.RemoveCullingBox( World, _boxId );
 
 			_boxId = 0;
+		}
+
+		inNative = SceneObject.WritesNative;
+		if ( !inNative )
+		{
+			_boxId = ++nextManagedId;
+			return;
 		}
 
 		_boxId = CSceneSystem.AddCullingBox( World,

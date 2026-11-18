@@ -287,23 +287,20 @@ public class SceneMapLoader : MapLoader
 		sceneLight.Tags.Add( "light" );
 		sceneLight.Tags.Add( kv.Tags );
 
-		var light = sceneLight.lightNative;
-		light.SetWorldDirection( kv.Rotation );
+		sceneLight.SetWorldDirection( kv.Rotation );
 
-		// Apply the advanced native settings shared with the component path.
-		data.ToLegacyData().ApplyTo( light );
+		// Apply the advanced settings shared with the component path.
+		sceneLight.ApplyLegacy( data.ToLegacyData() );
 
 		if ( lightType == LightType.Rect )
 		{
-			light.SetLightShape( LightSourceShape_t.Rectangle );
-			light.SetLightSourceDim0( data.LightSourceDim0 );
-			light.SetLightSourceDim1( data.LightSourceDim1 );
+			sceneLight.Shape = SceneLight.LightShape.Rectangle;
+			sceneLight.ShapeSize = new Vector2( data.LightSourceDim0, data.LightSourceDim1 );
 		}
 		else if ( lightType == LightType.Capsule )
 		{
-			light.SetLightShape( LightSourceShape_t.Capsule );
-			light.SetLightSourceDim0( data.LightSourceDim0 );
-			light.SetLightSourceDim1( data.LightSourceDim1 );
+			sceneLight.Shape = SceneLight.LightShape.Capsule;
+			sceneLight.ShapeSize = new Vector2( data.LightSourceDim0, data.LightSourceDim1 );
 		}
 
 		SceneObjects.Add( sceneLight );

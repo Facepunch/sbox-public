@@ -1,11 +1,11 @@
-// skinning_cs.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// skinning_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// beside it is only Source 2's renderer's.
 // HEADER: DevShader = true;
 // HEADER: Description = "Vertex Skinning CS";
 
-// MODES: Default();
-
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 #include "system.fxc" // This should always be the first include in COMMON
 #include "common.fxc"
