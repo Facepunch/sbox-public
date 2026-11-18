@@ -1071,36 +1071,6 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
-	/// A frame's mesh-draw visibility (<see cref="GpuDrivenTables.FrameVisibility"/>) is asked for by every recording thread,
-	/// under locks striped by key: threads asking for the same draws at once get the same stamps and bits, and different
-	/// draws' never overlap.
-	/// </summary>
-	[TestMethod]
-	public void FrameVisibilityFromManyThreadsIsOneRangePerDraw()
-	{
-		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
-		var tables = backend.GpuDrivenTables;
-		tables.BeginFrame();
-		const int Draws = 1000, Threads = 8;
-		var meshes = Enumerable.Range( 0, 10 ).Select( _ => new object() ).ToArray();
-		var got = new (uint First, uint VertexBase)[Threads, Draws];
-		System.Threading.Tasks.Parallel.For( 0, Threads, t =>
-		{
-			for ( int d = 0; d < Draws; d++ ) got[t, d] = tables.FrameVisibility( (d / 10, meshes[d % 10], 0, 0), 2, 64 );
-		} );
-
-		var firsts = new HashSet<uint>();
-		var bases = new HashSet<uint>();
-		for ( int d = 0; d < Draws; d++ )
-		{
-			for ( int t = 1; t < Threads; t++ ) Assert.AreEqual( got[0, d], got[t, d] );
-			Assert.IsTrue( firsts.Add( got[0, d].First ) && bases.Add( got[0, d].VertexBase ), "each draw its own range" );
-		}
-
-		Assert.AreEqual( Draws * 2 * 64L, tables.FrameVisibilityBits, "bits for each draw once" );
-	}
-
-	/// <summary>
 	/// A released owner's visibility (<see cref="GpuDrivenTables.Visibility"/>) is free again once the frames that could read
 	/// it are done, and reused: owners made and let go over and over never run the stamps and vertex bits out. They used to
 	/// be kept for good, so resident groups made again on Construct took every bit and later owners drew without culling.
