@@ -504,9 +504,10 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// Meshlet culling in GPU-driven shadow views too (docs/managed/borealis-gpu-driven.md, "Meshlets"): their depth-only
-	/// buckets draw only the meshlets inside the view. On with <see cref="Meshlets"/>; <c>-no-shadow-meshlets</c> turns it off.
+	/// buckets draw only the meshlets inside the view. Off by default (a meshlet pass per shadow call costs more GPU time
+	/// than the triangles it saves in SS2 and Construct); <c>-shadow-meshlets</c> turns it on, with <see cref="Meshlets"/>.
 	/// </summary>
-	public bool ShadowMeshlets { get; set; } = !HasSwitch( "-no-shadow-meshlets" );
+	public bool ShadowMeshlets { get; set; } = HasSwitch( "-shadow-meshlets" );
 
 	/// <summary>Threads building meshlets at once: a quarter of the cores, so the frame keeps the rest.</summary>
 	public static int MeshletThreads { get; set; } = Math.Max( 1, Environment.ProcessorCount / 4 );
