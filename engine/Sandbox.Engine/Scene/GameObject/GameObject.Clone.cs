@@ -76,6 +76,7 @@ public partial class GameObject
 
 		// Restore prefab state, copy properties, then run load/validation callbacks.
 		clone.PostClone( context );
+		clone.Scene.CopyInstanceLinks( this, context.OriginalIdToCloneId );
 
 		// Legacy support for restoring prefab vars
 		if ( prefabVariablesOverride is not null && clone.IsPrefabInstanceRoot )

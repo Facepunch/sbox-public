@@ -150,13 +150,12 @@ public sealed class ScenePasteSpecialDialog : Dialog
 
 		try
 		{
-			if ( Json.Deserialize<IEnumerable<JsonObject>>( text ) is not IEnumerable<JsonObject> serializedObjects )
-				return;
+			var session = SceneEditorSession.Active;
+			var (serializedObjects, instances) = SceneInstanceClipboard.Read( session.Scene, text );
 
 			if ( !serializedObjects.Any() )
 				return;
 
-			var session = SceneEditorSession.Active;
 			using var scene = session.Scene.Push();
 
 			using ( session.UndoScope( $"Paste Special ({options.Copies} copies)" ).WithGameObjectCreations().Push() )
@@ -169,11 +168,7 @@ public sealed class ScenePasteSpecialDialog : Dialog
 				{
 					foreach ( var jso in serializedObjects )
 					{
-						var go = session.Scene.CreateObject();
-						SceneUtility.MakeIdGuidsUnique( jso );
-
-						using var blobs = BlobDataSerializer.LoadFrom( jso );
-						go.Deserialize( jso );
+						var go = SceneInstanceClipboard.Paste( session.Scene, jso, instances );
 
 						var (pos, rot) = GetCopyTransform( i, go.WorldPosition, go.WorldRotation, allPasted.LastOrDefault(), options );
 						go.WorldPosition = pos;

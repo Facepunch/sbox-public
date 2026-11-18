@@ -159,7 +159,6 @@ public class EditorToolManager
 		var selectionHash = SelectionHash;
 		if ( gameObjects.Length == 1 )
 		{
-			selectionHash = 0;
 			var components = gameObjects[0].Components.GetAll();
 
 			foreach ( var component in components )

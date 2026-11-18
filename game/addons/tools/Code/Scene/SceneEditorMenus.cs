@@ -61,6 +61,10 @@ public static class SceneEditorMenus
 		}
 	}
 
+	/// <summary>Creates a scene-local linked group from the selection.</summary>
+	[Menu( "Editor", "Scene/Create Instance", "view_in_ar" )]
+	public static void CreateInstance() => SceneEditorSession.Active?.CreateInstance();
+
 	[Menu( "Editor", "Scene/Create Group" )]
 	[Shortcut( "editor.group", "CTRL+SHIFT+G" )]
 	public static void Group()

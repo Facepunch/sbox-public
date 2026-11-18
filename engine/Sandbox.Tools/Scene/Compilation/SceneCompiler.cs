@@ -315,6 +315,8 @@ internal static partial class SceneCompiler
 				throw new InvalidOperationException( $"Cannot compile the scene: mesh '{remainingMesh.GameObject.Name}' was not converted. Compiled scenes cannot contain MeshComponents." );
 
 			file = new SceneFile();
+			// Compiled scenes keep the expanded objects, not their authoring links.
+			compiled.InstanceState = SceneInstanceState.Empty;
 			compiled.ToSceneFile( file );
 			file.Id = sceneId;
 		}

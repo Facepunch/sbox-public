@@ -512,10 +512,13 @@ public partial class SceneViewportWidget : Widget
 		{
 			var menu = new ContextMenu( this ) { Searchable = true };
 			bool HasSelection = Session.Selection.OfType<GameObject>().Any();
+			bool CanGroup = Session.Selection.OfType<GameObject>().Any( x => x is not Scene );
 			menu.AddOption( "Cut", "content_cut", EditorScene.Cut, "editor.cut" ).Enabled = HasSelection;
 			menu.AddOption( "Copy", "content_copy", EditorScene.Copy, "editor.copy" ).Enabled = HasSelection;
 			menu.AddOption( "Paste", "content_paste", PasteAtCursor, "editor.paste" );
 			menu.AddOption( "Paste Special", "content_paste_go", EditorScene.PasteSpecial, "editor.paste-special" );
+			menu.AddOption( "Create Group", "file_copy", SceneEditorMenus.Group, "editor.group" ).Enabled = CanGroup;
+			menu.AddOption( "Create Instance", "view_in_ar", SceneEditorMenus.CreateInstance ).Enabled = CanGroup && !Session.IsPrefabSession && !Session.IsPlaying;
 			menu.AddSeparator();
 			menu.AddOption( "Duplicate", "file_copy", SceneEditorMenus.Duplicate, "editor.duplicate" ).Enabled = HasSelection;
 			menu.AddOption( "Delete", "delete", SceneEditorMenus.Delete, "editor.delete" ).Enabled = HasSelection;

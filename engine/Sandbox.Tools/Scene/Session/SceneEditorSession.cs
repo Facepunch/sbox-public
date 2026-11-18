@@ -115,6 +115,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem
 		}
 
 		All.Remove( this );
+		editedScenes.Remove( this );
 		EditorEvent.Unregister( this );
 
 		// remove the tab before destroying its scene view
