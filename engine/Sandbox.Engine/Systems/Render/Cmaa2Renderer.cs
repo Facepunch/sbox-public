@@ -139,7 +139,8 @@ internal sealed class Cmaa2Renderer : IDisposable
 				return;
 			}
 
-			RenderTools.ResolveFrameBuffer( Graphics.Context, colorTarget.ColorTarget.native, viewport );
+			// The backend's resolve: Source 2's native call only has a context on its own device
+			Graphics.Backend.ResolveColor( colorTarget.ColorTarget, viewport );
 
 			Graphics.ResourceBarrierTransition( colorTarget.ColorTarget, ResourceState.NonPixelShaderResource );
 			Graphics.ResourceBarrierTransition( edgesTarget.ColorTarget, ResourceState.UnorderedAccess );
