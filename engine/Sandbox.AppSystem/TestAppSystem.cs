@@ -38,9 +38,22 @@ public class TestAppSystem : AppSystem
 			Flags = AppSystemFlags.IsGameApp | AppSystemFlags.IsUnitTest
 		};
 
-		// Opt in to the real renderer for bitmap comparisons; ordinary tests stay headless.
-		InitGame( createInfo, Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS" ) == "1"
-			? "-vulkan -noassert -novr " + Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS_ARGS" )
-			: "" );
+		// Opt in to the real renderer for bitmap comparisons; ordinary tests stay headless. SBOX_TEST_GRAPHICS=1 draws on
+		// Borealis.Gpu, as the game and the editor do; =source2 on Source 2's own device, for the tests of its native
+		// rendering alone (the vfx specialization experiment: ComplexSpecialization, ComplexPerformance)
+		var arguments = Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS_ARGS" );
+		switch ( Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS" ) )
+		{
+			case "1":
+				DrawOnBorealisGpu();
+				InitGame( createInfo, "-borealisgpu -noassert -novr " + arguments );
+				break;
+			case "source2":
+				InitGame( createInfo, "-vulkan -noassert -novr " + arguments );
+				break;
+			default:
+				InitGame( createInfo, "" );
+				break;
+		}
 	}
 }

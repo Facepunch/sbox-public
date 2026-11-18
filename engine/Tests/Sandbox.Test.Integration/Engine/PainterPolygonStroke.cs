@@ -30,8 +30,7 @@ public class PainterPolygonStrokeTest
 	[DataRow( 8, 4f, false )]
 	public void SharedOutlineMatchesGeneralRenderer( int count, float width, bool hasFill )
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 
 		var points = new Vector2[count];
 		for ( int i = 0; i < count; i++ )
@@ -98,8 +97,7 @@ public class PainterPolygonStrokeTest
 	[TestMethod]
 	public void SharedOutlineIgnoresFillMask()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 
 		using var mask = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
 		using ( var painter = Painter.Begin( mask ) )

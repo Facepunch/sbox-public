@@ -135,8 +135,7 @@ public class DownsampleSpdTest
 
 	static void RequireVulkan()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 	}
 
 	/// <summary>

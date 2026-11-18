@@ -8,8 +8,7 @@ public class InsertedPanelPaintingTest
 	[TestMethod]
 	public void InsertedPanelsRefreshTheirBuffersAfterRecordingAgain()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 
 		var bounds = new Rect( 0, 0, 64, 64 );
 		var panels = new CommandList();
