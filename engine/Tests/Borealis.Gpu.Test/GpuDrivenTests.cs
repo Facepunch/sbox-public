@@ -1079,6 +1079,32 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// Frame chunks a busy stretch added (a map's frames) are freed once their frame slot has gone a while without taking
+	/// from them; each slot keeps its first.
+	/// </summary>
+	[TestMethod]
+	public void IdleFrameChunksAreFreed()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		var tables = backend.GpuDrivenTables;
+		for ( int f = 0; f < 3; f++ )
+		{
+			tables.BeginFrame();
+			for ( int i = 0; i < 3; i++ ) tables.Allocate( 3 << 20 );
+		}
+
+		Assert.AreEqual( 9, tables.FrameChunks );
+		for ( int f = 0; f < 3 * (GpuDrivenTables.IdleChunkTurns + 2); f++ )
+		{
+			tables.BeginFrame();
+			tables.Allocate( 1024 );
+		}
+
+		Assert.AreEqual( 3, tables.FrameChunks );
+		Device.WaitIdle();
+	}
+
+	/// <summary>
 	/// Draw and lighting records are found without a lock by recording threads (a lock per draw kept them waiting on each
 	/// other): threads asking for the same records at once each get the one record made for each.
 	/// </summary>

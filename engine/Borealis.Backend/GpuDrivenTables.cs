@@ -909,6 +909,21 @@ internal sealed class GpuDrivenTables : IDisposable
 		public int Slot;
 		public long Size;
 		public long Used;
+
+		/// <summary>Turns of its frame slot in a row it wasn't taken from: past <see cref="IdleChunkTurns"/> it's freed.</summary>
+		public int IdleTurns;
+	}
+
+	/// <summary>Turns of its frame slot a frame chunk past a slot's first can go unused before it's freed (a map's busy frames grew them).</summary>
+	internal const int IdleChunkTurns = 200;
+
+	/// <summary>Frame chunks there are, for tests.</summary>
+	internal int FrameChunks
+	{
+		get
+		{
+			lock ( frames ) return frames.Sum( f => f.Count );
+		}
 	}
 
 	const int FrameSlots = 3;
@@ -969,7 +984,20 @@ internal sealed class GpuDrivenTables : IDisposable
 		lock ( frames )
 		{
 			frame = (frame + 1) % FrameSlots;
-			foreach ( var chunk in frames[frame] ) chunk.Used = 0;
+			var chunks = frames[frame];
+			for ( int i = chunks.Count - 1; i >= 0; i-- )
+			{
+				var chunk = chunks[i];
+				chunk.IdleTurns = chunk.Used == 0 ? chunk.IdleTurns + 1 : 0;
+				chunk.Used = 0;
+				if ( i == 0 || chunk.IdleTurns <= IdleChunkTurns ) continue;
+
+				// The frame that last used it is done (FrameSlots back); its buffer goes once the GPU is
+				chunks.RemoveAt( i );
+				lock ( pagesLock ) owned.Remove( chunk.Buffer );
+				gpu.Destroy( chunk.Buffer );
+			}
+
 			Volatile.Write( ref current, frames[frame].Count > 0 ? frames[frame][0] : null );
 		}
 
