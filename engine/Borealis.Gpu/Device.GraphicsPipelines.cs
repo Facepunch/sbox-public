@@ -203,6 +203,9 @@ public sealed unsafe partial class Device
 		}
 	}
 
+	static readonly string partLog = Environment.GetEnvironmentVariable( "BOREALIS_PART_LOG" ) ?? (Array.IndexOf( Environment.GetCommandLineArgs(), "-pipeline-part-log" ) is var at and >= 0 && at + 1 < Environment.GetCommandLineArgs().Length ? Environment.GetCommandLineArgs()[at + 1] : null);
+	static readonly object partLogLock = new();
+
 	bool UsesLibraries( in GraphicsPipelineInfo info ) => pipelineLibraries && !info.MeshShader.IsValid && !shaderStatistics;
 
 	/// <summary>
@@ -374,6 +377,13 @@ public sealed unsafe partial class Device
 
 			Interlocked.Add( ref partTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
 			Interlocked.Increment( ref partsMade );
+			if ( partLog is not null )
+			{
+				var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+				var constants = (PipelineParts)kind == PipelineParts.PreRasterization ? info.VertexConstants : info.FragmentConstants;
+				var line = $"{DateTime.Now:HH:mm:ss.fff} {(use ? "use" : "ahead")} {(PipelineParts)kind} {ms:0} ms {info.Name} [{string.Join( ',', System.Linq.Enumerable.Select( constants ?? [], c => $"{c.Id}={c.Value}" ) )}] layout {layout:x} shader {shader.Index}.{shader.Generation} samples {info.Samples} depth {info.DepthFormat}\n";
+				lock ( partLogLock ) System.IO.File.AppendAllText( partLog, line );
+			}
 
 			lock ( partLock )
 			{

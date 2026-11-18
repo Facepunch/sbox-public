@@ -40,9 +40,24 @@ public sealed class SurfaceShaders : IDisposable
 
 	/// <summary>
 	/// Make each program's pipeline parts ahead as it compiles (<see cref="SurfaceProgram.PrepareParts"/>), where the device
-	/// links pipelines from parts; <c>-no-prepare-parts</c> turns it off.
+	/// links pipelines from parts. Off unless <c>-prepare-parts</c>: on Construct it made over three times the parts a
+	/// session links, and the tour's first draws still made theirs (other specialization constants, GPU-driven variants).
 	/// </summary>
-	public bool PrepareParts { get; set; } = !BackendDevice.HasSwitch( "-no-prepare-parts" );
+	public bool PrepareParts { get; set; } = BackendDevice.HasSwitch( "-prepare-parts" );
+
+	/// <summary>
+	/// Specialization constants' values by attribute, as draws last looked them up: global settings (shadow filter quality,
+	/// DDGI and the like), the same for every program. What parts made ahead take for them.
+	/// </summary>
+	internal IReadOnlyDictionary<string, int> SpecializationValues => specializationValues;
+
+	readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> specializationValues = new( StringComparer.Ordinal );
+
+	/// <summary>A draw looked a specialization constant up (<see cref="SpecializationValues"/>).</summary>
+	internal void SpecializationLookedUp( string attribute, int value )
+	{
+		if ( !specializationValues.TryGetValue( attribute, out var known ) || known != value ) specializationValues[attribute] = value;
+	}
 
 	/// <summary>Folders searched for shaders by file name, in order.</summary>
 	public IReadOnlyList<string> Folders => folders;
@@ -899,10 +914,10 @@ internal sealed class SurfaceProgram : IDisposable
 					{
 						VertexShader = pass.Vertex,
 						VertexEntry = pass.Pass.Vertex.Entry,
-						VertexConstants = BackendContext.LikelySurfaceConstants( pass.Pass.Vertex, perPixel ),
+						VertexConstants = BackendContext.LikelySurfaceConstants( pass.Pass.Vertex, perPixel, device.Surfaces.SpecializationValues ),
 						FragmentShader = pixel ? pass.Pixel : default,
 						FragmentEntry = pixel ? pass.Pass.Pixel.Entry : null,
-						FragmentConstants = pixel ? BackendContext.LikelySurfaceConstants( pass.Pass.Pixel, perPixel ) : null,
+						FragmentConstants = pixel ? BackendContext.LikelySurfaceConstants( pass.Pass.Pixel, perPixel, device.Surfaces.SpecializationValues ) : null,
 						Sets = pass.Sets,
 						Name = $"{Compiled.Name} {pass.Pass.Name}",
 					};
