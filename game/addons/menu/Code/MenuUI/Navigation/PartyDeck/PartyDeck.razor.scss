@@ -11,6 +11,20 @@ PartyDeck
 	pointer-events: none;
 	z-index: 500;
 
+	// Under the window at the dock button it came up from - placed in PartyDeck.PinOverDock, in once the window's up
+	> .flyout-arrow
+	{
+		@include platform-flyout-arrow( #0e1017 );
+		bottom: auto;
+		opacity: 0;
+		transition: opacity 0.1s ease-out;
+
+		&.on
+		{
+			opacity: 1;
+		}
+	}
+
 	.floating-window
 	{
 		@include platform-surface;

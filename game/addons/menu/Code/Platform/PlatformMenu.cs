@@ -556,7 +556,7 @@ public static class PlatformMenu
 	/// Your games - played here lately, most recent first, then everything else installed. Sandbox always - last, when
 	/// it hasn't been played here lately.
 	/// </summary>
-	public static GameRow YourGames { get; } = new( "Recent", "history", FindYourGames );
+	public static GameRow YourGames { get; } = new( "Your games", "sports_esports", FindYourGames );
 
 	/// <summary>
 	/// The games you've favourited on the Workshop - under your recent ones, when there are any. Asked for again every time

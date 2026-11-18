@@ -55,6 +55,8 @@
 		</div>
 	</div>
 
+    <FriendNews />
+
     <Dock @ref="DockPanel" />
 
 </root>
@@ -75,6 +77,8 @@
     PlatformSettings SettingsPanel;
 
     public string Shelf => Shelves.IsValid() ? Shelves.Url : null;
+
+    public Panel ShelfPage => Shelf is not null ? Shelves.CurrentPanel : null;
 
     /// <summary>
     /// The modal up on the shelf, if it's one (ShowModal)
@@ -197,6 +201,11 @@
     bool Covered => PlatformMenu.IsSwitching || Shelf is not null || SettingsPage is not null;
 
     static bool Downloading => PlatformMenu.IsSwitching && LoadingView.Downloads.Count > 0;
+
+    /// <summary>
+    /// The menu is up with nothing open over the front
+    /// </summary>
+    public bool FrontClear => Visible && !PlatformMenu.IsSwitching && Shelf is null && SettingsPage is null && Side == SidePanel.None && !PartyDeck.ShownOnPlatform;
 
     public void Escape()
     {

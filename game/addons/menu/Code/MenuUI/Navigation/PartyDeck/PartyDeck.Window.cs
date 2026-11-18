@@ -102,7 +102,13 @@ public partial class PartyDeck : Panel
 	}
 
 	/// <summary>
-	/// Over the dock's party button, its left edge with the button's and clear of the dock - put there, not dragged
+	/// The point under the window, at the button it came up from (platform-flyout-arrow). Beside the window rather
+	/// than in it, as the window clips what's in it.
+	/// </summary>
+	Panel Arrow;
+
+	/// <summary>
+	/// Over the middle of the dock's party button and clear of the dock - put there, not dragged
 	/// </summary>
 	void PinOverDock()
 	{
@@ -116,7 +122,7 @@ public partial class PartyDeck : Panel
 		if ( bounds.Width <= 0 || height <= 0 ) return;
 
 		var button = PlatformAnchor.Box.Rect;
-		var left = Math.Clamp( button.Left, bounds.Left, Math.Max( bounds.Left, bounds.Right - width ) );
+		var left = Math.Clamp( button.Center.x - width / 2, bounds.Left, Math.Max( bounds.Left, bounds.Right - width ) );
 		var top = button.Top - Platform.Dock.PopupOffset * PlatformAnchor.ScaleToScreen - height;
 		Window.MoveTo( new Vector2( left, top ) );
 
@@ -128,6 +134,13 @@ public partial class PartyDeck : Panel
 		}
 
 		if ( growing ) Grow( button, new Rect( left, top, width, height ) );
+
+		if ( !Arrow.IsValid() ) return;
+
+		// Under the window's bottom edge at the button's middle, once the window's all the way up
+		Arrow.Style.Left = Length.Pixels( (button.Center.x - Box.Rect.Left) * ScaleFromScreen );
+		Arrow.Style.Top = Length.Pixels( (top + height - Box.Rect.Top) * ScaleFromScreen );
+		Arrow.SetClass( "on", !growing && !Window.IsDeleting );
 	}
 
 	const float GrowTime = 0.18f;

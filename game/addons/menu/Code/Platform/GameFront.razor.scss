@@ -21,13 +21,20 @@ GameFront
 
 	// Faded out of the way on a page off its menu (&.paging). Over the top of its pages rather than above them, so
 	// nothing moves as you go between them - its menu is down under it (FrontHome), the others up in its room.
+	// A box down to just over the menu, the name sat on its bottom - so a smaller or wrapped one stays as close to
+	// the menu as a big one, and grows up into the room above rather than down over it. Kept clear of the right edge
+	// as far as it's in from the left (GameFront.FitTitle steps a name down a size till it is).
 	.header
 	{
 		position: absolute;
 		left: 48px;
-		top: 56px;
+		right: 48px;
+		top: 0;
+		// Where a name at its full size ends when it starts 56 down, as it always has
+		height: 200px;
 		flex-direction: column;
 		align-items: flex-start;
+		justify-content: flex-end;
 		flex-shrink: 0;
 		transition: opacity 0.12s ease-out;
 
@@ -37,7 +44,29 @@ GameFront
 			font-weight: 800;
 			line-height: 1;
 			letter-spacing: -2px;
+			white-space: nowrap;
 			color: white;
+
+			// Long names get smaller rather than wrapping down into the menu
+			&.long
+			{
+				font-size: 76px;
+				letter-spacing: -1.5px;
+			}
+
+			&.longer
+			{
+				font-size: 60px;
+				letter-spacing: -1px;
+			}
+
+			// The smallest - one that still doesn't fit wraps
+			&.longest
+			{
+				font-size: 46px;
+				letter-spacing: -0.5px;
+				white-space: normal;
+			}
 		}
 	}
 
@@ -223,5 +252,19 @@ GameFront
 	{
 		opacity: 0;
 		transition: opacity 0.2s ease-in;
+	}
+}
+
+// The pause menu can be long - a game adds its own actions to it. Down to where the shelves' panels stop above the
+// dock, it scrolls rather than running on under it.
+GameFront > .inner > .nav
+{
+	bottom: -56px;
+	overflow-y: scroll;
+	scrollbar-width: 0px;
+
+	> .tier
+	{
+		flex-shrink: 0;
 	}
 }

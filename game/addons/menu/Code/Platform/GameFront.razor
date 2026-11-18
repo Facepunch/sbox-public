@@ -14,11 +14,11 @@
     back to its menu.
 *@
 <root class="@(Paused ? "paused" : "") @(OffHome ? "paging" : "")">
-	<div class="inner">
+	<div class="inner" @ref="Inner">
     @if ( ShownTitle is { } title )
     {
         <div class="header">
-            <label class="title">@title</label>
+            <label class="title @TitleSizes[titleSize]" @ref="TitleLabel">@title</label>
         </div>
 
         @if ( Paused && page == OnPlayers )
@@ -39,7 +39,7 @@
         }
         else if ( Paused )
         {
-            <div class="nav">
+            <div class="nav" @ref="PauseNav">
                 <div class="tier">
                     <div class="item" onclick=@Resume><label>Resume</label></div>
 
@@ -65,7 +65,7 @@
                 }
 
                 <div class="tier">
-                    <div class="item" onclick=@( () => ModalSystem.Instance?.Settings() )><label>Options</label></div>
+                    <div class="item" onclick=@( () => ModalSystem.Instance?.Settings() )><label>Settings</label></div>
                     <div class="item leave" onclick=@Leave><label>Leave Game</label></div>
                 </div>
             </div>
@@ -100,6 +100,65 @@
     static bool ShowPlayers => MenuProject.Modals.PlayerList.IsMocking || (Networking.IsActive && (Shown?.Info.ShowsPlayerList ?? true));
 
     FrontPages Pages;
+
+    Panel Inner;
+    Label TitleLabel;
+
+    /// <summary>
+    /// The pause menu scrolls when a game's own actions make it longer than there's room for - faded off where there's
+    /// more of it
+    /// </summary>
+    Panel PauseNav;
+    readonly ScrollFade pauseNavFade = new( 32 );
+
+    /// <summary>
+    /// The title's sizes, biggest first. The last wraps, so anything fits.
+    /// </summary>
+    static readonly string[] TitleSizes = ["", "long", "longer", "longest"];
+
+    string fittedTitle;
+    int titleSize;
+    int titleSettling;
+
+    /// <summary>
+    /// Where a title starts from by its length - most are right first time, so there's nothing to see it settle
+    /// </summary>
+    static int TitleSizeFor( string title ) => title.Length switch
+    {
+        > 32 => 2,
+        > 20 => 1,
+        _ => 0
+    };
+
+    /// <summary>
+    /// A size down for as long as the title runs past the front's right edge - how wide it is depends on its letters
+    /// and how wide the screen is, not just how many there are
+    /// </summary>
+    void FitTitle()
+    {
+        var title = ShownTitle;
+        if ( title != fittedTitle )
+        {
+            fittedTitle = title;
+            titleSize = title is null ? 0 : TitleSizeFor( title );
+            titleSettling = 2;
+            return;
+        }
+
+        // Laid out at the size it's at before it's measured again
+        if ( titleSettling > 0 ) { titleSettling--; return; }
+
+        if ( titleSize >= TitleSizes.Length - 1 || !TitleLabel.IsValid() || !Inner.IsValid() ) return;
+        if ( TitleLabel.Box.Rect.Right <= Inner.Box.Rect.Right - TitleEdge * ScaleToScreen ) return;
+
+        titleSize++;
+        titleSettling = 2;
+    }
+
+    /// <summary>
+    /// The header's left edge ($front-inset in the stylesheet), kept clear on the right too
+    /// </summary>
+    const float TitleEdge = 48;
 
     /// <summary>
     /// The host of the game that's loaded, with a say in what's played, in a game that has its map changed from here
@@ -171,6 +230,10 @@
     {
         base.Tick();
 
+        FitTitle();
+
+        if ( PauseNav.IsValid() ) pauseNavFade.Apply( PauseNav );
+
         // Back on the pause menu the next time it's paused - and the page gone if nobody's list is shown any more
         if ( !Paused || (page == OnPlayers && !ShowPlayers) || (page == OnMaps && !CanChangeMap) ) page = null;
 
@@ -185,5 +248,5 @@
         actionsHash = hash;
     }
 
-    protected override int BuildHash() => HashCode.Combine( Paused, Shown, ShownTitle, actionsHash, OffHome, ShowPlayers, page, CanChangeMap );
+    protected override int BuildHash() => HashCode.Combine( Paused, Shown, ShownTitle, actionsHash, OffHome, ShowPlayers, HashCode.Combine( page, CanChangeMap, titleSize ) );
 }

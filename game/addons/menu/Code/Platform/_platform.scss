@@ -891,6 +891,35 @@ $screen-w-16x9: 1920px;
 	}
 }
 
+// The point on the bottom of a panel up out of the dock, at the button it came from - a square turned on its corner,
+// only the half under the panel's bottom edge shown. In the colour the panel is along its bottom, which depends on
+// what's in it. Its left is set in code (Dock.PointAt), as the panel's kept on screen and so isn't always centred over
+// its button.
+//
+// <div class="panel">...<div class="flyout-arrow"><div></div></div></div>
+@mixin platform-flyout-arrow( $color )
+{
+	position: absolute;
+	bottom: -8px;
+	width: 20px;
+	height: 8px;
+	margin-left: -10px;
+	overflow: hidden;
+	pointer-events: none;
+
+	> div
+	{
+		position: absolute;
+		left: 3px;
+		top: -7px;
+		width: 14px;
+		height: 14px;
+		border-radius: 2px;
+		background-color: $color;
+		transform: rotate( 45deg );
+	}
+}
+
 // A panel in from the right - down the screen from its top edge to the dock, slid in from off the right when it's .open,
 // back out when it's put away. Its .panel takes the pointer only while it's in.
 //

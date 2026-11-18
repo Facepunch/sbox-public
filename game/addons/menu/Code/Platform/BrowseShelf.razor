@@ -8,22 +8,13 @@
 
 @*
     Browse the Workshop's games - search, put them in an order, narrow them down by tag (how it's played, what it is),
-    and page through what's found. From the dock's search, or a Discover row's See more.
+    and page through what's found. The search field lives in the dock (Dock calls Find), or it's opened from a
+    Discover row's See more.
 *@
 <root>
 
     <div class="side" @ref="Side">
 
-        <div class="search">
-            <i>search</i>
-            <TextEntry @ref="SearchEntry" Placeholder="Search the Workshop..." OnTextEdited=@Typed onsubmit=@Submit />
-            @if ( !string.IsNullOrEmpty( Query ) )
-            {
-                <i class="clear" onclick=@ClearSearch>close</i>
-            }
-        </div>
-
-        @* Under the search, scrolling without it *@
         <div class="options">
 
         @if ( Tags.Count > 0 || Mine || !string.IsNullOrEmpty( Query ) )
@@ -74,7 +65,7 @@
 
         <div class="header">
             <i class="icon">travel_explore</i>
-            <label class="title">Browse</label>
+            <label class="title">@(Query is null ? "Browse" : $"Results for \u201C{Query}\u201D")</label>
             <div class="spacer"></div>
             <div class="refresh @(loading ? "busy" : "")" onclick=@Search tooltip="Refresh"><i>refresh</i></div>
         </div>
@@ -149,9 +140,9 @@
         new( "Recently updated", "update", Storage.SortOrder.RankedByLastUpdatedDate ),
     ];
 
-    TextEntry SearchEntry;
-
     string Query;
+
+    public string Searched => Query;
     Storage.SortOrder? Sort;
     readonly HashSet<string> Tags = new( StringComparer.OrdinalIgnoreCase );
 
@@ -176,9 +167,6 @@
     /// </summary>
     static readonly Vector2 CellSize = new( 244, 244 + GameCard.InfoHeight );
 
-    string typed;
-    RealTimeSince sinceTyped;
-
     /// <summary>
     /// Shown - it starts again, from what its url asked for. Taken off it as it's used: a url without a query leaves
     /// what the last one set.
@@ -192,27 +180,8 @@
 
         Tags.Clear();
         Mine = false;
-        typed = null;
-
-        // Ready to type in - it's opened to search
-        if ( SearchEntry.IsValid() )
-        {
-            SearchEntry.Text = Query ?? "";
-            SearchEntry.Focus();
-        }
 
         Search();
-    }
-
-    protected override void OnAfterTreeRender( bool firstTime )
-    {
-        base.OnAfterTreeRender( firstTime );
-
-        if ( firstTime && SearchEntry.IsValid() )
-        {
-            SearchEntry.Text = Query ?? "";
-            SearchEntry.Focus();
-        }
     }
 
     void Search()
@@ -243,22 +212,13 @@
         StateHasChanged();
     }
 
-    void Typed( string text )
-    {
-        typed = text?.Trim() ?? "";
-        sinceTyped = 0;
-    }
-
-    void Submit()
-    {
-        if ( typed is null ) return;
-        SetQuery( typed );
-    }
+    /// <summary>
+    /// Change the search text, keeping the current sort and tags
+    /// </summary>
+    public void Find( string text ) => SetQuery( text?.Trim() );
 
     void SetQuery( string text )
     {
-        typed = null;
-
         var query = string.IsNullOrEmpty( text ) ? null : text;
         if ( query == Query ) return;
 
@@ -268,12 +228,6 @@
 
         Query = query;
         Search();
-    }
-
-    void ClearSearch()
-    {
-        if ( SearchEntry.IsValid() ) SearchEntry.Text = "";
-        SetQuery( null );
     }
 
     void SetSort( Storage.SortOrder? sort )
@@ -303,7 +257,7 @@
 
         // Clearing a search searches again itself
         var searched = Query is not null;
-        ClearSearch();
+        SetQuery( null );
         if ( !searched ) Search();
     }
 
@@ -311,10 +265,6 @@
 
     protected override void TickShown()
     {
-        // Searched for once the typing stops for a moment
-        if ( typed is not null && sinceTyped > 0.4f )
-            SetQuery( typed );
-
         gridFade.Apply( Grid );
     }
 
