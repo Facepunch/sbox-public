@@ -157,6 +157,14 @@ void LightPass( uint3 cluster, uint3 froxel )
 		vLight += g_DirectionalLightColor.rgb * flShadow;
 	}
 
+	// The directional lights besides the sun, each with its own map
+	const uint nSuns = ExtraSunCount();
+	for ( uint i = 0; i < nSuns; i++ )
+	{
+		BinnedLight sun = ExtraSunByIndex( i );
+		vLight += sun.Color * ProjectedShadow::GetSunVisibility( sun.ShadowMapIndex, vPositionWs, float3( 0, 0, 0 ), float2( 0, 0 ) );
+	}
+
 	// The group is one cluster, so its lights are wave-uniform
 	const uint flat = Cluster::Flatten( cluster );
 	ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, flat );
