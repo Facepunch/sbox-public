@@ -1017,17 +1017,10 @@ internal sealed partial class BackendContext : GpuContext
 	/// </summary>
 	ShaderVariant Variant( BackendMaterial material, string mode )
 	{
-		var key = new System.Text.StringBuilder( mode );
-		foreach ( var type in (ReadOnlySpan<ShaderProgramType>)[ShaderProgramType.Vertex, ShaderProgramType.Pixel] )
-		{
-			foreach ( var combo in material.Shader[type]?.DynamicCombos ?? [] )
-			{
-				if ( LookupCombo( Token( combo.Name ) ) is int value && value != 0 ) key.Append( ';' ).Append( combo.Name ).Append( '=' ).Append( value );
-			}
-		}
-
-		AppendSpecialization( key, material );
-		return material.Variant( device.Shaders, mode, key.ToString(), name => LookupCombo( Token( name ) ), name => Integer( Lookup( Token( name ) ) ) );
+		// The key DrawWithMaterialObject uses, made once per values; the lookups made once per context
+		comboLookup ??= name => LookupCombo( Token( name ) );
+		specializationLookup ??= name => Integer( Lookup( Token( name ) ) );
+		return material.Variant( device.Shaders, mode, ComboKeyByValue( material, mode ), comboLookup, specializationLookup );
 	}
 
 	/// <summary>The values of the material's specialization attributes that are set, for its variant key.</summary>
