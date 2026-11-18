@@ -156,6 +156,12 @@ public abstract class GpuDevice
 	/// <summary>Whether static meshes' opaque draws join the aggregates' GPU-driven call (<see cref="DrawsAggregatesGpuDriven"/> too).</summary>
 	internal virtual bool DrawsMeshesGpuDriven => false;
 
+	/// <summary>
+	/// Whether skinned meshes' opaque draws join them too (<see cref="DrawsMeshesGpuDriven"/> as well): their instances' base
+	/// entries as transforms, drawn from the vertex cache or skinned in the vertex shader as their classic draws are.
+	/// </summary>
+	internal virtual bool DrawsSkinnedGpuDriven => false;
+
 	/// <summary>Whether a map's static overlays draw GPU-driven, a call per render order, regrouped by pipeline within it.</summary>
 	internal virtual bool DrawsOverlaysGpuDriven => false;
 

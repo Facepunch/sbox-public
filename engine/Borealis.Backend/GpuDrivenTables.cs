@@ -473,6 +473,72 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// <summary>A field's semantic as shaders number them (<c>usage * 16 + index</c>, the attribute map's numbering).</summary>
 	static int Semantic( VertexLayout.Field field ) => field.Index < 16 ? (int)field.Semantic * 16 + field.Index : -1;
 
+	/// <summary>The vertex id semantics a vertex-cache draw reads (<c>TEXCOORD14</c>, <c>TEXCOORD15</c>), as shaders number them.</summary>
+	const int VertexIdSemantic = (int)VertexSemantic.TexCoord * 16 + 14, CacheVertexSemantic = (int)VertexSemantic.TexCoord * 16 + 15;
+
+	readonly Dictionary<(int Page, long Offset, VertexLayout Layout, int Count, int FirstVertexId, int FirstCacheVertex), uint> cacheGeometryRecords = new();
+	(int Slot, long Offset) vertexIds = (-1, 0);
+
+	/// <summary>
+	/// 0, 1, 2 ... as floats, <see cref="BackendDevice.MaxVertexIds"/> of them, in a vertex page (made the first time it's
+	/// asked for): what a vertex-cache draw's geometry record reads its vertex ids from, as its classic draw binds
+	/// <see cref="BackendDevice.VertexIds"/> on streams 2 and 3.
+	/// </summary>
+	(int Slot, long Offset) VertexIds()
+	{
+		lock ( cacheGeometryRecords )
+		{
+			if ( vertexIds.Slot >= 0 ) return vertexIds;
+			var ids = new float[BackendDevice.MaxVertexIds];
+			for ( int i = 0; i < ids.Length; i++ ) ids[i] = i;
+			var (_, offset, slot) = AddVertexStream( MemoryMarshal.AsBytes( ids.AsSpan() ) );
+			return vertexIds = (slot, offset);
+		}
+	}
+
+	/// <summary>
+	/// The geometry record of a skinned mesh's draw from the vertex cache: its vertices' semantics as <see cref="Geometry"/>
+	/// writes them, and its two vertex id streams from <see cref="VertexIds"/> - <c>TEXCOORD14</c> from its first vertex
+	/// among its mesh's draws, <c>TEXCOORD15</c> from its vertex buffer's place in the mesh's block of the cache - which its
+	/// classic draw binds on streams 2 and 3. A vertex's place in the cache is then its instance's cache offset (its base
+	/// entry's) plus <c>TEXCOORD15</c>, as the shaders' <c>D_CS_VERTEX_ANIMATION</c> code reads it. 0 when the ids run out.
+	/// </summary>
+	public uint VertexCacheGeometry( int slot, long offset, VertexLayout layout, int count, int firstVertexId, int firstCacheVertex )
+	{
+		var max = BackendDevice.MaxVertexIds;
+		if ( firstVertexId < 0 || firstCacheVertex < 0 || firstVertexId >= max || firstCacheVertex + count > max ) return 0;
+		var ids = VertexIds();
+		lock ( cacheGeometryRecords )
+		{
+			var key = (slot, offset, layout, count, firstVertexId, firstCacheVertex);
+			if ( cacheGeometryRecords.TryGetValue( key, out var found ) ) return found;
+
+			// The vertices' own fields but for any of the ids' semantics, then the two id streams: in semantic order, as the
+			// fetch counts attributes by the mask's bits
+			var fields = layout.Fields.Where( f => Semantic( f ) is >= 0 and < 256 and not VertexIdSemantic and not CacheVertexSemantic && Encode( f.Format ) != 0 ).ToArray();
+			var attributes = fields.Select( f => (Semantic: Semantic( f ), Slot: slot, Offset: offset + f.Offset, Format: Encode( f.Format ) | (uint)layout.Stride << 16, Count: count) )
+				.Append( (Semantic: VertexIdSemantic, Slot: ids.Slot, Offset: ids.Offset + firstVertexId * 4L, Format: Encode( VertexFormat.Float ) | 4u << 16, Count: Math.Min( count, max - firstVertexId )) )
+				.Append( (Semantic: CacheVertexSemantic, Slot: ids.Slot, Offset: ids.Offset + firstCacheVertex * 4L, Format: Encode( VertexFormat.Float ) | 4u << 16, Count: count) )
+				.OrderBy( a => a.Semantic ).ToArray();
+
+			var record = new byte[MaskBytes + attributes.Length * 16];
+			for ( int i = 0; i < attributes.Length; i++ )
+			{
+				var semantic = attributes[i].Semantic;
+				var word = BinaryPrimitives.ReadUInt32LittleEndian( record.AsSpan( semantic / 32 * 4 ) );
+				BinaryPrimitives.WriteUInt32LittleEndian( record.AsSpan( semantic / 32 * 4 ), word | 1u << (semantic % 32) );
+
+				var attribute = record.AsSpan( MaskBytes + i * 16 );
+				BinaryPrimitives.WriteUInt32LittleEndian( attribute, (uint)attributes[i].Slot + 1 );
+				BinaryPrimitives.WriteUInt32LittleEndian( attribute[4..], (uint)attributes[i].Offset );
+				BinaryPrimitives.WriteUInt32LittleEndian( attribute[8..], attributes[i].Format );
+				BinaryPrimitives.WriteUInt32LittleEndian( attribute[12..], (uint)attributes[i].Count << 1 );
+			}
+
+			return cacheGeometryRecords[key] = geometry.Append( record );
+		}
+	}
+
 	/// <summary>
 	/// A vertex format as the decoder reads it: bits 0-5 component width, 6-8 count, 9-11 conversion (0 float, 1 unorm,
 	/// 2 snorm, 3 uint, 4 sint), 12 BGRA; 0 for one it can't read.

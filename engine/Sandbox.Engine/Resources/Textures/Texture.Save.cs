@@ -158,6 +158,9 @@ public partial class Texture
 	/// <param name="format">Optional format override. If null, the format is automatically determined based on texture properties.</param>
 	public async Task<byte[]> SaveToVtexAsync( ImageFormat? format = null )
 	{
+		// Another device than Source 2's reads its textures back through its own recording context, on the main thread
+		if ( RenderBackend.Default is not Source2RenderBackend ) return SaveToVtex( format );
+
 		return await Task.Run( () => SaveToVtex( format ) );
 	}
 }

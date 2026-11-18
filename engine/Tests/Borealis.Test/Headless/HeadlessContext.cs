@@ -58,6 +58,8 @@ internal sealed class HeadlessContext : GpuContext
 
 	public override OverlayStencil OverlayStencil { get; set; }
 
+	public override ToolsPass ToolsPass { get; set; }
+
 	public override GpuBuffer<uint> InstanceIds { get; set; }
 
 	public override OcclusionCuller Occlusion { get; set; }

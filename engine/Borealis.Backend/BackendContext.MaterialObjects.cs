@@ -286,9 +286,9 @@ internal sealed partial class BackendContext
 		var noColor = stripPixelShader || r.Color is null;
 		var depthOnly = StripsPixelShader( m, noColor, stripPixelShader );
 		var geometry = DepthGeometry( GeometryFor( source, draw ), variant, depthOnly );
-		var key = new MaterialObjectCache.Key( m, variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, geometry.UncompressedTangentFrame, Normals: !noColor && r.Normals is not null );
+		var key = new MaterialObjectCache.Key( m, variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, geometry.UncompressedTangentFrame, Normals: !noColor && r.Normals is not null, Tools: noColor ? ToolsPass.None : ToolsPass );
 
-		var materialObject = lastObject is not null && key.Same( lastKey ) && !lastObject.Stale ? lastObject : cache.Get( key, immediate: false, (device, geometry.Layout, key), static ( s, layout ) => s.device.Pipeline( s.key.Variant, s.Layout, s.key.Color, s.key.Depth, s.key.Samples, s.key.DepthOnly, layout.Sets, normals: s.key.Normals ) );
+		var materialObject = lastObject is not null && key.Same( lastKey ) && !lastObject.Stale ? lastObject : cache.Get( key, immediate: false, (device, geometry.Layout, key), static ( s, layout ) => s.device.Pipeline( s.key.Variant, s.Layout, s.key.Color, s.key.Depth, s.key.Samples, s.key.DepthOnly, layout.Sets, normals: s.key.Normals, tools: s.key.Tools ) );
 		(lastKey, lastObject) = (key, materialObject);
 
 		resolver.LayerEpoch = layerEpoch;

@@ -20,6 +20,7 @@ internal sealed class TranslucentLayer : MeshLayer
 		Runs = MeshRuns.Translucent;
 		LayerType = MeshLayerType.Translucent;
 		Fade = fade;
+		TakesToolsPass = true;
 	}
 
 	public override bool IsShared => false;

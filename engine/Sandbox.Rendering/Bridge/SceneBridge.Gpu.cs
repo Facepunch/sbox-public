@@ -51,6 +51,7 @@ internal sealed partial class SceneBridge
 		gpuView.Viewport = viewport;
 		gpuView.SrgbWrite = false;
 		gpuView.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
+		gpuView.ToolsVisMode = ToolsVisModeOf( camera );
 		gpuView.SetCamera( camera, viewport.Size );
 		gpuView.RenderSceneObject = null;
 
@@ -85,6 +86,7 @@ internal sealed partial class SceneBridge
 		gpuView.Viewport = viewport;
 		gpuView.SrgbWrite = false;
 		gpuView.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
+		gpuView.ToolsVisMode = ToolsVisModeOf( camera );
 		gpuView.SetCamera( camera, size );
 
 		var frame = RenderScene( backend, camera, size, 1, setup );

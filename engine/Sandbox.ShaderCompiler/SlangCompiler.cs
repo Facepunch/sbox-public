@@ -82,10 +82,10 @@ public sealed partial class SlangCompiler
 	/// defines and passes, the generated instance and GPU-driven files, the source rewrites, reflection. A change to the
 	/// generated text alone fails <c>GeneratedCodeNeedsAVersion</c> until <see cref="GeneratedFingerprint"/> is updated here too.
 	/// </summary>
-	public const int Version = 2;
+	public const int Version = 3;
 
 	/// <summary>The <see cref="Fingerprint"/> of the generated code <see cref="Version"/> was raised for.</summary>
-	internal const string GeneratedFingerprint = "D91ACD26E5E93B42";
+	internal const string GeneratedFingerprint = "E0A8E99736ED5263";
 
 	/// <summary>
 	/// A hash of what the compiler generates for fixed inputs (the Slang command lines, instance and GPU-driven files and
@@ -94,7 +94,7 @@ public sealed partial class SlangCompiler
 	internal static string Fingerprint()
 	{
 		var text = new StringBuilder();
-		Dictionary<string, string>[] sets = [null, AlphaTested, Translucent, Lightmapped, VertexAnimation, GpuDriven, AlphaTestedDepth, With( GpuDriven, Lightmapped )];
+		Dictionary<string, string>[] sets = [null, AlphaTested, Translucent, Lightmapped, VertexAnimation, GpuDriven, AlphaTestedDepth, With( GpuDriven, Lightmapped ), With( GpuDriven, VertexAnimation )];
 		foreach ( var stage in Enum.GetValues<StageKind>() )
 		{
 			foreach ( var set in sets )
@@ -404,8 +404,9 @@ public sealed partial class SlangCompiler
 				done.IsCompletedSuccessfully ? Entry( instance + GpuDrivenVertex( material.Name, displaces, interpolated, done.Result.Inputs ), "MainVsGpuDriven", StageKind.Vertex, defines ) : done, TaskScheduler.Default ).Unwrap();
 			var gpuVertexJob = stage ? null : GpuVertex( vertexJob, GpuDriven );
 			var gpuVertexLightmappedJob = stage ? null : GpuVertex( vertexLightmappedJob, With( GpuDriven, Lightmapped ) );
+			var gpuVertexSkinnedJob = stage ? null : GpuVertex( vertexSkinnedJob, With( GpuDriven, VertexAnimation ) );
 			Task<CompiledStage>[] jobs = [vertexJob, vertexLightmappedJob, forwardJob, forwardAlphaTestJob, depthAlphaTestJob, forwardTranslucentJob, depthVertexJob, vertexSkinnedJob, depthVertexSkinnedJob,
-				gpuForwardJob, gpuForwardAlphaTestJob, gpuDepthAlphaTestJob, gpuForwardTranslucentJob, gpuVertexJob, gpuVertexLightmappedJob];
+				gpuForwardJob, gpuForwardAlphaTestJob, gpuDepthAlphaTestJob, gpuForwardTranslucentJob, gpuVertexJob, gpuVertexLightmappedJob, gpuVertexSkinnedJob];
 			await Settled( [.. jobs.Where( j => j is not null ).Distinct()] ).ConfigureAwait( false );
 
 			var vertex = vertexJob.GetAwaiter().GetResult();
@@ -440,11 +441,14 @@ public sealed partial class SlangCompiler
 				{
 					var gpuVertex = gpuVertexJob.GetAwaiter().GetResult();
 					var gpuVertexLightmapped = gpuVertexLightmappedJob.GetAwaiter().GetResult();
+					var gpuVertexSkinned = gpuVertexSkinnedJob.GetAwaiter().GetResult();
 					var gpuForward = gpuForwardJob.GetAwaiter().GetResult();
 					var gpuForwardAlphaTest = gpuForwardAlphaTestJob.GetAwaiter().GetResult();
 					var gpuDepthAlphaTest = gpuDepthAlphaTestJob.GetAwaiter().GetResult();
 					var gpuForwardTranslucent = gpuForwardTranslucentJob.GetAwaiter().GetResult();
-					foreach ( var (v, suffix) in new[] { (gpuVertex, ShaderPasses.GpuDriven), (gpuVertexLightmapped, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped) } )
+					// Skinned draws from the vertex cache too: the vertex stage generated from the skinned one, which pulls the vertex
+					// ids its classic draw binds (GpuDrivenTables.VertexCacheGeometry)
+					foreach ( var (v, suffix) in new[] { (gpuVertex, ShaderPasses.GpuDriven), (gpuVertexLightmapped, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped), (gpuVertexSkinned, ShaderPasses.GpuDriven + ShaderPasses.Skinned) } )
 					{
 						foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, gpuForward), (ShaderPasses.Forward + "AlphaTest", gpuForwardAlphaTest), (ShaderPasses.Forward + "Translucent", gpuForwardTranslucent), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, gpuDepthAlphaTest) } )
 							passes[name + suffix] = new() { Name = name + suffix, Vertex = v, Pixel = pixel };

@@ -171,14 +171,14 @@ public class ShaderDrawTests : GpuTest
 	}
 
 	/// <summary>
-	/// A matrix attribute nothing sets is identity, as on Source 2: world text's draws set neither of ui/vertex.hlsl's
-	/// LayerMat and TransformMat, and with zeros its quad has no position.
+	/// A matrix attribute nothing sets is identity, as on Source 2: a HUD line's draws don't set its TransformMat, and with
+	/// zeros its quad has no position.
 	/// </summary>
 	[TestMethod]
 	public void UnsetMatrixAttributesAreIdentity()
 	{
 		using var library = new ShaderLibrary( Device, ShaderFileTests.Files );
-		var shader = library.Load( "shaders/ui_text.shader" );
+		var shader = library.Load( "shaders/hud/line.shader" );
 		var stage = library.Variant( shader, "Forward", new int[shader.Features.StaticCombos.Length] ).Vertex;
 		var data = new byte[stage.MaterialBuffer.Size];
 		stage.WriteMaterialConstants( data );
@@ -191,7 +191,7 @@ public class ShaderDrawTests : GpuTest
 			found++;
 		}
 
-		Assert.AreEqual( 2, found, "LayerMat and TransformMat in ui_text's vertex constants" );
+		Assert.AreEqual( 1, found, "TransformMat in the HUD line's vertex constants" );
 	}
 
 	/// <summary>
@@ -290,7 +290,7 @@ public class ShaderDrawTests : GpuTest
 		using var library = new ShaderLibrary( Device, ShaderFileTests.Files );
 		Assert.IsNull( library.Load( "compiled/anonymous/1.shader" ), "nothing is there before it's added" );
 
-		var basic = ShaderFileTests.Files.Read( "shaders/ui_basic.shader" );
+		var basic = ShaderFileTests.Files.Read( "shaders/ui.shader" );
 		Assert.IsTrue( library.Add( "compiled/anonymous/1.shader", basic ) );
 		var added = library.Load( "compiled/anonymous/1.shader" );
 		Assert.IsNotNull( added );
@@ -303,10 +303,10 @@ public class ShaderDrawTests : GpuTest
 		Assert.AreEqual( "Depth", library.Load( "compiled/anonymous/1.shader" ).Modes.Single().Name, "new bytes replace it" );
 
 		// A hotloaded .shader over the one its file loaded
-		var loaded = library.Load( "shaders/ui_basic.shader" );
-		Assert.IsTrue( library.Add( "shaders/ui_basic.shader", depth ) );
-		Assert.AreNotSame( loaded, library.Load( "shaders/ui_basic.shader" ) );
-		Assert.AreEqual( "Depth", library.Load( "shaders/ui_basic.shader" ).Modes.Single().Name );
+		var loaded = library.Load( "shaders/ui.shader" );
+		Assert.IsTrue( library.Add( "shaders/ui.shader", depth ) );
+		Assert.AreNotSame( loaded, library.Load( "shaders/ui.shader" ) );
+		Assert.AreEqual( "Depth", library.Load( "shaders/ui.shader" ).Modes.Single().Name );
 	}
 
 	static Vector4 Half4( byte[] pixels, int x, int y )

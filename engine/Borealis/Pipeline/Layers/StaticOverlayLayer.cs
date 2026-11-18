@@ -13,6 +13,7 @@ internal sealed class StaticOverlayLayer : MeshLayer
 		ShaderMode = ForwardMode;
 		Runs = MeshRuns.StaticOverlay;
 		DrawsCustomObjects = false;
+		TakesToolsPass = true;
 	}
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.RunCount( this ) > 0;

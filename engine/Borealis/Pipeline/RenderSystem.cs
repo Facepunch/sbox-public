@@ -315,6 +315,20 @@ public sealed partial class RenderSystem : IDisposable
 
 	void Render( RenderWorld world, RenderView view, in RenderOutput output, IRenderStages stages = null )
 	{
+		ArgumentNullException.ThrowIfNull( world );
+		world.Rendering++;
+		try
+		{
+			Record( world, view, output, stages );
+		}
+		finally
+		{
+			world.Rendering--;
+		}
+	}
+
+	void Record( RenderWorld world, RenderView view, in RenderOutput output, IRenderStages stages )
+	{
 		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		ArgumentNullException.ThrowIfNull( world );
 		ArgumentNullException.ThrowIfNull( view );
@@ -551,8 +565,8 @@ public sealed partial class RenderSystem : IDisposable
 		// Native uses no high-precision lighting offset for skyboxes.
 		environment.Apply( context, world.Lighting, lightBinner, shadows.Directional, frame.Space, isSkybox ? default : view.Position, isSkybox ? null : fog, view );
 
-		// Per-view debug mode (ToolsVis.hlsl, SetupShadingMode).
-		context.Attributes.Set( ToolsVisModeName, view.ToolsVisMode );
+		// Per-view debug mode (ToolsVis.hlsl, SetupShadingMode): the shaders' modes, not the engine's tools passes
+		context.Attributes.Set( ToolsVisModeName, ToolsViews.ShaderMode( view ) );
 
 		// Over the camera's attributes, as CameraRenderer.Configure sets it
 		context.Attributes.Set( LightModulatorsDisabledName, !view.LightModulators );
@@ -733,6 +747,26 @@ public sealed partial class RenderSystem : IDisposable
 	/// Draw a run range in feature order. May execute on a worker thread.
 	/// </summary>
 	internal void DrawRange( GpuContext rc, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
+	{
+		// A colour layer of a view in a geometric debug view draws every draw with the tools pass (ToolsViews)
+		if ( rc is null )
+		{
+			DrawFeatures( rc, view, layer, first, count, ref stats );
+			return;
+		}
+
+		rc.ToolsPass = layer.TakesToolsPass && !view.IsShadow ? ToolsViews.PassOf( view.View ) : ToolsPass.None;
+		try
+		{
+			DrawFeatures( rc, view, layer, first, count, ref stats );
+		}
+		finally
+		{
+			rc.ToolsPass = ToolsPass.None;
+		}
+	}
+
+	void DrawFeatures( GpuContext rc, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
 	{
 		var end = first + count;
 		var start = 0;

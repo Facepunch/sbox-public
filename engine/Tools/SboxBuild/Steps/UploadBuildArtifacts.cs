@@ -156,7 +156,6 @@ internal class UploadBuildArtifacts
 		"core/shaders/tools_wireframe.shader",
 		"core/shaders/ui.shader",
 		"core/shaders/unlit.shader",
-		"core/shaders/visualize_quad_overdraw.shader",
 
 		// addons raw assets
 		"addons/**/*.tga",

@@ -10,7 +10,7 @@ public partial class Texture
 {
 	/// <summary>
 	/// Whether the texture's pixels are Source 2's: drawn by native's renderer in a process that draws on another device
-	/// with Source 2's kept beside it (an editor bake's captures), so reading it back reads Source 2's copy.
+	/// with Source 2's kept beside it (a capture a tool asks of native by name), so reading it back reads Source 2's copy.
 	/// </summary>
 	internal bool PixelsOnSource2 { get; set; }
 
