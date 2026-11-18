@@ -174,6 +174,58 @@ public class PipelineLibraryTests : GpuTest
 		Assert.AreEqual( 0, differing, $"{what} draw as the parts do: {differing} bytes differ" );
 	}
 
+	/// <summary>
+	/// A pipeline that may skip draws is made on workers when its parts aren't made: creating it doesn't wait, a list skips
+	/// its draws until it's made, then draws it; one whose parts are all made links at once.
+	/// </summary>
+	[TestMethod]
+	public void DrawsOfUnreadyPipelinesAreSkippedNotWaitedOn()
+	{
+		var vs = Shader( "triangle.vs.spv" );
+		var ps = Shader( "triangle.ps.spv" );
+		var info = Triangle( vs, ps );
+		info.DepthFormat = Format.Unknown;
+		info.SkipUntilReady = true;
+		Device.SkipDrawsUntilReady = true;
+		var pipeline = Device.CreateGraphicsPipeline( info );
+		Assert.IsFalse( Device.IsReady( pipeline ), "nothing was made yet: workers make it" );
+
+		var target = Device.CreateTexture( TextureInfo.RenderTarget( 64, 64, Format.RGBA8Unorm, name: "Target" ) );
+		int Draw( ImageLayout from, out int skipped )
+		{
+			var list = Device.BeginCommandList( QueueType.Graphics, "Draw" );
+			list.Barrier( TextureBarrier.Transition( target, from, ImageLayout.ColorTarget, PipelineStage.ColorTargetOutput, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+			list.BeginRendering( [ColorTarget.Of( target, System.Numerics.Vector4.Zero )] );
+			list.SetViewport( 0, 0, 64, 64 );
+			list.SetScissor( 0, 0, 64, 64 );
+			list.SetPipeline( pipeline );
+			list.PushConstants( new System.Numerics.Vector4( 0, 0, 1, 0 ) );
+			list.Draw( 3 );
+			list.EndRendering();
+			skipped = list.SkippedDraws;
+			var draws = list.Counts.Draws;
+			Device.Wait( Device.Submit( list ) );
+			return draws;
+		}
+
+		// Very rarely the workers win the race to the first draw
+		var drawn = Draw( ImageLayout.Undefined, out var skippedFirst );
+		if ( skippedFirst == 1 ) Assert.AreEqual( 0, drawn, "the draw was skipped, not waited on" );
+
+		Assert.IsTrue( Device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );
+		Assert.IsTrue( Device.IsReady( pipeline ) );
+		Assert.AreEqual( 1, Draw( ImageLayout.ColorTarget, out var skippedAfter ) );
+		Assert.AreEqual( 0, skippedAfter );
+
+		var stats = Device.DeferredPipelines;
+		Assert.AreEqual( 1, stats.Made );
+		Assert.AreEqual( skippedFirst, (int)stats.SkippedDraws );
+
+		// The same again links its made parts at once
+		if ( Device.Capabilities.PipelineLibraries ) Assert.IsTrue( Device.IsReady( Device.CreateGraphicsPipeline( info ) ) );
+		Assert.IsTrue( Device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ) );
+	}
+
 	/// <summary>A pipeline destroyed before its optimised link finishes: the link is thrown away, nothing leaks.</summary>
 	[TestMethod]
 	public void PipelinesDestroyedWhileOptimisingGo()

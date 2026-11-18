@@ -239,7 +239,7 @@ internal static class MapRealRun
 			MapRun.Pump( window );
 			RenderFrame( options.Views[0] );
 			// Optimised pipeline links replacing fast ones are background work too
-			if ( map.Backend.BuildsPending > 0 || map.Backend.BuildsRequested != asked || gpu.PipelineLibraryCreation.Pending > 0 ) quiet.Restart();
+			if ( map.Backend.BuildsPending > 0 || map.Backend.BuildsRequested != asked || gpu.PipelineLibraryCreation.Pending > 0 || gpu.DeferredPipelines.Pending > 0 ) quiet.Restart();
 			asked = map.Backend.BuildsRequested;
 		}
 
@@ -551,6 +551,7 @@ internal static class MapRealRun
 		var (allPipelines, allPipelineMs) = gpu.PipelineCreation;
 		Console.WriteLine( $"Pipelines made in the whole run: {allPipelines}, {allPipelineMs:0.0} ms" );
 		if ( gpu.Capabilities.PipelineLibraries ) Console.WriteLine( $"Pipeline libraries in the whole run: {gpu.PipelineLibraryCreation}" );
+		Console.WriteLine( $"Pipelines made while their draws were skipped: {gpu.DeferredPipelines}" );
 		gpu.WaitIdle();
 		if ( censusFolder is not null ) File.WriteAllText( Path.Combine( censusFolder, "census.md" ), censusReport.ToString() );
 		Directory.CreateDirectory( options.Output );
