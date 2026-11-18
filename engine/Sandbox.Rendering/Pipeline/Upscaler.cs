@@ -20,8 +20,8 @@ internal static class Upscaler
 	[UnmanagedFunctionPointer( CallingConvention.StdCall )]
 	delegate void OnRenderCallback( ManagedRenderSetup_t setup );
 
-	static readonly Material EasuMaterial = Material.Load( "materials/dev/fsr1_easu.vmat" );
-	static readonly Material RcasMaterial = Material.Load( "materials/dev/fsr1_rcas.vmat" );
+	static readonly Material EasuMaterial = Material.FromShader( "shaders/fsr1_easu.shader" );
+	static readonly Material RcasMaterial = Material.FromShader( "shaders/fsr1_rcas.shader" );
 	static readonly DelegateFunctionPointer Easu = DelegateFunctionPointer.Get<OnRenderCallback>( setup => Dispatch( setup, EasuMaterial ) );
 	static readonly DelegateFunctionPointer Rcas = DelegateFunctionPointer.Get<OnRenderCallback>( setup => Dispatch( setup, RcasMaterial ) );
 
@@ -149,7 +149,7 @@ internal static class QuadOverdraw
 	static readonly StringToken Counters = "QuadOverdrawUAV";
 	static readonly StringToken Locks = "QuadOverdrawMutexUAV";
 
-	static readonly Material VisualizeMaterial = Material.Load( "materials/dev/visualize_quad_overdraw.vmat" );
+	static readonly Material VisualizeMaterial = Material.FromShader( "shaders/visualize_quad_overdraw.shader" );
 	static readonly DelegateFunctionPointer Clear = DelegateFunctionPointer.Get<OnRenderCallback>( ClearCounters );
 	static readonly DelegateFunctionPointer Visualize = DelegateFunctionPointer.Get<OnRenderCallback>( Draw );
 

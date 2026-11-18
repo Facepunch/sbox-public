@@ -1,5 +1,4 @@
-// fsr1_rcas: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// fsr1_rcas: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 //=================================================================================================
 // FSR1 RCAS (Robust Contrast Adaptive Sharpening) compute pass.
 // Reads the EASU-upscaled image and writes a sharpened final image at the same resolution.

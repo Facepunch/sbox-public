@@ -18,10 +18,10 @@ namespace BorealisGpuTests;
 [DoNotParallelize]
 public class EmbeddedSourceTests : GpuTest
 {
-	const string Shader = "shaders/postprocess/pp_vignette.shader";
+	const string Shader = "shaders/copytexture.shader";
 
 	/// <summary>
-	/// pp_vignette as a package would ship it from an older engine: the ABI epoch it was compiled for isn't this one, and
+	/// copytexture as a package would ship it from an older engine: the ABI epoch it was compiled for isn't this one, and
 	/// each program's source is embedded as the compiler embeds it. It loads and draws from that source, the variant the
 	/// same as the current file's, and nothing recompiles it.
 	/// </summary>
@@ -81,7 +81,7 @@ public class EmbeddedSourceTests : GpuTest
 			};
 
 			// Source that doesn't compile: the module is tried, then the recompile
-			var broken = Embedded( File.ReadAllText( Source() ).Replace( "return lerp(", "return lerpp(" ) );
+			var broken = Embedded( File.ReadAllText( Source() ).Replace( "return o;", "return oo;" ) );
 			Write( folder, Outdated( current, broken ), "package_broken" );
 			var shader = backend.Shaders.Load( "shaders/package_broken.shader" );
 			Assert.IsNotNull( shader?.Outdated );
@@ -130,7 +130,7 @@ public class EmbeddedSourceTests : GpuTest
 				return true;
 			};
 
-			var broken = Embedded( File.ReadAllText( Source() ).Replace( "return lerp(", "return lerpp(" ) );
+			var broken = Embedded( File.ReadAllText( Source() ).Replace( "return o;", "return oo;" ) );
 			Write( folder, Outdated( current, broken ), "package_slow" );
 			var shader = backend.Shaders.Load( "shaders/package_slow.shader" );
 			Assert.IsNotNull( shader?.Outdated );
@@ -171,7 +171,7 @@ public class EmbeddedSourceTests : GpuTest
 			backend.Shaders.UpgradeCache = Path.Combine( folder, "upgraded" );
 			backend.Shaders.Upgrader = ( _, _ ) => false;
 
-			var broken = Embedded( File.ReadAllText( Source() ).Replace( "return lerp(", "return lerpp(" ) );
+			var broken = Embedded( File.ReadAllText( Source() ).Replace( "return o;", "return oo;" ) );
 			Write( folder, Outdated( current, broken ), "package_unloadable" );
 			var shader = backend.Shaders.Load( "shaders/package_unloadable.shader" );
 			Assert.IsNotNull( shader?.Outdated );
@@ -189,7 +189,7 @@ public class EmbeddedSourceTests : GpuTest
 
 	/// <summary>
 	/// A shader with a Slang module and no compiled file at all: it loads by its path from what the module declares (its
-	/// MODES lines, combos) and draws from the module, the variant the same as pp_vignette's own; with modules off it has
+	/// MODES lines, combos) and draws from the module, the variant the same as copytexture's own; with modules off it has
 	/// nothing to draw.
 	/// </summary>
 	[TestMethod]
@@ -206,7 +206,7 @@ public class EmbeddedSourceTests : GpuTest
 			var shader = backend.Shaders.Load( "shaders/moduleonly_vignette.shader" );
 			Assert.IsNotNull( shader, "found by its module" );
 			Assert.IsTrue( shader.ModuleOnly );
-			CollectionAssert.AreEqual( new[] { "Default", "Forward" }, shader.Modes.Select( m => m.Name ).ToArray() );
+			CollectionAssert.AreEqual( new[] { "Default" }, shader.Modes.Select( m => m.Name ).ToArray() );
 			Assert.AreSame( shader, backend.Shaders.Load( "shaders/moduleonly_vignette.shader" ) );
 
 			var module = backend.Shaders.Variant( shader, "Default", [] );
