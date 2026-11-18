@@ -447,7 +447,8 @@ float3 Terrain_Normal( Texture2D HeightMap, float2 uv, float maxheight, out floa
     return Terrain::NormalBasis( uv, TangentU, TangentV );
 }
 
-#if PROGRAM == VFX_PROGRAM_PS
+// Not when TerrainSplat.hlsl included us: Slang refuses a cyclic include
+#if PROGRAM == VFX_PROGRAM_PS && !defined( TERRAIN_SPLAT_H )
     #include "terrain/TerrainSplat.hlsl"
 #endif
 
