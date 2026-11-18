@@ -791,6 +791,17 @@ public sealed unsafe partial class Device
 
 			pipelineCache = cache;
 		}
+
+		savedSize = CacheSize();
+	}
+
+	// The cache's size when loaded or last saved: pipelines made from it (the part manifest's at load, say) don't grow it
+	nuint savedSize;
+
+	nuint CacheSize()
+	{
+		nuint size;
+		return Vk.vkGetPipelineCacheData( Vk.Device, pipelineCache, &size, null ) == VkResult.Success ? size : 0;
 	}
 
 	string pipelineCachePath;
@@ -828,7 +839,17 @@ public sealed unsafe partial class Device
 		// Parts and optimised links go into the cache too, the latter on background threads after their pipelines were made
 		var made = Volatile.Read( ref pipelinesMade ) + Volatile.Read( ref partsMade ) + Volatile.Read( ref optimisedMade );
 		if ( made == Volatile.Read( ref pipelinesSaved ) ) return false;
-		if ( !PipelineCacheFile.Save( pipelineCachePath, GetPipelineCacheData() ) ) return false;
+
+		// Made from what the cache had: nothing new
+		var data = GetPipelineCacheData();
+		if ( (nuint)data.Length == savedSize )
+		{
+			Volatile.Write( ref pipelinesSaved, made );
+			return false;
+		}
+
+		if ( !PipelineCacheFile.Save( pipelineCachePath, data ) ) return false;
+		savedSize = (nuint)data.Length;
 		Volatile.Write( ref pipelinesSaved, made );
 		return true;
 	}
