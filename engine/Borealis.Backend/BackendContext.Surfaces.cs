@@ -244,6 +244,27 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
+	/// The specialization constants a stage's draws most likely have, as <see cref="SurfaceConstants"/> makes them: each slot's
+	/// value as draws last looked it up (<see cref="SurfaceShaders.SpecializationValues"/>), else its default; not in the 3D
+	/// skybox, not fading. What a program's parts are made ahead with (<see cref="SurfaceProgram.PrepareParts"/>).
+	/// </summary>
+	internal static SpecializationConstant[] LikelySurfaceConstants( CompiledStage stage, bool perPixel, IReadOnlyDictionary<string, int> seen )
+	{
+		var constants = new SpecializationConstant[stage.Specializations.Count + 3];
+		for ( int i = 0; i < stage.Specializations.Count; i++ )
+		{
+			var slot = stage.Specializations[i];
+			var value = seen.TryGetValue( slot.Attribute, out var looked ) ? looked : (int)(slot.Annotations?.Default is { Length: > 0 } d ? d[0] : 0);
+			constants[i] = new SpecializationConstant( (uint)slot.Id, (uint)value );
+		}
+
+		constants[^3] = new SpecializationConstant( SkyboxId, 0 );
+		constants[^2] = new SpecializationConstant( MaterialOffsetPerPixelId, perPixel ? 1u : 0u );
+		constants[^1] = new SpecializationConstant( OpaqueFadeId, 0 );
+		return constants;
+	}
+
+	/// <summary>
 	/// A stage's specialization constants (<c>SpecializedConstant()</c> globals: <c>ShadowFilterQuality</c>,
 	/// <c>DDGI_Enabled</c>, <c>ToolsVisMode</c>), each from its attribute, else the dynamic combo of that name, else its
 	/// default, as classic variants take them;
@@ -276,6 +297,9 @@ internal sealed partial class BackendContext
 		constants[^1] = new SpecializationConstant( OpaqueFadeId, fade ? 1u : 0u );
 		for ( int i = 0; i < values.Length; i++ ) constants[i] = new SpecializationConstant( (uint)stage.Specializations[i].Id, (uint)values[i] );
 		(info.LastConstants, info.LastConstantsKey) = (constants, key);
+
+		// What programs compiled later make their parts ahead with
+		for ( int i = 0; i < values.Length; i++ ) device.Surfaces.SpecializationLookedUp( stage.Specializations[i].Attribute, values[i] );
 		return constants;
 	}
 

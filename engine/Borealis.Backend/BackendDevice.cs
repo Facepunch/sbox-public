@@ -127,6 +127,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	SurfaceShaders surfaces;
 
+	/// <summary>Write the surface pipeline manifest beside the pipeline cache if it changed (<see cref="SurfacePipelineManifest"/>).</summary>
+	internal bool SavePipelineManifest() => surfaces?.Manifest?.Save() ?? false;
+
+	/// <summary>What the surface pipeline manifest held and did, for reports.</summary>
+	internal string PipelineManifestReport => surfaces?.Manifest is not { } m ? "surface pipeline manifest: off" : $"surface pipeline manifest: {m.Loaded} read, {m.Replayed} made ahead, {m.Dropped} dropped, {m.Recorded} recorded";
+
 	/// <summary>
 	/// Keep static models' geometry in GPU-driven pages as they load (<see cref="GpuDrivenTables"/>), so
 	/// <see cref="GpuDriven"/> can draw them; the classic path draws from the same pages. Set before loading models; on
@@ -154,7 +160,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public bool GpuDriven { get; set; }
 
 	/// <summary>The GPU-driven tables' records and bytes, for reports.</summary>
-	public string GpuDrivenReport => gpuDrivenTables is not { } t ? "off" : $"{t.Records.Geometry} geometry, {t.Records.Draws} draw and {t.Records.Materials} material records ({t.Bytes.Geometry / 1024} + {t.Bytes.Draws / 1024} + {t.Bytes.Materials / 1024} KiB), {t.Bytes.Pages / (1 << 20)} MiB of pages"
+	public string GpuDrivenReport => gpuDrivenTables is not { } t ? "off" : $"{t.Records.Geometry} geometry, {t.Records.Draws} draw and {t.Records.Materials} material records ({t.Bytes.Geometry / 1024} + {t.Bytes.Draws / 1024} + {t.Bytes.Materials / 1024} KiB), {t.Bytes.Pages / (1 << 20)} MiB of pages; visibility {t.VisibilityUse.Bits / 8 / (1 << 20)} of {GpuDrivenTables.FrameVisibilityBitBase / 8 / (1 << 20)} MiB of owners' vertex bits, {t.VisibilityNoRoom} requests without room, {t.VisibilityRunsAged} runs let go unnamed"
 		+ (GpuDrivenLeftClassic.IsEmpty ? "" : "; aggregate batches left classic (batch draws while timed, shader, mode, why): " + string.Join( ", ", GpuDrivenLeftClassic.OrderByDescending( x => x.Value ).Select( x => $"{x.Value} {x.Key}" ) ));
 
 	/// <summary>While <see cref="TimeDraws"/>, aggregate batches the GPU-driven path left to the classic one, by shader, mode and why.</summary>
@@ -475,7 +481,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public static bool GpuDrivenByDefault { get; set; } = !HasSwitch( "-no-gpudriven" );
 
-	static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
+	internal static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>The value after a switch on the command line, or null.</summary>
 	static string SwitchValue( string name )
@@ -1031,6 +1037,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				using ( Zones.MapLightmaps.Start() )
 				using ( WaitForLightmapUploads ? default : Gpu.DeferUploads() )
 					made = LightmapParameters( world.Lightmaps, world.LightmapUvScale );
+				mapLightmapPaths[folder] = [.. world.Lightmaps];
 			}
 			catch ( Exception e ) when ( e is IOException or InvalidDataException or KeyNotFoundException )
 			{
@@ -1039,6 +1046,62 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 			return mapLightmaps[folder] = made;
 		}
+	}
+
+	// Mirrors drawing each map's lightmaps (HoldMapLightmaps)
+	readonly Dictionary<string, int> mapLightmapHolders = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, string[]> mapLightmapPaths = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>A world drawing the map in <paramref name="folder"/>'s lightmaps; <see cref="ReleaseMapLightmaps"/> when it's gone.</summary>
+	public void HoldMapLightmaps( string folder )
+	{
+		lock ( mapLightmaps ) mapLightmapHolders[folder] = mapLightmapHolders.GetValueOrDefault( folder ) + 1;
+	}
+
+	/// <summary>Map lightmap sets freed once no world drew them, for soaks and tests.</summary>
+	public int MapLightmapsReleased { get; private set; }
+
+	/// <summary>
+	/// A world that drew the map in <paramref name="folder"/>'s lightmaps has gone. When it was the last, the lightmaps and the
+	/// map's other textures read by path (its light probe volumes) are destroyed (once the GPU is done with them) and read again
+	/// if a world draws the map again: a map's are hundreds of MiB.
+	/// </summary>
+	public void ReleaseMapLightmaps( string folder )
+	{
+		string[] paths;
+		lock ( mapLightmaps )
+		{
+			if ( !mapLightmapHolders.TryGetValue( folder, out var holders ) ) return;
+			if ( --holders > 0 )
+			{
+				mapLightmapHolders[folder] = holders;
+				return;
+			}
+
+			mapLightmapHolders.Remove( folder );
+			mapLightmaps.Remove( folder );
+			if ( !mapLightmapPaths.Remove( folder, out paths ) ) return;
+		}
+
+		var textures = new List<GpuTexture>( paths.Length );
+		lock ( loadedTextures )
+		{
+			foreach ( var path in paths )
+			{
+				if ( loadedTextures.TryGetValue( path, out var texture ) && loadedTextures.Remove( path ) ) textures.Add( texture );
+			}
+
+			// The rest of the map's own textures read by path: its light probe volumes, hundreds of MiB on a big map
+			var prefix = folder + "/";
+			foreach ( var path in loadedTextures.Keys.Where( p => p.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) ).ToList() )
+			{
+				if ( loadedTextures.Remove( path, out var texture ) ) textures.Add( texture );
+			}
+		}
+
+		foreach ( var texture in textures ) texture?.Dispose();
+
+		MapLightmapsReleased++;
 	}
 
 	/// <summary>Eight lightmap bindless indices (six used), as two int4s.</summary>
@@ -1347,6 +1410,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				info.FragmentConstants = null;
 			}
 
+			// A draw never waits for it: skipped until workers have made it
+			info.SkipUntilReady = true;
 			using ( Zones.PipelineCreate.Start() ) pipeline = Gpu.CreateGraphicsPipeline( info );
 			pipelines[key] = pipeline;
 			if ( DumpPixelShaders is { } dump && info.FragmentShader.IsValid ) DumpPixelShader( dump, variant, info.FragmentConstants, materialPerDraw );
@@ -1738,7 +1803,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		/// <summary>The meshlet pass's copy jobs: their count (also the copy dispatch's group count), 1, 1, then a job per kept meshlet.</summary>
 		public BufferHandle MeshletJobs;
-		public bool MeshletStampsCleared;
+		public volatile bool MeshletStampsCleared;
 		public bool StampsCleared;
 
 		/// <summary>The frame (<see cref="GpuDrivenFrame"/>) its mask was last cleared in, before any call drew ids into it.</summary>
@@ -1854,8 +1919,11 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			state.MeshletStampsAttribute = new GpuBuffer( new BackendBuffer( this, stamps, stampBytes, "Borealis meshlet stamps" ), (int)(stampBytes / 4), 4 );
 #pragma warning restore CA2000
 			visibilityBuffers.Add( buffer );
-			ClearMadeAfterClear( state, compacted: false, prepass: buffer );
+			var cleared = ClearMadeAfterClear( state, compacted: false, prepass: buffer );
 			state.PrepassCompacted = buffer;
+
+			// Said cleared only once every buffer is in place: recording threads read them without the lock once it's set
+			if ( cleared ) state.MeshletStampsCleared = true;
 			return buffer;
 		}
 	}
@@ -1864,11 +1932,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// Clear a view's visibility buffers made after this frame cleared the view's (<c>BackendContext.BeginGpuDrivenView</c>)
 	/// as that clear would have: this frame's calls go on to use them, and their cursors and stamps would hold whatever the
 	/// memory last held (a target that grew, a child view drawn at another size inside a cube capture, a prepass's meshlet
-	/// buffers made at its first use). In a list of its own, submitted now, ahead of the lists recording with them.
+	/// buffers made at its first use). In a list of its own, submitted now, ahead of the lists recording with them. Whether
+	/// it did; the caller marks the meshlet stamps cleared once the view holds every buffer.
 	/// </summary>
-	void ClearMadeAfterClear( VisibilityView state, bool compacted, BufferHandle prepass )
+	bool ClearMadeAfterClear( VisibilityView state, bool compacted, BufferHandle prepass )
 	{
-		if ( state.ClearedFrame != GpuDrivenFrame ) return;
+		if ( state.ClearedFrame != GpuDrivenFrame ) return false;
 
 		var list = Gpu.BeginCommandList( QueueType.Graphics, "Borealis visibility made mid-frame" );
 		if ( compacted )
@@ -1881,12 +1950,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			list.FillBuffer( prepass, VisibilityView.CompactedCursorIndices, 0, 4 );
 			list.FillBuffer( state.PrepassCompacted16, VisibilityView.CompactedCursorIndices, 0, 4 );
 			list.FillBuffer( state.MeshletStamps, 0 );
-			state.MeshletStampsCleared = true;
 		}
 
 		list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
 		Gpu.Submit( list );
 		VisibilityClearedMidFrame++;
+		return true;
 	}
 
 	/// <summary>Views' visibility buffers made after their frame's clear and cleared when made, for the tests.</summary>

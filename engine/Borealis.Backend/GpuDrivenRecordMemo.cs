@@ -61,6 +61,7 @@ internal sealed class GpuDrivenRecordMemo
 
 		// What they found
 		public uint Vertex, Pixel, FragmentRecords, VisibilityFirst, VertexBase;
+		public int VisibilityEpoch;
 	}
 
 	Slot[] slots = [];

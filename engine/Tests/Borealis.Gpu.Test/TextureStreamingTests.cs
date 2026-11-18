@@ -162,6 +162,49 @@ public class TextureStreamingTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// A streamed texture nothing asks for gives its mips back down to its tail after <see cref="TextureStreamer.IdleSeconds"/>,
+	/// with room to spare: what a map streamed in doesn't stay resident once the map has gone.
+	/// </summary>
+	[TestMethod]
+	public void UnaskedTexturesGoBackToTheirTail()
+	{
+		var path = StreamingTextures( 1 )[0];
+		using var backend = new BackendDevice( Device ) { StreamTextures = true };
+		var texture = (BackendTexture)backend.MaterialTextureFile( path );
+		var stream = texture.Stream;
+		using var material = new BackendMaterial( "streamed", null, null, new( StringComparer.OrdinalIgnoreCase ) { ["g_tColor"] = texture } );
+
+		for ( int frame = 0; frame < 200 && stream.ResidentTop > 0; frame++ )
+		{
+			backend.AskTextures( material, TextureSizes.All );
+			backend.BeginFrame();
+			Thread.Sleep( 5 );
+		}
+
+		Assert.AreEqual( 0, stream.ResidentTop );
+
+		// No longer asked for, with no budget: kept while it's been idle less than the idle time, then back to the tail
+		backend.Streamer.IdleSeconds = 0.5;
+		for ( int frame = 0; frame < 20; frame++ )
+		{
+			backend.BeginFrame();
+			Thread.Sleep( 5 );
+		}
+
+		Assert.AreEqual( 0, stream.ResidentTop, "not idle long enough yet" );
+		for ( int frame = 0; frame < 400 && stream.ResidentTop < stream.TailTop; frame++ )
+		{
+			backend.BeginFrame();
+			Thread.Sleep( 5 );
+		}
+
+		Assert.AreEqual( stream.TailTop, stream.ResidentTop );
+		Assert.AreEqual( Math.Max( texture.Width >> stream.TailTop, 1 ), Device.InfoOf( texture.Handle ).Width );
+		Assert.IsTrue( backend.Streamer.IdleGivenBack > 0 );
+		Device.WaitIdle();
+	}
+
 	/// <summary>A draw asking for a size wants the coarsest mip at least that large, and its tail for nothing.</summary>
 	[TestMethod]
 	public void AskedSizeWantsTheCoarsestMipThatCoversIt()

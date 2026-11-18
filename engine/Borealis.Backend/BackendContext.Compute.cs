@@ -55,8 +55,10 @@ internal sealed partial class BackendContext
 			var variant = drawer.Variant( shader, attributes );
 			if ( variant?.Compute?.Bytecode is null ) return;
 
-			foreach ( var (variable, _) in variant.Compute.MaterialConstants )
+			var materialConstants = variant.Compute.MaterialConstants;
+			for ( int c = 0; c < materialConstants.Count; c++ )
 			{
+				var variable = materialConstants[c].Variable;
 				if ( variable.Source != VariableSource.Attribute || string.IsNullOrEmpty( variable.Attribute ) ) continue;
 				SetFloats( attributes, variable.Attribute, Value( variable.Attribute ) );
 			}

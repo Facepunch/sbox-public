@@ -86,6 +86,8 @@ internal static class MapRealRun
 		using var map = new MapWorld( gpu, folder, core, castShadows: false, aggregatesAsMeshes: Args.Has( "-aggregates-as-meshes" ), bakedLighting: !Args.Has( "-nobaked" ), entities: !Args.Has( "-noentities" ), gpuDriven: gpuDriven );
 		map.SetTarget( options.Width, options.Height, options.Samples );
 		map.System.DepthPrepass = !Args.Has( "-noprepass" );
+		// -lod-ranges: what generated LODs make of each material's ranges (LodRanges)
+		if ( Args.Has( "-lod-ranges" ) && map.Backend.LodStore is { } labelled ) labelled.Labelled = true;
 
 		// -capture-visibility <dir>: the visibility pass's figure instead of timing (debug: needs -msaa 1)
 		var figureFolder = Args.String( "-capture-visibility" );
@@ -223,6 +225,8 @@ internal static class MapRealRun
 		}
 
 		if ( firstFrames.Count > 0 ) Console.WriteLine( $"First frames: {string.Join( ", ", firstFrames )}" );
+		if ( gpu.Capabilities.PipelineLibraries ) Console.WriteLine( $"Pipeline libraries after the first frames: {gpu.PipelineLibraryCreation}" );
+		Console.WriteLine( map.Backend.PipelineManifestReport );
 
 		// Meshlets and generated LODs build on workers after load (and levels' meshlets after their levels), asked for as draws
 		// find their GPU-driven variants, which package shaders compile on workers: the timed frames start once none has been
@@ -234,13 +238,15 @@ internal static class MapRealRun
 		{
 			MapRun.Pump( window );
 			RenderFrame( options.Views[0] );
-			if ( map.Backend.BuildsPending > 0 || map.Backend.BuildsRequested != asked ) quiet.Restart();
+			// Optimised pipeline links replacing fast ones are background work too
+			if ( map.Backend.BuildsPending > 0 || map.Backend.BuildsRequested != asked || gpu.PipelineLibraryCreation.Pending > 0 || gpu.DeferredPipelines.Pending > 0 ) quiet.Restart();
 			asked = map.Backend.BuildsRequested;
 		}
 
 		Console.WriteLine( FormattableString.Invariant( $"Built in {building.Elapsed.TotalSeconds:0.0} s after the first frames" ) );
 		Console.WriteLine( map.Backend.MeshletReport );
 		Console.WriteLine( map.Backend.LodReport );
+		if ( Args.Has( "-lod-ranges" ) && map.Backend.LodStore is { } lodStore ) LodRanges.Write( lodStore, map.Backend.LodPixels, options.Width, options.Views, options.Output );
 
 		if ( figure is not null )
 		{
@@ -544,6 +550,8 @@ internal static class MapRealRun
 		Console.WriteLine( bindingReport );
 		var (allPipelines, allPipelineMs) = gpu.PipelineCreation;
 		Console.WriteLine( $"Pipelines made in the whole run: {allPipelines}, {allPipelineMs:0.0} ms" );
+		if ( gpu.Capabilities.PipelineLibraries ) Console.WriteLine( $"Pipeline libraries in the whole run: {gpu.PipelineLibraryCreation}" );
+		Console.WriteLine( $"Pipelines made while their draws were skipped: {gpu.DeferredPipelines}" );
 		gpu.WaitIdle();
 		if ( censusFolder is not null ) File.WriteAllText( Path.Combine( censusFolder, "census.md" ), censusReport.ToString() );
 		Directory.CreateDirectory( options.Output );

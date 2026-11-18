@@ -32,6 +32,19 @@ public abstract class GpuMaterial : IDisposable
 	public abstract bool ShadowFastPath { get; }
 
 	/// <summary>
+	/// Whether its depth draws take the shared depth-only material now, whatever their draws' own fast-path flags: a material
+	/// whose shader, once compiled, is known to place vertices from their positions alone, and that draws opaque, one-sided,
+	/// without alpha test or depth bias of its own. Read as draw lists are built.
+	/// </summary>
+	public virtual bool DepthOnlyNow => false;
+
+	/// <summary>
+	/// Whether <see cref="DepthOnlyNow"/> may still change by itself (a surface whose program is still compiling): what is
+	/// made once from it is made again until it settles.
+	/// </summary>
+	public virtual bool DepthOnlyPending => false;
+
+	/// <summary>
 	/// Whether it's lit from a light probe when its object isn't lightmapped.
 	/// </summary>
 	public abstract bool NeedsLightProbe { get; }

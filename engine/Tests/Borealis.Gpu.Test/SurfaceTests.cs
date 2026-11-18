@@ -198,6 +198,106 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A surface material's depth draws take the shared depth-only material once its program is known not to move vertices,
+	/// while it draws opaque, one-sided and without alpha test; before its program is found it draws its own, and lists
+	/// made once from it are made again.
+	/// </summary>
+	[TestMethod]
+	public void OpaqueSurfacesDrawDepthOnlyOnceTheirProgramIsKnown()
+	{
+		var compiled = Compiler().CompileSurface( Path.Combine( Surfaces, "rock.slang" ) );
+		using var backend = new BackendDevice( Device );
+		using var program = new SurfaceProgram( backend, compiled );
+		Assert.IsFalse( program.Displaces );
+
+		using var rock = new Rock();
+		Assert.IsFalse( rock.DepthOnlyNow, "no program yet" );
+		Assert.IsTrue( rock.DepthOnlyPending );
+
+		rock.Program = program;
+		Assert.IsTrue( rock.DepthOnlyNow );
+		Assert.IsFalse( rock.DepthOnlyPending );
+
+		rock.AlphaTest = true;
+		Assert.IsFalse( rock.DepthOnlyNow, "alpha tested" );
+		rock.AlphaTest = false;
+
+		rock.TwoSided = true;
+		Assert.IsFalse( rock.DepthOnlyNow, "two-sided" );
+		rock.TwoSided = false;
+
+		program.Stale = true;
+		Assert.IsFalse( rock.DepthOnlyNow, "dropped by a hotload" );
+		Assert.IsTrue( rock.DepthOnlyPending );
+	}
+
+	/// <summary>
+	/// The surface pipeline manifest (<see cref="SurfacePipelineManifest"/>): a pipeline a draw made is recorded by what asked
+	/// for it, saved, read back by the next run and made ahead on a worker once the program compiles, so the same request
+	/// finds it made without making another. Lines that don't read, or name a pass the program no longer has, are dropped,
+	/// and an unreadable file is an empty one.
+	/// </summary>
+	[TestMethod]
+	public void ManifestMakesRecordedPipelinesAhead()
+	{
+		var rock = Compiler().CompileSurface( Path.Combine( Surfaces, "rock.slang" ) );
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-manifest-{Guid.NewGuid():N}" );
+		var file = Path.Combine( folder, "surface-pipelines.txt" );
+		try
+		{
+			using var backend = new BackendDevice( Device );
+			var state = new SurfaceRenderState( SurfaceBlend.Opaque, true, true, 0, 0, false, false );
+			SurfacePipelineManifest.Request RequestFor( SurfaceProgram program ) => new( program.Pass( ShaderPasses.Forward ), backend.PulledLayout, Format.RGBA16Float, Format.D32Float, 1,
+				null, null, 42, state, false, false, false, false );
+
+			// The first run: a draw's pipeline, recorded and saved
+			using ( var first = new SurfaceProgram( backend, rock ) { SourceFile = "rock.slang" } )
+			{
+				var written = new SurfacePipelineManifest( file );
+				written.Record( "rock.slang", RequestFor( first ) );
+				written.Record( "rock.slang", RequestFor( first ) );
+				Assert.AreEqual( 1, written.Recorded, "a request is kept once" );
+				Assert.IsTrue( written.Save() );
+				Assert.IsFalse( written.Save(), "nothing new to write" );
+			}
+
+			var good = File.ReadAllLines( file )[1];
+			var noSuchPass = "rock.slang\tNoSuchPass" + good[("rock.slang\t" + ShaderPasses.Forward).Length..];
+			File.AppendAllLines( file, ["not a line of the manifest", "rock.slang\t" + string.Join( '\t', Enumerable.Repeat( "x", 22 ) ), noSuchPass] );
+
+			// The next run: made ahead as the program compiles, found made by the draw that asks for it
+			using var program = new SurfaceProgram( backend, rock ) { SourceFile = "rock.slang" };
+			var read = new SurfacePipelineManifest( file );
+			Assert.AreEqual( 3, read.Loaded, "lines without a file aren't read" );
+			var requests = read.Take( "rock.slang", program );
+			Assert.AreEqual( 1, requests.Count );
+			Assert.AreEqual( 2, read.Dropped, "a line that doesn't read and one naming a pass the program lacks are dropped" );
+			Assert.IsNull( read.Take( "rock.slang", program ), "taken once" );
+
+			program.Prewarm( requests );
+			var deadline = DateTime.UtcNow.AddSeconds( 30 );
+			while ( program.Prewarmed == 0 && DateTime.UtcNow < deadline ) System.Threading.Thread.Sleep( 10 );
+			Assert.AreEqual( 1, program.Prewarmed, "made ahead on a worker" );
+
+			var made = Device.PipelineCreation.Made;
+			var r = RequestFor( program );
+			var pipeline = program.Pipeline( r.Pass, r.Layout, r.Color, r.Depth, r.Samples, r.VertexConstants, r.PixelConstants, r.ConstantsKey, r.State );
+			Assert.IsTrue( pipeline.IsValid );
+			Assert.AreEqual( made, Device.PipelineCreation.Made, "the draw's request found it made" );
+
+			Assert.IsTrue( read.Save(), "the dropped lines are written out" );
+			Assert.AreEqual( 2, File.ReadAllLines( file ).Length, "the header and the one good line" );
+
+			File.WriteAllBytes( file, [0xff, 0xfe, 0x00, 0x01] );
+			Assert.AreEqual( 0, new SurfacePipelineManifest( file ).Loaded, "an unreadable file is an empty one" );
+		}
+		finally
+		{
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// Every pass comes again for lightmapped draws, with the vertex stage that reads the mesh's lightmap uv (TEXCOORD3);
 	/// the plain one doesn't read it.
 	/// </summary>
@@ -2027,6 +2127,9 @@ public class SurfaceTests : GpuTest
 			backend.BeginFrame();
 			RenderHost.Current.NextFrame();
 			system.Render( world, view, target );
+
+			// The pictures compared are the optimised links': fast-linked ones may draw some surfaces differently until then
+			if ( frame == 0 ) Assert.IsTrue( Device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ), "the optimised pipeline links finish" );
 		}
 
 		Device.WaitIdle();

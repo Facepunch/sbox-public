@@ -169,6 +169,15 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	public void Dispose()
 	{
 		Listeners.Remove( source, this );
+		lock ( lightmapFolders )
+		{
+			if ( MirrorContent.Gpu is { } gpu )
+			{
+				foreach ( var folder in lightmapFolders ) gpu.ReleaseMapLightmaps( folder );
+			}
+
+			lightmapFolders.Clear();
+		}
 		if ( SubWorld == 0 ) return;
 
 		foreach ( var (_, obj) in objects )
@@ -340,8 +349,20 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		if ( MirrorContent.Gpu is not { } gpu ) return null;
 		if ( SceneNative.LightmapKey( sceneObject ) == 0 || model?.ResourcePath is not { } path || !path.StartsWith( "maps/", StringComparison.OrdinalIgnoreCase ) ) return null;
 		var end = path.IndexOf( '/', 5 );
-		return end > 5 ? gpu.MapLightmapParameters( path[..end] ) : null;
+		if ( end <= 5 ) return null;
+
+		// Held while this world draws them, so a map's lightmaps go once no world does
+		var folder = path[..end];
+		lock ( lightmapFolders )
+		{
+			if ( lightmapFolders.Add( folder ) ) gpu.HoldMapLightmaps( folder );
+		}
+
+		return gpu.MapLightmapParameters( folder );
 	}
+
+	// The maps whose lightmaps this world's objects drew with (LightmapFor), released when it goes
+	readonly HashSet<string> lightmapFolders = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
 	/// Mirror probe placement and selection data; create attributes once (<c>CLightBinner2::GetLightProbeVolumeData</c>).

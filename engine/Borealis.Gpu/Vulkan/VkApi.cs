@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -5,8 +6,9 @@ namespace Borealis.Gpu.Vulkan;
 
 /// <summary>
 /// The Vulkan loader library and the entry points that need no instance: our own loader, not a binding. Loads
-/// <c>vulkan-1.dll</c> on Windows and <c>libvulkan.so.1</c> elsewhere, and resolves everything else through
-/// <c>vkGetInstanceProcAddr</c> and <c>vkGetDeviceProcAddr</c>.
+/// <c>vulkan-1.dll</c> on Windows and <c>libvulkan.so.1</c> on Linux. On macOS it takes a Vulkan loader if one is
+/// installed, then the KosmicKrisp driver s&amp;box ships (<c>bin/osxarm64</c>), then MoltenVK. Everything else resolves
+/// through <c>vkGetInstanceProcAddr</c> and <c>vkGetDeviceProcAddr</c>.
 /// </summary>
 internal static unsafe class VkLoader
 {
@@ -27,21 +29,39 @@ internal static unsafe class VkLoader
 			if ( library != 0 ) return true;
 
 			string[] names = OperatingSystem.IsWindows() ? ["vulkan-1.dll"]
-				: OperatingSystem.IsMacOS() ? ["libvulkan.1.dylib", "libvulkan.dylib", "libMoltenVK.dylib"]
+				: OperatingSystem.IsMacOS() ? ["libvulkan.1.dylib", "libvulkan.dylib", "libvulkan_kosmickrisp.dylib", "libMoltenVK.dylib"]
 				: ["libvulkan.so.1", "libvulkan.so"];
+
+			// KosmicKrisp uses AppKit (NSScreen) without linking it, so it only loads into a process that already has AppKit.
+			// The engine gets it from SDL; a test host or tool doesn't
+			if ( OperatingSystem.IsMacOS() ) NativeLibrary.TryLoad( "/System/Library/Frameworks/AppKit.framework/AppKit", out _ );
 
 			foreach ( var name in names )
 			{
-				if ( !NativeLibrary.TryLoad( name, out var handle ) ) continue;
-				if ( !NativeLibrary.TryGetExport( handle, "vkGetInstanceProcAddr", out var proc ) ) continue;
+				foreach ( var path in Candidates( name ) )
+				{
+					if ( !NativeLibrary.TryLoad( path, out var handle ) ) continue;
+					if ( !NativeLibrary.TryGetExport( handle, "vkGetInstanceProcAddr", out var proc ) ) continue;
 
-				getInstanceProcAddr = (delegate* unmanaged< nint, byte*, nint >)proc;
-				library = handle;
-				return true;
+					getInstanceProcAddr = (delegate* unmanaged< nint, byte*, nint >)proc;
+					library = handle;
+					return true;
+				}
 			}
 
 			return false;
 		}
+	}
+
+	/// <summary>
+	/// Where to look for a library: the system's search path, then beside the app, then the engine's own binaries on macOS,
+	/// where a driver like KosmicKrisp ships with s&amp;box rather than being installed.
+	/// </summary>
+	static IEnumerable<string> Candidates( string name )
+	{
+		yield return name;
+		yield return Path.Combine( AppContext.BaseDirectory, name );
+		if ( OperatingSystem.IsMacOS() ) yield return Path.Combine( AppContext.BaseDirectory, "bin", "osxarm64", name );
 	}
 
 	public static nint GetInstanceProcAddr( nint instance, string name )
@@ -76,7 +96,7 @@ internal static unsafe class VkGlobal
 	public static void Load()
 	{
 		if ( loaded ) return;
-		if ( !VkLoader.TryLoad() ) throw new GpuException( "No Vulkan loader (vulkan-1.dll or libvulkan.so.1) was found" );
+		if ( !VkLoader.TryLoad() ) throw new GpuException( "No Vulkan loader (vulkan-1.dll, libvulkan.so.1, or libvulkan.1.dylib / KosmicKrisp / MoltenVK on macOS) was found" );
 
 		vkCreateInstance = (delegate* unmanaged< VkInstanceCreateInfo*, void*, nint*, VkResult >)VkLoader.GetInstanceProcAddr( 0, "vkCreateInstance" );
 		vkEnumerateInstanceExtensionProperties = (delegate* unmanaged< byte*, uint*, VkExtensionProperties*, VkResult >)VkLoader.GetInstanceProcAddr( 0, "vkEnumerateInstanceExtensionProperties" );
@@ -259,6 +279,16 @@ internal sealed unsafe class VkDeviceApi
 	public readonly delegate* unmanaged< nint, uint, uint, VkRect2D*, void > vkCmdSetScissor;
 	public readonly delegate* unmanaged< nint, float, float, float, void > vkCmdSetDepthBias;
 	public readonly delegate* unmanaged< nint, uint, uint, void > vkCmdSetStencilReference;
+	public readonly delegate* unmanaged< nint, uint, uint, void > vkCmdSetStencilCompareMask;
+	public readonly delegate* unmanaged< nint, uint, uint, void > vkCmdSetStencilWriteMask;
+	public readonly delegate* unmanaged< nint, uint, void > vkCmdSetCullMode;
+	public readonly delegate* unmanaged< nint, int, void > vkCmdSetFrontFace;
+	public readonly delegate* unmanaged< nint, uint, void > vkCmdSetDepthTestEnable;
+	public readonly delegate* unmanaged< nint, uint, void > vkCmdSetDepthWriteEnable;
+	public readonly delegate* unmanaged< nint, int, void > vkCmdSetDepthCompareOp;
+	public readonly delegate* unmanaged< nint, uint, void > vkCmdSetStencilTestEnable;
+	public readonly delegate* unmanaged< nint, uint, int, int, int, int, void > vkCmdSetStencilOp;
+	public readonly delegate* unmanaged< nint, uint, void > vkCmdSetDepthBiasEnable;
 	public readonly delegate* unmanaged< nint, uint, uint, ulong*, ulong*, void > vkCmdBindVertexBuffers;
 	public readonly delegate* unmanaged< nint, ulong, ulong, int, void > vkCmdBindIndexBuffer;
 	public readonly delegate* unmanaged< nint, int, ulong, uint, uint, ulong*, uint, uint*, void > vkCmdBindDescriptorSets;
@@ -393,6 +423,16 @@ internal sealed unsafe class VkDeviceApi
 		vkCmdSetScissor = (delegate* unmanaged< nint, uint, uint, VkRect2D*, void >)Need( "vkCmdSetScissor" );
 		vkCmdSetDepthBias = (delegate* unmanaged< nint, float, float, float, void >)Need( "vkCmdSetDepthBias" );
 		vkCmdSetStencilReference = (delegate* unmanaged< nint, uint, uint, void >)Need( "vkCmdSetStencilReference" );
+		vkCmdSetStencilCompareMask = (delegate* unmanaged< nint, uint, uint, void >)Need( "vkCmdSetStencilCompareMask" );
+		vkCmdSetStencilWriteMask = (delegate* unmanaged< nint, uint, uint, void >)Need( "vkCmdSetStencilWriteMask" );
+		vkCmdSetCullMode = (delegate* unmanaged< nint, uint, void >)Need( "vkCmdSetCullMode" );
+		vkCmdSetFrontFace = (delegate* unmanaged< nint, int, void >)Need( "vkCmdSetFrontFace" );
+		vkCmdSetDepthTestEnable = (delegate* unmanaged< nint, uint, void >)Need( "vkCmdSetDepthTestEnable" );
+		vkCmdSetDepthWriteEnable = (delegate* unmanaged< nint, uint, void >)Need( "vkCmdSetDepthWriteEnable" );
+		vkCmdSetDepthCompareOp = (delegate* unmanaged< nint, int, void >)Need( "vkCmdSetDepthCompareOp" );
+		vkCmdSetStencilTestEnable = (delegate* unmanaged< nint, uint, void >)Need( "vkCmdSetStencilTestEnable" );
+		vkCmdSetStencilOp = (delegate* unmanaged< nint, uint, int, int, int, int, void >)Need( "vkCmdSetStencilOp" );
+		vkCmdSetDepthBiasEnable = (delegate* unmanaged< nint, uint, void >)Need( "vkCmdSetDepthBiasEnable" );
 		vkCmdBindVertexBuffers = (delegate* unmanaged< nint, uint, uint, ulong*, ulong*, void >)Need( "vkCmdBindVertexBuffers" );
 		vkCmdBindIndexBuffer = (delegate* unmanaged< nint, ulong, ulong, int, void >)Need( "vkCmdBindIndexBuffer" );
 		vkCmdBindDescriptorSets = (delegate* unmanaged< nint, int, ulong, uint, uint, ulong*, uint, uint*, void >)Need( "vkCmdBindDescriptorSets" );

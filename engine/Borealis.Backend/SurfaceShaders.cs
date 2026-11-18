@@ -4,6 +4,7 @@ using Sandbox.ShaderCompiler;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using SurfaceManifestRequest = Borealis.Backend.SurfacePipelineManifest.Request;
 
 namespace Borealis.Backend;
 
@@ -28,6 +29,64 @@ public sealed class SurfaceShaders : IDisposable
 	{
 		this.device = device;
 		Records = new SurfaceRecords( device.Gpu );
+		if ( !BackendDevice.HasSwitch( "-no-pipeline-manifest" ) ) Manifest = new SurfacePipelineManifest( SurfacePipelineManifest.PathBeside( device.Gpu.PipelineCachePath ) );
+	}
+
+	/// <summary>
+	/// The surface pipelines draws made, kept beside the device's pipeline cache and made again on workers as each program
+	/// compiles (<see cref="SurfacePipelineManifest"/>); null without a pipeline cache file or with <c>-no-pipeline-manifest</c>.
+	/// </summary>
+	internal SurfacePipelineManifest Manifest { get; }
+
+	/// <summary>
+	/// Make each program's pipeline parts ahead as it compiles (<see cref="SurfaceProgram.PrepareParts"/>), where the device
+	/// links pipelines from parts, with the specialization values draws look up (<see cref="SpecializationValues"/>; programs
+	/// compiled before any draw looked one up wait for the first). <c>-no-prepare-parts</c> turns it off.
+	/// </summary>
+	public bool PrepareParts { get; set; } = !BackendDevice.HasSwitch( "-no-prepare-parts" );
+
+	/// <summary>
+	/// Specialization constants' values by attribute, as draws last looked them up: global settings (shadow filter quality,
+	/// DDGI and the like), the same for every program. What parts made ahead take for them.
+	/// </summary>
+	internal IReadOnlyDictionary<string, int> SpecializationValues => specializationValues;
+
+	readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> specializationValues = new( StringComparer.Ordinal );
+
+	/// <summary>A draw looked a specialization constant up (<see cref="SpecializationValues"/>).</summary>
+	internal void SpecializationLookedUp( string attribute, int value )
+	{
+		if ( specializationValues.TryGetValue( attribute, out var known ) && known == value ) return;
+		specializationValues[attribute] = value;
+
+		SurfaceProgram[] waiting;
+		lock ( awaitingValues )
+		{
+			if ( valuesLookedUp ) return;
+			valuesLookedUp = true;
+			waiting = [.. awaitingValues];
+			awaitingValues.Clear();
+		}
+
+		foreach ( var program in waiting ) program.PrepareParts();
+	}
+
+	readonly List<SurfaceProgram> awaitingValues = new();
+	bool valuesLookedUp;
+
+	/// <summary>Make a program's parts ahead now, or once a draw has looked the specialization values up.</summary>
+	void PreparePartsWhenLookedUp( SurfaceProgram program )
+	{
+		lock ( awaitingValues )
+		{
+			if ( !valuesLookedUp )
+			{
+				awaitingValues.Add( program );
+				return;
+			}
+		}
+
+		program.PrepareParts();
 	}
 
 	/// <summary>Folders searched for shaders by file name, in order.</summary>
@@ -585,7 +644,9 @@ public sealed class SurfaceShaders : IDisposable
 				{
 					var raw = SlangCompiler.IsRaw( File.ReadAllText( path ) );
 					var compiled = await (raw ? compiler.CompileRawAsync( path, priority ) : compiler.CompileSurfaceAsync( path, priority )).ConfigureAwait( false );
-					program = new SurfaceProgram( device, compiled );
+					program = new SurfaceProgram( device, compiled ) { SourceFile = file };
+					if ( Manifest?.Take( file, program ) is { Count: > 0 } requests ) program.Prewarm( requests );
+					if ( PrepareParts ) PreparePartsWhenLookedUp( program );
 					if ( compiled.GpuDrivenError is { } gpuDrivenError ) Error?.Invoke( $"{file}: no GPU-driven passes, its draws go the classic way: {gpuDrivenError}" );
 				}
 				catch ( ShaderCompileException e )
@@ -656,6 +717,7 @@ public sealed class SurfaceShaders : IDisposable
 			retired.Clear();
 		}
 
+		Manifest?.Save();
 		Records.Dispose();
 	}
 }
@@ -676,6 +738,21 @@ internal sealed class SurfaceProgram : IDisposable
 
 	public CompiledShader Compiled { get; }
 	public uint LayoutHash { get; }
+
+	/// <summary>The file it was compiled from, which the pipeline manifest names it by; null for one made otherwise.</summary>
+	public string SourceFile { get; init; }
+
+	/// <summary>Pipelines being made ahead from the manifest (<see cref="Prewarm"/>), by key, and whether a worker has started each.</summary>
+	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, ulong Features, bool Normals), Prewarming> prewarming = new();
+
+	sealed class Prewarming
+	{
+		public volatile bool Started;
+		public System.Threading.Tasks.Task Task;
+	}
+
+	/// <summary>Pipelines made ahead from the manifest, for reports and the tests.</summary>
+	public int Prewarmed;
 
 	public sealed class PassObjects
 	{
@@ -701,6 +778,7 @@ internal sealed class SurfaceProgram : IDisposable
 		this.device = device;
 		Compiled = compiled;
 		LayoutHash = MaterialClassWriter.Hash( compiled.Material );
+		Displaces = compiled.Generated is { } generated && (generated.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) || generated.Contains( "SurfaceOutputDisplacedWith", StringComparison.Ordinal ) || generated.Contains( "SurfaceStageVertex", StringComparison.Ordinal ));
 
 		var modules = new Dictionary<CompiledStage, ShaderHandle>();
 		ShaderHandle Module( CompiledStage stage )
@@ -804,7 +882,7 @@ internal sealed class SurfaceProgram : IDisposable
 	/// Whether its vertex stage moves vertices (<c>IVertexSurface</c>, <c>IInterpolatedVertexSurface</c>) or is its own
 	/// (<c>IVertexStageSurface</c>): when not, its positions alone place them.
 	/// </summary>
-	public bool Displaces => Compiled.Generated is { } generated && (generated.Contains( "SurfaceVertexDisplaced", StringComparison.Ordinal ) || generated.Contains( "SurfaceOutputDisplacedWith", StringComparison.Ordinal ) || generated.Contains( "SurfaceStageVertex", StringComparison.Ordinal ));
+	public bool Displaces { get; }
 
 	/// <summary>
 	/// A pipeline for a pass drawing vertices laid out as <paramref name="layout"/> into these formats, with a material's
@@ -823,14 +901,127 @@ internal sealed class SurfaceProgram : IDisposable
 	/// </summary>
 	public PipelineHandle Pipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, bool ids = false, bool opaqueFade = false, bool depthEqual = false, SurfaceFeatures specialized = null, bool normals = false )
 	{
+		// Only a pixel stage reads the features
+		if ( !pass.Pixel.IsValid ) specialized = null;
+		normals &= color != Format.Unknown && !ids;
+		var key = (pass, layout, color, depth, samples, constantsKey, ids, opaqueFade, state, depthEqual, specialized?.Key ?? 0, normals);
+
+		// Never waited for: one a worker is making from the manifest is asked for again here, its draws skipped until made
+		// (GraphicsPipelineInfo.SkipUntilReady); the worker finds it made and drops its own
 		lock ( pipelines )
 		{
-			// Only a pixel stage reads the features
-			if ( !pass.Pixel.IsValid ) specialized = null;
-			normals &= color != Format.Unknown && !ids;
-			var key = (pass, layout, color, depth, samples, constantsKey, ids, opaqueFade, state, depthEqual, specialized?.Key ?? 0, normals);
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 			return MakePipeline( key, pass, layout, color, depth, samples, vertexConstants, pixelConstants, constantsKey, state, ids, opaqueFade, depthEqual, specialized, normals );
+		}
+	}
+
+	/// <summary>
+	/// Make each pass's shader parts on a worker (pre-rasterisation from its vertex stage, fragment from its pixel stage), with
+	/// the specialization constants its draws most likely have, where the device links pipelines from parts
+	/// (<see cref="DeviceCapabilities.PipelineLibraries"/>): a first draw's pipeline is then a fast link. A draw that needs a
+	/// part a worker is making waits for it rather than make it again.
+	/// </summary>
+	public void PrepareParts()
+	{
+		if ( !device.Gpu.Capabilities.PipelineLibraries ) return;
+		lock ( pipelines )
+		{
+			if ( disposed ) return;
+			builds.RemoveAll( b => b.IsCompleted );
+			builds.Add( System.Threading.Tasks.Task.Run( () =>
+			{
+				foreach ( var pass in passes.Values )
+				{
+					if ( System.Threading.Volatile.Read( ref disposed ) ) return;
+					if ( pass.Pass.Vertex is null || !pass.Vertex.IsValid ) continue;
+					var perPixel = pass.Pass.Name.Contains( ShaderPasses.GpuDriven, StringComparison.Ordinal ) || device.Surfaces.MaterialOffsetPerPixel;
+					var pixel = pass.Pixel.IsValid;
+					var info = new GraphicsPipelineInfo
+					{
+						VertexShader = pass.Vertex,
+						VertexEntry = pass.Pass.Vertex.Entry,
+						VertexConstants = BackendContext.LikelySurfaceConstants( pass.Pass.Vertex, perPixel, device.Surfaces.SpecializationValues ),
+						FragmentShader = pixel ? pass.Pixel : default,
+						FragmentEntry = pixel ? pass.Pass.Pixel.Entry : null,
+						FragmentConstants = pixel ? BackendContext.LikelySurfaceConstants( pass.Pass.Pixel, perPixel, device.Surfaces.SpecializationValues ) : null,
+						Sets = pass.Sets,
+						Name = $"{Compiled.Name} {pass.Pass.Name}",
+					};
+
+					try
+					{
+						using ( Zones.PipelineCreate.Start() ) device.Gpu.PreparePipelineParts( info, PipelineParts.PreRasterization | PipelineParts.FragmentShader );
+					}
+					catch ( Exception e ) when ( e is GpuException or ArgumentException or InvalidOperationException )
+					{
+						// Made again by the draw that needs it, which reports it
+					}
+				}
+			} ) );
+		}
+	}
+
+	/// <summary>
+	/// Make the manifest's pipelines for this program on workers (<see cref="SurfacePipelineManifest"/>), each through the
+	/// building set as a specialised pipeline is: a draw that asks for one meanwhile waits for it if a worker has started
+	/// it, or makes it itself. One that fails to make is dropped from the manifest.
+	/// </summary>
+	public void Prewarm( IReadOnlyList<SurfacePipelineManifest.Request> requests )
+	{
+		lock ( pipelines )
+		{
+			if ( disposed ) return;
+			foreach ( var request in requests )
+			{
+				var r = request;
+				var normals = r.Normals && r.Color != Format.Unknown && !r.Ids;
+				var key = (r.Pass, r.Layout, r.Color, r.Depth, r.Samples, r.ConstantsKey, r.Ids, r.OpaqueFade, r.State, r.DepthEqual, 0ul, normals);
+				if ( pipelines.ContainsKey( key ) || !building.Add( key ) ) continue;
+
+				var ahead = new Prewarming();
+				prewarming[key] = ahead;
+				builds.RemoveAll( b => b.IsCompleted );
+				builds.Add( ahead.Task = System.Threading.Tasks.Task.Run( () => MakeAhead( key, r, normals, ahead ) ) );
+			}
+		}
+	}
+
+	void MakeAhead( (PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, ulong Features, bool Normals) key, SurfaceManifestRequest r, bool normals, Prewarming ahead )
+	{
+		lock ( pipelines )
+		{
+			// Made by a draw that didn't wait, or no longer wanted
+			if ( disposed || pipelines.ContainsKey( key ) )
+			{
+				building.Remove( key );
+				prewarming.Remove( key );
+				return;
+			}
+
+			ahead.Started = true;
+		}
+
+		var made = default( PipelineHandle );
+		try
+		{
+			using ( Zones.PipelineCreate.Start() ) made = device.Gpu.CreateGraphicsPipeline( Info( r.Pass, r.Layout, r.Color, r.Depth, r.Samples, r.VertexConstants, r.PixelConstants, r.State, r.Ids, r.OpaqueFade, r.DepthEqual, normals ) with { SkipUntilReady = false } );
+		}
+		catch ( Exception e ) when ( e is GpuException or InvalidOperationException or ArgumentException )
+		{
+			device.Surfaces.Manifest?.Drop( r, SourceFile );
+		}
+
+		lock ( pipelines )
+		{
+			building.Remove( key );
+			prewarming.Remove( key );
+			if ( !made.IsValid ) return;
+			if ( disposed || pipelines.ContainsKey( key ) ) device.Gpu.Destroy( made );
+			else
+			{
+				pipelines[key] = made;
+				Prewarmed++;
+			}
 		}
 	}
 
@@ -855,7 +1046,10 @@ internal sealed class SurfaceProgram : IDisposable
 					builds.Add( System.Threading.Tasks.Task.Run( () =>
 					{
 						if ( BackendDevice.DumpSurfaceShaders is { } dump ) Dump( dump, pass, info.FragmentConstants, specialized );
-						var made = device.Gpu.CreateGraphicsPipeline( info );
+
+						// Made here, on a worker: the unspecialised one draws until then
+						var whole = info with { SkipUntilReady = false };
+						var made = device.Gpu.CreateGraphicsPipeline( whole );
 						lock ( pipelines )
 						{
 							building.Remove( key );
@@ -870,6 +1064,9 @@ internal sealed class SurfaceProgram : IDisposable
 
 			using ( Zones.PipelineCreate.Start() ) pipeline = device.Gpu.CreateGraphicsPipeline( Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, ids, opaqueFade, depthEqual, normals ) );
 			pipelines[key] = pipeline;
+
+			// A miss, never a frame's every draw: kept for the next run to make ahead
+			device.Surfaces.Manifest?.Record( SourceFile, new SurfaceManifestRequest( pass, layout, color, depth, samples, vertexConstants, pixelConstants, constantsKey, state, ids, opaqueFade, depthEqual, normals ) );
 			return pipeline;
 		}
 	}
@@ -938,6 +1135,9 @@ internal sealed class SurfaceProgram : IDisposable
 			DepthFormat = depth,
 			Samples = samples,
 			Name = $"{Compiled.Name} {pass.Pass.Name}",
+
+			// A draw never waits for it: skipped until workers have made it
+			SkipUntilReady = true,
 		};
 
 		if ( !depthOnly && !ids )

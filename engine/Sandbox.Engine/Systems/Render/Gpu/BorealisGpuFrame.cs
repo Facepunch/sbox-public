@@ -30,6 +30,32 @@ internal sealed class BorealisGpuFrame : IDisposable
 	static readonly StringToken DepthChainPrevFrameName = new( "DepthChainDownsamplePrevFrame" );
 	static readonly StringToken NormalsName = new( "NormalsGBuffer" );
 
+	/// <summary>
+	/// The view's settings the frame's own draws read from its attributes (specialization constants and view-wide values:
+	/// the shadow filter, the tools visualisation, light modulators, DDGI, screen-space effects and normals, a reflection's),
+	/// which custom objects drawn in it read too, as native's layer gives its custom objects the view's attributes.
+	/// </summary>
+	internal static readonly StringToken[] ViewSettings =
+	[
+		"ShadowFilterQuality", "ToolsVisMode", "LightModulatorsDisabled", "LightModulators_Enabled", "DDGI_Enabled",
+		"DisableScreenSpaceEffects", "DisableScreenSpaceShadows", "NormalsTextureIndex", "IsReflection", "ReflectionShadows", "NeedsDepthNormals",
+	];
+
+	/// <summary>Set <see cref="ViewSettings"/> the frame has (<paramref name="frame"/>, its attributes) on <paramref name="into"/>.</summary>
+	internal static void CopyViewSettings( Borealis.ShaderParameters frame, RenderAttributes into )
+	{
+		if ( frame is not BackendParameters parameters ) return;
+		foreach ( var name in ViewSettings )
+		{
+			switch ( parameters.Get( name ) )
+			{
+				case int value: into.Set( name, value ); break;
+				case bool value: into.Set( name, value ); break;
+				case float value: into.Set( name, value ); break;
+			}
+		}
+	}
+
 	readonly BorealisGpuRenderBackend backend;
 	ViewTarget target;
 	byte[] constants = [];
@@ -62,8 +88,8 @@ internal sealed class BorealisGpuFrame : IDisposable
 	{
 		this.target = target;
 		var color = target.Resolved ?? target.Color;
-		Color = Engine( Color, color, target.Size, ImageFormat.RGBA16161616F, depth: false );
-		Depth = target.Depth is null ? null : Engine( Depth, target.Depth, target.Size, ImageFormat.D32FS8, depth: true );
+		Color = FrameTexture( Color, color, target.Size, ImageFormat.RGBA16161616F, depth: false );
+		Depth = target.Depth is null ? null : FrameTexture( Depth, target.Depth, target.Size, ImageFormat.D32FS8, depth: true );
 
 		if ( constants.Length != System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>() ) constants = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
 		System.Runtime.InteropServices.MemoryMarshal.Write( constants, in viewConstants );
@@ -137,6 +163,29 @@ internal sealed class BorealisGpuFrame : IDisposable
 		if ( outputConstants.Length != constants.Length ) outputConstants = new byte[constants.Length];
 		System.Runtime.InteropServices.MemoryMarshal.Write( outputConstants, in c );
 		Graphics.Attributes.SetDataShared( ViewConstantsName, outputConstants );
+	}
+
+	// The frame's colour and depth as engine textures, one per Borealis texture: frames alternate between targets, and an engine
+	// texture kept per target keeps its backing instead of being given a new one each frame
+	readonly Dictionary<(bool Depth, BackendTexture Texture), Texture> frameTextures = new();
+
+	Texture FrameTexture( Texture current, GpuTexture gpu, Vector2Int size, ImageFormat format, bool depth )
+	{
+		if ( gpu is not BackendTexture texture ) return Engine( current, gpu, size, format, depth );
+
+		if ( frameTextures.Count > 8 )
+		{
+			foreach ( var (key, engine) in frameTextures )
+			{
+				if ( key.Texture.IsValid ) continue;
+				frameTextures.Remove( key );
+				engine.Dispose();
+			}
+		}
+
+		ref var kept = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrAddDefault( frameTextures, (depth, texture), out _ );
+		kept = Engine( kept, gpu, size, format, depth );
+		return kept;
 	}
 
 	/// <summary>An engine texture of the target's size whose backing on the device is <paramref name="gpu"/>.</summary>
@@ -279,6 +328,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 			var attributes = Graphics.Attributes;
 			attributes.SetDataShared( ViewConstantsName, viewConstants );
+
+			// Under what the block sets: Mow the Lawn's terrain filtered its shadows with none of the frame's filter (hard and dark)
+			CopyViewSettings( target.Attributes, attributes );
 			if ( chain.Engine is not null )
 			{
 				attributes.Set( DepthChainName, chain.Engine );
@@ -439,15 +491,21 @@ internal sealed class BorealisGpuFrame : IDisposable
 	public void Release()
 	{
 		End();
-		if ( Color is not null ) backend.Release( Color );
-		if ( Depth is not null ) backend.Release( Depth );
+
+		// Its engine textures keep their backings for the next frame on these targets
+		if ( (target?.Resolved ?? target?.Color) is BackendTexture color ) backend.ForgetBorrowed( color.Handle );
+		else if ( Color is not null ) backend.Release( Color );
+		if ( target?.Depth is BackendTexture depth ) backend.ForgetBorrowed( depth.Handle );
+		else if ( Depth is not null ) backend.Release( Depth );
 		target = null;
 	}
 
 	public void Dispose()
 	{
-		Color?.Dispose();
-		Depth?.Dispose();
+		foreach ( var engine in frameTextures.Values ) engine.Dispose();
+		if ( Color is not null && !frameTextures.ContainsValue( Color ) ) Color.Dispose();
+		if ( Depth is not null && !frameTextures.ContainsValue( Depth ) ) Depth.Dispose();
+		frameTextures.Clear();
 		DepthChain?.Dispose();
 		foreach ( var engine in stageTextures.Values ) engine.Dispose();
 		stageTextures.Clear();
