@@ -102,6 +102,13 @@ internal sealed class MeshletStore : IDisposable
 	readonly List<Entry> uploaded = new();
 	readonly SemaphoreSlim workers;
 	readonly List<BufferHandle> pages = new();
+
+	// Records of ranges forgotten with their geometry page (page index, first, count), sorted and never adjacent: taken before
+	// the last page fills, so maps loaded one after another reuse them rather than adding pages
+	readonly List<(int Page, int First, int Count)> freeRecords = new();
+
+	/// <summary>Meshlet records reused from forgotten ranges, for soaks and tests.</summary>
+	public long ReusedRecords { get; private set; }
 	BufferHandle page;
 	int pageSlot = -1, pageUsed = PageRecords;
 	readonly List<BufferHandle> dataPages = new();
@@ -114,7 +121,8 @@ internal sealed class MeshletStore : IDisposable
 	BufferHandle runs;
 	int runSlot = -1;
 	long runBytes;
-	readonly List<BufferHandle> retiredRuns = new();
+	// Run tables it grew out of, with the device frame they were retired in: draws recorded in that frame read them
+	readonly List<(BufferHandle Buffer, ulong Frame)> retiredRuns = new();
 
 	/// <summary>Ranges asked for, built, published and refused; meshlets and triangles published; build time on the workers.</summary>
 	public long Requested, Built, Published, Refused, Meshlets, Triangles, Triangles16, BuildTicks;
@@ -412,11 +420,54 @@ internal sealed class MeshletStore : IDisposable
 				if ( range.PageSlot == slot && entry.State is State.Building or State.Built or State.Uploaded ) return false;
 			}
 
-			foreach ( var range in entries.Keys.Where( r => r.PageSlot == slot ).ToList() ) entries.Remove( range );
+			foreach ( var range in entries.Keys.Where( r => r.PageSlot == slot ).ToList() )
+			{
+				if ( entries.Remove( range, out var entry ) && entry.State == State.Published && entry.Count > 0 ) FreeRecords( (int)(entry.Global / PageRecords), (int)entry.First, (int)entry.Count );
+			}
+
 			foreach ( var range in waitingDraws.Keys.Where( r => r.PageSlot == slot ).ToList() ) waitingDraws.Remove( range );
 			pageRanges.Remove( slot );
 			return true;
 		}
+	}
+
+	/// <summary>A forgotten range's records go back for reuse, merged with free ones beside them. Under the gate.</summary>
+	void FreeRecords( int page, int first, int count )
+	{
+		var i = 0;
+		while ( i < freeRecords.Count && (freeRecords[i].Page, freeRecords[i].First).CompareTo( (page, first) ) < 0 ) i++;
+		freeRecords.Insert( i, (page, first, count) );
+		if ( i + 1 < freeRecords.Count && freeRecords[i + 1].Page == page && first + count == freeRecords[i + 1].First )
+		{
+			freeRecords[i] = (page, first, count + freeRecords[i + 1].Count);
+			freeRecords.RemoveAt( i + 1 );
+		}
+
+		if ( i > 0 && freeRecords[i - 1].Page == page && freeRecords[i - 1].First + freeRecords[i - 1].Count == first )
+		{
+			freeRecords[i - 1] = (page, freeRecords[i - 1].First, freeRecords[i - 1].Count + freeRecords[i].Count);
+			freeRecords.RemoveAt( i );
+		}
+	}
+
+	/// <summary>
+	/// Room for <paramref name="count"/> records among forgotten ranges' (the first that fits): its page index and first
+	/// record, or (-1, 0). Their old ranges' draws have gone, and the upload's list comes after every earlier submission's
+	/// reads. Under the gate.
+	/// </summary>
+	(int Page, int First) TakeRecords( int count )
+	{
+		for ( int i = 0; i < freeRecords.Count; i++ )
+		{
+			var (page, first, free) = freeRecords[i];
+			if ( free < count ) continue;
+			if ( free == count ) freeRecords.RemoveAt( i );
+			else freeRecords[i] = (page, first + count, free - count);
+			ReusedRecords += count;
+			return (page, first);
+		}
+
+		return (-1, 0);
 	}
 
 	/// <summary>
@@ -428,6 +479,13 @@ internal sealed class MeshletStore : IDisposable
 		frame++;
 		lock ( gate )
 		{
+			for ( int i = retiredRuns.Count - 1; i >= 0; i-- )
+			{
+				if ( gpu.FrameNumber - retiredRuns[i].Frame < GpuDrivenTables.RetiredFrames ) continue;
+				gpu.Destroy( retiredRuns[i].Buffer );
+				retiredRuns.RemoveAt( i );
+			}
+
 			for ( int i = uploaded.Count - 1; i >= 0; i-- )
 			{
 				var entry = uploaded[i];
@@ -488,8 +546,10 @@ internal sealed class MeshletStore : IDisposable
 				bytes += narrow.Length * 2L;
 			}
 
-			// Its records, in a page with room for all of them
-			if ( pageUsed + set.Meshlets.Length > PageRecords )
+			// Its records, in a forgotten range's records or in a page with room for all of them
+			int target, first;
+			lock ( gate ) (target, first) = LocalData ? (-1, 0) : TakeRecords( set.Meshlets.Length );
+			if ( target < 0 && pageUsed + set.Meshlets.Length > PageRecords )
 			{
 				var size = PageRecords * (long)(MeshletSet.RecordBytes + (LocalData ? LocalRecordBytes : 0));
 				page = gpu.CreateBuffer( new BufferInfo { Size = size, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = "Borealis meshlet page" } );
@@ -498,9 +558,13 @@ internal sealed class MeshletStore : IDisposable
 				pageUsed = 0;
 			}
 
+			var appended = target < 0;
+			if ( appended ) (target, first) = (pages.Count - 1, pageUsed);
+			BufferHandle into;
+			lock ( gate ) into = pages[target];
 			var recordBytes = set.Meshlets.Length * (long)MeshletSet.RecordBytes;
-			if ( staging.IsValid ) list.CopyBuffer( staging, (entry.IndexBytes + 3) & ~3L, page, pageUsed * (long)MeshletSet.RecordBytes, recordBytes );
-			else list.UpdateBuffer<MeshletRecord>( page, set.Meshlets, pageUsed * (long)MeshletSet.RecordBytes );
+			if ( staging.IsValid ) list.CopyBuffer( staging, (entry.IndexBytes + 3) & ~3L, into, first * (long)MeshletSet.RecordBytes, recordBytes );
+			else list.UpdateBuffer<MeshletRecord>( into, set.Meshlets, first * (long)MeshletSet.RecordBytes );
 			bytes += recordBytes;
 			if ( entry.Local is { } local ) bytes += UploadLocal( list, set, local, s.Format == IndexFormat.UInt32, entry );
 
@@ -510,16 +574,16 @@ internal sealed class MeshletStore : IDisposable
 
 			lock ( gate )
 			{
-				entry.PageSlot = (uint)pageSlot;
-				entry.First = (uint)pageUsed;
+				entry.PageSlot = (uint)(appended ? pageSlot : gpu.BindlessIndex( into ));
+				entry.First = (uint)first;
 				entry.Count = (uint)set.Meshlets.Length;
-				entry.Global = (uint)((pages.Count - 1) * PageRecords + pageUsed);
+				entry.Global = (uint)(target * PageRecords + first);
 				entry.State = State.Uploaded;
 				entry.UploadedFrame = frame;
 				uploaded.Add( entry );
 			}
 
-			pageUsed += set.Meshlets.Length;
+			if ( appended ) pageUsed += set.Meshlets.Length;
 		}
 
 		if ( list is null ) return;
@@ -611,7 +675,7 @@ internal sealed class MeshletStore : IDisposable
 		if ( runs.IsValid )
 		{
 			gpu.Map( runs )[..(int)runBytes].CopyTo( mapped );
-			retiredRuns.Add( runs );
+			retiredRuns.Add( (runs, gpu.FrameNumber) );
 		}
 
 		runs = buffer;
@@ -631,7 +695,7 @@ internal sealed class MeshletStore : IDisposable
 		foreach ( var p in dataPages ) gpu.Destroy( p );
 		dataPages.Clear();
 		if ( runs.IsValid ) gpu.Destroy( runs );
-		foreach ( var r in retiredRuns ) gpu.Destroy( r );
+		foreach ( var (r, _) in retiredRuns ) gpu.Destroy( r );
 		retiredRuns.Clear();
 	}
 }

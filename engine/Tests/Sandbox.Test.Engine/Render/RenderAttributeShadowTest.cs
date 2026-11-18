@@ -43,6 +43,27 @@ public class RenderAttributeShadowTest
 	}
 
 	/// <summary>
+	/// A native set merged into another native set that keeps a managed copy fills the copy too: the scene's render
+	/// attributes merged into a camera's (Rust Legacy's time of day), which Borealis.Gpu reads from the camera's copy.
+	/// </summary>
+	[TestMethod]
+	public void MergeIntoNativeSetFillsItsManagedCopy()
+	{
+		var scene = new RenderAttributes();
+		scene.KeepManagedCopy();
+		scene.Set( "TodLayers", new Vector4( 0, 1, 0, 0.035f ) );
+		scene.SetCombo( "D_ZONE_PLAIN", 1 );
+
+		var camera = new RenderAttributes();
+		camera.KeepManagedCopy();
+		scene.MergeTo( camera );
+
+		Assert.AreEqual( new Vector4( 0, 1, 0, 0.035f ), camera.GetVector4( "TodLayers" ), "the native merge still happens" );
+		CollectionAssert.AreEqual( new[] { 0f, 1f, 0f, 0.035f }, camera.Shadow.GetFloats( "TodLayers" ) );
+		Assert.AreEqual( 1, camera.Shadow.GetCombo( "D_ZONE_PLAIN" ) );
+	}
+
+	/// <summary>
 	/// The managed copy as a set of its own (what a dynamic object draws with on Borealis.Gpu) is managed, reads what's set
 	/// on the native set after it's made, and is the same set every time.
 	/// </summary>
@@ -60,6 +81,45 @@ public class RenderAttributeShadowTest
 		CollectionAssert.AreEqual( new[] { 3f }, set.Managed.GetFloats( "LineThickness" ) );
 		Assert.AreEqual( 1, set.Managed.GetCombo( "D_NO_ZTEST" ) );
 		Assert.AreSame( set, source.ShadowSet );
+	}
+
+	/// <summary>
+	/// Equal values compare equal as native's <c>CRenderAttributes::AreEqual</c> compares two sets, whatever order they were
+	/// set in; a value, combo or object apart doesn't. Objects whose sets hold the same values share one when they draw.
+	/// </summary>
+	[TestMethod]
+	public void SameValuesComparesWhatIsSet()
+	{
+		static RenderAttributes Make( float height, int combo, string name )
+		{
+			var set = RenderAttributes.CreateManaged();
+			set.SetCombo( "D_GRID", combo );
+			set.Set( "Height", height );
+			set.Set( "Offset", new Vector2( 3, 4 ) );
+			set.Managed.SetObject( "Name", name );
+			return set;
+		}
+
+		var a = Make( 2.5f, 1, "white" );
+		Assert.IsFalse( a.Managed.IsEmpty );
+		Assert.IsTrue( RenderAttributes.CreateManaged().Managed.IsEmpty );
+
+		var b = RenderAttributes.CreateManaged();
+		b.Managed.SetObject( "Name", "white" );
+		b.Set( "Offset", new Vector2( 3, 4 ) );
+		b.Set( "Height", 2.5f );
+		b.SetCombo( "D_GRID", 1 );
+		Assert.IsTrue( a.Managed.SameValues( b.Managed ) );
+		Assert.IsTrue( b.Managed.SameValues( a.Managed ) );
+
+		Assert.IsFalse( a.Managed.SameValues( Make( 2.6f, 1, "white" ).Managed ) );
+		Assert.IsFalse( a.Managed.SameValues( Make( 2.5f, 0, "white" ).Managed ) );
+		Assert.IsFalse( a.Managed.SameValues( Make( 2.5f, 1, "black" ).Managed ) );
+
+		b.Set( "Extra", 1.0f );
+		Assert.IsFalse( a.Managed.SameValues( b.Managed ), "one more value" );
+		b.Clear();
+		Assert.IsTrue( b.Managed.IsEmpty );
 	}
 
 	/// <summary>

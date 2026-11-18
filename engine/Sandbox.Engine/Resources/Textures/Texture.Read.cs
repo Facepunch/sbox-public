@@ -20,16 +20,12 @@ public partial class Texture
 	[Pure]
 	public Color32[] GetPixels( int mip = 0 )
 	{
-		// BUG: Width/Height is on disk and not the currently streamed mip
-		//      I don't know what would break if I made Width/Height represent that instead
-		var desc = g_pRenderDevice.GetTextureDesc( native );
-
 		mip = Math.Clamp( mip, 0, Mips - 1 );
-		var d = 1 << mip;
+		var size = ReadSize( mip );
 
 		if ( Depth == 1 )
 		{
-			var rect = (X: 0, Y: 0, W: desc.m_nWidth / d, H: desc.m_nHeight / d);
+			var rect = (X: 0, Y: 0, W: size.Width, H: size.Height);
 			var data = new Color32[rect.W * rect.H];
 
 			GetPixels( rect, 0, mip, data.AsSpan(), ImageFormat.RGBA8888 );
@@ -38,7 +34,7 @@ public partial class Texture
 		}
 		else
 		{
-			var box = (X: 0, Y: 0, Z: 0, Width: desc.m_nWidth / d, Height: desc.m_nHeight / d, Depth: Depth / d);
+			var box = (X: 0, Y: 0, Z: 0, Width: size.Width, Height: size.Height, Depth: ReadSlices( mip ));
 			var data = new Color32[box.Width * box.Height * box.Depth];
 
 			GetPixels3D( box, mip, data.AsSpan(), ImageFormat.RGBA8888 );
@@ -55,14 +51,11 @@ public partial class Texture
 	{
 		if ( !IsValid ) throw new ObjectDisposedException( nameof( Texture ) );
 		mip = Math.Clamp( mip, 0, Mips - 1 );
-		var d = 1 << mip;
 
 		bool floatingPoint = ImageFormat == ImageFormat.RGBA16161616F;
 
-		var desc = g_pRenderDevice.GetTextureDesc( native );
-		var width = desc.m_nWidth / d;
-		var height = desc.m_nHeight / d;
-		var depth = Depth; // Cubes have 6 depth even though reports as only 1 in desc
+		var (width, height) = ReadSize( mip );
+		var depth = RenderBackend.Default is Source2RenderBackend || Depth == 1 ? Depth : ReadSlices( mip ); // Cubes have 6 depth even though reports as only 1 in desc
 		var outputFormat = floatingPoint ? ImageFormat.RGBA16161616F : ImageFormat.RGBA8888;
 		var targetMemoryRequired = NativeEngine.ImageLoader.GetMemRequired( width, height, depth, 1, outputFormat );
 
@@ -114,6 +107,26 @@ public partial class Texture
 			if ( scratch is not null ) ArrayPool<byte>.Shared.Return( scratch );
 		}
 	}
+
+	/// <summary>
+	/// A mip's size as it reads back: on Source 2's device what it has streamed in (on disk sizes can be larger), else the
+	/// texture's own, which is what the drawing device holds.
+	/// </summary>
+	(int Width, int Height) ReadSize( int mip )
+	{
+		// BUG: Width/Height is on disk and not the currently streamed mip
+		//      I don't know what would break if I made Width/Height represent that instead
+		if ( RenderBackend.Default is Source2RenderBackend )
+		{
+			var desc = g_pRenderDevice.GetTextureDesc( native );
+			return (desc.m_nWidth / (1 << mip), desc.m_nHeight / (1 << mip));
+		}
+
+		return (Math.Max( Width >> mip, 1 ), Math.Max( Height >> mip, 1 ));
+	}
+
+	/// <summary>Slices a whole read of a mip takes: a volume's shrink with its mips, an array's layers and a cube's faces don't.</summary>
+	int ReadSlices( int mip ) => RenderBackend.Default is Source2RenderBackend ? Depth / (1 << mip) : GetSliceCount( mip );
 
 	private static int GetImageFormatSize( ImageFormat format )
 	{
@@ -440,21 +453,17 @@ public partial class Texture
 	public void GetPixelsAsync( Action<ReadOnlySpan<Color32>> callback, int mip = 0 )
 	{
 		mip = Math.Clamp( mip, 0, Mips - 1 );
-		var d = 1 << mip;
-
-		var desc = g_pRenderDevice.GetTextureDesc( native );
+		var (width, height) = ReadSize( mip );
 
 		if ( Depth == 1 )
 		{
-			var width = desc.m_nWidth / d;
-			var height = desc.m_nHeight / d;
 			var rect = (X: 0, Y: 0, Width: width, Height: height);
 
 			GetPixelsAsync( callback, ImageFormat.RGBA8888, rect, 0, mip );
 		}
 		else
 		{
-			var box = (X: 0, Y: 0, Z: 0, Width: desc.m_nWidth / d, Height: desc.m_nHeight / d, Depth: Depth / d);
+			var box = (X: 0, Y: 0, Z: 0, Width: width, Height: height, Depth: ReadSlices( mip ));
 
 			GetPixelsAsync3D( callback, ImageFormat.RGBA8888, box, mip );
 		}
@@ -493,7 +502,7 @@ public partial class Texture
 
 		if ( dstFormat == ImageFormat.Default ) dstFormat = ImageFormat;
 
-		var context = g_pRenderDevice.CreateRenderContext( 0 );
+		var context = ReadContext();
 
 		context.ReadTextureAsync( this, ( readData, readFormat, readMip, readWidth, readHeight, doneWithData ) =>
 		{
@@ -521,9 +530,7 @@ public partial class Texture
 			}
 		}, slice, mip, srcRect );
 
-		context.Submit();
-
-		g_pRenderDevice.ReleaseRenderContext( context );
+		SubmitReadContext( context );
 	}
 
 	/// <summary>
@@ -571,7 +578,7 @@ public partial class Texture
 		byte[] resultBuffer = ArrayPool<byte>.Shared.Rent( totalBytes );
 
 		var completedSlices = 0;
-		var context = g_pRenderDevice.CreateRenderContext( 0 );
+		var context = ReadContext();
 
 		// Process each slice asynchronously
 		for ( var z = 0; z < srcBox.Depth; z++ )
@@ -611,9 +618,7 @@ public partial class Texture
 			}, sliceIndex, mip, srcRect );
 		}
 
-		context.Submit();
-
-		g_pRenderDevice.ReleaseRenderContext( context );
+		SubmitReadContext( context );
 	}
 
 	/// <summary>
@@ -629,16 +634,13 @@ public partial class Texture
 	public void GetBitmapAsync( Action<Bitmap> callback, int mip = 0 )
 	{
 		mip = Math.Clamp( mip, 0, Mips - 1 );
-		var d = 1 << mip;
 
 		bool floatingPoint = ImageFormat == ImageFormat.RGBA16161616F;
-		var desc = g_pRenderDevice.GetTextureDesc( native );
-		var width = desc.m_nWidth / d;
-		var height = desc.m_nHeight / d;
+		var (width, height) = ReadSize( mip );
 		var dstFormat = floatingPoint ? ImageFormat.RGBA16161616F : ImageFormat.RGBA8888;
 		var premultiplied = Flags.HasFlag( TextureFlags.PremultipliedAlpha );
 
-		var context = g_pRenderDevice.CreateRenderContext( 0 );
+		var context = ReadContext();
 
 		context.ReadTextureAsync( this, ( readData, readFormat, readMip, readWidth, readHeight, doneWithData ) =>
 		{
@@ -672,8 +674,19 @@ public partial class Texture
 			callback( bitmap );
 		}, 0, mip, (0, 0, width, height) );
 
-		context.Submit();
+		SubmitReadContext( context );
+	}
 
+	/// <summary>
+	/// A Source 2 render context for an asynchronous read, or none when another device draws: that one reads at once
+	/// (<see cref="AsyncGPUReadback"/>).
+	/// </summary>
+	static IRenderContext ReadContext() => RenderBackend.Default is Source2RenderBackend ? g_pRenderDevice.CreateRenderContext( 0 ) : default;
+
+	static void SubmitReadContext( IRenderContext context )
+	{
+		if ( context.IsNull ) return;
+		context.Submit();
 		g_pRenderDevice.ReleaseRenderContext( context );
 	}
 

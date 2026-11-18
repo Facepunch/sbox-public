@@ -18,8 +18,7 @@ public class BorealisGpuBuffersTest
 	public void CopiesFillsAndCountersReadBack()
 	{
 		// Engine buffers are made on Source 2's device too
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 

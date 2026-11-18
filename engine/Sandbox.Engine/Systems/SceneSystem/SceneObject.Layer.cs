@@ -58,6 +58,13 @@ public partial class SceneObject
 {
 
 	SceneRenderLayer _renderLayer;
+	uint? _layerMatch;
+
+	/// <summary>
+	/// The layer match id as a string token (<c>CSceneObject::m_nLayerMatchID</c>): set with <see cref="RenderLayer"/>, or read
+	/// once from native for an object native code made (a map's overlays). Native still gets it while something reads it.
+	/// </summary>
+	internal uint LayerMatchToken => _layerMatch ??= native.GetLayerMatchIDValue();
 
 	/// <summary>
 	/// For a layer to draw this object, the target layer must match (or be unset)
@@ -74,17 +81,52 @@ public partial class SceneObject
 			// if not found or default we'll set it to default
 			if ( !SceneRenderLayerHelper.Names.TryGetValue( value, out var layer ) )
 			{
-				native.SetLayerMatchID( null );
+				_renderLayer = SceneRenderLayer.Default;
+				SetLayerMatch( null );
 				NotifyChanged( Rendering.SceneObjectChange.Flags );
 				return;
 			}
 
 			_renderLayer = value;
-			native.SetLayerMatchID( layer );
+			SetLayerMatch( layer );
 
 			// The layers that take it changed, as a flag changing does
 			NotifyChanged( Rendering.SceneObjectChange.Flags );
 		}
+	}
+
+	void SetLayerMatch( StringToken token )
+	{
+		if ( native.IsNull ) Sandbox.Interop.ThrowNullSelf( "CSceneObject", "SetLayerMatchID" );
+		_layerMatch = token.Value;
+		if ( WritesNative ) native.SetLayerMatchID( token );
+	}
+
+	static readonly StringToken LightGroupName = new( "LightGroup" );
+	static readonly StringToken RenderOrderName = new( "RenderOrder" );
+	int? _nativeLightGroup, _nativeRenderOrder;
+
+	/// <summary>
+	/// The light group the object is lit by (its <c>LightGroup</c> attribute, as <c>CSceneObject::GetIntValue</c> reads it).
+	/// </summary>
+	internal int LightGroup => ObjectInt( LightGroupName, ref _nativeLightGroup );
+
+	/// <summary>
+	/// The order a static overlay draws in (its <c>RenderOrder</c> attribute).
+	/// </summary>
+	internal int RenderOrder => ObjectInt( RenderOrderName, ref _nativeRenderOrder );
+
+	/// <summary>
+	/// An integer attribute of the object's. While native keeps the object's attributes they're read from it; when they're
+	/// managed (<see cref="WritesNative"/> off) the managed set's value wins, and what native code gave the object when it made
+	/// it (a map's light groups and overlay order) is read from native once.
+	/// </summary>
+	int ObjectInt( StringToken name, ref int? fromNative )
+	{
+		if ( native.IsNull ) return fromNative ?? 0;
+		if ( WritesNative ) return native.GetIntValue( name, 0 );
+		if ( _attributes?.Managed?.GetFloats( name ) is { Length: > 0 } value ) return (int)value[0];
+		return fromNative ??= native.GetIntValue( name, 0 );
 	}
 
 

@@ -87,9 +87,10 @@ internal sealed class BackendTexture : GpuTexture
 }
 
 /// <summary>
-/// A <see cref="GpuBuffer"/>'s device side: a <see cref="Borealis.Gpu"/> buffer in video memory.
+/// A <see cref="GpuBuffer"/>'s device side: a <see cref="Borealis.Gpu"/> buffer in video memory. A borrowed one
+/// (<paramref name="owned"/> false) is someone else's buffer, which disposing leaves alone.
 /// </summary>
-internal sealed class BackendBuffer( BackendDevice device, BufferHandle handle, long size, string name ) : IDisposable
+internal sealed class BackendBuffer( BackendDevice device, BufferHandle handle, long size, string name, bool owned = true ) : IDisposable
 {
 	public BufferHandle Handle { get; } = handle;
 	public long Size { get; } = size;
@@ -98,7 +99,7 @@ internal sealed class BackendBuffer( BackendDevice device, BufferHandle handle, 
 
 	public void Dispose()
 	{
-		if ( disposed ) return;
+		if ( disposed || !owned ) return;
 		disposed = true;
 		device.Gpu.Destroy( Handle );
 	}
@@ -812,9 +813,10 @@ public sealed class BackendMesh : GpuMesh, IBackendGeometry
 
 	/// <summary>
 	/// A one-draw mesh of triangles from vertices and 32-bit indices, drawn with <paramref name="material"/>.
-	/// Tangents left zero are computed from the uvs.
+	/// Tangents left zero are computed from the uvs. Without <paramref name="pooled"/> it stays out of the GPU-driven pages:
+	/// the device's own meshes (the sky box, the full-screen quad) last as long as it and would hold a page each.
 	/// </summary>
-	public static RenderMesh Create( BackendDevice device, ReadOnlySpan<MeshVertex> vertices, ReadOnlySpan<uint> indices, GpuMaterial material, string name )
+	public static RenderMesh Create( BackendDevice device, ReadOnlySpan<MeshVertex> vertices, ReadOnlySpan<uint> indices, GpuMaterial material, string name, bool pooled = true )
 	{
 		ArgumentOutOfRangeException.ThrowIfZero( vertices.Length );
 		ArgumentOutOfRangeException.ThrowIfZero( indices.Length );
@@ -837,8 +839,8 @@ public sealed class BackendMesh : GpuMesh, IBackendGeometry
 		}
 
 		// In the GPU-driven pages too, when the device keeps them
-		PooledGeometry? pooled = null;
-		if ( device.GpuDrivenTables is { } tables )
+		PooledGeometry? inPages = null;
+		if ( pooled && device.GpuDrivenTables is { } tables )
 		{
 			var (slot, offset) = tables.AddVertices( MemoryMarshal.AsBytes( data.AsSpan() ) );
 			var (page, pageSlot, first) = tables.AddIndices( MemoryMarshal.AsBytes( indices ), IndexFormat.UInt32 );
@@ -853,10 +855,10 @@ public sealed class BackendMesh : GpuMesh, IBackendGeometry
 
 			var (_, positionOffset, positionSlot) = tables.AddVertexStream( MemoryMarshal.AsBytes( positions.AsSpan() ) );
 			var positionsRecord = tables.Geometry( positionSlot, positionOffset, device.Layout( BackendModel.PositionLayout ), data.Length );
-			pooled = new PooledGeometry( tables.Geometry( slot, offset, device.Layout( Layout ), data.Length ), page, pageSlot, first, IndexFormat.UInt32, positionsRecord, data.Length );
+			inPages = new PooledGeometry( tables.Geometry( slot, offset, device.Layout( Layout ), data.Length ), page, pageSlot, first, IndexFormat.UInt32, positionsRecord, data.Length );
 		}
 
-		var geometry = new BackendMesh( vertexBuffer, indexBuffer, IndexFormat.UInt32, name, pooled );
+		var geometry = new BackendMesh( vertexBuffer, indexBuffer, IndexFormat.UInt32, name, inPages );
 		var draw = new RenderMesh.Draw( 0, 0, 0, indices.Length, data.Length, 0, material );
 		return new RenderMesh( geometry, new BBox( mins, maxs ), [[draw]] );
 	}

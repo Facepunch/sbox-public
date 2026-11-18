@@ -82,7 +82,7 @@ internal static class BorealisGpuCustomDraw
 		var material = sceneObject.ManagedMaterial;
 		if ( vertices is not { Count: > 0 } || material is null ) return;
 
-		var attributes = sceneObject.CreatedAttributes?.ShadowSet ?? Graphics.Attributes;
+		var attributes = sceneObject.CreatedAttributes?.ManagedSet ?? Graphics.Attributes;
 		Graphics.Draw( CollectionsMarshal.AsSpan( vertices ), vertices.Count, material, attributes, sceneObject.ManagedPrimitiveType );
 	}
 

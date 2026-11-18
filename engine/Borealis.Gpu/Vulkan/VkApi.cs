@@ -64,6 +64,9 @@ internal static unsafe class VkLoader
 		if ( OperatingSystem.IsMacOS() ) yield return Path.Combine( AppContext.BaseDirectory, "bin", "osxarm64", name );
 	}
 
+	/// <summary><c>vkGetInstanceProcAddr</c> itself, for libraries that load Vulkan from it.</summary>
+	public static nint InstanceProcAddr => (nint)getInstanceProcAddr;
+
 	public static nint GetInstanceProcAddr( nint instance, string name )
 	{
 		Span<byte> utf8 = stackalloc byte[128];

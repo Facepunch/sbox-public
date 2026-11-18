@@ -474,9 +474,13 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		return renderMesh;
 	}
 
-	/// <summary>Free its buffers, once the GPU is done with them; otherwise they go with the device.</summary>
+	/// <summary>Whether <see cref="Free"/> has run: a model made at run time that was freed this way is made again if asked for.</summary>
+	public bool Freed { get; private set; }
+
+	/// <summary>Free its buffers, once the GPU is done with them; otherwise they go with the device. Again does nothing.</summary>
 	public void Free()
 	{
+		Freed = true;
 		foreach ( var buffer in buffers ) device.Gpu.Destroy( buffer );
 		buffers.Clear();
 		if ( device.GpuDrivenTables is { } tables )

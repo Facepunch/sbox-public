@@ -21,12 +21,32 @@ internal sealed class BorealisGpuFrame : IDisposable
 	static readonly StringToken ViewConstantsName = new( "PerViewConstantBuffer_t" );
 	static readonly StringToken DepthChainName = new( "DepthChainDownsample" );
 	static readonly StringToken FogVolumeName = new( "FogVolume" );
-	static readonly StringToken BlueNoiseName = new( "BlueNoise" );
 	static readonly StringToken BloomInputName = new( "QuarterResEffectsBloomInputTexture" );
 
-	// Every block on the frame binds it: looked up once, again only if it was let go
-	static Texture blueNoise;
-	static Texture BlueNoise => blueNoise is { IsValid: true } known ? known : blueNoise = Texture.Load( "textures/dev/blue_noise_256.vtex" );
+	/// <summary>
+	/// The view's lookup tables, as Borealis binds them for its own draws (<c>ViewEnvironment</c>, native's
+	/// renderingpipeline_standard.cpp): what draws on the frame read too. Without the BRDF lookup a forward shader drawn
+	/// through the engine (Mow the Lawn's terrain) has no environment reflection.
+	/// </summary>
+	static readonly (StringToken Name, string Path)[] ViewTextureFiles =
+	[
+		("BlueNoise", "textures/dev/blue_noise_256.vtex"),
+		("BRDFLookup", "textures/dev/ggx_integrate_brdf_lut_schlick.vtex"),
+		("LtcAmplitudeLookup", "textures/dev/ltc_amp.vtex"),
+		("LtcMatrixLookup", "textures/dev/ltc_mat.vtex"),
+	];
+
+	// Every block on the frame binds them: looked up once, again only if one was let go
+	static readonly Texture[] viewTextures = new Texture[ViewTextureFiles.Length];
+
+	internal static void SetViewTextures( RenderAttributes attributes )
+	{
+		for ( int i = 0; i < ViewTextureFiles.Length; i++ )
+		{
+			if ( viewTextures[i] is not { IsValid: true } ) viewTextures[i] = Texture.Load( ViewTextureFiles[i].Path );
+			attributes.Set( ViewTextureFiles[i].Name, viewTextures[i] );
+		}
+	}
 	static readonly StringToken DepthChainPrevFrameName = new( "DepthChainDownsamplePrevFrame" );
 	static readonly StringToken NormalsName = new( "NormalsGBuffer" );
 
@@ -60,25 +80,44 @@ internal sealed class BorealisGpuFrame : IDisposable
 	ViewTarget target;
 	byte[] constants = [];
 
-	/// <summary>The frame's colour target (its resolved one when multisampled).</summary>
-	public Texture Color { get; private set; }
+	/// <summary>
+	/// The frame's colour target (its resolved one when multisampled); once <see cref="Upscaled"/>, the upscaled colour the
+	/// stages after the upscale draw on.
+	/// </summary>
+	public Texture Color => upscaled ? upscaledColor : SceneColor;
 
-	/// <summary>The frame's depth target.</summary>
-	public Texture Depth { get; private set; }
+	/// <summary>The frame's depth target; once <see cref="Upscaled"/>, the upscaled depth.</summary>
+	public Texture Depth => upscaled ? upscaledDepth : SceneDepth;
+
+	/// <summary>The colour the scene rendered into (resolved when multisampled), at the render size when upscaled.</summary>
+	public Texture SceneColor { get; private set; }
+
+	/// <summary>The depth the scene rendered into, at the render size when upscaled.</summary>
+	public Texture SceneDepth { get; private set; }
 
 	/// <summary>
 	/// The view's depth chain (<c>DepthChainDownsample</c>, which <c>Depth::Get</c> reads): the min and max of the frame's
-	/// depth, mipped, built by <see cref="Begin()"/>. Null for a frame with no depth.
+	/// depth, mipped, built by <see cref="Begin()"/> (and from the upscaled depth by <see cref="Upscaled"/>). Null for a frame
+	/// with no depth.
 	/// </summary>
-	public Texture DepthChain { get; private set; }
+	public Texture DepthChain => upscaled ? upscaledChain : sceneChain;
 
-	/// <summary>The view constants the frame drew with, as <c>PerViewConstantBuffer_t</c>'s bytes.</summary>
-	public byte[] Constants => constants;
+	/// <summary>
+	/// The view constants the frame draws with, as <c>PerViewConstantBuffer_t</c>'s bytes: the upscaled ones once
+	/// <see cref="Upscaled"/>.
+	/// </summary>
+	public byte[] Constants => upscaled ? upscaledConstants : constants;
 
 	public BorealisGpuFrame( BorealisGpuRenderBackend backend ) => this.backend = backend;
 
 	/// <summary>Whether the frame was drawn multisampled: <see cref="Color"/> is its resolved colour, <see cref="Depth"/> keeps its samples.</summary>
-	public bool Multisampled => target is { Samples: > 1 };
+	public bool Multisampled => !upscaled && target is { Samples: > 1 };
+
+	// After an upscale (Upscaled): the display-size colour and depth the upscaler wrote (its own), their chain and constants
+	bool upscaled;
+	Texture upscaledColor, upscaledDepth, upscaledChain, sceneChain;
+	byte[] upscaledConstants = [];
+	RenderTarget upscaledTarget;
 
 	/// <summary>
 	/// Take a frame Borealis rendered into <paramref name="target"/> on the backend's device, with the view constants it drew
@@ -88,8 +127,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 	{
 		this.target = target;
 		var color = target.Resolved ?? target.Color;
-		Color = FrameTexture( Color, color, target.Size, ImageFormat.RGBA16161616F, depth: false );
-		Depth = target.Depth is null ? null : FrameTexture( Depth, target.Depth, target.Size, ImageFormat.D32FS8, depth: true );
+		upscaled = false;
+		SceneColor = FrameTexture( SceneColor, color, target.Size, ImageFormat.RGBA16161616F, depth: false );
+		SceneDepth = target.Depth is null ? null : FrameTexture( SceneDepth, target.Depth, target.Size, ImageFormat.D32FS8, depth: true );
 
 		if ( constants.Length != System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>() ) constants = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
 		System.Runtime.InteropServices.MemoryMarshal.Write( constants, in viewConstants );
@@ -152,7 +192,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 	{
 		if ( constants.Length == 0 || targetSize.x < 1 || targetSize.y < 1 ) return;
 
-		var c = System.Runtime.InteropServices.MemoryMarshal.Read<GpuViewConstants>( constants );
+		var c = System.Runtime.InteropServices.MemoryMarshal.Read<GpuViewConstants>( Constants );
 		c.ViewportOffset = new( viewport.Left, viewport.Top );
 		c.ViewportSize = new( viewport.Width, viewport.Height );
 		c.InvViewportSize = new( 1.0f / viewport.Width, 1.0f / viewport.Height );
@@ -340,7 +380,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			if ( normals.Engine is not null ) attributes.Set( NormalsName, normals.Engine );
 			if ( fog.Engine is not null ) attributes.Set( FogVolumeName, fog.Engine );
 
-			attributes.Set( BlueNoiseName, BlueNoise );
+			SetViewTextures( attributes );
 			attributes.Set( BloomInputName, Texture.Black );
 			draw();
 		}
@@ -443,12 +483,12 @@ internal sealed class BorealisGpuFrame : IDisposable
 			// What reads the view's depth through Depth::Get; the previous frame's aliases it, as Borealis's does
 			if ( Depth is not null )
 			{
-				backend.BuildDepthChain( Depth, DepthChain = Chain( DepthChain, Depth.Width, Depth.Height ) );
-				attributes.Set( DepthChainName, DepthChain );
-				attributes.Set( DepthChainPrevFrameName, DepthChain );
+				backend.BuildDepthChain( Depth, sceneChain = Chain( sceneChain, Depth.Width, Depth.Height ) );
+				attributes.Set( DepthChainName, sceneChain );
+				attributes.Set( DepthChainPrevFrameName, sceneChain );
 			}
 
-			attributes.Set( BlueNoiseName, BlueNoise );
+			SetViewTextures( attributes );
 			attributes.Set( BloomInputName, Texture.Black );
 			return scope;
 		}
@@ -464,7 +504,44 @@ internal sealed class BorealisGpuFrame : IDisposable
 	/// <see cref="Begin()"/> before tonemapping, as a camera's stages do on Source 2. The exposure it moves to
 	/// (<see cref="AutoExposure.FrameUpdate"/>, before the scene) is the next frames' <c>ToneMapScalar</c>.
 	/// </summary>
-	public void CountExposure( AutoExposure exposure ) => backend.CountExposure( exposure, Color, new Rect( 0, 0, Color.Width, Color.Height ) );
+	public void CountExposure( AutoExposure exposure ) => backend.CountExposure( exposure, SceneColor, new Rect( 0, 0, SceneColor.Width, SceneColor.Height ) );
+
+	/// <summary>
+	/// In the block from <see cref="Begin(BorealisGpuView)"/>, once an upscaler has written <paramref name="color"/> and
+	/// <paramref name="depth"/> at the display size from the scene's targets: they are the frame's from now on, for the stages
+	/// after the upscale, with <paramref name="viewConstants"/> (the display-size viewport and the unjittered projection),
+	/// bound at <paramref name="view"/>'s viewport, with the depth chain built again from them. The scene's own targets still
+	/// go back to Borealis at <see cref="End"/>, and auto exposure counts the scene's colour, as native's measures the frame
+	/// as it rendered.
+	/// </summary>
+	public void Upscaled( Texture color, Texture depth, in GpuViewConstants viewConstants, BorealisGpuView view )
+	{
+		upscaled = true;
+		upscaledColor = color;
+		upscaledDepth = depth;
+		if ( upscaledConstants.Length != System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>() ) upscaledConstants = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
+		System.Runtime.InteropServices.MemoryMarshal.Write( upscaledConstants, in viewConstants );
+
+		if ( upscaledTarget is null || upscaledTarget.ColorTarget != color || upscaledTarget.DepthTarget != depth )
+		{
+			upscaledTarget?.Dispose();
+			upscaledTarget = RenderTarget.From( color, depth );
+		}
+
+		frameTarget = upscaledTarget;
+		if ( view is null ) Graphics.RenderTarget = frameTarget;
+		else
+		{
+			view.Target = frameTarget;
+			view.Bind();
+		}
+
+		var attributes = Graphics.Attributes;
+		attributes.SetDataShared( ViewConstantsName, upscaledConstants );
+		backend.BuildDepthChain( depth, upscaledChain = Chain( upscaledChain, depth.Width, depth.Height ) );
+		attributes.Set( DepthChainName, upscaledChain );
+		attributes.Set( DepthChainPrevFrameName, upscaledChain );
+	}
 
 	/// <summary>An RG32F depth chain of this size with every mip down to the smaller side's last texel.</summary>
 	static Texture Chain( Texture existing, int width, int height )
@@ -479,8 +556,8 @@ internal sealed class BorealisGpuFrame : IDisposable
 	public void End()
 	{
 		if ( target is null ) return;
-		BackendDevice.SetLayout( target.Resolved ?? target.Color, backend.LayoutOf( Color ) );
-		if ( target.Depth is not null ) BackendDevice.SetLayout( target.Depth, backend.LayoutOf( Depth ) );
+		BackendDevice.SetLayout( target.Resolved ?? target.Color, backend.LayoutOf( SceneColor ) );
+		if ( target.Depth is not null ) BackendDevice.SetLayout( target.Depth, backend.LayoutOf( SceneDepth ) );
 	}
 
 	/// <summary>
@@ -494,19 +571,23 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 		// Its engine textures keep their backings for the next frame on these targets
 		if ( (target?.Resolved ?? target?.Color) is BackendTexture color ) backend.ForgetBorrowed( color.Handle );
-		else if ( Color is not null ) backend.Release( Color );
+		else if ( SceneColor is not null ) backend.Release( SceneColor );
 		if ( target?.Depth is BackendTexture depth ) backend.ForgetBorrowed( depth.Handle );
-		else if ( Depth is not null ) backend.Release( Depth );
+		else if ( SceneDepth is not null ) backend.Release( SceneDepth );
 		target = null;
 	}
 
 	public void Dispose()
 	{
 		foreach ( var engine in frameTextures.Values ) engine.Dispose();
-		if ( Color is not null && !frameTextures.ContainsValue( Color ) ) Color.Dispose();
-		if ( Depth is not null && !frameTextures.ContainsValue( Depth ) ) Depth.Dispose();
+		if ( SceneColor is not null && !frameTextures.ContainsValue( SceneColor ) ) SceneColor.Dispose();
+		if ( SceneDepth is not null && !frameTextures.ContainsValue( SceneDepth ) ) SceneDepth.Dispose();
 		frameTextures.Clear();
-		DepthChain?.Dispose();
+		sceneChain?.Dispose();
+		upscaledChain?.Dispose();
+		upscaledTarget?.Dispose();
+		upscaledTarget = null;
+		upscaled = false;
 		foreach ( var engine in stageTextures.Values ) engine.Dispose();
 		stageTextures.Clear();
 		stageTargets.Clear();
@@ -515,6 +596,6 @@ internal sealed class BorealisGpuFrame : IDisposable
 		resolveScratch?.Dispose();
 		foreach ( var (texture, _) in depthAlone.Values ) texture.Dispose();
 		depthAlone.Clear();
-		Color = Depth = DepthChain = resolvedDepth = resolveScratch = null;
+		SceneColor = SceneDepth = sceneChain = upscaledChain = upscaledColor = upscaledDepth = resolvedDepth = resolveScratch = null;
 	}
 }

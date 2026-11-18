@@ -20,8 +20,7 @@ public class PainterSimpleLineTest
 	[DataRow( 48f, 35f, 0.75f, true )]
 	public void SimpleLineMatchesGeneralPath( float x, float y, float width, bool styled )
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 
 		foreach ( var cap in Enum.GetValues<Stroke.LineCap>() )
 			foreach ( var style in new[] { BorderStyle.Solid, BorderStyle.Dashed, BorderStyle.Dotted } )
@@ -40,8 +39,7 @@ public class PainterSimpleLineTest
 	[DataRow( 3f, 5f, 0f, false )]
 	public void DensePatternsMatchGeneralPath( float width, float dash, float gap, bool skew )
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 
 		foreach ( var cap in Enum.GetValues<Stroke.LineCap>() )
 			foreach ( var style in new[] { BorderStyle.Dashed, BorderStyle.Dotted } )

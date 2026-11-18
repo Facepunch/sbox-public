@@ -170,7 +170,9 @@ public partial class Texture : Resource, IDisposable
 	/// <summary>
 	/// Returns how many frames ago this texture was last used by the renderer
 	/// </summary>
-	public int LastUsed => native.IsValid ? g_pRenderDevice.GetTextureLastUsed( native ).Clamp( 0, 1000 ) : 1000;
+	public int LastUsed => !native.IsValid ? 1000
+		: RenderBackend.Default is Source2RenderBackend ? g_pRenderDevice.GetTextureLastUsed( native ).Clamp( 0, 1000 )
+		: (int)Math.Clamp( (long)(Application.FrameCount - Math.Max( _markedUsedFrame, _deviceUsedFrame )), 0, 1000 ); // Another device draws: when it last used it
 
 	/// <summary>
 	/// Gets if the texture has UAV access
@@ -329,6 +331,12 @@ public partial class Texture : Resource, IDisposable
 
 	ulong _markedUsedFrame;
 	int _markedUsedMipSize;
+
+	// The frame another device than Source 2's last used it, for LastUsed; set from any thread
+	ulong _deviceUsedFrame;
+
+	/// <summary>Used by the device drawing (when it isn't Source 2's, which keeps its own count) this frame.</summary>
+	internal void UsedOnDevice() => _deviceUsedFrame = Application.FrameCount;
 
 	/// <summary>
 	/// Tells texture streaming this texture is being used.

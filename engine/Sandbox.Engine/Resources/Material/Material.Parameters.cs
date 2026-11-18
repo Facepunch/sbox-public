@@ -43,8 +43,9 @@ public partial class Material
 	{
 		var texture = Texture.FromNative( native.GetTexture( name ) );
 
-		// A material's own texture has no path: remember where it came from, for devices that read it from the material's file
-		if ( texture is not null && string.IsNullOrEmpty( texture.ResourcePath ) && !string.IsNullOrEmpty( ResourcePath ) )
+		// Remember where it came from, for devices that read it from the material's file: a material's own texture has no path,
+		// and one that has (the same file, once something loaded it by path) is still the material's
+		if ( texture is not null && !string.IsNullOrEmpty( ResourcePath ) )
 			Texture.MaterialOrigins.AddOrUpdate( texture, new Texture.MaterialOrigin( ResourcePath, name ) );
 
 		return texture;

@@ -561,7 +561,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 		// Fixed LOD from the renderer or map.
 		if ( (change & (Draws | SceneObjectChange.Settings)) != 0 )
-			mesh.LodOverride = sceneObject.native.GetCurrentLODLevel();
+			mesh.LodOverride = sceneObject.LodOverride;
 
 		if ( (change & SceneObjectChange.Flags) != 0 )
 		{
@@ -759,15 +759,13 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			custom.CastShadows = sceneObject.Flags.CastShadows;
 			custom.Visible = sceneObject.RenderingEnabled;
 			ApplyLayerFlags( custom, sceneObject.Flags );
-			custom.LayerMatch = LayerMatchFor( sceneObject.native.GetLayerMatchIDValue() );
+			custom.LayerMatch = LayerMatchFor( sceneObject.LayerMatchToken );
 		}
 	}
 
 	static readonly uint StaticOverlayMatch = new StringToken( "StaticOverlayLayer" ).Value;
 	static readonly uint OverlayWithDepthMatch = new StringToken( "OverlayWithDepth" ).Value;
 	static readonly uint OverlayWithoutDepthMatch = new StringToken( "OverlayWithoutDepth" ).Value;
-	static readonly StringToken RenderOrderName = new( "RenderOrder" );
-	static readonly StringToken LightGroupName = new( "LightGroup" );
 
 	/// <summary>
 	/// Mirror native blend/prepass flags and layer match (<c>CSceneObject::m_nLayerMatchID</c>).
@@ -784,11 +782,11 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		mesh.WantsFrameBufferCopy = flags.HasFlag( SceneObjectFlags.WantsFrameBufferCopyTexture );
 		mesh.Decal = flags.HasFlag( SceneObjectFlags.IsDecal );
 		mesh.NeedsLightProbe = flags.HasFlag( SceneObjectFlags.NeedsLightProbe );
-		mesh.LightGroup = (uint)sceneObject.native.GetIntValue( LightGroupName, 0 );
+		mesh.LightGroup = (uint)sceneObject.LightGroup;
 		mesh.LightProbeHandshake = SceneNative.LightProbeHandshake( sceneObject );
 
-		mesh.LayerMatch = LayerMatchFor( sceneObject.native.GetLayerMatchIDValue() );
-		mesh.RenderOrder = mesh.LayerMatch == LayerMatch.StaticOverlay ? sceneObject.native.GetIntValue( RenderOrderName, 0 ) : 0;
+		mesh.LayerMatch = LayerMatchFor( sceneObject.LayerMatchToken );
+		mesh.RenderOrder = mesh.LayerMatch == LayerMatch.StaticOverlay ? sceneObject.RenderOrder : 0;
 	}
 
 	/// <summary>
@@ -905,15 +903,15 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// </summary>
 	public void Refresh( MeshObject mesh )
 	{
-		var native = attributed.TryGetValue( mesh, out var attributes ) ? attributes.Get() : default;
-		if ( native.IsNull || native.IsEmpty() )
+		var values = attributed.TryGetValue( mesh, out var attributes ) ? attributes.ManagedValues : null;
+		if ( values is null || values.IsEmpty )
 		{
 			mesh.Attributes = null;
 			sharing.Remove( mesh );
 			return;
 		}
 
-		mesh.Attributes = MirrorContent.ObjectParameters( SharedAttributes( mesh, attributes, native ) );
+		mesh.Attributes = MirrorContent.ObjectParameters( SharedAttributes( mesh, attributes, values ) );
 	}
 
 	// The attribute set each object draws with, someone's own whose values are the same as its own, and the sets lately shared
@@ -922,7 +920,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 	/// <summary>
 	/// How many of the sets lately shared a changed object's attributes are compared with before it draws with its own. Bounds the
-	/// cost of an object whose attributes change every frame; each compare is one native call.
+	/// cost of an object whose attributes change every frame.
 	/// </summary>
 	const int MaxShareable = 32;
 
@@ -932,20 +930,20 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// most often the defaults, so a crowd's bodies and clothing all have attributes, which made each draw alone and rebind its
 	/// material. Values can change in place on either side, so every object compares its own with the set it shares each sync.
 	/// </summary>
-	RenderAttributes SharedAttributes( MeshObject mesh, RenderAttributes own, NativeEngine.CRenderAttributes native )
+	RenderAttributes SharedAttributes( MeshObject mesh, RenderAttributes own, ManagedRenderAttributes values )
 	{
-		if ( sharing.TryGetValue( mesh, out var shared ) && SameValues( native, shared ) ) return shared;
+		if ( sharing.TryGetValue( mesh, out var shared ) && SameValues( values, shared ) ) return shared;
 
 		for ( int i = 0; i < shareable.Count; i++ )
 		{
 			var candidate = shareable[i];
-			if ( candidate.Get().IsNull )
+			if ( candidate.ManagedValues is not { IsEmpty: false } )
 			{
 				shareable.RemoveAt( i-- );
 				continue;
 			}
 
-			if ( !SameValues( native, candidate ) ) continue;
+			if ( !SameValues( values, candidate ) ) continue;
 
 			sharing[mesh] = candidate;
 			return candidate;
@@ -958,11 +956,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		return own;
 	}
 
-	static bool SameValues( NativeEngine.CRenderAttributes native, RenderAttributes other )
-	{
-		var theirs = other.Get();
-		return !theirs.IsNull && (native == theirs || NativeEngine.CRenderAttributes.AreEqual( native, theirs, false ));
-	}
+	static bool SameValues( ManagedRenderAttributes values, RenderAttributes other ) => other.ManagedValues is { } theirs && values.SameValues( theirs );
 
 	/// <summary>
 	/// Refresh dirty sun state, per-view sky selection and camera lighting (<c>CameraRenderer.Configure</c>).

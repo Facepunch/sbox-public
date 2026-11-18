@@ -12,8 +12,7 @@ public class BorealisGpuTexturesTest
 {
 	static void RequireVulkan()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 	}
 
 	static byte[] Pixels( int width, int height, Func<int, int, Color32> color )
@@ -53,6 +52,72 @@ public class BorealisGpuTexturesTest
 	}
 
 	/// <summary>
+	/// A texture updated before the device has a copy of it (a game's screen painted once, then first drawn) gets its copy
+	/// then, from the pixels it was made with, with the update over them: the engine forgets those pixels once it's
+	/// updated, and under -borealisgpu Source 2's copy has nothing to read back.
+	/// </summary>
+	[TestMethod]
+	public void UpdatesBeforeTheCopyIsMadeAreKept()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		const int size = 16;
+		using var texture = Texture.Create( size, size, ImageFormat.RGBA8888 ).WithData( Pixels( size, size, ( x, y ) => new Color32( (byte)x, (byte)y, 0, 255 ) ) ).Finish();
+		texture.Update( Pixels( 4, 4, ( _, _ ) => new Color32( 0, 255, 0, 255 ) ), 4, 4, 4, 4 );
+
+		var pixels = borealis.ReadPixels( texture );
+		Assert.AreEqual( new Color32( 0, 255, 0, 255 ), pixels[5 * size + 5], "the update is in the copy" );
+		Assert.AreEqual( new Color32( 12, 1, 0, 255 ), pixels[1 * size + 12], "outside it, the pixels the texture was made with" );
+		Assert.AreEqual( 0, borealis.CopiedFromSource2, "nothing was read back from Source 2" );
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	/// <summary>
+	/// A scene object's attributes as Borealis draws read them (<see cref="Sandbox.Rendering.Bridge.MirrorContent.ObjectParameters"/>)
+	/// carry its buffers, as the engine buffer's copy on the device: a package shader's per-instance data (gamma's
+	/// <c>ZoneInstances</c>). The wrapper borrows the copy, so disposing it leaves the buffer to the engine's.
+	/// </summary>
+	[TestMethod]
+	public void ObjectAttributesCarryBuffers()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		var host = Borealis.RenderHost.Current;
+		RenderBackend.SetDefault( borealis );
+		Borealis.RenderHost.Current = new DeviceHost( borealis.Services );
+		try
+		{
+			using var buffer = new GpuBuffer<uint>( 4 );
+			buffer.SetData( new uint[] { 1, 2, 3, 4 } );
+
+			var attributes = new RenderAttributes();
+			attributes.KeepManagedCopy();
+			attributes.Set( "ZoneInstances", buffer );
+			attributes.Set( "ZoneCut", 1.0f );
+
+			var parameters = (Borealis.Backend.BackendParameters)Sandbox.Rendering.Bridge.MirrorContent.ObjectParameters( attributes );
+			var bound = parameters.Get( new StringToken( "ZoneInstances" ) ) as Borealis.GpuBuffer;
+			Assert.IsNotNull( bound, "the buffer reaches the draws' attributes" );
+			Assert.IsTrue( Borealis.Backend.BackendDevice.Binds( bound, borealis.BufferOf( buffer ) ), "as the engine buffer's copy on the device" );
+			Assert.AreEqual( 1.0f, parameters.Get( new StringToken( "ZoneCut" ) ) );
+
+			bound.Dispose();
+			var read = new uint[4];
+			buffer.GetData( read, 0, 4 );
+			CollectionAssert.AreEqual( new uint[] { 1, 2, 3, 4 }, read, "the engine's buffer outlives the wrapper" );
+		}
+		finally
+		{
+			Borealis.RenderHost.Current = host;
+			RenderBackend.SetDefault( null );
+		}
+
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	/// <summary>
 	/// <see cref="Texture.Clear"/> clears the device's copy too: one already made is cleared in place, and a render target
 	/// whose copy isn't made yet starts with the colour it was last cleared to, not the one it was made with.
 	/// </summary>
@@ -74,6 +139,58 @@ public class BorealisGpuTexturesTest
 		Assert.AreEqual( new Color32( 0, 255, 0, 255 ), borealis.ReadPixels( target )[3 * size + 3], "a copy made after the clear has its colour" );
 
 		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	/// <summary>
+	/// What draws on a Borealis frame through the engine (custom objects, camera stages) get of the view: its lookup tables,
+	/// as Borealis's own draws have them. Without the BRDF lookup a forward shader drawn that way (Mow the Lawn's terrain)
+	/// has no environment reflection.
+	/// </summary>
+	[TestMethod]
+	public void FrameDrawsGetTheViewsLookupTables()
+	{
+		RequireVulkan();
+
+		var attributes = RenderAttributes.CreateManaged();
+		BorealisGpuFrame.SetViewTextures( attributes );
+
+		foreach ( var name in new[] { "BRDFLookup", "BlueNoise", "LtcAmplitudeLookup", "LtcMatrixLookup" } )
+		{
+			Assert.IsTrue( attributes.GetTexture( name ) is { IsValid: true } texture && !texture.IsError, name );
+		}
+	}
+
+	/// <summary>
+	/// A material made in code from a shader (<see cref="Material.Create(string, string, bool)"/>: WildRoute's sky) draws
+	/// on Borealis.Gpu with that shader, not with BackendDevice's one-colour material, which its <c>CreateMaterial( string,
+	/// Color )</c> made when the shader's path bound to it as a colour.
+	/// </summary>
+	[TestMethod]
+	public void MaterialsMadeFromAShaderDrawThatShader()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		var host = Borealis.RenderHost.Current;
+		Borealis.RenderHost.Current = new DeviceHost( borealis.Services );
+		try
+		{
+			var material = Material.Create( "borealis_made_from_sky", "shaders/sky.shader" );
+			var converted = Sandbox.Rendering.Bridge.MirrorContent.Material( material ) as Borealis.Backend.BackendMaterial;
+			Assert.IsNotNull( converted?.Shader );
+			StringAssert.Contains( converted.Shader.Name.Replace( '\\', '/' ), "/sky.shader" );
+		}
+		finally
+		{
+			Borealis.RenderHost.Current = host;
+		}
+
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	sealed class DeviceHost( Borealis.GpuDevice device ) : Borealis.RenderHost
+	{
+		public override Borealis.GpuDevice Device => device;
 	}
 
 	/// <summary>
@@ -113,6 +230,7 @@ public class BorealisGpuTexturesTest
 		RequireVulkan();
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 
+		var previous = RenderBackend.Default;
 		RenderBackend.SetDefault( borealis );
 		try
 		{
@@ -131,7 +249,7 @@ public class BorealisGpuTexturesTest
 		}
 		finally
 		{
-			RenderBackend.SetDefault( null );
+			RenderBackend.SetDefault( previous );
 		}
 
 		Assert.AreEqual( 0, borealis.CopiedFromSource2, "nothing was read back from Source 2" );
@@ -169,6 +287,7 @@ public class BorealisGpuTexturesTest
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 
 		var hadDevice = Graphics.HasSource2Device;
+		var previous = RenderBackend.Default;
 		RenderBackend.SetDefault( borealis );
 		Graphics.HasSource2Device = false;
 		try
@@ -190,7 +309,7 @@ public class BorealisGpuTexturesTest
 		finally
 		{
 			Graphics.HasSource2Device = hadDevice;
-			RenderBackend.SetDefault( null );
+			RenderBackend.SetDefault( previous );
 		}
 
 		Assert.AreEqual( 0, borealis.ValidationErrors );
@@ -247,6 +366,7 @@ public class BorealisGpuTexturesTest
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 
 		// The process's device, as under -borealisgpu: shaders made now keep their attributes for it
+		var previous = RenderBackend.Default;
 		RenderBackend.SetDefault( borealis );
 		try
 		{
@@ -274,7 +394,7 @@ public class BorealisGpuTexturesTest
 		}
 		finally
 		{
-			RenderBackend.SetDefault( null );
+			RenderBackend.SetDefault( previous );
 		}
 
 		Assert.AreEqual( 0, borealis.ValidationErrors );

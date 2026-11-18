@@ -43,13 +43,51 @@ public class PngTextureTests
 
 		var read = TextureFile.Read( file );
 		Assert.AreEqual( Format.RGBA8Unorm, read.Format );
-		Assert.AreEqual( 1, read.Mips );
+		Assert.AreEqual( System.Numerics.BitOperations.Log2( (uint)Math.Max( texture.Width, texture.Height ) ) + 1, read.Mips, "one listed mip: every mip, made from the image" );
 		Assert.AreEqual( (texture.Width, texture.Height), (read.Width, read.Height) );
 		CollectionAssert.AreEqual( pixels, read.MipData[0], "the PNG's pixels" );
 
 		var needed = TextureFile.PrefixNeeded( file.AsSpan( 0, resource.HeaderSize + 64 ).ToArray(), TextureFile.Tail );
 		Assert.IsTrue( needed > resource.HeaderSize + 64, "a prefix without the whole PNG asks for more" );
 		Assert.AreEqual( file.Length, TextureFile.PrefixNeeded( file, TextureFile.Tail ), "the whole PNG is the whole file" );
+	}
+
+	/// <summary>
+	/// A PNG texture whose header has more than one mip gets them made from its image, as Source 2 makes them on load: each
+	/// texel of the next the average of 2x2 of the one before. It drew with its first mip alone, and read back nothing past it.
+	/// </summary>
+	[TestMethod]
+	public void PngTextureMipsAreMadeFromItsImage()
+	{
+		var content = ContentFiles.FindGame();
+		var original = content.TryRead( "materials/dev/color_test_image.vtex" );
+		if ( original is null ) Assert.Inconclusive( "No game content" );
+
+		var texture = TextureFile.Read( original );
+		var pixels = texture.MipData[0];
+		var resource = ResourceFile.Read( original );
+		var (data, _) = resource.Find( "DATA" );
+		var png = Encode( texture.Width, texture.Height, 6, 8, pixels, interlaced: false );
+		var file = new byte[resource.HeaderSize + png.Length];
+		original.AsSpan( 0, resource.HeaderSize ).CopyTo( file );
+		file[data + 26] = 16;
+		file[data + 27] = 3;
+		png.CopyTo( file, resource.HeaderSize );
+
+		var read = TextureFile.Read( file );
+		Assert.AreEqual( 3, read.Mips );
+		CollectionAssert.AreEqual( pixels, read.MipData[0], "the PNG's pixels" );
+		for ( int mip = 1; mip < 3; mip++ )
+		{
+			int width = Math.Max( texture.Width >> mip, 1 ), height = Math.Max( texture.Height >> mip, 1 ), above = Math.Max( texture.Width >> (mip - 1), 1 );
+			Assert.AreEqual( width * height * 4, read.MipData[mip].Length, $"mip {mip}'s size" );
+			var source = read.MipData[mip - 1];
+			for ( int channel = 0; channel < 4; channel++ )
+			{
+				var sum = source[channel] + source[4 + channel] + source[above * 4 + channel] + source[above * 4 + 4 + channel];
+				Assert.AreEqual( (byte)((sum + 2) >> 2), read.MipData[mip][channel], $"mip {mip}'s first texel, channel {channel}" );
+			}
+		}
 	}
 
 	/// <summary>Palettes with transparency at 4 bits, 16-bit grey with alpha, and interlaced images decode as their pixels.</summary>

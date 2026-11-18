@@ -413,7 +413,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		// Two triangles a face; the sky draws with culling off, so the winding doesn't matter
 		uint[] indices = [0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5, 0, 4, 5, 0, 5, 1, 2, 3, 7, 2, 7, 6, 0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3];
-		return BackendMesh.Create( this, vertices, indices, null, "Sky box" );
+		return BackendMesh.Create( this, vertices, indices, null, "Sky box", pooled: false );
 	}
 
 	/// <summary>
@@ -426,7 +426,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			new MeshVertex( new Vector3( 1, -1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 1, 1 ) ),
 			new MeshVertex( new Vector3( -1, 1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 0, 0 ) ),
 			new MeshVertex( new Vector3( 1, 1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 1, 0 ) ),
-		], [0, 1, 2, 2, 1, 3], null, "Fullscreen quad" );
+		], [0, 1, 2, 2, 1, 3], null, "Fullscreen quad", pooled: false );
 
 	RenderMesh fullscreenQuad;
 
@@ -936,6 +936,21 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		t.Layout = ImageLayout.ShaderRead;
 	}
 
+	/// <summary>
+	/// Someone else's buffer on this device (the engine's copy of a game's buffer) as a <see cref="GpuBuffer"/> draws can
+	/// bind by attribute. Disposing it leaves the buffer alone; its owner keeps it alive while it's bound.
+	/// </summary>
+	public GpuBuffer BorrowBuffer( BufferHandle handle, int elementCount, int elementSize, string name )
+	{
+		var size = Math.Max( (long)elementCount * elementSize, 16 );
+#pragma warning disable CA2000 // Returned, and disposing it frees nothing
+		return new GpuBuffer( new BackendBuffer( this, handle, size, name, owned: false ), Math.Max( elementCount, 1 ), Math.Max( elementSize, 1 ) );
+#pragma warning restore CA2000
+	}
+
+	/// <summary>Whether <paramref name="buffer"/> is bound as <paramref name="handle"/>.</summary>
+	public static bool Binds( GpuBuffer buffer, BufferHandle handle ) => buffer?.Resource is BackendBuffer backing && backing.Handle.Equals( handle );
+
 	/// <inheritdoc/>
 	public override IDisposable CreateBuffer( int elementCount, int elementSize, GpuBuffer.UsageFlags usage, string name )
 	{
@@ -1198,14 +1213,30 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public GpuTexture MaterialTexture( string material, string variable ) => MaterialTexture( LoadMaterial( material ), variable );
 
 	/// <summary>
-	/// <see cref="MaterialTexture(string, string)"/> without pinning a material that's loaded already (a world's mirror holds
-	/// it, its sky's): what's drawn outside the worlds borrows it, and it goes with the world. Loaded here otherwise.
+	/// <see cref="MaterialTexture(string, string)"/> without pinning the material: what's drawn outside the worlds (a water
+	/// body's reflection reading the sky's cubemap) borrows it, and it goes with the worlds that hold it (their sky's). One not
+	/// loaded yet is loaded unheld (<see cref="UnheldMaterial"/>), so the first world to hold it and let go frees it.
 	/// </summary>
 	public GpuTexture LoadedMaterialTexture( string material, string variable )
 	{
 		GpuMaterial loaded;
 		lock ( sharedMaterials ) sharedMaterials.TryGetValue( material, out loaded );
-		return loaded is not null ? MaterialTexture( loaded, variable ) : MaterialTexture( material, variable );
+		return MaterialTexture( loaded ?? UnheldMaterial( material ), variable );
+	}
+
+	/// <summary>
+	/// A material loaded as <see cref="ModelMaterial"/> loads one (its textures held by it), but neither held nor pinned: it
+	/// stays until something holds it (<see cref="ModelMaterial"/>) and lets it go (<see cref="ReleaseModelMaterial"/>).
+	/// </summary>
+	GpuMaterial UnheldMaterial( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return LoadMaterial( path );
+		lock ( sharedMaterials )
+		{
+			var material = ModelMaterial( path );
+			LifeOf( path ).Holders--;
+			return material;
+		}
 	}
 
 	/// <summary>A material's texture for a shader variable, or null (<see cref="MaterialTexture(string, string)"/>).</summary>
