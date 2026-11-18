@@ -45,8 +45,11 @@ public class TestAppSystem : AppSystem
 		switch ( Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS" ) )
 		{
 			case "1":
+				// Draws wait for their shaders and models load at once, so what a test renders is all there the first time
 				DrawOnBorealisGpu();
-				InitGame( createInfo, "-borealisgpu -noassert -novr " + arguments );
+				Utility.CommandLine.CommandLineString = (Utility.CommandLine.CommandLineString ?? Environment.CommandLine) + " -wait-for-shaders -borealisgpu-syncload";
+				Utility.CommandLine.Parse();
+				InitGame( createInfo, "-borealisgpu -wait-for-shaders -borealisgpu-syncload -noassert -novr " + arguments );
 				break;
 			case "source2":
 				InitGame( createInfo, "-vulkan -noassert -novr " + arguments );

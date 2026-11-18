@@ -74,7 +74,8 @@ public class DownsampleSpdTest
 	[DataRow( 1, 1, false )]
 	public void DepthChainMatchesCpuReduction( int width, int height, bool fuseResolve )
 	{
-		RequireVulkan();
+		// Source 2's renderer's depth chain, on a native render context
+		TestGraphics.RequireSource2();
 
 		var random = new Random( width * height );
 		var depth = new float[width * height];
@@ -100,7 +101,8 @@ public class DownsampleSpdTest
 	[DataRow( 64, 64 )]
 	public void ConservativeQuarterChainMatchesCpuReduction( int width, int height )
 	{
-		RequireVulkan();
+		// Source 2's renderer's depth chain, on a native render context
+		TestGraphics.RequireSource2();
 
 		var random = new Random( width * height );
 		var depth = new float[width * height];

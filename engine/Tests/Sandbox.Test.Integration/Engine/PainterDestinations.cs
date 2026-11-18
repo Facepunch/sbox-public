@@ -317,7 +317,7 @@ public class PainterDestinationsTest
 		{
 			scope.Attributes.Set( "UIGammaOutput", true );
 			Graphics.RenderTarget = RenderTarget.From( target );
-			scope.Context.SetViewport( Bounds );
+			Graphics.Viewport = Bounds;
 			commands.Execute();
 		}
 		return target;

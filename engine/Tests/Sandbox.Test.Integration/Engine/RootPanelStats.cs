@@ -150,8 +150,8 @@ public class RootPanelStatsTest
 		using var target = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
 		using var scope = Graphics.Scope.Create();
 		scope.Attributes.Set( "UIGammaOutput", true );
-		scope.Context.BindRenderTargets( target.native );
-		scope.Context.SetViewport( new Rect( 0, 0, 64, 64 ) );
+		Graphics.RenderTarget = RenderTarget.From( target );
+		Graphics.Viewport = new Rect( 0, 0, 64, 64 );
 		draw();
 	}
 }

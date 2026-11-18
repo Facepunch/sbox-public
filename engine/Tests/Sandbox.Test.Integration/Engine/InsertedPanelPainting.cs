@@ -30,7 +30,7 @@ public class InsertedPanelPaintingTest
 				{
 					scope.Attributes.Set( "UIGammaOutput", true );
 					Graphics.RenderTarget = RenderTarget.From( target );
-					scope.Context.SetViewport( bounds );
+					Graphics.Viewport = bounds;
 					frame.Execute();
 				}
 				using var bitmap = target.GetBitmap();

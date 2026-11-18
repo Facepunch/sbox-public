@@ -115,8 +115,8 @@ public class CubemapSubmissionTest
 	[DataRow( true )]
 	public void FacesShareOneBatchAndKeepTheirArraySlices( bool existingBatch )
 	{
-		if ( Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS" ) != "1" )
-			Assert.Inconclusive( "Set SBOX_TEST_GRAPHICS=1 to test cubemap rendering on the GPU." );
+		// Native's views and their batch bracket
+		TestGraphics.RequireSource2();
 
 		world = new SceneWorld();
 		using var camera = new SceneCamera( "CubemapSubmissionTest" )

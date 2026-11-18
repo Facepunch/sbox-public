@@ -320,7 +320,7 @@ public class PanelBackdropBatchingTest
 			scope.Attributes.Set( "UIGammaOutput", true );
 			scope.Attributes.SetCombo( "D_NO_ZTEST", 1 );
 			Graphics.RenderTarget = RenderTarget.From( target );
-			scope.Context.Clear( Color.Transparent, true, false, false );
+			Graphics.Clear( Color.Transparent, true, false, false );
 			root.Render();
 		}
 		return target.GetBitmap();
