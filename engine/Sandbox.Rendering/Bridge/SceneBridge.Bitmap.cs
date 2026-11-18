@@ -29,7 +29,7 @@ internal sealed partial class SceneBridge
 		if ( bitmapTarget is null || bitmapTarget.Width != size.x || bitmapTarget.Height != size.y )
 		{
 			bitmapTarget?.Dispose();
-			bitmapTarget = Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( ImageFormat.RGBA8888 ).Create( "Borealis.Gpu bitmap" );
+			bitmapTarget = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( ImageFormat.RGBA8888 ), "Borealis.Gpu bitmap" );
 		}
 
 		// A bitmap is never flipped (native's RenderPixels clears the flips)
