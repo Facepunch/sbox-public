@@ -759,8 +759,10 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// Pass modules compiled in the background: a variant asked for while its stages compile is its shader's compiled
-	/// programs' and the drawer doesn't keep it; once they're done it's the module's, kept.
+	/// Pass modules compiled in the background: a converted module's variant asked for while its stages compile is its
+	/// shader's compiled programs' and the drawer doesn't keep it; once they're done it's the module's, kept. A standalone
+	/// module has no programs to fall back to, and a skipped compute dispatch would leave its outputs unwritten: its variant
+	/// is waited for (with its offline compile, as shipped, nothing compiles in game at all).
 	/// </summary>
 	[TestMethod]
 	[TestCategory( "Slow" )]
@@ -777,8 +779,17 @@ public class SurfaceTests : GpuTest
 			var errors = new List<string>();
 			backend.Passes.Error = errors.Add;
 			using var drawer = new ShaderDrawer( backend );
-			var shader = backend.Shaders.Load( "shaders/clutter_cull_cs.shader" );
-			if ( shader is null ) Assert.Inconclusive( "clutter_cull_cs isn't compiled" );
+
+			// Standalone: waited for, the module's at the first ask
+			var standalone = backend.Shaders.Load( "shaders/clutter_cull_cs.shader" );
+			Assert.IsTrue( standalone is { ModuleOnly: true }, "clutter_cull_cs is standalone" );
+			Assert.IsTrue( drawer.Variant( standalone, new ShaderAttributes() ) is { FromModule: true }, "a standalone module's variant is waited for" );
+			Assert.AreEqual( 0, backend.Passes.PendingAsks );
+
+			// Converted (no Mode lines; cs_compress_dxt5 is one Source 2 alone draws, so its .shader_c is there)
+			var shader = backend.Shaders.Load( "shaders/cs_compress_dxt5.shader" );
+			if ( shader is null ) Assert.Inconclusive( "cs_compress_dxt5 isn't compiled" );
+			Assert.IsFalse( shader.ModuleOnly );
 
 			var clock = System.Diagnostics.Stopwatch.StartNew();
 			var first = drawer.Variant( shader, new ShaderAttributes() );
