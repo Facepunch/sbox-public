@@ -53,6 +53,77 @@ public class BorealisGpuTexturesTest
 	}
 
 	/// <summary>
+	/// A texture updated before the device has a copy of it (a game's screen painted once, then first drawn) gets its copy
+	/// then, from the pixels it was made with, with the update over them: the engine forgets those pixels once it's
+	/// updated, and under -borealisgpu Source 2's copy has nothing to read back.
+	/// </summary>
+	[TestMethod]
+	public void UpdatesBeforeTheCopyIsMadeAreKept()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		const int size = 16;
+		using var texture = Texture.Create( size, size, ImageFormat.RGBA8888 ).WithData( Pixels( size, size, ( x, y ) => new Color32( (byte)x, (byte)y, 0, 255 ) ) ).Finish();
+		texture.Update( Pixels( 4, 4, ( _, _ ) => new Color32( 0, 255, 0, 255 ) ), 4, 4, 4, 4 );
+
+		var pixels = borealis.ReadPixels( texture );
+		Assert.AreEqual( new Color32( 0, 255, 0, 255 ), pixels[5 * size + 5], "the update is in the copy" );
+		Assert.AreEqual( new Color32( 12, 1, 0, 255 ), pixels[1 * size + 12], "outside it, the pixels the texture was made with" );
+		Assert.AreEqual( 0, borealis.CopiedFromSource2, "nothing was read back from Source 2" );
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	/// <summary>
+	/// A scene object's attributes as Borealis draws read them (<see cref="Sandbox.Rendering.Bridge.MirrorContent.ObjectParameters"/>)
+	/// carry its buffers, as the engine buffer's copy on the device: a package shader's per-instance data (gamma's
+	/// <c>ZoneInstances</c>). The wrapper borrows the copy, so disposing it leaves the buffer to the engine's.
+	/// </summary>
+	[TestMethod]
+	public void ObjectAttributesCarryBuffers()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		var host = Borealis.RenderHost.Current;
+		RenderBackend.SetDefault( borealis );
+		Borealis.RenderHost.Current = new DeviceHost( borealis.Services );
+		try
+		{
+			using var buffer = new GpuBuffer<uint>( 4 );
+			buffer.SetData( new uint[] { 1, 2, 3, 4 } );
+
+			var attributes = new RenderAttributes();
+			attributes.KeepManagedCopy();
+			attributes.Set( "ZoneInstances", buffer );
+			attributes.Set( "ZoneCut", 1.0f );
+
+			var parameters = (Borealis.Backend.BackendParameters)Sandbox.Rendering.Bridge.MirrorContent.ObjectParameters( attributes );
+			var bound = parameters.Get( new StringToken( "ZoneInstances" ) ) as Borealis.GpuBuffer;
+			Assert.IsNotNull( bound, "the buffer reaches the draws' attributes" );
+			Assert.IsTrue( Borealis.Backend.BackendDevice.Binds( bound, borealis.BufferOf( buffer ) ), "as the engine buffer's copy on the device" );
+			Assert.AreEqual( 1.0f, parameters.Get( new StringToken( "ZoneCut" ) ) );
+
+			bound.Dispose();
+			var read = new uint[4];
+			buffer.GetData( read, 0, 4 );
+			CollectionAssert.AreEqual( new uint[] { 1, 2, 3, 4 }, read, "the engine's buffer outlives the wrapper" );
+		}
+		finally
+		{
+			Borealis.RenderHost.Current = host;
+			RenderBackend.SetDefault( null );
+		}
+
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	sealed class DeviceHost( Borealis.GpuDevice device ) : Borealis.RenderHost
+	{
+		public override Borealis.GpuDevice Device => device;
+	}
+
+	/// <summary>
 	/// A texture's pixels read back from the device's copy (what <see cref="Texture.GetPixels(int)"/> reads when the
 	/// device is the process's): a rectangle, converted to the format asked for, at a place in a bigger image.
 	/// </summary>
