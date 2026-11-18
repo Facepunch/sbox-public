@@ -26,6 +26,9 @@ public sealed class EntityLump
 	/// <summary>The lumps under it, by path.</summary>
 	public IReadOnlyList<string> ChildLumps { get; init; }
 
+	/// <summary>The name it's found by (<c>m_name</c>): <c>default_ents</c>; empty where it has none.</summary>
+	public string LumpName { get; init; }
+
 	/// <summary>Read a lump from <paramref name="content"/>.</summary>
 	public static EntityLump Load( ContentFiles content, string path )
 	{
@@ -39,7 +42,7 @@ public sealed class EntityLump
 			else if ( entry.Get( "m_keyValues3Data" ) is Dictionary<string, object> kv3 ) entities.Add( MapEntity.FromKv3( kv3 ) );
 		}
 
-		return new EntityLump { Name = path, Entities = entities, ChildLumps = Kv.Strings( root.Get( "m_childLumps" ) ) };
+		return new EntityLump { Name = path, Entities = entities, ChildLumps = Kv.Strings( root.Get( "m_childLumps" ) ), LumpName = root.Get( "m_name" ) as string ?? "" };
 	}
 }
 
@@ -56,6 +59,55 @@ public sealed class MapEntity
 
 	/// <summary>How many key values it has.</summary>
 	public int Count => values.Count;
+
+	/// <summary>Every key value by its key's hash (<see cref="Hash"/>), as stored.</summary>
+	public IEnumerable<KeyValuePair<uint, object>> Values => values;
+
+	/// <summary>
+	/// A stored value as native's entity key values give it as a string (<c>CVariantBase::AssignTo( char * )</c>): numbers as
+	/// <c>%g</c>, vectors and angles as numbers with spaces between, bools as <c>true</c>/<c>false</c>, colours as four
+	/// whole numbers. Null for what native has no string for.
+	/// </summary>
+	public static string Format( object value ) => value switch
+	{
+		null => null,
+		string s => s,
+		float f => G( f ),
+		double d => G( d ),
+		int i => i.ToString( System.Globalization.CultureInfo.InvariantCulture ),
+		uint u => u.ToString( System.Globalization.CultureInfo.InvariantCulture ),
+		long l => l.ToString( System.Globalization.CultureInfo.InvariantCulture ),
+		ulong ul => ul.ToString( System.Globalization.CultureInfo.InvariantCulture ),
+		short s => s.ToString( System.Globalization.CultureInfo.InvariantCulture ),
+		byte b => ((char)b).ToString(),
+		bool b => b ? "true" : "false",
+		Vector2 v => $"{G( v.X )} {G( v.Y )}",
+		Vector3 v => $"{G( v.X )} {G( v.Y )} {G( v.Z )}",
+		Vector4 v => $"{G( v.X )} {G( v.Y )} {G( v.Z )} {G( v.W )}",
+		byte[] { Length: 4 } c => $"{c[0]} {c[1]} {c[2]} {c[3]}",
+		_ => null,
+	};
+
+	/// <summary>A number as C's <c>%g</c> writes it: six significant digits, no trailing zeros, an exponent of two digits or more.</summary>
+	public static string G( double value )
+	{
+		if ( value == 0 ) return value.ToString( System.Globalization.CultureInfo.InvariantCulture ) == "-0" ? "-0" : "0";
+		if ( double.IsNaN( value ) ) return "nan";
+		if ( double.IsInfinity( value ) ) return value > 0 ? "inf" : "-inf";
+
+		// %g: scientific when the exponent is below -4 or at least the precision
+		var exponent = (int)Math.Floor( Math.Log10( Math.Abs( value ) ) );
+		var rounded = double.Parse( value.ToString( "E5", System.Globalization.CultureInfo.InvariantCulture ), System.Globalization.CultureInfo.InvariantCulture );
+		if ( rounded != 0 ) exponent = (int)Math.Floor( Math.Log10( Math.Abs( rounded ) ) );
+		if ( exponent < -4 || exponent >= 6 )
+		{
+			var mantissa = (rounded / Math.Pow( 10, exponent )).ToString( "0.#####", System.Globalization.CultureInfo.InvariantCulture );
+			return $"{mantissa}e{(exponent < 0 ? '-' : '+')}{Math.Abs( exponent ):00}";
+		}
+
+		var decimals = Math.Max( 0, 5 - exponent );
+		return rounded.ToString( decimals == 0 ? "0" : "0." + new string( '#', decimals ), System.Globalization.CultureInfo.InvariantCulture );
+	}
 
 	/// <summary>Its class, <c>light_spot</c>.</summary>
 	public string ClassName => String( "classname" );
