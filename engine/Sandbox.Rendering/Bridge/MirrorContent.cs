@@ -116,7 +116,9 @@ internal static class MirrorContent
 				// Made in code from a shader: the shader's defaults, then what's set
 				if ( shader is not null )
 				{
-					made.Material = gpu.CreateMaterial( path, ShaderPath( shader ) );
+					// Through the base: BackendDevice's own CreateMaterial( string, Color ) wins overload resolution for a string
+					// (Color converts from one), which made a white complex material
+					made.Material = ((Borealis.GpuDevice)gpu).CreateMaterial( path, ShaderPath( shader ) );
 					gpu.SetOnMaterial( made.Material, values, textures );
 				}
 				else made.Material = gpu.LoadMaterial( path, values, textures, $"{path} (set in code)" );
@@ -350,13 +352,32 @@ internal static class MirrorContent
 			case float[] { Length: 4 } f: parameters.Set( name, new Vector4( f[0], f[1], f[2], f[3] ) ); break;
 			case float[] { Length: 16 } f: parameters.Set( name, MemoryMarshal.Read<Matrix>( MemoryMarshal.AsBytes( f.AsSpan() ) ) ); break;
 			case ManagedRenderAttributes.TextureValue t when Texture( t.Texture ) is { } texture: parameters.Set( name, texture, t.Mip ); break;
+			case Sandbox.GpuBuffer b when Buffer( b ) is { } buffer: parameters.Set( name, buffer ); break;
 		}
 	}
 
 	/// <summary>
+	/// An engine buffer as draws bind it: the engine's copy on the device (<see cref="BorealisGpuRenderBackend.BufferOf"/>,
+	/// which keeps it while the engine's buffer lives), borrowed, so the wrapper never frees it.
+	/// </summary>
+	public static Borealis.GpuBuffer Buffer( Sandbox.GpuBuffer buffer )
+	{
+		if ( Gpu is not { } gpu || RenderBackend.Default is not BorealisGpuRenderBackend engine || buffer is not { IsValid: true } ) return null;
+
+		var handle = engine.BufferOf( buffer );
+		if ( borrowedBuffers.TryGetValue( buffer, out var known ) && BackendDevice.Binds( known, handle ) ) return known;
+
+		var wrapped = gpu.BorrowBuffer( handle, buffer.ElementCount, buffer.ElementSize, "Engine buffer" );
+		borrowedBuffers.AddOrUpdate( buffer, wrapped );
+		return wrapped;
+	}
+
+	static readonly ConditionalWeakTable<Sandbox.GpuBuffer, Borealis.GpuBuffer> borrowedBuffers = new();
+
+	/// <summary>
 	/// An object's attributes as its draws read them: its managed copy (<c>RenderAttributes.Shadow</c>) converted, again only
-	/// when it changed. Numbers, vectors, matrices, combos and textures with a file carry over; buffers, samplers and constant
-	/// buffers don't yet.
+	/// when it changed. Numbers, vectors, matrices, combos, textures and buffers carry over; samplers and constant buffers
+	/// don't yet.
 	/// </summary>
 	public static ShaderParameters ObjectParameters( RenderAttributes attributes )
 	{

@@ -43,6 +43,27 @@ public class RenderAttributeShadowTest
 	}
 
 	/// <summary>
+	/// A native set merged into another native set that keeps a managed copy fills the copy too: the scene's render
+	/// attributes merged into a camera's (Rust Legacy's time of day), which Borealis.Gpu reads from the camera's copy.
+	/// </summary>
+	[TestMethod]
+	public void MergeIntoNativeSetFillsItsManagedCopy()
+	{
+		var scene = new RenderAttributes();
+		scene.KeepManagedCopy();
+		scene.Set( "TodLayers", new Vector4( 0, 1, 0, 0.035f ) );
+		scene.SetCombo( "D_ZONE_PLAIN", 1 );
+
+		var camera = new RenderAttributes();
+		camera.KeepManagedCopy();
+		scene.MergeTo( camera );
+
+		Assert.AreEqual( new Vector4( 0, 1, 0, 0.035f ), camera.GetVector4( "TodLayers" ), "the native merge still happens" );
+		CollectionAssert.AreEqual( new[] { 0f, 1f, 0f, 0.035f }, camera.Shadow.GetFloats( "TodLayers" ) );
+		Assert.AreEqual( 1, camera.Shadow.GetCombo( "D_ZONE_PLAIN" ) );
+	}
+
+	/// <summary>
 	/// The managed copy as a set of its own (what a dynamic object draws with on Borealis.Gpu) is managed, reads what's set
 	/// on the native set after it's made, and is the same set every time.
 	/// </summary>

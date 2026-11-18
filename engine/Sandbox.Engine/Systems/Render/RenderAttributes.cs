@@ -422,6 +422,11 @@ public partial class RenderAttributes
 			source.MergeTo( renderAttributes.Managed );
 			return;
 		}
+
+		// A native set that keeps a managed copy takes the values into the copy too, so a backend reading the copy sees what
+		// was merged (the scene's render attributes merged into a camera's, which Borealis.Gpu draws its view with)
+		if ( (Managed ?? Shadow) is { } values && renderAttributes.Shadow is { } copy ) values.MergeTo( copy );
+
 		if ( !attributes.IsValid || !renderAttributes.attributes.IsValid ) return;
 		attributes.MergeToPtr( renderAttributes.attributes );
 	}

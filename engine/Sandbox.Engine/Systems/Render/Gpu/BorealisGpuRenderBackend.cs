@@ -1062,11 +1062,27 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>
 	/// A texture updated on Source 2's device: its copy here takes the same bytes, recorded where uploads go, rather than
 	/// being dropped and copied back from Source 2's pixels. Mips past the first are filled again from it. False when the
-	/// copy is in another format than the data, or the update is of part of a 3D texture's slices.
+	/// copy is in another format than the data, or the update is of part of a 3D texture's slices. A texture with no copy
+	/// here yet gets one now, made as it would be when first drawn, so the bytes aren't lost: the engine forgets the pixels
+	/// a texture was made with once it's updated, and Source 2's copy under -borealisgpu has nothing to read back.
 	/// </summary>
 	public override bool Update( Texture texture, ReadOnlySpan<byte> data, int x, int y, int z, int width, int height, int depth )
 	{
-		if ( !textures.TryGetValue( texture, out var backing ) ) return true;
+		if ( !textures.TryGetValue( texture, out var backing ) )
+		{
+			if ( z != 0 || depth > 1 ) return true;
+
+			// From a worker: made with the update on the main thread, before the next block
+			if ( !ThreadSafe.IsMainThread )
+			{
+				workerUpdates.Enqueue( (texture, data.ToArray(), x, y, width, height) );
+				return true;
+			}
+
+			// A material's texture or the error texture has no copy of its own to write
+			TextureOf( texture );
+			if ( !textures.TryGetValue( texture, out backing ) ) return true;
+		}
 
 		var info = gpu.InfoOf( backing.Handle );
 		if ( DataFormatOf( texture.ImageFormat ) != info.Format ) return false;
@@ -1116,7 +1132,13 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		while ( workerUpdates.TryDequeue( out var update ) )
 		{
-			if ( !textures.TryGetValue( update.Texture, out var backing ) ) continue;
+			// Not made yet when the worker updated it: made and written now, through the main thread's checks
+			if ( !textures.TryGetValue( update.Texture, out var backing ) )
+			{
+				if ( update.Texture.IsValid && !Update( update.Texture, update.Data, update.X, update.Y, 0, update.Width, update.Height, 1 ) ) Release( update.Texture );
+				continue;
+			}
+
 			Upload( backing.Handle, gpu.InfoOf( backing.Handle ), update.Data, context.LayoutOf( backing.Handle ), update.X, update.Y, update.Width, update.Height );
 		}
 	}
@@ -1390,7 +1412,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		{
 			// The shader draws with it (a package's shader compiled at run time is only known by its draw's name), so its
 			// values reach the draw: Unicycle Frenzy's speed lines set their intensity to 0 at rest
-			file = (ShaderOf( material ) is { } drawn ? services.CreateMaterial( material.Name ?? path ?? shader, drawn ) : services.CreateMaterial( material.Name ?? path ?? shader, ShaderPath( shader ) )) as BackendMaterial;
+			file = (ShaderOf( material ) is { } drawn ? services.CreateMaterial( material.Name ?? path ?? shader, drawn ) : ((Borealis.GpuDevice)services).CreateMaterial( material.Name ?? path ?? shader, ShaderPath( shader ) )) as BackendMaterial;
 			if ( file?.Shader is null ) file = null;
 			else if ( material.SetInCode is { Count: > 0 } set )
 			{
