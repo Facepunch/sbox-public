@@ -31,6 +31,9 @@ internal sealed class MemoryBlock
 	/// <summary>Whether it holds content (a map's textures and geometry), kept apart from long-lived resources so it drains when the content goes.</summary>
 	public bool Content;
 
+	/// <summary>Whether it's a big buffer's own allocation, which can be kept empty as a spare for the next of its size.</summary>
+	public bool Reusable;
+
 	/// <summary>Free ranges, sorted by offset, never adjacent.</summary>
 	public readonly List<(ulong Offset, ulong Size)> Free = new();
 
@@ -269,6 +272,10 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		var size = requirements.size;
 		var alignment = Math.Max( requirements.alignment, 1 );
 
+		// A buffer over a quarter of a small block is its own (a map's vertex and index pages, views' visibility buffers,
+		// tables that grow): one still used after what was made beside it has gone doesn't hold a large block
+		if ( !image && size > OwnBufferSize && (content || OwnBigBuffers) ) return OwnBuffer( type, size, alignment );
+
 		// Anything over a quarter of a large block gets its own allocation, and so does a target too big for a small block
 		if ( size > (LargeBlocks && !target ? LargeBlockSize : blockSize) / 4 )
 		{
@@ -353,6 +360,107 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		}, (this, kind, size), preferLocal: false );
 	}
 
+	/// <summary>
+	/// Buffers bigger than this (a quarter of a small block) are allocations of their own (<see cref="OwnBuffer"/>). After a
+	/// map was unloaded, large blocks were kept by one long-lived buffer each (a growing table, a view's buffer) that had
+	/// been placed among the map's.
+	/// </summary>
+	public ulong OwnBufferSize => blockSize / 4;
+
+	/// <summary>
+	/// Whether every buffer over <see cref="OwnBufferSize"/> is its own (on), or only content's (geometry pages) while the rest
+	/// share large blocks. For comparisons: <c>BOREALIS_SHARED_BIG_BUFFERS=1</c> turns it off.
+	/// </summary>
+	public static bool OwnBigBuffers { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_SHARED_BIG_BUFFERS" ) != "1";
+
+	// Own buffer sizes with a spare being made ahead, and the size last taken per memory type
+	readonly HashSet<(int Type, ulong Size)> makingPagesAhead = new();
+	readonly Dictionary<int, ulong> lastPageSize = new();
+
+	/// <summary>
+	/// A big buffer's own allocation: an empty one of its size kept as a spare (made ahead, or freed and not yet trimmed)
+	/// when there is one, else the driver's. Once a size is taken twice in a row (pages, and each view's buffers, come at a
+	/// few sizes), the next is made ahead on a worker, so a map loading doesn't wait for the driver on the thread that
+	/// makes them.
+	/// </summary>
+	Allocation OwnBuffer( int type, ulong size, ulong alignment )
+	{
+		lock ( allocationLock )
+		{
+			Allocations++;
+			foreach ( var block in blocks )
+			{
+				if ( !block.Dedicated || !block.Reusable || block.Used != 0 || block.Size != size || block.TypeIndex != type || block.Images ) continue;
+				block.TryAllocate( size, alignment, out var spareOffset );
+				Used += size;
+				PageTaken( type, size );
+				return new Allocation( block, spareOffset, size );
+			}
+		}
+
+		var page = NewBlock( type, size, image: false );
+		page.Dedicated = true;
+		page.Reusable = true;
+		page.TryAllocate( size, alignment, out var offset );
+		lock ( allocationLock )
+		{
+			Add( page );
+			Used += size;
+			PageTaken( type, size );
+		}
+
+		return new Allocation( page, offset, size );
+	}
+
+	/// <summary>A page of <paramref name="size"/> was taken: make the next ahead when that size was the last taken too. Under the lock.</summary>
+	void PageTaken( int type, ulong size )
+	{
+		var again = lastPageSize.TryGetValue( type, out var last ) && last == size;
+		lastPageSize[type] = size;
+		if ( !again || !MakeBlocksAhead || !BlocksAhead || disposed || HasSparePage( type, size, null ) || !makingPagesAhead.Add( (type, size) ) ) return;
+
+		System.Threading.ThreadPool.UnsafeQueueUserWorkItem( static state =>
+		{
+			var (allocator, type, size) = state;
+			MemoryBlock block = null;
+			try
+			{
+				block = allocator.NewBlock( type, size, image: false );
+				block.Dedicated = true;
+				block.Reusable = true;
+			}
+			catch ( GpuException )
+			{
+				// Out of memory ahead: the allocation that needs it reports it
+			}
+
+			lock ( allocator.allocationLock )
+			{
+				allocator.makingPagesAhead.Remove( (type, size) );
+				if ( block is null ) return;
+				if ( allocator.disposed )
+				{
+					allocator.FreeBlock( block, counted: false );
+					return;
+				}
+
+				allocator.Add( block );
+				block.EmptySince = allocator.frame;
+			}
+		}, (this, type, size), preferLocal: false );
+	}
+
+	/// <summary>Whether an empty own buffer allocation of <paramref name="size"/> other than <paramref name="except"/> is kept; under the lock.</summary>
+	bool HasSparePage( int type, ulong size, MemoryBlock except )
+	{
+		foreach ( var block in blocks )
+		{
+			if ( block != except && block.Dedicated && block.Reusable && block.Used == 0 && block.Size == size && block.TypeIndex == type && !block.Images ) return true;
+		}
+
+		return false;
+	}
+
 	/// <summary>Room in the fullest shared block of its kind with room, so the emptier ones drain; under the lock.</summary>
 	Allocation? TryShared( int type, bool image, bool large, bool content, ulong size, ulong alignment )
 	{
@@ -380,8 +488,10 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			block.Release( allocation.Offset, allocation.Size );
 			Used -= allocation.Size;
 
-			// Dedicated blocks go at once; shared ones once empty, keeping one spare per type for a while (Trim)
-			if ( block.Dedicated || (block.Used == 0 && HasSpare( block )) )
+			// Dedicated blocks go at once, but for one big buffer's of each size kept as a spare for a while (Trim); shared ones
+			// once empty, keeping one spare per kind for a while
+			if ( block.Dedicated && block.Reusable && !HasSparePage( block.TypeIndex, block.Size, block ) ) block.EmptySince = frame;
+			else if ( block.Dedicated || (block.Used == 0 && HasSpare( block )) )
 			{
 				blocks.Remove( block );
 				FreeBlock( block );
@@ -402,7 +512,8 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			for ( int i = blocks.Count - 1; i >= 0; i-- )
 			{
 				var block = blocks[i];
-				if ( block.Dedicated || block.Used != 0 || frame - block.EmptySince < SpareFrames ) continue;
+				// Empty shared blocks and spare big buffers' allocations
+				if ( block.Used != 0 || frame - block.EmptySince < SpareFrames ) continue;
 				blocks.RemoveAt( i );
 				FreeBlock( block );
 			}
@@ -468,7 +579,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		{
 			lock ( allocationLock )
 			{
-				if ( makingAhead.Count == 0 ) break;
+				if ( makingAhead.Count == 0 && makingPagesAhead.Count == 0 ) break;
 			}
 
 			System.Threading.Thread.Sleep( 1 );
