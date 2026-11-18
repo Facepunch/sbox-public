@@ -11,6 +11,13 @@ public partial class Texture
 	/// </summary>
 	public void Clear( Color color )
 	{
+		DirtyVersion++; // Layer caches hash this
+
+		// Other devices clear their copies too, or make them from this colour when they next use it
+		RenderBackend.ClearEverywhere( this, color );
+		InitialPixels = null;
+		InitialColor = color;
+
 		g_pRenderDevice.ClearTexture( native, color );
 	}
 
