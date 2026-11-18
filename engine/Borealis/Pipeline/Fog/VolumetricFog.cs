@@ -236,8 +236,10 @@ internal sealed class VolumetricFog : IDisposable
 
 		for ( int pass = 0; pass < 2; pass++ )
 		{
+			var scope = rc.BeginGpuScope( PassNames[pass] );
 			parameters.SetCombo( PassCombo, pass );
 			rc.Dispatch( computeShader, parameters, Width, Height, 1 );
+			rc.EndGpuScope( scope );
 		}
 
 		// What the next frame's draws read, sampled
@@ -245,6 +247,9 @@ internal sealed class VolumetricFog : IDisposable
 	}
 
 	ShaderParameters parameters;
+
+	// GPU scopes of the two dispatches (FogPasses::Lighting, FogPasses::Integrate)
+	static readonly string[] PassNames = ["VolumetricFog Lighting", "VolumetricFog Integrate"];
 
 	/// <summary>
 	/// Fill froxel rays, reprojection, depth slices, fade and up to 128 visible volumes (<c>SetupConstantBuffer</c>).

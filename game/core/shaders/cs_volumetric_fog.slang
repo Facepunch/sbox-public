@@ -490,6 +490,25 @@
 	// Does temporal antialiasing and flattens the fogging volume for compositing
 	//
 	//-----------------------------------------------------------------------------------------------------------------
+	// Min and max of the four trilinear samples at a froxel's corners in the plane at depth coordinate flW: with the four of
+	// the plane below, the bounds of its 3x3x3 neighbourhood
+	void CornerBounds( float2 vCenterUV, float2 vHalfTexel, float flW, out float4 vMin, out float4 vMax )
+	{
+		vMin = 65504.0f;
+		vMax = 0.0f;
+		[unroll]
+		for ( int x = -1; x <= 1; x += 2 )
+		{
+			[unroll]
+			for ( int y = -1; y <= 1; y += 2 )
+			{
+				float4 color = InLightingTexture.SampleLevel( VolumeSampler, float3( vCenterUV + float2( x, y ) * vHalfTexel, flW ), 0 );
+				vMin = min( vMin, color );
+				vMax = max( vMax, color );
+			}
+		}
+	}
+
 	void IntegratePass( uint3 nThreadId, Frustum f, float2 vDepthMinMax )
 	{
 		uint nView = nThreadId.z;
@@ -502,6 +521,10 @@
 		float flLastSliceDepth		= 0.0f;
 
         float4 vCurrentColorAndDensity = float4(0.0f, 0.0f, 0.0f, 0.0f);
+
+		// Bounds of the four trilinear corner samples below the first slice
+		float4 vBelowMin, vBelowMax;
+		CornerBounds( ( float2( nThreadId.xy ) + 0.5f ) * g_vOoVogFogWidthHeightDepth.xy, 0.5f * g_vOoVogFogWidthHeightDepth.xy, 0.0f, vBelowMin, vBelowMax );
 
 		[unroll]
 		for ( uint zSlice = 0; zSlice < g_nVolFogWidthHeightDepth.z; zSlice++ )
@@ -539,22 +562,13 @@
 				float3 vCenterUV = (float3(vCoord) + 0.5f) * g_vOoVogFogWidthHeightDepth.xyz;
 				float3 vHalfTexel = 0.5f * g_vOoVogFogWidthHeightDepth.xyz;
 
-				[unroll]
-				for (int x = -1; x <= 1; x += 2)
-				{
-					[unroll]
-					for (int y = -1; y <= 1; y += 2)
-					{
-						[unroll]
-						for (int z = -1; z <= 1; z += 2)
-						{
-							float3 vSampleUV = vCenterUV + float3(x, y, z) * vHalfTexel;
-							float4 color = InLightingTexture.SampleLevel(VolumeSampler, vSampleUV, 0);
-							minColor = min(minColor, color);
-							maxColor = max(maxColor, color);
-						}
-					}
-				}
+				// The four corners above this froxel are the four below the next one: sample only those, and keep them
+				float4 vAboveMin, vAboveMax;
+				CornerBounds( vCenterUV.xy, vHalfTexel.xy, float( zSlice + 1 ) * g_vOoVogFogWidthHeightDepth.z, vAboveMin, vAboveMax );
+				minColor = min( vBelowMin, vAboveMin );
+				maxColor = max( vBelowMax, vAboveMax );
+				vBelowMin = vAboveMin;
+				vBelowMax = vAboveMax;
 
 				// Clamp our previous color to the TAA bounds
                 vTemporalColor = clamp(vPreviousColor, minColor, maxColor);
