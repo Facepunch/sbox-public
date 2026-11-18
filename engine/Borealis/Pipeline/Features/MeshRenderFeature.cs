@@ -468,7 +468,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( pass.LodTexelsPerUnit > 0 && keptTexel.Length < lods.Length ) Array.Resize( ref keptTexel, lods.Length );
 		if ( classified.Length < visible.Count ) Array.Resize( ref classified, Math.Max( visible.Count, classified.Length * 2 ) );
 		var volumes = world.LightProbeVolumes;
-		var volumesKey = volumes.Count > 0 && !pass.IsShadow ? LightProbeVolume.Key( volumes ) : 0;
+		var volumesKey = volumes.Count > 0 && !pass.IsShadow ? LightProbeVolume.Key( volumes, pass.View.SubWorlds ) : 0;
 
 		// Each object's LOD, probe, lists and sort keys are its own, so a big view classifies across threads
 		classifying = (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey, transforms.Generation, textureSizes);
@@ -706,7 +706,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			ShaderParameters probeAttributes = null;
 			if ( !shadow && (keep.Flags & KeptFlags.NeedsProbe) != 0 && volumes.Count > 0 )
 			{
-				var probe = ProbeFor( (MeshObject)objects[index], volumes, volumesKey, centers[index], extents[index] );
+				var probe = ProbeFor( (MeshObject)objects[index], volumes, volumesKey, centers[index], extents[index], pass.View.SubWorlds );
 				probeAttributes = probe >= 0 ? volumes[probe].Attributes : null;
 			}
 			if ( probeAttributes is not null || probes[index] is not null ) probes[index] = probeAttributes;
@@ -907,14 +907,14 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// Reuse the cached probe choice until selection inputs change.
 	/// </summary>
-	internal static int ProbeFor( MeshObject obj, List<LightProbeVolume> volumes, long volumesKey, Vector3 center, Vector3 extents )
+	internal static int ProbeFor( MeshObject obj, List<LightProbeVolume> volumes, long volumesKey, Vector3 center, Vector3 extents, ulong subWorlds )
 	{
 		// From its lighting origin, where it has one (CBaseSceneObjectDesc::GeneratePrimitives, GetLightingOrigin)
 		var origin = obj.LightingOrigin ?? center;
 		if ( obj.ProbeVolumesKey == volumesKey && obj.ProbeCenter.Equals( center ) && obj.ProbeExtents.Equals( extents ) && obj.ProbeOrigin.Equals( origin ) && obj.ProbeLightGroup == obj.LightGroup && obj.ProbeHandshake == obj.LightProbeHandshake )
 			return obj.ProbeChoice;
 
-		obj.ProbeChoice = LightProbeVolume.Choose( volumes, origin, center, extents, obj.LightGroup, obj.LightProbeHandshake );
+		obj.ProbeChoice = LightProbeVolume.Choose( volumes, origin, center, extents, obj.LightGroup, obj.LightProbeHandshake, subWorlds );
 		obj.ProbeOrigin = origin;
 		obj.ProbeCenter = center;
 		obj.ProbeExtents = extents;

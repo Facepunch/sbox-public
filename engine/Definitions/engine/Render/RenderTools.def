@@ -51,6 +51,16 @@ native static class RenderTools as NativeEngine.RenderTools
 	IModel GetAggregateModel( CSceneObject sceneObject, CastTo[bool*] void* pLightmapped );
 	int GetAggregateFragments( CSceneObject sceneObject, void* pOut, int nMaxFragments );
 	int GetLightProbeVolumeHandshake( CSceneObject sceneObject );
+
+	// The resource a texture was loaded from, or empty for one made at run time
+	inline string GetTextureResourceName( ITexture texture )
+	{
+		static thread_local CBufferString name;
+		name.RemoveAll();
+		if ( texture != RENDER_TEXTURE_HANDLE_INVALID )
+			texture.GetResourceName( &name );
+		return name.String();
+	}
 	int GetMaterialBindSize();
 	void ResetMaterialBind( void* pBind );
 	void KeepMaterialBindForAttributes( void* pBind, CRenderAttributes drawAttributes, CRenderAttributes objectAttributes, CRenderAttributes lightmap );
