@@ -99,7 +99,7 @@ internal sealed partial class BackendContext
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
-		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, state, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0, specialized: program.Features( material ), normals: r.Normals is not null );
+		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, state, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0, specialized: program.Features( material ), normals: r.Normals is not null, tools: noColor ? ToolsPass.None : ToolsPass );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
@@ -230,7 +230,7 @@ internal sealed partial class BackendContext
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey, gpuDriven: true );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey, gpuDriven: true ) : null;
-		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, bucket.SurfaceState, ids, LookupCombo( OpaqueFadeCombo ) is > 0, depthEqual, bucket.SurfaceFeatures, r.Normals is not null );
+		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, bucket.SurfaceState, ids, LookupCombo( OpaqueFadeCombo ) is > 0, depthEqual, bucket.SurfaceFeatures, r.Normals is not null, bucket.NoColor || color == Format.Unknown ? ToolsPass.None : ToolsPass );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );

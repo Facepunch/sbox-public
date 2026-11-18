@@ -414,6 +414,44 @@ SurfaceInput MakeSurfaceInput( PixelInput i )
 	return s;
 }
 
+/// The UV maps view (ToolsVis ShowUVs) for any surface: its albedo checkered by its uv at a nominal 512 texels and their 16s,
+/// mirrored across uv 0, as ShowUVs checkers a .shader's colour texture.
+void SurfaceShowUvs( inout float4 color, float3 albedo, float2 uv )
+{
+	if ( ToolsVisMode != ToolsVisModes::ShowUVs ) return;
+	uint mirrored = ( ( uv.x < 0 ) != ( uv.y < 0 ) ) ? 0 : 1;
+	uint2 texel = uint2( abs( uv ) * 512.0 );
+	color.rgb = albedo;
+	if ( ( ( texel.x + texel.y ) & 1 ) == mirrored ) color.rgb *= 0.8;
+	if ( ( ( texel.x / 16 + texel.y / 16 ) & 1 ) == mirrored ) color.rgb *= 0.5;
+}
+
+/// The tools' material and lighting views (ToolsVisMode; Borealis's ToolsViews) for a surface that shades itself or its
+/// layers, as the standard shading model's DoToolsVis shows them for the rest: each from the surface's Material and the
+/// lighting terms it was lit with (zero where it has none to give).
+void SurfaceToolsView( inout float4 color, Material s, SurfaceInput input, float3 diffuse, float3 indirectDiffuse, float3 specular, float3 indirectSpecular )
+{
+	ToolsVis toolVis = ToolsVis::Init( color, diffuse, specular, indirectDiffuse, indirectSpecular, float3( 0, 0, 0 ) );
+	toolVis.HandleFullbright( color, s.Albedo, input.Position, s.Normal );
+	toolVis.HandleDiffuseLighting( color );
+	toolVis.HandleSpecularLighting( color );
+	toolVis.HandleTransmissiveLighting( color );
+	toolVis.HandleLightingComplexity( color, input.Position, input.ScreenPosition, s.Normal );
+	toolVis.HandleAlbedo( color, s.Albedo );
+	toolVis.HandleReflectivity( color, s.Albedo );
+	toolVis.HandleRoughness( color, s.Roughness.xx );
+	toolVis.HandleDiffuseAmbientOcclusion( color, s.AmbientOcclusion.xxx );
+	toolVis.HandleSpecularAmbientOcclusion( color, s.AmbientOcclusion.xxx );
+	toolVis.HandleCubemapReflections( color, input.Position, input.ScreenPosition, s.Normal );
+	toolVis.HandleNormalWs( color, s.Normal );
+	toolVis.HandleTangentUWs( color, input.TangentU );
+	toolVis.HandleTangentVWs( color, input.TangentV );
+	toolVis.HandleGeometricRoughness( color, input.Normal );
+	toolVis.HandleTiledRenderingColors( color, s.Albedo, input.ScreenPosition );
+	SurfaceShowUvs( color, s.Albedo, input.Uv );
+	color.rgb = saturate( color.rgb );
+}
+
 /// The surface's properties as the lighting's Material.
 ClassicMaterial ToClassicMaterial( PixelInput i, Material s )
 {
@@ -450,6 +488,7 @@ float4 SurfaceShade( PixelInput i, Material s, uint opacityTexture, bool alphaTe
 	TakeShadowReceiverNormal( i.vPositionWithOffsetWs.xyz );
 	SurfaceKeepNormals( s.Normal, s.Roughness );
 	float4 color = ShadingModelStandard::Shade( i, ToClassicMaterial( i, s ) );
+	SurfaceShowUvs( color, s.Albedo, i.vTextureCoords.xy );
 #endif
 	if ( spread ) color.a *= s.Coverage;
 	return color;
@@ -632,6 +671,9 @@ float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool
 	else if ( s.OverlayMode == 5 ) o.vColor.rgb = lerp( float3( 1, 1, 1 ), o.vColor.rgb, o.vColor.a );
 	else if ( s.OverlayMode == 6 ) o.vColor.rgb *= o.vColor.a;
 	float4 color = o.vColor;
+#if ( !S_MODE_DEPTH )
+	SurfaceShowUvs( color, s.Albedo, i.vTextureCoords.xy );
+#endif
 	if ( spread ) color.a *= s.Coverage;
 	return color;
 }
@@ -689,18 +731,7 @@ float4 SurfaceForwardLayered<S : ILayeredSurface, let AlphaTest : bool>( PixelIn
 	float4 color = float4( lit, alpha );
 
 	[branch]
-	if ( ToolsVis::WantsToolsVis() )
-	{
-		ToolsVis toolVis = ToolsVis::Init( color, float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ) );
-		toolVis.HandleFullbright( color, s.Albedo, input.Position, input.Normal );
-		toolVis.HandleAlbedo( color, s.Albedo );
-		toolVis.HandleReflectivity( color, s.Albedo );
-		toolVis.HandleRoughness( color, s.Roughness.xx );
-		toolVis.HandleNormalWs( color, s.Normal );
-		toolVis.HandleTangentUWs( color, input.TangentU );
-		toolVis.HandleTangentVWs( color, input.TangentV );
-		toolVis.HandleGeometricRoughness( color, input.Normal );
-	}
+	if ( ToolsVis::WantsToolsVis() ) SurfaceToolsView( color, s, input, float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ) );
 
 	if ( g_bWireframeMode ) color = g_vWireframeColor;
 	if ( spread ) color.a *= s.Coverage;
@@ -874,15 +905,10 @@ float4 SurfaceForwardShaded<S : IShadedSurface, let AlphaTest : bool>( PixelInpu
 	[branch]
 	if ( ToolsVis::WantsToolsVis() )
 	{
-		ToolsVis toolVis = ToolsVis::Init( color, float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ) );
-		toolVis.HandleFullbright( color, s.Albedo, input.Position, input.Normal );
-		toolVis.HandleAlbedo( color, s.Albedo );
-		toolVis.HandleReflectivity( color, s.Albedo );
-		toolVis.HandleRoughness( color, s.Roughness.xx );
-		toolVis.HandleNormalWs( color, s.Normal );
-		toolVis.HandleTangentUWs( color, input.TangentU );
-		toolVis.HandleTangentVWs( color, input.TangentV );
-		toolVis.HandleGeometricRoughness( color, input.Normal );
+		// The lighting views: the material lit by the engine's standard lighting, as the surface's Shade calls it
+		SurfaceLight light = (SurfaceLight)0;
+		if ( ToolsVisMode == ToolsVisModes::DiffuseLighting || ToolsVisMode == ToolsVisModes::SpecularLighting ) light = lighting.LightMaterial( s );
+		SurfaceToolsView( color, s, input, light.Diffuse, light.IndirectDiffuse * light.DiffuseOcclusion, light.Specular, light.IndirectSpecular * light.SpecularOcclusion );
 	}
 
 	if ( g_bWireframeMode ) color = g_vWireframeColor;

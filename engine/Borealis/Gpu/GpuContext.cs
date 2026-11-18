@@ -75,6 +75,12 @@ internal abstract class GpuContext : IDisposable
 	/// <summary>Prepass overlay-stencil mode; reset for each recording and pass.</summary>
 	public abstract OverlayStencil OverlayStencil { get; set; }
 
+	/// <summary>
+	/// The tools view colour draws take (<see cref="ToolsViews"/>): each draws with its own vertex stage and the engine's
+	/// <c>tools_view</c> pixel stage. Set by the layer around its draws; reset for each recording and pass.
+	/// </summary>
+	public abstract ToolsPass ToolsPass { get; set; }
+
 	/// <summary>The frame's instance ids, which draws bind at their first instance.</summary>
 	public abstract GpuBuffer<uint> InstanceIds { get; set; }
 

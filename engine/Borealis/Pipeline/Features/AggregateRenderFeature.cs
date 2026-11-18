@@ -514,7 +514,8 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 			View = view,
 			// Not for captures: a probe's faces would hold visibility runs for all they see, leaving the views that list none
 			Ids = depth && !view.IsShadow && !view.View.Capture,
-			Visibility = !depth && !view.IsShadow && !view.View.Capture,
+			// Nor in a geometric debug view: its tools pass draws every triangle, not only those that own a sample
+			Visibility = !depth && !view.IsShadow && !view.View.Capture && ToolsViews.PassOf( view.View ) == ToolsPass.None,
 			Plan = plan,
 			PlanVersion = planVersion,
 			PlanBatches = planBatches,

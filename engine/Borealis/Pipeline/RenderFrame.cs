@@ -108,7 +108,8 @@ internal sealed class RenderFrame
 		View = view;
 		Output = output;
 		Stages = stages;
-		Clear = view.ClearColor.ToLinear();
+		// A view counting overdraw starts black
+		Clear = ToolsViews.Counts( view ) ? Color.Black : view.ClearColor.ToLinear();
 		Space = default;
 		Skybox = null;
 		ContactShadowMask = null;

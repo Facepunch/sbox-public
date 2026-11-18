@@ -117,6 +117,7 @@ public sealed partial class RenderSystem
 		into.FieldOfView = main.FieldOfView;
 		into.Orthographic = main.Orthographic;
 		into.ToolsVisMode = main.ToolsVisMode;
+		into.Wireframe = main.Wireframe;
 		into.Capture = main.Capture;
 		into.OrthoSize = main.OrthoSize;
 		into.ZNear = main.ZNear;

@@ -955,13 +955,14 @@ internal sealed class MaterialObjectCache : IDisposable
 	/// <summary>
 	/// How a material object draws: the material (none for a shader drawn on its own), its variant, the vertex layout
 	/// (Borealis's <see cref="VertexLayout"/> or a <see cref="VertexStreamLayout"/>), the targets' formats, the topology, and
-	/// whether the opaque pass's normals target follows colour.
+	/// whether the opaque pass's normals target follows colour, and the tools pass it draws in (<see cref="ToolsPass"/>).
 	/// </summary>
-	internal readonly record struct Key( BackendMaterial Material, ShaderVariant Variant, object Layout, Format Color, Format Depth, int Samples, bool DepthOnly, bool UncompressedTangentFrame, PrimitiveTopology Topology = PrimitiveTopology.TriangleList, bool Normals = false )
+	internal readonly record struct Key( BackendMaterial Material, ShaderVariant Variant, object Layout, Format Color, Format Depth, int Samples, bool DepthOnly, bool UncompressedTangentFrame, PrimitiveTopology Topology = PrimitiveTopology.TriangleList, bool Normals = false, ToolsPass Tools = ToolsPass.None )
 	{
 		/// <summary>Equal by reference for the material, variant and layout (layouts are made once each).</summary>
 		public bool Same( in Key other ) => ReferenceEquals( Material, other.Material ) && ReferenceEquals( Variant, other.Variant ) && ReferenceEquals( Layout, other.Layout )
-			&& Color == other.Color && Depth == other.Depth && Samples == other.Samples && DepthOnly == other.DepthOnly && UncompressedTangentFrame == other.UncompressedTangentFrame && Topology == other.Topology && Normals == other.Normals;
+			&& Color == other.Color && Depth == other.Depth && Samples == other.Samples && DepthOnly == other.DepthOnly && UncompressedTangentFrame == other.UncompressedTangentFrame && Topology == other.Topology && Normals == other.Normals
+			&& Tools == other.Tools;
 	}
 
 	sealed class KeyComparer : IEqualityComparer<Key>
@@ -969,7 +970,7 @@ internal sealed class MaterialObjectCache : IDisposable
 		public bool Equals( Key a, Key b ) => a.Same( b );
 
 		public int GetHashCode( Key k ) => HashCode.Combine( RuntimeHelpers.GetHashCode( k.Material ), RuntimeHelpers.GetHashCode( k.Variant ), RuntimeHelpers.GetHashCode( k.Layout ),
-			(int)k.Color, (int)k.Depth, k.Samples, (k.DepthOnly ? 1 : 0) | (k.UncompressedTangentFrame ? 2 : 0) | (k.Normals ? 4 : 0), (int)k.Topology );
+			(int)k.Color, (int)k.Depth, k.Samples, (k.DepthOnly ? 1 : 0) | (k.UncompressedTangentFrame ? 2 : 0) | (k.Normals ? 4 : 0) | (int)k.Tools << 3, (int)k.Topology );
 	}
 
 	/// <summary>The layout a variant's objects share, made once.</summary>
