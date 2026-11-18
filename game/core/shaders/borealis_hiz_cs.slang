@@ -96,47 +96,46 @@ float LoadHiZ( uint nOffset, uint2 vSize, uint2 vTexel )
 }
 
 //
-// The build: a 16x16 group makes 16x16 texels of its first level, each the farthest (reverse-Z: least) of 4x4 pixels' samples
-// (pass 0) or of 2x2 texels of the level before (pass 1), then four more levels from those in group memory. A texel past a
-// level's edge reads the last row or column again, which the texel over it covers anyway
+// The build: a 16x16 group reads 16x16 values, each the farthest (reverse-Z: least) of a pixel's samples (pass 0, two levels
+// below level 0's 4x4 pixels) or of 2x2 texels of the level before (pass 1, level g_nHiZSource + 1), then halves them four
+// times in group memory, writing each level from 0 on. A value past an edge reads the last row or column again, which the
+// texel over it covers anyway
 //
 groupshared float gs_Depth[256];
 
 void Build( uint2 vGroup, uint2 vThread )
 {
-	uint nFirst = g_nHiZPass == 0 ? 0 : g_nHiZSource + 1;
+	int nFirst = g_nHiZPass == 0 ? -2 : int( g_nHiZSource ) + 1;
 	uint2 vTexel = vGroup * 16 + vThread;
 	float flFar = 1;
 
 	#if D_HIZ_DEPTH
-		uint2 vLast = uint2( g_nHiZDepthWidth, g_nHiZDepthHeight ) - 1;
-		for ( uint y = 0; y < 4; y++ )
-		{
-			for ( uint x = 0; x < 4; x++ )
+		int2 vPixel = int2( min( vTexel, uint2( g_nHiZDepthWidth, g_nHiZDepthHeight ) - 1 ) );
+		#if D_MSAA
+			[unroll]
+			for ( uint s = 0; s < 8; s++ )
 			{
-				int2 vPixel = int2( min( vTexel * 4 + uint2( x, y ), vLast ) );
-				#if D_MSAA
-					for ( uint s = 0; s < g_nHiZSamples; s++ )
-						flFar = min( flFar, g_tDepth.Load( vPixel, s ) );
-				#else
-					flFar = min( flFar, g_tDepth.Load( int3( vPixel, 0 ) ) );
-				#endif
+				if ( s < g_nHiZSamples )
+					flFar = min( flFar, g_tDepth.Load( vPixel, s ) );
 			}
-		}
+		#else
+			flFar = g_tDepth.Load( int3( vPixel, 0 ) );
+		#endif
 	#else
 		uint2 vSourceSize = LevelSize( g_nHiZSource );
 		uint nSource = LevelOffset( g_nHiZSource );
 		flFar = min( min( LoadHiZ( nSource, vSourceSize, vTexel * 2 ), LoadHiZ( nSource, vSourceSize, vTexel * 2 + uint2( 1, 0 ) ) ),
 			min( LoadHiZ( nSource, vSourceSize, vTexel * 2 + uint2( 0, 1 ) ), LoadHiZ( nSource, vSourceSize, vTexel * 2 + uint2( 1, 1 ) ) ) );
+
+		uint2 vSize = LevelSize( uint( nFirst ) );
+		if ( all( vTexel < vSize ) )
+			g_HiZ.Store( ( LevelOffset( uint( nFirst ) ) + vTexel.y * vSize.x + vTexel.x ) * 4, asuint( flFar ) );
 	#endif
 
-	uint2 vSize = LevelSize( nFirst );
-	if ( all( vTexel < vSize ) )
-		g_HiZ.Store( ( LevelOffset( nFirst ) + vTexel.y * vSize.x + vTexel.x ) * 4, asuint( flFar ) );
 	gs_Depth[vThread.y * 16 + vThread.x] = flFar;
 	GroupMemoryBarrierWithGroupSync();
 
-	for ( uint k = 1; k < 5 && nFirst + k < g_nHiZLevels; k++ )
+	for ( uint k = 1; k < 5 && nFirst + int( k ) < int( g_nHiZLevels ); k++ )
 	{
 		uint nSide = 16u >> k;
 		bool bActive = all( vThread < nSide );
@@ -149,13 +148,14 @@ void Build( uint2 vGroup, uint2 vThread )
 		}
 		GroupMemoryBarrierWithGroupSync();
 
+		int nLevel = nFirst + int( k );
 		if ( bActive )
 		{
 			gs_Depth[vThread.y * 16 + vThread.x] = flLevel;
 			uint2 vAt = vGroup * nSide + vThread;
-			uint2 vLevelSize = LevelSize( nFirst + k );
-			if ( all( vAt < vLevelSize ) )
-				g_HiZ.Store( ( LevelOffset( nFirst + k ) + vAt.y * vLevelSize.x + vAt.x ) * 4, asuint( flLevel ) );
+			uint2 vLevelSize = LevelSize( uint( max( nLevel, 0 ) ) );
+			if ( nLevel >= 0 && all( vAt < vLevelSize ) )
+				g_HiZ.Store( ( LevelOffset( uint( nLevel ) ) + vAt.y * vLevelSize.x + vAt.x ) * 4, asuint( flLevel ) );
 		}
 		GroupMemoryBarrierWithGroupSync();
 	}

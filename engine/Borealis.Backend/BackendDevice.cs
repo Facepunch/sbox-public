@@ -289,8 +289,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		var (candidates, occluded) = (0L, 0L);
 		lock ( hizCounts )
 		{
-			foreach ( var (_, buffer, offset) in hizCounts )
+			foreach ( var (frame, buffer, offset) in hizCounts )
 			{
+				if ( frame != GpuDrivenFrame ) continue;
 				var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( Gpu.Map( buffer ).Slice( (int)offset, 32 ) );
 				candidates += words[3];
 				occluded += words[4];
@@ -552,6 +553,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// draw only where they pass it. Off by default (an experiment); <c>-hiz-occlusion</c> turns it on.
 	/// </summary>
 	public bool HiZOcclusion { get; set; } = HasSwitch( "-hiz-occlusion" );
+
+	/// <summary>
+	/// Fragments under which a prepass call draws in one phase with <see cref="HiZOcclusion"/>: a Hi-Z build and a second ids
+	/// pass cost more than a call this small (the 3D skybox's) can save.
+	/// </summary>
+	internal int HiZMinFragments { get; set; } = 2048;
 
 	/// <summary>Threads building meshlets at once: a quarter of the cores, so the frame keeps the rest.</summary>
 	public static int MeshletThreads { get; set; } = Math.Max( 1, Environment.ProcessorCount / 4 );
@@ -1921,6 +1928,10 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		public BufferHandle HiZ;
 		public int HiZWidth, HiZHeight, HiZLevels;
 
+		/// <summary>The frame and command list that built <see cref="HiZ"/> last: later calls of the view in the list use it.</summary>
+		public uint HiZBuiltFrame;
+		public object HiZBuiltBy;
+
 		/// <summary>Every texture it made.</summary>
 		public IEnumerable<TextureHandle> Textures() => [Ids, Scratch];
 
@@ -2193,6 +2204,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		state.HiZVisible.AsSpan().Clear();
 		state.HiZWidth = state.HiZHeight = state.HiZLevels = 0;
 		state.HiZWrote = state.HiZReadValid = false;
+		(state.HiZBuiltFrame, state.HiZBuiltBy) = (0, null);
 		state.Compacted.AsSpan().Clear();
 		state.Ids = state.Scratch = default;
 		state.MeshletStampsAttribute = null;

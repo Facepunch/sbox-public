@@ -232,7 +232,7 @@ internal sealed partial class BackendContext
 			}
 		}
 
-		foreach ( var work in residentWork ) work.HiZ = !work.Lists && work.Plan.Key.Ids && HiZFor( views[work.ViewIndex], work.Visibility );
+		foreach ( var work in residentWork ) work.HiZ = !work.Lists && work.Plan.Key.Ids && HiZFor( views[work.ViewIndex], work.Visibility, work.Plan.Fragments );
 
 		if ( residentWork.Count == 0 ) return;
 

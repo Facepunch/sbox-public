@@ -1772,7 +1772,7 @@ public class GpuDrivenTests : GpuTest
 		var core = ContentFiles.FindGame().Roots.FirstOrDefault();
 		if ( core is not null ) Borealis.Backend.Meshlets.MeshOptimizer.Directory = EngineFolders.NativeIn( Path.GetDirectoryName( core ) );
 
-		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, GpuDrivenResidentCull = residentCull, Meshlets = meshlets };
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, GpuDrivenResidentCull = residentCull, Meshlets = meshlets, HiZMinFragments = 0 };
 		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
 		{
 			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );

@@ -615,7 +615,7 @@ internal sealed partial class BackendContext
 		var frameBytes = commandOffset + slotCount * GpuDrivenTables.CommandStride;
 
 		// A prepass culled in two phases: the Hi-Z tail after the rest
-		var hiz = !meshTasks && HiZFor( cull, visibility ) && ids;
+		var hiz = !meshTasks && HiZFor( cull, visibility, totalFragments ) && ids;
 		var hizTail = (frameBytes + 15) & ~15;
 		if ( hiz ) frameBytes = hizTail + HiZTailBytes( (batchCount + gpuDrivenBucketCount) * 8, totalFragments );
 		var (frameBuffer, frameSlot, frameOffset) = tables.Allocate( frameBytes );
@@ -1188,18 +1188,23 @@ internal sealed partial class BackendContext
 			hizAttributes.SetData( "BorealisHiZ_t", hizConstants );
 		}
 
+		// Once a frame in each list: a later call of the view in the same list (its other GPU-driven calls) tests against the
+		// first's Hi-Z, which the depth since has only brought nearer, so it stays conservative
 		var timer = device.PassTimer;
-		if ( test )
+		var built = visibility.HiZBuiltFrame == device.GpuDrivenFrame && ReferenceEquals( visibility.HiZBuiltBy, r.List );
+		if ( test && !built )
 		{
-			// The depth the first phase drew, read by compute: levels 0 to 4 from it, then five levels a dispatch from the last
+			(visibility.HiZBuiltFrame, visibility.HiZBuiltBy) = (device.GpuDrivenFrame, r.List);
+			// The depth the first phase drew, read by compute, a thread per pixel: levels 0 to 2 from it, then five levels a
+			// dispatch from the last
 			var buildScope = timer?.Begin( r.List, "Hi-Z build", PassTimer.ScopeKind.Own, count: false ) ?? -1;
 			r.List.Marker( "Hi-Z build" );
 			Transition( depthTexture, ImageLayout.ShaderRead );
 			r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite );
 			constants.Pass = 0;
 			Bind( constants, fromDepth: true );
-			cullDrawer.Dispatch( r.List, shader, hizAttributes, visibility.HiZWidth, visibility.HiZHeight, 1 );
-			for ( int source = 4; source + 1 < visibility.HiZLevels; source += 5 )
+			cullDrawer.Dispatch( r.List, shader, hizAttributes, visibility.Width, visibility.Height, 1 );
+			for ( int source = 2; source + 1 < visibility.HiZLevels; source += 5 )
 			{
 				r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 				var (w, h) = (visibility.HiZWidth, visibility.HiZHeight);
@@ -1407,11 +1412,12 @@ internal sealed partial class BackendContext
 
 	/// <summary>
 	/// Whether a view's prepass with ids is culled in two phases (<see cref="BackendDevice.HiZOcclusion"/>): a main view (no
-	/// shadow, filter or kept order) whose Hi-Z buffers are made, without task and mesh shaders. The call that draws it builds
-	/// the Hi-Z where it can, and otherwise draws every candidate.
+	/// shadow, filter or kept order) whose Hi-Z buffers are made, without task and mesh shaders, of at least
+	/// <see cref="BackendDevice.HiZMinFragments"/> fragments. The call that draws it builds the Hi-Z where it can, and otherwise draws every
+	/// candidate.
 	/// </summary>
-	bool HiZFor( in GpuDrivenCull cull, BackendDevice.VisibilityView visibility )
-		=> device.HiZOcclusion && !cull.Shadow && cull.Filter == ResidentFilter.None && !cull.KeepsOrder && device.MeshletIds is null && device.HiZShader is not null
+	bool HiZFor( in GpuDrivenCull cull, BackendDevice.VisibilityView visibility, int fragments )
+		=> device.HiZOcclusion && fragments >= device.HiZMinFragments && !cull.Shadow && cull.Filter == ResidentFilter.None && !cull.KeepsOrder && device.MeshletIds is null && device.HiZShader is not null
 		&& visibility is not null && visibility.HiZVisible[0].IsValid && visibility.HiZVisible[1].IsValid && visibility.HiZ.IsValid && HiZBitsSlot( visibility ) != uint.MaxValue;
 
 	/// <summary>The bindless slot of the visible bits a view's prepass reads this frame: those its forward wrote last frame.</summary>
