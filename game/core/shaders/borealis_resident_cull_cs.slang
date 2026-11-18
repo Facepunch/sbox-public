@@ -471,7 +471,8 @@ void Expand( uint n )
 
 		// A prepass that culls meshlets (view flag 4): a fragment of an ids bucket whose draw has meshlets is listed for the
 		// meshlet pass, which draws those that can reach a sample (borealis_meshlet_cull_cs); its stamp is written here
-		bool bMeshlets = bKept && !bListed && ( vViewOut.w & 4 ) != 0 && ( vVisibility.z & 1 ) != 0 && g_nResidentMeshletRuns != None
+		// (A depth prepass lists only aggregates' fragments: static meshes' draws have meshlets for shadow views.)
+		bool bMeshlets = bKept && !bListed && ( vViewOut.w & 4 ) != 0 && ( vVisibility.z & 1 ) != 0 && ( ( vViewFlags.x & 1 ) != 0 || ( vVisibility.z & 12 ) == 0 ) && g_nResidentMeshletRuns != None
 			&& g_bindless_VertexBuffers[ g_nResidentMeshletRuns ].Load( nViewDraw * 16 + 8 ) - 1 < 4096u;
 
 		// In a bucket drawn with task and mesh shaders (the sixth word's top bit), it takes a slot of the bucket's task run
