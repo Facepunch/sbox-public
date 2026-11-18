@@ -165,7 +165,9 @@ void Copy( uint nJob, uint nThread )
 		return;
 	}
 
-	uint nEntry = g_nMeshletListed + 16 + vGroupId.x * 32;
+	// The listed arguments' fourth word: where the entries start past the arguments (a Hi-Z prepass's second phase lists
+	// after its first's, borealis_hiz_cs)
+	uint nEntry = g_nMeshletListed + 16 + g_Frame.Load( g_nMeshletListed + 12 ) + vGroupId.x * 32;
 	uint nDrawRecord = g_Frame.Load( nEntry + 4 );
 	uint4 vRun = g_bindless_VertexBuffers[ g_nMeshletRunTable ].Load4( nDrawRecord * 16 );
 	uint nMeshlets = min( vRun.z, 4 * ChunkMeshlets );

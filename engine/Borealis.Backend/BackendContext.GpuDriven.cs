@@ -41,7 +41,7 @@ internal sealed partial class BackendContext
 		public uint FirstInstance, Fragments, Draws, Runs;
 
 		/// <summary>
-		/// The frame's stamp; unused; the generated LOD table's bindless slot (none without one); the compacted buffer's
+		/// The frame's stamp; not 0 where forward's compaction sets fragments' Hi-Z visible bits; the generated LOD table's bindless slot (none without one); the compacted buffer's
 		/// indices; the fragment words' and the listed fragments' byte offsets; a prepass that culls meshlets: the meshlet run
 		/// table's bindless slot, else none; the draw records the LOD table covers.
 		/// </summary>
@@ -62,6 +62,32 @@ internal sealed partial class BackendContext
 		public uint FragmentWords, Samples, Pass, Frame;
 
 		/// <summary>The viewport's width and height, and the meshlet bits the view's buffer holds.</summary>
+		public System.Numerics.Vector4 Viewport;
+
+		/// <summary>World to clip, a row per clip coordinate.</summary>
+		public System.Numerics.Vector4 ClipX, ClipY, ClipZ, ClipW;
+	}
+
+	/// <summary><c>borealis_hiz_cs</c>'s <c>BorealisHiZ_t</c> (<see cref="HandFilledConstants"/>).</summary>
+	[StructLayout( LayoutKind.Sequential )]
+	internal struct HiZConstants
+	{
+		/// <summary>The pass (0 levels from the depth, 1 levels from <see cref="Source"/>, 2 the second phase's cull), level 0's size and the levels.</summary>
+		public uint Pass, Width, Height, Levels;
+
+		/// <summary>The level read; the depth target's size and samples.</summary>
+		public uint Source, DepthWidth, DepthHeight, Samples;
+
+		/// <summary>Byte offsets in the region: the candidates, the second phase's multi-draws, the first and second phases' listed fragments.</summary>
+		public uint Candidates, Runs, Listed, Listed2;
+
+		/// <summary>The instance records' and commands' byte offsets, the first instance record's index, instance 0's fragment word's byte offset.</summary>
+		public uint Instances, Commands, FirstInstance, FragmentWords;
+
+		/// <summary>The frame's stamp; 1: test against the Hi-Z, 2: write meshlet stamps.</summary>
+		public uint Frame, Flags, Pad0, Pad1;
+
+		/// <summary>The viewport's width and height and its depth range, which the depth the Hi-Z holds was drawn into.</summary>
 		public System.Numerics.Vector4 Viewport;
 
 		/// <summary>World to clip, a row per clip coordinate.</summary>
@@ -587,20 +613,25 @@ internal sealed partial class BackendContext
 		var fragmentOffset = instanceOffset + slotCount * GpuDrivenTables.InstanceStride;
 		var commandOffset = (fragmentOffset + (ids ? slotCount * 4 : 0) + 15) & ~15;
 		var frameBytes = commandOffset + slotCount * GpuDrivenTables.CommandStride;
+
+		// A prepass culled in two phases: the Hi-Z tail after the rest
+		var hiz = !meshTasks && HiZFor( cull, visibility ) && ids;
+		var hizTail = (frameBytes + 15) & ~15;
+		if ( hiz ) frameBytes = hizTail + HiZTailBytes( (batchCount + gpuDrivenBucketCount) * 8, totalFragments );
 		var (frameBuffer, frameSlot, frameOffset) = tables.Allocate( frameBytes );
 		var data = Gpu.Map( frameBuffer ).Slice( (int)frameOffset, frameBytes );
 		var firstInstance = (uint)((frameOffset + instanceOffset) / GpuDrivenTables.InstanceStride);
 		var (compacted, compacted16) = lists ? (visibility.Compacted[device.GpuDrivenFrame % visibility.Compacted.Length], default) : meshlets ? MeshletCompacted( visibility ) : default;
 
-		WriteCullView( cull, data );
 		if ( listing )
 		{
 			// The compaction's dispatch: a group per listed fragment, counted up by the culling (the meshlet passes: a group
-			// per chunk of each)
+			// per chunk of each), and where its entries start past the arguments
 			var arguments = MemoryMarshal.Cast<byte, uint>( data.Slice( listedOffset, 16 ) );
 			arguments[0] = 0;
 			arguments[1] = 1;
 			arguments[2] = 1;
+			arguments[3] = 0;
 		}
 		var batchRecords = MemoryMarshal.Cast<byte, uint>( data.Slice( CullViewBytes, batchCount * CullBatchBytes ) );
 		var transformSlots = MemoryMarshal.Cast<byte, uint>( data.Slice( transformSlotsOffset, instanceFragments * 4 ) );
@@ -918,8 +949,12 @@ internal sealed partial class BackendContext
 			runs[i * 2 + 1] = cullRuns[i].Count == TaskTail ? 1u : 0u;
 		}
 
+		// The view record, with the Hi-Z tail's candidates where the prepass is culled in two phases
+		var hizOffsets = hiz ? WriteHiZTail( data, hizTail, runs ) : default;
+		WriteCullView( cull, data, hiz ? HiZBitsSlot( visibility ) : uint.MaxValue, hiz ? (uint)(frameOffset + hizOffsets.Candidates) : 0 );
+
 		// The view's mask and stamps were cleared before the frame's segments (BeginGpuDrivenView)
-		var region = new CulledRegion( frameBuffer, frameSlot, frameOffset, runsOffset, listedOffset, instanceOffset, fragmentOffset, commandOffset, firstInstance, compacted, compacted16 );
+		var region = new CulledRegion( frameBuffer, frameSlot, frameOffset, runsOffset, listedOffset, instanceOffset, fragmentOffset, commandOffset, firstInstance, compacted, compacted16, hizOffsets.Runs2, hizOffsets.Listed2, hizOffsets.Candidates );
 		DrawCulledRegion( cull, region, batchCount, compact, shaders, visibility, ids, lists, meshlets, depth, samples, depthBias, slopeScaledDepthBias, resolver, totalFragments, dispatch: true );
 	}
 
@@ -927,7 +962,12 @@ internal sealed partial class BackendContext
 	/// Where a GPU-culled call's region is in the frame's chunk, and its byte offsets in it: multi-draws, listed fragments,
 	/// instance records, fragment words, commands; its first instance record's index; this frame's compacted buffer.
 	/// </summary>
-	internal readonly record struct CulledRegion( BufferHandle Buffer, int Slot, long Offset, int Runs, int Listed, int Instances, int FragmentWords, int Commands, uint FirstInstance, BufferHandle Compacted, BufferHandle Compacted16 = default );
+	internal readonly record struct CulledRegion( BufferHandle Buffer, int Slot, long Offset, int Runs, int Listed, int Instances, int FragmentWords, int Commands, uint FirstInstance, BufferHandle Compacted, BufferHandle Compacted16 = default,
+		int Runs2 = 0, int Listed2 = 0, int Candidates = 0 )
+	{
+		/// <summary>Whether its prepass is culled in two phases: its view deferred candidates to the Hi-Z tail (<see cref="WriteHiZTail"/>).</summary>
+		public bool HiZ => Candidates != 0;
+	}
 
 	/// <summary>
 	/// Cull a call's region (<paramref name="dispatch"/>; otherwise the setup's resident cull did), compact forward's listed
@@ -959,6 +999,10 @@ internal sealed partial class BackendContext
 		cullConstants ??= new byte[Marshal.SizeOf<GpuDrivenCullConstants>()];
 		var lods = device.LodStore;
 		var lodTable = lods?.Table ?? (-1, 0u);
+
+		// Forward's compaction sets the visible bits of the view's next prepass (two-phase Hi-Z occlusion)
+		var hizBits = lists && device.HiZOcclusion && visibility is not null && visibility.HiZVisible[visibility.HiZCurrent].IsValid;
+		if ( hizBits ) visibility.HiZWrote = true;
 		MemoryMarshal.Write( cullConstants, new GpuDrivenCullConstants
 		{
 			Input = (uint)frameOffset,
@@ -971,6 +1015,7 @@ internal sealed partial class BackendContext
 			Runs = compact ? (uint)(frameOffset + runsOffset) : 0,
 			Frame = device.GpuDrivenFrame,
 			Capacity = visibility is { CompactedCapacity: > 0 } ? (uint)visibility.CompactedCapacity : BackendDevice.VisibilityCompactedIndices,
+			Visibility = hizBits ? 1u : 0u,
 			FragmentWords = (uint)(frameOffset + fragmentOffset) - firstInstance * 4,
 			Listed = lists || meshlets ? (uint)(frameOffset + listedOffset) : 0,
 			MeshletRuns = meshlets || lists && MeshletStampsReady( visibility ) ? (uint)device.MeshletStore.RunSlot : uint.MaxValue,
@@ -985,6 +1030,7 @@ internal sealed partial class BackendContext
 			cullAttributes.Set( "BorealisCullStamps", visibility.Stamps );
 			cullAttributes.Set( "BorealisCullMask", visibility.Mask );
 			cullAttributes.Set( "BorealisCullCompacted", lists ? compacted : visibility.Compacted[0] );
+			cullAttributes.Set( "BorealisHiZVisible", hizBits ? visibility.HiZVisible[visibility.HiZCurrent] : visibility.Stamps );
 			if ( MeshletStampsReady( visibility ) )
 			{
 				cullAttributes.Set( "BorealisMeshletStamps", visibility.MeshletStamps );
@@ -1031,8 +1077,18 @@ internal sealed partial class BackendContext
 		var vertexBases = ids ? (uint)(frameOffset + fragmentOffset) - firstInstance * 4 : (uint)(frameOffset + instanceOffset) - firstInstance * 4;
 		SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, VertexBases = vertexBases, Lighting = (uint)slots.Lighting } );
 
-		// The prepass's id buckets first, into the ids and depth, then the triangles they show are marked
-		if ( ids ) DrawIds( cull, visibility, shaders, frameBuffer, frameOffset, commandOffset, runsOffset, firstInstance, depth, samples, depthBias, slopeScaledDepthBias, resolver );
+		// The prepass's id buckets first, into the ids and depth, then the triangles they show are marked. Culled in two
+		// phases: the fragments forward saw last frame, the Hi-Z from their depth, then the rest that pass it
+		if ( ids && region.HiZ )
+		{
+			DrawIds( cull, visibility, shaders, frameBuffer, frameOffset, commandOffset, runsOffset, firstInstance, depth, samples, depthBias, slopeScaledDepthBias, resolver, mark: false );
+			HiZSecondPhase( cull, region, visibility, samples, computeMeshlets );
+			r.Pipeline = default;
+			r.Binder = null;
+			SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, VertexBases = vertexBases, Lighting = (uint)slots.Lighting } );
+			DrawIds( cull, visibility, shaders, frameBuffer, frameOffset, commandOffset, region.Runs2, firstInstance, depth, samples, depthBias, slopeScaledDepthBias, resolver, clearIds: false );
+		}
+		else if ( ids ) DrawIds( cull, visibility, shaders, frameBuffer, frameOffset, commandOffset, runsOffset, firstInstance, depth, samples, depthBias, slopeScaledDepthBias, resolver );
 
 		if ( !EnsureScope() ) return;
 
@@ -1070,6 +1126,117 @@ internal sealed partial class BackendContext
 
 	byte[] meshletConstants;
 	ShaderAttributes meshletAttributes;
+	byte[] hizConstants;
+	ShaderAttributes hizAttributes;
+
+	/// <summary>
+	/// Two-phase Hi-Z occlusion's middle (docs/managed/borealis-gpu-driven.md, "Hi-Z occlusion"), between a prepass's first
+	/// and second ids: <c>borealis_hiz_cs</c> builds the view's Hi-Z from the depth the first phase drew, then culls the
+	/// candidates the first phase's culls deferred against it, a thread each, into the second phase's multi-draws and listed
+	/// fragments, and the meshlet pass culls the listed ones. Where the depth target isn't the view's own (another size, an
+	/// array, a viewport off its corner), every candidate draws.
+	/// </summary>
+	void HiZSecondPhase( in GpuDrivenCull cull, in CulledRegion region, BackendDevice.VisibilityView visibility, int samples, bool computeMeshlets )
+	{
+		using var zone = Zones.HiZ.Start();
+		var r = recording;
+		var shader = device.HiZShader;
+		var depthTexture = r.Depth;
+		var test = depthTexture is not null && !depthTexture.IsArray && !depthTexture.IsCube && depthTexture.Width == visibility.Width && depthTexture.Height == visibility.Height
+			&& bound.DepthSlice == 0 && bound.Viewport.Left == 0 && bound.Viewport.Top == 0 && visibility.HiZ.IsValid;
+		var m = cull.WorldToClip;
+		var constants = new HiZConstants
+		{
+			Width = (uint)visibility.HiZWidth,
+			Height = (uint)visibility.HiZHeight,
+			Levels = (uint)visibility.HiZLevels,
+			DepthWidth = (uint)visibility.Width,
+			DepthHeight = (uint)visibility.Height,
+			Samples = (uint)Math.Max( samples, 1 ),
+			Candidates = (uint)(region.Offset + region.Candidates),
+			Runs = (uint)(region.Offset + region.Runs2),
+			Listed = computeMeshlets ? (uint)(region.Offset + region.Listed) : 0,
+			Listed2 = (uint)(region.Offset + region.Listed2),
+			Instances = (uint)(region.Offset + region.Instances),
+			Commands = (uint)(region.Offset + region.Commands),
+			FirstInstance = region.FirstInstance,
+			FragmentWords = (uint)(region.Offset + region.FragmentWords) - region.FirstInstance * 4,
+			Frame = device.GpuDrivenFrame,
+			Flags = (test ? 1u : 0u) | (MeshletStampsReady( visibility ) ? 2u : 0u),
+			Viewport = new System.Numerics.Vector4( cull.ViewportSize.x, cull.ViewportSize.y, bound.MinZ, bound.MaxZ ),
+			ClipX = new System.Numerics.Vector4( m.M11, m.M21, m.M31, m.M41 ),
+			ClipY = new System.Numerics.Vector4( m.M12, m.M22, m.M32, m.M42 ),
+			ClipZ = new System.Numerics.Vector4( m.M13, m.M23, m.M33, m.M43 ),
+			ClipW = new System.Numerics.Vector4( m.M14, m.M24, m.M34, m.M44 ),
+		};
+
+		hizConstants ??= new byte[Marshal.SizeOf<HiZConstants>()];
+		hizAttributes ??= new ShaderAttributes();
+		cullDrawer ??= new ShaderDrawer( device );
+		var frameBuffer = region.Buffer;
+		void Bind( in HiZConstants values, bool fromDepth )
+		{
+			MemoryMarshal.Write( hizConstants, values );
+			hizAttributes.Clear();
+			hizAttributes.Set( "BorealisHiZ", visibility.HiZ );
+			hizAttributes.Set( "BorealisCullFrame", frameBuffer );
+			hizAttributes.Set( "BorealisCullStamps", visibility.Stamps );
+			hizAttributes.Set( "BorealisMeshletStamps", (values.Flags & 2) != 0 ? visibility.MeshletStamps : visibility.Stamps );
+			hizAttributes.SetCombo( "D_HIZ_DEPTH", fromDepth ? 1 : 0 );
+			hizAttributes.SetCombo( "D_MSAA", fromDepth && samples > 1 ? 1 : 0 );
+			if ( fromDepth ) hizAttributes.Set( "BorealisHiZDepth", depthTexture.Handle );
+			hizAttributes.SetData( "BorealisHiZ_t", hizConstants );
+		}
+
+		var timer = device.PassTimer;
+		if ( test )
+		{
+			// The depth the first phase drew, read by compute: levels 0 to 4 from it, then five levels a dispatch from the last
+			var buildScope = timer?.Begin( r.List, "Hi-Z build", PassTimer.ScopeKind.Own, count: false ) ?? -1;
+			r.List.Marker( "Hi-Z build" );
+			Transition( depthTexture, ImageLayout.ShaderRead );
+			r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite );
+			constants.Pass = 0;
+			Bind( constants, fromDepth: true );
+			cullDrawer.Dispatch( r.List, shader, hizAttributes, visibility.HiZWidth, visibility.HiZHeight, 1 );
+			for ( int source = 4; source + 1 < visibility.HiZLevels; source += 5 )
+			{
+				r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+				var (w, h) = (visibility.HiZWidth, visibility.HiZHeight);
+				for ( int l = 0; l <= source; l++ ) (w, h) = ((w + 1) / 2, (h + 1) / 2);
+				constants.Pass = 1;
+				constants.Source = (uint)source;
+				Bind( constants, fromDepth: false );
+				cullDrawer.Dispatch( r.List, shader, hizAttributes, w, h, 1 );
+			}
+
+			Transition( depthTexture, ImageLayout.DepthTarget );
+			r.List.Marker( "end Hi-Z build" );
+			timer?.End( r.List, buildScope );
+		}
+
+		// After the Hi-Z's writes and the first phase's draws' reads of the region the second phase writes over
+		var cullScope = timer?.Begin( r.List, "Hi-Z cull", PassTimer.ScopeKind.Own, count: false ) ?? -1;
+		r.List.Marker( "Hi-Z cull" );
+		r.List.Barrier( PipelineStage.ComputeShader | PipelineStage.DrawIndirect | PipelineStage.VertexInput | PipelineStage.VertexShader | PipelineStage.FragmentShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite | MemoryAccess.IndirectRead | MemoryAccess.IndexRead,
+			PipelineStage.ComputeShader | PipelineStage.DrawIndirect, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite | MemoryAccess.IndirectRead );
+		constants.Pass = 2;
+		constants.Source = 0;
+		Bind( constants, fromDepth: false );
+		cullDrawer.DispatchIndirect( r.List, shader, hizAttributes, region.Buffer, region.Offset + region.Candidates );
+		r.List.Marker( "end Hi-Z cull" );
+		timer?.End( r.List, cullScope );
+
+		// The second phase's listed fragments' meshlets, into its multi-draws
+		if ( computeMeshlets )
+		{
+			r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.ComputeShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+			DispatchMeshlets( cull, region with { Runs = region.Runs2, Listed = region.Listed2 }, visibility, samples, culledHere: false );
+		}
+
+		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.VertexInput | PipelineStage.VertexShader | PipelineStage.FragmentShader, MemoryAccess.IndirectRead | MemoryAccess.IndexRead | MemoryAccess.ShaderRead );
+		device.CountHiZ( region.Buffer, region.Offset + region.Candidates, test );
+	}
 
 	/// <summary>
 	/// Whether a view's meshlet bits can be read: its prepass culled meshlets since its stamps were cleared, so forward's
@@ -1237,6 +1404,18 @@ internal sealed partial class BackendContext
 
 		return (compute, tasks);
 	}
+
+	/// <summary>
+	/// Whether a view's prepass with ids is culled in two phases (<see cref="BackendDevice.HiZOcclusion"/>): a main view (no
+	/// shadow, filter or kept order) whose Hi-Z buffers are made, without task and mesh shaders. The call that draws it builds
+	/// the Hi-Z where it can, and otherwise draws every candidate.
+	/// </summary>
+	bool HiZFor( in GpuDrivenCull cull, BackendDevice.VisibilityView visibility )
+		=> device.HiZOcclusion && !cull.Shadow && cull.Filter == ResidentFilter.None && !cull.KeepsOrder && device.MeshletIds is null && device.HiZShader is not null
+		&& visibility is not null && visibility.HiZVisible[0].IsValid && visibility.HiZVisible[1].IsValid && visibility.HiZ.IsValid && HiZBitsSlot( visibility ) != uint.MaxValue;
+
+	/// <summary>The bindless slot of the visible bits a view's prepass reads this frame: those its forward wrote last frame.</summary>
+	uint HiZBitsSlot( BackendDevice.VisibilityView visibility ) => Gpu.BindlessIndex( visibility.HiZVisible[visibility.HiZCurrent ^ 1] ) is >= 0 and var slot ? (uint)slot : uint.MaxValue;
 
 	/// <summary>A GPU-culled call's kind, for its plan: what decides its buckets and records besides the batches.</summary>
 	GpuDrivenPlan.CallKey PlanKey( StringToken shaderMode, in GpuDrivenCull cull, Format color, Format depth, int samples )
@@ -1482,6 +1661,19 @@ internal sealed partial class BackendContext
 		if ( !visibility.StampsCleared ) r.List.FillBuffer( visibility.Stamps, 0 );
 		visibility.StampsCleared = true;
 
+		// Two-phase Hi-Z occlusion: this frame's visible bits cleared for forward to set, last frame's read by the prepass; all
+		// set where forward wrote none last frame (the first frame, or after the switch was off), so everything draws first
+		if ( device.HiZOcclusion && device.HiZShader is not null && device.MeshletIds is null )
+		{
+			var fresh = device.HiZBuffersFor( visibility );
+			visibility.HiZReadValid = visibility.HiZWrote && !fresh;
+			visibility.HiZCurrent ^= 1;
+			r.List.FillBuffer( visibility.HiZVisible[visibility.HiZCurrent], 0 );
+			if ( !visibility.HiZReadValid ) r.List.FillBuffer( visibility.HiZVisible[visibility.HiZCurrent ^ 1], uint.MaxValue );
+		}
+
+		visibility.HiZWrote = false;
+
 		// This frame's compacted buffer's cursor, past itself: the forward pass's calls take their triangles' ranges from it
 		r.List.FillBuffer( visibility.Compacted[frame % visibility.Compacted.Length], BackendDevice.VisibilityView.CompactedCursorIndices, 0, 4 );
 		if ( visibility.PrepassCompacted.IsValid )
@@ -1628,7 +1820,8 @@ internal sealed partial class BackendContext
 	/// and alpha to coverage included; target 0 takes the authored output, which only alpha to coverage reads. Then
 	/// <c>borealis_gpu_driven_mark_cs</c> sets the bit of every id in the view's mask, for its forward pass.
 	/// </summary>
-	void DrawIds( in GpuDrivenCull cull, BackendDevice.VisibilityView visibility, (BackendMaterial Ids, ShaderFile Mark, ShaderFile Compact) shaders, BufferHandle frameBuffer, long frameOffset, int commandOffset, int runsOffset, uint firstInstance, Format depth, int samples, int depthBias, float slopeScaledDepthBias, PassResolver resolver )
+	void DrawIds( in GpuDrivenCull cull, BackendDevice.VisibilityView visibility, (BackendMaterial Ids, ShaderFile Mark, ShaderFile Compact) shaders, BufferHandle frameBuffer, long frameOffset, int commandOffset, int runsOffset, uint firstInstance, Format depth, int samples, int depthBias, float slopeScaledDepthBias, PassResolver resolver,
+		bool clearIds = true, bool mark = true )
 	{
 		var r = recording;
 		var cache = device.MaterialCache;
@@ -1638,10 +1831,11 @@ internal sealed partial class BackendContext
 		var idsScope = timer?.Begin( r.List, "GPU-driven ids", PassTimer.ScopeKind.Own ) ?? -1;
 		r.List.Marker( "GPU-driven ids" );
 		// After any earlier ids pass of the view this frame (another call's): its writes and the mark's reads come first
-		r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Ids, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.ColorTargetOutput | PipelineStage.ComputeShader, MemoryAccess.ColorTargetWrite, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+		// (A second phase draws on over the first's ids, which its rendering scope kept in place)
+		r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Ids, clearIds ? ImageLayout.Undefined : ImageLayout.ColorTarget, ImageLayout.ColorTarget, PipelineStage.ColorTargetOutput | PipelineStage.ComputeShader, MemoryAccess.ColorTargetWrite, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite | MemoryAccess.ColorTargetRead ) );
 		r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Scratch, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
 		r.List.BeginRendering(
-			[new ColorTarget { Texture = visibility.Scratch, Load = LoadOp.DontCare, Store = StoreOp.DontCare }, new ColorTarget { Texture = visibility.Ids, Load = LoadOp.Clear, Store = StoreOp.Store, ClearColor = default }],
+			[new ColorTarget { Texture = visibility.Scratch, Load = LoadOp.DontCare, Store = StoreOp.DontCare }, new ColorTarget { Texture = visibility.Ids, Load = clearIds ? LoadOp.Clear : LoadOp.Load, Store = StoreOp.Store, ClearColor = default }],
 			new DepthTarget { Texture = depthTexture.Handle, Layer = bound.DepthSlice, Load = LoadOp.Load, Store = StoreOp.Store } );
 		var rect = bound.Viewport;
 		var (width, height) = r.List.RenderSize;
@@ -1751,6 +1945,8 @@ internal sealed partial class BackendContext
 		r.Pipeline = default;
 		r.Binder = null;
 		SetObjectAttributes( null );
+		if ( !mark ) return;
+
 		// Mark: every distinct id of each pixel's samples sets its triangle's bit
 		r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Ids, ImageLayout.ColorTarget, ImageLayout.ShaderRead, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead ) );
 		var markConstants = this.markConstants ??= new byte[Marshal.SizeOf<GpuDrivenMarkConstants>()];
