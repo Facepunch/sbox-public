@@ -225,6 +225,7 @@ internal static class MapRealRun
 		}
 
 		if ( firstFrames.Count > 0 ) Console.WriteLine( $"First frames: {string.Join( ", ", firstFrames )}" );
+		if ( gpu.Capabilities.PipelineLibraries ) Console.WriteLine( $"Pipeline libraries after the first frames: {gpu.PipelineLibraryCreation}" );
 		Console.WriteLine( map.Backend.PipelineManifestReport );
 
 		// Meshlets and generated LODs build on workers after load (and levels' meshlets after their levels), asked for as draws
@@ -237,7 +238,8 @@ internal static class MapRealRun
 		{
 			MapRun.Pump( window );
 			RenderFrame( options.Views[0] );
-			if ( map.Backend.BuildsPending > 0 || map.Backend.BuildsRequested != asked ) quiet.Restart();
+			// Optimised pipeline links replacing fast ones are background work too
+			if ( map.Backend.BuildsPending > 0 || map.Backend.BuildsRequested != asked || gpu.PipelineLibraryCreation.Pending > 0 || gpu.DeferredPipelines.Pending > 0 ) quiet.Restart();
 			asked = map.Backend.BuildsRequested;
 		}
 
@@ -453,6 +455,39 @@ internal static class MapRealRun
 					continue;
 				}
 
+				// -hiz-sweep N: from the view, N frames turning 15 degrees a frame, then N frames stepping 150 units a frame to its
+				// right, one frame each, without, with and again without two-phase Hi-Z occlusion: each frame is saved, to compare
+				// (what a turn or a step shows has to draw that same frame; the two runs without show what moves anyway)
+				if ( Args.Int( "-hiz-sweep", 0 ) is > 0 and var turns )
+				{
+					map.Backend.GpuDriven = true;
+					map.Backend.GpuDrivenVisibility = true;
+					var look = view.LookAt - view.Position;
+					var right = System.Numerics.Vector3.Normalize( System.Numerics.Vector3.Cross( look, System.Numerics.Vector3.UnitZ ) ) * 150;
+					foreach ( var (hiz, suffix) in new[] { (false, "off"), (true, "on"), (false, "off2") } )
+					{
+						map.Backend.HiZOcclusion = hiz;
+						for ( int i = 0; i < 5; i++ ) RenderFrame( view );
+						for ( int t = 1; t <= turns * 2; t++ )
+						{
+							var turned = t <= turns
+								? view with { LookAt = view.Position + System.Numerics.Vector3.Transform( look, System.Numerics.Quaternion.CreateFromAxisAngle( System.Numerics.Vector3.UnitZ, t * MathF.PI / 12 ) ) }
+								: view with { Position = view.Position + right * (t - turns), LookAt = view.LookAt + right * (t - turns) };
+							RenderFrame( turned );
+							gpu.WaitIdle();
+							var (swept, sweptLayout) = map.Output;
+							Capture.Save( gpu, swept, sweptLayout, Path.ChangeExtension( path, null ) + $"-hizsweep{t:00}-{suffix}.png" );
+							BackendDevice.SetLayout( map.Target.Samples > 1 ? map.Target.Resolved : map.Target.Color, ImageLayout.CopySource );
+						}
+
+						var (candidates, occluded) = map.Backend.HiZCounts();
+						Console.WriteLine( $"Hi-Z sweep {suffix}: {turns * 2} frames saved; last frame's candidates {candidates}, occluded {occluded}" );
+					}
+
+					map.Backend.HiZOcclusion = false;
+					continue;
+				}
+
 				// -capture-walk N: walk the camera N steps of a sun-cascade cell and a half along its view, 30 frames a step, and at
 				// each step capture the frame as the far cascade's cache has it (strips drawn as it went) and drawn whole again
 				if ( Args.Int( "-capture-walk", 0 ) is > 0 and var steps )
@@ -548,6 +583,8 @@ internal static class MapRealRun
 		Console.WriteLine( bindingReport );
 		var (allPipelines, allPipelineMs) = gpu.PipelineCreation;
 		Console.WriteLine( $"Pipelines made in the whole run: {allPipelines}, {allPipelineMs:0.0} ms" );
+		if ( gpu.Capabilities.PipelineLibraries ) Console.WriteLine( $"Pipeline libraries in the whole run: {gpu.PipelineLibraryCreation}" );
+		Console.WriteLine( $"Pipelines made while their draws were skipped: {gpu.DeferredPipelines}" );
 		gpu.WaitIdle();
 		if ( censusFolder is not null ) File.WriteAllText( Path.Combine( censusFolder, "census.md" ), censusReport.ToString() );
 		Directory.CreateDirectory( options.Output );

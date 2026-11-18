@@ -7,6 +7,11 @@ module material;
 // shifts, where the engine's Bindless.hlsl reads them (vk::binding isn't used: the shifts override it)
 Texture2D g_MaterialTextures2D[] : register( t16, space4 );
 
+// The same table's cube textures, and the bindless samplers (s15 in space 4), as Bindless.hlsl declares them: for slots
+// the engine hands a surface in its own buffers (terrain's layers, a custom environment cubemap)
+TextureCube g_MaterialTexturesCube[] : register( t16, space4 );
+SamplerState g_MaterialSamplers[2048] : register( s15, space4 );
+
 // The material records, and where this draw's is. A record's offset reaches the pixel stage one of two ways, picked by
 // the pipeline (specialization constant 2): per pixel, a nointerpolation value the vertex stage passes on (the default:
 // one GPU-driven bucket per pipeline draws many materials), or per draw, read straight from the draw's constant (uniform,
@@ -42,6 +47,27 @@ public T LoadMaterial<T>( uint offset )
 public T LoadMaterial<T>()
 {
 	return g_SurfaceMaterials.Load<T>( g_SurfaceDraw.MaterialOffset );
+}
+
+/// A texture of the bindless table by its slot (one the engine wrote to a buffer or attribute, as Bindless::GetTexture2D
+/// reads it); slot + 1 is a colour texture's sRGB view.
+public MaterialTexture2D BindlessTexture2D( uint slot )
+{
+	MaterialTexture2D texture;
+	texture.Slot = slot;
+	return texture;
+}
+
+/// A cube texture of the bindless table by its slot (Bindless::GetTextureCube).
+public TextureCube BindlessTextureCube( uint slot )
+{
+	return g_MaterialTexturesCube[NonUniformResourceIndex( slot )];
+}
+
+/// A bindless sampler by its slot (Bindless::GetSampler): the slot must be uniform across the wave.
+public SamplerState BindlessSampler( uint slot )
+{
+	return g_MaterialSamplers[slot];
 }
 
 /// A material texture: its slot in the bindless table. Written Texture2D in a [Material] struct.
@@ -133,6 +159,15 @@ public struct DepthBiasAttribute { float Constant; float Slope; };
 // is 1). Material's fields for them (SssNormal, TwoLobeSpecularRatio, ...) are read only where they're on
 [__AttributeUsage( _AttributeTargets.Struct )]
 public struct CombinerAttribute { string Defines; };
+
+// Defines ahead of the engine's includes for any surface, as a .shader's COMMON block sets them for the lighting:
+// "S_DIFFUSE_TWO_SIDED" (water's), "A = B" (a name alone is 1). [Combiner( ... )] is the same for a combiner surface
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct LightingAttribute { string Defines; };
+
+// How many of SurfaceVertex.ClipDistance an IVertexStageSurface writes (1 to 4): each is a clip distance in every pass
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct ClipDistancesAttribute { int Count; };
 
 // Draw back faces too: a combiner surface's normal turned to the viewer, as complex.shader does; others see the face's
 // own, as common/pixel.hlsl's shaders do (SurfaceInput.FrontFace says which side)

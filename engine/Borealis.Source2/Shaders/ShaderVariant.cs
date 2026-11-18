@@ -256,7 +256,9 @@ public sealed class ShaderStage
 	public IReadOnlyList<(ShaderVariable Variable, int Offset)> RecordTextures { get; }
 
 	/// <summary>Whether it's from a shader's GPU-driven file (<see cref="ShaderLibrary.GpuDriven"/>).</summary>
-	public bool GpuDriven => Program.Shader.Name.EndsWith( ".gpudriven.shader_c", StringComparison.OrdinalIgnoreCase );
+	public bool GpuDriven => gpuDrivenModule || Program.Shader.Name.EndsWith( ".gpudriven.shader_c", StringComparison.OrdinalIgnoreCase );
+
+	readonly bool gpuDrivenModule;
 
 	internal ShaderStage( ShaderLibrary library, ShaderProgramType type, ShaderProgram program, StaticCombo combo, DynamicCombo dynamic, Func<string, int?> attributes, ReadOnlySpan<int> features )
 	{
@@ -274,6 +276,7 @@ public sealed class ShaderStage
 		if ( Bytecode is not null )
 		{
 			Module = library.Module( Bytecode, $"{program.Shader.Name} {type}" );
+			library.Remember( program, combo.Id, dynamic.Id );
 			Reflection = library.Reflect( Bytecode );
 		}
 
@@ -415,6 +418,7 @@ public sealed class ShaderStage
 		MaterialConstants = stage.GlobalMembers;
 		RenderStates = stage.RenderStates;
 		Expansion = stage.Expansion;
+		gpuDrivenModule = stage.GpuDriven;
 		RecordTextures = [];
 		MaterialBuffer = stage.Globals.Set >= 0 && stage.Globals.Size > 0 ? stage.Globals : (-1, -1, 0);
 	}

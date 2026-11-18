@@ -46,7 +46,7 @@ cbuffer BorealisMeshletCull_t
 	uint g_nMeshletCapacity;		// indices g_Compacted and g_Compacted16 hold
 	uint g_nMeshletFragmentWords;	// g_Frame byte offset of instance 0's fragment word for the ids (wraps), or None
 	uint g_nMeshletSamples;			// the depth target's samples: 1 or 4 cull meshlets between samples, others don't
-	uint g_nMeshletPass;			// 0: test and place (a group per listed fragment), 1: copy (a group per job)
+	uint g_nMeshletPass;			// 0: test and place (a group per listed fragment), 1: copy (a group per job), 2: test and place for a shadow view
 	uint g_nMeshletFrame;			// this frame's stamp
 	float4 g_nMeshletViewport;		// width and height in pixels, and the copy jobs g_MeshletJobs holds
 	float4 g_nMeshletClipX;			// world to clip: x, y, z, w = dot( row, float4( world, 1 ) ), y before the vertex shaders negate it
@@ -165,7 +165,9 @@ void Copy( uint nJob, uint nThread )
 		return;
 	}
 
-	uint nEntry = g_nMeshletListed + 16 + vGroupId.x * 32;
+	// The listed arguments' fourth word: where the entries start past the arguments (a Hi-Z prepass's second phase lists
+	// after its first's, borealis_hiz_cs)
+	uint nEntry = g_nMeshletListed + 16 + g_Frame.Load( g_nMeshletListed + 12 ) + vGroupId.x * 32;
 	uint nDrawRecord = g_Frame.Load( nEntry + 4 );
 	uint4 vRun = g_bindless_VertexBuffers[ g_nMeshletRunTable ].Load4( nDrawRecord * 16 );
 	uint nMeshlets = min( vRun.z, 4 * ChunkMeshlets );
@@ -181,6 +183,7 @@ void Copy( uint nJob, uint nThread )
 	uint nPage = vDraw.w | ( b32 ? 0x80000000u : 0 );
 	bool bWhole = false;
 	MeshletView view = View();
+	bool bShadow = g_nMeshletPass == 2;
 
 	for ( uint nChunk = 0; nChunk < nMeshlets && !bWhole; nChunk += ChunkMeshlets )
 	{
@@ -200,7 +203,7 @@ void Copy( uint nJob, uint nThread )
 			uint nAt = ( vRun.y + nChunk + m ) * 32;
 			uint4 r0 = meshlets.Load4( nAt );
 			uint4 r1 = meshlets.Load4( nAt + 16 );
-			if ( !MeshletCulled( view, asfloat( r0.xyz ), asfloat( r1.xyz ), mTransform ) )
+			if ( !MeshletOutside( view, asfloat( r0.xyz ), asfloat( r1.xyz ), mTransform, bShadow ) )
 			{
 				uint nSlot;
 				InterlockedAdd( gs_Count, 1, nSlot );

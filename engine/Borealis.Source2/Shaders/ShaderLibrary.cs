@@ -33,6 +33,64 @@ public sealed class ShaderLibrary : IDisposable
 	{
 		this.gpu = gpu;
 		Files = files;
+		if ( gpu.PartManifestEnabled && gpu.PipelineCachePath is { } cache ) moduleManifest = new ShaderModuleManifest( Path.Combine( Path.GetDirectoryName( cache ) ?? ".", "shader-modules.txt" ) );
+	}
+
+	// The modules variants made, so the next run makes them as their files load (ShaderModuleManifest): with the device's
+	// part manifest only, which makes their pipeline parts once they exist
+	readonly ShaderModuleManifest moduleManifest;
+	readonly List<Task> modulesAhead = new();
+
+	/// <summary>Write the module manifest beside the pipeline cache if it changed; false when nothing was written.</summary>
+	public bool SaveModuleManifest() => moduleManifest?.Save() ?? false;
+
+	/// <summary>What the module manifest held and did, for reports: lines read, modules made ahead, lines dropped, modules recorded.</summary>
+	public (int Loaded, int Made, int Dropped, int Recorded) ModuleManifest => moduleManifest is { } m ? (m.Loaded, m.Made, m.Dropped, m.Recorded) : default;
+
+	/// <summary>A variant's stage made its module: kept for the next run (once per module, never per frame).</summary>
+	internal void Remember( ShaderProgram program, ulong staticCombo, ulong dynamicCombo )
+	{
+		if ( moduleManifest is { } m && program.Shader?.Name is { Length: > 0 } file ) m.Use( file, new ShaderModuleManifest.Entry( program.Type, staticCombo, dynamicCombo ) );
+	}
+
+	/// <summary>A compiled file loaded: the modules earlier runs' variants made from it are made now, on a worker.</summary>
+	void MakeRecordedModules( ShaderFile shader )
+	{
+		if ( shader is null || moduleManifest?.Take( shader.Name ) is not { } entries ) return;
+		var task = Task.Run( () =>
+		{
+			foreach ( var entry in entries )
+			{
+				try
+				{
+					var program = shader[entry.Type];
+					var bytecode = program?.LoadCombo( entry.Static ).Dynamic( entry.Dynamic )?.Shader;
+					if ( bytecode is null )
+					{
+						moduleManifest.Drop( shader.Name, entry );
+						continue;
+					}
+
+					Module( bytecode, $"{shader.Name} {entry.Type}" );
+					System.Threading.Interlocked.Increment( ref moduleManifest.Made );
+				}
+				catch ( Exception e ) when ( e is KeyNotFoundException or InvalidDataException or IndexOutOfRangeException )
+				{
+					moduleManifest.Drop( shader.Name, entry );
+				}
+				catch ( Exception e ) when ( e is GpuException or ArgumentException or ObjectDisposedException )
+				{
+					// The device or library went meanwhile
+					return;
+				}
+			}
+		} );
+
+		lock ( modulesAhead )
+		{
+			modulesAhead.RemoveAll( t => t.IsCompleted );
+			modulesAhead.Add( task );
+		}
 	}
 
 	/// <summary>
@@ -58,6 +116,7 @@ public sealed class ShaderLibrary : IDisposable
 				if ( found ) files[key] = shader;
 			}
 
+			MakeRecordedModules( shader );
 			return shader;
 		}
 		finally
@@ -101,7 +160,12 @@ public sealed class ShaderLibrary : IDisposable
 		var full = Files.Find( key );
 		var bare = !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase );
 		if ( full is null && bare ) full = Files.Find( $"shaders/{key}.shader" );
-		if ( full is not null ) return (LoadOrUpgrade( full ), true);
+		if ( full is not null )
+		{
+			// A standalone module describes its shader itself: the compiled file beside it is only Source 2's renderer's
+			if ( Modules?.DescribeStandalone( full ) is { } standalone ) return (standalone, true);
+			return (LoadOrUpgrade( full ), true);
+		}
 
 		// No compiled file: a shader with only a Slang module, where its .shader_c would be
 		if ( Modules is not { } modules ) return (null, false);
@@ -345,6 +409,11 @@ public sealed class ShaderLibrary : IDisposable
 	public ShaderFile GpuDriven( ShaderFile shader )
 	{
 		if ( shader is null ) return null;
+
+		// A shader with only a module has its GPU-driven form there, if any (a .gpudriven.shader_c beside it is Source 2's
+		// compile's, unread like its .shader_c)
+		if ( shader.ModuleOnly ) return Modules?.HasGpuDriven( shader ) == true ? shader : null;
+
 		lock ( gpuDriven )
 		{
 			if ( gpuDriven.TryGetValue( shader, out var cached ) ) return cached;
@@ -367,6 +436,7 @@ public sealed class ShaderLibrary : IDisposable
 		}
 
 		lock ( gpuDriven ) gpuDriven[shader] = variant;
+		MakeRecordedModules( variant );
 		return variant;
 	}
 
@@ -494,8 +564,20 @@ public sealed class ShaderLibrary : IDisposable
 			return upgraded is not null ? Variant( upgraded, mode, features, dynamicCombos, attributes ) : upgrading ? null : ErrorVariant( dynamicCombos, attributes );
 		}
 
-		// A shader with only a module has no programs to fall back to (modules off, or its module doesn't compile)
-		if ( shader.ModuleOnly ) return null;
+		// A shader with only a module has no programs to fall back to (modules off, or its module doesn't compile); its
+		// GPU-driven form is the module's
+		if ( shader.ModuleOnly )
+		{
+			if ( !gpuDriven || Modules is not { } own || !own.HasGpuDriven( shader ) ) return null;
+			var form = own.CompileGpuDriven( shader, drawMode, features, dynamicCombos, attributes );
+			if ( ReferenceEquals( form, ModuleProgram.Pending ) )
+			{
+				pending = true;
+				return null;
+			}
+
+			return form is null ? null : ModuleVariant( shader, drawMode, form );
+		}
 
 		if ( gpuDriven )
 		{
@@ -714,6 +796,10 @@ public sealed class ShaderLibrary : IDisposable
 	/// <summary>Destroy every module and layout made here.</summary>
 	public void Dispose()
 	{
+		Task[] ahead;
+		lock ( modulesAhead ) ahead = [.. modulesAhead];
+		Task.WaitAll( ahead );
+		SaveModuleManifest();
 		lock ( modules )
 		{
 			foreach ( var module in modules.Values ) gpu.Destroy( module );

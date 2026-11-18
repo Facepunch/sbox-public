@@ -31,6 +31,7 @@ internal static class Zones
 	public static readonly Zone MeshletBuild = new( "Borealis Meshlet Build", Color.Yellow );
 	public static readonly Zone MeshletUpload = new( "Borealis Meshlet Upload", Color.Yellow );
 	public static readonly Zone MeshletCull = new( "Borealis Meshlet Cull", Color.Yellow );
+	public static readonly Zone HiZ = new( "Borealis Hi-Z", Color.Yellow );
 	public static readonly Zone LodBuild = new( "Borealis LOD Build", Color.Yellow );
 	public static readonly Zone LodUpload = new( "Borealis LOD Upload", Color.Yellow );
 	public static readonly Zone CubeCapture = new( "Borealis Cube Capture", Color.Blue );

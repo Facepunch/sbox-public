@@ -46,6 +46,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		/// </summary>
 		public double SyncMs;
 
+
 		/// <summary>
 		/// The frustum the view's planar reflection planes are tested against.
 		/// </summary>
@@ -55,6 +56,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		/// Whether this view's frame is being rendered now: a child view asked for while it draws can't be this view again.
 		/// </summary>
 		public bool Rendering;
+
+		/// <summary>The engine frame this view last rendered in (<see cref="ViewIdleFrames"/>).</summary>
+		public ulong LastFrame;
 
 		/// <summary>
 		/// Whether the camera this is for was disposed or collected without saying so.
@@ -156,6 +160,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// </summary>
 	const ulong ExtraWorldIdleFrames = 120;
 
+
 	// Reused sweep buffers avoid per-frame allocations.
 	readonly List<ViewKey> invalidViews = new();
 	readonly List<SceneWorld> invalidWorlds = new();
@@ -186,14 +191,26 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	}
 
 	/// <summary>
-	/// Release views whose camera went away, and worlds deleted, without being reported.
+	/// Frames a view keeps its renderer and targets without rendering: an editor widget that isn't shown (the game view
+	/// behind the scene view) or a camera that stopped drawing gives them back, and starts again from nothing (no history,
+	/// shadows drawn again) if it renders later.
+	/// </summary>
+	internal const ulong ViewIdleFrames = 600;
+
+	/// <summary>
+	/// Release views whose camera went away or that haven't rendered for <see cref="ViewIdleFrames"/>, and worlds deleted,
+	/// without being reported.
 	/// </summary>
 	void FreeInvalid()
 	{
+		var frame = Application.FrameCount;
 		foreach ( var (key, state) in views )
 		{
-			if ( state.IsOrphaned ) invalidViews.Add( key );
+			if ( state.IsOrphaned || (!state.Rendering && frame - state.LastFrame > ViewIdleFrames) ) invalidViews.Add( key );
 		}
+
+		FreeIdleCaptures( frame );
+		MirrorContent.FreeCollected();
 
 		foreach ( var (world, _) in mirrors )
 		{
@@ -204,7 +221,6 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		foreach ( var world in invalidWorlds ) Forget( world );
 		invalidWorlds.Clear();
 
-		var frame = Application.FrameCount;
 		foreach ( var (key, extra) in extras )
 		{
 			if ( !key.Source.IsValid() || frame - extra.LastFrame > ExtraWorldIdleFrames ) invalidExtras.Add( key );
@@ -341,6 +357,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		SyncSkybox( mirror, camera, setup );
 
 		var state = given ?? StateFor( camera, setup.ViewHash );
+		state.LastFrame = Application.FrameCount;
 		state.Drawer.Mirror = mirror;
 		state.View.SubWorlds = SyncExtraWorlds( mirror, camera, setup, state.Drawer.ExtraMirrors );
 		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( syncStart ).TotalMilliseconds;

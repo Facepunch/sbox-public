@@ -42,6 +42,9 @@ CS
 	RWByteAddressBuffer g_PrepassCompacted < Attribute( "BorealisMeshletCompacted" ); >;
 	RWByteAddressBuffer g_PrepassCompacted16 < Attribute( "BorealisMeshletCompacted16" ); >;
 
+	// Each listed fragment's visible bit for the next frame's Hi-Z phase 1 (borealis_hiz_cs): declared here for its binding
+	RWByteAddressBuffer g_HiZVisible < Attribute( "BorealisHiZVisible" ); >;
+
 	cbuffer BorealisGpuDrivenCull_t
 	{
 		uint g_nCullInput;
@@ -111,7 +114,7 @@ CS
 	{
 		uint nEntry = g_nCullListed + 16 + vGroupId.x * 32;
 		if ( g_nCullListed == None )
-			g_Frame.Store( 0, g_MeshletStamps.Load( 0 ) + g_PrepassCompacted.Load( 0 ) + g_PrepassCompacted16.Load( 0 ) );
+			g_Frame.Store( 0, g_MeshletStamps.Load( 0 ) + g_PrepassCompacted.Load( 0 ) + g_PrepassCompacted16.Load( 0 ) + g_HiZVisible.Load( 0 ) );
 		uint nTransform = g_Frame.Load( nEntry );
 		uint nDrawRecord = g_Frame.Load( nEntry + 4 );
 		uint nVertexBase = g_Frame.Load( nEntry + 8 );
