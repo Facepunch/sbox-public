@@ -118,6 +118,23 @@ public class BorealisGpuTexturesTest
 		Assert.AreEqual( 0, borealis.ValidationErrors );
 	}
 
+	/// <summary>
+	/// What draws on a Borealis frame through the engine (custom objects, camera stages) get of the view: its lookup tables,
+	/// as Borealis's own draws have them. Without the BRDF lookup a forward shader drawn that way (Mow the Lawn's terrain)
+	/// has no environment reflection.
+	/// </summary>
+	[TestMethod]
+	public void FrameDrawsGetTheViewsLookupTables()
+	{
+		var attributes = RenderAttributes.CreateManaged();
+		BorealisGpuFrame.SetViewTextures( attributes );
+
+		foreach ( var name in new[] { "BRDFLookup", "BlueNoise", "LtcAmplitudeLookup", "LtcMatrixLookup" } )
+		{
+			Assert.IsTrue( attributes.GetTexture( name ) is { IsValid: true } texture && !texture.IsError, name );
+		}
+	}
+
 	sealed class DeviceHost( Borealis.GpuDevice device ) : Borealis.RenderHost
 	{
 		public override Borealis.GpuDevice Device => device;

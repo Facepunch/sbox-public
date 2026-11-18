@@ -21,12 +21,32 @@ internal sealed class BorealisGpuFrame : IDisposable
 	static readonly StringToken ViewConstantsName = new( "PerViewConstantBuffer_t" );
 	static readonly StringToken DepthChainName = new( "DepthChainDownsample" );
 	static readonly StringToken FogVolumeName = new( "FogVolume" );
-	static readonly StringToken BlueNoiseName = new( "BlueNoise" );
 	static readonly StringToken BloomInputName = new( "QuarterResEffectsBloomInputTexture" );
 
-	// Every block on the frame binds it: looked up once, again only if it was let go
-	static Texture blueNoise;
-	static Texture BlueNoise => blueNoise is { IsValid: true } known ? known : blueNoise = Texture.Load( "textures/dev/blue_noise_256.vtex" );
+	/// <summary>
+	/// The view's lookup tables, as Borealis binds them for its own draws (<c>ViewEnvironment</c>, native's
+	/// renderingpipeline_standard.cpp): what draws on the frame read too. Without the BRDF lookup a forward shader drawn
+	/// through the engine (Mow the Lawn's terrain) has no environment reflection.
+	/// </summary>
+	static readonly (StringToken Name, string Path)[] ViewTextureFiles =
+	[
+		("BlueNoise", "textures/dev/blue_noise_256.vtex"),
+		("BRDFLookup", "textures/dev/ggx_integrate_brdf_lut_schlick.vtex"),
+		("LtcAmplitudeLookup", "textures/dev/ltc_amp.vtex"),
+		("LtcMatrixLookup", "textures/dev/ltc_mat.vtex"),
+	];
+
+	// Every block on the frame binds them: looked up once, again only if one was let go
+	static readonly Texture[] viewTextures = new Texture[ViewTextureFiles.Length];
+
+	internal static void SetViewTextures( RenderAttributes attributes )
+	{
+		for ( int i = 0; i < ViewTextureFiles.Length; i++ )
+		{
+			if ( viewTextures[i] is not { IsValid: true } ) viewTextures[i] = Texture.Load( ViewTextureFiles[i].Path );
+			attributes.Set( ViewTextureFiles[i].Name, viewTextures[i] );
+		}
+	}
 	static readonly StringToken DepthChainPrevFrameName = new( "DepthChainDownsamplePrevFrame" );
 	static readonly StringToken NormalsName = new( "NormalsGBuffer" );
 
@@ -340,7 +360,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			if ( normals.Engine is not null ) attributes.Set( NormalsName, normals.Engine );
 			if ( fog.Engine is not null ) attributes.Set( FogVolumeName, fog.Engine );
 
-			attributes.Set( BlueNoiseName, BlueNoise );
+			SetViewTextures( attributes );
 			attributes.Set( BloomInputName, Texture.Black );
 			draw();
 		}
@@ -448,7 +468,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 				attributes.Set( DepthChainPrevFrameName, DepthChain );
 			}
 
-			attributes.Set( BlueNoiseName, BlueNoise );
+			SetViewTextures( attributes );
 			attributes.Set( BloomInputName, Texture.Black );
 			return scope;
 		}
