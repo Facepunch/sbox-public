@@ -220,7 +220,7 @@ public sealed unsafe partial class Device
 	{
 		var layout = PipelineLayout( info.Sets );
 		if ( info.MeshShader.IsValid && !Capabilities.MeshShaders ) throw new InvalidOperationException( $"{info.Name}: the device has no mesh shaders" );
-		if ( info.SkipUntilReady && !(UsesLibraries( info ) && PartsReady( info, layout )) ) return Defer( info, layout );
+		if ( info.SkipUntilReady && SkipDrawsUntilReady && !(UsesLibraries( info ) && PartsReady( info, layout )) ) return Defer( info, layout );
 
 		ulong pipeline;
 		LinkedParts parts = null;
@@ -499,6 +499,23 @@ public sealed unsafe partial class Device
 	/// <paramref name="info"/> and any <paramref name="libraries"/> given.
 	/// </summary>
 	ulong MakeGraphics( in GraphicsPipelineInfo info, PipelineParts parts, bool library, ulong layout, ulong* libraries, int libraryCount, uint flags )
+	{
+		// A shader isn't destroyed while a pipeline is made from it on another thread (Destroy( ShaderHandle ) waits)
+		var shaders = (parts & (PipelineParts.PreRasterization | PipelineParts.FragmentShader)) != 0;
+		if ( shaders ) shaderUse.EnterReadLock();
+		try
+		{
+			return MakeGraphicsWithShaders( info, parts, library, layout, libraries, libraryCount, flags );
+		}
+		finally
+		{
+			if ( shaders ) shaderUse.ExitReadLock();
+		}
+	}
+
+	readonly ReaderWriterLockSlim shaderUse = new();
+
+	ulong MakeGraphicsWithShaders( in GraphicsPipelineInfo info, PipelineParts parts, bool library, ulong layout, ulong* libraries, int libraryCount, uint flags )
 	{
 		using var strings = new NativeStrings();
 		var vertexInputPart = (parts & PipelineParts.VertexInput) != 0;

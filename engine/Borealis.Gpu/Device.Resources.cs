@@ -3,6 +3,7 @@ using Borealis.Gpu.Vulkan;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Borealis.Gpu;
 
@@ -927,8 +928,25 @@ public sealed unsafe partial class Device
 	/// <summary>Destroy a shader module. Pipelines made from it keep working.</summary>
 	public void Destroy( ShaderHandle shader )
 	{
+		// The module goes on a worker once no pipeline is being made from a shader, so the caller never waits for one
 		var record = Shaders.Remove( shader.Index, shader.Generation );
-		Vk.vkDestroyShaderModule( Vk.Device, record.Module, null );
+		lock ( moduleDestroys )
+		{
+			moduleDestroys.RemoveAll( t => t.IsCompleted );
+			moduleDestroys.Add( Task.Run( () =>
+			{
+				shaderUse.EnterWriteLock();
+				try
+				{
+					Vk.vkDestroyShaderModule( Vk.Device, record.Module, null );
+				}
+				finally
+				{
+					shaderUse.ExitWriteLock();
+				}
+			} ) );
+		}
+
 		DropParts( shader );
 	}
 
@@ -970,8 +988,11 @@ public sealed unsafe partial class Device
 		} );
 	}
 
+	readonly List<Task> moduleDestroys = new();
+
 	void DestroyAllResources()
 	{
+		lock ( moduleDestroys ) Task.WaitAll( [.. moduleDestroys] );
 		DestroyBindingSetPools();
 		var pipelines = Pipelines.All();
 		foreach ( var record in pipelines )

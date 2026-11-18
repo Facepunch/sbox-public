@@ -1410,6 +1410,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				info.FragmentConstants = null;
 			}
 
+			// A draw never waits for it: skipped until workers have made it
+			info.SkipUntilReady = true;
 			using ( Zones.PipelineCreate.Start() ) pipeline = Gpu.CreateGraphicsPipeline( info );
 			pipelines[key] = pipeline;
 			if ( DumpPixelShaders is { } dump && info.FragmentShader.IsValid ) DumpPixelShader( dump, variant, info.FragmentConstants, materialPerDraw );

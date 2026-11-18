@@ -43,6 +43,14 @@ public sealed unsafe partial class Device
 		}
 	}
 
+	/// <summary>
+	/// Whether pipelines made with <see cref="GraphicsPipelineInfo.SkipUntilReady"/> are made on workers while their draws are
+	/// skipped; off makes them where they're asked for, as every other pipeline is (tests that check a frame's pixels, say).
+	/// On unless <c>-no-skip-draws</c> or <c>BOREALIS_SKIP_DRAWS=0</c>.
+	/// </summary>
+	public bool SkipDrawsUntilReady { get; set; } = !Environment.GetCommandLineArgs().Contains( "-no-skip-draws", StringComparer.OrdinalIgnoreCase )
+		&& Environment.GetEnvironmentVariable( "BOREALIS_SKIP_DRAWS" ) != "0";
+
 	/// <summary>Whether a pipeline can draw: false while workers make it (<see cref="GraphicsPipelineInfo.SkipUntilReady"/>).</summary>
 	public bool IsReady( PipelineHandle pipeline ) => Volatile.Read( ref Get( pipeline ).Pipeline ) != 0;
 
