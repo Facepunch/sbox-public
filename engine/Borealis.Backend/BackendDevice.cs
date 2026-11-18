@@ -1031,6 +1031,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				using ( Zones.MapLightmaps.Start() )
 				using ( WaitForLightmapUploads ? default : Gpu.DeferUploads() )
 					made = LightmapParameters( world.Lightmaps, world.LightmapUvScale );
+				mapLightmapPaths[folder] = [.. world.Lightmaps];
 			}
 			catch ( Exception e ) when ( e is IOException or InvalidDataException or KeyNotFoundException )
 			{
@@ -1039,6 +1040,54 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 			return mapLightmaps[folder] = made;
 		}
+	}
+
+	// Mirrors drawing each map's lightmaps (HoldMapLightmaps)
+	readonly Dictionary<string, int> mapLightmapHolders = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, string[]> mapLightmapPaths = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>A world drawing the map in <paramref name="folder"/>'s lightmaps; <see cref="ReleaseMapLightmaps"/> when it's gone.</summary>
+	public void HoldMapLightmaps( string folder )
+	{
+		lock ( mapLightmaps ) mapLightmapHolders[folder] = mapLightmapHolders.GetValueOrDefault( folder ) + 1;
+	}
+
+	/// <summary>Map lightmap sets freed once no world drew them, for soaks and tests.</summary>
+	public int MapLightmapsReleased { get; private set; }
+
+	/// <summary>
+	/// A world that drew the map in <paramref name="folder"/>'s lightmaps has gone. When it was the last, the lightmaps are
+	/// destroyed (once the GPU is done with them) and read again if a world draws the map again: a map's are hundreds of MiB.
+	/// </summary>
+	public void ReleaseMapLightmaps( string folder )
+	{
+		string[] paths;
+		lock ( mapLightmaps )
+		{
+			if ( !mapLightmapHolders.TryGetValue( folder, out var holders ) ) return;
+			if ( --holders > 0 )
+			{
+				mapLightmapHolders[folder] = holders;
+				return;
+			}
+
+			mapLightmapHolders.Remove( folder );
+			mapLightmaps.Remove( folder );
+			if ( !mapLightmapPaths.Remove( folder, out paths ) ) return;
+		}
+
+		var textures = new List<GpuTexture>( paths.Length );
+		lock ( loadedTextures )
+		{
+			foreach ( var path in paths )
+			{
+				if ( loadedTextures.TryGetValue( path, out var texture ) && loadedTextures.Remove( path ) ) textures.Add( texture );
+			}
+		}
+
+		foreach ( var texture in textures ) texture?.Dispose();
+
+		MapLightmapsReleased++;
 	}
 
 	/// <summary>Eight lightmap bindless indices (six used), as two int4s.</summary>
