@@ -146,10 +146,43 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	}
 
 	/// <summary>
-	/// Queue changes from any thread for the next sync.
+	/// What a change waits for the next sync to apply, merged with the object's other changes: an object coming or going, and
+	/// what works its draws or attributes out again. The rest of a change to an object that reads nothing from native applies
+	/// at once (<see cref="WritesDirectly"/>).
+	/// </summary>
+	const SceneObjectChange Queued = SceneObjectChange.Added | SceneObjectChange.Removed | SceneObjectChange.Deleted | SceneObjectChange.Model
+		| SceneObjectChange.Material | SceneObjectChange.Attributes;
+
+	// While Sync applies changes: a change reported meanwhile (a texture that loaded) waits for the next
+	bool syncing;
+
+	/// <summary>
+	/// Whether an object's changes go straight into its render object rather than waiting for a sync: the kinds that read
+	/// nothing from native code (decals, point and spot lights, cubemaps, custom and dynamic objects, and models managed code
+	/// made). Animated objects and those native code made (a map's) wait for the sync, which reads what native has.
+	/// </summary>
+	static bool WritesDirectly( SceneObject sceneObject ) => sceneObject switch
+	{
+		SceneModel or SceneDirectionalLight or SceneLightProbe or SceneSkyBox => false,
+		DecalSceneObject or SceneLight or SceneCubemap or SceneCustomObject or SceneDynamicObject => true,
+		_ => sceneObject.GetType() == typeof( SceneObject ) && sceneObject.ResolvesDraws,
+	};
+
+	/// <summary>
+	/// A change, from any thread. One to an object that writes directly (<see cref="WritesDirectly"/>), made on the main thread
+	/// outside a sync and outside a render of the world, goes into its render object at once; anything else is queued for the
+	/// next sync.
 	/// </summary>
 	public void OnChanged( SceneObject sceneObject, SceneObjectChange change )
 	{
+		if ( (change & Queued) == 0 && !syncing && World.Rendering == 0 && ThreadSafe.IsMainThread && WritesDirectly( sceneObject )
+			&& objects.TryGetValue( sceneObject, out var obj ) && obj is not null && sceneObject.IsValid() )
+		{
+			using ( Borealis.Zones.MirrorDirect.Start() )
+				ApplyTo( sceneObject, obj, change );
+			return;
+		}
+
 		lock ( gate )
 		{
 			// Native lights with a deleted light until its frame ends: the frame it was deleted in decides how long it's kept
@@ -229,6 +262,19 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	{
 		using var zone = Borealis.Zones.MirrorSync.Start();
 		HasSynced = true;
+		syncing = true;
+		try
+		{
+			SyncChanges( camera, skyboxView );
+		}
+		finally
+		{
+			syncing = false;
+		}
+	}
+
+	void SyncChanges( SceneCamera camera, bool skyboxView )
+	{
 
 		// A reload queues the objects drawing what it changed, and so does a model finishing loading
 		using ( Borealis.Zones.MirrorLoaded.Start() )
@@ -307,6 +353,12 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			change = Everything;
 		}
 
+		ApplyTo( sceneObject, obj, change );
+	}
+
+	/// <summary>A change to an object already mirrored (<paramref name="obj"/> null for one that isn't drawn as an object).</summary>
+	void ApplyTo( SceneObject sceneObject, RenderObject obj, SceneObjectChange change )
+	{
 		if ( obj is not null && (change & SceneObjectChange.Tags) != 0 )
 			obj.Tags = TagsOf( sceneObject );
 
@@ -592,8 +644,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			mesh.Transform = sceneObject.Transform;
 
 		// Local lighting origins move with the object.
+		// Only a map's objects have one (worldnode.cpp), so one managed code made isn't asked
 		if ( (change & (SceneObjectChange.Transform | SceneObjectChange.Flags | Draws)) != 0 )
-			mesh.LightingOrigin = sceneObject.native.HasLightingOrigin() ? sceneObject.native.GetLightingOrigin() : null;
+			mesh.LightingOrigin = !sceneObject.ResolvesDraws && sceneObject.native.HasLightingOrigin() ? sceneObject.native.GetLightingOrigin() : null;
 
 		// Track mutable attributes, read when a view draws the object (Refresh)
 		if ( (change & SceneObjectChange.Attributes) != 0 )
@@ -782,7 +835,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		mesh.Decal = flags.HasFlag( SceneObjectFlags.IsDecal );
 		mesh.NeedsLightProbe = flags.HasFlag( SceneObjectFlags.NeedsLightProbe );
 		mesh.LightGroup = (uint)sceneObject.LightGroup;
-		mesh.LightProbeHandshake = SceneNative.LightProbeHandshake( sceneObject );
+		mesh.LightProbeHandshake = sceneObject.ResolvesDraws ? 0 : SceneNative.LightProbeHandshake( sceneObject );
 
 		mesh.LayerMatch = LayerMatchFor( sceneObject.LayerMatchToken );
 		mesh.RenderOrder = mesh.LayerMatch == LayerMatch.StaticOverlay ? sceneObject.RenderOrder : 0;

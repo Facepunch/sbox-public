@@ -99,6 +99,12 @@ public sealed class RenderWorld
 	/// </summary>
 	public int Count { get; private set; }
 
+	/// <summary>
+	/// How many renders of this world are under way (<see cref="RenderSystem.Render(RenderWorld, RenderView, ViewTarget)"/>):
+	/// while any is, its objects mustn't change, so a host applies changes before or after.
+	/// </summary>
+	public int Rendering { get; internal set; }
+
 	internal ReadOnlySpan<RenderObject> Objects => _objects.AsSpan( 0, Count );
 	internal ReadOnlySpan<Vector3> BoundsCenter => _boundsCenters.AsSpan( 0, Count );
 	internal ReadOnlySpan<Vector3> BoundsExtents => _boundsExtents.AsSpan( 0, Count );
