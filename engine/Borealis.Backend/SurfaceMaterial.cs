@@ -157,6 +157,9 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	/// <summary>Its compiled program, once a device found it (<see cref="SurfaceShaders"/>).</summary>
 	internal SurfaceProgram Program { get; set; }
 
+	/// <summary>Whether a model's draw calls noted the passes it draws with (<see cref="SurfaceShaders.NoteMaterial"/>).</summary>
+	internal bool PassesNoted { get; set; }
+
 	/// <summary>Its name, for diagnostics; the shader's by default.</summary>
 	public string DisplayName { get; set; }
 
