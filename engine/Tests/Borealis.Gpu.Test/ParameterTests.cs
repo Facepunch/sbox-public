@@ -96,6 +96,7 @@ public class ParameterTests
 	/// reads back as set and, once each name has been set a few times, allocates nothing.
 	/// </summary>
 	[TestMethod]
+	[TestCategory( Allocations.Category )]
 	public void ValuesSetEveryFrameAllocateNothing()
 	{
 		var parameters = new BackendParameters();

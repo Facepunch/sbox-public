@@ -178,7 +178,7 @@ internal sealed class BackendParameters : ShaderParameters
 
 			// Otherwise the box the name held before the current one (Replace keeps it), written again, as constant buffers'
 			// bytes are: the current box is never written, so a reader that took it still reads its value
-			else if ( spareBoxes.Remove( name.Value, out var spare ) && spare is T )
+			else if ( TakeBox<T>( name.Value ) is { } spare )
 			{
 				System.Runtime.CompilerServices.Unsafe.Unbox<T>( spare ) = value;
 				Replace( name.Value, spare );
@@ -278,7 +278,7 @@ internal sealed class BackendParameters : ShaderParameters
 		if ( values.TryGet( name, out var old ) && !ReferenceEquals( old, value ) )
 		{
 			if ( old is byte[] previous ) KeepBytes( name, previous );
-			else if ( old is not null && old.GetType().IsValueType && !IsShared( old ) ) spareBoxes[name] = old;
+			else if ( old is not null && old.GetType().IsValueType && !IsShared( old ) ) KeepBox( name, old );
 		}
 
 		values.Set( name, value );
@@ -490,8 +490,37 @@ internal sealed class BackendParameters : ShaderParameters
 		}
 	}
 
-	// Boxed numbers by name that no value holds now (replaced, cleared or recycled), to hold the same names' next values
-	readonly Dictionary<uint, object> spareBoxes = new();
+	// Boxed numbers by name that no value holds now (replaced, cleared or recycled), to hold the same names' next values: two
+	// a name, as bytes keep two, so a set cleared every frame keeps the box it cleared as well as the one replaced before
+	readonly Dictionary<uint, (object First, object Second)> spareBoxes = new();
+
+	// A spare box of the name's that holds a T, taken. Hold gate
+	object TakeBox<T>( uint name ) where T : struct
+	{
+		if ( !spareBoxes.TryGetValue( name, out var spare ) ) return null;
+		if ( spare.First is T )
+		{
+			if ( spare.Second is null ) spareBoxes.Remove( name );
+			else spareBoxes[name] = (spare.Second, null);
+			return spare.First;
+		}
+
+		if ( spare.Second is T )
+		{
+			spareBoxes[name] = (spare.First, null);
+			return spare.Second;
+		}
+
+		return null;
+	}
+
+	// Keep a box no value holds now, up to two a name. Hold gate
+	void KeepBox( uint name, object box )
+	{
+		ref var spare = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrAddDefault( spareBoxes, name, out _ );
+		if ( ReferenceEquals( spare.First, box ) || ReferenceEquals( spare.Second, box ) ) return;
+		spare = spare.First is null ? (box, spare.Second) : (box, spare.First);
+	}
 
 	// Whether this is a pooled set (Recycle): read only by the pass using it, so its boxes are written in place
 	bool pooled;
@@ -517,7 +546,7 @@ internal sealed class BackendParameters : ShaderParameters
 		{
 			if ( !values.At( i, out var key, out var value ) ) continue;
 			if ( value is byte[] bytes ) KeepBytes( key, bytes );
-			else if ( value is not null && value.GetType().IsValueType && !IsShared( value ) ) spareBoxes[key] = value;
+			else if ( value is not null && value.GetType().IsValueType && !IsShared( value ) ) KeepBox( key, value );
 		}
 
 		values.Clear();
