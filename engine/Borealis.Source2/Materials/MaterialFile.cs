@@ -65,11 +65,16 @@ public sealed class MaterialFile
 	/// </summary>
 	public float[] Value( string name )
 	{
-		if ( Floats.TryGetValue( name, out var f ) ) return [f];
+		if ( scalars.TryGetValue( name, out var made ) ) return made;
+		if ( Floats.TryGetValue( name, out var f ) ) return scalars.GetOrAdd( name, [f] );
 		if ( Vectors.TryGetValue( name, out var v ) ) return v;
-		if ( Ints.TryGetValue( name, out var i ) ) return [i];
+		if ( Ints.TryGetValue( name, out var i ) ) return scalars.GetOrAdd( name, [i] );
 		return null;
 	}
+
+	// A number's value as the one-element array Value gives, made once: constants are written from them every time a
+	// material's values change. Shared, as the vectors' arrays are: readers don't write them
+	readonly System.Collections.Concurrent.ConcurrentDictionary<string, float[]> scalars = new( StringComparer.OrdinalIgnoreCase );
 
 	static Dictionary<string, T> Pairs<T>( Dictionary<string, object> root, string list, string valueKey, Func<object, T> convert )
 	{

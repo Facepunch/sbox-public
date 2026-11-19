@@ -886,16 +886,29 @@ public sealed unsafe partial class Device
 		var made = Volatile.Read( ref pipelinesMade ) + Volatile.Read( ref partsMade ) + Volatile.Read( ref optimisedMade );
 		if ( made == Volatile.Read( ref pipelinesSaved ) ) return false;
 
-		// Made from what the cache had: nothing new
-		var data = GetPipelineCacheData();
-		if ( (nuint)data.Length == savedSize )
+		// Made from what the cache had (nothing new), or grown past what a file holds: looked at again once more are made
+		var size = CacheSize();
+		if ( size == savedSize || size == 0 || size > PipelineCacheFile.MaxBytes )
 		{
 			Volatile.Write( ref pipelinesSaved, made );
 			return false;
 		}
 
-		if ( !PipelineCacheFile.Save( pipelineCachePath, data ) ) return false;
-		savedSize = (nuint)data.Length;
+		// Read into native memory: a map's cache runs to hundreds of MiB, which as a managed array went to the large object
+		// heap on every save
+		var data = (byte*)System.Runtime.InteropServices.NativeMemory.Alloc( size );
+		try
+		{
+			// Grown since it was sized: the next save takes it whole
+			if ( Vk.vkGetPipelineCacheData( Vk.Device, pipelineCache, &size, data ) != VkResult.Success ) return false;
+			if ( !PipelineCacheFile.Save( pipelineCachePath, new ReadOnlySpan<byte>( data, (int)size ) ) ) return false;
+		}
+		finally
+		{
+			System.Runtime.InteropServices.NativeMemory.Free( data );
+		}
+
+		savedSize = size;
 		Volatile.Write( ref pipelinesSaved, made );
 		return true;
 	}
@@ -926,17 +939,23 @@ public sealed unsafe partial class Device
 	// Destruction: deferred until every queue has finished the frame it was destroyed in
 	//
 
-	readonly struct Garbage( ulong graphics, ulong compute, Action free )
+	// What to free: a callback, or a persistent binding set back to its layout's free list (sets are destroyed every frame, and
+	// a callback each would allocate)
+	readonly struct Garbage( ulong graphics, ulong compute, Action free, BindingSetRecord set = default )
 	{
 		public readonly ulong Graphics = graphics;
 		public readonly ulong Compute = compute;
 		public readonly Action Free = free;
+		public readonly BindingSetRecord Set = set;
 	}
 
 	readonly List<Garbage> garbage = new();
 
 	/// <summary>What was destroyed this frame, tagged when the frame closes.</summary>
-	readonly List<Action> destroyedThisFrame = new();
+	readonly List<Garbage> destroyedThisFrame = new();
+
+	// What a collection frees, outside the lock
+	readonly List<Garbage> due = new();
 
 	/// <summary>
 	/// Free something once the GPU has finished the frame it was destroyed in: every list of the frame, those still
@@ -945,7 +964,13 @@ public sealed unsafe partial class Device
 	/// </summary>
 	internal void Defer( Action free )
 	{
-		lock ( garbage ) destroyedThisFrame.Add( free );
+		lock ( garbage ) destroyedThisFrame.Add( new Garbage( 0, 0, free ) );
+	}
+
+	/// <summary>Return a persistent binding set to its layout's free list once the GPU is done with it, as <see cref="Defer(Action)"/>.</summary>
+	void DeferSet( in BindingSetRecord set )
+	{
+		lock ( garbage ) destroyedThisFrame.Add( new Garbage( 0, 0, null, set ) );
 	}
 
 	/// <summary>The queues' values what was destroyed in the frame <see cref="BeginFrame"/> last closed waits for, for the tests.</summary>
@@ -958,7 +983,7 @@ public sealed unsafe partial class Device
 		{
 			if ( destroyedThisFrame.Count == 0 ) return;
 			var (graphics, compute) = (graphicsQueue.Submitted, computeQueue.Submitted);
-			foreach ( var free in destroyedThisFrame ) garbage.Add( new Garbage( graphics, compute, free ) );
+			foreach ( var item in destroyedThisFrame ) garbage.Add( new Garbage( graphics, compute, item.Free, item.Set ) );
 			destroyedThisFrame.Clear();
 			LastGarbageTag = (graphics, compute);
 		}
@@ -970,21 +995,28 @@ public sealed unsafe partial class Device
 		var graphics = graphicsQueue.Completed;
 		var compute = computeQueue.Completed;
 
-		List<Action> due = null;
-		lock ( garbage )
+		lock ( due )
 		{
-			for ( int i = 0; i < garbage.Count; i++ )
+			lock ( garbage )
 			{
-				var item = garbage[i];
-				if ( !force && (item.Graphics > graphics || item.Compute > compute) ) continue;
+				for ( int i = 0; i < garbage.Count; i++ )
+				{
+					var item = garbage[i];
+					if ( !force && (item.Graphics > graphics || item.Compute > compute) ) continue;
 
-				(due ??= new()).Add( item.Free );
-				garbage.RemoveAt( i-- );
+					due.Add( item );
+					garbage.RemoveAt( i-- );
+				}
 			}
-		}
 
-		if ( due is null ) return;
-		foreach ( var free in due ) free();
+			foreach ( var item in due )
+			{
+				if ( item.Free is { } free ) free();
+				else FreeSet( item.Set );
+			}
+
+			due.Clear();
+		}
 	}
 
 	/// <summary>Destroy a buffer once the GPU is done with it.</summary>

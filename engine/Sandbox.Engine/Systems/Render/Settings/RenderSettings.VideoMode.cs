@@ -45,7 +45,7 @@ public partial class RenderSettings
 			var defaultValue = RenderMultisampleType.RENDER_MULTISAMPLE_NONE;
 			var value = VideoSettings.Get( "aaquality", defaultValue );
 
-			if ( !Enum.IsDefined( typeof( RenderMultisampleType ), value ) )
+			if ( !Enum.IsDefined( value ) )
 				value = defaultValue;
 
 			return value.FromEngine();

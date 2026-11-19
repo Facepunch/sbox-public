@@ -41,6 +41,20 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	/// </summary>
 	internal static (Mode Mode, float Scale) Settings()
 	{
+		// Read again when a convar was set, or every second or so for a change native made itself: the convars come from
+		// native as new strings each time
+		if ( settingsRead != 0 && settingsChanges == ConVarSystem.Changes && Application.FrameCount - settingsRead < SettingsReadFrames ) return settings;
+		(settingsRead, settingsChanges) = (Math.Max( Application.FrameCount, 1 ), ConVarSystem.Changes);
+		return settings = ReadSettings();
+	}
+
+	const ulong SettingsReadFrames = 60;
+	static ulong settingsRead;
+	static int settingsChanges;
+	static (Mode Mode, float Scale) settings;
+
+	static (Mode Mode, float Scale) ReadSettings()
+	{
 		var mode = (Mode)Math.Clamp( ConVarSystem.GetInt( "r_upscaling", 0, true ), 0, (int)Mode.Dlss );
 		if ( mode == Mode.Stretch ) mode = Mode.Off;
 

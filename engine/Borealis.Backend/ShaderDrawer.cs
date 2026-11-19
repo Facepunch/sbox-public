@@ -457,9 +457,12 @@ public sealed class ShaderDrawer : IDisposable
 	bool ReadsInstanceIds( ShaderVariant variant )
 	{
 		if ( !InstanceIds.Buffer.IsValid ) return false;
-		foreach ( var input in variant.VertexInputs )
+
+		// By index: every draw asks, and enumerating the list through its interface boxed an enumerator each time
+		var inputs = variant.VertexInputs;
+		for ( int i = 0; i < inputs.Count; i++ )
 		{
-			if ( IsInstanceId( input ) ) return true;
+			if ( IsInstanceId( inputs[i] ) ) return true;
 		}
 
 		return false;

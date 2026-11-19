@@ -401,11 +401,19 @@ internal sealed class GpuDrivenTables : IDisposable
 				var slot = page.Slot;
 				lock ( geometryRecords )
 				{
-					foreach ( var key in geometryRecords.Keys.Where( k => k.Page == slot ).ToList() ) geometryRecords.Remove( key );
+					// Removing while enumerating is allowed for a dictionary's own enumerator
+					foreach ( var (key, _) in geometryRecords )
+					{
+						if ( key.Page == slot ) geometryRecords.Remove( key );
+					}
 				}
 
-				// Nothing makes a draw over a freed page's slot meanwhile: its meshes have gone
-				foreach ( var key in drawRecords.Keys.Where( k => k.IndexPage == slot ).ToList() ) drawRecords.TryRemove( key, out _ );
+				// Nothing makes a draw over a freed page's slot meanwhile: its meshes have gone. The concurrent dictionary's
+				// enumerator sees removals safely
+				foreach ( var (key, _) in drawRecords )
+				{
+					if ( key.IndexPage == slot ) drawRecords.TryRemove( key, out _ );
+				}
 
 				if ( vertexPagesBySlot.Remove( slot ) is false && indexPagesBySlot.Remove( slot, out var index ) ) levelBytes -= index.LevelUsed - index.Limit;
 				owned.Remove( page.Buffer );

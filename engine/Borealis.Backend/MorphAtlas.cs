@@ -191,7 +191,7 @@ internal sealed class MorphAtlas( BackendDevice device )
 				var upload = list.AllocateUpload( bytes.Length, 16 );
 				bytes.CopyTo( upload.Data );
 
-				var attributes = new ShaderAttributes();
+				var attributes = compositeAttributes ??= new ShaderAttributes();
 				var viewport = new System.Numerics.Vector4( 0, 0, Width, Height );
 				attributes.SetCombo( "D_COMPOSITETYPE", 0 );
 				drawer.Draw( list, shader, attributes, Format.RGBA16Float, 1, upload.Buffer, upload.Offset, Layout, positions, PrimitiveTopology.TriangleList, viewport );
@@ -206,8 +206,9 @@ internal sealed class MorphAtlas( BackendDevice device )
 		}
 	}
 
-	// The composite vertices of the last generation (under the queue's lock)
+	// The composite vertices of the last generation (under the queue's lock), and the attributes it draws with
 	readonly List<Vertex> vertices = new();
+	ShaderAttributes compositeAttributes;
 
 	/// <summary>The composite shader (<c>SCENESYSTEMMAT_MORPH_MATERIAL</c>).</summary>
 	const string Shader = "shaders/morph_composite.shader";
@@ -293,6 +294,7 @@ public sealed class BackendMorphs( BackendDevice device ) : IMorphSource
 {
 	readonly Dictionary<string, float> values = new( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<(GpuMesh, int), (float[] Delayed, float Time)> delayed = new();
+	[ThreadStatic] static float[] scratchWeights;
 
 	/// <summary>Set a flex controller by name.</summary>
 	public void Set( string controller, float value ) => values[controller] = value;
@@ -310,14 +312,17 @@ public sealed class BackendMorphs( BackendDevice device ) : IMorphSource
 		Span<float> controllers = stackalloc float[set.Controllers.Count];
 		for ( int i = 0; i < controllers.Length; i++ ) controllers[i] = values.GetValueOrDefault( set.Controllers[i].Name );
 
-		var weights = new float[set.FlexDescs.Count];
+		// Scratch: the atlas's queue copies them
+		if ( scratchWeights is null || scratchWeights.Length < set.FlexDescs.Count ) scratchWeights = new float[Math.Max( set.FlexDescs.Count, 64 )];
+		var weights = scratchWeights.AsSpan( 0, set.FlexDescs.Count );
+		weights.Clear();
 		set.RunFlexRules( controllers, weights );
 
 		// Delayed weights ease towards the weights (ExponentialDecay( 0.8, 0.033, dt )), from the weights the first time
 		var now = device.RenderTime;
 		if ( !delayed.TryGetValue( (mesh, modelMesh), out var last ) || last.Delayed.Length != weights.Length )
 		{
-			last = ((float[])weights.Clone(), now);
+			last = (weights.ToArray(), now);
 		}
 		else
 		{

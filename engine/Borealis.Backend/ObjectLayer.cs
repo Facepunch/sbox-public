@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Threading;
 
 namespace Borealis.Backend;
@@ -68,17 +67,52 @@ internal sealed class ObjectLayer
 		{
 			if ( layer.Version == version ) return layer;
 
-			var names = new HashSet<uint>();
-			var combos = new Dictionary<uint, int>();
+			// Parameters set every frame bring their layers up to date every frame: kept scratch, and the key made again only
+			// when it differs
+			var names = scratchNames ??= new();
+			var combos = scratchCombos ??= new();
+			names.Clear();
+			combos.Clear();
 			parameters.Names( names, combos );
 			cache.AddLayerNames( names );
-
-			var key = new System.Text.StringBuilder();
-			foreach ( var (combo, value) in combos.OrderBy( c => c.Key ) ) key.Append( combo ).Append( '=' ).Append( value ).Append( ';' );
-			layer.Combos = string.Intern( key.ToString() );
+			layer.Combos = ComboKey( combos, layer.Combos );
 			Volatile.Write( ref layer.Version, version );
 		}
 
 		return layer;
+	}
+
+	[ThreadStatic] static HashSet<uint> scratchNames;
+	[ThreadStatic] static Dictionary<uint, int> scratchCombos;
+	[ThreadStatic] static List<KeyValuePair<uint, int>> scratchSorted;
+	[ThreadStatic] static System.Text.StringBuilder scratchKey;
+
+	/// <summary>The combos as a key, by name (<see cref="Combos"/>): <paramref name="current"/> when it's the same.</summary>
+	static string ComboKey( Dictionary<uint, int> combos, string current )
+	{
+		if ( combos.Count == 0 ) return "";
+
+		var sorted = scratchSorted ??= new();
+		sorted.Clear();
+		foreach ( var combo in combos ) sorted.Add( combo );
+		sorted.Sort( static ( a, b ) => a.Key.CompareTo( b.Key ) );
+
+		var key = scratchKey ??= new();
+		key.Clear();
+		foreach ( var (combo, value) in sorted ) key.Append( combo ).Append( '=' ).Append( value ).Append( ';' );
+		return key.Equals( current.AsSpan() ) ? current : string.Intern( key.ToString() );
+	}
+
+	// The last key joined with a lighting layer's (BackendContext.SetObjectAttributes), so drawing the same pair again joins nothing
+	(string Lighting, string Joined) joined;
+
+	/// <summary>This layer's combos then <paramref name="lighting"/>'s, as one interned key.</summary>
+	public string JoinedWith( string lighting )
+	{
+		lock ( this )
+		{
+			if ( !ReferenceEquals( joined.Lighting, lighting ) || joined.Joined is null ) joined = (lighting, string.Intern( Combos + "|" + lighting ));
+			return joined.Joined;
+		}
 	}
 }
