@@ -58,15 +58,80 @@ public class TextureStreamingTests : GpuTest
 			long bytes = 0;
 			for ( int mip = tail.TopMip; mip < tail.Mips; mip++ )
 			{
-				CollectionAssert.AreEqual( full.MipData[mip], tail.MipData[mip], $"{path} mip {mip}" );
-				bytes += tail.MipData[mip].Length;
+				Assert.IsTrue( full.MipData[mip].AsSpan().SequenceEqual( tail.Mip( mip ) ), $"{path} mip {mip}" );
+				bytes += tail.Mip( mip ).Length;
 			}
 
 			Assert.IsTrue( bytes <= TextureFile.TailBytes || tail.TopMip == tail.Mips - 1, $"{path}: tail of {bytes} bytes" );
 
 			var finer = TextureStreamer.ReadMips( content, path, 1 );
 			Assert.AreEqual( 1, finer.TopMip, path );
-			CollectionAssert.AreEqual( full.MipData[1], finer.MipData[1], path );
+			Assert.IsTrue( full.MipData[1].AsSpan().SequenceEqual( finer.Mip( 1 ) ), path );
+			tail.Release();
+			finer.Release();
+		}
+	}
+
+	/// <summary>
+	/// Streaming a texture's mips in makes next to no garbage: its file is read into, and its mips decoded into, pooled
+	/// arrays that go back once they're written, and the Zstandard decoder keeps its tables between mips. Before, a 2 MiB
+	/// texture's build made its size again in garbage, much of it on the large object heap.
+	/// </summary>
+	[TestMethod]
+	public void StreamedReadsAllocateLittle()
+	{
+		var content = ContentFiles.FindGame();
+		var paths = StreamingTextures( 4 );
+
+		// Once each first: the pool fills and the decoder's tables are made
+		foreach ( var path in paths ) TextureStreamer.ReadMips( content, path, 0 ).Release();
+
+		foreach ( var path in paths )
+		{
+			var before = GC.GetAllocatedBytesForCurrentThread();
+			var file = TextureStreamer.ReadMips( content, path, 0 );
+			var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+			var decoded = TextureStreamer.Bytes( file, 0 );
+			file.Release();
+
+			Assert.IsTrue( allocated < 4096, $"{path}: reading {decoded} bytes of mips allocated {allocated} bytes" );
+		}
+
+		Assert.IsTrue( ContentBuffers.KeptBytes > 0, "released mips went back to the pool" );
+	}
+
+	/// <summary>
+	/// A full pool lets go of the sizes least lately asked for to keep one asked for since, so it follows what streams (a
+	/// map's coarse mips given back, then fine ones read) rather than holding on to what nothing asks for any more.
+	/// </summary>
+	[TestMethod]
+	public void FullPoolKeepsTheSizesAskedForLately()
+	{
+		var most = ContentBuffers.MaxKeptBytes;
+		try
+		{
+			ContentBuffers.Clear();
+			ContentBuffers.MaxKeptBytes = 1 << 20;
+			var small = Enumerable.Range( 0, 4 ).Select( _ => ContentBuffers.Rent( 256 << 10 ) ).ToArray();
+			foreach ( var array in small ) ContentBuffers.Return( array );
+			Assert.AreEqual( 1L << 20, ContentBuffers.KeptBytes, "four quarter-MiB arrays fill it" );
+
+			var large = ContentBuffers.Rent( 512 << 10 );
+			ContentBuffers.Return( large );
+			Assert.AreSame( large, ContentBuffers.Rent( 512 << 10 ), "the size asked for lately is kept" );
+			Assert.IsTrue( ContentBuffers.KeptBytes <= 1 << 20, "within the most it keeps" );
+
+			// Nothing asked for since: a size asked for longer ago doesn't push it out
+			ContentBuffers.Return( large );
+			var made = ContentBuffers.MadeBytes;
+			ContentBuffers.Return( new byte[256 << 10] );
+			Assert.AreSame( large, ContentBuffers.Rent( 512 << 10 ) );
+			Assert.AreEqual( made, ContentBuffers.MadeBytes );
+		}
+		finally
+		{
+			ContentBuffers.MaxKeptBytes = most;
+			ContentBuffers.Clear();
 		}
 	}
 

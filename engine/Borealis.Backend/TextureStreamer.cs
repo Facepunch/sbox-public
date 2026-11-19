@@ -225,6 +225,12 @@ internal sealed class TextureStreamer
 
 	long UploadBytes => Loading ? Math.Max( LoadingUploadBytesPerFrame, UploadBytesPerFrame ) : UploadBytesPerFrame;
 
+	/// <summary>
+	/// Frames of uploads that builds read and decode ahead of, at most: their mips wait in pooled arrays
+	/// (<see cref="ContentBuffers"/>) until they're written, and more than the pool keeps would be made and let go again.
+	/// </summary>
+	public int FramesAhead { get; set; } = 2;
+
 	/// <summary>A budget in bytes for streamed textures, or 0 for as much as video memory has room for.</summary>
 	public long BudgetBytes { get; set; }
 
@@ -396,9 +402,23 @@ internal sealed class TextureStreamer
 	{
 		public StreamedTexture Texture;
 		public int Top;
+		public ContentFiles Content;
 		public Task<TextureFile> Read;
 		public TextureHandle Image;
 		public int NextMip = -1;
+
+		/// <summary>On a worker: the texture's mips from <see cref="Top"/>, pooled until they're uploaded.</summary>
+		public static readonly Func<object, TextureFile> ReadFile = static state =>
+		{
+			var build = (Build)state;
+			return ReadMips( build.Content, build.Texture.Path, build.Top );
+		};
+
+		/// <summary>The file it read, if it has, its mips given back: once they're uploaded, or it's dropped.</summary>
+		public void Release()
+		{
+			if ( Read is { IsCompletedSuccessfully: true, Result: { } file } ) file.Release();
+		}
 	}
 
 	/// <summary>Bytes the last <see cref="Update"/> uploaded.</summary>
@@ -439,7 +459,8 @@ internal sealed class TextureStreamer
 			Uploaded = uploaded;
 			if ( build.NextMip >= build.Top ) continue;
 
-			// Every mip written with the frame's next submission, ahead of anything that samples it
+			// Every mip written with the frame's next submission, ahead of anything that samples it; the writes copied them
+			file.Release();
 			var bytes = texture.BytesFrom( build.Top );
 			ResidentBytes += bytes - texture.ResidentBytes;
 			texture.Texture.Swap( build.Image );
@@ -470,6 +491,7 @@ internal sealed class TextureStreamer
 
 	void Drop( Build build, int index )
 	{
+		build.Release();
 		if ( build.NextMip >= 0 ) device.Gpu.Destroy( build.Image );
 		build.Texture.Building = null;
 		builds.RemoveAt( index );
@@ -553,14 +575,19 @@ internal sealed class TextureStreamer
 				return shortfall != 0 ? shortfall : b.LastAsked.CompareTo( a.LastAsked );
 			} );
 
+			// Mips read or waiting to be written
+			long ahead = 0;
+			foreach ( var build in builds ) ahead += build.Texture.BytesFrom( build.Top );
+
 			foreach ( var texture in candidates )
 			{
 				var grow = texture.BytesFrom( texture.Reachable ) - texture.ResidentBytes;
 				if ( grow > available ) continue;
 				waiting++;
-				if ( builds.Count >= BuildsAtOnce ) continue;
+				if ( builds.Count >= BuildsAtOnce || (builds.Count > 0 && ahead >= UploadBytes * FramesAhead) ) continue;
 				available -= grow;
 				startedSinceMemory += grow;
+				ahead += texture.BytesFrom( texture.Reachable );
 				StartBuild( texture, texture.Reachable );
 			}
 		}
@@ -570,27 +597,32 @@ internal sealed class TextureStreamer
 
 	void StartBuild( StreamedTexture texture, int top )
 	{
-		var content = device.Content;
-		var path = texture.Path;
-		var build = new Build { Texture = texture, Top = top };
+		var build = new Build { Texture = texture, Top = top, Content = device.Content };
 		BuildsStarted++;
-		build.Read = BackendDevice.Read( () => ReadMips( content, path, top ) );
+		build.Read = BackendDevice.Read( Build.ReadFile, build );
 		texture.Building = build;
 		builds.Add( build );
 	}
 
-	/// <summary>A texture's mips from <paramref name="top"/>, reading only as much of its file as they need; null when it can't be read.</summary>
+	/// <summary>
+	/// A texture's mips from <paramref name="top"/>, reading only as much of its file as they need; null when it can't be
+	/// read. Its file is read into, and its mips decoded into, <see cref="ContentBuffers"/>: <see cref="TextureFile.Release"/>
+	/// it once they're written.
+	/// </summary>
 	internal static TextureFile ReadMips( ContentFiles content, string path, int top )
 	{
+		byte[] data = null;
 		try
 		{
 			// The header and the tail fit the first read of most textures; finer mips read the header, then on to them
-			var data = content.TryReadPrefix( path, top < 0 ? TextureFile.TailBytes + 16384 : 16384 );
+			data = content.TryReadPrefixPooled( path, top < 0 ? TextureFile.TailBytes + 16384 : 16384, out var length );
 			for ( int i = 0; data is not null && i < 4; i++ )
 			{
-				var needed = TextureFile.PrefixNeeded( data, top );
-				if ( needed <= data.Length ) return TextureFile.Read( data, top );
-				data = content.TryReadPrefix( path, needed );
+				var needed = TextureFile.PrefixNeeded( data.AsSpan( 0, length ), top );
+				if ( needed <= length ) return TextureFile.Read( data.AsSpan( 0, length ), top, pooled: true );
+				ContentBuffers.Return( data );
+				data = null;
+				data = content.TryReadPrefixPooled( path, needed, out length );
 			}
 
 			return null;
@@ -598,6 +630,28 @@ internal sealed class TextureStreamer
 		catch ( InvalidDataException )
 		{
 			return null;
+		}
+		finally
+		{
+			ContentBuffers.Return( data );
+		}
+	}
+
+	/// <summary>
+	/// A texture's every mip, read and decoded into <see cref="ContentBuffers"/> as <see cref="ReadMips"/> reads them, or
+	/// null when there's no file; throws for one that can't be read. <see cref="TextureFile.Release"/> it once written.
+	/// </summary>
+	internal static TextureFile ReadWhole( ContentFiles content, string path )
+	{
+		var data = content.TryReadPrefixPooled( path, long.MaxValue, out var length );
+		if ( data is null ) return null;
+		try
+		{
+			return TextureFile.Read( data.AsSpan( 0, length ), 0, pooled: true );
+		}
+		finally
+		{
+			ContentBuffers.Return( data );
 		}
 	}
 }
