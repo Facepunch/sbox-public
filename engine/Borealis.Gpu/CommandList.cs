@@ -29,6 +29,12 @@ public sealed unsafe class CommandList
 {
 	const long PageSize = 4 << 20;
 
+	/// <summary>
+	/// Upload page sizes: a list starts with the smallest and takes the next size up each time it fills one, so the many
+	/// lists that upload a little don't each hold 4 MiB (Construct's frames took about 50 lists, 200 MiB of pages).
+	/// </summary>
+	internal static readonly long[] PageSizes = [256 << 10, 1 << 20, PageSize];
+
 	readonly Device device;
 	readonly VkDeviceApi vk;
 	readonly ulong pool;
@@ -221,14 +227,14 @@ public sealed unsafe class CommandList
 
 		foreach ( var p in pages )
 		{
-			if ( p.Size == PageSize )
+			if ( p.Class >= 0 )
 			{
 				p.Used = 0;
-				device.FreePages.Add( p );
+				device.FreePages[p.Class].Add( p );
 			}
 			else
 			{
-				device.Destroy( p.Buffer );
+				device.DestroyPage( p );
 			}
 		}
 
@@ -1089,17 +1095,23 @@ public sealed unsafe class CommandList
 
 	void NewPage( int size )
 	{
+		// The next size up from the list's last page, or one that holds the request
+		var next = page is null ? 0 : Math.Min( page.Class < 0 ? PageSizes.Length - 1 : page.Class + 1, PageSizes.Length - 1 );
+		while ( next < PageSizes.Length - 1 && PageSizes[next] < size ) next++;
+		var pageClass = size <= PageSizes[next] ? next : -1;
+		Interlocked.Increment( ref device.UploadPagesTaken );
+
 		UploadPage fresh;
-		if ( size <= PageSize && device.FreePages.TryTake( out var recycled ) )
+		if ( pageClass >= 0 && device.FreePages[pageClass].TryTake( out var recycled ) )
 		{
 			fresh = recycled;
 		}
 		else
 		{
-			// Each its own allocation, so pages freed as fewer are needed leave no holes in shared blocks
-			var pageSize = Math.Max( PageSize, (size + 0xFFFF) & ~0xFFFFL );
+			// The biggest each their own allocation, so pages freed as fewer are needed leave no holes in shared blocks
+			var pageSize = pageClass >= 0 ? PageSizes[pageClass] : (size + 0xFFFF) & ~0xFFFFL;
 			BufferHandle buffer;
-			Memory.MemoryAllocator.OwnAllocation = true;
+			Memory.MemoryAllocator.OwnAllocation = pageSize >= PageSize;
 			try
 			{
 				buffer = device.CreateBuffer( new BufferInfo
@@ -1116,7 +1128,8 @@ public sealed unsafe class CommandList
 			}
 
 			ref var record = ref device.Get( buffer );
-			fresh = new UploadPage { Buffer = buffer, VkBuffer = record.Buffer, Mapped = record.Memory.Mapped, Size = pageSize };
+			fresh = new UploadPage { Buffer = buffer, VkBuffer = record.Buffer, Mapped = record.Memory.Mapped, Size = pageSize, Class = pageClass };
+			Interlocked.Add( ref device.UploadPageBytes, pageSize );
 		}
 
 		pages.Add( fresh );
