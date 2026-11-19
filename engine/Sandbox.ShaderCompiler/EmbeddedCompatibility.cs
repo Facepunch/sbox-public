@@ -48,6 +48,11 @@ public static partial class EmbeddedCompatibility
 		// engine structs were classes once, and packages derive from them (class ShadingModelX : ShadingModelStandard).
 		body = ClassKeyword().Replace( body, "struct" );
 
+		// Older engines' pixel input had the face's side as bIsFrontFace in every pixel shader; today's has it as face, and
+		// only when back faces draw (S_RENDER_BACKFACES)
+		if ( FrontFaceUse().IsMatch( body ) && !FrontFaceDeclaration().IsMatch( body ) )
+			body = PixelInputInclude().Replace( body, m => m.Value + FrontFaceMember, 1 );
+
 		var end = new StringBuilder();
 		end.Append( '\n' );
 		if ( PcfDiscUse().IsMatch( body ) && !PcfDiscDeclaration().IsMatch( body ) ) end.Append( "#define SBOX_EMBEDDED_PCF_DISCS\n" );
@@ -148,6 +153,17 @@ public static partial class EmbeddedCompatibility
 
 	[GeneratedRegex( @"\bfloat2\s+PCFDiscSamples(?:5|12|29)\s*\[" )]
 	private static partial Regex PcfDiscDeclaration();
+
+	const string FrontFaceMember = "#if ( S_RENDER_BACKFACES )\n#define bIsFrontFace face\n#elif ( PROGRAM == VFX_PROGRAM_PS )\n\tbool bIsFrontFace : SV_IsFrontFace;\n#endif\n";
+
+	[GeneratedRegex( @"\.\s*bIsFrontFace\b" )]
+	private static partial Regex FrontFaceUse();
+
+	[GeneratedRegex( @"(?:\bbool\s+|#define\s+)bIsFrontFace\b" )]
+	private static partial Regex FrontFaceDeclaration();
+
+	[GeneratedRegex( @"\bstruct\s+PixelInput\s*\{[^}]*?#include\s+""common/pixelinput\.hlsl""[^\n]*\n" )]
+	private static partial Regex PixelInputInclude();
 
 	[GeneratedRegex( @"\bTextureFiltering\b" )]
 	private static partial Regex TextureFilteringUse();
