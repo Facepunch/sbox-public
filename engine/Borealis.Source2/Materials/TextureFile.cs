@@ -12,6 +12,7 @@ namespace Borealis.Source2.Materials;
 /// Zstandard compressed one by one (<c>VTEX_EXTRA_DATA_COMPRESSED_MIP_SIZE</c>, sizes listed largest mip first; a mip
 /// whose stored size is its full size is stored raw). A <c>PNG_RGBA8888</c> texture (an image file compiled as is) holds a
 /// PNG file there instead, read as 8-bit RGBA, its other mips made from it as Source 2 makes them on load (a 2x2 box filter).
+/// A file whose data ends before its finest mips reads as the mips it holds (<see cref="TopMip"/> the first).
 /// See <c>src/public/rendersystem/vtex_file_format.h</c>.
 /// </summary>
 public sealed class TextureFile
@@ -73,7 +74,7 @@ public sealed class TextureFile
 		}
 	}
 
-	/// <summary>The finest mip read: 0 unless it was read from <see cref="Tail"/> or a mip further down.</summary>
+	/// <summary>The finest mip read: 0 unless it was read from <see cref="Tail"/> or a mip further down, or the file holds only coarser ones.</summary>
 	public int TopMip { get; private init; }
 
 	/// <summary>
@@ -135,7 +136,15 @@ public sealed class TextureFile
 				{
 					var size = header.Size( mip );
 					var stored = header.Stored( mip );
-					if ( (long)position + stored > data.Length ) throw new InvalidDataException( $"Texture data ends before mip {mip}" );
+					if ( (long)position + stored > data.Length )
+					{
+						// A file that holds only its coarser mips (a package's web texture without its two finest): the mips
+						// it has, from the first whose data is all there
+						if ( mip == header.Mips - 1 ) throw new InvalidDataException( $"Texture data ends before mip {mip}" );
+						top = mip + 1;
+						break;
+					}
+
 					var source = data.Slice( position, stored );
 					var bytes = pooled ? ContentBuffers.Rent( size ) : new byte[size];
 					mipData[mip] = bytes;
