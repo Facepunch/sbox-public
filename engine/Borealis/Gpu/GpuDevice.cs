@@ -168,6 +168,12 @@ public abstract class GpuDevice
 	/// </summary>
 	internal virtual bool DrawsFadedGpuDriven => false;
 
+	/// <summary>
+	/// Whether the translucent list's draws draw GPU-driven (<see cref="DrawsMeshesGpuDriven"/> as well): in colour layers in
+	/// their sorted order (<see cref="GpuContext.GpuDrivenInOrder"/>), in shadows as the faded list's.
+	/// </summary>
+	internal virtual bool DrawsTranslucentGpuDriven => false;
+
 	/// <summary>Whether a map's static overlays draw GPU-driven, a call per render order, regrouped by pipeline within it.</summary>
 	internal virtual bool DrawsOverlaysGpuDriven => false;
 

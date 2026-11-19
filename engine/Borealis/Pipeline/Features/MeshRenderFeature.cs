@@ -654,7 +654,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			: run.Skinned ? (run.Morphable ? "skinned mesh, morphs" : run.Deformed ? "skinned mesh, deformed" : "skinned mesh")
 			: run.Morphable ? "mesh with morphs" : "static mesh";
 		var why = left ? "the device's GPU-driven path left it"
-			: list != MeshRuns.Opaque && list != MeshRuns.Faded ? $"{list} list (only the opaque and faded lists go GPU-driven)"
+			: list is not (MeshRuns.Opaque or MeshRuns.Faded or MeshRuns.Translucent) ? $"{list} list (only the opaque, faded and translucent lists go GPU-driven)"
 			: run.Custom is not null ? "custom object"
 			: run.Callbacks is not null ? "draw callbacks"
 			: run.Skinned ? "skinned"
@@ -663,8 +663,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			: run.ReadsFrameBuffer ? "reads the frame buffer"
 			: run.CullDraw >= 0 ? "occlusion culled"
 			: run.Attributes is not null ? "object attributes"
-			: RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } device ? (list == MeshRuns.Faded && !device.DrawsFadedGpuDriven ? "GPU-driven faded off" : "occlusion culling on") : "GPU-driven meshes off";
-		return list == MeshRuns.Faded ? $"{kind}, faded: {why}" : $"{kind}: {why}";
+			: RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } device ? (list == MeshRuns.Faded && !device.DrawsFadedGpuDriven ? "GPU-driven faded off" : list == MeshRuns.Translucent && !device.DrawsTranslucentGpuDriven ? "GPU-driven translucent off" : "occlusion culling on") : "GPU-driven meshes off";
+		return list == MeshRuns.Faded ? $"{kind}, faded: {why}" : list == MeshRuns.Translucent ? $"{kind}, translucent: {why}" : $"{kind}: {why}";
 	}
 
 	/// <summary>The view's draws <see cref="TakeGpuDriven"/> took.</summary>
@@ -1317,7 +1317,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( from >= to ) return;
 
 		if ( fade ) context.SetCombo( OpaqueFade, 1 );
-		if ( fade && FadedGpuDriven( context ) ) DrawFadedGpuDriven( context, view, runs, items[from..to], layer, ref stats, list );
+		if ( ListGpuDriven( context, list ) ) DrawListGpuDriven( context, view, runs, items[from..to], layer, ref stats, list );
 		else DrawItems( context, view, runs, items[from..to], layer, ref stats, list );
 		if ( fade ) context.SetCombo( OpaqueFade, 0 );
 	}

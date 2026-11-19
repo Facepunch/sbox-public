@@ -286,12 +286,30 @@ internal sealed partial class BackendContext
 			var lastAttributesSet = false;
 			var lastLighting = 0u;
 			var lastKey = 0L;
+			var inOrder = GpuDrivenInOrder && !cull.HasValue && plan is null;
+			var stopped = false;
+			var commandsBefore = 0;
 			for ( int i = plan is null ? 0 : prefix; i < batches.Length; i++ )
 			{
 				// The batches after a resident prefix go in buckets of their own
 				if ( i == prefix && plan is null && prefix > 0 ) openBucket = prefixBuckets = gpuDrivenBucketCount;
 
 				ref readonly var batch = ref batches[i];
+
+				// In order: nothing after a batch left to the caller; else only the last bucket, on its index page
+				if ( inOrder )
+				{
+					if ( stopped || (i > 0 && totalCommands == commandsBefore && batches[i - 1].Count > 0) )
+					{
+						stopped = true;
+						continue;
+					}
+
+					commandsBefore = totalCommands;
+					openBucket = Math.Max( gpuDrivenBucketCount - 1, 0 );
+					if ( gpuDrivenBucketCount > 0 && gpuDrivenBuckets[gpuDrivenBucketCount - 1].Batches is { Count: > 0 } last
+						&& batch.Mesh?.Geometry is IBackendGeometry && GeometryOf( batch ).Pooled is { } inOrderPooled && inOrderPooled.IndexPageSlot != last[^1].Page ) openBucket = gpuDrivenBucketCount;
+				}
 				if ( batch.TextureSize > 0 ) device.AskTextures( batch.Material, batch.TextureSize );
 
 				// A surface material: its own GPU-driven passes, in buckets of its own (BackendContext.Surfaces.cs)
