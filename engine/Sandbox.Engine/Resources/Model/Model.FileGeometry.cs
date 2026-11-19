@@ -87,8 +87,86 @@ internal static class ModelFileGeometry
 		return indices;
 	}
 
-	/// <summary>Decode one vertex buffer's fields into <paramref name="vertices"/>, as native's <c>ReadVertexStream</c> does.</summary>
-	static void Read( MeshVertexBuffer buffer, Span<Vertex> vertices )
+	/// <summary>
+	/// Decode one vertex buffer's fields into <paramref name="vertices"/>, as native's <c>ReadVertexStream</c> does: vertex
+	/// <c>v</c> from the buffer's <paramref name="first"/> + <paramref name="which"/>[v] (or + v without a list). Fields the
+	/// buffer doesn't carry are left as they are, except colour, which starts white.
+	/// </summary>
+	public static void Read( MeshVertexBuffer buffer, Span<Vertex> vertices, int first = 0, ReadOnlySpan<uint> which = default )
+	{
+		var (position, normal, tangent, color, uv0, uv1) = FieldsOf( buffer );
+
+		for ( int v = 0; v < vertices.Length; v++ )
+		{
+			var source = first + (which.IsEmpty ? v : (int)which[v]);
+			var data = buffer.Data.AsSpan( source * buffer.Stride, buffer.Stride );
+			ref var vertex = ref vertices[v];
+			vertex.Color = Color32.White;
+
+			if ( position is { } p && Readable( p.Format ) ) vertex.Position = Vector3Of( p.Read( data[p.Offset..] ) );
+			if ( tangent is { } t && Readable( t.Format ) ) vertex.Tangent = t.Read( data[t.Offset..] );
+
+			if ( normal is { } n )
+			{
+				var packed = BinaryPrimitives.ReadUInt32LittleEndian( data[n.Offset..] );
+				switch ( n.Format )
+				{
+					case ColorFormat.R8G8B8A8_UNORM:
+						{
+							var (nrm, tan) = TangentFrame.UnpackLegacy( packed );
+							vertex.Normal = nrm;
+							vertex.Tangent = tan;
+							break;
+						}
+					case ColorFormat.R10G10B10A2_UNORM:
+						{
+							var (nrm, tan) = TangentFrame.UnpackOctDiamond( packed );
+							vertex.Normal = nrm;
+							vertex.Tangent = tan;
+							break;
+						}
+					default:
+						if ( Readable( n.Format ) ) vertex.Normal = Vector3Of( n.Read( data[n.Offset..] ) );
+						break;
+				}
+			}
+
+			if ( color is { } c )
+			{
+				if ( c.Format == ColorFormat.R8G8B8A8_UNORM ) vertex.Color = new Color32( data[c.Offset], data[c.Offset + 1], data[c.Offset + 2], data[c.Offset + 3] );
+				else if ( Readable( c.Format ) )
+				{
+					var value = c.Read( data[c.Offset..] );
+					vertex.Color = new Color32( Byte( value.X ), Byte( value.Y ), Byte( value.Z ), Byte( value.W ) );
+				}
+			}
+
+			if ( uv0 is { } u0 ) vertex.TexCoord0 = TexCoord( u0, data );
+			if ( uv1 is { } u1 ) vertex.TexCoord1 = TexCoord( u1, data );
+		}
+	}
+
+	/// <summary>Which of a vertex's attributes a buffer carries, as native's <c>GetDrawCallStreams</c> tells them.</summary>
+	public static VertexStreams Streams( MeshVertexBuffer buffer )
+	{
+		var (position, normal, tangent, color, uv0, uv1) = FieldsOf( buffer );
+		var streams = (VertexStreams)0;
+		if ( position is not null ) streams |= VertexStreams.Position;
+		if ( normal is not null ) streams |= VertexStreams.Normal;
+		if ( color is not null ) streams |= VertexStreams.Color;
+		if ( uv0 is not null ) streams |= VertexStreams.TexCoord0;
+		if ( uv1 is not null ) streams |= VertexStreams.TexCoord1;
+
+		// A compressed tangent frame packs the tangent in with the normal
+		if ( tangent is not null || normal?.Format is ColorFormat.R8G8B8A8_UNORM or ColorFormat.R10G10B10A2_UNORM ) streams |= VertexStreams.Tangent;
+		return streams;
+	}
+
+	// The formats VertexField.Read decodes
+	static bool Readable( ColorFormat format ) => format is ColorFormat.R32_FLOAT or ColorFormat.R32G32_FLOAT or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT
+		or ColorFormat.R16G16_FLOAT or ColorFormat.R16G16B16A16_FLOAT or ColorFormat.R8G8B8A8_UNORM or ColorFormat.R8G8B8A8_UINT;
+
+	static (VertexField? Position, VertexField? Normal, VertexField? Tangent, VertexField? Color, VertexField? Uv0, VertexField? Uv1) FieldsOf( MeshVertexBuffer buffer )
 	{
 		VertexField? position = null, normal = null, tangent = null, color = null, uv0 = null, uv1 = null;
 		foreach ( var field in buffer.Fields )
@@ -115,53 +193,7 @@ internal static class ModelFileGeometry
 			}
 		}
 
-		for ( int v = 0; v < vertices.Length; v++ )
-		{
-			var data = buffer.Data.AsSpan( v * buffer.Stride, buffer.Stride );
-			ref var vertex = ref vertices[v];
-			vertex.Color = Color32.White;
-
-			if ( position is { } p ) vertex.Position = Vector3Of( p.Read( data[p.Offset..] ) );
-			if ( tangent is { } t ) vertex.Tangent = t.Read( data[t.Offset..] );
-
-			if ( normal is { } n )
-			{
-				var packed = BinaryPrimitives.ReadUInt32LittleEndian( data[n.Offset..] );
-				switch ( n.Format )
-				{
-					case ColorFormat.R8G8B8A8_UNORM:
-						{
-							var (nrm, tan) = TangentFrame.UnpackLegacy( packed );
-							vertex.Normal = nrm;
-							vertex.Tangent = tan;
-							break;
-						}
-					case ColorFormat.R10G10B10A2_UNORM:
-						{
-							var (nrm, tan) = TangentFrame.UnpackOctDiamond( packed );
-							vertex.Normal = nrm;
-							vertex.Tangent = tan;
-							break;
-						}
-					default:
-						vertex.Normal = Vector3Of( n.Read( data[n.Offset..] ) );
-						break;
-				}
-			}
-
-			if ( color is { } c )
-			{
-				if ( c.Format == ColorFormat.R8G8B8A8_UNORM ) vertex.Color = new Color32( data[c.Offset], data[c.Offset + 1], data[c.Offset + 2], data[c.Offset + 3] );
-				else
-				{
-					var value = c.Read( data[c.Offset..] );
-					vertex.Color = new Color32( Byte( value.X ), Byte( value.Y ), Byte( value.Z ), Byte( value.W ) );
-				}
-			}
-
-			if ( uv0 is { } u0 ) vertex.TexCoord0 = TexCoord( u0, data );
-			if ( uv1 is { } u1 ) vertex.TexCoord1 = TexCoord( u1, data );
-		}
+		return (position, normal, tangent, color, uv0, uv1);
 	}
 
 	static bool TwoComponents( ColorFormat format ) => format is ColorFormat.R32G32_FLOAT or ColorFormat.R16G16_FLOAT or ColorFormat.R16G16_UNORM or ColorFormat.R16G16_SNORM or ColorFormat.R16G16_UINT or ColorFormat.R16G16_SINT or ColorFormat.R32G32_UINT or ColorFormat.R32G32_SINT;

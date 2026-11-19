@@ -10,6 +10,9 @@ public sealed partial class ModelBuilder
 	private readonly HashSet<string> _groupNames = new( StringComparer.Ordinal );
 	private ulong _defaultMeshGroupMask;
 
+	/// <summary>The meshes the model was made with, in the order Source 2's model has them.</summary>
+	private Mesh[] appliedMeshes = [];
+
 	private ulong DefaultMeshGroupMask => _groupNames.Count > 0 ? _defaultMeshGroupMask : ulong.MaxValue;
 
 	private void ApplyMeshes( NativeEngine.ModelBuilder modelBuilder )
@@ -19,6 +22,7 @@ public sealed partial class ModelBuilder
 			modelBuilder.AddMeshGroup( meshGroup );
 		}
 
+		var added = new List<Mesh>( meshes.Count );
 		for ( var i = 0; i < meshes.Count; ++i )
 		{
 			var mesh = meshes[i];
@@ -26,7 +30,10 @@ public sealed partial class ModelBuilder
 				continue;
 
 			modelBuilder.AddRunTimeMesh( mesh.native, bodyGroups[i], lods[i] );
+			added.Add( mesh );
 		}
+
+		appliedMeshes = [.. added];
 
 		modelBuilder.SetDefaultMeshGroupMask( DefaultMeshGroupMask );
 	}

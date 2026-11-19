@@ -230,5 +230,5 @@ native static class MeshGlue as NativeEngine.MeshGlue
 
 	CPhysicsData BuildAggregateData( CPhysBodyDescArray pBodies );
 
-	void SetMeshMorphData( IMesh renderMesh, CastTo[SboxMorphDesc_t*] void* morphDescs, int numMorphs, CastTo[SboxMorphVertexDelta_t*] void* deltas, int numDeltas, string morphNames );
+	void SetMeshMorphData( IMesh renderMesh, int nVertexCount, CastTo[SboxMorphDesc_t*] void* morphDescs, int numMorphs, CastTo[SboxMorphVertexDelta_t*] void* deltas, int numDeltas, string morphNames );
 }
