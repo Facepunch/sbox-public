@@ -234,7 +234,7 @@ public sealed partial class CommandList
 				var attrAccess = (AttributeAccess)entry.Object4;
 				attrAccess.attributes.SetData( entry.Token, (T)entry.Object2 );
 			}
-			list.AddEntry( &Execute, new Entry { Token = token, Object2 = data, Object4 = this } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object2 = list.DataBox( data ), Object4 = this } );
 		}
 
 		// What a managed block draws into: the target it bound, else its view's own (a Borealis.Gpu camera's stage)

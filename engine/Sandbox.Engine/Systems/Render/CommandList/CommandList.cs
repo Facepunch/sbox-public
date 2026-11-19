@@ -85,6 +85,27 @@ public sealed unsafe partial class CommandList
 	/// </summary>
 	readonly List<Entry> _entries = new List<Entry>( 8 );
 
+	// Boxes SetData put its values in, kept across Reset: the n-th SetData of a recording writes the n-th, so a list recorded
+	// again every frame (a post process's) boxes nothing. Only this list's entries hold them, and Reset drops those
+	readonly List<object> _dataBoxes = new();
+	int _dataBoxesUsed;
+
+	internal object DataBox<T>( T data ) where T : unmanaged
+	{
+		if ( _dataBoxesUsed < _dataBoxes.Count && _dataBoxes[_dataBoxesUsed] is T )
+		{
+			var kept = _dataBoxes[_dataBoxesUsed++];
+			Unsafe.Unbox<T>( kept ) = data;
+			return kept;
+		}
+
+		object box = data;
+		if ( _dataBoxesUsed < _dataBoxes.Count ) _dataBoxes[_dataBoxesUsed] = box;
+		else _dataBoxes.Add( box );
+		_dataBoxesUsed++;
+		return box;
+	}
+
 
 
 	[System.Runtime.CompilerServices.MethodImpl( System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining )]
@@ -164,6 +185,7 @@ public sealed unsafe partial class CommandList
 			managedDrawAttributes?.Clear( false );
 			currentDrawAttributes = null;
 			_entries.Clear();
+			_dataBoxesUsed = 0;
 		}
 	}
 
@@ -335,7 +357,7 @@ public sealed unsafe partial class CommandList
 		{
 			Graphics.Attributes.SetData( entry.Token, (T)entry.Object2 );
 		}
-		AddEntry( &Execute, new Entry { Token = token, Object2 = data } );
+		AddEntry( &Execute, new Entry { Token = token, Object2 = DataBox( data ) } );
 	}
 
 	[Obsolete]
