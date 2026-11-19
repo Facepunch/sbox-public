@@ -1837,12 +1837,33 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	}
 
 	/// <summary>
+	/// The finished frame's depth while the stages that draw over its output run, whose target has none: what
+	/// <see cref="ResolveDepth"/> grabs then (a game's own post processing at <c>AfterPostProcess</c>). Null otherwise.
+	/// </summary>
+	internal Texture OutputDepth { get; set; }
+
+	/// <summary>
 	/// Copy the viewport's part of the bound depth into <paramref name="destination"/>, as native resolves it. Multisampled depth
 	/// into a single-sampled texture isn't done yet.
 	/// </summary>
 	public override void ResolveDepth( Texture destination, Rect viewport )
 	{
 		_ = Recording;
+
+		// Over a frame's output (AfterPostProcess, AfterUI) no depth is bound: the frame's, as native's view still has it
+		if ( !context.Depth.IsValid && OutputDepth is { } frameDepth )
+		{
+			var from = TextureOf( frameDepth );
+			var to = TextureOf( destination );
+			if ( !context.CopyDepth( from, to, new System.Numerics.Vector4( 0, 0, frameDepth.Width, frameDepth.Height ) ) )
+			{
+				var a = gpu.InfoOf( from );
+				var b = gpu.InfoOf( to );
+				throw new NotSupportedException( $"Copying the frame's depth ({a.Format} x{a.Samples} {a.Width}x{a.Height}) into {b.Format} x{b.Samples} {b.Width}x{b.Height} on Borealis.Gpu" );
+			}
+			return;
+		}
+
 		var saved = context.Viewport;
 		SetViewport( viewport );
 		var copied = context.CopyDepth( TextureOf( destination ) );
