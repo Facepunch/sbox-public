@@ -7,18 +7,13 @@ namespace Sandbox.PanelGallery;
 /// <c>-capture-pages folder [-pages a;b] [-page-frames N]</c>: opens each gallery page in turn (or the ones named, by
 /// title or <c>Folder/Title</c>), lets it run <c>-page-frames</c> frames (40), then draws the window's UI into a texture
 /// on the process's device as a frame of the window draws it, reads it back and saves <c>folder/Page.png</c>. Then it
-/// exits. With <c>-capture-borealis</c> (on Source 2) the same frame is also drawn on a Borealis.Gpu device of its own, the
-/// panels recorded again for it, through <c>-borealisgpu</c>'s window path (<c>Page.borealis.png</c>), and <c>results.txt</c>
-/// lists each page's frame time (the loop's pace over the second half of its frames), maximum channel difference and
-/// pixels over 2. With <c>-borealisgpu</c> the pages are Borealis.Gpu's.
-/// Source 2's device can't draw in a <c>-borealisgpu</c> process: nothing presents on it, so its resources never finish
-/// loading.
+/// exits. <c>results.txt</c> lists each page's frame time (the loop's pace over the second half of its frames).
+/// </summary>
 internal sealed class GalleryPageCapture
 {
 	readonly string folder;
 	readonly GalleryPageInfo[] pages;
 	readonly int frames;
-	readonly BorealisGpuRenderBackend borealis;
 	int index, frame;
 
 	// The frame loop's own pace over the second half of each page's frames: what a frame of the window costs
@@ -41,17 +36,12 @@ internal sealed class GalleryPageCapture
 		this.frames = Math.Max( 2, frames );
 		System.IO.Directory.CreateDirectory( folder );
 		GalleryWindow.Capturing = true;
-
-		if ( Environment.GetCommandLineArgs().Any( x => x.Equals( "-capture-borealis", StringComparison.OrdinalIgnoreCase ) ) && RenderBackend.Default is Source2RenderBackend )
-		{
-			borealis = BorealisGpuRenderBackend.CreateBeside( Environment.GetCommandLineArgs().Any( x => x.Equals( "-borealisgpu-validation", StringComparison.OrdinalIgnoreCase ) ) );
-		}
 	}
 
 	/// <summary>After each frame. False once every page is saved.</summary>
 	public bool Frame( PanelWindow window )
 	{
-		if ( index >= pages.Length ) return Finish();
+		if ( index >= pages.Length ) return false;
 		if ( window?.Core is not { } core || core.Surface is null ) return true;
 
 		var gallery = window.Root.Children.OfType<GalleryWindow>().FirstOrDefault();
@@ -73,43 +63,12 @@ internal sealed class GalleryPageCapture
 		Save( pixels, size, $"{name}.png" );
 
 		var line = $"{page.Folder}/{page.Title}	{frameMs:0.000} ms";
-		if ( borealis is not null )
-		{
-			var other = core.RenderToPixels( borealis );
-			borealis.WaitIdle();
-			borealis.NextFrame();
-			Save( other, size, $"{name}.borealis.png" );
-
-			int max = 0, over = 0;
-			for ( int i = 0; i < pixels.Length; i++ )
-			{
-				var a = pixels[i];
-				var b = other[i];
-				var d = Math.Max( Math.Max( Math.Abs( a.r - b.r ), Math.Abs( a.g - b.g ) ), Math.Max( Math.Abs( a.b - b.b ), Math.Abs( a.a - b.a ) ) );
-				max = Math.Max( max, d );
-				if ( d > 2 ) over++;
-			}
-
-			line += $"\t{max}\t{over}";
-		}
-
 		System.IO.File.AppendAllText( System.IO.Path.Combine( folder, "results.txt" ), line + "\n" );
 		Log.Info( $"Captured page {index + 1} of {pages.Length}: {line}" );
 
 		index++;
 		frame = 0;
-		return index < pages.Length || Finish();
-	}
-
-	bool Finish()
-	{
-		if ( borealis is not null )
-		{
-			System.IO.File.AppendAllText( System.IO.Path.Combine( folder, "results.txt" ), $"Borealis.Gpu validation errors {borealis.ValidationErrors}, textures copied from Source 2 {borealis.CopiedFromSource2}\n" );
-			borealis.Dispose();
-		}
-
-		return false;
+		return index < pages.Length;
 	}
 
 	void Save( Color32[] pixels, Vector2 size, string file )

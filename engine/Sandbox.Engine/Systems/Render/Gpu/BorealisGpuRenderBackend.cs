@@ -211,9 +211,6 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 	}
 
-	/// <summary>A device beside Source 2's, logging its messages, for comparing the two in one process.</summary>
-	public static BorealisGpuRenderBackend CreateBeside( bool validation ) => Create( validation, m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ) );
-
 	/// <summary>Validation errors the device has reported.</summary>
 	public int ValidationErrors => gpu.ValidationErrors;
 
