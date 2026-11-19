@@ -105,6 +105,7 @@ public class SceneMirrorDirectTests
 			light.LightColor = Color.Red;
 			light.Radius = 250;
 			spot.ConeOuter = 40;
+			spot.RenderingEnabled = false;
 			cubemap.Priority = 3;
 			cubemap.Position = new Vector3( 4, 5, 6 );
 			custom.ColorTint = Color.Green;
@@ -117,6 +118,7 @@ public class SceneMirrorDirectTests
 			Assert.AreEqual( Color.Red, lightObject.Color );
 			Assert.AreEqual( 250, lightObject.Radius );
 			Assert.AreEqual( 40, ((Borealis.LightObject)spot.RenderObject).ConeOuter );
+			Assert.IsFalse( ((Borealis.LightObject)spot.RenderObject).Visible, "a hidden light lights nothing" );
 			var envMap = (Borealis.EnvMapObject)cubemap.RenderObject;
 			Assert.AreEqual( 3, envMap.Priority );
 			Assert.AreEqual( new Vector3( 4, 5, 6 ), envMap.Transform.Position );
