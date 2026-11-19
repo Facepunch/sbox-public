@@ -71,6 +71,14 @@ internal static class PresetRun
 		using var gpu = GpuDevice.Create( new DeviceOptions { ApplicationName = "Borealis Lab", Validation = validation, SynchronizationValidation = Args.Has( "-sync-validation" ), Presentation = false, Message = Message } );
 		using var device = new BackendDevice( gpu );
 		GoldenTruthRun.Adapter = gpu.Adapter.Name;
+
+		// A capture is the same frame on any machine, however fast: no draw is skipped for a pipeline workers are still making,
+		// and casters never move into the sun's cached far cascade, which they do after seconds of wall-clock time (a frame
+		// takes half a second on Lavapipe), as in the GPU tests
+		gpu.SkipDrawsUntilReady = false;
+		Borealis.Shadows.SettledCasters.Reset();
+		Borealis.Shadows.SettledCasters.Seconds = float.PositiveInfinity;
+		Borealis.Shadows.SettledCasters.RestlessSeconds = float.PositiveInfinity;
 		if ( validation ) GoldenTruthRun.ValidationLayer();
 		backend.Phase( $"Borealis.Gpu device ({gpu.Adapter.Name})" );
 		var previousHost = RenderHost.Current;
