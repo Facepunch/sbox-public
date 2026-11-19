@@ -162,6 +162,12 @@ public abstract class GpuDevice
 	/// </summary>
 	internal virtual bool DrawsSkinnedGpuDriven => false;
 
+	/// <summary>
+	/// Whether fading objects' draws (the faded list: dithered opaque, <c>D_OPAQUE_FADE</c>) draw GPU-driven, a call per list
+	/// range, as the opaque list's do (<see cref="DrawsMeshesGpuDriven"/> as well; skinned ones with <see cref="DrawsSkinnedGpuDriven"/>).
+	/// </summary>
+	internal virtual bool DrawsFadedGpuDriven => false;
+
 	/// <summary>Whether a map's static overlays draw GPU-driven, a call per render order, regrouped by pipeline within it.</summary>
 	internal virtual bool DrawsOverlaysGpuDriven => false;
 

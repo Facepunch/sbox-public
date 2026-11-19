@@ -1604,6 +1604,94 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// Fading objects (tint alpha below one: the faded list, dithered opaque under <c>D_OPAQUE_FADE</c>) draw GPU-driven, in
+	/// the opaque pass and the sun's shadows: nothing of theirs draws the classic way there, and the frame is the classic path's.
+	/// </summary>
+	[TestMethod]
+	public void FadedObjectsDrawGpuDriven()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = false, GpuDrivenMeshes = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "GPU-driven faded test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+
+			var (ground, _) = Boxes( backend, backend.CreateMaterial( "Faded test ground", new Color( 0.8f, 0.6f, 0.4f ) ), 0 );
+			world.Add( new MeshObject( ground, Transform.Zero ) );
+			var (faded, _) = Boxes( backend, backend.CreateMaterial( "Faded boxes", new Color( 0.3f, 0.7f, 0.4f ) ), 120 );
+			world.Add( new MeshObject( faded, Transform.Zero ) { Tint = new Color( 1, 1, 1, 0.5f ) } );
+
+			var view = new RenderView { Name = "Faded", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			byte[] Frame( bool gpuDriven, bool faded, DrawCensus census = null )
+			{
+				backend.GpuDriven = gpuDriven;
+				backend.GpuDrivenFaded = faded;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				backend.Census = census;
+				try
+				{
+					system.Render( world, view, target );
+				}
+				finally
+				{
+					backend.Census = null;
+				}
+
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			// The first frame dithers before what the fade reads is ready: the comparison starts at the second
+			Frame( false, false );
+			var classic = Frame( false, false );
+			var before = new DrawCensus();
+			Frame( true, false, before );
+			Frame( true, true );
+			var census = new DrawCensus();
+			var driven = Frame( true, true, census );
+
+			Assert.IsTrue( before.Draws.Any( d => d.Path == DrawCensus.Path.Classic && d.Kind.Contains( "faded", StringComparison.Ordinal ) ), $"with the switch off, the faded boxes draw the classic way: {string.Join( ", ", before.Draws.Where( d => d.Path == DrawCensus.Path.Classic ).Select( d => $"{d.Pass} {d.Material} {d.Kind}" ) )}" );
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			byte[] Rgba8( byte[] halfs )
+			{
+				var rgba = new byte[Width * Height * 4];
+				for ( int i = 0; i < rgba.Length; i++ ) rgba[i] = (byte)(MathF.Pow( Math.Clamp( (float)BitConverter.ToHalf( halfs, i * 2 ), 0, 1 ), 1 / 2.2f ) * 255 + 0.5f);
+				return rgba;
+			}
+
+			Save( Rgba8( classic ), Width, Height, "faded-classic" );
+			Save( Rgba8( driven ), Width, Height, "faded-gpudriven" );
+			Assert.AreEqual( 0, Different( classic, driven ), "the classic pixels" );
+			Assert.IsFalse( census.Draws.Any( d => d.Path == DrawCensus.Path.Classic && d.Material == "Faded boxes" ), $"nothing of the faded boxes draws the classic way: {string.Join( ", ", census.Draws.Where( d => d.Path == DrawCensus.Path.Classic ).Select( d => $"{d.Pass} {d.Kind}" ) )}" );
+			Assert.IsTrue( census.Draws.Any( d => d.Path == DrawCensus.Path.Bucket && d.Pass.EndsWith( "Opaque Forward", StringComparison.Ordinal ) && d.BucketMaterials > 0 ), "the opaque pass draws buckets" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A shader with no variant beside it (a package's) gets one from the library's compiler: none while it compiles,
 	/// then the compiled one, cached, so another library loads it without compiling.
 	/// </summary>

@@ -1835,6 +1835,15 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal override bool DrawsSkinnedGpuDriven => GpuDrivenSkinned && DrawsMeshesGpuDriven;
 
 	/// <summary>
+	/// Fading objects' draws (the faded list, dithered opaque under <c>D_OPAQUE_FADE</c>) draw GPU-driven too, a call of mesh-draw
+	/// batches per list range with no ids or visibility lists, as the opaque list's static and skinned draws are taken. On by
+	/// default with <see cref="GpuDrivenMeshes"/>; <c>-no-gpudriven-faded</c> turns it off.
+	/// </summary>
+	public bool GpuDrivenFaded { get; set; } = !HasSwitch( "-no-gpudriven-faded" );
+
+	internal override bool DrawsFadedGpuDriven => GpuDrivenFaded && DrawsMeshesGpuDriven;
+
+	/// <summary>
 	/// Cull GPU-driven aggregates' fragments on the GPU (<c>borealis_gpu_driven_cull_cs</c>), by the same frustum and size
 	/// tests the CPU makes, from records written once: the CPU writes 16 bytes per aggregate a frame instead of an instance
 	/// record and command per visible fragment. On by default; off writes them on the CPU, to compare.
