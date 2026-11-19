@@ -207,6 +207,13 @@ internal sealed unsafe class BindlessTable : IDisposable
 		return slot;
 	}
 
+	/// <summary>Point a sampler slot at another sampler (the same sampler remade with new state).</summary>
+	public void SetSampler( int slot, ulong sampler )
+	{
+		var info = new VkDescriptorImageInfo { sampler = sampler };
+		Write( ShaderAbi.BindlessSamplers, (uint)slot, VkDescriptorType.Sampler, &info, null );
+	}
+
 	public void RemoveSampler( int slot )
 	{
 		if ( defaultSampler != 0 )
