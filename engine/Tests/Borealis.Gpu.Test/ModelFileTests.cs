@@ -166,7 +166,7 @@ public class ModelFileTests
 	/// </summary>
 	[TestMethod]
 	[DataRow( "models/dev/box.vmdl", 24, 12, 1, 1, -25f, -25f, -25f, 25f, 25f, 25f, "materials/dev/primary_white.vmat" )]
-	[DataRow( "models/dev/gordon_at_desk.vmdl", 1400, 830, 3, 1, -8.8459f, -13.1256f, -52.6451f, 35.9664f, 13.1256f, 6.4164f, "materials/models/editor/player_start.vmat;dev/helper/reflectivity_90b.vmat;dev/helper/testgrid.vmat" )]
+	[DataRow( "models/dev/gordon_at_desk.vmdl", 1401, 830, 3, 1, -8.8459f, -13.1256f, -52.6451f, 35.9664f, 13.1256f, 6.4164f, "materials/models/editor/player_start.vmat;dev/helper/reflectivity_90b.vmat;dev/helper/testgrid.vmat" )]
 	[DataRow( "models/citizen_props/trashcan01.vmdl", 1287, 1681, 6, 3, -17.7754f, -16.8806f, 0.206f, 17.9443f, 18.2964f, 45.9803f, "models/citizen_props/trashcan01.vmat;models/citizen_props/trashbag01.vmat" )]
 	[DataRow( "models/citizen/citizen.vmdl", 12684, 21216, 23, 5, -5.2418f, -25.683f, -0.0353f, 8.6324f, 25.683f, 71.6743f, null )]
 	[DataRow( "models/citizen_human/human.vmdl", 70474, 128891, 69, 4, -5.7833f, -23.933f, -0.0696f, 6.3864f, 23.9598f, 68.9154f, null )]

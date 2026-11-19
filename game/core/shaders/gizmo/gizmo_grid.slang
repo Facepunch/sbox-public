@@ -32,6 +32,9 @@ Mode( Depth );
 	//
 
 	float3 GridOrigin < Attribute("GridOrigin"); Default3( 0, 0, 0); >;
+	float3 GridForward < Attribute("GridForward"); Default3( 1, 0, 0); >;
+	float3 GridLeft < Attribute("GridLeft"); Default3( 0, 1, 0); >;
+	float3 GridUp < Attribute("GridUp"); Default3( 0, 0, 1); >;
 	int GridAxis < Attribute( "GridAxis" ); Default( AXIS_XY ); >;
 
 	// Size of each grid square
@@ -51,6 +54,14 @@ Mode( Depth );
 	float4 YAxisColor < Attribute( "YAxisColor" ); Default4( 0, 1.0, 0, 1 ); >;
 	float4 ZAxisColor < Attribute( "ZAxisColor" ); Default4( 0, 0, 1.0, 1 ); >;
 	float4 CenterColor < Attribute( "CenterColor" ); Default4( 1, 1, 1, 1 ); >;
+
+	float2 GetGridCameraPosition()
+	{
+		float3 offset = g_vCameraPositionWs - GridOrigin;
+		float3 axisU = GridAxis == AXIS_YZ ? GridLeft : GridForward;
+		float3 axisV = GridAxis == AXIS_XY ? GridLeft : GridUp;
+		return float2( dot( offset, axisU ) / dot( axisU, axisU ), dot( offset, axisV ) / dot( axisV, axisV ) );
+	}
 
 struct VertexInput
 {
@@ -77,40 +88,41 @@ struct PixelInput
 {
 	PixelInput o;
 
-	// TODO: Get worldpos from uniform
 	float3 worldPos = i.Position;
 
 	if ( GridAxis == AXIS_XY )
 	{
+		worldPos.z = 0;
 		worldPos.xy -= float2( 0.5, 0.5 );
 		worldPos.xyz *= GRID_SIZE;
 
 		o.UV.xy = worldPos.xy;
 	}
-	if ( GridAxis == AXIS_YZ )
+	else if ( GridAxis == AXIS_YZ )
 	{
+		worldPos.x = 0;
 		worldPos.yz -= float2( 0.5, 0.5 );
 		worldPos.xyz *= GRID_SIZE;
 
 		o.UV.xy = worldPos.yz;
 	}
-	if ( GridAxis == AXIS_XZ )
+	else
 	{
+		worldPos.y = 0;
 		worldPos.xz -= float2( 0.5, 0.5 );
 		worldPos.xyz *= GRID_SIZE;
 
 		o.UV.xy = worldPos.xz;
 	}
 
-	o.PixelPosition = Position3WsToPs( worldPos.xyz );
+	o.UV -= GetGridCameraPosition();
+	worldPos = GridOrigin + GridForward * worldPos.x + GridLeft * worldPos.y + GridUp * worldPos.z;
+	o.PixelPosition = Position3WsToPs( worldPos );
 
 	// Simple relative depth bias 
 	float flProjDepth = saturate( o.PixelPosition.z / o.PixelPosition.w );
 	float flBiasAmount = flProjDepth * 0.0001f;
 	o.PixelPosition.z += flBiasAmount * o.PixelPosition.w;
-
-	// Offset by camera position to keep higher precision
-	o.UV.xy -= g_vCameraPositionWs.xy;
 
 	return o;
 }
@@ -203,10 +215,8 @@ float4 PristineGridWithMajor( float2 uv )
 
 [shader( "pixel" )] float4 MainPs( PixelInput i ) : SV_Target0
 {
+	i.UV += GetGridCameraPosition();
 	float2 invGridScale = ( 1 / GridScale );
-
-	// Restore camera offset
-	i.UV.xy += g_vCameraPositionWs.xy - GridOrigin.xy;
 
 	// Scale by grid size
 	i.UV.xy *= invGridScale;
