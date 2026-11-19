@@ -1,4 +1,4 @@
-// underwater: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// underwater: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: Description = "Underwater screen distortion and world-space sediment";
 
 #include "sbox/pass.slangh"

@@ -173,6 +173,7 @@ public partial class Scene : GameObject
 		_all.Add( this );
 
 		Directory = new GameObjectDirectory( this );
+		NavMesh.scene = this;
 
 		RenderAttributes = new();
 		IsEditor = isEditor;

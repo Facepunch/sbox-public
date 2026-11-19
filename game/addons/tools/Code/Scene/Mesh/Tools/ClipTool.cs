@@ -108,12 +108,15 @@ public partial class ClipTool : EditorTool
 
 	static Vector3 SnapToPlaneGrid( Vector3 point, Vector3 planeNormal )
 	{
+		var frame = WorkPlane.Current;
+		point = frame.PointToLocal( point );
+		planeNormal = frame.NormalToLocal( planeNormal );
 		var plane = new Plane( point, planeNormal );
 		plane.Distance = MathF.Floor( plane.Distance / 0.01f + 0.5f ) * 0.01f;
 
 		var spacing = Gizmo.Settings.GridSpacing;
 		if ( Gizmo.Settings.SnapToGrid == Gizmo.IsCtrlPressed || spacing == 0.0f )
-			return plane.SnapToPlane( point );
+			return frame.PointToWorld( plane.SnapToPlane( point ) );
 
 		var min = new Vector3(
 			MathF.Floor( point.x / spacing ) * spacing,
@@ -159,7 +162,7 @@ public partial class ClipTool : EditorTool
 			}
 		}
 
-		return best;
+		return frame.PointToWorld( best );
 	}
 
 	Vector3 _dragStartP1;
@@ -290,6 +293,10 @@ public partial class ClipTool : EditorTool
 
 		if ( Gizmo.IsLeftMouseDown && !Gizmo.WasLeftMousePressed && _hitPlane is { } locked )
 			return PlaneTrace( locked );
+
+		if ( WorkPlane.IsActive )
+			return PlaneTrace( new Plane( WorkPlane.Current.Position,
+				Gizmo.Camera.Ortho ? -Gizmo.Camera.Rotation.Forward : WorkPlane.Current.Rotation.Up ) );
 
 		if ( Gizmo.Camera.Ortho )
 			return PlaneTrace( new Plane( SnapNormalToAxis( -Gizmo.Camera.Rotation.Forward ), 0 ) );

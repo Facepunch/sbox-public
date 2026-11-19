@@ -1,4 +1,4 @@
-// ui_cssbox_batched: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// ui_cssbox_batched: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: DevShader = true;
 // HEADER: Version = 1;
 
@@ -811,7 +811,7 @@ float4 RenderInstance( PixelInput i, out float flCoverage )
 		bgTint.a = saturate( bgTint.a );
 
 		float2 vOffset = inst.BackgroundRect.xy / bgSize;
-		float2 vUV = -vOffset + ( i.vTexCoord.xy * ( boxSize / bgSize ) );
+		float2 vUV = -vOffset + ( saturate( i.vTexCoord.xy ) * ( boxSize / bgSize ) );
 
 		float4 vImage;
 		int bgRepeat = inst.GetBackgroundRepeat();

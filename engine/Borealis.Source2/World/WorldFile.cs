@@ -10,7 +10,7 @@ namespace Borealis.Source2.World;
 /// A compiled map's world (<c>maps/name/world.vwrld_c</c>): its world nodes, each a <c>.vwnod_c</c> of static scene
 /// objects (a model and a transform) and aggregates (one model whose draw calls are already in world space, culled one
 /// draw at a time). Both are KV3 in the <c>DATA</c> block (<c>WorldBuilderParams_t</c>, <c>WorldNode_t</c>). Entity lumps,
-/// lightmaps, visibility and physics are named but not read. See the world section of docs/managed/borealis-gpu.md.
+/// lightmaps, visibility and physics are named but not read. See the world section of docs/reference/borealis-gpu.md.
 /// </summary>
 public sealed class WorldFile
 {

@@ -1,0 +1,27 @@
+{
+  "guid": "e3e1d599-5672-47e0-b0b2-1a9f8ab7b317",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Gas Cylinder",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "gascylinder",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/gas_cylinder/materials/gas_cylinder.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

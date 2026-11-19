@@ -98,14 +98,21 @@ internal partial class NetworkSystem
 					return;
 				}
 
-				// Like the server's packages - if its game's files are different to ours, we can't play with what it has
-				if ( Application.GamePackage is { InstallsFromWorkshop: true } game )
+				// The game is loaded during the handshake, independently of the session's map and addon requirements.
+				if ( msg.GameWorkshopId != 0 )
 				{
-					var ours = Workshop.GetInstalledVersion( game.WorkshopId );
+					if ( Application.GamePackage?.WorkshopId != msg.GameWorkshopId )
+					{
+						IGameInstanceDll.Current.Disconnect( "The server is using a different Workshop item for this game." );
+						Networking.Disconnect();
+						return;
+					}
+
+					var ours = Workshop.GetInstalledVersion( msg.GameWorkshopId );
 
 					if ( msg.GameWorkshopVersion != 0 && ours != 0 && msg.GameWorkshopVersion != ours )
 					{
-						IGameInstanceDll.Current.Disconnect( ServerPackages.MismatchMessage( [new Workshop.Item { Id = game.WorkshopId, Title = game.Title }] ) );
+						IGameInstanceDll.Current.Disconnect( Workshop.GetVersionMismatchMessage( [Application.GamePackage.Title] ) );
 						Networking.Disconnect();
 						return;
 					}

@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Runtime.InteropServices;
 
 namespace Sandbox;
@@ -263,48 +263,39 @@ public static partial class Gizmo
 		/// </summary>
 		public void SolidSphere( Vector3 center, float radius, int hSegments = 8, int vSegments = 8 )
 		{
+			if ( hSegments < 1 || vSegments < 1 ) return;
+			using var aroundBuffer = hSegments > MaxCachedCircleSections ? new PooledSpan<Vector2>( checked(hSegments + 1) ) : default;
+			using var downBuffer = vSegments > MaxCachedCircleSections ? new PooledSpan<Vector2>( checked(vSegments + 1) ) : default;
+			var around = CircleSamples( hSegments, aroundBuffer.Span );
+			var down = CircleSamples( vSegments, downBuffer.Span, half: true );
+			var stride = checked(hSegments + 1);
+			using var grid = new PooledSpan<Vertex>( checked(stride * (vSegments + 1)) );
+			var vertices = grid.Span;
+			var vertex = new Vertex( Vector3.Zero, Color32 );
+			for ( var y = 0; y <= vSegments; ++y )
+				for ( var x = 0; x <= hSegments; ++x )
+				{
+					vertex.Position = center + new Vector3( radius * down[y].x * around[x].y,
+						radius * down[y].y, radius * down[y].x * around[x].x );
+					vertices[y * stride + x] = vertex;
+				}
+
 			var so = VertexObject( Graphics.PrimitiveType.Triangles, SolidMaterial );
-			var vertices = _scratchVertices;
-			vertices.Clear();
-
-			for ( var y = 0; y <= vSegments; y++ )
-			{
-				var v = (float)y / vSegments;
-				var vAngle = v * MathF.PI;
-
-				for ( int x = 0; x <= hSegments; x++ )
+			var start = so.Vertices.Count;
+			CollectionsMarshal.SetCount( so.Vertices, checked(start + hSegments * vSegments * 6) );
+			var target = CollectionsMarshal.AsSpan( so.Vertices )[start..];
+			var output = 0;
+			for ( var y = 0; y < vSegments; ++y )
+				for ( var x = 0; x < hSegments; ++x )
 				{
-					var u = (float)x / hSegments;
-					var hAngle = u * MathF.PI * 2;
-
-					var vertex = new Vector3(
-						center.x + radius * MathF.Sin( vAngle ) * MathF.Cos( hAngle ),
-						center.y + radius * MathF.Cos( vAngle ),
-						center.z + radius * MathF.Sin( vAngle ) * MathF.Sin( hAngle )
-					);
-
-					vertices.Add( new Vertex( vertex, Color ) );
+					var i = y * stride + x;
+					target[output++] = vertices[i];
+					target[output++] = vertices[i + stride];
+					target[output++] = vertices[i + 1];
+					target[output++] = vertices[i + 1];
+					target[output++] = vertices[i + stride];
+					target[output++] = vertices[i + stride + 1];
 				}
-			}
-
-			for ( var y = 0; y < vSegments; y++ )
-			{
-				for ( var x = 0; x < hSegments; x++ )
-				{
-					int i0 = y * (hSegments + 1) + x;
-					int i1 = i0 + 1;
-					int i2 = i0 + (hSegments + 1);
-					int i3 = i2 + 1;
-
-					so.Vertices.Add( vertices[i0] );
-					so.Vertices.Add( vertices[i2] );
-					so.Vertices.Add( vertices[i1] );
-
-					so.Vertices.Add( vertices[i1] );
-					so.Vertices.Add( vertices[i2] );
-					so.Vertices.Add( vertices[i3] );
-				}
-			}
 		}
 
 		/// <summary>
@@ -530,7 +521,7 @@ public static partial class Gizmo
 			// Generate the "up" vector within the rotation plane for the circle.
 			Vector3 vecUp = Vector3.Cross( vecAxis, vecRight ).Normal;
 
-			using ( Gizmo.Scope() )
+			using ( Gizmo.PushScope() )
 			{
 				Transform = Transform.WithRotation( Transform.Rotation * Rotation.LookAt( vecAxis, vecUp ) );
 				Draw.LineCircle( 0, radius, 0, 180.0f, sections: 32 );

@@ -197,6 +197,10 @@ public sealed partial class PlayerController : Component
 		}
 	}
 
+	readonly List<SceneTraceResult> _lookHits = new();
+	GameObject _lookHitObject;
+	Component _lookFound;
+
 	/// <summary>
 	/// Get the best component we're looking at. We don't just return any old component, by default
 	/// we only return components that implement IPressable. Components can implement GetUsableComponent
@@ -211,11 +215,12 @@ public sealed partial class PlayerController : Component
 		// what we did in Rust and it worked great.
 		for ( float f = 0.0f; f <= 4.0f; f += 2.0f )
 		{
-			var hits = Scene.RunTraceAll( Scene.Trace
+			var hits = _lookHits;
+			Scene.RunTraceAll( Scene.Trace
 							.Ray( EyePosition, EyePosition + EyeAngles.Forward * (ReachLength - f) )
 							.IgnoreGameObjectHierarchy( GameObject )
 							.Radius( f )
-							.HitTriggers() );
+							.HitTriggers(), hits );
 
 			foreach ( var hit in hits )
 			{
@@ -226,8 +231,12 @@ public sealed partial class PlayerController : Component
 					continue;
 
 				// Allow our other components to provide something
-				Component foundComponent = default;
-				IEvents.PostToGameObject( GameObject, x => foundComponent = x.GetUsableComponent( hitObject ) ?? foundComponent );
+				_lookHitObject = hitObject;
+				_lookFound = default;
+				GameObject.Components.ExecuteEnabledInSelfAndDescendants<IEvents, PlayerController>( this, static ( x, pc ) => pc._lookFound = x.GetUsableComponent( pc._lookHitObject ) ?? pc._lookFound );
+				var foundComponent = _lookFound;
+				_lookHitObject = null;
+				_lookFound = null;
 
 				if ( foundComponent.IsValid() )
 					return foundComponent;

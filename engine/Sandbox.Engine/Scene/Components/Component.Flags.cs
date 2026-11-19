@@ -1,8 +1,14 @@
 ﻿namespace Sandbox;
 
-[Flags]
+/// <summary>
+/// Controls component visibility, serialization and networking behavior.
+/// </summary>
+[Flags, Expose]
 public enum ComponentFlags
 {
+	/// <summary>
+	/// No special component behavior.
+	/// </summary>
 	None = 0,
 
 	/// <summary>
@@ -59,6 +65,9 @@ public enum ComponentFlags
 
 public partial class Component
 {
+	/// <summary>
+	/// Flags controlling this component's visibility, serialization and networking behavior.
+	/// </summary>
 	[ActionGraphInclude]
 	public ComponentFlags Flags { get; set; } = ComponentFlags.None;
 }

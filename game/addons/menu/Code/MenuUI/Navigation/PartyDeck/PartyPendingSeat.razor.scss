@@ -1,0 +1,76 @@
+@import '/styles/_Theme.scss';
+@import "/Platform/_platform.scss";
+
+// Asked in, not here yet - their face, greyed right back inside a dashed ring, with an hourglass.
+// Pointing at it offers to stop waiting.
+PartyPendingSeat
+{
+	position: relative;
+	flex-shrink: 0;
+	pointer-events: all;
+	cursor: pointer;
+
+	Avatar .avatar, Avatar .avatar.online, Avatar .avatar.ingame
+	{
+		// A border, not an outline - outlines don't do dashed
+		border-radius: 50%;
+		border: 2px dashed rgba( 255, 255, 255, 0.3 );
+		background-color: rgba( 0, 0, 0, 0.35 );
+		opacity: 0.45;
+		filter: saturate( 0 );
+		transition: all 0.1s ease;
+	}
+
+	// The same corner chip as a face's status (PartyMember), an hourglass in it
+	.pending-badge
+	{
+		pointer-events: none;
+		position: absolute;
+		bottom: -3px;
+		right: -3px;
+		width: 14px;
+		height: 14px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		border: 0.5px solid rgba( 255, 255, 255, 0.25 );
+		background-color: rgba( 12, 15, 22, 0.92 );
+		transition: background-color 0.1s ease, border-color 0.1s ease;
+
+		// A square of its own as wide as the glyph, an even pixel in from each side of the chip's 13 inside -
+		// a 10px one landed on half a pixel and the narrow ones (!) sat off to a side
+		icon
+		{
+			width: 11px;
+			height: 11px;
+			font-size: 11px;
+			text-align: center;
+			justify-content: center;
+			align-items: center;
+			color: $platform-muted;
+		}
+
+		.dismiss
+		{
+			display: none;
+		}
+	}
+
+	&:hover
+	{
+		Avatar .avatar, Avatar .avatar.online, Avatar .avatar.ingame
+		{
+			opacity: 0.7;
+			border-color: rgba( $platform-danger, 0.7 );
+		}
+
+		.pending-badge
+		{
+			background-color: $platform-danger;
+
+			icon { color: #ffffff; }
+			.waiting { display: none; }
+			.dismiss { display: flex; }
+		}
+	}
+}

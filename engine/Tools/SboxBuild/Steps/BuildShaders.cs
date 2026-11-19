@@ -52,7 +52,7 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 
 	/// <summary>
 	/// Shaders Borealis.Gpu draws GPU-driven, whose <c>.gpudriven.shader_c</c> variant is built too
-	/// (docs/managed/borealis-gpu-driven.md). A variant that fails only warns: Borealis draws that shader the classic way.
+	/// (docs/reference/borealis-gpu-driven.md). A variant that fails only warns: Borealis draws that shader the classic way.
 	/// </summary>
 	static readonly string[] GpuDrivenShaders =
 	[
@@ -82,7 +82,7 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 
 	/// <summary>
 	/// Borealis's Slang shaders compiled offline (<c>name.slang_c</c> beside each <c>.slang</c>): every surface and pass module,
-	/// so a fresh build or install runs no Slang in game (docs/managed/shader-format-replacement.md). Only those whose inputs
+	/// so a fresh build or install runs no Slang in game (docs/reference/borealis-slang-materials.md). Only those whose inputs
 	/// changed compile. A failure only warns: Borealis.Gpu compiles what's missing in game.
 	/// </summary>
 	void CompileSlang( string shaderCompilerPath, string gameDir )

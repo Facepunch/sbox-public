@@ -23,7 +23,7 @@ namespace Sandbox;
 /// needs runs here: CPU-vertex and instanced draws, clears, render targets, frame grabs, gaussian mips and compute; draws
 /// from vertex and index buffers, direct or indirect, and models drawn with transforms, an instance count or indirect
 /// arguments (BorealisGpuRenderBackend.Draws.cs); a mirrored scene object drawn again (<see cref="DrawObject"/>).
-/// The rest throws <see cref="NotSupportedException"/> (docs/managed/borealis-gpu-path.md).
+/// The rest throws <see cref="NotSupportedException"/> (docs/reference/borealis-gpu-path.md).
 /// </summary>
 /// <remarks>
 /// Engine resources get a backing on this device the first time it uses them. Render targets are made empty with the

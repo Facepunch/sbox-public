@@ -1,0 +1,518 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    Along the bottom, under every game: game navigation on the left, party and friends in the middle,
+    and weekly drop, avatar, mounts, settings and quit on the right.
+*@
+<root>
+	<div class="inner">
+		<div class="left">
+			<div class="pill library @(LibraryOpen ? "open" : "")" onclick=@SwitchGame tooltip="@(InstalledGames == 1 ? "1 game installed" : $"{InstalledGames} games installed")">
+				<i>sports_esports</i>
+				<label>Library</label>
+				<label class="count">@InstalledGames</label>
+			</div>
+
+			@* Straight into Browse, with a search field out of its end that's ready to type in *@
+			<div class="pill discover @(DiscoverOpen ? "open" : "") @(FirstTime.Seen( FirstTime.Discover ) ? "" : "new")">
+				<div class="go" onclick=@ToggleDiscover>
+					<i>explore</i>
+					<label>Games</label>
+				</div>
+				@if ( DiscoverOpen )
+				{
+					<div class="find" @ref="FindBox" onclick=@( () => SearchEntry?.Focus() )>
+						<i>search</i>
+						<TextEntry @ref="SearchEntry" Placeholder="Search" OnTextEdited=@Typed onsubmit=@Submit />
+					</div>
+				}
+			</div>
+
+			<div class="pill servers @(Shelf == PlatformShelf.Multiplayer ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Multiplayer ) )>
+				<i>dns</i>
+				<label>Servers</label>
+			</div>
+		</div>
+
+		@* Your friends, and your party when you're in one - one button. Out of a party it's how many are on and opens
+		   your friends, where you can start a party; in one, it's the party's faces and opens its window, with how many
+		   else are on beside them opening your friends. *@
+		<div class="middle">
+			<div class="party @(FriendsUp ? "open" : "") @(PartyDeck.Activity() ?? "")" @ref="PartyButton">
+				@if ( Joining is { ShowGame: true } && !string.IsNullOrWhiteSpace( PartyArt ) )
+				{
+					<div class="game-art" style="background-image: url( @PartyArt );"></div>
+				}
+
+				<div class="faces" onclick=@PressFriends tooltip="@(InParty ? "Your party" : "Friends")">
+					@if ( Joining is { ShowGame: false } stage )
+					{
+						<div class="status-icon @(PartyDeck.Activity() ?? "")"><i>@stage.Icon</i></div>
+					}
+
+					@if ( InParty )
+					{
+						@* Still being set up - just you so far *@
+						@if ( !PartyView.Exists )
+						{
+							<div class="face" style="background-image: url( avatar:@Game.SteamId );"></div>
+						}
+
+						@foreach ( var member in ShownMembers )
+						{
+							<PartyMember Friend=@member Status=@PartyView.StatusOf( member ) Ready=@PartyView.IsMemberReady( member ) />
+						}
+
+						@foreach ( var invited in ShownInvites )
+						{
+							<PartyPendingSeat Friend=@invited />
+						}
+
+						@if ( MoreSeats > 0 )
+						{
+							<div class="more"><label>@($"+{MoreSeats}")</label></div>
+						}
+
+					}
+					else
+					{
+						<i>group</i>
+
+						@if ( onlineCount > 0 )
+						{
+							<label class="count">@onlineCount</label>
+						}
+					}
+				</div>
+
+				@if ( InParty )
+				{
+					<div class="online" onclick=@PressOnline tooltip="Friends">
+						<i>group</i>
+						@if ( onlineCount > 0 )
+						{
+							<label>@onlineCount</label>
+						}
+					</div>
+				}
+			</div>
+		</div>
+
+		<div class="right">
+			@* Your weekly drop - not in a started game: opening one loads its own scene, which would pull you out of it.
+			   A ring for this week's progress once there is some, a pip when there's one waiting. Not while it's being
+			   opened. *@
+			@if ( PlatformRoot.CanDressUp )
+			{
+				<div class="square rewards @(Root?.RewardsOpen == true ? "open" : "") @(Shelf == PlatformShelf.Unbox ? "disabled" : "")" onclick=@( () => Root?.ToggleSide( PlatformRoot.SidePanel.Rewards ) ) tooltip="@DropTooltip" @ref="DropSquare">
+					@if ( Drop is { Kind: "ready" } or { Kind: "progress", Met: > 0 } )
+					{
+						<div class="ring" style="@RingStyle"></div>
+						<div class="hole"></div>
+					}
+					<i>redeem</i>
+					@if ( Drop.Kind == "ready" )
+					{
+						<div class="pip"></div>
+					}
+				</div>
+			}
+
+			@* Not in a started game - you dress up on a menu *@
+			@if ( PlatformRoot.CanDressUp )
+			{
+				<div class="square avatar @(Shelf == PlatformShelf.Avatar ? "open" : "") @(FirstTime.Seen( FirstTime.Avatar ) ? "" : "new")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Avatar ) ) tooltip="Avatar">
+					<MenuProject.MenuUI.Front.CitizenPreview AvatarJson=@AvatarJson Still=@true PlayIntro=@false Studio=@false
+						FieldOfView=@(11f) CameraDistance=@(158f) CameraHeight=@(57f) HeadOffset=@(-2f) Yaw=@(-20f) />
+				</div>
+			}
+
+			@* Between what's yours and what runs s&box - not when what's yours isn't there *@
+			@if ( PlatformRoot.CanDressUp )
+			{
+				<div class="divider"></div>
+			}
+
+			<div class="square system @(Shelf == PlatformShelf.Mounts ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Mounts ) ) tooltip="Mounted games">
+				<i>videogame_asset</i>
+			</div>
+
+			<div class="square system @(Root?.SettingsPage is not null ? "open" : "")" onclick=@( () => ModalSystem.Instance?.Settings() ) tooltip="Settings">
+				<i>settings</i>
+			</div>
+
+			<div class="square system quit" onclick=@Quit tooltip="@(Application.IsEditor ? "Stop playing" : "Quit to desktop")">
+				<i>power_settings_new</i>
+			</div>
+		</div>
+	</div>
+</root>
+
+@code
+{
+    PlatformRoot Root => PlatformRoot.Instance;
+
+    string Shelf => Root?.Shelf;
+
+    bool LibraryOpen => Shelf == PlatformShelf.YourGames;
+
+    bool DiscoverOpen => Shelf is PlatformShelf.Discover or PlatformShelf.Browse;
+
+    /// <summary>
+    /// Your games - in a game too, where picking one leaves it for that one (PlatformRoot.Picked): the way out, there
+    /// even when the game puts its own pause screen in front of everything
+    /// </summary>
+    void SwitchGame() => Root?.ToggleShelf( PlatformShelf.YourGames );
+
+    Panel PartyButton;
+    Panel DropSquare;
+
+    /// <summary>
+    /// The weekly drop button, for its panel to rise out of
+    /// </summary>
+    internal static Panel DropButton { get; private set; }
+
+    /// <summary>
+    /// The Friends button, for the friends list to rise out of
+    /// </summary>
+    internal static Panel FriendsAnchor { get; private set; }
+
+    const int MaxShownSeats = 6;
+
+    static IEnumerable<Friend> ShownMembers => PartyView.Members.OrderByDescending( x => x.IsMe ).Take( MaxShownSeats );
+
+    static IEnumerable<Friend> ShownInvites => PartyInvites.Pending.Take( Math.Max( 0, MaxShownSeats - ShownMembers.Count() ) );
+
+    static PartyDeck.JoinStatus Joining => PartyDeck.Describe();
+
+    static string PartyArt => PartyDeck.Instance?.GameArt;
+
+    static int MoreSeats => Math.Max( 0, PartyView.MemberCount + PartyInvites.Pending.Count - MaxShownSeats );
+
+    static bool InParty => PartyView.Exists || PartyDeck.Drafting;
+
+    bool FriendsUp => PartyDeck.ShownOnPlatform || Root?.FriendsOpen == true;
+
+    /// <summary>
+    /// In a party it's the party's window, otherwise your friends
+    /// </summary>
+    void PressFriends()
+    {
+        if ( !InParty )
+        {
+            Friends();
+            return;
+        }
+
+        var show = !PartyDeck.ShownOnPlatform;
+        if ( show ) Root?.PutAwaySide();
+
+        PartyDeck.ShownOnPlatform = show;
+    }
+
+    /// <summary>
+    /// Who's online beside the party's faces - your friends, rather than the party's window
+    /// </summary>
+    void PressOnline( PanelEvent e )
+    {
+        e.StopPropagation();
+        Friends();
+    }
+
+    int installedGames;
+    RealTimeSince gamesCounted = 10;
+
+    /// <summary>
+    /// Installed games in the library, excluding recent games that are no longer downloaded.
+    /// Recounted at most once a second as installs finish or games are removed.
+    /// </summary>
+    int InstalledGames
+    {
+        get
+        {
+            if ( gamesCounted < 1 ) return installedGames;
+
+            gamesCounted = 0;
+            installedGames = PlatformMenu.YourGames.Games?.Count( x => MenuUtility.IsInstalled( x.Id ) ) ?? 0;
+            return installedGames;
+        }
+    }
+
+    int onlineCount;
+    RealTimeSince friendsCounted = 10;
+
+    /// <summary>
+    /// How many of your friends are playing s&amp;box - counted again at most once a second
+    /// </summary>
+    void CountFriends()
+    {
+        if ( friendsCounted < 1 ) return;
+        friendsCounted = 0;
+
+        onlineCount = MenuUtility.Friends.Count( x => !x.IsMe && x.IsOnline && x.IsPlayingThisGame );
+    }
+
+    /// <summary>
+    /// Your weekly drop's state, for its pip - off the backend, so polled, as the old menu's rail does
+    /// </summary>
+    RewardState rewards;
+    RealTimeUntil untilRewardsPoll = 0;
+    bool dropBusy;
+
+    async Task PollRewards()
+    {
+        rewards = await MenuUtility.Rewards.GetRewards();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Where your weekly drop is at
+    /// </summary>
+    record struct DropStatus( string Kind, int Met = 0, int Total = 0, string Next = null );
+
+    DropStatus Drop
+    {
+        get
+        {
+            if ( MenuHelpers.RewardReady( rewards ) ) return new( "ready" );
+            if ( rewards?.Windows.FirstOrDefault() is not { } week ) return new( "" );
+
+            if ( week.IsClaimed ) return new( "opened", Next: TimeUntil( week.EndsAt ) );
+            if ( week.Facets.Length > 0 ) return new( "progress", week.MetCount, week.Facets.Length );
+
+            return new( "" );
+        }
+    }
+
+    string DropTooltip => Drop switch
+    {
+        { Kind: "ready" } => "Weekly rewards - ready to open",
+        { Kind: "progress" } d => $"Weekly rewards - {d.Met} of {d.Total} done",
+        { Next: { } next } => $"Weekly rewards - next in {next}",
+        _ => "Weekly rewards"
+    };
+
+    /// <summary>
+    /// Progress ring around the drop's icon - full once it's ready
+    /// </summary>
+    string RingStyle
+    {
+        get
+        {
+            // Not the player's culture - a comma for the decimal point isn't a percentage the stylesheet can read
+            var fill = (Drop.Kind == "ready" || Drop.Total == 0 ? 100f : 100f * Drop.Met / Drop.Total).ToString( "0.#", System.Globalization.CultureInfo.InvariantCulture );
+            return $"background-image: conic-gradient( #e8b44a 0%, #e8b44a {fill}%, rgba( 232, 180, 74, 0.25 ) {fill}%, rgba( 232, 180, 74, 0.25 ) 100% );";
+        }
+    }
+
+    /// <summary>
+    /// "3d", "5h", "40m" - null once it's passed
+    /// </summary>
+    static string TimeUntil( DateTimeOffset when )
+    {
+        if ( when == default || when <= DateTimeOffset.UtcNow ) return null;
+
+        var left = when - DateTimeOffset.UtcNow;
+        if ( left.TotalDays >= 1 ) return $"{(int)left.TotalDays}d";
+        if ( left.TotalHours >= 1 ) return $"{(int)left.TotalHours}h";
+        return $"{Math.Max( 1, (int)left.TotalMinutes )}m";
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        var busy = Root?.RewardsOpen == true || Shelf == PlatformShelf.Unbox;
+        if ( dropBusy && !busy ) untilRewardsPoll = 0;
+        dropBusy = busy;
+
+        if ( untilRewardsPoll <= 0 )
+        {
+            untilRewardsPoll = 60 * 5;
+            _ = PollRewards();
+        }
+
+        PartyDeck.PlatformAnchor = PartyButton;
+        DropButton = DropSquare;
+        FriendsAnchor = PartyButton;
+
+        // Set up and then cancelled - put away, not up again the next time you're in a party
+        if ( !PartyView.Exists && !PartyDeck.Drafting ) PartyDeck.ShownOnPlatform = false;
+
+        if ( DiscoverOpen ) FirstTime.MarkSeen( FirstTime.Discover );
+        if ( Shelf == PlatformShelf.Avatar ) FirstTime.MarkSeen( FirstTime.Avatar );
+
+        CountFriends();
+        UpdateSearch();
+        UpdateAvatar();
+    }
+
+    void ToggleDiscover()
+    {
+        if ( Root is not { } root ) return;
+
+        if ( DiscoverOpen )
+        {
+            root.ToggleShelf( Shelf );
+            return;
+        }
+
+        // Straight to the search, ready to type in
+        root.Browse( null );
+        focusSearch = true;
+        sinceFocusAsked = 0;
+    }
+
+    /// <summary>
+    /// The search field's to be typed in as soon as it's there - it isn't till Browse is up
+    /// </summary>
+    bool focusSearch;
+    RealTimeSince sinceFocusAsked;
+
+    TextEntry SearchEntry;
+    Panel FindBox;
+
+    string typed;
+    RealTimeSince sinceTyped;
+
+    void Typed( string text )
+    {
+        typed = text?.Trim() ?? "";
+        sinceTyped = 0;
+    }
+
+    /// <summary>
+    /// Enter searches straight away - with nothing typed, it opens Browse on everything
+    /// </summary>
+    void Submit()
+    {
+        typed = null;
+        Find( SearchEntry?.Text?.Trim() ?? "", browseAll: true );
+    }
+
+    /// <summary>
+    /// Search Browse for <paramref name="query"/> - if it's already open, it keeps its sort and tags
+    /// </summary>
+    void Find( string query, bool browseAll = false )
+    {
+        if ( Root?.ShelfPage is BrowseShelf browse )
+        {
+            browse.Find( query );
+            return;
+        }
+
+        if ( string.IsNullOrEmpty( query ) && !browseAll ) return;
+
+        Root?.Browse( string.IsNullOrEmpty( query ) ? null : query );
+    }
+
+    /// <summary>
+    /// Searches once typing pauses. When the field isn't focused it mirrors Browse's current query.
+    /// </summary>
+    void UpdateSearch()
+    {
+        // Put away with something typed and not searched for yet - forgotten, not searched for the next time it's up
+        if ( !SearchEntry.IsValid() )
+        {
+            typed = null;
+
+            // Not left wanting focus for the next time, if Browse never came up
+            if ( !DiscoverOpen ) focusSearch = false;
+            return;
+        }
+
+        // It doesn't keep focus while it's still nothing wide and unseen, sliding out - given it again till it's out
+        if ( focusSearch )
+        {
+            if ( !SearchEntry.HasFocus ) SearchEntry.Focus();
+            if ( sinceFocusAsked > 0.4f ) focusSearch = false;
+        }
+
+        // As wide as it'll be typed in from the start when it's about to be, so it comes out to there in one go
+        FindBox?.SetClass( "typing", SearchEntry.HasFocus || focusSearch );
+
+        if ( typed is not null && sinceTyped > 0.4f )
+        {
+            Find( typed );
+            typed = null;
+        }
+
+        if ( SearchEntry.HasFocus || typed is not null ) return;
+
+        var searched = (Root?.ShelfPage as BrowseShelf)?.Searched ?? "";
+        if ( SearchEntry.Text != searched ) SearchEntry.Text = searched;
+    }
+
+    /// <summary>
+    /// The local avatar for the face on the Avatar button, rechecked every couple of seconds
+    /// </summary>
+    string AvatarJson;
+    RealTimeSince avatarChecked = 10;
+
+    void UpdateAvatar()
+    {
+        // Its button isn't there in a started game
+        if ( !PlatformRoot.CanDressUp ) return;
+
+        if ( avatarChecked < 2 ) return;
+        avatarChecked = 0;
+
+        var json = ClothingContainer.CreateFromLocalUser().Serialize();
+        if ( json == AvatarJson ) return;
+
+        AvatarJson = json;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Your friends, up out of the dock over the Friends button
+    /// </summary>
+    void Friends()
+    {
+        PartyDeck.ShownOnPlatform = false;
+        Root?.ToggleFriends();
+    }
+
+    /// <summary>
+    /// How far over one of its buttons a popup goes, to clear the dock - its buttons are 30 tall in the middle of its
+    /// 48, so 9 to its top, then a gap
+    /// </summary>
+    internal const float PopupOffset = 18;
+
+    /// <summary>
+    /// Puts a flyout's arrow (platform-flyout-arrow) under the middle of the button it came up from
+    /// </summary>
+    internal static void PointAt( Panel arrow, Panel button )
+    {
+        if ( !arrow.IsValid() || !button.IsValid() || arrow.Parent is not { } flyout ) return;
+
+        arrow.Style.Left = Length.Pixels( (button.Box.Rect.Center.x - flyout.Box.Rect.Left) * flyout.ScaleFromScreen );
+    }
+
+    /// <summary>
+    /// Out of the game - in the editor, out of play mode rather than the editor itself
+    /// </summary>
+    void Quit()
+    {
+        if ( !Application.IsEditor )
+        {
+            MenuHelpers.ConfirmQuit();
+            return;
+        }
+
+        MenuHelpers.ConfirmLeave( () =>
+        {
+            Root?.Resume();
+            Game.Close();
+        } );
+    }
+
+    protected override int BuildHash() => HashCode.Combine( InstalledGames, Shelf, PlatformMenu.CanSwitch, Root?.SettingsPage is not null, HashCode.Combine( PartyView.Exists, PartyDeck.Drafting, onlineCount, Root?.FriendsOpen == true ), PartyDeck.ShownOnPlatform,
+        MenuHelpers.HashOf( ShownMembers, static x => (x.Id, PartyView.StatusOf( x ), PartyView.IsMemberReady( x )) ), HashCode.Combine( MenuHelpers.HashOf( ShownInvites, static x => x.Id ),
+        Joining?.Icon, Joining?.ShowGame, PartyArt, PartyDeck.Activity(), Drop, Root?.RewardsOpen == true, HashCode.Combine( LibraryOpen, FirstTime.Seen( FirstTime.Discover ), FirstTime.Seen( FirstTime.Avatar ), AvatarJson ) ) );
+}

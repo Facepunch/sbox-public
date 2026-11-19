@@ -11,7 +11,7 @@ namespace BorealisGpuTests;
 
 /// <summary>
 /// The Slang material tier: Sandbox.ShaderCompiler's source rewrites and reflection, and new-tier materials drawn on
-/// Borealis.Gpu against the same material written as today's .shader. See docs/managed/shader-format-replacement.md.
+/// Borealis.Gpu against the same material written as today's .shader. See docs/reference/borealis-slang-materials.md.
 /// </summary>
 [TestClass]
 [DoNotParallelize]

@@ -3,13 +3,13 @@ namespace Sandbox;
 public sealed partial class WaterBody
 {
 	const string WaterShader = "shaders/water.shader";
-	const string DefaultMaterial = "materials/water/water.vmat";
+	const string DefaultMaterial = "materials/water/blue.water.vmat";
 
 	/// <summary>
 	/// How the water looks: colour and opacity from above and below, roughness, detail normals, refraction and its
 	/// fog, and the caustics it projects below. A material using the Water shader.
 	/// </summary>
-	[Property, Group( "Surface" ), Order( -296 )]
+	[Property, Group( "Surface" ), Order( -296 ), AssetHint( "*.water.vmat" )]
 	public Material Material { get; set; } = Material.Load( DefaultMaterial );
 
 	/// <summary>
@@ -18,7 +18,8 @@ public sealed partial class WaterBody
 	internal Material ActiveMaterial => IsWaterMaterial( Material ) ? Material : Material.Load( DefaultMaterial );
 
 	static bool IsWaterMaterial( Material material ) => material is { IsValid: true }
-		&& material.ShaderName.Replace( '\\', '/' ).StartsWith( WaterShader, StringComparison.OrdinalIgnoreCase );
+		&& (material.ShaderName.StartsWith( WaterShader, StringComparison.OrdinalIgnoreCase )
+			|| material.ShaderName.StartsWith( "shaders\\water.shader", StringComparison.OrdinalIgnoreCase ));
 
 	/// <summary>
 	/// A float parameter of a water material, or the fallback when it is NaN. Readers clamp infinities to the same

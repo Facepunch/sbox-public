@@ -230,6 +230,9 @@ public partial class PlayerControllerTest
 		Assert.AreEqual( 8f, pc.EyeDistanceFromTop );
 		Assert.IsTrue( pc.ThirdPerson );
 		Assert.IsTrue( pc.HideBodyInFirstPerson );
+		Assert.IsFalse( pc.ShowArmsInFirstPerson );
+		Assert.IsTrue( pc.UseFirstPersonAnimation );
+		Assert.IsTrue( pc.CastShadowsInFirstPerson );
 		Assert.AreEqual( "view", pc.ToggleCameraModeButton );
 
 		Assert.IsTrue( pc.UseAnimatorControls );
@@ -1131,7 +1134,11 @@ public partial class PlayerControllerTest
 	/// instead of creating a duplicate.
 	/// </summary>
 	[TestMethod]
-	public void SerializationRoundTrip()
+	[DataRow( true, true )]
+	[DataRow( true, false )]
+	[DataRow( false, true )]
+	[DataRow( false, false )]
+	public void SerializationRoundTrip( bool hideBody, bool castShadows )
 	{
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
@@ -1139,6 +1146,10 @@ public partial class PlayerControllerTest
 		var go = scene.CreateObject();
 		var pc = go.Components.Create<PlayerController>();
 		pc.WalkSpeed = 123;
+		pc.HideBodyInFirstPerson = hideBody;
+		pc.CastShadowsInFirstPerson = castShadows;
+		pc.ShowArmsInFirstPerson = !hideBody;
+		pc.UseFirstPersonAnimation = castShadows;
 		pc.RunSpeed = 456;
 		pc.BodyHeight = 80;
 		pc.RunByDefault = true;
@@ -1162,6 +1173,10 @@ public partial class PlayerControllerTest
 		var pc2 = copy.GetComponent<PlayerController>();
 		Assert.IsNotNull( pc2 );
 		Assert.AreEqual( 123f, pc2.WalkSpeed );
+		Assert.AreEqual( hideBody, pc2.HideBodyInFirstPerson );
+		Assert.AreEqual( castShadows, pc2.CastShadowsInFirstPerson );
+		Assert.AreEqual( !hideBody, pc2.ShowArmsInFirstPerson );
+		Assert.AreEqual( castShadows, pc2.UseFirstPersonAnimation );
 		Assert.AreEqual( 456f, pc2.RunSpeed );
 		Assert.AreEqual( 80f, pc2.BodyHeight );
 		Assert.IsTrue( pc2.RunByDefault );
@@ -1183,42 +1198,42 @@ public partial class PlayerControllerTest
 		Assert.AreEqual( 1, copy.Children.Count( x => x.Name == "Colliders" ),
 			"awake must reuse the serialized colliders child, not duplicate it" );
 	}
-}
-
-/// <summary>
-/// A move mode with a test-controlled score that records the state machine
-/// callbacks. The [RequireComponent] controller wiring is done by the tests since
-/// test assemblies don't run codegen.
-/// </summary>
-public class ProbeMoveMode : MoveMode
-{
-	/// <summary>
-	/// The score this mode reports to the mode selection.
-	/// </summary>
-	public int ScoreValue { get; set; }
 
 	/// <summary>
-	/// How many times OnModeBegin fired.
+	/// A move mode with a test-controlled score that records the state machine
+	/// callbacks. The [RequireComponent] controller wiring is done by the tests since
+	/// test assemblies don't run codegen.
 	/// </summary>
-	public int BeginCount { get; private set; }
+	public class ProbeMoveMode : MoveMode
+	{
+		/// <summary>
+		/// The score this mode reports to the mode selection.
+		/// </summary>
+		public int ScoreValue { get; set; }
 
-	/// <summary>
-	/// The mode passed to OnModeEnd when this mode lost control.
-	/// </summary>
-	public MoveMode EndedWith { get; private set; }
+		/// <summary>
+		/// How many times OnModeBegin fired.
+		/// </summary>
+		public int BeginCount { get; private set; }
 
-	/// <summary>
-	/// Reports the test-controlled score to the controller's mode selection.
-	/// </summary>
-	public override int Score( PlayerController controller ) => ScoreValue;
+		/// <summary>
+		/// The mode passed to OnModeEnd when this mode lost control.
+		/// </summary>
+		public MoveMode EndedWith { get; private set; }
 
-	/// <summary>
-	/// Records that this mode took control.
-	/// </summary>
-	public override void OnModeBegin() => BeginCount++;
+		/// <summary>
+		/// Reports the test-controlled score to the controller's mode selection.
+		/// </summary>
+		public override int Score( PlayerController controller ) => ScoreValue;
 
-	/// <summary>
-	/// Records which mode took over from this one.
-	/// </summary>
-	public override void OnModeEnd( MoveMode next ) => EndedWith = next;
+		/// <summary>
+		/// Records that this mode took control.
+		/// </summary>
+		public override void OnModeBegin() => BeginCount++;
+
+		/// <summary>
+		/// Records which mode took over from this one.
+		/// </summary>
+		public override void OnModeEnd( MoveMode next ) => EndedWith = next;
+	}
 }

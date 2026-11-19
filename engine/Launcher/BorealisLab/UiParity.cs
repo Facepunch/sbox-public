@@ -12,7 +12,7 @@ namespace Sandbox.BorealisLab;
 /// threw, or validation reported errors.
 /// <para>
 /// Stage 1 of moving the engine's own rendering (UI, <c>Graphics</c>, <c>CommandList</c>) onto Borealis.Gpu; see
-/// docs/managed/borealis-gpu-path.md. <c>-borealis-driver-names</c> introduces the device to the driver as Borealis rather than
+/// docs/reference/borealis-gpu-path.md. <c>-borealis-driver-names</c> introduces the device to the driver as Borealis rather than
 /// as Source 2 does, which changes AMD's trilinear filtering. <c>-reflection</c> binds every Borealis.Gpu draw by reflection
 /// instead of through material objects.
 /// </para>

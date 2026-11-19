@@ -1,4 +1,4 @@
-﻿
+
 using NativeEngine;
 using Sandbox.Engine;
 using Sandbox.Rendering;
@@ -136,6 +136,13 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	public Vector4 Viewport { get; set; } = new( 0.0f, 0.0f, 1.0f, 1.0f ); // todo this should use a rect
 
 	/// <summary>
+	/// Render this camera without anti-aliasing, whatever the player's graphics settings. Their render resolution and FSR1
+	/// upscaling still apply.
+	/// </summary>
+	[Property]
+	public bool DisableAntiAliasing { get; set; }
+
+	/// <summary>
 	/// If specified, this camera will render to this RenderTexture instead of the screen.
 	/// This can then be used in other stuff like materials.
 	/// </summary>
@@ -240,7 +247,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( sceneCamera is null )
 			return;
 
-		using var scope = Gizmo.Scope( $"{GetHashCode()}" );
+		using var scope = Gizmo.PushScope( "camera" );
 
 		Gizmo.Transform = global::Transform.Zero;
 
@@ -422,6 +429,11 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		{
 			camera.RenderTags.SetFrom( RenderTags );
 			camera.ExcludeTags.SetFrom( RenderExcludeTags );
+			if ( Scene.IsEditor && !IsSceneEditorCamera )
+			{
+				camera.ExcludeTags.Add( "editor_wireframe" );
+				camera.ExcludeTags.Add( "editor_overlay" );
+			}
 		}
 
 		// Merge our global Scene attributes into the camera
@@ -430,6 +442,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.DebugMode = DebugMode;
 		camera.WireframeMode = WireframeMode;
 		camera.EnablePostProcessing = EnablePostProcessing;
+		camera.DisableAntiAliasing = DisableAntiAliasing;
 		camera.UpdateScreenSpaceReflections();
 		camera.BackgroundColor = ClearFlags.Contains( ClearFlags.Color ) ? BackgroundColor : Color.Transparent;
 
@@ -857,7 +870,8 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// <summary>
 	/// Render colour and depth into caller-owned textures without copying the depth buffer.
 	/// The optional depth target must be a renderable 2D depth texture with eight stencil bits and the same dimensions
-	/// as the colour target. Its sample count determines the scene's MSAA sample count.
+	/// as the colour target. Its sample count determines the scene's MSAA sample count, so it must have one sample when
+	/// <see cref="DisableAntiAliasing"/> is set.
 	/// Depth retains the camera's projection and orientation: <see cref="ViewSetup.FlipX"/> and
 	/// <see cref="ViewSetup.FlipY"/> only affect the final colour blit. Keep both textures alive
 	/// until rendering and any subsequent sampling have completed.
@@ -885,6 +899,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 			if ( depthTarget.Size != target.Size )
 				throw new ArgumentException( "Colour and depth targets must have matching dimensions.", nameof( depthTarget ) );
+
+			if ( DisableAntiAliasing && depthTarget.MultisampleType != RenderMultisampleType.RENDER_MULTISAMPLE_NONE )
+				throw new ArgumentException( "A camera without anti-aliasing can't render into a multisampled depth target.", nameof( depthTarget ) );
 		}
 
 		// TODO: we need to get rid of this guard, it's a hack

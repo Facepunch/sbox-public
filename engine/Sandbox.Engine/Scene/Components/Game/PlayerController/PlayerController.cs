@@ -190,6 +190,7 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 		base.OnDisabled();
 
 		DisableAnimationEvents();
+		RestoreBodyVisibility();
 		StopPressing();
 	}
 

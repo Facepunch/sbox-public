@@ -20,6 +20,12 @@ public sealed partial class RenderTarget
 	/// <param name="targetName">The optional name of the render target</param>
 	/// <returns>A RenderTarget that is ready to render to.</returns>
 	public static RenderTarget GetTemporary( int width, int height, ImageFormat colorFormat = ImageFormat.Default, ImageFormat depthFormat = ImageFormat.Default, MultisampleAmount msaa = MultisampleAmount.MultisampleNone, int numMips = 1, string targetName = "" )
+		=> GetTemporary( width, height, colorFormat, depthFormat, msaa, numMips, targetName, 0 );
+
+	/// <summary>
+	/// As above, with <paramref name="targetId"/> also telling targets apart, so callers needn't build a unique name every frame.
+	/// </summary>
+	internal static RenderTarget GetTemporary( int width, int height, ImageFormat colorFormat, ImageFormat depthFormat, MultisampleAmount msaa, int numMips, string targetName, int targetId )
 	{
 		const int maxSize = 1024 * 16;
 
@@ -46,7 +52,7 @@ public sealed partial class RenderTarget
 		// (Texture.CreateOnBorealisGpu), kept apart from targets Source 2 draws into (a native tool's views)
 		var onBorealisGpu = Graphics.HasSource2Device && Graphics.Backend is BorealisGpuRenderBackend;
 
-		int hash = HashCode.Combine( width, height, colorFormat, depthFormat, numMips, msaa, targetName, onBorealisGpu );
+		int hash = HashCode.Combine( width, height, colorFormat, depthFormat, numMips, msaa, targetName, HashCode.Combine( targetId, onBorealisGpu ) );
 
 		RenderTarget rt = null;
 

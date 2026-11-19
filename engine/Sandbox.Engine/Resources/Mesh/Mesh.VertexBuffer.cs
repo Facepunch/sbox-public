@@ -18,6 +18,10 @@ namespace NativeEngine
 
 namespace Sandbox
 {
+	/// <summary>
+	/// The semantic meaning of a vertex attribute.
+	/// </summary>
+	[Expose]
 	public enum VertexAttributeType
 	{
 		Position,
@@ -29,6 +33,10 @@ namespace Sandbox
 		BlendWeights,
 	}
 
+	/// <summary>
+	/// The numeric storage format of each vertex attribute component.
+	/// </summary>
+	[Expose]
 	public enum VertexAttributeFormat : uint
 	{
 		Float32,
@@ -41,6 +49,10 @@ namespace Sandbox
 		UInt8,
 	}
 
+	/// <summary>
+	/// Describes a vertex attribute's semantic, storage format and component count.
+	/// </summary>
+	[Expose]
 	public struct VertexAttribute
 	{
 		public VertexAttribute( VertexAttributeType type, VertexAttributeFormat format, int components = 3, int semanticIndex = 0 )
@@ -149,7 +161,6 @@ namespace Sandbox
 
 		private static readonly int[] vertexAttributeFormatSizes = { 4, 2, 4, 4, 2, 2, 1, 1 };
 		private static readonly string[] vertexAttributeTypeNames = { "position", "normal", "tangent", "texcoord", "color", "blendindices", "blendweight" };
-		private static readonly VertexField[] vertexFields = new VertexField[16];
 
 		public static unsafe VertexBufferHandle Create<T>( int vertexCount, VertexAttribute[] layout, Span<T> data = default ) where T : unmanaged
 		{
@@ -237,6 +248,7 @@ namespace Sandbox
 			int layoutSize = 0;
 			int fieldCount = 0;
 			var sb = new StringBuilder();
+			VertexField* vertexFields = stackalloc VertexField[16];
 
 			foreach ( var attribute in layout )
 			{
@@ -271,27 +283,24 @@ namespace Sandbox
 			if ( layoutSize != vertexSize )
 				throw new ArgumentException( $"Vertex size mismatch with vertex layout (layout size {layoutSize}, vertex size {vertexSize})" );
 
-			fixed ( VertexField* fields_ptr = vertexFields )
+			if ( dataLength > vertexCount )
+				dataLength = vertexCount;
+
+			var handle = MeshGlue.CreateVertexBuffer( vertexSize, vertexCount, sb.ToString(), (IntPtr)vertexFields, fieldCount, data, dataLength );
+			if ( handle == IntPtr.Zero )
+				throw new Exception( $"Failed to create vertex buffer" );
+
+			return new VertexBufferHandle()
 			{
-				if ( dataLength > vertexCount )
-					dataLength = vertexCount;
-
-				var handle = MeshGlue.CreateVertexBuffer( vertexSize, vertexCount, sb.ToString(), (IntPtr)fields_ptr, fieldCount, data, dataLength );
-				if ( handle == IntPtr.Zero )
-					throw new Exception( $"Failed to create vertex buffer" );
-
-				return new VertexBufferHandle()
-				{
-					_native = handle,
-					_lockData = IntPtr.Zero,
-					_elementCount = vertexCount,
-					_elementSize = vertexSize,
-					_elementType = type,
-					_lockDataSize = 0,
-					_lockDataOffset = 0,
-					_locked = false,
-				};
-			}
+				_native = handle,
+				_lockData = IntPtr.Zero,
+				_elementCount = vertexCount,
+				_elementSize = vertexSize,
+				_elementType = type,
+				_lockDataSize = 0,
+				_lockDataOffset = 0,
+				_locked = false,
+			};
 		}
 
 		/// <summary>

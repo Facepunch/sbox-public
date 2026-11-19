@@ -30,6 +30,14 @@ public class ServerList : List<ServerList.Entry>, IDisposable, IWeakInteropHandl
 		serverlist.StartQuery();
 	}
 
+	/// <summary>
+	/// Servers on the local network instead of the internet's, matched to the same filters
+	/// </summary>
+	internal void QueryLan()
+	{
+		serverlist.StartLanQuery();
+	}
+
 	public void AddFilter( string key, string value )
 	{
 		serverlist.AddFilter( key, value );

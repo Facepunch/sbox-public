@@ -1,4 +1,4 @@
-// tools_selection_stencil_copy: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// tools_selection_stencil_copy: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
 // beside it is only Source 2's renderer's.
 //===================== Copyright (c) Valve Corporation. All Rights Reserved. ======================
 //

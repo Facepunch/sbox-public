@@ -61,13 +61,8 @@ public partial class Bitmap
 
 		var bitmap = new SKBitmap( width, height, SKColorType.RgbaF16, SKAlphaType.Unpremul );
 
-		unsafe
-		{
-			fixed ( Half* ptr = imageData )
-			{
-				bitmap.SetPixels( (IntPtr)ptr );
-			}
-		}
+		var destination = new Span<byte>( (void*)bitmap.GetPixels(), bitmap.ByteCount );
+		System.Runtime.InteropServices.MemoryMarshal.AsBytes( imageData.AsSpan() ).CopyTo( destination );
 
 		return new Bitmap( bitmap );
 	}

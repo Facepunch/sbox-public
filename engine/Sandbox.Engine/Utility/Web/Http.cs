@@ -18,6 +18,9 @@ public static partial class Http
 
 	private static readonly HttpClient Client;
 
+	// Opens WebSocket connections through ConnectAllowedAsync
+	internal static readonly HttpMessageInvoker WebSocketInvoker;
+
 	[System.Diagnostics.CodeAnalysis.SuppressMessage( "Reliability", "CA2000:Dispose objects before losing scope", Justification = "HttpClient will dispose handlers." )]
 	static Http()
 	{
@@ -28,6 +31,7 @@ public static partial class Http
 			AllowAutoRedirect = false,
 			// Opens another connection if the server's stream limit is below what we're asking for.
 			EnableMultipleHttp2Connections = true,
+			ConnectCallback = ConnectAllowedAsync,
 		};
 
 		// Gives us 1 http client per game, so cookies don't persist etc.
@@ -39,6 +43,51 @@ public static partial class Http
 		// fetching many resources at once opens a TCP+TLS connection per request.
 		Client.DefaultRequestVersion = HttpVersion.Version20;
 		Client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+
+		WebSocketInvoker = new HttpMessageInvoker( new SocketsHttpHandler
+		{
+			PooledConnectionLifetime = TimeSpan.FromMinutes( 2 ),
+			AllowAutoRedirect = false,
+			UseCookies = false,
+			ConnectCallback = ConnectAllowedAsync,
+		} );
+	}
+
+	// Connects to the addresses we checked, a second DNS lookup could hand back a private one
+	private static async ValueTask<System.IO.Stream> ConnectAllowedAsync( SocketsHttpConnectionContext context, CancellationToken ct )
+	{
+		var uri = context.InitialRequestMessage.RequestUri;
+		var endpoint = context.DnsEndPoint;
+
+		IPAddress[] addresses;
+
+		// Through a proxy we connect to the proxy, not the host we checked
+		if ( !string.Equals( endpoint.Host, uri.IdnHost, StringComparison.OrdinalIgnoreCase ) )
+		{
+			addresses = await Dns.GetHostAddressesAsync( endpoint.Host, ct );
+		}
+		else
+		{
+			addresses = await uri.ResolveAddressesAsync();
+
+			if ( !IsLocalAllowed && !IsResolvedAllowed( uri, addresses ) )
+				throw new HttpRequestException( $"Access to '{uri}' is not allowed." );
+		}
+
+#pragma warning disable CA2000 // Owned by the returned NetworkStream, disposed below on failure
+		var socket = new Socket( SocketType.Stream, ProtocolType.Tcp ) { NoDelay = true };
+#pragma warning restore CA2000
+
+		try
+		{
+			await socket.ConnectAsync( addresses, endpoint.Port, ct );
+			return new NetworkStream( socket, ownsSocket: true );
+		}
+		catch
+		{
+			socket.Dispose();
+			throw;
+		}
 	}
 
 	/// <summary>

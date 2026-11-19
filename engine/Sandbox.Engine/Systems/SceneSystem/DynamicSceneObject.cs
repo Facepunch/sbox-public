@@ -99,10 +99,17 @@ public class SceneDynamicObject : SceneObject
 	// Native's Begin drops the vertices and sets the primitive type
 	void Begin( Graphics.PrimitiveType type, int vertices )
 	{
+		ThrowIfUndefined( type );
 		managedNative.Begin( (RenderPrimitiveType)type, vertices );
 		if ( ManagedVertices is null ) return;
 		ManagedVertices.Clear();
 		ManagedPrimitiveType = type;
+	}
+
+	internal static void ThrowIfUndefined( Graphics.PrimitiveType type )
+	{
+		if ( !Enum.IsDefined( type ) )
+			throw new ArgumentOutOfRangeException( nameof( type ), $"Unknown primitive type {(int)type}" );
 	}
 }
 

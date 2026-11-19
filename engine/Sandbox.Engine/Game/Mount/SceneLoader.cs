@@ -1,5 +1,3 @@
-using Sandbox.Engine;
-
 namespace Sandbox.Mounting;
 
 /// <summary>
@@ -16,7 +14,7 @@ public abstract class SceneLoader<T> : ResourceLoader<T>, IThumbnailProvider whe
 			if ( !_thumbnail.IsValid() )
 			{
 				_thumbnail = GetThumbnail()
-					?? Texture.LoadFromFileSystem( $"/thumbs/{Host.Ident}/{RelativePath.WithExtension( ".png" )}", GlobalContext.Menu.FileMount, false )
+					?? Texture.Load( $"thumb:{Path}", false )
 					?? Texture.Invalid;
 			}
 
@@ -35,20 +33,38 @@ public abstract class SceneLoader<T> : ResourceLoader<T>, IThumbnailProvider whe
 		var scene = new Scene();
 		scene.SetDeterministicId( (Path ?? string.Empty).ToGuid() );
 
-		using ( scene.Push() )
-		// Finish build callbacks before destroying the temporary scene.
-		using ( CallbackBatch.Isolated() )
+		SceneFile file = null;
+		try
 		{
-			BuildScene();
+			using ( scene.Push() )
+			// Finish build callbacks before destroying the temporary scene.
+			using ( CallbackBatch.Isolated() )
+			{
+				BuildScene();
+			}
+
+			file = GetOrRegister( Path );
+			file.OnDestroyed = OnSceneUnloaded;
+			_scene = file;
+			scene.ToSceneFile( file );
+			scene.Destroy();
+
+			file.PostLoadInternal();
+
+			return file;
 		}
+		catch
+		{
+			if ( scene.IsValid() )
+				scene.Destroy();
 
-		_scene = GetOrRegister( Path );
-		scene.ToSceneFile( _scene );
-		scene.Destroy();
-
-		_scene.PostLoadInternal();
-
-		return _scene;
+			// Destroying the registration calls OnSceneUnloaded
+			if ( file is null )
+				OnSceneUnloaded();
+			else
+				file.DestroyInternal();
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -60,6 +76,17 @@ public abstract class SceneLoader<T> : ResourceLoader<T>, IThumbnailProvider whe
 	/// Load or create the thumbnail image for this scene, the result is cached.
 	/// </summary>
 	protected virtual Texture GetThumbnail() { return null; }
+
+	/// <summary>
+	/// Called when the built scene is destroyed or its build failed, the next load builds it again.
+	/// Release anything kept alive for it here.
+	/// </summary>
+	protected virtual void OnSceneUnloaded() { }
+
+	/// <summary>
+	/// Every live scene, editor scenes included, to check whether something is still in use before releasing it.
+	/// </summary>
+	protected static IEnumerable<Scene> LiveScenes => Scene.AllLive;
 
 	protected sealed override void Shutdown()
 	{
@@ -77,7 +104,7 @@ public abstract class SceneLoader<T> : ResourceLoader<T>, IThumbnailProvider whe
 		var fixedPath = Resource.FixPath( resourcePath );
 
 		var scene = Game.Resources.GetByIdLong<SceneFile>( fixedPath.FastHash64() );
-		if ( scene is not null )
+		if ( scene is not null && scene.IsValid )
 			return scene;
 
 		scene = new SceneFile();

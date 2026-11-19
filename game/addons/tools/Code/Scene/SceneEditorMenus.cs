@@ -61,6 +61,10 @@ public static class SceneEditorMenus
 		}
 	}
 
+	/// <summary>Creates a scene-local linked group from the selection.</summary>
+	[Menu( "Editor", "Scene/Create Instance", "view_in_ar" )]
+	public static void CreateInstance() => SceneEditorSession.Active?.CreateInstance();
+
 	[Menu( "Editor", "Scene/Create Group" )]
 	[Shortcut( "editor.group", "CTRL+SHIFT+G" )]
 	public static void Group()
@@ -201,7 +205,7 @@ public static class SceneEditorMenus
 		{
 			foreach ( var go in gos )
 			{
-				go.WorldPosition = go.WorldPosition.SnapToGrid( gridSpacing );
+				go.WorldPosition = WorkPlane.Snap( WorkPlane.Current, go.WorldPosition, gridSpacing );
 			}
 		}
 
@@ -383,6 +387,8 @@ public static class SceneEditorMenus
 	[Shortcut( "editor.clear-selection", "ESC" )]
 	public static void DeselectAll()
 	{
+		if ( SceneViewWidget.Current?.Tools.CurrentTool?.CancelBoxSelection() == true ) return;
+
 		using ( SceneEditorSession.Active.UndoScope( "Deselect All" ).Push() )
 		{
 			EditorScene.Selection.Clear();

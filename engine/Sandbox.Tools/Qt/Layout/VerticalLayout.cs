@@ -10,7 +10,6 @@ namespace Editor;
 // I wanted a layout that flowed from top to bottom with no springyness or stretching
 // this kind of works but at the same time it kind of doesn't work. Theres weirdness when 
 // they're inside another layout, or another layout is inside them. I don't love it.
-// So I'm commenting it out.
 
 internal class VerticalLayout : Layout
 {

@@ -241,29 +241,6 @@ partial class FaceTool
 			_meshTool.CurrentTool = tool;
 		}
 
-		[Shortcut( "mesh.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
-		private void SelectAll()
-		{
-			using var scope = SceneEditorSession.Scope();
-			using var undoScope = SceneEditorSession.Active.UndoScope( "Select All Faces" ).Push();
-
-			var selection = SceneEditorSession.Active.Selection;
-			selection.Clear();
-
-			foreach ( var faceGroup in _faceGroups )
-			{
-				var mesh = faceGroup.Key.Mesh;
-
-				foreach ( var face in mesh.FaceHandles )
-				{
-					if ( mesh.IsFaceHidden( face ) )
-						continue;
-
-					selection.Add( new MeshFace( faceGroup.Key, face ) );
-				}
-			}
-		}
-
 		[Shortcut( "mesh.hide-faces", "H", typeof( SceneViewWidget ) )]
 		private void HideFaces()
 		{
@@ -995,11 +972,7 @@ partial class FaceTool
 					{
 						var world = new MeshVertex( component, hVertex ).PositionWorld;
 
-						world = new Vector3(
-							MathF.Round( world.x / grid ) * grid,
-							MathF.Round( world.y / grid ) * grid,
-							MathF.Round( world.z / grid ) * grid
-						);
+						world = WorkPlane.Snap( WorkPlane.Current, world, grid );
 
 						var local = component.WorldTransform.PointToLocal( world );
 						mesh.SetVertexPosition( hVertex, local );

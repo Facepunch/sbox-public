@@ -1,4 +1,5 @@
 ﻿using NativeEngine;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Buffers;
 using static Sandbox.PhysicsGroupDescription.BodyPart;
@@ -197,19 +198,22 @@ partial class PhysicsBody3d
 		return AddMeshShape( vertices, PlaneIndices, rebuildMass );
 	}
 
-	internal override unsafe PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount, ReadOnlySpan<int> surfaceIndices = default )
+	/// <inheritdoc />
+	internal override unsafe PhysicsShape AddHeightFieldShape( ushort[] heights, ReadOnlySpan<byte> materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount, ReadOnlySpan<int> surfaceIndices = default )
 	{
 		if ( heights == null )
 			throw new ArgumentException( "Height data is null" );
 
-		var cellCount = sizeX * sizeY;
-		if ( cellCount <= 0 )
+		if ( sizeX <= 0 || sizeY <= 0 )
 			throw new ArgumentOutOfRangeException( "Size needs to be non zero" );
+
+		var cellCount = (long)sizeX * sizeY;
 
 		if ( heights.Length != cellCount )
 			throw new ArgumentOutOfRangeException( $"Height data length is {heights.Length}, should be {cellCount}" );
 
-		if ( materials != null && materials.Length != cellCount )
+		// A null backing reference means omitted materials; an explicitly supplied empty array is still invalid.
+		if ( !Unsafe.IsNullRef( ref MemoryMarshal.GetReference( materials ) ) && materials.Length != cellCount )
 			throw new ArgumentOutOfRangeException( $"Material data length is {materials.Length}, should be {cellCount}" );
 
 		fixed ( ushort* pHeights = heights )

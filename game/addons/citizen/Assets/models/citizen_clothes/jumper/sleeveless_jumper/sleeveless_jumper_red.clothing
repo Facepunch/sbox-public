@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/jumper/sleeveless_jumper/sleeveless_jumper_red.clothing.png",
+    "Path": "models/citizen_clothes/jumper/sleeveless_jumper/sleeveless_jumper_red.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "103.799797,0,-0.499998897"

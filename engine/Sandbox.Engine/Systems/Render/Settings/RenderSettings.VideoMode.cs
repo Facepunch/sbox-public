@@ -67,7 +67,7 @@ public partial class RenderSettings
 		{
 			var defaultMode = UpscalerMode == UpscalerMode.Off ? AntiAliasMode.Cmaa2 : AntiAliasMode.None;
 			var value = VideoSettings.Get<int>( "aa.mode", (int)defaultMode );
-			return Enum.IsDefined( typeof( AntiAliasMode ), value ) ? (AntiAliasMode)value : defaultMode;
+			return Enum.IsDefined( (AntiAliasMode)value ) ? (AntiAliasMode)value : defaultMode;
 		}
 
 		set

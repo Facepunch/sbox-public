@@ -1,4 +1,4 @@
-// fsr1_easu: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// fsr1_easu: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //=================================================================================================
 // FSR1 EASU (Edge-Adaptive Spatial Upsampling) compute pass.
 // Reads the low-res post-tonemap scene color and writes the upscaled result.

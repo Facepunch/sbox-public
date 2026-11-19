@@ -10,28 +10,32 @@ public static class RazorProcessor
 	/// </summary>
 	public static string GenerateFromSource( string text, string filename, string rootNamespace = null, bool useFolderNamespacing = true )
 	{
-		// If a root namespace is provided and the file doesn't have an namespace inject one
-		if ( useFolderNamespacing )
+		return GenerateDocument( text, filename, rootNamespace, useFolderNamespacing ).GeneratedCode;
+	}
+
+	/// <summary>
+	/// Generates C# and retains Razor diagnostics for callers that need to report source errors.
+	/// </summary>
+	public static RazorCSharpDocument GenerateDocument( string text, string filename, string rootNamespace = null, bool useFolderNamespacing = true )
+	{
+		// Supply the inferred namespace as an import so source locations still refer to the original text.
+		var imports = new List<RazorSourceDocument>();
+		if ( useFolderNamespacing && !string.IsNullOrEmpty( rootNamespace ) && !text.Contains( "@namespace" ) )
 		{
-			text = AddNamespace( text, filename, rootNamespace );
+			imports.Add( RazorSourceDocument.Create( $"@namespace {GetNamespace( filename, rootNamespace )}", filename ) );
 		}
 
 		var engine = GetEngine();
 
 		RazorSourceDocument source = RazorSourceDocument.Create( text, filename );
-		RazorCodeDocument code = engine.Process( source, FileKinds.Component, new List<RazorSourceDocument>(), new List<TagHelperDescriptor>() );
+		RazorCodeDocument code = engine.Process( source, FileKinds.Component, imports, new List<TagHelperDescriptor>() );
 		code.SetCodeGenerationOptions( RazorCodeGenerationOptions.Create( o => { } ) );
 
-		RazorCSharpDocument document = code.GetCSharpDocument();
-
-		return document.GeneratedCode;
+		return code.GetCSharpDocument();
 	}
 
-	private static string AddNamespace( string text, string filename, string rootNamespace )
+	private static string GetNamespace( string filename, string rootNamespace )
 	{
-		if ( string.IsNullOrEmpty( rootNamespace ) ) return text;
-		if ( text.Contains( "@namespace" ) ) return text;
-
 		// Compute namespace from folder structure
 		var directory = System.IO.Path.GetDirectoryName( filename );
 		var computedNamespace = rootNamespace;
@@ -54,7 +58,7 @@ public static class RazorProcessor
 			}
 		}
 
-		return $"@namespace {computedNamespace}\n{text}";
+		return computedNamespace;
 	}
 
 	/// <summary>

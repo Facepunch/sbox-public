@@ -48,6 +48,7 @@ internal class PanelSurfaceWidget : Frame
 	RealTimeSince _sinceFrame;
 	bool _mouseInside;
 	bool _stopped;
+	bool _renderFailed;
 
 	public PanelSurfaceWidget( Widget parent = null ) : base( parent )
 	{
@@ -156,7 +157,17 @@ internal class PanelSurfaceWidget : Frame
 		foreach ( var widget in All.ToArray() )
 		{
 			if ( !widget.IsValid() || !widget.Visible ) continue;
-			widget.Render();
+
+			try
+			{
+				widget.Render();
+			}
+			catch ( Exception e )
+			{
+				if ( widget._renderFailed ) continue;
+				widget._renderFailed = true;
+				Log.Error( e, $"Exception rendering a panel surface" );
+			}
 		}
 	}
 
@@ -205,6 +216,7 @@ internal class PanelSurfaceWidget : Frame
 		}
 
 		g_pRenderDevice.Present( _swapChain );
+		_renderFailed = false;
 	}
 
 	protected override void OnMouseEnter()

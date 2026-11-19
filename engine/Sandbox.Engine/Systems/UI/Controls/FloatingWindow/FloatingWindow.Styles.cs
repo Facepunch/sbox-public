@@ -27,6 +27,11 @@ public partial class FloatingWindow
 				flex-shrink: 0;
 			}
 
+			&.fixed .floating-window-titlebar
+			{
+				cursor: default;
+			}
+
 			.floating-window-nodrag
 			{
 				cursor: pointer;

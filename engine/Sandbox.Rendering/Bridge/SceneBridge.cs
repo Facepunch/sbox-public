@@ -327,7 +327,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 
 	/// <summary>
 	/// What a view needs that Borealis doesn't do yet, or null when it can render it. Each is a gap listed in
-	/// docs/managed/render-paths.md.
+	/// docs/reference/borealis-render-paths.md.
 	/// </summary>
 	internal static string NotYetInBorealis( SceneCamera camera, in ViewSetup setup )
 	{

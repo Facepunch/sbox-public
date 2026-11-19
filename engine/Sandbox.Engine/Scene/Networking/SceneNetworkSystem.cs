@@ -267,6 +267,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	private async Task OnLoadSceneSnapshotMsg( LoadSceneSnapshotMsg msg, Connection connection, Guid msgId )
 	{
+		if ( !connection.IsHost )
+			return;
+
 		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
 		Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, connection );
 
@@ -335,6 +338,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	private async Task OnLoadSceneMsg( LoadSceneBeginMsg msg, Connection connection, Guid msgId )
 	{
+		if ( !connection.IsHost )
+			return;
+
 		// Always show the loading screen on clients when the host changes scene,
 		// so they see feedback immediately instead of a frozen frame.
 		if ( !Game.IsEditor )
@@ -540,7 +546,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	{
 		if ( Game.ActiveScene is null ) return "<empty>";
 
-		foreach ( var map in Game.ActiveScene.GetAllComponents<MapInstance>() )
+		foreach ( var map in Game.ActiveScene.Query<MapInstance>() )
 		{
 			if ( !map.Active ) continue;
 			if ( !map.IsLoaded ) continue;

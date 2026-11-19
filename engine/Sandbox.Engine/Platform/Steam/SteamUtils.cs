@@ -9,6 +9,8 @@ internal class SteamUtils : SteamSharedClass<SteamUtils>
 {
 	internal static ISteamUtils Internal => Interface as ISteamUtils;
 
+	internal static bool IsInstalled => Internal?.IsValid ?? false;
+
 	internal override void InitializeInterface( bool server )
 	{
 		SetInterface( server, new ISteamUtils( server ) );
@@ -34,7 +36,7 @@ internal class SteamUtils : SteamSharedClass<SteamUtils>
 	{
 		width = 0;
 		height = 0;
-		return Internal.GetImageSize( image, ref width, ref height );
+		return IsInstalled && Internal.GetImageSize( image, ref width, ref height );
 	}
 
 	/// <summary>
@@ -65,5 +67,5 @@ internal class SteamUtils : SteamSharedClass<SteamUtils>
 	/// <summary>
 	/// returns true if Steam itself is running on the Steam Deck
 	/// </summary>
-	internal static bool IsRunningOnSteamDeck => Internal.IsSteamRunningOnSteamDeck();
+	internal static bool IsRunningOnSteamDeck => IsInstalled && Internal.IsSteamRunningOnSteamDeck();
 }

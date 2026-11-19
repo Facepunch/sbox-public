@@ -6,7 +6,7 @@ namespace Borealis.Backend;
 /// <summary>
 /// Drawing through material objects (<see cref="BackendDevice.MaterialObjects"/>): the same bindings as
 /// <see cref="DrawModel"/> makes by reflection, but resolved once per material, way of drawing and pass state, into
-/// persistent sets bound with dynamic offsets. See docs/managed/borealis-materials.md.
+/// persistent sets bound with dynamic offsets. See docs/reference/borealis-materials.md.
 /// </summary>
 internal sealed partial class BackendContext
 {

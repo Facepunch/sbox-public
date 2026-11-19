@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 /// <summary>
 /// The wheel joint can be used to simulate wheels on vehicles.
@@ -401,14 +401,14 @@ public sealed class WheelJoint : Joint
 
 		Gizmo.Draw.IgnoreDepth = true;
 
-		using var _ = Gizmo.Scope();
+		using var _ = Gizmo.PushScope();
 
 		Gizmo.Transform = Gizmo.Transform.WithScale( 1 );
 
 
 		// axis
 		{
-			using var __ = Gizmo.Scope();
+			using var __ = Gizmo.PushScope();
 			Gizmo.Transform = Gizmo.Transform with { Rotation = Gizmo.Transform.Rotation * new Angles( 0, 0, RealTime.Now * 45 ) };
 			Gizmo.Draw.Color = Gizmo.Colors.Green;
 			Gizmo.Draw.LineThickness = 2;
@@ -420,7 +420,7 @@ public sealed class WheelJoint : Joint
 			var v = SuspensionLimits;
 			v = new Vector2( Math.Min( v.x, v.y ), Math.Max( v.x, v.y ) );
 
-			using var __ = Gizmo.Scope();
+			using var __ = Gizmo.PushScope();
 
 			var top = Vector3.Left * v.y;
 			var bottom = Vector3.Left * v.x;

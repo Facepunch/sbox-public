@@ -5,6 +5,7 @@ namespace Sandbox;
 /// <summary>
 /// Access to mouse position, movement, input mode and cursor appearance.
 /// </summary>
+[Expose]
 public static class Mouse
 {
 	internal static Vector2 _velocityHistory;

@@ -54,8 +54,6 @@ public sealed partial class PlayerController : Component
 			UpdateEyeTransform();
 		}
 
-		UpdateBodyVisibility();
-
 		if ( UseAnimatorControls && Renderer.IsValid() )
 		{
 			UpdateAnimation( Renderer );
@@ -77,7 +75,8 @@ public sealed partial class PlayerController : Component
 		if ( !UseInputControls ) return;
 
 		InputMove();
-		UpdateDuckInput( Input.Down( "duck" ) );
+		if ( !string.IsNullOrWhiteSpace( DuckButton ) )
+			UpdateDuckInput( Input.Down( DuckButton ) );
 		InputJump();
 
 		UpdateEyeTransform();

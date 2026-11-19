@@ -17,7 +17,7 @@ namespace ContentBuild;
 [TestClass, DoNotParallelize]
 public class CompilerWorkerTests
 {
-	internal static ResourceCompiler Compiler( IReadOnlyList<ContentRoot> mounts, int workers = 1, string compilers = null ) => new( ManagedBuilder.Worker, ManagedBuilder.Types, Mounts( mounts ), compilers ) { MaxWorkers = workers };
+	internal static ResourceCompiler Compiler( IReadOnlyList<ContentRoot> mounts, string compilers = null ) => new( ManagedBuilder.Worker, ManagedBuilder.Types, Mounts( mounts ), compilers );
 
 	static List<(string Mod, string Path)> Mounts( IReadOnlyList<ContentRoot> roots ) => roots.Select( x => (x.Mod, x.Path) ).ToList();
 
@@ -96,7 +96,7 @@ public class CompilerWorkerTests
 
 	static void Build( ContentFixture fx, ContentRoot root )
 	{
-		var compiler = Compiler( [root], 4 );
+		var compiler = Compiler( [root] );
 		try
 		{
 			var report = ContentBuilder.Build( new BuildRequest { Roots = [root], MaxJobs = 4 }, compiler );
@@ -258,7 +258,7 @@ public class CompilerWorkerTests
 		var root = Root( fx );
 		Sources.WriteWav( fx, "sounds/a.wav", 440 );
 
-		var reused = new ResourceCompiler( ManagedBuilder.Worker, ManagedBuilder.Types, Mounts( [root] ), null ) { MaxWorkers = 1, Timeout = TimeSpan.FromMilliseconds( 1 ) };
+		var reused = new ResourceCompiler( ManagedBuilder.Worker, ManagedBuilder.Types, Mounts( [root] ), null ) { Timeout = TimeSpan.FromMilliseconds( 1 ) };
 		try
 		{
 			var timedOut = Run( reused, root, [root], "sounds/a.wav" );
@@ -279,13 +279,13 @@ public class CompilerWorkerTests
 	}
 
 	[TestMethod]
-	public void WorkersThatCantStartFailTheirJobsAndFreeTheirSlots()
+	public void WorkersThatCantStartFailTheirJobs()
 	{
 		using var fx = new ContentFixture();
 		var root = Root( fx );
 		Sources.WriteWav( fx, "sounds/a.wav", 440 );
 
-		var missing = new ResourceCompiler( Path.Combine( fx.Parent, "missing.exe" ), ManagedBuilder.Types, Mounts( [root] ), null ) { MaxWorkers = 2 };
+		var missing = new ResourceCompiler( Path.Combine( fx.Parent, "missing.exe" ), ManagedBuilder.Types, Mounts( [root] ), null );
 		var outcomes = new System.Collections.Concurrent.ConcurrentBag<bool>();
 		Parallel.For( 0, 6, _ =>
 		{
@@ -324,11 +324,11 @@ public class CompilerWorkerTests
 	}
 
 	[TestMethod, TestCategory( "Slow" )]
-	public void RootsOfABuildShareWorkersUnderTheCap()
+	public void RootsOfABuildShareOneWorker()
 	{
-		// One worker in all: both roots' jobs go to it, as a fresh process of their own root would build them, from two
-		// threads taking turns; a job with other mounts (the roots the other way round, as another project mounts them)
-		// replaces it
+		// One worker in all: both roots' jobs go to it, as a fresh process of their own root would build them, from six
+		// threads at once; a job with other mounts (the roots the other way round, as another project mounts them) gets
+		// a worker of its own, and the idle one goes
 		using var fx = new ContentFixture();
 		var a = Root( fx );
 		var b = new ContentRoot( fx.Mod + "b", Path.Combine( fx.Parent, "b" ), Path.Combine( fx.Parent, "bstate" ) );

@@ -458,12 +458,13 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 		if ( !Gizmo.IsSelected )
 			return;
 
-		if ( Gizmo.Control.BoundingBox( "Bounds", Bounds, out var newBounds ) )
+		if ( Gizmo.Control.UpdateBoundingBox( "Bounds", Bounds, out var newBounds ) )
 		{
 			_boundsUndoScope ??= Scene.Editor?.UndoScope( "Resize Indirect Light Volume" ).WithComponentChanges( this ).Push();
 
 			Bounds = newBounds;
 		}
+		Gizmo.Draw.BoundingBox( "Bounds", Bounds );
 
 		Gizmo.Draw.LineBBox( Bounds );
 

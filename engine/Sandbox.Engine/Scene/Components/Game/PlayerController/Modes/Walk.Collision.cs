@@ -8,6 +8,7 @@ public partial class MoveModeWalk
 	Vector3 _staticMoveVelocity;
 	PhysicsShape _previousSlideContact;
 	Vector3 _previousSlideNormal;
+	readonly List<SceneTraceResult> _obstacleHits = new();
 	internal bool IsStaticGroundMove => _physicsStep && !HasPhysicalObstacle( _movementStart, Controller.Body.PhysicsBody.Position );
 
 	// Static sweeps must not replace impulses from movable bodies or conveyors.
@@ -16,8 +17,10 @@ public partial class MoveModeWalk
 		var scale = MathF.Abs( Controller.WorldTransform.UniformScale );
 		var hull = Controller.BodyBox();
 		var margin = new Vector3( 2 );
-		foreach ( var hit in Scene.Trace.Box( new BBox( hull.Mins * scale - margin, hull.Maxs * scale + margin ), from, to )
-			.IgnoreGameObjectHierarchy( Controller.GameObject ).WithCollisionRules( Controller.Tags ).RunAll() )
+		Scene.RunTraceAll( Scene.Trace.Box( new BBox( hull.Mins * scale - margin, hull.Maxs * scale + margin ), from, to )
+			.IgnoreGameObjectHierarchy( Controller.GameObject ).WithCollisionRules( Controller.Tags ), _obstacleHits );
+
+		foreach ( var hit in _obstacleHits )
 		{
 			if ( hit.Body?.BodyType != PhysicsBodyType.Static || !hit.Shape.SurfaceVelocity.IsNearZeroLength )
 				return true;

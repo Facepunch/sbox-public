@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 Spinner
 {
@@ -20,7 +20,7 @@ Spinner
 		bottom: 0;
 		border-radius: 50%;
 		border: 3px solid rgba( 255, 255, 255, 0.08 );
-		border-top-color: $front-primary;
+		border-top-color: $platform-primary;
 		animation-name: spinner-turn;
 		animation-duration: 0.9s;
 		animation-timing-function: linear;

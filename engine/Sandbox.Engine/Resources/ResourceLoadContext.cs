@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Sandbox;
 
 /// <summary>
-/// Lets a <see cref="Resource"/> read from its compiled file while the file data
+/// Lets a <see cref="Resource"/> read from its file while the file data
 /// is in memory, during <see cref="Resource.OnLoaded"/>. Blocks are written at
 /// compile time, eg with <see cref="Resources.ResourceCompileContext.WriteBlockJson"/>.
 /// Only valid during the call - copy out anything you want to keep.
@@ -13,12 +13,49 @@ public readonly ref struct ResourceLoadContext
 	readonly string _resourceName;
 	readonly IntPtr _header;
 	readonly int _dataSize;
+	readonly ReadOnlySpan<byte> _source;
+
+	/// <summary>
+	/// Whether this context contains an original source file instead of a compiled resource container.
+	/// </summary>
+	public bool IsUncompiled { get; }
+
+	internal ResourceLoadContext( string resourceName, ReadOnlySpan<byte> source )
+	{
+		_resourceName = resourceName;
+		_source = source;
+		IsUncompiled = true;
+	}
 
 	internal ResourceLoadContext( string resourceName, IntPtr header, int dataSize )
 	{
 		_resourceName = resourceName;
 		_header = header;
 		_dataSize = dataSize;
+	}
+
+	/// <summary>
+	/// Reads the complete uncompiled source file. The returned span is only valid during Resource.OnLoaded.
+	/// </summary>
+	public ReadOnlySpan<byte> ReadSource()
+	{
+		if ( !IsUncompiled )
+			throw new InvalidOperationException( "This context contains compiled resource data, not a source file." );
+
+		return _source;
+	}
+
+	/// <summary>
+	/// Reads the uncompiled source file as UTF-8 text, removing an optional byte order mark.
+	/// The returned string can be retained after Resource.OnLoaded returns.
+	/// </summary>
+	public string ReadSourceAsString()
+	{
+		var source = ReadSource();
+		if ( source.StartsWith( new byte[] { 0xef, 0xbb, 0xbf } ) )
+			source = source[3..];
+
+		return System.Text.Encoding.UTF8.GetString( source );
 	}
 
 	/// <summary>

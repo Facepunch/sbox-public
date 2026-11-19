@@ -6,7 +6,7 @@ namespace Borealis.Source2.Shaders;
 /// <summary>
 /// One drawable variant of a shader: a mode, a material's feature values and dynamic combo values, resolved into what a
 /// pipeline and its bindings need. Shader modules and binding layouts are made through a <see cref="ShaderLibrary"/>,
-/// which owns them. See docs/managed/borealis-gpu.md.
+/// which owns them. See docs/reference/borealis-gpu.md.
 /// </summary>
 public sealed class ShaderVariant
 {

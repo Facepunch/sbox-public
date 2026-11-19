@@ -21,7 +21,7 @@ public class CapsuleColliderTool : EditorTool<CapsuleCollider>
 		using ( Gizmo.Scope( "Capsule Collider Editor", capsuleCollider.WorldTransform ) )
 		{
 			var currentCapsule = new Capsule( capsuleCollider.Start, capsuleCollider.End, capsuleCollider.Radius );
-			if ( Gizmo.Control.Capsule( "capsule", currentCapsule, out var newCapsule, Gizmo.Colors.Green ) )
+			if ( Gizmo.Control.UpdateCapsule( "capsule", currentCapsule, out var newCapsule ) )
 			{
 				_componentUndoScope ??= SceneEditorSession.Active.UndoScope( "Resize Capsule Collider" )
 					.WithComponentChanges( capsuleCollider ).Push();
@@ -30,6 +30,7 @@ public class CapsuleColliderTool : EditorTool<CapsuleCollider>
 				capsuleCollider.End = newCapsule.CenterB;
 				capsuleCollider.Radius = newCapsule.Radius;
 			}
+			Gizmo.Draw.Capsule( "capsule", new Capsule( capsuleCollider.Start, capsuleCollider.End, capsuleCollider.Radius ), Gizmo.Colors.Green );
 		}
 	}
 }

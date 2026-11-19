@@ -1,6 +1,6 @@
 namespace Editor.MeshEditor;
 
-public abstract class PrimitiveEditor
+public abstract class PrimitiveEditor : IDisposable
 {
 	private readonly TypeDescription _type;
 
@@ -22,7 +22,41 @@ public abstract class PrimitiveEditor
 	public abstract void OnCancel();
 	public abstract PolygonMesh Build();
 
-	public virtual Rotation BuildRotation => Rotation.Identity;
+	protected Transform ConstructionFrame { get; set; } = Transform.Zero;
+	public virtual Transform BuildTransform => ConstructionFrame;
+	protected Ray LocalRay => Gizmo.CurrentRay.ToLocal( ConstructionFrame );
+
+	protected void UpdateConstructionFrame( SceneTrace trace, bool alignSurface = false )
+	{
+		if ( InProgress ) return;
+
+		ConstructionFrame = WorkPlane.Current;
+		if ( alignSurface && Gizmo.IsShiftPressed && !Gizmo.Camera.Ortho &&
+			WorkPlane.TryPickSurface( trace.Run(), out var surface ) )
+		{
+			ConstructionFrame = surface;
+		}
+		else if ( Gizmo.Camera.Ortho )
+		{
+			ConstructionFrame = new Transform( ConstructionFrame.Position,
+				WorkPlane.AlignNormal( -Gizmo.Camera.Rotation.Forward, ConstructionFrame.Rotation ) );
+		}
+	}
+
+	protected bool TryGetPlacement( SceneTrace trace, out Vector3 point, out Vector3 normal )
+	{
+		if ( !WorkPlane.TryGetPlacement( trace, ConstructionFrame, ConstructionFrame != Transform.Zero, out point, out normal ) )
+			return false;
+
+		point = ConstructionFrame.PointToLocal( point );
+		normal = ConstructionFrame.NormalToLocal( normal );
+		return true;
+	}
+
+	protected float GetPointSize( Vector3 point, float size )
+	{
+		return SceneEditorExtensions.GetGizmoSize( ConstructionFrame.PointToWorld( point ), size );
+	}
 
 	public virtual void OnCreated( MeshComponent component )
 	{
@@ -30,11 +64,26 @@ public abstract class PrimitiveEditor
 
 	public virtual Widget CreateWidget() => null;
 
+	public virtual void Dispose()
+	{
+	}
+
 	readonly ToolUndoStack _undo = new();
 
 	protected void PushUndo( string title, Action undo, Action redo = null )
 	{
-		_undo.Push( title, undo, redo );
+		var frame = ConstructionFrame;
+		_undo.Push( title,
+			() =>
+			{
+				ConstructionFrame = frame;
+				undo();
+			},
+			redo is null ? null : () =>
+			{
+				ConstructionFrame = frame;
+				redo();
+			} );
 	}
 
 	protected void PopUndo()

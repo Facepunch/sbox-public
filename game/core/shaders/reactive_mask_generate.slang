@@ -1,4 +1,4 @@
-// reactive_mask_generate: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// reactive_mask_generate: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Converts reactive depth buffer into R16F mask for FSR3";

@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 423924,
   "Icon": {
-    "Path": "models/citizen_clothes/hat/police_hat/police_hat.clothing.png",
+    "Path": "models/citizen_clothes/hat/police_hat/police_hat.clothing.vtex",
     "Mode": "Head",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

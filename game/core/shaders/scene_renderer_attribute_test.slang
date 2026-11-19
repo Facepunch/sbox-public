@@ -1,4 +1,4 @@
-// scene_renderer_attribute_test: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// scene_renderer_attribute_test: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: CompileTargets = ( IS_SM_50 && ( PC || VULKAN ) );

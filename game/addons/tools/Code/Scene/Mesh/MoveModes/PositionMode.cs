@@ -42,7 +42,9 @@ public sealed class PositionMode : MoveMode
 			if ( hasSnapTarget )
 			{
 				var cameraDistance = Gizmo.Camera.Position.Distance( closestVertex.PositionWorld );
-				var scaledGizmo = gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
+				var scaledGizmo = Gizmo.Camera.Ortho
+					? SceneEditorExtensions.GetGizmoSize( closestVertex.PositionWorld, gizmoSize * 8 )
+					: gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
 
 				snapTarget = closestVertex.PositionWorld;
 				isActivelySnapping = Gizmo.IsLeftMouseDown;
@@ -65,7 +67,9 @@ public sealed class PositionMode : MoveMode
 				if ( nearbyVertex.IsValid() )
 				{
 					var cameraDistance = Gizmo.Camera.Position.Distance( nearbyVertex.PositionWorld );
-					var scaledGizmo = gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
+					var scaledGizmo = Gizmo.Camera.Ortho
+						? SceneEditorExtensions.GetGizmoSize( nearbyVertex.PositionWorld, gizmoSize * 8 )
+						: gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
 
 					var distance = Vector3.DistanceBetween( nearbyVertex.PositionWorld, origin );
 
@@ -90,7 +94,7 @@ public sealed class PositionMode : MoveMode
 			Gizmo.Hitbox.DepthBias = 0.01f;
 			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
-			if ( Gizmo.Control.Position( "position", Vector3.Zero, out var delta, _basis ) )
+			if ( Gizmo.Control.UpdatePosition( "position", Vector3.Zero, out var delta, _basis ) )
 			{
 				if ( _moveDelta == Vector3.Zero )
 				{
@@ -99,7 +103,7 @@ public sealed class PositionMode : MoveMode
 
 				_moveDelta += delta;
 
-				var moveDelta = Gizmo.Snap( _origin, _moveDelta, _basis );
+				var moveDelta = tool.SnapTranslation( _origin, _moveDelta, _basis );
 
 				if ( snapTarget.HasValue )
 				{
@@ -155,10 +159,15 @@ public sealed class PositionMode : MoveMode
 
 				moveDelta -= _origin;
 
-				tool.StartDrag();
-				tool.Translate( moveDelta );
-				tool.UpdateDrag();
+				if ( tool.DragStarted || moveDelta != Vector3.Zero )
+				{
+					tool.StartDrag();
+					tool.Translate( moveDelta );
+					tool.UpdateDrag();
+				}
 			}
+			Gizmo.Transform = new Transform( tool.Pivot.Position );
+			Gizmo.Draw.Position( "position", _basis );
 		}
 
 		if ( Gizmo.Pressed.Any && _moveDelta != Vector3.Zero )
@@ -192,7 +201,7 @@ public sealed class PositionMode : MoveMode
 			var textSize = 22 * Gizmo.Settings.GizmoScale * Application.DpiScale;
 
 			var cameraDistance = Gizmo.Camera.Position.Distance( midPoint );
-			var scaledTextSize = textSize * (cameraDistance / 50.0f).Clamp( 0.5f, 1.0f );
+			var scaledTextSize = Gizmo.Camera.Ortho ? textSize : textSize * (cameraDistance / 50.0f).Clamp( 0.5f, 1.0f );
 
 			string distanceText;
 			//Local distance

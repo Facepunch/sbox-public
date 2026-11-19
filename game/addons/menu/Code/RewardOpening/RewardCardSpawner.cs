@@ -76,17 +76,6 @@ public sealed class RewardCardSpawner : Component
 		}
 	}
 
-	/// <summary>
-	/// Force-spawn cards immediately (for testing without the crate).
-	/// </summary>
-	public void ForceSpawnCards()
-	{
-		if ( _cardsSpawned ) return;
-		if ( Offer == null ) return;
-
-		SpawnCards();
-	}
-
 	private void SpawnCards()
 	{
 		_cardsSpawned = true;
@@ -108,7 +97,7 @@ public sealed class RewardCardSpawner : Component
 			Cards.Add( card );
 		}
 
-		// Notify any listening RewardUnboxUI that cards are now visible
+		// Tell the unbox shelf the cards are out
 		OnCardsRevealed?.Invoke();
 	}
 
@@ -157,6 +146,15 @@ public sealed class RewardCardSpawner : Component
 		return card;
 	}
 
+	/// <summary>
+	/// The reward's been claimed - every card plays out (<see cref="RewardCard.Finish"/>)
+	/// </summary>
+	public void Finish()
+	{
+		foreach ( var card in Cards )
+			card?.Finish();
+	}
+
 	private void OnCardClicked( RewardCard card )
 	{
 		if ( Offer == null ) return;
@@ -202,22 +200,5 @@ public sealed class RewardCardSpawner : Component
 			card.SyncPanelSelection();
 			OnSelectionChanged?.Invoke( itemId, true );
 		}
-	}
-
-	/// <summary>
-	/// Clean up all spawned cards.
-	/// </summary>
-	public void DestroyCards()
-	{
-		foreach ( var card in Cards )
-		{
-			if ( card.IsValid() )
-				card.GameObject.Destroy();
-		}
-
-		Cards.Clear();
-		SelectedItems.Clear();
-		_cardsSpawned = false;
-		_crateFullyOpen = false;
 	}
 }

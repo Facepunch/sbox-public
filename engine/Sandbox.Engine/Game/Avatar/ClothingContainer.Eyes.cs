@@ -32,7 +32,6 @@ public partial class ClothingContainer
 
 		var dresser = Dresser.GetOrCreate( body );
 		dresser.EyeColor = EyeColor;
-		dresser.EyeAlign = EyeAlign;
 		dresser.UpdateEyeAttributes();
 	}
 }

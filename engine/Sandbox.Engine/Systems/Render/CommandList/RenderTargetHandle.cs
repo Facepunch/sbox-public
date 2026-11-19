@@ -3,6 +3,7 @@
 /// <summary>
 /// A render target handle used with CommandLists
 /// </summary>
+[Expose]
 public ref struct RenderTargetHandle
 {
 	public string Name { get; internal set; }

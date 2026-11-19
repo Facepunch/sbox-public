@@ -1,5 +1,5 @@
 // water.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// and as the fallback (docs/reference/borealis-slang-materials.md, "Pass modules").
 // HEADER: Description = "Lit water surface with waves, reflection and refraction";
 
 #include "sbox/pass.slangh"

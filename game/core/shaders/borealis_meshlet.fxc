@@ -6,7 +6,7 @@
 //
 // A meshlet's cull against a view, shared by borealis_meshlet_cull_cs (compute) and borealis_meshlet_ids (task shader),
 // so both keep the same meshlets. A meshlet record is 32 bytes: box centre and first triangle (relative to its draw's
-// first index), then half extents and triangle count. See docs/managed/borealis-gpu-driven.md ("Meshlets").
+// first index), then half extents and triangle count. See docs/reference/borealis-gpu-driven.md ("Meshlets").
 //
 
 // The view: world to clip a row per clip coordinate (y before the vertex shaders negate it), the viewport in pixels and

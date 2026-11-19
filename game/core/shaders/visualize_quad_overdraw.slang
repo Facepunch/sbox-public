@@ -1,4 +1,4 @@
-// visualize_quad_overdraw: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// visualize_quad_overdraw: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-﻿using Sandbox.Utility;
+using Sandbox.Utility;
 
 namespace Sandbox;
 
@@ -8,9 +8,25 @@ public static partial class Gizmo
 	{
 		public bool Enabled { get; set; }
 		public string LinePath { get; set; }
+	}
 
-		internal Ray LocalRay { get; set; }
-		internal Ray Ray { get; set; }
+	/// <summary>Restores line picking state without boxing the saved state.</summary>
+	internal readonly struct LineScopeHandle : IDisposable
+	{
+		readonly Instance _owner;
+		readonly HitboxLineScope _state;
+
+		internal LineScopeHandle( Instance owner )
+		{
+			_owner = owner;
+			_state = owner.lineScope;
+			owner.lineScope = new() { Enabled = true, LinePath = owner.scope.Path };
+		}
+
+		public void Dispose()
+		{
+			if ( _owner is not null ) _owner.lineScope = _state;
+		}
 	}
 
 	public sealed partial class GizmoHitbox
@@ -18,23 +34,9 @@ public static partial class Gizmo
 		/// <summary>
 		/// Start a line scope. Any drawn lines should become a hitbox during this scope.
 		/// </summary>
-		public IDisposable LineScope()
-		{
-			var old = Active.lineScope;
+		public IDisposable LineScope() => ScopeLease<LineScopeHandle>.Rent( PushLineScope() );
 
-			Active.lineScope.Enabled = true;
-			Active.lineScope.LinePath = Path;
-
-			unsafe
-			{
-				static void RestoreLineScope( HitboxLineScope old )
-				{
-					Active.lineScope = old;
-				}
-
-				return new DisposeAction<HitboxLineScope>( &RestoreLineScope, old );
-			}
-		}
+		internal LineScopeHandle PushLineScope() => new( Active );
 
 
 
@@ -47,14 +49,9 @@ public static partial class Gizmo
 		{
 			if ( !Active.lineScope.Enabled )
 				return;
+			if ( Record( new( HitShapeType.Line, p0, p1, thickness ) ) ) return;
 
-			// cache the transformed ray, don't need to do this every test
-			if ( Active.lineScope.Ray != CurrentRay )
-			{
-				Active.lineScope.LocalRay = CurrentRay.ToLocal( Transform );
-			}
-
-			var ray = Active.lineScope.LocalRay;
+			var ray = LocalRay;
 
 			var line = new Line( p0, p1 );
 

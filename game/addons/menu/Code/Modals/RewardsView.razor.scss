@@ -1,0 +1,348 @@
+@import "/Platform/_platform.scss";
+
+// Your weekly drop - a bar on top saying what it is and how long's left, then the drop and its goals scrolling under it.
+// Whatever it's in gives it its size (RewardsModal's card, RewardsPanel's panel).
+RewardsView
+{
+	flex-direction: column;
+	flex-grow: 1;
+	min-height: 0;
+	font-family: $platform-font;
+	color: $platform-text;
+
+	i, icon
+	{
+		font-family: "Material Icons";
+		text-transform: none;
+		letter-spacing: 0;
+	}
+
+	// Its glyph in a tile, its name, how long's left, and refresh - a panel's bar
+	.header
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+		height: 50px;
+		padding: 0 8px;
+
+		.tile
+		{
+			@include platform-tile;
+		}
+
+		.heading
+		{
+			font-size: 15px;
+			font-weight: 700;
+		}
+
+		.grow
+		{
+			flex-grow: 1;
+		}
+	}
+
+	.ends
+	{
+		align-items: center;
+		gap: 4px;
+		font-size: 12px;
+		font-weight: 600;
+		color: $platform-muted;
+
+		icon
+		{
+			font-size: 15px;
+		}
+	}
+
+	.refresh
+	{
+		@include platform-tool;
+	}
+
+	// More goals than fit is normal - they scroll rather than push it off the top of the screen
+	.rewards-list
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		gap: 6px;
+		padding: 0 8px 12px 8px;
+		overflow-y: scroll;
+		scrollbar-width: thin;
+		scrollbar-color: rgba( 255, 255, 255, 0.25 ) transparent;
+		scrollbar-gutter: auto;
+
+		> *
+		{
+			flex-shrink: 0;
+		}
+	}
+
+	.load-error
+	{
+		padding: 2px 4px;
+		font-size: 12px;
+		color: $platform-muted;
+	}
+
+	.rewards-empty
+	{
+		@include platform-empty;
+		padding: 40px 24px;
+		text-align: center;
+
+		// Its own size - without one it's got no height here, and its ring paints over the words under it
+		Spinner
+		{
+			position: relative;
+			flex-shrink: 0;
+			width: 40px;
+			height: 40px;
+			min-height: 40px;
+			margin-bottom: 6px;
+		}
+	}
+
+	// The drop - its name and how many of its goals are met, a step of the bar for each, what's next, and the way in
+	.hero
+	{
+		flex-direction: column;
+		gap: 10px;
+		padding: 12px;
+		border-radius: 6px;
+		background-color: rgba( 255, 255, 255, 0.04 );
+	}
+
+	// A ready drop earns the green - its fill and a glow. Nothing else here is allowed it.
+	.hero.done
+	{
+		background-color: rgba( $platform-reward, 0.1 );
+		box-shadow: 0 0 30px rgba( $platform-reward, 0.16 );
+	}
+
+	.hero-top
+	{
+		align-items: center;
+		gap: 10px;
+
+		.grow
+		{
+			flex-grow: 1;
+		}
+	}
+
+	.hero-title
+	{
+		flex-shrink: 1;
+		font-size: 17px;
+		font-weight: 700;
+	}
+
+	// 1 / 3 - in the green once they all are
+	.count
+	{
+		flex-shrink: 0;
+		font-size: 15px;
+		font-weight: 700;
+		color: $platform-muted;
+	}
+
+	.hero.done .count
+	{
+		color: $platform-reward;
+	}
+
+	// Ready, or Collected - its words in the green
+	.state
+	{
+		@include platform-chip;
+
+		icon, label
+		{
+			color: $platform-reward;
+		}
+	}
+
+	// A step for each goal, lit as it's met
+	.segments
+	{
+		gap: 4px;
+		height: 6px;
+	}
+
+	.segment
+	{
+		flex-grow: 1;
+		flex-basis: 0;
+		border-radius: 3px;
+		background-color: rgba( 255, 255, 255, 0.1 );
+		transition: background-color 0.2s ease;
+
+		&.lit
+		{
+			background-color: $platform-reward;
+			box-shadow: 0 0 8px rgba( $platform-reward, 0.5 );
+		}
+	}
+
+	.hero-hint
+	{
+		font-size: 12.5px;
+		color: $platform-muted;
+	}
+
+	// The way in - right across, a claim
+	.open
+	{
+		@include platform-text-button( 40px, 14px, 19px );
+		@include platform-button-primary;
+		justify-content: center;
+		pointer-events: all;
+	}
+
+	// "Objectives" - small capitals over the goals
+	.section
+	{
+		@include platform-caps;
+
+		// In line with what's in the cards, 12px in from their edges
+		margin: 10px 12px 2px 12px;
+		color: $platform-faint;
+	}
+
+	// One goal - its art, what it is and its game, the whole row a press into that game
+	.objective
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 12px;
+		padding: 12px;
+		border-radius: 6px;
+		background-color: rgba( 255, 255, 255, 0.035 );
+		transition: background-color 0.12s ease;
+
+		&.linked
+		{
+			cursor: pointer;
+			pointer-events: all;
+
+			&:hover
+			{
+				background-color: $platform-hover-wash;
+
+				.go
+				{
+					color: white;
+				}
+			}
+		}
+
+		&.met
+		{
+			background-color: rgba( $platform-reward, 0.07 );
+		}
+	}
+
+	// Its art, with a green tick in its corner once it's met
+	.achievement-icon
+	{
+		position: relative;
+		width: 44px;
+		height: 44px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		border-radius: 6px;
+		background-color: rgba( 255, 255, 255, 0.05 );
+
+		img
+		{
+			width: 100%;
+			height: 100%;
+			border-radius: 6px;
+			object-fit: cover;
+		}
+
+		> icon
+		{
+			font-size: 22px;
+			color: $platform-faint;
+		}
+
+		.badge
+		{
+			position: absolute;
+			right: -5px;
+			bottom: -5px;
+			width: 20px;
+			height: 20px;
+			align-items: center;
+			justify-content: center;
+			border-radius: 10px;
+			border: 2px solid rgb( 18, 24, 34 );
+			background-color: $platform-reward;
+
+			icon
+			{
+				font-size: 13px;
+				color: white;
+			}
+		}
+	}
+
+	.objective-body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 1px;
+	}
+
+	.objective-title
+	{
+		font-size: 14px;
+		font-weight: 700;
+	}
+
+	.objective-hint
+	{
+		font-size: 12px;
+		color: $platform-muted;
+	}
+
+	// The game it's in - small, in Steam's blue, under what it is
+	.objective-game
+	{
+		align-items: center;
+		gap: 5px;
+		margin-top: 4px;
+		font-size: 12px;
+		font-weight: 600;
+		color: $platform-steam-blue;
+
+		icon
+		{
+			font-size: 14px;
+		}
+
+		label
+		{
+			flex-shrink: 1;
+			min-width: 0;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+	}
+
+	.go
+	{
+		flex-shrink: 0;
+		font-size: 20px;
+		color: $platform-faint;
+	}
+}

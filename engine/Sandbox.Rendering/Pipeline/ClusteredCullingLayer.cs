@@ -44,7 +44,7 @@ internal sealed class ClusteredCullingLayer : NativeProceduralLayer
 	/// <summary>
 	/// Point the view's shaders at this layer's cluster lists, sized for <paramref name="viewport"/>.
 	/// </summary>
-	public void Setup( ISceneView view, RenderViewport viewport )
+	public unsafe void Setup( ISceneView view, RenderViewport viewport )
 	{
 		UpdateConstants( view, viewport );
 
@@ -53,8 +53,10 @@ internal sealed class ClusteredCullingLayer : NativeProceduralLayer
 		nativeAttributes.SetBufferValue( "ClusterItemCounts", clusterCounts.native );
 		nativeAttributes.SetBufferValue( "ClusterItemIndices", clusterIndices.native );
 
-		var viewAttributes = new RenderAttributes( nativeAttributes );
-		viewAttributes.SetData( "ClusteredLightingConstants", constants );
+		fixed ( ClusteredLightingConstants* data = &constants )
+		{
+			RenderTools.SetDynamicConstantBufferData( nativeAttributes, "ClusteredLightingConstants", Graphics.Context, (IntPtr)data, sizeof( ClusteredLightingConstants ) );
+		}
 	}
 
 	protected override void OnRender()

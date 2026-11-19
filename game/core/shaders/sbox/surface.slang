@@ -1,6 +1,6 @@
 // sbox.surface: what a material shader written as a surface sees. A surface is a [Material] struct implementing
 // ISurface: one function from the inputs to the surface's properties. The engine owns everything else: vertex
-// processing, the passes, lighting and render state. See docs/managed/shader-format-replacement.md.
+// processing, the passes, lighting and render state. See docs/reference/borealis-slang-materials.md.
 module surface;
 
 __exported import sbox.material;

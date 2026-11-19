@@ -1,6 +1,7 @@
 ﻿using Editor.MapDoc;
 using NativeHammer;
 using System.IO;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Editor.MapEditor;
@@ -75,25 +76,27 @@ public partial class HammerSession
 	{
 		var text = EditorUtility.Clipboard.Paste();
 
-		if ( Json.TryDeserialize<IEnumerable<JsonObject>>( text, out var serializedObjects ) )
+		JsonObject[] serializedObjects;
+		try
 		{
-			Selection.Clear();
-
-			foreach ( var jso in serializedObjects )
-			{
-				SceneUtility.MakeIdGuidsUnique( jso );
-
-				var go = MapDocument.World.Scene.CreateObject();
-				go.Deserialize( jso );
-				go.MakeNameUnique();
-
-				var mgo = new MapGameObject( MapDocument, go );
-				Selection.Add( mgo );
-			}
-
-			return true;
+			serializedObjects = SceneInstanceClipboard.ReadObjects( text );
+		}
+		catch ( JsonException )
+		{
+			return false;
 		}
 
-		return false;
+		Selection.Clear();
+		using var sceneScope = MapDocument.World.Scene.Push();
+		foreach ( var jso in serializedObjects )
+		{
+			var go = SceneInstanceClipboard.Paste( MapDocument.World.Scene, jso, SceneInstanceState.Empty );
+			go.MakeNameUnique();
+
+			var mgo = new MapGameObject( MapDocument, go );
+			Selection.Add( mgo );
+		}
+
+		return true;
 	}
 }

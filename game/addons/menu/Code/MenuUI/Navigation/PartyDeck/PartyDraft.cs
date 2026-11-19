@@ -1,5 +1,4 @@
 using Sandbox;
-using Sandbox.Modals;
 
 namespace MenuProject;
 
@@ -11,8 +10,6 @@ public sealed class PartyDraft
 	internal string Name = PartyView.NameForNewParty;
 	internal int MaxMembers = PartyDeck.MAX_MEMBERS;
 	internal bool IsPublic;
-	internal Package Game;
-	internal CreateGameResults? GameSettings;
 	internal bool Creating;
 	internal bool Cancelled;
 	internal TaskCompletionSource<bool> Completion = new();
@@ -53,12 +50,6 @@ public sealed class PartyDraft
 			{
 				party.Leave();
 				return;
-			}
-
-			if ( Game is not null )
-			{
-				party.SelectGame( Game );
-				if ( GameSettings is { } settings ) party.ConfigureGame( party.SelectedGameIdent, settings );
 			}
 
 			if ( IsPublic ) party.SetPublic( true );

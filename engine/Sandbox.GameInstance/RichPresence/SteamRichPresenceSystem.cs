@@ -27,13 +27,18 @@ internal sealed class SteamRichPresenceSystem : IRichPresenceSystem
 	{
 		var friends = Steam.SteamFriends();
 		if ( friends.IsValid )
+		{
 			friends.ClearRichPresence();
+		}
 
 		_values.Clear();
 	}
 
 	void IRichPresenceSystem.Poll()
 	{
+		if ( !Steam.SteamFriends().IsValid )
+			return;
+
 		// Friends' menus group everyone sharing a party_id, and use the rest to label it "X's party 2/16"
 		if ( PartyRoom.Current is PartyRoom party )
 		{
@@ -99,15 +104,39 @@ internal sealed class SteamRichPresenceSystem : IRichPresenceSystem
 			SetValue( "steam_player_group_size", null );
 		}
 
-		if ( IGameInstance.Current.Package is Package gamePackage )
+		if ( Application.IsEditor )
 		{
-			SetValue( "steam_display", "#StatusGame" );
+			// In editor
+			SetValue( "steam_display", "#StatusEditor" );
+		}
+		else if ( IGameInstance.Current.Package is Package gamePackage )
+		{
+			if ( Application.MapPackage is Package mapPackage )
+			{
+				// Playing Sandbox - Construct
+				SetValue( "steam_display", "#StatusGameMap" );
+				SetValue( "maptitle", mapPackage.Title );
+			}
+			else if ( !string.IsNullOrEmpty( Application.Map ) && Application.Map.EndsWith( ".scene" ) )
+			{
+				// Playing Sandbox - gm_construct
+				SetValue( "steam_display", "#StatusGameMap" );
+				SetValue( "maptitle", System.IO.Path.GetFileName( Application.Map.Split( '.' )[0] ) );
+			}
+			else
+			{
+				// Playing Sandbox
+				SetValue( "steam_display", "#StatusGame" );
+				SetValue( "maptitle", "" );
+			}
+
 			SetValue( "gametitle", gamePackage.Title );
 			SetValue( "map", "" );
 			SetValue( "gamename", Application.GameIdent );
 		}
 		else
 		{
+			// Playing Secret Game
 			SetValue( "steam_display", "#StatusGame" );
 			SetValue( "gametitle", "Secret Game" );
 			SetValue( "map", "" );

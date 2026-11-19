@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Sandbox;
 
@@ -108,7 +108,7 @@ public static partial class Gizmo
 		/// <summary>
 		/// Check if a gizmo type is enabled
 		/// </summary>
-		public bool IsGizmoEnabled( Type type ) => type is not null && !DisabledGizmos.GetValueOrDefault( type.FullName );
+		public bool IsGizmoEnabled( Type type ) => type is not null && (DisabledGizmos.Count == 0 || !DisabledGizmos.GetValueOrDefault( type.FullName ));
 
 		/// <summary>
 		/// Set the enabled state of a gizmo type

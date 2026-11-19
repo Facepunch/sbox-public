@@ -110,9 +110,28 @@ internal sealed class NativeSceneRenderer : ISceneRenderer
 		using var setup = new CameraRenderer( "RenderToBitmap", camera._cameraId );
 		setup.Configure( camera, config );
 
+		// Game code can free the bitmap while we render, so render into memory we own
+		var width = bitmap.Width;
+		var height = bitmap.Height;
+		var bytesPerPixel = bitmap.BytesPerPixel;
+		var length = bitmap.GetBuffer().Length;
+
 		unsafe
 		{
-			setup.Native.RenderToBitmap( (IntPtr)bitmap.GetPointer(), bitmap.Width, bitmap.Height, bitmap.BytesPerPixel );
+			var pixels = System.Runtime.InteropServices.NativeMemory.AllocZeroed( (nuint)length );
+			try
+			{
+				setup.Native.RenderToBitmap( (IntPtr)pixels, width, height, bytesPerPixel );
+
+				if ( !bitmap.IsValid() || bitmap.Width != width || bitmap.Height != height || bitmap.BytesPerPixel != bytesPerPixel )
+					return;
+
+				new ReadOnlySpan<byte>( pixels, length ).CopyTo( bitmap.GetBuffer() );
+			}
+			finally
+			{
+				System.Runtime.InteropServices.NativeMemory.Free( pixels );
+			}
 		}
 	}
 

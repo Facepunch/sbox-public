@@ -9,7 +9,7 @@ namespace Borealis.Backend;
 /// Drawing new-tier materials (<see cref="SurfaceMaterial"/>): the pass's pipeline, sets 0 and 1 bound by name from this
 /// context's attributes as classic draws bind them, the material's record at an offset pushed per draw. Forward and
 /// alpha-tested forward in colour passes; depth (vertex shader only) or alpha-tested depth where there's no colour.
-/// See docs/managed/shader-format-replacement.md.
+/// See docs/reference/borealis-slang-materials.md.
 /// </summary>
 internal sealed partial class BackendContext
 {

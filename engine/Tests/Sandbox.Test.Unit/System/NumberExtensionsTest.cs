@@ -7,6 +7,19 @@ namespace SystemTests;
 public class NumberExtensionsTest
 {
 	/// <summary>
+	/// Signed byte counts, including the minimum integer, format without recursive negation.
+	/// </summary>
+	[DataTestMethod]
+	[DataRow( long.MinValue, "-8.00 EB" )]
+	[DataRow( -1024L, "-1.00 KB" )]
+	[DataRow( 0L, "0.00 B" )]
+	[DataRow( 1024L, "1.00 KB" )]
+	public void SizeFormatHandlesSignedCounts( long bytes, string expected )
+	{
+		WithInvariantCulture( () => Assert.AreEqual( expected, bytes.SizeFormat() ) );
+	}
+
+	/// <summary>
 	/// Runs an assertion block under the invariant culture, so tests of
 	/// culture-sensitive number formatting are deterministic regardless of the
 	/// machine's locale.

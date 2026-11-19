@@ -46,6 +46,9 @@ namespace Steamworks
 		/// </summary>
 		internal T? GetResult()
 		{
+			if ( utils is null || !utils.IsValid )
+				return null;
+
 			bool failed = false;
 			if ( !utils.IsAPICallCompleted( call, ref failed ) || failed )
 				return null;
@@ -82,6 +85,9 @@ namespace Steamworks
 		{
 			get
 			{
+				if ( utils is null || !utils.IsValid )
+					return true;
+
 				bool failed = false;
 				if ( utils.IsAPICallCompleted( call, ref failed ) || failed )
 					return true;

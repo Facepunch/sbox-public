@@ -1,4 +1,4 @@
-// lpv_debug: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// lpv_debug: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: Description = "Light Probe Volume Debugging";
 // HEADER: DevShader = true;
 

@@ -17,6 +17,7 @@ namespace Sandbox;
 /// <seealso cref="Graphics.DrawModel(Model, Transform, RenderAttributes)"/>
 /// <seealso cref="ComputeShader.DispatchWithAttributes(RenderAttributes, int, int, int)"/>
 /// </summary>
+[Expose]
 public partial class RenderAttributes
 {
 	private CRenderAttributes attributes;
@@ -79,8 +80,12 @@ public partial class RenderAttributes
 		Managed?.Clear();
 		Shadow?.Clear();
 		if ( !attributes.IsValid ) return;
-		attributes.Clear( true, true );
-		ClearUsedTextures();
+
+		lock ( usedTexturesLock )
+		{
+			attributes.Clear( true, true );
+			ClearUsedTextures();
+		}
 	}
 
 	internal void Clear( bool freeMemory )
@@ -88,8 +93,12 @@ public partial class RenderAttributes
 		Managed?.Clear();
 		Shadow?.Clear();
 		if ( !attributes.IsValid ) return;
-		attributes.Clear( freeMemory, true );
-		ClearUsedTextures();
+
+		lock ( usedTexturesLock )
+		{
+			attributes.Clear( freeMemory, true );
+			ClearUsedTextures();
+		}
 	}
 
 	public void SetCombo( in StringToken k, in int value )
@@ -186,9 +195,21 @@ public partial class RenderAttributes
 		if ( !attributes.IsValid ) return;
 
 		var native = value?.native ?? default;
-		Set( k, native, mip );
 
-		SetUsedTexture( k, value );
+		// Native and tracked texture have to change together or a parallel set can leave native bound to a released handle
+		lock ( usedTexturesLock )
+		{
+			Set( k, native, ClampMip( value, mip ) );
+			SetUsedTexture( k, value );
+		}
+	}
+
+	internal static int ClampMip( Texture texture, int mip )
+	{
+		if ( texture is null || mip == -1 )
+			return mip;
+
+		return Math.Clamp( mip, 0, Math.Max( texture.Mips - 1, 0 ) );
 	}
 
 	public void Set( in StringToken k, in SamplerState value )
@@ -262,7 +283,23 @@ public partial class RenderAttributes
 	{
 		(Managed ?? Shadow)?.SetObject( k, value );
 		if ( !attributes.IsValid ) return;
-		attributes.SetBufferValue( k, value is not null ? value.native : default );
+		attributes.SetBufferValue( k, SetUsedBuffer( k, value ) );
+	}
+
+	// For attributes that only live for one draw, whoever owns the buffer keeps it bound
+	internal void SetUntracked( in StringToken k, GpuBuffer value )
+	{
+		if ( !attributes.IsValid ) return;
+		attributes.SetBufferValue( k, value?.native ?? default );
+	}
+
+	// Largest pooled dynamic constant buffer bucket, 512 float4s
+	internal const int MaxConstantBufferSize = 8 * 1024;
+
+	static void ThrowIfConstantBufferTooLarge( long size )
+	{
+		if ( size > MaxConstantBufferSize )
+			throw new ArgumentOutOfRangeException( "value", $"Constant buffer data is {size} bytes, the maximum is {MaxConstantBufferSize}" );
 	}
 
 	/// <summary>
@@ -273,16 +310,17 @@ public partial class RenderAttributes
 		if ( !SandboxedUnsafe.IsAcceptablePod<T>() )
 			throw new ArgumentException( $"{nameof( T )} must be a POD type" );
 
-		int actualSize = value.Length * Unsafe.SizeOf<T>();
+		long actualSize = (long)value.Length * Unsafe.SizeOf<T>();
 		if ( actualSize <= 0 ) return;
 		if ( Managed is not null )
 		{
 			Managed.SetBytes( k, MemoryMarshal.AsBytes( value ) );
 			return;
 		}
+		ThrowIfConstantBufferTooLarge( actualSize );
 		Shadow?.SetBytes( k, MemoryMarshal.AsBytes( value ) );
 		fixed ( T* ptr = value )
-			RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)ptr, actualSize );
+			RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)ptr, (int)actualSize );
 	}
 
 	/// <summary>
@@ -297,6 +335,7 @@ public partial class RenderAttributes
 		if ( !attributes.IsValid ) return;
 		int actualSize = Unsafe.SizeOf<T>();
 		if ( actualSize <= 0 ) return;
+		ThrowIfConstantBufferTooLarge( actualSize );
 		RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)(&value), actualSize );
 	}
 
@@ -427,6 +466,14 @@ public partial class RenderAttributes
 		// was merged (the scene's render attributes merged into a camera's, which Borealis.Gpu draws its view with)
 		if ( (Managed ?? Shadow) is { } values && renderAttributes.Shadow is { } copy ) values.MergeTo( copy );
 
+		if ( !attributes.IsValid || !renderAttributes.attributes.IsValid ) return;
+		attributes.MergeToPtr( renderAttributes.attributes );
+		MergeUsedBuffersTo( renderAttributes );
+	}
+
+	// For attributes that only live for one draw, the source keeps its buffers bound
+	internal void MergeToUntracked( RenderAttributes renderAttributes )
+	{
 		if ( !attributes.IsValid || !renderAttributes.attributes.IsValid ) return;
 		attributes.MergeToPtr( renderAttributes.attributes );
 	}

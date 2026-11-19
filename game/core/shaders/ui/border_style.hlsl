@@ -21,14 +21,14 @@ float BorderEllipseLength( float2 radii, float angle )
 	if ( radii.x == radii.y ) return radii.x * angle;
 	static const float4 nodes = float4( 0.1834346425, 0.5255324099, 0.7966664774, 0.9602898565 );
 	static const float4 weights = float4( 0.3626837834, 0.3137066459, 0.2223810345, 0.1012285363 );
-	float result = 0.0;
-	[unroll] for ( int i = 0; i < 4; i++ )
-	{
-		float2 t = angle * 0.5 * float2( 1.0 - nodes[i], 1.0 + nodes[i] );
-		float2 sine = sin( t ), cosine = cos( t );
-		result += weights[i] * ( length( radii * float2( sine.x, cosine.x ) ) + length( radii * float2( sine.y, cosine.y ) ) );
-	}
-	return result * angle * 0.5;
+	float4 lower = angle * 0.5 * ( 1.0 - nodes );
+	float4 upper = angle * 0.5 * ( 1.0 + nodes );
+	float4 lowerSine = sin( lower ), lowerCosine = cos( lower );
+	float4 upperSine = sin( upper ), upperCosine = cos( upper );
+	float2 squaredRadii = radii * radii;
+	float4 lowerSpeed = sqrt( squaredRadii.x * lowerSine * lowerSine + squaredRadii.y * lowerCosine * lowerCosine );
+	float4 upperSpeed = sqrt( squaredRadii.x * upperSine * upperSine + squaredRadii.y * upperCosine * upperCosine );
+	return dot( weights, lowerSpeed + upperSpeed ) * angle * 0.5;
 }
 
 struct BorderContour

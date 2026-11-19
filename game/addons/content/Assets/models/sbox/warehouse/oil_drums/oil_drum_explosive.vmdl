@@ -1,0 +1,328 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "GameDataList"
+				children = 
+				[
+					{
+						_class = "GenericGameData"
+						game_class = "prop_data"
+						game_keys = 
+						{
+							bakelighting = true
+							health = 100.0
+							flammable = true
+							explosive = true
+							explosive_damage = 100.0
+							explosive_radius = 250.0
+							explosive_force = 1.0
+							min_impact_damage_speed = 1200.0
+							impact_damage = 100.0
+						}
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "models/sbox/warehouse/oil_drums/materials/oil_drum_a.vmat"
+								to = "models/sbox/warehouse/oil_drums/materials/oil_drum_explosive.vmat"
+							},
+						]
+						use_global_default = true
+						global_default_material = "models/sbox/warehouse/oil_drums/materials/oil_drum_explosive.vmat"
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children = 
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 80.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						radius = 14.5
+						point0 = [ 0.0, 0.0, 45.0 ]
+						point1 = [ 0.0, 0.0, 0.0 ]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "oil_drum_explosive_LOD1"
+						filename = "models/sbox/warehouse/oil_drums/oil_drum.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"wTube_010",
+								"wTube_013",
+								"oil_drum_a_LOD1_001",
+								"oil_drum_a_LOD1_003",
+								"oil_drum_a_LOD1_002",
+								"oil_drum_a_LOD1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "oil_drum_explosive_LOD2"
+						filename = "models/sbox/warehouse/oil_drums/oil_drum.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"wTube_010",
+								"wTube_013",
+								"oil_drum_a_LOD2_001",
+								"oil_drum_a_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "oil_drum_explosive_LOD3"
+						filename = "models/sbox/warehouse/oil_drums/oil_drum.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"wTube_010",
+								"wTube_013",
+								"oil_drum_a_LOD3_001",
+								"oil_drum_a_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "oil_drum_explosive_LOD4"
+						filename = "models/sbox/warehouse/oil_drums/oil_drum.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"wTube_010",
+								"wTube_013",
+								"oil_drum_a_LOD3_001",
+								"oil_drum_a_LOD4",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"oil_drum_explosive_LOD1",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 35.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"oil_drum_explosive_LOD2",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 80.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"oil_drum_explosive_LOD3",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 130.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"oil_drum_explosive_LOD4",
+						]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "BreakPieceList"
+				children = 
+				[
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 23.315054 ]
+						fadetime = 15.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = true
+						collision_tags = "debris"
+						model = "models/sbox/warehouse/oil_drums/gibs/oil_drum_explosive_gib_01.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 46.300209 ]
+						fadetime = 15.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = true
+						collision_tags = "debris"
+						model = "models/sbox/warehouse/oil_drums/gibs/oil_drum_explosive_gib_03.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ -9.443024, 10.472284, 28.204678 ]
+						fadetime = 15.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = true
+						collision_tags = "debris"
+						model = "models/sbox/warehouse/oil_drums/gibs/oil_drum_explosive_gib_05.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ -6.681786, -0.071277, 6.99473 ]
+						fadetime = 15.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = true
+						collision_tags = "debris"
+						model = "models/sbox/warehouse/oil_drums/gibs/oil_drum_explosive_gib_04.vmdl"
+					},
+				]
+			},
+		]
+		model_archetype = "physics_prop_model"
+		primary_associated_entity = "prop_physics"
+		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
+		base_model_name = ""
+	}
+}

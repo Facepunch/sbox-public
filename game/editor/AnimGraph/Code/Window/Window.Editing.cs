@@ -35,8 +35,9 @@ public partial class Window
 		_pendingUndoName = null;
 		_pendingChangeScope = GraphChangeScope.Runtime;
 
+		_session.Normalize();
 		var pre = _committedState;
-		var post = _graph.Serialize();
+		var post = _graph.Serialize( indented: false );
 
 		if ( pre is null || pre == post )
 		{
@@ -46,7 +47,7 @@ public partial class Window
 
 		_committedState = post;
 		_undoSystem.Insert( name ?? "Edit Graph", () => RestoreGraphState( pre, changeScope ), () => RestoreGraphState( post, changeScope ) );
-		MarkDirty( changeScope == GraphChangeScope.Runtime );
+		MarkDirty( changeScope == GraphChangeScope.Runtime, post );
 
 		if ( changeScope == GraphChangeScope.Runtime )
 			NotifyGraphEdited();
@@ -81,6 +82,14 @@ public partial class Window
 				graph.Parameters[i] = existing.CopyFrom( graph.Parameters[i] );
 		}
 
+		var previousVirtual = (_graph?.VirtualParameters ?? []).DistinctBy( p => p.Name ).ToDictionary( p => p.Name );
+		for ( var i = 0; i < graph.VirtualParameters.Count; i++ )
+		{
+			if ( previousVirtual.TryGetValue( graph.VirtualParameters[i].Name, out var existing )
+				&& existing.GetType() == graph.VirtualParameters[i].GetType() )
+				graph.VirtualParameters[i] = existing.CopyFrom( graph.VirtualParameters[i] );
+		}
+
 		_session.ReplaceGraph( graph );
 		_clipList?.SetGraph( graph );
 		_committedState = state;
@@ -95,7 +104,7 @@ public partial class Window
 			_nav.RemoveRange( stale, _nav.Count - stale );
 
 		ShowPage();
-		MarkDirty( changeScope == GraphChangeScope.Runtime );
+		MarkDirty( changeScope == GraphChangeScope.Runtime, state );
 	}
 
 	[Shortcut( "editor.undo", "CTRL+Z" )]
@@ -149,7 +158,7 @@ public partial class Window
 		: (_pageCanvas as INodePage)?.FocusedGraphView
 		?? (_graphView.IsFocused || _graphView.Visible ? _graphView : null);
 
-	internal void MarkDirty( bool updatePreview = true )
+	internal void MarkDirty( bool updatePreview = true, string compileSnapshot = null )
 	{
 		_dirty = true;
 		UpdateTitle();
@@ -160,7 +169,7 @@ public partial class Window
 		_previewCompileStale = true;
 
 		if ( _autoCompilePreviewEnabled && !_saving )
-			CompilePreview();
+			CompilePreview( compileSnapshot );
 	}
 
 	private void UpdateTitle()
@@ -252,6 +261,26 @@ public partial class Window
 		_properties.Target = _primarySelectionItem ?? _primarySelectionContext ?? (object)_graph;
 	}
 
+	internal void SelectTransition( TransitionNode transition )
+	{
+		if ( StateMachineCanvas is { } canvas )
+		{
+			var machine = canvas.Node;
+			object selection = machine.Conduits.FirstOrDefault( conduit => conduit.Graph == transition.Graph );
+			if ( selection is null && machine.GlobalGraph == transition.Graph )
+				selection = StateMachineCanvas.SharedSelection.GlobalTransitions;
+
+			if ( selection is not null )
+			{
+				canvas.Select( selection );
+				_workspace.FocusSecondaryNode( transition );
+				return;
+			}
+		}
+
+		NavigateToNode( transition.Identifier );
+	}
+
 	private void ApplyNodeSelection( Node node )
 	{
 		_selectedState = null;
@@ -322,6 +351,17 @@ public partial class Window
 		}
 	}
 
+	internal bool StartNodeRename( Node node )
+	{
+		_properties.Target = node;
+		DockManager.OpenDock( "Properties", DockArea.Right );
+		return _properties.StartRename();
+	}
+
+	internal GraphChangeScope GetPropertyChangeScope( SerializedProperty property ) =>
+		_properties.Target is Node && property?.Name == nameof( Node.Title )
+			? GraphChangeScope.EditorOnly : GraphChangeScope.Runtime;
+
 	private void OnPropertyUpdated( SerializedProperty property )
 	{
 		_parameterReferences = null;
@@ -388,6 +428,9 @@ public partial class Window
 		// Dragging a value fires this every frame - the preview compiles once the edit finishes,
 		// on the same signal that pushes the undo entry
 		MarkDirty( updatePreview: false );
-		_previewCompileStale = true;
+		if ( GetPropertyChangeScope( property ) == GraphChangeScope.Runtime )
+			_previewCompileStale = true;
+		else
+			RebuildBreadcrumb();
 	}
 }

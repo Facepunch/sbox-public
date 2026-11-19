@@ -817,11 +817,15 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			ApplyLayerFlags( custom, sceneObject.Flags );
 			custom.LayerMatch = LayerMatchFor( sceneObject.LayerMatchToken );
 		}
+
+		custom.RenderOrder = sceneObject.RenderOrder;
 	}
 
 	static readonly uint StaticOverlayMatch = new StringToken( "StaticOverlayLayer" ).Value;
 	static readonly uint OverlayWithDepthMatch = new StringToken( "OverlayWithDepth" ).Value;
 	static readonly uint OverlayWithoutDepthMatch = new StringToken( "OverlayWithoutDepth" ).Value;
+	static readonly uint ToolOverlayMatch = new StringToken( "ToolOverlay" ).Value;
+	static readonly uint ToolScreenOverlayMatch = new StringToken( "ToolScreenOverlay" ).Value;
 
 	/// <summary>
 	/// Mirror native blend/prepass flags and layer match (<c>CSceneObject::m_nLayerMatchID</c>).
@@ -842,7 +846,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		mesh.LightProbeHandshake = sceneObject.ResolvesDraws ? 0 : SceneNative.LightProbeHandshake( sceneObject );
 
 		mesh.LayerMatch = LayerMatchFor( sceneObject.LayerMatchToken );
-		mesh.RenderOrder = mesh.LayerMatch == LayerMatch.StaticOverlay ? sceneObject.RenderOrder : 0;
+		mesh.RenderOrder = mesh.LayerMatch is LayerMatch.StaticOverlay or LayerMatch.ToolOverlay or LayerMatch.ToolScreenOverlay ? sceneObject.RenderOrder : 0;
 	}
 
 	/// <summary>
@@ -873,6 +877,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		if ( match == StaticOverlayMatch ) return LayerMatch.StaticOverlay;
 		if ( match == OverlayWithDepthMatch ) return LayerMatch.OverlayWithDepth;
 		if ( match == OverlayWithoutDepthMatch ) return LayerMatch.OverlayWithoutDepth;
+		if ( match == ToolOverlayMatch ) return LayerMatch.ToolOverlay;
+		if ( match == ToolScreenOverlayMatch ) return LayerMatch.ToolScreenOverlay;
 		return LayerMatch.Unsupported;
 	}
 

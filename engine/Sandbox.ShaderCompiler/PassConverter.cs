@@ -30,7 +30,7 @@ public static partial class PassConverter
 		var text = new StringBuilder();
 		var included = false;
 		text.Append( "// " ).Append( name ).Append( ".shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes\n" );
-		text.Append( "// and as the fallback (docs/managed/shader-format-replacement.md, \"Pass modules\").\n" );
+		text.Append( "// and as the fallback (docs/reference/borealis-slang-materials.md, \"Pass modules\").\n" );
 
 		foreach ( var block in blocks )
 		{
@@ -77,7 +77,7 @@ public static partial class PassConverter
 	}
 
 	/// <summary>
-	/// A standalone module (docs/managed/standalone-modules.md) for <paramref name="shader"/>'s text: <see cref="Convert"/>'s
+	/// A standalone module (docs/reference/borealis-standalone-modules.md) for <paramref name="shader"/>'s text: <see cref="Convert"/>'s
 	/// module with its MODES as <c>Mode( ... )</c> declarations, so it describes its shader without a <c>.shader_c</c>.
 	/// </summary>
 	public static string ConvertStandalone( string shader, string name ) => Standalone( Convert( shader, name ), name );
@@ -111,7 +111,7 @@ public static partial class PassConverter
 		if ( at < 0 ) throw new FormatException( $"{name}: no #include \"sbox/pass.slangh\"" );
 		text = text.Insert( at + include.Length, "\n" + string.Join( "\n", modes ) + "\n" );
 
-		text = ConverterNote().Replace( text, $"// {name}: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).\n" );
+		text = ConverterNote().Replace( text, $"// {name}: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).\n" );
 		text = Regex.Replace( text, @"\n{3,}", "\n\n" );
 		return crlf ? text.Replace( "\n", "\r\n" ) : text;
 	}
@@ -152,7 +152,7 @@ public static partial class PassConverter
 	public static string FromEmbedded( IReadOnlyDictionary<string, string> programs, IEnumerable<(string Name, int Min, int Max)> features, string name )
 	{
 		var text = new StringBuilder();
-		text.Append( "// " ).Append( name ).Append( " from the source embedded in its compiled file, as a pass module (docs/managed/pass-modules.md)\n" );
+		text.Append( "// " ).Append( name ).Append( " from the source embedded in its compiled file, as a pass module (docs/reference/borealis-pass-modules.md)\n" );
 		text.Append( "#include \"sbox/pass.slangh\"\n" );
 		foreach ( var (feature, min, max) in features ?? [] ) text.Append( "Feature( " ).Append( feature ).Append( ", " ).Append( min ).Append( ".." ).Append( max ).Append( ", \"\" );\n" );
 
