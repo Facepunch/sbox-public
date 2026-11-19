@@ -298,7 +298,7 @@ internal sealed partial class BackendContext
 		if ( noColor ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
 		if ( variant.State.StencilTest && r.Depth is not null && BackendDevice.FormatOf( r.Depth ).HasStencil() ) r.List.SetStencilReference( (byte)variant.State.StencilReference );
 
-		RecordDraw( r.List, geometry, instanceIds, draw, firstInstance, instances, indirect );
+		RecordDraw( r.List, geometry, instanceIds, draw, firstInstance, instances, indirect, variant );
 		return true;
 	}
 

@@ -65,8 +65,10 @@ internal sealed partial class BackendContext
 	/// Bind a draw's vertex, instance id and default streams and its index buffer, and record it: directly, or as the
 	/// multi-draw <paramref name="indirect"/> names.
 	/// </summary>
-	void RecordDraw( CommandList list, in DrawGeometry geometry, BackendBuffer instanceIds, in RenderMesh.Draw draw, int firstInstance, int instances, in IndirectDraws indirect )
+	void RecordDraw( CommandList list, in DrawGeometry geometry, BackendBuffer instanceIds, in RenderMesh.Draw draw, int firstInstance, int instances, in IndirectDraws indirect, object what )
 	{
+		// Diagnostics only: a name a draw, with its counts
+		if ( BackendDevice.DrawMarkers ) list.Marker( $"{BackendDevice.DrawMarkerName( what )} indices {draw.IndexCount} from {draw.StartIndex}, instances {instances}, indirect {indirect.Count}, vertex buffer {device.Gpu.SizeOf( geometry.Vertices )}B stride {geometry.Layout?.Stride} from {geometry.VertexOffset}, base {geometry.BaseVertex}, index buffer {device.Gpu.SizeOf( geometry.Indices )}B from {geometry.IndexOffset} {geometry.IndexFormat}" );
 		list.SetVertexBuffer( 0, geometry.Vertices, geometry.VertexOffset + (indirect.BaseVertexInBuffer ? (long)geometry.BaseVertex * geometry.Layout.Stride : 0) );
 		list.SetVertexBuffer( 1, instanceIds.Handle, firstInstance * 4L );
 		list.SetVertexBuffer( 2, device.Defaults.VertexDefaults );
