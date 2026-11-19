@@ -31,9 +31,8 @@ public class PanelAppSystem : AppSystem
 	{
 		bootTimer = Stopwatch.StartNew();
 
-		// Panels draw on Borealis.Gpu, Source 2 on its empty device. SceneLab, which draws scenes through native's scene
-		// system, keeps Source 2's device.
-		if ( !DrawsScenes ) DrawOnBorealisGpu();
+		// Panels and scene panels draw on Borealis.Gpu, Source 2 on its empty device
+		DrawOnBorealisGpu();
 
 		base.Init();
 		Phase( "Interop" );

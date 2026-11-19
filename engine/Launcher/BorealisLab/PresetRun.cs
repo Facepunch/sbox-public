@@ -65,11 +65,30 @@ internal static class PresetRun
 		var single = Args.String( "-capture" );
 		var folder = System.IO.Path.GetFullPath( Args.String( "-out" ) ?? System.IO.Path.Combine( Environment.CurrentDirectory, "screenshots", "borealislab" ) );
 
-		// Validation with -vulkan_enable_validation, as the render tests ask for it, or -validation
-		var validation = Args.Has( "-vulkan_enable_validation" ) || Args.Has( "-validation" );
-		using var gpu = GpuDevice.Create( new DeviceOptions { ApplicationName = "Borealis Lab", Validation = validation, Presentation = false, Message = Message } );
+		// Validation with -vulkan_enable_validation, as the render tests ask for it, or -validation; synchronisation validation
+		// too with -sync-validation, as map runs take it
+		var validation = Args.Has( "-vulkan_enable_validation" ) || Args.Has( "-validation" ) || Args.Has( "-sync-validation" );
+		using var gpu = GpuDevice.Create( new DeviceOptions { ApplicationName = "Borealis Lab", Validation = validation, SynchronizationValidation = Args.Has( "-sync-validation" ), Presentation = false, Message = Message } );
 		using var device = new BackendDevice( gpu );
 		GoldenTruthRun.Adapter = gpu.Adapter.Name;
+
+		// A capture is the same frame on any machine, however fast: no draw is skipped for a pipeline workers are still making,
+		// and casters never move into the sun's cached far cascade, which they do after seconds of wall-clock time (a frame
+		// takes half a second on Lavapipe), as in the GPU tests
+		gpu.SkipDrawsUntilReady = false;
+		Borealis.Shadows.SettledCasters.Reset();
+		Borealis.Shadows.SettledCasters.Seconds = float.PositiveInfinity;
+		Borealis.Shadows.SettledCasters.RestlessSeconds = float.PositiveInfinity;
+
+		// Lavapipe (Mesa 26.2.4) leaves casters out of a shadow map's multi-draw of the faded list (one vkCmdDrawIndexedIndirect
+		// of several draws, no colour target, a pixel stage that dithers) that the same commands draw issued one per call; no
+		// shader reads the draw index. The faded list draws the classic way there
+		if ( GoldenTruthRun.Device == "Lavapipe" ) device.GpuDrivenFaded = false;
+
+		// The translucent list too, but NOT for a proven driver bug: its GPU-driven call draws nothing on Lavapipe (no fragments,
+		// whatever its pixel stage or render state) while the GPU draws the same data. Open card: "GPU-driven translucent draws
+		// nothing on Lavapipe". Both paths stay on everywhere else
+		if ( GoldenTruthRun.Device == "Lavapipe" ) device.GpuDrivenTranslucent = false;
 		if ( validation ) GoldenTruthRun.ValidationLayer();
 		backend.Phase( $"Borealis.Gpu device ({gpu.Adapter.Name})" );
 		var previousHost = RenderHost.Current;

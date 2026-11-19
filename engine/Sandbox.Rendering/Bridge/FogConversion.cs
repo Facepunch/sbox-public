@@ -1,7 +1,7 @@
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// The engine's fog settings as Borealis's, and back for SceneLab's native references.
+/// The engine's fog settings as Borealis's.
 /// </summary>
 internal static class FogConversion
 {
@@ -57,19 +57,6 @@ internal static class FogConversion
 	};
 
 	public static GradientFogSettings ToBorealis( this in GradientFogSetup fog ) => new()
-	{
-		Enabled = fog.Enabled,
-		StartDistance = fog.StartDistance,
-		EndDistance = fog.EndDistance,
-		StartHeight = fog.StartHeight,
-		EndHeight = fog.EndHeight,
-		MaximumOpacity = fog.MaximumOpacity,
-		Color = fog.Color,
-		DistanceFalloffExponent = fog.DistanceFalloffExponent,
-		VerticalFalloffExponent = fog.VerticalFalloffExponent,
-	};
-
-	public static GradientFogSetup ToEngine( this in GradientFogSettings fog ) => new()
 	{
 		Enabled = fog.Enabled,
 		StartDistance = fog.StartDistance,

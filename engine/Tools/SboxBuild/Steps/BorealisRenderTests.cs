@@ -9,7 +9,7 @@ namespace Facepunch.Steps;
 /// (<c>borealislab -golden-truth</c>), with Vulkan validation on. Lavapipe renders the same pixels on every machine with the
 /// same CPU features, so the images hold on any machine, GPU or not.
 /// </summary>
-internal class BorealisRenderTests( string[] presets, bool update )
+internal class BorealisRenderTests( string[] presets, bool update, bool pullRequest = false, bool notifySlack = false )
 {
 	// The Mesa version, built with a static LLVM by Facepunch/sbox-thirdparty's lavapipe workflow. The approved images are
 	// its pixels, so a new version means writing them again (--update)
@@ -38,6 +38,8 @@ internal class BorealisRenderTests( string[] presets, bool update )
 			Log.Error( "borealis-render-tests needs Windows for now: it uses the Windows build of Lavapipe." );
 			return ExitCode.Failure;
 		}
+
+		if ( pullRequest && !RenderTestsPullRequest.Run() ) return ExitCode.Success;
 
 		var root = Directory.GetCurrentDirectory();
 		var game = Path.Combine( root, "game" );
@@ -126,6 +128,7 @@ internal class BorealisRenderTests( string[] presets, bool update )
 		if ( !results.All( x => x ) || problems.Any( x => x.Count > 0 ) || lines.Count == 0 )
 		{
 			Log.Error( $"Borealis render tests failed. Frames, diffs and .results.json are in {output}" );
+			if ( notifySlack ) NotifySlack.Run( $":x: Borealis render tests failed on {Environment.GetEnvironmentVariable( "GITHUB_REF_NAME" ) ?? "this build"}. The run's render-tests artifact has the frames and diffs." );
 			return ExitCode.Failure;
 		}
 
