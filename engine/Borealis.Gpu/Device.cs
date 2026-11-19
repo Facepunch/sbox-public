@@ -685,6 +685,7 @@ public sealed unsafe partial class Device : IDisposable
 
 			var id = data->pMessageIdName != null ? Marshal.PtrToStringUTF8( (nint)data->pMessageIdName ) : "";
 			var text = data->pMessage != null ? Marshal.PtrToStringUTF8( (nint)data->pMessage ) : "";
+			if ( level >= MessageSeverity.Warning ) text += DescribeObjects( data );
 
 			if ( level == MessageSeverity.Error && (types & Vulkan.Vk.MessageValidation) != 0 ) Interlocked.Increment( ref device.validationErrors );
 			device.message?.Invoke( new DeviceMessage( level, id, text ) );
@@ -698,14 +699,40 @@ public sealed unsafe partial class Device : IDisposable
 	}
 
 	/// <summary>
-	/// Give a Vulkan object a name debuggers and validation messages show.
+	/// What a validation message is about, by the names Borealis.Gpu gave it: the named objects it lists (the pipeline,
+	/// the image) and the command-buffer labels open at the call (the pass), as the layer lists them. Empty when none is named.
+	/// </summary>
+	internal static string DescribeObjects( VkDebugUtilsMessengerCallbackDataEXT* data )
+	{
+		var names = new List<string>();
+		var objects = (VkDebugUtilsObjectNameInfoEXT*)data->pObjects;
+		for ( int i = 0; i < data->objectCount && objects != null; i++ )
+		{
+			if ( objects[i].pObjectName == null ) continue;
+			names.Add( $"{objects[i].objectType} '{Marshal.PtrToStringUTF8( (nint)objects[i].pObjectName )}'" );
+		}
+
+		var labels = (VkDebugUtilsLabelEXT*)data->pCmdBufLabels;
+		var open = new List<string>();
+		for ( int i = 0; i < data->cmdBufLabelCount && labels != null; i++ )
+		{
+			if ( labels[i].pLabelName != null ) open.Add( Marshal.PtrToStringUTF8( (nint)labels[i].pLabelName ) );
+		}
+		if ( open.Count > 0 ) names.Add( $"labels '{string.Join( "' '", open )}'" );
+
+		return names.Count == 0 ? "" : $" [{string.Join( ", ", names )}]";
+	}
+
+	/// <summary>
+	/// Give a Vulkan object a name debuggers and validation messages show: the last 80 characters of a longer one, where a
+	/// path names its file.
 	/// </summary>
 	internal void SetName( VkObjectType type, ulong handle, string name )
 	{
 		if ( name is null || Vk is null || Instance.vkSetDebugUtilsObjectNameEXT == null || handle == 0 ) return;
 
 		Span<byte> utf8 = stackalloc byte[256];
-		var length = Encoding.UTF8.GetBytes( name.AsSpan( 0, Math.Min( name.Length, 80 ) ), utf8 );
+		var length = ShortName( name, utf8 );
 		utf8[length] = 0;
 
 		fixed ( byte* p = utf8 )
@@ -713,6 +740,17 @@ public sealed unsafe partial class Device : IDisposable
 			var info = new VkDebugUtilsObjectNameInfoEXT { sType = VkStructureType.DebugUtilsObjectNameInfoExt, objectType = type, objectHandle = handle, pObjectName = p };
 			Instance.vkSetDebugUtilsObjectNameEXT( Vk.Device, &info );
 		}
+	}
+
+	/// <summary>
+	/// A name as <see cref="SetName"/> gives it, in UTF-8 into <paramref name="utf8"/> (256 bytes): up to 80 characters, the
+	/// end of a longer one after "...". Returns its length.
+	/// </summary>
+	internal static int ShortName( string name, Span<byte> utf8 )
+	{
+		if ( name.Length <= 80 ) return Encoding.UTF8.GetBytes( name, utf8 );
+		"..."u8.CopyTo( utf8 );
+		return 3 + Encoding.UTF8.GetBytes( name.AsSpan( name.Length - 77 ), utf8[3..] );
 	}
 
 	internal static string Utf8( byte* text, int max )
