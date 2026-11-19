@@ -5,16 +5,17 @@ using System.Runtime.InteropServices;
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// Incremental <see cref="SceneWorld"/> mirror for Borealis (<c>-borealisgpu</c>).
-/// Queues object changes from any thread and applies changed fields before rendering.
-/// Object attributes are read when a view draws the object, as their values change in place without notifications.
+/// A <see cref="SceneWorld"/> as Borealis draws it (<c>-borealisgpu</c>), its <see cref="SceneWorld.Render"/>: the render world
+/// its objects write their render objects into, the model meshes, materials and textures they draw with, and its lighting.
+/// What can't be written as it changes (made on another thread or during a render, objects made since) waits for the next
+/// frame (<see cref="PrepareFrame"/>). Object attributes are read when a view draws the object, as their values change in place.
 /// </summary>
-internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource, IDisposable
+internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource, IDisposable
 {
 	readonly SceneWorld source;
 
 	/// <summary>
-	/// The mirrored world: one per scene world. A camera drawing it as an extra world draws it in its main world's
+	/// The world's render world: one per scene world. A camera drawing it as an extra world draws it in its main world's
 	/// (<see cref="RenderWorld.Include"/>).
 	/// </summary>
 	public RenderWorld World { get; } = new();
@@ -73,7 +74,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 	/// <summary>
 	/// Draw a world: be its renderer (<see cref="SceneWorld.Render"/>), and make everything already in it.
 	/// </summary>
-	public SceneMirror( SceneWorld source )
+	public WorldRender( SceneWorld source )
 	{
 		this.source = source;
 
@@ -195,7 +196,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 	public void Prepare( SceneCamera camera, bool skyboxView = false )
 	{
 		PrepareFrame();
-		using ( Borealis.Zones.MirrorLighting.Start() ) LightView( camera, skyboxView );
+		using ( Borealis.Zones.WorldLighting.Start() ) LightView( camera, skyboxView );
 	}
 
 	/// <summary>
@@ -205,11 +206,11 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 	/// </summary>
 	public void PrepareFrame()
 	{
-		using var zone = Borealis.Zones.MirrorSync.Start();
+		using var zone = Borealis.Zones.WorldPrepare.Start();
 		HasPrepared = true;
 
 		// A reload writes the objects drawing what it changed again, and so does a model finishing loading
-		using ( Borealis.Zones.MirrorLoaded.Start() )
+		using ( Borealis.Zones.WorldLoaded.Start() )
 		{
 			CheckReloads();
 			CheckLoaded();
@@ -234,7 +235,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 
 		// What writing objects uploads to the device (models, textures, new capture cubes' clears) goes in one list with the
 		// frame's next submission, not a submission each
-		using ( Borealis.Zones.MirrorApply.Start() )
+		using ( Borealis.Zones.WorldWrite.Start() )
 		using ( MirrorContent.Gpu is { } gpu && DeferApplyUploads ? gpu.Gpu.DeferUploads() : default )
 		{
 			foreach ( var sceneObject in going ) Take( sceneObject, frame );
@@ -252,7 +253,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 
 			making.Clear();
 
-			SyncMaps();
+			UpdateMaps();
 		}
 
 		SweepCaches( frame );
@@ -288,7 +289,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 		if ( sceneObject.IsValid() && Added( sceneObject, out var obj ) ) ApplyTo( sceneObject, obj, change );
 	}
 
-	/// <summary>A change to an object already mirrored (<paramref name="obj"/> null for one that isn't drawn as an object).</summary>
+	/// <summary>A change to an object already made (<paramref name="obj"/> null for one that isn't drawn as an object).</summary>
 	void ApplyTo( SceneObject sceneObject, RenderObject obj, SceneObjectChange change )
 	{
 		// One that writes its own
@@ -313,14 +314,14 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 
 	readonly Dictionary<SceneLightProbe, Borealis.LightProbeVolume> lightProbes = new();
 
-	/// <summary>Whether a realtime probe's cube is made when it's first captured (on), not when the probe is mirrored. For comparisons.</summary>
+	/// <summary>Whether a realtime probe's cube is made when it's first captured (on), not when the probe is made. For comparisons.</summary>
 	internal static bool LazyCaptureCubes { get; set; } = true;
 
 	// Realtime probes whose cube hasn't been made yet (nothing has captured them), with their engine texture
 	readonly Dictionary<SceneCubemap, Texture> uncaptured = new();
 	int capturesSeen;
 
-	/// <summary>Write again the probes whose cube a capture has made since the last sync (<see cref="ProbeCube"/>).</summary>
+	/// <summary>Write again the probes whose cube a capture has made since the last frame (<see cref="ProbeCube"/>).</summary>
 	void CheckCaptured()
 	{
 		if ( uncaptured.Count == 0 || capturesSeen == MirrorContent.CaptureCubesMade ) return;
@@ -405,7 +406,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 	}
 
 	/// <summary>
-	/// Mirror probe placement and selection data; create attributes once (<c>CLightBinner2::GetLightProbeVolumeData</c>).
+	/// A probe volume's placement and selection data; create attributes once (<c>CLightBinner2::GetLightProbeVolumeData</c>).
 	/// </summary>
 	void ApplyLightProbe( SceneLightProbe probe, Borealis.LightProbeVolume volume, SceneObjectChange change )
 	{
@@ -619,7 +620,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 	}
 
 	/// <summary>
-	/// Mirror an aggregate's flags, tint and lightmaps. Its fragments are fixed when it's made.
+	/// An aggregate's flags, tint and lightmaps. Its fragments are fixed when it's made.
 	/// </summary>
 	void ApplyAggregate( SceneObject sceneObject, AggregateObject aggregate, SceneObjectChange change )
 	{
@@ -646,7 +647,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 	}
 
 	/// <summary>
-	/// Mirror native blend/prepass flags and layer match (<c>CSceneObject::m_nLayerMatchID</c>).
+	/// Native's blend/prepass flags and layer match (<c>CSceneObject::m_nLayerMatchID</c>).
 	/// MeshRenderFeature owns classification.
 	/// </summary>
 	static void ApplyMeshLayers( SceneObject sceneObject, MeshObject mesh )
@@ -711,7 +712,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 	/// Omit empty attributes to preserve instancing (<c>CBaseSceneObjectDesc::BindMaterial</c>), and let objects whose
 	/// attributes hold the same values share one set (<see cref="SharedAttributes"/>), so they instance and keep the material
 	/// bound between them as objects with none do. Values change in place without notice, so they're read each render that
-	/// draws the object, as native reads them as it draws: reading every object's each sync cost Mow the Lawn half a
+	/// draws the object, as native reads them as it draws: reading every object's each frame cost Mow the Lawn half a
 	/// millisecond a frame, nearly all of it its 3,000 empty sets' memory.
 	/// </summary>
 	public void Refresh( MeshObject mesh )
@@ -738,10 +739,10 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 	const int MaxShareable = 32;
 
 	/// <summary>
-	/// The attribute set an object draws with: the one it shared last sync, while it still holds the same values as its own, or
+	/// The attribute set an object draws with: the one it shared last render, while it still holds the same values as its own, or
 	/// another of the same values, or its own. A dresser gives every renderer of a citizen <c>skin_tint</c> and <c>skin_age</c>,
 	/// most often the defaults, so a crowd's bodies and clothing all have attributes, which made each draw alone and rebind its
-	/// material. Values can change in place on either side, so every object compares its own with the set it shares each sync.
+	/// material. Values can change in place on either side, so every object compares its own with the set it shares each render.
 	/// </summary>
 	RenderAttributes SharedAttributes( MeshObject mesh, RenderAttributes own, ManagedRenderAttributes values )
 	{
@@ -772,7 +773,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 	/// <summary>
 	/// Every other enabled directional light, in the order they were added: each lights the world as an extra sun.
 	/// </summary>
-	void SyncExtraSuns( SceneLighting lighting, SceneDirectionalLight sun )
+	void UpdateExtraSuns( SceneLighting lighting, SceneDirectionalLight sun )
 	{
 		var extras = lighting.ExtraSuns;
 		extras.Clear();
@@ -854,7 +855,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 				lighting.SunContactShadows = false;
 			}
 
-			SyncExtraSuns( lighting, sun );
+			UpdateExtraSuns( lighting, sun );
 		}
 
 		// Sky selection is per view: cameras can exclude different skies without changing the world.
@@ -902,7 +903,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 		fogTo.IndirectStrength = fogFrom.IndirectStrength;
 		fogTo.BakedIndirectTexture = WorldTexture( fogFrom.BakedIndirectTexture );
 
-		SyncFogVolumes();
+		UpdateFogVolumes();
 	}
 
 	int fogVolumesVersion = -1;
@@ -911,7 +912,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 	/// <summary>
 	/// Refresh changed fog volumes in native order, reusing pooled objects (<c>SceneWorld.FogVolumes</c>).
 	/// </summary>
-	void SyncFogVolumes()
+	void UpdateFogVolumes()
 	{
 		if ( source.FogVolumesVersion == fogVolumesVersion ) return;
 		fogVolumesVersion = source.FogVolumesVersion;
@@ -933,7 +934,7 @@ internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource,
 	}
 
 	/// <summary>
-	/// Summarize mirrored lighting and models for parity diagnostics.
+	/// Summarize the world's lighting and models for parity diagnostics.
 	/// </summary>
 	public string Describe()
 	{

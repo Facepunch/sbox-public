@@ -3,22 +3,22 @@ using System;
 namespace SceneTests;
 
 /// <summary>
-/// Lighting the managed renderer's mirror takes from a world and its extra worlds, as native's light binner takes it.
+/// Lighting the managed renderer's render takes from a world and its extra worlds, as native's light binner takes it.
 /// </summary>
 [TestClass]
-public class SceneMirrorLightingTests
+public class WorldLightingTests
 {
-	static readonly Type MirrorType = Type.GetType( "Sandbox.Rendering.Bridge.SceneMirror, Sandbox.Rendering", true );
+	static readonly Type RenderType = Type.GetType( "Sandbox.Rendering.Bridge.WorldRender, Sandbox.Rendering", true );
 
-	static (IDisposable Mirror, Borealis.RenderWorld World) Mirror( SceneWorld world ) => Mirror( [world] );
+	static (IDisposable Render, Borealis.RenderWorld World) Render( SceneWorld world ) => Render( [world] );
 
-	static (IDisposable Mirror, Borealis.RenderWorld World) Mirror( object[] arguments )
+	static (IDisposable Render, Borealis.RenderWorld World) Render( object[] arguments )
 	{
-		var mirror = (IDisposable)Activator.CreateInstance( MirrorType, arguments );
-		return (mirror, (Borealis.RenderWorld)MirrorType.GetProperty( "World" ).GetValue( mirror ));
+		var render = (IDisposable)Activator.CreateInstance( RenderType, arguments );
+		return (render, (Borealis.RenderWorld)RenderType.GetProperty( "World" ).GetValue( render ));
 	}
 
-	static void Sync( IDisposable mirror, SceneCamera camera ) => MirrorType.GetMethod( "Prepare" ).Invoke( mirror, [camera, false] );
+	static void Prepare( IDisposable render, SceneCamera camera ) => RenderType.GetMethod( "Prepare" ).Invoke( render, [camera, false] );
 
 	/// <summary>
 	/// A world with several directional lights has one sun, the last enabled one added, as native's binner keeps the last
@@ -33,19 +33,19 @@ public class SceneMirrorLightingTests
 			var first = new SceneDirectionalLight( world, Rotation.From( 45, 0, 0 ), Color.Red );
 			var last = new SceneDirectionalLight( world, Rotation.From( 60, 90, 0 ), Color.Blue );
 			using var camera = new SceneCamera { World = world };
-			var (mirror, renderWorld) = Mirror( world );
-			using var disposeMirror = mirror;
+			var (render, renderWorld) = Render( world );
+			using var disposeRender = render;
 
-			Sync( mirror, camera );
+			Prepare( render, camera );
 			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SunColor );
 
 			last.RenderingEnabled = false;
-			Sync( mirror, camera );
+			Prepare( render, camera );
 			Assert.AreEqual( Color.Red, renderWorld.Lighting.SunColor );
 
 			last.RenderingEnabled = true;
 			first.Delete();
-			Sync( mirror, camera );
+			Prepare( render, camera );
 			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SunColor );
 		}
 		finally
@@ -68,11 +68,11 @@ public class SceneMirrorLightingTests
 			var second = new SceneDirectionalLight( world, Rotation.From( 30, 45, 0 ), Color.Green ) { ShadowsEnabled = false };
 			var last = new SceneDirectionalLight( world, Rotation.From( 60, 90, 0 ), Color.Blue );
 			using var camera = new SceneCamera { World = world };
-			var (mirror, renderWorld) = Mirror( world );
-			using var disposeMirror = mirror;
+			var (render, renderWorld) = Render( world );
+			using var disposeRender = render;
 			var lighting = renderWorld.Lighting;
 
-			Sync( mirror, camera );
+			Prepare( render, camera );
 			Assert.AreEqual( Color.Blue, lighting.SunColor );
 			Assert.AreEqual( 2, lighting.ExtraSuns.Count );
 			Assert.AreEqual( Color.Red, lighting.ExtraSuns[0].Color );
@@ -82,13 +82,13 @@ public class SceneMirrorLightingTests
 			Assert.IsFalse( lighting.ExtraSuns[1].Shadows );
 
 			second.RenderingEnabled = false;
-			Sync( mirror, camera );
+			Prepare( render, camera );
 			Assert.AreEqual( 1, lighting.ExtraSuns.Count );
 			Assert.AreEqual( Color.Red, lighting.ExtraSuns[0].Color );
 
 			// The last one turned off: the one before it is the sun, and no other is left
 			last.RenderingEnabled = false;
-			Sync( mirror, camera );
+			Prepare( render, camera );
 			Assert.AreEqual( Color.Red, lighting.SunColor );
 			Assert.AreEqual( 0, lighting.ExtraSuns.Count );
 		}
@@ -112,16 +112,16 @@ public class SceneMirrorLightingTests
 			using var texture = Texture.CreateVolume( 2, 2, 12 ).Finish();
 			var probe = new SceneLightProbe( extra, texture, null, null, new BBox( new Vector3( -100 ), new Vector3( 100 ) ), Transform.Zero, 0, 0 );
 			using var camera = new SceneCamera { World = world };
-			var (host, hostWorld) = Mirror( world );
+			var (host, hostWorld) = Render( world );
 			using var disposeHost = host;
-			var (mirror, extraWorld) = Mirror( extra );
-			using var disposeMirror = mirror;
+			var (render, extraWorld) = Render( extra );
+			using var disposeRender = render;
 			hostWorld.Include( new Borealis.RenderWorld() );
 			hostWorld.Include( new Borealis.RenderWorld() );
 			Assert.AreEqual( 3, hostWorld.Include( extraWorld ) );
 
-			Sync( host, camera );
-			Sync( mirror, camera );
+			Prepare( host, camera );
+			Prepare( render, camera );
 			hostWorld.RefreshDrawnVolumes();
 			Assert.AreEqual( 0, hostWorld.LightProbeVolumes.Count, "the main world's own" );
 			Assert.AreEqual( 1, hostWorld.DrawnLightProbeVolumes.Count );
@@ -133,7 +133,7 @@ public class SceneMirrorLightingTests
 			Assert.AreEqual( 0, extraWorld.DrawnLightProbeVolumes[0].SubWorld, "the extra world drawn as itself" );
 
 			probe.Delete();
-			Sync( mirror, camera );
+			Prepare( render, camera );
 			hostWorld.RefreshDrawnVolumes();
 			Assert.AreEqual( 0, hostWorld.DrawnLightProbeVolumes.Count );
 		}

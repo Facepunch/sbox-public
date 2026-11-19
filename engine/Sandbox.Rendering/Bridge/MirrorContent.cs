@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// An engine resource as what the mirror's world draws with on the Borealis.Gpu device Borealis renders on
+/// An engine resource as what a world draws with on the Borealis.Gpu device Borealis renders on
 /// (<see cref="RenderHost.Device"/>, <c>-borealisgpu</c>): the compiled file Borealis.Source2 reads by the resource's path.
 /// What was made at run time (procedural models, materials and textures made in code) and attributes have no file: models
 /// made at run time are read back from Source 2 (see <see cref="RuntimeMesh"/>), attributes come from their managed copy

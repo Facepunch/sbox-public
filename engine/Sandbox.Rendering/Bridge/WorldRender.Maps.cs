@@ -3,16 +3,16 @@ using System.Linq;
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// The maps Borealis.Source2 read into the mirrored world (<see cref="SceneMap.Geometry"/>, no native scene objects): each
-/// map's objects made in this mirror's world while the map is in the scene world (worlds that include it draw them too).
+/// The maps Borealis.Source2 read into the world (<see cref="SceneMap.Geometry"/>, no native scene objects): each
+/// map's objects made in this world's render world while the map is in the scene world (worlds that include it draw them too).
 /// </summary>
-internal sealed partial class SceneMirror
+internal sealed partial class WorldRender
 {
 	readonly Dictionary<SceneMap, (MapGeometry Geometry, MapGeometry.Instance Instance)> maps = new();
 	int mapsSeen = -1;
 
 	/// <summary>Add maps the scene world gained, take out those it lost, and make what has loaded since.</summary>
-	void SyncMaps()
+	void UpdateMaps()
 	{
 		if ( MirrorContent.Gpu is not { } gpu ) return;
 

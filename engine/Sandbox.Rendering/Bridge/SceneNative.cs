@@ -3,7 +3,7 @@ using NativeEngine;
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// What the mirror reads from native scene objects and worlds through <c>RenderTools</c>, and the native draws it needs.
+/// What a world's renderer reads from native scene objects and worlds through <c>RenderTools</c>, and the native draws it needs.
 /// </summary>
 internal static class SceneNative
 {

@@ -4,11 +4,11 @@ using System.Runtime.InteropServices;
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// What a <see cref="SceneMirror"/> holds besides its objects: meshes made from models, their draw-state variants, shared
+/// What a <see cref="WorldRender"/> holds besides its objects: meshes made from models, their draw-state variants, shared
 /// attribute sets, and deleted objects kept to the end of their frame. Counted for watching that none of it grows for the
 /// life of a session (<see cref="SceneBridge.CachesFor"/>).
 /// </summary>
-internal readonly record struct MirrorCacheCounts( int Objects, int Meshes, int FailedMeshes, int Variants, int IdleMeshes,
+internal readonly record struct WorldCacheCounts( int Objects, int Meshes, int FailedMeshes, int Variants, int IdleMeshes,
 	int Attributed, int Sharing, int Shareable, int Deleted, long Built, long Evicted, long Reloaded )
 {
 	public override string ToString()
@@ -16,13 +16,13 @@ internal readonly record struct MirrorCacheCounts( int Objects, int Meshes, int 
 }
 
 /// <summary>
-/// The mirror's mesh cache. Each model's <see cref="RenderMesh"/> is made once, and each effective draw state of it (body
+/// A world's mesh cache. Each model's <see cref="RenderMesh"/> is made once, and each effective draw state of it (body
 /// groups, material group, overrides) once more as a variant, shared by every object in that state so they instance.
 /// Objects hold what they draw (<see cref="Hold"/>, <see cref="Release"/>); what none holds is idle, and dropped once it has
 /// been idle for <see cref="IdleFrames"/>. A model reloaded since its mesh was made drops the mesh, and the objects drawing
 /// it make it again (<see cref="CheckReloads"/>).
 /// </summary>
-internal sealed partial class SceneMirror
+internal sealed partial class WorldRender
 {
 	/// <summary>
 	/// Frames a mesh nothing draws stays cached, so objects spawned and destroyed over and over (shells, gibs) keep reusing it.
@@ -80,9 +80,9 @@ internal sealed partial class SceneMirror
 	long built, evicted, reloaded;
 
 	/// <summary>
-	/// What the mirror holds in its caches now.
+	/// What the world holds in its caches now.
 	/// </summary>
-	public MirrorCacheCounts Caches
+	public WorldCacheCounts Caches
 	{
 		get
 		{
@@ -91,7 +91,7 @@ internal sealed partial class SceneMirror
 
 			var failed = models.Count( x => x.Value.Mesh is null );
 			var unused = idle.Count( x => x.Users == 0 && !x.Dropped );
-			return new MirrorCacheCounts( added, models.Count - failed, failed, variantCount, unused,
+			return new WorldCacheCounts( added, models.Count - failed, failed, variantCount, unused,
 				attributed.Count, sharing.Count, shareable.Count, deleted + lingering.Count, built, evicted, reloaded );
 		}
 	}
@@ -210,7 +210,7 @@ internal sealed partial class SceneMirror
 	/// <summary>
 	/// Drop what nothing has drawn for <see cref="IdleFrames"/>. Looks only while something is idle, every
 	/// <see cref="SweepFrames"/>, so a world whose objects come and go no more than that costs nothing. Dropping only lets go
-	/// of the mirror's references: a frame still recording a mesh holds it in its draw lists, and the model's GPU buffers are
+	/// of the world's references: a frame still recording a mesh holds it in its draw lists, and the model's GPU buffers are
 	/// the native model's, which the device destroys once frames using them are done.
 	/// </summary>
 	void SweepCaches( ulong frame )
@@ -318,7 +318,7 @@ internal sealed partial class SceneMirror
 
 	/// <summary>
 	/// A texture an object draws with; on Borealis.Gpu loading asynchronously, null while it loads, and the object is applied
-	/// with <paramref name="change"/> again once it's read. Held by the world (<see cref="SceneMirror.WorldTexture"/>), not
+	/// with <paramref name="change"/> again once it's read. Held by the world (<see cref="WorldRender.WorldTexture"/>), not
 	/// kept for good: an envmap of the sky's cube kept the sky after its map was unloaded.
 	/// </summary>
 	GpuTexture TextureFor( Texture texture, SceneObject sceneObject, SceneObjectChange change )
@@ -403,7 +403,7 @@ internal sealed partial class SceneMirror
 	/// <summary>
 	/// After a resource reload (<see cref="Resource.Reloads"/>, editor hot reload or a model compiled again), drop every model
 	/// mesh whose model or whose draws' materials reloaded since it was made, with its variants, and queue the objects drawing
-	/// them, so this sync makes them again. A mesh holds its materials' blend flags and sort keys, so a material reload counts.
+	/// them, so this frame makes them again. A mesh holds its materials' blend flags and sort keys, so a material reload counts.
 	/// </summary>
 	void CheckReloads()
 	{

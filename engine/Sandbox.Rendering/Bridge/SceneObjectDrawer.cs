@@ -9,20 +9,20 @@ internal sealed class SceneObjectDrawer
 	readonly RenderSystem system;
 
 	/// <summary>
-	/// The mirror of the world being drawn - the camera's this frame.
+	/// The renderer of the world being drawn - the camera's this frame.
 	/// </summary>
-	public SceneMirror Mirror { get; set; }
+	public WorldRender Render { get; set; }
 
 	/// <summary>
-	/// The mirrors of the extra worlds the camera draws this frame, in <see cref="Mirror"/>'s world.
+	/// The renderers of the extra worlds the camera draws this frame, in <see cref="Render"/>'s world.
 	/// </summary>
-	public List<SceneMirror> ExtraMirrors { get; } = new();
+	public List<WorldRender> ExtraWorlds { get; } = new();
 
 	RenderObject Find( SceneObject sceneObject )
 	{
-		if ( Mirror?.Find( sceneObject ) is { } found ) return found;
+		if ( Render?.Find( sceneObject ) is { } found ) return found;
 
-		foreach ( var extra in ExtraMirrors )
+		foreach ( var extra in ExtraWorlds )
 		{
 			if ( extra.Find( sceneObject ) is { } inExtra ) return inExtra;
 		}

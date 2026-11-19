@@ -175,10 +175,10 @@ internal sealed partial class SceneBridge
 			BorealisGpuUpscaler.Prepare();
 		}
 
-		SceneMirror mirror;
+		WorldRender render;
 		CameraState state;
 		using ( PrepareTiming.Scope() )
-			(mirror, state) = Prepare( camera, setup, size );
+			(render, state) = Prepare( camera, setup, size );
 
 		// A temporal upscaler's sub-pixel offset this frame, which the view's projection takes; none otherwise
 		state.View.Jitter = upscaling ? upscaler.ClipJitter : Vector2.Zero;
@@ -192,7 +192,7 @@ internal sealed partial class SceneBridge
 		state.View.ToneMapScalar = exposure?.Scale ?? 1.0f;
 
 		// Its planar reflection first, with its exposure: it depends on nothing in the frame
-		RenderPlanarReflectionOnGpu( camera, mirror, state, setup );
+		RenderPlanarReflectionOnGpu( camera, render, state, setup );
 
 		var targetSize = new Vector2Int( (int)size.x, (int)size.y );
 		samples = Math.Max( samples, 1 );
@@ -217,7 +217,7 @@ internal sealed partial class SceneBridge
 
 		using ( SceneTiming.Scope() )
 		using ( new Drawing( this, state ) )
-			state.System.Render( mirror.World, state.View, state.GpuTarget, stages );
+			state.System.Render( render.World, state.View, state.GpuTarget, stages );
 
 		frame.Adopt( state.GpuTarget, state.System.Frame.Constants );
 
@@ -279,7 +279,7 @@ internal sealed partial class SceneBridge
 		state = null;
 		if ( target.Width < 1 || target.Height < 1 ) return false;
 
-		(var mirror, state) = Prepare( camera, setup, target.Size );
+		(var render, state) = Prepare( camera, setup, target.Size );
 		state.View.ToneMapScalar = toneMapScalar;
 
 		var size = new Vector2Int( target.Width, target.Height );
@@ -296,7 +296,7 @@ internal sealed partial class SceneBridge
 				state.GpuOutput = output = RenderHost.Current.Device.CreateTexture( TextureDesc.Target( size.x, size.y, format ), "Borealis.Gpu child view" );
 			}
 
-			state.System.Render( mirror.World, state.View, output, 1, null );
+			state.System.Render( render.World, state.View, output, 1, null );
 			MirrorContent.Gpu.MakeReadable( output );
 			MirrorContent.SetCapture( target, output );
 			return true;
@@ -310,7 +310,7 @@ internal sealed partial class SceneBridge
 			state.GpuTarget = drawn = ViewTarget.Create( size, samples, format, state.System.DepthFormat, "Borealis.Gpu child view" );
 		}
 
-		state.System.Render( mirror.World, state.View, drawn, null );
+		state.System.Render( render.World, state.View, drawn, null );
 
 		// What reads them samples them
 		var gpu = MirrorContent.Gpu;
@@ -330,7 +330,7 @@ internal sealed partial class SceneBridge
 	/// of its own that the view's attributes name for the planes' materials, with the view's exposure. Reflections and
 	/// orthographic views have none.
 	/// </summary>
-	void RenderPlanarReflectionOnGpu( SceneCamera camera, SceneMirror mirror, CameraState state, in ViewSetup setup )
+	void RenderPlanarReflectionOnGpu( SceneCamera camera, WorldRender render, CameraState state, in ViewSetup setup )
 	{
 		var view = state.View;
 		view.ViewAttributes = null;
@@ -350,7 +350,7 @@ internal sealed partial class SceneBridge
 		var rendered = RenderOnGpu( camera, reflection, target.ColorTarget, target.DepthTarget, view.ToneMapScalar, out var reflected );
 
 		// The reflection's prepare set the world's 3D skybox up for its view
-		SyncSkybox( mirror, camera, setup );
+		PrepareSkybox( render, camera, setup );
 		if ( !rendered ) return;
 
 		var attributes = state.GpuViewAttributes ??= RenderAttributes.CreateManaged();
