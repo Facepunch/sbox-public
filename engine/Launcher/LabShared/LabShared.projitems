@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <!--
-    What SceneLab and BorealisLab share: the lab presets and the world they build, their content through the engine, and the
-    golden truth runner. Both launchers compile it, so they build the same worlds and check them the same way.
+    What BorealisLab shares with its runs: the lab presets and the world they build, and the golden truth runner.
   -->
   <PropertyGroup>
     <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
@@ -19,7 +18,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)LabPreset.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)LabWorld.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)LodTestModel.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)SkyCube.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)WorkshopContent.cs" />
   </ItemGroup>
 </Project>

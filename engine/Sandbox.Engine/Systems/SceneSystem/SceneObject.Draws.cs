@@ -68,8 +68,8 @@ public partial class SceneObject
 		public Dictionary<string, int> DefaultIndex;
 
 		/// <summary>
-		/// The meshes' translucency together, as <c>CMeshSystem::CreateMeshInstanceChain</c> combines each mesh's compiled type:
-		/// any partly blended mesh, or opaque and blended meshes together, make it partly blended.
+		/// The meshes' translucency together, as <c>CMeshSystem::CreateMeshInstanceChain</c> combines each mesh's type
+		/// (<see cref="MeshTranslucency"/> without Source 2's device): any partly blended mesh, or opaque and blended meshes together, make it partly blended.
 		/// </summary>
 		public TranslucencyType Translucency;
 
@@ -99,11 +99,7 @@ public partial class SceneObject
 			var translucency = (TranslucencyType)(-1);
 			for ( int m = 0; m < native.GetNumMeshes(); m++ )
 			{
-				native.GetMeshInfo( m, out _, out _, out _, out _, out var meshTranslucency, out _, out _ );
-				var type = (TranslucencyType)meshTranslucency;
-				if ( (int)translucency == -1 ) translucency = type;
-				else if ( type == TranslucencyType.Partial || (type != translucency) ) translucency = TranslucencyType.Partial;
-
+				var first = draws.Count;
 				var mask = native.GetMeshGroupMaskForMesh( m );
 				var index = 0;
 				for ( int s = 0; s < native.GetNumSceneObjects( m ); s++ )
@@ -113,6 +109,11 @@ public partial class SceneObject
 					for ( int d = 0; d < native.GetNumDrawCalls( m, s ); d++ )
 						draws.Add( new Draw( m, index++, s, d, mask, Material.FromNative( native.GetMaterial( m, s, d ) ) ) );
 				}
+
+				native.GetMeshInfo( m, out _, out _, out _, out _, out var meshTranslucency, out _, out _ );
+				var type = Graphics.HasSource2Device ? (TranslucencyType)meshTranslucency : MeshTranslucency( draws, first );
+				if ( (int)translucency == -1 ) translucency = type;
+				else if ( type == TranslucencyType.Partial || (type != translucency) ) translucency = TranslucencyType.Partial;
 			}
 
 			var groups = new Material[native.GetNumMaterialGroups()][];
@@ -140,6 +141,22 @@ public partial class SceneObject
 				Instances = instances.ToArray(),
 				Revision = model.Revision,
 			};
+		}
+
+		/// <summary>
+		/// A mesh's translucency from its draws' materials (those from <paramref name="first"/> on), as Source 2's device works it
+		/// out when the mesh loads. Without that device native keeps the type the mesh was compiled with, which a package's model
+		/// can have as opaque though some of its materials blend.
+		/// </summary>
+		static TranslucencyType MeshTranslucency( List<Draw> draws, int first )
+		{
+			var translucent = 0;
+			for ( int i = first; i < draws.Count; i++ )
+			{
+				if ( draws[i].Material is { } material && material.native.GetIntAttributeOrDefault( TranslucentName, 0 ) != 0 ) translucent++;
+			}
+
+			return translucent == 0 ? TranslucencyType.Opaque : translucent == draws.Count - first ? TranslucencyType.Full : TranslucencyType.Partial;
 		}
 	}
 

@@ -183,11 +183,25 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	{
 		this.device = device;
 		File = file;
-		var gpu = device.Gpu;
 		draws = new DrawGeometry[file.Meshes.Count][];
 		meshletRequested = new int[file.Meshes.Count][];
 		skinnedBuffers = new SkinnedVertexBuffer[file.Meshes.Count][];
 		vertexCacheDraws = new VertexCacheDraw?[file.Meshes.Count][];
+		try
+		{
+			Make( file );
+		}
+		catch
+		{
+			// What it made so far goes back, or each retry of a model that can't be made keeps another copy
+			Free();
+			throw;
+		}
+	}
+
+	void Make( ModelFile file )
+	{
+		var gpu = device.Gpu;
 
 		// The vertex ids its vertex-cache draws read, made here rather than while a frame records
 		if ( file.IsSkinned ) _ = device.VertexIds;
@@ -199,14 +213,15 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 
 			// Static meshes also go in the GPU-driven pages, when the device keeps them. Skinned ones keep buffers of their own,
 			// which compute skinning reads from their start, each with a slot in the raw buffer array when the device draws
-			// them GPU-driven (GpuDrivenSkinned), and their indices go in the index pages then
+			// them GPU-driven (GpuDrivenSkinned), and their indices go in the index pages then. A buffer that gets no slot (the
+			// array is nearly full, BackendDevice.RawBufferReserve) has its draws drawn classic, which bind it
 			var tables = skinned ? null : device.GpuDrivenTables;
 			var indexTables = skinned && device.GpuDrivenSkinned ? device.GpuDrivenTables : tables;
 			var vertexBuffers = new (BufferHandle Buffer, long Offset, VertexLayout Layout, bool Compressed, int PageSlot)[mesh.VertexBuffers.Count];
 			for ( int v = 0; v < vertexBuffers.Length; v++ )
 			{
 				vertexBuffers[v] = Upload( gpu, mesh.VertexBuffers[v], $"{file.Name} {mesh.Name} vertices {v}", skinned, tables );
-				if ( skinned && indexTables is not null ) vertexBuffers[v].PageSlot = gpu.BindlessIndex( vertexBuffers[v].Buffer );
+				if ( skinned && indexTables is not null ) vertexBuffers[v].PageSlot = gpu.TryBindlessIndex( vertexBuffers[v].Buffer, out var slot, BackendDevice.RawBufferReserve ) ? Slotted( slot ) : device.NoteSkinnedWithoutSlot( file.Name );
 			}
 
 			// Positions alone, for depth-only draws that read nothing else (skinned meshes draw depth from the vertex cache)
@@ -315,6 +330,16 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 				firstVertexId += call.VertexCount;
 			}
 		}
+	}
+
+	// Slots of the raw buffer array its skinned vertex buffers hold, freed with them
+	int slots;
+
+	int Slotted( int slot )
+	{
+		slots++;
+		device.NoteSkinnedSlots( 1 );
+		return slot;
 	}
 
 	/// <summary>
@@ -481,6 +506,20 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	public static RenderMesh Create( BackendDevice device, ModelFile file, ulong? meshGroups = null, int materialGroup = 0, bool drawFastPath = false )
 	{
 		var geometry = new BackendModel( device, file );
+		try
+		{
+			return Create( geometry, device, file, meshGroups, materialGroup, drawFastPath );
+		}
+		catch
+		{
+			// Its buffers, page ranges and the materials it took so far go back, so a retry doesn't keep another copy
+			geometry.Free();
+			throw;
+		}
+	}
+
+	static RenderMesh Create( BackendModel geometry, BackendDevice device, ModelFile file, ulong? meshGroups, int materialGroup, bool drawFastPath )
+	{
 		var mask = meshGroups ?? file.DefaultMeshGroupMask;
 		var lods = new RenderMesh.Draw[file.LodCount][];
 
@@ -550,13 +589,15 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		freed = true;
 		for ( int m = 0; m < draws.Length; m++ )
 		{
-			Array.Clear( draws[m] );
-			Array.Clear( vertexCacheDraws[m] );
+			if ( draws[m] is { } meshDraws ) Array.Clear( meshDraws );
+			if ( vertexCacheDraws[m] is { } cacheDraws ) Array.Clear( cacheDraws );
 			skinnedBuffers[m] = [];
 		}
 
 		foreach ( var buffer in buffers ) device.Gpu.Destroy( buffer );
 		buffers.Clear();
+		device.NoteSkinnedSlots( -slots );
+		slots = 0;
 		if ( device.GpuDrivenTables is { } tables )
 		{
 			foreach ( var (slot, bytes) in pageRanges ) tables.ReleaseRange( slot, bytes );

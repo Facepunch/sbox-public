@@ -1014,14 +1014,40 @@ public sealed unsafe class CommandList
 	public void DrawIndirect( BufferHandle arguments, long offset, int count, int stride = 16 )
 	{
 		if ( !BeforeDraw() ) return;
-		vk.vkCmdDrawIndirect( Handle, device.Get( arguments ).Buffer, (ulong)offset, (uint)count, (uint)stride );
+		var buffer = device.Get( arguments ).Buffer;
+		if ( !device.IndirectCounts.IsValid )
+		{
+			vk.vkCmdDrawIndirect( Handle, buffer, (ulong)offset, (uint)count, (uint)stride );
+			return;
+		}
+
+		// Counted, as Lavapipe would otherwise cap it at an earlier counted draw's count (Device.IndirectCounts)
+		var counts = device.Get( device.IndirectCounts ).Buffer;
+		for ( int done = 0; done < count; done += Device.IndirectCountWords - 1 )
+		{
+			var draws = Math.Min( count - done, Device.IndirectCountWords - 1 );
+			vk.vkCmdDrawIndirectCount( Handle, buffer, (ulong)(offset + (long)done * stride), counts, (ulong)draws * 4, (uint)draws, (uint)stride );
+		}
 	}
 
 	/// <summary>Draw indexed vertices with arguments from a buffer: <paramref name="count"/> draws, <paramref name="stride"/> bytes apart.</summary>
 	public void DrawIndexedIndirect( BufferHandle arguments, long offset, int count, int stride = 20 )
 	{
 		if ( !BeforeDraw() ) return;
-		vk.vkCmdDrawIndexedIndirect( Handle, device.Get( arguments ).Buffer, (ulong)offset, (uint)count, (uint)stride );
+		var buffer = device.Get( arguments ).Buffer;
+		if ( !device.IndirectCounts.IsValid )
+		{
+			vk.vkCmdDrawIndexedIndirect( Handle, buffer, (ulong)offset, (uint)count, (uint)stride );
+			return;
+		}
+
+		// Counted, as Lavapipe would otherwise cap it at an earlier counted draw's count (Device.IndirectCounts)
+		var counts = device.Get( device.IndirectCounts ).Buffer;
+		for ( int done = 0; done < count; done += Device.IndirectCountWords - 1 )
+		{
+			var draws = Math.Min( count - done, Device.IndirectCountWords - 1 );
+			vk.vkCmdDrawIndexedIndirectCount( Handle, buffer, (ulong)(offset + (long)done * stride), counts, (ulong)draws * 4, (uint)draws, (uint)stride );
+		}
 	}
 
 	/// <summary>Draw indexed vertices with arguments and a draw count from buffers, at most <paramref name="maxCount"/> draws.</summary>

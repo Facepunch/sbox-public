@@ -23,7 +23,6 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Sandbox.AppSystem" )]
 [assembly: InternalsVisibleTo( "Borealis" )]
 [assembly: InternalsVisibleTo( "Sandbox.Rendering" )]
-[assembly: InternalsVisibleTo( "scenelab" )]
 [assembly: InternalsVisibleTo( "borealislab" )]
 [assembly: InternalsVisibleTo( "Sbox-Server" )]
 

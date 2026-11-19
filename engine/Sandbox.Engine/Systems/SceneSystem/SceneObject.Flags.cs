@@ -105,6 +105,7 @@ public partial class SceneObject
 
 		_instanceFlags = created;
 		_flags = UpdateFlagsFromMaterials( ComputeTranslucency( ModelDraws.For( model ).Translucency, created ) & ~InternalFlags );
+		TranslucencyToNative();
 	}
 
 	/// <summary>
@@ -125,6 +126,18 @@ public partial class SceneObject
 		var computed = ComputeTranslucency( ModelDraws.For( model ).Translucency, _instanceFlags );
 		var flags = UpdateFlagsFromMaterials( current );
 		_flags = (flags & ~TranslucencyFlags) | (computed & TranslucencyFlags & ~InternalFlags);
+		TranslucencyToNative();
+	}
+
+	/// <summary>
+	/// Without Source 2's device native gave the object the translucency of its meshes' compiled types, where managed code
+	/// works it out from their materials as a device does (<see cref="ModelDraws.Translucency"/>): native's twin gets the
+	/// same flags, as traces read them there.
+	/// </summary>
+	void TranslucencyToNative()
+	{
+		if ( Graphics.HasSource2Device || _flags is not { } flags || native.IsNull ) return;
+		if ( ((native.GetFlags() ^ flags) & TranslucencyFlags) != 0 ) native.ChangeFlags( flags & TranslucencyFlags, TranslucencyFlags );
 	}
 
 	/// <summary>

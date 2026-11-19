@@ -410,7 +410,7 @@ internal sealed partial class BackendContext
 				}
 
 				var noColor = batch.StripPixelShader || r.Color is null;
-				var depthOnly = StripsPixelShader( m, noColor, batch.StripPixelShader );
+				var depthOnly = StripsPixelShader( m, variant, noColor, batch.StripPixelShader , LookupCombo( OpaqueFadeCombo ) is > 0 );
 				if ( !depthOnly && variant.Pixel?.Bytecode is null )
 				{
 					LeftClassic( shader, mode, "no pixel variant" );

@@ -140,7 +140,7 @@ that already exist before the batch. Early camera effects stay at their normal s
 
 ## Building and testing
 
-Run these commands from the repository root. Close BorealisLab and SceneLab before building because they lock the
+Run these commands from the repository root. Close BorealisLab before building because it locks the
 assemblies in `game/bin/managed`. See the [build guide](../../docs/reference/internals.md) for
 initial setup and native build options.
 
@@ -169,21 +169,14 @@ images in `engine/Tests/GoldenTruth/Borealis` (`-golden-truth`). `SboxBuild bore
 for the switches and output.
 
 Against native, compare a game launched with `-borealisgpu` with the same game launched without it. BorealisLab's
-`-post-parity` and `-exposure-parity` check post processing and auto exposure against Source 2's passes, and
 `-model-parity` checks Borealis.Source2's model reader against the engine's loading.
-
-Changes to the shared shadow mapper also need a native-to-native comparison. Run
-`bin/managed/scenelab.exe -parity -save-native before` from `game/`, make the change, then run
-`bin/managed/scenelab.exe -parity -compare-native before`.
-For deterministic presets, those frames should be byte-identical.
 
 ### Performance and frame inspection
 
-From `game/`, compare Borealis.Gpu against native on the same map:
+From `game/`, time Borealis.Gpu on a map:
 
 ```powershell
 bin/managed/borealislab.exe -construct -real
-bin/managed/scenelab.exe -benchmark "Construct Overview"
 ```
 
 `-construct -real` times Construct's frames on Borealis.Gpu, recorded on one thread and on several. Warm up maps before
