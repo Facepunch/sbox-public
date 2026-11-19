@@ -432,7 +432,10 @@ internal sealed partial class BackendContext
 			if ( b.Set != set ) continue;
 			if ( count == bindings.Length ) throw new InvalidOperationException( $"{stage.Entry} binds more than {bindings.Length} resources in set {set}" );
 
-			if ( perObject is not null && perObject[i] )
+			// The records buffer is bound as it is now, never as a pass state resolved it: the draw's record was just written
+			// (Offset), and if that grew the buffer, its offset is past the end of the one bound before, which the draw then
+			// read beyond (a GPU page fault where that buffer ended its memory block)
+			if ( (perObject is not null && perObject[i]) || b.Kind == BindingKind.MaterialRecords )
 			{
 				bindings[count++] = SurfaceBinding( stage, b, info.Tokens[i], info.Samplers[i] );
 				continue;
