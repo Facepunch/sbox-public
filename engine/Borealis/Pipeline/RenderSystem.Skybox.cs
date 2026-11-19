@@ -112,8 +112,9 @@ public sealed partial class RenderSystem
 	/// </summary>
 	internal static void FillSkyboxView( RenderView into, RenderView main, Skybox3D sky )
 	{
-		into.Position = sky.Origin + main.Position / sky.Scale;
-		into.Rotation = main.Rotation;
+		var turn = sky.Rotation.Inverse;
+		into.Position = sky.Origin + turn * main.Position / sky.Scale;
+		into.Rotation = turn * main.Rotation;
 		into.FieldOfView = main.FieldOfView;
 		into.Orthographic = main.Orthographic;
 		into.ToolsVisMode = main.ToolsVisMode;

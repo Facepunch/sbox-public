@@ -648,6 +648,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		if ( skybox?.World != skyRender.World ) skybox = render.World.Skybox3D = new Borealis.Skybox3D( skyRender.World );
 		skybox.Origin = source.Origin;
 		skybox.Scale = source.Scale;
+		skybox.Rotation = source.Rotation;
 		skybox.Fog = setup.Fog.HasValue ? setup.Fog.ToBorealis( render.TextureResolver ) : camera.EnablePostProcessing ? source.ResolveFog( camera ).ToBorealis( render.TextureResolver ) : null;
 	}
 

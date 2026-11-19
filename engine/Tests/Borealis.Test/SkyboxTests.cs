@@ -61,6 +61,21 @@ public class SkyboxTests
 	}
 
 	/// <summary>
+	/// A turned skybox (Hammer's sky_reference angles, <c>Compute3DSkyboxFrustum</c>): the skybox view is the main view
+	/// turned by the skybox's inverse rotation about the main world's origin, then scaled and moved to its origin.
+	/// </summary>
+	[TestMethod]
+	public void TurnedSkyboxTurnsTheView()
+	{
+		var main = new RenderView { Position = new Vector3( 1600, 0, 160 ), Rotation = Rotation.From( 0, 30, 0 ) };
+		var view = new RenderView();
+		RenderSystem.FillSkyboxView( view, main, new Skybox3D( new RenderWorld() ) { Origin = new Vector3( 100, 200, -50 ), Scale = 16, Rotation = Rotation.From( 0, 90, 0 ) } );
+
+		Assert.IsTrue( view.Position.AlmostEqual( new Vector3( 100, 100, -40 ), 0.01f ), $"{view.Position}" );
+		Assert.IsTrue( view.Rotation.Forward.AlmostEqual( Rotation.From( 0, -60, 0 ).Forward, 0.0001f ), $"{view.Rotation.Angles()}" );
+	}
+
+	/// <summary>
 	/// The skybox world is culled through the skybox view - what's in front of the skybox camera, not the main one - and
 	/// isn't size culled: a far, small object the main view would drop still draws.
 	/// </summary>

@@ -21,8 +21,9 @@ internal static partial class ToolSceneViews
 	[StructLayout( LayoutKind.Sequential )]
 	internal unsafe struct Request
 	{
-		public const int Version = 4;
+		public const int Version = 5;
 		public const int MaxWorlds = 16;
+		public const int MaxSkyboxWorlds = 4;
 
 		public int RequestVersion;
 		public int WorldCount;
@@ -60,6 +61,35 @@ internal static partial class ToolSceneViews
 		/// <summary>How the view draws (<see cref="Flags"/>).</summary>
 		public Flags DrawFlags;
 		public int Padding;
+
+		/// <summary>The 3D skybox's worlds (managed handles), none for no skybox.</summary>
+		public int SkyboxWorldCount;
+		public fixed int SkyboxWorlds[MaxSkyboxWorlds];
+
+		/// <summary>Where the skybox is seen from for this view (native's <c>Compute3DSkyboxFrustum</c>), and its scale.</summary>
+		public Vector3 SkyboxOrigin;
+		public Angles SkyboxAngles;
+		public float SkyboxScale;
+
+		/// <summary>Gradient fog, when set: <c>GradientFogParams</c>, <c>GradientFogParams2</c>, <c>GradientFogParams3</c>.</summary>
+		public int GradientFog;
+		public fixed float GradientFogParams[12];
+
+		/// <summary>
+		/// Cubemap fog, when set: start, end, LOD bias, falloff exponent, height width, height start, height exponent; its
+		/// entity's origin and angles; its texture's resource name (UTF-8).
+		/// </summary>
+		public int CubemapFog;
+		public fixed float CubemapFogParams[7];
+		public Vector3 CubemapFogOrigin;
+		public Angles CubemapFogAngles;
+		public int Padding2;
+		public IntPtr CubemapFogTexture;
+
+		/// <summary>Volumetric fog, when set: anisotropy, scattering, draw distance, fade in start and end, indirect strength.</summary>
+		public int VolumetricFog;
+		public fixed float VolumetricFogParams[6];
+		public int Padding3;
 	}
 
 	/// <summary><c>ToolSceneManagedFlags_t</c>.</summary>
@@ -137,6 +167,7 @@ internal static partial class ToolSceneViews
 		public ToolOverlays Overlays;
 		public ToolSelection Selection;
 		public ToolHud Hud;
+		public ToolEnvironment Environment = new();
 	}
 
 	static readonly Dictionary<IntPtr, View> views = new();
@@ -147,6 +178,7 @@ internal static partial class ToolSceneViews
 	static ToolOverlays bitmapOverlays;
 	static ToolSelection bitmapSelection;
 	static ToolHud bitmapHud;
+	static ToolEnvironment bitmapEnvironment;
 
 	/// <summary>
 	/// The tool HUD read-backs draw: none by default, as native's (its multisampled read-back is resolved before its
@@ -218,7 +250,7 @@ internal static partial class ToolSceneViews
 			view.Camera.OnRenderStageHook = StageHook( view.Selection, view.Hud );
 		}
 
-		Setup( view.Camera, view.Lights, view.Overlays, view.Selection, ref request, managedWorlds );
+		Setup( view.Camera, view.Lights, view.Overlays, view.Selection, view.Environment, ref request, managedWorlds );
 		view.Hud.Gather( hud, request.Width, request.Height );
 		request.Handled = 1;
 
@@ -266,7 +298,8 @@ internal static partial class ToolSceneViews
 			bitmapCamera.OnRenderStageHook = StageHook( bitmapSelection, bitmapHud );
 		}
 
-		Setup( bitmapCamera, bitmapLights, bitmapOverlays, bitmapSelection, ref request, managedWorlds );
+		bitmapEnvironment ??= new ToolEnvironment();
+		Setup( bitmapCamera, bitmapLights, bitmapOverlays, bitmapSelection, bitmapEnvironment, ref request, managedWorlds );
 
 		// A read-back's view is a new one each time, its HUD's images numbered afresh
 		bitmapHud.Clear();
@@ -328,7 +361,7 @@ internal static partial class ToolSceneViews
 	/// Point a camera at a request's worlds, from its camera. Its main world is the view's light stand-ins
 	/// (<see cref="ToolLights"/>); the native worlds are extra worlds of it.
 	/// </summary>
-	static unsafe void Setup( SceneCamera camera, ToolLights lights, ToolOverlays overlays, ToolSelection selection, ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
+	static unsafe void Setup( SceneCamera camera, ToolLights lights, ToolOverlays overlays, ToolSelection selection, ToolEnvironment environment, ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
 	{
 		var count = Math.Min( request.WorldCount, Request.MaxWorlds );
 		camera.Worlds.Clear();
@@ -385,6 +418,7 @@ internal static partial class ToolSceneViews
 		if ( camera.DebugMode != mode ) camera.DebugMode = mode;
 		var wireframe = (request.DrawFlags & Flags.Wireframe) != 0;
 		if ( camera.WireframeMode != wireframe ) camera.WireframeMode = wireframe;
+		environment.Apply( camera, lights.World, ref request );
 		overlays.PlaceScreenSpace( camera, new Vector2( request.Width, request.Height ) );
 	}
 
@@ -426,6 +460,7 @@ internal static partial class ToolSceneViews
 		view.Overlays?.Dispose();
 		view.Selection?.Dispose();
 		view.Hud?.Dispose();
+		view.Environment.Dispose();
 		view.Lights.Dispose();
 	}
 
@@ -445,6 +480,8 @@ internal static partial class ToolSceneViews
 		bitmapSelection = null;
 		bitmapHud?.Dispose();
 		bitmapHud = null;
+		bitmapEnvironment?.Dispose();
+		bitmapEnvironment = null;
 		bitmapLights?.Dispose();
 		bitmapLights = null;
 	}
