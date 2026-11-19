@@ -85,6 +85,7 @@ public class BorealisGpuTexturesTest
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 
 		var host = Borealis.RenderHost.Current;
+		var previous = RenderBackend.Default;
 		RenderBackend.SetDefault( borealis );
 		Borealis.RenderHost.Current = new DeviceHost( borealis.Services );
 		try
@@ -111,7 +112,7 @@ public class BorealisGpuTexturesTest
 		finally
 		{
 			Borealis.RenderHost.Current = host;
-			RenderBackend.SetDefault( null );
+			RenderBackend.SetDefault( previous );
 		}
 
 		Assert.AreEqual( 0, borealis.ValidationErrors );
