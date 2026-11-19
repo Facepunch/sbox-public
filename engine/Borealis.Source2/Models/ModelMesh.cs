@@ -110,6 +110,7 @@ public sealed class ModelMesh
 		}
 
 		if ( draws.Count == 0 ) mins = maxs = Vector3.Zero;
+		indexBuffers = IndexUnindexedDraws( draws, indexBuffers );
 
 		var bones = new List<MeshBone>();
 		var weights = 4;
@@ -137,6 +138,35 @@ public sealed class ModelMesh
 			MorphTexture = string.IsNullOrEmpty( morphTexture ) ? null : morphTexture,
 			Morphs = morphSet,
 		};
+	}
+
+	/// <summary>
+	/// A mesh made in code without indices (<c>Mesh.SetVertexRange</c> alone) draws its vertices in order, as native draws it
+	/// unindexed: its draws with no indices become ranges of an index buffer counting up from zero, added to its others.
+	/// </summary>
+	internal static MeshIndexBuffer[] IndexUnindexedDraws( List<MeshDrawCall> draws, MeshIndexBuffer[] indexBuffers )
+	{
+		var vertices = 0;
+		foreach ( var draw in draws )
+		{
+			if ( draw.IndexCount <= 0 && draw.VertexCount > 0 ) vertices = Math.Max( vertices, draw.BaseVertex + draw.VertexCount );
+		}
+
+		if ( vertices == 0 ) return indexBuffers;
+
+		var data = new byte[vertices * sizeof( uint )];
+		var counting = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( data.AsSpan() );
+		for ( int i = 0; i < vertices; i++ ) counting[i] = (uint)i;
+
+		var slot = indexBuffers.Length;
+		for ( int i = 0; i < draws.Count; i++ )
+		{
+			var draw = draws[i];
+			if ( draw.IndexCount > 0 || draw.VertexCount <= 0 ) continue;
+			draws[i] = draw with { StartIndex = draw.BaseVertex, IndexCount = draw.VertexCount, BaseVertex = 0, IndexBuffer = (slot, 0) };
+		}
+
+		return [.. indexBuffers, new MeshIndexBuffer( vertices, sizeof( uint ), data )];
 	}
 
 	/// <summary>
