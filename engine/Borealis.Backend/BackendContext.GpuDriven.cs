@@ -197,10 +197,10 @@ internal sealed partial class BackendContext
 	internal override bool GpuDriven => device.DrawsAggregatesGpuDriven;
 
 	/// <summary>Count a batch left to the classic path, for the report (<see cref="BackendDevice.GpuDrivenLeftClassic"/>).</summary>
-	void LeftClassic( ShaderFile shader, object mode, string why ) => LeftClassic( shader.Name, mode, why );
+	void LeftClassic<TMode>( ShaderFile shader, TMode mode, string why ) => LeftClassic( shader.Name, mode, why );
 
-	/// <summary>Count a batch of a shader or surface by name left to the classic path, for the report.</summary>
-	void LeftClassic( string shader, object mode, string why )
+	/// <summary>Count a batch of a shader or surface by name left to the classic path, for the report. Generic, so a mode's token isn't boxed when nothing counts.</summary>
+	void LeftClassic<TMode>( string shader, TMode mode, string why )
 	{
 		if ( Census ) device.Census?.Left( $"{DrawCensus.ShaderName( shader )} {mode} ({why})" );
 		if ( !device.TimeDraws ) return;
