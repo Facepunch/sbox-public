@@ -886,16 +886,29 @@ public sealed unsafe partial class Device
 		var made = Volatile.Read( ref pipelinesMade ) + Volatile.Read( ref partsMade ) + Volatile.Read( ref optimisedMade );
 		if ( made == Volatile.Read( ref pipelinesSaved ) ) return false;
 
-		// Made from what the cache had: nothing new
-		var data = GetPipelineCacheData();
-		if ( (nuint)data.Length == savedSize )
+		// Made from what the cache had (nothing new), or grown past what a file holds: looked at again once more are made
+		var size = CacheSize();
+		if ( size == savedSize || size == 0 || size > PipelineCacheFile.MaxBytes )
 		{
 			Volatile.Write( ref pipelinesSaved, made );
 			return false;
 		}
 
-		if ( !PipelineCacheFile.Save( pipelineCachePath, data ) ) return false;
-		savedSize = (nuint)data.Length;
+		// Read into native memory: a map's cache runs to hundreds of MiB, which as a managed array went to the large object
+		// heap on every save
+		var data = (byte*)System.Runtime.InteropServices.NativeMemory.Alloc( size );
+		try
+		{
+			// Grown since it was sized: the next save takes it whole
+			if ( Vk.vkGetPipelineCacheData( Vk.Device, pipelineCache, &size, data ) != VkResult.Success ) return false;
+			if ( !PipelineCacheFile.Save( pipelineCachePath, new ReadOnlySpan<byte>( data, (int)size ) ) ) return false;
+		}
+		finally
+		{
+			System.Runtime.InteropServices.NativeMemory.Free( data );
+		}
+
+		savedSize = size;
 		Volatile.Write( ref pipelinesSaved, made );
 		return true;
 	}

@@ -562,6 +562,32 @@ public class DeviceTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// Saving the pipeline cache reads it into native memory, not a managed array: a map's cache runs to hundreds of MiB,
+	/// and each save in the game put that much on the large object heap.
+	/// </summary>
+	[TestMethod]
+	public void SavingThePipelineCacheAllocatesNoCopyOfIt()
+	{
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-pipelines-{Guid.NewGuid():N}" );
+		try
+		{
+			using var device = Device.Create( new DeviceOptions { Presentation = false, PipelineCacheFolder = folder } );
+			using ( new SampleScene( device, Format.RGBA8Unorm ) ) { }
+
+			var before = GC.GetAllocatedBytesForCurrentThread();
+			Assert.IsTrue( device.SavePipelineCache(), "the sample's pipelines are saved" );
+			var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+			var saved = new FileInfo( device.PipelineCachePath ).Length;
+			Assert.IsTrue( allocated < saved / 2, $"saving a {saved} B cache allocated {allocated} B" );
+		}
+		finally
+		{
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, true );
+		}
+	}
+
 	/// <summary>A pipeline cache file that's truncated, corrupted or not one loads as nothing; a good one as what was saved.</summary>
 	[TestMethod]
 	public void DamagedPipelineCacheFilesLoadAsNothing()
