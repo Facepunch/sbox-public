@@ -1,4 +1,4 @@
-// scene_renderer_depth_chain: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// scene_renderer_depth_chain: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Managed scene renderer - the depth chain drawn as bands of linear depth, so a camera's command list can put it in a frame both renderers draw (SceneLab).";

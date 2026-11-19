@@ -23,7 +23,7 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 
 		var ops = menu.AddMenu( "Vertex Operations", "build" );
 		AddMenuOption( ops, "Merge Verts", "meshtools/vertex_tools/merge.png", "mesh.merge", count > 1 );
-		AddMenuOption( ops, "Connect Verts", "meshtools/vertex_tools/connect.png", "mesh.connect", count > 1 );
+		AddMenuOption( ops, "Connect Vertex Path", "meshtools/vertex_tools/connect.png", "mesh.connect", count > 1 );
 		AddMenuOption( ops, "Bevel Verts", "meshtools/vertex_tools/bevel.png", "mesh.bevel", true );
 
 		var sel = menu.AddMenu( "Vertex Selection", "select_all" );
@@ -38,26 +38,19 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 
 		using var scope = Gizmo.Scope( "VertexTool" );
 
-		var closestVertex = MeshTrace.GetClosestVertex( 8 );
+		var closestVertex = MeshTrace.GetClosestVertex( 8, out var closestFace );
 		if ( closestVertex.IsValid() )
 			Gizmo.Hitbox.TrySetHovered( closestVertex.PositionWorld );
+		else if ( Gizmo.IsDoubleClicked && closestFace.IsValid() && MeshTrace.TraceFace( out var hitPosition ).IsValid() )
+			Gizmo.Hitbox.TrySetHovered( hitPosition );
 
-		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection )
+		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection && !IsLassoSelecting )
 		{
-			SelectVertex();
-
-			if ( Gizmo.IsDoubleClicked )
-				SelectAllVertices();
+			SelectVertex( closestVertex );
 		}
 
-		using ( Gizmo.Scope( "Vertex Selection" ) )
-		{
-			Gizmo.Draw.IgnoreDepth = true;
-			Gizmo.Draw.Color = Color.White;
-
-			foreach ( var vertex in Selection.OfType<MeshVertex>() )
-				Gizmo.Draw.Sprite( vertex.PositionWorld, 8, null, false );
-		}
+		UpdateMoveMode();
+		DrawSelectedElements();
 
 		if ( ShowSelectionBounds )
 			DrawBounds();
@@ -105,9 +98,8 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 		}
 	}
 
-	private void SelectVertex()
+	private void SelectVertex( MeshVertex vertex )
 	{
-		var vertex = MeshTrace.GetClosestVertex( 8 );
 		if ( vertex.IsValid() )
 		{
 			using ( Gizmo.ObjectScope( vertex.Component.GameObject, vertex.Transform ) )
@@ -124,20 +116,39 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 		UpdateSelection( vertex );
 	}
 
-	private void SelectAllVertices()
+	protected override bool OnDoubleClick( IMeshElement element )
 	{
-		var vertex = MeshTrace.GetClosestVertex( 8 );
+		var vertex = element is MeshVertex target ? target : default;
 		if ( !vertex.IsValid() )
-			return;
-
-		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
-			Selection.Clear();
-
-		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
-			foreach ( var hVertex in vertex.Component.Mesh.VertexHandles )
-				Selection.Add( new MeshVertex( vertex.Component, hVertex ) );
+			var face = MeshTrace.TraceFace();
+			if ( !face.IsValid() )
+				return false;
+			vertex = new MeshVertex( face.Component, face.Component.Mesh.GetFaceVertices( face.Handle ).First() );
 		}
+
+		var mesh = vertex.Component.Mesh;
+		var queue = new Queue<HalfEdgeMesh.VertexHandle>();
+		var visited = new HashSet<HalfEdgeMesh.VertexHandle> { vertex.Handle };
+		var vertices = new List<IMeshElement>();
+		queue.Enqueue( vertex.Handle );
+		while ( queue.TryDequeue( out var current ) )
+		{
+			vertices.Add( new MeshVertex( vertex.Component, current ) );
+			mesh.GetEdgesConnectedToVertex( current, out var edges );
+			foreach ( var edge in edges )
+			{
+				if ( mesh.IsEdgeHidden( edge ) )
+					continue;
+				mesh.GetEdgeVertices( edge, out var a, out var b );
+				var next = a == current ? b : a;
+				if ( !mesh.IsVertexHidden( next ) && visited.Add( next ) )
+					queue.Enqueue( next );
+			}
+		}
+
+		ApplyElementSelection( vertices, Gizmo.KeyboardModifiers, "Select Connected Vertices" );
+		return true;
 	}
 
 	public override List<MeshFace> ExtrudeSelection( Vector3 delta = default )
@@ -185,10 +196,8 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 
 	protected override IEnumerable<IMeshElement> GetAllSelectedElements()
 	{
-		foreach ( var group in Selection.OfType<MeshVertex>()
-			.GroupBy( x => x.Component ) )
+		foreach ( var component in SelectedMeshes )
 		{
-			var component = group.Key;
 			foreach ( var hVertex in component.Mesh.VertexHandles )
 				yield return new MeshVertex( component, hVertex );
 		}

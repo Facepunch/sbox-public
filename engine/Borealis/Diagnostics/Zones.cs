@@ -43,13 +43,18 @@ internal static class Zones
 	public static readonly Zone MapLightmaps = new( "Borealis Map Lightmaps", Color.Green );
 	public static readonly Zone ModelMake = new( "Borealis Model Make", Color.Green );
 	public static readonly Zone ModelRead = new( "Borealis Model Read", Color.Green );
+	public static readonly Zone ContentRead = new( "Borealis Content Read", Color.Green );
+	public static readonly Zone LoadWarm = new( "Borealis Load Warm", Color.Cyan );
+	public static readonly Zone MaterialRead = new( "Borealis Material Read", Color.Green );
+	public static readonly Zone ShaderRead = new( "Borealis Shader Read", Color.Green );
+	public static readonly Zone TextureRead = new( "Borealis Texture Read", Color.Green );
 	public static readonly Zone PassModulesRead = new( "Borealis Pass Modules Read", Color.Orange );
-	public static readonly Zone MirrorSync = new( "Borealis Mirror Sync", Color.Cyan );
+	public static readonly Zone WorldPrepare = new( "Borealis World Prepare", Color.Cyan );
 	public static readonly Zone VisibilityMake = new( "Borealis Visibility Make", Color.Orange );
-	public static readonly Zone MirrorLoaded = new( "Borealis Mirror Loaded", Color.Cyan );
-	public static readonly Zone MirrorApply = new( "Borealis Mirror Apply", Color.Cyan );
+	public static readonly Zone WorldLoaded = new( "Borealis World Loaded", Color.Cyan );
+	public static readonly Zone WorldWrite = new( "Borealis World Write", Color.Cyan );
 	public static readonly Zone ObjectWrite = new( "Borealis Object Write", Color.Cyan );
-	public static readonly Zone MirrorLighting = new( "Borealis Mirror Lighting", Color.Cyan );
+	public static readonly Zone WorldLighting = new( "Borealis World Lighting", Color.Cyan );
 
 	/// <summary>Sandbox.ShaderCompiler's phases (<c>CompilePhase</c>), by value.</summary>
 	public static readonly Zone[] Slang =

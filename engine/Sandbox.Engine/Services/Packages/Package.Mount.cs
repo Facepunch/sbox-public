@@ -7,20 +7,9 @@ public partial class Package
 	/// </summary>
 	public bool IsMounted()
 	{
-		var download = ServerPackages.Get( FullIdent );
+		if ( IsWorkshopMap )
+			return WorkshopItems.Current?.IsMounted( WorkshopId ) == true;
 
-		// fully good
-		if ( download != null && download.IsMounted )
-			return true;
-
-		// fully in progress
-		if ( download != null && download.IsDownloading )
-			return false;
-
-		// fully fucked
-		if ( download != null && download.IsErrored )
-			return false;
-
-		return false;
+		return ServerPackages.Get( FullIdent )?.IsMounted == true;
 	}
 }

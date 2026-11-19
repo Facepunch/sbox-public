@@ -1,0 +1,41 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/blendable.shader"
+
+	//---- Number Of Blendable Layers ----
+	F_MULTIBLEND 1 // 2 Layers
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material A ----
+	g_flTintColorA "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusionA "materials/sbox/floor/wooden_floor_herringbone_a_ao.png"
+	TextureBlendMaskA "materials/sbox/floor/wooden_floor_herringbone_a_dirty_blend.png"
+	TextureColorA "materials/sbox/floor/wooden_floor_herringbone_a_color.png"
+	TextureMetalnessA "materials/default/default_metal.tga"
+	TextureNormalA "materials/sbox/floor/wooden_floor_herringbone_a_normal.png"
+	TextureRoughnessA "materials/sbox/floor/wooden_floor_herringbone_a_rough.png"
+	TextureTintMaskA "[1.000000 1.000000 1.000000 0.000000]"
+
+	//---- Material B ----
+	g_flBlendSoftnessB "0.100"
+	g_flTintColorB "[1.000000 1.000000 1.000000 0.000000]"
+	g_vTexCoordScale2 "[1.000 1.000]"
+	TextureAmbientOcclusionB "materials/sbox/floor/wooden_floor_herringbone_a_dirty_ao.png"
+	TextureBlendMaskB "materials/sbox/floor/wooden_floor_herringbone_a_dirty_blend.png"
+	TextureColorB "materials/sbox/floor/wooden_floor_herringbone_a_dirty_color.png"
+	TextureMetalnessB "materials/default/default_metal.tga"
+	TextureNormalB "materials/sbox/floor/wooden_floor_herringbone_a_dirty_normal.png"
+	TextureRoughnessB "materials/sbox/floor/wooden_floor_herringbone_a_dirty_rough.png"
+	TextureTintMaskB "[1.000000 1.000000 1.000000 0.000000]"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "wood"
+		WorldMappingWidth "128"
+		WorldMappingHeight "128"
+	}
+}

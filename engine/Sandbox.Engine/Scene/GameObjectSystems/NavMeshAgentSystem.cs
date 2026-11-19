@@ -30,10 +30,10 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 	///     |
 	///     |     We start a certain distance above the agents capsules center
 	///     |
-	///     | 
+	///     |
 	///     |
 	///  -------
-	///  |  |  | 
+	///  |  |  |
 	///  |  x  | -- Trace Start (in lower third)
 	///  |  |  |
 	///  -------
@@ -44,7 +44,7 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 	///     |
 	///     |
 	///     x      We trace down the same distance
-	///          
+	///
 	/// In case of multiple hits we prefer the once closest to the agent's capsule center
 	/// </summary>
 	private void FindPhysicsGroundZ( NavMeshAgent agent )
@@ -63,7 +63,8 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 		var footRadius = agent.Radius * 0.1f;
 		var traceStartOffset = MathF.Max( 64f, Scene.NavMesh.AgentHeight ) * 8f;
 
-		var navMeshPos = Navigation.NavMesh.FromNav( simulationAgent.State.Position );
+		var state = simulationAgent.State;
+		Vector3 navMeshPos = state.Position;
 
 		var traceStart = navMeshPos + Vector3.Up * Scene.NavMesh.AgentHeight * 0.3f;
 
@@ -115,13 +116,12 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 		}
 
 		agent.groundTraceZ = bestZ;
-		if ( downResult.Hit || upResult.Hit )
+
+		// An agent that is off the navmesh and on no link follows the ground under it. Placing it has
+		// the crowd look for the navmesh again, so only when the ground moved.
+		if ( (downResult.Hit || upResult.Hit) && state.Poly.IsNone && state.Link < 0 && MathF.Abs( bestZ - navMeshPos.z ) > 0.01f )
 		{
-			lock ( simulationAgent.Owner.Gate )
-			{
-				if ( simulationAgent.Path.Count == 0 && simulationAgent.Link is null )
-					simulationAgent.Position.y = bestZ;
-			}
+			agent.SetAgentPosition( navMeshPos.WithZ( bestZ ) );
 		}
 	}
 }

@@ -135,6 +135,7 @@ public sealed partial class GraphBuilder
 		internal readonly List<Node> States = new();
 		internal readonly List<Node> StateEntryConditions = new();
 		internal readonly List<(int From, int To, Node TransitionNode, Node Condition, bool CanBeForced)> Transitions = new();
+		private readonly Dictionary<Node, State> transitionTargets = new();
 		private readonly GraphBuilder builder;
 		internal StateMachineBuilder( GraphBuilder builder )
 		{
@@ -402,6 +403,7 @@ public sealed partial class GraphBuilder
 				definition.m_boneMaskBlendInTimePercentage = settings.BoneMaskBlendPercentage;
 				return definition;
 			} );
+			transitionTargets.Add( transition, target );
 			return transition;
 		}
 
@@ -420,6 +422,10 @@ public sealed partial class GraphBuilder
 			ValidateState( from, nameof( from ) );
 			ValidateState( to, nameof( to ) );
 			builder.RequirePose( transition, nameof( transition ) );
+			if ( !transitionTargets.TryGetValue( transition, out var target ) || !ReferenceEquals( target, to ) )
+				throw new ArgumentException( "The transition must be created by this state machine for the route's target state.", nameof( transition ) );
+			if ( ReferenceEquals( from, to ) )
+				throw new ArgumentException( "A transition must connect different states.", nameof( to ) );
 			builder.Require( settings.Condition, NodeKind.Bool );
 			Transitions.Add( (from.Index, to.Index, transition, settings.Condition, settings.CanBeForced) );
 		}
@@ -430,6 +436,9 @@ public sealed partial class GraphBuilder
 		/// </summary>
 		public Node Completed( State state, float transitionDuration = 0.0f ) => Completed( state, transitionDuration, default );
 		public Node Completed( State state, float transitionDuration, Node transitionDurationOverride )
+			=> Completed( state, transitionDuration, transitionDurationOverride, false );
+
+		public Node Completed( State state, float transitionDuration, Node transitionDurationOverride, bool requireFullyInState )
 		{
 			ValidateState( state, nameof( state ) );
 			builder.Optional( transitionDurationOverride, NodeKind.Float, nameof( transitionDurationOverride ) );
@@ -439,6 +448,7 @@ public sealed partial class GraphBuilder
 				definition.m_sourceStateNodeIdx = (short)builder.Resolve( States[state.Index] );
 				definition.m_transitionDurationOverrideNodeIdx = (short)builder.ResolveOptional( transitionDurationOverride );
 				definition.m_transitionDuration = transitionDuration;
+				definition.m_requireFullyInState = requireFullyInState;
 				return definition;
 			} );
 		}
@@ -508,11 +518,14 @@ public sealed partial class GraphBuilder
 	}
 
 	public Node StateCompletedCondition( StateMachineBuilder.State sourceState, float transitionDuration, Node transitionDurationOverride )
+		=> StateCompletedCondition( sourceState, transitionDuration, transitionDurationOverride, false );
+
+	public Node StateCompletedCondition( StateMachineBuilder.State sourceState, float transitionDuration, Node transitionDurationOverride, bool requireFullyInState )
 	{
 		ArgumentNullException.ThrowIfNull( sourceState );
 		if ( !ReferenceEquals( sourceState.Builder, this ) )
 			throw new ArgumentException( "The source state was created by a different GraphBuilder.", nameof( sourceState ) );
-		return sourceState.Owner.Completed( sourceState, transitionDuration, transitionDurationOverride );
+		return sourceState.Owner.Completed( sourceState, transitionDuration, transitionDurationOverride, requireFullyInState );
 	}
 
 	public Node TimeCondition( StateMachineBuilder.State sourceState, StateMachineBuilder.TimeConditionSettings settings )

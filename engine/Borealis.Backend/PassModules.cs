@@ -12,7 +12,7 @@ namespace Borealis.Backend;
 /// fullscreen passes) with a Slang module beside it (<c>pp_vignette.slang</c> beside <c>pp_vignette.shader</c>, including
 /// <c>sbox/pass.slangh</c>) draws from that module, compiled per stage and combo values with the engine's Slang. A module
 /// that doesn't compile is reported once (<see cref="Error"/>) and its shader draws from its compiled programs, as with
-/// <see cref="BackendDevice.SlangPasses"/> off. See docs/managed/shader-format-replacement.md ("Pass modules").
+/// <see cref="BackendDevice.SlangPasses"/> off. See docs/reference/borealis-slang-materials.md ("Pass modules").
 /// </summary>
 public sealed class PassModules : IShaderModules
 {

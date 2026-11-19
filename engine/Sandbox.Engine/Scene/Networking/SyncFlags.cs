@@ -3,7 +3,7 @@
 /// <summary>
 /// Describes the behaviour of network synchronization.
 /// </summary>
-[Flags]
+[Flags, Expose]
 public enum SyncFlags : uint
 {
 	/// <summary>

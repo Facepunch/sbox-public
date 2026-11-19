@@ -1,0 +1,13 @@
+
+Layer0
+{
+	shader "shaders/complex.shader_c"
+
+	TextureColor "models/sbox/kitchen/kitchen_work_counter_03/materials/kitchen_work_counter_color.png"
+	TextureAmbientOcclusion "models/sbox/kitchen/kitchen_work_counter_03/materials/kitchen_work_counter_ao.png"
+	TextureNormal "models/sbox/kitchen/kitchen_work_counter_03/materials/kitchen_work_counter_normal.png"
+	TextureRoughness "models/sbox/kitchen/kitchen_work_counter_03/materials/kitchen_work_counter_rough.png"
+	F_METALNESS_TEXTURE 1
+	TextureMetalness "models/sbox/kitchen/kitchen_work_counter_03/materials/kitchen_work_counter_metal.png"
+
+}

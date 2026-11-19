@@ -1,0 +1,60 @@
+@import "/Platform/_platform.scss";
+
+// Where the maps are from, down a rail out on the art (the platform-side mixin), and a grid of them in the panel. The
+// panel, how it sits on the front and the room round its well are GameFront's.
+MapsPage
+{
+	@include platform-side;
+
+	// A well in the panel for the maps - darker, with room round them
+	.maps
+	{
+		flex-grow: 1;
+		min-height: 0;
+		flex-direction: column;
+		// The tiles' own inset (6px) makes it up to 14px round them
+		padding: 8px;
+		border-radius: $platform-radius;
+		background-color: rgba( 8, 9, 12, 0.6 );
+	}
+
+	.empty
+	{
+		@include platform-shelf-empty;
+	}
+
+	.grid
+	{
+		flex-grow: 1;
+		min-height: 0;
+		scrollbar-width: 0px;
+		// No negative margin to back out by the tiles' inset: the grid's faded (ScrollFade), so it's drawn into a layer
+		// the size of its margin box, and a negative margin makes that smaller than the grid - a tile growing under the
+		// pointer is cut off at it.
+	}
+
+	// Inset in its cell, so there's room round it to grow into under the pointer - the whole tile scaled, as a game's
+	// card is (GameCard), rather than its picture lifted, which gets cut off along its top
+	MapTile
+	{
+		padding: 6px;
+		transform: scale( 1 );
+		transition: transform 0.15s ease-out;
+
+		&:hover
+		{
+			transform: scale( 1.03 );
+			z-index: 1;
+
+			.image
+			{
+				transform: none;
+			}
+		}
+
+		&.selected .image
+		{
+			border: 3px solid $platform-primary;
+		}
+	}
+}

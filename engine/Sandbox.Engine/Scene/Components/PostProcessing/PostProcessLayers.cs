@@ -10,22 +10,19 @@ internal class PostProcessLayers
 	public Dictionary<Stage, List<PostProcessLayer>> Layers = new();
 	readonly HashSet<Stage> _earlyScheduled = [];
 
-	// Layers and stage lists made before, used again after each clear: a camera's layers are made again every frame
-	readonly List<PostProcessLayer> _made = new();
-	readonly Stack<List<PostProcessLayer>> _spareLists = new();
-	int _used;
+	// Layers are rebuilt every frame, so reuse them (and their blit command lists) in creation order
+	readonly List<PostProcessLayer> _pool = [];
+	int _poolUsed;
+
+	public bool HasLayers => _poolUsed > 0;
 
 	public void Clear()
 	{
 		foreach ( var list in Layers.Values )
-		{
 			list.Clear();
-			_spareLists.Push( list );
-		}
 
-		Layers.Clear();
 		_earlyScheduled.Clear();
-		_used = 0;
+		_poolUsed = 0;
 	}
 
 	/// <summary>
@@ -33,23 +30,15 @@ internal class PostProcessLayers
 	/// </summary>
 	public PostProcessLayer CreateLayer( Stage stage )
 	{
-		PostProcessLayer layer;
-		if ( _used < _made.Count )
-		{
-			layer = _made[_used];
-			layer.Reset();
-		}
-		else
-		{
-			layer = new();
-			_made.Add( layer );
-		}
+		if ( _poolUsed == _pool.Count )
+			_pool.Add( new PostProcessLayer() );
 
-		_used++;
+		var layer = _pool[_poolUsed++];
+		layer.Reset();
 
 		if ( !Layers.TryGetValue( stage, out var list ) )
 		{
-			list = _spareLists.TryPop( out var spare ) ? spare : [];
+			list = [];
 			Layers[stage] = list;
 		}
 
@@ -171,10 +160,12 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 	public PostProcessQueue? EarlyQueue;
 	public bool RanEarly;
 
-	public int CompareTo( PostProcessLayer other ) => Order.CompareTo( other.Order );
+	/// <summary>
+	/// Owned by this layer for <see cref="BasePostProcess"/> blits, reused while the layer is.
+	/// </summary>
+	public CommandList BlitCommandList;
 
-	/// <summary>As new, to be used again (<see cref="PostProcessLayers.CreateLayer"/>).</summary>
-	internal void Reset()
+	public void Reset()
 	{
 		CommandList = null;
 		Order = 0;
@@ -183,6 +174,8 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 		EarlyQueue = null;
 		RanEarly = false;
 	}
+
+	public int CompareTo( PostProcessLayer other ) => Order.CompareTo( other.Order );
 
 	/// <summary>
 	/// Render this layer

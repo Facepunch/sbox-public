@@ -79,10 +79,6 @@ public class CompileGroup : IDisposable
 	/// </summary>
 	public ICompileReferenceProvider ReferenceProvider { get; set; }
 
-	/// <summary>
-	/// AccessControl instance to use when verifying whitelist. Must be set to enable compile-time access control.
-	/// </summary>
-	public AccessControl AccessControl { get; set; }
 
 	public CompileGroup( string name )
 	{

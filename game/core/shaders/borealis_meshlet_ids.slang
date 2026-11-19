@@ -1,5 +1,5 @@
 // borealis_meshlet_ids: a standalone module, the whole shader for Borealis.Gpu, drawn on devices with mesh shaders (task and mesh
-// stages; docs/managed/standalone-modules.md).
+// stages; docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis meshlet ids prepass: a task group per listed fragment culls its meshlets as borealis_meshlet_cull_cs does and launches a mesh group per kept meshlet, which draws its triangles' depth and ids as borealis_gpu_driven_ids does.";

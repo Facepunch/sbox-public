@@ -40,14 +40,14 @@ public class NavTestSettings : EditorTool
 		{
 			Gizmo.Draw.Color = Color.Cyan.WithAlpha( 0.3f );
 			Gizmo.Draw.LineThickness = 2f;
-			Gizmo.Draw.LineBBox( Scene.NavMesh.Bounds );
-
-			if ( Gizmo.Control.BoundingBox( "Bounds", Scene.NavMesh.Bounds, out var newBounds ) )
+			if ( Gizmo.Control.UpdateBoundingBox( "Bounds", Scene.NavMesh.Bounds, out var newBounds ) )
 			{
 				Scene.NavMesh.Bounds = newBounds;
 				Scene.NavMesh.SetDirty();
 				SceneEditorSession.Active.HasUnsavedChanges = true;
 			}
+			Gizmo.Draw.LineBBox( Scene.NavMesh.Bounds );
+			Gizmo.Draw.BoundingBox( "Bounds", Scene.NavMesh.Bounds );
 		}
 	}
 
@@ -86,10 +86,6 @@ public class NavTestSettings : EditorTool
 			Layout.Add( new Button( "Rebuild", "autorenew" )
 			{
 				Clicked = () => Tool.Scene.NavMesh.SetDirty()
-			} );
-			Layout.Add( new Button( "Bake", "download" )
-			{
-				Clicked = () => NavMesh.BakeNavMesh()
 			} );
 
 			Layout.AddStretchCell();

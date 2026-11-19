@@ -2,7 +2,7 @@
 
   <!--
     C# scene renderer. It draws through the host's GpuDevice (RenderHost.Device) and needs nothing of the engine but
-    Sandbox.System. See docs/managed/borealis.md.
+    Sandbox.System. See docs/reference/borealis.md.
   -->
 
   <PropertyGroup>

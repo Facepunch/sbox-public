@@ -256,7 +256,7 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 			Capacities = new( lightCapacity, envMapCapacity, decalCapacity, 0 ),
 		} );
 
-		// Write-after-read needs only an execution dependency on previous-frame readers: shading, and particle lighting in compute.
+		// Write-after-read needs only an execution dependency on previous-frame readers: shading, particle lighting and volumetric fog in compute.
 		foreach ( var buffer in ClusterBuffers() )
 			context.BufferBarrier( buffer, GpuStage.FragmentShader | GpuStage.ComputeShader, 0, GpuStage.ComputeShader, GpuAccess.ShaderWrite );
 

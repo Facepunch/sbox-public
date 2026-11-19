@@ -708,7 +708,7 @@ public sealed class ShaderLibrary : IDisposable
 	public bool NeedsStencil( ShaderFile shader, string mode, ReadOnlySpan<int> features, out bool pending ) => PixelState( shader, mode, features, out pending )?.NeedsStencil == true;
 
 	/// <summary>
-	/// Where shaders that have source modules are compiled from (pass modules: docs/managed/shader-format-replacement.md);
+	/// Where shaders that have source modules are compiled from (pass modules: docs/reference/borealis-slang-materials.md);
 	/// null draws every shader from its compiled programs.
 	/// </summary>
 	public IShaderModules Modules { get; set; }

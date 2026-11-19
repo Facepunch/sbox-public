@@ -11,7 +11,7 @@ namespace Borealis.Backend;
 /// it, draw with a compiled shader and named attributes, grab a copy of the target, generate mips. It records into one
 /// command list, opens rendering scopes lazily around draws and tracks each texture's layout, so callers never write a
 /// barrier. What a <c>Graphics</c> backend on Borealis.Gpu lowers the UI's command lists to (stage 1 of
-/// docs/managed/borealis-gpu-path.md).
+/// docs/reference/borealis-gpu-path.md).
 /// </summary>
 /// <remarks>
 /// Layouts are tracked per texture, not per mip, and recording order is assumed to be submission order, as

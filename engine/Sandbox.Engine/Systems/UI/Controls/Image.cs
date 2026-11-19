@@ -84,6 +84,12 @@
 			DrawTexture( painter, Texture, size );
 		}
 
+		internal override bool TryGetContentBounds( out Rect bounds )
+		{
+			bounds = Box.Rect;
+			return IsDrawnBy( typeof( Image ) );
+		}
+
 		public override void SetProperty( string name, string value )
 		{
 			base.SetProperty( name, value );

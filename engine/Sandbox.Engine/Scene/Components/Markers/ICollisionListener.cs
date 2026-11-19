@@ -36,7 +36,6 @@ public readonly struct CollisionSource
 		Shape = target.Shape;
 		Surface = target.Surface;
 		Collider = target.Shape?.Collider;
-		Component = Collider;
 		GameObject = Collider.IsValid() ? Collider.GameObject : Body?.GameObject;
 	}
 
@@ -47,5 +46,4 @@ public readonly struct CollisionSource
 	public readonly Surface Surface;
 	public readonly Collider Collider;
 	public readonly GameObject GameObject;
-	internal readonly Component Component;
 }

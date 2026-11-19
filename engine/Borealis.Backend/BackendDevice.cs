@@ -14,7 +14,7 @@ namespace Borealis.Backend;
 /// Borealis's <see cref="GpuDevice"/> on <see cref="Borealis.Gpu.Device"/>: resources map one-to-one onto Borealis.Gpu's, and
 /// materials are s&amp;box's own - compiled shaders, materials and textures read by Borealis.Source2 from the game's
 /// content. What it can't do yet (morphs, engine compute shaders with parameters) draws nothing. See
-/// docs/managed/borealis-gpu.md.
+/// docs/reference/borealis-gpu.md.
 /// </summary>
 public sealed partial class BackendDevice : GpuDevice, IDisposable
 {
@@ -44,7 +44,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// Draw models and dispatch compute through material objects (persistent sets, constants written once), which is the
 	/// default. Off binds by reflection every draw: the reference the tests compare against. See
-	/// docs/managed/borealis-materials.md.
+	/// docs/reference/borealis-materials.md.
 	/// </summary>
 	public bool MaterialObjects { get; set; } = true;
 
@@ -114,7 +114,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// New-tier shaders (Slang surfaces and raw modules) and their materials' records, compiled when a
-	/// <see cref="SurfaceMaterial"/> of theirs first draws. See docs/managed/shader-format-replacement.md.
+	/// <see cref="SurfaceMaterial"/> of theirs first draws. See docs/reference/borealis-slang-materials.md.
 	/// </summary>
 	public SurfaceShaders Surfaces
 	{
@@ -154,7 +154,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// Draw aggregates GPU-driven: shaders' <c>.gpudriven.shader_c</c> variants, per-draw data in tables, one multi-draw
-	/// per pipeline and pass state (docs/managed/borealis-gpu-driven.md). Needs <see cref="GpuDrivenGeometry"/> and material
+	/// per pipeline and pass state (docs/reference/borealis-gpu-driven.md). Needs <see cref="GpuDrivenGeometry"/> and material
 	/// objects; anything it can't draw goes the classic way. On by default (<see cref="GpuDrivenByDefault"/>).
 	/// </summary>
 	public bool GpuDriven { get; set; }
@@ -196,7 +196,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// Keep what a call of resident aggregates makes (<see cref="GpuDrivenPlan"/>: its buckets, batch records and
 	/// multi-draws) between frames and views of the same kind, so a view pays per frame only for its own culling record, a
-	/// check per bucket and its multi-draws (docs/managed/borealis-gpu-driven.md, "Resident aggregates"). On by default;
+	/// check per bucket and its multi-draws (docs/reference/borealis-gpu-driven.md, "Resident aggregates"). On by default;
 	/// <c>-no-resident</c> turns it off, and views then prepare their own batches.
 	/// </summary>
 	public bool GpuDrivenResident { get; set; } = !HasSwitch( "-no-resident" );
@@ -534,21 +534,21 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
-	/// Meshlet culling in GPU-driven depth prepasses (docs/managed/borealis-gpu-driven.md, "Meshlets"): index ranges are cut
+	/// Meshlet culling in GPU-driven depth prepasses (docs/reference/borealis-gpu-driven.md, "Meshlets"): index ranges are cut
 	/// into meshlets after they load, and a prepass draws only the meshlets that can reach a sample. On by default;
 	/// <c>-no-meshlets</c> turns it off, <c>-meshlets 32x32</c> picks the meshlet size (64x124 by default).
 	/// </summary>
 	public bool Meshlets { get; set; } = !HasSwitch( "-no-meshlets" );
 
 	/// <summary>
-	/// Meshlet culling in GPU-driven shadow views too (docs/managed/borealis-gpu-driven.md, "Meshlets"): their depth-only
+	/// Meshlet culling in GPU-driven shadow views too (docs/reference/borealis-gpu-driven.md, "Meshlets"): their depth-only
 	/// buckets draw only the meshlets inside the view. Off by default (a meshlet pass per shadow call costs more GPU time
 	/// than the triangles it saves in SS2 and Construct); <c>-shadow-meshlets</c> turns it on, with <see cref="Meshlets"/>.
 	/// </summary>
 	public bool ShadowMeshlets { get; set; } = HasSwitch( "-shadow-meshlets" );
 
 	/// <summary>
-	/// Two-phase Hi-Z occlusion in GPU-driven depth prepasses that draw ids (docs/managed/borealis-gpu-driven.md, "Hi-Z
+	/// Two-phase Hi-Z occlusion in GPU-driven depth prepasses that draw ids (docs/reference/borealis-gpu-driven.md, "Hi-Z
 	/// occlusion"): the fragments forward found visible last frame draw first, a Hi-Z is built from their depth, and the rest
 	/// draw only where they pass it. Off by default (an experiment); <c>-hiz-occlusion</c> turns it on.
 	/// </summary>
@@ -589,7 +589,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
-	/// Generated LODs for GPU-driven aggregates (docs/managed/borealis-gpu-driven.md, "Generated LODs"): coarser levels of
+	/// Generated LODs for GPU-driven aggregates (docs/reference/borealis-gpu-driven.md, "Generated LODs"): coarser levels of
 	/// each fragment's range are simplified after load, and the culls draw each fragment at the coarsest whose error stays
 	/// under <see cref="LodPixels"/>. On by default; <c>-no-lodgen</c> turns it off. Set before loading models: index pages
 	/// keep room for the levels (<see cref="LodLevelRoom"/>).
@@ -890,9 +890,32 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			Format = TextureFormat.RGBA8888,
 		};
 
-		var made = new BackendTexture( this, texture.Create( Gpu, path ), desc, path ) { Layout = ImageLayout.ShaderRead, Dimension = texture.Dimension };
+		var made = new BackendTexture( this, CreateTexture( texture, path ), desc, path ) { Layout = ImageLayout.ShaderRead, Dimension = texture.Dimension };
 		if ( streamed && TextureStreamer.Streams( texture ) ) made.Stream = Streamer.Add( made, path, texture );
 		return made;
+	}
+
+	// A texture file's image with every mip written: the one its read made ahead (ImageAheadBytes) when it's for this file
+	TextureHandle CreateTexture( TextureFile texture, string path )
+	{
+		if ( !imagesAhead.TryRemove( path, out var ahead ) ) return texture.Create( Gpu, path );
+		if ( ahead.File != texture )
+		{
+			Gpu.Destroy( ahead.Image );
+			return texture.Create( Gpu, path );
+		}
+
+		try
+		{
+			for ( int mip = texture.TopMip; mip < texture.Mips; mip++ ) texture.Write( Gpu, ahead.Image, mip );
+		}
+		catch
+		{
+			Gpu.Destroy( ahead.Image );
+			throw;
+		}
+
+		return ahead.Image;
 	}
 
 	/// <inheritdoc/>
@@ -1837,14 +1860,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal override bool DrawsOverlaysGpuDriven => GpuDrivenOverlays && DrawsAggregatesGpuDriven;
 
 	/// <summary>
-	/// Static meshes' opaque draws join the aggregates' GPU-driven call (docs/managed/borealis-gpu-driven.md). On by default:
+	/// Static meshes' opaque draws join the aggregates' GPU-driven call (docs/reference/borealis-gpu-driven.md). On by default:
 	/// on Construct it saves GPU time but costs CPU time, mostly on worker threads, where the one GPU-driven run records what
 	/// workers drew between them; <c>-no-gpudriven-meshes</c> turns it off.
 	/// </summary>
 	public bool GpuDrivenMeshes { get; set; } = !HasSwitch( "-no-gpudriven-meshes" );
 
 	/// <summary>
-	/// Skinned meshes' opaque draws join the static meshes' GPU-driven call (docs/managed/borealis-gpu-driven.md, "Skinned
+	/// Skinned meshes' opaque draws join the static meshes' GPU-driven call (docs/reference/borealis-gpu-driven.md, "Skinned
 	/// meshes"): those from the vertex cache through a geometry record that pulls their vertex ids, the rest skinned in the
 	/// vertex shader from their bones. On by default with <see cref="GpuDrivenMeshes"/>; <c>-no-gpudriven-skinned</c> turns
 	/// it off.
@@ -1905,7 +1928,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	bool gpuDrivenCullShaderLoaded;
 
 	/// <summary>
-	/// The visibility-driven forward pass (docs/managed/borealis-gpu-driven.md): with <see cref="GpuDrivenCulling"/> and
+	/// The visibility-driven forward pass (docs/reference/borealis-gpu-driven.md): with <see cref="GpuDrivenCulling"/> and
 	/// compaction, a view's GPU-driven depth prepass also writes ids, a pass marks the triangles that own a sample, and its
 	/// forward pass draws only those. On by default (it only acts where <see cref="GpuDriven"/> does); off with
 	/// <c>-no-gpudriven-visibility</c>, for comparisons.
@@ -1998,7 +2021,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// Whether prepass meshlets are culled and drawn with task and mesh shaders (<c>borealis_meshlet_ids</c>) where the
 	/// device has them, in place of the compute pass, its index copies and indexed draws. Off by default: it costs more GPU
-	/// time than the compute pass on the Steam Deck and on the PC (docs/managed/borealis-gpu-driven.md, "Meshlets");
+	/// time than the compute pass on the Steam Deck and on the PC (docs/reference/borealis-gpu-driven.md, "Meshlets");
 	/// <c>-mesh-shaders</c> turns it on. Set it before drawing.
 	/// </summary>
 	public bool MeshletTasks { get; set; } = HasSwitch( "-mesh-shaders" );
@@ -2824,6 +2847,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		if ( GpuDrivenFrame % 60 == 0 ) FreeIdleVisibility();
 		FreeUnheldModels();
 		gpuDrivenTables?.BeginFrame();
+		if ( meshletStore is { } meshlets ) meshlets.Loading = Loading;
+		if ( lodStore is { } lods ) lods.Loading = Loading;
 		meshletStore?.BeginFrame();
 		lodStore?.BeginFrame();
 		GpuDrivenFrame++;

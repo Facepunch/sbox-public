@@ -1,0 +1,23 @@
+include "tier0/threadtools.h"
+
+//
+// tier0's per-thread job scopes (ThreadJobBegin): what native code makes for a job on a thread is the job's, and is torn
+// down when it ends. A content build job's managed host enters them for work it does for a job on the main thread.
+//
+native static class ThreadJob
+{
+	inline void Begin( string name )
+	{
+		::ThreadJobBegin( name );
+	}
+
+	inline void End()
+	{
+		::ThreadJobEnd();
+	}
+
+	inline string Name()
+	{
+		return ::ThreadJobName();
+	}
+}

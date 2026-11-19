@@ -119,6 +119,35 @@ public class TextureStreamingTests : GpuTest
 	}
 
 	/// <summary>
+	/// Behind a loading screen (<see cref="BackendDevice.Loading"/>) a build's mips go up together once read, where a frame's
+	/// upload budget otherwise spreads them over frames.
+	/// </summary>
+	[TestMethod]
+	public void WhileLoadingBuildsUploadInOneFrame()
+	{
+		foreach ( var loading in new[] { false, true } )
+		{
+			var path = StreamingTextures( 1 )[0];
+			using var backend = new BackendDevice( Device ) { StreamTextures = true, Loading = loading };
+			var texture = (BackendTexture)backend.MaterialTextureFile( path );
+			var stream = texture.Stream;
+			backend.Streamer.UploadBytesPerFrame = 1;
+			using var material = new BackendMaterial( "streamed", null, null, new( StringComparer.OrdinalIgnoreCase ) { ["g_tColor"] = texture } );
+
+			// Asked for, its build started, and its file read
+			backend.AskTextures( material, TextureSizes.All );
+			backend.BeginFrame();
+			Assert.AreEqual( 1, backend.Streamer.BuildsInFlight, $"loading {loading}" );
+			for ( int i = 0; i < 400 && stream.Building is { Read.IsCompleted: false }; i++ ) Thread.Sleep( 5 );
+
+			backend.AskTextures( material, TextureSizes.All );
+			backend.BeginFrame();
+			Assert.AreEqual( loading, stream.ResidentTop == 0, $"loading {loading}: resident from mip {stream.ResidentTop} after one upload" );
+			Device.WaitIdle();
+		}
+	}
+
+	/// <summary>
 	/// A file that gives its tail but not its finer mips (cut short after the tail was read) is read for them once, not again
 	/// every frame: the texture keeps its tail.
 	/// </summary>

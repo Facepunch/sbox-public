@@ -1,13 +1,36 @@
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// What a <see cref="SceneWorld"/> draws as on Borealis (<c>-borealisgpu</c>), for the scene objects that make and write their
-/// own render objects (<see cref="SceneObject.OwnsRenderObject"/>): the render world they're in, and the device resources they
-/// draw with, held while the world lives. Its world's renderer adds and removes them; a change made on the main thread outside
-/// a render goes straight into the object's render object.
+/// What a <see cref="SceneWorld"/> draws as on Borealis (<c>-borealisgpu</c>): the render world its objects' render objects are
+/// in (<see cref="SceneObject.OwnsRenderObject"/>), its lighting, and the device resources they draw with, held while the world
+/// lives. A change made on the main thread outside a render goes straight into the object's render object; the rest wait for
+/// the next frame the world prepares.
 /// </summary>
 internal interface ISceneWorldRender
 {
+	/// <summary>
+	/// An object was made in the world, from any thread: its render object is made and written whole in the next frame the world
+	/// prepares, once its constructor is done.
+	/// </summary>
+	void Made( SceneObject sceneObject );
+
+	/// <summary>
+	/// An object was deleted (<see cref="SceneObject.Delete"/>), from any thread: it goes now on the main thread outside a render,
+	/// else in the next frame the world prepares. A light lights to the end of its frame.
+	/// </summary>
+	void Deleted( SceneObject sceneObject );
+
+	/// <summary>
+	/// An object's native side was destroyed: it goes, if it hasn't.
+	/// </summary>
+	void Destroyed( SceneObject sceneObject );
+
+	/// <summary>
+	/// A change its object couldn't write as it was made (on another thread, during a render, before its render object was made):
+	/// written in the next frame the world prepares.
+	/// </summary>
+	void Later( SceneObject sceneObject, SceneObjectChange change );
+
 	/// <summary>
 	/// The world's render world.
 	/// </summary>
@@ -40,4 +63,21 @@ internal interface ISceneWorldRender
 	/// world's, made and held by it.
 	/// </summary>
 	void WriteMesh( SceneObject sceneObject, Borealis.MeshObject mesh, SceneObjectChange change );
+
+	/// <summary>
+	/// A native aggregate's model and fragments (a map's world geometry), or null if the object isn't one, or with
+	/// <paramref name="waiting"/> while its model is still loading: the object is made again once it has.
+	/// </summary>
+	Borealis.AggregateObject MakeAggregate( SceneObject sceneObject, out bool waiting );
+
+	/// <summary>
+	/// Write a change to what lights the world rather than drawing in it (<see cref="SceneObject.LightsWorld"/>): a sun, a light
+	/// probe volume. Nothing for one the world hasn't added yet: it's written whole when it is.
+	/// </summary>
+	void WriteLighting( SceneObject sceneObject, SceneObjectChange change );
+
+	/// <summary>
+	/// Write an aggregate's visibility, tint, flags and lightmaps.
+	/// </summary>
+	void WriteAggregate( SceneObject sceneObject, Borealis.AggregateObject aggregate, SceneObjectChange change );
 }

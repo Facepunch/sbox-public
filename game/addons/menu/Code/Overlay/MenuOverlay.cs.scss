@@ -3,6 +3,7 @@
 @import "/styles/_modal.scss";
 @import '/styles/_button.scss';
 @import '/styles/_popup.scss';
+@import "/Platform/_platform.scss";
 
 MenuOverlay
 {
@@ -79,7 +80,8 @@ MenuOverlay
 {
 	position: absolute;
 	right: 24px;
-	bottom: 24px;
+	// Above the dock
+	bottom: 11vh;
 	z-index: 5101;
 	align-items: flex-end;
 	flex-direction: column;
@@ -92,7 +94,8 @@ MenuOverlay
 	position: absolute;
 	left: 0px;
 	right: 0px;
-	bottom: 40px;
+	// Above the dock
+	bottom: 11vh;
 	z-index: 5101;
 	flex-direction: column;
 	align-items: center;
@@ -124,18 +127,15 @@ MenuOverlay
 {
 	.popup
 	{
-		background-color: $primary;
+		@include platform-surface;
+		flex-direction: row;
 		height: 64px;
-		border-radius: 1000px;
 		padding: 0px 8px;
-		color: $primary-fg;
-		font-family: $font-title;
 		font-size: 18px;
 		font-weight: 600;
 		align-items: center;
 		cursor: pointer;
 		pointer-events: all;
-		box-shadow: 5px 5px 20px rgba( black, 0.5 );
 		opacity: 1;
 		transition: all 0.3s bounce-out;
 		position: absolute;
@@ -144,20 +144,15 @@ MenuOverlay
 
 		& > .iconpanel
 		{
+			@include platform-tile( 24px, 48px );
 			position: absolute;
 			top: 8px;
 			left: 8px;
-			width: 48px;
-			height: 48px;
-			aspect-ratio: 1;
-			border-radius: 100px;
-			align-items: center;
 			text-align: center;
 			font-size: 24px;
-			color: rgba( $primary-fg, 0.9 );
+			color: $platform-muted;
 			background-position: center;
 			background-size: cover;
-			background-color: rgba( black, 0.3 );
 		}
 
 		&:intro
@@ -188,14 +183,13 @@ MenuOverlay
 			.subtitle
 			{
 				font-size: 13px;
-				opacity: 0.5;
+				color: $platform-muted;
 			}
 		}
 
 		&.has-options
 		{
 			height: 120px;
-			border-radius: 30px;
 			flex-direction: column;
 			min-width: 400px;
 			align-items: stretch;
@@ -234,26 +228,15 @@ MenuOverlay
 
 				.button
 				{
+					@include platform-tool( 48px, 24px );
 					position: relative;
-					width: 48px;
-					height: 48px;
-					background-color: red;
-					border-radius: 100px;
+					padding: 0;
 					margin-left: 10px;
-					color: rgba( $primary-fg, 0.9 );
-					background-position: center;
-					background-size: cover;
-					background-color: rgba( black, 0.3 );
-					align-items: center;
-					justify-content: center;
-					text-align: center;
-					font-size: 24px;
-					cursor: pointer;
 
-					&:hover
+					// The last's yes
+					&:last-child
 					{
-						background-color: $primary-fg;
-						color: $primary;
+						@include platform-button-primary;
 					}
 				}
 			}
@@ -269,20 +252,9 @@ MenuOverlay
 
 .tooltip
 {
-	pointer-events: none;
-	background-color: #222;
-	border: 0.5px solid #333;
-	color: #ccc;
-	font-family: Poppins;
-	font-size: 12px;
-	font-weight: bold;
+	@include platform-tooltip;
 	transition: all 0.1s ease-out;
 	transform: translateY( 0px) scale( 1 );
-	box-shadow: 2px 2px 30px black;
-
-	* {
-		pointer-events: none;
-	}
 
 	&:intro
 	{
@@ -302,15 +274,13 @@ MenuOverlay
 
 .toast
 {
-	background-color: rgba(30, 30, 40, 0.95);
-	border-radius: 8px;
+	@include platform-surface;
+	flex-direction: row;
 	padding: 16px 20px;
 	gap: 12px;
 	align-items: center;
-	box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.5);
 	transition: all 0.2s ease;
 	min-width: 280px;
-	color: white;
 	pointer-events: all;
 
 	.icon
@@ -448,4 +418,20 @@ MenuOverlay
 	{
 		transform: translateX( 0px );
 	}
+}
+
+// MenuSystem's popups - over everything, dimming it
+.popup
+{
+	background-color: rgba( #222, 0.95 );
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	z-index: 2000;
+	opacity: 0;
+	justify-content: center;
+	align-items: center;
+	pointer-events: all;
 }

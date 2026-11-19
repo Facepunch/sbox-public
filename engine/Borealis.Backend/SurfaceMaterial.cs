@@ -6,7 +6,7 @@ using System.Threading;
 namespace Borealis.Backend;
 
 /// <summary>
-/// A material of a new-tier shader (a Slang surface or raw module, see docs/managed/shader-format-replacement.md): its
+/// A material of a new-tier shader (a Slang surface or raw module, see docs/reference/borealis-slang-materials.md): its
 /// record, laid out as the shader's <c>[Material]</c> struct, with textures as bindless slots. The shader compiler
 /// generates a class per material deriving from this (<c>new Rock { Color = texture, Tint = ... }</c>); its properties
 /// write the record at their fields' offsets. The device finds and compiles the shader by file name the first time the

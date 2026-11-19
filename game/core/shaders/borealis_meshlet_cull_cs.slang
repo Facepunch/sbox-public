@@ -1,4 +1,4 @@
-// borealis_meshlet_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). Its
+// borealis_meshlet_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). Its
 // reflection is what the backend's constants struct is checked against.
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;

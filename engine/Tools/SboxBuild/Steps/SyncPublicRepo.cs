@@ -412,7 +412,7 @@ internal class SyncPublicRepo( bool dryRun = false )
 			"core",
 			"config",
 			"editor",
-			"mount",
+			"mounts",
 			"samples",
 			"templates"
 		};

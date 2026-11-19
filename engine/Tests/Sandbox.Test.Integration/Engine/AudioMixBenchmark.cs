@@ -12,8 +12,8 @@ namespace EngineTests;
 [TestClass, DoNotParallelize]
 public class AudioMixBenchmark
 {
-	static readonly ReverbSnapshot Hall = new() { DecayTimeLow = 2.6f, DecayTimeMid = 2.2f, DecayTimeHigh = 1.4f, Mix = 0.6f, MfpMeters = 10f };
-	static readonly ReverbSnapshot Office = new() { DecayTimeLow = 0.9f, DecayTimeMid = 0.7f, DecayTimeHigh = 0.5f, Mix = 0.6f, MfpMeters = 3f };
+	static readonly ReverbSnapshot Hall = new() { DecayTimeLow = 2.6f, DecayTimeMid = 2.2f, DecayTimeHigh = 1.4f, Mix = 0.6f, CriticalDistanceMeters = 4f, MfpMeters = 10f };
+	static readonly ReverbSnapshot Office = new() { DecayTimeLow = 0.9f, DecayTimeMid = 0.7f, DecayTimeHigh = 0.5f, Mix = 0.6f, CriticalDistanceMeters = 2f, MfpMeters = 3f };
 
 	static SoundFile Noise( string name, float seconds, bool loop )
 	{

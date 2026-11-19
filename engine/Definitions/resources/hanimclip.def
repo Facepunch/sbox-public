@@ -1,4 +1,16 @@
 include "animationsystem2/animationclipresource.h"
+include "animationsystem2/animationresourcebuilder.h"
+
+native class CAnimClipBuilder as NativeEngine.AnimationClipBuilder
+{
+	static AnimationClipBuilder Create( HAnimSkeleton skeleton ); [new]
+	void DeleteThis(); [delete]
+	bool AddFrame( CastTo[CTransformUnaligned*] void* transforms, int count, Transform rootMotion );
+	bool AddFloatChannelTrack( string set, string channel, CastTo[float*] void* values, int count );
+	void AddSyncEvent( float time, string name );
+	HAnimClip CreateResource( string name, string skeletonName, float frameRate, bool additive, bool disableInterpolation );
+}
+
 
 [ResourceHandle:HAnimClip]
 native class CAnimClipResource as NativeEngine.HAnimClip
@@ -35,8 +47,10 @@ native class CAnimClipResource as NativeEngine.HAnimClip
 	}
 
 	string GetSkeletonName();
+	HAnimSkeleton GetSkeleton();
 
 	bool IsBound();
+	bool GetFloatChannelValue( float percentageThrough, string set, string channel, out float value );
 	Transform GetBoneParentSpaceTransformS2( float percentageThrough, int boneIdx );
 	Transform GetRootMotionTransformS2( float percentageThrough );
 	float GetAverageLinearVelocity();

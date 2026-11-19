@@ -22,12 +22,30 @@ public static partial class GameData
 		if ( assembly == null )
 			return;
 
-		var package = await GetAssemblyPackage( assembly );
+		var classes = Parse( assembly, await GetAssemblyPackage( assembly ) );
 
-		//
-		// Collect types that Hammer should be aware of: entities, paths (always entities?), path nodes
-		//
+		// Content build jobs in this process read the native classes (a model's game data)
+		await ContentCompilerHost.NoJobsRunning();
 
+		Add( classes );
+		GameDataDirty = true;
+	}
+
+	/// <summary>
+	/// For a content worker, before any job: the classes the editor has, from the native game data model compiles read
+	/// and the tools' and projects' assemblies, as the editor adds them.
+	/// </summary>
+	internal static void InitializeForCompiles( Native.CGameData gameData, IEnumerable<Assembly> assemblies )
+	{
+		Initialize( gameData );
+		foreach ( var assembly in assemblies ) Add( Parse( assembly, null ) );
+	}
+
+	/// <summary>
+	/// Types that Hammer and ModelDoc should be aware of: entities, paths (always entities?), path nodes, model game data
+	/// </summary>
+	static ConcurrentBag<MapClass> Parse( Assembly assembly, Package package )
+	{
 		var toAdd = new ConcurrentBag<MapClass>();
 
 		System.Threading.Tasks.Parallel.ForEach( assembly.GetTypes(), ( t ) =>
@@ -54,7 +72,12 @@ public static partial class GameData
 			}
 		} );
 
-		foreach ( var mapClass in toAdd )
+		return toAdd;
+	}
+
+	static void Add( IEnumerable<MapClass> classes )
+	{
+		foreach ( var mapClass in classes )
 		{
 			// If something has the same class name as an entity already there, ignore it
 			if ( InternalEntityClasses.Any( e => e.Name == mapClass.Name ) )
@@ -73,15 +96,13 @@ public static partial class GameData
 			if ( !nativeClass.IsValid )
 			{
 				nativeClass = Native.CGameDataClass.Create();
-				NativeGameData.AddClass( mapClass.ToNative( nativeClass ), $"sbox/{assembly.GetName().Name}" );
+				NativeGameData.AddClass( mapClass.ToNative( nativeClass ), $"sbox/{mapClass.Assembly.GetName().Name}" );
 			}
 			else
 			{
 				mapClass.ToNative( nativeClass );
 			}
 		}
-
-		GameDataDirty = true;
 	}
 
 	/// <summary>

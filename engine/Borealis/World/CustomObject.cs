@@ -62,6 +62,8 @@ public abstract class CustomObject : RenderObject
 		}
 	} = true;
 
+	internal int RenderOrder { get; set; }
+
 	/// <summary>
 	/// Skip size culling because custom bounds may be absent or huge.
 	/// </summary>

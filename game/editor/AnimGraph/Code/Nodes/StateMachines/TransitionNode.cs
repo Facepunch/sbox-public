@@ -90,11 +90,11 @@ public class TransitionNode : Node
 
 	public override Color PrimaryColor => Theme.Pink;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			if ( !string.IsNullOrWhiteSpace( TransitionName ) )
 				info.Name = TransitionName;
 			return info;

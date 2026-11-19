@@ -9,7 +9,8 @@ namespace Facepunch.Steps;
 /// editor's startup build looks for them, so it starts from what this built.
 /// </summary>
 /// <param name="onlyRoot">A root under game/ to build, with whatever it reads from the others.</param>
-internal class BuildContent( string onlyRoot = null )
+/// <param name="force">Compile everything again, current or not.</param>
+internal class BuildContent( string onlyRoot = null, bool force = false )
 {
 	internal ExitCode Run() => BuildDisplay.Run( "Build content", () =>
 	{
@@ -21,11 +22,12 @@ internal class BuildContent( string onlyRoot = null )
 		var request = new BuildRequest
 		{
 			Roots = roots,
-			MaxJobs = ResourceCompiler.DefaultMaxWorkers,
+			MaxJobs = ResourceCompiler.DefaultMaxJobs,
 
 			// Game resources generate their textures into the engine's shipped transients, which every project mounts
 			OutputRoots = new Dictionary<string, string> { ["transient"] = Path.Combine( gameDir, "addons", "menu", "Transients" ) },
 			Select = onlyRoot is null ? null : [Path.Combine( gameDir, onlyRoot )],
+			Force = force,
 			JobFinished = _ => BuildDisplay.Detail( $"{Interlocked.Increment( ref done )} assets compiled" ),
 		};
 
@@ -38,7 +40,7 @@ internal class BuildContent( string onlyRoot = null )
 			BuildDisplay.Status( "Compile tools" );
 			if ( !Utility.RunProcess( worker, $"-compileprojects \"{compilers}\"", gameDir ) ) return ExitCode.Failure;
 
-			compiler = new ResourceCompiler( worker, new AssetTypeTable( Path.Combine( gameDir, "bin", "assettypes.txt" ) ), request.Mounts, compilers ) { MaxWorkers = request.MaxJobs };
+			compiler = new ResourceCompiler( worker, new AssetTypeTable( Path.Combine( gameDir, "bin", "assettypes.txt" ) ), request.Mounts, compilers );
 			BuildDisplay.Status( "Compile" );
 			report = ContentBuilder.Build( request, compiler );
 		}
@@ -57,7 +59,7 @@ internal class BuildContent( string onlyRoot = null )
 		Log.Info( $"{report.DescribeMisses} describe misses" );
 		Log.Info( $"Phases: {string.Join( ", ", report.Phases.Select( x => $"{x.Phase} {x.Time.TotalSeconds:F1}s" ) )}" );
 		Log.Info( $"Job time: {string.Join( ", ", report.JobTime.OrderByDescending( x => x.Value.Time ).Select( x => $"{x.Key} {x.Value.Jobs}x {x.Value.Time.TotalSeconds:F0}s" ) )}" );
-		Log.Info( $"{compiler.Launches} content workers started, {compiler.Evicted} replaced by one with other arguments" + (compiler.Ended.Count > 0 ? $", ended early: {string.Join( "; ", compiler.Ended.GroupBy( x => x ).Select( x => $"{x.Count()}x {x.Key}" ) )}" : "") );
+		Log.Info( $"{compiler.Launches} content workers started, {compiler.Evicted} stopped for one with other mounts" + (compiler.Ended.Count > 0 ? $", ended early: {string.Join( "; ", compiler.Ended.GroupBy( x => x ).Select( x => $"{x.Count()}x {x.Key}" ) )}" : "") );
 
 		return report.Success ? ExitCode.Success : ExitCode.Failure;
 	} );

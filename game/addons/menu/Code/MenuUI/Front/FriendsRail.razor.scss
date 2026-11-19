@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // The friends list, the bottom band of the right-hand card. Takes whatever height the avatar
 // and stats leave it, and scrolls inside that.
@@ -17,31 +17,22 @@ FriendsRail
 		flex-direction: row;
 		flex-shrink: 0;
 		align-items: stretch;
-		border-bottom: $front-border-width solid $front-hairline;
+		border-bottom: 1px solid $platform-hairline;
 
-		// The search is the band itself, edge to edge between the dividers - no box inside a box.
 		// Magnifier on the left, text in the middle, clear button pinned to the right
 		.search
 		{
+			@include platform-field( 34px );
 			flex-direction: row;
 			flex-grow: 1;
-			align-items: center;
 			gap: 8px;
-			height: 42px;
-			padding: 0 $front-inset;
-			background-color: rgba( 0, 0, 0, 0.18 );
-			transition: background-color 0.1s ease;
+			margin: 8px;
 
 			> icon
 			{
 				flex-shrink: 0;
 				font-size: 16px;
-				color: $front-tertiary;
-			}
-
-			&:hover
-			{
-				background-color: rgba( 0, 0, 0, 0.28 );
+				color: $platform-faint;
 			}
 
 			TextEntry
@@ -53,7 +44,7 @@ FriendsRail
 				background-color: transparent;
 				justify-content: flex-start;
 				font-size: 13px;
-				color: $front-body;
+				color: $platform-text;
 
 				&.has-icon
 				{
@@ -68,7 +59,7 @@ FriendsRail
 
 				.placeholder
 				{
-					color: $front-tertiary;
+					color: $platform-faint;
 					opacity: 1;
 				}
 
@@ -82,7 +73,7 @@ FriendsRail
 					padding: 0;
 					margin-left: 4px;
 					font-size: 14px;
-					color: $front-secondary;
+					color: $platform-muted;
 					opacity: 0.6;
 
 					&:hover
@@ -126,7 +117,7 @@ FriendsRail
 		icon
 		{
 			font-size: 16px;
-			color: $front-tertiary;
+			color: $platform-faint;
 			transition: transform 0.15s ease-out;
 		}
 
@@ -136,35 +127,28 @@ FriendsRail
 			transform: rotate( -90deg );
 		}
 
+		// Plain capitals - not the blue section label, whose gradient a later solid colour doesn't undo
 		.group-title
 		{
-			@include front-section-label;
+			@include platform-caps;
+			color: $platform-muted;
 		}
 
-		// How many are in the section, in a little pill right after its name
+		// How many are in the section, right after its name - a chip, its words its own as it's a bare label
 		.group-count
 		{
-			flex-shrink: 0;
-			align-items: center;
+			@include platform-chip;
 			justify-content: center;
 			min-width: 22px;
-			height: 18px;
 			margin-left: 4px;
-			padding: 0 7px;
-			border-radius: 999px;
-			background-color: rgba( 255, 255, 255, 0.07 );
-			font-size: 10px;
-			font-weight: 700;
-			color: $front-secondary;
-			text-align: center;
+			font-size: 11.5px;
+			font-weight: 600;
+			color: $platform-text;
 		}
 
-		&:hover
+		&:hover icon
 		{
-			.group-title, icon
-			{
-				color: $front-heading;
-			}
+			color: $platform-text;
 		}
 	}
 
@@ -221,7 +205,7 @@ FriendsRail
 		// The parties read as one block, like a run of friend rows - square, with a line under each
 		// to split them (and the last from the friends under it)
 		padding: 10px 12px;
-		border-bottom: $front-border-width solid $front-hairline;
+		border-bottom: 1px solid $platform-hairline;
 		background-color: rgba( 255, 255, 255, 0.03 );
 		transition: background-color 0.1s ease;
 
@@ -232,14 +216,14 @@ FriendsRail
 
 			&:hover
 			{
-				background-color: rgba( 255, 255, 255, 0.06 );
+				background-color: $platform-hover-wash;
 				sound-in: "ui.button.over";
 			}
 		}
 
 		&.mine
 		{
-			background-color: rgba( $front-primary, 0.08 );
+			background-color: rgba( $platform-primary, 0.08 );
 		}
 
 		// Whose party and what they're doing over who's in it - with join beside the lot, centred
@@ -371,7 +355,7 @@ FriendsRail
 
 		&:hover
 		{
-			background-color: rgba( 255, 255, 255, 0.04 );
+			background-color: $platform-hover-wash;
 			sound-in: "ui.button.over";
 		}
 
@@ -411,43 +395,15 @@ FriendsRail
 		}
 	}
 
-	// Join - the invite button's look, but always showing: it's the thing to do with this row
+	// Join - always showing: it's the thing to do with this row
 	.action.join
 	{
-		flex-shrink: 0;
-		width: 26px;
-		height: 26px;
-		align-items: center;
-		justify-content: center;
-		border-radius: 6px;
-		border: 1px solid rgba( $front-reward, 0.45 );
-		background-color: rgba( $front-reward, 0.12 );
-		box-shadow: 0 0 10px rgba( $front-reward, 0.35 );
-		cursor: pointer;
-		transition: all 0.12s ease;
+		@include platform-tool( 26px, 18px );
+		@include platform-button-primary;
 
-		icon
-		{
-			width: 100%;
-			text-align: center;
-			font-size: 18px;
-			color: $front-reward * 2;
-			text-shadow: 0 0 6px rgba( $front-reward, 0.9 );
-		}
-
-		// Fills in solid when you point at it
 		&:hover
 		{
-			border-color: $front-reward * 2;
-			background-color: $front-reward;
-			box-shadow: 0 0 16px rgba( $front-reward, 0.7 );
 			sound-in: "ui.button.over";
-
-			icon
-			{
-				color: #ffffff;
-				text-shadow: none;
-			}
 		}
 
 		&:active
@@ -456,90 +412,19 @@ FriendsRail
 		}
 	}
 
-	// Pointing anywhere on a joinable row or party lights its join button up as if you were on it -
-	// the whole row is the thing you're looking at. The row makes its own hover sound, so no second one
-	.friend:hover .action.join, .party:hover .action.join
-	{
-		border-color: $front-reward * 2;
-		background-color: $front-reward;
-		box-shadow: 0 0 16px rgba( $front-reward, 0.7 );
-
-		icon
-		{
-			color: #ffffff;
-			text-shadow: none;
-		}
-	}
-
-	// Square "+" - invite straight into your party (making one if you're not in one)
-	// Out of the way until you point at someone - then a green "+" that glows, filling in solid when
-	// it's the thing under the cursor. Colours past 1.0 are HDR, so the glow actually blooms.
+	// Square "+" - invite straight into your party (making one if you're not in one). Out of the way until you
+	// point at someone
 	.invite
 	{
-		flex-shrink: 0;
-		width: 26px;
-		height: 26px;
-		align-items: center;
-		justify-content: center;
-		border-radius: 6px;
-		border: 1px solid rgba( $front-reward, 0.45 );
-		background-color: rgba( $front-reward, 0.12 );
-		box-shadow: 0 0 10px rgba( $front-reward, 0.35 );
+		@include platform-tool( 26px, 16px );
 		opacity: 0;
-		transition: all 0.12s ease;
+		transition: opacity 0.12s ease, background-color 0.12s ease;
 
-		icon
-		{
-			width: 100%;
-			text-align: center;
-			font-size: 16px;
-			color: $front-reward * 2;
-			text-shadow: 0 0 6px rgba( $front-reward, 0.9 );
-		}
-
-		&:hover
-		{
-			border-color: $front-reward * 2;
-			background-color: $front-reward;
-			box-shadow: 0 0 16px rgba( $front-reward, 0.7 );
-
-			icon
-			{
-				color: #ffffff;
-				text-shadow: none;
-			}
-		}
-
-		// Just invited - stays up, so you can see it went
-		// Asked in, waiting on them - always showing, not just on hover, like Dota's. A green frame and
-		// an hourglass, quieter than the invite button so it reads as "done, waiting" not "press me"
+		// Asked in, waiting on them - always showing, not just on hover, so it reads as "done, waiting"
 		&.pending
 		{
 			opacity: 1;
 			cursor: default;
-			border-color: rgba( $front-reward, 0.55 );
-			background-color: rgba( $front-reward, 0.1 );
-			box-shadow: none;
-
-			icon
-			{
-				font-size: 14px;
-				color: $front-reward;
-				text-shadow: none;
-			}
-
-			&:hover
-			{
-				border-color: rgba( $front-reward, 0.55 );
-				background-color: rgba( $front-reward, 0.1 );
-				box-shadow: none;
-
-				icon
-				{
-					color: $front-reward;
-					text-shadow: none;
-				}
-			}
 		}
 	}
 
@@ -551,33 +436,11 @@ FriendsRail
 	// Nobody on the list at all - centred in the space the list would take
 	.no-friends
 	{
-		flex-direction: column;
+		@include platform-empty;
 		flex-grow: 1;
-		align-items: center;
 		justify-content: center;
-		gap: 6px;
 		padding: 24px 28px;
 		text-align: center;
-
-		> icon
-		{
-			font-size: 40px;
-			color: $front-tertiary;
-			margin-bottom: 6px;
-		}
-
-		.title
-		{
-			font-size: 15px;
-			font-weight: 700;
-			color: $front-heading;
-		}
-
-		.hint
-		{
-			font-size: 12px;
-			color: $front-secondary;
-		}
 	}
 
 	.empty
@@ -588,7 +451,7 @@ FriendsRail
 		label
 		{
 			font-size: 12px;
-			color: $front-tertiary;
+			color: $platform-faint;
 		}
 	}
 }

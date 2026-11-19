@@ -1,10 +1,27 @@
 
 include "animationsystem2/animationskeleton.h"
+include "animationsystem2/animationresourcebuilder.h"
+
+native class CAnimSkeletonBuilder as NativeEngine.AnimationSkeletonBuilder
+{
+	static AnimationSkeletonBuilder Create(); [new]
+	void DeleteThis(); [delete]
+	void AddBone( string name, int parent, Transform transform );
+	int AddFloatChannelSet( string name );
+	bool AddFloatChannel( int set, string name );
+	bool AddBoneMask( string name, CastTo[float*] void* weights, int count, float defaultFloatChannelWeight );
+	HAnimSkeleton CreateResource( string name, int lowLODBoneCount, bool isProp );
+}
 
 [ResourceHandle:HAnimSkeleton]
 native class CAnimSkeletonResource as NativeEngine.HAnimSkeleton
 {
 	int GetNumBones();
+	inline bool HasFloatChannel( string set, string channel )
+	{
+		const CFloatChannelSet* pSet = self->GetFloatChannelSet( MakeStringToken( set ) );
+		return pSet && pSet->GetChannelIndex( MakeStringToken( channel ) ) != InvalidIndex;
+	}
 	int GetLowLODBoneCount();
 
 	string GetBoneName( int idx );

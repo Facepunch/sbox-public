@@ -81,11 +81,19 @@ partial class PublishWizard : BaseWizard
 			_ = CompileAsync();
 	}
 
-	public static PublishWizard Open( Project project, ResourcePublishContext publishContext = default )
+	/// <summary>
+	/// Opens the appropriate publisher for the project. Addons use the single-page Workshop publisher.
+	/// </summary>
+	public static void Open( Project project, ResourcePublishContext publishContext = default )
 	{
+		if ( ProjectPublisher.PublishesOnlyToWorkshop( project ) )
+		{
+			WorkshopPublisher.Open( project );
+			return;
+		}
+
 		var w = new PublishWizard( project, publishContext );
 		w.CreateWindow( 1235, 800 );
-		return w;
 	}
 }
 

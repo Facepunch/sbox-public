@@ -206,6 +206,7 @@ public partial class Scene : GameObject
 	/// </summary>
 	void SharedTick()
 	{
+		DispatchLogEvents();
 		Scene.RunEvent<ISceneStage>( x => x.Start() );
 
 		if ( !IsEditor )

@@ -1,0 +1,28 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Saw Blade",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "saw_blade_a",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/home/saw_blade/saw_blade.vmdl",
+        "Summary": "",
+        "Description": "",
+        "Public": true
+      }
+    }
+  },
+  "guid": "13c2eb08-00fc-0000-b800-000000000000"
+}

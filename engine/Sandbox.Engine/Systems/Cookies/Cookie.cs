@@ -26,6 +26,10 @@ public sealed class CookieContainer
 	private BaseFileSystem FileSystem;
 	private bool NoExpiration;
 
+	// Saves are skipped until something changes
+	private bool Dirty;
+	private Action SaveFromTimerAction;
+
 	internal CookieContainer( string name, bool noexpire = false, BaseFileSystem fileSystem = null )
 	{
 		Name = name;
@@ -57,6 +61,7 @@ public sealed class CookieContainer
 			Timeout = NoExpiration ? -1 : DateTimeOffset.Now.AddDays( 30 ).ToUnixTimeSeconds(),
 			DeleteAt = 0
 		};
+		Dirty = true;
 	}
 
 	/// <summary>
@@ -151,7 +156,8 @@ public sealed class CookieContainer
 	/// <param name="key"></param>
 	public void Remove( string key )
 	{
-		CookieCache.Remove( key );
+		if ( CookieCache.Remove( key ) )
+			Dirty = true;
 	}
 
 	void MarkUsed( string key )
@@ -160,9 +166,16 @@ public sealed class CookieContainer
 
 		if ( CookieCache.TryGetValue( key, out CookieItem item ) )
 		{
-			item.Timeout = DateTimeOffset.Now.AddDays( 30 ).ToUnixTimeSeconds();
+			var timeout = DateTimeOffset.Now.AddDays( 30 ).ToUnixTimeSeconds();
+
+			// Moving the expiry by less than a day isn't worth a save
+			if ( item.DeleteAt == 0 && timeout - item.Timeout < 60 * 60 * 24 )
+				return;
+
+			item.Timeout = timeout;
 			item.DeleteAt = 0;
 			CookieCache[key] = item;
+			Dirty = true;
 		}
 	}
 
@@ -171,7 +184,7 @@ public sealed class CookieContainer
 		if ( CookieCache == null ) return;
 		if ( NoExpiration ) return;
 
-		var expiredKeys = new List<string>();
+		List<string> expiredKeys = null;
 		var unixTime = DateTimeOffset.Now.ToUnixTimeSeconds();
 
 		foreach ( var kv in CookieCache )
@@ -180,6 +193,7 @@ public sealed class CookieContainer
 			var remove = kv.Value.DeleteAt != 0 && unixTime >= kv.Value.DeleteAt;
 			if ( expired && remove )
 			{
+				expiredKeys ??= new List<string>();
 				expiredKeys.Add( kv.Key );
 			}
 			else if ( expired && kv.Value.DeleteAt == 0 )
@@ -187,18 +201,20 @@ public sealed class CookieContainer
 				var item = kv.Value;
 				item.DeleteAt = DateTimeOffset.Now.AddDays( 1 ).ToUnixTimeSeconds();
 				CookieCache[kv.Key] = item;
+				Dirty = true;
 			}
 		}
+
+		if ( expiredKeys is null )
+			return;
 
 		foreach ( var key in expiredKeys )
 		{
 			CookieCache.Remove( key );
 		}
 
-		if ( expiredKeys.Count > 0 )
-		{
-			Log.Info( $"Clearing {expiredKeys.Count} expired Cookies" );
-		}
+		Dirty = true;
+		Log.Info( $"Clearing {expiredKeys.Count} expired Cookies" );
 	}
 
 	private void StartTimer()
@@ -222,18 +238,20 @@ public sealed class CookieContainer
 
 	private void OnTimerElapsed( object sender, ElapsedEventArgs e )
 	{
-		MainThread.Queue( () =>
+		MainThread.Queue( SaveFromTimerAction ??= SaveFromTimer );
+	}
+
+	private void SaveFromTimer()
+	{
+		try
 		{
-			try
-			{
-				Save();
-			}
-			finally
-			{
-				// reenable for next interval
-				Timer?.Start();
-			}
-		} );
+			Save();
+		}
+		finally
+		{
+			// reenable for next interval
+			Timer?.Start();
+		}
 	}
 
 	private void Load()
@@ -245,6 +263,7 @@ public sealed class CookieContainer
 			if ( CookieCache is not null )
 			{
 				Log.Warning( $"Restored {Name} cookies from backup {fn}!" );
+				Dirty = true;
 				Save();
 			}
 		}
@@ -262,9 +281,14 @@ public sealed class CookieContainer
 		StartTimer();
 	}
 
+	static readonly JsonSerializerOptions SaveOptions = new( JsonSerializerOptions.Default ) { WriteIndented = true };
+
 	internal void Save()
 	{
 		if ( CookieCache == null ) return;
+
+		ClearExpired();
+		if ( !Dirty ) return;
 
 		var fnorig = $"{Name}.json";
 		var fnback = $"{Name}.json.backup";
@@ -289,8 +313,6 @@ public sealed class CookieContainer
 			FileSystem.CreateDirectory( System.IO.Path.GetDirectoryName( Name ) );
 		}
 
-		ClearExpired();
-
 		try
 		{
 			if ( CookieCache.Count == 0 )
@@ -299,13 +321,15 @@ public sealed class CookieContainer
 			}
 			else
 			{
-				FileSystem.WriteAllText( fnorig, JsonSerializer.Serialize( CookieCache, new JsonSerializerOptions( JsonSerializerOptions.Default ) { WriteIndented = true } ) );
+				FileSystem.WriteAllText( fnorig, JsonSerializer.Serialize( CookieCache, SaveOptions ) );
 			}
 
 			// that succeeded, so we can delete any backups
 			{
 				FileSystem.DeleteFile( fnback );
 			}
+
+			Dirty = false;
 		}
 		catch ( System.IO.IOException e )
 		{

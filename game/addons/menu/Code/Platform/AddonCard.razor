@@ -1,0 +1,78 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@inherits Panel
+
+<root class="@(Subscribed && !Enabled ? "disabled-addon" : "")" onclick=@OpenMenu onrightclick=@OpenMenu tooltip="Click for addon actions">
+    <div class="art" style=@MenuHelpers.BackgroundImage( Item.Thumb )>
+        @if ( string.IsNullOrEmpty( Item.Thumb ) )
+        {
+            <i class="placeholder">extension</i>
+        }
+        <label class="size">@Item.Size.FormatBytes()</label>
+    </div>
+    <div class="info">
+        <label class="title" tooltip=@Item.Title>@Item.Title</label>
+        <div class="details"><label class="author">@(Item.OwnerName ?? "Workshop creator")</label><i>thumb_up</i><label>@Item.VotesUp.ToString( "N0" )</label></div>
+    </div>
+    @if ( Subscribed )
+    {
+        <div class="toggle" tooltip=@(Enabled ? "Disable" : "Enable") onclick=@( ( PanelEvent e ) => { e.StopPropagation(); MenuUtility.SetAddonEnabled( GameIdent, Item.Id, !Enabled ); } )>
+            <i>@(Enabled ? "check_box" : "check_box_outline_blank")</i>
+        </div>
+    }
+</root>
+
+@code
+{
+    /// <summary>
+    /// The addon shown on this card.
+    /// </summary>
+    [Parameter] public WorkshopItemDetails Item { get; set; }
+
+    /// <summary>
+    /// The selected game whose addon preferences this card edits.
+    /// </summary>
+    [Parameter] public string GameIdent { get; set; }
+
+    /// <summary>
+    /// Notify the containing page after a subscription changes.
+    /// </summary>
+    [Parameter] public Action OnChanged { get; set; }
+
+    bool Subscribed => MenuUtility.IsSubscribed( Item.Id );
+    bool Enabled => MenuUtility.IsAddonEnabled( GameIdent, Item.Id );
+
+    void OpenMenu()
+    {
+        var menu = MenuProject.UI.MenuPanel.Open( this );
+
+        if ( Subscribed )
+        {
+            menu.AddOption( Enabled ? "block" : "check_circle", Enabled ? "Disable" : "Enable",
+                () => MenuUtility.SetAddonEnabled( GameIdent, Item.Id, !Enabled ) );
+        }
+
+        menu.AddOption( Subscribed ? "remove_circle_outline" : "add_circle_outline", Subscribed ? "Unsubscribe" : "Subscribe", ToggleSubscribed );
+        menu.AddSpacer();
+        menu.AddOption( "open_in_new", "View on Workshop", () => MenuUtility.OpenUrl( Item.Url ) );
+    }
+
+    void ToggleSubscribed()
+    {
+        if ( Subscribed )
+        {
+            MenuUtility.Unsubscribe( Item.Id );
+        }
+        else
+        {
+            MenuUtility.SetAddonEnabled( GameIdent, Item.Id, true );
+            MenuUtility.Subscribe( Item.Id );
+        }
+
+        OnChanged?.Invoke();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Item, GameIdent, Subscribed, Enabled );
+}

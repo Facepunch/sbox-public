@@ -3,7 +3,7 @@
   <!--
     Source 2 content for Borealis: reads s&box's compiled shaders (.shader_c), materials (.vmat_c) and textures (.vtex_c)
     and makes Borealis.Gpu shader modules, binding layouts, pipelines and textures from them. Borealis.Gpu stays a narrow
-    RHI that knows nothing of Source 2. See docs/managed/borealis-gpu.md.
+    RHI that knows nothing of Source 2. See docs/reference/borealis-gpu.md.
   -->
 
   <PropertyGroup>

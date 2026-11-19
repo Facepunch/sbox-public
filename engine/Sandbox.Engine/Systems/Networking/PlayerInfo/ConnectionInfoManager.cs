@@ -161,7 +161,7 @@ internal sealed class ConnectionInfo
 
 	internal void Update( UserInfo userInfo )
 	{
-		Name = userInfo.Name;
+		Name = userInfo.Name?.Length > MaxNameLength ? userInfo.Name[..MaxNameLength] : userInfo.Name;
 		SteamId = userInfo.SteamId;
 		PartyId = userInfo.PartyId;
 
@@ -169,6 +169,9 @@ internal sealed class ConnectionInfo
 
 		foreach ( var p in userInfo.UserData )
 		{
+			if ( !IsValidUserData( p.Key, p.Value ) )
+				continue;
+
 			UserData.Add( p.Key, p.Value );
 		}
 
@@ -281,17 +284,28 @@ internal sealed class ConnectionInfo
 	{
 		UserData.Clear();
 
-		// tony todo: Can this be one loop?
 		foreach ( var (k, v) in userData )
 		{
-			UserData.Add( k, v );
-		}
+			if ( !IsValidUserData( k, v ) )
+				continue;
 
-		foreach ( var (k, v) in userData )
-		{
+			UserData.Add( k, v );
 			UpdateStringTable( k, v, true );
 		}
 	}
+
+	// The host replicates user data to every peer, so only take small values for UserInfo convars
+	internal static bool IsValidUserData( string key, string value )
+	{
+		if ( key is null || value?.Length > MaxUserDataLength )
+			return false;
+
+		var command = ConVarSystem.Find( key );
+		return command is not null && command.IsUserInfo;
+	}
+
+	internal const int MaxUserDataLength = 16 * 1024;
+	internal const int MaxNameLength = 256;
 
 	internal void SetUserData( string key, string value )
 	{

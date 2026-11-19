@@ -177,6 +177,10 @@ public enum InputGlyphSize
 	Large
 }
 
+/// <summary>
+/// Extension methods for game input utilities.
+/// </summary>
+[Expose]
 public static partial class SandboxGameExtensions
 {
 	/// <summary>

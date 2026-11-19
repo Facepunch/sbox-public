@@ -1,4 +1,4 @@
-// borealis_resident_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// borealis_resident_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis resident cull: culls every view's resident batches in one dispatch, a thread per entry looping over the views, and writes their instance records and indirect commands.";
@@ -25,7 +25,7 @@ ByteAddressBuffer g_bindless_VertexBuffers[] EXTERNAL_DESC_SET( t, g_globalLateB
 #endif
 
 // The frame's region: the items and views in; each view's instance records, commands, multi-draw counts and listed
-// fragments out. Each plan's batch records and entry map are in a buffer of its own, in the bindless array (Borealis.Backend/ResidentRecords.cs, docs/managed/borealis-gpu-driven.md)
+// fragments out. Each plan's batch records and entry map are in a buffer of its own, in the bindless array (Borealis.Backend/ResidentRecords.cs, docs/reference/borealis-gpu-driven.md)
 RWByteAddressBuffer g_Frame < Attribute( "BorealisCullFrame" ); >;
 
 // The visibility-driven forward pass: each fragment's frame stamp, written where a prepass view draws ids and read by its
@@ -110,7 +110,7 @@ uint MeshLod( uint4 vHeader0, uint4 vHeader1, float3 vCenter, float flScale, flo
 	return min( nLod, nLods - 1 );
 }
 
-// Generated LODs (Borealis.Backend/Lods/LodStore.cs, docs/managed/borealis-gpu-driven.md "Generated LODs"). A draw record's LOD
+// Generated LODs (Borealis.Backend/Lods/LodStore.cs, docs/reference/borealis-gpu-driven.md "Generated LODs"). A draw record's LOD
 // record, 128 bytes in the LOD table: its level count, a word unused and each level's error (a fraction of the fragment's
 // bounds' half diagonal); then 16 bytes per level: first index, index count, draw record and a word unused
 static const float LodHysteresis = 0.75;
@@ -243,7 +243,7 @@ uint WaveTakeSlot( bool bTake, uint nRuns, uint nRun, ByteAddressBuffer frame )
 	return nSlot;
 }
 
-// Two-phase Hi-Z occlusion (view word 28 bit 3; docs/managed/borealis-gpu-driven.md, "Hi-Z occlusion"), as
+// Two-phase Hi-Z occlusion (view word 28 bit 3; docs/reference/borealis-gpu-driven.md, "Hi-Z occlusion"), as
 // borealis_gpu_driven_cull_cs defers: an ids fragment (not a forward one) forward didn't see last frame (its bit clear in the
 // bits at bindless slot vViewFlags.z) is left for the second phase, as a 64-byte candidate at byte offset vViewFlags.w (group
 // count, 1, 1, count, occluded; then from byte 32 the candidates, 256 a group). bMeshlets: the view's prepass would list it for the meshlet pass

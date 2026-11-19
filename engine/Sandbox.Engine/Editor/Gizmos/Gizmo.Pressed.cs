@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 partial class Gizmo
 {
@@ -24,12 +24,12 @@ partial class Gizmo
 		/// <summary>
 		/// True if the current gizmo scope is pressed
 		/// </summary>
-		public static bool This => Active.current.PressedPath == Path;
+		public static bool This => (IsLeftMouseDown || Active.HasReleaseInput) && Active.current.PressedPath == Path;
 
 		/// <summary>
 		/// True if any object is currently pressed
 		/// </summary>
-		public static bool Any => !string.IsNullOrEmpty( Active.current.PressedPath );
+		public static bool Any => Instance.HasActivePress;
 
 		/// <summary>
 		/// The distance the cursor has travelled since press started
@@ -46,9 +46,6 @@ partial class Gizmo
 		/// </summary>
 		public static bool IsActive => Gizmo.IsLeftMouseDown;
 
-		public static void ClearPath()
-		{
-			Active.builder.PressedPath = default;
-		}
+		public static void ClearPath() => Active.ClearPress();
 	}
 }

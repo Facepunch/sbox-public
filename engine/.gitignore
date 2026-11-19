@@ -5,3 +5,10 @@ launchSettings.json
 *.exe
 *.pdb
 .idea
+
+# Generated code
+Interop.*.cs
+
+# Build and test output
+/TestResults/
+/Tools/SboxBuild/nupkg

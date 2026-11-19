@@ -1,4 +1,4 @@
-// pp_color: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// pp_color: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: DevShader = true;
 
 #include "sbox/pass.slangh"

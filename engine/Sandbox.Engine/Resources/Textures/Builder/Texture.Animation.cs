@@ -124,7 +124,10 @@ public partial class Texture
 				continue;
 
 			// Decode and update texture in background thread.
-			animation.UpdateTask = Task.Run( () => animation.Update( texture ) );
+			animation.UpdateTask = StartUpdate( animation, texture );
 		}
 	}
+
+	// Kept out of Tick so the closure is only allocated when an update actually starts
+	static Task StartUpdate( Animation animation, Texture texture ) => Task.Run( () => animation.Update( texture ) );
 }

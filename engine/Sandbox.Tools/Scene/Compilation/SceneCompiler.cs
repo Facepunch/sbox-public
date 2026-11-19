@@ -232,6 +232,20 @@ internal static partial class SceneCompiler
 
 		using ( compiled.Push() )
 		{
+			var stripByType = new Dictionary<Type, bool>();
+			foreach ( var component in compiled.Components.GetAll( FindMode.EverythingInSelfAndDescendants ) )
+			{
+				var type = component.GetType();
+				if ( !stripByType.TryGetValue( type, out var strip ) )
+				{
+					strip = Game.TypeLibrary.HasAttribute<StripOnSceneCompileAttribute>( type );
+					stripByType.Add( type, strip );
+				}
+
+				if ( strip )
+					processed.Add( component.Id );
+			}
+
 			// Unlink affected prefabs before stripping their source
 			// components so those components cannot return when the prefab expands again.
 			foreach ( var go in compiled.Children.ToArray() )
@@ -301,6 +315,8 @@ internal static partial class SceneCompiler
 				throw new InvalidOperationException( $"Cannot compile the scene: mesh '{remainingMesh.GameObject.Name}' was not converted. Compiled scenes cannot contain MeshComponents." );
 
 			file = new SceneFile();
+			// Compiled scenes keep the expanded objects, not their authoring links.
+			compiled.InstanceState = SceneInstanceState.Empty;
 			compiled.ToSceneFile( file );
 			file.Id = sceneId;
 		}
@@ -317,7 +333,8 @@ internal static partial class SceneCompiler
 		if ( collision.Count > 0 ) summary.Add( $"{collision.Count:n0} collision {(collision.Count == 1 ? "group" : "groups")}" );
 
 		var result = summary.ToArray();
-		WriteScene( sourceAsset, sourcePath, editor, sourceRevision, file, settings );
+		var generation = plans.Length + collision.Count + converted > 0 ? Path.GetFileName( outputFolder ) : "-";
+		WriteScene( sourceAsset, sourcePath, editor, sourceRevision, file, settings, generation );
 		session.Statistics = statistics;
 
 		return result;

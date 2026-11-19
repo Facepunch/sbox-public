@@ -6,7 +6,7 @@ using System.Buffers;
 using System.Collections.Frozen;
 using System.Runtime.InteropServices;
 
-public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
+public sealed partial class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 {
 	private readonly record struct SystemOffset( IBatchedParticleSpriteRenderer System, int Offset, int ParticleCount );
 
@@ -50,6 +50,8 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 	public override void Dispose()
 	{
+		foreach ( var group in _textBatches.Values ) group.Batch?.Destroy();
+		_textBatches.Clear();
 		if ( _sharedSprites != null )
 		{
 			ArrayPool<SpriteBatchSceneObject.SpriteData>.Shared.Return( _sharedSprites );
@@ -263,6 +265,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 		UpdateSpriteRenderers();
 		UpdateParticleSprites();
+		UpdateTextRenderers();
 
 		LitBounds = null;
 		foreach ( var rg in RenderGroups )

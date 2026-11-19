@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 
 namespace Sandbox;
 
@@ -25,7 +25,7 @@ public sealed class SphereCollider : Collider
 		if ( !Gizmo.IsSelected && !Gizmo.IsHovered )
 			return;
 
-		using ( Gizmo.Scope( "SphereCollider" ) )
+		using ( Gizmo.PushScope( "SphereCollider" ) )
 		{
 			Gizmo.Draw.Color = Gizmo.Colors.Green.WithAlpha( Gizmo.IsChildSelected ? 0.5f : 0.1f );
 

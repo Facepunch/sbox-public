@@ -68,6 +68,11 @@ public partial class Scene : GameObject
 
 			if ( !IsValid ) return;
 
+			// The models and textures the renderer still loads in the background for what's loaded
+			if ( this is not PrefabScene ) await BorealisGpuRenderBackend.WaitForContent();
+
+			if ( !IsValid ) return;
+
 			//
 			// Some people are locking up forever. Need more info.
 			//
@@ -106,6 +111,9 @@ public partial class Scene : GameObject
 				{
 					if ( Graphics.HasSource2Device ) g_pRenderDevice.FlushPipelineCache();
 					else if ( RenderBackend.Default is BorealisGpuRenderBackend borealis ) borealis.FlushPipelineCache();
+
+					// The previous scene's GPU memory was just freed, hand the empty blocks back (Source 2's device)
+					if ( Graphics.HasSource2Device ) g_pRenderDevice.RequestGPUMemoryCompaction();
 				}
 
 				// Tell networking we've finished loading, lets players join

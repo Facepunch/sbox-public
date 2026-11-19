@@ -13,6 +13,7 @@ namespace Sandbox.Resources;
 /// When we compile a regular resource that contains this $compiler structure, it operates like any other compile, except
 /// it's totally managed by c# instead of resourcecompiler.
 /// </summary>
+[Expose]
 public struct EmbeddedResource
 {
 	/// <summary>

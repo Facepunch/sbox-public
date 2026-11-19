@@ -220,7 +220,7 @@ public sealed class WebSocket : IDisposable
 
 		using var linkedCt = CancellationTokenSource.CreateLinkedTokenSource( _cts.Token, ct );
 
-		await _socket.ConnectAsync( uri, linkedCt.Token );
+		await _socket.ConnectAsync( uri, Http.WebSocketInvoker, linkedCt.Token );
 
 		SendLoop();
 		ReceiveLoop();

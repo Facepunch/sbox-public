@@ -51,7 +51,25 @@ internal static class ThumbLoader
 			//
 			if ( filename.StartsWith( "mount:" ) )
 			{
-				var t = MountUtility.GetPreviewTexture( filename );
+				var loader = MountUtility.FindLoader( filename );
+				if ( loader is null ) return;
+
+				// check to see if there's a pre-generated thumb in the mount
+				var imageFile = $"{loader.RelativePath}.png";
+				if ( loader.Mount.ThumbsFileSystem is { } fs && fs.FileExists( imageFile ) )
+				{
+					using var bitmap = Bitmap.CreateFromBytes( await fs.ReadAllBytesAsync( imageFile ) );
+					if ( ct.IsCancellationRequested ) return;
+
+					using var texture = bitmap.ToTexture();
+					placeholder.CopyFrom( texture );
+					return;
+				}
+
+				// only generate thumbs for models for now
+				if ( loader.Type != ResourceType.Model ) return;
+
+				var t = MountUtility.GetPreviewTexture( loader );
 				if ( !t.IsValid() ) return;
 
 				placeholder.CopyFrom( t );

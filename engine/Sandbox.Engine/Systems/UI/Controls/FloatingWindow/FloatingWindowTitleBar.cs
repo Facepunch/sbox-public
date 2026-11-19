@@ -18,9 +18,9 @@ internal class FloatingWindowTitleBar : Panel
 	}
 
 	/// <summary>
-	/// Titlebars receive drag events even when their contents do not scroll.
+	/// Titlebars receive drag events even when their contents do not scroll - unless their window can't be moved.
 	/// </summary>
-	public override bool WantsDrag => true;
+	public override bool WantsDrag => Ancestors.OfType<FloatingWindow>().FirstOrDefault()?.Draggable ?? true;
 
 	protected override void OnMouseDown( MousePanelEvent e )
 	{
@@ -40,7 +40,7 @@ internal class FloatingWindowTitleBar : Panel
 	protected override void OnDragStart( DragEvent e )
 	{
 		e.StopPropagation();
-		if ( leftPressed && window.IsValid() ) window.BeginMove( e.ScreenPosition - e.ScreenGrabPosition );
+		if ( leftPressed && window.IsValid() && window.Draggable ) window.BeginMove( e.ScreenPosition - e.ScreenGrabPosition );
 	}
 
 	protected override void OnDrag( DragEvent e )

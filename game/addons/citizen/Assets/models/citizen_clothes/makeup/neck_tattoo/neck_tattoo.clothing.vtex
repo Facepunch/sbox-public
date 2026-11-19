@@ -1,0 +1,9 @@
+{
+  "$compiler": "texture",
+  "$source": "imagefile",
+  "data": {
+    "FilePath": "models/citizen_clothes/makeup/neck_tattoo/neck_tattoo.clothing.png",
+    "Lossless": true
+  },
+  "compiled": null
+}

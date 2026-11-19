@@ -1,3 +1,8 @@
+using Sandbox.Utility;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+
 namespace SceneTests.Trace;
 
 [TestClass]
@@ -854,78 +859,172 @@ public class SceneTraceTest
 		Assert.AreEqual( 1, clamped );
 	}
 
-	/// <summary>
-	/// Systems implementing ITraceProvider should contribute hits: Run picks the
-	/// provider's result when it's nearer than physics, ignores it when it's further,
-	/// and RunAll merges it into the sorted result list.
-	/// </summary>
 	[TestMethod]
 	public void TraceProviderSystem()
 	{
-		// Scene systems are created from Game.TypeLibrary, which doesn't contain the
-		// test assembly by default - swap in one that does so TestTraceProviderSystem
-		// gets instantiated for this scene.
+		using var providerScope = EnableTraceProvider();
+		var scene = new Scene();
+		using var destroy = new DisposeAction( scene.Destroy );
+		using var scope = scene.Push();
+		CreateBox( scene, Vector3.Forward * 100 ); // Physics hit at fraction 0.25.
+		var trace = scene.Trace.Ray( Vector3.Zero, Vector3.Forward * 300 );
+
+		var nearer = trace.Run();
+		Assert.IsTrue( nearer.Hit );
+		Assert.AreEqual( 0.1f, nearer.Fraction, 0.001f );
+
+		TestTraceProviderSystem.HitFraction = 0.9f;
+		Assert.AreEqual( 0.25f, trace.Run().Fraction, 0.01f );
+		var all = trace.RunAll().ToArray();
+		Assert.AreEqual( 2, all.Length );
+		Assert.AreEqual( 0.25f, all[0].Fraction, 0.01f );
+		Assert.AreEqual( 0.9f, all[1].Fraction, 0.001f );
+	}
+
+	[TestMethod]
+	public void TraceProvidersStayWithTheirSceneAcrossReloadAndRebuild()
+	{
+		using var providerScope = EnableTraceProvider();
+		var scene = new Scene();
+		using var destroy = new DisposeAction( scene.Destroy );
+		var other = new Scene();
+		using var destroyOther = new DisposeAction( other.Destroy );
+		using var scope = scene.Push();
+
+		var original = scene.GetSystem<TestTraceProviderSystem>();
+		var otherProvider = other.GetSystem<TestTraceProviderSystem>();
+		TraceAndCheckProvider( scene, original );
+		Assert.AreEqual( (0, 0), otherProvider.Calls );
+
+		scene.ReloadSystems();
+		var replacement = scene.GetSystem<TestTraceProviderSystem>();
+		Assert.AreNotSame( original, replacement );
+		Assert.IsNull( original.Scene, "The old provider was disposed by reload" );
+		TraceAndCheckProvider( scene, replacement );
+
+		scene.RebuildTraceProviders();
+		scene.RebuildTraceProviders();
+		Assert.AreSame( replacement, scene.GetSystem<TestTraceProviderSystem>() );
+		TraceAndCheckProvider( scene, replacement );
+		Assert.AreEqual( (1, 1), original.Calls, "A removed provider receives no later traces" );
+
+		using ( other.Push() )
+		{
+			Assert.AreSame( otherProvider, other.GetSystem<TestTraceProviderSystem>() );
+			TraceAndCheckProvider( other, otherProvider );
+		}
+		Assert.AreEqual( (2, 2), replacement.Calls, "The other scene cannot dispatch to this scene's provider" );
+	}
+
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void TraceProviderCanDestroyTheSceneDuringDispatch( bool buffered )
+	{
+		using var providerScope = EnableTraceProvider();
+		var scene = new Scene();
+		using var destroy = new DisposeAction( () =>
+		{
+			if ( scene.IsValid ) scene.Destroy();
+		} );
+		using var scope = scene.Push();
+		var provider = scene.GetSystem<TestTraceProviderSystem>();
+		provider.AfterTrace = scene.Destroy;
+		var trace = scene.Trace.Ray( Vector3.Zero, Vector3.Forward * 300 ).UsePhysicsWorld( false );
+
+		if ( buffered )
+		{
+			var hits = new List<SceneTraceResult>();
+			scene.RunTraceAll( trace, hits );
+			Assert.AreEqual( 1, hits.Count );
+		}
+		else
+		{
+			Assert.IsTrue( trace.Run().Hit );
+		}
+
+		Assert.IsFalse( scene.IsValid );
+	}
+
+	static void TraceAndCheckProvider( Scene scene, TestTraceProviderSystem provider )
+	{
+		var trace = scene.Trace.Ray( Vector3.Zero, Vector3.Forward * 300 ).UsePhysicsWorld( false );
+		var (single, buffered) = provider.Calls;
+		var result = trace.Run();
+		Assert.IsTrue( result.Hit );
+		Assert.AreSame( scene, result.Scene );
+
+		var hits = new List<SceneTraceResult>();
+		scene.RunTraceAll( trace, hits );
+		Assert.AreEqual( 1, hits.Count, "One registered provider supplies one hit" );
+		Assert.AreSame( scene, hits[0].Scene );
+		Assert.AreEqual( (single + 1, buffered + 1), provider.Calls );
+	}
+
+	[TestMethod, TestCategory( Allocations.Category )]
+	public void WarmRunAndBufferedRunAllAllocateZeroBytesWithAProvider()
+	{
+		using var providerScope = EnableTraceProvider();
+		var scene = new Scene();
+		using var destroy = new DisposeAction( scene.Destroy );
+		using var scope = scene.Push();
+		var box = CreateBox( scene, Vector3.Forward * 100 );
+		var trace = scene.Trace.Ray( Vector3.Zero, Vector3.Forward * 300 );
+		var hits = new List<SceneTraceResult>();
+		SceneTraceResult nearest = default;
+
+		Allocations.AssertSettles( "Single-hit and buffered multi-hit traces with a provider", () =>
+		{
+			nearest = trace.Run();
+			scene.RunTraceAll( trace, hits );
+		} );
+
+		Assert.IsTrue( nearest.Hit );
+		Assert.AreEqual( 0.1f, nearest.Fraction, 0.001f );
+		Assert.AreEqual( 2, hits.Count );
+		Assert.AreEqual( 0.1f, hits[0].Fraction, 0.001f );
+		Assert.AreSame( box, hits[1].GameObject );
+	}
+
+	static DisposeAction EnableTraceProvider()
+	{
 		var oldTypeLibrary = Game.TypeLibrary;
+		var oldProvideHits = TestTraceProviderSystem.ProvideHits;
+		var oldHitFraction = TestTraceProviderSystem.HitFraction;
 		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
-
-		try
+		TestTraceProviderSystem.ProvideHits = true;
+		TestTraceProviderSystem.HitFraction = 0.1f;
+		return new DisposeAction( () =>
 		{
-			var scene = new Scene();
-			using var sceneScope = scene.Push();
-
-			CreateBox( scene, new Vector3( 100, 0, 0 ) ); // physics hit at fraction 0.25
-
-			var from = Vector3.Zero;
-			var to = new Vector3( 300, 0, 0 );
-
-			// Provider hit nearer than the physics hit wins
-			TestTraceProviderSystem.ProvideHits = true;
-			TestTraceProviderSystem.HitFraction = 0.1f;
-
-			var nearer = scene.Trace.Ray( from, to ).Run();
-			Assert.IsTrue( nearer.Hit );
-			Assert.AreEqual( 0.1f, nearer.Fraction, 0.001f );
-
-			// Provider hit further than the physics hit loses
-			TestTraceProviderSystem.HitFraction = 0.9f;
-
-			var further = scene.Trace.Ray( from, to ).Run();
-			Assert.AreEqual( 0.25f, further.Fraction, 0.01f );
-
-			// RunAll merges and sorts provider results with physics results
-			var all = scene.Trace.Ray( from, to ).RunAll().ToArray();
-			Assert.AreEqual( 2, all.Length );
-			Assert.AreEqual( 0.25f, all[0].Fraction, 0.01f );
-			Assert.AreEqual( 0.9f, all[1].Fraction, 0.001f );
-		}
-		finally
-		{
-			TestTraceProviderSystem.ProvideHits = false;
+			TestTraceProviderSystem.ProvideHits = oldProvideHits;
+			TestTraceProviderSystem.HitFraction = oldHitFraction;
 			Game.TypeLibrary = oldTypeLibrary;
-		}
+		} );
 	}
 }
 
-/// <summary>
-/// A trace provider used by <see cref="SceneTraceTest.TraceProviderSystem"/> to exercise
-/// the ITraceProvider extension point. Scene systems are instantiated for every scene in
-/// the whole test run, so this stays inert unless a test switches it on.
-/// </summary>
+// Instantiated in every test scene; stays inert unless explicitly enabled.
 public class TestTraceProviderSystem : GameObjectSystem, GameObjectSystem.ITraceProvider
 {
 	public static bool ProvideHits;
 	public static float HitFraction = 0.1f;
+	private int _singleCalls;
+	private int _bufferedCalls;
+	internal (int Single, int Buffered) Calls => (Volatile.Read( ref _singleCalls ), Volatile.Read( ref _bufferedCalls ));
+	internal Action AfterTrace;
 
 	public TestTraceProviderSystem( Scene scene ) : base( scene )
 	{
 	}
 
-	public void DoTrace( in SceneTrace trace, System.Collections.Generic.List<SceneTraceResult> results )
+	public void DoTrace( in SceneTrace trace, List<SceneTraceResult> results )
 	{
 		if ( !ProvideHits )
 			return;
 
+		Interlocked.Increment( ref _bufferedCalls );
 		results.Add( MakeResult( trace ) );
+		AfterTrace?.Invoke();
 	}
 
 	public SceneTraceResult? DoTrace( in SceneTrace trace )
@@ -933,7 +1032,10 @@ public class TestTraceProviderSystem : GameObjectSystem, GameObjectSystem.ITrace
 		if ( !ProvideHits )
 			return null;
 
-		return MakeResult( trace );
+		Interlocked.Increment( ref _singleCalls );
+		var result = MakeResult( trace );
+		AfterTrace?.Invoke();
+		return result;
 	}
 
 	SceneTraceResult MakeResult( in SceneTrace trace )

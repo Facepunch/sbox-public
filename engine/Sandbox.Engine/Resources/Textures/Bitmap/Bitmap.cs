@@ -3,6 +3,10 @@ using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
+/// <summary>
+/// A CPU image that can be loaded, painted and uploaded to a texture.
+/// </summary>
+[Expose]
 public sealed partial class Bitmap : IDisposable, IValid
 {
 	private SKBitmap _bitmap;

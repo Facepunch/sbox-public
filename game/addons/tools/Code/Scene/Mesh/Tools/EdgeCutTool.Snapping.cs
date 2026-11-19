@@ -120,13 +120,13 @@ partial class EdgeCutTool
 
 			var prevPos = previous.WorldPosition;
 
-			if ( ComputePlaneIntersectionSnapPoint( Vector3.Right, prevPos, target, p0, p1, out var hit ) )
+			if ( ComputePlaneIntersectionSnapPoint( WorkPlane.Current.Rotation.Right, prevPos, target, p0, p1, out var hit ) )
 				snaps.Add( new SnapPoint( edge, hit, EdgeCutAlignment.Grid ) );
 
-			if ( ComputePlaneIntersectionSnapPoint( Vector3.Up, prevPos, target, p0, p1, out hit ) )
+			if ( ComputePlaneIntersectionSnapPoint( WorkPlane.Current.Rotation.Up, prevPos, target, p0, p1, out hit ) )
 				snaps.Add( new SnapPoint( edge, hit, EdgeCutAlignment.Grid ) );
 
-			if ( ComputePlaneIntersectionSnapPoint( Vector3.Forward, prevPos, target, p0, p1, out hit ) )
+			if ( ComputePlaneIntersectionSnapPoint( WorkPlane.Current.Rotation.Forward, prevPos, target, p0, p1, out hit ) )
 				snaps.Add( new SnapPoint( edge, hit, EdgeCutAlignment.Grid ) );
 
 			if ( hasPerpendicular && ComputePlaneIntersectionSnapPoint( perpendicularNormal, prevPos, target, p0, p1, out hit ) )
@@ -148,6 +148,8 @@ partial class EdgeCutTool
 
 		var vertices = mesh.GetFaceVertexPositions( faceHandle, component.WorldTransform ).ToList();
 		var spacing = Gizmo.Settings.GridSpacing;
+		var frame = WorkPlane.Current;
+		target = frame.PointToLocal( target );
 
 		var min = new Vector3(
 			MathF.Floor( target.x / spacing ) * spacing,
@@ -182,7 +184,7 @@ partial class EdgeCutTool
 		for ( var i = 0; i < gridEdges.Length; i++ )
 		{
 			var e = gridEdges[i];
-			if ( PolygonIntersectLineSegment( vertices, indices, e.Start, e.End, out var hit ) )
+			if ( PolygonIntersectLineSegment( vertices, indices, frame.PointToWorld( e.Start ), frame.PointToWorld( e.End ), out var hit ) )
 				snaps.Add( new SnapPoint( hit, EdgeCutAlignment.None ) );
 		}
 	}

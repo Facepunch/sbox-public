@@ -1,4 +1,4 @@
-﻿// IMPORTANT: TEMPORARY WILL GET REMOVED, and replaced by System.IO.Hashing after .NET10 drops
+﻿// In-tree copy of System.IO.Hashing XXH3. The switch to the package (#5208) was reverted in #5290.
 
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.

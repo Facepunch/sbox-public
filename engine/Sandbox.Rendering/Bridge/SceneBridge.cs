@@ -5,7 +5,7 @@ namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
 /// Borealis behind the engine's scene renderer seam (<see cref="ISceneRenderer"/>) in a process drawing on Borealis.Gpu
-/// (<c>-borealisgpu</c>): one world mirror per scene world and a render system per camera view. Registered at startup
+/// (<c>-borealisgpu</c>): one world renderer per scene world and a render system per camera view. Registered at startup
 /// (<see cref="EngineHooks"/>). A camera's frame on the device is in <c>SceneBridge.Gpu.cs</c>.
 /// </summary>
 internal sealed partial class SceneBridge : ISceneRenderer
@@ -14,7 +14,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// Strongly owned world/view state requires explicit disposal of native resources.
 	/// Released on deletion or shutdown; unreported invalid entries are swept next frame.
 	/// </summary>
-	readonly Dictionary<SceneWorld, SceneMirror> mirrors = new();
+	readonly Dictionary<SceneWorld, WorldRender> renders = new();
 	readonly Dictionary<ViewKey, CameraState> views = new();
 
 	/// <summary>
@@ -42,7 +42,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		}
 
 		/// <summary>
-		/// How long the last frame's mirror sync took (<see cref="RenderStats.SyncMs"/>).
+		/// How long preparing the last frame's world took (<see cref="RenderStats.SyncMs"/>).
 		/// </summary>
 		public double SyncMs;
 
@@ -125,32 +125,32 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	}
 
 	/// <summary>
-	/// Stop mirroring a deleted world, as a camera's main world or as an extra world, and stop drawing it in other worlds or
+	/// Stop drawing a deleted world, as a camera's main world or as an extra world, and stop drawing it in other worlds or
 	/// them in it.
 	/// </summary>
 	public void Forget( SceneWorld world )
 	{
 		if ( world is null ) return;
 
-		mirrors.Remove( world, out var mirror );
+		renders.Remove( world, out var render );
 		foreach ( var (key, _) in extras )
 		{
-			if ( key.Source == world || (mirror is not null && key.Host == mirror) ) invalidExtras.Add( key );
+			if ( key.Source == world || (render is not null && key.Host == render) ) invalidExtras.Add( key );
 		}
 
 		FreeExtras();
-		mirror?.Dispose();
+		render?.Dispose();
 	}
 
 	/// <summary>
 	/// An extra world (<see cref="SceneCamera.Worlds"/>, <see cref="SceneCamera.DebugWorlds"/>) drawn in a main world's views:
-	/// its own mirror's world, included in the main world's (<see cref="RenderWorld.Include"/>) under a sub-world number.
+	/// its own render world, included in the main world's (<see cref="RenderWorld.Include"/>) under a sub-world number.
 	/// </summary>
-	readonly record struct ExtraKey( SceneWorld Source, SceneMirror Host );
+	readonly record struct ExtraKey( SceneWorld Source, WorldRender Host );
 
 	sealed class ExtraWorld
 	{
-		public SceneMirror Mirror;
+		public WorldRender Render;
 
 		/// <summary>The sub-world it has in the host's world.</summary>
 		public int SubWorld;
@@ -180,7 +180,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		foreach ( var key in invalidExtras )
 		{
 			if ( !extras.Remove( key, out var extra ) ) continue;
-			key.Host.World.Exclude( extra.Mirror.World );
+			key.Host.World.Exclude( extra.Render.World );
 		}
 
 		invalidExtras.Clear();
@@ -220,7 +220,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		FreeIdleCaptures( frame );
 		MirrorContent.FreeCollected();
 
-		foreach ( var (world, _) in mirrors )
+		foreach ( var (world, _) in renders )
 		{
 			if ( !world.IsValid() ) invalidWorlds.Add( world );
 		}
@@ -252,9 +252,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		bitmapTarget?.Dispose();
 		bitmapTarget = null;
 
-		foreach ( var (_, mirror) in mirrors )
-			mirror.Dispose();
-		mirrors.Clear();
+		foreach ( var (_, render) in renders )
+			render.Dispose();
+		renders.Clear();
 	}
 
 	/// <summary>
@@ -281,11 +281,11 @@ internal sealed partial class SceneBridge : ISceneRenderer
 
 	long captureHeldSince;
 
-	/// <summary>Pending mirror changes that mean a scene has just loaded rather than changing as it plays.</summary>
+	/// <summary>Objects and changes waiting for a world's frame that mean a scene has just loaded rather than changing as it plays.</summary>
 	const int LoadedSceneChanges = 256;
 
 	/// <summary>
-	/// While a world's mirror has a loaded scene's objects still to apply, or models load
+	/// While a world has a loaded scene's objects still to make, or models load
 	/// (<see cref="Borealis.Backend.BackendDevice.LoadingModels"/>), up to <see cref="MaxCaptureHoldMs"/>: a probe captured
 	/// then misses them, and each of its faces rescans what it draws as they arrive, which made the frames after a map load
 	/// several times native's.
@@ -295,10 +295,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		get
 		{
 			var loading = MirrorContent.Gpu is { LoadingModels: true };
-			foreach ( var (_, mirror) in mirrors )
+			foreach ( var (_, render) in renders )
 			{
 				if ( loading ) break;
-				loading = mirror.PendingChanges >= LoadedSceneChanges;
+				loading = render.PendingChanges >= LoadedSceneChanges;
 			}
 
 			if ( !HoldCapturesWhileLoading || !loading )
@@ -313,10 +313,108 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		}
 	}
 
-	SceneMirror MirrorFor( SceneWorld world )
+	/// <summary>Whether a game scene loading behind a loading screen has its objects made each frame (on). For comparisons.</summary>
+	internal static bool LoadAhead { get; set; } = true;
+
+	/// <summary>
+	/// Unseen renders of a game scene nothing has shown yet (<see cref="BeginFrame"/>), at most: one a game only ever draws
+	/// into textures isn't rendered unseen for ever.
+	/// </summary>
+	const int MaxUnseenRenders = 20;
+
+	/// <summary>Frames after the game's load that a scene it hasn't shown yet is still loaded ahead in.</summary>
+	const int LoadAheadFramesAfterLoad = 300;
+
+	/// <inheritdoc/>
+	public void BeginFrame()
 	{
-		if ( !mirrors.TryGetValue( world, out var mirror ) ) mirrors[world] = mirror = new SceneMirror( world );
-		return mirror;
+		// Until the game first draws its scene (behind the loading screen, and in the frames the game starts in after its load)
+		// nothing renders the scene's world, so nothing would ask for its models until the first frame that does: its
+		// objects are applied each frame instead, as they arrive, so their models are read and made, within the device's
+		// loading budget, before the first frame shows them
+		if ( !LoadAhead || Application.IsEditor || Gpu is not { } gpu || MirrorContent.Gpu is not { AsyncModels: true } services ) return;
+
+		// The game's scene, whichever context is current: the frame's output runs outside the game's
+		if ( Sandbox.Engine.GlobalContext.Game?.ActiveScene is not { IsValid: true } scene || scene.SceneWorld is not { } world || !world.IsValid() ) return;
+		var render = RenderFor( world );
+		if ( render.Shown ) return;
+
+		// While the game loads, and a few seconds after: a scene a game never shows in the window (one it only draws into
+		// textures) isn't prepared with loading budgets for ever
+		var frame = Application.FrameCount;
+		if ( GameLoading( scene ) ) render.LoadedFrame = 0;
+		else if ( render.LoadedFrame == 0 ) render.LoadedFrame = frame;
+		else if ( frame - render.LoadedFrame > LoadAheadFramesAfterLoad ) return;
+		LoadAheadFrames++;
+
+		gpu.FollowFrame();
+		services.Loading = true;
+		render.PrepareFrame();
+
+		// Once its models are made, its camera's view renders unseen every few frames: the first frame after the load finds
+		// the view's resident lists, child views (water's refraction), pipelines and targets made, and its textures streamed
+		if ( !WarmWhileLoading || gpu.Services.LoadingModels || warmSize.x < 1 || Application.FrameCount < warmFrame || render.UnseenRenders >= MaxUnseenRenders ) return;
+		if ( ShownCamera( scene ) is not { } camera ) return;
+
+		warmFrame = Application.FrameCount + WarmEveryFrames;
+		render.UnseenRenders++;
+		using var zone = Borealis.Zones.LoadWarm.Start();
+		using var context = new Sandbox.Engine.GlobalContext.GlobalContextScope( Sandbox.Engine.GlobalContext.Game );
+		warming = true;
+		try
+		{
+			camera.AddToRenderList( default, warmSize );
+		}
+		finally
+		{
+			warming = false;
+			System.Threading.Interlocked.Increment( ref BorealisGpuRenderBackend.UnseenRenders );
+		}
+	}
+
+	/// <summary>
+	/// The camera a scene would show in the window: its main camera when that's active, else its active camera drawing into
+	/// the window that's marked main or has the highest priority (the main camera isn't worked out while it loads).
+	/// </summary>
+	static CameraComponent ShownCamera( Scene scene )
+	{
+		if ( scene.Camera is { IsValid: true, Active: true, RenderTarget: null, IsSceneEditorCamera: false } main ) return main;
+		CameraComponent best = null;
+		foreach ( var camera in scene.GetAllComponents<CameraComponent>() )
+		{
+			if ( !camera.Active || camera.RenderTarget is not null || camera.IsSceneEditorCamera ) continue;
+			if ( best is null || (camera.IsMainCamera && !best.IsMainCamera) || (camera.IsMainCamera == best.IsMainCamera && camera.Priority > best.Priority) ) best = camera;
+		}
+
+		return best;
+	}
+
+	/// <summary>Whether a loading scene's camera renders unseen once its models are made (<see cref="BeginFrame"/>; on). For comparisons.</summary>
+	internal static bool WarmWhileLoading { get; set; } = true;
+
+	/// <summary>Frames between a loading scene's unseen renders.</summary>
+	const int WarmEveryFrames = 4;
+
+	ulong warmFrame;
+
+	/// <summary>Frames a game scene was loaded ahead in (<see cref="BeginFrame"/>), for measuring.</summary>
+	internal static int LoadAheadFrames { get; private set; }
+
+	// The game window's size and samples, from its last render, for unseen renders; whether one is under way
+	Vector2 warmSize;
+	int warmSamples = 1;
+	bool warming;
+
+	/// <summary>
+	/// Whether the game is loading: its scene's loading tasks, the loading screen, connecting, or the game instance's load. Its scene's
+	/// camera draws over the loading screen then (<c>Game.Render</c>), which doesn't count as showing the scene.
+	/// </summary>
+	static bool GameLoading( Scene scene ) => (scene?.IsLoading ?? false) || LoadingScreen.IsVisible || Networking.IsConnecting || (IGameInstance.Current?.IsLoading ?? false);
+
+	WorldRender RenderFor( SceneWorld world )
+	{
+		if ( !renders.TryGetValue( world, out var render ) ) renders[world] = render = new WorldRender( world );
+		return render;
 	}
 
 	CameraState StateFor( SceneCamera camera, int viewHash )
@@ -328,7 +426,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 
 	/// <summary>
 	/// What a view needs that Borealis doesn't do yet, or null when it can render it. Each is a gap listed in
-	/// docs/managed/render-paths.md.
+	/// docs/reference/borealis-render-paths.md.
 	/// </summary>
 	internal static string NotYetInBorealis( SceneCamera camera, in ViewSetup setup )
 	{
@@ -338,13 +436,13 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	}
 
 	/// <summary>
-	/// Sync the world and prepare the camera's view, in <paramref name="given"/> (a cube capture's face) rather than the
+	/// Prepare the world and the camera's view, in <paramref name="given"/> (a cube capture's face) rather than the
 	/// camera view's own state when one is given.
 	/// </summary>
-	(SceneMirror Mirror, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size, CameraState given = null )
+	(WorldRender Render, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size, CameraState given = null )
 	{
-		// A child view prepares while its parent's frame records, on workers too, from the mirrors the parent synced: it
-		// changes no world anyone's drawing (an unseen world's mirror is new, and synced once)
+		// A child view prepares while its parent's frame records, on workers too, from the worlds the parent prepared: it
+		// changes no world anyone's drawing (an unseen world's is new, and prepared once)
 		var parent = rendering;
 		if ( parent is null )
 		{
@@ -357,18 +455,18 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		// Borealis traces screen-space reflections as the graphics settings leave them (r_ssr_downsample_ratio)
 		Borealis.ScreenSpaceReflectionsLayer.Enabled = ScreenSpaceReflectionsPass.IsEnabled;
 
-		var syncStart = System.Diagnostics.Stopwatch.GetTimestamp();
-		var mirror = MirrorFor( camera.World );
-		if ( parent is null || !mirror.HasSynced ) mirror.Sync( camera );
-		SyncSkybox( mirror, camera, setup );
+		var prepareStart = System.Diagnostics.Stopwatch.GetTimestamp();
+		var render = RenderFor( camera.World );
+		if ( parent is null || !render.HasPrepared ) render.Prepare( camera );
+		PrepareSkybox( render, camera, setup );
 
 		var state = given ?? StateFor( camera, setup.ViewHash );
 		state.LastFrame = Application.FrameCount;
-		state.Drawer.Mirror = mirror;
-		state.View.SubWorlds = SyncExtraWorlds( mirror, camera, setup, state.Drawer.ExtraMirrors );
-		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( syncStart ).TotalMilliseconds;
+		state.Drawer.Render = render;
+		state.View.SubWorlds = PrepareExtraWorlds( render, camera, setup, state.Drawer.ExtraWorlds );
+		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( prepareStart ).TotalMilliseconds;
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters { SyncMs = state.SyncMs } );
-		FillView( state.View, camera, setup, size, mirror );
+		FillView( state.View, camera, setup, size, render );
 
 		// The camera's attributes under the view's, as native's camera renderer sets them on its view: what the camera
 		// component and the scene's render attributes set (Rust Legacy lights its models by its time of day there)
@@ -383,7 +481,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 
 		// A top-level view's planar reflection is its camera frame's (RenderPlanarReflectionOnGpu)
 		else state.View.ViewAttributes = null;
-		return (mirror, state);
+		return (render, state);
 	}
 
 	/// <summary>
@@ -466,12 +564,12 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	}
 
 	/// <summary>
-	/// Sync the camera's extra worlds into its main world's mirror, and return the sub-worlds its view draws. The worlds are
+	/// Prepare the camera's extra worlds, included in its main world's, and return the sub-worlds its view draws. The worlds are
 	/// <c>CameraRenderer.Configure</c>'s: <see cref="SceneCamera.Worlds"/>, then <see cref="SceneCamera.DebugWorlds"/> (gizmos,
 	/// the scene's debug world) unless the view turns debug overlays off, each once and never the main world. Native draws them
 	/// in the main world's view, in the same layers and depth, lit by what lights it.
 	/// </summary>
-	ulong SyncExtraWorlds( SceneMirror host, SceneCamera camera, in ViewSetup setup, List<SceneMirror> drawn )
+	ulong PrepareExtraWorlds( WorldRender host, SceneCamera camera, in ViewSetup setup, List<WorldRender> drawn )
 	{
 		drawn.Clear();
 		var main = camera.World;
@@ -480,7 +578,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		foreach ( var world in camera.Worlds )
 		{
 			if ( world is null || world == main ) continue;
-			shown |= SyncExtraWorld( host, world, camera, drawn );
+			shown |= PrepareExtraWorld( host, world, camera, drawn );
 		}
 
 		if ( setup.EnableDebugOverlays == false ) return shown;
@@ -488,13 +586,13 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		foreach ( var world in camera.DebugWorlds )
 		{
 			if ( world is null || world == main || camera.Worlds.Contains( world ) ) continue;
-			shown |= SyncExtraWorld( host, world, camera, drawn );
+			shown |= PrepareExtraWorld( host, world, camera, drawn );
 		}
 
 		return shown;
 	}
 
-	ulong SyncExtraWorld( SceneMirror host, SceneWorld world, SceneCamera camera, List<SceneMirror> drawn )
+	ulong PrepareExtraWorld( WorldRender host, SceneWorld world, SceneCamera camera, List<WorldRender> drawn )
 	{
 		if ( !world.IsValid() ) return 0;
 
@@ -504,8 +602,8 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			// A new extra world adds to the world its parent's frame is drawing: a child view goes without it
 			if ( rendering is not null ) return 0;
 
-			var mirror = MirrorFor( world );
-			var subWorld = host.World.Include( mirror.World );
+			var render = RenderFor( world );
+			var subWorld = host.World.Include( render.World );
 			if ( subWorld == 0 )
 			{
 				if ( !warnedSubWorlds )
@@ -517,40 +615,40 @@ internal sealed partial class SceneBridge : ISceneRenderer
 				return 0;
 			}
 
-			extras[key] = extra = new ExtraWorld { Mirror = mirror, SubWorld = subWorld };
+			extras[key] = extra = new ExtraWorld { Render = render, SubWorld = subWorld };
 		}
 
 		extra.LastFrame = Application.FrameCount;
 
-		// A child view's extra worlds were synced by its parent, or another view this frame
-		if ( rendering is null || !extra.Mirror.HasSynced ) extra.Mirror.SyncObjects( camera );
-		drawn.Add( extra.Mirror );
+		// A child view's extra worlds were prepared by its parent, or another view this frame
+		if ( rendering is null || !extra.Render.HasPrepared ) extra.Render.PrepareFrame();
+		drawn.Add( extra.Render );
 		return SubWorldBit( extra.SubWorld );
 	}
 
 	bool warnedSubWorlds;
 
 	/// <summary>
-	/// Mirror the world's <c>MapSkybox3D</c>, origin and scale.
+	/// The world's <c>MapSkybox3D</c>, origin and scale.
 	/// </summary>
-	void SyncSkybox( SceneMirror mirror, SceneCamera camera, in ViewSetup setup )
+	void PrepareSkybox( WorldRender render, SceneCamera camera, in ViewSetup setup )
 	{
 		var source = camera.World.GetRenderingSkybox();
 
 		if ( source is null )
 		{
-			mirror.World.Skybox3D = null;
+			render.World.Skybox3D = null;
 			return;
 		}
 
-		var skyMirror = MirrorFor( source.SkyboxWorld );
-		if ( rendering is null || !skyMirror.HasSynced ) skyMirror.Sync( camera, skyboxView: true );
+		var skyRender = RenderFor( source.SkyboxWorld );
+		if ( rendering is null || !skyRender.HasPrepared ) skyRender.Prepare( camera, skyboxView: true );
 
-		var skybox = mirror.World.Skybox3D;
-		if ( skybox?.World != skyMirror.World ) skybox = mirror.World.Skybox3D = new Borealis.Skybox3D( skyMirror.World );
+		var skybox = render.World.Skybox3D;
+		if ( skybox?.World != skyRender.World ) skybox = render.World.Skybox3D = new Borealis.Skybox3D( skyRender.World );
 		skybox.Origin = source.Origin;
 		skybox.Scale = source.Scale;
-		skybox.Fog = setup.Fog.HasValue ? setup.Fog.ToBorealis( mirror.TextureResolver ) : camera.EnablePostProcessing ? source.ResolveFog( camera ).ToBorealis( mirror.TextureResolver ) : null;
+		skybox.Fog = setup.Fog.HasValue ? setup.Fog.ToBorealis( render.TextureResolver ) : camera.EnablePostProcessing ? source.ResolveFog( camera ).ToBorealis( render.TextureResolver ) : null;
 	}
 
 	/// <summary>A camera's debug view: <c>mat_toolsvis</c> over its own mode, as <c>CameraRenderer.Configure</c> takes them.</summary>
@@ -564,7 +662,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// Copy the native camera, including applied modifiers/shake and horizontal FOV, with a view's overrides on top, as
 	/// <c>CameraRenderer.Configure</c> applies them.
 	/// </summary>
-	internal static void FillView( RenderView view, SceneCamera camera, in ViewSetup setup, Vector2 size, SceneMirror mirror = null )
+	internal static void FillView( RenderView view, SceneCamera camera, in ViewSetup setup, Vector2 size, WorldRender render = null )
 	{
 		view.Name = camera.Name;
 		view.Position = setup.Transform?.Position ?? camera.Position;
@@ -573,7 +671,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		view.ZNear = setup.ZNear ?? camera.ZNear;
 		view.ZFar = setup.ZFar ?? camera.ZFar;
 		view.ClearColor = setup.ClearColor ?? camera.BackgroundColor;
-		view.Fog = camera.ResolveFog( setup ).ToBorealis( mirror?.TextureResolver );
+		view.Fog = camera.ResolveFog( setup ).ToBorealis( render?.TextureResolver );
 
 		view.ToolsView = camera.ToolsView;
 		view.ToolsVisMode = ToolsVisModeOf( camera );
@@ -662,6 +760,13 @@ internal sealed partial class SceneBridge : ISceneRenderer
 
 	public void Render( SceneCamera camera, SwapChainHandle_t swapChain, Vector2? size, in ViewSetup setup )
 	{
+		// An unseen render of a loading scene's view (BeginFrame): its frame is made and let go, nothing is drawn with it
+		if ( warming && Gpu is { } warmGpu )
+		{
+			RenderUnseen( warmGpu, camera, size ?? warmSize, warmSamples, setup );
+			return;
+		}
+
 		// A game window on Borealis.Gpu has no Source 2 swap chain: the camera draws into the window's frame
 		if ( swapChain.self == default && BorealisGpuWindow.Drawing is { } window )
 		{
@@ -783,11 +888,11 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	}
 
 	/// <summary>
-	/// What the mirror of a camera view's world holds in its caches, or null before its first render.
+	/// What a camera view's world holds in its caches, or null before its first render.
 	/// </summary>
-	internal MirrorCacheCounts? CachesFor( SceneCamera camera, in ViewSetup setup )
+	internal WorldCacheCounts? CachesFor( SceneCamera camera, in ViewSetup setup )
 	{
 		if ( !views.TryGetValue( new ViewKey( camera._cameraId, setup.ViewHash ), out var state ) ) return null;
-		return state.Drawer.Mirror?.Caches;
+		return state.Drawer.Render?.Caches;
 	}
 }

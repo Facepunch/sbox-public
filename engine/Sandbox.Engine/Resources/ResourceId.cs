@@ -5,8 +5,29 @@ namespace Sandbox;
 /// <summary>
 /// An identifier of a resource, which can be backed by either a GUID, a path, or both.
 /// </summary>
-internal struct ResourceId : IJsonConvert
+public struct ResourceId : IJsonConvert
 {
+	/// <summary>
+	/// Capture a path's current GUID, when it is registered with the resource system.
+	/// </summary>
+	public static ResourceId FromPath( string path )
+	{
+		return new ResourceId
+		{
+			Path = path,
+			Guid = !string.IsNullOrEmpty( path ) && NativeEngine.g_pResourceSystem.ResolvePathToGuid( path, out var guid ) ? guid : null
+		};
+	}
+
+	/// <summary>
+	/// Resolve the current path by GUID, falling back to the stored path when unavailable.
+	/// </summary>
+	public readonly string ResolvePath()
+	{
+		var path = Guid is Guid guid && guid != System.Guid.Empty ? NativeEngine.g_pResourceSystem.ResolveGuidToPath( guid ) : null;
+		return string.IsNullOrEmpty( path ) ? Path : path;
+	}
+
 	/// <summary>
 	/// GUID of the resource, prefer this over path if available.
 	/// </summary>
@@ -17,7 +38,7 @@ internal struct ResourceId : IJsonConvert
 	/// </summary>
 	public string Path { get; set; }
 
-	public bool IsEmpty => (Guid is null || Guid == default) && string.IsNullOrEmpty( Path );
+	public bool IsEmpty => (Guid is null || Guid == System.Guid.Empty) && string.IsNullOrEmpty( Path );
 
 	public static ResourceId Get( Resource resource )
 	{
@@ -37,14 +58,14 @@ internal struct ResourceId : IJsonConvert
 	{
 		if ( reader.TokenType == JsonTokenType.String )
 		{
-			return new ResourceId() { Path = reader.GetString() };
+			return new ResourceId { Path = reader.GetString() };
 		}
 
 		using var doc = JsonDocument.ParseValue( ref reader );
 		var root = doc.RootElement;
 
 		if ( root.ValueKind != JsonValueKind.Object )
-			return default;
+			return default( ResourceId );
 
 		//
 		// Resource reference, either by path or by guid
@@ -91,4 +112,5 @@ internal struct ResourceId : IJsonConvert
 	public static implicit operator ResourceId( Guid guid ) => new() { Guid = guid };
 
 	public override string ToString() => $"{Path} ({Guid})";
+
 }

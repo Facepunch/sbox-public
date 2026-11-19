@@ -1,0 +1,47 @@
+{
+  "HasHumanSkin": true,
+  "HumanSkinModel": "models/player/sbzombie/zombie_male.vmdl",
+  "HumanSkinMaterialGroup": "default",
+  "HumanSkinTags": "male,zombie",
+  "AllowedSlots": "HeadTop",
+  "HumanSkinMaterial": null,
+  "HumanEyesMaterial": null,
+  "Title": "Zombie",
+  "Subtitle": null,
+  "Type": "PlayerModel",
+  "Category": "Skin",
+  "ConditionalModels": {},
+  "Tags": null,
+  "Model": null,
+  "HumanAltModel": null,
+  "HumanAltFemaleModel": null,
+  "SkinMaterial": null,
+  "EyesMaterial": null,
+  "MaterialGroup": null,
+  "HeelHeight": 0,
+  "SlotsUnder": "None",
+  "SlotsOver": "None",
+  "HideBody": 0,
+  "DeformationMode": "Normal",
+  "AllowTintSelect": false,
+  "TintSelection": {
+    "blend": "Linear",
+    "color": [
+      {
+        "t": 0.5,
+        "c": "1,1,1,1"
+      }
+    ],
+    "alpha": []
+  },
+  "TintDefault": 0.5,
+  "SteamItemDefinitionId": 709126,
+  "Icon": {
+    "Path": "models/player/sbzombie/zombie.clothing.vtex",
+    "Mode": "HumanSkin",
+    "UsePositionOffset": false,
+    "PositionOffset": "0,0,0"
+  },
+  "__references": [],
+  "__version": 0
+}

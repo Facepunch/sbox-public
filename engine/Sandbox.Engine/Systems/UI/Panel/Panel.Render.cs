@@ -7,29 +7,32 @@ namespace Sandbox.UI;
 
 public partial class Panel
 {
-	sealed class DrawCallbacks( bool hasCallback )
+	sealed class DrawCallbacks( Type owner )
 	{
-		internal readonly bool HasCallback = hasCallback;
+		/// <summary>The most derived type overriding OnDraw, or null when none does.</summary>
+		internal readonly Type Owner = owner;
 	}
 
 	static readonly ConditionalWeakTable<Type, DrawCallbacks> _drawCallbacks = new();
+	Type _drawCallbackOwner;
 	bool _hasDrawCallback;
 
 	void UpdateDrawCallbacks()
 	{
-		_hasDrawCallback = _drawCallbacks.GetValue( GetType(), static type =>
+		_drawCallbackOwner = _drawCallbacks.GetValue( GetType(), static type =>
 		{
 			for ( var current = type; current != typeof( Panel ); current = current.BaseType )
 			{
 				foreach ( var method in current.GetMethods( BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly ) )
 				{
 					if ( method.Name == nameof( OnDraw ) && method.GetBaseDefinition().DeclaringType == typeof( Panel ) )
-						return new DrawCallbacks( true );
+						return new DrawCallbacks( current );
 				}
 			}
 
-			return new DrawCallbacks( false );
-		} ).HasCallback;
+			return new DrawCallbacks( null );
+		} ).Owner;
+		_hasDrawCallback = _drawCallbackOwner is not null;
 	}
 
 	internal Matrix RenderTransform => GlobalMatrixInverted ?? Matrix.Identity;

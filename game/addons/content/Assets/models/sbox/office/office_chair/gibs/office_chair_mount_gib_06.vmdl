@@ -1,0 +1,154 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "office_chair.vmat"
+								to = "models/sbox/office/office_chair/materials/office_chair.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+					{
+						_class = "MaterialGroup"
+						name = "tint"
+						remaps = 
+						[
+							{
+								from = "models/sbox/office/office_chair/materials/office_chair.vmat"
+								to = "models/sbox/office/office_chair/materials/office_chair_tint.vmat"
+							},
+						]
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ 0.017934, 8.11034, 3.729569 ]
+						angles = [ 0.0, 0.0, -4.210063 ]
+						dimensions = [ 2.349508, 13.379873, 1.602869 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						radius = 3.0
+						point0 = [ -0.0859, 0.13025, 3.057289 ]
+						point1 = [ -0.0859, 0.13025, 5.057289 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 1.5
+						point0 = [ 0.061937, 0.03006, 4.841145 ]
+						point1 = [ 0.061937, 0.03006, 13.328863 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ 7.877239, 2.522171, 3.729569 ]
+						angles = [ -0.0, -72.715858, -4.210063 ]
+						dimensions = [ 2.349508, 13.379873, 1.602869 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ 4.820628, -6.739215, 3.729569 ]
+						angles = [ -0.0, -144.309402, -4.210062 ]
+						dimensions = [ 2.349508, 13.379873, 1.602869 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -4.93648, -6.647161, 3.729569 ]
+						angles = [ -0.000001, 143.294662, -4.210062 ]
+						dimensions = [ 2.349508, 13.379873, 1.602869 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -3.998571, 1.344653, 3.94946 ]
+						angles = [ -0.000001, 69.895752, -4.210061 ]
+						dimensions = [ 2.349508, 4.492893, 1.602869 ]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						filename = "models/sbox/office/office_chair/office_chair.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"office_chair_mount_gib_06",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children = 
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 2.5
+						inertia_scale = 1.0
+						linear_damping = 0.08
+						angular_damping = 0.3
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

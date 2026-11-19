@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/gloves/goalie_gloves/goalie_gloves.clothing.png",
+    "Path": "models/citizen_clothes/gloves/goalie_gloves/goalie_gloves.clothing.vtex",
     "Mode": "Hand",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

@@ -10,7 +10,7 @@ using System.Threading;
 namespace BorealisGpuTests;
 
 /// <summary>
-/// Shaders an older engine compiled (a package's, docs/managed/pass-modules.md): their stages come from a pass module made
+/// Shaders an older engine compiled (a package's, docs/reference/borealis-pass-modules.md): their stages come from a pass module made
 /// from the source embedded in the file, compiled here, not from a recompile through the ShaderCompiler; and the same
 /// variants come out as the recompiled file's.
 /// </summary>

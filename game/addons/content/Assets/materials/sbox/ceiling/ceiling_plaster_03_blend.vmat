@@ -1,0 +1,44 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/blendable.shader"
+
+	//---- Number Of Blendable Layers ----
+	F_MULTIBLEND 1 // 2 Layers
+
+	//---- Use Tint Masks In Vertex Paint ----
+	F_USE_TINT_MASKS_IN_VERTEX_PAINT 1
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material A ----
+	g_flTintColorA "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusionA "materials/sbox/ceiling/ceiling_plaster_03a_ao.png"
+	TextureBlendMaskA "materials/sbox/ceiling/ceiling_plaster_02_blend.png"
+	TextureColorA "materials/sbox/ceiling/ceiling_plaster_03a_color.png"
+	TextureMetalnessA "materials/default/default_metal.tga"
+	TextureNormalA "materials/sbox/ceiling/ceiling_plaster_03a_normal.png"
+	TextureRoughnessA "materials/sbox/ceiling/ceiling_plaster_03a_rough.png"
+	TextureTintMaskA "[1.000000 1.000000 1.000000 0.000000]"
+
+	//---- Material B ----
+	g_flBlendSoftnessB "1.000"
+	g_flTintColorB "[1.000000 1.000000 1.000000 0.000000]"
+	g_vTexCoordScale2 "[1.000 1.000]"
+	TextureAmbientOcclusionB "materials/sbox/ceiling/ceiling_plaster_03b_ao.png"
+	TextureBlendMaskB "materials/sbox/ceiling/ceiling_plaster_02_blend.png"
+	TextureColorB "materials/sbox/ceiling/ceiling_plaster_03b_color.png"
+	TextureMetalnessB "materials/default/default_metal.tga"
+	TextureNormalB "materials/sbox/ceiling/ceiling_plaster_03b_normal.png"
+	TextureRoughnessB "materials/sbox/ceiling/ceiling_plaster_03b_rough.png"
+	TextureTintMaskB "materials/sbox/ceiling/ceiling_plaster_03b_tint.png"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "cardboard"
+		WorldMappingWidth "128"
+		WorldMappingHeight "128"
+	}
+}

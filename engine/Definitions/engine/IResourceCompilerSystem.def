@@ -45,8 +45,12 @@ native static accessor g_pResourceCompilerSystem as IResourceCompilerSystem
 		return g_pResourceCompilerSystem->GenerateResourceFile( path, compileSettings );
 	}
 
-	bool RunBuildJob( string mode, string source, string staging, string report );
-	string GetLoadedAfterBuildJob();
+	bool RunBuildJob( string mode, string source, string staging, string report, string args );
+	void MountBuildJobStaging( string staging, bool mount );
+	void UnloadBuildJobs();
+	bool HasLoadedCompiledFile( string fullPath );
+	void RunMainThreadWork();
+	void* ModelGameData();
 
 	// The main extension of the engine asset type a file extension is one of, or null
 	inline string FindAssetTypeExtension( string ext )

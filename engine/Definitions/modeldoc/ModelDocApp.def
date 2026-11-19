@@ -15,6 +15,7 @@
 #include "modeldoc_lib/modeldoc_anim.h"
 #include "modeldoc_lib/modeldoc_animfile.h"
 #include "modeldoc_lib/modeldoc_errors.h"
+#include "modeldoc_lib/modeldoc_morphcontrol.h"
 #include "modeldoc_utils/imodeldocutils.h"
 #include "modeldoc_utils/imodeldocloaderutils.h"
 #include "tier0/fmtstr.h"
@@ -40,6 +41,41 @@ managed static class Editor.ModelEditor.ModelDoc
 
 native static class NativeEngine.ModelDoc
 {
+	inline QStringList GetMorphChannels( string pFilename, out int pSuccess )
+	{
+		QStringList names;
+		*pSuccess = 0;
+		if ( !IsModelDocLibInitialized() || !g_pModelDocUtils )
+		{
+			Warning( "Cannot read morph channels: ModelDoc is not initialized.\n" );
+			return names;
+		}
+
+		CModelDocErrorList errors;
+		IModelDocLoaderUtils *pLoaderUtils = g_pModelDocUtils->LoaderUtils();
+		CModelDocLoaderUtilsDataHandle data( pLoaderUtils, pLoaderUtils->LoadDataFromFile( pFilename, LOADER_DATA_MESH, &errors, LOADER_FORWARD_NODE_PTR_FALSE, true ) );
+		CUtlString errorText;
+		errors.GetAllErrorsAndWarningsAsString( &errorText );
+		if ( !errorText.IsEmpty() )
+			Warning( "Morph channels for '%s': %s\n", pFilename, errorText.Get() );
+		if ( !data.IsValid() || !data.GetDocument() )
+		{
+			Warning( "Cannot read morph channels from '%s'.\n", pFilename );
+			return names;
+		}
+
+		if ( const CModelDocMorphControlList *pControls = data.GetDocument()->FindSingletonNode< CModelDocMorphControlList >() )
+		{
+			CUtlVector< const CModelDocMorphControl * > controls;
+			pControls->GetChildren( &controls, MDGN_RECURSE_FULL, MDGN_FLAG_DEFAULT );
+			for ( const CModelDocMorphControl *pControl : controls )
+				names.append( QString::fromUtf8( pControl->GetName() ) );
+		}
+
+		*pSuccess = 1;
+		return names;
+	}
+
 	inline QStringList GetAnimationTakes( string pFilename, int nTake, out int nFrameCount )
 	{
 		QStringList names;

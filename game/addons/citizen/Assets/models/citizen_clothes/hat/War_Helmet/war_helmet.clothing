@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 385242,
   "Icon": {
-    "Path": "models/citizen_clothes/hat/war_helmet/war_helmet.clothing.png",
+    "Path": "models/citizen_clothes/hat/war_helmet/war_helmet.clothing.vtex",
     "Mode": "Head",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

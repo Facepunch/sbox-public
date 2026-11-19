@@ -175,7 +175,7 @@ static class Program
 		foreach ( var entry in archives )
 			group.GetOrCreateCompiler( entry.Archive.CompilerName ).UpdateFromArchive( entry.Archive );
 
-		// BuildAsync handles dependency ordering, parallel compilation, Razor, source generators, blacklist walker, Emit.
+		// BuildAsync handles dependency ordering, parallel compilation, Razor, source generators, code-access analyzer, Emit.
 		if ( !await group.BuildAsync() )
 		{
 			result.Errors = group.BuildResult.Diagnostics

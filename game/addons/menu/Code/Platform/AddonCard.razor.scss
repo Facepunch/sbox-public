@@ -1,0 +1,105 @@
+@import "/Platform/_platform.scss";
+
+AddonCard
+{
+	position: relative;
+	flex-direction: column;
+	margin: 6px;
+	flex-grow: 1;
+	border-radius: $platform-radius;
+	background-color: $platform-panel;
+	overflow: hidden;
+	cursor: pointer;
+	@include platform-sounds;
+
+	&.disabled-addon .art
+	{
+		opacity: 0.45;
+	}
+
+	.toggle
+	{
+		position: absolute;
+		top: 5px;
+		left: 5px;
+		padding: 2px;
+		border-radius: 4px;
+		background-color: rgba( 7, 17, 32, 0.85 );
+		color: white;
+		font-size: 20px;
+		opacity: 0;
+		transition: opacity 0.1s ease;
+
+		&:hover
+		{
+			background-color: $platform-button;
+		}
+	}
+
+	&:hover .toggle
+	{
+		opacity: 1;
+	}
+
+	.art
+	{
+		position: relative;
+		flex-grow: 1;
+		min-height: 0;
+		background-size: cover;
+		background-position: center;
+		background-color: $platform-button;
+		align-items: center;
+		justify-content: center;
+
+		.placeholder
+		{
+			font-size: 40px;
+			color: $platform-icon;
+		}
+
+		.size
+		{
+			position: absolute;
+			bottom: 5px;
+			right: 5px;
+			padding: 2px 5px;
+			border-radius: 4px;
+			background-color: rgba( 7, 17, 32, 0.85 );
+			color: white;
+			font-size: 9px;
+		}
+	}
+
+	.info
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		padding: 8px;
+		gap: 3px;
+
+		.title
+		{
+			font-size: 12px;
+			font-weight: 600;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+
+		.details
+		{
+			align-items: center;
+			gap: 4px;
+			font-size: 10px;
+			color: $platform-muted;
+
+			.author
+			{
+				flex-grow: 1;
+				min-width: 0;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+			}
+		}
+	}
+}

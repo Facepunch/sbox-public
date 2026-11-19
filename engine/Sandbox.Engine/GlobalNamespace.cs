@@ -1,5 +1,9 @@
 ﻿namespace Sandbox.Internal;
 
+/// <summary>
+/// Globals shared by compiled game code and scripts in the current game context.
+/// </summary>
+[Expose]
 public static class GlobalGameNamespace
 {
 	/// <summary>

@@ -1,6 +1,9 @@
 ﻿namespace Sandbox;
 
-[Flags]
+/// <summary>
+/// Controls network message delivery and RPC caller permissions.
+/// </summary>
+[Flags, Expose]
 public enum NetFlags : uint
 {
 	/// <summary>

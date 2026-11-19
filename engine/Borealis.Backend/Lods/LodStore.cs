@@ -14,7 +14,7 @@ using V3 = System.Numerics.Vector3;
 namespace Borealis.Backend.Lods;
 
 /// <summary>
-/// Generated levels of GPU-driven aggregate ranges (docs/managed/borealis-gpu-driven.md, "Generated LODs"). A fragment's
+/// Generated levels of GPU-driven aggregate ranges (docs/reference/borealis-gpu-driven.md, "Generated LODs"). A fragment's
 /// range is asked for as its records are written; its chain of coarser levels is built off the frame on workers
 /// (<see cref="LodBuilder"/>), and once a GPU-driven colour pass draws the range too, the levels' indices go in its index
 /// page's level room at a frame's start and every draw record over the range gets a LOD record: for each level its own
@@ -54,6 +54,14 @@ internal sealed class LodStore : IDisposable
 
 	/// <summary>Bytes a frame uploads at most (level indices); the rest waits for the next frame.</summary>
 	public long FrameUploadBytes { get; set; } = 16 << 20;
+
+	/// <summary>Whether a loading screen hides the frames (<see cref="BackendDevice.Loading"/>): a frame uploads <see cref="LoadingUploadBytes"/>.</summary>
+	public bool Loading { get; set; }
+
+	/// <summary>Bytes a frame behind a loading screen uploads at most.</summary>
+	public long LoadingUploadBytes { get; set; } = 128 << 20;
+
+	long UploadBudget => Loading ? Math.Max( LoadingUploadBytes, FrameUploadBytes ) : FrameUploadBytes;
 
 	enum Phase { Building, Built, Published, None }
 
@@ -472,7 +480,7 @@ internal sealed class LodStore : IDisposable
 				ready.Add( entry );
 			}
 
-			for ( int i = 0; i < ready.Count && budget < FrameUploadBytes; i++ )
+			for ( int i = 0; i < ready.Count && budget < UploadBudget; i++ )
 			{
 				var entry = ready[i];
 				if ( !entry.Color ) continue;

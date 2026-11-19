@@ -438,18 +438,20 @@ public static partial class SandboxSystemExtensions
 	public static string Snippet( this string source, string find, int padding )
 	{
 		if ( string.IsNullOrEmpty( find ) ) return string.Empty;
+		ArgumentOutOfRangeException.ThrowIfNegative( padding );
 
 		StringBuilder sb = new StringBuilder();
 
-		for ( int index = 0; index < source.Length; index += find.Length )
+		for ( int index = 0; index < source.Length; )
 		{
 			index = source.IndexOf( find, index, StringComparison.InvariantCultureIgnoreCase );
 			if ( index == -1 )
 				break;
 
 			var startPos = (index - padding).Clamp( 0, source.Length );
-			var endPos = (startPos + find.Length + padding * 2).Clamp( 0, source.Length );
-			index = endPos;
+			// Large padding must not overflow and move the search backwards.
+			var endPos = (int)Math.Min( (long)startPos + find.Length + (long)padding * 2, source.Length );
+			index = (int)Math.Min( (long)endPos + find.Length, source.Length );
 
 			if ( sb.Length > 0 )
 				sb.Append( " ... " );

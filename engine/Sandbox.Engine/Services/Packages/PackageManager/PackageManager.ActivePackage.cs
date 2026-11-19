@@ -16,14 +16,12 @@ internal static partial class PackageManager
 		public Package Package { get; private set; }
 		public BaseFileSystem FileSystem { get; private set; }
 
-		public PackageFileSystem PackageFileSystem { get; private set; }
+		/// <summary>
+		/// Downloaded files owned by this package, including a shared Workshop mount when appropriate.
+		/// </summary>
+		BaseFileSystem ContentFileSystem { get; set; }
 
 		public BaseFileSystem AssemblyFileSystem { get; private set; }
-
-		/// <summary>
-		/// Access control running over its assemblies ahead of them loading, see <see cref="PackageLoader.PreVerifyAsync(ActivePackage)"/>
-		/// </summary>
-		internal Task Verification { get; set; }
 
 		/// <summary>
 		/// The project settings folder
@@ -72,9 +70,6 @@ internal static partial class PackageManager
 			else
 			{
 				await o.DownloadAsync( token, options );
-
-				// Its code can get checked while the rest of the install happens, ready for when it loads
-				if ( package.TypeName is "game" or "library" ) _ = PackageLoader.PreVerifyAsync( o );
 			}
 
 			ActivePackages.Add( o );
@@ -104,21 +99,22 @@ internal static partial class PackageManager
 		{
 			Assert.True( Package.IsRemote );
 
-			PackageFileSystem = await Package.Download( token, options );
+			ContentFileSystem = await Package.Download( token, options );
 
-			if ( PackageFileSystem is null )
+			if ( ContentFileSystem is null )
 			{
 				throw new WebException( $"Unable to download package '{Package.FullIdent}'" );
 			}
 
 			// Before anything can load them: recompile shaders an older engine compiled
-			await Sandbox.Engine.Shaders.ShaderUpgrade.UpgradeAsync( PackageFileSystem.Redirect, Package.Title, token );
+			if ( ContentFileSystem is PackageFileSystem downloaded )
+				await Sandbox.Engine.Shaders.ShaderUpgrade.UpgradeAsync( downloaded.Redirect, Package.Title, token );
 
 			//
 			// Mount downloaded filesystem as our main filesystem
 			//
 			FileSystem = new AggregateFileSystem();
-			FileSystem.Mount( PackageFileSystem );
+			FileSystem.Mount( ContentFileSystem );
 
 			//
 			// Mount localization data from this package
@@ -141,13 +137,21 @@ internal static partial class PackageManager
 			}
 
 			//
-			// Mount assembly from this package
+			// Only the package's code archives. Its files can come from a workshop item anyone can upload to, and
+			// nothing checks a dll before it loads, so dlls only ever come from the backend or our own compile.
 			//
 			AssemblyFileSystem = new AggregateFileSystem();
 			if ( FileSystem.DirectoryExists( ".bin" ) )
 			{
-				// Mount as a subsystem of the package's FileSystem
-				AssemblyFileSystem.Mount( FileSystem.CreateSubSystem( ".bin" ) );
+				var archives = new MemoryFileSystem();
+				foreach ( var file in FileSystem.FindFile( ".bin", "*.cll", true ) )
+				{
+					var directory = System.IO.Path.GetDirectoryName( file );
+					if ( !string.IsNullOrEmpty( directory ) ) archives.CreateDirectory( directory );
+					archives.WriteAllBytes( file, FileSystem.ReadAllBytes( $".bin/{file}" ).ToArray() );
+				}
+
+				AssemblyFileSystem.Mount( archives );
 			}
 
 			MemoryFileSystem dllFs = null;
@@ -163,11 +167,9 @@ internal static partial class PackageManager
 				if ( dllFs is null && !hasArchives )
 					throw new System.Exception( $"Couldn't get the code for '{Package.FullIdent}': {error}" );
 			}
-			else if ( !HasCodeArchives() )
+			else if ( !HasCodeArchives() && HasManifestDlls() )
 			{
-				// Everything that isn't a game compiles its code archives on install, older revisions
-				// without any only have the dlls in their manifest
-				dllFs = await DownloadBinDllsAsync( Package.Revision, token );
+				Log.Warning( $"'{Package.FullIdent}' only has prebuilt dlls, which never load - it has no code until it's republished" );
 			}
 
 			if ( dllFs != null )
@@ -295,39 +297,9 @@ internal static partial class PackageManager
 			return (memFs, null);
 		}
 
-		private static async Task<MemoryFileSystem> DownloadBinDllsAsync( Package.IRevision revision, CancellationToken token )
-		{
-			var files = revision?.Manifest?.Files;
-			if ( files is null ) return null;
-
-			var dllFiles = files
-				.Where( f => f.Path.StartsWith( ".bin/", StringComparison.OrdinalIgnoreCase ) &&
-							 f.Path.EndsWith( ".dll", StringComparison.OrdinalIgnoreCase ) )
-				.ToArray();
-
-			if ( dllFiles.Length == 0 ) return null;
-
-			var memFs = new MemoryFileSystem();
-
-			foreach ( var file in dllFiles )
-			{
-				token.ThrowIfCancellationRequested();
-				LoadingScreen.Subtitle = System.IO.Path.GetFileName( file.Path );
-
-				var bytes = await GetCachedDllAsync( file, token );
-				if ( bytes is not null )
-				{
-					memFs.WriteAllBytes( System.IO.Path.GetFileName( file.Path ), bytes );
-				}
-			}
-
-			LoadingScreen.Subtitle = null;
-			return memFs;
-		}
-
 		/// <summary>
 		/// The dll's bytes from the download cache, fetched into it first when they aren't there or
-		/// don't match the manifest's crc. The bytes still go through access control before they load.
+		/// don't match the backend's crc. Nothing checks them before they load, so they must come from the backend.
 		/// </summary>
 		private static async Task<byte[]> GetCachedDllAsync( ManifestSchema.File file, CancellationToken token )
 		{
@@ -369,8 +341,8 @@ internal static partial class PackageManager
 		/// <summary>
 		/// Fallback for remote packages that ship code archives (.cll) but no precompiled dlls.
 		/// Compiles the archives locally and mounts the resulting assemblies onto
-		/// <see cref="AssemblyFileSystem"/>, matching how <see cref="DownloadBinDllsAsync"/>
-		/// exposes manifest dlls, so the normal load path picks them up.
+		/// <see cref="AssemblyFileSystem"/>, matching how <see cref="DownloadCompiledDllAsync"/>
+		/// exposes backend dlls, so the normal load path picks them up.
 		/// </summary>
 		internal async Task<bool> CompileCodeArchive()
 		{
@@ -387,7 +359,6 @@ internal static partial class PackageManager
 			analytic.SetValue( "archives", codeArchives );
 
 			using var group = new CompileGroup( Package.Ident );
-			group.AccessControl = PackageManager.AccessControl;
 			group.ReferenceProvider = this;
 
 			using ( analytic.ScopeTimer( "LoadArchives" ) )
@@ -496,8 +467,8 @@ internal static partial class PackageManager
 			FileSystem.Dispose();
 			FileSystem = default;
 
-			PackageFileSystem?.Dispose();
-			PackageFileSystem = null;
+			ContentFileSystem?.Dispose();
+			ContentFileSystem = null;
 
 			AssemblyFileSystem.Dispose();
 			AssemblyFileSystem = null;
@@ -512,6 +483,30 @@ internal static partial class PackageManager
 
 			// Reload any resident resources that were just unmounted (they shouldn't be used & will appear as an error, or a local variant)
 			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
+		}
+
+		/// <summary>
+		/// Is this one of a local project's assemblies built without the access check: tools, editor code,
+		/// standalone-only games, or anything loaded precompiled? Code from remote packages is checked on
+		/// the assumption that every package.* assembly it can reach was too.
+		/// </summary>
+		internal static bool IsUncheckedLocalAssembly( ActivePackage package, string assemblyName )
+		{
+			if ( package.Package is not LocalPackage local )
+				return false;
+
+			return IsUncheckedAssembly( package.AssemblyFileSystem, local.Compiler, assemblyName );
+		}
+
+		internal static bool IsUncheckedAssembly( BaseFileSystem assemblies, Compiler compiler, string assemblyName )
+		{
+			// Projects keep their assemblies under /.bin, so look anywhere like Lookup does
+			if ( assemblies?.FindFile( "/", $"{assemblyName}.dll", true ).Any() != true )
+				return false;
+
+			return compiler is null
+				|| !string.Equals( compiler.AssemblyName, assemblyName, StringComparison.OrdinalIgnoreCase )
+				|| !compiler.GetConfiguration().Whitelist;
 		}
 
 		public Microsoft.CodeAnalysis.PortableExecutableReference Lookup( string reference )
@@ -532,6 +527,10 @@ internal static partial class PackageManager
 					continue;
 
 				// TODO - maybe we should filter to make sure the package has the same tag as us?
+
+				// The access check trusts every package.* assembly, so none of them can be one it never ran on
+				if ( IsUncheckedLocalAssembly( package, reference ) )
+					continue;
 
 				var found = package.AssemblyFileSystem.FindFile( "/", targetAssemblyName, true ).FirstOrDefault();
 				if ( found == null ) continue;

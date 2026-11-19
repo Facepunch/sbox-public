@@ -9,7 +9,7 @@ namespace Borealis.Source2.Models;
 /// <summary>
 /// A compiled model (<c>.vmdl_c</c>): its meshes with their decoded vertex and index buffers and draw calls, LODs and
 /// their switch distances, mesh groups and the body groups made from them, material groups, bounds and the skeleton.
-/// See the <c>.vmdl_c</c> section of docs/managed/borealis-gpu.md.
+/// See the <c>.vmdl_c</c> section of docs/reference/borealis-gpu.md.
 /// <para>
 /// Read from the <c>DATA</c> block (KV3, <c>PermModelData_t</c>), the <c>CTRL</c> block (KV3, which blocks hold each
 /// embedded mesh) and each mesh's <c>MDAT</c> (KV3, <c>CRenderMesh</c>) and <c>MBUF</c> (buffers) blocks. Morph targets

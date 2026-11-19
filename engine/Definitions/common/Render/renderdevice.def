@@ -25,6 +25,7 @@ native accessor g_pRenderDevice
 	RenderDeviceInfo_t GetSwapChainInfo( SwapChainHandle_t swapChain );
 	ITexture FindOrCreateFileTexture( string pFileName, RenderSystemAssetFileLoadMode nLoadMode );
 	ITexture FindOrCreateTexture2( string pResourceName, bool bIsAnonymous, TextureCreationConfig_t pDescriptor, void* data, int dataSize );
+	ITexture FindOrCreateTextureWithSheet( string pResourceName, TextureCreationConfig_t pDescriptor, void* data, int dataSize, void* sheetData, int sheetDataSize );
 	void ClearTexture( ITexture hTexture, Color color );
 	void AsyncSetTextureData2( ITexture hTexture, void* pData, int nDataSize, Rect3D rect );
 
@@ -67,6 +68,20 @@ native accessor g_pRenderDevice
 		return str.String();
 	}
 
+	// Pack the GPU allocator's blocks now and release the ones that empty, over the next frames
+	inline void DefragmentGpuMemory()
+	{
+		g_pRenderDevice->DefragmentGPUMemory( RENDER_DEFRAG_ALGORITHM_BALANCED, true );
+	}
+
+	inline string GetGpuMemoryMap()
+	{
+		static thread_local CBufferString str;
+		str.RemoveAll();
+		g_pRenderDevice->AppendGPUMemoryMap( &str );
+		return str.String();
+	}
+
 	inline void GetTexturePoolStats( out ulong pPoolUsedBytesOut, out ulong pPoolLimitBytesOut, out ulong pNonEvictableBytesOut )
 	{
 		uint64 used = 0, limit = 0, pinned = 0;
@@ -79,6 +94,7 @@ native accessor g_pRenderDevice
 	bool Present( SwapChainHandle_t chain );
 	void Flush();
 	void FlushPipelineCache();
+	void RequestGPUMemoryCompaction();
 	void ForceFlushGPU( SwapChainHandle_t hSwapChain );
 	bool CanRenderToSwapChain( SwapChainHandle_t chain );
 	void SetSwapChainIsMainWindow( SwapChainHandle_t chain, bool bIsMainWindow );
@@ -116,6 +132,8 @@ native accessor g_pRenderDevice
 	}
 
 	void DestroyGPUBuffer( RenderBufferHandle_t hGPUBuffer );
+	void DestroyVertexBuffer( VertexBufferHandle_t buffer );
+	void DestroyIndexBuffer( IndexBufferHandle_t buffer );
 	bool ReadBuffer( RenderBufferHandle_t hBuffer, uint nOffsetInBytes, void* pBuf, uint nBytesToRead );
 
 	IntPtr GetDeviceSpecificInfo( DeviceSpecificInfo_t info );

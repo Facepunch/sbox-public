@@ -8,6 +8,14 @@ partial class PartyRoom
 	public Action<Friend> OnLeave { get; set; }
 	public Action<Friend, byte[]> OnVoiceData { get; set; }
 
+	internal void ClearCallbacks()
+	{
+		OnChatMessage = null;
+		OnJoin = null;
+		OnLeave = null;
+		OnVoiceData = null;
+	}
+
 	public interface IEventListener
 	{
 		/// <summary>

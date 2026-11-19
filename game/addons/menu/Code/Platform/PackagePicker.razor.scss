@@ -1,0 +1,53 @@
+@import "/Platform/_platform.scss";
+
+// A panel in the middle of the shelf, the packages in a well in it - as the maps are on the front (MapsPage)
+PackagePicker
+{
+	font-family: $platform-font;
+	color: $platform-text;
+
+	i
+	{
+		font-family: "Material Icons";
+	}
+
+	> .panel
+	{
+		@include platform-panel;
+		width: 62%;
+		max-width: 1280px;
+		min-width: 720px;
+		height: 85%;
+		box-shadow: 0 24px 60px rgba( 0, 0, 0, 0.45 );
+
+		> .body
+		{
+			flex-grow: 1;
+			min-height: 0;
+			padding: 4px 16px 16px 16px;
+		}
+	}
+
+	.well
+	{
+		flex-grow: 1;
+		min-height: 0;
+		flex-direction: column;
+		padding: 8px;
+		border-radius: $platform-radius;
+		background-color: rgba( 8, 9, 12, 0.6 );
+	}
+
+	.empty
+	{
+		@include platform-shelf-empty;
+	}
+
+	.grid
+	{
+		flex-grow: 1;
+		min-height: 0;
+		gap: 4px;
+		scrollbar-width: 0px;
+	}
+}

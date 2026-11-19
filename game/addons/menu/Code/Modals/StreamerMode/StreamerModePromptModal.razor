@@ -28,7 +28,7 @@
 
     void Enable()
     {
-        Preferences.StreamerMode = true;
+        MenuUtility.SetConsoleVariable( "streamer_mode", true );
         Delete();
     }
 

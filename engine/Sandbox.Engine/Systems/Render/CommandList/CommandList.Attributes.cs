@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Sandbox.Rendering;
 
@@ -232,9 +233,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.SetData( entry.Token, (T)entry.Object2 );
+				attrAccess.attributes.SetData( entry.Token, commandList.ReadPayload<T>( entry ) );
 			}
-			list.AddEntry( &Execute, new Entry { Token = token, Object2 = list.DataBox( data ), Object4 = this } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this }, data );
 		}
 
 		// What a managed block draws into: the target it bound, else its view's own (a Borealis.Gpu camera's stage)
@@ -399,6 +400,15 @@ public sealed partial class CommandList
 		/// </summary>
 		public RenderTargetHandle GrabFrameTexture( string token, Graphics.DownsampleMethod downsampleMethod, int maxMips = 0 )
 		{
+			return GrabFrameTexture( token, downsampleMethod, maxMips, out _ );
+		}
+
+		/// <summary>
+		/// Takes a copy of the current viewport's color texture, like <see cref="GrabFrameTexture(string, Graphics.DownsampleMethod, int)"/>,
+		/// and outputs the recorded command for <see cref="RaiseGrabFrameTextureMips"/>.
+		/// </summary>
+		internal RenderTargetHandle GrabFrameTexture( string token, Graphics.DownsampleMethod downsampleMethod, int maxMips, out int entry )
+		{
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object2;
@@ -407,9 +417,26 @@ public sealed partial class CommandList
 				attrAccess._renderTargets[(string)entry.Object5] = temp;
 			}
 
-			list.AddEntry( &Execute, new Entry { Object5 = token, Object2 = this, Data1 = new Vector4( (int)downsampleMethod, maxMips, 0, 0 ) } );
+			lock ( list._lock )
+			{
+				entry = list._entries.Count;
+				list.AddEntry( &Execute, new Entry { Object5 = token, Object2 = this, Data1 = new Vector4( (int)downsampleMethod, maxMips, 0, 0 ) } );
+			}
 
 			return new RenderTargetHandle { Name = token };
+		}
+
+		/// <summary>
+		/// Lets a grab recorded by <see cref="GrabFrameTexture(string, Graphics.DownsampleMethod, int, out int)"/> generate at least
+		/// <paramref name="mips"/> mips, for later draws that sample it more deeply.
+		/// </summary>
+		internal void RaiseGrabFrameTextureMips( int entry, int mips )
+		{
+			lock ( list._lock )
+			{
+				ref var grab = ref CollectionsMarshal.AsSpan( list._entries )[entry];
+				grab.Data1.y = Math.Max( grab.Data1.y, mips );
+			}
 		}
 
 		/// <summary>
@@ -488,23 +515,22 @@ public enum RenderValue
 }
 
 /// <summary>
-/// Stable, pipeline-level bindless texture slots. Full-screen resources produced once per frame
-/// (by AO/SSR procedural layers) and consumed by the rest of the pipeline through a fixed
-/// descriptor binding instead of a per-view render attribute. Slots are reset to index 0 at the
-/// start of each frame, so a slot whose producer is skipped reads as "none" (index 0) - they do
-/// not carry over from the previous frame. Values must match the <c>PipelineTextureSlot</c> enum
-/// in common/classes/Bindless.hlsl.
+/// Bindless texture slots within each view's pipeline texture range. AO/SSR producers publish
+/// into their view's range; consumers use its PipelineTextureOffset to read the same slots.
+/// New ranges start at index 0 ("none"), so skipped producers cannot inherit another view's results.
+/// Values must match the <c>PipelineTextureSlot</c> enum in common/classes/Bindless.hlsl and fit
+/// CSceneSystem's per-view stride.
 /// </summary>
 internal enum PipelineTextureSlot
 {
 	/// <summary>
-	/// Screen-space ambient occlusion. When no AO is produced this frame the slot stays at index 0,
+	/// Screen-space ambient occlusion. When no AO is produced for this view the slot stays at index 0,
 	/// which consumers treat as disabled (no occlusion).
 	/// </summary>
 	AmbientOcclusion = 0,
 
 	/// <summary>
-	/// Dynamic reflections / screen-space reflections. When none is produced this frame the slot stays
+	/// Dynamic reflections / screen-space reflections. When none is produced for this view the slot stays
 	/// at index 0, which consumers treat as disabled (no reflections).
 	/// </summary>
 	Reflections = 1,

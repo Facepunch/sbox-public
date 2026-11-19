@@ -7,6 +7,7 @@ public class ClothingIconControlWidget : ControlWidget
 	public override bool IsWideMode => true;
 
 	ClothingIconPreviewWidget preview;
+	Widget settings;
 	Layout rightLayout;
 
 	public ClothingIconControlWidget( SerializedProperty property ) : base( property )
@@ -20,8 +21,9 @@ public class ClothingIconControlWidget : ControlWidget
 
 		if ( property.TryGetAsObject( out var so ) )
 		{
-			var cs = ControlSheet.Create( so );
-			rightLayout.Add( cs );
+			settings = rightLayout.Add( new Widget( this ) );
+			settings.Layout = Layout.Column();
+			settings.Layout.Add( ControlSheet.Create( so ) );
 			so.OnPropertyChanged += p => UpdatePreview();
 		}
 
@@ -30,6 +32,18 @@ public class ClothingIconControlWidget : ControlWidget
 		rightLayout.Add( new Button( "Save Icon To Disk" ) { Clicked = SaveIcon } );
 
 		UpdatePreview();
+		Think();
+	}
+
+	/// <summary>
+	/// Player models share a fixed portrait; only garments expose custom framing controls.
+	/// </summary>
+	public override void Think()
+	{
+		base.Think();
+
+		if ( settings.IsValid() )
+			settings.Visible = SerializedProperty.Parent.Targets.FirstOrDefault() is Clothing { ReplacesBody: false };
 	}
 
 	void UpdatePreview()

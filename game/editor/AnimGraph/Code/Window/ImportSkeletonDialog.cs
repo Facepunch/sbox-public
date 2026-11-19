@@ -211,7 +211,7 @@ internal sealed class ImportSkeletonDialog : Dialog
 				["m_sourceFilename"] = _settings.SourceFilename,
 				["m_flGlobalScale"] = _settings.Scale,
 				["m_rootBoneName"] = _settings.RootBone,
-				["m_previewModel"] = _settings.PreviewModel
+				["m_previewModel"] = ResourceReference.Write( ResourceId.FromPath( _settings.PreviewModel ) )
 			};
 			Directory.CreateDirectory( Path.GetDirectoryName( path ) );
 			if ( !Kv3Document.Write( path, document, overwrite: sameAsset ) )
@@ -228,10 +228,25 @@ internal sealed class ImportSkeletonDialog : Dialog
 				return;
 			}
 
-			if ( Skeleton.Load( asset.Path ) is not { IsValid: true, IsError: false, BoneCount: > 0 } )
+			if ( Skeleton.Load( asset.Path ) is not { IsValid: true, IsError: false, BoneCount: > 0 } skeleton )
 			{
 				ShowError( "The skeleton compiled but could not be loaded. Check the console for details." );
 				return;
+			}
+
+			var morphChannels = ModelEditor.ModelDoc.GetMorphChannels( source, skeleton );
+			if ( morphChannels.Count > 0 )
+			{
+				document["m_floatChannelSets"] = new JsonArray( new JsonObject
+				{
+					["m_ID"] = "MorphChannel",
+					["m_channelIDs"] = new JsonArray( morphChannels.Select( name => JsonValue.Create( name ) ).ToArray<JsonNode>() )
+				} );
+				if ( !Kv3Document.Write( path, document, overwrite: true ) || !asset.Compile( false ) )
+				{
+					ShowError( "Couldn't save or compile the skeleton's morph channels. See the console for details." );
+					return;
+				}
 			}
 
 			MainAssetBrowser.Instance?.Local.OnAssetCreated( asset, path );

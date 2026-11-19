@@ -1,0 +1,186 @@
+@using System;
+@using System.Linq;
+@using System.Threading.Tasks;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@inherits MenuProject.Modals.BaseModal
+
+@*
+    Picking a package for whoever asked (Game.Overlay.ShowPackageSelector) - a grid of them in a panel (the platform-panel
+    mixin), as the Workshop's games are on the shelf (GameCard), a search over it and their order from the bar's tools.
+    What it's asked for (its query) narrows it - its types, what it's for - whatever's searched.
+*@
+<root>
+
+    <div class="panel">
+        <PanelHead Title=@($"Choose a {Noun}") Icon="inventory_2" Back=@( () => CloseModal( false ) ) Search=@($"Search {Noun}s") OnSearch=@Typed>
+            <Tools>
+                @foreach ( var order in Orders )
+                {
+                    <div class="tool @(sort == order.Sort ? "open" : "")" tooltip=@order.Title onclick=@( () => SetSort( order.Sort ) )><i>@order.Icon</i></div>
+                }
+            </Tools>
+        </PanelHead>
+
+        <div class="body">
+            <div class="well">
+                @if ( found.Count == 0 && !loading )
+                {
+                    <div class="empty"><i>search_off</i><label>@($"No {Noun}s found")</label></div>
+                }
+                else if ( found.Count == 0 )
+                {
+                    <div class="empty"><Spinner /></div>
+                }
+                else
+                {
+                    @* Only the cards in view are made - the next page's asked for as the end comes into view *@
+                    <VirtualGrid @ref="Grid" class="grid" Items=@found ItemSize=@CellSize OnLastCell=@( () => { _ = More(); } )>
+                        <Item Context="item">
+                            @if ( item is Package package )
+                            {
+                                <GameCard Local=@package OnPicked=@Picked />
+                            }
+                        </Item>
+                    </VirtualGrid>
+                }
+            </div>
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// Called with the one picked
+    /// </summary>
+    public Action<Package> OnPicked { get; set; }
+
+    /// <summary>
+    /// Called with what it's asking for now, as it's searched and sorted
+    /// </summary>
+    public Action<string> OnQueryChanged { get; set; }
+
+    /// <summary>
+    /// What it's asked for - its types (type:map), what it's for (target:game), its order (sort:) and anything to search
+    /// for to start with
+    /// </summary>
+    public string Query
+    {
+        set
+        {
+            var words = (value ?? "").Split( ' ', StringSplitOptions.RemoveEmptyEntries );
+            types = words.Where( x => x.StartsWith( "type:" ) ).Select( x => x[5..] ).ToArray();
+            fixedTerms = string.Join( " ", words.Where( x => x.Contains( ':' ) && !x.StartsWith( "sort:" ) || x.StartsWith( '+' ) ) );
+            sort = words.FirstOrDefault( x => x.StartsWith( "sort:" ) )?[5..] ?? "trending";
+            search = string.Join( " ", words.Where( x => !x.Contains( ':' ) && !x.StartsWith( '+' ) ) );
+        }
+    }
+
+    string[] types = [];
+    string fixedTerms = "";
+    string sort = "trending";
+    string search = "";
+
+    string Noun => types.Length == 1 ? types[0] : "package";
+
+    record Order( string Sort, string Title, string Icon );
+
+    static readonly Order[] Orders =
+    [
+        new( "trending", "Trending", "trending_up" ),
+        new( "quality", "Most loved", "favorite" ),
+        new( "rankmonth", "Popular this month", "calendar_month" ),
+        new( "newest", "Newest", "new_releases" ),
+        new( "updated", "Recently updated", "schedule" ),
+        new( "favourite", "Your favourites", "bookmarks" ),
+    ];
+
+    static readonly Vector2 CellSize = new( 220, 220 + GameCard.InfoHeight );
+
+    VirtualGrid Grid;
+
+    List<Package> found = new();
+    int asking;
+    bool loading;
+    bool more = true;
+    RealTimeSince sinceTyped;
+    string typed;
+
+    string FullQuery => $"{fixedTerms} sort:{sort} {search}".Trim();
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+        if ( firstTime ) Find();
+    }
+
+    void Typed( string text )
+    {
+        typed = text?.Trim() ?? "";
+        sinceTyped = 0;
+    }
+
+    void SetSort( string order )
+    {
+        if ( sort == order ) return;
+
+        sort = order;
+        Find();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Searched once it's been typed, not each key
+        if ( typed is not null && sinceTyped > 0.3f )
+        {
+            search = typed;
+            typed = null;
+            Find();
+        }
+    }
+
+    /// <summary>
+    /// Asked again, from the first page
+    /// </summary>
+    void Find()
+    {
+        asking++;
+        found = new();
+        more = true;
+        loading = false;
+
+        if ( Grid.IsValid() ) Grid.ScrollOffset = Vector2.Zero;
+
+        OnQueryChanged?.Invoke( FullQuery );
+        _ = More();
+    }
+
+    async Task More()
+    {
+        if ( loading || !more ) return;
+        loading = true;
+
+        var mine = asking;
+        var result = await Package.FindAsync( FullQuery, 60, found.Count );
+        if ( mine != asking || !IsValid ) return;
+
+        var page = result?.Packages ?? [];
+        found.AddRange( page );
+        more = page.Length > 0;
+        loading = false;
+        StateHasChanged();
+    }
+
+    void Picked( Package package )
+    {
+        OnPicked?.Invoke( package );
+        CloseModal( true );
+    }
+
+    protected override int BuildHash() => HashCode.Combine( found.Count, loading, sort, search );
+}

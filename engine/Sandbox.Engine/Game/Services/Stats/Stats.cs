@@ -77,16 +77,12 @@ public static partial class Stats
 		localStats?.Predict( name, amount );
 	}
 
-	private static Dictionary<string, object> GetObjectDictionary( object data )
+	internal static Dictionary<string, object> GetObjectDictionary( object data )
 	{
 		if ( data is null )
 			return null;
 
-		if ( data is Dictionary<string, object> o )
-		{
-			return o;
-		}
-
+		// Snapshot now, in the caller's context. The pending queue can be serialized later from the menu
 		try
 		{
 			var json = System.Text.Json.JsonSerializer.Serialize( data );

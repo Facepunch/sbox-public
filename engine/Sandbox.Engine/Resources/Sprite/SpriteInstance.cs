@@ -4,6 +4,7 @@ namespace Sandbox;
 /// A sprite resource with independent animation playback. Call Update once per update,
 /// then draw the current frame as many times as needed with Painter.Sprite.
 /// </summary>
+[Expose]
 public sealed class SpriteInstance
 {
 	int _frame;

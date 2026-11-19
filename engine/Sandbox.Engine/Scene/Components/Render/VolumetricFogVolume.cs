@@ -20,7 +20,7 @@ public class VolumetricFogVolume : Component, Component.ExecuteInEditor
 
 	protected override void DrawGizmos()
 	{
-		using var scope = Gizmo.Scope( $"volumetricfogvolume-{GetHashCode()}" );
+		using var scope = Gizmo.PushScope( "volume" );
 
 		if ( !Gizmo.IsSelected && !Gizmo.IsHovered )
 			return;

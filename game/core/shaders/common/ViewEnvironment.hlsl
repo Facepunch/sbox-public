@@ -11,7 +11,7 @@
 // five: AMD's compiler loads every descriptor of the set at entry and keeps them live, so the set holds as few as it can.
 // Each block keeps its members' names, so shaders that read them compile unchanged, and starts on a register, so its
 // members sit where its own cbuffer had them. The renderers fill it from the five blocks they set by name
-// (docs/managed/static-descriptor-sets.md, scenesystem/viewdescriptorset.h):
+// (docs/reference/borealis-static-descriptor-sets.md, scenesystem/viewdescriptorset.h):
 //
 //   PerViewConstantBufferVR_t   fog, wind and volumetric fog        0, 592 bytes
 //   ViewLightingConfigV2        light counts and ambient light      592, 4128 bytes

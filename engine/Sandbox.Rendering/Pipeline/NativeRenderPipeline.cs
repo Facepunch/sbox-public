@@ -31,13 +31,13 @@ internal sealed class NativeRenderPipeline : INativeRenderPipeline
 
 	readonly ConcurrentQueue<StandardPipeline> standardPool = new();
 	readonly ConcurrentQueue<Skybox3DPipeline> skyboxPool = new();
-	readonly ConcurrentDictionary<IntPtr, object> active = new();
+	readonly Dictionary<IntPtr, object> active = new();
 
 	public void AddLayersToView( CRenderPipelineSetup setup )
 	{
 		if ( !standardPool.TryDequeue( out var pipeline ) ) pipeline = new();
 
-		active.TryAdd( setup.m_pView.self, pipeline );
+		lock ( active ) active.TryAdd( setup.m_pView.self, pipeline );
 		pipeline.AddLayersToView( setup );
 	}
 
@@ -45,14 +45,18 @@ internal sealed class NativeRenderPipeline : INativeRenderPipeline
 	{
 		if ( !skyboxPool.TryDequeue( out var pipeline ) ) pipeline = new();
 
-		active.TryAdd( setup.m_pView.self, pipeline );
+		lock ( active ) active.TryAdd( setup.m_pView.self, pipeline );
 		pipeline.AddLayersToView( setup );
 	}
 
 	public void OnSceneViewSubmitted( ISceneView view )
 	{
-		// Not every view is a pipeline's (shadow and other dependent views aren't)
-		if ( !active.TryRemove( view.self, out var pipeline ) ) return;
+		object pipeline;
+		lock ( active )
+		{
+			// Not every view is a pipeline's (shadow and other dependent views aren't)
+			if ( !active.Remove( view.self, out pipeline ) ) return;
+		}
 
 		switch ( pipeline )
 		{
@@ -75,7 +79,7 @@ internal sealed class NativeRenderPipeline : INativeRenderPipeline
 
 		standardPool.Clear();
 		skyboxPool.Clear();
-		active.Clear();
+		lock ( active ) active.Clear();
 	}
 
 	/// <summary>

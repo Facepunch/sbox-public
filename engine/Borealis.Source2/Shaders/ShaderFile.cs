@@ -12,7 +12,7 @@ public sealed class ShaderOutdatedException( string message ) : IOException( mes
 /// <summary>
 /// A compiled s&amp;box shader (<c>.shader_c</c>): its modes, features and programs, read the way
 /// <c>CVfx::CreateFromResourceFile</c> reads them. Static combos are decompressed on demand
-/// (<see cref="ShaderProgram.LoadCombo"/>). See docs/managed/borealis-gpu.md.
+/// (<see cref="ShaderProgram.LoadCombo"/>). See docs/reference/borealis-gpu.md.
 /// </summary>
 public sealed class ShaderFile
 {
@@ -85,7 +85,7 @@ public sealed class ShaderFile
 	/// A shader with only a Slang module, no <c>.shader_c</c>: what its module declares (modes, features, each stage's static
 	/// and dynamic combos), as a compiled file would say it, for <see cref="ShaderLibrary"/> to find it by and its module to
 	/// draw. Vertex, pixel and compute programs only (a module's task and mesh stages have none). See
-	/// docs/managed/pass-modules.md.
+	/// docs/reference/borealis-pass-modules.md.
 	/// </summary>
 	public static ShaderFile FromModule( string name, IReadOnlyList<ShaderMode> modes, ShaderCombo[] features, IEnumerable<(ShaderProgramType Type, ShaderCombo[] Static, ShaderCombo[] Dynamic)> programs ) => new( name, modes, features, programs );
 

@@ -11,7 +11,7 @@ using V3 = System.Numerics.Vector3;
 namespace Borealis.Backend.Meshlets;
 
 /// <summary>
-/// The meshlets of GPU-driven index ranges (docs/managed/borealis-gpu-driven.md, "Meshlets"). A range is asked for as its
+/// The meshlets of GPU-driven index ranges (docs/reference/borealis-gpu-driven.md, "Meshlets"). A range is asked for as its
 /// draw records are written; it's built off the frame on workers (<see cref="MeshletBuilder"/>), its indices rewritten in
 /// its index page in meshlet order and its records put in a meshlet page at a frame's start, and only once the frames that
 /// could still be reading its old order are done does every draw record over it get its run: until then it draws whole.
@@ -67,6 +67,14 @@ internal sealed class MeshletStore : IDisposable
 
 	/// <summary>Bytes a frame uploads at most (indices and records); the rest waits for the next frame.</summary>
 	public long FrameUploadBytes { get; set; } = 16 << 20;
+
+	/// <summary>Whether a loading screen hides the frames (<see cref="BackendDevice.Loading"/>): a frame uploads <see cref="LoadingUploadBytes"/>.</summary>
+	public bool Loading { get; set; }
+
+	/// <summary>Bytes a frame behind a loading screen uploads at most.</summary>
+	public long LoadingUploadBytes { get; set; } = 128 << 20;
+
+	long UploadBudget => Loading ? Math.Max( LoadingUploadBytes, FrameUploadBytes ) : FrameUploadBytes;
 
 	enum State { Building, Built, Uploaded, Published, None }
 
@@ -507,7 +515,8 @@ internal sealed class MeshletStore : IDisposable
 		using var zone = Zones.MeshletUpload.Start();
 		CommandList list = null;
 		long bytes = 0;
-		while ( bytes < FrameUploadBytes && built.TryDequeue( out var entry ) )
+		var most = UploadBudget;
+		while ( bytes < most && built.TryDequeue( out var entry ) )
 		{
 			lock ( gate ) Built++;
 			if ( entry.Set is not { } set )

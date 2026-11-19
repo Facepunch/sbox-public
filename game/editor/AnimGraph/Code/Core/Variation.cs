@@ -30,8 +30,8 @@ public sealed class Variation
 	}
 
 	private Model _targetModel;
-	private string _targetModelPath;
-	private string _targetSkeletonPath;
+	internal ResourceId TargetModelReference { get; set; }
+	internal ResourceId TargetSkeletonReference { get; set; }
 	private ulong _previewBodyGroups = ulong.MaxValue;
 
 	public string ID { get; set; }
@@ -48,19 +48,19 @@ public sealed class Variation
 	{
 		get
 		{
-			if ( _targetModel is null && !string.IsNullOrWhiteSpace( _targetModelPath ) )
-				_targetModel = Model.Load( _targetModelPath );
+			if ( _targetModel is null && !TargetModelReference.IsEmpty )
+				_targetModel = Model.Load( TargetModelReference.ResolvePath() );
 
 			return _targetModel;
 		}
 		set
 		{
 			// Compare through the getter, the model may only be a path until it's first read
-			if ( TargetModel == value )
+			if ( (value is not null || TargetModelReference.IsEmpty) && TargetModel == value )
 				return;
 
 			_targetModel = value;
-			_targetModelPath = value?.Name;
+			TargetModelReference = ResourceId.Get( value );
 
 			// Body groups are indices into the old model's parts, they mean nothing on a new one
 			_previewBodyGroups = ulong.MaxValue;
@@ -69,11 +69,11 @@ public sealed class Variation
 
 	internal string TargetModelPath
 	{
-		get => _targetModel?.Name ?? _targetModelPath;
+		get => _targetModel?.Name ?? TargetModelReference.ResolvePath();
 		set
 		{
 			_targetModel = null;
-			_targetModelPath = value;
+			TargetModelReference = ResourceId.FromPath( value );
 		}
 	}
 
@@ -85,8 +85,8 @@ public sealed class Variation
 	/// </summary>
 	public string TargetSkeletonPath
 	{
-		get => string.IsNullOrWhiteSpace( _targetSkeletonPath ) ? _targetModel?.SkeletonName : _targetSkeletonPath;
-		set => _targetSkeletonPath = AssetSystem.FindByPath( value )?.Path ?? value;
+		get => TargetSkeletonReference.IsEmpty ? _targetModel?.SkeletonName : TargetSkeletonReference.ResolvePath();
+		set => TargetSkeletonReference = ResourceId.FromPath( AssetSystem.FindByPath( value )?.Path ?? value );
 	}
 
 	/// <summary>
@@ -95,7 +95,7 @@ public sealed class Variation
 	/// </summary>
 	internal string ResolveTargetSkeletonPath()
 	{
-		return string.IsNullOrWhiteSpace( _targetSkeletonPath ) ? TargetModel?.SkeletonName : _targetSkeletonPath;
+		return TargetSkeletonReference.IsEmpty ? TargetModel?.SkeletonName : TargetSkeletonReference.ResolvePath();
 	}
 
 	/// <summary>
@@ -327,8 +327,8 @@ public sealed class VariationHierarchy
 		{
 			ID = variationID,
 			ParentID = parentVariationID,
-			TargetModel = parent.TargetModel,
-			TargetSkeletonPath = parent.TargetSkeletonPath,
+			TargetModelReference = parent.TargetModelReference,
+			TargetSkeletonReference = parent.TargetSkeletonReference,
 		};
 
 		// Same model as the parent, so start from how the parent previews it

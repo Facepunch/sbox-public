@@ -7,7 +7,7 @@ using System.IO;
 namespace BorealisGpuTests;
 
 /// <summary>
-/// Standalone modules (docs/managed/standalone-modules.md): a module that declares its modes describes its shader itself, so
+/// Standalone modules (docs/reference/borealis-standalone-modules.md): a module that declares its modes describes its shader itself, so
 /// Borealis.Gpu reads no <c>.shader_c</c> for it, and makes its GPU-driven form from the same source. depth_only is one:
 /// its variants, classic and GPU-driven, are its <c>.shader_c</c>'s and <c>.gpudriven.shader_c</c>'s, binding for binding.
 /// </summary>
@@ -154,7 +154,7 @@ public class StandaloneModuleTests : GpuTest
 	[TestMethod]
 	public void ConverterMakesModulesStandalone()
 	{
-		const string converted = "// x.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes\r\n// and as the fallback (docs/managed/shader-format-replacement.md, \"Pass modules\").\r\n"
+		const string converted = "// x.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes\r\n// and as the fallback (docs/reference/borealis-slang-materials.md, \"Pass modules\").\r\n"
 			+ "// HEADER: Description = \"x\";\r\n\r\n// MODES: Forward();\r\n// MODES: Depth( S_MODE_DEPTH ); // its own depth\r\n// MODES: ToolsShadingComplexity( \"tools_shading_complexity.shader\" );\r\n\r\n#include \"sbox/pass.slangh\"\r\n\r\n#include \"system.fxc\"\r\n";
 		var text = PassConverter.Standalone( converted, "x" );
 		StringAssert.StartsWith( text, "// x: a standalone module" );
@@ -232,10 +232,11 @@ public class StandaloneModuleTests : GpuTest
 
 			// Code sets values by token (StringToken.Literal) and the game's backend turns tokens back into names from the shader:
 			// every name the compiled file's variables and combos give, the module's binding names give too. Not a .vmat's input
-			// textures (TextureColor: the material compile's, never drawn) or vfx's own default sampler, which nothing sets
+			// textures (TextureColor: the material compile's, never drawn), vfx's own default sampler, or the name vfx gives a
+			// SpecializedConstant()'s specialization constant (X__Spec, set through its attribute), which nothing sets
 			var names = backend.Passes.BindingNames( module );
 			var missing = compiled.Programs.Where( p => p is not null )
-				.SelectMany( p => p.Variables.Where( v => v.Register != RegisterType.InputTexture ).SelectMany( v => new[] { v.Name, v.Attribute } ).Concat( p.DynamicCombos.Select( c => c.Name ) ) )
+				.SelectMany( p => p.Variables.Where( v => v.Register != RegisterType.InputTexture ).SelectMany( v => new[] { v.Register == RegisterType.Specialization ? null : v.Name, v.Attribute } ).Concat( p.DynamicCombos.Select( c => c.Name ) ) )
 				.Where( n => !string.IsNullOrEmpty( n ) && n != "DefaultSamplerState" && !names.Contains( n ) ).Distinct().Order( StringComparer.Ordinal ).ToList();
 			if ( missing.Count > 0 ) differences.Add( $"{path}: names not among the module's binding names: {string.Join( ' ', missing )}" );
 
@@ -343,7 +344,7 @@ public class StandaloneModuleTests : GpuTest
 		var names = backend.Passes.BindingNames( module );
 		Assert.IsTrue( names.Contains( "D_OPAQUE_FADE" ) );
 		var missing = compiled.Programs.Where( p => p is not null )
-			.SelectMany( p => p.Variables.Where( v => v.Register != RegisterType.InputTexture ).SelectMany( v => new[] { v.Name, v.Attribute } ).Concat( p.DynamicCombos.Select( c => c.Name ) ) )
+			.SelectMany( p => p.Variables.Where( v => v.Register != RegisterType.InputTexture ).SelectMany( v => new[] { v.Register == RegisterType.Specialization ? null : v.Name, v.Attribute } ).Concat( p.DynamicCombos.Select( c => c.Name ) ) )
 			.Where( n => !string.IsNullOrEmpty( n ) && n != "DefaultSamplerState" && !names.Contains( n ) ).Distinct().ToList();
 		Assert.AreEqual( 0, missing.Count, string.Join( ' ', missing ) );
 	}

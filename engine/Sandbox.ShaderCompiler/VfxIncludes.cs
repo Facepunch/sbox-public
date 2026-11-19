@@ -55,7 +55,9 @@ internal static partial class VfxIncludes
 	{
 		text = ExternalSet().Replace( text, m => $"#define {m.Groups[1].Value} {3 + int.Parse( m.Groups[2].Value, CultureInfo.InvariantCulture )}" );
 
-		// SpecializedConstant() globals are specialization constants, as vfx compiles them: the pipeline is made per value
+		// SpecializedConstant() globals are specialization constants, as vfx compiles them: the pipeline is made per value. Each also
+		// stays a constant buffer member under its own name, as vfx keeps one for pipelines made before the value is known, so
+		// the constants after it sit where the shader's compiled layout has them; uses after the declaration read the constant
 		text = Specialized().Replace( text, m =>
 		{
 			var name = m.Groups["name"].Value;
@@ -71,7 +73,7 @@ internal static partial class VfxIncludes
 				"uint" => ((uint)Math.Max( value, 0 )).ToString( CultureInfo.InvariantCulture ),
 				_ => ((int)value).ToString( CultureInfo.InvariantCulture ),
 			};
-			return $"{m.Groups["lead"].Value}[vk::constant_id( {SpecializationId( name )} )] const {type} {name} = {literal};";
+			return $"{m.Groups["lead"].Value}{type} {name}; [vk::constant_id( {SpecializationId( name )} )] const {type} {name}__Spec = {literal};\n#define {name} {name}__Spec";
 		} );
 
 		var macros = AnnotationMacros( macroText ?? text );

@@ -6,7 +6,7 @@ namespace Sandbox.Rendering;
 /// One way of rendering a scene camera's view: native's scene system (<see cref="NativeSceneRenderer"/>) or Borealis
 /// (Sandbox.Rendering's bridge, registered at startup). Every path that renders a scene ends in one of
 /// <see cref="SceneCamera"/>'s entry points, which forward here, so the process's renderer takes them all.
-/// See docs/managed/render-paths.md.
+/// See docs/reference/borealis-render-paths.md.
 /// </summary>
 internal interface ISceneRenderer
 {
@@ -56,6 +56,13 @@ internal interface ISceneRenderer
 	/// Make what it renders with now, on the main thread at startup, so the first frames render as the rest do.
 	/// </summary>
 	void WarmUp();
+
+	/// <summary>
+	/// The frame's output starts (<see cref="SceneRenderer.BeginFrame"/>), whether or not anything renders a scene in it.
+	/// </summary>
+	void BeginFrame()
+	{
+	}
 
 	/// <summary>
 	/// Whether envmap probes wait to capture this frame (<see cref="Scene.RenderEnvmaps"/>): the renderer is still making a
@@ -108,6 +115,7 @@ internal static class SceneRenderer
 	internal static void BeginFrame()
 	{
 		Current = ManagedSceneRendering.Enabled && Borealis is not null ? Borealis : Native;
+		Current.BeginFrame();
 	}
 
 	/// <summary>

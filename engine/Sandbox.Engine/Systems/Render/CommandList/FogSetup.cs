@@ -37,6 +37,7 @@ public enum FogDistanceMetric
 /// an enabled override replaces their combined result before volumetric fog is applied.
 /// Use <c>default(FogSetup)</c> to inherit legacy fog; <c>new FogSetup()</c> creates a full-weight override.
 /// </summary>
+[Expose]
 public struct FogSetup
 {
 	/// <summary>
@@ -391,6 +392,7 @@ public struct FogSetup
 /// <summary>
 /// Color encoding of a sky cubemap sampled by fog.
 /// </summary>
+[Expose]
 public enum FogSkyEncoding
 {
 	/// <summary>

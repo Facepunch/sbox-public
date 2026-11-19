@@ -1,0 +1,44 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.Modals;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    Your weekly drop, rising out of the dock above its button - the old menu's rewards popup (RewardsView) on a panel of
+    the platform's. Put away to go off to an objective's game, or to open the drop.
+*@
+<root class="@(Open ? "open" : "")">
+
+    <div class="panel" @ref="PanelBox">
+        <RewardsView OnLeave=@( () => PlatformRoot.Instance?.CloseAll() ) />
+        <div class="flyout-arrow" @ref="Arrow"><div></div></div>
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter] public bool Open { get; set; }
+
+    Panel PanelBox;
+    Panel Arrow;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Centre it over the Weekly drop button, but keep it on screen
+        if ( Dock.DropButton is not { } button || !button.IsValid() || Parent is not { } area ) return;
+
+        var width = Box.Rect.Width * ScaleFromScreen;
+        var room = area.Box.Rect.Width * ScaleFromScreen;
+        var centre = (button.Box.Rect.Center.x - area.Box.Rect.Left) * ScaleFromScreen;
+
+        Style.Left = Length.Pixels( Math.Clamp( centre - width / 2, 16, Math.Max( 16, room - width - 16 ) ) );
+        Dock.PointAt( Arrow, button );
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Open );
+}

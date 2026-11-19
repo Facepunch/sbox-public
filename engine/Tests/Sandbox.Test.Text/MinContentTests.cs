@@ -4,16 +4,23 @@ using Topten.RichTextKit;
 
 namespace TextTests;
 
+/// <summary>
+/// Verifies intrinsic text measurements without changing the active layout.
+/// </summary>
 [TestClass]
 public class MinContentTests
 {
+	/// <summary>
+	/// Intrinsic dimensions respect wrapping and whitespace while preserving the constrained layout.
+	/// </summary>
 	[DataTestMethod]
 	[DataRow( "small extraordinary words", "extraordinary", false, false )]
 	[DataRow( "one\u00a0two three", "one\u00a0two", false, false )]
 	[DataRow( "extraordinary\nsmall", "extraordinary", false, false )]
 	[DataRow( "small extraordinary words", "small extraordinary words", true, false )]
 	[DataRow( "small words  ", "small words  ", true, false )]
-	[DataRow( "a \u05d0\u05d1\u05d2\u05d3\u05d4 words", "words", false, false )]
+	// Keep the expected widest word unambiguous across font fallbacks.
+	[DataRow( "a \u05d0\u05d1\u05d2\u05d3\u05d4 extraordinary", "extraordinary", false, false )]
 	[DataRow( "a   bb", "bb", false, true )]
 	[DataRow( "bb   a", "bb ", false, true )]
 	[DataRow( "   ", " ", false, true )]

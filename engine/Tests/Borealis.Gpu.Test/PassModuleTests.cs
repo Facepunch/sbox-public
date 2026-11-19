@@ -8,7 +8,7 @@ using System.IO;
 namespace BorealisGpuTests;
 
 /// <summary>
-/// Pass modules (docs/managed/shader-format-replacement.md, "Pass modules"): each core shader's module, compiled with
+/// Pass modules (docs/reference/borealis-slang-materials.md, "Pass modules"): each core shader's module, compiled with
 /// Slang, makes the same variants its compiled <c>.shader_c</c> does, binding for binding, constant for constant and
 /// render state for render state, in every mode and over its dynamic combos.
 /// </summary>

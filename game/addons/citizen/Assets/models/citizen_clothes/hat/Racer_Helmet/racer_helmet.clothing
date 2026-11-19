@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 287919,
   "Icon": {
-    "Path": "models/citizen_clothes/hat/racer_helmet/racer_helmet.clothing.png",
+    "Path": "models/citizen_clothes/hat/racer_helmet/racer_helmet.clothing.vtex",
     "Mode": "Head",
     "UsePositionOffset": false,
     "PositionOffset": "-8.30000114,-0.199999705,-1.10000002"

@@ -10,6 +10,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using NodeLibrary = Facepunch.ActionGraphs.NodeLibrary;
 
 namespace HotloadTests
@@ -20,9 +21,10 @@ namespace HotloadTests
 	public abstract class HotloadTestBase
 	{
 		/// <summary>
-		/// Static fields marked with each reset attribute. Scanning every type in the assembly
-		/// for them is slow, so do it once per attribute rather than once per test. Hotload must
-		/// not walk this: it would swap the Before attribute keys for After ones.
+		/// Static fields to reset before each test, found per reset attribute in that attribute's
+		/// assembly: fields marked with it, plus compiler delegate caches (see <see cref="IsDelegateCache"/>).
+		/// Scanning every type in the assembly is slow, so do it once per attribute rather than once
+		/// per test. Hotload must not walk this: it would swap the Before attribute keys for After ones.
 		/// </summary>
 		[SkipHotload]
 		private static readonly ConcurrentDictionary<Type, FieldInfo[]> _resetFields = new();
@@ -32,13 +34,29 @@ namespace HotloadTests
 		{
 			var fields = _resetFields.GetOrAdd( typeof( TAttrib ), static attribType => attribType.Assembly.GetTypes()
 				.SelectMany( type => type.GetFields( BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic ) )
-				.Where( fieldInfo => fieldInfo.IsDefined( attribType ) )
+				.Where( fieldInfo => fieldInfo.IsDefined( attribType ) || IsDelegateCache( fieldInfo ) )
 				.ToArray() );
 
 			foreach ( var fieldInfo in fields )
 			{
 				fieldInfo.SetValue( null, fieldInfo.FieldType.IsValueType ? Activator.CreateInstance( fieldInfo.FieldType ) : null );
 			}
+		}
+
+		/// <summary>
+		/// Delegates the compiler caches in static fields of its generated nested types, such as
+		/// <c>&lt;&gt;O</c> for method group conversions. Hotload upgrades these, so without a reset
+		/// a test converting a Before method group would get the After delegate an earlier test left.
+		/// Clearing them is safe: the generated code recreates the delegate when the field is null.
+		/// Caches on generic types are left alone: hotload doesn't walk statics of generic types.
+		/// </summary>
+		private static bool IsDelegateCache( FieldInfo fieldInfo )
+		{
+			var type = fieldInfo.DeclaringType;
+
+			return type.Namespace == nameof( HotloadTests ) && type.IsNested && !type.ContainsGenericParameters
+				&& type.IsDefined( typeof( CompilerGeneratedAttribute ) )
+				&& !fieldInfo.IsInitOnly && typeof( Delegate ).IsAssignableFrom( fieldInfo.FieldType );
 		}
 
 		protected static Sandbox.Hotload CreateHotload()
@@ -51,7 +69,7 @@ namespace HotloadTests
 			// every cached test fixture too (the layout conformance XML alone is ~180k objects).
 			hotload.WatchAssembly( "Sandbox.Test.Unit", t => t.Namespace == nameof( HotloadTests ) );
 			hotload.WatchAssembly( "Sandbox.Engine", t => t.Name == nameof( ReflectionQueryCache ) );
-			hotload.ReplacingAssembly( typeof( Before.TestClass1 ).Assembly, typeof( After.TestClass1 ).Assembly );
+			hotload.ReplacingAssembly( typeof( Before.BasicMembersClass ).Assembly, typeof( After.BasicMembersClass ).Assembly );
 			hotload.AssemblyResolver = new DefaultAssemblyResolver();
 
 			hotload.AddUpgrader<Sandbox.Upgraders.AutoSkipUpgrader>();
