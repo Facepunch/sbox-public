@@ -996,9 +996,31 @@ internal sealed class GpuDrivenTables : IDisposable
 		lock ( materialRecords )
 		{
 			if ( materialRecords.TryGetValue( key, out var found ) ) return found;
+			var stage = (key.Material, key.Stage);
+			var made = recordsPerStage[stage] = recordsPerStage.GetValueOrDefault( stage ) + 1;
+			if ( made == MaxRecordsPerStage ) Interlocked.Increment( ref churning );
 			return materialRecords[key] = materials.Append( record );
 		}
 	}
+
+	/// <summary>
+	/// Material records one material's stage may make (<see cref="Churns"/>): about a megabyte of a large stage's. Records
+	/// never go, and each new value of an attribute its constants read, or each new version of the material, makes one.
+	/// </summary>
+	public const int MaxRecordsPerStage = 256;
+
+	// Material records made per material and stage (null for a surface's one record), added to under materialRecords' lock
+	readonly System.Collections.Concurrent.ConcurrentDictionary<(GpuMaterial Material, ShaderStage Stage), int> recordsPerStage = new();
+
+	/// <summary>
+	/// Whether a material's stage has made <see cref="MaxRecordsPerStage"/> records: what it reads changes all the time (an
+	/// attribute a game sets each frame, wind on a map's trees, or the material itself), so drawn GPU-driven it would add a
+	/// record each time until the table ran out of memory. Its draws stay classic.
+	/// </summary>
+	public bool Churns( GpuMaterial material, ShaderStage stage ) => Volatile.Read( ref churning ) > 0 && recordsPerStage.TryGetValue( (material, stage), out var made ) && made >= MaxRecordsPerStage;
+
+	// Stages that have reached the limit: none, mostly, and then nothing is looked up per draw
+	int churning;
 
 	/// <summary>Records in each table, for reports.</summary>
 	public (int Geometry, int Draws, int Materials) Records

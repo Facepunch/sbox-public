@@ -1140,6 +1140,105 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// A material's stage churns once it has made <see cref="GpuDrivenTables.MaxRecordsPerStage"/> material records (new
+	/// attribute values each time): that stage only, not the material's others or another material's.
+	/// </summary>
+	[TestMethod]
+	public void AStageChurnsAfterItsLimitOfMaterialRecords()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		var tables = backend.GpuDrivenTables;
+		var material = (BackendMaterial)backend.CreateMaterial( "Churning", Color.White );
+		var other = (BackendMaterial)backend.CreateMaterial( "Steady", Color.White );
+		var shader = backend.Shaders.Load( "shaders/complex.shader" );
+		var variant = shader is null ? null : backend.Shaders.Variant( shader, "Forward", default );
+		if ( variant?.Vertex is null || variant.Pixel is null ) Assert.Inconclusive( "complex.shader isn't compiled" );
+
+		uint Record( BackendMaterial m, ShaderStage stage, int attributes ) =>
+			tables.Material( new GpuDrivenTables.MaterialRecordKey( m, m.Version, stage, false, attributes ), 64, 0, static ( _, bytes ) => bytes.Clear() );
+
+		Record( other, variant.Pixel, 0 );
+		for ( int i = 0; i < GpuDrivenTables.MaxRecordsPerStage - 1; i++ ) Record( material, variant.Pixel, i );
+		Assert.IsFalse( tables.Churns( material, variant.Pixel ), "one short of the limit" );
+		Record( material, variant.Pixel, 0 );
+		Assert.IsFalse( tables.Churns( material, variant.Pixel ), "a record it has already is found, not made" );
+
+		Record( material, variant.Pixel, GpuDrivenTables.MaxRecordsPerStage );
+		Assert.IsTrue( tables.Churns( material, variant.Pixel ), "at the limit" );
+		Assert.IsFalse( tables.Churns( material, variant.Vertex ), "its other stage" );
+		Assert.IsFalse( tables.Churns( other, variant.Pixel ), "another material" );
+		Device.WaitIdle();
+	}
+
+	/// <summary>
+	/// A material a game sets a new value on every frame (wind, a pulse) makes a material record each time it's drawn
+	/// GPU-driven, and records never go: GAMMA's trees took 75 GB of host memory in three minutes. Past its limit its draws
+	/// stay classic, so the table stops growing, and they draw as the classic path does.
+	/// </summary>
+	[TestMethod]
+	public void AMaterialChangedEveryFrameStopsAddingRecords()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDrivenMeshes = true, TimeDraws = true };
+		if ( backend.Shaders.GpuDriven( backend.Shaders.Load( "shaders/complex.shader" ) ) is null ) Assert.Inconclusive( "complex.shader has no GPU-driven variant: ShaderCompiler -gpudriven" );
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Churn test" );
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 0;
+			var material = (BackendMaterial)backend.CreateMaterial( "Pulsing boxes", new Color( 0.8f, 0.6f, 0.4f ) );
+			var (mesh, fragments) = Boxes( backend, material, 0 );
+			world.Add( new AggregateObject( mesh, fragments ) );
+
+			var view = new RenderView { Name = "Churn test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			byte[] Frame( bool gpuDriven, float tint )
+			{
+				backend.GpuDriven = gpuDriven;
+				material.Set( "g_vColorTint", [0.8f, 0.6f, tint, 0] );
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			var before = backend.GpuDrivenTables.Records.Materials;
+			const int Frames = GpuDrivenTables.MaxRecordsPerStage + 60;
+			for ( int i = 0; i < Frames; i++ ) Frame( true, i / (float)Frames );
+			var made = backend.GpuDrivenTables.Records.Materials - before;
+			for ( int i = 0; i < 30; i++ ) Frame( true, 1 + i / 30f );
+			var after = backend.GpuDrivenTables.Records.Materials - before;
+			backend.GpuDrivenLeftClassic.Clear();
+			var driven = Frame( true, 0.25f );
+			var left = backend.GpuDrivenLeftClassic.Keys.ToArray();
+			var classic = Frame( false, 0.25f );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			// A record per stage (the prepass's and forward's, vertex and pixel) for each value until the limit, then none
+			Assert.AreEqual( made, after, $"no material records past the limit: {made} over {Frames} frames, {after} after 30 more" );
+			Assert.IsTrue( left.Any( x => x.Contains( "material records churn", StringComparison.Ordinal ) ), $"its draws stay classic: {string.Join( ", ", left )}" );
+			Assert.AreEqual( 0, Different( classic, driven ), "and draw the classic pixels" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A released owner's visibility (<see cref="GpuDrivenTables.Visibility"/>) is free again once the frames that could read
 	/// it are done, and reused: owners made and let go over and over never run the stamps and vertex bits out. They used to
 	/// be kept for good, so resident groups made again on Construct took every bit and later owners drew without culling.
