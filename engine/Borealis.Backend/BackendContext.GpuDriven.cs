@@ -371,6 +371,13 @@ internal sealed partial class BackendContext
 					continue;
 				}
 
+				// A matrix its object sets (a transform, likely new each frame) would make a material record per value
+				if ( ObjectSetsMatrix( variant.Vertex ) || ObjectSetsMatrix( variant.Pixel ) )
+				{
+					LeftClassic( shader, mode, "object sets a matrix constant" );
+					continue;
+				}
+
 				var noColor = batch.StripPixelShader || r.Color is null;
 				var depthOnly = StripsPixelShader( m, noColor, batch.StripPixelShader );
 				if ( !depthOnly && variant.Pixel?.Bytecode is null )
@@ -2319,6 +2326,39 @@ internal sealed partial class BackendContext
 		var made = hash.ToHashCode();
 		attributeHashes[stage] = (passEpoch, layerEpoch, made);
 		return made;
+	}
+
+	readonly Dictionary<ShaderStage, StringToken[]> matrixAttributes = new( ReferenceEqualityComparer.Instance );
+
+	/// <summary>
+	/// Whether the object attributes set one of a stage's attribute-sourced matrix constants (skin.shader's
+	/// <c>EyeOcclusionViewProj</c>): material records are append-only and keyed by attribute values, so a per-object
+	/// transform there would add records every frame. Its draws stay classic; unset (the shader's default) or set by the
+	/// pass, it's in the record like any other attribute constant.
+	/// </summary>
+	bool ObjectSetsMatrix( ShaderStage stage )
+	{
+		if ( stage is null || layerEpoch == 0 ) return false;
+		if ( !matrixAttributes.TryGetValue( stage, out var names ) )
+		{
+			List<StringToken> found = null;
+			var constants = stage.MaterialConstants;
+			for ( int i = 0; i < constants.Count; i++ )
+			{
+				var variable = constants[i].Variable;
+				if ( variable.Source != VariableSource.Attribute || variable.Type is not (VariableType.Matrix3x3 or VariableType.Matrix3x4 or VariableType.Matrix4x4) ) continue;
+				(found ??= []).Add( Token( variable.Attribute ) );
+			}
+
+			matrixAttributes[stage] = names = found?.ToArray() ?? [];
+		}
+
+		for ( int i = 0; i < names.Length; i++ )
+		{
+			if ( LayerValue( names[i], out _ ) is not null ) return true;
+		}
+
+		return false;
 	}
 
 	void WriteMaterialRecord( BackendMaterial material, ShaderStage stage, bool uncompressedTangentFrame, Span<byte> record )
