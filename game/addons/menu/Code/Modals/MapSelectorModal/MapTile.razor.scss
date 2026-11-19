@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // Like the menu's package tiles - no outline, the picture's the tile, the name over its foot on a
 // scrim, and it lifts off the page under the pointer
@@ -9,7 +9,7 @@ MapTile
 	height: 100%;
 	flex-direction: column;
 	cursor: pointer;
-	font-family: $front-font;
+	font-family: $platform-font;
 
 	.image
 	{
@@ -19,7 +19,7 @@ MapTile
 		aspect-ratio: 16 / 9;
 		align-items: center;
 		justify-content: center;
-		border-radius: $front-radius;
+		border-radius: $platform-radius;
 		background-position: center;
 		background-size: cover;
 		background-color: #0b0d14;
@@ -30,7 +30,7 @@ MapTile
 		{
 			font-family: "Material Icons";
 			font-size: 32px;
-			color: $front-tertiary;
+			color: $platform-faint;
 		}
 	}
 

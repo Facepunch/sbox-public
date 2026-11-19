@@ -3,13 +3,17 @@ using System;
 
 namespace Sandbox
 {
+	/// <summary>
+	/// Configures and creates a three-dimensional texture.
+	/// </summary>
+	[Expose]
 	public struct Texture3DBuilder
 	{
 		internal TextureBuilder config = new();
 		internal int Width { set => config._config.m_nWidth = (short)value; }
 		internal int Height { set => config._config.m_nHeight = (short)value; }
 		internal int Depth { set => config._config.m_nDepth = (short)value; }
-		internal ImageFormat Format { set => config._config.m_nImageFormat = value; }
+		internal ImageFormat Format { set => config.WithFormat( value ); }
 
 
 		internal string _name = null;

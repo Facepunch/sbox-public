@@ -14,7 +14,7 @@ using V3 = System.Numerics.Vector3;
 namespace Borealis.Backend.Lods;
 
 /// <summary>
-/// Generated levels of GPU-driven aggregate ranges (docs/managed/borealis-gpu-driven.md, "Generated LODs"). A fragment's
+/// Generated levels of GPU-driven aggregate ranges (docs/reference/borealis-gpu-driven.md, "Generated LODs"). A fragment's
 /// range is asked for as its records are written; its chain of coarser levels is built off the frame on workers
 /// (<see cref="LodBuilder"/>), and once a GPU-driven colour pass draws the range too, the levels' indices go in its index
 /// page's level room at a frame's start and every draw record over the range gets a LOD record: for each level its own

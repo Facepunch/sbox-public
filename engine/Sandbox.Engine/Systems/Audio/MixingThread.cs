@@ -160,6 +160,7 @@ static class MixingThread
 			if ( listener.Scene?.IsSuspended == true ) continue;
 
 			listener.MixTransform = listener.Transform;
+			listener.Motion.Update( listener.MixTransform.Position, RealTime.NowDouble );
 			snapshot.Listeners.Add( new ListenerState
 			{
 				Listener = listener,

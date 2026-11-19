@@ -62,6 +62,23 @@ internal class HashSetEx<T> : IHotloadManaged
 	}
 
 	/// <summary>
+	/// Removes matching items, including additions not yet visible to active enumerators.
+	/// Active enumerators keep their current list until they finish.
+	/// </summary>
+	public int RemoveWhere( Predicate<T> match )
+	{
+		try
+		{
+			return _hashset.RemoveWhere( match );
+		}
+		finally
+		{
+			// Predicates can refresh the cache or throw after removing some items.
+			_listInvalid = true;
+		}
+	}
+
+	/// <summary>
 	/// Determines whether this set contains the given object.
 	/// </summary>
 	public bool Contains( T obj ) => _hashset.Contains( obj );

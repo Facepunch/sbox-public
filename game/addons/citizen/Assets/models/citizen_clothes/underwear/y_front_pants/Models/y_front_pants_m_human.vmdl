@@ -100,7 +100,7 @@
 						[
 							{
 								from = "male_body.vmat"
-								to = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								to = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
 							},
 							{
 								from = "y_front_pants.vmat"

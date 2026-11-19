@@ -28,12 +28,18 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 
 	public override void OnDisabled()
 	{
-		if ( Game.IsPlaying )
-			Cancel();
-		else
-			Create();
-
-		Editor = null;
+		try
+		{
+			if ( Game.IsPlaying )
+				Cancel();
+			else
+				Create();
+		}
+		finally
+		{
+			Editor?.Dispose();
+			Editor = null;
+		}
 	}
 
 	internal void SelectEditor( Type type )
@@ -41,6 +47,7 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 		if ( Editor?.GetType() == type )
 			return;
 
+		Editor?.Dispose();
 		Editor = EditorTypeLibrary.Create<PrimitiveEditor>( type, [this] );
 
 		if ( Editor is not null )
@@ -69,11 +76,11 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 			var bounds = mesh.CalculateBounds();
 			mesh.ApplyTransform( new Transform( -bounds.Center ) );
 
-			var rotation = Editor.BuildRotation;
+			var transform = Editor.BuildTransform;
 
 			var go = new GameObject( true, name );
-			go.WorldPosition = rotation * bounds.Center;
-			go.WorldRotation = rotation;
+			go.WorldPosition = transform.PointToWorld( bounds.Center );
+			go.WorldRotation = transform.Rotation;
 			go.IsStatic = true;
 			var c = go.Components.Create<MeshComponent>( false );
 			c.Mesh = mesh;

@@ -133,16 +133,8 @@ sealed class RecordStore
 			// Unchanged files kept their old times
 			foreach ( var rel in staged.Keys ) record.Outputs[rel] = Hashing.Stamp( resolve( rel ) );
 
-			if ( record is null )
-			{
-				File.Delete( RecordPath( source ) );
-			}
-			else
-			{
-				var temp = RecordPath( source ) + ".tmp";
-				File.WriteAllText( temp, JsonSerializer.Serialize( record, Json ) );
-				File.Move( temp, RecordPath( source ), true );
-			}
+			if ( record is null ) File.Delete( RecordPath( source ) );
+			else Rewrite( source, record );
 		}
 		catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
 		{
@@ -155,6 +147,16 @@ sealed class RecordStore
 		File.Delete( journal );
 		if ( Directory.Exists( backup ) ) Directory.Delete( backup, true );
 		return moves.Select( x => x.Target ).ToList();
+	}
+
+	/// <summary>
+	/// Writes a record again with nothing to move, as when its outputs' stamps moved but their bytes didn't.
+	/// </summary>
+	public void Rewrite( string source, AssetRecord record )
+	{
+		var temp = RecordPath( source ) + ".tmp";
+		File.WriteAllText( temp, JsonSerializer.Serialize( record, Json ) );
+		File.Move( temp, RecordPath( source ), true );
 	}
 
 	PublishFailedException Undo( string journal, Exception e )

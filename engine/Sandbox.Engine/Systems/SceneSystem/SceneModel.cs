@@ -93,7 +93,7 @@ public sealed partial class SceneModel : SceneObject
 
 		animNative.SetWorldSpaceRenderBoneTransform( boneIndex, transform );
 		if ( animNative.HasInstance && WritesNative ) animNative.Twin.SetWorldSpaceRenderBoneTransform( boneIndex, transform );
-		NotifyChanged( Rendering.SceneObjectChange.Bones );
+		BonesChanged();
 	}
 
 	/// <summary>

@@ -9,7 +9,6 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Sandbox.Test.Integration" )]
 [assembly: InternalsVisibleTo( "Benchmark" )]
 
-[assembly: InternalsVisibleTo( "Sandbox.Access" )]
 [assembly: InternalsVisibleTo( "Sandbox.Engine" )]
 [assembly: InternalsVisibleTo( "Sandbox.Tools" )]
 [assembly: InternalsVisibleTo( "Sandbox.Bind" )]

@@ -1,4 +1,5 @@
-﻿using System.Buffers;
+using System.Runtime.InteropServices;
+using System.Buffers;
 
 namespace Sandbox;
 
@@ -42,19 +43,29 @@ public static partial class Gizmo
 		/// </summary>
 		public void Lines( in IEnumerable<Line> lines )
 		{
-			if ( !lines.Any() ) return;
-
+			if ( lines is Line[] array ) { Lines( array.AsSpan() ); return; }
+			if ( lines is List<Line> list ) { Lines( CollectionsMarshal.AsSpan( list ) ); return; }
+			using var iterator = lines.GetEnumerator();
+			if ( !iterator.MoveNext() ) return;
 			var so = VertexObject( Graphics.PrimitiveType.Lines, LineMaterial );
+			if ( lines.TryGetNonEnumeratedCount( out var count ) ) so.Vertices.EnsureCapacity( checked(so.Vertices.Count + count * 2) );
+			do { var line = iterator.Current; AddLineInternal( so, line.Start, line.End ); } while ( iterator.MoveNext() );
+		}
 
-			var hasCheapCount = lines.TryGetNonEnumeratedCount( out var lineCount );
-			if ( hasCheapCount )
+		/// <summary>Draw line segments without allocating an enumerator.</summary>
+		public void Lines( ReadOnlySpan<Line> lines )
+		{
+			if ( lines.IsEmpty ) return;
+			var so = VertexObject( Graphics.PrimitiveType.Lines, LineMaterial );
+			var start = so.Vertices.Count;
+			CollectionsMarshal.SetCount( so.Vertices, checked(start + lines.Length * 2) );
+			var target = CollectionsMarshal.AsSpan( so.Vertices )[start..];
+			var vertex = new Vertex( Vector3.Zero, Color32 );
+			for ( var i = 0; i < lines.Length; ++i )
 			{
-				so.Vertices.EnsureCapacity( so.Vertices.Count + lineCount * 2 );
-			}
-
-			foreach ( var line in lines )
-			{
-				AddLineInternal( so, line.Start, line.End );
+				vertex.Position = lines[i].Start; target[i * 2] = vertex;
+				vertex.Position = lines[i].End; target[i * 2 + 1] = vertex;
+				if ( Active.lineScope.Enabled ) Hitbox.AddPotentialLine( lines[i].Start, lines[i].End, LineThickness );
 			}
 		}
 
@@ -99,26 +110,19 @@ public static partial class Gizmo
 		private void LineBox( Span<Vector3> corners )
 		{
 			Assert.AreEqual( 8, corners.Length );
+			ReadOnlySpan<byte> edges = [0, 1, 1, 2, 2, 3, 3, 0, 0, 4, 1, 5, 2, 6, 3, 7, 4, 5, 5, 6, 6, 7, 7, 4];
+			Span<Vertex> vertices = stackalloc Vertex[8];
+			var transform = Transform;
+			var matrix = Matrix.CreateScale( transform.Scale ) * Matrix.CreateRotation( transform.Rotation ) * Matrix.CreateTranslation( transform.Position );
+			for ( var i = 0; i < vertices.Length; ++i ) vertices[i] = new Vertex( matrix.Transform( corners[i] ), Color32 );
 
-			var so = VertexObject( Graphics.PrimitiveType.Lines, LineMaterial );
-
-			// bottom
-			AddLineInternal( so, corners[0], corners[1] );
-			AddLineInternal( so, corners[1], corners[2] );
-			AddLineInternal( so, corners[2], corners[3] );
-			AddLineInternal( so, corners[3], corners[0] );
-
-			// middle
-			AddLineInternal( so, corners[0], corners[4] );
-			AddLineInternal( so, corners[1], corners[5] );
-			AddLineInternal( so, corners[2], corners[6] );
-			AddLineInternal( so, corners[3], corners[7] );
-
-			// top
-			AddLineInternal( so, corners[4], corners[5] );
-			AddLineInternal( so, corners[5], corners[6] );
-			AddLineInternal( so, corners[6], corners[7] );
-			AddLineInternal( so, corners[7], corners[4] );
+			var so = VertexObject( Graphics.PrimitiveType.Lines, LineMaterial, worldSpace: true );
+			var start = so.Vertices.Count;
+			CollectionsMarshal.SetCount( so.Vertices, checked(start + edges.Length) );
+			var target = CollectionsMarshal.AsSpan( so.Vertices )[start..];
+			for ( var i = 0; i < edges.Length; ++i ) target[i] = vertices[edges[i]];
+			if ( Active.lineScope.Enabled )
+				for ( var i = 0; i < edges.Length; i += 2 ) Hitbox.AddPotentialLine( corners[edges[i]], corners[edges[i + 1]], LineThickness );
 		}
 
 		/// <summary>
@@ -131,41 +135,39 @@ public static partial class Gizmo
 		/// </summary>
 		public void LineSphere( in Sphere sphere, int rings = 8 )
 		{
+			if ( rings < 1 ) return;
+			using var aroundBuffer = rings > MaxCachedCircleSections ? new PooledSpan<Vector2>( checked(rings + 1) ) : default;
+			using var downBuffer = rings > MaxCachedCircleSections ? new PooledSpan<Vector2>( checked(rings + 1) ) : default;
+			var around = CircleSamples( rings, aroundBuffer.Span, lines: true );
+			var down = CircleSamples( rings, downBuffer.Span, half: true );
+			var stride = checked(rings + 1);
+			using var grid = new PooledSpan<Vector3>( checked(stride * stride) );
+			var points = grid.Span;
+			for ( var y = 0; y <= rings; ++y )
+				for ( var x = 0; x <= rings; ++x )
+					points[y * stride + x] = sphere.Center + new Vector3( sphere.Radius * down[y].x * around[x].y,
+						sphere.Radius * down[y].x * around[x].x, sphere.Radius * down[y].y );
+
 			var so = VertexObject( Graphics.PrimitiveType.Lines, LineMaterial );
-
-			++rings;
-
-			var vertices = ArrayPool<Vector3>.Shared.Rent( rings * rings );
-
-			int nOutVert = 0;
-
-			int i, j;
-			for ( i = 0; i < rings; ++i )
-			{
-				for ( j = 0; j < rings; ++j )
+			var start = so.Vertices.Count;
+			CollectionsMarshal.SetCount( so.Vertices, checked(start + rings * rings * 4) );
+			var target = CollectionsMarshal.AsSpan( so.Vertices )[start..];
+			var vertex = new Vertex( Vector3.Zero, Color32 );
+			var output = 0;
+			for ( var y = 0; y < rings; ++y )
+				for ( var x = 0; x < rings; ++x )
 				{
-					float u = j / (float)(rings - 1);
-					float v = i / (float)(rings - 1);
-					float t = 2.0f * MathF.PI * u;
-					float p = MathF.PI * v;
-
-					vertices[nOutVert] = new( sphere.Center.x + (sphere.Radius * MathF.Sin( p ) * MathF.Cos( t )), sphere.Center.y + (sphere.Radius * MathF.Sin( p ) * MathF.Sin( t )), sphere.Center.z + (sphere.Radius * MathF.Cos( p )) );
-					++nOutVert;
+					var index = y * stride + x;
+					vertex.Position = points[index]; target[output++] = vertex;
+					vertex.Position = points[index + stride]; target[output++] = vertex;
+					vertex.Position = points[index]; target[output++] = vertex;
+					vertex.Position = points[index + 1]; target[output++] = vertex;
+					if ( Active.lineScope.Enabled )
+					{
+						Hitbox.AddPotentialLine( points[index], points[index + stride], LineThickness );
+						Hitbox.AddPotentialLine( points[index], points[index + 1], LineThickness );
+					}
 				}
-			}
-
-
-			for ( i = 0; i < rings - 1; ++i )
-			{
-				for ( j = 0; j < rings - 1; ++j )
-				{
-					int idx = rings * i + j;
-					AddLineInternal( so, vertices[idx], vertices[idx + rings] );
-					AddLineInternal( so, vertices[idx], vertices[idx + 1] );
-				}
-			}
-
-			ArrayPool<Vector3>.Shared.Return( vertices );
 		}
 
 		/// <summary>
@@ -324,22 +326,34 @@ public static partial class Gizmo
 		/// </summary>
 		public void LineTriangles( in IEnumerable<Triangle> triangles )
 		{
-			if ( !triangles.Any() ) return;
-
+			if ( triangles is Triangle[] array ) { LineTriangles( array.AsSpan() ); return; }
+			if ( triangles is List<Triangle> list ) { LineTriangles( CollectionsMarshal.AsSpan( list ) ); return; }
+			using var iterator = triangles.GetEnumerator();
+			if ( !iterator.MoveNext() ) return;
 			var so = VertexObject( Graphics.PrimitiveType.Lines, LineMaterial );
-
-			var hasCheapCount = triangles.TryGetNonEnumeratedCount( out var trianglesCount );
-			if ( hasCheapCount )
+			if ( triangles.TryGetNonEnumeratedCount( out var count ) ) so.Vertices.EnsureCapacity( checked(so.Vertices.Count + count * 6) );
+			do
 			{
-				so.Vertices.EnsureCapacity( so.Vertices.Count + trianglesCount * 6 );
-			}
+				var triangle = iterator.Current;
+				AddLineInternal( so, triangle.A, triangle.B );
+				AddLineInternal( so, triangle.B, triangle.C );
+				AddLineInternal( so, triangle.C, triangle.A );
+			} while ( iterator.MoveNext() );
+		}
 
-			foreach ( var triangle in triangles )
+		/// <summary>Draw triangle outlines without allocating an enumerator.</summary>
+		public void LineTriangles( ReadOnlySpan<Triangle> triangles )
+		{
+			if ( triangles.IsEmpty ) return;
+			var so = VertexObject( Graphics.PrimitiveType.Lines, LineMaterial );
+			so.Vertices.EnsureCapacity( checked(so.Vertices.Count + triangles.Length * 6) );
+			foreach ( ref readonly var triangle in triangles )
 			{
 				AddLineInternal( so, triangle.A, triangle.B );
 				AddLineInternal( so, triangle.B, triangle.C );
 				AddLineInternal( so, triangle.C, triangle.A );
 			}
 		}
+
 	}
 }

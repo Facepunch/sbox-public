@@ -3,7 +3,7 @@
   <!--
     Windows, input and Vulkan surfaces for Borealis's own programs, over SDL3 through our own loader and function pointers.
     References nothing: a swap chain takes a window through SurfaceSource.Custom( window.CreateVulkanSurface ).
-    See docs/managed/borealis-gpu.md.
+    See docs/reference/borealis-gpu.md.
   -->
 
   <PropertyGroup>

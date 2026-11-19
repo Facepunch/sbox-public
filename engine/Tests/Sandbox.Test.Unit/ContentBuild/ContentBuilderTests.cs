@@ -25,6 +25,9 @@ public class ContentBuilderTests
 	{
 		public ConcurrentDictionary<string, uint> Versions { get; } = new() { ["version"] = 1 };
 		public ConcurrentQueue<string> Compiled { get; } = new();
+
+		/// <summary>Compiles started ("compile b.vmat") and outputs published ("published a.vtex_c"), in order.</summary>
+		public ConcurrentQueue<string> Events { get; } = new();
 		public ConcurrentQueue<int> Threads { get; } = new();
 		public int MaxConcurrent;
 		int running;
@@ -111,6 +114,7 @@ public class ContentBuilderTests
 		{
 			var rel = Path.GetRelativePath( job.Root.Path, job.Source ).Replace( '\\', '/' );
 			Compiled.Enqueue( rel );
+			Events.Enqueue( $"compile {rel}" );
 
 			var content = new StringBuilder( $"compiled {rel}\n" );
 			var sourceHash = SourceHash( job );
@@ -156,6 +160,11 @@ public class ContentBuilderTests
 
 		public IReadOnlyList<uint?> Fingerprints( IReadOnlyList<SpecialDependency> dependencies ) =>
 			dependencies.Select( x => Versions.TryGetValue( x.Name, out var v ) ? v : (uint?)null ).ToArray();
+
+		public void Published( IReadOnlyList<string> paths )
+		{
+			foreach ( var path in paths ) Events.Enqueue( $"published {Path.GetFileName( path )}" );
+		}
 
 		/// <summary>
 		/// A path in the job's root, "mod:path" in another root of the build, or "*path" in the last-mounted
@@ -218,6 +227,25 @@ public class ContentBuilderTests
 		CollectionAssert.AreEquivalent( expected, report.Jobs.ToArray(), $"Jobs: {string.Join( ", ", report.Jobs )}\n{report.Log}" );
 
 	[TestMethod]
+	public void StagingDirectoriesAreReusedAcrossJobs()
+	{
+		using var fx = new Fixture();
+		for ( var i = 0; i < 40; i++ )
+		{
+			fx.Write( $"t{i}.vtex", "red" );
+			fx.Write( $"m{i}.vmat", $"reads *t{i}.vtex" );
+		}
+
+		var staging = new ConcurrentDictionary<string, byte>( StringComparer.OrdinalIgnoreCase );
+		fx.Compiler.During = job => staging.TryAdd( job.Staging, 0 );
+		var report = fx.Build( maxJobs: 2 );
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		Assert.AreEqual( 80, report.Jobs.Count );
+		Assert.IsTrue( staging.Count <= 4, $"{staging.Count} staging directories for 80 jobs" );
+	}
+
+	[TestMethod]
 	public void ShippedMountsNeedNoSourcesOrBuildStateAndProjectOverridesWin()
 	{
 		using var fx = new Fixture();
@@ -274,6 +302,25 @@ public class ContentBuilderTests
 		fx.Write( "a.vtex", "blue" );
 		AssertJobs( fx.Build(), "a.vtex", "b.vmat" );
 		StringAssert.Contains( fx.Read( "b.vmat_c" ), "blue" );
+	}
+
+	[TestMethod]
+	public void OutputTouchedWithSameBytesIsHashedOnce()
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		Assert.IsTrue( fx.Build().Success );
+
+		// A checkout or copy moves its time, not its bytes: still current, and its new stamp is recorded
+		var output = Path.Combine( fx.Root, "a.vtex_c" );
+		File.SetLastWriteTimeUtc( output, File.GetLastWriteTimeUtc( output ).AddHours( 1 ) );
+		AssertJobs( fx.Build() );
+
+		// Hashing it again would fail on Windows while it's held
+		using var held = new FileStream( output, FileMode.Open, FileAccess.Read, FileShare.None );
+		var warm = fx.Build();
+		Assert.IsTrue( warm.Success, warm.Log.ToString() );
+		AssertJobs( warm );
 	}
 
 	[TestMethod]
@@ -385,6 +432,23 @@ public class ContentBuilderTests
 		Assert.IsTrue( report.Success, report.Log.ToString() );
 		CollectionAssert.AreEqual( new[] { "a.vtex", "b.vmat" }, report.Jobs.ToArray() );
 		StringAssert.Contains( fx.Read( "b.vmat_c" ), "blue" );
+	}
+
+	[TestMethod]
+	public void CompilerHearsOfAPublishedOutputBeforeWhatReadsItCompiles()
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		fx.Write( "b.vmat", "reads a.vtex" );
+		Assert.IsTrue( fx.Build().Success );
+
+		fx.Write( "a.vtex", "blue" );
+		while ( fx.Compiler.Events.TryDequeue( out _ ) ) { }
+		Assert.IsTrue( fx.Build().Success );
+
+		var events = fx.Compiler.Events.ToList();
+		var published = events.IndexOf( "published a.vtex_c" );
+		Assert.IsTrue( published >= 0 && published < events.IndexOf( "compile b.vmat" ), string.Join( "; ", events ) );
 	}
 
 	[TestMethod]
@@ -826,20 +890,20 @@ public class ContentBuilderTests
 
 		// The menu project itself: its compiles write to local.menu, with the engine root's records and lock
 		var opened = ContentRoots.WithProjects( engine, [("local.menu", Path.Combine( game, "addons", "menu", "Assets" ), Path.Combine( game, "addons", "menu" ))] );
-		CollectionAssert.AreEqual( new[] { "core", "citizen", "local.menu" }, opened.Select( x => x.Mod ).ToArray() );
-		Assert.AreEqual( menu.Path, opened[2].Path );
-		Assert.AreEqual( menu.StateDirectory, opened[2].StateDirectory );
+		CollectionAssert.AreEqual( new[] { "core", "citizen", "content", "local.menu" }, opened.Select( x => x.Mod ).ToArray() );
+		Assert.AreEqual( menu.Path, opened[3].Path );
+		Assert.AreEqual( menu.StateDirectory, opened[3].StateDirectory );
 
 		// Any other project: the engine roots as they are, the project after them with its own state
 		var other = Path.Combine( Path.GetTempPath(), "game_project" );
 		var game2 = ContentRoots.WithProjects( engine, [("local.game", Path.Combine( other, "Assets" ), other)] );
-		CollectionAssert.AreEqual( new[] { "core", "citizen", "menu", "local.game" }, game2.Select( x => x.Mod ).ToArray() );
-		Assert.AreEqual( ContentRoots.ProjectState( other ), game2[3].StateDirectory );
+		CollectionAssert.AreEqual( new[] { "core", "citizen", "content", "menu", "local.game" }, game2.Select( x => x.Mod ).ToArray() );
+		Assert.AreEqual( ContentRoots.ProjectState( other ), game2[4].StateDirectory );
 
 		// An engine root mounted as a library moves to where the library is mounted, before the project
 		var library = ContentRoots.WithProjects( engine, [("local.citizenlib", citizen.Path, Path.GetDirectoryName( citizen.Path )), ("local.game", Path.Combine( other, "Assets" ), other)] );
-		CollectionAssert.AreEqual( new[] { "core", "menu", "local.citizenlib", "local.game" }, library.Select( x => x.Mod ).ToArray() );
-		Assert.AreEqual( citizen.StateDirectory, library[2].StateDirectory );
+		CollectionAssert.AreEqual( new[] { "core", "content", "menu", "local.citizenlib", "local.game" }, library.Select( x => x.Mod ).ToArray() );
+		Assert.AreEqual( citizen.StateDirectory, library[3].StateDirectory );
 	}
 
 	[TestMethod]
@@ -881,7 +945,8 @@ public class ContentBuilderTests
 		CollectionAssert.AreEqual( new[] { "t.vtex", "m.vmat", "z.wav" }, fx.Build( maxJobs: 1 ).Jobs.ToArray() );
 	}
 
-	[TestMethod]
+	// Wall-clock times: a loaded machine (CI) can make the short compile take longer than the long one
+	[TestMethod, TestCategory( "Slow" )]
 	public void WhatTookLongestLastTimeCompilesFirst()
 	{
 		// The first build goes by type (material before texture); after it, by what each actually took. The first job
@@ -1029,6 +1094,22 @@ public class ContentBuilderTests
 
 		Assert.IsTrue( report.Success, report.Log.ToString() );
 		Assert.AreEqual( 2, fx.Compiler.MaxConcurrent );
+	}
+
+	[TestMethod]
+	public void RefusedJobsStillRunOneAtATime()
+	{
+		using var fx = new Fixture();
+		for ( var i = 0; i < 4; i++ ) fx.Write( $"t{i}.vtex", "sleep 50" );
+
+		var asked = 0;
+		var request = new BuildRequest { Roots = [new ContentRoot( "unit", fx.Root, fx.State )], MaxJobs = 4, CanStartJob = () => { asked++; return false; } };
+		var report = ContentBuilder.Build( request, fx.Compiler );
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		Assert.AreEqual( 4, report.Jobs.Count );
+		Assert.AreEqual( 1, fx.Compiler.MaxConcurrent );
+		Assert.IsTrue( asked > 0 );
 	}
 
 	[TestMethod]
@@ -1365,6 +1446,30 @@ public class ContentBuilderTests
 		File.Delete( Path.Combine( fx.Root, "a.vtex" ) );
 		fx.Build();
 		Assert.AreEqual( "someone else's", File.ReadAllText( Path.Combine( fx.Dir, "other.vtex_c" ) ) );
+	}
+
+	[TestMethod]
+	public void GeneratedChildFoundInAnotherRootIsAdoptedAsItsOwnCopy()
+	{
+		// Shared default textures: the compiler finds another root's copy first, the asset has its own as compiling writes it
+		using var fx = new Fixture();
+		WriteIn( fx, "r1/m.vmat", "child t.generated.vtex_c pixels" );
+		WriteIn( fx, "r2/n.vmat", "child t.generated.vtex_c pixels", "foreign r1/t.generated.vtex_c" );
+		Assert.IsTrue( BuildRoots( fx, ["r1", "r2"] ).Success );
+		Directory.Delete( Path.Combine( fx.Dir, "state-r2", "records" ), true );
+
+		var report = BuildRoots( fx, ["r1", "r2"] );
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		CollectionAssert.AreEqual( new[] { "r2:n.vmat" }, report.Adopted.ToArray(), report.Log.ToString() );
+		AssertJobs( report );
+
+		// Its own copy isn't the one the compiler vouched for (older pixels under the same recipe name): compiled
+		File.WriteAllText( Path.Combine( fx.Dir, "r2", "t.generated.vtex_c" ), "older pixels" );
+		Directory.Delete( Path.Combine( fx.Dir, "state-r2", "records" ), true );
+		report = BuildRoots( fx, ["r1", "r2"] );
+		Assert.AreEqual( 0, report.Adopted.Count, report.Log.ToString() );
+		AssertJobs( report, "r2:n.vmat" );
 	}
 
 	[TestMethod]

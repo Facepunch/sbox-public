@@ -1,0 +1,27 @@
+{
+  "guid": "94a668df-248b-4b23-ba9a-59c1913789d6",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Couch Cushions",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "couchcushions",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/home/sofa/materials/sofa_cushions.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

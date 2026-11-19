@@ -1,0 +1,466 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "GameDataList"
+				children =
+				[
+					{
+						_class = "GenericGameData"
+						game_class = "prop_data"
+						game_keys =
+						{
+							health = 30
+							min_impact_damage_speed = 450
+							impact_damage = 30
+							flammable = false
+							explosive = false
+						}
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"LOD0",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 33.381355
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD1",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 316.968689
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD2",
+						]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = [  ]
+						use_global_default = true
+						global_default_material = "models/sbox/kitchen/kitchen_work_counter_03/materials/kitchen_work_counter.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						filename = "models/sbox/kitchen/kitchen_work_counter_04/kitchen_work_counter_04.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"kitchen_work_counters_04_lod0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD1"
+						filename = "models/sbox/kitchen/kitchen_work_counter_04/kitchen_work_counter_04.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"kitchen_work_counters_04_lod1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD2"
+						filename = "models/sbox/kitchen/kitchen_work_counter_04/kitchen_work_counter_04.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"kitchen_work_counters_04_lod2",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsShapeBox"
+						name = "worktop"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 1.3339, 0.0, 39.9996 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 63.1669, 123.1524, 1.9985 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "lower_shelf"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 0.9026, 0.0, 4.4212 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 61.9247, 121.4154, 1.9986 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "back_panel"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -29.693, 0.0, 22.2446 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.5, 121.4154, 33.5868 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "end_panel_left"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 0.5673, 60.501, 22.2446 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 61.0206, 0.4136, 33.5868 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "end_panel_right"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 0.5673, -60.501, 22.2446 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 61.0206, 0.4136, 33.5868 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "front_top_rail"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 30.716, 0.0, 38.2989 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.7232, 116.228, 1.4782 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "front_post_left"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 30.716, 59.411, 21.5055 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.7232, 2.594, 32.1086 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "front_post_middle"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 30.716, 0.0, 21.5055 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.7232, 2.7024, 32.1086 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "front_post_right"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 30.716, -59.411, 21.5055 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.7232, 2.594, 32.1086 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_front_left"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 30.5539, 59.4786, 1.3264 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 1.8756, 1.8545, 4.2453 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_front_middle"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 30.5539, 0.0, 1.3264 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 1.8756, 1.8278, 4.2453 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_front_right"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 30.5539, -59.4786, 1.3264 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 1.8756, 1.8545, 4.2453 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_back_left"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -28.7016, 59.4786, 1.3264 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 1.8756, 1.8545, 4.2453 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_back_middle"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -28.7016, 0.0, 1.3264 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 1.8756, 1.8278, 4.2453 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_back_right"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -28.7016, -59.4786, 1.3264 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 1.8756, 1.8545, 4.2453 ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 55.0
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "BreakPieceList"
+				children =
+				[
+					{
+						_class = "BreakPieceExternal"
+						name = "kitchen_work_counter_03_gib_01_left"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 29.7326, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/kitchen/kitchen_work_counter_03/gibs/kitchen_work_counter_03_gib_01.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						name = "kitchen_work_counter_03_gib_02_left"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 29.7326, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/kitchen/kitchen_work_counter_03/gibs/kitchen_work_counter_03_gib_02.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						name = "kitchen_work_counter_03_gib_03_left"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 29.7326, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/kitchen/kitchen_work_counter_03/gibs/kitchen_work_counter_03_gib_03.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						name = "kitchen_work_counter_03_gib_04_left"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 29.7326, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/kitchen/kitchen_work_counter_03/gibs/kitchen_work_counter_03_gib_04.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						name = "kitchen_work_counter_03_gib_01_right"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, -29.7326, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/kitchen/kitchen_work_counter_03/gibs/kitchen_work_counter_03_gib_01.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						name = "kitchen_work_counter_03_gib_02_right"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, -29.7326, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/kitchen/kitchen_work_counter_03/gibs/kitchen_work_counter_03_gib_02.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						name = "kitchen_work_counter_03_gib_03_right"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, -29.7326, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/kitchen/kitchen_work_counter_03/gibs/kitchen_work_counter_03_gib_03.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						name = "kitchen_work_counter_03_gib_04_right"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, -29.7326, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/kitchen/kitchen_work_counter_03/gibs/kitchen_work_counter_03_gib_04.vmdl"
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
+		base_model_name = ""
+	}
+}

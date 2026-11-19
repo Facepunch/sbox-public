@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 
 namespace Sandbox;
 
@@ -97,7 +97,7 @@ public class PointLight : Light
 
 	protected override void DrawGizmos()
 	{
-		using var scope = Gizmo.Scope( $"light-{GetHashCode()}" );
+		using var scope = Gizmo.PushScope( "light" );
 
 		if ( Gizmo.IsSelected )
 		{

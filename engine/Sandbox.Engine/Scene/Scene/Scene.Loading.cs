@@ -111,6 +111,9 @@ public partial class Scene : GameObject
 				{
 					if ( Graphics.HasSource2Device ) g_pRenderDevice.FlushPipelineCache();
 					else if ( RenderBackend.Default is BorealisGpuRenderBackend borealis ) borealis.FlushPipelineCache();
+
+					// The previous scene's GPU memory was just freed, hand the empty blocks back (Source 2's device)
+					if ( Graphics.HasSource2Device ) g_pRenderDevice.RequestGPUMemoryCompaction();
 				}
 
 				// Tell networking we've finished loading, lets players join

@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/hat/baseball_cap/baseball_cap_black.clothing.png",
+    "Path": "models/citizen_clothes/hat/baseball_cap/baseball_cap_black.clothing.vtex",
     "Mode": "Eyes",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

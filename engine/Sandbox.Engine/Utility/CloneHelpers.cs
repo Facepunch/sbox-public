@@ -308,6 +308,13 @@ internal sealed class MemberCloner
 
 	private static Action<object, object> BuildCopy( MemberDescription member )
 	{
+		if ( !member.IsRuntimeMember )
+		{
+			var get = BuildGetter( member );
+			var set = BuildSetter( member );
+			return ( source, target ) => set( target, get( source ) );
+		}
+
 		if ( ReadOnlyField( member ) is { } readOnlyField )
 			return ( source, target ) => readOnlyField.SetValue( target, readOnlyField.GetValue( source ) );
 
@@ -319,6 +326,16 @@ internal sealed class MemberCloner
 
 	private static Func<object, object> BuildGetter( MemberDescription member )
 	{
+		if ( !member.IsRuntimeMember )
+		{
+			return member switch
+			{
+				PropertyDescription property => property.GetValue,
+				FieldDescription field => field.GetValue,
+				_ => throw new InvalidOperationException( "Member is neither a property nor a field" )
+			};
+		}
+
 		var instance = Expression.Parameter( typeof( object ), "instance" );
 		var body = Expression.Convert( Access( member, instance ), typeof( object ) );
 		return Expression.Lambda<Func<object, object>>( body, instance ).Compile();
@@ -326,6 +343,16 @@ internal sealed class MemberCloner
 
 	private static Action<object, object> BuildSetter( MemberDescription member )
 	{
+		if ( !member.IsRuntimeMember )
+		{
+			return member switch
+			{
+				PropertyDescription property => property.SetValue,
+				FieldDescription field => field.SetValue,
+				_ => throw new InvalidOperationException( "Member is neither a property nor a field" )
+			};
+		}
+
 		if ( ReadOnlyField( member ) is { } readOnlyField )
 			return readOnlyField.SetValue;
 

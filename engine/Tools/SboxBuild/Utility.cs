@@ -182,12 +182,36 @@ internal static class Utility
 	/// </summary>
 	public static bool PrTouchesNativeCode()
 	{
-		var baseRef = Environment.GetEnvironmentVariable( "GITHUB_BASE_REF" );
-		if ( string.IsNullOrEmpty( baseRef ) )
+		var diffTarget = PrDiffBase();
+		if ( diffTarget is null )
 		{
 			Log.Info( "GITHUB_BASE_REF not set; assuming native code is touched." );
 			return true;
 		}
+
+		var touchesNative = !NativeInputsMatch( diffTarget );
+
+		if ( touchesNative )
+		{
+			Log.Info( "PR touches native code or interop definitions; full native build required." );
+		}
+		else
+		{
+			Log.Info( "PR does not touch native code; public artifacts will be used." );
+		}
+
+		return touchesNative;
+	}
+
+	/// <summary>
+	/// The commit a PR's changes are measured from: where it forked from its base branch, fetched into a shallow CI
+	/// checkout. Null when this isn't a PR run (no GITHUB_BASE_REF).
+	/// </summary>
+	public static string PrDiffBase()
+	{
+		var baseRef = Environment.GetEnvironmentVariable( "GITHUB_BASE_REF" );
+		if ( string.IsNullOrEmpty( baseRef ) )
+			return null;
 
 		// In shallow CI checkouts origin/{baseRef} won't exist until we fetch it.
 		// Fetch enough history to find the merge-base; a depth of 50 is sufficient for
@@ -223,18 +247,7 @@ internal static class Utility
 			diffTarget = "FETCH_HEAD";
 		}
 
-		var touchesNative = !NativeInputsMatch( diffTarget );
-
-		if ( touchesNative )
-		{
-			Log.Info( "PR touches native code or interop definitions; full native build required." );
-		}
-		else
-		{
-			Log.Info( "PR does not touch native code; public artifacts will be used." );
-		}
-
-		return touchesNative;
+		return diffTarget;
 	}
 
 	/// <summary>

@@ -20,11 +20,11 @@ public class GlobalTransitionNode : TransitionNode
 	public override bool CanClone => false;
 	public override bool CanRemove => false;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			info.Name = $"Global → {StateName}";
 			return info;
 		}

@@ -8,7 +8,7 @@ using V3 = System.Numerics.Vector3;
 namespace BorealisGpuTests;
 
 /// <summary>
-/// Meshlets built at load (docs/managed/borealis-gpu-driven.md, "Meshlets"): meshoptimizer's shared library from
+/// Meshlets built at load (docs/reference/borealis-gpu-driven.md, "Meshlets"): meshoptimizer's shared library from
 /// <c>src/meshopt</c>, and what <see cref="MeshletBuilder"/> makes of a range.
 /// </summary>
 [TestClass]

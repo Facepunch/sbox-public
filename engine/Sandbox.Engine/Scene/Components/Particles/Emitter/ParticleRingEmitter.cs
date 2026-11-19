@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 /// <summary>
 /// Emits particles in a ring. The ring can be flat or have a tube-like quality.
@@ -20,7 +20,7 @@ public sealed class ParticleRingEmitter : ParticleEmitter
 
 	protected override void DrawGizmos()
 	{
-		//using ( Gizmo.Scope( "ring", new Transform( 0, new Angles( 90, 0, 0 ) ) ) )
+		//using ( Gizmo.PushScope( "ring", new Transform( 0, new Angles( 90, 0, 0 ) ) ) )
 		//{
 		//	Gizmo.Draw.Color = Color.White.WithAlpha( 0.2f );
 		//	Gizmo.Draw.SolidRing( 0, Radius.Evaluate( Delta, 0 ), Radius.Evaluate( Delta, 0 ) + 1 + Thickness.Evaluate( Delta, EmitRandom ), AngleStart.Evaluate( Delta, 0 ), AngleEnd.Evaluate( Delta, 0 ), 16 );
@@ -30,7 +30,7 @@ public sealed class ParticleRingEmitter : ParticleEmitter
 
 	public override bool Emit( ParticleEffect target )
 	{
-		var angle = Random.Shared.Float( 0, Angle.Evaluate( Delta, EmitRandom ).DegreeToRadian() );
+		var angle = ParticleRandom.Shared.Float( 0, Angle.Evaluate( Delta, EmitRandom ).DegreeToRadian() );
 		angle += AngleStart.Evaluate( Delta, EmitRandom ).DegreeToRadian();
 
 		var x = MathF.Sin( angle );
@@ -43,7 +43,7 @@ public sealed class ParticleRingEmitter : ParticleEmitter
 
 		if ( thickness > 0 )
 		{
-			ringOffset = Vector3.Random * thickness;
+			ringOffset = ParticleRandom.Shared.VectorInSphere() * thickness;
 			ringOffset.z *= (1 - Flatness.Evaluate( Delta, EmitRandom ));
 
 			size += ringOffset;

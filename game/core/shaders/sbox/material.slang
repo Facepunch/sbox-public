@@ -1,6 +1,6 @@
 // sbox.material: a new-tier material's parameters. Both tiers declare them as a [Material] struct; the shader compiler
 // turns its Texture2D fields into MaterialTexture2D (a bindless slot) and lays the struct out as one record the engine
-// writes once per material. See docs/managed/shader-format-replacement.md.
+// writes once per material. See docs/reference/borealis-slang-materials.md.
 module material;
 
 // Every sampled texture the device has, in the bindless set: t16 in space 4 is set 4, binding 62 with vfx's binding

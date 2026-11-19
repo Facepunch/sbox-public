@@ -13,7 +13,13 @@ public struct WorkshopItemMetaData
 	public const string FileName = "metadata.json";
 
 	public string Title { get; set; }
+
+	/// <summary>
+	/// The backend package, when this item has one. Workshop-only addons omit it.
+	/// </summary>
+	[System.Text.Json.Serialization.JsonIgnore( Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull )]
 	public string PackageIdent { get; set; }
+
 	public ulong WorkshopId { get; set; }
 
 	/// <summary>

@@ -6,6 +6,7 @@ namespace Sandbox
 	/// <summary>
 	/// Possible primitive types of a <see cref="Mesh"/>.
 	/// </summary>
+	[Expose]
 	public enum MeshPrimitiveType
 	{
 		Points,
@@ -21,6 +22,7 @@ namespace Sandbox
 	///
 	/// <para>A set of meshes can be used to create a <see cref="Model"/> via the <see cref="ModelBuilder"/> class.</para>
 	/// </summary>
+	[Expose]
 	public partial class Mesh : IValid
 	{
 		internal IMesh native;

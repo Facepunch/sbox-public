@@ -134,6 +134,20 @@ public class GenericPicker : AssetPicker
 		}
 	}
 
+	/// <summary>
+	/// Starts an editable search across local assets, including the engine's built-in assets.
+	/// </summary>
+	public override void SetSearchText( string value )
+	{
+		if ( string.IsNullOrWhiteSpace( value ) )
+			return;
+
+		DockManager.RaiseDock( "Asset Browser" );
+		AssetBrowser.Search.Clear();
+		AssetBrowser.Search.Value = value;
+		AssetBrowser.NavigateTo( new EverythingLocation() );
+	}
+
 	public override void SetSelection( Package package )
 	{
 		if ( package is null )

@@ -462,6 +462,7 @@ public partial class Texture : Resource, IDisposable
 /// <summary>
 /// Flags providing hints about a texture
 /// </summary>
+[Expose]
 public enum TextureFlags
 {
 	None = 0,

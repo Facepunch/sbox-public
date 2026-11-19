@@ -12,6 +12,9 @@ public sealed class StyleSheetAttribute : System.Attribute
 	/// </summary>
 	public string Name;
 
+	/// <summary>
+	/// Applies the named stylesheet, or the stylesheet beside the panel's source file when no name is given.
+	/// </summary>
 	public StyleSheetAttribute( string name = null )
 	{
 		Name = name;

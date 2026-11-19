@@ -20,7 +20,7 @@ public sealed class ParticleModelEmitter : ParticleEmitter
 		// If we have hitboxes, use those
 		if ( target.Model.HitboxSet?.All?.Count > 0 )
 		{
-			var boxIndex = Random.Shared.Int( 0, target.Model.HitboxSet.All.Count - 1 );
+			var boxIndex = ParticleRandom.Shared.Int( 0, target.Model.HitboxSet.All.Count - 1 );
 			var box = target.Model.HitboxSet.All[boxIndex];
 
 			var tx = target.WorldTransform;

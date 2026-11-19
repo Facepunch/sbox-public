@@ -1,92 +1,128 @@
+@import "/Platform/_platform.scss";
 
-
-$error: #BF616A;
-$warning: #d47050;
-
-$background: #171819;
-$control: #38393c;
-$control-dark: #262728;
-$control-light: #636363;
-$control-label: #dbdee9;
-$control-text: #ccc;
-$control-highlight: #3793c8;
-
-$client: #f3d234;
-$server: #3793c8;
-
-
-$blue: #3793c8;
-$green: #75b741;
-$yellow: #b69a2c;
-
+// Over the whole screen, but only its window takes the pointer - what's round it carries on, and can be clicked
 DeveloperMode
 {
-    position: absolute;
-    top: 0px;
-    bottom: 0px;
-    right: 0px;
-    left: 0px;
-    pointer-events: none;
-    font-family: Roboto Mono;
-    font-size: 11px;
-    color: white;
-    align-items: stretch;
-    display: none;
-    padding: 5%;
-    gap: 10px;
+	position: absolute;
+	left: 0px;
+	top: 0px;
+	right: 0px;
+	bottom: 0px;
+	pointer-events: none;
+	font-family: $platform-font;
+	color: $platform-text;
 
-    &.open
-    {
-        pointer-events: all;
-        display: flex;
-        background-image: linear-gradient( to bottom, #222f, #222e, #222f );
-    }
+	// The console's window (FloatingWindow) - a platform panel, its size set in code (DeveloperMode.size) and where it's
+	// been left kept. Faded away while the console's shut - not scaled, as a transform throws off the log's clipping.
+	> .console-window
+	{
+		@include platform-panel;
+		position: absolute;
+		left: 12%;
+		top: 8%;
+		width: 1100px;
+		height: 560px;
+		border-radius: 8px;
+		box-shadow: 0 24px 80px rgba( 0, 0, 0, 0.6 );
+		overflow: hidden;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.05s ease-in;
+
+		// Its titlebar as a panel's bar (PanelHead) - its tile, its name, and its close, red under the pointer as the
+		// dock's quit. In from the sides and sized as the console's tools under it, so they line up. A step more particular
+		// than the window's own (FloatingWindow.Styles).
+		.floating-window-header.floating-window-titlebar
+		{
+			height: 42px;
+			gap: 10px;
+			padding: 0 10px;
+
+			.floating-window-icon
+			{
+				@include platform-tile( 17px, 32px );
+				margin: 0;
+				font-family: "Material Icons";
+				font-size: 17px;
+				text-align: center;
+				line-height: 32px;
+				color: $platform-icon;
+			}
+
+			.floating-window-title
+			{
+				margin: 0;
+				font-size: 15px;
+			}
+
+			.floating-window-control
+			{
+				@include platform-tool( 32px, 17px );
+				opacity: 1;
+				// Just its glyph till it's pointed at
+				background-color: transparent;
+
+				&:hover
+				{
+					background-color: #bd354c;
+
+					iconpanel
+					{
+						color: white;
+					}
+				}
+			}
+		}
+
+		// The console fills it - it scrolls its own log
+		.floating-window-content
+		{
+			position: relative;
+			overflow: hidden;
+		}
+	}
+
+	// Comes in quickly, settling down from a touch bigger - an animation, so it's left with no transform once it's in
+	&.open > .console-window
+	{
+		opacity: 1;
+		pointer-events: all;
+		animation: console-in 0.05s ease-out;
+	}
+
+	// Its bottom right corner, dragged to make it bigger or smaller - two lines across it to show it can be
+	.resize
+	{
+		position: absolute;
+		right: 0px;
+		bottom: 0px;
+		width: 18px;
+		height: 18px;
+		z-index: 10;
+		cursor: nwse-resize;
+		background-image: linear-gradient( 135deg, transparent 45%, rgba( 255, 255, 255, 0.22 ) 45%, rgba( 255, 255, 255, 0.22 ) 52%, transparent 52%, transparent 66%, rgba( 255, 255, 255, 0.22 ) 66%, rgba( 255, 255, 255, 0.22 ) 73%, transparent 73% );
+	}
 }
 
-DeveloperMode > .left
-{
-    width: 300px;
-    flex-direction: column;
-    justify-content: flex-end;
-    gap: 5px;
-}
-
-DeveloperMode > .center
-{
-    flex-grow: 1;
-}
-
+// Its popups - the right-click menu, the command line's suggestions - as the platform's dropdown lists
 .popup-panel
 {
-    padding: 4px;
-    gap: 2px;
+	@include platform-popup-list;
+	border-radius: 8px;
+	font-family: $platform-font;
+}
 
-    .button
-    {
-        background-color: $control;
-        border-radius: 3px;
+@keyframes console-in
+{
+	from
+	{
+		opacity: 0;
+		transform: scale( 1.04 );
+	}
 
-        &:nth-child( even )
-        {
-            background-color: rgba( $control, 0.8 );
-        }
-
-        &:hover, &.active
-        {
-            background-color: $blue;
-
-
-            &:nth-child( even )
-            {
-                background-color: rgba( $blue, 0.8 );
-            }
-        }
-
-        .iconpanel
-        {
-            color: white;
-            opacity: 0.2;
-            margin-right: 10px;
-        }
-    }
+	to
+	{
+		opacity: 1;
+		transform: scale( 1 );
+	}
 }

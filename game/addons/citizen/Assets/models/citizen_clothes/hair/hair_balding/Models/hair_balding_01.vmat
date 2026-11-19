@@ -1,0 +1,76 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/complex.shader"
+
+	//---- Animation ----
+	F_MORPH_SUPPORTED 1
+
+	//---- Color ----
+	F_TINT_MASK 1
+
+	//---- Detail Texture ----
+	F_DETAIL_TEXTURE 1 // Mod2X
+
+	//---- Rendering ----
+	F_RENDER_BACKFACES 1
+
+	//---- Secondary UV ----
+	F_SECONDARY_UV 1
+
+	//---- Translucent ----
+	F_ALPHA_TEST 1
+
+	//---- Ambient Occlusion ----
+	g_bUseSecondaryUvForAmbientOcclusion "0"
+	g_flAmbientOcclusionDirectDiffuse "1.000"
+	g_flAmbientOcclusionDirectSpecular "1.000"
+	TextureAmbientOcclusion "models/citizen_clothes/hair/legacy_hair/textures/straight_hair/hair_01_ao.png"
+
+	//---- Color ----
+	g_bUseSecondaryUvForTintMask "0"
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "models/citizen_clothes/hair/hair_balding/models/hair_balding_color.png"
+	TextureTintMask "models/citizen_clothes/hair/legacy_hair/Textures/straight_hair/hair_02_mask.png"
+
+	//---- Detail Texture ----
+	g_bUseSecondaryUvForDetailMask "0"
+	g_bUseSecondaryUvForDetailTexture "1"
+	g_flDetailBlendFactor "1.000"
+	g_flDetailBlendToFull "0.000"
+	g_flDetailTexCoordRotation "0.000"
+	g_vDetailTexCoordOffset "[0.000 0.000]"
+	g_vDetailTexCoordScale "[1.000 1.000]"
+	TextureDetail "models/citizen_clothes/hair/hair_looseblonde/hair_overlay_color.png"
+	TextureDetailMask "[1.000000 1.000000 1.000000 0.000000]"
+
+	//---- Fade ----
+	g_flFadeExponent "1.000"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Metalness ----
+	g_flMetalness "0.875"
+
+	//---- Normal ----
+	g_flLightRangeForSelfShadowNormals "0.710"
+	g_flNormalMapScaleFactor "1.000"
+	TextureNormal "models/citizen_clothes/hair/legacy_hair/textures/straight_hair/hair_01_normal.png"
+
+	//---- Roughness ----
+	g_flRoughnessScaleFactor "0.059"
+	TextureRoughness "models/citizen_clothes/hair/legacy_hair/Textures/straight_hair/hair_02_rough.png"
+
+	//---- Texture Coordinates ----
+	g_vTexCoordOffset "[0.000 0.000]"
+	g_vTexCoordScale "[1.000 1.000]"
+	g_vTexCoordScrollSpeed "[0.000 0.000]"
+
+	//---- Translucent ----
+	g_flAlphaTestReference "0.346"
+	g_flAntiAliasedEdgeStrength "0.076"
+	TextureTranslucency "models/citizen_clothes/hair/legacy_hair/textures/straight_hair/hair_01_opacity.png"
+}

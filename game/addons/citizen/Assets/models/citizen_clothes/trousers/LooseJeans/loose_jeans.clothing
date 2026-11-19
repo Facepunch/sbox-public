@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/trousers/loosejeans/loose_jeans.clothing.png",
+    "Path": "models/citizen_clothes/trousers/loosejeans/loose_jeans.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "-104.5,0,-28.3999996"

@@ -165,7 +165,7 @@ internal sealed class MaterialAsks
 /// Texture streaming for the game window: material textures start as their tails (<see cref="TextureFile.Tail"/>) and get
 /// the mips their draws ask for (<c>textureSize</c>, see <c>TextureSizes</c>) as new images built from the file on a
 /// worker, uploaded a few each frame and swapped in whole. Textures grow while video memory has room and give mips back
-/// when it runs short. Runs on the thread that begins frames. See docs/managed/borealis-gpu-path.md.
+/// when it runs short. Runs on the thread that begins frames. See docs/reference/borealis-gpu-path.md.
 /// </summary>
 internal sealed class TextureStreamer
 {

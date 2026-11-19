@@ -1,24 +1,26 @@
 @using System;
+@using System.Globalization;
 @using Sandbox;
 @using Sandbox.UI;
 
 @namespace Sandbox.Menu
 
-<root class="game-closing" >
+@* Held Escape in a game - leaving it once the bar along the bottom fills. Fades down in, and back out when let go. *@
+<root class="game-closing">
 
-    @{
-        var progress = Progress.Remap(0, 1.0f, 0.0f, 100.0f).ToString("0.00") + "%";
+    <div class="tile"><i>logout</i></div>
+    <label class="title">#menu.home.closing_game</label>
 
-        <iconpanel>close</iconpanel>
-        <div class="title">#menu.home.closing_game</div>
-        <div class="progress" style="width: @progress"></div>
-    }
-    
+    <div class="track">
+        <div class="fill" style="width: @Percent"></div>
+    </div>
+
 </root>
 
 @code
 {
-
     public float Progress { get; set; }
 
+    // Invariant, or a comma for the decimal point breaks the width
+    string Percent => (Math.Clamp( Progress, 0f, 1f ) * 100f).ToString( "0.00", CultureInfo.InvariantCulture ) + "%";
 }

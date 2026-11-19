@@ -111,7 +111,7 @@ public abstract partial class ResourceCompiler
 			var child = Context.CreateChild( absPath );
 
 			child.SetInputData( JsonSerializer.Serialize( embed ) );
-			if ( !child.Compile() ) Context.Fail( $"Couldn't generate {transientPath}" );
+			if ( !Context.CompileChild( child, transientPath ) ) Context.Fail( $"Couldn't generate {transientPath}" );
 		}
 
 		//

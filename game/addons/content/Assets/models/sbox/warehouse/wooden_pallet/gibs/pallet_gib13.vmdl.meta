@@ -1,0 +1,27 @@
+{
+  "guid": "6d42e9ca-1c6f-4d86-aa88-7f5b26bf16db",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Pallet Gib 13",
+      "Type": "model",
+      "Org": "local",
+      "Ident": "pallet_gib13",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/warehouse/wooden_pallet/gibs/pallet_gib13.vmdl"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

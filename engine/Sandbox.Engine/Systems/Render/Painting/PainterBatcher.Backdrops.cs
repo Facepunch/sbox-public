@@ -17,11 +17,21 @@ internal partial class PainterBatcher
 	// An empty list means there is no capture to reuse.
 	readonly List<Rect> _backdropWrites = [];
 
+	// The command recording the capture, so backdrops sharing it can ask for more of its mips
+	int _backdropGrab;
+	int _backdropGrabMips;
+
 	// An explicit flush is a barrier: callers may append arbitrary native commands or change targets.
 	void InvalidateBackdrop()
 	{
 		_backdropWrites.Clear();
 	}
+
+	/// <summary>
+	/// How many mips of the capture a backdrop's blur reads: ui_backdropfilter.shader samples trilinearly at LOD
+	/// sqrt( blur / 2 ), so never past the mip after that one. Generating the whole chain would mostly go unread.
+	/// </summary>
+	static int BackdropMips( float blur ) => (int)MathF.Sqrt( MathF.Max( 0, blur ) * 0.5f ) + 2;
 
 	// Explicit Painter backdrops always see all preceding drawing.
 	internal void AddBackdrop( in Painter.BackdropData data, Matrix localTransform, int localClip, BlendMode blendMode )
@@ -88,14 +98,22 @@ internal partial class PainterBatcher
 		attributes.Set( "BlurScale", data.Filter.Blur );
 		attributes.SetCombo( "D_PAINTER_SCREENPIXELS", Destination.MapScreenPixels );
 
+		var mips = BackdropMips( data.Filter.Blur );
 		if ( reuseGrab )
 		{
+			if ( mips > _backdropGrabMips )
+			{
+				attributes.RaiseGrabFrameTextureMips( _backdropGrab, mips );
+				_backdropGrabMips = mips;
+			}
+
 			var frame = new RenderTargetHandle { Name = "FrameBufferCopyTexture" };
 			attributes.Set( "FrameBufferCopyTexture", frame.ColorTexture );
 		}
 		else
 		{
-			attributes.GrabFrameTexture( "FrameBufferCopyTexture", Graphics.DownsampleMethod.GaussianBlur );
+			attributes.GrabFrameTexture( "FrameBufferCopyTexture", Graphics.DownsampleMethod.GaussianBlur, mips, out _backdropGrab );
+			_backdropGrabMips = mips;
 		}
 		_commands.DrawQuad( data.Rect.Grow( 1 ), Material.UI.BackdropFilter, data.Filter.Tint.WithAlphaMultiplied( data.Opacity ), attributes );
 		CountDraw( grabs: reuseGrab ? 0 : 1 );
@@ -150,9 +168,13 @@ internal partial class PainterBatcher
 
 	void TrackBackdropWrite( in UICssBoxBatched.BoxInstance instance )
 	{
+		TrackBackdropWrite( new Rect( instance.Rect.x, instance.Rect.y, instance.Rect.z, instance.Rect.w ), instance.TransformIndex );
+	}
+
+	void TrackBackdropWrite( Rect rect, int transformIndex )
+	{
 		if ( _backdropWrites.Count == 0 ) return;
-		var rect = new Rect( instance.Rect.x, instance.Rect.y, instance.Rect.z, instance.Rect.w ).Grow( 1 );
-		if ( !TryScreenBounds( rect, _transformTable[instance.TransformIndex].Mat, out var bounds ) )
+		if ( !TryScreenBounds( rect.Grow( 1 ), _transformTable[transformIndex].Mat, out var bounds ) )
 		{
 			InvalidateBackdrop();
 			return;

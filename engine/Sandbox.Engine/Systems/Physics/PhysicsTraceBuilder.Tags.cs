@@ -131,6 +131,12 @@
 
 			var t = this;
 
+			if ( tags is TagSet tagSet )
+			{
+				foreach ( var token in tagSet.TokenSet ) t = t.WithOptionalTag( new StringToken( token ) );
+				return t;
+			}
+
 			foreach ( var tag in tags.TryGetAll() )
 			{
 				t = t.WithOptionalTag( tag );
@@ -182,6 +188,12 @@
 
 			var t = this;
 
+			if ( tags is TagSet tagSet )
+			{
+				foreach ( var token in tagSet.TokenSet ) t = t.WithoutTag( new StringToken( token ) );
+				return t;
+			}
+
 			foreach ( var tag in tags.TryGetAll() )
 			{
 				t = t.WithoutTag( tag );
@@ -230,14 +242,30 @@
 			// 64 is 4x SBOX_MAX_COLLISION_TAG_COUNT, so it covers anything that can affect collision.
 			Span<StringToken> tagTokens = stackalloc StringToken[64];
 			int tagCount = 0;
-			foreach ( var tag in tags )
+			// Game tags are already tokenized, enumerating their strings would box an enumerator
+			if ( tags is GameTags gameTags && gameTags.GetTokens() is HashSet<uint> tokenSet )
 			{
-				if ( tagCount >= tagTokens.Length )
+				foreach ( var token in tokenSet )
 				{
-					Log.Warning( $"WithCollisionRules: tag set exceeded {tagTokens.Length} entries, ignoring the rest" );
-					break;
+					if ( tagCount >= tagTokens.Length )
+					{
+						Log.Warning( $"WithCollisionRules: tag set exceeded {tagTokens.Length} entries, ignoring the rest" );
+						break;
+					}
+					tagTokens[tagCount++] = new StringToken( token );
 				}
-				tagTokens[tagCount++] = tag;
+			}
+			else
+			{
+				foreach ( var tag in tags )
+				{
+					if ( tagCount >= tagTokens.Length )
+					{
+						Log.Warning( $"WithCollisionRules: tag set exceeded {tagTokens.Length} entries, ignoring the rest" );
+						break;
+					}
+					tagTokens[tagCount++] = tag;
+				}
 			}
 			tagTokens = tagTokens[..tagCount];
 

@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace Borealis.Backend;
 
 /// <summary>
-/// The resident cull (<see cref="BackendDevice.GpuDrivenResidentCull"/>, docs/managed/borealis-gpu-driven.md): in setup,
+/// The resident cull (<see cref="BackendDevice.GpuDrivenResidentCull"/>, docs/reference/borealis-gpu-driven.md): in setup,
 /// after every view has prepared, one dispatch of <c>borealis_resident_cull_cs</c> culls every view's resident plans, a
 /// thread per entry looping over the views that draw its plan, into a region per view and plan laid out as a call's own.
 /// The call of that kind in that view then draws from it without culling. Which plans a view draws is what its calls drew

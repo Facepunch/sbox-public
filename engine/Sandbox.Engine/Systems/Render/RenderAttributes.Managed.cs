@@ -39,6 +39,9 @@ public partial class RenderAttributes
 	/// <summary>The values a backend that lowers attributes itself reads: a managed set's own, or a native set's copy. Null for a native set without one.</summary>
 	internal ManagedRenderAttributes ManagedValues => Managed ?? Shadow;
 
+	/// <summary>Whether nothing is set: the managed values where there are any (on Borealis.Gpu there's no native set), else the native set's.</summary>
+	internal bool IsEmpty => ManagedValues is { } values ? values.IsEmpty : !attributes.IsValid || attributes.IsEmpty();
+
 	/// <summary>This set if it's managed, else <see cref="ShadowSet"/>: the set to draw with on a backend that lowers attributes itself.</summary>
 	internal RenderAttributes ManagedSet => Managed is not null ? this : ShadowSet;
 

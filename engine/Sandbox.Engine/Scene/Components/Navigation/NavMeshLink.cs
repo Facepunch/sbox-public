@@ -1,8 +1,21 @@
-﻿using Sandbox.Engine.Resources;
+using Sandbox.Engine.Resources;
 using Sandbox.Navigation;
 using System;
 
 namespace Sandbox;
+
+/// <summary>
+/// How many agents may cross a <see cref="NavMeshLink"/> at once.
+/// </summary>
+[Expose]
+public enum NavMeshLinkOccupancy
+{
+	/// <summary>Any number of agents cross at once.</summary>
+	Unlimited,
+
+	/// <summary>One agent crosses at a time. Others wait at their end of the link until it is free, first come, first served.</summary>
+	OneAtATime
+}
 
 /// <summary>
 /// NavigationLinks connect navigation mesh polygons for pathfinding and enable shortcuts like ladders, jumps, or teleports.
@@ -19,38 +32,20 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 	/// Start position relative to the game object's position.
 	/// </summary>
 	[Property]
-	public Vector3 LocalStartPosition
-	{
-		get => _start;
-		set
-		{
-			_start = value;
-			CreateOrUpdateLink();
-		}
-	}
-
-	private Vector3 _start;
+	public Vector3 LocalStartPosition { get; set; }
 
 	/// <summary>
 	/// End position relative to the game object's position.
 	/// </summary>
 	[Property]
-	public Vector3 LocalEndPosition
-	{
-		get => _end;
-		set
-		{
-			_end = value;
-			CreateOrUpdateLink();
-		}
-	}
+	public Vector3 LocalEndPosition { get; set; }
 
 	/// <summary>
 	/// Start position in world space snapped to the navmesh.
 	/// </summary>
 	public Vector3? WorldStartPositionOnNavmesh
 	{
-		get => linkData.IsStartConnected ? linkData.StartPositionOnNavMesh : null;
+		get => startOnNavmesh;
 	}
 
 	/// <summary>
@@ -58,10 +53,11 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 	/// </summary>
 	public Vector3? WorldEndPositionOnNavmesh
 	{
-		get => linkData.IsEndConnected ? linkData.EndPositionOnNavMesh : null;
+		get => endOnNavmesh;
 	}
 
-	private Vector3 _end;
+	// Written by the navmesh in every navigation update
+	internal Vector3? startOnNavmesh, endOnNavmesh;
 
 	/// <summary>
 	/// Whether this link can be traverse bi-directional or only start towards end.
@@ -79,16 +75,52 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 	/// The NavMesh area definition to apply to this link.
 	/// </summary>
 	[Property]
-	public NavMeshAreaDefinition Area
+	public NavMeshAreaDefinition Area { get; set; }
+
+	/// <summary>
+	/// What kind of link this is, for agents to allow, for paths to price and for game code to pick how to cross it. Without one it is a plain link that every agent takes.
+	/// <see cref="NavMeshLinkType"/> has the ones the engine ships. Fixed on a generated link: setting it there does nothing.
+	/// </summary>
+	[Property]
+	public NavMeshLinkType Type
 	{
-		get => _area;
+		get;
 		set
 		{
-			_area = value;
-			CreateOrUpdateLink();
+			if ( !IsGenerated ) field = value;
 		}
 	}
-	private NavMeshAreaDefinition _area;
+
+	/// <summary>
+	/// How many agents may cross at once.
+	/// </summary>
+	[Property]
+	public NavMeshLinkOccupancy Occupancy { get; set; }
+
+	/// <summary>
+	/// The agents crossing this link, in the order they entered.
+	/// </summary>
+	public IReadOnlyList<NavMeshAgent> Occupants => occupants ?? (IReadOnlyList<NavMeshAgent>)Array.Empty<NavMeshAgent>();
+
+	/// <summary>
+	/// True while an agent crosses this link.
+	/// </summary>
+	public bool IsOccupied => occupants is { Count: > 0 };
+
+	// Made when the first agent enters, so a link nobody takes carries no list
+	internal List<NavMeshAgent> occupants;
+
+	// Agents waiting at either end
+	internal int queued;
+
+	/// <summary>
+	/// True for a drop or jump the navmesh generated. The navmesh owns it: it is not saved with the scene and may be destroyed or recreated at any time.
+	/// Its type, positions, radius, direction and area are fixed and changes to them are ignored. <see cref="Occupancy"/> and the enter and exit callbacks may be used.
+	/// </summary>
+	public bool IsGenerated { get; internal set; }
+
+	// What the navmesh reported for a generated link
+	internal Nav.NavLink generated;
 
 	/// <summary>
 	/// Emitted when an agent enters the link.
@@ -99,8 +131,6 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 	/// Emitted when an agent exits the link.
 	/// </summary>
 	public Action<NavMeshAgent> LinkExited { get; set; }
-
-	private NavMeshLinkData linkData;
 
 	/// <summary>
 	/// Start position in world space.
@@ -160,79 +190,47 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 
 	internal override void OnEnabledInternal()
 	{
-		CreateOrUpdateLink();
-		Transform.OnTransformChanged += TransformChanged;
+		Scene.NavMesh.AddLink( this );
 		base.OnEnabledInternal();
 	}
 
 	internal override void OnDisabledInternal()
 	{
-		ClearLink();
-		Transform.OnTransformChanged -= TransformChanged;
+		Scene.NavMesh?.RemoveLink( this );
 		base.OnDisabledInternal();
-	}
-
-	private void CreateOrUpdateLink()
-	{
-		if ( !Active )
-			return;
-
-		if ( linkData == null )
-		{
-			linkData = new NavMeshLinkData();
-			linkData.UserData = this;
-			Scene.NavMesh.AddSpatiaData( linkData );
-		}
-
-		linkData.StartPosition = WorldStartPosition;
-		linkData.EndPosition = WorldEndPosition;
-
-		linkData.IsBiDirectional = IsBiDirectional;
-		linkData.ConnectionRadius = ConnectionRadius;
-
-		linkData.AreaDefinition = Area;
-
-		linkData.HasChanged = true;
-	}
-
-	private void ClearLink()
-	{
-		if ( linkData != null )
-		{
-			// tile cache will take care of removal
-			linkData.IsPendingRemoval = true;
-			linkData = null;
-		}
 	}
 
 	protected override void DrawGizmos()
 	{
-		if ( linkData == null )
+		// Generated links are drawn with the navmesh
+		if ( !Active || IsGenerated )
 			return;
 
-		Gizmo.Draw.Color = linkData.IsStartConnected ? NavMesh.debugInnerLineColor.WithAlpha( 1 ) : Color.Red;
+		bool startConnected = startOnNavmesh.HasValue, endConnected = endOnNavmesh.HasValue;
+
+		Gizmo.Draw.Color = startConnected ? NavMesh.debugInnerLineColor.WithAlpha( 1 ) : Color.Red;
 		Gizmo.Draw.LineSphere( LocalStartPosition, ConnectionRadius );
-		Gizmo.Draw.Color = linkData.IsEndConnected ? NavMesh.debugInnerLineColor.WithAlpha( 1 ) : Color.Red;
+		Gizmo.Draw.Color = endConnected ? NavMesh.debugInnerLineColor.WithAlpha( 1 ) : Color.Red;
 		Gizmo.Draw.LineSphere( LocalEndPosition, ConnectionRadius );
 
 		var drawStartPosition = LocalStartPosition;
-		if ( linkData.IsStartConnected )
+		if ( startConnected )
 		{
-			drawStartPosition = WorldTransform.PointToLocal( linkData.StartPositionOnNavMesh ) + NavMesh.debugDrawGroundOffset + new Vector3( 0, 0, 0.01f );
+			drawStartPosition = WorldTransform.PointToLocal( startOnNavmesh.Value ) + NavMesh.debugDrawGroundOffset + new Vector3( 0, 0, 0.01f );
 			Gizmo.Draw.Color = NavMesh.debugInnerLineColor.WithAlpha( 1 );
 			Gizmo.Draw.SolidSphere( drawStartPosition, 8f );
 		}
 
 		var drawEndPosition = LocalEndPosition;
-		if ( linkData.IsEndConnected )
+		if ( endConnected )
 		{
-			drawEndPosition = WorldTransform.PointToLocal( linkData.EndPositionOnNavMesh ) + NavMesh.debugDrawGroundOffset + new Vector3( 0, 0, 0.01f );
+			drawEndPosition = WorldTransform.PointToLocal( endOnNavmesh.Value ) + NavMesh.debugDrawGroundOffset + new Vector3( 0, 0, 0.01f );
 			Gizmo.Draw.Color = NavMesh.debugInnerLineColor.WithAlpha( 1 );
 			Gizmo.Draw.SolidSphere( drawEndPosition, 8f );
 		}
 
 		Gizmo.Draw.LineThickness = 2f;
-		Gizmo.Draw.Color = NavMesh.debugTileBorderColor.WithAlpha( 1 );
+		Gizmo.Draw.Color = (Type?.Color ?? NavMesh.debugTileBorderColor).WithAlpha( 1 );
 
 		// Draw arc between start end
 		int segments = 8;
@@ -261,8 +259,17 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 		}
 	}
 
-	private void TransformChanged()
+	internal Nav.NavLink CreateLink()
 	{
-		CreateOrUpdateLink();
+		return new()
+		{
+			Start = WorldStartPosition,
+			End = WorldEndPosition,
+			Radius = ConnectionRadius,
+			Bidirectional = IsBiDirectional,
+			// A link without a definition has an area of its own, which every agent may cross
+			Area = (byte)(Area is null ? NavMesh.LinkArea : Scene.NavMesh.AreaDefinitionToId( Area )),
+			Type = (byte)Scene.NavMesh.LinkTypeToId( Type )
+		};
 	}
 }

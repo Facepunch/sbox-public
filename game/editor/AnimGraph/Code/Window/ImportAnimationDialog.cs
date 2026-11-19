@@ -4,14 +4,20 @@ namespace Editor.AnimGraph;
 
 internal sealed class ImportAnimationDialog : Dialog
 {
-	private readonly ClipDocument _document;
-	private readonly string _directory;
-	private readonly string _assetsDirectory;
+	private readonly AnimationImportBatch _batch;
+	private readonly Widget _settings;
+	private readonly Widget _details;
+	private readonly ScrollArea _queue;
+	private readonly LineEdit _directory;
 	private readonly Label _status;
 	private readonly WarningBox _error;
 	private readonly Button _import;
+	private readonly Button _cancel;
+	private readonly Dictionary<AnimationImportEntry, (Widget Row, Label Status, LineEdit Name, Button Source)> _rows = [];
+	private AnimationImportEntry _selected;
+	private Label _detailStatus;
 
-	public Action<Asset> Imported { get; set; }
+	public Action<IReadOnlyList<Asset>> Imported { get; set; }
 
 	[Event( "asset.createoptions" )]
 	private static void AddCreateOption( List<CreateAsset.Entry> entries )
@@ -25,228 +31,310 @@ internal sealed class ImportAnimationDialog : Dialog
 		} );
 	}
 
+	[Event( "asset.contextmenu", Priority = 50 )]
+	private static void AddSourceOption( AssetContextMenu context )
+	{
+		if ( context.SelectedList.Count == 0 || context.SelectedList.Any( entry => entry.FileInfo is not { } file
+			|| Path.GetExtension( file.Name ).ToLowerInvariant() is not (".fbx" or ".dmx" or ".smd") ) )
+			return;
+
+		var sources = context.SelectedList.Select( entry => entry.FileInfo.FullName ).ToArray();
+		context.Menu.AddOption( sources.Length == 1 ? "Create Animation Clip" : "Create Animation Clips", "movie", () =>
+		{
+			var assetsDirectory = Path.GetFullPath( Project.Current.GetAssetsPath() );
+			var directory = Path.GetDirectoryName( sources[0] );
+			var relative = Path.GetRelativePath( assetsDirectory, directory );
+			if ( Path.IsPathRooted( relative ) || relative == ".." || relative.StartsWith( $"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal ) )
+				directory = assetsDirectory;
+
+			var dialog = new ImportAnimationDialog( directory );
+			dialog.AddSources( sources );
+			dialog.Show();
+		} );
+	}
+
 	public ImportAnimationDialog( string directory, string skeletonName = "", Widget parent = null ) : base( parent ?? EditorWindow )
 	{
-		_directory = directory;
-		_assetsDirectory = Path.GetFullPath( Project.Current.GetAssetsPath() );
-		_document = ClipDocument.Create( skeletonName );
-
-		Window.WindowTitle = "Import Animation";
-		Window.Size = new Vector2( 600, 300 );
-		Window.MinimumSize = new Vector2( 540, 280 );
+		_batch = new AnimationImportBatch( Project.Current.GetAssetsPath(), directory, skeletonName );
+		Window.Title = "Import Animations";
+		Window.Size = new Vector2( 840, 720 );
+		Window.MinimumSize = new Vector2( 720, 600 );
 		Window.SetWindowIcon( "movie" );
 
-		Layout = Layout.Column();
-		Layout.Margin = 12;
-		Layout.Spacing = 8;
-		Layout.Add( new Label( "Import an FBX, DMX or SMD animation. The full animation is imported unless you change the import settings.", this ) { WordWrap = true } );
+		var layout = Layout = Layout.Column();
+		layout.Margin = 12;
+		layout.Spacing = 8;
+		layout.Add( new Label( "Import FBX, DMX or SMD files. Each file becomes a clip using its full animation and first take unless changed below.", this ) { WordWrap = true } );
 
-		var serialized = EditorTypeLibrary.GetSerializedObject( _document );
-		var source = Layout.AddRow();
-		source.Spacing = 8;
-		var sourceSheet = new ControlSheet();
-		sourceSheet.AddRow( serialized.GetProperty( nameof( ClipDocument.SourceFilename ) ) );
-		source.Add( sourceSheet, 1 );
-		source.Add( new Button( "Browse...", "folder_open", this )
-		{
-			Clicked = ChooseSource,
-			ToolTip = "Choose an animation file from your computer"
-		} );
-
+		_settings = layout.Add( new Widget( this ) { Layout = Layout.Column() } );
+		_settings.Layout.Spacing = 8;
+		var serialized = EditorTypeLibrary.GetSerializedObject( _batch.Settings );
 		var sheet = new ControlSheet();
 		var skeleton = sheet.AddRow( serialized.GetProperty( nameof( ClipDocument.SkeletonName ) ) );
 		skeleton.Enabled = string.IsNullOrWhiteSpace( skeletonName );
 		if ( !skeleton.Enabled )
 			skeleton.ToolTip = "Uses the skeleton selected in your animation graph.";
-		sheet.AddGroup( "Import Settings",
-		[
-			serialized.GetProperty( nameof( ClipDocument.Take ) ),
-			serialized.GetProperty( nameof( ClipDocument.FrameRange ) ),
-			serialized.GetProperty( nameof( ClipDocument.StartFrame ) ),
-			serialized.GetProperty( nameof( ClipDocument.EndFrame ) ),
-			serialized.GetProperty( nameof( ClipDocument.ImportScale ) ),
-			serialized.GetProperty( nameof( ClipDocument.DurationOverride ) )
-		] );
-		Layout.Add( sheet );
-		Layout.Add( new Label( "Files outside your project are copied into Assets so the animation stays with your project.", this )
+		sheet.AddRow( serialized.GetProperty( nameof( ClipDocument.ImportScale ) ) );
+		_settings.Layout.Add( sheet );
+		serialized.OnPropertyChanged += _ => Refresh();
+
+		var destination = _settings.Layout.AddRow();
+		destination.Spacing = 8;
+		destination.Add( new Label( "Output folder", this ) );
+		_directory = destination.Add( new LineEdit( this ) { Text = directory }, 1 );
+		_directory.TextEdited += value =>
+		{
+			_batch.OutputDirectory = value;
+			Refresh();
+		};
+		destination.Add( new Button( "Browse...", "folder_open", this ) { Clicked = ChooseDirectory } );
+		_settings.Layout.Add( new Button( "Add Files...", "add", this ) { Clicked = ChooseSources } );
+
+		var header = layout.AddRow();
+		header.Add( new Label( "Source / settings", this ), 1 );
+		header.Add( new Label( "Output name (.anim)", this ), 1 );
+		header.Add( new Label( "Status", this ) { FixedWidth = 140 } );
+		_queue = layout.Add( new ScrollArea( this ) { MinimumHeight = 120, HorizontalScrollbarMode = ScrollbarMode.Off }, 1 );
+		_queue.Canvas = new Widget( _queue ) { Layout = Layout.Column() };
+		_queue.Canvas.Layout.Spacing = 4;
+
+		_details = layout.Add( new Widget( this ) { Layout = Layout.Column(), Visible = false } );
+		_details.Layout.Spacing = 4;
+		layout.Add( new Label( "Uncheck clips to skip them. External files are copied into a source folder beside the clips. Existing assets are never overwritten.", this )
 		{
 			WordWrap = true,
 			Color = Theme.TextLight
 		} );
-		Layout.AddStretchCell();
-		_status = Layout.Add( new Label( this ) { WordWrap = true, Color = Theme.TextLight } );
-		_error = Layout.Add( new WarningBox( this ) { BackgroundColor = Theme.Red, Icon = "error_outline", Visible = false } );
-
-		var buttons = Layout.AddRow();
+		_status = layout.Add( new Label( this ) { WordWrap = true, Color = Theme.TextLight } );
+		_error = layout.Add( new WarningBox( this ) { BackgroundColor = Theme.Red, Icon = "error_outline", Visible = false } );
+		var buttons = layout.AddRow();
 		buttons.Spacing = 8;
 		buttons.AddStretchCell();
-		buttons.Add( new Button( "Cancel", this ) { Clicked = Close } );
-		_import = buttons.Add( new Button.Primary( "Import...", "file_download", this ) { Clicked = () => Import() } );
-
-		serialized.OnPropertyChanged += _ =>
-		{
-			_error.Visible = false;
-			UpdateValidation();
-		};
-		UpdateValidation();
+		_cancel = buttons.Add( new Button( "Cancel", this ) { Clicked = CancelOrClose } );
+		_import = buttons.Add( new Button.Primary( "Import", "file_download", this ) { Clicked = () => _ = ImportAsync() } );
+		Refresh();
 	}
 
-	private void ChooseSource()
+	private void ChooseSources()
 	{
-		var dialog = new FileDialog( Window ) { Title = "Choose Animation File", Directory = _directory };
-		dialog.SetFindExistingFile();
+		var dialog = new FileDialog( this ) { Title = "Choose Animation Files", Directory = _batch.OutputDirectory };
+		dialog.SetFindExistingFiles();
 		dialog.SetModeOpen();
 		dialog.SetNameFilter( "Animation Source (*.fbx *.dmx *.smd)" );
-		if ( dialog.Execute() && !string.IsNullOrWhiteSpace( dialog.SelectedFile ) )
-		{
-			_document.SourceFilename = dialog.SelectedFile;
-			_error.Visible = false;
-			UpdateValidation();
-		}
+		if ( !dialog.Execute() )
+			return;
+		AddSources( dialog.SelectedFiles );
 	}
 
-	private string SourcePath => string.IsNullOrWhiteSpace( _document.SourceFilename ) ? null
-		: AssetSystem.FindByPath( _document.SourceFilename )?.GetSourceFile( true )
-			?? Path.GetFullPath( _document.SourceFilename, _assetsDirectory );
-
-	private string ValidateSettings( out string source )
+	private void AddSources( IEnumerable<string> sources )
 	{
-		source = null;
-		if ( string.IsNullOrWhiteSpace( _document.SourceFilename ) )
-			return "Choose an animation file to import.";
-
-		try
-		{
-			source = SourcePath;
-		}
-		catch ( Exception exception ) when ( exception is ArgumentException or NotSupportedException or PathTooLongException )
-		{
-			return "The animation file path is invalid. Choose an existing FBX, DMX or SMD file.";
-		}
-
-		if ( !File.Exists( source ) || Path.GetExtension( source ).ToLowerInvariant() is not (".fbx" or ".dmx" or ".smd") )
-			return "Choose an existing FBX, DMX or SMD animation file.";
-
-		if ( string.IsNullOrWhiteSpace( _document.SkeletonName ) )
-			return "Choose the skeleton this animation will play on.";
-
-		if ( Skeleton.Load( _document.SkeletonName ) is not { IsValid: true, IsError: false, BoneCount: > 0 } )
-			return "The selected skeleton could not be loaded. Choose another skeleton or check its compilation errors.";
-
-		if ( !float.IsFinite( _document.ImportScale ) || _document.ImportScale <= 0 )
-			return "Import scale must be positive and finite.";
-
-		if ( _document.StartFrame is { } start && _document.EndFrame is { } end && start > end )
-			return "End frame must not be before start frame.";
-
-		return null;
+		_batch.AddSources( sources );
+		_selected ??= _batch.Entries.FirstOrDefault();
+		RebuildQueue();
 	}
 
-	private void UpdateValidation()
+	private void ChooseDirectory()
 	{
-		var message = ValidateSettings( out _ );
-		_import.Enabled = message is null;
-		_import.ToolTip = message ?? "Choose where to save the new animation clip";
-		_status.Text = message ?? "Ready to import.";
+		var dialog = new FileDialog( this ) { Title = "Choose Clip Output Folder", Directory = _batch.OutputDirectory };
+		dialog.SetFindDirectory();
+		dialog.SetModeOpen();
+		if ( !dialog.Execute() || string.IsNullOrWhiteSpace( dialog.SelectedFile ) )
+			return;
+		_directory.Text = _batch.OutputDirectory = dialog.SelectedFile;
+		Refresh();
 	}
 
-	private void Import( string path = null )
+	private void RebuildQueue()
 	{
-		try
+		_queue.Canvas.Layout.Clear( true );
+		_rows.Clear();
+		foreach ( var entry in _batch.Entries )
 		{
-			var validation = ValidateSettings( out var source );
-			if ( validation is not null )
+			var row = _queue.Canvas.Layout.Add( new Widget( _queue.Canvas ) { Layout = Layout.Row() } );
+			row.Layout.Spacing = 6;
+			var included = row.Layout.Add( new Checkbox( row ) { Value = entry.Included, ToolTip = "Include this clip in the import" } );
+			included.Toggled = () =>
 			{
-				ShowError( validation );
-				return;
-			}
-			_error.Visible = false;
-
-			if ( path is null )
+				entry.Included = included.Value;
+				Refresh();
+			};
+			var source = row.Layout.Add( new Button( Path.GetFileName( entry.Source ), "tune", row )
 			{
-				var dialog = new FileDialog( Window )
+				ToolTip = $"Edit import settings for {entry.Source}",
+				Clicked = () => ShowDetails( entry )
+			}, 1 );
+			var name = row.Layout.Add( new LineEdit( row ) { Text = entry.Name, ToolTip = "Clip name, without .anim" }, 1 );
+			name.TextEdited += value =>
+			{
+				entry.Name = value;
+				Refresh();
+			};
+			var status = row.Layout.Add( new Label( row ) { FixedWidth = 116 } );
+			row.Layout.Add( new IconButton( "close" )
+			{
+				ToolTip = "Remove from queue. Files already saved are kept.",
+				OnClick = () =>
 				{
-					Title = "Create Animation Clip",
-					Directory = _document.FilePath is null ? _directory : Path.GetDirectoryName( _document.FilePath ),
-					DefaultSuffix = ".anim"
-				};
-				dialog.SetFindFile();
-				dialog.SetModeSave();
-				dialog.SetNameFilter( "Animation Clip (*.anim)" );
-				var name = Path.GetFileNameWithoutExtension( source );
-				dialog.SelectFile( _document.FilePath is null ? $"{name}.anim" : Path.GetFileName( _document.FilePath ) );
-				if ( !dialog.Execute() || string.IsNullOrWhiteSpace( dialog.SelectedFile ) )
-					return;
-				path = dialog.SelectedFile;
-			}
-
-			path = Path.GetFullPath( path );
-			if ( !IsProjectAsset( path ) || !Path.GetExtension( path ).Equals( ".anim", StringComparison.OrdinalIgnoreCase ) )
-			{
-				ShowError( "Save the .anim clip inside this project's Assets folder." );
-				return;
-			}
-
-			var sameAsset = string.Equals( _document.FilePath, path, StringComparison.OrdinalIgnoreCase );
-			if ( File.Exists( path ) && !sameAsset )
-			{
-				ShowError( "An asset already exists at this path. Choose a different name for your new clip." );
-				return;
-			}
-
-			if ( !IsProjectAsset( source ) )
-			{
-				var directory = Path.Combine( Path.GetDirectoryName( path ), "source" );
-				Directory.CreateDirectory( directory );
-				var name = Path.GetFileNameWithoutExtension( path );
-				var extension = Path.GetExtension( source );
-				var destination = Path.Combine( directory, name + extension );
-				for ( var index = 2; File.Exists( destination ); ++index )
-					destination = Path.Combine( directory, $"{name}_{index}{extension}" );
-				File.Copy( source, destination, overwrite: false );
-				source = destination;
-			}
-			_document.SourceFilename = Path.GetRelativePath( _assetsDirectory, source ).Replace( '\\', '/' );
-
-			if ( !(sameAsset ? _document.Save() : _document.SaveAs( path )) )
-			{
-				ShowError( "Couldn't save the animation clip. See the console for details." );
-				return;
-			}
-
-			var asset = AssetSystem.RegisterFile( path );
-			if ( asset is null || !asset.Compile( false ) )
-			{
-				ShowError( "The clip source was saved, but compilation failed. Check the console, correct the import settings and try again." );
-				return;
-			}
-
-			var clip = Clip.Load( asset.Path );
-			if ( clip is not { IsValid: true, IsError: false, FrameCount: > 0 }
-				|| !string.Equals( clip.SkeletonName, _document.SkeletonName, StringComparison.OrdinalIgnoreCase ) )
-			{
-				ShowError( "The clip compiled but could not be loaded against the selected skeleton. Check the console for details." );
-				return;
-			}
-
-			MainAssetBrowser.Instance?.Local.OnAssetCreated( asset, path );
-			if ( Imported is { } imported )
-				imported( asset );
-			else
-				asset.OpenInEditor();
-			Close();
+					_batch.Entries.Remove( entry );
+					if ( _selected == entry )
+						_selected = _batch.Entries.FirstOrDefault();
+					RebuildQueue();
+				}
+			} );
+			_rows.Add( entry, (row, status, name, source) );
 		}
-		catch ( Exception exception ) when ( exception is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException )
+		_queue.Canvas.Layout.AddStretchCell();
+		ShowDetails( _selected );
+	}
+
+	private void ShowDetails( AnimationImportEntry entry )
+	{
+		_selected = entry;
+		_details.Layout.Clear( true );
+		_details.Visible = entry is not null;
+		_detailStatus = null;
+		if ( entry is null )
 		{
-			Log.Warning( exception, "AnimGraph: could not import animation" );
-			ShowError( exception.Message );
+			Refresh();
+			return;
+		}
+		_details.Layout.Add( new Label( $"Settings for {Path.GetFileName( entry.Source )}", _details ) { ToolTip = entry.Source } );
+		_detailStatus = _details.Layout.Add( new Label( _details ) { WordWrap = true, Color = Theme.Red } );
+		var serialized = EditorTypeLibrary.GetSerializedObject( entry.Document );
+		var sheet = new ControlSheet();
+		sheet.AddRow( serialized.GetProperty( nameof( ClipDocument.Take ) ) );
+		sheet.AddRow( serialized.GetProperty( nameof( ClipDocument.Reverse ) ) );
+		sheet.AddGroup( "Trim / Duration",
+		[
+			serialized.GetProperty( nameof( ClipDocument.FrameRange ) ),
+			serialized.GetProperty( nameof( ClipDocument.StartFrame ) ),
+			serialized.GetProperty( nameof( ClipDocument.EndFrame ) ),
+			serialized.GetProperty( nameof( ClipDocument.DurationOverride ) )
+		] );
+		_details.Layout.Add( sheet );
+		_details.Layout.Add( new Button( "Add All Takes", "playlist_add", _details )
+		{
+			Enabled = entry.Document.GetAnimationTakes().Count > 1,
+			ToolTip = "Queue one clip per take in this source file. Each new clip uses its full duration.",
+			Clicked = () =>
+			{
+				try
+				{
+					_batch.AddAllTakes( entry );
+					_error.Visible = false;
+					RebuildQueue();
+				}
+				catch ( InvalidOperationException exception )
+				{
+					Log.Warning( exception, "AnimGraph: could not add animation takes" );
+					ShowError( exception.Message );
+				}
+			}
+		} );
+		serialized.OnPropertyChanged += _ => Refresh();
+		Refresh();
+	}
+
+	private void Refresh()
+	{
+		var settingsError = _batch.ValidateSettings();
+		var errors = _batch.ValidateEntries();
+		var pending = _batch.Entries.Where( entry => entry.Included && entry.Asset is null ).ToArray();
+		var invalid = pending.Count( entry => errors[entry] is not null );
+		var imported = _batch.Entries.Count( entry => entry.Asset is not null );
+		var failed = pending.Count( entry => entry.Error is not null );
+		foreach ( var (entry, row) in _rows )
+		{
+			var error = entry.Asset is null && entry.Included ? errors[entry] ?? entry.Error : null;
+			row.Row.Enabled = !_batch.IsRunning && entry.Asset is null;
+			row.Source.Tint = entry == _selected ? Theme.SelectedBackground : Theme.ButtonBackground;
+			row.Name.Enabled = entry.Document.FilePath is null;
+			row.Status.Text = entry.Asset is not null ? "Imported" : entry.IsImporting ? "Importing..." : !entry.Included ? "Skipped"
+				: entry.Error is not null ? "Failed" : error is not null ? "Needs attention" : "Ready";
+			row.Status.Color = error is not null ? Theme.Red : entry.Asset is not null ? Theme.Green : Theme.TextLight;
+			row.Status.ToolTip = error ?? row.Status.Text;
+			try
+			{
+				row.Name.ToolTip = _batch.GetOutputPath( entry );
+			}
+			catch ( Exception exception ) when ( exception is ArgumentException or NotSupportedException or PathTooLongException )
+			{
+				row.Name.ToolTip = "Invalid output path";
+			}
+		}
+		_settings.Enabled = !_batch.IsRunning;
+		_details.Enabled = !_batch.IsRunning && _selected is { Asset: null, Included: true };
+		if ( _detailStatus is not null )
+		{
+			_detailStatus.Text = errors[_selected] ?? _selected.Error ?? "";
+			_detailStatus.Visible = !string.IsNullOrEmpty( _detailStatus.Text );
+		}
+		_import.Enabled = !_batch.IsRunning && settingsError is null && invalid == 0 && pending.Length > 0;
+		var action = failed > 0 && failed == pending.Length ? "Retry" : "Import";
+		_import.Text = $"{action} {pending.Length} Clip{(pending.Length == 1 ? "" : "s")}";
+		_import.ToolTip = settingsError ?? (invalid > 0 ? "Rename, correct or uncheck the clips marked Needs attention." : "Import checked clips. Completed clips are not imported again.");
+		_cancel.Text = _batch.IsRunning ? _batch.CancelRequested ? "Stopping..." : "Stop After Current Clip" : imported > 0 ? "Close" : "Cancel";
+		_cancel.Enabled = !_batch.IsRunning || !_batch.CancelRequested;
+		_status.Text = _batch.IsRunning ? $"{_batch.ProcessedCount} / {_batch.TotalCount} processed. {_batch.Entries.FirstOrDefault( entry => entry.IsImporting )?.Name ?? "Preparing"}..."
+			: _batch.Entries.Count == 0 ? "Add animation files to get started."
+			: $"{imported} imported, {failed} failed, {pending.Length - failed} pending, {_batch.Entries.Count( entry => !entry.Included )} skipped."
+				+ (settingsError is not null ? $" {settingsError}" : invalid > 0 ? $" {invalid} clip(s) need attention; hover their status for details." : "");
+	}
+
+	private async Task ImportAsync()
+	{
+		_error.Visible = false;
+		try
+		{
+			var imported = await _batch.ImportAsync( _ =>
+			{
+				if ( this.IsValid() )
+					Refresh();
+			} );
+			if ( MainAssetBrowser.Instance?.Local is { IsValid: true } browser )
+			{
+				foreach ( var asset in imported )
+					browser.OnAssetCreated( asset, asset.GetSourceFile( true ) );
+			}
+			if ( imported.Count > 0 )
+				Imported?.Invoke( imported );
+			if ( !this.IsValid() )
+				return;
+			if ( imported.Count > 0 && _batch.Entries.Count == 1 )
+			{
+				if ( Imported is null )
+					imported[0].OpenInEditor();
+				Close();
+				return;
+			}
+			Refresh();
+		}
+		catch ( InvalidOperationException exception )
+		{
+			Log.Warning( exception, "AnimGraph: could not start animation import" );
+			if ( this.IsValid() )
+			{
+				ShowError( exception.Message );
+				Refresh();
+			}
 		}
 	}
 
-	private bool IsProjectAsset( string path )
+	private void CancelOrClose()
 	{
-		var relative = Path.GetRelativePath( _assetsDirectory, path );
-		return !Path.IsPathRooted( relative ) && relative != ".." && !relative.StartsWith( $"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal );
+		if ( !_batch.IsRunning )
+		{
+			Close();
+			return;
+		}
+		_batch.CancelRequested = true;
+		Refresh();
+	}
+
+	public override void OnDestroyed()
+	{
+		_batch.CancelRequested = true;
+		base.OnDestroyed();
 	}
 
 	private void ShowError( string message )

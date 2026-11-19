@@ -36,6 +36,8 @@ public static partial class PerformanceStats
 		/// </summary>
 		public static IEnumerable<Timings> GetMain() => _main;
 
+		internal static IReadOnlyList<Timings> Main => _main;
+
 		private static readonly ReadOnlyCollection<Timings> _main = BuildMain();
 
 		private static ReadOnlyCollection<Timings> BuildMain()

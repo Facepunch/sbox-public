@@ -9,6 +9,6 @@ rendering pipeline. Borealis doesn't reference this assembly; this one reference
 | [Pipeline](Pipeline/) | The layers of native's standard and 3D skybox pipelines (`NativeRenderPipeline`), and native's occlusion culling (`NativeOcclusionCull`, `NativeOcclusionHistory`), for every camera native renders. |
 
 [EngineHooks.cs](EngineHooks.cs) installs both at startup, from the app system. The bridge is described in the
-[Borealis reference](../../docs/managed/borealis.md) and native's pipeline in the [render pipeline doc](../../docs/managed/render-pipeline.md).
+[Borealis reference](../../docs/reference/borealis.md) and native's pipeline in the [render pipeline doc](../../docs/reference/rendering.md).
 
 Anything that knows about `SceneObject`, `SceneWorld`, cameras or native scene views belongs here, not in Borealis.

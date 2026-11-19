@@ -81,6 +81,8 @@ public sealed partial class Material : Resource
 			copy.ShaderSetInCode = ShaderSetInCode;
 			copy.SetInCode = SetInCode;
 			copy.SetInCodeVersion = SetInCodeVersion;
+			// The native copy merges raw buffer pointers, so the copy needs its own bindings
+			Attributes?.MergeUsedBuffersTo( copy.Attributes );
 		}
 
 		return copy;

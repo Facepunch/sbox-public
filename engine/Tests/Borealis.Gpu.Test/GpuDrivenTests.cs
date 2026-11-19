@@ -11,7 +11,7 @@ using System.Threading;
 namespace BorealisGpuTests;
 
 /// <summary>
-/// GPU-driven aggregates (<see cref="BackendDevice.GpuDriven"/>, docs/managed/borealis-gpu-driven.md): the shaders'
+/// GPU-driven aggregates (<see cref="BackendDevice.GpuDriven"/>, docs/reference/borealis-gpu-driven.md): the shaders'
 /// <c>.gpudriven.shader_c</c> variants pull vertices and read materials from tables, and a pass's fragments of every
 /// material draw as one multi-draw per pipeline.
 /// </summary>

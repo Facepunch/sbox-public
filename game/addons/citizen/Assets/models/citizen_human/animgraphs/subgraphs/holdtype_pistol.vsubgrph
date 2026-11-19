@@ -2570,7 +2570,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 15.0
 										m_fMinSpeed = 5.0
 										m_fMaxTension = 720.0
@@ -2626,7 +2626,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "BouncySpring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 24.0
 										m_fMinSpeed = 8.0
 										m_fMaxTension = 720.0
@@ -2682,7 +2682,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "BouncySpring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 40.0
 										m_fMinSpeed = 0.0
 										m_fMaxTension = 720.0
@@ -2825,7 +2825,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 8.0
 										m_fMinSpeed = 0.0
 										m_fMaxTension = 2160.0
@@ -2881,7 +2881,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 24.0
 										m_fMinSpeed = 8.0
 										m_fMaxTension = 720.0
@@ -2975,7 +2975,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 20.0
 										m_fMinSpeed = 0.0
 										m_fMaxTension = 960.0
@@ -3082,7 +3082,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 20.0
 										m_fMinSpeed = 0.0
 										m_fMaxTension = 960.0
@@ -3138,7 +3138,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 20.0
 										m_fMinSpeed = 0.0
 										m_fMaxTension = 720.0
@@ -3373,7 +3373,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 15.0
 										m_fMinSpeed = 1.0
 										m_fMaxTension = 720.0
@@ -3396,7 +3396,7 @@
 									{
 										m_id = 1252485132
 									}
-									m_sNote = "When switching between weapon A to B, weapon B could start with Idle Aim chains enabled. The \"Time in State\" condition check here is a safeguard that prevents this. Additionally, the transition to \"Aim disabled\" must not reset. Otherwise the Long Idle management SM receives the reset... and the entire thing gets canceled (pointless)"
+									m_sNote = "When switching between weapon A to B, weapon B could start with Idle Aim chains enabled. The \"Time in State\" condition check here is a safeguard that prevents this. Additionally, the transition to \"Aim disabled\" must not reset. Otherwise the Long Idle management SM receives the reset... and the entire thing gets canceled (pointless). Pistol look-at nodes intentionally use NoDamping: their springs retain world-space heading across body turns, twisting the torso and arm while Weapon Aim immediately follows the new target. Aim-matrix and stance blending still provide local-space smoothing."
 									m_states = 
 									[
 										{
@@ -3905,7 +3905,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 20.0
 										m_fMinSpeed = 2.0
 										m_fMaxTension = 960.0
@@ -3961,7 +3961,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 20.0
 										m_fMinSpeed = 2.0
 										m_fMaxTension = 960.0
@@ -4129,7 +4129,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 40.0
 										m_fMinSpeed = 0.0
 										m_fMaxTension = 960.0
@@ -4185,7 +4185,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "BouncySpring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 24.0
 										m_fMinSpeed = 6.0
 										m_fMaxTension = 720.0
@@ -4241,7 +4241,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 15.0
 										m_fMinSpeed = 5.0
 										m_fMaxTension = 720.0

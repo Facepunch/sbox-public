@@ -56,7 +56,7 @@
   "TintDefault": 0.4,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/hair/decorated_beard/decorated_beard.clothing.png",
+    "Path": "models/citizen_clothes/hair/decorated_beard/decorated_beard.clothing.vtex",
     "Mode": "Mouth",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

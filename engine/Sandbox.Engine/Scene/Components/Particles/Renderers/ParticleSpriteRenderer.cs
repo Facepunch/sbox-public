@@ -161,6 +161,22 @@ public sealed partial class ParticleSpriteRenderer : ParticleRenderer, Component
 	[Property, ToggleGroup( "FaceVelocity" ), Order( 2 )]
 	public bool FaceVelocity { get; set; }
 
+	/// <summary>Draw each particle as a camera-facing ribbon extending behind its velocity, never wider than it is long.</summary>
+	[Property, ToggleGroup( "VelocityStretch" )]
+	public bool VelocityStretch { get; set; }
+
+	/// <summary>Seconds of travel represented by the ribbon's length.</summary>
+	[Property, ToggleGroup( "VelocityStretch" )]
+	public ParticleFloat StretchTime { get; set; } = 0.1f;
+
+	/// <summary>Minimum and maximum ribbon length, in world units before renderer scale.</summary>
+	[Property, ToggleGroup( "VelocityStretch" )]
+	public Vector2 StretchLengthLimits { get; set; } = new( 0, 2000 );
+
+	/// <summary>Time after birth to reach the full ribbon length.</summary>
+	[Property, ToggleGroup( "VelocityStretch" )]
+	public float StretchFadeIn { get; set; }
+
 	/// <summary>
 	/// Offset applied to the rotation when facing velocity.
 	/// </summary>

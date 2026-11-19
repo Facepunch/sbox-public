@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // The gallery at the top of a game's page - the big view, a strip of thumbnails under it
 Media
@@ -113,26 +113,11 @@ Media > .main
 
 	.yt-button
 	{
-		flex-shrink: 0;
-		width: 32px;
-		height: 32px;
-		align-items: center;
-		justify-content: center;
-		border-radius: 50%;
-		cursor: pointer;
-		transition: all 0.1s ease;
-
-		i
-		{
-			font-size: 22px;
-			color: white;
-			text-align: center;
-		}
+		@include platform-tool( 32px, 22px );
 
 		&:hover
 		{
 			sound-in: "ui.button.over";
-			background-color: rgba( 255, 255, 255, 0.15 );
 		}
 
 		&:active
@@ -183,7 +168,7 @@ Media > .main
 
 		.yt-played
 		{
-			background-color: $front-primary;
+			background-color: $platform-primary;
 		}
 	}
 
@@ -227,8 +212,8 @@ Media > .main
 
 			.play-big
 			{
-				background-color: $front-primary;
-				border-color: $front-primary * 1.4;
+				background-color: $platform-primary;
+				border-color: $platform-primary-hover;
 				transform: scale( 1.08 );
 			}
 		}
@@ -257,7 +242,7 @@ Media > .main
 		i
 		{
 			font-size: 36px;
-			color: $front-secondary;
+			color: $platform-muted;
 			margin-bottom: 6px;
 		}
 
@@ -265,13 +250,13 @@ Media > .main
 		{
 			font-size: 15px;
 			font-weight: 700;
-			color: $front-heading;
+			color: $platform-text;
 		}
 
 		.notice-text
 		{
 			font-size: 13px;
-			color: $front-secondary;
+			color: $platform-muted;
 			text-align: center;
 		}
 	}
@@ -373,7 +358,7 @@ Media > .strip > .list
 		{
 			opacity: 1;
 			filter: saturate( 1 );
-			outline: 2px solid $front-primary;
+			outline: 2px solid $platform-primary;
 		}
 	}
 }

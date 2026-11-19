@@ -1,4 +1,4 @@
-﻿using Sandbox.Utility;
+using Sandbox.Utility;
 
 namespace Sandbox;
 
@@ -58,7 +58,7 @@ sealed class InterpolationSystem : GameObjectSystem<InterpolationSystem>
 
 	private void DrawDebug( GameObject go )
 	{
-		using var _ = Gizmo.Scope();
+		using var _ = Gizmo.PushScope();
 		var targetWorld = go.WorldTransform;
 		var world = go.Transform.InterpolatedWorld;
 

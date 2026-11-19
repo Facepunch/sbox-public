@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace Editor.AnimGraph.Nodes;
 
 /// <summary>
-/// Applies rotation and position offsets to a target, optionally evaluating those offsets in bone space.
+/// Applies rotation and position offsets to a target. Follow Target Rotation treats the offset as a child of the target.
 /// <br/><br/><b>Use when:</b>&#160;Adjusting a bone target to a grip, contact point, attachment, or other offset transform.
 /// <br/><b>Important:</b>&#160;The target input is required.
 /// </summary>
@@ -16,8 +16,11 @@ public class TargetOffsetNode : Node
 	[Input( typeof( VectorLink ) )]
 	public NodeInput Translation { get; set; }
 
-	[Property]
+	[Property, HideIf( nameof( FollowTargetRotation ), true )]
 	public bool IsBoneSpaceOffset { get; set; } = true;
+
+	[Property]
+	public bool FollowTargetRotation { get; set; }
 
 	[Property]
 	public Rotation RotationOffset { get; set; } = Rotation.Identity;
@@ -39,7 +42,7 @@ public class TargetOffsetNode : Node
 			return compiler.Builder.UnsetTarget();
 		}
 
-		return compiler.Builder.TargetOffset( input, TranslationOffset, RotationOffset, IsBoneSpaceOffset, compiler.EmitValue( this, Translation ) );
+		return compiler.Builder.TargetOffset( input, TranslationOffset, RotationOffset, IsBoneSpaceOffset, compiler.EmitValue( this, Translation ), FollowTargetRotation );
 	}
 
 }

@@ -22,19 +22,27 @@ public class ClothingMetaData : BaseMetaData
 	/// <summary>Space-separated creator tags from the resource.</summary>
 	public string Tags { get; set; }
 
-	/// <summary>True if this item supplies its own human skin (body) instead of just an attachment.</summary>
+	/// <summary>
+	/// True if this item supplies its own human skin (body) instead of just an attachment.
+	/// </summary>
 	public bool HasHumanSkin { get; set; }
 
-	/// <summary>Body groups toggled on when wearing the human-skin variant.</summary>
+	/// <summary>
+	/// Body groups toggled on when wearing the human-skin variant.
+	/// </summary>
 	public ulong HumanSkinBodyGroups { get; set; }
 
-	/// <summary>Tags applied to the human-skin body.</summary>
+	/// <summary>
+	/// Tags applied to the human-skin body.
+	/// </summary>
 	public string HumanSkinTags { get; set; }
 
 	/// <summary>Material used for the eyes when this item replaces them.</summary>
 	public string EyesMaterial { get; set; }
 
-	/// <summary>Eyes material applied to the supplied human skin, if any.</summary>
+	/// <summary>
+	/// Eyes material applied to the replacement body.
+	/// </summary>
 	public string HumanEyesMaterial { get; set; }
 
 	/// <summary>Body slots this item occupies on the outer layer.</summary>
@@ -174,6 +182,16 @@ public class ClothingMetaData : BaseMetaData
 	[Flags]
 	public enum Slots : int
 	{
+		/// <summary>
+		/// No body slots.
+		/// </summary>
+		None = 0,
+
+		/// <summary>
+		/// Every supported body slot, matching the engine's clothing slot mask.
+		/// </summary>
+		All = (1 << 29) - 1,
+
 		Skin = 1 << 0,
 		HeadTop = 1 << 1,
 		HeadBottom = 1 << 2,

@@ -124,7 +124,7 @@ public partial class SceneObject : IHandle
 
 			_parent?.RemoveChild( this );
 
-			NotifyChanged( Rendering.SceneObjectChange.Deleted );
+			World?.Render?.Deleted( this );
 			CSceneSystem.DeleteSceneObjectAtFrameEnd( this );
 			native = IntPtr.Zero; // avoid double delete etc
 		}
@@ -142,14 +142,15 @@ public partial class SceneObject : IHandle
 			World.InternalSceneObjects.Add( this );
 		}
 
-		NotifyChanged( Rendering.SceneObjectChange.Added );
+		// Made in its renderer once its constructor is done
+		World.Render?.Made( this );
 
 		//Log.Info( $"Created SceneObject: {GetType().Name}" );
 	}
 
 	internal virtual void OnNativeDestroy()
 	{
-		NotifyChanged( Rendering.SceneObjectChange.Removed );
+		World.Render?.Destroyed( this );
 
 		lock ( World.InternalSceneObjects )
 		{
@@ -185,13 +186,14 @@ public partial class SceneObject : IHandle
 	internal Borealis.RenderObject RenderObject { get; set; }
 
 	/// <summary>
-	/// Write a change into its own render object (<see cref="OwnsRenderObject"/>), or else tell the world's
-	/// <see cref="SceneWorld.ChangeListener"/>, if it has one, that something changed.
+	/// Write a change into its own render object (<see cref="OwnsRenderObject"/>) or its world's lighting, when its world is
+	/// drawn; one that can't be written now (made on another thread or during a render, or before its render object is made)
+	/// is written when its world's renderer next prepares a frame.
 	/// </summary>
 	internal void NotifyChanged( Rendering.SceneObjectChange change )
 	{
-		if ( WroteRender( change ) ) return;
-		World?.ChangeListener?.OnChanged( this, change );
+		if ( World?.Render is not { } render || WroteRender( change, render ) ) return;
+		render.Later( this, change );
 	}
 
 	/// <summary>

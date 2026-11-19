@@ -1,4 +1,4 @@
-// cs_terrain_normal: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// cs_terrain_normal: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: DevShader = true;
 // HEADER: Description = "Bake terrain geometric normal from the heightmap";
 

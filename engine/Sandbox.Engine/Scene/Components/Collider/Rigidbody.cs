@@ -692,7 +692,7 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	{
 		if ( !_body.IsValid() ) return;
 
-		// Impulses, velocity writes and a new transform proxy don't mark us, so check again
+		// Impulses and a new transform proxy don't mark us, so check again
 		if ( !IsPhysicsActive && _body.Sleeping && Transform.Proxy is null ) return;
 
 		// Owned and asleep with the synced velocities already zeroed: nothing below would change until something marks us
@@ -974,6 +974,11 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 			return Array.Empty<Collider>();
 		}
 	}
+
+	/// <summary>
+	/// Append touching triggers to a reusable list without allocating an enumerator.
+	/// </summary>
+	public void GetTouching( List<Collider> result ) => _collisionEvents?.GetTouching( result );
 
 	/// <summary>
 	/// A list of joints that we're connected to, if any.

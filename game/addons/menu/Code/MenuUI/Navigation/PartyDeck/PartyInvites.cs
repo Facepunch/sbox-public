@@ -75,7 +75,18 @@ public static class PartyInvites
 		get
 		{
 			var hash = new HashCode();
-			foreach ( var entry in Entries ) hash.Add( entry.Id );
+
+			// Polled every frame, so skip the iterator when there's nothing mocked
+			if ( PartyView.IsMocking )
+			{
+				foreach ( var entry in Entries ) hash.Add( entry.Id );
+			}
+			else
+			{
+				Tidy();
+				foreach ( var id in _sent.Keys ) hash.Add( id );
+			}
+
 			return hash.ToHashCode();
 		}
 	}

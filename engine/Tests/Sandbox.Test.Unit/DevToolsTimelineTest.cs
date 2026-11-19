@@ -10,7 +10,9 @@ namespace EngineTests;
 /// The dev tools' GPU timelines: a layer recorded in pieces is one pass, chart scales hold still, and the Rendering tab's
 /// pass tree matches passes to what drew them.
 /// </summary>
-[TestClass]
+// Publishing goes through ManagedFramePlan's statics - the latest plan and the ring of published ones - so these run
+// one at a time rather than settling against a frame another test published
+[TestClass, DoNotParallelize]
 public class DevToolsTimelineTest
 {
 	static GpuFrameTimeline.Event Pass( string name, int parent, double start, double end, string queue = "graphics" ) =>

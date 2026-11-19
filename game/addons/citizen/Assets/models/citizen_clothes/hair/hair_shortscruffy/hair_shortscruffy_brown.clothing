@@ -56,10 +56,10 @@
   "TintDefault": 0.4,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/hair/hair_shortscruffy/hair_shortscruffy_brown.clothing.png",
-    "Mode": "Eyes",
-    "UsePositionOffset": false,
-    "PositionOffset": "0,0,0"
+    "Path": "models/citizen_clothes/hair/hair_shortscruffy/hair_shortscruffy_brown.clothing.vtex",
+    "Mode": "Head",
+    "UsePositionOffset": true,
+    "PositionOffset": "6.21998644,0.0599999353,0.380000412"
   },
   "__references": [],
   "__version": 0

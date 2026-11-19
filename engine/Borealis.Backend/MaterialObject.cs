@@ -402,7 +402,7 @@ internal sealed class ConstantVariant( long[] offsets, int[] sizes )
 /// vertex layout and target formats. It holds its pipeline, its constant buffers (one per value of the constants it
 /// reads from attributes, written once), its resolved material bindings, and persistent descriptor sets keyed by what
 /// the pass bound around it. Binding it is a pipeline bind and a set bind per stage with dynamic offsets; sets are
-/// written only when a pass binds resources this object hasn't seen with it before. See docs/managed/borealis-materials.md.
+/// written only when a pass binds resources this object hasn't seen with it before. See docs/reference/borealis-materials.md.
 /// </summary>
 /// <remarks>
 /// Sets and constants are shared between recording contexts, under the object's lock when one is made; what a context

@@ -53,6 +53,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 			HashCode hc = new HashCode();
 			hc.Add( Value.Name );
 			hc.Add( Value.IsPrefabInstance );
+			hc.Add( (Value.Scene.Editor as SceneEditorSession)?.IsInstance( Value ) );
 			hc.Add( Value.Flags );
 			hc.Add( Value.NetworkMode );
 			hc.Add( Value.Network.Active );
@@ -104,6 +105,12 @@ partial class GameObjectNode : TreeNode<GameObject>
 		Color overlayIconColor = iconColor;
 
 		string overlayIcon = null;
+
+		if ( Value.Scene.Editor is SceneEditorSession session && session.IsInstance( Value ) )
+		{
+			icon = "view_in_ar";
+			pen = iconColor = Theme.Green;
+		}
 
 		if ( Value.IsPrefabInstance )
 		{
@@ -468,7 +475,12 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 			if ( e.IsDrop )
 			{
-				using ( SceneEditorSession.Active.UndoScope( "Change Game Object Order" ).WithGameObjectChanges( draggedGos, GameObjectUndoFlags.Properties ).Push() )
+				var undo = SceneEditorSession.Active.UndoScope( "Change Game Object Order" )
+					.WithGameObjectChanges( draggedGos, GameObjectUndoFlags.Properties );
+				var targetParent = targetGo is not Scene && (e.DropEdge.HasFlag( ItemEdge.Top ) || e.DropEdge.HasFlag( ItemEdge.Bottom )) ? targetGo.Parent : targetGo;
+				if ( targetParent is not Scene )
+					undo.WithGameObjectChanges( targetParent, GameObjectUndoFlags.Children );
+				using ( undo.Push() )
 				{
 					foreach ( var draggedGo in draggedGos )
 					{
@@ -561,6 +573,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 		bool isObjectMenu = gameObject.IsValid();
 		bool isPrefabRoot = isObjectMenu && treeNode is PrefabNode;
+		var session = (treeNode.Value as GameObject)?.Scene.Editor as SceneEditorSession ?? SceneEditorSession.Active;
 
 		// For object creation, we need to determine the parent at click time, not menu creation time
 		// (because right-clicking on empty space deselects nodes, and we want root-level creation in that case)
@@ -587,6 +600,8 @@ partial class GameObjectNode : TreeNode<GameObject>
 		m.AddOption( "Paste As Child", null, EditorScene.PasteAsChild, "editor.paste-as-child" ).Enabled = isObjectMenu;
 		m.AddOption( "Paste Special", "content_paste_go", EditorScene.PasteSpecial, "editor.paste-special" );
 		m.AddOption( "Create Group", "file_copy", SceneEditorMenus.Group, "editor.group" ).Enabled = isObjectMenu && !isPrefabRoot;
+		m.AddOption( "Create Instance", "view_in_ar", SceneEditorMenus.CreateInstance ).Enabled =
+			isObjectMenu && !isPrefabRoot && session is { IsPrefabSession: false, IsPlaying: false };
 		m.AddSeparator();
 		m.AddOption( "Rename", "label", treeNode.TreeView.BeginRename, "editor.rename" ).Enabled = isObjectMenu;
 		m.AddOption( "Duplicate", "file_copy", SceneEditorMenus.Duplicate, "editor.duplicate" ).Enabled = isObjectMenu && !isPrefabRoot;
@@ -609,6 +624,14 @@ partial class GameObjectNode : TreeNode<GameObject>
 		if ( gameObject.IsValid() ) // has selection
 		{
 			var selectedGos = EditorScene.Selection.OfType<GameObject>().ToArray();
+			if ( selectedGos.Length == 1 && session?.IsInstance( gameObject ) == true )
+			{
+				var instances = m.AddMenu( "Instance", "view_in_ar" );
+				instances.AddOption( "Make Unique", "file_copy", () => session.MakeInstanceUnique( gameObject ) );
+				instances.AddOption( "Unlink Instance", "link_off", () => session.UnlinkInstance( gameObject ) );
+				instances.AddOption( "Ungroup Instance", "ungroup", () => session.UngroupInstance( gameObject ) )
+					.Enabled = gameObject.Components.Count == 0;
+			}
 
 			m.AddSeparator();
 

@@ -1,0 +1,40 @@
+# Build output
+/bin/
+/benchmark
+/sbox
+/sbox-dev
+/sbox-launcher
+/sbox-server
+/sbox-standalone
+/*.runtimeconfig.json
+/*.xml
+
+# Generated project files
+**/.sbox/*
+*.sln
+*.slnx
+*.csproj
+obj
+launchSettings.json
+
+# Runtime files
+/.source2
+/config/**/*.json
+/config/**/*.json.backup
+!/config/users.json
+/data
+/download
+/logs
+/movies
+/screenshots
+/aftermath_dumps
+/gpu_crash_dumps/
+/netmsg_samples
+/pipeline_layers.txt
+/profiler_captures/
+
+# Precompiled mounts are committed by the sbox-mounts sync workflow with git add -f.
+/mounts/
+
+# Copied from PanelGallery at build time.
+/addons/editor/assets/uitests/

@@ -1,0 +1,582 @@
+@import "/Platform/_platform.scss";
+@import "/styles/_theme.scss";
+
+// Midnight palette, scoped to the platform bar.
+$dock-background: #111f38;
+$dock-text: #e4edff;
+$dock-icon: #80afff;
+$dock-button: #172943;
+$dock-hover: #2b466d;
+$dock-selected: #639dff;
+$dock-selected-text: #071b3b;
+
+// Controls brighten on hover and turn blue when their panel is open.
+@mixin dock-button
+{
+	border-radius: 15px;
+	border: 0px solid transparent;
+	background-color: $dock-button;
+	background-image: none;
+	color: $dock-text;
+	transition: background-color 0.12s ease;
+
+	> label
+	{
+		color: $dock-text;
+	}
+
+	> i
+	{
+		color: $dock-icon;
+	}
+
+	&:hover
+	{
+		background-color: $dock-hover;
+
+		> label
+		{
+			color: $dock-text;
+		}
+
+		> i
+		{
+			color: $dock-icon;
+		}
+	}
+
+	&.open
+	{
+		background-color: $dock-selected;
+		color: $dock-selected-text;
+
+		> i, > label
+		{
+			color: $dock-selected-text;
+		}
+
+		&:hover
+		{
+			background-color: #79acff;
+		}
+	}
+}
+
+// The platform's midnight bar, edge to edge, distinct from the game's menu above.
+// Its top is where the shelves and settings stop (ShelfPanel .to-dock).
+Dock
+{
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: $platform-dock-height;
+	background-color: $dock-background;
+	overflow: visible;
+	font-family: $platform-font;
+	pointer-events: all;
+
+	.inner
+	{
+		width: 100%;
+		max-width: $screen-w-16x9;
+		margin: 0 auto;
+		height: 100%;
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0 48px;
+	}
+
+	.left, .middle, .right
+	{
+		align-items: center;
+		gap: 8px;
+	}
+
+	// Equal side columns keep party and friends centred as the party grows or utility buttons appear.
+	.left, .right
+	{
+		flex-grow: 1;
+		flex-basis: 0;
+		min-width: 0;
+	}
+
+	.middle
+	{
+		flex-shrink: 0;
+		justify-content: center;
+		margin: 0 18px;
+	}
+
+	.right
+	{
+		justify-content: flex-end;
+	}
+
+	.pill
+	{
+		@include platform-text-button( 30px, 12px, 15px );
+		@include dock-button;
+		padding: 0 12px;
+		gap: 8px;
+	}
+
+	.library
+	{
+		.count
+		{
+			min-width: 18px;
+			padding: 1px 5px;
+			border-radius: 15px;
+			background-color: #102039;
+			font-size: 10px;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+			text-align: center;
+			color: $dock-text;
+		}
+
+		&.open .count
+		{
+			background-color: #93bbff;
+			color: $dock-selected-text;
+		}
+	}
+
+	.square
+	{
+		@include platform-tool( 30px, 16px );
+		@include dock-button;
+		width: 30px;
+
+		&.disabled
+		{
+			pointer-events: none;
+		}
+	}
+
+	// Games - open, a search field slides out of its end, and back into it as it closes. The button's own padding never
+	// changes and there's no gap: the room round the field is the field's own margins, which open and close with it, so
+	// nothing jumps as it's made or goes.
+	.discover
+	{
+		flex-shrink: 0;
+		padding: 0;
+		gap: 0;
+
+		.go
+		{
+			flex-shrink: 0;
+			align-self: stretch;
+			align-items: center;
+			gap: 8px;
+			padding: 0 12px;
+			cursor: pointer;
+			@include platform-sounds;
+
+			i
+			{
+				font-size: 15px;
+				color: $dock-icon;
+				transition: color 0.12s ease;
+			}
+
+			label
+			{
+				@include platform-plain-label( 12px );
+				color: $dock-text;
+				transition: color 0.12s ease;
+			}
+		}
+
+		.find
+		{
+			flex-shrink: 0;
+			width: 180px;
+			height: 24px;
+			// 10 from the button's name, 3 in from its end - as far as from its top and bottom
+			margin: 0 3px 0 -2px;
+			align-items: center;
+			gap: 8px;
+			padding: 0 10px;
+			border-radius: 12px;
+			background-color: #0a1529;
+			// What's in it is cut off as it narrows, rather than hanging out of it
+			overflow: hidden;
+			cursor: text;
+			// Out gently and settling slowly - an ease-out's first frame is a jump
+			transition: width 0.28s cubic-bezier( 0.2, 0, 0, 1 ), margin 0.28s cubic-bezier( 0.2, 0, 0, 1 ), padding 0.28s cubic-bezier( 0.2, 0, 0, 1 ), opacity 0.16s ease-out, box-shadow 0.12s ease;
+
+			i
+			{
+				flex-shrink: 0;
+				font-size: 14px;
+				color: $dock-icon;
+			}
+
+			// The engine gives text entries 10px of padding by class, so it has to be matched by class to undo it
+			.textentry
+			{
+				flex-grow: 1;
+				height: 100%;
+				padding: 0;
+				font-size: 12px;
+				color: $dock-text;
+
+				// The engine's default placeholder opacity is unreadable on the dock
+				.placeholder
+				{
+					opacity: 1;
+					color: #8fa3c7;
+				}
+			}
+
+			// Focused
+			&.typing
+			{
+				width: 280px;
+				box-shadow: 0 0 0 1.5px #cfe0ff;
+			}
+
+			// From nothing and back to nothing - no width, and none of the room round it or in it. After .typing, which
+			// it's usually closed from and would otherwise hold it at its full width.
+			&:intro, &:outro
+			{
+				width: 0;
+				margin: 0;
+				padding: 0;
+				opacity: 0;
+				box-shadow: none;
+			}
+
+			// Away quicker than it came, gathering speed, and faded out before it's gone
+			&:outro
+			{
+				transition: width 0.2s ease-in, margin 0.2s ease-in, padding 0.2s ease-in, opacity 0.14s ease-in 0.04s, box-shadow 0.1s ease;
+			}
+		}
+
+		&.open .go
+		{
+			i, label
+			{
+				color: $dock-selected-text;
+			}
+		}
+	}
+
+	// Highlighted until it's been opened once
+	.pill.new, .square.new
+	{
+		box-shadow: 0 0 14px 2px rgba( 99, 157, 255, 0.55 );
+	}
+
+	// Your avatar's face fills its button
+	.square.avatar
+	{
+		position: relative;
+		overflow: hidden;
+		// Lighter than the dock so dark hair and skin don't disappear
+		background-image: radial-gradient( circle at 50% 35%, #5d7fb8 0%, #2b466d 70% );
+
+		CitizenPreview
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+		}
+
+		&.open
+		{
+			box-shadow: 0 0 0 2px $dock-selected;
+		}
+	}
+
+	// Your friends, or your party at a glance - the party window's own faces, not pressed one by one: anywhere on them
+	// brings the window up, so they let the pointer through to it
+	.party
+	{
+		@include dock-button;
+		position: relative;
+		flex-shrink: 0;
+		// The dock's buttons' height, its faces as far in from its sides as from its top and bottom - not clipped, so
+		// the leader's crown can sit up over its edge
+		height: 30px;
+		align-items: center;
+		gap: 3px;
+		padding: 0 4px;
+		cursor: pointer;
+		@include platform-sounds;
+
+		// Its full height so all of it's pressable - out of a party, the friends glyph and how many are on
+		.faces
+		{
+			align-self: stretch;
+			align-items: center;
+			gap: 4px;
+			cursor: pointer;
+			@include platform-sounds;
+
+			> i
+			{
+				margin-left: 6px;
+				font-size: 16px;
+				color: $dock-icon;
+			}
+
+			> i:last-child
+			{
+				margin-right: 6px;
+			}
+
+			> .count
+			{
+				margin: 0 6px 0 1px;
+				font-size: 11px;
+				font-weight: 700;
+				color: $dock-text;
+			}
+		}
+
+		// You, while a party's still being set up - as big as its members will be
+		.face
+		{
+			width: 22px;
+			height: 22px;
+			flex-shrink: 0;
+			border-radius: 50%;
+			background-size: cover;
+			background-position: center;
+			pointer-events: none;
+		}
+
+		// In a party, your friends beside its faces - pressed by itself, for them rather than the party. As far in from
+		// the button's end as from its top and bottom, so its round end sits inside the button's.
+		.online
+		{
+			height: 22px;
+			min-width: 22px;
+			align-items: center;
+			justify-content: center;
+			gap: 4px;
+			padding: 0 7px;
+			border-radius: 11px;
+			background-color: #102039;
+			cursor: pointer;
+			@include platform-sounds;
+
+			i
+			{
+				font-size: 14px;
+				color: $dock-icon;
+			}
+
+			label
+			{
+				font-size: 11px;
+				font-weight: 700;
+				color: $dock-text;
+			}
+
+			&:hover
+			{
+				background-color: $dock-hover;
+			}
+		}
+
+		&.open
+		{
+			.faces > i, .faces > .count, .online i, .online label
+			{
+				color: $dock-selected-text;
+			}
+
+			.online
+			{
+				background-color: rgba( 255, 255, 255, 0.35 );
+			}
+		}
+
+		&.joining
+		{
+			background-image: linear-gradient( 20deg, rgba( $front-reward, 0.32 ), rgba( $front-reward-deep, 0.12 ) 55%, rgba( $front-reward, 0 ) );
+		}
+
+		&.failed
+		{
+			background-image: linear-gradient( 20deg, rgba( $front-danger, 0.22 ), rgba( $front-danger, 0 ) 60% );
+		}
+
+		> .game-art
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			z-index: -1;
+			pointer-events: none;
+			border-radius: $platform-radius;
+			background-size: cover;
+			background-position: center;
+			opacity: 0.5;
+			mask-image: linear-gradient( 90deg, white 0%, black 60% );
+			transition: opacity 0.12s ease-out;
+		}
+
+		PartyMember, PartyPendingSeat
+		{
+			width: 22px;
+		}
+
+		// Nothing on it's pressable or hoverable by itself - not the faces, nor anything on them
+		PartyMember, PartyPendingSeat, .more
+		{
+			flex-shrink: 0;
+			pointer-events: none;
+
+			*
+			{
+				pointer-events: none;
+			}
+		}
+
+		PartyMember Avatar .avatar, PartyPendingSeat Avatar .avatar
+		{
+			width: 22px;
+			height: 22px;
+			border-radius: 50%;
+		}
+
+		.status-icon
+		{
+			flex-shrink: 0;
+			width: 22px;
+			height: 22px;
+			align-items: center;
+			justify-content: center;
+			border-radius: 11px;
+			background-color: rgba( 255, 255, 255, 0.08 );
+			pointer-events: none;
+
+			i
+			{
+				font-size: 13px;
+				color: $front-secondary;
+			}
+
+			&.joining
+			{
+				background-color: rgba( $front-reward, 0.2 );
+
+				i
+				{
+					color: $front-reward;
+				}
+			}
+
+			&.failed
+			{
+				background-color: rgba( $front-danger, 0.18 );
+
+				i
+				{
+					color: $front-danger;
+				}
+			}
+		}
+
+		.more
+		{
+			width: 22px;
+			height: 22px;
+			justify-content: center;
+			align-items: center;
+			border-radius: $platform-radius;
+			background-color: $dock-button;
+			font-size: 9px;
+			font-weight: 700;
+			color: $platform-text;
+		}
+	}
+
+	.square.rewards
+	{
+		position: relative;
+
+		// This week's progress, round the edge of the button
+		.ring, .hole
+		{
+			position: absolute;
+			border-radius: 50%;
+		}
+
+		.ring
+		{
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+		}
+
+		.hole
+		{
+			left: 2px;
+			top: 2px;
+			right: 2px;
+			bottom: 2px;
+			background-color: $dock-button;
+		}
+
+		&:hover .hole
+		{
+			background-color: $dock-hover;
+		}
+
+		&.open .hole
+		{
+			background-color: $dock-selected;
+		}
+
+		> i
+		{
+			position: relative;
+			z-index: 1;
+		}
+
+		.pip
+		{
+			position: absolute;
+			top: 4px;
+			right: 4px;
+			width: 6px;
+			height: 6px;
+			border-radius: 3px;
+			background-color: $front-trophy;
+			box-shadow: 0 0 6px rgba( $front-trophy, 0.8 );
+		}
+	}
+
+	.divider
+	{
+		width: 1px;
+		height: 18px;
+		margin: 0 6px;
+		flex-shrink: 0;
+		background-color: rgba( 128, 175, 255, 0.18 );
+	}
+
+	// Red under the pointer, its glyph white on it - not the dock's blue on red
+	.square.quit:hover
+	{
+		background-color: #bd354c;
+
+		> i
+		{
+			color: white;
+		}
+	}
+}

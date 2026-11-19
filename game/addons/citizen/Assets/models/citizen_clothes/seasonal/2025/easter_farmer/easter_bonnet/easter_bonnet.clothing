@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 433164,
   "Icon": {
-    "Path": "models/citizen_clothes/seasonal/2025/easter_farmer/easter_bonnet/easter_bonnet.clothing.png",
+    "Path": "models/citizen_clothes/seasonal/2025/easter_farmer/easter_bonnet/easter_bonnet.clothing.vtex",
     "Mode": "Eyes",
     "UsePositionOffset": false,
     "PositionOffset": "-75.9998703,0,-0.400000691"

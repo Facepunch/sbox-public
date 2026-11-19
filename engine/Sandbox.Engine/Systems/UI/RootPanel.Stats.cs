@@ -65,8 +65,8 @@ public partial class RootPanel
 		public int PanelsRendered { get; internal init; }
 
 		/// <summary>
-		/// Invisible or unlaid-out subtree roots skipped while preparing the rendered command list.
-		/// Descendants of a skipped subtree are not traversed or counted. GPU clipping is not included.
+		/// Subtree roots skipped while preparing the rendered command list: invisible, unlaid-out, or entirely outside
+		/// an ancestor's overflow clip. Descendants of a skipped subtree are not traversed or counted.
 		/// </summary>
 		public int PanelsCulled { get; internal init; }
 

@@ -24,7 +24,7 @@ public abstract class BoneCollection
 	[Pure]
 	public bool HasBone( string name )
 	{
-		return AllBones.Any( x => x.IsNamed( name ) );
+		return GetBone( name ) is not null;
 	}
 
 	/// <summary>
@@ -33,7 +33,14 @@ public abstract class BoneCollection
 	[Pure]
 	public Bone GetBone( string name )
 	{
-		return AllBones.FirstOrDefault( x => x.IsNamed( name ) );
+		var bones = AllBones;
+		for ( int i = 0; i < bones.Count; i++ )
+		{
+			if ( bones[i].IsNamed( name ) )
+				return bones[i];
+		}
+
+		return null;
 	}
 
 	/// <summary>

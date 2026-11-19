@@ -4,7 +4,7 @@ namespace Borealis.Features;
 
 /// <summary>
 /// Bins: what a run of instances shares, kept between frames, so a view groups its visible objects by their bins instead of
-/// sorting and comparing the objects (<c>docs/managed/borealis.md</c>, *Kept between frames*).
+/// sorting and comparing the objects (<c>docs/reference/borealis.md</c>, *Kept between frames*).
 /// </summary>
 internal sealed partial class MeshRenderFeature
 {

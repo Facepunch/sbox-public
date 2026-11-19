@@ -6,7 +6,7 @@ namespace Sandbox.Rendering;
 /// One way of rendering a scene camera's view: native's scene system (<see cref="NativeSceneRenderer"/>) or Borealis
 /// (Sandbox.Rendering's bridge, registered at startup). Every path that renders a scene ends in one of
 /// <see cref="SceneCamera"/>'s entry points, which forward here, so the process's renderer takes them all.
-/// See docs/managed/render-paths.md.
+/// See docs/reference/borealis-render-paths.md.
 /// </summary>
 internal interface ISceneRenderer
 {

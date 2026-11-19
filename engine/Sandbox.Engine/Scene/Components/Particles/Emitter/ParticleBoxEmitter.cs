@@ -25,12 +25,12 @@ public sealed class ParticleBoxEmitter : ParticleEmitter
 
 	public override bool Emit( ParticleEffect target )
 	{
-		var size = Random.Shared.VectorInCube( 0.5f );
+		var size = ParticleRandom.Shared.VectorInCube( 0.5f );
 		size *= Size;
 
 		if ( OnEdge )
 		{
-			var face = Random.Shared.Int( 0, 5 );
+			var face = ParticleRandom.Shared.Int( 0, 5 );
 			if ( face == 0 ) size.x = -Size.x * 0.5f;
 			else if ( face == 1 ) size.y = -Size.y * 0.5f;
 			else if ( face == 2 ) size.z = -Size.z * 0.5f;

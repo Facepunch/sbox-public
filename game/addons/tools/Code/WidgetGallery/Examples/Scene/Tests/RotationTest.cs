@@ -5,6 +5,7 @@ namespace Editor.Widgets.SceneTests;
 internal class RotationSimple : ISceneTest
 {
 	Rotation rotation = Rotation.Identity;
+	Rotation startRotation = Rotation.Identity;
 
 	public void Frame()
 	{
@@ -12,10 +13,12 @@ internal class RotationSimple : ISceneTest
 		{
 			Gizmo.Draw.Color = Gizmo.Colors.Green;
 
-			if ( Gizmo.Control.Rotate( "my-arrow", Rotation.Identity, out Rotation rotationDelta ) )
+			if ( Gizmo.WasLeftMousePressed ) startRotation = rotation;
+			if ( Gizmo.Control.UpdateRotation( "my-arrow", Rotation.Identity, out Rotation rotationDelta ) )
 			{
-				rotation *= Gizmo.Snap( rotationDelta );
+				rotation = startRotation * Gizmo.Snap( rotationDelta );
 			}
+			Gizmo.Draw.Rotate( "my-arrow" );
 
 			using ( Gizmo.Scope( "Object", new Transform( 0, rotation ) ) )
 			{

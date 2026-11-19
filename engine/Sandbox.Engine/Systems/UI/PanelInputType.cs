@@ -1,5 +1,9 @@
 ﻿namespace Sandbox.UI
 {
+	/// <summary>
+	/// Determines whether a focused panel receives input as UI events or redirects it to the game's input system.
+	/// </summary>
+	[Expose]
 	public enum PanelInputType
 	{
 		/// <summary>

@@ -1,0 +1,9 @@
+{
+  "$compiler": "texture",
+  "$source": "imagefile",
+  "data": {
+    "FilePath": "models/citizen_clothes/hat/bucket_hat/bucket_hat_black.clothing.png",
+    "Lossless": true
+  },
+  "compiled": null
+}

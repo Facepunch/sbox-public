@@ -1,4 +1,4 @@
-﻿using Sandbox.Rendering;
+using Sandbox.Rendering;
 using System.Runtime.CompilerServices;
 
 namespace Sandbox;
@@ -348,7 +348,7 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 			if ( Gizmo.Camera.Position.Distance( Gizmo.Transform.Position ) > 512.0f )
 				return;
 
-			using ( Gizmo.Scope() )
+			using ( Gizmo.PushScope() )
 			{
 				Gizmo.Transform = Gizmo.Transform.WithScale( 1 );
 				Gizmo.Draw.Arrow( Vector3.Zero, Vector3.Forward * 8.0f, 2, 0.5f );

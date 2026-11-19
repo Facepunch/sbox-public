@@ -11,6 +11,10 @@ public partial class ProjectPublisher
 
 	public string TargetPackageIdent => Project.Config.FullIdent;
 
+	bool IsWorkshopOnly => PublishesOnlyToWorkshop( Project );
+
+	string ThumbnailPath => IsWorkshopOnly ? "/.publish/thumb.png" : $"/{TargetPackageIdent}/thumb.png";
+
 	Project Project;
 	public PackageManifest Manifest { get; protected set; }
 
@@ -21,6 +25,20 @@ public partial class ProjectPublisher
 	public long MissingFileSize => Manifest.Assets.Sum( x => x.Size - x.SizeUploaded );
 
 	public Action OnProgressChanged { get; set; }
+
+	/// <summary>
+	/// Meta that only goes in the workshop item's <c>metadata.json</c>, never to the backend - the game's menu
+	/// </summary>
+	static readonly HashSet<string> WorkshopOnlyMeta = ["MenuScene"];
+
+	/// <summary>
+	/// <see cref="Meta"/> as the backend gets it, without what's only for the workshop item. Null if there's none.
+	/// </summary>
+	Dictionary<string, object> BackendMeta()
+	{
+		var meta = Meta.Where( x => !WorkshopOnlyMeta.Contains( x.Key ) ).ToDictionary();
+		return meta.Count > 0 ? meta : null;
+	}
 
 	public void SetMeta( string key, object obj )
 	{
@@ -213,6 +231,9 @@ public partial class ProjectPublisher
 		{
 			await PublishToWorkshop( cancel );
 
+			if ( IsWorkshopOnly )
+				return;
+
 			// Only once the workshop has the files - if Steam turned us down, the backend never hears about it
 			await UploadFiles();
 
@@ -225,7 +246,7 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
-	/// Check the intended manifest, ask the backend which files need to be uploaded.
+	/// Prepare the Workshop files and, for projects with a backend package, check which backend files need uploading.
 	/// </summary>
 	public async Task PrePublish( CancellationToken cancellationToken = default )
 	{
@@ -255,13 +276,16 @@ public partial class ProjectPublisher
 		// After lowercasing, the workshop item's files are laid out by these names
 		MoveFilesToWorkshop();
 
+		if ( IsWorkshopOnly )
+			return;
+
 		var publish = new PublishManifest
 		{
 			Assets = Manifest.Assets.Select( x => new ManifestFile( x.Name, x.Size, x.Hash ) ).ToArray(),
 			Title = "",
 			Description = "",
 			Publish = false,
-			Meta = Meta.Count > 0 ? JsonSerializer.Serialize( Meta ) : null,
+			Meta = BackendMeta() is { } meta ? JsonSerializer.Serialize( meta ) : null,
 			EngineApi = Sandbox.Engine.Protocol.Api
 		};
 
@@ -360,7 +384,7 @@ public partial class ProjectPublisher
 			Title = string.IsNullOrWhiteSpace( manifest.Summary ) ? "Untitled Version" : manifest.Summary,
 			Description = manifest.Description,
 			Publish = true,
-			Meta = Meta.Count > 0 ? Json.Serialize( Meta ) : null,
+			Meta = BackendMeta() is { } meta ? Json.Serialize( meta ) : null,
 			EngineApi = Sandbox.Engine.Protocol.Api,
 			VerifyCompile = Project.Config.Type == "game"
 		};
@@ -572,7 +596,7 @@ public partial class ProjectPublisher
 		using var bitmap = Bitmap.CreateFromBytes( image ) ?? throw new ArgumentException( "Couldn't read the thumbnail image" );
 		using var square = CropToSquare( bitmap );
 
-		var name = $"/{TargetPackageIdent}/thumb.png";
+		var name = ThumbnailPath;
 		Manifest.Assets.RemoveAll( x => string.Equals( x.Name, name, StringComparison.OrdinalIgnoreCase ) );
 		ThumbnailChosen = true;
 

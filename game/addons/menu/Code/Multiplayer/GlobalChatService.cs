@@ -33,7 +33,7 @@ internal static class GlobalChatService
 	/// <summary>
 	/// A snapshot of a shared party. Unavailable also covers failed refreshes, so stale invites cannot be joined.
 	/// </summary>
-	internal record PartyInvitation( string Name, string GameTitle, int Members, int Capacity, bool IsPlaying, bool Available )
+	internal record PartyInvitation( string Name, string GameTitle, int Members, int Capacity, bool IsPlaying, bool Available, long OwnerId = 0, string Package = null )
 	{
 		internal bool IsFull => Members >= Capacity;
 	}
@@ -104,8 +104,9 @@ internal static class GlobalChatService
 
 	internal static void Tick()
 	{
-		// The menu scene stops ticking when a game opens, so MenuSystem also calls this.
-		if ( !Application.IsEditor && !Game.IsMainMenuVisible ) Close();
+		// The menu scene stops ticking when a game opens, so MenuSystem also calls this. The platform's menu is up over a
+		// game's own menu, or paused in one.
+		if ( !Application.IsEditor && !Game.IsMainMenuVisible && MenuProject.Platform.PlatformRoot.Instance?.Visible != true ) Close();
 		if ( !Visible ) return;
 		if ( Channel is null )
 		{
@@ -206,8 +207,9 @@ internal static class GlobalChatService
 					if ( version != generation || !Visible || Channel != channel ) return;
 
 					invitations[id] = entry is { } party
-						? new( party.Name, party.GameTitle, party.Members, party.MaxMembers, party.IsPlaying, true )
-						: new( invitations.GetValueOrDefault( id )?.Name, invitations.GetValueOrDefault( id )?.GameTitle, 0, 0, false, false );
+						? new( party.Name, party.GameTitle, party.Members, party.MaxMembers, party.IsPlaying, true, party.OwnerId, party.Package )
+						: new( invitations.GetValueOrDefault( id )?.Name, invitations.GetValueOrDefault( id )?.GameTitle, 0, 0, false, false,
+							invitations.GetValueOrDefault( id )?.OwnerId ?? 0, invitations.GetValueOrDefault( id )?.Package );
 					InvitationRevision++;
 				} ) );
 			}

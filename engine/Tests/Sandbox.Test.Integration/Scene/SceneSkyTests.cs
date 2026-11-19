@@ -150,7 +150,7 @@ public class SceneSkyTests
 	/// The renderer refreshes sky selection for each camera.
 	/// </summary>
 	[TestMethod]
-	public void MirrorRefreshesSkyForEachView()
+	public void WorldRefreshesSkyForEachView()
 	{
 		var world = new SceneWorld();
 		try
@@ -160,26 +160,26 @@ public class SceneSkyTests
 			var last = new SceneSkyBox( world, material ) { SkyTint = Color.Blue };
 			last.Tags.Add( "last" );
 			using var camera = new SceneCamera { World = world };
-			var mirrorType = System.Type.GetType( "Sandbox.Rendering.Bridge.SceneMirror, Sandbox.Rendering", true );
-			using var mirror = (IDisposable)Activator.CreateInstance( mirrorType, [world] );
-			var renderWorld = (Borealis.RenderWorld)mirrorType.GetProperty( "World" ).GetValue( mirror );
-			var sync = mirrorType.GetMethod( "Sync" );
+			var renderType = System.Type.GetType( "Sandbox.Rendering.Bridge.WorldRender, Sandbox.Rendering", true );
+			using var render = (IDisposable)Activator.CreateInstance( renderType, [world] );
+			var renderWorld = (Borealis.RenderWorld)renderType.GetProperty( "World" ).GetValue( render );
+			var prepare = renderType.GetMethod( "Prepare" );
 
-			sync.Invoke( mirror, [camera, false] );
+			prepare.Invoke( render, [camera, false] );
 			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SkyTint );
 			camera.ExcludeTags.Add( "last" );
-			sync.Invoke( mirror, [camera, false] );
+			prepare.Invoke( render, [camera, false] );
 			Assert.AreEqual( Color.Red, renderWorld.Lighting.SkyTint );
-			sync.Invoke( mirror, [camera, true] );
+			prepare.Invoke( render, [camera, true] );
 			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SkyTint );
 
 			camera.ExcludeTags.RemoveAll();
 			last.SkyMaterial = null;
-			sync.Invoke( mirror, [camera, false] );
+			prepare.Invoke( render, [camera, false] );
 			Assert.IsNull( renderWorld.Lighting.SkyMaterial, "A null material on the newest sky must not reveal an older sky" );
 			first.RenderingEnabled = false;
 			last.RenderingEnabled = false;
-			sync.Invoke( mirror, [camera, false] );
+			prepare.Invoke( render, [camera, false] );
 			Assert.IsNull( renderWorld.Lighting.SkyMaterial );
 		}
 		finally

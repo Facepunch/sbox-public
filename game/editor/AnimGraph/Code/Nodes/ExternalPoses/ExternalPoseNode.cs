@@ -19,11 +19,11 @@ public class ExternalPoseNode : Node
 	[JsonIgnore]
 	public object Result => default;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			if ( !string.IsNullOrWhiteSpace( SlotName ) )
 				info.Name = $"External Pose: {SlotName}";
 			return info;

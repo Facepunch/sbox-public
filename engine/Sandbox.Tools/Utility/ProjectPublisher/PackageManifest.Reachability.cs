@@ -77,6 +77,7 @@ public partial class ProjectPublisher
 			yield return config.GetMetaOrDefault( "MapStartupScene", "" );
 			yield return config.GetMetaOrDefault( "DedicatedServerStartupScene", "" );
 			yield return config.GetMetaOrDefault( "SystemScene", "" );
+			yield return config.GetMetaOrDefault( "MenuScene", "" );
 		}
 
 		internal IEnumerable<string> GetSettingsPaths( ProjectFile file )
@@ -146,7 +147,7 @@ public partial class ProjectPublisher
 
 		internal static bool IsResourcesPath( string path ) => NormalizePublishPath( path ).StartsWith( "/resources/", StringComparison.OrdinalIgnoreCase );
 
-		static string NormalizePublishPath( string path ) => path.Trim().NormalizeFilename( true, false );
+		static string NormalizePublishPath( string path ) => ResourceRule.NormalizePath( path );
 
 		static bool IsReferencePath( string path ) => !string.IsNullOrWhiteSpace( path ) && Path.HasExtension( path )
 			&& path.IndexOfAny( [':', '*', '?', '"', '\r', '\n'] ) < 0 && !path.Replace( '\\', '/' ).Split( '/' ).Contains( ".." );

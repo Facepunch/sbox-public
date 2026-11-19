@@ -311,7 +311,11 @@ public sealed partial class PhysicsBody : IValid
 	/// </summary>
 	public PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale );
 
-	internal PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount, ReadOnlySpan<int> surfaceIndices = default ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale, materialCount, surfaceIndices );
+	/// <summary>
+	/// Creates a heightfield from the supplied material entries, excluding any unused buffer capacity.
+	/// The native shape copies the buffers before returning.
+	/// </summary>
+	internal PhysicsShape AddHeightFieldShape( ushort[] heights, ReadOnlySpan<byte> materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount, ReadOnlySpan<int> surfaceIndices = default ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale, materialCount, surfaceIndices );
 
 	[Obsolete]
 	public PhysicsShape AddCloneShape( PhysicsShape shape ) => null;
@@ -605,11 +609,11 @@ public sealed partial class PhysicsBody : IValid
 		set => _body.OnIntersectionEnd = value;
 	}
 
-	internal void DispatchIntersectionStart( PhysicsIntersection c ) => _body.DispatchIntersectionStart( c );
-	internal void DispatchIntersectionUpdate( PhysicsIntersection c ) => _body.DispatchIntersectionUpdate( c );
-	internal void DispatchIntersectionEnd( PhysicsIntersectionEnd c ) => _body.DispatchIntersectionEnd( c );
-	internal void DispatchTriggerBegin( PhysicsIntersection c ) => _body.DispatchTriggerBegin( c );
-	internal void DispatchTriggerEnd( PhysicsIntersectionEnd c ) => _body.DispatchTriggerEnd( c );
+	internal void DispatchIntersectionStart( in Collision c ) => _body.DispatchIntersectionStart( c );
+	internal void DispatchIntersectionUpdate( in Collision c ) => _body.DispatchIntersectionUpdate( c );
+	internal void DispatchIntersectionEnd( in CollisionStop c ) => _body.DispatchIntersectionEnd( c );
+	internal void DispatchTriggerBegin( in CollisionSource self, in CollisionSource other ) => _body.DispatchTriggerBegin( self, other );
+	internal void DispatchTriggerEnd( in CollisionSource self, in CollisionSource other ) => _body.DispatchTriggerEnd( self, other );
 
 	/// <summary>
 	/// Get the lerped transform between physics steps.

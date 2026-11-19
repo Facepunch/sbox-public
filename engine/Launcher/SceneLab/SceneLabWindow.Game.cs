@@ -107,6 +107,11 @@ internal sealed partial class SceneLabWindow
 	{
 		UnloadGame();
 
+		// The same random numbers every load, for particles and for anything else drawing from the game's, so captures
+		// repeat run to run
+		ParticleRandom.SetSeed( 0 );
+		Game.SetRandomSeed( 0 );
+
 		game = WithGameUI( scene.Game );
 		gameChangedFrame = 0;
 

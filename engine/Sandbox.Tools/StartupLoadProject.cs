@@ -135,6 +135,10 @@ static class StartupLoadProject
 		Project.Current.LastOpened = DateTime.Now;
 		project.Active = true;
 
+		// defer this until after we've loaded the project, so if we're opening a mount addon we don't do it twice
+		Sandbox.Mounting.Directory.LoadSources();
+		await EditorUtility.Projects.WaitForCompiles();
+
 		Step( "Initializing asset system" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Init AssetSystem" ) )
 		{
@@ -300,7 +304,7 @@ static class StartupLoadProject
 			await CompileAllShaders();
 
 			Step( "Compiling assets" );
-			EditorContentBuild.Startup( project );
+			await EditorContentBuild.Startup( project );
 
 			FileWatch.Tick();
 		}
@@ -439,6 +443,9 @@ static class StartupLoadProject
 
 	private static void ExportSettings( Project project )
 	{
+		if ( project.Config.Type != "game" )
+			return;
+
 		if ( !FileSystem.ProjectSettings.FileExists( "/Input.config" ) )
 		{
 			if ( !project.Config.TryGetMeta<InputSettings>( "InputSettings", out var meta ) )

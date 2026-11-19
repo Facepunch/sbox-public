@@ -8,7 +8,7 @@ using V3 = System.Numerics.Vector3;
 namespace BorealisGpuTests;
 
 /// <summary>
-/// Generated LODs (docs/managed/borealis-gpu-driven.md, "Generated LODs"): what <see cref="LodBuilder"/> makes of a range
+/// Generated LODs (docs/reference/borealis-gpu-driven.md, "Generated LODs"): what <see cref="LodBuilder"/> makes of a range
 /// with meshoptimizer's simplifier.
 /// </summary>
 [TestClass]

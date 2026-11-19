@@ -462,6 +462,8 @@ internal sealed class SceneUndoSnapshot : IDisposable
 	private Dictionary<Component, ComponentReference> _destroyedComponents { get; } = new();
 
 	private readonly HashSet<Guid> _prefabRootsToRefresh = new();
+	private readonly HashSet<Guid> _instancesToRefresh = new();
+	private readonly SceneInstanceState _initialInstanceState;
 
 	private void TrackPrefabRoot( GameObject go )
 	{
@@ -571,6 +573,29 @@ internal sealed class SceneUndoSnapshot : IDisposable
 		_captureGameObjectCreations = builder.CaptureGameObjectCreations;
 		_captureSelections = builder.CaptureSelections;
 
+		_initialInstanceState = _session.Scene.InstanceState;
+		if ( _captureGameObjectChanges || _captureComponentChanges || _captureDestructions ||
+			_captureGameObjectCreations || _captureComponentCreations ||
+			_destroyedGameObjects.Count > 0 || _destroyedComponents.Count > 0 )
+		{
+			// Root properties belong to each copy; only its containing instance shares them.
+			var instanceCandidates = _initalCapturedGameObjects
+				.Select( x => x.Value == GameObjectUndoFlags.Properties && _session.IsInstance( x.Key ) ? x.Key.Parent : x.Key )
+				.Concat( _initialCapturedComponents.Select( x => x.GameObject ) )
+				.Concat( builder.DestroyedGameObjects )
+				.Concat( builder.DestroyedComponents.Select( x => x.GameObject ) );
+			var editedInstances = _session.GetEditedInstances( instanceCandidates );
+			foreach ( var root in editedInstances )
+				_instancesToRefresh.Add( root.Id );
+			if ( _captureGameObjectCreations || _captureComponentCreations )
+				editedInstances.UnionWith( editedInstances.SelectMany( x => x.GetAllObjects( false ) ).Where( _session.IsInstance ).ToArray() );
+			foreach ( var root in _session.GetAffectedInstances( editedInstances ) )
+			{
+				if ( _session.Scene.GetInstanceRoot( root.Parent ) is null )
+					_initalCapturedGameObjects[root] = GameObjectUndoFlags.All;
+			}
+		}
+
 		// Undo snapshots
 
 		JsonObject scene = null;
@@ -649,6 +674,24 @@ internal sealed class SceneUndoSnapshot : IDisposable
 	void DisposeInternal()
 	{
 		using var sceneScope = _session.Scene.Push();
+		foreach ( var root in _session.GetEditedInstances(
+			_createdGameObjects.Where( x => x.IsValid() ).Select( x => x.Parent )
+				.Concat( _initalCapturedGameObjects.Keys.Where( x => x.IsValid() && !x.IsDestroyed ).Select( x => x.Parent ) )
+				.Concat( _createdComponents.Where( x => x.IsValid() ).Select( x => x.GameObject ) ) ) )
+			_instancesToRefresh.Add( root.Id );
+		try
+		{
+			_session.Scene.SynchronizeInstances( _instancesToRefresh );
+		}
+		catch ( Exception e ) when ( e is InvalidOperationException or KeyNotFoundException )
+		{
+			var createdObjects = _createdGameObjects.Select( GameObjectReference.FromInstance ).ToArray();
+			var createdComponents = _createdComponents.Select( ComponentReference.FromInstance ).ToArray();
+			RestoreInitialState( createdObjects, createdComponents );
+			_initialState.Selection?.Restore( _session.Scene );
+			Log.Warning( e.Message );
+			return;
+		}
 
 		// Redo snapshots
 
@@ -777,7 +820,8 @@ internal sealed class SceneUndoSnapshot : IDisposable
 		RefreshPrefabPatches( _session.Scene, prefabRootsToRefresh.Except( refreshedRoots ) );
 
 		// if nothing changed, don't add an undo
-		if ( _initialState == disposeState )
+		var finalInstanceState = _session.Scene.InstanceState;
+		if ( _initialState == disposeState && _initialInstanceState == finalInstanceState )
 		{
 			return;
 		}
@@ -788,59 +832,13 @@ internal sealed class SceneUndoSnapshot : IDisposable
 			_session.HasUnsavedChanges = true;
 		}
 
-		// copy we want to avoid capture this
-		var preChangeStateCopy = _initialState;
 		_session.AddUndo( _name,
 			() =>
 			{
 				using var sceneScope = _session.Scene.Push();
-
-				// for undo we need to restore the state to the pre change state
-				// first check if we have a scene to restore
-				if ( preChangeStateCopy.Scene != null )
-				{
-					_session.Scene.Clear();
-
-					using var blobs = BlobDataSerializer.LoadFrom( preChangeStateCopy.Scene );
-
-					using ( CallbackBatch.Isolated() )
-					{
-						_session.Scene.Deserialize( preChangeStateCopy.Scene );
-					}
-
-					// do a tick immediately, to make sure everything is up to date
-					// if we don't do this we can get flickers when undo is called
-					_session.Scene.EditorTick( RealTime.Now, RealTime.Delta );
-				}
-				else
-				{
-					// Must outlive the callback batch: deferred PostDeserialize reads blob data on flush
-					using var blobs = BlobDataSerializer.LoadFromMemory( default );
-					using var batch = CallbackBatch.Isolated();
-
-					preChangeStateCopy.GameObjectSnapshot?.Restore( _session.Scene );
-					preChangeStateCopy.ComponentSnapshot?.Restore( _session.Scene );
-
-					preChangeStateCopy.ComponentSnapshot?.PostRestore( _session.Scene );
-					preChangeStateCopy.GameObjectSnapshot?.PostRestore( _session.Scene, blobs );
-
-					// delete created components
-					foreach ( var compRef in createdComponentRefs )
-					{
-						compRef.Resolve( _session.Scene )?.Destroy();
-					}
-
-					// delete created gos
-					foreach ( var goRef in createdGameObjectRefs )
-					{
-						goRef.Resolve( _session.Scene )?.Destroy();
-					}
-				}
-
+				RestoreInitialState( createdGameObjectRefs, createdComponentRefs );
 				RefreshPrefabPatches( _session.Scene, prefabRootsToRefresh );
-
-				// At last restore selection
-				preChangeStateCopy.Selection?.Restore( _session.Scene );
+				_initialState.Selection?.Restore( _session.Scene );
 			},
 			() =>
 			{
@@ -850,6 +848,7 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				}
 
 				using var sceneScope = _session.Scene.Push();
+				_session.Scene.InstanceState = finalInstanceState;
 
 				// Must outlive the callback batch: deferred PostDeserialize reads blob data on flush
 				using var blobs = BlobDataSerializer.LoadFromMemory( default );
@@ -884,6 +883,34 @@ internal sealed class SceneUndoSnapshot : IDisposable
 					disposeState.Selection.Restore( _session.Scene );
 				}
 			} );
+	}
+
+	/// <summary>Restores the captured state for undo or a rejected recursive instance edit.</summary>
+	private void RestoreInitialState( IEnumerable<GameObjectReference> createdObjects, IEnumerable<ComponentReference> createdComponents )
+	{
+		_session.Scene.InstanceState = _initialInstanceState;
+		if ( _initialState.Scene is { } scene )
+		{
+			_session.Scene.Clear();
+			using var blobs = BlobDataSerializer.LoadFrom( scene );
+			using ( CallbackBatch.Isolated() )
+				_session.Scene.Deserialize( scene );
+			_session.Scene.EditorTick( RealTime.Now, RealTime.Delta );
+		}
+		else
+		{
+			using var blobs = BlobDataSerializer.LoadFromMemory( default );
+			using var batch = CallbackBatch.Isolated();
+			_initialState.GameObjectSnapshot?.Restore( _session.Scene );
+			_initialState.ComponentSnapshot?.Restore( _session.Scene );
+			_initialState.ComponentSnapshot?.PostRestore( _session.Scene );
+			_initialState.GameObjectSnapshot?.PostRestore( _session.Scene, blobs );
+			// A full hierarchy restore can already have removed these newly created components.
+			foreach ( var component in createdComponents )
+				_session.Scene.Directory.FindComponentByGuid( component.ComponentId )?.Destroy();
+			foreach ( var gameObject in createdObjects )
+				gameObject.Resolve( _session.Scene )?.Destroy();
+		}
 	}
 
 	private void OnComponentAdded( Component comp )

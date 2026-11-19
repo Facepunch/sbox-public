@@ -1,4 +1,4 @@
-// borealis_gpu_driven_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// borealis_gpu_driven_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis GPU-driven aggregates: culls a layer's fragments by frustum and size and writes their instance records and indirect commands.";
@@ -24,7 +24,7 @@ Mode( Default );
 ByteAddressBuffer g_bindless_VertexBuffers[] EXTERNAL_DESC_SET( t, g_globalLateBoundBindlessSet, 17 );
 #endif
 
-// The frame's region: the view and batch records in, instance records and commands out (docs/managed/borealis-gpu-driven.md)
+// The frame's region: the view and batch records in, instance records and commands out (docs/reference/borealis-gpu-driven.md)
 RWByteAddressBuffer g_Frame < Attribute( "BorealisCullFrame" ); >;
 
 // The visibility-driven forward pass: each fragment's frame stamp (written where the prepass draws ids, read in
@@ -111,7 +111,7 @@ bool TakesMoved( uint nFilter, uint nMoved, uint nSettled, uint nRestless )
 	return !bStatic && !bSettled;
 }
 
-// Generated LODs (Borealis.Backend/Lods/LodStore.cs, docs/managed/borealis-gpu-driven.md "Generated LODs"). A draw record's LOD
+// Generated LODs (Borealis.Backend/Lods/LodStore.cs, docs/reference/borealis-gpu-driven.md "Generated LODs"). A draw record's LOD
 // record, 128 bytes in the LOD table: its level count, a word unused and each level's error (a fraction of the fragment's
 // bounds' half diagonal); then 16 bytes per level: first index, index count, draw record and a word unused
 static const float LodHysteresis = 0.75;
@@ -228,7 +228,7 @@ void WriteDraw( uint nSlot, uint nTransform, uint nDraw, uint nIndexCount, uint 
 // the rest names (its first slot and count, then a run of 1 and 1, which make the count a task draw's arguments)
 static const uint TaskRun = 0x80000000u;
 
-// Two-phase Hi-Z occlusion (view word 28 bit 3; docs/managed/borealis-gpu-driven.md, "Hi-Z occlusion"): an ids fragment
+// Two-phase Hi-Z occlusion (view word 28 bit 3; docs/reference/borealis-gpu-driven.md, "Hi-Z occlusion"): an ids fragment
 // forward didn't see last frame (its bit clear in the bits at bindless slot vViewFlags.z) is left for the second phase, as
 // a 64-byte candidate at byte offset vViewFlags.w (group count, 1, 1, count, occluded; then from byte 32 the candidates, 256 a group). Whether it was
 // (not a mesh draw's instances, whose fragments are the frame's). bMeshlets: the first phase would list it for the meshlet pass

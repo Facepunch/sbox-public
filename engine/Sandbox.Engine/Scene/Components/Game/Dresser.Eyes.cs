@@ -38,48 +38,38 @@ public sealed partial class Dresser
 	} = AvatarDefaults.EyeColor;
 
 	/// <summary>
-	/// Citizen-only horizontal iris alignment from zero to one. The midpoint preserves Iris Center.
-	/// This rotates the iris projection around the eyeball without changing the eye bones.
+	/// Obsolete Citizen iris alignment. Always returns the neutral value; setting it has no effect.
 	/// </summary>
-	[Property, Sync, Range( 0, 1 ), Group( "Eyes" )]
-	[ShowIf( nameof( Source ), ClothingSource.Manual )]
+	[Obsolete( "Eye alignment is no longer supported. This property has no effect." ), Hide]
+	[System.ComponentModel.EditorBrowsable( System.ComponentModel.EditorBrowsableState.Never )]
 	public float EyeAlign
 	{
-		get;
+		get => AvatarDefaults.EyeAlign;
 		set
 		{
-			value = float.IsFinite( value ) ? value.Clamp( 0, 1 ) : AvatarDefaults.EyeAlign;
-
-			if ( field == value )
-				return;
-
-			field = value;
-			UpdateEyeAttributes();
 		}
-	} = AvatarDefaults.EyeAlign;
+	}
 
 	internal void UpdateEyeAttributes()
 	{
-		if ( _settingAppearance || !BodyTarget.IsValid() )
+		if ( _settingAppearance || !BodyTarget.IsValid() || !SupportsHumanAppearance )
 			return;
 
 		var tint = EyeColorGradient.Evaluate( EyeColor );
 
-		// Human eyes share the colour shader, but must keep their authored alignment.
-		// Write a neutral offset to clear any Citizen alignment left after a model change.
-		var offset = IsCitizen( BodyTarget.Model ) ? EyeAlign.Remap( 0, 1, -0.2f, 0.2f ) : 0;
-
-		SetEyeAttributes( BodyTarget.Attributes, tint, offset );
+		SetEyeAttributes( BodyTarget.Attributes, tint );
+		_hasEyeAttributes = true;
 		foreach ( var renderer in BodyTarget.GetComponentsInChildren<SkinnedModelRenderer>( true ) )
 		{
 			if ( renderer != BodyTarget )
-				SetEyeAttributes( renderer.Attributes, tint, offset );
+				SetEyeAttributes( renderer.Attributes, tint );
 		}
 	}
 
-	private static void SetEyeAttributes( RenderAttributes attributes, Color color, float align )
+	private static void SetEyeAttributes( RenderAttributes attributes, Color color )
 	{
 		attributes.Set( "eye_color", new Vector4( color.r, color.g, color.b, 1 ) );
-		attributes.Set( "eye_align", new Vector2( align, 0 ) );
+		// Human eyes keep their authored alignment, with no Citizen iris offset.
+		attributes.Set( "eye_align", Vector2.Zero );
 	}
 }

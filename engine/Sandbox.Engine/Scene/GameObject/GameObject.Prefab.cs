@@ -197,7 +197,12 @@ public partial class GameObject
 	/// <summary>
 	/// Defines objects within a scene hierarchy we want to track for prefab diffing and patching.
 	/// </summary>
-	public static HashSet<Json.TrackedObjectDefinition> DiffObjectDefinitions =
+	public static HashSet<Json.TrackedObjectDefinition> DiffObjectDefinitions = CreateDiffObjectDefinitions();
+
+	// The public set and its definitions are writable by game code, so the engine diffs and patches with its own
+	internal static readonly HashSet<Json.TrackedObjectDefinition> TrackedDiffDefinitions = CreateDiffObjectDefinitions();
+
+	static HashSet<Json.TrackedObjectDefinition> CreateDiffObjectDefinitions() =>
 	[
 		Json.TrackedObjectDefinition.CreatePresenceBasedDefinition(
 			type: "GameObject",

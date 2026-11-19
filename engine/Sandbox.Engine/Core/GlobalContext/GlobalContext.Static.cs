@@ -34,6 +34,7 @@ internal partial class GlobalContext
 		Menu = new GlobalContext();
 
 		_current.Value = Game;
+		Sandbox.Diagnostics.Logging.OnEmitted += Scene.CaptureLogEvent;
 	}
 
 	/// <summary>

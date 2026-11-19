@@ -22,16 +22,12 @@ public sealed partial class SceneWorld : IHandle
 	internal HashSet<SceneLight> InternalSceneLights { get; } = new();
 
 	/// <summary>
-	/// Told about every change to this world's scene objects - Borealis's mirror of it, in a process drawing on
-	/// Borealis.Gpu (<c>-borealisgpu</c>). Null otherwise.
-	/// </summary>
-	internal Rendering.ISceneObjectListener ChangeListener { get; set; }
-
-	/// <summary>
-	/// What this world draws as on Borealis, for the objects that write their own render objects
-	/// (<see cref="SceneObject.OwnsRenderObject"/>), in a process drawing on Borealis.Gpu. Null otherwise.
+	/// What this world draws as on Borealis, once a camera has drawn it: its objects make and write their own render objects
+	/// (<see cref="SceneObject.OwnsRenderObject"/>) and its lighting there. Null before, and in a process without Borealis.
 	/// </summary>
 	internal Rendering.ISceneWorldRender Render { get; set; }
+
+	internal event Action<SceneWorld> Destroyed;
 
 	/// <summary>
 	/// This world's fog volumes, in the order native's world lists them (<c>CSceneWorld::m_VolumetricFogVolumes</c>: added at
@@ -153,6 +149,7 @@ public sealed partial class SceneWorld : IHandle
 		CSceneSystem.DestroyWorld( this );
 		native = IntPtr.Zero;
 		All.Remove( this );
+		NotifyDestroyed();
 	}
 
 	internal void OnNativeInit( ISceneWorld ptr )
@@ -166,6 +163,14 @@ public sealed partial class SceneWorld : IHandle
 		Rendering.SceneRenderer.Forget( this );
 		native = IntPtr.Zero;
 		All.Remove( this );
+		NotifyDestroyed();
+	}
+
+	void NotifyDestroyed()
+	{
+		var destroyed = Destroyed;
+		Destroyed = null;
+		destroyed?.Invoke( this );
 	}
 
 	/// <summary>
@@ -193,16 +198,16 @@ public sealed partial class SceneWorld : IHandle
 	/// </summary>
 	internal void UpdateObjectsForRendering( Vector3 eyePos = default, float farPlane = 5000.0f )
 	{
-		if ( InternalSceneMaps is null )
+		if ( InternalSceneMaps is null || InternalSceneMaps.Count == 0 )
 			return;
 
-		if ( !InternalSceneMaps.Any() )
-			return;
-
-		// Maps native's world renderer loaded; one read by Borealis.Source2 has no world group
-		foreach ( var worldGroup in InternalSceneMaps.Select( x => x.WorldGroup ).Where( x => x is not null ).Distinct() )
+		foreach ( var map in InternalSceneMaps )
 		{
-			g_pWorldRendererMgr.UpdateObjectsForRendering( worldGroup, eyePos, 1.0f, farPlane );
+			// Maps native's world renderer loaded; one read by Borealis.Source2 has no world group
+			if ( map.WorldGroup is null || !IsFirstMapInWorldGroup( map ) )
+				continue;
+
+			g_pWorldRendererMgr.UpdateObjectsForRendering( map.WorldGroup, eyePos, 1.0f, farPlane );
 		}
 
 		// If we have a 3D skybox, update its objects too
@@ -210,6 +215,17 @@ public sealed partial class SceneWorld : IHandle
 		{
 			world?.SkyboxWorld.UpdateObjectsForRendering( world.Origin, farPlane );
 		}
+	}
+
+	bool IsFirstMapInWorldGroup( SceneMap map )
+	{
+		foreach ( var other in InternalSceneMaps )
+		{
+			if ( other == map ) return true;
+			if ( other.WorldGroup == map.WorldGroup ) return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>

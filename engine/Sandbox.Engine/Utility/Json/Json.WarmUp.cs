@@ -8,13 +8,34 @@ namespace Sandbox;
 partial class Json
 {
 	internal static CancellationTokenSource WarmUpCts;
+	private static Task warmUpTask;
+
+	/// <summary>
+	/// Stops the background cache work before hotload clears or replaces its metadata.
+	/// Cancellation alone can leave a GetTypeInfo call running and refilling the cache.
+	/// </summary>
+	internal static void StopWarmUp()
+	{
+		WarmUpCts?.Cancel();
+
+		try
+		{
+			warmUpTask?.GetAwaiter().GetResult();
+		}
+		catch ( OperationCanceledException )
+		{
+			// The task may have been cancelled before it started.
+		}
+
+		warmUpTask = null;
+	}
 
 	/// <summary>
 	/// Try to do any reflection / code gen immediately, so we don't do anything too slow during gameplay.
 	/// </summary>
 	internal static void PopulateReflectionCache( TypeLibrary typeLibrary )
 	{
-		WarmUpCts?.Cancel();
+		StopWarmUp();
 		WarmUpCts = new CancellationTokenSource();
 		var token = WarmUpCts.Token;
 
@@ -28,7 +49,7 @@ partial class Json
 
 		// Try to create as many JsonTypeInfos as possible
 		// This can be a background task, its expensive and we dont need to be populated immediately
-		_ = Task.Run( () =>
+		warmUpTask = Task.Run( () =>
 		{
 			foreach ( var typeDesc in typeLibrary.GetTypes() )
 			{

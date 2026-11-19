@@ -13,7 +13,7 @@ public static partial class MenuUtility
 		CloseAllModals();
 		Api.Activity.GameRequested( new( "menu", ident ), replace: false );
 
-		if ( gameSettings is not null ) LaunchArguments.GameSettings = gameSettings;
+		if ( gameSettings is not null ) LaunchArguments.SetTrustedGameSettings( gameSettings );
 		_ = LoadAsync( ident, allowLaunchOverride );
 	}
 
@@ -23,19 +23,30 @@ public static partial class MenuUtility
 	public static void OpenGameWithMap( string gameident, string mapName, Dictionary<string, string> gameSettings = null )
 	{
 		LaunchArguments.Map = mapName;
-		if ( gameSettings is not null ) LaunchArguments.GameSettings = gameSettings;
+		if ( gameSettings is not null ) LaunchArguments.SetTrustedGameSettings( gameSettings );
 
 		OpenGame( gameident, false );
 	}
 
-	static async Task LoadAsync( string ident, bool allowLaunchOverride, CancellationToken ct = default )
+	/// <summary>
+	/// Load a game onto its menu scene. It starts when it changes scene.
+	/// </summary>
+	public static Task OpenGameMenu( string ident )
+	{
+		CloseAllModals();
+		Api.Activity.GameRequested( new( "menu", ident ), replace: false );
+
+		return LoadAsync( ident, false, GameLoadingFlags.Menu );
+	}
+
+	static async Task LoadAsync( string ident, bool allowLaunchOverride, GameLoadingFlags extraFlags = default, CancellationToken ct = default )
 	{
 		ThreadSafe.AssertIsMainThread();
 		LoadingScreen.IsVisible = true;
 		LoadingScreen.Media = null;
 		LoadingScreen.Title = null;
 
-		var flags = GameLoadingFlags.Host | GameLoadingFlags.Reload;
+		var flags = GameLoadingFlags.Host | GameLoadingFlags.Reload | extraFlags;
 		if ( Application.IsEditor ) flags |= GameLoadingFlags.Developer; // todo - is the package we're loading a local package
 
 		await IGameInstanceDll.Current.LoadGamePackageAsync( ident, flags, ct );

@@ -11,7 +11,7 @@ using V3 = System.Numerics.Vector3;
 namespace Borealis.Backend.Meshlets;
 
 /// <summary>
-/// The meshlets of GPU-driven index ranges (docs/managed/borealis-gpu-driven.md, "Meshlets"). A range is asked for as its
+/// The meshlets of GPU-driven index ranges (docs/reference/borealis-gpu-driven.md, "Meshlets"). A range is asked for as its
 /// draw records are written; it's built off the frame on workers (<see cref="MeshletBuilder"/>), its indices rewritten in
 /// its index page in meshlet order and its records put in a meshlet page at a frame's start, and only once the frames that
 /// could still be reading its old order are done does every draw record over it get its run: until then it draws whole.

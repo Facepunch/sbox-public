@@ -1,4 +1,4 @@
-// pp_vignette: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// pp_vignette: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: Description = "Vignette shader";
 // HEADER: DevShader = true;
 

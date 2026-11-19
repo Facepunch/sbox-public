@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-	<!-- Fixture assembly for Sandbox.Test.Unit's hotload tests: the "before" version of TestClass.cs that hotload transforms from. Not a test suite. -->
+	<!-- Fixture assembly for Sandbox.Test.Unit's hotload tests: the "before" version of HotloadFixtures.cs that hotload transforms from. Not a test suite. -->
 
 	<PropertyGroup>
 		<VersionPrefix>1.0.1</VersionPrefix>

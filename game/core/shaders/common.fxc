@@ -13,7 +13,7 @@ ExternalDescriptorSet g_globalLateBoundBindlessSet Slot 1;
 
 // Per view: its fog and wind, lighting config, sun, cluster grid, lights, decals, shadows, indirect light volumes and light
 // modulators, bound once per view. Each binding is filled from the render attribute of the same name, so shaders built
-// before the set still find them. Layout: scenesystem/viewdescriptorset.h, docs/managed/static-descriptor-sets.md.
+// before the set still find them. Layout: scenesystem/viewdescriptorset.h, docs/reference/borealis-static-descriptor-sets.md.
 ExternalDescriptorSet g_viewSet Slot 2;
 
 #ifndef PER_VIEW_CBUFFER_DESCRIPTOR_SET

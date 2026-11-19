@@ -52,7 +52,7 @@ public enum CompilePhase
 /// Compiles new-tier shaders with the engine's Slang. A surface (<c>[Material]</c> struct implementing <c>ISurface</c>)
 /// gets the engine's passes, instantiated for it in a generated instance file; a raw module is compiled as written, its
 /// <c>[shader]</c> entry points mapped to passes by name. Both come out the same: SPIR-V per pass, bindings, and the
-/// material record's layout. See docs/managed/shader-format-replacement.md.
+/// material record's layout. See docs/reference/borealis-slang-materials.md.
 /// </summary>
 public sealed partial class SlangCompiler
 {
@@ -82,7 +82,7 @@ public sealed partial class SlangCompiler
 	/// defines and passes, the generated instance and GPU-driven files, the source rewrites, reflection. A change to the
 	/// generated text alone fails <c>GeneratedCodeNeedsAVersion</c> until <see cref="GeneratedFingerprint"/> is updated here too.
 	/// </summary>
-	public const int Version = 3;
+	public const int Version = 4;
 
 	/// <summary>The <see cref="Fingerprint"/> of the generated code <see cref="Version"/> was raised for.</summary>
 	internal const string GeneratedFingerprint = "E0A8E99736ED5263";
@@ -635,7 +635,7 @@ public sealed partial class SlangCompiler
 	/// </summary>
 	static readonly Dictionary<string, string> VertexAnimation = new() { ["D_CS_VERTEX_ANIMATION"] = "1" };
 
-	/// <summary>GPU-driven passes (<c>sbox/surface_passes.slangh</c>, docs/managed/borealis-gpu-driven.md).</summary>
+	/// <summary>GPU-driven passes (<c>sbox/surface_passes.slangh</c>, docs/reference/borealis-gpu-driven.md).</summary>
 	static readonly Dictionary<string, string> GpuDriven = new() { ["SURFACE_GPU_DRIVEN"] = "1" };
 
 	static Dictionary<string, string> With( Dictionary<string, string> a, Dictionary<string, string> b )

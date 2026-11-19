@@ -149,6 +149,10 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	[Property, Feature( "Rotation" ), Title( "Initial Roll" )]
 	public ParticleFloat InitialRoll { get; set; } = 0.0f;
 
+	/// <summary>Pitch, yaw and roll angular velocity in degrees per second, integrated over the particle's life.</summary>
+	[Property, Feature( "Rotation" )]
+	public ParticleVector3 AngularVelocity { get; set; }
+
 	/// <summary>
 	/// Enables or disables color application for particles.
 	/// </summary>
@@ -537,6 +541,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	bool _parentMoved;
 	Transform _worldTx;
 	Vector3 _worldForce;
+	bool _spin;
 
 	internal void UpdateParticle( int index )
 	{
@@ -623,7 +628,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 			var friction = Friction.Evaluate( p, 7579 );
 			var bumpiness = Bumpiness.Evaluate( p, 2380 );
 			var push = PushStrength.Evaluate( p, 5281 );
-			var die = DieOnCollisionChance.Evaluate( p, 4582 ) > Random.Shared.Float( 0, 1 );
+			var die = DieOnCollisionChance.Evaluate( p, 4582 ) > ParticleRandom.Shared.Float( 0, 1 );
 			var radius = MathF.Max( 0.01f, CollisionRadius );
 
 			if ( Scene.IsEditor ) push = 0;
@@ -632,9 +637,9 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 			var collided = p.MoveWithCollision( bounce, friction, bumpiness, push, die, timeScale, radius, _trace, push != 0 ? LazyInitializer.EnsureInitialized( ref _deferredForces ) : null );
 
-			if ( collided && hitTime > 0.3f && UsePrefabFeature && CollisionPrefabChance.Evaluate( delta, Random.Shared.Float( 0, 1 ) ) > Random.Shared.Float( 0, 1 ) )
+			if ( collided && hitTime > 0.3f && UsePrefabFeature && CollisionPrefabChance.Evaluate( delta, ParticleRandom.Shared.Float( 0, 1 ) ) > ParticleRandom.Shared.Float( 0, 1 ) )
 			{
-				var prefabSource = Random.Shared.FromList( CollisionPrefab );
+				var prefabSource = ParticleRandom.Shared.FromList( CollisionPrefab );
 				if ( prefabSource is not null )
 				{
 					Rotation angle = p.Angles;
@@ -644,7 +649,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 					{
 						angle = Rotation.LookAt( p.HitNormal, p.Angles.Forward );
 
-						var rot = CollisionPrefabRotation.Evaluate( delta, Random.Shared.Float( 0, 1 ) );
+						var rot = CollisionPrefabRotation.Evaluate( delta, ParticleRandom.Shared.Float( 0, 1 ) );
 						angle = Rotation.FromYaw( rot ) * angle;
 
 						position = p.HitPos;
@@ -690,6 +695,12 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		if ( ApplyRotation )
 		{
+			if ( _spin )
+			{
+				var spin = AngularVelocity.Evaluate( p, 6283 ) * timeScale;
+				p.StartAngles += new Angles( spin.x, spin.y, spin.z );
+			}
+
 			p.Angles.pitch = p.StartAngles.pitch + Pitch.Evaluate( p, 2363 );
 			p.Angles.yaw = p.StartAngles.yaw + Yaw.Evaluate( p, 8762 );
 			p.Angles.roll = p.StartAngles.roll + Roll.Evaluate( p, 3675 );
@@ -796,6 +807,8 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		if ( ForceSpace == SimulationSpace.Local )
 			_worldForce = _worldTx.Rotation * ForceDirection;
 
+		_spin = !AngularVelocity.IsNearlyZero();
+
 		Vector3 lastPos = lastTransform.Position;
 		Transform deltaTransform = _worldTx.ToLocal( lastTransform );
 
@@ -868,7 +881,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	[Obsolete( "Pass in a delta" )]
 	public Particle Emit( Vector3 position )
 	{
-		return Emit( position, Random.Shared.Float( 0, 1 ) );
+		return Emit( position, ParticleRandom.Shared.Float( 0, 1 ) );
 	}
 
 	void RunDelayedParticles()
@@ -1012,7 +1025,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	public Particle Emit( Vector3 position, float delta, SkinnedModelRenderer attachTarget, int boneIndex )
 	{
 		var localSpace = LocalSpace.Evaluate( 0, 254 ).Clamp( 0, 1 );
-		var delay = StartDelay.Evaluate( delta, Random.Shared.Float() );
+		var delay = StartDelay.Evaluate( delta, ParticleRandom.Shared.Float() );
 
 		var p = Particle.Create( Scene?.ParticlePool );
 
@@ -1020,7 +1033,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		p.StartPosition = position;
 		p.Radius = 1.0f;
 		p.AttachBoneIndex = boneIndex;
-		p.Velocity = Vector3.Random.Normal * StartVelocity.Evaluate( delta, Random.Shared.Float() );
+		p.Velocity = ParticleRandom.Shared.VectorInSphere().Normal * StartVelocity.Evaluate( delta, ParticleRandom.Shared.Float() );
 
 		// Read the bone's transform straight off the renderer's snapshot - no per-frame target resolution.
 		// Falls back to the emitter transform when there's no bone target.
@@ -1036,29 +1049,29 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 				spaceTx = boneTx;
 		}
 
-		var initialVelocity = InitialVelocity.Evaluate( delta, Random.Shared.Float(), Random.Shared.Float(), Random.Shared.Float() );
+		var initialVelocity = InitialVelocity.Evaluate( delta, ParticleRandom.Shared.Float(), ParticleRandom.Shared.Float(), ParticleRandom.Shared.Float() );
 		p.Velocity += initialVelocity.LerpTo( spaceTx.NormalToWorld( initialVelocity ) * initialVelocity.Length, localSpace );
 
 		if ( ApplyRotation )
 		{
-			p.StartAngles.pitch = InitialPitch.Evaluate( delta, Random.Shared.Float() );
-			p.StartAngles.yaw = InitialYaw.Evaluate( delta, Random.Shared.Float() );
-			p.StartAngles.roll = InitialRoll.Evaluate( delta, Random.Shared.Float() );
+			p.StartAngles.pitch = InitialPitch.Evaluate( delta, ParticleRandom.Shared.Float() );
+			p.StartAngles.yaw = InitialYaw.Evaluate( delta, ParticleRandom.Shared.Float() );
+			p.StartAngles.roll = InitialRoll.Evaluate( delta, ParticleRandom.Shared.Float() );
 			p.Angles = p.StartAngles;
 		}
 
 		if ( ApplyShape )
 		{
-			p.StartScale = InitialScale.Evaluate( delta, Random.Shared.Float() );
+			p.StartScale = InitialScale.Evaluate( delta, ParticleRandom.Shared.Float() );
 			p.Size = p.StartScale;
 		}
 
 		p.BornTime += delay;
 		p.DeathTime = p.BornTime + Lifetime.Evaluate( delta, p.Rand( 145, 100 ) );
 
-		if ( UsePrefabFeature && FollowerPrefabChance.Evaluate( delta, Random.Shared.Float( 0, 1 ) ) > Random.Shared.Float() )
+		if ( UsePrefabFeature && FollowerPrefabChance.Evaluate( delta, ParticleRandom.Shared.Float( 0, 1 ) ) > ParticleRandom.Shared.Float() )
 		{
-			var prefabSource = Random.Shared.FromList( FollowerPrefab );
+			var prefabSource = ParticleRandom.Shared.FromList( FollowerPrefab );
 			if ( prefabSource.IsValid() )
 			{
 				p.Follower = prefabSource.Clone( position, p.Angles );

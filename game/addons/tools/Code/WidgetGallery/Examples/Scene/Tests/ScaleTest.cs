@@ -16,15 +16,15 @@ internal class ScaleSimple : ISceneTest
 		using ( Gizmo.Scope( "Scale", Transform.Zero.WithScale( scale ) ) )
 		{
 			Gizmo.Draw.Color = Color.White;
-			Gizmo.Draw.Model( "models/editor/playerstart.vmdl" );
-
-			if ( Gizmo.Control.Scale( "scaler", scale, out var newscale ) )
+			if ( Gizmo.Control.UpdateScale( "scaler", scale, out var newscale ) )
 			{
 				scale = newscale;
 
 				scale = scale.Clamp( 0.1f, 2.0f );
 			}
-
+			Gizmo.Transform = Transform.Zero.WithScale( scale );
+			Gizmo.Draw.Model( "models/editor/playerstart.vmdl" );
+			Gizmo.Draw.Scale( "scaler", squareSize: 0 );
 
 		}
 

@@ -86,7 +86,7 @@ public abstract class GpuDevice
 	/// <summary>
 	/// Whether, culling aggregates on the GPU, it keeps what a call of every aggregate makes between frames
 	/// (<see cref="Gpu.GpuContext.GpuDrivenCull.Plan"/>): views then hand it the world's aggregates as one unchanging list
-	/// instead of preparing their own, and pay per frame only for the view (docs/managed/borealis-gpu-driven.md, "Resident
+	/// instead of preparing their own, and pay per frame only for the view (docs/reference/borealis-gpu-driven.md, "Resident
 	/// aggregates").
 	/// </summary>
 	internal virtual bool DrawsAggregatesResident => false;

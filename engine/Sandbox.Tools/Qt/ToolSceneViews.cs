@@ -11,7 +11,7 @@ namespace Editor;
 /// (<c>CToolScene::RenderManaged</c>, <see cref="Request"/>): its worlds, camera and size, and the native window to present
 /// in or the pixels to read back into. Native made those worlds and their objects, and every one has a managed twin, so
 /// the views draw them as any other world. Native changes them behind managed code's back, so their objects report
-/// their changes before each frame (<see cref="Poll"/>). docs/managed/borealis-gpu-path.md, the editor.
+/// their changes before each frame (<see cref="Poll"/>). docs/reference/borealis-gpu-path.md, the editor.
 /// </summary>
 internal static partial class ToolSceneViews
 {
@@ -402,7 +402,7 @@ internal static partial class ToolSceneViews
 			| SceneObjectChange.Settings | SceneObjectChange.Bounds;
 		if ( frame % ModelPollFrames == 0 ) change |= SceneObjectChange.Model | SceneObjectChange.Material | SceneObjectChange.Flags;
 
-		var listening = world.ChangeListener is not null;
+		var listening = world.Render is not null;
 		lock ( world.InternalSceneObjects )
 		{
 			foreach ( var sceneObject in world.InternalSceneObjects )

@@ -21,7 +21,7 @@ native static accessor g_pAssetSystem as IAssetSystem
 		return asset->RecompileAsset( full ? COMPILE_PARENTS_AND_CHILDREN_AND_ASSOCIATES : COMPILE_AS_NEEDED );
 	}
 
-	void UpdateGameResourceType( string title, string extension );
+	void UpdateGameResourceType( string title, string extension, bool uncompiled );
 
 	void SuspendOnDemandCompiles( bool suspend );
 	void SetAssetBuiltAt( string path, int epoch );

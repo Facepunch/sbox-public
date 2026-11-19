@@ -25,7 +25,7 @@ namespace HotloadTests
 		[TestMethod]
 		public void AddedSyncVar()
 		{
-			Instance = new Before::TestClass47();
+			Instance = new Before::SyncPropertyClass();
 
 			var properties = ReflectionQueryCache.SyncProperties( Instance.GetType() );
 			Assert.AreEqual( 0, properties.Count() );
@@ -33,7 +33,7 @@ namespace HotloadTests
 			Hotload();
 
 			// The instance should have been swapped to the new assembly's version of the type
-			Assert.IsInstanceOfType( Instance, typeof( After::TestClass47 ) );
+			Assert.IsInstanceOfType( Instance, typeof( After::SyncPropertyClass ) );
 
 			// Clear the type cache so next time we'll pick up the added [Sync] attribute
 			ReflectionQueryCache.ClearTypeCache();

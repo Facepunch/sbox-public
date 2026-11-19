@@ -37,7 +37,7 @@ public sealed class ScaleMode : MoveMode
 			Gizmo.Hitbox.DepthBias = 0.01f;
 			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
-			if ( Gizmo.Control.Scale( "scale", Vector3.Zero, out var delta, _basis ) )
+			if ( Gizmo.Control.UpdateScale( "scale", Vector3.Zero, out var delta, _basis ) )
 			{
 				_moveDelta += delta / 0.01f;
 
@@ -48,10 +48,14 @@ public sealed class ScaleMode : MoveMode
 						_size.z != 0 ? size.z / _size.z : 1
 					);
 
-				tool.StartDrag();
-				tool.Scale( _origin, _basis, scale );
-				tool.UpdateDrag();
+				if ( tool.DragStarted || scale != Vector3.One )
+				{
+					tool.StartDrag();
+					tool.Scale( _origin, _basis, scale );
+					tool.UpdateDrag();
+				}
 			}
+			Gizmo.Draw.Scale( "scale", _basis );
 		}
 	}
 }

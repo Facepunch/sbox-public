@@ -19,7 +19,7 @@ namespace Sandbox.BorealisLab;
 /// that read the scene's depth run too; those drawn in a native view of their own (<c>InView</c>) have their own depth on
 /// Source 2, and the rest, which would read it from the frame, aren't run, since Source 2 has no copy of it.
 /// <para>
-/// Stage 3 of moving the engine's rendering onto Borealis.Gpu (docs/managed/borealis-gpu-path.md). Auto exposure isn't here:
+/// Stage 3 of moving the engine's rendering onto Borealis.Gpu (docs/reference/borealis-gpu-path.md). Auto exposure isn't here:
 /// it's native's (<c>RenderTools.RenderAutoExposure</c>) and has no Borealis.Gpu form yet, so tonemapping runs with its
 /// default exposure on both devices.
 /// </para>

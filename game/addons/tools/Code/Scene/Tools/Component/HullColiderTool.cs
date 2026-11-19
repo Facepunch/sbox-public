@@ -24,7 +24,7 @@ public class HullColliderTool : EditorTool<HullCollider>
 
 			using ( Gizmo.Scope( "Hull Collider Editor", hullCollider.WorldTransform ) )
 			{
-				if ( Gizmo.Control.BoundingBox( "Bounds", currentBox, out var newBox ) )
+				if ( Gizmo.Control.UpdateBoundingBox( "Bounds", currentBox, out var newBox ) )
 				{
 					_componentUndoScope ??= SceneEditorSession.Active.UndoScope( "Resize Hull Collider" )
 						.WithComponentChanges( hullCollider ).Push();
@@ -32,6 +32,7 @@ public class HullColliderTool : EditorTool<HullCollider>
 					hullCollider.Center = newBox.Center;
 					hullCollider.BoxSize = newBox.Size;
 				}
+				Gizmo.Draw.BoundingBox( "Bounds", BBox.FromPositionAndSize( hullCollider.Center, hullCollider.BoxSize ) );
 			}
 		}
 	}

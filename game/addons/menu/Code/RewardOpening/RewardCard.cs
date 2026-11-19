@@ -56,11 +56,26 @@ public sealed class RewardCard : Component
 	private float _idleTime;
 	private bool _isHovered;
 	private bool _wasHovered;
+
+	/// <summary>
+	/// The pointer's presses seen so far - one more is a click (<see cref="MenuProject.Platform.UnboxView.Presses"/>)
+	/// </summary>
+	private int _presses = MenuProject.Platform.UnboxView.Presses;
 	private float _hoverScale;
 	private Vector3 _startPosition;
 	private Rotation _startRotation;
 	private bool _launched;
 	private float _launchTime;
+
+	/// <summary>
+	/// Claimed - since when. Picked, it pops; otherwise it shrinks away.
+	/// </summary>
+	private RealTimeSince? _finished;
+
+	/// <summary>
+	/// The reward's been claimed - the picked card pops, the rest shrink away
+	/// </summary>
+	public void Finish() => _finished = 0;
 
 	/// <summary>
 	/// How long the card takes to fly from the crate to its target position.
@@ -82,8 +97,12 @@ public sealed class RewardCard : Component
 
 		UpdateLaunchOrSpring( dt );
 		UpdatePushSpring( dt );
-		UpdateHover();
-		UpdateClickDetection();
+		if ( _finished is null )
+		{
+			UpdateHover();
+			UpdateClickDetection();
+		}
+
 		ApplyTransform();
 	}
 
@@ -142,15 +161,11 @@ public sealed class RewardCard : Component
 
 	private void UpdateHover()
 	{
-		var camera = Scene.Camera;
-		if ( camera == null ) return;
-
-		var ray = camera.ScreenPixelToRay( Mouse.Position );
-
 		// Simple sphere check around the card
+		var ray = MenuProject.Platform.UnboxView.PointerRay ?? default;
 		var toCard = WorldPosition - ray.Position;
 		var proj = Vector3.Dot( toCard, ray.Forward );
-		if ( proj > 0 )
+		if ( MenuProject.Platform.UnboxView.PointerRay is not null && proj > 0 )
 		{
 			var closestPoint = ray.Position + ray.Forward * proj;
 			var dist = (closestPoint - WorldPosition).Length;
@@ -175,10 +190,13 @@ public sealed class RewardCard : Component
 
 	private void UpdateClickDetection()
 	{
+		var pressed = MenuProject.Platform.UnboxView.Presses != _presses;
+		_presses = MenuProject.Platform.UnboxView.Presses;
+
 		if ( !_isHovered ) return;
 		if ( _launched ) return;
 
-		if ( Input.Pressed( "attack1" ) )
+		if ( pressed )
 		{
 			// Play click sound
 			Sound.Play( "ui.button.press" );
@@ -228,7 +246,24 @@ public sealed class RewardCard : Component
 		WorldPosition += toCamera * _pushOffset * Time.Delta;
 
 		// Apply hover scale
-		WorldScale = _hoverScale * (IsSelected ? 1.05f : 1f);
+		WorldScale = _hoverScale * (IsSelected ? 1.05f : 1f) * FinishScale();
+	}
+
+	/// <summary>
+	/// Once claimed - the picked card swells and settles a little bigger, the rest shrink to nothing
+	/// </summary>
+	private float FinishScale()
+	{
+		if ( _finished is not { } since ) return 1f;
+
+		if ( IsSelected )
+		{
+			var t = MathF.Min( since / 0.45f, 1f );
+			return 1f + 0.25f * t + 0.3f * MathF.Sin( t * MathF.PI );
+		}
+
+		var shrink = MathF.Min( since / 0.3f, 1f );
+		return 1f - shrink * shrink;
 	}
 
 	protected override void DrawGizmos()

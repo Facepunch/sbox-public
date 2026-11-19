@@ -201,7 +201,7 @@
 							},
 							{
 								from = "male_body.vmat"
-								to = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								to = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
 							},
 							{
 								from = "m_playermodelmouth.vmat"
@@ -241,6 +241,10 @@
 						remaps = 
 						[
 							{
+								from = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
+								to = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+							},
+							{
 								from = "m_playermodel_lightskin_02.vmat"
 								to = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.vmat"
 							},
@@ -256,7 +260,7 @@
 						remaps = 
 						[
 							{
-								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								from = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
 								to = "models/citizen_human/bodies/male/body_male_light.vmat"
 							},
 							{
@@ -279,7 +283,7 @@
 						remaps = 
 						[
 							{
-								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								from = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
 								to = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
 							},
 							{
@@ -298,7 +302,7 @@
 						remaps = 
 						[
 							{
-								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								from = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
 								to = "models/citizen_human/bodies/male/body_male_light_02.vmat"
 							},
 							{
@@ -321,7 +325,7 @@
 						remaps = 
 						[
 							{
-								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								from = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
 								to = "models/citizen_human/bodies/male/body_male_light.vmat"
 							},
 							{
@@ -344,7 +348,7 @@
 						remaps = 
 						[
 							{
-								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								from = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
 								to = "models/citizen_human/bodies/male/body_mode_dark.vmat"
 							},
 							{
@@ -363,7 +367,7 @@
 						remaps = 
 						[
 							{
-								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								from = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
 								to = "models/citizen_human/bodies/male/body_male_light_03.vmat"
 							},
 							{
@@ -386,7 +390,7 @@
 						remaps = 
 						[
 							{
-								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								from = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
 								to = "models/citizen_human/bodies/male/body_mode_dark_02.vmat"
 							},
 							{
@@ -405,7 +409,7 @@
 						remaps = 
 						[
 							{
-								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								from = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
 								to = "models/citizen_human/bodies/male/body_male_light_04.vmat"
 							},
 							{

@@ -70,6 +70,11 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		ClearsBackground = false;
 		AlwaysFullFrameRate = true;
 
+		// -width and -height are the frame's size in pixels, which captures are taken at, not UI units the display scale
+		// would make bigger
+		if ( Args.Has( "-width" ) || Args.Has( "-height" ) )
+			Core.PixelSize = new Vector2( Args.Int( "-width", 1280 ), Args.Int( "-height", 760 ) );
+
 		// -fullscreen: the scene fills the display, borderless (or -fullscreen exclusive), with no title bar
 		if ( Args.Has( "-fullscreen" ) )
 		{

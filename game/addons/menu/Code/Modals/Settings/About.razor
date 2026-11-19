@@ -7,53 +7,66 @@
 
 <root class="page-inner">
 
+	@* A list, as the settings' rows are - each component's name and what it is, its license on the right; open one
+	   for who holds it, where it lives, and the license itself *@
 	<div class="page-content">
 		<h2>#menu.settings.third_party_components</h2>
-		<div class="statement">@IndexData?.Statement</div>
+		<label class="statement">@IndexData?.Statement</label>
 
-		@if (Components != null)
+		@if ( Components != null )
 		{
-			@foreach (var component in Components)
-			{
-				<div class="component glass with-padding">
-					<h3>@component.Name</h3>
-					@if (!string.IsNullOrEmpty(component.Comment))
-					{
-						<div class="info-row">
-							<span class="content">@component.Comment</span>
-						</div>
-					}
-					<div class="info-row">
-                        <span class="info-label">#menu.settings.copyright</span>
-						<span class="content">@string.Join("; ", component.Copyright ?? new List<string>())</span>
-					</div>
-					<div class="info-row">
-						<span class="info-label">#menu.settings.license</span>
-						<span class="content">@component.License</span>
-					</div>
-					<div class="info-row">
-                        <span class="info-label">#menu.settings.homepage</span>
-                        <span class="content">@component.ProjectUrl</span>
-					</div>
-
-                    @if (component.License != "Public-Domain")
-                    {
-                        <Button class="license-button" onclick=@(() => ToggleLicense(component.Name)) Icon=@(LicenseTextChunks.ContainsKey(component.Name) ? "expand_more" : "navigate_next")>
-						    Full License Text
-					    </Button>
-                    }
-
-					@if (LicenseTextChunks.ContainsKey(component.Name))
-					{
-						<div class="license-text">
-							@foreach (var chunk in LicenseTextChunks[component.Name])
-							{
-								<div class="license-chunk">@chunk</div>
-							}
-						</div>
-					}
+			<div class="list">
+				<div class="columns">
+					<label class="c-name">Component</label>
+					<label class="c-license">License</label>
+					<div class="c-more"></div>
 				</div>
-			}
+
+				@foreach ( var component in Components )
+				{
+					var open = Open.Contains( component.Name );
+
+					<div class="item @(open ? "open" : "")">
+						<div class="line" onclick=@( () => ToggleLicense( component.Name ) )>
+							<div class="c-name">
+								<label class="name">@component.Name</label>
+								@if ( !string.IsNullOrEmpty( component.Comment ) )
+								{
+									<label class="comment">@component.Comment</label>
+								}
+							</div>
+							<div class="c-license"><label class="chip" tooltip="@component.License">@component.License</label></div>
+							<i class="c-more">@(open ? "expand_less" : "expand_more")</i>
+						</div>
+
+						@if ( open )
+						{
+							<div class="details">
+								<div class="fact">
+									<label class="key">#menu.settings.copyright</label>
+									<label class="value">@string.Join( "; ", component.Copyright ?? new List<string>() )</label>
+								</div>
+								@if ( !string.IsNullOrEmpty( component.ProjectUrl ) )
+								{
+									<div class="fact">
+										<label class="key">#menu.settings.homepage</label>
+										<label class="value link" onclick=@( () => MenuUtility.OpenUrl( component.ProjectUrl ) )>@component.ProjectUrl</label>
+									</div>
+								}
+								@if ( LicenseTextChunks.TryGetValue( component.Name, out var chunks ) )
+								{
+									<div class="license-text">
+										@foreach ( var chunk in chunks )
+										{
+											<label class="license-chunk">@chunk</label>
+										}
+									</div>
+								}
+							</div>
+						}
+					</div>
+				}
+			</div>
 		}
 		else if ( Loaded )
 		{
@@ -108,15 +121,23 @@
         StateHasChanged();
     }
 
+    /// <summary>
+    /// Those opened - their details showing, and the license text under them unless it's public domain
+    /// </summary>
+    private HashSet<string> Open { get; } = new();
+
     private void ToggleLicense(string componentName)
     {
-        if (LicenseTextChunks.ContainsKey(componentName))
+        if (Open.Remove(componentName))
         {
             LicenseTextChunks.Remove(componentName);
         }
         else
         {
-            LoadLicenseText(componentName);
+            Open.Add(componentName);
+
+            if (Components?.FirstOrDefault(c => c.Name == componentName) is { License: not "Public-Domain" })
+                LoadLicenseText(componentName);
         }
 
         StateHasChanged();

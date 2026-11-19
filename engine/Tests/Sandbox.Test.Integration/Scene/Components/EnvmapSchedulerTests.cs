@@ -78,35 +78,63 @@ public class EnvmapSchedulerTests
 		new EnvmapScheduler( null ).Run( scene );
 	}
 
-	sealed class ChangeRecorder : Sandbox.Rendering.ISceneObjectListener
+	/// <summary>
+	/// A world's renderer that counts what its cubemaps ask for: each time one asks for its cube, its settings were written.
+	/// </summary>
+	sealed class CubeRecorder : Sandbox.Rendering.ISceneWorldRender
 	{
-		public readonly System.Collections.Generic.List<(SceneObject, Sandbox.Rendering.SceneObjectChange)> Changes = new();
-		public void OnChanged( SceneObject sceneObject, Sandbox.Rendering.SceneObjectChange change ) => Changes.Add( (sceneObject, change) );
+		public int CubesAsked;
+		public Borealis.RenderWorld World { get; } = new();
+		public bool OnDevice => false;
+		public Borealis.GpuTexture Texture( Texture texture ) => null;
+		public Borealis.GpuTexture TextureWhenRead( Texture texture, SceneObject waiting, Sandbox.Rendering.SceneObjectChange change ) => null;
+		public Borealis.GpuTexture ProbeCube( SceneCubemap cubemap )
+		{
+			CubesAsked++;
+			return null;
+		}
+
+		public void WriteMesh( SceneObject sceneObject, Borealis.MeshObject mesh, Sandbox.Rendering.SceneObjectChange change ) { }
+		public Borealis.AggregateObject MakeAggregate( SceneObject sceneObject, out bool waiting )
+		{
+			waiting = false;
+			return null;
+		}
+
+		public void WriteAggregate( SceneObject sceneObject, Borealis.AggregateObject aggregate, Sandbox.Rendering.SceneObjectChange change ) { }
+		public void WriteLighting( SceneObject sceneObject, Sandbox.Rendering.SceneObjectChange change ) { }
+		public void Made( SceneObject sceneObject ) { }
+		public void Deleted( SceneObject sceneObject ) { }
+		public void Destroyed( SceneObject sceneObject ) { }
+		public void Later( SceneObject sceneObject, Sandbox.Rendering.SceneObjectChange change ) { }
 	}
 
 	/// <summary>
-	/// A probe's scene object tells the world's listener (Borealis's mirror) when its texture or settings change, as when
-	/// a realtime probe makes its cube anew once a native tool draws. Before, only its creation did: the mirror kept the
-	/// old cube, freed with the old texture, and the probe reflected black.
+	/// A probe's scene object writes its render object when its texture or settings change, as when a realtime probe makes its
+	/// cube anew once a native tool draws. Before, only its creation did: the renderer kept the old cube, freed with the old
+	/// texture, and the probe reflected black.
 	/// </summary>
 	[TestMethod]
-	public void CubemapChangesReachTheListener()
+	public void CubemapChangesReachTheRenderer()
 	{
+		typeof( ThreadSafe ).GetMethod( "MarkMainThread", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static ).Invoke( null, null );
+
 		var world = new SceneWorld();
-		var recorder = new ChangeRecorder();
-		world.ChangeListener = recorder;
+		var recorder = new CubeRecorder();
+		world.Render = recorder;
 		var cubemap = new SceneCubemap( world, null, BBox.FromPositionAndSize( 0, 200 ) );
+		cubemap.RenderObject = cubemap.MakeRenderObject( recorder );
+		recorder.World.Add( cubemap.RenderObject );
 
-		recorder.Changes.Clear();
 		cubemap.TintColor = Color.Red;
-		Assert.IsTrue( recorder.Changes.Contains( (cubemap, Sandbox.Rendering.SceneObjectChange.Settings) ), "a setting" );
+		Assert.AreEqual( Color.Red, ((Borealis.EnvMapObject)cubemap.RenderObject).Tint, "a setting" );
 
-		recorder.Changes.Clear();
+		var asked = recorder.CubesAsked;
 		using var texture = Texture.CreateCube( 16, 16 ).WithUAVBinding().WithMips( 1 ).WithFormat( ImageFormat.RGBA16161616F ).Finish();
 		cubemap.Texture = texture;
-		Assert.IsTrue( recorder.Changes.Contains( (cubemap, Sandbox.Rendering.SceneObjectChange.Settings) ), "its texture" );
+		Assert.IsTrue( recorder.CubesAsked > asked, "its texture" );
 
-		world.ChangeListener = null;
+		world.Render = null;
 		cubemap.Delete();
 		world.Delete();
 	}

@@ -17,11 +17,11 @@ public class ConstBoneTargetNode : Node
 	[JsonIgnore]
 	public object Target => default;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			if ( !string.IsNullOrWhiteSpace( Bone ) )
 				info.Name = $"Bone Target: {Bone}";
 			return info;

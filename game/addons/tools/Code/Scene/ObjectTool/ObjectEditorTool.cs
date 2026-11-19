@@ -30,28 +30,7 @@ public class ObjectEditorTool : EditorTool
 
 	protected override void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
 	{
-		var selection = new HashSet<GameObject>();
-		var previous = new HashSet<GameObject>();
-
-		foreach ( var go in Scene.GetAllObjects( true ) )
-		{
-			// GetAllObjects starts with the scene itself, which encloses everything
-			if ( go == Scene ) continue;
-			if ( go.Tags.Has( "hidden" ) ) continue;
-
-			var bounds = GetDragBounds( go );
-
-			// Nothing renderable, fall back to hitting the object's origin
-			if ( bounds.Size.AlmostEqual( 0.0f ) && !go.HasGizmoHandle ) continue;
-
-			// Partial, otherwise you'd have to fit the whole model in the box to select it
-			if ( frustum.IsInside( bounds, true ) )
-				selection.Add( go );
-			else
-				previous.Add( go );
-		}
-
-		ApplyDragSelection( selection, previous );
+		SelectObjectsInBox( frustum, isFinal );
 	}
 
 	void UpdateSelectionMode()

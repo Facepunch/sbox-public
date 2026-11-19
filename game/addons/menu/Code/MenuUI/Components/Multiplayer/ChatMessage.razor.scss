@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 ChatMessage
 {
@@ -26,12 +26,12 @@ ChatMessage
 		align-self: flex-start;
 		cursor: pointer;
 		font-weight: 600;
-		color: $front-heading;
+		color: $platform-text;
 		font-size: 13px;
 
 		&:hover
 		{
-			color: $front-link;
+			color: $platform-steam-blue;
 		}
 	}
 }

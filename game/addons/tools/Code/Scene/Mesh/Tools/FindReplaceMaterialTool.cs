@@ -93,6 +93,8 @@ public partial class FindReplaceMaterialTool : SelectionTool<MeshFace>
 			RefreshMatches();
 	}
 
+	public override void SelectAll() => EditorShortcuts.PassShortcut = true;
+
 	IEnumerable<MeshComponent> GetTargetComponents()
 	{
 		if ( Scope == ReplaceScope.Scene )
@@ -221,6 +223,8 @@ public partial class FindReplaceMaterialTool : SelectionTool<MeshFace>
 
 		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection && !IsLassoSelecting )
 			UpdateSelection( hoverFace );
+
+		UpdateMoveMode();
 
 		_faceObject.Init( Graphics.PrimitiveType.Triangles );
 

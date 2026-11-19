@@ -1,0 +1,30 @@
+{
+  "tags": [
+    "ModelMaterial"
+  ],
+  "guid": "10eeed18-00fc-0000-d000-000000000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Oil Drum Gibs",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "oildrumgibs",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/warehouse/oil_drums/materials/oil_drum_gibs.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}
