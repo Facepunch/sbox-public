@@ -49,7 +49,7 @@ internal sealed partial class BackendContext
 
 	bool DrawSurface( SurfaceMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, in IndirectDraws indirect )
 	{
-		if ( mesh.Geometry is not IBackendGeometry source ) return false;
+		if ( mesh.Geometry is not IBackendGeometry source || !source.Use() ) return false;
 		if ( (indirect.InstanceIds ?? InstanceIds?.Resource as BackendBuffer) is not { } instanceIds ) return false;
 		if ( device.Surfaces.For( material ) is not { } program ) return false;
 		if ( !EnsureScope() ) return false;
@@ -465,7 +465,7 @@ internal sealed partial class BackendContext
 				}
 
 			case BindingKind.Buffer:
-				return Lookup( token ) is GpuBuffer { Resource: BackendBuffer buffer } ? Binding.Storage( b.Binding, buffer.Handle ) : Binding.Storage( b.Binding, defaults.Storage );
+				return Lookup( token ) is GpuBuffer { Resource: BackendBuffer { Live: true } buffer } ? Binding.Storage( b.Binding, buffer.Handle ) : Binding.Storage( b.Binding, defaults.Storage );
 
 			case BindingKind.Sampler:
 				return Binding.SamplerState( b.Binding, sampler );
@@ -484,7 +484,7 @@ internal sealed partial class BackendContext
 						_ => TextureDimension.Texture2D,
 					};
 
-					if ( Lookup( token ) is not BackendTexture texture || texture.Dimension != expected || texture.Samples > 1 || SampledLayoutOf( texture ) != ImageLayout.ShaderRead )
+					if ( Lookup( token ) is not BackendTexture { IsValid: true } texture || texture.Dimension != expected || texture.Samples > 1 || SampledLayoutOf( texture ) != ImageLayout.ShaderRead )
 						return Binding.Sampled( b.Binding, defaults.Texture( Dimension( b.Shape ) ) );
 
 					var srgb = (b.Annotations?.SrgbRead ?? false) && Gpu.InfoOf( texture.Handle ).Format.HasSrgb();

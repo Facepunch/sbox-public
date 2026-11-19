@@ -97,6 +97,12 @@ internal sealed class BackendBuffer( BackendDevice device, BufferHandle handle, 
 	public string Name { get; } = name;
 	bool disposed;
 
+	/// <summary>
+	/// Whether it can still be bound: not disposed, and for a borrowed one, its owner hasn't destroyed it (an engine buffer a
+	/// game disposed while an object's attributes still name it). Draws bind the default buffer otherwise.
+	/// </summary>
+	public bool Live => !disposed && device.Gpu.IsAlive( Handle );
+
 	public void Dispose()
 	{
 		if ( disposed || !owned ) return;

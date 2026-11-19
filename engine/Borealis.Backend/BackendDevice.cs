@@ -1381,17 +1381,23 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		if ( string.IsNullOrEmpty( path ) ) return;
 		List<string> textures;
+		IStreamDependent released;
 		lock ( sharedMaterials )
 		{
 			if ( !materialLives.TryGetValue( path, out var life ) || life.Holders == 0 ) return;
 			if ( --life.Holders > 0 || life.Pinned ) return;
 			materialLives.Remove( path );
+			released = sharedMaterials.GetValueOrDefault( path ) as IStreamDependent;
 			sharedMaterials.Remove( path );
 			textures = life.Textures;
 			MaterialsFreed++;
 		}
 
 		if ( textures is not null ) ReleaseTextures( textures );
+
+		// Anything still drawing with it binds its textures again, as defaults where they've gone, rather than their
+		// destroyed images through the binding sets kept for it
+		released?.TexturesChanged();
 	}
 
 	/// <summary>

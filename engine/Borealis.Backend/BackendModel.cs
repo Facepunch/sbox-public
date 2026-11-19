@@ -31,6 +31,12 @@ internal interface IBackendGeometry
 {
 	/// <summary>What draw <paramref name="drawCall"/> of mesh <paramref name="mesh"/> binds.</summary>
 	DrawGeometry For( int mesh, int drawCall );
+
+	/// <summary>
+	/// Note that the frame being recorded draws or skins it; false once it has been freed, and then nothing records with it.
+	/// Every draw and dispatch asks before it binds the geometry's buffers.
+	/// </summary>
+	bool Use() => true;
 }
 
 /// <summary>
@@ -82,7 +88,7 @@ internal readonly record struct VertexCacheDraw( DrawGeometry Geometry, int Firs
 /// <summary>
 /// Geometry with skinned meshes: their vertex buffers as compute skinning reads them, and their draws from the vertex cache.
 /// </summary>
-internal interface ISkinnedGeometry
+internal interface ISkinnedGeometry : IBackendGeometry
 {
 	/// <summary>A skinned mesh's vertex buffers, in order; empty for a mesh that isn't skinned.</summary>
 	SkinnedVertexBuffer[] SkinnedBuffers( int mesh );
@@ -392,6 +398,25 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 
 	VertexCacheDraw? ISkinnedGeometry.VertexCacheFor( int mesh, int drawCall ) => vertexCacheDraws[mesh][drawCall];
 
+	// The device frame (Device.FrameNumber) a draw or skinning dispatch last recorded it in, or -1
+	long lastUsedFrame = -1;
+
+	/// <summary>
+	/// The device frame (<see cref="Device.FrameNumber"/>) a draw or skinning dispatch last recorded it in, or -1: the device
+	/// doesn't free a model something drew after its last holder let it go (<see cref="BackendDevice.ReleaseModel"/>).
+	/// </summary>
+	internal long LastUsedFrame => System.Threading.Volatile.Read( ref lastUsedFrame );
+
+	bool IBackendGeometry.Use()
+	{
+		if ( Freed ) return false;
+
+		// Written once a frame: draws of it on every recording thread read the same value after that
+		var frame = (long)device.Gpu.FrameNumber;
+		if ( System.Threading.Volatile.Read( ref lastUsedFrame ) != frame ) System.Threading.Volatile.Write( ref lastUsedFrame, frame );
+		return true;
+	}
+
 	/// <summary>
 	/// What native's model gives Borealis to skin a mesh with (<c>RenderTools.GetModelMeshSkinning</c>): its bones' inverse bind poses
 	/// and the model bones they are, its weights per vertex and its vertices across its buffers. Null when it isn't skinned,
@@ -500,12 +525,25 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	}
 
 	/// <summary>Whether <see cref="Free"/> has run: a model made at run time that was freed this way is made again if asked for.</summary>
-	public bool Freed { get; private set; }
+	public bool Freed => freed;
 
-	/// <summary>Free its buffers, once the GPU is done with them; otherwise they go with the device. Again does nothing.</summary>
+	volatile bool freed;
+
+	/// <summary>
+	/// Free its buffers, once the GPU is done with them; otherwise they go with the device. Again does nothing. From then on
+	/// it draws and skins nothing (<see cref="IBackendGeometry.Use"/>), and nothing it keeps names its buffers or pages: a
+	/// draw recorded after its buffers were destroyed would bind them through a binding set cached by their handles.
+	/// </summary>
 	public void Free()
 	{
-		Freed = true;
+		freed = true;
+		for ( int m = 0; m < draws.Length; m++ )
+		{
+			Array.Clear( draws[m] );
+			Array.Clear( vertexCacheDraws[m] );
+			skinnedBuffers[m] = [];
+		}
+
 		foreach ( var buffer in buffers ) device.Gpu.Destroy( buffer );
 		buffers.Clear();
 		if ( device.GpuDrivenTables is { } tables )
