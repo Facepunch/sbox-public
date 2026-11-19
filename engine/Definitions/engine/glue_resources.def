@@ -22,6 +22,12 @@ native static class Glue.Resources as NativeGlue.Resources
 		return name.String();
 	}
 
+	// A model made in code (FindOrCreateProceduralModel: a tool's meshes), with no file to read
+	inline bool IsModelProcedural( IModel model )
+	{
+		return model.GetBinding() != nullptr && ResourceIsProcedural( model.GetBinding() );
+	}
+
 	CPhysicsData GetPhysics( string name, Guid guid );
 	HAnimationGraph GetAnimationGraph( string name, Guid guid );
 	HAnimGraph2 GetAnimGraph2( string name );

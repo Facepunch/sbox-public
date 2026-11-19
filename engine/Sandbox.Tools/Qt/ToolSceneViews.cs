@@ -133,7 +133,13 @@ internal static class ToolSceneViews
 	/// Draw a native view's frame (<c>RenderToolScene</c>). Sets <see cref="Request.Handled"/> when it drew it, or skipped it
 	/// on purpose; native draws it when it's left clear.
 	/// </summary>
-	internal static unsafe void Render( IntPtr requestPointer )
+	internal static unsafe void Render( IntPtr requestPointer ) => Render( requestPointer, null );
+
+	/// <summary>
+	/// Draw a native view's frame with <paramref name="managedWorlds"/> as well: worlds managed code made and keeps up to date
+	/// itself (Hammer's map scene and gizmos), drawn as they are, not polled or searched for native overlays.
+	/// </summary>
+	internal static unsafe void Render( IntPtr requestPointer, IReadOnlyList<SceneWorld> managedWorlds )
 	{
 		if ( requestPointer == IntPtr.Zero ) return;
 		ref var request = ref *(Request*)requestPointer;
@@ -143,8 +149,8 @@ internal static class ToolSceneViews
 
 		try
 		{
-			if ( request.Window != IntPtr.Zero ) RenderLive( gpu, ref request );
-			else RenderPixels( ref request );
+			if ( request.Window != IntPtr.Zero ) RenderLive( gpu, ref request, managedWorlds );
+			else RenderPixels( ref request, managedWorlds );
 		}
 		catch ( Exception e )
 		{
@@ -152,7 +158,7 @@ internal static class ToolSceneViews
 		}
 	}
 
-	static void RenderLive( BorealisGpuRenderBackend gpu, ref Request request )
+	static void RenderLive( BorealisGpuRenderBackend gpu, ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
 	{
 		// A view asked for inside another frame's block waits for its own frame: drawing it would nest blocks
 		if ( Graphics.IsActive )
@@ -178,7 +184,7 @@ internal static class ToolSceneViews
 			view.Camera.OnRenderOverlay = view.Overlays.DrawTextAction( view.Camera );
 		}
 
-		Setup( view.Camera, view.Lights, view.Overlays, ref request );
+		Setup( view.Camera, view.Lights, view.Overlays, ref request, managedWorlds );
 		request.Handled = 1;
 
 		if ( !view.Window.Update( size ) ) return;
@@ -190,15 +196,15 @@ internal static class ToolSceneViews
 		}
 		finally
 		{
+			// Presented even when drawing threw: an image left acquired stops the window for good
 			view.Window.EndFrame( NoOverlay, screenshots: false );
+			view.Window.PresentFrame();
 		}
-
-		view.Window.PresentFrame();
 	}
 
 	static readonly Action NoOverlay = () => { };
 
-	static unsafe void RenderPixels( ref Request request )
+	static unsafe void RenderPixels( ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
 	{
 		var format = (PixelFormat)request.PixelFormat;
 		if ( request.Pixels == null || format == PixelFormat.None ) return;
@@ -211,7 +217,7 @@ internal static class ToolSceneViews
 			bitmapCamera.OnRenderOverlay = bitmapOverlays.DrawTextAction( bitmapCamera );
 		}
 
-		Setup( bitmapCamera, bitmapLights, bitmapOverlays, ref request );
+		Setup( bitmapCamera, bitmapLights, bitmapOverlays, ref request, managedWorlds );
 
 		using var bitmap = new Bitmap( request.Width, request.Height );
 		bitmapCamera.RenderToBitmap( bitmap );
@@ -269,7 +275,7 @@ internal static class ToolSceneViews
 	/// Point a camera at a request's worlds, from its camera. Its main world is the view's light stand-ins
 	/// (<see cref="ToolLights"/>); the native worlds are extra worlds of it.
 	/// </summary>
-	static unsafe void Setup( SceneCamera camera, ToolLights lights, ToolOverlays overlays, ref Request request )
+	static unsafe void Setup( SceneCamera camera, ToolLights lights, ToolOverlays overlays, ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
 	{
 		var count = Math.Min( request.WorldCount, Request.MaxWorlds );
 		camera.Worlds.Clear();
@@ -287,6 +293,17 @@ internal static class ToolSceneViews
 			if ( request.GetGeometry != null ) overlays.Gather( world, request.GetGeometry );
 			if ( request.GetText != null ) overlays.GatherText( world, request.GetText );
 			camera.Worlds.Add( world );
+		}
+
+		if ( managedWorlds is not null )
+		{
+			foreach ( var world in managedWorlds )
+			{
+				if ( !world.IsValid() ) continue;
+
+				lights.Mirror( world );
+				camera.Worlds.Add( world );
+			}
 		}
 		lights.EndFrame();
 
@@ -798,7 +815,9 @@ internal static class ToolSceneViews
 			// Native's direction is the rotation's forward, negated for a directional light (SetWorldDirection)
 			var direction = from.WorldDirection;
 			if ( to is SceneDirectionalLight ) direction = -direction;
-			var transform = new Transform( from.Position, direction.LengthSquared < 1e-6f ? from.Rotation : Rotation.LookAt( direction ) );
+			// A native light keeps its place in its light desc, not its scene object's transform (Hammer's lights, the worklight)
+			var position = from.lightNative.IsValid ? from.lightNative.GetWorldPosition() : from.Position;
+			var transform = new Transform( position, direction.LengthSquared < 1e-6f ? from.Rotation : Rotation.LookAt( direction ) );
 			if ( to.Transform != transform ) to.Transform = transform;
 			if ( to.LightColor != from.LightColor ) to.LightColor = from.LightColor;
 			if ( to.Radius != from.Radius ) to.Radius = from.Radius;
@@ -808,13 +827,9 @@ internal static class ToolSceneViews
 			if ( to.ShadowsEnabled != from.ShadowsEnabled ) to.ShadowsEnabled = from.ShadowsEnabled;
 			if ( to.RenderingEnabled != from.RenderingEnabled ) to.RenderingEnabled = from.RenderingEnabled;
 
-			if ( to is SceneSpotLight spot )
-			{
-				var inner = from.lightNative.GetTheta();
-				var outer = from.lightNative.GetPhi();
-				if ( spot.ConeInner != inner ) spot.ConeInner = inner;
-				if ( spot.ConeOuter != outer ) spot.ConeOuter = outer;
-			}
+			// Then the rest of how native lights it, as native has it now (native changes its lights: a light entity edited,
+			// Hammer's worklight following the camera): falloff, range, attenuation, cone, shadows
+			to.CopyNativeDescription( from );
 		}
 
 		/// <summary>
