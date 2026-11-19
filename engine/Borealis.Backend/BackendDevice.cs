@@ -890,9 +890,32 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			Format = TextureFormat.RGBA8888,
 		};
 
-		var made = new BackendTexture( this, texture.Create( Gpu, path ), desc, path ) { Layout = ImageLayout.ShaderRead, Dimension = texture.Dimension };
+		var made = new BackendTexture( this, CreateTexture( texture, path ), desc, path ) { Layout = ImageLayout.ShaderRead, Dimension = texture.Dimension };
 		if ( streamed && TextureStreamer.Streams( texture ) ) made.Stream = Streamer.Add( made, path, texture );
 		return made;
+	}
+
+	// A texture file's image with every mip written: the one its read made ahead (ImageAheadBytes) when it's for this file
+	TextureHandle CreateTexture( TextureFile texture, string path )
+	{
+		if ( !imagesAhead.TryRemove( path, out var ahead ) ) return texture.Create( Gpu, path );
+		if ( ahead.File != texture )
+		{
+			Gpu.Destroy( ahead.Image );
+			return texture.Create( Gpu, path );
+		}
+
+		try
+		{
+			for ( int mip = texture.TopMip; mip < texture.Mips; mip++ ) texture.Write( Gpu, ahead.Image, mip );
+		}
+		catch
+		{
+			Gpu.Destroy( ahead.Image );
+			throw;
+		}
+
+		return ahead.Image;
 	}
 
 	/// <inheritdoc/>
@@ -2786,6 +2809,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		if ( GpuDrivenFrame % 60 == 0 ) FreeIdleVisibility();
 		FreeUnheldModels();
 		gpuDrivenTables?.BeginFrame();
+		if ( meshletStore is { } meshlets ) meshlets.Loading = Loading;
+		if ( lodStore is { } lods ) lods.Loading = Loading;
 		meshletStore?.BeginFrame();
 		lodStore?.BeginFrame();
 		GpuDrivenFrame++;
