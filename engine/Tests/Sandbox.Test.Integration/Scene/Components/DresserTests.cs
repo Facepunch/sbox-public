@@ -326,4 +326,70 @@ public class DresserTests
 		Assert.AreEqual( 1f, dresser.ManualHeight );
 		Assert.AreEqual( 1f, dresser.ManualAge );
 	}
+
+	static SkinnedModelRenderer Wear( SkinnedModelRenderer target, string model, bool alwaysUpdate )
+	{
+		var go = new GameObject( target.GameObject, true, model );
+		var renderer = go.Components.Create<SkinnedModelRenderer>( false );
+		renderer.Model = Model.Load( model );
+		Assert.IsFalse( renderer.Model.IsError, model );
+		renderer.BoneMergeTarget = target;
+		renderer.AlwaysUpdateOwnAnimation = alwaysUpdate;
+		renderer.Enabled = true;
+		return renderer;
+	}
+
+	/// <summary>
+	/// Clothing whose bones and morphs all come from its merge target skips its own animation update, and poses exactly as
+	/// it does with the update; clothing with bones of its own (here a jumper merged onto hair) keeps the update.
+	/// </summary>
+	[TestMethod]
+	public void MergedClothingSkipsItsOwnUpdate()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+
+		const string hair = "models/citizen_clothes/hair/hair_shortscruffy/models/hair_shortscruffy_m_human.vmdl";
+		const string jumper = "models/citizen_clothes/jumper/loose_jumper/models/loose_jumper_goalie_m_human.vmdl";
+
+		var clothes = new System.Collections.Generic.List<SkinnedModelRenderer>[2];
+		for ( int side = 0; side < 2; side++ )
+		{
+			var body = CreateBody( scene );
+			body.UseAnimGraph = false;
+			body.Sequence.Name = "Jump_Standing";
+			body.Sequence.Looping = true;
+
+			var hairRenderer = Wear( body, hair, side == 1 );
+			clothes[side] = [hairRenderer, Wear( body, jumper, side == 1 ), Wear( hairRenderer, jumper, side == 1 )];
+		}
+
+		for ( int frame = 0; frame < 8; frame++ )
+		{
+			scene.GameTick();
+
+			for ( int i = 0; i < clothes[0].Count; i++ )
+			{
+				var skipping = clothes[0][i];
+				var updating = clothes[1][i];
+				Assert.AreEqual( i < 2, skipping.SkipsOwnAnimationUpdate, $"{skipping.Model.Name} on {skipping.BoneMergeTarget.Model.Name}" );
+				Assert.IsFalse( updating.SkipsOwnAnimationUpdate );
+
+				var a = skipping.GetBoneTransforms( true );
+				var b = updating.GetBoneTransforms( true );
+				Assert.AreEqual( b.Length, a.Length );
+				for ( int bone = 0; bone < a.Length; bone++ )
+				{
+					Assert.IsTrue( a[bone].Position.Distance( b[bone].Position ) < 1e-3f, $"frame {frame} {skipping.Model.Name} bone {bone}: {a[bone].Position} vs {b[bone].Position}" );
+					Assert.IsTrue( a[bone].Rotation.Distance( b[bone].Rotation ) < 0.01f, $"frame {frame} {skipping.Model.Name} bone {bone} rotation" );
+				}
+
+				Assert.IsTrue( skipping.SceneModel.Transform.Position.Distance( updating.SceneModel.Transform.Position ) < 1e-3f, "Scene model transform" );
+				Assert.IsTrue( skipping.Bounds.Mins.Distance( updating.Bounds.Mins ) < 0.01f && skipping.Bounds.Maxs.Distance( updating.Bounds.Maxs ) < 0.01f, $"{skipping.Model.Name} bounds" );
+			}
+		}
+
+		var jumping = clothes[0][1].GetBoneTransforms( true );
+		Assert.IsTrue( jumping.Any( x => x.Position.z > 1 ), "The merged clothing follows the animated body" );
+	}
 }

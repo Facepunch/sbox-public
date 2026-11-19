@@ -383,10 +383,115 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 			SceneModel.Update( Time.Delta, ReadBonesFromGameObjects );
 	}
 
+	/// <summary>
+	/// Always run this renderer's own animation update, even when <see cref="SkipsOwnAnimationUpdate"/> holds. For tests.
+	/// </summary>
+	internal bool AlwaysUpdateOwnAnimation { get; set; }
+
+	Model _mergeCoverageModel, _mergeCoverageTarget;
+	bool _mergeCovered;
+
+	/// <summary>
+	/// Whether this bone-merged renderer's own animation update is skipped, because its merge sets everything that update
+	/// would. The merge takes every bone and every morph the merge target also has from the target and overwrites what the
+	/// update did with them, so the update only matters through what the target lacks or through what it does besides
+	/// posing. It's skipped when:
+	/// <list type="bullet">
+	/// <item>every merge target up the chain is active and has a scene model, so the merge runs this frame;</item>
+	/// <item>every bone and morph of the model is also the target's: bones of its own (jiggle, cloth, extra
+	/// attachment bones) get their pose from the update, so they keep it;</item>
+	/// <item>the model has no animations and the scene model no animgraph: nothing plays, so no events or root motion;</item>
+	/// <item>there are no physics bones and no procedural bone objects.</item>
+	/// </list>
+	/// </summary>
+	internal bool SkipsOwnAnimationUpdate
+	{
+		get
+		{
+			if ( AlwaysUpdateOwnAnimation || Physics is not null || _graphDefinition is not null || _legacyAnimationGraph is not null )
+				return false;
+
+			var target = _boneMergeTarget;
+			if ( !target.IsValid() || !target.SceneModel.IsValid() || !Model.IsValid() || !target.Model.IsValid() )
+				return false;
+
+			for ( var t = target; t.IsValid(); t = t._boneMergeTarget )
+			{
+				if ( !t.Active ) return false;
+			}
+
+			if ( _mergeCoverageModel != Model || _mergeCoverageTarget != target.Model )
+			{
+				_mergeCovered = MergeCoversModel( Model, target.Model );
+				_mergeCoverageModel = Model;
+				_mergeCoverageTarget = target.Model;
+			}
+
+			if ( !_mergeCovered || HasProceduralBones() )
+				return false;
+
+			// No animgraph on the scene model, from the model or set on it
+			var sceneModel = SceneModel;
+			var legacyGraph = sceneModel.animNative.GetAnimGraph();
+			return (legacyGraph.IsNull || !legacyGraph.IsStrongHandleValid()) && sceneModel.animGraph2Native.IsNull;
+		}
+	}
+
+	bool HasProceduralBones()
+	{
+		foreach ( var entry in boneToGameObject )
+		{
+			if ( entry.Value.Flags.Contains( GameObjectFlags.ProceduralBone ) )
+				return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Whether merging onto <paramref name="target"/> poses every bone of <paramref name="model"/> and sets every morph, and
+	/// the model has nothing to play by itself (<see cref="SkipsOwnAnimationUpdate"/>).
+	/// </summary>
+	static bool MergeCoversModel( Model model, Model target )
+	{
+		if ( model.BoneCount == 0 || model.AnimationCount > 0 )
+			return false;
+
+		foreach ( var bone in model.Bones.AllBones )
+		{
+			if ( !target.Bones.HasBone( bone.Name ) )
+				return false;
+		}
+
+		if ( model.Morphs.Count > 0 )
+		{
+			var targetMorphs = new HashSet<string>( target.Morphs.Names ?? [], StringComparer.Ordinal );
+			foreach ( var name in model.Morphs.Names ?? [] )
+			{
+				if ( !targetMorphs.Contains( name ) )
+					return false;
+			}
+		}
+
+		return true;
+	}
+
 	internal bool AnimationUpdate( bool previewBindPose = false )
 	{
 		if ( !SceneModel.IsValid() )
 			return false;
+
+		if ( SkipsOwnAnimationUpdate )
+		{
+			// The merge that follows (MergeDescendants) sets the transform and the whole pose
+			lock ( this )
+			{
+				UpdateDeformations();
+			}
+
+			_transformDirty = false;
+			return false;
+		}
 
 		SceneModel.Transform = WorldTransform;
 
