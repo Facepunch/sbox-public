@@ -138,4 +138,84 @@ public class DepthPassTests : GpuTest
 		Assert.IsTrue( full.AsSpan().SequenceEqual( positionsOnly ), "the frames are identical" );
 		Assert.IsTrue( full.Any( b => b != 0 ), "the model drew" );
 	}
+
+	/// <summary>
+	/// A fading object (tint alpha under 1) casts a dithered shadow: its shadow-map draws take the depth-only material with
+	/// <c>D_OPAQUE_FADE</c>, whose pixel stage dithers, so a half-faded box shades the floor less than an opaque one does.
+	/// On both routes, classic and GPU-driven.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void AFadingObjectCastsADitheredShadow( bool gpuDriven )
+	{
+		using var backend = new BackendDevice( Device ) { GpuDriven = gpuDriven };
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Faded shadow test" );
+			var white = backend.CreateMaterial( "Faded shadow test", Color.White );
+			var floor = ObjectAttributeTests.BoxMesh( backend, white );
+
+			// The caster's draws on the depth-only material in the shadow map, as a compiled model's fast-path draws are
+			var box = ObjectAttributeTests.BoxMesh( backend, white );
+			var caster = new RenderMesh( box.Geometry, box.Bounds, [[box.DrawsForLod( 0 )[0] with { ShadowFastPath = true }]] );
+
+			// The sun from above at 45 degrees along x: the caster's shadow lands 200 units along x from under it, where the view
+			// looks straight down without seeing the caster
+			var view = new RenderView { Name = "Faded shadow test", FieldOfView = 30, ZNear = 4, ZFar = 4000, ClearColor = Color.Black, Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( 200, 0, 150 );
+			view.Rotation = Rotation.LookAt( Vector3.Down, Vector3.Forward );
+
+			float Floor( float? alpha )
+			{
+				var world = new RenderWorld();
+				world.Lighting.SunDirection = new Vector3( 1, 0, -1 ).Normal;
+				world.Lighting.SunColor = Color.White;
+				world.Lighting.AmbientColor = new Color( 0.05f, 0.05f, 0.05f, 1 );
+				world.Lighting.SunShadowCascades = 1;
+				world.Add( new MeshObject( floor, new Transform( new Vector3( 0, 0, -50 ), Rotation.Identity, new Vector3( 10, 10, 1 ) ) ) );
+				if ( alpha is { } a ) world.Add( new MeshObject( caster, new Transform( new Vector3( 0, 0, 200 ) ) ) { Tint = Color.White.WithAlpha( a ) } );
+
+				for ( int frame = 0; frame < 3; frame++ )
+				{
+					backend.BeginFrame();
+					RenderHost.Current.NextFrame();
+					system.Render( world, view, target );
+				}
+
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+
+				// The mean red of the middle of the frame, inside the caster's shadow
+				var sum = 0.0;
+				var count = 0;
+				for ( int y = Height / 2 - 20; y < Height / 2 + 20; y++ )
+				{
+					for ( int x = Width / 2 - 20; x < Width / 2 + 20; x++ )
+					{
+						sum += (float)BitConverter.ToHalf( pixels, (y * Width + x) * 8 );
+						count++;
+					}
+				}
+
+				return (float)(sum / count);
+			}
+
+			var lit = Floor( null );
+			var opaque = Floor( 1 );
+			var faded = Floor( 0.5f );
+			Assert.IsTrue( opaque < lit * 0.5f, $"the opaque box shadows the floor (lit {lit}, shadowed {opaque})" );
+			Assert.IsTrue( faded > opaque + (lit - opaque) * 0.2f && faded < lit - (lit - opaque) * 0.2f, $"the half-faded box's shadow is partial (lit {lit}, opaque {opaque}, faded {faded})" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
 }

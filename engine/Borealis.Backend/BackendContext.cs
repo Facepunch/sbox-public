@@ -952,10 +952,11 @@ internal sealed partial class BackendContext : GpuContext
 	/// <summary>
 	/// Whether a draw goes without its pixel shader: when Borealis strips it, or in a pass without colour (a prepass, a shadow
 	/// map) for a material whose depth needs none. Alpha-tested and translucent materials keep it there, as native does when
-	/// Borealis doesn't strip it: their depth comes from what it clips (alpha test, alpha to coverage).
+	/// Borealis doesn't strip it: their depth comes from what it clips (alpha test, alpha to coverage). So do a fading object's
+	/// draws (<c>D_OPAQUE_FADE</c>, the depth-only material's dither), or its shadow would be solid.
 	/// </summary>
-	static bool StripsPixelShader( BackendMaterial material, bool noColor, bool stripPixelShader )
-		=> stripPixelShader || (noColor && !material.IsAlphaTest && !material.IsTranslucent);
+	bool StripsPixelShader( BackendMaterial material, bool noColor, bool stripPixelShader )
+		=> stripPixelShader || (noColor && !material.IsAlphaTest && !material.IsTranslucent && LookupCombo( OpaqueFadeCombo ) is not > 0);
 
 	/// <summary>
 	/// A depth-only draw fetches its vertices from the positions-only copy, when the model has one, if that changes nothing
