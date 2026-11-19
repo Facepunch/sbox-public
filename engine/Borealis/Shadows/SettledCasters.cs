@@ -52,22 +52,72 @@ internal static class SettledCasters
 	/// </summary>
 	public static ulong RestlessStamp { get; private set; }
 
-	static readonly Queue<(ulong Stamp, float Time)> frames = new();
-	static readonly Queue<(ulong Stamp, float Time)> restlessFrames = new();
+	static readonly FrameTimes frames = new( 256 ), restlessFrames = new( 2048 );
+
+	/// <summary>
+	/// Frames closer together than this share one entry of the clock: the queues stay a fixed size whatever the frame rate
+	/// (thousands of frames a second grew them through the first <see cref="RestlessSeconds"/>), and a caster counts as
+	/// settled at most this much early.
+	/// </summary>
+	const float Granularity = 1 / 64f;
 
 	/// <summary>
 	/// Once an engine frame, with its time.
 	/// </summary>
 	public static void Tick( float now )
 	{
-		frames.Enqueue( (Now, now) );
-		restlessFrames.Enqueue( (Now, now) );
+		frames.Add( Now, now );
+		restlessFrames.Add( Now, now );
 		ticks++;
 
-		while ( frames.Count > 0 && now - frames.Peek().Time >= Seconds )
-			Stamp = frames.Dequeue().Stamp;
-		while ( restlessFrames.Count > 0 && now - restlessFrames.Peek().Time >= RestlessSeconds )
-			RestlessStamp = restlessFrames.Dequeue().Stamp;
+		while ( frames.Count > 0 && now - frames.Oldest.Time >= Seconds )
+			Stamp = frames.Take().Stamp;
+		while ( restlessFrames.Count > 0 && now - restlessFrames.Oldest.Time >= RestlessSeconds )
+			RestlessStamp = restlessFrames.Take().Stamp;
+	}
+
+	/// <summary>Frames' stamps by time, oldest first, in a ring; frames within <see cref="Granularity"/> of the newest join it.</summary>
+	sealed class FrameTimes( int capacity )
+	{
+		(ulong Stamp, float Time)[] items = new (ulong, float)[capacity];
+		int first, count;
+
+		public int Count => count;
+
+		public (ulong Stamp, float Time) Oldest => items[first];
+
+		public void Add( ulong stamp, float time )
+		{
+			if ( count > 0 )
+			{
+				ref var newest = ref items[(first + count - 1) % items.Length];
+				if ( time - newest.Time < Granularity )
+				{
+					newest.Stamp = stamp;
+					return;
+				}
+			}
+
+			if ( count == items.Length )
+			{
+				var grown = new (ulong, float)[items.Length * 2];
+				for ( int i = 0; i < count; i++ ) grown[i] = items[(first + i) % items.Length];
+				(items, first) = (grown, 0);
+			}
+
+			items[(first + count) % items.Length] = (stamp, time);
+			count++;
+		}
+
+		public (ulong Stamp, float Time) Take()
+		{
+			var oldest = items[first];
+			first = (first + 1) % items.Length;
+			count--;
+			return oldest;
+		}
+
+		public void Clear() => (first, count) = (0, 0);
 	}
 
 	/// <summary>
