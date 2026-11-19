@@ -1,5 +1,8 @@
+using Borealis;
 using Borealis.Backend;
+using Borealis.Gpu;
 using Borealis.Source2.Models;
+using Sandbox;
 
 namespace BorealisGpuTests;
 
@@ -59,5 +62,193 @@ public class ContentLifetimeTests : GpuTest
 		}
 
 		Device.WaitIdle();
+	}
+
+	const string Citizen = "models/citizen/citizen.vmdl";
+
+	/// <summary>
+	/// A skinned model freed while a world still draws it draws nothing from then on: its compute skinning and draws don't bind
+	/// its destroyed buffers (the menu's dressed citizen skinned its clothes from freed buffers after a game load failed),
+	/// and a frame still in flight with it finishes before they go.
+	/// </summary>
+	[TestMethod]
+	public void AFreedSkinnedModelStillDrawnBindsNothingFreed()
+	{
+		using var backend = new BackendDevice( Device );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var drawn = new DrawnModel( Device );
+			var mesh = backend.LoadModel( Citizen );
+			if ( mesh is null ) Assert.Inconclusive( $"{Citizen} isn't built" );
+
+			// Drawn twice, so its skinning's binding sets are cached; the second frame still in flight when it's freed
+			drawn.Render( mesh, wait: true );
+			drawn.Render( mesh, wait: false );
+			((BackendModel)mesh.Geometry).Free();
+
+			for ( int i = 0; i < 3; i++ ) drawn.Render( mesh, wait: true );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// A model something still draws after its last holder let it go isn't freed: it's kept, and reported, until a grace
+	/// period passes with nothing drawing it.
+	/// </summary>
+	[TestMethod]
+	public void AModelDrawnAfterItsLastHolderLetGoIsKept()
+	{
+		using var backend = new BackendDevice( Device );
+		if ( backend.Content.TryRead( Citizen ) is not { } data ) { Assert.Inconclusive( $"{Citizen} isn't built" ); return; }
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		var warnings = new List<string>();
+		backend.Warn = warnings.Add;
+		var grace = BackendDevice.ModelGraceSeconds;
+		try
+		{
+			using var drawn = new DrawnModel( Device );
+			var mesh = BackendModel.Create( backend, ModelFile.Read( data, backend.Content.TryRead ) );
+			var model = (BackendModel)mesh.Geometry;
+			backend.TrackModel( mesh );
+			backend.HoldModel( mesh );
+			drawn.Render( mesh, wait: true );
+
+			// Let go, and drawn again after: due, but kept
+			backend.ReleaseModel( mesh );
+			drawn.Render( mesh, wait: true );
+			BackendDevice.ModelGraceSeconds = 0;
+			backend.BeginFrame();
+			Assert.IsFalse( model.Freed, "drawn after its last holder let go, it stays" );
+			Assert.AreEqual( 1, backend.ModelsDrawnUnheld );
+			Assert.AreEqual( 1, warnings.Count, "and it's reported" );
+			Assert.IsTrue( warnings[0].Contains( "citizen" ), warnings[0] );
+
+			// Not drawn since: freed
+			backend.BeginFrame();
+			Assert.IsTrue( model.Freed, "nothing draws it, it's freed" );
+			Assert.AreEqual( 1, backend.ModelsFreed );
+
+			// Still drawn after that: nothing
+			drawn.Render( mesh, wait: true );
+		}
+		finally
+		{
+			BackendDevice.ModelGraceSeconds = grace;
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// A material let go of while a model still draws with it (its textures destroyed with it) binds defaults for them from
+	/// then on, not the destroyed images its kept binding sets named.
+	/// </summary>
+	[TestMethod]
+	public void AReleasedMaterialStillDrawnBindsNoDestroyedTexture()
+	{
+		using var backend = new BackendDevice( Device );
+		if ( backend.Content.TryRead( Citizen ) is not { } data ) { Assert.Inconclusive( $"{Citizen} isn't built" ); return; }
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var drawn = new DrawnModel( Device );
+			var file = ModelFile.Read( data, backend.Content.TryRead );
+			var mesh = BackendModel.Create( backend, file );
+			drawn.Render( mesh, wait: true );
+			drawn.Render( mesh, wait: true );
+
+			// Every hold its draws took (BackendModel.Create holds a material per draw), let go: its textures go
+			var textures = backend.TexturesFreed;
+			for ( int lod = 0; lod < file.LodCount; lod++ )
+			{
+				for ( int m = 0; m < file.Meshes.Count; m++ )
+				{
+					if ( !file.DrawsAtLod( m, lod ) || (file.Meshes[m].MeshGroupMask & file.DefaultMeshGroupMask) == 0 ) continue;
+					foreach ( var call in file.Meshes[m].DrawCalls ) backend.ReleaseModelMaterial( file.MaterialFor( call.Material, 0 ) );
+				}
+			}
+
+			Assert.IsTrue( backend.TexturesFreed > textures, "its textures were destroyed" );
+			for ( int i = 0; i < 2; i++ ) drawn.Render( mesh, wait: true );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// A buffer an object's attributes name stops binding once it's destroyed: disposed, or for a borrowed one (an engine
+	/// buffer), destroyed by its owner.
+	/// </summary>
+	[TestMethod]
+	public void ADestroyedAttributeBufferIsNotLive()
+	{
+		using var backend = new BackendDevice( Device );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		var owned = new Borealis.GpuBuffer( 16, 16, Borealis.GpuBuffer.UsageFlags.Structured, "Owned" );
+		RenderHost.Current = previousHost;
+		var handle = Device.CreateBuffer( new BufferInfo { Size = 256, Usage = BufferUsage.Storage, Name = "Engine buffer" } );
+		var borrowed = backend.BorrowBuffer( handle, 16, 16, "Borrowed" );
+		var (ownedBacking, borrowedBacking) = ((BackendBuffer)owned.Resource, (BackendBuffer)borrowed.Resource);
+		Assert.IsTrue( ownedBacking.Live && borrowedBacking.Live );
+
+		owned.Dispose();
+		Device.Destroy( handle );
+		Assert.IsFalse( ownedBacking.Live, "disposed" );
+		Assert.IsFalse( borrowedBacking.Live, "destroyed by its owner" );
+		Device.WaitIdle();
+	}
+
+	/// <summary>A model drawn posed in a world of its own, one frame a call.</summary>
+	sealed class DrawnModel( Borealis.Gpu.Device device ) : IDisposable
+	{
+		readonly RenderSystem system = new() { ParallelRecording = false };
+		readonly ViewTarget target = ViewTarget.Create( new Vector2Int( 128, 128 ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Freed model" );
+
+		public void Render( RenderMesh mesh, bool wait )
+		{
+			var world = new RenderWorld();
+			var obj = new MeshObject( mesh, Transform.Zero );
+			obj.SetBones( mesh.BindPose.Select( Bone ).ToArray() );
+			obj.LocalBounds = new BBox( mesh.Bounds.Mins - 40, mesh.Bounds.Maxs + 40 );
+			world.Add( obj );
+
+			var view = new RenderView { Name = "Freed model", FieldOfView = 60, Viewport = new Rect( 0, 0, 128, 128 ) };
+			var size = mesh.Bounds.Size.Length;
+			view.Rotation = Rotation.From( 20, 160, 0 );
+			view.Position = mesh.Bounds.Center - view.Rotation.Forward * size * 1.4f;
+			view.ZNear = size * 0.05f;
+			view.ZFar = size * 10;
+
+			device.BeginFrame();
+			RenderHost.Current.NextFrame();
+			system.Render( world, view, target );
+			if ( wait ) device.WaitIdle();
+		}
+
+		static Transform Bone( Matrix3x4 m )
+		{
+			var matrix = new System.Numerics.Matrix4x4( m.Row0.x, m.Row1.x, m.Row2.x, 0, m.Row0.y, m.Row1.y, m.Row2.y, 0, m.Row0.z, m.Row1.z, m.Row2.z, 0, m.Row0.w, m.Row1.w, m.Row2.w, 1 );
+			System.Numerics.Matrix4x4.Decompose( matrix, out _, out var rotation, out var position );
+			return new Transform( new Vector3( position.X, position.Y, position.Z ), new Rotation( rotation.X, rotation.Y, rotation.Z, rotation.W ) );
+		}
+
+		public void Dispose()
+		{
+			device.WaitIdle();
+			target.Dispose();
+			system.Dispose();
+		}
 	}
 }

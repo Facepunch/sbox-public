@@ -74,7 +74,7 @@ internal sealed partial class BackendContext
 						return true;
 					}
 
-				case ShaderResourceKind.Buffer when value is GpuBuffer { Resource: BackendBuffer buffer }:
+				case ShaderResourceKind.Buffer when value is GpuBuffer { Resource: BackendBuffer { Live: true } buffer }:
 					binding = Binding.Storage( resource.Binding, buffer.Handle );
 					return true;
 
@@ -140,7 +140,7 @@ internal sealed partial class BackendContext
 						{
 							// A hidden counter binds its placeholder here, as before counters were told apart
 							found = resource.Kind == ShaderResourceKind.Buffer
-								? context.attributes.Get( Token( resource.Name ) ) is GpuBuffer { Resource: BackendBuffer buffer } ? Binding.Storage( resource.Binding, buffer.Handle ) : device.Defaults.For( resource )
+								? context.attributes.Get( Token( resource.Name ) ) is GpuBuffer { Resource: BackendBuffer { Live: true } buffer } ? Binding.Storage( resource.Binding, buffer.Handle ) : device.Defaults.For( resource )
 								: resource.Kind == ShaderResourceKind.Counter ? device.Defaults.For( resource ) : context.AttributeTexture( resource );
 							resources[key] = found;
 						}
@@ -244,7 +244,7 @@ internal sealed partial class BackendContext
 			_ => TextureDimension.Texture2D,
 		};
 
-		if ( texture is null || layout != ImageLayout.ShaderRead || texture.Dimension != expected || texture.Samples > 1 ) return defaults.For( resource );
+		if ( texture is not { IsValid: true } || layout != ImageLayout.ShaderRead || texture.Dimension != expected || texture.Samples > 1 ) return defaults.For( resource );
 
 		var srgb = resource.Variable.RenderStateId == 1 && gpu.InfoOf( texture.Handle ).Format.HasSrgb();
 		return Binding.Sampled( resource.Binding, texture.Handle, srgb );
@@ -252,7 +252,7 @@ internal sealed partial class BackendContext
 
 	bool DrawWithMaterialObject( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect = default )
 	{
-		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source ) return false;
+		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source || !source.Use() ) return false;
 		if ( (indirect.InstanceIds ?? InstanceIds?.Resource as BackendBuffer) is not { } instanceIds ) return false;
 		if ( !EnsureScope() ) return false;
 
