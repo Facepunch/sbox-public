@@ -40,6 +40,13 @@ public class ToolSceneViewsTests
 		Assert.AreEqual( 32, Marshal.SizeOf<ToolSceneViews.Geometry>() );
 		Assert.AreEqual( 56, Marshal.SizeOf<ToolSceneViews.ToolVertex>() );
 		Assert.AreEqual( 52, (int)Marshal.OffsetOf<ToolSceneViews.ToolVertex>( nameof( ToolSceneViews.ToolVertex.Color ) ) );
+
+		// ToolHudManagedItem_t (src/public/toolutils2/toolhud.h)
+		Assert.AreEqual( 64, Marshal.SizeOf<ToolSceneViews.HudItem>() );
+		Assert.AreEqual( 32, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.Pixels ) ) );
+		Assert.AreEqual( 40, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.Caption ) ) );
+		Assert.AreEqual( 48, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.CaptionAnchor ) ) );
+		Assert.AreEqual( 60, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.TextHeight ) ) );
 	}
 
 	/// <summary>

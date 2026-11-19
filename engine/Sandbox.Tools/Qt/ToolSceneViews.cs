@@ -136,6 +136,7 @@ internal static partial class ToolSceneViews
 		public ToolLights Lights = new();
 		public ToolOverlays Overlays;
 		public ToolSelection Selection;
+		public ToolHud Hud;
 	}
 
 	static readonly Dictionary<IntPtr, View> views = new();
@@ -145,6 +146,13 @@ internal static partial class ToolSceneViews
 	static ToolLights bitmapLights;
 	static ToolOverlays bitmapOverlays;
 	static ToolSelection bitmapSelection;
+	static ToolHud bitmapHud;
+
+	/// <summary>
+	/// The tool HUD read-backs draw: none by default, as native's (its multisampled read-back is resolved before its
+	/// screen-space view draws, and a read-back's temporary view has a HUD of its own, empty). For checking a live view's HUD.
+	/// </summary>
+	internal static HudSource ReadBackHud { get; set; }
 
 	static ulong frame;
 
@@ -158,7 +166,7 @@ internal static partial class ToolSceneViews
 	/// Draw a native view's frame with <paramref name="managedWorlds"/> as well: worlds managed code made and keeps up to date
 	/// itself (Hammer's map scene and gizmos), drawn as they are, not polled or searched for native overlays.
 	/// </summary>
-	internal static unsafe void Render( IntPtr requestPointer, IReadOnlyList<SceneWorld> managedWorlds )
+	internal static unsafe void Render( IntPtr requestPointer, IReadOnlyList<SceneWorld> managedWorlds, HudSource hud = null )
 	{
 		if ( requestPointer == IntPtr.Zero ) return;
 		ref var request = ref *(Request*)requestPointer;
@@ -168,8 +176,8 @@ internal static partial class ToolSceneViews
 
 		try
 		{
-			if ( request.Window != IntPtr.Zero ) RenderLive( gpu, ref request, managedWorlds );
-			else RenderPixels( ref request, managedWorlds );
+			if ( request.Window != IntPtr.Zero ) RenderLive( gpu, ref request, managedWorlds, hud );
+			else RenderPixels( ref request, managedWorlds, ReadBackHud );
 		}
 		catch ( Exception e )
 		{
@@ -177,7 +185,7 @@ internal static partial class ToolSceneViews
 		}
 	}
 
-	static void RenderLive( BorealisGpuRenderBackend gpu, ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
+	static void RenderLive( BorealisGpuRenderBackend gpu, ref Request request, IReadOnlyList<SceneWorld> managedWorlds, HudSource hud )
 	{
 		// A view asked for inside another frame's block waits for its own frame: drawing it would nest blocks
 		if ( Graphics.IsActive )
@@ -206,10 +214,12 @@ internal static partial class ToolSceneViews
 		if ( view.Selection is null )
 		{
 			view.Selection = new ToolSelection();
-			view.Camera.OnRenderStageHook = view.Selection.OnStage;
+			view.Hud = new ToolHud();
+			view.Camera.OnRenderStageHook = StageHook( view.Selection, view.Hud );
 		}
 
 		Setup( view.Camera, view.Lights, view.Overlays, view.Selection, ref request, managedWorlds );
+		view.Hud.Gather( hud, request.Width, request.Height );
 		request.Handled = 1;
 
 		if ( !view.Window.Update( size ) ) return;
@@ -229,7 +239,14 @@ internal static partial class ToolSceneViews
 
 	static readonly Action NoOverlay = () => { };
 
-	static unsafe void RenderPixels( ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
+	/// <summary>A view camera's stages: the selection's (<see cref="ToolSelection.OnStage"/>), then the HUD over everything.</summary>
+	static Action<Stage, SceneCamera> StageHook( ToolSelection selection, ToolHud hud ) => ( stage, camera ) =>
+	{
+		selection.OnStage( stage, camera );
+		if ( stage == Stage.AfterUI ) hud.Draw();
+	};
+
+	static unsafe void RenderPixels( ref Request request, IReadOnlyList<SceneWorld> managedWorlds, HudSource hud )
 	{
 		var format = (PixelFormat)request.PixelFormat;
 		if ( request.Pixels == null || format == PixelFormat.None ) return;
@@ -245,10 +262,15 @@ internal static partial class ToolSceneViews
 		if ( bitmapSelection is null )
 		{
 			bitmapSelection = new ToolSelection();
-			bitmapCamera.OnRenderStageHook = bitmapSelection.OnStage;
+			bitmapHud = new ToolHud();
+			bitmapCamera.OnRenderStageHook = StageHook( bitmapSelection, bitmapHud );
 		}
 
 		Setup( bitmapCamera, bitmapLights, bitmapOverlays, bitmapSelection, ref request, managedWorlds );
+
+		// A read-back's view is a new one each time, its HUD's images numbered afresh
+		bitmapHud.Clear();
+		bitmapHud.Gather( hud, request.Width, request.Height );
 
 		using var bitmap = new Bitmap( request.Width, request.Height );
 		bitmapCamera.RenderToBitmap( bitmap );
@@ -403,6 +425,7 @@ internal static partial class ToolSceneViews
 		view.Camera.Dispose();
 		view.Overlays?.Dispose();
 		view.Selection?.Dispose();
+		view.Hud?.Dispose();
 		view.Lights.Dispose();
 	}
 
@@ -420,6 +443,8 @@ internal static partial class ToolSceneViews
 		bitmapOverlays = null;
 		bitmapSelection?.Dispose();
 		bitmapSelection = null;
+		bitmapHud?.Dispose();
+		bitmapHud = null;
 		bitmapLights?.Dispose();
 		bitmapLights = null;
 	}
