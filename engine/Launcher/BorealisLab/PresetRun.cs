@@ -80,15 +80,17 @@ internal static class PresetRun
 		Borealis.Shadows.SettledCasters.Seconds = float.PositiveInfinity;
 		Borealis.Shadows.SettledCasters.RestlessSeconds = float.PositiveInfinity;
 
-		// Lavapipe (Mesa 26.2.4) leaves casters out of a shadow map's multi-draw of the faded list (one vkCmdDrawIndexedIndirect
-		// of several draws, no colour target, a pixel stage that dithers) that the same commands draw issued one per call; no
-		// shader reads the draw index. The faded list draws the classic way there
-		if ( GoldenTruthRun.Device == "Lavapipe" ) device.GpuDrivenFaded = false;
+		// Lavapipe (Mesa 26.2.4, and main as of 2026-11) caps a plain vkCmdDrawIndexedIndirect at the count an earlier
+		// vkCmdDrawIndexedIndirectCount in the same command buffer read: lvp_execute.c handle_draw_indirect never clears
+		// indirect_info.indirect_draw_count, which only the count draws set (IndirectDrawTests repeats it). The faded and
+		// translucent lists are plain multi-draws after the culled lists' counted ones, so there they lose draws (faded
+		// casters in shadow maps) or all of them (the translucent list after a count of none). Both draw the classic way there
+		if ( GoldenTruthRun.Device == "Lavapipe" )
+		{
+			device.GpuDrivenFaded = false;
+			device.GpuDrivenTranslucent = false;
+		}
 
-		// The translucent list too, but NOT for a proven driver bug: its GPU-driven call draws nothing on Lavapipe (no fragments,
-		// whatever its pixel stage or render state) while the GPU draws the same data. Open card: "GPU-driven translucent draws
-		// nothing on Lavapipe". Both paths stay on everywhere else
-		if ( GoldenTruthRun.Device == "Lavapipe" ) device.GpuDrivenTranslucent = false;
 		if ( validation ) GoldenTruthRun.ValidationLayer();
 		backend.Phase( $"Borealis.Gpu device ({gpu.Adapter.Name})" );
 		var previousHost = RenderHost.Current;
