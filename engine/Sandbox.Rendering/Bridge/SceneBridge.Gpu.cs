@@ -76,9 +76,25 @@ internal sealed partial class SceneBridge
 		gpuView.Target = OutputTarget( window.Target );
 		gpuView.Viewport = viewport;
 		using var _ = OutputTiming.Scope();
-		window.Draw( gpuView, () => DrawOutput( camera, frame, ui, encode: true, false, false ) );
+		var outer = windowOutput;
+		windowOutput = (camera, frame, ui);
+		try
+		{
+			window.Draw( gpuView, drawWindowOutput ??= DrawWindowOutput );
+		}
+		finally
+		{
+			windowOutput = outer;
+		}
+
 		frame?.Release();
 	}
+
+	// What the window's output block draws, which the one delegate handed to it reads, so a frame allocates no closure
+	(SceneCamera Camera, BorealisGpuFrame Frame, bool Ui) windowOutput;
+	Action drawWindowOutput;
+
+	void DrawWindowOutput() => DrawOutput( windowOutput.Camera, windowOutput.Frame, windowOutput.Ui, encode: true, false, false );
 
 	/// <summary>
 	/// Render a camera into an engine texture on Borealis.Gpu (a scene panel's), as native's texture render: its scene and stages
