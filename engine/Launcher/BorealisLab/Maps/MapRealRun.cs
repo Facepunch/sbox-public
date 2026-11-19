@@ -112,6 +112,14 @@ internal static class MapRealRun
 		if ( Args.Int( "-cascade-resolution", 0 ) is > 0 and var cascadeResolution ) RenderHost.Current.Shadows.MaxCascadeResolution = cascadeResolution;
 		if ( Args.Int( "-cascade-cull-texels", 0 ) is > 0 and var cullTexels ) global::Borealis.Culling.SizeCull.CascadeTexels = cullTexels;
 		if ( !Args.Has( "-noprobes" ) ) map.CaptureProbes();
+
+		// -extra-sun x,y,z: a second, blue sun travelling that way, with its shadow map, as the sun's is baked if it is
+		if ( Args.String( "-extra-sun" ) is { } extraSun )
+		{
+			var v = extraSun.Split( ',' ).Select( x => float.Parse( x, System.Globalization.CultureInfo.InvariantCulture ) ).ToArray();
+			var lighting = map.World.Lighting;
+			lighting.ExtraSuns.Add( new global::Borealis.ExtraSun { Direction = new Vector3( v[0], v[1], v[2] ).Normal, Color = new Color( 0.3f, 0.5f, 1.2f ), Shadows = true, ShadowsBaked = lighting.SunShadowsBaked } );
+		}
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		Console.WriteLine( $"Loaded in {load.Elapsed.TotalSeconds:0.0} s; {map.Problems.Count} problems" );
 		if ( map.Backend.Surfaces.ConvertedMaterials > 0 ) Console.WriteLine( $"  {map.Backend.Surfaces.ConvertedMaterials} materials drawn as surfaces" );
@@ -583,7 +591,7 @@ internal static class MapRealRun
 		Console.WriteLine( bindingReport );
 		var (allPipelines, allPipelineMs) = gpu.PipelineCreation;
 		Console.WriteLine( $"Pipelines made in the whole run: {allPipelines}, {allPipelineMs:0.0} ms" );
-		if ( gpu.Capabilities.PipelineLibraries ) Console.WriteLine( $"Pipeline libraries in the whole run: {gpu.PipelineLibraryCreation}" );
+		if ( gpu.Capabilities.PipelineLibraries ) Console.WriteLine( $"Pipeline libraries in the whole run: {gpu.PipelineLibraryCreation}; guessed parts {gpu.PartGuesses.Made}, {gpu.PartGuesses.Used} linked, {gpu.PartGuesses.Wasted} wasted" );
 		Console.WriteLine( $"Pipelines made while their draws were skipped: {gpu.DeferredPipelines}" );
 		gpu.WaitIdle();
 		if ( censusFolder is not null ) File.WriteAllText( Path.Combine( censusFolder, "census.md" ), censusReport.ToString() );

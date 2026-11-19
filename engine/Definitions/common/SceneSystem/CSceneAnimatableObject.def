@@ -54,6 +54,34 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	[nogc]
 	int GetClosestBoneIndex( Vector3 vWorldPoint );
 
+	// s&box: a CModelAnimationInstance animates this object's SceneModel. It stops animating itself (now and when its model
+	// changes) and keeps the pose it's given, for Source 2's views
+	inline void SetExternalAnimation()
+	{
+		self->m_bExternalAnimation = true;
+		self->m_bManaged = false;
+	}
+
+	// The pose to draw with: matrix3x4_t world-space render bones by model bone, as many as it has
+	[nogc]
+	inline void SetWorldSpaceRenderBoneMatrices( int nNumBones, void* pBones )
+	{
+		const matrix3x4_t *pSrc = static_cast<const matrix3x4_t *>( pBones );
+		const int nCopy = MIN( nNumBones, self->m_worldSpaceRenderBones.Count() );
+		self->m_worldSpaceRenderBonesPrevious.CopyArray( self->m_worldSpaceRenderBones.Base(), self->m_worldSpaceRenderBones.Count() );
+		for ( int i = 0; i < nCopy; ++i )
+			self->m_worldSpaceRenderBones[ i ] = pSrc[ i ];
+	}
+
+	// The flex controllers' weights to morph with, by the model's flex controller index, as many as it has
+	[nogc]
+	inline void SetFlexControllerWeights( void* pWeights, int nCount )
+	{
+		const int nCopy = MIN( nCount, self->m_flexControllerWeights.Count() );
+		if ( pWeights && nCopy > 0 )
+			V_memcpy( self->m_flexControllerWeights.Base(), pWeights, nCopy * sizeof( float ) );
+	}
+
 	void Update( float dt );
 	void MergeFrom( CSceneAnimatableObject other );
 	void SetBindPose();

@@ -40,8 +40,9 @@ public sealed class SurfaceShaders : IDisposable
 
 	/// <summary>
 	/// Make each program's pipeline parts ahead as it compiles (<see cref="SurfaceProgram.PrepareParts"/>), where the device
-	/// links pipelines from parts, with the specialization values draws look up (<see cref="SpecializationValues"/>; programs
-	/// compiled before any draw looked one up wait for the first). <c>-no-prepare-parts</c> turns it off.
+	/// links pipelines from parts: the passes its materials draw with (<see cref="NoteMaterial"/>), with the specialization
+	/// values draws look up (<see cref="SpecializationValues"/>; nothing is guessed before the first lookup).
+	/// <c>-no-prepare-parts</c> turns it off.
 	/// </summary>
 	public bool PrepareParts { get; set; } = !BackendDevice.HasSwitch( "-no-prepare-parts" );
 
@@ -53,40 +54,93 @@ public sealed class SurfaceShaders : IDisposable
 
 	readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> specializationValues = new( StringComparer.Ordinal );
 
-	/// <summary>A draw looked a specialization constant up (<see cref="SpecializationValues"/>).</summary>
+	/// <summary>
+	/// A draw looked a specialization constant up (<see cref="SpecializationValues"/>): the first has every program compiled
+	/// so far guess its parts, on a worker.
+	/// </summary>
 	internal void SpecializationLookedUp( string attribute, int value )
 	{
 		if ( specializationValues.TryGetValue( attribute, out var known ) && known == value ) return;
 		specializationValues[attribute] = value;
 
-		SurfaceProgram[] waiting;
-		lock ( awaitingValues )
+		SurfaceProgram[] all;
+		lock ( programs )
 		{
-			if ( valuesLookedUp ) return;
+			if ( valuesLookedUp || disposed ) return;
 			valuesLookedUp = true;
-			waiting = [.. awaitingValues];
-			awaitingValues.Clear();
+			all = [.. programs.Values.Where( p => p is not null )];
 		}
 
-		foreach ( var program in waiting ) program.PrepareParts();
+		if ( PrepareParts ) _ = Task.Run( () =>
+		{
+			foreach ( var program in all ) program.PrepareParts();
+		} );
 	}
 
-	readonly List<SurfaceProgram> awaitingValues = new();
+	/// <summary>Whether a draw has looked the specialization values up yet: guesses wait for the first (<see cref="SpecializationLookedUp"/>).</summary>
+	internal bool ValuesLookedUp
+	{
+		get
+		{
+			lock ( programs ) return valuesLookedUp;
+		}
+	}
+
 	bool valuesLookedUp;
 
-	/// <summary>Make a program's parts ahead now, or once a draw has looked the specialization values up.</summary>
-	void PreparePartsWhenLookedUp( SurfaceProgram program )
+	// The passes each shader's materials draw with (SurfacePassNotes), by program key: noted as materials load (under the programs lock)
+	readonly Dictionary<string, uint> notes = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// A material of <paramref name="file"/> loaded with render state <paramref name="state"/>, to be drawn as
+	/// <paramref name="kinds"/> (a model's draw call, or its first draw): its program guesses the parts of those passes
+	/// (<see cref="SurfacePassNotes"/>) as well, once it's compiled, on a worker. Once per material and draw call, never per
+	/// draw.
+	/// </summary>
+	internal void NoteMaterial( string file, SurfaceRenderState state, SurfaceDrawKinds kinds )
 	{
-		lock ( awaitingValues )
+		if ( file is null ) return;
+		var noted = SurfacePassNotes.Of( state, kinds );
+		file = Key( file );
+		SurfaceProgram program;
+		lock ( programs )
 		{
-			if ( !valuesLookedUp )
-			{
-				awaitingValues.Add( program );
-				return;
-			}
+			var known = notes.GetValueOrDefault( file );
+			if ( (known | noted) == known ) return;
+			notes[file] = known | noted;
+
+			// One still compiling reads the notes once it's kept (Start)
+			if ( !programs.TryGetValue( file, out program ) || program is null ) return;
 		}
 
-		program.PrepareParts();
+		if ( PrepareParts ) _ = Task.Run( program.PrepareParts );
+	}
+
+	/// <summary>
+	/// A pipeline of <paramref name="program"/> was made for a draw with <paramref name="state"/> as <paramref name="kind"/>
+	/// (once per pipeline, never per draw): noted as a material's load is, its guesses made on a worker (the caller holds
+	/// the program's lock).
+	/// </summary>
+	internal void NoteDrawn( SurfaceProgram program, SurfaceRenderState state, SurfaceDrawKinds kind )
+	{
+		if ( program.SourceFile is not { } file ) return;
+		var noted = SurfacePassNotes.Of( state, kind );
+		file = Key( file );
+		lock ( programs )
+		{
+			var known = notes.GetValueOrDefault( file );
+			if ( disposed || (known | noted) == known ) return;
+			notes[file] = known | noted;
+		}
+
+		_ = Task.Run( program.PrepareParts );
+	}
+
+	/// <summary>The passes the materials of a program's file have noted so far (<see cref="NoteMaterial"/>); every pass for a program of no file.</summary>
+	internal uint Notes( string file )
+	{
+		if ( file is null ) return SurfacePassNotes.All;
+		lock ( programs ) return notes.GetValueOrDefault( Key( file ) );
 	}
 
 	/// <summary>Folders searched for shaders by file name, in order.</summary>
@@ -615,6 +669,14 @@ public sealed class SurfaceShaders : IDisposable
 		var known = material.Program;
 		if ( known is { Stale: false } && ReferenceEquals( known.Device, device ) ) return known;
 
+		// A material no model noted (one a game draws itself) notes its passes at its first draw, as static or classic: once,
+		// not on every draw while its program compiles
+		if ( known is null && !material.PassesNoted )
+		{
+			material.PassesNoted = true;
+			NoteMaterial( material.Shader, material.RenderState, SurfaceDrawKinds.Static | SurfaceDrawKinds.Dynamic );
+		}
+
 		var program = CompileInBackground ? Ready( material.Shader ) : Program( material.Shader );
 
 		// One a hotload dropped draws on while its source compiles again: it stays alive until the device is disposed
@@ -704,7 +766,6 @@ public sealed class SurfaceShaders : IDisposable
 					var compiled = await (raw ? compiler.CompileRawAsync( path, priority ) : compiler.CompileSurfaceAsync( path, priority )).ConfigureAwait( false );
 					program = new SurfaceProgram( device, compiled ) { SourceFile = file };
 					if ( Manifest?.Take( file, program ) is { Count: > 0 } requests ) program.Prewarm( requests );
-					if ( PrepareParts ) PreparePartsWhenLookedUp( program );
 					if ( compiled.GpuDrivenError is { } gpuDrivenError ) Error?.Invoke( $"{file}: no GPU-driven passes, its draws go the classic way: {gpuDrivenError}" );
 				}
 				catch ( ShaderCompileException e )
@@ -737,6 +798,14 @@ public sealed class SurfaceShaders : IDisposable
 				}
 			}
 
+			// Its guesses once it's kept: a material noted from now on finds it there (NoteMaterial), one before is in the notes.
+			// Its own render state (the [Material] struct's defaults) on static geometry is noted first: what most of its
+			// materials draw as, guessed now rather than when they load, which in a streaming map is a frame before they draw
+			if ( program is not null && PrepareParts )
+			{
+				if ( program.Compiled.Tier == ShaderTier.Surface ) NoteMaterial( file, program.Compiled.Material.States().Resolve( new byte[program.Compiled.Material.Size] ), SurfaceDrawKinds.Static | SurfaceDrawKinds.StaticLightmapped );
+				program.PrepareParts();
+			}
 			System.Threading.Interlocked.Increment( ref readyVersion );
 			return program;
 		} );
@@ -993,23 +1062,30 @@ internal sealed class SurfaceProgram : IDisposable
 	}
 
 	/// <summary>
-	/// Queue each pass's shader parts for the device's builder threads (pre-rasterisation from its vertex stage, fragment
-	/// from its pixel stage), with the specialization constants its draws most likely have, where the device links
+	/// Queue the shader parts of the passes its materials draw with (<see cref="SurfaceShaders.NoteMaterial"/>) for the
+	/// device's builder threads (pre-rasterisation from its vertex stage, fragment from its pixel stage), with the
+	/// specialization constants its draws most likely have (once a draw has looked them up), where the device links
 	/// pipelines from parts (<see cref="DeviceCapabilities.PipelineLibraries"/>): a first draw's pipeline is then a fast
 	/// link. A guess, so after what draws wait for and the part manifest's parts; a program the manifest has parts of is
-	/// left to it (a pass it has none of wasn't drawn last time). A draw that needs a part a worker is making waits for it
-	/// rather than make it again.
+	/// left to it (a pass it has none of wasn't drawn last time). Called again as materials note more passes: only the new
+	/// ones are queued. A draw that needs a part a worker is making waits for it rather than make it again.
 	/// </summary>
 	public void PrepareParts()
 	{
 		if ( !device.Gpu.Capabilities.PipelineLibraries ) return;
+		var wanted = device.Surfaces.Notes( SourceFile );
+		if ( wanted == 0 || !device.Surfaces.ValuesLookedUp ) return;
 		lock ( pipelines )
 		{
-			if ( disposed || passes.Values.Any( p => device.Gpu.PartsRecorded( p.Vertex ) || device.Gpu.PartsRecorded( p.Pixel ) ) ) return;
+			var fresh = wanted & ~guessedNotes;
+			if ( disposed || fresh == 0 || passes.Values.Any( p => device.Gpu.PartsRecorded( p.Vertex ) || device.Gpu.PartsRecorded( p.Pixel ) ) ) return;
+			guessedNotes |= fresh;
+			var chosen = SurfacePassNotes.Resolve( fresh, this, device.GpuDriven );
+			if ( chosen.Count == 0 ) return;
 			builds.RemoveAll( b => b.IsCompleted );
 			builds.Add( System.Threading.Tasks.Task.Run( () =>
 			{
-				foreach ( var pass in passes.Values )
+				foreach ( var (pass, _) in chosen )
 				{
 					if ( System.Threading.Volatile.Read( ref disposed ) ) return;
 					if ( pass.Pass.Vertex is null || !pass.Vertex.IsValid ) continue;
@@ -1044,6 +1120,9 @@ internal sealed class SurfaceProgram : IDisposable
 			} ) );
 		}
 	}
+
+	// The passes (SurfacePassNotes) PrepareParts has queued guesses for, under the pipelines' lock
+	uint guessedNotes;
 
 	/// <summary>
 	/// Make the manifest's pipelines for this program on workers (<see cref="SurfacePipelineManifest"/>), each through the
@@ -1112,6 +1191,9 @@ internal sealed class SurfaceProgram : IDisposable
 	// Pipeline's miss, apart so the hit (every draw) doesn't allocate the background build's closure. Under the pipelines' lock
 	PipelineHandle MakePipeline( (PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, ulong Features, bool Normals) key, PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, bool ids, bool opaqueFade, bool depthEqual, SurfaceFeatures specialized, bool normals )
 	{
+		// What it draws, noted too, so the passes that go with it (its depth passes) are guessed
+		if ( specialized is null && device.Surfaces.PrepareParts && device.Gpu.Capabilities.PipelineLibraries ) device.Surfaces.NoteDrawn( this, state, SurfacePassNotes.KindOf( pass.Pass.Name ) );
+
 		PipelineHandle pipeline;
 		{
 			if ( specialized is not null )

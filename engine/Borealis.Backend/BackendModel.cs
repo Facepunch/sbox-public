@@ -466,6 +466,16 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 					var materialPath = file.MaterialFor( call.Material, materialGroup );
 					var material = device.ModelMaterial( materialPath );
 					geometry.materialPaths.Add( materialPath );
+
+					// The passes its draws will use, so its program guesses their parts alone: skinned meshes draw from the vertex
+					// cache (or classic, one-weight), the rest as static geometry, lightmapped too where the draw call can be (an
+					// object without a lightmap of its own draws it plain)
+					if ( material is SurfaceMaterial surface )
+					{
+						var kinds = mesh.IsSkinned ? SurfaceDrawKinds.Skinned | SurfaceDrawKinds.Dynamic : (call.Flags & MeshDrawFlags.BakedLightingFromLightmap) != 0 ? SurfaceDrawKinds.StaticLightmapped | SurfaceDrawKinds.Static : SurfaceDrawKinds.Static;
+						device.Surfaces.NoteMaterial( surface.Shader, surface.RenderState, kinds );
+						surface.PassesNoted = true;
+					}
 					var translucent = RenderMesh.IsTranslucent( material );
 					var alphaTest = RenderMesh.IsAlphaTest( material );
 					var fastPath = material is { ShadowFastPath: true } && !translucent && !alphaTest && (!drawFastPath || (call.Flags & MeshDrawFlags.ShadowFastPath) != 0);

@@ -149,9 +149,44 @@ public partial class MapView : IHandle
 	/// </summary>
 	internal void PreRender( ISceneView sceneView )
 	{
-		// Can / do we, I doubt we have a RenderContext?
-		// using ( new Graphics.Scope( ref setup ) )
+		if ( !PrepareFrame() )
+			return;
 
+		// Add all our scene worlds to the render list
+		foreach ( var world in FrameWorlds() )
+		{
+			sceneView.AddWorldToRenderList( world );
+		}
+	}
+
+	readonly List<SceneWorld> _frameWorlds = new();
+
+	/// <summary>
+	/// The managed worlds this view draws on top of Hammer's own: the map's scene, its debug world and the gizmo worlds.
+	/// </summary>
+	internal List<SceneWorld> FrameWorlds()
+	{
+		_frameWorlds.Clear();
+
+		var scene = MapDoc?.World?.Scene;
+		if ( scene is null ) return _frameWorlds;
+
+		_frameWorlds.Add( scene.SceneWorld );
+		_frameWorlds.Add( scene.DebugSceneWorld );
+		foreach ( var world in SceneCamera.Worlds )
+		{
+			if ( world.IsValid() ) _frameWorlds.Add( world );
+		}
+
+		return _frameWorlds;
+	}
+
+	/// <summary>
+	/// The frame's managed work before the view draws: the camera, gizmo input, the map scene's editor tick and gizmo draws,
+	/// and the selection the gizmos changed. False without a map scene, when there's nothing of ours to draw.
+	/// </summary>
+	internal bool PrepareFrame()
+	{
 		CToolCamera toolCamera = native.GetCamera();
 
 		// Readonly camera, we could probably hook this up with good reason
@@ -183,7 +218,7 @@ public partial class MapView : IHandle
 		var scene = MapDoc?.World?.Scene;
 
 		if ( scene == null )
-			return;
+			return false;
 
 		using var sceneScope = scene.PushScope();
 
@@ -237,14 +272,7 @@ public partial class MapView : IHandle
 		// I forget what this is even doing
 		// I think it lets gizmos stomp native traces, cool
 		native.UpdateManagedGizmoState( GizmoInstance.current.HoveredPath != null, GizmoInstance.current.HitDistance );
-
-		// Add all our scene worlds to the render list
-		sceneView.AddWorldToRenderList( scene.SceneWorld );
-		sceneView.AddWorldToRenderList( scene.DebugSceneWorld );
-		foreach ( var world in SceneCamera.Worlds.Where( x => x.IsValid() ) )
-		{
-			sceneView.AddWorldToRenderList( world );
-		}
+		return true;
 	}
 
 	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Scene, CameraComponent> _viewers = [];
@@ -326,6 +354,32 @@ public partial class MapView : IHandle
 internal static class MapViewRender
 {
 	internal static void OnPreRender( MapView view, ISceneView sceneView ) => view.PreRender( sceneView );
+
+	/// <summary>
+	/// Draw a 3D view on Borealis.Gpu (<c>CMapView::RenderManaged</c>, <c>-hammer-borealisgpu</c>): Hammer's worlds come in
+	/// the request (a <c>ToolSceneManagedRender_t</c>, drawn as a native tool view is), the map scene and gizmos from here.
+	/// </summary>
+	internal static void RenderManaged( MapView view, IntPtr request )
+	{
+		if ( view is null || request == IntPtr.Zero ) return;
+
+		List<SceneWorld> worlds = null;
+		try
+		{
+			if ( view.PrepareFrame() ) worlds = view.FrameWorlds();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Hammer view: {e.Message}" );
+		}
+
+		ToolSceneViews.Render( request, worlds );
+	}
+
+	/// <summary>
+	/// A view's window that managed code presented in is going, or Source 2 is about to draw in it: its swap chain goes.
+	/// </summary>
+	internal static void ReleaseManaged( IntPtr window ) => ToolSceneViews.Release( window );
 
 	/// <summary>
 	/// Called from CMapView::ObjectsAt giving managed an opportunity to add a trace to the list.

@@ -8,7 +8,7 @@ namespace Sandbox;
 [Expose]
 public sealed partial class SceneModel : SceneObject
 {
-	internal CSceneAnimatableObject animNative;
+	internal SceneModelAnimation animNative;
 
 	internal SceneModel() { }
 	internal SceneModel( HandleCreationData _ ) { }
@@ -37,11 +37,14 @@ public sealed partial class SceneModel : SceneObject
 				throw new System.ArgumentException( "Error creating AnimSceneObject - possible invalid model?" );
 			}
 
+			if ( UsesAnimationInstance ) CreateAnimationInstance( model, transform );
+
 			Tags.RemoveAll();
 			Transform = transform;
 
 			RegisterLegacyAnimationCallback();
 			animNative.InitAnimation();
+			PoseChanged();
 		}
 	}
 
@@ -49,12 +52,13 @@ public sealed partial class SceneModel : SceneObject
 	{
 		base.OnNativeInit( ptr );
 
-		animNative = (NativeEngine.CSceneAnimatableObject)ptr;
+		animNative = new SceneModelAnimation( (NativeEngine.CSceneAnimatableObject)ptr, default, this );
 		RegisterAnimationControllerCallback();
 	}
 
 	internal override void OnNativeDestroy()
 	{
+		DestroyAnimationInstance();
 		animNative = default;
 		base.OnNativeDestroy();
 	}
@@ -68,6 +72,13 @@ public sealed partial class SceneModel : SceneObject
 	internal override void OnModelChanged()
 	{
 		base.OnModelChanged();
+		AnimationInstanceModelChanged();
+	}
+
+	internal override void OnTransformChanged( in Transform tx )
+	{
+		base.OnTransformChanged( tx );
+		if ( animNative.HasInstance ) animNative.Instance.SetTransform( tx );
 	}
 
 	/// <summary>
@@ -81,6 +92,7 @@ public sealed partial class SceneModel : SceneObject
 		OOBChecks.ThrowIfBoneOutOfBounds( boneIndex, Model?.BoneCount ?? 0, nameof( boneIndex ) );
 
 		animNative.SetWorldSpaceRenderBoneTransform( boneIndex, transform );
+		if ( animNative.HasInstance && WritesNative ) animNative.Twin.SetWorldSpaceRenderBoneTransform( boneIndex, transform );
 		NotifyChanged( Rendering.SceneObjectChange.Bones );
 	}
 

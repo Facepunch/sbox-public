@@ -87,7 +87,7 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 	internal ReadOnlySpan<GpuLight> PackedGpuLights => lights.AsSpan( 0, Count );
 
 	/// <summary>
-	/// GPU lights, optional baked sun, then a black fallback for unmapped bake indices.
+	/// GPU lights, the extra suns and their baked entries, optional baked sun, then a black fallback for unmapped bake indices.
 	/// </summary>
 	internal ReadOnlySpan<GpuLight> UploadedLights => lights.AsSpan( 0, Count + extraLights );
 
@@ -154,7 +154,8 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 	{
 		if ( count <= lights.Length ) return;
 
-		var size = Math.Min( Math.Max( count, lights.Length * 2 ), MaxLights );
+		// The extra suns, and their baked entries, go after the slots native's limit leaves
+		var size = Math.Min( Math.Max( count, lights.Length * 2 ), MaxLights + 2 * SceneLighting.MaxExtraSuns );
 		Array.Resize( ref lights, size );
 		Array.Resize( ref packedObjects, size );
 		Array.Resize( ref packedScreenSize, size );
@@ -175,7 +176,8 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 		}
 
 		extraLights = 0;
-		EnsureLightCapacity( Count + 2 );
+		EnsureLightCapacity( Count + 2 + 2 * SceneLighting.MaxExtraSuns );
+		PackExtraSuns( lighting );
 
 		if ( lighting.SunBaked is { } sun && lighting.SunBakeIndex >= 0 && lighting.SunBakeIndex < bakedIndexMapping.Length )
 		{

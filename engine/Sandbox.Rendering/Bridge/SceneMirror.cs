@@ -762,12 +762,39 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		return own;
 	}
 
+	/// <summary>
+	/// Every other enabled directional light, in the order they were added: each lights the world as an extra sun.
+	/// </summary>
+	void SyncExtraSuns( SceneLighting lighting, SceneDirectionalLight sun )
+	{
+		var extras = lighting.ExtraSuns;
+		extras.Clear();
+
+		foreach ( var light in suns )
+		{
+			if ( light == sun || !light.IsValid() || !light.RenderingEnabled ) continue;
+			if ( extras.Count == SceneLighting.MaxExtraSuns ) break;
+
+			LightPacking.Pack( light, out var packed, out var flags, out var bakeIndex );
+			extras.Add( new ExtraSun
+			{
+				Direction = -light.WorldDirection,
+				Color = light.LightColor,
+				Shadows = light.ShadowsEnabled,
+				ShadowHardness = light.ShadowHardness,
+				ShadowsBaked = (flags & LightPacking.TypeFlagsBaked) != 0 && !light.IncludeStaticShadowCasters,
+				BakeIndex = bakeIndex,
+				Baked = bakeIndex >= 0 ? packed : null,
+			} );
+		}
+	}
+
 	static bool SameValues( ManagedRenderAttributes values, RenderAttributes other ) => other.ManagedValues is { } theirs && values.SameValues( theirs );
 
 	/// <summary>
 	/// Refresh dirty sun state, per-view sky selection and camera lighting (<c>CameraRenderer.Configure</c>).
-	/// Uses the last enabled sun added, as native's binner keeps the last directional light it meets in its light list and
-	/// lights with no other (<c>CLightBinnerStandard::GatherVisibleLights</c>).
+	/// The sun is the last enabled one added, as native's binner keeps the last directional light it meets in its light list
+	/// (<c>CLightBinnerStandard::GatherVisibleLights</c>). Native lights with no other; here the rest light too, as extra suns.
 	/// </summary>
 	void SyncLighting( SceneCamera camera, bool skyboxView )
 	{
@@ -819,6 +846,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 				lighting.SunShadowsBaked = false;
 				lighting.SunContactShadows = false;
 			}
+
+			SyncExtraSuns( lighting, sun );
 		}
 
 		// Sky selection is per view: cameras can exclude different skies without changing the world.
