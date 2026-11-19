@@ -192,6 +192,9 @@ internal sealed class ManagedRenderAttributes
 	/// <summary>Whether nothing is set.</summary>
 	public bool IsEmpty => values.Count == 0 && combos.Count == 0;
 
+	/// <summary>How many values are set.</summary>
+	public int ValueCount => values.Count;
+
 	/// <summary>
 	/// Whether <paramref name="other"/> holds the same values and combos, as <c>CRenderAttributes::AreEqual</c> compares two
 	/// sets: numbers and bytes by value, textures, buffers and samplers by what they are.
