@@ -355,7 +355,7 @@ internal class ToolsDll : IToolsDll
 		{
 			var playWidget = GameMode.PlayWidget;
 			var window = playWidget is not null ? GameMode.PlayWindow : WindowInput.GetEditorMainWindow();
-			return new( window, playWidget?.SwapChain ?? default, RenderSettings.Instance.VSync );
+			return new( window, default, RenderSettings.Instance.VSync );
 		}
 	}
 

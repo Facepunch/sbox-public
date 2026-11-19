@@ -44,13 +44,21 @@ internal sealed class BorealisGpuWindow : IDisposable
 	}
 
 	/// <summary>
-	/// A window that isn't SDL's, by its window system handle: an editor widget's native window (a Win32 <c>HWND</c>), which
-	/// its owner keeps owning. Null where Borealis.Gpu doesn't present to these yet: anywhere but Windows.
+	/// A window that isn't SDL's, by its window system handle: an editor widget's native window, which its owner keeps
+	/// owning. On Windows a Win32 <c>HWND</c>; on Linux an X11 window id, as Qt's xcb platform gives it (under a Wayland
+	/// session too, through XWayland: Qt has no Wayland platform here). Null without a window.
 	/// </summary>
 	public static BorealisGpuWindow FromNativeWindow( BorealisGpuRenderBackend backend, IntPtr window, Vector2 pixelSize, bool vsync )
 	{
-		if ( !OperatingSystem.IsWindows() || window == IntPtr.Zero ) return null;
-		return new BorealisGpuWindow( backend, SurfaceSource.Win32( GetWindowLongPtrW( window, GWLP_HINSTANCE ), window ), window, pixelSize, vsync );
+		if ( window == IntPtr.Zero ) return null;
+		return new BorealisGpuWindow( backend, NativeSurfaceOf( window ), window, pixelSize, vsync );
+	}
+
+	static SurfaceSource NativeSurfaceOf( IntPtr window )
+	{
+		if ( OperatingSystem.IsWindows() ) return SurfaceSource.Win32( GetWindowLongPtrW( window, GWLP_HINSTANCE ), window );
+		if ( OperatingSystem.IsLinux() ) return SurfaceSource.Xlib( X11Display, window );
+		throw new PlatformNotSupportedException( "Borealis.Gpu can't present to native windows on this platform" );
 	}
 
 	/// <summary>
@@ -77,6 +85,26 @@ internal sealed class BorealisGpuWindow : IDisposable
 
 	[System.Runtime.InteropServices.DllImport( "user32.dll" )]
 	static extern IntPtr GetWindowLongPtrW( IntPtr window, int index );
+
+	static IntPtr x11Display;
+
+	/// <summary>
+	/// A connection of our own to the X server Qt's windows are on (<c>DISPLAY</c>, as Qt opens it): window ids belong to
+	/// the server, so a surface made through it presents to Qt's window. Opened once and kept for the process.
+	/// </summary>
+	static IntPtr X11Display
+	{
+		get
+		{
+			if ( x11Display != IntPtr.Zero ) return x11Display;
+			x11Display = XOpenDisplay( IntPtr.Zero );
+			if ( x11Display == IntPtr.Zero ) throw new GpuException( $"Couldn't open the X display '{Environment.GetEnvironmentVariable( "DISPLAY" )}'" );
+			return x11Display;
+		}
+	}
+
+	[System.Runtime.InteropServices.DllImport( "libX11.so.6" )]
+	static extern IntPtr XOpenDisplay( IntPtr name );
 
 	static TimestampQueries CreateTimestamps( BorealisGpuRenderBackend backend, out double timestampMs )
 	{
