@@ -75,6 +75,10 @@ SamplerState TextureFiltering < Filter( ANISOTROPIC ); MaxAniso( 8 ); >;
 #endif
 #endif
 
+// What follows is Slang (extensions, operators, conversions): vfx's own parser, which reads a recompiled package shader
+// before Slang compiles it, skips it
+#if defined( __SLANG__ )
+
 // A world position's screen position as SV_Position has it in a pixel stage: pixels, depth, 1 / view depth
 #if defined( LIGHT_HLSL ) || defined( AMBIENTLIGHT_HLSL )
 float4 EmbeddedPositionSs( float3 vPositionWs )
@@ -178,5 +182,7 @@ extension vector<float, 3>
 {
 	__implicit_conversion( 900 ) __init( float4 v ) { this = v.xyz; }
 }
+
+#endif // __SLANG__
 
 #endif // SBOX_EMBEDDED_END_SLANGH

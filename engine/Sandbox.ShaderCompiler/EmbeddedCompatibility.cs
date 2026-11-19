@@ -58,6 +58,21 @@ public static partial class EmbeddedCompatibility
 	}
 
 	/// <summary>
+	/// One program's text adjusted as <see cref="Apply"/> does, with <c>sbox/embedded.slangh</c>'s macros first, for vfx to
+	/// compile on its own (a package shader recompiled for the engine's material system as it installs). vfx's compile
+	/// doesn't find <c>sbox/</c>'s includes, so their text, from the engine's <paramref name="shaders"/> folder, goes in
+	/// whole. Applying it again to its own result changes nothing that compiles differently.
+	/// </summary>
+	public static string ForRecompile( string body, string shaders )
+	{
+		var text = "#include \"sbox/embedded.slangh\"\n" + Apply( body );
+		return ShimInclude().Replace( text, m => System.IO.File.ReadAllText( System.IO.Path.Combine( shaders, "sbox", m.Groups["file"].Value ) ).Replace( "\r\n", "\n" ) + "\n" );
+	}
+
+	[GeneratedRegex( @"^#include ""sbox/(?<file>embedded(?:_end)?\.slangh)""\n", RegexOptions.Multiline )]
+	private static partial Regex ShimInclude();
+
+	/// <summary>
 	/// The package's copies of the engine's cbuffers replaced by the engine's include, so each member is declared once and
 	/// binds where the engine fills it. The preprocessor lines inside a copy (its <c>#define</c> shorthands) stay.
 	/// </summary>

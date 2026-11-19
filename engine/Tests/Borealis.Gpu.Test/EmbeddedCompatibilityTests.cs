@@ -159,6 +159,23 @@ public class EmbeddedCompatibilityTests
 		Compiles( pixel, "embedded_disabled", new Dictionary<string, int> { ["S_MODE_DEPTH"] = 0 } );
 	}
 
+	/// <summary>
+	/// For vfx's recompile (ShaderUpgrade) the shims' text goes in whole, since vfx doesn't find <c>sbox/</c>'s includes,
+	/// with their Slang (extensions, operators) behind <c>__SLANG__</c>, which vfx's own parser doesn't define; and the
+	/// package's copy of an engine cbuffer is the engine's there too.
+	/// </summary>
+	[TestMethod]
+	public void RecompileTextHasTheShimsInline()
+	{
+		var (_, shaders) = Compiler();
+		var text = EmbeddedCompatibility.ForRecompile( "#include \"system.fxc\"\ncbuffer DirectionalLightCB { float4 g_DirectionalLightColor; };\nTranslucent();\nfloat4 MainPs() : SV_Target0 { return g_DirectionalLightColor; }\n", shaders );
+		Assert.IsFalse( text.Contains( "#include \"sbox/", StringComparison.Ordinal ), text );
+		Assert.IsTrue( text.Contains( "#define Translucent()", StringComparison.Ordinal ) );
+		Assert.IsTrue( text.Contains( "#include \"common/ViewEnvironment.hlsl\"", StringComparison.Ordinal ) );
+		Assert.IsFalse( text.Contains( "cbuffer DirectionalLightCB", StringComparison.Ordinal ) );
+		Assert.IsTrue( text.IndexOf( "#if defined( __SLANG__ )", StringComparison.Ordinal ) < text.IndexOf( "extension Light", StringComparison.Ordinal ) );
+	}
+
 	/// <summary>The samplers the converter leaves to the engine are common_samplers.fxc's.</summary>
 	[TestMethod]
 	public void EngineSamplersAreCommonSamplers()
