@@ -5,101 +5,12 @@ namespace Borealis.Gpu.Memory;
 /// <summary>
 /// Part of a <see cref="MemoryBlock"/> a buffer or image is bound to.
 /// </summary>
-internal readonly record struct Allocation( MemoryBlock Block, ulong Offset, ulong Size )
+internal readonly record struct Allocation( MemoryBlock Block, ulong Offset, ulong Size, int Node )
 {
 	public ulong Memory => Block.Memory;
 
 	/// <summary>Where it's mapped on the CPU, or 0 for device-only memory.</summary>
 	public nint Mapped => Block.Mapped == 0 ? 0 : Block.Mapped + (nint)Offset;
-}
-
-/// <summary>
-/// One <c>vkAllocateMemory</c> allocation, suballocated first-fit. Host-visible blocks stay mapped.
-/// </summary>
-internal sealed class MemoryBlock
-{
-	public ulong Memory;
-	public ulong Size;
-	public nint Mapped;
-	public int TypeIndex;
-	public bool Dedicated;
-	public bool Images;
-
-	/// <summary>Whether it's a large block (<see cref="MemoryAllocator.LargeBlockSize"/>), for allocations too big for the small ones.</summary>
-	public bool Large;
-
-	/// <summary>Whether it holds content (a map's textures and geometry), kept apart from long-lived resources so it drains when the content goes.</summary>
-	public bool Content;
-
-	/// <summary>Whether it's a big buffer's own allocation, which can be kept empty as a spare for the next of its size.</summary>
-	public bool Reusable;
-
-	/// <summary>Free ranges, sorted by offset, never adjacent.</summary>
-	public readonly List<(ulong Offset, ulong Size)> Free = new();
-
-	public ulong Used;
-
-	/// <summary>The allocator's frame when it last became empty (<see cref="MemoryAllocator.Trim"/>).</summary>
-	public ulong EmptySince;
-
-	/// <summary>Whether <see cref="TryAllocate"/> would find room, without taking it.</summary>
-	public bool Fits( ulong size, ulong alignment )
-	{
-		for ( int i = 0; i < Free.Count; i++ )
-		{
-			var (start, length) = Free[i];
-			var aligned = (start + alignment - 1) / alignment * alignment;
-			if ( length >= aligned - start + size ) return true;
-		}
-
-		return false;
-	}
-
-	public bool TryAllocate( ulong size, ulong alignment, out ulong offset )
-	{
-		for ( int i = 0; i < Free.Count; i++ )
-		{
-			var (start, length) = Free[i];
-			var aligned = (start + alignment - 1) / alignment * alignment;
-			var padding = aligned - start;
-			if ( length < padding + size ) continue;
-
-			// Leave what's before and after the allocation free
-			var after = length - padding - size;
-			Free.RemoveAt( i );
-			if ( after > 0 ) Free.Insert( i, (aligned + size, after) );
-			if ( padding > 0 ) Free.Insert( i, (start, padding) );
-
-			offset = aligned;
-			Used += size;
-			return true;
-		}
-
-		offset = 0;
-		return false;
-	}
-
-	public void Release( ulong offset, ulong size )
-	{
-		Used -= size;
-
-		var i = 0;
-		while ( i < Free.Count && Free[i].Offset < offset ) i++;
-		Free.Insert( i, (offset, size) );
-
-		// Merge with the next range, then the previous
-		if ( i + 1 < Free.Count && Free[i].Offset + Free[i].Size == Free[i + 1].Offset )
-		{
-			Free[i] = (Free[i].Offset, Free[i].Size + Free[i + 1].Size);
-			Free.RemoveAt( i + 1 );
-		}
-
-		if ( i > 0 && Free[i - 1].Offset + Free[i - 1].Size == Free[i].Offset )
-		{
-			Free[i - 1] = (Free[i - 1].Offset, Free[i - 1].Size + Free[i].Size);
-			Free.RemoveAt( i );
-		}
-	}
 }
 
 /// <summary>
@@ -116,6 +27,21 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	readonly bool integrated;
 	readonly ulong blockSize;
 	readonly List<MemoryBlock> blocks = new();
+
+	// Shared blocks by kind, so a lookup goes over its own kind's only: going over every block, each a cache miss, took
+	// most of an allocation's time once a map had a few hundred
+	readonly Dictionary<(int Type, bool Images, bool Large, bool Content), Kind> kinds = new();
+
+	sealed class Kind
+	{
+		public readonly List<MemoryBlock> Blocks = new();
+
+		/// <summary>Its empty blocks, each a spare.</summary>
+		public int Spares;
+	}
+
+	// Empty blocks kept as spares (shared ones, and big buffers' own allocations), which Trim frees after a while
+	readonly List<MemoryBlock> spares = new();
 	readonly object allocationLock = new();
 	ulong frame;
 
@@ -281,7 +207,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		{
 			var dedicated = NewBlock( type, size, image );
 			dedicated.Dedicated = true;
-			dedicated.TryAllocate( size, alignment, out var dedicatedOffset );
+			dedicated.TryAllocate( size, alignment, out var dedicatedOffset, out var dedicatedNode );
 			lock ( allocationLock )
 			{
 				Allocations++;
@@ -289,7 +215,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 				Used += size;
 			}
 
-			return new Allocation( dedicated, dedicatedOffset, size );
+			return new Allocation( dedicated, dedicatedOffset, size, dedicatedNode );
 		}
 
 		var large = size > blockSize / 4;
@@ -307,7 +233,6 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		lock ( allocationLock )
 		{
 			Add( fresh );
-			fresh.EmptySince = frame;
 			if ( TryShared( type, image, large, content, size, alignment ) is { } placed ) return placed;
 			throw new GpuException( "A new memory block couldn't fit an allocation" );
 		}
@@ -321,11 +246,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	{
 		if ( !MakeBlocksAhead || !BlocksAhead || disposed ) return;
 		var kind = (taken.TypeIndex, taken.Images, taken.Large, taken.Content);
-		if ( makingAhead.Contains( kind ) ) return;
-		foreach ( var block in blocks )
-		{
-			if ( !block.Dedicated && block.Used == 0 && block.TypeIndex == kind.TypeIndex && block.Images == kind.Images && block.Large == kind.Large && block.Content == kind.Content ) return;
-		}
+		if ( makingAhead.Contains( kind ) || KindOf( taken ).Spares > 0 ) return;
 
 		makingAhead.Add( kind );
 		var size = kind.Large ? LargeBlockSize : blockSize;
@@ -355,7 +276,6 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 				}
 
 				allocator.Add( block );
-				block.EmptySince = allocator.frame;
 			}
 		}, (this, kind, size), preferLocal: false );
 	}
@@ -388,20 +308,21 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		lock ( allocationLock )
 		{
 			Allocations++;
-			foreach ( var block in blocks )
+			foreach ( var block in spares )
 			{
 				if ( !block.Dedicated || !block.Reusable || block.Used != 0 || block.Size != size || block.TypeIndex != type || block.Images ) continue;
-				block.TryAllocate( size, alignment, out var spareOffset );
+				Unspare( block );
+				block.TryAllocate( size, alignment, out var spareOffset, out var spareNode );
 				Used += size;
 				PageTaken( type, size );
-				return new Allocation( block, spareOffset, size );
+				return new Allocation( block, spareOffset, size, spareNode );
 			}
 		}
 
 		var page = NewBlock( type, size, image: false );
 		page.Dedicated = true;
 		page.Reusable = true;
-		page.TryAllocate( size, alignment, out var offset );
+		page.TryAllocate( size, alignment, out var offset, out var node );
 		lock ( allocationLock )
 		{
 			Add( page );
@@ -409,7 +330,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			PageTaken( type, size );
 		}
 
-		return new Allocation( page, offset, size );
+		return new Allocation( page, offset, size, node );
 	}
 
 	/// <summary>A page of <paramref name="size"/> was taken: make the next ahead when that size was the last taken too. Under the lock.</summary>
@@ -445,7 +366,6 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 				}
 
 				allocator.Add( block );
-				block.EmptySince = allocator.frame;
 			}
 		}, (this, type, size), preferLocal: false );
 	}
@@ -453,7 +373,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// <summary>Whether an empty own buffer allocation of <paramref name="size"/> other than <paramref name="except"/> is kept; under the lock.</summary>
 	bool HasSparePage( int type, ulong size, MemoryBlock except )
 	{
-		foreach ( var block in blocks )
+		foreach ( var block in spares )
 		{
 			if ( block != except && block.Dedicated && block.Reusable && block.Used == 0 && block.Size == size && block.TypeIndex == type && !block.Images ) return true;
 		}
@@ -464,18 +384,45 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// <summary>Room in the fullest shared block of its kind with room, so the emptier ones drain; under the lock.</summary>
 	Allocation? TryShared( int type, bool image, bool large, bool content, ulong size, ulong alignment )
 	{
-		MemoryBlock best = null;
-		foreach ( var block in blocks )
+		var start = System.Diagnostics.Stopwatch.GetTimestamp();
+		try
 		{
-			if ( block.Dedicated || block.TypeIndex != type || block.Images != image || block.Large != large || block.Content != content ) continue;
+			return FindShared( type, image, large, content, size, alignment );
+		}
+		finally
+		{
+			SharedLookups++;
+			SharedLookupTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
+		}
+	}
+
+	/// <summary>Shared-block lookups (<see cref="TryShared"/>) so far, and the <see cref="System.Diagnostics.Stopwatch"/> ticks they took under the lock.</summary>
+	public long SharedLookups { get; private set; }
+
+	/// <inheritdoc cref="SharedLookups"/>
+	public long SharedLookupTicks { get; private set; }
+
+	/// <summary>Frees so far, and the <see cref="System.Diagnostics.Stopwatch"/> ticks their blocks took to give the range back.</summary>
+	public long Releases { get; private set; }
+
+	/// <inheritdoc cref="Releases"/>
+	public long ReleaseTicks { get; private set; }
+
+	Allocation? FindShared( int type, bool image, bool large, bool content, ulong size, ulong alignment )
+	{
+		if ( !kinds.TryGetValue( (type, image, large, content), out var kind ) ) return null;
+		MemoryBlock best = null;
+		foreach ( var block in kind.Blocks )
+		{
 			if ( best is not null && block.Used <= best.Used ) continue;
 			if ( block.Fits( size, alignment ) ) best = block;
 		}
 
-		if ( best is null || !best.TryAllocate( size, alignment, out var offset ) ) return null;
+		if ( best is not null && best.Used == 0 ) Unspare( best );
+		if ( best is null || !best.TryAllocate( size, alignment, out var offset, out var node ) ) return null;
 		Used += size;
 		MakeAhead( best );
-		return new Allocation( best, offset, size );
+		return new Allocation( best, offset, size, node );
 	}
 
 	public void Free( in Allocation allocation )
@@ -485,18 +432,21 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		lock ( allocationLock )
 		{
 			var block = allocation.Block;
-			block.Release( allocation.Offset, allocation.Size );
+			var start = System.Diagnostics.Stopwatch.GetTimestamp();
+			block.Release( allocation.Node );
+			ReleaseTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
+			Releases++;
 			Used -= allocation.Size;
 
 			// Dedicated blocks go at once, but for one big buffer's of each size kept as a spare for a while (Trim); shared ones
 			// once empty, keeping one spare per kind for a while
-			if ( block.Dedicated && block.Reusable && !HasSparePage( block.TypeIndex, block.Size, block ) ) block.EmptySince = frame;
+			if ( block.Dedicated && block.Reusable && !HasSparePage( block.TypeIndex, block.Size, block ) ) KeepSpare( block );
 			else if ( block.Dedicated || (block.Used == 0 && HasSpare( block )) )
 			{
-				blocks.Remove( block );
+				Remove( block );
 				FreeBlock( block );
 			}
-			else if ( block.Used == 0 ) block.EmptySince = frame;
+			else if ( block.Used == 0 ) KeepSpare( block );
 		}
 	}
 
@@ -509,26 +459,17 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		lock ( allocationLock )
 		{
 			frame = newFrame;
-			for ( int i = blocks.Count - 1; i >= 0; i-- )
+			for ( int i = spares.Count - 1; i >= 0; i-- )
 			{
-				var block = blocks[i];
-				// Empty shared blocks and spare big buffers' allocations
-				if ( block.Used != 0 || frame - block.EmptySince < SpareFrames ) continue;
-				blocks.RemoveAt( i );
+				var block = spares[i];
+				if ( frame - block.EmptySince < SpareFrames ) continue;
+				Remove( block );
 				FreeBlock( block );
 			}
 		}
 	}
 
-	bool HasSpare( MemoryBlock empty )
-	{
-		foreach ( var block in blocks )
-		{
-			if ( block != empty && !block.Dedicated && block.TypeIndex == empty.TypeIndex && block.Images == empty.Images && block.Large == empty.Large && block.Content == empty.Content && block.Used == 0 ) return true;
-		}
-
-		return false;
-	}
+	bool HasSpare( MemoryBlock empty ) => KindOf( empty ).Spares > (empty.Spare ? 1 : 0);
 
 	/// <summary>A block from the driver, not yet in <see cref="blocks"/> (<see cref="Add"/>): made without the lock.</summary>
 	MemoryBlock NewBlock( int type, ulong size, bool image )
@@ -544,8 +485,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		using ( Owner is { } owner ? owner.AllocateMemoryZone() : default )
 			vk.vkAllocateMemory( vk.Device, &info, null, &memory ).Check( "vkAllocateMemory" );
 
-		var block = new MemoryBlock { Memory = memory, Size = size, TypeIndex = type, Images = image };
-		block.Free.Add( (0, size) );
+		var block = new MemoryBlock( size ) { Memory = memory, TypeIndex = type, Images = image };
 
 		if ( (properties.Type( type ).propertyFlags & Vk.MemoryHostVisible) != 0 )
 		{
@@ -561,7 +501,43 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	void Add( MemoryBlock block )
 	{
 		blocks.Add( block );
+		if ( !block.Dedicated ) KindOf( block ).Blocks.Add( block );
+		if ( block.Used == 0 ) KeepSpare( block );
 		Reserved += block.Size;
+	}
+
+	/// <summary>Take a block out of the lists before it's freed; under the lock.</summary>
+	void Remove( MemoryBlock block )
+	{
+		blocks.Remove( block );
+		if ( !block.Dedicated ) KindOf( block ).Blocks.Remove( block );
+		Unspare( block );
+	}
+
+	/// <summary>The shared blocks of a block's kind; under the lock.</summary>
+	Kind KindOf( MemoryBlock block )
+	{
+		var key = (block.TypeIndex, block.Images, block.Large, block.Content);
+		if ( !kinds.TryGetValue( key, out var kind ) ) kinds[key] = kind = new Kind();
+		return kind;
+	}
+
+	/// <summary>An empty block kept as a spare from now, until <see cref="Trim"/> frees it or something takes it; under the lock.</summary>
+	void KeepSpare( MemoryBlock block )
+	{
+		block.EmptySince = frame;
+		if ( block.Spare ) return;
+		block.Spare = true;
+		spares.Add( block );
+		if ( !block.Dedicated ) KindOf( block ).Spares++;
+	}
+
+	void Unspare( MemoryBlock block )
+	{
+		if ( !block.Spare ) return;
+		block.Spare = false;
+		spares.Remove( block );
+		if ( !block.Dedicated ) KindOf( block ).Spares--;
 	}
 
 	void FreeBlock( MemoryBlock block, bool counted = true )

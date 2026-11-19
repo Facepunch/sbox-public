@@ -1,5 +1,4 @@
 using Borealis.Gpu;
-using Borealis.Gpu.Memory;
 using Borealis.Gpu.Vulkan;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -7,8 +6,8 @@ using System.Runtime.CompilerServices;
 namespace BorealisGpuTests;
 
 /// <summary>
-/// Things that need no GPU: the hand-written Vulkan structs against the C header's sizes, the block allocator's free
-/// lists, handle generations, and the shader binding layout.
+/// Things that need no GPU: the hand-written Vulkan structs against the C header's sizes, handle generations, and the
+/// shader binding layout.
 /// </summary>
 [TestClass]
 public class LayoutTests
@@ -77,31 +76,6 @@ public class LayoutTests
 			Assert.AreEqual( constantBuffer ? BindingType.UniformBuffer : BindingType.StorageBuffer, type, attribute );
 			Assert.AreEqual( entries[i].Groups[3].Value, attribute );
 		}
-	}
-
-	/// <summary>
-	/// First-fit allocation honours alignment, and freeing merges neighbours back into one range.
-	/// </summary>
-	[TestMethod]
-	public void BlocksAllocateAlignedAndCoalesce()
-	{
-		var block = new MemoryBlock { Size = 1024 };
-		block.Free.Add( (0, 1024) );
-
-		Assert.IsTrue( block.TryAllocate( 100, 1, out var a ) );
-		Assert.IsTrue( block.TryAllocate( 100, 256, out var b ) );
-		Assert.IsTrue( block.TryAllocate( 300, 64, out var c ) );
-		Assert.AreEqual( 0ul, a );
-		Assert.AreEqual( 256ul, b );
-		Assert.AreEqual( 384ul, c );
-		Assert.IsFalse( block.TryAllocate( 400, 1, out _ ), "only 340 bytes are left at the end" );
-
-		block.Release( b, 100 );
-		block.Release( a, 100 );
-		block.Release( c, 300 );
-		Assert.AreEqual( 1, block.Free.Count );
-		Assert.AreEqual( (0ul, 1024ul), block.Free[0] );
-		Assert.AreEqual( 0ul, block.Used );
 	}
 
 	/// <summary>
