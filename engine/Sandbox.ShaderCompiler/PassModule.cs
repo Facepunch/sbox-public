@@ -551,7 +551,7 @@ public sealed record PassCombo( string Name, int Min, int Max, bool Static, stri
 /// <c>#ifdef</c>, <c>#ifndef</c>, <c>#elif</c>, <c>#else</c>, <c>#endif</c>, object-like <c>#define</c>s, and the
 /// <c>#include</c>s it can find (with their include guards). An identifier nothing defines is 0, as in vfx's preprocessor.
 /// </summary>
-internal static class PassPreprocessor
+internal static partial class PassPreprocessor
 {
 	/// <summary>An include's path and text, given the including file and the name it includes; null when it isn't found.</summary>
 	public delegate (string Path, string Text)? Includer( string from, string name );
@@ -581,7 +581,7 @@ internal static class PassPreprocessor
 			var trimmed = line.AsSpan().TrimStart();
 			if ( trimmed.IsEmpty || trimmed[0] != '#' )
 			{
-				if ( active ) lines.Add( line );
+				if ( active ) lines.Add( defines.ContainsKey( EntryRenamed ) ? RenameEntries( line, defines ) : line );
 				continue;
 			}
 
@@ -637,7 +637,11 @@ internal static class PassPreprocessor
 				case "define" when active:
 					{
 						var m = Regex.Match( rest, @"^(\w+)(\s+(.*))?$" );
-						if ( m.Success ) defines[m.Groups[1].Value] = m.Groups[3].Success ? m.Groups[3].Value.Trim() : "1";
+						if ( m.Success )
+						{
+							defines[m.Groups[1].Value] = m.Groups[3].Success ? m.Groups[3].Value.Trim() : "1";
+							if ( Array.IndexOf( Entries, m.Groups[1].Value ) >= 0 ) defines[EntryRenamed] = "1";
+						}
 						else if ( Regex.Match( rest, @"^(\w+)\(" ) is { Success: true } function ) defines[function.Groups[1].Value] = "1";
 						break;
 					}
@@ -653,6 +657,27 @@ internal static class PassPreprocessor
 			}
 		}
 	}
+
+	static readonly string[] Entries = ["MainVs", "MainPs", "MainCs", "MainTs", "MainMs"];
+
+	// Set once an entry point's name is a macro (vfx's #define MainPs Disabled for a mode with no pixel stage), so the lines
+	// after it read the name it stands for, and its definition is no entry point
+	const string EntryRenamed = "\0entry";
+
+	static string RenameEntries( string line, Dictionary<string, string> defines )
+	{
+		foreach ( var entry in Entries )
+		{
+			if ( !defines.TryGetValue( entry, out var name ) || !line.Contains( entry, StringComparison.Ordinal ) ) continue;
+			line = Regex.Replace( line, $@"\b{entry}\b", name );
+			line = ShaderAttribute().Replace( line, "" );
+		}
+
+		return line;
+	}
+
+	[GeneratedRegex( @"\[\s*shader\s*\(\s*""\w+""\s*\)\s*\]\s*" )]
+	private static partial Regex ShaderAttribute();
 
 	// Each text's lines, split once: a module's includes are preprocessed again for every combo values it's asked with
 	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<string, string[]> splits = new();
