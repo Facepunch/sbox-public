@@ -629,7 +629,8 @@ public sealed unsafe partial class Device
 
 		lock ( recentSubmissions )
 		{
-			// The submissions around the first the GPU hadn't finished (where a hang or fault usually is), then the latest
+			// The submissions around the first the GPU hadn't finished (where a hang or fault usually is), any the GPU got part
+			// way through (the list it stopped in, when finished lists not yet read as done come before it), then the latest
 			var now = Stopwatch.GetTimestamp();
 			var skipped = false;
 			for ( int i = 0; i < recentSubmissions.Length; i++ )
@@ -637,7 +638,7 @@ public sealed unsafe partial class Device
 				var (queue, value, name, held, ticks, markers) = recentSubmissions[(recentNext + i) % recentSubmissions.Length];
 				if ( name is null && value == 0 ) continue;
 				var completed = seen.GetValueOrDefault( queue );
-				if ( i < recentSubmissions.Length - RecentSubmissionsShown && (value + 4 <= completed || value > completed + 16) )
+				if ( i < recentSubmissions.Length - RecentSubmissionsShown && (value + 4 <= completed || value > completed + 16) && !MarkersPartway( markers ) )
 				{
 					if ( !skipped ) text.Append( "\n  ..." );
 					skipped = true;

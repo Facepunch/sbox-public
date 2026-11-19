@@ -670,6 +670,7 @@ public sealed class ShaderDrawer : IDisposable
 	// Bind a draw's pipeline and resources; true when it reads the lent instance ids, which the caller binds after its streams
 	bool BindForDraw( CommandList list, ShaderVariant variant, ShaderAttributes attributes, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, System.Numerics.Vector4 viewport )
 	{
+		if ( BackendDevice.DrawMarkers ) list.Marker( BackendDevice.DrawMarkerName( variant ) );
 		var ids = ReadsInstanceIds( variant );
 		if ( Objects( variant ) )
 		{
