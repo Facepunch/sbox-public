@@ -38,6 +38,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 		/// <summary>Its empty blocks, each a spare.</summary>
 		public int Spares;
+
+		/// <summary>The block being emptied, or null.</summary>
+		public MemoryBlock Draining;
 	}
 
 	// Empty blocks kept as spares (shared ones, and big buffers' own allocations), which Trim frees after a while
@@ -348,10 +351,20 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	// The driver's allocations (vkAllocateMemory, which needs no external lock) are made outside the allocator's lock: a big
 	// one takes milliseconds while the driver clears it, and every other thread's allocation waited behind it. A map's
 	// first seconds made hundreds, about 2 ms each, nearly 0.5 s of them on the main thread
+	/// <summary>
+	/// While set on a thread, its allocations only take room in shared blocks that exist: one that would need a new block,
+	/// or an allocation of its own, fails with <c>VK_ERROR_FRAGMENTED_POOL</c>. For moving out of a block being drained
+	/// (<see cref="Device.Relocate"/>), where a new block would only swap one part-empty block for another.
+	/// </summary>
+	[ThreadStatic] internal static bool ExistingBlocksOnly;
+
+	static GpuException NoRoom() => new( "vkAllocateMemory (no room in the blocks there are)", VkResult.ErrorFragmentedPool );
+
 	Allocation Allocate( in VkMemoryRequirements requirements, bool image, bool target, int type, bool content, bool refusable, bool fallback )
 	{
 		var size = requirements.size;
 		var alignment = Math.Max( requirements.alignment, 1 );
+		if ( ExistingBlocksOnly && (fallback || (!image && size > OwnBufferSize && (content || OwnBigBuffers)) || size > (LargeBlocks && !target ? LargeBlockSize : blockSize) / 4) ) throw NoRoom();
 
 		// A buffer over a quarter of a small block is its own (a map's vertex and index pages, views' visibility buffers,
 		// tables that grow): one still used after what was made beside it has gone doesn't hold a large block
@@ -380,6 +393,8 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			Allocations++;
 			if ( TryShared( type, image, large, content, fallback, size, alignment ) is { } shared ) return shared;
 		}
+
+		if ( ExistingBlocksOnly ) throw NoRoom();
 
 		// A new block, made without the lock; another thread (or the one made ahead) may have added one meanwhile, which is
 		// tried first, and then this one stays as a spare
@@ -573,7 +588,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		MemoryBlock best = null;
 		foreach ( var block in kind.Blocks )
 		{
-			if ( best is not null && block.Used <= best.Used ) continue;
+			if ( block.Draining || (best is not null && block.Used <= best.Used) ) continue;
 			if ( block.Fits( size, alignment ) ) best = block;
 		}
 
@@ -626,8 +641,111 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 				Remove( block );
 				FreeBlock( block );
 			}
+
+			if ( Defragment && frame % DrainCheckFrames == 0 ) ChooseDraining();
 		}
 	}
+
+	/// <summary>
+	/// Whether part-empty blocks of content images are drained (on), once no block has been made for <see cref="QuietFrames"/>:
+	/// one block of a kind at a time, the emptiest under
+	/// <see cref="DrainBelow"/> full whose contents fit in the free room of the kind's other blocks, takes nothing new while
+	/// what's in it that can be made again elsewhere is (the texture streamer moves its textures,
+	/// <see cref="Device.InDrainingBlock"/>), so it empties and goes back to the driver.
+	/// </summary>
+	public bool Defragment { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_DEFRAGMENT" ) != "0";
+
+	/// <summary>How full a block may be to be drained.</summary>
+	public const double DrainBelow = 0.5;
+
+	/// <summary>Frames a block is drained for before it's left as it is (what's left in it can't move), and not tried again for <see cref="DrainRetryFrames"/>.</summary>
+	public const ulong DrainFrames = 900, DrainRetryFrames = 3600;
+
+	const ulong DrainCheckFrames = 30;
+
+	/// <summary>Blocks drained so far: begun, emptied, and given up on.</summary>
+	public long DrainsBegun { get; private set; }
+
+	/// <inheritdoc cref="DrainsBegun"/>
+	public long DrainsEmptied { get; private set; }
+
+	/// <inheritdoc cref="DrainsBegun"/>
+	public long DrainsAbandoned { get; private set; }
+
+	/// <summary>Frames without a new block before blocks are drained: while a map loads, blocks fill and empty by themselves.</summary>
+	public const ulong QuietFrames = 120;
+
+	ulong lastNewBlock;
+
+	// Under the lock; allocates nothing
+	void ChooseDraining()
+	{
+		var quiet = frame - lastNewBlock >= QuietFrames;
+		foreach ( var (key, kind) in kinds )
+		{
+			if ( kind.Draining is { } draining )
+			{
+				if ( frame - draining.DrainFrame < DrainFrames ) continue;
+
+				// What's left can't move (textures that don't stream): leave it, and try it again much later
+				draining.Draining = false;
+				draining.DrainFrame = frame + DrainRetryFrames;
+				kind.Draining = null;
+				drainingCount--;
+				DrainsAbandoned++;
+				continue;
+			}
+
+			if ( !quiet || !key.Content || !key.Images || key.Fallback || kind.Blocks.Count < 2 ) continue;
+
+			MemoryBlock emptiest = null;
+			ulong free = 0;
+			foreach ( var block in kind.Blocks )
+			{
+				free += block.Size - block.Used;
+				if ( block.Used == 0 || frame < block.DrainFrame || block.Used > block.Size * DrainBelow ) continue;
+				if ( emptiest is null || block.Used < emptiest.Used ) emptiest = block;
+			}
+
+			// Only when the rest of the kind has room for what it holds (moves never make a block), and the kind has a block's
+			// worth free in all, so emptying one leaves fewer
+			if ( emptiest is null || free - (emptiest.Size - emptiest.Used) < emptiest.Used || free < emptiest.Size ) continue;
+			emptiest.Draining = true;
+			emptiest.DrainFrame = frame;
+			kind.Draining = emptiest;
+			drainingCount++;
+			DrainsBegun++;
+		}
+	}
+
+	/// <summary>For tests: drain <paramref name="block"/> now, as <see cref="Trim"/> would pick it.</summary>
+	internal void Drain( MemoryBlock block )
+	{
+		lock ( allocationLock )
+		{
+			var kind = KindOf( block );
+			if ( block.Dedicated || block.Draining || kind.Draining is not null ) return;
+			block.Draining = true;
+			block.DrainFrame = frame;
+			kind.Draining = block;
+			drainingCount++;
+			DrainsBegun++;
+		}
+	}
+
+	/// <summary>For tests: stop draining <paramref name="block"/>.</summary>
+	internal void Undrain( MemoryBlock block )
+	{
+		lock ( allocationLock ) EndDrain( block );
+	}
+
+	/// <summary>Whether any block is being drained.</summary>
+	public bool AnyDraining => System.Threading.Volatile.Read( ref drainingCount ) > 0;
+
+	int drainingCount;
+
+	/// <summary>Whether <paramref name="allocation"/> is in a block being drained, so it should be made again elsewhere.</summary>
+	public bool Draining( in Allocation allocation ) => allocation.Block is { Draining: true };
 
 	bool HasSpare( MemoryBlock empty ) => KindOf( empty ).Spares > (empty.Spare ? 1 : 0);
 
@@ -666,6 +784,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		if ( block.Used == 0 ) KeepSpare( block );
 		Reserved += block.Size;
 		heapReserved[properties.Type( block.TypeIndex ).heapIndex] += (long)block.Size;
+		lastNewBlock = frame;
 	}
 
 	/// <summary>Take a block out of the lists before it's freed; under the lock.</summary>
@@ -674,6 +793,18 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		blocks.Remove( block );
 		if ( !block.Dedicated ) KindOf( block ).Blocks.Remove( block );
 		Unspare( block );
+		EndDrain( block );
+	}
+
+	// A drained block emptied (or went): it takes allocations again
+	void EndDrain( MemoryBlock block )
+	{
+		if ( !block.Draining ) return;
+		block.Draining = false;
+		DrainsEmptied++;
+		drainingCount--;
+		var kind = KindOf( block );
+		if ( kind.Draining == block ) kind.Draining = null;
 	}
 
 	/// <summary>The shared blocks of a block's kind; under the lock.</summary>
@@ -687,6 +818,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// <summary>An empty block kept as a spare from now, until <see cref="Trim"/> frees it or something takes it; under the lock.</summary>
 	void KeepSpare( MemoryBlock block )
 	{
+		EndDrain( block );
 		block.EmptySince = frame;
 		if ( block.Spare ) return;
 		block.Spare = true;

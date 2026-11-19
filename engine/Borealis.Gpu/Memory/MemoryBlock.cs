@@ -37,6 +37,15 @@ internal sealed class MemoryBlock
 	/// <summary>Whether it's empty and kept as a spare in the allocator's list of them.</summary>
 	public bool Spare;
 
+	/// <summary>
+	/// Whether it's being emptied (<see cref="MemoryAllocator.Draining"/>): nothing new goes in, and what's in it that can be
+	/// moved is made again elsewhere.
+	/// </summary>
+	public bool Draining;
+
+	/// <summary>The allocator's frame it began draining in, or after which it may be drained again.</summary>
+	public ulong DrainFrame;
+
 	// Size classes: sizes under SecondLevels have one class each; above, each power of two splits into SecondLevels
 	const int SecondLevelBits = 5;
 	const int SecondLevels = 1 << SecondLevelBits;

@@ -207,4 +207,108 @@ public class MemoryAllocatorTests : GpuTest
 		foreach ( var allocation in placed ) allocator.Free( allocation );
 		Assert.AreEqual( 0, allocator.SystemFallbackBytes, "and none once they're freed" );
 	}
+
+	/// <summary>
+	/// A content image block under half full, whose contents fit in the room its kind's other blocks have, is drained: it
+	/// takes nothing new, and once what's in it has gone elsewhere it's empty and stops draining.
+	/// </summary>
+	[TestMethod]
+	public void SparseContentBlocksDrain()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false };
+		var eighth = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
+		var first = new List<Allocation>();
+		for ( int i = 0; i < 8; i++ ) first.Add( allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
+		var second = new List<Allocation>();
+		for ( int i = 0; i < 8; i++ ) second.Add( allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
+
+		// The first down to a quarter, the second to three quarters: room for the first's two eighths
+		for ( int i = 0; i < 6; i++ ) allocator.Free( first[i] );
+		for ( int i = 0; i < 2; i++ ) allocator.Free( second[i] );
+		allocator.Trim( 30 );
+		Assert.IsFalse( allocator.AnyDraining, "not while blocks are still being made" );
+		allocator.Trim( MemoryAllocator.QuietFrames + 30 );
+		Assert.IsTrue( allocator.Draining( first[6] ), "the sparse block drains" );
+		Assert.IsFalse( allocator.Draining( second[2] ) );
+		Assert.IsTrue( allocator.AnyDraining );
+
+		// Nothing new goes in it, though it's the emptiest: the moved allocations land in the second
+		var moved = allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true );
+		Assert.AreSame( second[2].Block, moved.Block );
+
+		allocator.Free( first[6] );
+		allocator.Free( first[7] );
+		Assert.IsFalse( allocator.AnyDraining, "emptied, it stops draining" );
+		Assert.AreEqual( 1, allocator.DrainsEmptied );
+
+		foreach ( var allocation in second.Skip( 2 ) ) allocator.Free( allocation );
+		allocator.Free( moved );
+	}
+
+	/// <summary>A relocated texture is a copy of every mip and layer in new memory, left in the layout it was in.</summary>
+	[TestMethod]
+	public void RelocatedTexturesKeepTheirTexels()
+	{
+		var texture = Device.CreateTexture( new TextureInfo { Width = 16, Height = 16, Mips = 2, Layers = 2, Dimension = TextureDimension.Texture2DArray, Format = Format.RGBA8Unorm, Usage = TextureUsage.Sampled | TextureUsage.CopySource | TextureUsage.CopyDestination, Name = "Relocated", Content = true } );
+		var texels = new byte[16 * 16 * 4];
+		for ( int i = 0; i < texels.Length; i++ ) texels[i] = (byte)(i * 7);
+		for ( int layer = 0; layer < 2; layer++ )
+		{
+			Device.WriteTexture( texture, texels, mip: 0, layer: layer );
+			Device.WriteTexture( texture, texels.AsSpan( 0, 8 * 8 * 4 ), mip: 1, layer: layer );
+		}
+
+		var copy = Device.Relocate( texture );
+		Assert.IsTrue( copy.IsValid );
+		Assert.AreNotEqual( Device.Get( texture ).Memory, Device.Get( copy ).Memory );
+		Device.Destroy( texture );
+
+		CollectionAssert.AreEqual( texels, ReadBack( copy, ImageLayout.ShaderRead ) );
+		var list = Device.BeginCommandList( QueueType.Graphics, "Mip 1 layer 1" );
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = 8 * 8 * 4, Memory = MemoryLocation.Readback, Name = "Readback" } );
+		list.CopyTextureToBuffer( copy, 1, 1, buffer );
+		list.Barrier( new BufferBarrier { Buffer = buffer, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+		Device.Wait( Device.Submit( list ) );
+		CollectionAssert.AreEqual( texels.AsSpan( 0, 8 * 8 * 4 ).ToArray(), Device.Map( buffer ).ToArray() );
+		Device.Destroy( buffer );
+		Device.Destroy( copy );
+	}
+
+	/// <summary>
+	/// A move out of a draining block only takes room in blocks there are (<see cref="MemoryAllocator.ExistingBlocksOnly"/>):
+	/// with none of its kind, or for an allocation that would be its own, it fails rather than making one.
+	/// </summary>
+	[TestMethod]
+	public void MovesOnlyTakeRoomInBlocksThereAre()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false };
+		var eighth = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
+		MemoryAllocator.ExistingBlocksOnly = true;
+		try
+		{
+			var e = Assert.ThrowsException<GpuException>( () => allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
+			Assert.AreEqual( (int)VkResult.ErrorFragmentedPool, e.Result );
+		}
+		finally
+		{
+			MemoryAllocator.ExistingBlocksOnly = false;
+		}
+
+		var first = allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true );
+		MemoryAllocator.ExistingBlocksOnly = true;
+		try
+		{
+			var moved = allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true );
+			Assert.AreSame( first.Block, moved.Block, "room in a block there is" );
+			Assert.AreEqual( allocator.BlockSize, allocator.Reserved );
+			allocator.Free( moved );
+			Assert.ThrowsException<GpuException>( () => allocator.Allocate( eighth with { size = MemoryAllocator.LargeBlockSize / 2 }, MemoryLocation.Device, image: true, content: true ) );
+		}
+		finally
+		{
+			MemoryAllocator.ExistingBlocksOnly = false;
+		}
+
+		allocator.Free( first );
+	}
 }

@@ -560,6 +560,63 @@ public sealed unsafe partial class Device
 	}
 
 	/// <summary>
+	/// Whether <paramref name="texture"/>'s memory is in a block the allocator is emptying (<see cref="MemoryAllocator.Defragment"/>):
+	/// one that can be made again elsewhere (<see cref="Relocate"/>, then swapped in) should be, so the block goes back to the
+	/// driver.
+	/// </summary>
+	public bool InDrainingBlock( TextureHandle texture ) => IsAlive( texture ) && Allocator.Draining( Get( texture ).Memory );
+
+	/// <summary>Bytes of memory a texture's image takes.</summary>
+	public long MemorySizeOf( TextureHandle texture ) => (long)Get( texture ).Memory.Size;
+
+	/// <summary>Whether the allocator is emptying any block (<see cref="InDrainingBlock"/>), so a look for what to move is worth it.</summary>
+	public bool Defragmenting => Allocator.AnyDraining;
+
+	/// <summary>
+	/// A copy of a 2D or cube texture (every mip and layer) in new memory, which the allocator places in room its other blocks
+	/// have, outside the blocks it's emptying: recorded into this thread's <see cref="DeferUploads"/> list, or submitted and
+	/// waited for outside one. Both are left in <paramref name="layout"/>, the layout <paramref name="texture"/> is in. The
+	/// caller swaps the copy in for what draws from then on and destroys the original, which the GPU may still be reading for
+	/// frames in flight. Null when there's no room without a new block, and for textures it can't copy (3D, multisampled,
+	/// swap chain images).
+	/// </summary>
+	public TextureHandle Relocate( TextureHandle texture, ImageLayout layout = ImageLayout.ShaderRead )
+	{
+		ref var record = ref Get( texture );
+		var info = record.Info;
+		if ( record.External || info.Dimension == TextureDimension.Texture3D || info.Samples > 1 ) return default;
+		var layers = record.ArrayLayers;
+		var bytes = (long)record.Memory.Size;
+
+		// Made before anything reads the record again: making it can move the records
+		TextureHandle copy;
+		MemoryAllocator.ExistingBlocksOnly = true;
+		try
+		{
+			copy = CreateTexture( info );
+		}
+		catch ( GpuException e ) when ( e.Result == (int)VkResult.ErrorFragmentedPool )
+		{
+			return default;
+		}
+		finally
+		{
+			MemoryAllocator.ExistingBlocksOnly = false;
+		}
+
+		var deferred = DeferredUploads();
+		var list = deferred ?? BeginCommandList( QueueType.Graphics, "Relocate" );
+		list.Barrier( TextureBarrier.Transition( texture, layout, ImageLayout.CopySource, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferRead ) );
+		list.Barrier( TextureBarrier.Transition( copy, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		for ( int mip = 0; mip < info.Mips; mip++ ) list.CopyTexture( texture, copy, mip, layers );
+		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.CopySource, layout, PipelineStage.Transfer, MemoryAccess.TransferRead, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
+		list.Barrier( TextureBarrier.Transition( copy, ImageLayout.CopyDestination, layout, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
+		if ( deferred is null ) SubmitAndRecycle( list );
+		else Interlocked.Add( ref deferredBytes, bytes );
+		return copy;
+	}
+
+	/// <summary>
 	/// A sampled texture's index in the bindless table (<c>Bindless::GetTexture2D</c> and friends); its sRGB view is at
 	/// the next index (<c>GetTexture2DSrgb</c>). -1 if it isn't sampled.
 	/// </summary>
