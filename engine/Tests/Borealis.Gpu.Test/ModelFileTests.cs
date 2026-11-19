@@ -90,7 +90,7 @@ public class ModelFileTests
 	[TestMethod]
 	public void AggregateDrawsWithoutMeshIdsAreInFileOrder()
 	{
-		ModelMesh Mesh( params int[] ids ) => new() { DrawCalls = ids.Select( id => new MeshDrawCall { MeshId = id, VertexBuffers = [] } ).ToArray() };
+		static ModelMesh Mesh( params int[] ids ) => new() { DrawCalls = ids.Select( id => new MeshDrawCall { MeshId = id, VertexBuffers = [] } ).ToArray() };
 
 		CollectionAssert.AreEqual( new[] { 0, 1, 2 }, ModelFile.AggregateDraws( [Mesh( -1, -1, -1 )] ), "none written" );
 		CollectionAssert.AreEqual( new[] { 0, 1, 2 }, ModelFile.AggregateDraws( [Mesh( 0, 0, 1 )] ), "one twice" );
