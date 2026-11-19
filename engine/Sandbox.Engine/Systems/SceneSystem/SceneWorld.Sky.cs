@@ -18,9 +18,25 @@ public sealed partial class SceneWorld
 	/// </summary>
 	internal SceneSkybox3D GetRenderingSkybox()
 	{
-		return ActiveSkybox is { IsValid: true, Scale: > 0 } skybox && ConVarSystem.GetInt( "r_3d_skybox", 1, true ) != 0
-			? skybox : null;
+		return ActiveSkybox is { IsValid: true, Scale: > 0 } skybox && SkyboxesOn() ? skybox : null;
 	}
+
+	// r_3d_skybox, read again when a convar was set, or every second or so for a change native made itself: a native
+	// convar's value comes back as a new string each time
+	static bool SkyboxesOn()
+	{
+		if ( skyboxesRead == 0 || skyboxesChanges != ConVarSystem.Changes || Application.FrameCount - skyboxesRead >= 60 )
+		{
+			(skyboxesRead, skyboxesChanges) = (Math.Max( Application.FrameCount, 1 ), ConVarSystem.Changes);
+			skyboxesOn = ConVarSystem.GetInt( "r_3d_skybox", 1, true ) != 0;
+		}
+
+		return skyboxesOn;
+	}
+
+	static ulong skyboxesRead;
+	static int skyboxesChanges;
+	static bool skyboxesOn;
 
 	/// <summary>
 	/// Select the newest visible sky, as CSkyBoxObjectDesc::DrawArray does. Child views pass no object-tag filters.
