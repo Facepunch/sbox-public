@@ -724,9 +724,55 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 	}
 
 	long translucent;
-	public override bool IsAlphaTest => Feature( "F_ALPHA_TEST" );
+
+	/// <summary>
+	/// Whether its pixel shader clips: its alpha test feature, or the <c>alphatest</c> attribute its shader exports, as native
+	/// reads a material's (a shader that defines <c>S_ALPHA_TEST</c> itself, as fur and Sandblocks' voxels do, exports it from
+	/// sbox_pixel.fxc with no feature). Its depth draws then keep the pixel shader, so the prepass doesn't write depth where
+	/// colour clips (a colour pass that tests depth EQUAL against it draws nothing behind those texels). Worked out once per
+	/// load, as <see cref="IsTranslucent"/>.
+	/// </summary>
+	public override bool IsAlphaTest
+	{
+		get
+		{
+			var known = Volatile.Read( ref alphaTest );
+			if ( (known & 3) == 0 || (int)(known >> 2) != loads )
+			{
+				known = ((long)loads << 2) | (Feature( "F_ALPHA_TEST" ) || Attribute( "alphatest", false ) ? 2L : 1L);
+				Volatile.Write( ref alphaTest, known );
+			}
+
+			return (known & 3) == 2;
+		}
+	}
+
+	long alphaTest;
 	public override bool ReadsFrameBuffer => false;
-	public override bool ShadowFastPath => Shader is not null && !IsTranslucent && !IsAlphaTest;
+
+	/// <summary>
+	/// Whether its depth draws with the shared depth-only material: only a shader that says its vertices are plain with
+	/// <c>BoolAttribute( ShadowFastPath, true )</c> (complex, simple and the other standard shaders), as native's. Any other
+	/// shader's depth comes from its own depth program, which moves its vertices as its colour pass does: a colour pass that
+	/// tests depth EQUAL against the prepass (Sandblocks' voxels) matches it only then. Worked out once per load.
+	/// </summary>
+	public override bool ShadowFastPath
+	{
+		get
+		{
+			if ( Shader is null || IsTranslucent || IsAlphaTest ) return false;
+			var known = Volatile.Read( ref fastPath );
+			if ( (known & 3) == 0 || (int)(known >> 2) != loads )
+			{
+				known = ((long)loads << 2) | (Attribute( "ShadowFastPath", false ) ? 2L : 1L);
+				Volatile.Write( ref fastPath, known );
+			}
+
+			return (known & 3) == 2;
+		}
+	}
+
+	long fastPath;
 	public override bool NeedsLightProbe
 	{
 		get
