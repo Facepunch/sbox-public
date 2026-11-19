@@ -94,7 +94,7 @@ public sealed unsafe partial class Device
 		if ( !ProgressMarkers || slot < 0 ) return false;
 		var done = Volatile.Read( ref markerWords[slot * 2 + 1] );
 		var reached = Volatile.Read( ref markerWords[slot * 2] );
-		lock ( markerTrails[slot] ) return reached > 0 && done < markerTrails[slot].Names.Count;
+		lock ( markerTrails[slot] ) return reached > 0 && done < markerTrails[slot].Count;
 	}
 
 	/// <summary>How far the GPU got in a slot's list: "reached 12/40, done 11/40 (after 'Opaque Forward', in 'Static World Overlays')".</summary>
