@@ -7,9 +7,10 @@ public sealed partial class SceneModel
 {
 	/// <summary>
 	/// Whether scene models made from now on animate on a <see cref="ModelAnimationInstance"/> of their own instead of their
-	/// native twin (<c>-animinstance</c>). Their twin keeps draw state and draws their pose in Source 2's views.
+	/// native twin: on unless <c>-noaniminstance</c> is on the command line. Their twin keeps draw state and draws their pose
+	/// in Source 2's views.
 	/// </summary>
-	internal static bool UsesAnimationInstance => AnimationInstanceOverride ?? (_animationInstanceSwitch ??= CommandLine.HasSwitch( "-animinstance" ));
+	internal static bool UsesAnimationInstance => AnimationInstanceOverride ?? (_animationInstanceSwitch ??= !CommandLine.HasSwitch( "-noaniminstance" ));
 
 	/// <summary>Tests set <see cref="UsesAnimationInstance"/> either way; null follows the command line.</summary>
 	internal static bool? AnimationInstanceOverride { get; set; }
@@ -148,8 +149,8 @@ public sealed partial class SceneModel
 		AnimatedWorldBounds = world;
 		AnimatedLocalBounds = local;
 
-		// The renderer and the scene object's bounds read the twin's, as they did when it worked them out
-		native.SetBounds( world );
+		// Kept here for the renderer and Bounds; the twin gets them too, for render-mesh traces and Source 2's views
+		SetPoseBounds( world );
 	}
 
 	/// <summary>

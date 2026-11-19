@@ -74,6 +74,54 @@ public class BorealisGpuTexturesTest
 	}
 
 	/// <summary>
+	/// A texture array made empty and filled a layer at a time (<see cref="Texture.Update3D"/>, Rubble's voxel atlas) has a
+	/// copy here that's an array of every layer, each with what was written to it; and a draw's attributes read a named one
+	/// (its name is no file) as that copy. The copy was a 2D texture that kept no layer past the first.
+	/// </summary>
+	[TestMethod]
+	public unsafe void ArrayLayersUpdatedOneAtATimeAreKept()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+		var previous = RenderBackend.Default;
+		var host = Borealis.RenderHost.Current;
+		RenderBackend.SetDefault( borealis );
+		Borealis.RenderHost.Current = new DeviceHost( borealis.Services );
+		try
+		{
+			const int size = 4, layers = 3;
+			using var texture = Texture.CreateArray( size, size, layers ).WithName( "test_atlas" ).Finish();
+			for ( int layer = 0; layer < layers; layer++ )
+			{
+				var red = (byte)(80 * (layer + 1));
+				texture.Update3D( Pixels( size, size, ( _, _ ) => new Color32( red, 0, 0, 255 ) ), 0, 0, layer, size, size, 1 );
+			}
+
+			for ( int layer = 0; layer < layers; layer++ )
+			{
+				var pixels = new byte[size * size * 4];
+				fixed ( byte* data = pixels )
+				{
+					Assert.IsTrue( borealis.ReadPixels( texture, new NativeRect( 0, 0, size, size ), layer, 0, new NativeRect( 0, 0, size, size ), (IntPtr)data, ImageFormat.RGBA8888, size * 4 ), $"layer {layer} reads back" );
+				}
+
+				Assert.AreEqual( 80 * (layer + 1), pixels[0], $"layer {layer} has what was written to it" );
+			}
+
+			var mirrored = Sandbox.Rendering.Bridge.MirrorContent.Texture( texture );
+			Assert.IsNotNull( mirrored, "the mirror has the engine's copy" );
+			Assert.IsTrue( mirrored.IsArray, "as an array" );
+		}
+		finally
+		{
+			Borealis.RenderHost.Current = host;
+			RenderBackend.SetDefault( previous );
+		}
+
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	/// <summary>
 	/// A scene object's attributes as Borealis draws read them (<see cref="Sandbox.Rendering.Bridge.MirrorContent.ObjectParameters"/>)
 	/// carry its buffers, as the engine buffer's copy on the device: a package shader's per-instance data (gamma's
 	/// <c>ZoneInstances</c>). The wrapper borrows the copy, so disposing it leaves the buffer to the engine's.
@@ -85,6 +133,7 @@ public class BorealisGpuTexturesTest
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 
 		var host = Borealis.RenderHost.Current;
+		var previous = RenderBackend.Default;
 		RenderBackend.SetDefault( borealis );
 		Borealis.RenderHost.Current = new DeviceHost( borealis.Services );
 		try
@@ -111,7 +160,7 @@ public class BorealisGpuTexturesTest
 		finally
 		{
 			Borealis.RenderHost.Current = host;
-			RenderBackend.SetDefault( null );
+			RenderBackend.SetDefault( previous );
 		}
 
 		Assert.AreEqual( 0, borealis.ValidationErrors );

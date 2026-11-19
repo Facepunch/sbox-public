@@ -213,6 +213,9 @@ public static class Formats
 
 	internal static uint Aspect( this Format format ) => format.HasStencil() ? Vk.AspectDepth | Vk.AspectStencil : format.IsDepth() ? Vk.AspectDepth : Vk.AspectColor;
 
+	/// <summary>Whether a vertex format is read as integers (a shader's int or uint input), not as floats.</summary>
+	public static bool IsInteger( this VertexFormat format ) => format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt3 or VertexFormat.UInt4 or VertexFormat.Int or VertexFormat.UByte or VertexFormat.Byte;
+
 	internal static VkFormat ToVk( this VertexFormat format ) => format switch
 	{
 		VertexFormat.Float => VkFormat.R32Sfloat,
@@ -226,6 +229,7 @@ public static class Formats
 		VertexFormat.UByte4 => VkFormat.R8G8B8A8Uint,
 		VertexFormat.UInt => VkFormat.R32Uint,
 		VertexFormat.UInt2 => VkFormat.R32G32Uint,
+		VertexFormat.UInt3 => VkFormat.R32G32B32Uint,
 		VertexFormat.UInt4 => VkFormat.R32G32B32A32Uint,
 		VertexFormat.UInt1010102Norm => VkFormat.A2B10G10R10UnormPack32,
 		VertexFormat.UShort2Norm => VkFormat.R16G16Unorm,

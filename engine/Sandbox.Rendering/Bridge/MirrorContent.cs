@@ -222,9 +222,10 @@ internal static class MirrorContent
 		// A cube made at run time for compute to write (a realtime probe's) is what cube captures draw into
 		if ( IsCaptureCube( texture ) ) return CaptureCube( texture );
 
-		// A 2D render target (a screen a game draws into) is the engine's copy on the device: its path is only its name
+		// A render target (a screen a game draws into) or any texture made in code (a voxel atlas array a game fills layer by
+		// layer) is the engine's copy on the device: its path is only its name
 		var engine = RenderBackend.Default as BorealisGpuRenderBackend;
-		if ( engine is not null && texture.Depth == 1 && !texture.native.IsNull && texture.IsRenderTarget ) return engine.BorealisViewOf( texture );
+		if ( engine is not null && !texture.native.IsNull && (texture.IsRenderTarget || texture.MadeAtRunTime) ) return engine.BorealisViewOf( texture );
 
 		var path = texture.ResourcePath;
 		if ( !string.IsNullOrEmpty( path ) ) return gpu.LoadTexture( path );
@@ -233,8 +234,8 @@ internal static class MirrorContent
 		if ( Sandbox.Texture.MaterialOrigins.TryGetValue( texture, out var origin ) && origin is Sandbox.Texture.MaterialOrigin o )
 			return gpu.LoadedMaterialTexture( o.Material, o.Parameter );
 
-		// Any other 2D texture made at run time (a render target a game draws a screen into) is the engine's copy on the device
-		return engine is not null && !texture.native.IsNull && texture.Depth == 1 ? engine.BorealisViewOf( texture ) : null;
+		// Any other texture with no file (an engine texture of any shape) is the engine's copy on the device
+		return engine is not null && !texture.native.IsNull ? engine.BorealisViewOf( texture ) : null;
 	}
 
 	sealed class Capture

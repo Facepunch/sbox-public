@@ -161,6 +161,12 @@ internal sealed class LabWorld
 		if ( scene.SunDirection is { } sunDirection )
 			world.Lighting.SunDirection = sunDirection;
 
+		if ( scene.SunColor is { } sunColor )
+			world.Lighting.SunColor = sunColor;
+
+		if ( scene.SecondSun is { } second )
+			world.Lighting.ExtraSuns.Add( new Borealis.ExtraSun { Direction = second.Direction, Color = second.Color, Shadows = true } );
+
 		Focus = first.Bounds.Center;
 		DefaultDistance = scene.CameraDistance ?? MathF.Max( first.Bounds.Size.Length * 1.6f, scene.Grid * spacing * 1.2f );
 

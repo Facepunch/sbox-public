@@ -1265,8 +1265,7 @@ internal sealed class SurfaceProgram : IDisposable
 			if ( input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex == 13 ) return new VertexAttribute( 0, 1, VertexFormat.UInt, 0 );
 			if ( vertexCache && input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex is 14 or 15 ) return new VertexAttribute( 0, input.SemanticIndex == 14 ? 2 : 3, VertexFormat.Float, 0 );
 			if ( layout.Find( input.Semantic, input.SemanticIndex ) is not { } field ) return null;
-			var integer = field.Format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt4;
-			if ( integer != (input.Kind != SpirvScalar.Float) ) return null;
+			if ( field.Format.IsInteger() != (input.Kind != SpirvScalar.Float) ) return null;
 			return new VertexAttribute( 0, 0, field.Format, field.Offset );
 		}, defaultBuffer: vertexCache ? 4 : 2 );
 

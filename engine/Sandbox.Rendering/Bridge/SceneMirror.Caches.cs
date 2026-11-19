@@ -91,7 +91,7 @@ internal sealed partial class SceneMirror
 
 			var failed = models.Count( x => x.Value.Mesh is null );
 			var unused = idle.Count( x => x.Users == 0 && !x.Dropped );
-			return new MirrorCacheCounts( objects.Count, models.Count - failed, failed, variantCount, unused,
+			return new MirrorCacheCounts( added, models.Count - failed, failed, variantCount, unused,
 				attributed.Count, sharing.Count, shareable.Count, deleted + lingering.Count, built, evicted, reloaded );
 		}
 	}
@@ -292,6 +292,9 @@ internal sealed partial class SceneMirror
 	readonly HashSet<Model> staleFailed = new();
 	readonly List<SceneObject> remake = new();
 
+	// The world's objects, looked through after a reload
+	readonly List<SceneObject> reloadCheck = new();
+
 	// Models loading asynchronously on Borealis.Gpu (MirrorContent.Mesh), and those whose files are now read
 	readonly HashSet<Model> loading = new();
 	readonly HashSet<Model> loaded = new();
@@ -381,7 +384,7 @@ internal sealed partial class SceneMirror
 			if ( !modelWaiters.Remove( model, out var waiters ) ) continue;
 			foreach ( var sceneObject in waiters )
 			{
-				if ( !sceneObject.IsValid() || !objects.TryGetValue( sceneObject, out var obj ) ) continue;
+				if ( !sceneObject.IsValid() || !Added( sceneObject, out var obj ) ) continue;
 				if ( obj is MeshObject { Mesh: null } ) OnChanged( sceneObject, SceneObjectChange.Model );
 				else if ( obj is null && (sceneObject is SceneAggregateObject || sceneObject.GetType() == typeof( SceneObject )) ) remake.Add( sceneObject );
 			}
@@ -429,9 +432,15 @@ internal sealed partial class SceneMirror
 			reloaded++;
 		}
 
-		foreach ( var (sceneObject, obj) in objects )
+		lock ( source.InternalSceneObjects )
 		{
-			switch ( obj )
+			foreach ( var sceneObject in source.InternalSceneObjects )
+				reloadCheck.Add( sceneObject );
+		}
+
+		foreach ( var sceneObject in reloadCheck )
+		{
+			switch ( Find( sceneObject ) )
 			{
 				case MeshObject mesh when mesh.Mesh is { } drawn ? staleMeshes.Contains( drawn ) : staleFailed.Count > 0 && sceneObject.IsValid() && staleFailed.Contains( sceneObject.Model ):
 					OnChanged( sceneObject, SceneObjectChange.Model );
@@ -443,6 +452,8 @@ internal sealed partial class SceneMirror
 					break;
 			}
 		}
+
+		reloadCheck.Clear();
 
 		foreach ( var sceneObject in remake )
 		{

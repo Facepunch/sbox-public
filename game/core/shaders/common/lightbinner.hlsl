@@ -33,7 +33,8 @@ enum LightFlags
     TransmissiveEnabled = 0x8,    // transmissive enabled
     LightCookieEnabled = 0x40,    // light cookie enabled
     IndexedLight = 0x100,         // indexed baked lighting
-    NoFogShadows = 0x200          // skip shadow sampling in volumetric fog
+    NoFogShadows = 0x200,         // skip shadow sampling in volumetric fog
+    ExtraSun = 0x400              // a directional light besides the sun, shadowed by its own map (ShadowMapIndex)
 };
 
 enum LightShape
@@ -111,6 +112,7 @@ struct BinnedLight
     bool HasLightCookie()               { return ( Flags & LightFlags::LightCookieEnabled ) != 0; }
 	bool HasFogShadows()                { return ( Flags & LightFlags::NoFogShadows ) == 0; }
     bool IsIndexedLight()               { return ( Flags & LightFlags::IndexedLight ) != 0; }
+    bool IsExtraSun()                   { return ( Flags & LightFlags::ExtraSun ) != 0; }
 
     Texture2D GetLightCookieTexture()   { return Bindless::GetTexture2D( LightCookieTextureIndex ); }
 
@@ -162,6 +164,18 @@ BinnedLight BakedIndexedLightConstantByIndex( int index )
 BinnedEnvMap EnvironmentMapConstantByIndex( int index )
 {
     return BinnedEnvMapBuffer[ index ];
+}
+
+// The view's directional lights besides the sun: every pixel's short list, right after the binned lights. Their count rides
+// in the sun's direction's spare w (Borealis's; native leaves it 0), so the loop over them is uniform
+uint ExtraSunCount()
+{
+    return (uint)g_DirectionalLightDirection.w;
+}
+
+BinnedLight ExtraSunByIndex( uint index )
+{
+    return BinnedLightBufferV2[ NumDynamicLights + NumBakedIndexedLights + index ];
 }
 
 //-----------------------------------------------------------------------------

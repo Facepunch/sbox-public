@@ -664,10 +664,13 @@ public sealed unsafe partial class Device
 			return;
 		}
 
-		// The driver only has a report once it has said the device is lost
-		if ( !driverLost )
+		// The driver only has a report once a call has returned VK_ERROR_DEVICE_LOST. One that signalled everything pending
+		// has lost the device without saying so yet: waiting for the device then returns at once and says it
+		var waited = VkResult.Success;
+		if ( driverLost && !lostReturned && (waited = Vk.vkDeviceWaitIdle( Vk.Device )) == VkResult.ErrorDeviceLost ) lostReturned = true;
+		if ( !lostReturned )
 		{
-			text.Append( "no device fault report (the driver hasn't said the device is lost); " );
+			text.Append( $"no device fault report (the driver hasn't said the device is lost; waiting for it returned {waited}); " );
 			return;
 		}
 

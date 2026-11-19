@@ -337,6 +337,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 		FollowFrame();
 		WriteWorkerUpdates();
+		BindSheetCache();
 		SubmitUploads();
 		PollReadbacks();
 		lent = lendNext is not null;
@@ -786,6 +787,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		{
 			handle = VolumeOf( texture );
 		}
+		else if ( LayeredOf( texture ) is { } layered )
+		{
+			handle = layered;
+		}
 		else if ( InitialPixels( texture, GpuFormat.RGBA8Unorm ) is { } pixels )
 		{
 			// With its mips, as Source 2 generates them from the first, and storage when it was made for compute
@@ -903,6 +908,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		if ( !Texture.MaterialOrigins.TryGetValue( texture, out var origin ) || origin is not Texture.MaterialOrigin o ) return null;
 		return services.LoadedMaterialTexture( o.Material, o.Parameter ) as BackendTexture;
+	}
+
+	public override byte[] ReadCompiledPrefix( string path, long most )
+	{
+		try
+		{
+			return files.TryReadPrefix( path, most );
+		}
+		catch ( System.IO.IOException )
+		{
+			// A package mounting or unmounting while it reads: not found this time
+			return null;
+		}
 	}
 
 	/// <summary>A texture loaded from a compiled <c>.vtex</c>, read from that file.</summary>
@@ -1023,7 +1041,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// the block being recorded, or the list of uploads submitted before the next block - rather than submitted and
 	/// waited for. The texture ends in <see cref="ImageLayout.ShaderRead"/>.
 	/// </summary>
-	void Upload( TextureHandle handle, in TextureInfo info, ReadOnlySpan<byte> pixels, ImageLayout from, int x = 0, int y = 0, int width = 0, int height = 0 )
+	void Upload( TextureHandle handle, in TextureInfo info, ReadOnlySpan<byte> pixels, ImageLayout from, int x = 0, int y = 0, int width = 0, int height = 0, int layer = 0 )
 	{
 		var target = UploadList();
 		target.Barrier( new TextureBarrier
@@ -1037,9 +1055,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			DestinationAccess = MemoryAccess.TransferWrite,
 		} );
 
-		target.UpdateTexture( handle, pixels, 0, 0, width > 0 ? width : info.Width, height > 0 ? height : info.Height, x, y );
+		target.UpdateTexture( handle, pixels, 0, layer, width > 0 ? width : info.Width, height > 0 ? height : info.Height, x, y );
 		target.Barrier( MipBarrier( handle, 0, ImageLayout.CopyDestination, ImageLayout.ShaderRead ) );
-		if ( info.Mips > 1 ) FillMips( target, handle, info, ImageLayout.CopyDestination );
+		if ( info.Mips > 1 ) FillMips( target, handle, info, ImageLayout.CopyDestination, layer );
 		context.Track( handle, ImageLayout.ShaderRead );
 		TextureUploads++;
 	}
@@ -1072,19 +1090,21 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>
 	/// Fill mips 1 and down of a texture whose mip 0 is in <see cref="ImageLayout.ShaderRead"/> (and the rest in
 	/// <paramref name="rest"/>) by halving each into the next with a linear blit (a box filter), every layer, as a texture
-	/// made with only its first mip gets the rest. Leaves it all in <see cref="ImageLayout.ShaderRead"/>.
+	/// made with only its first mip gets the rest; only <paramref name="onlyLayer"/>'s when one is given (the layer an
+	/// update wrote). Leaves it all in <see cref="ImageLayout.ShaderRead"/>.
 	/// </summary>
-	void FillMips( GpuCommandList mips, TextureHandle handle, in TextureInfo info, ImageLayout rest )
+	void FillMips( GpuCommandList mips, TextureHandle handle, in TextureInfo info, ImageLayout rest, int onlyLayer = -1 )
 	{
 		var filter = info.Format is GpuFormat.R32Float or GpuFormat.RG32Float or GpuFormat.RGBA32Float or GpuFormat.R32Uint or GpuFormat.RG32Uint or GpuFormat.RGBA32Uint ? Filter.Nearest : Filter.Linear;
-		var layers = ArrayLayersOf( info );
+		var first = onlyLayer >= 0 ? onlyLayer : 0;
+		var layers = onlyLayer >= 0 ? onlyLayer + 1 : ArrayLayersOf( info );
 		for ( int i = 1; i < info.Mips; i++ )
 		{
 			int sw = Math.Max( info.Width >> (i - 1), 1 ), sh = Math.Max( info.Height >> (i - 1), 1 );
 			int dw = Math.Max( info.Width >> i, 1 ), dh = Math.Max( info.Height >> i, 1 );
 			mips.Barrier( MipBarrier( handle, i - 1, ImageLayout.ShaderRead, ImageLayout.CopySource ) );
 			mips.Barrier( MipBarrier( handle, i, rest, ImageLayout.CopyDestination ) );
-			for ( int layer = 0; layer < layers; layer++ ) mips.Blit( handle, (0, 0, sw, sh), handle, (0, 0, dw, dh), filter, i - 1, i, layer, layer );
+			for ( int layer = first; layer < layers; layer++ ) mips.Blit( handle, (0, 0, sw, sh), handle, (0, 0, dw, dh), filter, i - 1, i, layer, layer );
 			mips.Barrier( MipBarrier( handle, i - 1, ImageLayout.CopySource, ImageLayout.ShaderRead ) );
 			mips.Barrier( MipBarrier( handle, i, ImageLayout.CopyDestination, ImageLayout.ShaderRead ) );
 		}
@@ -1092,21 +1112,23 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	/// <summary>
 	/// A texture updated on Source 2's device: its copy here takes the same bytes, recorded where uploads go, rather than
-	/// being dropped and copied back from Source 2's pixels. Mips past the first are filled again from it. False when the
-	/// copy is in another format than the data, or the update is of part of a 3D texture's slices. A texture with no copy
-	/// here yet gets one now, made as it would be when first drawn, so the bytes aren't lost: the engine forgets the pixels
-	/// a texture was made with once it's updated, and Source 2's copy under -borealisgpu has nothing to read back.
+	/// being dropped and copied back from Source 2's pixels. Mips past the first are filled again from it. An array or cube
+	/// takes whole or partial layers (<paramref name="z"/> the first, <paramref name="depth"/> how many). False when the
+	/// copy is in another format than the data, the layers are outside it, or the update is of part of a 3D texture's
+	/// slices. A texture with no copy here yet gets one now, made as it would be when first drawn, so the bytes aren't
+	/// lost: the engine forgets the pixels a texture was made with once it's updated, and Source 2's copy under
+	/// -borealisgpu has nothing to read back.
 	/// </summary>
 	public override bool Update( Texture texture, ReadOnlySpan<byte> data, int x, int y, int z, int width, int height, int depth )
 	{
 		if ( !textures.TryGetValue( texture, out var backing ) )
 		{
-			if ( z != 0 || depth > 1 ) return true;
+			if ( !(texture.Desc.IsArray || texture.Desc.IsCube) && (z != 0 || depth > 1) ) return true;
 
 			// From a worker: made with the update on the main thread, before the next block
 			if ( !ThreadSafe.IsMainThread )
 			{
-				workerUpdates.Enqueue( (texture, data.ToArray(), x, y, width, height) );
+				workerUpdates.Enqueue( (texture, data.ToArray(), x, y, z, width, height, depth) );
 				return true;
 			}
 
@@ -1118,29 +1140,39 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		var info = gpu.InfoOf( backing.Handle );
 		if ( DataFormatOf( texture.ImageFormat ) != info.Format ) return false;
 
-		// A volume takes every slice at once (CommandList.CopyBufferToTexture), so only an update of all of them
-		var slices = info.Dimension == TextureDimension.Texture3D ? info.Depth : 1;
-		if ( z != 0 || (depth > 1 && depth != slices) ) return false;
+		// A volume takes every slice at once (CommandList.CopyBufferToTexture), so only an update of all of them; anything
+		// else takes layers within its own (a 2D texture has one)
+		var volume = info.Dimension == TextureDimension.Texture3D;
+		var slices = volume ? info.Depth : 1;
+		var layers = volume ? 1 : Math.Max( depth, 1 );
+		if ( volume ? z != 0 || (depth > 1 && depth != slices) : z < 0 || z + layers > ArrayLayersOf( info ) ) return false;
 
 		width = width > 0 ? width : info.Width;
 		height = height > 0 ? height : info.Height;
 		if ( slices > 1 && (x != 0 || y != 0 || width != info.Width || height != info.Height) ) return false;
-		var size = width * height * slices * info.Format.BytesPerBlock();
+		var layerSize = width * height * slices * info.Format.BytesPerBlock();
+		var size = layerSize * layers;
 		if ( data.Length < size ) return false;
 
 		// From a worker (an animated texture decodes and updates its frames on the thread pool): written at the start of the
 		// next block, so nothing records into the main thread's lists from another thread
 		if ( !ThreadSafe.IsMainThread )
 		{
-			workerUpdates.Enqueue( (texture, data[..size].ToArray(), x, y, width, height) );
+			workerUpdates.Enqueue( (texture, data[..size].ToArray(), x, y, z, width, height, depth) );
 			return true;
 		}
 
-		Upload( backing.Handle, info, data[..size], context.LayoutOf( backing.Handle ), x, y, width, height );
+		var from = context.LayoutOf( backing.Handle );
+		for ( int layer = 0; layer < layers; layer++ )
+		{
+			Upload( backing.Handle, info, data.Slice( layer * layerSize, layerSize ), from, x, y, width, height, z + layer );
+			from = ImageLayout.ShaderRead;
+		}
+
 		return true;
 	}
 
-	readonly System.Collections.Concurrent.ConcurrentQueue<(Texture Texture, byte[] Data, int X, int Y, int Width, int Height)> workerUpdates = new();
+	readonly System.Collections.Concurrent.ConcurrentQueue<(Texture Texture, byte[] Data, int X, int Y, int Z, int Width, int Height, int Depth)> workerUpdates = new();
 
 	/// <summary>
 	/// A texture cleared to one colour: its copy here is cleared, in the block being recorded or in a list of its own. From a
@@ -1163,14 +1195,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		while ( workerUpdates.TryDequeue( out var update ) )
 		{
-			// Not made yet when the worker updated it: made and written now, through the main thread's checks
-			if ( !textures.TryGetValue( update.Texture, out var backing ) )
-			{
-				if ( update.Texture.IsValid && !Update( update.Texture, update.Data, update.X, update.Y, 0, update.Width, update.Height, 1 ) ) Release( update.Texture );
-				continue;
-			}
-
-			Upload( backing.Handle, gpu.InfoOf( backing.Handle ), update.Data, context.LayoutOf( backing.Handle ), update.X, update.Y, update.Width, update.Height );
+			// Made (if it wasn't yet when the worker updated it) and written now, through the main thread's checks
+			if ( update.Texture.IsValid && !Update( update.Texture, update.Data, update.X, update.Y, update.Z, update.Width, update.Height, update.Depth ) ) Release( update.Texture );
 		}
 	}
 
@@ -1248,11 +1274,11 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	}
 
 	/// <summary>The compiled shader a material draws with (its shader, without material values).</summary>
-	// The "shader" each material names, read again only when its shader may have changed: reading it from native makes a string
+	// The shader each material names, worked out again only when its shader may have changed (a reload, or set in code)
 	sealed class ShaderName
 	{
 		public string Path;
-		public int ShaderVersion = -1, SetVersion = -1;
+		public int ShaderVersion = -1;
 	}
 
 	readonly ConditionalWeakTable<Material, ShaderName> shaderNames = new();
@@ -1260,10 +1286,12 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	ShaderFile ShaderOf( Material material )
 	{
 		var name = shaderNames.GetOrCreateValue( material );
-		if ( name.ShaderVersion != material.ShaderVersion || name.SetVersion != material.SetInCodeVersion )
+		if ( name.ShaderVersion != material.ShaderVersion )
 		{
-			name.Path = material.native.GetString( "shader", "" );
-			(name.ShaderVersion, name.SetVersion) = (material.ShaderVersion, material.SetInCodeVersion);
+			// As code gave it, else as its compiled file names it; the material system only for one with no file of ours to
+			// read (an error material keeps the error shader it was given)
+			name.Path = material.ShaderNameFromCode ?? FileShaderName( material.FilePath, reread: name.ShaderVersion >= 0 ) ?? material.native.GetString( "shader", "" );
+			name.ShaderVersion = material.ShaderVersion;
 		}
 
 		var path = name.Path;
@@ -1282,6 +1310,33 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		shader = drawer.Shaders.Load( file ) ?? (file.StartsWith( "shaders/", StringComparison.OrdinalIgnoreCase ) ? null : drawer.Shaders.Load( "shaders/" + file ));
 		shaders[path] = shader;
 		if ( shader is not null ) AddNames( shader );
+		return shader;
+	}
+
+	// The shader each compiled material file names, by the file's path
+	readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> fileShaders = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// The shader a material's compiled file names (<c>m_shaderName</c>), read once per file, again with
+	/// <paramref name="reread"/> (it was reloaded); null when there's no file of it to read.
+	/// </summary>
+	string FileShaderName( string path, bool reread )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return null;
+		if ( !reread && fileShaders.TryGetValue( path, out var known ) ) return known;
+
+		string shader = null;
+		try
+		{
+			if ( files.TryRead( path ) is { } data ) shader = Borealis.Source2.Materials.MaterialFile.Read( data ).Shader;
+		}
+		catch ( Exception e ) when ( e is System.IO.InvalidDataException or System.IO.IOException )
+		{
+			// Unreadable: the material system's name for it
+		}
+
+		if ( shader is null ) fileShaders.TryRemove( path, out _ );
+		else fileShaders[path] = shader;
 		return shader;
 	}
 
@@ -1847,10 +1902,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// colour, before tonemapping) in the block being recorded, as <c>RenderTools.RenderAutoExposure</c> does on Source 2.
 	/// The bound colour target sets the size counted in and isn't drawn to.
 	/// </summary>
-	internal void CountExposure( AutoExposure exposure, Texture color, Rect viewport )
+	internal void CountExposure( AutoExposure exposure, Texture color, Rect viewport, bool multisampled = false )
 	{
 		_ = Recording;
-		exposure.Draw( context, Shader( "shaders/tonemap_query.shader" ), TextureOf( color ), (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height );
+		exposure.Draw( context, Shader( "shaders/tonemap_query.shader" ), TextureOf( color ), (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height, multisampled );
 	}
 
 	//

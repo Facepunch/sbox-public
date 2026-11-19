@@ -314,7 +314,7 @@ float3 GetTransmissiveThickness( const FinalCombinerInput_t f, const BinnedLight
 			vHitPosition = ProjectedShadow::GetOccludedPosition( shadowIndex, f.vPositionWs.xyz, lightData.GetPosition(), lightData.Radius );
 		else if ( lightData.Type == LightType::LightTypePoint )
 			vHitPosition = ProjectedShadowCube::GetOccludedPosition( shadowIndex, f.vPositionWs.xyz, lightData.Radius );
-		else if ( lightData.Type == LightType::LightTypeDirectional )
+		else if ( lightData.Type == LightType::LightTypeDirectional && !lightData.IsExtraSun() )
 			vHitPosition = DirectionalLightShadow::GetOccludedPosition( f.vPositionWs.xyz );
 
 		return GetTransmissiveThicknessFromHit( f, vHitPosition );
@@ -424,10 +424,13 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 		#endif
 	}
 
-	// Directional lights use their own CSM shadow path, taken before the light loops (PrepareSunShadow)
-	if ( lightData.Type == LightType::LightTypeDirectional && g_DirectionalLightCascadeCount > 0 )
+	// The sun uses its own CSM shadow path, taken before the light loops (PrepareSunShadow); an extra sun its own map
+	if ( lightData.Type == LightType::LightTypeDirectional )
 	{
-		flShadowScalar = s_flSunShadow;
+		if ( lightData.IsExtraSun() )
+			flShadowScalar = ProjectedShadow::GetSunVisibility( shadowIndex, f.vPositionWs.xyz, vReceiverNormalWs, f.vPositionSs.xy );
+		else if ( g_DirectionalLightCascadeCount > 0 )
+			flShadowScalar = s_flSunShadow;
 	}
 
 	#if ( !S_TRANSMISSIVE && !defined( SURFACE_LIGHT_HOOK ) )
@@ -559,6 +562,64 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, float3 vReceiverNorm
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
+// The view's directional lights besides the sun (ExtraSunCount, after the binned lights), lit as the sun's fast path above
+// lights the sun, each shadowed by its own orthographic map. A baked surface reaches a baked one through its light indices
+// instead (IsIndexedLight), and the rest here. Their count is uniform, so the loop and its loads are too
+void ComputeExtraSuns( const FinalCombinerInput_t f, float3 vReceiverNormalWs, bool bBaked, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive )
+{
+	const uint nSuns = ExtraSunCount();
+
+	[loop]
+	for ( uint i = 0; i < nSuns; i++ )
+	{
+		const BinnedLight lightData = ExtraSunByIndex( i );
+		if ( bBaked && lightData.IsIndexedLight() )
+			continue;
+
+		// Packed towards the light, as a baked sun is
+		float3 vPositionToLightDirWs = lightData.GetDirection();
+		float3 vLightColor = lightData.Color;
+		[branch]
+		if ( LightModulators::Active() )
+			vLightColor *= LightModulators::EvaluateSun( f.vPositionWs.xyz, vPositionToLightDirWs );
+
+		float flShadowScalar = ProjectedShadow::GetSunVisibility( lightData.ShadowMapIndex, f.vPositionWs.xyz, vReceiverNormalWs, f.vPositionSs.xy );
+
+		#if ( !S_TRANSMISSIVE && !defined( SURFACE_LIGHT_HOOK ) )
+			if ( flShadowScalar <= 0.0 )
+				continue;
+		#endif
+
+		const float2 vDiffuseExponent = ( ( 1.0 - f.vRoughness.xy ) * 0.8 ) + 0.6;
+		float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs( f.vPositionWs.xyz );
+		float flNDotL = ClampToPositive( dot( f.vNormalWs.xyz, vPositionToLightDirWs.xyz ) );
+
+		float3 vDiffuseTerm, vSpecularTerm, vTransmissiveTerm;
+		ComputeDiffuseAndSpecularTerms(
+			vDiffuseTerm,
+			vSpecularTerm,
+			vTransmissiveTerm,
+			true, 	// bDiffuse
+			true, 	// bSpecular
+			true, 	// bTransmissive
+			f,
+			vPositionToLightDirWs.xyz,
+			vPositionToCameraDirWs.xyz,
+			vDiffuseExponent.xy,
+			flNDotL );
+
+		// No thickness from its map: transmitted light passes as through a thin surface
+		vDiffuse.rgb 		+= vDiffuseTerm.rgb  * flShadowScalar * vLightColor.rgb;
+		vSpecular.rgb 		+= vSpecularTerm.rgb * flShadowScalar * vLightColor.rgb;
+		vTransmissive.rgb 	+= vTransmissiveTerm.rgb * f.vTransmissiveMask.rgb * vLightColor.rgb;
+
+		#ifdef SURFACE_LIGHT_HOOK
+			SurfaceLightHook( vPositionToLightDirWs.xyz, vLightColor.rgb, 1.0, flShadowScalar, true );
+		#endif
+	}
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
 // nClusterIndex is Cluster::Index( f.vPositionSs ), taken once by callers that also light indirectly. Transmission starts
 // at vTransmissiveStart: it is only ever added to the final colour, so a caller can park emissive in it rather than
 // keep emissive live through the light loops.
@@ -584,6 +645,8 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	// and CSM shadows are sampled inside ComputeDirectLightingForLight.
 	if ( !LightmappedLight::UsesLightmaps() && !ProbeLight::UsesProbes() )
 		ComputeDirectionalLight( f, vReceiverNormalWs, o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb );
+
+	ComputeExtraSuns( f, vReceiverNormalWs, bBaked, o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb );
 
 	// Cascade debug visualization — always runs regardless of baked/dynamic path
 	if ( DirectionalLightDebug > 0 && g_DirectionalLightCascadeCount > 0 )

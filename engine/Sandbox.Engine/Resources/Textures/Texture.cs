@@ -46,8 +46,6 @@ public partial class Texture : Resource, IDisposable
 	{
 		if ( native.IsNull ) throw new Exception( "Texture pointer cannot be null!" );
 		this.native = native;
-
-		UpdateSheetInfo();
 	}
 
 	~Texture()
@@ -75,6 +73,12 @@ public partial class Texture : Resource, IDisposable
 	internal byte[] InitialPixels { get; set; }
 	internal Color? InitialColor { get; set; }
 
+	/// <summary>
+	/// Made in code (<see cref="Create(string, bool, TextureBuilder, IntPtr, int)"/>) rather than loaded from a file: its
+	/// name, if it has one, isn't a file another device could read it from.
+	/// </summary>
+	internal bool MadeAtRunTime { get; set; }
+
 	internal void CopyFrom( Texture texture )
 	{
 		if ( !texture.IsValid() )
@@ -82,6 +86,7 @@ public partial class Texture : Resource, IDisposable
 
 		// What other devices made of the old contents is stale
 		RenderBackend.ReleaseEverywhere( this );
+		MadeAtRunTime = texture.MadeAtRunTime;
 		InitialPixels = texture.InitialPixels;
 		InitialColor = texture.InitialColor;
 
@@ -104,13 +109,22 @@ public partial class Texture : Resource, IDisposable
 
 		IsAnimated = texture.IsAnimated;
 
-		UpdateSheetInfo();
-
-		gotdesc = false;
-		_desc = default;
+		// Described again from the new handle: the same as the other texture's
+		gotdesc = texture.gotdesc;
+		_desc = texture._desc;
+		describedAtCreation = texture.describedAtCreation;
+		fileHeader = texture.fileHeader;
+		fileHeaderRead = texture.fileHeaderRead;
+		sheetRead = false;
 
 		DirtyVersion++;
 	}
+
+	/// <summary>How many textures were described from their files, and how many by asking Source 2, for diagnostics.</summary>
+	internal static int DescribedFromFiles, DescribedBySource2;
+
+	/// <summary>The first textures described by asking Source 2.</summary>
+	internal static readonly System.Collections.Concurrent.ConcurrentQueue<string> DescribedBySource2Names = new();
 
 	internal CTextureDesc Desc
 	{
@@ -118,6 +132,17 @@ public partial class Texture : Resource, IDisposable
 		{
 			if ( gotdesc ) return _desc;
 
+			// Without Source 2's device, a loaded texture is described from its compiled file as Source 2 describes it
+			if ( FileHeader is { } header && DescriptionOf( header ) is { } fromFile )
+			{
+				_desc = fromFile;
+				gotdesc = true;
+				System.Threading.Interlocked.Increment( ref DescribedFromFiles );
+				return _desc;
+			}
+
+			// Else (a texture made with a name, one whose file isn't found, a device of Source 2's) Source 2's description
+			if ( System.Threading.Interlocked.Increment( ref DescribedBySource2 ) <= 64 ) DescribedBySource2Names.Enqueue( ResourcePath ?? RenderTools.GetTextureResourceName( native ) );
 			// No description at all (a texture that fell back to the error texture on Source 2's empty render system): an
 			// empty one, which reads as a failed load, rather than a null dereference
 			ref var desc = ref g_pRenderDevice.GetOnDiskTextureDesc( native );
@@ -254,6 +279,9 @@ public partial class Texture : Resource, IDisposable
 	{
 		get
 		{
+			// On Borealis.Gpu, its own sheet cache's: Source 2's has nothing under -borealisgpu
+			if ( RenderBackend.Default is BorealisGpuRenderBackend borealis ) return borealis.SheetData( this );
+
 			// I think this would be safe to cache off, right?
 			return g_pRenderDevice.GetSheetInfo( native );
 		}
@@ -262,7 +290,16 @@ public partial class Texture : Resource, IDisposable
 	/// <summary>
 	/// The count of sequences in this texture, if any. The rest of the sequence data is encoded into the texture itself.
 	/// </summary>
-	public int SequenceCount { get; private set; }
+	public int SequenceCount
+	{
+		get
+		{
+			ReadSheet();
+			return sequenceCount;
+		}
+	}
+
+	int sequenceCount;
 
 	class SequenceInfo
 	{
@@ -278,6 +315,7 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	public int GetSequenceFrameCount( int sequenceId )
 	{
+		ReadSheet();
 		if ( sequences is null ) return 0;
 		if ( sequenceId < 0 ) return 0;
 		if ( sequenceId >= sequences.Length ) return 0;
@@ -290,6 +328,7 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	private float GetSequenceLength( int sequenceId )
 	{
+		ReadSheet();
 		if ( sequences is null ) return 0;
 		if ( sequenceId < 0 ) return 0;
 		if ( sequenceId >= sequences.Length ) return 0;
@@ -297,37 +336,66 @@ public partial class Texture : Resource, IDisposable
 		return sequences[sequenceId].Length;
 	}
 
+	// Read on first use: from the texture's file where it describes itself from it (FileHeader), else from Source 2
+	bool sheetRead;
+
 	/// <summary>
 	/// TODO: Fill this out, build a structure of Sequence[] for people to access
 	/// Then make it so we can actually preview them
 	/// </summary>
-	private void UpdateSheetInfo()
+	private void ReadSheet()
 	{
-		HasAnimatedSequences = false;
+		if ( sheetRead ) return;
 
-		SequenceCount = g_pRenderDevice.GetSequenceCount( native );
-		if ( SequenceCount <= 0 ) return;
-
-		var s = new List<SequenceInfo>();
-
-		for ( int i = 0; i < SequenceCount; i++ )
+		var animated = false;
+		SequenceInfo[] read = null;
+		if ( describedAtCreation )
 		{
-			var info = new SequenceInfo();
-			s.Add( info );
-
-			SheetSequence_t seq = g_pRenderDevice.GetSequence( native, i );
-
-			info.Length = seq.m_flTotalTime;
-			info.FrameCount = seq.FrameCount();
-			info.Looped = !seq.m_bClamp;
-
-			HasAnimatedSequences = HasAnimatedSequences || info.FrameCount > 1;
+			// Made at run time: no sheet
+		}
+		else if ( FileHeader is { } header )
+		{
+			if ( header.Sheet is { Count: > 0 } sheet )
+			{
+				read = new SequenceInfo[sheet.Count];
+				for ( int i = 0; i < sheet.Count; i++ )
+				{
+					read[i] = new SequenceInfo { Length = sheet[i].TotalTime, FrameCount = sheet[i].Frames.Count, Looped = !sheet[i].Clamp };
+					animated |= read[i].FrameCount > 1;
+				}
+			}
+		}
+		else if ( !native.IsNull )
+		{
+			var count = g_pRenderDevice.GetSequenceCount( native );
+			if ( count > 0 )
+			{
+				read = new SequenceInfo[count];
+				for ( int i = 0; i < count; i++ )
+				{
+					SheetSequence_t seq = g_pRenderDevice.GetSequence( native, i );
+					read[i] = new SequenceInfo { Length = seq.m_flTotalTime, FrameCount = seq.FrameCount(), Looped = !seq.m_bClamp };
+					animated |= read[i].FrameCount > 1;
+				}
+			}
 		}
 
-		sequences = s.ToArray();
+		sequences = read;
+		sequenceCount = read?.Length ?? 0;
+		hasAnimatedSequences = animated;
+		sheetRead = true;
 	}
 
-	public bool HasAnimatedSequences { get; private set; }
+	public bool HasAnimatedSequences
+	{
+		get
+		{
+			ReadSheet();
+			return hasAnimatedSequences;
+		}
+	}
+
+	bool hasAnimatedSequences;
 
 	ulong _markedUsedFrame;
 	int _markedUsedMipSize;
@@ -352,7 +420,8 @@ public partial class Texture : Resource, IDisposable
 		_markedUsedFrame = Application.FrameCount;
 		_markedUsedMipSize = requiredMipSize;
 
-		g_pRenderDevice.MarkTextureUsed( native, requiredMipSize );
+		// Source 2's empty device streams nothing
+		if ( Graphics.HasSource2Device ) g_pRenderDevice.MarkTextureUsed( native, requiredMipSize );
 	}
 
 	internal bool IsRenderTarget => Graphics.HasSource2Device ? g_pRenderDevice.IsTextureRenderTarget( native ) : Desc.m_nFlags.Contains( RuntimeTextureSpecificationFlags.TSPEC_RENDER_TARGET );

@@ -160,8 +160,10 @@ public sealed class AutoExposure : IDisposable
 	/// the middle 90% of the viewport (<paramref name="x"/>, <paramref name="y"/>, <paramref name="width"/>, <paramref name="height"/>, in pixels) of <paramref name="color"/>, in
 	/// <paramref name="context"/>'s list, into an occlusion query. <paramref name="context"/> has a colour target of the
 	/// frame's size bound, which isn't drawn to. False when every bucket is still waiting for its count.
+	/// <paramref name="multisampled"/>: <paramref name="color"/> is a multisampled frame's resolved colour, metered as
+	/// native meters the multisampled colour itself (its query reads only red there), so both expose the same.
 	/// </summary>
-	public bool Draw( GraphicsContext context, ShaderFile shader, TextureHandle color, int x, int y, int width, int height )
+	public bool Draw( GraphicsContext context, ShaderFile shader, TextureHandle color, int x, int y, int width, int height, bool multisampled = false )
 	{
 		var bucket = NextBucket();
 		if ( bucket < 0 ) return false;
@@ -187,6 +189,7 @@ public sealed class AutoExposure : IDisposable
 		attributes.Set( "LuminanceMin", buckets[bucket].Min );
 		attributes.Set( "LuminanceMax", buckets[bucket].Max );
 		attributes.Set( "UseAlphaForAutoExposure", 0.0f );
+		attributes.Set( "MeterRedAsMultisampled", multisampled ? 1.0f : 0.0f );
 		attributes.SetCombo( "D_TONEMAP_LOG_LUM", LogLuminance ? 1 : 0 );
 		attributes.SetCombo( "D_MSAA_COLOR_BUFFER", 0 );
 		attributes.Set( "ColorBuffer", color );

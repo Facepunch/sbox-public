@@ -8,7 +8,10 @@ public partial class SceneObject
 		/// <summary>Read from native each time: native moves them itself (animated objects, lights, decals, a map's).</summary>
 		Native,
 
-		/// <summary>Kept here, changed only by <see cref="Bounds"/>: custom and dynamic objects, whose bounds don't follow their transform.</summary>
+		/// <summary>
+		/// Kept here, changed only by <see cref="Bounds"/>: custom and dynamic objects, whose bounds don't follow their transform,
+		/// and scene models on an animation instance, whose pose sets them.
+		/// </summary>
 		Fixed,
 
 		/// <summary>Kept here, from the model's mesh instances and the transform (a rigid model's, <c>OBJECT_BOUNDS_RIGID</c>).</summary>
@@ -44,6 +47,17 @@ public partial class SceneObject
 
 		_boundsKind = BoundsKind.Rigid;
 		UpdateRigidBounds();
+	}
+
+	/// <summary>
+	/// A scene model's bounds worked out from the pose its animation instance published: kept here from now on, and given to
+	/// the twin, which render-mesh traces and Source 2's views read.
+	/// </summary>
+	private protected void SetPoseBounds( in BBox bounds )
+	{
+		_boundsKind = BoundsKind.Fixed;
+		native.SetBounds( bounds );
+		SetKeptBounds( bounds );
 	}
 
 	/// <summary>Bounds set from outside, quantised as native's <c>CSceneSystem::SetObjectBounds</c> keeps them; invalid ones are ignored.</summary>
