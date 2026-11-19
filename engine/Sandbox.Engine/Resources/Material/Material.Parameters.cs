@@ -15,6 +15,15 @@ public partial class Material
 	// Made from an anonymous shader, which can't be loaded by the name the material has for it
 	internal Shader anonymousShader;
 
+	/// <summary>The shader <see cref="Shader"/> was last set to by code, as the material names it; null if never set.</summary>
+	internal string ShaderSetInCode { get; private set; }
+
+	/// <summary>
+	/// The shader the material names as code gave it (made from a shader, or <see cref="Shader"/> set), without asking the
+	/// material system; null when it's the one its compiled file names.
+	/// </summary>
+	internal string ShaderNameFromCode => anonymousShader?.ResourcePath ?? ShaderSetInCode ?? MadeFromShader;
+
 	/// <summary>
 	/// Gets the material's shader
 	/// </summary>
@@ -31,7 +40,8 @@ public partial class Material
 				throw new InvalidOperationException( "An anonymous shader can't be set by name, make the material with Material.Create( name, shader )" );
 
 			anonymousShader = null;
-			native.Set( "shader", value?.ResourcePath ?? "invalid" );
+			ShaderSetInCode = value?.ResourcePath ?? "invalid";
+			native.Set( "shader", ShaderSetInCode );
 			ShaderVersion++;
 		}
 	}
