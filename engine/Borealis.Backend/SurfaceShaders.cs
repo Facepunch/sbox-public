@@ -1424,12 +1424,22 @@ internal sealed class SurfaceRecords( Device gpu ) : IDisposable
 	}
 
 	/// <summary>Where <paramref name="material"/>'s current record is, written now if it changed.</summary>
-	public uint Offset( SurfaceMaterial material )
+	public uint Offset( SurfaceMaterial material ) => Offset( material, out _ );
+
+	/// <summary>
+	/// Where <paramref name="material"/>'s current record is, written now if it changed, and the buffer that holds it: the one
+	/// a draw of it binds, since writing it may have grown the records into a new buffer.
+	/// </summary>
+	public uint Offset( SurfaceMaterial material, out BufferHandle holder )
 	{
 		lock ( written )
 		{
 			var version = material.Version;
-			if ( written.TryGetValue( material, out var known ) && known.Version == version ) return known.Offset;
+			if ( written.TryGetValue( material, out var known ) && known.Version == version )
+			{
+				holder = buffer;
+				return known.Offset;
+			}
 
 			var bytes = (Math.Max( material.RecordSize, 4 ) + 15) & ~15;
 			if ( !buffer.IsValid || used + bytes > size ) Grow( used + bytes );
@@ -1441,6 +1451,7 @@ internal sealed class SurfaceRecords( Device gpu ) : IDisposable
 			record.CopyTo( gpu.Map( buffer )[(int)offset..] );
 			used += bytes;
 			written[material] = (version, offset);
+			holder = buffer;
 			return offset;
 		}
 	}
@@ -1460,7 +1471,11 @@ internal sealed class SurfaceRecords( Device gpu ) : IDisposable
 
 		buffer = grown;
 		size = next;
+		Grows++;
 	}
+
+	/// <summary>Times the records moved into a bigger buffer, for tests.</summary>
+	internal int Grows { get; private set; }
 
 	public void Dispose()
 	{

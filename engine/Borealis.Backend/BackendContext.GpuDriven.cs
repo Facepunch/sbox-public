@@ -461,8 +461,10 @@ internal sealed partial class BackendContext
 			var instances = MemoryMarshal.Cast<byte, uint>( data[..instanceBytes] );
 			var commands = MemoryMarshal.Cast<byte, GpuBuffer.IndirectDrawIndexedArguments>( data.Slice( commandBase, totalCommands * GpuDrivenTables.CommandStride ) );
 
-			var slots = tables.Slots;
-			SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, VertexBases = (uint)frameOffset - firstInstance * 4, Lighting = (uint)slots.Lighting } );
+			// The tables' slots as the draws bind them: read again before a run is drawn when a table grew since (a record appended
+			// for this call is past the end of the buffer at the slot read before)
+			var generation = tables.Generation;
+			SetTableSlots( tables, frameSlot, (uint)frameOffset - firstInstance * 4 );
 
 			var written = 0;
 			for ( int b = 0; b < gpuDrivenBucketCount; b++ )
@@ -501,7 +503,12 @@ internal sealed partial class BackendContext
 
 					if ( pooled.IndexPage != currentPage )
 					{
-						if ( written > runStart ) DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, currentPage, currentFormat, frameBuffer, frameOffset + commandBase + runStart * GpuDrivenTables.CommandStride, written - runStart );
+						if ( written > runStart )
+						{
+							RebindIfGrown( tables, ref generation, ref bound, frameSlot, (uint)frameOffset - firstInstance * 4, cache, resolver );
+							DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, currentPage, currentFormat, frameBuffer, frameOffset + commandBase + runStart * GpuDrivenTables.CommandStride, written - runStart );
+						}
+
 						currentPage = pooled.IndexPage;
 						currentFormat = pooled.IndexFormat;
 						runStart = written;
@@ -557,7 +564,12 @@ internal sealed partial class BackendContext
 					drawn[index] = true;
 				}
 
-				if ( written > runStart ) DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, currentPage, currentFormat, frameBuffer, frameOffset + commandBase + runStart * GpuDrivenTables.CommandStride, written - runStart );
+				if ( written > runStart )
+				{
+					RebindIfGrown( tables, ref generation, ref bound, frameSlot, (uint)frameOffset - firstInstance * 4, cache, resolver );
+					DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, currentPage, currentFormat, frameBuffer, frameOffset + commandBase + runStart * GpuDrivenTables.CommandStride, written - runStart );
+				}
+
 				bucket.Batches.Clear();
 			}
 
@@ -579,6 +591,24 @@ internal sealed partial class BackendContext
 	}
 
 	static readonly StringToken VertexAnimationCombo = new( "D_CS_VERTEX_ANIMATION" );
+
+	/// <summary>The GPU-driven constants with the tables' slots as they are now.</summary>
+	void SetTableSlots( GpuDrivenTables tables, int frameSlot, uint vertexBases )
+	{
+		var slots = tables.Slots;
+		SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, VertexBases = vertexBases, Lighting = (uint)slots.Lighting } );
+	}
+
+	/// <summary>A table grew since <paramref name="generation"/>: the constants take the new slots, and the bucket binds again with them.</summary>
+	void RebindIfGrown( GpuDrivenTables tables, ref int generation, ref bool bound, int frameSlot, uint vertexBases, MaterialObjectCache cache, PassResolver resolver )
+	{
+		if ( tables.Generation == generation ) return;
+		generation = tables.Generation;
+		SetTableSlots( tables, frameSlot, vertexBases );
+		NextPassState( cache );
+		resolver.Begin( passEpoch );
+		bound = false;
+	}
 
 	/// <summary>What a batch draws from: its draw's geometry, or its vertex-cache form for a skinned draw from the cache.</summary>
 	static DrawGeometry GeometryOf( in GpuDrivenBatch batch )
@@ -1093,7 +1123,7 @@ internal sealed partial class BackendContext
 			Visibility = hizBits ? 1u : 0u,
 			FragmentWords = (uint)(frameOffset + fragmentOffset) - firstInstance * 4,
 			Listed = lists || meshlets ? (uint)(frameOffset + listedOffset) : 0,
-			MeshletRuns = meshlets || lists && MeshletStampsReady( visibility ) ? (uint)device.MeshletStore.RunSlot : uint.MaxValue,
+			MeshletRuns = meshlets || lists && MeshletStampsReady( visibility ) ? (uint)device.MeshletStore.RunSlotCovering( tables.DrawRecords ) : uint.MaxValue,
 			LodTable = lodTable.Slot >= 0 ? (uint)lodTable.Slot : uint.MaxValue,
 			LodCount = lodTable.Records,
 		} );
@@ -1371,7 +1401,7 @@ internal sealed partial class BackendContext
 			FirstInstance = region.FirstInstance,
 			Runs = (uint)(region.Offset + region.Runs),
 			Draws = (uint)device.GpuDrivenTables.Slots.Draws,
-			RunTable = (uint)device.MeshletStore.RunSlot,
+			RunTable = (uint)device.MeshletStore.RunSlotCovering( device.GpuDrivenTables.DrawRecords ),
 			Capacity = shadow is not null ? (uint)shadow.Capacity : visibility is { PrepassCapacity: > 0 } ? (uint)visibility.PrepassCapacity : BackendDevice.PrepassCompactedIndices,
 			FragmentWords = shadow is not null ? uint.MaxValue : (uint)(region.Offset + region.FragmentWords) - region.FirstInstance * 4,
 			Samples = shadow is not null ? 0u : (uint)samples,
@@ -1981,7 +2011,7 @@ internal sealed partial class BackendContext
 					Samples = (uint)samples,
 					RunAt = (uint)(frameOffset + runsOffset + i * 8),
 					FirstInstance = firstInstance,
-					RunTable = (uint)device.MeshletStore.RunSlot,
+					RunTable = (uint)device.MeshletStore.RunSlotCovering( device.GpuDrivenTables.DrawRecords ),
 					Commands = (uint)(frameOffset + commandOffset),
 					Frame = device.GpuDrivenFrame,
 					KeptAt = BackendDevice.MeshletKeptAt,

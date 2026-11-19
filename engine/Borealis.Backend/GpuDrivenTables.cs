@@ -77,7 +77,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// bigger buffer with a slot of its own. The old buffer is kept a few frames (<see cref="FreeRetired"/>): draws recorded
 	/// earlier in the frame being recorded read it at its slot, and a destroy only waits for what's been submitted.
 	/// </summary>
-	sealed class Table( Device gpu, string name, int initial )
+	sealed class Table( GpuDrivenTables owner, Device gpu, string name, int initial )
 	{
 		public BufferHandle Buffer;
 		public int Slot = -1;
@@ -125,6 +125,7 @@ internal sealed class GpuDrivenTables : IDisposable
 			Buffer = buffer;
 			size = next;
 			Slot = gpu.BindlessIndex( buffer );
+			Interlocked.Increment( ref owner.generation );
 		}
 
 		/// <summary>Free the buffers it grew out of <see cref="RetiredFrames"/> frames or more ago: what was recorded with them has been submitted.</summary>
@@ -165,11 +166,11 @@ internal sealed class GpuDrivenTables : IDisposable
 	public GpuDrivenTables( Device gpu )
 	{
 		this.gpu = gpu;
-		geometry = new Table( gpu, "Borealis GPU-driven geometry", 1 << 20 );
-		draws = new Table( gpu, "Borealis GPU-driven draws", 1 << 20 );
-		materials = new Table( gpu, "Borealis GPU-driven materials", 1 << 20 );
-		fragments = new Table( gpu, "Borealis GPU-driven fragments", 1 << 20 );
-		lighting = new Table( gpu, "Borealis GPU-driven lighting", 1 << 16 );
+		geometry = new Table( this, gpu, "Borealis GPU-driven geometry", 1 << 20 );
+		draws = new Table( this, gpu, "Borealis GPU-driven draws", 1 << 20 );
+		materials = new Table( this, gpu, "Borealis GPU-driven materials", 1 << 20 );
+		fragments = new Table( this, gpu, "Borealis GPU-driven fragments", 1 << 20 );
+		lighting = new Table( this, gpu, "Borealis GPU-driven lighting", 1 << 16 );
 
 		// Made now, so their slots exist before any frame reads them; lighting record 0 is no lighting
 		geometry.Append( new byte[16] );
@@ -184,6 +185,23 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	/// <summary>The tables' slots in the raw buffer array, as <c>BorealisGpuDriven_t</c> wants them after the instances'.</summary>
 	public (int Geometry, int Draws, int Materials, int Lighting) Slots => (geometry.Slot, draws.Slot, materials.Slot, lighting.Slot);
+
+	int generation;
+
+	/// <summary>
+	/// Moves on each time a table grows into a new buffer at a new slot (<see cref="Slots"/>): a record appended after then may
+	/// be past the end of the buffer at the slot read before, so slots read before it are read again before drawing.
+	/// </summary>
+	public int Generation => Volatile.Read( ref generation );
+
+	/// <summary>Draw records appended so far: what the meshlet run table has to cover (<see cref="Meshlets.MeshletStore.RunSlotCovering"/>).</summary>
+	public long DrawRecords
+	{
+		get
+		{
+			lock ( draws ) return draws.Used / DrawStride;
+		}
+	}
 
 	/// <summary>
 	/// A lighting record: <c>BakedLightingConstantBuffer_t</c> (48 bytes), then <c>PerBatchLightProbeVolumeConstantBuffer_t</c>
