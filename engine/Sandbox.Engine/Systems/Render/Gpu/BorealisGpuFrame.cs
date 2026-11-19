@@ -392,6 +392,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 		}
 		finally
 		{
+			// A block that threw before taking the list leaves it lent: later frames would take themselves as inside it
+			backend.LendNextBlock( null );
+
 			// Back to the frame, where the block left them, and no longer the engine's to track
 			foreach ( var (engine, gpu) in (ReadOnlySpan<(Texture, BackendTexture)>)[color, depth, chain, normals, fog] )
 			{
@@ -442,6 +445,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		}
 		finally
 		{
+			backend.LendNextBlock( null );
 			context.SetLayout( gpu, backend.LayoutOf( kept.Texture ) );
 			backend.Release( kept.Texture );
 			backend.DepthRange = (0, 1);
