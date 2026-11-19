@@ -434,7 +434,7 @@ public sealed class ShaderDrawer : IDisposable
 			_ => TextureDimension.Texture2D,
 		};
 
-		if ( !material.Textures.TryGetValue( resource.Variable.Name, out var texture ) || texture.Dimension != expected || texture.Samples > 1 ) return defaults.For( resource );
+		if ( !material.Textures.TryGetValue( resource.Variable.Name, out var texture ) || texture.Dimension != expected || (texture.Samples > 1) != (resource.Dimension == SpirvImageDimension.Texture2DMS) ) return defaults.For( resource );
 		return Binding.Sampled( resource.Binding, texture.Handle, resource.Variable.RenderStateId == 1 && gpu.InfoOf( texture.Handle ).Format.HasSrgb() );
 	}
 
