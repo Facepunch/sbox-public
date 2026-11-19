@@ -905,6 +905,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		return services.LoadedMaterialTexture( o.Material, o.Parameter ) as BackendTexture;
 	}
 
+	public override byte[] ReadCompiledPrefix( string path, long most )
+	{
+		try
+		{
+			return files.TryReadPrefix( path, most );
+		}
+		catch ( System.IO.IOException )
+		{
+			// A package mounting or unmounting while it reads: not found this time
+			return null;
+		}
+	}
+
 	/// <summary>A texture loaded from a compiled <c>.vtex</c>, read from that file.</summary>
 	TextureHandle? FromFile( Texture texture )
 	{

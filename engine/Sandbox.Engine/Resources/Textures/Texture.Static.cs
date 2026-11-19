@@ -30,7 +30,8 @@ public partial class Texture
 		var texture = g_pRenderDevice.FindOrCreateTexture2( string.IsNullOrEmpty( name ) ? "unnamed" : name, anonymous, config, data, dataSize );
 		//bool isRenderTarget = builder.common.m_nFlags.HasFlag( RuntimeTextureSpecificationFlags.TSPEC_RENDER_TARGET );
 
-		if ( data == IntPtr.Zero || dataSize <= 0 )
+		// Source 2's empty device has no image to clear; what's drawn makes its copy cleared (InitialColor)
+		if ( (data == IntPtr.Zero || dataSize <= 0) && Graphics.HasSource2Device )
 		{
 			g_pRenderDevice.ClearTexture( texture, builder._initialColor ?? Color.Transparent );
 		}
@@ -41,6 +42,15 @@ public partial class Texture
 
 		if ( result is not null )
 			result.CreatedMultisample = config.m_nMultisampleType;
+
+		// An anonymous texture is always a new one, described by what it was made with; a named one may be one that was
+		// there already, so it asks Source 2
+		if ( result is not null && anonymous && !result.gotdesc )
+		{
+			result._desc = DescriptionOf( config, dataSize );
+			result.gotdesc = true;
+			result.describedAtCreation = true;
+		}
 
 		// Another device makes its copy from these rather than reading Source 2's back (with -borealisgpu, from before
 		// the device is made too: without Source 2's device there's nothing to read back)
