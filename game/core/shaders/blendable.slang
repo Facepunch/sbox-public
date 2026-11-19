@@ -5,8 +5,8 @@
 // normal.
 import sbox.surface;
 
-// blendable.shader samples with g_sDefault, which has no state of its own: trilinear, wrapped
-SamplerState g_BlendableFiltering;
+// blendable.shader samples with g_sDefault, which has no state of its own: native's default, anisotropic and wrapped
+SamplerState g_BlendableFiltering < Filter( ANISOTROPIC ); >;
 
 /// The mesh's vertex paint.
 public struct BlendablePaint
