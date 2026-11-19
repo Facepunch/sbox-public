@@ -13,7 +13,7 @@ namespace Editor;
 /// the views draw them as any other world. Native changes them behind managed code's back, so their objects report
 /// their changes before each frame (<see cref="Poll"/>). docs/managed/borealis-gpu-path.md, the editor.
 /// </summary>
-internal static class ToolSceneViews
+internal static partial class ToolSceneViews
 {
 	/// <summary>
 	/// <c>ToolSceneManagedRender_t</c> (src/public/toolscene/toolscene.h), as native lays it out.
@@ -135,6 +135,7 @@ internal static class ToolSceneViews
 		public SceneCamera Camera;
 		public ToolLights Lights = new();
 		public ToolOverlays Overlays;
+		public ToolSelection Selection;
 	}
 
 	static readonly Dictionary<IntPtr, View> views = new();
@@ -143,6 +144,7 @@ internal static class ToolSceneViews
 	static SceneCamera bitmapCamera;
 	static ToolLights bitmapLights;
 	static ToolOverlays bitmapOverlays;
+	static ToolSelection bitmapSelection;
 
 	static ulong frame;
 
@@ -201,7 +203,13 @@ internal static class ToolSceneViews
 			view.Camera.OnRenderOverlay = view.Overlays.DrawTextAction( view.Camera );
 		}
 
-		Setup( view.Camera, view.Lights, view.Overlays, ref request, managedWorlds );
+		if ( view.Selection is null )
+		{
+			view.Selection = new ToolSelection();
+			view.Camera.OnRenderStageHook = view.Selection.OnStage;
+		}
+
+		Setup( view.Camera, view.Lights, view.Overlays, view.Selection, ref request, managedWorlds );
 		request.Handled = 1;
 
 		if ( !view.Window.Update( size ) ) return;
@@ -234,7 +242,13 @@ internal static class ToolSceneViews
 			bitmapCamera.OnRenderOverlay = bitmapOverlays.DrawTextAction( bitmapCamera );
 		}
 
-		Setup( bitmapCamera, bitmapLights, bitmapOverlays, ref request, managedWorlds );
+		if ( bitmapSelection is null )
+		{
+			bitmapSelection = new ToolSelection();
+			bitmapCamera.OnRenderStageHook = bitmapSelection.OnStage;
+		}
+
+		Setup( bitmapCamera, bitmapLights, bitmapOverlays, bitmapSelection, ref request, managedWorlds );
 
 		using var bitmap = new Bitmap( request.Width, request.Height );
 		bitmapCamera.RenderToBitmap( bitmap );
@@ -292,7 +306,7 @@ internal static class ToolSceneViews
 	/// Point a camera at a request's worlds, from its camera. Its main world is the view's light stand-ins
 	/// (<see cref="ToolLights"/>); the native worlds are extra worlds of it.
 	/// </summary>
-	static unsafe void Setup( SceneCamera camera, ToolLights lights, ToolOverlays overlays, ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
+	static unsafe void Setup( SceneCamera camera, ToolLights lights, ToolOverlays overlays, ToolSelection selection, ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
 	{
 		var count = Math.Min( request.WorldCount, Request.MaxWorlds );
 		camera.Worlds.Clear();
@@ -300,6 +314,7 @@ internal static class ToolSceneViews
 		camera.World = lights.World;
 		lights.BeginFrame();
 		overlays.BeginFrame();
+		selection.BeginFrame( (request.DrawFlags & Flags.SelectionOutline) != 0 );
 		for ( int i = 0; i < count; i++ )
 		{
 			var world = Sandbox.HandleIndex.Get<SceneWorld>( request.Worlds[i] );
@@ -307,6 +322,7 @@ internal static class ToolSceneViews
 
 			Poll( world );
 			lights.Mirror( world );
+			selection.Gather( world );
 			if ( request.GetGeometry != null ) overlays.Gather( world, request.GetGeometry );
 			if ( request.GetText != null ) overlays.GatherText( world, request.GetText );
 			camera.Worlds.Add( world );
@@ -329,7 +345,7 @@ internal static class ToolSceneViews
 		{
 			Poll( screenSpace );
 			overlays.BeginScreenSpace();
-			if ( request.GetGeometry != null ) overlays.Gather( screenSpace, request.GetGeometry );
+			if ( request.GetGeometry != null ) overlays.Gather( screenSpace, request.GetGeometry, selection );
 			if ( request.GetText != null ) overlays.GatherText( screenSpace, request.GetText );
 		}
 
@@ -386,6 +402,7 @@ internal static class ToolSceneViews
 		view.Window.Dispose();
 		view.Camera.Dispose();
 		view.Overlays?.Dispose();
+		view.Selection?.Dispose();
 		view.Lights.Dispose();
 	}
 
@@ -401,6 +418,8 @@ internal static class ToolSceneViews
 		bitmapCamera = null;
 		bitmapOverlays?.Dispose();
 		bitmapOverlays = null;
+		bitmapSelection?.Dispose();
+		bitmapSelection = null;
 		bitmapLights?.Dispose();
 		bitmapLights = null;
 	}
@@ -538,9 +557,10 @@ internal static class ToolSceneViews
 		static Pass PassOf( int toolLayer ) => toolLayer >= FirstNoDepthToolLayer ? Pass.NoDepth : toolLayer <= LastLitToolLayer ? Pass.Lit : Pass.Unlit;
 
 		/// <summary>
-		/// Copy out the overlay geometry of <paramref name="world"/>'s objects.
+		/// Copy out the overlay geometry of <paramref name="world"/>'s objects. Hammer's selection overlay rectangles go to
+		/// <paramref name="selection"/> instead (<see cref="ToolSelection.TakeOverlay"/>).
 		/// </summary>
-		public void Gather( SceneWorld world, delegate* unmanaged< IntPtr, int, Geometry*, ToolVertex*, int, int > getGeometry )
+		public void Gather( SceneWorld world, delegate* unmanaged< IntPtr, int, Geometry*, ToolVertex*, int, int > getGeometry, ToolSelection selection = null )
 		{
 			lock ( world.InternalSceneObjects )
 			{
@@ -565,6 +585,7 @@ internal static class ToolSceneViews
 							count = getGeometry( sceneObject.native, batch, &geometry, destination, count );
 						}
 						if ( count <= 0 ) continue;
+						if ( selection is not null && selection.TakeOverlay( sceneObject, vertices.AsSpan( vertexCount, count ) ) ) continue;
 
 						batches.Add( new Batch
 						{

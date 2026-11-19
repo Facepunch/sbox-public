@@ -62,4 +62,22 @@ public class ToolSceneViewsTests
 		ToolSceneViews.Convert( rgba, same, ToolSceneViews.PixelFormat.Rgba8888 );
 		CollectionAssert.AreEqual( rgba, same );
 	}
+
+	/// <summary>
+	/// Hammer's selection draws in native's colours: its overlay rectangle's vertex colour and the outline's colour are sRGB,
+	/// made linear as <c>tools_selection_overlay</c> and <c>SRGBColorToLinearColor</c> make them, with the alpha kept.
+	/// </summary>
+	[TestMethod]
+	public void SelectionColoursAreNativesMadeLinear()
+	{
+		var tint = ToolSceneViews.ToolSelection.TintFor( new Color32( 255, 183, 45, 96 ) );
+		Assert.AreEqual( 1.0f, tint.x, 1e-4f );
+		Assert.AreEqual( 0.4735f, tint.y, 1e-3f );
+		Assert.AreEqual( 0.0262f, tint.z, 1e-3f );
+		Assert.AreEqual( 96 / 255.0f, tint.w, 1e-4f );
+
+		var outline = ToolSceneViews.ToolSelection.SelectedOutlineColor;
+		Assert.AreEqual( 0.4735f, outline.y, 1e-3f );
+		Assert.AreEqual( 1.0f, outline.w );
+	}
 }
