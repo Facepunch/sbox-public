@@ -32,6 +32,12 @@ public sealed class Skybox3D
 	public float Scale { get; set; } = 16.0f;
 
 	/// <summary>
+	/// How the skybox is turned against the main world: the skybox view is the main view turned and moved by its inverse
+	/// (<c>Compute3DSkyboxFrustum</c>'s sky_reference angles). Identity by default.
+	/// </summary>
+	public Rotation Rotation { get; set; } = Rotation.Identity;
+
+	/// <summary>
 	/// Optional analytic fog in main-world units. Null inherits the main camera's fog.
 	/// </summary>
 	public FogSettings? Fog { get; set; }

@@ -17,7 +17,7 @@ public class ToolSceneViewsTests
 	[TestMethod]
 	public void RequestMatchesNativeLayout()
 	{
-		Assert.AreEqual( 200, Marshal.SizeOf<ToolSceneViews.Request>() );
+		Assert.AreEqual( 400, Marshal.SizeOf<ToolSceneViews.Request>() );
 		Assert.AreEqual( 72, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Window ) ) );
 		Assert.AreEqual( 80, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Width ) ) );
 		Assert.AreEqual( 112, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.FovX ) ) );
@@ -29,6 +29,14 @@ public class ToolSceneViewsTests
 		Assert.AreEqual( 184, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.ScreenSpaceWorld ) ) );
 		Assert.AreEqual( 188, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.ToolsVisMode ) ) );
 		Assert.AreEqual( 192, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.DrawFlags ) ) );
+		Assert.AreEqual( 200, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.SkyboxWorldCount ) ) );
+		Assert.AreEqual( 220, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.SkyboxOrigin ) ) );
+		Assert.AreEqual( 244, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.SkyboxScale ) ) );
+		Assert.AreEqual( 248, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.GradientFog ) ) );
+		Assert.AreEqual( 300, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.CubemapFog ) ) );
+		Assert.AreEqual( 332, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.CubemapFogOrigin ) ) );
+		Assert.AreEqual( 360, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.CubemapFogTexture ) ) );
+		Assert.AreEqual( 368, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.VolumetricFog ) ) );
 
 		// ToolSceneText_t
 		Assert.AreEqual( 48, Marshal.SizeOf<ToolSceneViews.Text>() );
