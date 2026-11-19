@@ -286,8 +286,10 @@ public sealed unsafe partial class Device
 		return carried;
 	}
 
-	/// <summary>Free upload pages kept for later lists however few frames use: about 32 MiB.</summary>
-	internal const int KeptFreeUploadPages = 8;
+	/// <summary>
+	/// Free upload pages kept past what the last window of frames used at most (<see cref="TrimSpares"/>): a 4 MiB spare.
+	/// </summary>
+	internal const int KeptFreeUploadPages = 1;
 
 	/// <summary>Frames a free upload page has to go unused before it's freed.</summary>
 	internal const ulong UploadPageIdleFrames = 300;
@@ -296,6 +298,14 @@ public sealed unsafe partial class Device
 	internal const int KeptFreeCommandLists = 16;
 
 	int freePagesLow = int.MaxValue;
+	readonly List<UploadPage> trimPages = new();
+	PagesByBlock pagesByBlock;
+
+	// Free upload pages, those in the emptiest blocks first
+	sealed class PagesByBlock( Device device ) : IComparer<UploadPage>
+	{
+		public int Compare( UploadPage a, UploadPage b ) => device.Get( a.Buffer ).Memory.Block.Used.CompareTo( device.Get( b.Buffer ).Memory.Block.Used );
+	}
 	readonly int[] freeListsLow = [int.MaxValue, int.MaxValue];
 	ulong trimFrom;
 
@@ -304,14 +314,29 @@ public sealed unsafe partial class Device
 	/// <see cref="KeptFreeUploadPages"/> and <see cref="KeptFreeCommandLists"/>: a load's uploads take hundreds of pages
 	/// (Construct's held 1.4 GB of mapped memory from then on), and a map's frames take over a hundred lists, whose command
 	/// pools keep the driver's command memory (Construct's held ~370 MB of video memory in the menu after it); steady
-	/// frames take a few.
+	/// frames take a few. The pages freed are those in the emptiest memory blocks, so blocks drain rather than each keeping
+	/// a page or two (Construct had 100 MiB of 4 MiB holes in upload blocks).
 	/// </summary>
 	void TrimSpares()
 	{
 		freePagesLow = Math.Min( freePagesLow, FreePages.Count );
 		if ( FrameNumber - trimFrom < UploadPageIdleFrames ) return;
 
-		for ( int i = KeptFreeUploadPages; i < freePagesLow && FreePages.TryTake( out var page ); i++ ) Destroy( page.Buffer );
+		var excess = freePagesLow - KeptFreeUploadPages;
+		if ( excess > 0 && freePagesLow != int.MaxValue )
+		{
+			trimPages.Clear();
+			while ( FreePages.TryTake( out var page ) ) trimPages.Add( page );
+			trimPages.Sort( pagesByBlock ??= new PagesByBlock( this ) );
+			for ( int i = 0; i < trimPages.Count; i++ )
+			{
+				if ( i < excess ) Destroy( trimPages[i].Buffer );
+				else FreePages.Add( trimPages[i] );
+			}
+
+			trimPages.Clear();
+		}
+
 		freePagesLow = int.MaxValue;
 
 		// A spare list's frame has finished: its command pool and descriptor pool can go at once
