@@ -353,6 +353,44 @@ public class TerrainComponentTest
 	}
 
 	/// <summary>
+	/// Clipmap settings written to an enabled terrain that has no storage yet - as a scene's terrain deserializes, its
+	/// clipmap settings before its storage - are kept without making a clipmap (which threw reading the missing storage).
+	/// Once it has storage, a setting rebuilds the clipmap it made.
+	/// </summary>
+	[TestMethod]
+	public void ClipmapSettingsBeforeStorageMakeNoClipmap()
+	{
+		TestGraphics.Require();
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var baseline = scene.SceneWorld.SceneObjects.Count();
+		var go = scene.CreateObject();
+		var terrain = go.Components.Create<Terrain>();
+		Assert.IsTrue( terrain.Active );
+		Assert.IsNull( terrain.Storage );
+
+		terrain.ClipMapLodLevels = 4;
+		terrain.ClipMapLodExtentTexels = 128;
+		terrain.SubdivisionFactor = 2;
+
+		Assert.AreEqual( 4, terrain.ClipMapLodLevels );
+		Assert.AreEqual( 128, terrain.ClipMapLodExtentTexels );
+		Assert.AreEqual( 2, terrain.SubdivisionFactor );
+		Assert.AreEqual( baseline, scene.SceneWorld.SceneObjects.Count(), "no clipmap without storage" );
+
+		terrain.Storage = CreateSmallStorage();
+		Assert.AreEqual( baseline + 1, scene.SceneWorld.SceneObjects.Count(), "the clipmap, once there's storage" );
+
+		terrain.ClipMapLodLevels = 5;
+		Assert.AreEqual( baseline + 1, scene.SceneWorld.SceneObjects.Count(), "a setting rebuilds the one clipmap" );
+
+		go.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
 	/// Terrain component configuration - collision switch, clipmap settings, shadow mode,
 	/// material override and inherited collider surface overrides - survives a GameObject
 	/// serialize/deserialize round trip, including the disabled state. The storage was
