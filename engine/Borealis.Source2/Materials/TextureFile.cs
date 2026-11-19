@@ -47,9 +47,31 @@ public sealed class TextureFile
 
 	/// <summary>
 	/// Each mip's data (all its slices, tightly packed), largest first; null for the mips finer than <see cref="TopMip"/>
-	/// when only some were read.
+	/// when only some were read. Read pooled, each array may be longer than its mip (<see cref="Mip"/> is exactly it), and
+	/// they're gone once <see cref="Release"/>d.
 	/// </summary>
 	public byte[][] MipData { get; private init; }
+
+	/// <summary>Whether its mips are in <see cref="ContentBuffers"/> arrays, until <see cref="Release"/>.</summary>
+	public bool Pooled { get; private set; }
+
+	/// <summary>A read mip's bytes, every slice.</summary>
+	public ReadOnlySpan<byte> Mip( int mip ) => MipData[mip].AsSpan( 0, MipBytes( mip ) );
+
+	/// <summary>
+	/// Give a pooled read's mip arrays back (<see cref="ContentBuffers"/>) once they've been written to the GPU: its mips
+	/// are gone after. Nothing for one that isn't pooled; once only.
+	/// </summary>
+	public void Release()
+	{
+		if ( !Pooled ) return;
+		Pooled = false;
+		for ( int mip = 0; mip < MipData.Length; mip++ )
+		{
+			ContentBuffers.Return( MipData[mip] );
+			MipData[mip] = null;
+		}
+	}
 
 	/// <summary>The finest mip read: 0 unless it was read from <see cref="Tail"/> or a mip further down.</summary>
 	public int TopMip { get; private init; }
@@ -80,9 +102,16 @@ public sealed class TextureFile
 
 	/// <summary>
 	/// Read a texture's mips from <paramref name="top"/> (or its tail, <see cref="Tail"/>) to the last, from its
-	/// <c>.vtex_c</c> bytes or as much of their start as <see cref="PrefixNeeded"/> says.
+	/// <c>.vtex_c</c> bytes or as much of their start as <see cref="PrefixNeeded(byte[], int)"/> says.
 	/// </summary>
-	public static TextureFile Read( byte[] data, int top )
+	public static TextureFile Read( byte[] data, int top ) => Read( data, top, pooled: false );
+
+	/// <summary>
+	/// As <see cref="Read(byte[], int)"/>; <paramref name="pooled"/> decodes the mips into <see cref="ContentBuffers"/>
+	/// arrays, given back with <see cref="Release"/> once they're written, so streaming makes no garbage. A PNG's mips are
+	/// never pooled.
+	/// </summary>
+	public static TextureFile Read( ReadOnlySpan<byte> data, int top, bool pooled )
 	{
 		var header = new Header( data );
 		top = Math.Clamp( top < 0 ? header.TailTop : top, 0, header.Mips - 1 );
@@ -90,26 +119,42 @@ public sealed class TextureFile
 		var mipData = new byte[header.Mips][];
 		if ( header.Png )
 		{
-			var (width, height, rgba) = Png.Decode( data.AsSpan( header.HeaderBytes ) );
+			var (width, height, rgba) = Png.Decode( data[header.HeaderBytes..] );
 			if ( width != header.Width || height != header.Height ) throw new InvalidDataException( $"Texture's PNG is {width}x{height}, not {header.Width}x{header.Height}" );
 			mipData[0] = rgba;
 			for ( int mip = 1; mip < header.Mips; mip++ ) mipData[mip] = Halve( mipData[mip - 1], Math.Max( width >> (mip - 1), 1 ), Math.Max( height >> (mip - 1), 1 ) );
 			top = 0;
+			pooled = false;
 		}
 		else if ( header.GpuFormat != Format.Unknown )
 		{
-			var position = header.HeaderBytes;
-			for ( int mip = header.Mips - 1; mip >= top; mip-- )
+			try
 			{
-				var size = header.Size( mip );
-				var stored = header.Stored[mip];
-				if ( (long)position + stored > data.Length ) throw new InvalidDataException( $"Texture data ends before mip {mip}" );
-				var source = data.AsSpan( position, stored );
-				mipData[mip] = stored == size || header.Compression == 0 ? source.ToArray()
-					: header.Compression == 1 ? Lz4.Decompress( source, size )
-					: Zstd.Decompress( source, size );
-				position += stored;
+				var position = header.HeaderBytes;
+				for ( int mip = header.Mips - 1; mip >= top; mip-- )
+				{
+					var size = header.Size( mip );
+					var stored = header.Stored( mip );
+					if ( (long)position + stored > data.Length ) throw new InvalidDataException( $"Texture data ends before mip {mip}" );
+					var source = data.Slice( position, stored );
+					var bytes = pooled ? ContentBuffers.Rent( size ) : new byte[size];
+					mipData[mip] = bytes;
+					var into = bytes.AsSpan( 0, size );
+					if ( stored == size || header.Compression == 0 ) source[..Math.Min( stored, size )].CopyTo( into );
+					else if ( header.Compression == 1 && Lz4.Decompress( source, into ) is var lz4 && lz4 != size ) throw new InvalidDataException( $"LZ4 block held {lz4} bytes, expected {size}" );
+					else if ( header.Compression != 1 && Zstd.Decompress( source, into ) is var zstd && zstd != size ) throw new InvalidDataException( $"Zstandard data held {zstd} bytes, expected {size}" );
+					position += stored;
+				}
 			}
+			catch when ( pooled )
+			{
+				foreach ( var bytes in mipData ) ContentBuffers.Return( bytes );
+				throw;
+			}
+		}
+		else
+		{
+			pooled = false;
 		}
 
 		return new TextureFile
@@ -125,6 +170,7 @@ public sealed class TextureFile
 			MipData = mipData,
 			TopMip = header.GpuFormat == Format.Unknown ? 0 : top,
 			TailTop = header.TailTop,
+			Pooled = pooled,
 		};
 	}
 
@@ -133,7 +179,10 @@ public sealed class TextureFile
 	/// (or the tail), worked out from what <paramref name="prefix"/> holds. When that's more than the prefix, read that
 	/// much and ask again: a prefix shorter than the header only says how long the header is.
 	/// </summary>
-	public static long PrefixNeeded( byte[] prefix, int top )
+	public static long PrefixNeeded( byte[] prefix, int top ) => PrefixNeeded( prefix.AsSpan(), top );
+
+	/// <summary>As <see cref="PrefixNeeded(byte[], int)"/>, from the bytes read so far.</summary>
+	public static long PrefixNeeded( ReadOnlySpan<byte> prefix, int top )
 	{
 		if ( prefix.Length < 16 ) return 16;
 		var headerSize = BinaryPrimitives.ReadUInt32LittleEndian( prefix );
@@ -141,40 +190,38 @@ public sealed class TextureFile
 
 		var header = new Header( prefix );
 		if ( header.GpuFormat == Format.Unknown ) return header.HeaderBytes;
-		if ( header.Png ) return prefix.Length <= header.HeaderBytes ? header.HeaderBytes + 8 : header.HeaderBytes + Png.Length( prefix.AsSpan( header.HeaderBytes ) );
+		if ( header.Png ) return prefix.Length <= header.HeaderBytes ? header.HeaderBytes + 8 : header.HeaderBytes + Png.Length( prefix[header.HeaderBytes..] );
 		top = Math.Clamp( top < 0 ? header.TailTop : top, 0, header.Mips - 1 );
 		long bytes = header.HeaderBytes;
-		for ( int mip = top; mip < header.Mips; mip++ ) bytes += header.Stored[mip];
+		for ( int mip = top; mip < header.Mips; mip++ ) bytes += header.Stored( mip );
 		return bytes;
 	}
 
-	/// <summary>The <c>VTEX_Header_t</c>, and each mip's stored size.</summary>
-	readonly struct Header
+	/// <summary>The <c>VTEX_Header_t</c>, and each mip's stored size, read from the file's bytes as they're needed.</summary>
+	readonly ref struct Header
 	{
 		public readonly int Width, Height, Depth, SourceFormat, Mips, Slices, Compression, HeaderBytes, TailTop;
 		public readonly bool Cube, Array, Volume, Png;
 		public readonly Format GpuFormat;
-		public readonly int[] Stored;
 
-		public Header( byte[] data )
+		// Where the compressed mip sizes are listed and how many, if they are
+		readonly ReadOnlySpan<byte> compressedSizes;
+
+		public Header( ReadOnlySpan<byte> data )
 		{
-			var resource = ResourceFile.Read( data );
-			HeaderBytes = resource.HeaderSize;
-			var (offset, _) = resource.Find( "DATA" );
-			var header = new ByteReader( data, offset );
-			header.UShort();
-			var flags = header.UShort();
-			header.Skip( 16 );
-			Width = header.UShort();
-			Height = header.UShort();
-			Depth = header.UShort();
-			SourceFormat = header.Byte();
-			Mips = Math.Max( (int)header.Byte(), 1 );
+			var (headerBytes, offset, _) = ResourceFile.FindBlock( data, "DATA"u8 );
+			HeaderBytes = headerBytes;
+			var header = data[offset..];
+			var flags = BinaryPrimitives.ReadUInt16LittleEndian( header[2..] );
+			Width = BinaryPrimitives.ReadUInt16LittleEndian( header[20..] );
+			Height = BinaryPrimitives.ReadUInt16LittleEndian( header[22..] );
+			Depth = BinaryPrimitives.ReadUInt16LittleEndian( header[24..] );
+			SourceFormat = header[26];
+			Mips = Math.Max( (int)header[27], 1 );
 			Png = SourceFormat is PngRgba8888 or PngDxt5;
-			header.Int();
-			var extraStart = header.Position;
-			var extraOffset = header.Int();
-			var extraCount = header.Int();
+			var extraStart = offset + 32;
+			var extraOffset = BinaryPrimitives.ReadInt32LittleEndian( header[32..] );
+			var extraCount = BinaryPrimitives.ReadInt32LittleEndian( header[36..] );
 
 			Cube = (flags & FlagCube) != 0;
 			Array = (flags & FlagArray) != 0;
@@ -187,33 +234,36 @@ public sealed class TextureFile
 			if ( Png ) Mips = Slices > 1 || Volume ? 1 : Mips > 1 ? Mips : System.Numerics.BitOperations.Log2( (uint)Math.Max( Math.Max( Width, Height ), 1 ) ) + 1;
 
 			// Compressed mip sizes, if any
-			uint[] compressedSizes = null;
+			compressedSizes = default;
 			Compression = 0;
 			for ( int i = 0; i < extraCount; i++ )
 			{
 				var entry = extraStart + extraOffset + i * 12;
-				var type = BinaryPrimitives.ReadInt32LittleEndian( data.AsSpan( entry ) );
+				var type = BinaryPrimitives.ReadInt32LittleEndian( data[entry..] );
 				if ( type != 4 ) continue;
 
-				var start = entry + 4 + BinaryPrimitives.ReadInt32LittleEndian( data.AsSpan( entry + 4 ) );
-				Compression = BinaryPrimitives.ReadInt32LittleEndian( data.AsSpan( start ) );
-				var sizesStart = start + 4 + BinaryPrimitives.ReadInt32LittleEndian( data.AsSpan( start + 4 ) );
-				compressedSizes = new uint[BinaryPrimitives.ReadInt32LittleEndian( data.AsSpan( start + 8 ) )];
-				for ( int j = 0; j < compressedSizes.Length; j++ ) compressedSizes[j] = BinaryPrimitives.ReadUInt32LittleEndian( data.AsSpan( sizesStart + j * 4 ) );
+				var start = entry + 4 + BinaryPrimitives.ReadInt32LittleEndian( data[(entry + 4)..] );
+				Compression = BinaryPrimitives.ReadInt32LittleEndian( data[start..] );
+				var sizesStart = start + 4 + BinaryPrimitives.ReadInt32LittleEndian( data[(start + 4)..] );
+				compressedSizes = data.Slice( sizesStart, BinaryPrimitives.ReadInt32LittleEndian( data[(start + 8)..] ) * 4 );
 			}
 
-			Stored = new int[Mips];
 			TailTop = Mips - 1;
 			if ( GpuFormat == Format.Unknown || Png ) return;
 
 			long tail = 0;
 			for ( int mip = Mips - 1; mip >= 0; mip-- )
 			{
-				var size = Size( mip );
-				Stored[mip] = compressedSizes is not null && mip < compressedSizes.Length ? (int)compressedSizes[mip] : size;
-				tail += size;
+				tail += Size( mip );
 				if ( tail <= TailBytes ) TailTop = mip;
 			}
+		}
+
+		/// <summary>A mip's bytes in the file: its compressed size where they're listed, else its decoded size.</summary>
+		public int Stored( int mip )
+		{
+			if ( GpuFormat == Format.Unknown || Png ) return 0;
+			return mip * 4 < compressedSizes.Length ? (int)BinaryPrimitives.ReadUInt32LittleEndian( compressedSizes[(mip * 4)..] ) : Size( mip );
 		}
 
 		/// <summary>A mip's decoded bytes, every slice.</summary>
@@ -323,9 +373,10 @@ public sealed class TextureFile
 	/// <summary>Write one read mip, every slice, into <see cref="CreateEmpty"/>'s texture; its bytes.</summary>
 	public int Write( Device gpu, TextureHandle texture, int mip )
 	{
-		var size = MipData[mip].Length / Slices;
-		for ( int slice = 0; slice < Slices; slice++ ) gpu.WriteTexture( texture, MipData[mip].AsSpan( slice * size, size ), mip - TopMip, slice );
-		return MipData[mip].Length;
+		var data = Mip( mip );
+		var size = data.Length / Slices;
+		for ( int slice = 0; slice < Slices; slice++ ) gpu.WriteTexture( texture, data.Slice( slice * size, size ), mip - TopMip, slice );
+		return data.Length;
 	}
 
 	/// <summary>
@@ -338,9 +389,10 @@ public sealed class TextureFile
 		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
 		for ( int mip = TopMip; mip < Mips; mip++ )
 		{
-			var size = MipData[mip].Length / Slices;
+			var data = Mip( mip );
+			var size = data.Length / Slices;
 			int width = Math.Max( Width >> mip, 1 ), height = Math.Max( Height >> mip, 1 );
-			for ( int slice = 0; slice < Slices; slice++ ) list.UpdateTexture( texture, MipData[mip].AsSpan( slice * size, size ), mip - TopMip, slice, width, height );
+			for ( int slice = 0; slice < Slices; slice++ ) list.UpdateTexture( texture, data.Slice( slice * size, size ), mip - TopMip, slice, width, height );
 		}
 
 		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.ShaderRead ) );

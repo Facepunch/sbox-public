@@ -185,6 +185,46 @@ public class DrawCallbacksTests
 		custom.Marker.Dispose();
 	}
 
+	/// <summary>
+	/// An opaque custom object that notes the tools pass each of its draws is given.
+	/// </summary>
+	sealed class ToolsPassCustom : CustomObject
+	{
+		public readonly List<ToolsPass> Seen = new();
+
+		public ToolsPassCustom( Vector3 position )
+		{
+			LocalBounds = UnitBox;
+			Transform = new Transform( position );
+			IsOpaque = true;
+		}
+
+		internal override void Render( GpuContext context, ViewPass view, MeshLayer layer ) => Seen.Add( context.ToolsPass );
+	}
+
+	/// <summary>
+	/// The wireframe view mode is the scene's meshes': a custom object (a tool view's overlay lines) draws as it asks, as
+	/// native's wireframe override replaces only scene objects' material modes, so tool lines keep their colours.
+	/// </summary>
+	[TestMethod]
+	public void CustomObjectsDrawTheirOwnWayInWireframe()
+	{
+		var world = new RenderWorld();
+		world.Add( new MeshObject( TestMesh( false ), new Transform( new Vector3( 30, 0, 0 ) ) ) );
+		var custom = new ToolsPassCustom( new Vector3( 20, 0, 0 ) );
+		world.Add( custom );
+
+		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var system = new RenderSystem();
+		var view = LookingDownX();
+		view.Wireframe = true;
+		RenderHost.Current.NextFrame();
+		system.Render( world, view, target );
+
+		Assert.IsTrue( custom.Seen.Count > 0 );
+		Assert.IsTrue( custom.Seen.All( x => x == ToolsPass.None ), string.Join( ", ", custom.Seen ) );
+	}
+
 	[TestMethod]
 	public void CallbacksKeepColourLayersOnTheMainThread()
 	{

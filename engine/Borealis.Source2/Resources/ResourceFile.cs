@@ -47,6 +47,32 @@ public sealed class ResourceFile
 	/// <summary>Read a resource from its bytes.</summary>
 	public static ResourceFile Read( byte[] data ) => new( data );
 
+	/// <summary>
+	/// The header's size and where a block (its four-character name in ASCII) starts and how long it is, read from a
+	/// resource's bytes as <see cref="Read"/> and <see cref="Find"/> read them, without keeping anything: for reads that
+	/// stream and mustn't make garbage. Throws if there's no such block.
+	/// </summary>
+	public static (int HeaderSize, int Offset, int Size) FindBlock( ReadOnlySpan<byte> data, ReadOnlySpan<byte> block )
+	{
+		if ( data.Length < 16 ) throw new InvalidDataException( "Too small to be a resource" );
+		var headerSize = (int)BinaryPrimitives.ReadUInt32LittleEndian( data );
+		var headerVersion = BinaryPrimitives.ReadUInt16LittleEndian( data[4..] );
+		if ( headerVersion != 12 ) throw new InvalidDataException( $"Resource header version {headerVersion}, expected 12" );
+
+		var entry = 8 + BinaryPrimitives.ReadInt32LittleEndian( data[8..] );
+		var count = BinaryPrimitives.ReadInt32LittleEndian( data[12..] );
+		for ( int i = 0; i < count; i++, entry += 12 )
+		{
+			if ( entry < 0 || entry + 12 > data.Length ) throw new InvalidDataException( "Resource block table runs off the end" );
+			var offset = entry + 4 + BinaryPrimitives.ReadInt32LittleEndian( data[(entry + 4)..] );
+			var size = BinaryPrimitives.ReadInt32LittleEndian( data[(entry + 8)..] );
+			if ( offset < 0 || (long)offset + size > data.Length ) throw new InvalidDataException( "Resource block runs off the end" );
+			if ( data.Slice( entry, 4 ).SequenceEqual( block ) ) return (headerSize, offset, size);
+		}
+
+		throw new InvalidDataException( $"Resource has no {Encoding.ASCII.GetString( block )} block" );
+	}
+
 	/// <summary>Read a resource from disk.</summary>
 	public static ResourceFile Load( string path ) => new( File.ReadAllBytes( path ) );
 

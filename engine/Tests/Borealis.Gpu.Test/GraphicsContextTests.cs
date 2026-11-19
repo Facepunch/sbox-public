@@ -534,6 +534,40 @@ public class GraphicsContextTests : GpuTest
 	}
 
 	/// <summary>
+	/// A depth that isn't bound copied from a region of it, as a depth grab over a frame's output takes the finished frame's
+	/// depth while only the output's colour is bound.
+	/// </summary>
+	[TestMethod]
+	public void CopiesDepthThatIsNotBound()
+	{
+		var list = Device.BeginCommandList( QueueType.Graphics, "Unbound depth" );
+		var context = new GraphicsContext( Device, drawer, list );
+		var depth = Device.CreateTexture( TextureInfo.RenderTarget( Size, Size, Format.D32Float, name: "Frame depth" ) );
+		var grabbed = Device.CreateTexture( TextureInfo.RenderTarget( 16, 16, Format.D32Float, name: "Grabbed depth" ) );
+		list.Barrier( TextureBarrier.Transition( depth, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.None, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		list.ClearTexture( depth, default, 0.75f );
+		context.Track( depth, ImageLayout.CopyDestination );
+		context.Track( grabbed, ImageLayout.Undefined );
+		var output = context.CreateTarget( Size, Size, Format.RGBA8Unorm, name: "Output" );
+		context.SetTarget( output );
+		Assert.IsFalse( context.Depth.IsValid, "no depth is bound" );
+		Assert.IsTrue( context.CopyDepth( depth, grabbed, new Vector4( 0, 0, 16, 16 ) ) );
+
+		var readback = Device.CreateBuffer( new BufferInfo { Size = 16 * 16 * 4, Memory = MemoryLocation.Readback, Name = "Depth" } );
+		context.CopyToBuffer( grabbed, readback );
+		context.Finish();
+		Device.Wait( Device.Submit( list ) );
+
+		var depths = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>( Device.Map( readback )[..(16 * 16 * 4)] ).ToArray();
+		Assert.IsTrue( depths.All( d => d == 0.75f ), "the grabbed depth is the frame's" );
+
+		context.Release();
+		Device.Destroy( readback );
+		Device.Destroy( depth );
+		Device.Destroy( grabbed );
+	}
+
+	/// <summary>
 	/// Multisampled depth grabbed into a single-sampled texture, as <c>Graphics.GrabDepthTexture</c> into a target without
 	/// the frame's samples: resolved whole, sample zero, and validation (synchronisation included) stays clean. A texture
 	/// smaller than the depth isn't resolved into.

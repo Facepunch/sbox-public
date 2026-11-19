@@ -183,7 +183,7 @@ internal sealed class BorealisGpuWindow : IDisposable
 
 		Drawing = this;
 		using var scope = Graphics.Scope.CreateOn( backend );
-		Graphics.RenderTarget = RenderTarget.From( target );
+		Graphics.RenderTarget = TargetOfWindow();
 		Graphics.Clear( background, true, false, false );
 		if ( timestamps is not null ) backend.WriteTimestamp( timestamps, TimestampSlot, PipelineStage.TopOfPipe, reset: 2 );
 		return true;
@@ -214,6 +214,23 @@ internal sealed class BorealisGpuWindow : IDisposable
 
 	BorealisGpuView overlay;
 
+	// The window's target as a render target, made again only when the target is; and the overlay EndFrame draws, which the
+	// one delegate handed to Draw reads, so a frame allocates neither
+	(Texture Texture, RenderTarget Target) windowTarget;
+	Action overlayDraw, drawOverlay;
+
+	RenderTarget TargetOfWindow()
+	{
+		if ( !ReferenceEquals( windowTarget.Texture, target ) ) windowTarget = (target, RenderTarget.From( target ));
+		return windowTarget.Target;
+	}
+
+	void DrawOverlay()
+	{
+		Graphics.Attributes.Set( "UIGammaOutput", true );
+		overlayDraw();
+	}
+
 	/// <summary>
 	/// Finish the frame <see cref="BeginFrame"/> started: <paramref name="draw"/> (the overlay) last, over the whole window
 	/// and writing gamma-encoded output as UI does, in the block that copies the target into the acquired image. Present it
@@ -225,13 +242,17 @@ internal sealed class BorealisGpuWindow : IDisposable
 		try
 		{
 			overlay ??= new BorealisGpuView( backend );
-			overlay.Target = RenderTarget.From( target );
+			overlay.Target = TargetOfWindow();
 			overlay.Viewport = new Rect( 0, 0, Size.x, Size.y );
-			Draw( overlay, () =>
+			overlayDraw = draw;
+			try
 			{
-				Graphics.Attributes.Set( "UIGammaOutput", true );
-				draw();
-			}, present: true );
+				Draw( overlay, drawOverlay ??= DrawOverlay, present: true );
+			}
+			finally
+			{
+				overlayDraw = null;
+			}
 
 			// The frame as it's presented, for screenshots asked for during it
 			if ( screenshots ) ScreenshotService.ProcessFrame( backend, target );

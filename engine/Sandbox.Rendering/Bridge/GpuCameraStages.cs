@@ -32,19 +32,31 @@ internal sealed class GpuCameraStages : IRenderStages
 		if ( stage is not (RenderStage.AfterDepthPrepass or RenderStage.AfterOpaque or RenderStage.AfterSkybox) ) return;
 		if ( Camera is null || Frame is null || View is null ) return;
 
-		var camera = Camera;
-		var run = Run;
 		var layer = View.LayerType;
+		var outer = (drawing, drawingStage);
+		(drawing, drawingStage) = (Camera, (Stage)stage);
 		View.LayerType = stage == RenderStage.AfterDepthPrepass ? SceneLayerType.DepthPrepass : SceneLayerType.Opaque;
 		try
 		{
-			Frame.RunStage( target, System.Frame.Constants, View, first: stage == RenderStage.AfterDepthPrepass && !traced, () => run( camera, (Stage)stage ) );
+			Frame.RunStage( target, System.Frame.Constants, View, first: stage == RenderStage.AfterDepthPrepass && !traced, drawStage ??= DrawStage );
 		}
 		finally
 		{
 			View.LayerType = layer;
+			(drawing, drawingStage) = outer;
 		}
 	}
+
+	// The stage being drawn, which the one delegate the frame runs draws, so a stage allocates nothing
+	SceneCamera drawing;
+	Stage drawingStage;
+	Action drawStage;
+
+	void DrawStage() => Run( drawing, drawingStage );
+
+	// The reflections' trace and history capture as delegates, made once per reflections pass
+	ScreenSpaceReflectionsPass reflectionsDrawn;
+	Action trace, captureHistory;
 
 	/// <summary>
 	/// A top-level camera's frame with screen-space reflections on (<c>r_ssr_downsample_ratio</c>): child views, reflections
@@ -65,7 +77,8 @@ internal sealed class GpuCameraStages : IRenderStages
 		View.LayerType = history ? SceneLayerType.Opaque : SceneLayerType.DepthPrepass;
 		try
 		{
-			Frame.RunStage( target, System.Frame.Constants, View, first: !history, history ? reflections.CaptureHistory : reflections.Trace );
+			if ( !ReferenceEquals( reflectionsDrawn, reflections ) ) (reflectionsDrawn, trace, captureHistory) = (reflections, reflections.Trace, reflections.CaptureHistory);
+			Frame.RunStage( target, System.Frame.Constants, View, first: !history, history ? captureHistory : trace );
 		}
 		finally
 		{
