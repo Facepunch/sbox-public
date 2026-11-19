@@ -716,7 +716,7 @@ public sealed unsafe class CommandList
 	/// <summary>Whether a rendering scope is open.</summary>
 	public bool IsRendering => rendering;
 
-	static bool IsIntegerFormat( Format format ) => format is Format.RGBA8Uint or Format.R16Uint or Format.RGBA16Uint or Format.R32Uint or Format.R32Sint or Format.RG32Uint or Format.RGBA32Uint;
+	static bool IsIntegerFormat( Format format ) => format.IsInteger();
 
 	/// <summary>Finish drawing into the targets <see cref="BeginRendering"/> named.</summary>
 	public void EndRendering()

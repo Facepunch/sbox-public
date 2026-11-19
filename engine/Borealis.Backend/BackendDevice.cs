@@ -1725,6 +1725,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				info.FragmentConstants = null;
 			}
 
+			FitOutputs( ref info, variant.Pixel );
+
 			// A draw never waits for it: skipped until workers have made it
 			info.SkipUntilReady = true;
 			using ( Zones.PipelineCreate.Start() ) pipeline = Gpu.CreateGraphicsPipeline( info );
@@ -1732,6 +1734,28 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			if ( DumpPixelShaders is { } dump && info.FragmentShader.IsValid ) DumpPixelShader( dump, variant, info.FragmentConstants, materialPerDraw );
 			return pipeline;
 		}
+	}
+
+	/// <summary>
+	/// Leave out of a pipeline's pixel stage the outputs its colour targets don't take: at a location with no target, or one of
+	/// the other numeric type (integer or float). A variant's GPU-driven form writes its visibility id, a uint, at target 1
+	/// for the ids prepass, where target 1 is the ids; elsewhere target 1 is the opaque pass's normals (RGB10A2) or there's
+	/// none. Location 0 stays: its alpha is what alpha to coverage reads, with a target there or not.
+	/// </summary>
+	void FitOutputs( ref GraphicsPipelineInfo info, ShaderStage pixel )
+	{
+		if ( !info.FragmentShader.IsValid || pixel is null || info.FragmentShader != pixel.Module || pixel.Reflection?.Outputs is not { Count: > 0 } outputs ) return;
+
+		var colors = info.ColorFormats ?? [];
+		var unused = 0u;
+		foreach ( var output in outputs )
+		{
+			if ( output.Location is < 1 or >= 32 ) continue;
+			var fits = output.Location < colors.Length && colors[output.Location] != Format.Unknown && colors[output.Location].IsInteger() == (output.Kind != SpirvScalar.Float);
+			if ( !fits ) unused |= 1u << output.Location;
+		}
+
+		if ( unused != 0 ) info.FragmentShader = Shaders.ModuleWithoutOutputs( pixel, unused );
 	}
 
 	/// <summary>
