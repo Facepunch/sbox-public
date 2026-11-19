@@ -308,7 +308,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor, ISpriteR
 
 		if ( ExecuteBefore is not null || ExecuteAfter is not null )
 			return false;
-		if ( _so.CreatedAttributes?.Get().IsEmpty() == false )
+		if ( _so.CreatedAttributes?.IsEmpty == false )
 			return false;
 		if ( BlendMode != BlendMode.Normal )
 			return false;

@@ -563,24 +563,28 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	public override int SamplerIndex( SamplerState state )
 	{
-		if ( samplers.TryGetValue( state, out var made ) ) return made.Index;
-
-		var info = state.Filter switch
+		// Asked for from more than one thread at once (UI painting among them)
+		lock ( samplers )
 		{
-			FilterMode.Point => SamplerInfo.Point(),
-			FilterMode.Bilinear => SamplerInfo.Linear() with { MipFilter = Filter.Nearest },
-			FilterMode.Anisotropic => SamplerInfo.Linear( anisotropy: state.MaxAnisotropy ),
-			_ => SamplerInfo.Linear(),
-		};
-		info.AddressU = Address( state.AddressModeU );
-		info.AddressV = Address( state.AddressModeV );
-		info.AddressW = Address( state.AddressModeW );
-		info.MaxLod = 15;
+			if ( samplers.TryGetValue( state, out var made ) ) return made.Index;
 
-		var sampler = gpu.CreateSampler( info );
-		made = (sampler, gpu.SamplerIndex( sampler ));
-		samplers[state] = made;
-		return made.Index;
+			var info = state.Filter switch
+			{
+				FilterMode.Point => SamplerInfo.Point(),
+				FilterMode.Bilinear => SamplerInfo.Linear() with { MipFilter = Filter.Nearest },
+				FilterMode.Anisotropic => SamplerInfo.Linear( anisotropy: state.MaxAnisotropy ),
+				_ => SamplerInfo.Linear(),
+			};
+			info.AddressU = Address( state.AddressModeU );
+			info.AddressV = Address( state.AddressModeV );
+			info.AddressW = Address( state.AddressModeW );
+			info.MaxLod = 15;
+
+			var sampler = gpu.CreateSampler( info );
+			made = (sampler, gpu.SamplerIndex( sampler ));
+			samplers[state] = made;
+			return made.Index;
+		}
 	}
 
 	static AddressMode Address( TextureAddressMode mode ) => mode switch
