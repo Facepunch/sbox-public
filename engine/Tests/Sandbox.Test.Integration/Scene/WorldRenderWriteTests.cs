@@ -108,6 +108,7 @@ public class WorldRenderWriteTests
 			light.LightColor = Color.Red;
 			light.Radius = 250;
 			spot.ConeOuter = 40;
+			spot.RenderingEnabled = false;
 			cubemap.Priority = 3;
 			cubemap.Position = new Vector3( 4, 5, 6 );
 			custom.ColorTint = Color.Green;
@@ -120,6 +121,7 @@ public class WorldRenderWriteTests
 			Assert.AreEqual( Color.Red, lightObject.Color );
 			Assert.AreEqual( 250, lightObject.Radius );
 			Assert.AreEqual( 40, ((Borealis.LightObject)spot.RenderObject).ConeOuter );
+			Assert.IsFalse( ((Borealis.LightObject)spot.RenderObject).Visible, "a hidden light lights nothing" );
 			var envMap = (Borealis.EnvMapObject)cubemap.RenderObject;
 			Assert.AreEqual( 3, envMap.Priority );
 			Assert.AreEqual( new Vector3( 4, 5, 6 ), envMap.Transform.Position );
@@ -224,6 +226,38 @@ public class WorldRenderWriteTests
 
 			prepare.Invoke( render, [camera, false] );
 			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SunColor, "the next view lights with the new colour" );
+		}
+		finally
+		{
+			render.Dispose();
+			camera.Dispose();
+			world.Delete();
+		}
+	}
+
+	/// <summary>
+	/// An object casts shadows with both shadow flags, as native's shadow layers require them: a tool's helper model has only
+	/// the material's (MaterialSupportsShadows), which <c>Flags.CastShadows</c> reads as on.
+	/// </summary>
+	[TestMethod]
+	public void ShadowsNeedBothShadowFlags()
+	{
+		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
+
+		var world = new SceneWorld();
+		var camera = new SceneCamera { World = world };
+		var render = (System.IDisposable)System.Activator.CreateInstance( RenderType, [world] );
+		try
+		{
+			var box = new SceneObject( world, Model.Load( "models/dev/box.vmdl" ) );
+			RenderType.GetMethod( "Prepare", Any ).Invoke( render, [camera, false] );
+			var mesh = (Borealis.MeshObject)box.RenderObject;
+			Assert.IsTrue( mesh.CastShadows );
+
+			box.ChangeFlags( SceneObjectFlags.MaterialSupportsShadows, SceneObjectFlags.CastShadows );
+			RenderType.GetMethod( "Prepare", Any ).Invoke( render, [camera, false] );
+			Assert.IsTrue( box.Flags.CastShadows, "the flag reads as on with either bit" );
+			Assert.IsFalse( mesh.CastShadows, "casting isn't enabled" );
 		}
 		finally
 		{

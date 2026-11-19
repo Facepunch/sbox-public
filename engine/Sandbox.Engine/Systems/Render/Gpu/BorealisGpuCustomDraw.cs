@@ -33,8 +33,10 @@ internal static class BorealisGpuCustomDraw
 	/// With depth bound alone (a shadow map's slice, the depth prepass) it draws into that depth, its materials in
 	/// <paramref name="shaderMode"/> (those without it don't draw, as native skips them) with the rasterizer depth bias
 	/// <paramref name="depthBias"/> and <paramref name="slopeScaledDepthBias"/>, as native's shadow layers draw custom objects.
+	/// In colour it draws with <paramref name="cameraAttributes"/> (the camera's, <c>SceneCamera.Attributes</c>) under the
+	/// frame's, as native's custom objects read their view's: lit sprites read the camera's particle lighting there.
 	/// </remarks>
-	public static bool Draw( GpuContext context, SceneLayerType layerType, RenderView camera, Action draw, StringToken shaderMode = default, int depthBias = 0, float slopeScaledDepthBias = 0 )
+	public static bool Draw( GpuContext context, SceneLayerType layerType, RenderView camera, Action draw, StringToken shaderMode = default, int depthBias = 0, float slopeScaledDepthBias = 0, RenderAttributes cameraAttributes = null )
 	{
 		ThreadSafe.AssertIsMainThread();
 		if ( !Enabled || Graphics.IsActive ) return false;
@@ -62,7 +64,7 @@ internal static class BorealisGpuCustomDraw
 		drawer.ToolsPass = depthAlone ? ToolsPass.None : context.ToolsPass;
 		try
 		{
-			frame.RunInFrame( target, constants, view, first: false, draw, depthAlone );
+			frame.RunInFrame( target, constants, view, first: false, draw, depthAlone, cameraAttributes );
 		}
 		finally
 		{

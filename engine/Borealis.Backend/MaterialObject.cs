@@ -716,7 +716,7 @@ internal sealed class MaterialObject
 				(old ??= new()).Add( key );
 			}
 
-			foreach ( var key in old ?? [] ) sets.Remove( key );
+			if ( old is not null ) foreach ( var key in old ) sets.Remove( key );
 			evicted += old?.Count ?? 0;
 		}
 
@@ -731,7 +731,7 @@ internal sealed class MaterialObject
 				(old ??= new()).Add( key );
 			}
 
-			foreach ( var key in old ?? [] ) constantVariants.Remove( key );
+			if ( old is not null ) foreach ( var key in old ) constantVariants.Remove( key );
 		}
 
 		return evicted;
@@ -923,9 +923,10 @@ internal sealed class MaterialObjectCache : IDisposable
 			var before = frame - EvictAfterFrames;
 			if ( before <= 0 ) return;
 
-			MaterialObject[] all;
-			lock ( objects ) all = [.. objects.Values];
-			foreach ( var o in all ) Evicted += o.Evict( before, s => retired.Add( (frame, s, null, 0, 0) ), c => retired.Add( (frame, null, c, 0, 0) ) );
+			lock ( objects ) sweeping.AddRange( allObjects );
+			retireFrame = frame;
+			foreach ( var o in sweeping ) Evicted += o.Evict( before, retireSet ??= RetireSet, retireConstants ??= RetireConstants );
+			sweeping.Clear();
 
 			lock ( keptConstants )
 			{
@@ -937,7 +938,7 @@ internal sealed class MaterialObjectCache : IDisposable
 					(old ??= new()).Add( key );
 				}
 
-				foreach ( var key in old ?? [] ) keptConstants.Remove( key );
+				if ( old is not null ) foreach ( var key in old ) keptConstants.Remove( key );
 			}
 		}
 	}
@@ -998,6 +999,8 @@ internal sealed class MaterialObjectCache : IDisposable
 		{
 			if ( objects.TryGetValue( key, out replaced ) && !replaced.Stale ) return replaced;
 			objects[key] = made;
+			allObjects.Add( made );
+			if ( replaced is not null ) allObjects.Remove( replaced );
 		}
 
 		if ( replaced is not null ) Retire( replaced );
@@ -1019,6 +1022,7 @@ internal sealed class MaterialObjectCache : IDisposable
 			}
 
 			foreach ( var key in stale ?? [] ) objects.TryRemove( key, out _ );
+			foreach ( var value in dropped ?? [] ) allObjects.Remove( value );
 		}
 
 		foreach ( var value in dropped ?? [] ) Retire( value );
@@ -1029,10 +1033,23 @@ internal sealed class MaterialObjectCache : IDisposable
 	{
 		lock ( sweepLock )
 		{
-			var frame = Frame;
-			value.Retire( s => retired.Add( (frame, s, null, 0, 0) ), c => retired.Add( (frame, null, c, 0, 0) ) );
+			retireFrame = Frame;
+			value.Retire( retireSet ??= RetireSet, retireConstants ??= RetireConstants );
 		}
 	}
+
+	// Retiring under sweepLock, for the frame set before: delegates made once, so a sweep or retire allocates none
+	long retireFrame;
+	Action<SetEntry> retireSet;
+	Action<ConstantVariant> retireConstants;
+
+	void RetireSet( SetEntry set ) => retired.Add( (retireFrame, set, null, 0, 0) );
+
+	void RetireConstants( ConstantVariant constants ) => retired.Add( (retireFrame, null, constants, 0, 0) );
+
+	// Every object in objects, in a list a sweep copies under the objects' lock (a dictionary's values allocate), and that copy
+	readonly HashSet<MaterialObject> allObjects = new( ReferenceEqualityComparer.Instance );
+	readonly List<MaterialObject> sweeping = new();
 
 	/// <summary>Space for one material constant buffer, until it's evicted.</summary>
 	public long AllocateMaterialConstants( int size, out Span<byte> data )
@@ -1122,6 +1139,7 @@ internal sealed class MaterialObjectCache : IDisposable
 		{
 			foreach ( var value in objects.Values ) value.Retire( s => Gpu.Destroy( s.Handle ), _ => { } );
 			objects.Clear();
+			allObjects.Clear();
 		}
 
 		lock ( sweepLock )

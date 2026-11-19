@@ -65,6 +65,7 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 		"core/shaders/static_overlay.shader",
 		"core/shaders/generic.shader",
 		"core/shaders/simple.shader",
+		"core/shaders/skin.shader",
 	];
 
 	void CompileGpuDriven( string shaderCompilerPath, string gameDir )

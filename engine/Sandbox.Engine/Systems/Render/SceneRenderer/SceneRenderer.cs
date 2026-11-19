@@ -58,6 +58,13 @@ internal interface ISceneRenderer
 	void WarmUp();
 
 	/// <summary>
+	/// The frame's output starts (<see cref="SceneRenderer.BeginFrame"/>), whether or not anything renders a scene in it.
+	/// </summary>
+	void BeginFrame()
+	{
+	}
+
+	/// <summary>
 	/// Whether envmap probes wait to capture this frame (<see cref="Scene.RenderEnvmaps"/>): the renderer is still making a
 	/// just-loaded scene's models, so a capture would be slow and miss them.
 	/// </summary>
@@ -108,6 +115,7 @@ internal static class SceneRenderer
 	internal static void BeginFrame()
 	{
 		Current = ManagedSceneRendering.Enabled && Borealis is not null ? Borealis : Native;
+		Current.BeginFrame();
 	}
 
 	/// <summary>

@@ -40,6 +40,8 @@ internal sealed partial class SceneBridge
 		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		var renderSize = size ?? window.Size;
 		if ( renderSize.x < 1 || renderSize.y < 1 ) return;
+		warmSize = window.Size;
+		warmSamples = window.Samples;
 
 		camera.OnPreRender( renderSize );
 		window.CameraPosition = camera.Position;
@@ -58,6 +60,9 @@ internal sealed partial class SceneBridge
 		// The main view outside the tools upscales as the player's settings ask, as native's does
 		var frame = camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup, upscale: !Application.IsEditor && !camera.ToolsView );
 
+		// A frame on screen has drawn its world: a game's scene isn't loaded ahead any more (BeginFrame)
+		if ( frame is not null && !GameLoading( Sandbox.Engine.GlobalContext.Game?.ActiveScene ) ) RenderFor( camera.World ).Shown = true;
+
 		// Made outside any block: materials can't be made while drawing
 		copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
 
@@ -67,6 +72,27 @@ internal sealed partial class SceneBridge
 		using var _ = OutputTiming.Scope();
 		window.Draw( gpuView, () => DrawOutput( camera, frame, ui, encode: true, false, false ) );
 		frame?.Release();
+	}
+
+	/// <summary>
+	/// The scene of a camera as <see cref="RenderInto"/> renders it for the window, without drawing it anywhere: what its first
+	/// frame makes (resident lists, child views, pipelines, targets, texture sizes asked for) is made now.
+	/// </summary>
+	void RenderUnseen( BorealisGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup )
+	{
+		if ( size.x < 1 || size.y < 1 || camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ) return;
+
+		camera.OnPreRender( size );
+		var rect = camera.Rect;
+		var viewport = new Rect( rect.Left * size.x, rect.Top * size.y, rect.Width * size.x, rect.Height * size.y );
+		gpuView ??= new BorealisGpuView( backend );
+		gpuView.Viewport = viewport;
+		gpuView.SrgbWrite = false;
+		gpuView.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
+		gpuView.ToolsVisMode = ToolsVisModeOf( camera );
+		gpuView.SetCamera( camera, viewport.Size );
+		gpuView.RenderSceneObject = null;
+		RenderScene( backend, camera, size, samples, setup, upscale: !Application.IsEditor && !camera.ToolsView )?.Release();
 	}
 
 	/// <summary>
@@ -151,7 +177,22 @@ internal sealed partial class SceneBridge
 
 		Graphics.Attributes.Set( UIGammaOutput, encode );
 		if ( ui ) RunStage( camera, Stage.UI );
+
+		// After the UI as native's hook layer draws over its sRGB target: through the sRGB view again, the shaders' linear
+		// results encoded (a game's own compositing at AfterUI, RUN IT AGAIN's glare), not gamma-encoded by the UI's
+		Graphics.Attributes.Set( UIGammaOutput, false );
+		if ( encode )
+		{
+			gpuView.SrgbWrite = true;
+			gpuView.Bind();
+		}
+
 		RunStage( camera, Stage.AfterUI );
+		if ( encode )
+		{
+			gpuView.SrgbWrite = srgbWrite;
+			gpuView.Bind();
+		}
 	}
 
 	/// <summary>

@@ -187,6 +187,15 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 	/// </summary>
 	public bool HasPrepared { get; private set; }
 
+	/// <summary>Whether a frame on screen has drawn this world: until then a game's scene is loaded ahead (<see cref="SceneBridge.BeginFrame"/>).</summary>
+	internal bool Shown { get; set; }
+
+	/// <summary>Unseen renders of this world before it was shown (<see cref="SceneBridge.BeginFrame"/>).</summary>
+	internal int UnseenRenders { get; set; }
+
+	/// <summary>The frame the game's load was first seen finished while this world wasn't shown yet, or 0.</summary>
+	internal ulong LoadedFrame { get; set; }
+
 	/// <summary>Whether <see cref="PrepareFrame"/> defers what writing objects uploads into one list (on). For comparisons.</summary>
 	internal static bool DeferApplyUploads { get; set; } = true;
 
@@ -536,7 +545,7 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 		{
 			// Static state controls shadow caching and world-tag filtering.
 			var flags = sceneObject.Flags;
-			mesh.CastShadows = flags.CastShadows;
+			mesh.CastShadows = sceneObject.CastsShadows;
 			mesh.IsStatic = flags.IsStatic;
 			mesh.IsWorld = mesh.IsStatic || flags.HasFlag( SceneObjectFlags.IsHammerGeometry );
 
@@ -634,7 +643,7 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 		{
 			var flags = sceneObject.Flags;
 			SceneObject.WriteLayerFlags( aggregate, flags );
-			aggregate.CastShadows = flags.CastShadows;
+			aggregate.CastShadows = sceneObject.CastsShadows;
 			aggregate.IsStatic = flags.IsStatic;
 			aggregate.IsWorld = aggregate.IsStatic || flags.HasFlag( SceneObjectFlags.IsHammerGeometry );
 			aggregate.OcclusionCulling = !flags.HasFlag( SceneObjectFlags.NoOcclusionCulling );

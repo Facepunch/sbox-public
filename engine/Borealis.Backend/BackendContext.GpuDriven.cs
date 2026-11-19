@@ -286,12 +286,30 @@ internal sealed partial class BackendContext
 			var lastAttributesSet = false;
 			var lastLighting = 0u;
 			var lastKey = 0L;
+			var inOrder = GpuDrivenInOrder && !cull.HasValue && plan is null;
+			var stopped = false;
+			var commandsBefore = 0;
 			for ( int i = plan is null ? 0 : prefix; i < batches.Length; i++ )
 			{
 				// The batches after a resident prefix go in buckets of their own
 				if ( i == prefix && plan is null && prefix > 0 ) openBucket = prefixBuckets = gpuDrivenBucketCount;
 
 				ref readonly var batch = ref batches[i];
+
+				// In order: nothing after a batch left to the caller; else only the last bucket, on its index page
+				if ( inOrder )
+				{
+					if ( stopped || (i > 0 && totalCommands == commandsBefore && batches[i - 1].Count > 0) )
+					{
+						stopped = true;
+						continue;
+					}
+
+					commandsBefore = totalCommands;
+					openBucket = Math.Max( gpuDrivenBucketCount - 1, 0 );
+					if ( gpuDrivenBucketCount > 0 && gpuDrivenBuckets[gpuDrivenBucketCount - 1].Batches is { Count: > 0 } last
+						&& batch.Mesh?.Geometry is IBackendGeometry && GeometryOf( batch ).Pooled is { } inOrderPooled && inOrderPooled.IndexPageSlot != last[^1].Page ) openBucket = gpuDrivenBucketCount;
+				}
 				if ( batch.TextureSize > 0 ) device.AskTextures( batch.Material, batch.TextureSize );
 
 				// A surface material: its own GPU-driven passes, in buckets of its own (BackendContext.Surfaces.cs)
@@ -368,6 +386,13 @@ internal sealed partial class BackendContext
 				if ( variant?.Vertex?.Bytecode is null )
 				{
 					LeftClassic( shader, mode, "no variant" );
+					continue;
+				}
+
+				// A matrix its object sets (a transform, likely new each frame) would make a material record per value
+				if ( ObjectSetsMatrix( variant.Vertex ) || ObjectSetsMatrix( variant.Pixel ) )
+				{
+					LeftClassic( shader, mode, "object sets a matrix constant" );
 					continue;
 				}
 
@@ -2332,6 +2357,39 @@ internal sealed partial class BackendContext
 		return made;
 	}
 
+	readonly Dictionary<ShaderStage, StringToken[]> matrixAttributes = new( ReferenceEqualityComparer.Instance );
+
+	/// <summary>
+	/// Whether the object attributes set one of a stage's attribute-sourced matrix constants (skin.shader's
+	/// <c>EyeOcclusionViewProj</c>): material records are append-only and keyed by attribute values, so a per-object
+	/// transform there would add records every frame. Its draws stay classic; unset (the shader's default) or set by the
+	/// pass, it's in the record like any other attribute constant.
+	/// </summary>
+	bool ObjectSetsMatrix( ShaderStage stage )
+	{
+		if ( stage is null || layerEpoch == 0 ) return false;
+		if ( !matrixAttributes.TryGetValue( stage, out var names ) )
+		{
+			List<StringToken> found = null;
+			var constants = stage.MaterialConstants;
+			for ( int i = 0; i < constants.Count; i++ )
+			{
+				var variable = constants[i].Variable;
+				if ( variable.Source != VariableSource.Attribute || variable.Type is not (VariableType.Matrix3x3 or VariableType.Matrix3x4 or VariableType.Matrix4x4) ) continue;
+				(found ??= []).Add( Token( variable.Attribute ) );
+			}
+
+			matrixAttributes[stage] = names = found?.ToArray() ?? [];
+		}
+
+		for ( int i = 0; i < names.Length; i++ )
+		{
+			if ( LayerValue( names[i], out _ ) is not null ) return true;
+		}
+
+		return false;
+	}
+
 	void WriteMaterialRecord( BackendMaterial material, ShaderStage stage, bool uncompressedTangentFrame, Span<byte> record )
 	{
 		var constants = Math.Min( stage.MaterialBuffer.Size, record.Length );
@@ -2352,7 +2410,7 @@ internal sealed partial class BackendContext
 			material.Textures.TryGetValue( variable.Name, out var texture );
 			var srgb = variable.RenderStateId == 1;
 			int slot;
-			if ( texture is not null && Gpu.BindlessIndex( texture.Handle ) is >= 0 and var index )
+			if ( texture is { IsValid: true } && Gpu.BindlessIndex( texture.Handle ) is >= 0 and var index )
 			{
 				// SrgbRead( true ) textures read the sRGB view, one after the linear one, where the format has one
 				slot = index + (srgb && Gpu.InfoOf( texture.Handle ).Format.HasSrgb() ? 1 : 0);

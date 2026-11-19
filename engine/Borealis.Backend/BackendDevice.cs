@@ -890,9 +890,32 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			Format = TextureFormat.RGBA8888,
 		};
 
-		var made = new BackendTexture( this, texture.Create( Gpu, path ), desc, path ) { Layout = ImageLayout.ShaderRead, Dimension = texture.Dimension };
+		var made = new BackendTexture( this, CreateTexture( texture, path ), desc, path ) { Layout = ImageLayout.ShaderRead, Dimension = texture.Dimension };
 		if ( streamed && TextureStreamer.Streams( texture ) ) made.Stream = Streamer.Add( made, path, texture );
 		return made;
+	}
+
+	// A texture file's image with every mip written: the one its read made ahead (ImageAheadBytes) when it's for this file
+	TextureHandle CreateTexture( TextureFile texture, string path )
+	{
+		if ( !imagesAhead.TryRemove( path, out var ahead ) ) return texture.Create( Gpu, path );
+		if ( ahead.File != texture )
+		{
+			Gpu.Destroy( ahead.Image );
+			return texture.Create( Gpu, path );
+		}
+
+		try
+		{
+			for ( int mip = texture.TopMip; mip < texture.Mips; mip++ ) texture.Write( Gpu, ahead.Image, mip );
+		}
+		catch
+		{
+			Gpu.Destroy( ahead.Image );
+			throw;
+		}
+
+		return ahead.Image;
 	}
 
 	/// <inheritdoc/>
@@ -1569,9 +1592,22 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	BackendMaterial Material( string path, Dictionary<string, float[]> values, string name = null )
 	{
-		var file = readMaterials.TryRemove( path, out var read ) ? read : Content.TryRead( path ) is { } data ? ReadMaterial( data ) : null;
+		var file = readMaterials.TryRemove( path, out var read ) ? read : Content.TryRead( path ) is { } data ? ReadMaterial( data ) : MissingMaterial( path );
 		if ( file is null ) return Track( new BackendMaterial( name ?? path, null, null, null, values ) );
 		return Track( new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, Textures( file ), values ) );
+	}
+
+	/// <summary>What native draws with a material that isn't there.</summary>
+	public const string ErrorMaterial = "materials/error.vmat";
+
+	/// <summary>
+	/// A material named but not there draws as the error material, as native's resource system binds it; one that's there
+	/// but can't be read, or no name, still draws nothing.
+	/// </summary>
+	MaterialFile MissingMaterial( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) || path.TrimEnd( '_', 'c' ).Equals( ErrorMaterial, StringComparison.OrdinalIgnoreCase ) ) return null;
+		return Content.TryRead( ErrorMaterial ) is { } data ? ReadMaterial( data ) : null;
 	}
 
 	/// <summary>
@@ -1839,6 +1875,25 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public bool GpuDrivenSkinned { get; set; } = !HasSwitch( "-no-gpudriven-skinned" );
 
 	internal override bool DrawsSkinnedGpuDriven => GpuDrivenSkinned && DrawsMeshesGpuDriven;
+
+	/// <summary>
+	/// Fading objects' draws (the faded list, dithered opaque under <c>D_OPAQUE_FADE</c>) draw GPU-driven too, a call of mesh-draw
+	/// batches per list range with no ids or visibility lists, as the opaque list's static and skinned draws are taken. On by
+	/// default with <see cref="GpuDrivenMeshes"/>; <c>-no-gpudriven-faded</c> turns it off.
+	/// </summary>
+	public bool GpuDrivenFaded { get; set; } = !HasSwitch( "-no-gpudriven-faded" );
+
+	internal override bool DrawsFadedGpuDriven => GpuDrivenFaded && DrawsMeshesGpuDriven;
+
+	/// <summary>
+	/// The translucent list's draws draw GPU-driven too, as the faded list's, but in colour layers in their sorted order: a
+	/// stretch of the list the path can take is one call that keeps its batches' order across pipelines
+	/// (<see cref="GpuContext.GpuDrivenInOrder"/>), so only neighbours in the sort share a multi-draw. On by default with
+	/// <see cref="GpuDrivenMeshes"/>; <c>-no-gpudriven-translucent</c> turns it off.
+	/// </summary>
+	public bool GpuDrivenTranslucent { get; set; } = !HasSwitch( "-no-gpudriven-translucent" );
+
+	internal override bool DrawsTranslucentGpuDriven => GpuDrivenTranslucent && DrawsMeshesGpuDriven;
 
 	/// <summary>
 	/// Cull GPU-driven aggregates' fragments on the GPU (<c>borealis_gpu_driven_cull_cs</c>), by the same frustum and size
@@ -2792,6 +2847,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		if ( GpuDrivenFrame % 60 == 0 ) FreeIdleVisibility();
 		FreeUnheldModels();
 		gpuDrivenTables?.BeginFrame();
+		if ( meshletStore is { } meshlets ) meshlets.Loading = Loading;
+		if ( lodStore is { } lods ) lods.Loading = Loading;
 		meshletStore?.BeginFrame();
 		lodStore?.BeginFrame();
 		GpuDrivenFrame++;

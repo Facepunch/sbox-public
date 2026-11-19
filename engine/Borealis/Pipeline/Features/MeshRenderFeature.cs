@@ -164,6 +164,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		/// <summary><see cref="GpuDriven"/> holds frame-buffer readers, so colour layers take the frame copy before the call.</summary>
 		public bool ReadersTaken;
 
+		/// <summary>
+		/// The opaque list's custom objects, taken out of <see cref="ItemsByBit"/>: <see cref="LateCustomFeature"/> draws them
+		/// after the meshes and aggregates (<see cref="TakeCustom"/>).
+		/// </summary>
+		public readonly List<DrawItem> LateCustom = new();
+
 		/// <summary>Each static overlay run's render order, by run (<see cref="StaticOverlay"/>).</summary>
 		public readonly List<int> OverlayOrders = new();
 
@@ -177,6 +183,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			foreach ( var list in ItemsByBit )
 				list.Clear();
 			GpuDriven.Clear();
+			LateCustom.Clear();
 			ReadersTaken = false;
 			OverlayOrders.Clear();
 			Custom = 0;
@@ -545,6 +552,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		// Static opaque draws go with the aggregates when the device draws them GPU-driven, as one run (so not while
 		// occlusion culls, which the aggregates' feature then draws batch by batch)
 		if ( Occlusion is null && RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } device ) TakeGpuDriven( layers, device.DrawsSkinnedGpuDriven );
+		if ( (layers.Custom & MeshRuns.Opaque) != 0 ) TakeCustom( layers );
 	}
 
 	/// <summary>
@@ -601,7 +609,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal GpuContext.GpuDrivenBatch? GpuDrivenBatch( ViewPass view, DrawItem item, bool depth, bool forceDepthOnly )
 	{
 		var lists = view.State<RunLists>( this );
-		ref readonly var run = ref CollectionsMarshal.AsSpan( lists.Opaque )[item.Run];
+		return BatchOf( CollectionsMarshal.AsSpan( lists.Opaque )[item.Run], item, depth, forceDepthOnly );
+	}
+
+	/// <summary>A run's draw as a GPU-driven batch of its instances, as <see cref="GpuDrivenBatch(ViewPass, DrawItem, bool, bool)"/> makes one.</summary>
+	GpuContext.GpuDrivenBatch? BatchOf( in Run run, DrawItem item, bool depth, bool forceDepthOnly )
+	{
 		ref readonly var draw = ref run.Mesh.DrawsForLod( run.Lod )[item.Draw];
 		var material = MaterialFor( run, draw, depth, forceDepthOnly, out var strip );
 		if ( material is null ) return null;
@@ -650,7 +663,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			: run.Skinned ? (run.Morphable ? "skinned mesh, morphs" : run.Deformed ? "skinned mesh, deformed" : "skinned mesh")
 			: run.Morphable ? "mesh with morphs" : "static mesh";
 		var why = left ? "the device's GPU-driven path left it"
-			: list != MeshRuns.Opaque ? $"{list} list (only the opaque list goes GPU-driven)"
+			: list is not (MeshRuns.Opaque or MeshRuns.Faded or MeshRuns.Translucent) ? $"{list} list (only the opaque, faded and translucent lists go GPU-driven)"
 			: run.Custom is not null ? "custom object"
 			: run.Callbacks is not null ? "draw callbacks"
 			: run.Skinned ? "skinned"
@@ -659,8 +672,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			: run.ReadsFrameBuffer ? "reads the frame buffer"
 			: run.CullDraw >= 0 ? "occlusion culled"
 			: run.Attributes is not null ? "object attributes"
-			: RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } ? "occlusion culling on" : "GPU-driven meshes off";
-		return $"{kind}: {why}";
+			: RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } device ? (list == MeshRuns.Faded && !device.DrawsFadedGpuDriven ? "GPU-driven faded off" : list == MeshRuns.Translucent && !device.DrawsTranslucentGpuDriven ? "GPU-driven translucent off" : "occlusion culling on") : "GPU-driven meshes off";
+		return list == MeshRuns.Faded ? $"{kind}, faded: {why}" : list == MeshRuns.Translucent ? $"{kind}, translucent: {why}" : $"{kind}: {why}";
 	}
 
 	/// <summary>The view's draws <see cref="TakeGpuDriven"/> took.</summary>
@@ -1316,7 +1329,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( from >= to ) return;
 
 		if ( fade ) context.SetCombo( OpaqueFade, 1 );
-		DrawItems( context, view, runs, items[from..to], layer, ref stats, list );
+		if ( ListGpuDriven( context, list ) ) DrawListGpuDriven( context, view, runs, items[from..to], layer, ref stats, list );
+		else DrawItems( context, view, runs, items[from..to], layer, ref stats, list );
 		if ( fade ) context.SetCombo( OpaqueFade, 0 );
 	}
 

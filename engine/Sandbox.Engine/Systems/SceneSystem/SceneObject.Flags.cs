@@ -39,6 +39,12 @@ public partial class SceneObject
 	/// </summary>
 	internal ObjectFlags CurrentFlags => _flags ??= native.IsNull ? ObjectFlags.None : native.GetFlags() & ~InternalFlags;
 
+	/// <summary>
+	/// Whether it's drawn into shadow maps: both shadow flags, as native's shadow layers require them
+	/// (<see cref="ObjectFlags.CastShadows"/> is enabled and material-supported; a tool's helper model has only the second).
+	/// </summary>
+	internal bool CastsShadows => (CurrentFlags & ObjectFlags.CastShadows) == ObjectFlags.CastShadows;
+
 	/// <summary>Change flags in <paramref name="mask"/> to <paramref name="value"/>'s, here and on the native twin (traces read them).</summary>
 	internal void ChangeFlags( ObjectFlags value, ObjectFlags mask )
 	{

@@ -79,6 +79,12 @@ public sealed class LightObject : RenderObject
 	public bool CastShadows { get; set; } = true;
 
 	/// <summary>
+	/// Whether it lights at all: a hidden light isn't binned and renders no shadow map, as native's binner skips a light
+	/// whose rendering is off (a tool's worklight, switched off).
+	/// </summary>
+	public bool Visible { get; set; } = true;
+
+	/// <summary>
 	/// Zero is the softest the shadow filter goes, one the sharpest - <c>Light.ShadowHardness</c>.
 	/// </summary>
 	public float ShadowHardness { get; set; }

@@ -232,6 +232,7 @@ public static partial class Graphics
 		get
 		{
 			if ( !Graphics.IsAvailable ) return 0;
+			if ( !HasSource2Device ) return BorealisGpuMemory().Budget;
 			g_pRenderDevice.GetVideoMemoryInfo( out var budget, out _, out _ );
 			return budget;
 		}
@@ -246,9 +247,21 @@ public static partial class Graphics
 		get
 		{
 			if ( !Graphics.IsAvailable ) return 0;
+			if ( !HasSource2Device ) return BorealisGpuMemory().Used;
 			g_pRenderDevice.GetVideoMemoryInfo( out _, out _, out var rsUsage );
 			return rsUsage;
 		}
+	}
+
+	/// <summary>
+	/// Without Source 2's device (its empty one reports nothing), the drawing device's largest device-local heap: what the
+	/// process uses of it and the budget the OS gives it.
+	/// </summary>
+	static (ulong Used, ulong Budget) BorealisGpuMemory()
+	{
+		if ( RenderBackend.Default is not BorealisGpuRenderBackend borealis ) return default;
+		var (used, budget) = borealis.Device.DeviceLocalMemory();
+		return ((ulong)Math.Max( used, 0 ), (ulong)Math.Max( budget, 0 ));
 	}
 
 
@@ -731,6 +744,13 @@ public static partial class Graphics
 	{
 		if ( !Graphics.IsAvailable )
 			return;
+
+		// Without Source 2's device, the drawing device's work
+		if ( !HasSource2Device )
+		{
+			(RenderBackend.Default as BorealisGpuRenderBackend)?.WaitIdle();
+			return;
+		}
 
 		g_pRenderDevice.ForceFlushGPU( default );
 	}

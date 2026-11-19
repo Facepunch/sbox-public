@@ -15,6 +15,10 @@ public partial class SceneLight
 		if ( (change & Rendering.SceneObjectChange.Transform) != 0 )
 			light.Transform = Transform;
 
+		// A light hidden by its owner lights nothing (Hammer's worklight while it's off)
+		if ( (change & Rendering.SceneObjectChange.Visibility) != 0 )
+			light.Visible = RenderingEnabled;
+
 		if ( (change & Rendering.SceneObjectChange.Settings) != 0 )
 		{
 			light.Color = LightColor;

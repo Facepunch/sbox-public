@@ -313,6 +313,104 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		}
 	}
 
+	/// <summary>Whether a game scene loading behind a loading screen has its objects made each frame (on). For comparisons.</summary>
+	internal static bool LoadAhead { get; set; } = true;
+
+	/// <summary>
+	/// Unseen renders of a game scene nothing has shown yet (<see cref="BeginFrame"/>), at most: one a game only ever draws
+	/// into textures isn't rendered unseen for ever.
+	/// </summary>
+	const int MaxUnseenRenders = 20;
+
+	/// <summary>Frames after the game's load that a scene it hasn't shown yet is still loaded ahead in.</summary>
+	const int LoadAheadFramesAfterLoad = 300;
+
+	/// <inheritdoc/>
+	public void BeginFrame()
+	{
+		// Until the game first draws its scene (behind the loading screen, and in the frames the game starts in after its load)
+		// nothing renders the scene's world, so nothing would ask for its models until the first frame that does: its
+		// objects are applied each frame instead, as they arrive, so their models are read and made, within the device's
+		// loading budget, before the first frame shows them
+		if ( !LoadAhead || Application.IsEditor || Gpu is not { } gpu || MirrorContent.Gpu is not { AsyncModels: true } services ) return;
+
+		// The game's scene, whichever context is current: the frame's output runs outside the game's
+		if ( Sandbox.Engine.GlobalContext.Game?.ActiveScene is not { IsValid: true } scene || scene.SceneWorld is not { } world || !world.IsValid() ) return;
+		var render = RenderFor( world );
+		if ( render.Shown ) return;
+
+		// While the game loads, and a few seconds after: a scene a game never shows in the window (one it only draws into
+		// textures) isn't prepared with loading budgets for ever
+		var frame = Application.FrameCount;
+		if ( GameLoading( scene ) ) render.LoadedFrame = 0;
+		else if ( render.LoadedFrame == 0 ) render.LoadedFrame = frame;
+		else if ( frame - render.LoadedFrame > LoadAheadFramesAfterLoad ) return;
+		LoadAheadFrames++;
+
+		gpu.FollowFrame();
+		services.Loading = true;
+		render.PrepareFrame();
+
+		// Once its models are made, its camera's view renders unseen every few frames: the first frame after the load finds
+		// the view's resident lists, child views (water's refraction), pipelines and targets made, and its textures streamed
+		if ( !WarmWhileLoading || gpu.Services.LoadingModels || warmSize.x < 1 || Application.FrameCount < warmFrame || render.UnseenRenders >= MaxUnseenRenders ) return;
+		if ( ShownCamera( scene ) is not { } camera ) return;
+
+		warmFrame = Application.FrameCount + WarmEveryFrames;
+		render.UnseenRenders++;
+		using var zone = Borealis.Zones.LoadWarm.Start();
+		using var context = new Sandbox.Engine.GlobalContext.GlobalContextScope( Sandbox.Engine.GlobalContext.Game );
+		warming = true;
+		try
+		{
+			camera.AddToRenderList( default, warmSize );
+		}
+		finally
+		{
+			warming = false;
+			System.Threading.Interlocked.Increment( ref BorealisGpuRenderBackend.UnseenRenders );
+		}
+	}
+
+	/// <summary>
+	/// The camera a scene would show in the window: its main camera when that's active, else its active camera drawing into
+	/// the window that's marked main or has the highest priority (the main camera isn't worked out while it loads).
+	/// </summary>
+	static CameraComponent ShownCamera( Scene scene )
+	{
+		if ( scene.Camera is { IsValid: true, Active: true, RenderTarget: null, IsSceneEditorCamera: false } main ) return main;
+		CameraComponent best = null;
+		foreach ( var camera in scene.GetAllComponents<CameraComponent>() )
+		{
+			if ( !camera.Active || camera.RenderTarget is not null || camera.IsSceneEditorCamera ) continue;
+			if ( best is null || (camera.IsMainCamera && !best.IsMainCamera) || (camera.IsMainCamera == best.IsMainCamera && camera.Priority > best.Priority) ) best = camera;
+		}
+
+		return best;
+	}
+
+	/// <summary>Whether a loading scene's camera renders unseen once its models are made (<see cref="BeginFrame"/>; on). For comparisons.</summary>
+	internal static bool WarmWhileLoading { get; set; } = true;
+
+	/// <summary>Frames between a loading scene's unseen renders.</summary>
+	const int WarmEveryFrames = 4;
+
+	ulong warmFrame;
+
+	/// <summary>Frames a game scene was loaded ahead in (<see cref="BeginFrame"/>), for measuring.</summary>
+	internal static int LoadAheadFrames { get; private set; }
+
+	// The game window's size and samples, from its last render, for unseen renders; whether one is under way
+	Vector2 warmSize;
+	int warmSamples = 1;
+	bool warming;
+
+	/// <summary>
+	/// Whether the game is loading: its scene's loading tasks, the loading screen, connecting, or the game instance's load. Its scene's
+	/// camera draws over the loading screen then (<c>Game.Render</c>), which doesn't count as showing the scene.
+	/// </summary>
+	static bool GameLoading( Scene scene ) => (scene?.IsLoading ?? false) || LoadingScreen.IsVisible || Networking.IsConnecting || (IGameInstance.Current?.IsLoading ?? false);
+
 	WorldRender RenderFor( SceneWorld world )
 	{
 		if ( !renders.TryGetValue( world, out var render ) ) renders[world] = render = new WorldRender( world );
@@ -373,6 +471,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		// The camera's attributes under the view's, as native's camera renderer sets them on its view: what the camera
 		// component and the scene's render attributes set (Rust Legacy lights its models by its time of day there)
 		state.View.CameraAttributes = MirrorContent.CameraParameters( camera.Attributes, ref state.GpuCameraParameters, ref state.GpuCameraVersion );
+
+		// The same attributes as the engine holds them, which custom objects drawn in the view read (BorealisGpuCustomDraw)
+		state.View.HostView = camera.Attributes;
 
 		// A child view takes its parent's render time unless it has its own, as native's child views do
 		// (CSceneSystem::AddDynamicView)
@@ -645,6 +746,13 @@ internal sealed partial class SceneBridge : ISceneRenderer
 
 	public void Render( SceneCamera camera, SwapChainHandle_t swapChain, Vector2? size, in ViewSetup setup )
 	{
+		// An unseen render of a loading scene's view (BeginFrame): its frame is made and let go, nothing is drawn with it
+		if ( warming && Gpu is { } warmGpu )
+		{
+			RenderUnseen( warmGpu, camera, size ?? warmSize, warmSamples, setup );
+			return;
+		}
+
 		// A game window on Borealis.Gpu has no Source 2 swap chain: the camera draws into the window's frame
 		if ( swapChain.self == default && BorealisGpuWindow.Drawing is { } window )
 		{

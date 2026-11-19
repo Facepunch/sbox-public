@@ -995,7 +995,8 @@ internal sealed partial class BackendContext : GpuContext
 
 	/// <summary>
 	/// The name of the shader's mode a token names, or null if it has no such mode. A shader without <c>Forward</c> draws it
-	/// with <c>VrForward</c>, as the material system's mode fallback does (blendable.shader has only that).
+	/// with <c>VrForward</c>, as the material system's mode fallback does (blendable.shader has only that), and the error
+	/// shader every mode with its one.
 	/// </summary>
 	static string ModeName( ShaderFile shader, StringToken mode )
 	{
@@ -1012,7 +1013,8 @@ internal sealed partial class BackendContext : GpuContext
 			}
 		}
 
-		return null;
+		// The error shader draws every mode with its one (ShaderFile.Mode)
+		return shader.IsErrorShader && shader.Modes.Count > 0 ? shader.Modes[0].Name : null;
 	}
 
 	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, StringToken> tokens = new();

@@ -60,7 +60,7 @@ public sealed unsafe partial class CommandList
 		{
 			if ( !_debugMarkersQueried )
 			{
-				_debugMarkers = g_pRenderDevice.AreDebugMarkersEnabled();
+				_debugMarkers = Graphics.HasSource2Device && g_pRenderDevice.AreDebugMarkersEnabled();
 				_debugMarkersQueried = true;
 			}
 

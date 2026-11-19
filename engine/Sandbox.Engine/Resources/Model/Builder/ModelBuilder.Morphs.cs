@@ -64,6 +64,7 @@ public sealed partial class ModelBuilder
 		{
 			MeshGlue.SetMeshMorphData(
 				mesh.native,
+				mesh.VertexCount,
 				(IntPtr)morphDescPointer, targets.Count,
 				(IntPtr)deltaPointer, allDeltas.Count,
 				morphNameBuilder.ToString() );

@@ -1,3 +1,4 @@
+using Microsoft.Win32.SafeHandles;
 using System.Buffers.Binary;
 using System.IO;
 using System.Text;
@@ -21,8 +22,9 @@ public sealed class VpkFile : IDisposable
 	readonly byte[] tree;
 	readonly long dataStart;
 	readonly Dictionary<string, Entry> entries = new( StringComparer.OrdinalIgnoreCase );
-	readonly Dictionary<int, FileStream> archives = new();
+	readonly Dictionary<int, SafeFileHandle> archives = new();
 	readonly object sync = new();
+	bool disposed;
 
 	VpkFile( string path )
 	{
@@ -98,14 +100,7 @@ public sealed class VpkFile : IDisposable
 		tree.AsSpan( entry.PreloadOffset, entry.PreloadLength ).CopyTo( data );
 		if ( entry.Length == 0 ) return data;
 
-		lock ( sync )
-		{
-			var stream = Archive( entry.Archive );
-			stream.Position = (entry.Archive == InDirectory ? dataStart : 0) + entry.Offset;
-			stream.ReadExactly( data.AsSpan( entry.PreloadLength ) );
-		}
-
-		return data;
+		return ReadAt( entry, data.AsSpan( entry.PreloadLength ) ) ? data : null;
 	}
 
 	/// <summary>
@@ -121,29 +116,51 @@ public sealed class VpkFile : IDisposable
 		tree.AsSpan( entry.PreloadOffset, preload ).CopyTo( data );
 		if ( preload == data.Length ) return data;
 
-		lock ( sync )
-		{
-			var stream = Archive( entry.Archive );
-			stream.Position = (entry.Archive == InDirectory ? dataStart : 0) + entry.Offset;
-			stream.ReadExactly( data.AsSpan( preload ) );
-		}
-
-		return data;
+		return ReadAt( entry, data.AsSpan( preload ) ) ? data : null;
 	}
 
-	FileStream Archive( int index )
+	// An entry's bytes after its preload, read at its offset: positional reads on a shared handle, so readers on many threads
+	// don't queue behind one another (a map's models, materials and textures all come from one archive). False once disposed
+	bool ReadAt( Entry entry, Span<byte> into )
 	{
-		if ( archives.TryGetValue( index, out var open ) ) return open;
+		var handle = Archive( entry.Archive );
+		if ( handle is null ) return false;
+		var offset = (entry.Archive == InDirectory ? dataStart : 0) + entry.Offset;
+		try
+		{
+			while ( into.Length > 0 )
+			{
+				var read = RandomAccess.Read( handle, into, offset );
+				if ( read <= 0 ) throw new EndOfStreamException( $"{path}: archive {entry.Archive} ends inside a file" );
+				into = into[read..];
+				offset += read;
+			}
+		}
+		catch ( ObjectDisposedException )
+		{
+			return false;
+		}
 
-		var file = index == InDirectory
-			? path
-			: path.EndsWith( "_dir.vpk", StringComparison.OrdinalIgnoreCase )
-				? $"{path[..^"_dir.vpk".Length]}_{index:000}.vpk"
-				: throw new InvalidDataException( $"{path} refers to archive {index} but isn't a split VPK's directory" );
+		return true;
+	}
 
-		var stream = new FileStream( file, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.RandomAccess );
-		archives[index] = stream;
-		return stream;
+	SafeFileHandle Archive( int index )
+	{
+		lock ( sync )
+		{
+			if ( disposed ) return null;
+			if ( archives.TryGetValue( index, out var open ) ) return open;
+
+			var file = index == InDirectory
+				? path
+				: path.EndsWith( "_dir.vpk", StringComparison.OrdinalIgnoreCase )
+					? $"{path[..^"_dir.vpk".Length]}_{index:000}.vpk"
+					: throw new InvalidDataException( $"{path} refers to archive {index} but isn't a split VPK's directory" );
+
+			var handle = File.OpenHandle( file, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.RandomAccess );
+			archives[index] = handle;
+			return handle;
+		}
 	}
 
 	static string Normalise( string file ) => file.Replace( '\\', '/' ).TrimStart( '/' );
@@ -153,7 +170,8 @@ public sealed class VpkFile : IDisposable
 	{
 		lock ( sync )
 		{
-			foreach ( var stream in archives.Values ) stream.Dispose();
+			disposed = true;
+			foreach ( var handle in archives.Values ) handle.Dispose();
 			archives.Clear();
 		}
 	}
