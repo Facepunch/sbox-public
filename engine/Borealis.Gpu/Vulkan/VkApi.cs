@@ -300,6 +300,7 @@ internal sealed unsafe class VkDeviceApi
 	public readonly delegate* unmanaged< nint, uint, uint, uint, int, uint, void > vkCmdDrawIndexed;
 	public readonly delegate* unmanaged< nint, ulong, ulong, uint, uint, void > vkCmdDrawIndirect;
 	public readonly delegate* unmanaged< nint, ulong, ulong, uint, uint, void > vkCmdDrawIndexedIndirect;
+	public readonly delegate* unmanaged< nint, ulong, ulong, ulong, ulong, uint, uint, void > vkCmdDrawIndirectCount;
 	public readonly delegate* unmanaged< nint, ulong, ulong, ulong, ulong, uint, uint, void > vkCmdDrawIndexedIndirectCount;
 	public readonly delegate* unmanaged< nint, uint, uint, uint, void > vkCmdDispatch;
 	public readonly delegate* unmanaged< nint, ulong, ulong, void > vkCmdDispatchIndirect;
@@ -444,6 +445,7 @@ internal sealed unsafe class VkDeviceApi
 		vkCmdDrawIndexed = (delegate* unmanaged< nint, uint, uint, uint, int, uint, void >)Need( "vkCmdDrawIndexed" );
 		vkCmdDrawIndirect = (delegate* unmanaged< nint, ulong, ulong, uint, uint, void >)Need( "vkCmdDrawIndirect" );
 		vkCmdDrawIndexedIndirect = (delegate* unmanaged< nint, ulong, ulong, uint, uint, void >)Need( "vkCmdDrawIndexedIndirect" );
+		vkCmdDrawIndirectCount = (delegate* unmanaged< nint, ulong, ulong, ulong, ulong, uint, uint, void >)Need( "vkCmdDrawIndirectCount" );
 		vkCmdDrawIndexedIndirectCount = (delegate* unmanaged< nint, ulong, ulong, ulong, ulong, uint, uint, void >)Need( "vkCmdDrawIndexedIndirectCount" );
 		vkCmdDispatch = (delegate* unmanaged< nint, uint, uint, uint, void >)Need( "vkCmdDispatch" );
 		vkCmdDispatchIndirect = (delegate* unmanaged< nint, ulong, ulong, void >)Need( "vkCmdDispatchIndirect" );
