@@ -17,7 +17,7 @@ public class ToolSceneViewsTests
 	[TestMethod]
 	public void RequestMatchesNativeLayout()
 	{
-		Assert.AreEqual( 400, Marshal.SizeOf<ToolSceneViews.Request>() );
+		Assert.AreEqual( 448, Marshal.SizeOf<ToolSceneViews.Request>() );
 		Assert.AreEqual( 72, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Window ) ) );
 		Assert.AreEqual( 80, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Width ) ) );
 		Assert.AreEqual( 112, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.FovX ) ) );
@@ -37,6 +37,12 @@ public class ToolSceneViewsTests
 		Assert.AreEqual( 332, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.CubemapFogOrigin ) ) );
 		Assert.AreEqual( 360, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.CubemapFogTexture ) ) );
 		Assert.AreEqual( 368, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.VolumetricFog ) ) );
+		Assert.AreEqual( 400, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.GetHud ) ) );
+		Assert.AreEqual( 408, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Hud ) ) );
+		Assert.AreEqual( 416, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.RaytracedImage ) ) );
+		Assert.AreEqual( 424, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.RaytracedWidth ) ) );
+		Assert.AreEqual( 436, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.RaytracedScale ) ) );
+		Assert.AreEqual( 440, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.StatusText ) ) );
 
 		// ToolSceneText_t
 		Assert.AreEqual( 48, Marshal.SizeOf<ToolSceneViews.Text>() );
@@ -55,6 +61,18 @@ public class ToolSceneViewsTests
 		Assert.AreEqual( 40, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.Caption ) ) );
 		Assert.AreEqual( 48, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.CaptionAnchor ) ) );
 		Assert.AreEqual( 60, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.TextHeight ) ) );
+	}
+
+	/// <summary>
+	/// The raytraced preview's image (RGB floats) is uploaded as RGBA floats with alpha 1.
+	/// </summary>
+	[TestMethod]
+	public void RaytracedImageExpandsToRgba()
+	{
+		float[] rgb = [0.1f, 0.2f, 0.3f, 4, 5, 6];
+		var rgba = new float[8];
+		ToolSceneViews.ToolRaytraced.Expand( rgb, rgba );
+		CollectionAssert.AreEqual( new float[] { 0.1f, 0.2f, 0.3f, 1, 4, 5, 6, 1 }, rgba );
 	}
 
 	/// <summary>

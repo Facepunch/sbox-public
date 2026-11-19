@@ -21,7 +21,7 @@ internal static partial class ToolSceneViews
 	[StructLayout( LayoutKind.Sequential )]
 	internal unsafe struct Request
 	{
-		public const int Version = 5;
+		public const int Version = 6;
 		public const int MaxWorlds = 16;
 		public const int MaxSkyboxWorlds = 4;
 
@@ -90,6 +90,21 @@ internal static partial class ToolSceneViews
 		public int VolumetricFog;
 		public fixed float VolumetricFogParams[6];
 		public int Padding3;
+
+		/// <summary>The view's tool HUD (<see cref="HudItem"/>): HUD, out items, room for items, width, height. Returns the count.</summary>
+		public delegate* unmanaged< IntPtr, HudItem*, int, int, int, int > GetHud;
+		public IntPtr Hud;
+
+		/// <summary>
+		/// <see cref="Flags.Raytraced"/>: the CPU path tracer's image (RGB floats, linear, row by row), its size and version (it
+		/// moves on every write), the scale it's drawn with (the view's tonemap scalar) and its status text (UTF-8).
+		/// </summary>
+		public float* RaytracedImage;
+		public int RaytracedWidth;
+		public int RaytracedHeight;
+		public int RaytracedVersion;
+		public float RaytracedScale;
+		public IntPtr StatusText;
 	}
 
 	/// <summary><c>ToolSceneManagedFlags_t</c>.</summary>
@@ -101,6 +116,15 @@ internal static partial class ToolSceneViews
 
 		/// <summary>Outline the objects flagged for Hammer's selection stencil layers.</summary>
 		SelectionOutline = 2,
+
+		/// <summary>And outline where the selection's depth steps (Hammer's "use depth for selection outline").</summary>
+		SelectionDepthOutline = 4,
+
+		/// <summary>Grey out what isn't flagged for Hammer's enabled stencil layer (an instance is being edited).</summary>
+		ActiveInstance = 8,
+
+		/// <summary>Draw <see cref="Request.RaytracedImage"/> instead of the worlds (Hammer's baked lighting preview).</summary>
+		Raytraced = 16,
 	}
 
 	/// <summary>
@@ -168,6 +192,7 @@ internal static partial class ToolSceneViews
 		public ToolSelection Selection;
 		public ToolHud Hud;
 		public ToolEnvironment Environment = new();
+		public ToolRaytraced Raytraced = new();
 	}
 
 	static readonly Dictionary<IntPtr, View> views = new();
@@ -179,12 +204,19 @@ internal static partial class ToolSceneViews
 	static ToolSelection bitmapSelection;
 	static ToolHud bitmapHud;
 	static ToolEnvironment bitmapEnvironment;
+	static ToolRaytraced bitmapRaytraced;
 
 	/// <summary>
 	/// The tool HUD read-backs draw: none by default, as native's (its multisampled read-back is resolved before its
 	/// screen-space view draws, and a read-back's temporary view has a HUD of its own, empty). For checking a live view's HUD.
 	/// </summary>
 	internal static HudSource ReadBackHud { get; set; }
+
+	/// <summary>
+	/// Whether read-backs draw the HUD their request carries (a tool scene's own <c>CToolHud</c>): off by default, as
+	/// <see cref="ReadBackHud"/>. For checks.
+	/// </summary>
+	internal static bool ReadBackRequestHud { get; set; }
 
 	static ulong frame;
 
@@ -204,7 +236,8 @@ internal static partial class ToolSceneViews
 		ref var request = ref *(Request*)requestPointer;
 		if ( request.RequestVersion != Request.Version ) return;
 		if ( RenderBackend.Default is not BorealisGpuRenderBackend gpu ) return;
-		if ( request.Width < 1 || request.Height < 1 || request.WorldCount < 1 ) return;
+		if ( request.Width < 1 || request.Height < 1 ) return;
+		if ( request.WorldCount < 1 && (request.DrawFlags & Flags.Raytraced) == 0 ) return;
 
 		try
 		{
@@ -247,11 +280,11 @@ internal static partial class ToolSceneViews
 		{
 			view.Selection = new ToolSelection();
 			view.Hud = new ToolHud();
-			view.Camera.OnRenderStageHook = StageHook( view.Selection, view.Hud );
+			view.Camera.OnRenderStageHook = StageHook( view.Selection, view.Hud, view.Raytraced );
 		}
 
-		Setup( view.Camera, view.Lights, view.Overlays, view.Selection, view.Environment, ref request, managedWorlds );
-		view.Hud.Gather( hud, request.Width, request.Height );
+		Setup( view.Camera, view.Lights, view.Overlays, view.Selection, view.Environment, view.Raytraced, ref request, managedWorlds );
+		view.Hud.Gather( hud, ref request, true );
 		request.Handled = 1;
 
 		if ( !view.Window.Update( size ) ) return;
@@ -271,11 +304,19 @@ internal static partial class ToolSceneViews
 
 	static readonly Action NoOverlay = () => { };
 
-	/// <summary>A view camera's stages: the selection's (<see cref="ToolSelection.OnStage"/>), then the HUD over everything.</summary>
-	static Action<Stage, SceneCamera> StageHook( ToolSelection selection, ToolHud hud ) => ( stage, camera ) =>
+	/// <summary>
+	/// A view camera's stages: the raytraced preview's image, the selection's (<see cref="ToolSelection.OnStage"/>), then the
+	/// preview's status and the HUD over everything.
+	/// </summary>
+	static Action<Stage, SceneCamera> StageHook( ToolSelection selection, ToolHud hud, ToolRaytraced raytraced ) => ( stage, camera ) =>
 	{
+		if ( stage == Stage.AfterPostProcess ) raytraced.DrawImage();
 		selection.OnStage( stage, camera );
-		if ( stage == Stage.AfterUI ) hud.Draw();
+		if ( stage == Stage.AfterUI )
+		{
+			raytraced.DrawStatus();
+			hud.Draw();
+		}
 	};
 
 	static unsafe void RenderPixels( ref Request request, IReadOnlyList<SceneWorld> managedWorlds, HudSource hud )
@@ -291,19 +332,20 @@ internal static partial class ToolSceneViews
 			bitmapCamera.OnRenderOverlay = bitmapOverlays.DrawTextAction( bitmapCamera );
 		}
 
+		bitmapRaytraced ??= new ToolRaytraced();
 		if ( bitmapSelection is null )
 		{
 			bitmapSelection = new ToolSelection();
 			bitmapHud = new ToolHud();
-			bitmapCamera.OnRenderStageHook = StageHook( bitmapSelection, bitmapHud );
+			bitmapCamera.OnRenderStageHook = StageHook( bitmapSelection, bitmapHud, bitmapRaytraced );
 		}
 
 		bitmapEnvironment ??= new ToolEnvironment();
-		Setup( bitmapCamera, bitmapLights, bitmapOverlays, bitmapSelection, bitmapEnvironment, ref request, managedWorlds );
+		Setup( bitmapCamera, bitmapLights, bitmapOverlays, bitmapSelection, bitmapEnvironment, bitmapRaytraced, ref request, managedWorlds );
 
 		// A read-back's view is a new one each time, its HUD's images numbered afresh
 		bitmapHud.Clear();
-		bitmapHud.Gather( hud, request.Width, request.Height );
+		bitmapHud.Gather( hud, ref request, ReadBackRequestHud );
 
 		using var bitmap = new Bitmap( request.Width, request.Height );
 		bitmapCamera.RenderToBitmap( bitmap );
@@ -361,15 +403,19 @@ internal static partial class ToolSceneViews
 	/// Point a camera at a request's worlds, from its camera. Its main world is the view's light stand-ins
 	/// (<see cref="ToolLights"/>); the native worlds are extra worlds of it.
 	/// </summary>
-	static unsafe void Setup( SceneCamera camera, ToolLights lights, ToolOverlays overlays, ToolSelection selection, ToolEnvironment environment, ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
+	static unsafe void Setup( SceneCamera camera, ToolLights lights, ToolOverlays overlays, ToolSelection selection, ToolEnvironment environment, ToolRaytraced raytraced, ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
 	{
-		var count = Math.Min( request.WorldCount, Request.MaxWorlds );
+		// The raytraced preview draws its image in place of the worlds: only the screen-space tool layers go over it
+		raytraced.Update( ref request );
+		if ( raytraced.Active ) managedWorlds = null;
+
+		var count = raytraced.Active ? 0 : Math.Min( request.WorldCount, Request.MaxWorlds );
 		camera.Worlds.Clear();
 		camera.World = null;
 		camera.World = lights.World;
 		lights.BeginFrame();
 		overlays.BeginFrame();
-		selection.BeginFrame( (request.DrawFlags & Flags.SelectionOutline) != 0 );
+		selection.BeginFrame( request.DrawFlags );
 		for ( int i = 0; i < count; i++ )
 		{
 			var world = Sandbox.HandleIndex.Get<SceneWorld>( request.Worlds[i] );
@@ -461,6 +507,7 @@ internal static partial class ToolSceneViews
 		view.Selection?.Dispose();
 		view.Hud?.Dispose();
 		view.Environment.Dispose();
+		view.Raytraced.Dispose();
 		view.Lights.Dispose();
 	}
 
@@ -482,6 +529,8 @@ internal static partial class ToolSceneViews
 		bitmapHud = null;
 		bitmapEnvironment?.Dispose();
 		bitmapEnvironment = null;
+		bitmapRaytraced?.Dispose();
+		bitmapRaytraced = null;
 		bitmapLights?.Dispose();
 		bitmapLights = null;
 	}

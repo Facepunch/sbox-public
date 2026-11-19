@@ -399,7 +399,7 @@ internal static class MapViewRender
 	internal static void OnPreRender( MapView view, ISceneView sceneView ) => view.PreRender( sceneView );
 
 	/// <summary>
-	/// Draw a view, 3D or 2D, on Borealis.Gpu (<c>CMapView::RenderManaged</c>, <c>-hammer-borealisgpu</c>): Hammer's worlds come in
+	/// Draw a view, 3D or 2D, on Borealis.Gpu (<c>CMapView::RenderManaged</c>, unless <c>-hammer-native</c>): Hammer's worlds come in
 	/// the request (a <c>ToolSceneManagedRender_t</c>, drawn as a native tool view is), the map scene and gizmos from here.
 	/// </summary>
 	internal static void RenderManaged( MapView view, IntPtr request )
