@@ -42,4 +42,5 @@ managed static class Sandbox.ConVarSystem
 	static void RegisterNativeVar( ConVar convar );
 	static void RegisterNativeCommand( ConCommand concommand );
 	static void OnConVarChanged( string convarname, string value, string previous );
+	static void OnNativeConVarChanged();
 }

@@ -41,6 +41,8 @@ public static partial class Graphics
 		if ( IsAvailable && borealisGpu && RenderBackend.Default is Source2RenderBackend )
 		{
 			var validation = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-validation" );
+			// With GPU-assisted validation as well (buffer bounds checked in the shaders; slow), for out-of-range reads that hang the GPU
+			var gpuAssisted = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-gpuav" );
 			// Progress markers for the device-loss report, unless -borealisgpu-nomarkers
 			var markers = !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nomarkers" );
 			// The device's pipeline cache in game/.source2/borealispipelines, apart from native's, unless -borealisgpu-nopipelinecache
@@ -49,7 +51,7 @@ public static partial class Graphics
 			// Slang surfaces compile on workers while their materials draw as their .shader, and the engine's start warming at
 			// once, unless -wait-for-shaders (draws wait for each, as tests and captures do)
 			Borealis.Backend.SurfaceShaders.CompileInBackgroundByDefault = !Sandbox.Utility.CommandLine.HasSwitch( "-wait-for-shaders" );
-			_borealisGpu = BorealisGpuRenderBackend.Create( validation, m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true, markers: markers, pipelineCacheFolder: pipelineCache );
+			_borealisGpu = BorealisGpuRenderBackend.Create( validation, m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true, markers: markers, pipelineCacheFolder: pipelineCache, gpuAssisted: gpuAssisted );
 
 			// Models load in the background, as Source 2 streams them, unless -borealisgpu-syncload
 			_borealisGpu.Services.AsyncModels = !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-syncload" );
@@ -62,7 +64,7 @@ public static partial class Graphics
 			RenderBackend.SetDefault( _borealisGpu );
 			var adapter = _borealisGpu.Device.Adapter;
 			SystemInfo.SetBorealisGpu( adapter.Name, adapter.DriverVersion, adapter.DeviceLocalBytes, adapter.Integrated );
-			Log.Info( $"Rendering on Borealis.Gpu ({_borealisGpu.Device.Adapter.Name}){(validation ? ", validation on" : "")}; memory: {_borealisGpu.Device.DescribeMemory()}" );
+			Log.Info( $"Rendering on Borealis.Gpu ({_borealisGpu.Device.Adapter.Name}){(gpuAssisted ? ", GPU-assisted validation on" : validation ? ", validation on" : "")}; memory: {_borealisGpu.Device.DescribeMemory()}" );
 		}
 
 		_mipMapGeneratorShader = IsAvailable ? new ComputeShader( "downsample_cs" ) : null;

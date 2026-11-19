@@ -115,13 +115,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// cache there (<see cref="DeviceOptions.PipelineCacheFolder"/>); with <paramref name="frames"/>, it's saved in the
 	/// background every <see cref="PipelineCacheSaveFrames"/> frames when pipelines were made.
 	/// </summary>
-	public static BorealisGpuRenderBackend Create( bool validation = false, Action<DeviceMessage> message = null, bool source2Names = true, bool presentation = false, bool frames = false, bool markers = false, string pipelineCacheFolder = null )
+	public static BorealisGpuRenderBackend Create( bool validation = false, Action<DeviceMessage> message = null, bool source2Names = true, bool presentation = false, bool frames = false, bool markers = false, string pipelineCacheFolder = null, bool gpuAssisted = false )
 	{
 		var gpu = GpuDevice.Create( new DeviceOptions
 		{
 			ApplicationName = source2Names ? "Sbox" : "Borealis",
 			EngineName = source2Names ? "Source2" : "Borealis",
-			Validation = validation,
+			Validation = validation || gpuAssisted,
+			// Bounds checks of buffer reads in the shaders, without the layer's in-shader descriptor lookups (they reset RDNA4)
+			GpuAssistedValidation = gpuAssisted,
+			GpuAssistedDescriptorChecks = false,
 			Presentation = presentation,
 			ProgressMarkers = markers,
 			PipelineCacheFolder = pipelineCacheFolder,
@@ -224,9 +227,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	internal void FollowFrame()
 	{
 		// Never inside a Borealis frame's recording (a block it lends): its lists would be left in the frame before
+		// A lost device is said and handled whatever was recording when it went
+		BorealisGpuDeviceLost.Check( gpu );
 		if ( !followsFrames || frame == Application.FrameCount || lendNext is not null ) return;
 		frame = Application.FrameCount;
-		BorealisGpuDeviceLost.Check( gpu );
 		SubmitUploads();
 		FreeModelGeometry();
 		FreeCollectedBackings();
@@ -501,7 +505,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		_ = Recording;
 		context.MemoryBarrier();
-		context.UpdateBuffer( pipelineTextures, new byte[16], 0 );
+		context.UpdateBuffer( pipelineTextures, stackalloc byte[16], 0 );
 	}
 
 	public override void EndBlock()
@@ -1027,12 +1031,29 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 		try
 		{
-			var handle = TextureFile.Load( file ).Create( gpu, path, UploadList() );
+			TextureFile read;
+			try
+			{
+				read = TextureFile.Load( file );
+			}
+			catch ( System.IO.FileNotFoundException ) when ( files.Find( path ) is { } again && again != file )
+			{
+				// A web-streamed texture's downloaded part replaced while it was found
+				read = TextureFile.Load( again );
+			}
+
+			var handle = read.Create( gpu, path, UploadList() );
 			Track( handle, ImageLayout.ShaderRead );
 			return handle;
 		}
 		catch ( NotSupportedException )
 		{
+			return null;
+		}
+		catch ( System.IO.InvalidDataException e )
+		{
+			// Made once, as unreadable, rather than read and thrown again in every frame that draws it
+			Log.Warning( $"Borealis.Gpu: {path} can't be read: {e.Message}" );
 			return null;
 		}
 	}
@@ -1902,12 +1923,33 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	}
 
 	/// <summary>
+	/// The finished frame's depth while the stages that draw over its output run, whose target has none: what
+	/// <see cref="ResolveDepth"/> grabs then (a game's own post processing at <c>AfterPostProcess</c>). Null otherwise.
+	/// </summary>
+	internal Texture OutputDepth { get; set; }
+
+	/// <summary>
 	/// Copy the viewport's part of the bound depth into <paramref name="destination"/>, as native resolves it. Multisampled depth
 	/// into a single-sampled texture isn't done yet.
 	/// </summary>
 	public override void ResolveDepth( Texture destination, Rect viewport )
 	{
 		_ = Recording;
+
+		// Over a frame's output (AfterPostProcess, AfterUI) no depth is bound: the frame's, as native's view still has it
+		if ( !context.Depth.IsValid && OutputDepth is { } frameDepth )
+		{
+			var from = TextureOf( frameDepth );
+			var to = TextureOf( destination );
+			if ( !context.CopyDepth( from, to, new System.Numerics.Vector4( 0, 0, frameDepth.Width, frameDepth.Height ) ) )
+			{
+				var a = gpu.InfoOf( from );
+				var b = gpu.InfoOf( to );
+				throw new NotSupportedException( $"Copying the frame's depth ({a.Format} x{a.Samples} {a.Width}x{a.Height}) into {b.Format} x{b.Samples} {b.Width}x{b.Height} on Borealis.Gpu" );
+			}
+			return;
+		}
+
 		var saved = context.Viewport;
 		SetViewport( viewport );
 		var copied = context.CopyDepth( TextureOf( destination ) );

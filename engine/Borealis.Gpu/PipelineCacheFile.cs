@@ -15,8 +15,8 @@ internal static class PipelineCacheFile
 	const uint Version = 1;
 	const int HeaderSize = 20;
 
-	/// <summary>The most it writes: a cache grown past this isn't saved.</summary>
-	public const int MaxBytes = 256 << 20;
+	/// <summary>The most it writes: a cache grown past this isn't saved. A big map's cache runs to a few hundred MiB.</summary>
+	public const int MaxBytes = 1 << 30;
 
 	/// <summary>The file for a device: <c>vendor-device-driver-uuid.bin</c> in <paramref name="folder"/>.</summary>
 	public static string PathFor( string folder, uint vendor, uint device, uint driver, ReadOnlySpan<byte> uuid ) => Path.Combine( folder, $"{vendor:x4}-{device:x4}-{driver:x8}-{Convert.ToHexStringLower( uuid )}.bin" );
@@ -27,15 +27,19 @@ internal static class PipelineCacheFile
 		try
 		{
 			if ( !File.Exists( path ) ) return null;
-			var bytes = File.ReadAllBytes( path );
-			if ( bytes.Length < HeaderSize ) return null;
 
-			var header = bytes.AsSpan( 0, HeaderSize );
+			// The payload is read straight into the array handed back, not the whole file then a copy of its payload
+			using var stream = File.OpenRead( path );
+			Span<byte> header = stackalloc byte[HeaderSize];
+			if ( stream.ReadAtLeast( header, HeaderSize, throwOnEndOfStream: false ) != HeaderSize ) return null;
 			if ( BinaryPrimitives.ReadUInt32LittleEndian( header ) != Magic || BinaryPrimitives.ReadUInt32LittleEndian( header[4..] ) != Version ) return null;
-			if ( BinaryPrimitives.ReadUInt32LittleEndian( header[8..] ) != bytes.Length - HeaderSize ) return null;
 
-			var payload = bytes.AsSpan( HeaderSize );
-			return Checksum( payload ) == BinaryPrimitives.ReadUInt64LittleEndian( header[12..] ) ? payload.ToArray() : null;
+			var length = BinaryPrimitives.ReadUInt32LittleEndian( header[8..] );
+			if ( length > MaxBytes || length != stream.Length - HeaderSize ) return null;
+
+			var payload = new byte[length];
+			if ( stream.ReadAtLeast( payload, payload.Length, throwOnEndOfStream: false ) != payload.Length ) return null;
+			return Checksum( payload ) == BinaryPrimitives.ReadUInt64LittleEndian( header[12..] ) ? payload : null;
 		}
 		catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
 		{

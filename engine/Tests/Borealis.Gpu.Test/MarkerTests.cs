@@ -4,13 +4,55 @@ namespace BorealisGpuTests;
 
 /// <summary>
 /// Progress markers (<see cref="DeviceOptions.ProgressMarkers"/>) on a device of their own: a finished list's markers are
-/// all reached and done.
+/// all reached and done, and the
+/// device-loss report shows a list the GPU stopped part way through, however far back it is.
 /// </summary>
 [TestClass]
 public class MarkerTests
 {
 	[TestMethod]
 	public void FinishedListReachedEveryMarker()
+	{
+		WithDevice( device =>
+		{
+			var list = device.BeginCommandList( QueueType.Graphics, "Markers" );
+			list.BeginLabel( "Outer" );
+			list.Marker( "Inside" );
+			list.EndLabel();
+			device.Wait( device.Submit( list ) );
+
+			var described = device.DescribeMarkers( list.MarkerSlot );
+			StringAssert.StartsWith( described, " [markers " );
+			Assert.IsFalse( described.Contains( "reached" ), described );
+		} );
+	}
+
+	/// <summary>
+	/// A list the GPU stopped in, with many lists after it that finished on the GPU but weren't read as done (the frames
+	/// recorded ahead of a hang), is in the report with the first marker it didn't finish.
+	/// </summary>
+	[TestMethod]
+	public void LostReportShowsTheListTheGpuStoppedIn()
+	{
+		WithDevice( device =>
+		{
+			var stuck = device.BeginCommandList( QueueType.Graphics, "Stuck list" );
+			stuck.Marker( "draw one" );
+			stuck.Marker( "draw two" );
+			device.Wait( device.Submit( stuck ) );
+
+			for ( int i = 0; i < 80; i++ ) device.Wait( device.Submit( device.BeginCommandList( QueueType.Graphics, "Later list" ) ) );
+
+			// begin, the list's label, draw one, draw two, its end and the end: the front end reached the end, the work after
+			// "draw one" never finished
+			device.SetMarkerProgress( stuck.MarkerSlot, 6, 3 );
+			device.MarkLost( "Lost on purpose" );
+			StringAssert.Contains( device.LostReport, "Stuck list" );
+			StringAssert.Contains( device.LostReport, "first not done 'draw two'" );
+		}, expectLoss: true );
+	}
+
+	static void WithDevice( Action<Device> test, bool expectLoss = false )
 	{
 		if ( !Device.IsSupported ) Assert.Inconclusive( "No Vulkan loader is installed" );
 
@@ -28,7 +70,7 @@ public class MarkerTests
 					ProgressMarkers = true,
 					Message = m =>
 					{
-						if ( m.Severity == MessageSeverity.Error ) lock ( errors ) errors.Add( m.Text );
+						if ( m.Severity == MessageSeverity.Error && !(expectLoss && m.Id == "Borealis.Gpu.DeviceLost") ) lock ( errors ) errors.Add( m.Text );
 					},
 				} );
 			}
@@ -38,16 +80,7 @@ public class MarkerTests
 			}
 
 			if ( !device.ProgressMarkers ) Assert.Inconclusive( "The device has no VK_AMD_buffer_marker" );
-
-			var list = device.BeginCommandList( QueueType.Graphics, "Markers" );
-			list.BeginLabel( "Outer" );
-			list.Marker( "Inside" );
-			list.EndLabel();
-			device.Wait( device.Submit( list ) );
-
-			var described = device.DescribeMarkers( list.MarkerSlot );
-			StringAssert.StartsWith( described, " [markers " );
-			Assert.IsFalse( described.Contains( "reached" ), described );
+			test( device );
 		}
 		finally
 		{

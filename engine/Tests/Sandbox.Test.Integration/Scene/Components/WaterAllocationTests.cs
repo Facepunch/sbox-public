@@ -57,4 +57,37 @@ public class WaterAllocationTests
 			scene.Destroy();
 		}
 	}
+
+	/// <summary>
+	/// Recording the refraction capture each frame keeps its setup in the command list instead of boxing it.
+	/// </summary>
+	[TestMethod, TestCategory( Allocations.Category )]
+	public void RefractionCaptureRecordsWithoutAllocating()
+	{
+		if ( !Graphics.IsAvailable )
+			Assert.Inconclusive( "Requires SBOX_TEST_GRAPHICS=1." );
+
+		var scene = new Scene();
+		using var scope = scene.Push();
+		try
+		{
+			var camera = scene.CreateObject().Components.Create<CameraComponent>();
+			var commands = new Sandbox.Rendering.CommandList( "Water captures" );
+			var exclusions = new TagSet( ["water"] );
+			Allocations.AssertSettles( "Refraction capture recording", () =>
+			{
+				var target = commands.GetRenderTarget( "Water refraction", 2, ImageFormat.RGBA16161616F, ImageFormat.None );
+				commands.DrawRefraction( camera, new Plane( Vector3.Zero, Vector3.Down ), target, new Sandbox.Rendering.RefractionSetup
+				{
+					RenderBehind = true,
+					FallbackColor = Color.Transparent,
+					ViewSetup = new Sandbox.Rendering.ViewSetup { EnablePostprocessing = false, ClearColor = Color.Blue, ExcludeTags = exclusions },
+				} );
+			}, beforePass: commands.Reset );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
 }

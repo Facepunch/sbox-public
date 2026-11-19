@@ -33,6 +33,35 @@ public class ModelFileTests
 	}
 
 	/// <summary>
+	/// A mesh made in code without indices (Special Delivery's crystal shards: vertices and <c>Mesh.SetVertexRange</c>) has
+	/// draws with a vertex range and no index buffer, which native draws unindexed: they become ranges of an index buffer
+	/// counting up from zero, reaching the same vertices, and an indexed draw beside them is left as it was.
+	/// </summary>
+	[TestMethod]
+	public void UnindexedDrawsGetCountingIndices()
+	{
+		var draws = new List<MeshDrawCall>
+		{
+			new() { BaseVertex = 3, VertexCount = 6, IndexBuffer = (0, 0), VertexBuffers = [(0, 0)] },
+			new() { BaseVertex = 0, VertexCount = 3, StartIndex = 0, IndexCount = 3, IndexBuffer = (0, 0), VertexBuffers = [(0, 0)] },
+		};
+		var existing = new MeshIndexBuffer( 3, 2, new byte[6] );
+
+		var indexBuffers = ModelMesh.IndexUnindexedDraws( draws, [existing] );
+
+		Assert.AreEqual( 2, indexBuffers.Length, "an index buffer added" );
+		var counting = indexBuffers[1];
+		Assert.AreEqual( 9, counting.Count, "as far as the draw's last vertex" );
+		Assert.AreEqual( 7u, BitConverter.ToUInt32( counting.Data, 7 * 4 ) );
+		Assert.AreEqual( (1, 0), draws[0].IndexBuffer );
+		Assert.AreEqual( 3, draws[0].StartIndex, "from the first vertex" );
+		Assert.AreEqual( 6, draws[0].IndexCount );
+		Assert.AreEqual( 0, draws[0].BaseVertex );
+		Assert.AreEqual( (0, 0), draws[1].IndexBuffer, "the indexed draw keeps its buffer" );
+		Assert.AreEqual( 3, draws[1].IndexCount );
+	}
+
+	/// <summary>
 	/// Every compiled model in the content reads: meshes, buffers (meshopt decoded), draws and skeletons. Every vertex
 	/// lies in its mesh's bounds, every index reaches a vertex, and packed normals decode to unit vectors at right angles
 	/// to their tangents, which a misdecoded buffer wouldn't manage.

@@ -140,7 +140,11 @@ public partial class Terrain
 			return;
 
 		field = value;
-		CreateClipmapSceneObject();
+
+		// Only a clipmap that exists is rebuilt: these are set while the component deserializes, before its storage is
+		// (enabling makes the clipmap from them then)
+		if ( _so.IsValid() )
+			CreateClipmapSceneObject();
 	}
 
 	[Property, Category( "Clipmap" ), Range( 1, 8 )]

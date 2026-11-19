@@ -118,7 +118,7 @@ internal sealed partial class BackendContext
 		r.Binder = null;
 
 		if ( noColor ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
-		RecordDraw( r.List, geometry, instanceIds, draw, firstInstance, instances, indirect );
+		RecordDraw( r.List, geometry, instanceIds, draw, firstInstance, instances, indirect, material );
 		return true;
 	}
 

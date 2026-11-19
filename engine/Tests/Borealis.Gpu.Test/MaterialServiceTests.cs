@@ -50,6 +50,43 @@ public class MaterialServiceTests : GpuTest
 		Assert.IsFalse( complex.IsTranslucent );
 	}
 
+	/// <summary>
+	/// A material of a shader that alpha tests itself (<c>#define S_ALPHA_TEST 1</c> with no feature: fur, and Sandblocks'
+	/// voxel shaders) is alpha tested, from the <c>alphatest</c> attribute its shader exports, so its depth draws keep the
+	/// pixel shader that clips; one that doesn't keeps the depth fast path.
+	/// </summary>
+	[TestMethod]
+	public void ShadersThatDefineAlphaTestMakeAlphaTestedMaterials()
+	{
+		var core = backend.Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "fur.shader_c" ) ) ) ?? throw new AssertInconclusiveException( "fur isn't compiled" );
+		using var fur = new BackendMaterial( "fur", ShaderFile.Load( Path.Combine( core, "shaders", "fur.shader_c" ) ), null, null );
+		Assert.IsTrue( fur.IsAlphaTest );
+		Assert.IsFalse( fur.ShadowFastPath );
+
+		var complexPath = Path.Combine( core, "shaders", "complex.shader_c" );
+		if ( !File.Exists( complexPath ) ) return;
+		using var complex = new BackendMaterial( "complex", ShaderFile.Load( complexPath ), null, null );
+		Assert.IsFalse( complex.IsAlphaTest );
+		Assert.IsTrue( complex.ShadowFastPath );
+	}
+
+	/// <summary>
+	/// Only a shader that says its vertices are plain (<c>BoolAttribute( ShadowFastPath, true )</c>: complex) draws its depth
+	/// with the shared depth-only material; one that moves them (foliage's wind) draws it with its own depth program, as
+	/// native's do, so the prepass lands where its colour pass does.
+	/// </summary>
+	[TestMethod]
+	public void OnlyShadersWithPlainVerticesTakeTheDepthFastPath()
+	{
+		var core = backend.Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "foliage.shader_c" ) ) && File.Exists( Path.Combine( r, "shaders", "complex.shader_c" ) ) ) ?? throw new AssertInconclusiveException( "foliage or complex isn't compiled" );
+		using var foliage = new BackendMaterial( "foliage", ShaderFile.Load( Path.Combine( core, "shaders", "foliage.shader_c" ) ), null, null );
+		Assert.IsFalse( foliage.IsTranslucent );
+		Assert.IsFalse( foliage.ShadowFastPath );
+
+		using var complex = new BackendMaterial( "complex", ShaderFile.Load( Path.Combine( core, "shaders", "complex.shader_c" ) ), null, null );
+		Assert.IsTrue( complex.ShadowFastPath );
+	}
+
 	[TestCleanup]
 	public void DestroyDrawer()
 	{

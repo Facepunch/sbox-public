@@ -69,7 +69,18 @@ public sealed class ContentFiles
 			if ( File.Exists( full ) ) return full;
 		}
 
-		return Resolve?.Invoke( path ) is { } resolved && File.Exists( resolved ) ? resolved : null;
+		return Resolve?.Invoke( path ) is { } resolved && File.Exists( resolved ) ? MostOf( resolved ) : null;
+	}
+
+	/// <summary>
+	/// A web-streamed texture's file on disk is the start of it (its smaller mips); the engine keeps the start of the whole
+	/// file it has downloaded so far beside it (<c>.resident</c>), finer mips and all: that, when it holds more.
+	/// </summary>
+	static string MostOf( string file )
+	{
+		if ( !file.EndsWith( ".vtex_c", StringComparison.OrdinalIgnoreCase ) ) return file;
+		var resident = new FileInfo( file + ".resident" );
+		return resident.Exists && resident.Length > new FileInfo( file ).Length ? file + ".resident" : file;
 	}
 
 	/// <summary>A compiled resource's bytes; throws if it isn't anywhere.</summary>
@@ -123,6 +134,50 @@ public sealed class ContentFiles
 		foreach ( var package in packages )
 		{
 			if ( package.ReadPrefix( path, most ) is { } data ) return data;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// As <see cref="TryReadPrefix"/>, into a <see cref="ContentBuffers"/> array whose first <paramref name="length"/>
+	/// bytes are the file's (give it back with <see cref="ContentBuffers.Return"/>), or null: for streaming reads, which
+	/// mustn't make garbage. <see cref="long.MaxValue"/> reads the whole file.
+	/// </summary>
+	public byte[] TryReadPrefixPooled( string path, long most, out int length )
+	{
+		length = 0;
+		if ( Find( path ) is { } file )
+		{
+			using var handle = File.OpenHandle( file, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.SequentialScan );
+			length = (int)Math.Min( RandomAccess.GetLength( handle ), Math.Max( most, 0 ) );
+			var data = ContentBuffers.Rent( length );
+			try
+			{
+				for ( int read = 0; read < length; )
+				{
+					var got = RandomAccess.Read( handle, data.AsSpan( read, length - read ), read );
+					if ( got <= 0 ) throw new EndOfStreamException( $"{file} ended while it was read" );
+					read += got;
+				}
+			}
+			catch
+			{
+				ContentBuffers.Return( data );
+				length = 0;
+				throw;
+			}
+
+			return data;
+		}
+
+		if ( packages.Count == 0 || string.IsNullOrEmpty( path ) ) return null;
+
+		path = path.Replace( '\\', '/' ).TrimStart( '/' );
+		if ( !path.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) path += "_c";
+		foreach ( var package in packages )
+		{
+			if ( package.ReadPrefixPooled( path, most, out length ) is { } data ) return data;
 		}
 
 		return null;

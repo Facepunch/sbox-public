@@ -448,6 +448,42 @@ public partial class SceneObject : IHandle
 	}
 
 	/// <summary>
+	/// Every object drawing <paramref name="model"/>, after it was reloaded: native's resource system gave each new mesh
+	/// instances of it (<c>CModelTypeManager::FinalizeResource</c> calls <c>CMeshSystem::ChangeModel</c>), so their draws,
+	/// flags and bounds are worked out again as after <see cref="Model"/> is set.
+	/// </summary>
+	internal static void ModelReloaded( Model model )
+	{
+		List<SceneObject> drawing = null;
+		foreach ( var world in SceneWorld.All.ToArray() )
+		{
+			lock ( world.InternalSceneObjects )
+			{
+				foreach ( var sceneObject in world.InternalSceneObjects )
+				{
+					if ( !sceneObject.native.IsNull && sceneObject.Model == model ) (drawing ??= new()).Add( sceneObject );
+				}
+			}
+		}
+
+		foreach ( var sceneObject in drawing ?? [] )
+			sceneObject.ModelReloaded();
+	}
+
+	void ModelReloaded()
+	{
+		if ( Model is not { } model ) return;
+
+		// Native's new mesh instances draw the model's materials (no material group or mesh-instance override); the override
+		// list, per index overrides and mesh groups stay
+		if ( ResolvesDraws ) StartResolvingDraws( model );
+		_materialOverride = null;
+		FlagsAtModelChange( model );
+		ModelChangedBounds();
+		NotifyChanged( Rendering.SceneObjectChange.Model );
+	}
+
+	/// <summary>
 	/// State of all bodygroups of this object's model. You might be looking for <see cref="SceneModel.SetBodyGroup"/>.
 	/// </summary>
 	public ulong MeshGroupMask

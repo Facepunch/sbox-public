@@ -519,6 +519,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public static bool GpuDrivenByDefault { get; set; } = !HasSwitch( "-no-gpudriven" );
 
+	/// <summary>
+	/// A progress marker before each classic draw, named for its shader variant or material, so a device-loss report names
+	/// the draw the GPU stopped in (<c>-borealisgpu-drawmarkers</c>; with the device's progress markers). Off by default: it
+	/// costs two marker writes a draw, for diagnosing hangs.
+	/// </summary>
+	internal static bool DrawMarkers { get; set; } = HasSwitch( "-borealisgpu-drawmarkers" );
+
+	static readonly ConditionalWeakTable<object, string> drawMarkerNames = new();
+
+	/// <summary>A draw marker's name for a shader variant or material, made once for each.</summary>
+	internal static string DrawMarkerName( object what ) => drawMarkerNames.GetValue( what, static w => $"draw {(w is GpuMaterial m ? m.Name : w.ToString())}" );
+
 	internal static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>The value after a switch on the command line, or null.</summary>
@@ -863,18 +875,32 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	BackendTexture Load( string path, bool streamed )
 	{
 		// Read ahead on a worker for a model loading asynchronously (LoadModelAsync), else from the content's folders or
-		// packages (a map's VPK); a streamed texture's tail, unless it doesn't stream
-		if ( !readTextures.TryRemove( path, out var texture ) || (!streamed && texture?.TopMip > 0) )
+		// packages (a map's VPK); a streamed texture's tail, unless it doesn't stream. Its mips are pooled until written.
+		TextureFile texture = null;
+		try
 		{
-			texture = streamed ? TextureStreamer.ReadMips( Content, path, TextureFile.Tail ) : null;
-			if ( texture is null || (texture.TopMip > 0 && !TextureStreamer.Streams( texture )) )
+			if ( !readTextures.TryRemove( path, out texture ) || (!streamed && texture?.TopMip > 0) )
 			{
-				var data = Content.TryRead( path );
-				if ( data is null ) return null;
-				texture = TextureFile.Read( data );
+				texture?.Release();
+				texture = streamed ? TextureStreamer.ReadMips( Content, path, TextureFile.Tail ) : null;
+				if ( texture is null || (texture.TopMip > 0 && !TextureStreamer.Streams( texture )) )
+				{
+					texture?.Release();
+					texture = TextureStreamer.ReadWhole( Content, path );
+					if ( texture is null ) return null;
+				}
 			}
-		}
 
+			return Make( path, streamed, texture );
+		}
+		finally
+		{
+			texture?.Release();
+		}
+	}
+
+	BackendTexture Make( string path, bool streamed, TextureFile texture )
+	{
 		if ( texture is null ) return null;
 		if ( texture.Format == Format.Unknown ) return null;
 		if ( texture.TopMip > 0 && !TextureStreamer.Streams( texture ) ) return null;

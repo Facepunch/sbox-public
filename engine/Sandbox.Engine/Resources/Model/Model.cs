@@ -89,6 +89,9 @@ public sealed partial class Model : Resource
 
 		MeshInfo = null;
 
+		// Native gave every scene object of it new mesh instances: their managed draws and flags follow
+		SceneObject.ModelReloaded( this );
+
 		IToolsDll.Current?.RunEvent( "model.reload", this );
 
 		foreach ( var scene in Scene.AllIncludingUnlisted )

@@ -80,7 +80,7 @@ public sealed partial class WaterBody
 			: MathF.Max( MathF.Abs( eye.x ) + half.x, MathF.Abs( eye.y ) + half.y );
 
 		float size = Ocean ? float.PositiveInfinity : MathF.Max( half.x, half.y ) * 2;
-		return SelectClipmap( DetailLevel, RenderWaves, nearest, reach, size, _builtLayout );
+		return SelectClipmap( DetailLevel, RenderWaves, nearest, reach, size, _layout );
 	}
 
 	/// <summary>
@@ -91,7 +91,7 @@ public sealed partial class WaterBody
 	/// keep cells a steady size on screen, so only a camera further away than the finest level reaches gets
 	/// coarser base cells. A body smaller than a level gets the fewest cells per level that cover it, so a
 	/// small pool doesn't pay for a level of vertices squashed onto its walls. The base cell and level count
-	/// keep their previous values near a boundary, so hovering doesn't rebuild the mesh.
+	/// keep their previous values near a boundary, so hovering doesn't switch the detail back and forth.
 	/// </summary>
 	internal static ClipmapLayout SelectClipmap( int quality, bool waves, float nearest, float reach, float size, ClipmapLayout previous )
 	{
@@ -117,7 +117,7 @@ public sealed partial class WaterBody
 		int levels = 1 + Math.Max( 0, (int)MathF.Ceiling( MathF.Log2( MathF.Max( reach, 1 ) / span ) ) );
 		levels = Math.Min( levels, MaxClipmapLevels );
 
-		// Keep one spare level rather than rebuilding as the camera crosses a level's reach.
+		// Keep one spare level rather than switching as the camera crosses a level's reach.
 		if ( previous.Levels > 0 && shift == previous.Shift && previous.Levels == levels + 1 )
 			levels = previous.Levels;
 
@@ -145,8 +145,9 @@ public sealed partial class WaterBody
 
 	/// <summary>
 	/// Vertices and indices for every clipmap level. Each vertex stores its cell coordinates from the level's
-	/// centre in TexCoord0 and its level in TexCoord1; the shader places it around the camera. Positions are a
-	/// rough placement for editor picking. Every level but the finest leaves a hole for the next finer level.
+	/// centre in TexCoord0 and its level in TexCoord1; the shader places it around the camera and collapses the levels
+	/// past <c>ClipmapLevels</c>, so a mesh with more levels serves fewer. Positions are a rough placement for editor
+	/// picking. Every level but the finest leaves a hole for the next finer level.
 	/// </summary>
 	internal static (Vertex[] Vertices, int[] Indices) BuildClipmap( ClipmapLayout layout, Vector2 half )
 	{
