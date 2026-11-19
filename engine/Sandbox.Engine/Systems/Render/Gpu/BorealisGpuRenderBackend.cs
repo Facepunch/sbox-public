@@ -115,13 +115,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// cache there (<see cref="DeviceOptions.PipelineCacheFolder"/>); with <paramref name="frames"/>, it's saved in the
 	/// background every <see cref="PipelineCacheSaveFrames"/> frames when pipelines were made.
 	/// </summary>
-	public static BorealisGpuRenderBackend Create( bool validation = false, Action<DeviceMessage> message = null, bool source2Names = true, bool presentation = false, bool frames = false, bool markers = false, string pipelineCacheFolder = null )
+	public static BorealisGpuRenderBackend Create( bool validation = false, Action<DeviceMessage> message = null, bool source2Names = true, bool presentation = false, bool frames = false, bool markers = false, string pipelineCacheFolder = null, bool gpuAssisted = false )
 	{
 		var gpu = GpuDevice.Create( new DeviceOptions
 		{
 			ApplicationName = source2Names ? "Sbox" : "Borealis",
 			EngineName = source2Names ? "Source2" : "Borealis",
-			Validation = validation,
+			Validation = validation || gpuAssisted,
+			// Bounds checks of buffer reads in the shaders, without the layer's in-shader descriptor lookups (they reset RDNA4)
+			GpuAssistedValidation = gpuAssisted,
+			GpuAssistedDescriptorChecks = false,
 			Presentation = presentation,
 			ProgressMarkers = markers,
 			PipelineCacheFolder = pipelineCacheFolder,
