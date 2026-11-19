@@ -85,7 +85,7 @@ internal sealed partial class BorealisGpuRenderBackend
 		};
 
 		var handle = gpu.CreateTexture( info );
-		context.Track( handle, ImageLayout.Undefined );
+		Track( handle, ImageLayout.Undefined );
 		ClearNow( handle, texture.InitialColor ?? Color.Transparent );
 		return handle;
 	}
@@ -134,7 +134,7 @@ internal sealed partial class BorealisGpuRenderBackend
 			FillMips( target, handle, info, ImageLayout.CopyDestination );
 		}
 
-		context.Track( handle, ImageLayout.ShaderRead );
+		Track( handle, ImageLayout.ShaderRead );
 		TextureUploads++;
 	}
 
