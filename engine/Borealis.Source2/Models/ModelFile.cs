@@ -104,6 +104,46 @@ public sealed class ModelFile
 		return result;
 	}
 
+	int[] aggregateDraws;
+
+	/// <summary>
+	/// The draw call (numbered across meshes in order) that a world aggregate's fragment draws, given the fragment's draw
+	/// index (<c>m_nDrawDescriptorIndex</c>), or -1 for none. The map compiler gives aggregate mesh i the mesh id i and its
+	/// fragment the draw index i, then the mesh compiler writes the draws grouped by vertex buffer, so a draw's place in
+	/// the file can differ from its fragment's: native draws each draw for the fragment its <see cref="MeshDrawCall.MeshId"/>
+	/// names (<c>CAggregateSceneObjectDesc::DrawArrayExt</c>). Draws whose ids aren't each of 0 to n - 1 once are taken in
+	/// file order.
+	/// </summary>
+	public int AggregateDrawCall( int drawIndex )
+	{
+		var draws = aggregateDraws ??= AggregateDraws( Meshes );
+		return (uint)drawIndex < (uint)draws.Length ? draws[drawIndex] : -1;
+	}
+
+	/// <summary>For each draw index, the draw call with that mesh id; file order where the ids don't number the draws.</summary>
+	internal static int[] AggregateDraws( IReadOnlyList<ModelMesh> meshes )
+	{
+		var count = meshes.Sum( x => x.DrawCalls.Count );
+		var byId = new int[count];
+		Array.Fill( byId, -1 );
+
+		var call = 0;
+		var numbered = true;
+		foreach ( var mesh in meshes )
+		{
+			foreach ( var draw in mesh.DrawCalls )
+			{
+				if ( (uint)draw.MeshId >= (uint)count || byId[draw.MeshId] >= 0 ) numbered = false;
+				else byId[draw.MeshId] = call;
+				call++;
+			}
+		}
+
+		if ( numbered ) return byId;
+		for ( int i = 0; i < count; i++ ) byId[i] = i;
+		return byId;
+	}
+
 	/// <summary>Whether mesh <paramref name="mesh"/> draws at LOD <paramref name="lod"/>.</summary>
 	public bool DrawsAtLod( int mesh, int lod ) => (Meshes[mesh].LodMask & (1 << lod)) != 0;
 

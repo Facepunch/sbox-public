@@ -88,6 +88,7 @@ internal enum VkStructureType
 	DescriptorSetLayoutBindingFlagsCreateInfo = 1000161000,
 	PhysicalDeviceDescriptorIndexingProperties = 1000161002,
 	PhysicalDeviceSubgroupProperties = 1000094000,
+	PhysicalDeviceDriverProperties = 1000196000,
 	SemaphoreTypeCreateInfo = 1000207002,
 	SemaphoreWaitInfo = 1000207004,
 	SemaphoreSignalInfo = 1000207005,

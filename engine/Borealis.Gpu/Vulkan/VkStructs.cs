@@ -241,6 +241,17 @@ internal unsafe struct VkPhysicalDeviceSubgroupProperties
 }
 
 [StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDeviceDriverProperties
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint driverID;
+	public fixed byte driverName[256];
+	public fixed byte driverInfo[256];
+	public uint conformanceVersion;
+}
+
+[StructLayout( LayoutKind.Sequential )]
 internal unsafe struct VkPhysicalDeviceDescriptorIndexingProperties
 {
 	public VkStructureType sType;

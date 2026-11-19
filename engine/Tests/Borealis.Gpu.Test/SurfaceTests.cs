@@ -2036,6 +2036,75 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A draw whose material's record grows the records buffer binds the grown buffer, though earlier draws of the same pass
+	/// state bound the old one. Bound as the pass state first resolved it, the draws after the growth read past the old
+	/// buffer's end (a GPU page fault where it ended its memory block, a wrong material otherwise).
+	/// </summary>
+	[TestMethod]
+	public void DrawsAfterRecordsGrowReadTheirOwnRecords()
+	{
+		Compiler();
+		using var backend = new BackendDevice( Device ) { GpuDriven = false };
+		backend.Surfaces.AddFolder( Surfaces );
+		var errors = new List<string>();
+		backend.Surfaces.Error = errors.Add;
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		var materials = new List<Rock>();
+		try
+		{
+			// Small boxes in a grid, a rock material each, drawn the classic way (GPU-driven draws read their own table): their
+			// draws share a pass state (no attributes of their own)
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( -0.4f, 0.5f, -0.75f ).Normal;
+			world.Lighting.SunShadowCascades = 0;
+			// One box drawn once per rock, all one object's draws. No depth prepass: its draws would write the records first, and
+			// it binds none
+			using var first = new Rock();
+			var box = ObjectAttributeTests.BoxMesh( backend, first );
+			var draw = box.DrawsForLod( 0 )[0];
+			MeshObject boxes = null;
+			void AddRocks( int from, int to )
+			{
+				for ( int i = from; i < to; i++ ) materials.Add( new Rock { Tint = new Vector3( (i % 7) / 7f, (i % 5) / 5f, 0.5f ) } );
+				if ( boxes is not null ) world.Remove( boxes );
+				boxes = new MeshObject( new RenderMesh( box.Geometry, box.Bounds, [[.. materials.Select( m => draw with { Material = m } )]], [] ), new Transform( Vector3.Zero, Rotation.Identity, 2 ) );
+				world.Add( boxes );
+			}
+
+			using var system = new RenderSystem { ParallelRecording = false, DepthPrepass = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface records growth" );
+			var view = new RenderView { Name = "Surface records growth", FieldOfView = 60, ZNear = 4, ZFar = 4000, Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -220, 60, 90 );
+			view.Rotation = Rotation.LookAt( -view.Position );
+			void Frame()
+			{
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+			}
+
+			// 2000 settle, then 4000 more grow the records buffer while a frame draws them
+			AddRocks( 0, 2000 );
+			for ( int frame = 0; frame < 3; frame++ ) Frame();
+			Assert.IsNotNull( backend.Surfaces.For( materials[0] ), $"rock draws as a surface: {string.Join( "; ", errors )}" );
+			var grows = backend.Surfaces.Records.Grows;
+			var stale = backend.StaleRecordBindings;
+			AddRocks( 2000, 6000 );
+			Frame();
+			Device.WaitIdle();
+			Assert.IsTrue( backend.Surfaces.Records.Grows > grows, $"the records grew while the frame drew ({grows} before)" );
+			Assert.AreEqual( stale, backend.StaleRecordBindings, "every draw bound the buffer its record is in" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			foreach ( var material in materials ) material.Dispose();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// Surfaces draw skinned meshes: the citizen, whose many-weight meshes skin through the vertex cache and the rest in the
 	/// vertex stage, drawn with a surface as the same material written as a .shader draws it (the surface has no .shader
 	/// to fall back to, so a skinned draw it can't make is missing from the picture).

@@ -153,6 +153,29 @@ internal sealed class MeshletStore : IDisposable
 		}
 	}
 
+	/// <summary>Bytes of the run table, for tests.</summary>
+	internal long RunBytesHeld
+	{
+		get
+		{
+			lock ( gate ) return runBytes;
+		}
+	}
+
+	/// <summary>
+	/// The run table's bindless slot, grown first to hold a run for every one of <paramref name="drawRecords"/> draw records:
+	/// the culls read a draw's run whether or not it has one, so a draw record past the table's end read past its buffer.
+	/// What's grown is zeros, which read as no meshlets.
+	/// </summary>
+	public int RunSlotCovering( long drawRecords )
+	{
+		lock ( gate )
+		{
+			if ( drawRecords * RunBytes > runBytes ) GrowRuns( drawRecords * RunBytes );
+			return runSlot;
+		}
+	}
+
 	/// <summary>Ranges still being built or waiting to be published, for reports and waiting on them.</summary>
 	public int Pending
 	{

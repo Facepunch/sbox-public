@@ -309,6 +309,7 @@ public sealed record WorldAggregate
 }
 
 /// <summary>
-/// One draw of an aggregate: a draw call of its model (numbered across meshes in order), its tint, bounds and flags.
+/// One draw of an aggregate: its draw index (<c>m_nDrawDescriptorIndex</c>), which names a draw call of its model by mesh
+/// id (<see cref="Models.ModelFile.AggregateDrawCall"/>), its tint, bounds and flags.
 /// </summary>
 public readonly record struct AggregateMesh( int DrawCall, Vector4 Tint, Vector3 Mins, Vector3 Maxs, uint Flags, bool HasTransform );

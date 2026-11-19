@@ -930,7 +930,7 @@ internal sealed partial class BackendContext : GpuContext
 		var r = recording;
 		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
 		var noColor = stripPixelShader || r.Color is null;
-		var depthOnly = StripsPixelShader( m, variant, noColor, stripPixelShader );
+		var depthOnly = StripsPixelShader( m, variant, noColor, stripPixelShader, LookupCombo( OpaqueFadeCombo ) is > 0 );
 		var geometry = DepthGeometry( GeometryFor( source, draw ), variant, depthOnly );
 		var pipeline = device.Pipeline( variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, normals: !noColor && r.Normals is not null, tools: noColor ? ToolsPass.None : ToolsPass );
 
@@ -952,12 +952,13 @@ internal sealed partial class BackendContext : GpuContext
 	/// <summary>
 	/// Whether a draw goes without its pixel shader: when Borealis strips it, or in a pass without colour (a prepass, a shadow
 	/// map) for a material whose depth needs none. Alpha-tested and translucent materials keep it there, as native does when
-	/// Borealis doesn't strip it: their depth comes from what it clips (alpha test, alpha to coverage). A variant whose pixel
-	/// shader discards or writes depth (<see cref="SpirvReflection.Discards"/>) always keeps it, as native runs a depth mode's
-	/// pixel shader: a package shader that cuts holes with <c>clip</c> without the alpha test.
+	/// Borealis doesn't strip it: their depth comes from what it clips (alpha test, alpha to coverage). So do a fading object's
+	/// draws (<c>D_OPAQUE_FADE</c>, the depth-only material's dither, <paramref name="opaqueFade"/>), or its shadow would be solid. A variant
+	/// whose pixel shader discards or writes depth (<see cref="SpirvReflection.Discards"/>) always keeps it, as native runs a depth
+	/// mode's pixel shader: a package shader that cuts holes with <c>clip</c> without the alpha test.
 	/// </summary>
-	internal static bool StripsPixelShader( BackendMaterial material, ShaderVariant variant, bool noColor, bool stripPixelShader )
-		=> (stripPixelShader || (noColor && !material.IsAlphaTest && !material.IsTranslucent)) && variant.Pixel?.Reflection is not { Discards: true };
+	internal static bool StripsPixelShader( BackendMaterial material, ShaderVariant variant, bool noColor, bool stripPixelShader, bool opaqueFade = false )
+		=> (stripPixelShader || (noColor && !material.IsAlphaTest && !material.IsTranslucent && !opaqueFade)) && variant.Pixel?.Reflection is not { Discards: true };
 
 	/// <summary>
 	/// A depth-only draw fetches its vertices from the positions-only copy, when the model has one, if that changes nothing

@@ -324,7 +324,7 @@ public class SkinningTests : GpuTest
 	}
 
 	/// <summary>The model drawn once from a fixed camera, as 8-bit sRGB.</summary>
-	byte[] Render( RenderMesh mesh, Transform transform, Transform[] bones, IMorphSource morphs = null, Vector3? focus = null, float distance = 1.4f, GpuMaterial material = null, ShaderParameters objectAttributes = null, ShaderParameters viewAttributes = null )
+	byte[] Render( RenderMesh mesh, Transform transform, Transform[] bones, IMorphSource morphs = null, Vector3? focus = null, float distance = 1.4f, GpuMaterial material = null, ShaderParameters objectAttributes = null, ShaderParameters viewAttributes = null, RenderObject extra = null )
 	{
 		var system = new RenderSystem { ParallelRecording = false };
 		var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Skinning" );
@@ -341,6 +341,7 @@ public class SkinningTests : GpuTest
 			}
 
 			world.Add( obj );
+			if ( extra is not null ) world.Add( extra );
 
 			var view = new RenderView { Name = "Skinning", FieldOfView = 60, ClearColor = new Color( 0.1f, 0.2f, 0.9f ), Viewport = new Rect( 0, 0, Width, Height ), ViewAttributes = viewAttributes };
 			var size = mesh.Bounds.Size.Length;
@@ -362,6 +363,52 @@ public class SkinningTests : GpuTest
 			Device.WaitIdle();
 			target.Dispose();
 			system.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// A frame that needs more of the vertex cache than its region after its skinning was recorded (a nested view, here an
+	/// object that draws before the citizen's colour pass) doesn't move the cache to another buffer under it: the draws
+	/// recorded after still read what the skinning wrote, and the citizen draws as in a frame that needed no more.
+	/// </summary>
+	[TestMethod]
+	public void VertexCacheRoomMidFrameKeepsWhatTheFrameSkinned()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDriven = false };
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+
+		try
+		{
+			var mesh = backend.LoadModel( Citizen );
+			if ( mesh is null ) Assert.Inconclusive( $"{Citizen} isn't built" );
+			var posed = mesh.BindPose.Select( ToTransform ).ToArray();
+
+			var plain = Render( mesh, Transform.Zero, posed );
+			Render( mesh, Transform.Zero, posed );
+			var hog = new VertexCacheHog( backend ) { IsOpaque = true, LocalBounds = new BBox( new Vector3( -10000, -10000, -10000 ), new Vector3( 10000, 10000, 10000 ) ) };
+			var asked = Render( mesh, Transform.Zero, posed, extra: hog );
+			Assert.IsTrue( hog.Asked, "the object asked for more of the cache mid-frame" );
+			Assert.IsTrue( MeanDifference( plain, asked ) < 0.5, $"the citizen drew as before ({MeanDifference( plain, asked ):F2} apart)" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>Asks for a whole region of the vertex cache the first time it draws.</summary>
+	sealed class VertexCacheHog( BackendDevice backend ) : CustomObject
+	{
+		public bool Asked;
+
+		internal override void Render( GpuContext context, ViewPass view, MeshLayer layer )
+		{
+			if ( Asked ) return;
+			Asked = true;
+			var capacity = (int)typeof( BackendDevice ).GetField( "vertexCacheCapacity", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance ).GetValue( backend );
+			backend.AllocateVertexCache( capacity );
 		}
 	}
 
