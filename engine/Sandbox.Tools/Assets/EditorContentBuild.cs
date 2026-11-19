@@ -214,10 +214,10 @@ internal static class EditorContentBuild
 					IToolsDll.Current?.Spin();
 				}
 				: null,
-				JobFinished = source =>
+				JobFinished = ( source, done, total ) =>
 				{
-					if ( startup ) EditorSplashScreen.SetMessage( $"Compiled {source}" );
-					else if ( progress is not null ) progress.Subtitle = $"Compiled {source}";
+					if ( startup ) EditorSplashScreen.SetMessage( $"Compiled {source} ({done}/{total})" );
+					else if ( progress is not null ) progress.Subtitle = $"{done}/{total}: compiled {source}";
 				},
 			};
 

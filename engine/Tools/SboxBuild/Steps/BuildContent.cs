@@ -18,7 +18,6 @@ internal class BuildContent( string onlyRoot = null, bool force = false )
 		var worker = Path.Combine( gameDir, "bin", "managed", OperatingSystem.IsWindows() ? "contentworker.exe" : "contentworker" );
 
 		var roots = ContentRoots.Engine( gameDir );
-		var done = 0;
 		var request = new BuildRequest
 		{
 			Roots = roots,
@@ -28,7 +27,7 @@ internal class BuildContent( string onlyRoot = null, bool force = false )
 			OutputRoots = new Dictionary<string, string> { ["transient"] = Path.Combine( gameDir, "addons", "menu", "Transients" ) },
 			Select = onlyRoot is null ? null : [Path.Combine( gameDir, onlyRoot )],
 			Force = force,
-			JobFinished = _ => BuildDisplay.Detail( $"{Interlocked.Increment( ref done )} assets compiled" ),
+			JobFinished = ( _, done, total ) => BuildDisplay.Progress( done, total, $"{done}/{total} assets compiled" ),
 		};
 
 		// The built-in projects' compilers, compiled once for every worker, deleted once the workers that load them are gone

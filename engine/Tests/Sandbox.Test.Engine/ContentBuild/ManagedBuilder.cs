@@ -45,7 +45,7 @@ public sealed class ManagedBuilder : IContentBuilder
 			Force = options.Force,
 			CompilerArgs = options.CompilerArgs,
 			MaxJobs = MaxJobs,
-			JobFinished = options.JobFinished,
+			JobFinished = options.JobFinished is { } finished ? ( source, _, _ ) => finished( source ) : null,
 			BeforeCommit = BeforeCommit,
 		};
 
