@@ -227,6 +227,136 @@ public class PipelineLibraryTests : GpuTest
 		Assert.IsTrue( Device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ) );
 	}
 
+	void RequireMeshShaders()
+	{
+		if ( !Device.Capabilities.MeshShaders ) Assert.Inconclusive( "The device has no mesh shaders" );
+	}
+
+	/// <summary><see cref="Triangle"/> drawn by a task and a mesh shader in place of the vertex shader and vertex input.</summary>
+	static GraphicsPipelineInfo MeshTriangle( ShaderHandle ts, ShaderHandle ms, ShaderHandle ps )
+	{
+		var info = Triangle( default, ps );
+		info.VertexEntry = null;
+		info.TaskShader = ts;
+		info.TaskEntry = "MainTs";
+		info.MeshShader = ms;
+		info.MeshEntry = "MainMs";
+		info.Name = "Mesh triangle";
+		return info;
+	}
+
+	/// <summary>
+	/// A mesh pipeline links three parts, no vertex input: its task and mesh shaders make the pre-rasterisation part, made
+	/// ahead like any other, and a vertex pipeline with the same pixel shader and targets shares its fragment and output
+	/// parts. Its pre-rasterisation part goes with its task shader.
+	/// </summary>
+	[TestMethod]
+	public void MeshPipelinesLinkThreeParts()
+	{
+		RequireLibraries();
+		RequireMeshShaders();
+		var ts = Shader( "meshtriangle.ts.spv" );
+		var ms = Shader( "meshtriangle.ms.spv" );
+		var ps = Shader( "triangle.ps.spv" );
+
+		Device.PreparePipelineParts( MeshTriangle( ts, ms, ps ) );
+		Assert.AreEqual( 3, Device.PipelineLibraryCreation.Parts, "pre-rasterisation, fragment and output: no vertex input" );
+		var mesh = Device.CreateGraphicsPipeline( MeshTriangle( ts, ms, ps ) );
+		Assert.AreEqual( 3, Device.PipelineLibraryCreation.Parts, "creating it made no part of its own" );
+		Assert.AreEqual( 1, Device.PipelineLibraryCreation.Links );
+		Assert.AreEqual( 3, Device.PartCount );
+
+		var vs = Shader( "triangle.vs.spv" );
+		var vertex = Device.CreateGraphicsPipeline( Triangle( vs, ps ) );
+		Assert.AreEqual( 5, Device.PartCount, "the vertex pipeline's own vertex input and pre-rasterisation parts" );
+		Assert.AreEqual( 2, Device.PipelineLibraryCreation.Links );
+
+		Assert.IsTrue( Device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ) );
+		Assert.IsTrue( Device.IsOptimised( mesh ), "the mesh pipeline's optimised link replaced its fast one" );
+		Device.Destroy( mesh );
+		Device.Destroy( vertex );
+		for ( int i = 0; i < 4; i++ ) Device.Wait( Device.Submit( Device.BeginCommandList( QueueType.Graphics, "Frame" ) ) );
+
+		Device.Destroy( ts );
+		Assert.AreEqual( 4, Device.PartCount, "the mesh pre-rasterisation part went with its task shader" );
+		Device.Destroy( ms );
+		Device.Destroy( vs );
+		Device.Destroy( ps );
+	}
+
+	/// <summary>
+	/// A mesh pipeline linked from parts draws what one made whole does, fast and optimised, with validation reporting
+	/// nothing; and the same triangle as the vertex pipeline it copies.
+	/// </summary>
+	[TestMethod]
+	public void MeshPipelinesDrawTheSameLinkedAsWhole()
+	{
+		RequireLibraries();
+		RequireMeshShaders();
+		var ts = Shader( "meshtriangle.ts.spv" );
+		var ms = Shader( "meshtriangle.ms.spv" );
+		var vs = Shader( "triangle.vs.spv" );
+		var ps = Shader( "triangle.ps.spv" );
+
+		var mesh = Device.CreateGraphicsPipeline( NoDepth( MeshTriangle( ts, ms, ps ) ) );
+		Assert.AreEqual( 1, Device.PipelineLibraryCreation.Links, "linked from parts" );
+		var fast = DrawTriangle( Device, mesh, true );
+		Assert.IsTrue( Device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ) );
+		Assert.IsTrue( Device.IsOptimised( mesh ) );
+		var optimised = DrawTriangle( Device, mesh, true );
+		var vertex = DrawTriangle( Device, Device.CreateGraphicsPipeline( NoDepth( Triangle( vs, ps ) ) ), false );
+
+		Save( fast, Width, Height, "pipeline-library-mesh" );
+		Assert.IsTrue( fast.Where( ( b, i ) => i % 4 == 0 && b > 128 ).Any(), "the triangle drew" );
+		AssertSame( fast, optimised, "the optimised mesh link" );
+		AssertSame( fast, vertex, "the vertex pipeline" );
+
+		// Made whole, on a device of its own without pipeline libraries
+		var errors = new List<string>();
+		byte[] whole;
+		using ( var device = Device.Create( new DeviceOptions { Presentation = false, PipelineLibraries = false, Validation = true, Message = m => { if ( m.Severity == MessageSeverity.Error ) lock ( errors ) errors.Add( $"{m.Id}: {m.Text}" ); } } ) )
+		{
+			Assert.IsFalse( device.Capabilities.PipelineLibraries );
+			ShaderHandle Make( string name ) => device.CreateShader( Load( name ), name );
+			whole = DrawTriangle( device, device.CreateGraphicsPipeline( NoDepth( MeshTriangle( Make( "meshtriangle.ts.spv" ), Make( "meshtriangle.ms.spv" ), Make( "triangle.ps.spv" ) ) ) ), true );
+		}
+
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
+		AssertSame( fast, whole, "the mesh pipeline made whole" );
+	}
+
+	static GraphicsPipelineInfo NoDepth( GraphicsPipelineInfo info )
+	{
+		info.DepthFormat = Format.Unknown;
+		return info;
+	}
+
+	/// <summary>One triangle with this pipeline into a cleared target: three vertices, or one task group.</summary>
+	static byte[] DrawTriangle( Device device, PipelineHandle pipeline, bool mesh )
+	{
+		var target = device.CreateTexture( TextureInfo.RenderTarget( Width, Height, Format.RGBA8Unorm, name: "Target" ) );
+		var arguments = device.CreateBuffer( new BufferInfo { Size = 12, Usage = BufferUsage.Indirect, Name = "Task groups" } );
+		device.WriteBuffer<int>( arguments, [1, 1, 1] );
+
+		var list = device.BeginCommandList( QueueType.Graphics, "Triangle" );
+		list.Barrier( TextureBarrier.Transition( target, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.ColorTargetOutput, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+		list.BeginRendering( [ColorTarget.Of( target, System.Numerics.Vector4.Zero )] );
+		list.SetViewport( 0, 0, Width, Height );
+		list.SetScissor( 0, 0, Width, Height );
+		list.SetPipeline( pipeline );
+		list.PushConstants( new System.Numerics.Vector4( 0, 0, 1, 0 ) );
+		if ( mesh ) list.DrawMeshTasksIndirect( arguments, 0 );
+		else list.Draw( 3 );
+		list.EndRendering();
+		list.Barrier( TextureBarrier.Transition( target, ImageLayout.ColorTarget, ImageLayout.ShaderRead, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite, PipelineStage.FragmentShader, MemoryAccess.ShaderRead ) );
+		device.Wait( device.Submit( list ) );
+
+		var pixels = ReadBack( device, target );
+		device.Destroy( arguments );
+		device.Destroy( target );
+		return pixels;
+	}
+
 	/// <summary>A pipeline destroyed before its optimised link finishes: the link is thrown away, nothing leaks.</summary>
 	[TestMethod]
 	public void PipelinesDestroyedWhileOptimisingGo()
