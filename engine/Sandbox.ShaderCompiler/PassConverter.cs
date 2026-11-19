@@ -154,6 +154,7 @@ public static partial class PassConverter
 		var text = new StringBuilder();
 		text.Append( "// " ).Append( name ).Append( " from the source embedded in its compiled file, as a pass module (docs/managed/pass-modules.md)\n" );
 		text.Append( "#include \"sbox/pass.slangh\"\n" );
+		text.Append( "#include \"sbox/embedded.slangh\"\n" );
 		foreach ( var (feature, min, max) in features ?? [] ) text.Append( "Feature( " ).Append( feature ).Append( ", " ).Append( min ).Append( ".." ).Append( max ).Append( ", \"\" );\n" );
 
 		foreach ( var (key, program) in new[] { ("VFX_PROGRAM_VS", "VS"), ("VFX_PROGRAM_PS", "PS"), ("VFX_PROGRAM_CS", "CS") } )
@@ -162,7 +163,7 @@ public static partial class PassConverter
 			text.Append( "\n#if ( PROGRAM == " ).Append( key ).Append( " )\n" );
 			// #line names the .shader, which isn't here: includes are found from the module's folder, and the lines stay
 			var body = LineDirective().Replace( source.Replace( "\r\n", "\n" ), "" );
-			text.Append( Entries( body, program ) );
+			text.Append( Entries( EmbeddedCompatibility.Apply( body ), program ) );
 			text.Append( "\n#endif // " ).Append( program ).Append( '\n' );
 		}
 

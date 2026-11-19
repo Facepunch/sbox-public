@@ -1,0 +1,16 @@
+// What a package shader's embedded source (a pass module made by PassConverter.FromEmbedded) includes after pass.slangh:
+// the declaration macros an older engine's system.fxc had and today's doesn't, so the package's text compiles as it did
+// when it was compiled. Its other half, sbox/embedded_end.slangh, comes after each program's text. See
+// docs/managed/pass-modules.md, "Shaders an older engine compiled".
+#ifndef SBOX_EMBEDDED_SLANGH
+#define SBOX_EMBEDDED_SLANGH
+
+// Material flags read from the .shader_c, compiled to nothing here as pass.slangh's BoolAttribute is
+#ifndef Translucent
+#define Translucent() BoolAttribute( translucent, true )
+#endif
+#ifndef AlphaTest
+#define AlphaTest() BoolAttribute( alphatest, true )
+#endif
+
+#endif // SBOX_EMBEDDED_SLANGH

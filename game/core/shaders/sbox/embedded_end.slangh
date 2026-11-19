@@ -1,0 +1,182 @@
+// What a package shader's embedded source includes after each program's text: declarations an older engine's includes
+// had and today's don't, each only where the package uses it and its include is in (the converter sets the
+// SBOX_EMBEDDED_* defines from the package's text; Slang finds declarations wherever they are in the module).
+// See docs/managed/pass-modules.md, "Shaders an older engine compiled".
+#ifndef SBOX_EMBEDDED_END_SLANGH
+#define SBOX_EMBEDDED_END_SLANGH
+
+// Shadows/ProjectedShadowCube.hlsl's Poisson discs for cube filtering, before its taps were generated on a spiral
+#ifdef SBOX_EMBEDDED_PCF_DISCS
+static const float2 PCFDiscSamples5[] =
+{
+	float2( 0.000000, 2.500000 ),
+	float2( 2.377641, 0.772542 ),
+	float2( 1.469463, -2.022543 ),
+	float2( -1.469463, -2.022542 ),
+	float2( -2.377641, 0.772543 ),
+};
+
+static const float2 PCFDiscSamples12[] =
+{
+	float2( 0.000000, 2.500000 ),
+	float2( 1.767767, 1.767767 ),
+	float2( 2.500000, -0.000000 ),
+	float2( 1.767767, -1.767767 ),
+	float2( -0.000000, -2.500000 ),
+	float2( -1.767767, -1.767767 ),
+	float2( -2.500000, 0.000000 ),
+	float2( -1.767766, 1.767768 ),
+	float2( -1.006119, -0.396207 ),
+	float2( 1.000015, 0.427335 ),
+	float2( 0.416807, -1.006577 ),
+	float2( -0.408872, 1.024430 ),
+};
+
+static const float2 PCFDiscSamples29[] =
+{
+	float2( 0.000000, 2.500000 ),
+	float2( 1.016842, 2.283864 ),
+	float2( 1.857862, 1.672826 ),
+	float2( 2.377641, 0.772542 ),
+	float2( 2.486305, -0.261321 ),
+	float2( 2.165063, -1.250000 ),
+	float2( 1.469463, -2.022543 ),
+	float2( 0.519779, -2.445369 ),
+	float2( -0.519779, -2.445369 ),
+	float2( -1.469463, -2.022542 ),
+	float2( -2.165064, -1.250000 ),
+	float2( -2.486305, -0.261321 ),
+	float2( -2.377641, 0.772543 ),
+	float2( -1.857862, 1.672827 ),
+	float2( -1.016841, 2.283864 ),
+	float2( 0.091021, -0.642186 ),
+	float2( 0.698035, 0.100940 ),
+	float2( 0.959731, -1.169393 ),
+	float2( -1.053880, 1.180380 ),
+	float2( -1.479156, -0.606937 ),
+	float2( -0.839488, -1.320002 ),
+	float2( 1.438566, 0.705359 ),
+	float2( 0.067064, -1.605197 ),
+	float2( 0.728706, 1.344722 ),
+	float2( 1.521424, -0.380184 ),
+	float2( -0.199515, 1.590091 ),
+	float2( -1.524323, 0.364010 ),
+	float2( -0.692694, -0.086749 ),
+	float2( -0.082476, 0.654088 ),
+};
+#endif
+
+// common/material.hlsl's sampler, before it moved to common/utils/Material.CommonInputs.hlsl
+#ifdef SBOX_EMBEDDED_TEXTURE_FILTERING
+#ifdef F_TEXTURE_FILTERING
+SamplerState TextureFiltering < Filter( ( F_TEXTURE_FILTERING == 0 ? ANISOTROPIC : ( F_TEXTURE_FILTERING == 1 ? BILINEAR : ( F_TEXTURE_FILTERING == 2 ? TRILINEAR : ( F_TEXTURE_FILTERING == 3 ? POINT : NEAREST ) ) ) ) ); MaxAniso( 8 ); >;
+#else
+SamplerState TextureFiltering < Filter( ANISOTROPIC ); MaxAniso( 8 ); >;
+#endif
+#endif
+
+// A world position's screen position as SV_Position has it in a pixel stage: pixels, depth, 1 / view depth
+#if defined( LIGHT_HLSL ) || defined( AMBIENTLIGHT_HLSL )
+float4 EmbeddedPositionSs( float3 vPositionWs )
+{
+	float4 vPositionPs = Position3WsToPs( vPositionWs );
+	float2 vNdc = vPositionPs.xy / vPositionPs.w;
+	float2 vPositionSs = float2( vNdc.x * 0.5 + 0.5, 0.5 - vNdc.y * 0.5 ) * g_vViewportSize + g_vViewportOffset;
+	return float4( vPositionSs, vPositionPs.z / vPositionPs.w, 1.0 / vPositionPs.w );
+}
+#endif
+
+// common/classes/Light.hlsl's lookups before lights were found by screen position (world position only), and before
+// that by tile (a pixel's xy)
+#ifdef LIGHT_HLSL
+extension Light
+{
+	static uint Count( float3 vPositionWs )
+	{
+		return Count( EmbeddedPositionSs( vPositionWs ) );
+	}
+
+	static Light From( float3 vPositionWs, uint nLightIndex, float2 vLightMapUV = 0.0f )
+	{
+		return From( vPositionWs, EmbeddedPositionSs( vPositionWs ), nLightIndex, vLightMapUV );
+	}
+
+	static uint Count( float2 vPositionSs )
+	{
+		return Count( float4( vPositionSs, 0.0, 1.0 ) );
+	}
+
+	static Light From( float2 vPositionSs, float3 vPositionWs, uint nLightIndex, float2 vLightMapUV = 0.0f )
+	{
+		return From( vPositionWs, EmbeddedPositionSs( vPositionWs ), nLightIndex, vLightMapUV );
+	}
+}
+#endif
+
+// common/classes/AmbientLight.hlsl's before it took a screen position
+#ifdef AMBIENTLIGHT_HLSL
+extension AmbientLight
+{
+	static float3 From( float3 WorldPosition, float3 WorldNormal, float2 LightMapUV = 0.0f )
+	{
+		return From( WorldPosition, EmbeddedPositionSs( WorldPosition ), WorldNormal );
+	}
+
+	static float3 FromEnvMapProbe( float3 WorldPosition, float3 WorldNormal )
+	{
+		return FromEnvMapProbe( WorldPosition, EmbeddedPositionSs( WorldPosition ), WorldNormal );
+	}
+}
+#endif
+
+// HLSL truncates the wider vector where vectors of two sizes meet (DXC warns): in an operator, an assignment, an
+// argument or a return. Slang has no such conversion, so these say it, for float vectors, the ones packages mix.
+float3 operator+( float3 a, float4 b ) { return a + b.xyz; }
+float3 operator+( float4 a, float3 b ) { return a.xyz + b; }
+void operator+=( inout float3 a, float4 b ) { a += b.xyz; }
+float3 operator-( float3 a, float4 b ) { return a - b.xyz; }
+float3 operator-( float4 a, float3 b ) { return a.xyz - b; }
+void operator-=( inout float3 a, float4 b ) { a -= b.xyz; }
+float3 operator*( float3 a, float4 b ) { return a * b.xyz; }
+float3 operator*( float4 a, float3 b ) { return a.xyz * b; }
+void operator*=( inout float3 a, float4 b ) { a *= b.xyz; }
+float3 operator/( float3 a, float4 b ) { return a / b.xyz; }
+float3 operator/( float4 a, float3 b ) { return a.xyz / b; }
+void operator/=( inout float3 a, float4 b ) { a /= b.xyz; }
+float2 operator+( float2 a, float4 b ) { return a + b.xy; }
+float2 operator+( float4 a, float2 b ) { return a.xy + b; }
+void operator+=( inout float2 a, float4 b ) { a += b.xy; }
+float2 operator-( float2 a, float4 b ) { return a - b.xy; }
+float2 operator-( float4 a, float2 b ) { return a.xy - b; }
+void operator-=( inout float2 a, float4 b ) { a -= b.xy; }
+float2 operator*( float2 a, float4 b ) { return a * b.xy; }
+float2 operator*( float4 a, float2 b ) { return a.xy * b; }
+void operator*=( inout float2 a, float4 b ) { a *= b.xy; }
+float2 operator/( float2 a, float4 b ) { return a / b.xy; }
+float2 operator/( float4 a, float2 b ) { return a.xy / b; }
+void operator/=( inout float2 a, float4 b ) { a /= b.xy; }
+float2 operator+( float2 a, float3 b ) { return a + b.xy; }
+float2 operator+( float3 a, float2 b ) { return a.xy + b; }
+void operator+=( inout float2 a, float3 b ) { a += b.xy; }
+float2 operator-( float2 a, float3 b ) { return a - b.xy; }
+float2 operator-( float3 a, float2 b ) { return a.xy - b; }
+void operator-=( inout float2 a, float3 b ) { a -= b.xy; }
+float2 operator*( float2 a, float3 b ) { return a * b.xy; }
+float2 operator*( float3 a, float2 b ) { return a.xy * b; }
+void operator*=( inout float2 a, float3 b ) { a *= b.xy; }
+float2 operator/( float2 a, float3 b ) { return a / b.xy; }
+float2 operator/( float3 a, float2 b ) { return a.xy / b; }
+void operator/=( inout float2 a, float3 b ) { a /= b.xy; }
+
+extension vector<float, 2>
+{
+	__implicit_conversion( 900 ) __init( float3 v ) { this = v.xy; }
+	__implicit_conversion( 900 ) __init( float4 v ) { this = v.xy; }
+}
+
+extension vector<float, 3>
+{
+	__implicit_conversion( 900 ) __init( float4 v ) { this = v.xyz; }
+}
+
+#endif // SBOX_EMBEDDED_END_SLANGH
