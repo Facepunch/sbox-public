@@ -36,9 +36,23 @@ internal static class MirrorContent
 		if ( Gpu is not { } gpu ) return null;
 
 		if ( model is { IsProcedural: true } ) return RuntimeMesh( model, gpu, out pending );
-		var path = model?.ResourcePath;
+		var path = FilePath( model );
 		if ( string.IsNullOrEmpty( path ) ) return null;
 		return gpu.AsyncModels ? gpu.LoadModelAsync( path, ulong.MaxValue, out pending, pin ) : gpu.LoadModel( path, ulong.MaxValue );
+	}
+
+	/// <summary>What native draws for a model that isn't there (<c>models/dev/error.vmdl</c>).</summary>
+	internal const string ErrorModel = "models/dev/error.vmdl";
+
+	/// <summary>
+	/// The compiled model a model file draws as: its own, or the error model for one that isn't there or failed to load, as
+	/// native's resource system binds it.
+	/// </summary>
+	static string FilePath( Model model )
+	{
+		var path = model?.ResourcePath;
+		if ( string.IsNullOrEmpty( path ) ) return path;
+		return !model.native.IsNull && model.native.IsError() ? ErrorModel : path;
 	}
 
 	static readonly ConditionalWeakTable<Model, RuntimeModel> runtimeMeshes = new();
@@ -98,7 +112,7 @@ internal static class MirrorContent
 	/// <summary>Whether a model loading asynchronously (<see cref="Mesh(Model, out bool)"/>) has been read, so asking again can make it.</summary>
 	public static bool MeshRead( Model model, BackendDevice gpu ) => model is { IsProcedural: true }
 		? !runtimeReads.TryGetValue( model, out var read ) || read.IsCompleted
-		: gpu.ModelRead( model.ResourcePath );
+		: gpu.ModelRead( FilePath( model ) );
 
 	/// <summary>A run-time model's mesh, which frees its geometry after the engine's model is collected.</summary>
 	sealed class RuntimeModel( RenderMesh mesh )

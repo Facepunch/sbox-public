@@ -38,6 +38,20 @@ native class CMapView as NativeHammer.CMapView
 
 	void UpdateManagedGizmoState( bool isHoveredOverSomething, float distanceFromCamera );
 
+	// The tool HUD's objects as managed code draws them on Borealis.Gpu (ToolHudManagedItem_t, ToolSceneViews.HudItem)
+	int GetManagedHudItems( void* pItems, int nMaxItems, int nWidth, int nHeight );
+
+	// The view's draw mode, ViewDrawMode_t, as its pane's menu sets it
+	inline int GetViewDrawMode()
+	{
+		return self->GetDrawMode();
+	}
+
+	inline void SetViewDrawMode( int nDrawMode )
+	{
+		self->SetViewTypeAndDrawMode( self->GetViewType(), static_cast< ViewDrawMode_t >( nDrawMode ) );
+	}
+
 	inline ManipulationMode_t GetManipulationMode()
 	{
 		if ( self->m_pToolManager == nullptr ) return MANIPULATION_MODE_INVALID;

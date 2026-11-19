@@ -105,6 +105,7 @@ public class SceneMirrorDirectTests
 			light.LightColor = Color.Red;
 			light.Radius = 250;
 			spot.ConeOuter = 40;
+			spot.RenderingEnabled = false;
 			cubemap.Priority = 3;
 			cubemap.Position = new Vector3( 4, 5, 6 );
 			custom.ColorTint = Color.Green;
@@ -117,6 +118,7 @@ public class SceneMirrorDirectTests
 			Assert.AreEqual( Color.Red, lightObject.Color );
 			Assert.AreEqual( 250, lightObject.Radius );
 			Assert.AreEqual( 40, ((Borealis.LightObject)spot.RenderObject).ConeOuter );
+			Assert.IsFalse( ((Borealis.LightObject)spot.RenderObject).Visible, "a hidden light lights nothing" );
 			var envMap = (Borealis.EnvMapObject)cubemap.RenderObject;
 			Assert.AreEqual( 3, envMap.Priority );
 			Assert.AreEqual( new Vector3( 4, 5, 6 ), envMap.Transform.Position );
@@ -129,6 +131,38 @@ public class SceneMirrorDirectTests
 			var obj = (Borealis.DecalObject)decal.RenderObject;
 			Assert.AreEqual( 7u, obj.SortOrder );
 			Assert.AreEqual( new Vector3( 1, 2, 3 ), obj.Transform.Position );
+		}
+		finally
+		{
+			mirror.Dispose();
+			camera.Dispose();
+			world.Delete();
+		}
+	}
+
+	/// <summary>
+	/// An object casts shadows with both shadow flags, as native's shadow layers require them: a tool's helper model has only
+	/// the material's (MaterialSupportsShadows), which <c>Flags.CastShadows</c> reads as on.
+	/// </summary>
+	[TestMethod]
+	public void ShadowsNeedBothShadowFlags()
+	{
+		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
+
+		var world = new SceneWorld();
+		var camera = new SceneCamera { World = world };
+		var mirror = (System.IDisposable)System.Activator.CreateInstance( MirrorType, [world] );
+		try
+		{
+			var box = new SceneObject( world, Model.Load( "models/dev/box.vmdl" ) );
+			MirrorType.GetMethod( "Sync", Any ).Invoke( mirror, [camera, false] );
+			var mesh = (Borealis.MeshObject)box.RenderObject;
+			Assert.IsTrue( mesh.CastShadows );
+
+			box.ChangeFlags( SceneObjectFlags.MaterialSupportsShadows, SceneObjectFlags.CastShadows );
+			MirrorType.GetMethod( "Sync", Any ).Invoke( mirror, [camera, false] );
+			Assert.IsTrue( box.Flags.CastShadows, "the flag reads as on with either bit" );
+			Assert.IsFalse( mesh.CastShadows, "casting isn't enabled" );
 		}
 		finally
 		{

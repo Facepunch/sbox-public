@@ -524,7 +524,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		{
 			// Static state controls shadow caching and world-tag filtering.
 			var flags = sceneObject.Flags;
-			mesh.CastShadows = flags.CastShadows;
+			mesh.CastShadows = sceneObject.CastsShadows;
 			mesh.IsStatic = flags.IsStatic;
 			mesh.IsWorld = mesh.IsStatic || flags.HasFlag( SceneObjectFlags.IsHammerGeometry );
 
@@ -626,7 +626,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		{
 			var flags = sceneObject.Flags;
 			SceneObject.WriteLayerFlags( aggregate, flags );
-			aggregate.CastShadows = flags.CastShadows;
+			aggregate.CastShadows = sceneObject.CastsShadows;
 			aggregate.IsStatic = flags.IsStatic;
 			aggregate.IsWorld = aggregate.IsStatic || flags.HasFlag( SceneObjectFlags.IsHammerGeometry );
 			aggregate.OcclusionCulling = !flags.HasFlag( SceneObjectFlags.NoOcclusionCulling );

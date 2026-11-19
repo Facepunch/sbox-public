@@ -13,7 +13,7 @@ namespace Editor;
 /// the views draw them as any other world. Native changes them behind managed code's back, so their objects report
 /// their changes before each frame (<see cref="Poll"/>). docs/managed/borealis-gpu-path.md, the editor.
 /// </summary>
-internal static class ToolSceneViews
+internal static partial class ToolSceneViews
 {
 	/// <summary>
 	/// <c>ToolSceneManagedRender_t</c> (src/public/toolscene/toolscene.h), as native lays it out.
@@ -21,7 +21,7 @@ internal static class ToolSceneViews
 	[StructLayout( LayoutKind.Sequential )]
 	internal unsafe struct Request
 	{
-		public const int Version = 3;
+		public const int Version = 4;
 		public const int MaxWorlds = 16;
 
 		public int RequestVersion;
@@ -53,7 +53,24 @@ internal static class ToolSceneViews
 
 		/// <summary>The managed handle of the view's world in window pixels (its screen-space renderables), or 0.</summary>
 		public int ScreenSpaceWorld;
+
+		/// <summary>The camera's debug mode (<see cref="SceneCameraDebugMode"/>): full bright for an unlit map, lit by default.</summary>
+		public int ToolsVisMode;
+
+		/// <summary>How the view draws (<see cref="Flags"/>).</summary>
+		public Flags DrawFlags;
 		public int Padding;
+	}
+
+	/// <summary><c>ToolSceneManagedFlags_t</c>.</summary>
+	[Flags]
+	internal enum Flags
+	{
+		/// <summary>Lines only (Hammer's wireframe draw mode).</summary>
+		Wireframe = 1,
+
+		/// <summary>Outline the objects flagged for Hammer's selection stencil layers.</summary>
+		SelectionOutline = 2,
 	}
 
 	/// <summary>
@@ -118,6 +135,8 @@ internal static class ToolSceneViews
 		public SceneCamera Camera;
 		public ToolLights Lights = new();
 		public ToolOverlays Overlays;
+		public ToolSelection Selection;
+		public ToolHud Hud;
 	}
 
 	static readonly Dictionary<IntPtr, View> views = new();
@@ -126,6 +145,14 @@ internal static class ToolSceneViews
 	static SceneCamera bitmapCamera;
 	static ToolLights bitmapLights;
 	static ToolOverlays bitmapOverlays;
+	static ToolSelection bitmapSelection;
+	static ToolHud bitmapHud;
+
+	/// <summary>
+	/// The tool HUD read-backs draw: none by default, as native's (its multisampled read-back is resolved before its
+	/// screen-space view draws, and a read-back's temporary view has a HUD of its own, empty). For checking a live view's HUD.
+	/// </summary>
+	internal static HudSource ReadBackHud { get; set; }
 
 	static ulong frame;
 
@@ -139,7 +166,7 @@ internal static class ToolSceneViews
 	/// Draw a native view's frame with <paramref name="managedWorlds"/> as well: worlds managed code made and keeps up to date
 	/// itself (Hammer's map scene and gizmos), drawn as they are, not polled or searched for native overlays.
 	/// </summary>
-	internal static unsafe void Render( IntPtr requestPointer, IReadOnlyList<SceneWorld> managedWorlds )
+	internal static unsafe void Render( IntPtr requestPointer, IReadOnlyList<SceneWorld> managedWorlds, HudSource hud = null )
 	{
 		if ( requestPointer == IntPtr.Zero ) return;
 		ref var request = ref *(Request*)requestPointer;
@@ -149,8 +176,8 @@ internal static class ToolSceneViews
 
 		try
 		{
-			if ( request.Window != IntPtr.Zero ) RenderLive( gpu, ref request, managedWorlds );
-			else RenderPixels( ref request, managedWorlds );
+			if ( request.Window != IntPtr.Zero ) RenderLive( gpu, ref request, managedWorlds, hud );
+			else RenderPixels( ref request, managedWorlds, ReadBackHud );
 		}
 		catch ( Exception e )
 		{
@@ -158,7 +185,7 @@ internal static class ToolSceneViews
 		}
 	}
 
-	static void RenderLive( BorealisGpuRenderBackend gpu, ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
+	static void RenderLive( BorealisGpuRenderBackend gpu, ref Request request, IReadOnlyList<SceneWorld> managedWorlds, HudSource hud )
 	{
 		// A view asked for inside another frame's block waits for its own frame: drawing it would nest blocks
 		if ( Graphics.IsActive )
@@ -184,7 +211,15 @@ internal static class ToolSceneViews
 			view.Camera.OnRenderOverlay = view.Overlays.DrawTextAction( view.Camera );
 		}
 
-		Setup( view.Camera, view.Lights, view.Overlays, ref request, managedWorlds );
+		if ( view.Selection is null )
+		{
+			view.Selection = new ToolSelection();
+			view.Hud = new ToolHud();
+			view.Camera.OnRenderStageHook = StageHook( view.Selection, view.Hud );
+		}
+
+		Setup( view.Camera, view.Lights, view.Overlays, view.Selection, ref request, managedWorlds );
+		view.Hud.Gather( hud, request.Width, request.Height );
 		request.Handled = 1;
 
 		if ( !view.Window.Update( size ) ) return;
@@ -204,7 +239,14 @@ internal static class ToolSceneViews
 
 	static readonly Action NoOverlay = () => { };
 
-	static unsafe void RenderPixels( ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
+	/// <summary>A view camera's stages: the selection's (<see cref="ToolSelection.OnStage"/>), then the HUD over everything.</summary>
+	static Action<Stage, SceneCamera> StageHook( ToolSelection selection, ToolHud hud ) => ( stage, camera ) =>
+	{
+		selection.OnStage( stage, camera );
+		if ( stage == Stage.AfterUI ) hud.Draw();
+	};
+
+	static unsafe void RenderPixels( ref Request request, IReadOnlyList<SceneWorld> managedWorlds, HudSource hud )
 	{
 		var format = (PixelFormat)request.PixelFormat;
 		if ( request.Pixels == null || format == PixelFormat.None ) return;
@@ -217,7 +259,18 @@ internal static class ToolSceneViews
 			bitmapCamera.OnRenderOverlay = bitmapOverlays.DrawTextAction( bitmapCamera );
 		}
 
-		Setup( bitmapCamera, bitmapLights, bitmapOverlays, ref request, managedWorlds );
+		if ( bitmapSelection is null )
+		{
+			bitmapSelection = new ToolSelection();
+			bitmapHud = new ToolHud();
+			bitmapCamera.OnRenderStageHook = StageHook( bitmapSelection, bitmapHud );
+		}
+
+		Setup( bitmapCamera, bitmapLights, bitmapOverlays, bitmapSelection, ref request, managedWorlds );
+
+		// A read-back's view is a new one each time, its HUD's images numbered afresh
+		bitmapHud.Clear();
+		bitmapHud.Gather( hud, request.Width, request.Height );
 
 		using var bitmap = new Bitmap( request.Width, request.Height );
 		bitmapCamera.RenderToBitmap( bitmap );
@@ -275,7 +328,7 @@ internal static class ToolSceneViews
 	/// Point a camera at a request's worlds, from its camera. Its main world is the view's light stand-ins
 	/// (<see cref="ToolLights"/>); the native worlds are extra worlds of it.
 	/// </summary>
-	static unsafe void Setup( SceneCamera camera, ToolLights lights, ToolOverlays overlays, ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
+	static unsafe void Setup( SceneCamera camera, ToolLights lights, ToolOverlays overlays, ToolSelection selection, ref Request request, IReadOnlyList<SceneWorld> managedWorlds )
 	{
 		var count = Math.Min( request.WorldCount, Request.MaxWorlds );
 		camera.Worlds.Clear();
@@ -283,6 +336,7 @@ internal static class ToolSceneViews
 		camera.World = lights.World;
 		lights.BeginFrame();
 		overlays.BeginFrame();
+		selection.BeginFrame( (request.DrawFlags & Flags.SelectionOutline) != 0 );
 		for ( int i = 0; i < count; i++ )
 		{
 			var world = Sandbox.HandleIndex.Get<SceneWorld>( request.Worlds[i] );
@@ -290,6 +344,7 @@ internal static class ToolSceneViews
 
 			Poll( world );
 			lights.Mirror( world );
+			selection.Gather( world );
 			if ( request.GetGeometry != null ) overlays.Gather( world, request.GetGeometry );
 			if ( request.GetText != null ) overlays.GatherText( world, request.GetText );
 			camera.Worlds.Add( world );
@@ -312,7 +367,7 @@ internal static class ToolSceneViews
 		{
 			Poll( screenSpace );
 			overlays.BeginScreenSpace();
-			if ( request.GetGeometry != null ) overlays.Gather( screenSpace, request.GetGeometry );
+			if ( request.GetGeometry != null ) overlays.Gather( screenSpace, request.GetGeometry, selection );
 			if ( request.GetText != null ) overlays.GatherText( screenSpace, request.GetText );
 		}
 
@@ -326,6 +381,10 @@ internal static class ToolSceneViews
 		if ( camera.Ortho ) camera.OrthoHeight = request.OrthoHeight;
 		else camera.FieldOfView = request.FovX;
 		camera.BackgroundColor = new Color( request.Background[0], request.Background[1], request.Background[2], request.Background[3] );
+		var mode = (SceneCameraDebugMode)request.ToolsVisMode;
+		if ( camera.DebugMode != mode ) camera.DebugMode = mode;
+		var wireframe = (request.DrawFlags & Flags.Wireframe) != 0;
+		if ( camera.WireframeMode != wireframe ) camera.WireframeMode = wireframe;
 		overlays.PlaceScreenSpace( camera, new Vector2( request.Width, request.Height ) );
 	}
 
@@ -339,16 +398,19 @@ internal static class ToolSceneViews
 	/// </summary>
 	static void Poll( SceneWorld world )
 	{
-		if ( world.ChangeListener is null ) return;
-
 		var change = SceneObjectChange.Transform | SceneObjectChange.Bones | SceneObjectChange.Visibility | SceneObjectChange.Tint
 			| SceneObjectChange.Settings | SceneObjectChange.Bounds;
 		if ( frame % ModelPollFrames == 0 ) change |= SceneObjectChange.Model | SceneObjectChange.Material | SceneObjectChange.Flags;
 
+		var listening = world.ChangeListener is not null;
 		lock ( world.InternalSceneObjects )
 		{
 			foreach ( var sceneObject in world.InternalSceneObjects )
-				sceneObject.NotifyChanged( change );
+			{
+				// Visibility and tint as native has them now, not as they were first read
+				sceneObject.ForgetNativeState();
+				if ( listening ) sceneObject.NotifyChanged( change );
+			}
 		}
 	}
 
@@ -362,6 +424,8 @@ internal static class ToolSceneViews
 		view.Window.Dispose();
 		view.Camera.Dispose();
 		view.Overlays?.Dispose();
+		view.Selection?.Dispose();
+		view.Hud?.Dispose();
 		view.Lights.Dispose();
 	}
 
@@ -377,6 +441,10 @@ internal static class ToolSceneViews
 		bitmapCamera = null;
 		bitmapOverlays?.Dispose();
 		bitmapOverlays = null;
+		bitmapSelection?.Dispose();
+		bitmapSelection = null;
+		bitmapHud?.Dispose();
+		bitmapHud = null;
 		bitmapLights?.Dispose();
 		bitmapLights = null;
 	}
@@ -514,9 +582,10 @@ internal static class ToolSceneViews
 		static Pass PassOf( int toolLayer ) => toolLayer >= FirstNoDepthToolLayer ? Pass.NoDepth : toolLayer <= LastLitToolLayer ? Pass.Lit : Pass.Unlit;
 
 		/// <summary>
-		/// Copy out the overlay geometry of <paramref name="world"/>'s objects.
+		/// Copy out the overlay geometry of <paramref name="world"/>'s objects. Hammer's selection overlay rectangles go to
+		/// <paramref name="selection"/> instead (<see cref="ToolSelection.TakeOverlay"/>).
 		/// </summary>
-		public void Gather( SceneWorld world, delegate* unmanaged< IntPtr, int, Geometry*, ToolVertex*, int, int > getGeometry )
+		public void Gather( SceneWorld world, delegate* unmanaged< IntPtr, int, Geometry*, ToolVertex*, int, int > getGeometry, ToolSelection selection = null )
 		{
 			lock ( world.InternalSceneObjects )
 			{
@@ -541,6 +610,7 @@ internal static class ToolSceneViews
 							count = getGeometry( sceneObject.native, batch, &geometry, destination, count );
 						}
 						if ( count <= 0 ) continue;
+						if ( selection is not null && selection.TakeOverlay( sceneObject, vertices.AsSpan( vertexCount, count ) ) ) continue;
 
 						batches.Add( new Batch
 						{
@@ -772,7 +842,7 @@ internal static class ToolSceneViews
 
 					if ( !proxies.TryGetValue( light, out var proxy ) || !proxy.IsValid() )
 					{
-						proxy = kind switch
+						proxy = Spare( kind ) ?? kind switch
 						{
 							ShadowLightType.Spot => new SceneSpotLight( World, light.Position, light.LightColor ),
 							_ => new ScenePointLight( World, light.Position, light.Radius, light.LightColor ),
@@ -806,6 +876,23 @@ internal static class ToolSceneViews
 			if ( proxy.RenderingEnabled != sky.RenderingEnabled ) proxy.RenderingEnabled = sky.RenderingEnabled;
 		}
 
+		// Stand-ins no native light has now, switched off
+		readonly List<SceneLight> spares = new();
+
+		SceneLight Spare( ShadowLightType kind )
+		{
+			for ( int i = spares.Count - 1; i >= 0; i-- )
+			{
+				var spare = spares[i];
+				if ( !spare.IsValid() ) { spares.RemoveAt( i ); continue; }
+				if ( (spare is SceneSpotLight) != (kind == ShadowLightType.Spot) ) continue;
+				spares.RemoveAt( i );
+				return spare;
+			}
+
+			return null;
+		}
+
 		readonly Dictionary<SceneSkyBox, SceneSkyBox> skies = new();
 		readonly HashSet<SceneSkyBox> seenSkies = new();
 		readonly List<SceneSkyBox> goneSkies = new();
@@ -833,7 +920,7 @@ internal static class ToolSceneViews
 		}
 
 		/// <summary>
-		/// Delete the stand-ins of native lights no world had this frame.
+		/// Switch off the stand-ins of native lights no world had this frame.
 		/// </summary>
 		public void EndFrame()
 		{
@@ -885,10 +972,14 @@ internal static class ToolSceneViews
 				if ( !seen.Contains( light ) ) gone.Add( light );
 			}
 
+			// Kept switched off for the next native light of their kind rather than deleted: a read-back's temporary view makes
+			// its lights afresh each time, and a light deleted mid-frame lights on to the frame's end, as native's does
 			foreach ( var light in gone )
 			{
 				proxies.Remove( light, out var proxy );
-				proxy?.Delete();
+				if ( !proxy.IsValid() ) continue;
+				proxy.RenderingEnabled = false;
+				spares.Add( proxy );
 			}
 
 			gone.Clear();
@@ -905,13 +996,13 @@ internal static class ToolSceneViews
 			}
 
 			goneSkies.Clear();
-
-
 		}
 
 		public void Dispose()
 		{
 			foreach ( var proxy in proxies.Values ) proxy.Delete();
+			foreach ( var spare in spares ) spare.Delete();
+			spares.Clear();
 			proxies.Clear();
 			foreach ( var proxy in skies.Values ) proxy.Delete();
 			skies.Clear();

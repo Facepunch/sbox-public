@@ -332,7 +332,10 @@ public sealed class GraphicsContext
 			return true;
 		}
 
-		return false;
+		// The error shader draws every mode with its one (ShaderFile.Mode)
+		if ( !shader.IsErrorShader || shader.Modes.Count == 0 ) return false;
+		mode = shader.Modes[0].Name;
+		return true;
 	}
 
 	/// <summary>

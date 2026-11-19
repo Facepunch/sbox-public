@@ -201,7 +201,7 @@ public partial class SceneObject : IHandle
 	{
 		// Until it's set from here, native's: an object native made - a map's world geometry - is placed by native, and
 		// read as default(Transform), zero scale and all
-		get => _transformSet || native.IsNull ? _transform : native.GetCTransform();
+		get => _transformSet || native.IsNull ? _transform : native.GetCTransformUnaligned();
 		set
 		{
 			if ( _transformSet && _transform == value )
@@ -311,6 +311,16 @@ public partial class SceneObject : IHandle
 	// render-mesh traces skip hidden objects by, and the tint only while something reads it (WritesNative)
 	bool? _renderingEnabled;
 	Color? _tint;
+
+	/// <summary>
+	/// Read visibility and tint from native again next time: native code changes the objects it made behind managed
+	/// code's back (a tool hiding a helper, tinting a selection, switching its worklight off).
+	/// </summary>
+	internal void ForgetNativeState()
+	{
+		_renderingEnabled = null;
+		_tint = null;
+	}
 
 	/// <summary>
 	/// Whether this scene object should render or not.
