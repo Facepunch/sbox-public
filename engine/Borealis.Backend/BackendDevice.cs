@@ -1557,9 +1557,22 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	BackendMaterial Material( string path, Dictionary<string, float[]> values, string name = null )
 	{
-		var file = readMaterials.TryRemove( path, out var read ) ? read : Content.TryRead( path ) is { } data ? ReadMaterial( data ) : null;
+		var file = readMaterials.TryRemove( path, out var read ) ? read : Content.TryRead( path ) is { } data ? ReadMaterial( data ) : MissingMaterial( path );
 		if ( file is null ) return Track( new BackendMaterial( name ?? path, null, null, null, values ) );
 		return Track( new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, Textures( file ), values ) );
+	}
+
+	/// <summary>What native draws with a material that isn't there.</summary>
+	public const string ErrorMaterial = "materials/error.vmat";
+
+	/// <summary>
+	/// A material named but not there draws as the error material, as native's resource system binds it; one that's there
+	/// but can't be read, or no name, still draws nothing.
+	/// </summary>
+	MaterialFile MissingMaterial( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) || path.TrimEnd( '_', 'c' ).Equals( ErrorMaterial, StringComparison.OrdinalIgnoreCase ) ) return null;
+		return Content.TryRead( ErrorMaterial ) is { } data ? ReadMaterial( data ) : null;
 	}
 
 	/// <summary>
