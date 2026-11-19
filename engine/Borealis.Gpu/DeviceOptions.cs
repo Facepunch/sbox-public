@@ -32,6 +32,15 @@ public sealed class DeviceOptions
 	public bool GpuAssistedValidation { get; init; }
 
 	/// <summary>
+	/// With <see cref="GpuAssistedValidation"/>, check each descriptor a shader reads in the shader itself (index in range,
+	/// written, resource alive) and buffer accesses through descriptors. Off, the descriptors shaders read are still noted on
+	/// the GPU and checked on the CPU after the submission (never written, resource gone), with no lookups of the layer's own
+	/// in the shader: on RDNA4 (driver 26.11) those lookups make the GPU reset, so tests of sampled bindless reads turn
+	/// them off. On by default.
+	/// </summary>
+	public bool GpuAssistedDescriptorChecks { get; init; } = true;
+
+	/// <summary>
 	/// Write progress markers (VK_AMD_buffer_marker, when the device has it) into host memory at each list's start and end
 	/// and at every label, so a report after the device is lost shows how far the GPU got in each list
 	/// (<see cref="Device.DescribeRecentSubmissions"/>).
