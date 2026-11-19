@@ -209,7 +209,7 @@ public sealed partial class BackendDevice
 		streamedModels[(path, meshGroups)] = made;
 		if ( made is not null )
 		{
-			lock ( modelLives ) modelLives[made] = new ModelLife { Key = (path, meshGroups), Pinned = pin };
+			lock ( modelLives ) modelLives[made] = new ModelLife { Key = (path, meshGroups), Model = made.Geometry as BackendModel, Pinned = pin };
 		}
 
 		return made;
@@ -226,14 +226,27 @@ public sealed partial class BackendDevice
 
 		/// <summary>A model made at run time (<see cref="TrackModel"/>), which has no key in the loaded models.</summary>
 		public RenderMesh Mesh;
+
+		/// <summary>Its geometry, whose last use (<see cref="BackendModel.LastUsedFrame"/>) says whether anything still draws it.</summary>
+		public BackendModel Model;
 		public int Holders;
 		public bool Pinned;
 		public long ReleasedAt;
+
+		/// <summary>The device frame the last holder let it go in.</summary>
+		public long ReleasedFrame;
+
+		/// <summary>Whether it has been reported as drawn after its last holder let it go.</summary>
+		public bool Reported;
+
+		/// <summary>Whether it's in the unheld models, once however often it was held and let go again.</summary>
+		public bool Queued;
 	}
 
 	readonly Dictionary<RenderMesh, ModelLife> modelLives = new( ReferenceEqualityComparer.Instance );
 	readonly List<ModelLife> unheldModels = new();
 	readonly List<RenderMesh> freeing = new();
+	List<string> warnings;
 
 	/// <summary>Seconds a model nothing holds is kept, so the same map loaded again soon finds it.</summary>
 	public static double ModelGraceSeconds { get; set; } = 10;
@@ -260,6 +273,9 @@ public sealed partial class BackendDevice
 			if ( !modelLives.TryGetValue( mesh, out var life ) || life.Holders == 0 ) return;
 			if ( --life.Holders > 0 || life.Pinned ) return;
 			life.ReleasedAt = Stopwatch.GetTimestamp();
+			life.ReleasedFrame = (long)Gpu.FrameNumber;
+			if ( life.Queued ) return;
+			life.Queued = true;
 			unheldModels.Add( life );
 		}
 	}
@@ -273,7 +289,7 @@ public sealed partial class BackendDevice
 	public void TrackModel( RenderMesh mesh )
 	{
 		if ( mesh is null ) return;
-		lock ( modelLives ) modelLives.TryAdd( mesh, new ModelLife { Mesh = mesh } );
+		lock ( modelLives ) modelLives.TryAdd( mesh, new ModelLife { Mesh = mesh, Model = mesh.Geometry as BackendModel } );
 	}
 
 	void PinModel( RenderMesh mesh )
@@ -284,9 +300,16 @@ public sealed partial class BackendDevice
 		}
 	}
 
+	/// <summary>Models kept because something drew them after their last holder let go, for soaks and tests.</summary>
+	public int ModelsDrawnUnheld { get; private set; }
+
+	/// <summary>Where a model drawn after its last holder let go is reported; the console by default.</summary>
+	public Action<string> Warn { get; set; } = message => Console.WriteLine( message );
+
 	/// <summary>
 	/// At a frame's start: free the models nothing has held for <see cref="ModelGraceSeconds"/> (the next ask loads them
-	/// again), and the GPU-driven pages all of whose meshes have gone.
+	/// again), and the GPU-driven pages all of whose meshes have gone. One something drew after its last holder let go is
+	/// kept, for another grace period from then, and reported once: freeing it would leave that draw binding destroyed buffers.
 	/// </summary>
 	void FreeUnheldModels()
 	{
@@ -300,11 +323,23 @@ public sealed partial class BackendDevice
 					var life = unheldModels[i];
 					if ( life.Holders > 0 || life.Pinned )
 					{
+						life.Queued = false;
 						unheldModels.RemoveAt( i );
 						continue;
 					}
 
 					if ( life.ReleasedAt > due ) continue;
+					if ( life.Model is { } drawn && drawn.LastUsedFrame > life.ReleasedFrame )
+					{
+						life.ReleasedAt = Stopwatch.GetTimestamp();
+						life.ReleasedFrame = (long)Gpu.FrameNumber;
+						ModelsDrawnUnheld++;
+						if ( !life.Reported ) (warnings ??= new()).Add( drawn.Name );
+						life.Reported = true;
+						continue;
+					}
+
+					life.Queued = false;
 					unheldModels.RemoveAt( i );
 					if ( life.Mesh is { } made )
 					{
@@ -317,6 +352,12 @@ public sealed partial class BackendDevice
 						freeing.Add( mesh );
 					}
 				}
+			}
+
+			if ( warnings is not null )
+			{
+				foreach ( var name in warnings ) Warn?.Invoke( $"Borealis.Gpu: {name} is still drawn after the last world holding it let it go; kept until nothing draws it" );
+				warnings.Clear();
 			}
 
 			foreach ( var mesh in freeing )

@@ -9,37 +9,40 @@ namespace Sandbox.Rendering.Bridge;
 /// Queues object changes from any thread and applies changed fields before rendering.
 /// Object attributes are read when a view draws the object, as their values change in place without notifications.
 /// </summary>
-internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSource, IDisposable
+internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRender, IAttributeSource, IDisposable
 {
 	readonly SceneWorld source;
 
 	/// <summary>
-	/// The mirrored world, or for an extra world the main world's it's drawn in.
+	/// The mirrored world: one per scene world. A camera drawing it as an extra world draws it in its main world's
+	/// (<see cref="RenderWorld.Include"/>).
 	/// </summary>
-	public RenderWorld World { get; }
-
-	/// <summary>
-	/// 0 for a main world's mirror. For an extra world's, the sub-world its objects have in <see cref="World"/> (another
-	/// mirror's), which only views drawing it show (<see cref="RenderView.SubWorlds"/>).
-	/// </summary>
-	public int SubWorld { get; }
-
-	/// <summary>
-	/// For a main world's mirror, the sub-worlds of <see cref="World"/> its extra worlds' mirrors hold, as bits.
-	/// </summary>
-	public ulong HostedSubWorlds { get; set; }
+	public RenderWorld World { get; } = new();
 
 	/// <summary>
 	/// Unsupported object counts by type, for comparison reports.
 	/// </summary>
 	public Dictionary<string, int> Unsupported { get; } = new();
 
-	readonly Dictionary<SceneObject, RenderObject> objects = new();
+	/// <summary>
+	/// What a scene object of this world draws as (<see cref="SceneObject.RenderObject"/>, its own), or null if it isn't drawn.
+	/// </summary>
+	internal RenderObject Find( SceneObject sceneObject ) => sceneObject?.RenderObject is { } obj && obj.World == World ? obj : null;
+
+	// The world's objects added that draw as nothing (suns, skies, probe volumes, those not supported), and how many objects
+	// were added in all
+	readonly HashSet<SceneObject> undrawn = new();
+	int added;
 
 	/// <summary>
-	/// What a scene object is in the mirror, or null if it isn't drawn.
+	/// Whether an object has been added: it has a render object in this world, or draws as nothing.
 	/// </summary>
-	internal RenderObject Find( SceneObject sceneObject ) => sceneObject is not null && objects.TryGetValue( sceneObject, out var obj ) ? obj : null;
+	bool Added( SceneObject sceneObject, out RenderObject obj )
+	{
+		obj = Find( sceneObject );
+		return obj is not null || undrawn.Contains( sceneObject );
+	}
+
 	// In the order they were added: the last enabled one is the sun
 	readonly List<SceneDirectionalLight> suns = new();
 
@@ -67,123 +70,26 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// <summary>
 	/// Start mirroring a world: take over its change listener, and queue everything already in it.
 	/// </summary>
-	public SceneMirror( SceneWorld source ) : this( source, new RenderWorld(), 0 )
-	{
-	}
-
-	/// <summary>
-	/// Start mirroring an extra world into <paramref name="host"/>, another mirror's world, as its sub-world
-	/// <paramref name="subWorld"/>: drawn in the same layers and depth by the views that show it, as native draws a camera's
-	/// extra worlds (<c>CCameraRenderer::CreateView</c>, <c>AddWorldToRenderList</c>).
-	/// </summary>
-	public SceneMirror( SceneWorld source, RenderWorld host, int subWorld )
+	public SceneMirror( SceneWorld source )
 	{
 		this.source = source;
-		World = host;
-		SubWorld = subWorld;
 
 		lock ( source.InternalSceneObjects )
 		{
-			Listeners.Add( source, this );
+			source.ChangeListener = this;
+			source.Render = this;
 			foreach ( var sceneObject in source.InternalSceneObjects )
 				pending[sceneObject] = SceneObjectChange.Added;
 		}
 	}
 
 	/// <summary>
-	/// A world's change listener when more than one mirror listens: a world drawn by one camera and as another's extra world.
-	/// </summary>
-	sealed class Listeners : ISceneObjectListener
-	{
-		// Replaced, never changed, so changes from other threads can read it without a lock
-		volatile SceneMirror[] mirrors;
-
-		public void OnChanged( SceneObject sceneObject, SceneObjectChange change )
-		{
-			foreach ( var mirror in mirrors ) mirror.OnChanged( sceneObject, change );
-		}
-
-		/// <summary>
-		/// Listen to <paramref name="source"/>, with any mirror listening already.
-		/// </summary>
-		public static void Add( SceneWorld source, SceneMirror mirror )
-		{
-			switch ( source.ChangeListener )
-			{
-				case Listeners many:
-					many.mirrors = [.. many.mirrors, mirror];
-					break;
-
-				case SceneMirror one:
-					source.ChangeListener = new Listeners { mirrors = [one, mirror] };
-					break;
-
-				default:
-					source.ChangeListener = mirror;
-					break;
-			}
-		}
-
-		/// <summary>
-		/// Stop listening to <paramref name="source"/>, leaving any other mirror listening.
-		/// </summary>
-		public static void Remove( SceneWorld source, SceneMirror mirror )
-		{
-			lock ( source.InternalSceneObjects )
-			{
-				if ( source.ChangeListener == mirror )
-				{
-					source.ChangeListener = null;
-					return;
-				}
-
-				if ( source.ChangeListener is not Listeners many ) return;
-
-				var left = many.mirrors.Where( x => x != mirror ).ToArray();
-				if ( left.Length == 1 ) source.ChangeListener = left[0];
-				else many.mirrors = left;
-			}
-		}
-	}
-
-	/// <summary>
-	/// What a change waits for the next sync to apply, merged with the object's other changes: an object coming or going, and
-	/// what works its draws or attributes out again. The rest of a change to an object that reads nothing from native applies
-	/// at once (<see cref="WritesDirectly"/>).
-	/// </summary>
-	const SceneObjectChange Queued = SceneObjectChange.Added | SceneObjectChange.Removed | SceneObjectChange.Deleted | SceneObjectChange.Model
-		| SceneObjectChange.Material | SceneObjectChange.Attributes;
-
-	// While Sync applies changes: a change reported meanwhile (a texture that loaded) waits for the next
-	bool syncing;
-
-	/// <summary>
-	/// Whether an object's changes go straight into its render object rather than waiting for a sync: the kinds that read
-	/// nothing from native code (decals, point and spot lights, cubemaps, custom and dynamic objects, and models managed code
-	/// made). Animated objects and those native code made (a map's) wait for the sync, which reads what native has.
-	/// </summary>
-	static bool WritesDirectly( SceneObject sceneObject ) => sceneObject switch
-	{
-		SceneModel or SceneDirectionalLight or SceneLightProbe or SceneSkyBox => false,
-		DecalSceneObject or SceneLight or SceneCubemap or SceneCustomObject or SceneDynamicObject => true,
-		_ => sceneObject.GetType() == typeof( SceneObject ) && sceneObject.ResolvesDraws,
-	};
-
-	/// <summary>
-	/// A change, from any thread. One to an object that writes directly (<see cref="WritesDirectly"/>), made on the main thread
-	/// outside a sync and outside a render of the world, goes into its render object at once; anything else is queued for the
-	/// next sync.
+	/// A change, from any thread, queued for the next sync: one to an object that writes its own render object
+	/// (<see cref="SceneObject.OwnsRenderObject"/>) only when it couldn't write it itself (made on another thread or during a
+	/// render, or one that waits for the sync: coming and going, a model, materials or attributes).
 	/// </summary>
 	public void OnChanged( SceneObject sceneObject, SceneObjectChange change )
 	{
-		if ( (change & Queued) == 0 && !syncing && World.Rendering == 0 && ThreadSafe.IsMainThread && WritesDirectly( sceneObject )
-			&& objects.TryGetValue( sceneObject, out var obj ) && obj is not null && sceneObject.IsValid() )
-		{
-			using ( Borealis.Zones.MirrorDirect.Start() )
-				ApplyTo( sceneObject, obj, change );
-			return;
-		}
-
 		lock ( gate )
 		{
 			// Native lights with a deleted light until its frame ends: the frame it was deleted in decides how long it's kept
@@ -197,12 +103,17 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	readonly List<SceneObject> lingering = new();
 
 	/// <summary>
-	/// Stop listening. A main world's mirror keeps its last state; an extra world's takes its objects out of the world it was
-	/// drawn in.
+	/// Stop listening. The world keeps its last state, but isn't drawn in another's any more, nor another in it.
 	/// </summary>
 	public void Dispose()
 	{
-		Listeners.Remove( source, this );
+		lock ( source.InternalSceneObjects )
+		{
+			if ( source.ChangeListener == this ) source.ChangeListener = null;
+			if ( source.Render == this ) source.Render = null;
+		}
+
+		World.ExcludeEverywhere();
 		DisposeMaps();
 		lock ( lightmapFolders )
 		{
@@ -238,15 +149,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 			models.Clear();
 		}
-
-		if ( SubWorld == 0 ) return;
-
-		foreach ( var (_, obj) in objects )
-		{
-			if ( obj is not null ) World.Remove( obj );
-		}
-
-		objects.Clear();
 	}
 
 	/// <summary>
@@ -269,54 +171,24 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// <summary>
 	/// Apply what changed since the last sync, for a camera about to render the world.
 	/// </summary>
-	public void Sync( SceneCamera camera, bool skyboxView = false )
+	public void Sync( SceneCamera camera, bool skyboxView = false ) => SyncWith( camera, skyboxView, lighting: true );
+
+	/// <summary>
+	/// Apply what changed to the world's objects since the last sync, for a camera drawing it as an extra world: its lighting
+	/// isn't used, the main world's lights it.
+	/// </summary>
+	public void SyncObjects( SceneCamera camera ) => SyncWith( camera, false, lighting: false );
+
+	void SyncWith( SceneCamera camera, bool skyboxView, bool lighting )
 	{
 		using var zone = Borealis.Zones.MirrorSync.Start();
 		HasSynced = true;
-		syncing = true;
-		try
-		{
-			SyncChanges( camera, skyboxView );
-		}
-		finally
-		{
-			syncing = false;
-		}
+		SyncChanges( camera, skyboxView, lighting );
 	}
 
-	/// <summary>
-	/// Apply what changed without a camera, for a scene loading behind a loading screen that nothing renders yet: its objects'
-	/// models start reading on workers and are made, so the first frame that renders it has them, as native's load makes
-	/// them. The lighting waits for a camera's <see cref="Sync"/>.
-	/// </summary>
-	public void SyncObjects()
+	void SyncChanges( SceneCamera camera, bool skyboxView, bool lighting )
 	{
-		using var zone = Borealis.Zones.MirrorSync.Start();
-		syncing = true;
-		try
-		{
-			ApplyChanges();
-		}
-		finally
-		{
-			syncing = false;
-		}
-	}
 
-	void SyncChanges( SceneCamera camera, bool skyboxView )
-	{
-		ApplyChanges();
-
-		// An extra world's objects are lit by the main world's sun, sky, probe volumes and fog, as native lights the view
-		if ( SubWorld == 0 )
-		{
-			using ( Borealis.Zones.MirrorLighting.Start() )
-				SyncLighting( camera, skyboxView );
-		}
-	}
-
-	void ApplyChanges()
-	{
 		// A reload queues the objects drawing what it changed, and so does a model finishing loading
 		using ( Borealis.Zones.MirrorLoaded.Start() )
 		{
@@ -353,6 +225,13 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		applying.Clear();
 
 		SweepCaches( frame );
+
+		// An extra world's objects are lit by the main world's sun, sky, probe volumes and fog, as native lights the view
+		if ( lighting )
+		{
+			using ( Borealis.Zones.MirrorLighting.Start() )
+				SyncLighting( camera, skyboxView );
+		}
 	}
 
 	/// <summary>
@@ -383,7 +262,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		// Native deletion can precede queued change processing.
 		if ( !sceneObject.IsValid() ) return;
 
-		if ( !objects.TryGetValue( sceneObject, out var obj ) )
+		if ( !Added( sceneObject, out var obj ) )
 		{
 			obj = Add( sceneObject );
 			change = Everything;
@@ -395,6 +274,13 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// <summary>A change to an object already mirrored (<paramref name="obj"/> null for one that isn't drawn as an object).</summary>
 	void ApplyTo( SceneObject sceneObject, RenderObject obj, SceneObjectChange change )
 	{
+		// One that writes its own
+		if ( sceneObject.OwnsRenderObject )
+		{
+			if ( obj is not null ) sceneObject.WriteRender( obj, change, this );
+			return;
+		}
+
 		if ( obj is not null && (change & SceneObjectChange.Tags) != 0 )
 			obj.Tags = TagsOf( sceneObject );
 
@@ -402,22 +288,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		{
 			case MeshObject mesh:
 				ApplyMesh( sceneObject, mesh, change );
-				break;
-
-			case LightObject light:
-				ApplyLight( (SceneLight)sceneObject, light, change );
-				break;
-
-			case EnvMapObject envMap:
-				ApplyEnvMap( (SceneCubemap)sceneObject, envMap, change );
-				break;
-
-			case CustomObject custom:
-				ApplyCustom( sceneObject, custom, change );
-				break;
-
-			case DecalObject decal:
-				ApplyDecal( (DecalSceneObject)sceneObject, decal, change );
 				break;
 
 			case AggregateObject aggregate:
@@ -443,7 +313,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	readonly Dictionary<SceneCubemap, Texture> uncaptured = new();
 	int capturesSeen;
 
-	/// <summary>Apply again the probes whose cube a capture has made since the last sync (<see cref="ApplyEnvMap"/>).</summary>
+	/// <summary>Write again the probes whose cube a capture has made since the last sync (<see cref="ProbeCube"/>).</summary>
 	void CheckCaptured()
 	{
 		if ( uncaptured.Count == 0 || capturesSeen == MirrorContent.CaptureCubesMade ) return;
@@ -500,6 +370,14 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		lock ( heldMaterials ) return heldMaterials.Add( path ) ? gpu.ModelMaterial( path ) : gpu.HeldMaterial( path );
 	}
 
+	GpuTexture ISceneWorldRender.Texture( Texture texture ) => WorldTexture( texture );
+
+	void ISceneWorldRender.WriteMesh( SceneObject sceneObject, MeshObject mesh, SceneObjectChange change ) => ApplyMesh( sceneObject, mesh, change );
+
+	bool ISceneWorldRender.OnDevice => MirrorContent.Gpu is not null;
+
+	GpuTexture ISceneWorldRender.TextureWhenRead( Texture texture, SceneObject waiting, SceneObjectChange change ) => TextureFor( texture, waiting, change );
+
 	/// <summary>A texture this world draws with (its fog's sky), as <see cref="MirrorContent.Texture"/> has it, but a file's held by the world.</summary>
 	public GpuTexture WorldTexture( Texture texture )
 	{
@@ -544,28 +422,23 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// </summary>
 	RenderObject Add( SceneObject sceneObject )
 	{
-		// Probe volumes belong to the world's lighting list, not its draw list. An extra world's go in the main world's list
-		// with its sub-world, so they light only views drawing it
+		// Probe volumes belong to the world's lighting list, not its draw list. A world that includes this one draws them
+		// through stand-ins with its number (RenderWorld.DrawnLightProbeVolumes), so they light only views drawing it
 		if ( sceneObject is SceneLightProbe probe )
 		{
-			var volume = new Borealis.LightProbeVolume { SubWorld = SubWorld };
+			var volume = new Borealis.LightProbeVolume();
 			lightProbes[probe] = volume;
 			World.LightProbeVolumes.Add( volume );
-			objects[sceneObject] = null;
+			undrawn.Add( sceneObject );
+			added++;
 			return null;
 		}
 
-		RenderObject obj = sceneObject switch
+		RenderObject obj = sceneObject.OwnsRenderObject ? sceneObject.MakeRenderObject() : sceneObject switch
 		{
-			SceneCubemap => new EnvMapObject( null, default, Transform.Zero ),
 			SceneDirectionalLight => null,
 			SceneSkyBox => null,
-			SceneSpotLight => new LightObject( LightObject.LightKind.Spot, sceneObject.Transform ),
-			ScenePointLight => new LightObject( LightObject.LightKind.Point, sceneObject.Transform ),
 			SceneModel => new MeshObject( null, sceneObject.Transform ),
-			SceneCustomObject custom => new BridgeCustomObject( custom ),
-			SceneDynamicObject dynamic => new BridgeDynamicObject( dynamic ),
-			DecalSceneObject => new DecalObject( sceneObject.Transform ),
 			SceneAggregateObject => AggregateFor( sceneObject ),
 
 			// A map's world geometry is native aggregates, which have no managed type of their own
@@ -573,15 +446,18 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			_ => null,
 		};
 
-		objects[sceneObject] = obj;
-
-		if ( obj is not null )
+		added++;
+		sceneObject.RenderObject = obj;
+		if ( obj is not null ) World.Add( obj );
+		else
 		{
-			obj.SubWorld = SubWorld;
-			World.Add( obj );
+			undrawn.Add( sceneObject );
+			if ( sceneObject is SceneDirectionalLight sun )
+			{
+				if ( !suns.Contains( sun ) ) suns.Add( sun );
+			}
+			else if ( sceneObject is not SceneSkyBox ) Count( sceneObject, 1 );
 		}
-		else if ( sceneObject is SceneDirectionalLight sun && !suns.Contains( sun ) ) suns.Add( sun );
-		else if ( sceneObject is not SceneSkyBox ) Count( sceneObject, 1 );
 
 		return obj;
 	}
@@ -589,7 +465,10 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	void Remove( SceneObject sceneObject )
 	{
 		lock ( gate ) deletedFrames.Remove( sceneObject );
-		if ( !objects.Remove( sceneObject, out var obj ) ) return;
+		if ( !Added( sceneObject, out var obj ) ) return;
+		added--;
+		undrawn.Remove( sceneObject );
+		if ( obj is not null ) sceneObject.RenderObject = null;
 
 		if ( obj is MeshObject mesh )
 		{
@@ -755,7 +634,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		if ( (change & SceneObjectChange.Flags) != 0 )
 		{
 			var flags = sceneObject.Flags;
-			ApplyLayerFlags( aggregate, flags );
+			SceneObject.WriteLayerFlags( aggregate, flags );
 			aggregate.CastShadows = flags.CastShadows;
 			aggregate.IsStatic = flags.IsStatic;
 			aggregate.IsWorld = aggregate.IsStatic || flags.HasFlag( SceneObjectFlags.IsHammerGeometry );
@@ -768,93 +647,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		}
 	}
 
-	void ApplyLight( SceneLight sceneLight, LightObject light, SceneObjectChange change )
-	{
-		if ( (change & SceneObjectChange.Transform) != 0 )
-			light.Transform = sceneLight.Transform;
-
-		if ( (change & SceneObjectChange.Settings) != 0 )
-		{
-			light.Color = sceneLight.LightColor;
-			light.Radius = sceneLight.Radius;
-			light.Attenuation = sceneLight.QuadraticAttenuation;
-			light.CastShadows = sceneLight.ShadowsEnabled;
-			light.ShadowHardness = sceneLight.ShadowHardness;
-
-			if ( sceneLight is SceneSpotLight spot )
-			{
-				light.ConeInner = spot.ConeInner;
-				light.ConeOuter = spot.ConeOuter;
-			}
-
-			light.Cookie = sceneLight is SceneSpotLight ? WorldTexture( sceneLight.LightCookie ) : null;
-		}
-
-		// Pack the light's description (attenuation, falloff and baking from maps included: Light.LegacyLightData)
-		if ( (change & (SceneObjectChange.Settings | SceneObjectChange.Transform)) != 0 && sceneLight.IsValid() )
-		{
-			LightPacking.Pack( sceneLight, out var packed, out var flags, out var bakeIndex );
-
-			// The binner sets the cookie's index on Borealis.Gpu from the texture
-			if ( MirrorContent.Gpu is not null && (packed.Flags & Borealis.Features.LightBinnerFeature.LightCookieEnabled) != 0 )
-			{
-				packed.Flags &= ~Borealis.Features.LightBinnerFeature.LightCookieEnabled;
-				packed.LightCookieTextureIndex = 0xFFFFFFFF;
-			}
-
-			light.NativePacked = packed;
-			light.Baked = (flags & LightTypeFlagsBaked) != 0;
-			light.MixedShadows = (flags & LightTypeFlagsMixedShadows) != 0;
-			light.BakeIndex = bakeIndex;
-		}
-	}
-
-	// LIGHTTYPE_FLAGS in native's lightdesc.h
-	const uint LightTypeFlagsMixedShadows = 16, LightTypeFlagsBaked = 32;
-
-	/// <summary>
-	/// Mirror custom-object placement, culling bounds and flags.
-	/// </summary>
-	static void ApplyCustom( SceneObject sceneObject, CustomObject custom, SceneObjectChange change )
-	{
-		// A dynamic object's material is known before it draws (gizmos, the debug overlay): whether it needs a stencil, so the
-		// view's depth has one before the frame records. Other custom objects pick their materials as they draw
-		if ( custom is BridgeDynamicObject dynamic && RenderBackend.Default is BorealisGpuRenderBackend gpu ) custom.NeedsStencil = gpu.NeedsStencil( dynamic.Source.ManagedMaterial );
-
-		const SceneObjectChange Placement = SceneObjectChange.Transform | SceneObjectChange.Bounds;
-		if ( (change & Placement) != 0 )
-		{
-			// Unplaced custom objects may report zero scale; native uses identity.
-			var transform = sceneObject.Transform;
-			custom.Transform = transform == default ? Transform.Zero : transform;
-
-			// Bounds as kept (WorldBounds): SceneObject.Bounds collapses infinity to a point.
-			// Use large finite bounds to keep culling math valid.
-			var bounds = sceneObject.WorldBounds;
-			if ( !float.IsFinite( bounds.Mins.x + bounds.Mins.y + bounds.Mins.z + bounds.Maxs.x + bounds.Maxs.y + bounds.Maxs.z ) || bounds.Size.x > 1e9f )
-				bounds = new BBox( new Vector3( -1e9f ), new Vector3( 1e9f ) );
-
-			custom.LocalBounds = ToLocal( bounds, custom.Transform );
-		}
-
-		const SceneObjectChange State = SceneObjectChange.Tint | SceneObjectChange.Flags | SceneObjectChange.Visibility;
-		if ( (change & State) != 0 )
-		{
-			custom.Tint = sceneObject.ColorTint;
-			custom.IsOpaque = sceneObject.Flags.IsOpaque && !sceneObject.Flags.IsTranslucent;
-			custom.WantsFrameBufferCopy = sceneObject.Flags.WantsFrameBufferCopy;
-			custom.DepthPrepass = !sceneObject.Flags.HasFlag( SceneObjectFlags.NoZPrepass );
-			custom.CastShadows = sceneObject.Flags.CastShadows;
-			custom.Visible = sceneObject.RenderingEnabled;
-			ApplyLayerFlags( custom, sceneObject.Flags );
-			custom.LayerMatch = LayerMatchFor( sceneObject.LayerMatchToken );
-		}
-	}
-
-	static readonly uint StaticOverlayMatch = new StringToken( "StaticOverlayLayer" ).Value;
-	static readonly uint OverlayWithDepthMatch = new StringToken( "OverlayWithDepth" ).Value;
-	static readonly uint OverlayWithoutDepthMatch = new StringToken( "OverlayWithoutDepth" ).Value;
-
 	/// <summary>
 	/// Mirror native blend/prepass flags and layer match (<c>CSceneObject::m_nLayerMatchID</c>).
 	/// MeshRenderFeature owns classification.
@@ -862,7 +654,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	static void ApplyMeshLayers( SceneObject sceneObject, MeshObject mesh )
 	{
 		var flags = sceneObject.Flags;
-		ApplyLayerFlags( mesh, flags );
+		SceneObject.WriteLayerFlags( mesh, flags );
 		mesh.DrawsOpaque = flags.HasFlag( SceneObjectFlags.IsOpaque );
 		mesh.DrawsTranslucent = flags.HasFlag( SceneObjectFlags.IsTranslucent );
 		mesh.DepthPrepass = !flags.HasFlag( SceneObjectFlags.NoZPrepass );
@@ -873,7 +665,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		mesh.LightGroup = (uint)sceneObject.LightGroup;
 		mesh.LightProbeHandshake = sceneObject.ResolvesDraws ? 0 : SceneNative.LightProbeHandshake( sceneObject );
 
-		mesh.LayerMatch = LayerMatchFor( sceneObject.LayerMatchToken );
+		mesh.LayerMatch = SceneObject.LayerMatchFor( sceneObject.LayerMatchToken );
 		mesh.RenderOrder = mesh.LayerMatch == LayerMatch.StaticOverlay ? sceneObject.RenderOrder : 0;
 	}
 
@@ -896,90 +688,25 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		return parts.Count == 0 ? "" : $" ({string.Join( ", ", parts )})";
 	}
 
-	/// <summary>
-	/// Translate native layer-match IDs; MeshRenderFeature decides membership.
-	/// </summary>
-	static LayerMatch LayerMatchFor( uint match )
-	{
-		if ( match == 0 ) return LayerMatch.None;
-		if ( match == StaticOverlayMatch ) return LayerMatch.StaticOverlay;
-		if ( match == OverlayWithDepthMatch ) return LayerMatch.OverlayWithDepth;
-		if ( match == OverlayWithoutDepthMatch ) return LayerMatch.OverlayWithoutDepth;
-		return LayerMatch.Unsupported;
-	}
+
 
 	/// <summary>
-	/// Mirror game, overlay and effect flags from native <c>RenderOptions</c>, and whether cube captures leave it out.
+	/// The cube a probe reflects. A realtime probe's cube is made when it's first captured (the envmap scheduler captures the
+	/// probes that are seen), not for every probe a map has: it reflects black until then, as a cube cleared for it did.
 	/// </summary>
-	static void ApplyLayerFlags( RenderObject obj, SceneObject.SceneObjectFlagAccessor flags )
+	public GpuTexture ProbeCube( SceneCubemap cubemap )
 	{
-		obj.GameLayers = !flags.HasFlag( SceneObjectFlags.ExcludeGameLayer );
-		obj.Overlay = flags.HasFlag( SceneObjectFlags.GameOverlayLayer );
-		obj.Bloom = flags.HasFlag( SceneObjectFlags.EffectsBloomLayer );
-		obj.AfterUI = flags.HasFlag( SceneObjectFlags.UIOverlayLayer );
-		obj.HiddenInCaptures = flags.HasFlag( SceneObjectFlags.HideInCubemaps );
-	}
-
-	/// <summary>
-	/// A decal's box and everything it projects, as <c>CLightBinnerStandard</c> reads a <c>CDecalSceneObject</c>.
-	/// </summary>
-	void ApplyDecal( DecalSceneObject source, DecalObject decal, SceneObjectChange change )
-	{
-		if ( (change & SceneObjectChange.Transform) != 0 )
-			decal.Transform = source.Transform == default ? Transform.Zero : source.Transform;
-
-		if ( (change & SceneObjectChange.Visibility) != 0 )
-			decal.Visible = source.RenderingEnabled;
-
-		if ( (change & SceneObjectChange.Settings) != 0 )
+		var texture = cubemap.Texture;
+		if ( LazyCaptureCubes && MirrorContent.IsCaptureCube( texture ) )
 		{
-			decal.Color = WorldTexture( source.ColorTexture );
-			decal.Normal = WorldTexture( source.NormalTexture );
-			decal.RoughnessMetalnessOcclusion = WorldTexture( source.RMOTexture );
-			decal.Height = WorldTexture( source.HeightTexture );
-			decal.Emission = WorldTexture( source.EmissionTexture );
-			decal.Tint = source.Color;
-			decal.SortOrder = source.SortOrder;
-			decal.ExclusionBitMask = source.ExclusionBitMask;
-			decal.AttenuationAngle = source.AttenuationAngle;
-			decal.EmissionEnergy = source.EmissionEnergy;
-			decal.SequenceIndex = source.SequenceIndex;
-			decal.ColorMix = source.ColorMix;
-			decal.BlendMode = (Borealis.DecalBlendMode)source.BlendMode;
-			decal.ParallaxStrength = source.ParallaxStrength;
-			decal.SamplerIndex = source.SamplerIndex;
-			decal.CoverageAmount = source.CoverageAmount;
-			decal.CoverageRange = source.CoverageRange;
+			var made = MirrorContent.MadeCaptureCube( texture );
+			if ( made is null ) uncaptured[cubemap] = texture;
+			else uncaptured.Remove( cubemap );
+			return made;
 		}
-	}
 
-	void ApplyEnvMap( SceneCubemap cubemap, EnvMapObject envMap, SceneObjectChange change )
-	{
-		if ( (change & SceneObjectChange.Transform) != 0 )
-			envMap.Transform = cubemap.Transform;
-
-		if ( (change & SceneObjectChange.Settings) != 0 )
-		{
-			// A realtime probe's cube is made when it's first captured (the envmap scheduler captures the probes that are seen),
-			// not for every probe a map has: it reflects black until then, as a cube cleared for it did
-			var texture = cubemap.Texture;
-			if ( LazyCaptureCubes && MirrorContent.IsCaptureCube( texture ) )
-			{
-				envMap.Cubemap = MirrorContent.MadeCaptureCube( texture );
-				if ( envMap.Cubemap is null ) uncaptured[cubemap] = texture;
-				else uncaptured.Remove( cubemap );
-			}
-			else
-			{
-				envMap.Cubemap = TextureFor( texture, cubemap, SceneObjectChange.Settings );
-				uncaptured.Remove( cubemap );
-			}
-
-			envMap.ProjectionBounds = cubemap.ProjectionBounds;
-			envMap.Tint = cubemap.TintColor;
-			envMap.Feathering = cubemap.Feathering;
-			envMap.Priority = cubemap.Priority;
-		}
+		uncaptured.Remove( cubemap );
+		return TextureFor( texture, cubemap, SceneObjectChange.Settings );
 	}
 
 	/// <summary>
@@ -1064,7 +791,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 				Color = light.LightColor,
 				Shadows = light.ShadowsEnabled,
 				ShadowHardness = light.ShadowHardness,
-				ShadowsBaked = (flags & LightTypeFlagsBaked) != 0 && !light.IncludeStaticShadowCasters,
+				ShadowsBaked = (flags & LightPacking.TypeFlagsBaked) != 0 && !light.IncludeStaticShadowCasters,
 				BakeIndex = bakeIndex,
 				Baked = bakeIndex >= 0 ? packed : null,
 			} );
@@ -1113,7 +840,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 				lighting.SunBakeIndex = bakeIndex;
 				lighting.SunBaked = bakeIndex >= 0 ? packed : null;
 
-				var baked = (flags & LightTypeFlagsBaked) != 0;
+				var baked = (flags & LightPacking.TypeFlagsBaked) != 0;
 				// A baked sun still renders cascades, without its static casters: native's binner only asks local lights for
 				// mixed shadows (CLightBinnerStandard::AddLight), and volumetric fog is lit by the sun only through them
 				lighting.SunShadowsBaked = baked && !sun.IncludeStaticShadowCasters;
@@ -1235,9 +962,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		// Compare probe packing within float tolerance, excluding setup-time cubemap indices.
 		var probes = 0;
 		var probesAsNative = 0;
-		foreach ( var (sceneObject, renderObject) in objects )
+		foreach ( var sceneObject in source.SceneObjects )
 		{
-			if ( renderObject is not EnvMapObject envMap ) continue;
+			if ( Find( sceneObject ) is not EnvMapObject envMap ) continue;
 			probes++;
 			if ( SceneNative.PacksAsNative( sceneObject, envMap ) ) probesAsNative++;
 		}
@@ -1265,22 +992,5 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		return tokens.Count == 0 ? [] : [.. tokens];
 	}
 
-	/// <summary>
-	/// A world box in an object's space: the box around its corners taken back through the transform.
-	/// </summary>
-	static BBox ToLocal( BBox world, Transform transform )
-	{
-		var mins = new Vector3( float.MaxValue );
-		var maxs = new Vector3( float.MinValue );
-
-		for ( int i = 0; i < 8; i++ )
-		{
-			var corner = new Vector3( (i & 1) == 0 ? world.Mins.x : world.Maxs.x, (i & 2) == 0 ? world.Mins.y : world.Maxs.y, (i & 4) == 0 ? world.Mins.z : world.Maxs.z );
-			var local = transform.PointToLocal( corner );
-			mins = Vector3.Min( mins, local );
-			maxs = Vector3.Max( maxs, local );
-		}
-
-		return new BBox( mins, maxs );
-	}
+	static BBox ToLocal( BBox world, Transform transform ) => SceneObject.ToLocal( world, transform );
 }

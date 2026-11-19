@@ -1,5 +1,4 @@
 using Sandbox.Rendering;
-using System.Reflection;
 
 namespace SceneTests;
 
@@ -67,7 +66,7 @@ public class DecalTests
 
 			var decal = new Borealis.DecalObject( Transform.Zero );
 			using var mirror = NewMirror( scene.SceneWorld );
-			mirror.GetType().GetMethod( "ApplyDecal", BindingFlags.Instance | BindingFlags.NonPublic ).Invoke( mirror, [source, decal, SceneObjectChange.Settings] );
+			source.WriteRender( decal, SceneObjectChange.Settings, (ISceneWorldRender)mirror );
 			Assert.AreEqual( Color.Blue, decal.Tint, "the renderer reads the managed settings" );
 			Assert.AreEqual( 9u, decal.SortOrder );
 			Assert.AreEqual( 0.5f, decal.CoverageRange );
@@ -94,11 +93,10 @@ public class DecalTests
 			var source = new DecalSceneObject( scene.SceneWorld );
 			var decal = new Borealis.DecalObject( Transform.Zero );
 			using var mirror = NewMirror( scene.SceneWorld );
-			var apply = mirror.GetType().GetMethod( "ApplyDecal", BindingFlags.Instance | BindingFlags.NonPublic );
 			foreach ( var mode in new[] { DecalBlendMode.Multiply, DecalBlendMode.Additive, DecalBlendMode.Alpha } )
 			{
 				source.BlendMode = mode;
-				apply.Invoke( mirror, [source, decal, SceneObjectChange.Settings] );
+				source.WriteRender( decal, SceneObjectChange.Settings, (ISceneWorldRender)mirror );
 				Assert.AreEqual( (Borealis.DecalBlendMode)mode, decal.BlendMode );
 			}
 			source.Delete();

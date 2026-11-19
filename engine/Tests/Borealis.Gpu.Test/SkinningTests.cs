@@ -164,6 +164,88 @@ public class SkinningTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// skin.shader (the citizen's skin, which per-vertex curvature keeps off skin.slang) draws GPU-driven too: its variant
+	/// loads the face occlusion's <c>EyeOcclusionViewProj</c> float4x4 from the material record as its classic draw reads
+	/// it from its constant buffer, so with a projection that isn't symmetric set by the view, GPU-driven and classic look
+	/// the same, and closer than with the projection transposed. Set by the object, its draws stay classic.
+	/// </summary>
+	[TestMethod]
+	public void SkinShaderDrawsGpuDriven()
+	{
+		var previousHost = RenderHost.Current;
+		try
+		{
+			var numerics = new System.Numerics.Matrix4x4( 0, 0.03f, 0, 0, 0, 0, 0.03f, 0, 0.03f, 0, 0, 0, 0, 0, 0, 1 );
+			var projection = (Matrix)numerics;
+			var transposed = (Matrix)System.Numerics.Matrix4x4.Transpose( numerics );
+
+			(byte[] Pixels, long Batches, string[] Left) Draw( bool skinned, Matrix matrix, bool onObject = false )
+			{
+				using var backend = new BackendDevice( Device ) { GpuDrivenSkinned = skinned, TimeDraws = true };
+				backend.Surfaces.ConvertShaders = false;
+				RenderHost.Current = new BackendRenderHost( backend );
+				var mesh = backend.LoadModel( Citizen );
+				if ( mesh is null ) Assert.Inconclusive( $"{Citizen} isn't built" );
+
+				var skin = backend.LoadMaterial( "skin face occlusion test", new Borealis.Source2.Materials.MaterialFile
+				{
+					Name = "skin face occlusion test",
+					Shader = "shaders/skin.shader",
+					Ints = new Dictionary<string, int> { ["F_USE_FACE_OCCLUSION_TEXTURE"] = 1, ["F_USE_PER_VERTEX_CURVATURE"] = 1 },
+					Floats = new Dictionary<string, float>(),
+					Vectors = new Dictionary<string, float[]>(),
+					IntAttributes = new Dictionary<string, int>(),
+					Textures = new Dictionary<string, string>
+					{
+						["g_tColor"] = "models/citizen/skin/citizen_skin_young_color_png_57825f18.generated.vtex",
+						// Face occlusion read from a texture that varies everywhere, shown where the combined masks' red is
+						// (skin.shader's inside-mouth mask): the colour's is mostly high
+						["g_tOcclusion"] = "models/citizen/skin/citizen_skin_young_color_png_57825f18.generated.vtex",
+						["g_tCombinedMasks"] = "models/citizen/skin/citizen_skin_young_color_png_57825f18.generated.vtex",
+					},
+				} );
+				if ( skin is not BackendMaterial { Shader: not null } ) Assert.Inconclusive( "skin.shader isn't compiled" );
+				if ( backend.Shaders.GpuDriven( ((BackendMaterial)skin).Shader ) is null ) Assert.Inconclusive( "skin.shader's GPU-driven variant isn't built" );
+
+				var attributes = backend.CreateParameters();
+				attributes.Set( "EyeOcclusionViewProj", matrix );
+				var moved = new Transform( new Vector3( 0, 12, 6 ), Rotation.FromYaw( 35 ) );
+				var posed = mesh.BindPose.Select( ToTransform ).Select( x => moved.ToWorld( x ) ).ToArray();
+				Render( mesh, Transform.Zero, posed, material: skin, objectAttributes: onObject ? attributes : null, viewAttributes: onObject ? null : attributes );
+				var batches = backend.DrawTimes.GpuDrivenBatches;
+				backend.GpuDrivenLeftClassic.Clear();
+				var pixels = Render( mesh, Transform.Zero, posed, material: skin, objectAttributes: onObject ? attributes : null, viewAttributes: onObject ? null : attributes );
+				return (pixels, backend.DrawTimes.GpuDrivenBatches - batches, backend.GpuDrivenLeftClassic.Keys.Where( x => x.Contains( "skin", StringComparison.OrdinalIgnoreCase ) ).ToArray());
+			}
+
+			var classic = Draw( false, projection );
+			var gpuDriven = Draw( true, projection );
+			var classicTransposed = Draw( false, transposed );
+			Save( gpuDriven.Pixels, Width, Height, "skin-shader-gpudriven" );
+			Save( classic.Pixels, Width, Height, "skin-shader-classic" );
+
+			Assert.IsTrue( gpuDriven.Batches > classic.Batches, $"skin.shader draws go GPU-driven: {gpuDriven.Batches} batches against {classic.Batches}" );
+			Assert.AreEqual( 0, gpuDriven.Left.Length, $"no skin.shader draws left classic: {string.Join( ", ", gpuDriven.Left )}" );
+			var difference = MeanDifference( gpuDriven.Pixels, classic.Pixels );
+			var transposedDifference = MeanDifference( classicTransposed.Pixels, classic.Pixels );
+			TestContext.WriteLine( $"GPU-driven against classic {difference:F3}; transposed projection against classic {transposedDifference:F3}" );
+			// The citizen covers a small part of the frame, so the projection moves the mean a little (about 0.1)
+			Assert.IsTrue( transposedDifference > 0.05, $"the face occlusion's projection shows in the picture: {transposedDifference:F3} with it transposed" );
+			Assert.IsTrue( difference < transposedDifference / 4, $"GPU-driven skin.shader looks as the classic one: mean difference {difference:F3}, {transposedDifference:F3} with the projection transposed" );
+
+			var own = Draw( true, projection, onObject: true );
+			Assert.IsTrue( own.Left.Any( x => x.Contains( "object sets a matrix constant", StringComparison.Ordinal ) ), $"the object's own projection keeps its draws classic: {string.Join( ", ", own.Left )}" );
+			var ownDifference = MeanDifference( own.Pixels, classic.Pixels );
+			Assert.IsTrue( ownDifference < transposedDifference / 4, $"set by the object, the projection draws as set by the view: mean difference {ownDifference:F3}" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
 	/// <summary>A model-space bone (<c>matrix3x4_t</c> rows) as a transform.</summary>
 	static Transform ToTransform( Matrix3x4 m )
 	{
@@ -177,7 +259,7 @@ public class SkinningTests : GpuTest
 	}
 
 	/// <summary>The model drawn once from a fixed camera, as 8-bit sRGB.</summary>
-	byte[] Render( RenderMesh mesh, Transform transform, Transform[] bones, IMorphSource morphs = null, Vector3? focus = null, float distance = 1.4f )
+	byte[] Render( RenderMesh mesh, Transform transform, Transform[] bones, IMorphSource morphs = null, Vector3? focus = null, float distance = 1.4f, GpuMaterial material = null, ShaderParameters objectAttributes = null, ShaderParameters viewAttributes = null )
 	{
 		var system = new RenderSystem { ParallelRecording = false };
 		var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Skinning" );
@@ -186,7 +268,7 @@ public class SkinningTests : GpuTest
 			var world = new RenderWorld();
 			world.Lighting.SunDirection = new Vector3( -0.4f, 0.6f, -0.7f ).Normal;
 			world.Lighting.AmbientColor = new Color( 0.2f, 0.2f, 0.2f, 1 );
-			var obj = new MeshObject( mesh, transform ) { MorphSource = morphs };
+			var obj = new MeshObject( mesh, transform ) { MorphSource = morphs, MaterialOverride = material, Attributes = objectAttributes };
 			if ( bones is not null )
 			{
 				obj.SetBones( bones );
@@ -195,7 +277,7 @@ public class SkinningTests : GpuTest
 
 			world.Add( obj );
 
-			var view = new RenderView { Name = "Skinning", FieldOfView = 60, ClearColor = new Color( 0.1f, 0.2f, 0.9f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			var view = new RenderView { Name = "Skinning", FieldOfView = 60, ClearColor = new Color( 0.1f, 0.2f, 0.9f ), Viewport = new Rect( 0, 0, Width, Height ), ViewAttributes = viewAttributes };
 			var size = mesh.Bounds.Size.Length;
 			view.Rotation = Rotation.From( 20, 160, 0 );
 			view.Position = (focus ?? mesh.Bounds.Center) - view.Rotation.Forward * size * distance;

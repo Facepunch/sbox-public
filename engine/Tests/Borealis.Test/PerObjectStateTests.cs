@@ -187,6 +187,65 @@ public class PerObjectStateTests
 		Assert.IsTrue( ShadowCasters( system, feature ).Contains( extra.Index ), "a drawn sub-world casts shadows, as native's shadow views copy their view's worlds" );
 	}
 
+	[TestMethod]
+	public void IncludedWorldsDrawTheirOwnObjectsAsSubWorlds()
+	{
+		// A gizmo world drawn in two main worlds' views: the same objects, held by all three worlds, kept in step
+		var mesh = TestMesh( false );
+		var main = new RenderWorld();
+		var other = new RenderWorld();
+		var gizmos = new RenderWorld();
+		var own = new MeshObject( mesh, new Transform( new Vector3( 20, 0, 0 ) ) );
+		main.Add( own );
+		var before = new MeshObject( mesh, new Transform( new Vector3( 20, 5, 0 ) ) );
+		gizmos.Add( before );
+
+		var number = main.Include( gizmos );
+		Assert.AreEqual( 1, number );
+		Assert.AreEqual( number, main.Include( gizmos ), "included once" );
+		Assert.AreEqual( 1, other.Include( gizmos ), "each world numbers its own sub-worlds" );
+		Assert.AreEqual( 2, main.Count );
+		Assert.AreSame( gizmos, before.World, "an object's world stays its own" );
+
+		// Added after, and moved: every world holding it sees it
+		var after = new MeshObject( mesh, new Transform( new Vector3( 20, -5, 0 ) ) );
+		gizmos.Add( after );
+		Assert.AreEqual( 3, main.Count );
+		after.Transform = new Transform( new Vector3( 20, -6, 0 ) );
+		Assert.AreEqual( -6, main.BoundsCenter[after.IndexIn( main )].y, 0.001f );
+		Assert.AreEqual( -6, other.BoundsCenter[after.IndexIn( other )].y, 0.001f );
+		Assert.AreEqual( 0, gizmos.SubWorlds[after.Index], "its own world's" );
+		Assert.AreEqual( number, main.SubWorlds[after.IndexIn( main )] );
+
+		var view = LookingDownX();
+		using var system = new RenderSystem();
+		var feature = system.GetFeature<MeshRenderFeature>();
+		CollectAndPrepare( system, main, view );
+		CollectionAssert.AreEqual( new[] { own.Index }, system.MainPass.Visible( feature ).ToArray(), "not drawn unless the view says so" );
+
+		view.SubWorlds = 1UL << (number - 1);
+		CollectAndPrepare( system, main, view );
+		CollectionAssert.AreEquivalent( new[] { own.Index, before.IndexIn( main ), after.IndexIn( main ) }, system.MainPass.Visible( feature ).ToArray() );
+
+		// Removed from its world: from every world; the one moved into its place keeps its index right
+		gizmos.Remove( before );
+		Assert.AreEqual( -1, before.IndexIn( main ) );
+		Assert.AreEqual( 2, main.Count );
+		Assert.AreSame( after, main.Objects[after.IndexIn( main )] );
+		Assert.AreSame( after, gizmos.Objects[after.Index] );
+
+		// Left out of one world: the other still holds it
+		main.Exclude( gizmos );
+		Assert.AreEqual( 1, main.Count );
+		Assert.AreEqual( -1, after.IndexIn( main ) );
+		Assert.AreSame( after, other.Objects[after.IndexIn( other )] );
+		Assert.AreEqual( 0, main.SubWorldOf( gizmos ) );
+
+		gizmos.ExcludeEverywhere();
+		Assert.AreEqual( 0, other.Count );
+		Assert.AreEqual( 1, gizmos.Count );
+	}
+
 	static System.Collections.Generic.HashSet<int> ShadowCasters( RenderSystem system, MeshRenderFeature feature )
 	{
 		var casters = new System.Collections.Generic.HashSet<int>();

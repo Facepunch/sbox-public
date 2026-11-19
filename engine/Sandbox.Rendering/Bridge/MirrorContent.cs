@@ -47,7 +47,7 @@ internal static class MirrorContent
 
 	/// <summary>
 	/// A model made at run time (no file to read): saved as a compiled model in memory
-	/// (<c>Model.SaveToVmdl</c>, its buffers read back from Source 2 as they are) and read as a model file is, its materials by
+	/// (<c>Model.SaveToVmdl</c>, its buffers as its meshes keep them) and read as a model file is, its materials by
 	/// path; loading asynchronously (<see cref="BackendDevice.AsyncModels"/>) that's on a worker, and it's made within the
 	/// frame's load budget, null with <paramref name="pending"/> set until then. Its buffers are freed once the engine's model
 	/// is gone.

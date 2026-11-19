@@ -6,14 +6,133 @@ namespace Borealis;
 public abstract class RenderObject
 {
 	/// <summary>
-	/// The world this is in, or null.
+	/// The world this is in, or null. Worlds that draw this world as a sub-world (<see cref="RenderWorld.Include"/>) hold it too.
 	/// </summary>
 	public RenderWorld World { get; internal set; }
 
 	/// <summary>
-	/// Slot in the world's dense arrays. Changes when another object is removed.
+	/// Slot in <see cref="World"/>'s dense arrays. Changes when another object is removed. Its slot in a world that holds it as a
+	/// sub-world's is <see cref="IndexIn"/>.
 	/// </summary>
 	internal int Index { get; set; } = -1;
+
+	// The worlds that hold this as one of a sub-world's objects, and its slot in each
+	(RenderWorld World, int Index)[] hosts = [];
+	int hostCount;
+
+	/// <summary>
+	/// Its slot in <paramref name="world"/>'s dense arrays: its own world's, or one holding its world as a sub-world. -1 when
+	/// that world doesn't hold it.
+	/// </summary>
+	internal int IndexIn( RenderWorld world )
+	{
+		if ( ReferenceEquals( World, world ) ) return Index;
+		for ( int i = 0; i < hostCount; i++ )
+		{
+			if ( ReferenceEquals( hosts[i].World, world ) ) return hosts[i].Index;
+		}
+
+		return -1;
+	}
+
+	/// <summary>
+	/// Note its slot in <paramref name="world"/> (its own or a host), when the world moves it.
+	/// </summary>
+	internal void SetIndexIn( RenderWorld world, int index )
+	{
+		if ( ReferenceEquals( World, world ) )
+		{
+			Index = index;
+			return;
+		}
+
+		for ( int i = 0; i < hostCount; i++ )
+		{
+			if ( ReferenceEquals( hosts[i].World, world ) ) hosts[i].Index = index;
+		}
+	}
+
+	/// <summary>
+	/// Note that a world holding its world as a sub-world holds it at <paramref name="index"/>.
+	/// </summary>
+	internal void AddHost( RenderWorld world, int index )
+	{
+		if ( hostCount == hosts.Length ) Array.Resize( ref hosts, Math.Max( 2, hosts.Length * 2 ) );
+		hosts[hostCount++] = (world, index);
+	}
+
+	/// <summary>
+	/// Note that a world holding its world as a sub-world no longer does.
+	/// </summary>
+	internal void RemoveHost( RenderWorld world )
+	{
+		for ( int i = 0; i < hostCount; i++ )
+		{
+			if ( !ReferenceEquals( hosts[i].World, world ) ) continue;
+			hosts[i] = hosts[--hostCount];
+			hosts[hostCount] = default;
+			return;
+		}
+	}
+
+	/// <summary>
+	/// How many worlds hold it as a sub-world's (<see cref="HostAt"/>).
+	/// </summary>
+	internal int HostCount => hostCount;
+
+	internal RenderWorld HostAt( int i ) => hosts[i].World;
+
+	/// <summary>
+	/// Whether a world that holds it is being rendered: its own, or one holding it as a sub-world's. Its changes wait meanwhile.
+	/// </summary>
+	public bool InRender
+	{
+		get
+		{
+			if ( World is { Rendering: > 0 } ) return true;
+			for ( int i = 0; i < hostCount; i++ )
+			{
+				if ( hosts[i].World.Rendering > 0 ) return true;
+			}
+
+			return false;
+		}
+	}
+
+	/// <summary>What changed, for every world holding the object (<see cref="Changed"/>).</summary>
+	private protected enum WorldNote : byte
+	{
+		Sync,
+		SyncDynamic,
+		StaticCaster,
+		Caster,
+		Draw,
+		Entry,
+		Object,
+	}
+
+	/// <summary>
+	/// Tell its own world and every world holding it as a sub-world's that something changed.
+	/// </summary>
+	private protected void Changed( WorldNote note )
+	{
+		if ( World is { } world ) Note( world, note );
+		for ( int i = 0; i < hostCount; i++ ) Note( hosts[i].World, note );
+	}
+
+	void Note( RenderWorld world, WorldNote note )
+	{
+		switch ( note )
+		{
+			case WorldNote.Sync: world.Sync( this ); break;
+			case WorldNote.SyncDynamic: world.SyncDynamic( this ); break;
+			case WorldNote.StaticCaster: world.StaticCasterChanged( this ); break;
+			case WorldNote.Caster: world.CasterChanged( this ); break;
+			case WorldNote.Draw: world.DrawChanged( this ); break;
+			case WorldNote.Entry: world.EntryChanged( this ); break;
+			case WorldNote.Object: world.ObjectChanged( this ); break;
+		}
+	}
 
 	Transform transform = Transform.Zero;
 	BBox localBounds;
@@ -28,7 +147,7 @@ public abstract class RenderObject
 		{
 			transform = value;
 			TransformVersion++;
-			World?.Sync( this );
+			Changed( WorldNote.Sync );
 		}
 	}
 
@@ -52,8 +171,8 @@ public abstract class RenderObject
 		{
 			if ( field == value ) return;
 			field = value;
-			World?.SyncDynamic( this );
-			World?.StaticCasterChanged( this );
+			Changed( WorldNote.SyncDynamic );
+			Changed( WorldNote.StaticCaster );
 			DrawChanged();
 		}
 	}
@@ -62,13 +181,22 @@ public abstract class RenderObject
 	/// Tell the world this changed how it casts shadows, so lights it reaches redraw their static shadow caches, and the sun's
 	/// cached far cascade redraws if it holds it.
 	/// </summary>
-	private protected void ShadowChanged() => World?.CasterChanged( this );
+	private protected void ShadowChanged() => Changed( WorldNote.Caster );
 
 	/// <summary>
 	/// Tell the world something that decides how this draws changed, so what renderers kept of it is made again
 	/// (<see cref="RenderWorld.DrawVersions"/>).
 	/// </summary>
-	private protected void DrawChanged() => World?.DrawChanged( this );
+	private protected void DrawChanged() => Changed( WorldNote.Draw );
+
+	/// <summary>
+	/// Count a mesh whose attributes are read as it draws in or out of every world holding it (<see cref="RenderWorld.AttributeSources"/>).
+	/// </summary>
+	private protected void AttributeSourceChanged( int by )
+	{
+		if ( World is { } world ) world.AttributeSources += by;
+		for ( int i = 0; i < hostCount; i++ ) hosts[i].World.AttributeSources += by;
+	}
 
 	/// <summary>
 	/// String-token tags used by view include/exclude filters.
@@ -101,8 +229,9 @@ public abstract class RenderObject
 	}
 
 	/// <summary>
-	/// The sub-world this object belongs to: 0 for the world's own objects, or 1 to <see cref="RenderWorld.MaxSubWorlds"/> for
-	/// another world's drawn in this one's views, which only views with its bit in <see cref="RenderView.SubWorlds"/> show. Native
+	/// The sub-world this object belongs to in <see cref="World"/>: 0 for the world's own objects, or 1 to
+	/// <see cref="RenderWorld.MaxSubWorlds"/> for one only views with its bit in <see cref="RenderView.SubWorlds"/> show. A world
+	/// drawn as another's sub-world (<see cref="RenderWorld.Include"/>) is held there under the number it was given. Native
 	/// draws a camera's extra worlds in its view this way, in the same layers and depth as its main world
 	/// (<c>CSceneView::AddWorldToRenderList</c>).
 	/// </summary>
@@ -115,6 +244,7 @@ public abstract class RenderObject
 			ArgumentOutOfRangeException.ThrowIfGreaterThan( value, RenderWorld.MaxSubWorlds );
 			if ( field == value ) return;
 			field = value;
+			World?.SetSubWorld( this, value );
 			DrawChanged();
 		}
 	}
@@ -215,7 +345,7 @@ public abstract class RenderObject
 		set
 		{
 			localBounds = value;
-			World?.Sync( this );
+			Changed( WorldNote.Sync );
 		}
 	}
 }

@@ -56,6 +56,22 @@ public partial class Texture
 	}
 
 	/// <summary>
+	/// A texture something native holds (a material's), knowing the compiled file it was loaded from by that file's path,
+	/// as <see cref="Load(string, bool)"/> would: a device that reads textures by path (Borealis.Gpu) can read it.
+	/// </summary>
+	internal static Texture FromNativeFile( ITexture native )
+	{
+		var texture = FromNative( native );
+		if ( texture is null || !string.IsNullOrEmpty( texture.ResourcePath ) ) return texture;
+
+		var name = RenderTools.GetTextureResourceName( texture.native );
+		if ( string.IsNullOrEmpty( name ) ) return texture;
+		if ( name.EndsWith( ".vtex_c", StringComparison.OrdinalIgnoreCase ) ) name = name[..^2];
+		if ( name.EndsWith( ".vtex", StringComparison.OrdinalIgnoreCase ) ) texture.RegisterWeakResourceId( name, texture.native.GetGuid() );
+		return texture;
+	}
+
+	/// <summary>
 	/// Try to load a texture from given filesystem, by filename.
 	/// </summary>
 	[System.Obsolete( "Use Texture.Load or Texture.LoadFromFileSystem" )]

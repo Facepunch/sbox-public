@@ -1410,17 +1410,23 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		if ( string.IsNullOrEmpty( path ) ) return;
 		List<string> textures;
+		IStreamDependent released;
 		lock ( sharedMaterials )
 		{
 			if ( !materialLives.TryGetValue( path, out var life ) || life.Holders == 0 ) return;
 			if ( --life.Holders > 0 || life.Pinned ) return;
 			materialLives.Remove( path );
+			released = sharedMaterials.GetValueOrDefault( path ) as IStreamDependent;
 			sharedMaterials.Remove( path );
 			textures = life.Textures;
 			MaterialsFreed++;
 		}
 
 		if ( textures is not null ) ReleaseTextures( textures );
+
+		// Anything still drawing with it binds its textures again, as defaults where they've gone, rather than their
+		// destroyed images through the binding sets kept for it
+		released?.TexturesChanged();
 	}
 
 	/// <summary>
@@ -1856,6 +1862,25 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public bool GpuDrivenSkinned { get; set; } = !HasSwitch( "-no-gpudriven-skinned" );
 
 	internal override bool DrawsSkinnedGpuDriven => GpuDrivenSkinned && DrawsMeshesGpuDriven;
+
+	/// <summary>
+	/// Fading objects' draws (the faded list, dithered opaque under <c>D_OPAQUE_FADE</c>) draw GPU-driven too, a call of mesh-draw
+	/// batches per list range with no ids or visibility lists, as the opaque list's static and skinned draws are taken. On by
+	/// default with <see cref="GpuDrivenMeshes"/>; <c>-no-gpudriven-faded</c> turns it off.
+	/// </summary>
+	public bool GpuDrivenFaded { get; set; } = !HasSwitch( "-no-gpudriven-faded" );
+
+	internal override bool DrawsFadedGpuDriven => GpuDrivenFaded && DrawsMeshesGpuDriven;
+
+	/// <summary>
+	/// The translucent list's draws draw GPU-driven too, as the faded list's, but in colour layers in their sorted order: a
+	/// stretch of the list the path can take is one call that keeps its batches' order across pipelines
+	/// (<see cref="GpuContext.GpuDrivenInOrder"/>), so only neighbours in the sort share a multi-draw. On by default with
+	/// <see cref="GpuDrivenMeshes"/>; <c>-no-gpudriven-translucent</c> turns it off.
+	/// </summary>
+	public bool GpuDrivenTranslucent { get; set; } = !HasSwitch( "-no-gpudriven-translucent" );
+
+	internal override bool DrawsTranslucentGpuDriven => GpuDrivenTranslucent && DrawsMeshesGpuDriven;
 
 	/// <summary>
 	/// Cull GPU-driven aggregates' fragments on the GPU (<c>borealis_gpu_driven_cull_cs</c>), by the same frustum and size

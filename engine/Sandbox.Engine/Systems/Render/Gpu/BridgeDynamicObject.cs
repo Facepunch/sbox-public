@@ -1,4 +1,7 @@
-namespace Sandbox.Rendering.Bridge;
+using Borealis;
+using GpuContext = Borealis.Gpu.GpuContext;
+
+namespace Sandbox.Rendering;
 
 /// <summary>
 /// Draws mirrored dynamic objects from the managed copy of their vertices the object keeps on Borealis.Gpu

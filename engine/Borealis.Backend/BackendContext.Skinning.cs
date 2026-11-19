@@ -28,7 +28,7 @@ internal sealed partial class BackendContext
 	public override bool DispatchSkinning( GpuMaterial skinningShader, RenderMesh mesh, int modelMesh, GpuBuffer transforms, ReadOnlySpan<int> slots, ReadOnlySpan<int> vertexCacheOffsets, int blendWeights,
 		GpuBuffer volumes = null, ReadOnlySpan<int> volumeOffsets = default, ReadOnlySpan<int> volumeCounts = default, GpuBuffer anchors = null, ReadOnlySpan<int> anchorOffsets = default, bool morph = false )
 	{
-		if ( recording is null || skinningShader is not BackendMaterial { Shader: { } shader } || mesh.Geometry is not ISkinnedGeometry geometry ) return false;
+		if ( recording is null || skinningShader is not BackendMaterial { Shader: { } shader } || mesh.Geometry is not ISkinnedGeometry geometry || !geometry.Use() ) return false;
 		if ( transforms?.Resource is not BackendBuffer transformBuffer || !device.VertexCacheBuffer.IsValid || slots.Length == 0 ) return false;
 
 		var buffers = geometry.SkinnedBuffers( modelMesh );
@@ -158,7 +158,7 @@ internal sealed partial class BackendContext
 	/// </summary>
 	public override bool DrawVertexCache( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All )
 	{
-		if ( mesh.Geometry is not ISkinnedGeometry geometry || geometry.VertexCacheFor( draw.Mesh, draw.DrawCall ) is not { } from ) return false;
+		if ( mesh.Geometry is not ISkinnedGeometry geometry || !geometry.Use() || geometry.VertexCacheFor( draw.Mesh, draw.DrawCall ) is not { } from ) return false;
 
 		device.AskTextures( material, textureSize );
 		cacheDraw = from;

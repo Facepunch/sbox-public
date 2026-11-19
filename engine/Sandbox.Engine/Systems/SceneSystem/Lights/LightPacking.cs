@@ -1,6 +1,6 @@
 ﻿using Borealis.Features;
 
-namespace Sandbox.Rendering.Bridge;
+namespace Sandbox.Rendering;
 
 /// <summary>
 /// A light packed for the light binner from its managed description (<see cref="SceneLight.Description"/>), as native's
@@ -12,6 +12,9 @@ internal static class LightPacking
 	// LightFlags in lightbinner_standard.h and lightbinner.hlsl
 	const uint DiffuseEnabled = 0x2, SpecularEnabled = 0x4, TransmissiveEnabled = 0x8, LightCookiesEnabled = 0x40;
 	const uint IndexedBakedLightingEnabled = 0x100, NoFogShadows = 0x200;
+
+	/// <summary>LIGHTTYPE_FLAGS in native's lightdesc.h: a baked light's, and one whose shadows are mixed.</summary>
+	internal const uint TypeFlagsMixedShadows = 16, TypeFlagsBaked = 32;
 
 	// LightSourceShape_t and FogLightingMode_t in lightdesc.h
 	const int ShapeSphere = 0;
