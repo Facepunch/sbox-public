@@ -203,11 +203,12 @@ internal sealed partial class AggregateRenderFeature
 	internal int ResidentOwnersReleased { get; private set; }
 
 	/// <summary>
-	/// Meshes that moved (their entry version moved, as a transform, bounds or tint change moves it), by the frame they last
-	/// moved and the entry version then: they go the views' own way until they've stayed still <see cref="SettleFrames"/>
-	/// frames, as their records hold their bounds.
+	/// Meshes that moved (their entry version moved, as a transform, bounds or tint change moves it) or changed how they draw
+	/// (their draw version moved), by the frame they last did and their entry and draw versions then: they go the views' own
+	/// way until they've kept still <see cref="SettleFrames"/> frames, as their records hold their bounds and draws. A mesh
+	/// whose draws change every frame stays the views' own, rather than every list being made again each frame.
 	/// </summary>
-	readonly Dictionary<MeshObject, (int Frame, int Version)> restless = new( ReferenceEqualityComparer.Instance );
+	readonly Dictionary<MeshObject, (int Frame, int Version, int Draw)> restless = new( ReferenceEqualityComparer.Instance );
 
 	/// <summary>Frames a mesh that moved stays still before it's resident again.</summary>
 	internal static int SettleFrames { get; set; } = 60;
@@ -451,18 +452,11 @@ internal sealed partial class AggregateRenderFeature
 		{
 			ref var member = ref meshMembers[m];
 			var index = member.Index;
-			if ( member.DrawVersion != drawVersions[index] )
+			// Moved or drawn another way: the views' own way until it settles (every one that changed, then the lists again once);
+			// a change to how it casts moves its moved stamp too
+			if ( member.DrawVersion != drawVersions[index] || member.EntryVersion != entryVersions[index] || (!member.Mesh.IsStatic && member.Moved != movedStamps[index]) )
 			{
-				Rescan( world );
-				RefreshResident( world, transforms );
-				return;
-			}
-
-			// Moved: the views' own way until it settles (every one that moved, then the lists again once); a change to how it
-			// casts moves its moved stamp too
-			if ( member.EntryVersion != entryVersions[index] || (!member.Mesh.IsStatic && member.Moved != movedStamps[index]) )
-			{
-				restless[member.Mesh] = (transforms.Generation, entryVersions[index]);
+				restless[member.Mesh] = (transforms.Generation, entryVersions[index], drawVersions[index]);
 				moved = true;
 				continue;
 			}
@@ -774,17 +768,18 @@ internal sealed partial class AggregateRenderFeature
 	}
 
 	/// <summary>
-	/// Follow the meshes that moved: one that moves again restarts its wait, one gone or no longer a mesh of this world is
-	/// forgotten; true when one has stayed still long enough to be resident again.
+	/// Follow the meshes that moved or changed how they draw: one that does again restarts its wait, one gone or no longer a
+	/// mesh of this world is forgotten; true when one has kept still long enough to be resident again.
 	/// </summary>
 	bool Settle( RenderWorld world, int frame )
 	{
 		if ( restless.Count == 0 ) return false;
 
 		var entryVersions = world.EntryVersions;
+		var drawVersions = world.DrawVersions;
 		var settled = false;
 		var done = settleDone;
-		foreach ( var (mesh, (moved, version)) in restless )
+		foreach ( var (mesh, (moved, version, draw)) in restless )
 		{
 			var index = mesh.IndexIn( world );
 			if ( index < 0 )
@@ -793,7 +788,7 @@ internal sealed partial class AggregateRenderFeature
 				continue;
 			}
 
-			if ( entryVersions[index] != version )
+			if ( entryVersions[index] != version || drawVersions[index] != draw )
 			{
 				done.Add( mesh );
 				continue;
@@ -807,7 +802,7 @@ internal sealed partial class AggregateRenderFeature
 		foreach ( var mesh in done )
 		{
 			var index = mesh.IndexIn( world );
-			if ( index >= 0 && entryVersions[index] != restless[mesh].Version ) restless[mesh] = (frame, entryVersions[index]);
+			if ( index >= 0 && (entryVersions[index] != restless[mesh].Version || drawVersions[index] != restless[mesh].Draw) ) restless[mesh] = (frame, entryVersions[index], drawVersions[index]);
 			else restless.Remove( mesh );
 		}
 
