@@ -148,6 +148,76 @@ public class BackendTests : GpuTest
 	}
 
 	/// <summary>
+	/// A material that isn't there draws as the error material (a map's mesh whose material isn't installed), as native's
+	/// resource system binds it, under its own name, in every layer; no name still draws nothing.
+	/// </summary>
+	[TestMethod]
+	public void MissingMaterialsDrawAsTheErrorMaterial()
+	{
+		using var backend = new Borealis.Backend.BackendDevice( Device );
+		if ( backend.Content.Find( Borealis.Backend.BackendDevice.ErrorMaterial ) is null ) { Assert.Inconclusive( "No compiled error material" ); return; }
+
+		var missing = (Borealis.Backend.BackendMaterial)backend.LoadMaterial( "materials/not_installed/missing_for_test.vmat" );
+		Assert.IsNotNull( missing.Shader, "drawn with the error shader" );
+		StringAssert.Contains( missing.File.Shader, "error.shader" );
+		Assert.IsNotNull( missing.Shader.Mode( "Forward" ), "the error shader draws in every layer, with its one mode" );
+		Assert.IsNotNull( missing.Shader.Mode( "Depth" ) );
+		Assert.AreEqual( "materials/not_installed/missing_for_test.vmat", missing.Name );
+
+		Assert.IsNull( ((Borealis.Backend.BackendMaterial)backend.LoadMaterial( "" )).Shader );
+	}
+
+	/// <summary>
+	/// A mesh drawn with a material that isn't there shows as native's does: the error shader's dark red, in the forward pass.
+	/// </summary>
+	[TestMethod]
+	public void MissingMaterialsDrawRed()
+	{
+		const int width = 160, height = 100;
+		using var backend = new Borealis.Backend.BackendDevice( Device );
+		if ( backend.Content.Find( Borealis.Backend.BackendDevice.ErrorMaterial ) is null ) { Assert.Inconclusive( "No compiled error material" ); return; }
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new Borealis.Backend.BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( width, height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Error material test" );
+			var world = new RenderWorld();
+			world.Lighting.SunShadowCascades = 0;
+			world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, backend.LoadMaterial( "materials/not_installed/missing_for_test.vmat" ) ), new Transform( Vector3.Zero, Rotation.Identity, 2 ) ) );
+
+			var view = new RenderView { Name = "Error material test", FieldOfView = 60, ZNear = 4, ZFar = 4000, ClearColor = Color.Black, Viewport = new Rect( 0, 0, width, height ) };
+			view.Position = new Vector3( -200, 0, 0 );
+			view.Rotation = Rotation.LookAt( Vector3.Forward );
+
+			Device.BeginFrame();
+			RenderHost.Current.NextFrame();
+			system.Render( world, view, target );
+			Device.WaitIdle();
+			var (texture, layout) = Borealis.Backend.BackendDevice.Unwrap( target.Resolved );
+			var pixels = ToRgba8( ReadBack( texture, layout ), width, height );
+			Borealis.Backend.BackendDevice.SetLayout( target.Resolved, ImageLayout.CopySource );
+
+			// Its checker pulses with time, but its dark squares are always red and nothing is any other colour
+			int red = 0, green = 0, blue = 0;
+			for ( int i = 0; i < pixels.Length; i += 4 )
+			{
+				red = Math.Max( red, pixels[i] );
+				green = Math.Max( green, pixels[i + 1] );
+				blue = Math.Max( blue, pixels[i + 2] );
+			}
+
+			Assert.IsTrue( red > 10 && green < 4 && blue < 4, $"the box draws {red},{green},{blue} at most, not red" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A segment's list lent to the engine's drawing (a custom object's segment, which may draw no mesh before it) has the
 	/// frame's view set bound, so lit shaders drawn there read the view's lights, sun and ambient, not the placeholders.
 	/// </summary>

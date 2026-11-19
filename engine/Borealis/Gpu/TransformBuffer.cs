@@ -83,6 +83,12 @@ internal sealed class TransformBuffer : IDisposable
 	/// </summary>
 	public int FrameBase => keptCapacity;
 
+	/// <summary>
+	/// The world the frame draws, whose indices key its objects' frame entries: an object another world holds as a
+	/// sub-world's has another index there (<see cref="RenderObject.IndexIn"/>).
+	/// </summary>
+	public RenderWorld World { get; set; }
+
 	public void Clear()
 	{
 		Count = 0;
@@ -328,6 +334,17 @@ internal sealed class TransformBuffer : IDisposable
 	(int Generation, int Slot)[] objectSlots = [];
 
 	/// <summary>
+	/// An object's index in <see cref="World"/>, or its own world's when there's none or that doesn't hold it.
+	/// </summary>
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	int IndexOf( RenderObject obj )
+	{
+		if ( World is null || ReferenceEquals( obj.World, World ) ) return obj.Index;
+		var index = obj.IndexIn( World );
+		return index >= 0 ? index : obj.Index;
+	}
+
+	/// <summary>
 	/// An object's frame entry this frame: written the first time a view asks for it, the same slot after that.
 	/// </summary>
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
@@ -343,7 +360,7 @@ internal sealed class TransformBuffer : IDisposable
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	ref (int Generation, int Slot) ObjectSlot( RenderObject obj )
 	{
-		var index = obj.Index;
+		var index = IndexOf( obj );
 		if ( (uint)index >= (uint)objectSlots.Length ) Array.Resize( ref objectSlots, Math.Max( index + 1, objectSlots.Length * 2 ) );
 		return ref objectSlots[index];
 	}
@@ -353,7 +370,7 @@ internal sealed class TransformBuffer : IDisposable
 	/// </summary>
 	internal int SlotOf( RenderObject obj )
 	{
-		var index = obj.Index;
+		var index = IndexOf( obj );
 		if ( (uint)index < (uint)keptByIndex.Length && keptByIndex[index].Slot is var slot && (uint)slot < (uint)keptCapacity && owners[slot] == obj && used[slot] == frame )
 			return slot;
 

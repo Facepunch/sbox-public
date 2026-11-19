@@ -486,6 +486,14 @@ internal abstract class GpuContext : IDisposable
 	}
 
 	/// <summary>
+	/// Make <see cref="DrawGpuDriven"/> calls without a cull keep their batches' order across pipelines too (a translucent
+	/// list's sort): a batch joins only the bucket the batch before it went in, and only on the same index page, so buckets
+	/// draw one after another in batch order; and once the device leaves a batch to the caller, it leaves every batch after
+	/// it as well, so what's drawn is a prefix and the caller draws the rest after the call, in order. Set around the call.
+	/// </summary>
+	internal bool GpuDrivenInOrder { get; set; }
+
+	/// <summary>
 	/// Draw a layer's aggregate batches GPU-driven: per-draw data in tables and one multi-draw per pipeline, where the device
 	/// can. Sets <paramref name="drawn"/> for each batch drawn; the caller draws the rest as before. Devices without a
 	/// GPU-driven path draw none. With <paramref name="cull"/>, a device may cull every fragment of each batch's aggregate

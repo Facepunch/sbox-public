@@ -101,7 +101,7 @@ public class DrawCallbacksTests
 	}
 
 	/// <summary>
-	/// Custom objects record on the main thread, but the meshes sorted after them in the same layer still go to workers,
+	/// Custom objects record on the main thread, but the meshes drawn before them in the same layer still go to workers,
 	/// in segments of their own.
 	/// </summary>
 	[TestMethod]
@@ -126,9 +126,63 @@ public class DrawCallbacksTests
 		var end = layers.Skip( opaque + 1 ).Select( l => l.Segment ).First( s => s > first );
 		var segments = plan.Segments.Skip( first ).Take( end - first ).ToList();
 
-		// The custom objects sort first, on the main thread; the meshes after them on workers
-		Assert.IsFalse( segments[0].Worker );
-		Assert.IsTrue( segments.Skip( 1 ).Any( s => s.Worker ) );
+		// The meshes first, on workers; the custom objects after them, on the main thread
+		Assert.IsTrue( segments[0].Worker );
+		Assert.IsFalse( segments[^1].Worker );
+	}
+
+	/// <summary>
+	/// An opaque custom object that marks where it draws in the frame's log with a barrier on its own buffer.
+	/// </summary>
+	sealed class MarkingCustom : CustomObject
+	{
+		public readonly GpuBuffer<uint> Marker = new( 1, GpuBuffer.UsageFlags.Structured, "custom marker" );
+
+		public MarkingCustom( Vector3 position )
+		{
+			LocalBounds = UnitBox;
+			Transform = new Transform( position );
+			IsOpaque = true;
+		}
+
+		internal override void Render( GpuContext context, ViewPass view, MeshLayer layer ) =>
+			context.BufferBarrier( Marker, GpuStage.FragmentShader, GpuAccess.UniformRead, GpuStage.FragmentShader, GpuAccess.UniformRead );
+	}
+
+	/// <summary>
+	/// An opaque custom object draws after the opaque layer's meshes, as native draws the world before dynamic objects: one
+	/// that blends without writing depth (a sprite batch drawn opaque and additive) in front of a mesh isn't painted over by it.
+	/// </summary>
+	[TestMethod]
+	public void OpaqueCustomObjectsDrawAfterTheMeshes()
+	{
+		using var material = new HeadlessMaterial( "box", "complex" );
+		var mesh = new RenderMesh( new HeadlessMesh( "box" ), UnitBox, [[new RenderMesh.Draw( 0, 0, 0, 36, 24, 0, material )]] );
+
+		var world = new RenderWorld();
+		for ( int i = 0; i < 3; i++ )
+			world.Add( new MeshObject( mesh, new Transform( new Vector3( 30, i * 3 - 3, 0 ) ) ) );
+		var custom = new MarkingCustom( new Vector3( 20, 0, 0 ) );
+		world.Add( custom );
+
+		using var target = ViewTarget.Create( new Vector2Int( 640, 480 ) );
+		using var system = new RenderSystem();
+
+		List<GpuCommand> commands;
+		using ( var frame = Device.Capture() )
+		{
+			RenderHost.Current.NextFrame();
+			system.Render( world, LookingDownX(), target );
+			commands = frame.Commands.ToList();
+		}
+
+		var marks = Enumerable.Range( 0, commands.Count ).Where( i => commands[i].Op == GpuOp.BufferBarrier && commands[i].Buffer == custom.Marker && commands[i].In( "Opaque Forward" ) ).ToList();
+		var forward = Enumerable.Range( 0, commands.Count ).Where( i => commands[i].IsDraw && commands[i].In( "Opaque Forward" ) ).ToList();
+		Assert.AreEqual( 1, marks.Count );
+		Assert.IsTrue( forward.Count > 0 );
+		Assert.IsTrue( forward.All( i => i < marks[0] ), "every mesh draw before the custom object's" );
+
+		custom.Marker.Dispose();
 	}
 
 	[TestMethod]

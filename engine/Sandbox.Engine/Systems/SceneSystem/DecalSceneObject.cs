@@ -200,4 +200,44 @@ internal sealed class DecalSceneObject : SceneObject
 		decalNative = default;
 		base.OnNativeDestroy();
 	}
+
+	internal override bool OwnsRenderObject => true;
+
+	internal override Borealis.RenderObject MakeRenderObject() => new Borealis.DecalObject( Transform );
+
+	/// <summary>
+	/// Its box and everything it projects, as <c>CLightBinnerStandard</c> reads a <c>CDecalSceneObject</c>.
+	/// </summary>
+	internal override void WriteRender( Borealis.RenderObject obj, Rendering.SceneObjectChange change, Rendering.ISceneWorldRender render )
+	{
+		base.WriteRender( obj, change, render );
+		var decal = (Borealis.DecalObject)obj;
+
+		if ( (change & Rendering.SceneObjectChange.Transform) != 0 )
+			decal.Transform = Transform == default ? Transform.Zero : Transform;
+
+		if ( (change & Rendering.SceneObjectChange.Visibility) != 0 )
+			decal.Visible = RenderingEnabled;
+
+		if ( (change & Rendering.SceneObjectChange.Settings) != 0 )
+		{
+			decal.Color = render.Texture( colorTexture );
+			decal.Normal = render.Texture( normalTexture );
+			decal.RoughnessMetalnessOcclusion = render.Texture( rmoTexture );
+			decal.Height = render.Texture( heightTexture );
+			decal.Emission = render.Texture( emissionTexture );
+			decal.Tint = Color;
+			decal.SortOrder = sortOrder;
+			decal.ExclusionBitMask = exclusionBitMask;
+			decal.AttenuationAngle = attenuationAngle;
+			decal.EmissionEnergy = emissionEnergy;
+			decal.SequenceIndex = sequenceIndex;
+			decal.ColorMix = colorMix;
+			decal.BlendMode = (Borealis.DecalBlendMode)BlendMode;
+			decal.ParallaxStrength = parallaxStrength;
+			decal.SamplerIndex = samplerIndex;
+			decal.CoverageAmount = coverageAmount;
+			decal.CoverageRange = coverageRange;
+		}
+	}
 }

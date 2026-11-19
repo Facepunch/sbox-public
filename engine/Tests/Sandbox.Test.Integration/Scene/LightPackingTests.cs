@@ -10,7 +10,7 @@ namespace SceneTests;
 [TestClass]
 public class LightPackingTests
 {
-	static readonly Type Packing = Type.GetType( "Sandbox.Rendering.Bridge.LightPacking, Sandbox.Rendering", true );
+	static readonly Type Packing = Type.GetType( "Sandbox.Rendering.LightPacking, Sandbox.Engine", true );
 	static readonly Type Native = Type.GetType( "Sandbox.Rendering.Bridge.SceneNative, Sandbox.Rendering", true );
 
 	static (object Packed, uint Flags, int BakeIndex) Managed( SceneLight light )

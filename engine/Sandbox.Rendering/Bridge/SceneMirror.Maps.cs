@@ -4,7 +4,7 @@ namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
 /// The maps Borealis.Source2 read into the mirrored world (<see cref="SceneMap.Geometry"/>, no native scene objects): each
-/// map's objects made in this mirror's world, in its sub-world, while the map is in the scene world.
+/// map's objects made in this mirror's world while the map is in the scene world (worlds that include it draw them too).
 /// </summary>
 internal sealed partial class SceneMirror
 {
@@ -40,7 +40,7 @@ internal sealed partial class SceneMirror
 
 			foreach ( var map in current )
 			{
-				if ( !maps.ContainsKey( map ) ) maps[map] = (map.Geometry, map.Geometry.Instantiate( gpu, World, SubWorld ));
+				if ( !maps.ContainsKey( map ) ) maps[map] = (map.Geometry, map.Geometry.Instantiate( gpu, World, 0 ));
 			}
 		}
 

@@ -52,6 +52,9 @@ native class CSceneObject as NativeEngine.CSceneObject
 
 	Transform GetCTransform();
 
+	// The transform as kept, a scale per axis (a prop scaled along one axis in Hammer): GetCTransform keeps the largest
+	Transform GetCTransformUnaligned();
+
 	void SetBounds( BBox box );
 
 	BBox GetBounds();

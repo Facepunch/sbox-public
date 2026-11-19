@@ -178,7 +178,22 @@ internal sealed partial class SceneBridge
 
 		Graphics.Attributes.Set( UIGammaOutput, encode );
 		if ( ui ) RunStage( camera, Stage.UI );
+
+		// After the UI as native's hook layer draws over its sRGB target: through the sRGB view again, the shaders' linear
+		// results encoded (a game's own compositing at AfterUI, RUN IT AGAIN's glare), not gamma-encoded by the UI's
+		Graphics.Attributes.Set( UIGammaOutput, false );
+		if ( encode )
+		{
+			gpuView.SrgbWrite = true;
+			gpuView.Bind();
+		}
+
 		RunStage( camera, Stage.AfterUI );
+		if ( encode )
+		{
+			gpuView.SrgbWrite = srgbWrite;
+			gpuView.Bind();
+		}
 	}
 
 	/// <summary>

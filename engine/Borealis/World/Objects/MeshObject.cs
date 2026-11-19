@@ -50,7 +50,7 @@ public sealed class MeshObject : RenderObject
 			field = value;
 			if ( faded ) ShadowChanged();
 			if ( lists ) DrawChanged();
-			if ( changed ) World?.EntryChanged( this );
+			if ( changed ) Changed( WorldNote.Entry );
 		}
 	} = Color.White;
 
@@ -133,7 +133,7 @@ public sealed class MeshObject : RenderObject
 		get;
 		set
 		{
-			if ( (field is null) != (value is null) && World is { } world ) world.AttributeSources += value is null ? -1 : 1;
+			if ( (field is null) != (value is null) ) AttributeSourceChanged( value is null ? -1 : 1 );
 			field = value;
 		}
 	}

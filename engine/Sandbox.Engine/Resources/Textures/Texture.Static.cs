@@ -46,11 +46,11 @@ public partial class Texture
 			result.MadeAtRunTime = true;
 		}
 
-		// An anonymous texture is always a new one, described by what it was made with; a named one may be one that was
-		// there already, so it asks Source 2
-		if ( result is not null && anonymous && !result.gotdesc )
+		// An anonymous texture is always a new one, described by what it was made with; a named one may be one Source 2
+		// found by its name (NamedDescription)
+		if ( result is not null && !result.gotdesc && DescriptionOf( config, dataSize ) is var made && (anonymous || NamedDescription( name, result, made )) )
 		{
-			result._desc = DescriptionOf( config, dataSize );
+			result._desc = made;
 			result.gotdesc = true;
 			result.describedAtCreation = true;
 		}
@@ -65,6 +65,38 @@ public partial class Texture
 
 		return result;
 	}
+
+	/// <summary>Named textures made at run time, by native texture: the name and description each was made with.</summary>
+	static readonly Dictionary<long, (string Name, NativeEngine.CTextureDesc Desc)> namedTextures = new();
+
+	/// <summary>
+	/// Whether a texture made with a name, new to managed code, is described by what it was made with
+	/// (<paramref name="made"/>). Source 2 finds a named texture that's still there rather than making it, so one made here
+	/// before at the same texture and name with another description (found, or made again where the old one was) is
+	/// described by Source 2, as is a name that's a compiled file's.
+	/// </summary>
+	static bool NamedDescription( string name, Texture texture, in NativeEngine.CTextureDesc made )
+	{
+		if ( string.IsNullOrEmpty( name ) || name.EndsWith( ".vtex", StringComparison.OrdinalIgnoreCase ) || name.EndsWith( ".vtex_c", StringComparison.OrdinalIgnoreCase ) ) return false;
+
+		// As Source 2 names it (FindOrCreateTexture)
+		var key = name.Replace( ':', '_' ).TrimStart( '/' ).ToLowerInvariant();
+		var at = texture.native.GetBindingPtr().ToInt64();
+		lock ( namedTextures )
+		{
+			if ( namedTextures.TryGetValue( at, out var known ) && known.Name == key )
+			{
+				if ( !SameDescription( known.Desc, made ) ) return false;
+			}
+
+			namedTextures[at] = (key, made);
+			return true;
+		}
+	}
+
+	static bool SameDescription( in NativeEngine.CTextureDesc a, in NativeEngine.CTextureDesc b ) => a.m_nWidth == b.m_nWidth && a.m_nHeight == b.m_nHeight && a.m_nDepth == b.m_nDepth
+		&& a.m_nNumMipLevels == b.m_nNumMipLevels && a.m_nImageFormat == b.m_nImageFormat && a.m_nFlags == b.m_nFlags && a.m_nDecodeFlags == b.m_nDecodeFlags
+		&& a.m_nDisplayRectWidth == b.m_nDisplayRectWidth && a.m_nDisplayRectHeight == b.m_nDisplayRectHeight;
 
 	/// <summary>
 	/// A render target only Borealis.Gpu draws with or into (a frame's targets handed to the engine's drawing, a widget's

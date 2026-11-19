@@ -101,6 +101,9 @@ internal sealed class GpuDrivenPlan
 	/// <summary>Every set of object attributes the batches draw with (their lighting records come from them), and its version then.</summary>
 	public (BackendParameters Attributes, int Version)[] Attributes;
 
+	/// <summary>Every geometry the batches draw: the plan is made again once one of them is freed (<see cref="IBackendGeometry.Use"/>).</summary>
+	public IBackendGeometry[] Geometries;
+
 	public uint[] BatchRecords;
 
 	/// <summary>

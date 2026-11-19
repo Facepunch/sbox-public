@@ -1,4 +1,7 @@
-namespace Sandbox.Rendering.Bridge;
+using Borealis;
+using GpuContext = Borealis.Gpu.GpuContext;
+
+namespace Sandbox.Rendering;
 
 /// <summary>
 /// Mirrored custom object, drawn through the engine's graphics context into Borealis's list, shadow views included
@@ -36,7 +39,7 @@ internal sealed class BridgeCustomObject : CustomObject
 		}
 
 		if ( layerType is not (SceneLayerType.Opaque or SceneLayerType.Translucent) ) return;
-		BorealisGpuCustomDraw.Draw( context, layerType, view.View, render ??= Source.RenderInternal );
+		BorealisGpuCustomDraw.Draw( context, layerType, view.View, render ??= Source.RenderInternal, cameraAttributes: view.View.HostView as RenderAttributes );
 	}
 
 	/// <summary>

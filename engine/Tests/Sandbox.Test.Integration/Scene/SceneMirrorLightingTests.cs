@@ -99,8 +99,8 @@ public class SceneMirrorLightingTests
 	}
 
 	/// <summary>
-	/// An extra world's light probe volume goes in the main world's list with the extra world's sub-world, so it lights the
-	/// views that draw that world (a native tool's preview map lights the model it shows).
+	/// An extra world's light probe volume is drawn in the main world that includes it, with the extra world's number, so it
+	/// lights the views that draw that world (a native tool's preview map lights the model it shows).
 	/// </summary>
 	[TestMethod]
 	public void ExtraWorldProbeVolumesLightViewsDrawingThem()
@@ -114,22 +114,28 @@ public class SceneMirrorLightingTests
 			using var camera = new SceneCamera { World = world };
 			var (host, hostWorld) = Mirror( world );
 			using var disposeHost = host;
-			var (mirror, sameWorld) = Mirror( [extra, hostWorld, 3] );
+			var (mirror, extraWorld) = Mirror( extra );
 			using var disposeMirror = mirror;
-			Assert.AreSame( hostWorld, sameWorld );
+			hostWorld.Include( new Borealis.RenderWorld() );
+			hostWorld.Include( new Borealis.RenderWorld() );
+			Assert.AreEqual( 3, hostWorld.Include( extraWorld ) );
 
 			Sync( host, camera );
 			Sync( mirror, camera );
-			Assert.AreEqual( 1, hostWorld.LightProbeVolumes.Count );
+			hostWorld.RefreshDrawnVolumes();
+			Assert.AreEqual( 0, hostWorld.LightProbeVolumes.Count, "the main world's own" );
+			Assert.AreEqual( 1, hostWorld.DrawnLightProbeVolumes.Count );
 
-			var volume = hostWorld.LightProbeVolumes[0];
+			var volume = hostWorld.DrawnLightProbeVolumes[0];
 			Assert.AreEqual( 3, volume.SubWorld );
 			Assert.IsTrue( volume.ShownIn( 1UL << 2 ), "a view drawing the extra world" );
 			Assert.IsFalse( volume.ShownIn( 0 ), "a view drawing only the main world" );
+			Assert.AreEqual( 0, extraWorld.DrawnLightProbeVolumes[0].SubWorld, "the extra world drawn as itself" );
 
 			probe.Delete();
 			Sync( mirror, camera );
-			Assert.AreEqual( 0, hostWorld.LightProbeVolumes.Count );
+			hostWorld.RefreshDrawnVolumes();
+			Assert.AreEqual( 0, hostWorld.DrawnLightProbeVolumes.Count );
 		}
 		finally
 		{

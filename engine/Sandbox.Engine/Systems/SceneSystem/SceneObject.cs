@@ -179,9 +179,20 @@ public partial class SceneObject : IHandle
 	internal int TransformVersion = 1;
 
 	/// <summary>
-	/// Tell the world's <see cref="SceneWorld.ChangeListener"/>, if it has one, that something changed.
+	/// What it draws as in its world's render world on Borealis, its own: made when its world is first drawn, null before
+	/// that, and for an object drawn another way (a sun, a sky, a probe volume) or not at all.
 	/// </summary>
-	internal void NotifyChanged( Rendering.SceneObjectChange change ) => World?.ChangeListener?.OnChanged( this, change );
+	internal Borealis.RenderObject RenderObject { get; set; }
+
+	/// <summary>
+	/// Write a change into its own render object (<see cref="OwnsRenderObject"/>), or else tell the world's
+	/// <see cref="SceneWorld.ChangeListener"/>, if it has one, that something changed.
+	/// </summary>
+	internal void NotifyChanged( Rendering.SceneObjectChange change )
+	{
+		if ( WroteRender( change ) ) return;
+		World?.ChangeListener?.OnChanged( this, change );
+	}
 
 	/// <summary>
 	/// Transform of this scene object, relative to its <see cref="Parent"/>, or <see cref="SceneWorld"/> if parent is not set.
@@ -190,7 +201,7 @@ public partial class SceneObject : IHandle
 	{
 		// Until it's set from here, native's: an object native made - a map's world geometry - is placed by native, and
 		// read as default(Transform), zero scale and all
-		get => _transformSet || native.IsNull ? _transform : native.GetCTransform();
+		get => _transformSet || native.IsNull ? _transform : native.GetCTransformUnaligned();
 		set
 		{
 			if ( _transformSet && _transform == value )
@@ -300,6 +311,16 @@ public partial class SceneObject : IHandle
 	// render-mesh traces skip hidden objects by, and the tint only while something reads it (WritesNative)
 	bool? _renderingEnabled;
 	Color? _tint;
+
+	/// <summary>
+	/// Read visibility and tint from native again next time: native code changes the objects it made behind managed
+	/// code's back (a tool hiding a helper, tinting a selection, switching its worklight off).
+	/// </summary>
+	internal void ForgetNativeState()
+	{
+		_renderingEnabled = null;
+		_tint = null;
+	}
 
 	/// <summary>
 	/// Whether this scene object should render or not.

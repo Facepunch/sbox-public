@@ -164,6 +164,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		/// <summary><see cref="GpuDriven"/> holds frame-buffer readers, so colour layers take the frame copy before the call.</summary>
 		public bool ReadersTaken;
 
+		/// <summary>
+		/// The opaque list's custom objects, taken out of <see cref="ItemsByBit"/>: <see cref="LateCustomFeature"/> draws them
+		/// after the meshes and aggregates (<see cref="TakeCustom"/>).
+		/// </summary>
+		public readonly List<DrawItem> LateCustom = new();
+
 		/// <summary>Each static overlay run's render order, by run (<see cref="StaticOverlay"/>).</summary>
 		public readonly List<int> OverlayOrders = new();
 
@@ -177,6 +183,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			foreach ( var list in ItemsByBit )
 				list.Clear();
 			GpuDriven.Clear();
+			LateCustom.Clear();
 			ReadersTaken = false;
 			OverlayOrders.Clear();
 			Custom = 0;
@@ -408,6 +415,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal override void Prepare( RenderWorld world, ViewPass pass, TransformBuffer transforms )
 	{
 		using var zone = Zones.MeshPrepare.Start();
+		preparedWorld = world;
 		var layers = pass.State<RunLists>( this );
 		layers.Clear();
 		if ( !pass.IsShadow ) DropUnusedBins();
@@ -467,7 +475,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( keptShadow.Length < lods.Length ) Array.Resize( ref keptShadow, lods.Length );
 		if ( pass.LodTexelsPerUnit > 0 && keptTexel.Length < lods.Length ) Array.Resize( ref keptTexel, lods.Length );
 		if ( classified.Length < visible.Count ) Array.Resize( ref classified, Math.Max( visible.Count, classified.Length * 2 ) );
-		var volumes = world.LightProbeVolumes;
+		var volumes = world.DrawnLightProbeVolumes;
 		var volumesKey = volumes.Count > 0 && !pass.IsShadow ? LightProbeVolume.Key( volumes, pass.View.SubWorlds ) : 0;
 
 		// Each object's LOD, probe, lists and sort keys are its own, so a big view classifies across threads
@@ -544,6 +552,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		// Static opaque draws go with the aggregates when the device draws them GPU-driven, as one run (so not while
 		// occlusion culls, which the aggregates' feature then draws batch by batch)
 		if ( Occlusion is null && RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } device ) TakeGpuDriven( layers, device.DrawsSkinnedGpuDriven );
+		if ( (layers.Custom & MeshRuns.Opaque) != 0 ) TakeCustom( layers );
 	}
 
 	/// <summary>
@@ -600,7 +609,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal GpuContext.GpuDrivenBatch? GpuDrivenBatch( ViewPass view, DrawItem item, bool depth, bool forceDepthOnly )
 	{
 		var lists = view.State<RunLists>( this );
-		ref readonly var run = ref CollectionsMarshal.AsSpan( lists.Opaque )[item.Run];
+		return BatchOf( CollectionsMarshal.AsSpan( lists.Opaque )[item.Run], item, depth, forceDepthOnly );
+	}
+
+	/// <summary>A run's draw as a GPU-driven batch of its instances, as <see cref="GpuDrivenBatch(ViewPass, DrawItem, bool, bool)"/> makes one.</summary>
+	GpuContext.GpuDrivenBatch? BatchOf( in Run run, DrawItem item, bool depth, bool forceDepthOnly )
+	{
 		ref readonly var draw = ref run.Mesh.DrawsForLod( run.Lod )[item.Draw];
 		var material = MaterialFor( run, draw, depth, forceDepthOnly, out var strip );
 		if ( material is null ) return null;
@@ -649,7 +663,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			: run.Skinned ? (run.Morphable ? "skinned mesh, morphs" : run.Deformed ? "skinned mesh, deformed" : "skinned mesh")
 			: run.Morphable ? "mesh with morphs" : "static mesh";
 		var why = left ? "the device's GPU-driven path left it"
-			: list != MeshRuns.Opaque ? $"{list} list (only the opaque list goes GPU-driven)"
+			: list is not (MeshRuns.Opaque or MeshRuns.Faded or MeshRuns.Translucent) ? $"{list} list (only the opaque, faded and translucent lists go GPU-driven)"
 			: run.Custom is not null ? "custom object"
 			: run.Callbacks is not null ? "draw callbacks"
 			: run.Skinned ? "skinned"
@@ -658,8 +672,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			: run.ReadsFrameBuffer ? "reads the frame buffer"
 			: run.CullDraw >= 0 ? "occlusion culled"
 			: run.Attributes is not null ? "object attributes"
-			: RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } ? "occlusion culling on" : "GPU-driven meshes off";
-		return $"{kind}: {why}";
+			: RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } device ? (list == MeshRuns.Faded && !device.DrawsFadedGpuDriven ? "GPU-driven faded off" : list == MeshRuns.Translucent && !device.DrawsTranslucentGpuDriven ? "GPU-driven translucent off" : "occlusion culling on") : "GPU-driven meshes off";
+		return list == MeshRuns.Faded ? $"{kind}, faded: {why}" : list == MeshRuns.Translucent ? $"{kind}, translucent: {why}" : $"{kind}: {why}";
 	}
 
 	/// <summary>The view's draws <see cref="TakeGpuDriven"/> took.</summary>
@@ -947,12 +961,15 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// The light probe volume attributes an object drew with in the last <see cref="Prepare"/>, for the tests.
 	/// </summary>
-	internal ShaderParameters ProbeFor( RenderObject obj ) => probes[obj.Index];
+	internal ShaderParameters ProbeFor( RenderObject obj ) => probes[obj.IndexIn( preparedWorld )];
 
 	/// <summary>
 	/// The LOD an object drew at in the last <see cref="Prepare"/>, for the tests.
 	/// </summary>
-	internal int LodFor( RenderObject obj ) => lods[obj.Index];
+	internal int LodFor( RenderObject obj ) => lods[obj.IndexIn( preparedWorld )];
+
+	// The world the last Prepare was of, for the tests
+	RenderWorld preparedWorld;
 
 	/// <summary>
 	/// Nearest-first key, reversed for fully translucent objects; ties use world index (<c>CSceneSystem</c> layer sorting).
@@ -1070,17 +1087,17 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			var obj = Unsafe.As<MeshObject>( objects[index] );
 			if ( bin.Skinned )
 			{
-				WriteBones( obj, bin.Lod, matrices[index], keep ? obj.Tint : TintFor( obj, bin.Lod ), transforms );
+				WriteBones( obj, bin.Lod, matrices[index], keep ? obj.Tint : TintFor( obj, bin.Lod, index ), transforms );
 				skinMembers.Add( obj );
 			}
 			else if ( bin.Tinted )
 			{
 				// Its entries now; the ids are written a block per draw when the run ends
-				tintedSlots.Add( transforms.TintedSlotsFor( obj, matrices[index], keep ? obj.Tint : TintFor( obj, bin.Lod ), bin.Mesh ) );
+				tintedSlots.Add( transforms.TintedSlotsFor( obj, matrices[index], keep ? obj.Tint : TintFor( obj, bin.Lod, index ), bin.Mesh ) );
 			}
 			else
 			{
-				var slot = keep ? transforms.KeptSlotFor( index, obj, matrices[index], versions[index] ) : transforms.SlotFor( obj, matrices[index], TintFor( obj, bin.Lod ) );
+				var slot = keep ? transforms.KeptSlotFor( index, obj, matrices[index], versions[index] ) : transforms.SlotFor( obj, matrices[index], TintFor( obj, bin.Lod, index ) );
 				var instance = transforms.AddInstance( slot );
 				occlusion?.AddInstance( slot, centers[index], classified[k].Occludes ? extents[index] : new Vector3( -1 ) );
 				if ( length == 0 ) start = instance;
@@ -1138,14 +1155,14 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// its LOD's colour if it has LODs. Alpha stays the object's, so it fades and blends as it would. A frame writes an object's
 	/// entry once, for the first view, which is the main view.
 	/// </summary>
-	Color TintFor( MeshObject obj, int lod )
+	Color TintFor( MeshObject obj, int lod, int index )
 	{
 		var views = DebugViews;
 		if ( views == DebugViews.None ) return obj.Tint;
 
 		var reasons = tintReasons;
-		if ( reasons is not null && (uint)obj.Index < (uint)reasons.Length && reasons[obj.Index] != 0 )
-			return DebugViewReport.CullColor( (CullReason)reasons[obj.Index] ).WithAlpha( obj.Tint.a );
+		if ( reasons is not null && (uint)index < (uint)reasons.Length && reasons[index] != 0 )
+			return DebugViewReport.CullColor( (CullReason)reasons[index] ).WithAlpha( obj.Tint.a );
 
 		if ( (views & DebugViews.LodColors) != 0 && obj.Mesh.LodCount > 1 )
 			return DebugViewReport.LodColor( lod ).WithAlpha( obj.Tint.a );
@@ -1312,7 +1329,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( from >= to ) return;
 
 		if ( fade ) context.SetCombo( OpaqueFade, 1 );
-		DrawItems( context, view, runs, items[from..to], layer, ref stats, list );
+		if ( ListGpuDriven( context, list ) ) DrawListGpuDriven( context, view, runs, items[from..to], layer, ref stats, list );
+		else DrawItems( context, view, runs, items[from..to], layer, ref stats, list );
 		if ( fade ) context.SetCombo( OpaqueFade, 0 );
 	}
 

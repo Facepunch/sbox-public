@@ -21,6 +21,11 @@ public partial class MapView : IHandle
 	//
 	internal CMapView native;
 
+	ToolSceneViews.HudSource hudSource;
+
+	/// <summary>The view's tool HUD for Borealis.Gpu (<c>CMapView::GetManagedHudItems</c>).</summary>
+	internal unsafe ToolSceneViews.HudSource HudSource => hudSource ??= ( items, maxItems, width, height ) => native.IsValid ? native.GetManagedHudItems( (IntPtr)items, maxItems, width, height ) : 0;
+
 	//
 	// IHandle implementation
 	//
@@ -67,6 +72,13 @@ public partial class MapView : IHandle
 	/// True for the 2D views (top, front, side), false for 3D perspective views.
 	/// </summary>
 	public bool IsOrthographic => native.GetCamera().IsOrthographic();
+
+	/// <summary>The view's draw mode (native's <c>ViewDrawMode_t</c>: 0 wireframe, 1 fullbright, 5 all lighting...), as its pane's menu sets it.</summary>
+	internal int DrawMode
+	{
+		get => native.GetViewDrawMode();
+		set => native.SetViewDrawMode( value );
+	}
 
 	/// <summary>
 	/// Where this view's camera is.
@@ -373,7 +385,7 @@ internal static class MapViewRender
 			Log.Warning( e, $"Hammer view: {e.Message}" );
 		}
 
-		ToolSceneViews.Render( request, worlds );
+		ToolSceneViews.Render( request, worlds, view.HudSource );
 	}
 
 	/// <summary>

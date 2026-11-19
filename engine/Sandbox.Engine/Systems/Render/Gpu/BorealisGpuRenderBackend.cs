@@ -235,6 +235,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	int savingPipelineCache;
 
+	/// <summary>Save the pipeline cache now, on a worker (a scene has loaded, as native flushes its own then).</summary>
+	internal void FlushPipelineCache() => SavePipelineCacheInBackground();
+
 	/// <summary>Save the device's pipeline cache on a worker if pipelines were made since the last save (and none is saving).</summary>
 	void SavePipelineCacheInBackground()
 	{
@@ -286,6 +289,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		services.Passes.Error = message => Log.Warning( $"Borealis.Gpu: {message}" );
 		services.Passes.Info = message => Log.Info( message );
 		services.Surfaces.Info = message => Log.Info( message );
+		services.Warn = message => Log.Warning( message );
 		drawer = new ShaderDrawer( services );
 		context = new GraphicsContext( gpu, drawer, null );
 
@@ -336,8 +340,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		if ( list is not null ) throw new InvalidOperationException( "A Borealis.Gpu block is already recording." );
 
 		FollowFrame();
+		TrackWorkerTextures();
 		WriteWorkerUpdates();
-		BindSheetCache();
+		WriteSheets();
 		SubmitUploads();
 		PollReadbacks();
 		lent = lendNext is not null;
@@ -677,20 +682,45 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		// A realtime probe's cube is captured into a cube of Borealis's: read that, not a copy nothing writes
 		if ( texture.Depth == 6 && RenderedInto?.Invoke( this, texture ) is BackendTexture rendered ) return rendered.Handle;
 
+		// What workers made is tracked here before the main thread uses it
+		var mainThread = ThreadSafe.IsMainThread;
+		if ( mainThread && !workerTracks.IsEmpty ) TrackWorkerTextures();
+
 		if ( textures.TryGetValue( texture, out var backing ) ) return backing.Handle;
 
 		// Looked up each time rather than kept: streaming swaps its image
 		if ( MaterialTextureOf( texture ) is { } material ) return material.Handle;
 
-		// Made once, under a lock: a sprite batch's workers ask for their sprites' indices (Texture.Index) in parallel
-		// while the main thread waits for them
+		// Made once, under a lock: a sprite batch's workers ask for their sprites' indices (Texture.Index) in parallel,
+		// while the main thread may be recording. A worker's writes go in a list of its own, sent with the next
+		// submission (Device.DeferUploads), never in the main thread's lists
 		lock ( textureOwners )
 		{
+			using var deferred = mainThread ? default : gpu.DeferUploads();
+
 			// No description: a texture that failed to load, which Source 2 draws with its error texture (and without its
 			// device has no description of at all)
 			if ( texture.Width <= 0 || texture.Height <= 0 ) return ErrorTexture();
 			return textures.TryGetValue( texture, out backing ) ? backing.Handle : Make( texture );
 		}
+	}
+
+	/// <summary>Layouts of textures workers made, for the main thread's context (<see cref="Track"/>).</summary>
+	readonly System.Collections.Concurrent.ConcurrentQueue<(TextureHandle Handle, ImageLayout Layout)> workerTracks = new();
+
+	/// <summary>
+	/// Tell the context a texture made here is in <paramref name="layout"/>: at once on the main thread, which records
+	/// through it; from a worker, before the main thread next records or looks a texture up.
+	/// </summary>
+	void Track( TextureHandle handle, ImageLayout layout )
+	{
+		if ( ThreadSafe.IsMainThread ) context.Track( handle, layout );
+		else workerTracks.Enqueue( (handle, layout) );
+	}
+
+	void TrackWorkerTextures()
+	{
+		while ( workerTracks.TryDequeue( out var tracked ) ) context.Track( tracked.Handle, tracked.Layout );
 	}
 
 	/// <summary>
@@ -771,7 +801,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			}
 			else
 			{
-				context.Track( handle, ImageLayout.Undefined );
+				Track( handle, ImageLayout.Undefined );
 				if ( !depth && texture.InitialColor is { } clear ) ClearNow( handle, clear );
 			}
 		}
@@ -815,7 +845,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			var info = TextureInfo.Texture2D( texture.Width, texture.Height, storage, Math.Max( texture.Mips, 1 ), $"Engine storage {texture.Width}x{texture.Height}" );
 			if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) ) info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
-			context.Track( handle, ImageLayout.Undefined );
+			Track( handle, ImageLayout.Undefined );
 			ClearNow( handle, texture.InitialColor ?? Color.Transparent );
 		}
 		else if ( TryCopyFromSource2( texture ) is { } copy )
@@ -866,7 +896,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 		else
 		{
-			context.Track( handle, ImageLayout.Undefined );
+			Track( handle, ImageLayout.Undefined );
 			ClearNow( handle, Color.Transparent );
 		}
 
@@ -933,7 +963,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		try
 		{
 			var handle = TextureFile.Load( file ).Create( gpu, path, UploadList() );
-			context.Track( handle, ImageLayout.ShaderRead );
+			Track( handle, ImageLayout.ShaderRead );
 			return handle;
 		}
 		catch ( NotSupportedException )
@@ -1031,7 +1061,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		Log.Warning( $"Borealis.Gpu: {(string.IsNullOrEmpty( texture.ResourcePath ) ? $"a {texture.Width}x{texture.Height} {texture.ImageFormat} texture" : texture.ResourcePath)} has nothing to read, so it draws transparent" );
 		var handle = gpu.CreateTexture( TextureInfo.Texture2D( 1, 1, GpuFormat.RGBA8Unorm, name: "Engine image without pixels" ) );
-		context.Track( handle, ImageLayout.Undefined );
+		Track( handle, ImageLayout.Undefined );
 		ClearNow( handle, Color.Transparent );
 		return handle;
 	}
@@ -1058,7 +1088,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		target.UpdateTexture( handle, pixels, 0, layer, width > 0 ? width : info.Width, height > 0 ? height : info.Height, x, y );
 		target.Barrier( MipBarrier( handle, 0, ImageLayout.CopyDestination, ImageLayout.ShaderRead ) );
 		if ( info.Mips > 1 ) FillMips( target, handle, info, ImageLayout.CopyDestination, layer );
-		context.Track( handle, ImageLayout.ShaderRead );
+		Track( handle, ImageLayout.ShaderRead );
 		TextureUploads++;
 	}
 
@@ -1067,10 +1097,12 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	/// <summary>
 	/// Where a write is recorded: the block being recorded (outside any rendering scope), or the list of uploads
-	/// submitted before the next one.
+	/// submitted before the next one; on a worker making a texture (<see cref="TextureOf"/>), the worker's own list.
 	/// </summary>
 	GpuCommandList UploadList()
 	{
+		if ( !ThreadSafe.IsMainThread && gpu.DeferredList is { } deferred ) return deferred;
+
 		if ( list is not null )
 		{
 			context.MemoryBarrier();
@@ -1217,6 +1249,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	void ClearNow( TextureHandle handle, Color color )
 	{
 		var value = new Num.Vector4( color.r, color.g, color.b, color.a );
+
+		// A worker's new texture: cleared in its own list, without the main thread's context
+		if ( !ThreadSafe.IsMainThread && gpu.DeferredList is { } deferred )
+		{
+			deferred.Barrier( TextureBarrier.Transition( handle, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+			deferred.ClearTexture( handle, value );
+			Track( handle, ImageLayout.CopyDestination );
+			return;
+		}
+
 		if ( list is not null )
 		{
 			context.ClearTexture( handle, value );

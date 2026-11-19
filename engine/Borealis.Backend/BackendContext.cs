@@ -480,7 +480,7 @@ internal sealed partial class BackendContext : GpuContext
 			}
 			else
 			{
-				viewBindings[i] = value is GpuBuffer { Resource: BackendBuffer buffer } ? Binding.Storage( binding, buffer.Handle ) : Binding.Storage( binding, device.Defaults.Storage );
+				viewBindings[i] = value is GpuBuffer { Resource: BackendBuffer { Live: true } buffer } ? Binding.Storage( binding, buffer.Handle ) : Binding.Storage( binding, device.Defaults.Storage );
 			}
 		}
 
@@ -917,7 +917,7 @@ internal sealed partial class BackendContext : GpuContext
 
 	bool DrawByReflection( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect = default )
 	{
-		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source ) return false;
+		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source || !source.Use() ) return false;
 		if ( (indirect.InstanceIds ?? InstanceIds?.Resource as BackendBuffer) is not { } instanceIds ) return false;
 
 		var mode = ModeName( shader, shaderMode );
@@ -995,7 +995,8 @@ internal sealed partial class BackendContext : GpuContext
 
 	/// <summary>
 	/// The name of the shader's mode a token names, or null if it has no such mode. A shader without <c>Forward</c> draws it
-	/// with <c>VrForward</c>, as the material system's mode fallback does (blendable.shader has only that).
+	/// with <c>VrForward</c>, as the material system's mode fallback does (blendable.shader has only that), and the error
+	/// shader every mode with its one.
 	/// </summary>
 	static string ModeName( ShaderFile shader, StringToken mode )
 	{
@@ -1012,7 +1013,8 @@ internal sealed partial class BackendContext : GpuContext
 			}
 		}
 
-		return null;
+		// The error shader draws every mode with its one (ShaderFile.Mode)
+		return shader.IsErrorShader && shader.Modes.Count > 0 ? shader.Modes[0].Name : null;
 	}
 
 	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, StringToken> tokens = new();
@@ -1152,7 +1154,7 @@ internal sealed partial class BackendContext : GpuContext
 				{
 					ShaderResourceKind.MaterialConstants => MaterialConstants( material, stage, resource.Binding ),
 					ShaderResourceKind.ConstantBuffer => ConstantBuffer( stage, resource ),
-					ShaderResourceKind.Buffer => Lookup( Token( resource.Name ) ) is GpuBuffer { Resource: BackendBuffer buffer }
+					ShaderResourceKind.Buffer => Lookup( Token( resource.Name ) ) is GpuBuffer { Resource: BackendBuffer { Live: true } buffer }
 						? Binding.Storage( resource.Binding, buffer.Handle )
 						: defaults.For( resource ),
 					ShaderResourceKind.Texture => Texture( material, resource ),
@@ -1228,7 +1230,7 @@ internal sealed partial class BackendContext : GpuContext
 			_ => TextureDimension.Texture2D,
 		};
 
-		if ( texture is null || texture.Dimension != expected || texture.Samples > 1 || SampledLayoutOf( texture ) != ImageLayout.ShaderRead ) return device.Defaults.For( resource );
+		if ( texture is not { IsValid: true } || texture.Dimension != expected || texture.Samples > 1 || SampledLayoutOf( texture ) != ImageLayout.ShaderRead ) return device.Defaults.For( resource );
 
 		// SrgbRead( true ) textures are compiled with render state id 1
 		var srgb = resource.Variable.RenderStateId == 1 && Gpu.InfoOf( texture.Handle ).Format.HasSrgb();
