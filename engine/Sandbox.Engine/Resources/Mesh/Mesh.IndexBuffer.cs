@@ -3,14 +3,24 @@ using System.Runtime.InteropServices;
 
 namespace Sandbox
 {
+	/// <summary>
+	/// A mesh's index buffer, 32-bit indices. They live here, so the mesh reads back and saves without a render device;
+	/// with Source 2's (<see cref="Graphics.HasSource2Device"/>) a native buffer holds a copy to draw from.
+	/// </summary>
 	internal struct IndexBufferHandle : IValid
 	{
-		public readonly bool IsValid => _native != IntPtr.Zero;
+		public readonly bool IsValid => _data != null;
 		public readonly bool IsLocked => _locked;
 		public readonly int ElementCount => _elementCount;
 
+		/// <summary>The buffer's indices.</summary>
+		internal readonly int[] Data => _data;
+
+		/// <summary>Whether Source 2's device holds a copy (only with its device).</summary>
+		internal readonly bool HasNative => _native != IntPtr.Zero;
+
 		private IndexBufferHandle_t _native;
-		private IntPtr _lockData;
+		private int[] _data;
 		private int _elementCount;
 		private int _lockDataSize;
 		private int _lockDataOffset;
@@ -46,19 +56,25 @@ namespace Sandbox
 			if ( dataCount > indexCount )
 				dataCount = indexCount;
 
-			fixed ( int* data_ptr = data )
-			{
-				var handle = MeshGlue.CreateIndexBuffer( indexCount, true, (IntPtr)data_ptr, dataCount );
-				if ( handle == IntPtr.Zero )
-					throw new Exception( $"Failed to create index buffer" );
+			_data = new int[indexCount];
+			data[..dataCount].CopyTo( _data );
 
-				_native = handle;
-				_lockData = IntPtr.Zero;
-				_elementCount = indexCount;
-				_lockDataSize = 0;
-				_lockDataOffset = 0;
-				_locked = false;
+			if ( Graphics.HasSource2Device )
+			{
+				fixed ( int* data_ptr = _data )
+				{
+					var handle = MeshGlue.CreateIndexBuffer( indexCount, true, (IntPtr)data_ptr, indexCount );
+					if ( handle == IntPtr.Zero )
+						throw new Exception( $"Failed to create index buffer" );
+
+					_native = handle;
+				}
 			}
+
+			_elementCount = indexCount;
+			_lockDataSize = 0;
+			_lockDataOffset = 0;
+			_locked = false;
 		}
 
 		/// <summary>
@@ -101,6 +117,10 @@ namespace Sandbox
 			if ( dataSize > int.MaxValue || dataOffset > int.MaxValue )
 				throw new OverflowException( "Calculated values exceed the range of int." );
 
+			data.CopyTo( _data.AsSpan( elementOffset ) );
+
+			if ( !HasNative ) return;
+
 			fixed ( int* data_ptr = data )
 			{
 				MeshGlue.SetIndexBufferData( _native, (IntPtr)data_ptr, (int)dataSize, (int)dataOffset );
@@ -108,7 +128,7 @@ namespace Sandbox
 		}
 
 		/// <summary>
-		/// Resize the index buffer.
+		/// Resize the index buffer. Its contents start again from zero, as a new buffer's do.
 		/// </summary>
 		public void SetSize( int elementCount )
 		{
@@ -127,12 +147,12 @@ namespace Sandbox
 			if ( elementCount == _elementCount )
 				return;
 
-			var handle = MeshGlue.SetIndexBufferSize( _native, elementCount );
-			_native = handle;
+			_data = new int[elementCount];
+			if ( HasNative ) _native = MeshGlue.SetIndexBufferSize( _native, elementCount );
 			_elementCount = elementCount;
 		}
 
-		public unsafe Span<int> Lock( int elementCount, int elementOffset )
+		public Span<int> Lock( int elementCount, int elementOffset )
 		{
 			if ( !IsValid )
 				throw new InvalidOperationException( "Index buffer has not been created" );
@@ -159,22 +179,15 @@ namespace Sandbox
 
 			_lockDataSize = (int)dataSize;
 			_lockDataOffset = (int)dataOffset;
-			_lockData = MeshGlue.LockIndexBuffer( _native, _lockDataSize, _lockDataOffset );
-
-			if ( _lockData == IntPtr.Zero )
-			{
-				_lockDataSize = 0;
-				_lockDataOffset = 0;
-
-				return null;
-			}
-
 			_locked = true;
 
-			return new Span<int>( _lockData.ToPointer(), elementCount );
+			// A locked region starts from zero, as Source 2's did
+			var region = _data.AsSpan( elementOffset, elementCount );
+			region.Clear();
+			return region;
 		}
 
-		public void Unlock()
+		public unsafe void Unlock()
 		{
 			if ( !IsValid )
 				return;
@@ -182,9 +195,15 @@ namespace Sandbox
 			if ( !_locked )
 				return;
 
-			MeshGlue.UnlockIndexBuffer( _native, _lockData, _lockDataSize, _lockDataOffset );
+			// Source 2's copy gets what was written
+			if ( HasNative )
+			{
+				fixed ( int* pData = &_data[_lockDataOffset / sizeof( int )] )
+				{
+					MeshGlue.SetIndexBufferData( _native, (IntPtr)pData, _lockDataSize, _lockDataOffset );
+				}
+			}
 
-			_lockData = IntPtr.Zero;
 			_lockDataSize = 0;
 			_lockDataOffset = 0;
 			_locked = false;
@@ -284,6 +303,7 @@ namespace Sandbox
 
 			ib = new( indexCount, data );
 
+			// Without Source 2's device the handle is null: the mesh's draws still bind it, the bytes are ours
 			fixed ( int* data_ptr = data )
 			{
 				MeshGlue.SetMeshIndexBuffer( native, ib, (IntPtr)data_ptr, data.Length );

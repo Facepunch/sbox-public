@@ -235,6 +235,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	int savingPipelineCache;
 
+	/// <summary>Save the pipeline cache now, on a worker (a scene has loaded, as native flushes its own then).</summary>
+	internal void FlushPipelineCache() => SavePipelineCacheInBackground();
+
 	/// <summary>Save the device's pipeline cache on a worker if pipelines were made since the last save (and none is saving).</summary>
 	void SavePipelineCacheInBackground()
 	{
