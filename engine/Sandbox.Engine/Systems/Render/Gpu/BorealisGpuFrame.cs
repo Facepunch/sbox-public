@@ -101,6 +101,15 @@ internal sealed class BorealisGpuFrame : IDisposable
 	public Texture SceneDepth { get; private set; }
 
 	/// <summary>
+	/// The quarter-resolution bloom objects the scene drew (<c>QuarterResEffectsBloomInputTexture</c>, which the bloom effect
+	/// adds), or null when it drew none.
+	/// </summary>
+	public Texture BloomObjects { get; private set; }
+
+	// The Borealis texture behind BloomObjects this frame
+	BackendTexture bloomObjects;
+
+	/// <summary>
 	/// The view's depth chain (<c>DepthChainDownsample</c>, which <c>Depth::Get</c> reads): the min and max of the frame's
 	/// depth, mipped, built by <see cref="Begin()"/> (and from the upscaled depth by <see cref="Upscaled"/>). Null for a frame
 	/// with no depth.
@@ -126,15 +135,19 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 	/// <summary>
 	/// Take a frame Borealis rendered into <paramref name="target"/> on the backend's device, with the view constants it drew
-	/// with.
+	/// with, and the bloom objects it drew (<see cref="RenderSystem.BloomObjects"/>), if any.
 	/// </summary>
-	public void Adopt( ViewTarget target, in GpuViewConstants viewConstants )
+	public void Adopt( ViewTarget target, in GpuViewConstants viewConstants, GpuTexture bloom = null )
 	{
 		this.target = target;
 		var color = target.Resolved ?? target.Color;
 		upscaled = false;
 		SceneColor = FrameTexture( SceneColor, color, target.Size, ImageFormat.RGBA16161616F, depth: false );
 		SceneDepth = target.Depth is null ? null : FrameTexture( SceneDepth, target.Depth, target.Size, ImageFormat.D32FS8, depth: true );
+
+		if ( bloomObjects is not null && !ReferenceEquals( bloomObjects, bloom ) && bloomObjects.IsValid ) backend.ForgetBorrowed( bloomObjects.Handle );
+		bloomObjects = bloom as BackendTexture;
+		BloomObjects = bloomObjects is null ? null : FrameTexture( null, bloomObjects, new Vector2Int( bloomObjects.Width, bloomObjects.Height ), ImageFormat.RGBA1010102, depth: false );
 
 		if ( constants.Length != System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>() ) constants = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
 		System.Runtime.InteropServices.MemoryMarshal.Write( constants, in viewConstants );
@@ -511,7 +524,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			}
 
 			SetViewTextures( attributes );
-			attributes.Set( BloomInputName, Texture.Black );
+			attributes.Set( BloomInputName, BloomObjects ?? Texture.Black );
 			return scope;
 		}
 		catch
@@ -580,6 +593,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		if ( target is null ) return;
 		BackendDevice.SetLayout( target.Resolved ?? target.Color, backend.LayoutOf( SceneColor ) );
 		if ( target.Depth is not null ) BackendDevice.SetLayout( target.Depth, backend.LayoutOf( SceneDepth ) );
+		if ( bloomObjects is not null ) BackendDevice.SetLayout( bloomObjects, backend.LayoutOf( BloomObjects ) );
 	}
 
 	/// <summary>
@@ -596,6 +610,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 		else if ( SceneColor is not null ) backend.Release( SceneColor );
 		if ( target?.Depth is BackendTexture depth ) backend.ForgetBorrowed( depth.Handle );
 		else if ( SceneDepth is not null ) backend.Release( SceneDepth );
+		if ( bloomObjects is not null ) backend.ForgetBorrowed( bloomObjects.Handle );
+		bloomObjects = null;
+		BloomObjects = null;
 		target = null;
 	}
 

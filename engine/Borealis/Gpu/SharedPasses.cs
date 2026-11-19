@@ -154,12 +154,11 @@ internal static class SharedPasses
 	}
 
 	/// <summary>
-	/// Write <paramref name="depth"/> at a quarter of the resolution into the bound depth target.
+	/// Write <paramref name="depth"/> at a quarter of the resolution into the bound depth target. It draws into what's bound,
+	/// so it keeps the binding (and the depth clear pending on it).
 	/// </summary>
 	public static void DownsampleQuarterDepth( GpuContext context, GpuTexture depth, bool msaaInput )
 	{
-		context.Invalidate();
-
 		var parameters = ParameterPool.Get();
 		parameters.Set( SourceDepth, depth );
 		parameters.SetCombo( Msaa, msaaInput );

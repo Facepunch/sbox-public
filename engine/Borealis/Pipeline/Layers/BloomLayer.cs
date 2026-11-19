@@ -54,6 +54,7 @@ internal sealed class BloomLayer : MeshLayer
 		BloomColor = transients.Get( TextureDesc.Target( (int)Viewport.Width, (int)Viewport.Height, TextureFormat.RGBA1010102 ) with { Storage = true }, "Bloom" );
 		BloomDepth = transients.Get( TextureDesc.Target( (int)Viewport.Width, (int)Viewport.Height, TextureFormat.D32 ), "Bloom Depth" );
 		frameContext.Attributes.Set( BloomInput, BloomColor );
+		frame.System.BloomObjects = BloomColor;
 	}
 
 	/// <summary>

@@ -133,6 +133,62 @@ public class GpuDrivenTests : GpuTest
 		}
 	}
 
+	/// <summary>A camera's stages with nothing in them, with screen-space reflections or not.</summary>
+	sealed class ReflectingStages( bool reflections ) : IRenderStages
+	{
+		public void Render( RenderStage stage, in StageTarget target ) { }
+		public bool HasScreenSpaceReflections => reflections;
+	}
+
+	/// <summary>
+	/// A shader's GPU-driven variant writes its visibility id, a uint, at target 1 for the id prepass. Drawn in an opaque pass
+	/// whose target 1 is the reflections' normals (RGB10A2), or in one with no target 1, its pipeline leaves that output out:
+	/// the validation layer reports nothing written at location 1 of another type or to nowhere. The id prepass keeps it.
+	/// </summary>
+	[TestMethod]
+	public void TheIdOutputIsLeftOutWhereTargetOneIsNotIds()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDrivenMeshes = true, GpuDriven = true };
+		if ( backend.Shaders.GpuDriven( backend.Shaders.Load( "shaders/complex.shader" ) ) is null ) Assert.Inconclusive( "shaders/complex.shader has no GPU-driven variant: ShaderCompiler -gpudriven" );
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Id output test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunShadowCascades = 0;
+			var (mesh, fragments) = Boxes( backend, backend.CreateMaterial( "Boxes", new Color( 0.8f, 0.6f, 0.4f ) ), 0 );
+			world.Add( new AggregateObject( mesh, fragments ) );
+			world.Add( new MeshObject( mesh, new Transform( new Vector3( 0, 0, 90 ) ) ) );
+
+			var view = new RenderView { Name = "Id output test", FieldOfView = 70, ZNear = 4, ZFar = 4000, Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			// With reflections (target 1 the normals), without (no target 1), and through the id prepass (target 1 the ids)
+			foreach ( var (reflections, visibility) in (ReadOnlySpan<(bool, bool)>)[(true, false), (true, false), (false, false), (false, true)] )
+			{
+				backend.GpuDrivenVisibility = visibility;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target, new ReflectingStages( reflections ) );
+				Device.WaitIdle();
+			}
+
+			Assert.IsTrue( backend.DrawsAggregatesGpuDriven, "the boxes drew GPU-driven" );
+			var warnings = ValidationWarnings().Where( w => w.Contains( "Location 1", StringComparison.Ordinal ) ).ToArray();
+			Assert.AreEqual( 0, warnings.Length, "Location 1 warnings:\n" + string.Join( "\n", warnings.Take( 5 ) ) );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
 	/// <summary>
 	/// Aggregates of one material drawn GPU-driven by segments recording on several threads at once (the prepass, the
 	/// sun's cascades and forward, each reading the same material and frame attributes) finish every frame and draw what

@@ -17,9 +17,12 @@
 // and generic's vertex paint.
 import sbox.surface;
 
-// complex.shader's g_sTrilinearWrap (occlusion, metalness, self-illumination and transmission) and generic.shader's
-// g_sDefault (every texture), the same state; the rest of complex's use g_sAniso, the surfaces' standard filtering
+// complex.shader's g_sTrilinearWrap (occlusion, metalness, self-illumination and transmission); the rest of complex's use
+// g_sAniso, the surfaces' standard filtering
 SamplerState g_StandardTrilinear < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
+
+// generic.shader's g_sDefault (every texture), which has no state of its own: native's default, anisotropic and wrapped
+SamplerState g_StandardDefault < Filter( ANISOTROPIC ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
 
 [Material]
 public struct Standard : ICombinerSurface
@@ -246,15 +249,15 @@ public struct Standard : ICombinerSurface
 	Material Generic( SurfaceInput i )
 	{
 		Material m = Material.Init( i );
-		float4 color = i.Sample( Color, i.Uv, g_StandardTrilinear );
+		float4 color = i.Sample( Color, i.Uv, g_StandardDefault );
 		float3 albedo = color.rgb;
 
 		// The tint and the object's colour where the tint mask says (green)
-		float tintMask = UseTintMask ? i.Sample( TintMask, i.Uv, g_StandardTrilinear ).g : 1.0;
+		float tintMask = UseTintMask ? i.Sample( TintMask, i.Uv, g_StandardDefault ).g : 1.0;
 		albedo = lerp( albedo, albedo * ColorTint * i.Color.rgb, tintMask );
 
 		// The normal: DXT5 (alpha and green), y flipped as the shader does before the combiner's own flip, bump strength
-		float3 normalTs = ComputeNormalFromRGTexture( i.Sample( Normal, i.Uv, g_StandardTrilinear ).ag );
+		float3 normalTs = ComputeNormalFromRGTexture( i.Sample( Normal, i.Uv, g_StandardDefault ).ag );
 		normalTs.y = -normalTs.y;
 		normalTs.xy *= BumpStrength;
 		normalTs = normalize( normalTs );
@@ -266,10 +269,10 @@ public struct Standard : ICombinerSurface
 		m.SpecularScale = 0;
 		if ( UseSpecular )
 		{
-			float4 rough = i.Sample( Roughness, i.Uv, g_StandardTrilinear );
+			float4 rough = i.Sample( Roughness, i.Uv, g_StandardDefault );
 			float2 scaleBias = float2( max( 1.0 - GlossinessRange.x, 1.0 - GlossinessRange.y ) - ( 1.0 - GlossinessRange.y ), 1.0 - GlossinessRange.y );
 			m.Roughness = min( 1.0, ( rough.b + rough.a ) * 0.5 * scaleBias.x + scaleBias.y + ( rough.r + rough.g ) * 0.5 );
-			float metalness = i.Sample( MetalnessReflectanceFresnel, i.Uv, g_StandardTrilinear ).r;
+			float metalness = i.Sample( MetalnessReflectanceFresnel, i.Uv, g_StandardDefault ).r;
 			m.Metalness = metalness * ( max( MetalnessRange.x, MetalnessRange.y ) - MetalnessRange.x ) + MetalnessRange.x;
 			m.SpecularScale = 1;
 		}
@@ -289,7 +292,7 @@ public struct Standard : ICombinerSurface
 		// Self-illumination: the albedo lit by the mask (green), taken off the diffuse and specular colours there
 		if ( UseSelfIllum )
 		{
-			float mask = i.Sample( SelfIllumMaskLinear, i.Uv, g_StandardTrilinear ).g;
+			float mask = i.Sample( SelfIllumMaskLinear, i.Uv, g_StandardDefault ).g;
 			m.Emission = SelfIllumScale * SelfIllumTint * albedo * mask;
 			m.DiffuseScale = 1.0 - mask;
 			m.SpecularScale *= 1.0 - mask;

@@ -85,6 +85,12 @@ public abstract class GpuTest
 		}
 	}
 
+	/// <summary>The warnings reported so far, each as its id and text.</summary>
+	protected string[] ValidationWarnings()
+	{
+		lock ( messages ) return messages.Where( m => m.Severity == MessageSeverity.Warning ).Select( m => $"{m.Id}: {m.Text}" ).ToArray();
+	}
+
 	/// <summary>
 	/// A render target's mip 0, read back as bytes, after it was last used in <paramref name="from"/>.
 	/// </summary>

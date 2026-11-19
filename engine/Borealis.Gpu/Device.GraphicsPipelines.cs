@@ -14,10 +14,13 @@ public enum PipelineParts
 	/// <summary>No part.</summary>
 	None = 0,
 
-	/// <summary>Vertex buffers, attributes and topology.</summary>
+	/// <summary>Vertex buffers, attributes and topology. A mesh pipeline has none.</summary>
 	VertexInput = 1,
 
-	/// <summary>The vertex shader, its constants, the binding layouts, wireframe and depth clamp.</summary>
+	/// <summary>
+	/// The vertex shader (a mesh pipeline's task and mesh shaders), its constants, the binding layouts, wireframe and depth
+	/// clamp.
+	/// </summary>
 	PreRasterization = 2,
 
 	/// <summary>The pixel shader, its constants and the binding layouts.</summary>
@@ -34,7 +37,7 @@ public enum PipelineParts
 /// One part of graphics pipelines (VK_EXT_graphics_pipeline_library), made once for every pipeline whose info agrees on
 /// what the part reads. Its fields change under <c>Device.partLock</c>.
 /// </summary>
-internal sealed class PipelinePart( PartKey key, uint kind, UInt128 shader )
+internal sealed class PipelinePart( PartKey key, uint kind, UInt128 shader, UInt128 task )
 {
 	public readonly PartKey Key = key;
 
@@ -42,10 +45,10 @@ internal sealed class PipelinePart( PartKey key, uint kind, UInt128 shader )
 	public readonly uint Kind = kind;
 
 	/// <summary>
-	/// The SPIR-V hash of the shader a pre-rasterisation or fragment part was made from (zero for the others): it goes when
-	/// the last module with that SPIR-V does.
+	/// The SPIR-V hash of the shader a pre-rasterisation or fragment part was made from (zero for the others), the mesh
+	/// shader's in a mesh pipeline, and of its task shader (zero for none): it goes when the last module with either does.
 	/// </summary>
-	public readonly UInt128 Shader = shader;
+	public readonly UInt128 Shader = shader, Task = task;
 
 	/// <summary>Kept in the part manifest this run (<see cref="PipelinePartManifest"/>).</summary>
 	public bool Recorded;
@@ -66,7 +69,7 @@ internal sealed class PipelinePart( PartKey key, uint kind, UInt128 shader )
 	public bool Dropped;
 }
 
-/// <summary>The four parts a graphics pipeline was linked from.</summary>
+/// <summary>The parts a graphics pipeline was linked from: four, or three for a mesh pipeline (no vertex input).</summary>
 internal sealed class LinkedParts( PipelinePart vertexInput, PipelinePart preRasterization, PipelinePart fragment, PipelinePart output, string name )
 {
 	public readonly PipelinePart VertexInput = vertexInput, PreRasterization = preRasterization, Fragment = fragment, Output = output;
@@ -229,11 +232,17 @@ public sealed unsafe partial class Device
 	static readonly string partLog = Environment.GetEnvironmentVariable( "BOREALIS_PART_LOG" ) ?? (Array.IndexOf( Environment.GetCommandLineArgs(), "-pipeline-part-log" ) is var at and >= 0 && at + 1 < Environment.GetCommandLineArgs().Length ? Environment.GetCommandLineArgs()[at + 1] : null);
 	static readonly object partLogLock = new();
 
-	bool UsesLibraries( in GraphicsPipelineInfo info ) => pipelineLibraries && !info.MeshShader.IsValid && !shaderStatistics;
+	// Pipelines kept for their shader statistics are made whole: a link has none of its own. Mesh pipelines link three
+	// parts: task and mesh shaders belong to pre-rasterisation, and there's no vertex input
+	bool UsesLibraries( in GraphicsPipelineInfo info ) => pipelineLibraries && !shaderStatistics;
+
+	/// <summary>The SPIR-V hash a pre-rasterisation part is made from: the mesh shader's in a mesh pipeline, else the vertex shader's.</summary>
+	UInt128 PreRasterizationShader( in GraphicsPipelineInfo info ) => ShaderHash( info.MeshShader.IsValid ? info.MeshShader : info.VertexShader );
 
 	/// <summary>
 	/// Create a graphics pipeline, through the device's pipeline cache. With pipeline libraries
-	/// (<see cref="DeviceCapabilities.PipelineLibraries"/>) it's a fast link of four parts, each made once for every pipeline
+	/// (<see cref="DeviceCapabilities.PipelineLibraries"/>) it's a fast link of four parts (three for a mesh pipeline, which
+	/// has no vertex input), each made once for every pipeline
 	/// that agrees on what it reads (<see cref="PreparePipelineParts"/> makes them ahead); an optimised link made on a
 	/// background thread replaces it under the same handle once ready, and the fast one goes when the GPU is done with it.
 	/// Every graphics pipeline takes its cull mode, front face, depth and stencil state as dynamic state, which the command
@@ -304,9 +313,9 @@ public sealed unsafe partial class Device
 		var layout = PipelineLayout( info.Sets );
 		using ( Zone( ZonePipeline ) )
 		{
-			if ( (parts & PipelineParts.PreRasterization) != 0 ) Part( preRasterizationParts, Vulkan.Vk.LibraryPreRasterization, PreRasterizationKey( info, layout ), info, layout, ShaderHash( info.VertexShader ), use: false, guess );
+			if ( (parts & PipelineParts.PreRasterization) != 0 ) Part( preRasterizationParts, Vulkan.Vk.LibraryPreRasterization, PreRasterizationKey( info, layout ), info, layout, PreRasterizationShader( info ), use: false, guess );
 			if ( (parts & PipelineParts.FragmentShader) != 0 ) Part( fragmentParts, Vulkan.Vk.LibraryFragmentShader, FragmentKey( info, layout ), info, layout, ShaderHash( info.FragmentShader ), use: false, guess );
-			if ( (parts & PipelineParts.VertexInput) != 0 ) Part( vertexInputParts, Vulkan.Vk.LibraryVertexInput, VertexInputKey( info ), info, layout, 0, use: false );
+			if ( (parts & PipelineParts.VertexInput) != 0 && !info.MeshShader.IsValid ) Part( vertexInputParts, Vulkan.Vk.LibraryVertexInput, VertexInputKey( info ), info, layout, 0, use: false );
 			if ( (parts & PipelineParts.FragmentOutput) != 0 ) Part( outputParts, Vulkan.Vk.LibraryFragmentOutput, OutputKey( info ), info, layout, 0, use: false );
 		}
 	}
@@ -351,9 +360,9 @@ public sealed unsafe partial class Device
 		PipelinePart vertexInput = null, preRasterization = null, fragment = null, output = null;
 		try
 		{
-			preRasterization = Part( preRasterizationParts, Vulkan.Vk.LibraryPreRasterization, PreRasterizationKey( info, layout ), info, layout, ShaderHash( info.VertexShader ), use: true );
+			preRasterization = Part( preRasterizationParts, Vulkan.Vk.LibraryPreRasterization, PreRasterizationKey( info, layout ), info, layout, PreRasterizationShader( info ), use: true );
 			fragment = Part( fragmentParts, Vulkan.Vk.LibraryFragmentShader, FragmentKey( info, layout ), info, layout, ShaderHash( info.FragmentShader ), use: true );
-			vertexInput = Part( vertexInputParts, Vulkan.Vk.LibraryVertexInput, VertexInputKey( info ), info, layout, 0, use: true );
+			if ( !info.MeshShader.IsValid ) vertexInput = Part( vertexInputParts, Vulkan.Vk.LibraryVertexInput, VertexInputKey( info ), info, layout, 0, use: true );
 			output = Part( outputParts, Vulkan.Vk.LibraryFragmentOutput, OutputKey( info ), info, layout, 0, use: true );
 		}
 		catch
@@ -380,10 +389,11 @@ public sealed unsafe partial class Device
 	{
 		PipelinePart part;
 		bool make, record, guessUsed = false;
+		var task = kind == Vulkan.Vk.LibraryPreRasterization && info.MeshShader.IsValid ? ShaderHash( info.TaskShader ) : 0;
 		lock ( partLock )
 		{
 			make = !cache.TryGetValue( key, out part );
-			if ( make ) cache[key] = part = new PipelinePart( key, kind, shader ) { Guessed = guess };
+			if ( make ) cache[key] = part = new PipelinePart( key, kind, shader, task ) { Guessed = guess };
 			if ( use ) part.Users++;
 
 			// A guess's part linked: the guess was right (counted once)
@@ -426,7 +436,7 @@ public sealed unsafe partial class Device
 			if ( partLog is not null )
 			{
 				var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-				var constants = (PipelineParts)kind == PipelineParts.PreRasterization ? info.VertexConstants : info.FragmentConstants;
+				var constants = (PipelineParts)kind == PipelineParts.PreRasterization ? info.MeshShader.IsValid ? info.MeshConstants : info.VertexConstants : info.FragmentConstants;
 				var line = $"{DateTime.Now:HH:mm:ss.fff} {(use ? "use" : guess ? "guess" : "ahead")} {(PipelineParts)kind} {ms:0} ms {info.Name} [{string.Join( ',', System.Linq.Enumerable.Select( constants ?? [], c => $"{c.Id}={c.Value}" ) )}] layout {layout:x} shader {(ulong)(shader >> 64):x16} samples {info.Samples} depth {info.DepthFormat} key {key.GetHashCode():x8}\n";
 				lock ( partLogLock ) System.IO.File.AppendAllText( partLog, line );
 			}
@@ -469,6 +479,9 @@ public sealed unsafe partial class Device
 
 	void Record( PipelineParts kind, in GraphicsPipelineInfo info, UInt128 shader )
 	{
+		// A mesh pipeline's pre-rasterisation part needs its task and mesh modules both: the manifest replays parts of one
+		if ( kind == PipelineParts.PreRasterization && info.MeshShader.IsValid ) return;
+
 		BindingSlot[][] sets;
 		try
 		{
@@ -511,9 +524,24 @@ public sealed unsafe partial class Device
 	PartKey PreRasterizationKey( in GraphicsPipelineInfo info, ulong layout )
 	{
 		var key = new PartKeyWriter( Vulkan.Vk.LibraryPreRasterization );
-		key.Add( ShaderHash( info.VertexShader ) );
-		key.Add( info.VertexEntry ?? "main" );
-		key.Add( info.VertexConstants );
+		var mesh = info.MeshShader.IsValid;
+		key.Add( mesh );
+		if ( mesh )
+		{
+			key.Add( ShaderHash( info.TaskShader ) );
+			key.Add( info.TaskShader.IsValid ? info.TaskEntry ?? "main" : null );
+			key.Add( info.TaskShader.IsValid ? info.TaskConstants : null );
+			key.Add( ShaderHash( info.MeshShader ) );
+			key.Add( info.MeshEntry ?? "main" );
+			key.Add( info.MeshConstants );
+		}
+		else
+		{
+			key.Add( ShaderHash( info.VertexShader ) );
+			key.Add( info.VertexEntry ?? "main" );
+			key.Add( info.VertexConstants );
+		}
+
 		key.Add( LayoutHash( layout ) );
 		key.Add( info.Wireframe );
 		key.Add( info.DepthClamp );
@@ -557,12 +585,20 @@ public sealed unsafe partial class Device
 	static BlendState BlendOf( in GraphicsPipelineInfo info, int target ) => info.Blend is { Length: > 0 } ? info.Blend[Math.Min( target, info.Blend.Length - 1 )] : BlendState.Opaque;
 	static uint WriteMaskOf( BlendState blend ) => blend.WriteMask == 0 ? Vulkan.Vk.ColorComponentAll : (uint)blend.WriteMask & Vulkan.Vk.ColorComponentAll;
 
-	/// <summary>Link four parts into a pipeline: fast, or optimised as a whole (slow, but as fast on the GPU as one made whole).</summary>
+	/// <summary>
+	/// Link the parts into a pipeline (three for a mesh pipeline, four otherwise): fast, or optimised as a whole (slow, but
+	/// as fast on the GPU as one made whole).
+	/// </summary>
 	ulong Link( LinkedParts parts, ulong layout, bool optimise )
 	{
-		var libraries = stackalloc ulong[4] { parts.VertexInput.Pipeline, parts.PreRasterization.Pipeline, parts.Fragment.Pipeline, parts.Output.Pipeline };
+		var libraries = stackalloc ulong[4];
+		var count = 0;
+		if ( parts.VertexInput is not null ) libraries[count++] = parts.VertexInput.Pipeline;
+		libraries[count++] = parts.PreRasterization.Pipeline;
+		libraries[count++] = parts.Fragment.Pipeline;
+		libraries[count++] = parts.Output.Pipeline;
 		GraphicsPipelineInfo none = default;
-		return MakeGraphics( none, PipelineParts.None, library: false, layout, libraries, 4, optimise ? Vulkan.Vk.PipelineCreateLinkTimeOptimization : 0 );
+		return MakeGraphics( none, PipelineParts.None, library: false, layout, libraries, count, optimise ? Vulkan.Vk.PipelineCreateLinkTimeOptimization : 0 );
 	}
 
 	/// <summary>
@@ -919,7 +955,7 @@ public sealed unsafe partial class Device
 
 	void Use( LinkedParts parts )
 	{
-		parts.VertexInput.Users++;
+		if ( parts.VertexInput is not null ) parts.VertexInput.Users++;
 		parts.PreRasterization.Users++;
 		parts.Fragment.Users++;
 		parts.Output.Users++;
@@ -929,7 +965,7 @@ public sealed unsafe partial class Device
 	{
 		lock ( partLock )
 		{
-			Release( parts.VertexInput );
+			if ( parts.VertexInput is not null ) Release( parts.VertexInput );
 			Release( parts.PreRasterization );
 			Release( parts.Fragment );
 			Release( parts.Output );
@@ -990,7 +1026,7 @@ public sealed unsafe partial class Device
 		List<PipelinePart> dropped = null;
 		foreach ( var part in cache.Values )
 		{
-			if ( part.Shader == shader ) (dropped ??= new()).Add( part );
+			if ( part.Shader == shader || part.Task == shader ) (dropped ??= new()).Add( part );
 		}
 
 		foreach ( var part in dropped ?? [] )
@@ -1017,7 +1053,7 @@ public sealed unsafe partial class Device
 		foreach ( var record in pipelines )
 		{
 			if ( record.Parts is not { } parts ) continue;
-			alive.Add( parts.VertexInput );
+			if ( parts.VertexInput is not null ) alive.Add( parts.VertexInput );
 			alive.Add( parts.PreRasterization );
 			alive.Add( parts.Fragment );
 			alive.Add( parts.Output );

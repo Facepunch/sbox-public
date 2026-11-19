@@ -498,7 +498,11 @@ public sealed class ShaderStage
 		_ => 0,
 	};
 
-	static SamplerInfo DefaultSampler => SamplerInfo.Linear( AddressMode.Wrap );
+	/// <summary>
+	/// A sampler's state before its own states apply: native's <c>DefaultSamplerStateDesc</c>, anisotropic and wrapped, so a
+	/// sampler declared without a filter (<c>g_sDefault</c>) filters anisotropically.
+	/// </summary>
+	static SamplerInfo DefaultSampler => SamplerInfo.Linear( AddressMode.Wrap, 16 );
 
 	/// <summary><c>RsFilter_t</c> ANISOTROPIC.</summary>
 	const int AnisotropicFilter = 0x55;

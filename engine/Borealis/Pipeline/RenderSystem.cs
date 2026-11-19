@@ -344,6 +344,7 @@ public sealed partial class RenderSystem : IDisposable
 
 		view.Update();
 		frame.Begin( world, view, output, stages );
+		BloomObjects = null;
 
 		var allocStart = GC.GetAllocatedBytesForCurrentThread();
 		var start = Stopwatch.GetTimestamp();
@@ -650,6 +651,12 @@ public sealed partial class RenderSystem : IDisposable
 	/// Setup context and parent attributes for recording segments.
 	/// </summary>
 	internal GpuContext FrameContext => context;
+
+	/// <summary>
+	/// The quarter-resolution bloom objects the last frame drew (<c>QuarterResEffectsBloomInputTexture</c>), or null when it drew
+	/// none: what a camera's bloom effect after the frame adds. Valid until this system renders again.
+	/// </summary>
+	internal GpuTexture BloomObjects { get; set; }
 
 	/// <summary>
 	/// Milliseconds since the last lap, starting the next.

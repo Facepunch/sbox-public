@@ -231,12 +231,34 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		SubmitUploads();
 		FreeModelGeometry();
 		FreeCollectedBackings();
+		LimitAnisotropy();
 
 		// Behind a loading screen nobody watches the frames: what a map loads is made and streamed with bigger budgets
 		services.Loading = LoadingScreen.IsVisible || (Sandbox.Engine.GlobalContext.Game?.ActiveScene?.IsLoading ?? false) || (IGameInstance.Current?.IsLoading ?? false);
 		services.BeginFrame();
 		TimeFrame();
 		if ( frame % PipelineCacheSaveFrames == 0 ) SavePipelineCacheInBackground();
+	}
+
+	/// <summary>
+	/// Native's <c>r_max_anisotropy</c> (its render device's, which Borealis.Gpu runs without): the texture quality
+	/// profiles and the player's saved setting set it.
+	/// </summary>
+	[ConVar( "r_max_anisotropy", Saved = true, Min = 1, Max = 16, Help = "Clamp max anisotropic filtering to this maximum (1 disables anisotropic filtering)." )]
+	internal static int MaxAnisotropy { get; set; } = 4;
+
+	int anisotropyChanges = -1;
+
+	/// <summary>
+	/// Every sampler's anisotropy at most the player's <c>r_max_anisotropy</c> (native's default 4), as native clamps each
+	/// anisotropic sampler to it; read again when a convar changed, before anything records in the frame.
+	/// </summary>
+	void LimitAnisotropy()
+	{
+		var changes = ConVarSystem.Changes;
+		if ( changes == anisotropyChanges ) return;
+		anisotropyChanges = changes;
+		gpu.SetAnisotropyLimit( ConVarSystem.GetFloat( "r_max_anisotropy", 4, true ) );
 	}
 
 	// The GPU's busy time per device frame: a pass timer over every list (Borealis's and the engine's blocks), read back

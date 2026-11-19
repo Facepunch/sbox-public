@@ -110,6 +110,7 @@ public sealed class ModelMesh
 		}
 
 		if ( draws.Count == 0 ) mins = maxs = Vector3.Zero;
+		EmptyDraws( draws, vertexBuffers, indexBuffers );
 		indexBuffers = IndexUnindexedDraws( draws, indexBuffers );
 
 		var bones = new List<MeshBone>();
@@ -138,6 +139,23 @@ public sealed class ModelMesh
 			MorphTexture = string.IsNullOrEmpty( morphTexture ) ? null : morphTexture,
 			Morphs = morphSet,
 		};
+	}
+
+	/// <summary>
+	/// An empty mesh (a run-time mesh with no vertices or indices: its buffers are 0 x 0) draws nothing, as native draws it:
+	/// a draw whose vertex buffer has no vertices, or whose indices are in an index buffer with none, draws no vertices
+	/// and no indices.
+	/// </summary>
+	internal static void EmptyDraws( List<MeshDrawCall> draws, MeshVertexBuffer[] vertexBuffers, MeshIndexBuffer[] indexBuffers )
+	{
+		for ( int i = 0; i < draws.Count; i++ )
+		{
+			var draw = draws[i];
+			var vertices = draw.VertexBuffers.Count > 0 ? draw.VertexBuffers[0].Buffer : 0;
+			var noVertices = vertices < vertexBuffers.Length && vertexBuffers[vertices].Count == 0;
+			var noIndices = draw.IndexCount > 0 && (uint)draw.IndexBuffer.Buffer < (uint)indexBuffers.Length && indexBuffers[draw.IndexBuffer.Buffer].Count == 0;
+			if ( noVertices || noIndices ) draws[i] = draw with { VertexCount = 0, IndexCount = 0 };
+		}
 	}
 
 	/// <summary>
@@ -216,7 +234,8 @@ public sealed class ModelMesh
 		var fieldCount = Count( block, at + 12 );
 		var dataStart = Offset( block, at + 16 );
 		var dataSize = (int)BinaryPrimitives.ReadUInt32LittleEndian( block[(at + 20)..] );
-		if ( count < 0 || stride <= 0 || (long)count * stride > int.MaxValue ) throw new InvalidDataException( $"Mesh {name} has a buffer of {count} x {stride} bytes" );
+		// An empty buffer (an empty run-time mesh's, 0 x 0) is a valid one with nothing in it
+		if ( count < 0 || stride < 0 || (count > 0 && stride == 0) || (long)count * stride > int.MaxValue ) throw new InvalidDataException( $"Mesh {name} has a buffer of {count} x {stride} bytes" );
 
 		var fields = new VertexField[fieldCount];
 		for ( int f = 0; f < fieldCount; f++ )

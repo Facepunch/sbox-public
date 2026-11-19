@@ -12,6 +12,8 @@ for %%s in (triangle mesh) do (
 	"%DXC%" %FLAGS% -T vs_6_6 -E MainVs -fvk-invert-y -Fo %%s.vs.spv %%s.hlsl || exit /b 1
 	"%DXC%" %FLAGS% -T ps_6_6 -E MainPs -Fo %%s.ps.spv %%s.hlsl || exit /b 1
 )
+"%DXC%" %FLAGS% -T as_6_6 -E MainTs -fspv-extension=SPV_EXT_mesh_shader -Fo meshtriangle.ts.spv meshtriangle.hlsl || exit /b 1
+"%DXC%" %FLAGS% -T ms_6_6 -E MainMs -fvk-invert-y -fspv-extension=SPV_EXT_mesh_shader -Fo meshtriangle.ms.spv meshtriangle.hlsl || exit /b 1
 "%DXC%" %FLAGS% -T cs_6_6 -E MainCs -Fo pattern.cs.spv pattern.hlsl || exit /b 1
 "%DXC%" %FLAGS% -T cs_6_6 -E MainCs -Fo slots.cs.spv slots.hlsl || exit /b 1
 echo Compiled
