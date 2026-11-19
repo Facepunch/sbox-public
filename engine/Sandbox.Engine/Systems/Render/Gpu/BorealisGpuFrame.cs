@@ -21,6 +21,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 	static readonly StringToken ViewConstantsName = new( "PerViewConstantBuffer_t" );
 	static readonly StringToken DepthChainName = new( "DepthChainDownsample" );
 	static readonly StringToken FogVolumeName = new( "FogVolume" );
+	static readonly StringToken CubemapFogTextureName = new( "CubemapFogTexture" );
 	static readonly StringToken BloomInputName = new( "QuarterResEffectsBloomInputTexture" );
 
 	/// <summary>
@@ -57,13 +58,15 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 	/// <summary>
 	/// The view's settings the frame's own draws read from its attributes (specialization constants and view-wide values:
-	/// the shadow filter, the tools visualisation, light modulators, DDGI, screen-space effects and normals, a reflection's),
+	/// the shadow filter, the tools visualisation, light modulators, DDGI, screen-space effects and normals, a reflection's, the
+	/// cubemap fog's tint),
 	/// which custom objects drawn in it read too, as native's layer gives its custom objects the view's attributes.
 	/// </summary>
 	internal static readonly StringToken[] ViewSettings =
 	[
 		"ShadowFilterQuality", "ToolsVisMode", "LightModulatorsDisabled", "LightModulators_Enabled", "DDGI_Enabled",
 		"DisableScreenSpaceEffects", "DisableScreenSpaceShadows", "NormalsTextureIndex", "IsReflection", "ReflectionShadows", "NeedsDepthNormals",
+		"CubemapFogColor",
 	];
 
 	/// <summary>Set <see cref="ViewSettings"/> the frame has (<paramref name="frame"/>, its attributes) on <paramref name="into"/>.</summary>
@@ -77,6 +80,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 				case int value: into.Set( name, value ); break;
 				case bool value: into.Set( name, value ); break;
 				case float value: into.Set( name, value ); break;
+				case Vector4 value: into.Set( name, value ); break;
 			}
 		}
 	}
@@ -270,12 +274,12 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 	// A stage's targets inside the frame (RunStage): engine textures kept from frame to frame, one per Borealis texture and
 	// slot, so borrowing one for a stage leaves the others' backings as they are instead of remaking a backing each stage
-	enum StageSlot { Color, Depth, Chain, Normals, Fog }
+	enum StageSlot { Color, Depth, Chain, Normals, Fog, FogCube }
 
 	readonly Dictionary<(StageSlot Slot, BackendTexture Texture), Texture> stageTextures = new();
 
 	// Per slot, the Borealis texture borrowed last
-	readonly BackendTexture[] stageLast = new BackendTexture[5];
+	readonly BackendTexture[] stageLast = new BackendTexture[Enum.GetValues<StageSlot>().Length];
 
 	// A target per pair of stage textures, made once
 	readonly Dictionary<(Texture Color, Texture Depth), RenderTarget> stageTargets = new();
@@ -370,6 +374,10 @@ internal sealed class BorealisGpuFrame : IDisposable
 		// The frame's volumetric fog (or opaque black without it), which the view constants tell forward shaders to read
 		var fog = Borrow( StageSlot.Fog, ((BackendParameters)target.Attributes).Get( FogVolumeName ) as GpuTexture, ImageFormat.RGBA16161616F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
 
+		// The cubemap fog's cube (a sky's, or black without it), which the view constants tell forward shaders to read,
+		// as native's view attributes give its custom objects: without it Goblingeddon's grass was fogged towards black
+		var fogCube = Borrow( StageSlot.FogCube, ((BackendParameters)target.Attributes).Get( CubemapFogTextureName ) as GpuTexture, ImageFormat.RGBA16161616F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
+
 		view.Target = color.Engine is null ? null : StageTarget( color.Engine, depth.Engine );
 		view.DepthSlice = 0;
 
@@ -399,6 +407,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 			if ( normals.Engine is not null ) attributes.Set( NormalsName, normals.Engine );
 			if ( fog.Engine is not null ) attributes.Set( FogVolumeName, fog.Engine );
+			if ( fogCube.Engine is not null ) attributes.Set( CubemapFogTextureName, fogCube.Engine );
 
 			SetViewTextures( attributes );
 			attributes.Set( BloomInputName, Texture.Black );
@@ -411,7 +420,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 			// Back to the frame, where the block left them, and no longer the engine's to track; the engine textures keep their
 			// backings for the next block on these textures
-			foreach ( var (engine, gpu) in (ReadOnlySpan<(Texture, BackendTexture)>)[color, depth, chain, normals, fog] )
+			foreach ( var (engine, gpu) in (ReadOnlySpan<(Texture, BackendTexture)>)[color, depth, chain, normals, fog, fogCube] )
 			{
 				if ( engine is null ) continue;
 				context.SetLayout( gpu, backend.LayoutOf( engine ) );

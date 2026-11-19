@@ -1071,7 +1071,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 		catch ( System.IO.InvalidDataException e )
 		{
-			// Made once, as unreadable, rather than read and thrown again in every frame that draws it
+			// A file with no mip whose data is all there: made once, as unreadable, rather than read and thrown again in every
+			// frame that draws it or failing what asked for it (a terrain's materials)
 			Log.Warning( $"Borealis.Gpu: {path} can't be read: {e.Message}" );
 			return null;
 		}

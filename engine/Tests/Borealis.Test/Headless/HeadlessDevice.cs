@@ -72,7 +72,10 @@ internal sealed class HeadlessDevice : GpuDevice
 
 	public override GpuTexture Black { get; } = Placeholder( "black" );
 
-	public override int MissingTextureViewIndex( bool srgb ) => 0;
+	/// <summary>The missing texture's view index, 0 by default; Borealis.Gpu's is a real slot.</summary>
+	public int MissingIndex { get; set; }
+
+	public override int MissingTextureViewIndex( bool srgb ) => MissingIndex;
 
 	public override void Clear( GpuTexture texture, Color color ) { }
 

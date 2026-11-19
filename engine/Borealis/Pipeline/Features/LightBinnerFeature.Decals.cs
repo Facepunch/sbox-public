@@ -76,6 +76,9 @@ internal sealed partial class LightBinnerFeature
 	/// </summary>
 	internal ReadOnlySpan<DecalObject> Decals => decalObjects.AsSpan( 0, DecalCount );
 
+	/// <summary>The decals as <see cref="PackDecals"/> packed them for the GPU, in the order they apply.</summary>
+	internal ReadOnlySpan<GpuDecal> PackedDecals => decals.AsSpan( 0, DecalCount );
+
 	/// <summary>
 	/// Extract decals with a stable sort. Defer packing until setup can resolve texture indices.
 	/// </summary>
@@ -116,7 +119,7 @@ internal sealed partial class LightBinnerFeature
 	/// <summary>
 	/// Pack native decal data: sRGB colour, linear auxiliary textures and optional height/emission/sheet/mix/sampler extras.
 	/// </summary>
-	void PackDecals()
+	internal void PackDecals()
 	{
 		if ( decals.Length < DecalCount ) Array.Resize( ref decals, decalObjects.Length );
 		if ( decalExtras.Length < DecalCount * ExtraWords ) Array.Resize( ref decalExtras, decalObjects.Length * ExtraWords );
@@ -222,7 +225,9 @@ internal sealed partial class LightBinnerFeature
 	}
 
 	/// <summary>
-	/// A texture's bindless index through its sRGB or linear 2D view - <c>GetTextureViewIndex</c>, as native packs decals.
+	/// A texture's bindless index through its sRGB or linear 2D view - <c>GetTextureViewIndex</c>, as native packs decals - or 0
+	/// for none, as native's is for an invalid handle: <c>Decals.hlsl</c> applies a map whose index isn't 0, so a decal without a
+	/// normal or RMO map given the missing texture's index took its colour as normals and its black as occlusion.
 	/// </summary>
-	static ulong ViewIndex( GpuTexture texture, bool srgb ) => (ulong)(uint)(texture?.ViewIndex( srgb, TextureViewDimension.Texture2D ) ?? RenderHost.Current.Device.MissingTextureViewIndex( srgb ));
+	static ulong ViewIndex( GpuTexture texture, bool srgb ) => texture is null ? 0 : (ulong)(uint)texture.ViewIndex( srgb, TextureViewDimension.Texture2D );
 }

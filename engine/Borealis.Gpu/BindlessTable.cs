@@ -54,15 +54,19 @@ internal sealed unsafe class BindlessTable : IDisposable
 			get { lock ( free ) return next; }
 		}
 
-		public int Allocate()
+		public int Allocate() => TryAllocate( out var slot ) ? slot : throw new GpuException( $"The bindless table is out of {kind} slots ({capacity})" );
+
+		/// <summary>A slot, or false when no more than <paramref name="reserve"/> are left.</summary>
+		public bool TryAllocate( out int slot, int reserve = 0 )
 		{
 			lock ( free )
 			{
-				if ( free.Count > 0 ) return free.Pop();
-				if ( next + stride > capacity ) throw new GpuException( $"The bindless table is out of {kind} slots ({capacity})" );
-				var slot = next;
+				slot = -1;
+				if ( free.Count + (capacity - next) / stride <= reserve ) return false;
+				if ( free.TryPop( out slot ) ) return true;
+				slot = next;
 				next += stride;
-				return slot;
+				return true;
 			}
 		}
 
@@ -229,12 +233,15 @@ internal sealed unsafe class BindlessTable : IDisposable
 	/// Add a range of a storage buffer to the raw buffer array (binding 63) and return its slot. Without
 	/// update-after-bind for storage buffers, only while no submitted work uses the table.
 	/// </summary>
-	public int AddBuffer( ulong buffer, ulong offset, ulong size )
+	public int AddBuffer( ulong buffer, ulong offset, ulong size ) => TryAddBuffer( buffer, offset, size, out var slot ) ? slot : throw new GpuException( $"The bindless table is out of raw buffer slots ({BufferCount})" );
+
+	/// <summary>As <see cref="AddBuffer"/>, or false when no more than <paramref name="reserve"/> raw buffer slots are left.</summary>
+	public bool TryAddBuffer( ulong buffer, ulong offset, ulong size, out int slot, int reserve = 0 )
 	{
-		var slot = buffers.Allocate();
+		if ( !buffers.TryAllocate( out slot, reserve ) ) return false;
 		var info = new VkDescriptorBufferInfo { buffer = buffer, offset = offset, range = size == 0 ? Vulkan.Vk.WholeSize : size };
 		Write( ShaderAbi.BindlessBuffers, (uint)slot, VkDescriptorType.StorageBuffer, null, &info );
-		return slot;
+		return true;
 	}
 
 	public void RemoveBuffer( int slot )

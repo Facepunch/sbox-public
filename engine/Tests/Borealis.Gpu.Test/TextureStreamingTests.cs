@@ -213,6 +213,47 @@ public class TextureStreamingTests : GpuTest
 	}
 
 	/// <summary>
+	/// A file that holds only its coarser mips (a package's web texture comes without its two finest, though its header lists
+	/// them) reads as the mips it has, and loads as a texture of that size: it threw "Texture data ends before mip 1", which
+	/// left Resource Haven's terrain with no materials (black).
+	/// </summary>
+	[TestMethod]
+	public void FilesWithOnlyTheirCoarserMipsLoad()
+	{
+		var path = StreamingTextures( 1 )[0];
+		var game = ContentFiles.FindGame();
+		var whole = game.TryRead( path );
+		var full = TextureFile.Read( whole );
+		Assert.IsTrue( full.Mips > 3, path );
+
+		var cut = whole.AsSpan( 0, (int)TextureFile.PrefixNeeded( whole, 2 ) ).ToArray();
+		var read = TextureFile.Read( cut );
+		Assert.AreEqual( 2, read.TopMip, path );
+		Assert.IsNull( read.MipData[1], path );
+		for ( int mip = 2; mip < full.Mips; mip++ ) Assert.IsTrue( full.MipData[mip].AsSpan().SequenceEqual( read.Mip( mip ) ), $"{path} mip {mip}" );
+
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-coarse-{Guid.NewGuid():N}" );
+		var copy = Path.Combine( folder, path + "_c" );
+		Directory.CreateDirectory( Path.GetDirectoryName( copy ) );
+		File.WriteAllBytes( copy, cut );
+		try
+		{
+			using var backend = new BackendDevice( Device, new ContentFiles( [folder, .. game.Roots] ) );
+			var texture = backend.LoadTexture( path );
+			Assert.IsTrue( texture.IsValid, path );
+			Assert.AreEqual( full.Width, texture.Width, $"{path}: described at its file's size, as a streamed texture is" );
+			var image = Device.InfoOf( BackendDevice.Unwrap( texture ).Texture );
+			Assert.AreEqual( Math.Max( full.Width >> 2, 1 ), image.Width, $"{path}: its image holds the mips from 2" );
+			Assert.AreEqual( full.Mips - 2, image.Mips, path );
+			Device.WaitIdle();
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// A file that gives its tail but not its finer mips (cut short after the tail was read) is read for them once, not again
 	/// every frame: the texture keeps its tail.
 	/// </summary>

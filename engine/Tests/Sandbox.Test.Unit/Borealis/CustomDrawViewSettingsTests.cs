@@ -18,6 +18,7 @@ public class CustomDrawViewSettingsTests
 		frame.Set( "ToolsVisMode", 10 );
 		frame.Set( "LightModulatorsDisabled", true );
 		frame.Set( "PerViewConstantBuffer_t", 1.0f );
+		frame.Set( "CubemapFogColor", new Vector4( 0.5f, 0.25f, 1, 1 ) );
 
 		var block = RenderAttributes.CreateManaged();
 		BorealisGpuFrame.CopyViewSettings( frame, block );
@@ -25,6 +26,7 @@ public class CustomDrawViewSettingsTests
 		Assert.AreEqual( 2, block.GetInt( "ShadowFilterQuality" ) );
 		Assert.AreEqual( 10, block.GetInt( "ToolsVisMode" ) );
 		Assert.IsTrue( block.GetBool( "LightModulatorsDisabled" ) );
+		CollectionAssert.AreEqual( new[] { 0.5f, 0.25f, 1, 1 }, block.Managed.GetFloats( "CubemapFogColor" ), "the cubemap fog's tint" );
 		Assert.AreEqual( 0f, block.GetFloat( "PerViewConstantBuffer_t" ), "only the view's settings" );
 		Assert.AreEqual( 0, block.GetInt( "DDGI_Enabled" ), "what the frame doesn't set stays unset" );
 	}
