@@ -190,7 +190,7 @@ public partial class SceneObject : IHandle
 	{
 		// Until it's set from here, native's: an object native made - a map's world geometry - is placed by native, and
 		// read as default(Transform), zero scale and all
-		get => _transformSet || native.IsNull ? _transform : native.GetCTransform();
+		get => _transformSet || native.IsNull ? _transform : native.GetCTransformUnaligned();
 		set
 		{
 			if ( _transformSet && _transform == value )
