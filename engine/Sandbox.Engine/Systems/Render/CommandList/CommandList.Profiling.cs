@@ -49,6 +49,9 @@ public sealed unsafe partial class CommandList
 	{
 		public IntPtr Marker;
 		public bool Pix;
+
+		/// <summary>The Borealis.Gpu list a debug label was begun on, for graphics debuggers.</summary>
+		public Borealis.Gpu.CommandList Label;
 	}
 
 	private static bool _debugMarkers;
@@ -73,7 +76,14 @@ public sealed unsafe partial class CommandList
 	/// </summary>
 	internal static OpenScope OpenScopeFor( ProfilingSampler sampler )
 	{
-		// Markers and timestamps are Source 2's
+		// On Borealis.Gpu a debug label around the scope (its passes are timed by Borealis's own pass timer)
+		if ( Graphics.Backend is BorealisGpuRenderBackend { Context.List: { } list } )
+		{
+			list.BeginLabel( sampler.Name );
+			return new OpenScope { Label = list };
+		}
+
+		// Source 2's markers and timestamps
 		if ( Graphics.Backend is not Source2RenderBackend ) return default;
 
 		var context = Graphics.Context;
@@ -109,6 +119,13 @@ public sealed unsafe partial class CommandList
 
 	static void CloseScope( IRenderContext context, OpenScope open )
 	{
+		// Ended on the list it began on, while that's still the one recording (a block that ended took its labels with it)
+		if ( open.Label is not null )
+		{
+			if ( Graphics.Backend is BorealisGpuRenderBackend { Context.List: { } list } && list == open.Label ) list.EndLabel();
+			return;
+		}
+
 		// End the timing marker first so its timestamp lands inside the PIX event that brackets it
 		if ( open.Marker != IntPtr.Zero )
 			CSceneSystem.EndManagedPerfMarker( context, open.Marker );
