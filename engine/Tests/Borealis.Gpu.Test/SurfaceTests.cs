@@ -1728,9 +1728,9 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// glass.slang: F_TRANSLUCENT puts a glass material in the translucent layer whatever its quality, refractive glass
-	/// unblended, simple glass blended by opacity, layered glass premultiplied, all writing depth as glass.shader does; with
-	/// no depth passes of its own. Its forward pass reads the frame-buffer copy, the depth chain and the BRDF lookup by
+	/// glass.slang: every glass material draws in the translucent layer whatever its quality, as glass.shader defines
+	/// S_TRANSLUCENT itself: refractive glass unblended, simple glass blended by opacity, layered glass premultiplied, all
+	/// writing depth as glass.shader does; with no depth passes of its own. Its forward pass reads the frame-buffer copy, the depth chain and the BRDF lookup by
 	/// attribute; a surface that doesn't read the view inputs (complex) doesn't bind the copy.
 	/// </summary>
 	[TestMethod]
@@ -1741,18 +1741,16 @@ public class SurfaceTests : GpuTest
 		var layout = glass.Material;
 		Assert.AreEqual( true, layout.RenderState.DepthWrite );
 
-		SurfaceRenderState Resolve( int translucent, int quality )
+		SurfaceRenderState Resolve( int quality )
 		{
 			var record = new byte[layout.Size];
-			BitConverter.TryWriteBytes( record.AsSpan( layout.Field( "UseTranslucent" ).Offset ), translucent );
 			BitConverter.TryWriteBytes( record.AsSpan( layout.Field( "Quality" ).Offset ), quality );
 			return layout.States().Resolve( record );
 		}
 
-		Assert.IsTrue( Resolve( 1, 0 ) is { Blend: SurfaceBlend.Opaque, Translucent: true, DepthWrite: true, DrawsTranslucent: true } );
-		Assert.IsTrue( Resolve( 1, 1 ) is { Blend: SurfaceBlend.Alpha, DepthWrite: true, DrawsTranslucent: true } );
-		Assert.IsTrue( Resolve( 1, 2 ) is { Blend: SurfaceBlend.Premultiplied, DrawsTranslucent: true } );
-		Assert.IsTrue( Resolve( 0, 0 ) is { DrawsTranslucent: false } );
+		Assert.IsTrue( Resolve( 0 ) is { Blend: SurfaceBlend.Opaque, Translucent: true, DepthWrite: true, DrawsTranslucent: true } );
+		Assert.IsTrue( Resolve( 1 ) is { Blend: SurfaceBlend.Alpha, DepthWrite: true, DrawsTranslucent: true } );
+		Assert.IsTrue( Resolve( 2 ) is { Blend: SurfaceBlend.Premultiplied, DrawsTranslucent: true } );
 
 		var forward = glass.Pass( ShaderPasses.Forward + "Translucent" ).Pixel;
 		foreach ( var name in new[] { "FrameBufferCopyTexture", "DepthChainDownsample", "BRDFLookup" } )
@@ -1762,11 +1760,106 @@ public class SurfaceTests : GpuTest
 		var complex = Compiler().CompileSurface( Path.Combine( Core, "shaders", "standard.slang" ) ).Pass( ShaderPasses.Forward ).Pixel;
 		Assert.IsFalse( complex.Bindings.Any( b => b.Name == "FrameBufferCopyTexture" ), string.Join( ", ", complex.Bindings.Select( b => b.Name ) ) );
 
-		// A translucent glass material is translucent and has no depth passes: its .shader's draw its shadows
+		// A glass material is translucent without F_TRANSLUCENT and has no depth passes: its .shader's draw its shadows
 		using var backend = new BackendDevice( Device );
-		var material = (SurfaceMaterial)backend.Surfaces.CreateMaterial( Path.Combine( Core, "shaders", "glass.slang" ), null, new Dictionary<string, float[]> { ["F_TRANSLUCENT"] = [1] } );
+		var material = (SurfaceMaterial)backend.Surfaces.CreateMaterial( Path.Combine( Core, "shaders", "glass.slang" ), null, new Dictionary<string, float[]>() );
 		Assert.IsTrue( material.IsTranslucent );
 		Assert.IsTrue( material.RenderState is { Blend: SurfaceBlend.Opaque, Translucent: true } );
+	}
+
+	/// <summary>
+	/// A glass material draws translucent, so the glass of an object that is partly opaque casts no shadow, as on native: a
+	/// slab with glass top and bottom and opaque sides, out of the game layers (it only casts), leaves the floor under it
+	/// lit by the sun, where an opaque slab shadows it.
+	/// </summary>
+	[TestMethod]
+	public void GlassInAnOpaqueObjectCastsNoShadow()
+	{
+		Compiler();
+		using var backend = new BackendDevice( Device );
+		var errors = new List<string>();
+		backend.Surfaces.Error = errors.Add;
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			var grey = backend.CreateMaterial( "Glass shadow grey", Color.Gray );
+			var glass = backend.Surfaces.CreateMaterial( Path.Combine( Core, "shaders", "glass.slang" ), null, new Dictionary<string, float[]>() );
+			Assert.IsTrue( glass.IsTranslucent, "a glass material without F_TRANSLUCENT is translucent" );
+
+			var none = FloorUnder( backend, grey, null );
+			var opaque = FloorUnder( backend, grey, grey );
+			var glassy = FloorUnder( backend, grey, glass );
+			TestContext.WriteLine( $"floor under the slab: none {none:F3}, opaque {opaque:F3}, glass {glassy:F3}" );
+			Assert.IsTrue( opaque < none * 0.5f, $"an opaque slab shadows the floor ({opaque:F3} against {none:F3})" );
+			Assert.IsTrue( glassy > none * 0.9f, $"the slab's glass casts no shadow ({glassy:F3} against {none:F3})" );
+			Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// The sun-lit floor's mean brightness at the frame's centre, under a slab whose top and bottom are
+	/// <paramref name="faces"/> and sides <paramref name="sides"/> (or none, when <paramref name="faces"/> is null).
+	/// </summary>
+	float FloorUnder( BackendDevice backend, GpuMaterial sides, GpuMaterial faces )
+	{
+		const int Size = 128;
+		using var system = new RenderSystem { ParallelRecording = false };
+		using var target = ViewTarget.Create( new Vector2Int( Size, Size ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Glass shadow test" );
+		var world = new RenderWorld();
+		world.Lighting.SunDirection = new Vector3( 0.1f, 0.05f, -1 ).Normal;
+		world.Lighting.SunColor = new Color( 4, 4, 4 );
+		world.Lighting.AmbientColor = new Color( 0.05f, 0.05f, 0.05f, 1 );
+		world.Lighting.SunShadowCascades = 1;
+		world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, sides ), new Transform( new Vector3( 0, 0, -52.5f ), Rotation.Identity, new Vector3( 20, 20, 0.05f ) ) ) );
+
+		if ( faces is not null )
+		{
+			// BoxMesh's faces: four sides, then top and bottom
+			var box = ObjectAttributeTests.BoxMesh( backend, sides );
+			var slab = new RenderMesh( box.Geometry, box.Bounds, [[
+				new RenderMesh.Draw( 0, 0, 0, 24, 24, 0, sides ),
+				new RenderMesh.Draw( 0, 1, 24, 12, 24, 0, faces, Translucent: faces.IsTranslucent ),
+			]] );
+			world.Add( new MeshObject( slab, new Transform( new Vector3( 0, 0, 100 ), Rotation.Identity, new Vector3( 3, 3, 0.1f ) ) ) { GameLayers = false } );
+		}
+
+		var view = new RenderView { Name = "Glass shadow test", FieldOfView = 60, ZNear = 4, ZFar = 4000, Viewport = new Rect( 0, 0, Size, Size ) };
+		view.Rotation = Rotation.From( 60, 90, 0 );
+		view.Position = new Vector3( 0, 0, -50 ) - view.Rotation.Forward * 450;
+
+		for ( int frame = 0; frame < 2; frame++ )
+		{
+			backend.BeginFrame();
+			RenderHost.Current.NextFrame();
+			system.Render( world, view, target );
+		}
+
+		Device.WaitIdle();
+		var (texture, layout) = BackendDevice.Unwrap( target.Color );
+		var halfs = ReadBack( texture, layout );
+		BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+		var rgba = new byte[Size * Size * 4];
+		for ( int i = 0; i < rgba.Length; i++ ) rgba[i] = (byte)Math.Clamp( (float)BitConverter.ToHalf( halfs, i * 2 ) * 255, 0, 255 );
+		Save( rgba, Size, Size, $"glass-shadow-{(faces is null ? "none" : faces.IsTranslucent ? "glass" : "opaque")}" );
+
+		float sum = 0;
+		var count = 0;
+		for ( int y = Size / 2 - 16; y < Size / 2 + 16; y++ )
+		{
+			for ( int x = Size / 2 - 16; x < Size / 2 + 16; x++ )
+			{
+				sum += (float)BitConverter.ToHalf( halfs, (y * Size + x) * 8 );
+				count++;
+			}
+		}
+
+		return sum / count;
 	}
 
 	/// <summary>
