@@ -33,7 +33,7 @@ internal sealed class GpuDrivenPlans
 	{
 		lock ( plans )
 		{
-			plans.RemoveAll( p => Retire( p, p.Key == plan.Key ) );
+			RetireLocked( plan.Key );
 			plans.Add( plan );
 		}
 	}
@@ -41,15 +41,18 @@ internal sealed class GpuDrivenPlans
 	/// <summary>Forget the plan for this kind of call (a check found it stale).</summary>
 	public void Drop( in GpuDrivenPlan.CallKey key )
 	{
-		var drop = key;
-		lock ( plans ) plans.RemoveAll( p => Retire( p, p.Key == drop ) );
+		lock ( plans ) RetireLocked( key );
 	}
 
-	/// <summary>Mark a plan retired when it's being removed (<see cref="GpuDrivenPlan.Retired"/>).</summary>
-	static bool Retire( GpuDrivenPlan plan, bool remove )
+	/// <summary>Remove the plans for a kind of call, marked retired (<see cref="GpuDrivenPlan.Retired"/>). Hold the list's lock.</summary>
+	void RetireLocked( in GpuDrivenPlan.CallKey key )
 	{
-		if ( remove ) plan.Retired = true;
-		return remove;
+		for ( int i = plans.Count - 1; i >= 0; i-- )
+		{
+			if ( plans[i].Key != key ) continue;
+			plans[i].Retired = true;
+			plans.RemoveAt( i );
+		}
 	}
 
 	/// <summary>Plans kept, for the tests.</summary>

@@ -1857,6 +1857,9 @@ internal sealed partial class BackendContext
 	sealed record IdsLayout( VertexLayout Layout, ShaderVariant StateFrom );
 	static readonly ConditionalWeakTable<ShaderVariant, IdsLayout> IdsLayouts = new();
 
+	// Found without making the delegate that would make one
+	IdsLayout IdsLayoutOf( ShaderVariant stateFrom ) => IdsLayouts.TryGetValue( stateFrom, out var known ) ? known : IdsLayouts.GetValue( stateFrom, v => new IdsLayout( device.PulledLayout, v ) );
+
 	/// <summary>
 	/// The prepass's buckets with ids, in a rendering scope of their own: each with its own variant, whose pixel shader
 	/// writes the id (the bit of its triangle's first vertex + 1) at target 1 to exactly the samples it covers, its discards
@@ -1910,7 +1913,7 @@ internal sealed partial class BackendContext
 					var meshIds = device.MeshletIds;
 					var meshVariant = meshIdsVariant ??= Variant( meshIds, "Default" );
 					var stateFrom = bucket.Variant ?? idsShaderVariant;
-					var key = new MaterialObjectCache.Key( meshIds, meshVariant, IdsLayouts.GetValue( stateFrom, v => new IdsLayout( device.PulledLayout, v ) ), BackendDevice.IdsColorKey, depth, samples, false, true );
+					var key = new MaterialObjectCache.Key( meshIds, meshVariant, IdsLayoutOf( stateFrom ), BackendDevice.IdsColorKey, depth, samples, false, true );
 					var meshObject = cache.Get( key, immediate: false, (device, key, stateFrom), static ( s, l ) => s.device.Pipeline( s.key.Variant, s.device.PulledLayout, BackendDevice.IdsColorKey, s.key.Depth, s.key.Samples, false, l.Sets, ids: true, stateFrom: s.stateFrom ) );
 					resolver.LayerEpoch = layerEpoch;
 					meshObject.Bind( r.List, ref r.Pipeline, passEpoch, resolver );
@@ -1958,7 +1961,7 @@ internal sealed partial class BackendContext
 				{
 					// borealis_gpu_driven_ids with the bucket's culling, depth and stencil: keyed by a layout object per bucket variant
 					var stateFrom = bucket.Variant ?? idsShaderVariant;
-					var idsLayout = IdsLayouts.GetValue( stateFrom, v => new IdsLayout( device.PulledLayout, v ) );
+					var idsLayout = IdsLayoutOf( stateFrom );
 					var key = new MaterialObjectCache.Key( shaders.Ids, idsShaderVariant, idsLayout, BackendDevice.IdsColorKey, depth, samples, false, true );
 					materialObject = cache.Get( key, immediate: false, (device, key, stateFrom), static ( s, l ) => s.device.Pipeline( s.key.Variant, s.device.PulledLayout, BackendDevice.IdsColorKey, s.key.Depth, s.key.Samples, false, l.Sets, ids: true, stateFrom: s.stateFrom ) );
 				}
