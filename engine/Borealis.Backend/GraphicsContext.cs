@@ -229,7 +229,7 @@ public sealed class GraphicsContext
 	/// <summary>Draw <paramref name="instances"/> instances of <paramref name="indexCount"/> 32-bit indices into the target.</summary>
 	public bool DrawIndexedInstanced( ShaderFile shader, ShaderAttributes attributes, BufferHandle indices, int indexCount, int instances )
 	{
-		if ( !ModeOf( shader, out var mode ) ) return false;
+		if ( !ModeOf( shader, out var mode ) || !HasTarget( shader ) ) return false;
 		var depth = BeginScope( shader, attributes, mode );
 		Draws++;
 		return drawer.DrawIndexedInstanced( List, shader, attributes, TargetFormat, depth, TargetSamples, indices, indexCount, instances, Viewport, mode );
@@ -260,7 +260,7 @@ public sealed class GraphicsContext
 	/// </summary>
 	public bool DrawVertices( ShaderFile shader, ShaderAttributes attributes, ReadOnlySpan<byte> vertices, VertexStreamLayout layout, int count, PrimitiveTopology topology )
 	{
-		if ( !ModeOf( shader, out var mode ) ) return false;
+		if ( !ModeOf( shader, out var mode ) || !HasTarget( shader ) ) return false;
 		var depth = BeginScope( shader, attributes, mode );
 
 		// Padded by a triangle's vertices: a draw that expands primitives reads each through per-instance streams, and a
@@ -281,7 +281,7 @@ public sealed class GraphicsContext
 	/// </summary>
 	public bool DrawBuffer( ShaderFile shader, ShaderAttributes attributes, BufferHandle vertices, long offset, VertexStreamLayout layout, int count, PrimitiveTopology topology )
 	{
-		if ( !ModeOf( shader, out var mode ) ) return false;
+		if ( !ModeOf( shader, out var mode ) || !HasTarget( shader ) ) return false;
 		var depth = BeginScope( shader, attributes, mode );
 		Draws++;
 		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
@@ -296,7 +296,7 @@ public sealed class GraphicsContext
 	/// </summary>
 	public bool DrawIndexed( ShaderFile shader, ShaderAttributes attributes, BufferHandle vertices, VertexStreamLayout layout, BufferHandle indices, int firstIndex, int indexCount, int baseVertex, int instances )
 	{
-		if ( !ModeOf( shader, out var mode ) ) return false;
+		if ( !ModeOf( shader, out var mode ) || !HasTarget( shader ) ) return false;
 		var depth = BeginScope( shader, attributes, mode );
 		Draws++;
 		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
@@ -310,11 +310,33 @@ public sealed class GraphicsContext
 	/// </summary>
 	public bool Draw( ShaderFile shader, ShaderAttributes attributes, in GeometryDraw draw )
 	{
-		if ( !ModeOf( shader, out var mode ) ) return false;
+		if ( !ModeOf( shader, out var mode ) || !HasTarget( shader ) ) return false;
 		var depth = BeginScope( shader, attributes, mode );
 		Draws++;
 		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
 		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, draw, Viewport, mode );
+	}
+
+	/// <summary>Said once, the first time a draw is skipped for having no target (<see cref="HasTarget"/>).</summary>
+	public Action<string> Warn { get; set; } = message => Console.WriteLine( message );
+
+	bool warnedNoTarget;
+
+	/// <summary>
+	/// Whether a colour or depth target is bound to draw into. A draw with neither is skipped, said once: what a camera's
+	/// command list draws at <c>AfterDepthPrepass</c>, a stage Borealis gives no targets (GAMMA's mirror glass), where Source 2
+	/// draws into the frame's colour and depth before the opaque pass.
+	/// </summary>
+	bool HasTarget( ShaderFile shader )
+	{
+		if ( Target.IsValid || Depth.IsValid ) return true;
+		if ( !warnedNoTarget )
+		{
+			warnedNoTarget = true;
+			Warn?.Invoke( $"Borealis.Gpu: a draw of {shader.Name} had no target bound (a camera's AfterDepthPrepass stage, which draws no colour or depth here); draws like it are skipped" );
+		}
+
+		return false;
 	}
 
 	/// <summary>

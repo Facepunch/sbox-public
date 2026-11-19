@@ -521,14 +521,15 @@ internal sealed class MapContent : IDisposable
 				var transform = 0;
 				foreach ( var mesh in a.Meshes )
 				{
-					if ( mesh.DrawCall < 0 || mesh.DrawCall >= model.Draws.Length ) continue;
+					var index = model.File.AggregateDrawCall( mesh.DrawCall );
+					if ( index < 0 || index >= model.Draws.Length ) continue;
 					var world = mesh.HasTransform && transform < a.FragmentTransforms.Count ? a.FragmentTransforms[transform++] : Matrix4x4.Identity;
 					var obj = new MapObject
 					{
 						Model = model,
 						World = world,
 						Tint = mesh.Tint,
-						Lods = [[model.Draws[mesh.DrawCall]]],
+						Lods = [[model.Draws[index]]],
 						Aggregate = true,
 					};
 

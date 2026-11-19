@@ -193,6 +193,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>Batches whose records came from the memo, for tests.</summary>
 	internal long GpuDrivenRecordMemoHits;
 
+	/// <summary>Surface draws that bound a records buffer other than the one their record was written in, for tests: none.</summary>
+	internal long StaleRecordBindings;
+
 	/// <summary>
 	/// Keep what a call of resident aggregates makes (<see cref="GpuDrivenPlan"/>: its buckets, batch records and
 	/// multi-draws) between frames and views of the same kind, so a view pays per frame only for its own culling record, a

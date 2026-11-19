@@ -169,18 +169,23 @@ internal sealed class MapGeometry
 				foreach ( var (node, item) in items )
 				{
 					var source = map.World.Nodes[node];
-					RenderObject obj = item >= 0 ? MakeObject( source.SceneObjects[item], path, mesh, model ) : MakeAggregate( source.Aggregates[-1 - item], mesh, model );
-					if ( obj is null ) continue;
-
-					obj.SubWorld = subWorld;
-					obj.Tags = WorldTags;
-					world.Add( obj );
-					made.Add( obj );
+					if ( item >= 0 ) Add( MakeObject( source.SceneObjects[item], path, mesh, model ) );
+					else MakeAggregates( source.Aggregates[-1 - item], mesh, model );
 				}
 			}
 
 			if ( done is null ) return;
 			foreach ( var path in done ) waiting.Remove( path );
+		}
+
+		void Add( RenderObject obj )
+		{
+			if ( obj is null ) return;
+
+			obj.SubWorld = subWorld;
+			obj.Tags = WorldTags;
+			world.Add( obj );
+			made.Add( obj );
 		}
 
 		BorealisMesh MeshFor( string path, out bool pending )
@@ -318,14 +323,20 @@ internal sealed class MapGeometry
 		/// <summary>
 		/// An aggregate as <c>CWorldNode::CreateAggregateSceneObjects</c> makes it, its fragments as native's aggregate draws
 		/// them (<c>RenderTools::GetAggregateFragments</c>): each one draw of the model's mesh, in world space, its draw's
-		/// tint and uv density, its index the base instance.
+		/// tint and uv density, its index the base instance. A fragment draws the draw call its draw index names by mesh id
+		/// (<see cref="ModelFile.AggregateDrawCall"/>). Draws share one object per vertex and index buffer they bind: a
+		/// compiled map's draws with culling data get buffers of their own, which the others' can't draw them from.
 		/// </summary>
-		AggregateObject MakeAggregate( WorldAggregate source, BorealisMesh mesh, ModelFile file )
+		void MakeAggregates( WorldAggregate source, BorealisMesh mesh, ModelFile file )
 		{
 			// Draw descriptors numbered across meshes in order (a world aggregate's model has one)
-			var calls = new List<MeshDrawCall>();
-			foreach ( var m in file.Meshes ) calls.AddRange( m.DrawCalls );
-			if ( calls.Count == 0 || source.Meshes.Count == 0 ) return null;
+			var calls = new List<(int Mesh, MeshDrawCall Call)>();
+			foreach ( var m in file.Meshes )
+			{
+				foreach ( var c in m.DrawCalls ) calls.Add( (m.Index, c) );
+			}
+
+			if ( calls.Count == 0 || source.Meshes.Count == 0 ) return;
 
 			var origin = map.Origin;
 			var transform = Matrix3x4.Identity;
@@ -333,47 +344,84 @@ internal sealed class MapGeometry
 			transform.Row1.w = origin.y;
 			transform.Row2.w = origin.z;
 
-			var fragments = new AggregateObject.FragmentDraw[source.Meshes.Count];
-			for ( int i = 0; i < fragments.Length; i++ )
+			// Fragments by the buffers their draws bind, the first such draw's index (what the group's mesh draws) beside them
+			var draws = mesh.DrawsForLod( 0 );
+			var groups = new Dictionary<(int Mesh, int Vertices, int Indices), (int First, List<AggregateObject.FragmentDraw> Fragments)>();
+			for ( int i = 0; i < source.Meshes.Count; i++ )
 			{
 				var fragment = source.Meshes[i];
-				ref var output = ref fragments[i];
-				output.Transform = transform;
-				output.BoundsMin = new Vector3( fragment.Mins.X, fragment.Mins.Y, fragment.Mins.Z ) + origin;
-				output.BoundsMax = new Vector3( fragment.Maxs.X, fragment.Maxs.Y, fragment.Maxs.Z ) + origin;
+				var index = file.AggregateDrawCall( fragment.DrawCall );
+				if ( index < 0 ) continue;
+
+				var (meshIndex, call) = calls[index];
+				var drawIndex = -1;
+				for ( int d = 0; d < draws.Length && drawIndex < 0; d++ )
+				{
+					if ( draws[d].Mesh == meshIndex && draws[d].DrawCall == index - FirstCall( file, meshIndex ) ) drawIndex = d;
+				}
+
+				if ( drawIndex < 0 ) continue;
+
+				var vertices = call.VertexBuffers.Count > 0 ? call.VertexBuffers[0].Buffer : 0;
+				var key = (meshIndex, vertices, call.IndexBuffer.Buffer);
+				if ( !groups.TryGetValue( key, out var group ) ) groups[key] = group = (drawIndex, new());
+
+				// Relative to what the group's first draw binds: its vertex buffer offset and its index buffer offset
+				var first = calls[FirstCall( file, meshIndex ) + draws[group.First].DrawCall].Call;
+				var buffers = file.Meshes[meshIndex];
+				var stride = vertices < buffers.VertexBuffers.Count ? Math.Max( buffers.VertexBuffers[vertices].Stride, 1 ) : 1;
+				var indexSize = call.IndexBuffer.Buffer < buffers.IndexBuffers.Count ? Math.Max( buffers.IndexBuffers[call.IndexBuffer.Buffer].Size, 1 ) : 2;
+				var vertexShift = ((call.VertexBuffers.Count > 0 ? call.VertexBuffers[0].Offset : 0) - (first.VertexBuffers.Count > 0 ? first.VertexBuffers[0].Offset : 0)) / stride;
+				var indexShift = (call.IndexBuffer.Offset - first.IndexBuffer.Offset) / indexSize;
 
 				var objectFlags = (ObjectTypeFlags)fragment.Flags;
 				var fragmentFlags = FragmentFlags.None;
 				if ( (objectFlags & ObjectTypeFlags.NoShadows) != 0 ) fragmentFlags |= FragmentFlags.DoNotCastShadows;
 				if ( (objectFlags & ObjectTypeFlags.DisabledInLowQuality) != 0 ) fragmentFlags |= FragmentFlags.DisabledInLowQuality;
 				if ( (objectFlags & ObjectTypeFlags.RenderToCubemaps) != 0 ) fragmentFlags |= FragmentFlags.RenderToCubemaps;
-				output.Flags = fragmentFlags;
 
-				if ( fragment.DrawCall < 0 || fragment.DrawCall >= calls.Count ) continue;
-				var call = calls[fragment.DrawCall];
-				output.DrawTint = new Vector3( call.Tint.X, call.Tint.Y, call.Tint.Z );
-				output.UvDensity = call.UvDensity;
-				output.Args = new Borealis.GpuBuffer.IndirectDrawIndexedArguments
+				group.Fragments.Add( new AggregateObject.FragmentDraw
 				{
-					IndexCount = (uint)call.IndexCount,
-					InstanceCount = 1,
-					FirstIndex = (uint)call.StartIndex,
-					BaseVertex = call.BaseVertex,
-					FirstInstance = (uint)i,
-				};
+					Transform = transform,
+					BoundsMin = new Vector3( fragment.Mins.X, fragment.Mins.Y, fragment.Mins.Z ) + origin,
+					BoundsMax = new Vector3( fragment.Maxs.X, fragment.Maxs.Y, fragment.Maxs.Z ) + origin,
+					Flags = fragmentFlags,
+					DrawTint = new Vector3( call.Tint.X, call.Tint.Y, call.Tint.Z ),
+					UvDensity = call.UvDensity,
+					Args = new Borealis.GpuBuffer.IndirectDrawIndexedArguments
+					{
+						IndexCount = (uint)call.IndexCount,
+						InstanceCount = 1,
+						FirstIndex = (uint)(call.StartIndex + indexShift),
+						BaseVertex = call.BaseVertex + vertexShift,
+						FirstInstance = (uint)group.Fragments.Count,
+					},
+				} );
 			}
 
-			var lightmapped = (calls[0].Flags & MeshDrawFlags.BakedLightingFromLightmap) != 0;
-			var aggregate = new AggregateObject( mesh, fragments )
+			foreach ( var (first, fragments) in groups.Values )
 			{
-				Lightmapped = lightmapped,
-				CastShadows = ((ObjectTypeFlags)source.Flags & ObjectTypeFlags.NoShadows) == 0,
-				IsStatic = true,
-				IsWorld = true,
-			};
+				var groupMesh = groups.Count == 1 && first == 0 ? mesh : new BorealisMesh( mesh.Geometry, mesh.Bounds, [[draws[first]]], [] );
+				var lightmapped = (calls[FirstCall( file, draws[first].Mesh ) + draws[first].DrawCall].Call.Flags & MeshDrawFlags.BakedLightingFromLightmap) != 0;
+				var aggregate = new AggregateObject( groupMesh, fragments.ToArray() )
+				{
+					Lightmapped = lightmapped,
+					CastShadows = ((ObjectTypeFlags)source.Flags & ObjectTypeFlags.NoShadows) == 0,
+					IsStatic = true,
+					IsWorld = true,
+				};
 
-			if ( lightmapped ) aggregate.LightmapAttributes = Lightmaps();
-			return aggregate;
+				if ( lightmapped ) aggregate.LightmapAttributes = Lightmaps();
+				Add( aggregate );
+			}
+		}
+
+		/// <summary>The number of a mesh's first draw call among the model's, numbered across meshes in order.</summary>
+		static int FirstCall( ModelFile file, int mesh )
+		{
+			var first = 0;
+			for ( int m = 0; m < mesh; m++ ) first += file.Meshes[m].DrawCalls.Count;
+			return first;
 		}
 
 		/// <summary>

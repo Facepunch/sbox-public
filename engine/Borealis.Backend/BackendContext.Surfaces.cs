@@ -107,13 +107,16 @@ internal sealed partial class BackendContext
 		}
 
 		uncompressedTangentFrame = geometry.UncompressedTangentFrame;
-		var record = device.Surfaces.Records.Offset( material );
+		var record = device.Surfaces.Records.Offset( material, out drawRecords );
 
 		// The frame's view set, as classic draws bind it: a list whose draws so far are all surfaces has the default
 		// (zeroed) one otherwise, which lights and fogs as no view
 		BindViewSet( r.List );
+		boundRecords = default;
 		BindSurface( pass, pass.Pass.Vertex, ShaderAbi.VertexSet );
 		if ( pass.Pass.Pixel is not null ) BindSurface( pass, pass.Pass.Pixel, ShaderAbi.FragmentSet );
+		if ( boundRecords.IsValid && boundRecords != drawRecords ) System.Threading.Interlocked.Increment( ref device.StaleRecordBindings );
+		drawRecords = default;
 		r.List.PushConstants( record );
 		r.Binder = null;
 
@@ -409,6 +412,10 @@ internal sealed partial class BackendContext
 	/// resolved once per pass state (<see cref="NextPassState"/>: the attributes changed or a scope opened), and only what an
 	/// object's attributes can set is looked up again for each draw, so draws of one stage write the same set.
 	/// </summary>
+	// The buffer holding the record of the surface draw being bound (Offset), or none outside one; and the records buffer
+	// BindSurface last bound, which must be it
+	BufferHandle drawRecords, boundRecords;
+
 	void BindSurface( SurfaceProgram.PassObjects pass, CompiledStage stage, int set )
 	{
 		if ( !pass.Sets[set].IsValid ) return;
@@ -431,6 +438,16 @@ internal sealed partial class BackendContext
 			var b = stage.Bindings[i];
 			if ( b.Set != set ) continue;
 			if ( count == bindings.Length ) throw new InvalidOperationException( $"{stage.Entry} binds more than {bindings.Length} resources in set {set}" );
+
+			// The records buffer is bound as the draw's record was written in it, never as a pass state resolved it: if writing
+			// it grew the records into a new buffer, its offset is past the end of the one bound before, which the draw then read
+			// beyond (a GPU page fault where that buffer ended its memory block)
+			if ( b.Kind == BindingKind.MaterialRecords )
+			{
+				boundRecords = drawRecords.IsValid ? drawRecords : device.Surfaces.Records.Buffer;
+				bindings[count++] = Binding.Storage( b.Binding, boundRecords );
+				continue;
+			}
 
 			if ( perObject is not null && perObject[i] )
 			{

@@ -229,8 +229,9 @@ internal sealed partial class MapWorld : IDisposable
 					for ( int m = 0; m < file.Meshes.Count; m++ ) for ( int c = 0; c < file.Meshes[m].DrawCalls.Count; c++ ) calls.Add( (m, c) );
 					foreach ( var fragment in a.Meshes )
 					{
-						if ( fragment.DrawCall < 0 || fragment.DrawCall >= calls.Count ) continue;
-						var (fm, fc) = calls[fragment.DrawCall];
+						var index = file.AggregateDrawCall( fragment.DrawCall );
+						if ( index < 0 ) continue;
+						var (fm, fc) = calls[index];
 						var draw = whole.DrawsForLod( 0 ).ToArray().FirstOrDefault( d => d.Mesh == fm && d.DrawCall == fc );
 						if ( draw.Material is null ) continue;
 						var bounds = new BBox( new Vector3( fragment.Mins.X, fragment.Mins.Y, fragment.Mins.Z ), new Vector3( fragment.Maxs.X, fragment.Maxs.Y, fragment.Maxs.Z ) );
@@ -361,8 +362,10 @@ internal sealed partial class MapWorld : IDisposable
 	}
 
 	/// <summary>
-	/// An aggregate's draws as <see cref="AggregateObject"/>s: one per run of draws sharing a vertex and an index buffer (in a
-	/// compiled map that's all of them), each fragment one draw call over the buffers its first draw binds, in world space.
+	/// An aggregate's draws as <see cref="AggregateObject"/>s: one per run of draws sharing a vertex and an index buffer (a
+	/// compiled map's draws with culling data get buffers of their own), each fragment one draw call over the buffers its
+	/// first draw binds, in world space. A fragment draws the draw call its draw index names by mesh id
+	/// (<see cref="ModelFile.AggregateDrawCall"/>).
 	/// </summary>
 	IEnumerable<AggregateObject> MakeAggregates( RenderMesh mesh, ModelFile file, WorldAggregate aggregate )
 	{
@@ -378,8 +381,9 @@ internal sealed partial class MapWorld : IDisposable
 		var transform = 0;
 		foreach ( var fragment in aggregate.Meshes )
 		{
-			if ( fragment.DrawCall < 0 || fragment.DrawCall >= calls.Count ) continue;
-			var (m, c) = calls[fragment.DrawCall];
+			var index = file.AggregateDrawCall( fragment.DrawCall );
+			if ( index < 0 ) continue;
+			var (m, c) = calls[index];
 			var call = file.Meshes[m].DrawCalls[c];
 			if ( call.Primitive != PrimitiveKind.Triangles || call.IndexCount == 0 ) continue;
 

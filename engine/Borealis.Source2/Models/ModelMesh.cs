@@ -437,6 +437,12 @@ public sealed record MeshDrawCall
 	/// <summary>Per-draw culling data's index (<c>m_CullDataIndex</c>), -1 for none.</summary>
 	public int CullDataIndex { get; init; }
 
+	/// <summary>
+	/// The id the mesh compiler kept from the mesh the draw was made from (<c>m_nMeshID</c>), -1 where none is written. A
+	/// world aggregate's fragment names its draw by this id (<see cref="ModelFile.AggregateDrawCall"/>).
+	/// </summary>
+	public int MeshId { get; init; } = -1;
+
 	internal static MeshDrawCall Read( Dictionary<string, object> draw, MeshVertexBuffer[] vertexBuffers, string mesh )
 	{
 		var buffers = new List<(int, int)>();
@@ -480,6 +486,7 @@ public sealed record MeshDrawCall
 			Flags = flags,
 			CompressedTangentFrame = compressed,
 			CullDataIndex = (int)Kv.Number( draw.Get( "m_CullDataIndex" ), -1 ),
+			MeshId = (int)Kv.Number( draw.Get( "m_nMeshID" ), -1 ),
 		};
 	}
 

@@ -101,8 +101,11 @@ internal static class MapRun
 		var messageCounts = new System.Collections.Concurrent.ConcurrentDictionary<string, int>();
 		var driverNames = !Args.Has( "-borealis-driver-names" );
 		using var window = new SdlWindow( new SdlWindowOptions { Title = $"Borealis Lab: {ident} on Borealis.Gpu", Width = width, Height = height, Fullscreen = Args.Has( "-fullscreen" ), Exclusive = Args.String( "-fullscreen" ) is "exclusive" } );
+		// -markers: progress markers in every list, so a lost device's report (printed when it's lost) names how far each got
+		GpuDevice lostWatch = null;
 		using var gpu = GpuDevice.Create( new DeviceOptions
 		{
+			ProgressMarkers = Args.Has( "-markers" ),
 			ApplicationName = driverNames ? "Sbox" : "Borealis Lab map",
 			EngineName = driverNames ? "Source2" : "Borealis",
 			Validation = Args.Has( "-validation" ) || Args.Has( "-sync-validation" ),
@@ -117,8 +120,10 @@ internal static class MapRun
 				if ( m.Severity == MessageSeverity.Error ) Interlocked.Increment( ref errors );
 				messageCounts.AddOrUpdate( $"[{m.Severity}] {m.Id}", 1, ( _, n ) => n + 1 );
 				if ( errors < 20 ) Console.WriteLine( $"[{m.Severity}] {m.Id}: {m.Text}" );
+				if ( m.Id == "Borealis.Gpu.DeviceLost" ) Console.WriteLine( lostWatch?.LostReport );
 			},
 		} );
+		lostWatch = gpu;
 
 		var (clientWidth, clientHeight) = window.PixelSize;
 		using var swapChain = gpu.CreateSwapChain( new SwapChainInfo

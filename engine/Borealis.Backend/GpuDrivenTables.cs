@@ -77,7 +77,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// bigger buffer with a slot of its own. The old buffer is kept a few frames (<see cref="FreeRetired"/>): draws recorded
 	/// earlier in the frame being recorded read it at its slot, and a destroy only waits for what's been submitted.
 	/// </summary>
-	sealed class Table( Device gpu, string name, int initial )
+	sealed class Table( GpuDrivenTables owner, Device gpu, string name, int initial )
 	{
 		public BufferHandle Buffer;
 		public int Slot = -1;
@@ -125,6 +125,7 @@ internal sealed class GpuDrivenTables : IDisposable
 			Buffer = buffer;
 			size = next;
 			Slot = gpu.BindlessIndex( buffer );
+			Interlocked.Increment( ref owner.generation );
 		}
 
 		/// <summary>Free the buffers it grew out of <see cref="RetiredFrames"/> frames or more ago: what was recorded with them has been submitted.</summary>
@@ -165,11 +166,11 @@ internal sealed class GpuDrivenTables : IDisposable
 	public GpuDrivenTables( Device gpu )
 	{
 		this.gpu = gpu;
-		geometry = new Table( gpu, "Borealis GPU-driven geometry", 1 << 20 );
-		draws = new Table( gpu, "Borealis GPU-driven draws", 1 << 20 );
-		materials = new Table( gpu, "Borealis GPU-driven materials", 1 << 20 );
-		fragments = new Table( gpu, "Borealis GPU-driven fragments", 1 << 20 );
-		lighting = new Table( gpu, "Borealis GPU-driven lighting", 1 << 16 );
+		geometry = new Table( this, gpu, "Borealis GPU-driven geometry", 1 << 20 );
+		draws = new Table( this, gpu, "Borealis GPU-driven draws", 1 << 20 );
+		materials = new Table( this, gpu, "Borealis GPU-driven materials", 1 << 20 );
+		fragments = new Table( this, gpu, "Borealis GPU-driven fragments", 1 << 20 );
+		lighting = new Table( this, gpu, "Borealis GPU-driven lighting", 1 << 16 );
 
 		// Made now, so their slots exist before any frame reads them; lighting record 0 is no lighting
 		geometry.Append( new byte[16] );
@@ -184,6 +185,23 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	/// <summary>The tables' slots in the raw buffer array, as <c>BorealisGpuDriven_t</c> wants them after the instances'.</summary>
 	public (int Geometry, int Draws, int Materials, int Lighting) Slots => (geometry.Slot, draws.Slot, materials.Slot, lighting.Slot);
+
+	int generation;
+
+	/// <summary>
+	/// Moves on each time a table grows into a new buffer at a new slot (<see cref="Slots"/>): a record appended after then may
+	/// be past the end of the buffer at the slot read before, so slots read before it are read again before drawing.
+	/// </summary>
+	public int Generation => Volatile.Read( ref generation );
+
+	/// <summary>Draw records appended so far: what the meshlet run table has to cover (<see cref="Meshlets.MeshletStore.RunSlotCovering"/>).</summary>
+	public long DrawRecords
+	{
+		get
+		{
+			lock ( draws ) return draws.Used / DrawStride;
+		}
+	}
 
 	/// <summary>
 	/// A lighting record: <c>BakedLightingConstantBuffer_t</c> (48 bytes), then <c>PerBatchLightProbeVolumeConstantBuffer_t</c>
@@ -996,9 +1014,31 @@ internal sealed class GpuDrivenTables : IDisposable
 		lock ( materialRecords )
 		{
 			if ( materialRecords.TryGetValue( key, out var found ) ) return found;
+			var stage = (key.Material, key.Stage);
+			var made = recordsPerStage[stage] = recordsPerStage.GetValueOrDefault( stage ) + 1;
+			if ( made == MaxRecordsPerStage ) Interlocked.Increment( ref churning );
 			return materialRecords[key] = materials.Append( record );
 		}
 	}
+
+	/// <summary>
+	/// Material records one material's stage may make (<see cref="Churns"/>): about a megabyte of a large stage's. Records
+	/// never go, and each new value of an attribute its constants read, or each new version of the material, makes one.
+	/// </summary>
+	public const int MaxRecordsPerStage = 256;
+
+	// Material records made per material and stage (null for a surface's one record), added to under materialRecords' lock
+	readonly System.Collections.Concurrent.ConcurrentDictionary<(GpuMaterial Material, ShaderStage Stage), int> recordsPerStage = new();
+
+	/// <summary>
+	/// Whether a material's stage has made <see cref="MaxRecordsPerStage"/> records: what it reads changes all the time (an
+	/// attribute a game sets each frame, wind on a map's trees, or the material itself), so drawn GPU-driven it would add a
+	/// record each time until the table ran out of memory. Its draws stay classic.
+	/// </summary>
+	public bool Churns( GpuMaterial material, ShaderStage stage ) => Volatile.Read( ref churning ) > 0 && recordsPerStage.TryGetValue( (material, stage), out var made ) && made >= MaxRecordsPerStage;
+
+	// Stages that have reached the limit: none, mostly, and then nothing is looked up per draw
+	int churning;
 
 	/// <summary>Records in each table, for reports.</summary>
 	public (int Geometry, int Draws, int Materials) Records
