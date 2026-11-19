@@ -9,9 +9,10 @@ namespace Borealis.Gpu;
 /// Every binding is partially bound and update-after-bind; a freed slot is reused only once the device has finished
 /// the frames that could read it (the device defers removals). Texture slots 0 and 1 are never handed out: s&amp;box's
 /// shaders read a texture index of 0 as none (an image-less UI box, a disabled pipeline texture), as native's table does.
-/// Once <see cref="SetDefaults"/> has run, a slot that holds nothing (slots 0 and 1, and every slot once it's freed) points
-/// at the device's default of its kind, as native points freed slots at its error texture: a draw that reads an index it
-/// was never given reads zeros, never a descriptor that was never written or whose resource is gone.
+/// Once <see cref="SetDefaults"/> has run, a slot that holds nothing (slots 0 and 1, every slot not yet handed out, and
+/// every slot once it's freed) points at the device's default of its kind, as native points freed slots at its error
+/// texture: a draw that reads an index it was never given reads zeros, never a descriptor that was never written or whose
+/// resource is gone. No slot of any array is left unwritten, so nothing relies on robustness or null descriptors.
 /// </summary>
 internal sealed unsafe class BindlessTable : IDisposable
 {
@@ -43,6 +44,15 @@ internal sealed unsafe class BindlessTable : IDisposable
 	{
 		readonly Stack<int> free = new();
 		int next = first;
+
+		/// <summary>How many slots the array has.</summary>
+		public int Capacity => capacity;
+
+		/// <summary>The first slot never handed out: it and every slot after it hold nothing.</summary>
+		public int Next
+		{
+			get { lock ( free ) return next; }
+		}
 
 		public int Allocate()
 		{
@@ -234,8 +244,9 @@ internal sealed unsafe class BindlessTable : IDisposable
 
 	/// <summary>
 	/// What slots that hold nothing point at from now on: a sampled view (in <see cref="ImageLayout.ShaderRead"/>), a
-	/// storage view (in <see cref="ImageLayout.General"/>), a sampler and a storage buffer. Texture slots 0 and 1 and the
-	/// vertex cache and pipeline texture buffers are pointed at them now. Before any work is submitted.
+	/// storage view (in <see cref="ImageLayout.General"/>), a sampler and a storage buffer. Texture slots 0 and 1, every
+	/// slot of each array not yet handed out, and the vertex cache and pipeline texture buffers are pointed at them now.
+	/// Before any work that uses the table is submitted.
 	/// </summary>
 	public void SetDefaults( ulong texture, ulong storageView, ulong sampler, ulong buffer, ulong bufferSize )
 	{
@@ -245,8 +256,47 @@ internal sealed unsafe class BindlessTable : IDisposable
 		defaultBuffer = buffer;
 		defaultBufferSize = bufferSize;
 		WriteDefaultTexture( 0 );
+
+		var image = new VkDescriptorImageInfo { imageView = texture, imageLayout = VkImageLayout.ReadOnlyOptimal };
+		WriteRest( ShaderAbi.BindlessTextures, VkDescriptorType.SampledImage, textures, image, default );
+		WriteRest( ShaderAbi.BindlessStorageTextures, VkDescriptorType.StorageImage, storage, new VkDescriptorImageInfo { imageView = storageView, imageLayout = VkImageLayout.General }, default );
+		WriteRest( ShaderAbi.BindlessSamplers, VkDescriptorType.Sampler, samplers, new VkDescriptorImageInfo { sampler = sampler }, default );
+		WriteRest( ShaderAbi.BindlessBuffers, VkDescriptorType.StorageBuffer, buffers, default, new VkDescriptorBufferInfo { buffer = buffer, range = bufferSize } );
+
 		SetBuffer( ShaderAbi.BindlessVertexCache, buffer, bufferSize );
 		SetBuffer( ShaderAbi.BindlessPipelineTextures, buffer, bufferSize );
+	}
+
+	/// <summary>Point every slot of an array from the first never handed out to its end at a default, in one write.</summary>
+	void WriteRest( uint binding, VkDescriptorType type, SlotAllocator slots, VkDescriptorImageInfo image, VkDescriptorBufferInfo buffer )
+	{
+		var first = slots.Next;
+		var count = slots.Capacity - first;
+		if ( count <= 0 ) return;
+
+		var isBuffer = type == VkDescriptorType.StorageBuffer;
+		var images = isBuffer ? null : new VkDescriptorImageInfo[count];
+		var buffers = isBuffer ? new VkDescriptorBufferInfo[count] : null;
+		if ( isBuffer ) Array.Fill( buffers, buffer );
+		else Array.Fill( images, image );
+
+		fixed ( VkDescriptorImageInfo* i = images )
+		fixed ( VkDescriptorBufferInfo* b = buffers )
+		{
+			var write = new VkWriteDescriptorSet
+			{
+				sType = VkStructureType.WriteDescriptorSet,
+				dstSet = Set,
+				dstBinding = binding,
+				dstArrayElement = (uint)first,
+				descriptorCount = (uint)count,
+				descriptorType = type,
+				pImageInfo = i,
+				pBufferInfo = b,
+			};
+
+			lock ( writeLock ) vk.vkUpdateDescriptorSets( vk.Device, 1, &write, 0, null );
+		}
 	}
 
 	/// <summary>
