@@ -1276,7 +1276,28 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		GpuMaterial loaded;
 		lock ( sharedMaterials ) sharedMaterials.TryGetValue( material, out loaded );
-		return MaterialTexture( loaded ?? UnheldMaterial( material ), variable );
+		loaded ??= UnheldMaterial( material );
+		return MaterialTexture( loaded, variable ) ?? FileTexture( material, loaded, variable );
+	}
+
+	/// <summary>
+	/// A texture a material drawn as a surface names (<see cref="ConvertedMaterial.File"/>), whether its surface reads it or
+	/// not (a water material's caustics, which only the CPU reads): held with the material, as the textures its draws read
+	/// are, and whole, as it's used outside them. Null when the material names none for the variable.
+	/// </summary>
+	GpuTexture FileTexture( string path, GpuMaterial material, string variable )
+	{
+		if ( material is not ConvertedMaterial { File: { } file } || !file.Textures.TryGetValue( variable, out var texturePath ) || string.IsNullOrEmpty( texturePath ) ) return null;
+		lock ( sharedMaterials )
+		{
+			var life = LifeOf( path );
+			life.Textures ??= new List<string>();
+			var held = life.Textures.Contains( texturePath, StringComparer.OrdinalIgnoreCase );
+			if ( !held ) life.Textures.Add( texturePath );
+			var texture = held ? HeldTexture( texturePath ) : LoadOnce( texturePath, streamed: false, hold: true );
+			if ( texture is BackendTexture { Stream: { } stream } ) stream.Pinned = true;
+			return texture;
+		}
 	}
 
 	/// <summary>
