@@ -3,16 +3,11 @@ namespace Sandbox;
 public sealed partial class SceneModel
 {
 	/// <summary>
-	/// A scene model managed code made writes its own mesh object, its pose included (<see cref="BonesChanged"/>). One native code
-	/// made (a map's) is written by its world's renderer.
+	/// A scene model writes its own mesh object, its pose included (<see cref="BonesChanged"/>).
 	/// </summary>
-	internal override bool OwnsRenderObject => ResolvesDraws;
+	internal override bool OwnsRenderObject => true;
 
-	internal override void WriteRender( Borealis.RenderObject obj, Rendering.SceneObjectChange change, Rendering.ISceneWorldRender render )
-	{
-		if ( (change & Rendering.SceneObjectChange.Tags) != 0 ) obj.Tags = RenderTags();
-		if ( obj is Borealis.MeshObject mesh ) render.WriteMesh( this, mesh, change );
-	}
+	internal override Borealis.RenderObject MakeRenderObject( Rendering.ISceneWorldRender render ) => new Borealis.MeshObject( null, Transform );
 
 	/// <summary>
 	/// Its bones moved. Animated on an instance, they go straight into its own mesh object from whichever thread posed it: only

@@ -40,4 +40,21 @@ internal interface ISceneWorldRender
 	/// world's, made and held by it.
 	/// </summary>
 	void WriteMesh( SceneObject sceneObject, Borealis.MeshObject mesh, SceneObjectChange change );
+
+	/// <summary>
+	/// A native aggregate's model and fragments (a map's world geometry), or null if the object isn't one, or with
+	/// <paramref name="waiting"/> while its model is still loading: the object is made again once it has.
+	/// </summary>
+	Borealis.AggregateObject MakeAggregate( SceneObject sceneObject, out bool waiting );
+
+	/// <summary>
+	/// Write a change to what lights the world rather than drawing in it (<see cref="SceneObject.LightsWorld"/>): a sun, a light
+	/// probe volume. Nothing for one the world hasn't added yet: it's written whole when it is.
+	/// </summary>
+	void WriteLighting( SceneObject sceneObject, SceneObjectChange change );
+
+	/// <summary>
+	/// Write an aggregate's visibility, tint, flags and lightmaps.
+	/// </summary>
+	void WriteAggregate( SceneObject sceneObject, Borealis.AggregateObject aggregate, SceneObjectChange change );
 }

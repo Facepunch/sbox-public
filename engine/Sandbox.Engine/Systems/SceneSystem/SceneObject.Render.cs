@@ -5,15 +5,28 @@ public partial class SceneObject
 	/// <summary>
 	/// Whether it makes and writes its own render object (<see cref="MakeRenderObject"/>, <see cref="WriteRender"/>): its world's
 	/// renderer adds it and removes it, and a change made on the main thread outside a render of a world holding it goes straight
-	/// into it. Other kinds are made and written by their world's renderer.
+	/// into it. A model is one, whoever made it (a map's world geometry too); kinds Borealis doesn't draw aren't.
 	/// </summary>
-	internal virtual bool OwnsRenderObject => ResolvesDraws && GetType() == typeof( SceneObject );
+	internal virtual bool OwnsRenderObject => GetType() == typeof( SceneObject );
 
 	/// <summary>
-	/// Make the render object it draws as (<see cref="OwnsRenderObject"/>). Its world's renderer adds it to its render world and
-	/// writes everything into it.
+	/// Whether it lights its world rather than drawing as a render object (a sun, a light probe volume): its world's renderer
+	/// keeps it in the world's lighting, and a change made on the main thread outside a render goes straight there
+	/// (<see cref="Rendering.ISceneWorldRender.WriteLighting"/>).
 	/// </summary>
-	internal virtual Borealis.RenderObject MakeRenderObject() => new Borealis.MeshObject( null, Transform );
+	internal virtual bool LightsWorld => false;
+
+	/// <summary>
+	/// Make the render object it draws as (<see cref="OwnsRenderObject"/>), with <paramref name="render"/> for what the world
+	/// holds; null while it can't be made yet (its model still loading), and it's made again once it can. Its world's renderer
+	/// adds it to its render world and writes everything into it.
+	/// </summary>
+	internal virtual Borealis.RenderObject MakeRenderObject( Rendering.ISceneWorldRender render )
+	{
+		// A map's world geometry native code made: native aggregates, which have no managed type of their own
+		if ( ResolvesDraws ) return new Borealis.MeshObject( null, Transform );
+		return (Borealis.RenderObject)render.MakeAggregate( this, out var waiting ) ?? (waiting ? null : new Borealis.MeshObject( null, Transform ));
+	}
 
 	/// <summary>
 	/// Write what changed into its render object (<see cref="OwnsRenderObject"/>), with <paramref name="render"/> for the
@@ -23,8 +36,9 @@ public partial class SceneObject
 	{
 		if ( (change & Rendering.SceneObjectChange.Tags) != 0 ) obj.Tags = RenderTags();
 
-		// A model managed code made (ResolvesDraws): its draws are worked out from the model's mesh the world holds
-		if ( obj is Borealis.MeshObject mesh && GetType() == typeof( SceneObject ) ) render.WriteMesh( this, mesh, change );
+		// A model's draws are worked out from the model's mesh the world holds; an aggregate's fragments are fixed when made
+		if ( obj is Borealis.MeshObject mesh ) render.WriteMesh( this, mesh, change );
+		else if ( obj is Borealis.AggregateObject aggregate ) render.WriteAggregate( this, aggregate, change );
 	}
 
 	/// <summary>
@@ -132,7 +146,17 @@ public partial class SceneObject
 	/// </summary>
 	bool WroteRender( Rendering.SceneObjectChange change )
 	{
-		if ( (change & RendererChanges) != 0 || !OwnsRenderObject || RenderObject is not { World: not null } obj ) return false;
+		if ( (change & RendererChanges) != 0 ) return false;
+
+		if ( LightsWorld )
+		{
+			if ( World?.Render is not { } lit || lit.World.InRender || !ThreadSafe.IsMainThread ) return false;
+
+			using ( Borealis.Zones.ObjectWrite.Start() ) lit.WriteLighting( this, change );
+			return true;
+		}
+
+		if ( !OwnsRenderObject || RenderObject is not { World: not null } obj ) return false;
 		if ( World?.Render is not { } render || obj.InRender || !ThreadSafe.IsMainThread ) return false;
 
 		using ( Borealis.Zones.ObjectWrite.Start() ) WriteRender( obj, change, render );

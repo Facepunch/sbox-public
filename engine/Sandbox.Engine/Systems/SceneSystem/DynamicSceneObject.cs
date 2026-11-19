@@ -107,7 +107,7 @@ public class SceneDynamicObject : SceneObject
 
 	internal override bool OwnsRenderObject => true;
 
-	internal override Borealis.RenderObject MakeRenderObject() => new Rendering.BridgeDynamicObject( this );
+	internal override Borealis.RenderObject MakeRenderObject( Rendering.ISceneWorldRender render ) => new Rendering.BridgeDynamicObject( this );
 
 	internal override void WriteRender( Borealis.RenderObject obj, Rendering.SceneObjectChange change, Rendering.ISceneWorldRender render )
 	{

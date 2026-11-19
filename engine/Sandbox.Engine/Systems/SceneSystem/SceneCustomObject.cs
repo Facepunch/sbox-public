@@ -74,7 +74,7 @@ public class SceneCustomObject : SceneObject
 
 	internal override bool OwnsRenderObject => true;
 
-	internal override Borealis.RenderObject MakeRenderObject() => new Rendering.BridgeCustomObject( this );
+	internal override Borealis.RenderObject MakeRenderObject( Rendering.ISceneWorldRender render ) => new Rendering.BridgeCustomObject( this );
 
 	internal override void WriteRender( Borealis.RenderObject obj, Rendering.SceneObjectChange change, Rendering.ISceneWorldRender render )
 	{

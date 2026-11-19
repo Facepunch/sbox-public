@@ -191,4 +191,44 @@ public class SceneMirrorDirectTests
 			world.Delete();
 		}
 	}
+
+	/// <summary>
+	/// What lights the world rather than drawing in it writes straight there too: a sun's change waits for nothing but the next
+	/// view to light with it, a probe volume's goes into its volume.
+	/// </summary>
+	[TestMethod]
+	public void SunsAndProbeVolumesWriteWithoutASync()
+	{
+		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
+
+		var world = new SceneWorld();
+		var camera = new SceneCamera { World = world };
+		var mirror = (System.IDisposable)System.Activator.CreateInstance( MirrorType, [world] );
+		try
+		{
+			using var texture = Texture.CreateVolume( 2, 2, 12 ).Finish();
+			var sun = new SceneDirectionalLight( world, Rotation.From( 45, 0, 0 ), Color.Red );
+			var probe = new SceneLightProbe( world, texture, null, null, new BBox( new Vector3( -100 ), new Vector3( 100 ) ), Transform.Zero, 0, 0 );
+
+			var sync = MirrorType.GetMethod( "Sync", Any );
+			var pending = MirrorType.GetProperty( "PendingChanges", Any );
+			var renderWorld = (Borealis.RenderWorld)MirrorType.GetProperty( "World" ).GetValue( mirror );
+			sync.Invoke( mirror, [camera, false] );
+			Assert.AreEqual( Color.Red, renderWorld.Lighting.SunColor );
+
+			sun.LightColor = Color.Blue;
+			probe.Position = new Vector3( 10, 20, 30 );
+			Assert.AreEqual( 0, (int)pending.GetValue( mirror ), "nothing waits for a sync" );
+			Assert.AreEqual( new Vector3( 10, 20, 30 ), renderWorld.LightProbeVolumes[0].Transform.Position, "the volume moved" );
+
+			sync.Invoke( mirror, [camera, false] );
+			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SunColor, "the next view lights with the new colour" );
+		}
+		finally
+		{
+			mirror.Dispose();
+			camera.Dispose();
+			world.Delete();
+		}
+	}
 }

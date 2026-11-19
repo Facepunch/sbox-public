@@ -19,6 +19,9 @@ public sealed class SceneDirectionalLight : SceneLight
 	{
 	}
 
+	/// <summary>A sun lights its world (as its sun, or an extra one); it isn't drawn.</summary>
+	internal override bool LightsWorld => true;
+
 	public SceneDirectionalLight( SceneWorld sceneWorld, Rotation rotation, Color color ) : base()
 	{
 		Assert.IsValid( sceneWorld );

@@ -248,7 +248,7 @@ public sealed class SceneCubemap : SceneLight
 
 	internal override bool OwnsRenderObject => true;
 
-	internal override Borealis.RenderObject MakeRenderObject() => new Borealis.EnvMapObject( null, default, Transform.Zero );
+	internal override Borealis.RenderObject MakeRenderObject( Rendering.ISceneWorldRender render ) => new Borealis.EnvMapObject( null, default, Transform.Zero );
 
 	/// <summary>
 	/// Its placement, cube, box and blending, as native's binner packs a <c>CEnvMapSceneObject</c>.

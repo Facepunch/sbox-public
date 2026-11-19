@@ -203,7 +203,7 @@ internal sealed class DecalSceneObject : SceneObject
 
 	internal override bool OwnsRenderObject => true;
 
-	internal override Borealis.RenderObject MakeRenderObject() => new Borealis.DecalObject( Transform );
+	internal override Borealis.RenderObject MakeRenderObject( Rendering.ISceneWorldRender render ) => new Borealis.DecalObject( Transform );
 
 	/// <summary>
 	/// Its box and everything it projects, as <c>CLightBinnerStandard</c> reads a <c>CDecalSceneObject</c>.

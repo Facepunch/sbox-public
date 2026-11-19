@@ -75,6 +75,11 @@ internal sealed class SceneAggregateObject : SceneObject
 	/// </summary>
 	public static int MaxFragments => AggregateGlue.GetMaxFragmentCount();
 
+	internal override bool OwnsRenderObject => true;
+
+	/// <summary>Its model and fragments as native draws them; null while its model loads, and it's made again once it has.</summary>
+	internal override Borealis.RenderObject MakeRenderObject( Rendering.ISceneWorldRender render ) => render.MakeAggregate( this, out _ );
+
 	public new void Delete()
 	{
 		if ( native.IsNull )

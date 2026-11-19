@@ -272,27 +272,17 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			return;
 		}
 
-		if ( obj is not null && (change & SceneObjectChange.Tags) != 0 )
-			obj.Tags = TagsOf( sceneObject );
+		if ( sceneObject.LightsWorld ) WriteLighting( sceneObject, change );
+	}
 
-		switch ( obj )
-		{
-			case MeshObject mesh:
-				ApplyMesh( sceneObject, mesh, change );
-				break;
-
-			case AggregateObject aggregate:
-				ApplyAggregate( sceneObject, aggregate, change );
-				break;
-
-			case null when sceneObject is SceneDirectionalLight:
-				sunDirty = true;
-				break;
-
-			case null when sceneObject is SceneLightProbe probe && lightProbes.TryGetValue( probe, out var volume ):
-				ApplyLightProbe( probe, volume, change );
-				break;
-		}
+	/// <summary>
+	/// A sun's change marks the world's sun state to work out again before the next view lights with it; a probe volume's is
+	/// written into its volume.
+	/// </summary>
+	public void WriteLighting( SceneObject sceneObject, SceneObjectChange change )
+	{
+		if ( sceneObject is SceneDirectionalLight ) sunDirty = true;
+		else if ( sceneObject is SceneLightProbe probe && lightProbes.TryGetValue( probe, out var volume ) ) ApplyLightProbe( probe, volume, change );
 	}
 
 	readonly Dictionary<SceneLightProbe, Borealis.LightProbeVolume> lightProbes = new();
@@ -365,6 +355,10 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 
 	void ISceneWorldRender.WriteMesh( SceneObject sceneObject, MeshObject mesh, SceneObjectChange change ) => ApplyMesh( sceneObject, mesh, change );
 
+	AggregateObject ISceneWorldRender.MakeAggregate( SceneObject sceneObject, out bool waiting ) => AggregateFor( sceneObject, out waiting );
+
+	void ISceneWorldRender.WriteAggregate( SceneObject sceneObject, AggregateObject aggregate, SceneObjectChange change ) => ApplyAggregate( sceneObject, aggregate, change );
+
 	bool ISceneWorldRender.OnDevice => MirrorContent.Gpu is not null;
 
 	GpuTexture ISceneWorldRender.TextureWhenRead( Texture texture, SceneObject waiting, SceneObjectChange change ) => TextureFor( texture, waiting, change );
@@ -425,17 +419,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			return null;
 		}
 
-		RenderObject obj = sceneObject.OwnsRenderObject ? sceneObject.MakeRenderObject() : sceneObject switch
-		{
-			SceneDirectionalLight => null,
-			SceneSkyBox => null,
-			SceneModel => new MeshObject( null, sceneObject.Transform ),
-			SceneAggregateObject => AggregateFor( sceneObject ),
-
-			// A map's world geometry is native aggregates, which have no managed type of their own
-			_ when sceneObject.GetType() == typeof( SceneObject ) => (RenderObject)AggregateFor( sceneObject, out var waiting ) ?? (waiting ? null : new MeshObject( null, sceneObject.Transform )),
-			_ => null,
-		};
+		// Suns and skies light the world (SyncLighting); a kind that owns no render object isn't drawn
+		var obj = sceneObject.OwnsRenderObject ? sceneObject.MakeRenderObject( this ) : null;
 
 		added++;
 		sceneObject.RenderObject = obj;
@@ -447,7 +432,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			{
 				if ( !suns.Contains( sun ) ) suns.Add( sun );
 			}
-			else if ( sceneObject is not SceneSkyBox ) Count( sceneObject, 1 );
+			else if ( sceneObject is not SceneSkyBox && !sceneObject.OwnsRenderObject ) Count( sceneObject, 1 );
 		}
 
 		return obj;
@@ -479,7 +464,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		if ( sceneObject is SceneLightProbe probe && lightProbes.Remove( probe, out var volume ) ) World.LightProbeVolumes.Remove( volume );
 		else if ( obj is not null ) World.Remove( obj );
 		else if ( sceneObject is SceneDirectionalLight sun ) sunDirty |= suns.Remove( sun );
-		else if ( sceneObject is not SceneSkyBox ) Count( sceneObject, -1 );
+		else if ( sceneObject is not SceneSkyBox && !sceneObject.OwnsRenderObject ) Count( sceneObject, -1 );
 	}
 
 	void Count( SceneObject sceneObject, int by )
@@ -589,11 +574,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			mesh.LocalBounds = ToLocal( model.Bounds, mesh.Transform );
 		}
 	}
-
-	/// <summary>
-	/// An aggregate's model and fragments as native draws them, or null if the object isn't one.
-	/// </summary>
-	AggregateObject AggregateFor( SceneObject sceneObject ) => AggregateFor( sceneObject, out _ );
 
 	/// <summary>An aggregate's model and fragments, or null; <paramref name="waiting"/> while its model is still loading.</summary>
 	AggregateObject AggregateFor( SceneObject sceneObject, out bool waiting )
@@ -973,15 +953,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			text.Append( $"; {custom.Source.GetType().Name} {(custom.IsOpaque ? "opaque" : "translucent")}{(custom.CastShadows ? " casting shadows" : "")}{(custom.Visible ? "" : " hidden")} bounds {custom.LocalBounds}" );
 
 		return text.ToString();
-	}
-
-	/// <summary>
-	/// A scene object's tags as string tokens (<see cref="SceneObject.TagTokens"/>).
-	/// </summary>
-	static uint[] TagsOf( SceneObject sceneObject )
-	{
-		var tokens = sceneObject.TagTokens;
-		return tokens.Count == 0 ? [] : [.. tokens];
 	}
 
 	static BBox ToLocal( BBox world, Transform transform ) => SceneObject.ToLocal( world, transform );

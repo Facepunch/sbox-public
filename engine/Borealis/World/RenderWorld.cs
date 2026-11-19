@@ -192,6 +192,24 @@ public sealed class RenderWorld
 	/// </summary>
 	public int Rendering { get; internal set; }
 
+	/// <summary>
+	/// Whether this world is being rendered, as itself or as a sub-world of another (<see cref="Include"/>): its lighting
+	/// mustn't change meanwhile, nor its objects.
+	/// </summary>
+	public bool InRender
+	{
+		get
+		{
+			if ( Rendering > 0 ) return true;
+			foreach ( var (host, _) in drawnIn )
+			{
+				if ( host.Rendering > 0 ) return true;
+			}
+
+			return false;
+		}
+	}
+
 	internal ReadOnlySpan<RenderObject> Objects => _objects.AsSpan( 0, Count );
 	internal ReadOnlySpan<Vector3> BoundsCenter => _boundsCenters.AsSpan( 0, Count );
 	internal ReadOnlySpan<Vector3> BoundsExtents => _boundsExtents.AsSpan( 0, Count );
