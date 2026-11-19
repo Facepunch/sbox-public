@@ -206,6 +206,9 @@ public sealed class ShaderVariant
 /// </summary>
 public sealed class ShaderStage
 {
+	/// <summary><c>SpecializedConstantsBaked</c>'s id (<c>VFX_SPECIALIZED_CONSTANTS_BAKED_ID</c>, vfx_shader_params.h).</summary>
+	internal const uint SpecializedConstantsBakedId = 68;
+
 	readonly ShaderVariable[] variables;
 	readonly Dictionary<(int Set, int Register), SamplerInfo> samplers = new();
 	readonly Dictionary<(int Set, int Binding), int> named = new();
@@ -281,6 +284,7 @@ public sealed class ShaderStage
 		}
 
 		var constants = new List<SpecializationConstant>( Bytecode?.Constants ?? [] );
+		var specialized = false;
 		var materialConstants = new List<(ShaderVariable, int)>();
 		var renderStates = new List<(int, ShaderVariable)>();
 		var recordTextures = new List<(ShaderVariable, int)>();
@@ -301,6 +305,7 @@ public sealed class ShaderStage
 					break;
 
 				case RegisterType.Specialization:
+					specialized = true;
 					var value = variable.Source == VariableSource.Attribute ? attributes?.Invoke( variable.Attribute ) : null;
 					if ( value is { } v && !constants.Exists( c => c.Id == (uint)binding.Offset ) ) constants.Add( new SpecializationConstant( (uint)binding.Offset, (uint)v ) );
 					break;
@@ -363,6 +368,10 @@ public sealed class ShaderStage
 			sampler.MaxAnisotropy = 1;
 			samplers[key] = sampler;
 		}
+
+		// A SpecializedConstant() also stays a constant buffer member, which a pipeline reads unless SpecializedConstantsBaked
+		// says its specialization constants hold the values (VFX_SPECIALIZED_CONSTANTS_BAKED_ID): every pipeline here is made with them
+		if ( specialized && !constants.Exists( c => c.Id == SpecializedConstantsBakedId ) ) constants.Add( new SpecializationConstant( SpecializedConstantsBakedId, 1 ) );
 
 		Constants = [.. constants];
 		MaterialConstants = materialConstants;

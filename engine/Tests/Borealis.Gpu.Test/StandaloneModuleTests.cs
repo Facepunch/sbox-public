@@ -232,10 +232,11 @@ public class StandaloneModuleTests : GpuTest
 
 			// Code sets values by token (StringToken.Literal) and the game's backend turns tokens back into names from the shader:
 			// every name the compiled file's variables and combos give, the module's binding names give too. Not a .vmat's input
-			// textures (TextureColor: the material compile's, never drawn) or vfx's own default sampler, which nothing sets
+			// textures (TextureColor: the material compile's, never drawn), vfx's own default sampler, or the name vfx gives a
+			// SpecializedConstant()'s specialization constant (X__Spec, set through its attribute), which nothing sets
 			var names = backend.Passes.BindingNames( module );
 			var missing = compiled.Programs.Where( p => p is not null )
-				.SelectMany( p => p.Variables.Where( v => v.Register != RegisterType.InputTexture ).SelectMany( v => new[] { v.Name, v.Attribute } ).Concat( p.DynamicCombos.Select( c => c.Name ) ) )
+				.SelectMany( p => p.Variables.Where( v => v.Register != RegisterType.InputTexture ).SelectMany( v => new[] { v.Register == RegisterType.Specialization ? null : v.Name, v.Attribute } ).Concat( p.DynamicCombos.Select( c => c.Name ) ) )
 				.Where( n => !string.IsNullOrEmpty( n ) && n != "DefaultSamplerState" && !names.Contains( n ) ).Distinct().Order( StringComparer.Ordinal ).ToList();
 			if ( missing.Count > 0 ) differences.Add( $"{path}: names not among the module's binding names: {string.Join( ' ', missing )}" );
 
@@ -343,7 +344,7 @@ public class StandaloneModuleTests : GpuTest
 		var names = backend.Passes.BindingNames( module );
 		Assert.IsTrue( names.Contains( "D_OPAQUE_FADE" ) );
 		var missing = compiled.Programs.Where( p => p is not null )
-			.SelectMany( p => p.Variables.Where( v => v.Register != RegisterType.InputTexture ).SelectMany( v => new[] { v.Name, v.Attribute } ).Concat( p.DynamicCombos.Select( c => c.Name ) ) )
+			.SelectMany( p => p.Variables.Where( v => v.Register != RegisterType.InputTexture ).SelectMany( v => new[] { v.Register == RegisterType.Specialization ? null : v.Name, v.Attribute } ).Concat( p.DynamicCombos.Select( c => c.Name ) ) )
 			.Where( n => !string.IsNullOrEmpty( n ) && n != "DefaultSamplerState" && !names.Contains( n ) ).Distinct().ToList();
 		Assert.AreEqual( 0, missing.Count, string.Join( ' ', missing ) );
 	}

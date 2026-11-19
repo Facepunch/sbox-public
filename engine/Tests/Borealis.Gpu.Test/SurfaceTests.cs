@@ -53,8 +53,9 @@ public class SurfaceTests : GpuTest
 		Assert.AreEqual( "FogVolume", annotations["g_tFogVolume"].Attribute );
 		Assert.AreEqual( "g_TransformBuffer", annotations["g_TransformData"].Attribute );
 
-		// As vfx compiles them: a specialization constant, so the pipeline folds the branches it guards
-		StringAssert.Contains( text, $"[vk::constant_id( {VfxIncludes.SpecializationId( "DDGIEnabled" )} )] const int DDGIEnabled = 0;" );
+		// As vfx compiles them: a specialization constant, so the pipeline folds the branches it guards, and a constant buffer
+		// member of the same name, so the layout matches the compiled shader's
+		StringAssert.Contains( text, $"int DDGIEnabled; [vk::constant_id( {VfxIncludes.SpecializationId( "DDGIEnabled" )} )] const int DDGIEnabled__Spec = 0;\n#define DDGIEnabled DDGIEnabled__Spec" );
 		Assert.AreEqual( "DDGI_Enabled", annotations["DDGIEnabled"].Attribute );
 
 		var sampler = BackendContext.SurfaceSampler( annotations["ShadowDepthPCFSampler"] );
@@ -140,7 +141,7 @@ public class SurfaceTests : GpuTest
 		// Per-view lighting and fog come from the view set, as the core shaders read them
 		Assert.IsTrue( forward.Bindings.Any( b => b.Set == ShaderAbi.ViewSet && b.Name == ShaderAbi.ViewEnvironment ) );
 		Assert.IsTrue( forward.Specializations.Any( s => s.Attribute == "ShadowFilterQuality" ) );
-		Assert.IsFalse( forward.Globals.Members.Any( m => m.Name == "UserShadowFilterQuality" ) );
+		Assert.IsTrue( forward.Globals.Members.Any( m => m.Name == "UserShadowFilterQuality" ), "the specialization constant keeps its member, as vfx does" );
 		Assert.IsTrue( rock.Pass( ShaderPasses.Forward ).Vertex.Bindings.All( b => b.Set is 0 or ShaderAbi.BindlessSet or ShaderAbi.ViewSet ) );
 
 		// Alpha-tested passes compile with today's alpha test (S_ALPHA_TEST: its cutoff and edge strength are globals), the
@@ -532,7 +533,8 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// The converter turns pixel.hlsl-style .shaders into surfaces that compile: the template (Material::Init), bark
+	/// The converter turns pixel.hlsl-style .shaders into surfaces that compile: the template (Material::Init), bark (a test
+	/// copy in Data: the game no longer has it)
 	/// (Material.CommonInputs, a helper, a feature global, and its vertex sway as Displace with trunk_bending.hlsl's
 	/// functions copied) and water_simple (engine-bound textures as module globals, a helper taking the input, and the
 	/// refraction after shading as Composite).
@@ -551,7 +553,7 @@ public class SurfaceTests : GpuTest
 			var shaders = Path.Combine( Core, "shaders" );
 			var compiler = new SlangCompiler( bin, [shaders] );
 			string Include( string path ) => File.Exists( Path.Combine( shaders, path ) ) ? File.ReadAllText( Path.Combine( shaders, path ) ) : null;
-			foreach ( var (relative, name) in new[] { ("templates/material.shader", "material"), ("core/shaders/bark.shader", "bark"), ("core/shaders/water_simple.shader", "water_simple") } )
+			foreach ( var (relative, name) in new[] { ("templates/material.shader", "material"), (Path.Combine( AppContext.BaseDirectory, "Data", "bark.shader" ), "bark"), ("core/shaders/water_simple.shader", "water_simple") } )
 			{
 				var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( game, relative ) ), name, Include );
 				Assert.IsNotNull( result.Source, name );
