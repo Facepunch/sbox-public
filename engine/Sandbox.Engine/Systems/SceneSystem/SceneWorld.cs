@@ -185,17 +185,23 @@ public sealed partial class SceneWorld : IHandle
 	/// <summary>
 	/// This finishes any loads and actually spawns the world sceneobjects
 	/// </summary>
+	// The world groups UpdateObjectsForRendering updated this time, kept for the next
+	readonly List<string> updatedGroups = new();
+
 	internal void UpdateObjectsForRendering( Vector3 eyePos = default, float farPlane = 5000.0f )
 	{
 		if ( InternalSceneMaps is null )
 			return;
 
-		if ( !InternalSceneMaps.Any() )
+		if ( InternalSceneMaps.Count == 0 )
 			return;
 
-		// Maps native's world renderer loaded; one read by Borealis.Source2 has no world group
-		foreach ( var worldGroup in InternalSceneMaps.Select( x => x.WorldGroup ).Where( x => x is not null ).Distinct() )
+		// Maps native's world renderer loaded; one read by Borealis.Source2 has no world group. Each group once
+		updatedGroups.Clear();
+		foreach ( var map in InternalSceneMaps )
 		{
+			if ( map.WorldGroup is not { } worldGroup || updatedGroups.Contains( worldGroup ) ) continue;
+			updatedGroups.Add( worldGroup );
 			g_pWorldRendererMgr.UpdateObjectsForRendering( worldGroup, eyePos, 1.0f, farPlane );
 		}
 

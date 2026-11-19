@@ -626,21 +626,35 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	static uint[] Tokens( ITagSet tags, ITagSet more, uint[] current )
 	{
 		var tokens = tags.GetTokens();
-		if ( more is not null && more.GetTokens() is { Count: > 0 } extra )
+		var extra = more?.GetTokens() is { Count: > 0 } added ? added : null;
+		if ( SameTokens( tokens, extra, current ) ) return current;
+
+		if ( extra is null ) return tokens.Count == 0 ? [] : [.. tokens];
+		var union = new HashSet<uint>( tokens );
+		union.UnionWith( extra );
+		return [.. union];
+	}
+
+	/// <summary>
+	/// Whether <paramref name="current"/> (tokens without repeats) holds just the tokens of <paramref name="tokens"/> and
+	/// <paramref name="extra"/>, looked at without allocating when they're hash sets (tag sets' are); false when it can't tell.
+	/// </summary>
+	static bool SameTokens( IReadOnlySet<uint> tokens, IReadOnlySet<uint> extra, uint[] current )
+	{
+		var count = tokens.Count;
+		if ( extra is HashSet<uint> more )
 		{
-			var union = new HashSet<uint>( tokens );
-			union.UnionWith( extra );
-			tokens = union;
+			foreach ( var token in more ) count += tokens.Contains( token ) ? 0 : 1;
+		}
+		else if ( extra is not null ) return false;
+
+		if ( count != current.Length ) return false;
+		foreach ( var token in current )
+		{
+			if ( !tokens.Contains( token ) && extra?.Contains( token ) != true ) return false;
 		}
 
-		if ( tokens is HashSet<uint> set && set.Count == current.Length )
-		{
-			var same = true;
-			foreach ( var token in current ) same &= set.Contains( token );
-			if ( same ) return current;
-		}
-
-		return tokens.Count == 0 ? [] : [.. tokens];
+		return true;
 	}
 
 	public void Render( SceneCamera camera, SwapChainHandle_t swapChain, Vector2? size, in ViewSetup setup )
