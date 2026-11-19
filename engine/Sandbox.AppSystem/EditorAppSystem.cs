@@ -7,7 +7,7 @@ public class EditorAppSystem : AppSystem
 {
 	public override void Init()
 	{
-		// The editor's own views; its native tools keep Source 2's device
+		// The editor's views and its native tools draw on Borealis.Gpu; Source 2 has the empty device
 		DrawOnBorealisGpu();
 		LoadSteamDll();
 
