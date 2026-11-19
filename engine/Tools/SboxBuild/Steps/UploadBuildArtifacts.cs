@@ -226,7 +226,6 @@ internal class UploadBuildArtifacts
 	{
 		"game/addons/citizen/Assets/",
 		"game/addons/content/Assets/",
-		"game/mount/"
 	};
 
 	internal ExitCode Run()
