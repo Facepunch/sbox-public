@@ -52,6 +52,17 @@ native class CMapView as NativeHammer.CMapView
 		self->SetViewTypeAndDrawMode( self->GetViewType(), static_cast< ViewDrawMode_t >( nDrawMode ) );
 	}
 
+	// The view's type, ViewType_t (0-2 the 2D views, 3 the 3D camera), as its pane's menu sets it
+	inline int GetViewTypeValue()
+	{
+		return self->GetViewType();
+	}
+
+	inline void SetViewTypeValue( int nViewType, int nDrawMode )
+	{
+		self->SetViewTypeAndDrawMode( static_cast< ViewType_t >( nViewType ), static_cast< ViewDrawMode_t >( nDrawMode ) );
+	}
+
 	inline ManipulationMode_t GetManipulationMode()
 	{
 		if ( self->m_pToolManager == nullptr ) return MANIPULATION_MODE_INVALID;
@@ -93,6 +104,20 @@ native class CMapView as NativeHammer.CMapView
 		frustum.InitCamera( origin, angles, 1.0f, flFar, fov, width / (float)height );
 
 		pViewMgr->GetEditorSession()->RenderViewAndReadBack( frustum, width, height, IMAGE_FORMAT_RGB888, pixels, *self );
+		return true;
+	}
+
+	//
+	// Render the view from its own camera (a 2D view's too) into an RGB888 buffer of width * height * 3 bytes, the view's
+	// size in pixels, using its draw settings.
+	//
+	inline bool RenderViewToPixels( int width, int height, CastTo[uint8*] void* pixels )
+	{
+		CMapViewMgr* pViewMgr = self->GetViewManager();
+		if ( pViewMgr == nullptr || pViewMgr->GetEditorSession() == nullptr )
+			return false;
+
+		pViewMgr->GetEditorSession()->RenderViewAndReadBack( self->GetFrustum(), width, height, IMAGE_FORMAT_RGB888, pixels, *self );
 		return true;
 	}
 }
