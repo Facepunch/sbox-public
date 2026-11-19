@@ -34,9 +34,38 @@ internal sealed class BackendTexture : GpuTexture
 	/// <summary>Its streaming state while only some of its mips may be resident, or null when it holds them all.</summary>
 	public StreamedTexture Stream { get; set; }
 
+	readonly List<WeakReference<IStreamDependent>> dependents = new();
+
+	/// <summary>Note a material that names this texture, so it re-keys when the image is swapped.</summary>
+	public void AddDependent( IStreamDependent dependent )
+	{
+		lock ( dependents )
+		{
+			foreach ( var known in dependents )
+			{
+				if ( known.TryGetTarget( out var target ) && ReferenceEquals( target, dependent ) ) return;
+			}
+
+			dependents.Add( new WeakReference<IStreamDependent>( dependent ) );
+		}
+	}
+
+	/// <summary>Tell the materials that name it that its image changed (<see cref="Swap"/>).</summary>
+	public void Swapped()
+	{
+		lock ( dependents )
+		{
+			for ( int i = dependents.Count - 1; i >= 0; i-- )
+			{
+				if ( dependents[i].TryGetTarget( out var target ) ) target.TexturesChanged();
+				else dependents.RemoveAt( i );
+			}
+		}
+	}
+
 	/// <summary>
-	/// Take a new image (a streamed texture's other mips), ready to sample once work submitted after now runs; the old one
-	/// is destroyed once the GPU is done with it. Between frames only.
+	/// Take a new image (a streamed texture's other mips, or a copy in other memory), ready to sample once work submitted
+	/// after now runs; the old one is destroyed once the GPU is done with it. Between frames only; then <see cref="Swapped"/>.
 	/// </summary>
 	public void Swap( TextureHandle image )
 	{
@@ -674,8 +703,8 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 		List<StreamedTexture> streamed = null;
 		foreach ( var texture in Textures.Values )
 		{
+			texture?.AddDependent( this );
 			if ( texture?.Stream is not { } stream ) continue;
-			stream.AddDependent( this );
 			(streamed ??= new()).Add( stream );
 		}
 

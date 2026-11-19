@@ -14,8 +14,6 @@ namespace Borealis.Backend;
 /// </summary>
 internal sealed class StreamedTexture
 {
-	readonly List<WeakReference<IStreamDependent>> dependents = new();
-
 	public StreamedTexture( BackendTexture texture, string path, TextureFile file )
 	{
 		Texture = texture;
@@ -87,31 +85,10 @@ internal sealed class StreamedTexture
 	}
 
 	/// <summary>Note a material that names this texture, so it re-keys when the image is swapped.</summary>
-	public void AddDependent( IStreamDependent dependent )
-	{
-		lock ( dependents )
-		{
-			foreach ( var known in dependents )
-			{
-				if ( known.TryGetTarget( out var target ) && ReferenceEquals( target, dependent ) ) return;
-			}
-
-			dependents.Add( new WeakReference<IStreamDependent>( dependent ) );
-		}
-	}
+	public void AddDependent( IStreamDependent dependent ) => Texture.AddDependent( dependent );
 
 	/// <summary>Tell the materials that name it that its image changed.</summary>
-	public void Swapped()
-	{
-		lock ( dependents )
-		{
-			for ( int i = dependents.Count - 1; i >= 0; i-- )
-			{
-				if ( dependents[i].TryGetTarget( out var target ) ) target.TexturesChanged();
-				else dependents.RemoveAt( i );
-			}
-		}
-	}
+	public void Swapped() => Texture.Swapped();
 }
 
 /// <summary>Something that names streamed textures in what it binds (a material), so a swapped image re-keys it.</summary>
@@ -273,6 +250,15 @@ internal sealed class TextureStreamer
 	/// <summary>Whether a texture file streams: a 2D texture of one slice, with mips above its tail.</summary>
 	public static bool Streams( TextureFile file ) => file.Dimension == TextureDimension.Texture2D && file.Slices == 1 && file.Format != Format.Unknown && file.TailTop > 0;
 
+	/// <summary>
+	/// Keep a material texture too small to stream (a file with no mips above its tail) where it can be moved out of a block
+	/// being emptied, from the next <see cref="Update"/>. Any thread.
+	/// </summary>
+	public void Keep( BackendTexture texture ) => keptAdded.Enqueue( texture );
+
+	readonly ConcurrentQueue<BackendTexture> keptAdded = new();
+	readonly List<BackendTexture> kept = new();
+
 	/// <summary>Keep a texture made from a file's tail (or more) streaming, from the next <see cref="Update"/>. Any thread.</summary>
 	public StreamedTexture Add( BackendTexture texture, string path, TextureFile file )
 	{
@@ -297,6 +283,7 @@ internal sealed class TextureStreamer
 
 		var now = Frame;
 		var updateTime = System.Diagnostics.Stopwatch.GetTimestamp();
+		while ( keptAdded.TryDequeue( out var small ) ) kept.Add( small );
 		while ( added.TryDequeue( out var texture ) )
 		{
 			texture.LastAskedTime = updateTime;
@@ -329,6 +316,7 @@ internal sealed class TextureStreamer
 		GiveBack();
 		GiveBackIdle( updateTime );
 		MoveOutOfSparseBlocks();
+		MoveOutOfDrainingBlocks();
 		Start();
 	}
 
@@ -385,9 +373,64 @@ internal sealed class TextureStreamer
 		if ( compactAt >= textures.Count ) compacting = false;
 	}
 
+	/// <summary>Bytes of textures copied out of blocks being emptied each frame, at most (<see cref="Device.InDrainingBlock"/>).</summary>
+	public long MoveBytesPerFrame { get; set; } = 32 << 20;
+
+	/// <summary>Textures looked at each frame for being in a block that's being emptied, while one is.</summary>
+	public int MoveChecksPerFrame { get; set; } = 256;
+
+	/// <summary>Textures copied out of blocks being emptied so far, and their bytes.</summary>
+	public int Moved { get; private set; }
+
+	/// <inheritdoc cref="Moved"/>
+	public long MovedBytes { get; private set; }
+
+	int moveAt;
+
+	// While the allocator empties a block (defragmenting), streamed textures and those kept (Keep) in it are copied into
+	// other blocks' room on the GPU and swapped in like a build's image: materials re-key, and the old image goes once the
+	// frames using it are done
+	void MoveOutOfDrainingBlocks()
+	{
+		var gpu = device.Gpu;
+		var count = textures.Count + kept.Count;
+		if ( !gpu.Defragmenting || count == 0 ) return;
+
+		long moved = 0;
+		var checks = Math.Min( count, MoveChecksPerFrame );
+		for ( int i = 0; i < checks && moved < MoveBytesPerFrame; i++ )
+		{
+			if ( moveAt >= count ) moveAt = 0;
+			var index = moveAt++;
+			var streamed = index < textures.Count ? textures[index] : null;
+			var texture = streamed?.Texture ?? kept[index - textures.Count];
+			if ( streamed?.Building is not null || !texture.IsValid || !gpu.InDrainingBlock( texture.Handle ) ) continue;
+
+			TextureHandle copy;
+			try
+			{
+				copy = gpu.Relocate( texture.Handle, texture.Layout );
+			}
+			catch ( GpuException e ) when ( e.Result == OutOfDeviceMemory )
+			{
+				OutOfMemory( streamed?.ResidentTop ?? 0 );
+				return;
+			}
+
+			if ( !copy.IsValid ) continue;
+			var bytes = gpu.MemorySizeOf( copy );
+			texture.Swap( copy );
+			texture.Swapped();
+			moved += bytes;
+			Moved++;
+			MovedBytes += bytes;
+		}
+	}
+
 	// Textures disposed since
 	void Forget()
 	{
+		kept.RemoveAll( static texture => !texture.IsValid );
 		for ( int i = textures.Count - 1; i >= 0; i-- )
 		{
 			var texture = textures[i];
@@ -445,7 +488,18 @@ internal sealed class TextureStreamer
 
 			if ( build.NextMip < 0 )
 			{
-				build.Image = file.CreateEmpty( gpu, texture.Path );
+				try
+				{
+					build.Image = file.CreateEmpty( gpu, texture.Path );
+				}
+				catch ( GpuException e ) when ( e.Result == OutOfDeviceMemory )
+				{
+					// Video memory is full: the texture keeps the mips it has, and nothing grows until room is measured again
+					OutOfMemory( build.Top );
+					Drop( build, i-- );
+					continue;
+				}
+
 				build.NextMip = file.Mips - 1;
 			}
 
@@ -470,6 +524,23 @@ internal sealed class TextureStreamer
 			texture.Swapped();
 			builds.RemoveAt( i-- );
 		}
+	}
+
+	const int OutOfDeviceMemory = -2;
+
+	/// <summary>Builds whose image couldn't be made because video memory was full, so far.</summary>
+	public int OutOfMemoryBuilds { get; private set; }
+
+	uint growAfter;
+
+	// A build's image didn't fit video memory: measure again at once and start no growth for a window of frames, so what's
+	// resident gives mips back (GiveBack) instead of more being asked for
+	void OutOfMemory( int top )
+	{
+		OutOfMemoryBuilds++;
+		memoryFrame = 0;
+		growAfter = Frame + (uint)Math.Max( WindowFrames, 1 );
+		if ( OutOfMemoryBuilds == 1 ) Console.Error.WriteLine( $"Borealis.Gpu: streaming: video memory is full, so textures keep fewer mips (a build from mip {top} was dropped)" );
 	}
 
 	// A texture whose file couldn't give mips from top: not tried from there or finer again, said once
@@ -561,6 +632,12 @@ internal sealed class TextureStreamer
 	void Start()
 	{
 		candidates.Clear();
+		if ( Frame < growAfter )
+		{
+			Waiting = builds.Count;
+			return;
+		}
+
 		foreach ( var texture in textures )
 		{
 			if ( texture.Building is null && texture.Reachable < texture.ResidentTop ) candidates.Add( texture );
