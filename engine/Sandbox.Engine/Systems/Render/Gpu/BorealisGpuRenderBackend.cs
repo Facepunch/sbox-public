@@ -356,7 +356,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		services.Surfaces.Info = message => Log.Info( message );
 		services.Warn = message => Log.Warning( message );
 		drawer = new ShaderDrawer( services );
-		context = new GraphicsContext( gpu, drawer, null );
+		context = new GraphicsContext( gpu, drawer, null ) { Warn = message => Log.Warning( message ) };
 
 		// The frame's pipeline textures (ambient occlusion's and reflections' results) by bindless index, 0 for none: what
 		// Source 2's scene system keeps per frame (PipelineTextureSlot)

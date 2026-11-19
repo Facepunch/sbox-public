@@ -84,6 +84,35 @@ public class GraphicsContextTests : GpuTest
 	}
 
 	/// <summary>
+	/// A draw with no target bound (a camera's command list at <c>AfterDepthPrepass</c>, which Borealis gives none: GAMMA's
+	/// mirror glass) is skipped and said once, rather than throwing every frame; the list draws on once a target is bound.
+	/// </summary>
+	[TestMethod]
+	public void ADrawWithNoTargetIsSkipped()
+	{
+		var list = Device.BeginCommandList( QueueType.Graphics, "No target" );
+		var warnings = new List<string>();
+		var context = new GraphicsContext( Device, drawer, list ) { Warn = warnings.Add };
+		var main = context.CreateTarget( Size, Size, Format.RGBA8Unorm, name: "Main" );
+		var layer = context.CreateTarget( 16, 16, Format.RGBA8Unorm, name: "Layer" );
+		context.SetTarget( layer );
+		context.Clear( new Vector4( 0.25f, 0.5f, 0.75f, 1 ) );
+		context.Begin( list );
+
+		var shader = library.Load( "shaders/ui_filter.shader" );
+		Assert.IsFalse( context.DrawQuad( shader, Composite( layer, 16, 8 ), new Vector4( 16, 8, 16, 16 ), 0xFFFFFFFF ), "skipped with no target" );
+		Assert.IsFalse( context.DrawQuad( shader, Composite( layer, 16, 8 ), new Vector4( 16, 8, 16, 16 ), 0xFFFFFFFF ), "again" );
+		Assert.AreEqual( 1, warnings.Count, "said once" );
+
+		context.SetTarget( main );
+		context.Clear( new Vector4( 0, 0, 0, 1 ) );
+		Assert.IsTrue( context.DrawQuad( shader, Composite( layer, 16, 8 ), new Vector4( 16, 8, 16, 16 ), 0xFFFFFFFF ), "drawn with one" );
+		var pixels = Finish( context, main );
+		Near( (64, 128, 191, 255), Pixel( pixels, Size, 20, 12 ), "inside the quad" );
+		context.Release();
+	}
+
+	/// <summary>
 	/// A model's draw call drawn from vertex and index buffers, as <c>Graphics.DrawModelInstanced</c> draws one: its indices
 	/// start part way into the index buffer and its vertices part way into the vertex buffer, whose first quad (elsewhere)
 	/// stays undrawn.
