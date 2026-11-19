@@ -10,7 +10,7 @@ public partial class Material
 	/// <summary>
 	/// Get thje first texture assigned to this material, if any.
 	/// </summary>
-	public Texture FirstTexture => Texture.FromNative( native.GetFirstTextureAttribute() );
+	public Texture FirstTexture => Texture.FromNativeFile( native.GetFirstTextureAttribute() );
 
 	// Made from an anonymous shader, which can't be loaded by the name the material has for it
 	internal Shader anonymousShader;
