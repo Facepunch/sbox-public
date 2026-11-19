@@ -18,7 +18,7 @@ public class SceneMirrorLightingTests
 		return (mirror, (Borealis.RenderWorld)MirrorType.GetProperty( "World" ).GetValue( mirror ));
 	}
 
-	static void Sync( IDisposable mirror, SceneCamera camera ) => MirrorType.GetMethod( "Sync" ).Invoke( mirror, [camera, false] );
+	static void Sync( IDisposable mirror, SceneCamera camera ) => MirrorType.GetMethod( "Prepare" ).Invoke( mirror, [camera, false] );
 
 	/// <summary>
 	/// A world with several directional lights has one sun, the last enabled one added, as native's binner keeps the last

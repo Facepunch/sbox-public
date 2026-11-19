@@ -30,7 +30,7 @@ public class SceneMirrorDirectTests
 			var box = new SceneObject( world, Model.Load( "models/dev/box.vmdl" ) );
 			var animated = new SceneModel( world, Model.Load( "models/dev/box.vmdl" ), Transform.Zero );
 
-			var sync = MirrorType.GetMethod( "Sync", Any );
+			var sync = MirrorType.GetMethod( "Prepare", Any );
 			var find = MirrorType.GetMethod( "Find", Any );
 			var pending = MirrorType.GetProperty( "PendingChanges", Any );
 			sync.Invoke( mirror, [camera, false] );
@@ -75,8 +75,8 @@ public class SceneMirrorDirectTests
 	}
 
 	/// <summary>
-	/// The kinds that make and write their own render object (SceneObject.OwnsRenderObject) write a change into it themselves:
-	/// with nothing listening to the world, it still arrives.
+	/// The kinds that make and write their own render object (SceneObject.OwnsRenderObject) write a change into it themselves,
+	/// with nothing waiting for the world's next frame.
 	/// </summary>
 	[TestMethod]
 	public void ObjectsWriteTheirOwnRenderObjects()
@@ -95,15 +95,14 @@ public class SceneMirrorDirectTests
 			var custom = new SceneCustomObject( world );
 			var dynamic = new SceneDynamicObject( world );
 			var box = new SceneObject( world, Model.Load( "models/dev/box.vmdl" ) );
-			MirrorType.GetMethod( "Sync", Any ).Invoke( mirror, [camera, false] );
+			MirrorType.GetMethod( "Prepare", Any ).Invoke( mirror, [camera, false] );
 			Assert.IsInstanceOfType<Borealis.LightObject>( light.RenderObject );
 			Assert.AreEqual( Borealis.LightObject.LightKind.Spot, ((Borealis.LightObject)spot.RenderObject).Kind );
 			var find = MirrorType.GetMethod( "Find", Any );
 			Assert.IsInstanceOfType<Borealis.DecalObject>( decal.RenderObject );
 			Assert.AreSame( decal.RenderObject, find.Invoke( mirror, [decal] ), "the decal's own" );
 
-			var listener = world.ChangeListener;
-			world.ChangeListener = null;
+			var pending = MirrorType.GetProperty( "PendingChanges", Any );
 			decal.SortOrder = 7;
 			decal.Position = new Vector3( 1, 2, 3 );
 			light.LightColor = Color.Red;
@@ -115,7 +114,7 @@ public class SceneMirrorDirectTests
 			dynamic.RenderingEnabled = false;
 			box.ColorTint = Color.Blue;
 			box.Position = new Vector3( 7, 8, 9 );
-			world.ChangeListener = listener;
+			Assert.AreEqual( 0, (int)pending.GetValue( mirror ), "nothing waits" );
 
 			var lightObject = (Borealis.LightObject)light.RenderObject;
 			Assert.AreEqual( Color.Red, lightObject.Color );
@@ -162,7 +161,7 @@ public class SceneMirrorDirectTests
 			human.CurrentSequence.Looping = true;
 			Assert.IsTrue( human.animNative.HasInstance );
 
-			var sync = MirrorType.GetMethod( "Sync", Any );
+			var sync = MirrorType.GetMethod( "Prepare", Any );
 			var pending = MirrorType.GetProperty( "PendingChanges", Any );
 			sync.Invoke( mirror, [camera, false] );
 			var mesh = (Borealis.MeshObject)human.RenderObject;
@@ -212,7 +211,7 @@ public class SceneMirrorDirectTests
 			var sun = new SceneDirectionalLight( world, Rotation.From( 45, 0, 0 ), Color.Red );
 			var probe = new SceneLightProbe( world, texture, null, null, new BBox( new Vector3( -100 ), new Vector3( 100 ) ), Transform.Zero, 0, 0 );
 
-			var sync = MirrorType.GetMethod( "Sync", Any );
+			var sync = MirrorType.GetMethod( "Prepare", Any );
 			var pending = MirrorType.GetProperty( "PendingChanges", Any );
 			var renderWorld = (Borealis.RenderWorld)MirrorType.GetProperty( "World" ).GetValue( mirror );
 			sync.Invoke( mirror, [camera, false] );

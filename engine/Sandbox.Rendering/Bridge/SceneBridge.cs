@@ -359,7 +359,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 
 		var syncStart = System.Diagnostics.Stopwatch.GetTimestamp();
 		var mirror = MirrorFor( camera.World );
-		if ( parent is null || !mirror.HasSynced ) mirror.Sync( camera );
+		if ( parent is null || !mirror.HasPrepared ) mirror.Prepare( camera );
 		SyncSkybox( mirror, camera, setup );
 
 		var state = given ?? StateFor( camera, setup.ViewHash );
@@ -520,7 +520,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		extra.LastFrame = Application.FrameCount;
 
 		// A child view's extra worlds were synced by its parent, or another view this frame
-		if ( rendering is null || !extra.Mirror.HasSynced ) extra.Mirror.SyncObjects( camera );
+		if ( rendering is null || !extra.Mirror.HasPrepared ) extra.Mirror.PrepareFrame();
 		drawn.Add( extra.Mirror );
 		return SubWorldBit( extra.SubWorld );
 	}
@@ -541,7 +541,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		}
 
 		var skyMirror = MirrorFor( source.SkyboxWorld );
-		if ( rendering is null || !skyMirror.HasSynced ) skyMirror.Sync( camera, skyboxView: true );
+		if ( rendering is null || !skyMirror.HasPrepared ) skyMirror.Prepare( camera, skyboxView: true );
 
 		var skybox = mirror.World.Skybox3D;
 		if ( skybox?.World != skyMirror.World ) skybox = mirror.World.Skybox3D = new Borealis.Skybox3D( skyMirror.World );

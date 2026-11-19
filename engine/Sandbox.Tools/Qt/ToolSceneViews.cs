@@ -339,7 +339,7 @@ internal static class ToolSceneViews
 	/// </summary>
 	static void Poll( SceneWorld world )
 	{
-		if ( world.ChangeListener is null ) return;
+		if ( world.Render is null ) return;
 
 		var change = SceneObjectChange.Transform | SceneObjectChange.Bones | SceneObjectChange.Visibility | SceneObjectChange.Tint
 			| SceneObjectChange.Settings | SceneObjectChange.Bounds;

@@ -366,7 +366,7 @@ internal sealed partial class SceneMirror
 			var (path, sceneObject, change) = textureWaits[i];
 			if ( !gpu.TextureRead( path ) ) continue;
 			textureWaits.RemoveAt( i );
-			if ( sceneObject.IsValid() ) OnChanged( sceneObject, change );
+			if ( sceneObject.IsValid() ) Later( sceneObject, change );
 		}
 
 		if ( loading.Count == 0 ) return;
@@ -385,7 +385,7 @@ internal sealed partial class SceneMirror
 			foreach ( var sceneObject in waiters )
 			{
 				if ( !sceneObject.IsValid() || !Added( sceneObject, out var obj ) ) continue;
-				if ( obj is MeshObject { Mesh: null } ) OnChanged( sceneObject, SceneObjectChange.Model );
+				if ( obj is MeshObject { Mesh: null } ) Later( sceneObject, SceneObjectChange.Model );
 				else if ( obj is null && (sceneObject is SceneAggregateObject || sceneObject.GetType() == typeof( SceneObject )) ) remake.Add( sceneObject );
 			}
 		}
@@ -393,7 +393,7 @@ internal sealed partial class SceneMirror
 		foreach ( var sceneObject in remake )
 		{
 			Remove( sceneObject );
-			OnChanged( sceneObject, SceneObjectChange.Added );
+			Made( sceneObject );
 		}
 
 		remake.Clear();
@@ -443,7 +443,7 @@ internal sealed partial class SceneMirror
 			switch ( Find( sceneObject ) )
 			{
 				case MeshObject mesh when mesh.Mesh is { } drawn ? staleMeshes.Contains( drawn ) : staleFailed.Count > 0 && sceneObject.IsValid() && staleFailed.Contains( sceneObject.Model ):
-					OnChanged( sceneObject, SceneObjectChange.Model );
+					Later( sceneObject, SceneObjectChange.Model );
 					break;
 
 				// An aggregate's mesh is fixed when it's made: make it again
@@ -458,7 +458,7 @@ internal sealed partial class SceneMirror
 		foreach ( var sceneObject in remake )
 		{
 			Remove( sceneObject );
-			OnChanged( sceneObject, SceneObjectChange.Added );
+			Made( sceneObject );
 		}
 
 		stale.Clear();

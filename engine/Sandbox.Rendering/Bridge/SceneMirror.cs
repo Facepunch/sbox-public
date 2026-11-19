@@ -9,7 +9,7 @@ namespace Sandbox.Rendering.Bridge;
 /// Queues object changes from any thread and applies changed fields before rendering.
 /// Object attributes are read when a view draws the object, as their values change in place without notifications.
 /// </summary>
-internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRender, IAttributeSource, IDisposable
+internal sealed partial class SceneMirror : ISceneWorldRender, IAttributeSource, IDisposable
 {
 	readonly SceneWorld source;
 
@@ -49,26 +49,29 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	// Objects with attributes, read when a view draws them (Refresh).
 	readonly Dictionary<MeshObject, RenderAttributes> attributed = new();
 
-	// Changes as they're reported, from any thread, and the batch being applied
+	// What waits for the next frame's preparation (PrepareFrame), from any thread: objects made since (written whole once their
+	// constructors are done), those gone on another thread or during a render, and changes that couldn't be written as they
+	// were made (on another thread, or during a render of the world)
 	readonly object gate = new();
-	Dictionary<SceneObject, SceneObjectChange> pending = new();
-	Dictionary<SceneObject, SceneObjectChange> applying = new();
+	List<SceneObject> made = new(), making = new();
+	List<SceneObject> gone = new(), going = new();
+	Dictionary<SceneObject, SceneObjectChange> later = new(), writing = new();
 
-	/// <summary>Changes reported since the last <see cref="Sync"/>: a scene that just loaded has thousands.</summary>
+	/// <summary>Objects made and changes waiting for the next frame: a scene that just loaded has thousands.</summary>
 	public int PendingChanges
 	{
 		get
 		{
-			lock ( gate ) return pending.Count;
+			lock ( gate ) return made.Count + later.Count;
 		}
 	}
 
 	bool sunDirty = true;
 
-	const SceneObjectChange Everything = (SceneObjectChange)~0 & ~SceneObjectChange.Removed & ~SceneObjectChange.Deleted;
+	const SceneObjectChange Everything = (SceneObjectChange)~0;
 
 	/// <summary>
-	/// Start mirroring a world: take over its change listener, and queue everything already in it.
+	/// Draw a world: be its renderer (<see cref="SceneWorld.Render"/>), and make everything already in it.
 	/// </summary>
 	public SceneMirror( SceneWorld source )
 	{
@@ -76,26 +79,54 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 
 		lock ( source.InternalSceneObjects )
 		{
-			source.ChangeListener = this;
 			source.Render = this;
-			foreach ( var sceneObject in source.InternalSceneObjects )
-				pending[sceneObject] = SceneObjectChange.Added;
+			lock ( gate ) made.AddRange( source.InternalSceneObjects );
 		}
 	}
 
 	/// <summary>
-	/// A change, from any thread, queued for the next sync: one to an object that writes its own render object
-	/// (<see cref="SceneObject.OwnsRenderObject"/>) only when it couldn't write it itself (made on another thread or during a
-	/// render, or one that waits for the sync: coming and going, a model, materials or attributes).
+	/// An object was made in the world: its render object is made, and written whole, when the next frame is prepared, once
+	/// its constructor is done.
 	/// </summary>
-	public void OnChanged( SceneObject sceneObject, SceneObjectChange change )
+	public void Made( SceneObject sceneObject )
 	{
-		lock ( gate )
+		lock ( gate ) made.Add( sceneObject );
+	}
+
+	/// <summary>
+	/// A change that couldn't be written as it was made (on another thread, or during a render of the world): written when the
+	/// next frame is prepared.
+	/// </summary>
+	public void Later( SceneObject sceneObject, SceneObjectChange change )
+	{
+		lock ( gate ) later[sceneObject] = later.GetValueOrDefault( sceneObject ) | change;
+	}
+
+	/// <summary>
+	/// An object was deleted (<see cref="SceneObject.Delete"/>): it goes from the world now, on the main thread outside a render
+	/// of it. A light stays to the end of the frame, as native lights with a deleted light until its frame ends.
+	/// </summary>
+	public void Deleted( SceneObject sceneObject )
+	{
+		var frame = Application.FrameCount;
+		lock ( gate ) deletedFrames[sceneObject] = frame;
+		Gone( sceneObject, frame );
+	}
+
+	/// <summary>
+	/// An object's native side was destroyed: it goes from the world, if it hasn't already.
+	/// </summary>
+	public void Destroyed( SceneObject sceneObject ) => Gone( sceneObject, Application.FrameCount );
+
+	void Gone( SceneObject sceneObject, ulong frame )
+	{
+		if ( !ThreadSafe.IsMainThread || World.InRender )
 		{
-			// Native lights with a deleted light until its frame ends: the frame it was deleted in decides how long it's kept
-			if ( (change & SceneObjectChange.Deleted) != 0 ) deletedFrames[sceneObject] = Application.FrameCount;
-			pending[sceneObject] = pending.GetValueOrDefault( sceneObject ) | change;
+			lock ( gate ) gone.Add( sceneObject );
+			return;
 		}
+
+		Take( sceneObject, frame );
 	}
 
 	// The frame each object was deleted in, until it's removed, and those kept for the rest of it
@@ -103,13 +134,12 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	readonly List<SceneObject> lingering = new();
 
 	/// <summary>
-	/// Stop listening. The world keeps its last state, but isn't drawn in another's any more, nor another in it.
+	/// Stop drawing the world. It isn't drawn in another's any more, nor another in it, and lets go of what it held.
 	/// </summary>
 	public void Dispose()
 	{
 		lock ( source.InternalSceneObjects )
 		{
-			if ( source.ChangeListener == this ) source.ChangeListener = null;
 			if ( source.Render == this ) source.Render = null;
 		}
 
@@ -152,35 +182,33 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	}
 
 	/// <summary>
-	/// Whether the world has been synced at least once: a child view syncs only a mirror nothing's drawn yet.
+	/// Whether the world's frame has been prepared at least once: a child view prepares only a world nothing's drawn yet.
 	/// </summary>
-	public bool HasSynced { get; private set; }
+	public bool HasPrepared { get; private set; }
 
-	/// <summary>Whether <see cref="Sync"/> defers what applying changes writes into one list (on). For comparisons.</summary>
+	/// <summary>Whether <see cref="PrepareFrame"/> defers what writing objects uploads into one list (on). For comparisons.</summary>
 	internal static bool DeferApplyUploads { get; set; } = true;
 
 	/// <summary>
-	/// Apply what changed since the last sync, for a camera about to render the world.
+	/// Get the world ready for a camera to render it, with its lighting: <see cref="PrepareFrame"/>, then <see cref="LightView"/>.
 	/// </summary>
-	public void Sync( SceneCamera camera, bool skyboxView = false ) => SyncWith( camera, skyboxView, lighting: true );
-
-	/// <summary>
-	/// Apply what changed to the world's objects since the last sync, for a camera drawing it as an extra world: its lighting
-	/// isn't used, the main world's lights it.
-	/// </summary>
-	public void SyncObjects( SceneCamera camera ) => SyncWith( camera, false, lighting: false );
-
-	void SyncWith( SceneCamera camera, bool skyboxView, bool lighting )
+	public void Prepare( SceneCamera camera, bool skyboxView = false )
 	{
-		using var zone = Borealis.Zones.MirrorSync.Start();
-		HasSynced = true;
-		SyncChanges( camera, skyboxView, lighting );
+		PrepareFrame();
+		using ( Borealis.Zones.MirrorLighting.Start() ) LightView( camera, skyboxView );
 	}
 
-	void SyncChanges( SceneCamera camera, bool skyboxView, bool lighting )
+	/// <summary>
+	/// Get the world's objects ready to render: make what was made since the last frame, take out what went on another thread
+	/// or during a render, write what waited, models and textures that finished loading or reloaded, and maps. Its lighting is
+	/// a view's (<see cref="LightView"/>): a world drawn in another's is lit by that one's.
+	/// </summary>
+	public void PrepareFrame()
 	{
+		using var zone = Borealis.Zones.MirrorSync.Start();
+		HasPrepared = true;
 
-		// A reload queues the objects drawing what it changed, and so does a model finishing loading
+		// A reload writes the objects drawing what it changed again, and so does a model finishing loading
 		using ( Borealis.Zones.MirrorLoaded.Start() )
 		{
 			CheckReloads();
@@ -190,7 +218,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 
 		lock ( gate )
 		{
-			(pending, applying) = (applying, pending);
+			(made, making) = (making, made);
+			(gone, going) = (going, gone);
+			(later, writing) = (writing, later);
 		}
 
 		// Deleted in an earlier frame: native has stopped drawing them
@@ -202,64 +232,60 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			lingering.RemoveAt( i );
 		}
 
-		// What applying the changes writes to the device (models, textures, new capture cubes' clears) goes in one list with
-		// the frame's next submission, not a submission each
+		// What writing objects uploads to the device (models, textures, new capture cubes' clears) goes in one list with the
+		// frame's next submission, not a submission each
 		using ( Borealis.Zones.MirrorApply.Start() )
 		using ( MirrorContent.Gpu is { } gpu && DeferApplyUploads ? gpu.Gpu.DeferUploads() : default )
 		{
-			foreach ( var (sceneObject, change) in applying )
-				Apply( sceneObject, change, frame );
+			foreach ( var sceneObject in going ) Take( sceneObject, frame );
+			going.Clear();
+
+			// An object not made yet is written whole below
+			foreach ( var (sceneObject, change) in writing ) Rewrite( sceneObject, change );
+			writing.Clear();
+
+			// One deleted before it was made never is
+			foreach ( var sceneObject in making )
+			{
+				if ( sceneObject.IsValid() && !Added( sceneObject, out _ ) ) ApplyTo( sceneObject, Add( sceneObject ), Everything );
+			}
+
+			making.Clear();
 
 			SyncMaps();
 		}
 
-		applying.Clear();
-
 		SweepCaches( frame );
-
-		// An extra world's objects are lit by the main world's sun, sky, probe volumes and fog, as native lights the view
-		if ( lighting )
-		{
-			using ( Borealis.Zones.MirrorLighting.Start() )
-				SyncLighting( camera, skyboxView );
-		}
 	}
 
 	/// <summary>
-	/// Whether an object was deleted (<see cref="SceneObjectChange.Deleted"/>) in this frame, which native still draws it in.
+	/// Whether an object was deleted in this frame, which native still draws it in.
 	/// </summary>
 	bool DeletedThisFrame( SceneObject sceneObject, ulong frame )
 	{
 		lock ( gate ) return deletedFrames.TryGetValue( sceneObject, out var deleted ) && deleted == frame;
 	}
 
-	void Apply( SceneObject sceneObject, SceneObjectChange change, ulong frame )
+	/// <summary>
+	/// Take an object out of the world. A light deleted this frame stays to its end: native lights with it until the frame
+	/// ends, so the frames rendered meanwhile keep it too - even when something native finished rendering views and destroyed
+	/// it already (a bitmap render does). A deleted mesh native stops drawing at once.
+	/// </summary>
+	void Take( SceneObject sceneObject, ulong frame )
 	{
-		if ( (change & (SceneObjectChange.Removed | SceneObjectChange.Deleted)) != 0 )
+		if ( sceneObject is SceneLight && DeletedThisFrame( sceneObject, frame ) )
 		{
-			// A light deleted this frame: native lights with it until the frame ends, so the frames rendered meanwhile keep it
-			// too - even when something native finished rendering views and destroyed it already (a bitmap render does), which
-			// is when Removed comes. A deleted mesh native stops drawing at once
-			if ( sceneObject is SceneLight && DeletedThisFrame( sceneObject, frame ) )
-			{
-				if ( !lingering.Contains( sceneObject ) ) lingering.Add( sceneObject );
-				return;
-			}
-
-			Remove( sceneObject );
+			if ( !lingering.Contains( sceneObject ) ) lingering.Add( sceneObject );
 			return;
 		}
 
-		// Native deletion can precede queued change processing.
-		if ( !sceneObject.IsValid() ) return;
+		Remove( sceneObject );
+	}
 
-		if ( !Added( sceneObject, out var obj ) )
-		{
-			obj = Add( sceneObject );
-			change = Everything;
-		}
-
-		ApplyTo( sceneObject, obj, change );
+	/// <summary>Write a change again from here (a texture or model it waited for is read, or it waited), if it's drawn.</summary>
+	void Rewrite( SceneObject sceneObject, SceneObjectChange change )
+	{
+		if ( sceneObject.IsValid() && Added( sceneObject, out var obj ) ) ApplyTo( sceneObject, obj, change );
 	}
 
 	/// <summary>A change to an object already mirrored (<paramref name="obj"/> null for one that isn't drawn as an object).</summary>
@@ -301,7 +327,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 		capturesSeen = MirrorContent.CaptureCubesMade;
 		foreach ( var (cubemap, texture) in uncaptured )
 		{
-			if ( MirrorContent.MadeCaptureCube( texture ) is not null ) OnChanged( cubemap, SceneObjectChange.Settings );
+			if ( MirrorContent.MadeCaptureCube( texture ) is not null ) Later( cubemap, SceneObjectChange.Settings );
 		}
 	}
 
@@ -419,7 +445,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			return null;
 		}
 
-		// Suns and skies light the world (SyncLighting); a kind that owns no render object isn't drawn
+		// Suns and skies light the world (LightView); a kind that owns no render object isn't drawn
 		var obj = sceneObject.OwnsRenderObject ? sceneObject.MakeRenderObject( this ) : null;
 
 		added++;
@@ -613,7 +639,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			aggregate.OcclusionCulling = !flags.HasFlag( SceneObjectFlags.NoOcclusionCulling );
 		}
 
-		if ( (change & SceneObjectChange.Added) != 0 && aggregate.Lightmapped )
+		if ( aggregate.Lightmapped && aggregate.LightmapAttributes is null )
 		{
 			aggregate.LightmapAttributes = LightmapFor( sceneObject, SceneNative.AggregateModel( sceneObject, out _ ) );
 		}
@@ -777,7 +803,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	/// The sun is the last enabled one added, as native's binner keeps the last directional light it meets in its light list
 	/// (<c>CLightBinnerStandard::GatherVisibleLights</c>). Native lights with no other; here the rest light too, as extra suns.
 	/// </summary>
-	void SyncLighting( SceneCamera camera, bool skyboxView )
+	void LightView( SceneCamera camera, bool skyboxView )
 	{
 		var lighting = World.Lighting;
 

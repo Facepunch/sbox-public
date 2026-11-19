@@ -163,7 +163,7 @@ public class SceneSkyTests
 			var mirrorType = System.Type.GetType( "Sandbox.Rendering.Bridge.SceneMirror, Sandbox.Rendering", true );
 			using var mirror = (IDisposable)Activator.CreateInstance( mirrorType, [world] );
 			var renderWorld = (Borealis.RenderWorld)mirrorType.GetProperty( "World" ).GetValue( mirror );
-			var sync = mirrorType.GetMethod( "Sync" );
+			var sync = mirrorType.GetMethod( "Prepare" );
 
 			sync.Invoke( mirror, [camera, false] );
 			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SkyTint );

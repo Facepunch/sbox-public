@@ -22,14 +22,8 @@ public sealed partial class SceneWorld : IHandle
 	internal HashSet<SceneLight> InternalSceneLights { get; } = new();
 
 	/// <summary>
-	/// Told about every change to this world's scene objects - Borealis's mirror of it, in a process drawing on
-	/// Borealis.Gpu (<c>-borealisgpu</c>). Null otherwise.
-	/// </summary>
-	internal Rendering.ISceneObjectListener ChangeListener { get; set; }
-
-	/// <summary>
-	/// What this world draws as on Borealis, for the objects that write their own render objects
-	/// (<see cref="SceneObject.OwnsRenderObject"/>), in a process drawing on Borealis.Gpu. Null otherwise.
+	/// What this world draws as on Borealis, once a camera has drawn it: its objects make and write their own render objects
+	/// (<see cref="SceneObject.OwnsRenderObject"/>) and its lighting there. Null before, and in a process without Borealis.
 	/// </summary>
 	internal Rendering.ISceneWorldRender Render { get; set; }
 

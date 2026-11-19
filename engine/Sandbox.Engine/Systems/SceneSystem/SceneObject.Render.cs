@@ -133,29 +133,21 @@ public partial class SceneObject
 	}
 
 	/// <summary>
-	/// What waits for its world's renderer even for an object that writes its own render object: coming and going.
-	/// </summary>
-	const Rendering.SceneObjectChange RendererChanges = Rendering.SceneObjectChange.Added | Rendering.SceneObjectChange.Removed
-		| Rendering.SceneObjectChange.Deleted;
-
-	/// <summary>
 	/// Write a change straight into its own render object if it can: one that owns it, made already, on the main thread, outside
-	/// a render of a world holding it. Otherwise its world's renderer takes the change, and writes it before the next render.
+	/// a render of a world holding it. Otherwise its world's renderer writes it when it next prepares a frame.
 	/// </summary>
-	bool WroteRender( Rendering.SceneObjectChange change )
+	bool WroteRender( Rendering.SceneObjectChange change, Rendering.ISceneWorldRender render )
 	{
-		if ( (change & RendererChanges) != 0 ) return false;
-
 		if ( LightsWorld )
 		{
-			if ( World?.Render is not { } lit || lit.World.InRender || !ThreadSafe.IsMainThread ) return false;
+			if ( render.World.InRender || !ThreadSafe.IsMainThread ) return false;
 
-			using ( Borealis.Zones.ObjectWrite.Start() ) lit.WriteLighting( this, change );
+			using ( Borealis.Zones.ObjectWrite.Start() ) render.WriteLighting( this, change );
 			return true;
 		}
 
 		if ( !OwnsRenderObject || RenderObject is not { World: not null } obj ) return false;
-		if ( World?.Render is not { } render || obj.InRender || !ThreadSafe.IsMainThread ) return false;
+		if ( obj.InRender || !ThreadSafe.IsMainThread ) return false;
 
 		using ( Borealis.Zones.ObjectWrite.Start() ) WriteRender( obj, change, render );
 		return true;
