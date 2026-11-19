@@ -53,17 +53,22 @@ public partial struct MeshTraceRequest
 				_currentfilterCallback = filterCallback;
 			}
 
+			Result? hit = null;
 			try
 			{
 				if ( targetWorld.native.MeshTrace( r, ref result ) )
 				{
-					return Result.From( this, result );
+					hit = Result.From( this, result );
 				}
 			}
 			finally
 			{
 				_currentfilterCallback = default;
 			}
+
+			// Maps read by Borealis.Source2 have no native objects to trace: their own meshes, if nearer
+			if ( TraceMaps( r, hit?.Fraction ?? float.MaxValue ) is { } mapHit ) hit = mapHit;
+			if ( hit is { } found ) return found;
 		}
 
 		if ( targetModel != null )
@@ -99,18 +104,19 @@ public partial struct MeshTraceRequest
 			try
 			{
 
+				var output = new List<Result>();
 				if ( targetWorld.native.MeshTraceAll( r, results ) )
 				{
 					var hitCount = results.Count();
-					var output = new Result[hitCount];
-
 					for ( int i = 0; i < hitCount; i++ )
 					{
-						output[i] = Result.From( this, results.Element( i ) );
+						output.Add( Result.From( this, results.Element( i ) ) );
 					}
-
-					return output;
 				}
+
+				// Maps read by Borealis.Source2 have no native objects to trace: their own meshes
+				TraceMapsAll( r, output );
+				if ( output.Count > 0 ) return output.ToArray();
 			}
 			finally
 			{
@@ -128,6 +134,99 @@ public partial struct MeshTraceRequest
 		}
 
 		return [];
+	}
+
+	/// <summary>The target world's maps read by Borealis.Source2 (<see cref="SceneMap.Geometry"/>) and the device that read them.</summary>
+	readonly (List<MapGeometry> Maps, Borealis.Backend.BackendDevice Gpu) MapsToTrace()
+	{
+		if ( targetWorld is null || RenderBackend.Default is not BorealisGpuRenderBackend gpu ) return (null, null);
+
+		List<MapGeometry> maps = null;
+		lock ( targetWorld.InternalSceneMaps )
+		{
+			foreach ( var map in targetWorld.InternalSceneMaps )
+			{
+				if ( map.Geometry is { } geometry ) (maps ??= new()).Add( geometry );
+			}
+		}
+
+		return (maps, gpu.Services);
+	}
+
+	/// <summary>
+	/// Whether a map's world objects pass the request's tags: native's world node tags them <c>world</c>, <c>map</c> and
+	/// <c>solid</c> (<c>CWorldNode::ApplyTags</c>). There's no scene object for a filter to look at.
+	/// </summary>
+	static unsafe bool MapPassesTags( MeshTraceInput r )
+	{
+		var tags = MapGeometry.WorldTags;
+		if ( r.tagRequire[0] != 0 )
+		{
+			for ( int i = 0; i < 8 && r.tagRequire[i] != 0; i++ )
+			{
+				if ( Array.IndexOf( tags, r.tagRequire[i] ) < 0 ) return false;
+			}
+		}
+
+		if ( r.tagAny[0] != 0 )
+		{
+			var any = false;
+			for ( int i = 0; i < 8 && r.tagAny[i] != 0; i++ ) any |= Array.IndexOf( tags, r.tagAny[i] ) >= 0;
+			if ( !any ) return false;
+		}
+
+		for ( int i = 0; i < 8 && r.tagExclude[i] != 0; i++ )
+		{
+			if ( Array.IndexOf( tags, r.tagExclude[i] ) >= 0 ) return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>The nearest hit on the target world's maps nearer than <paramref name="fraction"/>, or null.</summary>
+	readonly Result? TraceMaps( in MeshTraceInput r, float fraction )
+	{
+		var (maps, gpu) = MapsToTrace();
+		if ( maps is null || !MapPassesTags( r ) ) return null;
+
+		var best = new MapTrace.Hit { Fraction = fraction };
+		var found = false;
+		foreach ( var map in maps ) found |= map.Trace( gpu ).Trace( r.start, r.end, r.cullMode, ref best );
+		return found ? FromMap( r, best ) : null;
+	}
+
+	/// <summary>Every hit on the target world's maps.</summary>
+	readonly void TraceMapsAll( in MeshTraceInput r, List<Result> into )
+	{
+		var (maps, gpu) = MapsToTrace();
+		if ( maps is null || !MapPassesTags( r ) ) return;
+
+		var hits = new List<MapTrace.Hit>();
+		foreach ( var map in maps ) map.Trace( gpu ).TraceAll( r.start, r.end, r.cullMode, hits );
+		foreach ( var hit in hits ) into.Add( FromMap( r, hit ) );
+	}
+
+	static Result FromMap( in MeshTraceInput r, in MapTrace.Hit hit )
+	{
+		var length = r.start.Distance( r.end );
+		return new Result
+		{
+			Hit = true,
+			Distance = hit.Fraction * length,
+			Fraction = hit.Fraction,
+			StartPosition = r.start,
+			EndPosition = hit.Position,
+			HitPosition = hit.Position,
+			Normal = hit.Normal,
+			Material = string.IsNullOrEmpty( hit.Material ) ? null : Material.Load( hit.Material ),
+			Transform = hit.Transform,
+			HitTriangle = hit.Triangle,
+			HitTriangleUv = hit.Uv,
+			VertexInfluence = new Vector3( hit.Uv.x, hit.Uv.y, 1 - hit.Uv.x - hit.Uv.y ),
+			Vertex0 = new Result.VertexDetail { Position = hit.V0 },
+			Vertex1 = new Result.VertexDetail { Position = hit.V1 },
+			Vertex2 = new Result.VertexDetail { Position = hit.V2 },
+		};
 	}
 
 	/// <summary>

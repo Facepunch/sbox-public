@@ -203,6 +203,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	public void Dispose()
 	{
 		Listeners.Remove( source, this );
+		DisposeMaps();
 		lock ( lightmapFolders )
 		{
 			if ( MirrorContent.Gpu is { } gpu )
@@ -306,6 +307,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		{
 			foreach ( var (sceneObject, change) in applying )
 				Apply( sceneObject, change, frame );
+
+			SyncMaps();
 		}
 
 		applying.Clear();

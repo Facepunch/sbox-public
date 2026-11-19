@@ -20,16 +20,45 @@ public abstract class MapLoader
 		public Vector3 WorldOrigin { get; init; }
 		public ITagSet Tags { get; init; }
 
-		private readonly Dictionary<uint, string> values = new();
+		private readonly Dictionary<uint, string> values;
 
-		internal ObjectEntry( CEntityKeyValues keyValues, Vector3 origin )
+		internal ObjectEntry( CEntityKeyValues keyValues, Vector3 origin ) : this( ValuesOf( keyValues ), origin )
 		{
+		}
+
+		/// <summary>
+		/// An entity read from the map's entity lump by Borealis.Source2, its values as the strings native's key values give
+		/// (<see cref="Borealis.Source2.World.MapEntity.Format"/>).
+		/// </summary>
+		internal ObjectEntry( Borealis.Source2.World.MapEntity entity, Vector3 origin ) : this( ValuesOf( entity ), origin )
+		{
+		}
+
+		static Dictionary<uint, string> ValuesOf( CEntityKeyValues keyValues )
+		{
+			var values = new Dictionary<uint, string>();
 			var keyCount = keyValues.GetKeyCount();
 			for ( int i = 0; i < keyCount; i++ )
 			{
 				var key = keyValues.GetKey( i );
 				values.Add( key, keyValues.GetValueString( key, null ) );
 			}
+
+			return values;
+		}
+
+		static Dictionary<uint, string> ValuesOf( Borealis.Source2.World.MapEntity entity )
+		{
+			var values = new Dictionary<uint, string>( entity.Count );
+			foreach ( var (key, value) in entity.Values )
+				values[key] = Borealis.Source2.World.MapEntity.Format( value );
+
+			return values;
+		}
+
+		ObjectEntry( Dictionary<uint, string> values, Vector3 origin )
+		{
+			this.values = values;
 
 			TypeName = GetValueString( "classname", null );
 			TargetName = GetValueString( "targetname", null );
@@ -114,6 +143,26 @@ public abstract class MapLoader
 			entries.Add( new ObjectEntry( kv, WorldOrigin ) );
 		}
 
+		CreateEntities( entries );
+	}
+
+	/// <summary>
+	/// Create the objects for a map's entities read from its entity lump by Borealis.Source2.
+	/// </summary>
+	internal void CreateEntities( IReadOnlyList<Borealis.Source2.World.MapEntity> entities )
+	{
+		if ( entities.Count == 0 )
+			return;
+
+		var entries = new List<ObjectEntry>( entities.Count );
+		foreach ( var entity in entities )
+			entries.Add( new ObjectEntry( entity, WorldOrigin ) );
+
+		CreateEntities( entries );
+	}
+
+	void CreateEntities( List<ObjectEntry> entries )
+	{
 		entries.Sort( ( a, b ) =>
 		{
 			if ( string.IsNullOrEmpty( a.ParentName ) && string.IsNullOrEmpty( b.ParentName ) ) return 0;
