@@ -162,9 +162,10 @@ public class SceneObjectDrawTests
 				Same( so, "a whole translucent override and a skin override" );
 			}
 
-			// What native's reload does to every object drawing the model, then the reload reaching managed code
+			// What native's reload does to every object drawing the model, then what Model.OnReloaded does for its scene objects
+			// (the reload itself isn't sent: it drops the shared model's physics and other cached data that later tests use)
 			foreach ( var so in objects ) NativeEngine.MeshSystem.ChangeModel( so, human.native );
-			Resource.OnResourceReloaded( human.ResourcePath, human.native.GetBindingPtr() );
+			SceneObject.ModelReloaded( human );
 
 			foreach ( var so in objects )
 			{
