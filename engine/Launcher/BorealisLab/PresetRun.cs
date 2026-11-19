@@ -79,6 +79,11 @@ internal static class PresetRun
 		Borealis.Shadows.SettledCasters.Reset();
 		Borealis.Shadows.SettledCasters.Seconds = float.PositiveInfinity;
 		Borealis.Shadows.SettledCasters.RestlessSeconds = float.PositiveInfinity;
+
+		// Lavapipe (Mesa 26.2.4) leaves casters out of a shadow map's multi-draw of the faded list (one vkCmdDrawIndexedIndirect
+		// of several draws, no colour target, a pixel stage that dithers) that the same commands draw issued one per call; no
+		// shader reads the draw index. The faded list draws the classic way there
+		if ( GoldenTruthRun.Device == "Lavapipe" ) device.GpuDrivenFaded = false;
 		if ( validation ) GoldenTruthRun.ValidationLayer();
 		backend.Phase( $"Borealis.Gpu device ({gpu.Adapter.Name})" );
 		var previousHost = RenderHost.Current;
