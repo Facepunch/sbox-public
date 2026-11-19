@@ -46,6 +46,37 @@ public class VpkFileTests
 		}
 	}
 
+	/// <summary>
+	/// Reads from many threads at once (a map's models, materials and textures read on workers) each get their own file's
+	/// bytes, without a lock between them; once the VPK is disposed, reads find nothing rather than opening it again.
+	/// </summary>
+	[TestMethod]
+	public void ManyThreadsReadAtOnceAndNothingAfterDispose()
+	{
+		var files = Enumerable.Range( 0, 64 ).Select( i => ($"models/m{i}.vmdl_c", Enumerable.Range( 0, 1000 + i * 37 ).Select( b => (byte)(b * 7 + i) ).ToArray(), i % 3) ).ToArray();
+		var path = Path.Combine( Path.GetTempPath(), $"borealis-vpk-test-{Guid.NewGuid():N}.vpk" );
+		try
+		{
+			File.WriteAllBytes( path, Write( files ) );
+			var vpk = VpkFile.Open( path );
+			var wrong = 0;
+			System.Threading.Tasks.Parallel.For( 0, files.Length * 40, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = 16 }, i =>
+			{
+				var (name, data, _) = files[i % files.Length];
+				var read = i % 2 == 0 ? vpk.Read( name ) : vpk.ReadPrefix( name, data.Length / 2 );
+				if ( read is null || !read.AsSpan().SequenceEqual( data.AsSpan( 0, read.Length ) ) || read.Length != (i % 2 == 0 ? data.Length : data.Length / 2) ) System.Threading.Interlocked.Increment( ref wrong );
+			} );
+			Assert.AreEqual( 0, wrong );
+
+			vpk.Dispose();
+			Assert.IsNull( vpk.Read( files[5].Item1 ) );
+		}
+		finally
+		{
+			File.Delete( path );
+		}
+	}
+
 	/// <summary>A version 2 VPK with every file's data after the tree (archive <c>0x7FFF</c>), less any preloaded bytes.</summary>
 	static byte[] Write( (string Path, byte[] Data, int Preload)[] files )
 	{
