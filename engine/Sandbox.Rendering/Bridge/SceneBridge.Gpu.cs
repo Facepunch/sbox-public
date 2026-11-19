@@ -21,6 +21,17 @@ internal sealed partial class SceneBridge
 
 	// What a camera's stages on Borealis.Gpu ask of their frame; stages run one camera at a time, so one does
 	BorealisGpuView gpuView;
+
+	// A target per output texture (a window's swap chain images, a scene panel's texture), made once, going with the texture
+	readonly System.Runtime.CompilerServices.ConditionalWeakTable<Texture, RenderTarget> outputTargets = new();
+
+	RenderTarget OutputTarget( Texture texture )
+	{
+		if ( outputTargets.TryGetValue( texture, out var known ) ) return known;
+		var made = RenderTarget.From( texture );
+		outputTargets.AddOrUpdate( texture, made );
+		return made;
+	}
 	Material copyMaterial;
 	RenderAttributes copyAttributes;
 
@@ -67,12 +78,28 @@ internal sealed partial class SceneBridge
 		copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
 
 		var ui = setup.EnableUI ?? camera.RenderUI;
-		gpuView.Target = RenderTarget.From( window.Target );
+		gpuView.Target = OutputTarget( window.Target );
 		gpuView.Viewport = viewport;
 		using var _ = OutputTiming.Scope();
-		window.Draw( gpuView, () => DrawOutput( camera, frame, ui, encode: true, false, false ) );
+		var outer = windowOutput;
+		windowOutput = (camera, frame, ui);
+		try
+		{
+			window.Draw( gpuView, drawWindowOutput ??= DrawWindowOutput );
+		}
+		finally
+		{
+			windowOutput = outer;
+		}
+
 		frame?.Release();
 	}
+
+	// What the window's output block draws, which the one delegate handed to it reads, so a frame allocates no closure
+	(SceneCamera Camera, BorealisGpuFrame Frame, bool Ui) windowOutput;
+	Action drawWindowOutput;
+
+	void DrawWindowOutput() => DrawOutput( windowOutput.Camera, windowOutput.Frame, windowOutput.Ui, encode: true, false, false );
 
 	/// <summary>
 	/// The scene of a camera as <see cref="RenderInto"/> renders it for the window, without drawing it anywhere: what its first
@@ -121,7 +148,7 @@ internal sealed partial class SceneBridge
 		var ui = setup.EnableUI ?? camera.RenderUI;
 		var flipX = setup.FlipX == true;
 		var flipY = setup.FlipY == true;
-		gpuView.Target = RenderTarget.From( target );
+		gpuView.Target = OutputTarget( target );
 		gpuView.Viewport = viewport;
 		gpuView.SrgbWrite = !Source2Formats.From( target.ImageFormat ).IsFloat();
 		using var _ = OutputTiming.Scope();
@@ -143,6 +170,28 @@ internal sealed partial class SceneBridge
 	/// </summary>
 	void DrawOutput( SceneCamera camera, BorealisGpuFrame frame, bool ui, bool encode, bool flipX, bool flipY )
 	{
+		// A depth grab over the output (a game's own post processing at AfterPostProcess) takes the frame's depth, which the
+		// output's target doesn't have
+		var backend = Gpu;
+		if ( backend is not null && frame is not null )
+		{
+			// One sample, as the grab's target has (made for the stages after the scene already, or now, binding its own target)
+			backend.OutputDepth = frame.ResolvedDepth();
+			if ( frame.Multisampled ) gpuView.Bind();
+		}
+
+		try
+		{
+			DrawOutputStages( camera, frame, ui, encode, flipX, flipY );
+		}
+		finally
+		{
+			if ( backend is not null ) backend.OutputDepth = null;
+		}
+	}
+
+	void DrawOutputStages( SceneCamera camera, BorealisGpuFrame frame, bool ui, bool encode, bool flipX, bool flipY )
+	{
 		if ( frame is not null )
 		{
 			CopyFrame( frame, encode, flipX, flipY );
@@ -152,6 +201,9 @@ internal sealed partial class SceneBridge
 			frame.SetOutputConstants( gpuView.Viewport, output is null ? gpuView.Viewport.Size : new Vector2( output.Width, output.Height ) );
 		}
 		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( camera.BackgroundColor, true, false, false );
+
+		// The view's lookup tables, as the scene's blocks have them: film grain reads the blue noise
+		BorealisGpuFrame.SetViewTextures( Graphics.Attributes );
 
 		// Early UI draws here too, over the finished frame, not before post processing
 		Graphics.Attributes.Set( UIGammaOutput, encode );

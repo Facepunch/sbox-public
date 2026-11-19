@@ -60,7 +60,7 @@ internal sealed partial class AggregateRenderFeature
 }
 
 /// <summary>See <see cref="AggregateRenderFeature"/>'s sizes. One sizing at a time; its answer is taken once.</summary>
-internal sealed class AggregateSizes : ITextureSizeSource
+internal sealed class AggregateSizes : ITextureSizeSource, System.Threading.IThreadPoolWorkItem
 {
 	readonly object gate = new();
 	AggregateObject[] aggregates = [];
@@ -77,7 +77,25 @@ internal sealed class AggregateSizes : ITextureSizeSource
 	SizeCull sizeCull;
 	TextureSizes textureSizes;
 	Vector3 camera;
-	Task running;
+
+	// Whether a sizing runs on the pool now: this queued as its own work item, so starting one allocates no task
+	volatile bool running;
+
+	void System.Threading.IThreadPoolWorkItem.Execute()
+	{
+		try
+		{
+			Size();
+		}
+		catch ( Exception )
+		{
+			// As a task's unobserved failure: this sizing gives no answer, the next starts again
+		}
+		finally
+		{
+			running = false;
+		}
+	}
 
 	// Written by the worker, then swapped with the answer the device takes
 	List<(GpuMaterial Material, int Size)> working = new(), answer = new();
@@ -102,7 +120,7 @@ internal sealed class AggregateSizes : ITextureSizeSource
 	/// </summary>
 	public void Start( RenderWorld world, ViewPass pass, List<int> visible, List<int> meshesVisible = null, bool[] holds = null, AggregateRenderFeature.ResidentList held = null )
 	{
-		if ( running is { IsCompleted: false } ) return;
+		if ( running ) return;
 		var start = Stopwatch.GetTimestamp();
 
 		var objects = world.Objects;
@@ -191,7 +209,8 @@ internal sealed class AggregateSizes : ITextureSizeSource
 		sizeCull = new SizeCull( pass.Root );
 		textureSizes = new TextureSizes( pass.View, pass.Root );
 		camera = pass.View.Position;
-		running = Task.Run( Size );
+		running = true;
+		System.Threading.ThreadPool.UnsafeQueueUserWorkItem( this, preferLocal: false );
 		StartMs += Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
 	}
 

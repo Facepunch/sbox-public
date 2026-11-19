@@ -33,7 +33,7 @@ public static class Zstd
 			}
 
 			if ( magic != FrameMagic ) throw new InvalidDataException( $"Not a Zstandard frame (magic {magic:X8})" );
-			var frame = new FrameDecoder( dictionary );
+			var frame = new FrameDecoder( dictionary, workspace ??= new Workspace() );
 			var used = frame.Decode( source, destination[written..], out var produced );
 			written += produced;
 			source = source[used..];
@@ -66,6 +66,23 @@ public static class Zstd
 		return ContentSize( source[position..], sizeFlag, singleSegment );
 	}
 
+	/// <summary>
+	/// A thread's decoding scratch, kept between frames: the literals buffer and the tables a frame reads, filled in place
+	/// rather than made for every frame (a texture's every mip is one).
+	/// </summary>
+	sealed class Workspace
+	{
+		public readonly byte[] Literals = new byte[MaxBlockBytes];
+		public readonly FseTable LiteralLengths = FseTable.Empty( 9 ), Offsets = FseTable.Empty( 8 ), MatchLengths = FseTable.Empty( 9 );
+		public readonly HuffmanTable Huffman = HuffmanTable.Empty();
+		public readonly FseTable HuffmanWeights = FseTable.Empty( 6 );
+	}
+
+	/// <summary>The most a block decodes to, and so the most literals it holds.</summary>
+	const int MaxBlockBytes = 1 << 17;
+
+	[ThreadStatic] static Workspace workspace;
+
 	static int DictionaryIdBytes( int flag ) => flag switch { 0 => 0, 1 => 1, 2 => 2, _ => 4 };
 
 	static long ContentSize( ReadOnlySpan<byte> data, int flag, bool singleSegment ) => flag switch
@@ -82,14 +99,15 @@ public static class Zstd
 	ref struct FrameDecoder
 	{
 		readonly ZstdDictionary dictionary;
+		readonly Workspace workspace;
 		HuffmanTable literalsTable;
 		FseTable literalLengths, offsets, matchLengths;
 		uint rep1, rep2, rep3;
-		byte[] literalBuffer;
 
-		public FrameDecoder( ZstdDictionary dictionary )
+		public FrameDecoder( ZstdDictionary dictionary, Workspace workspace )
 		{
 			this.dictionary = dictionary;
+			this.workspace = workspace;
 			rep1 = 1;
 			rep2 = 4;
 			rep3 = 8;
@@ -103,8 +121,6 @@ public static class Zstd
 				rep2 = dictionary.Repeat2;
 				rep3 = dictionary.Repeat3;
 			}
-
-			literalBuffer = null;
 		}
 
 		ReadOnlySpan<byte> History => dictionary is null ? default : dictionary.Content;
@@ -201,9 +217,9 @@ public static class Zstd
 			}
 
 			var modes = sequences[p++];
-			literalLengths = ReadTable( modes >> 6, sequences, ref p, literalLengths, FseTable.LiteralLengthDefault, 35, 9 );
-			offsets = ReadTable( (modes >> 4) & 3, sequences, ref p, offsets, FseTable.OffsetDefault, 31, 8 );
-			matchLengths = ReadTable( (modes >> 2) & 3, sequences, ref p, matchLengths, FseTable.MatchLengthDefault, 52, 9 );
+			literalLengths = ReadTable( modes >> 6, sequences, ref p, literalLengths, FseTable.LiteralLengthDefault, workspace.LiteralLengths, 35, 9 );
+			offsets = ReadTable( (modes >> 4) & 3, sequences, ref p, offsets, FseTable.OffsetDefault, workspace.Offsets, 31, 8 );
+			matchLengths = ReadTable( (modes >> 2) & 3, sequences, ref p, matchLengths, FseTable.MatchLengthDefault, workspace.MatchLengths, 52, 9 );
 
 			var bits = new BackwardBits( sequences[p..] );
 			var llState = bits.Read( literalLengths.Log );
@@ -290,16 +306,18 @@ public static class Zstd
 			return position + literals.Length - literal;
 		}
 
-		static FseTable ReadTable( int mode, ReadOnlySpan<byte> data, ref int position, FseTable previous, FseTable predefined, int maxSymbol, int maxLog )
+		// A new table goes into the workspace's own for its kind (into), replacing the one it held: a frame's tables are only
+		// ever the last one read, the predefined one or the dictionary's
+		static FseTable ReadTable( int mode, ReadOnlySpan<byte> data, ref int position, FseTable previous, FseTable predefined, FseTable into, int maxSymbol, int maxLog )
 		{
 			switch ( mode )
 			{
 				case 0:
 					return predefined;
 				case 1:
-					return FseTable.Rle( data[position++] );
+					return into.SetRle( data[position++] );
 				case 2:
-					var table = FseTable.Read( data[position..], maxSymbol, maxLog, out var used );
+					var table = FseTable.Read( data[position..], maxSymbol, maxLog, out var used, into );
 					position += used;
 					return table;
 				default:
@@ -338,9 +356,9 @@ public static class Zstd
 					return header + size;
 				}
 
-				var buffer = Buffer( size );
-				buffer.AsSpan( 0, size ).Fill( block[header] );
-				literals = buffer.AsSpan( 0, size );
+				var buffer = Literals( size );
+				buffer.Fill( block[header] );
+				literals = buffer;
 				return header + 1;
 			}
 
@@ -356,7 +374,7 @@ public static class Zstd
 			var data = block.Slice( headerSize, compressed );
 			if ( type == 2 )
 			{
-				literalsTable = HuffmanTable.Read( data, out var used );
+				literalsTable = HuffmanTable.Read( data, out var used, workspace.Huffman, workspace.HuffmanWeights );
 				data = data[used..];
 			}
 			else if ( literalsTable is null )
@@ -364,7 +382,7 @@ public static class Zstd
 				throw new InvalidDataException( "Zstandard literals reuse a Huffman table there isn't" );
 			}
 
-			var output = Buffer( regenerated ).AsSpan( 0, regenerated );
+			var output = Literals( regenerated );
 			if ( streams == 1 )
 			{
 				literalsTable.Decode( data, output );
@@ -386,10 +404,10 @@ public static class Zstd
 			return headerSize + compressed;
 		}
 
-		byte[] Buffer( int size )
+		readonly Span<byte> Literals( int size )
 		{
-			if ( literalBuffer is null || literalBuffer.Length < size ) literalBuffer = new byte[Math.Max( size, 1 << 17 )];
-			return literalBuffer;
+			if ( size > MaxBlockBytes ) throw new InvalidDataException( $"Zstandard block of {size} literals, more than a block holds" );
+			return workspace.Literals.AsSpan( 0, size );
 		}
 	}
 
@@ -502,17 +520,32 @@ internal sealed class FseTable
 	/// <summary>A table that always decodes <paramref name="symbol"/> and reads nothing.</summary>
 	public static FseTable Rle( byte symbol ) => new() { Log = 0, Symbols = [symbol], Bits = [0], Next = [0] };
 
+	/// <summary>A table with room for up to <paramref name="maxLog"/> bits of state, to fill in place (<see cref="Read"/>, <see cref="SetRle"/>).</summary>
+	public static FseTable Empty( int maxLog ) => new() { Symbols = new byte[1 << maxLog], Bits = new byte[1 << maxLog], Next = new uint[1 << maxLog] };
+
+	/// <summary>Make this one always decode <paramref name="symbol"/> and read nothing.</summary>
+	public FseTable SetRle( byte symbol )
+	{
+		Log = 0;
+		Symbols[0] = symbol;
+		Bits[0] = 0;
+		Next[0] = 0;
+		return this;
+	}
+
 	/// <summary>
-	/// Read a table description (normalized counts) from the start of <paramref name="data"/>.
+	/// Read a table description (normalized counts) from the start of <paramref name="data"/>, into <paramref name="into"/>
+	/// (from <see cref="Empty"/>, with room for <paramref name="maxLog"/>) or a new table.
 	/// </summary>
-	public static FseTable Read( ReadOnlySpan<byte> data, int maxSymbol, int maxLog, out int used )
+	public static FseTable Read( ReadOnlySpan<byte> data, int maxSymbol, int maxLog, out int used, FseTable into = null )
 	{
 		var position = 0;
 		var log = (int)Borealis.Source2.Compression.Bits.Extract( data, 0, 4 ) + 5;
 		position += 4;
 		if ( log > maxLog ) throw new InvalidDataException( $"Zstandard FSE table accuracy {log} over {maxLog}" );
 
-		var counts = new short[maxSymbol + 1];
+		Span<short> counts = stackalloc short[maxSymbol + 1];
+		counts.Clear();
 		var remaining = (1 << log) + 1;
 		var threshold = 1 << log;
 		var bitCount = log + 1;
@@ -566,14 +599,16 @@ internal sealed class FseTable
 
 		if ( remaining != 1 ) throw new InvalidDataException( "Zstandard FSE counts don't add up" );
 		used = (position + 7) / 8;
-		return Build( counts, log );
+		return Build( counts, log, into );
 	}
 
-	public static FseTable Build( ReadOnlySpan<short> counts, int log )
+	public static FseTable Build( ReadOnlySpan<short> counts, int log, FseTable into = null )
 	{
 		var size = 1 << log;
-		var table = new FseTable { Log = log, Symbols = new byte[size], Bits = new byte[size], Next = new uint[size] };
-		var next = new uint[counts.Length];
+		var table = into ?? new FseTable { Symbols = new byte[size], Bits = new byte[size], Next = new uint[size] };
+		if ( table.Symbols.Length < size ) throw new InvalidDataException( $"Zstandard FSE table of {size} states, more than {table.Symbols.Length}" );
+		table.Log = log;
+		Span<uint> next = stackalloc uint[counts.Length];
 		var high = size - 1;
 
 		for ( int s = 0; s < counts.Length; s++ )
@@ -626,10 +661,18 @@ internal sealed class HuffmanTable
 	public byte[] Symbols;
 	public byte[] Lengths;
 
+	/// <summary>The longest code Zstandard allows.</summary>
+	const int MaxLog = 11;
+
+	/// <summary>A table with room for the longest codes, to fill in place (<see cref="Read"/>).</summary>
+	public static HuffmanTable Empty() => new() { Symbols = new byte[1 << MaxLog], Lengths = new byte[1 << MaxLog] };
+
 	/// <summary>
-	/// Read a tree description: weights, FSE-compressed or four bits each, the last one implied.
+	/// Read a tree description: weights, FSE-compressed or four bits each, the last one implied; into
+	/// <paramref name="into"/> (from <see cref="Empty"/>) or a new table, the weights' FSE table into
+	/// <paramref name="weightsTable"/> (<see cref="FseTable.Empty"/> of 6) or a new one.
 	/// </summary>
-	public static HuffmanTable Read( ReadOnlySpan<byte> data, out int used )
+	public static HuffmanTable Read( ReadOnlySpan<byte> data, out int used, HuffmanTable into = null, FseTable weightsTable = null )
 	{
 		var header = data[0];
 		Span<byte> weights = stackalloc byte[256];
@@ -638,7 +681,7 @@ internal sealed class HuffmanTable
 		if ( header < 128 )
 		{
 			var compressed = data.Slice( 1, header );
-			var table = FseTable.Read( compressed, 255, 6, out var tableBytes );
+			var table = FseTable.Read( compressed, 255, 6, out var tableBytes, weightsTable );
 			var bits = new BackwardBits( compressed[tableBytes..] );
 			var state1 = bits.Read( table.Log );
 			var state2 = bits.Read( table.Log );
@@ -687,6 +730,7 @@ internal sealed class HuffmanTable
 
 		if ( sum == 0 ) throw new InvalidDataException( "Zstandard Huffman tree with no weights" );
 		var log = BitOperations.Log2( (uint)sum ) + 1;
+		if ( log > MaxLog ) throw new InvalidDataException( $"Zstandard Huffman codes of {log} bits, over {MaxLog}" );
 		var left = (1 << log) - sum;
 		if ( !BitOperations.IsPow2( left ) ) throw new InvalidDataException( "Zstandard Huffman weights don't complete a tree" );
 		weights[count++] = (byte)(BitOperations.Log2( (uint)left ) + 1);
@@ -702,7 +746,8 @@ internal sealed class HuffmanTable
 			next += rankCount[w] << (w - 1);
 		}
 
-		var result = new HuffmanTable { Log = log, Symbols = new byte[1 << log], Lengths = new byte[1 << log] };
+		var result = into ?? new HuffmanTable { Symbols = new byte[1 << log], Lengths = new byte[1 << log] };
+		result.Log = log;
 		for ( int s = 0; s < count; s++ )
 		{
 			var w = weights[s];

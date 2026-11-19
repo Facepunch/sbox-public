@@ -710,7 +710,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		context.TextureBarrier( tilesRaw, GpuStage.ComputeShader, GpuAccess.ShaderWrite, GpuStage.ComputeShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
 		context.TextureBarrier( tiles, GpuStage.FragmentShader, GpuAccess.ShaderRead, GpuStage.ComputeShader, GpuAccess.ShaderWrite, TextureLayout.General );
 
-		parameters.Clear();
+		parameters.Recycle();
 		parameters.Set( ShadowTilesInName, tilesRaw );
 		parameters.Set( ShadowTilesOutName, tiles );
 		parameters.SetCombo( WidenCombo, true );

@@ -119,6 +119,26 @@ public sealed class VpkFile : IDisposable
 		return ReadAt( entry, data.AsSpan( preload ) ) ? data : null;
 	}
 
+	/// <summary>
+	/// As <see cref="ReadPrefix"/>, into a <see cref="ContentBuffers"/> array whose first <paramref name="length"/> bytes
+	/// are the file's: give it back with <see cref="ContentBuffers.Return"/>.
+	/// </summary>
+	public byte[] ReadPrefixPooled( string file, long most, out int length )
+	{
+		length = 0;
+		if ( !entries.TryGetValue( Normalise( file ), out var entry ) ) return null;
+
+		length = (int)Math.Min( entry.PreloadLength + (long)entry.Length, Math.Max( most, 0 ) );
+		var data = ContentBuffers.Rent( length );
+		var preload = Math.Min( (int)entry.PreloadLength, length );
+		tree.AsSpan( entry.PreloadOffset, preload ).CopyTo( data );
+		if ( preload == length || ReadAt( entry, data.AsSpan( preload, length - preload ) ) ) return data;
+
+		ContentBuffers.Return( data );
+		length = 0;
+		return null;
+	}
+
 	// An entry's bytes after its preload, read at its offset: positional reads on a shared handle, so readers on many threads
 	// don't queue behind one another (a map's models, materials and textures all come from one archive). False once disposed
 	bool ReadAt( Entry entry, Span<byte> into )

@@ -56,4 +56,10 @@ public abstract class ShaderParameters
 
 	/// <summary>Remove every value.</summary>
 	public abstract void Clear();
+
+	/// <summary>
+	/// Remove every value from a set nothing reads any more (<see cref="ParameterPool"/>'s), keeping what held them to hold
+	/// the next ones.
+	/// </summary>
+	internal virtual void Recycle() => Clear();
 }

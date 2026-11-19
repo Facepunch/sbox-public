@@ -11,8 +11,11 @@ internal static partial class ToolSceneViews
 	/// front of the scene, blue and alpha the same for prefabs and instances), then over the finished frame, in one pass, the
 	/// outline <c>tools_selection_outline</c> draws from such a mask and the tints native's overlay renderable asks for where
 	/// the selection is in front. The mask is drawn after the scene's translucent objects, where its depth is whole; the
-	/// outline and tints after post processing, over the tonemapped frame, as native draws them. Not drawn yet: the depth
-	/// outline (<c>SelectionOutlineDepth2</c>, off by default) and the active instance's grey-out.
+	/// outline and tints after post processing, over the tonemapped frame, as native draws them. With the depth outline option
+	/// the outline also runs where the scene's depth steps inside the selection. While an instance is being edited, objects
+	/// flagged for the enabled stencil layer are drawn into a second mask where they're in front, and the rest of the view
+	/// takes the grey of native's <c>HammerEnabledOverlayLayer</c>, as its stencil test leaves it: not where the selection
+	/// covers the view, nor over the tool overlays drawn after it.
 	/// </summary>
 	internal sealed class ToolSelection : IDisposable
 	{
@@ -21,6 +24,9 @@ internal static partial class ToolSceneViews
 
 		/// <summary><c>SCENEOBJECTFLAG_HAMMER_SELECTION_STENCIL_LAYER</c>.</summary>
 		const ulong SelectionFlag = 1UL << 23;
+
+		/// <summary><c>SCENEOBJECTFLAG_HAMMER_ENABLED_STENCIL_LAYER</c>: inside the instance being edited.</summary>
+		const ulong EnabledFlag = 1UL << 24;
 
 		static readonly uint SelectionOverlayLayer = new StringToken( "HammerSelectionOverlayLayer" ).Value;
 		static readonly uint PrefabOverlayLayer = new StringToken( "HammerPrefabOverlayLayer" ).Value;
@@ -43,30 +49,42 @@ internal static partial class ToolSceneViews
 		static readonly StringToken OccludedColorAName = "OccludedColorA";
 		static readonly StringToken OutlineColorBName = "OutlineColorB";
 		static readonly StringToken OccludedColorBName = "OccludedColorB";
+		static readonly StringToken DepthOutlineName = "DepthOutline";
+		static readonly StringToken ActiveInstanceName = "ActiveInstance";
+		static readonly StringToken EnabledMaskName = "EnabledMask";
+		static readonly StringToken EnabledTintName = "EnabledTint";
 
 		readonly Material maskMaterial = Material.FromShader( "shaders/tools_selection_mask.shader" );
 		readonly RenderAttributes attributes = new();
 
 		readonly List<SceneObject> selected = new();
 		readonly List<SceneObject> prefabs = new();
-		bool outline;
-		Vector4 selectionTint, prefabTint;
-		RenderTarget mask;
+		readonly List<SceneObject> enabled = new();
+		bool outline, depthOutline, activeInstance;
+		Vector4 selectionTint, prefabTint, enabledTint;
+		RenderTarget mask, enabledMask;
+
+		/// <summary>Whether the frame draws the grey-out of an active instance.</summary>
+		bool GreysOut => activeInstance && enabledTint.w > 0;
 
 		/// <summary>Whether the frame draws anything of the selection.</summary>
-		bool Drawn => (selected.Count > 0 || prefabs.Count > 0) && (outline || selectionTint.w > 0 || prefabTint.w > 0);
+		bool Drawn => (selected.Count > 0 || prefabs.Count > 0) && (outline || selectionTint.w > 0 || prefabTint.w > 0) || GreysOut;
 
 		/// <summary>
-		/// A new frame: <paramref name="drawOutline"/> as the request asks (<see cref="Flags.SelectionOutline"/>: the option
-		/// on, something selected, not wireframe).
+		/// A new frame, as the request's <paramref name="flags"/> ask: the outline (<see cref="Flags.SelectionOutline"/>: the
+		/// option on, something selected, not wireframe), its depth part, and the active instance's grey-out.
 		/// </summary>
-		public void BeginFrame( bool drawOutline )
+		public void BeginFrame( Flags flags )
 		{
 			selected.Clear();
 			prefabs.Clear();
-			outline = drawOutline;
+			enabled.Clear();
+			outline = (flags & Flags.SelectionOutline) != 0;
+			depthOutline = outline && (flags & Flags.SelectionDepthOutline) != 0;
+			activeInstance = (flags & Flags.ActiveInstance) != 0;
 			selectionTint = default;
 			prefabTint = default;
+			enabledTint = default;
 		}
 
 		/// <summary>
@@ -84,6 +102,7 @@ internal static partial class ToolSceneViews
 					var flags = (ulong)sceneObject.native.GetFlags();
 					if ( (flags & SelectionFlag) != 0 ) selected.Add( sceneObject );
 					else if ( (flags & PrefabFlag) != 0 ) prefabs.Add( sceneObject );
+					if ( activeInstance && (flags & EnabledFlag) != 0 ) enabled.Add( sceneObject );
 				}
 			}
 		}
@@ -98,12 +117,12 @@ internal static partial class ToolSceneViews
 			var layer = sceneObject.LayerMatchToken;
 			if ( layer != SelectionOverlayLayer && layer != PrefabOverlayLayer && layer != EnabledOverlayLayer ) return false;
 
-			// The active instance's grey-out (HammerEnabledOverlayLayer) isn't drawn yet
-			if ( layer == EnabledOverlayLayer || vertices.IsEmpty ) return true;
+			if ( vertices.IsEmpty ) return true;
 
 			var tint = TintFor( vertices[0].Color );
 			if ( layer == SelectionOverlayLayer ) selectionTint = tint;
-			else prefabTint = tint;
+			else if ( layer == PrefabOverlayLayer ) prefabTint = tint;
+			else enabledTint = tint;
 			return true;
 		}
 
@@ -143,6 +162,17 @@ internal static partial class ToolSceneViews
 				drawAttributes.Set( AnyName, new Vector4( 1, 0, 0, 0 ) );
 				drawAttributes.Set( VisibleName, new Vector4( 0, 1, 0, 0 ) );
 				foreach ( var sceneObject in selected ) Draw( sceneObject );
+
+				// The instance being edited: red where it's in front of the scene, as native's ActiveInstanceStencil writes
+				if ( GreysOut )
+				{
+					enabledMask = RenderTarget.GetTemporary( width, height, ImageFormat.RGBA8888, ImageFormat.None, MultisampleAmount.MultisampleNone, 1, "Hammer active instance mask" );
+					Graphics.RenderTarget = enabledMask;
+					Graphics.Clear( Color.Transparent, true, false, false );
+					drawAttributes.Set( AnyName, Vector4.Zero );
+					drawAttributes.Set( VisibleName, new Vector4( 1, 0, 0, 0 ) );
+					foreach ( var sceneObject in enabled ) Draw( sceneObject );
+				}
 			}
 			finally
 			{
@@ -172,6 +202,10 @@ internal static partial class ToolSceneViews
 				attributes.Set( OccludedColorBName, OccludedColorB );
 				attributes.Set( SelectionTintName, selectionTint );
 				attributes.Set( PrefabTintName, prefabTint );
+				attributes.Set( DepthOutlineName, depthOutline ? 1.0f : 0.0f );
+				attributes.Set( ActiveInstanceName, enabledMask is null ? 0.0f : 1.0f );
+				attributes.Set( EnabledMaskName, (enabledMask ?? mask).ColorTarget );
+				attributes.Set( EnabledTintName, enabledTint );
 				Graphics.Blit( maskMaterial, attributes );
 			}
 			finally
@@ -184,6 +218,8 @@ internal static partial class ToolSceneViews
 		{
 			mask?.Dispose();
 			mask = null;
+			enabledMask?.Dispose();
+			enabledMask = null;
 		}
 
 		/// <summary>An overlay rectangle's tint as <c>tools_selection_overlay</c> draws it: its vertex colour, sRGB, made linear.</summary>
@@ -205,6 +241,7 @@ internal static partial class ToolSceneViews
 			ReleaseMask();
 			selected.Clear();
 			prefabs.Clear();
+			enabled.Clear();
 		}
 	}
 }

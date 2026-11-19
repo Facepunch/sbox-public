@@ -154,6 +154,10 @@ internal sealed partial class AggregateRenderFeature
 	{
 		public GpuContext.ResidentMeshes Owner;
 		public int Version;
+
+		/// <summary>The group last made with it and its meshes, taken again while they're the same.</summary>
+		public MeshGroup Group;
+		public MeshObject[] Members;
 	}
 
 	/// <summary>An aggregate's tag class: what decides whether a view's root shows it.</summary>
@@ -779,28 +783,27 @@ internal sealed partial class AggregateRenderFeature
 
 		var entryVersions = world.EntryVersions;
 		var settled = false;
-		List<MeshObject> done = null;
+		var done = settleDone;
 		foreach ( var (mesh, (moved, version)) in restless )
 		{
 			var index = mesh.IndexIn( world );
 			if ( index < 0 )
 			{
-				(done ??= new()).Add( mesh );
+				done.Add( mesh );
 				continue;
 			}
 
 			if ( entryVersions[index] != version )
 			{
-				(done ??= new()).Add( mesh );
+				done.Add( mesh );
 				continue;
 			}
 
 			if ( frame - moved < SettleFrames ) continue;
-			(done ??= new()).Add( mesh );
+			done.Add( mesh );
 			settled = true;
 		}
 
-		if ( done is null ) return false;
 		foreach ( var mesh in done )
 		{
 			var index = mesh.IndexIn( world );
@@ -808,8 +811,12 @@ internal sealed partial class AggregateRenderFeature
 			else restless.Remove( mesh );
 		}
 
+		done.Clear();
 		return settled;
 	}
+
+	// Settle's meshes to look at again, kept: a moving mesh is looked at every frame
+	readonly List<MeshObject> settleDone = new();
 
 	/// <summary>Whether meshes may be resident now: the device draws them so, and no debug view tints them per frame.</summary>
 	bool MeshesResident() => Meshes is { DebugViews: DebugViews.None, UseMeshMaterials: true } && RenderHost.Current?.Device is { DrawsMeshesResident: true };
@@ -1111,7 +1118,7 @@ internal sealed partial class AggregateRenderFeature
 	void AddMeshGroups( ResidentList list, ResidentCasters casters, uint mask, bool shadow )
 	{
 		var device = RenderHost.Current?.Device;
-		var groups = new Dictionary<MeshGroupKey, List<int>>();
+		var groups = groupMembers;
 		for ( int m = 0; m < meshMemberCount; m++ )
 		{
 			ref readonly var member = ref meshMembers[m];
@@ -1123,7 +1130,7 @@ internal sealed partial class AggregateRenderFeature
 			var lightmap = shadow || obj.LightmapAttributes is null ? (long?)null : device?.LightingFreeKey( obj.LightmapAttributes ) ?? 0;
 			var probe = shadow || member.Probe is null ? (long?)null : device?.LightingFreeKey( member.Probe ) ?? 0;
 			var key = new MeshGroupKey( casters, mask, obj.Mesh, obj.MaterialOverride, lightmap, probe );
-			if ( !groups.TryGetValue( key, out var members ) ) groups[key] = members = new List<int>();
+			if ( !groups.TryGetValue( key, out var members ) ) groups[key] = members = spareGroupMembers.TryPop( out var spare ) ? spare : new List<int>();
 			members.Add( m );
 		}
 
@@ -1131,14 +1138,18 @@ internal sealed partial class AggregateRenderFeature
 		var extents = residentWorld.BoundsExtents;
 		foreach ( var (key, members) in groups )
 		{
+			// Worked out in scratch: copied into arrays of their own only for a new owner
 			var count = members.Count;
-			var groupCenters = new Vector3[count];
-			var groupExtents = new Vector3[count];
-			var slots = new int[count];
-			var scales = new float[count];
-			var lightmaps = key.Lightmap.HasValue ? new ShaderParameters[count] : null;
-			var probes = key.Probe.HasValue ? new ShaderParameters[count] : null;
-			var moved = Settles( casters ) ? new uint[count] : null;
+			if ( groupScratch.Slots.Length < count ) groupScratch = new GroupScratch( Math.Max( count, groupScratch.Slots.Length * 2 ) );
+			var groupCenters = groupScratch.Centers.AsSpan( 0, count );
+			var groupExtents = groupScratch.Extents.AsSpan( 0, count );
+			var slots = groupScratch.Slots.AsSpan( 0, count );
+			var scales = groupScratch.Scales.AsSpan( 0, count );
+			var lightmaps = groupScratch.Lightmaps.AsSpan( 0, count );
+			var probes = groupScratch.Probes.AsSpan( 0, count );
+			var moved = groupScratch.Moved.AsSpan( 0, count );
+			var objects = groupScratch.Objects.AsSpan( 0, count );
+			var (hasLightmaps, hasProbes, hasMoved) = (key.Lightmap.HasValue, key.Probe.HasValue, Settles( casters ));
 			for ( int i = 0; i < count; i++ )
 			{
 				ref readonly var member = ref meshMembers[members[i]];
@@ -1148,15 +1159,17 @@ internal sealed partial class AggregateRenderFeature
 				slots[i] = member.Slot;
 				var scale = obj.Transform.Scale;
 				scales[i] = obj.LodOverride >= 0 ? -1 - obj.LodOverride : MathF.Max( MathF.Abs( scale.x ), MathF.Max( MathF.Abs( scale.y ), MathF.Abs( scale.z ) ) );
-				if ( lightmaps is not null ) lightmaps[i] = obj.LightmapAttributes;
-				if ( probes is not null ) probes[i] = member.Probe;
-				if ( moved is not null ) moved[i] = GpuContext.MovedWord( member.Moved, obj.IsStatic );
+				lightmaps[i] = hasLightmaps ? obj.LightmapAttributes : null;
+				probes[i] = hasProbes ? member.Probe : null;
+				moved[i] = hasMoved ? GpuContext.MovedWord( member.Moved, obj.IsStatic ) : 0;
+				objects[i] = obj;
 				list.Holds[member.Index] = true;
 			}
 
 			// Each mesh's own lighting only where they differ
-			if ( lightmaps is not null && AllSame( lightmaps ) ) lightmaps = null;
-			if ( probes is not null && AllSame( probes ) ) probes = null;
+			hasLightmaps &= !AllSame( lightmaps );
+			hasProbes &= !AllSame( probes );
+			if ( !hasMoved ) moved = default;
 
 			// The same meshes as last time keep their owner, and so the device's records of them; a changed group's old owner
 			// is let go
@@ -1165,32 +1178,79 @@ internal sealed partial class AggregateRenderFeature
 			var owner = kept?.Owner;
 			if ( owner is null || !owner.Slots.AsSpan().SequenceEqual( slots ) || !owner.Centers.AsSpan().SequenceEqual( groupCenters )
 				|| !owner.Extents.AsSpan().SequenceEqual( groupExtents ) || !owner.LodScales.AsSpan().SequenceEqual( scales )
-				|| !SameLighting( owner.Lightmaps, lightmaps ) || !SameLighting( owner.Probes, probes ) || !owner.Moved.AsSpan().SequenceEqual( moved ) )
+				|| !SameLighting( owner.Lightmaps, lightmaps, hasLightmaps ) || !SameLighting( owner.Probes, probes, hasProbes ) || !owner.Moved.AsSpan().SequenceEqual( moved ) )
 			{
 				if ( owner is not null ) ReleaseOwner( owner );
-				owner = new GpuContext.ResidentMeshes( key.Mesh, groupCenters, groupExtents, slots, scales, lightmaps, probes, moved );
+				owner = new GpuContext.ResidentMeshes( key.Mesh, groupCenters.ToArray(), groupExtents.ToArray(), slots.ToArray(), scales.ToArray(), hasLightmaps ? lightmaps.ToArray() : null,
+					hasProbes ? probes.ToArray() : null, hasMoved ? moved.ToArray() : null );
 				meshOwners[key] = kept = new MeshOwner { Owner = owner };
 			}
 
 			kept.Version = residentVersion;
+			if ( kept.Members is null || !SameObjects( kept.Members, objects ) ) kept.Members = objects.ToArray();
+
 			var first = firstMember.Mesh;
-			var objects = new MeshObject[count];
-			for ( int i = 0; i < count; i++ ) objects[i] = meshMembers[members[i]].Mesh;
-			list.MeshGroups.Add( new MeshGroup
+			var overrideBlends = key.Override is not null && (first.OverrideTranslucent || first.OverrideAlphaTest);
+			var lightmap = key.Lightmap.HasValue ? first.LightmapAttributes : null;
+			var probe = key.Probe.HasValue ? firstMember.Probe : null;
+			if ( kept.Group is not { } group || !ReferenceEquals( group.Members, kept.Members ) || group.Mesh != key.Mesh || group.Override != key.Override || group.OverrideBlends != overrideBlends
+				|| group.Lightmap != lightmap || group.Probe != probe || group.Owner != owner )
 			{
-				Members = objects,
-				Mesh = key.Mesh,
-				Override = key.Override,
-				OverrideBlends = key.Override is not null && (first.OverrideTranslucent || first.OverrideAlphaTest),
-				Lightmap = key.Lightmap.HasValue ? first.LightmapAttributes : null,
-				Probe = key.Probe.HasValue ? firstMember.Probe : null,
-				Owner = owner,
-			} );
+				kept.Group = group = new MeshGroup
+				{
+					Members = kept.Members,
+					Mesh = key.Mesh,
+					Override = key.Override,
+					OverrideBlends = overrideBlends,
+					Lightmap = lightmap,
+					Probe = probe,
+					Owner = owner,
+				};
+			}
+
+			list.MeshGroups.Add( group );
 
 			for ( int lod = 0; lod < key.Mesh.LodCount; lod++ ) list.DeviceCount += key.Mesh.DrawsForLod( lod ).Length;
 			list.Triangles += (long)key.Mesh.TrianglesForLod( 0 ) * count;
 			list.Fragments += count;
 		}
+
+		foreach ( var (_, members) in groups )
+		{
+			members.Clear();
+			spareGroupMembers.Push( members );
+		}
+
+		groups.Clear();
+		groupScratch.Lightmaps.AsSpan().Clear();
+		groupScratch.Probes.AsSpan().Clear();
+		groupScratch.Objects.AsSpan().Clear();
+	}
+
+	// AddMeshGroups's scratch (main thread): each group's member indices, lists to hold them, and a group's values
+	readonly Dictionary<MeshGroupKey, List<int>> groupMembers = new();
+	readonly Stack<List<int>> spareGroupMembers = new();
+	GroupScratch groupScratch = new( 64 );
+
+	sealed class GroupScratch( int size )
+	{
+		public readonly Vector3[] Centers = new Vector3[size], Extents = new Vector3[size];
+		public readonly int[] Slots = new int[size];
+		public readonly float[] Scales = new float[size];
+		public readonly ShaderParameters[] Lightmaps = new ShaderParameters[size], Probes = new ShaderParameters[size];
+		public readonly uint[] Moved = new uint[size];
+		public readonly MeshObject[] Objects = new MeshObject[size];
+	}
+
+	static bool SameObjects( MeshObject[] a, ReadOnlySpan<MeshObject> b )
+	{
+		if ( a.Length != b.Length ) return false;
+		for ( int i = 0; i < a.Length; i++ )
+		{
+			if ( !ReferenceEquals( a[i], b[i] ) ) return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>
@@ -1320,7 +1380,7 @@ internal sealed partial class AggregateRenderFeature
 			&& ReferenceEquals( a.Probe, b.Probe ) && (x.MaterialOverride is null || (x.OverrideTranslucent || x.OverrideAlphaTest) == (y.OverrideTranslucent || y.OverrideAlphaTest));
 	}
 
-	static bool AllSame( ShaderParameters[] attributes )
+	static bool AllSame( ReadOnlySpan<ShaderParameters> attributes )
 	{
 		for ( int i = 1; i < attributes.Length; i++ )
 		{
@@ -1330,9 +1390,11 @@ internal sealed partial class AggregateRenderFeature
 		return true;
 	}
 
-	static bool SameLighting( ShaderParameters[] a, ShaderParameters[] b )
+	static bool SameLighting( ShaderParameters[] a, ShaderParameters[] b ) => SameLighting( a, b, b is not null );
+
+	static bool SameLighting( ShaderParameters[] a, ReadOnlySpan<ShaderParameters> b, bool hasB )
 	{
-		if ( a is null || b is null ) return a is null && b is null;
+		if ( a is null || !hasB ) return a is null && !hasB;
 		if ( a.Length != b.Length ) return false;
 		for ( int i = 0; i < a.Length; i++ )
 		{

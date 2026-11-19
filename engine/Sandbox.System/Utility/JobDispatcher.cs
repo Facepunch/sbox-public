@@ -248,7 +248,43 @@ internal static class JobDispatcher
 
 		void Signal()
 		{
-			lock ( gate ) Monitor.PulseAll( gate );
+			lock ( gate )
+			{
+				Monitor.PulseAll( gate );
+				joinEvent?.Set();
+			}
+		}
+
+		// For a caller whose synchronization context hears of its waits (the main thread's, which runs queued work while it
+		// waits): an event to wait on, and its handle in an array kept for SynchronizationContext.Wait. Waiting on the gate
+		// there made the runtime allocate that array on every wait
+		ManualResetEvent joinEvent;
+		IntPtr[] joinHandles;
+
+		void WaitForWorkers()
+		{
+			if ( SynchronizationContext.Current is { } sync && sync.IsWaitNotificationRequired() )
+			{
+				lock ( gate )
+				{
+					if ( joinEvent is null )
+					{
+						joinEvent = new ManualResetEvent( false );
+						joinHandles = [joinEvent.SafeWaitHandle.DangerousGetHandle()];
+					}
+
+					joinEvent.Reset();
+				}
+
+				// Signal sets it after the last range is done, so a reset before this check can't miss it
+				while ( !Complete ) sync.Wait( joinHandles, false, Timeout.Infinite );
+				return;
+			}
+
+			lock ( gate )
+			{
+				while ( !Complete ) Monitor.Wait( gate );
+			}
 		}
 
 		/// <summary>
@@ -293,10 +329,7 @@ internal static class JobDispatcher
 				var spin = new SpinWait();
 				while ( !Complete && !spin.NextSpinWillYield ) spin.SpinOnce();
 
-				lock ( gate )
-				{
-					while ( !Complete ) Monitor.Wait( gate );
-				}
+				if ( !Complete ) WaitForWorkers();
 
 				thrown = error;
 			}

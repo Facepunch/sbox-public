@@ -167,6 +167,9 @@ public sealed partial class BackendDevice
 	/// <summary>Run a content read on <see cref="Reads"/>.</summary>
 	internal static Task<T> Read<T>( Func<T> read ) => Task.Factory.StartNew( read, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Reads );
 
+	/// <summary>Run a content read on <see cref="Reads"/>, with its state passed rather than captured.</summary>
+	internal static Task<T> Read<T>( Func<object, T> read, object state ) => Task.Factory.StartNew( read, state, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Reads );
+
 	/// <summary>
 	/// A model as <see cref="LoadModel"/> makes it (every mesh group in <paramref name="meshGroups"/>, the default material
 	/// group), without waiting: while its files are read on a worker, or once this frame's <see cref="LoadBudgetMs"/> is
@@ -572,11 +575,22 @@ public sealed partial class BackendDevice
 		using var zone = Zones.TextureRead.Start();
 		try
 		{
-			// A streamed texture's tail, unless it doesn't stream
+			// A streamed texture's tail, unless it doesn't stream; its mips pooled until Load has written them
 			var texture = tail ? TextureStreamer.ReadMips( Content, path, TextureFile.Tail ) : null;
-			if ( texture is null || (texture.TopMip > 0 && !TextureStreamer.Streams( texture )) ) texture = Content.TryRead( path ) is { } data ? TextureFile.Read( data ) : null;
-			if ( texture is not null && readTextures.TryAdd( path, texture ) && ImageAheadBytes > 0 && texture.TopMip == 0
-				&& texture.Format != Borealis.Gpu.Format.Unknown && TextureStreamer.Bytes( texture, 0 ) >= ImageAheadBytes )
+			if ( texture is null || (texture.TopMip > 0 && !TextureStreamer.Streams( texture )) )
+			{
+				texture?.Release();
+				texture = TextureStreamer.ReadWhole( Content, path );
+			}
+
+			if ( texture is null ) return;
+			if ( !readTextures.TryAdd( path, texture ) )
+			{
+				texture.Release();
+				return;
+			}
+
+			if ( ImageAheadBytes > 0 && texture.TopMip == 0 && texture.Format != Borealis.Gpu.Format.Unknown && TextureStreamer.Bytes( texture, 0 ) >= ImageAheadBytes )
 			{
 				var image = texture.CreateEmpty( Gpu, path );
 				if ( !imagesAhead.TryAdd( path, (texture, image) ) ) Gpu.Destroy( image );
