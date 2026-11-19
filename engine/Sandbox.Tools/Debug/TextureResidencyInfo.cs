@@ -131,6 +131,9 @@ public class TextureResidencyInfo
 	/// </summary>
 	public static IEnumerable<TextureResidencyInfo> GetAll()
 	{
+		// On Borealis.Gpu its device holds the textures that are drawn with: Source 2's (when it has a device) only describe them
+		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu ) return FromBorealisGpu( gpu );
+
 		var ret = new List<TextureResidencyInfo>();
 
 		var names = CUtlVectorString.Create( 8, 8 );
@@ -172,6 +175,37 @@ public class TextureResidencyInfo
 			list.DeleteThis();
 			names.DeleteThis();
 			refCounts.DeleteThis();
+		}
+
+		return ret;
+	}
+
+	/// <summary>
+	/// Borealis.Gpu's textures: what its device holds, at the size it holds them. It doesn't stream or keep use counts, so
+	/// what's loaded is what's on disk and nothing is stale.
+	/// </summary>
+	static List<TextureResidencyInfo> FromBorealisGpu( BorealisGpuRenderBackend gpu )
+	{
+		var ret = new List<TextureResidencyInfo>();
+		foreach ( var texture in gpu.ResidentTextures() )
+		{
+			var categories = TextureCategory.None;
+			if ( texture.RenderTarget ) categories |= TextureCategory.RenderTarget;
+			if ( texture.Depthbuffer ) categories |= TextureCategory.DepthBuffer;
+			if ( texture.Storage ) categories |= TextureCategory.UAV;
+			if ( texture.Multisampled ) categories |= TextureCategory.MSAA;
+
+			var desc = new Desc { Width = texture.Width, Height = texture.Height, Depth = texture.Volume ? texture.Depth : texture.Layers, MemorySize = texture.Bytes };
+			ret.Add( new TextureResidencyInfo
+			{
+				Name = texture.Name,
+				Format = texture.Format,
+				Dimension = texture.Cube ? (texture.Array ? TextureDimension.CubeArray : TextureDimension.Cube) : texture.Volume ? TextureDimension._3D : texture.Array ? TextureDimension._2DArray : TextureDimension._2D,
+				MipCount = texture.Mips,
+				Categories = categories,
+				Loaded = desc,
+				Disk = desc,
+			} );
 		}
 
 		return ret;

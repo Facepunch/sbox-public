@@ -112,7 +112,7 @@ public partial class Texture
 	/// A mip's size as it reads back: on Source 2's device what it has streamed in (on disk sizes can be larger), else the
 	/// texture's own, which is what the drawing device holds.
 	/// </summary>
-	(int Width, int Height) ReadSize( int mip )
+	internal (int Width, int Height) ReadSize( int mip )
 	{
 		// BUG: Width/Height is on disk and not the currently streamed mip
 		//      I don't know what would break if I made Width/Height represent that instead

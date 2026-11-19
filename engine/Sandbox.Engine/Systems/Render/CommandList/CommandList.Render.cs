@@ -17,10 +17,10 @@ public sealed unsafe partial class CommandList
 			if ( !renderer.IsValid() )
 				return;
 
-			renderer.RenderSceneObject( (RendererSetup)entry.Object2 );
+			renderer.RenderSceneObject( commandList._rendererSetups[entry.Count] );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = renderer, Object2 = rendererSetup } );
+		AddEntry( &Execute, new Entry { Object1 = renderer }, ref _rendererSetups, rendererSetup );
 	}
 
 	/// <summary>
@@ -46,11 +46,11 @@ public sealed unsafe partial class CommandList
 			// or we'll end up with an infinite loop!
 			if ( Graphics.IsChildView ) return;
 
-			camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, (ViewSetup)entry.Object2, out var result );
+			camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, commandList._viewSetups[entry.Count], out var result );
 			commandList.state.views[entry.ViewId] = result;
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = camera, Object5 = target.Name, Object2 = viewSetup, ViewId = view.Id } );
+		AddEntry( &Execute, new Entry { Object1 = camera, Object5 = target.Name, ViewId = view.Id }, ref _viewSetups, viewSetup );
 		return view;
 	}
 
@@ -70,7 +70,7 @@ public sealed unsafe partial class CommandList
 			var camera = (CameraComponent)entry.Object1;
 			if ( !camera.IsValid() ) return;
 
-			var setup = (ReflectionSetup)entry.Object2;
+			var setup = commandList._reflectionSetups[entry.Count];
 			var plane = new Plane( new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ), entry.Data2.x );
 
 			var rt = commandList.GetRenderTarget( (string)entry.Object5 );
@@ -96,7 +96,7 @@ public sealed unsafe partial class CommandList
 			commandList.state.views[entry.ViewId] = RenderReflection( camera, plane, rt, setup );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = camera, Object2 = reflectionSetup, ViewId = view.Id, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = camera, ViewId = view.Id, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) }, ref _reflectionSetups, reflectionSetup );
 		return view;
 	}
 
@@ -172,7 +172,7 @@ public sealed unsafe partial class CommandList
 			var camera = (CameraComponent)entry.Object1;
 			if ( !camera.IsValid() ) return;
 
-			var setup = (RefractionSetup)entry.Object2;
+			var setup = commandList._refractionSetups[entry.Count];
 			var plane = new Plane( new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ), entry.Data2.x );
 
 			var rt = commandList.GetRenderTarget( (string)entry.Object5 );
@@ -213,7 +213,7 @@ public sealed unsafe partial class CommandList
 			commandList.state.views[entry.ViewId] = result;
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = camera, Object2 = refractionSetup, ViewId = view.Id, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = camera, ViewId = view.Id, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) }, ref _refractionSetups, refractionSetup );
 		return view;
 	}
 

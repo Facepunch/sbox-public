@@ -168,7 +168,7 @@ internal sealed partial class MapWorld
 		readonly double waveTimeOffset, detailTimeOffset;
 		readonly Vector4[] bands = new Vector4[4];
 		readonly bool reflectSky;
-		readonly Dictionary<WaterBody.ClipmapLayout, RenderMesh> meshes = new();
+		readonly Dictionary<int, (int Levels, RenderMesh Mesh)> meshes = new();
 		readonly float opacity;
 		readonly FogSettings? fog;
 		WaterBody.ClipmapLayout layout;
@@ -262,10 +262,13 @@ internal sealed partial class MapWorld
 			};
 		}
 
-		/// <summary>The surface for a clipmap: both sides in one buffer, the underside flipped (<c>WaterBody.RebuildMesh</c>).</summary>
+		/// <summary>
+		/// The surface for a clipmap: both sides in one buffer, the underside flipped (<c>WaterBody.BuildSurfaceMesh</c>). One
+		/// per cell count, with room for the most levels it has needed; the shader collapses the levels past ClipmapLevels.
+		/// </summary>
 		RenderMesh Mesh( WaterBody.ClipmapLayout clipmap )
 		{
-			if ( meshes.TryGetValue( clipmap, out var known ) ) return known;
+			if ( meshes.TryGetValue( clipmap.Cells, out var known ) && known.Levels >= clipmap.Levels ) return known.Mesh;
 
 			var (top, topIndices) = WaterBody.BuildClipmap( clipmap, half );
 			var (under, underIndices) = WaterBody.BuildUnderside( top, topIndices );
@@ -282,7 +285,9 @@ internal sealed partial class MapWorld
 			float rise = MathF.Max( 0.1f, waves ? waveHeight : 0 );
 			float horizontal = waves ? MathF.Max( 4, MathF.Max( waveLength, waveWidth ) ) * waveSteepness / MathF.Tau : 0;
 			var bounds = new BBox( new Vector3( -half.x - horizontal, -half.y - horizontal, -rise ), new Vector3( half.x + horizontal, half.y + horizontal, rise ) );
-			return meshes[clipmap] = BackendMesh.Create<Vertex>( map.Backend, vertices, VertexLayout, indices, bounds, material, "Water surface" );
+			var mesh = BackendMesh.Create<Vertex>( map.Backend, vertices, VertexLayout, indices, bounds, material, "Water surface" );
+			meshes[clipmap.Cells] = (clipmap.Levels, mesh);
+			return mesh;
 		}
 
 		/// <summary><see cref="Vertex"/> as the water shader reads it: position, normal, the cell in TEXCOORD0, the level and side in TEXCOORD1.</summary>
@@ -313,7 +318,8 @@ internal sealed partial class MapWorld
 			if ( next != layout || Object.Mesh is null )
 			{
 				layout = next;
-				Object.Mesh = Mesh( layout );
+				var mesh = Mesh( layout );
+				if ( Object.Mesh != mesh ) Object.Mesh = mesh;
 			}
 
 			var a = Object.Attributes;

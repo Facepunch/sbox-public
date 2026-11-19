@@ -259,6 +259,13 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 			{
 				var call = mesh.DrawCalls[d];
 
+				// A draw of nothing (an empty mesh's) has no geometry, and isn't drawn (Create)
+				if ( call.IndexCount <= 0 )
+				{
+					firstVertexId += call.VertexCount;
+					continue;
+				}
+
 				// One vertex stream: every compiled draw binds one buffer (the second stream is Borealis's instance ids)
 				var (vertexIndex, vertexOffset) = call.VertexBuffers.Count > 0 ? call.VertexBuffers[0] : (0, 0);
 				var vertices = vertexBuffers[vertexIndex];
@@ -488,6 +495,10 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 				for ( int d = 0; d < mesh.DrawCalls.Count; d++ )
 				{
 					var call = mesh.DrawCalls[d];
+
+					// An empty mesh's draws draw nothing: they aren't drawn
+					if ( call.IndexCount <= 0 ) continue;
+
 					var materialPath = file.MaterialFor( call.Material, materialGroup );
 					var material = device.ModelMaterial( materialPath );
 					geometry.materialPaths.Add( materialPath );

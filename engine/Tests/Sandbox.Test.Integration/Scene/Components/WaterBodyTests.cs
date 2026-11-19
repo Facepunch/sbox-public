@@ -240,4 +240,55 @@ public class WaterBodyTests
 			scene.Destroy();
 		}
 	}
+
+	/// <summary>
+	/// Moving the camera changes the clipmap's detail without making the surface again: near, far and near again, an
+	/// ocean or a large pool keeps the model it made first, and only its attributes follow the camera.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void DetailChangesKeepTheSurfaceModel( bool ocean )
+	{
+		if ( !Graphics.IsAvailable )
+			Assert.Inconclusive( "Requires SBOX_TEST_GRAPHICS=1." );
+
+		var scene = Scene.CreateEditorScene();
+		using var scope = scene.Push();
+		int savedDetail = WaterBody.Detail;
+		try
+		{
+			WaterBody.Detail = 2;
+			var camera = scene.CreateObject().Components.Create<CameraComponent>();
+			camera.ZFar = 20000;
+			var water = scene.CreateObject().Components.Create<WaterBody>();
+			water.Ocean = ocean;
+			water.Size = new Vector2( 4096 );
+			water.Waves = true;
+			water.Underwater = false;
+			water.Effects = false;
+			var surface = water.GetComponentsInChildren<ModelRenderer>().Single();
+
+			(Model Model, float Cell, int Levels) At( float height )
+			{
+				camera.WorldPosition = new Vector3( 10, 20, height );
+				scene.EditorTick( 2, 1f / 60 );
+				scene.PreRender();
+				return (surface.Model, surface.Attributes.GetFloat( "ClipmapBaseCell" ), surface.Attributes.GetInt( "ClipmapLevels" ));
+			}
+
+			var near = At( 50 );
+			var far = At( 1500 );
+			Assert.IsTrue( far.Cell > near.Cell, $"The far camera must get coarser cells: {near.Cell} / {far.Cell}." );
+			Assert.AreNotEqual( near.Levels, far.Levels, "The far camera must need another number of levels." );
+			Assert.AreSame( near.Model, far.Model, "Moving away made the surface again." );
+			Assert.AreSame( near.Model, At( 50 ).Model, "Coming back made the surface again." );
+			Assert.AreSame( near.Model, At( 1500 ).Model );
+		}
+		finally
+		{
+			WaterBody.Detail = savedDetail;
+			scene.Destroy();
+		}
+	}
 }

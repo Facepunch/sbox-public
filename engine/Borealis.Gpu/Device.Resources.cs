@@ -1228,6 +1228,19 @@ public sealed unsafe partial class Device
 	}
 
 	/// <summary>
+	/// Every live texture's description and the device memory it holds (none for a swap chain's images), for resource
+	/// viewers.
+	/// </summary>
+	public List<(TextureInfo Info, long Bytes)> ListTextures()
+	{
+		var all = Textures.All();
+		var list = new List<(TextureInfo Info, long Bytes)>( all.Count );
+		foreach ( var record in all )
+			list.Add( (record.Info, record.External || record.Memory.Block is null ? 0 : (long)record.Memory.Size) );
+		return list;
+	}
+
+	/// <summary>
 	/// Describe what's alive, for leak checks: counts of each kind of resource.
 	/// </summary>
 	public string DescribeResources()

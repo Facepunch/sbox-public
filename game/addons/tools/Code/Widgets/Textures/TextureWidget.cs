@@ -58,10 +58,9 @@ public class TextureWidget : Widget
 				return;
 			}
 
-			Pixmap newPixmap = default;
-			await Task.Run( () => newPixmap = Pixmap.FromTexture( texture ) );
-
-			pixmap = newPixmap;
+			// Read back on the main thread: the renderer records and reads its device there
+			await Task.Yield();
+			pixmap = Pixmap.FromTexture( texture );
 			Update();
 		}
 		finally

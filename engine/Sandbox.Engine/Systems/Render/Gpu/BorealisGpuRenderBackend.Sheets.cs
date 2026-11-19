@@ -20,7 +20,6 @@ internal sealed partial class BorealisGpuRenderBackend
 
 	/// <summary>The sheet cache, once a sheet has been written into it.</summary>
 	internal Texture SheetCacheTexture => sheetCache;
-	bool sheetCacheBound;
 
 	/// <summary>
 	/// <paramref name="texture"/>'s sheet data as <c>GetSheetInfo</c> gives it - the sheet cache's v of its first sequence's
@@ -77,8 +76,9 @@ internal sealed partial class BorealisGpuRenderBackend
 			}
 		}
 
-		if ( sheetCacheBound || sheetCache is null ) return;
+		// Every time: a write this device couldn't take releases its copy, which is made again with a new handle, and the
+		// views would go on reading the old one
+		if ( sheetCache is null ) return;
 		services.SheetCache = BorealisViewOf( sheetCache );
-		sheetCacheBound = true;
 	}
 }

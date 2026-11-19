@@ -64,6 +64,81 @@ public class ContentLifetimeTests : GpuTest
 		Device.WaitIdle();
 	}
 
+	/// <summary>
+	/// A model's bytes with its first mesh's buffers (its <c>MBUF</c> block) empty: one vertex and one index buffer of
+	/// 0 x 0 bytes, as an empty run-time mesh saves them (a voxel chunk with no faces).
+	/// </summary>
+	static byte[] WithEmptyBuffers( byte[] model )
+	{
+		var tableStart = 8 + BitConverter.ToInt32( model, 8 );
+		var blocks = BitConverter.ToInt32( model, 12 );
+		for ( int i = 0; i < blocks; i++ )
+		{
+			var entry = tableStart + i * 12;
+			if ( System.Text.Encoding.ASCII.GetString( model, entry, 4 ) != "MBUF" ) continue;
+
+			// VBIBBlockHeader_t: the vertex then index buffer arrays (offset from the field, count), then each buffer's
+			// RenderMeshBufferData_t: element count and size 0, no layout fields, no data
+			var empty = new byte[64];
+			BitConverter.TryWriteBytes( empty.AsSpan( 0 ), 16 );
+			BitConverter.TryWriteBytes( empty.AsSpan( 4 ), 1 );
+			BitConverter.TryWriteBytes( empty.AsSpan( 8 ), 32 );
+			BitConverter.TryWriteBytes( empty.AsSpan( 12 ), 1 );
+
+			// Appended, and the block's entry pointed at it
+			var bytes = new byte[model.Length + empty.Length];
+			model.CopyTo( bytes, 0 );
+			empty.CopyTo( bytes, model.Length );
+			BitConverter.TryWriteBytes( bytes.AsSpan( entry + 4 ), model.Length - (entry + 4) );
+			BitConverter.TryWriteBytes( bytes.AsSpan( entry + 8 ), empty.Length );
+			return bytes;
+		}
+
+		throw new InvalidOperationException( "The model has no embedded mesh buffers" );
+	}
+
+	/// <summary>
+	/// An empty run-time mesh (its buffers 0 x 0) reads as a mesh that draws nothing, as native has it: made, made again
+	/// when it changes, and drawn, with no warning, exception or validation error.
+	/// </summary>
+	[TestMethod]
+	public void AnEmptyRunTimeMeshDrawsNothing()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		if ( backend.Content.TryRead( "models/dev/box.vmdl" ) is not { } data ) { Assert.Inconclusive( "models/dev/box.vmdl isn't built" ); return; }
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		var warnings = new List<string>();
+		backend.Warn = warnings.Add;
+		try
+		{
+			var file = ModelFile.Read( WithEmptyBuffers( data ), backend.Content.TryRead );
+			var buffers = file.Meshes[0].VertexBuffers.Single();
+			Assert.AreEqual( 0, buffers.Count, "an empty vertex buffer" );
+			Assert.AreEqual( 0, file.Meshes[0].IndexBuffers.Single().Count, "and index buffer" );
+			Assert.IsTrue( file.Meshes[0].DrawCalls.Count > 0 && file.Meshes[0].DrawCalls.All( d => d.IndexCount == 0 && d.VertexCount == 0 ), "its draws draw nothing" );
+
+			using var drawn = new DrawnModel( Device );
+			for ( int version = 0; version < 2; version++ )
+			{
+				// Made, drawn, and made again as a changed run-time model is
+				var mesh = BackendModel.Create( backend, ModelFile.Read( WithEmptyBuffers( data ), backend.Content.TryRead ), meshGroups: ulong.MaxValue, drawFastPath: true );
+				Assert.AreEqual( 0, Enumerable.Range( 0, mesh.LodCount ).Sum( lod => mesh.DrawsForLod( lod ).Length ), "no draws" );
+				drawn.Render( mesh, wait: true );
+				drawn.Render( mesh, wait: true );
+				((BackendModel)mesh.Geometry).Free();
+			}
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.AreEqual( 0, warnings.Count, string.Join( "\n", warnings ) );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
 	const string Citizen = "models/citizen/citizen.vmdl";
 
 	/// <summary>

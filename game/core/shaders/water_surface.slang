@@ -403,8 +403,9 @@ public struct Water : IVertexStageSurface, IShadedVertexStageSurface
 				upper = min( upper, HalfSize );
 			}
 
-			// A level that misses a finite body entirely collapses to one point, drawing nothing
-			p = any( lower > upper ) ? clamp( camera, -HalfSize, HalfSize ) : clamp( p, lower, upper );
+			// A level past ClipmapLevels (the mesh has room for more), or one that misses a finite body entirely,
+			// collapses to one point, drawing nothing
+			p = level >= ClipmapLevels || any( lower > upper ) ? clamp( camera, -HalfSize, HalfSize ) : clamp( p, lower, upper );
 
 			float3 offset;
 			float2 slope;

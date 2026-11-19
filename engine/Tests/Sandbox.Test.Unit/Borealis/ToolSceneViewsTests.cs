@@ -17,7 +17,7 @@ public class ToolSceneViewsTests
 	[TestMethod]
 	public void RequestMatchesNativeLayout()
 	{
-		Assert.AreEqual( 448, Marshal.SizeOf<ToolSceneViews.Request>() );
+		Assert.AreEqual( 496, Marshal.SizeOf<ToolSceneViews.Request>() );
 		Assert.AreEqual( 72, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Window ) ) );
 		Assert.AreEqual( 80, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Width ) ) );
 		Assert.AreEqual( 112, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.FovX ) ) );
@@ -43,6 +43,10 @@ public class ToolSceneViewsTests
 		Assert.AreEqual( 424, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.RaytracedWidth ) ) );
 		Assert.AreEqual( 436, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.RaytracedScale ) ) );
 		Assert.AreEqual( 440, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.StatusText ) ) );
+		Assert.AreEqual( 448, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.OverlayTexture ) ) );
+		Assert.AreEqual( 456, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.OverlayPixels ) ) );
+		Assert.AreEqual( 476, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.OverlayChannel ) ) );
+		Assert.AreEqual( 480, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.OverlayRect ) ) );
 
 		// ToolSceneText_t
 		Assert.AreEqual( 48, Marshal.SizeOf<ToolSceneViews.Text>() );
@@ -61,6 +65,34 @@ public class ToolSceneViewsTests
 		Assert.AreEqual( 40, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.Caption ) ) );
 		Assert.AreEqual( 48, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.CaptionAnchor ) ) );
 		Assert.AreEqual( 60, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.TextHeight ) ) );
+	}
+
+	/// <summary>
+	/// A native tool's texture read (<c>ToolTexturePixels_t</c>, src/public/toolutils2/toolrenderutils.h) is laid out as native
+	/// lays it out (x64).
+	/// </summary>
+	[TestMethod]
+	public void TexturePixelsRequestMatchesNativeLayout()
+	{
+		Assert.AreEqual( 32, Marshal.SizeOf<ToolTexturePixels.Request>() );
+		Assert.AreEqual( 8, (int)Marshal.OffsetOf<ToolTexturePixels.Request>( nameof( ToolTexturePixels.Request.Width ) ) );
+		Assert.AreEqual( 16, (int)Marshal.OffsetOf<ToolTexturePixels.Request>( nameof( ToolTexturePixels.Request.Pixels ) ) );
+		Assert.AreEqual( 24, (int)Marshal.OffsetOf<ToolTexturePixels.Request>( nameof( ToolTexturePixels.Request.Handled ) ) );
+	}
+
+	/// <summary>
+	/// A texture preview showing one channel shows it as opaque grey, as native's overlay blit does.
+	/// </summary>
+	[TestMethod]
+	public void ScreenLayerChannelIsGrey()
+	{
+		Color32[] pixels = [new Color32( 10, 20, 30, 40 ), new Color32( 50, 60, 70, 80 )];
+		ToolSceneViews.ToolScreenLayer.Grey( pixels, ToolSceneViews.ToolScreenLayer.Channel.Green );
+		CollectionAssert.AreEqual( new[] { new Color32( 20, 20, 20, 255 ), new Color32( 60, 60, 60, 255 ) }, pixels );
+
+		pixels = [new Color32( 10, 20, 30, 40 )];
+		ToolSceneViews.ToolScreenLayer.Grey( pixels, ToolSceneViews.ToolScreenLayer.Channel.Alpha );
+		CollectionAssert.AreEqual( new[] { new Color32( 40, 40, 40, 255 ) }, pixels );
 	}
 
 	/// <summary>
