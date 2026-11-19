@@ -151,6 +151,9 @@ public sealed class SpirvReflection
 					dimension = (SpirvImageDimension)words[elementStart + 1];
 					var arrayed = words[elementStart + 3] != 0;
 					if ( arrayed ) dimension = dimension == SpirvImageDimension.Cube ? SpirvImageDimension.CubeArray : dimension == SpirvImageDimension.Texture2D ? SpirvImageDimension.Texture2DArray : dimension;
+
+					// Texture2DMS: only a multisampled texture binds there, and only there
+					else if ( dimension == SpirvImageDimension.Texture2D && words[elementStart + 4] != 0 ) dimension = SpirvImageDimension.Texture2DMS;
 					type = words[elementStart + 5] == 2 ? BindingType.StorageTexture : BindingType.SampledTexture;
 					break;
 				case OpTypeSampler:
@@ -294,6 +297,7 @@ public enum SpirvImageDimension
 	SubpassData = 6,
 	Texture2DArray = 100,
 	CubeArray = 101,
+	Texture2DMS = 102,
 	None = -1,
 #pragma warning restore CS1591
 }

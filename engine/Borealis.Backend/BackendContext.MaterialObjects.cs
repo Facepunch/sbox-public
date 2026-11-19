@@ -244,7 +244,7 @@ internal sealed partial class BackendContext
 			_ => TextureDimension.Texture2D,
 		};
 
-		if ( texture is not { IsValid: true } || layout != ImageLayout.ShaderRead || texture.Dimension != expected || texture.Samples > 1 ) return defaults.For( resource );
+		if ( texture is not { IsValid: true } || layout != ImageLayout.ShaderRead || texture.Dimension != expected || (texture.Samples > 1) != (resource.Dimension == SpirvImageDimension.Texture2DMS) ) return defaults.For( resource );
 
 		var srgb = resource.Variable.RenderStateId == 1 && gpu.InfoOf( texture.Handle ).Format.HasSrgb();
 		return Binding.Sampled( resource.Binding, texture.Handle, srgb );

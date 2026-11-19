@@ -59,6 +59,7 @@ public sealed class ShaderDefaults : IDisposable
 		lock ( textures )
 		{
 			if ( textures.TryGetValue( dimension, out var texture ) ) return texture;
+			if ( dimension == SpirvImageDimension.Texture2DMS ) return textures[dimension] = MultisampledTexture();
 
 			var info = TextureInfo.Texture2D( 1, 1, Format.RGBA8Unorm, name: $"Default {dimension}" );
 			info.Usage |= TextureUsage.Storage;
@@ -85,6 +86,23 @@ public sealed class ShaderDefaults : IDisposable
 			textures[dimension] = texture;
 			return texture;
 		}
+	}
+
+	/// <summary>
+	/// A 1x1 black texture with four samples for a <c>Texture2DMS</c> binding nothing fills: a single-sampled one isn't allowed
+	/// there. Cleared rather than written, and left readable.
+	/// </summary>
+	TextureHandle MultisampledTexture()
+	{
+		var info = TextureInfo.RenderTarget( 1, 1, Format.RGBA8Unorm, samples: 4, name: "Default Texture2DMS" );
+		info.Usage |= TextureUsage.Sampled;
+		var texture = gpu.CreateTexture( info );
+		var list = gpu.BeginCommandList( QueueType.Graphics, "Default multisampled texture" );
+		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		list.ClearTexture( texture );
+		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
+		gpu.Wait( gpu.Submit( list ) );
+		return texture;
 	}
 
 	/// <summary>

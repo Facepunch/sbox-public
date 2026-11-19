@@ -202,6 +202,37 @@ public class LayerTests
 		Assert.IsFalse( Plans<BloomLayer>( system ), "but nothing reads it without a camera's stages, whose bloom would" );
 	}
 
+	sealed class NoStages : IRenderStages
+	{
+		public void Render( RenderStage stage, in StageTarget target ) { }
+	}
+
+	/// <summary>
+	/// A frame that draws bloom objects leaves the bloom layer's target for its camera's bloom effect after the frame
+	/// (<see cref="RenderSystem.BloomObjects"/>), as native's view attributes give it; a frame without any leaves none.
+	/// </summary>
+	[TestMethod]
+	public void FramesLeaveTheirBloomObjectsForTheBloomEffect()
+	{
+		var world = new RenderWorld();
+		var glow = new MeshObject( TestMesh( false ), new Transform( new Vector3( 20, 0, 0 ) ) ) { GameLayers = false, Bloom = true };
+		world.Add( glow );
+		world.Add( new MeshObject( TestMesh( false ), new Transform( new Vector3( 40, 0, 0 ) ) ) );
+
+		using var system = new RenderSystem();
+		using var target = ViewTarget.Create( new Vector2Int( 64, 32 ), samples: 1 );
+		var stages = new NoStages();
+		RenderHost.Current.NextFrame();
+		system.Render( world, LookingDownX(), target, stages );
+		Assert.IsNotNull( system.BloomObjects, "the bloom layer drew" );
+		Assert.AreSame( system.Layers.OfType<BloomLayer>().Single().BloomColor, system.BloomObjects );
+
+		world.Remove( glow );
+		RenderHost.Current.NextFrame();
+		system.Render( world, LookingDownX(), target, stages );
+		Assert.IsNull( system.BloomObjects, "nothing glows" );
+	}
+
 	/// <summary>
 	/// Whether the main frame's plan schedules a layer of this type (<see cref="FrameRecorder"/>).
 	/// </summary>
