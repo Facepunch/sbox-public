@@ -440,7 +440,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		_ = Recording;
 		context.MemoryBarrier();
-		context.UpdateBuffer( pipelineTextures, new byte[16], 0 );
+		context.UpdateBuffer( pipelineTextures, stackalloc byte[16], 0 );
 	}
 
 	public override void EndBlock()
