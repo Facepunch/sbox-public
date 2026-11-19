@@ -22,7 +22,7 @@ namespace Sandbox.BorealisLab.Maps;
 /// <c>maps/name.vpk</c> or <c>maps/folder/name.vpk</c>.</item>
 /// <item><c>-view name</c> - one camera (<c>skyline</c>, <c>overview</c>); all by default.</item>
 /// <item><c>-camera-pos x,y,z</c>, <c>-camera-lookat x,y,z</c> ((0, 0, 30) by default) - one camera of any map instead, as SceneLab's
-/// switches move its map presets' cameras; <c>-view</c> names it.</item>
+/// switches move its map presets' cameras; <c>-view</c> names it; <c>-camera-fov</c> its horizontal field of view (80).</item>
 /// <item><c>-variants a,b</c> - which of the runs below; all by default.</item>
 /// <item><c>-frames N</c> (600), <c>-warmup N</c> (120 frames and 2 s) - measured and warm-up frames per run.</item>
 /// <item><c>-width</c> / <c>-height</c> (1280x720, SceneLab's frame), <c>-msaa N</c> (4), <c>-vsync</c> (off by default).</item>
@@ -89,7 +89,7 @@ internal static class MapRun
 		var warmup = Math.Max( Args.Int( "-warmup", 120 ), 1 );
 		var only = Args.String( "-variants" )?.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
 		var variants = only is null ? Variants : Variants.Where( v => only.Contains( v.Name, StringComparer.OrdinalIgnoreCase ) ).ToArray();
-		var views = Args.String( "-camera-pos" ) is { } cameraPos ? [new MapView( Args.String( "-view" ) ?? "camera", Vector( cameraPos ), Args.String( "-camera-lookat" ) is { } at ? Vector( at ) : new V3( 0, 0, 30 ) )]
+		var views = Args.String( "-camera-pos" ) is { } cameraPos ? [new MapView( Args.String( "-view" ) ?? "camera", Vector( cameraPos ), Args.String( "-camera-lookat" ) is { } at ? Vector( at ) : new V3( 0, 0, 30 ), Args.Float( "-camera-fov", 80 ) )]
 			: Args.String( "-view" ) is { } viewName ? ConstructViews.Where( v => v.Name.Equals( viewName, StringComparison.OrdinalIgnoreCase ) ).ToArray() : ConstructViews;
 		var captures = Args.String( "-capture" );
 		var output = Path.GetFullPath( Args.String( "-out" ) ?? Path.Combine( "screenshots", "borealislab", "map" ) );
