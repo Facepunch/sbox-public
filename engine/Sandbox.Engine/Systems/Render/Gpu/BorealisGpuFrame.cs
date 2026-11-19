@@ -329,7 +329,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 	/// draw through (<see cref="BorealisGpuCustomDraw"/>). <paramref name="depthAlone"/> draws into the target's depth with no
 	/// colour, at its slice (a shadow map's, or the depth prepass's), where a stage with no colour binds nothing.
 	/// </summary>
-	internal void RunInFrame( in StageTarget target, byte[] viewConstants, BorealisGpuView view, bool first, Action draw, bool depthAlone = false )
+	internal void RunInFrame( in StageTarget target, byte[] viewConstants, BorealisGpuView view, bool first, Action draw, bool depthAlone = false, RenderAttributes cameraAttributes = null )
 	{
 		if ( depthAlone )
 		{
@@ -372,6 +372,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			if ( first ) backend.ClearPipelineTextures();
 
 			var attributes = Graphics.Attributes;
+			cameraAttributes?.MergeTo( attributes );
 			attributes.SetDataShared( ViewConstantsName, viewConstants );
 
 			// Under what the block sets: Mow the Lawn's terrain filtered its shadows with none of the frame's filter (hard and dark)

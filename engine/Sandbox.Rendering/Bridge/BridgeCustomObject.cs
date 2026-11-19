@@ -36,7 +36,7 @@ internal sealed class BridgeCustomObject : CustomObject
 		}
 
 		if ( layerType is not (SceneLayerType.Opaque or SceneLayerType.Translucent) ) return;
-		BorealisGpuCustomDraw.Draw( context, layerType, view.View, render ??= Source.RenderInternal );
+		BorealisGpuCustomDraw.Draw( context, layerType, view.View, render ??= Source.RenderInternal, cameraAttributes: view.View.HostView as RenderAttributes );
 	}
 
 	/// <summary>
