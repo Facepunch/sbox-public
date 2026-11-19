@@ -63,6 +63,12 @@ internal abstract class RenderBackend
 	/// </summary>
 	public virtual void ReadBuffer( GpuBuffer buffer, Span<byte> data, int offset ) => throw new NotSupportedException( $"{GetType().Name} can't read buffers back." );
 
+	/// <summary>
+	/// The first <paramref name="most"/> bytes of a compiled resource (<c>_c</c> appended unless it's there) as this
+	/// device finds its content, or null: one that reads no files itself (Source 2's) finds none.
+	/// </summary>
+	public virtual byte[] ReadCompiledPrefix( string path, long most ) => null;
+
 	static readonly List<RenderBackend> others = new();
 
 	/// <summary>Devices other than <see cref="Default"/> that hold backings, to release them from.</summary>

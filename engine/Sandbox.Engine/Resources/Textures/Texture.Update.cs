@@ -18,7 +18,8 @@ public partial class Texture
 		InitialPixels = null;
 		InitialColor = color;
 
-		g_pRenderDevice.ClearTexture( native, color );
+		// Source 2's empty device has no image to clear
+		if ( Graphics.HasSource2Device ) g_pRenderDevice.ClearTexture( native, color );
 	}
 
 	/// <summary>
@@ -105,6 +106,9 @@ public partial class Texture
 		RenderBackend.UpdateEverywhere( this, data, x, y, z, width, height, depth );
 		InitialPixels = null;
 		InitialColor = null;
+
+		// Source 2's empty device has no image to write
+		if ( !Graphics.HasSource2Device ) return;
 
 		fixed ( byte* dataPtr = data )
 		{

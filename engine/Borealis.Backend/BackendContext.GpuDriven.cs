@@ -298,7 +298,7 @@ internal sealed partial class BackendContext
 				if ( batch.Material is SurfaceMaterial surface )
 				{
 					// A skinned one from the vertex cache with its skinned GPU-driven pass, under its own object attributes
-					if ( batch.Mesh?.Geometry is IBackendGeometry && GeometryOf( batch ).Pooled is not null )
+					if ( batch.Mesh?.Geometry is IBackendGeometry surfaceSource && surfaceSource.Use() && GeometryOf( batch ).Pooled is not null )
 					{
 						SetObjectAttributes( batch.OwnAttributes, batch.ObjectAttributes );
 						NextPassState( cache );
@@ -329,7 +329,7 @@ internal sealed partial class BackendContext
 					continue;
 				}
 
-				if ( batch.Material is not BackendMaterial { Shader: { } shader } m || batch.Mesh?.Geometry is not IBackendGeometry source ) continue;
+				if ( batch.Material is not BackendMaterial { Shader: { } shader } m || batch.Mesh?.Geometry is not IBackendGeometry source || !source.Use() ) continue;
 				if ( GeometryOf( batch ).Pooled is null )
 				{
 					LeftClassic( shader, shaderMode, batch.VertexCache ? "vertex cache geometry not pooled" : "geometry not pooled" );
@@ -1519,6 +1519,13 @@ internal sealed partial class BackendContext
 			if ( attributes.Version != version ) return false;
 		}
 
+		// Its records name its models' pages: a model freed since (its pages given back) makes it again without it, and the
+		// rest are noted as drawn this frame
+		foreach ( var geometry in plan.Geometries )
+		{
+			if ( !geometry.Use() ) return false;
+		}
+
 		var cache = device.MaterialCache;
 		comboLookup ??= name => LookupCombo( Token( name ) );
 		specializationLookup ??= name => Integer( Lookup( Token( name ) ) );
@@ -1594,10 +1601,13 @@ internal sealed partial class BackendContext
 
 		var materials = new List<(GpuMaterial, int)>();
 		var attributes = new List<(BackendParameters, int)>();
+		var geometries = new List<IBackendGeometry>();
 		var seen = new HashSet<object>( ReferenceEqualityComparer.Instance );
 		foreach ( ref readonly var batch in batches )
 		{
 			if ( batch.Material is not null && seen.Add( batch.Material ) ) materials.Add( (batch.Material, MaterialVersion( batch.Material )) );
+			// A freed one's batches drew nothing, so its records aren't in the plan
+			if ( batch.Mesh?.Geometry is IBackendGeometry geometry && seen.Add( geometry ) && geometry.Use() ) geometries.Add( geometry );
 			if ( batch.ObjectAttributes is BackendParameters parameters && seen.Add( parameters ) ) attributes.Add( (parameters, parameters.Version) );
 			if ( batch.MeshLighting is null ) continue;
 			foreach ( var meshLighting in batch.MeshLighting )
@@ -1621,6 +1631,7 @@ internal sealed partial class BackendContext
 			Checks = checks,
 			Materials = materials.ToArray(),
 			Attributes = attributes.ToArray(),
+			Geometries = geometries.ToArray(),
 			BatchRecords = records,
 			Moved = movedWords,
 			MovedAt = movedAt,
