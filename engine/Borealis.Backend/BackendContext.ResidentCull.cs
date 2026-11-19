@@ -441,7 +441,7 @@ internal sealed partial class BackendContext
 			Draws = (uint)slots.Draws,
 			Frame = frame,
 			FrameSlot = (uint)slot,
-			MeshletRuns = device.MeshletStore is { } store ? (uint)store.RunSlot : uint.MaxValue,
+			MeshletRuns = device.MeshletStore is { } store ? (uint)store.RunSlotCovering( tables.DrawRecords ) : uint.MaxValue,
 			LodTable = lodTable.Slot >= 0 ? (uint)lodTable.Slot : uint.MaxValue,
 			LodCount = lodTable.Records,
 		} );
