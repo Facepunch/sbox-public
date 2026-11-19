@@ -140,6 +140,46 @@ public class SceneObjectDrawTests
 	}
 
 	/// <summary>
+	/// A model reloading gives every object drawing it new mesh instances natively (<c>CModelTypeManager::FinalizeResource</c>
+	/// calls <c>CMeshSystem::ChangeModel</c>), which drop mesh-instance overrides and work the flags out from the model again:
+	/// the objects' managed draws and flags follow (a game's resident resources reload while its first scene loads).
+	/// </summary>
+	[TestMethod]
+	public void DrawsAreNativesAfterTheirModelReloads()
+	{
+		var world = new SceneWorld();
+		try
+		{
+			var human = Model.Load( "models/citizen_human/human.vmdl" );
+			var white = Material.Load( "materials/default/white.vmat" );
+			var glass = Material.Load( "materials/dev/debug_ghost_translucent.vmat" );
+
+			var objects = new SceneObject[] { new SceneObject( world, human ), new SceneModel( world, human, Transform.Zero ) };
+			foreach ( var so in objects )
+			{
+				so.SetMaterialOverride( glass );
+				so.SetMaterialOverride( white, "skin" );
+				Same( so, "a whole translucent override and a skin override" );
+			}
+
+			// What native's reload does to every object drawing the model, then the reload reaching managed code
+			foreach ( var so in objects ) NativeEngine.MeshSystem.ChangeModel( so, human.native );
+			Resource.OnResourceReloaded( human.ResourcePath, human.native.GetBindingPtr() );
+
+			foreach ( var so in objects )
+			{
+				Same( so, "the model reloaded" );
+				so.SetMaterialOverride( glass, "skin" );
+				Same( so, "a translucent skin override after the reload" );
+			}
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	/// <summary>
 	/// Body groups set on a <see cref="SceneModel"/> give the mesh group mask native's <c>CSceneObject::SetBodyGroup</c> gives,
 	/// every choice of every part, past the last choice and a missing part included.
 	/// </summary>
