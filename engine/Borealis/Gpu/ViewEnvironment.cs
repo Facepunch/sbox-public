@@ -72,7 +72,10 @@ internal sealed class ViewEnvironment : IDisposable
 
 	public unsafe void Apply( GpuContext context, SceneLighting lighting, Features.LightBinnerFeature binner, in GPUDirectionalLight sun, in ViewSpace space = default, Vector3 lightingOffset = default, VolumetricFog fog = null, RenderView view = null )
 	{
-		Apply( context, lighting, binner.DynamicCount, binner.BakedCount, binner.BakedIndexMapping, binner.EnvMapCount, binner.DecalCount, sun, space, lightingOffset, fog, view );
+		// The extra suns' count rides in the sun's direction's spare w: they follow the binned lights in the light buffer
+		var withSuns = sun;
+		withSuns.Direction.w = binner.ExtraSunCount;
+		Apply( context, lighting, binner.DynamicCount, binner.BakedCount, binner.BakedIndexMapping, binner.EnvMapCount, binner.DecalCount, withSuns, space, lightingOffset, fog, view );
 	}
 
 	/// <summary>

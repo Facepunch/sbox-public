@@ -118,6 +118,16 @@ internal record LabPreset
 	public Vector3? SunDirection { get; init; }
 
 	/// <summary>
+	/// The sun's colour, if not the default.
+	/// </summary>
+	public Color? SunColor { get; init; }
+
+	/// <summary>
+	/// A second sun (<see cref="Borealis.SceneLighting.ExtraSuns"/>): where its light travels and its colour. It casts shadows.
+	/// </summary>
+	public (Vector3 Direction, Color Color)? SecondSun { get; init; }
+
+	/// <summary>
 	/// How far the camera starts from the middle, if not far enough to see the whole grid.
 	/// </summary>
 	public float? CameraDistance { get; init; }
@@ -155,6 +165,10 @@ internal static class LabPresets
 
 		// Shadows from each kind of light: sun cascades, a spot's projection, point light cubes
 		new() { Name = "Sun Shadows", Group = "Shadows", Grid = 6, Floor = true, SunDirection = SideSun },
+
+		// A warm sun with its cascades and a cool one from the other side with its one map: two shadows each way, both colours
+		new() { Name = "Two Suns", Group = "Shadows", Grid = 6, Floor = true, SunDirection = SideSun, SunColor = new Color( 0.9f, 0.6f, 0.3f ),
+			SecondSun = (new Vector3( 0.6f, 0.5f, -0.6f ).Normal, new Color( 0.2f, 0.4f, 0.9f )) },
 		new() { Name = "Spot Shadow", Group = "Shadows", Grid = 3, Spot = true, LightShadows = true, Sun = 0 },
 		new() { Name = "Static Spot Shadow", Group = "Shadows", Grid = 3, Spot = true, LightShadows = true, Sun = 0, Static = true },
 		new() { Name = "Point Shadows", Group = "Shadows", Grid = 4, Lights = 4, LightShadows = true, Sun = 0 },

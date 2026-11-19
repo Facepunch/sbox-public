@@ -21,8 +21,8 @@ public class SceneMirrorLightingTests
 	static void Sync( IDisposable mirror, SceneCamera camera ) => MirrorType.GetMethod( "Sync" ).Invoke( mirror, [camera, false] );
 
 	/// <summary>
-	/// A world with several directional lights is lit by one sun, the last enabled one added, as native's binner keeps the
-	/// last directional light in its list and lights with no other.
+	/// A world with several directional lights has one sun, the last enabled one added, as native's binner keeps the last
+	/// directional light in its list (the others light as extra suns, <see cref="OtherDirectionalLightsAreExtraSuns"/>).
 	/// </summary>
 	[TestMethod]
 	public void TheLastEnabledDirectionalLightIsTheSun()
@@ -47,6 +47,50 @@ public class SceneMirrorLightingTests
 			first.Delete();
 			Sync( mirror, camera );
 			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SunColor );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	/// <summary>
+	/// Native lights with the sun alone; here every other enabled directional light lights too, as an extra sun, in the order
+	/// they were added.
+	/// </summary>
+	[TestMethod]
+	public void OtherDirectionalLightsAreExtraSuns()
+	{
+		var world = new SceneWorld();
+		try
+		{
+			var first = new SceneDirectionalLight( world, Rotation.From( 45, 0, 0 ), Color.Red );
+			var second = new SceneDirectionalLight( world, Rotation.From( 30, 45, 0 ), Color.Green ) { ShadowsEnabled = false };
+			var last = new SceneDirectionalLight( world, Rotation.From( 60, 90, 0 ), Color.Blue );
+			using var camera = new SceneCamera { World = world };
+			var (mirror, renderWorld) = Mirror( world );
+			using var disposeMirror = mirror;
+			var lighting = renderWorld.Lighting;
+
+			Sync( mirror, camera );
+			Assert.AreEqual( Color.Blue, lighting.SunColor );
+			Assert.AreEqual( 2, lighting.ExtraSuns.Count );
+			Assert.AreEqual( Color.Red, lighting.ExtraSuns[0].Color );
+			Assert.AreEqual( Color.Green, lighting.ExtraSuns[1].Color );
+			Assert.IsTrue( lighting.ExtraSuns[0].Direction.Distance( -first.WorldDirection ) < 1e-5f, "the way its light travels, as the sun's" );
+			Assert.IsTrue( lighting.ExtraSuns[0].Shadows );
+			Assert.IsFalse( lighting.ExtraSuns[1].Shadows );
+
+			second.RenderingEnabled = false;
+			Sync( mirror, camera );
+			Assert.AreEqual( 1, lighting.ExtraSuns.Count );
+			Assert.AreEqual( Color.Red, lighting.ExtraSuns[0].Color );
+
+			// The last one turned off: the one before it is the sun, and no other is left
+			last.RenderingEnabled = false;
+			Sync( mirror, camera );
+			Assert.AreEqual( Color.Red, lighting.SunColor );
+			Assert.AreEqual( 0, lighting.ExtraSuns.Count );
 		}
 		finally
 		{

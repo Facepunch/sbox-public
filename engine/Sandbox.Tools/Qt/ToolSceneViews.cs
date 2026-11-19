@@ -699,7 +699,8 @@ internal static class ToolSceneViews
 	/// Native makes lights through <c>CreateLight</c>, so their managed twins are plain <see cref="SceneLight"/>s, which
 	/// Borealis doesn't draw: it knows a light by its managed type, and a sun only from a main world. Each frame every native
 	/// light gets a <see cref="SceneDirectionalLight"/>, <see cref="ScenePointLight"/> or <see cref="SceneSpotLight"/> in the
-	/// view's own world, the camera's main world, with the native light's settings. Envmaps and probe volumes need none:
+	/// view's own world, the camera's main world, with the native light's settings. The last directional light's is made last,
+	/// so it's the sun as native's binner picks it; the others light as extra suns. Envmaps and probe volumes need none:
 	/// the extra worlds' light the views that draw them.
 	/// </summary>
 	internal sealed class ToolLights : IDisposable
@@ -712,6 +713,10 @@ internal static class ToolSceneViews
 
 		SceneDirectionalLight sun;
 		readonly List<SceneLight> directionals = new();
+
+		// The other directional lights' stand-ins, made before the sun's
+		readonly Dictionary<SceneLight, SceneDirectionalLight> otherSuns = new();
+		readonly List<SceneLight> goneSuns = new();
 
 		public void BeginFrame()
 		{
@@ -740,8 +745,8 @@ internal static class ToolSceneViews
 					var kind = (ShadowLightType)light.lightNative.GetLightType();
 					if ( kind is not (ShadowLightType.Point or ShadowLightType.Spot or ShadowLightType.Directional) ) continue;
 
-					// One sun, the last directional light the worlds have, as native's light binner keeps the last it meets
-					// (CLightBinnerStandard::GatherVisibleLights); it lights with no other directional light (EndFrame)
+					// The sun is the last directional light the worlds have, as native's light binner keeps the last it meets
+					// (CLightBinnerStandard::GatherVisibleLights); the others are extra suns (EndFrame)
 					if ( kind == ShadowLightType.Directional )
 					{
 						directionals.Add( light );
@@ -817,10 +822,41 @@ internal static class ToolSceneViews
 		/// </summary>
 		public void EndFrame()
 		{
+			// Every directional light but the last is an extra sun: a tool rig's own "Sun" lights beside the preview map's
+			// light_environment, which native's binner would skip
+			var madeSun = false;
+			for ( int i = 0; i < directionals.Count - 1; i++ )
+			{
+				var light = directionals[i];
+				if ( !otherSuns.TryGetValue( light, out var proxy ) || !proxy.IsValid() )
+				{
+					otherSuns[light] = proxy = new SceneDirectionalLight( World, Rotation.Identity, light.LightColor );
+					madeSun = true;
+				}
+
+				Copy( light, proxy );
+			}
+
+			foreach ( var (light, proxy) in otherSuns )
+			{
+				var index = directionals.IndexOf( light );
+				if ( index < 0 || index == directionals.Count - 1 ) goneSuns.Add( light );
+			}
+
+			foreach ( var light in goneSuns )
+			{
+				otherSuns.Remove( light, out var proxy );
+				proxy?.Delete();
+			}
+
+			goneSuns.Clear();
+
+			// The sun's stand-in is made after the others', so it's the one added last
 			var sunSource = directionals.Count > 0 ? directionals[^1] : null;
 			if ( sunSource is not null )
 			{
-				if ( !sun.IsValid() ) sun = new SceneDirectionalLight( World, Rotation.Identity, sunSource.LightColor );
+				if ( madeSun && sun.IsValid() ) sun.Delete();
+				if ( madeSun || !sun.IsValid() ) sun = new SceneDirectionalLight( World, Rotation.Identity, sunSource.LightColor );
 				Copy( sunSource, sun );
 			}
 			else if ( sun.IsValid() )
@@ -829,8 +865,6 @@ internal static class ToolSceneViews
 				sun = null;
 			}
 
-			// Native lights with that one directional light only (its binner skips the others): a tool rig's own "Sun" goes
-			// unused under the preview map's light_environment, and the map's probe volume lights the model
 			foreach ( var (light, proxy) in proxies )
 			{
 				if ( !seen.Contains( light ) ) gone.Add( light );
@@ -866,6 +900,8 @@ internal static class ToolSceneViews
 			proxies.Clear();
 			foreach ( var proxy in skies.Values ) proxy.Delete();
 			skies.Clear();
+			foreach ( var proxy in otherSuns.Values ) proxy.Delete();
+			otherSuns.Clear();
 			if ( sun.IsValid() ) sun.Delete();
 			sun = null;
 			World.Delete();
