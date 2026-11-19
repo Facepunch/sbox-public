@@ -791,7 +791,7 @@ internal static class ToolSceneViews
 
 					if ( !proxies.TryGetValue( light, out var proxy ) || !proxy.IsValid() )
 					{
-						proxy = kind switch
+						proxy = Spare( kind ) ?? kind switch
 						{
 							ShadowLightType.Spot => new SceneSpotLight( World, light.Position, light.LightColor ),
 							_ => new ScenePointLight( World, light.Position, light.Radius, light.LightColor ),
@@ -825,6 +825,23 @@ internal static class ToolSceneViews
 			if ( proxy.RenderingEnabled != sky.RenderingEnabled ) proxy.RenderingEnabled = sky.RenderingEnabled;
 		}
 
+		// Stand-ins no native light has now, switched off
+		readonly List<SceneLight> spares = new();
+
+		SceneLight Spare( ShadowLightType kind )
+		{
+			for ( int i = spares.Count - 1; i >= 0; i-- )
+			{
+				var spare = spares[i];
+				if ( !spare.IsValid() ) { spares.RemoveAt( i ); continue; }
+				if ( (spare is SceneSpotLight) != (kind == ShadowLightType.Spot) ) continue;
+				spares.RemoveAt( i );
+				return spare;
+			}
+
+			return null;
+		}
+
 		readonly Dictionary<SceneSkyBox, SceneSkyBox> skies = new();
 		readonly HashSet<SceneSkyBox> seenSkies = new();
 		readonly List<SceneSkyBox> goneSkies = new();
@@ -852,7 +869,7 @@ internal static class ToolSceneViews
 		}
 
 		/// <summary>
-		/// Delete the stand-ins of native lights no world had this frame.
+		/// Switch off the stand-ins of native lights no world had this frame.
 		/// </summary>
 		public void EndFrame()
 		{
@@ -875,10 +892,14 @@ internal static class ToolSceneViews
 				if ( !seen.Contains( light ) ) gone.Add( light );
 			}
 
+			// Kept switched off for the next native light of their kind rather than deleted: a read-back's temporary view makes
+			// its lights afresh each time, and a light deleted mid-frame lights on to the frame's end, as native's does
 			foreach ( var light in gone )
 			{
 				proxies.Remove( light, out var proxy );
-				proxy?.Delete();
+				if ( !proxy.IsValid() ) continue;
+				proxy.RenderingEnabled = false;
+				spares.Add( proxy );
 			}
 
 			gone.Clear();
@@ -895,13 +916,13 @@ internal static class ToolSceneViews
 			}
 
 			goneSkies.Clear();
-
-
 		}
 
 		public void Dispose()
 		{
 			foreach ( var proxy in proxies.Values ) proxy.Delete();
+			foreach ( var spare in spares ) spare.Delete();
+			spares.Clear();
 			proxies.Clear();
 			foreach ( var proxy in skies.Values ) proxy.Delete();
 			skies.Clear();
