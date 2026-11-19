@@ -569,9 +569,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	}
 
 	/// <summary>
-	/// Get the PVS of the loaded map
+	/// The loaded map, whose visibility culls what's sent to each connection; null when none is loaded.
 	/// </summary>
-	internal IPVS GetNetworkPvs() => loadedMap?.PVS ?? default;
+	internal SceneMap GetNetworkMap() => loadedMap is not null && loadedMap.IsValid ? loadedMap : null;
 }
 
 file class MapComponentMapLoader : SceneMapLoader

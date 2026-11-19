@@ -18,10 +18,29 @@ public sealed partial class SceneMap : IValid
 	internal string WorldGroup { get; private set; }
 
 	/// <summary>
-	/// Maps don't build a PVS any more (owner, 2026-11-18): Borealis never read it. Always invalid, so network visibility
-	/// (<see cref="Scene.IsBBoxVisibleToConnection"/>) sees everything.
+	/// The map's visibility for network culling (<see cref="Scene.IsBBoxVisibleToConnection"/>), read from its compiled
+	/// world (<c>world_visibility.vvis</c>) the first time a connection's visibility is checked, so only whoever checks
+	/// (the host) holds it; null when the map has none, and then everything is visible. Rendering doesn't read it.
 	/// </summary>
-	internal IPVS PVS => default;
+	internal WorldVisibility Visibility
+	{
+		get
+		{
+			if ( visibilityRead ) return visibility;
+			visibility = ReadVisibility();
+			visibilityRead = true;
+			return visibility;
+		}
+	}
+
+	/// <summary>Where the map is placed, which <see cref="Visibility"/> is relative to.</summary>
+	internal Vector3 Origin { get; private set; }
+
+	WorldVisibility visibility;
+	bool visibilityRead;
+
+	// The map's VPK on disk, which its visibility is read from
+	string fullVpkPath;
 
 	/// <summary>
 	/// The map's world geometry when Borealis.Gpu draws it straight from the compiled world, with no native world
@@ -71,6 +90,7 @@ public sealed partial class SceneMap : IValid
 			if ( !IsValid )
 				return;
 
+			Origin = value;
 			if ( Geometry is not null )
 			{
 				Geometry.Origin = value;
@@ -143,10 +163,11 @@ public sealed partial class SceneMap : IValid
 
 		MapName = map;
 
+		Origin = origin;
 		if ( LoadsManaged )
 			return CreateManagedWorld( sceneWorld, vpk, origin );
 
-		// No PVS (owner, 2026-11-18): the world's visibility isn't loaded
+		// Native doesn't load the world's visibility (owner, 2026-11-18): network culling reads it itself (Visibility)
 		const bool loadVis = false;
 		const bool precacheOnly = false;
 
@@ -174,6 +195,8 @@ public sealed partial class SceneMap : IValid
 
 		WorldRef = worldRef;
 		MapFolder = worldRef.GetFolder();
+
+		fullVpkPath = FileSystem.Mounted.GetFullPath( vpk ) ?? FileSystem.Mounted.GetFullPath( MapFolder + ".vpk" );
 
 		// On Borealis.Gpu the world's models, materials and textures are read by path from the map's package and VPK
 		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu && FileSystem.Mounted.GetFullPath( vpk ) is { } fullVpk && System.IO.File.Exists( fullVpk ) )
@@ -243,10 +266,40 @@ public sealed partial class SceneMap : IValid
 		}
 
 		mountedVpk = mountName;
+		fullVpkPath = fullVpk;
 		Geometry = new MapGeometry( world, MapFolder, origin );
 		World = sceneWorld;
 		World.AddSceneMap( this );
 		return true;
+	}
+
+	/// <summary>
+	/// Read <see cref="Visibility"/>: <c>world_visibility.vvis_c</c> from the map's VPK, or loose beside it.
+	/// </summary>
+	WorldVisibility ReadVisibility()
+	{
+		if ( !IsValid ) return null;
+
+		var path = MapFolder + "/world_visibility.vvis_c";
+		try
+		{
+			byte[] data = null;
+			if ( fullVpkPath is not null && System.IO.File.Exists( fullVpkPath ) )
+			{
+				using var package = Borealis.Source2.Resources.VpkFile.Open( fullVpkPath );
+				data = package.Read( path );
+			}
+
+			if ( data is null && FileSystem.Mounted.FileExists( path ) )
+				data = FileSystem.Mounted.ReadAllBytes( path ).ToArray();
+
+			return data is null ? null : WorldVisibility.Read( data );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"{this}: Unable to read the visibility of map {MapName}, so everything is visible to every connection: {e.Message}" );
+			return null;
+		}
 	}
 
 	/// <summary>
@@ -344,6 +397,10 @@ public sealed partial class SceneMap : IValid
 			g_pWorldRendererMgr.UnmountWorldVPK( mountedVpk );
 			mountedVpk = null;
 		}
+
+		visibility = null;
+		visibilityRead = true;
+		fullVpkPath = null;
 
 		WorldGroup = null;
 	}
