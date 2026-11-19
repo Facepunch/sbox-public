@@ -22,9 +22,6 @@ namespace Sandbox.BorealisLab;
 /// <item><c>-novsync</c> - don't wait for the display.</item>
 /// <item><c>-scene-modules</c> - also start the native modules SceneLab starts (world renderer, animation, physics, sound).
 /// Presets with posed skinned models start them anyway.</item>
-/// <item><c>-ui-parity folder</c> - draw a card of UI through Source 2 and through a Borealis.Gpu device, compare and exit (<see cref="UiParity"/>).</item>
-/// <item><c>-post-parity folder</c> - run post processing over Sun Shadows on Source 2 and on a Borealis.Gpu device, compare and exit (<see cref="PostParity"/>).</item>
-/// <item><c>-exposure-parity folder</c> - run auto exposure over Sun Shadows with native's tonemap system and with its port on a Borealis.Gpu device, compare and exit (<see cref="ExposureParity"/>).</item>
 /// <item><c>-model-parity folder</c> - check s&amp;box models read by Borealis.Source2 against the engine's loading, render each on a Borealis.Gpu device and exit (<see cref="ModelParity"/>).</item>
 /// <item><c>-surface-parity folder</c> - draw one material as a .shader, a Slang surface and a raw Slang module on a Borealis.Gpu device, compare and exit (<see cref="SurfaceParity"/>).</item>
 /// <item><c>-convert-passes a,b|all</c> - write a pass module beside each named non-material shader and compile it (<see cref="PassConversion"/>).</item>
@@ -59,24 +56,6 @@ internal static class BorealisLabApp
 
 		var backend = new Source2Backend();
 		backend.Start( sceneModules: Args.Has( "-scene-modules" ) || posing || Args.Has( "-model-parity" ) || CrowdRun.Requested, windows: !PresetRun.Capturing );
-
-		if ( Args.String( "-ui-parity" ) is { } parity )
-		{
-			var code = UiParity.Run( backend, parity );
-			return backend.Exit( code );
-		}
-
-		if ( Args.String( "-post-parity" ) is { } post )
-		{
-			var code = PostParity.Run( backend, post );
-			return backend.Exit( code );
-		}
-
-		if ( Args.String( "-exposure-parity" ) is { } exposure )
-		{
-			var code = ExposureParity.Run( backend, exposure );
-			return backend.Exit( code );
-		}
 
 		if ( CrowdRun.Requested )
 		{
