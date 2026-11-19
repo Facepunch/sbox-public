@@ -32,6 +32,31 @@ public class ContentLifetimeTests : GpuTest
 		Device.WaitIdle();
 	}
 
+	/// <summary>
+	/// A texture a material drawn as a surface names but its surface doesn't read (a water material's caustics, which only
+	/// the CPU reads: a WaterBody projects them with a LightModulator) is still the material's texture, borrowed with it
+	/// and gone with it. It used to be unreadable, and the caustics drew transparent.
+	/// </summary>
+	[TestMethod]
+	public void ASurfaceMaterialsUnreadTextureIsBorrowedWithIt()
+	{
+		const string water = "materials/water/dark.water.vmat";
+		using var backend = new BackendDevice( Device );
+		if ( backend.Content.TryRead( water ) is null ) Assert.Inconclusive( "No compiled water material" );
+		var caustics = backend.LoadedMaterialTexture( water, "g_tCaustics" );
+		Assert.IsNotNull( caustics, "the caustics texture" );
+		Assert.IsTrue( caustics is BackendTexture { } loaded && Device.InfoOf( loaded.Handle ).Width > 1, "the file's texture, not a placeholder" );
+		if ( backend.HeldMaterial( water ) is not ConvertedMaterial ) Assert.Inconclusive( "Water isn't drawn as a surface here" );
+		var textures = backend.TexturesFreed;
+
+		// A world holds it, then goes
+		backend.ModelMaterial( water );
+		backend.ReleaseModelMaterial( water );
+		backend.ReleaseModelMaterial( water );
+		Assert.IsTrue( backend.TexturesFreed > textures, "the caustics went with the material" );
+		Device.WaitIdle();
+	}
+
 	[TestMethod]
 	public void ARunTimeModelNoWorldHoldsIsFreed()
 	{

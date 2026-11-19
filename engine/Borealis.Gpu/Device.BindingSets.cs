@@ -42,6 +42,7 @@ public sealed unsafe partial class Device
 		}
 
 		WriteDescriptors( set, bindings );
+		TrackSamplers( set, bindings, true );
 		var (index, generation) = BindingSets.Add( new BindingSetRecord { Set = set, SetLayout = setLayout } );
 		return new BindingSetHandle( index, generation );
 	}
@@ -49,7 +50,38 @@ public sealed unsafe partial class Device
 	/// <summary>
 	/// Rewrite some of a persistent set's bindings. The caller makes sure no submitted work that hasn't finished uses it.
 	/// </summary>
-	public void WriteBindingSet( BindingSetHandle bindingSet, ReadOnlySpan<Binding> bindings ) => WriteDescriptors( Get( bindingSet ).Set, bindings );
+	public void WriteBindingSet( BindingSetHandle bindingSet, ReadOnlySpan<Binding> bindings )
+	{
+		var set = Get( bindingSet ).Set;
+		WriteDescriptors( set, bindings );
+		TrackSamplers( set, bindings, false );
+	}
+
+	// Persistent sets' bindings of anisotropic samplers, which SetAnisotropyLimit rewrites when it remakes them
+	readonly Dictionary<ulong, List<Binding>> setSamplers = new();
+
+	void TrackSamplers( ulong set, ReadOnlySpan<Binding> bindings, bool fresh )
+	{
+		lock ( setSamplers )
+		{
+			setSamplers.TryGetValue( set, out var list );
+			if ( fresh ) list?.Clear();
+			foreach ( ref readonly var binding in bindings )
+			{
+				// Without allocating: persistent sets are rewritten every frame
+				for ( int i = list is null || fresh ? -1 : list.Count - 1; i >= 0; i-- )
+				{
+					if ( list[i].Slot == binding.Slot && list[i].ArrayElement == binding.ArrayElement ) list.RemoveAt( i );
+				}
+
+				if ( binding.Type != BindingType.Sampler || Get( binding.Sampler ).Info.MaxAnisotropy <= 1 ) continue;
+				if ( list is null ) setSamplers[set] = list = new();
+				list.Add( binding );
+			}
+
+			if ( list is { Count: 0 } ) setSamplers.Remove( set );
+		}
+	}
 
 	/// <summary>Destroy a persistent set once the GPU is done with it.</summary>
 	public void Destroy( BindingSetHandle bindingSet )
@@ -59,6 +91,7 @@ public sealed unsafe partial class Device
 
 	void FreeSet( in BindingSetRecord record )
 	{
+		lock ( setSamplers ) setSamplers.Remove( record.Set );
 		lock ( bindingSetPools )
 		{
 			if ( !freeBindingSets.TryGetValue( record.SetLayout, out var free ) ) freeBindingSets[record.SetLayout] = free = new();

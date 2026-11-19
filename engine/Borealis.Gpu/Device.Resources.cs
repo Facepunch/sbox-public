@@ -70,6 +70,8 @@ internal struct SamplerRecord
 {
 	public ulong Sampler;
 	public int Index;
+	public SamplerInfo Info;
+	public float Anisotropy;
 }
 
 internal struct ShaderRecord
@@ -639,13 +641,87 @@ public sealed unsafe partial class Device
 	//
 
 	/// <summary>
-	/// Create a sampler and add it to the bindless sampler table (<see cref="SamplerIndex"/>).
+	/// Create a sampler and add it to the bindless sampler table (<see cref="SamplerIndex"/>). Its anisotropy is at most the
+	/// device's and <see cref="AnisotropyLimit"/>.
 	/// </summary>
 	public SamplerHandle CreateSampler( in SamplerInfo info )
 	{
+		var sampler = MakeSampler( info, out var anisotropy );
+		var (index, generation) = Samplers.Add( new SamplerRecord { Sampler = sampler, Index = Bindless.AddSampler( sampler ), Info = info, Anisotropy = anisotropy } );
+		var handle = new SamplerHandle( index, generation );
+		if ( info.MaxAnisotropy > 1 )
+		{
+			lock ( anisotropicSamplers ) anisotropicSamplers.Add( handle );
+		}
+
+		return handle;
+	}
+
+	/// <summary>The anisotropy a sampler filters with, after the device's limit and <see cref="AnisotropyLimit"/>.</summary>
+	internal float SamplerAnisotropy( SamplerHandle sampler ) => Get( sampler ).Anisotropy;
+
+	// Samplers made anisotropic, remade when the limit changes
+	readonly HashSet<SamplerHandle> anisotropicSamplers = new();
+
+	/// <summary>
+	/// The most anisotropy any sampler filters with: the player's setting (native's <c>r_max_anisotropy</c>), unlimited
+	/// (the device's own maximum) until it's set. Change it with <see cref="SetAnisotropyLimit"/>.
+	/// </summary>
+	public float AnisotropyLimit { get; private set; } = float.MaxValue;
+
+	/// <summary>
+	/// Limit every sampler's anisotropy, as native clamps each anisotropic sampler to <c>r_max_anisotropy</c>. Samplers made
+	/// anisotropic are remade in place: their handles and bindless slots stay, and the persistent sets that bind them are
+	/// rewritten. Waits for the GPU to go idle, so call it between frames, with nothing recording.
+	/// </summary>
+	public void SetAnisotropyLimit( float limit )
+	{
+		limit = Math.Max( limit, 1 );
+		if ( limit == AnisotropyLimit ) return;
+		AnisotropyLimit = limit;
+
+		SamplerHandle[] remake;
+		lock ( anisotropicSamplers ) remake = [.. anisotropicSamplers];
+		if ( remake.Length == 0 ) return;
+
+		WaitIdle();
+		var old = new List<ulong>( remake.Length );
+		var remade = new HashSet<SamplerHandle>( remake );
+		foreach ( var handle in remake )
+		{
+			ref var record = ref Get( handle );
+			old.Add( record.Sampler );
+			record.Sampler = MakeSampler( record.Info, out record.Anisotropy );
+			Bindless.SetSampler( record.Index, record.Sampler );
+		}
+
+		lock ( setSamplers )
+		{
+			foreach ( var (set, bindings) in setSamplers )
+			{
+				var rewrite = new List<Binding>( bindings.Count );
+				foreach ( var binding in bindings )
+				{
+					if ( remade.Contains( binding.Sampler ) ) rewrite.Add( binding );
+				}
+
+				if ( rewrite.Count == 0 ) continue;
+				WriteDescriptors( set, System.Runtime.InteropServices.CollectionsMarshal.AsSpan( rewrite ) );
+				SamplerBindingsRewritten += rewrite.Count;
+			}
+		}
+
+		foreach ( var sampler in old ) Vk.vkDestroySampler( Vk.Device, sampler, null );
+	}
+
+	/// <summary>Sampler bindings of persistent sets <see cref="SetAnisotropyLimit"/> has rewritten, for the tests.</summary>
+	internal int SamplerBindingsRewritten { get; private set; }
+
+	ulong MakeSampler( in SamplerInfo info, out float anisotropy )
+	{
 		static int Address( AddressMode mode ) => mode switch { AddressMode.Mirror => 1, AddressMode.Clamp => 2, AddressMode.Border => 3, _ => 0 };
 
-		var anisotropy = Math.Min( info.MaxAnisotropy, Capabilities.MaxAnisotropy );
+		anisotropy = Math.Max( Math.Min( Math.Min( info.MaxAnisotropy, Capabilities.MaxAnisotropy ), AnisotropyLimit ), 1 );
 		var create = new VkSamplerCreateInfo
 		{
 			sType = VkStructureType.SamplerCreateInfo,
@@ -657,7 +733,7 @@ public sealed unsafe partial class Device
 			addressModeW = Address( info.AddressW ),
 			mipLodBias = info.MipBias,
 			anisotropyEnable = anisotropy > 1 ? 1u : 0u,
-			maxAnisotropy = Math.Max( anisotropy, 1 ),
+			maxAnisotropy = anisotropy,
 			compareEnable = info.Compare != CompareFunction.Never ? 1u : 0u,
 			compareOp = (int)info.Compare,
 			minLod = info.MinLod,
@@ -666,9 +742,7 @@ public sealed unsafe partial class Device
 
 		ulong sampler;
 		Vk.vkCreateSampler( Vk.Device, &create, null, &sampler ).Check( "vkCreateSampler" );
-
-		var (index, generation) = Samplers.Add( new SamplerRecord { Sampler = sampler, Index = Bindless.AddSampler( sampler ) } );
-		return new SamplerHandle( index, generation );
+		return sampler;
 	}
 
 	/// <summary>A sampler's index in the bindless sampler table (<c>Bindless::GetSampler</c>).</summary>
@@ -1127,6 +1201,7 @@ public sealed unsafe partial class Device
 	/// <summary>Destroy a sampler once the GPU is done with it.</summary>
 	public void Destroy( SamplerHandle sampler )
 	{
+		lock ( anisotropicSamplers ) anisotropicSamplers.Remove( sampler );
 		var record = Samplers.Remove( sampler.Index, sampler.Generation );
 		Defer( () =>
 		{
