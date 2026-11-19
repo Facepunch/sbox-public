@@ -198,7 +198,8 @@ public static class ShaderCompile
 			var program = new ProgramSource { ProgramType = programType };
 			shaderSource.Programs.Add( program );
 
-			var success = await program.RecompileFromMaskedSource( compileOptions, vfx, source, result, token );
+			// Written against the includes of the engine that compiled it: adjusted to today's, as Borealis.Gpu's module is
+			var success = await program.RecompileFromMaskedSource( compileOptions, vfx, Sandbox.ShaderCompiler.EmbeddedCompatibility.ForRecompile( source, EngineFileSystem.Root.GetFullPath( "/core/shaders" ) ), result, token );
 			if ( !success )
 				return result;
 		}
