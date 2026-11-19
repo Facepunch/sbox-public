@@ -229,6 +229,40 @@ public class PassModuleTests : GpuTest
 	}
 
 	/// <summary>
+	/// A <c>Source( TextureDim )</c>-style constant measures the material's texture when the draw's attributes don't name
+	/// one, as native's material binds it (The Festering's dither matrix, a material texture): ui_filter's
+	/// <c>g_vInvTextureDim</c>, measuring <c>g_tColor</c>, with the texture on the material instead of its attribute.
+	/// </summary>
+	[TestMethod]
+	public void TextureSizesMeasureTheMaterialsTexture()
+	{
+		using var backend = new BackendDevice( Device, ShaderFileTests.Files );
+		using var drawer = new ShaderDrawer( backend );
+		var filter = backend.Shaders.Load( "shaders/ui_filter.shader" );
+		if ( filter is null ) Assert.Inconclusive( "ui_filter isn't compiled" );
+
+		var attributes = new ShaderAttributes();
+		var stage = drawer.Variant( filter, attributes ).Pixel;
+		var (_, offset) = stage.MaterialConstants.First( c => c.Variable.Name == "g_vInvTextureDim" );
+		var data = new byte[stage.MaterialBuffer.Size];
+
+		var handle = Device.CreateTexture( new TextureInfo { Width = 8, Height = 4, Depth = 1, Layers = 1, Mips = 1, Samples = 1, Format = Format.RGBA8Unorm, Usage = TextureUsage.Sampled, Name = "Matrix" } );
+		var texture = new BackendTexture( backend, handle, new Borealis.TextureDesc { Width = 8, Height = 4, Mips = 1, Samples = 1, Format = Borealis.TextureFormat.RGBA8888 }, "Matrix" );
+		try
+		{
+			var textures = new Dictionary<string, BackendTexture>( StringComparer.OrdinalIgnoreCase ) { ["g_tColor"] = texture };
+			drawer.Material = new BackendMaterial( "test", filter, null, textures );
+			drawer.WriteConstants( data, stage, attributes, default );
+			Assert.AreEqual( 1 / 8f, BitConverter.ToSingle( data, offset ), "its width" );
+			Assert.AreEqual( 1 / 4f, BitConverter.ToSingle( data, offset + 4 ), "its height" );
+		}
+		finally
+		{
+			Device.Destroy( handle );
+		}
+	}
+
+	/// <summary>
 	/// An expanding module's draw with lent instance ids (a dynamic object's, inside a frame) reads its object's transform from
 	/// the first id for every primitive, as native binds one transform slot for the object: a line moved half the screen up.
 	/// </summary>
