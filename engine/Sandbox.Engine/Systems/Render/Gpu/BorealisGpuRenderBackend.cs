@@ -1031,12 +1031,29 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 		try
 		{
-			var handle = TextureFile.Load( file ).Create( gpu, path, UploadList() );
+			TextureFile read;
+			try
+			{
+				read = TextureFile.Load( file );
+			}
+			catch ( System.IO.FileNotFoundException ) when ( files.Find( path ) is { } again && again != file )
+			{
+				// A web-streamed texture's downloaded part replaced while it was found
+				read = TextureFile.Load( again );
+			}
+
+			var handle = read.Create( gpu, path, UploadList() );
 			Track( handle, ImageLayout.ShaderRead );
 			return handle;
 		}
 		catch ( NotSupportedException )
 		{
+			return null;
+		}
+		catch ( System.IO.InvalidDataException e )
+		{
+			// Made once, as unreadable, rather than read and thrown again in every frame that draws it
+			Log.Warning( $"Borealis.Gpu: {path} can't be read: {e.Message}" );
 			return null;
 		}
 	}
