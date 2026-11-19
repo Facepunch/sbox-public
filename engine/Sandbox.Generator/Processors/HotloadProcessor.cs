@@ -14,7 +14,12 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Sandbox.Generator;
 
-public static class ILHotloadProcessor
+/// <summary>
+/// Prepares a compile for hotloading, by comparing it with <see cref="Processor.LastSuccessfulCompilation"/>.
+/// If only method bodies changed, marks them so <c>ILHotload</c> can swap them in place. Otherwise,
+/// generates methods to evaluate the initializers of any added fields (see <c>AddedFieldInitializers.cs</c>).
+/// </summary>
+public static partial class HotloadProcessor
 {
 	internal static void Process( Processor processor )
 	{
@@ -25,6 +30,21 @@ public static class ILHotloadProcessor
 			return;
 		}
 
+		if ( processor.AllowILHotload && TryProcessILHotload( processor ) )
+		{
+			processor.ILHotloadSupported = true;
+			return;
+		}
+
+		AddFieldInitializers( processor );
+	}
+
+	/// <summary>
+	/// If only statement blocks have changed since <see cref="Processor.LastSuccessfulCompilation"/>, marks the
+	/// containing definitions with attributes for <c>ILHotload</c> to find, and returns true.
+	/// </summary>
+	private static bool TryProcessILHotload( Processor processor )
+	{
 		var oldTrees = GetSyntaxTreeDict( processor.LastSuccessfulCompilation.SyntaxTrees );
 		var newTrees = GetSyntaxTreeDict( processor.Compilation.SyntaxTrees );
 
@@ -34,17 +54,17 @@ public static class ILHotloadProcessor
 
 		if ( oldTrees.Count != newTrees.Count )
 		{
-			return;
+			return false;
 		}
 
 		if ( oldTrees.Keys.Any( x => !newTrees.ContainsKey( x ) ) )
 		{
-			return;
+			return false;
 		}
 
 		if ( newTrees.Keys.Any( x => !oldTrees.ContainsKey( x ) ) )
 		{
-			return;
+			return false;
 		}
 
 		//
@@ -93,10 +113,8 @@ public static class ILHotloadProcessor
 
 		if ( !onlyBlocksChanged )
 		{
-			return;
+			return false;
 		}
-
-		processor.ILHotloadSupported = true;
 
 		//
 		// Add SupportsILHotloadAttribute
@@ -111,9 +129,10 @@ public static class ILHotloadProcessor
 
 		var updatedCompilerExtraTree = compilerExtraTree.WithChangedText( compilerExtraText.WithChanges( new TextChange(
 			new TextSpan( compilerExtraText.Length, 0 ),
-			$"{Environment.NewLine}[assembly: global::Sandbox.SupportsILHotloadAttribute(\"{oldAssemblyVersion}\")]" ) ) );
+			$"\n[assembly: global::Sandbox.SupportsILHotloadAttribute(\"{oldAssemblyVersion}\")]" ) ) );
 
 		processor.ReplaceSyntaxTree( compilerExtraTree, updatedCompilerExtraTree );
+		processor.HotloadOriginalTrees[updatedCompilerExtraTree] = compilerExtraTree;
 
 		//
 		// Apply changed syntax trees
@@ -122,8 +141,14 @@ public static class ILHotloadProcessor
 		foreach ( var updatedNewTree in updatedNewTrees )
 		{
 			var newTree = newTrees[updatedNewTree.FilePath];
+
+			if ( updatedNewTree == newTree ) continue;
+
 			processor.ReplaceSyntaxTree( newTree, updatedNewTree );
+			processor.HotloadOriginalTrees[updatedNewTree] = newTree;
 		}
+
+		return true;
 	}
 
 	private static Dictionary<string, SyntaxTree> GetSyntaxTreeDict( ImmutableArray<SyntaxTree> trees )
@@ -196,7 +221,7 @@ public static class ILHotloadProcessor
 
 	/// <summary>
 	/// Test to see if the given node contains any declarations that would exclude it
-	/// from using <see cref="ILHotload"/>'s fast path.
+	/// from using <c>ILHotload</c>'s fast path.
 	/// </summary>
 	private static bool NodeContainsDeclarations( SyntaxNode node )
 	{
@@ -233,14 +258,8 @@ public static class ILHotloadProcessor
 			return false;
 		}
 
-		// Old tree will have ILHotload attributes if a previous compile was ILHotloaded.
-		// New tree can also have attributes if we're doing an incremental compile and this
-		// file was touched (I think?)
-
-		// We need to strip them to be able to accurately look for changes between the trees
-
-		oldTree = StripHotloadAttributes( oldTree );
-		newTree = StripHotloadAttributes( newTree );
+		// Neither tree has attributes from a previous fast hotload, because the compiler keeps
+		// the trees from before they were added (see Processor.HotloadOriginalTrees)
 
 		updatedNewTree = newTree;
 
@@ -338,42 +357,8 @@ public static class ILHotloadProcessor
 		return true;
 	}
 
-	private static SyntaxTree StripHotloadAttributes( SyntaxTree tree )
-	{
-		if ( !tree.TryGetRoot( out var root ) ) return tree;
-
-		var stripper = new HotloadAttributeStripper();
-
-		var strippedRoot = stripper.Visit( root );
-
-		return strippedRoot != root
-			? tree.WithRootAndOptions( strippedRoot, tree.Options )
-			: tree;
-	}
-
 	private static NameSyntax MethodBodyChangeAttributeNameSyntax { get; } = ParseName( "global::Sandbox.MethodBodyChangeAttribute" );
 	private static NameSyntax PropertyAccessorBodyChangeAttributeNameSyntax { get; } = ParseName( "global::Sandbox.PropertyAccessorBodyChangeAttribute" );
-
-	private sealed class HotloadAttributeStripper : CSharpSyntaxRewriter
-	{
-		public override SyntaxNode VisitMethodDeclaration( MethodDeclarationSyntax node )
-		{
-			if ( node.AttributeLists.Count == 0 ) return node;
-
-			var toRemove = node.AttributeLists.FirstOrDefault( x => IsSingleAttribute( x, MethodBodyChangeAttributeNameSyntax ) );
-
-			return toRemove is null ? node : node.WithAttributeLists( node.AttributeLists.Remove( toRemove ) );
-		}
-
-		public override SyntaxNode VisitPropertyDeclaration( PropertyDeclarationSyntax node )
-		{
-			if ( !node.AttributeLists.Any( x => IsSingleAttribute( x, PropertyAccessorBodyChangeAttributeNameSyntax ) ) ) return node;
-
-			return node.WithAttributeLists( List( node.AttributeLists.Where( x =>
-				!IsSingleAttribute( x, PropertyAccessorBodyChangeAttributeNameSyntax ) )
-			) );
-		}
-	}
 
 	/// <summary>
 	/// Can we ignore the given change because it only involves whitespace / comments?

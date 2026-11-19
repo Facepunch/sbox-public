@@ -67,6 +67,19 @@ public class Processor
 	public bool ILHotloadSupported { get; set; }
 
 	/// <summary>
+	/// If false, never mark this compile as supporting <c>ILHotload</c>, even if only method bodies
+	/// changed since <see cref="LastSuccessfulCompilation"/>. That's still used to find added fields.
+	/// </summary>
+	public bool AllowILHotload { get; set; } = true;
+
+	/// <summary>
+	/// Trees that <see cref="HotloadProcessor"/> generated code into for this compile only, mapped to how they were
+	/// before. That's attributes marking changed method bodies for a fast hotload, and methods initializing added
+	/// fields. The compiler should keep the original trees for the next compile, so they're compared without them.
+	/// </summary>
+	public Dictionary<SyntaxTree, SyntaxTree> HotloadOriginalTrees { get; } = new();
+
+	/// <summary>
 	/// A function that will take a package name and return the path to the asset
 	/// </summary>
 	public Func<string, string> PackageAssetResolver { get; set; } = DefaultPackageAssetResolver;
@@ -180,7 +193,7 @@ public class Processor
 
 			if ( Context == null )
 			{
-				ILHotloadProcessor.Process( this );
+				HotloadProcessor.Process( this );
 			}
 		}
 		catch ( System.Exception e )

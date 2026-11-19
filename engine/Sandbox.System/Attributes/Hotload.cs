@@ -69,6 +69,26 @@ namespace Sandbox
 		public string ChangedAssemblyVersion { get; } = changedAssemblyVersion;
 	}
 
+	/// <summary>
+	/// Marks a method the compiler generates for an instance field added since the previous compile, which
+	/// returns the value of that field's initializer. When hotloading, the field is set to this value on
+	/// instances that existed before it was added. Each method is only generated for the compile that adds its field.
+	/// </summary>
+	[AttributeUsage( AttributeTargets.Method )]
+	public sealed class AddedFieldInitializerAttribute( string fieldName ) : Attribute
+	{
+		/// <summary>
+		/// Metadata name of the added field, which for an auto-property is its backing field.
+		/// </summary>
+		public string FieldName { get; } = fieldName;
+
+		/// <summary>
+		/// False if the initializer couldn't be copied into the method, for example because it uses a primary
+		/// constructor parameter. The method then does nothing, and existing instances keep the field's default value.
+		/// </summary>
+		public bool Supported { get; set; } = true;
+	}
+
 	public enum PropertyAccessor
 	{
 		Get,

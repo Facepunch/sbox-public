@@ -209,8 +209,10 @@ public partial class ILHotload : IDisposable
 				return;
 			}
 
-			var baseMembers = baseType.GetMembers( AllDeclared );
-			var newMembers = type.GetMembers( AllDeclared );
+			// Generated initializers for added fields only exist in the compile that added them
+
+			var baseMembers = baseType.GetMembers( AllDeclared ).Where( x => !Hotload.IsAddedFieldInitializer( x ) ).ToArray();
+			var newMembers = type.GetMembers( AllDeclared ).Where( x => !Hotload.IsAddedFieldInitializer( x ) ).ToArray();
 
 			if ( baseMembers.Length != newMembers.Length )
 			{

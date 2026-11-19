@@ -47,7 +47,13 @@ public class CodeAccessIncrementalTest
 		await group.BuildAsync();
 
 		Assert.IsTrue( compiler.Output.Successful, group.BuildResult.BuildDiagnosticsString() );
-		Assert.IsTrue( compiler.incrementalState.Compilation.SyntaxTrees.Any( x => x.ToString().Contains( "SupportsILHotloadAttribute" ) ) );
+
+		// The fast hotload's generated code was built, but the next compile starts from the trees before it was added
+
+		var assembly = System.Reflection.Assembly.Load( compiler.Output.AssemblyData );
+
+		Assert.IsNotNull( System.Reflection.CustomAttributeExtensions.GetCustomAttribute<SupportsILHotloadAttribute>( assembly ) );
+		Assert.IsFalse( compiler.incrementalState.Compilation.SyntaxTrees.Any( x => x.ToString().Contains( "SupportsILHotloadAttribute" ) ) );
 	}
 
 	static string HotloadSource( int value ) => $$"""
