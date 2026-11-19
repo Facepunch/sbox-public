@@ -447,8 +447,11 @@ public sealed class ShaderStage
 
 		if ( given is null && variable.Source is VariableSource.FeatureToInt or VariableSource.FeatureToBool or VariableSource.FeatureToFloat )
 		{
+			// In this thread's one-float scratch, read below before anything else writes it: a feature's value for each write of
+			// a material's constants was an array each
 			var feature = Program.Shader.FeatureIndex( variable.Name );
-			given = [feature >= 0 && feature < features.Length ? features[feature] : 0];
+			given = featureValue ??= new float[1];
+			given[0] = feature >= 0 && feature < features.Length ? features[feature] : 0;
 		}
 
 		var integer = variable.Type is >= VariableType.Int and <= VariableType.Bool4;
@@ -472,6 +475,8 @@ public sealed class ShaderStage
 			}
 		}
 	}
+
+	[ThreadStatic] static float[] featureValue;
 
 	static int Components( VariableType type ) => type switch
 	{
