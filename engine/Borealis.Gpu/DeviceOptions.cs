@@ -53,6 +53,21 @@ public sealed class DeviceOptions
 	/// </summary>
 	public bool ShaderStatistics { get; init; }
 
+	/// <summary>
+	/// An artificial video memory budget in bytes, or 0 for the driver's: device-local allocations past it fail as they would
+	/// when video memory is full, so a run can be tried out of memory on any machine (textures and geometry go to system
+	/// memory and streaming drops detail). From <c>-borealisgpu-vrambudget &lt;MiB&gt;</c> or <c>BOREALIS_GPU_MEMORY_BUDGET</c> (MiB).
+	/// </summary>
+	public long MemoryBudgetBytes { get; init; } = MemoryBudgetSwitch();
+
+	static long MemoryBudgetSwitch()
+	{
+		var args = Environment.GetCommandLineArgs();
+		var at = Array.FindIndex( args, a => a.Equals( "-borealisgpu-vrambudget", StringComparison.OrdinalIgnoreCase ) );
+		var text = at >= 0 && at + 1 < args.Length ? args[at + 1] : Environment.GetEnvironmentVariable( "BOREALIS_GPU_MEMORY_BUDGET" );
+		return long.TryParse( text, out var mebibytes ) && mebibytes > 0 ? mebibytes << 20 : 0;
+	}
+
 	/// <summary>Frames the CPU may record ahead of the GPU.</summary>
 	public int FramesInFlight { get; init; } = 2;
 

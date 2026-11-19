@@ -30,7 +30,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 	// Shared blocks by kind, so a lookup goes over its own kind's only: going over every block, each a cache miss, took
 	// most of an allocation's time once a map had a few hundred
-	readonly Dictionary<(int Type, bool Images, bool Large, bool Content), Kind> kinds = new();
+	readonly Dictionary<(int Type, bool Images, bool Large, bool Content, bool Fallback), Kind> kinds = new();
 
 	sealed class Kind
 	{
@@ -71,6 +71,14 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		this.vk = vk;
 		this.properties = properties;
 		this.integrated = integrated;
+
+		var heapCount = (int)properties.memoryHeapCount;
+		heapReserved = new long[heapCount];
+		heapUsed = new long[heapCount];
+		driverUsage = new long[heapCount];
+		driverBudget = new long[heapCount];
+		reservedAtFetch = new long[heapCount];
+		for ( int i = 0; i < heapCount; i++ ) driverBudget[i] = (long)(properties.Heap( i ).size / 10 * 8);
 
 		// Small blocks: a part-used block holds back at most this much, and one emptied by a level or play mode goes back
 		// to the driver
@@ -128,10 +136,146 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	}
 
 	/// <summary>
-	/// Device allocations made in system memory because video memory ran out (<c>VK_ERROR_OUT_OF_DEVICE_MEMORY</c>): slower
-	/// to read on the GPU, but the load goes on rather than failing.
+	/// Bytes of device allocations in system memory because video memory ran out (<c>VK_ERROR_OUT_OF_DEVICE_MEMORY</c>) or
+	/// was over its budget: slower to read on the GPU, but the load goes on rather than failing. They're kept in blocks of
+	/// their own, which drain as what's in them is freed.
 	/// </summary>
 	public long SystemFallbackBytes { get; private set; }
+
+	// Per heap: bytes of blocks and bytes handed out; the driver's usage and budget when last read, and our reserved then
+	readonly long[] heapReserved, heapUsed, driverUsage, driverBudget, reservedAtFetch;
+
+	/// <summary>
+	/// An artificial budget in bytes for each device-local heap, or 0 for the driver's alone: device-local allocations that
+	/// would take the heap's usage past it fail as the driver's would when video memory is full, so out-of-memory handling
+	/// can be tried on any machine (<see cref="DeviceOptions.MemoryBudgetBytes"/>).
+	/// </summary>
+	public long BudgetLimit { get; set; }
+
+	/// <summary>Whether a device allocation that doesn't fit video memory goes to system memory (on), or fails. Off for tests.</summary>
+	public bool SystemFallback { get; set; } = true;
+
+	/// <summary>For tests: device allocations fail as if video memory were full (going to system memory with <see cref="SystemFallback"/>).</summary>
+	internal bool RefuseDeviceLocal { get; set; }
+
+	/// <summary>
+	/// Take the driver's usage and budget per heap (VK_EXT_memory_budget), indexed by heap; between calls, usage is estimated
+	/// from what this allocator reserves and frees.
+	/// </summary>
+	public void UpdateBudget( ReadOnlySpan<ulong> usage, ReadOnlySpan<ulong> budget )
+	{
+		lock ( allocationLock )
+		{
+			for ( int i = 0; i < heapReserved.Length && i < usage.Length && i < budget.Length; i++ )
+			{
+				driverUsage[i] = (long)usage[i];
+				driverBudget[i] = (long)Math.Min( budget[i], properties.Heap( i ).size );
+				reservedAtFetch[i] = heapReserved[i];
+			}
+
+			if ( overBudget && !AnyOverBudget() ) overBudget = false;
+		}
+	}
+
+	/// <summary>Without VK_EXT_memory_budget: usage is what this allocator reserved, the budget 80% of each heap.</summary>
+	public void UpdateBudgetWithoutDriver()
+	{
+		lock ( allocationLock )
+		{
+			for ( int i = 0; i < heapReserved.Length; i++ )
+			{
+				driverUsage[i] = heapReserved[i];
+				reservedAtFetch[i] = heapReserved[i];
+			}
+
+			if ( overBudget && !AnyOverBudget() ) overBudget = false;
+		}
+	}
+
+	/// <summary>Each heap's budget and use, into <paramref name="heaps"/> as far as it reaches; the number of heaps. Allocates nothing.</summary>
+	public int GetHeaps( Span<MemoryHeapBudget> heaps )
+	{
+		lock ( allocationLock )
+		{
+			for ( int i = 0; i < heapReserved.Length && i < heaps.Length; i++ )
+			{
+				heaps[i] = new MemoryHeapBudget
+				{
+					Index = i,
+					DeviceLocal = DeviceLocalHeap( i ),
+					Size = (long)properties.Heap( i ).size,
+					Budget = HeapBudget( i ),
+					Usage = HeapUsage( i ),
+					Reserved = heapReserved[i],
+					Used = heapUsed[i],
+				};
+			}
+
+			return heapReserved.Length;
+		}
+	}
+
+	/// <summary>Device allocations refused for going over a heap's budget so far (made in system memory instead, or failed).</summary>
+	public long OverBudgetAllocations { get; private set; }
+
+	/// <summary>Where the warning goes, said once each time video memory goes over its budget until it's back under.</summary>
+	public Action<string> Warn { get; set; }
+
+	bool overBudget;
+
+	bool DeviceLocalHeap( int heap ) => (properties.Heap( heap ).flags & Vk.HeapDeviceLocal) != 0;
+
+	// Under the lock
+	long HeapUsage( int heap ) => Math.Max( driverUsage[heap] + heapReserved[heap] - reservedAtFetch[heap], 0 );
+
+	long HeapBudget( int heap ) => BudgetLimit > 0 && DeviceLocalHeap( heap ) ? Math.Min( BudgetLimit, driverBudget[heap] ) : driverBudget[heap];
+
+	bool AnyOverBudget()
+	{
+		for ( int i = 0; i < heapReserved.Length; i++ )
+		{
+			if ( DeviceLocalHeap( i ) && HeapUsage( i ) > HeapBudget( i ) ) return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Before asking the driver for <paramref name="size"/> bytes of <paramref name="type"/>: fail as the driver would when
+	/// video memory is full if it would take the heap past the artificial budget (<see cref="BudgetLimit"/>), or past the
+	/// driver's for <paramref name="content"/>, which can live in system memory while streaming drops detail. Only when
+	/// the allocation can go to system memory instead (<paramref name="refusable"/>); others (and other allocations past
+	/// the driver's budget: targets, tables) are left for the driver to place.
+	/// </summary>
+	void CheckBudget( int type, ulong size, bool content, bool refusable )
+	{
+		var heap = (int)properties.Type( type ).heapIndex;
+		if ( !DeviceLocalHeap( heap ) ) return;
+
+		string warning = null;
+		lock ( allocationLock )
+		{
+			var over = HeapUsage( heap ) + (long)size > HeapBudget( heap );
+			if ( !over || !refusable || !(content || BudgetLimit > 0) ) return;
+
+			OverBudgetAllocations++;
+			if ( !overBudget )
+			{
+				overBudget = true;
+				warning = $"video memory is over its budget ({HeapUsage( heap ) >> 20} MiB used, {HeapBudget( heap ) >> 20} MiB budget{(BudgetLimit > 0 ? ", capped" : "")}): textures and geometry go to system memory and streamed textures drop detail";
+			}
+		}
+
+		if ( warning is not null ) Warn?.Invoke( warning );
+		throw new GpuException( "vkAllocateMemory (over the memory budget)", VkResult.ErrorOutOfDeviceMemory );
+	}
+
+	/// <summary>Bytes handed out from a block of <paramref name="type"/> change by <paramref name="bytes"/>; under the lock.</summary>
+	void CountUsed( int type, long bytes )
+	{
+		Used = (ulong)((long)Used + bytes);
+		heapUsed[properties.Type( type ).heapIndex] += bytes;
+	}
 
 	/// <summary>
 	/// Memory for a buffer or an image. A <paramref name="target"/> (an image the GPU draws or writes into: a view's colour,
@@ -145,11 +289,13 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	{
 		try
 		{
-			return Allocate( requirements, location, image, target, FindType( requirements.memoryTypeBits, location ), content );
+			if ( RefuseDeviceLocal && location == MemoryLocation.Device ) throw new GpuException( "vkAllocateMemory (refused for a test)", VkResult.ErrorOutOfDeviceMemory );
+			var refusable = location == MemoryLocation.Device && SystemFallback && FallbackType( requirements.memoryTypeBits ) is not null;
+			return Allocate( requirements, image, target, FindType( requirements.memoryTypeBits, location ), content, refusable, fallback: false );
 		}
-		catch ( GpuException e ) when ( e.Result == (int)VkResult.ErrorOutOfDeviceMemory && location == MemoryLocation.Device && FallbackType( requirements.memoryTypeBits ) is { } fallback )
+		catch ( GpuException e ) when ( e.Result == (int)VkResult.ErrorOutOfDeviceMemory && location == MemoryLocation.Device && SystemFallback && FallbackType( requirements.memoryTypeBits ) is { } fallback )
 		{
-			var allocation = Allocate( requirements, location, image, target, fallback, content );
+			var allocation = Allocate( requirements, image, target, fallback, content, refusable: false, fallback: true );
 			lock ( allocationLock ) SystemFallbackBytes += (long)allocation.Size;
 			return allocation;
 		}
@@ -187,32 +333,33 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	public static bool LargeBlocks { get; set; } = true;
 
 	// Kinds (type, images, large) with a block being made ahead
-	readonly HashSet<(int Type, bool Images, bool Large, bool Content)> makingAhead = new();
+	readonly HashSet<(int Type, bool Images, bool Large, bool Content, bool Fallback)> makingAhead = new();
 	bool disposed;
 
 	// The driver's allocations (vkAllocateMemory, which needs no external lock) are made outside the allocator's lock: a big
 	// one takes milliseconds while the driver clears it, and every other thread's allocation waited behind it. A map's
 	// first seconds made hundreds, about 2 ms each, nearly 0.5 s of them on the main thread
-	Allocation Allocate( in VkMemoryRequirements requirements, MemoryLocation location, bool image, bool target, int type, bool content )
+	Allocation Allocate( in VkMemoryRequirements requirements, bool image, bool target, int type, bool content, bool refusable, bool fallback )
 	{
 		var size = requirements.size;
 		var alignment = Math.Max( requirements.alignment, 1 );
 
 		// A buffer over a quarter of a small block is its own (a map's vertex and index pages, views' visibility buffers,
 		// tables that grow): one still used after what was made beside it has gone doesn't hold a large block
-		if ( !image && size > OwnBufferSize && (content || OwnBigBuffers) ) return OwnBuffer( type, size, alignment );
+		if ( !image && size > OwnBufferSize && (content || OwnBigBuffers) ) return OwnBuffer( type, size, alignment, content, refusable, fallback );
 
 		// Anything over a quarter of a large block gets its own allocation, and so does a target too big for a small block
 		if ( size > (LargeBlocks && !target ? LargeBlockSize : blockSize) / 4 )
 		{
-			var dedicated = NewBlock( type, size, image );
+			var dedicated = NewBlock( type, size, image, content, refusable );
 			dedicated.Dedicated = true;
+			dedicated.Fallback = fallback;
 			dedicated.TryAllocate( size, alignment, out var dedicatedOffset, out var dedicatedNode );
 			lock ( allocationLock )
 			{
 				Allocations++;
 				Add( dedicated );
-				Used += size;
+				CountUsed( type, (long)size );
 			}
 
 			return new Allocation( dedicated, dedicatedOffset, size, dedicatedNode );
@@ -222,18 +369,19 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		lock ( allocationLock )
 		{
 			Allocations++;
-			if ( TryShared( type, image, large, content, size, alignment ) is { } shared ) return shared;
+			if ( TryShared( type, image, large, content, fallback, size, alignment ) is { } shared ) return shared;
 		}
 
 		// A new block, made without the lock; another thread (or the one made ahead) may have added one meanwhile, which is
 		// tried first, and then this one stays as a spare
-		var fresh = NewBlock( type, large ? LargeBlockSize : blockSize, image );
+		var fresh = NewBlock( type, large ? LargeBlockSize : blockSize, image, content, refusable );
 		fresh.Large = large;
 		fresh.Content = content;
+		fresh.Fallback = fallback;
 		lock ( allocationLock )
 		{
 			Add( fresh );
-			if ( TryShared( type, image, large, content, size, alignment ) is { } placed ) return placed;
+			if ( TryShared( type, image, large, content, fallback, size, alignment ) is { } placed ) return placed;
 			throw new GpuException( "A new memory block couldn't fit an allocation" );
 		}
 	}
@@ -245,7 +393,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	void MakeAhead( MemoryBlock taken )
 	{
 		if ( !MakeBlocksAhead || !BlocksAhead || disposed ) return;
-		var kind = (taken.TypeIndex, taken.Images, taken.Large, taken.Content);
+		var kind = (taken.TypeIndex, taken.Images, taken.Large, taken.Content, taken.Fallback);
 		if ( makingAhead.Contains( kind ) || KindOf( taken ).Spares > 0 ) return;
 
 		makingAhead.Add( kind );
@@ -256,9 +404,10 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			MemoryBlock block = null;
 			try
 			{
-				block = allocator.NewBlock( kind.TypeIndex, size, kind.Images );
+				block = allocator.NewBlock( kind.TypeIndex, size, kind.Images, kind.Content, refusable: true );
 				block.Large = kind.Large;
 				block.Content = kind.Content;
+				block.Fallback = kind.Fallback;
 			}
 			catch ( GpuException )
 			{
@@ -303,31 +452,32 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// few sizes), the next is made ahead on a worker, so a map loading doesn't wait for the driver on the thread that
 	/// makes them.
 	/// </summary>
-	Allocation OwnBuffer( int type, ulong size, ulong alignment )
+	Allocation OwnBuffer( int type, ulong size, ulong alignment, bool content, bool refusable, bool fallback )
 	{
 		lock ( allocationLock )
 		{
 			Allocations++;
 			foreach ( var block in spares )
 			{
-				if ( !block.Dedicated || !block.Reusable || block.Used != 0 || block.Size != size || block.TypeIndex != type || block.Images ) continue;
+				if ( !block.Dedicated || !block.Reusable || block.Used != 0 || block.Size != size || block.TypeIndex != type || block.Images || block.Fallback != fallback ) continue;
 				Unspare( block );
 				block.TryAllocate( size, alignment, out var spareOffset, out var spareNode );
-				Used += size;
-				PageTaken( type, size );
+				CountUsed( type, (long)size );
+				if ( !fallback ) PageTaken( type, size );
 				return new Allocation( block, spareOffset, size, spareNode );
 			}
 		}
 
-		var page = NewBlock( type, size, image: false );
+		var page = NewBlock( type, size, image: false, content, refusable );
 		page.Dedicated = true;
 		page.Reusable = true;
+		page.Fallback = fallback;
 		page.TryAllocate( size, alignment, out var offset, out var node );
 		lock ( allocationLock )
 		{
 			Add( page );
-			Used += size;
-			PageTaken( type, size );
+			CountUsed( type, (long)size );
+			if ( !fallback ) PageTaken( type, size );
 		}
 
 		return new Allocation( page, offset, size, node );
@@ -346,7 +496,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			MemoryBlock block = null;
 			try
 			{
-				block = allocator.NewBlock( type, size, image: false );
+				block = allocator.NewBlock( type, size, image: false, content: false, refusable: true );
 				block.Dedicated = true;
 				block.Reusable = true;
 			}
@@ -382,12 +532,12 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	}
 
 	/// <summary>Room in the fullest shared block of its kind with room, so the emptier ones drain; under the lock.</summary>
-	Allocation? TryShared( int type, bool image, bool large, bool content, ulong size, ulong alignment )
+	Allocation? TryShared( int type, bool image, bool large, bool content, bool fallback, ulong size, ulong alignment )
 	{
 		var start = System.Diagnostics.Stopwatch.GetTimestamp();
 		try
 		{
-			return FindShared( type, image, large, content, size, alignment );
+			return FindShared( type, image, large, content, fallback, size, alignment );
 		}
 		finally
 		{
@@ -408,9 +558,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// <inheritdoc cref="Releases"/>
 	public long ReleaseTicks { get; private set; }
 
-	Allocation? FindShared( int type, bool image, bool large, bool content, ulong size, ulong alignment )
+	Allocation? FindShared( int type, bool image, bool large, bool content, bool fallback, ulong size, ulong alignment )
 	{
-		if ( !kinds.TryGetValue( (type, image, large, content), out var kind ) ) return null;
+		if ( !kinds.TryGetValue( (type, image, large, content, fallback), out var kind ) ) return null;
 		MemoryBlock best = null;
 		foreach ( var block in kind.Blocks )
 		{
@@ -420,7 +570,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 		if ( best is not null && best.Used == 0 ) Unspare( best );
 		if ( best is null || !best.TryAllocate( size, alignment, out var offset, out var node ) ) return null;
-		Used += size;
+		CountUsed( type, (long)size );
 		MakeAhead( best );
 		return new Allocation( best, offset, size, node );
 	}
@@ -436,7 +586,8 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			block.Release( allocation.Node );
 			ReleaseTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
 			Releases++;
-			Used -= allocation.Size;
+			CountUsed( block.TypeIndex, -(long)allocation.Size );
+			if ( block.Fallback ) SystemFallbackBytes -= (long)allocation.Size;
 
 			// Dedicated blocks go at once, but for one big buffer's of each size kept as a spare for a while (Trim); shared ones
 			// once empty, keeping one spare per kind for a while
@@ -472,8 +623,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	bool HasSpare( MemoryBlock empty ) => KindOf( empty ).Spares > (empty.Spare ? 1 : 0);
 
 	/// <summary>A block from the driver, not yet in <see cref="blocks"/> (<see cref="Add"/>): made without the lock.</summary>
-	MemoryBlock NewBlock( int type, ulong size, bool image )
+	MemoryBlock NewBlock( int type, ulong size, bool image, bool content, bool refusable )
 	{
+		CheckBudget( type, size, content, refusable );
 		var info = new VkMemoryAllocateInfo
 		{
 			sType = VkStructureType.MemoryAllocateInfo,
@@ -504,6 +656,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		if ( !block.Dedicated ) KindOf( block ).Blocks.Add( block );
 		if ( block.Used == 0 ) KeepSpare( block );
 		Reserved += block.Size;
+		heapReserved[properties.Type( block.TypeIndex ).heapIndex] += (long)block.Size;
 	}
 
 	/// <summary>Take a block out of the lists before it's freed; under the lock.</summary>
@@ -517,7 +670,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// <summary>The shared blocks of a block's kind; under the lock.</summary>
 	Kind KindOf( MemoryBlock block )
 	{
-		var key = (block.TypeIndex, block.Images, block.Large, block.Content);
+		var key = (block.TypeIndex, block.Images, block.Large, block.Content, block.Fallback);
 		if ( !kinds.TryGetValue( key, out var kind ) ) kinds[key] = kind = new Kind();
 		return kind;
 	}
@@ -544,7 +697,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	{
 		// Freeing memory unmaps it
 		vk.vkFreeMemory( vk.Device, block.Memory, null );
-		if ( counted ) Reserved -= block.Size;
+		if ( !counted ) return;
+		Reserved -= block.Size;
+		heapReserved[properties.Type( block.TypeIndex ).heapIndex] -= (long)block.Size;
 	}
 
 	public void Dispose()

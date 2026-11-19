@@ -22,6 +22,9 @@ internal sealed class MemoryBlock
 	/// <summary>Whether it holds content (a map's textures and geometry), kept apart from long-lived resources so it drains when the content goes.</summary>
 	public bool Content;
 
+	/// <summary>Whether it holds device allocations made in system memory because video memory was full or over budget.</summary>
+	public bool Fallback;
+
 	/// <summary>Whether it's a big buffer's own allocation, which can be kept empty as a spare for the next of its size.</summary>
 	public bool Reusable;
 

@@ -143,4 +143,68 @@ public class MemoryAllocatorTests : GpuTest
 		allocator.Free( smallTarget );
 		allocator.Free( texture );
 	}
+
+	/// <summary>
+	/// Each heap counts the blocks its memory types hold and what's handed out of them, with no budget read yet: usage is
+	/// what the allocator reserved.
+	/// </summary>
+	[TestMethod]
+	public void HeapsCountReservedAndUsed()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false };
+		allocator.UpdateBudgetWithoutDriver();
+		var requirements = new VkMemoryRequirements { size = allocator.BlockSize / 4, alignment = 256, memoryTypeBits = ~0u };
+		var allocation = allocator.Allocate( requirements, MemoryLocation.Device, image: true );
+
+		Span<MemoryHeapBudget> heaps = stackalloc MemoryHeapBudget[16];
+		var count = allocator.GetHeaps( heaps );
+		var heap = heaps[(int)Device.Allocator.MemoryProperties.Type( allocation.Block.TypeIndex ).heapIndex];
+		Assert.IsTrue( count > 0 && heap.DeviceLocal );
+		Assert.AreEqual( (long)allocator.BlockSize, heap.Reserved );
+		Assert.AreEqual( (long)requirements.size, heap.Used );
+		Assert.AreEqual( (long)allocator.BlockSize, heap.Usage, "usage moves with what's reserved between reads" );
+		Assert.AreEqual( (long)(allocator.BlockSize - requirements.size), heap.Stranded );
+
+		allocator.Free( allocation );
+		allocator.GetHeaps( heaps );
+		Assert.AreEqual( 0, heaps[heap.Index].Used );
+	}
+
+	/// <summary>
+	/// Past an artificial budget (<see cref="MemoryAllocator.BudgetLimit"/>), a device allocation that can live in system
+	/// memory goes there, in blocks of its own, as when the driver runs out of video memory, and a warning is said once; without a system memory
+	/// type to fall back to, it fails as the driver's would.
+	/// </summary>
+	[TestMethod]
+	public void OverTheBudgetAllocationsGoToSystemMemory()
+	{
+		var warnings = new List<string>();
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false, Warn = warnings.Add };
+		var heapCount = (int)Device.Allocator.MemoryProperties.memoryHeapCount;
+		var nothing = new ulong[heapCount];
+		var everything = new ulong[heapCount];
+		Array.Fill( everything, ulong.MaxValue );
+		allocator.UpdateBudget( nothing, everything );
+		allocator.BudgetLimit = (long)(allocator.BlockSize * 3 / 2);
+
+		var eighth = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
+		var placed = new List<Allocation>();
+		for ( int i = 0; i < 12; i++ ) placed.Add( allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
+
+		bool DeviceLocal( Allocation a ) => (Device.Allocator.MemoryProperties.Type( a.Block.TypeIndex ).propertyFlags & Vk.MemoryDeviceLocal) != 0;
+		Assert.IsTrue( placed.Take( 8 ).All( DeviceLocal ), "the first block fits the budget" );
+		Assert.IsFalse( placed.Skip( 8 ).Any( DeviceLocal ), "past it, system memory" );
+		Assert.AreEqual( (long)(4 * eighth.size), allocator.SystemFallbackBytes );
+		Assert.AreEqual( 1, warnings.Count, "said once" );
+		Assert.IsTrue( allocator.OverBudgetAllocations >= 1 );
+
+		// Nowhere to fall back to: it fails rather than taking the heap past the budget
+		allocator.SystemFallback = false;
+		allocator.RefuseDeviceLocal = true;
+		var e = Assert.ThrowsException<GpuException>( () => allocator.Allocate( eighth with { size = allocator.BlockSize / 2 }, MemoryLocation.Device, image: true, content: true ) );
+		Assert.AreEqual( (int)VkResult.ErrorOutOfDeviceMemory, e.Result );
+
+		foreach ( var allocation in placed ) allocator.Free( allocation );
+		Assert.AreEqual( 0, allocator.SystemFallbackBytes, "and none once they're freed" );
+	}
 }

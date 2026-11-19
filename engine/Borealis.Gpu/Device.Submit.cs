@@ -244,6 +244,7 @@ public sealed unsafe partial class Device
 		CollectGarbage();
 		TrimSpares();
 		Allocator.Trim( FrameNumber );
+		if ( FrameNumber % MemoryBudgetFrames == 0 ) RefreshMemoryBudget();
 	}
 
 	// The frame's lists as BeginFrame recycles them, kept
