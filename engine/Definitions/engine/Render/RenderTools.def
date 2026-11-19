@@ -50,6 +50,7 @@ native static class RenderTools as NativeEngine.RenderTools
 	float GetTextureLodScale( bool bFallback );
 	void MarkAttributeTexturesUsed( CRenderAttributes attributes, int nRequiredMipSize );
 	IModel GetAggregateModel( CSceneObject sceneObject, CastTo[bool*] void* pLightmapped );
+	IModel CreateBufferObjectModel( CSceneObject sceneObject );
 	int GetAggregateFragments( CSceneObject sceneObject, void* pOut, int nMaxFragments );
 	int GetLightProbeVolumeHandshake( CSceneObject sceneObject );
 

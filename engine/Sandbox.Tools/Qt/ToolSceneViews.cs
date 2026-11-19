@@ -138,6 +138,9 @@ internal static partial class ToolSceneViews
 
 		/// <summary>Draw <see cref="Request.RaytracedImage"/> instead of the worlds (Hammer's baked lighting preview).</summary>
 		Raytraced = 16,
+
+		/// <summary>Draw the worlds' buffer objects as models of their draws (<see cref="BufferObjectModels"/>).</summary>
+		BufferObjectModels = 32,
 	}
 
 	/// <summary>
@@ -445,6 +448,7 @@ internal static partial class ToolSceneViews
 			if ( !world.IsValid() ) continue;
 
 			Poll( world );
+			if ( (request.DrawFlags & Flags.BufferObjectModels) != 0 ) BufferObjectModels.Give( world );
 			lights.Mirror( world );
 			selection.Gather( world );
 			if ( request.GetGeometry != null ) overlays.Gather( world, request.GetGeometry );
