@@ -155,9 +155,88 @@ internal sealed class BackendParameters : ShaderParameters
 	{
 		lock ( gate )
 		{
+			// The same texture or buffer again changes nothing
+			if ( value is not byte[] && values.TryGet( name.Value, out var old ) && ReferenceEquals( old, value ) ) return;
 			Replace( name.Value, value );
 			version++;
 		}
+	}
+
+	// A number or vector: the same value again (one set every frame) changes nothing, boxes nothing, and leaves what readers
+	// made of these parameters (layers, keys, plans) as it is
+	void Store<T>( StringToken name, T value ) where T : struct
+	{
+		lock ( gate )
+		{
+			if ( values.TryGet( name.Value, out var old ) && old is T same && EqualityComparer<T>.Default.Equals( same, value ) ) return;
+
+			// Small numbers and bools boxed once and shared: never written in place
+			if ( SharedBox( value ) is { } shared ) Replace( name.Value, shared );
+
+			// A pooled set's box, written again: only its user reads it, and draws take what they read as they're recorded
+			else if ( pooled && old is T && !IsShared( old ) ) System.Runtime.CompilerServices.Unsafe.Unbox<T>( old ) = value;
+
+			// Otherwise the box the name held before the current one (Replace keeps it), written again, as constant buffers'
+			// bytes are: the current box is never written, so a reader that took it still reads its value
+			else if ( spareBoxes.Remove( name.Value, out var spare ) && spare is T )
+			{
+				System.Runtime.CompilerServices.Unsafe.Unbox<T>( spare ) = value;
+				Replace( name.Value, spare );
+			}
+			else Replace( name.Value, value );
+
+			version++;
+		}
+	}
+
+	static readonly object BoxedTrue = true, BoxedFalse = false;
+
+	static bool IsShared( object box ) => box is int number ? number >= 0 && number < BoxedCombos.Length && ReferenceEquals( box, BoxedCombos[number] ) : box is bool flag && ReferenceEquals( box, flag ? BoxedTrue : BoxedFalse );
+
+	// The shared box for a small integer or a bool, or null
+	static object SharedBox<T>( T value ) where T : struct
+	{
+		if ( typeof( T ) == typeof( int ) )
+		{
+			var number = System.Runtime.CompilerServices.Unsafe.As<T, int>( ref value );
+			return number >= 0 && number < BoxedCombos.Length ? BoxedCombos[number] : null;
+		}
+
+		if ( typeof( T ) == typeof( bool ) ) return System.Runtime.CompilerServices.Unsafe.As<T, bool>( ref value ) ? BoxedTrue : BoxedFalse;
+		return null;
+	}
+
+	// A texture's mip: the same one again keeps its record
+	void StoreMip( StringToken name, GpuTexture texture, int mip )
+	{
+		lock ( gate )
+		{
+			if ( values.TryGet( name.Value, out var old ) && old is TextureMip same && ReferenceEquals( same.Texture, texture ) && same.Mip == mip ) return;
+			Replace( name.Value, MipOf( texture, mip ) );
+			version++;
+		}
+	}
+
+	// Each texture's mips as records, made once: a pass binding a mip chain mip by mip every frame (the depth chain) makes none
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<GpuTexture, TextureMip[]> textureMips = new();
+
+	static TextureMip MipOf( GpuTexture texture, int mip )
+	{
+		if ( !textureMips.TryGetValue( texture, out var mips ) || mips.Length <= mip )
+		{
+			lock ( textureMips )
+			{
+				if ( !textureMips.TryGetValue( texture, out mips ) || mips.Length <= mip )
+				{
+					var grown = new TextureMip[Math.Max( mip + 1, texture.Mips )];
+					mips?.CopyTo( grown, 0 );
+					textureMips.AddOrUpdate( texture, grown );
+					mips = grown;
+				}
+			}
+		}
+
+		return Volatile.Read( ref mips[mip] ) ?? Interlocked.CompareExchange( ref mips[mip], new TextureMip( texture, mip ), null ) ?? mips[mip];
 	}
 
 	// Each constant buffer's previous bytes by name, written the next time it's set, so setting one allocates nothing: a
@@ -196,7 +275,12 @@ internal sealed class BackendParameters : ShaderParameters
 	// Set a value, keeping the bytes it replaces to write next time. Hold gate
 	void Replace( uint name, object value )
 	{
-		if ( values.TryGet( name, out var old ) && old is byte[] previous && !ReferenceEquals( previous, value ) ) KeepBytes( name, previous );
+		if ( values.TryGet( name, out var old ) && !ReferenceEquals( old, value ) )
+		{
+			if ( old is byte[] previous ) KeepBytes( name, previous );
+			else if ( old is not null && old.GetType().IsValueType && !IsShared( old ) ) spareBoxes[name] = old;
+		}
+
 		values.Set( name, value );
 	}
 
@@ -209,7 +293,12 @@ internal sealed class BackendParameters : ShaderParameters
 	public override void Set( StringToken name, Vector4 value ) => Store( name, value );
 	public override void Set( StringToken name, Vector2Int value ) => Store( name, value );
 	public override void Set( StringToken name, Matrix value ) => Store( name, value );
-	public override void Set( StringToken name, GpuTexture value, int mip = -1 ) => Store( name, mip >= 0 && value is not null ? new TextureMip( value, mip ) : value );
+	public override void Set( StringToken name, GpuTexture value, int mip = -1 )
+	{
+		if ( mip >= 0 && value is not null ) StoreMip( name, value, mip );
+		else Store( name, value );
+	}
+
 	public override void Set( StringToken name, GpuBuffer value ) => Store( name, value );
 
 	public override void SetData<T>( StringToken name, in T value )
@@ -217,8 +306,13 @@ internal sealed class BackendParameters : ShaderParameters
 		var size = Marshal.SizeOf<T>();
 		lock ( gate )
 		{
+			// The same bytes again change nothing
+			var length = Math.Min( System.Runtime.CompilerServices.Unsafe.SizeOf<T>(), size );
+			if ( values.TryGet( name.Value, out var old ) && old is byte[] current && current.Length == size
+				&& current.AsSpan( 0, length ).SequenceEqual( MemoryMarshal.AsBytes( new ReadOnlySpan<T>( in value ) ) ) && !current.AsSpan( length ).ContainsAnyExcept( (byte)0 ) ) return;
+
 			var bytes = TakeBytes( name.Value, size );
-			bytes.AsSpan( Math.Min( System.Runtime.CompilerServices.Unsafe.SizeOf<T>(), size ) ).Clear();
+			bytes.AsSpan( length ).Clear();
 			MemoryMarshal.Write( bytes, in value );
 			Replace( name.Value, bytes );
 			version++;
@@ -230,10 +324,10 @@ internal sealed class BackendParameters : ShaderParameters
 
 	public override void SetCombo( StringToken name, int value )
 	{
-		var boxed = value >= 0 && value < BoxedCombos.Length ? BoxedCombos[value] : value;
 		lock ( gate )
 		{
-			combos.Set( name.Value, boxed );
+			if ( combos.TryGet( name.Value, out var current ) && current is int same && same == value ) return;
+			combos.Set( name.Value, value >= 0 && value < BoxedCombos.Length ? BoxedCombos[value] : value );
 			version++;
 		}
 	}
@@ -396,20 +490,39 @@ internal sealed class BackendParameters : ShaderParameters
 		}
 	}
 
-	public override void Clear()
+	// Boxed numbers by name that no value holds now (replaced, cleared or recycled), to hold the same names' next values
+	readonly Dictionary<uint, object> spareBoxes = new();
+
+	// Whether this is a pooled set (Recycle): read only by the pass using it, so its boxes are written in place
+	bool pooled;
+
+	internal override void Recycle()
 	{
 		lock ( gate )
 		{
-			// Bytes stay for the next time their names are set
-			for ( int i = 0; i < values.Slots; i++ )
-			{
-				if ( values.At( i, out var key, out var value ) && value is byte[] bytes ) KeepBytes( key, bytes );
-			}
-
-			values.Clear();
-			combos.Clear();
-			version++;
+			pooled = true;
+			ClearKeeping();
 		}
+	}
+
+	public override void Clear()
+	{
+		lock ( gate ) ClearKeeping();
+	}
+
+	// Bytes and boxed numbers stay for the next time their names are set (a set cleared every frame, a segment's). Hold gate
+	void ClearKeeping()
+	{
+		for ( int i = 0; i < values.Slots; i++ )
+		{
+			if ( !values.At( i, out var key, out var value ) ) continue;
+			if ( value is byte[] bytes ) KeepBytes( key, bytes );
+			else if ( value is not null && value.GetType().IsValueType && !IsShared( value ) ) spareBoxes[key] = value;
+		}
+
+		values.Clear();
+		combos.Clear();
+		version++;
 	}
 }
 
@@ -482,13 +595,21 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 	/// <summary>Set a variable's value in code, over the compiled material's, as <c>Material.Set</c> does.</summary>
 	public void Set( string variable, float[] value )
 	{
-		lock ( values ) values[variable] = value;
+		lock ( values )
+		{
+			// The same values again (code that sets a material's values every frame) keep its material objects
+			if ( values.TryGetValue( variable, out var current ) && !ReferenceEquals( current, value ) && current is not null && value is not null && current.AsSpan().SequenceEqual( value ) ) return;
+			values[variable] = value;
+		}
+
 		Interlocked.Increment( ref version );
 	}
 
 	/// <summary>Set a texture variable (<c>g_tColor</c>), as <c>Material.Set</c> does with a texture.</summary>
 	public void SetTexture( string variable, BackendTexture texture )
 	{
+		if ( Textures.TryGetValue( variable, out var current ) && ReferenceEquals( current, texture ) ) return;
+
 		var textures = new Dictionary<string, BackendTexture>( Textures, StringComparer.OrdinalIgnoreCase ) { [variable] = texture };
 		Textures = textures;
 		Streamed();
