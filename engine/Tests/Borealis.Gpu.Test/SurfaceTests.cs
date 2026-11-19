@@ -65,6 +65,34 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A sampler without a filter is native's default sampler state (<c>DefaultSamplerStateDesc</c>): anisotropic and
+	/// wrapped. blendable.shader samples every layer with such a sampler (<c>g_sDefault</c>), so blendable.slang's
+	/// sampler filters anisotropically too, or ground seen at a glancing angle (Construct's grass) blurs along depth.
+	/// </summary>
+	[TestMethod]
+	public void SamplersWithoutAFilterAreAnisotropic()
+	{
+		var annotations = new Dictionary<string, Annotations>();
+		VfxIncludes.Rewrite( "SamplerState Clamped < AddressU( CLAMP ); >;\n"
+			+ "SamplerState Trilinear < Filter( TRILINEAR ); MaxAniso( 8 ); >;\n"
+			+ "SamplerState Aniso < Filter( ANISOTROPIC ); MaxAniso( 8 ); >;\n", annotations );
+
+		Assert.AreEqual( BackendContext.DefaultAnisotropy, BackendContext.SurfaceSampler( null ).MaxAnisotropy );
+		var clamped = BackendContext.SurfaceSampler( annotations["Clamped"] );
+		Assert.AreEqual( BackendContext.DefaultAnisotropy, clamped.MaxAnisotropy );
+		Assert.AreEqual( AddressMode.Clamp, clamped.AddressU );
+		Assert.AreEqual( AddressMode.Wrap, clamped.AddressV );
+		Assert.AreEqual( 1, BackendContext.SurfaceSampler( annotations["Trilinear"] ).MaxAnisotropy );
+		Assert.AreEqual( 8, BackendContext.SurfaceSampler( annotations["Aniso"] ).MaxAnisotropy );
+
+		var blendable = Compiler().CompileSurface( Path.Combine( Core, "shaders", "blendable.slang" ) );
+		var filtering = blendable.Pass( ShaderPasses.Forward ).Pixel.Bindings.First( b => b.Kind == BindingKind.Sampler && b.Variable == "g_BlendableFiltering" );
+		var state = BackendContext.SurfaceSampler( filtering.Annotations );
+		Assert.AreEqual( BackendContext.DefaultAnisotropy, state.MaxAnisotropy );
+		Assert.AreEqual( AddressMode.Wrap, state.AddressU );
+	}
+
+	/// <summary>
 	/// A shader's own shorthand for annotations (macros a package's expanded includes define, as vfx's preprocessor expands
 	/// them) reads as what it stands for; macros that aren't annotations are left alone.
 	/// </summary>
