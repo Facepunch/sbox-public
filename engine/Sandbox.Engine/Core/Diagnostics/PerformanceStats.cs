@@ -184,13 +184,13 @@ public static partial class PerformanceStats
 		_history.Clear();
 		secondTimer.Restart();
 
-		// Source 2's texture pool and GPU summary: its empty device has neither
+		// Source 2's texture pool, and the drawing device's summary
 		ulong poolUsed = 0, poolLimit = 0, poolNonEvictable = 0;
 		if ( Graphics.HasSource2Device ) g_pRenderDevice.GetTexturePoolStats( out poolUsed, out poolLimit, out poolNonEvictable );
 		FrameStats._current = new FrameStats(
 			NativeEngine.CSceneSystem.GetPerFrameStats(),
 			NativeEngine.CSceneSystem.GetNumUnbatchableMaterials(),
-			Graphics.HasSource2Device ? g_pRenderDevice.GetGpuStatsSummary() : "",
+			RenderBackend.Default is BorealisGpuRenderBackend borealis ? borealis.DescribeResources() : Graphics.HasSource2Device ? g_pRenderDevice.GetGpuStatsSummary() : "",
 			NativeEngine.g_pResourceSystem.GetNumPendingStreamingRequests(),
 			poolUsed, poolLimit, poolNonEvictable );
 		FrameStats._current.AddManaged( Rendering.ManagedSceneRendering.LastFrame );
