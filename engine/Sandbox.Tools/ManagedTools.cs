@@ -157,6 +157,10 @@ internal static class ManagedTools
 			case "ReleaseToolSceneView":
 				ToolSceneViews.Release( arg0 );
 				return;
+
+			case "ReadTexturePixels":
+				ToolTexturePixels.Read( arg0 );
+				return;
 		}
 
 		var method = typeof( ManagedTools ).GetMethod( name, System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic );
