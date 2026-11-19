@@ -571,7 +571,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// The loaded map, whose visibility culls what's sent to each connection; null when none is loaded.
 	/// </summary>
-	internal SceneMap GetNetworkMap() => loadedMap is not null && loadedMap.IsValid ? loadedMap : null;
+	internal SceneMap GetNetworkMap() => loadedMap;
 }
 
 file class MapComponentMapLoader : SceneMapLoader
