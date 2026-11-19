@@ -6,7 +6,7 @@ namespace Borealis.Features;
 
 /// <summary>
 /// Sorts meshes and custom objects into layer run lists, instancing compatible neighbours.
-/// Membership and draw rules live in <c>MeshRenderFeature.Lists.cs</c>; native instancing is described in <c>docs/native/instancing.md</c>.
+/// Membership and draw rules live in <c>MeshRenderFeature.Lists.cs</c>; native instancing is described in <c>docs/reference/rendering.md</c>.
 /// </summary>
 internal sealed partial class MeshRenderFeature : RenderFeature
 {
@@ -509,7 +509,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				c.Bin ??= kept[index].Class.Bin ??= new Bin( custom );
 
 				var customDistance = (customRuns & DistanceSortedLists) != 0 ? TranslucentSortDistance( centers[index], extents[index], sortCamera ) : 0;
-				AddToLists( customRuns, k, index, c.Bin.Key, customDistance, !custom.IsOpaque, 0 );
+				AddToLists( customRuns, k, index, c.Bin.Key, customDistance, !custom.IsOpaque, custom.RenderOrder );
 				layers.Custom |= customRuns;
 				if ( custom.WantsFrameBufferCopy && !pass.IsShadow ) layers.FrameBufferReads |= customRuns & FrameBufferCopyingLists;
 				if ( custom.NeedsStencil && !pass.IsShadow ) layers.Stencil = true;
@@ -1386,8 +1386,14 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				// sets it per draw): so it's clear on both sides of them
 				if ( vertexAnimation != 0 ) context.SetCombo( CsVertexAnimation, vertexAnimation = 0 );
 
+				// The wireframe view mode is the scene's objects' (native's wireframe override replaces their materials' modes):
+				// a custom object draws as it asks, as tool overlays keep their colours in a wireframe view
+				var tools = context.ToolsPass;
+				if ( tools == ToolsPass.Wireframe ) context.ToolsPass = ToolsPass.None;
+
 				context.BindInstances( 1, run.FirstInstance );
 				using ( Zones.CustomObject.Start() ) custom.Render( context, view, layer );
+				context.ToolsPass = tools;
 				context.SetCombo( CsVertexAnimation, 0 );
 				context.RestoreBound();
 				stats.CustomDraws++;

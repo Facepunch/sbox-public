@@ -1,4 +1,4 @@
-// sprite_ps: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// sprite_ps: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: DevShader = true;
 // HEADER: Description = "Sprite2D rendering";
 
@@ -21,7 +21,9 @@ enum SpriteFlags
 	FlipW = 0x2,
 	FlipH = 0x4,
 	SnapToFrame = 0x8,
-	Text = 0x10		// glyph instances instead of a texture, see GpuFontText
+	Text = 0x10,		// glyph instances instead of a texture, see GpuFontText
+	FaceCameraPosition = 0x20,
+	VelocityStretch = 0x40
 };
 
 struct SpriteData
@@ -114,9 +116,10 @@ float3 GetSpriteOffset( float2 offset, float3 right, float3 up, float3 scale )
 	return offsetPos;
 }
 
-float4x4 BuildBillboardMatrix(float3 position, float3 rotation, float3 scale, float2 offset, bool yLocked)
+float4x4 BuildBillboardMatrix(float3 position, float3 rotation, float3 scale, float2 offset, bool yLocked, bool faceCameraPosition)
 {
-	float3 cameraForward = g_vCameraDirWs;
+	// World text keeps its original camera-position facing; particles and sprites face the camera plane.
+	float3 cameraForward = faceCameraPosition ? normalize( position - g_vCameraPositionWs.xyz ) : g_vCameraDirWs;
 	float3 cameraUp, cameraRight;
 	
 	if (yLocked)
@@ -128,6 +131,7 @@ float4x4 BuildBillboardMatrix(float3 position, float3 rotation, float3 scale, fl
 		
 		if (forwardLength < 0.001)
 		{
+			if ( faceCameraPosition ) return (float4x4)0;
 			cameraForward = float3(1, 0, 0);
 		}
 		else
@@ -185,14 +189,25 @@ float4x4 BuildBillboardMatrix(float3 position, float3 rotation, float3 scale, fl
 	float4x4 transform;
 	uint billboardMode = sprite.BillboardMode;
 	
-	if (billboardMode == 0) // Always billboard
+	if ( (sprite.RenderFlags & VelocityStretch) != 0 )
 	{
-		transform = BuildBillboardMatrix(position, sprite.Rotation, scale, sprite.Offset, false);
+		float3 up = NormalizeSafe( sprite.Velocity );
+		float3 right = cross( sprite.Position - g_vCameraPositionWs.xyz, up );
+		if ( dot( right, right ) < 0.000001 ) right = cross( g_vCameraUpDirWs, up );
+		right = NormalizeSafe( right );
+		transform[0] = float4( right * scale.x, 0 );
+		transform[1] = float4( up * scale.y, 0 );
+		transform[2] = float4( NormalizeSafe( cross( right, up ) ) * scale.z, 0 );
+		transform[3] = float4( position, 1 );
+	}
+	else if (billboardMode == 0) // Always billboard
+	{
+		transform = BuildBillboardMatrix(position, sprite.Rotation, scale, sprite.Offset, false, (sprite.RenderFlags & FaceCameraPosition) != 0);
 	}
 	else if (billboardMode == 1) // Y-Only billboard
 	{
 		scale.y *= -1;
-		transform = BuildBillboardMatrix(position, sprite.Rotation, scale, sprite.Offset, true);
+		transform = BuildBillboardMatrix(position, sprite.Rotation, scale, sprite.Offset, true, (sprite.RenderFlags & FaceCameraPosition) != 0);
 	}
 	else // No billboard - use full rotation
 	{

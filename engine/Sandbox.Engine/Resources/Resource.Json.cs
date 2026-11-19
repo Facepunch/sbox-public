@@ -40,6 +40,11 @@ public partial class Resource
 	/// </summary>
 	internal static Resource Load( Type targetType, ResourceId id )
 	{
+		if ( Game.Resources.TryLoadUncompiledResource( targetType, id, FileSystem.Mounted, out var uncompiled ) )
+		{
+			return uncompiled;
+		}
+
 		if ( targetType.IsAssignableTo( typeof( GameResource ) ) )
 		{
 			if ( !string.IsNullOrEmpty( id.Path ) )

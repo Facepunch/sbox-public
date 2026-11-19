@@ -362,6 +362,16 @@ public abstract class VirtualParameter : IParameter
 
 	protected abstract Data CreateGraph();
 
+	internal VirtualParameter CopyFrom( VirtualParameter other )
+	{
+		Identifier = other.Identifier;
+		Name = other.Name;
+		Group = other.Group;
+		Lifetime = other.Lifetime;
+		Graph = other.Graph;
+		return this;
+	}
+
 	public VirtualParameter Duplicate()
 	{
 		var copy = (VirtualParameter)MemberwiseClone();

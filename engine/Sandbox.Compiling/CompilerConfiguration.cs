@@ -90,6 +90,18 @@ partial class Compiler
 		}
 
 		/// <summary>
+		/// As <see cref="IsPermittedAssemblyReference"/>, but also allows sibling package assemblies,
+		/// which a code archive legitimately carries as dependencies.
+		/// </summary>
+		internal bool IsPermittedArchiveReference( string assemblyName )
+		{
+			if ( assemblyName?.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) == true )
+				return IsSimpleAssemblyName( assemblyName );
+
+			return IsPermittedAssemblyReference( assemblyName );
+		}
+
+		/// <summary>
 		/// Each unique element of <see cref="AssemblyReferences"/>
 		/// </summary>
 		public IReadOnlySet<string> DistinctAssemblyReferences => new HashSet<string>( AssemblyReferences.Where( IsPermittedAssemblyReference ), StringComparer.OrdinalIgnoreCase );

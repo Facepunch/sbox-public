@@ -122,9 +122,8 @@ internal partial class NetworkSystem
 		if ( !Networking.IsHost )
 			return;
 
-		var command = ConVarSystem.Find( msg.Command );
-		if ( command is null ) return;
-		if ( !command.IsUserInfo ) return;
+		if ( !Sandbox.Network.ConnectionInfo.IsValidUserData( msg.Command, msg.Value ) )
+			return;
 
 		source.SetUserData( msg.Command, msg.Value );
 	}

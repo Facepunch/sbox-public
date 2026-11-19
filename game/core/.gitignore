@@ -1,0 +1,6 @@
+/cfg/user_keys_*.json
+/cfg/*.vcfg
+/cfg/video.txt
+/cfg/video_tools.txt
+/cfg/machine_convars.json
+/shadercache/vulkan/shaders.cache

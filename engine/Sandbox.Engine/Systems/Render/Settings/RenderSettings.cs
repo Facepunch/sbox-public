@@ -32,19 +32,19 @@ public partial class RenderSettings
 
 	public int MaxFrameRate
 	{
-		get => ConVarSystem.GetInt( "fps_max", 0, true );
+		get => ConVarSystem.GetNativeInt( "fps_max", 0 );
 		set => ConVarSystem.SetInt( "fps_max", value, true );
 	}
 
 	public int MaxFrameRateInactive
 	{
-		get => ConVarSystem.GetInt( "fps_max_inactive", 100, true );
+		get => ConVarSystem.GetNativeInt( "fps_max_inactive", 100 );
 		set => ConVarSystem.SetInt( "fps_max_inactive", value, true );
 	}
 
 	public int MaxFrameRateMenu
 	{
-		get => ConVarSystem.GetInt( "fps_max_menu", 0, true );
+		get => ConVarSystem.GetNativeInt( "fps_max_menu", 0 );
 		set => ConVarSystem.SetInt( "fps_max_menu", value, true );
 	}
 

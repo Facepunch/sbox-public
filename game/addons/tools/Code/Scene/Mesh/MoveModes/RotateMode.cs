@@ -30,14 +30,20 @@ public sealed class RotateMode : MoveMode
 			Gizmo.Hitbox.DepthBias = 0.01f;
 			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
-			if ( Gizmo.Control.Rotate( "rotation", Rotation.Identity, out Rotation rotationDelta ) )
+			if ( Gizmo.Control.UpdateRotation( "rotation", Rotation.Identity, out Rotation rotationDelta ) )
 			{
 				_moveDelta = Gizmo.Snap( rotationDelta );
 
-				tool.StartDrag();
-				tool.Rotate( _origin, _basis, _moveDelta );
-				tool.UpdateDrag();
+				if ( tool.DragStarted || _moveDelta != Rotation.Identity )
+				{
+					tool.StartDrag();
+					tool.Rotate( _origin, _basis, _moveDelta );
+					tool.UpdateDrag();
+				}
 			}
+			if ( !tool.GlobalSpace )
+				Gizmo.Transform = Gizmo.Transform.WithRotation( _basis * _moveDelta );
+			Gizmo.Draw.Rotate( "rotation" );
 		}
 
 		if ( Gizmo.Pressed.Any && _moveDelta != Rotation.Identity )

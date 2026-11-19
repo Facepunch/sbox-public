@@ -109,8 +109,6 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 		public static BlitMode WithBackbuffer( Material m, Stage stage, int order = 0, bool mip = false ) => new BlitMode { Material = m, RenderStage = stage, Order = order, WantsBackbuffer = true, WantsBackbufferMips = mip };
 	}
 
-	readonly Dictionary<(CameraComponent Camera, string Name), CommandList> blitLists = new();
-
 	/// <summary>
 	/// Helper to do a blit with the current camera's post process
 	/// </summary>
@@ -118,14 +116,11 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	{
 		if ( !blit.Material.IsValid() ) return;
 
-		// A list per camera and name, reset and recorded again each frame, as the effects with lists of their own do
-		var key = (context.Camera, debugName);
-		if ( blitLists.TryGetValue( key, out var cl ) ) cl.Reset();
-		else
-		{
-			if ( blitLists.Count >= 64 ) blitLists.Clear();
-			blitLists[key] = cl = new CommandList( debugName );
-		}
+		var layer = AddLayer( blit.RenderStage, blit.Order, debugName );
+
+		var cl = layer.BlitCommandList ??= new CommandList();
+		cl.Reset();
+		cl.DebugName = debugName;
 
 		if ( blit.WantsBackbuffer )
 		{
@@ -134,7 +129,7 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 
 		cl.Blit( blit.Material, blit.Attributes ?? Attributes );
 
-		InsertCommandList( cl, blit.RenderStage, blit.Order, debugName );
+		layer.CommandList = cl;
 	}
 
 
@@ -151,12 +146,17 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	/// </summary>
 	protected void InsertCommandList( CommandList cl, Sandbox.Rendering.Stage stage, int order, string debugName )
 	{
+		AddLayer( stage, order, debugName ).CommandList = cl;
+	}
+
+	PostProcessLayer AddLayer( Sandbox.Rendering.Stage stage, int order, string debugName )
+	{
 		var layer = context.Camera.PostProcess.CreateLayer( stage );
 		layer.Order = order;
-		layer.CommandList = cl;
 		layer.Name = debugName;
 		layer.NeedsDepthNormals = NeedsDepthNormals;
 		layer.EarlyQueue = stage == Sandbox.Rendering.Stage.AfterDepthPrepass ? EarlyQueue : null;
+		return layer;
 	}
 
 	/// <summary>

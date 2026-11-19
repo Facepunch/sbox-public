@@ -81,7 +81,7 @@ public sealed class SoundPointComponent : BaseSoundComponent, Component.ITempora
 
 		var distance = DistanceAttenuationOverride ? Distance : SoundEvent.Distance;
 
-		using ( Gizmo.Scope( "sound_component" ) )
+		using ( Gizmo.PushScope( "sound_component" ) )
 		{
 			Gizmo.Draw.Color = Gizmo.Colors.Green;
 			Gizmo.Transform = Gizmo.Transform.WithRotation( Rotation.Identity );

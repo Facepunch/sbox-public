@@ -1,81 +1,76 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
+
+using System.ComponentModel;
 
 namespace Sandbox;
 
 /// <summary>
 /// Describes an item of clothing and implicitly which other items it can be worn with
 /// </summary>
-[AssetType( Name = "Clothing Definition", Extension = "clothing", Category = "citizen", Flags = AssetTypeFlags.IncludeThumbnails, IconColor = "#fdea60" )]
+[AssetType( Name = "Clothing Definition", Extension = "clothing", Category = "Avatar", Flags = AssetTypeFlags.IncludeThumbnails, IconColor = "#fdea60" )]
 public sealed partial class Clothing : GameResource
 {
-
-	[FeatureEnabled( "Human Skin" )]
-	public bool HasHumanSkin { get; set; }
-
-	/// <summary>
-	/// Model to replace the human skin with
-	/// </summary>
-	[ResourceType( "vmdl" )]
-	[Feature( "Human Skin" )] public string HumanSkinModel { get; set; }
-
-	/// <summary>
-	/// Replace skin with this
-	/// </summary>
-	[ResourceType( "vmdl" )]
-	[Feature( "Human Skin" )] public string HumanSkinMaterial { get; set; }
-
-	/// <summary>
-	/// Replace skin with this
-	/// </summary>
-	[ResourceType( "vmdl" )]
-	[Feature( "Human Skin" )] public string HumanEyesMaterial { get; set; }
-
-	/// <summary>
-	/// Bodygroup on the model to choose
-	/// </summary>
-	[Model.BodyGroupMask( ModelParameter = "HumanSkinModel" )]
-	[Feature( "Human Skin" )] public ulong HumanSkinBodyGroups { get; set; }
-
-	/// <summary>
-	/// Bodygroup on the model to choose
-	/// </summary>
-	[Model.MaterialGroup( ModelParameter = "HumanSkinModel" )]
-	[Feature( "Human Skin" )] public string HumanSkinMaterialGroup { get; set; }
-
-	/// <summary>
-	/// Allows adding tags for this skin, ie "female". This affects which alternative clothing models are used with it.
-	/// </summary>
-	[Feature( "Human Skin" )] public TagSet HumanSkinTags { get; set; }
-
-
 
 	/// <summary>
 	/// Name of the clothing to show in UI.
 	/// </summary>
-	[Feature( "Display", Description = "The display information used in the Avatar Menu" )]
+	[Group( "Display", Order = -100 ), Order( -100 )]
 	public string Title { get; set; }
 
 	/// <summary>
-	/// A subtitle for this clothing piece.
+	/// Legacy subtitle, retained for existing resources and code.
 	/// </summary>
-	[Feature( "Display" )]
+	[Obsolete( "Clothing subtitles are no longer displayed." ), Hide, EditorBrowsable( EditorBrowsableState.Never )]
 	public string Subtitle { get; set; }
 
 	/// <summary>
-	/// What kind of clothing this is?
+	/// Whether this item adds clothing or replaces the player's entire model.
 	/// </summary>
-	[Feature( "Display" )]
-	public ClothingCategory Category { get; set; }
+	[Group( "Display", Order = -100 ), Order( -98 )]
+	public ClothingType Type { get; set; }
+
+	/// <summary>
+	/// Determines which settings are available and how the item is equipped.
+	/// </summary>
+	public enum ClothingType
+	{
+		/// <summary>
+		/// Adds a garment or accessory to the current body.
+		/// </summary>
+		Clothing,
+
+		/// <summary>
+		/// Replaces the body with this item's model and appearance.
+		/// </summary>
+		[Title( "Player Model" )]
+		PlayerModel
+	}
+
+	/// <summary>
+	/// The garment category. Player models always use Skin.
+	/// </summary>
+	[Group( "Display", Order = -100 ), Order( -97 )]
+	[ShowIf( nameof( Type ), ClothingType.Clothing )]
+	public ClothingCategory Category
+	{
+		get => Type == ClothingType.PlayerModel ? ClothingCategory.Skin : field;
+		set;
+	}
 
 	/// <summary>
 	/// A list of conditional models.
 	/// (key) = tag(s), (value) = model
 	/// </summary>
-	[Category( "Tags & Condition" )]
+	[Feature( "Advanced" ), Category( "Tags & Condition" )]
+	[ShowIf( nameof( Type ), ClothingType.Clothing )]
 	public Dictionary<string, string> ConditionalModels { get; set; }
 
-	[Category( "Tags & Condition" )]
+	/// <summary>
+	/// Tags used to select conditional models on other equipped garments.
+	/// </summary>
+	[Feature( "Advanced" ), Category( "Tags & Condition" )]
 	[Editor( "tags" )]
+	[ShowIf( nameof( Type ), ClothingType.Clothing )]
 	public string Tags { get; set; }
 
 	public string GetModel( IEnumerable<Clothing> clothingList ) => GetModel( clothingList, default );
@@ -112,6 +107,12 @@ public sealed partial class Clothing : GameResource
 
 		if ( tagset is not null )
 		{
+			foreach ( var tag in tagset.TryGetAll() )
+			{
+				if ( ConditionalModels is not null && ConditionalModels.TryGetValue( tag, out var conditionalModelPath ) )
+					return conditionalModelPath;
+			}
+
 			if ( tagset.Contains( "human" ) )
 			{
 				if ( tagset.Contains( "female" ) && !string.IsNullOrWhiteSpace( HumanAltFemaleModel ) )
@@ -125,8 +126,10 @@ public sealed partial class Clothing : GameResource
 
 
 
-		// Otherwise just use the default model
+		// Old Citizen resources retain their original garment model.
+#pragma warning disable CS0618
 		return Model;
+#pragma warning restore CS0618
 	}
 
 	/// <summary>
@@ -144,8 +147,10 @@ public sealed partial class Clothing : GameResource
 	public Clothing Parent { get; set; }
 
 	/// <summary>
-	/// The model to bonemerge to the player when this clothing is equipped.
+	/// Legacy Citizen garment model. Retained for existing clothing resources.
 	/// </summary>
+	[Obsolete( "Use HumanAltModel for Human clothing." )]
+	[Hide, EditorBrowsable( EditorBrowsableState.Never )]
 	[ResourceType( "vmdl" )]
 	[Category( "Clothing Setup" )]
 	public string Model { get; set; }
@@ -153,27 +158,35 @@ public sealed partial class Clothing : GameResource
 	/// <summary>
 	/// The model to bonemerge to the human player when this clothing is equipped.
 	/// </summary>
+	[Title( "Model" )]
 	[ResourceType( "vmdl" )]
 	[Category( "Clothing Setup" )]
+	[ShowIf( nameof( Type ), ClothingType.Clothing )]
 	public string HumanAltModel { get; set; }
 
 	/// <summary>
-	/// The model to bonemerge to the human player when this clothing is equipped.
+	/// Optional model for female Human bodies. Falls back to HumanAltModel when unset.
 	/// </summary>
+	[Title( "Female Model" )]
 	[ResourceType( "vmdl" )]
 	[Category( "Clothing Setup" )]
+	[ShowIf( nameof( Type ), ClothingType.Clothing )]
 	public string HumanAltFemaleModel { get; set; }
 
 	/// <summary>
-	/// Replace the skin with this material
+	/// Legacy skin material override. Retained for existing clothing resources.
 	/// </summary>
+	[Obsolete( "Define body materials in the model and select BodyMaterialGroup instead." )]
+	[Hide, EditorBrowsable( EditorBrowsableState.Never )]
 	[ResourceType( "vmat" )]
 	[Category( "Clothing Setup" )]
 	public string SkinMaterial { get; set; }
 
 	/// <summary>
-	/// Replace the eyes with this material
+	/// Legacy eye material override. Retained for existing clothing resources.
 	/// </summary>
+	[Obsolete( "Define body materials in the model and select BodyMaterialGroup instead." )]
+	[Hide, EditorBrowsable( EditorBrowsableState.Never )]
 	[ResourceType( "vmat" )]
 	[Category( "Clothing Setup" )]
 	public string EyesMaterial { get; set; }
@@ -182,6 +195,7 @@ public sealed partial class Clothing : GameResource
 	/// Which material group of the model to use.
 	/// </summary>
 	[Category( "Clothing Setup" )]
+	[ShowIf( nameof( Type ), ClothingType.Clothing )]
 	public string MaterialGroup { get; set; }
 
 	/// <summary>
@@ -189,6 +203,7 @@ public sealed partial class Clothing : GameResource
 	/// </summary>
 	[Category( "Clothing Setup" )]
 	[Range( 0, 1 )]
+	[ShowIf( nameof( Type ), ClothingType.Clothing )]
 	public float HeelHeight { get; set; }
 
 	/// <summary>
@@ -196,6 +211,7 @@ public sealed partial class Clothing : GameResource
 	/// </summary>
 	[BitFlags]
 	[Category( "Body Slots" )]
+	[ShowIf( nameof( Type ), ClothingType.Clothing )]
 	public Slots SlotsUnder { get; set; }
 
 	/// <summary>
@@ -203,6 +219,7 @@ public sealed partial class Clothing : GameResource
 	/// </summary>
 	[BitFlags]
 	[Category( "Body Slots" )]
+	[ShowIf( nameof( Type ), ClothingType.Clothing )]
 	public Slots SlotsOver { get; set; }
 
 	/// <summary>
@@ -210,6 +227,7 @@ public sealed partial class Clothing : GameResource
 	/// </summary>
 	[BitFlags]
 	[Category( "Clothing Setup" )]
+	[ShowIf( nameof( Type ), ClothingType.Clothing )]
 	public BodyGroups HideBody { get; set; }
 
 	/// <summary>
@@ -217,24 +235,41 @@ public sealed partial class Clothing : GameResource
 	/// without reshaping it, for hard items like earrings or a sword.
 	/// </summary>
 	[Category( "Clothing Setup" )]
+	[ShowIf( nameof( Type ), ClothingType.Clothing )]
 	public SkinnedModelRenderer.DeformationModeType DeformationMode { get; set; } = SkinnedModelRenderer.DeformationModeType.Normal;
 
+	/// <summary>
+	/// Allows the wearer to choose a tint for this garment.
+	/// </summary>
 	[Category( "User Customization" )]
+	[ShowIf( nameof( Type ), ClothingType.Clothing )]
 	public bool AllowTintSelect { get; set; }
 
+	/// <summary>
+	/// Available garment colors, sampled using the wearer's tint selection.
+	/// </summary>
 	[Category( "User Customization" )]
-	[HideIf( nameof( AllowTintSelect ), false )]
+	[ShowIf( nameof( ShowTintControls ), true )]
 	public Gradient TintSelection { get; set; } = Color.White;
 
+	/// <summary>
+	/// Initial position within the garment's tint gradient.
+	/// </summary>
 	[Category( "User Customization" )]
-	[HideIf( nameof( AllowTintSelect ), false )]
 	[Range( 0, 1 )]
+	[ShowIf( nameof( ShowTintControls ), true )]
 	public float TintDefault { get; set; } = 0.5f;
+
+	/// <summary>
+	/// Whether tint controls apply to the item being authored.
+	/// </summary>
+	[Hide, JsonIgnore]
+	public bool ShowTintControls => Type == ClothingType.Clothing && AllowTintSelect;
 
 	/// <summary>
 	/// The Steam Item Definition ID for this clothing item, if it's an inventory item
 	/// </summary>
-	[Category( "Steam Inventory" )]
+	[Feature( "Advanced" ), Category( "Steam Inventory" )]
 	public int? SteamItemDefinitionId { get; set; }
 
 	/// <summary>
@@ -345,6 +380,16 @@ public sealed partial class Clothing : GameResource
 	[Flags]
 	public enum Slots : int
 	{
+		/// <summary>
+		/// No body slots.
+		/// </summary>
+		None = 0,
+
+		/// <summary>
+		/// Every supported body slot.
+		/// </summary>
+		All = (1 << 29) - 1,
+
 		Skin = 1 << 0,
 		HeadTop = 1 << 1,
 		HeadBottom = 1 << 2,
@@ -397,7 +442,7 @@ public sealed partial class Clothing : GameResource
 		if ( (target.SlotsOver & SlotsOver) != 0 ) return false;
 		if ( (target.SlotsUnder & SlotsUnder) != 0 ) return false;
 
-		if ( HasHumanSkin && target.HasHumanSkin ) return false;
+		if ( ReplacesBody && target.ReplacesBody ) return false;
 
 		return true;
 	}

@@ -1,0 +1,8 @@
+@import "/Platform/_platform.scss";
+
+// Which servers, down a rail out on the art (the platform-side mixin). The panel and how it sits on the front are
+// GameFront's.
+ServersPage
+{
+	@include platform-side;
+}

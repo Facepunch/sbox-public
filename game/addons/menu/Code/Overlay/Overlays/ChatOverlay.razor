@@ -129,7 +129,8 @@
                 ? "#menu.common.set_a_chat_key_in_settings_to_chat_with"
                 : $"Press {key} to chat to your party";
 
-            Panel.AddSystemMessage( "ℹ", hint );
+            // No emoji before it - a plain line, as the platform's notices are
+            Panel.AddSystemMessage( "", hint );
         }
 
         // Reset to game chat when joining a game

@@ -9,6 +9,7 @@ internal ref struct CameraRenderer
 {
 	public CCameraRenderer Native;
 	int cameraId;
+	RenderAttributes attributes;
 
 	public CameraRenderer( string name, int cameraId )
 	{
@@ -19,6 +20,9 @@ internal ref struct CameraRenderer
 	public void Dispose()
 	{
 		Native.DeleteThis();
+
+		if ( attributes is not null )
+			RenderAttributes.Pool.Return( attributes );
 	}
 
 	void AddTags( ITagSet tags, bool exclude )
@@ -50,7 +54,7 @@ internal ref struct CameraRenderer
 	internal void Configure( SceneCamera camera, ViewSetup config )
 	{
 		var _world = camera.World;
-		var Attributes = new RenderAttributes();
+		var Attributes = attributes ??= RenderAttributes.Pool.Get();
 
 		camera.Attributes.MergeTo( Attributes );
 		Attributes.Set( "LightModulatorsDisabled", config.EnableLightModulators == false );

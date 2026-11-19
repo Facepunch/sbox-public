@@ -12,9 +12,8 @@ internal static partial class SceneCompiler
 
 	static SourceRevision CaptureSourceRevision( string sourcePath )
 	{
-		var content = File.ReadAllBytes( sourcePath );
 		var info = new FileInfo( sourcePath );
-		return new SourceRevision( content.LongLength, info.LastWriteTimeUtc, System.Security.Cryptography.SHA256.HashData( content ) );
+		return new SourceRevision( info.Length, info.LastWriteTimeUtc, SceneResourceCompiler.GetSourceHash( sourcePath ) );
 	}
 
 	static bool HasSourceRevision( string sourcePath, SourceRevision revision )
@@ -23,10 +22,10 @@ internal static partial class SceneCompiler
 		if ( !before.Exists || before.Length != revision.Length || before.LastWriteTimeUtc != revision.LastWriteTimeUtc )
 			return false;
 
-		var content = File.ReadAllBytes( sourcePath );
+		var hash = SceneResourceCompiler.GetSourceHash( sourcePath );
 		var after = new FileInfo( sourcePath );
 		return after.Exists && after.Length == revision.Length && after.LastWriteTimeUtc == revision.LastWriteTimeUtc
-			&& System.Security.Cryptography.CryptographicOperations.FixedTimeEquals( revision.Hash, System.Security.Cryptography.SHA256.HashData( content ) );
+			&& System.Security.Cryptography.CryptographicOperations.FixedTimeEquals( revision.Hash, hash );
 	}
 
 	static string GetGenerationPath( Asset asset, string generation )
@@ -88,7 +87,22 @@ internal static partial class SceneCompiler
 		}
 	}
 
-	static void WriteScene( Asset asset, string sourcePath, SceneEditorSession editor, SourceRevision sourceRevision, SceneFile file, SceneCompilerSettings settings )
+	static void WriteBake( string path, byte[] data )
+	{
+		Directory.CreateDirectory( Path.GetDirectoryName( path ) );
+		var temporaryPath = $"{path}.{Guid.NewGuid():N}.tmp";
+		try
+		{
+			File.WriteAllBytes( temporaryPath, data );
+			File.Move( temporaryPath, path, overwrite: true );
+		}
+		finally
+		{
+			File.Delete( temporaryPath );
+		}
+	}
+
+	static void WriteScene( Asset asset, string sourcePath, SceneEditorSession editor, SourceRevision sourceRevision, SceneFile file, SceneCompilerSettings settings, string generation )
 	{
 		if ( asset.IsDeleted || !File.Exists( sourcePath ) || sourcePath != asset.GetSourceFile( true ) )
 			throw new InvalidOperationException( "The source scene was moved or deleted during compilation." );
@@ -98,12 +112,16 @@ internal static partial class SceneCompiler
 
 		var json = file.Serialize();
 		json["__blobdata"] = System.Convert.ToBase64String( file.BinaryData ?? [] );
+		var jsonText = json.ToJsonString( new JsonSerializerOptions( JsonSerializerOptions.Default ) { MaxDepth = 512 } );
+		var bakePath = SceneResourceCompiler.GetBakePath( sourcePath );
+		var previousBake = File.Exists( bakePath ) ? File.ReadAllBytes( bakePath ) : null;
 		var previousOutput = asset.GetCompiledFile( true );
 		var previousBytes = !string.IsNullOrEmpty( previousOutput ) && File.Exists( previousOutput ) ? File.ReadAllBytes( previousOutput ) : null;
 
 		try
 		{
-			if ( !IResourceCompilerSystem.GenerateResourceFileForced( sourcePath, json.ToJsonString( new JsonSerializerOptions( JsonSerializerOptions.Default ) { MaxDepth = 512 } ) ) )
+			WriteBake( bakePath, System.Text.Encoding.UTF8.GetBytes( $"{System.Convert.ToHexString( sourceRevision.Hash )} {generation}\n{jsonText}" ) );
+			if ( !IResourceCompilerSystem.GenerateResourceFileForced( sourcePath, jsonText ) )
 				throw new InvalidOperationException( $"Could not write compiled scene '{asset.Path}'." );
 
 			var outputPath = asset.GetCompiledFile( true );
@@ -128,6 +146,11 @@ internal static partial class SceneCompiler
 		{
 			try
 			{
+				if ( previousBake is not null )
+					WriteBake( bakePath, previousBake );
+				else
+					File.Delete( bakePath );
+
 				var outputPath = asset.GetCompiledFile( true );
 				if ( string.IsNullOrEmpty( outputPath ) )
 					outputPath = previousOutput;

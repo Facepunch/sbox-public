@@ -1,5 +1,5 @@
 // postprocess_standard_p1.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/managed/shader-format-replacement.md, "Pass modules").
+// and as the fallback (docs/reference/borealis-slang-materials.md, "Pass modules").
 // HEADER: Description = "Standard post processing shader, Pass 1";
 // HEADER: DevShader = true;
 

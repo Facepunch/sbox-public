@@ -8,7 +8,7 @@ namespace Sandbox.ShaderCompiler;
 /// Turns a <c>.shader</c> written the <c>common/pixel.hlsl</c> way (a <c>Material</c> from <c>Material::From</c> or
 /// <c>Init</c>, edited, then <c>ShadingModelStandard::Shade</c>) into a surface, mechanically: its pixel globals become
 /// <c>[Material]</c> fields, its features fields its branches read, its <c>MainPs</c> body <c>Evaluate</c>, through a
-/// fixed vocabulary (docs/managed/shader-format-replacement.md, "Converting today's shaders"). What it can't take is
+/// fixed vocabulary (docs/reference/borealis-slang-materials.md, "Converting today's shaders"). What it can't take is
 /// listed in <see cref="Result.Notes"/>; the <c>.shader</c> stays as it is.
 /// </summary>
 public static partial class ShaderConverter

@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
-/// An engine resource as what the mirror's world draws with on the Borealis.Gpu device Borealis renders on
+/// An engine resource as what a world draws with on the Borealis.Gpu device Borealis renders on
 /// (<see cref="RenderHost.Device"/>, <c>-borealisgpu</c>): the compiled file Borealis.Source2 reads by the resource's path.
 /// What was made at run time (procedural models, materials and textures made in code) and attributes have no file: models
 /// made at run time are read back from Source 2 (see <see cref="RuntimeMesh"/>), attributes come from their managed copy
@@ -36,9 +36,23 @@ internal static class MirrorContent
 		if ( Gpu is not { } gpu ) return null;
 
 		if ( model is { IsProcedural: true } ) return RuntimeMesh( model, gpu, out pending );
-		var path = model?.ResourcePath;
+		var path = FilePath( model );
 		if ( string.IsNullOrEmpty( path ) ) return null;
 		return gpu.AsyncModels ? gpu.LoadModelAsync( path, ulong.MaxValue, out pending, pin ) : gpu.LoadModel( path, ulong.MaxValue );
+	}
+
+	/// <summary>What native draws for a model that isn't there (<c>models/dev/error.vmdl</c>).</summary>
+	internal const string ErrorModel = "models/dev/error.vmdl";
+
+	/// <summary>
+	/// The compiled model a model file draws as: its own, or the error model for one that isn't there or failed to load, as
+	/// native's resource system binds it.
+	/// </summary>
+	static string FilePath( Model model )
+	{
+		var path = model?.ResourcePath;
+		if ( string.IsNullOrEmpty( path ) ) return path;
+		return !model.native.IsNull && model.native.IsError() ? ErrorModel : path;
 	}
 
 	static readonly ConditionalWeakTable<Model, RuntimeModel> runtimeMeshes = new();
@@ -98,7 +112,7 @@ internal static class MirrorContent
 	/// <summary>Whether a model loading asynchronously (<see cref="Mesh(Model, out bool)"/>) has been read, so asking again can make it.</summary>
 	public static bool MeshRead( Model model, BackendDevice gpu ) => model is { IsProcedural: true }
 		? !runtimeReads.TryGetValue( model, out var read ) || read.IsCompleted
-		: gpu.ModelRead( model.ResourcePath );
+		: gpu.ModelRead( FilePath( model ) );
 
 	/// <summary>A run-time model's mesh, which frees its geometry after the engine's model is collected.</summary>
 	sealed class RuntimeModel( RenderMesh mesh )
@@ -426,7 +440,9 @@ internal static class MirrorContent
 	/// <summary>
 	/// An object's attributes as its draws read them: its managed copy (<c>RenderAttributes.Shadow</c>) converted, again only
 	/// when it changed. Numbers, vectors, matrices, combos, textures and buffers carry over; samplers and constant buffers
-	/// don't yet.
+	/// don't yet. Values set again (a time or colour each frame, or all of them after a clear) are written into the same
+	/// parameters; a value added or gone, or a combo changed, makes new ones, so the object's draws are made again
+	/// (<c>MeshObject.Attributes</c>).
 	/// </summary>
 	public static ShaderParameters ObjectParameters( RenderAttributes attributes )
 	{
@@ -435,19 +451,49 @@ internal static class MirrorContent
 		var converted = convertedAttributes.GetOrCreateValue( shadow );
 		if ( converted.Parameters is not null && converted.Version == shadow.Version ) return converted.Parameters;
 
+		var shape = Shape( shadow );
+		if ( converted.Parameters is not null && shape == converted.Shape )
+		{
+			foreach ( var (token, value) in shadow.ValuesSince( converted.Version ) ) Set( converted.Parameters, new StringToken( token ), value );
+			converted.Version = shadow.Version;
+			return converted.Parameters;
+		}
+
 		var parameters = gpu.CreateParameters();
 		foreach ( var (token, value) in shadow.Values ) Set( parameters, new StringToken( token ), value );
 
 		foreach ( var (token, value) in shadow.Combos ) parameters.SetCombo( new StringToken( token ), value );
 		converted.Parameters = parameters;
 		converted.Version = shadow.Version;
+		converted.Shape = shape;
 		return parameters;
+	}
+
+	/// <summary>The names a set holds and its combos' values, whatever order they were set in, as a hash.</summary>
+	static ulong Shape( ManagedRenderAttributes attributes )
+	{
+		var shape = (ulong)attributes.ValueCount;
+		foreach ( var (token, _) in attributes.Values ) shape += Mix( token );
+		foreach ( var (token, value) in attributes.Combos ) shape += Mix( (ulong)token << 32 | (uint)value ) * 3;
+		return shape;
+	}
+
+	static ulong Mix( ulong x )
+	{
+		x ^= x >> 33;
+		x *= 0xff51afd7ed558ccdUL;
+		x ^= x >> 33;
+		x *= 0xc4ceb9fe1a85ec53UL;
+		return x ^ x >> 33;
 	}
 
 	sealed class ConvertedAttributes
 	{
 		public ShaderParameters Parameters;
 		public int Version;
+
+		/// <summary>The <see cref="Shape"/> it was made with.</summary>
+		public ulong Shape;
 	}
 
 	static readonly ConditionalWeakTable<ManagedRenderAttributes, ConvertedAttributes> convertedAttributes = new();

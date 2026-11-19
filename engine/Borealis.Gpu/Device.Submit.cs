@@ -223,10 +223,10 @@ public sealed unsafe partial class Device
 		graphicsQueue.Wait( frame.Graphics );
 		computeQueue.Wait( frame.Compute );
 
-		List<CommandList> recycle;
+		var recycle = recycling;
 		lock ( frame.Lists )
 		{
-			recycle = [.. frame.Lists];
+			recycle.AddRange( frame.Lists );
 			frame.Lists.Clear();
 			if ( carried is not null ) frame.Lists.AddRange( carried );
 		}
@@ -240,10 +240,14 @@ public sealed unsafe partial class Device
 			freeLists[(int)list.Queue].Add( list );
 		}
 
+		recycle.Clear();
 		CollectGarbage();
 		TrimSpares();
 		Allocator.Trim( FrameNumber );
 	}
+
+	// The frame's lists as BeginFrame recycles them, kept
+	readonly List<CommandList> recycling = new();
 
 	/// <summary>Lists carried into the frame after the one they began in, for the tests.</summary>
 	internal int ListsCarried { get; private set; }

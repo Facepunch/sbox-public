@@ -1,6 +1,8 @@
+@import "/Platform/_platform.scss";
+
 SettingsView .scroll.custom Storage
 {
-	.page-content { padding: 36px 32px; }
+	.page-content { padding: 20px 24px; }
 
 	.storage-content
 	{
@@ -9,8 +11,8 @@ SettingsView .scroll.custom Storage
 		align-self: center;
 		flex-direction: column;
 		flex-shrink: 0;
-		gap: 28px;
-		color: #eef1f6;
+		gap: 18px;
+		color: $platform-text;
 
 		> * { flex-shrink: 0; }
 	}
@@ -19,10 +21,10 @@ SettingsView .scroll.custom Storage
 	{
 		width: 100%;
 		flex-direction: column;
-		gap: 12px;
+		gap: 8px;
 	}
 
-	.storage-overview { gap: 18px; margin-bottom: 4px; }
+	.storage-overview { gap: 12px; margin-bottom: 0; }
 
 	.storage-overview-heading
 	{
@@ -33,17 +35,7 @@ SettingsView .scroll.custom Storage
 
 	.storage-drive
 	{
-		width: 58px;
-		height: 58px;
-		flex-shrink: 0;
-		align-items: center;
-		justify-content: center;
-		border-radius: 13px;
-		background-color: rgba(white, 0.06);
-		border: 1px solid rgba(white, 0.1);
-		color: #b8c1d0;
-
-		i { font-size: 30px; }
+		@include platform-tile( 30px, 58px );
 	}
 
 	.storage-overview-title
@@ -62,20 +54,20 @@ SettingsView .scroll.custom Storage
 		margin-left: auto;
 	}
 
-	.storage-value { font-size: 30px; font-weight: 600; white-space: nowrap; }
-	.storage-heading { font-size: 17px; font-weight: 500; }
-	.storage-secondary { font-size: 14px; color: #9da6b6; }
-	.storage-footnote { font-size: 13px; color: #8993a4; padding: 0 4px; }
+	.storage-value { font-size: 26px; font-weight: 600; white-space: nowrap; }
+	.storage-heading { font-size: 15px; font-weight: 500; }
+	.storage-secondary { font-size: 13px; color: $platform-muted; }
+	.storage-footnote { font-size: 12px; color: $platform-faint; padding: 0 4px; }
 
 	.storage-usage-bar
 	{
 		width: 100%;
-		height: 22px;
+		height: 14px;
 		flex-shrink: 0;
 		gap: 1px;
-		border-radius: 6px;
+		border-radius: $platform-radius;
 		overflow: hidden;
-		background-color: rgba(white, 0.06);
+		background-color: rgba( 6, 9, 16, 0.5 );
 	}
 
 	.storage-segment
@@ -93,125 +85,221 @@ SettingsView .scroll.custom Storage
 		gap: 12px;
 	}
 
-	.storage-overview-footer { margin-top: -10px; }
-	.storage-section-title { font-size: 16px; font-weight: 500; padding-left: 4px; }
+	.storage-overview-footer { margin-top: -6px; }
+	.storage-section-heading.end { justify-content: flex-end; }
+
+	// What each colour in the bar is, and how much
+	.storage-legend
+	{
+		flex-wrap: wrap;
+		gap: 6px 18px;
+	}
+
+	.storage-legend-entry
+	{
+		align-items: center;
+		gap: 6px;
+		font-size: 13px;
+
+		.storage-secondary { font-family: Inter; font-variant-numeric: tabular-nums; }
+	}
+
+	.storage-legend-dot
+	{
+		width: 8px;
+		height: 8px;
+		border-radius: 4px;
+	}
+
+	.cache { background-color: #647082; }
+	.storage-section-title { font-size: 15px; font-weight: 500; padding-left: 4px; }
 
 	.storage-group
 	{
+		@include platform-surface;
 		width: 100%;
-		flex-direction: column;
 		flex-shrink: 0;
-		border-radius: 12px;
-		border: 1px solid rgba(white, 0.09);
-		background-color: rgba(white, 0.035);
 		overflow: hidden;
 	}
 
-	.storage-recommendation
+	.storage-heading-side
 	{
-		padding: 22px;
 		align-items: center;
-		flex-wrap: wrap;
-		gap: 16px;
+		gap: 12px;
 	}
 
-	.storage-cleanup-icon
+	// Asking before the cache's unused content goes - one row, its answer on the right
+	.storage-confirmation
 	{
-		width: 40px;
-		height: 40px;
 		flex-shrink: 0;
 		align-items: center;
-		justify-content: center;
-		border-radius: 10px;
-		background-color: rgba(68, 145, 240, 0.15);
-		color: #80b7ff;
-
-		i { font-size: 24px; }
+		gap: 10px;
+		padding: 12px 16px;
 	}
 
 	.storage-recommendation-copy
 	{
 		flex-direction: column;
 		flex-grow: 1;
-		flex-basis: 320px;
-		gap: 5px;
+		gap: 3px;
 	}
-
-	.storage-confirmation
-	{
-		flex-direction: column;
-		gap: 12px;
-		padding: 20px 22px;
-		border-top: 1px solid rgba(white, 0.09);
-		background-color: rgba(black, 0.1);
-	}
-
-	.storage-confirmation-actions { justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
 	.button.storage-action
 	{
+		@include platform-text-button( 34px );
 		flex-shrink: 0;
-		padding: 8px 16px;
-		border-radius: 7px;
-		border: 1px solid rgba(white, 0.13);
-		background-color: rgba(white, 0.07);
-		color: #eef1f6;
+		padding: 0 16px;
 
-		label { font-size: 14px; font-weight: 500; text-transform: none; letter-spacing: 0; color: #eef1f6; }
-		&:hover { background-color: rgba(white, 0.12); }
-		&.disabled { opacity: 0.4; pointer-events: none; }
+		&.disabled { pointer-events: none; }
 	}
 
 	.button.storage-destructive
 	{
-		background-color: #b64550;
-		border-color: transparent;
-		&:hover { background-color: #c94e5a; }
+		label, i, iconpanel { color: $platform-danger; }
 	}
 
 	.button.storage-refresh
 	{
-		padding: 4px 0 4px 12px;
-		border: 0;
-		border-radius: 0;
-		background-color: transparent;
+		@include platform-text-button( 30px, 12.5px, 15px );
+		padding: 0 12px;
 
-		label { font-size: 13px; font-weight: 400; color: #80b7ff; text-transform: none; letter-spacing: 0; }
-		&:hover label { color: #b4d5ff; }
-		&.disabled { opacity: 0.4; pointer-events: none; }
+		&.disabled { pointer-events: none; }
 	}
 
-	.storage-type-row
+	// Content by type - a table (Sandbox.UI.Table) in the platform's look, as the server list and the players are: as
+	// tall as its rows, inside the page's own scroll, its scrollbar not given room it never needs
+	.storage-table
 	{
-		min-height: 52px;
+		@include platform-table;
 		flex-shrink: 0;
-		align-items: center;
-		gap: 14px;
-		margin: 0 18px;
-		padding: 10px 0;
-		border-bottom: 1px solid rgba(white, 0.065);
+		// Clear of the note under it
+		margin-bottom: 8px;
 
-		&:last-child { border-bottom: 0; }
+		// As tall as its rows - the page scrolls it, not a scroll of its own as well
+		> tbody
+		{
+			flex-grow: 0;
+			overflow: visible;
+			scrollbar-gutter: auto;
+
+			> tr
+			{
+				height: 34px;
+				border-radius: 0;
+			}
+		}
 	}
 
 	.storage-type-icon
 	{
-		width: 30px;
-		height: 30px;
+		width: 26px;
+		height: 26px;
 		flex-shrink: 0;
 		align-items: center;
 		justify-content: center;
-		border-radius: 7px;
+		border-radius: $platform-radius;
 		color: white;
 
-		i { font-size: 19px; }
+		i { font-size: 16px; }
 	}
 
-	.storage-type-name { flex-grow: 1; font-size: 16px; }
-	.storage-type-size { flex-shrink: 0; white-space: nowrap; font-size: 15px; color: #aeb7c6; }
+	.storage-type-name { font-size: 14px; font-weight: 600; }
 
-	.storage-empty { flex-direction: column; align-items: center; gap: 8px; padding: 32px 20px; }
-	.storage-error { align-items: center; gap: 12px; padding: 16px 20px; border-radius: 10px; background-color: rgba(255, 93, 106, 0.08); color: #ffb5b5; }
+	// Inter, as the tables' other numbers are
+	.storage-type-size { font-family: Inter; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; color: $platform-text; }
+
+	// A kind's items - a row each, its picture beside its name
+	.workshop-table > tbody > tr { height: 40px; cursor: pointer; }
+
+	.workshop-thumb
+	{
+		width: 28px;
+		height: 28px;
+		flex-shrink: 0;
+		border-radius: $platform-radius;
+		background-size: cover;
+		background-position: center;
+		background-color: rgba( 6, 9, 16, 0.5 );
+	}
+
+	// Its tick box, over its picture - shown on hover, and on every row while anything's ticked
+	.workshop-thumb
+	{
+		position: relative;
+		overflow: hidden;
+		cursor: pointer;
+
+		.workshop-tick
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: 100%;
+			height: 100%;
+			align-items: center;
+			justify-content: center;
+			border-radius: $platform-radius;
+			border: 2px solid rgba( white, 0.7 );
+			background-color: rgba( 6, 9, 16, 0.55 );
+			opacity: 0;
+			transition: opacity 0.1s ease;
+
+			i { font-size: 18px; color: transparent; }
+		}
+
+		&:hover .workshop-tick { opacity: 1; }
+	}
+
+	.workshop-table.selecting .workshop-tick { opacity: 1; }
+
+	.workshop-table > tbody > tr.selected
+	{
+		background-color: rgba( $platform-selected, 0.1 );
+
+		.workshop-tick
+		{
+			opacity: 1;
+			border-color: $platform-selected;
+			background-color: rgba( $platform-selected, 0.85 );
+
+			i { color: white; }
+		}
+	}
+
+	.workshop-selection
+	{
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 10px;
+	}
+
+	.workshop-name { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+
+	.button.workshop-remove
+	{
+		@include platform-text-button( 28px, 12.5px, 15px );
+		flex-shrink: 0;
+		padding: 0 12px;
+		white-space: nowrap;
+	}
+
+	// Each kind's total - a row to click into
+	.workshop-kinds > tbody > tr
+	{
+		cursor: pointer;
+
+		&.none { opacity: 0.5; }
+	}
+
+	.workshop-chevron { font-size: 18px; color: $platform-muted; }
+
+	.workshop-kind-game { background-color: #608bc1; }
+	.workshop-kind-map { background-color: #bd9666; }
+	.workshop-kind-addon { background-color: #9180bf; }
+
+	.storage-empty { @include platform-empty; padding: 32px 20px; }
+	.storage-error { align-items: center; gap: 12px; padding: 16px 20px; border-radius: $platform-radius; background-color: rgba( $platform-danger, 0.08 ); color: $platform-danger; }
 
 	.file-type-textures { background-color: #608bc1; }
 	.file-type-models { background-color: #9180bf; }

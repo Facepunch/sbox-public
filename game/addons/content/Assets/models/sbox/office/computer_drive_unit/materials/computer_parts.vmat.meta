@@ -1,0 +1,27 @@
+{
+  "guid": "52ec1fb2-5b21-4a7c-8c11-30e4e572b605",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Computer Parts",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "computer_parts",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/office/computer_drive_unit/materials/computer_parts.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

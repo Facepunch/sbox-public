@@ -127,9 +127,19 @@ internal static partial class GameScenes
 		sky.SkyIndirectLighting = false;
 		sky.SkyMaterial = material;
 
+		// Look up into the corner of the +X, -Y and +Z faces rather than straight at one: the frame shows three colours and
+		// the edges between them, which move if the sky or its rotation is wrong. Facing one face, a correct frame was one
+		// flat colour, and a wrong rotation that landed on another flat face looked just as plausible. The camera orbits
+		// the window's focus, (0, 0, 30), so it's placed below and behind that rather than turned.
+		var focus = new Vector3( 0, 0, 30 );
+		var view = Rotation.From( -25, -45, 0 );
+		scene.Camera.WorldPosition = focus - view.Forward * 300;
+		scene.Camera.WorldRotation = view;
+
+		// Fully fogged with the sky's own colour, these vanish into the sky behind them; any that show are fogged wrong
 		for ( int i = 0; i < 3; i++ )
 		{
-			var position = Vector3.Up * 30 + scene.Camera.WorldRotation.Right * ((i - 1) * 70);
+			var position = focus + view.Right * ((i - 1) * 70) + view.Up * ((i - 1) * 25);
 			Prop( $"Sky Fog Patch {i}", "models/dev/box.vmdl", position, material: "materials/dev/black_unlit.vmat", scale: 0.25f );
 		}
 

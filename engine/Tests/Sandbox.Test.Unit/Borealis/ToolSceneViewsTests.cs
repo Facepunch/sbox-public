@@ -17,7 +17,7 @@ public class ToolSceneViewsTests
 	[TestMethod]
 	public void RequestMatchesNativeLayout()
 	{
-		Assert.AreEqual( 192, Marshal.SizeOf<ToolSceneViews.Request>() );
+		Assert.AreEqual( 400, Marshal.SizeOf<ToolSceneViews.Request>() );
 		Assert.AreEqual( 72, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Window ) ) );
 		Assert.AreEqual( 80, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.Width ) ) );
 		Assert.AreEqual( 112, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.FovX ) ) );
@@ -27,6 +27,16 @@ public class ToolSceneViewsTests
 		Assert.AreEqual( 168, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.GetGeometry ) ) );
 		Assert.AreEqual( 176, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.GetText ) ) );
 		Assert.AreEqual( 184, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.ScreenSpaceWorld ) ) );
+		Assert.AreEqual( 188, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.ToolsVisMode ) ) );
+		Assert.AreEqual( 192, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.DrawFlags ) ) );
+		Assert.AreEqual( 200, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.SkyboxWorldCount ) ) );
+		Assert.AreEqual( 220, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.SkyboxOrigin ) ) );
+		Assert.AreEqual( 244, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.SkyboxScale ) ) );
+		Assert.AreEqual( 248, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.GradientFog ) ) );
+		Assert.AreEqual( 300, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.CubemapFog ) ) );
+		Assert.AreEqual( 332, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.CubemapFogOrigin ) ) );
+		Assert.AreEqual( 360, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.CubemapFogTexture ) ) );
+		Assert.AreEqual( 368, (int)Marshal.OffsetOf<ToolSceneViews.Request>( nameof( ToolSceneViews.Request.VolumetricFog ) ) );
 
 		// ToolSceneText_t
 		Assert.AreEqual( 48, Marshal.SizeOf<ToolSceneViews.Text>() );
@@ -38,6 +48,13 @@ public class ToolSceneViewsTests
 		Assert.AreEqual( 32, Marshal.SizeOf<ToolSceneViews.Geometry>() );
 		Assert.AreEqual( 56, Marshal.SizeOf<ToolSceneViews.ToolVertex>() );
 		Assert.AreEqual( 52, (int)Marshal.OffsetOf<ToolSceneViews.ToolVertex>( nameof( ToolSceneViews.ToolVertex.Color ) ) );
+
+		// ToolHudManagedItem_t (src/public/toolutils2/toolhud.h)
+		Assert.AreEqual( 64, Marshal.SizeOf<ToolSceneViews.HudItem>() );
+		Assert.AreEqual( 32, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.Pixels ) ) );
+		Assert.AreEqual( 40, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.Caption ) ) );
+		Assert.AreEqual( 48, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.CaptionAnchor ) ) );
+		Assert.AreEqual( 60, (int)Marshal.OffsetOf<ToolSceneViews.HudItem>( nameof( ToolSceneViews.HudItem.TextHeight ) ) );
 	}
 
 	/// <summary>
@@ -59,5 +76,23 @@ public class ToolSceneViewsTests
 		var same = new byte[8];
 		ToolSceneViews.Convert( rgba, same, ToolSceneViews.PixelFormat.Rgba8888 );
 		CollectionAssert.AreEqual( rgba, same );
+	}
+
+	/// <summary>
+	/// Hammer's selection draws in native's colours: its overlay rectangle's vertex colour and the outline's colour are sRGB,
+	/// made linear as <c>tools_selection_overlay</c> and <c>SRGBColorToLinearColor</c> make them, with the alpha kept.
+	/// </summary>
+	[TestMethod]
+	public void SelectionColoursAreNativesMadeLinear()
+	{
+		var tint = ToolSceneViews.ToolSelection.TintFor( new Color32( 255, 183, 45, 96 ) );
+		Assert.AreEqual( 1.0f, tint.x, 1e-4f );
+		Assert.AreEqual( 0.4735f, tint.y, 1e-3f );
+		Assert.AreEqual( 0.0262f, tint.z, 1e-3f );
+		Assert.AreEqual( 96 / 255.0f, tint.w, 1e-4f );
+
+		var outline = ToolSceneViews.ToolSelection.SelectedOutlineColor;
+		Assert.AreEqual( 0.4735f, outline.y, 1e-3f );
+		Assert.AreEqual( 1.0f, outline.w );
 	}
 }

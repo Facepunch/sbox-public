@@ -202,9 +202,17 @@ internal static partial class ConVarSystem
 	/// Get a ConVar value as an integer. If the ConVar value is a boolean, this will return
 	/// the value in its integer form.
 	/// </summary>
+	/// <summary>
+	/// Counts up whenever a convar is set or a command run through here, so code that reads one every frame (its value
+	/// comes back from native as a new string) can keep what it read until something changes.
+	/// </summary>
+	internal static int Changes { get; private set; }
+
 	public static int GetInt( string name, int defaultValue, bool allowEngineVariable )
 	{
-		var value = GetValue( name, defaultValue.ToString(), allowEngineVariable );
+		// The default isn't made a string to be parsed back: read every frame, that was an allocation each time
+		var value = GetValue( name, null, allowEngineVariable );
+		if ( value is null ) return defaultValue;
 
 		if ( bool.TryParse( value, out var boolean ) )
 			return boolean ? 1 : 0;
@@ -217,7 +225,7 @@ internal static partial class ConVarSystem
 	/// </summary>
 	public static float GetFloat( string name, float defaultValue, bool allowEngineVariable )
 	{
-		return float.TryParse( GetValue( name, defaultValue.ToString(), allowEngineVariable ), out var value ) ? value : defaultValue;
+		return float.TryParse( GetValue( name, null, allowEngineVariable ), out var value ) ? value : defaultValue;
 	}
 
 	/// <summary>
@@ -232,6 +240,7 @@ internal static partial class ConVarSystem
 		if ( cmd.IsProtected && !allowProtected ) return;
 
 		cmd.Value = value;
+		Changes++;
 
 		// Let the ConVar save itself, if it wants to
 		cmd.Save();
@@ -366,6 +375,7 @@ internal static partial class ConVarSystem
 		}
 
 		command.Run( args );
+		Changes++;
 	}
 
 	/// <summary>

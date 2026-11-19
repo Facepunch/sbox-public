@@ -59,7 +59,7 @@ public struct ParticleGradient
 		var d = Evaluation switch
 		{
 			EvaluationType.Life => delta,
-			EvaluationType.Frame => Random.Shared.Float( 0, 1 ),
+			EvaluationType.Frame => ParticleRandom.Shared.Float( 0, 1 ),
 			EvaluationType.Particle => randomFixed,
 			_ => delta,
 		};

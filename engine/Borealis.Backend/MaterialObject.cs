@@ -395,6 +395,9 @@ internal sealed class ConstantVariant( long[] offsets, int[] sizes )
 	public readonly int[] Sizes = sizes;
 	public long LastUsed;
 	public volatile bool Dead;
+
+	/// <summary>The key it holds the constants of now: a variant idle long enough is written again for another key.</summary>
+	public ulong Key;
 }
 
 /// <summary>
@@ -402,7 +405,7 @@ internal sealed class ConstantVariant( long[] offsets, int[] sizes )
 /// vertex layout and target formats. It holds its pipeline, its constant buffers (one per value of the constants it
 /// reads from attributes, written once), its resolved material bindings, and persistent descriptor sets keyed by what
 /// the pass bound around it. Binding it is a pipeline bind and a set bind per stage with dynamic offsets; sets are
-/// written only when a pass binds resources this object hasn't seen with it before. See docs/managed/borealis-materials.md.
+/// written only when a pass binds resources this object hasn't seen with it before. See docs/reference/borealis-materials.md.
 /// </summary>
 /// <remarks>
 /// Sets and constants are shared between recording contexts, under the object's lock when one is made; what a context
@@ -448,6 +451,7 @@ internal sealed class MaterialObject
 		public readonly SetEntry[] LastSets = new SetEntry[ShaderAbi.BindlessSet * Remembered];
 		public readonly int[] Next = new int[ShaderAbi.BindlessSet];
 		public ulong LastConstantsKey;
+		public int ValuesVersion;
 		public ConstantVariant LastConstants;
 	}
 
@@ -473,7 +477,7 @@ internal sealed class MaterialObject
 	{
 		this.cache = cache;
 		Material = material;
-		MaterialVersion = material?.Version ?? 0;
+		MaterialVersion = material?.LayoutVersion ?? 0;
 		Layout = layout;
 		Pipeline = pipeline;
 		DepthOnly = depthOnly;
@@ -516,7 +520,11 @@ internal sealed class MaterialObject
 	}
 
 	/// <summary>Whether the material changed since this object was made, so it has to be made again.</summary>
-	public bool Stale => Material is not null && Material.Version != MaterialVersion;
+	public bool Stale => Material is not null && Material.LayoutVersion != MaterialVersion;
+
+	// The material's values version (BackendMaterial.ValuesVersion): values set in code reach the object's constants, which a
+	// context resolves again when it moves on
+	int ValuesVersion => Material?.ValuesVersion ?? 0;
 
 	Binding MaterialTexture( in ShaderResource resource )
 	{
@@ -550,7 +558,7 @@ internal sealed class MaterialObject
 		}
 
 		var state = ContextState( pass.Slot );
-		if ( passEpoch != state.Epoch || pass.LayerEpoch != state.Layer || AnyDead( state ) ) Resolve( state, passEpoch, pass );
+		if ( passEpoch != state.Epoch || pass.LayerEpoch != state.Layer || state.ValuesVersion != ValuesVersion || AnyDead( state ) ) Resolve( state, passEpoch, pass );
 
 		for ( int set = 0; set < state.Bound.Length; set++ )
 		{
@@ -573,9 +581,12 @@ internal sealed class MaterialObject
 	{
 		state.Epoch = passEpoch;
 		state.Layer = resolver.LayerEpoch;
+		state.ValuesVersion = ValuesVersion;
 		var frame = cache.Frame;
 		var pass = Layout.For( passEpoch, resolver );
-		var constants = hasMaterialConstants ? ConstantVariantFor( state, pass.Constants, resolver, frame ) : null;
+		// A variant per value of the attribute constants and of the material's own values
+		var constantsKey = pass.Constants ^ (ulong)(uint)state.ValuesVersion * 0x9E3779B97F4A7C15UL;
+		var constants = hasMaterialConstants ? ConstantVariantFor( state, constantsKey, resolver, frame ) : null;
 
 		for ( int set = 0; set < template.Length; set++ )
 		{
@@ -651,7 +662,7 @@ internal sealed class MaterialObject
 	/// </summary>
 	ConstantVariant ConstantVariantFor( Resolved state, ulong key, PassBindings pass, long frame )
 	{
-		if ( state.LastConstants is { Dead: false } last && key == state.LastConstantsKey )
+		if ( state.LastConstants is { Dead: false } last && key == state.LastConstantsKey && last.Key == key )
 		{
 			last.LastUsed = frame;
 			return last;
@@ -662,7 +673,8 @@ internal sealed class MaterialObject
 		{
 			if ( !constantVariants.TryGetValue( key, out variant ) || variant.Dead )
 			{
-				variant = MakeConstantVariant( pass );
+				variant = ReuseConstantVariant( key, pass, frame ) ?? MakeConstantVariant( pass );
+				variant.Key = key;
 				constantVariants[key] = variant;
 			}
 		}
@@ -673,7 +685,52 @@ internal sealed class MaterialObject
 		return variant;
 	}
 
-	// Its own method, so the values callback's closure is made only when a variant is (it captures the pass)
+	// Under the variants' lock: the pass a variant's constants are written for, read through one delegate made once
+	PassBindings writingPass;
+	Func<ShaderVariable, float[]> constantValue;
+	float[] shaderVersionValue, tangentFrameValue;
+
+	float[] ConstantValue( ShaderVariable variable ) => variable.Source switch
+	{
+		VariableSource.Material or VariableSource.MaterialAndExpression => Material?.Value( variable.Name ),
+		VariableSource.ShaderVersion => shaderVersionValue ??= [Material?.ShaderVersion ?? 0],
+		VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => tangentFrameValue ??= [UncompressedTangentFrame ? 1 : 0],
+		VariableSource.Attribute => (writingPass.LayerEpoch != 0 ? writingPass.LayerFloats( variable.Attribute ) : null) ?? writingPass.Floats( variable.Attribute ),
+		_ => null,
+	};
+
+	void WriteConstants( ConstantVariant variant, PassBindings pass )
+	{
+		writingPass = pass;
+		for ( int set = 0; set < template.Length; set++ )
+		{
+			if ( materialSlot[set] < 0 ) continue;
+			Layout.StageOf( set ).WriteMaterialConstants( cache.MaterialConstantsAt( variant.Offsets[set], variant.Sizes[set] ), constantValue ??= ConstantValue, Material is null ? default : Material.Features );
+		}
+
+		writingPass = null;
+	}
+
+	/// <summary>
+	/// A variant nothing has used since before the frames in flight, written again with this pass's constants: a material
+	/// whose values code sets every frame, or attributes that change every frame, take one from a few kept rather than a
+	/// new one each frame, and their sets (which point at the same constants) with it. Null when there's none. Hold the
+	/// variants' lock.
+	/// </summary>
+	ConstantVariant ReuseConstantVariant( ulong key, PassBindings pass, long frame )
+	{
+		var idle = frame - cache.Gpu.FramesInFlight - 1;
+		foreach ( var (oldKey, old) in constantVariants )
+		{
+			if ( old.Dead || old.LastUsed > idle || oldKey == key ) continue;
+			constantVariants.Remove( oldKey );
+			WriteConstants( old, pass );
+			return old;
+		}
+
+		return null;
+	}
+
 	ConstantVariant MakeConstantVariant( PassBindings pass )
 	{
 		var offsets = new long[template.Length];
@@ -681,20 +738,13 @@ internal sealed class MaterialObject
 		for ( int set = 0; set < template.Length; set++ )
 		{
 			if ( materialSlot[set] < 0 ) continue;
-			var stage = Layout.StageOf( set );
 			sizes[set] = constantSize[set];
-			offsets[set] = cache.AllocateMaterialConstants( constantSize[set], out var data );
-			stage.WriteMaterialConstants( data, variable => variable.Source switch
-			{
-				VariableSource.Material or VariableSource.MaterialAndExpression => Material?.Value( variable.Name ),
-				VariableSource.ShaderVersion => [Material?.ShaderVersion ?? 0],
-				VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => [UncompressedTangentFrame ? 1 : 0],
-				VariableSource.Attribute => (pass.LayerEpoch != 0 ? pass.LayerFloats( variable.Attribute ) : null) ?? pass.Floats( variable.Attribute ),
-				_ => null,
-			}, Material is null ? default : Material.Features );
+			offsets[set] = cache.AllocateMaterialConstants( constantSize[set], out _ );
 		}
 
-		return new ConstantVariant( offsets, sizes );
+		var variant = new ConstantVariant( offsets, sizes );
+		WriteConstants( variant, pass );
+		return variant;
 	}
 
 	/// <summary>
@@ -716,7 +766,7 @@ internal sealed class MaterialObject
 				(old ??= new()).Add( key );
 			}
 
-			foreach ( var key in old ?? [] ) sets.Remove( key );
+			if ( old is not null ) foreach ( var key in old ) sets.Remove( key );
 			evicted += old?.Count ?? 0;
 		}
 
@@ -731,7 +781,7 @@ internal sealed class MaterialObject
 				(old ??= new()).Add( key );
 			}
 
-			foreach ( var key in old ?? [] ) constantVariants.Remove( key );
+			if ( old is not null ) foreach ( var key in old ) constantVariants.Remove( key );
 		}
 
 		return evicted;
@@ -833,6 +883,10 @@ internal sealed class MaterialObjectCache : IDisposable
 	/// <summary>Sets and constant buffers freed for not being bound, for tests.</summary>
 	public int Evicted { get; private set; }
 
+	/// <summary>Objects made so far, including those made again for a changed material.</summary>
+	public int Made => Volatile.Read( ref objectsMade );
+	int objectsMade;
+
 	/// <summary>Objects made.</summary>
 	public int Count
 	{
@@ -923,9 +977,10 @@ internal sealed class MaterialObjectCache : IDisposable
 			var before = frame - EvictAfterFrames;
 			if ( before <= 0 ) return;
 
-			MaterialObject[] all;
-			lock ( objects ) all = [.. objects.Values];
-			foreach ( var o in all ) Evicted += o.Evict( before, s => retired.Add( (frame, s, null, 0, 0) ), c => retired.Add( (frame, null, c, 0, 0) ) );
+			lock ( objects ) sweeping.AddRange( allObjects );
+			retireFrame = frame;
+			foreach ( var o in sweeping ) Evicted += o.Evict( before, retireSet ??= RetireSet, retireConstants ??= RetireConstants );
+			sweeping.Clear();
 
 			lock ( keptConstants )
 			{
@@ -937,7 +992,7 @@ internal sealed class MaterialObjectCache : IDisposable
 					(old ??= new()).Add( key );
 				}
 
-				foreach ( var key in old ?? [] ) keptConstants.Remove( key );
+				if ( old is not null ) foreach ( var key in old ) keptConstants.Remove( key );
 			}
 		}
 	}
@@ -993,11 +1048,14 @@ internal sealed class MaterialObjectCache : IDisposable
 
 		var layout = LayoutOf( key.Variant, immediate );
 		var made = new MaterialObject( this, key.Material, layout, pipeline( state, layout ), key.DepthOnly, key.UncompressedTangentFrame );
+		Interlocked.Increment( ref objectsMade );
 		MaterialObject replaced;
 		lock ( objects )
 		{
 			if ( objects.TryGetValue( key, out replaced ) && !replaced.Stale ) return replaced;
 			objects[key] = made;
+			allObjects.Add( made );
+			if ( replaced is not null ) allObjects.Remove( replaced );
 		}
 
 		if ( replaced is not null ) Retire( replaced );
@@ -1019,6 +1077,7 @@ internal sealed class MaterialObjectCache : IDisposable
 			}
 
 			foreach ( var key in stale ?? [] ) objects.TryRemove( key, out _ );
+			foreach ( var value in dropped ?? [] ) allObjects.Remove( value );
 		}
 
 		foreach ( var value in dropped ?? [] ) Retire( value );
@@ -1029,10 +1088,26 @@ internal sealed class MaterialObjectCache : IDisposable
 	{
 		lock ( sweepLock )
 		{
-			var frame = Frame;
-			value.Retire( s => retired.Add( (frame, s, null, 0, 0) ), c => retired.Add( (frame, null, c, 0, 0) ) );
+			retireFrame = Frame;
+			value.Retire( retireSet ??= RetireSet, retireConstants ??= RetireConstants );
 		}
 	}
+
+	// Retiring under sweepLock, for the frame set before: delegates made once, so a sweep or retire allocates none
+	long retireFrame;
+	Action<SetEntry> retireSet;
+	Action<ConstantVariant> retireConstants;
+
+	void RetireSet( SetEntry set ) => retired.Add( (retireFrame, set, null, 0, 0) );
+
+	void RetireConstants( ConstantVariant constants ) => retired.Add( (retireFrame, null, constants, 0, 0) );
+
+	// Every object in objects, in a list a sweep copies under the objects' lock (a dictionary's values allocate), and that copy
+	readonly HashSet<MaterialObject> allObjects = new( ReferenceEqualityComparer.Instance );
+	readonly List<MaterialObject> sweeping = new();
+
+	/// <summary>A material constant buffer's space, written again (a reused <see cref="ConstantVariant"/>).</summary>
+	public Span<byte> MaterialConstantsAt( long offset, int size ) => Gpu.Map( MaterialBuffer ).Slice( (int)offset, size );
 
 	/// <summary>Space for one material constant buffer, until it's evicted.</summary>
 	public long AllocateMaterialConstants( int size, out Span<byte> data )
@@ -1122,6 +1197,7 @@ internal sealed class MaterialObjectCache : IDisposable
 		{
 			foreach ( var value in objects.Values ) value.Retire( s => Gpu.Destroy( s.Handle ), _ => { } );
 			objects.Clear();
+			allObjects.Clear();
 		}
 
 		lock ( sweepLock )

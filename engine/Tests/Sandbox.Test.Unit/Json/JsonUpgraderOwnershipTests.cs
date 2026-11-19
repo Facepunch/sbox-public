@@ -30,6 +30,37 @@ public class JsonUpgraderOwnershipTests
 			JsonUpgrader.UpdateUpgraders( new TypeLibrary() );
 		}
 	}
+
+	[TestMethod]
+	public void RetargetingAnUpgraderAfterRegistrationDoesNothing()
+	{
+		var library = new TypeLibrary();
+		library.AddAssembly( typeof( ForeignUpgraderProbe ).Assembly, false );
+
+		var attribute = library.GetMethodsWithAttribute<JsonUpgraderAttribute>()
+			.Single( x => x.Method.Name == nameof( ForeignUpgraderProbe.UpgradeOwnType ) ).Attribute;
+
+		try
+		{
+			JsonUpgrader.UpdateUpgraders( library );
+			ForeignUpgraderProbe.OwnCalls = 0;
+
+			attribute.Type = typeof( PlatformSettings );
+			attribute.Version = 200000;
+
+			JsonUpgrader.Upgrade( 0, new JsonObject(), typeof( PlatformSettings ) );
+			Assert.AreEqual( 0, ForeignUpgraderProbe.OwnCalls );
+
+			JsonUpgrader.Upgrade( 0, new JsonObject(), typeof( OwnUpgradeTarget ) );
+			Assert.AreEqual( 1, ForeignUpgraderProbe.OwnCalls );
+		}
+		finally
+		{
+			attribute.Type = typeof( OwnUpgradeTarget );
+			attribute.Version = 1;
+			JsonUpgrader.UpdateUpgraders( new TypeLibrary() );
+		}
+	}
 }
 
 public sealed class OwnUpgradeTarget

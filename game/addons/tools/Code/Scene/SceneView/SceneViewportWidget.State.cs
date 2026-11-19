@@ -26,8 +26,17 @@ public partial class SceneViewportWidget
 		Flat2d
 	}
 
+	public enum Shading2D
+	{
+		[Icon( "square" )]
+		Shaded,
+		[Icon( "polyline" )]
+		Wireframe
+	}
+
 	public class ViewportState
 	{
+		[JsonIgnore] internal Transform WorkPlane { get; set; } = Transform.Zero;
 		public Vector3 CameraPosition { get; set; }
 		public Rotation CameraRotation { get; set; }
 
@@ -52,6 +61,9 @@ public partial class SceneViewportWidget
 		/// Should the scene render in wireframe mode
 		/// </summary>
 		public bool WireframeMode { get; set; } = false;
+
+		[Title( "2D Shading" ), ShowIf( nameof( Is2D ), true )]
+		public Shading2D Shading { get; set; } = Shading2D.Shaded;
 
 		/// <summary>
 		/// Should we render post processing effects?
@@ -126,20 +138,38 @@ public partial class SceneViewportWidget
 					GridAxis = Gizmo.GridAxis.XY;
 					break;
 			}
+
+			if ( Is2D )
+				CameraRotation = WorkPlane.Rotation * CameraRotation;
 		}
 
 		internal static Gizmo.GridAxis GridAxisForDirection( Vector3 axisDir )
 		{
-			float[] a = [MathF.Abs( axisDir.x ), MathF.Abs( axisDir.y ), MathF.Abs( axisDir.z )];
-			return Array.IndexOf( a, a.Max() ) switch
-			{
-				0 => Gizmo.GridAxis.YZ,
-				1 => Gizmo.GridAxis.ZX,
-				_ => Gizmo.GridAxis.XY
-			};
+			var axis = axisDir.Abs();
+			if ( axis.x >= axis.y && axis.x >= axis.z ) return Gizmo.GridAxis.YZ;
+			return axis.y >= axis.z ? Gizmo.GridAxis.ZX : Gizmo.GridAxis.XY;
 		}
 	}
 	public ViewportState State { get; init; }
+
+	void UpdateWorkPlane()
+	{
+		var frame = Session.WorkPlane;
+		if ( State.WorkPlane == frame ) return;
+		if ( WantOrtho && Session.IsWorkPlaneTransforming ) return;
+
+		var previous = State.WorkPlane;
+		State.WorkPlane = frame;
+		if ( !WantOrtho || previous.Rotation == frame.Rotation ) return;
+
+		if ( State.Is2D )
+			State.View = State.View;
+		else
+			State.CameraRotation = frame.Rotation * previous.Rotation.Inverse * State.CameraRotation;
+		var center = TryGetSelectionCenter( out var selectionCenter ) ? selectionCenter : frame.Position;
+		State.CameraPosition = center - State.CameraRotation.Forward * 1000;
+		cameraTargetPosition = null;
+	}
 
 	private void InitializeCamera()
 	{
@@ -227,22 +257,33 @@ public partial class SceneViewportWidget
 		else
 			State.View = newMode;
 
-		Vector3 center = Vector3.Zero;
+		if ( TryGetSelectionCenter( out var center ) )
+		{
+			var forward = State.CameraRotation.Forward;
+			var distance = State.Is2D ? forward.Dot( center - State.CameraPosition ) : 400;
+			State.CameraPosition = center - forward * distance;
+		}
+
+		cameraTargetPosition = null;
+		GizmoInstance.SetValue<Vector3?>( "CameraTarget", null );
+		GizmoInstance.SetValue<Vector3>( "CameraVelocity", Vector3.Zero );
+	}
+
+	bool TryGetSelectionCenter( out Vector3 center )
+	{
+		if ( Tools.CurrentSubTool is { } tool && tool.TryGetSelectionOrigin( out center ) )
+			return true;
+
+		center = Vector3.Zero;
 		int count = 0;
-
-		// TODO: support other (mesh tool?) selections here
-		if ( SceneEditorSession.Active is not null )
+		foreach ( var selected in Session.Selection.OfType<GameObject>() )
 		{
-			foreach ( var selected in SceneEditorSession.Active.Selection.OfType<GameObject>() )
-			{
-				center += selected.WorldPosition;
-				count++;
-			}
+			center += selected.WorldPosition;
+			count++;
 		}
 
-		if ( count > 0 )
-		{
-			State.CameraPosition = (center / count) - State.CameraRotation.Forward * 400;
-		}
+		if ( count == 0 ) return false;
+		center /= count;
+		return true;
 	}
 }

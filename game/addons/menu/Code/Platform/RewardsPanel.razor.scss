@@ -1,0 +1,32 @@
+@import "/Platform/_platform.scss";
+
+RewardsPanel
+{
+	@include platform-side-panel;
+
+	// Up off the dock as tall as what's on it, rising from below over the Weekly drop button rather than sliding in
+	// from the right. Horizontal position is set in RewardsPanel.Tick.
+	top: auto;
+	right: auto;
+	transform: translateY( 24px );
+
+	&.open
+	{
+		transform: translateY( 0px );
+	}
+
+	> .panel
+	{
+		flex-grow: 0;
+	}
+
+	RewardsView .rewards-list
+	{
+		flex-grow: 1;
+	}
+}
+
+RewardsPanel .flyout-arrow
+{
+	@include platform-flyout-arrow( #0d0f16 );
+}

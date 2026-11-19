@@ -26,6 +26,12 @@ public interface IAssetCompiler
 	IReadOnlyList<uint?> Fingerprints( IReadOnlyList<SpecialDependency> dependencies );
 
 	/// <summary>
+	/// These outputs were just published or removed, before anything that reads them starts: nothing may give a later job
+	/// what it loaded of them before.
+	/// </summary>
+	void Published( IReadOnlyList<string> paths ) { }
+
+	/// <summary>
 	/// Let go of anything kept between jobs (worker processes). Whoever made the compiler says when.
 	/// </summary>
 	void Finished() { }

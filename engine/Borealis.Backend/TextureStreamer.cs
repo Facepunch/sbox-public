@@ -165,7 +165,7 @@ internal sealed class MaterialAsks
 /// Texture streaming for the game window: material textures start as their tails (<see cref="TextureFile.Tail"/>) and get
 /// the mips their draws ask for (<c>textureSize</c>, see <c>TextureSizes</c>) as new images built from the file on a
 /// worker, uploaded a few each frame and swapped in whole. Textures grow while video memory has room and give mips back
-/// when it runs short. Runs on the thread that begins frames. See docs/managed/borealis-gpu-path.md.
+/// when it runs short. Runs on the thread that begins frames. See docs/reference/borealis-gpu-path.md.
 /// </summary>
 internal sealed class TextureStreamer
 {
@@ -208,6 +208,22 @@ internal sealed class TextureStreamer
 
 	/// <summary>Bytes of mips uploaded each frame.</summary>
 	public long UploadBytesPerFrame { get; set; } = 16 << 20;
+
+	/// <summary>
+	/// Whether a loading screen hides the frames (<see cref="BackendDevice.Loading"/>): builds go <see cref="LoadingMaxBuilds"/> at
+	/// once and upload <see cref="LoadingUploadBytesPerFrame"/> a frame, so what the first frame after a load asks for is there.
+	/// </summary>
+	public bool Loading { get; set; }
+
+	/// <summary>Builds in flight at once behind a loading screen.</summary>
+	public int LoadingMaxBuilds { get; set; } = 64;
+
+	/// <summary>Bytes of mips uploaded each frame behind a loading screen.</summary>
+	public long LoadingUploadBytesPerFrame { get; set; } = 128 << 20;
+
+	int BuildsAtOnce => Loading ? Math.Max( LoadingMaxBuilds, MaxBuilds ) : MaxBuilds;
+
+	long UploadBytes => Loading ? Math.Max( LoadingUploadBytesPerFrame, UploadBytesPerFrame ) : UploadBytesPerFrame;
 
 	/// <summary>A budget in bytes for streamed textures, or 0 for as much as video memory has room for.</summary>
 	public long BudgetBytes { get; set; }
@@ -393,7 +409,8 @@ internal sealed class TextureStreamer
 		var gpu = device.Gpu;
 		long uploaded = 0;
 		Uploaded = 0;
-		for ( int i = 0; i < builds.Count && uploaded < UploadBytesPerFrame; i++ )
+		var most = UploadBytes;
+		for ( int i = 0; i < builds.Count && uploaded < most; i++ )
 		{
 			var build = builds[i];
 			if ( !build.Read.IsCompleted ) continue;
@@ -413,7 +430,7 @@ internal sealed class TextureStreamer
 			}
 
 			// Coarsest first, so a build spread over frames leaves its largest mip for last
-			while ( build.NextMip >= build.Top && uploaded < UploadBytesPerFrame )
+			while ( build.NextMip >= build.Top && uploaded < most )
 			{
 				uploaded += file.Write( gpu, build.Image, build.NextMip );
 				build.NextMip--;
@@ -541,7 +558,7 @@ internal sealed class TextureStreamer
 				var grow = texture.BytesFrom( texture.Reachable ) - texture.ResidentBytes;
 				if ( grow > available ) continue;
 				waiting++;
-				if ( builds.Count >= MaxBuilds ) continue;
+				if ( builds.Count >= BuildsAtOnce ) continue;
 				available -= grow;
 				startedSinceMemory += grow;
 				StartBuild( texture, texture.Reachable );
@@ -557,7 +574,7 @@ internal sealed class TextureStreamer
 		var path = texture.Path;
 		var build = new Build { Texture = texture, Top = top };
 		BuildsStarted++;
-		build.Read = Task.Run( () => ReadMips( content, path, top ) );
+		build.Read = BackendDevice.Read( () => ReadMips( content, path, top ) );
 		texture.Building = build;
 		builds.Add( build );
 	}

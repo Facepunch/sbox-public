@@ -1,53 +1,48 @@
 using Sandbox;
 using Sandbox.Navigation;
-using Sandbox.Navigation.Generation;
 namespace NavigationTests;
 
 [TestClass]
 public class MeshBuildingTest
 {
-	private static readonly Config testConfig = Config.CreateValidatedConfig(
-		new Vector2Int( 0, 0 ),
-		BBox.FromPositionAndSize( 0, 400 ),
-		4.0f,
-		2.0f,
-		64.0f,
-		16.0f,
-		18.0f,
-		40.0f
-	);
-
 	[TestMethod]
 	public void Generator_FromPhysicsShape_Simple()
 	{
-		// A physics world to generate the navmesh from
+		// A physics world to generate the navmesh from, with a box that is inside one tile
 		var world = new PhysicsWorld();
 		var body = new PhysicsBody( world );
-		var shape = body.AddBoxShape( BBox.FromPositionAndSize( 0, 200 ), Rotation.Identity );
+		body.AddBoxShape( BBox.FromPositionAndSize( new Vector3( 300, 300, 0 ), 200 ), Rotation.Identity );
 
+		using var navMesh = new NavMesh { IsEnabled = true };
+		navMesh.mesh.MarkDirty( 0, 0 );
+		var jobs = new Nav.TileJob[1];
+		Assert.AreEqual( 1, navMesh.mesh.TakeJobs( jobs ) );
 
-		// generate the navmesh using CNavMeshHeightFieldGenerator
+		// The box as physics triangulates it
+		navMesh.CollectGeometry( world, jobs[0], out _, out _ );
+		Assert.AreEqual( 8, navMesh.geometryVertices.Count );
+		Assert.AreEqual( 36, navMesh.geometryIndices.Count );
+
+		// Of its twelve triangles the two on top face up and are ground
+		new Nav.NavBuilder().Build( jobs[0] );
+		Assert.AreEqual( Nav.TileJobStatus.Built, jobs[0].Status );
+		navMesh.mesh.Commit( jobs );
+		var stats = navMesh.mesh.GetStats();
+		Assert.AreEqual( 2, stats.TrianglesUsed );
+		Assert.AreEqual( 10, stats.TrianglesRejected );
+
+		var tile = new Vector2Int( 0, 0 );
+		var polyCount = navMesh.GetPolyCount( tile );
+		Assert.IsTrue( polyCount > 0, "The top of the box should be walkable" );
+		for ( int i = 0; i < polyCount; i++ )
 		{
-			using HeightFieldGenerator hfGenerator = new();
-			hfGenerator.Init( testConfig );
-
-			hfGenerator.AddGeometryFromPhysicsShape( shape );
-			Assert.AreEqual( 8, hfGenerator.inputGeoVerticesCount );
-			Assert.AreEqual( 36, hfGenerator.inputGeoIndicesCount );
-
-			using var heightField = hfGenerator.Generate();
-
-			Assert.IsTrue( heightField != default );
-
-			using NavMeshGenerator nmGenerator = new();
-			nmGenerator.Init( testConfig, heightField );
-
-			using var meshData = nmGenerator.Generate();
-
-			Assert.IsNotNull( meshData );
-
-			world.Delete();
+			foreach ( var vert in navMesh.GetPolyVerts( tile, i ) )
+			{
+				Assert.IsTrue( vert.z >= 100 && vert.z <= 108, $"The navmesh should be on top of the box, a vertex is at {vert}" );
+			}
 		}
+
+		world.Delete();
 	}
 
 	[TestMethod]
@@ -63,8 +58,7 @@ public class MeshBuildingTest
 		navMesh.IsEnabled = true;
 		navMesh.Init();
 
-		// The tile grid is centered on the world origin, so tile (0,0) is the far corner
-		// of the 512x512 grid - use the tile that actually contains our box geometry.
+		// Use the tile that contains our box geometry
 		var testTilePosition = navMesh.WorldPositionToTilePosition( Vector3.Zero );
 		var testTileWorldPosition = navMesh.TilePositionToWorldPosition( testTilePosition );
 
@@ -219,8 +213,8 @@ public class MeshBuildingTest
 		loadedNavMesh.CustomBounds = true;
 		loadedNavMesh.Bounds = sourceNavMesh.Bounds;
 
-		// Regenerate the navmesh from the loaded heightfield data
-		var loadedGenerated = await loadedNavMesh.Generate( emptyWorld );
+		// Generate always builds from live geometry, only a scene load reads the bake
+		var loadedGenerated = await loadedNavMesh.Load( emptyWorld );
 		Assert.IsTrue( loadedGenerated, "Failed to generate navmesh from loaded baked data" );
 
 		// Verify the loaded navmesh is functional
@@ -270,7 +264,8 @@ public class MeshBuildingTest
 		var loaded = new NavMesh { CustomBounds = true, Bounds = source.Bounds, IsEnabled = true };
 		loaded.Init();
 		await loaded.LoadFromBakedData( baked );
-		Assert.IsTrue( await loaded.Generate( world ), "Failed to generate navmesh from loaded baked data" );
+		// Generate always builds from live geometry, only a scene load reads the bake
+		Assert.IsTrue( await loaded.Load( world ), "Failed to generate navmesh from loaded baked data" );
 
 		Assert.IsNotNull( loaded.GetClosestPoint( keptCentre, 400 ), "The baked region should be walkable" );
 		Assert.IsNull( loaded.GetClosestPoint( droppedCentre, 400 ), "A tile the bake left empty must not be regenerated from live geometry" );

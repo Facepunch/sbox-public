@@ -9,6 +9,7 @@ namespace Sandbox;
 /// kids are using in your crazy future computers. Whatever it is I'm sure
 /// it isn't fungible and everyone has free money and no-one has to ever work.
 /// </summary>
+[Expose]
 public static partial class Graphics
 {
 	/// <summary>
@@ -36,7 +37,7 @@ public static partial class Graphics
 		HasSource2Device = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
 		IsAvailable = HasSource2Device || borealisGpu;
 
-		// -borealisgpu: the process draws on a Borealis.Gpu device of its own (docs/managed/borealis-gpu-path.md, stage 2)
+		// -borealisgpu: the process draws on a Borealis.Gpu device of its own (docs/reference/borealis-gpu-path.md, stage 2)
 		if ( IsAvailable && borealisGpu && RenderBackend.Default is Source2RenderBackend )
 		{
 			var validation = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-validation" );

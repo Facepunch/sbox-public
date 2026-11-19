@@ -5,15 +5,28 @@ public partial class SceneObject
 	/// <summary>
 	/// Whether it makes and writes its own render object (<see cref="MakeRenderObject"/>, <see cref="WriteRender"/>): its world's
 	/// renderer adds it and removes it, and a change made on the main thread outside a render of a world holding it goes straight
-	/// into it. Other kinds are made and written by their world's renderer.
+	/// into it. A model is one, whoever made it (a map's world geometry too); kinds Borealis doesn't draw aren't.
 	/// </summary>
-	internal virtual bool OwnsRenderObject => ResolvesDraws && GetType() == typeof( SceneObject );
+	internal virtual bool OwnsRenderObject => GetType() == typeof( SceneObject );
 
 	/// <summary>
-	/// Make the render object it draws as (<see cref="OwnsRenderObject"/>). Its world's renderer adds it to its render world and
-	/// writes everything into it.
+	/// Whether it lights its world rather than drawing as a render object (a sun, a light probe volume): its world's renderer
+	/// keeps it in the world's lighting, and a change made on the main thread outside a render goes straight there
+	/// (<see cref="Rendering.ISceneWorldRender.WriteLighting"/>).
 	/// </summary>
-	internal virtual Borealis.RenderObject MakeRenderObject() => new Borealis.MeshObject( null, Transform );
+	internal virtual bool LightsWorld => false;
+
+	/// <summary>
+	/// Make the render object it draws as (<see cref="OwnsRenderObject"/>), with <paramref name="render"/> for what the world
+	/// holds; null while it can't be made yet (its model still loading), and it's made again once it can. Its world's renderer
+	/// adds it to its render world and writes everything into it.
+	/// </summary>
+	internal virtual Borealis.RenderObject MakeRenderObject( Rendering.ISceneWorldRender render )
+	{
+		// A map's world geometry native code made: native aggregates, which have no managed type of their own
+		if ( ResolvesDraws ) return new Borealis.MeshObject( null, Transform );
+		return (Borealis.RenderObject)render.MakeAggregate( this, out var waiting ) ?? (waiting ? null : new Borealis.MeshObject( null, Transform ));
+	}
 
 	/// <summary>
 	/// Write what changed into its render object (<see cref="OwnsRenderObject"/>), with <paramref name="render"/> for the
@@ -23,8 +36,9 @@ public partial class SceneObject
 	{
 		if ( (change & Rendering.SceneObjectChange.Tags) != 0 ) obj.Tags = RenderTags();
 
-		// A model managed code made (ResolvesDraws): its draws are worked out from the model's mesh the world holds
-		if ( obj is Borealis.MeshObject mesh && GetType() == typeof( SceneObject ) ) render.WriteMesh( this, mesh, change );
+		// A model's draws are worked out from the model's mesh the world holds; an aggregate's fragments are fixed when made
+		if ( obj is Borealis.MeshObject mesh ) render.WriteMesh( this, mesh, change );
+		else if ( obj is Borealis.AggregateObject aggregate ) render.WriteAggregate( this, aggregate, change );
 	}
 
 	/// <summary>
@@ -39,6 +53,8 @@ public partial class SceneObject
 	static readonly uint StaticOverlayMatch = new StringToken( "StaticOverlayLayer" ).Value;
 	static readonly uint OverlayWithDepthMatch = new StringToken( "OverlayWithDepth" ).Value;
 	static readonly uint OverlayWithoutDepthMatch = new StringToken( "OverlayWithoutDepth" ).Value;
+	static readonly uint ToolOverlayMatch = new StringToken( "ToolOverlay" ).Value;
+	static readonly uint ToolScreenOverlayMatch = new StringToken( "ToolScreenOverlay" ).Value;
 
 	/// <summary>
 	/// A layer match (<c>CSceneObject::m_nLayerMatchID</c>) as Borealis knows it; its features decide membership.
@@ -49,6 +65,8 @@ public partial class SceneObject
 		if ( match == StaticOverlayMatch ) return Borealis.LayerMatch.StaticOverlay;
 		if ( match == OverlayWithDepthMatch ) return Borealis.LayerMatch.OverlayWithDepth;
 		if ( match == OverlayWithoutDepthMatch ) return Borealis.LayerMatch.OverlayWithoutDepth;
+		if ( match == ToolOverlayMatch ) return Borealis.LayerMatch.ToolOverlay;
+		if ( match == ToolScreenOverlayMatch ) return Borealis.LayerMatch.ToolScreenOverlay;
 		return Borealis.LayerMatch.Unsupported;
 	}
 
@@ -92,11 +110,13 @@ public partial class SceneObject
 			custom.IsOpaque = flags.IsOpaque && !flags.IsTranslucent;
 			custom.WantsFrameBufferCopy = flags.WantsFrameBufferCopy;
 			custom.DepthPrepass = !flags.HasFlag( Rendering.SceneObjectFlags.NoZPrepass );
-			custom.CastShadows = flags.CastShadows;
+			custom.CastShadows = CastsShadows;
 			custom.Visible = RenderingEnabled;
 			WriteLayerFlags( custom, flags );
 			custom.LayerMatch = LayerMatchFor( LayerMatchToken );
 		}
+
+		custom.RenderOrder = RenderOrder;
 	}
 
 	/// <summary>
@@ -119,21 +139,21 @@ public partial class SceneObject
 	}
 
 	/// <summary>
-	/// What waits for its world's renderer even for an object that writes its own render object: coming and going, and its
-	/// attributes being made. A model's draws are worked out once per sync for however many model and material changes came.
-	/// </summary>
-	const Rendering.SceneObjectChange RendererChanges = Rendering.SceneObjectChange.Added | Rendering.SceneObjectChange.Removed
-		| Rendering.SceneObjectChange.Deleted | Rendering.SceneObjectChange.Attributes | Rendering.SceneObjectChange.Model
-		| Rendering.SceneObjectChange.Material;
-
-	/// <summary>
 	/// Write a change straight into its own render object if it can: one that owns it, made already, on the main thread, outside
-	/// a render of a world holding it. Otherwise its world's renderer takes the change, and writes it before the next render.
+	/// a render of a world holding it. Otherwise its world's renderer writes it when it next prepares a frame.
 	/// </summary>
-	bool WroteRender( Rendering.SceneObjectChange change )
+	bool WroteRender( Rendering.SceneObjectChange change, Rendering.ISceneWorldRender render )
 	{
-		if ( (change & RendererChanges) != 0 || !OwnsRenderObject || RenderObject is not { World: not null } obj ) return false;
-		if ( World?.Render is not { } render || obj.InRender || !ThreadSafe.IsMainThread ) return false;
+		if ( LightsWorld )
+		{
+			if ( render.World.InRender || !ThreadSafe.IsMainThread ) return false;
+
+			using ( Borealis.Zones.ObjectWrite.Start() ) render.WriteLighting( this, change );
+			return true;
+		}
+
+		if ( !OwnsRenderObject || RenderObject is not { World: not null } obj ) return false;
+		if ( obj.InRender || !ThreadSafe.IsMainThread ) return false;
 
 		using ( Borealis.Zones.ObjectWrite.Start() ) WriteRender( obj, change, render );
 		return true;

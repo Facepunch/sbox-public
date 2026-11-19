@@ -1,7 +1,7 @@
 // depth_only: the engine's stand-in depth material. Fast-path depth and shadows of opaque .shader and surface materials draw
 // with it (materials/dev/depth_only.vmat), and so does the Depth mode shaders name it as the fallback for. A standalone
 // module: Borealis.Gpu draws it from here alone, GPU-driven too; depth_only.shader is only Source 2's renderer's now.
-// See docs/managed/standalone-modules.md.
+// See docs/reference/borealis-standalone-modules.md.
 #include "sbox/pass.slangh"
 #include "vr_common.fxc"
 

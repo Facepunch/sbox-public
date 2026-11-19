@@ -6,7 +6,11 @@
 
 <root class="actions">
 
-	<Button class="quiet" Icon="restore" onclick=@RestoreDefaults>#menu.common.restore_defaults</Button>
+	@* Defaults are a category's, and search results span them *@
+	@if ( !Searching )
+	{
+		<Button class="quiet" Icon="restore" onclick=@RestoreDefaults>#menu.common.restore_defaults</Button>
+	}
 
 	<div class="grow"></div>
 
@@ -25,6 +29,8 @@
 	[Parameter] public SettingsView View { get; set; }
 
 	bool Dirty => View?.Catalog.IsDirty ?? false;
+
+	bool Searching => View?.Searching ?? false;
 
 	void Apply()
 	{
@@ -46,5 +52,5 @@
 		View?.Invalidate();
 	}
 
-	protected override int BuildHash() => HashCode.Combine( Dirty );
+	protected override int BuildHash() => HashCode.Combine( Dirty, Searching );
 }

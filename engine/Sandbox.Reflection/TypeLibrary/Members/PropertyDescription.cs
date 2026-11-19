@@ -101,7 +101,7 @@ public sealed class PropertyDescription : MemberDescription
 			return;
 
 		// If we're an engine type, you can not use a non public setter
-		if ( !TypeDescription.IsDynamicAssembly && (!IsSetMethodPublic || IsSetMethodInitOnly) )
+		if ( !IsDeclaredInDynamicAssembly && (!IsSetMethodPublic || IsSetMethodInitOnly) )
 			return;
 
 		if ( Translation.TryConvert( ref value, PropertyInfo.PropertyType ) )

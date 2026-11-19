@@ -9,6 +9,9 @@ internal class SceneLightProbe : SceneObject
 {
 	private CSceneLightProbeVolumeObject lightProbeVolume;
 
+	/// <summary>A probe volume lights its world's objects inside it; it isn't drawn.</summary>
+	internal override bool LightsWorld => true;
+
 	internal SceneLightProbe( HandleCreationData d ) : base( d )
 	{
 	}

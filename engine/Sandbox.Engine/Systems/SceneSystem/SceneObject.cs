@@ -124,7 +124,7 @@ public partial class SceneObject : IHandle
 
 			_parent?.RemoveChild( this );
 
-			NotifyChanged( Rendering.SceneObjectChange.Deleted );
+			World?.Render?.Deleted( this );
 			CSceneSystem.DeleteSceneObjectAtFrameEnd( this );
 			native = IntPtr.Zero; // avoid double delete etc
 		}
@@ -142,14 +142,15 @@ public partial class SceneObject : IHandle
 			World.InternalSceneObjects.Add( this );
 		}
 
-		NotifyChanged( Rendering.SceneObjectChange.Added );
+		// Made in its renderer once its constructor is done
+		World.Render?.Made( this );
 
 		//Log.Info( $"Created SceneObject: {GetType().Name}" );
 	}
 
 	internal virtual void OnNativeDestroy()
 	{
-		NotifyChanged( Rendering.SceneObjectChange.Removed );
+		World.Render?.Destroyed( this );
 
 		lock ( World.InternalSceneObjects )
 		{
@@ -185,13 +186,14 @@ public partial class SceneObject : IHandle
 	internal Borealis.RenderObject RenderObject { get; set; }
 
 	/// <summary>
-	/// Write a change into its own render object (<see cref="OwnsRenderObject"/>), or else tell the world's
-	/// <see cref="SceneWorld.ChangeListener"/>, if it has one, that something changed.
+	/// Write a change into its own render object (<see cref="OwnsRenderObject"/>) or its world's lighting, when its world is
+	/// drawn; one that can't be written now (made on another thread or during a render, or before its render object is made)
+	/// is written when its world's renderer next prepares a frame.
 	/// </summary>
 	internal void NotifyChanged( Rendering.SceneObjectChange change )
 	{
-		if ( WroteRender( change ) ) return;
-		World?.ChangeListener?.OnChanged( this, change );
+		if ( World?.Render is not { } render || WroteRender( change, render ) ) return;
+		render.Later( this, change );
 	}
 
 	/// <summary>
@@ -201,7 +203,7 @@ public partial class SceneObject : IHandle
 	{
 		// Until it's set from here, native's: an object native made - a map's world geometry - is placed by native, and
 		// read as default(Transform), zero scale and all
-		get => _transformSet || native.IsNull ? _transform : native.GetCTransform();
+		get => _transformSet || native.IsNull ? _transform : native.GetCTransformUnaligned();
 		set
 		{
 			if ( _transformSet && _transform == value )
@@ -311,6 +313,16 @@ public partial class SceneObject : IHandle
 	// render-mesh traces skip hidden objects by, and the tint only while something reads it (WritesNative)
 	bool? _renderingEnabled;
 	Color? _tint;
+
+	/// <summary>
+	/// Read visibility and tint from native again next time: native code changes the objects it made behind managed
+	/// code's back (a tool hiding a helper, tinting a selection, switching its worklight off).
+	/// </summary>
+	internal void ForgetNativeState()
+	{
+		_renderingEnabled = null;
+		_tint = null;
+	}
 
 	/// <summary>
 	/// Whether this scene object should render or not.

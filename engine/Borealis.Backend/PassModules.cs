@@ -12,12 +12,24 @@ namespace Borealis.Backend;
 /// fullscreen passes) with a Slang module beside it (<c>pp_vignette.slang</c> beside <c>pp_vignette.shader</c>, including
 /// <c>sbox/pass.slangh</c>) draws from that module, compiled per stage and combo values with the engine's Slang. A module
 /// that doesn't compile is reported once (<see cref="Error"/>) and its shader draws from its compiled programs, as with
-/// <see cref="BackendDevice.SlangPasses"/> off. See docs/managed/shader-format-replacement.md ("Pass modules").
+/// <see cref="BackendDevice.SlangPasses"/> off. See docs/reference/borealis-slang-materials.md ("Pass modules").
 /// </summary>
 public sealed class PassModules : IShaderModules
 {
 	readonly BackendDevice device;
 	readonly Dictionary<string, (DateTime Time, long Checked, PassModule Module)> modules = new( StringComparer.OrdinalIgnoreCase );
+
+	// Each compiled path's module source path, worked out once: draws look their module up every frame
+	readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> slangPaths = new( StringComparer.OrdinalIgnoreCase );
+
+	string SlangPathOf( string compiledPath )
+	{
+		if ( slangPaths.TryGetValue( compiledPath, out var known ) ) return known;
+
+		var name = compiledPath;
+		if ( name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) name = name[..^2];
+		return slangPaths[compiledPath] = Path.GetFullPath( Path.ChangeExtension( name, ".slang" ) );
+	}
 	readonly Dictionary<string, (ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots)> stages = new( StringComparer.Ordinal );
 	readonly HashSet<string> reported = new( StringComparer.Ordinal );
 	readonly Dictionary<string, ShaderCompileException> failed = new( StringComparer.Ordinal );
@@ -124,10 +136,7 @@ public sealed class PassModules : IShaderModules
 	/// <summary>The pass module beside a compiled file's path (<c>x.slang</c> for <c>x.shader_c</c>), or null.</summary>
 	PassModule ModuleBeside( string compiledPath )
 	{
-		var name = compiledPath;
-		if ( name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) name = name[..^2];
-		var path = Path.GetFullPath( Path.ChangeExtension( name, ".slang" ) );
-
+		var path = SlangPathOf( compiledPath );
 		var now = Environment.TickCount64;
 		lock ( modules )
 		{

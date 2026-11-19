@@ -194,6 +194,26 @@ public class MaterialServiceTests : GpuTest
 		Assert.IsTrue( cache.ConstantBytes <= bound, $"{cache.ConstantBytes} bytes kept after 200 frames of new values, more than {bound}" );
 	}
 
+	/// <summary>
+	/// A frame's sweep of material objects (the first pass state of each frame, evicting every eighth) allocates nothing: it
+	/// made a closure every frame and a copy of every object every eighth, the steady scene's largest frames.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( Allocations.Category )]
+	public void SweepsAllocateNothing()
+	{
+		using var cache = new MaterialObjectCache( Device, defaults );
+		var data = new byte[256];
+		cache.KeepPassConstants( data, data.Length );
+		for ( int frame = 0; frame < MaterialObjectCache.EvictAfterFrames + 8; frame++ )
+		{
+			Device.BeginFrame();
+			cache.NextEpoch();
+		}
+
+		Allocations.AssertSettles( "a frame's sweep", () => cache.NextEpoch(), beforePass: Device.BeginFrame );
+	}
+
 	/// <summary>ui_filter's attributes for drawing <paramref name="texture"/> unfiltered at (x, y) with a blend mode.</summary>
 	static ShaderAttributes Composite( TextureHandle texture, float x, float y, int blend )
 	{

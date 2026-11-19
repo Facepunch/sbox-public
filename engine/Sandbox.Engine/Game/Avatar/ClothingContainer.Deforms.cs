@@ -57,9 +57,8 @@ public partial class ClothingContainer
 	} = AvatarDefaults.ChinSize;
 
 	/// <summary>
-	/// Updates deforms without rebuilding clothing. Returns the prefab instance, if the model supports one.
+	/// Obsolete Citizen body deformation. Has no effect and always returns null.
 	/// </summary>
-	[Obsolete( "Use Dresser.UpdateAppearance instead." )]
-	public GameObject ApplyDeforms( SkinnedModelRenderer body, bool enabled = true ) =>
-		body.IsValid() ? Dresser.GetOrCreate( body ).UpdateDeforms( this, enabled ) : null;
+	[Obsolete( "Citizen body deformation is no longer supported. This method has no effect." )]
+	public GameObject ApplyDeforms( SkinnedModelRenderer body, bool enabled = true ) => null;
 }

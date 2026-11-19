@@ -5,6 +5,7 @@ namespace Sandbox.UI;
 /// A collection of <see cref="StyleSheet"/> objects applied directly to a panel.
 /// See <see cref="Panel.StyleSheet"/>.
 /// </summary>
+[Expose]
 public struct StyleSheetCollection
 {
 	internal List<StyleSheet> List;

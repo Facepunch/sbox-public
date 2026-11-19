@@ -1,15 +1,13 @@
 @import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 
 // The card that wraps the achievements section in the sidebar
 Card.achievements-card
 {
     cursor: pointer;
-    transition: border-color 0.15s ease, background-color 0.15s ease;
 
     &:hover
     {
-        border-color: rgba( $primary-blue, 0.3 );
-        background-color: rgba( $primary-blue, 0.05 );
         sound-in: "ui.button.over";
     }
 
@@ -18,15 +16,7 @@ Card.achievements-card
 
 .active Card.achievements-card
 {
-    border-color: rgba( $primary-blue, 0.35 );
-    background-color: rgba( $primary-blue, 0.1 );
     cursor: default;
-
-    &:hover
-    {
-        border-color: rgba( $primary-blue, 0.35 );
-        background-color: rgba( $primary-blue, 0.1 );
-    }
 }
 
 AchievementSummary
@@ -64,26 +54,7 @@ PackageAchievementSummary.with-header
     // How many you've got - small, a trophy in front
     .ach-count
     {
-        flex-direction: row;
-        flex-shrink: 0;
-        align-items: center;
-        gap: 4px;
-
-        i
-        {
-            width: 13px;
-            height: 13px;
-            font-size: 13px;
-            text-align: center;
-            color: $primary-yellow;
-        }
-
-        label
-        {
-            font-size: 11px;
-            font-weight: 700;
-            color: $default-50;
-        }
+        @include platform-chip;
     }
 
     .achievement-buttons
@@ -108,13 +79,9 @@ PackageAchievementSummary.with-header
 
 .achievement-icon
 {
-    width: 36px;
-    height: 36px;
-    border-radius: $rounding-default;
+    @include platform-tile( 19px, 36px );
     background-position: center;
     background-size: cover;
-    border: 1px solid $default-border;
-    flex-shrink: 0;
 
     &.locked
     {
@@ -125,15 +92,11 @@ PackageAchievementSummary.with-header
     // The last spot, when they don't all fit - how many more
     &.more
     {
-        align-items: center;
-        justify-content: center;
-        background-color: rgba( 255, 255, 255, 0.06 );
-
         label
         {
             font-size: 12px;
             font-weight: 700;
-            color: $default-50;
+            color: $platform-muted;
         }
     }
 }

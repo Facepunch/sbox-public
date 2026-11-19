@@ -53,7 +53,7 @@ internal static class ViewSetup
 		var viewAttributes = setup.m_pView.GetRenderAttributesPtr();
 		SetLookups( viewAttributes );
 
-		// AO and SSR slots are frame-global. Child views have different screen coordinates
+		// Child views have different screen coordinates from their parent
 		// and cannot consume the parent's results, even when their post processing is disabled.
 		viewAttributes.SetBoolValue( DisableScreenSpaceEffects, setup.m_pView.GetParent().IsValid );
 

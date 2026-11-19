@@ -11,7 +11,7 @@ namespace Sandbox;
 
 /// <summary>
 /// A content build worker: the resource compiler with the asset system and the editor's managed compilers, taking
-/// one job at a time from standard input.
+/// jobs from standard input and running them on threads of their own.
 /// </summary>
 public sealed class ContentWorkerAppSystem : ToolAppSystem
 {
@@ -24,8 +24,10 @@ public sealed class ContentWorkerAppSystem : ToolAppSystem
 		Graphics.Initialize();
 		SyncContext.Init();
 
-		// Compilers write numbers into outputs
+		// Compilers write numbers into outputs, on the threads jobs run on too
 		var culture = CultureInfo.CreateSpecificCulture( "en-US" );
+		CultureInfo.DefaultThreadCurrentCulture = culture;
+		CultureInfo.DefaultThreadCurrentUICulture = culture;
 		Thread.CurrentThread.CurrentCulture = culture;
 		Thread.CurrentThread.CurrentUICulture = culture;
 
@@ -35,7 +37,7 @@ public sealed class ContentWorkerAppSystem : ToolAppSystem
 		EngineFileSystem.InitializeDataFolder();
 
 		// As every app has them (Bootstrap.PreInit); a worker never mounts a game, so a compile can't read one
-		Mounting.Directory.LoadAssemblies();
+		Mounting.Directory.LoadSources();
 	}
 
 	public override void Init()
@@ -75,14 +77,17 @@ public sealed class ContentWorkerAppSystem : ToolAppSystem
 	public bool Compile( string path ) => Editor.ContentCompilerHost.Compile( path );
 
 	/// <summary>
-	/// Compiles the projects the editor has built in, as the editor does, into a folder for workers to load. False if any
-	/// of them didn't compile.
+	/// Compiles the built-in tool and menu projects into a folder for workers to load. False if any of them didn't compile.
 	/// </summary>
 	public static bool CompileBuiltInProjects( string directory )
 	{
 		using var app = new ToolAppSystem();
 
 		SyncContext.RunBlocking( Project.InitializeBuiltIn( false ) );
+
+		// Headless apps skip the menu, but content builds need its resource types and compilers too.
+		Project.AddFromFileBuiltIn( "addons/menu/.sbproj" );
+
 		if ( !SyncContext.RunBlocking( Project.CompileAsync() ) ) return false;
 
 		Directory.CreateDirectory( directory );

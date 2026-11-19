@@ -1,3 +1,5 @@
+@import "/Platform/_platform.scss";
+
 .modal.player-modal
 {
     flex-shrink: 0;
@@ -5,13 +7,12 @@
 
     .browser
     {
+        @include platform-surface;
+        overflow: hidden;
         margin: 100px;
         width: 1280px;
         height: 1024px;
         pointer-events: all;
-        border-radius: 10px;
         z-index: 100;
-        box-shadow: 10px 10px 150px #0005;
-        background-color: #111;
     }
 }

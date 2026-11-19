@@ -86,6 +86,10 @@ public enum FindMode
 	EverythingInDescendants = Enabled | Disabled | InDescendants,
 }
 
+/// <summary>
+/// Provides access to a game object's components and methods to create and find them.
+/// </summary>
+[Expose]
 public class ComponentList
 {
 	readonly GameObject go;
@@ -453,6 +457,41 @@ public class ComponentList
 			if ( !child.IsValid() ) continue;
 
 			child.Components.ExecuteEnabledInSelfAndDescendants( state, action );
+		}
+	}
+
+	internal delegate void RefAction<T, TState>( T target, ref TState state );
+
+	// Ref state variant, for listeners that modify the state (like OnEyeAngles)
+	internal void ExecuteEnabledInSelfAndDescendants<T, TState>( ref TState state, RefAction<T, TState> action )
+	{
+		if ( !go.IsValid() || !go.Enabled ) return;
+
+		if ( _internalList is not null )
+		{
+			// Check components on this GameObject
+			for ( int i = 0; i < _list.Count; i++ )
+			{
+				var component = _list[i];
+				if ( component is null ) continue;
+
+				if ( component is T target && component.Active )
+				{
+					action.Invoke( target, ref state );
+				}
+			}
+		}
+
+		// Recurse to children
+		for ( int i = go.Children.Count - 1; i >= 0; i-- )
+		{
+			if ( i >= go.Children.Count )
+				continue;
+
+			var child = go.Children[i];
+			if ( !child.IsValid() ) continue;
+
+			child.Components.ExecuteEnabledInSelfAndDescendants( ref state, action );
 		}
 	}
 

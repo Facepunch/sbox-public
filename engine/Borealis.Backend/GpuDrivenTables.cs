@@ -16,7 +16,7 @@ namespace Borealis.Backend;
 internal readonly record struct PooledGeometry( uint GeometryRecord, BufferHandle IndexPage, int IndexPageSlot, uint FirstIndex, IndexFormat IndexFormat, uint PositionsRecord = 0, int VertexCount = 0 );
 
 /// <summary>
-/// The buffers GPU-driven drawing reads (<c>borealis_gpu_driven.fxc</c>, docs/managed/borealis-gpu-driven.md): meshes'
+/// The buffers GPU-driven drawing reads (<c>borealis_gpu_driven.fxc</c>, docs/reference/borealis-gpu-driven.md): meshes'
 /// vertices and indices in shared pages, and the geometry, draw and material tables, all reached through the bindless raw
 /// buffer array (<c>g_bindless_VertexBuffers</c>, binding 63). Tables only grow: a record, once written, is read by every
 /// later frame, so nothing is uploaded per frame but each frame's instance records and indirect commands.
@@ -401,11 +401,19 @@ internal sealed class GpuDrivenTables : IDisposable
 				var slot = page.Slot;
 				lock ( geometryRecords )
 				{
-					foreach ( var key in geometryRecords.Keys.Where( k => k.Page == slot ).ToList() ) geometryRecords.Remove( key );
+					// Removing while enumerating is allowed for a dictionary's own enumerator
+					foreach ( var (key, _) in geometryRecords )
+					{
+						if ( key.Page == slot ) geometryRecords.Remove( key );
+					}
 				}
 
-				// Nothing makes a draw over a freed page's slot meanwhile: its meshes have gone
-				foreach ( var key in drawRecords.Keys.Where( k => k.IndexPage == slot ).ToList() ) drawRecords.TryRemove( key, out _ );
+				// Nothing makes a draw over a freed page's slot meanwhile: its meshes have gone. The concurrent dictionary's
+				// enumerator sees removals safely
+				foreach ( var (key, _) in drawRecords )
+				{
+					if ( key.IndexPage == slot ) drawRecords.TryRemove( key, out _ );
+				}
 
 				if ( vertexPagesBySlot.Remove( slot ) is false && indexPagesBySlot.Remove( slot, out var index ) ) levelBytes -= index.LevelUsed - index.Limit;
 				owned.Remove( page.Buffer );

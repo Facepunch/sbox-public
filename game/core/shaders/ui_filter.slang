@@ -1,4 +1,4 @@
-// ui_filter: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// ui_filter: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: DevShader = true;
 // HEADER: Version = 1;
 

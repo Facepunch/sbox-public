@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 3457237,
   "Icon": {
-    "Path": "models/citizen_clothes/vest/chefs_apron/chefs_apron.clothing.png",
+    "Path": "models/citizen_clothes/vest/chefs_apron/chefs_apron.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "-57.5000114,0,-4.69999886"

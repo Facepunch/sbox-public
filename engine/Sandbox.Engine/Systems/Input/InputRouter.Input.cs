@@ -366,7 +366,7 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnMouseWheel( float x, float y )
+	internal static void OnMouseWheel( float x, float y, int ticksX, int ticksY )
 	{
 		var value = new Vector2( x, y );
 		var modifiers = GetCurrentModifiers();
@@ -375,26 +375,21 @@ internal static partial class InputRouter
 			return;
 
 		var mouse = MouseTarget();
+		if ( mouse is null ) return;
 
-		if ( mouse is not null )
+		var trapping = mouse.IsTrapping;
+
+		// Only whole notches press the wheel buttons, so high resolution wheels and trackpads
+		// (fractions of a notch per event) step wheel-bound actions once a notch, not once an event
+		if ( ticksY != 0 )
 		{
-			// The tick's release ends a capture, so ask now - a tick that went to the capture doesn't scroll anything
-			var trapping = mouse.IsTrapping;
-
-			if ( y < 0 )
-			{
-				mouse.IN_Button( true, ButtonCode.MouseWheelDown, ButtonCode.MouseWheelDown, false, default );
-				mouse.IN_Button( false, ButtonCode.MouseWheelDown, ButtonCode.MouseWheelDown, false, default );
-			}
-			else
-			{
-				mouse.IN_Button( true, ButtonCode.MouseWheelUp, ButtonCode.MouseWheelUp, false, default );
-				mouse.IN_Button( false, ButtonCode.MouseWheelUp, ButtonCode.MouseWheelUp, false, default );
-			}
-
-			if ( !trapping )
-				mouse.IN_MouseWheel( value, modifiers );
+			var button = ticksY > 0 ? ButtonCode.MouseWheelUp : ButtonCode.MouseWheelDown;
+			mouse.IN_Button( true, button, button, false, default );
+			mouse.IN_Button( false, button, button, false, default );
 		}
+
+		if ( !trapping )
+			mouse.IN_MouseWheel( value, modifiers );
 	}
 
 	internal static void OnImeComposition( string text )

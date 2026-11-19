@@ -580,7 +580,7 @@ internal static partial class DevTools
 			if ( vram > 0.8f )
 			{
 				issues.Add( new Issue( vram > 0.95f ? Severity.Bad : Severity.Warning, "Video memory",
-					$"{DevToolsFormat.BytesOf( GpuProfilerStats.VideoMemoryUsed, GpuProfilerStats.VideoMemoryBudget )} ({vram * 100:0}%)", "memory" ) );
+					$"{DevToolsFormat.BytesOf( GpuProfilerStats.VideoMemoryUsed, GpuProfilerStats.VideoMemoryBudget )} ({vram * 100:0}%)", "vram" ) );
 			}
 		}
 
@@ -602,12 +602,23 @@ internal static partial class DevTools
 			if ( ping > 150 )
 				issues.Add( new Issue( ping > 300 ? Severity.Bad : Severity.Warning, "Ping", $"{ping} ms to host", "network" ) );
 
-			if ( host.Stats.ConnectionQuality is > 0 and < 0.8f )
-				issues.Add( new Issue( Severity.Warning, "Connection quality", $"{host.Stats.ConnectionQuality * 100:0}%", "network" ) );
+			var quality = host.Stats.ConnectionQuality;
+			if ( QualitySeverity( quality ) is { } qualitySeverity )
+				issues.Add( new Issue( qualitySeverity, "Connection quality", $"{quality * 100:0}% of packets delivered", "network" ) );
 		}
 
 		issues.Sort( static ( a, b ) => b.Severity.CompareTo( a.Severity ) );
 	}
+
+	/// <summary>
+	/// Connection quality judged the same way as the Packet Loss warning icon.
+	/// </summary>
+	internal static Severity? QualitySeverity( float quality ) => DebugOverlay.Warnings.Quality( quality ) switch
+	{
+		WarningLevel.Critical => Severity.Bad,
+		WarningLevel.Warning => Severity.Warning,
+		_ => null
+	};
 
 	// Where a rendering number starts to be worth a look. Rules of thumb carried over from the old frame stats overlay.
 	const double DrawCallsWarn = 3000, DrawCallsBad = 5000;
@@ -650,10 +661,10 @@ internal static partial class DevTools
 		var pool = Ratio( f.TexturePoolUsedBytes, f.TexturePoolLimitBytes );
 		if ( pool >= TexturePoolWarn )
 			into.Add( new( pool >= TexturePoolBad ? Severity.Bad : Severity.Warning, "Texture pool",
-				$"{pool * 100:0}% used, {DevToolsFormat.BytesOf( f.TexturePoolUsedBytes, f.TexturePoolLimitBytes )}, streaming drops mips when it's full", "memory" ) );
+				$"{pool * 100:0}% used, {DevToolsFormat.BytesOf( f.TexturePoolUsedBytes, f.TexturePoolLimitBytes )}, streaming drops mips when it's full", "vram" ) );
 
 		if ( f.PendingStreamingRequests > StreamingWarn )
-			into.Add( new( Severity.Info, "Streaming backlog", $"{f.PendingStreamingRequests:N0} pending", "memory" ) );
+			into.Add( new( Severity.Info, "Streaming backlog", $"{f.PendingStreamingRequests:N0} pending", "vram" ) );
 
 		// Debug settings that change what renders, easy to forget about
 		if ( OcclusionDebug.Freeze )

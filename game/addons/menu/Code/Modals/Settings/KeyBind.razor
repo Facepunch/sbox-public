@@ -4,7 +4,9 @@
 
 @namespace MenuProject.Settings
 
-<root class="@(Rebinding ? "rebinding" : "") @(!string.IsNullOrEmpty(TargetKey) ? "with-highlight" : "")">
+@* A bind as keys on a keyboard - each key a keycap with its name, held-together ones joined by a +. Waiting for a press
+   when it's being changed, and a quiet dash when there's nothing on it. *@
+<root class="@(Rebinding ? "rebinding" : "") @(!string.IsNullOrEmpty(TargetKey) ? "with-highlight" : "")" tooltip="Click to change · Right-click to clear">
     @{
         var str = MenuUtility.Input.GetBind( BindGroup, Action.Name, Slot, out var isDefault );
 
@@ -16,12 +18,16 @@
         }
     }
 
-    @if ( !string.IsNullOrEmpty( str ) )
+    @if ( Rebinding )
+    {
+        <label class="listening">Press a key…</label>
+    }
+    else if ( !string.IsNullOrEmpty( str ) )
     {
         var keys = GetGlyphKeys( str ).ToList();
         @for ( int i = 0; i < keys.Count; i++ )
         {
-            <Image Texture="@Input.Keyboard.GetGlyph( keys[i], InputGlyphSize.Medium, false )" />
+            <div class="cap"><label>@KeyName( keys[i] )</label></div>
             @if ( i < keys.Count - 1 )
             {
                 <label class="plus">+</label>
@@ -30,7 +36,7 @@
     }
     else
     {
-        <label>#menu.settings.not_set</label>
+        <label class="unset">—</label>
     }
 </root>
 
@@ -60,9 +66,40 @@
         }
     }
 
+    /// <summary>
+    /// A key as it's printed on the keyboard, or as games name a mouse button - "W", "Shift", "Left Mouse"
+    /// </summary>
+    static string KeyName( string key )
+    {
+        var k = key.Trim().ToLowerInvariant();
+
+        return k switch
+        {
+            "mouse1" or "mouse_left" => "Left Mouse",
+            "mouse2" or "mouse_right" => "Right Mouse",
+            "mouse3" or "mouse_middle" => "Middle Mouse",
+            "mouse4" => "Mouse 4",
+            "mouse5" => "Mouse 5",
+            "mwheelup" => "Wheel Up",
+            "mwheeldown" => "Wheel Down",
+            "escape" => "Esc",
+            "ctrl" or "lctrl" or "rctrl" or "control" => "Ctrl",
+            "shift" or "lshift" or "rshift" => "Shift",
+            "alt" or "lalt" or "ralt" => "Alt",
+            "capslock" => "Caps Lock",
+            "backspace" => "Backspace",
+            "uparrow" or "up" => "↑",
+            "downarrow" or "down" => "↓",
+            "leftarrow" or "left" => "←",
+            "rightarrow" or "right" => "→",
+            _ when k.Length == 1 => k.ToUpperInvariant(),
+            _ => char.ToUpperInvariant( k[0] ) + k[1..]
+        };
+    }
+
     protected override int BuildHash()
     {
-        return HashCode.Combine( TargetKey );
+        return HashCode.Combine( TargetKey, Rebinding );
     }
 
     protected override void OnMouseUp( MousePanelEvent e )

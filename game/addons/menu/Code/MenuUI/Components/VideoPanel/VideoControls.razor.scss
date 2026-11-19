@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // Over the foot of the video - no box, a scrim fading up from the bottom edge, so the controls sit
 // on the video rather than in a panel on top of it
@@ -11,7 +11,7 @@
 	padding: 36px 14px 10px 14px;
 	pointer-events: all;
 	background-image: linear-gradient( to top, rgba( 0, 0, 0, 0.8 ) 0%, rgba( 0, 0, 0, 0.45 ) 55%, rgba( 0, 0, 0, 0 ) 100% );
-	font-family: $front-font;
+	font-family: $platform-font;
 
 	i
 	{
@@ -47,7 +47,7 @@
 		.track-active
 		{
 			border-radius: 999px;
-			background-color: $front-primary * 1.3;
+			background-color: $platform-primary;
 		}
 
 		.thumb
@@ -101,28 +101,17 @@
 
 	.control
 	{
-		flex-shrink: 0;
-		width: 34px;
-		height: 34px;
-		align-items: center;
-		justify-content: center;
-		border-radius: 50%;
-		cursor: pointer;
-		transition: background-color 0.1s ease;
+		@include platform-tool( 34px, 22px );
 
 		i
 		{
 			width: 22px;
 			height: 22px;
-			font-size: 22px;
 			text-align: center;
-			color: white;
-			text-shadow: 0 1px 3px rgba( 0, 0, 0, 0.5 );
 		}
 
 		&:hover
 		{
-			background-color: rgba( 255, 255, 255, 0.14 );
 			sound-in: "ui.button.over";
 		}
 
@@ -136,7 +125,6 @@
 		&.disabled
 		{
 			pointer-events: none;
-			opacity: 0.35;
 		}
 	}
 

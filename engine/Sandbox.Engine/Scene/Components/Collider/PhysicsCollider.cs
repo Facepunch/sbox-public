@@ -43,31 +43,7 @@ public class PhysicsCollider : Collider, IHasPhysicsDescription
 
 		Gizmo.Draw.Color = Gizmo.Colors.Green;
 
-		foreach ( var part in Physics.Parts )
-		{
-			using ( Gizmo.Scope( $"part {part.GetHashCode()}", part.Transform ) )
-			{
-				foreach ( var sphere in part.Spheres )
-				{
-					Gizmo.Draw.LineSphere( sphere.Sphere );
-				}
-
-				foreach ( var capsule in part.Capsules )
-				{
-					Gizmo.Draw.LineCapsule( capsule.Capsule );
-				}
-
-				foreach ( var hull in part.Hulls )
-				{
-					Gizmo.Draw.Lines( hull.GetLines() );
-				}
-
-				foreach ( var mesh in part.Meshes )
-				{
-					Gizmo.Draw.LineTriangles( mesh.GetTriangles() );
-				}
-			}
-		}
+		Gizmo.Draw.PhysicsOutline( Physics );
 	}
 
 	protected override IEnumerable<PhysicsShape> CreatePhysicsShapes( PhysicsBody targetBody, Transform local )

@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // The Changes tab - a timeline of update cards, newest first
 PackageChanges
@@ -24,14 +24,31 @@ PackageChanges
         align-items: center;
         justify-content: center;
         padding: 4rem;
-        color: $front-secondary;
+        color: $platform-muted;
         font-size: $text-regular;
+    }
+
+    // What it's found fades in, rather than snapping in over the skeleton
+    .timeline, .state
+    {
+        transition: opacity 0.25s ease-out;
+
+        &:intro
+        {
+            opacity: 0;
+        }
     }
 
     .timeline
     {
         flex-direction: column;
         flex-shrink: 0;
+    }
+
+    // The skeleton only once it's been a moment - a quick load goes straight to the cards, rather than flashing it
+    .timeline.loading
+    {
+        transition: opacity 0.3s ease-out 0.35s;
     }
 
     // One update - a dot on the line down the left, its card beside it
@@ -49,26 +66,26 @@ PackageChanges
         align-items: center;
         width: 12px;
 
-        // Level with the card's title
+        // Level with the middle of the card's glyph - its head's 14 padding and half its 38, less half the dot
         .dot
         {
             flex-shrink: 0;
             width: 10px;
             height: 10px;
-            margin-top: 20px;
+            margin-top: 28px;
             border-radius: 50%;
             background-color: $front-tertiary;
             border: 2px solid $front-card-deep;
         }
 
         // Runs from this dot on down to the next one - on past its own row into the next, as that one's
-        // dot sits 20 down from its top, so it stops the same 4 short of it as it starts under this one
+        // dot sits 28 down from its top, so it stops the same 4 short of it as it starts under this one
         .line
         {
             flex-grow: 1;
             width: 2px;
             margin-top: 4px;
-            margin-bottom: -16px;
+            margin-bottom: -24px;
             background-color: $front-hairline;
         }
     }
@@ -92,6 +109,7 @@ PackageChanges
         display: none;
     }
 
+    // Solid, as a game card is (GameCard's fill) - its head over a hairline, then what's in it
     .card
     {
         flex-direction: column;
@@ -100,34 +118,55 @@ PackageChanges
         flex-basis: 0;
         min-width: 0;
         margin-bottom: 16px;
-        padding: 16px 20px 18px 20px;
-        gap: 16px;
-        border-radius: $front-radius;
-        background-color: $front-card-deep;
-        border: $front-border-width solid $front-hairline;
+        border-radius: $platform-radius;
+        background-color: rgba( 22, 28, 40, 0.95 );
+        font-family: $platform-font;
+        color: $platform-text;
+
+        > .sections
+        {
+            padding: 16px 20px 20px 20px;
+        }
     }
 
     //
-    // The update's name, version and when
+    // The update's glyph, name and when
     //
 
-    // One line - the name on the left, when on the right end of it, rather than a line of its own
     .card-head
     {
         flex-direction: row;
         flex-shrink: 0;
         align-items: center;
         gap: 12px;
+        padding: 14px 20px;
+        border-bottom: 1px solid $platform-hairline;
     }
 
-    .title-row
+    .tile
     {
-        flex-direction: row;
+        @include platform-tile( 20px, 38px );
+    }
+
+    .update.latest .tile
+    {
+        background-color: rgba( $platform-primary, 0.18 );
+
+        i
+        {
+            color: $platform-primary-hover;
+        }
+    }
+
+    // Its name over when - taking the rest of the line, so the pill after it sits over on the right
+    .head-words
+    {
+        flex-direction: column;
         flex-grow: 1;
         flex-shrink: 1;
         min-width: 0;
-        align-items: center;
-        gap: 10px;
+        align-items: flex-start;
+        gap: 4px;
     }
 
     // One line, cut off with an ellipsis rather than wrapping - the whole of it on hover. It takes the
@@ -135,31 +174,26 @@ PackageChanges
     // nothing and draws just its ellipsis), so the tags after it sit over on the right
     .update-name
     {
-        flex-grow: 1;
-        flex-shrink: 1;
-        flex-basis: 0;
-        min-width: 0;
+        width: 100%;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        font-family: $front-font;
-        font-size: 17px;
-        font-weight: 700;
-        color: $front-heading;
+        font-size: 16px;
+        font-weight: 600;
+        color: $platform-text;
     }
 
+    // As a game card's pill - the menu blue
     .latest-pill
     {
         flex-shrink: 0;
-        padding: 2px 8px;
-        border-radius: 999px;
-        background-color: rgba( $front-primary, 0.2 );
-        font-family: $front-font;
+        padding: 3px 8px;
+        border-radius: 2px;
+        background-color: $platform-primary;
         font-size: 10px;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.07em;
-        color: $front-link;
+        color: $platform-primary-text;
     }
 
     .meta-row
@@ -168,18 +202,6 @@ PackageChanges
         flex-shrink: 0;
         align-items: center;
         gap: 8px;
-    }
-
-    .version
-    {
-        flex-shrink: 0;
-        padding: 1px 7px;
-        border-radius: 4px;
-        background-color: rgba( 255, 255, 255, 0.07 );
-        font-family: Inter;
-        font-size: 11px;
-        font-weight: 600;
-        color: $front-body;
     }
 
     .when
@@ -194,7 +216,9 @@ PackageChanges
     // "3 months ago" in a pill, a clock in front - like the loading screen's latest update
     .ago
     {
-        @include front-meta-pill;
+        @include platform-chip;
+        height: 20px;
+        padding: 0 6px;
     }
 
     //
@@ -207,18 +231,26 @@ PackageChanges
         box-shadow: none;
     }
 
+    // On a card as solid as a real one - just the bars breathe
     .bone
     {
         flex-shrink: 0;
         height: 12px;
-        border-radius: 999px;
-        background-color: rgba( 255, 255, 255, 0.07 );
+        border-radius: 3px;
+        background-color: rgb( 42, 50, 68 );
         animation: changes-bone 1.2s ease-in-out infinite alternate;
+    }
+
+    .tile-bone
+    {
+        width: 38px;
+        height: 38px;
+        border-radius: $platform-radius;
     }
 
     .title-bone
     {
-        width: 42%;
+        width: 180px;
         height: 16px;
     }
 
@@ -226,7 +258,6 @@ PackageChanges
     {
         width: 90px;
         height: 20px;
-        margin-left: auto;
     }
 
     .bone-section
@@ -257,18 +288,64 @@ PackageChanges
         gap: 16px;
     }
 
-    // A workshop item's change note - just what was said, like a change's text
+    // A workshop item's change note, laid out from its lines (NoteLines) - headings as a kind of change's, bullets as
+    // its entries, the rest as paragraphs
+    .note
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+        gap: 8px;
+    }
+
+    .note-heading
+    {
+        @include platform-section-label;
+        margin-top: 8px;
+
+        &:first-child
+        {
+            margin-top: 0;
+        }
+    }
+
+    .note-entry
+    {
+        flex-direction: row;
+        flex-shrink: 0;
+        align-items: flex-start;
+        gap: 10px;
+        padding-left: 2px;
+
+        // A dot on the first line of the text, in the menu blue
+        .bullet
+        {
+            flex-shrink: 0;
+            width: 5px;
+            height: 5px;
+            margin-top: 8px;
+            border-radius: 50%;
+            background-color: rgba( $platform-primary-hover, 0.8 );
+        }
+
+        .text
+        {
+            flex-grow: 1;
+            flex-shrink: 1;
+            flex-basis: 0;
+            min-width: 0;
+            font-size: 13.5px;
+            color: $platform-text;
+        }
+    }
+
     .note-text
     {
-        font-family: $front-font;
         font-size: 13.5px;
-        font-weight: 500;
-        color: $front-heading;
-        white-space: pre-wrap;
+        color: $platform-muted;
 
         &.empty
         {
-            color: $front-secondary;
+            color: $platform-faint;
             font-style: italic;
         }
     }
@@ -279,6 +356,12 @@ PackageChanges
         flex-shrink: 0;
         justify-content: center;
         padding: 8px 0 0 0;
+
+        Button
+        {
+            @include platform-text-button( 30px, 12.5px, 15px );
+            padding: 0 12px;
+        }
     }
 }
 

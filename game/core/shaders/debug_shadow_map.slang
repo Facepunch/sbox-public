@@ -1,4 +1,4 @@
-// debug_shadow_map: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// debug_shadow_map: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Shadow map debug view: one shadow map's depth as a thumbnail, framed by its cache state";

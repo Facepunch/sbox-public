@@ -109,6 +109,10 @@ public static class LoadingView
 		{
 			if ( IsMocking ) return MockDownloads;
 
+			// Polled every frame by the overlay, nothing to build while nothing is loading
+			if ( LoadingScreen.Downloads.Count == 0 && LoadingScreen.Progress is not { Fraction: > 0 and < 1 } )
+				return [];
+
 			var downloads = LoadingScreen.Downloads
 				.Where( x => x.TotalSize > 0 )
 				.Select( x => new Download( x.Ident, x.Title, x.TotalSize, x.Fraction, x.Mbps, x.IsComplete ) )

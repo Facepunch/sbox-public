@@ -8,6 +8,7 @@ namespace Sandbox;
 /// <summary>
 /// Represents an asset on <a href="https://asset.party/">Asset Party</a>.
 /// </summary>
+[Expose]
 public partial class Package
 {
 	/// <summary>

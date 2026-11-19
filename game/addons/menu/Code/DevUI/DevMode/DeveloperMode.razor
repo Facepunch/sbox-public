@@ -1,48 +1,127 @@
 @namespace Sandbox.UI.Dev
 @inherits Panel
 
-<root id="DeveloperMode"> 
+@*
+    The console - a window, as Garry's Mod's is: moved by its titlebar, made bigger or smaller by its bottom right
+    corner, and kept where it was left and the size it was for next time. What's on screen round it carries on, and can
+    still be clicked.
+*@
+<root id="DeveloperMode">
 
-    <div class="left">
-        <CommandButton Title="Dev Tools (F11)" Command="devtools"></CommandButton>
-        <ConvarToggle Title="Physics Debug" ConVar="physics_debug_draw"></ConvarToggle>
-        <ConvarToggle Title="Console Output" ConVar="consoleoverlay" On="True" Off="False"></ConvarToggle>
-        <RenderModeSelect></RenderModeSelect>
-    </div>
-
-    <div class="center">
-        <Console @ref="Console"></Console>
-    </div>
+    <FloatingWindow @ref="Window" class="console-window" Title="Console" Icon="terminal" ShowCloseButton=@true KeepOnScreen=@true OnCloseRequested=@Close></FloatingWindow>
 
 </root>
 
 
 @code
 {
-    public Console Console { get; set; }
+    FloatingWindow Window;
+
+    /// <summary>
+    /// The console, in the window's contents - made in code (see TickWindow), as tags in a window's contents are read as
+    /// the window's parameters
+    /// </summary>
+    public Console Console { get; private set; }
+
+    ConsoleGrip Grip;
 
     public static bool Open { get; protected set; }
 
     bool wasOpen;
 
+    const float MinWidth = 560;
+    const float MinHeight = 300;
+
+    /// <summary>
+    /// Its size - dragged by its corner, kept for next time. Read from its cookies the first time it's ticked.
+    /// </summary>
+    Vector2 size;
+
+    bool placed;
+    bool wasDragging;
+
+    void Close() => Open = false;
+
+    /// <summary>
+    /// Its corner dragged to <paramref name="screen"/> - as big as that makes it, no smaller than it can be used
+    /// </summary>
+    void Resize( Vector2 screen )
+    {
+        if ( !Window.IsValid() ) return;
+
+        var rect = Window.Box.Rect;
+        var scale = Window.ScaleFromScreen;
+        size = new Vector2( MathF.Max( MinWidth, (screen.x - rect.Left) * scale ), MathF.Max( MinHeight, (screen.y - rect.Top) * scale ) );
+    }
+
     public override void Tick()
     {
         base.Tick();
+
+        if ( Window.IsValid() )
+            TickWindow();
 
         if ( Open != wasOpen )
         {
             wasOpen = Open;
 
             if ( Open )
+            {
+                Window?.BringToFront();
                 Console?.Input?.Focus();
+            }
             else
+            {
                 Console?.Input?.Blur();
+            }
 
             FindRootPanel()?.SetClass( "developermode", Open );
-            MenuUtility.SkipAllTransitions();
         }
 
-        SetClass("open", Open);
+        SetClass( "open", Open );
+    }
+
+    void TickWindow()
+    {
+        // The console and its corner, in the window once it's made its contents
+        if ( !Console.IsValid() && Window.Descendants.FirstOrDefault( x => x.HasClass( "floating-window-content" ) ) is { } content )
+        {
+            Console = content.AddChild<Console>();
+
+            Grip = content.AddChild<ConsoleGrip>();
+            Grip.AddClass( "resize" );
+            Grip.OnDragTo = Resize;
+            Grip.OnDragDone = () =>
+            {
+                Game.Cookies.Set( "console.width", size.x );
+                Game.Cookies.Set( "console.height", size.y );
+            };
+        }
+
+        if ( size == default )
+            size = new Vector2( MathF.Max( MinWidth, Game.Cookies.Get( "console.width", 1100f ) ), MathF.Max( MinHeight, Game.Cookies.Get( "console.height", 560f ) ) );
+
+        Window.Style.Width = Length.Pixels( size.x );
+        Window.Style.Height = Length.Pixels( size.y );
+
+        // Where it was left last time - once it's been laid out, so it's kept on screen at its size
+        if ( !placed && Window.Box.Rect.Width > 0 )
+        {
+            placed = true;
+
+            var x = Game.Cookies.Get( "console.x", -1f );
+            var y = Game.Cookies.Get( "console.y", -1f );
+            if ( x >= 0 && y >= 0 ) Window.MoveTo( new Vector2( x, y ) );
+        }
+
+        // Moved by its titlebar - where it's been left, for next time
+        if ( wasDragging && !Window.IsDragging )
+        {
+            Game.Cookies.Set( "console.x", Window.Box.Rect.Left );
+            Game.Cookies.Set( "console.y", Window.Box.Rect.Top );
+        }
+
+        wasDragging = Window.IsDragging;
     }
 
     public override Panel FindPopupPanel() => this;

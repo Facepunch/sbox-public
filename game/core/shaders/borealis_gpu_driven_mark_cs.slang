@@ -1,4 +1,4 @@
-// borealis_gpu_driven_mark_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// borealis_gpu_driven_mark_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis GPU-driven visibility: marks the first vertex of every triangle that owns a sample of the prepass's ids.";

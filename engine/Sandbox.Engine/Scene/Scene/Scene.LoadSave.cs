@@ -42,6 +42,10 @@ public partial class Scene : GameObject
 			return false;
 		}
 
+		// Changing scene is how a game leaves its menu, and goes back to it
+		var startingGame = !options.IsAdditive && !options.IsSystemScene && !IsEditor && this == Game.ActiveScene
+			&& (IGameInstance.Current?.OnSceneChange( sceneFile ) ?? false);
+
 		if ( sceneFile.ResourceName != null )
 		{
 			Name = sceneFile.ResourceName;
@@ -116,6 +120,12 @@ public partial class Scene : GameObject
 			Source = sceneFile;
 		}
 
+		// The game's starting - off its menu scene by now, the same as a game launched without one
+		if ( startingGame )
+		{
+			RunEvent<ISceneStartup>( x => x.OnHostPreInitialize( sceneFile ) );
+		}
+
 		{
 			using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = IsEditor } );
 			using var sceneScope = Push();
@@ -123,6 +133,9 @@ public partial class Scene : GameObject
 			// Depending on if we load a scene from file or from memory, we need to account for that here
 			using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, sceneFile.ResourcePath );
 			using var batchGroup = CallbackBatch.Batch();
+
+			if ( IsEditor )
+				DeserializeInstances( sceneFile.SceneProperties?[InstancesKey], options.IsAdditive );
 
 			if ( sceneFile.GameObjects is not null )
 			{
@@ -135,7 +148,7 @@ public partial class Scene : GameObject
 
 			if ( sceneFile.SceneProperties is not null )
 			{
-				DeserializeProperties( sceneFile.SceneProperties, options.IsSystemScene );
+				DeserializeProperties( sceneFile.SceneProperties, options.IsSystemScene, loadInstances: false );
 			}
 
 			//
@@ -174,6 +187,15 @@ public partial class Scene : GameObject
 			// for every scene load.
 			Signal( GameObjectSystem.Stage.SceneLoaded );
 		}
+
+		if ( startingGame )
+		{
+			RunEvent<ISceneStartup>( x => x.OnHostInitialize() );
+			RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
+		}
+
+		// Drop unused definitions, including broken links recovered as ordinary objects.
+		InstanceState = IsEditor ? ExportInstanceState( InstanceState.Instances.Keys ) : SceneInstanceState.Empty;
 
 		return true;
 	}
@@ -271,6 +293,8 @@ public partial class Scene : GameObject
 	public JsonObject SerializeProperties()
 	{
 		var jso = new JsonObject();
+		if ( this is not PrefabScene && SerializeInstances() is { } instances )
+			jso.Add( InstancesKey, instances );
 
 		foreach ( var prop in GlobalContext.Current.TypeLibrary.GetType<Scene>()
 			.Properties
@@ -358,8 +382,11 @@ public partial class Scene : GameObject
 		return metadata;
 	}
 
-	void DeserializeProperties( JsonObject data, bool isSystemScene = false )
+	void DeserializeProperties( JsonObject data, bool isSystemScene = false, bool loadInstances = true )
 	{
+		if ( IsEditor && !isSystemScene && loadInstances )
+			DeserializeInstances( data[InstancesKey] );
+
 		var sceneType = GlobalContext.Current.TypeLibrary.GetType<Scene>();
 		Assert.NotNull( sceneType, "Scene type is inaccessible!" );
 
@@ -425,6 +452,7 @@ public partial class Scene : GameObject
 		using var blobs = BlobDataSerializer.Capture();
 
 		target.Id = Id;
+		// SceneFile consumers, including MapInstance, can deserialize these objects directly.
 		target.GameObjects = Children.Select( x => x.Serialize() ).Where( x => x is not null ).ToArray();
 		target.SceneProperties = SerializeProperties();
 		target.BinaryData = blobs.ToByteArray();

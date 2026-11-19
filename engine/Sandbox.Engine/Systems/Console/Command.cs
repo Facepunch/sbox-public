@@ -346,6 +346,8 @@ partial class ManagedCommand : Command
 
 	public override bool IsFromAssembly( Assembly assembly ) => assembly == this.assembly;
 
+	internal bool IsGameSetting => !_isMenu && attribute.Flags.Contains( ConVarFlags.GameSetting );
+
 	/// <summary>
 	/// Todo: Add support for managed commands to return shit here
 	/// Todo: We could maybe do this in a cool way, using parameters?

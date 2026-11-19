@@ -9,7 +9,7 @@ namespace Borealis.Backend;
 /// Drawing new-tier materials (<see cref="SurfaceMaterial"/>): the pass's pipeline, sets 0 and 1 bound by name from this
 /// context's attributes as classic draws bind them, the material's record at an offset pushed per draw. Forward and
 /// alpha-tested forward in colour passes; depth (vertex shader only) or alpha-tested depth where there's no colour.
-/// See docs/managed/shader-format-replacement.md.
+/// See docs/reference/borealis-slang-materials.md.
 /// </summary>
 internal sealed partial class BackendContext
 {
@@ -292,8 +292,14 @@ internal sealed partial class BackendContext
 			key = key * 1000003 + (uint)values[i] + 1;
 		}
 
-		// The same values as the last bind (nearly always): the same array, so a bind doesn't allocate
+		// The same values as the last bind (nearly always): the same array, so a bind doesn't allocate; values this stage
+		// had before (draws that alternate fading) the array made for them then
 		if ( info.LastConstants is not null && info.LastConstantsKey == key ) return info.LastConstants;
+		if ( info.Made.TryGetValue( key, out var made ) )
+		{
+			(info.LastConstants, info.LastConstantsKey) = (made, key);
+			return made;
+		}
 
 		var constants = new SpecializationConstant[values.Length + 3];
 		constants[^3] = new SpecializationConstant( SkyboxId, skybox ? 1u : 0u );
@@ -301,6 +307,7 @@ internal sealed partial class BackendContext
 		constants[^1] = new SpecializationConstant( OpaqueFadeId, fade ? 1u : 0u );
 		for ( int i = 0; i < values.Length; i++ ) constants[i] = new SpecializationConstant( (uint)stage.Specializations[i].Id, (uint)values[i] );
 		(info.LastConstants, info.LastConstantsKey) = (constants, key);
+		if ( info.Made.Count < 16 ) info.Made[key] = constants;
 
 		// What programs compiled later make their parts ahead with
 		for ( int i = 0; i < values.Length; i++ ) device.Surfaces.SpecializationLookedUp( stage.Specializations[i].Attribute, values[i] );
@@ -318,6 +325,9 @@ internal sealed partial class BackendContext
 		public readonly StringToken[] SpecializationTokens;
 		public SpecializationConstant[] LastConstants;
 		public ulong LastConstantsKey;
+
+		/// <summary>The constants made for each set of values, a few of them.</summary>
+		public readonly Dictionary<ulong, SpecializationConstant[]> Made = new();
 
 		/// <summary>The pass state (the context's pass epoch) and list <see cref="Bound"/> was resolved in.</summary>
 		public long Epoch = -1;

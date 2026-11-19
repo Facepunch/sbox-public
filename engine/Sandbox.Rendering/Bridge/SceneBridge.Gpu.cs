@@ -21,6 +21,17 @@ internal sealed partial class SceneBridge
 
 	// What a camera's stages on Borealis.Gpu ask of their frame; stages run one camera at a time, so one does
 	BorealisGpuView gpuView;
+
+	// A target per output texture (a window's swap chain images, a scene panel's texture), made once, going with the texture
+	readonly System.Runtime.CompilerServices.ConditionalWeakTable<Texture, RenderTarget> outputTargets = new();
+
+	RenderTarget OutputTarget( Texture texture )
+	{
+		if ( outputTargets.TryGetValue( texture, out var known ) ) return known;
+		var made = RenderTarget.From( texture );
+		outputTargets.AddOrUpdate( texture, made );
+		return made;
+	}
 	Material copyMaterial;
 	RenderAttributes copyAttributes;
 
@@ -40,6 +51,8 @@ internal sealed partial class SceneBridge
 		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		var renderSize = size ?? window.Size;
 		if ( renderSize.x < 1 || renderSize.y < 1 ) return;
+		warmSize = window.Size;
+		warmSamples = window.Samples;
 
 		camera.OnPreRender( renderSize );
 		window.CameraPosition = camera.Position;
@@ -58,15 +71,55 @@ internal sealed partial class SceneBridge
 		// The main view outside the tools upscales as the player's settings ask, as native's does
 		var frame = camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup, upscale: !Application.IsEditor && !camera.ToolsView );
 
+		// A frame on screen has drawn its world: a game's scene isn't loaded ahead any more (BeginFrame)
+		if ( frame is not null && !GameLoading( Sandbox.Engine.GlobalContext.Game?.ActiveScene ) ) RenderFor( camera.World ).Shown = true;
+
 		// Made outside any block: materials can't be made while drawing
 		copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
 
 		var ui = setup.EnableUI ?? camera.RenderUI;
-		gpuView.Target = RenderTarget.From( window.Target );
+		gpuView.Target = OutputTarget( window.Target );
 		gpuView.Viewport = viewport;
 		using var _ = OutputTiming.Scope();
-		window.Draw( gpuView, () => DrawOutput( camera, frame, ui, encode: true, false, false ) );
+		var outer = windowOutput;
+		windowOutput = (camera, frame, ui);
+		try
+		{
+			window.Draw( gpuView, drawWindowOutput ??= DrawWindowOutput );
+		}
+		finally
+		{
+			windowOutput = outer;
+		}
+
 		frame?.Release();
+	}
+
+	// What the window's output block draws, which the one delegate handed to it reads, so a frame allocates no closure
+	(SceneCamera Camera, BorealisGpuFrame Frame, bool Ui) windowOutput;
+	Action drawWindowOutput;
+
+	void DrawWindowOutput() => DrawOutput( windowOutput.Camera, windowOutput.Frame, windowOutput.Ui, encode: true, false, false );
+
+	/// <summary>
+	/// The scene of a camera as <see cref="RenderInto"/> renders it for the window, without drawing it anywhere: what its first
+	/// frame makes (resident lists, child views, pipelines, targets, texture sizes asked for) is made now.
+	/// </summary>
+	void RenderUnseen( BorealisGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup )
+	{
+		if ( size.x < 1 || size.y < 1 || camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ) return;
+
+		camera.OnPreRender( size );
+		var rect = camera.Rect;
+		var viewport = new Rect( rect.Left * size.x, rect.Top * size.y, rect.Width * size.x, rect.Height * size.y );
+		gpuView ??= new BorealisGpuView( backend );
+		gpuView.Viewport = viewport;
+		gpuView.SrgbWrite = false;
+		gpuView.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
+		gpuView.ToolsVisMode = ToolsVisModeOf( camera );
+		gpuView.SetCamera( camera, viewport.Size );
+		gpuView.RenderSceneObject = null;
+		RenderScene( backend, camera, size, samples, setup, upscale: !Application.IsEditor && !camera.ToolsView )?.Release();
 	}
 
 	/// <summary>
@@ -95,7 +148,7 @@ internal sealed partial class SceneBridge
 		var ui = setup.EnableUI ?? camera.RenderUI;
 		var flipX = setup.FlipX == true;
 		var flipY = setup.FlipY == true;
-		gpuView.Target = RenderTarget.From( target );
+		gpuView.Target = OutputTarget( target );
 		gpuView.Viewport = viewport;
 		gpuView.SrgbWrite = !Source2Formats.From( target.ImageFormat ).IsFloat();
 		using var _ = OutputTiming.Scope();
@@ -215,10 +268,10 @@ internal sealed partial class SceneBridge
 			BorealisGpuUpscaler.Prepare();
 		}
 
-		SceneMirror mirror;
+		WorldRender render;
 		CameraState state;
 		using ( PrepareTiming.Scope() )
-			(mirror, state) = Prepare( camera, setup, size );
+			(render, state) = Prepare( camera, setup, size );
 
 		// A temporal upscaler's sub-pixel offset this frame, which the view's projection takes; none otherwise
 		state.View.Jitter = upscaling ? upscaler.ClipJitter : Vector2.Zero;
@@ -232,7 +285,7 @@ internal sealed partial class SceneBridge
 		state.View.ToneMapScalar = exposure?.Scale ?? 1.0f;
 
 		// Its planar reflection first, with its exposure: it depends on nothing in the frame
-		RenderPlanarReflectionOnGpu( camera, mirror, state, setup );
+		RenderPlanarReflectionOnGpu( camera, render, state, setup );
 
 		var targetSize = new Vector2Int( (int)size.x, (int)size.y );
 		samples = Math.Max( samples, 1 );
@@ -257,7 +310,7 @@ internal sealed partial class SceneBridge
 
 		using ( SceneTiming.Scope() )
 		using ( new Drawing( this, state ) )
-			state.System.Render( mirror.World, state.View, state.GpuTarget, stages );
+			state.System.Render( render.World, state.View, state.GpuTarget, stages );
 
 		frame.Adopt( state.GpuTarget, state.System.Frame.Constants );
 
@@ -319,7 +372,7 @@ internal sealed partial class SceneBridge
 		state = null;
 		if ( target.Width < 1 || target.Height < 1 ) return false;
 
-		(var mirror, state) = Prepare( camera, setup, target.Size );
+		(var render, state) = Prepare( camera, setup, target.Size );
 		state.View.ToneMapScalar = toneMapScalar;
 
 		var size = new Vector2Int( target.Width, target.Height );
@@ -336,7 +389,7 @@ internal sealed partial class SceneBridge
 				state.GpuOutput = output = RenderHost.Current.Device.CreateTexture( TextureDesc.Target( size.x, size.y, format ), "Borealis.Gpu child view" );
 			}
 
-			state.System.Render( mirror.World, state.View, output, 1, null );
+			state.System.Render( render.World, state.View, output, 1, null );
 			MirrorContent.Gpu.MakeReadable( output );
 			MirrorContent.SetCapture( target, output );
 			return true;
@@ -350,7 +403,7 @@ internal sealed partial class SceneBridge
 			state.GpuTarget = drawn = ViewTarget.Create( size, samples, format, state.System.DepthFormat, "Borealis.Gpu child view" );
 		}
 
-		state.System.Render( mirror.World, state.View, drawn, null );
+		state.System.Render( render.World, state.View, drawn, null );
 
 		// What reads them samples them
 		var gpu = MirrorContent.Gpu;
@@ -370,7 +423,7 @@ internal sealed partial class SceneBridge
 	/// of its own that the view's attributes name for the planes' materials, with the view's exposure. Reflections and
 	/// orthographic views have none.
 	/// </summary>
-	void RenderPlanarReflectionOnGpu( SceneCamera camera, SceneMirror mirror, CameraState state, in ViewSetup setup )
+	void RenderPlanarReflectionOnGpu( SceneCamera camera, WorldRender render, CameraState state, in ViewSetup setup )
 	{
 		var view = state.View;
 		view.ViewAttributes = null;
@@ -390,7 +443,7 @@ internal sealed partial class SceneBridge
 		var rendered = RenderOnGpu( camera, reflection, target.ColorTarget, target.DepthTarget, view.ToneMapScalar, out var reflected );
 
 		// The reflection's prepare set the world's 3D skybox up for its view
-		SyncSkybox( mirror, camera, setup );
+		PrepareSkybox( render, camera, setup );
 		if ( !rendered ) return;
 
 		var attributes = state.GpuViewAttributes ??= RenderAttributes.CreateManaged();

@@ -1,0 +1,13 @@
+
+Layer0
+{
+	shader "shaders/complex.shader_c"
+
+	TextureColor "models/sbox/industrial/corrugated_metal_panel_01/materials/corrugated_metal_panels_01_color.png"
+	TextureAmbientOcclusion "models/sbox/industrial/corrugated_metal_panel_01/materials/corrugated_metal_panels_01_ao.png"
+	TextureNormal "models/sbox/industrial/corrugated_metal_panel_01/materials/corrugated_metal_panels_01_normal.png"
+	TextureRoughness "models/sbox/industrial/corrugated_metal_panel_01/materials/corrugated_metal_panels_01_rough.png"
+	F_METALNESS_TEXTURE 1
+	TextureMetalness "models/sbox/industrial/corrugated_metal_panel_01/materials/corrugated_metal_panels_01_color.png"
+
+}

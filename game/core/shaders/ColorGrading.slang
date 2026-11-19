@@ -1,4 +1,4 @@
-// ColorGrading: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// ColorGrading: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //
 //  Purpose: Colour grading methods` for post process  'ColorGrading.cs'
 //  Version: 1.0

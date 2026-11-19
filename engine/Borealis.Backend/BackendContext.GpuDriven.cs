@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 namespace Borealis.Backend;
 
 /// <summary>
-/// GPU-driven drawing (<see cref="BackendDevice.GpuDriven"/>, docs/managed/borealis-gpu-driven.md): a layer's aggregate
+/// GPU-driven drawing (<see cref="BackendDevice.GpuDriven"/>, docs/reference/borealis-gpu-driven.md): a layer's aggregate
 /// batches are sorted into buckets by what a multi-draw can't vary - the shader's GPU-driven variant, pipeline state
 /// and object attributes - and each bucket is one pipeline and set bind and one indirect multi-draw per index page. What
 /// the classic path binds per draw (vertex and index buffers, material constants and textures, the instance's transform)
@@ -197,10 +197,10 @@ internal sealed partial class BackendContext
 	internal override bool GpuDriven => device.DrawsAggregatesGpuDriven;
 
 	/// <summary>Count a batch left to the classic path, for the report (<see cref="BackendDevice.GpuDrivenLeftClassic"/>).</summary>
-	void LeftClassic( ShaderFile shader, object mode, string why ) => LeftClassic( shader.Name, mode, why );
+	void LeftClassic<TMode>( ShaderFile shader, TMode mode, string why ) => LeftClassic( shader.Name, mode, why );
 
-	/// <summary>Count a batch of a shader or surface by name left to the classic path, for the report.</summary>
-	void LeftClassic( string shader, object mode, string why )
+	/// <summary>Count a batch of a shader or surface by name left to the classic path, for the report. Generic, so a mode's token isn't boxed when nothing counts.</summary>
+	void LeftClassic<TMode>( string shader, TMode mode, string why )
 	{
 		if ( Census ) device.Census?.Left( $"{DrawCensus.ShaderName( shader )} {mode} ({why})" );
 		if ( !device.TimeDraws ) return;
@@ -1192,7 +1192,7 @@ internal sealed partial class BackendContext
 	ShaderAttributes hizAttributes;
 
 	/// <summary>
-	/// Two-phase Hi-Z occlusion's middle (docs/managed/borealis-gpu-driven.md, "Hi-Z occlusion"), between a prepass's first
+	/// Two-phase Hi-Z occlusion's middle (docs/reference/borealis-gpu-driven.md, "Hi-Z occlusion"), between a prepass's first
 	/// and second ids: <c>borealis_hiz_cs</c> builds the view's Hi-Z from the depth the first phase drew, then culls the
 	/// candidates the first phase's culls deferred against it, a thread each, into the second phase's multi-draws and listed
 	/// fragments, and the meshlet pass culls the listed ones. Where the depth target isn't the view's own (another size, an
@@ -1437,7 +1437,7 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
-	/// Whether a GPU-culled call culls meshlets (docs/managed/borealis-gpu-driven.md, "Meshlets"): a prepass that draws ids,
+	/// Whether a GPU-culled call culls meshlets (docs/reference/borealis-gpu-driven.md, "Meshlets"): a prepass that draws ids,
 	/// or with <see cref="BackendDevice.ShadowMeshlets"/> a shadow view's depth call, with no resident filter, while
 	/// <see cref="BackendDevice.Meshlets"/> is on and its pass module draws. Its culling then lists the fragments whose
 	/// draws have meshlets, and <c>borealis_meshlet_cull_cs</c> draws their kept meshlets.
@@ -1893,6 +1893,9 @@ internal sealed partial class BackendContext
 	sealed record IdsLayout( VertexLayout Layout, ShaderVariant StateFrom );
 	static readonly ConditionalWeakTable<ShaderVariant, IdsLayout> IdsLayouts = new();
 
+	// Found without making the delegate that would make one
+	IdsLayout IdsLayoutOf( ShaderVariant stateFrom ) => IdsLayouts.TryGetValue( stateFrom, out var known ) ? known : IdsLayouts.GetValue( stateFrom, v => new IdsLayout( device.PulledLayout, v ) );
+
 	/// <summary>
 	/// The prepass's buckets with ids, in a rendering scope of their own: each with its own variant, whose pixel shader
 	/// writes the id (the bit of its triangle's first vertex + 1) at target 1 to exactly the samples it covers, its discards
@@ -1946,7 +1949,7 @@ internal sealed partial class BackendContext
 					var meshIds = device.MeshletIds;
 					var meshVariant = meshIdsVariant ??= Variant( meshIds, "Default" );
 					var stateFrom = bucket.Variant ?? idsShaderVariant;
-					var key = new MaterialObjectCache.Key( meshIds, meshVariant, IdsLayouts.GetValue( stateFrom, v => new IdsLayout( device.PulledLayout, v ) ), BackendDevice.IdsColorKey, depth, samples, false, true );
+					var key = new MaterialObjectCache.Key( meshIds, meshVariant, IdsLayoutOf( stateFrom ), BackendDevice.IdsColorKey, depth, samples, false, true );
 					var meshObject = cache.Get( key, immediate: false, (device, key, stateFrom), static ( s, l ) => s.device.Pipeline( s.key.Variant, s.device.PulledLayout, BackendDevice.IdsColorKey, s.key.Depth, s.key.Samples, false, l.Sets, ids: true, stateFrom: s.stateFrom ) );
 					resolver.LayerEpoch = layerEpoch;
 					meshObject.Bind( r.List, ref r.Pipeline, passEpoch, resolver );
@@ -1994,7 +1997,7 @@ internal sealed partial class BackendContext
 				{
 					// borealis_gpu_driven_ids with the bucket's culling, depth and stencil: keyed by a layout object per bucket variant
 					var stateFrom = bucket.Variant ?? idsShaderVariant;
-					var idsLayout = IdsLayouts.GetValue( stateFrom, v => new IdsLayout( device.PulledLayout, v ) );
+					var idsLayout = IdsLayoutOf( stateFrom );
 					var key = new MaterialObjectCache.Key( shaders.Ids, idsShaderVariant, idsLayout, BackendDevice.IdsColorKey, depth, samples, false, true );
 					materialObject = cache.Get( key, immediate: false, (device, key, stateFrom), static ( s, l ) => s.device.Pipeline( s.key.Variant, s.device.PulledLayout, BackendDevice.IdsColorKey, s.key.Depth, s.key.Samples, false, l.Sets, ids: true, stateFrom: s.stateFrom ) );
 				}

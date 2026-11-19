@@ -18,10 +18,13 @@ internal class PositionSimple : ISceneTest
 		using ( Gizmo.Scope( "ObjectPosition", new Transform( position ) ) )
 		{
 			Gizmo.Draw.Color = Gizmo.Colors.Green;
-			if ( Gizmo.Control.Position( "my-arrow", position, out var newPosition ) )
+			var oldPosition = position;
+			if ( Gizmo.Control.UpdatePosition( "my-arrow", position, out var newPosition ) )
 			{
 				position = newPosition;
 			}
+			Gizmo.Transform = Gizmo.Transform.ToWorld( new Transform( position - oldPosition ) );
+			Gizmo.Draw.Position( "my-arrow" );
 
 			Gizmo.Draw.Color = Color.Black;
 			Gizmo.Draw.Text( $"Value: {position.x:n0}, {position.y:n0}, {position.z:n0}", new Transform( Vector3.Down * 50.0f ) );

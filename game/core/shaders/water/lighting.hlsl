@@ -231,7 +231,7 @@ float4 WaterShade( Material m, CombinerInput input, float3 reflection, float3 ca
 		+ lighting.vIndirectDiffuse.rgb * diffuseAo) * input.vDiffuseColor.rgb;
 	float3 directSpecular = underwater ? 0 : lighting.vSpecular.rgb * lerp( 1, specularAo, input.flAmbientOcclusionDirectSpecular );
 	float3 selectedFactor = 0;
-	if ( ReflectionEnabled )
+	if ( !underwater && ReflectionEnabled )
 	{
 		// Both sources use the same rough-surface BRDF and occlusion. Correct the engine's
 		// Schlick Fresnel to water's dielectric Fresnel,

@@ -6,7 +6,7 @@ namespace Borealis.Source2.Shaders;
 /// <summary>
 /// One drawable variant of a shader: a mode, a material's feature values and dynamic combo values, resolved into what a
 /// pipeline and its bindings need. Shader modules and binding layouts are made through a <see cref="ShaderLibrary"/>,
-/// which owns them. See docs/managed/borealis-gpu.md.
+/// which owns them. See docs/reference/borealis-gpu.md.
 /// </summary>
 public sealed class ShaderVariant
 {
@@ -206,6 +206,9 @@ public sealed class ShaderVariant
 /// </summary>
 public sealed class ShaderStage
 {
+	/// <summary><c>SpecializedConstantsBaked</c>'s id (<c>VFX_SPECIALIZED_CONSTANTS_BAKED_ID</c>, vfx_shader_params.h).</summary>
+	internal const uint SpecializedConstantsBakedId = 68;
+
 	readonly ShaderVariable[] variables;
 	readonly Dictionary<(int Set, int Register), SamplerInfo> samplers = new();
 	readonly Dictionary<(int Set, int Binding), int> named = new();
@@ -281,6 +284,7 @@ public sealed class ShaderStage
 		}
 
 		var constants = new List<SpecializationConstant>( Bytecode?.Constants ?? [] );
+		var specialized = false;
 		var materialConstants = new List<(ShaderVariable, int)>();
 		var renderStates = new List<(int, ShaderVariable)>();
 		var recordTextures = new List<(ShaderVariable, int)>();
@@ -301,6 +305,7 @@ public sealed class ShaderStage
 					break;
 
 				case RegisterType.Specialization:
+					specialized = true;
 					var value = variable.Source == VariableSource.Attribute ? attributes?.Invoke( variable.Attribute ) : null;
 					if ( value is { } v && !constants.Exists( c => c.Id == (uint)binding.Offset ) ) constants.Add( new SpecializationConstant( (uint)binding.Offset, (uint)v ) );
 					break;
@@ -363,6 +368,10 @@ public sealed class ShaderStage
 			sampler.MaxAnisotropy = 1;
 			samplers[key] = sampler;
 		}
+
+		// A SpecializedConstant() also stays a constant buffer member, which a pipeline reads unless SpecializedConstantsBaked
+		// says its specialization constants hold the values (VFX_SPECIALIZED_CONSTANTS_BAKED_ID): every pipeline here is made with them
+		if ( specialized && !constants.Exists( c => c.Id == SpecializedConstantsBakedId ) ) constants.Add( new SpecializationConstant( SpecializedConstantsBakedId, 1 ) );
 
 		Constants = [.. constants];
 		MaterialConstants = materialConstants;
@@ -447,8 +456,11 @@ public sealed class ShaderStage
 
 		if ( given is null && variable.Source is VariableSource.FeatureToInt or VariableSource.FeatureToBool or VariableSource.FeatureToFloat )
 		{
+			// In this thread's one-float scratch, read below before anything else writes it: a feature's value for each write of
+			// a material's constants was an array each
 			var feature = Program.Shader.FeatureIndex( variable.Name );
-			given = [feature >= 0 && feature < features.Length ? features[feature] : 0];
+			given = featureValue ??= new float[1];
+			given[0] = feature >= 0 && feature < features.Length ? features[feature] : 0;
 		}
 
 		var integer = variable.Type is >= VariableType.Int and <= VariableType.Bool4;
@@ -472,6 +484,8 @@ public sealed class ShaderStage
 			}
 		}
 	}
+
+	[ThreadStatic] static float[] featureValue;
 
 	static int Components( VariableType type ) => type switch
 	{

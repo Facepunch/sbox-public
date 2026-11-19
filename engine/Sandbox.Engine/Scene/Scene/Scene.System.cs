@@ -7,6 +7,9 @@ namespace Sandbox;
 public partial class Scene
 {
 	Dictionary<Type, GameObjectSystem> systems = new();
+	// Rebuilt after reference migration: hotload can add or remove the provider interface.
+	[SkipHotload]
+	readonly List<GameObjectSystem.ITraceProvider> traceProviders = new();
 
 	/// <summary>
 	/// Call dispose on all installed hooks
@@ -30,6 +33,7 @@ public partial class Scene
 		}
 
 		systems.Clear();
+		traceProviders.Clear();
 	}
 
 	/// <summary>
@@ -54,6 +58,7 @@ public partial class Scene
 				ApplyGameObjectSystemConfig( e );
 
 				systems[e.GetType()] = e;
+				if ( e is GameObjectSystem.ITraceProvider traceProvider ) traceProviders.Add( traceProvider );
 				AddObjectToDirectory( e );
 			}
 		}
@@ -80,9 +85,17 @@ public partial class Scene
 				ApplyGameObjectSystemConfig( e );
 
 				systems[e.GetType()] = e;
+				if ( e is GameObjectSystem.ITraceProvider traceProvider ) traceProviders.Add( traceProvider );
 				AddObjectToDirectory( e );
 			}
 		}
+	}
+
+	internal void RebuildTraceProviders()
+	{
+		traceProviders.Clear();
+		foreach ( var system in systems.Values )
+			if ( system is GameObjectSystem.ITraceProvider provider ) traceProviders.Add( provider );
 	}
 
 	/// <summary>

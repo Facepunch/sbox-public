@@ -166,7 +166,7 @@ public sealed class ModelMesh
 			draws[i] = draw with { StartIndex = draw.BaseVertex, IndexCount = draw.VertexCount, BaseVertex = 0, IndexBuffer = (slot, 0) };
 		}
 
-		return [.. indexBuffers, new MeshIndexBuffer( vertices, sizeof( uint ), data )];
+		return [.. indexBuffers, new MeshIndexBuffer( vertices, sizeof( uint ), data ) { Generated = true }];
 	}
 
 	/// <summary>
@@ -284,6 +284,9 @@ public sealed record MeshVertexBuffer( int Count, int Stride, VertexField[] Fiel
 /// <summary>A decoded index buffer: <paramref name="Count"/> indices of <paramref name="Size"/> bytes (2 or 4).</summary>
 public sealed record MeshIndexBuffer( int Count, int Size, byte[] Data )
 {
+	/// <summary>Made by the reader, not in the file: the counting indices of a mesh's unindexed draws.</summary>
+	public bool Generated { get; init; }
+
 	/// <summary>An index.</summary>
 	public uint this[int i] => Size == 2 ? BinaryPrimitives.ReadUInt16LittleEndian( Data.AsSpan( i * 2 ) ) : BinaryPrimitives.ReadUInt32LittleEndian( Data.AsSpan( i * 4 ) );
 

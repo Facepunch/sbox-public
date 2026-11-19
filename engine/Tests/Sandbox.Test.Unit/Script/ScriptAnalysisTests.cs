@@ -6,6 +6,9 @@ using Sandbox.Internal;
 
 namespace Sandbox.Tests;
 
+/// <summary>
+/// Verifies script analysis, completion permissions, and snapshot lifetimes.
+/// </summary>
 [TestClass]
 [DoNotParallelize]
 public class ScriptAnalysisTests
@@ -72,6 +75,22 @@ public class ScriptAnalysisTests
 		Assert.ThrowsException<ArgumentOutOfRangeException>( () => analysis.GetToken( source.Length + 1 ) );
 	}
 
+	/// <summary>
+	/// Documentation comments reach the editor as complete comment spans, including their delimiters.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "/// <summary>Green documentation.</summary>\n" )]
+	[DataRow( "/** <summary>Green documentation.</summary> */" )]
+	public void DocumentationCommentsAreHighlightable( string comment )
+	{
+		var analysis = GlobalContext.Current.Scripting.Analyze( comment + "public class Example {}" );
+		for ( var offset = 0; offset < comment.Length; offset++ )
+		{
+			Assert.AreEqual( Script.TokenKind.Comment, analysis.GetToken( offset )?.Kind, $"Offset {offset}" );
+		}
+		Assert.AreEqual( Script.TokenKind.Keyword, analysis.GetToken( comment.Length )?.Kind );
+	}
+
 	[TestMethod]
 	public void TypeAndMemberCompletionsHaveExactReplacementRanges()
 	{
@@ -120,19 +139,25 @@ public class ScriptAnalysisTests
 		Assert.IsTrue( GlobalContext.Current.Scripting.Analyze( "Math." ).Tokens.Count > 0 );
 	}
 
+	/// <summary>
+	/// Completions expose approved members and common object methods without exposing private APIs.
+	/// </summary>
 	[TestMethod]
 	public void CompletionPermissionsMatchTheRuntime()
 	{
 		var permitted = GlobalContext.Current.Scripting.Analyze( "Player.", [new( "Player", typeof( AnalysisHost ) )] ).GetCompletions( 7 );
 		Assert.IsTrue( permitted.Items.Any( item => item.Label == "Health" ) );
 		Assert.IsFalse( permitted.Items.Any( item => item.Label == "Hidden" || item.Label == "GetType" ) );
-		var denied = GlobalContext.Current.Scripting.Analyze( "Target.", [new( "Target", typeof( UnexposedHost ) )] ).GetCompletions( 7 );
-		Assert.AreEqual( 0, denied.Items.Count );
+		var unexposed = GlobalContext.Current.Scripting.Analyze( "Target.", [new( "Target", typeof( UnexposedHost ) )] ).GetCompletions( 7 );
+		CollectionAssert.AreEquivalent( new[] { "ToString", "Equals", "GetHashCode" }, unexposed.Items.Select( item => item.Label ).ToArray() );
 		Assert.IsFalse( GlobalContext.Current.Scripting.Analyze( "Unexposed" ).GetCompletions( 9 ).Items.Any( item => item.Label == nameof( UnexposedHost ) ) );
 		var generic = GlobalContext.Current.Scripting.Analyze( "Items.Co", [new( "Items", typeof( List<int> ) )] ).GetCompletions( 8 );
 		Assert.IsTrue( generic.Items.Any( item => item.Label == "Count" ) );
 	}
 
+	/// <summary>
+	/// Analysis snapshots retain their original metadata after inputs and the owning context change.
+	/// </summary>
 	[TestMethod]
 	public void SnapshotsStayImmutableAfterInputAndContextChanges()
 	{
@@ -141,7 +166,7 @@ public class ScriptAnalysisTests
 		var inputs = new List<Script.Input> { new( "Player", typeof( AnalysisHost ) ) };
 		var old = system.Analyze( "Player.", inputs );
 		inputs[0] = new( "Player", typeof( UnexposedHost ) );
-		Assert.AreEqual( 0, system.Analyze( "Player.", inputs ).GetCompletions( 7 ).Items.Count );
+		Assert.IsFalse( system.Analyze( "Player.", inputs ).GetCompletions( 7 ).Items.Any( item => item.Label == "Health" ) );
 		context.TypeLibrary.RemoveAssembly( typeof( AnalysisHost ).Assembly );
 		context.OnHotload();
 		// The name can now be offered as an unknown input, but never as an exposed type.

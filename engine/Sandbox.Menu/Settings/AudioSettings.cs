@@ -59,12 +59,27 @@ public static partial class AudioSettings
 	/// Keep this microphone open without sending anything, so <see cref="MicrophoneLevel"/> can be shown.
 	/// Call it every frame while testing, empty for the system default.
 	/// </summary>
-	public static void TestMicrophone( string device ) => VoiceManager.TestMicrophone( device );
+	/// <param name="device">Microphone to listen to, empty for the system default</param>
+	/// <param name="gainControl">Should <see cref="MicrophoneLevel"/> include automatic gain control, so the setting can be previewed before it's applied</param>
+	public static void TestMicrophone( string device, bool gainControl ) => VoiceManager.TestMicrophone( device, gainControl );
 
 	/// <summary>
-	/// How loud the microphone is right now in decibels, 0 being as loud as it goes
+	/// How loud the microphone is right now in decibels before AGC, 0 being as loud as it goes. Rumble below
+	/// 100 Hz doesn't count. This is what the threshold is compared against.
+	/// </summary>
+	public static float MicrophoneInputLevel => VoiceManager.InputLevel;
+
+	/// <summary>
+	/// How loud the microphone is right now in decibels, after processing like AGC is applied, 0 being as loud as it goes
 	/// </summary>
 	public static float MicrophoneLevel => VoiceManager.Level;
+
+	/// <summary>
+	/// How loud automatic gain control thinks the background noise is, in decibels before any gain, measured
+	/// the same way as <see cref="MicrophoneInputLevel"/>. AGC won't boost the noise much, and doesn't learn from
+	/// anything close to it. -96 until it's heard anything.
+	/// </summary>
+	public static float MicrophoneNoiseLevel => VoiceManager.NoiseLevel;
 
 	/// <summary>
 	/// Get all audio devices supported by the current platform

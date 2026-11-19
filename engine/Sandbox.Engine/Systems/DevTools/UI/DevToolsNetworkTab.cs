@@ -239,7 +239,7 @@ internal sealed class DevToolsNetworkTab : DevToolsTab
 					local ? new( "-", "number dim" ) : DevToolsTable.Number( $"{stats.Ping}", stats.Ping > 300 ? DevTools.Severity.Bad : stats.Ping > 150 ? DevTools.Severity.Warning : null ),
 					local ? new( "-", "number dim" ) : DevToolsTable.Number( DevToolsFormat.Bytes( stats.InBytesPerSecond ) ),
 					local ? new( "-", "number dim" ) : DevToolsTable.Number( DevToolsFormat.Bytes( stats.OutBytesPerSecond ) ),
-					local ? new( "-", "number dim" ) : DevToolsTable.Number( $"{stats.ConnectionQuality * 100:0}%", stats.ConnectionQuality is > 0 and < 0.8f ? DevTools.Severity.Warning : null ),
+					local ? new( "-", "number dim" ) : DevToolsTable.Number( $"{stats.ConnectionQuality * 100:0}%", DevTools.QualitySeverity( stats.ConnectionQuality ) ),
 					new( Since( c.ConnectionTime ), "number dim" ),
 					new( $"{c.MessagesSent:N0} / {c.MessagesRecieved:N0}", "number dim" )],
 					tooltip: $"{c.Name} [{c.SteamId}]\nSent / received messages, ping in ms" );
@@ -312,7 +312,7 @@ internal sealed class DevToolsNetworkTab : DevToolsTab
 			var ping = host.Stats.Ping;
 			var quality = host.Stats.ConnectionQuality;
 			_facts.Set( "Ping", $"{ping} ms", ping > 300 ? DevTools.Severity.Bad : ping > 150 ? DevTools.Severity.Warning : null );
-			_facts.Set( "Quality", $"{quality * 100:0}%", quality is > 0 and < 0.8f ? DevTools.Severity.Warning : null );
+			_facts.Set( "Quality", $"{quality * 100:0}%", DevTools.QualitySeverity( quality ) );
 
 			// What the host says about itself
 			var hostStats = Networking.HostStats;

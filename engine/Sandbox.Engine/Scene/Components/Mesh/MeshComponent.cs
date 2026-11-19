@@ -8,7 +8,7 @@ namespace Sandbox;
 /// An editable polygon mesh with collision
 /// </summary>
 [Hide, Expose]
-public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMaterialSetter
+public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable, IMaterialSetter
 {
 	[Expose]
 	public enum CollisionType
@@ -173,6 +173,8 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 
 	void DeleteSceneObject()
 	{
+		DeleteEditorRenderData();
+
 		if ( !_sceneObject.IsValid() ) return;
 
 		_sceneObject.RenderingEnabled = false;
@@ -225,13 +227,19 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 		{
 			_sceneObject.Transform = WorldTransform;
 		}
+		if ( Scene.IsEditor )
+		{
+			UpdateEditorRenderState();
+			EditorRenderDataChanged?.Invoke();
+		}
 
 		if ( Mesh is not null && Scene.IsEditor )
 		{
 			// Compute face texture parameters on transform change but don't rebuild mesh now.
 			var wasDirty = Mesh.IsDirty;
 			Mesh.Transform = WorldTransform;
-			Mesh.IsDirty = wasDirty;
+			if ( !wasDirty )
+				Mesh.IsDirty = false;
 		}
 
 		base.TransformChanged( root );
@@ -344,6 +352,11 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 	{
 		if ( !_sceneObject.IsValid() ) return;
 
+		if ( Scene.IsEditor )
+		{
+			UpdateEditorRenderData();
+		}
+
 		_sceneObject.Component = this;
 		UpdateSceneObjectTags();
 		_sceneObject.ColorTint = Color;
@@ -363,5 +376,11 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 
 		if ( HideInGame )
 			_sceneObject.Tags.Add( HideInGameTag );
+
+		if ( Scene.IsEditor )
+		{
+			_sceneObject.Tags.Add( "editor_mesh" );
+			UpdateEditorRenderState();
+		}
 	}
 }

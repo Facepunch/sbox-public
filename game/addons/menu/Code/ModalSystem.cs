@@ -1,8 +1,13 @@
 using MenuProject.Modals;
-using MenuProject.Modals.PauseMenuModal;
+using MenuProject.Platform;
 using Sandbox;
 using Sandbox.Modals;
 
+/// <summary>
+/// What games and the menu open over themselves. Pages - a map, a server list, a player - come up out of the dock as
+/// pages of the shelf (<see cref="PlatformRoot.ShowModal"/>). Questions and forms - a review, a report, a password -
+/// pop up over everything on the overlay, the loading screen too.
+/// </summary>
 public class ModalSystem : IModalSystem
 {
 	public static ModalSystem Instance;
@@ -14,27 +19,23 @@ public class ModalSystem : IModalSystem
 		Instance = this;
 	}
 
+	static PlatformRoot Root => PlatformRoot.Instance;
+
 	public bool HasModalsOpen()
 	{
 		if ( IsPauseMenuOpen )
+			return true;
+
+		if ( Root?.WantsMouse ?? false )
 			return true;
 
 		return OpenModals.Any( x => x.WantsMouseInput() );
 	}
 
 	/// <summary>
-	/// A modal that dims and blurs everything behind it is open. Anchored ones (the rewards drop,
-	/// the friends list off a button) are popups that leave the page as it is, so they don't count.
-	/// The pause menu does, unless <paramref name="countPauseMenu"/>'s off - for what lives in it,
-	/// it's the page rather than something over it.
+	/// A modal's up over everything on the overlay - not an anchored popup
 	/// </summary>
-	public bool HasBlockingModalsOpen( bool countPauseMenu = true )
-	{
-		if ( countPauseMenu && IsPauseMenuOpen )
-			return true;
-
-		return OpenModals.Any( x => x.WantsMouseInput() && !x.HasClass( "anchored" ) );
-	}
+	internal bool HasOverlayModalsOpen => OpenModals.Any( x => x.IsValid() && x.WantsMouseInput() && !x.HasClass( "anchored" ) );
 
 	public void CloseAll( bool immediate = false )
 	{
@@ -45,7 +46,7 @@ public class ModalSystem : IModalSystem
 
 		OpenModals.Clear();
 
-		PauseModal.Instance?.SetClass( "hidden", true );
+		Root?.CloseModal( Root.ShelfModal );
 	}
 
 	/// <summary>
@@ -61,7 +62,25 @@ public class ModalSystem : IModalSystem
 		{
 			basemodal.OnClosed += ( s ) => OnModalClosing( basemodal, s );
 			OpenModals.Add( basemodal );
+
+			if ( !basemodal.HasClass( "anchored" ) ) Root?.PauseForModal();
 		}
+	}
+
+	/// <summary>
+	/// Up out of the dock as a page of the shelf - gone back from once it's closed. Opened from a modal or a game's page
+	/// already on it, it's over that instead, so what it was opened from is still there to come back to.
+	/// </summary>
+	void Shelve( BaseModal modal )
+	{
+		if ( Root is not { } root || root.ShelfModal is not null || PlatformShelf.IsGame( root.Shelf ) )
+		{
+			Push( modal );
+			return;
+		}
+
+		modal.OnClosed += _ => root.CloseModal( modal );
+		root.ShowModal( modal );
 	}
 
 	void OnModalClosing( BaseModal modal, bool success )
@@ -87,46 +106,36 @@ public class ModalSystem : IModalSystem
 	}
 
 	/// <summary>
-	/// Is a modal of the given type currently open?
+	/// Put the friends list away if it's up - true if it was
+	/// </summary>
+	public bool CloseFriendsList() => CloseExisting<FriendsListModal>();
+
+	/// <summary>
+	/// Is a modal of the given type currently open - over everything, or on the shelf?
 	/// </summary>
 	public bool IsOpen<T>() where T : BaseModal
 	{
-		return OpenModals.Any( x => x.IsValid() && x is T );
-	}
-
-	/// <summary>
-	/// The item drop popup, anchored beside <paramref name="anchor"/> (the rail's Rewards entry).
-	/// Toggles closed if it's already open.
-	/// </summary>
-	public void Rewards( Panel anchor )
-	{
-		if ( CloseExisting<RewardsModal>() ) return;
-
-		Push( new RewardsModal( anchor ) );
+		return OpenModals.Any( x => x.IsValid() && x is T ) || Root?.ShelfModal is T;
 	}
 
 	public void Game( string packageIdent )
 	{
 		if ( string.IsNullOrEmpty( packageIdent ) ) return;
 
-		CloseExisting<GameModal>();
-		Push( new GameModal { PackageIdent = packageIdent } );
+		Root?.ShowGame( packageIdent );
 	}
 
-	public void Map( string packageIdent )
+	public void Map( string packageIdent ) => Package( packageIdent );
+
+	/// <summary>
+	/// A package's page, up out of the dock - a game's, a map's, anything's - on <paramref name="page"/> of it
+	/// ("changes", "achievements") if given
+	/// </summary>
+	public void Package( string packageIdent, string page = "" )
 	{
 		if ( string.IsNullOrEmpty( packageIdent ) ) return;
 
-		CloseExisting<MapModal>();
-		Push( new MapModal { PackageIdent = packageIdent } );
-	}
-
-	public void Package( string packageIdent, string page = "" )
-	{
-		// Toggle closed if it's already open
-		if ( CloseExisting<PackageModal>() ) return;
-
-		Push( new PackageModal { Page = page, PackageIdent = packageIdent } );
+		Root?.ShowGame( packageIdent, null, string.IsNullOrEmpty( page ) ? null : page );
 	}
 
 	/// <summary>
@@ -134,21 +143,17 @@ public class ModalSystem : IModalSystem
 	/// </summary>
 	public void PackageSelect( string query, Action<Package> onPackageSelected, Action<string> onFilterChanged )
 	{
-		Push( new PackageSelectionModal
+		Shelve( new PackagePicker
 		{
-			PackageQuery = query,
-			OnPackageSelected = onPackageSelected,
-			OnFilterChanged = onFilterChanged
+			Query = query,
+			OnPicked = onPackageSelected,
+			OnQueryChanged = onFilterChanged
 		} );
 	}
 
 	public void MapSelect( Action<string> onSelected, string selected )
 	{
-		var modal = new MapSelectorModal();
-		modal.OnSelected = onSelected;
-		modal.SetSelected( selected );
-
-		Push( modal );
+		Shelve( SetupModal.Map( selected, onSelected ) );
 	}
 
 	public void Review( Package package )
@@ -156,48 +161,44 @@ public class ModalSystem : IModalSystem
 		Push( new ReviewModal { Package = package } );
 	}
 
+	/// <summary>
+	/// The friends list - only ever one. Asked for again off what brought it up, it's put away instead.
+	/// </summary>
 	public void FriendsList( in FriendsListModalOptions config )
 	{
+		OpenModals.RemoveAll( x => !x.IsValid() );
+
+		if ( OpenModals.OfType<FriendsListModal>().FirstOrDefault() is { } open )
+		{
+			var again = open.AnchorPanel is not null && open.AnchorPanel == config.Anchor?.Panel;
+			CloseExisting<FriendsListModal>();
+			if ( again ) return;
+		}
+
 		Push( new FriendsListModal( config ) );
 	}
 
 	public void ServerList( in ServerListConfig config )
 	{
-		Push( new ServerListModal( config ) );
+		Shelve( new ServerListModal( config ) );
 	}
 
 	public void Server( Sandbox.Network.LobbyInformation lobby )
 	{
-		Push( new ServerModal { Server = lobby } );
+		Shelve( new ServerModal { Server = lobby } );
 	}
 
 	public void PlayerList()
 	{
-		Push( new PlayerListModal() );
+		Shelve( new PlayersModal() );
 	}
 
+	/// <summary>
+	/// Settings up on a category, or put away if it's up and none's asked for
+	/// </summary>
 	public void Settings( string page = "" )
 	{
-		var category = MenuProject.Settings.SettingsCatalog.ResolveCategory( page );
-
-		// In a game there's no menu to navigate, so the same view goes up full bleed instead.
-		if ( !Sandbox.Game.InGame && MenuProject.MainMenu.Instance?.Navigator is not null )
-		{
-			CloseExisting<SettingsModal>();
-			MenuProject.MainMenu.Instance.Navigator.Navigate( string.IsNullOrEmpty( category ) ? "/settings" : $"/settings?Category={category}" );
-			return;
-		}
-
-		// With the pause menu up, settings is one of its pages - opened in it, so its rail stays
-		if ( PauseModal.Open?.Navigate( string.IsNullOrEmpty( category ) ? "/settings" : $"/settings?Category={category}" ) ?? false )
-		{
-			CloseExisting<SettingsModal>();
-			return;
-		}
-
-		if ( CloseExisting<SettingsModal>() ) return;
-
-		Push( new SettingsModal( category ) );
+		Root?.ToggleSettings( MenuProject.Settings.SettingsCatalog.ResolveCategory( page ) );
 	}
 
 	public void ServiceConnector()
@@ -206,45 +207,27 @@ public class ModalSystem : IModalSystem
 	}
 
 	/// <summary>
-	/// Set up a new game of a package - on its game page, in the page's place, rather than a window of
-	/// its own over it. The page it's already on if that's open, or a new one opened straight into it.
+	/// Set up a new game of a package, on the shelf - finished, it's handed to the options' callback rather than started.
 	/// </summary>
-	public void CreateGame( in CreateGameOptions options ) => CreateGame( options, null, null );
-
-	/// <summary>
-	/// Set up a new game the way <see cref="CreateGame(in CreateGameOptions)"/> does - from a play button,
-	/// named in <paramref name="via"/> with the tile it was on, so the play's reported once it's started.
-	/// </summary>
-	public void CreateGame( in CreateGameOptions options, string via, Panel source )
+	public void CreateGame( in CreateGameOptions options )
 	{
 		if ( options.Package is null ) return;
-		_ = GetGamePage( options.Package ).OpenSetup( options.Package, options.OnComplete, via, source, options.InitialSettings );
+		Shelve( SetupModal.Game( options.Package, options.InitialSettings, done: options.OnComplete ) );
 	}
 
-	internal void OpenGameSetup( Package package, string via = null, Panel source = null, MenuProject.PartyDraft draft = null, string initialMap = null )
+	/// <summary>
+	/// Set up a new game of <paramref name="package"/> to start it, on the shelf - on <paramref name="map"/>, if one's
+	/// been picked
+	/// </summary>
+	internal void SetUpGame( Package package, string map = null )
 	{
 		if ( package is null ) return;
-		var selected = draft is not null ? draft.Game?.FullIdent == package.FullIdent : MenuProject.PartyView.IsGameSelected( package );
-		var shared = draft is not null ? draft.GameSettings : MenuProject.PartyView.SelectedGameSettings;
-		_ = GetGamePage( package ).OpenSetup( package, null, via, source, selected ? shared : null, partyActions: true, draft: draft, initialMap: initialMap );
+		Shelve( SetupModal.Game( package, map: map ) );
 	}
 
-	GameModal GetGamePage( Package package )
-	{
-		OpenModals.RemoveAll( x => !x.IsValid() );
-
-		var page = OpenModals.OfType<GameModal>().FirstOrDefault( x => x.PackageIdent == package.FullIdent || x.Package == package );
-		if ( page is null )
-		{
-			CloseExisting<GameModal>();
-
-			page = new GameModal { PackageIdent = package.FullIdent, Package = package };
-			Push( page );
-		}
-
-		return page;
-	}
-
+	/// <summary>
+	/// Escape - the top modal steps back or goes, otherwise the platform takes it (what's up on it, or pausing)
+	/// </summary>
 	public void PauseMenu()
 	{
 		OpenModals.RemoveAll( x => !x.IsValid() );
@@ -259,23 +242,17 @@ public class ModalSystem : IModalSystem
 			return;
 		}
 
-		if ( PauseModal.Instance is { } pause && pause.IsValid() )
-		{
-			pause.ToggleClass( "hidden" );
-			return;
-		}
-
-		MenuOverlay.Instance.AddChild( new PauseModal() );
+		Root?.Escape();
 	}
 
 	public void Player( SteamId steamid, string page = "" )
 	{
-		Push( new PlayerModal { Page = page, SteamId = steamid } );
+		Shelve( new PlayerModal { Page = page, SteamId = steamid } );
 	}
 
 	public void News( Sandbox.Services.News news )
 	{
-		Push( new PackageNewsModal { News = news } );
+		Shelve( new PackageNewsModal { News = news } );
 	}
 
 	public void WorkshopPublish( in WorkshopPublishOptions options )
@@ -379,7 +356,7 @@ public class ModalSystem : IModalSystem
 
 	public void BenchmarkResults( Guid batchId, IReadOnlyList<BenchmarkTestSummary> summaries )
 	{
-		Push( new BenchmarkResultModal( batchId, summaries ) );
+		Shelve( new BenchmarkResultModal( batchId, summaries ) );
 	}
 
 	public void Report( string packageIdent )
@@ -393,5 +370,5 @@ public class ModalSystem : IModalSystem
 	}
 
 	public bool IsModalOpen => HasModalsOpen();
-	public bool IsPauseMenuOpen => PauseModal.Open is not null;
+	public bool IsPauseMenuOpen => Root?.Paused ?? false;
 }

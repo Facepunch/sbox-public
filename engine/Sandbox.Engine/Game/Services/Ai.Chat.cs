@@ -5,7 +5,8 @@ namespace Sandbox.Services;
 public static partial class Ai
 {
 	/// <summary>
-	/// A conversation with local message history and provider-reported costs.
+	/// A conversation with client-owned message history and credit accounting.
+	/// Outgoing history retains up to 16 MiB of image content, replacing older images with text placeholders.
 	/// </summary>
 	public sealed partial class Chat
 	{
@@ -13,27 +14,25 @@ public static partial class Ai
 		readonly List<Message> messages = [];
 		readonly Dictionary<string, AiToolRegistration> tools;
 		readonly object context;
-		readonly AiChatCreate createOptions;
+		readonly AiChat conversation;
 
-		internal Chat( Guid id, ServiceApi.IAiApi api, decimal? totalCostUsd, IEnumerable<AiToolRegistration> tools, object context, AiChatCreate createOptions )
+		internal Chat( ServiceApi.IAiApi api, IEnumerable<AiToolRegistration> tools, object context, AiChatOptions options )
 		{
-			Id = id;
 			this.api = api;
 			this.tools = tools.ToDictionary( x => x.Definition.Name, StringComparer.Ordinal );
 			this.context = context;
-			this.createOptions = createOptions;
-			TotalCostUsd = totalCostUsd;
+			conversation = new AiChat { Options = options };
 			Messages = messages.AsReadOnly();
 		}
 
 		/// <summary>
-		/// Backend identifier, available for diagnostics. Changes after Reset creates a new conversation.
+		/// Client-generated identifier for usage accounting. Reset starts a new conversation with a new identifier.
 		/// </summary>
-		public Guid Id { get; private set; }
+		public Guid Id => conversation.Id;
 
 		/// <summary>
 		/// User messages and final assistant replies acknowledged by this instance, in order.
-		/// Failed HTTP requests are omitted and replayed submissions are included only once.
+		/// A queued user message appears once the first assistant response is received.
 		/// </summary>
 		public IReadOnlyList<Message> Messages { get; }
 
@@ -43,26 +42,20 @@ public static partial class Ai
 		public Response LastResponse { get; private set; }
 
 		/// <summary>
-		/// Backend-reported total cost of this chat in US dollars, or null when accounting is unavailable or incomplete.
-		/// Refreshed on every successful query, including replayed submissions.
+		/// Total credits charged for this chat, or null when accounting is unavailable or incomplete.
+		/// Refreshed by assistant and server-tool responses.
 		/// </summary>
-		public decimal? TotalCostUsd { get; private set; }
+		public decimal? TotalCreditsSpent => conversation.TotalCreditsSpent;
 
 		internal bool HasPendingTurn => pendingTurn is not null;
 
-		async Task<Response> QueryRequest( AiChatInput request, CancellationToken cancellationToken )
+		async Task<Response> QueryRequest( CancellationToken cancellationToken )
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			var result = await Ai.Send( () => api.QueryChat( request, cancellationToken ) );
-			var response = new Response( result );
-			TotalCostUsd = result.TotalCostUsd;
-
-			if ( request.Input is not null || request.Images.Count > 0 )
-			{
-				messages.Add( new Message { Role = "user", Text = request.Input, Images = request.Images.AsReadOnly() } );
-			}
-
-			return response;
+			TrimImageHistory();
+			var result = await Ai.Send( () => api.QueryChat( conversation, cancellationToken ) );
+			conversation.AddResponse( result );
+			return new Response( result );
 		}
 	}
 }

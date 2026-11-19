@@ -12,7 +12,7 @@ namespace Borealis.Backend;
 /// pass module under the content roots' <c>shaders</c> folders, and the surfaces converted from core <c>.shader</c> files
 /// (<c>bark.slang_c</c> in the core shaders). Made by build-shaders through <c>ShaderCompiler -slang</c> and shipped as
 /// <c>.shader_c</c> files are, so Borealis.Gpu runs Slang in game only for hotload, game code's compiles and package shaders.
-/// See docs/managed/shader-format-replacement.md.
+/// See docs/reference/borealis-slang-materials.md.
 /// </summary>
 public static class OfflineShaders
 {

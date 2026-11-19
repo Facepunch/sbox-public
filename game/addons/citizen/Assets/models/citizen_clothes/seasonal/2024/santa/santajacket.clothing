@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 849814,
   "Icon": {
-    "Path": "models/citizen_clothes/seasonal/2024/santa/santajacket.clothing.png",
+    "Path": "models/citizen_clothes/seasonal/2024/santa/santajacket.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "-47.6000099,0,-2.29999995"

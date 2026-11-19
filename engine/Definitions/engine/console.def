@@ -16,6 +16,7 @@ native class ConVar as NativeEngine.ConVar
 	void SetValue( int nValue );
 
 	stable string GetString();
+	int GetInt();
 	void Revert();
 	bool HasMin();
 	bool HasMax();

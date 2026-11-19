@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 125889,
   "Icon": {
-    "Path": "models/citizen_clothes/shirt/chef_shirt/chef_shirt.clothing.png",
+    "Path": "models/citizen_clothes/shirt/chef_shirt/chef_shirt.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "55.1000214,0,-2.59999895"

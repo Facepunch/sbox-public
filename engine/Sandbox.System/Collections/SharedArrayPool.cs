@@ -119,9 +119,8 @@ internal sealed partial class SharedArrayPool<T> : ArrayPool<T>
 			ArgumentOutOfRangeException.ThrowIfNegative( minimumLength );
 		}
 
-		buffer = typeof( T ).IsPrimitive && typeof( T ) != typeof( bool ) ?
-			GC.AllocateUninitializedArray<T>( minimumLength ) :
-			new T[minimumLength];
+		// Game code rents from this pool, uninitialized arrays would leak stale heap memory
+		buffer = new T[minimumLength];
 		if ( log.IsEnabled() )
 		{
 			int bufferId = buffer.GetHashCode();

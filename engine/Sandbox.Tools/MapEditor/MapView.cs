@@ -21,6 +21,11 @@ public partial class MapView : IHandle
 	//
 	internal CMapView native;
 
+	ToolSceneViews.HudSource hudSource;
+
+	/// <summary>The view's tool HUD for Borealis.Gpu (<c>CMapView::GetManagedHudItems</c>).</summary>
+	internal unsafe ToolSceneViews.HudSource HudSource => hudSource ??= ( items, maxItems, width, height ) => native.IsValid ? native.GetManagedHudItems( (IntPtr)items, maxItems, width, height ) : 0;
+
 	//
 	// IHandle implementation
 	//
@@ -67,6 +72,19 @@ public partial class MapView : IHandle
 	/// True for the 2D views (top, front, side), false for 3D perspective views.
 	/// </summary>
 	public bool IsOrthographic => native.GetCamera().IsOrthographic();
+
+	/// <summary>The view's draw mode (native's <c>ViewDrawMode_t</c>: 0 wireframe, 1 fullbright, 5 all lighting...), as its pane's menu sets it.</summary>
+	internal int DrawMode
+	{
+		get => native.GetViewDrawMode();
+		set => native.SetViewDrawMode( value );
+	}
+
+	/// <summary>The view's type (native's <c>ViewType_t</c>: 0 top, 1 front, 2 side, 3 the 3D camera).</summary>
+	internal int ViewType => native.GetViewTypeValue();
+
+	/// <summary>Make the view another type, drawn in <paramref name="drawMode"/>, as its pane's menu does.</summary>
+	internal void SetViewType( int viewType, int drawMode ) => native.SetViewTypeValue( viewType, drawMode );
 
 	/// <summary>
 	/// Where this view's camera is.
@@ -123,6 +141,31 @@ public partial class MapView : IHandle
 				throw new InvalidOperationException( "This view has no editor session to render with" );
 		}
 
+		WriteBitmap( bitmap, rgb );
+	}
+
+	/// <summary>
+	/// Render the view from its own camera, a 2D view's too, into <paramref name="bitmap"/>, which is the view's size.
+	/// </summary>
+	internal unsafe void RenderViewToBitmap( Bitmap bitmap )
+	{
+		ArgumentNullException.ThrowIfNull( bitmap );
+		if ( bitmap.IsFloatingPoint ) throw new ArgumentException( "Bitmap must be 8 bit RGBA" );
+
+		var rgb = new byte[bitmap.Width * bitmap.Height * 3];
+		fixed ( byte* pixels = rgb )
+		{
+			if ( !native.RenderViewToPixels( bitmap.Width, bitmap.Height, (IntPtr)pixels ) )
+				throw new InvalidOperationException( "This view has no editor session to render with" );
+		}
+
+		WriteBitmap( bitmap, rgb );
+	}
+
+	static void WriteBitmap( Bitmap bitmap, byte[] rgb )
+	{
+		var width = bitmap.Width;
+		var height = bitmap.Height;
 		var rgba = new byte[width * height * 4];
 
 		for ( int i = 0, j = 0; i < rgb.Length; i += 3, j += 4 )
@@ -356,7 +399,7 @@ internal static class MapViewRender
 	internal static void OnPreRender( MapView view, ISceneView sceneView ) => view.PreRender( sceneView );
 
 	/// <summary>
-	/// Draw a 3D view on Borealis.Gpu (<c>CMapView::RenderManaged</c>, <c>-hammer-borealisgpu</c>): Hammer's worlds come in
+	/// Draw a view, 3D or 2D, on Borealis.Gpu (<c>CMapView::RenderManaged</c>, <c>-hammer-borealisgpu</c>): Hammer's worlds come in
 	/// the request (a <c>ToolSceneManagedRender_t</c>, drawn as a native tool view is), the map scene and gizmos from here.
 	/// </summary>
 	internal static void RenderManaged( MapView view, IntPtr request )
@@ -373,7 +416,7 @@ internal static class MapViewRender
 			Log.Warning( e, $"Hammer view: {e.Message}" );
 		}
 
-		ToolSceneViews.Render( request, worlds );
+		ToolSceneViews.Render( request, worlds, view.HudSource );
 	}
 
 	/// <summary>

@@ -70,6 +70,8 @@ internal sealed partial class MeshRenderFeature
 
 		new( MeshRuns.OverlayPrepass, ListSort.Batched, DrawFilter.Opaque ),
 		new( MeshRuns.Decal, ListSort.NearestFirst, DrawFilter.Opaque ),
+		new( MeshRuns.ToolOverlay, ListSort.RenderOrder, DrawFilter.All ),
+		new( MeshRuns.ToolScreenOverlay, ListSort.RenderOrder, DrawFilter.All ),
 	];
 
 	/// <summary>
@@ -108,6 +110,8 @@ internal sealed partial class MeshRenderFeature
 			case LayerMatch.StaticOverlay: return !shadow && obj.GameLayers ? MeshRuns.StaticOverlay : 0;
 			case LayerMatch.OverlayWithDepth: return shadow ? 0 : MeshRuns.OverlayWithDepth;
 			case LayerMatch.OverlayWithoutDepth: return shadow ? 0 : MeshRuns.OverlayWithoutDepth;
+			case LayerMatch.ToolOverlay: return shadow ? 0 : MeshRuns.ToolOverlay;
+			case LayerMatch.ToolScreenOverlay: return shadow ? 0 : MeshRuns.ToolScreenOverlay;
 			default: return 0;
 		}
 
@@ -161,6 +165,8 @@ internal sealed partial class MeshRenderFeature
 			case LayerMatch.None: break;
 			case LayerMatch.OverlayWithDepth: return shadow ? 0 : MeshRuns.OverlayWithDepth;
 			case LayerMatch.OverlayWithoutDepth: return shadow ? 0 : MeshRuns.OverlayWithoutDepth;
+			case LayerMatch.ToolOverlay: return shadow ? 0 : MeshRuns.ToolOverlay;
+			case LayerMatch.ToolScreenOverlay: return shadow ? 0 : MeshRuns.ToolScreenOverlay;
 			default: return 0;
 		}
 

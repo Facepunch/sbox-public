@@ -19,7 +19,7 @@ internal static class ParameterPool
 	/// </summary>
 	public static void Return( ShaderParameters parameters )
 	{
-		parameters.Clear();
+		parameters.Recycle();
 		free.Add( parameters );
 	}
 }

@@ -1,7 +1,7 @@
 // The engine's passes for surfaces, generic over the material. The shader compiler writes a small instance file per
 // [Material] struct that includes this, imports the material's module and names the entry points; every pass calls the
 // same Evaluate. Vertex processing and lighting are today's (sbox/engine.slangh), so a surface shades exactly as a
-// .shader written with common/pixel.hlsl does. See docs/managed/shader-format-replacement.md.
+// .shader written with common/pixel.hlsl does. See docs/reference/borealis-slang-materials.md.
 #ifndef SBOX_SURFACE_PASSES_SLANGH
 #define SBOX_SURFACE_PASSES_SLANGH
 
@@ -40,7 +40,7 @@ Texture2D SurfaceDiffuseFalloffTexture()
 #endif
 
 #ifdef SURFACE_GPU_DRIVEN
-// GPU-driven passes (docs/managed/borealis-gpu-driven.md): the draw comes from the instance and draw records, the material
+// GPU-driven passes (docs/reference/borealis-gpu-driven.md): the draw comes from the instance and draw records, the material
 // record from the materials table, at the draw record's offsets
 #include "borealis_gpu_driven.fxc"
 #include "baked_lighting_constants.fxc"

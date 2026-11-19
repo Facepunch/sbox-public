@@ -5,7 +5,7 @@ namespace Sandbox;
 /// <summary>
 /// Describes a per-vertex delta for a morph target (blend shape).
 /// </summary>
-[StructLayout( LayoutKind.Sequential )]
+[Expose, StructLayout( LayoutKind.Sequential )]
 public readonly record struct MorphDelta( int VertexIndex, Vector3 PositionDelta, Vector3 NormalDelta );
 
 public partial class Mesh

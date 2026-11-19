@@ -19,7 +19,7 @@
     @if (!_loaded)
     {
         @* The shape of an update card while it loads - two of them *@
-        <div class="timeline">
+        <div class="timeline loading">
             @for (var i = 0; i < 2; i++)
             {
                 <div class="update skeleton @(i == 0 ? "latest" : "")">
@@ -30,8 +30,11 @@
 
                     <div class="card">
                         <div class="card-head">
-                            <div class="bone title-bone"></div>
-                            <div class="bone pill-bone"></div>
+                            <div class="bone tile-bone"></div>
+                            <div class="head-words">
+                                <div class="bone title-bone"></div>
+                                <div class="bone pill-bone"></div>
+                            </div>
                         </div>
                         <div class="sections">
                             <div class="bone-section">
@@ -80,26 +83,50 @@
                     else
                     {
                         <div class="card">
+                            @* A glyph, its name and how long ago (the date itself on hover - not the version number,
+                               which means nothing to a player), the newest marked as such *@
                             <div class="card-head">
-                                <div class="title-row">
+                                <div class="tile"><i>@(latest ? "new_releases" : "history")</i></div>
+                                <div class="head-words">
                                     <label class="update-name" tooltip="@(hasTitle ? change.Title : dateText)">@(hasTitle ? change.Title : dateText)</label>
-                                    @if (latest)
-                                    {
-                                        <label class="latest-pill">#menu.games.latest_update</label>
-                                    }
+                                    <div class="meta-row">
+                                        <div class="ago" tooltip="@dateText"><i>schedule</i><label>@MenuHelpers.TimeAgo( created )</label></div>
+                                    </div>
                                 </div>
-
-                                @* How long ago, the date itself on hover - not the version number, which means
-                                   nothing to a player *@
-                                <div class="meta-row">
-                                    <div class="ago" tooltip="@dateText"><i>schedule</i><label>@MenuHelpers.TimeAgo( created )</label></div>
-                                </div>
+                                @if (latest)
+                                {
+                                    <label class="latest-pill">#menu.games.latest_update</label>
+                                }
                             </div>
 
                             <div class="sections">
                                 @if (change is null)
                                 {
-                                    <label class="note-text @(string.IsNullOrWhiteSpace(note.Text) ? "empty" : "")">@(string.IsNullOrWhiteSpace(note.Text) ? "#menu.workshop.no_change_note" : note.Text)</label>
+                                    var lines = NoteLines( note.Text );
+                                    if ( lines.Count == 0 )
+                                    {
+                                        <label class="note-text empty">#menu.workshop.no_change_note</label>
+                                    }
+                                    else
+                                    {
+                                        <div class="note">
+                                            @foreach ( var line in lines )
+                                            {
+                                                if ( line.Kind == NoteKind.Heading )
+                                                {
+                                                    <label class="note-heading">@line.Text</label>
+                                                }
+                                                else if ( line.Kind == NoteKind.Bullet )
+                                                {
+                                                    <div class="note-entry"><div class="bullet"></div><label class="text">@line.Text</label></div>
+                                                }
+                                                else
+                                                {
+                                                    <label class="note-text">@line.Text</label>
+                                                }
+                                            }
+                                        </div>
+                                    }
                                 }
                                 else
                                 {
@@ -138,6 +165,39 @@
     [Parameter] public ulong WorkshopId { get; set; }
 
     bool OnWorkshop => WorkshopId != 0;
+
+    enum NoteKind { Text, Heading, Bullet }
+
+    record struct NoteLine( NoteKind Kind, string Text );
+
+    static readonly System.Text.RegularExpressions.Regex BBCode = new( @"\[/?[a-zA-Z0-9]+(=[^\]]*)?\]" );
+
+    /// <summary>
+    /// A Workshop change note in lines to lay out - its BBCode taken out, a list item or one starting with a dash as a
+    /// bullet, a heading tag or a short line ending in a colon as a heading, the rest as they are
+    /// </summary>
+    static List<NoteLine> NoteLines( string text )
+    {
+        var lines = new List<NoteLine>();
+        if ( string.IsNullOrWhiteSpace( text ) ) return lines;
+
+        foreach ( var raw in text.Split( '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ) )
+        {
+            var bullet = raw.StartsWith( "[*]" ) || raw.StartsWith( "- " ) || raw.StartsWith( "* " ) || raw.StartsWith( "•" );
+            var tagged = raw.StartsWith( "[h1]" ) || raw.StartsWith( "[h2]" ) || raw.StartsWith( "[h3]" );
+
+            var words = BBCode.Replace( raw, "" ).TrimStart( '-', '*', '•', ' ' ).Trim();
+            if ( words.Length == 0 ) continue;
+
+            var kind = bullet ? NoteKind.Bullet
+                : tagged || (words.EndsWith( ':' ) && words.Length <= 40) ? NoteKind.Heading
+                : NoteKind.Text;
+
+            lines.Add( new( kind, kind == NoteKind.Heading ? words.TrimEnd( ':' ) : words ) );
+        }
+
+        return lines;
+    }
 
     int Count => OnWorkshop ? _notes.Count : _changeLists.Length;
 

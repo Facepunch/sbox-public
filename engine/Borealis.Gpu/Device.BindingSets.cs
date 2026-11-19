@@ -54,15 +54,16 @@ public sealed unsafe partial class Device
 	/// <summary>Destroy a persistent set once the GPU is done with it.</summary>
 	public void Destroy( BindingSetHandle bindingSet )
 	{
-		var record = BindingSets.Remove( bindingSet.Index, bindingSet.Generation );
-		Defer( () =>
+		DeferSet( BindingSets.Remove( bindingSet.Index, bindingSet.Generation ) );
+	}
+
+	void FreeSet( in BindingSetRecord record )
+	{
+		lock ( bindingSetPools )
 		{
-			lock ( bindingSetPools )
-			{
-				if ( !freeBindingSets.TryGetValue( record.SetLayout, out var free ) ) freeBindingSets[record.SetLayout] = free = new();
-				free.Push( record.Set );
-			}
-		} );
+			if ( !freeBindingSets.TryGetValue( record.SetLayout, out var free ) ) freeBindingSets[record.SetLayout] = free = new();
+			free.Push( record.Set );
+		}
 	}
 
 	/// <summary>

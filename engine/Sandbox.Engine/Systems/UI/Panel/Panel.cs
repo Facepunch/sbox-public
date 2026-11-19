@@ -307,7 +307,9 @@ public partial class Panel : IPanel, IValid, IComponent
 		return false;
 	}
 
-	internal void TickInternal()
+	internal void TickInternal() => TickInternal( FindRootPanel()?.TickStack ?? [] );
+
+	void TickInternal( List<Panel> tickStack )
 	{
 		if ( Application.IsHeadless )
 			return;
@@ -378,16 +380,7 @@ public partial class Panel : IPanel, IValid, IComponent
 			//
 			if ( IsVisible && _children is not null && _children.Count > 0 )
 			{
-				using var pooledChildren = new PooledSpan<Panel>( _children.Count, true );
-				_children.CopyTo( pooledChildren.Array );
-
-				var children = pooledChildren.Span;
-				for ( int i = children.Length - 1; i >= 0; i-- )
-				{
-					var child = children[i];
-					if ( !child.IsValid() ) continue;
-					child.TickInternal();
-				}
+				TickChildren( tickStack );
 			}
 
 			//
@@ -417,6 +410,30 @@ public partial class Panel : IPanel, IValid, IComponent
 			Log.Error( e );
 		}
 
+	}
+
+	/// <summary>
+	/// Children can be added or removed while they tick, so each level ticks a snapshot. Every level shares
+	/// the root's stack, pushing its children on top and popping them when done.
+	/// </summary>
+	void TickChildren( List<Panel> tickStack )
+	{
+		int start = tickStack.Count;
+		tickStack.AddRange( _children );
+
+		try
+		{
+			for ( int i = tickStack.Count - 1; i >= start; i-- )
+			{
+				var child = tickStack[i];
+				if ( !child.IsValid() ) continue;
+				child.TickInternal( tickStack );
+			}
+		}
+		finally
+		{
+			tickStack.RemoveRange( start, tickStack.Count - start );
+		}
 	}
 
 	internal int GetRenderOrderIndex()

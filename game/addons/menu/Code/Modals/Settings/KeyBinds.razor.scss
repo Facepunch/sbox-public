@@ -1,0 +1,141 @@
+@import "/Platform/_platform.scss";
+
+// The binds as a table (Sandbox.UI.Table) in the platform's look - each group a heading row, every action a row with its
+// two binds. As tall as its rows: the page scrolls it, as every other settings page scrolls, its bar in the same place.
+// The table's body doesn't scroll as well - that made a second bar, over the rows.
+KeyBinds .binds-table
+{
+	@include platform-table;
+	flex-shrink: 0;
+
+	> tbody
+	{
+		flex-grow: 0;
+		overflow: visible;
+		scrollbar-gutter: auto;
+
+		> tr
+		{
+			height: 38px;
+			border-radius: 0;
+		}
+
+		// A group's name across the row, its actions under it - a heading of its own, with room above it and a line under
+		// it, rather than another row. No band, no hover.
+		> tr.group
+		{
+			height: 52px;
+			padding-top: 14px;
+			align-items: flex-end;
+			// Out to the table's edge, as the other pages' headings are - not in by a row's padding
+			padding-left: 0;
+			background-color: transparent;
+			border-bottom: 1px solid $platform-hairline;
+			pointer-events: none;
+
+			td
+			{
+				padding-bottom: 8px;
+				font-size: 15px;
+				font-weight: 700;
+				color: white;
+			}
+		}
+
+		// The first at the very top - no room above it
+		> tr.group:first-child
+		{
+			height: 30px;
+			padding-top: 0;
+		}
+	}
+
+	// Its name - just text, not the settings' .action buttons
+	.bind-name
+	{
+		font-size: 13.5px;
+		font-weight: 500;
+		color: $platform-text;
+	}
+}
+
+// A bind's cell - its keys as keycaps, joined by + when they're held together. Lit under the pointer, blue while it waits
+// for a press, a faint dash with nothing on it.
+KeyBind
+{
+	height: 30px;
+	width: 100%;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	border-radius: $platform-radius;
+	cursor: pointer;
+	pointer-events: all;
+	transition: background-color 0.1s ease;
+	@include platform-sounds;
+
+	&:hover
+	{
+		background-color: rgba( 255, 255, 255, 0.07 );
+	}
+
+	// A key - light, with a darker lip along its foot, as one on a keyboard
+	.cap
+	{
+		height: 22px;
+		min-width: 22px;
+		align-items: center;
+		justify-content: center;
+		padding: 0 7px;
+		border-radius: 4px;
+		background-color: #e3e7ef;
+		box-shadow: inset 0 -2px 0 rgba( 0, 0, 0, 0.28 );
+
+		label
+		{
+			font-size: 11px;
+			font-weight: 700;
+			color: #11141c;
+			white-space: nowrap;
+		}
+	}
+
+	.plus
+	{
+		font-size: 12px;
+		font-weight: 700;
+		color: $platform-faint;
+	}
+
+	.unset
+	{
+		font-size: 14px;
+		color: $platform-faint;
+	}
+
+	.listening
+	{
+		font-size: 12px;
+		font-weight: 600;
+		color: white;
+		animation: keybind-listening 0.9s ease-in-out infinite alternate;
+	}
+
+	&.rebinding
+	{
+		background-color: rgba( $platform-primary, 0.35 );
+	}
+}
+
+@keyframes keybind-listening
+{
+	from
+	{
+		opacity: 1;
+	}
+
+	to
+	{
+		opacity: 0.45;
+	}
+}

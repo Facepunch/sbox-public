@@ -223,14 +223,24 @@ internal class LargeNetworkFiles
 
 	async Task OnRequestNetworkFile( RequestFile file, Connection connection, Guid msgGuid )
 	{
-		if ( !EngineFileSystem.Mounted.FileExists( file.filename ) )
+		// The advertised table is the download allowlist. A guessed path must not expose
+		// other mounted files, including server-only scripts excluded from replication.
+		if ( connection.System?.IsHost != true || !AssetDownloadCache.IsLegalDownload( file.filename )
+			|| !StringTable.Entries.TryGetValue( NormalizeFileName( file.filename ), out var entry ) )
 		{
-			Log.Warning( $"Client ({connection.Name}) requested missing file: {file.filename}" );
+			Log.Warning( $"Client ({connection.Name}) requested an unadvertised file: {file.filename}" );
 			connection.SendResponse( msgGuid, Array.Empty<byte>() );
 			return;
 		}
 
-		var contents = await EngineFileSystem.Mounted.ReadAllBytesAsync( file.filename );
+		if ( !EngineFileSystem.Mounted.FileExists( entry.Name ) )
+		{
+			Log.Warning( $"Client ({connection.Name}) requested missing file: {entry.Name}" );
+			connection.SendResponse( msgGuid, Array.Empty<byte>() );
+			return;
+		}
+
+		var contents = await EngineFileSystem.Mounted.ReadAllBytesAsync( entry.Name );
 
 		connection.SendResponse( msgGuid, contents );
 	}

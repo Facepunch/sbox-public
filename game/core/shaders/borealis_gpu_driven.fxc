@@ -7,7 +7,7 @@
 // Borealis's GPU-driven variant of a shader (compiled with ShaderCompiler -gpudriven). The compiler appends this to
 // every vertex and pixel program and wraps MainVs and MainPs: vertex inputs are pulled by vertex index, the transform
 // comes from the instance record, material constants and texture slots from the material record. Shader authors
-// don't include or call anything here. Record layouts: docs/managed/borealis-gpu-driven.md.
+// don't include or call anything here. Record layouts: docs/reference/borealis-gpu-driven.md.
 //
 
 #include "common.fxc"

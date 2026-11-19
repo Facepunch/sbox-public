@@ -3,7 +3,7 @@ namespace Borealis.Gpu;
 /// <summary>
 /// Where s&amp;box's compiled shaders expect their resources (vfx: <c>src/vfx/vfx_vulkan_common.cpp</c>,
 /// <c>slang_shader_compiler.cpp</c>; the native device: <c>pipelinemgrvulkan.cpp</c>). Pipeline layouts here follow it,
-/// so SPIR-V compiled for the native renderer binds unchanged. See docs/managed/borealis-gpu.md.
+/// so SPIR-V compiled for the native renderer binds unchanged. See docs/reference/borealis-gpu.md.
 /// </summary>
 public static class ShaderAbi
 {

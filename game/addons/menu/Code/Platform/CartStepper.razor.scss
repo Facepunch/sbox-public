@@ -1,0 +1,74 @@
+@import "/Platform/_platform.scss";
+
+// One less, how many, one more - round-ended as the buttons it replaces are; its size and slate are its place's (a
+// cart row's, an item card's)
+CartStepper
+{
+	flex-shrink: 0;
+	align-items: center;
+	border-radius: $platform-pill;
+
+	.step
+	{
+		align-self: stretch;
+		width: 32px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		border-radius: $platform-pill;
+		cursor: pointer;
+		@include platform-sounds;
+
+		i
+		{
+			font-size: 17px;
+			color: $platform-muted;
+		}
+
+		&:hover
+		{
+			background-color: $platform-button-hover;
+
+			i
+			{
+				color: white;
+			}
+		}
+
+		&.off
+		{
+			opacity: 0.3;
+			pointer-events: none;
+		}
+	}
+
+	.n
+	{
+		min-width: 26px;
+		text-align: center;
+		font-size: 14px;
+		font-weight: 700;
+		color: $platform-text;
+	}
+
+	.in
+	{
+		flex-grow: 1;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+
+		i
+		{
+			font-size: 16px;
+			color: $platform-primary;
+		}
+
+		label
+		{
+			font-size: 13px;
+			font-weight: 600;
+			color: $platform-text;
+		}
+	}
+}

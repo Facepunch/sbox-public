@@ -27,11 +27,11 @@ public abstract class ParameterNode : Node, IParameterReference
 	internal override string LiveOutputLabel( string identifier )
 		=> HasLiveDebugValue ? ValueDebug.ShortValue( OutputKind, LiveDebugValue ) : null;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			if ( !string.IsNullOrWhiteSpace( ParameterName ) )
 				info.Name = ParameterName;
 			return info;

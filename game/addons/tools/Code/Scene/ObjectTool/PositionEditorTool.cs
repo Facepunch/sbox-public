@@ -49,9 +49,9 @@ public class PositionEditorTool : EditorTool
 
 		var positions = nonSceneGos.Select( x => x.WorldPosition ).ToArray();
 		var centroid = positions.Aggregate( Vector3.Zero, ( sum, p ) => sum + p ) / positions.Length;
-		var handleRotation = Gizmo.Settings.GlobalSpace ? Rotation.Identity : nonSceneGos.FirstOrDefault().WorldRotation;
+		var handleRotation = Gizmo.Settings.GlobalSpace ? WorkPlane.Current.Rotation : nonSceneGos.FirstOrDefault().WorldRotation;
 
-		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
+		if ( Gizmo.WasLeftMousePressed || (!Gizmo.Pressed.Any && Gizmo.HasMouseFocus) )
 		{
 			ClearBodies();
 
@@ -69,7 +69,7 @@ public class PositionEditorTool : EditorTool
 			Vector3? surfaceHit = null;
 			Vector3? surfaceNormal = null;
 
-			if ( Gizmo.Control.Position( "position", Vector3.Zero, out var delta, handleRotation, centerRaycast: () =>
+			if ( Gizmo.Control.UpdatePosition( "position", Vector3.Zero, out var delta, handleRotation, centerRaycast: () =>
 			{
 				var trace = RaycastToSurface( nonSceneGos );
 				surfaceHit = trace?.HitPosition;
@@ -81,7 +81,7 @@ public class PositionEditorTool : EditorTool
 
 				moveDelta = surfaceHit.HasValue ? surfaceHit.Value - handlePosition : moveDelta + delta;
 
-				var snapped = Gizmo.Snap( handlePosition, moveDelta, handleRotation );
+				var snapped = WorkPlane.SnapTranslation( handlePosition, moveDelta, handleRotation, Gizmo.Settings.GlobalSpace );
 				var offset = snapped - handlePosition;
 
 				var alignToSurface = Gizmo.IsAltPressed && surfaceNormal.HasValue;
@@ -106,7 +106,15 @@ public class PositionEditorTool : EditorTool
 
 					OnMoveObject( entry.Key, transform );
 				}
+				centroid = snapped;
 			}
+			Gizmo.Transform = new Transform( centroid );
+			Gizmo.Draw.Position( "position", handleRotation, surfaceCenter: true );
+		}
+		if ( Gizmo.WasLeftMouseReleased )
+		{
+			undoScope?.Dispose();
+			undoScope = null;
 		}
 	}
 

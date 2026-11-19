@@ -62,7 +62,13 @@ public sealed class SkeletonDocument : IAnimationDocument
 	public Skeleton SourceSkeleton { get; set; }
 
 	[Property, Hide, ResourceType( "vmdl" ), Description( "Optional model used to preview this skeleton and its animation clips in the editor." )]
-	public string PreviewModel { get; set; } = "";
+	public string PreviewModel
+	{
+		get => _previewModel.ResolvePath() ?? "";
+		set => _previewModel = ResourceId.FromPath( value );
+	}
+
+	private ResourceId _previewModel;
 
 	[Property, WideMode, FilePath( Extension = "fbx,dmx,smd" ), Title( "Additional Skeleton Files" )]
 	public List<string> AdditionalSourceFilenames { get; set; } = [];
@@ -117,7 +123,7 @@ public sealed class SkeletonDocument : IAnimationDocument
 			return new SkeletonDocument
 			{
 				FilePath = filePath,
-				PreviewModel = (string)document[PreviewModelKey] ?? "",
+				_previewModel = ResourceReference.Read( document[PreviewModelKey] ),
 				RootBone = (string)document[RootBoneKey],
 				AdditionalSourceFilenames = (document[AdditionalSourcesKey] as JsonArray)?.Select( x => x.GetValue<string>() ).ToList() ?? [],
 				Scale = ReadScale( document ),
@@ -146,10 +152,10 @@ public sealed class SkeletonDocument : IAnimationDocument
 		}
 
 		document[RootBoneKey] = RootBone ?? string.Empty;
-		if ( string.IsNullOrWhiteSpace( PreviewModel ) )
+		if ( _previewModel.Guid is null && string.IsNullOrWhiteSpace( PreviewModel ) )
 			document.Remove( PreviewModelKey );
 		else
-			document[PreviewModelKey] = PreviewModel;
+			document[PreviewModelKey] = ResourceReference.Write( _previewModel );
 		document[AdditionalSourcesKey] = new JsonArray( AdditionalSourceFilenames.Select( x => JsonValue.Create( x ) ).ToArray<JsonNode>() );
 		document[ScaleKey] = Scale;
 		document[MasksKey] = WriteMasks();
@@ -162,7 +168,7 @@ public sealed class SkeletonDocument : IAnimationDocument
 	/// <summary>
 	/// Everything this document authors, as text an undo stack can hold onto.
 	/// </summary>
-	public string Snapshot() => Json.Serialize( new State { RootBone = RootBone, PreviewModel = PreviewModel, AdditionalSourceFilenames = AdditionalSourceFilenames, Scale = Scale, Masks = Masks, HighLODBones = HighLODBones, FloatChannelSets = FloatChannelSets } );
+	public string Snapshot() => Json.Serialize( new State { RootBone = RootBone, PreviewModel = _previewModel, AdditionalSourceFilenames = AdditionalSourceFilenames, Scale = Scale, Masks = Masks, HighLODBones = HighLODBones, FloatChannelSets = FloatChannelSets } );
 
 	/// <summary>
 	/// Put a <see cref="Snapshot"/> back. The masks are rebuilt from it, so anything holding one
@@ -175,7 +181,7 @@ public sealed class SkeletonDocument : IAnimationDocument
 			var state = Json.Deserialize<State>( snapshot );
 
 			RootBone = state?.RootBone;
-			PreviewModel = state?.PreviewModel ?? "";
+			_previewModel = state?.PreviewModel ?? default;
 			AdditionalSourceFilenames = state?.AdditionalSourceFilenames ?? [];
 			Scale = state?.Scale ?? 1.0f;
 			Masks = state?.Masks ?? new List<BoneMask>();
@@ -191,7 +197,7 @@ public sealed class SkeletonDocument : IAnimationDocument
 	private sealed class State
 	{
 		public string RootBone { get; set; }
-		public string PreviewModel { get; set; }
+		public ResourceId PreviewModel { get; set; }
 		public List<string> AdditionalSourceFilenames { get; set; } = [];
 		public float Scale { get; set; } = 1.0f;
 		public List<BoneMask> Masks { get; set; }

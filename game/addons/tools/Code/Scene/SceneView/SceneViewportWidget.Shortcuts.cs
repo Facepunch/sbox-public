@@ -2,7 +2,7 @@
 
 public partial class SceneViewportWidget : Widget
 {
-	[Shortcut( "grid.toggle-grid", "CTRL+G" )]
+	[Shortcut( "grid.toggle-grid", "CTRL+ALT+G" )]
 	void ToggleGrid()
 	{
 		State.ShowGrid = !State.ShowGrid;

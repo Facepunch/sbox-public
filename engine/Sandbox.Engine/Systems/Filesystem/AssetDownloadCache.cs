@@ -101,6 +101,8 @@ static class AssetDownloadCache
 	}
 
 
+	static readonly System.Buffers.SearchValues<char> LegalExtensionChars = System.Buffers.SearchValues.Create( "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_" );
+
 	static string[] _neverDownloadExtensions = new[] { ".dll", ".exe", ".bat", ".cmd", ".msi", ".scr", ".com", ".cpl", ".vbs", ".ps1", ".reg" };
 
 	/// <summary>
@@ -112,8 +114,14 @@ static class AssetDownloadCache
 		if ( path.Length < 3 ) return false;
 		if ( path.Contains( ".." ) ) return false;
 
+		// Windows drops trailing spaces and dots and writes "::$DATA" streams to the file itself, so "x.dll " is x.dll
+		if ( path.Contains( ':' ) ) return false;
+
 		var ext = System.IO.Path.GetExtension( path );
 		if ( string.IsNullOrWhiteSpace( ext ) )
+			return false;
+
+		if ( ext.AsSpan( 1 ).ContainsAnyExcept( LegalExtensionChars ) )
 			return false;
 
 		if ( _neverDownloadExtensions.Contains( ext, StringComparer.OrdinalIgnoreCase ) )

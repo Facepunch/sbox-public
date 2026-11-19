@@ -16,6 +16,10 @@ namespace Sandbox;
 /// the caller or into later jobs. When a job throws, no more are claimed, every running job is joined, and the first
 /// exception is rethrown.
 /// </para>
+/// <para>
+/// Jobs run without a <see cref="SynchronizationContext"/> on every thread, the caller's included, and joining doesn't
+/// pump the caller's queue. A job must never wait on work queued to the main thread.
+/// </para>
 /// </summary>
 [SkipHotload]
 internal static class JobDispatcher
@@ -244,7 +248,43 @@ internal static class JobDispatcher
 
 		void Signal()
 		{
-			lock ( gate ) Monitor.PulseAll( gate );
+			lock ( gate )
+			{
+				Monitor.PulseAll( gate );
+				joinEvent?.Set();
+			}
+		}
+
+		// For a caller whose synchronization context hears of its waits (the main thread's, which runs queued work while it
+		// waits): an event to wait on, and its handle in an array kept for SynchronizationContext.Wait. Waiting on the gate
+		// there made the runtime allocate that array on every wait
+		ManualResetEvent joinEvent;
+		IntPtr[] joinHandles;
+
+		void WaitForWorkers()
+		{
+			if ( SynchronizationContext.Current is { } sync && sync.IsWaitNotificationRequired() )
+			{
+				lock ( gate )
+				{
+					if ( joinEvent is null )
+					{
+						joinEvent = new ManualResetEvent( false );
+						joinHandles = [joinEvent.SafeWaitHandle.DangerousGetHandle()];
+					}
+
+					joinEvent.Reset();
+				}
+
+				// Signal sets it after the last range is done, so a reset before this check can't miss it
+				while ( !Complete ) sync.Wait( joinHandles, false, Timeout.Infinite );
+				return;
+			}
+
+			lock ( gate )
+			{
+				while ( !Complete ) Monitor.Wait( gate );
+			}
 		}
 
 		/// <summary>
@@ -272,9 +312,15 @@ internal static class JobDispatcher
 			if ( handleTicket == 0 || Interlocked.CompareExchange( ref ticket, 0, handleTicket ) != handleTicket )
 				throw new InvalidOperationException( "This JobHandle has already been joined." );
 
+			// No sync context while joining, as on the workers: the main thread's would pump its queue mid-batch, and
+			// the runtime allocates a handle array for every blocking wait it forwards to it
+			var syncContext = SynchronizationContext.Current;
+
 			Exception thrown;
 			try
 			{
+				SynchronizationContext.SetSynchronizationContext( null );
+
 				// The caller's share runs in the batch's context, and Run puts the caller's own back, before any
 				// exception leaves it
 				ExecutionContext.Run( context, WorkIn, this );
@@ -283,16 +329,15 @@ internal static class JobDispatcher
 				var spin = new SpinWait();
 				while ( !Complete && !spin.NextSpinWillYield ) spin.SpinOnce();
 
-				lock ( gate )
-				{
-					while ( !Complete ) Monitor.Wait( gate );
-				}
+				if ( !Complete ) WaitForWorkers();
 
 				thrown = error;
 			}
 			finally
 			{
-				Release();
+				// Release takes the pool lock, so the context goes back after it
+				try { Release(); }
+				finally { SynchronizationContext.SetSynchronizationContext( syncContext ); }
 			}
 
 			if ( thrown is not null ) ExceptionDispatchInfo.Throw( thrown );

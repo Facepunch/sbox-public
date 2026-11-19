@@ -1,0 +1,87 @@
+@import "/Platform/_platform.scss";
+
+// Centred just above the dock, sliding up into view when there's something to show
+FriendNews
+{
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 56px;
+	justify-content: center;
+	pointer-events: none;
+	opacity: 0;
+	transform: translateY( 10px );
+	transition: opacity 0.25s ease-out, transform 0.3s ease-out;
+
+	&.up
+	{
+		opacity: 1;
+		transform: translateY( 0px );
+
+		.news
+		{
+			pointer-events: all;
+		}
+	}
+
+	.news
+	{
+		height: 38px;
+		align-items: center;
+		gap: 8px;
+		padding: 0 6px 0 8px;
+		border-radius: 19px;
+		border: 1px solid rgba( 128, 175, 255, 0.16 );
+		background-color: rgba( 14, 22, 40, 0.88 );
+		backdrop-filter: blur( 16px );
+		box-shadow: 0 12px 30px rgba( 0, 0, 0, 0.4 );
+		font-family: $platform-font;
+	}
+
+	.face
+	{
+		width: 24px;
+		height: 24px;
+		border-radius: 50%;
+		background-size: cover;
+		background-position: center;
+	}
+
+	.name
+	{
+		font-size: 13px;
+		font-weight: 700;
+		color: $platform-text;
+	}
+
+	.what
+	{
+		margin: 0 6px 0 -4px;
+		font-size: 13px;
+		color: #cdd8ee;
+	}
+
+	// The same green as joining elsewhere
+	.join
+	{
+		height: 26px;
+		align-items: center;
+		padding: 0 12px;
+		border-radius: 13px;
+		background-color: $platform-reward;
+		cursor: pointer;
+		@include platform-sounds;
+
+		label
+		{
+			font-size: 12px;
+			font-weight: 700;
+			color: #062a12;
+		}
+
+		&:hover
+		{
+			background-color: #52d47c;
+		}
+	}
+}

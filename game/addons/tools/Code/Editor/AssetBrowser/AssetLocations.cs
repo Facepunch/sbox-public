@@ -193,11 +193,12 @@ public class AssetLocations : TreeView
 		if ( location.IsRoot || !Directory.Exists( location.Path ) )
 			return false;
 
-		// IsRoot only knows about core and citizen when the path looks like a dev checkout, so check the real roots too
+		// IsRoot can miss built-in content outside a dev checkout, so check the real roots too.
 		var roots = EditorUtility.Projects.GetAll().Select( x => x.GetRootPath() )
 			.Append( Project.Current?.GetRootPath() )
 			.Append( FileSystem.Root.GetFullPath( "/core/" ) )
-			.Append( FileSystem.Root.GetFullPath( "/addons/citizen/assets/" ) );
+			.Append( FileSystem.Root.GetFullPath( "/addons/citizen/assets/" ) )
+			.Append( FileSystem.Root.GetFullPath( "/addons/content/assets/" ) );
 
 		var path = NormalizeFolder( location.Path );
 

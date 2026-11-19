@@ -19,6 +19,16 @@ public sealed partial class BackendDevice
 	readonly ConcurrentDictionary<string, Task<ModelFile>> modelReads = new( StringComparer.OrdinalIgnoreCase );
 	readonly ConcurrentDictionary<string, MaterialFile> readMaterials = new( StringComparer.OrdinalIgnoreCase );
 	readonly ConcurrentDictionary<string, TextureFile> readTextures = new( StringComparer.OrdinalIgnoreCase );
+
+	// Images made on the worker that read a big whole texture (ImageAheadBytes), with the file they're for, for Load to fill
+	readonly ConcurrentDictionary<string, (TextureFile File, Borealis.Gpu.TextureHandle Image)> imagesAhead = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// A whole texture read ahead (<see cref="LoadTextureAsync"/>, a map's lightmaps, a model's texture that doesn't stream)
+	/// of at least this many bytes has its image made on the worker too: the driver's allocation for one takes milliseconds,
+	/// and a map's lightmaps took 100 ms of a frame. 0 makes none ahead. For comparisons.
+	/// </summary>
+	public static long ImageAheadBytes { get; set; } = 1 << 20;
 	readonly Dictionary<(string Path, ulong Groups), RenderMesh> streamedModels = new();
 	int readsPending;
 	ulong loadFrame, budgetFrame;
@@ -45,7 +55,7 @@ public sealed partial class BackendDevice
 
 	TextureStreamer streamer;
 
-	internal TextureStreamer Streamer => streamer ??= new TextureStreamer( this );
+	internal TextureStreamer Streamer => streamer ??= new TextureStreamer( this ) { Loading = loading };
 
 	internal override bool StreamsTextures => StreamTextures;
 
@@ -104,6 +114,30 @@ public sealed partial class BackendDevice
 
 	long budgetBytes;
 
+	/// <summary>
+	/// Whether a loading screen hides the frames (the host says so each frame): nobody watches them, so what's read is made
+	/// within <see cref="LoadingBudgetMs"/> and <see cref="LoadingUploadBytes"/> a frame instead, and textures stream faster
+	/// (<see cref="TextureStreamer.Loading"/>). A map's models are then made before its first frame, as native makes them in
+	/// its load, rather than over the seconds after it.
+	/// </summary>
+	public bool Loading
+	{
+		get => loading;
+		set
+		{
+			loading = value;
+			if ( streamer is { } textures ) textures.Loading = value;
+		}
+	}
+
+	bool loading;
+
+	/// <summary>Main thread time a frame behind a loading screen may spend making models (<see cref="Loading"/>).</summary>
+	public double LoadingBudgetMs { get; set; } = 100;
+
+	/// <summary>Bytes a frame behind a loading screen may upload for what's made (<see cref="Loading"/>).</summary>
+	public long LoadingUploadBytes { get; set; } = 256 << 20;
+
 	/// <summary>Models still being read on workers for <see cref="LoadModelAsync"/>.</summary>
 	public int ModelReadsPending => Volatile.Read( ref readsPending );
 
@@ -122,6 +156,16 @@ public sealed partial class BackendDevice
 	}
 
 	ulong pendingFrame;
+
+	/// <summary>
+	/// Where content reads run (models, their materials and textures, streamed mips): the thread pool, at most a core's worth
+	/// at once. Started one task each, a map's thousands of reads grew the pool to hundreds of threads that slowed each other
+	/// and the main thread.
+	/// </summary>
+	internal static TaskScheduler Reads { get; } = new ConcurrentExclusiveSchedulerPair( TaskScheduler.Default, Math.Max( Environment.ProcessorCount - 2, 2 ) ).ConcurrentScheduler;
+
+	/// <summary>Run a content read on <see cref="Reads"/>.</summary>
+	internal static Task<T> Read<T>( Func<T> read ) => Task.Factory.StartNew( read, CancellationToken.None, TaskCreationOptions.DenyChildAttach, Reads );
 
 	/// <summary>
 	/// A model as <see cref="LoadModel"/> makes it (every mesh group in <paramref name="meshGroups"/>, the default material
@@ -337,7 +381,7 @@ public sealed partial class BackendDevice
 	public Task<ModelFile> ReadModelAsync( Func<byte[]> save )
 	{
 		Interlocked.Increment( ref readsPending );
-		return Task.Run( () =>
+		return Read( () =>
 		{
 			try
 			{
@@ -379,7 +423,13 @@ public sealed partial class BackendDevice
 	bool WithinBudget()
 	{
 		var now = Stopwatch.GetTimestamp();
-		if ( budgetFrame != loadFrame )
+		if ( budgetFrame != loadFrame && loading )
+		{
+			budgetFrame = loadFrame;
+			budgetEnd = now + (long)(LoadingBudgetMs * Stopwatch.Frequency / 1000);
+			budgetBytes = Gpu.DeferredUploadBytes + LoadingUploadBytes;
+		}
+		else if ( budgetFrame != loadFrame )
 		{
 			budgetFrame = loadFrame;
 			var scale = Math.Clamp( LoadBudgetShare * lastFrameTicks * 1000.0 / Stopwatch.Frequency / LoadBudgetMs, 1.0, Math.Max( LoadBudgetMaxMs / LoadBudgetMs, 1.0 ) );
@@ -423,11 +473,12 @@ public sealed partial class BackendDevice
 	Task StartTextureRead( string path )
 	{
 		Interlocked.Increment( ref readsPending );
-		return Task.Run( () =>
+		return Read( () =>
 		{
 			try
 			{
 				ReadTextureAhead( path );
+				return true;
 			}
 			finally
 			{
@@ -448,7 +499,7 @@ public sealed partial class BackendDevice
 	Task<ModelFile> StartRead( string path )
 	{
 		Interlocked.Increment( ref readsPending );
-		return Task.Run( () =>
+		return Read( () =>
 		{
 			try
 			{
@@ -463,7 +514,13 @@ public sealed partial class BackendDevice
 	}
 
 	// On a worker: the model's file, and its materials' files and textures, read and decoded for the thread that makes them
-	ModelFile ReadModelAhead( string path ) => Content.TryRead( path ) is { } data ? ReadModelAhead( data ) : null;
+	ModelFile ReadModelAhead( string path ) => ReadContent( path ) is { } data ? ReadModelAhead( data ) : null;
+
+	byte[] ReadContent( string path )
+	{
+		using var zone = Zones.ContentRead.Start();
+		return Content.TryRead( path );
+	}
 
 	ModelFile ReadModelAhead( byte[] data )
 	{
@@ -484,12 +541,23 @@ public sealed partial class BackendDevice
 			if ( sharedMaterials.ContainsKey( path ) ) return;
 		}
 
-		if ( Content.TryRead( path ) is not { } data || ReadMaterial( data ) is not { } file ) return;
+		MaterialFile file;
+		using ( Zones.MaterialRead.Start() )
+		{
+			if ( ReadContent( path ) is not { } data || ReadMaterial( data ) is not { } read ) return;
+			file = read;
+		}
+
 		readMaterials.TryAdd( path, file );
 
 		// Its shader too: the first load of one reads a large file, and a package's may recompile; and the render state its
 		// stencil check reads (a pass module's preprocessed lines)
-		if ( !string.IsNullOrEmpty( file.Shader ) ) BackendMaterial.ReadStencilAhead( Shaders, Shaders.Load( file.Shader ), file );
+		if ( !string.IsNullOrEmpty( file.Shader ) )
+		{
+			using var zone = Zones.ShaderRead.Start();
+			BackendMaterial.ReadStencilAhead( Shaders, Shaders.Load( file.Shader ), file );
+		}
+
 		foreach ( var (_, texture) in file.Textures ) ReadTextureAhead( texture, tail: StreamTextures );
 	}
 
@@ -501,12 +569,18 @@ public sealed partial class BackendDevice
 			if ( loadedTextures.ContainsKey( path ) ) return;
 		}
 
+		using var zone = Zones.TextureRead.Start();
 		try
 		{
 			// A streamed texture's tail, unless it doesn't stream
 			var texture = tail ? TextureStreamer.ReadMips( Content, path, TextureFile.Tail ) : null;
 			if ( texture is null || (texture.TopMip > 0 && !TextureStreamer.Streams( texture )) ) texture = Content.TryRead( path ) is { } data ? TextureFile.Read( data ) : null;
-			if ( texture is not null ) readTextures.TryAdd( path, texture );
+			if ( texture is not null && readTextures.TryAdd( path, texture ) && ImageAheadBytes > 0 && texture.TopMip == 0
+				&& texture.Format != Borealis.Gpu.Format.Unknown && TextureStreamer.Bytes( texture, 0 ) >= ImageAheadBytes )
+			{
+				var image = texture.CreateEmpty( Gpu, path );
+				if ( !imagesAhead.TryAdd( path, (texture, image) ) ) Gpu.Destroy( image );
+			}
 		}
 		catch ( InvalidDataException )
 		{

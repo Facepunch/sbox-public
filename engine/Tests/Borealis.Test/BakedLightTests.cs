@@ -109,6 +109,34 @@ public class BakedLightTests
 	}
 
 	/// <summary>
+	/// A hidden light (Hammer's worklight while it's off) lights nothing and renders no shadow map, as native's binner
+	/// skips a light whose rendering is off.
+	/// </summary>
+	[TestMethod]
+	public void HiddenLightsAreNotBinned()
+	{
+		var world = new RenderWorld();
+		world.Lighting.SunColor = Color.Black;
+		world.Add( new MeshObject( null, new Transform( new Vector3( 100, 0, -20 ) ) ) { LocalBounds = UnitBox } );
+
+		var shown = Light( world, 100, baked: false );
+		var hidden = Light( world, 100.5f, baked: false );
+		hidden.Visible = false;
+
+		using var system = new RenderSystem();
+		Borealis.Shadows.ShadowMapper.ResetCache();
+		CollectAndPrepare( system, world, LookingDownX() );
+
+		var binner = system.GetFeature<LightBinnerFeature>();
+		CollectionAssert.AreEqual( new[] { shown }, binner.PackedLights.ToArray() );
+		Assert.AreEqual( 6, system.ShadowMaps.Passes.Length, "the shown light's cube faces only" );
+
+		hidden.Visible = true;
+		CollectAndPrepare( system, world, LookingDownX() );
+		Assert.AreEqual( 2, binner.Count );
+	}
+
+	/// <summary>
 	/// A mixed light's static shadows are in its lightmaps too, so its shadow map holds only what moves - as
 	/// <c>ShadowMapper.FindOrCreateShadowMaps</c> excludes <c>StaticObject</c> for a baked light. A dynamic light casts both.
 	/// </summary>

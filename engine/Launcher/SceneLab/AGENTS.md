@@ -1,8 +1,8 @@
 # SceneLab — agent guide
 
 > Scope: `scenelab.exe`, the lab for native's scene system. Last reviewed: 2026-11-16.
-> Borealis has its own lab, BorealisLab ([`docs/managed/borealis-host.md`](../../../docs/managed/borealis-host.md)). How the
-> two compare is in [`docs/managed/borealis.md`](../../../docs/managed/borealis.md) (*Labs and comparisons*).
+> Borealis has its own lab, BorealisLab ([`docs/reference/borealis-host.md`](../../../docs/reference/borealis-host.md)). How the
+> two compare is in [`docs/reference/borealis.md`](../../../docs/reference/borealis.md) (*Labs and comparisons*).
 
 SceneLab renders GameObject scenes, maps and scripted scenarios through native's scene system, to measure and capture it. It's
 a borderless `PanelWindow`: native draws the scene's camera into its swap chain, and panel UI draws over it (a menu bar and a
@@ -79,17 +79,21 @@ Other switches:
   skipped. Save and compare frames in the same mode: a preset's frame can differ in the last bit between `-parity` and
   one-process-per-preset runs. Native differs run to run on Auto Exposure (it adapts in real time), Sprites and Particles and
   Soft Particles (random particles), Dynamic (it animates) and the Flatgrass maps.
+- **Golden truth:** Borealis frames are checked against golden truth in BorealisLab (`-golden-truth`), not here.
 - **Benchmark:** `-benchmark ["A;B"]` (default Heavy Scene, Dynamic, Crowd Near, Night Interior), `-benchmark-frames N`
   (default 600, or a scripted preset's whole script), `-gpuprofile`.
 - **Debug visualisation:** `-debugmode <SceneCameraDebugMode>` captures a preset's debug visualisation instead of its lit
   frame, e.g. `-debugmode AmbientOcclusion`; with `+r_ao_reference 128` for a converged AO reference.
-- **Window:** `-width`, `-height`, `-fullscreen [exclusive]`, `-novsync`. Multisampled at 4x by default, as a game's is;
+- **Window:** `-width`, `-height` (pixels whatever the display scale, so a capture is the size asked for), `-fullscreen
+  [exclusive]`, `-novsync`. Multisampled at 4x by default, as a game's is;
   `-swapchain-msaa 2|8` for another count, `-swapchain-msaa 1` for none. Captures render at that sample count.
 - **Console variables:** `+name value` sets one before the first scene loads, managed ones included. Native scenesystem
   convars such as `sc_fbcopy_depthaware_mask` aren't reachable this way.
 
 **A new preset:** a `Func<Scene>` (in `GameScenes.cs` start from `Stage()`), a `ChangeGame` that changes it through its
-components so the second capture shows changes arrive, and an entry in `SceneLabScene.Presets` with its `Group`.
+components so the second capture shows changes arrive, and an entry in `SceneLabScene.Presets` with its `Group`. Check its
+frame isn't one flat colour: the comparison treats pixels matching the first one as background and skips them, so a flat
+frame compares nothing and passes.
 
 A panel app doesn't register game resources (`Clothing`, `DecalDefinition` and the like) the way a game does, so
 `GameScenes.LoadResource` loads them from their compiled files. It has no game `UISystem` either, so screen UI renders with

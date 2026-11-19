@@ -157,6 +157,11 @@ public class AssetType
 	/// </summary>
 	public AssetTypeFlags Flags => _assetTypeAttribute?.Flags ?? default;
 
+	/// <summary>
+	/// Whether this asset is loaded and published as its original source file.
+	/// </summary>
+	public bool IsUncompiled => _assetTypeAttribute?.IsUncompiled ?? false;
+
 	public override string ToString() => FriendlyName;
 
 	internal string IconPathSmall { get; set; }
@@ -280,7 +285,7 @@ public class AssetType
 
 	private void Init( TypeDescription type, AssetTypeAttribute attribute )
 	{
-		IsGameResource = true;
+		IsGameResource = type.TargetType.IsAssignableTo( typeof( GameResource ) );
 
 		_typeDescription = type;
 		_assetTypeAttribute = attribute;
@@ -376,7 +381,7 @@ public class AssetType
 			created = true;
 
 			// create it in the engine
-			IAssetSystem.UpdateGameResourceType( attribute.Name, attribute.Extension );
+			IAssetSystem.UpdateGameResourceType( attribute.Name, attribute.Extension, attribute.IsUncompiled );
 
 			old = AssetTypeCache.Values.FirstOrDefault( x => x.FileExtension == attribute.Extension );
 
@@ -401,7 +406,7 @@ public class AssetType
 			var ext = System.IO.Path.GetExtension( file );
 			var t = FromExtension( ext );
 			if ( t is null ) continue;
-			if ( !t.IsGameResource ) continue;
+			if ( t._assetTypeAttribute is null ) continue;
 
 			AssetSystem.RegisterFile( FileSystem.Content.GetFullPath( file ) );
 		}

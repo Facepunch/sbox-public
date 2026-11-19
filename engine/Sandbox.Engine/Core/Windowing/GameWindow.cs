@@ -23,7 +23,7 @@ internal sealed partial class GameWindow : IDisposable
 	bool renderingInitialized;
 	VideoMode startupVideoMode;
 
-	// With -borealisgpu: the window's swap chain on Borealis.Gpu, in place of Source 2's (docs/managed/borealis-gpu-path.md, stage 5)
+	// With -borealisgpu: the window's swap chain on Borealis.Gpu, in place of Source 2's (docs/reference/borealis-gpu-path.md, stage 5)
 	BorealisGpuWindow borealis;
 
 
@@ -114,8 +114,8 @@ internal sealed partial class GameWindow : IDisposable
 		}
 		Screen.UpdateFromEngine();
 
-		// The splash carries on over the menu until it's ready to be seen, then fades out
-		if ( splash.IsDrawable ) StartupScreen.Show( splash );
+		// The splash carries on over the menu until it's ready to be seen, then fades out. Standalone games have no menu.
+		if ( splash.IsDrawable && !Application.IsStandalone ) StartupScreen.Show( splash );
 		else splash.Dispose();
 
 		if ( renderingRequested ) InitializeRendering();

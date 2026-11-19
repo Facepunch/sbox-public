@@ -5,10 +5,16 @@ namespace Sandbox.Services;
 public partial class ServiceApi
 {
 	/// <summary>
-	/// Provides standalone queries and cached, tool-enabled conversations using the caller's game session.
+	/// Provides standalone queries and stateless chat operations using the caller's game session.
 	/// </summary>
 	public interface IAiApi
 	{
+		/// <summary>
+		/// Returns the current player's remaining credits and next monthly renewal.
+		/// </summary>
+		[Get( "/ai/credits" )]
+		Task<ServiceApi.CreditBalance> GetCredits( CancellationToken cancellationToken = default );
+
 		/// <summary>
 		/// Generates a response. No conversation state is retained between calls.
 		/// </summary>
@@ -16,15 +22,15 @@ public partial class ServiceApi
 		Task<AiQueryResponse> Query( [Body] AiQueryRequest input, CancellationToken cancellationToken = default );
 
 		/// <summary>
-		/// Creates a cached conversation with instructions and caller-defined tools.
-		/// </summary>
-		[Post( "/ai/chat/create" )]
-		Task<AiChat> CreateChat( [Body] AiChatCreate options, CancellationToken cancellationToken = default );
-
-		/// <summary>
-		/// Sends a new message or tool results to an existing chat and generates the next assistant response.
+		/// Generates one assistant message. The client supplies and retains the complete conversation history.
 		/// </summary>
 		[Post( "/ai/chat/query" )]
-		Task<AiChatResponse> QueryChat( [Body] AiChatInput input, CancellationToken cancellationToken = default );
+		Task<AiChatResponse> QueryChat( [Body] AiChat input, CancellationToken cancellationToken = default );
+
+		/// <summary>
+		/// Executes one server-owned tool. Save its result in history before continuing the conversation.
+		/// </summary>
+		[Post( "/ai/chat/tool" )]
+		Task<AiChatToolResponse> ExecuteChatTool( [Body] AiChatToolInput input, CancellationToken cancellationToken = default );
 	}
 }

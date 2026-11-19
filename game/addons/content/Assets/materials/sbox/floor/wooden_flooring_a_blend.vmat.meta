@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Wooden Flooring a Blend",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "woodenflooringablend",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "materials/wood/floor/wooden_flooring_a_blend.vmat"
+      }
+    }
+  },
+  "guid": "195f5da8-87be-4313-bd3a-edafc671a7a1"
+}

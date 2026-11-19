@@ -12,7 +12,7 @@ namespace BorealisGpuSample;
 /// out on a grid and rendered by Borealis through Borealis.Gpu offscreen - depth prepass, sun shadow cascades, forward - first
 /// binding by reflection every draw, then through material objects, in alternating runs. Prints the CPU time of a model
 /// draw (bind and record) for each: per bind (a draw that changed material or mode) and per draw of the same material
-/// again. See docs/managed/borealis-materials.md.
+/// again. See docs/reference/borealis-materials.md.
 /// <para>
 /// With <c>-parallel</c> it compares recording on one thread with recording on several, both through material objects,
 /// in alternating runs: the frame's CPU time, recording's wall time and the workers' total, and whether the two draw the
