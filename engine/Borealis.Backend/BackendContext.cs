@@ -1230,7 +1230,7 @@ internal sealed partial class BackendContext : GpuContext
 			_ => TextureDimension.Texture2D,
 		};
 
-		if ( texture is not { IsValid: true } || texture.Dimension != expected || texture.Samples > 1 || SampledLayoutOf( texture ) != ImageLayout.ShaderRead ) return device.Defaults.For( resource );
+		if ( texture is not { IsValid: true } || texture.Dimension != expected || (texture.Samples > 1) != (resource.Dimension == SpirvImageDimension.Texture2DMS) || SampledLayoutOf( texture ) != ImageLayout.ShaderRead ) return device.Defaults.For( resource );
 
 		// SrgbRead( true ) textures are compiled with render state id 1
 		var srgb = resource.Variable.RenderStateId == 1 && Gpu.InfoOf( texture.Handle ).Format.HasSrgb();
