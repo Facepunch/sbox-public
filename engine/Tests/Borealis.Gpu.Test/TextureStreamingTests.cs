@@ -370,4 +370,39 @@ public class TextureStreamingTests : GpuTest
 
 		Device.WaitIdle();
 	}
+
+	/// <summary>
+	/// A streamed texture in a block being emptied (defragmenting) is copied into new memory on the GPU between frames and
+	/// swapped in: a new image elsewhere, with every mip, its materials re-keyed.
+	/// </summary>
+	[TestMethod]
+	public void TexturesMoveOutOfDrainingBlocks()
+	{
+		var path = StreamingTextures( 1 )[0];
+		using var backend = new BackendDevice( Device ) { StreamTextures = true };
+		var texture = (BackendTexture)backend.MaterialTextureFile( path );
+		var stream = texture.Stream;
+		using var material = new BackendMaterial( "streamed", null, null, new( StringComparer.OrdinalIgnoreCase ) { ["g_tColor"] = texture } );
+		backend.BeginFrame();
+
+		var before = texture.Handle;
+		var block = Device.Get( before ).Memory.Block;
+		var version = material.Version;
+		Device.Allocator.Drain( block );
+		try
+		{
+			for ( int frame = 0; frame < 20 && texture.Handle == before; frame++ ) backend.BeginFrame();
+		}
+		finally
+		{
+			Device.Allocator.Undrain( block );
+		}
+
+		Assert.AreNotEqual( before, texture.Handle, "moved" );
+		Assert.AreNotSame( block, Device.Get( texture.Handle ).Memory.Block, "into another block" );
+		Assert.AreEqual( stream.TailTop, stream.ResidentTop );
+		Assert.AreNotEqual( version, material.Version, "its materials re-key" );
+		Assert.IsTrue( backend.Streamer.Moved >= 1 );
+		Device.WaitIdle();
+	}
 }

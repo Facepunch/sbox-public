@@ -918,6 +918,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		var made = new BackendTexture( this, CreateTexture( texture, path ), desc, path ) { Layout = ImageLayout.ShaderRead, Dimension = texture.Dimension };
 		if ( streamed && TextureStreamer.Streams( texture ) ) made.Stream = Streamer.Add( made, path, texture );
+		else if ( streamed ) Streamer.Keep( made );
 		return made;
 	}
 
