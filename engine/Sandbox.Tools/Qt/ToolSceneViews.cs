@@ -21,7 +21,7 @@ internal static class ToolSceneViews
 	[StructLayout( LayoutKind.Sequential )]
 	internal unsafe struct Request
 	{
-		public const int Version = 3;
+		public const int Version = 4;
 		public const int MaxWorlds = 16;
 
 		public int RequestVersion;
@@ -53,7 +53,24 @@ internal static class ToolSceneViews
 
 		/// <summary>The managed handle of the view's world in window pixels (its screen-space renderables), or 0.</summary>
 		public int ScreenSpaceWorld;
+
+		/// <summary>The camera's debug mode (<see cref="SceneCameraDebugMode"/>): full bright for an unlit map, lit by default.</summary>
+		public int ToolsVisMode;
+
+		/// <summary>How the view draws (<see cref="Flags"/>).</summary>
+		public Flags DrawFlags;
 		public int Padding;
+	}
+
+	/// <summary><c>ToolSceneManagedFlags_t</c>.</summary>
+	[Flags]
+	internal enum Flags
+	{
+		/// <summary>Lines only (Hammer's wireframe draw mode).</summary>
+		Wireframe = 1,
+
+		/// <summary>Outline the objects flagged for Hammer's selection stencil layers.</summary>
+		SelectionOutline = 2,
 	}
 
 	/// <summary>
@@ -326,6 +343,10 @@ internal static class ToolSceneViews
 		if ( camera.Ortho ) camera.OrthoHeight = request.OrthoHeight;
 		else camera.FieldOfView = request.FovX;
 		camera.BackgroundColor = new Color( request.Background[0], request.Background[1], request.Background[2], request.Background[3] );
+		var mode = (SceneCameraDebugMode)request.ToolsVisMode;
+		if ( camera.DebugMode != mode ) camera.DebugMode = mode;
+		var wireframe = (request.DrawFlags & Flags.Wireframe) != 0;
+		if ( camera.WireframeMode != wireframe ) camera.WireframeMode = wireframe;
 		overlays.PlaceScreenSpace( camera, new Vector2( request.Width, request.Height ) );
 	}
 
@@ -339,16 +360,19 @@ internal static class ToolSceneViews
 	/// </summary>
 	static void Poll( SceneWorld world )
 	{
-		if ( world.ChangeListener is null ) return;
-
 		var change = SceneObjectChange.Transform | SceneObjectChange.Bones | SceneObjectChange.Visibility | SceneObjectChange.Tint
 			| SceneObjectChange.Settings | SceneObjectChange.Bounds;
 		if ( frame % ModelPollFrames == 0 ) change |= SceneObjectChange.Model | SceneObjectChange.Material | SceneObjectChange.Flags;
 
+		var listening = world.ChangeListener is not null;
 		lock ( world.InternalSceneObjects )
 		{
 			foreach ( var sceneObject in world.InternalSceneObjects )
-				sceneObject.NotifyChanged( change );
+			{
+				// Visibility and tint as native has them now, not as they were first read
+				sceneObject.ForgetNativeState();
+				if ( listening ) sceneObject.NotifyChanged( change );
+			}
 		}
 	}
 

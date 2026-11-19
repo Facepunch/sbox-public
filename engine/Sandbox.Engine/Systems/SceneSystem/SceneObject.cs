@@ -302,6 +302,16 @@ public partial class SceneObject : IHandle
 	Color? _tint;
 
 	/// <summary>
+	/// Read visibility and tint from native again next time: native code changes the objects it made behind managed
+	/// code's back (a tool hiding a helper, tinting a selection, switching its worklight off).
+	/// </summary>
+	internal void ForgetNativeState()
+	{
+		_renderingEnabled = null;
+		_tint = null;
+	}
+
+	/// <summary>
 	/// Whether this scene object should render or not.
 	/// </summary>
 	public bool RenderingEnabled
