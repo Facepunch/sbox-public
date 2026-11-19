@@ -14,6 +14,7 @@ internal sealed partial class BorealisGpuRenderBackend
 
 	readonly object sheetLock = new();
 	readonly Dictionary<string, Vector4> sheetData = new( StringComparer.OrdinalIgnoreCase );
+	readonly List<(ushort[] Rows, int Row, int Height)> sheetWrites = new();
 	Texture sheetCache;
 	int sheetRow;
 
@@ -24,7 +25,9 @@ internal sealed partial class BorealisGpuRenderBackend
 	/// <summary>
 	/// <paramref name="texture"/>'s sheet data as <c>GetSheetInfo</c> gives it - the sheet cache's v of its first sequence's
 	/// rows, the cache's width, one over its height, and its sequence count - with its sequences written into this device's
-	/// sheet cache the first time it's asked for. Zero for a texture with no sheet. Any thread.
+	/// sheet cache the first time it's asked for. Zero for a texture with no sheet. Any thread: sprite systems ask from
+	/// workers and from the main thread mid-frame, so the rows are kept and written before the next block starts
+	/// (<see cref="WriteSheets"/>), never into a list being recorded.
 	/// </summary>
 	internal Vector4 SheetData( Texture texture )
 	{
@@ -50,8 +53,7 @@ internal sealed partial class BorealisGpuRenderBackend
 				sheetRow = 0;
 			}
 
-			sheetCache ??= Texture.Create( SheetCacheWidth, SheetCacheHeight, ImageFormat.RGBA16161616 ).WithName( "Borealis sheet cache" ).Finish();
-			sheetCache.Update( MemoryMarshal.AsBytes( rows.AsSpan() ), 0, sheetRow, SheetCacheWidth, height );
+			sheetWrites.Add( (rows, sheetRow, height) );
 
 			var data = new Vector4( (sheetRow + 0.5f) / SheetCacheHeight, SheetCacheWidth, 1.0f / SheetCacheHeight, sequences );
 			sheetRow += height;
@@ -59,9 +61,22 @@ internal sealed partial class BorealisGpuRenderBackend
 		}
 	}
 
-	/// <summary>Make the sheet cache what this device's views read sheets from, once it exists. On the main thread, outside a block.</summary>
-	void BindSheetCache()
+	/// <summary>
+	/// Write the sheets asked for since the last block into the sheet cache, and make it what this device's views read
+	/// sheets from once it exists. On the main thread, before a block starts recording.
+	/// </summary>
+	void WriteSheets()
 	{
+		lock ( sheetLock )
+		{
+			if ( sheetWrites.Count > 0 )
+			{
+				sheetCache ??= Texture.Create( SheetCacheWidth, SheetCacheHeight, ImageFormat.RGBA16161616 ).WithName( "Borealis sheet cache" ).Finish();
+				foreach ( var (rows, row, height) in sheetWrites ) sheetCache.Update( MemoryMarshal.AsBytes( rows.AsSpan() ), 0, row, SheetCacheWidth, height );
+				sheetWrites.Clear();
+			}
+		}
+
 		if ( sheetCacheBound || sheetCache is null ) return;
 		services.SheetCache = BorealisViewOf( sheetCache );
 		sheetCacheBound = true;

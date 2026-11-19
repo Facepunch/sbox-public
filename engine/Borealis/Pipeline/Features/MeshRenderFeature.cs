@@ -164,6 +164,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		/// <summary><see cref="GpuDriven"/> holds frame-buffer readers, so colour layers take the frame copy before the call.</summary>
 		public bool ReadersTaken;
 
+		/// <summary>
+		/// The opaque list's custom objects, taken out of <see cref="ItemsByBit"/>: <see cref="LateCustomFeature"/> draws them
+		/// after the meshes and aggregates (<see cref="TakeCustom"/>).
+		/// </summary>
+		public readonly List<DrawItem> LateCustom = new();
+
 		/// <summary>Each static overlay run's render order, by run (<see cref="StaticOverlay"/>).</summary>
 		public readonly List<int> OverlayOrders = new();
 
@@ -177,6 +183,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			foreach ( var list in ItemsByBit )
 				list.Clear();
 			GpuDriven.Clear();
+			LateCustom.Clear();
 			ReadersTaken = false;
 			OverlayOrders.Clear();
 			Custom = 0;
@@ -545,6 +552,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		// Static opaque draws go with the aggregates when the device draws them GPU-driven, as one run (so not while
 		// occlusion culls, which the aggregates' feature then draws batch by batch)
 		if ( Occlusion is null && RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } device ) TakeGpuDriven( layers, device.DrawsSkinnedGpuDriven );
+		if ( (layers.Custom & MeshRuns.Opaque) != 0 ) TakeCustom( layers );
 	}
 
 	/// <summary>
