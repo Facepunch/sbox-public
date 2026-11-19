@@ -14,7 +14,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void AllocationsFillTheFullestBlockAndEmptyBlocksGoBack()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
 		var eighth = allocator.BlockSize / 8;
 		var requirements = new VkMemoryRequirements { size = eighth, alignment = 256, memoryTypeBits = ~0u };
 
@@ -51,7 +51,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void BigAllocationsShareLargeBlocksAndBlocksAreMadeAhead()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false );
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false };
 		var small = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
 		var big = small with { size = allocator.BlockSize / 2 };
 		var biggest = small with { size = MemoryAllocator.LargeBlockSize / 2 };
@@ -90,7 +90,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void BigBuffersAreTheirOwnAndMadeAhead()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false );
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false };
 		var page = new VkMemoryRequirements { size = 2 * allocator.OwnBufferSize, alignment = 256, memoryTypeBits = ~0u };
 
 		void WaitFor( ulong reserved, string what )
@@ -125,7 +125,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void BigTargetsGetTheirOwnAllocation()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
 		var big = new VkMemoryRequirements { size = allocator.BlockSize / 2, alignment = 256, memoryTypeBits = ~0u };
 		var small = big with { size = allocator.BlockSize / 8 };
 
@@ -151,7 +151,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void HeapsCountReservedAndUsed()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
 		allocator.UpdateBudgetWithoutDriver();
 		var requirements = new VkMemoryRequirements { size = allocator.BlockSize / 4, alignment = 256, memoryTypeBits = ~0u };
 		var allocation = allocator.Allocate( requirements, MemoryLocation.Device, image: true );
@@ -179,7 +179,7 @@ public class MemoryAllocatorTests : GpuTest
 	public void OverTheBudgetAllocationsGoToSystemMemory()
 	{
 		var warnings = new List<string>();
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false, Warn = warnings.Add };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false, Warn = warnings.Add };
 		var heapCount = (int)Device.Allocator.MemoryProperties.memoryHeapCount;
 		var nothing = new ulong[heapCount];
 		var everything = new ulong[heapCount];
@@ -215,7 +215,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void SparseContentBlocksDrain()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
 		var eighth = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
 		var first = new List<Allocation>();
 		for ( int i = 0; i < 8; i++ ) first.Add( allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
@@ -281,7 +281,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void MovesOnlyTakeRoomInBlocksThereAre()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
 		var eighth = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
 		MemoryAllocator.ExistingBlocksOnly = true;
 		try
@@ -309,6 +309,121 @@ public class MemoryAllocatorTests : GpuTest
 			MemoryAllocator.ExistingBlocksOnly = false;
 		}
 
+		// An empty block (a spare) isn't room for a move: filling it would make the next block to drain
 		allocator.Free( first );
+		Assert.AreEqual( allocator.BlockSize, allocator.Reserved, "kept as a spare" );
+		MemoryAllocator.ExistingBlocksOnly = true;
+		try
+		{
+			Assert.ThrowsException<GpuException>( () => allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
+		}
+		finally
+		{
+			MemoryAllocator.ExistingBlocksOnly = false;
+		}
+	}
+
+	/// <summary>
+	/// A large content block under half full can be drained even when the other large blocks lack the room, if their room and
+	/// one <see cref="MemoryAllocator.DrainBlockSize"/> block would hold it: moves fill the others, then make that one block,
+	/// and no more; emptied, the large block goes back.
+	/// </summary>
+	[TestMethod]
+	public void LargeBlocksDrainIntoOneSmallerBlock()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		var page = new VkMemoryRequirements { size = MemoryAllocator.LargeBlockSize / 16, alignment = 256, memoryTypeBits = ~0u };
+		var first = new List<Allocation>();
+		for ( int i = 0; i < 16; i++ ) first.Add( allocator.Allocate( page, MemoryLocation.Device, image: true, content: true ) );
+		var second = new List<Allocation>();
+		for ( int i = 0; i < 16; i++ ) second.Add( allocator.Allocate( page, MemoryLocation.Device, image: true, content: true ) );
+		Assert.IsTrue( first[0].Block.Large );
+
+		// The first holds five, the second has room for three
+		for ( int i = 0; i < 11; i++ ) allocator.Free( first[i] );
+		for ( int i = 0; i < 3; i++ ) allocator.Free( second[i] );
+		allocator.Trim( MemoryAllocator.QuietFrames + 30 );
+		Assert.IsTrue( allocator.Draining( first[11] ) );
+
+		var moved = new List<Allocation>();
+		MemoryAllocator.ExistingBlocksOnly = true;
+		try
+		{
+			for ( int i = 0; i < 7; i++ ) moved.Add( allocator.Allocate( page, MemoryLocation.Device, image: true, content: true ) );
+			Assert.ThrowsException<GpuException>( () => allocator.Allocate( page, MemoryLocation.Device, image: true, content: true ), "one block, no more" );
+		}
+		finally
+		{
+			MemoryAllocator.ExistingBlocksOnly = false;
+		}
+
+		Assert.AreEqual( 3, moved.Count( m => m.Block == second[3].Block ), "the others' room first" );
+		Assert.AreEqual( 4, moved.Count( m => m.Block.Size == MemoryAllocator.DrainBlockSize ), "then one smaller block, full" );
+
+		for ( int i = 11; i < 16; i++ ) allocator.Free( first[i] );
+		allocator.Trim( 2 * MemoryAllocator.SpareFrames );
+		Assert.AreEqual( MemoryAllocator.LargeBlockSize + MemoryAllocator.DrainBlockSize, allocator.Reserved, "128 MiB back for 32" );
+
+		foreach ( var allocation in second.Skip( 3 ).Concat( moved ) ) allocator.Free( allocation );
+	}
+
+	/// <summary>
+	/// A kind's small blocks start small and grow (<see cref="MemoryAllocator.GrowBlocks"/>): its first is 2 MiB (1 MiB of
+	/// readback memory), each new one twice its largest up to <see cref="MemoryAllocator.BlockSize"/>, and one is made big
+	/// enough for what it's made for.
+	/// </summary>
+	[TestMethod]
+	public void SmallBlocksStartSmallAndGrow()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false };
+		var mebibyte = new VkMemoryRequirements { size = 1 << 20, alignment = 256, memoryTypeBits = ~0u };
+		var placed = new List<Allocation>();
+		var sizes = new List<ulong>();
+		for ( int i = 0; i < 40; i++ )
+		{
+			var allocation = allocator.Allocate( mebibyte, MemoryLocation.Device, image: true, content: true );
+			if ( placed.All( p => p.Block != allocation.Block ) ) sizes.Add( allocation.Block.Size );
+			placed.Add( allocation );
+		}
+
+		CollectionAssert.AreEqual( new ulong[] { 2 << 20, 4 << 20, 8 << 20, 16 << 20, 16 << 20 }, sizes );
+
+		// A 3 MiB image into a kind with no block: its first is made big enough
+		var three = allocator.Allocate( mebibyte with { size = 3 << 20 }, MemoryLocation.Device, image: true );
+		Assert.AreEqual( 4ul << 20, three.Block.Size );
+		placed.Add( three );
+
+		var type = allocator.FindType( mebibyte.memoryTypeBits, MemoryLocation.Readback );
+		var flags = Device.Allocator.MemoryProperties.Type( type ).propertyFlags;
+		if ( (flags & Vk.MemoryHostCached) != 0 && (flags & Vk.MemoryDeviceLocal) == 0 )
+		{
+			var readback = allocator.Allocate( mebibyte with { size = 64 << 10 }, MemoryLocation.Readback, image: false );
+			Assert.AreEqual( MemoryAllocator.FirstReadbackBlockSize, readback.Block.Size );
+			placed.Add( readback );
+		}
+
+		foreach ( var allocation in placed ) allocator.Free( allocation );
+	}
+
+	/// <summary>A drain is given up as soon as something in the block has no room elsewhere, and not tried again for a while.</summary>
+	[TestMethod]
+	public void DrainsWithNoRoomAreAbandoned()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		var eighth = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
+		var first = new List<Allocation>();
+		for ( int i = 0; i < 16; i++ ) first.Add( allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
+		for ( int i = 0; i < 6; i++ ) allocator.Free( first[i] );
+		for ( int i = 8; i < 10; i++ ) allocator.Free( first[i] );
+		allocator.Trim( MemoryAllocator.QuietFrames + 30 );
+		Assert.IsTrue( allocator.Draining( first[6] ) );
+
+		allocator.Abandon( first[6] );
+		Assert.IsFalse( allocator.AnyDraining );
+		Assert.AreEqual( 1, allocator.DrainsAbandoned );
+		allocator.Trim( MemoryAllocator.QuietFrames + 60 );
+		Assert.IsFalse( allocator.Draining( first[6] ), "not tried again at once" );
+
+		foreach ( var allocation in first.Skip( 6 ).Where( ( _, i ) => i is < 2 or > 3 ) ) allocator.Free( allocation );
 	}
 }

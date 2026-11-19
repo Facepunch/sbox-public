@@ -41,6 +41,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 		/// <summary>The block being emptied, or null.</summary>
 		public MemoryBlock Draining;
+
+		/// <summary>Whether moves out of it may make one <see cref="DrainBlockSize"/> block, and whether they have.</summary>
+		public bool DrainMayMake, DrainMade;
 	}
 
 	// Empty blocks kept as spares (shared ones, and big buffers' own allocations), which Trim frees after a while
@@ -358,20 +361,30 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// </summary>
 	[ThreadStatic] internal static bool ExistingBlocksOnly;
 
+	// The one block moves out of a large block being drained made (ChooseDraining), which they may fill though it starts empty
+	MemoryBlock movesInto;
+
+	/// <summary>
+	/// While set on a thread, its buffers are allocations of their own (<see cref="OwnBuffer"/>) whatever their size: upload
+	/// pages, whose number rises and falls with how many lists a frame records, left 4 MiB holes through shared blocks.
+	/// </summary>
+	[ThreadStatic] internal static bool OwnAllocation;
+
 	static GpuException NoRoom() => new( "vkAllocateMemory (no room in the blocks there are)", VkResult.ErrorFragmentedPool );
 
 	Allocation Allocate( in VkMemoryRequirements requirements, bool image, bool target, int type, bool content, bool refusable, bool fallback )
 	{
 		var size = requirements.size;
 		var alignment = Math.Max( requirements.alignment, 1 );
-		if ( ExistingBlocksOnly && (fallback || (!image && size > OwnBufferSize && (content || OwnBigBuffers)) || size > (LargeBlocks && !target ? LargeBlockSize : blockSize) / 4) ) throw NoRoom();
+		var ownAbove = (LargeBlocks && !target ? LargeBlockSize : blockSize) / 4;
+		if ( ExistingBlocksOnly && (fallback || (!image && size > OwnBufferSize && (content || OwnBigBuffers)) || size > ownAbove) ) throw NoRoom();
 
 		// A buffer over a quarter of a small block is its own (a map's vertex and index pages, views' visibility buffers,
 		// tables that grow): one still used after what was made beside it has gone doesn't hold a large block
-		if ( !image && size > OwnBufferSize && (content || OwnBigBuffers) ) return OwnBuffer( type, size, alignment, content, refusable, fallback );
+		if ( !image && (OwnAllocation || (size > OwnBufferSize && (content || OwnBigBuffers))) ) return OwnBuffer( type, size, alignment, content, refusable, fallback );
 
 		// Anything over a quarter of a large block gets its own allocation, and so does a target too big for a small block
-		if ( size > (LargeBlocks && !target ? LargeBlockSize : blockSize) / 4 )
+		if ( size > ownAbove )
 		{
 			var dedicated = NewBlock( type, size, image, content, refusable );
 			dedicated.Dedicated = true;
@@ -388,23 +401,35 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		}
 
 		var large = size > blockSize / 4;
+		ulong freshSize;
 		lock ( allocationLock )
 		{
 			Allocations++;
 			if ( TryShared( type, image, large, content, fallback, size, alignment ) is { } shared ) return shared;
+			freshSize = large ? LargeBlockSize : NextBlockSize( type, image, content, fallback, size + alignment );
 		}
 
-		if ( ExistingBlocksOnly ) throw NoRoom();
+		if ( ExistingBlocksOnly )
+		{
+			// A move out of a large block being drained may make one smaller block, when that was what made draining it worth it
+			lock ( allocationLock )
+			{
+				if ( !kinds.TryGetValue( (type, image, large, content, fallback), out var draining ) || draining.Draining is null || !draining.DrainMayMake || draining.DrainMade || size > DrainBlockSize ) throw NoRoom();
+				draining.DrainMade = true;
+				freshSize = DrainBlockSize;
+			}
+		}
 
 		// A new block, made without the lock; another thread (or the one made ahead) may have added one meanwhile, which is
 		// tried first, and then this one stays as a spare
-		var fresh = NewBlock( type, large ? LargeBlockSize : blockSize, image, content, refusable );
+		var fresh = NewBlock( type, freshSize, image, content, refusable );
 		fresh.Large = large;
 		fresh.Content = content;
 		fresh.Fallback = fallback;
 		lock ( allocationLock )
 		{
 			Add( fresh );
+			if ( ExistingBlocksOnly ) movesInto = fresh;
 			if ( TryShared( type, image, large, content, fallback, size, alignment ) is { } placed ) return placed;
 			throw new GpuException( "A new memory block couldn't fit an allocation" );
 		}
@@ -416,12 +441,12 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// </summary>
 	void MakeAhead( MemoryBlock taken )
 	{
-		if ( !MakeBlocksAhead || !BlocksAhead || disposed ) return;
+		if ( !MakeBlocksAhead || !BlocksAhead || disposed || ExistingBlocksOnly ) return;
 		var kind = (taken.TypeIndex, taken.Images, taken.Large, taken.Content, taken.Fallback);
 		if ( makingAhead.Contains( kind ) || KindOf( taken ).Spares > 0 ) return;
 
 		makingAhead.Add( kind );
-		var size = kind.Large ? LargeBlockSize : blockSize;
+		var size = kind.Large ? LargeBlockSize : NextBlockSize( kind.TypeIndex, kind.Images, kind.Content, kind.Fallback, 0 );
 		System.Threading.ThreadPool.UnsafeQueueUserWorkItem( static state =>
 		{
 			var (allocator, kind, size) = state;
@@ -451,6 +476,37 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 				allocator.Add( block );
 			}
 		}, (this, kind, size), preferLocal: false );
+	}
+
+	/// <summary>
+	/// Whether a kind's small blocks start small and grow (on): its first is <see cref="FirstBlockSize"/>
+	/// (<see cref="FirstReadbackBlockSize"/> for readback memory) and each new one twice its largest, up to
+	/// <see cref="BlockSize"/>, so a kind with a little in it (readback buffers, a menu's content) doesn't hold a whole
+	/// block. Off makes every small block <see cref="BlockSize"/>, for tests of block placement.
+	/// </summary>
+	public bool GrowBlocks { get; init; } = true;
+
+	/// <summary>The first small block of a kind (<see cref="GrowBlocks"/>).</summary>
+	public const ulong FirstBlockSize = 2ul << 20, FirstReadbackBlockSize = 1ul << 20;
+
+	/// <summary>
+	/// The size of a kind's next small block: twice its largest, from the first size, up to <see cref="BlockSize"/>, and at
+	/// least <paramref name="fits"/>. Under the lock; allocates nothing.
+	/// </summary>
+	ulong NextBlockSize( int type, bool image, bool content, bool fallback, ulong fits )
+	{
+		if ( !GrowBlocks ) return blockSize;
+		ulong largest = 0;
+		if ( kinds.TryGetValue( (type, image, false, content, fallback), out var kind ) )
+		{
+			foreach ( var block in kind.Blocks ) largest = Math.Max( largest, block.Size );
+		}
+
+		var flags = properties.Type( type ).propertyFlags;
+		var readback = (flags & Vk.MemoryHostCached) != 0 && (flags & Vk.MemoryDeviceLocal) == 0;
+		var next = largest == 0 ? (readback ? FirstReadbackBlockSize : FirstBlockSize) : Math.Min( largest * 2, blockSize );
+		while ( next < fits && next < blockSize ) next *= 2;
+		return Math.Min( next, blockSize );
 	}
 
 	/// <summary>
@@ -588,7 +644,8 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		MemoryBlock best = null;
 		foreach ( var block in kind.Blocks )
 		{
-			if ( block.Draining || (best is not null && block.Used <= best.Used) ) continue;
+			// A move out of a draining block never fills an empty one: that block would only be the next to drain
+			if ( block.Draining || (best is not null && block.Used <= best.Used) || (ExistingBlocksOnly && block.Used == 0 && block != movesInto) ) continue;
 			if ( block.Fits( size, alignment ) ) best = block;
 		}
 
@@ -658,6 +715,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// <summary>How full a block may be to be drained.</summary>
 	public const double DrainBelow = 0.5;
 
+	/// <summary>The size of the one block moves out of a large block being drained may make (<see cref="ChooseDraining"/>).</summary>
+	public const ulong DrainBlockSize = 32ul << 20;
+
 	/// <summary>Frames a block is drained for before it's left as it is (what's left in it can't move), and not tried again for <see cref="DrainRetryFrames"/>.</summary>
 	public const ulong DrainFrames = 900, DrainRetryFrames = 3600;
 
@@ -702,14 +762,25 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			ulong free = 0;
 			foreach ( var block in kind.Blocks )
 			{
-				free += block.Size - block.Used;
+				if ( block.Used != 0 ) free += block.Size - block.Used;
 				if ( block.Used == 0 || frame < block.DrainFrame || block.Used > block.Size * DrainBelow ) continue;
 				if ( emptiest is null || block.Used < emptiest.Used ) emptiest = block;
 			}
 
 			// Only when the rest of the kind has room for what it holds (moves never make a block), and the kind has a block's
-			// worth free in all, so emptying one leaves fewer
-			if ( emptiest is null || free - (emptiest.Size - emptiest.Used) < emptiest.Used || free < emptiest.Size ) continue;
+			// worth free in all, so emptying one leaves fewer. A large block whose contents fit in the others' room and one
+			// smaller block (with a quarter to spare for what doesn't pack) is worth it too: 128 MiB back for 32
+			if ( emptiest is null ) continue;
+			var elsewhere = free - (emptiest.Size - emptiest.Used);
+			var mayMake = false;
+			if ( elsewhere < emptiest.Used || free < emptiest.Size )
+			{
+				mayMake = key.Large && emptiest.Size == LargeBlockSize && (elsewhere + DrainBlockSize) * 4 >= emptiest.Used * 5;
+				if ( !mayMake ) continue;
+			}
+
+			kind.DrainMayMake = mayMake;
+			kind.DrainMade = false;
 			emptiest.Draining = true;
 			emptiest.DrainFrame = frame;
 			kind.Draining = emptiest;
@@ -737,6 +808,25 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	internal void Undrain( MemoryBlock block )
 	{
 		lock ( allocationLock ) EndDrain( block );
+	}
+
+	/// <summary>
+	/// Stop draining the block <paramref name="allocation"/> is in, as <see cref="Trim"/> does when it hasn't emptied in
+	/// <see cref="DrainFrames"/>: something in it has no room elsewhere.
+	/// </summary>
+	public void Abandon( in Allocation allocation )
+	{
+		lock ( allocationLock )
+		{
+			var block = allocation.Block;
+			if ( block is not { Draining: true } ) return;
+			var kind = KindOf( block );
+			block.Draining = false;
+			block.DrainFrame = frame + DrainRetryFrames;
+			if ( kind.Draining == block ) kind.Draining = null;
+			drainingCount--;
+			DrainsAbandoned++;
+		}
 	}
 
 	/// <summary>Whether any block is being drained.</summary>
@@ -794,6 +884,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		if ( !block.Dedicated ) KindOf( block ).Blocks.Remove( block );
 		Unspare( block );
 		EndDrain( block );
+		if ( movesInto == block ) movesInto = null;
 	}
 
 	// A drained block emptied (or went): it takes allocations again
