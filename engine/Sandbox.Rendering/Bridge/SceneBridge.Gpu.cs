@@ -127,6 +127,9 @@ internal sealed partial class SceneBridge
 		}
 		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( camera.BackgroundColor, true, false, false );
 
+		// The view's lookup tables, as the scene's blocks have them: film grain reads the blue noise
+		BorealisGpuFrame.SetViewTextures( Graphics.Attributes );
+
 		// Early UI draws here too, over the finished frame, not before post processing
 		Graphics.Attributes.Set( UIGammaOutput, encode );
 		if ( ui && camera.Attributes.GetBool( "enableEarlyUI" ) ) RunStage( camera, Stage.EarlyUI );
