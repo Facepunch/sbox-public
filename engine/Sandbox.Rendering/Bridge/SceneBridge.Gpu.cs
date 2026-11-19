@@ -170,6 +170,28 @@ internal sealed partial class SceneBridge
 	/// </summary>
 	void DrawOutput( SceneCamera camera, BorealisGpuFrame frame, bool ui, bool encode, bool flipX, bool flipY )
 	{
+		// A depth grab over the output (a game's own post processing at AfterPostProcess) takes the frame's depth, which the
+		// output's target doesn't have
+		var backend = Gpu;
+		if ( backend is not null && frame is not null )
+		{
+			// One sample, as the grab's target has (made for the stages after the scene already, or now, binding its own target)
+			backend.OutputDepth = frame.ResolvedDepth();
+			if ( frame.Multisampled ) gpuView.Bind();
+		}
+
+		try
+		{
+			DrawOutputStages( camera, frame, ui, encode, flipX, flipY );
+		}
+		finally
+		{
+			if ( backend is not null ) backend.OutputDepth = null;
+		}
+	}
+
+	void DrawOutputStages( SceneCamera camera, BorealisGpuFrame frame, bool ui, bool encode, bool flipX, bool flipY )
+	{
 		if ( frame is not null )
 		{
 			CopyFrame( frame, encode, flipX, flipY );
@@ -179,6 +201,9 @@ internal sealed partial class SceneBridge
 			frame.SetOutputConstants( gpuView.Viewport, output is null ? gpuView.Viewport.Size : new Vector2( output.Width, output.Height ) );
 		}
 		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( camera.BackgroundColor, true, false, false );
+
+		// The view's lookup tables, as the scene's blocks have them: film grain reads the blue noise
+		BorealisGpuFrame.SetViewTextures( Graphics.Attributes );
 
 		// Early UI draws here too, over the finished frame, not before post processing
 		Graphics.Attributes.Set( UIGammaOutput, encode );

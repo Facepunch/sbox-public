@@ -799,7 +799,17 @@ public sealed class GraphicsContext
 	public bool CopyDepth( TextureHandle destination )
 	{
 		if ( !Depth.IsValid ) throw new InvalidOperationException( "No depth is bound." );
-		var from = gpu.InfoOf( Depth );
+		return CopyDepth( Depth, destination, Viewport );
+	}
+
+	/// <summary>
+	/// As <see cref="CopyDepth(TextureHandle)"/>, from <paramref name="source"/>'s <paramref name="region"/> (x, y, width,
+	/// height) rather than the bound depth's viewport: a depth that isn't bound, such as a finished frame's under what draws
+	/// over its output.
+	/// </summary>
+	public bool CopyDepth( TextureHandle source, TextureHandle destination, Num.Vector4 region )
+	{
+		var from = gpu.InfoOf( source );
 		var to = gpu.InfoOf( destination );
 		if ( from.Format != to.Format ) return false;
 
@@ -808,22 +818,22 @@ public sealed class GraphicsContext
 		{
 			if ( to.Width < from.Width || to.Height < from.Height ) return false;
 			EndScope();
-			Transition( Depth, ImageLayout.DepthTarget );
+			Transition( source, ImageLayout.DepthTarget );
 			TransitionForWrite( destination, ImageLayout.DepthTarget );
-			List.BeginRendering( [], new DepthTarget { Texture = Depth, Load = LoadOp.Load, Store = StoreOp.Store, ResolveTarget = destination } );
+			List.BeginRendering( [], new DepthTarget { Texture = source, Load = LoadOp.Load, Store = StoreOp.Store, ResolveTarget = destination } );
 			List.EndRendering();
 			return true;
 		}
 
 		if ( from.Samples != to.Samples ) return false;
 
-		int x = (int)Viewport.X, y = (int)Viewport.Y;
-		var width = Math.Min( (int)Viewport.Z, Math.Min( from.Width - x, to.Width ) );
-		var height = Math.Min( (int)Viewport.W, Math.Min( from.Height - y, to.Height ) );
+		int x = (int)region.X, y = (int)region.Y;
+		var width = Math.Min( (int)region.Z, Math.Min( from.Width - x, to.Width ) );
+		var height = Math.Min( (int)region.W, Math.Min( from.Height - y, to.Height ) );
 		EndScope();
-		Transition( Depth, ImageLayout.CopySource );
+		Transition( source, ImageLayout.CopySource );
 		TransitionForWrite( destination, ImageLayout.CopyDestination );
-		List.CopyTextureRegion( Depth, destination, x, y, 0, 0, width, height );
+		List.CopyTextureRegion( source, destination, x, y, 0, 0, width, height );
 		return true;
 	}
 

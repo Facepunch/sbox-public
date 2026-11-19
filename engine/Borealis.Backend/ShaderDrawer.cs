@@ -1045,10 +1045,13 @@ public sealed class ShaderDrawer : IDisposable
 		var table = stage.Program.Variables;
 		if ( variable.SourceIndex < 0 || variable.SourceIndex >= table.Length ) return null;
 
+		// The draw's attribute, or the material's texture: a texture the material sets (The Festering's dither matrix)
 		var argument = table[variable.SourceIndex];
-		if ( attributes.Get( string.IsNullOrEmpty( argument.Attribute ) ? argument.Name : argument.Attribute ) is not TextureHandle texture ) return null;
+		var texture = attributes.Get( string.IsNullOrEmpty( argument.Attribute ) ? argument.Name : argument.Attribute ) as TextureHandle?;
+		if ( texture is null && Material?.Textures is { } textures && textures.TryGetValue( argument.Name, out var materialTexture ) ) texture = materialTexture?.Handle;
+		if ( texture is not { IsValid: true } handle ) return null;
 
-		var info = gpu.InfoOf( texture );
+		var info = gpu.InfoOf( handle );
 		float w = info.Width, h = info.Height, d = Math.Max( info.Depth, 1 ), m = info.Mips;
 
 		// Into the drawer's scratch, read before the next constant is written
