@@ -149,7 +149,7 @@ public class BackendTests : GpuTest
 
 	/// <summary>
 	/// A material that isn't there draws as the error material (a map's mesh whose material isn't installed), as native's
-	/// resource system binds it, under its own name; no name still draws nothing.
+	/// resource system binds it, under its own name, in every layer; no name still draws nothing.
 	/// </summary>
 	[TestMethod]
 	public void MissingMaterialsDrawAsTheErrorMaterial()
@@ -160,6 +160,8 @@ public class BackendTests : GpuTest
 		var missing = (Borealis.Backend.BackendMaterial)backend.LoadMaterial( "materials/not_installed/missing_for_test.vmat" );
 		Assert.IsNotNull( missing.Shader, "drawn with the error shader" );
 		StringAssert.Contains( missing.File.Shader, "error.shader" );
+		Assert.IsNotNull( missing.Shader.Mode( "Forward" ), "the error shader draws in every layer, with its one mode" );
+		Assert.IsNotNull( missing.Shader.Mode( "Depth" ) );
 		Assert.AreEqual( "materials/not_installed/missing_for_test.vmat", missing.Name );
 
 		Assert.IsNull( ((Borealis.Backend.BackendMaterial)backend.LoadMaterial( "" )).Shader );

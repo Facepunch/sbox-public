@@ -193,7 +193,10 @@ public sealed class ShaderFile
 		}
 	}
 
-	/// <summary>A mode by name (case-insensitive), or null.</summary>
+	/// <summary>
+	/// A mode by name (case-insensitive), or null. The error shader draws every mode with its one, as native's material
+	/// system gives it every mode (<c>CMaterial2</c>'s <c>bIsErrorShader</c>): a material that isn't there draws in any layer.
+	/// </summary>
 	public ShaderMode Mode( string name )
 	{
 		foreach ( var mode in Modes )
@@ -201,7 +204,20 @@ public sealed class ShaderFile
 			if ( string.Equals( mode.Name, name, StringComparison.OrdinalIgnoreCase ) ) return mode;
 		}
 
-		return null;
+		return IsErrorShader && Modes.Count > 0 ? Modes[0] : null;
+	}
+
+	/// <summary>Whether this is <c>shaders/error.shader</c>, by the name it was loaded from.</summary>
+	public bool IsErrorShader => isErrorShader ??= IsErrorShaderName( Name );
+
+	bool? isErrorShader;
+
+	internal static bool IsErrorShaderName( string name )
+	{
+		if ( string.IsNullOrEmpty( name ) ) return false;
+		var file = name.Replace( '\\', '/' );
+		file = file[(file.LastIndexOf( '/' ) + 1)..];
+		return file.Equals( "error.shader", StringComparison.OrdinalIgnoreCase ) || file.Equals( "error.shader_c", StringComparison.OrdinalIgnoreCase );
 	}
 
 	/// <summary>The index of a feature (<c>F_*</c>), or -1.</summary>
