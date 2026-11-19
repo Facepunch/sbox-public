@@ -1,9 +1,9 @@
 ﻿namespace SceneTests;
 
 /// <summary>
-/// A scene object's draws worked out in managed code (<c>SceneObject.GetDraws</c>: body groups, material groups, whole and
-/// attribute material overrides, each draw's translucency and shadow fast path) are native's
-/// (<c>RenderTools::GetSceneObjectDraw</c>) after every change.
+/// A scene object's draws worked out in managed code (<c>SceneObject.GetDraws</c>: body groups, material groups, whole, per
+/// index and attribute material overrides, each draw's translucency and shadow fast path) are native's
+/// (<c>RenderTools::GetSceneObjectDraw</c>) after every change, and so are its flags and bounds.
 /// </summary>
 [TestClass]
 public class SceneObjectDrawTests
@@ -15,6 +15,16 @@ public class SceneObjectDrawTests
 		Assert.IsTrue( so.ResolvesDraws, "made by managed code" );
 		var differences = (System.Collections.Generic.List<string>)Compare.Invoke( null, [so] );
 		Assert.AreEqual( 0, differences.Count, $"after {after}:\n{string.Join( "\n", differences )}" );
+		Assert.AreEqual( "", so.CompareFlags(), $"flags after {after}" );
+		SameBounds( so, after );
+	}
+
+	/// <summary>Bounds kept in managed code are native's, give or take native's quantising to whole units.</summary>
+	static void SameBounds( SceneObject so, string after )
+	{
+		var mine = so.WorldBounds;
+		var native = so.native.GetBounds();
+		Assert.IsTrue( mine.Mins.Distance( native.Mins ) <= 1.8f && mine.Maxs.Distance( native.Maxs ) <= 1.8f, $"bounds after {after}: native {native}, managed {mine}" );
 	}
 
 	[TestMethod]
@@ -65,6 +75,38 @@ public class SceneObjectDrawTests
 				so.ClearMaterialOverride();
 				Same( so, "overrides cleared" );
 
+				so.SetMaterialOverrideByIndex( 0, glass );
+				Same( so, "a translucent index override" );
+				so.SetMaterialOverride( white, "skin" );
+				so.SetMaterialOverrideByIndex( 1, white );
+				Same( so, "an index override over an attribute override" );
+				so.ClearMaterialOverrideList();
+				Same( so, "the override list cleared, index overrides kept" );
+				so.SetMaterialOverrideByIndex( 0, null );
+				so.SetMaterialOverrideByIndex( 1, null );
+				Same( so, "index overrides removed" );
+
+				so.Flags.CastShadows = false;
+				so.Flags.IsTranslucent = true;
+				Same( so, "flags set" );
+				so.UpdateFlagsBasedOnMaterial();
+				Same( so, "flags worked out from materials" );
+				so.Flags.CastShadows = true;
+
+				so.Transform = new Transform( new Vector3( 100.3f, -20.6f, 5.2f ), Rotation.From( 30, 45, 10 ), 1.5f );
+				Same( so, "a transform" );
+				so.MeshGroupMask = 1;
+				so.Position += new Vector3( 7.7f, 0, 0 );
+				Same( so, "moved with one mesh group" );
+				so.MeshGroupMask = ulong.MaxValue;
+				so.Bounds = new BBox( new Vector3( -10.5f ), new Vector3( 20.25f ) );
+				Same( so, "bounds set" );
+				so.RenderingEnabled = false;
+				so.SetMaterialOverride( glass );
+				Same( so, "a whole override while hidden" );
+				so.SetMaterialOverride( null );
+				so.RenderingEnabled = true;
+
 				so.SetMaterialOverride( white, "skin" );
 				so.Model = Model.Load( "models/dev/box.vmdl" );
 				Same( so, "a new model" );
@@ -83,6 +125,74 @@ public class SceneObjectDrawTests
 			b.SetMaterialOverride( null, "skin" );
 			Same( a, "its whole override, and another's override removed" );
 			Same( b, "its override removed" );
+
+			// A wholly translucent model, and a model changed to one
+			var ghost = new SceneObject( world, Model.Load( "models/dev/box.vmdl" ) );
+			ghost.SetMaterialOverride( glass );
+			Same( ghost, "a box with a whole translucent mesh-instance override" );
+			ghost.Model = human;
+			Same( ghost, "a new model after a translucent override" );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	/// <summary>
+	/// Body groups set on a <see cref="SceneModel"/> give the mesh group mask native's <c>CSceneObject::SetBodyGroup</c> gives,
+	/// every choice of every part, past the last choice and a missing part included.
+	/// </summary>
+	[TestMethod]
+	public void BodyGroupsAreNatives()
+	{
+		var world = new SceneWorld();
+		try
+		{
+			var human = Model.Load( "models/citizen_human/human.vmdl" );
+			Assert.IsTrue( human.Parts.Count > 0, "the model has body parts" );
+			var managed = new SceneModel( world, human, Transform.Zero );
+			var reference = new SceneModel( world, human, Transform.Zero );
+
+			void Set( string part, int value )
+			{
+				managed.SetBodyGroup( part, value );
+				reference.native.SetBodyGroup( part, value );
+				Assert.AreEqual( reference.native.GetCurrentMeshGroupMask(), managed.MeshGroupMask, $"{part} = {value}" );
+				Same( managed, $"body group {part} = {value}" );
+			}
+
+			foreach ( var part in human.Parts.All )
+			{
+				for ( int value = part.Choices.Count; value >= 0; value-- ) Set( part.Name, value );
+			}
+
+			Set( "no such part", 1 );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	/// <summary>Custom and dynamic objects keep their bounds in managed code: infinite until set, and not moved by their transform.</summary>
+	[TestMethod]
+	public void CustomBoundsAreNatives()
+	{
+		var world = new SceneWorld();
+		try
+		{
+			foreach ( var so in new SceneObject[] { new SceneCustomObject( world ), new SceneDynamicObject( world ) } )
+			{
+				Assert.AreEqual( so.native.GetBounds(), so.WorldBounds, "infinite at first" );
+				so.Transform = new Transform( new Vector3( 50, 60, 70 ) );
+				Assert.AreEqual( so.native.GetBounds(), so.WorldBounds, "after a transform" );
+				so.Bounds = new BBox( new Vector3( -3.5f, 2.25f, 0 ), new Vector3( 4.1f, 9, 12.5f ) );
+				SameBounds( so, "bounds set" );
+				Assert.AreEqual( so.native.GetBounds(), so.WorldBounds, "quantised as native's" );
+				so.Bounds = new BBox( new Vector3( float.NaN ), new Vector3( 1 ) );
+				Assert.AreEqual( so.native.GetBounds(), so.WorldBounds, "invalid bounds ignored" );
+			}
 		}
 		finally
 		{

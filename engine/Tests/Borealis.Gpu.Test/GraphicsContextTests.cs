@@ -15,6 +15,7 @@ public class GraphicsContextTests : GpuTest
 {
 	const int Size = 64;
 
+	BackendDevice backend;
 	ShaderLibrary library;
 	ShaderDefaults defaults;
 	ShaderDrawer drawer;
@@ -22,7 +23,9 @@ public class GraphicsContextTests : GpuTest
 	[TestInitialize]
 	public void CreateDrawer()
 	{
-		library = new ShaderLibrary( Device, ShaderFileTests.Files );
+		// The UI shaders are Slang modules: a backend's library reads them
+		backend = new BackendDevice( Device, ShaderFileTests.Files );
+		library = backend.Shaders;
 		defaults = new ShaderDefaults( Device );
 		drawer = new ShaderDrawer( Device, library, defaults );
 	}
@@ -32,19 +35,19 @@ public class GraphicsContextTests : GpuTest
 	{
 		Device?.WaitIdle();
 		drawer?.Dispose();
-		library?.Dispose();
+		backend?.Dispose();
 		defaults?.Dispose();
 	}
 
 	/// <summary>
 	/// <c>Source( InvTextureDim ); SourceArg( g_tColor )</c> keeps which texture it measures: ui_filter's
-	/// <c>g_vInvTextureDim</c> names <c>g_tColor</c>, bound as the <c>Texture</c> attribute.
+	/// <c>g_vInvTextureDim</c> names <c>g_tColor</c>, bound as the <c>Texture</c> attribute, in its module's pixel stage.
 	/// </summary>
 	[TestMethod]
 	public void TextureSizeSourceNamesItsTexture()
 	{
 		var shader = library.Load( "shaders/ui_filter.shader" );
-		var program = shader[ShaderProgramType.Pixel];
+		var program = library.Variant( shader, shader.Modes[0].Name, [] ).Pixel.Program;
 		var size = program.Variables.Single( v => v.Name == "g_vInvTextureDim" );
 		Assert.AreEqual( VariableSource.InvTextureDimensions, size.Source );
 		Assert.AreEqual( "g_tColor", program.Variables[size.SourceIndex].Name );

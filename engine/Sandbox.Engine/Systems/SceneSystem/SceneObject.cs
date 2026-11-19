@@ -88,8 +88,10 @@ public partial class SceneObject : IHandle
 			var typeFlags = ESceneObjectTypeFlags.NONE;
 			MeshSystem.CreateSceneObject( model.native, transform, null, flags, typeFlags, sceneWorld, 0x1 );
 			StartResolvingDraws( model );
+			FlagsAtCreation( model, flags );
 			Tags.RemoveAll();
 			Transform = transform;
+			KeepRigidBounds();
 		}
 	}
 
@@ -199,6 +201,7 @@ public partial class SceneObject : IHandle
 			_transform = value;
 			TransformVersion++;
 			native.SetTransform( value );
+			UpdateRigidBounds();
 			NotifyChanged( Rendering.SceneObjectChange.Transform );
 			OnTransformChanged( value );
 			MoveChildren( previous, value );
@@ -265,7 +268,7 @@ public partial class SceneObject : IHandle
 	// We could do better here, sometimes sceneobjects are set to infinite bounds by design
 	private BBox GetSafeBounds()
 	{
-		var bounds = native.GetBounds();
+		var bounds = WorldBounds;
 		var volume = bounds.Volume;
 
 		if ( !float.IsNaN( volume ) && !float.IsInfinity( volume ) )
@@ -280,7 +283,7 @@ public partial class SceneObject : IHandle
 	public BBox Bounds
 	{
 		get => GetSafeBounds();
-		set { native.SetBounds( value ); NotifyChanged( Rendering.SceneObjectChange.Bounds ); }
+		set { native.SetBounds( value ); SetKeptBounds( value ); NotifyChanged( Rendering.SceneObjectChange.Bounds ); }
 	}
 
 	/// <summary>
@@ -400,6 +403,9 @@ public partial class SceneObject : IHandle
 
 			// New mesh instances draw the model's materials; the override list and mesh groups stay
 			if ( ResolvesDraws ) StartResolvingDraws( model );
+			FlagsAtModelChange( model );
+			if ( !ResolvesDraws && _boundsKind == BoundsKind.Rigid ) _boundsKind = BoundsKind.Native;
+			ModelChangedBounds();
 			NotifyChanged( Rendering.SceneObjectChange.Model );
 
 			OnModelChanged();
@@ -461,11 +467,13 @@ public partial class SceneObject : IHandle
 		{
 			native.SetMaterialOverrideForMeshInstances( material.native );
 			OverrideMeshInstances( material );
+			FlagsAtMaterialChange();
 			return;
 		}
 
 		native.SetMaterialOverrideForMeshInstances( default );
 		OverrideMeshInstances( null );
+		FlagsAtMaterialChange();
 	}
 
 	/// <summary>
@@ -473,9 +481,33 @@ public partial class SceneObject : IHandle
 	/// </summary>
 	public void ClearMaterialOverride()
 	{
-		native.ClearMaterialOverrideList();
-		_overrideList?.Clear();
+		ClearMaterialOverrideList();
 		_materialOverride = default;
+	}
+
+	/// <summary>
+	/// Clear the override list (<c>CSceneObject::ClearMaterialOverrideList</c>), leaving mesh-instance and per index overrides.
+	/// </summary>
+	internal void ClearMaterialOverrideList()
+	{
+		native.ClearMaterialOverrideList();
+
+		// Native works the material flags out again only if there was something to clear, and not the translucency flags
+		var had = _overrideList is { Count: > 0 };
+		_overrideList?.Clear();
+		if ( had ) FlagsAtMaterialChange( translucency: false );
+		NotifyChanged( Rendering.SceneObjectChange.Material );
+	}
+
+	/// <summary>
+	/// Override the model's material at <paramref name="index"/> in <see cref="Model.Materials"/>, or stop overriding it for
+	/// null (<c>CSceneObject::SetMaterialOverrideByIndex</c>).
+	/// </summary>
+	internal void SetMaterialOverrideByIndex( int index, Material material )
+	{
+		native.SetMaterialOverrideByIndex( index, material?.native ?? default );
+		SetIndexOverride( index, material is { native.IsValid: true } ? material : null );
+		FlagsAtMaterialChange();
 		NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 
@@ -492,6 +524,7 @@ public partial class SceneObject : IHandle
 		StringToken attribute = attributeName;
 		native.SetMaterialOverride( material?.native ?? IntPtr.Zero, attribute, attributeValue );
 		SetOverrideEntry( material is { native.IsValid: true } ? material : null, attribute.Value, attributeValue );
+		FlagsAtMaterialChange();
 		NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 
@@ -501,7 +534,7 @@ public partial class SceneObject : IHandle
 	public void SetMaterialGroup( string name )
 	{
 		native.SetMaterialGroup( name );
-		ApplyMaterialGroup( name );
+		if ( ApplyMaterialGroup( name ) ) FlagsAtMaterialChange();
 		NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 
@@ -556,6 +589,8 @@ public partial class SceneObject : IHandle
 	internal void UpdateFlagsBasedOnMaterial()
 	{
 		native.UpdateFlagsBasedOnMaterial();
+		FlagsAtMaterialChange();
+		NotifyChanged( Rendering.SceneObjectChange.Flags );
 	}
 
 	/// <summary>
@@ -572,15 +607,15 @@ public partial class SceneObject : IHandle
 			Object = obj;
 		}
 
+		// Kept on the object (CurrentFlags), as native's HasFlags: any of them
 		internal bool HasFlag( Rendering.SceneObjectFlags f )
 		{
-			return Object.native.HasFlags( f );
+			return (Object.CurrentFlags & f) != 0;
 		}
 
 		internal void SetFlag( Rendering.SceneObjectFlags f, bool val )
 		{
-			Object.native.ChangeFlags( val ? f : Rendering.SceneObjectFlags.None, f );
-			Object.NotifyChanged( Rendering.SceneObjectChange.Flags );
+			Object.ChangeFlags( val ? f : Rendering.SceneObjectFlags.None, f );
 		}
 
 

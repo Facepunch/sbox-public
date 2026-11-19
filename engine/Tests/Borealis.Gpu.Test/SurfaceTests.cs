@@ -159,6 +159,32 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A program guesses the parts of the passes its materials noted (SurfaceShaders.NoteMaterial), not every pass it has:
+	/// an opaque static material its GPU-driven colour and depth passes where the device draws GPU-driven, its classic
+	/// ones otherwise; an alpha-tested skinned one its skinned alpha-tested passes; a blended one its translucent colour
+	/// pass alone; two materials' notes aren't crossed.
+	/// </summary>
+	[TestMethod]
+	public void GuessesAreTheNotedMaterialsPasses()
+	{
+		var rock = Compiler().CompileSurface( Path.Combine( Surfaces, "rock.slang" ) );
+		Assert.IsNull( rock.GpuDrivenError, rock.GpuDrivenError );
+		using var backend = new BackendDevice( Device );
+		using var program = new SurfaceProgram( backend, rock );
+		string[] Names( uint notes, bool gpuDriven ) => SurfacePassNotes.Resolve( notes, program, gpuDriven ).Select( p => p.Pass.Pass.Name ).Order( StringComparer.Ordinal ).ToArray();
+
+		var opaque = SurfaceRenderState.Opaque;
+		CollectionAssert.AreEqual( new[] { "DepthGpuDriven", "ForwardGpuDriven" }, Names( SurfacePassNotes.Of( opaque, SurfaceDrawKinds.Static ), true ) );
+		CollectionAssert.AreEqual( new[] { "Depth", "Forward" }, Names( SurfacePassNotes.Of( opaque, SurfaceDrawKinds.Static ), false ) );
+		CollectionAssert.AreEqual( new[] { "DepthAlphaTestSkinned", "ForwardAlphaTestSkinned" }, Names( SurfacePassNotes.Of( opaque with { AlphaTest = true }, SurfaceDrawKinds.Skinned ), true ) );
+		CollectionAssert.AreEqual( new[] { "ForwardTranslucentGpuDriven" }, Names( SurfacePassNotes.Of( opaque with { Blend = SurfaceBlend.Alpha, DepthWrite = false }, SurfaceDrawKinds.Static ), true ) );
+
+		var both = Names( SurfacePassNotes.Of( opaque, SurfaceDrawKinds.Static ) | SurfacePassNotes.Of( opaque with { AlphaTest = true }, SurfaceDrawKinds.Skinned ), true );
+		Assert.AreEqual( 4, both.Length, string.Join( ", ", both ) );
+		Assert.IsFalse( both.Any( n => n.Contains( "AlphaTestGpuDriven", StringComparison.Ordinal ) ), "an opaque static material and an alpha-tested skinned one make no alpha-tested GPU-driven guesses" );
+	}
+
+	/// <summary>
 	/// An interpolated surface (blendable.slang) reads its Varyings from the mesh by semantic and passes them to the pixel
 	/// stage; its fields say which .vmat value they take.
 	/// </summary>

@@ -25,6 +25,9 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 	/// <summary>What <c>ISceneView.GetPostProcessEnabled</c> says for a native view.</summary>
 	public bool PostProcessEnabled = true;
 
+	/// <summary>The camera's debug view (<c>ISceneView.GetToolsVisMode</c>): post processing skips its effects in one.</summary>
+	public int ToolsVisMode;
+
 	/// <summary>
 	/// Whether <see cref="Target"/>'s colour is written through its sRGB view, so what's drawn is encoded by the hardware, as
 	/// Source 2 writes an 8-bit texture a camera renders into.
@@ -100,7 +103,7 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 	}
 
 	bool Graphics.IFrameView.PostProcessEnabled => PostProcessEnabled;
-	int Graphics.IFrameView.ToolsVisMode => 0;
+	int Graphics.IFrameView.ToolsVisMode => ToolsVisMode;
 	bool Graphics.IFrameView.IsChildView => false;
 	int Graphics.IFrameView.CubeFace => CubeFace;
 	bool Graphics.IFrameView.IsCapture => Rendering.CaptureFrames.IsCapture( CubeFace, false, false );

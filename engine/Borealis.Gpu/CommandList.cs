@@ -245,6 +245,12 @@ public sealed unsafe class CommandList
 		vk.vkDestroyCommandPool( vk.Device, pool, null );
 	}
 
+	/// <summary>
+	/// Give the driver back the command memory its pool kept from its biggest recording; for a recycled spare only. The
+	/// next recording grows it again.
+	/// </summary>
+	internal void ReleaseCommandMemory() => vk.vkResetCommandPool( vk.Device, pool, Vulkan.Vk.CommandPoolResetReleaseResources ).Check( "vkResetCommandPool" );
+
 	void Recording()
 	{
 		if ( !recording ) throw new InvalidOperationException( "This command list isn't recording" );

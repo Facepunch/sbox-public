@@ -43,6 +43,31 @@ public class EntityLumpTests
 	}
 
 	/// <summary>
+	/// Values as strings the way native's entity key values give them (<c>CVariantBase::AssignTo( char * )</c>, numbers as
+	/// <c>%g</c>), which the game's map loader parses: every key of a read entity has one.
+	/// </summary>
+	[TestMethod]
+	public void ValuesFormatAsNativeGivesThem()
+	{
+		Assert.AreEqual( "1234.57", MapEntity.Format( 1234.5678f ) );
+		Assert.AreEqual( "0.5", MapEntity.Format( 0.5f ) );
+		Assert.AreEqual( "0.1", MapEntity.Format( 0.1f ) );
+		Assert.AreEqual( "100000", MapEntity.Format( 100000f ) );
+		Assert.AreEqual( "1e+06", MapEntity.Format( 1000000f ) );
+		Assert.AreEqual( "1.5e-05", MapEntity.Format( 0.000015f ) );
+		Assert.AreEqual( "-72", MapEntity.Format( -72f ) );
+		Assert.AreEqual( "0", MapEntity.Format( 0f ) );
+		Assert.AreEqual( "1 2.5 -3", MapEntity.Format( new System.Numerics.Vector3( 1, 2.5f, -3 ) ) );
+		Assert.AreEqual( "true", MapEntity.Format( true ) );
+		Assert.AreEqual( "808657659", MapEntity.Format( 808657659 ) );
+		Assert.AreEqual( "241 236 213 255", MapEntity.Format( new byte[] { 241, 236, 213, 255 } ) );
+		Assert.AreEqual( "models/a.vmdl", MapEntity.Format( "models/a.vmdl" ) );
+
+		var e = MapEntity.Read( EntityBlob() );
+		foreach ( var (_, value) in e.Values ) Assert.IsNotNull( MapEntity.Format( value ) );
+	}
+
+	/// <summary>
 	/// One entity's key values as compiled: version 1, two keys by hash and four more, then one key with its name.
 	/// </summary>
 	static byte[] EntityBlob()

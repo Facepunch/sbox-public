@@ -51,6 +51,7 @@ public sealed partial class SceneModel
 
 		animNative.CalculateWorldSpaceBones();
 		animNative.FinishUpdate();
+		PoseChanged();
 		NotifyChanged( Rendering.SceneObjectChange.Bones );
 	}
 
@@ -63,6 +64,7 @@ public sealed partial class SceneModel
 		Assert.False( parent == this );
 
 		animNative.MergeFrom( parent );
+		PoseChanged();
 		NotifyChanged( Rendering.SceneObjectChange.Bones );
 	}
 

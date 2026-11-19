@@ -123,6 +123,47 @@ public class SkinningTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// Skinned draws go GPU-driven (<see cref="BackendDevice.GpuDrivenSkinned"/>): the posed citizen, its many-weight meshes from
+	/// the vertex cache and its one-weight ones skinned in the vertex shader, depth, shadows and forward, draws in more
+	/// GPU-driven batches than with the switch off, and looks the same.
+	/// </summary>
+	[TestMethod]
+	public void SkinnedDrawsGpuDriven()
+	{
+		var previousHost = RenderHost.Current;
+		try
+		{
+			(byte[] Pixels, long Batches) Draw( bool skinned )
+			{
+				using var backend = new BackendDevice( Device ) { GpuDrivenSkinned = skinned, TimeDraws = true };
+				RenderHost.Current = new BackendRenderHost( backend );
+				var mesh = backend.LoadModel( Citizen );
+				if ( mesh is null ) Assert.Inconclusive( $"{Citizen} isn't built" );
+
+				var moved = new Transform( new Vector3( 0, 12, 6 ), Rotation.FromYaw( 35 ) );
+				var posed = mesh.BindPose.Select( ToTransform ).Select( x => moved.ToWorld( x ) ).ToArray();
+				Render( mesh, Transform.Zero, posed );
+				var batches = backend.DrawTimes.GpuDrivenBatches;
+				var pixels = Render( mesh, Transform.Zero, posed );
+				return (pixels, backend.DrawTimes.GpuDrivenBatches - batches);
+			}
+
+			var classic = Draw( false );
+			var gpuDriven = Draw( true );
+			Save( gpuDriven.Pixels, Width, Height, "skinning-gpudriven" );
+
+			Assert.IsTrue( gpuDriven.Batches > classic.Batches, $"skinned draws go GPU-driven: {gpuDriven.Batches} batches against {classic.Batches}" );
+			var difference = MeanDifference( gpuDriven.Pixels, classic.Pixels );
+			Assert.IsTrue( difference < 0.25, $"GPU-driven skinned draws look as the classic ones: mean difference {difference:F3}" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
 	/// <summary>A model-space bone (<c>matrix3x4_t</c> rows) as a transform.</summary>
 	static Transform ToTransform( Matrix3x4 m )
 	{

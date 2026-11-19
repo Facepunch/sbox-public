@@ -133,6 +133,8 @@ internal sealed partial class BackendContext : GpuContext
 
 	public override OverlayStencil OverlayStencil { get; set; }
 
+	public override ToolsPass ToolsPass { get; set; }
+
 	public override GpuBuffer<uint> InstanceIds { get; set; }
 
 	public override OcclusionCuller Occlusion { get; set; }
@@ -198,6 +200,7 @@ internal sealed partial class BackendContext : GpuContext
 		passStateCount = 0;
 		if ( frame is null ) viewSetWritten = false;
 		OverlayStencil = OverlayStencil.None;
+		ToolsPass = ToolsPass.None;
 		SetObjectAttributes( null );
 		recording.BindVersion = -1;
 		recording.Active = this;
@@ -866,6 +869,7 @@ internal sealed partial class BackendContext : GpuContext
 
 		passStateCount = 0;
 		OverlayStencil = OverlayStencil.None;
+		ToolsPass = ToolsPass.None;
 	}
 
 	public override void SetConstants<T>( StringToken name, in T value ) => attributes.SetData( name, value );
@@ -928,7 +932,7 @@ internal sealed partial class BackendContext : GpuContext
 		var noColor = stripPixelShader || r.Color is null;
 		var depthOnly = StripsPixelShader( m, noColor, stripPixelShader );
 		var geometry = DepthGeometry( GeometryFor( source, draw ), variant, depthOnly );
-		var pipeline = device.Pipeline( variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, normals: !noColor && r.Normals is not null );
+		var pipeline = device.Pipeline( variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, normals: !noColor && r.Normals is not null, tools: noColor ? ToolsPass.None : ToolsPass );
 
 		if ( r.Pipeline != pipeline )
 		{

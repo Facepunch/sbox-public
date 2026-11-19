@@ -50,6 +50,9 @@ internal sealed class PipelinePart( PartKey key, uint kind, UInt128 shader )
 	/// <summary>Kept in the part manifest this run (<see cref="PipelinePartManifest"/>).</summary>
 	public bool Recorded;
 
+	/// <summary>Made from a guess (<see cref="Device.QueuePipelineParts"/>, speculative), and whether a pipeline has linked it since.</summary>
+	public bool Guessed, GuessUsed;
+
 	/// <summary>The library, once made.</summary>
 	public ulong Pipeline;
 
@@ -198,8 +201,14 @@ public sealed unsafe partial class Device
 	int optimising;
 	bool stopOptimising;
 
-	int partsMade, linksMade, optimisedMade;
+	int partsMade, linksMade, optimisedMade, guessesMade, guessesUsed;
 	long partTicks, linkTicks, optimiseTicks;
+
+	/// <summary>
+	/// Parts made from guesses so far (<see cref="QueuePipelineParts"/> with speculative), and how many of them a pipeline
+	/// has linked since: the rest were work for passes nothing drew (yet). Zero without pipeline libraries.
+	/// </summary>
+	public PartGuessStats PartGuesses => new( Volatile.Read( ref guessesMade ), Volatile.Read( ref guessesUsed ) );
 
 	/// <summary>
 	/// What pipeline libraries made so far (<see cref="DeviceCapabilities.PipelineLibraries"/>): parts and the
@@ -286,14 +295,17 @@ public sealed unsafe partial class Device
 	/// it is only a fast link: a shader's pre-rasterisation and fragment parts as it loads, say. Parts already made or being
 	/// made are skipped. Does nothing without pipeline libraries.
 	/// </summary>
-	public void PreparePipelineParts( in GraphicsPipelineInfo info, PipelineParts parts = PipelineParts.All )
+	public void PreparePipelineParts( in GraphicsPipelineInfo info, PipelineParts parts = PipelineParts.All ) => PrepareParts( info, parts, guess: false );
+
+	// With guess, a guess's parts (counted in PartGuesses)
+	void PrepareParts( in GraphicsPipelineInfo info, PipelineParts parts, bool guess )
 	{
 		if ( !UsesLibraries( info ) ) return;
 		var layout = PipelineLayout( info.Sets );
 		using ( Zone( ZonePipeline ) )
 		{
-			if ( (parts & PipelineParts.PreRasterization) != 0 ) Part( preRasterizationParts, Vulkan.Vk.LibraryPreRasterization, PreRasterizationKey( info, layout ), info, layout, ShaderHash( info.VertexShader ), use: false );
-			if ( (parts & PipelineParts.FragmentShader) != 0 ) Part( fragmentParts, Vulkan.Vk.LibraryFragmentShader, FragmentKey( info, layout ), info, layout, ShaderHash( info.FragmentShader ), use: false );
+			if ( (parts & PipelineParts.PreRasterization) != 0 ) Part( preRasterizationParts, Vulkan.Vk.LibraryPreRasterization, PreRasterizationKey( info, layout ), info, layout, ShaderHash( info.VertexShader ), use: false, guess );
+			if ( (parts & PipelineParts.FragmentShader) != 0 ) Part( fragmentParts, Vulkan.Vk.LibraryFragmentShader, FragmentKey( info, layout ), info, layout, ShaderHash( info.FragmentShader ), use: false, guess );
 			if ( (parts & PipelineParts.VertexInput) != 0 ) Part( vertexInputParts, Vulkan.Vk.LibraryVertexInput, VertexInputKey( info ), info, layout, 0, use: false );
 			if ( (parts & PipelineParts.FragmentOutput) != 0 ) Part( outputParts, Vulkan.Vk.LibraryFragmentOutput, OutputKey( info ), info, layout, 0, use: false );
 		}
@@ -364,15 +376,18 @@ public sealed unsafe partial class Device
 	/// A part by its key: made here if nobody has it. With <paramref name="use"/>, waited for if another thread is making it
 	/// and counted as used until <see cref="Release"/>; without, returned as it is.
 	/// </summary>
-	PipelinePart Part( Dictionary<PartKey, PipelinePart> cache, uint kind, PartKey key, in GraphicsPipelineInfo info, ulong layout, UInt128 shader, bool use )
+	PipelinePart Part( Dictionary<PartKey, PipelinePart> cache, uint kind, PartKey key, in GraphicsPipelineInfo info, ulong layout, UInt128 shader, bool use, bool guess = false )
 	{
 		PipelinePart part;
-		bool make, record;
+		bool make, record, guessUsed = false;
 		lock ( partLock )
 		{
 			make = !cache.TryGetValue( key, out part );
-			if ( make ) cache[key] = part = new PipelinePart( key, kind, shader );
+			if ( make ) cache[key] = part = new PipelinePart( key, kind, shader ) { Guessed = guess };
 			if ( use ) part.Users++;
+
+			// A guess's part linked: the guess was right (counted once)
+			if ( use && part.Guessed && !part.GuessUsed ) part.GuessUsed = guessUsed = true;
 
 			// Linked by a pipeline: kept for the next run, once a run (never per frame: a pipeline is made once)
 			record = use && partManifest is not null && !part.Recorded;
@@ -380,6 +395,15 @@ public sealed unsafe partial class Device
 		}
 
 		if ( record ) Record( (PipelineParts)kind, info, shader );
+		if ( guessUsed )
+		{
+			Interlocked.Increment( ref guessesUsed );
+			if ( partLog is not null )
+			{
+				var line = $"{DateTime.Now:HH:mm:ss.fff} guessed {(PipelineParts)kind} {info.Name} shader {(ulong)(shader >> 64):x16} key {key.GetHashCode():x8}\n";
+				lock ( partLogLock ) System.IO.File.AppendAllText( partLog, line );
+			}
+		}
 
 		if ( make )
 		{
@@ -398,11 +422,12 @@ public sealed unsafe partial class Device
 
 			Interlocked.Add( ref partTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
 			Interlocked.Increment( ref partsMade );
+			if ( guess ) Interlocked.Increment( ref guessesMade );
 			if ( partLog is not null )
 			{
 				var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
 				var constants = (PipelineParts)kind == PipelineParts.PreRasterization ? info.VertexConstants : info.FragmentConstants;
-				var line = $"{DateTime.Now:HH:mm:ss.fff} {(use ? "use" : "ahead")} {(PipelineParts)kind} {ms:0} ms {info.Name} [{string.Join( ',', System.Linq.Enumerable.Select( constants ?? [], c => $"{c.Id}={c.Value}" ) )}] layout {layout:x} shader {(ulong)(shader >> 64):x16} samples {info.Samples} depth {info.DepthFormat}\n";
+				var line = $"{DateTime.Now:HH:mm:ss.fff} {(use ? "use" : guess ? "guess" : "ahead")} {(PipelineParts)kind} {ms:0} ms {info.Name} [{string.Join( ',', System.Linq.Enumerable.Select( constants ?? [], c => $"{c.Id}={c.Value}" ) )}] layout {layout:x} shader {(ulong)(shader >> 64):x16} samples {info.Samples} depth {info.DepthFormat} key {key.GetHashCode():x8}\n";
 				lock ( partLogLock ) System.IO.File.AppendAllText( partLog, line );
 			}
 
@@ -1004,3 +1029,10 @@ public sealed unsafe partial class Device
 
 /// <summary>What pipeline libraries made (<see cref="Device.PipelineLibraryCreation"/>).</summary>
 public readonly record struct PipelineLibraryStats( int Parts, double PartMs, int Links, double LinkMs, int Optimised, double OptimiseMs, int Pending );
+
+/// <summary>Parts made from guesses (<see cref="Device.PartGuesses"/>) and how many of them a pipeline linked.</summary>
+public readonly record struct PartGuessStats( int Made, int Used )
+{
+	/// <summary>Guessed parts nothing linked (so far).</summary>
+	public int Wasted => Made - Used;
+}
