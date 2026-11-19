@@ -55,6 +55,28 @@ struct ShadowDisk
     }
 };
 
+// The 16-tap Poisson disk the shadow filters used before their spiral taps. Nothing here reads it; it stays because shaders
+// built against it (a package's own shadow filtering, Little Railways' floor) still name it, and recompile against these files
+static const float2 g_vPoissonDisk16[16] =
+{
+    float2( -0.942016, -0.399062 ),
+    float2( -0.094184, -0.938988 ),
+    float2(  0.310720, -0.371712 ),
+    float2( -0.545396, -0.589939 ),
+    float2(  0.140388, -0.040836 ),
+    float2(  0.667325,  0.174626 ),
+    float2( -0.527440,  0.056346 ),
+    float2(  0.346120, -0.935218 ),
+    float2( -0.267592,  0.406868 ),
+    float2( -0.850940,  0.424726 ),
+    float2(  0.206578,  0.570748 ),
+    float2( -0.413360,  0.855142 ),
+    float2(  0.654718, -0.521624 ),
+    float2(  0.954892,  0.016536 ),
+    float2(  0.439138,  0.898128 ),
+    float2(  0.878554, -0.397416 ),
+};
+
 // Face normal of the shadow receiver, from the screen-space derivatives of its world position.
 // Prefer the camera-relative position: far from the origin the derivatives can round to 0 (no offset then).
 // Derivatives are only defined in uniform control flow, so compute this once per pixel *before* any
