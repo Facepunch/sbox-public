@@ -193,6 +193,20 @@ public sealed unsafe partial class Device
 	/// <summary>Which of the <see cref="FramesInFlight"/> slots the current frame uses.</summary>
 	public int FrameSlot => (int)(FrameNumber % (ulong)FramesInFlight);
 
+	/// <summary>
+	/// Wait until the GPU has finished every frame before the current one, without sending anything of this one: what they
+	/// used (their slots' per-frame memory) is free for this frame then.
+	/// </summary>
+	public void WaitForEarlierFrames()
+	{
+		for ( int i = 0; i < frames.Length; i++ )
+		{
+			if ( i == FrameSlot ) continue;
+			graphicsQueue.Wait( frames[i].Graphics );
+			computeQueue.Wait( frames[i].Compute );
+		}
+	}
+
 	void CreateFrames()
 	{
 		frames = new Frame[FramesInFlight];
