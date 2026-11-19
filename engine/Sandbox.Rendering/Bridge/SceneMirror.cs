@@ -741,6 +741,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		if ( (change & SceneObjectChange.Transform) != 0 )
 			light.Transform = sceneLight.Transform;
 
+		if ( (change & SceneObjectChange.Visibility) != 0 )
+			light.Visible = sceneLight.RenderingEnabled;
+
 		if ( (change & SceneObjectChange.Settings) != 0 )
 		{
 			light.Color = sceneLight.LightColor;

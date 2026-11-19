@@ -134,7 +134,7 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 			if ( Count == MaxLights - 2 ) break;
 
 			var light = (LightObject)objects[span[i]];
-			if ( light.Baked != baked || light.Radius <= 0 ) continue;
+			if ( light.Baked != baked || light.Radius <= 0 || !light.Visible ) continue;
 
 			EnsureLightCapacity( Count + 1 );
 			packedObjects[Count] = light;
