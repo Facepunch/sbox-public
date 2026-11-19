@@ -1951,6 +1951,33 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	internal override bool DrawsSkinnedGpuDriven => GpuDrivenSkinned && DrawsMeshesGpuDriven;
 
+	int skinnedWithoutSlot, skinnedSlots;
+
+	/// <summary>
+	/// Raw buffer slots skinned vertex buffers leave to what has no other way to be read (the GPU-driven pages, the views'
+	/// buffers): past that they draw classic.
+	/// </summary>
+	internal const int RawBufferReserve = 128;
+
+	/// <summary>Slots of the raw buffer array skinned models' vertex buffers hold, for the warning when it's full.</summary>
+	internal void NoteSkinnedSlots( int count ) => Interlocked.Add( ref skinnedSlots, count );
+
+	/// <summary>
+	/// Skinned vertex buffers that got no slot in the raw buffer array (it was full), whose draws draw classic: for tests and
+	/// soaks.
+	/// </summary>
+	public int SkinnedBuffersWithoutSlot => Volatile.Read( ref skinnedWithoutSlot );
+
+	/// <summary>
+	/// A skinned vertex buffer of <paramref name="model"/> got no slot in the raw buffer array, so its draws draw classic;
+	/// said once. Returns -1, the slot it has.
+	/// </summary>
+	internal int NoteSkinnedWithoutSlot( string model )
+	{
+		if ( Interlocked.Increment( ref skinnedWithoutSlot ) == 1 ) Warn?.Invoke( $"Borealis.Gpu: the raw buffer array is nearly full ({Volatile.Read( ref skinnedSlots )} of {Gpu.RawBufferSlots} slots held by skinned vertices); skinned meshes from {model} on draw classic" );
+		return -1;
+	}
+
 	/// <summary>
 	/// Fading objects' draws (the faded list, dithered opaque under <c>D_OPAQUE_FADE</c>) draw GPU-driven too, a call of mesh-draw
 	/// batches per list range with no ids or visibility lists, as the opaque list's static and skinned draws are taken. On by

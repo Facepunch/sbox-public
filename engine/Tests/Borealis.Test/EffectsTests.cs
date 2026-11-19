@@ -146,6 +146,39 @@ public class EffectsTests
 		Assert.AreEqual( 0, binner.Count );
 	}
 
+	/// <summary>
+	/// A decal with a colour map and no normal or RMO map packs 0 for those, as native's invalid handles do, not the missing
+	/// texture's slot: Decals.hlsl applies every map whose index isn't 0, and S&amp;DUTY's graffiti (colour only) drew black
+	/// with the missing texture as its occlusion.
+	/// </summary>
+	[TestMethod]
+	public void DecalWithoutNormalOrRmoMapPacksNoIndexForThem()
+	{
+		var device = HeadlessRenderHost.Headless;
+		var colour = device.CreateTexture( new TextureDesc { Width = 4, Height = 4, Depth = 1, Format = TextureFormat.RGBA8888, Samples = 1, Mips = 1 }, "decal colour" );
+		var world = new RenderWorld();
+		world.Add( new DecalObject( new Transform( new Vector3( 40, 0, 0 ), Rotation.Identity, 10 ) ) { Color = colour } );
+
+		var missing = device.MissingIndex;
+		device.MissingIndex = 6;
+		try
+		{
+			using var system = new RenderSystem();
+			CollectAndPrepare( system, world, LookingDownX() );
+			var binner = system.GetFeature<LightBinnerFeature>();
+			binner.PackDecals();
+
+			var packed = binner.PackedDecals[0].PackedTextureIndex;
+			Assert.AreEqual( (ulong)(uint)colour.ViewIndex( true, TextureViewDimension.Texture2D ), packed & 0xFFFF, "the colour map's sRGB view" );
+			Assert.AreEqual( 0ul, (packed >> 16) & 0xFFFF, "no normal map" );
+			Assert.AreEqual( 0ul, (packed >> 32) & 0xFFFF, "no RMO map" );
+		}
+		finally
+		{
+			device.MissingIndex = missing;
+		}
+	}
+
 	[TestMethod]
 	public void DecalLayoutMatchesNative()
 	{

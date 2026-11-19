@@ -66,6 +66,9 @@ Mode( Default );
 
 		uint4		g_nVolFogWidthHeightDepth;
 		float4		g_vOoVogFogWidthHeightDepth;
+
+		int4		g_vFroxelMin;		// The froxels the fog volumes cover, max exclusive: only these are lit
+		int4		g_vFroxelMax;
 	};
 
 	//------------------------------------------------------------------------------------------------------------------------------
@@ -151,72 +154,42 @@ Mode( Default );
 
     // --------------------------------------------------------------------------------------------------------------------------------------------------------
     //
-    // Calculate the lighting at the voxel position
-    // We could use analytical frustum bounds for these but would be way too specialized and shit to maintain
+    // Calculate the lighting at the voxel position. Only reached from ClusterForEach, so the light and every
+    // index read from it are wave-uniform: its data loads once per wave and its shadow map skips the bindless loop
     //
     // --------------------------------------------------------------------------------------------------------------------------------------------------------
-    float3 CalculateLightingAtPoint(float3 vPositionWs, uint nIndex, float flDensity)
+    float3 CalculateLightingAtPoint( float3 vPositionWs, float3 vViewDirWs, float flDensity, BinnedLight light )
 	{
-		float3 vViewDirWs = CalculateCameraToPositionDirWs( vPositionWs.xyz );
+		float3 vPositionToLightRayWs = light.GetPosition() - vPositionWs.xyz; // "L"
+		float flDistToLightSq = dot( vPositionToLightRayWs.xyz, vPositionToLightRayWs.xyz );
+		float3 vPositionToLightDirWs = vPositionToLightRayWs * rsqrt( flDistToLightSq );
+		float flConeToDirection = dot( vPositionToLightDirWs.xyz, -light.GetDirection() ) - light.SpotLightInnerOuterConeCosines.y;
 
-		BinnedLight light = DynamicLightConstantByIndex( nIndex );
-
-		// Skip lights that have no fog contribution (NONE or BAKED modes)
-		float flFogScale = light.FogIntensity;
-		if ( flFogScale == 0.0f )
+		// Outside the light's range or spotlight cone, one branch
+		if ( ( flDistToLightSq > light.RadiusSquared ) | ( flConeToDirection <= 0.0 ) )
 			return 0;
 
 		float3 vLightColor = light.Color;
-		float3 vLightPositionWs = light.GetPosition();
-		float3 vPositionToLightRayWs = vLightPositionWs - vPositionWs.xyz; // "L"
-		float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs(vPositionWs.xyz);
-
-		float3 vPositionToLightDirWs = normalize(vPositionToLightRayWs.xyz);
-
-		float flDistToLightSq = dot(vPositionToLightRayWs.xyz, vPositionToLightRayWs.xyz);
-
-		if (flDistToLightSq > light.RadiusSquared ) // .z stores radius squared of light
-		{
-			// Outside light range
-			return 0;
-		}
-
-		float flOuterConeCos = light.SpotLightInnerOuterConeCosines.y;
-		float flConeToDirection = dot(vPositionToLightDirWs.xyz, -light.GetDirection()) - flOuterConeCos;
-		if (flConeToDirection <= 0.0)
-		{
-			// Outside spotlight cone
-			return 0;
-		}
-
 		float flSpotAtten = flConeToDirection * light.SpotLightInnerOuterConeCosines.z;
 
 		[branch]
-		if (light.HasLightCookie())
+		if ( light.HasLightCookie() )
 		{
 			float4 vCookieSample = light.SampleLightCookie( light.GetCookieUV( vPositionWs.xyz ) );
 			vLightColor.rgb *= vCookieSample.rgb * vCookieSample.a;
 			flSpotAtten = 1.0f;
 		}
 
-		float flLightFalloff = CalculateDistanceFalloff(flDistToLightSq, light.LinearFalloff, light.QuadraticFalloff, light.FalloffBias, 1.0);
-		float flLightMask = flLightFalloff * flSpotAtten;
+		float flLightFalloff = CalculateDistanceFalloff( flDistToLightSq, light.LinearFalloff, light.QuadraticFalloff, light.FalloffBias, 1.0 );
 
 		float flShadowScalar = 1.0;
-
-		if (light.HasFogShadows())
+		if ( light.HasFogShadows() )
 		{
-			/*if (light.Type == LightType::LightTypeDirectional)
-				flShadowScalar = DirectionalLightShadow::GetVisibility(vPositionWs, float4(0, 0, 0, 0));
-			else */
-			if (light.Type == LightType::LightTypePoint)
-				flShadowScalar = ProjectedShadowCube::GetVisibility(light.ShadowMapIndex, vPositionWs);
-			else if (light.Type == LightType::LightTypeSpot)
-				flShadowScalar = ProjectedShadow::GetVisibility(light.ShadowMapIndex, vPositionWs, float2(0, 0));
+			if ( light.Type == LightType::LightTypePoint )
+				flShadowScalar = ProjectedShadowCube::GetVisibility( light.ShadowMapIndex, vPositionWs );
+			else if ( light.Type == LightType::LightTypeSpot )
+				flShadowScalar = ProjectedShadow::GetVisibility( light.ShadowMapIndex, vPositionWs, float2( 0, 0 ) );
 		}
-
-		if (flShadowScalar <= 0.0)
-			return 0;
 
 		// Filter this source-to-froxel segment before accumulating any other light.
 		// Reuse the surface path's cached candidates and explicit-LOD texture sampling.
@@ -227,11 +200,9 @@ Mode( Default );
 				light.LightModulatorOffset, light.LightModulatorCount );
 		}
 
-		float3 vLightMask = vLightColor.rgb * flShadowScalar * flLightFalloff * flSpotAtten;
-
 		float flLightScattering = GetPhaseFunction( dot( vPositionToLightDirWs, vViewDirWs ), flDensity );
 
-		return vLightMask.rgb * flLightScattering * abs( flFogScale );
+		return vLightColor.rgb * ( flShadowScalar * flLightFalloff * flSpotAtten * flLightScattering * abs( light.FogIntensity ) );
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -346,24 +317,33 @@ Mode( Default );
 	// Per-Frame Update Light Volume
 	//
 	// ----------------------------------------------------------------------------------------------------------------
-	static const uint MAX_LIGHTS_PER_TILE = 64;
-	#define FOG_LIGHT_WORDS 32
-	#define FOG_THREADS_PER_GROUP 64
+	// Where slice z starts and where its centre is, in view depth
+	float SliceStartDepth( uint z ) { return VoxelSliceZToRealDepth( max( z - 0.5f, 0.0f ) * g_vOoVogFogWidthHeightDepth.z ); }
+	float SliceDepth( uint z ) { return VoxelSliceZToRealDepth( ( z + 0.5f ) * g_vOoVogFogWidthHeightDepth.z ); }
 
-	// Each thread owns a column, so no group barrier is needed. The light pool is limited
-	// to 2,048 entries; packing two indices per uint keeps this cache at 8 KiB per group.
-	groupshared uint g_FogLightIndices[FOG_LIGHT_WORDS][FOG_THREADS_PER_GROUP];
-
-	void LightingPass(uint3 nThreadId, uint nGroupIndex, Frustum f, float2 vDepthMinMax)
+	// One froxel per thread: the slices don't depend on each other, and a thread per column left too few waves to fill the GPU
+	void LightingPass( uint3 nThreadId, float flDepthMax )
 	{
 		const bool bDebugTiled = false;
+		const uint z = nThreadId.z;
 
-		float3 vViewVector = GetViewVector(nThreadId.xy);
+		// Froxel rows run bottom to top, viewport uvs top to bottom
+		const float2 vClusterUv = float2( nThreadId.x + 0.5f, g_nVolFogWidthHeightDepth.y - nThreadId.y - 0.5f ) * g_vOoVogFogWidthHeightDepth.xy;
+		const float flCurrentSliceDepth = SliceDepth( z );
+
+		if ( bDebugTiled )
+		{
+			float flLights = Cluster::Query( ClusterItemType_Light, vClusterUv, flCurrentSliceDepth ).Count;
+			OutLightingTexture[nThreadId] = lpfloat4( lerp( flLights / 16.0f, float4( 0, 1, 0, 1 ), float4( 1, 0, 0, 1 ) ) );
+			return;
+		}
+
+		// Lit up to the first slice that starts past the depth
+		if ( z > 0 && SliceStartDepth( z - 1 ) > flDepthMax )
+			return;
+
+		float3 vViewVector = GetViewVector( nThreadId.xy );
 		float vJitterValue = 0.0f;
-
-		// Precompute constants
-		const float flSliceSize = g_vOoVogFogWidthHeightDepth.z;
-		const float flHalfSliceSize = 0.5f * flSliceSize;
 
 		#if (D_JITTER)
 		{
@@ -372,117 +352,78 @@ Mode( Default );
 		}
 		#endif
 
-		// Precompute light list
-		uint numLights = 0;
+		float flCurrentDeltaDepth = flCurrentSliceDepth - SliceStartDepth( z );
 
-		[unroll]
-		for (int i = 0; ( i < NumDynamicLights && numLights < MAX_LIGHTS_PER_TILE ); i++) 
+		float4 vIncomingLightAndDensity = float4(0, 0, 0, 0);
+		// The view vector is unit depth, so this is view depth
+		float flJitteredDepth = flCurrentSliceDepth - vJitterValue * flCurrentDeltaDepth;
+		float3 vJitteredWorldPos = g_vViewPos.xyz + vViewVector * flJitteredDepth;
+
+		// Calculate contributions
+		float4 vVolumeContribution = GetContributionInBoundingVolumes(vJitteredWorldPos);
+		vIncomingLightAndDensity.a = vVolumeContribution.a;
+
+		// Special path for Directional light - let's change this back please 🥺
+		if( g_DirectionalLightCascadeCount > 0 && g_DirectionalLightColor.w > 0.0f )
 		{
-			const BinnedLight light = BinnedLightBufferV2[i];
-			bool bHit = light.IsSpotLight() ?
-				f.ConeInside(light.GetPosition(), light.GetDirection(), light.GetDirectionUp(), light.Radius, light.SpotLightInnerOuterConeCosines.y) :
-				f.SphereInside(light.GetPosition(), light.Radius);
-
-			if (bHit)
+			float flDirFogScale = g_DirectionalLightColor.w;
+			if ( flDirFogScale > 0.0f )
 			{
-				uint slot = numLights >> 1;
-				if ( ( numLights & 1 ) == 0 )
-					g_FogLightIndices[slot][nGroupIndex] = (uint)i;
-				else
-					g_FogLightIndices[slot][nGroupIndex] |= (uint)i << 16;
-				numLights++;
+				float3 vDirLightColor = g_DirectionalLightColor.rgb;
+				float3 vPositionToLightDirWs = -g_DirectionalLightDirection.xyz;
+
+				float flShadowScalar = DirectionalLightShadow::GetVisibility( vJitteredWorldPos, float4( 0, 0, 0, 0 ) );
+
+				if ( flShadowScalar > 0.0f )
+				{
+					// Sun rays have unlimited reach, but still cross each physical aperture.
+					[branch]
+					if ( LightModulators::Active() )
+						vDirLightColor *= LightModulators::EvaluateSun( vJitteredWorldPos, vPositionToLightDirWs );
+
+					const float flDensity = vIncomingLightAndDensity.a;
+					float flLightScattering = GetPhaseFunction( dot( vPositionToLightDirWs, CalculateCameraToPositionDirWs( vJitteredWorldPos ) ), flDensity );
+
+					vIncomingLightAndDensity.rgb += vDirLightColor * flShadowScalar * flLightScattering * flDirFogScale;
+				}
 			}
 		}
 
-		float flCurrentSlice = flHalfSliceSize;
-		float flLastSliceDepth = VoxelSliceZToRealDepth(0.0f);
-		float flCurrentSliceDepth = VoxelSliceZToRealDepth(flCurrentSlice);
-
-		for (uint z = 0; z < g_nVolFogWidthHeightDepth.z; z++) 
+		// Lights from the froxel's cluster, one per wave
+		ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, vClusterUv, flJitteredDepth );
+		ClusterForEach( lightRange )
 		{
-			if ( bDebugTiled ) 
-			{
-				OutLightingTexture[uint3(nThreadId.xy, z)] = lpfloat4(lerp((float)numLights / 16.0f, float4(0, 1, 0, 1), float4(1, 0, 0, 1)));
-				continue;
-			} 
+			BinnedLight light = DynamicLightConstantByIndex( lightRange.Item );
 
-			float4 vIncomingLightAndDensity = float4(0, 0, 0, 0);
-			float flCurrentDeltaDepth = flCurrentSliceDepth - flLastSliceDepth;
-
-			float3 vJitteredWorldPos = g_vViewPos.xyz + vViewVector * (flCurrentSliceDepth - vJitterValue * flCurrentDeltaDepth);
-
-			// Calculate contributions
-			float4 vVolumeContribution = GetContributionInBoundingVolumes(vJitteredWorldPos);
-			vIncomingLightAndDensity.a = vVolumeContribution.a;
-
-			// Special path for Directional light - let's change this back please 🥺
-			if( g_DirectionalLightCascadeCount > 0 && g_DirectionalLightColor.w > 0.0f )
-			{
-				float flDirFogScale = g_DirectionalLightColor.w;
-				if ( flDirFogScale > 0.0f )
-				{
-					float3 vDirLightColor = g_DirectionalLightColor.rgb;
-					float3 vPositionToLightDirWs = -g_DirectionalLightDirection.xyz;
-
-					float flShadowScalar = DirectionalLightShadow::GetVisibility( vJitteredWorldPos, float4( 0, 0, 0, 0 ) );
-
-					if ( flShadowScalar > 0.0f )
-					{
-						// Sun rays have unlimited reach, but still cross each physical aperture.
-						[branch]
-						if ( LightModulators::Active() )
-							vDirLightColor *= LightModulators::EvaluateSun( vJitteredWorldPos, vPositionToLightDirWs );
-
-						float3 vViewDirWs = CalculateCameraToPositionDirWs( vJitteredWorldPos );
-						const float flDensity = vIncomingLightAndDensity.a;
-						float flLightScattering = GetPhaseFunction( dot( vPositionToLightDirWs, vViewDirWs ), flDensity );
-
-						vIncomingLightAndDensity.rgb += vDirLightColor * flShadowScalar * flLightScattering * flDirFogScale;
-					}
-				}
-			}
-
-			for (int i = 0; i < numLights; i++) 
-			{
-				uint packedIndices = g_FogLightIndices[i >> 1][nGroupIndex];
-				uint lightIndex = ( packedIndices >> ( ( i & 1 ) * 16 ) ) & 0xffffu;
-				vIncomingLightAndDensity.rgb += CalculateLightingAtPoint(vJitteredWorldPos, lightIndex, vIncomingLightAndDensity.a);
-			}
-
-			float4 ddgi = DDGI::EvaluateVolumes( vJitteredWorldPos, vViewVector.xyz );
-			vIncomingLightAndDensity.rgb += ddgi.rgb;
-			if ( ddgi.a < 1.0f )
-			{
-				#if (D_ENABLE_BAKED_FOG_TEXTURE)
-				{
-					float3 vLocalPosInIndirectVolume = vJitteredWorldPos * g_vIndirectBBScale_flIndirectStrength.xyz + g_vIndirectBBOffset.xyz;
-					vIncomingLightAndDensity.rgb += (1.0f - ddgi.a) * InFogIndirectVolume.SampleLevel(VolumeSampler, vLocalPosInIndirectVolume, 0).rgb * g_vIndirectBBScale_flIndirectStrength.w;
-				}
-				#else
-				{
-					vIncomingLightAndDensity.rgb += (1.0f - ddgi.a) * IndirectLightingFromIBL(vJitteredWorldPos).rgb;
-				}
-				#endif
-			}
-
-			// Tint the in-scattered light by the dominant fog volume's color.
-			vIncomingLightAndDensity.rgb *= vVolumeContribution.rgb;
-
-			// Encode it to Gamma to Linear so that TAA is softer
-			vIncomingLightAndDensity = sqrt(vIncomingLightAndDensity);
-
-			// Clamp to max representable float16
-			OutLightingTexture[uint3(nThreadId.xy, z)] = lpfloat4(min(vIncomingLightAndDensity, 65504.0f));
-
-			// Early out if we are past the depth + next slice
-			if( flCurrentSliceDepth > vDepthMinMax.y + flCurrentDeltaDepth )
-				return;
-
-			// Prepare for next iteration
-			flLastSliceDepth = flCurrentSliceDepth;
-			flCurrentSlice += flSliceSize;
-			flCurrentSliceDepth = VoxelSliceZToRealDepth(flCurrentSlice);
+			// Lights with no fog contribution (NONE or BAKED modes)
+			if ( light.FogIntensity != 0.0f )
+				vIncomingLightAndDensity.rgb += CalculateLightingAtPoint( vJitteredWorldPos, CalculateCameraToPositionDirWs( vJitteredWorldPos ), vIncomingLightAndDensity.a, light );
 		}
+
+		float4 ddgi = DDGI::EvaluateVolumes( vJitteredWorldPos, vViewVector.xyz );
+		vIncomingLightAndDensity.rgb += ddgi.rgb;
+		if ( ddgi.a < 1.0f )
+		{
+			#if (D_ENABLE_BAKED_FOG_TEXTURE)
+			{
+				float3 vLocalPosInIndirectVolume = vJitteredWorldPos * g_vIndirectBBScale_flIndirectStrength.xyz + g_vIndirectBBOffset.xyz;
+				vIncomingLightAndDensity.rgb += (1.0f - ddgi.a) * InFogIndirectVolume.SampleLevel(VolumeSampler, vLocalPosInIndirectVolume, 0).rgb * g_vIndirectBBScale_flIndirectStrength.w;
+			}
+			#else
+			{
+				vIncomingLightAndDensity.rgb += (1.0f - ddgi.a) * IndirectLightingFromIBL(vJitteredWorldPos).rgb;
+			}
+			#endif
+		}
+
+		// Tint the in-scattered light by the dominant fog volume's color.
+		vIncomingLightAndDensity.rgb *= vVolumeContribution.rgb;
+
+		// Encode it to Gamma to Linear so that TAA is softer
+		vIncomingLightAndDensity = sqrt(vIncomingLightAndDensity);
+
+		// Clamp to max representable float16
+		OutLightingTexture[nThreadId] = lpfloat4(min(vIncomingLightAndDensity, 65504.0f));
 	}
 
 	//-----------------------------------------------------------------------------------------------------------------
@@ -492,8 +433,9 @@ Mode( Default );
 	//
 	//-----------------------------------------------------------------------------------------------------------------
 	// Min and max of the four trilinear samples at a froxel's corners in the plane at depth coordinate flW: with the four of
-	// the plane below, the bounds of its 3x3x3 neighbourhood
-	void CornerBounds( float2 vCenterUV, float2 vHalfTexel, float flW, out float4 vMin, out float4 vMax )
+	// the plane below, the bounds of its 3x3x3 neighbourhood. Clamped to the lit froxels' centres, as the .shader clamps its
+	// eight: froxels outside them weren't lit this frame
+	void CornerBounds( float2 vCenterUV, float2 vHalfTexel, float flW, float3 vLitMin, float3 vLitMax, out float4 vMin, out float4 vMax )
 	{
 		vMin = 65504.0f;
 		vMax = 0.0f;
@@ -503,14 +445,14 @@ Mode( Default );
 			[unroll]
 			for ( int y = -1; y <= 1; y += 2 )
 			{
-				float4 color = InLightingTexture.SampleLevel( VolumeSampler, float3( vCenterUV + float2( x, y ) * vHalfTexel, flW ), 0 );
+				float4 color = InLightingTexture.SampleLevel( VolumeSampler, clamp( float3( vCenterUV + float2( x, y ) * vHalfTexel, flW ), vLitMin, vLitMax ), 0 );
 				vMin = min( vMin, color );
 				vMax = max( vMax, color );
 			}
 		}
 	}
 
-	void IntegratePass( uint3 nThreadId, Frustum f, float2 vDepthMinMax )
+	void IntegratePass( uint3 nThreadId, float flDepthMax )
 	{
 		uint nView = nThreadId.z;
 
@@ -523,9 +465,13 @@ Mode( Default );
 
         float4 vCurrentColorAndDensity = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
+		// The lit froxels' centres, which the history clamp's samples stay within
+		float3 vLitMin = ( g_vFroxelMin.xyz + 0.5f ) * g_vOoVogFogWidthHeightDepth.xyz;
+		float3 vLitMax = ( g_vFroxelMax.xyz - 0.5f ) * g_vOoVogFogWidthHeightDepth.xyz;
+
 		// Bounds of the four trilinear corner samples below the first slice
 		float4 vBelowMin, vBelowMax;
-		CornerBounds( ( float2( nThreadId.xy ) + 0.5f ) * g_vOoVogFogWidthHeightDepth.xy, 0.5f * g_vOoVogFogWidthHeightDepth.xy, 0.0f, vBelowMin, vBelowMax );
+		CornerBounds( ( float2( nThreadId.xy ) + 0.5f ) * g_vOoVogFogWidthHeightDepth.xy, 0.5f * g_vOoVogFogWidthHeightDepth.xy, 0.0f, vLitMin, vLitMax, vBelowMin, vBelowMax );
 
 		[unroll]
 		for ( uint zSlice = 0; zSlice < g_nVolFogWidthHeightDepth.z; zSlice++ )
@@ -537,8 +483,10 @@ Mode( Default );
             float4 vCurrentColor = InLightingTexture[vCoord];
 
 			//
-			// Do denoising from previous frame using temporal antialiasing
+			// Do denoising from previous frame using temporal antialiasing, only where the volumes are: there's no fog anywhere else
 			//
+			[branch]
+			if ( all( int3( vCoord ) >= g_vFroxelMin.xyz ) && all( int3( vCoord ) < g_vFroxelMax.xyz ) )
             {
 				//
                 // Previous position at reprojected location
@@ -565,7 +513,7 @@ Mode( Default );
 
 				// The four corners above this froxel are the four below the next one: sample only those, and keep them
 				float4 vAboveMin, vAboveMax;
-				CornerBounds( vCenterUV.xy, vHalfTexel.xy, float( zSlice + 1 ) * g_vOoVogFogWidthHeightDepth.z, vAboveMin, vAboveMax );
+				CornerBounds( vCenterUV.xy, vHalfTexel.xy, float( zSlice + 1 ) * g_vOoVogFogWidthHeightDepth.z, vLitMin, vLitMax, vAboveMin, vAboveMax );
 				minColor = min( vBelowMin, vAboveMin );
 				maxColor = max( vBelowMax, vAboveMax );
 				vBelowMin = vAboveMin;
@@ -583,6 +531,14 @@ Mode( Default );
 				// Decode it back to our color space
 				vTemporalColor = vTemporalColor * vTemporalColor;
             }
+			else
+			{
+				OutAccumulationTexture[vCoord] = 0;
+
+				// The next froxel's plane below is this one's above: kept, whether or not this one is lit
+				float3 vCenterUV = (float3(vCoord) + 0.5f) * g_vOoVogFogWidthHeightDepth.xyz;
+				CornerBounds( vCenterUV.xy, 0.5f * g_vOoVogFogWidthHeightDepth.xy, float( zSlice + 1 ) * g_vOoVogFogWidthHeightDepth.z, vLitMin, vLitMax, vBelowMin, vBelowMax );
+			}
 
 			//
 			// Integrate accumulated samples and pancake the fogging volume
@@ -601,7 +557,7 @@ Mode( Default );
 			}
 
 			// Early out if we are past the depth + next slice
-			if( flCurrentSliceDepth > vDepthMinMax.y + flCurrentDeltaDepth )
+			if( flCurrentSliceDepth > flDepthMax + flCurrentDeltaDepth )
 				return;
 							
 			//
@@ -614,55 +570,55 @@ Mode( Default );
 	}
 
 	//------------------------------------------------------------------------------------------------------------------------------
-	float2 FetchDepthMinMax( float2 vPositionSs )
-    {
-		// Make it a bit conservative to avoid disocclusion ghosting
-		int lods = 6;
-		
-        // Calculate depth. The neighbours of the edge froxels fall outside the chain's mip, whose loads read zero, the far
-        // plane, which would keep those froxels from stopping at the depth: clamp them to the edge texels
-		uint nWidth, nHeight, nMips;
-		g_tDepthChain.GetDimensions( lods, nWidth, nHeight, nMips );
-		int2 vTexel = clamp( int2( floor( vPositionSs / pow( 2, lods ) ) ), 0, int2( nWidth, nHeight ) - 1 );
-        float2 vProjectedDepth = g_tDepthChain.Load( int3( vTexel, lods ) ).xy;
-
-        // Convert to view space
-        return float2( Depth::Linearize( Depth::Normalize( vProjectedDepth.y ) ), Depth::Linearize( Depth::Normalize( vProjectedDepth.x ) ) );
-    }
-
-	Frustum GetFrustum( uint3 nThreadId : SV_DispatchThreadID, out float2 vDepthMinMax )
+	// Farthest depth around this froxel column, a bit conservative to avoid disocclusion ghosting
+	float GetDepthMax( uint2 nThreadId )
 	{
-		nThreadId = uint3( nThreadId.x, g_nVolFogWidthHeightDepth.y - 1 - nThreadId.y, nThreadId.z );
+		// Rows run bottom to top in the froxels, top to bottom in the depth chain
+		nThreadId.y = g_nVolFogWidthHeightDepth.y - 1 - nThreadId.y;
 
-		float2 pixelSize = g_vViewportSize * g_vOoVogFogWidthHeightDepth.xy;
-		// vDepthMinMax = FetchDepthMinMax( nThreadId.xy * pixelSize );
+		const int nLod = 6;
+		float2 vPixelSize = g_vViewportSize * g_vOoVogFogWidthHeightDepth.xy;
+
+		// The neighbours of the edge froxels fall outside the chain's mip, whose loads read zero, the far plane, which would
+		// keep those froxels from stopping at the depth: clamp them to the edge texels
+		uint nWidth, nHeight, nMips;
+		g_tDepthChain.GetDimensions( nLod, nWidth, nHeight, nMips );
 
 		// Pixel size + bilinearity doesn't match the power of two in the depth chain, sample a few neighbors, we just want far value
-		float2 offsets[] = { float2( -1, -1 ), float2( 1, -1 ), float2( -1, 1 ), float2( 1, 1 ) };
-		for( uint i = 0; i < 4; i++ )
-			vDepthMinMax = max( vDepthMinMax, FetchDepthMinMax( ( nThreadId.xy * pixelSize ) + ( offsets[i] * pixelSize ) ) );
-		
-		// Near plane = camera
-		vDepthMinMax.x = g_flNearPlane;
+		float flDepthMax = 0.0f;
+		[unroll]
+		for ( int i = 0; i < 4; i++ )
+		{
+			float2 vOffset = float2( ( i & 1 ) ? 1 : -1, ( i & 2 ) ? 1 : -1 );
+			int2 vTexel = clamp( int2( floor( ( nThreadId * vPixelSize + vOffset * vPixelSize ) / ( 1 << nLod ) ) ), 0, int2( nWidth, nHeight ) - 1 );
+			float flProjectedDepth = g_tDepthChain.Load( int3( vTexel, nLod ) ).x;
+			flDepthMax = max( flDepthMax, Depth::Linearize( Depth::Normalize( flProjectedDepth ) ) );
+		}
 
-		Frustum f = Frustum::FromClusterTile( nThreadId.xy, vDepthMinMax, g_vOoVogFogWidthHeightDepth.xy );
-		return f;
+		return flDepthMax;
 	}
 	//------------------------------------------------------------------------------------------------------------------------------
         
 	[ numthreads( 8, 8, 1 ) ]
-	[shader( "compute" )] void MainCs( uint3 nThreadId : SV_DispatchThreadID, uint nGroupIndex : SV_GroupIndex )
+	[shader( "compute" )] void MainCs( uint3 nThreadId : SV_DispatchThreadID )
 	{
+		// Lighting is dispatched over the lit froxels only
+		if ( D_PASS == FogPasses::Lighting )
+		{
+			nThreadId += g_vFroxelMin.xyz;
+			if ( any( int3( nThreadId ) >= g_vFroxelMax.xyz ) )
+				return;
+		}
+
 		if( nThreadId.x >= g_nVolFogWidthHeightDepth.x || nThreadId.y >= g_nVolFogWidthHeightDepth.y )
 			return;
 
-		float2 vDepthMinMax = 0;
-		Frustum f = GetFrustum( nThreadId, vDepthMinMax );
+		float flDepthMax = GetDepthMax( nThreadId.xy );
 
 		if ( D_PASS == FogPasses::Lighting)
-			LightingPass( nThreadId, nGroupIndex, f, vDepthMinMax );
+			LightingPass( nThreadId, flDepthMax );
 		else if ( D_PASS == FogPasses::Integrate )
-			IntegratePass( nThreadId, f, vDepthMinMax );
+			IntegratePass( nThreadId, flDepthMax );
 	}
 
 #endif // CS

@@ -977,18 +977,29 @@ public sealed unsafe partial class Device
 	/// first time it's asked for and freed with the buffer. Ask before recording work that reads it; without
 	/// update-after-bind for storage buffers, only while no submitted work uses the table.
 	/// </summary>
-	public int BindlessIndex( BufferHandle buffer )
+	public int BindlessIndex( BufferHandle buffer ) => TryBindlessIndex( buffer, out var slot ) ? slot : throw new GpuException( $"The bindless table is out of raw buffer slots ({BindlessTable.BufferCount})" );
+
+	/// <summary>How many slots the bindless raw buffer array has.</summary>
+	public int RawBufferSlots => BindlessTable.BufferCount;
+
+	/// <summary>
+	/// As <see cref="BindlessIndex(BufferHandle)"/>, or false when no more than <paramref name="reserve"/> slots of the raw
+	/// buffer array are left: for buffers that can be read another way without one, leaving the rest to those that can't.
+	/// </summary>
+	public bool TryBindlessIndex( BufferHandle buffer, out int slot, int reserve = 0 )
 	{
 		ref var record = ref Get( buffer );
-		if ( record.BindlessSlot > 0 ) return record.BindlessSlot - 1;
+		slot = record.BindlessSlot - 1;
+		if ( slot >= 0 ) return true;
 		if ( (record.Usage & BufferUsage.Storage) == 0 ) throw new ArgumentException( $"{record.Name} isn't a storage buffer" );
 
 		lock ( Bindless )
 		{
-			if ( record.BindlessSlot > 0 ) return record.BindlessSlot - 1;
-			var slot = Bindless.AddBuffer( record.Buffer, 0, (ulong)record.Size );
+			slot = record.BindlessSlot - 1;
+			if ( slot >= 0 ) return true;
+			if ( !Bindless.TryAddBuffer( record.Buffer, 0, (ulong)record.Size, out slot, reserve ) ) return false;
 			record.BindlessSlot = slot + 1;
-			return slot;
+			return true;
 		}
 	}
 
