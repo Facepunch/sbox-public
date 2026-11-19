@@ -162,7 +162,7 @@ internal sealed class ManagedRenderAttributes
 		if ( values.TryGetValue( k.Value, out var current ) && current.Value is TextureValue now && now == value ) boxed = current.Value;
 		else if ( spare.Remove( k.Value, out var old ) && old is TextureValue left && left == value ) boxed = old;
 		else if ( mip < 0 ) boxed = WholeTextures.GetValue( texture, static t => new TextureValue( t, -1 ) );
-		else boxed = value;
+		else boxed = MipValue( texture, mip );
 
 		Put( k.Value, boxed, ++Version );
 		Own( k.Value );
@@ -171,6 +171,17 @@ internal sealed class ManagedRenderAttributes
 	// Each texture's whole-texture value boxed once and shared by every set (boxes aren't changed), so a set that is new or was
 	// cleared (a pooled command list's) boxes nothing for it
 	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Texture, object> WholeTextures = new();
+
+	// And each of its mips' values, for passes that bind a mip of textures they swap between every frame (history targets)
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Texture, object[]> MipTextures = new();
+
+	static object MipValue( Texture texture, int mip )
+	{
+		if ( mip >= 32 ) return new TextureValue( texture, mip );
+
+		var mips = MipTextures.GetValue( texture, static _ => new object[32] );
+		return System.Threading.Volatile.Read( ref mips[mip] ) ?? System.Threading.Interlocked.CompareExchange( ref mips[mip], new TextureValue( texture, mip ), null ) ?? mips[mip];
+	}
 
 	public void SetObject( StringToken k, object value )
 	{

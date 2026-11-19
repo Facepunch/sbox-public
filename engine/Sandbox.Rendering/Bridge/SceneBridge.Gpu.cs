@@ -21,6 +21,17 @@ internal sealed partial class SceneBridge
 
 	// What a camera's stages on Borealis.Gpu ask of their frame; stages run one camera at a time, so one does
 	BorealisGpuView gpuView;
+
+	// A target per output texture (a window's swap chain images, a scene panel's texture), made once, going with the texture
+	readonly System.Runtime.CompilerServices.ConditionalWeakTable<Texture, RenderTarget> outputTargets = new();
+
+	RenderTarget OutputTarget( Texture texture )
+	{
+		if ( outputTargets.TryGetValue( texture, out var known ) ) return known;
+		var made = RenderTarget.From( texture );
+		outputTargets.AddOrUpdate( texture, made );
+		return made;
+	}
 	Material copyMaterial;
 	RenderAttributes copyAttributes;
 
@@ -62,7 +73,7 @@ internal sealed partial class SceneBridge
 		copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
 
 		var ui = setup.EnableUI ?? camera.RenderUI;
-		gpuView.Target = RenderTarget.From( window.Target );
+		gpuView.Target = OutputTarget( window.Target );
 		gpuView.Viewport = viewport;
 		using var _ = OutputTiming.Scope();
 		window.Draw( gpuView, () => DrawOutput( camera, frame, ui, encode: true, false, false ) );
@@ -95,7 +106,7 @@ internal sealed partial class SceneBridge
 		var ui = setup.EnableUI ?? camera.RenderUI;
 		var flipX = setup.FlipX == true;
 		var flipY = setup.FlipY == true;
-		gpuView.Target = RenderTarget.From( target );
+		gpuView.Target = OutputTarget( target );
 		gpuView.Viewport = viewport;
 		gpuView.SrgbWrite = !Source2Formats.From( target.ImageFormat ).IsFloat();
 		using var _ = OutputTiming.Scope();

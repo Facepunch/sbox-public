@@ -296,7 +296,16 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		MemoryMarshal.Write( buf[5..], in isolatedComponent );
 		var tokenSlice = MemoryMarshal.Cast<byte, uint>( buf[21..] );
 		int i = 0;
-		foreach ( var token in tokens ) tokenSlice[i++] = token;
+		if ( tokens is HashSet<uint> set )
+		{
+			// Every particle system every frame: the set's own enumerator, not a boxed one
+			foreach ( var token in set ) tokenSlice[i++] = token;
+		}
+		else if ( tokens.Count > 0 )
+		{
+			foreach ( var token in tokens ) tokenSlice[i++] = token;
+		}
+
 		MemoryExtensions.Sort( tokenSlice );
 
 		return XxHash3.HashToUInt64( buf );

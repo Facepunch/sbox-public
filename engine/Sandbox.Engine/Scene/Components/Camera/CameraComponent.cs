@@ -895,7 +895,17 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			InitializeRendering();
 		}
 
-		return sceneCamera.RenderToTexture( target, depthTarget, Graphics.SceneView, config, $"{GameObject.Name}.RenderToTexture", out viewData );
+		return sceneCamera.RenderToTexture( target, depthTarget, Graphics.SceneView, config, RenderToTextureName(), out viewData );
+	}
+
+	// The view's name for RenderToTexture, made again only when the object's name changes
+	(string Object, string View) _renderToTextureName;
+
+	string RenderToTextureName()
+	{
+		var name = GameObject.Name;
+		if ( !ReferenceEquals( _renderToTextureName.Object, name ) ) _renderToTextureName = (name, $"{name}.RenderToTexture");
+		return _renderToTextureName.View;
 	}
 
 	/// <summary>
