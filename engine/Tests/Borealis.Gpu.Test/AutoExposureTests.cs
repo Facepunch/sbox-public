@@ -100,7 +100,8 @@ public class AutoExposureTests : GpuTest
 	/// <summary>
 	/// A multisampled frame's resolved colour is metered as native's query meters the multisampled colour, whose
 	/// <c>Texture2DMS&lt; float &gt;</c> reads only red: a frame of red 0.8 and green and blue 0.2 (luminance 0.33) counts
-	/// every pixel in the bucket holding 0.8, and a single-sampled one in the bucket holding its luminance.
+	/// every pixel in the bucket holding 0.8, and a single-sampled one in the bucket holding its luminance. Native's query
+	/// counts every sample of its multisampled target, so a 4x frame's pixels count four times each.
 	/// </summary>
 	[TestMethod]
 	[DataRow( true )]
@@ -143,7 +144,7 @@ public class AutoExposureTests : GpuTest
 				context.Begin( list );
 				if ( !target.IsValid ) target = context.CreateTarget( Size, Size, Format.RGBA8Unorm, name: "Target" );
 				context.SetTarget( target );
-				exposure.Draw( context, shader, color, 0, 0, Size, Size, multisampled );
+				exposure.Draw( context, shader, color, 0, 0, Size, Size, multisampled ? 4 : 1 );
 				context.Finish();
 				Device.Wait( Device.Submit( list ) );
 			}
@@ -154,7 +155,7 @@ public class AutoExposureTests : GpuTest
 			for ( int i = 0; i < exposure.Buckets; i++ )
 			{
 				var bucket = exposure.BucketAt( i );
-				var expected = bucket.Min <= metered && metered <= bucket.Max ? 57 * 57 : 0;
+				var expected = bucket.Min <= metered && metered <= bucket.Max ? 57 * 57 * (multisampled ? 4 : 1) : 0;
 				Assert.AreEqual( expected, bucket.Pixels, $"bucket {i} ({bucket.Min}..{bucket.Max})" );
 			}
 
@@ -167,5 +168,75 @@ public class AutoExposureTests : GpuTest
 			Device.WaitIdle();
 			exposure.Dispose();
 		}
+	}
+
+	/// <summary>
+	/// A frame picks its bucket as it begins (<see cref="AutoExposure.Reserve"/>, where native's pipeline picks it), so a child
+	/// view counted while the frame draws (water's refraction) takes the next one, as on native: a 4x frame whose luminance
+	/// is in the first bucket and a single-sampled child whose luminance is in the second land each in their own, the frame's
+	/// pixels four times each. Counted the other way round, both would count nothing.
+	/// </summary>
+	[TestMethod]
+	public void FramesPickTheirBucketBeforeTheirChildViews()
+	{
+		using var backend = new BackendDevice( Device );
+		var errors = new List<string>();
+		backend.Passes.Error = e => errors.Add( e );
+		using var drawer = new ShaderDrawer( backend );
+		var exposure = new AutoExposure( Device );
+		try
+		{
+			var shader = backend.Shaders.Load( "shaders/tonemap_query.shader" );
+			if ( shader is null ) Assert.Inconclusive( "tonemap_query isn't built" );
+
+			// Log luminance -7.6 (the first bucket takes everything below -7.19) and -6.8 (the second, -7.19 to -6.38)
+			var frame = Upload( MathF.Pow( 2, -7.6f ) );
+			var child = Upload( MathF.Pow( 2, -6.8f ) );
+
+			var context = new GraphicsContext( Device, drawer, null );
+			context.Track( frame, ImageLayout.CopyDestination );
+			context.Track( child, ImageLayout.CopyDestination );
+			exposure.FrameUpdate( 0 );
+			var bucket = exposure.Reserve();
+			Assert.AreEqual( 0, bucket );
+
+			var list = Device.BeginCommandList( QueueType.Graphics, "Count" );
+			context.Begin( list );
+			var target = context.CreateTarget( Size, Size, Format.RGBA8Unorm, name: "Target" );
+			context.SetTarget( target );
+			Assert.IsTrue( exposure.Draw( context, shader, child, 0, 0, Size, Size ) );
+			Assert.IsTrue( exposure.Draw( context, shader, frame, 0, 0, Size, Size, 4, bucket ) );
+			Assert.IsFalse( exposure.Draw( context, shader, frame, 0, 0, Size, Size, 4, bucket ), "a reservation counts once" );
+			context.Finish();
+			Device.Wait( Device.Submit( list ) );
+
+			// Read three frames on
+			for ( int i = 0; i < 3; i++ ) exposure.FrameUpdate( 0 );
+			Assert.AreEqual( 57 * 57 * 4, exposure.BucketAt( 0 ).Pixels, "the frame's bucket" );
+			Assert.AreEqual( 57 * 57, exposure.BucketAt( 1 ).Pixels, "the child's bucket" );
+
+			Assert.AreEqual( 0, errors.Count, string.Join( "; ", errors ) );
+			context.Release();
+			Device.Destroy( frame );
+			Device.Destroy( child );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			exposure.Dispose();
+		}
+	}
+
+	/// <summary>A frame of grey <paramref name="luminance"/>, left in <see cref="ImageLayout.CopyDestination"/>.</summary>
+	TextureHandle Upload( float luminance )
+	{
+		var pixels = new Half[Size * Size * 4];
+		pixels.AsSpan().Fill( (Half)luminance );
+		var color = Device.CreateTexture( TextureInfo.Texture2D( Size, Size, Format.RGBA16Float, name: "Frame" ) );
+		var upload = Device.BeginCommandList( QueueType.Graphics, "Frame" );
+		upload.Barrier( TextureBarrier.Transition( color, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.None, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		upload.UpdateTexture( color, MemoryMarshal.AsBytes( pixels.AsSpan() ), 0, 0, Size, Size );
+		Device.Wait( Device.Submit( upload ) );
+		return color;
 	}
 }

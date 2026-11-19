@@ -2068,12 +2068,51 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>
 	/// Count this frame's luminance bucket over <paramref name="viewport"/> of <paramref name="color"/> (the frame's HDR
 	/// colour, before tonemapping) in the block being recorded, as <c>RenderTools.RenderAutoExposure</c> does on Source 2.
-	/// The bound colour target sets the size counted in and isn't drawn to.
+	/// The bound colour target sets the size counted in and isn't drawn to. <paramref name="bucket"/>: the one
+	/// <see cref="AutoExposure.Reserve"/> picked for the frame, or -1 to pick one now.
 	/// </summary>
-	internal void CountExposure( AutoExposure exposure, Texture color, Rect viewport, bool multisampled = false )
+	internal void CountExposure( AutoExposure exposure, Texture color, Rect viewport, int samples = 1, int bucket = -1 )
 	{
 		_ = Recording;
-		exposure.Draw( context, Shader( "shaders/tonemap_query.shader" ), TextureOf( color ), (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height, multisampled );
+		exposure.Draw( context, Shader( "shaders/tonemap_query.shader" ), TextureOf( color ), (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height, samples, bucket );
+	}
+
+	// Counts over a frame of Borealis's own (a child view's), outside the engine's blocks: a context and target of their own
+	GraphicsContext countContext;
+	TextureHandle countTarget;
+
+	/// <summary>
+	/// Count this frame's luminance bucket over the whole of <paramref name="color"/>, the HDR colour of a view Borealis drew
+	/// by itself (a camera's child view: water's refraction, a command list's view), in a list of its own submitted after
+	/// that view's. Native's standard pipeline counts every view of a camera it renders into the camera's buckets, except
+	/// reflections. <paramref name="samples"/>: the view's multisampling (<see cref="AutoExposure.Draw"/>).
+	/// </summary>
+	internal void CountExposure( AutoExposure exposure, global::Borealis.GpuTexture color, int samples )
+	{
+		var (handle, layout) = BackendDevice.Unwrap( color );
+		if ( !handle.IsValid ) return;
+
+		// A target the view's size, which the count's depth takes its size from; a context of its own per size, which owns both
+		var info = gpu.InfoOf( handle );
+		if ( countContext is null || gpu.InfoOf( countTarget ) is var kept && (kept.Width != info.Width || kept.Height != info.Height) )
+		{
+			countContext?.Release();
+			countContext = new GraphicsContext( gpu, drawer, null );
+			countTarget = countContext.CreateTarget( info.Width, info.Height, GpuFormat.RGBA8Unorm, name: "Borealis.Gpu exposure count" );
+		}
+
+		var list = gpu.BeginCommandList( QueueType.Graphics, "Borealis.Gpu exposure count" );
+		countContext.Begin( list );
+
+		countContext.Track( handle, layout );
+		countContext.SetTarget( countTarget );
+		exposure.Draw( countContext, Shader( "shaders/tonemap_query.shader" ), handle, 0, 0, (int)info.Width, (int)info.Height, samples );
+		countContext.Finish();
+		BackendDevice.SetLayout( color, countContext.LayoutOf( handle ) );
+		countContext.Forget( handle );
+
+		if ( services.BatchSubmits ) gpu.SubmitLater( list );
+		else gpu.Submit( list );
 	}
 
 	//
@@ -2308,6 +2347,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		buffers.Clear();
 
 		context.Release();
+		countContext?.Release();
 		drawer.Dispose();
 		services.Dispose();
 		if ( ownsDevice ) gpu.Dispose();
