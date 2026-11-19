@@ -19,6 +19,9 @@ public sealed class ShaderLibrary : IDisposable
 	// Loads in progress, so threads asking for the same shader at once load (and recompile) it once
 	readonly Dictionary<string, Lazy<(ShaderFile Shader, bool Found)>> loading = new( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<byte[], ShaderHandle> modules = new( ReferenceEqualityComparer.Instance );
+
+	// Modules with outputs left out (ModuleWithoutOutputs), by SPIR-V, then the locations left out
+	readonly Dictionary<byte[], Dictionary<uint, ShaderHandle>> fittedModules = new( ReferenceEqualityComparer.Instance );
 	readonly ConditionalWeakTable<byte[], SpirvReflection> reflections = new();
 	readonly Dictionary<string, BindingLayoutHandle> layouts = new();
 
@@ -777,6 +780,28 @@ public sealed class ShaderLibrary : IDisposable
 		}
 	}
 
+	/// <summary>
+	/// A stage's module without its outputs at <paramref name="locations"/> (a bit per location; <see cref="SpirvReflection.WithoutOutputs"/>),
+	/// made once per module and locations: for a pipeline whose targets don't take them. The stage's own module where it
+	/// has none there or they can't be left out.
+	/// </summary>
+	public ShaderHandle ModuleWithoutOutputs( ShaderStage stage, uint locations )
+	{
+		if ( stage?.Bytecode?.Shared.Spirv is not { } spirv || locations == 0 ) return stage?.Module ?? default;
+		lock ( modules )
+		{
+			if ( !fittedModules.TryGetValue( spirv, out var fitted ) ) fittedModules[spirv] = fitted = new();
+			// None made: the stage's own
+			if ( !fitted.TryGetValue( locations, out var module ) )
+			{
+				module = SpirvReflection.WithoutOutputs( spirv, locations ) is { } changed ? gpu.CreateShader( changed, $"{stage} without outputs {locations:x}" ) : default;
+				fitted[locations] = module;
+			}
+
+			return module.IsValid ? module : stage.Module;
+		}
+	}
+
 	/// <summary>A shader's reflection, made once per distinct module.</summary>
 	internal SpirvReflection Reflect( ShaderBytecode bytecode ) => reflections.GetValue( bytecode.Shared.Spirv, spirv => SpirvReflection.Read( spirv ) );
 
@@ -804,6 +829,15 @@ public sealed class ShaderLibrary : IDisposable
 		{
 			foreach ( var module in modules.Values ) gpu.Destroy( module );
 			modules.Clear();
+			foreach ( var fitted in fittedModules.Values )
+			{
+				foreach ( var (_, module) in fitted )
+				{
+					if ( module.IsValid ) gpu.Destroy( module );
+				}
+			}
+
+			fittedModules.Clear();
 		}
 
 		lock ( layouts )

@@ -201,7 +201,7 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 			}
 		}
 
-		if ( texture is BackendTexture { Stream: { } added } ) added.AddDependent( this );
+		if ( texture is BackendTexture added ) added.AddDependent( this );
 		Asks.Textures = streamed?.ToArray();
 		Changed();
 	}

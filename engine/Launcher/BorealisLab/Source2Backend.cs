@@ -8,8 +8,9 @@ using System.Threading;
 namespace Sandbox.BorealisLab;
 
 /// <summary>
-/// The engine for Borealis Lab's runs that need it, in one place: starting and stopping it, and its frames. The parity runs
-/// draw their references with it on Source 2's device, and posing takes its animation system.
+/// The engine for Borealis Lab's runs that need it, in one place: starting and stopping it, and its frames. Model parity
+/// checks the engine's loading against Borealis.Source2's, and posing takes its animation system. Source 2's render device
+/// is the empty one.
 /// <para>
 /// Boots the panel app's slice of the engine (<c>SourceEnginePreInit</c> then <c>SourceEnginePanelAppInit</c>): the
 /// filesystem, resource, render, material, input, mesh and scene systems. <c>-scene-modules</c> loads what SceneLab loads
@@ -68,8 +69,9 @@ internal sealed class Source2Backend
 		appSystem.SetInToolsMode();
 		appSystem.SetSteamAppId( (uint)Application.AppId );
 
-		// Tools mode makes the render device with no window: windows are made here
-		var commandLine = Environment.CommandLine.Replace( ".dll", ".exe" ) + " -nosteam -novr";
+		// Tools mode makes the render device with no window: windows are made here. Source 2's is the empty one: the lab draws
+		// on a Borealis.Gpu device of its own, and Source 2 only describes and loads resources (-vulkan keeps a real one)
+		var commandLine = Environment.CommandLine.Replace( ".dll", ".exe" ) + " -nosteam -novr -empty";
 		if ( !EngineGlobal.SourceEnginePreInit( commandLine, appSystem ) )
 			throw new Exception( "SourceEnginePreInit failed" );
 		Phase( "SourceEnginePreInit" );

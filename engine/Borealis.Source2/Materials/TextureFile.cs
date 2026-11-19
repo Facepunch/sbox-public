@@ -103,7 +103,9 @@ public sealed class TextureFile
 
 	/// <summary>
 	/// Read a texture's mips from <paramref name="top"/> (or its tail, <see cref="Tail"/>) to the last, from its
-	/// <c>.vtex_c</c> bytes or as much of their start as <see cref="PrefixNeeded(byte[], int)"/> says.
+	/// <c>.vtex_c</c> bytes or as much of their start as <see cref="PrefixNeeded(byte[], int)"/> says. Bytes that end before
+	/// <paramref name="top"/>'s mip read from the finest mip they hold whole (<see cref="TopMip"/>); throws when they don't
+	/// hold even the last.
 	/// </summary>
 	public static TextureFile Read( byte[] data, int top ) => Read( data, top, pooled: false );
 
@@ -138,8 +140,8 @@ public sealed class TextureFile
 					var stored = header.Stored( mip );
 					if ( (long)position + stored > data.Length )
 					{
-						// A file that holds only its coarser mips (a package's web texture without its two finest): the mips
-						// it has, from the first whose data is all there
+						// A file holding only its smaller mips is read as the mips it holds, from the first whose data is all there: a
+						// web-streamed texture's prefix (its finer mips download later) or a package's web texture without its finest
 						if ( mip == header.Mips - 1 ) throw new InvalidDataException( $"Texture data ends before mip {mip}" );
 						top = mip + 1;
 						break;

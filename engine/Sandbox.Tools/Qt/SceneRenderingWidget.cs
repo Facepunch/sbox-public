@@ -10,22 +10,16 @@ public class SceneRenderingWidget : Frame
 {
 	private static readonly HashSet<SceneRenderingWidget> All = new();
 
-	internal SwapChainHandle_t SwapChain;
 	bool renderingStopped;
 	bool renderFailed;
 
-	// With -borealisgpu: the widget presents on Borealis.Gpu, a swap chain on its native window, in place of Source 2's
-	// (docs/reference/borealis-gpu-path.md, the editor)
+	// The widget presents on Borealis.Gpu, a swap chain on its native window (docs/reference/borealis-gpu-path.md, the editor)
 	BorealisGpuWindow borealis;
-	readonly bool presentsOnBorealisGpu;
 
 	// Qt changed the widget's native window id since the last frame (FollowNativeWindow)
 	bool winIdChanged;
 
-	/// <summary>Whether the widget draws and presents on Borealis.Gpu.</summary>
-	internal bool OnBorealisGpu => presentsOnBorealisGpu;
-
-	/// <summary>The texture the widget's last frame on Borealis.Gpu was drawn into, as it was presented. Null on Source 2.</summary>
+	/// <summary>The texture the widget's last frame on Borealis.Gpu was drawn into, as it was presented.</summary>
 	internal Texture BorealisGpuTarget => borealis?.Target;
 
 	/// <summary>
@@ -90,18 +84,13 @@ public class SceneRenderingWidget : Frame
 		SetFlag( Flag.WA_OpaquePaintEvent, true );
 
 		// On Linux/XWayland, Qt's software paint cycle fires on mouse-enter and click
-		// expose events, briefly clearing the native window before the next SwapChain
+		// expose events, briefly clearing the native window before the next swap chain
 		// present and causing a visible flash. Since all rendering goes through the
-		// SwapChain, the Qt paint path serves no purpose and can be suppressed entirely.
+		// swap chain, the Qt paint path serves no purpose and can be suppressed entirely.
 		OnPaintOverride = () => true;
 
-		var aa = RenderSettings.Instance.AntiAliasQuality.ToEngine();
-		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu )
-			borealis = BorealisGpuWindow.FromNativeWindow( gpu, _widget.winId(), Size * DpiScale, vsync: false );
-
-		presentsOnBorealisGpu = borealis is not null;
-		if ( presentsOnBorealisGpu ) borealis.Samples = SampleCount( aa );
-		else SwapChain = WidgetUtil.CreateSwapChain( _widget, aa );
+		borealis = BorealisGpuWindow.FromNativeWindow( (BorealisGpuRenderBackend)RenderBackend.Default, _widget.winId(), Size * DpiScale, vsync: false );
+		if ( borealis is not null ) borealis.Samples = SampleCount( RenderSettings.Instance.AntiAliasQuality.ToEngine() );
 		RenderSettings.Instance.OnVideoSettingsChanged += HandleVideoChanged;
 
 		FocusMode = FocusMode.Click; // If we're focused we're probably accepting input, don't let tab blur us
@@ -126,7 +115,7 @@ public class SceneRenderingWidget : Frame
 	internal override void OnWinIdChanged()
 	{
 		base.OnWinIdChanged();
-		if ( presentsOnBorealisGpu ) winIdChanged = true;
+		winIdChanged = true;
 	}
 
 	/// <summary>
@@ -168,13 +157,6 @@ public class SceneRenderingWidget : Frame
 		// Destroying the swap chain waits for the device: the native window is still alive
 		borealis?.Dispose();
 		borealis = null;
-
-		if ( SwapChain == default ) return;
-		// Finish outstanding rendering while the native window is still alive.
-		g_pRenderDevice.Flush();
-		g_pRenderDevice.ForceFlushGPU( SwapChain );
-		g_pRenderDevice.DestroySwapChain( SwapChain );
-		SwapChain = default;
 	}
 
 	internal override void NativeShutdown()
@@ -210,7 +192,7 @@ public class SceneRenderingWidget : Frame
 		if ( !this.IsValid() )
 			return;
 
-		if ( SwapChain == default && borealis is null ) return;
+		if ( borealis is null ) return;
 
 		var sceneCamera = GetSceneCamera();
 		if ( sceneCamera is not null )
@@ -243,11 +225,11 @@ public class SceneRenderingWidget : Frame
 		if ( Camera.IsValid() )
 		{
 			Camera.Scene?.PreCameraRender();
-			Camera.AddToRenderList( SwapChain, Size * DpiScale );
+			Camera.AddToRenderList( default, Size * DpiScale );
 		}
 		else if ( Scene.IsValid() )
 		{
-			Scene.Render( SwapChain, Size * DpiScale );
+			Scene.Render( default, Size * DpiScale );
 		}
 	}
 
@@ -283,34 +265,7 @@ public class SceneRenderingWidget : Frame
 		if ( !Scene.IsValid() ) return;
 		if ( !Visible ) return;
 
-		if ( presentsOnBorealisGpu )
-		{
-			if ( FollowNativeWindow() ) RenderOnBorealisGpu();
-			return;
-		}
-
-		if ( SwapChain == default ) return;
-
-		using ( Scene.PushScope() )
-		{
-			UpdateGizmoInputs();
-			using ( GizmoInstance.PushScope() )
-			{
-				PreFrame();
-				Gizmo.Draw.End();
-				RenderScene();
-			}
-		}
-
-		if ( SwapChain == default ) return;
-
-		if ( GameMode.IsPlayWidget( this ) )
-		{
-			CCameraRenderer.RenderOverlay( SwapChain );
-		}
-
-		g_pRenderDevice.Present( SwapChain );
-		renderFailed = false;
+		if ( FollowNativeWindow() ) RenderOnBorealisGpu();
 	}
 
 	/// <summary>
@@ -417,19 +372,7 @@ public class SceneRenderingWidget : Frame
 		if ( renderingStopped ) return;
 		var aa = RenderSettings.Instance.AntiAliasQuality.ToEngine();
 
-		if ( presentsOnBorealisGpu )
-		{
-			if ( borealis is not null ) borealis.Samples = SampleCount( aa );
-			return;
-		}
-
-		if ( SwapChain == default )
-		{
-			SwapChain = WidgetUtil.CreateSwapChain( _widget, aa );
-			return;
-		}
-
-		WidgetUtil.UpdateSwapChainMSAA( SwapChain, aa );
+		if ( borealis is not null ) borealis.Samples = SampleCount( aa );
 	}
 
 	internal static void RenderAll()

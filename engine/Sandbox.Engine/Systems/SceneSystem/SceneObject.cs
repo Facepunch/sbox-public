@@ -404,6 +404,13 @@ public partial class SceneObject : IHandle
 	}
 
 	/// <summary>
+	/// What a native buffer object (<c>CreateSceneObjectFromBuffers</c>: draws of its own, no model) is drawn as by
+	/// renderers that draw models: a model of its draws, made by whoever draws it (<c>Editor.ToolSceneViews</c>). Null for
+	/// any other object.
+	/// </summary>
+	internal Model BufferObjectModel { get; set; }
+
+	/// <summary>
 	/// The model this scene object will render.
 	/// </summary>
 	public Model Model

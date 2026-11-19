@@ -19,6 +19,9 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 	{
 	}
 
+	/// <summary>The compiled material it was made from: the textures it names by shader variable, read or not.</summary>
+	public MaterialFile File { get; private init; }
+
 	/// <summary>
 	/// Whether the surface takes this material: every feature it reads (a field whose <c>[Source]</c> is an <c>F_</c>
 	/// feature) is in the field's range. A surface declares the features it doesn't do as fields with <c>Range( 0, 0 )</c>,
@@ -44,7 +47,7 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 
 	public static ConvertedMaterial Create( CompiledShader compiled, MaterialFile file, string name, Func<string, GpuTexture> loadTexture )
 	{
-		var material = new ConvertedMaterial( compiled.Path, compiled.Material ) { DisplayName = name };
+		var material = new ConvertedMaterial( compiled.Path, compiled.Material ) { DisplayName = name, File = file };
 
 		foreach ( var field in compiled.Material.Fields )
 		{

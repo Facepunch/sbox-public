@@ -211,9 +211,6 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 	}
 
-	/// <summary>A device beside Source 2's, logging its messages, for comparing the two in one process.</summary>
-	public static BorealisGpuRenderBackend CreateBeside( bool validation ) => Create( validation, m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ) );
-
 	/// <summary>Validation errors the device has reported.</summary>
 	public int ValidationErrors => gpu.ValidationErrors;
 
@@ -234,12 +231,34 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		SubmitUploads();
 		FreeModelGeometry();
 		FreeCollectedBackings();
+		LimitAnisotropy();
 
 		// Behind a loading screen nobody watches the frames: what a map loads is made and streamed with bigger budgets
 		services.Loading = LoadingScreen.IsVisible || (Sandbox.Engine.GlobalContext.Game?.ActiveScene?.IsLoading ?? false) || (IGameInstance.Current?.IsLoading ?? false);
 		services.BeginFrame();
 		TimeFrame();
 		if ( frame % PipelineCacheSaveFrames == 0 ) SavePipelineCacheInBackground();
+	}
+
+	/// <summary>
+	/// Native's <c>r_max_anisotropy</c> (its render device's, which Borealis.Gpu runs without): the texture quality
+	/// profiles and the player's saved setting set it.
+	/// </summary>
+	[ConVar( "r_max_anisotropy", Saved = true, Min = 1, Max = 16, Help = "Clamp max anisotropic filtering to this maximum (1 disables anisotropic filtering)." )]
+	internal static int MaxAnisotropy { get; set; } = 4;
+
+	int anisotropyChanges = -1;
+
+	/// <summary>
+	/// Every sampler's anisotropy at most the player's <c>r_max_anisotropy</c> (native's default 4), as native clamps each
+	/// anisotropic sampler to it; read again when a convar changed, before anything records in the frame.
+	/// </summary>
+	void LimitAnisotropy()
+	{
+		var changes = ConVarSystem.Changes;
+		if ( changes == anisotropyChanges ) return;
+		anisotropyChanges = changes;
+		gpu.SetAnisotropyLimit( ConVarSystem.GetFloat( "r_max_anisotropy", 4, true ) );
 	}
 
 	// The GPU's busy time per device frame: a pass timer over every list (Borealis's and the engine's blocks), read back
@@ -356,7 +375,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		services.Surfaces.Info = message => Log.Info( message );
 		services.Warn = message => Log.Warning( message );
 		drawer = new ShaderDrawer( services );
-		context = new GraphicsContext( gpu, drawer, null );
+		context = new GraphicsContext( gpu, drawer, null ) { Warn = message => Log.Warning( message ) };
 
 		// The frame's pipeline textures (ambient occlusion's and reflections' results) by bindless index, 0 for none: what
 		// Source 2's scene system keeps per frame (PipelineTextureSlot)
@@ -1031,7 +1050,18 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 		try
 		{
-			var handle = TextureFile.Load( file ).Create( gpu, path, UploadList() );
+			TextureFile read;
+			try
+			{
+				read = TextureFile.Load( file );
+			}
+			catch ( System.IO.FileNotFoundException ) when ( files.Find( path ) is { } again && again != file )
+			{
+				// A web-streamed texture's downloaded part replaced while it was found
+				read = TextureFile.Load( again );
+			}
+
+			var handle = read.Create( gpu, path, UploadList() );
 			Track( handle, ImageLayout.ShaderRead );
 			return handle;
 		}
@@ -1039,10 +1069,11 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		{
 			return null;
 		}
-		catch ( System.IO.InvalidDataException )
+		catch ( System.IO.InvalidDataException e )
 		{
-			// A file with no mip whose data is all there: made another way, as an unreadable format is, rather than failing
-			// what asked for it (a terrain's materials)
+			// A file with no mip whose data is all there: made once, as unreadable, rather than read and thrown again in every
+			// frame that draws it or failing what asked for it (a terrain's materials)
+			Log.Warning( $"Borealis.Gpu: {path} can't be read: {e.Message}" );
 			return null;
 		}
 	}

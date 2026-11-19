@@ -918,6 +918,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		var made = new BackendTexture( this, CreateTexture( texture, path ), desc, path ) { Layout = ImageLayout.ShaderRead, Dimension = texture.Dimension };
 		if ( streamed && TextureStreamer.Streams( texture ) ) made.Stream = Streamer.Add( made, path, texture );
+		else if ( streamed ) Streamer.Keep( made );
 		return made;
 	}
 
@@ -1276,7 +1277,28 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		GpuMaterial loaded;
 		lock ( sharedMaterials ) sharedMaterials.TryGetValue( material, out loaded );
-		return MaterialTexture( loaded ?? UnheldMaterial( material ), variable );
+		loaded ??= UnheldMaterial( material );
+		return MaterialTexture( loaded, variable ) ?? FileTexture( material, loaded, variable );
+	}
+
+	/// <summary>
+	/// A texture a material drawn as a surface names (<see cref="ConvertedMaterial.File"/>), whether its surface reads it or
+	/// not (a water material's caustics, which only the CPU reads): held with the material, as the textures its draws read
+	/// are, and whole, as it's used outside them. Null when the material names none for the variable.
+	/// </summary>
+	GpuTexture FileTexture( string path, GpuMaterial material, string variable )
+	{
+		if ( material is not ConvertedMaterial { File: { } file } || !file.Textures.TryGetValue( variable, out var texturePath ) || string.IsNullOrEmpty( texturePath ) ) return null;
+		lock ( sharedMaterials )
+		{
+			var life = LifeOf( path );
+			life.Textures ??= new List<string>();
+			var held = life.Textures.Contains( texturePath, StringComparer.OrdinalIgnoreCase );
+			if ( !held ) life.Textures.Add( texturePath );
+			var texture = held ? HeldTexture( texturePath ) : LoadOnce( texturePath, streamed: false, hold: true );
+			if ( texture is BackendTexture { Stream: { } stream } ) stream.Pinned = true;
+			return texture;
+		}
 	}
 
 	/// <summary>
@@ -1737,6 +1759,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				info.FragmentConstants = null;
 			}
 
+			FitOutputs( ref info, variant.Pixel );
+
 			// A draw never waits for it: skipped until workers have made it
 			info.SkipUntilReady = true;
 			using ( Zones.PipelineCreate.Start() ) pipeline = Gpu.CreateGraphicsPipeline( info );
@@ -1744,6 +1768,28 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			if ( DumpPixelShaders is { } dump && info.FragmentShader.IsValid ) DumpPixelShader( dump, variant, info.FragmentConstants, materialPerDraw );
 			return pipeline;
 		}
+	}
+
+	/// <summary>
+	/// Leave out of a pipeline's pixel stage the outputs its colour targets don't take: at a location with no target, or one of
+	/// the other numeric type (integer or float). A variant's GPU-driven form writes its visibility id, a uint, at target 1
+	/// for the ids prepass, where target 1 is the ids; elsewhere target 1 is the opaque pass's normals (RGB10A2) or there's
+	/// none. Location 0 stays: its alpha is what alpha to coverage reads, with a target there or not.
+	/// </summary>
+	void FitOutputs( ref GraphicsPipelineInfo info, ShaderStage pixel )
+	{
+		if ( !info.FragmentShader.IsValid || pixel is null || info.FragmentShader != pixel.Module || pixel.Reflection?.Outputs is not { Count: > 0 } outputs ) return;
+
+		var colors = info.ColorFormats ?? [];
+		var unused = 0u;
+		foreach ( var output in outputs )
+		{
+			if ( output.Location is < 1 or >= 32 ) continue;
+			var fits = output.Location < colors.Length && colors[output.Location] != Format.Unknown && colors[output.Location].IsInteger() == (output.Kind != SpirvScalar.Float);
+			if ( !fits ) unused |= 1u << output.Location;
+		}
+
+		if ( unused != 0 ) info.FragmentShader = Shaders.ModuleWithoutOutputs( pixel, unused );
 	}
 
 	/// <summary>

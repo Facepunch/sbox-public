@@ -22,7 +22,7 @@ namespace Sandbox.BorealisLab.Maps;
 /// <c>maps/name.vpk</c> or <c>maps/folder/name.vpk</c>.</item>
 /// <item><c>-view name</c> - one camera (<c>skyline</c>, <c>overview</c>); all by default.</item>
 /// <item><c>-camera-pos x,y,z</c>, <c>-camera-lookat x,y,z</c> ((0, 0, 30) by default) - one camera of any map instead, as SceneLab's
-/// switches move its map presets' cameras; <c>-view</c> names it.</item>
+/// switches move its map presets' cameras; <c>-view</c> names it; <c>-camera-fov</c> its horizontal field of view (80).</item>
 /// <item><c>-variants a,b</c> - which of the runs below; all by default.</item>
 /// <item><c>-frames N</c> (600), <c>-warmup N</c> (120 frames and 2 s) - measured and warm-up frames per run.</item>
 /// <item><c>-width</c> / <c>-height</c> (1280x720, SceneLab's frame), <c>-msaa N</c> (4), <c>-vsync</c> (off by default).</item>
@@ -89,7 +89,7 @@ internal static class MapRun
 		var warmup = Math.Max( Args.Int( "-warmup", 120 ), 1 );
 		var only = Args.String( "-variants" )?.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
 		var variants = only is null ? Variants : Variants.Where( v => only.Contains( v.Name, StringComparer.OrdinalIgnoreCase ) ).ToArray();
-		var views = Args.String( "-camera-pos" ) is { } cameraPos ? [new MapView( Args.String( "-view" ) ?? "camera", Vector( cameraPos ), Args.String( "-camera-lookat" ) is { } at ? Vector( at ) : new V3( 0, 0, 30 ) )]
+		var views = Args.String( "-camera-pos" ) is { } cameraPos ? [new MapView( Args.String( "-view" ) ?? "camera", Vector( cameraPos ), Args.String( "-camera-lookat" ) is { } at ? Vector( at ) : new V3( 0, 0, 30 ), Args.Float( "-camera-fov", 80 ) )]
 			: Args.String( "-view" ) is { } viewName ? ConstructViews.Where( v => v.Name.Equals( viewName, StringComparison.OrdinalIgnoreCase ) ).ToArray() : ConstructViews;
 		var captures = Args.String( "-capture" );
 		var output = Path.GetFullPath( Args.String( "-out" ) ?? Path.Combine( "screenshots", "borealislab", "map" ) );
@@ -101,8 +101,11 @@ internal static class MapRun
 		var messageCounts = new System.Collections.Concurrent.ConcurrentDictionary<string, int>();
 		var driverNames = !Args.Has( "-borealis-driver-names" );
 		using var window = new SdlWindow( new SdlWindowOptions { Title = $"Borealis Lab: {ident} on Borealis.Gpu", Width = width, Height = height, Fullscreen = Args.Has( "-fullscreen" ), Exclusive = Args.String( "-fullscreen" ) is "exclusive" } );
+		// -markers: progress markers in every list, so a lost device's report (printed when it's lost) names how far each got
+		GpuDevice lostWatch = null;
 		using var gpu = GpuDevice.Create( new DeviceOptions
 		{
+			ProgressMarkers = Args.Has( "-markers" ),
 			ApplicationName = driverNames ? "Sbox" : "Borealis Lab map",
 			EngineName = driverNames ? "Source2" : "Borealis",
 			Validation = Args.Has( "-validation" ) || Args.Has( "-sync-validation" ),
@@ -117,8 +120,10 @@ internal static class MapRun
 				if ( m.Severity == MessageSeverity.Error ) Interlocked.Increment( ref errors );
 				messageCounts.AddOrUpdate( $"[{m.Severity}] {m.Id}", 1, ( _, n ) => n + 1 );
 				if ( errors < 20 ) Console.WriteLine( $"[{m.Severity}] {m.Id}: {m.Text}" );
+				if ( m.Id == "Borealis.Gpu.DeviceLost" ) Console.WriteLine( lostWatch?.LostReport );
 			},
 		} );
+		lostWatch = gpu;
 
 		var (clientWidth, clientHeight) = window.PixelSize;
 		using var swapChain = gpu.CreateSwapChain( new SwapChainInfo

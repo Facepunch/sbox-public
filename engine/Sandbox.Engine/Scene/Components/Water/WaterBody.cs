@@ -29,13 +29,10 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 
 	GameObject _surface;
 	string _surfaceTag;
-	Material _builtMaterial;
 	Vector2 _renderCenter;
 	Vector2 _renderHalfSize;
-	Vector2 _builtHalfSize;
-	ClipmapLayout _builtLayout;
-	float _builtRise;
-	float _builtHorizontal;
+	ClipmapLayout _layout;
+	readonly SurfaceMesh[] _surfaceMeshes = new SurfaceMesh[3];
 
 	internal float CaptureDisplacement => RenderWaves ? MathF.Max( 0, WaveHeight ) : 0;
 	float RenderHorizontalDisplacement => RenderWaves
@@ -89,12 +86,11 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 		UpdateRenderDomain( viewer, layout );
 		float rise = MathF.Max( 0.1f, CaptureDisplacement );
 		float horizontal = RenderHorizontalDisplacement;
-		var material = ActiveMaterial;
-		if ( _builtHalfSize != _renderHalfSize || _builtLayout != layout
-			|| _builtRise != rise || _builtHorizontal != horizontal
-			|| _builtMaterial != material )
-			RebuildMesh( layout, rise, horizontal, material );
+		var mesh = SurfaceMeshFor( layout, _renderHalfSize, rise, horizontal, ActiveMaterial );
+		if ( _renderer.Model != mesh.Model )
+			_renderer.Model = mesh.Model;
 
+		_layout = layout;
 		_surface.WorldTransform = new Transform( FromSurface( _renderCenter ), WorldRotation, 1 );
 		var attributes = _renderer.Attributes;
 		attributes.Set( "Origin", SurfaceOrigin );
@@ -103,9 +99,9 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 		attributes.Set( "WaterOcean", Ocean );
 		attributes.Set( "DetailTime", DetailTime );
 		attributes.Set( "GridCamera", viewer.IsValid() ? viewer.WorldPosition : SurfaceOrigin );
-		attributes.Set( "ClipmapLevels", _builtLayout.Levels );
-		attributes.Set( "ClipmapCells", _builtLayout.Cells );
-		attributes.Set( "ClipmapBaseCell", _builtLayout.BaseCell );
+		attributes.Set( "ClipmapLevels", layout.Levels );
+		attributes.Set( "ClipmapCells", layout.Cells );
+		attributes.Set( "ClipmapBaseCell", layout.BaseCell );
 		SetWaveAttributes( attributes );
 		attributes.Set( "AxisX", WorldRotation.Forward );
 		attributes.Set( "AxisY", WorldRotation.Left );
@@ -139,13 +135,51 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 	}
 
 	/// <summary>
+	/// A built surface model: the clipmap for one cell count, with room for <see cref="Levels"/> levels.
+	/// </summary>
+	sealed class SurfaceMesh
+	{
+		public int Levels;
+		public bool Ocean;
+		public Vector2 Half;
+		public float Rise;
+		public float Horizontal;
+		public Material Material;
+		public Model Model;
+	}
+
+	/// <summary>
+	/// The surface model for a clipmap layout. Each cell count keeps its own model, built with room for the most levels it
+	/// has needed; the shader collapses the levels past <c>ClipmapLevels</c>, and the base cell is only an attribute. A
+	/// detail change while the camera moves therefore switches attributes, or models already built, and doesn't make a mesh.
+	/// An ocean's bounds only grow, so a coarser level that reaches further doesn't rebuild either.
+	/// </summary>
+	SurfaceMesh SurfaceMeshFor( ClipmapLayout layout, Vector2 half, float rise, float horizontal, Material material )
+	{
+		ref var slot = ref _surfaceMeshes[Math.Clamp( System.Numerics.BitOperations.Log2( (uint)(layout.Cells / MinClipmapCells) ), 0, _surfaceMeshes.Length - 1 )];
+		var built = slot;
+		if ( built is not null && built.Levels >= layout.Levels && built.Rise == rise && built.Horizontal == horizontal
+			&& built.Material == material && built.Ocean == Ocean && (Ocean ? built.Half.x >= half.x && built.Half.y >= half.y : built.Half == half) )
+			return built;
+
+		int levels = layout.Levels;
+		if ( built is not null )
+		{
+			levels = Math.Max( levels, built.Levels );
+			if ( Ocean && built.Ocean )
+				half = Vector2.Max( half, built.Half );
+		}
+
+		return slot = BuildSurfaceMesh( layout with { Levels = levels }, half, rise, horizontal, material );
+	}
+
+	/// <summary>
 	/// Upload the surface clipmap twice with one material: once facing up, and once with flipped winding and
 	/// TexCoord1.y set for the faces looking down, which the shader shades as the underside.
 	/// Bounds include horizontal crest compression and the complete vertical displacement.
 	/// </summary>
-	void RebuildMesh( ClipmapLayout layout, float rise, float horizontal, Material material )
+	SurfaceMesh BuildSurfaceMesh( ClipmapLayout layout, Vector2 half, float rise, float horizontal, Material material )
 	{
-		var half = _renderHalfSize;
 		var (vertices, indices) = BuildClipmap( layout, half );
 		var bounds = new BBox( new Vector3( -half.x - horizontal, -half.y - horizontal, -rise ),
 			new Vector3( half.x + horizontal, half.y + horizontal, rise ) );
@@ -160,12 +194,16 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 		}
 
 		var (underVertices, underIndices) = BuildUnderside( vertices, indices );
-		_renderer.Model = Model.Builder.AddMesh( Side( vertices, indices ) ).AddMesh( Side( underVertices, underIndices ) ).Create();
-		_builtHalfSize = half;
-		_builtLayout = layout;
-		_builtRise = rise;
-		_builtHorizontal = horizontal;
-		_builtMaterial = material;
+		return new SurfaceMesh
+		{
+			Levels = layout.Levels,
+			Ocean = Ocean,
+			Half = half,
+			Rise = rise,
+			Horizontal = horizontal,
+			Material = material,
+			Model = Model.Builder.AddMesh( Side( vertices, indices ) ).AddMesh( Side( underVertices, underIndices ) ).Create(),
+		};
 	}
 
 	/// <summary>
@@ -247,9 +285,8 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 		_surface?.Destroy();
 		_surface = null;
 		_renderer = null;
-		_builtMaterial = null;
-		_builtHalfSize = default;
-		_builtLayout = default;
+		_layout = default;
+		Array.Clear( _surfaceMeshes );
 		_captureLists = null;
 		_captureExclusions = null;
 		_reflectionSkies.Clear();

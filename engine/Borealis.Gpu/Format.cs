@@ -213,6 +213,9 @@ public static class Formats
 
 	internal static uint Aspect( this Format format ) => format.HasStencil() ? Vk.AspectDepth | Vk.AspectStencil : format.IsDepth() ? Vk.AspectDepth : Vk.AspectColor;
 
+	/// <summary>Whether a colour format holds integers (a pixel shader writes it an int or uint output), not floats.</summary>
+	public static bool IsInteger( this Format format ) => format is Format.RGBA8Uint or Format.R16Uint or Format.RGBA16Uint or Format.R32Uint or Format.R32Sint or Format.RG32Uint or Format.RGBA32Uint;
+
 	/// <summary>Whether a vertex format is read as integers (a shader's int or uint input), not as floats.</summary>
 	public static bool IsInteger( this VertexFormat format ) => format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt3 or VertexFormat.UInt4 or VertexFormat.Int or VertexFormat.UByte or VertexFormat.Byte;
 

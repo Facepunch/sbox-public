@@ -26,18 +26,13 @@ internal sealed partial class SceneBridge
 	/// The cube is the engine texture's capture (<see cref="MirrorContent.CaptureCube"/>), which probes draw with. Its faces submit
 	/// lists of their own, so a capture asked for inside a render block or one of our frames renders the same way, before what
 	/// the block records. A camera with stage hooks of its own (the DDGI bake's) gets its after-transparent stage once each
-	/// face is in its slice (<see cref="RunCaptureFaceStages"/>); no work after the faces runs other than the filter. With
-	/// Source 2's device kept (the editor) a realtime probe also captures natively while a native tool's views are drawn
-	/// (<see cref="RenderPipeline.ToolViewsDrawn"/>), for them; a cube only Borealis.Gpu has (a bake's) doesn't.
+	/// face is in its slice (<see cref="RunCaptureFaceStages"/>); no work after the faces runs other than the filter.
 	/// </summary>
 	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null )
 	{
 		if ( cube is null || Gpu is null || MirrorContent.Gpu is not { } device ) return;
 
-		// With Source 2's device kept (the editor), native's capture too for a native tool's views (Hammer's) while one is open
 		var hooked = camera.OnRenderStageHook is not null;
-		if ( Graphics.HasSource2Device && RenderPipeline.ToolViewsDrawn && !hooked && !cube.OnBorealisGpuOnly )
-			SceneRenderer.Native.RenderToCube( camera, cube, setup, afterFaces );
 		if ( NotYetInBorealis( camera, setup ) is not null ) return;
 		if ( cube.Depth != 6 ) throw new Exception( "Expected a texture with 6 depth slices for RenderToCubeTexture" );
 

@@ -18,6 +18,12 @@ public sealed class SpirvReflection
 	/// <summary>Stage inputs with a location (vertex inputs, for a vertex shader).</summary>
 	public IReadOnlyList<SpirvInput> Inputs { get; }
 
+	/// <summary>
+	/// Stage outputs with a location (a pixel shader's colour targets), across the module's entry points: a module with
+	/// several pixel entries lists each one's.
+	/// </summary>
+	public IReadOnlyList<SpirvInput> Outputs { get; }
+
 	/// <summary>Entry point names.</summary>
 	public IReadOnlyList<string> EntryPoints { get; }
 
@@ -30,10 +36,11 @@ public sealed class SpirvReflection
 	/// </summary>
 	public IReadOnlyList<SpirvBlock> Blocks { get; }
 
-	SpirvReflection( List<SpirvBinding> bindings, List<SpirvInput> inputs, List<string> entryPoints, List<uint> specialization, List<SpirvBlock> blocks )
+	SpirvReflection( List<SpirvBinding> bindings, List<SpirvInput> inputs, List<SpirvInput> outputs, List<string> entryPoints, List<uint> specialization, List<SpirvBlock> blocks )
 	{
 		Bindings = bindings;
 		Inputs = inputs;
+		Outputs = outputs;
 		EntryPoints = entryPoints;
 		SpecializationIds = specialization;
 		Blocks = blocks;
@@ -113,6 +120,7 @@ public sealed class SpirvReflection
 
 		var bindings = new List<SpirvBinding>();
 		var inputs = new List<SpirvInput>();
+		var outputs = new List<SpirvInput>();
 		var blocks = new List<SpirvBlock>();
 		foreach ( var (id, pointerType, storage) in variables )
 		{
@@ -123,6 +131,13 @@ public sealed class SpirvReflection
 			{
 				if ( decorated is null || !decorated.TryGetValue( DecorationLocation, out var location ) || decorated.ContainsKey( DecorationBuiltIn ) ) continue;
 				inputs.Add( Input( (int)location, pointee, types, words ) );
+				continue;
+			}
+
+			if ( storage == StorageOutput )
+			{
+				if ( decorated is null || !decorated.TryGetValue( DecorationLocation, out var location ) || decorated.ContainsKey( DecorationBuiltIn ) ) continue;
+				outputs.Add( Input( (int)location, pointee, types, words ) );
 				continue;
 			}
 
@@ -184,8 +199,9 @@ public sealed class SpirvReflection
 
 		bindings.Sort( ( a, b ) => a.Set != b.Set ? a.Set.CompareTo( b.Set ) : a.Binding.CompareTo( b.Binding ) );
 		inputs.Sort( ( a, b ) => a.Location.CompareTo( b.Location ) );
+		outputs.Sort( ( a, b ) => a.Location.CompareTo( b.Location ) );
 		blocks.Sort( ( a, b ) => a.Set != b.Set ? a.Set.CompareTo( b.Set ) : a.Binding.CompareTo( b.Binding ) );
-		return new SpirvReflection( bindings, inputs, entryPoints, specialization, blocks );
+		return new SpirvReflection( bindings, inputs, outputs, entryPoints, specialization, blocks );
 	}
 
 	/// <summary>A member type's size in bytes as laid out: scalars by width, vectors by count, matrices by stride, arrays by stride; 0 if unknown.</summary>
@@ -230,6 +246,138 @@ public sealed class SpirvReflection
 		};
 
 		return new SpirvInput( location, kind, components );
+	}
+
+	const int OpCopyMemory = 63, OpCopyMemorySized = 64, OpFunctionCall = 57, OpAccessChain = 65, OpInBoundsAccessChain = 66, OpPtrAccessChain = 67;
+	const int OpDecorateId = 332, OpDecorateString = 5632, StorageOutput = 3, StoragePrivate = 6;
+
+	/// <summary>
+	/// <paramref name="spirv"/> with its stage outputs at <paramref name="locations"/> (a bit per location) made private
+	/// variables: what the shader writes there goes nowhere, and it has no output there for a pipeline's targets to
+	/// match. Null when it has no output there, or one is reached other than by whole loads and stores (an access chain),
+	/// which this doesn't rewrite.
+	/// </summary>
+	public static byte[] WithoutOutputs( ReadOnlySpan<byte> spirv, uint locations )
+	{
+		if ( spirv.Length < 20 || BinaryPrimitives.ReadUInt32LittleEndian( spirv ) != 0x07230203 ) throw new InvalidDataException( "Not SPIR-V" );
+
+		var words = new uint[spirv.Length / 4];
+		for ( int i = 0; i < words.Length; i++ ) words[i] = BinaryPrimitives.ReadUInt32LittleEndian( spirv[(i * 4)..] );
+
+		// Locations, output variables and pointer types
+		var located = new Dictionary<uint, uint>();
+		var outputs = new Dictionary<uint, uint>();
+		var pointers = new Dictionary<uint, (uint Storage, uint Pointee, int At)>();
+		for ( int i = 5; i < words.Length; )
+		{
+			var op = (int)(words[i] & 0xFFFF);
+			var count = (int)(words[i] >> 16);
+			if ( count == 0 || i + count > words.Length ) throw new InvalidDataException( "Malformed SPIR-V instruction" );
+			if ( op == OpDecorate && count > 3 && words[i + 2] == DecorationLocation ) located[words[i + 1]] = words[i + 3];
+			else if ( op == OpTypePointer && count >= 4 ) pointers[words[i + 1]] = (words[i + 2], words[i + 3], i);
+			else if ( op == OpVariable && count >= 4 && words[i + 3] == StorageOutput ) outputs[words[i + 2]] = words[i + 1];
+			i += count;
+		}
+
+		var demoted = new HashSet<uint>();
+		foreach ( var (variable, _) in outputs )
+		{
+			if ( located.TryGetValue( variable, out var location ) && location < 32 && (locations & (1u << (int)location)) != 0 ) demoted.Add( variable );
+		}
+
+		if ( demoted.Count == 0 ) return null;
+
+		// Only whole loads and stores reach them: an access chain's pointer would keep the output storage class
+		for ( int i = 5; i < words.Length; )
+		{
+			var op = (int)(words[i] & 0xFFFF);
+			var count = (int)(words[i] >> 16);
+			var reached = op switch
+			{
+				OpAccessChain or OpInBoundsAccessChain or OpPtrAccessChain => count > 3 && demoted.Contains( words[i + 3] ),
+				OpCopyMemory or OpCopyMemorySized => count > 2 && (demoted.Contains( words[i + 1] ) || demoted.Contains( words[i + 2] )),
+				_ => false,
+			};
+			for ( int w = 4; op == OpFunctionCall && w < count; w++ ) reached |= demoted.Contains( words[i + w] );
+			if ( reached ) return null;
+			i += count;
+		}
+
+		// A private pointer to each one's type: the module's own, or one added after its output pointer type
+		var bound = words[3];
+		var privateOf = new Dictionary<uint, uint>();
+		var added = new Dictionary<int, List<(uint Id, uint Pointee)>>();
+		foreach ( var variable in demoted )
+		{
+			var type = outputs[variable];
+			if ( privateOf.ContainsKey( type ) ) continue;
+			var pointee = pointers[type].Pointee;
+			uint found = 0;
+			foreach ( var (id, pointer) in pointers )
+			{
+				if ( pointer.Storage == StoragePrivate && pointer.Pointee == pointee ) found = id;
+			}
+
+			if ( found == 0 )
+			{
+				found = bound++;
+				if ( !added.TryGetValue( pointers[type].At, out var list ) ) added[pointers[type].At] = list = new();
+				list.Add( (found, pointee) );
+			}
+
+			privateOf[type] = found;
+		}
+
+		// SPIR-V before 1.4 lists only inputs and outputs in an entry point's interface; from 1.4 every global it uses
+		var listsPrivate = words[1] >= 0x00010400;
+		var result = new List<uint>( words.Length + 8 );
+		result.AddRange( words.AsSpan( 0, 5 ) );
+		result[3] = bound;
+		for ( int i = 5; i < words.Length; )
+		{
+			var op = (int)(words[i] & 0xFFFF);
+			var count = (int)(words[i] >> 16);
+			var instruction = words.AsSpan( i, count );
+			i += count;
+
+			if ( op is OpDecorate or OpDecorateId or OpDecorateString && demoted.Contains( instruction[1] ) ) continue;
+
+			if ( op == OpVariable && demoted.Contains( instruction[2] ) )
+			{
+				var variable = instruction.ToArray();
+				variable[1] = privateOf[variable[1]];
+				variable[3] = StoragePrivate;
+				result.AddRange( variable );
+				continue;
+			}
+
+			if ( op == OpEntryPoint && !listsPrivate )
+			{
+				// The name's words end with the one holding its terminating zero; the interface ids follow
+				var name = 3;
+				while ( name < count && (instruction[name] & 0xFF000000) != 0 && (instruction[name] & 0xFF0000) != 0 && (instruction[name] & 0xFF00) != 0 && (instruction[name] & 0xFF) != 0 ) name++;
+				var kept = new List<uint>( count );
+				kept.AddRange( instruction[..Math.Min( name + 1, count )] );
+				for ( int w = name + 1; w < count; w++ )
+				{
+					if ( !demoted.Contains( instruction[w] ) ) kept.Add( instruction[w] );
+				}
+
+				kept[0] = (uint)kept.Count << 16 | (uint)op;
+				result.AddRange( kept );
+				continue;
+			}
+
+			result.AddRange( instruction );
+			if ( op == OpTypePointer && added.TryGetValue( i - count, out var pointerTypes ) )
+			{
+				foreach ( var (id, pointee) in pointerTypes ) result.AddRange( [4u << 16 | OpTypePointer, id, StoragePrivate, pointee] );
+			}
+		}
+
+		var bytes = new byte[result.Count * 4];
+		for ( int w = 0; w < result.Count; w++ ) BinaryPrimitives.WriteUInt32LittleEndian( bytes.AsSpan( w * 4 ), result[w] );
+		return bytes;
 	}
 
 	static string ReadString( uint[] words, int start, int end )

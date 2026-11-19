@@ -716,7 +716,7 @@ public sealed unsafe class CommandList
 	/// <summary>Whether a rendering scope is open.</summary>
 	public bool IsRendering => rendering;
 
-	static bool IsIntegerFormat( Format format ) => format is Format.RGBA8Uint or Format.R16Uint or Format.RGBA16Uint or Format.R32Uint or Format.R32Sint or Format.RG32Uint or Format.RGBA32Uint;
+	static bool IsIntegerFormat( Format format ) => format.IsInteger();
 
 	/// <summary>Finish drawing into the targets <see cref="BeginRendering"/> named.</summary>
 	public void EndRendering()
@@ -1096,14 +1096,24 @@ public sealed unsafe class CommandList
 		}
 		else
 		{
+			// Each its own allocation, so pages freed as fewer are needed leave no holes in shared blocks
 			var pageSize = Math.Max( PageSize, (size + 0xFFFF) & ~0xFFFFL );
-			var buffer = device.CreateBuffer( new BufferInfo
+			BufferHandle buffer;
+			Memory.MemoryAllocator.OwnAllocation = true;
+			try
 			{
-				Size = pageSize,
-				Usage = BufferUsage.Uniform | BufferUsage.Storage | BufferUsage.Vertex | BufferUsage.Index | BufferUsage.Indirect,
-				Memory = MemoryLocation.Upload,
-				Name = "Upload page",
-			} );
+				buffer = device.CreateBuffer( new BufferInfo
+				{
+					Size = pageSize,
+					Usage = BufferUsage.Uniform | BufferUsage.Storage | BufferUsage.Vertex | BufferUsage.Index | BufferUsage.Indirect,
+					Memory = MemoryLocation.Upload,
+					Name = "Upload page",
+				} );
+			}
+			finally
+			{
+				Memory.MemoryAllocator.OwnAllocation = false;
+			}
 
 			ref var record = ref device.Get( buffer );
 			fresh = new UploadPage { Buffer = buffer, VkBuffer = record.Buffer, Mapped = record.Memory.Mapped, Size = pageSize };

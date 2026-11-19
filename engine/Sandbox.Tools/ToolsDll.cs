@@ -92,44 +92,7 @@ internal class ToolsDll : IToolsDll
 	{
 		SceneRenderingWidget.RenderAll();
 		PanelSurfaceWidget.RenderAll();
-		EndSource2Frame();
 	}
-
-	/// <summary>
-	/// With <c>-borealisgpu</c> the editor's widgets present on Borealis.Gpu, so while no native tool draws (Hammer's views
-	/// present natively) nothing presents on Source 2's device, and its frame never ended: its per-frame cleanup never ran,
-	/// so the staging memory of every upload (2.4 GB with Construct loaded) and every texture and buffer it let go were kept.
-	/// Its frame ends here then, with nothing to present, as the game window's does (<c>GameWindow.Present</c>).
-	/// </summary>
-	static void EndSource2Frame()
-	{
-		if ( !Graphics.HasSource2Device || RenderBackend.Default is not BorealisGpuRenderBackend ) return;
-
-		// Source 2's copies of streamed textures aren't drawn with while no native tool draws (Borealis.Gpu reads its own):
-		// they go down to 64x64, and stream back in as native views use them again
-		var tools = Sandbox.Rendering.RenderPipeline.ToolViewsDrawn;
-		if ( evictingSource2Textures == tools )
-		{
-			evictingSource2Textures = !tools;
-			ConVarSystem.RunSingle( evictingSource2Textures ? "r_texture_stream_max_resolution 64" : "r_texture_stream_max_resolution -1", allowProtected: true );
-			nextSource2Defrag = Application.FrameCount + Source2DefragFrames / 8;
-		}
-
-		if ( tools ) return;
-		g_pRenderDevice.Present( default );
-
-		// What it let go is left in its memory blocks between what it keeps: now and then they're compacted (asynchronously,
-		// a few moves a frame), so emptied blocks go back to the driver
-		if ( Application.FrameCount < nextSource2Defrag ) return;
-		nextSource2Defrag = Application.FrameCount + Source2DefragFrames;
-		ConVarSystem.RunSingle( "vulkan_vma_defrag", allowProtected: true );
-	}
-
-	static bool evictingSource2Textures;
-	static ulong nextSource2Defrag;
-
-	/// <summary>Frames between compactions of Source 2's memory while no native tool draws (<see cref="EndSource2Frame"/>).</summary>
-	const ulong Source2DefragFrames = 3600;
 
 	public bool ConsoleFocus()
 	{
@@ -392,7 +355,7 @@ internal class ToolsDll : IToolsDll
 		{
 			var playWidget = GameMode.PlayWidget;
 			var window = playWidget is not null ? GameMode.PlayWindow : WindowInput.GetEditorMainWindow();
-			return new( window, playWidget?.SwapChain ?? default, RenderSettings.Instance.VSync );
+			return new( window, default, RenderSettings.Instance.VSync );
 		}
 	}
 

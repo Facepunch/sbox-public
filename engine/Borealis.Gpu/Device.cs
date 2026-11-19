@@ -230,7 +230,10 @@ public sealed unsafe partial class Device : IDisposable
 			var properties2 = new VkPhysicalDeviceProperties2 { sType = VkStructureType.PhysicalDeviceProperties2, pNext = &indexing };
 			Instance.vkGetPhysicalDeviceProperties2( PhysicalDevice, &properties2 );
 
-			Allocator = new MemoryAllocator( Vk, memory, Adapter.Integrated ) { Owner = this };
+			Allocator = new MemoryAllocator( Vk, memory, Adapter.Integrated ) { Owner = this, BudgetLimit = options.MemoryBudgetBytes };
+			Allocator.Warn = text => message?.Invoke( new DeviceMessage( MessageSeverity.Warning, "Borealis.Gpu.MemoryBudget", text ) );
+			RefreshMemoryBudget();
+			if ( options.MemoryBudgetBytes > 0 ) message?.Invoke( new DeviceMessage( MessageSeverity.Warning, "Borealis.Gpu.MemoryBudget", $"video memory budget capped at {options.MemoryBudgetBytes >> 20} MiB" ) );
 
 			var bindlessTextures = (int)Math.Min( 65536u, Math.Min( indexing.maxDescriptorSetUpdateAfterBindSampledImages, indexing.maxPerStageDescriptorUpdateAfterBindSampledImages ) / 2 * 2 );
 			var bindlessSamplers = (int)Math.Min( 2048u, Math.Min( indexing.maxDescriptorSetUpdateAfterBindSamplers, indexing.maxPerStageDescriptorUpdateAfterBindSamplers ) );
@@ -626,19 +629,21 @@ public sealed unsafe partial class Device : IDisposable
 	/// </summary>
 	public string DescribeMemory()
 	{
-		var budget = new VkPhysicalDeviceMemoryBudgetPropertiesEXT { sType = VkStructureType.PhysicalDeviceMemoryBudgetPropertiesExt };
-		var properties = new VkPhysicalDeviceMemoryProperties2 { sType = VkStructureType.PhysicalDeviceMemoryProperties2, pNext = memoryBudget ? &budget : null };
-		Instance.vkGetPhysicalDeviceMemoryProperties2( PhysicalDevice, &properties );
+		RefreshMemoryBudget();
+		Span<MemoryHeapBudget> budgets = stackalloc MemoryHeapBudget[16];
+		var count = Allocator.GetHeaps( budgets );
 
 		var heaps = new List<string>();
-		for ( int i = 0; i < properties.memoryProperties.memoryHeapCount; i++ )
+		foreach ( var heap in budgets[..count] )
 		{
-			var heap = properties.memoryProperties.Heap( i );
-			var kind = (heap.flags & Vulkan.Vk.HeapDeviceLocal) != 0 ? "device local" : "host";
+			var kind = heap.DeviceLocal ? "device local" : "host";
+			var ours = $"; Borealis.Gpu {heap.Reserved >> 20} MiB reserved, {heap.Used >> 20} used, {heap.Stranded >> 20} stranded";
 			heaps.Add( memoryBudget
-				? $"{kind}: process {budget.heapUsage[i] >> 20} MiB, budget {budget.heapBudget[i] >> 20} of {heap.size >> 20} MiB ({(long)(heap.size - Math.Min( budget.heapBudget[i], heap.size )) >> 20} MiB elsewhere)"
-				: $"{kind}: heap {heap.size >> 20} MiB" );
+				? $"{kind}: process {heap.Usage >> 20} MiB, budget {heap.Budget >> 20} of {heap.Size >> 20} MiB ({(heap.Size - heap.Budget) >> 20} MiB elsewhere{(heap.DeviceLocal && Allocator.BudgetLimit > 0 ? " or capped" : "")}){ours}"
+				: $"{kind}: heap {heap.Size >> 20} MiB{ours}" );
 		}
+
+		if ( Allocator.OverBudgetAllocations > 0 ) heaps.Add( $"{Allocator.OverBudgetAllocations} allocations refused over budget" );
 
 		// Video memory ran out and device allocations went to system memory (MemoryAllocator.SystemFallbackBytes)
 		if ( Allocator.SystemFallbackBytes > 0 ) heaps.Add( $"{Allocator.SystemFallbackBytes >> 20} MiB of device allocations in system memory" );
@@ -651,21 +656,51 @@ public sealed unsafe partial class Device : IDisposable
 	/// </summary>
 	public (long Used, long Budget) DeviceLocalMemory()
 	{
-		var budget = new VkPhysicalDeviceMemoryBudgetPropertiesEXT { sType = VkStructureType.PhysicalDeviceMemoryBudgetPropertiesExt };
-		var properties = new VkPhysicalDeviceMemoryProperties2 { sType = VkStructureType.PhysicalDeviceMemoryProperties2, pNext = memoryBudget ? &budget : null };
-		Instance.vkGetPhysicalDeviceMemoryProperties2( PhysicalDevice, &properties );
-
+		Span<MemoryHeapBudget> heaps = stackalloc MemoryHeapBudget[16];
+		var count = Allocator.GetHeaps( heaps );
 		(long Used, long Budget) largest = default;
-		ulong largestSize = 0;
-		for ( int i = 0; i < properties.memoryProperties.memoryHeapCount; i++ )
+		long largestSize = 0;
+		foreach ( var heap in heaps[..count] )
 		{
-			var heap = properties.memoryProperties.Heap( i );
-			if ( (heap.flags & Vulkan.Vk.HeapDeviceLocal) == 0 || heap.size <= largestSize ) continue;
-			largestSize = heap.size;
-			largest = memoryBudget ? ((long)budget.heapUsage[i], (long)Math.Min( budget.heapBudget[i], heap.size )) : (0, (long)heap.size);
+			if ( !heap.DeviceLocal || heap.Size <= largestSize ) continue;
+			largestSize = heap.Size;
+			largest = (heap.Usage, heap.Budget);
 		}
 
 		return largest;
+	}
+
+	/// <summary>
+	/// Each memory heap's budget and use, written into <paramref name="heaps"/> as far as it reaches (16 is enough for any
+	/// device); the number of heaps. Allocates nothing.
+	/// </summary>
+	public int GetMemoryHeaps( Span<MemoryHeapBudget> heaps ) => Allocator.GetHeaps( heaps );
+
+	/// <summary>
+	/// The artificial video memory budget in bytes (<see cref="DeviceOptions.MemoryBudgetBytes"/>), or 0 for the driver's.
+	/// </summary>
+	public long MemoryBudgetLimit
+	{
+		get => Allocator.BudgetLimit;
+		set => Allocator.BudgetLimit = Math.Max( value, 0 );
+	}
+
+	/// <summary>Frames between reads of the driver's memory budget (<see cref="BeginFrame"/>).</summary>
+	public const int MemoryBudgetFrames = 30;
+
+	/// <summary>Read the driver's usage and budget per heap into the allocator (VK_EXT_memory_budget). Allocates nothing.</summary>
+	internal void RefreshMemoryBudget()
+	{
+		if ( !memoryBudget )
+		{
+			Allocator.UpdateBudgetWithoutDriver();
+			return;
+		}
+
+		var budget = new VkPhysicalDeviceMemoryBudgetPropertiesEXT { sType = VkStructureType.PhysicalDeviceMemoryBudgetPropertiesExt };
+		var properties = new VkPhysicalDeviceMemoryProperties2 { sType = VkStructureType.PhysicalDeviceMemoryProperties2, pNext = &budget };
+		Instance.vkGetPhysicalDeviceMemoryProperties2( PhysicalDevice, &properties );
+		Allocator.UpdateBudget( new ReadOnlySpan<ulong>( budget.heapUsage, 16 ), new ReadOnlySpan<ulong>( budget.heapBudget, 16 ) );
 	}
 
 	/// <summary>The families resources are shared between: one, or graphics and compute.</summary>
@@ -685,6 +720,7 @@ public sealed unsafe partial class Device : IDisposable
 
 			var id = data->pMessageIdName != null ? Marshal.PtrToStringUTF8( (nint)data->pMessageIdName ) : "";
 			var text = data->pMessage != null ? Marshal.PtrToStringUTF8( (nint)data->pMessage ) : "";
+			if ( level >= MessageSeverity.Warning ) text += DescribeObjects( data );
 
 			if ( level == MessageSeverity.Error && (types & Vulkan.Vk.MessageValidation) != 0 ) Interlocked.Increment( ref device.validationErrors );
 			device.message?.Invoke( new DeviceMessage( level, id, text ) );
@@ -698,14 +734,40 @@ public sealed unsafe partial class Device : IDisposable
 	}
 
 	/// <summary>
-	/// Give a Vulkan object a name debuggers and validation messages show.
+	/// What a validation message is about, by the names Borealis.Gpu gave it: the named objects it lists (the pipeline,
+	/// the image) and the command-buffer labels open at the call (the pass), as the layer lists them. Empty when none is named.
+	/// </summary>
+	internal static string DescribeObjects( VkDebugUtilsMessengerCallbackDataEXT* data )
+	{
+		var names = new List<string>();
+		var objects = (VkDebugUtilsObjectNameInfoEXT*)data->pObjects;
+		for ( int i = 0; i < data->objectCount && objects != null; i++ )
+		{
+			if ( objects[i].pObjectName == null ) continue;
+			names.Add( $"{objects[i].objectType} '{Marshal.PtrToStringUTF8( (nint)objects[i].pObjectName )}'" );
+		}
+
+		var labels = (VkDebugUtilsLabelEXT*)data->pCmdBufLabels;
+		var open = new List<string>();
+		for ( int i = 0; i < data->cmdBufLabelCount && labels != null; i++ )
+		{
+			if ( labels[i].pLabelName != null ) open.Add( Marshal.PtrToStringUTF8( (nint)labels[i].pLabelName ) );
+		}
+		if ( open.Count > 0 ) names.Add( $"labels '{string.Join( "' '", open )}'" );
+
+		return names.Count == 0 ? "" : $" [{string.Join( ", ", names )}]";
+	}
+
+	/// <summary>
+	/// Give a Vulkan object a name debuggers and validation messages show: the last 80 characters of a longer one, where a
+	/// path names its file.
 	/// </summary>
 	internal void SetName( VkObjectType type, ulong handle, string name )
 	{
 		if ( name is null || Vk is null || Instance.vkSetDebugUtilsObjectNameEXT == null || handle == 0 ) return;
 
 		Span<byte> utf8 = stackalloc byte[256];
-		var length = Encoding.UTF8.GetBytes( name.AsSpan( 0, Math.Min( name.Length, 80 ) ), utf8 );
+		var length = ShortName( name, utf8 );
 		utf8[length] = 0;
 
 		fixed ( byte* p = utf8 )
@@ -713,6 +775,17 @@ public sealed unsafe partial class Device : IDisposable
 			var info = new VkDebugUtilsObjectNameInfoEXT { sType = VkStructureType.DebugUtilsObjectNameInfoExt, objectType = type, objectHandle = handle, pObjectName = p };
 			Instance.vkSetDebugUtilsObjectNameEXT( Vk.Device, &info );
 		}
+	}
+
+	/// <summary>
+	/// A name as <see cref="SetName"/> gives it, in UTF-8 into <paramref name="utf8"/> (256 bytes): up to 80 characters, the
+	/// end of a longer one after "...". Returns its length.
+	/// </summary>
+	internal static int ShortName( string name, Span<byte> utf8 )
+	{
+		if ( name.Length <= 80 ) return Encoding.UTF8.GetBytes( name, utf8 );
+		"..."u8.CopyTo( utf8 );
+		return 3 + Encoding.UTF8.GetBytes( name.AsSpan( name.Length - 77 ), utf8[3..] );
 	}
 
 	internal static string Utf8( byte* text, int max )

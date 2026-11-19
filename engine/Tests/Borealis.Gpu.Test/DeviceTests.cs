@@ -46,6 +46,25 @@ public class DeviceTests : GpuTest
 		Assert.AreEqual( madeTaking, Device.DescriptorPoolsMadeTaking, "taken from the spares, not made where asked" );
 	}
 
+	/// <summary>
+	/// The device lists its live textures with their descriptions and memory (the editor's GPU resource viewer): a new one
+	/// is listed with what it was made with and the memory it holds, and isn't once destroyed.
+	/// </summary>
+	[TestMethod]
+	public void ListsLiveTextures()
+	{
+		var texture = Device.CreateTexture( TextureInfo.RenderTarget( 64, 32, Format.RGBA8Unorm, name: "Listed texture" ) );
+		var listed = Device.ListTextures().Where( x => x.Info.Name == "Listed texture" ).ToList();
+		Assert.AreEqual( 1, listed.Count );
+		Assert.AreEqual( 64, listed[0].Info.Width );
+		Assert.AreEqual( 32, listed[0].Info.Height );
+		Assert.IsTrue( listed[0].Bytes >= 64 * 32 * 4, $"holds {listed[0].Bytes} bytes" );
+
+		Device.Destroy( texture );
+		Device.WaitIdle();
+		Assert.IsFalse( Device.ListTextures().Any( x => x.Info.Name == "Listed texture" ) );
+	}
+
 	[TestMethod]
 	public void SameBindingsReuseTheirSet()
 	{

@@ -31,6 +31,10 @@ public class PanelAppSystem : AppSystem
 	{
 		bootTimer = Stopwatch.StartNew();
 
+		// Panels draw on Borealis.Gpu, Source 2 on its empty device. SceneLab, which draws scenes through native's scene
+		// system, keeps Source 2's device.
+		if ( !DrawsScenes ) DrawOnBorealisGpu();
+
 		base.Init();
 		Phase( "Interop" );
 
@@ -52,7 +56,7 @@ public class PanelAppSystem : AppSystem
 		// device. No VR - nothing here renders in stereo. -panelapp tells the engine nobody here
 		// is drawing a scene, so the fixed buffers and atlases that exist for one are sized down
 		// to what a scene panel might want instead of what a map needs.
-		var commandLine = Environment.CommandLine.Replace( ".dll", ".exe" ) + " -nosteam -novr" + (DrawsScenes ? "" : " -panelapp");
+		var commandLine = (Utility.CommandLine.CommandLineString ?? Environment.CommandLine).Replace( ".dll", ".exe" ) + " -nosteam -novr" + (DrawsScenes ? "" : " -panelapp");
 
 		// Tools mode creates the render device but no window - our windows are our own
 		if ( !NativeEngine.EngineGlobal.SourceEnginePreInit( commandLine, _appSystem ) )

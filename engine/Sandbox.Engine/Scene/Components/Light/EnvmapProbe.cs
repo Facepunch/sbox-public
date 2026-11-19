@@ -69,7 +69,6 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 	Texture _dynamicTexture;
 	int _bouncesLeft;
 	int _queuedFrames;
-	int _toolViews;
 	float _queuedTime;
 
 	public bool Dirty;
@@ -451,16 +450,6 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 		_queuedFrames++;
 		_queuedTime += Time.Delta;
 
-		// Drawn on another device with Source 2's kept (the editor): capture again when a native tool starts drawing, so its
-		// views have the probe too (natively captured only while they're drawn)
-		if ( Graphics.HasSource2Device && RenderBackend.Default is not Source2RenderBackend && _toolViews != Rendering.RenderPipeline.ToolViewsStarted )
-		{
-			_toolViews = Rendering.RenderPipeline.ToolViewsStarted;
-			if ( Rendering.RenderPipeline.ToolViewsDrawn ) Dirty = true;
-		}
-
-		MakeTextureForToolViews();
-
 		if ( !IsReadyToUpdate() )
 			return;
 
@@ -493,11 +482,7 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 		var cubemapSize = (int)Resolution;
 		var numMips = 7; // Cubemapper is calibrated for 7 mipmaps
 
-		// Drawn on another device with Source 2's kept (the editor), Source 2's copy is only captured into and drawn with
-		// while a native tool's views are drawn: until then it's a placeholder (MakeTextureForToolViews)
-		var onBorealisGpu = Graphics.HasSource2Device && RenderBackend.Default is BorealisGpuRenderBackend && !Rendering.RenderPipeline.ToolViewsDrawn;
-
-		if ( _dynamicTexture is not null && _dynamicTexture.Width == cubemapSize && _dynamicTexture.UAVAccess && (onBorealisGpu || !_dynamicTexture.OnBorealisGpuOnly) )
+		if ( _dynamicTexture is not null && _dynamicTexture.Width == cubemapSize && _dynamicTexture.UAVAccess )
 			return;
 
 		// Dispose old texture if it exists
@@ -507,25 +492,11 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 							.WithUAVBinding()
 							.WithMips( numMips )
 							.WithFormat( ImageFormat.RGBA16161616F )
-							.Build( onBorealisGpu );
-	}
-
-	/// <summary>
-	/// Once a native tool's views are drawn, a realtime probe's Source 2 placeholder (<see cref="CreateTexture"/>) is made
-	/// full size and given to the scene object, before native captures into it; the new cube captures again on both devices.
-	/// </summary>
-	void MakeTextureForToolViews()
-	{
-		if ( _dynamicTexture is not { OnBorealisGpuOnly: true } || !Rendering.RenderPipeline.ToolViewsDrawn ) return;
-
-		CreateTexture();
-		if ( _sceneObject.IsValid() ) _sceneObject.Texture = _dynamicTexture;
-		Dirty = true;
+							.Finish();
 	}
 
 	internal void RenderCubemap()
 	{
-		MakeTextureForToolViews();
 		RenderCubemap( _dynamicTexture, CubemapRendering.GGXFilterType.Fast, RenderExcludeTags );
 	}
 

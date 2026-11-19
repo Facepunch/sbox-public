@@ -432,7 +432,10 @@ internal sealed partial class BackendContext
 			if ( b.Set != set ) continue;
 			if ( count == bindings.Length ) throw new InvalidOperationException( $"{stage.Entry} binds more than {bindings.Length} resources in set {set}" );
 
-			if ( perObject is not null && perObject[i] )
+			// The records buffer is bound as it is now, never as a pass state resolved it: the draw's record was just written
+			// (Offset), and if that grew the buffer, its offset is past the end of the one bound before, which the draw then
+			// read beyond (a GPU page fault where that buffer ended its memory block)
+			if ( (perObject is not null && perObject[i]) || b.Kind == BindingKind.MaterialRecords )
 			{
 				bindings[count++] = SurfaceBinding( stage, b, info.Tokens[i], info.Samplers[i] );
 				continue;
@@ -631,12 +634,14 @@ internal sealed partial class BackendContext
 	/// <summary>
 	/// A sampler from vfx's sampler-state annotations, as classic shaders' sampler states make them: <c>Filter</c>
 	/// (ANISOTROPIC, BILINEAR, TRILINEAR, POINT or a D3D filter name, COMPARISON_ for comparison), <c>AddressU/V/W</c>,
-	/// <c>MaxAniso</c>, <c>ComparisonFunc</c>; trilinear wrap without any.
+	/// <c>MaxAniso</c>, <c>ComparisonFunc</c>. Without a <c>Filter</c> it's native's default sampler state
+	/// (<c>DefaultSamplerStateDesc</c>): anisotropic, wrapped.
 	/// </summary>
 	internal static SamplerInfo SurfaceSampler( Annotations annotations )
 	{
-		var sampler = SamplerInfo.Linear( AddressMode.Wrap );
+		var sampler = SamplerInfo.Linear( AddressMode.Wrap, DefaultAnisotropy );
 		if ( annotations is null ) return sampler;
+		if ( annotations.MaxAniso > 0 ) sampler.MaxAnisotropy = annotations.MaxAniso;
 
 		if ( annotations.Filter is { } filter )
 		{
@@ -644,10 +649,12 @@ internal sealed partial class BackendContext
 			var comparison = name.StartsWith( "COMPARISON_", StringComparison.Ordinal );
 			if ( comparison ) name = name["COMPARISON_".Length..];
 
+			// MaxAniso only counts with an anisotropic filter
+			if ( name is not ("ANISOTROPIC" or "ANISO") ) sampler.MaxAnisotropy = 1;
+
 			switch ( name )
 			{
 				case "ANISOTROPIC" or "ANISO":
-					sampler.MaxAnisotropy = annotations.MaxAniso > 0 ? annotations.MaxAniso : 16;
 					break;
 				case "BILINEAR":
 					sampler.MipFilter = Filter.Nearest;
@@ -679,6 +686,9 @@ internal sealed partial class BackendContext
 		if ( annotations.Comparison is { } compare ) sampler.Compare = Compare( compare );
 		return sampler;
 	}
+
+	/// <summary>An anisotropic sampler's anisotropy when it doesn't give one (<c>MaxAniso</c>).</summary>
+	internal const float DefaultAnisotropy = 16;
 
 	static Filter Part( string name, string prefix )
 	{

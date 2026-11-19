@@ -355,4 +355,99 @@ public class TextureStreamingTests : GpuTest
 		Assert.AreEqual( stream.TailTop, stream.TopFor( 0 ) );
 		Assert.AreEqual( stream.TailTop, stream.TopFor( 1 ) );
 	}
+
+	/// <summary>
+	/// Video memory full: a build whose image can't be made is dropped and the texture keeps the mips it has, nothing throws,
+	/// and once there's room again it grows. A capped budget (<see cref="Device.MemoryBudgetLimit"/>) makes it give mips back
+	/// down to its tail.
+	/// </summary>
+	[TestMethod]
+	public void FullVideoMemoryKeepsFewerMips()
+	{
+		var path = StreamingTextures( 1 )[0];
+		using var backend = new BackendDevice( Device ) { StreamTextures = true };
+		var texture = (BackendTexture)backend.MaterialTextureFile( path );
+		var stream = texture.Stream;
+		using var material = new BackendMaterial( "streamed", null, null, new( StringComparer.OrdinalIgnoreCase ) { ["g_tColor"] = texture } );
+
+		void Ask( int frames, Func<bool> until )
+		{
+			for ( int frame = 0; frame < frames && !until(); frame++ )
+			{
+				backend.AskTextures( material, TextureSizes.All );
+				backend.BeginFrame();
+				Thread.Sleep( 5 );
+			}
+		}
+
+		try
+		{
+			Device.Allocator.RefuseDeviceLocal = true;
+			Device.Allocator.SystemFallback = false;
+			Ask( 100, () => backend.Streamer.OutOfMemoryBuilds > 0 );
+			Assert.IsTrue( backend.Streamer.OutOfMemoryBuilds > 0, "a build ran out of memory" );
+			Assert.AreEqual( stream.TailTop, stream.ResidentTop, "and the texture kept its tail" );
+			Assert.IsTrue( texture.IsValid );
+		}
+		finally
+		{
+			Device.Allocator.RefuseDeviceLocal = false;
+			Device.Allocator.SystemFallback = true;
+		}
+
+		Ask( 400, () => stream.ResidentTop == 0 );
+		Assert.AreEqual( 0, stream.ResidentTop, "with room again it grows" );
+
+		try
+		{
+			Device.MemoryBudgetLimit = 1;
+			Ask( 400, () => stream.ResidentTop == stream.TailTop );
+			Assert.AreEqual( stream.TailTop, stream.ResidentTop, "a capped budget gives mips back" );
+		}
+		finally
+		{
+			Device.MemoryBudgetLimit = 0;
+		}
+
+		Device.WaitIdle();
+	}
+
+	/// <summary>
+	/// A streamed texture in a block being emptied (defragmenting) is copied into new memory on the GPU between frames and
+	/// swapped in: a new image elsewhere, with every mip, its materials re-keyed.
+	/// </summary>
+	[TestMethod]
+	public void TexturesMoveOutOfDrainingBlocks()
+	{
+		var path = StreamingTextures( 1 )[0];
+		using var backend = new BackendDevice( Device ) { StreamTextures = true };
+		var texture = (BackendTexture)backend.MaterialTextureFile( path );
+		var stream = texture.Stream;
+		using var material = new BackendMaterial( "streamed", null, null, new( StringComparer.OrdinalIgnoreCase ) { ["g_tColor"] = texture } );
+		backend.BeginFrame();
+
+		var before = texture.Handle;
+		var block = Device.Get( before ).Memory.Block;
+		var version = material.Version;
+		Device.Allocator.Drain( block );
+
+		// Room in another block of its kind that's in use (a move never fills an empty block)
+		var room = Device.CreateTexture( new TextureInfo { Width = 256, Height = 256, Format = Format.RGBA8Unorm, Usage = TextureUsage.Sampled | TextureUsage.CopyDestination, Name = "Room", Content = true } );
+		try
+		{
+			for ( int frame = 0; frame < 20 && texture.Handle == before; frame++ ) backend.BeginFrame();
+		}
+		finally
+		{
+			Device.Allocator.Undrain( block );
+			Device.Destroy( room );
+		}
+
+		Assert.AreNotEqual( before, texture.Handle, "moved" );
+		Assert.AreNotSame( block, Device.Get( texture.Handle ).Memory.Block, "into another block" );
+		Assert.AreEqual( stream.TailTop, stream.ResidentTop );
+		Assert.AreNotEqual( version, material.Version, "its materials re-key" );
+		Assert.IsTrue( backend.Streamer.Moved >= 1 );
+		Device.WaitIdle();
+	}
 }

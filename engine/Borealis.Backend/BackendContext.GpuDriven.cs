@@ -315,6 +315,12 @@ internal sealed partial class BackendContext
 				// A surface material: its own GPU-driven passes, in buckets of its own (BackendContext.Surfaces.cs)
 				if ( batch.Material is SurfaceMaterial surface )
 				{
+					if ( tables.Churns( surface, null ) )
+					{
+						LeftClassic( surface.Name, shaderMode, "material records churn" );
+						continue;
+					}
+
 					// A skinned one from the vertex cache with its skinned GPU-driven pass, under its own object attributes
 					if ( batch.Mesh?.Geometry is IBackendGeometry surfaceSource && surfaceSource.Use() && GeometryOf( batch ).Pooled is not null )
 					{
@@ -393,6 +399,13 @@ internal sealed partial class BackendContext
 				if ( ObjectSetsMatrix( variant.Vertex ) || ObjectSetsMatrix( variant.Pixel ) )
 				{
 					LeftClassic( shader, mode, "object sets a matrix constant" );
+					continue;
+				}
+
+				// Nor what makes a new material record all the time
+				if ( tables.Churns( m, variant.Vertex ) || tables.Churns( m, variant.Pixel ) )
+				{
+					LeftClassic( shader, mode, "material records churn" );
 					continue;
 				}
 

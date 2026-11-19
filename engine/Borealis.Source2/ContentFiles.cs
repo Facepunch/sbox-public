@@ -69,7 +69,18 @@ public sealed class ContentFiles
 			if ( File.Exists( full ) ) return full;
 		}
 
-		return Resolve?.Invoke( path ) is { } resolved && File.Exists( resolved ) ? resolved : null;
+		return Resolve?.Invoke( path ) is { } resolved && File.Exists( resolved ) ? MostOf( resolved ) : null;
+	}
+
+	/// <summary>
+	/// A web-streamed texture's file on disk is the start of it (its smaller mips); the engine keeps the start of the whole
+	/// file it has downloaded so far beside it (<c>.resident</c>), finer mips and all: that, when it holds more.
+	/// </summary>
+	static string MostOf( string file )
+	{
+		if ( !file.EndsWith( ".vtex_c", StringComparison.OrdinalIgnoreCase ) ) return file;
+		var resident = new FileInfo( file + ".resident" );
+		return resident.Exists && resident.Length > new FileInfo( file ).Length ? file + ".resident" : file;
 	}
 
 	/// <summary>A compiled resource's bytes; throws if it isn't anywhere.</summary>
