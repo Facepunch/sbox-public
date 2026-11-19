@@ -128,6 +128,29 @@ public sealed unsafe partial class CommandList
 
 	T ReadPayload<T>( in Entry entry ) where T : unmanaged => MemoryMarshal.Read<T>( _payload.AsSpan( entry.Count ) );
 
+	// Struct payloads that hold references (view setups), kept in typed lists instead of boxed. Cleared on Reset.
+	List<ViewSetup> _viewSetups;
+	List<ReflectionSetup> _reflectionSetups;
+	List<RefractionSetup> _refractionSetups;
+	List<RendererSetup> _rendererSetups;
+
+	/// <summary>
+	/// Add an entry with a struct payload that holds references, kept in <paramref name="store"/> (made the first time) at
+	/// <see cref="Entry.Count"/>.
+	/// </summary>
+	void AddEntry<T>( delegate*< ref Entry, CommandList, void > execute, Entry data, ref List<T> store, in T payload ) where T : struct
+	{
+		data.Execute = execute;
+
+		lock ( _lock )
+		{
+			store ??= new List<T>( 2 );
+			data.Count = store.Count;
+			store.Add( payload );
+			_entries.Add( data );
+		}
+	}
+
 	[Obsolete]
 	RenderAttributes attributes => Graphics.Attributes;
 
@@ -195,6 +218,10 @@ public sealed unsafe partial class CommandList
 			currentDrawAttributes = null;
 			_entries.Clear();
 			_payloadUsed = 0;
+			_viewSetups?.Clear();
+			_reflectionSetups?.Clear();
+			_refractionSetups?.Clear();
+			_rendererSetups?.Clear();
 		}
 	}
 
