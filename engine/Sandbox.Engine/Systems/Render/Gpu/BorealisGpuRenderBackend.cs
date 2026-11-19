@@ -115,13 +115,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// cache there (<see cref="DeviceOptions.PipelineCacheFolder"/>); with <paramref name="frames"/>, it's saved in the
 	/// background every <see cref="PipelineCacheSaveFrames"/> frames when pipelines were made.
 	/// </summary>
-	public static BorealisGpuRenderBackend Create( bool validation = false, Action<DeviceMessage> message = null, bool source2Names = true, bool presentation = false, bool frames = false, bool markers = false, string pipelineCacheFolder = null )
+	public static BorealisGpuRenderBackend Create( bool validation = false, Action<DeviceMessage> message = null, bool source2Names = true, bool presentation = false, bool frames = false, bool markers = false, string pipelineCacheFolder = null, bool gpuAssisted = false )
 	{
 		var gpu = GpuDevice.Create( new DeviceOptions
 		{
 			ApplicationName = source2Names ? "Sbox" : "Borealis",
 			EngineName = source2Names ? "Source2" : "Borealis",
-			Validation = validation,
+			Validation = validation || gpuAssisted,
+			// Bounds checks of buffer reads in the shaders, without the layer's in-shader descriptor lookups (they reset RDNA4)
+			GpuAssistedValidation = gpuAssisted,
+			GpuAssistedDescriptorChecks = false,
 			Presentation = presentation,
 			ProgressMarkers = markers,
 			PipelineCacheFolder = pipelineCacheFolder,
@@ -224,9 +227,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	internal void FollowFrame()
 	{
 		// Never inside a Borealis frame's recording (a block it lends): its lists would be left in the frame before
+		// A lost device is said and handled whatever was recording when it went
+		BorealisGpuDeviceLost.Check( gpu );
 		if ( !followsFrames || frame == Application.FrameCount || lendNext is not null ) return;
 		frame = Application.FrameCount;
-		BorealisGpuDeviceLost.Check( gpu );
 		SubmitUploads();
 		FreeModelGeometry();
 		FreeCollectedBackings();
@@ -1027,12 +1031,29 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 		try
 		{
-			var handle = TextureFile.Load( file ).Create( gpu, path, UploadList() );
+			TextureFile read;
+			try
+			{
+				read = TextureFile.Load( file );
+			}
+			catch ( System.IO.FileNotFoundException ) when ( files.Find( path ) is { } again && again != file )
+			{
+				// A web-streamed texture's downloaded part replaced while it was found
+				read = TextureFile.Load( again );
+			}
+
+			var handle = read.Create( gpu, path, UploadList() );
 			Track( handle, ImageLayout.ShaderRead );
 			return handle;
 		}
 		catch ( NotSupportedException )
 		{
+			return null;
+		}
+		catch ( System.IO.InvalidDataException e )
+		{
+			// Made once, as unreadable, rather than read and thrown again in every frame that draws it
+			Log.Warning( $"Borealis.Gpu: {path} can't be read: {e.Message}" );
 			return null;
 		}
 	}

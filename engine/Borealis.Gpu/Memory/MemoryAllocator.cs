@@ -86,6 +86,12 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	}
 
 	/// <summary>
+	/// The most a device-local heap the host sees through holds and is still the small window onto video memory (without
+	/// resizable BAR), which uploads keep out of.
+	/// </summary>
+	public const ulong SmallWindowBytes = 256ul << 20;
+
+	/// <summary>
 	/// Choose the memory type for <paramref name="location"/> among <paramref name="typeBits"/>.
 	/// </summary>
 	public int FindType( uint typeBits, MemoryLocation location )
@@ -112,8 +118,11 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 				case MemoryLocation.Upload:
 					if ( !hostVisible || !coherent ) continue;
-					// Write-combined system memory on discrete GPUs keeps the small device-local window free
-					score = integrated ? (deviceLocal ? 100 : 50) : (deviceLocal ? 10 : 100);
+					// Write-combined system memory on discrete GPUs keeps the small device-local window free. An integrated
+					// GPU's device-local memory is system memory, unless its driver shows it to the host only through such a
+					// window too (a Ryzen's, 256 MiB): uploads filled that and ran out
+					var window = deviceLocal && properties.Heap( (int)properties.Type( i ).heapIndex ).size <= SmallWindowBytes;
+					score = integrated && !window ? (deviceLocal ? 100 : 50) : (deviceLocal ? 10 : 100);
 					score -= cached ? 5 : 0;
 					break;
 
