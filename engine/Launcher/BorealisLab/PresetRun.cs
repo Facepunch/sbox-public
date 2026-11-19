@@ -65,9 +65,10 @@ internal static class PresetRun
 		var single = Args.String( "-capture" );
 		var folder = System.IO.Path.GetFullPath( Args.String( "-out" ) ?? System.IO.Path.Combine( Environment.CurrentDirectory, "screenshots", "borealislab" ) );
 
-		// Validation with -vulkan_enable_validation, as the render tests ask for it, or -validation
-		var validation = Args.Has( "-vulkan_enable_validation" ) || Args.Has( "-validation" );
-		using var gpu = GpuDevice.Create( new DeviceOptions { ApplicationName = "Borealis Lab", Validation = validation, Presentation = false, Message = Message } );
+		// Validation with -vulkan_enable_validation, as the render tests ask for it, or -validation; synchronisation validation
+		// too with -sync-validation, as map runs take it
+		var validation = Args.Has( "-vulkan_enable_validation" ) || Args.Has( "-validation" ) || Args.Has( "-sync-validation" );
+		using var gpu = GpuDevice.Create( new DeviceOptions { ApplicationName = "Borealis Lab", Validation = validation, SynchronizationValidation = Args.Has( "-sync-validation" ), Presentation = false, Message = Message } );
 		using var device = new BackendDevice( gpu );
 		GoldenTruthRun.Adapter = gpu.Adapter.Name;
 		if ( validation ) GoldenTruthRun.ValidationLayer();
