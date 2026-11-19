@@ -61,35 +61,12 @@ public class PanelGalleryAppSystem : PanelAppSystem
 		var surface = window?.Surface;
 		if ( surface is null ) return running;
 
-		// With -borealisgpu the window draws on Borealis.Gpu and Source 2's device is idle: capture what that device draws
-		if ( RenderBackend.Default is not Source2RenderBackend && window.Core is { } core )
-		{
-			var pixels = core.RenderToPixels( RenderBackend.Default );
-			using var drawn = new Bitmap( (int)surface.Size.x, (int)surface.Size.y );
-			drawn.SetPixelData( System.Runtime.InteropServices.MemoryMarshal.AsBytes( pixels.AsSpan() ), premultiplied: false );
-			System.IO.File.WriteAllBytes( args[index + 1], drawn.ToPng() );
-			return false;
-		}
-
-		var world = new SceneWorld();
-		try
-		{
-			using var camera = new SceneCamera( "Gallery Capture" )
-			{
-				World = world,
-				BackgroundColor = Color.Black,
-				ClearFlags = ClearFlags.All,
-				EnablePostProcessing = false,
-				OnRenderUI = surface.Render,
-			};
-			using var bitmap = new Bitmap( (int)surface.Size.x, (int)surface.Size.y );
-			camera.RenderToBitmap( bitmap );
-			System.IO.File.WriteAllBytes( args[index + 1], bitmap.ToPng() );
-		}
-		finally
-		{
-			world.Delete();
-		}
+		// What the window draws, on the process's Borealis.Gpu device
+		if ( window.Core is not { } core ) return running;
+		var pixels = core.RenderToPixels( RenderBackend.Default );
+		using var drawn = new Bitmap( (int)surface.Size.x, (int)surface.Size.y );
+		drawn.SetPixelData( System.Runtime.InteropServices.MemoryMarshal.AsBytes( pixels.AsSpan() ), premultiplied: false );
+		System.IO.File.WriteAllBytes( args[index + 1], drawn.ToPng() );
 
 		// Captured: the run is done
 		return false;
