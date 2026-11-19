@@ -74,6 +74,31 @@ public class BorealisGpuTexturesTest
 	}
 
 	/// <summary>
+	/// A placeholder drawn before what replaces it arrives (an avatar: a 1x1 texture until Steam's pixels are copied in with
+	/// <see cref="Texture.CopyFrom"/>) has the replacement's pixels in its copy afterwards, not the placeholder's.
+	/// </summary>
+	[TestMethod]
+	public void ReplacedTexturesGetANewCopy()
+	{
+		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		using var placeholder = Texture.Create( 1, 1 ).WithData( new byte[4] ).Finish();
+		Assert.AreEqual( new Color32( 0, 0, 0, 0 ), borealis.ReadPixels( placeholder )[0], "the placeholder's copy" );
+
+		const int size = 4;
+		using ( var loaded = Texture.Create( size, size, ImageFormat.RGBA8888 ).WithData( Pixels( size, size, ( _, _ ) => new Color32( 255, 0, 0, 255 ) ) ).Finish() )
+		{
+			placeholder.CopyFrom( loaded );
+		}
+
+		var pixels = borealis.ReadPixels( placeholder );
+		Assert.AreEqual( size * size, pixels.Length, "the copy is the replacement's size" );
+		Assert.AreEqual( new Color32( 255, 0, 0, 255 ), pixels[2 * size + 1], "and has its pixels" );
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	/// <summary>
 	/// A texture array made empty and filled a layer at a time (<see cref="Texture.Update3D"/>, Rubble's voxel atlas) has a
 	/// copy here that's an array of every layer, each with what was written to it; and a draw's attributes read a named one
 	/// (its name is no file) as that copy. The copy was a 2D texture that kept no layer past the first.
