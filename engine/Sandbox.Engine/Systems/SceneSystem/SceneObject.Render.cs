@@ -7,13 +7,13 @@ public partial class SceneObject
 	/// renderer adds it and removes it, and a change made on the main thread outside a render of a world holding it goes straight
 	/// into it. Other kinds are made and written by their world's renderer.
 	/// </summary>
-	internal virtual bool OwnsRenderObject => false;
+	internal virtual bool OwnsRenderObject => ResolvesDraws && GetType() == typeof( SceneObject );
 
 	/// <summary>
 	/// Make the render object it draws as (<see cref="OwnsRenderObject"/>). Its world's renderer adds it to its render world and
 	/// writes everything into it.
 	/// </summary>
-	internal virtual Borealis.RenderObject MakeRenderObject() => null;
+	internal virtual Borealis.RenderObject MakeRenderObject() => new Borealis.MeshObject( null, Transform );
 
 	/// <summary>
 	/// Write what changed into its render object (<see cref="OwnsRenderObject"/>), with <paramref name="render"/> for the
@@ -22,6 +22,9 @@ public partial class SceneObject
 	internal virtual void WriteRender( Borealis.RenderObject obj, Rendering.SceneObjectChange change, Rendering.ISceneWorldRender render )
 	{
 		if ( (change & Rendering.SceneObjectChange.Tags) != 0 ) obj.Tags = RenderTags();
+
+		// A model managed code made (ResolvesDraws): its draws are worked out from the model's mesh the world holds
+		if ( obj is Borealis.MeshObject mesh && GetType() == typeof( SceneObject ) ) render.WriteMesh( this, mesh, change );
 	}
 
 	/// <summary>
@@ -117,10 +120,11 @@ public partial class SceneObject
 
 	/// <summary>
 	/// What waits for its world's renderer even for an object that writes its own render object: coming and going, and its
-	/// attributes being made.
+	/// attributes being made. A model's draws are worked out once per sync for however many model and material changes came.
 	/// </summary>
 	const Rendering.SceneObjectChange RendererChanges = Rendering.SceneObjectChange.Added | Rendering.SceneObjectChange.Removed
-		| Rendering.SceneObjectChange.Deleted | Rendering.SceneObjectChange.Attributes;
+		| Rendering.SceneObjectChange.Deleted | Rendering.SceneObjectChange.Attributes | Rendering.SceneObjectChange.Model
+		| Rendering.SceneObjectChange.Material;
 
 	/// <summary>
 	/// Write a change straight into its own render object if it can: one that owns it, made already, on the main thread, outside

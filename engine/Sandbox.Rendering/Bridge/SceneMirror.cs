@@ -84,38 +84,12 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	}
 
 	/// <summary>
-	/// What a change waits for the next sync to apply, merged with the object's other changes: an object coming or going, and
-	/// what works its draws or attributes out again. The rest of a change to an object that reads nothing from native applies
-	/// at once (<see cref="WritesDirectly"/>).
-	/// </summary>
-	const SceneObjectChange Queued = SceneObjectChange.Added | SceneObjectChange.Removed | SceneObjectChange.Deleted | SceneObjectChange.Model
-		| SceneObjectChange.Material | SceneObjectChange.Attributes;
-
-	// While Sync applies changes: a change reported meanwhile (a texture that loaded) waits for the next
-	bool syncing;
-
-	/// <summary>
-	/// Whether an object's changes go straight into its render object rather than waiting for a sync: the kinds that read
-	/// nothing from native code (decals, point and spot lights, cubemaps, custom and dynamic objects, and models managed code
-	/// made). Animated objects and those native code made (a map's) wait for the sync, which reads what native has.
-	/// </summary>
-	static bool WritesDirectly( SceneObject sceneObject ) => sceneObject.GetType() == typeof( SceneObject ) && sceneObject.ResolvesDraws;
-
-	/// <summary>
-	/// A change, from any thread. One to an object that writes directly (<see cref="WritesDirectly"/>), made on the main thread
-	/// outside a sync and outside a render of the world, goes into its render object at once; anything else is queued for the
-	/// next sync.
+	/// A change, from any thread, queued for the next sync: one to an object that writes its own render object
+	/// (<see cref="SceneObject.OwnsRenderObject"/>) only when it couldn't write it itself (made on another thread or during a
+	/// render, or one that waits for the sync: coming and going, a model, materials or attributes).
 	/// </summary>
 	public void OnChanged( SceneObject sceneObject, SceneObjectChange change )
 	{
-		if ( (change & Queued) == 0 && !syncing && ThreadSafe.IsMainThread && WritesDirectly( sceneObject )
-			&& Find( sceneObject ) is { } obj && !obj.InRender && sceneObject.IsValid() )
-		{
-			using ( Borealis.Zones.MirrorDirect.Start() )
-				ApplyTo( sceneObject, obj, change );
-			return;
-		}
-
 		lock ( gate )
 		{
 			// Native lights with a deleted light until its frame ends: the frame it was deleted in decides how long it's kept
@@ -200,15 +174,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	{
 		using var zone = Borealis.Zones.MirrorSync.Start();
 		HasSynced = true;
-		syncing = true;
-		try
-		{
-			SyncChanges( camera, skyboxView, lighting );
-		}
-		finally
-		{
-			syncing = false;
-		}
+		SyncChanges( camera, skyboxView, lighting );
 	}
 
 	void SyncChanges( SceneCamera camera, bool skyboxView, bool lighting )
@@ -396,6 +362,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	}
 
 	GpuTexture ISceneWorldRender.Texture( Texture texture ) => WorldTexture( texture );
+
+	void ISceneWorldRender.WriteMesh( SceneObject sceneObject, MeshObject mesh, SceneObjectChange change ) => ApplyMesh( sceneObject, mesh, change );
 
 	bool ISceneWorldRender.OnDevice => MirrorContent.Gpu is not null;
 

@@ -34,4 +34,10 @@ internal interface ISceneWorldRender
 	/// the probe's settings are written again when it has), or its texture's, as <see cref="TextureWhenRead"/>.
 	/// </summary>
 	Borealis.GpuTexture ProbeCube( SceneCubemap cubemap );
+
+	/// <summary>
+	/// Write a model's draws, flags, placement and attributes into its mesh object: the model's mesh and variants are the
+	/// world's, made and held by it.
+	/// </summary>
+	void WriteMesh( SceneObject sceneObject, Borealis.MeshObject mesh, SceneObjectChange change );
 }
