@@ -108,6 +108,13 @@ public partial class Scene : GameObject
 			return;
 		}
 
+		// The host culls what it sends by the maps' visibility: have it read before the first client needs it
+		if ( Networking.IsHost )
+		{
+			for ( var i = 0; i < _networkMapInstanceCache.Count; i++ )
+				_networkMapInstanceCache[i].GetNetworkMap()?.PrefetchVisibility();
+		}
+
 		var now = RealTime.NowDouble;
 		if ( now < _nextNetworkUpdate )
 			return;
@@ -411,21 +418,20 @@ public partial class Scene : GameObject
 	/// <summary>
 	/// Are these bounds visible to the specified <see cref="Connection"/>?
 	/// </summary>
-	public unsafe bool IsBBoxVisibleToConnection( Connection target, BBox box )
+	public bool IsBBoxVisibleToConnection( Connection target, BBox box )
 	{
-		var sources = target.VisibilityOrigins;
+		var sources = MemoryMarshal.Cast<Vector3, System.Numerics.Vector3>( target.VisibilityOrigins.AsSpan() );
 
+		// Every map's visibility has to agree; a map without any sees everything
 		for ( var i = 0; i < _networkMapInstanceCache.Count; i++ )
 		{
-			var pvs = _networkMapInstanceCache[i].GetNetworkPvs();
-			if ( !pvs.IsValid || pvs.IsEmptyPVS() )
+			var map = _networkMapInstanceCache[i].GetNetworkMap();
+			var visibility = map?.Visibility;
+			if ( visibility is null || visibility.IsEmpty )
 				continue;
 
-			fixed ( Vector3* sourcePtr = sources )
-			{
-				if ( !pvs.IsAbsBoxInPVS( sources.Length, (IntPtr)sourcePtr, box.Mins, box.Maxs ) )
-					return false;
-			}
+			if ( !visibility.IsBoxVisible( sources, box.Mins, box.Maxs, map.Origin ) )
+				return false;
 		}
 
 		return true;
@@ -434,21 +440,19 @@ public partial class Scene : GameObject
 	/// <summary>
 	/// Is a position visible to the specified <see cref="Connection"/>?
 	/// </summary>
-	public unsafe bool IsPointVisibleToConnection( Connection target, Vector3 position )
+	public bool IsPointVisibleToConnection( Connection target, Vector3 position )
 	{
-		var sources = target.VisibilityOrigins;
+		var sources = MemoryMarshal.Cast<Vector3, System.Numerics.Vector3>( target.VisibilityOrigins.AsSpan() );
 
 		for ( var i = 0; i < _networkMapInstanceCache.Count; i++ )
 		{
-			var pvs = _networkMapInstanceCache[i].GetNetworkPvs();
-			if ( !pvs.IsValid || pvs.IsEmptyPVS() )
+			var map = _networkMapInstanceCache[i].GetNetworkMap();
+			var visibility = map?.Visibility;
+			if ( visibility is null || visibility.IsEmpty )
 				continue;
 
-			fixed ( Vector3* sourcePtr = sources )
-			{
-				if ( !pvs.IsInPVS( sources.Length, (IntPtr)sourcePtr, position ) )
-					return false;
-			}
+			if ( !visibility.IsPointVisible( sources, position, map.Origin ) )
+				return false;
 		}
 
 		return true;
