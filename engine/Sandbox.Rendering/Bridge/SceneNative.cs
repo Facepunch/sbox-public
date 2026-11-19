@@ -25,7 +25,8 @@ internal static class SceneNative
 			if ( mesh < 0 ) return;
 
 			var drawn = Material.FromNative( native );
-			into.Add( new RenderMesh.DrawState( mesh, drawCall, material is null ? MirrorContent.Material( drawn ) : material( drawn ), (flags & Visible) != 0, (flags & AlphaBlended) != 0, (flags & ShadowFastPath) != 0, (flags & Lightmap) != 0 ) );
+			var gpu = material is null ? MirrorContent.Material( drawn ) : material( drawn );
+			into.Add( new RenderMesh.DrawState( mesh, drawCall, gpu, (flags & Visible) != 0, Blends( (flags & AlphaBlended) != 0, gpu ), (flags & ShadowFastPath) != 0, (flags & Lightmap) != 0 ) );
 		}
 	}
 
@@ -38,8 +39,19 @@ internal static class SceneNative
 		sceneObject.GetDraws( scratch );
 		into.Clear();
 		foreach ( var draw in scratch )
-			into.Add( new RenderMesh.DrawState( draw.Mesh, draw.DrawCall, material is null ? MirrorContent.Material( draw.Material ) : material( draw.Material ), draw.Visible, draw.Translucent, draw.ShadowFastPath, draw.Lightmapped ) );
+		{
+			var gpu = material is null ? MirrorContent.Material( draw.Material ) : material( draw.Material );
+			into.Add( new RenderMesh.DrawState( draw.Mesh, draw.DrawCall, gpu, draw.Visible, Blends( draw.Translucent, gpu ), draw.ShadowFastPath, draw.Lightmapped ) );
+		}
 	}
+
+	/// <summary>
+	/// Whether a draw blends: as native's flags say, or as its material on Borealis reads its shader. A material made at run
+	/// time from a shader (Rubble's glass, <c>Material.Create</c> of a shader that defines <c>S_TRANSLUCENT</c>) has no
+	/// compiled attributes, and under -borealisgpu Source 2's empty render system never loads the shader that exports its
+	/// <c>translucent</c> attribute, so native's flags call it opaque.
+	/// </summary>
+	static bool Blends( bool native, GpuMaterial material ) => native || material is { IsTranslucent: true };
 
 	/// <summary>
 	/// Where an object's managed draws (<see cref="SceneObject.GetDraws"/>) differ from native's (<c>RenderTools.GetSceneObjectDraw</c>),

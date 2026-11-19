@@ -1,6 +1,7 @@
 using Borealis.Backend;
 using Borealis.Gpu;
 using Borealis.Source2.Shaders;
+using System.IO;
 using System.Numerics;
 
 namespace BorealisGpuTests;
@@ -29,6 +30,24 @@ public class MaterialServiceTests : GpuTest
 		library = backend.Shaders;
 		defaults = new ShaderDefaults( Device );
 		drawer = new ShaderDrawer( Device, library, defaults );
+	}
+
+	/// <summary>
+	/// A material of a shader that makes itself translucent (<c>#define S_TRANSLUCENT 1</c> with no feature: glass, and
+	/// Rubble's glass made at run time from its package shader) is translucent, from the <c>translucent</c> attribute its
+	/// shader exports, as native reads a material's; a shader that doesn't stays opaque without its feature.
+	/// </summary>
+	[TestMethod]
+	public void ShadersThatDefineTranslucencyMakeTranslucentMaterials()
+	{
+		var core = backend.Content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "glass.shader_c" ) ) ) ?? throw new AssertInconclusiveException( "glass isn't compiled" );
+		using var glass = new BackendMaterial( "glass", ShaderFile.Load( Path.Combine( core, "shaders", "glass.shader_c" ) ), null, null );
+		Assert.IsTrue( glass.IsTranslucent );
+
+		var complexPath = Path.Combine( core, "shaders", "complex.shader_c" );
+		if ( !File.Exists( complexPath ) ) return;
+		using var complex = new BackendMaterial( "complex", ShaderFile.Load( complexPath ), null, null );
+		Assert.IsFalse( complex.IsTranslucent );
 	}
 
 	[TestCleanup]

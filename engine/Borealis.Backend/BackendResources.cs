@@ -696,7 +696,28 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 	bool Feature( string name ) => Shader?.FeatureIndex( name ) is int index && index >= 0 && Features[index] != 0;
 
 	public override string Name { get; }
-	public override bool IsTranslucent => Feature( "F_TRANSLUCENT" ) || Feature( "F_ADDITIVE_BLEND" );
+	/// <summary>
+	/// Whether it blends: its translucency features, or the <c>translucent</c> attribute its shader exports, as native reads a
+	/// material's (a shader that defines <c>S_TRANSLUCENT</c> itself, as Rubble's glass does, exports it from sbox_pixel.fxc
+	/// with no feature). Worked out once per load: draws ask for every draw.
+	/// </summary>
+	public override bool IsTranslucent
+	{
+		get
+		{
+			// The load it was worked out for, and the answer in the low bits (0 not yet, 1 no, 2 yes)
+			var known = Volatile.Read( ref translucent );
+			if ( (known & 3) == 0 || (int)(known >> 2) != loads )
+			{
+				known = ((long)loads << 2) | (Feature( "F_TRANSLUCENT" ) || Feature( "F_ADDITIVE_BLEND" ) || Attribute( "translucent", false ) ? 2L : 1L);
+				Volatile.Write( ref translucent, known );
+			}
+
+			return (known & 3) == 2;
+		}
+	}
+
+	long translucent;
 	public override bool IsAlphaTest => Feature( "F_ALPHA_TEST" );
 	public override bool ReadsFrameBuffer => false;
 	public override bool ShadowFastPath => Shader is not null && !IsTranslucent && !IsAlphaTest;
