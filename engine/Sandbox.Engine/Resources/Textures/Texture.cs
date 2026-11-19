@@ -261,6 +261,9 @@ public partial class Texture : Resource, IDisposable
 	{
 		get
 		{
+			// On Borealis.Gpu, its own sheet cache's: Source 2's has nothing under -borealisgpu
+			if ( RenderBackend.Default is BorealisGpuRenderBackend borealis ) return borealis.SheetData( this );
+
 			// I think this would be safe to cache off, right?
 			return g_pRenderDevice.GetSheetInfo( native );
 		}

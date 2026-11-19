@@ -46,7 +46,12 @@ internal sealed class BorealisGpuFrame : IDisposable
 			if ( viewTextures[i] is not { IsValid: true } ) viewTextures[i] = Texture.Load( ViewTextureFiles[i].Path );
 			attributes.Set( ViewTextureFiles[i].Name, viewTextures[i] );
 		}
+
+		// The sheet cache, which sprites read their sheets' frames from (the view environment's SheetTexture lookup)
+		if ( RenderBackend.Default is BorealisGpuRenderBackend { SheetCacheTexture: { } sheets } ) attributes.Set( SheetTextureName, sheets );
 	}
+
+	static readonly StringToken SheetTextureName = new( "SheetTexture" );
 	static readonly StringToken DepthChainPrevFrameName = new( "DepthChainDownsamplePrevFrame" );
 	static readonly StringToken NormalsName = new( "NormalsGBuffer" );
 

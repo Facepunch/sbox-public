@@ -337,6 +337,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 		FollowFrame();
 		WriteWorkerUpdates();
+		BindSheetCache();
 		SubmitUploads();
 		PollReadbacks();
 		lent = lendNext is not null;

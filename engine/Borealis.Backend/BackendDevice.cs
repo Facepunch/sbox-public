@@ -1207,7 +1207,13 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <inheritdoc/>
-	public override GpuTexture SheetMetadata => sheetMetadata;
+	public override GpuTexture SheetMetadata => SheetCache ?? sheetMetadata;
+
+	/// <summary>
+	/// The sheet cache sprite shaders read sheet textures' frames from (native's layout, which the engine fills), or null for
+	/// none: <see cref="SheetMetadata"/> is a placeholder then.
+	/// </summary>
+	public GpuTexture SheetCache { get; set; }
 
 	/// <summary>A compiled material's texture for a shader variable (<c>g_tSkyTexture</c>), or null.</summary>
 	public GpuTexture MaterialTexture( string material, string variable ) => MaterialTexture( LoadMaterial( material ), variable );
