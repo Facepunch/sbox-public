@@ -139,4 +139,36 @@ public class SceneMirrorDirectTests
 			world.Delete();
 		}
 	}
+
+	/// <summary>
+	/// An object casts shadows with both shadow flags, as native's shadow layers require them: a tool's helper model has only
+	/// the material's (MaterialSupportsShadows), which <c>Flags.CastShadows</c> reads as on.
+	/// </summary>
+	[TestMethod]
+	public void ShadowsNeedBothShadowFlags()
+	{
+		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
+
+		var world = new SceneWorld();
+		var camera = new SceneCamera { World = world };
+		var mirror = (System.IDisposable)System.Activator.CreateInstance( MirrorType, [world] );
+		try
+		{
+			var box = new SceneObject( world, Model.Load( "models/dev/box.vmdl" ) );
+			MirrorType.GetMethod( "Sync", Any ).Invoke( mirror, [camera, false] );
+			var mesh = (Borealis.MeshObject)box.RenderObject;
+			Assert.IsTrue( mesh.CastShadows );
+
+			box.ChangeFlags( SceneObjectFlags.MaterialSupportsShadows, SceneObjectFlags.CastShadows );
+			MirrorType.GetMethod( "Sync", Any ).Invoke( mirror, [camera, false] );
+			Assert.IsTrue( box.Flags.CastShadows, "the flag reads as on with either bit" );
+			Assert.IsFalse( mesh.CastShadows, "casting isn't enabled" );
+		}
+		finally
+		{
+			mirror.Dispose();
+			camera.Dispose();
+			world.Delete();
+		}
+	}
 }

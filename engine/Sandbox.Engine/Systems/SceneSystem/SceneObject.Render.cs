@@ -92,7 +92,7 @@ public partial class SceneObject
 			custom.IsOpaque = flags.IsOpaque && !flags.IsTranslucent;
 			custom.WantsFrameBufferCopy = flags.WantsFrameBufferCopy;
 			custom.DepthPrepass = !flags.HasFlag( Rendering.SceneObjectFlags.NoZPrepass );
-			custom.CastShadows = flags.CastShadows;
+			custom.CastShadows = CastsShadows;
 			custom.Visible = RenderingEnabled;
 			WriteLayerFlags( custom, flags );
 			custom.LayerMatch = LayerMatchFor( LayerMatchToken );
