@@ -17,6 +17,9 @@ public abstract class GpuTest
 	/// <summary>Whether the test's device also has GPU-assisted validation (<see cref="DeviceOptions.GpuAssistedValidation"/>).</summary>
 	protected virtual bool GpuAssistedValidation => false;
 
+	/// <summary>With <see cref="GpuAssistedValidation"/>, whether it also checks descriptors in the shader itself (<see cref="DeviceOptions.GpuAssistedDescriptorChecks"/>).</summary>
+	protected virtual bool GpuAssistedDescriptorChecks => true;
+
 	public TestContext TestContext { get; set; }
 
 	[TestInitialize]
@@ -32,6 +35,7 @@ public abstract class GpuTest
 				Validation = true,
 				SynchronizationValidation = true,
 				GpuAssistedValidation = GpuAssistedValidation,
+				GpuAssistedDescriptorChecks = GpuAssistedDescriptorChecks,
 				Presentation = false,
 				Message = m =>
 				{

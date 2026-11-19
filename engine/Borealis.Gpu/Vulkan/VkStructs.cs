@@ -281,6 +281,25 @@ internal unsafe struct VkValidationFeaturesEXT
 	public int* pDisabledValidationFeatures;
 }
 
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkLayerSettingEXT
+{
+	public byte* pLayerName;
+	public byte* pSettingName;
+	public int type;
+	public uint valueCount;
+	public void* pValues;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkLayerSettingsCreateInfoEXT
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint settingCount;
+	public VkLayerSettingEXT* pSettings;
+}
+
 /// <summary>VkPhysicalDeviceFeatures: 55 VkBool32s, indexed by <see cref="VkFeature"/>.</summary>
 [StructLayout( LayoutKind.Sequential )]
 internal unsafe struct VkPhysicalDeviceFeatures

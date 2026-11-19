@@ -4,22 +4,40 @@ using System.Runtime.InteropServices;
 namespace BorealisGpuTests;
 
 /// <summary>
-/// Bindless slots that hold nothing read as the device's defaults, checked on the GPU by GPU-assisted validation: slot 0
-/// (s&amp;box's shaders read a texture index of 0 as none, and a material with a texture field it was never given writes 0)
-/// and a slot whose texture was freed (a record written before the texture streamed out). Without defaults the first is a
-/// descriptor that was never written and the second one whose image view is destroyed: either can read through a garbage
-/// address and lose the device.
+/// Bindless slots that hold nothing read as the device's defaults, checked by GPU-assisted validation: slot 0 (s&amp;box's
+/// shaders read a texture index of 0 as none, and a material with a texture field it was never given writes 0), a slot
+/// whose texture was freed (a record written before the texture streamed out) and the table's last slot, which nothing
+/// has handed out (an index read from a stale or garbage record). Without defaults the first and last are descriptors that
+/// were never written and the second one whose image view is destroyed: any can read through a garbage address and lose
+/// the device. On RDNA4 validation's in-shader descriptor checks are off: their own lookups reset the GPU (driver 26.11,
+/// validation layer 1.4.309) however the slots are filled, so there only the descriptors read are checked afterwards and
+/// the pixel shows a freed slot reads the default, not the white the freed texture held.
 /// </summary>
 [TestClass]
 [DoNotParallelize]
 public class BindlessDefaultsTests : GpuTest
 {
 	protected override bool GpuAssistedValidation => true;
+	protected override bool GpuAssistedDescriptorChecks => !Rdna4.Value;
+
+	// AMD Navi 4x (RX 9000 series): the GPU-AV in-shader descriptor checks reset it
+	static readonly Lazy<bool> Rdna4 = new( () =>
+	{
+		try
+		{
+			using var probe = Device.Create( new DeviceOptions { ApplicationName = "Borealis.Gpu.Test probe", Presentation = false } );
+			return probe.Adapter.VendorId == 0x1002 && probe.Adapter.DeviceId is >= 0x7550 and < 0x7600;
+		}
+		catch ( GpuException )
+		{
+			return false;
+		}
+	} );
 
 	[StructLayout( LayoutKind.Sequential )]
 	struct SlotConstants
 	{
-		public uint Target, First, Second, Pad;
+		public uint Target, First, Second, Third;
 	}
 
 	[TestMethod]
@@ -43,7 +61,8 @@ public class BindlessDefaultsTests : GpuTest
 		var list = Device.BeginCommandList( QueueType.Graphics, "Read empty slots" );
 		list.Barrier( TextureBarrier.Transition( target, ImageLayout.Undefined, ImageLayout.General, PipelineStage.TopOfPipe, MemoryAccess.None, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite ) );
 		list.SetPipeline( pipeline );
-		list.PushConstants( new SlotConstants { Target = (uint)Device.StorageIndex( target ), First = 0, Second = (uint)freedSlot } );
+		var unused = (uint)Device.Capabilities.BindlessTextures - 2;
+		list.PushConstants( new SlotConstants { Target = (uint)Device.StorageIndex( target ), First = 0, Second = (uint)freedSlot, Third = unused } );
 		list.Dispatch( 1, 1 );
 		Device.Wait( Device.Submit( list ) );
 		Device.WaitIdle();

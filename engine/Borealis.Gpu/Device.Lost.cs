@@ -8,8 +8,11 @@ public sealed partial class Device
 {
 	int lost;
 
-	// Whether the driver said the device is lost (VK_ERROR_DEVICE_LOST), the only time its fault report may be read
+	// Whether the driver lost the device: a call returned VK_ERROR_DEVICE_LOST, or it signalled everything pending
 	volatile bool driverLost;
+
+	// Whether a call returned VK_ERROR_DEVICE_LOST: only then may the driver's fault report be read
+	volatile bool lostReturned;
 
 	/// <summary>
 	/// Whether the device is lost: a queue call returned <c>VK_ERROR_DEVICE_LOST</c>, or the GPU stopped reaching what was
@@ -54,7 +57,12 @@ public sealed partial class Device
 	/// <summary>Throw for a failed Vulkan call, taking the device as lost first when that's why it failed.</summary>
 	internal void Check( VkResult result, string call )
 	{
-		if ( result == VkResult.ErrorDeviceLost ) MarkLost( $"{call} returned VK_ERROR_DEVICE_LOST", byDriver: true );
+		if ( result == VkResult.ErrorDeviceLost )
+		{
+			lostReturned = true;
+			MarkLost( $"{call} returned VK_ERROR_DEVICE_LOST", byDriver: true );
+		}
+
 		result.Check( call );
 	}
 

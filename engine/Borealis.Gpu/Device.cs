@@ -159,6 +159,17 @@ public sealed unsafe partial class Device : IDisposable
 			instanceNext = &validationFeatures;
 		}
 
+		// GPU-assisted validation without its in-shader descriptor checks (DeviceOptions.GpuAssistedDescriptorChecks)
+		uint off = 0;
+		var setting = new VkLayerSettingEXT { pLayerName = strings.Add( "VK_LAYER_KHRONOS_validation" ), pSettingName = strings.Add( "gpuav_descriptor_checks" ), type = 0, valueCount = 1, pValues = &off };
+		var layerSettings = new VkLayerSettingsCreateInfoEXT { sType = VkStructureType.LayerSettingsCreateInfoExt, settingCount = 1, pSettings = &setting };
+		if ( ValidationEnabled && options.GpuAssistedValidation && !options.GpuAssistedDescriptorChecks )
+		{
+			if ( InstanceExtensions( "VK_LAYER_KHRONOS_validation" ).Contains( "VK_EXT_layer_settings" ) && !extensions.Contains( "VK_EXT_layer_settings" ) ) extensions.Add( "VK_EXT_layer_settings" );
+			layerSettings.pNext = instanceNext;
+			instanceNext = &layerSettings;
+		}
+
 		var instanceInfo = new VkInstanceCreateInfo
 		{
 			sType = VkStructureType.InstanceCreateInfo,
@@ -292,12 +303,15 @@ public sealed unsafe partial class Device : IDisposable
 		public bool meshShaders { get; init; }
 	}
 
-	HashSet<string> InstanceExtensions()
+	/// <summary>The instance extensions the loader and drivers have, or those <paramref name="layer"/> has.</summary>
+	static HashSet<string> InstanceExtensions( string layer = null )
 	{
+		using var strings = new NativeStrings();
+		var layerName = layer is null ? null : strings.Add( layer );
 		uint count;
-		VkGlobal.vkEnumerateInstanceExtensionProperties( null, &count, null ).Check( "vkEnumerateInstanceExtensionProperties" );
+		VkGlobal.vkEnumerateInstanceExtensionProperties( layerName, &count, null ).Check( "vkEnumerateInstanceExtensionProperties" );
 		var props = new VkExtensionProperties[count];
-		fixed ( VkExtensionProperties* p = props ) VkGlobal.vkEnumerateInstanceExtensionProperties( null, &count, p ).Check( "vkEnumerateInstanceExtensionProperties" );
+		fixed ( VkExtensionProperties* p = props ) VkGlobal.vkEnumerateInstanceExtensionProperties( layerName, &count, p ).Check( "vkEnumerateInstanceExtensionProperties" );
 
 		var names = new HashSet<string>();
 		for ( int i = 0; i < count; i++ )

@@ -114,6 +114,7 @@ internal enum VkStructureType
 	DeviceFaultCountsExt = 1000341001,
 	DeviceFaultInfoExt = 1000341002,
 	MutableDescriptorTypeCreateInfoExt = 1000351002,
+	LayerSettingsCreateInfoExt = 1000496000,
 }
 
 internal enum VkFormat
