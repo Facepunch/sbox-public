@@ -39,6 +39,22 @@ public sealed class LightProbeVolume
 	internal bool ShownIn( ulong subWorlds ) => SubWorld == 0 || (subWorlds & (1UL << (SubWorld - 1))) != 0;
 
 	/// <summary>
+	/// Copy another volume's selection data and constants, keeping this one's sub-world: a stand-in for a volume of a world
+	/// another includes (<see cref="RenderWorld.DrawnLightProbeVolumes"/>).
+	/// </summary>
+	internal void CopyFrom( LightProbeVolume other )
+	{
+		Transform = other.Transform;
+		BoxMins = other.BoxMins;
+		BoxMaxs = other.BoxMaxs;
+		Handshake = other.Handshake;
+		RenderPriority = other.RenderPriority;
+		LightGroups = other.LightGroups;
+		Enabled = other.Enabled;
+		Attributes = other.Attributes;
+	}
+
+	/// <summary>
 	/// Local-to-world transform for probe bounds.
 	/// </summary>
 	public Transform Transform { get; set { field = value; Version++; } } = Transform.Zero;

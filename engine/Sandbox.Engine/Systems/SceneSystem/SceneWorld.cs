@@ -28,6 +28,12 @@ public sealed partial class SceneWorld : IHandle
 	internal Rendering.ISceneObjectListener ChangeListener { get; set; }
 
 	/// <summary>
+	/// What this world draws as on Borealis, for the objects that write their own render objects
+	/// (<see cref="SceneObject.OwnsRenderObject"/>), in a process drawing on Borealis.Gpu. Null otherwise.
+	/// </summary>
+	internal Rendering.ISceneWorldRender Render { get; set; }
+
+	/// <summary>
 	/// This world's fog volumes, in the order native's world lists them (<c>CSceneWorld::m_VolumetricFogVolumes</c>: added at
 	/// the end, removed by moving the last into the gap), for the managed scene renderer. <see cref="FogVolumesVersion"/> goes
 	/// up with every change.

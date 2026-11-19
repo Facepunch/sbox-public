@@ -48,7 +48,7 @@ internal static class Zones
 	public static readonly Zone VisibilityMake = new( "Borealis Visibility Make", Color.Orange );
 	public static readonly Zone MirrorLoaded = new( "Borealis Mirror Loaded", Color.Cyan );
 	public static readonly Zone MirrorApply = new( "Borealis Mirror Apply", Color.Cyan );
-	public static readonly Zone MirrorDirect = new( "Borealis Mirror Direct", Color.Cyan );
+	public static readonly Zone ObjectWrite = new( "Borealis Object Write", Color.Cyan );
 	public static readonly Zone MirrorLighting = new( "Borealis Mirror Lighting", Color.Cyan );
 
 	/// <summary>Sandbox.ShaderCompiler's phases (<c>CompilePhase</c>), by value.</summary>

@@ -316,6 +316,9 @@ public sealed partial class RenderSystem : IDisposable
 	void Render( RenderWorld world, RenderView view, in RenderOutput output, IRenderStages stages = null )
 	{
 		ArgumentNullException.ThrowIfNull( world );
+
+		// Not while another render of the world is under way (a child view's): its frame reads them
+		if ( world.Rendering == 0 ) world.RefreshDrawnVolumes();
 		world.Rendering++;
 		try
 		{
@@ -786,6 +789,7 @@ public sealed partial class RenderSystem : IDisposable
 	internal void Prepare( RenderWorld world, RenderView view )
 	{
 		// Begun by the collect when it left resident objects out
+		transforms.World = world;
 		if ( !collectedResident ) transforms.Clear();
 		collectedResident = false;
 

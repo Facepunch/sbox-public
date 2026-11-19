@@ -35,6 +35,7 @@ public sealed partial class RenderSystem
 		collectedResident = CollectSkipsResident && !reasons && frame.DebugViews == DebugViews.None && !occlusion;
 		if ( collectedResident )
 		{
+			transforms.World = world;
 			transforms.Clear();
 			mainPass.ResidentHolds = aggregates.CollectHolds( world, mainPass, transforms );
 			mainPass.TreeKept = aggregates.CollectTreeKept( world, mainPass );
@@ -197,6 +198,7 @@ public sealed partial class RenderSystem
 		var objects = world.Objects;
 		var centers = world.BoundsCenter;
 		var extents = world.BoundsExtents;
+		var subWorlds = world.SubWorlds;
 		var reasons = pass.CullReasons;
 		var members = pass.ResidentMembers;
 		var holds = pass.ResidentHolds;
@@ -233,9 +235,9 @@ public sealed partial class RenderSystem
 			}
 
 			// Another world's objects that this view doesn't draw aren't culled: they aren't in its view at all
+			if ( !root.ShowsSubWorld( subWorlds[i] ) ) continue;
 			var obj = objects[i];
-			if ( !root.ShowsSubWorld( obj ) ) continue;
-			if ( reason == CullReason.None && !root.Shows( obj ) )
+			if ( reason == CullReason.None && !root.ShowsShown( obj ) )
 			{
 				stats.ObjectsTagCulled++;
 				if ( reasons is null ) continue;

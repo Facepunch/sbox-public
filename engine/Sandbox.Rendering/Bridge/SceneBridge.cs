@@ -125,7 +125,8 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	}
 
 	/// <summary>
-	/// Stop mirroring a deleted world, as a camera's main world or as an extra world, and the extra worlds drawn in it.
+	/// Stop mirroring a deleted world, as a camera's main world or as an extra world, and stop drawing it in other worlds or
+	/// them in it.
 	/// </summary>
 	public void Forget( SceneWorld world )
 	{
@@ -142,14 +143,17 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	}
 
 	/// <summary>
-	/// An extra world (<see cref="SceneCamera.Worlds"/>, <see cref="SceneCamera.DebugWorlds"/>) mirrored into a main world's
-	/// mirror, as a sub-world of it.
+	/// An extra world (<see cref="SceneCamera.Worlds"/>, <see cref="SceneCamera.DebugWorlds"/>) drawn in a main world's views:
+	/// its own mirror's world, included in the main world's (<see cref="RenderWorld.Include"/>) under a sub-world number.
 	/// </summary>
 	readonly record struct ExtraKey( SceneWorld Source, SceneMirror Host );
 
-	sealed class ExtraMirror
+	sealed class ExtraWorld
 	{
 		public SceneMirror Mirror;
+
+		/// <summary>The sub-world it has in the host's world.</summary>
+		public int SubWorld;
 
 		/// <summary>
 		/// The last frame a view drew it.
@@ -157,11 +161,11 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		public ulong LastFrame;
 	}
 
-	readonly Dictionary<ExtraKey, ExtraMirror> extras = new();
+	readonly Dictionary<ExtraKey, ExtraWorld> extras = new();
 
 	/// <summary>
-	/// Frames an extra world stays mirrored without a view drawing it. Its objects stay in the main world meanwhile, where
-	/// views that don't draw it skip them.
+	/// Frames an extra world stays in a main world without a view drawing it there. Its objects stay in the main world
+	/// meanwhile, where views that don't draw it skip them.
 	/// </summary>
 	const ulong ExtraWorldIdleFrames = 120;
 
@@ -176,8 +180,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		foreach ( var key in invalidExtras )
 		{
 			if ( !extras.Remove( key, out var extra ) ) continue;
-			key.Host.HostedSubWorlds &= ~SubWorldBit( extra.Mirror.SubWorld );
-			extra.Mirror.Dispose();
+			key.Host.World.Exclude( extra.Mirror.World );
 		}
 
 		invalidExtras.Clear();
@@ -243,8 +246,6 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			state.Dispose();
 		views.Clear();
 
-		foreach ( var (_, extra) in extras )
-			extra.Mirror.Dispose();
 		extras.Clear();
 
 		ShutdownCaptures();
@@ -500,8 +501,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			// A new extra world adds to the world its parent's frame is drawing: a child view goes without it
 			if ( rendering is not null ) return 0;
 
-			var free = ~host.HostedSubWorlds;
-			if ( free == 0 )
+			var mirror = MirrorFor( world );
+			var subWorld = host.World.Include( mirror.World );
+			if ( subWorld == 0 )
 			{
 				if ( !warnedSubWorlds )
 				{
@@ -512,17 +514,15 @@ internal sealed partial class SceneBridge : ISceneRenderer
 				return 0;
 			}
 
-			var subWorld = System.Numerics.BitOperations.TrailingZeroCount( free ) + 1;
-			host.HostedSubWorlds |= SubWorldBit( subWorld );
-			extras[key] = extra = new ExtraMirror { Mirror = new SceneMirror( world, host.World, subWorld ) };
+			extras[key] = extra = new ExtraWorld { Mirror = mirror, SubWorld = subWorld };
 		}
 
 		extra.LastFrame = Application.FrameCount;
 
 		// A child view's extra worlds were synced by its parent, or another view this frame
-		if ( rendering is null || !extra.Mirror.HasSynced ) extra.Mirror.Sync( camera );
+		if ( rendering is null || !extra.Mirror.HasSynced ) extra.Mirror.SyncObjects( camera );
 		drawn.Add( extra.Mirror );
-		return SubWorldBit( extra.Mirror.SubWorld );
+		return SubWorldBit( extra.SubWorld );
 	}
 
 	bool warnedSubWorlds;

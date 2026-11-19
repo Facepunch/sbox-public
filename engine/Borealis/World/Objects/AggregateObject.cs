@@ -86,7 +86,7 @@ internal sealed class AggregateObject : RenderObject
 
 		TransformsGeneration = -1;
 		LocalBounds = bounds;
-		World?.ObjectChanged( this );
+		Changed( WorldNote.Object );
 	}
 
 	/// <summary>
@@ -116,7 +116,7 @@ internal sealed class AggregateObject : RenderObject
 			var changed = !field.Equals( value );
 			field = value;
 			if ( faded ) ShadowChanged();
-			if ( changed ) World?.EntryChanged( this );
+			if ( changed ) Changed( WorldNote.Entry );
 		}
 	} = Color.White;
 
@@ -149,7 +149,7 @@ internal sealed class AggregateObject : RenderObject
 		{
 			if ( field == value ) return;
 			field = value;
-			World?.ObjectChanged( this );
+			Changed( WorldNote.Object );
 		}
 	}
 
@@ -163,7 +163,7 @@ internal sealed class AggregateObject : RenderObject
 		{
 			if ( ReferenceEquals( field, value ) ) return;
 			field = value;
-			World?.ObjectChanged( this );
+			Changed( WorldNote.Object );
 		}
 	}
 
