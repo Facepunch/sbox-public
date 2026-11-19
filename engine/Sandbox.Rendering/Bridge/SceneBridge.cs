@@ -374,6 +374,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		// component and the scene's render attributes set (Rust Legacy lights its models by its time of day there)
 		state.View.CameraAttributes = MirrorContent.CameraParameters( camera.Attributes, ref state.GpuCameraParameters, ref state.GpuCameraVersion );
 
+		// The same attributes as the engine holds them, which custom objects drawn in the view read (BorealisGpuCustomDraw)
+		state.View.HostView = camera.Attributes;
+
 		// A child view takes its parent's render time unless it has its own, as native's child views do
 		// (CSceneSystem::AddDynamicView)
 		if ( parent is not null ) state.View.Time ??= parent.View.Time;
