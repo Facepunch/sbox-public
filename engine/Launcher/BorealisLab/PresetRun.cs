@@ -84,6 +84,11 @@ internal static class PresetRun
 		// of several draws, no colour target, a pixel stage that dithers) that the same commands draw issued one per call; no
 		// shader reads the draw index. The faded list draws the classic way there
 		if ( GoldenTruthRun.Device == "Lavapipe" ) device.GpuDrivenFaded = false;
+
+		// The translucent list too, but NOT for a proven driver bug: its GPU-driven call draws nothing on Lavapipe (no fragments,
+		// whatever its pixel stage or render state) while the GPU draws the same data. Open card: "GPU-driven translucent draws
+		// nothing on Lavapipe". Both paths stay on everywhere else
+		if ( GoldenTruthRun.Device == "Lavapipe" ) device.GpuDrivenTranslucent = false;
 		if ( validation ) GoldenTruthRun.ValidationLayer();
 		backend.Phase( $"Borealis.Gpu device ({gpu.Adapter.Name})" );
 		var previousHost = RenderHost.Current;
