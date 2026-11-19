@@ -1039,6 +1039,12 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		{
 			return null;
 		}
+		catch ( System.IO.InvalidDataException )
+		{
+			// A file with no mip whose data is all there: made another way, as an unreadable format is, rather than failing
+			// what asked for it (a terrain's materials)
+			return null;
+		}
 	}
 
 	/// <summary>
