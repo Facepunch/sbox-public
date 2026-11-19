@@ -191,7 +191,7 @@ public static class LoadingScreen
 				// What it pulls in, sized alongside it rather than after
 				var references = withReferences
 					? package.EnumerateInstallDependencies()
-						.Where( x => IsPackage( x ) && PackageManager.Find( x, false ) is null && Unseen( x ) )
+						.Where( x => IsPackage( x ) && PackageManager.Find( x ) is null && Unseen( x ) )
 						.Select( Reserve )
 						.ToList()
 					: new List<Task>();

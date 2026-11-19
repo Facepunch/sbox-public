@@ -1,0 +1,89 @@
+@import "/UI/Theme.scss";
+
+UIModal
+{
+	@include ui-block;
+	flex-direction: column;
+	flex-shrink: 0;
+	width: 380px;
+	max-width: 90vw;
+	pointer-events: all;
+	font-family: $body-font;
+	transition: opacity 0.1s ease-out, transform 0.1s ease-out;
+
+	&:intro
+	{
+		opacity: 0;
+		transform: translateY( 8px );
+	}
+
+	> .window
+	{
+		@include ui-section;
+		flex-direction: column;
+		padding: 1px;
+
+		> .title-bar
+		{
+			@include ui-title-bar;
+		}
+
+		> .body
+		{
+			flex-direction: column;
+			padding: 10px;
+		}
+	}
+
+	.message
+	{
+		width: 100%;
+		justify-content: center;
+		text-align: center;
+		font-size: $ui-settings-font;
+		font-weight: 500;
+		color: $ui-text-strong;
+	}
+
+	&.prompt .message
+	{
+		margin-bottom: 10px;
+	}
+
+	// a question and the buttons to answer it, from UIModal.Confirm
+	&.confirm
+	{
+		width: 480px;
+
+		.buttons
+		{
+			flex-direction: row;
+			justify-content: center;
+			gap: 8px;
+
+			> UIButton
+			{
+				width: 146px;
+			}
+		}
+	}
+}
+
+UIModalLayer
+{
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	justify-content: center;
+	align-items: center;
+	pointer-events: none;
+	z-index: 10000;
+}
+
+// names in the rich text of a question, the tags of rich text only match plain selectors, not ones with the panels around them
+b
+{
+	font-weight: 700;
+}

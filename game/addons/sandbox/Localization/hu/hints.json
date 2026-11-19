@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "Tartsd nyomva a(z) {input:SpawnMenu} gombot a létrehozási menühöz",
+    "hint.openinspectmenu": "Tartsd nyomva a(z) {input:InspectMenu} gombot a vizsgálati menühöz",
+    "hint.openpausemenu": "Nyomd meg az ESC billentyűt a szünetmenühöz és az irányítás megtekintéséhez"
+}

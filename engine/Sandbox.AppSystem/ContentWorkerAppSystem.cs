@@ -1,3 +1,4 @@
+using Sandbox.ContentBuild;
 using Sandbox.Tasks;
 using System;
 using System.Collections.Generic;
@@ -5,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading;
 
 namespace Sandbox;
@@ -77,16 +79,17 @@ public sealed class ContentWorkerAppSystem : ToolAppSystem
 	public bool Compile( string path ) => Editor.ContentCompilerHost.Compile( path );
 
 	/// <summary>
-	/// Compiles the built-in tool and menu projects into a folder for workers to load. False if any of them didn't compile.
+	/// Compiles the built-in projects and an optional project into a folder for workers to load.
+	/// When a roots file is requested, activates every installed addon and writes its content roots for SboxBuild.
 	/// </summary>
-	public static bool CompileBuiltInProjects( string directory )
+	public static bool CompileBuiltInProjects( string directory, string projectPath = null, string rootsFile = null )
 	{
 		using var app = new ToolAppSystem();
 
-		SyncContext.RunBlocking( Project.InitializeBuiltIn( false ) );
+		SyncContext.RunBlocking( Project.InitializeBuiltIn( syncPackageManager: false, activateAddons: rootsFile is not null ) );
 
-		// Headless apps skip the menu, but content builds need its resource types and compilers too.
-		Project.AddFromFileBuiltIn( "addons/menu/.sbproj" );
+		if ( projectPath is not null && Project.AddFromFile( projectPath ) is null ) return false;
+		if ( rootsFile is not null ) Project.UpdateLibraryReferences();
 
 		if ( !SyncContext.RunBlocking( Project.CompileAsync() ) ) return false;
 
@@ -95,6 +98,21 @@ public sealed class ContentWorkerAppSystem : ToolAppSystem
 		{
 			foreach ( var file in project.AssemblyFileSystem.FindFile( "", "*.dll", true ) )
 				File.WriteAllBytes( Path.Combine( directory, Path.GetFileName( file ) ), project.AssemblyFileSystem.ReadAllBytes( file ).ToArray() );
+		}
+
+		if ( rootsFile is not null )
+		{
+			var gameDir = EngineFileSystem.Root.GetFullPath( "/" );
+			var addonsDir = EngineFileSystem.Root.GetFullPath( "addons" );
+			var engineRoots = ContentRoots.Engine( gameDir );
+			var enginePaths = engineRoots.Select( x => x.Path ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+			var projects = Project.All
+				.Where( x => string.Equals( x.RootDirectory?.Parent?.FullName, addonsDir, StringComparison.OrdinalIgnoreCase ) && x.HasAssetsPath() )
+				.OrderBy( x => x.ConfigFilePath, StringComparer.OrdinalIgnoreCase )
+				.Select( x => (x.Config.FullIdent, Assets: x.GetAssetsPath(), Directory: x.GetRootPath()) )
+				.Where( x => !enginePaths.Contains( x.Assets ) );
+
+			File.WriteAllText( rootsFile, JsonSerializer.Serialize( ContentRoots.WithProjects( engineRoots, projects ) ) );
 		}
 
 		return true;

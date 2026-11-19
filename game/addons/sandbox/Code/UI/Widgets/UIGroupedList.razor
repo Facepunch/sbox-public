@@ -1,0 +1,107 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+
+    <TextEntry class="filter" Placeholder="#spawnmenu.common.filter" Value:bind=@Filter HasClearButton=@false />
+
+    <div class="list">
+        @foreach ( var group in VisibleGroups() )
+        {
+            <div class="group">
+                @if ( !string.IsNullOrWhiteSpace( group.Title ) )
+                {
+                    <div class="group-header">
+                        <Label Text="@group.Title" />
+                    </div>
+                }
+
+                <div class="group-items">
+                    @for ( int i = 0; i < group.Items.Count; i++ )
+                    {
+                        var item = group.Items[i];
+                        var rowClass = $"item{(i % 2 == 0 ? " alt" : "")}{(Equals( item.Value, Selected ) ? " active" : "")}";
+
+                        <div class="@rowClass" @onclick=@( () => OnSelect?.Invoke( item.Value ) )>
+                            <Label Tokenize=@item.Tokenize Text="@item.Title" />
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// A selectable entry. The title can be a localization token.
+    /// </summary>
+    public record ListItem( string Title, object Value, bool Tokenize = true );
+
+    /// <summary>
+    /// A blue header and the entries under it.
+    /// </summary>
+    public record ListGroup( string Title, List<ListItem> Items );
+
+    [Parameter] public List<ListGroup> Groups { get; set; } = new();
+
+    /// <summary>
+    /// The value of the entry that's highlighted.
+    /// </summary>
+    [Parameter] public object Selected { get; set; }
+
+    [Parameter] public Action<object> OnSelect { get; set; }
+
+    /// <summary>
+    /// Bump this when the groups changed in a way their item count does not show (titles, order, values), to make the list build again.
+    /// </summary>
+    [Parameter] public int Revision { get; set; }
+
+    string _filter;
+
+    string Filter
+    {
+        get => _filter;
+        set
+        {
+            _filter = value;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// The groups with only the entries that match the quick filter, and without the emptied ones.
+    /// </summary>
+    IEnumerable<ListGroup> VisibleGroups()
+    {
+        if ( Groups is null ) yield break;
+
+        foreach ( var group in Groups )
+        {
+            var items = string.IsNullOrWhiteSpace( _filter )
+                ? group.Items
+                : group.Items.Where( x => Matches( x.Tokenize ? LocalizedText.Resolve( x.Title ) : x.Title ) ).ToList();
+
+            if ( items.Count == 0 ) continue;
+
+            yield return group with { Items = items };
+        }
+    }
+
+    bool Matches( string text ) => text is not null && text.Contains( _filter.Trim(), StringComparison.CurrentCultureIgnoreCase );
+
+    protected override int BuildHash()
+    {
+        var count = 0;
+        if ( Groups is not null )
+        {
+            foreach ( var group in Groups ) count += group.Items.Count + 1;
+        }
+
+        return HashCode.Combine( Selected, _filter, count, Game.Language.SelectedCode, Revision );
+    }
+}

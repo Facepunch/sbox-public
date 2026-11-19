@@ -1,0 +1,9 @@
+{
+  "Prefab": "weapons/fists/fists.prefab",
+  "Title": "Fists",
+  "Description": "Left mouse: left punch. Right mouse: right punch.",
+  "Category": "Weapon/Melee",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

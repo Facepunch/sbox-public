@@ -1,0 +1,26 @@
+{
+  "guid": "085be918-00fc-0000-9e00-000000000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "glass_scope",
+      "Type": "shader",
+      "Org": "facepunch",
+      "Ident": "glass_scope",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/usp/materials/glass_scope.shader",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

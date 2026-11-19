@@ -1,0 +1,24 @@
+@import "/UI/Theme.scss";
+
+SpawnMenuContent
+{
+	width: 100%;
+	height: 100%;
+	flex-direction: column;
+	position: relative;
+}
+
+SpawnMenuContent > .header
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	margin-bottom: 21px;
+}
+
+SpawnMenuContent > .body
+{
+	position: relative;
+	flex-grow: 1;
+	min-height: 0px;
+	padding: 0;
+}

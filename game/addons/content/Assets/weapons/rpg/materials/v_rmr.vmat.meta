@@ -1,0 +1,29 @@
+{
+  "guid": "0ae26439-e52e-4b55-bcfd-7fac0da50fde",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Rmr",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_rmr",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/rpg/materials/v_rmr.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

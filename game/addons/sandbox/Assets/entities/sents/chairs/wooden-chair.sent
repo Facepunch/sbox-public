@@ -1,0 +1,9 @@
+{
+  "Prefab": "entities/sents/chairs/wooden-chair.prefab",
+  "Title": "#asset.wooden_chair.title",
+  "Description": "#asset.wooden_chair.description",
+  "Category": "Chair",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

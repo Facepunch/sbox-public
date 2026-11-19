@@ -1,0 +1,187 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+@attribute [InspectWindow.Tab]
+@attribute [Icon( "🖥️" )]
+@attribute [Title( "#spawnmenu.tab.hud" )]
+@attribute [Order( 300 )]
+
+<root>
+    <UISettingsPane Title=@Game.Language.GetPhrase( "spawnmenu.tab.hud" )>
+        <Body>
+            <UISheet Target="@Settings" PropertyFilter="@UISheet.PropertiesAndButtons" />
+        </Body>
+    </UISettingsPane>
+</root>
+
+@code
+{
+    readonly HudSettings Settings = new();
+
+    protected override int BuildHash() => HashCode.Combine( Game.Language.SelectedCode );
+
+    sealed class HudSettings
+    {
+        //
+        // HUD
+        //
+        [Button( "#spawnmenu.hud.reset_group", "refresh" ), HeaderButton, Group( "#spawnmenu.hud.group.hud" ), Order( 0 )]
+        public void ResetHud() => GamePreferences.Reset( "HUD" );
+
+        [Property, Title( "#spawnmenu.hud.draw_hud" ), Group( "#spawnmenu.hud.group.hud" ), Order( 0 )]
+        [Description( "#spawnmenu.hud.draw_hud_description" )]
+        public bool DrawHud
+        {
+            get => GamePreferences.DrawHud;
+            set => ConsoleSystem.SetValue( "sandbox.hud_draw", value );
+        }
+
+        [Property, Title( "#spawnmenu.hud.draw_health" ), Group( "#spawnmenu.hud.group.hud" ), Order( 1 ), EnabledIf( nameof( DrawHud ) )]
+        public bool DrawHealth
+        {
+            get => GamePreferences.DrawHealth;
+            set => ConsoleSystem.SetValue( "sandbox.hud_health", value );
+        }
+
+        [Property, Title( "#spawnmenu.hud.draw_ammo" ), Group( "#spawnmenu.hud.group.hud" ), Order( 2 ), EnabledIf( nameof( DrawHud ) )]
+        public bool DrawAmmo
+        {
+            get => GamePreferences.DrawAmmo;
+            set => ConsoleSystem.SetValue( "sandbox.hud_ammo", value );
+        }
+
+        [Property, Title( "#spawnmenu.hud.draw_hotbar" ), Group( "#spawnmenu.hud.group.hud" ), Order( 3 ), EnabledIf( nameof( DrawHud ) )]
+        public bool DrawHotbar
+        {
+            get => GamePreferences.DrawHotbar;
+            set => ConsoleSystem.SetValue( "sandbox.hud_hotbar", value );
+        }
+
+        //
+        // Appearance
+        // 
+        [Button( "#spawnmenu.hud.reset_group", "refresh" ), HeaderButton, Group( "#spawnmenu.hud.group.appearance" ), Order( 10 )]
+        public void ResetAppearance() => GamePreferences.Reset( "Appearance" );
+
+        [Property, Title( "#spawnmenu.hud.color" ), Group( "#spawnmenu.hud.group.appearance" ), Order( 10 )]
+        [Description( "#spawnmenu.hud.color_description" )]
+        public Color HudColor
+        {
+            get => Game.ActiveScene?.Get<HudLayer>() is { } layer ? layer.CurrentTint.WithAlpha( layer.Opacity ) : HudLayer.DefaultTint;
+            set => ConsoleSystem.SetValue( "sandbox.hud_color", value.ToString( true, false ) );
+        }
+
+        [Property, Title( "#spawnmenu.hud.glow" ), Group( "#spawnmenu.hud.group.appearance" ), Order( 13 )]
+        [Range( 0f, 2f ), Step( 0.05f )]
+        public float HudGlow
+        {
+            get => GamePreferences.HudGlow;
+            set => ConsoleSystem.SetValue( "sandbox.hud_glow", value.Clamp( 0f, 2f ) );
+        }
+
+        [Property, Title( "#spawnmenu.hud.scale" ), Group( "#spawnmenu.hud.group.appearance" ), Order( 14 )]
+        [Range( 0.5f, 1.5f ), Step( 0.05f )]
+        public float HudScale
+        {
+            get => GamePreferences.HudScale;
+            set => ConsoleSystem.SetValue( "sandbox.hud_scale", value.Clamp( 0.5f, 1.5f ) );
+        }
+
+        [Property, Title( "#spawnmenu.hud.margin" ), Group( "#spawnmenu.hud.group.appearance" ), Order( 15 )]
+        [Description( "#spawnmenu.hud.margin_description" ), Range( 0f, 10f ), Step( 0.25f )]
+        public float HudMargin
+        {
+            get => GamePreferences.HudMargin;
+            set => ConsoleSystem.SetValue( "sandbox.hud_margin", value.Clamp( 0f, 10f ) );
+        }
+
+        // 
+        // Interface
+        //
+        [Button( "#spawnmenu.hud.reset_group", "refresh" ), HeaderButton, Group( "#spawnmenu.hud.group.interface" ), Order( 19 )]
+        public void ResetInterface() => GamePreferences.Reset( "Interface" );
+
+        [Property, Title( "#spawnmenu.hud.draw_crosshair" ), Group( "#spawnmenu.hud.group.interface" ), Order( 19 )]
+        public bool DrawCrosshair
+        {
+            get => GamePreferences.DrawCrosshair;
+            set => ConsoleSystem.SetValue( "sandbox.hud_crosshair", value );
+        }
+
+        [Property, Title( "#spawnmenu.hud.draw_toolinfo" ), Group( "#spawnmenu.hud.group.interface" ), Order( 20 )]
+        [Description( "#spawnmenu.hud.draw_toolinfo_description" )]
+        public bool DrawToolInfo
+        {
+            get => GamePreferences.DrawToolInfo;
+            set => ConsoleSystem.SetValue( "sandbox.hud_toolinfo", value );
+        }
+
+        [Property, Title( "#spawnmenu.hud.draw_notices" ), Group( "#spawnmenu.hud.group.interface" ), Order( 21 )]
+        [Description( "#spawnmenu.hud.draw_notices_description" )]
+        public bool DrawNotices
+        {
+            get => GamePreferences.DrawNotices;
+            set => ConsoleSystem.SetValue( "sandbox.hud_notices", value );
+        }
+
+        [Property, Title( "#spawnmenu.hud.draw_killfeed" ), Group( "#spawnmenu.hud.group.interface" ), Order( 22 )]
+        public bool DrawKillFeed
+        {
+            get => GamePreferences.DrawKillFeed;
+            set => ConsoleSystem.SetValue( "sandbox.hud_killfeed", value );
+        }
+
+        [Property, Title( "#spawnmenu.hud.draw_interaction" ), Group( "#spawnmenu.hud.group.interface" ), Order( 23 )]
+        [Description( "#spawnmenu.hud.draw_interaction_description" )]
+        public bool DrawInteractionHints
+        {
+            get => GamePreferences.DrawInteractionHints;
+            set => ConsoleSystem.SetValue( "sandbox.hud_interaction", value );
+        }
+
+        [Property, Title( "#spawnmenu.hud.draw_chat" ), Group( "#spawnmenu.hud.group.interface" ), Order( 24 )]
+        [Description( "#spawnmenu.hud.draw_chat_description" )]
+        public bool DrawChatMessages
+        {
+            get => GamePreferences.DrawChatMessages;
+            set => ConsoleSystem.SetValue( "sandbox.hud_chat", value );
+        }
+
+        [Property, Title( "#spawnmenu.hud.draw_voices" ), Group( "#spawnmenu.hud.group.interface" ), Order( 25 )]
+        public bool DrawVoices
+        {
+            get => GamePreferences.DrawVoices;
+            set => ConsoleSystem.SetValue( "sandbox.hud_voices", value );
+        }
+
+        [Property, Title( "#spawnmenu.hud.draw_nameplates" ), Group( "#spawnmenu.hud.group.interface" ), Order( 26 )]
+        public bool DrawNameplates
+        {
+            get => GamePreferences.DrawNameplates;
+            set => ConsoleSystem.SetValue( "sandbox.hud_nameplates", value );
+        }
+
+        [Property, Title( "#spawnmenu.hud.draw_ownerlabel" ), Group( "#spawnmenu.hud.group.interface" ), Order( 27 )]
+        [Description( "#spawnmenu.hud.draw_ownerlabel_description" )]
+        public bool DrawOwnerLabel
+        {
+            get => GamePreferences.DrawOwnerLabel;
+            set => ConsoleSystem.SetValue( "sandbox.hud_ownerlabel", value );
+        }
+
+        // 
+        // Menus
+        //
+        [Button( "#spawnmenu.hud.reset_group", "refresh" ), HeaderButton, Group( "#spawnmenu.hud.group.menus" ), Order( 30 )]
+        public void ResetMenus() => GamePreferences.Reset( "Menus" );
+
+        [Property, Title( "#spawnmenu.hud.toggle_menus" ), Group( "#spawnmenu.hud.group.menus" ), Order( 30 )]
+        [Description( "#spawnmenu.hud.toggle_menus_description" )]
+        public bool ToggleMenus
+        {
+            get => GamePreferences.ToggleMenus;
+            set => ConsoleSystem.SetValue( "sandbox.menu_toggle", value );
+        }
+    }
+}

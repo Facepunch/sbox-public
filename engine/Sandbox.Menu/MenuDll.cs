@@ -141,7 +141,7 @@ internal sealed class MenuDll : IMenuDll
 		// We shouldn't actually have anything to compile on retail
 		await Project.CompileAsync();
 
-		Enroller.LoadPackage( "local.menu#local" );
+		Enroller.LoadPackage( "local.menu" );
 
 		if ( IMenuSystem.Current != null )
 		{

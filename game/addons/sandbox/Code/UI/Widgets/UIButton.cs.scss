@@ -1,0 +1,27 @@
+@import "/UI/Theme.scss";
+
+UIButton.button
+{
+	@include ui-button;
+	flex-shrink: 0;
+	font-weight: 600;
+
+	IconPanel, .iconpanel
+	{
+		font-size: 14px;
+	}
+
+	// only an icon, a square
+	&.icon-only
+	{
+		width: 24px;
+		padding: 0;
+	}
+
+	// switched on, like the edit button of a spawnlist
+	&.active
+	{
+		@include ui-selected;
+		background-image: none;
+	}
+}

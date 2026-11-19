@@ -1,0 +1,106 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    <div class="label @(IsActive ? "active" : "")">@Title</div>
+    <div class="sliders">
+        <UISlider Property=@_so?.GetProperty(nameof(Strength))></UISlider>
+        @if (IsPaired)
+        {
+            <UISlider Property=@_so?.GetProperty(nameof(Side))></UISlider>
+        }
+    </div>
+</root>
+
+@code
+{
+    [Parameter] public SkinnedModelRenderer Target { get; set; }
+    [Parameter] public string NameA { get; set; }
+    [Parameter] public string NameB { get; set; }
+    [Parameter] public string Title { get; set; }
+    [Parameter] public Action<string, float> OnMorphChanged { get; set; }
+
+    bool IsPaired => NameB != null;
+    bool IsActive => (Target?.SceneModel?.Morphs.Get(NameA) ?? 0f) > 0f || (IsPaired && (Target?.SceneModel?.Morphs.Get(NameB) ?? 0f) > 0f);
+
+    SerializedObject _so;
+
+    // Live helpers — always read from the rendered mesh so sliders stay in sync
+    float LiveStrength()
+    {
+        if (!Target.IsValid()) return 0f;
+        var l = Target.SceneModel.Morphs.Get(NameA);
+        var r = IsPaired ? Target.SceneModel.Morphs.Get(NameB) : 0f;
+        return MathF.Max(l, r);
+    }
+
+    float LiveSide()
+    {
+        if (!Target.IsValid() || !IsPaired) return 0f;
+        var l = Target.SceneModel.Morphs.Get(NameA);
+        var r = Target.SceneModel.Morphs.Get(NameB);
+        if (r > l) return l == 0 ? -1f : -(1f - l / r);
+        if (l > r) return r == 0 ? 1f : 1f - r / l;
+        return 0f;
+    }
+
+    [Range(0f, 1f), Step(0.01f)]
+    public float Strength
+    {
+        get => LiveStrength();
+        set
+        {
+            if (!Target.IsValid()) return;
+            var side = LiveSide();
+            if (IsPaired)
+            {
+                var valA = value * side.Remap(0, -1, 1, 0).Clamp(0, 1);
+                var valB = value * side.Remap(0, 1, 1, 0).Clamp(0, 1);
+                Target.SceneModel.Morphs.Set(NameA, valA);
+                Target.SceneModel.Morphs.Set(NameB, valB);
+                OnMorphChanged?.Invoke(NameA, valA);
+                OnMorphChanged?.Invoke(NameB, valB);
+            }
+            else
+            {
+                Target.SceneModel.Morphs.Set(NameA, value);
+                OnMorphChanged?.Invoke(NameA, value);
+            }
+        }
+    }
+
+    [Range(-1f, 1f), Step(0.01f)]
+    public float Side
+    {
+        get => LiveSide();
+        set
+        {
+            if (!Target.IsValid() || !IsPaired) return;
+            var strength = LiveStrength();
+            var valA = strength * value.Remap(0, -1, 1, 0).Clamp(0, 1);
+            var valB = strength * value.Remap(0, 1, 1, 0).Clamp(0, 1);
+            Target.SceneModel.Morphs.Set(NameA, valA);
+            Target.SceneModel.Morphs.Set(NameB, valB);
+            OnMorphChanged?.Invoke(NameA, valA);
+            OnMorphChanged?.Invoke(NameB, valB);
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        _so ??= TypeLibrary.GetSerializedObject(this);
+    }
+
+    public void Clear()
+    {
+        if (!Target.IsValid()) return;
+        Target.Morphs.Clear(NameA);
+        if (IsPaired) Target.Morphs.Clear(NameB);
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine(Target, NameA, NameB);
+}

@@ -1,10 +1,11 @@
 using Sandbox.ContentBuild;
+using System.Text.Json;
 using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
 /// <summary>
-/// build-content: builds the engine content roots as one graph with Sandbox.ContentBuild, with the compilers the editor
+/// Builds the engine and addon content roots as one graph with Sandbox.ContentBuild, with the compilers the editor
 /// has: the resource compiler's and the managed ones of the engine and its built-in projects. Records live where the
 /// editor's startup build looks for them, so it starts from what this built.
 /// </summary>
@@ -17,28 +18,33 @@ internal class BuildContent( string onlyRoot = null, bool force = false )
 		var gameDir = Path.Combine( Directory.GetCurrentDirectory(), "game" );
 		var worker = Path.Combine( gameDir, "bin", "managed", OperatingSystem.IsWindows() ? "contentworker.exe" : "contentworker" );
 
-		var roots = ContentRoots.Engine( gameDir );
-		var done = 0;
-		var request = new BuildRequest
-		{
-			Roots = roots,
-			MaxJobs = ResourceCompiler.DefaultMaxJobs,
-
-			// Game resources generate their textures into the engine's shipped transients, which every project mounts
-			OutputRoots = new Dictionary<string, string> { ["transient"] = Path.Combine( gameDir, "addons", "menu", "Transients" ) },
-			Select = onlyRoot is null ? null : [Path.Combine( gameDir, onlyRoot )],
-			Force = force,
-			JobFinished = _ => BuildDisplay.Detail( $"{Interlocked.Increment( ref done )} assets compiled" ),
-		};
-
-		// The built-in projects' compilers, compiled once for every worker, deleted once the workers that load them are gone
+		// The projects' compilers, compiled once for every worker, deleted once the workers that load them are gone
 		var compilers = Directory.CreateTempSubdirectory( "sbox-compilers" ).FullName;
 		ResourceCompiler compiler = null;
+		ContentRoot[] roots;
 		BuildReport report;
 		try
 		{
 			BuildDisplay.Status( "Compile tools" );
-			if ( !Utility.RunProcess( worker, $"-compileprojects \"{compilers}\"", gameDir ) ) return ExitCode.Failure;
+			var rootsFile = Path.Combine( compilers, "roots.json" );
+			if ( !Utility.RunProcess( worker, $"-compileprojects \"{compilers}\" -addonroots \"{rootsFile}\"", gameDir ) ) return ExitCode.Failure;
+
+			roots = JsonSerializer.Deserialize<ContentRoot[]>( File.ReadAllText( rootsFile ) );
+			var request = new BuildRequest
+			{
+				Roots = roots.Select( root => root with { PublishTransientsWithAssets = root.Mod != "menu" } ).ToArray(),
+				MaxJobs = ResourceCompiler.DefaultMaxJobs,
+
+				// Only the menu publishes here. Other roots ship generated files with their own assets.
+				OutputRoots = new Dictionary<string, string> { ["transient"] = Path.Combine( gameDir, "addons", "menu", "Transients" ) },
+				Select = onlyRoot is null ? null : [Path.Combine( gameDir, onlyRoot )],
+				Force = force,
+				CompileProgress = ( finished, activeRoots ) =>
+				{
+					var count = finished == 1 ? "1 asset compiled" : $"{finished} assets compiled";
+					BuildDisplay.Detail( activeRoots.Count == 0 ? count : $"Compiling {string.Join( ", ", activeRoots )} ({count})" );
+				},
+			};
 
 			compiler = new ResourceCompiler( worker, new AssetTypeTable( Path.Combine( gameDir, "bin", "assettypes.txt" ) ), request.Mounts, compilers );
 			BuildDisplay.Status( "Compile" );

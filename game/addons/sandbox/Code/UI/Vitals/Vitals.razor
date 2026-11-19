@@ -1,0 +1,89 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+@namespace Sandbox
+
+@if ( !Player.IsValid() )
+    return;
+
+<root>
+    <AmmoPickupFeed />
+</root>
+
+@code
+{
+    /// <summary>
+    /// Draws this color when ammo/health reach a critical level
+    /// </summary>
+    [Property, Group( "Warning" )] public Color WarningColor { get; set; } = new( 0.9f, 0.26f, 0f );
+
+    [Property, Group( "Warning" ), Range( 0, 1 )] public float WarningPulseAmount { get; set; } = 0.24f;
+
+    [Property, Group( "Warning" ), Range( 0, 6 )] public float WarningPulseRate { get; set; } = 0.5f;
+
+    [Property, Group( "Warning" ), Range( 0, 1 )] public float LowHealthFraction { get; set; } = 0.2f;
+
+    [Property, Group( "Warning" ), Range( 0, 1 )] public float LowAmmoFraction { get; set; } = 0.3f;
+
+    /// <summary>
+    /// The health readout flashes this color when health drops
+    /// </summary>
+    [Property, Group( "Damage Flash" )] public Color DamageFlashColor { get; set; } = new( 1.5f, 0.4f, 0.03f );
+
+    [Property, Group( "Damage Flash" ), Range( 0, 1 )] public float DamageFlashDuration { get; set; } = 0.15f;
+
+    Player Player => Player.FindLocalPlayer();
+    BaseSandboxWeapon Weapon => Player?.GetComponent<PlayerInventory>()?.ActiveWeapon as BaseSandboxWeapon;
+
+    // The readouts are painted by the shared HUD layer (see HudLayer, VitalsSection)
+    VitalsSection section;
+
+    protected override void OnDisabled()
+    {
+        if ( section is not null ) section.Data = default;
+    }
+
+    protected override void OnUpdate()
+    {
+        section = HudLayer.FindSection( this, section );
+        if ( section is null ) return;
+
+        if ( !Player.IsValid() )
+        {
+            section.Data = default;
+            return;
+        }
+
+        var weapon = Weapon;
+        var showAmmo = weapon.IsValid() && weapon.UsesAmmo && Hud.IsVisible( HudElement.Ammo );
+
+        section.Settings = this;
+        section.Hidden = SpawnMenuHost.IsOpen && SpawnMenuHost.GetActiveMode() is not ContextMenuHost;
+        section.Data = new VitalsSection.Readout
+        {
+            ShowVitals = Hud.IsVisible( HudElement.Vitals ),
+            Health = (int)Player.Health,
+            MaxHealth = (int)Player.MaxHealth,
+            Armour = (int)Player.Armour,
+
+            ShowAmmo = showAmmo,
+            UsesClips = showAmmo && weapon.UsesClips,
+            Clip = showAmmo ? weapon.Clip1 : 0,
+            ClipMaxSize = showAmmo ? weapon.ClipMaxSize : 0,
+            Reserve = showAmmo ? weapon.Ammo1 : 0,
+
+            HasSecondary = showAmmo && HasSecondaryAmmo( weapon ),
+            Secondary = showAmmo ? SecondaryAmmo( weapon ) : 0,
+        };
+    }
+
+    static bool HasSecondaryAmmo( BaseSandboxWeapon weapon ) => weapon.UsesSecondaryClip || weapon.SecondaryAmmoType is not null;
+
+    static int SecondaryAmmo( BaseSandboxWeapon weapon )
+    {
+        if ( weapon.UsesSecondaryClip ) return System.Math.Max( weapon.Clip2, 0 );
+        return weapon.SecondaryAmmoType is not null ? weapon.Ammo2 : 0;
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine( Player.IsValid() );
+}

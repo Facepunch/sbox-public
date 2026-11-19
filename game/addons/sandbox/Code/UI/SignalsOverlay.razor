@@ -1,0 +1,561 @@
+@using Sandbox
+@using Sandbox.UI
+@inherits PanelComponent
+@namespace Sandbox
+
+<root>
+	@if ( HasContent )
+	{
+		@foreach ( var connector in Connectors )
+		{
+			if ( !connector.Layout.Visible ) continue;
+			<div @key=@($"{connector.Source.Id}:{connector.Target.Id}") class="connector">
+				@{ var dotCount = ConnectorDotCount( connector ); }
+				@for ( var i = 0; i < dotCount; i++ )
+				{
+					var position = ConnectorDotPosition( connector, dotCount, i );
+					<div class="dot" style="left: @(position.x)px; top: @(position.y)px; animation-delay: @(ConnectorDotDelay( connector, dotCount, i ))s;"></div>
+				}
+			</div>
+		}
+
+		@foreach ( var entry in Entries )
+		{
+			if ( !entry.Layout.Visible ) continue;
+			<div class="@EntryClass( entry )" style="left: @(entry.Layout.ScreenPosition.x)px; top: @(entry.Layout.ScreenPosition.y)px;">
+				@if ( entry.Card is { } card )
+				{
+					<div class="card-anchor" style="left: @(entry.Layout.CardOffset.x)px; top: @(entry.Layout.CardOffset.y)px;">
+						<div class="card-stack">
+							<div class="heading">
+								<i>@entry.Icon</i>
+								<label class="title">@card.Title</label>
+							</div>
+
+						<div class="card">
+							@if ( card.Options.Count > 0 )
+							{
+								<div class="option-list">
+									@foreach ( var option in VisibleOptions( card ) )
+									{
+										<div class="option @(option == SelectedOption( card ) ? "active" : "")">
+											<i>@option.Icon</i>
+										<div class="option-labels">
+											<label class="option-title">@option.Title</label>
+											@if ( !string.IsNullOrWhiteSpace( option.Subtitle ) )
+											{
+												<label class="option-subtitle">@option.Subtitle</label>
+											}
+											@if ( option == SelectedOption( card ) && !string.IsNullOrWhiteSpace( option.Description ) )
+											{
+												<label class="description option-description">@option.Description</label>
+											}
+										</div>
+									</div>
+								}
+							</div>
+							}
+						</div>
+						</div>
+					</div>
+			}
+		</div>
+		}
+	}
+</root>
+
+@code
+{
+	public sealed class Entry( GameObject target, string icon = "link" )
+	{
+		public GameObject Target { get; } = target;
+		public string Icon { get; } = icon;
+		public Card Card { get; init; }
+
+		internal Projection Layout { get; } = new();
+	}
+
+	public sealed class Card( string title )
+	{
+		public string Title { get; } = title;
+		public IReadOnlyList<Option> Options { get; init; } = [];
+		public int SelectedOption { get; init; }
+	}
+
+	public sealed class Option( string title )
+	{
+		public string Icon { get; init; } = "input";
+		public string Title { get; } = title;
+
+		/// <summary>
+		/// Always shown under the title - which object the option belongs to.
+		/// </summary>
+		public string Subtitle { get; init; }
+
+		public string Description { get; init; }
+	}
+
+	public sealed class Connector( GameObject source, GameObject target )
+	{
+		public GameObject Source { get; } = source;
+		public GameObject Target { get; } = target;
+
+		internal ConnectorProjection Layout { get; } = new();
+	}
+
+	internal sealed class Projection
+	{
+		public Vector2 ScreenPosition { get; set; }
+		public Vector2 CardOffset { get; set; }
+		public bool Visible { get; set; }
+		public bool CardBelow { get; set; }
+		public bool CardShiftRight { get; set; }
+		public bool CardShiftLeft { get; set; }
+	}
+
+	internal sealed class ConnectorProjection
+	{
+		public Vector2 Start { get; set; }
+		public Vector2 End { get; set; }
+		public float Length { get; set; }
+		public bool Visible { get; set; }
+	}
+
+	private readonly record struct Geometry( Vector3 Center, Vector3[] Bounds );
+
+	private const float CollectRadius = 4096f;
+
+	private readonly List<Entry> Entries = new();
+	private readonly List<Connector> Connectors = new();
+	private readonly List<Connector> _collectedConnectors = new();
+	private readonly Dictionary<GameObject, Geometry> _geometry = new();
+	private RealTimeSince _sinceGeometryRefresh = 1f;
+	private RealTimeSince _sinceShowRequested = 999f;
+	private RealTimeSince _sinceCollect = 999f;
+	private Entry _hoverEntry;
+	private int? _contentHash;
+	private int _revision;
+	private int _layoutHash;
+	private bool _hasLayoutHash;
+
+	/// <summary>
+	/// Keep the overlay visible this frame — call every frame while a tool wants it up,
+	/// optionally with a hover card to show. The overlay also shows itself while the
+	/// inspect menu is open; either way it collects and draws the wires on its own.
+	/// </summary>
+	public void Show( Entry hoverEntry = null )
+	{
+		_sinceShowRequested = 0;
+		_hoverEntry = hoverEntry;
+	}
+
+	private static IEnumerable<GameObject> FindPhysicsRoots( Scene scene, Sphere area )
+	{
+		var seen = new HashSet<GameObject>();
+		foreach ( var physicalObject in scene.FindInPhysics( area ) )
+		{
+			if ( !physicalObject.IsValid() ) continue;
+
+			var root = physicalObject.Root;
+			if ( root.IsValid() && seen.Add( root ) )
+				yield return root;
+		}
+	}
+
+	private void SetContent( IEnumerable<Entry> entries, IEnumerable<Connector> connectors )
+	{
+		Entries.Clear();
+		Entries.AddRange( entries );
+		Connectors.Clear();
+		Connectors.AddRange( connectors );
+		_hasLayoutHash = false;
+		_revision++;
+
+		// There won't be an update to project empty content, so clear the existing tree now.
+		if ( !HasContent )
+			StateHasChanged();
+		else
+			UpdateLayout();
+	}
+
+	private bool HasContent => Entries.Count > 0 || Connectors.Count > 0;
+
+	protected override void OnUpdate()
+	{
+		base.OnUpdate();
+		UpdateContent();
+		UpdateLayout();
+	}
+
+	private void UpdateContent()
+	{
+		var toolActive = _sinceShowRequested < 0.1f;
+		if ( !toolActive )
+			_hoverEntry = null;
+
+		var menuOpen = SpawnMenuHost.IsOpen && SpawnMenuHost.GetActiveMode() is ContextMenuHost;
+		if ( !menuOpen && !toolActive )
+		{
+			if ( HasContent )
+				SetContent( [], [] );
+
+			_contentHash = null;
+			return;
+		}
+
+		if ( _sinceCollect > 0.2f )
+		{
+			_sinceCollect = 0;
+			CollectConnectors( _collectedConnectors );
+		}
+
+		// Only rebuild the tree when what's shown actually changed.
+		var contentHash = BuildContentHash();
+		if ( contentHash == _contentHash ) return;
+
+		_contentHash = contentHash;
+		SetContent( _hoverEntry is null ? [] : [_hoverEntry], _collectedConnectors );
+	}
+
+	/// <summary>
+	/// Find every wire around the camera: signal connections on outputs, and component
+	/// links (references and presence) on their ManualLink stamps.
+	/// </summary>
+	private void CollectConnectors( List<Connector> connectors )
+	{
+		connectors.Clear();
+
+		var camera = Scene?.Camera;
+		if ( !camera.IsValid() ) return;
+
+		foreach ( var root in FindPhysicsRoots( Scene, new Sphere( camera.WorldPosition, CollectRadius ) ) )
+		{
+			if ( root.Tags.Has( "world" ) || root.Tags.Has( "player" ) ) continue;
+
+			foreach ( var output in SignalSystem.GetOutputs( root ) )
+			{
+				// Component outputs have no connection list; their wires show from the stamps below.
+				if ( output.Port is null ) continue;
+
+				foreach ( var connection in output.Port.Connections )
+				{
+					if ( connection?.Target.IsValid() == true )
+						connectors.Add( new Connector( output.Component.GameObject.Root, connection.Target.GameObject.Root ) );
+				}
+			}
+
+			foreach ( var link in root.GetComponentsInChildren<ManualLink>() )
+			{
+				if ( !link.HasWire || !link.IsComponentWire ) continue;
+				if ( !link.SignalSource.IsValid() || !link.SignalTarget.IsValid() ) continue;
+
+				// Each pair is stamped on both ends; draw once, from the source side.
+				var sourceRoot = link.SignalSource.GameObject.Root;
+				if ( sourceRoot != root ) continue;
+
+				connectors.Add( new Connector( sourceRoot, link.SignalTarget.GameObject.Root ) );
+			}
+		}
+	}
+
+	private int BuildContentHash()
+	{
+		var hash = new HashCode();
+
+		if ( _hoverEntry is { } entry )
+		{
+			hash.Add( entry.Target.IsValid() ? entry.Target.Id : Guid.Empty );
+			hash.Add( entry.Icon );
+
+			if ( entry.Card is { } card )
+			{
+				hash.Add( card.Title );
+				hash.Add( card.SelectedOption );
+
+				foreach ( var option in card.Options )
+				{
+					hash.Add( option.Icon );
+					hash.Add( option.Title );
+					hash.Add( option.Subtitle );
+					hash.Add( option.Description );
+				}
+			}
+		}
+
+		foreach ( var connector in _collectedConnectors )
+		{
+			hash.Add( connector.Source.Id );
+			hash.Add( connector.Target.Id );
+		}
+
+		return hash.ToHashCode();
+	}
+
+	private void UpdateLayout()
+	{
+		if ( !HasContent ) return;
+
+		var camera = Scene.Camera;
+		var viewport = camera.IsValid() ? camera.ScreenRect.Size : Vector2.Zero;
+		var scale = Panel.ScaleFromScreen;
+		var panelViewport = viewport * scale;
+		if ( _sinceGeometryRefresh > 0.2f ) RefreshGeometry();
+
+		foreach ( var connector in Connectors )
+		{
+			connector.Layout.Visible = false;
+			if ( !camera.IsValid() || !connector.Source.IsValid() || !connector.Target.IsValid() ) continue;
+
+			var start = camera.PointToScreenPixels( GetWorldCenter( connector.Source ), out var startBehind );
+			var end = camera.PointToScreenPixels( GetWorldCenter( connector.Target ), out var endBehind );
+			if ( startBehind || endBehind ) continue;
+
+			var startCenter = start;
+			var endCenter = end;
+
+			// Lines run between the objects' projected bounds edges, not their centers.
+			if ( TryGetScreenBounds( camera, connector.Source, out var sourceBounds ) )
+				start = ClipToBounds( sourceBounds, start, end );
+			if ( TryGetScreenBounds( camera, connector.Target, out var targetBounds ) )
+				end = ClipToBounds( targetBounds, end, start );
+
+			start *= scale;
+			end *= scale;
+			var line = end - start;
+			var centerLine = (endCenter - startCenter) * scale;
+
+			// Overlapping bounds leave nothing to draw across — the clipped ends cross over.
+			if ( line.Length < 12f || line.x * centerLine.x + line.y * centerLine.y <= 0f ) continue;
+
+			connector.Layout.Start = start;
+			connector.Layout.End = end;
+			connector.Layout.Length = line.Length;
+			connector.Layout.Visible = true;
+		}
+
+		foreach ( var entry in Entries )
+		{
+			entry.Layout.Visible = false;
+			if ( entry.Card is null ) continue; // Entries only render their card.
+			if ( !camera.IsValid() ) continue;
+			if ( !entry.Target.IsValid() ) continue;
+
+			var geometry = GetGeometry( entry.Target );
+			var worldPosition = entry.Target.WorldTransform.PointToWorld( geometry.Center );
+			var pixels = camera.PointToScreenPixels( worldPosition, out var behind );
+			if ( behind || !camera.ScreenRect.IsInside( pixels ) )
+				continue;
+
+			var cardPixels = pixels;
+			if ( entry.Card is not null )
+			{
+				var min = new Vector2( float.MaxValue );
+				var max = new Vector2( float.MinValue );
+				var projected = false;
+
+				foreach ( var localCorner in geometry.Bounds )
+				{
+					var corner = entry.Target.WorldTransform.PointToWorld( localCorner );
+					var screenCorner = camera.PointToScreenPixels( corner, out var cornerBehind );
+					if ( cornerBehind ) continue;
+
+					min = Vector2.Min( min, screenCorner );
+					max = Vector2.Max( max, screenCorner );
+					projected = true;
+				}
+
+				if ( projected )
+					cardPixels = new Vector2( (min.x + max.x) * 0.5f, min.y );
+			}
+
+			entry.Layout.ScreenPosition = pixels * scale;
+			entry.Layout.CardOffset = (cardPixels - pixels) * scale;
+			entry.Layout.CardBelow = cardPixels.y < (entry.Card?.Options.Count > 0 ? 290f : 180f);
+			entry.Layout.CardShiftRight = cardPixels.x * scale < 180f;
+			entry.Layout.CardShiftLeft = cardPixels.x * scale > panelViewport.x - 180f;
+			entry.Layout.Visible = true;
+		}
+
+		// The Razor tree only includes projected entries. Rebuild only when their visible
+		// pixel layout changed, rather than recreating the dotted line every update.
+		var layoutHash = BuildLayoutHash();
+		if ( _hasLayoutHash && _layoutHash == layoutHash ) return;
+
+		_layoutHash = layoutHash;
+		_hasLayoutHash = true;
+		StateHasChanged();
+	}
+
+	private int BuildLayoutHash()
+	{
+		var hash = new HashCode();
+		hash.Add( _revision );
+
+		foreach ( var entry in Entries )
+		{
+			hash.Add( entry.Layout.Visible );
+			hash.Add( (int)MathF.Round( entry.Layout.ScreenPosition.x ) );
+			hash.Add( (int)MathF.Round( entry.Layout.ScreenPosition.y ) );
+			hash.Add( (int)MathF.Round( entry.Layout.CardOffset.x ) );
+			hash.Add( (int)MathF.Round( entry.Layout.CardOffset.y ) );
+			hash.Add( entry.Layout.CardBelow );
+			hash.Add( entry.Layout.CardShiftRight );
+			hash.Add( entry.Layout.CardShiftLeft );
+		}
+
+		foreach ( var connector in Connectors )
+		{
+			hash.Add( connector.Layout.Visible );
+			hash.Add( (int)MathF.Round( connector.Layout.Start.x ) );
+			hash.Add( (int)MathF.Round( connector.Layout.Start.y ) );
+			hash.Add( (int)MathF.Round( connector.Layout.End.x ) );
+			hash.Add( (int)MathF.Round( connector.Layout.End.y ) );
+		}
+
+		return hash.ToHashCode();
+	}
+
+	private void RefreshGeometry()
+	{
+		_sinceGeometryRefresh = 0;
+		var targets = Entries.Where( entry => entry.Target.IsValid() ).Select( entry => entry.Target ).ToHashSet();
+		targets.UnionWith( Connectors.Where( connector => connector.Source.IsValid() ).Select( connector => connector.Source ) );
+		targets.UnionWith( Connectors.Where( connector => connector.Target.IsValid() ).Select( connector => connector.Target ) );
+
+		foreach ( var target in _geometry.Keys.ToArray() )
+		{
+			if ( !targets.Contains( target ) )
+				_geometry.Remove( target );
+		}
+
+		foreach ( var target in targets )
+			_geometry[target] = BuildGeometry( target );
+	}
+
+/// <summary>
+	/// The screen-space box around the object's projected bounds corners, in pixels.
+	/// False when any corner is behind the camera — the box would be meaningless.
+	/// </summary>
+	private bool TryGetScreenBounds( CameraComponent camera, GameObject target, out Rect bounds )
+	{
+		bounds = default;
+
+		var geometry = GetGeometry( target );
+		var min = new Vector2( float.MaxValue );
+		var max = new Vector2( float.MinValue );
+
+		foreach ( var localCorner in geometry.Bounds )
+		{
+			var corner = target.WorldTransform.PointToWorld( localCorner );
+			var screenCorner = camera.PointToScreenPixels( corner, out var behind );
+			if ( behind ) return false;
+
+			min = Vector2.Min( min, screenCorner );
+			max = Vector2.Max( max, screenCorner );
+		}
+
+		bounds = new Rect( min, max - min );
+		return true;
+	}
+
+	/// <summary>
+	/// Slide a point sitting inside the box along the line towards the outside point,
+	/// stopping at the box edge.
+	/// </summary>
+	private static Vector2 ClipToBounds( Rect bounds, Vector2 inside, Vector2 outside )
+	{
+		var direction = outside - inside;
+		var t = 1f;
+
+		if ( MathF.Abs( direction.x ) > 0.0001f )
+			t = MathF.Min( t, ((direction.x > 0f ? bounds.Right : bounds.Left) - inside.x) / direction.x );
+
+		if ( MathF.Abs( direction.y ) > 0.0001f )
+			t = MathF.Min( t, ((direction.y > 0f ? bounds.Bottom : bounds.Top) - inside.y) / direction.y );
+
+		return inside + direction * t.Clamp( 0f, 1f );
+	}
+
+	private Vector3 GetWorldCenter( GameObject target )
+	{
+		return target.WorldTransform.PointToWorld( GetGeometry( target ).Center );
+	}
+
+	private Geometry GetGeometry( GameObject target )
+	{
+		if ( !_geometry.TryGetValue( target, out var geometry ) )
+		{
+			geometry = BuildGeometry( target );
+			_geometry[target] = geometry;
+		}
+
+		return geometry;
+	}
+
+	private static Geometry BuildGeometry( GameObject target )
+	{
+		var bounds = target.GetBounds();
+		var transform = target.WorldTransform;
+		var corners = bounds.Corners.Select( corner => transform.PointToLocal( corner ) ).ToArray();
+
+		return new Geometry( transform.PointToLocal( bounds.Center ), corners );
+	}
+
+	private static string EntryClass( Entry entry )
+	{
+		return $"world-entry{(entry.Layout.CardBelow ? " card-below" : "")}{(entry.Layout.CardShiftRight ? " card-shift-right" : "")}{(entry.Layout.CardShiftLeft ? " card-shift-left" : "")}";
+	}
+
+	private static Option SelectedOption( Card card )
+	{
+		if ( card.Options.Count == 0 ) return null;
+		return card.Options[card.SelectedOption.Clamp( 0, card.Options.Count - 1 )];
+	}
+
+	private static IEnumerable<Option> VisibleOptions( Card card )
+	{
+		var count = card.Options.Count;
+		var selected = card.SelectedOption.Clamp( 0, count - 1 );
+		var first = (selected - 1).Clamp( 0, Math.Max( 0, count - 3 ) );
+		return card.Options.Skip( first ).Take( 3 );
+	}
+
+	// The line endpoints already sit on the bounds edges; just breathe a little off them.
+	private const float ConnectorGap = 10f;
+	private const float ConnectorAnimationDuration = 4f;
+
+	private static int ConnectorDotCount( Connector connector )
+	{
+		var usableLength = connector.Layout.Length + ConnectorAmplitude( connector ) * ConnectorWaveCount( connector ) - ConnectorGap * 2f;
+		return usableLength <= 0f ? 0 : ((int)(usableLength / 14f) + 1).Clamp( 1, 64 );
+	}
+
+	private static Vector2 ConnectorDotPosition( Connector connector, int count, int index )
+	{
+		var inset = (ConnectorGap / connector.Layout.Length).Clamp( 0f, 0.45f );
+		var progress = count <= 1 ? 0.5f : index / (count - 1f);
+		var t = inset + (1f - inset * 2f) * progress;
+		return ConnectorPoint( connector, t );
+	}
+
+	private static float ConnectorAmplitude( Connector connector ) => MathF.Min( 34f, connector.Layout.Length * 0.09f );
+	private static int ConnectorWaveCount( Connector connector ) => ((int)(connector.Layout.Length / 180f)).Clamp( 1, 3 );
+
+	private static Vector2 ConnectorPoint( Connector connector, float t )
+	{
+		var start = connector.Layout.Start;
+		var end = connector.Layout.End;
+		var line = end - start;
+		var direction = line / connector.Layout.Length;
+		var normal = new Vector2( -direction.y, direction.x );
+		var wave = MathF.Sin( t * ConnectorWaveCount( connector ) * MathF.PI * 2f );
+		return start + line * t + normal * wave * ConnectorAmplitude( connector );
+	}
+
+	private static float ConnectorDotDelay( Connector connector, int count, int index )
+	{
+		return count <= 1 ? 0f : ConnectorAnimationDuration * index / count;
+	}
+
+	protected override int BuildHash() => _revision;
+}

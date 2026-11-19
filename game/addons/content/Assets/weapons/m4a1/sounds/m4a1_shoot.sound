@@ -1,0 +1,47 @@
+{
+  "UI": false,
+  "Volume": "0.5",
+  "Pitch": "0.98 1.02",
+  "Decibels": 10000,
+  "SelectionMode": "Random",
+  "Sounds": [
+    "weapons/m4a1/sounds/m4_shot_01.vsnd",
+    "weapons/m4a1/sounds/m4_shot_04.vsnd",
+    "weapons/m4a1/sounds/m4_shot_06.vsnd"
+  ],
+  "Occlusion": false,
+  "AirAbsorption": false,
+  "Transmission": false,
+  "OcclusionRadius": 64,
+  "DistanceAttenuation": true,
+  "Distance": 2048,
+  "Falloff": [
+    {
+      "x": 0,
+      "y": 1,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 0.23809524,
+      "y": 0.3583625,
+      "in": 1.329805,
+      "out": -1.329805,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    }
+  ],
+  "DefaultMixer": {
+    "Name": "unknown",
+    "Id": "00000000-0000-0000-0000-000000000000"
+  },
+  "__references": [],
+  "__version": 1
+}

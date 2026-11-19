@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/spoked.prefab",
+  "Title": "#asset.wheel.spoked.title",
+  "Description": "#asset.wheel.spoked.description",
+  "__references": [],
+  "__version": 0
+}

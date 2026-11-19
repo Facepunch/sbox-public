@@ -1,0 +1,675 @@
+{
+  "Title": "Episode 1",
+  "Description": "",
+  "Icon": "sports_esports",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "4a40a186-0eb7-4050-b196-73d05dfa2df9",
+    "Path": "spawnlists/garrysmod/half_life_2.spawn"
+  },
+  "Order": 25,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Props",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/door03_left.mdl",
+      "Title": "door03_left",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/door03_left.mdl",
+      "Title": "door03_left",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/hospital_bed01.mdl",
+      "Title": "hospital_bed01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/hospital_surgerytable01.mdl",
+      "Title": "hospital_surgerytable01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/hospital_cart01.mdl",
+      "Title": "hospital_cart01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/hospital_ivstand01.mdl",
+      "Title": "hospital_ivstand01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/hospital_shelf01.mdl",
+      "Title": "hospital_shelf01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/hospital_surgerylight01.mdl",
+      "Title": "hospital_surgerylight01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/powerbox.mdl",
+      "Title": "powerbox",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/slidinggate001.mdl",
+      "Title": "slidinggate001",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_lab/mobileprojector.mdl",
+      "Title": "mobileprojector",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_junk/flare.mdl",
+      "Title": "flare",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/extras/crank.mdl",
+      "Title": "crank",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/extras/widget.mdl",
+      "Title": "widget",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_debris/metal_panel01a_breakable.mdl",
+      "Title": "metal_panel01a_breakable",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/hospital_railing_160_01.mdl",
+      "Title": "hospital_railing_160_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/hospital_railing_256_01.mdl",
+      "Title": "hospital_railing_256_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/hospital_railing_32_01.mdl",
+      "Title": "hospital_railing_32_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/hospital_railing_64_01.mdl",
+      "Title": "hospital_railing_64_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/metalladder004.mdl",
+      "Title": "metalladder004",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/metalladder005.mdl",
+      "Title": "metalladder005",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_lab/scrapyarddumpster_static.mdl",
+      "Title": "scrapyarddumpster_static",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/undergroundelevator.mdl",
+      "Title": "undergroundelevator",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Combine",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_citadelcard001b.mdl",
+      "Title": "combine_citadelcard001b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_citadeldestroyed001.mdl",
+      "Title": "combine_citadeldestroyed001",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/advisorpod_docked.mdl",
+      "Title": "advisorpod_docked",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/advisorpod.mdl",
+      "Title": "advisorpod",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_ballsocket.mdl",
+      "Title": "combine_ballsocket",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_bridge_b01.mdl",
+      "Title": "combine_bridge_b01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_citadelwall_destroyed01.mdl",
+      "Title": "combine_citadelwall_destroyed01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_citadelwall_destroyed02.mdl",
+      "Title": "combine_citadelwall_destroyed02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_citadelwall_destroyed03.mdl",
+      "Title": "combine_citadelwall_destroyed03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_core_arm01.mdl",
+      "Title": "combine_core_arm01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_core_platform01.mdl",
+      "Title": "combine_core_platform01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_core_ring01.mdl",
+      "Title": "combine_core_ring01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_core_tube01.mdl",
+      "Title": "combine_core_tube01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_debris128pile001a.mdl",
+      "Title": "combine_debris128pile001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_debris256barricade001a.mdl",
+      "Title": "combine_debris256barricade001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_ceiling01a_shard01.mdl",
+      "Title": "combine_explosivepanel_ceiling01a_shard01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_ceiling01a_shard02.mdl",
+      "Title": "combine_explosivepanel_ceiling01a_shard02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_ceiling02a_shard01.mdl",
+      "Title": "combine_explosivepanel_ceiling02a_shard01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_ceiling01a_shard03.mdl",
+      "Title": "combine_explosivepanel_ceiling01a_shard03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_cover01a.mdl",
+      "Title": "combine_explosivepanel_cover01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_cover02a.mdl",
+      "Title": "combine_explosivepanel_cover02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_cover03a.mdl",
+      "Title": "combine_explosivepanel_cover03a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_floor01a.mdl",
+      "Title": "combine_explosivepanel_floor01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_destroyedpipes01.mdl",
+      "Title": "combine_destroyedpipes01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_floor02a.mdl",
+      "Title": "combine_explosivepanel_floor02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_ceiling02a.mdl",
+      "Title": "combine_explosivepanel_ceiling02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_ceiling01a.mdl",
+      "Title": "combine_explosivepanel_ceiling01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_wall01a.mdl",
+      "Title": "combine_explosivepanel_wall01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_wall02a.mdl",
+      "Title": "combine_explosivepanel_wall02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_shard01a.mdl",
+      "Title": "combine_explosivepanel_shard01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_shard01b.mdl",
+      "Title": "combine_explosivepanel_shard01b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_shard02a.mdl",
+      "Title": "combine_explosivepanel_shard02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_shard02b.mdl",
+      "Title": "combine_explosivepanel_shard02b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_shard03a.mdl",
+      "Title": "combine_explosivepanel_shard03a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_wall01a_shard01.mdl",
+      "Title": "combine_explosivepanel_wall01a_shard01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_wall01a_shard02.mdl",
+      "Title": "combine_explosivepanel_wall01a_shard02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_wall02a_shard01.mdl",
+      "Title": "combine_explosivepanel_wall02a_shard01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_explosivepanel_wall02a_shard02.mdl",
+      "Title": "combine_explosivepanel_wall02a_shard02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_hatch01.mdl",
+      "Title": "combine_hatch01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/coreball.mdl",
+      "Title": "coreball",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/corecontrol_set001.mdl",
+      "Title": "corecontrol_set001",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/corecontrolmonitor.mdl",
+      "Title": "corecontrolmonitor",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/stalkercar.mdl",
+      "Title": "stalkercar",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/crashedgunship.mdl",
+      "Title": "crashedgunship",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_dropship_container_static.mdl",
+      "Title": "combine_dropship_container_static",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/ep1_combine_wall.mdl",
+      "Title": "ep1_combine_wall",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combinewallcrushed.mdl",
+      "Title": "combinewallcrushed",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/stalkerpod_physanim.mdl",
+      "Title": "stalkerpod_physanim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/soldier_bed.mdl",
+      "Title": "soldier_bed",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/stalkerpod_lid.mdl",
+      "Title": "stalkerpod_lid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/stalkerpod.mdl",
+      "Title": "stalkerpod",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/stalkerpod_legs.mdl",
+      "Title": "stalkerpod_legs",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/stalkerpod_nolid.mdl",
+      "Title": "stalkerpod_nolid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/stalkerpod_torso.mdl",
+      "Title": "stalkerpod_torso",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/zombie/zombie_soldier.mdl",
+      "Title": "zombie_soldier",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/zombie/zombie_soldier_legs.mdl",
+      "Title": "zombie_soldier_legs",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/zombie/zombie_soldier_torso.mdl",
+      "Title": "zombie_soldier_torso",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Foliage",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_pine_01.mdl",
+      "Title": "tree_pine_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_pine_02.mdl",
+      "Title": "tree_pine_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_pine_03.mdl",
+      "Title": "tree_pine_03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_pine_card_cluster_01.mdl",
+      "Title": "tree_pine_card_cluster_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_pine_card_cluster_02.mdl",
+      "Title": "tree_pine_card_cluster_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_pine_card_cluster_02_skybox.mdl",
+      "Title": "tree_pine_card_cluster_02_skybox",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_pine_cluster_01.mdl",
+      "Title": "tree_pine_cluster_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_pine_tall_01.mdl",
+      "Title": "tree_pine_tall_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_pine_tall_02.mdl",
+      "Title": "tree_pine_tall_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_pine_tall_cluster_01.mdl",
+      "Title": "tree_pine_tall_cluster_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicles",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_trainstation/train_outro_car01.mdl",
+      "Title": "train_outro_car01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_trainstation/train_outro_porch01.mdl",
+      "Title": "train_outro_porch01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_trainstation/train_outro_porch02.mdl",
+      "Title": "train_outro_porch02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_trainstation/train_outro_porch03.mdl",
+      "Title": "train_outro_porch03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/vehicles/vehicle_van.mdl",
+      "Title": "vehicle_van",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/vehicles/vehicle_vandoor.mdl",
+      "Title": "vehicle_vandoor",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Effects",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/effects/intro_vortshield.mdl",
+      "Title": "intro_vortshield",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_citadelburst.mdl",
+      "Title": "combine_citadelburst",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_citadelbeacon.mdl",
+      "Title": "combine_citadelbeacon",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_lightning001b.mdl",
+      "Title": "combine_lightning001b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_citadelcloudlight001a.mdl",
+      "Title": "combine_citadelcloudlight001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_citadelsplode001a.mdl",
+      "Title": "combine_citadelsplode001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_citadeltwirl.mdl",
+      "Title": "combine_citadeltwirl",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_citadelcloud001a.mdl",
+      "Title": "combine_citadelcloud001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_citadelcloud002a.mdl",
+      "Title": "combine_citadelcloud002a",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

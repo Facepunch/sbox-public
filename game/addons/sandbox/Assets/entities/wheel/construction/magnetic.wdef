@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/magnetic.prefab",
+  "Title": "#asset.wheel.magnetic.title",
+  "Description": "#asset.wheel.magnetic.description",
+  "__references": [],
+  "__version": 0
+}

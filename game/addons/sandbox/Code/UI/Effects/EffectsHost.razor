@@ -1,0 +1,13 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+@attribute [InspectWindow.Tab]
+@attribute [Icon( "🎨" )]
+@attribute [Title( "#spawnmenu.mode.effects" )]
+@attribute [Order( 200 )]
+
+<root>
+    <EffectsList />
+    <EffectsProperties />
+</root>

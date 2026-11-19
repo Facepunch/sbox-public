@@ -1,0 +1,198 @@
+@import "/UI/Theme.scss";
+
+EffectsList
+{
+    flex-direction: column;
+    width: 228px;
+    flex-shrink: 0;
+    gap: 8px;
+    font-family: $body-font;
+
+    > .source
+    {
+        flex-grow: 0;
+        flex-shrink: 0;
+    }
+
+    > .list-section
+    {
+        @include ui-section;
+        flex-direction: column;
+        flex-grow: 1;
+        min-height: 0px;
+        padding: 1px;
+    }
+
+    .search
+    {
+        flex-shrink: 0;
+        padding: 6px;
+        border-bottom: 1px solid $ui-separator;
+
+        TextEntry
+        {
+            @include ui-text-entry;
+            flex-grow: 1;
+        }
+    }
+
+    .list
+    {
+        @include ui-scroll;
+        flex-direction: column;
+        flex-grow: 1;
+        min-height: 0px;
+        overflow-y: scroll;
+    }
+
+    .group-header
+    {
+        @include ui-title-bar;
+        border-radius: 0px;
+
+        &:first-child
+        {
+            border-radius: 2px 2px 0px 0px;
+        }
+    }
+
+    .group-items
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+    }
+
+    .empty-state
+    {
+        flex-shrink: 0;
+        padding: 16px 12px;
+        justify-content: center;
+        text-align: center;
+        color: $ui-text-muted;
+        font-size: 12px;
+    }
+
+    // on the white list, not the gray block it's made for
+    UILoadingState
+    {
+        flex-grow: 1;
+        height: auto;
+        color: $ui-text;
+
+        .spinner
+        {
+            color: $ui-text-muted;
+        }
+    }
+
+    .footer
+    {
+        flex-shrink: 0;
+        padding: 8px 7px 7px 7px;
+
+        UIButton
+        {
+            flex-grow: 1;
+        }
+    }
+}
+
+EffectsList .effect-row
+{
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 9px;
+    height: 33px;
+    padding: 0px 7px;
+    border: 1px solid transparent;
+    color: $ui-text;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+
+    &:nth-child( even )
+    {
+        background-color: $ui-row-alt;
+    }
+
+    &:hover
+    {
+        background-color: $ui-blue-soft;
+        sound-in: ui.hover;
+    }
+
+    &:active
+    {
+        sound-in: ui.select;
+    }
+
+    // the one whose settings are shown
+    &.active
+    {
+        border-color: $ui-blue;
+    }
+
+    .name
+    {
+        flex-grow: 1;
+        min-width: 0px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+    }
+
+    // packages from the workshop, with their picture and who made them
+    &.workshop
+    {
+        height: 44px;
+
+        .thumb
+        {
+            width: 32px;
+            height: 32px;
+            flex-shrink: 0;
+            background-color: $ui-tile-bg;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .info
+        {
+            flex-direction: column;
+            flex-grow: 1;
+            min-width: 0px;
+            gap: 2px;
+        }
+
+        .author
+        {
+            flex-direction: row;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: $ui-text-muted;
+        }
+
+        .author-avatar
+        {
+            width: 12px;
+            height: 12px;
+            flex-shrink: 0;
+            background-size: cover;
+            background-position: center;
+            background-color: $ui-tile-bg;
+        }
+    }
+
+    // mounting the package before it can be used
+    &.loading
+    {
+        opacity: 0.5;
+    }
+
+    &.loading, &.loading *
+    {
+        pointer-events: none;
+    }
+}

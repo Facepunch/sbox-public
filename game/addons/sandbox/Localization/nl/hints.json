@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "Houd {input:SpawnMenu} ingedrukt om het aanmaakmenu te openen",
+    "hint.openinspectmenu": "Houd {input:InspectMenu} ingedrukt om het inspectiemenu te openen",
+    "hint.openpausemenu": "Druk op ESC om het pauzemenu te openen en je besturing te bekijken"
+}

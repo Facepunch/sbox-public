@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Bird Spikes",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "bird_spikes",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/bird_spikes/bird_spikes.vmdl",
+        "Summary": "",
+        "Description": "Spikes usually set on ledges to prevent bird nesting",
+        "Public": true,
+        "ReplaceTags": "bird spikes urban street"
+      }
+    }
+  },
+  "guid": "69230bf2-3753-4181-83b9-67a4e8d4f970"
+}

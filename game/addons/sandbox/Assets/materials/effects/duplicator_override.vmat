@@ -1,0 +1,22 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/blueprint_overlay.shader"
+
+	//---- Blueprint ----
+	g_flBodyOpacity "0.006"
+	g_flBrightness "20.000"
+	g_vBlueprintColor "[0.054902 0.121569 0.749020 0.000000]"
+	g_vOutlineColor "[0.066667 0.733333 0.937255 0.000000]"
+
+	//---- Grid ----
+	g_flGridOpacity "0.022"
+	g_flGridSpacing "1.760"
+	g_flLineWidth "0.500"
+	g_vGridScrollSpeed "[4.000 5.000 3.000]"
+
+	//---- Rim ----
+	g_flRimOpacity "1.000"
+	g_flRimPower "8.816"
+}

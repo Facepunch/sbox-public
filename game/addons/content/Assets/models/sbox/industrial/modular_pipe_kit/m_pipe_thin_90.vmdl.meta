@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe Thin 90",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipethin90",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_thin_90.vmdl"
+      }
+    }
+  },
+  "guid": "ebbfad60-1a32-4a3a-8f97-d91f24c8b988"
+}

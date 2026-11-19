@@ -1,0 +1,29 @@
+{
+  "guid": "735ebdaa-c54d-4a1b-9e62-74dd39dd2eab",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Usp Rmr",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_usp_rmr",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/usp/materials/v_usp_rmr.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

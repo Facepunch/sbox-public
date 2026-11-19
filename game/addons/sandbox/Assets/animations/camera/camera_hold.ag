@@ -1,0 +1,38 @@
+{
+  "Version": 1,
+  "nodes": [
+    {
+      "_class": "PoseResultNode",
+      "Pose": {
+        "Identifier": "b859f020-b5ec-43df-922a-000000000004",
+        "Output": "Result"
+      },
+      "Identifier": "b859f020-b5ec-43df-922a-000000000001",
+      "Position": "396,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationPoseNode",
+      "Time": {
+        "Identifier": null,
+        "Output": null
+      },
+      "RemapRangeStart": 0,
+      "RemapRangeEnd": 1,
+      "FixedTime": 0.5,
+      "UseFramesAsInput": false,
+      "DefaultVariationData": {
+        "AnimationName": "animations/camera/camera_hold.anim",
+        "TimeOverride": -1
+      },
+      "Overrides": [],
+      "Identifier": "b859f020-b5ec-43df-922a-000000000004",
+      "Position": "0,0",
+      "HandleOffsets": {}
+    }
+  ],
+  "Model": "models/citizen_human/human.vmdl",
+  "Skeleton": "models/citizen_human/animgraphs/human.skel",
+  "parameters": [],
+  "virtualParameters": []
+}

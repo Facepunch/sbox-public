@@ -1,0 +1,243 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "steel.vmat"
+								to = "materials/construction/steel/steel.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "materials/construction/steel/steel.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						filename = "models/construction/gears/src/rack70.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"rack70_LOD0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD1"
+						filename = "models/construction/gears/src/rack70.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"rack70_LOD1",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD0",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 200.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD1",
+						]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 100.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsHullFile"
+						name = "rack70_phys"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/construction/gears/src/rack70_phys.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "HullPerMesh"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"rack70_phys_00",
+								"rack70_phys_01",
+								"rack70_phys_02",
+								"rack70_phys_03",
+								"rack70_phys_04",
+								"rack70_phys_05",
+								"rack70_phys_06",
+								"rack70_phys_07",
+								"rack70_phys_08",
+								"rack70_phys_09",
+								"rack70_phys_10",
+								"rack70_phys_11",
+								"rack70_phys_12",
+								"rack70_phys_13",
+								"rack70_phys_14",
+								"rack70_phys_15",
+								"rack70_phys_16",
+								"rack70_phys_17",
+								"rack70_phys_18",
+								"rack70_phys_19",
+								"rack70_phys_20",
+								"rack70_phys_21",
+								"rack70_phys_22",
+								"rack70_phys_23",
+								"rack70_phys_24",
+								"rack70_phys_25",
+								"rack70_phys_26",
+								"rack70_phys_27",
+								"rack70_phys_28",
+								"rack70_phys_29",
+								"rack70_phys_30",
+								"rack70_phys_31",
+								"rack70_phys_32",
+								"rack70_phys_33",
+								"rack70_phys_34",
+								"rack70_phys_35",
+								"rack70_phys_36",
+								"rack70_phys_37",
+								"rack70_phys_38",
+								"rack70_phys_39",
+								"rack70_phys_40",
+								"rack70_phys_41",
+								"rack70_phys_42",
+								"rack70_phys_43",
+								"rack70_phys_44",
+								"rack70_phys_45",
+								"rack70_phys_46",
+								"rack70_phys_47",
+								"rack70_phys_48",
+								"rack70_phys_49",
+								"rack70_phys_50",
+								"rack70_phys_51",
+								"rack70_phys_52",
+								"rack70_phys_53",
+								"rack70_phys_54",
+								"rack70_phys_55",
+								"rack70_phys_56",
+								"rack70_phys_57",
+								"rack70_phys_58",
+								"rack70_phys_59",
+								"rack70_phys_60",
+								"rack70_phys_61",
+								"rack70_phys_62",
+								"rack70_phys_63",
+								"rack70_phys_64",
+								"rack70_phys_65",
+								"rack70_phys_66",
+								"rack70_phys_67",
+								"rack70_phys_68",
+								"rack70_phys_69",
+								"rack70_phys_70",
+								"rack70_phys_71",
+							]
+						}
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

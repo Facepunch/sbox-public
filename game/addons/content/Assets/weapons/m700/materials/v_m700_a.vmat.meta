@@ -1,0 +1,29 @@
+{
+  "guid": "10b667c7-425f-436a-9453-b6ed349626e1",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V M 700 A",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_m700_a",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/m700/materials/v_m700_a.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

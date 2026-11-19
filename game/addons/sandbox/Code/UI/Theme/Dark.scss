@@ -1,0 +1,80 @@
+// dark palette
+// every palette defines the same set of tokens, Theme.scss picks one
+
+$ui-blue: rgba(32, 113, 206, 0.9);
+$ui-blue-soft: rgba( 62, 131, 235, 0.18 );
+$ui-danger: #e05555;
+
+// a row of a menu under the mouse, a stronger blue than the soft one of the lists
+$ui-hover-fill: rgba( 62, 131, 235, 0.35 );
+$ui-hover-border: rgba( 62, 131, 235, 0.75 );
+$ui-hover-text: #b8d2f7;
+
+// text inside a section
+$ui-text: #cfd2d8;
+$ui-text-strong: #e6e8ec;
+$ui-text-muted: #8c919a;
+$ui-text-label: #b3b7be;
+$ui-text-placeholder: #6c7079;
+$ui-text-disabled: #5d6169;
+$ui-text-disabled-hover: #80848d;
+
+// text drawn straight on the dark block of the menu
+$ui-text-on-gray: rgba( 255, 255, 255, 0.5 );
+$ui-heading-on-gray: rgba( 255, 255, 255, 0.88 );
+$ui-line-on-gray: rgba( 255, 255, 255, 0.14 );
+$ui-subtext-on-gray: rgba( 255, 255, 255, 0.7 );
+
+// the dark block and the section on it
+$ui-block-top: rgba( 30, 32, 36, 0.8 );
+$ui-block-bottom: rgba(32, 48, 68, 0.85);
+$ui-block-border: rgba(81, 144, 211, 0.247);
+$ui-section-top: rgba(28, 37, 51, 0.7);
+$ui-section-bottom: rgba( 34, 36, 41, 0.6 );
+$ui-section-border: rgba(111, 158, 209, 0.247);
+
+// solid surfaces that float over everything, dropdown lists and pickers
+$ui-popup-bg: #2a2d32;
+$ui-popup-bg-light: #30333a;
+$ui-popup-hover: #3b3f47;
+$ui-well: #1e2024;
+
+// controls inside a section
+$ui-control-border: #4b4f57;
+$ui-control-bg: #2c2f35;
+$ui-control-border-hover: #6d727c;
+$ui-input-bg: rgba( 22, 24, 27, 0.96 );
+$ui-input-border: rgba( 0, 0, 0, 0.75 );
+$ui-check-bg: rgba( 0, 0, 0, 0.3 );
+$ui-button-top: rgba( 62, 66, 74, 0.95 );
+$ui-button-bottom: rgba( 52, 55, 62, 0.95 );
+$ui-button-border: rgba( 0, 0, 0, 0.6 );
+$ui-row-alt: rgba( 255, 255, 255, 0.035 );
+$ui-row-hover-outline: rgba( 255, 255, 255, 0.15 );
+$ui-separator: rgba( 255, 255, 255, 0.08 );
+$ui-tree-line: #3d4148;
+$ui-scroll-track: #1e2024;
+
+// menu tabs
+$ui-tab-bg: rgba(9, 15, 20, 0.8);
+$ui-tab-bg-hover: rgba(32, 40, 53, 0.85);
+$ui-tab-bg-active: rgba(51, 61, 82, 0.95);
+$ui-tab-border: #0e0f11;
+
+// the dark fill behind the picture of a card or a spawn icon
+$ui-tile-bg: rgba( 0, 0, 0, 0.3 );
+$ui-tile-title-bg: #2a2d32;
+$ui-tile-title-text: #e6e8ec;
+$ui-tile-outline: rgba( 255, 255, 255, 0.75 );
+
+// the strip of a card under the mouse
+$ui-card-hover-bg: #30333a;
+$ui-card-hover-text: #e6e8ec;
+$ui-card-hover-subtext: rgba( 255, 255, 255, 0.6 );
+
+// slider: the line and its ticks, and the thumb
+$ui-slider-line: #5d6169;
+$ui-slider-thumb: #8c919a;
+$ui-slider-thumb-border: #3a3d44;
+$ui-slider-thumb-hover: #a8adb5;
+$ui-slider-thumb-pressed: #737780;

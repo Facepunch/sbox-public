@@ -1,0 +1,28 @@
+{
+  "guid": "59b5dae8-ca42-4881-b353-fa08e6399bfe",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Aircon Unit Wall Large",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "airconunitwalllarge",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/aircon_unit_wall/aircon_unit_wall_large.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

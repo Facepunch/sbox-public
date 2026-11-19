@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/turbo_rim.prefab",
+  "Title": "#asset.wheel.turbo_rim.title",
+  "Description": "#asset.wheel.turbo_rim.description",
+  "__references": [],
+  "__version": 0
+}

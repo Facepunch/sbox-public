@@ -1,0 +1,67 @@
+@import "/UI/Theme.scss";
+
+// the titles and dividers between the items of a spawnlist, on the gray block of the menu
+SpawnlistLayoutItem
+{
+	width: 100%;
+	height: 100%;
+	align-items: center;
+	gap: 8px;
+	font-family: $body-font;
+	pointer-events: none;
+
+	&.title-item
+	{
+		align-items: flex-end;
+		padding-bottom: 8px;
+	}
+
+	.section-title
+	{
+		@include ui-display-heading;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0px;
+	}
+
+	.divider-line
+	{
+		height: 2px;
+		flex-grow: 1;
+		background-color: $ui-line-on-gray;
+	}
+
+	SpawnlistDragHandle
+	{
+		width: 36px;
+		height: 39px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		border-radius: 4px;
+		cursor: move;
+		opacity: 0.45;
+
+		IconPanel
+		{
+			font-size: 18px;
+		}
+
+		&:hover
+		{
+			background-color: rgba( white, 0.08 );
+			opacity: 1;
+		}
+	}
+
+	.edit-only
+	{
+		display: none;
+	}
+
+	&.editing
+	{
+		pointer-events: all;
+		.edit-only { display: flex; }
+	}
+}

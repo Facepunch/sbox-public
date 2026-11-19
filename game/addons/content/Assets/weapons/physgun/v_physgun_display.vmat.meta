@@ -1,0 +1,29 @@
+{
+  "guid": "d07c9f63-724a-419d-9a70-07d4f795a30e",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Physgun Display",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_physgun_display",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/physgun/v_physgun_display.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

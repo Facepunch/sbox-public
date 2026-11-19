@@ -1,0 +1,166 @@
+@import "/UI/Theme.scss";
+
+Scoreboard
+{
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 100px;
+	flex-direction: column;
+	align-items: center;
+	font-family: $body-font;
+	opacity: 0;
+	transition: opacity 0.1s ease-in;
+	z-index: 9199;
+
+	&.visible
+	{
+		opacity: 1;
+		transition: opacity 0.1s ease-out;
+		pointer-events: all;
+	}
+}
+
+Scoreboard .board
+{
+	@include ui-block;
+	width: 700px;
+	flex-direction: column;
+	gap: 8px;
+}
+
+Scoreboard .heading
+{
+	flex-direction: column;
+	align-items: center;
+	padding: 0 4px;
+
+	.hostname
+	{
+		@include ui-display-heading;
+	}
+
+	.map
+	{
+		font-size: 13px;
+		font-weight: 600;
+		color: $ui-subtext-on-gray;
+	}
+}
+
+Scoreboard .section
+{
+	@include ui-table;
+	border-radius: 0px;
+}
+
+Scoreboard .title-bar
+{
+	@include ui-table-header;
+	border-radius: 0px;
+	padding: 0 6px;
+}
+
+Scoreboard .rows
+{
+	flex-direction: column;
+	max-height: 700px;
+	overflow-y: scroll;
+	@include ui-scroll;
+}
+
+Scoreboard .avatar, Scoreboard .avatar-spacer
+{
+	width: 32px;
+	flex-shrink: 0;
+}
+
+Scoreboard .name
+{
+	flex-grow: 1;
+	min-width: 0px;
+	padding-left: 4px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+Scoreboard .stat
+{
+	width: 64px;
+	flex-shrink: 0;
+	justify-content: center;
+	text-align: center;
+}
+
+Scoreboard .mute-btn, Scoreboard .mute-spacer
+{
+	width: 28px;
+	flex-shrink: 0;
+}
+
+Scoreboard .row
+{
+	@include ui-table-row;
+	height: 40px;
+	padding: 0 6px;
+	gap: 8px;
+	font-size: 15px;
+	font-weight: 600;
+	@include ui-selectable;
+	border-radius: 0px;
+
+	&:hover
+	{
+		background-color: $ui-blue-soft;
+	}
+
+	.avatar
+	{
+		height: 32px;
+		border-radius: 2px;
+		border: 1px solid $ui-control-border;
+	}
+
+	.stat
+	{
+		color: $ui-text-muted;
+	}
+
+	&.me
+	{
+		background-color: $ui-blue-soft;
+		border-left: 3px solid $ui-blue;
+		padding-left: 3px;
+
+		.name
+		{
+			color: $ui-hover-text;
+		}
+	}
+
+	&.dead .name
+	{
+		opacity: 0.5;
+	}
+
+	.mute-btn
+	{
+		height: 28px;
+		justify-content: center;
+		align-items: center;
+		font-size: 18px;
+		color: $ui-text-muted;
+		cursor: pointer;
+
+		&:hover
+		{
+			color: $ui-blue;
+		}
+
+		&.muted
+		{
+			color: $ui-danger;
+		}
+	}
+}

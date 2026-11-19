@@ -1,0 +1,29 @@
+{
+  "guid": "020800f8-0000-0000-e0e5-1610fc000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Decal Dirt Pile 01",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "dirt_pile_01",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/dirt_pile/dirt_pile_01.vmat",
+        "AssetLicense": "CC0",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "Title": "#tool.name.rope",
+  "Description": "#asset.rope.description",
+  "Material": "materials/default/rope01.vmat",
+  "WorldSpace": true,
+  "UnitsPerTexture": 32,
+  "Opaque": false,
+  "BlendMode": "Normal",
+  "__references": [],
+  "__version": 0
+}

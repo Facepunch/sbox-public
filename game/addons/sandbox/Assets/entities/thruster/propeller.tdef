@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/thruster/propeller.prefab",
+  "Title": "#asset.propeller.title",
+  "Description": "#asset.propeller.description",
+  "__references": [],
+  "__version": 0
+}

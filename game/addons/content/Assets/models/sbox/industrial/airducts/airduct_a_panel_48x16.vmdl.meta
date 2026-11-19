@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Airduct a panel 48x16",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "airduct_a_panel_48x16",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": "*",
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/airducts/airduct_a_panel_48x16.vmdl"
+      }
+    }
+  },
+  "guid": "67054ccf-50f8-4c5c-9b13-77891418de53"
+}

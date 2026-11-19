@@ -192,19 +192,6 @@ static class AssetThumbnail
 		if ( asset.AssetType.PrefersIconThumbnail )
 			return null;
 
-		//
-		// If it's a resource, let it generate itself the thumbnail!
-		//
-		{
-			var resource = asset.LoadResource();
-			var bitmap = resource?.RenderThumbnail( new() { Width = 256, Height = 256 } );
-			if ( bitmap != null )
-			{
-				return Pixmap.FromBitmap( bitmap );
-			}
-		}
-
-
 		if ( asset.thumbnailOverride != null )
 		{
 			return asset.thumbnailOverride;
@@ -234,6 +221,16 @@ static class AssetThumbnail
 			catch ( System.Exception e )
 			{
 				Log.Warning( e, $"Exception when rendering thumb via {t.Method} ({e.Message})" );
+			}
+		}
+
+		// Keep editor overrides and custom previews ahead of the resource's default thumbnail.
+		{
+			var resource = asset.LoadResource();
+			using var bitmap = resource?.RenderThumbnail( new() { Width = 256, Height = 256 } );
+			if ( bitmap != null )
+			{
+				return Pixmap.FromBitmap( bitmap );
 			}
 		}
 

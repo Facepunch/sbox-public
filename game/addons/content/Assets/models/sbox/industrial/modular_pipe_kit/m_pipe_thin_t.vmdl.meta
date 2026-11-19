@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe Thin T",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipethint",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_thin_t.vmdl"
+      }
+    }
+  },
+  "guid": "f8ce4030-ee04-47ab-b545-f18ffadac35e"
+}

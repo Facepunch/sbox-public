@@ -1,0 +1,33 @@
+@import "/UI/Theme.scss";
+
+UIDropdown
+{
+	flex-direction: row;
+	align-items: center;
+	flex-grow: 1;
+	flex-shrink: 0;
+	height: 24px;
+	padding: 0 4px 0 7px;
+	gap: 4px;
+	font-family: "Inter";
+	font-size: $ui-settings-font;
+	font-weight: 700;
+	@include ui-button-face;
+
+	.value
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.chevron
+	{
+		flex-shrink: 0;
+		font-size: 14px;
+		color: $ui-text-strong;
+	}
+}

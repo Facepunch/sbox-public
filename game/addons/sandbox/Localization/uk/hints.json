@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "Утримуйте {input:SpawnMenu}, щоб відкрити меню створення",
+    "hint.openinspectmenu": "Утримуйте {input:InspectMenu}, щоб відкрити меню огляду",
+    "hint.openpausemenu": "Натисніть ESC, щоб відкрити меню паузи й переглянути керування"
+}

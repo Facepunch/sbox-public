@@ -1,0 +1,285 @@
+@using Sandbox.UI
+@using System.Text.Json.Nodes
+@namespace Sandbox
+@inherits BasePopup
+@implements IKeepsMenuOpen
+
+<root class="popup">
+    <div class="preset-window">
+        <div class="editor-heading">
+            <label>@WindowTitle</label>
+            <UIButton Icon="close" Tooltip="#ui.tool_presets.close" @onclick=@RequestClose />
+        </div>
+        <div class="editor-columns">
+            <div class="preset-list">
+                @foreach ( var preset in Presets )
+                {
+                    <button @key=@preset.Id class="preset-row @(preset.Id == SelectedId ? "selected" : "")" @onclick=@(() => RequestSelect( preset.Id ))>
+                        <Label Tokenize=@false Text=@preset.Name />
+                    </button>
+                }
+                @if ( Presets.Count == 0 )
+                {
+                    <label class="empty">#ui.tool_presets.empty_list</label>
+                }
+            </div>
+            <div class="preset-details">
+                @if ( Draft is not null )
+                {
+                    <div class="name-row">
+                        <label>#ui.tool_presets.name</label>
+                        <TextEntry Value:bind=@DraftName Placeholder="#ui.tool_presets.name_placeholder" />
+                    </div>
+                    <div class="draft-properties">
+                        <UISheet @key=@Draft Target=@Draft.Tool PropertyFilter=@ToolPresetSettings.IsSetting @ref=Sheet />
+                    </div>
+                }
+                else
+                {
+                    <label class="empty">#ui.tool_presets.empty_editor</label>
+                }
+            </div>
+        </div>
+        <div class="editor-status">
+            @if ( !string.IsNullOrEmpty( Error ) )
+            {
+                <label class="error">@Error</label>
+            }
+            else
+            {
+                <label>@(Dirty ? "#ui.tool_presets.unsaved" : "#ui.tool_presets.local_only")</label>
+            }
+        </div>
+        <div class="editor-footer">
+            <UIButton Text="#ui.tool_presets.delete" Icon="delete" Disabled=@(SelectedId == Guid.Empty) @onclick=@RequestDelete />
+            <div class="spacer"></div>
+            <UIButton Text="#ui.tool_presets.save_changes" Icon="save" Disabled=@(Draft is null || string.IsNullOrWhiteSpace( DraftName )) @onclick=@(() => Save()) />
+            <UIButton Text="#ui.tool_presets.close" @onclick=@RequestClose />
+        </div>
+    </div>
+
+    @if ( PendingAction is not null || ConfirmDelete )
+    {
+        <div class="confirmation-shade">
+            <div class="confirmation">
+                <label class="confirmation-title">@(ConfirmDelete ? "#ui.tool_presets.delete_title" : "#ui.tool_presets.unsaved_title")</label>
+                <Label Tokenize=@false Text=@ConfirmationText />
+                <div class="confirmation-buttons">
+                    @if ( ConfirmDelete )
+                    {
+                        <UIButton Text="#ui.tool_presets.delete" Icon="delete" @onclick=@DeleteSelected />
+                        <UIButton Text="#spawnmenu.common.cancel" @onclick=@(() => ConfirmDelete = false) />
+                    }
+                    else
+                    {
+                        <UIButton Text="#ui.tool_presets.save" Icon="save" @onclick=@SaveAndContinue />
+                        <UIButton Text="#ui.tool_presets.discard" @onclick=@DiscardAndContinue />
+                        <UIButton Text="#spawnmenu.common.cancel" @onclick=@(() => PendingAction = null) />
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</root>
+
+@code
+{
+    [Parameter] public ToolMode Source { get; set; }
+    [Parameter] public Guid InitialSelection { get; set; }
+    string Key;
+    string ToolTitle;
+    bool Initialized;
+    List<ToolPreset> Presets = new();
+    Guid SelectedId;
+    ToolPresetDraft Draft;
+    UISheet Sheet;
+    string DraftName { get; set; }
+    string SavedName;
+    JsonObject SavedValues;
+    bool Dirty;
+    string Error;
+    Action PendingAction;
+    bool ConfirmDelete;
+    RealTimeSince LastCheck;
+    bool Focused;
+
+    public ToolPresetEditor()
+    {
+        // Property controls open their own dropdowns and resource/color pickers.
+        // Those must not close this editor and destroy the draft they are editing.
+        StayOpen = true;
+        AcceptsFocus = true;
+    }
+
+    public override void OnHotloaded()
+    {
+        base.OnHotloaded();
+        StayOpen = true;
+        AcceptsFocus = true;
+    }
+
+    string WindowTitle => Game.Language.GetPhrase( "ui.tool_presets.editor_title", new() { { "tool", ToolTitle ?? "" } } );
+    string ConfirmationText => ConfirmDelete
+        ? Game.Language.GetPhrase( "ui.tool_presets.delete_confirm", new() { { "name", Presets.FirstOrDefault( p => p.Id == SelectedId )?.Name ?? "" } } )
+        : Game.Language.GetPhrase( "ui.tool_presets.unsaved_confirm" );
+
+    public static ToolPresetEditor Open( Panel source, ToolMode tool, Guid selected = default )
+    {
+        var popup = new ToolPresetEditor { Source = tool, InitialSelection = selected };
+        popup.Parent = source.FindPopupPanel();
+        return popup;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if ( Initialized || !Source.IsValid() ) return;
+        Initialized = true;
+        Key = ToolPresetStore.Key( Source );
+        ToolTitle = Source.Name;
+        try
+        {
+            Presets = ToolPresetStore.Load( Key );
+            LoadPreset( Presets.FirstOrDefault( p => p.Id == InitialSelection ) ?? Presets.FirstOrDefault() );
+        }
+        catch ( Exception e ) { Error = ToolPresetStore.ErrorText( e ); }
+    }
+
+    void ReleaseDraft()
+    {
+        // Flush/delete controls while their serialized target is still alive.
+        Sheet?.Delete( true );
+        Sheet = null;
+        Draft?.Dispose();
+        Draft = null;
+    }
+
+    void LoadPreset( ToolPreset preset )
+    {
+        ReleaseDraft();
+        SelectedId = preset?.Id ?? Guid.Empty;
+        Dirty = false;
+        Error = null;
+        if ( preset is not null )
+        {
+            try
+            {
+                Draft = new ToolPresetDraft( Source, preset.Values );
+                DraftName = SavedName = preset.Name;
+                SavedValues = ToolPresetSettings.Capture( Draft.Tool );
+            }
+            catch ( Exception e ) { Error = ToolPresetStore.ErrorText( e ); }
+        }
+        StateHasChanged();
+    }
+
+    void RefreshDirty()
+    {
+        bool dirty = Draft is not null && (DraftName != SavedName || !JsonNode.DeepEquals( SavedValues, ToolPresetSettings.Capture( Draft.Tool ) ));
+        if ( dirty == Dirty ) return;
+        Dirty = dirty;
+        StateHasChanged();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+        if ( !Focused && Box.Rect.Width > 0f ) { Focus(); Focused = true; }
+        if ( LastCheck < 0.2f ) return;
+        LastCheck = 0;
+        RefreshDirty();
+    }
+
+    void Request( Action action )
+    {
+        RefreshDirty();
+        if ( Dirty ) { PendingAction = action; Focus(); }
+        else action();
+        StateHasChanged();
+    }
+
+    void RequestSelect( Guid id )
+    {
+        if ( id == SelectedId ) return;
+        Request( () => LoadPreset( Presets.FirstOrDefault( p => p.Id == id ) ) );
+    }
+
+    void RequestClose() => Request( () => Delete() );
+
+    void RequestDelete()
+    {
+        ConfirmDelete = true;
+        Focus();
+        StateHasChanged();
+    }
+
+    bool Save()
+    {
+        if ( Draft is null ) return false;
+        try
+        {
+            var saved = ToolPresetStore.Save( Key, SelectedId, DraftName, ToolPresetSettings.Capture( Draft.Tool ) );
+            DraftName = SavedName = saved.Name;
+            SavedValues = (JsonObject)saved.Values.DeepClone();
+            Presets = ToolPresetStore.Load( Key );
+            Dirty = false;
+            Error = null;
+            StateHasChanged();
+            return true;
+        }
+        catch ( Exception e ) { Error = ToolPresetStore.ErrorText( e ); StateHasChanged(); return false; }
+    }
+
+    void SaveAndContinue()
+    {
+        var action = PendingAction;
+        PendingAction = null;
+        if ( Save() ) action?.Invoke();
+        StateHasChanged();
+    }
+
+    void DiscardAndContinue()
+    {
+        var action = PendingAction;
+        PendingAction = null;
+        action?.Invoke();
+        StateHasChanged();
+    }
+
+    void DeleteSelected()
+    {
+        ConfirmDelete = false;
+        try
+        {
+            ToolPresetStore.Delete( Key, SelectedId );
+            Presets = ToolPresetStore.Load( Key );
+            LoadPreset( Presets.FirstOrDefault() );
+        }
+        catch ( Exception e ) { Error = ToolPresetStore.ErrorText( e ); }
+        StateHasChanged();
+    }
+
+    public override void OnButtonTyped( ButtonEvent e )
+    {
+        if ( e.Button == "escape" )
+        {
+            if ( ConfirmDelete || PendingAction is not null ) { ConfirmDelete = false; PendingAction = null; }
+            else RequestClose();
+            e.StopPropagation = true;
+            StateHasChanged();
+            return;
+        }
+        base.OnButtonTyped( e );
+    }
+
+    protected override void OnMouseDown( MousePanelEvent e )
+    {
+        base.OnMouseDown( e );
+        if ( e.Target == this && PendingAction is null && !ConfirmDelete ) RequestClose();
+    }
+
+    public override void OnDeleted()
+    {
+        ReleaseDraft();
+        base.OnDeleted();
+    }
+}

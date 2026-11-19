@@ -1,0 +1,543 @@
+{
+  "Title": "Gears",
+  "Description": "",
+  "Icon": "settings",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "881eeef9-7802-4ab2-b0a8-7a4335c15b87",
+    "Path": "spawnlists/garrysmod/garrys_mod/builder.spawn"
+  },
+  "Order": 11,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Gears",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/bevel9.mdl",
+      "Title": "bevel9",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/bevel12.mdl",
+      "Title": "bevel12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/bevel24.mdl",
+      "Title": "bevel24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/bevel36.mdl",
+      "Title": "bevel36",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/bevel90_24.mdl",
+      "Title": "bevel90_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/bevel_12t1.mdl",
+      "Title": "bevel_12t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/bevel_18t1.mdl",
+      "Title": "bevel_18t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/bevel_24t1.mdl",
+      "Title": "bevel_24t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/bevel_36t1.mdl",
+      "Title": "bevel_36t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/bevel_48t1.mdl",
+      "Title": "bevel_48t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/bevel_60t1.mdl",
+      "Title": "bevel_60t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/spur9.mdl",
+      "Title": "spur9",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/spur12.mdl",
+      "Title": "spur12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/spur24.mdl",
+      "Title": "spur24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/spur36.mdl",
+      "Title": "spur36",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/mechanics/medgear.mdl",
+      "Title": "medgear",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/mechanics/biggear.mdl",
+      "Title": "biggear",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear12x12_small.mdl",
+      "Title": "gear12x12_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear12x12.mdl",
+      "Title": "gear12x12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear12x12_large.mdl",
+      "Title": "gear12x12_large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear12x24_small.mdl",
+      "Title": "gear12x24_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear12x24.mdl",
+      "Title": "gear12x24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear12x24_large.mdl",
+      "Title": "gear12x24_large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear12x6_small.mdl",
+      "Title": "gear12x6_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear12x6.mdl",
+      "Title": "gear12x6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear12x6_large.mdl",
+      "Title": "gear12x6_large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear16x12_small.mdl",
+      "Title": "gear16x12_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear16x12.mdl",
+      "Title": "gear16x12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear16x12_large.mdl",
+      "Title": "gear16x12_large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear16x24_small.mdl",
+      "Title": "gear16x24_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear16x24.mdl",
+      "Title": "gear16x24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear16x24_large.mdl",
+      "Title": "gear16x24_large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear16x6_small.mdl",
+      "Title": "gear16x6_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear16x6.mdl",
+      "Title": "gear16x6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear16x6_large.mdl",
+      "Title": "gear16x6_large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear24x12_small.mdl",
+      "Title": "gear24x12_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear24x12.mdl",
+      "Title": "gear24x12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear24x12_large.mdl",
+      "Title": "gear24x12_large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear24x24_small.mdl",
+      "Title": "gear24x24_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear24x24.mdl",
+      "Title": "gear24x24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear24x24_large.mdl",
+      "Title": "gear24x24_large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear24x6_small.mdl",
+      "Title": "gear24x6_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear24x6.mdl",
+      "Title": "gear24x6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears/gear24x6_large.mdl",
+      "Title": "gear24x6_large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_12t1.mdl",
+      "Title": "gear_12t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_12t2.mdl",
+      "Title": "gear_12t2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_12t3.mdl",
+      "Title": "gear_12t3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_18t1.mdl",
+      "Title": "gear_18t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_18t2.mdl",
+      "Title": "gear_18t2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_18t3.mdl",
+      "Title": "gear_18t3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_24t1.mdl",
+      "Title": "gear_24t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_24t2.mdl",
+      "Title": "gear_24t2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_24t3.mdl",
+      "Title": "gear_24t3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_36t1.mdl",
+      "Title": "gear_36t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_36t2.mdl",
+      "Title": "gear_36t2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_36t3.mdl",
+      "Title": "gear_36t3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_48t1.mdl",
+      "Title": "gear_48t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_48t2.mdl",
+      "Title": "gear_48t2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_48t3.mdl",
+      "Title": "gear_48t3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_60t1.mdl",
+      "Title": "gear_60t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_60t2.mdl",
+      "Title": "gear_60t2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/gear_60t3.mdl",
+      "Title": "gear_60t3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/vert_12t1.mdl",
+      "Title": "vert_12t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/vert_18t1.mdl",
+      "Title": "vert_18t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/vert_24t1.mdl",
+      "Title": "vert_24t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/vert_36t1.mdl",
+      "Title": "vert_36t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Teeth",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/pinion_20t1.mdl",
+      "Title": "pinion_20t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/pinion_20t2.mdl",
+      "Title": "pinion_20t2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/pinion_20t3.mdl",
+      "Title": "pinion_20t3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/pinion_40.mdl",
+      "Title": "pinion_40",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/pinion_40t1.mdl",
+      "Title": "pinion_40t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/pinion_40t2.mdl",
+      "Title": "pinion_40t2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/pinion_40t3.mdl",
+      "Title": "pinion_40t3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/pinion_80t1.mdl",
+      "Title": "pinion_80t1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/pinion_80t2.mdl",
+      "Title": "pinion_80t2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/gears2/pinion_80t3.mdl",
+      "Title": "pinion_80t3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/rack9.mdl",
+      "Title": "rack9",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/rack18.mdl",
+      "Title": "rack18",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/rack36.mdl",
+      "Title": "rack36",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/gears/rack70.mdl",
+      "Title": "rack70",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/mechanics/slider1.mdl",
+      "Title": "slider1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/mechanics/slider2.mdl",
+      "Title": "slider2",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Racks",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/mechanics/mech1.mdl",
+      "Title": "mech1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/mechanics/mech2.mdl",
+      "Title": "mech2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/mechanics/mech3.mdl",
+      "Title": "mech3",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

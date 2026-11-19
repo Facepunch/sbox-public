@@ -1,0 +1,97 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "security_shutter_box_end_right.vmat"
+								to = "models/sbox/shop/security_shutter/security_shutter_frame.vmat"
+							},
+						]
+						use_global_default = true
+						global_default_material = "models/sbox/shop/security_shutter/security_shutter_frame_no_tile.vmat"
+					},
+					{
+						_class = "MaterialGroup"
+						name = "painted"
+						remaps = 
+						[
+							{
+								from = "models/sbox/shop/security_shutter/security_shutter_frame_no_tile.vmat"
+								to = "models/sbox/shop/security_shutter/security_shutter_frame_painted_no_tile.vmat"
+							},
+						]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						filename = "models/sbox/shop/security_shutter/security_shutter_box_end_right_lod0.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = [  ]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_prop = "default"
+						origin = [ -2.484744, 11.965344, 7.100835 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 4.968702, 24.061953, 17.755745 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_prop = "default"
+						origin = [ -2.484744, 14.085239, 17.801252 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 4.968702, 19.822163, 4.622609 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_prop = "default"
+						origin = [ -2.484744, 3.547672, 16.30472 ]
+						angles = [ -0.0, 0.0, 45.145126 ]
+						dimensions = [ 4.968702, 5.451275, 4.622609 ]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+	}
+}

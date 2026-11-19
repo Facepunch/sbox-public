@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "Hold {input:SpawnMenu} inne for å åpne spawnmenyen",
+    "hint.openinspectmenu": "Hold {input:InspectMenu} inne for å åpne inspeksjonsmenyen",
+    "hint.openpausemenu": "Trykk ESC for å åpne pausemenyen og sjekke kontrollene dine"
+}

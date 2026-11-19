@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/trike.prefab",
+  "Title": "#asset.trike.title",
+  "Description": "#asset.trike.description",
+  "__references": [],
+  "__version": 0
+}

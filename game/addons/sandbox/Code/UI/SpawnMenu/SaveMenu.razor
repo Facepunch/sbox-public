@@ -1,0 +1,196 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits Panel
+@attribute [InspectWindow.Tab<SpawnMenuHost.HostOnly>]
+@attribute [Icon( "💾" )]
+@attribute [Title( "#spawnmenu.tab.saves" )]
+@attribute [Order( 100 )]
+
+<root>
+    <div class="save-list">
+        @if ( !SaveFiles.Any() )
+        {
+            <div class="empty-state">
+                <IconPanel Text="bookmark_border" />
+                <label>#spawnmenu.saves.empty</label>
+            </div>
+        }
+        @foreach ( var save in SaveFiles )
+        {
+            var s = save;
+            <div class="save-card @(!s.IsCompatible ? "outdated" : "")"
+                 @onclick="@(() => ConfirmLoad( s ))"
+                 @onmousedown="@((PanelEvent e) => OnCardMouseDown( s, e ))">
+                <div class="save-preview">
+                    @if ( s.Thumbnail != null )
+                    {
+                        <Image class="save-thumb" Texture="@s.Thumbnail" />
+                    }
+                    else
+                    {
+                        <IconPanel class="save-preview-placeholder" Text="image" />
+                    }
+                </div>
+                <div class="save-info">
+                    <label class="save-name">@s.DisplayName</label>
+                    <div class="save-meta">
+                        @if ( !string.IsNullOrEmpty( s.Timestamp ) )
+                        {
+                            <label class="save-timestamp">@s.Timestamp</label>
+                        }
+                        @if ( !s.IsCompatible )
+                        {
+                            <label class="save-outdated-badge">#spawnmenu.saves.outdated_badge</label>
+                        }
+                    </div>
+                </div>
+                <UIButton class="save-delete" Icon="delete" @onclick="@((PanelEvent e) => OnDeletePressed( s, e ))"></UIButton>
+            </div>
+        }
+    </div>
+    <div class="footer">
+        <TextEntry @ref="SaveNameEntry" Placeholder="#spawnmenu.saves.name_placeholder" @onsubmit="@OnSave"></TextEntry>
+        <UIButton Text="#spawnmenu.saves.save_button" @onclick="@OnSave"></UIButton>
+    </div>
+</root>
+
+@code
+{
+    TextEntry SaveNameEntry { get; set; }
+    List<SaveFileEntry> SaveFiles = new();
+
+    record SaveFileEntry( string FileName, string DisplayName, string Timestamp, Texture Thumbnail, bool IsCompatible );
+    static string SavesPath => "saves";
+
+    protected override void OnAfterTreeRender ( bool firstTime )
+    {
+        if ( firstTime )
+        {
+            RefreshSaveList();
+        }
+    }
+
+    void RefreshSaveList()
+    {
+        SaveFiles.Clear();
+
+        if ( !FileSystem.Data.DirectoryExists( SavesPath ) )
+        {
+            FileSystem.Data.CreateDirectory( SavesPath );
+        }
+
+        foreach ( var file in FileSystem.Data.FindFile( SavesPath, "*.sav" ) )
+        {
+            var filePath = $"{SavesPath}/{file}";
+            var displayName = file;
+            string timestamp = null;
+            Texture thumbnail = null;
+
+            var metadata = SaveSystem.GetFileMetadata( filePath );
+            if ( metadata != null )
+            {
+                if ( metadata.TryGetValue( "Title", out var name ) )
+                    displayName = name;
+                if ( metadata.TryGetValue( "Timestamp", out var ts ) )
+                    timestamp = ts;
+            }
+
+            var isCompatible = SaveSystem.GetFileSaveVersion( filePath ) == SaveSystem.SaveVersion;
+
+            var thumbPath = $"{SavesPath}/{System.IO.Path.GetFileNameWithoutExtension( file )}.thumb.png";
+            if ( FileSystem.Data.FileExists( thumbPath ) )
+            {
+                thumbnail = Texture.LoadFromFileSystem( thumbPath, FileSystem.Data );
+            }
+
+            SaveFiles.Add( new SaveFileEntry( file, displayName, timestamp, thumbnail, isCompatible ) );
+        }
+
+        StateHasChanged();
+    }
+
+    void OnCardMouseDown( SaveFileEntry save, PanelEvent e )
+    {
+        if ( e is MousePanelEvent { MouseButton: MouseButtons.Right } me )
+        {
+            me.StopPropagation();
+
+            var menu = new Sandbox.UI.Menu();
+            menu.AddOption( "#spawnmenu.saves.load_context", "download", () => ConfirmLoad( save ) );
+            menu.AddOption( "#spawnmenu.saves.delete_context", "delete", () => ConfirmDelete( save ) );
+
+            menu.Open( this, Popup.PositionMode.UnderMouse );
+        }
+    }
+
+    // the trash button sits on the card, pressing it shouldn't count as a click on the card
+    void OnDeletePressed( SaveFileEntry save, PanelEvent e )
+    {
+        e.StopPropagation();
+        ConfirmDelete( save );
+    }
+
+    static string Phrase( string token, SaveFileEntry save ) => Game.Language.GetPhrase( token, new() { { "name", UIModal.Escape( save.DisplayName ) } } );
+
+    void ConfirmLoad( SaveFileEntry save )
+    {
+        if ( !save.IsCompatible )
+        {
+            UIModal.Confirm( this, "#spawnmenu.saves.incompatible_title", Phrase( "spawnmenu.saves.incompatible_message", save ), null, "#spawnmenu.common.ok", null );
+            return;
+        }
+
+        UIModal.Confirm( this, "#spawnmenu.saves.load_title", Phrase( "spawnmenu.saves.load_confirm", save ),
+            () => LoadSave( save.FileName ), "#spawnmenu.saves.load_button", "#spawnmenu.saves.cancel_button" );
+    }
+
+    void ConfirmDelete( SaveFileEntry save )
+    {
+        UIModal.Confirm( this, "#spawnmenu.saves.delete_title", Phrase( "spawnmenu.saves.delete_confirm", save ),
+            () => DeleteSave( save.FileName ), "#spawnmenu.saves.delete_button", "#spawnmenu.saves.cancel_button" );
+    }
+
+    void OnSave()
+    {
+        var saveName = SaveNameEntry?.Text?.Trim();
+
+        if ( string.IsNullOrEmpty( saveName ) )
+            return;
+
+        var now = DateTime.Now;
+        var timeString = now.ToString( "yyyy-MM-dd HH:mm:ss" );
+        var baseName = now.ToString( "yyyy-MM-dd-HH-mm-ss" );
+        var fileName = $"{SavesPath}/{baseName}.sav";
+
+        // Capture a 256x144 (16:9) thumbnail from the scene camera
+        var camera = Game.ActiveScene?.Camera;
+        if ( camera.IsValid() )
+        {
+            var bitmap = new Bitmap( 256, 144 );
+            camera.RenderToBitmap( bitmap );
+            FileSystem.Data.WriteAllBytes( $"{SavesPath}/{baseName}.thumb.png", bitmap.ToPng() );
+        }
+
+        SaveSystem.Current.SetMetadata( "Timestamp", timeString );
+        SaveSystem.Current.SetMetadata( "Title", saveName );
+        SaveSystem.Current.Save( fileName );
+
+        SaveNameEntry.Text = "";
+        RefreshSaveList();
+    }
+
+    void LoadSave( string fileName )
+    {
+        _ = SaveSystem.Current.Load( $"{SavesPath}/{fileName}" );
+    }
+
+    void DeleteSave( string fileName )
+    {
+        FileSystem.Data.DeleteFile( $"{SavesPath}/{fileName}" );
+        var thumbPath = $"{SavesPath}/{System.IO.Path.GetFileNameWithoutExtension( fileName )}.thumb.png";
+        if ( FileSystem.Data.FileExists( thumbPath ) )
+            FileSystem.Data.DeleteFile( thumbPath );
+        RefreshSaveList();
+    }
+}

@@ -1,0 +1,357 @@
+{
+  "Title": "Items and Weapons",
+  "Description": "",
+  "Icon": "collections_bookmark",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "4a40a186-0eb7-4050-b196-73d05dfa2df9",
+    "Path": "spawnlists/garrysmod/half_life_2.spawn"
+  },
+  "Order": 20,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Items & Pickups",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/ar2_grenade.mdl",
+      "Title": "ar2_grenade",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/boxbuckshot.mdl",
+      "Title": "boxbuckshot",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/357ammo.mdl",
+      "Title": "357ammo",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/boxmrounds.mdl",
+      "Title": "boxmrounds",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/boxsrounds.mdl",
+      "Title": "boxsrounds",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/combine_rifle_ammo01.mdl",
+      "Title": "combine_rifle_ammo01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/combine_rifle_cartridge01.mdl",
+      "Title": "combine_rifle_cartridge01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/crossbowrounds.mdl",
+      "Title": "crossbowrounds",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/grenadeammo.mdl",
+      "Title": "grenadeammo",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/boxflares.mdl",
+      "Title": "boxflares",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/hevsuit.mdl",
+      "Title": "hevsuit",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/battery.mdl",
+      "Title": "battery",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/healthkit.mdl",
+      "Title": "healthkit",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/healthvial.mdl",
+      "Title": "healthvial",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_missile_closed.mdl",
+      "Title": "w_missile_closed",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Weapons",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_stunbaton.mdl",
+      "Title": "w_stunbaton",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_crowbar.mdl",
+      "Title": "w_crowbar",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_physics.mdl",
+      "Title": "w_physics",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_physics.mdl",
+      "Title": "w_physics",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_357.mdl",
+      "Title": "w_357",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_alyx_gun.mdl",
+      "Title": "w_alyx_gun",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_pistol.mdl",
+      "Title": "w_pistol",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_irifle.mdl",
+      "Title": "w_irifle",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_smg1.mdl",
+      "Title": "w_smg1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_crossbow.mdl",
+      "Title": "w_crossbow",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_shotgun.mdl",
+      "Title": "w_shotgun",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_annabelle.mdl",
+      "Title": "w_annabelle",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_rocket_launcher.mdl",
+      "Title": "w_rocket_launcher",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_grenade.mdl",
+      "Title": "w_grenade",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_slam.mdl",
+      "Title": "w_slam",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_bugbait.mdl",
+      "Title": "w_bugbait",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/airboatgun.mdl",
+      "Title": "airboatgun",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/gibs/gunship_gibs_nosegun.mdl",
+      "Title": "gunship_gibs_nosegun",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/gibs/strider_weapon.mdl",
+      "Title": "strider_weapon",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/alyx_emptool_prop.mdl",
+      "Title": "alyx_emptool_prop",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_canal/mattpipe.mdl",
+      "Title": "mattpipe",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/bunker_gun01.mdl",
+      "Title": "bunker_gun01",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Projectiles",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_bullet.mdl",
+      "Title": "w_bullet",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/flare.mdl",
+      "Title": "flare",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/flare.mdl",
+      "Title": "flare",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/rifleshell.mdl",
+      "Title": "rifleshell",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/shell.mdl",
+      "Title": "shell",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/shotgun_shell.mdl",
+      "Title": "shotgun_shell",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_missile_launch.mdl",
+      "Title": "w_missile_launch",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_missile.mdl",
+      "Title": "w_missile",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/ar2_grenade.mdl",
+      "Title": "ar2_grenade",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/crossbow_bolt.mdl",
+      "Title": "crossbow_bolt",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Misc",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/ammocrate_rockets.mdl",
+      "Title": "ammocrate_rockets",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/ammocrate_smg1.mdl",
+      "Title": "ammocrate_smg1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/ammocrate_ar2.mdl",
+      "Title": "ammocrate_ar2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/ammocrate_grenade.mdl",
+      "Title": "ammocrate_grenade",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/item_item_crate_dynamic.mdl",
+      "Title": "item_item_crate_dynamic",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/items/item_item_crate.mdl",
+      "Title": "item_item_crate",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

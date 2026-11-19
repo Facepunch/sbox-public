@@ -101,8 +101,9 @@ internal sealed partial class PackageLoader : IDisposable
 
 		// Entries without a package come from a stream (e.g. assemblies sent by a server)
 		// and were already swapped in by AddAssembly when they arrived.
+		loadedPackages.RemoveWhere( x => x.FileSystem is null );
 		var changedPackageDlls = allChangedDlls
-										.Where( x => x.ap is not null )
+										.Where( x => x.ap?.FileSystem is not null )
 										.ToArray();
 
 		var changedPackages = new HashSet<PackageManager.ActivePackage>();
@@ -293,7 +294,7 @@ internal sealed partial class PackageLoader : IDisposable
 		log.Trace( $"LoadPackage( {ident} )" );
 		var sw = Stopwatch.StartNew();
 
-		var ap = PackageManager.Find( ident, true, exactName );
+		var ap = PackageManager.Find( ident, exactName );
 		if ( ap == null )
 		{
 			var packages = string.Join( " - \n", PackageManager.ActivePackages.Select( x => x.Package.FullIdent ) );
@@ -301,6 +302,7 @@ internal sealed partial class PackageLoader : IDisposable
 			throw new System.Exception( $"LoadPackage: Couldn't find active package '{ident}' ({exactName}:exactName)\n{packages}" );
 		}
 
+		loadedPackages.RemoveWhere( x => x.FileSystem is null );
 		if ( loadedPackages.Contains( ap ) )
 			return true;
 
@@ -324,7 +326,7 @@ internal sealed partial class PackageLoader : IDisposable
 
 				if ( needsToolsPackage )
 				{
-					LoadPackage( "local.toolbase#local" );
+					LoadPackage( "local.toolbase" );
 				}
 			}
 		}
@@ -334,7 +336,7 @@ internal sealed partial class PackageLoader : IDisposable
 		//
 		foreach ( var child in ap.Package.EnumeratePackageReferences() )
 		{
-			if ( PackageManager.Find( child, true, false ) == null )
+			if ( PackageManager.Find( child ) == null )
 			{
 				log.Warning( $"LoadPackage: skipping missing dependency '{child}'" );
 				continue;
@@ -647,7 +649,7 @@ internal sealed partial class PackageLoader : IDisposable
 	/// </summary>
 	public LoadedAssembly[] GetLoadedAssemblies( string packageIdent, bool deep, bool allowEditor )
 	{
-		var package = PackageManager.Find( packageIdent, true );
+		var package = PackageManager.Find( packageIdent );
 		if ( package is null ) return Array.Empty<LoadedAssembly>();
 
 		var assemblyList = package.AssemblyFileSystem.FindFile( "", "*.dll", true ).ToArray();
