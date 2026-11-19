@@ -254,6 +254,15 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// </summary>
 	public bool HasSynced { get; private set; }
 
+	/// <summary>Whether a frame on screen has drawn this world: until then a game's scene is loaded ahead (<see cref="SceneBridge.BeginFrame"/>).</summary>
+	internal bool Shown { get; set; }
+
+	/// <summary>Unseen renders of this world before it was shown (<see cref="SceneBridge.BeginFrame"/>).</summary>
+	internal int UnseenRenders { get; set; }
+
+	/// <summary>The frame the game's load was first seen finished while this world wasn't shown yet, or 0.</summary>
+	internal ulong LoadedFrame { get; set; }
+
 	/// <summary>Whether <see cref="Sync"/> defers what applying changes writes into one list (on). For comparisons.</summary>
 	internal static bool DeferApplyUploads { get; set; } = true;
 
@@ -275,9 +284,39 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		}
 	}
 
+	/// <summary>
+	/// Apply what changed without a camera, for a scene loading behind a loading screen that nothing renders yet: its objects'
+	/// models start reading on workers and are made, so the first frame that renders it has them, as native's load makes
+	/// them. The lighting waits for a camera's <see cref="Sync"/>.
+	/// </summary>
+	public void SyncObjects()
+	{
+		using var zone = Borealis.Zones.MirrorSync.Start();
+		syncing = true;
+		try
+		{
+			ApplyChanges();
+		}
+		finally
+		{
+			syncing = false;
+		}
+	}
+
 	void SyncChanges( SceneCamera camera, bool skyboxView )
 	{
+		ApplyChanges();
 
+		// An extra world's objects are lit by the main world's sun, sky, probe volumes and fog, as native lights the view
+		if ( SubWorld == 0 )
+		{
+			using ( Borealis.Zones.MirrorLighting.Start() )
+				SyncLighting( camera, skyboxView );
+		}
+	}
+
+	void ApplyChanges()
+	{
 		// A reload queues the objects drawing what it changed, and so does a model finishing loading
 		using ( Borealis.Zones.MirrorLoaded.Start() )
 		{
@@ -314,13 +353,6 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		applying.Clear();
 
 		SweepCaches( frame );
-
-		// An extra world's objects are lit by the main world's sun, sky, probe volumes and fog, as native lights the view
-		if ( SubWorld == 0 )
-		{
-			using ( Borealis.Zones.MirrorLighting.Start() )
-				SyncLighting( camera, skyboxView );
-		}
 	}
 
 	/// <summary>

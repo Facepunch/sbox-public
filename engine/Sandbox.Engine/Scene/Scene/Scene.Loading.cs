@@ -68,6 +68,11 @@ public partial class Scene : GameObject
 
 			if ( !IsValid ) return;
 
+			// The models and textures the renderer still loads in the background for what's loaded
+			if ( this is not PrefabScene ) await BorealisGpuRenderBackend.WaitForContent();
+
+			if ( !IsValid ) return;
+
 			//
 			// Some people are locking up forever. Need more info.
 			//
