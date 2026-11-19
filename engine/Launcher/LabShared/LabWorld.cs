@@ -23,7 +23,7 @@ internal interface ILabContent
 	(GpuMaterial Material, GpuTexture Cubemap) Sky( string path );
 
 	/// <summary>
-	/// A small sky cubemap made at runtime (<see cref="Lab.SkyCube"/>), for cubemap fog.
+	/// A sky cubemap, for cubemap fog.
 	/// </summary>
 	GpuTexture SkyCube();
 

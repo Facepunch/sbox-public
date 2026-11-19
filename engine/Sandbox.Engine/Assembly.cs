@@ -22,7 +22,6 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Sandbox.Mounting.Test" )]
 [assembly: InternalsVisibleTo( "sbox-launcher" )]
 [assembly: InternalsVisibleTo( "panelgallery" )]
-[assembly: InternalsVisibleTo( "scenelab" )]
 [assembly: InternalsVisibleTo( "borealislab" )]
 [assembly: InternalsVisibleTo( "Borealis" )]
 [assembly: InternalsVisibleTo( "Sandbox.Rendering" )]
