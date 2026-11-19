@@ -2399,7 +2399,7 @@ internal sealed partial class BackendContext
 			material.Textures.TryGetValue( variable.Name, out var texture );
 			var srgb = variable.RenderStateId == 1;
 			int slot;
-			if ( texture is not null && Gpu.BindlessIndex( texture.Handle ) is >= 0 and var index )
+			if ( texture is { IsValid: true } && Gpu.BindlessIndex( texture.Handle ) is >= 0 and var index )
 			{
 				// SrgbRead( true ) textures read the sRGB view, one after the linear one, where the format has one
 				slot = index + (srgb && Gpu.InfoOf( texture.Handle ).Format.HasSrgb() ? 1 : 0);
