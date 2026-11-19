@@ -126,7 +126,8 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 		return default;
 	}
 
-	IMaterialMode Graphics.IFrameView.ModeFor( Material material ) => material.native.GetMode();
+	// Only Source 2's backend binds a material's native mode; Borealis.Gpu picks its shader's mode itself
+	IMaterialMode Graphics.IFrameView.ModeFor( Material material ) => default;
 
 	StringToken Graphics.IFrameView.DrawShaderMode => ShaderMode;
 
