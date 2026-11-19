@@ -1,4 +1,4 @@
-// borealis_gpu_driven_ids: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// borealis_gpu_driven_ids: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis GPU-driven depth prepass that also writes ids, for depth draws without a pixel shader: depth_only's depth, and each sample's triangle by its first vertex at target 1, for the visibility-driven forward pass. The pipeline takes culling, depth and stencil from the variant it stands in for.";

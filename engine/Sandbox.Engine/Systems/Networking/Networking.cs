@@ -14,6 +14,7 @@ namespace Sandbox;
 /// <summary>
 /// Global manager to hold and tick the singleton instance of NetworkSystem.
 /// </summary>
+[Expose]
 public static partial class Networking
 {
 	internal const int ReceiveBatchSize = 32;

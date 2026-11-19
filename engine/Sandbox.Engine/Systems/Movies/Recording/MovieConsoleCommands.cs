@@ -121,7 +121,7 @@ internal static class MovieConsoleCommands
 			? recorder.ToClip( (_lastSaveTime, recorder.Time) )
 			: recorder.ToClip();
 
-		var filePath = Path.Combine( "movies", $"{fileName ?? GenerateMovieName()}.movie" );
+		var filePath = GetMovieFilePath( fileName ?? GenerateMovieName() );
 		var directory = Path.GetDirectoryName( filePath );
 
 		if ( !string.IsNullOrEmpty( directory ) )
@@ -137,6 +137,16 @@ internal static class MovieConsoleCommands
 		_recordingCount++;
 	}
 
+
+	internal static string GetMovieFilePath( string fileName )
+	{
+		var filePath = Path.Combine( "movies", $"{SafePath.ToFileName( fileName, "movie", 128 )}.movie" );
+
+		if ( !SafePath.IsWithin( "movies", filePath ) )
+			throw new ArgumentException( "Movie path escapes 'movies'", nameof( fileName ) );
+
+		return filePath;
+	}
 
 	/// <summary>
 	/// Stops the current recording without saving it.

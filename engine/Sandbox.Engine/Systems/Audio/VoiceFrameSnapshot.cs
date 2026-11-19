@@ -111,6 +111,8 @@ internal struct DirectSoundParams
 	public Vector3 Position;
 	public float Distance;
 	public Curve Falloff;
+	public SoundFalloffMode FalloffMode;
+	public float MinDistance;
 	public FrequencyBands TransmissionBands;
 	public bool DistanceAttenuation;
 	public bool OcclusionEnabled;

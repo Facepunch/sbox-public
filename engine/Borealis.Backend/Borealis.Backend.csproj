@@ -3,7 +3,7 @@
   <!--
     Borealis's GpuDevice and GpuContext on Borealis.Gpu: what lets an unmodified RenderSystem render through Borealis's own
     Vulkan device instead of Source 2's. The first, small form of the renderer services that sit between Borealis and its
-    RHI. See docs/managed/borealis-gpu.md.
+    RHI. See docs/reference/borealis-gpu.md.
   -->
 
   <PropertyGroup>

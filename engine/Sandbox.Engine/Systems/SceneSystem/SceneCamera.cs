@@ -578,6 +578,15 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	}
 
 	/// <summary>
+	/// Render without anti-aliasing: no MSAA, CMAA2 or temporal upscaling. The player's render resolution and FSR1 still apply.
+	/// </summary>
+	internal bool DisableAntiAliasing
+	{
+		get => Attributes.GetBool( "disableAntiAliasing" );
+		set => Attributes.Set( "disableAntiAliasing", value );
+	}
+
+	/// <summary>
 	/// Toggle all post processing effects for this camera. The default is on.
 	/// </summary>
 	public bool EnablePostProcessing { get; set; } = true;
@@ -612,15 +621,15 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// </summary>
 	internal bool ToolsView { get; set; }
 
-	private static WeakReference<SceneCamera> _recordingCamera;
+	private static readonly WeakReference<SceneCamera> _recordingCamera = new( null );
 
 	/// <summary>
 	/// The camera currently used for video/screenshot recording.
 	/// </summary>
 	internal static SceneCamera RecordingCamera
 	{
-		get => _recordingCamera?.TryGetTarget( out var cam ) == true ? cam : null;
-		set => _recordingCamera = value is not null ? new WeakReference<SceneCamera>( value ) : null;
+		get => _recordingCamera.TryGetTarget( out var cam ) ? cam : null;
+		set => _recordingCamera.SetTarget( value );
 	}
 
 	internal bool IsRecordingCamera => RecordingCamera == this;
@@ -740,7 +749,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// </summary>
 	void ApplyAntiAliasing()
 	{
-		if ( AllowCmaa2 && !Graphics.IsCapture && RenderSettings.Instance.AntiAliasMode == AntiAliasMode.Cmaa2
+		if ( AllowCmaa2 && !DisableAntiAliasing && !Graphics.IsCapture && RenderSettings.Instance.AntiAliasMode == AntiAliasMode.Cmaa2
 			&& Graphics.ToolsVisMode == (int)SceneCameraDebugMode.Normal )
 		{
 			_cmaa2Renderer.Value.Render();

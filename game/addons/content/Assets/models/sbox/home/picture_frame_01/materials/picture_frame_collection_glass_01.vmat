@@ -1,0 +1,11 @@
+
+Layer0
+{
+	shader "shaders/complex.shader_c"
+
+	TextureColor "models/sbox/home/picture_frame_01/materials/picture_frame_collection_glass_01_color.png"
+	TextureAmbientOcclusion "models/sbox/home/picture_frame_01/materials/picture_frame_collection_glass_01_ao.png"
+	TextureNormal "materials/default/default_normal.tga"
+	TextureRoughness "models/sbox/home/picture_frame_01/materials/picture_frame_collection_glass_01_rough.png"
+
+}

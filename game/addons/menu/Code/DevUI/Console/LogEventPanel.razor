@@ -1,29 +1,165 @@
 @namespace Sandbox.UI.Dev
 @inherits Panel
 
-<root class="@classes">
-    <div class="close" onclick="@Hide"><i>close</i></div>
-    <div @ref="Output" class="message" AllowChildSelection="true" AcceptsFocus="true" @onkeypress="KeyPress">
-        <div class="text">@message</div>
-        <div class="stack">@entry.Stack</div>
-    </div>
+@*
+    A line's details, over the log's bottom once it's clicked - what it is, who logged it and when; all of what it said;
+    then where in our code it came from, a frame each: what was running, and the file and line under it.
+*@
+<root class="logeventpanel @(visible ? "open" : "hidden") @LevelClass">
+    @if ( visible )
+    {
+        <MenuProject.Platform.PanelHead>
+            <Heading>
+                <div class="heading">
+                    <div class="tile"><i>@LevelIcon</i></div>
+                    <label class="title">@LevelName</label>
+                    <label class="logger">@entry.Logger</label>
+                </div>
+            </Heading>
+            <Tools>
+                <label class="when">@Ago</label>
+                <div class="tool" onclick=@Copy><i>content_copy</i></div>
+                <div class="tool" onclick=@Hide><i>close</i></div>
+            </Tools>
+        </MenuProject.Platform.PanelHead>
+
+        <div class="details" @ref="Output" AllowChildSelection="true" AcceptsFocus="true">
+            <label class="text">@entry.Message</label>
+
+            @* A line down the frames, a dot on it each - the first, where it happened, in its level's colour *@
+            @if ( frames.Count > 0 )
+            {
+                <div class="trace">
+                    @for ( var i = 0; i < frames.Count; i++ )
+                    {
+                        var frame = frames[i];
+
+                        <div class="frame @(i == 0 ? "origin" : "") @(i == frames.Count - 1 ? "end" : "")">
+                            <div class="line"></div>
+                            <div class="dot"></div>
+                            <label class="call">@frame.Call</label>
+                            <label class="where">@frame.Where</label>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
 </root>
 
 @code
 {
     LogEvent entry;
     bool visible;
-
-    string classes => $"logeventpanel {(visible?"visible":"hidden")}";
-    string message => $"[{entry.Logger}] {entry.Message}";
     Panel Output = default;
+
+    /// <summary>
+    /// Showing a line's details
+    /// </summary>
+    public bool IsOpen => visible;
+
+    /// <summary>
+    /// A frame of its stack - Type.Method, and File.cs:line
+    /// </summary>
+    record struct Frame( string Call, string Where );
+
+    List<Frame> frames = new();
+
+    string LevelClass => entry.Level switch { LogLevel.Error => "error", LogLevel.Warn => "warn", _ => "info" };
+    string LevelIcon => entry.Level switch { LogLevel.Error => "error", LogLevel.Warn => "warning", _ => "info" };
+    string LevelName => entry.Level switch { LogLevel.Error => "Error", LogLevel.Warn => "Warning", LogLevel.Trace => "Trace", _ => "Info" };
+
+    /// <summary>
+    /// How long ago it was logged
+    /// </summary>
+    string Ago
+    {
+        get
+        {
+            var age = DateTime.Now - entry.Time;
+            if ( age.TotalSeconds < 5 ) return "just now";
+            if ( age.TotalMinutes < 1 ) return $"{(int)age.TotalSeconds}s ago";
+            if ( age.TotalHours < 1 ) return $"{(int)age.TotalMinutes}m ago";
+            if ( age.TotalDays < 1 ) return $"{(int)age.TotalHours}h ago";
+            return entry.Time.ToString( "d MMM" );
+        }
+    }
+
+    // Again as it ages
+    protected override int BuildHash() => HashCode.Combine( visible, entry.Time, entry.Message, Ago );
 
     public void Switch( LogEvent e )
     {
         entry = e;
         visible = true;
+        frames = Parse( e.Stack );
         StateHasChanged();
         UnselectAllInChildren();
+
+        if ( Output.IsValid() )
+            Output.ScrollOffset = Vector2.Zero;
+    }
+
+    /// <summary>
+    /// The frames with their source - "at Namespace.Type.Method(Args) in C:\path\File.cs:line 12" read as Type.Method
+    /// and File.cs:12. The rest (the engine's, the runtime's) left off, and a frame the same as the one before it.
+    /// </summary>
+    static List<Frame> Parse( string stack )
+    {
+        var list = new List<Frame>();
+        if ( string.IsNullOrWhiteSpace( stack ) ) return list;
+
+        foreach ( var line in stack.Split( '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ) )
+        {
+            if ( !line.StartsWith( "at " ) ) continue;
+
+            var halves = line[3..].Split( " in ", 2 );
+            if ( halves.Length < 2 || halves[1].Split( ":line ", 2 ) is not [var path, var number] ) continue;
+
+            var call = halves[0];
+            if ( call.IndexOf( '(' ) is > 0 and var args ) call = call[..args];
+
+            var frame = new Frame( Readable( call ), $"{System.IO.Path.GetFileName( path )}:{number}" );
+            if ( list.Count == 0 || list[^1] != frame ) list.Add( frame );
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// Type.Method as it was written - the namespace left off, and what the compiler makes of a lambda or an async method
+    /// ("&lt;&gt;c__DisplayClass1_0", "&lt;&lt;Name&gt;b__1&gt;d", "MoveNext") back to the name it was given
+    /// </summary>
+    static string Readable( string call )
+    {
+        var names = new List<string>();
+        var made = false;
+
+        foreach ( var part in call.Split( '.' ) )
+        {
+            if ( part.StartsWith( '<' ) )
+            {
+                // "<Name>b__1" is Name; "<>c__DisplayClass" is nothing anyone wrote
+                var inner = part.TrimStart( '<' );
+                var name = inner.IndexOf( '>' ) is >= 0 and var end ? inner[..end] : inner;
+                if ( name.Length > 0 ) names.Add( name );
+                made = true;
+                continue;
+            }
+
+            // An async method's MoveNext, after its state machine - the method's already there
+            if ( made && part == "MoveNext" ) continue;
+
+            names.Add( part );
+            made = false;
+        }
+
+        return names.Count > 1 ? $"{names[^2]}.{names[^1]}" : names.FirstOrDefault() ?? call;
+    }
+
+    void Copy()
+    {
+        Clipboard.SetText( string.IsNullOrWhiteSpace( entry.Stack ) ? entry.Message : $"{entry.Message}\n{entry.Stack}" );
     }
 
     void Hide()
@@ -32,11 +168,11 @@
         StateHasChanged();
     }
 
-    public override void OnButtonEvent(ButtonEvent e)
+    public override void OnButtonEvent( ButtonEvent e )
     {
         if ( e.HasCtrl && e.Button == "a" && e.Pressed )
         {
-            Output.SelectAllInChildren();
+            Output?.SelectAllInChildren();
         }
     }
 }

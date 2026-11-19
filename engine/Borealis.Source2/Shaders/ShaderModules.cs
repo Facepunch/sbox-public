@@ -5,7 +5,7 @@ namespace Borealis.Source2.Shaders;
 /// <summary>
 /// Shaders drawn from source modules instead of their compiled programs: a <see cref="ShaderLibrary"/> asks it for each
 /// variant of a shader it has a module for (<see cref="ShaderLibrary.Modules"/>). The shader file still names the
-/// shader, its modes and its features; the stages come from the module. See docs/managed/shader-format-replacement.md
+/// shader, its modes and its features; the stages come from the module. See docs/reference/borealis-slang-materials.md
 /// ("Pass modules").
 /// </summary>
 public interface IShaderModules

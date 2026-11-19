@@ -3,7 +3,7 @@ namespace Sandbox.Rendering;
 /// <summary>
 /// Borealis's switches and its frame counters. A process drawing on Borealis.Gpu (<c>-borealisgpu</c>) renders every scene
 /// through Borealis (<see cref="SceneRenderer"/>); any other renders through native's scene system.
-/// See docs/managed/borealis.md, <i>The GameObject bridge</i>, and docs/managed/render-paths.md.
+/// See docs/reference/borealis.md, <i>The GameObject bridge</i>, and docs/reference/borealis-render-paths.md.
 /// </summary>
 internal static partial class ManagedSceneRendering
 {

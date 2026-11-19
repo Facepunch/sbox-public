@@ -40,6 +40,15 @@ internal static class CommandLine
 		}
 	}
 
+	internal static void AddSwitches( string commandLine, params string[] allowed )
+	{
+		foreach ( var (key, value) in Parse( commandLine ) )
+		{
+			if ( allowed.Contains( key, StringComparer.OrdinalIgnoreCase ) )
+				switches[key] = value;
+		}
+	}
+
 	/// <summary>
 	/// Parses a command line into a new dictionary of switches and values, without touching the
 	/// process command line.

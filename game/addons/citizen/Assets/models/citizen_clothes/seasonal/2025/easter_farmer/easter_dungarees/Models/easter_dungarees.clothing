@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 41243,
   "Icon": {
-    "Path": "models/citizen_clothes/seasonal/2025/easter_farmer/easter_dungarees/models/easter_dungarees.clothing.png",
+    "Path": "models/citizen_clothes/seasonal/2025/easter_farmer/easter_dungarees/models/easter_dungarees.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "-287.300415,0,-16.6999893"

@@ -116,6 +116,7 @@ public static class GameTask
 /// <summary>
 /// Provides a way for us to cancel tasks after common async shit is executed.
 /// </summary>
+[Expose]
 public struct TaskSource
 {
 	private static CancellationTokenSource currentGenerationCts => GlobalContext.Current.CancellationTokenSource;

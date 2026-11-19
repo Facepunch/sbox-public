@@ -1,5 +1,5 @@
 // The bindless set as s&box's shaders declare it (common/classes/Bindless.hlsl), with the Vulkan bindings vfx gives it:
-// set 4, t16 -> 62, s15 -> 29, u16 -> 190. See docs/managed/borealis-gpu.md.
+// set 4, t16 -> 62, s15 -> 29, u16 -> 190. See docs/reference/borealis-gpu.md.
 
 #ifndef BINDLESS_HLSLI
 #define BINDLESS_HLSLI

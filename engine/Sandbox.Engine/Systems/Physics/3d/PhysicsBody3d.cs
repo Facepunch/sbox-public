@@ -78,7 +78,11 @@ internal sealed partial class PhysicsBody3d : PhysicsBodyInternal, IHandle
 	public override Vector3 Velocity
 	{
 		get => native.GetLinearVelocity();
-		set => native.SetLinearVelocity( value );
+		set
+		{
+			native.SetLinearVelocity( value );
+			Dirty();
+		}
 	}
 
 	/// <summary>
@@ -87,7 +91,11 @@ internal sealed partial class PhysicsBody3d : PhysicsBodyInternal, IHandle
 	public override Vector3 AngularVelocity
 	{
 		get => native.GetAngularVelocity();
-		set => native.SetAngularVelocity( value );
+		set
+		{
+			native.SetAngularVelocity( value );
+			Dirty();
+		}
 	}
 
 	/// <summary>

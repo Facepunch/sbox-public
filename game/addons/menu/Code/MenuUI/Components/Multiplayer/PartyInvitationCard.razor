@@ -1,18 +1,66 @@
 @namespace MenuProject.MenuUI.Components.Multiplayer
 @inherits Panel
 
-<root>
-	<div class="invitation-summary">
-		<label class="invitation-name">@(Invitation?.Name ?? "#menu.party.party_invitation")</label>
-		<label class="invitation-details">@(string.IsNullOrWhiteSpace( Invitation?.GameTitle ) ? "#menu.party.deciding_together" : Invitation.GameTitle)</label>
-		@if ( Invitation is { Available: true } invitation )
+@*
+    A party shared in chat, as the party window has it - the game it's on, its name and leader, how many are in it,
+    then a strip saying what it's doing with the way in. Kept current while it's on screen (GlobalChatService), so it
+    reads as it is: open, in a game, full, yours, or gone.
+*@
+<root class="@State">
+	@if ( State == "gone" )
+	{
+		@* Over, or couldn't be reached - just a line saying so *@
+		<div class="invite-ended">
+			<i>event_busy</i>
+			<label>@(string.IsNullOrWhiteSpace( Invitation?.Name ) ? "This party has ended" : $"{Invitation.Name} has ended")</label>
+		</div>
+		return;
+	}
+
+	<div class="invite-head">
+		<div class="invite-art" style="@Art">
+			@if ( string.IsNullOrEmpty( Thumb ) )
+			{
+				<i>celebration</i>
+			}
+		</div>
+
+		<div class="invite-title">
+			<label class="invite-name">@(Invitation?.Name ?? "#menu.party.party_invitation")</label>
+			<div class="invite-game">
+				@if ( Invitation is { OwnerId: not 0 } owner )
+				{
+					<div class="invite-leader" style="background-image: url( avatar:@owner.OwnerId );"></div>
+				}
+				<label>@(string.IsNullOrWhiteSpace( Invitation?.GameTitle ) ? "#menu.party.deciding_together" : Invitation.GameTitle)</label>
+			</div>
+		</div>
+
+		@if ( Invitation is { Available: true } live )
 		{
-			<label class="invitation-details">@($"{invitation.Members}/{invitation.Capacity} players · {(invitation.IsFull ? "Party full" : invitation.IsPlaying ? "In game" : "Looking for players")}")</label>
+			<div class="invite-seats" tooltip="Members">
+				<i>person</i>
+				<label>@($"{live.Members}/{live.Capacity}")</label>
+			</div>
+		}
+	</div>
+
+	<div class="invite-foot">
+		<div class="invite-dot"></div>
+		<label class="invite-state">@StatusText</label>
+
+		<div class="invite-spacer"></div>
+
+		@if ( State == "yours" )
+		{
+			<div class="invite-note"><i>check</i><label>You're in it</label></div>
 		}
 		else
 		{
-			<label class="invitation-details">@(Invitation is null ? "#menu.party.checking_party" : "#menu.party.party_unavailable_ended_or_could_not_be_reached")</label>
+			<div class="invite-join @(JoinDisabled ? "disabled" : "")" onclick=@Join tooltip=@JoinTooltip>
+				<i>group_add</i>
+				<label>@JoinText</label>
+			</div>
 		}
 	</div>
-	<Button class="primary" disabled=@JoinDisabled onclick=@Join tooltip=@JoinTooltip>@(IsCurrentParty ? "#menu.party.your_party" : "#menu.party.join_party")</Button>
 </root>

@@ -1,4 +1,4 @@
-// borealis_shadow_tiles_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// borealis_shadow_tiles_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis sun cascades: the nearest and farthest caster depth in each 32x32 texel tile, widened by a tile, for lit shaders to skip the shadow filter.";

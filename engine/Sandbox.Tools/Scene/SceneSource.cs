@@ -77,7 +77,12 @@ internal static class SceneSource
 	internal static SceneFile LoadForPlay( SceneEditorSession editor )
 	{
 		if ( editor.HasUnsavedChanges || editor.Scene.Source is not SceneFile { ResourcePath: { Length: > 0 } } source )
-			return editor.Scene.CreateSceneFile();
+		{
+			// The navmesh bake on disk is of the scene as it was saved
+			var edited = editor.Scene.CreateSceneFile();
+			(edited.SceneProperties?["NavMesh"] as System.Text.Json.Nodes.JsonObject)?.Remove( "BakedDataPath" );
+			return edited;
+		}
 
 		try
 		{

@@ -11,6 +11,13 @@ public partial class TestGameMount : Sandbox.Mounting.BaseGameMount
 	public override string Ident => "testgame";
 	public override string Title => "Test Game";
 
+	public delegate void MountCallback( TestGameMount mount, MountContext context );
+
+	/// <summary>
+	/// Runs at the end of <see cref="Mount"/>, for tests that need the mount to do more.
+	/// </summary>
+	public static MountCallback OnMount;
+
 
 	protected override void Initialize( InitializeContext context )
 	{
@@ -30,6 +37,7 @@ public partial class TestGameMount : Sandbox.Mounting.BaseGameMount
 		context.Add( ResourceType.GameResource, "/surfaces/collision_b/shared.surface", new TestGameSurfaceResource() );
 
 		IsMounted = true;
+		OnMount?.Invoke( this, context );
 		return Task.CompletedTask;
 	}
 }

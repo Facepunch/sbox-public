@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // A friend asking you into their party - the menu's card, over everything, where questions pop up.
 // Its face, who's asking, their party's faces, and the friends list's no thanks and Join buttons
@@ -94,24 +94,15 @@ PartyInviteToast
 
 	.card
 	{
-		@include front-card;
+		@include platform-surface;
+		flex-shrink: 0;
+		overflow: hidden;
 
 		flex-direction: row;
 		align-items: center;
 		gap: 14px;
 		width: 100%;
 		padding: 14px 14px 14px 16px;
-
-		// Picked out from everything round it - a thick bright blue edge, and a glow that breathes
-		// while it's waiting on you. The edge is past 1, so it catches the bloom
-		border: 2px solid $front-primary * 2.6;
-		box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.7 ), 0 0 24px rgba( $front-primary, 0.5 );
-		animation: party-invite-glow 1.8s ease-in-out infinite alternate;
-
-		// Blue all over, not the page's grey - a deep blue fill, brightening towards the buttons, so
-		// it can't pass for one of the game tiles or panels round it
-		background-color: #14223d;
-		background-image: linear-gradient( 270deg, rgba( $front-primary, 0.45 ), rgba( $front-primary, 0.12 ) 75% );
 	}
 
 	// Light sweeping across the card, left to right, then a pause - on a loop. Behind the content,
@@ -130,20 +121,14 @@ PartyInviteToast
 
 	//
 	// More waiting - the next cards on the pile, each the card's full size, just further down and a
-	// little narrower, their edges lit in the menu blue like the card's, fading as they go back. Full
-	// size, so when the top card swipes off there's a whole card under it, not a stub
+	// little narrower, fading as they go back. Full size, so when the top card swipes off there's a
+	// whole card under it, not a stub
 	//
 
 	.peek
 	{
+		@include platform-surface;
 		position: absolute;
-		border-radius: $front-radius;
-
-		// The card's own blue, so the top of the pile turning into the next card is seamless
-		background-color: #14223d;
-		background-image: linear-gradient( 180deg, rgba( $front-primary, 0.15 ), rgba( $front-primary, 0.3 ) );
-		border: 1px solid rgba( $front-primary, 0.75 );
-		box-shadow: 0 8px 18px rgba( 0, 0, 0, 0.5 );
 	}
 
 	// Each further back is the card's box moved down (11, then 7 more each) and in (10 each side,
@@ -213,7 +198,7 @@ PartyInviteToast
 			align-items: center;
 			justify-content: center;
 			border-radius: 50%;
-			background-color: $front-primary;
+			background-color: $platform-primary;
 			border: 2px solid #14223d;
 
 			i
@@ -264,17 +249,12 @@ PartyInviteToast
 
 		.more
 		{
-			flex-shrink: 0;
-			align-items: center;
+			@include platform-chip;
 			justify-content: center;
 			min-width: 26px;
 			height: 26px;
-			padding: 0 6px;
-			border-radius: 999px;
-			background-color: rgba( 255, 255, 255, 0.07 );
-			font-size: 11px;
-			font-weight: 700;
-			color: $front-secondary;
+			font-size: 11.5px;
+			font-weight: 600;
 			text-align: center;
 		}
 	}
@@ -284,11 +264,11 @@ PartyInviteToast
 		margin-top: 2px;
 		font-size: 11px;
 		font-weight: 500;
-		color: $front-secondary;
+		color: $platform-muted;
 	}
 
 	//
-	// No thanks and Join - the friends list's square buttons, red and green
+	// No thanks and Join - square tools, Join the blue one
 	//
 
 	.actions
@@ -300,19 +280,11 @@ PartyInviteToast
 
 	.action
 	{
-		width: 34px;
-		height: 34px;
-		align-items: center;
-		justify-content: center;
-		border-radius: 8px;
-		cursor: pointer;
-		transition: all 0.12s ease;
+		@include platform-tool( 34px, 19px );
 
-		i
+		&:hover
 		{
-			width: 100%;
-			text-align: center;
-			font-size: 19px;
+			sound-in: "ui.button.over";
 		}
 
 		&:active
@@ -321,71 +293,14 @@ PartyInviteToast
 		}
 	}
 
-	.decline
+	.decline i
 	{
-		border: 1px solid rgba( $front-danger, 0.45 );
-		background-color: rgba( $front-danger, 0.12 );
-		box-shadow: 0 0 10px rgba( $front-danger, 0.3 );
-
-		i
-		{
-			color: $front-danger * 1.6;
-			text-shadow: 0 0 6px rgba( $front-danger, 0.8 );
-		}
-
-		&:hover
-		{
-			sound-in: "ui.button.over";
-			border-color: $front-danger * 1.6;
-			background-color: $front-danger;
-			box-shadow: 0 0 16px rgba( $front-danger, 0.6 );
-
-			i
-			{
-				color: #ffffff;
-				text-shadow: none;
-			}
-		}
+		color: $platform-danger;
 	}
 
 	.join
 	{
-		border: 1px solid rgba( $front-reward, 0.45 );
-		background-color: rgba( $front-reward, 0.12 );
-		box-shadow: 0 0 10px rgba( $front-reward, 0.35 );
-
-		i
-		{
-			color: $front-reward * 2;
-			text-shadow: 0 0 6px rgba( $front-reward, 0.9 );
-		}
-
-		&:hover
-		{
-			sound-in: "ui.button.over";
-			border-color: $front-reward * 2;
-			background-color: $front-reward;
-			box-shadow: 0 0 16px rgba( $front-reward, 0.7 );
-
-			i
-			{
-				color: #ffffff;
-				text-shadow: none;
-			}
-		}
-	}
-}
-
-@keyframes party-invite-glow
-{
-	0%
-	{
-		box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.7 ), 0 0 22px rgba( 47, 127, 240, 0.55 );
-	}
-
-	100%
-	{
-		box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.7 ), 0 0 48px rgba( 47, 127, 240, 1 );
+		@include platform-button-primary;
 	}
 }
 

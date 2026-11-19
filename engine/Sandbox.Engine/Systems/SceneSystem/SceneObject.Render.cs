@@ -53,6 +53,8 @@ public partial class SceneObject
 	static readonly uint StaticOverlayMatch = new StringToken( "StaticOverlayLayer" ).Value;
 	static readonly uint OverlayWithDepthMatch = new StringToken( "OverlayWithDepth" ).Value;
 	static readonly uint OverlayWithoutDepthMatch = new StringToken( "OverlayWithoutDepth" ).Value;
+	static readonly uint ToolOverlayMatch = new StringToken( "ToolOverlay" ).Value;
+	static readonly uint ToolScreenOverlayMatch = new StringToken( "ToolScreenOverlay" ).Value;
 
 	/// <summary>
 	/// A layer match (<c>CSceneObject::m_nLayerMatchID</c>) as Borealis knows it; its features decide membership.
@@ -63,6 +65,8 @@ public partial class SceneObject
 		if ( match == StaticOverlayMatch ) return Borealis.LayerMatch.StaticOverlay;
 		if ( match == OverlayWithDepthMatch ) return Borealis.LayerMatch.OverlayWithDepth;
 		if ( match == OverlayWithoutDepthMatch ) return Borealis.LayerMatch.OverlayWithoutDepth;
+		if ( match == ToolOverlayMatch ) return Borealis.LayerMatch.ToolOverlay;
+		if ( match == ToolScreenOverlayMatch ) return Borealis.LayerMatch.ToolScreenOverlay;
 		return Borealis.LayerMatch.Unsupported;
 	}
 
@@ -111,6 +115,8 @@ public partial class SceneObject
 			WriteLayerFlags( custom, flags );
 			custom.LayerMatch = LayerMatchFor( LayerMatchToken );
 		}
+
+		custom.RenderOrder = RenderOrder;
 	}
 
 	/// <summary>

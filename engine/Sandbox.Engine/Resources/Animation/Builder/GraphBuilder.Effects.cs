@@ -65,11 +65,12 @@ public sealed partial class GraphBuilder
 		Require( pitch, NodeKind.Float );
 		Require( yaw, NodeKind.Float );
 		Optional( settings.Weight, NodeKind.Float );
-		if ( string.IsNullOrWhiteSpace( settings.ReferenceBone ) || settings.Bones.Count is < 1 or > 255 )
+		var bones = settings.Bones.ToArray();
+		if ( string.IsNullOrWhiteSpace( settings.ReferenceBone ) || bones.Length is < 1 or > 255 )
 			throw new ArgumentException( "Look At requires a reference bone and between 1 and 255 chain bones.", nameof( settings ) );
 		var previousWeight = 1f;
 		var names = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
-		foreach ( var bone in settings.Bones )
+		foreach ( var bone in bones )
 		{
 			if ( string.IsNullOrWhiteSpace( bone.Bone ) || !names.Add( bone.Bone ) || !float.IsFinite( bone.Weight ) || bone.Weight < 0 || bone.Weight > previousWeight )
 				throw new ArgumentException( "Look At bones must be unique, ordered end-to-root, with descending weights in [0,1].", nameof( settings ) );
@@ -92,13 +93,13 @@ public sealed partial class GraphBuilder
 			definition.SetReferenceBoneID( native.InternID( IdString( settings.ReferenceBone ) ) );
 			definition.m_referenceRotation = new Rotation( rotation.x, rotation.y, rotation.z, rotation.w );
 			var nativeBoneIDs = definition.GetBoneIDs();
-			foreach ( var bone in settings.Bones )
+			foreach ( var bone in bones )
 			{
 				nativeBoneIDs.Add( native.InternID( IdString( bone.Bone ) ) );
 			}
 
 			var nativeWeights = definition.GetWeights();
-			foreach ( var bone in settings.Bones )
+			foreach ( var bone in bones )
 			{
 				nativeWeights.Add( bone.Weight );
 			}

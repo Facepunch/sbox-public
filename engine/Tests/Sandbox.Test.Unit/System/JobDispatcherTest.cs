@@ -301,6 +301,56 @@ public class JobDispatcherTest
 		JobDispatcher.Begin( 0, hits, static ( h, i ) => { } ).Join();
 	}
 
+	sealed class WaitCountingContext : SynchronizationContext
+	{
+		public int Waits;
+
+		public WaitCountingContext() => SetWaitNotificationRequired();
+
+		public override int Wait( IntPtr[] waitHandles, bool waitAll, int millisecondsTimeout )
+		{
+			Interlocked.Increment( ref Waits );
+			return base.Wait( waitHandles, waitAll, millisecondsTimeout );
+		}
+	}
+
+	[TestMethod]
+	public void JoinRunsWithoutTheCallersSyncContext()
+	{
+		var previous = SynchronizationContext.Current;
+		var context = new WaitCountingContext();
+		SynchronizationContext.SetSynchronizationContext( context );
+
+		try
+		{
+			// Items that outlast the caller's share, so the join blocks on the workers
+			var seen = new ConcurrentBag<bool>();
+			var handle = JobDispatcher.Begin( 8, seen, static ( s, i ) =>
+			{
+				s.Add( SynchronizationContext.Current is null );
+				Thread.Sleep( 10 );
+			}, itemsPerBatch: 1 );
+
+			// Starting can wait on the dispatcher's locks or its first-use setup, only the join is checked
+			context.Waits = 0;
+			handle.Join();
+
+			Assert.AreEqual( 8, seen.Count );
+			Assert.IsTrue( seen.All( x => x ), "jobs ran with a sync context" );
+			Assert.AreEqual( 0, context.Waits, "join waited through the sync context" );
+			Assert.AreSame( context, SynchronizationContext.Current );
+
+			// Put back after a throwing job too
+			Assert.ThrowsException<InvalidOperationException>( () =>
+				JobDispatcher.For( 8, 0, static ( _, i ) => { Thread.Sleep( 5 ); if ( i == 3 ) throw new InvalidOperationException(); }, itemsPerBatch: 1 ) );
+			Assert.AreSame( context, SynchronizationContext.Current );
+		}
+		finally
+		{
+			SynchronizationContext.SetSynchronizationContext( previous );
+		}
+	}
+
 	[TestMethod]
 	public void BeginStartsEvenOneItemOnAWorker()
 	{
@@ -333,21 +383,27 @@ public class JobDispatcherTest
 		Assert.IsTrue( watch.Elapsed.TotalSeconds < 10, $"took {watch.Elapsed.TotalSeconds:F1}s" );
 	}
 
-	[TestMethod]
+	/// <summary>
+	/// A warm call allocates nothing: its state comes from the pool, and the pool and the workers' queue only grow
+	/// when more calls are in flight than ever before.
+	/// </summary>
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void DoesNotAllocateAfterWarmup()
 	{
 		var sum = new long[1];
-		for ( int run = 0; run < 2000; run++ )
-			JobDispatcher.For( 256, sum, static ( s, i ) => Interlocked.Add( ref s[0], i ) );
+		var dispatches = 0;
 
-		var before = GC.GetAllocatedBytesForCurrentThread();
-		for ( int run = 0; run < 1000; run++ )
-			JobDispatcher.For( 256, sum, static ( s, i ) => Interlocked.Add( ref s[0], i ) );
-		var perRun = (GC.GetAllocatedBytesForCurrentThread() - before) / 1000.0;
+		// A loaded machine's workers lag behind, holding on to the batches and queue entries of calls that already
+		// joined: the sleep lets them catch up, so each pass measures a warm dispatcher rather than a growing one
+		Allocations.AssertSettles( "10 dispatches of 256 items", () =>
+		{
+			for ( int run = 0; run < 10; run++ )
+				JobDispatcher.For( 256, sum, static ( s, i ) => Interlocked.Add( ref s[0], i ) );
 
-		// The pool and queue only grow when more calls are in flight than ever before
-		Assert.IsTrue( perRun < 16, $"{perRun:F1} bytes per run" );
-		Assert.AreEqual( 3000L * (255 * 256 / 2), Interlocked.Read( ref sum[0] ) );
+			dispatches += 10;
+		}, beforePass: () => Thread.Sleep( 1 ) );
+
+		Assert.AreEqual( (long)dispatches * (255 * 256 / 2), Interlocked.Read( ref sum[0] ) );
 	}
 
 	[TestMethod]

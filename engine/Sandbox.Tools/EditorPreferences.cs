@@ -223,6 +223,15 @@ public static class EditorPreferences
 		set => EditorCookie.Set( "SceneView.BackfaceSelection", value );
 	}
 
+	/// <summary>Use Hammer's vertex-based partial selection instead of requiring complete object containment.</summary>
+	[Title( "Object Box Select Intersections" )]
+	[Description( "Select mesh/model objects with at least one vertex inside the box. Other components require their oriented bounds to fit inside." )]
+	public static bool BoxSelectIntersecting
+	{
+		get => EditorCookie.Get( "SceneView.BoxSelectIntersecting", false );
+		set => EditorCookie.Set( "SceneView.BoxSelectIntersecting", value );
+	}
+
 	/// <summary>
 	/// Use bounds when dragging in objects
 	/// </summary>

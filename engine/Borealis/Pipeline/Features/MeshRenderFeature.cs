@@ -6,7 +6,7 @@ namespace Borealis.Features;
 
 /// <summary>
 /// Sorts meshes and custom objects into layer run lists, instancing compatible neighbours.
-/// Membership and draw rules live in <c>MeshRenderFeature.Lists.cs</c>; native instancing is described in <c>docs/native/instancing.md</c>.
+/// Membership and draw rules live in <c>MeshRenderFeature.Lists.cs</c>; native instancing is described in <c>docs/reference/rendering.md</c>.
 /// </summary>
 internal sealed partial class MeshRenderFeature : RenderFeature
 {
@@ -502,7 +502,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				c.Bin ??= kept[index].Class.Bin ??= new Bin( custom );
 
 				var customDistance = (customRuns & DistanceSortedLists) != 0 ? TranslucentSortDistance( centers[index], extents[index], sortCamera ) : 0;
-				AddToLists( customRuns, k, index, c.Bin.Key, customDistance, !custom.IsOpaque, 0 );
+				AddToLists( customRuns, k, index, c.Bin.Key, customDistance, !custom.IsOpaque, custom.RenderOrder );
 				layers.Custom |= customRuns;
 				if ( custom.WantsFrameBufferCopy && !pass.IsShadow ) layers.FrameBufferReads |= customRuns & FrameBufferCopyingLists;
 				if ( custom.NeedsStencil && !pass.IsShadow ) layers.Stencil = true;

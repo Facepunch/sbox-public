@@ -17,6 +17,9 @@ public sealed class WebSurface : IDisposable
 	Action _initQueue;
 	bool _disposed;
 
+	readonly Sandbox.Engine.GlobalContext _context;
+	readonly System.Threading.CancellationToken _session;
+
 	uint BrowserId;
 
 	public bool IsLimited { get; private set; }
@@ -68,6 +71,13 @@ public sealed class WebSurface : IDisposable
 	internal WebSurface( bool isLimited )
 	{
 		IsLimited = isLimited;
+
+		if ( isLimited )
+		{
+			_context = Sandbox.Engine.GlobalContext.Current;
+			_session = _context.CancellationTokenSource?.Token ?? default;
+		}
+
 		_ = CreateAsync();
 	}
 
@@ -265,6 +275,16 @@ public sealed class WebSurface : IDisposable
 
 		var size = new Vector2( x.UnWide, x.UnTall );
 		_size = size;
+
+		if ( _context is null )
+		{
+			OnTexture?.Invoke( s, size );
+			return;
+		}
+
+		if ( _session.IsCancellationRequested ) return;
+
+		using var scope = new Sandbox.Engine.GlobalContext.GlobalContextScope( _context );
 		OnTexture?.Invoke( s, size );
 	}
 

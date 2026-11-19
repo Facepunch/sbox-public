@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // One kind of change in an update - a coloured heading, then its entries. The colour comes from
 // the kind (see the bottom), and paints the icon, the title and every entry's dot
@@ -28,8 +28,7 @@ PackageChangeSection
 
         .section-title
         {
-            @include front-section-label;
-            font-size: 11px;
+            @include platform-section-label;
         }
 
         .count
@@ -40,7 +39,7 @@ PackageChangeSection
             background-color: rgba( 255, 255, 255, 0.07 );
             font-size: 10px;
             font-weight: 700;
-            color: $front-secondary;
+            color: $platform-muted;
         }
     }
 
@@ -96,18 +95,18 @@ PackageChangeSection
     }
 
     // The kinds, each its own colour
-    &.add .kind-icon, &.add .section-title { color: $front-reward; }
+    &.add .kind-icon { color: $front-reward; }
     &.add .bullet { background-color: rgba( $front-reward, 0.7 ); }
 
-    &.improve .kind-icon, &.improve .section-title { color: $front-link; }
+    &.improve .kind-icon { color: $front-link; }
     &.improve .bullet { background-color: rgba( $front-link, 0.7 ); }
 
-    &.fix .kind-icon, &.fix .section-title { color: $front-trophy; }
+    &.fix .kind-icon { color: $front-trophy; }
     &.fix .bullet { background-color: rgba( $front-trophy, 0.7 ); }
 
-    &.remove .kind-icon, &.remove .section-title { color: $front-danger; }
+    &.remove .kind-icon { color: $front-danger; }
     &.remove .bullet { background-color: rgba( $front-danger, 0.7 ); }
 
-    &.knownissue .kind-icon, &.knownissue .section-title { color: #f08a3c; }
+    &.knownissue .kind-icon { color: #f08a3c; }
     &.knownissue .bullet { background-color: rgba( #f08a3c, 0.7 ); }
 }

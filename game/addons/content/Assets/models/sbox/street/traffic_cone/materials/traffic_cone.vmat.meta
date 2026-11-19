@@ -1,0 +1,30 @@
+{
+  "tags": [
+    "ModelMaterial"
+  ],
+  "guid": "0074005c-0065-006c-6500-670072006100",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Traffic Cone",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "traffic_cone",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/traffic_cone/materials/traffic_cone.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

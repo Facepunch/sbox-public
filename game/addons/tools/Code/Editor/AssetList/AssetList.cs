@@ -682,7 +682,7 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 	{
 		Action<string> CreateNew = ( string s ) =>
 		{
-			EditorUtility.CopyAsset( asset, s, true );
+			EditorUtility.CopyAsset( asset, s, overwrite: true, rebuildFromSource: true );
 
 			var copy = AssetSystem.RegisterFile( s );
 			MainAssetBrowser.Instance?.Local.UpdateAssetList();

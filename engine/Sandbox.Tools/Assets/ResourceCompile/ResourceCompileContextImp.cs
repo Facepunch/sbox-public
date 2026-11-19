@@ -346,6 +346,8 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 			return _context.CompileImmediately();
 		}
 
+		internal override Task<bool> CompileAsync() => ContentCompilerHost.CompileChild( Compile );
+
 		public override void SetInputData( string data )
 		{
 			_context.SetOverrideInputData( data );

@@ -2,7 +2,7 @@
 
 	<!--
 		Borealis.Gpu's sample: a Borealis.Sdl window rendering a clear, a triangle, textured meshes with depth and a compute
-		dispatch, and Borealis's renderer on top. Needs nothing of the engine. See docs/managed/borealis-gpu.md.
+		dispatch, and Borealis's renderer on top. Needs nothing of the engine. See docs/reference/borealis-gpu.md.
 	-->
 
 	<PropertyGroup>

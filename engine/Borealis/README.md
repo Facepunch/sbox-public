@@ -15,8 +15,8 @@ GameObject scene through Borealis; any other process renders through native's sc
 benchmarks.
 
 This README covers the project structure and development workflow. The
-[renderer reference](../../docs/managed/borealis.md) contains the implementation details,
-native equivalents, performance investigations and debugging history.
+[renderer reference](../../docs/reference/borealis.md) contains the implementation details and
+native equivalents, and [managed-renderer.md](../../docs/reference/managed-renderer.md) lists what breaks it.
 
 ## What it renders
 
@@ -141,7 +141,7 @@ that already exist before the batch. Early camera effects stay at their normal s
 ## Building and testing
 
 Run these commands from the repository root. Close BorealisLab and SceneLab before building because they lock the
-assemblies in `game/bin/managed`. See the [build guide](../../docs/architecture/build-system.md) for
+assemblies in `game/bin/managed`. See the [build guide](../../docs/reference/internals.md) for
 initial setup and native build options.
 
 ```powershell
@@ -165,7 +165,7 @@ comparison detects its absence.
 
 BorealisLab's render tests capture the lab presets on a Borealis.Gpu device and check them against Borealis's approved
 images in `engine/Tests/GoldenTruth/Borealis` (`-golden-truth`). `SboxBuild borealis-render-tests` runs the core suite;
-`-golden-truth-update` writes a capture as the approved image. See [borealis-host.md](../../docs/managed/borealis-host.md)
+`-golden-truth-update` writes a capture as the approved image. See [borealis-host.md](../../docs/reference/borealis-host.md)
 for the switches and output.
 
 Against native, compare a game launched with `-borealisgpu` with the same game launched without it. BorealisLab's
@@ -200,7 +200,7 @@ preparation, setup, recording, worker waits and submission.
 
 ## Development conventions
 
-Read the relevant section of the [renderer reference](../../docs/managed/borealis.md) before
+Read the relevant section of the [renderer reference](../../docs/reference/borealis.md) before
 changing a subsystem. When porting behavior, cite the native function or file in the code comment so
 the implementation can be checked against its source.
 
@@ -281,8 +281,9 @@ For incorrect frames, start with pass constants, resource dependencies, object f
 Use debug views to isolate shading terms and inspect the depth chain for depth-dependent effects.
 Check that the assets exist and that both renderers have comparable temporal history.
 
-The [renderer reference](../../docs/managed/borealis.md) records detailed investigations into
-color space, shadow behavior, skinning, material binding, bridge synchronization and parallel recording.
+The [renderer reference](../../docs/reference/borealis.md) covers color space, shadow behavior, skinning,
+material binding, bridge synchronization and parallel recording, and
+[managed-renderer.md](../../docs/reference/managed-renderer.md) lists the rules that matter most.
 
 Remaining work includes moving more camera effects into this renderer, threading main-view collection
 and preparation, and reducing per-draw overhead. Known gaps include morphs on meshes without a

@@ -27,12 +27,12 @@ public class ScaleEditorTool : EditorTool
 		var positions = nonSceneGos.Select( x => x.WorldPosition ).ToArray();
 		var centroid = positions.Aggregate( Vector3.Zero, ( sum, p ) => sum + p ) / positions.Length;
 
-		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
+		if ( Gizmo.WasLeftMousePressed || (!Gizmo.Pressed.Any && Gizmo.HasMouseFocus) )
 		{
 			startState.Clear();
 			scaleDelta = default;
 			handlePosition = centroid;
-			handleRotation = nonSceneGos.FirstOrDefault()?.WorldRotation ?? Rotation.Identity;
+			handleRotation = Gizmo.Settings.GlobalSpace ? WorkPlane.Current.Rotation : nonSceneGos.FirstOrDefault()?.WorldRotation ?? Rotation.Identity;
 			startBoundsSize = BBox.FromPoints( positions ).Size;
 			undoScope?.Dispose();
 			undoScope = null;
@@ -47,7 +47,7 @@ public class ScaleEditorTool : EditorTool
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
-			if ( Gizmo.Control.Scale( "scale", Vector3.Zero, out var delta, handleRotation ) )
+			if ( Gizmo.Control.UpdateScale( "scale", Vector3.Zero, out var delta, handleRotation ) )
 			{
 				scaleDelta += delta / 0.01f;
 
@@ -79,20 +79,26 @@ public class ScaleEditorTool : EditorTool
 						1.0f + snap.z / newSize
 					);
 
-					// In global space the gizmo scales along world axes, but an object's scale is along its own axes
-					var localFactor = Gizmo.Settings.GlobalSpace ? WorldToLocalScale( scaleFactor, go.WorldRotation ) : scaleFactor;
+					var localFactor = Gizmo.Settings.GlobalSpace ? WorldToLocalScale( scaleFactor, handleRotation.Inverse * go.WorldRotation ) : scaleFactor;
 
 					go.WorldScale = startScale * localFactor;
 
 					if ( scaleAsGroup )
 					{
-						go.WorldPosition = origin + (startPosition - origin) * scaleFactor;
+						var offset = handleRotation.Inverse * (startPosition - origin);
+						go.WorldPosition = origin + handleRotation * (offset * scaleFactor);
 					}
 
 					go.DispatchEdited( nameof( GameObject.LocalScale ) );
 					if ( scaleAsGroup ) go.DispatchEdited( nameof( GameObject.LocalPosition ) );
 				}
 			}
+			Gizmo.Draw.Scale( "scale", handleRotation );
+		}
+		if ( Gizmo.WasLeftMouseReleased )
+		{
+			undoScope?.Dispose();
+			undoScope = null;
 		}
 	}
 

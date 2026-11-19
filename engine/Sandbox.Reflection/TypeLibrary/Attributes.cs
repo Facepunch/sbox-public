@@ -9,7 +9,7 @@ public partial class TypeLibrary
 	/// </summary>
 	public IReadOnlyList<T> GetAttributes<T>() where T : Attribute
 	{
-		return Cached( HashCode.Combine( "GetAttributes", typeof( T ) ), () => typedata.Values.SelectMany( x => x.Attributes.OfType<T>() ).ToImmutableList() );
+		return Cached( HashCode.Combine( "GetAttributes", typeof( T ) ), this, static lib => lib.typedata.Values.SelectMany( x => x.Attributes.OfType<T>() ).ToImmutableList() );
 	}
 
 	/// <summary>
@@ -18,8 +18,8 @@ public partial class TypeLibrary
 	/// </summary>
 	public IReadOnlyList<(TypeDescription Type, T Attribute)> GetTypesWithAttribute<T>() where T : Attribute
 	{
-		return Cached( HashCode.Combine( "GetTypesWithAttribute", typeof( T ) ),
-					() => typedata.Values
+		return Cached( HashCode.Combine( "GetTypesWithAttribute", typeof( T ) ), this,
+					static lib => lib.typedata.Values
 									.SelectMany( type => type.Attributes.OfType<T>()
 															.Select( a => (Type: type, Attribute: a) )
 												)
@@ -33,9 +33,9 @@ public partial class TypeLibrary
 	/// </summary>
 	public IReadOnlyList<(TypeDescription Type, T Attribute)> GetTypesWithAttribute<T>( bool inherited ) where T : Attribute
 	{
-		return Cached( HashCode.Combine( "GetTypesWithAttributeB", typeof( T ), inherited ),
-			() => typedata.Values.SelectMany( type =>
-						(inherited ? type.Attributes : type.OwnAttributes)
+		return Cached( HashCode.Combine( "GetTypesWithAttributeB", typeof( T ), inherited ), (Library: this, Inherited: inherited),
+			static s => s.Library.typedata.Values.SelectMany( type =>
+						(s.Inherited ? type.Attributes : type.OwnAttributes)
 							.OfType<T>()
 							.Select( a => (type, a) ) )
 							.ToImmutableList()
@@ -58,8 +58,8 @@ public partial class TypeLibrary
 	/// </summary>
 	public IReadOnlyList<T> GetAttributes<T>( Type t ) where T : Attribute
 	{
-		return Cached( HashCode.Combine( "GetAttributesAssignable", typeof( T ), t ), () => typedata.Values
-					.Where( x => x.TargetType.IsAssignableTo( t ) )
+		return Cached( HashCode.Combine( "GetAttributesAssignable", typeof( T ), t ), (Library: this, Type: t), static s => s.Library.typedata.Values
+					.Where( x => x.TargetType.IsAssignableTo( s.Type ) )
 					.SelectMany( x => x.Attributes )
 					.OfType<T>().ToImmutableList() );
 	}

@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Couch Frame",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "couch_body",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/props/couch/couch_body.vmdl"
+      }
+    }
+  },
+  "guid": "45cde42f-90e7-437f-913c-6d283dfabf06"
+}

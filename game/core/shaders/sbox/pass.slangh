@@ -3,7 +3,7 @@
 // module's text and its includes' (Sandbox.ShaderCompiler.PassModule): DynamicCombo and StaticCombo (each a define, set
 // per compile, as vfx compiles each combo), Feature, and RenderState (the pixel stage's pipeline state, evaluated with
 // the combos). Entry points are [shader( "vertex" )] MainVs, [shader( "pixel" )] MainPs and [shader( "compute" )] MainCs,
-// each in its program's #if block (PROGRAM is 1, 2 or 6, as in vfx). See docs/managed/pass-modules.md.
+// each in its program's #if block (PROGRAM is 1, 2 or 6, as in vfx). See docs/reference/borealis-pass-modules.md.
 #ifndef SBOX_PASS_SLANGH
 #define SBOX_PASS_SLANGH
 
@@ -49,7 +49,7 @@
 #define ExpandPrimitives( ... )
 
 // A standalone module describes the shader itself, with no .shader_c read for it on Borealis.Gpu (one beside it is only Source
-// 2's renderer's): Mode( Name [, S_MODE_X] [, "fallback.shader"] ); for each mode, in order. See docs/managed/standalone-modules.md
+// 2's renderer's): Mode( Name [, S_MODE_X] [, "fallback.shader"] ); for each mode, in order. See docs/reference/borealis-standalone-modules.md
 #define Mode( ... )
 
 // GpuDrivenVariant( condition ): this stage also compiles with BOREALIS_GPU_DRIVEN 1 where the condition holds for its combos,

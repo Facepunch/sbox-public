@@ -59,7 +59,7 @@ internal static class PresetRun
 
 		// Lavapipe loses the blue of lit surfaces in single-sample targets; multisampled ones are right
 		if ( GoldenTruthRun.Device == "Lavapipe" && samples == 1 )
-			Log.Warning( "Borealis Lab: on Lavapipe, single-sample targets lose the blue of lit surfaces; capture with -msaa 4 (docs/managed/borealis-host.md)" );
+			Log.Warning( "Borealis Lab: on Lavapipe, single-sample targets lose the blue of lit surfaces; capture with -msaa 4 (docs/reference/borealis-host.md)" );
 
 		var captureFrame = Math.Max( 1, Args.Int( "-capture-frame", 10 ) );
 		var single = Args.String( "-capture" );

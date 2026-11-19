@@ -224,7 +224,7 @@ namespace Steamworks.Data
 		/// </summary>
 		internal async Task<Lobby[]> RequestAsync( CancellationToken ct )
 		{
-			if ( SteamMatchmaking.Internal is not { IsValid: true } )
+			if ( SteamMatchmaking.Internal == null || !SteamMatchmaking.Internal.IsValid )
 				return [];
 
 			using var cts = CancellationTokenSource.CreateLinkedTokenSource( ct );

@@ -1,3 +1,4 @@
+using Sandbox.Mounting;
 using System;
 
 namespace SceneTests.GameObjects;
@@ -192,6 +193,58 @@ public class RigidbodyTest
 
 		rb.MassOverride = 0f;
 		Assert.AreEqual( autoMass, rb.Mass, autoMass * 0.01f );
+	}
+
+	[DataTestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void ClonedPrefabPreservesMassOverrideWhenUnlocked( bool startEnabled )
+	{
+		var builder = new PrefabBuilder().WithName( $"test/rigidbody_mass_{startEnabled}.prefab" );
+		using ( builder.Scope() )
+		{
+			var root = new GameObject();
+			var rb = root.AddComponent<Rigidbody>();
+			rb.Gravity = false;
+			rb.MassOverride = 1500;
+			rb.Locking = new PhysicsLock { Pitch = true, Yaw = true, Roll = true };
+			var child = new GameObject( root );
+			child.AddComponent<BoxCollider>().Scale = new Vector3( 100 );
+		}
+
+		var prefab = builder.Create();
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		try
+		{
+			var source = SceneUtility.GetPrefabScene( prefab );
+			source.Enabled = false;
+			Assert.AreEqual( 0f, source.GetComponent<Rigidbody>( true ).Mass );
+
+			var clone = source.Clone( new CloneConfig { Transform = source.WorldTransform, StartEnabled = startEnabled } );
+			var body = clone.GetComponent<Rigidbody>( true );
+			Assert.AreEqual( 1500f, body.MassOverride );
+			if ( startEnabled )
+				Assert.AreEqual( 1500f, body.Mass, 0.01f );
+
+			body.Locking = default;
+			body.Tags.Add( "car" );
+			body.EnhancedCcd = true;
+			clone.SetParent( scene.CreateObject() );
+			clone.Enabled = true;
+			Assert.AreEqual( 1500f, body.Mass, 0.01f );
+
+			clone.Enabled = false;
+			clone.Enabled = true;
+			Assert.AreEqual( 1500f, body.Mass, 0.01f );
+			scene.GameTick();
+			Assert.AreEqual( 1500f, body.Mass, 0.01f );
+		}
+		finally
+		{
+			scene.Destroy();
+			PrefabBuilder.Destroy( prefab );
+		}
 	}
 
 	/// <summary>

@@ -3,6 +3,7 @@
 /// <summary>
 /// Allows storing files by hashed keys, rather than by actual filename. This is sometimes useful.
 /// </summary>
+[Expose]
 public sealed class KeyStore
 {
 	private BaseFileSystem _fs { get; set; }

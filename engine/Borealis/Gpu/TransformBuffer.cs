@@ -6,7 +6,7 @@ namespace Borealis.Gpu;
 
 /// <summary>
 /// Transforms and per-view instance IDs (<c>transform_buffer.fxc</c>). Views reference entries through <c>ids[first + i]</c>.
-/// See <c>docs/native/instancing.md</c>.
+/// See <c>docs/reference/rendering.md</c>.
 /// <para>
 /// Rigid meshes keep an entry between frames, in a slot that stays theirs while they're drawn, rewritten only when the world's
 /// entry version for them changes (<see cref="KeptSlotFor"/>), and aggregates a run of them, one per fragment

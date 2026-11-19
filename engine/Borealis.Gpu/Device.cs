@@ -10,7 +10,7 @@ namespace Borealis.Gpu;
 /// <summary>
 /// A Vulkan device: the queues work is submitted to, and owner of every resource made on it. Resources are named by
 /// handles and destroyed through <see cref="Destroy(BufferHandle)"/> and friends, which wait for the GPU to finish with
-/// them. See docs/managed/borealis-gpu.md.
+/// them. See docs/reference/borealis-gpu.md.
 /// </summary>
 public sealed unsafe partial class Device : IDisposable
 {

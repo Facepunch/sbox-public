@@ -6,6 +6,7 @@ namespace Sandbox;
 /// <summary>
 /// Allows querying of player button presses and other inputs.
 /// </summary>
+[Expose]
 public static partial class Input
 {
 	/// <summary>

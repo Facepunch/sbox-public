@@ -1,0 +1,144 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.MenuUI.Front;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    A line above the dock when a friend starts playing something, with a way to join them. One at a time, and only
+    while nothing's open over the front.
+*@
+<root class="@(Shown is not null && Clear ? "up" : "")">
+    @if ( Shown is { } news )
+    {
+        <div class="news" @key=@news.Id>
+            <div class="face" style="background-image: url( avatar:@news.Friend.Id );"></div>
+            <label class="name">@news.Friend.Name</label>
+            <label class="what">@($"started playing {news.Game}")</label>
+
+            @if ( news.Joinable )
+            {
+                <div class="join" onclick=@( () => Join( news ) )><label>Join</label></div>
+            }
+        </div>
+    }
+</root>
+
+@code
+{
+    readonly record struct News( int Id, Friend Friend, string Game, bool Joinable, RealTimeSince Queued );
+
+    const int MaxQueued = 3;
+
+    /// <summary>
+    /// How long each is up for, and how long one can wait for the front to be clear before it's not news any more
+    /// </summary>
+    const float ShownFor = 7;
+    const float StaleAfter = 45;
+
+    readonly Queue<News> queue = new();
+    News? Shown;
+    int nextId;
+    float shownFor;
+    RealTimeSince sinceHidden = 10;
+
+    /// <summary>
+    /// Only shown when nothing else is open over the front
+    /// </summary>
+    static bool Clear => PlatformRoot.Instance?.FrontClear ?? false;
+
+    void Join( News news )
+    {
+        MenuUtility.JoinFriendGame( news.Friend );
+        Hide();
+    }
+
+    void Hide()
+    {
+        Shown = null;
+        sinceHidden = 0;
+        StateHasChanged();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        CheckFriends();
+
+        if ( Shown is not null )
+        {
+            // The timer only runs while it can actually be seen
+            if ( Clear ) shownFor += RealTime.Delta;
+            if ( shownFor >= ShownFor ) Hide();
+            return;
+        }
+
+        if ( !Clear || sinceHidden < 0.8f ) return;
+
+        // Skip what went stale waiting, e.g. behind a shelf that was up for a while
+        News next;
+        do
+        {
+            if ( !queue.TryDequeue( out next ) ) return;
+        }
+        while ( next.Queued > StaleAfter );
+
+        Shown = next;
+        shownFor = 0;
+        StateHasChanged();
+    }
+
+    readonly Dictionary<ulong, string> friendGames = new();
+    bool friendsChecked;
+    RealTimeSince sinceFriendsChecked = 10;
+
+    void CheckFriends()
+    {
+        if ( sinceFriendsChecked < 3 ) return;
+        sinceFriendsChecked = 0;
+
+        // The first pass just records what everyone's playing. Nothing is queued while we're in a game either, so we
+        // don't come back to a pile of stale ones.
+        var announce = friendsChecked && (PlatformRoot.Instance?.Visible ?? false);
+
+        foreach ( var friend in RailPresence.Friends )
+        {
+            var game = GamePlaying( friend );
+            friendGames.TryGetValue( friend.Id, out var previous );
+            friendGames[friend.Id] = game;
+
+            if ( !announce || game is null || game == previous ) continue;
+
+            // You know what your own party's playing
+            if ( PartyView.Members.Any( x => x.Id == friend.Id ) ) continue;
+
+            // What's gone stale waiting makes way for what's new
+            while ( queue.TryPeek( out var waiting ) && waiting.Queued > StaleAfter )
+                queue.Dequeue();
+
+            if ( queue.Count >= MaxQueued ) continue;
+
+            var joinable = MenuHelpers.HasAuthority && PlatformMenu.CanChangeGame && !string.IsNullOrWhiteSpace( RailPresence.Get( friend, "connect" ) );
+            queue.Enqueue( new News( ++nextId, friend, game, joinable, 0 ) );
+        }
+
+        friendsChecked = true;
+    }
+
+    /// <summary>
+    /// The title of the game they're in, or null if they're on the menu, in the editor or not in s&amp;box
+    /// </summary>
+    static string GamePlaying( Friend friend )
+    {
+        if ( !RailPresence.IsOnline( friend ) || !RailPresence.IsPlayingThisGame( friend ) ) return null;
+        if ( RailPresence.Get( friend, "in_editor" ) == "1" ) return null;
+
+        var title = RailPresence.Get( friend, "gametitle" );
+        return string.IsNullOrWhiteSpace( title ) || title == "menu" ? null : title;
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Shown?.Id, Clear );
+}

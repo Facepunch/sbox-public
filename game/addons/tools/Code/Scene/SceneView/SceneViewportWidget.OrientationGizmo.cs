@@ -43,6 +43,7 @@ public partial class SceneViewportWidget
 
 	private Vector2 GizmoAxisScreenDir( Vector3 worldDir, out float depth )
 	{
+		worldDir = Session.WorkPlane.Rotation * worldDir;
 		var local = _activeCamera.WorldRotation.Inverse * worldDir;
 		depth = local.x;
 		return new Vector2( -local.y, -local.z );
@@ -53,11 +54,11 @@ public partial class SceneViewportWidget
 		var pos = _activeCamera.WorldPosition;
 		var fwd = _activeCamera.WorldRotation.Forward;
 
-		var plane = new Plane( Vector3.Up, 0f );
+		var plane = new Plane( Session.WorkPlane.Position, Session.WorkPlane.Rotation.Up );
 		if ( plane.TryTrace( new Ray( pos, fwd ), out var hit, twosided: true, maxDistance: 500f ) )
 			return hit;
 
-		return (pos + fwd * 500f).WithZ( 0f );
+		return plane.SnapToPlane( pos + fwd * 500f );
 	}
 
 	private bool UpdateOrientationGizmo( bool hasMouseFocus )
@@ -94,7 +95,7 @@ public partial class SceneViewportWidget
 		var suppressGizmoHover = cameraDragActive || _gizmoCameraDragWasActive;
 		_gizmoCameraDragWasActive = cameraDragActive;
 
-		_gizmoHovered = appActive && !suppressGizmoHover && (interacting || hasMouseFocus && (overBody || _gizmoHoveredAxis >= 0));
+		_gizmoHovered = appActive && !suppressGizmoHover && (interacting || !_gizmoLeftWasDown && hasMouseFocus && (overBody || _gizmoHoveredAxis >= 0));
 
 		var leftDown = Application.MouseButtons.HasFlag( MouseButtons.Left );
 
@@ -165,7 +166,8 @@ public partial class SceneViewportWidget
 
 	private void SnapToAxis( int axis )
 	{
-		var axisDir = GizmoAxes[axis];
+		var localAxis = GizmoAxes[axis];
+		var axisDir = Session.WorkPlane.Rotation * localAxis;
 		var gizmoPivot = ComputeOrbitPivot();
 
 		// If we're already looking down this axis, toggle between ortho/perspective
@@ -183,11 +185,11 @@ public partial class SceneViewportWidget
 
 		// Ensure 2D views always have X+ right
 		Vector3 up;
-		if ( axisDir.z > 0.5f ) up = Vector3.Left;
-		else if ( axisDir.z < -0.5f ) up = Vector3.Right;
+		if ( localAxis.z > 0.5f ) up = Vector3.Left;
+		else if ( localAxis.z < -0.5f ) up = Vector3.Right;
 		else up = Vector3.Up;
 
-		EnterOrthoView( axisDir, up, gizmoPivot, distance );
+		EnterOrthoView( axisDir, Session.WorkPlane.Rotation * up, gizmoPivot, distance );
 	}
 
 	internal void DrawOrientationGizmo()

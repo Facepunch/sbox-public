@@ -117,7 +117,7 @@ public sealed class WaterOverlay : Component, Component.ExecuteInEditor
 		if ( !body.IsValid() )
 			return;
 
-		using ( Gizmo.Scope() )
+		using ( Gizmo.PushScope() )
 		{
 			Gizmo.Transform = Projection( body );
 			var size = Footprint;

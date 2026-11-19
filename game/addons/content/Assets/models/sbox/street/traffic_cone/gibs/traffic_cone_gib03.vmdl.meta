@@ -1,0 +1,27 @@
+{
+  "guid": "db2c4352-3e6b-499d-b6fc-84eb95f4c908",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Traffic Cone Gib 03",
+      "Type": "model",
+      "Org": "local",
+      "Ident": "traffic_cone_gib03",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/traffic_cone/gibs/traffic_cone_gib03.vmdl"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

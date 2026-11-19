@@ -117,7 +117,27 @@ public class StyleSheetImportTest
 		var gameSheet = StyleSheet.FromFile( "unittest/a10-game-only.scss", null, true );
 		StyleSheet.ResetStyleSheets();
 
-		Assert.IsTrue( StyleSheet.Loaded.Contains( menuSheet ) );
-		Assert.IsFalse( StyleSheet.Loaded.Contains( gameSheet ) );
+		Assert.IsTrue( StyleSheet.AllLoaded.Contains( menuSheet ) );
+		Assert.IsFalse( StyleSheet.AllLoaded.Contains( gameSheet ) );
+	}
+
+	[TestMethod]
+	public void LoadedOnlyListsGameSheets()
+	{
+		StyleSheet menuSheet;
+		using ( GlobalContext.MenuScope() )
+		{
+			menuSheet = StyleSheet.FromInline( ".menu-only { color: red; }", "inline:loaded-menu-only" );
+		}
+
+		Assert.IsFalse( StyleSheet.Loaded.Contains( menuSheet ) );
+
+		using ( GlobalContext.MenuScope() )
+		{
+			Assert.IsFalse( StyleSheet.Loaded.Contains( menuSheet ) );
+			StyleSheet.Loaded.Clear();
+		}
+
+		Assert.IsTrue( StyleSheet.AllLoaded.Contains( menuSheet ) );
 	}
 }

@@ -1,4 +1,4 @@
-// tools_visualize_tangent_frame: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
+// tools_visualize_tangent_frame: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
 // beside it is only Source 2's renderer's.
 // The .shader's geometry stage draws each triangle corner's normal (or tangent and bitangent) as lines. Here the draw
 // runs two vertices per line for each vertex of the draw (ExpandPrimitives, the vertex as per-instance inputs): the same

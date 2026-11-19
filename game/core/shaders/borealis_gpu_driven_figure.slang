@@ -1,4 +1,4 @@
-// borealis_gpu_driven_figure: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// borealis_gpu_driven_figure: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis GPU-driven debug figure (borealislab -capture-visibility): replays a forward pass's multi-draws with pulled positions, writing a count per fragment, a flat colour per triangle, or edges.";

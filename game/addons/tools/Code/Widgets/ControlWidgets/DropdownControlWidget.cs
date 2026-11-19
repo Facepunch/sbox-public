@@ -6,6 +6,9 @@
 public abstract class DropdownControlWidget<T> : ControlWidget
 {
 	public override bool SupportsMultiEdit => true;
+	public override bool IsControlButton => true;
+	public override bool IsControlActive => base.IsControlActive || _menu.IsValid();
+	public override bool IsControlHovered => base.IsControlHovered || _menu.IsValid();
 
 	protected PopupWidget _menu;
 
@@ -52,6 +55,7 @@ public abstract class DropdownControlWidget<T> : ControlWidget
 	protected override void PaintControl()
 	{
 		var color = IsControlHovered ? Theme.Blue : Theme.TextControl;
+		if ( IsControlDisabled ) color = color.WithAlpha( 0.5f );
 		var rect = new Rect( 0, 0, Width, Theme.RowHeight ).Shrink( 8, 0 );
 
 		Paint.SetPen( color );
@@ -73,7 +77,9 @@ public abstract class DropdownControlWidget<T> : ControlWidget
 
 	public override void StartEditing()
 	{
-		if ( !_menu.IsValid )
+		if ( IsControlDisabled ) return;
+
+		if ( !_menu.IsValid() )
 		{
 			OpenMenu();
 		}
@@ -81,6 +87,8 @@ public abstract class DropdownControlWidget<T> : ControlWidget
 
 	protected override void OnMouseClick( MouseEvent e )
 	{
+		if ( IsControlDisabled ) return;
+
 		if ( e.LeftMouseButton && !_menu.IsValid() )
 		{
 			OpenMenu();
@@ -100,6 +108,8 @@ public abstract class DropdownControlWidget<T> : ControlWidget
 		_menu.Width = ScreenRect.Width;
 
 		var scroller = _menu.Layout.Add( new ScrollArea( this ), 1 );
+		scroller.NoSystemBackground = true;
+		scroller.TranslucentBackground = true;
 		scroller.Canvas = new Widget( scroller )
 		{
 			Layout = Layout.Column(),
@@ -107,10 +117,14 @@ public abstract class DropdownControlWidget<T> : ControlWidget
 		};
 
 		object[] entries = GetDropdownValues().ToArray();
+		var compact = true;
+		float height = 0;
 
 		foreach ( var o in entries )
 		{
 			var b = scroller.Canvas.Layout.Add( new MenuOption<T>( o, SerializedProperty ) );
+			compact &= b.IsCompact;
+			height += b.FixedHeight;
 			b.MouseLeftPress = () =>
 			{
 				OnItemSelected( o );
@@ -119,17 +133,24 @@ public abstract class DropdownControlWidget<T> : ControlWidget
 			};
 		}
 
+		scroller.Canvas.AdjustSize();
 		_menu.Position = ScreenRect.BottomLeft;
 		_menu.Visible = true;
 		_menu.AdjustSize();
 		_menu.ConstrainToScreen();
 		_menu.OnPaintOverride = PaintMenuBackground;
+
+		if ( compact && height > 0 && height < 200 )
+		{
+			scroller.FixedHeight = height;
+			_menu.FixedHeight = height;
+		}
 	}
 
 	bool PaintMenuBackground()
 	{
-		Paint.SetBrushAndPen( Theme.ControlBackground );
-		Paint.DrawRect( Paint.LocalRect, 0 );
+		Paint.SetBrushAndPen( Theme.ControlBackground, Theme.WidgetBackground, 1 );
+		Paint.DrawRect( Paint.LocalRect.Shrink( 1 ), 4 );
 		return true;
 	}
 
@@ -139,6 +160,8 @@ file class MenuOption<T> : Widget
 {
 	object info;
 	SerializedProperty property;
+	public bool IsCompact => info is not DropdownControlWidget<T>.Entry entry
+		|| (entry.Image is null && string.IsNullOrWhiteSpace( entry.Description ));
 
 	public MenuOption( object e, SerializedProperty p ) : base( null )
 	{
@@ -146,7 +169,11 @@ file class MenuOption<T> : Widget
 		property = p;
 
 		Layout = Layout.Row();
-		Layout.Margin = 8;
+		Layout.Margin = 0;
+		VerticalSizeMode = SizeMode.Default;
+		Cursor = CursorShape.Finger;
+		if ( IsCompact )
+			FixedHeight = Theme.RowHeight;
 
 		if ( e is DropdownControlWidget<T>.Entry entry )
 		{
@@ -170,13 +197,14 @@ file class MenuOption<T> : Widget
 			}
 			else if ( !string.IsNullOrWhiteSpace( entry.Icon ) )
 			{
-				Layout.Add( new IconButton( entry.Icon ) { Background = Color.Transparent, TransparentForMouseEvents = true, IconSize = 18 } );
+				Layout.AddSpacingCell( 4 );
+				Layout.Add( new IconButton( entry.Icon ) { Background = Color.Transparent, TransparentForMouseEvents = true, IconSize = 12, FixedSize = Theme.RowHeight } );
 			}
 
-			Layout.AddSpacingCell( 8 );
 			var c = Layout.AddColumn();
+			c.Margin = new Sandbox.UI.Margin( 8, 4 );
 			var title = c.Add( new Label( entry.Label ) );
-			title.SetStyles( "font-size: 12px; font-weight: bold; font-family: Poppins; color: white;" );
+			title.Color = Theme.Text;
 
 			if ( !string.IsNullOrWhiteSpace( entry.Description ) )
 			{
@@ -184,14 +212,15 @@ file class MenuOption<T> : Widget
 				desc.WordWrap = true;
 				desc.MinimumHeight = 1;
 				desc.MinimumWidth = 400;
+				desc.Color = Theme.Text.WithAlpha( 0.5f );
 			}
 		}
 		else
 		{
-			Layout.AddSpacingCell( 8 );
 			var c = Layout.AddColumn();
+			c.Margin = new Sandbox.UI.Margin( 8, 4 );
 			var title = c.Add( new Label( e.ToString() ) );
-			title.SetStyles( "font-size: 12px; font-weight: bold; font-family: Poppins; color: white;" );
+			title.Color = Theme.Text;
 		}
 	}
 
@@ -200,15 +229,16 @@ file class MenuOption<T> : Widget
 		if ( property.IsMultipleDifferentValues ) return false;
 
 		var value = property.GetValue<object>( default );
-		return value == info;
+		var itemValue = info is DropdownControlWidget<T>.Entry entry ? entry.Value : info;
+		return Equals( value, itemValue );
 	}
 
 	protected override void OnPaint()
 	{
 		if ( Paint.HasMouseOver || HasValue() )
 		{
-			Paint.SetBrushAndPen( Theme.Blue.WithAlpha( HasValue() ? 0.3f : 0.1f ) );
-			Paint.DrawRect( LocalRect.Shrink( 2 ), 2 );
+			Paint.SetBrushAndPen( Theme.Blue.WithAlpha( HasValue() ? 0.5f : 0.1f ) );
+			Paint.DrawRect( LocalRect );
 		}
 	}
 }

@@ -1,4 +1,4 @@
-// cmaa2: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
+// cmaa2: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: Description = "CMAA2 color composite";
 
 #include "sbox/pass.slangh"

@@ -165,7 +165,7 @@ public struct ParticleFloat : IJsonConvert, BytePack.ISerializer
 		float d = Evaluation switch
 		{
 			EvaluationType.Life => delta,
-			EvaluationType.Frame => Random.Shared.Float( 0, 1 ),
+			EvaluationType.Frame => ParticleRandom.Shared.Float( 0, 1 ),
 			EvaluationType.Seed => randomFixed,
 			_ => delta,
 		};
@@ -345,7 +345,7 @@ public struct ParticleFloat : IJsonConvert, BytePack.ISerializer
 	[Obsolete, EditorBrowsable( EditorBrowsableState.Never )]
 	public float GetValue()
 	{
-		return Evaluate( Random.Shared.Float(), 3 );
+		return Evaluate( ParticleRandom.Shared.Float(), 3 );
 	}
 }
 

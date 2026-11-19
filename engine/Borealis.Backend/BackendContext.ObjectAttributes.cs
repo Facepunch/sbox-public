@@ -5,7 +5,7 @@ namespace Borealis.Backend;
 /// which its draws read over the pass's - the object's first, then its lighting's, then the context's. Nothing is copied
 /// into the context's attributes, so the pass state stays what it was and material objects keep their resolved pass
 /// bindings: a draw with another object's attributes changes only the bindings, constants and combos those attributes
-/// set (see <see cref="MaterialLayout.For"/>). See docs/managed/borealis-materials.md.
+/// set (see <see cref="MaterialLayout.For"/>). See docs/reference/borealis-materials.md.
 /// </summary>
 internal sealed partial class BackendContext
 {

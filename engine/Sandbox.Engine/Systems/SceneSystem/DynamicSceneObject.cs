@@ -99,6 +99,7 @@ public class SceneDynamicObject : SceneObject
 	// Native's Begin drops the vertices and sets the primitive type
 	void Begin( Graphics.PrimitiveType type, int vertices )
 	{
+		ThrowIfUndefined( type );
 		managedNative.Begin( (RenderPrimitiveType)type, vertices );
 		if ( ManagedVertices is null ) return;
 		ManagedVertices.Clear();
@@ -118,6 +119,12 @@ public class SceneDynamicObject : SceneObject
 		// one before the frame records. Other custom objects pick their materials as they draw
 		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu ) custom.NeedsStencil = gpu.NeedsStencil( ManagedMaterial );
 		WriteCustom( custom, change );
+	}
+
+	internal static void ThrowIfUndefined( Graphics.PrimitiveType type )
+	{
+		if ( !Enum.IsDefined( type ) )
+			throw new ArgumentOutOfRangeException( nameof( type ), $"Unknown primitive type {(int)type}" );
 	}
 }
 

@@ -3,7 +3,7 @@
 	<!--
 		Borealis on its own: boots only the part of the engine Borealis's Source 2 device needs (render device, filesystem,
 		resource, material, mesh and scene systems) and renders a RenderWorld into a window or a texture. No game, UI,
-		physics, sound, Steam or editor. See docs/managed/borealis-host.md.
+		physics, sound, Steam or editor. See docs/reference/borealis-host.md.
 	-->
 
 	<PropertyGroup>

@@ -246,8 +246,6 @@ internal class EventSystem : IDisposable
 
 	internal EventList GetGroup( string name, bool create )
 	{
-		name = name.ToLower(); // TODO - hotload bug makes dict case senstitive
-
 		if ( Groups.TryGetValue( name, out var group ) )
 			return group;
 

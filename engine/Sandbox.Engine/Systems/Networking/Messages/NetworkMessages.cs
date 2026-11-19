@@ -59,6 +59,11 @@ struct ServerInfo
 	public string GamePackage { get; set; }
 
 	/// <summary>
+	/// The Workshop item used by the host's game, or zero for a game loaded from another source.
+	/// </summary>
+	public ulong GameWorkshopId { get; set; }
+
+	/// <summary>
 	/// Which version of the game's workshop item the host has (<see cref="Workshop.GetInstalledVersion"/>), or 0 if
 	/// it isn't installed from the workshop. Clients with a different one can't join.
 	/// </summary>

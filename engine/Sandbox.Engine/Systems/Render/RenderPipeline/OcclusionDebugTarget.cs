@@ -125,7 +125,7 @@ internal sealed class OcclusionDebugTarget : IDisposable
 	public void ReadCounts( IRenderContext context )
 	{
 		context.BufferBarrierTransition( grid.native, ComputeStage, TransferStage, WriteAccess, CopyAccess );
-		context.ReadBufferAsync( grid, onRead, 0, Header * sizeof( uint ) );
+		context.ReadBufferAsync( grid, onRead, 0, Header * sizeof( uint ), inline: true );
 	}
 
 	public uint this[Count count]

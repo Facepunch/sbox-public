@@ -1,0 +1,10 @@
+!/*.exe
+!/*.dll
+!/*.lib
+!/*.exp
+!/*.ilk
+!/*.pdb
+!/*.a
+!/*.so
+!/*.dbg
+!/*.dylib

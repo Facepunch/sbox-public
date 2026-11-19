@@ -29,6 +29,7 @@ public static partial class Graphics
 	public static void ResourceBarrierTransition<T>( GpuBuffer<T> buffer, ResourceState state ) where T : unmanaged
 	{
 		ArgumentNullException.ThrowIfNull( buffer );
+		ObjectDisposedException.ThrowIf( !buffer.IsValid, buffer );
 
 		Backend.ResourceBarrierTransition( buffer, state );
 	}
@@ -42,6 +43,7 @@ public static partial class Graphics
 	public static void ResourceBarrierTransition( GpuBuffer buffer, ResourceState state )
 	{
 		ArgumentNullException.ThrowIfNull( buffer );
+		ObjectDisposedException.ThrowIf( !buffer.IsValid, buffer );
 
 		Backend.ResourceBarrierTransition( buffer, state );
 	}
@@ -57,6 +59,7 @@ public static partial class Graphics
 	public static void ResourceBarrierTransition<T>( GpuBuffer<T> buffer, ResourceState before, ResourceState after ) where T : unmanaged
 	{
 		ArgumentNullException.ThrowIfNull( buffer );
+		ObjectDisposedException.ThrowIf( !buffer.IsValid, buffer );
 
 		Backend.ResourceBarrierTransition( buffer, before, after );
 	}
@@ -71,6 +74,7 @@ public static partial class Graphics
 	public static void ResourceBarrierTransition( GpuBuffer buffer, ResourceState before, ResourceState after )
 	{
 		ArgumentNullException.ThrowIfNull( buffer );
+		ObjectDisposedException.ThrowIf( !buffer.IsValid, buffer );
 
 		Backend.ResourceBarrierTransition( buffer, before, after );
 	}
@@ -106,6 +110,7 @@ public static partial class Graphics
 	public static void UavBarrier( GpuBuffer buffer )
 	{
 		ArgumentNullException.ThrowIfNull( buffer );
+		ObjectDisposedException.ThrowIf( !buffer.IsValid, buffer );
 
 		Backend.UavBarrier( buffer );
 	}

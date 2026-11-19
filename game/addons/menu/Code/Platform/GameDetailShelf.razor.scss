@@ -1,0 +1,789 @@
+@import "/Platform/_platform.scss";
+
+// Laid out by the ShelfPanel it's on, its full height - one panel (the platform-panel mixin) running down into the
+// dock: the gallery and what it says about itself on the left, what it is and the way in on the right, scrolling
+GameDetailShelf
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	height: 100%;
+	align-items: center;
+
+	> .panel
+	{
+		@include platform-panel;
+		flex-grow: 1;
+		width: 100%;
+		// Narrow enough that its gallery's no taller than the column beside it with a square capsule - the column the
+		// same, so the gallery's what's narrower
+		max-width: 1120px;
+	}
+
+	// Scrolling down - a column, so what's in it has the panel's width to lay out in
+	> .panel > .body
+	{
+		flex-direction: column;
+		padding: 4px 16px 56px 16px;
+		overflow-y: scroll;
+		scrollbar-width: thin;
+		scrollbar-color: $platform-faint transparent;
+	}
+
+	.overview
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 16px;
+	}
+
+	// Its votes in the bar, as the dock's own buttons - round-ended on its fill, the glyph its blue, the count bold
+	// white beside it
+	> .panel > .head PackageReactions
+	{
+		gap: 6px;
+
+		.group
+		{
+			gap: 6px;
+			border-radius: 0;
+			border: 0px solid transparent;
+			background-color: transparent;
+			overflow: visible;
+		}
+
+		.pill
+		{
+			height: 34px;
+			min-width: 34px;
+			padding: 0 14px 0 12px;
+			gap: 8px;
+			border-radius: $platform-pill;
+			background-color: $platform-button;
+			background-image: none;
+
+			icon
+			{
+				font-size: 18px;
+				color: $platform-icon;
+			}
+
+			label
+			{
+				font-family: $platform-font;
+				font-size: 13px;
+				font-weight: 700;
+				color: $platform-text;
+			}
+
+			&:hover
+			{
+				background-color: $platform-button-hover;
+			}
+
+			// Voted - the dock's open button
+			&.active
+			{
+				background-color: $platform-primary;
+				background-image: $platform-sheen-on;
+
+				icon, label
+				{
+					color: $platform-selected-text;
+				}
+			}
+		}
+	}
+
+	> .panel > .head .heading
+	{
+		.title.parent
+		{
+			color: $platform-muted;
+			cursor: pointer;
+			@include platform-sounds;
+
+			&:hover
+			{
+				color: white;
+			}
+		}
+
+		// Beside its name - gold when it's one of yours
+		.favourite
+		{
+			font-size: 20px;
+			color: $platform-faint;
+			cursor: pointer;
+			@include platform-sounds;
+
+			&:hover
+			{
+				color: white;
+			}
+
+			&.on
+			{
+				color: $front-trophy;
+			}
+		}
+
+		.sep
+		{
+			font-size: 15px;
+			color: $platform-faint;
+		}
+
+		.here
+		{
+			font-size: 15px;
+			font-weight: 700;
+			color: white;
+		}
+	}
+
+	// Its overview and its pages come in as they're gone to - in from a little way along, fading up. Each is a new one
+	// when it's gone to (keyed), so it comes in again every time.
+	.overview, .page
+	{
+		transition: opacity 0.18s ease-out, transform 0.22s ease-out;
+
+		&:intro
+		{
+			opacity: 0;
+			transform: translateX( 24px );
+		}
+	}
+
+	// The overview only fades up - opening the page, or back to it from one of its pages - not across
+	.overview:intro
+	{
+		transform: none;
+	}
+
+	.page
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+
+		AchievementList, PackageChanges
+		{
+			flex-shrink: 0;
+		}
+	}
+
+	.status
+	{
+		flex-grow: 1;
+		align-self: stretch;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.hero
+	{
+		flex-shrink: 0;
+		align-items: stretch;
+		gap: 16px;
+	}
+
+	.gallery
+	{
+		flex-grow: 1;
+		flex-basis: 0;
+		min-width: 0;
+		flex-direction: column;
+
+		Media
+		{
+			padding: 0;
+			gap: 0;
+		}
+
+		Media > .main
+		{
+			border-bottom-left-radius: 0;
+			border-bottom-right-radius: 0;
+		}
+
+		Media > .main:last-child
+		{
+			border-bottom-left-radius: 6px;
+			border-bottom-right-radius: 6px;
+		}
+
+		Media > .strip
+		{
+			align-self: stretch;
+			padding: 6px;
+			border-bottom-left-radius: 6px;
+			border-bottom-right-radius: 6px;
+			background-color: rgba( 0, 0, 0, 0.35 );
+		}
+
+		// Room round them to grow into under the pointer, without being cut off by the strip's scrolling
+		Media > .strip > .list
+		{
+			justify-content: flex-start;
+			padding: 3px;
+			height: 70px;
+		}
+
+		// The one up bright, the rest dimmed - a touch bigger under the pointer
+		Media > .strip > .list > .screenshot
+		{
+			border-radius: $platform-radius;
+			border: 0px solid transparent;
+			opacity: 0.45;
+			transform: scale( 1 );
+			transition: opacity 0.12s ease, filter 0.12s ease, transform 0.12s ease-out;
+
+			&:hover
+			{
+				transform: scale( 1.04 );
+			}
+
+			&.selected
+			{
+				opacity: 1;
+				outline: 0px solid transparent;
+			}
+		}
+	}
+
+	// What it says, as bright as its summary at the top of the info beside it - its bold a step brighter
+	PackageAbout PackageDescription
+	{
+		font-size: 13px;
+		color: $platform-muted;
+
+		*
+		{
+			color: $platform-muted;
+		}
+
+		b, strong
+		{
+			color: $platform-text;
+		}
+	}
+
+	// All of it, the page scrolling - not a box of its own that scrolls, as the game modal has it, so not faded out
+	// along its bottom as that box is when there's more in it
+	PackageAbout .body, PackageAbout .body.more
+	{
+		flex-grow: 0;
+		// A mask that shows all of it - "none" isn't taken as one, so the old box's fade stayed
+		mask-image: linear-gradient( to bottom, white 0%, white 100% );
+
+		> .scroll
+		{
+			position: relative;
+			top: auto;
+			left: auto;
+			right: auto;
+			bottom: auto;
+			overflow-y: visible;
+			padding-right: 0;
+		}
+	}
+
+	.info
+	{
+		width: 260px;
+		flex-shrink: 0;
+		flex-direction: column;
+		gap: 6px;
+
+		> .grow
+		{
+			flex-grow: 1;
+		}
+	}
+
+	// The game's art across the column, like Steam's capsule over its description - square, as a game's art is
+	.capsule
+	{
+		height: 260px;
+		flex-shrink: 0;
+		border-radius: $platform-radius;
+		background-color: $platform-panel;
+		background-size: cover;
+		background-position: center;
+	}
+
+	.title-block
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		margin-top: 4px;
+	}
+
+	// A fixed height for the layout, its label centred in it and let spill over it - not clipped, so it's drawn whatever
+	// the font's own line is
+	.line
+	{
+		flex-shrink: 0;
+		flex-direction: column;
+		justify-content: center;
+		overflow: visible;
+	}
+
+	.name-line
+	{
+		height: 32px;
+
+		// A long name a step smaller (GameDetailShelf.NameSize), and a very long one another - no further
+		&.long
+		{
+			height: 28px;
+
+			.name
+			{
+				font-size: 20px;
+			}
+		}
+
+		&.longer
+		{
+			height: 24px;
+
+			.name
+			{
+				font-size: 17px;
+			}
+		}
+	}
+
+	// One line - too long for it even at the smallest size, cut short, the whole of it in its tooltip
+	.name
+	{
+		flex-shrink: 0;
+		font-size: 24px;
+		font-weight: 800;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		color: white;
+	}
+
+	// The font's own line - already roomy, so nothing more on it
+	.summary
+	{
+		font-size: 13px;
+		color: $platform-text;
+	}
+
+	// Its facts, a row each, evenly apart
+	.kv
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 4px;
+		margin-top: 6px;
+
+		.kv-row
+		{
+			height: 20px;
+			flex-shrink: 0;
+			align-items: center;
+
+			&.link
+			{
+				cursor: pointer;
+				@include platform-sounds;
+
+				&:hover .v
+				{
+					color: white;
+				}
+			}
+		}
+
+		.k
+		{
+			width: 96px;
+			flex-shrink: 0;
+			font-size: 11px;
+			text-transform: uppercase;
+			color: $platform-faint;
+		}
+
+		.v
+		{
+			flex-grow: 1;
+			min-width: 0;
+			font-size: 12px;
+			color: $platform-muted;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+
+			&.link
+			{
+				color: $platform-steam-blue;
+			}
+		}
+	}
+
+	// Each as wide as what it says - not a third each, which cut "18 minutes ago" short
+	.record
+	{
+		gap: 16px;
+
+		.stat
+		{
+			flex-grow: 1;
+			flex-shrink: 0;
+			flex-direction: column;
+			gap: 2px;
+		}
+
+		.value
+		{
+			font-size: 14px;
+			font-weight: 700;
+			color: white;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+
+			&.none
+			{
+				color: $platform-faint;
+			}
+		}
+
+		.caption
+		{
+			@include platform-caps;
+			font-size: 10px;
+			color: $platform-faint;
+		}
+	}
+
+	// One row - as many as fit, then how many more (GameDetailShelf.FoldTags). All of them, wrapping, once that's pressed.
+	.tags
+	{
+		flex-shrink: 0;
+		flex-wrap: nowrap;
+		gap: 4px;
+		overflow: hidden;
+
+		&.open
+		{
+			flex-wrap: wrap;
+		}
+
+		.tag
+		{
+			height: 22px;
+			flex-shrink: 0;
+			align-items: center;
+			padding: 0 8px;
+			border-radius: 2px;
+			background-color: rgba( $platform-steam-blue, 0.16 );
+			font-size: 11px;
+			color: $platform-steam-blue;
+			white-space: nowrap;
+		}
+
+		.tag.more
+		{
+			background-color: rgba( 255, 255, 255, 0.06 );
+			color: $platform-muted;
+			cursor: pointer;
+			@include platform-sounds;
+
+			&:hover
+			{
+				color: white;
+				background-color: rgba( 255, 255, 255, 0.12 );
+			}
+		}
+	}
+
+	// How it's played and the way in, on a strip under the hero - Steam's own under its media. Not "strip", which is
+	// the gallery's own thumbnails.
+	.play-strip
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 16px;
+		// Right across the panel, out over the body's 16px either side - what's on it in again to line up with the rest
+		margin: 0 -16px;
+		padding: 10px 26px 10px 32px;
+		// Glowing out from its top left corner in the green of how it's played, a curve fading off across it - orange
+		// when your party's not what it's made for
+		background-color: rgba( 63, 209, 122, 0.12 );
+
+		&.mismatch
+		{
+			background-color: rgba( 255, 160, 60, 0.12 );
+		}
+
+		> .grow
+		{
+			flex-grow: 1;
+		}
+
+		.action
+		{
+			@include platform-button( 42px );
+			width: 220px;
+			flex-shrink: 0;
+			justify-content: center;
+			transition: background-color 0.12s ease;
+
+			i
+			{
+				font-size: 20px;
+			}
+
+			label
+			{
+				font-size: 14px;
+				font-weight: 700;
+			}
+
+			&.primary
+			{
+				@include platform-button-primary;
+			}
+
+			// The game you're on - said, not pressed
+			&.selected
+			{
+				background-color: rgba( $platform-primary, 0.16 );
+				cursor: default;
+
+				i, label
+				{
+					color: #7fb0ff;
+				}
+
+				&:hover
+				{
+					background-color: rgba( $platform-primary, 0.16 );
+				}
+			}
+		}
+
+		.strip-actions
+		{
+			flex-shrink: 0;
+			gap: 6px;
+		}
+
+		.action.subscribe
+		{
+			width: 150px;
+
+			&.on
+			{
+				i, label
+				{
+					color: $platform-good;
+				}
+			}
+		}
+	}
+
+	.mode
+	{
+		flex-shrink: 1;
+		min-width: 0;
+		align-items: center;
+		gap: 12px;
+
+		.mode-icon
+		{
+			width: 28px;
+			flex-shrink: 0;
+			align-items: center;
+			justify-content: center;
+
+			i
+			{
+				font-size: 26px;
+				color: $platform-good;
+			}
+		}
+
+		.mode-text
+		{
+			flex-grow: 1;
+			min-width: 0;
+			flex-direction: column;
+			gap: 2px;
+		}
+
+		.mode-title
+		{
+			font-size: 14px;
+			font-weight: 700;
+			color: white;
+		}
+
+		.mode-hint
+		{
+			font-size: 12px;
+			color: $platform-muted;
+		}
+
+		.mode-fit
+		{
+			width: 28px;
+			flex-shrink: 0;
+			align-items: center;
+			justify-content: center;
+
+			i
+			{
+				font-size: 22px;
+				color: $platform-good;
+			}
+		}
+
+		&.mismatch
+		{
+
+			.mode-icon i
+			{
+				color: #ffa03c;
+			}
+
+			.mode-fit i
+			{
+				color: #ffa03c;
+			}
+		}
+	}
+
+	.lower
+	{
+		flex-shrink: 0;
+		align-items: flex-start;
+		gap: 16px;
+
+		> .main
+		{
+			flex-grow: 1;
+			flex-basis: 0;
+			min-width: 0;
+			flex-direction: column;
+		}
+
+		> .side
+		{
+			width: 360px;
+			flex-shrink: 0;
+			flex-direction: column;
+			gap: 6px;
+		}
+	}
+
+	.block
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 10px;
+		padding: 12px 14px;
+		border-radius: 6px;
+		background-color: rgba( 255, 255, 255, 0.035 );
+		transition: background-color 0.12s ease;
+
+		&.link
+		{
+			cursor: pointer;
+			@include platform-sounds;
+
+			&:hover
+			{
+				background-color: rgba( 255, 255, 255, 0.07 );
+
+				.chevron
+				{
+					color: white;
+				}
+			}
+		}
+
+		.block-head
+		{
+			align-items: center;
+			gap: 8px;
+		}
+
+		.block-title
+		{
+			@include platform-caps;
+			color: $platform-muted;
+		}
+
+		.grow
+		{
+			flex-grow: 1;
+		}
+
+		.when
+		{
+			font-size: 12px;
+			color: $platform-faint;
+		}
+
+		.chevron
+		{
+			font-size: 18px;
+			color: $platform-faint;
+		}
+
+		.update-line
+		{
+			margin-top: -4px;
+			font-size: 13px;
+			color: $platform-text;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+	}
+
+	.achievements-link
+	{
+		PackageAchievementSummary
+		{
+			gap: 10px;
+		}
+
+		.ach-head .section-label
+		{
+			@include platform-caps;
+			color: $platform-muted;
+		}
+
+		.achievement-icon
+		{
+			width: 34px;
+			height: 34px;
+			border-radius: $platform-radius;
+			border: 0px solid transparent;
+		}
+	}
+
+}
+
+GameDetailShelf
+{
+	@include platform-verified;
+
+	// Just as wide as the name, so the tick's straight after it rather than at the row's end
+	.v.creator
+	{
+		flex-grow: 0;
+	}
+
+	.verified
+	{
+		margin-left: 4px;
+	}
+}

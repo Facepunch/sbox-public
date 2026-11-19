@@ -1,0 +1,32 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@* How many of something are in the cart - one less (out, at one), how many, one more. "N in cart" when Labelled. *@
+<root>
+    <div class="step" onclick=@( () => Cart.RemoveFromCart( Item ) ) tooltip="@(Count == 1 ? "Take it out" : "One less")"><i>@(Count == 1 ? "delete" : "remove")</i></div>
+
+    @if ( Labelled )
+    {
+        <div class="in"><i>shopping_cart</i><label>@Count in cart</label></div>
+    }
+    else
+    {
+        <label class="n">@Count</label>
+    }
+
+    <div class="step @(Count >= ShoppingCart.MaxPerItem ? "off" : "")" onclick=@( () => Cart.AddToCart( Item ) ) tooltip="One more"><i>add</i></div>
+</root>
+
+@code
+{
+    public ShoppingCart Cart { get; set; }
+    public Sandbox.Services.Inventory.ItemDefinition Item { get; set; }
+    public bool Labelled { get; set; }
+
+    int Count => Cart?.Count( Item ) ?? 0;
+
+    protected override int BuildHash() => HashCode.Combine( Item, Count, Labelled );
+}

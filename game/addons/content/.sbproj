@@ -1,0 +1,18 @@
+{
+  "Title": "Default Content",
+  "Type": "content",
+  "Org": "local",
+  "Ident": "content",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PublishUsedAssetsOnly": false,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": null,
+  "IsStandaloneOnly": false,
+  "AI": {
+    "EnableMcpCommunication": true
+  },
+  "Metadata": {}
+}

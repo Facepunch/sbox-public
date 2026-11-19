@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 ChatOverlay
 {
@@ -35,16 +35,71 @@ ChatOverlay
 
 		ChatPanel
 		{
-			background-color: rgba( $default-900, 0.9 );
-			backdrop-filter: blur( 10px );
-			border-radius: $rounding-large;
-			outline: 1px solid rgba( black, 0.3 );
+			@include platform-surface;
 		}
 	}
 
+	// In the platform's look - Poppins, the channel a blue chip, the box to type in a round-ended field, a line from
+	// the menu itself quieter than what people say
 	ChatPanel
 	{
 		flex-grow: 1;
-		padding: 10px;
+		padding: 12px;
+		gap: 10px;
+		font-family: $platform-font;
+
+		.channel-label
+		{
+			@include platform-chip;
+			height: 24px;
+			padding: 0 10px;
+			box-shadow: none;
+			font-size: 11px;
+			font-weight: 700;
+			letter-spacing: 1px;
+			color: $platform-icon;
+		}
+
+		.messages .chat-entry
+		{
+			gap: 8px;
+			padding: 2px 6px;
+			border-radius: $platform-radius;
+
+			.text
+			{
+				font-family: $platform-font;
+				text-shadow: none;
+			}
+
+			&.system
+			{
+				opacity: 1;
+
+				.name:empty
+				{
+					display: none;
+				}
+
+				.text
+				{
+					font-size: 13px;
+					font-weight: 500;
+					color: $platform-muted;
+				}
+			}
+		}
+
+		.input-bar
+		{
+			gap: 8px;
+
+			.textentry
+			{
+				@include platform-field( 38px );
+				flex-grow: 1;
+				font-family: $platform-font;
+			}
+		}
 	}
 }

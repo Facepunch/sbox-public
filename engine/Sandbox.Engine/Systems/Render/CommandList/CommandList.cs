@@ -1,10 +1,14 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Sandbox.Rendering;
 
-
+/// <summary>
+/// Records rendering commands for deferred playback on the render thread.
+/// </summary>
+[Expose]
 public sealed unsafe partial class CommandList
 {
 	readonly Lock _lock = new Lock();
@@ -98,6 +102,32 @@ public sealed unsafe partial class CommandList
 		}
 	}
 
+	// Struct payloads too big for an Entry, written here instead of boxed. Reused across Reset.
+	byte[] _payload = [];
+	int _payloadUsed;
+
+	/// <summary>
+	/// Add an entry with a struct payload, read back with <see cref="ReadPayload{T}"/>. Uses <see cref="Entry.Count"/>.
+	/// </summary>
+	void AddEntry<T>( delegate*< ref Entry, CommandList, void > execute, Entry data, in T payload ) where T : unmanaged
+	{
+		data.Execute = execute;
+
+		lock ( _lock )
+		{
+			var size = Unsafe.SizeOf<T>();
+			if ( _payloadUsed + size > _payload.Length )
+				Array.Resize( ref _payload, Math.Max( Math.Max( _payload.Length * 2, 256 ), _payloadUsed + size ) );
+
+			MemoryMarshal.Write( _payload.AsSpan( _payloadUsed ), in payload );
+			data.Count = _payloadUsed;
+			_payloadUsed += size;
+			_entries.Add( data );
+		}
+	}
+
+	T ReadPayload<T>( in Entry entry ) where T : unmanaged => MemoryMarshal.Read<T>( _payload.AsSpan( entry.Count ) );
+
 	[Obsolete]
 	RenderAttributes attributes => Graphics.Attributes;
 
@@ -164,6 +194,7 @@ public sealed unsafe partial class CommandList
 			managedDrawAttributes?.Clear( false );
 			currentDrawAttributes = null;
 			_entries.Clear();
+			_payloadUsed = 0;
 		}
 	}
 
@@ -333,9 +364,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.SetData( entry.Token, (T)entry.Object2 );
+			Graphics.Attributes.SetData( entry.Token, commandList.ReadPayload<T>( entry ) );
 		}
-		AddEntry( &Execute, new Entry { Token = token, Object2 = data } );
+		AddEntry( &Execute, new Entry { Token = token }, data );
 	}
 
 	[Obsolete]
@@ -1036,12 +1067,8 @@ public sealed unsafe partial class CommandList
 	public void SetGlobal( StringToken token, RenderTargetHandle.ColorIndexRef buffer ) => GlobalAttributes.Set( token, buffer );
 
 	/// <summary>
-	/// Binds the given render target's color texture to a stable, pipeline-level bindless slot
-	/// for this frame. This is how full-screen pipeline resources (ambient occlusion, screen-space
-	/// reflections) are published to the rest of the pipeline: consumers read a fixed descriptor
-	/// binding rather than a per-view render attribute. Because procedural layers build their
-	/// command lists on threaded jobs, writing the result index into the shared frame attributes
-	/// would race - this fixed slot is resolved single-threaded at submit, so it doesn't.
+	/// Publishes the color texture in the current view's pipeline slots.
+	/// Producers fill their slots without changing attributes while other layers record.
 	/// </summary>
 	internal void SetPipelineTexture( PipelineTextureSlot slot, RenderTargetHandle.ColorTextureRef buffer )
 	{
@@ -1063,7 +1090,8 @@ public sealed unsafe partial class CommandList
 			if ( Graphics.Backend is not Source2RenderBackend )
 				throw new NotSupportedException( "Pipeline textures (ambient occlusion's and reflections' results) need Source 2's device or Borealis.Gpu" );
 
-			NativeEngine.CSceneSystem.SetPipelineTextureIndex( (int)entry.Data1.x, target.ColorTarget.Index );
+			var offset = Graphics.Attributes.GetInt( "PipelineTextureOffset" );
+			NativeEngine.CSceneSystem.SetPipelineTextureIndex( offset, (int)entry.Data1.x, target.ColorTarget.Index );
 		}
 
 		// Dont write out of bounds of the pipeline slots

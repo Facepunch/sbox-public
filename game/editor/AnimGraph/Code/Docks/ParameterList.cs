@@ -229,11 +229,8 @@ public class ParameterList : Widget
 	{
 		var parameters = (_window.Graph?.Parameters.Cast<IParameter>() ?? [])
 			.Concat( _window.Graph?.VirtualParameters ?? [] );
-		var filter = _filter.Text?.Trim() ?? "";
-
-		var result = parameters.Where( p => string.IsNullOrEmpty( filter )
-			|| p.Name.Contains( filter, StringComparison.OrdinalIgnoreCase )
-			|| GroupTitle( GroupName( p ) ).Contains( filter, StringComparison.OrdinalIgnoreCase ) );
+		var filter = new KeywordFilter( _filter.Text?.Trim() ?? "" );
+		var result = parameters.Where( p => filter.Matches( p.Name, GroupTitle( GroupName( p ) ) ) );
 
 		result = _sortAscending switch
 		{

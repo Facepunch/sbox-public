@@ -14,19 +14,24 @@ public partial class PartyDeck
 	PartyDraft Draft;
 
 	bool IsPublic => Draft?.IsPublic ?? PartyView.IsPublic;
-	bool CanChangeSettings => Draft is not null ? !Draft.Creating : PartyView.OwnerIsMe;
 
-	internal static void OpenDraftWithGame( Package package, CreateGameResults settings )
+	/// <summary>
+	/// A new party's being set up in the window, not made yet
+	/// </summary>
+	internal static bool Drafting => Instance?.Draft is not null;
+
+	/// <summary>
+	/// Clicked off on the platform menu - a party you're in put away, a new one's setup given up on (not once it's being
+	/// made)
+	/// </summary>
+	internal static void PutAwayOnPlatform()
 	{
-		if ( !Instance.IsValid() ) throw new InvalidOperationException( Language.GetPhrase( "menu.party.party_settings_are_not_available_yet" ) );
-		if ( PartyView.Exists ) throw new InvalidOperationException( Language.GetPhrase( "menu.settings.you_are_already_in_a_party" ) );
-		if ( Instance.Draft?.Creating == true ) throw new InvalidOperationException( Language.GetPhrase( "menu.settings.your_party_is_being_created" ) );
+		ShownOnPlatform = false;
 
-		var draft = Instance.Draft ?? new PartyDraft();
-		draft.Game = package;
-		draft.GameSettings = settings;
-		_ = Instance.BeginCreate( draft.IsPublic, draft );
+		if ( Instance?.Draft is { Creating: false } draft )
+			draft.Cancel();
 	}
+	bool CanChangeSettings => Draft is not null ? !Draft.Creating : PartyView.OwnerIsMe;
 
 	async Task<bool> BeginCreate( bool isPublic, PartyDraft initialDraft = null, bool createImmediately = false )
 	{
@@ -72,6 +77,8 @@ public partial class PartyDeck
 			return;
 		}
 
+		KeepPlatformGame();
+
 		var partyId = MenuUI.Front.RailPresence.PartyId;
 		if ( settingsPartyId == partyId ) return;
 
@@ -84,11 +91,17 @@ public partial class PartyDeck
 		? IsPublic ? "#menu.party.public_party_click_to_make_invitation_only" : "#menu.party.private_party_click_to_let_anyone_join"
 		: IsPublic ? "#menu.party.public_party_anyone_can_join_only_the_leader_can_change_this" : "#menu.party.private_party_invitation_only_only_the_leader_can_change_this";
 
-	void OpenSettings()
+	/// <summary>
+	/// On the platform menu the party plays the game you're on - the game switcher picks it, so leading a party, its
+	/// game follows yours. Not while you're in a game, nor a project that isn't on the Workshop.
+	/// </summary>
+	static void KeepPlatformGame()
 	{
-		if ( !CanChangeSettings ) return;
-		SettingsOpen = true;
-		SettingsError = null;
+		if ( !PartyView.Exists || !PartyView.OwnerIsMe ) return;
+		if ( PartyView.LeaderState != PartyRoom.OwnerJoinState.None ) return;
+		if ( Platform.PlatformMenu.Current is not { IsRemote: true } current || PartyView.IsGameSelected( current ) ) return;
+
+		PartyView.SelectGame( current );
 	}
 
 	void ToggleSettings()

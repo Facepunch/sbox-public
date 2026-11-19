@@ -15,7 +15,7 @@ FEATURES
 {
     #include "common/features.hlsl"
     Feature( F_ALPHA_TEST, 0..1, "Rendering" );
-    Feature( F_FOLIAGE_ANIMATION, 0..1( 0 = "None", 1 = "Vertex Color Based" ), "Foliage Animation" );
+    Feature( F_FOLIAGE_ANIMATION, 0..2( 0 = "None", 1 = "Vertex Color Based", 2 = "Trunk Only" ), "Foliage Animation" );
     Feature( F_TRANSMISSIVE, 0..1, "Rendering" );
     Feature( F_GRAZING_FADE, 0..1, "Rendering" );    
 }
@@ -34,6 +34,8 @@ MODES
 COMMON
 {
     #include "common/shared.hlsl"
+
+    StaticCombo( S_FOLIAGE_ANIMATION, F_FOLIAGE_ANIMATION, Sys( ALL ) );
 }
 
 //=========================================================================================================================
@@ -42,7 +44,9 @@ struct VertexInput
 {
 	#include "common/vertexinput.hlsl"
 
-    float4 vColor				: COLOR0 < Semantic( Color ); >;
+    #if S_FOLIAGE_ANIMATION == 1
+        float4 vColor : COLOR0 < Semantic( Color ); >;
+    #endif
 };
 
 //=========================================================================================================================
@@ -50,8 +54,6 @@ struct VertexInput
 struct PixelInput
 {
 	#include "common/pixelinput.hlsl"
-
-    float4 vColor				: COLOR0;
 };
 
 //=========================================================================================================================
@@ -61,7 +63,10 @@ VS
 	#include "common/vertex.hlsl"
 	#include "common/trunk_bending.hlsl"
 
-    StaticCombo( S_FOLIAGE_ANIMATION, F_FOLIAGE_ANIMATION, Sys( ALL ) );
+    #if S_FOLIAGE_ANIMATION > 0
+        float g_flSwayStrength < Default( 1.0 ); Range( 0.0, 25.0 ); UiGroup( "Foliage Animation,20/Trunk" ); >;
+        float g_flSwaySpeed < Default( 1.0 ); Range( 0.0, 10.0 ); UiGroup( "Foliage Animation,20/Trunk" ); >;
+    #endif
 
     // Vertex Color
     #if S_FOLIAGE_ANIMATION == 1
@@ -70,10 +75,6 @@ VS
     float g_flEdgeAmplitude < Default( 0.1 ); Range( 0.0, 1.0 ); UiGroup( "Foliage Animation,10/Detail" ); >;
     float g_flBranchFrequency < Default( 0.5 ); Range( 0.1, 5.0 ); UiGroup( "Foliage Animation,10/Detail" ); >;
     float g_flBranchAmplitude < Default( 0.1 ); Range( 0.0, 1.0 ); UiGroup( "Foliage Animation,10/Detail" ); >;
-
-    // Trunk bending
-    float g_flSwayStrength < Default( 1.0 ); Range( 0.0, 25.0 ); UiGroup( "Foliage Animation,20/Trunk" ); >;
-    float g_flSwaySpeed < Default( 1.0 ); Range( 0.0, 10.0 ); UiGroup( "Foliage Animation,20/Trunk" ); >;
 
     float4 SmoothCurve( float4 x )
     {
@@ -137,29 +138,26 @@ VS
 	{
 		PixelInput o = ProcessVertex( i );
 
-        o.vColor = i.vColor;
-
-        float3 vNormalOs;
-        float4 vTangentUOs_flTangentVSign;
-
-        VS_DecodeObjectSpaceNormalAndTangent( i, vNormalOs, vTangentUOs_flTangentVSign );
-
+#if ( S_FOLIAGE_ANIMATION > 0 )
         float3 vPositionOs = i.vPositionOs.xyz;
-
         float3x4 matObjectToWorld = GetTransformMatrix( i.nInstanceTransformID );
-
-#if ( S_FOLIAGE_ANIMATION == 1 )
         float3 vWind = g_vWindDirection.xyz * g_vWindStrengthFreqMulHighStrength.x;
 
         // trunk bending
         ApplyTrunkBending( vPositionOs, g_flSwayStrength, g_flSwaySpeed, vWind, g_flTime );
 
-        // detail bending on top
+#if ( S_FOLIAGE_ANIMATION == 1 )
+        float3 vNormalOs;
+        float4 vTangentUOs_flTangentVSign;
+        VS_DecodeObjectSpaceNormalAndTangent( i, vNormalOs, vTangentUOs_flTangentVSign );
+
+        // Leaf detail needs vertex colors; trunk-only animation works with existing bark meshes.
         FoliageDetailBending( vPositionOs, vNormalOs, i.vColor.xyz, matObjectToWorld, vWind );
 #endif
 
         o.vPositionWs = mul( matObjectToWorld, float4( vPositionOs.xyz, 1.0 ) );
 	    o.vPositionPs.xyzw = Position3WsToPs( o.vPositionWs.xyz );
+#endif
 
 		// Add your vertex manipulation functions here
 		return FinalizeVertex( o );
@@ -205,6 +203,7 @@ PS
 	float g_flMinRoughness < Default( 0.5 ); Range( 0.0, 1.0 ); UiGroup( "Foliage" ); >;
 	float g_flNormalVariation < Default( 0.1 ); Range( 0.0, 0.5 ); UiGroup( "Foliage" ); >;
 	float g_flGrassNormalUp < Default( 0.0 ); Range( 0.0, 1.0 ); UiGroup( "Foliage" ); >;
+	float g_flSpecularOcclusion < Default( 0.0 ); Range( 0.0, 1.0 ); UiGroup( "Foliage" ); >;
 
 	#if S_GRAZING_FADE
 		float g_flGrazingFadeStart < Default( 0.5 ); Range( 0.0, 1.0 ); UiGroup( "Grazing Fade" ); >;
@@ -312,7 +311,7 @@ PS
 
 		Material m = Material::From( i );
 
-		// Specular occlusion
+		// Roughness floor
 		m.Roughness = max( m.Roughness, g_flMinRoughness );
 
 		// Grass normal
@@ -329,6 +328,16 @@ PS
 		}
 
 		float3 viewDir = normalize( g_vCameraPositionWs - m.WorldPosition );
+
+		// Preserve bark's view-dependent specular occlusion using the material AO.
+		if ( g_flSpecularOcclusion > 0.0 )
+		{
+			float NdotV = saturate( dot( m.Normal, viewDir ) );
+			float exponent = exp2( -16.0 * m.Roughness - 1.0 );
+			float occlusion = saturate( pow( NdotV + m.AmbientOcclusion, exponent ) - 1.0 + m.AmbientOcclusion );
+			m.AmbientOcclusion *= lerp( 1.0, occlusion, g_flSpecularOcclusion );
+		}
+
 		float dist = length( i.vPositionWithOffsetWs.xyz );
 		bool closeUp = dist < g_flDetailFadeDistance * 10.0f;
 

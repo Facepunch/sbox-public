@@ -1,0 +1,70 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.MenuUI.Front;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    Your friends, up out of the dock over its Friends button.
+    The friends list popup (FriendsListModal) stays for the old menu, and for inviting to a party.
+*@
+<root class="@(Open ? "open" : "")">
+
+    <div class="panel" @ref="PanelBox">
+        <PanelHead Title="Friends" Icon="group" Search="Search friends" OnSearch=@( ( string text ) => Rail?.SetSearch( text ) )>
+            <Tools>
+                @if ( !PartyView.Exists && !PartyDeck.Drafting )
+                {
+                    <div class="tool" onclick=@StartParty tooltip="Start a party"><i>group_add</i></div>
+                }
+                <div class="tool" onclick=@( () => PlatformRoot.Instance?.CloseSide() ) tooltip="Close"><i>close</i></div>
+            </Tools>
+        </PanelHead>
+
+        <FriendsRail @ref="Rail" PlayingTitle=@("In-game") />
+        <div class="flyout-arrow" @ref="Arrow"><div></div></div>
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// In - slid out of the way off the right when it isn't
+    /// </summary>
+    [Parameter] public bool Open { get; set; }
+
+    Panel PanelBox;
+    Panel Arrow;
+    FriendsRail Rail;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Centre it over the dock's Friends button, but keep it on screen
+        if ( Dock.FriendsAnchor is not { } button || !button.IsValid() || Parent is not { } area ) return;
+
+        var width = Box.Rect.Width * ScaleFromScreen;
+        var room = area.Box.Rect.Width * ScaleFromScreen;
+        var centre = (button.Box.Rect.Center.x - area.Box.Rect.Left) * ScaleFromScreen;
+
+        Style.Left = Length.Pixels( Math.Clamp( centre - width / 2, 16, Math.Max( 16, room - width - 16 ) ) );
+        Dock.PointAt( Arrow, button );
+    }
+
+    /// <summary>
+    /// The party's setup, up out of the dock where the friends list was - the dock's Friends button is the party's
+    /// from then on
+    /// </summary>
+    void StartParty()
+    {
+        PlatformRoot.Instance?.CloseSide();
+        PartyDeck.ShownOnPlatform = true;
+        _ = PartyDeck.EnsurePartyExists();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Open, PartyView.Exists, PartyDeck.Drafting );
+}

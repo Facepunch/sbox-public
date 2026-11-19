@@ -39,9 +39,12 @@ internal sealed class ParityRun
 		Folder = System.IO.Path.GetFullPath( Args.String( "-parity-out" ) ?? System.IO.Path.Combine( SceneLabWindow.OutputFolder(), "parity" ) );
 		System.IO.Directory.CreateDirectory( Folder );
 
-		var presets = string.IsNullOrWhiteSpace( sceneNames ) || sceneNames.StartsWith( '-' )
-			? SceneLabScene.Presets
-			: sceneNames.Split( ';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ).Select( Find ).Where( x => x is not null ).ToArray();
+		var names = string.IsNullOrWhiteSpace( sceneNames ) || sceneNames.StartsWith( '-' ) ? [] : sceneNames.Split( ';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
+		var found = names.Select( x => (Name: x, Scene: Find( x )) ).ToArray();
+		var presets = names.Length == 0 ? SceneLabScene.Presets : found.Where( x => x.Scene is not null ).Select( x => x.Scene ).ToArray();
+
+		// A misspelt or renamed preset fails the run, rather than quietly comparing less
+		foreach ( var (name, _) in found.Where( x => x.Scene is null ) ) results.Add( (name, new List<string> { "no such preset" }, true) );
 
 		foreach ( var scene in presets ) jobs.Add( new Job( scene ) );
 	}

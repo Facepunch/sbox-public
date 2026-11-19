@@ -25,11 +25,11 @@ public class VariationFloatNode : VariationDataNode<VariationFloatNode.Data>
 
 	public override Color PrimaryColor => Color.Parse( "#c678dd" ).Value;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			info.Name = $"Variation Float: {((Data)SelectedVariationData).Value:0.###}";
 			return info;
 		}

@@ -285,7 +285,7 @@ public class CharacterController : Component
 			return false;
 		}
 
-		//using ( Gizmo.Scope( "unstuck", WorldTransform ) )
+		//using ( Gizmo.PushScope( "unstuck", WorldTransform ) )
 		//{
 		//	Gizmo.Draw.Color = Gizmo.Colors.Red;
 		//	Gizmo.Draw.LineBBox( BoundingBox );

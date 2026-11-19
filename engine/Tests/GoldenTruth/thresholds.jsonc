@@ -1,0 +1,10 @@
+// How far a capture may be from its golden truth image before it fails, as a histogram of each pixel's largest channel
+// difference. With no rule matching, no pixel may be 3 or more off. The most specific rule wins: device beats API beats
+// platform beats image, and a bucket's own thresholds.jsonc (in Windows.Vulkan/Lavapipe/) beats this one on a tie.
+//
+// { "image": "AllShadows.png", "platform": "Windows", "api": "Vulkan", "device": "Lavapipe",
+//   "allow": { "1-2": 500, "3+": 0 }, "reason": "why this image needs slack" }
+//
+// Lavapipe renders the same pixels run to run, so its golden truth images start exact.
+[
+]

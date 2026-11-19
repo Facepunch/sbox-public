@@ -241,7 +241,7 @@ internal abstract class GpuContext : IDisposable
 	/// Write the view's descriptor set (<c>g_viewSet</c>) from this frame context's attributes - its fog, lighting config,
 	/// sun, clusters, lights, decals, shadows, volumes and light modulators, by their attribute names - and bind it for
 	/// everything recorded after, here and on the frame's segments. Once a frame, after all of them are set and before
-	/// anything reads them; later calls in the frame do nothing. See docs/managed/static-descriptor-sets.md.
+	/// anything reads them; later calls in the frame do nothing. See docs/reference/borealis-static-descriptor-sets.md.
 	/// </summary>
 	public virtual void WriteViewSet() { }
 

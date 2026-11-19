@@ -1,82 +1,170 @@
+@import "/Platform/_platform.scss";
 
-
+// A line's details - a card over the log's bottom right, in off its edges. As big as what's in it - wider for a long
+// message, taller for a long stack - up to most of the log's width and half its height, past which it scrolls.
+// The platform's panel bar (PanelHead), then what it said and its stack. Its level's colour on its glyph and words.
 console .logeventpanel
 {
-    background-color: #202022;
-    color: #fff;
-    border-radius: 3px;
-    box-shadow: 5px 5px 40px #000a;
-    padding: 0px;
-    white-space: nowrap;
-    position: relative;
-    overflow: hidden;
-    height: 200px;
-    transition: all 0.2s ease-in-out;
-    font-size: 11px;
-    font-weight: 600;
-}
+	position: absolute;
+	right: 8px;
+	bottom: 8px;
+	min-width: 360px;
+	max-width: 70%;
+	max-height: 50%;
+	z-index: 5;
+	flex-direction: column;
+	border-radius: 8px;
+	overflow: hidden;
+	background-color: $platform-button;
 
-console .logeventpanel.hidden
-{
-    height: 0px;
-}
+	&.hidden
+	{
+		display: none;
+	}
 
-console .logeventpanel .message
-{
-    flex-direction: column;
-    white-space: pre;
-    overflow: hidden;
-    flex-shrink: 0;
-    flex-grow: 0;
-    width: 100%;
-}
+	i
+	{
+		font-family: "Material Icons";
+	}
 
-console .logeventpanel .message > *
-{
-    flex-shrink: 0;
-}
+	PanelHead .heading .title
+	{
+		flex-shrink: 0;
+	}
 
-.message .text
-{
-    padding: 8px;
-}
+	// Who logged it, and when - quiet. When's in room of its own, so it ticking on doesn't move the tools.
+	PanelHead .logger, PanelHead .when
+	{
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		font-size: 12px;
+		color: $platform-faint;
+	}
 
-.message .stack
-{
-    overflow: hidden;
-    overflow-y: scroll;
-    flex-shrink: 0;
-    flex-grow: 1;
-    height: 200px;
-    flex-direction: column;
-}
+	PanelHead .logger
+	{
+		flex-shrink: 1;
+		min-width: 0;
+	}
 
-.message .stack > *
-{
-    flex-shrink: 0;
-    flex-grow: 1;
-    padding: 8px;
-}
+	PanelHead .when
+	{
+		flex-shrink: 0;
+		width: 64px;
+		margin-right: 4px;
+		text-align: right;
+	}
 
-console .logeventpanel .close
-{
-    position: absolute;
-    right: 5px;
-    top: 10px;
-    font-size: 20px;
-    cursor: pointer;
-    color: #ccc;
-    border-radius: 100px;
-    padding: 5px;
-    z-index: 1000;
+	// What it said, then its stack - scrolled together, in the log's own face
+	.details
+	{
+		flex-shrink: 1;
+		min-height: 0;
+		flex-direction: column;
+		gap: 2px;
+		padding: 2px 18px 16px 18px;
+		overflow-y: scroll;
+		scrollbar-color: $platform-faint transparent;
+		font-family: "Roboto Mono";
+		font-size: 12px;
 
-    &:hover
-    {
-        background-color: #fff2;
-    }
-}
+		> *
+		{
+			flex-shrink: 0;
+		}
+	}
 
-console .logeventpanel .message .stack
-{
-    opacity: 0.5;
+	.text
+	{
+		margin-bottom: 10px;
+		font-size: 13px;
+		font-weight: 600;
+		white-space: pre-wrap;
+	}
+
+	// The frames on a line down their left, a dot each
+	.trace
+	{
+		flex-direction: column;
+		padding-left: 20px;
+	}
+
+	// A frame - what was running, and its file and line under it, each on one line, cut short if it's long
+	.frame
+	{
+		position: relative;
+		flex-direction: column;
+		padding: 4px 0;
+
+		// Its piece of the line - from its dot down to the next one's, none after the last
+		> .line
+		{
+			position: absolute;
+			left: -16px;
+			top: 12px;
+			bottom: -12px;
+			width: 2px;
+			background-color: rgba( 255, 255, 255, 0.1 );
+		}
+
+		&.end > .line
+		{
+			display: none;
+		}
+
+		> .dot
+		{
+			position: absolute;
+			left: -19px;
+			top: 8px;
+			width: 8px;
+			height: 8px;
+			border-radius: 4px;
+			z-index: 1;
+			background-color: $platform-button-hover;
+		}
+
+		&.origin > .dot
+		{
+			background-color: $platform-icon;
+		}
+
+		.call, .where
+		{
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.call
+		{
+			color: $platform-text;
+		}
+
+		.where
+		{
+			font-size: 11px;
+			color: $platform-icon;
+		}
+	}
+
+	&.error
+	{
+		PanelHead .tile i { color: $platform-danger; }
+		.frame.origin > .dot { background-color: $platform-danger; }
+		.text { color: #ffc2c7; }
+	}
+
+	&.warn
+	{
+		PanelHead .tile i { color: $platform-warning; }
+		.frame.origin > .dot { background-color: $platform-warning; }
+		.text { color: #f8dcae; }
+	}
+
+	&.info .text
+	{
+		color: white;
+	}
 }

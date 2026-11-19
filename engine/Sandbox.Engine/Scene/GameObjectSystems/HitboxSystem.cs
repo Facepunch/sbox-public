@@ -1,4 +1,4 @@
-﻿
+
 namespace Sandbox;
 
 /// <summary>
@@ -117,7 +117,7 @@ sealed class HitboxSystem : GameObjectSystem<HitboxSystem>, GameObjectSystem.ITr
 
 	private void DrawDebug( ModelHitboxes hitboxes )
 	{
-		using var _ = Gizmo.Scope();
+		using var _ = Gizmo.PushScope();
 		Gizmo.Draw.Color = Color.Orange;
 
 		hitboxes.UpdatePositions();
@@ -130,7 +130,7 @@ sealed class HitboxSystem : GameObjectSystem<HitboxSystem>, GameObjectSystem.ITr
 
 	private void DrawDebug( ManualHitbox hitbox )
 	{
-		using var _ = Gizmo.Scope();
+		using var _ = Gizmo.PushScope();
 		Gizmo.Draw.Color = Color.Orange;
 
 		hitbox.UpdatePositions();
@@ -143,7 +143,7 @@ sealed class HitboxSystem : GameObjectSystem<HitboxSystem>, GameObjectSystem.ITr
 
 	private void DrawDebug( Hitbox hitbox )
 	{
-		using ( Gizmo.ObjectScope( hitbox, hitbox.Body.Transform ) )
+		using ( Gizmo.PushObjectScope( hitbox, hitbox.Body.Transform ) )
 		{
 			foreach ( var shape in hitbox.Body.Shapes )
 			{

@@ -30,7 +30,7 @@ public class NodeType : INodeType
 	{
 		TypeDescription = type;
 		DisplayInfo = type is not null
-			? DisplayInfo.ForType( type.TargetType )
+			? Node.GetTypeDisplayInfo( type.TargetType )
 			: new DisplayInfo();
 	}
 

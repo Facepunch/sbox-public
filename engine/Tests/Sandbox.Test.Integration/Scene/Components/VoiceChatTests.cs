@@ -75,7 +75,7 @@ public class VoiceChatTests
 
 		WithScene( ( scene, system ) =>
 		{
-			Preferences.VoiceEnabled = false;
+			Preferences.VoiceEnabledSetting = false;
 
 			system.Tick();
 			system.BroadcastPacket( Packet );
@@ -333,11 +333,11 @@ public class VoiceChatTests
 		var settings = ProjectSettings.Platform;
 
 		var previousEnabled = settings.VoiceChatEnabled;
-		var previousVoiceEnabled = Preferences.VoiceEnabled;
+		var previousVoiceEnabled = Preferences.VoiceEnabledSetting;
 		var previousVoiceMode = Preferences.VoiceMode;
 
 		settings.VoiceChatEnabled = true;
-		Preferences.VoiceEnabled = true;
+		Preferences.VoiceEnabledSetting = true;
 		Preferences.VoiceMode = VoiceMode.OpenMicrophone;
 
 		Scene scene = null;
@@ -359,7 +359,7 @@ public class VoiceChatTests
 			scene?.Destroy();
 
 			settings.VoiceChatEnabled = previousEnabled;
-			Preferences.VoiceEnabled = previousVoiceEnabled;
+			Preferences.VoiceEnabledSetting = previousVoiceEnabled;
 			Preferences.VoiceMode = previousVoiceMode;
 		}
 	}

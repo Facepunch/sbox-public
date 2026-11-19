@@ -107,6 +107,46 @@ public abstract class ResourceCompileContext
 	public abstract string ScanJson( string json );
 
 	/// <summary>
+	/// <see cref="ScanJson"/>, awaiting the embedded resources it generates (see <see cref="CompileChild"/>) rather than
+	/// blocking on them (<see cref="Child.CompileAsync"/>). They're compiled when it returns.
+	/// </summary>
+	internal async Task<string> ScanJsonAsync( string json )
+	{
+		deferred = [];
+		List<(Child Child, string Path)> children;
+		try
+		{
+			json = ScanJson( json );
+		}
+		finally
+		{
+			children = deferred;
+			deferred = null;
+		}
+
+		foreach ( var (child, path) in children )
+		{
+			if ( !await child.CompileAsync() ) Fail( $"Couldn't generate {path}" );
+		}
+		return json;
+	}
+
+	/// <summary>
+	/// Compiles a generated child now, or once <see cref="ScanJsonAsync"/> scanning it is done. False if it failed.
+	/// </summary>
+	internal bool CompileChild( Child child, string path )
+	{
+		if ( deferred is not null )
+		{
+			deferred.Add( (child, path) );
+			return true;
+		}
+		return child.Compile();
+	}
+
+	List<(Child Child, string Path)> deferred;
+
+	/// <summary>
 	/// Read the source, either from in memory, or from disk
 	/// </summary>
 	public abstract byte[] ReadSource();
@@ -196,6 +236,11 @@ public abstract class ResourceCompileContext
 	public abstract class Child
 	{
 		public abstract bool Compile();
+
+		/// <summary>
+		/// <see cref="Compile"/>, awaited where the compile can let its thread go meanwhile.
+		/// </summary>
+		internal virtual Task<bool> CompileAsync() => Task.FromResult( Compile() );
 		public abstract void SetInputData( string data );
 	}
 

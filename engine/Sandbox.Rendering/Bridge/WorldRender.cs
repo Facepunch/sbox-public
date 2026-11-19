@@ -665,7 +665,7 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 		mesh.LightProbeHandshake = sceneObject.ResolvesDraws ? 0 : SceneNative.LightProbeHandshake( sceneObject );
 
 		mesh.LayerMatch = SceneObject.LayerMatchFor( sceneObject.LayerMatchToken );
-		mesh.RenderOrder = mesh.LayerMatch == LayerMatch.StaticOverlay ? sceneObject.RenderOrder : 0;
+		mesh.RenderOrder = mesh.LayerMatch is LayerMatch.StaticOverlay or LayerMatch.ToolOverlay or LayerMatch.ToolScreenOverlay ? sceneObject.RenderOrder : 0;
 	}
 
 	/// <summary>

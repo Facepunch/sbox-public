@@ -9,7 +9,7 @@ namespace Sandbox.ShaderCompiler;
 /// points are <c>MainVs</c> and <c>MainPs</c>, or <c>MainCs</c>; it keeps the declarations of the <c>.shader</c> it was
 /// converted from (<c>DynamicCombo</c>, <c>StaticCombo</c>, <c>Feature</c>, <c>RenderState</c>), which
 /// <c>sbox/pass.slangh</c> compiles to nothing and the compiler reads here. Each combo is a define: a module compiles
-/// once per stage and combo values, as vfx compiles each combo. See docs/managed/shader-format-replacement.md.
+/// once per stage and combo values, as vfx compiles each combo. See docs/reference/borealis-slang-materials.md.
 /// </summary>
 public sealed partial class PassModule
 {

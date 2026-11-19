@@ -88,7 +88,7 @@ public sealed class WorldPanel : Renderer, IRootPanelComponent
 
 	protected override void DrawGizmos()
 	{
-		using ( Gizmo.Scope( null, new Transform( 0, Rotation.From( 0, 90, -90 ), Sandbox.UI.WorldPanel.ScreenToWorldScale ) ) )
+		using ( Gizmo.PushScope( null, new Transform( 0, Rotation.From( 0, 90, -90 ), Sandbox.UI.WorldPanel.ScreenToWorldScale ) ) )
 		{
 			var r = CalculateRect();
 

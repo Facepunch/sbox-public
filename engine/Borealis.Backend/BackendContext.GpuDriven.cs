@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 namespace Borealis.Backend;
 
 /// <summary>
-/// GPU-driven drawing (<see cref="BackendDevice.GpuDriven"/>, docs/managed/borealis-gpu-driven.md): a layer's aggregate
+/// GPU-driven drawing (<see cref="BackendDevice.GpuDriven"/>, docs/reference/borealis-gpu-driven.md): a layer's aggregate
 /// batches are sorted into buckets by what a multi-draw can't vary - the shader's GPU-driven variant, pipeline state
 /// and object attributes - and each bucket is one pipeline and set bind and one indirect multi-draw per index page. What
 /// the classic path binds per draw (vertex and index buffers, material constants and textures, the instance's transform)
@@ -1167,7 +1167,7 @@ internal sealed partial class BackendContext
 	ShaderAttributes hizAttributes;
 
 	/// <summary>
-	/// Two-phase Hi-Z occlusion's middle (docs/managed/borealis-gpu-driven.md, "Hi-Z occlusion"), between a prepass's first
+	/// Two-phase Hi-Z occlusion's middle (docs/reference/borealis-gpu-driven.md, "Hi-Z occlusion"), between a prepass's first
 	/// and second ids: <c>borealis_hiz_cs</c> builds the view's Hi-Z from the depth the first phase drew, then culls the
 	/// candidates the first phase's culls deferred against it, a thread each, into the second phase's multi-draws and listed
 	/// fragments, and the meshlet pass culls the listed ones. Where the depth target isn't the view's own (another size, an
@@ -1412,7 +1412,7 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
-	/// Whether a GPU-culled call culls meshlets (docs/managed/borealis-gpu-driven.md, "Meshlets"): a prepass that draws ids,
+	/// Whether a GPU-culled call culls meshlets (docs/reference/borealis-gpu-driven.md, "Meshlets"): a prepass that draws ids,
 	/// or with <see cref="BackendDevice.ShadowMeshlets"/> a shadow view's depth call, with no resident filter, while
 	/// <see cref="BackendDevice.Meshlets"/> is on and its pass module draws. Its culling then lists the fragments whose
 	/// draws have meshlets, and <c>borealis_meshlet_cull_cs</c> draws their kept meshlets.

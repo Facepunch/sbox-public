@@ -15,6 +15,7 @@ namespace Sandbox.Rendering;
 /// }
 /// </code>
 /// </example>
+[Expose]
 public sealed class ProfilingSampler
 {
 	/// <summary>

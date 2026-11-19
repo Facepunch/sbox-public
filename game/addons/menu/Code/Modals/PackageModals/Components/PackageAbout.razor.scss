@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // Its heading stays put, the description scrolls under it
 PackageAbout
@@ -10,7 +10,7 @@ PackageAbout
 
 	.section-label
 	{
-		@include front-section-label;
+		@include platform-section-label;
 		flex-shrink: 0;
 	}
 

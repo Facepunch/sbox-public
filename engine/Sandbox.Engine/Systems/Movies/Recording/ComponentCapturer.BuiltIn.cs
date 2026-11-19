@@ -255,6 +255,7 @@ file sealed class ParticleEffectCapturer : ComponentCapturer<ParticleEffect>
 		recorder.Property( nameof( ParticleEffect.Timing ) ).Capture();
 
 		recorder.Property( nameof( ParticleEffect.InitialVelocity ) ).Capture();
+		recorder.Property( nameof( ParticleEffect.AngularVelocity ) ).Capture();
 		recorder.Property( nameof( ParticleEffect.StartVelocity ) ).Capture();
 		recorder.Property( nameof( ParticleEffect.Damping ) ).Capture();
 		recorder.Property( nameof( ParticleEffect.ConstantMovement ) ).Capture();
@@ -402,6 +403,10 @@ file sealed class ParticleSpriteRendererCapturer : ComponentCapturer<ParticleSpr
 		recorder.Property( nameof( ParticleSpriteRenderer.CameraFadeFar ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.FogStrength ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.FaceVelocity ) ).Capture();
+		recorder.Property( nameof( ParticleSpriteRenderer.VelocityStretch ) ).Capture();
+		recorder.Property( nameof( ParticleSpriteRenderer.StretchTime ) ).Capture();
+		recorder.Property( nameof( ParticleSpriteRenderer.StretchLengthLimits ) ).Capture();
+		recorder.Property( nameof( ParticleSpriteRenderer.StretchFadeIn ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.RotationOffset ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.MotionBlur ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.LeadingTrail ) ).Capture();

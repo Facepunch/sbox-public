@@ -1,0 +1,27 @@
+{
+  "guid": "83e99c6b-f389-42c1-bb28-be0ff810923f",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Door Metal B",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "door_metal_b",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/doors/door_metal_b/door_metal_b.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

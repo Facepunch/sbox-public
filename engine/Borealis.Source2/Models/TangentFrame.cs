@@ -129,7 +129,8 @@ public static class TangentFrame
 		var sum = MathF.Abs( px ) + MathF.Abs( py );
 		if ( sum < 1.1920929e-7f ) return 0.5f; // FLT_EPSILON
 		var x = px / sum;
-		var sign = MathF.Sign( py );
+		// py == 0 must pick a side, as native's: Sign would encode (-1, 0) as (+1, 0)
+		var sign = py >= 0.0f ? 1.0f : -1.0f;
 		return -sign * 0.25f * x + 0.5f + sign * 0.25f;
 	}
 

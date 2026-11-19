@@ -1,0 +1,220 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@page "/shelf/unbox"
+@inherits ShelfPage
+
+@*
+    Opening your reward drop - its scene in a panel (UnboxView), the crate to knock open and then the cards to pick from,
+    with what's going on over the top of it. Made fresh each time it comes up out of the dock, and gone when it's put
+    away.
+*@
+<root class="@(Leaving ? "leaving" : "")">
+
+    <UnboxView @ref="View" class="view" />
+
+    <div class="overlay">
+
+        @if ( IsLoading )
+        {
+            <div class="center"><Spinner class="large" /></div>
+        }
+        else if ( Offer is null )
+        {
+            <div class="center">
+                <label class="title">#menu.rewards.nothing_to_open_right_now</label>
+                <label class="sub">#menu.rewards.jump_into_a_game_to_receive_your_reward_drop</label>
+                <div class="button" onclick=@Back><i>west</i><label>#menu.common.back</label></div>
+            </div>
+        }
+        else if ( ShowClaimBar && Result is not { Success: true } )
+        {
+            @* Just the one button - what to do next on it: pick one, then claim what's picked *@
+            <div class="bar">
+                <div class="button claim @(CanConfirm ? "primary" : "waiting")" onclick=@Confirm><i>@(CanConfirm ? "redeem" : "touch_app")</i><label>@ClaimText</label></div>
+            </div>
+        }
+
+    </div>
+
+</root>
+
+@code
+{
+    UnboxView View;
+
+    /// <summary>The offer being opened, claimed from the backend as it comes up.</summary>
+    RewardOffer Offer;
+
+    /// <summary>The result once the pick's committed, otherwise null.</summary>
+    RewardResult Result;
+
+    bool IsLoading;
+    bool IsChoosing;
+
+    /// <summary>The crate's open and the cards are out.</summary>
+    bool ShowClaimBar;
+
+    /// <summary>
+    /// Claimed - what's on it fades away (.leaving), then it's put away. The page itself stays: hidden, it'd be torn down
+    /// before it went.
+    /// </summary>
+    bool Leaving;
+
+    RewardCardSpawner CardSpawner;
+
+    /// <summary>
+    /// Which opening it's on - an offer that comes back after it's been put away and brought up again is the old one's
+    /// </summary>
+    int opening;
+
+    public override bool ToDock => true;
+
+    public override bool EdgeToEdge => true;
+
+    public override void OnShelfShown()
+    {
+        opening++;
+        Offer = null;
+        Result = null;
+        IsChoosing = false;
+        ShowClaimBar = false;
+        CardSpawner = null;
+        Leaving = false;
+        sceneWanted = true;
+
+        _ = LoadOffer( opening );
+    }
+
+    /// <summary>
+    /// Brought up, and its scene not made yet - it's made on its first tick, as the first time it's brought up the view
+    /// isn't there till it's been built
+    /// </summary>
+    bool sceneWanted;
+
+    protected override void TickShown()
+    {
+        // Put away - the scene goes with it, rather than ticking on down in the dock
+        if ( ShelfPanel.Of( this ) is { IsOpen: false } )
+        {
+            Stop();
+            return;
+        }
+
+        if ( sceneWanted && View.IsValid() )
+        {
+            sceneWanted = false;
+            View.Open();
+        }
+    }
+
+    protected override void OnHidden() => Stop();
+
+    void Stop()
+    {
+        sceneWanted = false;
+        if ( View?.RenderScene is null ) return;
+
+        opening++;
+        View.Close();
+    }
+
+    async Task LoadOffer( int mine )
+    {
+        IsLoading = true;
+        var offer = await MenuUtility.Rewards.ClaimReward();
+        if ( !IsValid || mine != opening ) return;
+
+        // The scene's made on the next tick - an offer can come back sooner
+        while ( sceneWanted && IsValid && mine == opening )
+            await GameTask.Yield();
+
+        if ( !IsValid || mine != opening ) return;
+
+        IsLoading = false;
+        Offer = offer;
+
+        if ( Offer is null || View?.RenderScene is not { } scene ) return;
+
+        // Its own screen UI was the old way of doing this - the page is that now
+        foreach ( var screen in scene.GetAll<ScreenPanel>().ToList() )
+            screen.GameObject.Destroy();
+
+        CardSpawner = scene.GetAll<RewardCardSpawner>().FirstOrDefault();
+        if ( CardSpawner is null ) return;
+
+        CardSpawner.Offer = Offer;
+        CardSpawner.OnSelectionChanged = ( _, _ ) => ShowClaimBar = true;
+        CardSpawner.OnCardsRevealed = () => ShowClaimBar = true;
+
+        // One burst for each rarity above Uncommon
+        if ( CardSpawner.Crate is not null && Offer.Items.Length > 0 )
+        {
+            CardSpawner.Crate.BurstRarities = Offer.Items
+                .Select( i => i.Rarity )
+                .Where( r => r > ItemRarity.Uncommon )
+                .Distinct()
+                .OrderBy( r => r )
+                .ToList();
+        }
+    }
+
+    string ClaimText
+    {
+        get
+        {
+            if ( IsChoosing ) return "#menu.rewards.claiming";
+            if ( !CanConfirm ) return Offer?.PickCount > 1 ? $"Pick {Offer.PickCount} rewards" : "Pick a reward";
+
+            var picked = CardSpawner.SelectedItems.Select( id => Offer.Items.FirstOrDefault( x => x.ItemDefId == id )?.Name ).Where( x => x is not null ).ToList();
+            return picked.Count == 1 ? $"Claim {picked[0]}" : "#menu.rewards.claim";
+        }
+    }
+
+    /// <summary>Once exactly as many as the offer allows are picked.</summary>
+    bool CanConfirm => Offer is not null && Result is null && !IsChoosing && CardSpawner is not null && CardSpawner.SelectedItems.Count == Offer.PickCount;
+
+    async void Confirm()
+    {
+        if ( !CanConfirm ) return;
+
+        var mine = opening;
+        IsChoosing = true;
+        CardSpawner.SelectionLocked = true;
+
+        var choice = new RewardChoice { DropId = Offer.DropId, ItemDefIds = CardSpawner.SelectedItems.ToArray() };
+        var result = await MenuUtility.Rewards.ChooseReward( choice );
+        if ( !IsValid || mine != opening ) return;
+
+        Result = result;
+        IsChoosing = false;
+
+        if ( !Result.Success ) return;
+
+        // The confetti, and the picked card pops as the rest shrink away
+        if ( View?.RenderScene is { } scene )
+        {
+            foreach ( var emitter in scene.GetAll<ParticleEmitter>() )
+                emitter.ResetEmitter();
+        }
+
+        CardSpawner?.Finish();
+
+        // A moment to see it, then it fades away and it's put away by itself
+        await GameTask.DelayRealtime( 900 );
+        if ( !IsValid || mine != opening ) return;
+
+        Leaving = true;
+
+        await GameTask.DelayRealtime( 900 );
+        if ( !IsValid || mine != opening ) return;
+
+        Back();
+    }
+
+    void Back() => PlatformRoot.Instance?.CloseAll();
+
+    protected override int ShownHash() => HashCode.Combine( IsLoading, Offer, Result, IsChoosing, ShowClaimBar, Leaving, CardSpawner?.SelectedItems?.Count );
+}

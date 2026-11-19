@@ -80,11 +80,8 @@ sealed class TerrainTraceSystem : GameObjectSystem<TerrainTraceSystem>, GameObje
 		if ( trace.IgnoreSingleObject.Contains( go ) )
 			return false;
 
-		for ( int i = 0; i < trace.IgnoreHierarchy.Length; i++ )
-		{
-			if ( go.IsAncestor( trace.IgnoreHierarchy[i] ) )
-				return false;
-		}
+		if ( trace.IgnoreHierarchy.ContainsAncestorOf( go ) )
+			return false;
 
 		return PassesTagFilter( go, trace.PhysicsTrace.request );
 	}

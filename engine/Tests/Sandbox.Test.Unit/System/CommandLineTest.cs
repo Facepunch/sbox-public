@@ -65,4 +65,21 @@ public class CommandLineTest
 		Assert.AreEqual( before, CommandLine.Full );
 		Assert.IsFalse( CommandLine.HasSwitch( "rungame" ) );
 	}
+
+	[TestMethod]
+	public void SteamLaunchSwitchesAreFiltered()
+	{
+		try
+		{
+			CommandLine.AddSwitches( "+connect 90071992547409920 +bind \"mouse1\" \"quit\" +voip_mode OpenMicrophone", "connect" );
+
+			Assert.AreEqual( "90071992547409920", CommandLine.GetSwitch( "connect", null ) );
+			Assert.IsFalse( CommandLine.HasSwitch( "bind" ) );
+			Assert.IsFalse( CommandLine.HasSwitch( "voip_mode" ) );
+		}
+		finally
+		{
+			CommandLine.GetSwitches().Remove( "connect" );
+		}
+	}
 }

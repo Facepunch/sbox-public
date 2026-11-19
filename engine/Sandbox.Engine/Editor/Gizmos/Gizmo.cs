@@ -27,7 +27,11 @@ public static partial class Gizmo
 	public static string Path
 	{
 		get => Active.scope.Path;
-		set => Active.scope.Path = value;
+		set
+		{
+			Active.scope.Path = value;
+			Active.scope.PathHash = HashString( value );
+		}
 	}
 
 	public static object Object
@@ -38,7 +42,7 @@ public static partial class Gizmo
 
 	public static SceneCamera Camera
 	{
-		get => Active.Input.Camera;
+		get => Active.IsPicking ? Active.current.Input.Camera : Active.Input.Camera;
 	}
 
 	public static bool IsHovered => HasHovered && Active.current.HoveredPath == Path;
@@ -46,20 +50,30 @@ public static partial class Gizmo
 	//public static bool IsParentHovered => HasHovered && Path.StartsWith( Active.current.HoveredPath );
 
 	public static bool IsSelected => HasSelected && ((Active.current.SelectedPath?.Contains( Path ) ?? false) || (Object is not null && Active.Selection.Contains( Object )));
-	public static bool IsChildSelected => HasSelected && (Active.current.SelectedPath?.Any( x => x.StartsWith( Path ) ) ?? false);
+	public static bool IsChildSelected
+	{
+		get
+		{
+			if ( Active.current.SelectedPath is not { Count: > 0 } selected ) return false;
+			foreach ( var path in selected )
+				if ( path.StartsWith( Path, StringComparison.Ordinal ) ) return true;
+			return false;
+		}
+	}
 	//public static bool IsParentSelected => HasSelected && (Active.current.SelectedPath?.Any( x => Path.StartsWith( x ) ) ?? false);
 
 	public static bool WasClicked => HasMouseFocus && IsHovered && Active.current.Click;
 
-	public static bool HasSelected => Active.current.SelectedPath?.Count > 0 || Active.Selection.Any();
+	public static bool HasSelected => Active.current.SelectedPath?.Count > 0 || Active.Selection.Count > 0;
 	public static bool HasHovered => !string.IsNullOrEmpty( Active.current.HoveredPath );
 
 	public static bool HasClicked => Active.current.Click;
 
-	public static bool HasMouseFocus => Active.Input.IsHovered;
+	public static bool HasMouseFocus => Active.current.Input.IsHovered;
 
 	internal static void BeginInstance( Instance instance )
 	{
+		Active?._renderer?.Flush();
 		Active = instance;
 
 		Draw.Color = Color.White;
@@ -73,9 +87,9 @@ public static partial class Gizmo
 
 	public static void EndInstance( Instance previous )
 	{
+		Draw.End();
 		Active.scope = default;
 		Active = previous;
-		Draw.End();
 	}
 
 	public static void Select( bool allowUnselect = true, bool allowMultiSelect = true )
@@ -83,9 +97,9 @@ public static partial class Gizmo
 		// If already selected - can deselect if holding down Ctrl
 		if ( allowUnselect && Active.current.Input.Modifiers.Contains( KeyboardModifiers.Ctrl ) )
 		{
-			if ( Active.builder.SelectedPath?.Contains( Path ) ?? false )
+			if ( Active.current.SelectedPath?.Contains( Path ) ?? false )
 			{
-				Active.builder.SelectedPath = Active.builder.SelectedPath.Remove( Path );
+				Active.current.SelectedPath = Active.current.SelectedPath.Remove( Path );
 				return;
 			}
 
@@ -99,11 +113,11 @@ public static partial class Gizmo
 		// If we're not multi selecting, clear the current selection
 		if ( !allowMultiSelect || (!Active.current.Input.Modifiers.Contains( KeyboardModifiers.Ctrl ) && !Active.current.Input.Modifiers.Contains( KeyboardModifiers.Shift )) )
 		{
-			Active.builder.SelectedPath = null;
+			Active.current.SelectedPath = null;
 			Active.Selection.Clear();
 		}
 
-		Active.builder.SelectedPath ??= ImmutableHashSet<string>.Empty;
+		Active.current.SelectedPath ??= ImmutableHashSet<string>.Empty;
 		if ( !string.IsNullOrWhiteSpace( Active.current.HoveredPath ) )
 		{
 
@@ -113,21 +127,32 @@ public static partial class Gizmo
 			}
 			else
 			{
-				Active.builder.SelectedPath = Active.builder.SelectedPath.Add( Active.current.HoveredPath );
+				Active.current.SelectedPath = Active.current.SelectedPath.Add( Active.current.HoveredPath );
 			}
 		}
 	}
 
+	/// <summary>Save drawing state until disposal. Dispose the returned scope once.</summary>
+	public static IDisposable Scope( string path, Transform tx ) => ScopeLease<ScopeHandle>.Rent( PushScope( path, tx ) );
+	/// <inheritdoc cref="Scope(string, Transform)"/>
+	public static IDisposable Scope( string path, Vector3 position ) => Scope( path, new Transform( position ) );
+	/// <inheritdoc cref="Scope(string, Transform)"/>
+	public static IDisposable Scope( string path, Vector3 position, Rotation rotation, float scale = 1.0f ) => Scope( path, new Transform( position, rotation, scale ) );
+	/// <inheritdoc cref="Scope(string, Transform)"/>
+	public static IDisposable Scope( string path = null ) => ScopeLease<ScopeHandle>.Rent( PushScope( path ) );
+	/// <inheritdoc cref="Scope(string, Transform)"/>
+	public static IDisposable ObjectScope<T>( T obj, Transform tx ) => ScopeLease<ScopeHandle>.Rent( PushObjectScope( obj, tx ) );
+
 	/// <summary>
 	/// Create a new scope - any changes to colors and transforms will be stored
 	/// and reverted when exiting the scope.
 	/// </summary>
-	public static IDisposable Scope( string path, Transform tx )
+	internal static ScopeHandle PushScope( string path, Transform tx )
 	{
 		var scope = BlankScope();
 
 		Transform = Transform.ToWorld( tx );
-		Path = $"{Path}/{path}";
+		Active.SetScopePath( path ?? "" );
 
 		return scope;
 	}
@@ -136,29 +161,23 @@ public static partial class Gizmo
 	/// Create a new scope - any changes to colors and transforms will be stored
 	/// and reverted when exiting the scope.
 	/// </summary>
-	public static IDisposable Scope( string path, Vector3 position ) => Scope( path, new Transform( position ) );
+	internal static ScopeHandle PushScope( string path, Vector3 position ) => PushScope( path, new Transform( position ) );
 
 	/// <summary>
 	/// Create a new scope - any changes to colors and transforms will be stored
 	/// and reverted when exiting the scope.
 	/// </summary>
-	public static IDisposable Scope( string path, Vector3 position, Rotation rotation, float scale = 1.0f ) => Scope( path, new Transform( position, rotation, scale ) );
+	internal static ScopeHandle PushScope( string path, Vector3 position, Rotation rotation, float scale = 1.0f ) => PushScope( path, new Transform( position, rotation, scale ) );
 
 	/// <summary>
 	/// Create a new scope - any changes to colors and transforms will be stored
 	/// and reverted when exiting the scope.
 	/// </summary>
-	public static IDisposable Scope( string path = null )
+	internal static ScopeHandle PushScope( string path = null )
 	{
-		if ( path == null )
-		{
-			var c = Active.scope.Create++;
-			path = $"Scope{c}";
-		}
-
+		var index = path is null ? Active.scope.Create++ : 0;
 		var scope = BlankScope();
-
-		Path = $"{Path}/{path}";
+		Active.SetScopePath( path, index );
 
 		return scope;
 	}
@@ -167,39 +186,28 @@ public static partial class Gizmo
 	/// Create a new scope - any changes to colors and transforms will be stored
 	/// and reverted when exiting the scope.
 	/// </summary>
-	public static IDisposable ObjectScope<T>( T obj, Transform tx )
+	internal static ScopeHandle PushObjectScope<T>( T obj, Transform tx )
 	{
 		Assert.NotNull( obj );
 
 		var scope = BlankScope();
 
 		Transform = Transform.ToWorld( tx );
-		Path = $"object-{obj.GetHashCode()}";
+		Active.SetScopePath( null, obj.GetHashCode(), objectScope: true );
 		Object = obj;
 
 		return scope;
 	}
 
-	internal static DisposeAction<ScopeState> BlankScope()
+	internal static ScopeHandle PushScope( string prefix, int id, Transform tx )
 	{
-		// no scope, lets just ignore it all
-		if ( Active is null )
-			return default;
-
-		var previousState = Active.scope;
-
-		Active.scope.Create = 0;
-
-		unsafe
-		{
-			static void RestoreScope( ScopeState previousState )
-			{
-				Active.scope = previousState;
-			}
-
-			return new DisposeAction<ScopeState>( &RestoreScope, previousState );
-		}
+		var scope = BlankScope();
+		Transform = Transform.ToWorld( tx );
+		Active.SetScopePath( prefix, id, numbered: true );
+		return scope;
 	}
+
+	internal static ScopeHandle BlankScope() => Active is null ? default : new ScopeHandle( Active );
 
 
 
@@ -227,7 +235,7 @@ public static partial class Gizmo
 		if ( GetPositionOnPlane( position, planeNormal, CurrentRay ) is not Vector3 a )
 			return Vector3.Zero;
 
-		if ( GetPositionOnPlane( position, planeNormal, PreviousRay ) is not Vector3 b )
+		if ( GetPositionOnPlane( position, planeNormal, Pressed.This && WasLeftMousePressed ? Pressed.Ray : PreviousRay ) is not Vector3 b )
 			return Vector3.Zero;
 
 		return (a - b) * Transform.Scale;
@@ -277,7 +285,7 @@ public static partial class Gizmo
 		var plane = new Plane( position, planeNormal );
 
 		var a = plane.Trace( CurrentRay.ToLocal( Transform ), true );
-		var b = plane.Trace( PreviousRay.ToLocal( Transform ), true );
+		var b = plane.Trace( (Pressed.This && WasLeftMousePressed ? Pressed.Ray : PreviousRay).ToLocal( Transform ), true );
 
 		if ( a == null ) return 0.0f;
 		if ( b == null ) return 0.0f;
@@ -291,12 +299,12 @@ public static partial class Gizmo
 	/// <summary>
 	/// The current cursor position, in screen space
 	/// </summary>
-	public static Vector2 CursorPosition => Active.previous.Input.CursorPosition;
+	public static Vector2 CursorPosition => Active.current.Input.CursorPosition;
 
 	/// <summary>
 	/// The delta of cursor movement between this frame and last, in screen space
 	/// </summary>
-	public static Vector2 CursorMoveDelta => Active.current.Input.CursorPosition - CursorPosition;
+	public static Vector2 CursorMoveDelta => CursorPosition - Active.previous.Input.CursorPosition;
 
 	/// <summary>
 	/// The delta of cursor movement between last press and now, in screen space.
@@ -313,9 +321,9 @@ public static partial class Gizmo
 	public static bool IsShiftPressed => KeyboardModifiers.Contains( KeyboardModifiers.Shift );
 	public static bool IsAltPressed => KeyboardModifiers.Contains( KeyboardModifiers.Alt );
 
-	public static bool WasLeftMouseReleased => Active.previous.Input.LeftMouse && !IsLeftMouseDown;
+	public static bool WasLeftMouseReleased => Active.MouseReleased;
 	public static bool IsLeftMouseDown => Active.current.Input.LeftMouse;
-	public static bool WasLeftMousePressed => IsLeftMouseDown && !Active.previous.Input.LeftMouse;
+	public static bool WasLeftMousePressed => Active.MousePressed;
 
 	public static bool WasRightMouseReleased => Active.previous.Input.RightMouse && !IsRightMouseDown;
 	public static bool IsRightMouseDown => Active.current.Input.RightMouse;

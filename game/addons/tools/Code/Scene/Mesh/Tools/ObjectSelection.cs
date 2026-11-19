@@ -366,7 +366,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 
 	public override Rotation CalculateSelectionBasis()
 	{
-		if ( GlobalSpace ) return Rotation.Identity;
+		if ( GlobalSpace ) return WorkPlane.Current.Rotation;
 
 		var mesh = _objects.FirstOrDefault();
 		return mesh.IsValid() ? mesh.WorldRotation : Rotation.Identity;
@@ -577,23 +577,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 
 	protected override void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
 	{
-		var selection = new HashSet<GameObject>();
-		var previous = new HashSet<GameObject>();
-
-		foreach ( var go in Scene.GetAllObjects( true ) )
-		{
-			// GetAllObjects starts with the scene itself, which encloses everything
-			if ( go == Scene ) continue;
-			if ( go.Tags.Has( "hidden" ) ) continue;
-
-			// Partial, otherwise you'd have to fit a whole block in the box to select it
-			if ( frustum.IsInside( GetDragBounds( go ), true ) )
-				selection.Add( go );
-			else
-				previous.Add( go );
-		}
-
-		ApplyDragSelection( selection, previous );
+		SelectObjectsInBox( frustum, isFinal );
 	}
 
 	private void DrawBounds()

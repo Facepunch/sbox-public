@@ -6,7 +6,7 @@
 //   kToolsPass 2, overdraw: a constant added per fragment (additive, no depth test)
 //   kToolsPass 3, quad overdraw: added per fragment, redder the fewer of its 2x2 quad's pixels the triangle covers
 //   kToolsPass 4, shader IDs: kToolsColor, shaded by the triangle's slope on screen
-// A standalone module: Borealis.Gpu draws it from here alone. See docs/managed/borealis.md (Debug views).
+// A standalone module: Borealis.Gpu draws it from here alone. See docs/reference/borealis.md (Debug views).
 #include "sbox/pass.slangh"
 
 Mode( Default );

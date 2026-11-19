@@ -142,7 +142,13 @@ public class ResourceCompilerThreadTests
 	[Timeout( 5000 )]
 	public void WorkerCompletionDoesNotNeedAQueuedContinuation()
 	{
-		var compiler = new CallbackCompiler( () => Task.Run( () => false ) );
+		// A thread of its own, not the pool's, which the tests running beside this one can starve
+		var compiler = new CallbackCompiler( () =>
+		{
+			var done = new TaskCompletionSource<bool>();
+			new Thread( () => done.SetResult( false ) ).Start();
+			return done.Task;
+		} );
 		Assert.IsFalse( compiler.CompileInternal() );
 	}
 

@@ -22,13 +22,14 @@ public class EnvmapProbeTool : EditorTool<EnvmapProbe>
 
 		using ( Gizmo.Scope( "EnvmapProbe Collider Editor", envmapProbe.WorldTransform ) )
 		{
-			if ( Gizmo.Control.BoundingBox( "Bounds", currentBounds, out var newBounds ) )
+			if ( Gizmo.Control.UpdateBoundingBox( "Bounds", currentBounds, out var newBounds ) )
 			{
 				_componentUndoScope ??= SceneEditorSession.Active.UndoScope( "Resize EnvmapProbe Bounds" )
 					.WithComponentChanges( envmapProbe ).Push();
 
 				envmapProbe.Bounds = newBounds;
 			}
+			Gizmo.Draw.BoundingBox( "Bounds", envmapProbe.Bounds );
 		}
 	}
 }

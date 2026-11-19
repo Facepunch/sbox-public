@@ -1,0 +1,30 @@
+{
+  "tags": [
+    "ModelMaterial"
+  ],
+  "guid": "fdb86453-a6f6-4316-9393-fe8fb6d62792",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Oil Drum Explosive",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "oil_drum_explosive",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/warehouse/oil_drums/materials/oil_drum_explosive.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

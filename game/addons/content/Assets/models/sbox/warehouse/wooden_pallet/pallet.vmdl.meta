@@ -1,0 +1,32 @@
+{
+  "guid": "06ffbc18-00fc-0000-aa00-000000000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Wooden Pallet",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "pallet",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/warehouse/wooden_pallet/pallet.vmdl",
+        "Summary": "",
+        "Description": "A wooden pallet usually used as a transport structure for goods",
+        "Public": true,
+        "ReplaceTags": "wood pallet industrial breakable",
+        "AssetLicense": "CC0"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}
